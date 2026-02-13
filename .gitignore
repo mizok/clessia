@@ -10,6 +10,10 @@
 .nx/cache
 .nx/workspace-data
 
+# Wrangler
+.wrangler
+**/node_modules
+
 # Node
 /node_modules
 npm-debug.log
