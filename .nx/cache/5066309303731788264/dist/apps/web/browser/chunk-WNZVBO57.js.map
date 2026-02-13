@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["apps/web/src/app/core/navigation.service.ts"],
+  "sourcesContent": ["import { Injectable, computed, inject } from '@angular/core';\nimport { AuthService } from './auth.service';\nimport { RoutesCatalog } from './smart-enums/routes-catalog';\n\nexport interface NavItem {\n  readonly label: string;\n  readonly icon: string;\n  readonly route: string;\n  readonly group?: string;\n  readonly badge?: number;\n}\n\n@Injectable({\n  providedIn: 'root',\n})\nexport class NavigationService {\n  private readonly auth = inject(AuthService);\n\n  readonly navItems = computed<NavItem[]>(() => {\n    const role = this.auth.activeRole();\n    if (!role) return [];\n\n    return RoutesCatalog.values\n      .filter((path) => !!path.role && path.role.role === role && path.showInMenu)\n      .map((path) => ({\n        label: path.label,\n        icon: path.icon,\n        route: path.absolutePath,\n        group: path.group,\n      }));\n  });\n}\n"],
+  "mappings": ";;;;;;;;;;;;;;;AAeM,IAAO,oBAAP,MAAO,mBAAiB;EACX,OAAO,OAAO,WAAW;EAEjC,WAAW,SAAoB,MAAK;AAC3C,UAAM,OAAO,KAAK,KAAK,WAAU;AACjC,QAAI,CAAC;AAAM,aAAO,CAAA;AAElB,WAAO,cAAc,OAClB,OAAO,CAAC,SAAS,CAAC,CAAC,KAAK,QAAQ,KAAK,KAAK,SAAS,QAAQ,KAAK,UAAU,EAC1E,IAAI,CAAC,UAAU;MACd,OAAO,KAAK;MACZ,MAAM,KAAK;MACX,OAAO,KAAK;MACZ,OAAO,KAAK;MACZ;EACN,GAAC,GAAA,YAAA,CAAA,EAAA,WAAA,WAAA,CAAA,IAAA,CAAA,CAAA;;qCAfU,oBAAiB;EAAA;4EAAjB,oBAAiB,SAAjB,mBAAiB,WAAA,YAFhB,OAAM,CAAA;;;sEAEP,mBAAiB,CAAA;UAH7B;WAAW;MACV,YAAY;KACb;;;",
+  "names": []
+}

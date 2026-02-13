@@ -1,0 +1,1567 @@
+{
+  "version": "6.0",
+  "nxVersion": "22.5.0",
+  "pathMappings": {
+    "@clessia/shared-types": [
+      "packages/shared-types/src/index.ts"
+    ],
+    "@clessia/validators": [
+      "packages/validators/src/index.ts"
+    ]
+  },
+  "nxJsonPlugins": [],
+  "fileMap": {
+    "nonProjectFiles": [
+      {
+        "file": ".editorconfig",
+        "hash": "4165385352547808172"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "12264811442034003576"
+      },
+      {
+        "file": ".vscode/extensions.json",
+        "hash": "5331566439708925252"
+      },
+      {
+        "file": ".vscode/launch.json",
+        "hash": "17038929134016848735"
+      },
+      {
+        "file": ".vscode/mcp.json",
+        "hash": "18312290508764663119"
+      },
+      {
+        "file": ".vscode/tasks.json",
+        "hash": "1370608409982315224"
+      },
+      {
+        "file": "AGENTS.md",
+        "hash": "10290729774734114451"
+      },
+      {
+        "file": "CLAUDE.md",
+        "hash": "4333729294227359813"
+      },
+      {
+        "file": "GEMINI.md",
+        "hash": "16709906987859823573"
+      },
+      {
+        "file": "PRD.md",
+        "hash": "12959824462294849896"
+      },
+      {
+        "file": "README.md",
+        "hash": "6023697501742303965"
+      },
+      {
+        "file": "angular.json",
+        "hash": "1028463105733309204"
+      },
+      {
+        "file": "doc/specs/BRAINSTORM_PROMPT.md",
+        "hash": "1579721802138648724"
+      },
+      {
+        "file": "doc/specs/README.md",
+        "hash": "4376153355058929400"
+      },
+      {
+        "file": "doc/specs/admin/academic/changes.md",
+        "hash": "12268355221096194317"
+      },
+      {
+        "file": "doc/specs/admin/academic/classes.md",
+        "hash": "15226220134077830373"
+      },
+      {
+        "file": "doc/specs/admin/academic/courses.md",
+        "hash": "8143693114538341414"
+      },
+      {
+        "file": "doc/specs/admin/academic/schedule.md",
+        "hash": "17650768250495231281"
+      },
+      {
+        "file": "doc/specs/admin/academic/sessions.md",
+        "hash": "10238506415267221903"
+      },
+      {
+        "file": "doc/specs/admin/calendar.md",
+        "hash": "6964497639620363070"
+      },
+      {
+        "file": "doc/specs/admin/dashboard.md",
+        "hash": "12075500882249148035"
+      },
+      {
+        "file": "doc/specs/admin/enrollment/enrollment-requests.md",
+        "hash": "1207884529670501499"
+      },
+      {
+        "file": "doc/specs/admin/enrollment/enrollment.md",
+        "hash": "14386585055606984352"
+      },
+      {
+        "file": "doc/specs/admin/enrollment/renewals.md",
+        "hash": "7895854011861630004"
+      },
+      {
+        "file": "doc/specs/admin/enrollment/trials.md",
+        "hash": "409140136913679594"
+      },
+      {
+        "file": "doc/specs/admin/finance/fee-templates.md",
+        "hash": "11856214877795943361"
+      },
+      {
+        "file": "doc/specs/admin/finance/meals.md",
+        "hash": "5228270366255119604"
+      },
+      {
+        "file": "doc/specs/admin/finance/payments.md",
+        "hash": "7683004362803322052"
+      },
+      {
+        "file": "doc/specs/admin/finance/reports.md",
+        "hash": "3018851459437755628"
+      },
+      {
+        "file": "doc/specs/admin/notifications.md",
+        "hash": "12702189333742959784"
+      },
+      {
+        "file": "doc/specs/admin/student-affairs/attendance.md",
+        "hash": "1460180427195236153"
+      },
+      {
+        "file": "doc/specs/admin/student-affairs/grades.md",
+        "hash": "13108614601303377615"
+      },
+      {
+        "file": "doc/specs/admin/student-affairs/leave.md",
+        "hash": "14930026584145081353"
+      },
+      {
+        "file": "doc/specs/admin/student-affairs/parents.md",
+        "hash": "16786666104456480012"
+      },
+      {
+        "file": "doc/specs/admin/student-affairs/students.md",
+        "hash": "17709907047836054210"
+      },
+      {
+        "file": "doc/specs/admin/system/campuses.md",
+        "hash": "17016640999005716845"
+      },
+      {
+        "file": "doc/specs/admin/system/settings.md",
+        "hash": "400044767700138617"
+      },
+      {
+        "file": "doc/specs/admin/system/staff.md",
+        "hash": "16273674348881994229"
+      },
+      {
+        "file": "doc/specs/admin/tasks.md",
+        "hash": "15610341343537796185"
+      },
+      {
+        "file": "doc/specs/parent/add-course.md",
+        "hash": "7444652116614845789"
+      },
+      {
+        "file": "doc/specs/parent/attendance.md",
+        "hash": "4177485220439496304"
+      },
+      {
+        "file": "doc/specs/parent/dashboard.md",
+        "hash": "990114167270895621"
+      },
+      {
+        "file": "doc/specs/parent/enrollment.md",
+        "hash": "13277441388594178665"
+      },
+      {
+        "file": "doc/specs/parent/grades.md",
+        "hash": "11611364766713341820"
+      },
+      {
+        "file": "doc/specs/parent/meals.md",
+        "hash": "3993837742623041372"
+      },
+      {
+        "file": "doc/specs/parent/notifications.md",
+        "hash": "6219512751833552969"
+      },
+      {
+        "file": "doc/specs/parent/payments.md",
+        "hash": "18225054482388069420"
+      },
+      {
+        "file": "doc/specs/parent/renewal.md",
+        "hash": "11197759466304981352"
+      },
+      {
+        "file": "doc/specs/parent/schedule.md",
+        "hash": "1102776758352317303"
+      },
+      {
+        "file": "doc/specs/parent/trial.md",
+        "hash": "10248394070548290104"
+      },
+      {
+        "file": "doc/specs/public/enrollment.md",
+        "hash": "15747959784393626647"
+      },
+      {
+        "file": "doc/specs/public/login.md",
+        "hash": "10423527288762657695"
+      },
+      {
+        "file": "doc/specs/public/qr-checkin.md",
+        "hash": "12431327924448453945"
+      },
+      {
+        "file": "doc/specs/public/trial.md",
+        "hash": "16066414631564260549"
+      },
+      {
+        "file": "doc/specs/teacher/assessments.md",
+        "hash": "2874061687685280213"
+      },
+      {
+        "file": "doc/specs/teacher/attendance.md",
+        "hash": "9785358199968474715"
+      },
+      {
+        "file": "doc/specs/teacher/dashboard.md",
+        "hash": "3469987563373607317"
+      },
+      {
+        "file": "doc/specs/teacher/notifications.md",
+        "hash": "5702570532896038273"
+      },
+      {
+        "file": "doc/specs/teacher/schedule.md",
+        "hash": "6428967505531230113"
+      },
+      {
+        "file": "doc/specs/teacher/students.md",
+        "hash": "1413038141879304300"
+      },
+      {
+        "file": "nx.json",
+        "hash": "9348761242612468011"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "14151768982180735328"
+      },
+      {
+        "file": "package.json",
+        "hash": "11398898990978071868"
+      },
+      {
+        "file": "supabase/.gitignore",
+        "hash": "10990855904653518110"
+      },
+      {
+        "file": "supabase/config.toml",
+        "hash": "2997369065558884827"
+      },
+      {
+        "file": "supabase/migrations/20260208000001_profiles.sql",
+        "hash": "3444325354517417627"
+      },
+      {
+        "file": "supabase/migrations/20260208165500_refactor_roles.sql",
+        "hash": "14984078076217424432"
+      },
+      {
+        "file": "supabase/seed.sql",
+        "hash": "15836411207611410281"
+      },
+      {
+        "file": "test/CLAUDE.md",
+        "hash": "12182173528047827289"
+      },
+      {
+        "file": "tsconfig.base.json",
+        "hash": "12376851089932181575"
+      },
+      {
+        "file": "tsconfig.json",
+        "hash": "10777835787895688635"
+      }
+    ],
+    "projectFileMap": {
+      "web": [
+        {
+          "file": "apps/web/project.json",
+          "hash": "2672567280084149485"
+        },
+        {
+          "file": "apps/web/public/favicon.ico",
+          "hash": "3988961587069885523"
+        },
+        {
+          "file": "apps/web/src/app/app.component.html",
+          "hash": "10705094415687670719"
+        },
+        {
+          "file": "apps/web/src/app/app.component.scss",
+          "hash": "12564803282852732846"
+        },
+        {
+          "file": "apps/web/src/app/app.component.spec.ts",
+          "hash": "13604299338526884708",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/app.component.ts",
+          "hash": "16954207795792606887",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/router",
+            "npm:primeng"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/app.config.ts",
+          "hash": "1666837800337329690",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/router",
+            "npm:@angular/platform-browser",
+            "npm:primeng",
+            "npm:@primeuix/themes"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/app.routes.ts",
+          "hash": "4525355340248240932",
+          "deps": [
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/core/auth.guard.ts",
+          "hash": "13885882445534576965",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/core/auth.service.ts",
+          "hash": "5433028767050311035",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/router",
+            "npm:@supabase/supabase-js"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/core/captcha.service.ts",
+          "hash": "14539593487478986503",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/core/device.service.ts",
+          "hash": "10705807891512236866",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/common"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/core/guest.guard.ts",
+          "hash": "12068608564419828073",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/core/navigation.service.ts",
+          "hash": "15873692717985976588",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/core/permission.guard.ts",
+          "hash": "5848286724242252559",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/core/role.guard.ts",
+          "hash": "15727092634138200958",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/core/smart-enums/CLAUDE.md",
+          "hash": "8981927010756507589"
+        },
+        {
+          "file": "apps/web/src/app/core/smart-enums/routes-catalog.ts",
+          "hash": "13550498368455329176"
+        },
+        {
+          "file": "apps/web/src/app/core/smart-enums/user-type.ts",
+          "hash": "6353035728355837800"
+        },
+        {
+          "file": "apps/web/src/app/core/supabase.service.ts",
+          "hash": "5152982027538777125",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@supabase/supabase-js"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/attendance/attendance.page.html",
+          "hash": "4301457306834648604"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/attendance/attendance.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/attendance/attendance.page.spec.ts",
+          "hash": "3113457091361493255",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/attendance/attendance.page.ts",
+          "hash": "16073623535310468058",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/calendar/calendar.page.html",
+          "hash": "7677815131171404277"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/calendar/calendar.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/calendar/calendar.page.spec.ts",
+          "hash": "12051535095041537396",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/calendar/calendar.page.ts",
+          "hash": "7798097391566467036",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/campuses/campuses.page.html",
+          "hash": "9041661365528927749"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/campuses/campuses.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/campuses/campuses.page.spec.ts",
+          "hash": "12744460562064074452",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/campuses/campuses.page.ts",
+          "hash": "2119253835164498088",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/changes/changes.component.html",
+          "hash": "11329550642917067026"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/changes/changes.component.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/changes/changes.component.spec.ts",
+          "hash": "17852985917722401399",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/changes/changes.component.ts",
+          "hash": "8091954295903096894",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/classes/classes.component.ts",
+          "hash": "15372137908811384392",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/courses/courses.page.html",
+          "hash": "2350549820517810095"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/courses/courses.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/courses/courses.page.spec.ts",
+          "hash": "4310585229375702731",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/courses/courses.page.ts",
+          "hash": "8779562682794190363",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/dashboard/dashboard.component.html",
+          "hash": "3985393258536459999"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/dashboard/dashboard.component.scss",
+          "hash": "15845610929539932925"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/dashboard/dashboard.component.spec.ts",
+          "hash": "9658348305285301602",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/dashboard/dashboard.component.ts",
+          "hash": "18066926000507672111",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/enrollment/enrollment.component.ts",
+          "hash": "10474707924410857220",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/fee-templates/fee-templates.component.ts",
+          "hash": "14206934595715873346",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/grades/grades.component.html",
+          "hash": "3046441212037088675"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/grades/grades.component.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/grades/grades.component.spec.ts",
+          "hash": "9960647127815818531",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/grades/grades.component.ts",
+          "hash": "13665119750386085343",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/leave/leave.page.html",
+          "hash": "11638838411249787423"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/leave/leave.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/leave/leave.page.spec.ts",
+          "hash": "6813490273142596567",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/leave/leave.page.ts",
+          "hash": "8880068316579035670",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/meals/meals.component.html",
+          "hash": "3809566886970649930"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/meals/meals.component.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/meals/meals.component.spec.ts",
+          "hash": "1226041288387107953",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/meals/meals.component.ts",
+          "hash": "4668834943659653492",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/notifications/notifications.component.ts",
+          "hash": "3646259139967445891",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/parents/parents.page.html",
+          "hash": "9323815878401599598"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/parents/parents.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/parents/parents.page.spec.ts",
+          "hash": "13898748569993535000",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/parents/parents.page.ts",
+          "hash": "14953800632755638253",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/payments/payments.page.html",
+          "hash": "6451854638034406862"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/payments/payments.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/payments/payments.page.spec.ts",
+          "hash": "231580553425878708",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/payments/payments.page.ts",
+          "hash": "6996403185730446621",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/reports/reports.page.html",
+          "hash": "3650882061908950722"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/reports/reports.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/reports/reports.page.spec.ts",
+          "hash": "4841844755115899464",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/reports/reports.page.ts",
+          "hash": "53203104553160304",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/schedule/schedule.page.html",
+          "hash": "2464476696684131895"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/schedule/schedule.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/schedule/schedule.page.spec.ts",
+          "hash": "4441180192424436927",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/schedule/schedule.page.ts",
+          "hash": "15004577757203305584",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/sessions/sessions.component.html",
+          "hash": "16159434080327486789"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/sessions/sessions.component.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/sessions/sessions.component.spec.ts",
+          "hash": "7081011797872319631",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/sessions/sessions.component.ts",
+          "hash": "2554495746676241471",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/settings/settings.page.html",
+          "hash": "7700894259592073097"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/settings/settings.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/settings/settings.page.spec.ts",
+          "hash": "10966222546762568742",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/settings/settings.page.ts",
+          "hash": "2400309083457439603",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/staff/staff.component.ts",
+          "hash": "8419880270636809523",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/students/students.page.html",
+          "hash": "3310522448970431725"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/students/students.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/students/students.page.spec.ts",
+          "hash": "7220844729044426848",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/students/students.page.ts",
+          "hash": "10931406344475525643",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/tasks/tasks.component.html",
+          "hash": "15302485949357726633"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/tasks/tasks.component.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/tasks/tasks.component.spec.ts",
+          "hash": "440573990886813224",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/admin/pages/tasks/tasks.component.ts",
+          "hash": "10445314860040779262",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/add-course/add-course.component.html",
+          "hash": "14624194974543556893"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/add-course/add-course.component.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/add-course/add-course.component.spec.ts",
+          "hash": "5570508479246569184",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/add-course/add-course.component.ts",
+          "hash": "5468568038327925431",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/attendance/attendance.page.html",
+          "hash": "4301457306834648604"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/attendance/attendance.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/attendance/attendance.page.spec.ts",
+          "hash": "3113457091361493255",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/attendance/attendance.page.ts",
+          "hash": "13531925792217658612",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/dashboard/dashboard.component.html",
+          "hash": "3985393258536459999"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/dashboard/dashboard.component.scss",
+          "hash": "15845610929539932925"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/dashboard/dashboard.component.spec.ts",
+          "hash": "5964202434007678732",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/dashboard/dashboard.component.ts",
+          "hash": "1813591889103788236",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/common"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/enrollment/enrollment.component.html",
+          "hash": "13123786767603066355"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/enrollment/enrollment.component.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/enrollment/enrollment.component.spec.ts",
+          "hash": "3631837335001560263",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/enrollment/enrollment.component.ts",
+          "hash": "13407348249340807502",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/grades/grades.component.html",
+          "hash": "3046441212037088675"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/grades/grades.component.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/grades/grades.component.spec.ts",
+          "hash": "9960647127815818531",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/grades/grades.component.ts",
+          "hash": "7560511537238387066",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/meals/meals.component.html",
+          "hash": "3809566886970649930"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/meals/meals.component.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/meals/meals.component.spec.ts",
+          "hash": "1226041288387107953",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/meals/meals.component.ts",
+          "hash": "12636552025572705809",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/notifications/notifications.component.html",
+          "hash": "433721084849743995"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/notifications/notifications.component.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/notifications/notifications.component.spec.ts",
+          "hash": "2515360013532645048",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/notifications/notifications.component.ts",
+          "hash": "5454712167559408988",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/payments/payments.page.html",
+          "hash": "6451854638034406862"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/payments/payments.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/payments/payments.page.spec.ts",
+          "hash": "231580553425878708",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/payments/payments.page.ts",
+          "hash": "18175123143838888584",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/renewal/renewal.component.html",
+          "hash": "17741763458225997658"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/renewal/renewal.component.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/renewal/renewal.component.spec.ts",
+          "hash": "14444723862371751836",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/renewal/renewal.component.ts",
+          "hash": "15231371109437649367",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/schedule/schedule.component.html",
+          "hash": "2464476696684131895"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/schedule/schedule.component.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/schedule/schedule.component.spec.ts",
+          "hash": "16624908361374997314",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/schedule/schedule.component.ts",
+          "hash": "14658537274885778731",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/trial/trial.component.html",
+          "hash": "16523509847299663787"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/trial/trial.component.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/trial/trial.component.spec.ts",
+          "hash": "7953761390793985168",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/parent/pages/trial/trial.component.ts",
+          "hash": "6923727145988575094",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/change-password/change-password.component.html",
+          "hash": "16011553788211582479"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/change-password/change-password.component.scss",
+          "hash": "12498064450781792208"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/change-password/change-password.component.ts",
+          "hash": "11704709099956382663",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/forms",
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/enrollment/enrollment.component.html",
+          "hash": "11606985113962669733"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/enrollment/enrollment.component.scss",
+          "hash": "7026627155541971697"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/enrollment/enrollment.component.spec.ts",
+          "hash": "3631837335001560263",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/enrollment/enrollment.component.ts",
+          "hash": "4193737017482207680",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/forgot-password/forgot-password.component.html",
+          "hash": "3400812945238696558"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/forgot-password/forgot-password.component.scss",
+          "hash": "12498064450781792208"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/forgot-password/forgot-password.component.spec.ts",
+          "hash": "13376729817828931711",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/forgot-password/forgot-password.component.ts",
+          "hash": "500979196934262039",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/forms",
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/login/login.component.html",
+          "hash": "16265232207634819961"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/login/login.component.scss",
+          "hash": "5318531442267191170"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/login/login.component.spec.ts",
+          "hash": "14594298380801831804",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/login/login.component.ts",
+          "hash": "8536544386545049756",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/forms",
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/qr-checkin/qr-checkin.component.html",
+          "hash": "11979778268653963599"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/qr-checkin/qr-checkin.component.scss",
+          "hash": "7026627155541971697"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/qr-checkin/qr-checkin.component.spec.ts",
+          "hash": "13126141024620734873",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/qr-checkin/qr-checkin.component.ts",
+          "hash": "4532245798815985373",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/reset-password/reset-password.component.html",
+          "hash": "1663584142871493628"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/reset-password/reset-password.component.scss",
+          "hash": "12498064450781792208"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/reset-password/reset-password.component.spec.ts",
+          "hash": "3841094875959875151",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/reset-password/reset-password.component.ts",
+          "hash": "14884448643863922943",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/forms",
+            "npm:@angular/router",
+            "npm:@supabase/supabase-js"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/trial/trial.component.html",
+          "hash": "15260226554500930056"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/trial/trial.component.scss",
+          "hash": "7026627155541971697"
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/trial/trial.component.spec.ts",
+          "hash": "7953761390793985168",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/pages/trial/trial.component.ts",
+          "hash": "7314528103575554237",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/public-shell.component.html",
+          "hash": "17708506777196336076"
+        },
+        {
+          "file": "apps/web/src/app/features/public/public-shell.component.scss",
+          "hash": "4499613053319044592"
+        },
+        {
+          "file": "apps/web/src/app/features/public/public-shell.component.spec.ts",
+          "hash": "7826188850097090845",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/public-shell.component.ts",
+          "hash": "5110470579285283493",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/public/shared/_auth-form.scss",
+          "hash": "15487403403203508043"
+        },
+        {
+          "file": "apps/web/src/app/features/select-role/select-role.component.html",
+          "hash": "1293835634794497097"
+        },
+        {
+          "file": "apps/web/src/app/features/select-role/select-role.component.scss",
+          "hash": "17863936190853490825"
+        },
+        {
+          "file": "apps/web/src/app/features/select-role/select-role.component.spec.ts",
+          "hash": "8283390651655119661",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/select-role/select-role.component.ts",
+          "hash": "1037371889577049630",
+          "deps": [
+            "npm:@angular/core",
+            "npm:primeng"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/attendance/attendance.page.html",
+          "hash": "4301457306834648604"
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/attendance/attendance.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/attendance/attendance.page.spec.ts",
+          "hash": "3113457091361493255",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/attendance/attendance.page.ts",
+          "hash": "18221165285719233214",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/dashboard/dashboard.component.html",
+          "hash": "3985393258536459999"
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/dashboard/dashboard.component.scss",
+          "hash": "15845610929539932925"
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/dashboard/dashboard.component.spec.ts",
+          "hash": "9658348305285301602",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/dashboard/dashboard.component.ts",
+          "hash": "1813591889103788236",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/common"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/notifications/notifications.component.ts",
+          "hash": "16614094824971204777",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/schedule/schedule.page.html",
+          "hash": "2464476696684131895"
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/schedule/schedule.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/schedule/schedule.page.spec.ts",
+          "hash": "4441180192424436927",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/schedule/schedule.page.ts",
+          "hash": "13902275196957980062",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/students/students.page.html",
+          "hash": "3310522448970431725"
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/students/students.page.scss",
+          "hash": "3244421341483603138"
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/students/students.page.spec.ts",
+          "hash": "7220844729044426848",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/features/teacher/pages/students/students.page.ts",
+          "hash": "18212719947887235737",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/shared/_breakpoints.scss",
+          "hash": "9647819539081673124"
+        },
+        {
+          "file": "apps/web/src/app/shared/animations.ts",
+          "hash": "4359970930459669502",
+          "deps": [
+            "npm:@angular/animations"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/shared/components/bottom-bar/bottom-bar.component.html",
+          "hash": "6898179912781439154"
+        },
+        {
+          "file": "apps/web/src/app/shared/components/bottom-bar/bottom-bar.component.scss",
+          "hash": "4689838703958776935"
+        },
+        {
+          "file": "apps/web/src/app/shared/components/bottom-bar/bottom-bar.component.ts",
+          "hash": "15457976703793009691",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/shared/components/collapsible/collapsible.component.html",
+          "hash": "1187167053410038639"
+        },
+        {
+          "file": "apps/web/src/app/shared/components/collapsible/collapsible.component.scss",
+          "hash": "14841215419995127200"
+        },
+        {
+          "file": "apps/web/src/app/shared/components/collapsible/collapsible.component.spec.ts",
+          "hash": "7279871837500321997",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/shared/components/collapsible/collapsible.component.ts",
+          "hash": "16580865318228069238",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/shared/components/jdenticon-avatar/jdenticon-avatar.component.ts",
+          "hash": "1506532365867149269",
+          "deps": [
+            "npm:@angular/core",
+            "npm:jdenticon"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.html",
+          "hash": "11331358098678017100"
+        },
+        {
+          "file": "apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.scss",
+          "hash": "2439484233949405384"
+        },
+        {
+          "file": "apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.ts",
+          "hash": "5690312417444373720",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/router",
+            "npm:primeng"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/shared/components/sidebar/sidebar.component.html",
+          "hash": "13146873791197797231"
+        },
+        {
+          "file": "apps/web/src/app/shared/components/sidebar/sidebar.component.scss",
+          "hash": "18150501107516333689"
+        },
+        {
+          "file": "apps/web/src/app/shared/components/sidebar/sidebar.component.ts",
+          "hash": "15232200853990586549",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/router"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/shared/directives/accordion.directive.spec.ts",
+          "hash": "14919741551321481087"
+        },
+        {
+          "file": "apps/web/src/app/shared/directives/accordion.directive.ts",
+          "hash": "18434896864056302851",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/shared/directives/auto-open-tooltip.directive.spec.ts",
+          "hash": "15603223061525205351",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/platform-browser",
+            "npm:primeng",
+            "npm:vitest"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/shared/directives/auto-open-tooltip.directive.ts",
+          "hash": "17273105460851570271",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/common",
+            "npm:primeng"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/shared/directives/inherit-size.directive.ts",
+          "hash": "18273493805528777933",
+          "deps": [
+            "npm:@angular/core"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/shared/directives/window-size.directive.ts",
+          "hash": "6337022741674692114",
+          "deps": [
+            "npm:@angular/core",
+            "npm:@angular/common"
+          ]
+        },
+        {
+          "file": "apps/web/src/app/shared/styles/_dashboard.scss",
+          "hash": "11742087881983162372"
+        },
+        {
+          "file": "apps/web/src/environments/environment.production.ts",
+          "hash": "4088265227504301681"
+        },
+        {
+          "file": "apps/web/src/environments/environment.ts",
+          "hash": "13232888128546449457"
+        },
+        {
+          "file": "apps/web/src/index.html",
+          "hash": "13454685103334466883"
+        },
+        {
+          "file": "apps/web/src/main.ts",
+          "hash": "2403027399030173460",
+          "deps": [
+            "npm:@angular/platform-browser"
+          ]
+        },
+        {
+          "file": "apps/web/src/styles.scss",
+          "hash": "8823400483743120321"
+        },
+        {
+          "file": "apps/web/tsconfig.app.json",
+          "hash": "9126440168547836598"
+        },
+        {
+          "file": "apps/web/tsconfig.json",
+          "hash": "11480711424489070370"
+        },
+        {
+          "file": "apps/web/tsconfig.spec.json",
+          "hash": "16023519212628359307"
+        }
+      ]
+    }
+  },
+  "externalNodesHash": "9737046701725885773"
+}

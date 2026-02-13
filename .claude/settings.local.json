@@ -72,7 +72,8 @@
       "mcp__filesystem__directory_tree",
       "mcp__context7__resolve-library-id",
       "mcp__context7__query-docs",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(git commit:*)"
     ]
   },
   "enabledPlugins": {}

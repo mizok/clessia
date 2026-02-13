@@ -1,0 +1,53 @@
+import {
+  Component,
+  Input,
+  input,
+  setClassMetadata,
+  ɵsetClassDebugInfo,
+  ɵɵadvance,
+  ɵɵdefineComponent,
+  ɵɵdomElementEnd,
+  ɵɵdomElementStart,
+  ɵɵtext,
+  ɵɵtextInterpolate
+} from "./chunk-YGF3CXFR.js";
+
+// apps/web/src/app/features/parent/pages/add-course/add-course.component.ts
+var AddCourseComponent = class _AddCourseComponent {
+  page = input.required(...ngDevMode ? [{ debugName: "page" }] : []);
+  static \u0275fac = function AddCourseComponent_Factory(__ngFactoryType__) {
+    return new (__ngFactoryType__ || _AddCourseComponent)();
+  };
+  static \u0275cmp = /* @__PURE__ */ \u0275\u0275defineComponent({ type: _AddCourseComponent, selectors: [["app-add-course"]], inputs: { page: [1, "page"] }, decls: 5, vars: 1, consts: [[1, "p-4"], [1, "text-2xl", "font-bold", "mb-4"], [1, "text-zinc-500"]], template: function AddCourseComponent_Template(rf, ctx) {
+    if (rf & 1) {
+      \u0275\u0275domElementStart(0, "div", 0)(1, "h2", 1);
+      \u0275\u0275text(2);
+      \u0275\u0275domElementEnd();
+      \u0275\u0275domElementStart(3, "p", 2);
+      \u0275\u0275text(4, "Add course content coming soon...");
+      \u0275\u0275domElementEnd()();
+    }
+    if (rf & 2) {
+      \u0275\u0275advance(2);
+      \u0275\u0275textInterpolate(ctx.page().label);
+    }
+  }, encapsulation: 2 });
+};
+(() => {
+  (typeof ngDevMode === "undefined" || ngDevMode) && setClassMetadata(AddCourseComponent, [{
+    type: Component,
+    args: [{ selector: "app-add-course", standalone: true, imports: [], template: `
+    <div class="p-4">
+      <h2 class="text-2xl font-bold mb-4">{{ page().label }}</h2>
+      <p class="text-zinc-500">Add course content coming soon...</p>
+    </div>
+  ` }]
+  }], null, { page: [{ type: Input, args: [{ isSignal: true, alias: "page", required: true }] }] });
+})();
+(() => {
+  (typeof ngDevMode === "undefined" || ngDevMode) && \u0275setClassDebugInfo(AddCourseComponent, { className: "AddCourseComponent", filePath: "apps/web/src/app/features/parent/pages/add-course/add-course.component.ts", lineNumber: 16 });
+})();
+export {
+  AddCourseComponent
+};
+//# sourceMappingURL=chunk-GHDNWYZZ.js.map

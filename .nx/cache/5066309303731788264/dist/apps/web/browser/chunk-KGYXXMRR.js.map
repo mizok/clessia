@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["apps/web/src/app/features/teacher/pages/schedule/schedule.page.ts", "apps/web/src/app/features/teacher/pages/schedule/schedule.page.html"],
+  "sourcesContent": ["import { Component, input } from '@angular/core';\nimport { RouteObj } from '@core/smart-enums/routes-catalog';\n\n@Component({\n  selector: 'app-schedule',\n  imports: [],\n  templateUrl: './schedule.page.html',\n  styleUrl: './schedule.page.scss',\n})\nexport class SchedulePage {\n  readonly page = input.required<RouteObj>();\n}\n", "<p>schedule works!</p>\n"],
+  "mappings": ";;;;;;;;;;;;;AASM,IAAO,eAAP,MAAO,cAAY;EACd,OAAO,MAAM,SAAQ,GAAA,YAAA,CAAA,EAAA,WAAA,OAAA,CAAA,IAAA,CAAA,CAAA;;qCADnB,eAAY;EAAA;yEAAZ,eAAY,WAAA,CAAA,CAAA,cAAA,CAAA,GAAA,QAAA,EAAA,MAAA,CAAA,GAAA,MAAA,EAAA,GAAA,OAAA,GAAA,MAAA,GAAA,UAAA,SAAA,sBAAA,IAAA,KAAA;AAAA,QAAA,KAAA,GAAA;ACTzB,MAAA,4BAAA,GAAA,GAAA;AAAG,MAAA,iBAAA,GAAA,iBAAA;AAAe,MAAA,0BAAA;;;;;sEDSL,cAAY,CAAA;UANxB;uBACW,gBAAc,SACf,CAAA,GAAE,UAAA,2BAAA,CAAA;;;;6EAIA,cAAY,EAAA,WAAA,gBAAA,UAAA,qEAAA,YAAA,GAAA,CAAA;AAAA,GAAA;",
+  "names": []
+}

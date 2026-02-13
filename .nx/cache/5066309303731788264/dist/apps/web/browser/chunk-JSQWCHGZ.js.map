@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["apps/web/src/app/features/admin/pages/changes/changes.component.ts"],
+  "sourcesContent": ["import { Component, input } from '@angular/core';\nimport { RouteObj } from '@core/smart-enums/routes-catalog';\n\n@Component({\n  selector: 'app-changes',\n  standalone: true,\n  imports: [],\n  template: `\n    <div class=\"p-4\">\n      <h2 class=\"text-2xl font-bold mb-4\">{{ page().label }}</h2>\n      <p class=\"text-zinc-500\">Course changes management coming soon...</p>\n    </div>\n  `,\n  styles: ``\n})\nexport class ChangesComponent {\n  readonly page = input.required<RouteObj>();\n}\n"],
+  "mappings": ";;;;;;;;;;;;;;;AAeM,IAAO,mBAAP,MAAO,kBAAgB;EAClB,OAAO,MAAM,SAAQ,GAAA,YAAA,CAAA,EAAA,WAAA,OAAA,CAAA,IAAA,CAAA,CAAA;;qCADnB,mBAAgB;EAAA;yEAAhB,mBAAgB,WAAA,CAAA,CAAA,aAAA,CAAA,GAAA,QAAA,EAAA,MAAA,CAAA,GAAA,MAAA,EAAA,GAAA,OAAA,GAAA,MAAA,GAAA,QAAA,CAAA,CAAA,GAAA,KAAA,GAAA,CAAA,GAAA,YAAA,aAAA,MAAA,GAAA,CAAA,GAAA,eAAA,CAAA,GAAA,UAAA,SAAA,0BAAA,IAAA,KAAA;AAAA,QAAA,KAAA,GAAA;AAPzB,MAAA,4BAAA,GAAA,OAAA,CAAA,EAAiB,GAAA,MAAA,CAAA;AACqB,MAAA,iBAAA,CAAA;AAAkB,MAAA,0BAAA;AACtD,MAAA,4BAAA,GAAA,KAAA,CAAA;AAAyB,MAAA,iBAAA,GAAA,0CAAA;AAAwC,MAAA,0BAAA,EAAI;;;AADjC,MAAA,oBAAA,CAAA;AAAA,MAAA,4BAAA,IAAA,KAAA,EAAA,KAAA;;;;;sEAM7B,kBAAgB,CAAA;UAZ5B;uBACW,eAAa,YACX,MAAI,SACP,CAAA,GAAE,UACD;;;;;IAKT,CAAA;;;;6EAGU,kBAAgB,EAAA,WAAA,oBAAA,UAAA,sEAAA,YAAA,GAAA,CAAA;AAAA,GAAA;",
+  "names": []
+}
