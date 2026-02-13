@@ -1,7 +1,7 @@
 import { Component, signal, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { AuthService } from '../../../../core/auth.service';
+import { AuthService } from '@core/auth.service';
 
 @Component({
   selector: 'app-change-password',
@@ -9,7 +9,7 @@ import { AuthService } from '../../../../core/auth.service';
   imports: [FormsModule],
   templateUrl: './change-password.component.html',
   styleUrl: './change-password.component.scss',
-  host: { class: 'centered-flex' },
+  host: { class: 'u-centered-flex' },
 })
 export class ChangePasswordComponent {
   private readonly auth = inject(AuthService);

@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet, ChildrenOutletContexts } from '@angular/router';
-import { fadeAnimation } from '../../shared/animations';
+import { fadeAnimation } from '@shared/animations';
 
 @Component({
   selector: 'app-public-shell',

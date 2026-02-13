@@ -105,6 +105,11 @@ body {
   min-height: 100vh;
 }
 
+html,body{
+  height:100%;
+  overflow: hidden;
+}
+
 button {
   font-family: inherit;
   cursor: pointer;
@@ -274,8 +279,16 @@ select {
   }
 }
 
-.centered-flex {
+.u-centered-flex {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.u-full-height{
+  height: 100%;
+}
+
+.u-scrollable{
+  overflow: auto;
 }

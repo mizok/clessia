@@ -1,3 +1,5 @@
+@use 'shared/breakpoints' as bp;
+
 // ─── Header ────────────────────────────────────────────────────────────────────
 .shell-header {
   display: flex;
@@ -205,6 +207,7 @@
   flex-direction: column;
   min-height: 100dvh;
   background: var(--zinc-50);
+  height: var(--window-height);
 }
 
 .shell-layout__body {
@@ -236,7 +239,7 @@
 }
 
 // ─── Mobile Styles (< 640px) ───────────────────────────────────────────────────
-@media (max-width: 640px) {
+@include bp.respond-to('mobile') {
   .shell-header {
     padding: 0 var(--space-4);
 
@@ -254,50 +257,6 @@
   .shell-content {
     padding: var(--space-4);
     // Ensure bottom padding for bottom bar interaction if needed
-    padding-bottom: calc(var(--space-4) + 64px + env(safe-area-inset-bottom, 0px));
-  }
-}
-.shell-container {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-// ─── Main Content ──────────────────────────────────────────────────────────────
-.shell-content {
-  flex: 1;
-  padding: var(--space-8);
-  background: var(--zinc-50);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-
-  &--centered {
-    align-items: center;
-    justify-content: center;
-  }
-}
-
-// ─── Mobile Styles (< 640px) ───────────────────────────────────────────────────
-@media (max-width: 640px) {
-  .shell-header {
-    padding: 0 var(--space-4);
-
-    &__user-name {
-      max-width: 100px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      opacity: 0.8;
-    }
-  }
-
-  .shell-layout {
-    min-height: calc(100dvh - 56px - 64px);
-  }
-
-  .shell-content {
-    padding: var(--space-4);
     padding-bottom: calc(var(--space-4) + 64px + env(safe-area-inset-bottom, 0px));
   }
 }

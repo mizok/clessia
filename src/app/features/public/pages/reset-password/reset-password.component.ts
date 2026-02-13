@@ -2,14 +2,14 @@ import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import type { Subscription } from '@supabase/supabase-js';
-import { SupabaseService } from '../../../../core/supabase.service';
+import { SupabaseService } from '@core/supabase.service';
 
 @Component({
   selector: 'app-reset-password',
   imports: [FormsModule, RouterLink],
   templateUrl: './reset-password.component.html',
   styleUrl: './reset-password.component.scss',
-  host: { class: 'centered-flex' },
+  host: { class: 'u-centered-flex' },
 })
 export class ResetPasswordComponent implements OnInit, OnDestroy {
   newPassword = '';

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { environment } from '../../environments/environment';
+import { environment } from '@env/environment';
 
 const REMEMBER_ME_KEY = 'clessia:remember-me';
 

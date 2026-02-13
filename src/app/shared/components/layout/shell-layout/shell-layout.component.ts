@@ -1,16 +1,17 @@
 import { Component, ViewChild, HostListener, inject, computed, input } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterOutlet } from '@angular/router';
 import { Tooltip } from 'primeng/tooltip';
 import { Popover } from 'primeng/popover';
-import { JdenticonAvatarComponent } from '../../jdenticon-avatar/jdenticon-avatar.component';
-import { AuthService, type UserRole } from '../../../../core/auth.service';
-import { AutoOpenTooltipDirective } from '../../../directives/auto-open-tooltip.directive';
-import { DeviceService } from '../../../../core/device.service';
+import { JdenticonAvatarComponent } from '@shared/components/jdenticon-avatar/jdenticon-avatar.component';
+import { AuthService, type UserRole } from '@core/auth.service';
+import { AutoOpenTooltipDirective } from '@shared/directives/auto-open-tooltip.directive';
+import { DeviceService } from '@core/device.service';
+import { InheritSizeDirective } from '@shared/directives/inherit-size.directive';
 
 @Component({
   selector: 'app-shell-layout',
   standalone: true,
-  imports: [Tooltip, AutoOpenTooltipDirective, Popover, JdenticonAvatarComponent],
+  imports: [RouterOutlet, Tooltip, AutoOpenTooltipDirective, Popover, JdenticonAvatarComponent, InheritSizeDirective],
   templateUrl: './shell-layout.component.html',
   styleUrl: './shell-layout.component.scss',
 })

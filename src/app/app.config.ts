@@ -7,6 +7,8 @@ import Aura from '@primeuix/themes/aura';
 
 import { routes } from './app.routes';
 
+import { DialogService } from 'primeng/dynamicdialog';
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
@@ -23,5 +25,6 @@ export const appConfig: ApplicationConfig = {
       },
       ripple: true,
     }),
+    DialogService,
   ],
 };

@@ -1,33 +1,30 @@
 <div class="select-role">
-  <div class="select-role__backdrop" (click)="close()"></div>
-  <div class="select-role__panel">
-    <div class="select-role__header">
-      <h2 class="select-role__title">切換角色</h2>
-      <button class="select-role__close" (click)="close()">
-        <i class="pi pi-times"></i>
+  <div class="select-role__header">
+    <h2 class="select-role__title">切換角色</h2>
+    <button class="select-role__close" (click)="close()">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <p class="select-role__subtitle">{{ displayName() }}，請選擇要進入的角色</p>
+
+  <div class="select-role__list">
+    @for (opt of roleOptions(); track opt.role) {
+      <button
+        class="select-role__option"
+        [class.select-role__option--active]="activeRole() === opt.role"
+        (click)="selectRole(opt.role)"
+      >
+        <i class="select-role__option-icon pi" [class]="'pi ' + opt.icon"></i>
+        <div class="select-role__option-text">
+          <span class="select-role__option-label">{{ opt.label }}</span>
+          <span class="select-role__option-desc">{{ opt.description }}</span>
+        </div>
+        @if (activeRole() === opt.role) {
+          <i class="select-role__option-check pi pi-check"></i>
+        }
       </button>
-    </div>
-
-    <p class="select-role__subtitle">{{ displayName() }}，請選擇要進入的角色</p>
-
-    <div class="select-role__list">
-      @for (opt of roleOptions(); track opt.role) {
-        <button
-          class="select-role__option"
-          [class.select-role__option--active]="activeRole() === opt.role"
-          (click)="selectRole(opt.role)"
-        >
-          <i class="select-role__option-icon pi" [class]="'pi ' + opt.icon"></i>
-          <div class="select-role__option-text">
-            <span class="select-role__option-label">{{ opt.label }}</span>
-            <span class="select-role__option-desc">{{ opt.description }}</span>
-          </div>
-          @if (activeRole() === opt.role) {
-            <i class="select-role__option-check pi pi-check"></i>
-          }
-        </button>
-      }
-    </div>
+    }
   </div>
 </div>
 

@@ -5,7 +5,7 @@ import { Component } from '@angular/core';
   imports: [],
   templateUrl: './trial.component.html',
   styleUrl: './trial.component.scss',
-  host: { class: 'centered-flex' },
+  host: { class: 'u-centered-flex' },
 })
 export class TrialComponent {
 

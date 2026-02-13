@@ -33,7 +33,12 @@
               "node_modules/primeicons/primeicons.css",
               "node_modules/hamburgers/dist/hamburgers.min.css",
               "src/styles.scss"
-            ]
+            ],
+            "stylePreprocessorOptions": {
+              "includePaths": [
+                "src/app"
+              ]
+            }
           },
           "configurations": {
             "production": {

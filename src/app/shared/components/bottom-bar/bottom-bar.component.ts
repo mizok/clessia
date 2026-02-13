@@ -1,12 +1,6 @@
-import { Component, HostListener, computed, signal, input, inject } from '@angular/core';
+import { Component, HostListener, computed, signal, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, Router, NavigationStart } from '@angular/router';
-
-export interface NavItem {
-  readonly label: string;
-  readonly icon: string;
-  readonly route: string;
-  readonly badge?: number;
-}
+import { NavigationService } from '@core/navigation.service';
 
 @Component({
   selector: 'app-bottom-bar',
@@ -17,7 +11,9 @@ export interface NavItem {
 })
 export class BottomBarComponent {
   private readonly router = inject(Router);
-  readonly navItems = input<NavItem[]>([]);
+  private readonly nav = inject(NavigationService);
+  
+  readonly navItems = this.nav.navItems;
   readonly moreOpen = signal(false);
   readonly moreClosing = signal(false);
 

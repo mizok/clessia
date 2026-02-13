@@ -1,16 +1,16 @@
 import { Component, ElementRef, ViewChild, signal, AfterViewInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AuthService } from '../../../../core/auth.service';
-import { CaptchaService } from '../../../../core/captcha.service';
-import { environment } from '../../../../../environments/environment';
+import { AuthService } from '@core/auth.service';
+import { CaptchaService } from '@core/captcha.service';
+import { environment } from '@env/environment';
 
 @Component({
   selector: 'app-forgot-password',
   imports: [FormsModule, RouterLink],
   templateUrl: './forgot-password.component.html',
   styleUrl: './forgot-password.component.scss',
-  host: { class: 'centered-flex' },
+  host: { class: 'u-centered-flex' },
 })
 export class ForgotPasswordComponent implements AfterViewInit {
   @ViewChild('turnstileContainer') turnstileContainer!: ElementRef;

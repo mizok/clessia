@@ -1,5 +1,6 @@
 import { Component, computed, inject } from '@angular/core';
-import { AuthService, type UserRole } from '../../core/auth.service';
+import { AuthService, type UserRole } from '@core/auth.service';
+import { DynamicDialogRef } from 'primeng/dynamicdialog';
 
 interface RoleOption {
   role: UserRole;
@@ -22,6 +23,7 @@ const ROLE_OPTIONS: RoleOption[] = [
 })
 export class SelectRoleComponent {
   protected readonly auth = inject(AuthService);
+  private readonly ref = inject(DynamicDialogRef);
 
   readonly displayName = computed(
     () => this.auth.profile()?.display_name || this.auth.user()?.email || '',
@@ -32,10 +34,10 @@ export class SelectRoleComponent {
   readonly activeRole = this.auth.activeRole;
 
   selectRole(role: UserRole) {
-    this.auth.navigateToRoleShell(role);
+    this.ref.close(role);
   }
 
   close() {
-    this.auth.closeRolePicker();
+    this.ref.close();
   }
 }

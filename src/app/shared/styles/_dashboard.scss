@@ -1,0 +1,190 @@
+@use 'shared/breakpoints' as bp;
+
+@mixin dashboard-styles {
+  .dashboard {
+    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-8);
+    max-width: 1400px;
+    margin: 0 auto;
+
+    &__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    &__title {
+      font-size: var(--text-3xl);
+      font-weight: var(--font-bold);
+      color: var(--zinc-900);
+      margin-bottom: var(--space-1);
+    }
+
+    &__date {
+      color: var(--zinc-500);
+      font-size: var(--text-md);
+    }
+
+    &__action-btn {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-6);
+      background: var(--zinc-900);
+      color: #fff;
+      border-radius: var(--radius-lg);
+      font-weight: var(--font-semibold);
+      transition: all var(--transition-fast);
+
+      &:hover {
+        background: var(--zinc-800);
+        transform: translateY(-1px);
+      }
+    }
+
+    &__stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: var(--space-6);
+    }
+
+    &__main-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: var(--space-8);
+
+      @media (max-width: 1024px) {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    &__section {
+      background: #fff;
+      padding: var(--space-6);
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--zinc-200);
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-6);
+
+      &-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      &-title {
+        font-size: var(--text-lg);
+        font-weight: var(--font-bold);
+        color: var(--zinc-800);
+      }
+    }
+
+    &__text-btn {
+      color: var(--accent-600);
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
+    &__empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-12) 0;
+      color: var(--zinc-400);
+      gap: var(--space-3);
+
+      i {
+        font-size: 48px;
+      }
+    }
+
+    &__quick-links {
+      display: grid;
+      gap: var(--space-3);
+    }
+  }
+
+  .stat-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+    padding: var(--space-6);
+    background: #fff;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--zinc-200);
+    box-shadow: var(--shadow-sm);
+
+    &__icon {
+      width: 52px;
+      height: 52px;
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    &__label {
+      display: block;
+      font-size: var(--text-sm);
+      color: var(--zinc-500);
+      margin-bottom: 2px;
+    }
+
+    &__value {
+      display: block;
+      font-size: var(--text-2xl);
+      font-weight: var(--font-bold);
+      color: var(--zinc-900);
+    }
+
+    &--blue {
+      .stat-card__icon { background: #eff6ff; color: #3b82f6; }
+    }
+    &--green {
+      .stat-card__icon { background: #f0fdf4; color: #22c55e; }
+    }
+    &--purple {
+      .stat-card__icon { background: #faf5ff; color: #a855f7; }
+    }
+    &--orange {
+      .stat-card__icon { background: #fff7ed; color: #f97316; }
+    }
+  }
+
+  .quick-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--zinc-100);
+    border-radius: var(--radius-lg);
+    color: var(--zinc-700);
+    font-weight: var(--font-medium);
+    transition: all var(--transition-fast);
+
+    i {
+      font-size: 20px;
+      color: var(--zinc-400);
+    }
+
+    &:hover {
+      background: var(--zinc-50);
+      border-color: var(--zinc-200);
+      color: var(--accent-600);
+
+      i {
+        color: var(--accent-500);
+      }
+    }
+  }
+}

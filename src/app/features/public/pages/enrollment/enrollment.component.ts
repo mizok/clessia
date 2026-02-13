@@ -5,7 +5,7 @@ import { Component } from '@angular/core';
   imports: [],
   templateUrl: './enrollment.component.html',
   styleUrl: './enrollment.component.scss',
-  host: { class: 'centered-flex' },
+  host: { class: 'u-centered-flex' },
 })
 export class EnrollmentComponent {
 

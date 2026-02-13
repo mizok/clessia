@@ -1,0 +1,35 @@
+/* =============================================================================
+   Breakpoints & Media Queries
+   ============================================================================= */
+
+// Breakpoint values
+$breakpoint-mobile: 640px;
+$breakpoint-tablet: 1024px;
+$breakpoint-desktop: 1280px;
+
+// Map for easier usage in mixins
+$breakpoints: (
+  'mobile': $breakpoint-mobile,
+  'tablet': $breakpoint-tablet,
+  'desktop': $breakpoint-desktop
+);
+
+// Mixin to respond to breakpoints
+@mixin respond-to($breakpoint) {
+  // Check if the key exists in our map
+  @if map-has-key($breakpoints, $breakpoint) {
+    @media (max-width: map-get($breakpoints, $breakpoint)) {
+      @content;
+    }
+  } 
+  // Allow passing raw pixel values or custom variables
+  @else if type-of($breakpoint) == number {
+    @media (max-width: $breakpoint) {
+      @content;
+    }
+  }
+  @else {
+    @warn "Unfortunately, no value could be retrieved from `#{$full-map}`. "
+        + "Please make sure it is defined in `$breakpoints` map.";
+  }
+}

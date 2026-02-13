@@ -74,19 +74,14 @@
     </div>
   </header>
 
-  <div class="shell-layout__body">
+  <div class="shell-layout__body" appInheritSize [widthVar]="'--shell-layout-body-width'" [heightVar]="'--shell-layout-body-height'">
     <div class="shell-container">
-      <ng-content select="app-sidebar" />
+      <router-outlet name="sidebar" />
       <main class="shell-content" [class.shell-content--centered]="centered()">
-        <ng-content />
+        <router-outlet />
       </main>
     </div>
   </div>
 
-  <ng-content select="app-bottom-bar" />
+  <router-outlet name="bottom-bar" />
 </div>
-
-
-
-
-<ng-content select="app-bottom-bar" />

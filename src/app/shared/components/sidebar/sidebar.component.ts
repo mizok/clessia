@@ -1,13 +1,6 @@
-import { Component, input } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
-
-export interface NavItem {
-  readonly label: string;
-  readonly icon: string;
-  readonly route: string;
-  readonly badge?: number;
-  readonly group?: string;
-}
+import { NavigationService, type NavItem } from '@core/navigation.service';
 
 interface NavGroup {
   readonly label?: string;
@@ -20,9 +13,13 @@ interface NavGroup {
   imports: [RouterLink, RouterLinkActive],
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.scss',
+  host: {
+    class: 'sidebar',
+  },
 })
 export class SidebarComponent {
-  readonly navItems = input<NavItem[]>([]);
+  private readonly nav = inject(NavigationService);
+  readonly navItems = this.nav.navItems;
 
   protected get groupedNav(): NavGroup[] {
     const items = this.navItems();

@@ -1,5 +1,6 @@
+@use 'shared/breakpoints' as bp;
+
 .sidebar {
-  flex: none;
   width: 240px;
   min-width: 240px;
   background: #fff;
@@ -86,7 +87,7 @@
 }
 
 // 行動版隱藏
-@media (max-width: 640px) {
+@include bp.respond-to('mobile') {
   .sidebar {
     display: none;
   }

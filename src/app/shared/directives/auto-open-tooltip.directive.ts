@@ -7,11 +7,12 @@ import {
   input,
   numberAttribute,
   PLATFORM_ID,
+  HostListener,
+  ElementRef
 } from '@angular/core';
-import { isPlatformBrowser } from '@angular/common';
+import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { Tooltip } from 'primeng/tooltip';
-import { ElementRef } from '@angular/core';
-import { DeviceService } from '../../core/device.service';
+import { DeviceService } from '@core/device.service';
 
 @Directive({
   selector: '[appAutoOpenTooltip]',
@@ -22,6 +23,8 @@ export class AutoOpenTooltipDirective implements AfterViewInit, OnDestroy {
   private readonly el = inject(ElementRef);
   private readonly platformId = inject(PLATFORM_ID);
   private readonly device = inject(DeviceService);
+  private readonly document = inject(DOCUMENT);
+
   readonly autoShow = input(true, { alias: 'appAutoOpenTooltip', transform: booleanAttribute });
   readonly initialDelay = input(0, {
     alias: 'appAutoOpenTooltipInitialDelay',
@@ -84,8 +87,9 @@ export class AutoOpenTooltipDirective implements AfterViewInit, OnDestroy {
       }
     };
     
-    document.addEventListener('click', handler, true); // Use capture phase
-    this.documentClickListener = () => document.removeEventListener('click', handler, true);
+    // Use capture phase to ensure we catch clicks even if propagation is stopped
+    this.document.addEventListener('click', handler, true);
+    this.documentClickListener = () => this.document.removeEventListener('click', handler, true);
   }
 
   private clearAllTimers(): void {
@@ -134,12 +138,6 @@ export class AutoOpenTooltipDirective implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.clearAllTimers();
-
-    if (this.documentClickListener) {
-      this.documentClickListener();
-      this.documentClickListener = null;
-    }
-
     this.clearLeaveTransitionCleanup();
   }
 

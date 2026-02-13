@@ -1,3 +1,5 @@
+@use 'shared/breakpoints' as bp;
+
 // 桌面版隱藏
 .bottom-bar {
   display: none;
@@ -12,7 +14,7 @@
 }
 
 // 行動版顯示
-@media (max-width: 640px) {
+@include bp.respond-to('mobile') {
   .bottom-bar {
     display: flex;
     flex-direction: column; // Change to column to allow stacking if needed, though mostly for the container
@@ -72,6 +74,7 @@
       background: rgb(0 0 0 / 40%);
       z-index: 100;
       animation: fade-in 0.25s ease-out;
+      pointer-events: auto;
 
       &--closing {
         animation: fade-out 0.2s ease-in forwards;
@@ -90,6 +93,7 @@
       z-index: 105;
       padding: var(--space-2) var(--space-4) var(--space-4);
       animation: sheet-up 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: auto;
 
       &--closing {
         animation: sheet-down 0.35s ease-out forwards;
