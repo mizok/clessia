@@ -3,10 +3,16 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "build": "ng build",
-    "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "dev": "nx run-many -t serve -p web api",
+    "dev:web": "nx serve web",
+    "dev:api": "nx serve api",
+    "build": "nx run-many -t build",
+    "build:web": "nx build web --configuration=production",
+    "build:api": "nx build api",
+    "test": "nx run-many -t test",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset"
   },
   "prettier": {
     "printWidth": 100,
