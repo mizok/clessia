@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["apps/web/src/app/app.component.scss"],
-  "sourcesContent": [".app{\n    width: var(--window-width);\n    height: var(--window-height);   \n}"],
-  "mappings": ";AAAA,CAAA;AACI,SAAA,IAAA;AACA,UAAA,IAAA;;",
-  "names": []
-}

@@ -6,6 +6,10 @@
 /out-tsc
 /bazel-out
 
+# Nx
+.nx/cache
+.nx/workspace-data
+
 # Node
 /node_modules
 npm-debug.log
@@ -38,6 +42,9 @@ yarn-error.log
 testem.log
 /typings
 __screenshots__/
+
+# Environment files
+.dev.vars
 
 # System files
 .DS_Store

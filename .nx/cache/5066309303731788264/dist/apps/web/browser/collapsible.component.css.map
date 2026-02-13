@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["apps/web/src/app/shared/components/collapsible/collapsible.component.scss"],
-  "sourcesContent": [".collapsible {\n  display: grid;\n  grid-template-rows: 1fr;\n  transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1);\n\n  &--collapsed {\n    grid-template-rows: 0fr;\n\n    .collapsible__inner {\n      opacity: 0;\n      transform: translateY(-8px);\n      // Ensure it takes no space visually when collapsed\n      margin-top: 0; \n      margin-bottom: 0;\n    }\n  }\n\n  &__inner {\n    overflow: hidden;\n    min-height: 0;\n    \n    // Animation base state\n    opacity: 1;\n    transform: translateY(0);\n    transition: \n      opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),\n      transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),\n      margin 0.3s cubic-bezier(0.4, 0, 0.2, 1);\n  }\n}\n"],
-  "mappings": ";AAAA,CAAA;AACE,WAAA;AACA,sBAAA;AACA,cAAA,mBAAA,KAAA,aAAA,GAAA,EAAA,CAAA,EAAA,GAAA,EAAA;;AAEA,CAAA;AACE,sBAAA;;AAEA,CAHF,uBAGE,CAAA;AACE,WAAA;AACA,aAAA,WAAA;AAEA,cAAA;AACA,iBAAA;;AAIJ,CATE;AAUA,YAAA;AACA,cAAA;AAGA,WAAA;AACA,aAAA,WAAA;AACA;IACE,QAAA,KAAA,aAAA,GAAA,EAAA,CAAA,EAAA,GAAA,EAAA,EAAA;IAAA,UAAA,KAAA,aAAA,GAAA,EAAA,CAAA,EAAA,GAAA,EAAA,EAAA;IAAA,OAAA,KAAA,aAAA,GAAA,EAAA,CAAA,EAAA,GAAA,EAAA;;",
-  "names": []
-}

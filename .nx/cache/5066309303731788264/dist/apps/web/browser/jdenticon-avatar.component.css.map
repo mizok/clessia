@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["apps/web/src/app/shared/components/jdenticon-avatar/jdenticon-avatar.component.ts"],
-  "sourcesContent": ["\n    :host {\n      display: inline-flex;\n      border-radius: 50%;\n      overflow: hidden;\n    }\n  "],
-  "mappings": ";AACI;AACE,WAAA;AACA,iBAAA;AACA,YAAA;;",
-  "names": []
-}

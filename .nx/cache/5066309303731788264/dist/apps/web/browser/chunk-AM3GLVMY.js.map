@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["apps/web/src/app/features/admin/pages/leave/leave.page.ts", "apps/web/src/app/features/admin/pages/leave/leave.page.html"],
-  "sourcesContent": ["import { Component, input } from '@angular/core';\nimport { RouteObj } from '@core/smart-enums/routes-catalog';\n\n@Component({\n  selector: 'app-leave',\n  imports: [],\n  templateUrl: './leave.page.html',\n  styleUrl: './leave.page.scss',\n})\nexport class LeavePage {\n  readonly page = input.required<RouteObj>();\n}\n", "<p>leave works!</p>\n"],
-  "mappings": ";;;;;;;;;;;;;AASM,IAAO,YAAP,MAAO,WAAS;EACX,OAAO,MAAM,SAAQ,GAAA,YAAA,CAAA,EAAA,WAAA,OAAA,CAAA,IAAA,CAAA,CAAA;;qCADnB,YAAS;EAAA;yEAAT,YAAS,WAAA,CAAA,CAAA,WAAA,CAAA,GAAA,QAAA,EAAA,MAAA,CAAA,GAAA,MAAA,EAAA,GAAA,OAAA,GAAA,MAAA,GAAA,UAAA,SAAA,mBAAA,IAAA,KAAA;AAAA,QAAA,KAAA,GAAA;ACTtB,MAAA,4BAAA,GAAA,GAAA;AAAG,MAAA,iBAAA,GAAA,cAAA;AAAY,MAAA,0BAAA;;;;;sEDSF,WAAS,CAAA;UANrB;uBACW,aAAW,SACZ,CAAA,GAAE,UAAA,wBAAA,CAAA;;;;6EAIA,WAAS,EAAA,WAAA,aAAA,UAAA,6DAAA,YAAA,GAAA,CAAA;AAAA,GAAA;",
-  "names": []
-}
