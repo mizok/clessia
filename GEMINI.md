@@ -103,16 +103,7 @@ npx ng test           # Run unit tests (Vitest)
 ### 管理員權限系統 (RBAC + Permissions)
 
 所有的行政人員、分校主任、總管理者都屬於 `admin` 角色，但透過 `admin_permissions` 來區分職責：
-
-- **Super Admin**: 擁有所有權限 (`*`)，可修改其他 admin 的權限。
-- **一般 Admin**: 權限可細分為：
-  - `view_revenue`: 查看營收報表
-  - `manage_staff`: 管理員工帳號
-  - `manage_students`: 學生資料管理
-  - `manage_courses`: 課程與排課
-  - `manage_finance`: 收費與發票
-
-在此架構下，高階管理員（擁有 `manage_staff` 權限者）可以在系統中勾選其他管理員的權限。
+在此架構下，高階管理員（擁有 `manage_staff` 權限者）可以在系統中勾選其他沒有`manage_staff` 權限的管理員的權限。
 
 ### 多重角色
 

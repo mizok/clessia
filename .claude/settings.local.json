@@ -56,7 +56,6 @@
       "WebFetch(domain:github.com)",
       "Bash(chmod:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd one-click installer and update installation docs\n\n- Add install.sh with auto-detection for Claude Code/Codex CLI\n- Update README with multiple installation methods\n- Add verification and update instructions\n- Improve user onboarding experience\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(if [ -d ~/.claude/skills/scss-bem-standards ])",
       "Bash(then echo \"✓ Installed\")",
       "Bash(else echo \"✗ Not installed\")",
       "Bash(fi)",
@@ -65,5 +64,6 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nFix install script: resolve HOME variable issue\n\n- Remove detect_agent\\(\\) function to fix variable scope issue\n- Add HOME fallback if environment variable is not set\n- Simplify agent detection logic\n- Ensure SKILLS_DIR is properly set before use\n\nThis fixes the \"No such file or directory\" error when running\nthe installer.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(npm run build:*)"
     ]
-  }
+  },
+  "enabledPlugins": {}
 }
