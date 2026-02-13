@@ -1,4 +1,5 @@
-import { Component } from '@angular/core';
+import { Component, input } from '@angular/core';
+import { RouteObj } from '@core/smart-enums/routes-catalog';
 
 @Component({
   selector: 'app-campuses',
@@ -7,5 +8,5 @@ import { Component } from '@angular/core';
   styleUrl: './campuses.page.scss',
 })
 export class CampusesPage {
-
+  readonly page = input.required<RouteObj>();
 }

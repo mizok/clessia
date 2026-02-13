@@ -21,7 +21,7 @@ export class NavigationService {
     if (!role) return [];
 
     return RoutesCatalog.values
-      .filter((path) => path.role.role === role && path.visible)
+      .filter((path) => !!path.role && path.role.role === role && path.showInMenu)
       .map((path) => ({
         label: path.label,
         icon: path.icon,

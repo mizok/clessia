@@ -1,21 +1,53 @@
 <aside class="sidebar u-full-height u-scrollable">
-  <nav class="sidebar__nav">
-    @for (group of groupedNav; track group.label) {
+  <nav class="sidebar__nav" appAccordion #accordion="appAccordion">
+    @for (group of groupedNav(); track group.label) {
       @if (group.label) {
-        <div class="sidebar__group-label">{{ group.label }}</div>
-      }
-      @for (item of group.items; track item.route) {
-        <a
-          class="sidebar__item"
-          [routerLink]="item.route"
-          routerLinkActive="sidebar__item--active"
+        <div
+          class="sidebar__group-header"
+          [class.sidebar__group-header--collapsed]="!accordion.isOpen(group.label)"
+          (click)="accordion.toggle(group.label); handleScroll($event)"
         >
-          <i class="pi {{ item.icon }} sidebar__icon"></i>
-          <span class="sidebar__label">{{ item.label }}</span>
-          @if (item.badge) {
-            <span class="sidebar__badge">{{ item.badge }}</span>
+          <span class="sidebar__group-title">{{ group.label }}</span>
+          <i class="pi pi-chevron-down sidebar__group-icon"></i>
+        </div>
+      }
+
+      @if (!group.label) {
+        <div class="sidebar__group-items">
+          @for (item of group.items; track item.route) {
+            <a
+              class="sidebar__item"
+              [routerLink]="item.route"
+              routerLinkActive="sidebar__item--active"
+              (click)="handleScroll($event)"
+            >
+              <i class="pi {{ item.icon }} sidebar__icon"></i>
+              <span class="sidebar__label">{{ item.label }}</span>
+              @if (item.badge) {
+                <span class="sidebar__badge">{{ item.badge }}</span>
+              }
+            </a>
           }
-        </a>
+        </div>
+      } @else {
+        <app-collapsible [collapsed]="!accordion.isOpen(group.label)">
+          <div class="sidebar__group-items">
+            @for (item of group.items; track item.route) {
+              <a
+                class="sidebar__item sidebar__item--indented"
+                [routerLink]="item.route"
+                routerLinkActive="sidebar__item--active"
+                (click)="handleScroll($event)"
+              >
+                <i class="pi {{ item.icon }} sidebar__icon"></i>
+                <span class="sidebar__label">{{ item.label }}</span>
+                @if (item.badge) {
+                  <span class="sidebar__badge">{{ item.badge }}</span>
+                }
+              </a>
+            }
+          </div>
+        </app-collapsible>
       }
     }
   </nav>

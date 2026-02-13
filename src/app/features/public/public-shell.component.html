@@ -10,39 +10,17 @@
       <p class="public-shell__slogan">讓學習旅程更輕鬆</p>
 
       <nav class="public-shell__nav">
-        <a
-          class="public-shell__nav-link"
-          routerLink="/login"
-          routerLinkActive="public-shell__nav-link--active"
-          [routerLinkActiveOptions]="{ exact: true }"
-        >
-          <i class="pi pi-sign-in"></i>
-          <span>登入</span>
-        </a>
-        <a
-          class="public-shell__nav-link"
-          routerLink="/trial"
-          routerLinkActive="public-shell__nav-link--active"
-        >
-          <i class="pi pi-headphones"></i>
-          <span>試聽申請</span>
-        </a>
-        <a
-          class="public-shell__nav-link"
-          routerLink="/enrollment"
-          routerLinkActive="public-shell__nav-link--active"
-        >
-          <i class="pi pi-file-edit"></i>
-          <span>我要報名</span>
-        </a>
-        <a
-          class="public-shell__nav-link"
-          routerLink="/qr-checkin"
-          routerLinkActive="public-shell__nav-link--active"
-        >
-          <i class="pi pi-qrcode"></i>
-          <span>QR 到班打卡</span>
-        </a>
+        @for (item of publicRoutes; track item.absolutePath) {
+          <a
+            class="public-shell__nav-link"
+            [routerLink]="item.absolutePath"
+            routerLinkActive="public-shell__nav-link--active"
+            [routerLinkActiveOptions]="item.absolutePath === '/login' ? { exact: true } : { exact: false }"
+          >
+            <i class="pi {{ item.icon }}"></i>
+            <span>{{ item.label }}</span>
+          </a>
+        }
       </nav>
     </div>
 
@@ -76,43 +54,18 @@
       </button>
     </div>
 
-    <a
-      class="public-shell__sidebar-link"
-      routerLink="/login"
-      routerLinkActive="public-shell__sidebar-link--active"
-      [routerLinkActiveOptions]="{ exact: true }"
-      (click)="toggleMenu()"
-    >
-      <i class="pi pi-sign-in"></i>
-      <span>登入</span>
-    </a>
-    <a
-      class="public-shell__sidebar-link"
-      routerLink="/trial"
-      routerLinkActive="public-shell__sidebar-link--active"
-      (click)="toggleMenu()"
-    >
-      <i class="pi pi-headphones"></i>
-      <span>試聽申請</span>
-    </a>
-    <a
-      class="public-shell__sidebar-link"
-      routerLink="/enrollment"
-      routerLinkActive="public-shell__sidebar-link--active"
-      (click)="toggleMenu()"
-    >
-      <i class="pi pi-file-edit"></i>
-      <span>我要報名</span>
-    </a>
-    <a
-      class="public-shell__sidebar-link"
-      routerLink="/qr-checkin"
-      routerLinkActive="public-shell__sidebar-link--active"
-      (click)="toggleMenu()"
-    >
-      <i class="pi pi-qrcode"></i>
-      <span>QR 到班打卡</span>
-    </a>
+    @for (item of publicRoutes; track item.absolutePath) {
+      <a
+        class="public-shell__sidebar-link"
+        [routerLink]="item.absolutePath"
+        routerLinkActive="public-shell__sidebar-link--active"
+        [routerLinkActiveOptions]="item.absolutePath === '/login' ? { exact: true } : { exact: false }"
+        (click)="toggleMenu()"
+      >
+        <i class="pi {{ item.icon }}"></i>
+        <span>{{ item.label }}</span>
+      </a>
+    }
   </nav>
 
   <!-- Content Panel (Right Side) -->

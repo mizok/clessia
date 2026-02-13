@@ -1,4 +1,5 @@
-import { Component } from '@angular/core';
+import { Component, input } from '@angular/core';
+import { RouteObj } from '@core/smart-enums/routes-catalog';
 
 @Component({
   selector: 'app-schedule',
@@ -7,5 +8,5 @@ import { Component } from '@angular/core';
   styleUrl: './schedule.page.scss',
 })
 export class SchedulePage {
-
+  readonly page = input.required<RouteObj>();
 }
