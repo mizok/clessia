@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../../dist/apps/api",
+    "types": ["@cloudflare/workers-types"],
+    "lib": ["ES2022"],
+    "paths": {
+      "@clessia/shared-types": ["../../packages/shared-types/src/index.ts"],
+      "@clessia/validators": ["../../packages/validators/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}
