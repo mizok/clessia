@@ -62,7 +62,16 @@
       "Bash(git clone:*)",
       "Bash(git add:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nFix install script: resolve HOME variable issue\n\n- Remove detect_agent\\(\\) function to fix variable scope issue\n- Add HOME fallback if environment variable is not set\n- Simplify agent detection logic\n- Ensure SKILLS_DIR is properly set before use\n\nThis fixes the \"No such file or directory\" error when running\nthe installer.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Skill(superpowers:brainstorming)",
+      "Bash(git -C /Users/mizokhuangmbp2023/Desktop/Workspace/clessia log --oneline -10)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\ndocs: 新增完整頁面規格文件 \\(41 頁\\)\n\n- 建立 doc/specs/ 目錄結構，對應 RoutesCatalog 功能模組\n- Public: login, trial, enrollment, qr-checkin \\(4 頁\\)\n- Admin: dashboard, tasks, calendar, notifications + 5 子模組 \\(20 頁\\)\n  - academic/: courses, classes, schedule, sessions, changes\n  - student-affairs/: students, parents, attendance, leave, grades\n  - enrollment/: trials, enrollment-requests, enrollment, renewals\n  - finance/: fee-templates, meals, payments, reports\n  - system/: staff, campuses, settings\n- Teacher: dashboard, notifications, schedule, attendance, students, assessments \\(6 頁\\)\n- Parent: dashboard, notifications, schedule, attendance, grades, trial, enrollment, add-course, renewal, meals, payments \\(11 頁\\)\n- PRD.md: 統一路由路徑為 /admin（移除 /staff, /manager）\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Skill(superpowers:writing-plans)",
+      "mcp__filesystem__read_text_file",
+      "mcp__filesystem__list_directory",
+      "mcp__filesystem__directory_tree",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs"
     ]
   },
   "enabledPlugins": {}
