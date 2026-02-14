@@ -1,7 +1,9 @@
-import { Hono } from 'hono';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { authMiddleware } from './middleware/auth';
+import coursesRoute from './routes/courses';
 import type { User } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -9,23 +11,28 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // Types
 // ============================================================
 
-type Bindings = {
+export type Bindings = {
   ENVIRONMENT: string;
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   SUPABASE_ANON_KEY: string;
 };
 
-type Variables = {
+export type Variables = {
   user: User;
   supabase: SupabaseClient;
+};
+
+export type AppEnv = {
+  Bindings: Bindings;
+  Variables: Variables;
 };
 
 // ============================================================
 // App
 // ============================================================
 
-const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+const app = new OpenAPIHono<AppEnv>();
 
 // ============================================================
 // Global Middleware
@@ -50,6 +57,7 @@ app.get('/', (c) => {
     name: 'Clessia API',
     version: '0.0.1',
     env: c.env.ENVIRONMENT,
+    docs: '/docs',
   });
 });
 
@@ -58,24 +66,32 @@ app.get('/health', (c) => {
 });
 
 // ============================================================
-// Protected Routes
+// OpenAPI Documentation
 // ============================================================
 
-const api = new Hono<{ Bindings: Bindings; Variables: Variables }>();
-
-api.use('*', authMiddleware);
-
-api.get('/me', (c) => {
-  const user = c.get('user');
-  return c.json({
-    id: user.id,
-    email: user.email,
-    createdAt: user.created_at,
-  });
+app.doc('/openapi.json', {
+  openapi: '3.0.0',
+  info: {
+    title: 'Clessia API',
+    version: '0.0.1',
+    description: '學程管家 - 補習班管理系統 API',
+  },
+  servers: [
+    { url: 'http://localhost:8787', description: 'Local Development' },
+    { url: 'https://clessia-api.workers.dev', description: 'Production' },
+  ],
 });
 
-// Mount API routes
-app.route('/api', api);
+app.get('/docs', swaggerUI({ url: '/openapi.json' }));
+
+// ============================================================
+// Protected API Routes
+// ============================================================
+
+app.use('/api/*', authMiddleware);
+
+// Mount routes
+app.route('/api/courses', coursesRoute);
 
 // ============================================================
 // Error Handler
