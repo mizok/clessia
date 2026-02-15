@@ -41,6 +41,8 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
 
   /* Border Radius */
   --radius-sm: 4px;
@@ -264,6 +266,184 @@ select {
 
 
 
+
+/* =============================================================================
+   Toast Styles
+   ============================================================================= */
+.p-toast {
+  opacity: 1;
+
+  .p-toast-message {
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    border: 1px solid transparent;
+    backdrop-filter: blur(8px);
+
+    .p-toast-message-content {
+      padding: var(--space-4);
+      gap: var(--space-3);
+    }
+
+    .p-toast-message-icon {
+      font-size: 1.25rem;
+    }
+
+    .p-toast-summary {
+      font-weight: var(--font-semibold);
+      font-size: var(--text-md);
+    }
+
+    .p-toast-detail {
+      font-size: var(--text-sm);
+      margin-top: 2px;
+      opacity: 0.9;
+    }
+
+    // Success - Green tones
+    &.p-toast-message-success {
+      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+      border-color: #bbf7d0;
+      color: #166534;
+
+      .p-toast-message-icon {
+        color: #16a34a;
+      }
+    }
+
+    // Error - Red tones
+    &.p-toast-message-error {
+      background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+      border-color: #fecaca;
+      color: #991b1b;
+
+      .p-toast-message-icon {
+        color: #dc2626;
+      }
+    }
+
+    // Warning - Amber tones
+    &.p-toast-message-warn {
+      background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+      border-color: #fde68a;
+      color: #92400e;
+
+      .p-toast-message-icon {
+        color: #d97706;
+      }
+    }
+
+    // Info - Sky blue tones (accent)
+    &.p-toast-message-info {
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border-color: #bae6fd;
+      color: #0c4a6e;
+
+      .p-toast-message-icon {
+        color: #0ea5e9;
+      }
+    }
+  }
+
+  .p-toast-close-button {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.08);
+    }
+
+    &:focus {
+      box-shadow: 0 0 0 2px #0ea5e9;
+    }
+  }
+}
+
+/* =============================================================================
+   Confirm Dialog Styles
+   ============================================================================= */
+.p-confirmdialog {
+  .p-dialog-header {
+    padding: var(--space-5) var(--space-6);
+    border-bottom: 1px solid var(--zinc-100);
+    background: var(--zinc-50);
+
+    .p-dialog-title {
+      font-size: var(--text-lg);
+      font-weight: var(--font-semibold);
+      color: var(--zinc-900);
+    }
+  }
+
+  .p-dialog-content {
+    padding: var(--space-6);
+
+    .p-confirmdialog-message {
+      margin-left: var(--space-4);
+      font-size: var(--text-md);
+      color: var(--zinc-700);
+      line-height: var(--leading-relaxed);
+    }
+  }
+
+  .p-dialog-footer {
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--zinc-100);
+    background: var(--zinc-50);
+    gap: var(--space-3);
+  }
+
+  // Warning icon styling
+  .p-confirmdialog-icon {
+    color: var(--warning-600);
+    font-size: 1.5rem;
+  }
+}
+
+/* =============================================================================
+   Form Input Global Styles
+   ============================================================================= */
+.p-inputtext {
+  border-color: var(--zinc-200);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+
+  &:hover:not(:disabled):not(:focus) {
+    border-color: var(--zinc-400);
+  }
+
+  &:focus {
+    border-color: var(--accent-500);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+  }
+
+  &::placeholder {
+    color: var(--zinc-400);
+  }
+}
+
+/* =============================================================================
+   Button Global Styles
+   ============================================================================= */
+// Primary button - zinc-900 theme
+.p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-secondary):not(.p-button-success):not(.p-button-info):not(.p-button-warn):not(.p-button-danger):not(.p-button-help):not(.p-button-contrast) {
+  background: var(--zinc-900);
+  border-color: var(--zinc-900);
+
+  &:not(:disabled):hover {
+    background: var(--zinc-800);
+    border-color: var(--zinc-800);
+  }
+
+  &:not(:disabled):focus {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--accent-500);
+  }
+
+  &:not(:disabled):active {
+    background: var(--zinc-700);
+    border-color: var(--zinc-700);
+  }
+}
 
 /* =============================================================================
    Utilities

@@ -1,0 +1,51 @@
+// Empty State Component - Clessia Design System
+// Reusable empty state display with icon, title, description, and optional action
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12) var(--space-6);
+  text-align: center;
+
+  &__icon {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-full);
+    background: var(--zinc-100);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--space-4);
+
+    i {
+      font-size: 28px;
+      color: var(--zinc-400);
+    }
+  }
+
+  &__title {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-900);
+    margin: 0 0 var(--space-2) 0;
+  }
+
+  &__description {
+    font-size: var(--text-md);
+    color: var(--zinc-500);
+    margin: 0 0 var(--space-6) 0;
+    max-width: 280px;
+    line-height: var(--leading-relaxed);
+  }
+
+  &__action {
+    display: flex;
+    gap: var(--space-3);
+
+    &:empty {
+      display: none;
+    }
+  }
+}
