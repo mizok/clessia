@@ -1,1 +1,349 @@
-<p>campuses works!</p>
+<p-toast />
+<p-confirmDialog />
+
+<div class="campuses">
+  <!-- Page Header -->
+  <header class="campuses__header">
+    <div class="campuses__title-group">
+      <h1 class="campuses__title">分校管理</h1>
+      <p class="campuses__subtitle">管理您的補習班分校資訊</p>
+    </div>
+    <p-button
+      label="新增分校"
+      icon="pi pi-plus"
+      (onClick)="openCreateDialog()"
+    />
+  </header>
+
+  <!-- Main Card -->
+  <div class="campuses__card">
+    <!-- Toolbar with Search -->
+    <div class="campuses__toolbar">
+      <div class="campuses__search">
+        <p-iconField iconPosition="left">
+          <p-inputIcon styleClass="pi pi-search" />
+          <input
+            type="text"
+            pInputText
+            placeholder="搜尋分校名稱、地址或電話..."
+            [ngModel]="searchQuery()"
+            (ngModelChange)="searchQuery.set($event)"
+          />
+        </p-iconField>
+      </div>
+    </div>
+
+    <!-- Stats Summary -->
+    @if (!loading() && campuses().length > 0) {
+      <div class="campuses__stats">
+        <div class="campuses__stat">
+          <span class="campuses__stat-value">{{ campuses().length }}</span>
+          <span class="campuses__stat-label">個分校</span>
+        </div>
+        <div class="campuses__stat">
+          <span class="campuses__stat-value">{{ activeCampusCount() }}</span>
+          <span class="campuses__stat-label">啟用中</span>
+        </div>
+        <div class="campuses__stat">
+          <span class="campuses__stat-value">{{ inactiveCampusCount() }}</span>
+          <span class="campuses__stat-label">已停用</span>
+        </div>
+      </div>
+    }
+
+    <!-- Content Area -->
+    <div class="campuses__content">
+      @if (loading()) {
+        <!-- Skeleton Loading -->
+        <div class="skeleton-table">
+          @for (i of [1, 2, 3, 4, 5]; track i) {
+            <div class="skeleton-table__row">
+              <div class="skeleton-table__cell skeleton-table__cell--name">
+                <p-skeleton width="100%" height="1.25rem" />
+              </div>
+              <div class="skeleton-table__cell skeleton-table__cell--address">
+                <p-skeleton width="100%" height="1.25rem" />
+              </div>
+              <div class="skeleton-table__cell skeleton-table__cell--phone">
+                <p-skeleton width="100%" height="1.25rem" />
+              </div>
+              <div class="skeleton-table__cell skeleton-table__cell--status">
+                <p-skeleton width="100%" height="1.25rem" />
+              </div>
+              <div class="skeleton-table__cell skeleton-table__cell--actions">
+                <p-skeleton width="60px" height="1.25rem" />
+              </div>
+            </div>
+          }
+        </div>
+      } @else if (filteredCampuses().length === 0) {
+        <!-- Empty State -->
+        @if (searchQuery()) {
+          <app-empty-state
+            icon="pi pi-search"
+            title="找不到符合的分校"
+            [description]="'沒有找到符合「' + searchQuery() + '」的分校，請嘗試其他關鍵字'"
+          >
+            <p-button
+              label="清除搜尋"
+              [text]="true"
+              severity="secondary"
+              (onClick)="searchQuery.set('')"
+            />
+          </app-empty-state>
+        } @else {
+          <app-empty-state
+            icon="pi pi-building"
+            title="尚未建立分校"
+            description="開始建立您的第一個分校來管理補習班營運"
+          >
+            <p-button
+              label="新增分校"
+              icon="pi pi-plus"
+              (onClick)="openCreateDialog()"
+            />
+          </app-empty-state>
+        }
+      } @else {
+        <!-- Desktop: Data Table -->
+        <div class="campuses__table-view">
+          <p-table
+            [value]="filteredCampuses()"
+            [paginator]="filteredCampuses().length > 10"
+            [rows]="10"
+            [rowsPerPageOptions]="[10, 20, 50]"
+            [showCurrentPageReport]="true"
+            currentPageReportTemplate="顯示 {first} - {last}，共 {totalRecords} 筆"
+            styleClass="p-datatable-sm"
+          >
+            <ng-template #header>
+              <tr>
+                <th style="width: 25%">分校名稱</th>
+                <th style="width: 30%">地址</th>
+                <th style="width: 15%">電話</th>
+                <th style="width: 10%">狀態</th>
+                <th style="width: 20%; text-align: right">操作</th>
+              </tr>
+            </ng-template>
+            <ng-template #body let-campus>
+              <tr>
+                <td>
+                  <div class="campus-table__name">
+                    <span class="campus-table__icon">
+                      <i class="pi pi-building"></i>
+                    </span>
+                    <span>{{ campus.name }}</span>
+                  </div>
+                </td>
+                <td>
+                  @if (campus.address) {
+                    <span class="campus-table__address">{{ campus.address }}</span>
+                  } @else {
+                    <span class="campus-table__empty">未填寫</span>
+                  }
+                </td>
+                <td>
+                  @if (campus.phone) {
+                    <a [href]="'tel:' + campus.phone" class="campus-table__phone-link">
+                      {{ campus.phone }}
+                    </a>
+                  } @else {
+                    <span class="campus-table__empty">未填寫</span>
+                  }
+                </td>
+                <td>
+                  <p-tag
+                    [value]="campus.isActive ? '啟用' : '停用'"
+                    [severity]="campus.isActive ? 'success' : 'secondary'"
+                  />
+                </td>
+                <td>
+                  <div class="campus-table__actions">
+                    <p-button
+                      icon="pi pi-pencil"
+                      [rounded]="true"
+                      [text]="true"
+                      severity="secondary"
+                      pTooltip="編輯"
+                      tooltipPosition="top"
+                      (onClick)="openEditDialog(campus)"
+                    />
+                    <p-button
+                      icon="pi pi-trash"
+                      [rounded]="true"
+                      [text]="true"
+                      severity="danger"
+                      pTooltip="刪除"
+                      tooltipPosition="top"
+                      (onClick)="confirmDelete(campus)"
+                    />
+                  </div>
+                </td>
+              </tr>
+            </ng-template>
+          </p-table>
+        </div>
+
+        <!-- Mobile: Card List -->
+        <div class="campuses__card-view">
+          @for (campus of filteredCampuses(); track campus.id) {
+            <article class="campus-card">
+              <div class="campus-card__header">
+                <div class="campus-card__icon">
+                  <i class="pi pi-building"></i>
+                </div>
+                <div class="campus-card__title-group">
+                  <h3 class="campus-card__name">{{ campus.name }}</h3>
+                  <p-tag
+                    [value]="campus.isActive ? '啟用' : '停用'"
+                    [severity]="campus.isActive ? 'success' : 'secondary'"
+                  />
+                </div>
+              </div>
+
+              <div class="campus-card__body">
+                @if (campus.address) {
+                  <div class="campus-card__field">
+                    <i class="pi pi-map-marker"></i>
+                    <span>{{ campus.address }}</span>
+                  </div>
+                }
+                @if (campus.phone) {
+                  <div class="campus-card__field">
+                    <i class="pi pi-phone"></i>
+                    <a [href]="'tel:' + campus.phone" class="campus-card__phone-link">
+                      {{ campus.phone }}
+                    </a>
+                  </div>
+                }
+                @if (!campus.address && !campus.phone) {
+                  <p class="campus-card__empty">尚未填寫聯絡資訊</p>
+                }
+              </div>
+
+              <div class="campus-card__actions">
+                <button
+                  type="button"
+                  class="campus-card__action-btn campus-card__action-btn--edit"
+                  (click)="openEditDialog(campus)"
+                >
+                  <i class="pi pi-pencil"></i>
+                  <span>編輯</span>
+                </button>
+                <button
+                  type="button"
+                  class="campus-card__action-btn campus-card__action-btn--delete"
+                  (click)="confirmDelete(campus)"
+                >
+                  <i class="pi pi-trash"></i>
+                  <span>刪除</span>
+                </button>
+              </div>
+            </article>
+          }
+
+          <!-- Mobile pagination info -->
+          @if (filteredCampuses().length > 0) {
+            <div class="campuses__mobile-count">
+              共 {{ filteredCampuses().length }} 個分校
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- Create/Edit Dialog -->
+<p-dialog
+  [header]="dialogTitle()"
+  [(visible)]="dialogVisible"
+  [modal]="true"
+  [closable]="!dialogLoading()"
+  [style]="{ width: '28rem' }"
+  (onHide)="closeDialog()"
+>
+  <div class="campus-dialog__form">
+    <!-- Name Field -->
+    <div class="campus-dialog__field">
+      <label for="name" class="campus-dialog__label">
+        分校名稱<span class="campus-dialog__required">*</span>
+      </label>
+      <input
+        id="name"
+        type="text"
+        pInputText
+        [ngModel]="formData().name"
+        (ngModelChange)="updateName($event)"
+        placeholder="例如：台北信義校"
+        [disabled]="dialogLoading()"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Address Field -->
+    <div class="campus-dialog__field">
+      <label for="address" class="campus-dialog__label">地址</label>
+      <input
+        id="address"
+        type="text"
+        pInputText
+        [ngModel]="formData().address"
+        (ngModelChange)="updateAddress($event)"
+        placeholder="例如：台北市信義區信義路五段 7 號"
+        [disabled]="dialogLoading()"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Phone Field -->
+    <div class="campus-dialog__field">
+      <label for="phone" class="campus-dialog__label">電話</label>
+      <input
+        id="phone"
+        type="tel"
+        pInputText
+        [ngModel]="formData().phone"
+        (ngModelChange)="updatePhone($event)"
+        placeholder="例如：02-2720-1234"
+        [disabled]="dialogLoading()"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Status Toggle (only for edit) -->
+    @if (isEditing()) {
+      <div class="campus-dialog__field campus-dialog__field--inline">
+        <label for="isActive" class="campus-dialog__label">狀態</label>
+        <div class="campus-dialog__switch-group">
+          <p-toggleswitch
+            inputId="isActive"
+            [ngModel]="formData().isActive"
+            (ngModelChange)="updateIsActive($event)"
+            [disabled]="dialogLoading()"
+          />
+          <span class="campus-dialog__switch-label">
+            {{ formData().isActive ? '啟用中' : '已停用' }}
+          </span>
+        </div>
+      </div>
+    }
+
+    <!-- Footer Actions -->
+    <div class="campus-dialog__footer">
+      <p-button
+        label="取消"
+        [text]="true"
+        severity="secondary"
+        (onClick)="closeDialog()"
+        [disabled]="dialogLoading()"
+      />
+      <p-button
+        [label]="isEditing() ? '儲存' : '建立'"
+        [icon]="dialogLoading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+        (onClick)="saveCampus()"
+        [disabled]="dialogLoading() || !formData().name.trim()"
+      />
+    </div>
+  </div>
+</p-dialog>

@@ -3,6 +3,7 @@ import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { authMiddleware } from './middleware/auth';
+import campusesRoute from './routes/campuses';
 import coursesRoute from './routes/courses';
 import type { User } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -92,6 +93,7 @@ app.use('/api/*', authMiddleware);
 
 // Mount routes
 app.route('/api/courses', coursesRoute);
+app.route('/api/campuses', campusesRoute);
 
 // ============================================================
 // Error Handler

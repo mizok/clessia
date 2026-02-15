@@ -5,14 +5,14 @@ import { z } from 'zod';
 // ============================================================
 
 export const loginSchema = z.object({
-  email: z.string().email('請輸入有效的電子郵件'),
+  email: z.email('請輸入有效的電子郵件'),
   password: z.string().min(6, '密碼至少需要 6 個字元'),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
 export const registerSchema = z.object({
-  email: z.string().email('請輸入有效的電子郵件'),
+  email: z.email('請輸入有效的電子郵件'),
   password: z.string().min(6, '密碼至少需要 6 個字元'),
   displayName: z.string().min(2, '姓名至少需要 2 個字元').max(50, '姓名不可超過 50 個字元'),
 });
@@ -20,7 +20,7 @@ export const registerSchema = z.object({
 export type RegisterInput = z.infer<typeof registerSchema>;
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email('請輸入有效的電子郵件'),
+  email: z.email('請輸入有效的電子郵件'),
 });
 
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -58,7 +58,7 @@ export type UpdateCampusInput = z.infer<typeof updateCampusSchema>;
 // ============================================================
 
 export const createCourseSchema = z.object({
-  campusId: z.string().uuid('請選擇分校'),
+  campusId: z.uuid('請選擇分校'),
   name: z.string().min(1, '請輸入課程名稱').max(50, '課程名稱不可超過 50 個字元'),
   subject: z.string().min(1, '請選擇科目'),
   description: z.string().max(500, '說明不可超過 500 個字元').nullable().optional(),
@@ -80,10 +80,10 @@ export type UpdateCourseInput = z.infer<typeof updateCourseSchema>;
 // ============================================================
 
 export const createClassSchema = z.object({
-  campusId: z.string().uuid('請選擇分校'),
-  courseId: z.string().uuid('請選擇課程'),
+  campusId: z.uuid('請選擇分校'),
+  courseId: z.uuid('請選擇課程'),
   name: z.string().min(1, '請輸入班級名稱').max(50, '班級名稱不可超過 50 個字元'),
-  teacherId: z.string().uuid().nullable().optional(),
+  teacherId: z.uuid().nullable().optional(),
   maxStudents: z.number().int().min(1).max(100).nullable().optional(),
 });
 
@@ -91,7 +91,7 @@ export type CreateClassInput = z.infer<typeof createClassSchema>;
 
 export const updateClassSchema = z.object({
   name: z.string().min(1, '請輸入班級名稱').max(50, '班級名稱不可超過 50 個字元').optional(),
-  teacherId: z.string().uuid().nullable().optional(),
+  teacherId: z.uuid().nullable().optional(),
   maxStudents: z.number().int().min(1).max(100).nullable().optional(),
   isActive: z.boolean().optional(),
 });
@@ -103,7 +103,7 @@ export type UpdateClassInput = z.infer<typeof updateClassSchema>;
 // ============================================================
 
 export const createStudentSchema = z.object({
-  campusId: z.string().uuid('請選擇分校'),
+  campusId: z.uuid('請選擇分校'),
   name: z.string().min(1, '請輸入學生姓名').max(50, '學生姓名不可超過 50 個字元'),
   grade: z.string().max(20, '年級不可超過 20 個字元').nullable().optional(),
   school: z.string().max(50, '學校名稱不可超過 50 個字元').nullable().optional(),
@@ -136,7 +136,7 @@ export const listQuerySchema = paginationSchema.extend({
   sortBy: z.string().optional(),
   sortOrder: z.enum(['asc', 'desc']).default('asc'),
   isActive: z.coerce.boolean().optional(),
-  campusId: z.string().uuid().optional(),
+  campusId: z.uuid().optional(),
 });
 
 export type ListQueryInput = z.infer<typeof listQuerySchema>;
@@ -146,7 +146,7 @@ export type ListQueryInput = z.infer<typeof listQuerySchema>;
 // ============================================================
 
 export const idParamSchema = z.object({
-  id: z.string().uuid('無效的 ID 格式'),
+  id: z.uuid('無效的 ID 格式'),
 });
 
 export type IdParam = z.infer<typeof idParamSchema>;
