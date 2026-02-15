@@ -16,43 +16,45 @@
 | Codex 委派要透明 | 所有委派內容必須可追蹤、可審計 |
 | 設計系統優先 | UI 開發前必須參考現有組件風格 |
 | 規格先於實作 | 先定義完整規格，再開始寫程式 |
+| Token 成本意識 | 重複性工作優先委派 Codex，Claude 專注設計判斷 |
 
 ---
 
 ## 功能開發流程
 
 ```
-Phase 0: 環境調查
+Phase 0: 環境調查                    ← Claude（快速掃描）
     ├── 檢查 package.json / 依賴版本
     ├── 檢查專案設定檔（tsconfig, eslint, etc.）
     ├── 檢查現有組件風格
     └── 檢查環境設定（ports, URLs, env vars）
             ↓
-Phase 1: 撰寫功能規格
+Phase 1: 撰寫功能規格                ← Claude（需求理解）
     └── 使用「功能規格模板」
             ↓
-Phase 2: Database / Schema
-    ├── 執行者：Codex 或 Claude
+Phase 2: Database / Schema           ← Codex 優先
+    ├── 執行者：Codex（規格明確時）
     ├── 產出：migration, schema, seed
     └── 【驗證點】database reset/migrate 無錯誤
             ↓
-Phase 3: API / Backend
-    ├── 執行者：Codex 或 Claude
+Phase 3: API / Backend               ← Codex 優先
+    ├── 執行者：Codex（CRUD 類型）
     ├── 產出：route, controller, service
-    └── 【驗證點】API 測試全部成功
+    └── 【驗證點】API 測試全部成功（Codex 可執行）
             ↓
-Phase 4: Frontend Service
-    ├── 執行者：Codex 或 Claude
+Phase 4: Frontend Service            ← Codex 優先
+    ├── 執行者：Codex（CRUD service）
     ├── 產出：API client, service layer
     └── 【驗證點】build 無錯誤
             ↓
-Phase 5: Frontend UI
-    ├── 執行者：Claude（Codex 不做 UI/UX）
+Phase 5: Frontend UI                 ← Claude 專屬
+    ├── 執行者：Claude（需設計判斷）
     ├── 必須：參考設計系統、現有組件
     ├── 產出：component, page, styles
     └── 【驗證點】build 無錯誤 + 視覺檢查
             ↓
-Phase 6: 端到端驗證
+Phase 6: 端到端驗證                  ← Codex 可執行
+    ├── 執行者：Codex（Playwright 腳本）
     └── 實際操作完整流程
 ```
 
@@ -174,6 +176,74 @@ mcp__codex-cli__codex({
 1. 檢查所有產出檔案
 2. 執行該階段驗證點
 3. 驗證通過後才進下一階段
+
+---
+
+## Token 優化策略
+
+### 為什麼要優化？
+
+- Claude token 成本較高，適合需要判斷力的工作
+- Codex token 相對便宜，適合重複性、規格明確的工作
+- 合理分工可節省 **40-60%** 的 Claude token 消耗
+
+### Claude vs Codex 分工原則
+
+| Claude 負責 | Codex 負責 |
+|-------------|------------|
+| 需求理解、規格撰寫 | 規格明確的程式碼生成 |
+| UI/UX 設計決策 | CRUD API / Service |
+| 設計系統參考 | Database schema / Seed |
+| 視覺風格判斷 | 重複性測試（curl, Playwright） |
+| 架構決策 | Debug / 問題排查 |
+| 最終 Review | 驗證腳本執行 |
+
+### 預設委派清單
+
+以下任務**優先委派給 Codex**：
+
+```markdown
+## 每個功能開發時，檢查以下項目是否可委派 Codex
+
+### Phase 2: Database
+- [ ] Seed data SQL 生成
+- [ ] Migration 檔案撰寫（schema 明確時）
+
+### Phase 3: API
+- [ ] CRUD route 實作
+- [ ] Validation schema 撰寫
+- [ ] API endpoint 測試（curl 指令）
+
+### Phase 4: Frontend Service
+- [ ] Service 層 CRUD methods
+- [ ] Type definitions
+
+### Phase 6: E2E 驗證
+- [ ] Playwright 測試腳本
+- [ ] 自動化驗證流程
+```
+
+### Session 管理建議
+
+| 情境 | 建議 |
+|------|------|
+| 開始新功能 | 使用新 session，避免 context 污染 |
+| 續接工作 | 優先讀 codebase，不依賴過期記憶 |
+| Context 接近上限 | 委派剩餘工作給 Codex，不要硬撐 |
+
+### 預估節省效益
+
+典型 CRUD 功能的 token 分布：
+
+| Phase | 原本全由 Claude | 優化後 Claude | 節省 |
+|-------|-----------------|---------------|------|
+| Phase 0-1 | ~3K | ~3K | - |
+| Phase 2 | ~2K | 0 (Codex) | 2K |
+| Phase 3 | ~3K | 0 (Codex) | 3K |
+| Phase 4 | ~3K | 0 (Codex) | 3K |
+| Phase 5 | ~8K | ~8K | - |
+| Phase 6 | ~5K | 0 (Codex) | 5K |
+| **總計** | **~24K** | **~11K** | **~54%** |
 
 ---
 
