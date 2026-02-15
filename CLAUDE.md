@@ -12,6 +12,16 @@
 | Deploy    | Vercel                                                                  |
 | Utilities | date-fns, xlsx, pdfmake, angularx-qrcode, html5-qrcode, Toast UI Editor |
 
+## 開發流程
+
+**重要**：開發新功能前，必須遵循 [`doc/AGENT_GUIDE.md`](doc/AGENT_GUIDE.md) 的流程。
+
+核心要點：
+1. **Phase 0**：先調查環境（版本、設定、現有風格）
+2. **分階段驗證**：每階段完成後驗證才能繼續
+3. **Codex 委派**：必須指定 `sessionId`，prompt 須包含版本資訊
+4. **UI 開發**：必須先參考設計系統，invoke `ui-ux-pro-max` skill
+
 ## Coding Conventions
 
 ### Angular
@@ -114,7 +124,7 @@ npx ng test           # Run unit tests (Vitest)
 | ------------------------------------------------ | ----------------------- | ---------------- | -------------------------------------- |
 | `/login`, `/trial`, `/enrollment`, `/qr-checkin` | `PublicShellComponent`  | 無需登入         | 雙欄佈局（brand sidebar + content）    |
 | `/select-role`                                   | —                       | 已登入、多重角色 | 角色選擇頁                             |
-| `/admin/**`                                      | `AdminShellComponent`   | `admin`, `staff` | 管理佈局（header + sidebar + content） |
+| `/admin/**`                                      | `AdminShellComponent`   | `admin`          | 管理佈局（header + sidebar + content） |
 | `/teacher/**`                                    | `TeacherShellComponent` | `teacher`        | 課表、點名為主的簡潔佈局               |
 | `/parent/**`                                     | `ParentShellComponent`  | `parent`         | mobile-first 閱讀佈局                  |
 
