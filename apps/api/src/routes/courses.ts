@@ -7,9 +7,9 @@ import type { AppEnv } from '../index';
 
 const CourseSchema = z
   .object({
-    id: z.string().uuid(),
-    orgId: z.string().uuid(),
-    campusId: z.string().uuid(),
+    id: z.uuid(),
+    orgId: z.uuid(),
+    campusId: z.uuid(),
     campusName: z.string().optional(),
     name: z.string(),
     subject: z.string(),
@@ -34,7 +34,7 @@ const CourseListResponseSchema = z
 
 const CreateCourseSchema = z
   .object({
-    campusId: z.string().uuid().openapi({ description: '所屬分校 ID' }),
+    campusId: z.uuid().openapi({ description: '所屬分校 ID' }),
     name: z.string().min(1).max(50).openapi({ description: '課程名稱', example: '國一數學' }),
     subject: z.string().min(1).openapi({ description: '科目', example: '數學' }),
     description: z.string().max(500).nullable().optional().openapi({ description: '課程說明' }),
@@ -54,7 +54,7 @@ const ErrorSchema = z
   .object({
     error: z.string(),
     code: z.string().optional(),
-    details: z.record(z.unknown()).optional(),
+    details: z.record(z.string(), z.unknown()).optional(),
   })
   .openapi('Error');
 
@@ -62,10 +62,29 @@ const QueryParamsSchema = z.object({
   page: z.string().optional().openapi({ description: '頁碼', example: '1' }),
   pageSize: z.string().optional().openapi({ description: '每頁筆數', example: '20' }),
   search: z.string().optional().openapi({ description: '搜尋課程名稱' }),
-  campusId: z.string().uuid().optional().openapi({ description: '篩選分校' }),
+  campusId: z.uuid().optional().openapi({ description: '篩選分校' }),
   subject: z.string().optional().openapi({ description: '篩選科目' }),
   isActive: z.string().optional().openapi({ description: '篩選狀態 (true/false)' }),
 });
+
+// ============================================================
+// Helper function to map DB row to Course
+// ============================================================
+
+function mapCourse(row: Record<string, unknown>) {
+  return {
+    id: row['id'] as string,
+    orgId: row['org_id'] as string,
+    campusId: row['campus_id'] as string,
+    campusName: (row['campuses'] as Record<string, unknown> | null)?.['name'] as string | undefined,
+    name: row['name'] as string,
+    subject: row['subject'] as string,
+    description: row['description'] as string | null,
+    isActive: row['is_active'] as boolean,
+    createdAt: row['created_at'] as string,
+    updatedAt: row['updated_at'] as string,
+  };
+}
 
 // ============================================================
 // Routes
@@ -89,14 +108,6 @@ const listRoute = createRoute({
       content: {
         'application/json': {
           schema: CourseListResponseSchema,
-        },
-      },
-    },
-    401: {
-      description: '未授權',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
         },
       },
     },
@@ -136,21 +147,10 @@ app.openapi(listRoute, async (c) => {
   const { data, count, error } = await dbQuery;
 
   if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
+    console.error('DB Error:', error);
   }
 
-  const courses = (data || []).map((row: any) => ({
-    id: row.id,
-    orgId: row.org_id,
-    campusId: row.campus_id,
-    campusName: row.campuses?.name,
-    name: row.name,
-    subject: row.subject,
-    description: row.description,
-    isActive: row.is_active,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }));
+  const courses = (data || []).map((row) => mapCourse(row as Record<string, unknown>));
 
   return c.json({
     data: courses,
@@ -171,7 +171,7 @@ const getRoute = createRoute({
   summary: '取得單一課程',
   request: {
     params: z.object({
-      id: z.string().uuid().openapi({ description: '課程 ID' }),
+      id: z.uuid().openapi({ description: '課程 ID' }),
     }),
   },
   responses: {
@@ -209,19 +209,8 @@ app.openapi(getRoute, async (c) => {
   }
 
   return c.json({
-    data: {
-      id: data.id,
-      orgId: data.org_id,
-      campusId: data.campus_id,
-      campusName: data.campuses?.name,
-      name: data.name,
-      subject: data.subject,
-      description: data.description,
-      isActive: data.is_active,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    },
-  });
+    data: mapCourse(data as Record<string, unknown>),
+  }, 200);
 });
 
 // POST /api/courses - 新增課程
@@ -299,26 +288,10 @@ app.openapi(createCourseRoute, async (c) => {
     if (error.code === '23505') {
       return c.json({ error: '此分校已有同名課程', code: 'DUPLICATE' }, 409);
     }
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
 
-  return c.json(
-    {
-      data: {
-        id: data.id,
-        orgId: data.org_id,
-        campusId: data.campus_id,
-        campusName: data.campuses?.name,
-        name: data.name,
-        subject: data.subject,
-        description: data.description,
-        isActive: data.is_active,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
-      },
-    },
-    201
-  );
+  return c.json({ data: mapCourse(data as Record<string, unknown>) }, 201);
 });
 
 // PUT /api/courses/:id - 更新課程
@@ -329,7 +302,7 @@ const updateRoute = createRoute({
   summary: '更新課程',
   request: {
     params: z.object({
-      id: z.string().uuid(),
+      id: z.uuid(),
     }),
     body: {
       content: {
@@ -365,10 +338,10 @@ app.openapi(updateRoute, async (c) => {
   const body = c.req.valid('json');
 
   const updateData: Record<string, unknown> = {};
-  if (body.name !== undefined) updateData.name = body.name;
-  if (body.subject !== undefined) updateData.subject = body.subject;
-  if (body.description !== undefined) updateData.description = body.description;
-  if (body.isActive !== undefined) updateData.is_active = body.isActive;
+  if (body.name !== undefined) updateData['name'] = body.name;
+  if (body.subject !== undefined) updateData['subject'] = body.subject;
+  if (body.description !== undefined) updateData['description'] = body.description;
+  if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
 
   const { data, error } = await supabase
     .from('courses')
@@ -381,20 +354,7 @@ app.openapi(updateRoute, async (c) => {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  return c.json({
-    data: {
-      id: data.id,
-      orgId: data.org_id,
-      campusId: data.campus_id,
-      campusName: data.campuses?.name,
-      name: data.name,
-      subject: data.subject,
-      description: data.description,
-      isActive: data.is_active,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    },
-  });
+  return c.json({ data: mapCourse(data as Record<string, unknown>) }, 200);
 });
 
 // DELETE /api/courses/:id - 刪除課程
@@ -406,7 +366,7 @@ const deleteRoute = createRoute({
   description: '刪除課程（僅限無開課班的課程）',
   request: {
     params: z.object({
-      id: z.string().uuid(),
+      id: z.uuid(),
     }),
   },
   responses: {
@@ -460,7 +420,7 @@ app.openapi(deleteRoute, async (c) => {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  return c.json({ success: true });
+  return c.json({ success: true }, 200);
 });
 
 export default app;

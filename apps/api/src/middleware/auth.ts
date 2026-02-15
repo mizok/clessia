@@ -39,5 +39,5 @@ export const authMiddleware = createMiddleware<{
 
   c.set('user', user);
   c.set('supabase', supabase);
-  await next();
+  return next();
 });

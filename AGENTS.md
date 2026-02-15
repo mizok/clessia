@@ -114,7 +114,7 @@ npx ng test           # Run unit tests (Vitest)
 | ------------------------------------------------ | ----------------------- | ---------------- | -------------------------------------- |
 | `/login`, `/trial`, `/enrollment`, `/qr-checkin` | `PublicShellComponent`  | 無需登入         | 雙欄佈局（brand sidebar + content）    |
 | `/select-role`                                   | —                       | 已登入、多重角色 | 角色選擇頁                             |
-| `/admin/**`                                      | `AdminShellComponent`   | `admin`, `staff` | 管理佈局（header + sidebar + content） |
+| `/admin/**`                                      | `AdminShellComponent`   | `admin`          | 管理佈局（header + sidebar + content） |
 | `/teacher/**`                                    | `TeacherShellComponent` | `teacher`        | 課表、點名為主的簡潔佈局               |
 | `/parent/**`                                     | `ParentShellComponent`  | `parent`         | mobile-first 閱讀佈局                  |
 
@@ -176,7 +176,7 @@ src/app/
 | Angular 效能優化（@defer, httpResource, zoneless）     | `angular-best-practices-v20`          |
 | 處理 RxJS（Observable, Subject, operators）            | `angular-rxjs-patterns`               |
 | 設計 DI 架構（providers, injection tokens）            | `angular-dependency-injection`        |
-| 寫或 review SCSS / CSS（BEM 命名、component styles）   | `angular-scss-bem-standards`      |
+| 寫或 review SCSS / CSS（BEM 命名、component styles）   | `angular-scss-bem-standards`          |
 | 設計 UI / 頁面佈局 / 視覺風格                          | `ui-ux-pro-max`                       |
 | 排版、色彩、spacing、字型搭配                          | `visual-design-foundations`           |
 | 建立前端頁面或美化 UI                                  | `frontend-design`                     |
