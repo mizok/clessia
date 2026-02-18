@@ -5,6 +5,7 @@ import { logger } from 'hono/logger';
 import { authMiddleware } from './middleware/auth';
 import campusesRoute from './routes/campuses';
 import coursesRoute from './routes/courses';
+import staffRoute from './routes/staff';
 import type { User } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -17,6 +18,7 @@ export type Bindings = {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   SUPABASE_ANON_KEY: string;
+  WEB_URL: string;
 };
 
 export type Variables = {
@@ -94,6 +96,7 @@ app.use('/api/*', authMiddleware);
 // Mount routes
 app.route('/api/courses', coursesRoute);
 app.route('/api/campuses', campusesRoute);
+app.route('/api/staff', staffRoute);
 
 // ============================================================
 // Error Handler

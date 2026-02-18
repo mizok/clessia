@@ -241,7 +241,7 @@ export const routes: Routes = [
           {
             path: RoutesCatalog.ADMIN_STAFF.relativePath,
             loadComponent: () =>
-              import('@features/admin/pages/staff/staff.component').then((m) => m.StaffComponent),
+              import('@features/admin/pages/staff/staff.page').then((m) => m.StaffPage),
             data: { animation: 'AdminStaff', page: RoutesCatalog.ADMIN_STAFF },
           },
           {

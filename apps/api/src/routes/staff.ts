@@ -1,0 +1,992 @@
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { createServiceClient } from '../lib/supabase';
+import type { AppEnv } from '../index';
+
+// ============================================================
+// Schemas
+// ============================================================
+
+const StaffRoleSchema = z.enum(['admin', 'teacher']).openapi('StaffRole');
+
+const PermissionSchema = z
+  .enum([
+    'basic_operations',
+    'manage_courses',
+    'manage_students',
+    'manage_finance',
+    'manage_staff',
+    'view_reports',
+  ])
+  .openapi('Permission');
+
+const SubjectSchema = z
+  .enum(['國文', '英文', '數學', '自然', '社會', '其他'])
+  .openapi('StaffSubject');
+
+const DateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD');
+
+const StaffSchema = z
+  .object({
+    id: z.uuid(),
+    userId: z.uuid(),
+    orgId: z.uuid(),
+    displayName: z.string(),
+    phone: z.string().nullable(),
+    email: z.email(),
+    birthday: z.string().nullable(),
+    notes: z.string().nullable(),
+    subjects: z.array(z.string()),
+    isActive: z.boolean(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    campusIds: z.array(z.uuid()),
+    roles: z.array(StaffRoleSchema),
+    permissions: z.array(PermissionSchema),
+  })
+  .openapi('Staff');
+
+const StaffListResponseSchema = z
+  .object({
+    data: z.array(StaffSchema),
+    meta: z.object({
+      total: z.number(),
+      page: z.number(),
+      pageSize: z.number(),
+      totalPages: z.number(),
+    }),
+  })
+  .openapi('StaffListResponse');
+
+const CreateStaffSchema = z
+  .object({
+    displayName: z.string().min(1).max(100).openapi({ description: '姓名' }),
+    email: z.email().openapi({ description: 'Email（登入帳號）' }),
+    phone: z.string().max(30).nullable().optional().openapi({ description: '電話' }),
+    birthday: DateStringSchema.nullable().optional().openapi({ description: '生日（YYYY-MM-DD）' }),
+    notes: z.string().max(2000).nullable().optional().openapi({ description: '備註' }),
+    subjects: z.array(SubjectSchema).optional().openapi({ description: '教學科目（老師用）' }),
+    campusIds: z.array(z.uuid()).min(1).openapi({ description: '服務分校 IDs' }),
+    roles: z.array(StaffRoleSchema).min(1).openapi({ description: '角色：admin、teacher（可多選）' }),
+    permissions: z.array(PermissionSchema).optional().openapi({ description: '管理員權限清單' }),
+  })
+  .openapi('CreateStaff');
+
+const UpdateStaffSchema = z
+  .object({
+    displayName: z.string().min(1).max(100).optional(),
+    phone: z.string().max(30).nullable().optional(),
+    birthday: DateStringSchema.nullable().optional(),
+    notes: z.string().max(2000).nullable().optional(),
+    subjects: z.array(SubjectSchema).optional(),
+    campusIds: z.array(z.uuid()).min(1).optional(),
+    roles: z.array(StaffRoleSchema).min(1).optional().openapi({ description: '角色（可多選）' }),
+    isActive: z.boolean().optional(),
+    permissions: z.array(PermissionSchema).optional(),
+  })
+  .openapi('UpdateStaff');
+
+const ErrorSchema = z
+  .object({
+    error: z.string(),
+    code: z.string().optional(),
+    details: z.record(z.string(), z.unknown()).optional(),
+  })
+  .openapi('Error');
+
+const QueryParamsSchema = z.object({
+  page: z.string().optional().openapi({ description: '頁碼', example: '1' }),
+  pageSize: z.string().optional().openapi({ description: '每頁筆數', example: '20' }),
+  search: z.string().optional().openapi({ description: '姓名 / Email 搜尋' }),
+  role: StaffRoleSchema.optional().openapi({ description: '角色篩選' }),
+  campusId: z.uuid().optional().openapi({ description: '分校篩選' }),
+  isActive: z.string().optional().openapi({ description: '篩選狀態 (true/false)' }),
+});
+
+// ============================================================
+// Types
+// ============================================================
+
+type StaffRole = z.infer<typeof StaffRoleSchema>;
+type Permission = z.infer<typeof PermissionSchema>;
+
+interface RoleInfo {
+  roles: StaffRole[];
+  permissions: Permission[];
+}
+
+interface StaffCampusRow {
+  staff_id: string;
+  campus_id: string;
+}
+
+interface UserRoleRow {
+  user_id: string;
+  role: StaffRole;
+  permissions: unknown;
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+
+function normalizePermissions(permissions: unknown): Permission[] {
+  if (!Array.isArray(permissions)) {
+    return [];
+  }
+
+  return permissions.filter((permission): permission is Permission =>
+    PermissionSchema.options.includes(permission as Permission),
+  );
+}
+
+function toRoleInfoMap(rows: UserRoleRow[]): Map<string, RoleInfo> {
+  const roleInfoMap = new Map<string, RoleInfo>();
+
+  for (const row of rows) {
+    const existing = roleInfoMap.get(row.user_id);
+    const rowPermissions = normalizePermissions(row.permissions);
+
+    if (existing) {
+      // Merge roles and permissions
+      if (!existing.roles.includes(row.role)) {
+        existing.roles.push(row.role);
+      }
+      // Merge permissions (avoid duplicates)
+      for (const perm of rowPermissions) {
+        if (!existing.permissions.includes(perm)) {
+          existing.permissions.push(perm);
+        }
+      }
+    } else {
+      roleInfoMap.set(row.user_id, {
+        roles: [row.role],
+        permissions: rowPermissions,
+      });
+    }
+  }
+
+  return roleInfoMap;
+}
+
+function toCampusMap(rows: StaffCampusRow[]): Map<string, string[]> {
+  const campusMap = new Map<string, string[]>();
+
+  for (const row of rows) {
+    const current = campusMap.get(row.staff_id) || [];
+    current.push(row.campus_id);
+    campusMap.set(row.staff_id, current);
+  }
+
+  return campusMap;
+}
+
+function mapStaff(
+  row: Record<string, unknown>,
+  campusMap: Map<string, string[]>,
+  roleInfoMap: Map<string, RoleInfo>,
+) {
+  const userId = row['user_id'] as string;
+  const staffId = row['id'] as string;
+  const roleInfo = roleInfoMap.get(userId) || { roles: ['teacher'] as StaffRole[], permissions: [] };
+
+  return {
+    id: staffId,
+    userId,
+    orgId: row['org_id'] as string,
+    displayName: row['display_name'] as string,
+    phone: row['phone'] as string | null,
+    email: row['email'] as string,
+    birthday: row['birthday'] as string | null,
+    notes: row['notes'] as string | null,
+    subjects: ((row['subjects'] as string[] | null) || []).filter((subject) =>
+      SubjectSchema.options.includes(subject as (typeof SubjectSchema.options)[number]),
+    ),
+    isActive: row['is_active'] as boolean,
+    createdAt: row['created_at'] as string,
+    updatedAt: row['updated_at'] as string,
+    campusIds: campusMap.get(staffId) || [],
+    roles: roleInfo.roles,
+    permissions: roleInfo.permissions,
+  };
+}
+
+async function getCurrentUserOrgId(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<string | null> {
+  const { data } = await supabase.from('profiles').select('org_id').eq('id', userId).single();
+  return data?.org_id || null;
+}
+
+async function checkUserIsAdmin(supabase: SupabaseClient, userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .eq('role', 'admin')
+    .maybeSingle();
+
+  return !!data;
+}
+
+async function validateCampusIdsInOrg(
+  supabase: SupabaseClient,
+  orgId: string,
+  campusIds: string[],
+): Promise<boolean> {
+  const uniqueCampusIds = Array.from(new Set(campusIds));
+
+  if (uniqueCampusIds.length === 0) {
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from('campuses')
+    .select('id')
+    .eq('org_id', orgId)
+    .in('id', uniqueCampusIds);
+
+  if (error) {
+    return false;
+  }
+
+  return (data || []).length === uniqueCampusIds.length;
+}
+
+function isDuplicateEmailError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes('already') && normalized.includes('registered');
+}
+
+async function loadStaffRelations(
+  supabase: SupabaseClient,
+  staffRows: Record<string, unknown>[],
+): Promise<{ campusMap: Map<string, string[]>; roleInfoMap: Map<string, RoleInfo> }> {
+  const staffIds = staffRows.map((row) => row['id'] as string);
+  const userIds = staffRows.map((row) => row['user_id'] as string);
+
+  if (staffIds.length === 0 || userIds.length === 0) {
+    return {
+      campusMap: new Map<string, string[]>(),
+      roleInfoMap: new Map<string, RoleInfo>(),
+    };
+  }
+
+  const [{ data: campusRows }, { data: roleRows }] = await Promise.all([
+    supabase
+      .from('staff_campuses')
+      .select('staff_id, campus_id, campuses!inner(id)')
+      .in('staff_id', staffIds),
+    supabase.from('user_roles').select('user_id, role, permissions').in('user_id', userIds),
+  ]);
+
+  const filteredRoleRows = (roleRows || []).filter(
+    (row) => row.role === 'admin' || row.role === 'teacher',
+  ) as UserRoleRow[];
+
+  return {
+    campusMap: toCampusMap((campusRows || []) as StaffCampusRow[]),
+    roleInfoMap: toRoleInfoMap(filteredRoleRows),
+  };
+}
+
+async function getStaffById(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<Record<string, unknown> | null> {
+  const { data } = await supabase.from('staff').select('*').eq('id', id).maybeSingle();
+  return (data as Record<string, unknown> | null) || null;
+}
+
+function normalizeAdminPermissions(role: StaffRole, permissions?: Permission[]): Permission[] {
+  if (role !== 'admin') {
+    return [];
+  }
+
+  return Array.from(new Set(permissions || []));
+}
+
+// ============================================================
+// Routes
+// ============================================================
+
+const app = new OpenAPIHono<AppEnv>();
+
+// GET /api/staff
+const listRoute = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Staff'],
+  summary: '取得人員列表',
+  description: '取得人員列表，支援分頁、搜尋、角色篩選、分校篩選',
+  request: {
+    query: QueryParamsSchema,
+  },
+  responses: {
+    200: {
+      description: '成功取得人員列表',
+      content: {
+        'application/json': {
+          schema: StaffListResponseSchema,
+        },
+      },
+    },
+    400: {
+      description: '查詢失敗',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(listRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const requester = c.get('user');
+  const query = c.req.valid('query');
+  const serviceClient = createServiceClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY);
+
+  const page = Math.max(parseInt(query.page || '1', 10), 1);
+  const pageSize = Math.max(parseInt(query.pageSize || '20', 10), 1);
+  const offset = (page - 1) * pageSize;
+
+  let filteredStaffIdsByCampus: string[] | null = null;
+  let filteredUserIdsByRole: string[] | null = null;
+  const orgId = await getCurrentUserOrgId(supabase, requester.id);
+
+  if (!orgId) {
+    return c.json({ error: '無法取得組織資訊', code: 'NO_ORG' }, 400);
+  }
+
+  if (query.campusId) {
+    const { data: campusLinks } = await supabase
+      .from('staff_campuses')
+      .select('staff_id, campuses!inner(id)')
+      .eq('campus_id', query.campusId);
+    filteredStaffIdsByCampus = (campusLinks || []).map((row) => row.staff_id);
+  }
+
+  if (query.role) {
+    const { data: orgProfiles, error: orgProfileError } = await serviceClient
+      .from('profiles')
+      .select('id')
+      .eq('org_id', orgId);
+
+    if (orgProfileError) {
+      return c.json({ error: orgProfileError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    const orgUserIds = (orgProfiles || []).map((profile) => profile.id);
+    if (orgUserIds.length === 0) {
+      return c.json(
+        {
+          data: [],
+          meta: {
+            total: 0,
+            page,
+            pageSize,
+            totalPages: 0,
+          },
+        },
+        200,
+      );
+    }
+
+    const { data: roleRows, error: roleFilterError } = await serviceClient
+      .from('user_roles')
+      .select('user_id')
+      .eq('role', query.role)
+      .in('user_id', orgUserIds);
+
+    if (roleFilterError) {
+      return c.json({ error: roleFilterError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    filteredUserIdsByRole = (roleRows || []).map((row) => row.user_id);
+  }
+
+  if (query.campusId && filteredStaffIdsByCampus && filteredStaffIdsByCampus.length === 0) {
+    return c.json(
+      {
+        data: [],
+        meta: {
+          total: 0,
+          page,
+          pageSize,
+          totalPages: 0,
+        },
+      },
+      200,
+    );
+  }
+
+  if (query.role && filteredUserIdsByRole && filteredUserIdsByRole.length === 0) {
+    return c.json(
+      {
+        data: [],
+        meta: {
+          total: 0,
+          page,
+          pageSize,
+          totalPages: 0,
+        },
+      },
+      200,
+    );
+  }
+
+  let dbQuery = supabase.from('staff').select('*', { count: 'exact' });
+
+  if (query.search) {
+    dbQuery = dbQuery.or(`display_name.ilike.%${query.search}%,email.ilike.%${query.search}%`);
+  }
+
+  if (query.isActive !== undefined) {
+    dbQuery = dbQuery.eq('is_active', query.isActive === 'true');
+  }
+
+  if (filteredStaffIdsByCampus) {
+    dbQuery = dbQuery.in('id', filteredStaffIdsByCampus);
+  }
+
+  if (filteredUserIdsByRole) {
+    dbQuery = dbQuery.in('user_id', filteredUserIdsByRole);
+  }
+
+  dbQuery = dbQuery.range(offset, offset + pageSize - 1).order('created_at', { ascending: false });
+
+  const { data, count, error } = await dbQuery;
+
+  if (error) {
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+  }
+
+  const staffRows = (data || []) as Record<string, unknown>[];
+  const { campusMap, roleInfoMap } = await loadStaffRelations(serviceClient, staffRows);
+  const staffList = staffRows.map((row) => mapStaff(row, campusMap, roleInfoMap));
+
+  return c.json(
+    {
+      data: staffList,
+      meta: {
+        total: count || 0,
+        page,
+        pageSize,
+        totalPages: Math.ceil((count || 0) / pageSize),
+      },
+    },
+    200,
+  );
+});
+
+// GET /api/staff/:id
+const getRoute = createRoute({
+  method: 'get',
+  path: '/{id}',
+  tags: ['Staff'],
+  summary: '取得單一人員',
+  request: {
+    params: z.object({
+      id: z.uuid().openapi({ description: '人員 ID' }),
+    }),
+  },
+  responses: {
+    200: {
+      description: '成功取得人員',
+      content: {
+        'application/json': {
+          schema: z.object({ data: StaffSchema }),
+        },
+      },
+    },
+    404: {
+      description: '人員不存在',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(getRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const { id } = c.req.valid('param');
+  const serviceClient = createServiceClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY);
+
+  const staffRow = await getStaffById(supabase, id);
+  if (!staffRow) {
+    return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
+  }
+
+  const { campusMap, roleInfoMap } = await loadStaffRelations(serviceClient, [staffRow]);
+  return c.json({ data: mapStaff(staffRow, campusMap, roleInfoMap) }, 200);
+});
+
+// POST /api/staff
+const createRouteDef = createRoute({
+  method: 'post',
+  path: '/',
+  tags: ['Staff'],
+  summary: '新增人員',
+  description: '建立 auth.user + staff + user_roles + staff_campuses',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: CreateStaffSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: '成功新增人員',
+      content: {
+        'application/json': {
+          schema: z.object({ data: StaffSchema }),
+        },
+      },
+    },
+    400: {
+      description: '資料驗證錯誤',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    403: {
+      description: '權限不足',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    409: {
+      description: 'Email 已存在',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(createRouteDef, async (c) => {
+  const supabase = c.get('supabase');
+  const requester = c.get('user');
+  const body = c.req.valid('json');
+
+  const orgId = await getCurrentUserOrgId(supabase, requester.id);
+  if (!orgId) {
+    return c.json({ error: '無法取得組織資訊', code: 'NO_ORG' }, 400);
+  }
+
+  const isAdmin = await checkUserIsAdmin(supabase, requester.id);
+  if (!isAdmin) {
+    return c.json({ error: '僅管理員可新增人員', code: 'FORBIDDEN' }, 403);
+  }
+
+  const hasTeacherRole = body.roles.includes('teacher');
+  if (hasTeacherRole && (!body.subjects || body.subjects.length === 0)) {
+    return c.json({ error: '老師必須至少有一個教學科目', code: 'SUBJECTS_REQUIRED' }, 400);
+  }
+
+  const campusesValid = await validateCampusIdsInOrg(supabase, orgId, body.campusIds);
+  if (!campusesValid) {
+    return c.json({ error: '分校資料不正確', code: 'INVALID_CAMPUSES' }, 400);
+  }
+
+  const serviceClient = createServiceClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY);
+  let createdUserId: string | null = null;
+
+  // 使用 inviteUserByEmail 發送邀請信，用戶點擊連結後自行設定密碼
+  const { data: authUserData, error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(
+    body.email,
+    {
+      data: {
+        display_name: body.displayName,
+      },
+      redirectTo: `${c.env.WEB_URL}/change-password`,
+    },
+  );
+
+  if (inviteError || !authUserData.user) {
+    if (inviteError && isDuplicateEmailError(inviteError.message)) {
+      return c.json({ error: 'Email 已被使用', code: 'DUPLICATE_EMAIL' }, 409);
+    }
+    return c.json(
+      { error: inviteError?.message || '建立帳號失敗', code: 'CREATE_AUTH_USER_FAILED' },
+      400,
+    );
+  }
+
+  createdUserId = authUserData.user.id;
+
+  const { error: updateProfileError } = await serviceClient
+    .from('profiles')
+    .update({
+      org_id: orgId,
+      display_name: body.displayName,
+    })
+    .eq('id', createdUserId);
+
+  if (updateProfileError) {
+    await serviceClient.auth.admin.deleteUser(createdUserId);
+    return c.json({ error: updateProfileError.message, code: 'CREATE_PROFILE_FAILED' }, 400);
+  }
+
+  const { data: staffRow, error: insertStaffError } = await serviceClient
+    .from('staff')
+    .insert({
+      user_id: createdUserId,
+      org_id: orgId,
+      display_name: body.displayName,
+      phone: body.phone || null,
+      email: body.email,
+      birthday: body.birthday || null,
+      notes: body.notes || null,
+      subjects: body.subjects || [],
+      is_active: true,
+    })
+    .select('*')
+    .single();
+
+  if (insertStaffError || !staffRow) {
+    await serviceClient.auth.admin.deleteUser(createdUserId);
+    return c.json(
+      { error: insertStaffError?.message || '建立人員資料失敗', code: 'CREATE_STAFF_FAILED' },
+      400,
+    );
+  }
+
+  // Insert multiple roles
+  const roleRows = body.roles.map((role) => ({
+    user_id: createdUserId,
+    role,
+    permissions: role === 'admin' ? normalizeAdminPermissions('admin', body.permissions) : [],
+  }));
+
+  const { error: roleError } = await serviceClient.from('user_roles').insert(roleRows);
+
+  if (roleError) {
+    await serviceClient.from('staff').delete().eq('id', staffRow.id);
+    await serviceClient.auth.admin.deleteUser(createdUserId);
+    return c.json({ error: roleError.message, code: 'CREATE_ROLE_FAILED' }, 400);
+  }
+
+  const campusRows = Array.from(new Set(body.campusIds)).map((campusId) => ({
+    staff_id: staffRow.id as string,
+    campus_id: campusId,
+  }));
+
+  const { error: staffCampusError } = await serviceClient.from('staff_campuses').insert(campusRows);
+  if (staffCampusError) {
+    await serviceClient.from('staff').delete().eq('id', staffRow.id);
+    await serviceClient.auth.admin.deleteUser(createdUserId);
+    return c.json({ error: staffCampusError.message, code: 'CREATE_STAFF_CAMPUSES_FAILED' }, 400);
+  }
+
+  const freshStaffRow = await getStaffById(serviceClient, staffRow.id as string);
+  if (!freshStaffRow) {
+    return c.json({ error: '建立人員後讀取失敗', code: 'READ_AFTER_CREATE_FAILED' }, 400);
+  }
+
+  const { campusMap, roleInfoMap } = await loadStaffRelations(serviceClient, [freshStaffRow]);
+  return c.json({ data: mapStaff(freshStaffRow, campusMap, roleInfoMap) }, 201);
+});
+
+// PUT /api/staff/:id
+const updateRoute = createRoute({
+  method: 'put',
+  path: '/{id}',
+  tags: ['Staff'],
+  summary: '更新人員',
+  request: {
+    params: z.object({
+      id: z.uuid(),
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: UpdateStaffSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: '成功更新人員',
+      content: {
+        'application/json': {
+          schema: z.object({ data: StaffSchema }),
+        },
+      },
+    },
+    400: {
+      description: '更新失敗',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    403: {
+      description: '權限不足',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    404: {
+      description: '人員不存在',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(updateRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const requester = c.get('user');
+  const { id } = c.req.valid('param');
+  const body = c.req.valid('json');
+
+  const staffRow = await getStaffById(supabase, id);
+  if (!staffRow) {
+    return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
+  }
+
+  const isAdmin = await checkUserIsAdmin(supabase, requester.id);
+  if (!isAdmin) {
+    return c.json({ error: '僅管理員可更新人員', code: 'FORBIDDEN' }, 403);
+  }
+
+  if (body.campusIds !== undefined) {
+    const orgId = staffRow['org_id'] as string;
+    const campusesValid = await validateCampusIdsInOrg(supabase, orgId, body.campusIds);
+    if (!campusesValid) {
+      return c.json({ error: '分校資料不正確', code: 'INVALID_CAMPUSES' }, 400);
+    }
+  }
+
+  const serviceClient = createServiceClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY);
+
+  const updateData: Record<string, unknown> = {};
+  if (body.displayName !== undefined) updateData['display_name'] = body.displayName;
+  if (body.phone !== undefined) updateData['phone'] = body.phone;
+  if (body.birthday !== undefined) updateData['birthday'] = body.birthday;
+  if (body.notes !== undefined) updateData['notes'] = body.notes;
+  if (body.subjects !== undefined) updateData['subjects'] = body.subjects;
+  if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
+
+  if (Object.keys(updateData).length > 0) {
+    const { error: updateStaffError } = await serviceClient
+      .from('staff')
+      .update(updateData)
+      .eq('id', id);
+    if (updateStaffError) {
+      return c.json({ error: updateStaffError.message, code: 'UPDATE_STAFF_FAILED' }, 400);
+    }
+  }
+
+  if (body.displayName !== undefined) {
+    const { error: updateProfileError } = await serviceClient
+      .from('profiles')
+      .update({ display_name: body.displayName })
+      .eq('id', staffRow['user_id'] as string);
+
+    if (updateProfileError) {
+      return c.json({ error: updateProfileError.message, code: 'UPDATE_PROFILE_FAILED' }, 400);
+    }
+  }
+
+  if (body.campusIds !== undefined) {
+    const uniqueCampusIds = Array.from(new Set(body.campusIds));
+
+    const { error: deleteCampusLinksError } = await serviceClient
+      .from('staff_campuses')
+      .delete()
+      .eq('staff_id', id);
+
+    if (deleteCampusLinksError) {
+      return c.json(
+        { error: deleteCampusLinksError.message, code: 'UPDATE_STAFF_CAMPUSES_FAILED' },
+        400,
+      );
+    }
+
+    const campusRows = uniqueCampusIds.map((campusId) => ({
+      staff_id: id,
+      campus_id: campusId,
+    }));
+
+    const { error: insertCampusLinksError } = await serviceClient
+      .from('staff_campuses')
+      .insert(campusRows);
+
+    if (insertCampusLinksError) {
+      return c.json(
+        { error: insertCampusLinksError.message, code: 'UPDATE_STAFF_CAMPUSES_FAILED' },
+        400,
+      );
+    }
+  }
+
+  const userId = staffRow['user_id'] as string;
+
+  // Handle roles update
+  if (body.roles !== undefined) {
+    // Delete existing roles
+    const { error: deleteRolesError } = await serviceClient
+      .from('user_roles')
+      .delete()
+      .eq('user_id', userId)
+      .in('role', ['admin', 'teacher']);
+
+    if (deleteRolesError) {
+      return c.json({ error: deleteRolesError.message, code: 'UPDATE_ROLES_FAILED' }, 400);
+    }
+
+    // Insert new roles
+    const roleRows = body.roles.map((role) => ({
+      user_id: userId,
+      role,
+      permissions: role === 'admin' ? normalizeAdminPermissions('admin', body.permissions) : [],
+    }));
+
+    const { error: insertRolesError } = await serviceClient.from('user_roles').insert(roleRows);
+
+    if (insertRolesError) {
+      return c.json({ error: insertRolesError.message, code: 'UPDATE_ROLES_FAILED' }, 400);
+    }
+  } else if (body.permissions !== undefined) {
+    // Only update permissions if roles not being changed
+    const { data: existingRoleRows } = await serviceClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .in('role', ['admin', 'teacher']);
+
+    const hasAdminRole = (existingRoleRows || []).some((roleRow) => roleRow.role === 'admin');
+    if (hasAdminRole) {
+      const permissions = normalizeAdminPermissions('admin', body.permissions);
+      const { error: updatePermissionsError } = await serviceClient
+        .from('user_roles')
+        .update({ permissions })
+        .eq('user_id', userId)
+        .eq('role', 'admin');
+
+      if (updatePermissionsError) {
+        return c.json(
+          { error: updatePermissionsError.message, code: 'UPDATE_PERMISSIONS_FAILED' },
+          400,
+        );
+      }
+    }
+  }
+
+  const freshStaffRow = await getStaffById(serviceClient, id);
+  if (!freshStaffRow) {
+    return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
+  }
+
+  const { campusMap, roleInfoMap } = await loadStaffRelations(serviceClient, [freshStaffRow]);
+  return c.json({ data: mapStaff(freshStaffRow, campusMap, roleInfoMap) }, 200);
+});
+
+// DELETE /api/staff/:id
+const deleteRoute = createRoute({
+  method: 'delete',
+  path: '/{id}',
+  tags: ['Staff'],
+  summary: '刪除人員',
+  request: {
+    params: z.object({
+      id: z.uuid(),
+    }),
+  },
+  responses: {
+    200: {
+      description: '成功刪除人員',
+      content: {
+        'application/json': {
+          schema: z.object({ success: z.boolean() }),
+        },
+      },
+    },
+    400: {
+      description: '刪除失敗',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    403: {
+      description: '權限不足',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    404: {
+      description: '人員不存在',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(deleteRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const requester = c.get('user');
+  const { id } = c.req.valid('param');
+
+  const staffRow = await getStaffById(supabase, id);
+  if (!staffRow) {
+    return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
+  }
+
+  const isAdmin = await checkUserIsAdmin(supabase, requester.id);
+  if (!isAdmin) {
+    return c.json({ error: '僅管理員可刪除人員', code: 'FORBIDDEN' }, 403);
+  }
+
+  const serviceClient = createServiceClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY);
+  const userId = staffRow['user_id'] as string;
+
+  const { error: deleteStaffError } = await serviceClient.from('staff').delete().eq('id', id);
+  if (deleteStaffError) {
+    return c.json({ error: deleteStaffError.message, code: 'DELETE_STAFF_FAILED' }, 400);
+  }
+
+  const { error: deleteRoleError } = await serviceClient
+    .from('user_roles')
+    .delete()
+    .eq('user_id', userId)
+    .in('role', ['admin', 'teacher']);
+
+  if (deleteRoleError) {
+    return c.json({ error: deleteRoleError.message, code: 'DELETE_ROLE_FAILED' }, 400);
+  }
+
+  return c.json({ success: true }, 200);
+});
+
+export default app;

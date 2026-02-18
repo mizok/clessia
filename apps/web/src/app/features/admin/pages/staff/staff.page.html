@@ -1,0 +1,524 @@
+<p-toast />
+<p-confirmDialog />
+
+<div class="staff">
+  <!-- Page Header -->
+  <header class="staff__header">
+    <div class="staff__title-group">
+      <h1 class="staff__title">人員管理</h1>
+      <p class="staff__subtitle">管理管理員、老師帳號</p>
+    </div>
+    <p-button label="新增人員" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+  </header>
+
+  <!-- Main Card -->
+  <div class="staff__card">
+    <!-- Toolbar with Search and Filters -->
+    <div class="staff__toolbar">
+      <div class="staff__search">
+        <p-iconField iconPosition="left">
+          <p-inputIcon styleClass="pi pi-search" />
+          <input
+            type="text"
+            pInputText
+            placeholder="搜尋姓名或 Email..."
+            [ngModel]="searchQuery()"
+            (ngModelChange)="searchQuery.set($event)"
+          />
+        </p-iconField>
+      </div>
+      <div class="staff__filters">
+        <p-select
+          [options]="roleOptions"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="角色篩選"
+          [ngModel]="roleFilter()"
+          (ngModelChange)="roleFilter.set($event)"
+          [showClear]="true"
+          styleClass="staff__filter-select"
+        />
+        <p-select
+          [options]="campusOptions()"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="分校篩選"
+          [ngModel]="campusFilter()"
+          (ngModelChange)="campusFilter.set($event)"
+          [showClear]="true"
+          styleClass="staff__filter-select"
+        />
+        <p-select
+          [options]="subjectOptions"
+          placeholder="科目篩選"
+          [ngModel]="subjectFilter()"
+          (ngModelChange)="subjectFilter.set($event)"
+          [showClear]="true"
+          styleClass="staff__filter-select"
+        />
+      </div>
+    </div>
+
+    <!-- Stats Summary -->
+    @if (!loading() && staffList().length > 0) {
+      <div class="staff__stats">
+        <div class="staff__stat">
+          <span class="staff__stat-value">{{ staffList().length }}</span>
+          <span class="staff__stat-label">位人員</span>
+        </div>
+        <div class="staff__stat">
+          <span class="staff__stat-value">{{ adminCount() }}</span>
+          <span class="staff__stat-label">管理員</span>
+        </div>
+        <div class="staff__stat">
+          <span class="staff__stat-value">{{ teacherCount() }}</span>
+          <span class="staff__stat-label">老師</span>
+        </div>
+        <div class="staff__stat">
+          <span class="staff__stat-value">{{ activeCount() }}</span>
+          <span class="staff__stat-label">啟用中</span>
+        </div>
+      </div>
+    }
+
+    <!-- Content Area -->
+    <div class="staff__content">
+      @if (loading()) {
+        <!-- Skeleton Loading -->
+        <div class="skeleton-table">
+          @for (i of [1, 2, 3, 4, 5]; track i) {
+            <div class="skeleton-table__row">
+              <div class="skeleton-table__cell skeleton-table__cell--name">
+                <p-skeleton width="100%" height="1.25rem" />
+              </div>
+              <div class="skeleton-table__cell skeleton-table__cell--role">
+                <p-skeleton width="60px" height="1.25rem" />
+              </div>
+              <div class="skeleton-table__cell skeleton-table__cell--campus">
+                <p-skeleton width="100%" height="1.25rem" />
+              </div>
+              <div class="skeleton-table__cell skeleton-table__cell--phone">
+                <p-skeleton width="100%" height="1.25rem" />
+              </div>
+              <div class="skeleton-table__cell skeleton-table__cell--status">
+                <p-skeleton width="50px" height="1.25rem" />
+              </div>
+              <div class="skeleton-table__cell skeleton-table__cell--actions">
+                <p-skeleton width="60px" height="1.25rem" />
+              </div>
+            </div>
+          }
+        </div>
+      } @else if (filteredStaff().length === 0) {
+        <!-- Empty State -->
+        @if (searchQuery() || roleFilter() || campusFilter() || subjectFilter()) {
+          <app-empty-state
+            icon="pi pi-search"
+            title="找不到符合的人員"
+            description="沒有找到符合篩選條件的人員，請嘗試其他條件"
+          >
+            <p-button
+              label="清除篩選"
+              [text]="true"
+              severity="secondary"
+              (onClick)="clearFilters()"
+            />
+          </app-empty-state>
+        } @else {
+          <app-empty-state
+            icon="pi pi-users"
+            title="尚未建立人員"
+            description="開始建立管理員或老師帳號"
+          >
+            <p-button label="新增人員" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+          </app-empty-state>
+        }
+      } @else {
+        <!-- Desktop: Data Table -->
+        <div class="staff__table-view">
+          <p-table
+            [value]="filteredStaff()"
+            [paginator]="filteredStaff().length > 10"
+            [rows]="10"
+            [rowsPerPageOptions]="[10, 20, 50]"
+            [showCurrentPageReport]="true"
+            currentPageReportTemplate="顯示 {first} - {last}，共 {totalRecords} 筆"
+            styleClass="p-datatable-sm"
+          >
+            <ng-template #header>
+              <tr>
+                <th style="width: 18%">姓名</th>
+                <th style="width: 8%">角色</th>
+                <th style="width: 15%">教學科目</th>
+                <th style="width: 20%">服務分校</th>
+                <th style="width: 12%">電話</th>
+                <th style="width: 8%">狀態</th>
+                <th style="width: 19%; text-align: right">操作</th>
+              </tr>
+            </ng-template>
+            <ng-template #body let-staff>
+              <tr>
+                <td>
+                  <div class="staff-table__name">
+                    <span class="staff-table__icon" [class.staff-table__icon--admin]="staff.roles.includes('admin')">
+                      <i [class]="staff.roles.includes('admin') ? 'pi pi-shield' : 'pi pi-user'"></i>
+                    </span>
+                    <div class="staff-table__name-group">
+                      <span class="staff-table__display-name">{{ staff.displayName }}</span>
+                      <span class="staff-table__email">{{ staff.email }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  @for (role of staff.roles; track role) {
+                    <p-tag [value]="getRoleLabel(role)" [severity]="getRoleSeverity(role)" styleClass="mr-1" />
+                  }
+                </td>
+                <td>
+                  @if (staff.roles.includes('teacher') && staff.subjects.length > 0) {
+                    <div class="staff-table__subjects">
+                      @for (subject of getDisplaySubjects(staff.subjects).visible; track subject) {
+                        <span class="staff-table__subject-tag">{{ subject }}</span>
+                      }
+                      @if (getDisplaySubjects(staff.subjects).remaining > 0) {
+                        <span class="staff-table__subject-more" [pTooltip]="staff.subjects.join('、')" tooltipPosition="top">
+                          +{{ getDisplaySubjects(staff.subjects).remaining }}
+                        </span>
+                      }
+                    </div>
+                  } @else {
+                    <span class="staff-table__empty">—</span>
+                  }
+                </td>
+                <td>
+                  <span class="staff-table__campuses">{{ getCampusNames(staff.campusIds) }}</span>
+                </td>
+                <td>
+                  @if (staff.phone) {
+                    <a [href]="'tel:' + staff.phone" class="staff-table__phone-link">
+                      {{ staff.phone }}
+                    </a>
+                  } @else {
+                    <span class="staff-table__empty">未填寫</span>
+                  }
+                </td>
+                <td>
+                  <p-tag
+                    [value]="staff.isActive ? '啟用' : '停用'"
+                    [severity]="staff.isActive ? 'success' : 'secondary'"
+                  />
+                </td>
+                <td>
+                  <div class="staff-table__actions">
+                    <p-button
+                      icon="pi pi-pencil"
+                      [rounded]="true"
+                      [text]="true"
+                      severity="secondary"
+                      pTooltip="編輯"
+                      tooltipPosition="top"
+                      (onClick)="openEditDialog(staff)"
+                    />
+                    <p-button
+                      icon="pi pi-trash"
+                      [rounded]="true"
+                      [text]="true"
+                      severity="danger"
+                      pTooltip="刪除"
+                      tooltipPosition="top"
+                      (onClick)="confirmDelete(staff)"
+                    />
+                  </div>
+                </td>
+              </tr>
+            </ng-template>
+          </p-table>
+        </div>
+
+        <!-- Mobile: Card List -->
+        <div class="staff__card-view">
+          @for (staff of filteredStaff(); track staff.id) {
+            <article class="staff-card">
+              <div class="staff-card__header">
+                <div class="staff-card__icon" [class.staff-card__icon--admin]="staff.roles.includes('admin')">
+                  <i [class]="staff.roles.includes('admin') ? 'pi pi-shield' : 'pi pi-user'"></i>
+                </div>
+                <div class="staff-card__title-group">
+                  <div class="staff-card__name-row">
+                    <h3 class="staff-card__name">{{ staff.displayName }}</h3>
+                    @for (role of staff.roles; track role) {
+                      <p-tag [value]="getRoleLabel(role)" [severity]="getRoleSeverity(role)" styleClass="mr-1" />
+                    }
+                  </div>
+                  <span class="staff-card__email">{{ staff.email }}</span>
+                </div>
+              </div>
+
+              <div class="staff-card__body">
+                <div class="staff-card__field">
+                  <i class="pi pi-building"></i>
+                  <span>{{ getCampusNames(staff.campusIds) }}</span>
+                </div>
+                @if (staff.phone) {
+                  <div class="staff-card__field">
+                    <i class="pi pi-phone"></i>
+                    <a [href]="'tel:' + staff.phone" class="staff-card__phone-link">
+                      {{ staff.phone }}
+                    </a>
+                  </div>
+                }
+                @if (staff.roles.includes('teacher') && staff.subjects.length > 0) {
+                  <div class="staff-card__field">
+                    <i class="pi pi-book"></i>
+                    <span>{{ staff.subjects.join('、') }}</span>
+                  </div>
+                }
+                <div class="staff-card__field">
+                  <i class="pi pi-circle-fill" [class.staff-card__status--active]="staff.isActive" [class.staff-card__status--inactive]="!staff.isActive"></i>
+                  <span>{{ staff.isActive ? '啟用中' : '已停用' }}</span>
+                </div>
+              </div>
+
+              <div class="staff-card__actions">
+                <button
+                  type="button"
+                  class="staff-card__action-btn staff-card__action-btn--edit"
+                  (click)="openEditDialog(staff)"
+                >
+                  <i class="pi pi-pencil"></i>
+                  <span>編輯</span>
+                </button>
+                <button
+                  type="button"
+                  class="staff-card__action-btn staff-card__action-btn--delete"
+                  (click)="confirmDelete(staff)"
+                >
+                  <i class="pi pi-trash"></i>
+                  <span>刪除</span>
+                </button>
+              </div>
+            </article>
+          }
+
+          <!-- Mobile pagination info -->
+          @if (filteredStaff().length > 0) {
+            <div class="staff__mobile-count">共 {{ filteredStaff().length }} 位人員</div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- Create/Edit Dialog -->
+<p-dialog
+  [header]="dialogTitle()"
+  [(visible)]="dialogVisible"
+  [modal]="true"
+  [closable]="!dialogLoading()"
+  [style]="{ width: '32rem' }"
+  (onHide)="closeDialog()"
+>
+  <div class="staff-dialog__form">
+    <!-- Name Field -->
+    <div class="staff-dialog__field">
+      <label for="displayName" class="staff-dialog__label">
+        姓名<span class="staff-dialog__required">*</span>
+      </label>
+      <input
+        id="displayName"
+        type="text"
+        pInputText
+        [ngModel]="formData().displayName"
+        (ngModelChange)="updateDisplayName($event)"
+        placeholder="例如：王小明"
+        [disabled]="dialogLoading()"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Email Field (only for create) -->
+    @if (!isEditing()) {
+      <div class="staff-dialog__field">
+        <label for="email" class="staff-dialog__label">
+          Email<span class="staff-dialog__required">*</span>
+        </label>
+        <input
+          id="email"
+          type="email"
+          pInputText
+          [ngModel]="formData().email"
+          (ngModelChange)="updateEmail($event)"
+          placeholder="例如：teacher@example.com"
+          [disabled]="dialogLoading()"
+          class="w-full"
+        />
+        <small class="staff-dialog__hint">此 Email 將作為登入帳號</small>
+      </div>
+    }
+
+    <!-- Role Field -->
+    <div class="staff-dialog__field">
+      <label class="staff-dialog__label">
+        角色<span class="staff-dialog__required">*</span>
+      </label>
+      <div class="staff-dialog__permissions">
+        @for (role of roleOptions; track role.value) {
+          <label class="staff-dialog__permission-item">
+            <p-checkbox
+              [ngModel]="formData().roles.includes(role.value)"
+              (ngModelChange)="toggleRole(role.value, $event)"
+              [binary]="true"
+              [disabled]="dialogLoading()"
+            />
+            <div class="staff-dialog__permission-text">
+              <span class="staff-dialog__permission-label">{{ role.label }}</span>
+            </div>
+          </label>
+        }
+      </div>
+      <small class="staff-dialog__hint">可複選：同一人可以同時擁有管理員和老師角色</small>
+    </div>
+
+    <!-- Campuses Field -->
+    <div class="staff-dialog__field">
+      <label for="campusIds" class="staff-dialog__label">
+        服務分校<span class="staff-dialog__required">*</span>
+      </label>
+      <p-multiSelect
+        inputId="campusIds"
+        [options]="campusOptions()"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="formData().campusIds"
+        (ngModelChange)="updateCampusIds($event)"
+        placeholder="選擇分校"
+        [disabled]="dialogLoading()"
+        styleClass="w-full"
+        display="chip"
+      />
+    </div>
+
+    <!-- Subjects Field (for teacher) -->
+    @if (isTeacherRole()) {
+      <div class="staff-dialog__field">
+        <label for="subjects" class="staff-dialog__label">
+          教學科目<span class="staff-dialog__required">*</span>
+        </label>
+        <p-multiSelect
+          inputId="subjects"
+          [options]="subjectOptions"
+          [ngModel]="formData().subjects"
+          (ngModelChange)="updateSubjects($event)"
+          placeholder="選擇科目"
+          [disabled]="dialogLoading()"
+          styleClass="w-full"
+          display="chip"
+        />
+      </div>
+    }
+
+    <!-- Permissions Field (for admin) -->
+    @if (isAdminRole()) {
+      <div class="staff-dialog__field">
+        <label class="staff-dialog__label">權限設定</label>
+        <div class="staff-dialog__permissions">
+          @for (permission of permissionOptions; track permission.value) {
+            <label class="staff-dialog__permission-item">
+              <p-checkbox
+                [ngModel]="formData().permissions.includes(permission.value)"
+                (ngModelChange)="togglePermission(permission.value, $event)"
+                [binary]="true"
+                [disabled]="dialogLoading()"
+              />
+              <div class="staff-dialog__permission-text">
+                <span class="staff-dialog__permission-label">{{ permission.label }}</span>
+                <span class="staff-dialog__permission-desc">{{ permission.description }}</span>
+              </div>
+            </label>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Phone Field -->
+    <div class="staff-dialog__field">
+      <label for="phone" class="staff-dialog__label">電話</label>
+      <input
+        id="phone"
+        type="tel"
+        pInputText
+        [ngModel]="formData().phone"
+        (ngModelChange)="updatePhone($event)"
+        placeholder="例如：0912-345-678"
+        [disabled]="dialogLoading()"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Birthday Field -->
+    <div class="staff-dialog__field">
+      <label for="birthday" class="staff-dialog__label">生日</label>
+      <p-datepicker
+        inputId="birthday"
+        [ngModel]="formData().birthday"
+        (ngModelChange)="updateBirthday($event)"
+        dateFormat="yy-mm-dd"
+        [showIcon]="true"
+        [disabled]="dialogLoading()"
+        styleClass="w-full"
+        placeholder="選擇日期"
+      />
+    </div>
+
+    <!-- Notes Field -->
+    <div class="staff-dialog__field">
+      <label for="notes" class="staff-dialog__label">備註</label>
+      <textarea
+        id="notes"
+        pTextarea
+        [ngModel]="formData().notes"
+        (ngModelChange)="updateNotes($event)"
+        placeholder="其他備註說明..."
+        [disabled]="dialogLoading()"
+        rows="3"
+        class="w-full"
+      ></textarea>
+    </div>
+
+    <!-- Status Toggle (only for edit) -->
+    @if (isEditing()) {
+      <div class="staff-dialog__field staff-dialog__field--inline">
+        <label for="isActive" class="staff-dialog__label">狀態</label>
+        <div class="staff-dialog__switch-group">
+          <p-toggleswitch
+            inputId="isActive"
+            [ngModel]="formData().isActive"
+            (ngModelChange)="updateIsActive($event)"
+            [disabled]="dialogLoading()"
+          />
+          <span class="staff-dialog__switch-label">
+            {{ formData().isActive ? '啟用中' : '已停用' }}
+          </span>
+        </div>
+      </div>
+    }
+
+    <!-- Footer Actions -->
+    <div class="staff-dialog__footer">
+      <p-button
+        label="取消"
+        [text]="true"
+        severity="secondary"
+        (onClick)="closeDialog()"
+        [disabled]="dialogLoading()"
+      />
+      <p-button
+        [label]="isEditing() ? '儲存' : '建立'"
+        [icon]="dialogLoading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+        (onClick)="saveStaff()"
+        [disabled]="dialogLoading() || !formData().displayName.trim()"
+      />
+    </div>
+  </div>
+</p-dialog>

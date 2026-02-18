@@ -74,7 +74,27 @@
       "mcp__context7__query-docs",
       "Bash(git mv:*)",
       "Bash(git commit:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "mcp__codex-cli__codex",
+      "Bash(nx build:*)",
+      "Bash(npm run dev:*)",
+      "Skill(ui-ux-pro-max)",
+      "Bash(supabase db dump:*)",
+      "Bash(uuidgen:*)",
+      "Bash(for i in {1..9})",
+      "Bash(do uuidgen)",
+      "Bash(done)",
+      "Bash(__NEW_LINE_7a3426b2d9f4cd8a__ echo \"\")",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_resize",
+      "mcp__playwright__browser_close",
+      "Bash(ls:*)",
+      "mcp__codex-cli__listSessions"
     ]
   },
   "enabledPlugins": {}
