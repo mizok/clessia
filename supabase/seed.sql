@@ -1,50 +1,44 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 DO $$
 DECLARE
     root_id UUID := '00000000-0000-0000-0000-000000000000';
     root_email TEXT := 'root@clessia.com';
-    root_password TEXT := 'Test123';
+    -- scrypt hash of 'Test123' (salt:key format for Better Auth using @noble/hashes/scrypt)
+    root_password_hash TEXT := 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6:6ad04372a2a78a5adde77793f33e0a316de3077333eb0704947f8213c2adac9fdf3713001d762b95d0c259fa048006a2b79b994c79c7de0d380668f31695ce75';
     demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+    demo_admin_id UUID := '22222222-2222-2222-2222-222222222222';
+    demo_admin_email TEXT := 'admin@demo.clessia.app';
+    -- scrypt hash of 'password123'
+    demo_admin_password_hash TEXT := 'b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7:1958d54718458252105100e0037ab899afecffc67710757a65e65056229dfdc74c3bac47993e2f02013da09680be2dff8e141a043f2049f6bb17aacd006154ca';
 BEGIN
-    -- 1. Insert user into Better Auth ba_user table
+    -- 1. Insert users into Better Auth ba_user table
     INSERT INTO public.ba_user (id, name, email, "emailVerified", username, "orgId", "createdAt", "updatedAt")
-    VALUES (
-        root_id::text,
-        'Super Admin',
-        root_email,
-        true,
-        'root',
-        NULL,
-        NOW(),
-        NOW()
-    ) ON CONFLICT (id) DO NOTHING;
+    VALUES
+        (root_id::text, 'Super Admin', root_email, true, 'root', NULL, NOW(), NOW()),
+        (demo_admin_id::text, 'Demo Admin', demo_admin_email, true, 'demo_admin', NULL, NOW(), NOW())
+    ON CONFLICT (id) DO NOTHING;
 
-    -- 2. Insert credentials into ba_account (bcrypt hash of password)
+    -- 2. Insert credentials into ba_account (scrypt hash format: salt:key)
     INSERT INTO public.ba_account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
-    VALUES (
-        gen_random_uuid()::text,
-        root_id::text,
-        'credential',
-        root_id::text,
-        crypt(root_password, gen_salt('bf')),
-        NOW(),
-        NOW()
-    ) ON CONFLICT DO NOTHING;
+    VALUES
+        (gen_random_uuid()::text, root_id::text, 'credential', root_id::text, root_password_hash, NOW(), NOW()),
+        (gen_random_uuid()::text, demo_admin_id::text, 'credential', demo_admin_id::text, demo_admin_password_hash, NOW(), NOW())
+    ON CONFLICT DO NOTHING;
 
     -- 3. Insert demo organization
     INSERT INTO public.organizations (id, name, slug)
     VALUES (demo_org_id, 'Demo 補習班', 'demo')
     ON CONFLICT (id) DO NOTHING;
 
-    -- 4. Update Better Auth user orgId after organization is created
+    -- 4. Update Better Auth users orgId after organization is created
     UPDATE public.ba_user
     SET "orgId" = demo_org_id
-    WHERE id = root_id::text;
+    WHERE id IN (root_id::text, demo_admin_id::text);
 
-    -- 5. Ensure profile exists with org_id (must be before user_roles due to FK)
+    -- 5. Ensure profiles exist with org_id (must be before user_roles due to FK)
     INSERT INTO public.profiles (id, display_name, org_id)
-    VALUES (root_id, 'root', demo_org_id)
+    VALUES
+        (root_id, 'root', demo_org_id),
+        (demo_admin_id, 'Demo Admin', demo_org_id)
     ON CONFLICT (id) DO UPDATE SET
         display_name = EXCLUDED.display_name,
         org_id = EXCLUDED.org_id;
@@ -54,7 +48,8 @@ BEGIN
     VALUES
         (root_id, 'admin', '["*"]'::jsonb),
         (root_id, 'teacher', '[]'::jsonb),
-        (root_id, 'parent', '[]'::jsonb)
+        (root_id, 'parent', '[]'::jsonb),
+        (demo_admin_id, 'admin', '["*"]'::jsonb)
     ON CONFLICT (user_id, role) DO NOTHING;
 
     -- 7. Insert demo campuses

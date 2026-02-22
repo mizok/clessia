@@ -1,22 +1,12 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
+import { Pool } from 'pg';
 import { betterAuth } from 'better-auth';
 import { admin as adminPlugin, username } from 'better-auth/plugins';
 import type { Bindings } from './index';
 
 type AuthBindings = Pick<Bindings, 'DATABASE_URL' | 'BETTER_AUTH_SECRET' | 'BETTER_AUTH_URL'>;
-type BetterAuthOptions = Parameters<typeof betterAuth>[0];
-type BetterAuthAdvancedDatabase = NonNullable<
-  NonNullable<BetterAuthOptions['advanced']>['database']
->;
 
 export function createAuth(env: AuthBindings) {
-  const webSocketConstructor = WebSocket as unknown as NonNullable<
-    typeof neonConfig.webSocketConstructor
-  >;
-  neonConfig.webSocketConstructor = webSocketConstructor;
-
   const pool = new Pool({ connectionString: env.DATABASE_URL });
-  const advancedDatabase = { tablePrefix: 'ba_' } as BetterAuthAdvancedDatabase;
 
   return betterAuth({
     database: pool,
@@ -30,6 +20,7 @@ export function createAuth(env: AuthBindings) {
     },
     plugins: [username(), adminPlugin()],
     user: {
+      modelName: 'ba_user',
       additionalFields: {
         phone: {
           type: 'string',
@@ -44,13 +35,17 @@ export function createAuth(env: AuthBindings) {
       },
     },
     session: {
+      modelName: 'ba_session',
       cookieCache: {
         enabled: true,
         maxAge: 5 * 60,
       },
     },
-    advanced: {
-      database: advancedDatabase,
+    account: {
+      modelName: 'ba_account',
+    },
+    verification: {
+      modelName: 'ba_verification',
     },
   });
 }
