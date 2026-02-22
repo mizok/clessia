@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 DO $$
 DECLARE
     root_id UUID := '00000000-0000-0000-0000-000000000000';
@@ -5,51 +7,49 @@ DECLARE
     root_password TEXT := 'Test123';
     demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
 BEGIN
-    -- 1. Insert user into auth.users (if not exists)
-    INSERT INTO auth.users (
-        instance_id,
-        id,
-        aud,
-        role,
-        email,
-        encrypted_password,
-        email_confirmed_at,
-        recovery_sent_at,
-        last_sign_in_at,
-        raw_app_meta_data,
-        raw_user_meta_data,
-        created_at,
-        updated_at,
-        confirmation_token,
-        email_change,
-        email_change_token_new,
-        recovery_token
-    ) VALUES (
-        '00000000-0000-0000-0000-000000000000', -- Fixed instance_id for local dev
-        root_id,
-        'authenticated',
-        'authenticated',
+    -- 1. Insert user into Better Auth ba_user table
+    INSERT INTO public.ba_user (id, name, email, "emailVerified", username, "orgId", "createdAt", "updatedAt")
+    VALUES (
+        root_id::text,
+        'Super Admin',
         root_email,
-        crypt(root_password, gen_salt('bf')),
+        true,
+        'root',
+        NULL,
         NOW(),
-        NOW(),
-        NOW(),
-        '{"provider":"email","providers":["email"]}',
-        '{"display_name":"Super Admin"}',
-        NOW(),
-        NOW(),
-        '',
-        '',
-        '',
-        ''
+        NOW()
     ) ON CONFLICT (id) DO NOTHING;
 
-    -- 2. Insert demo organization
+    -- 2. Insert credentials into ba_account (bcrypt hash of password)
+    INSERT INTO public.ba_account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
+    VALUES (
+        gen_random_uuid()::text,
+        root_id::text,
+        'credential',
+        root_id::text,
+        crypt(root_password, gen_salt('bf')),
+        NOW(),
+        NOW()
+    ) ON CONFLICT DO NOTHING;
+
+    -- 3. Insert demo organization
     INSERT INTO public.organizations (id, name, slug)
     VALUES (demo_org_id, 'Demo 補習班', 'demo')
     ON CONFLICT (id) DO NOTHING;
 
-    -- 3. Insert into public.user_roles (idempotent)
+    -- 4. Update Better Auth user orgId after organization is created
+    UPDATE public.ba_user
+    SET "orgId" = demo_org_id
+    WHERE id = root_id::text;
+
+    -- 5. Ensure profile exists with org_id (must be before user_roles due to FK)
+    INSERT INTO public.profiles (id, display_name, org_id)
+    VALUES (root_id, 'root', demo_org_id)
+    ON CONFLICT (id) DO UPDATE SET
+        display_name = EXCLUDED.display_name,
+        org_id = EXCLUDED.org_id;
+
+    -- 6. Insert into public.user_roles (idempotent)
     INSERT INTO public.user_roles (user_id, role, permissions)
     VALUES
         (root_id, 'admin', '["*"]'::jsonb),
@@ -57,14 +57,7 @@ BEGIN
         (root_id, 'parent', '[]'::jsonb)
     ON CONFLICT (user_id, role) DO NOTHING;
 
-    -- 4. Ensure profile exists with org_id
-    INSERT INTO public.profiles (id, display_name, org_id)
-    VALUES (root_id, 'root', demo_org_id)
-    ON CONFLICT (id) DO UPDATE SET
-        display_name = EXCLUDED.display_name,
-        org_id = EXCLUDED.org_id;
-
-    -- 5. Insert demo campuses
+    -- 7. Insert demo campuses
     INSERT INTO public.campuses (id, org_id, name, address, phone, is_active)
     VALUES
         ('a2c36d14-0826-4346-a809-0596b512af4e', demo_org_id, '台北信義校', '台北市信義區信義路五段7號', '02-2720-1234', true),
@@ -72,7 +65,7 @@ BEGIN
         ('9084c27e-b55e-4222-8744-c6566272847d', demo_org_id, '新北板橋校', '新北市板橋區中山路一段50號', '02-2960-1234', false)
     ON CONFLICT (id) DO NOTHING;
 
-    -- 6. Insert all subjects for demo org (defaults + extras)
+    -- 8. Insert all subjects for demo org (defaults + extras)
     INSERT INTO public.subjects (org_id, name, sort_order)
     VALUES
         (demo_org_id, '國文', 0),
@@ -85,7 +78,7 @@ BEGIN
         (demo_org_id, '化學', 7)
     ON CONFLICT (org_id, name) DO NOTHING;
 
-    -- 7. Insert demo courses (subject_id via subquery)
+    -- 9. Insert demo courses (subject_id via subquery)
     INSERT INTO public.courses (id, org_id, campus_id, name, subject_id, description, is_active)
     VALUES
         -- 台北信義校課程
@@ -102,4 +95,3 @@ BEGIN
     ON CONFLICT (id) DO NOTHING;
 
 END $$;
-
