@@ -34,7 +34,7 @@ export class RoutesCatalog {
   public static readonly ADMIN_CALENDAR = this.register('calendar', '/admin/calendar', '課程日曆', UserType.ADMIN, 'pi-calendar');
 
   // Group: 教務管理
-  public static readonly ADMIN_COURSES = this.register('courses', '/admin/courses', '課程列表', UserType.ADMIN, 'pi-book', true, '教務管理');
+  public static readonly ADMIN_COURSES = this.register('courses', '/admin/courses', '課程列表', UserType.ADMIN, 'pi-book', false, '教務管理');
   public static readonly ADMIN_CLASSES = this.register('classes', '/admin/classes', '開課班管理', UserType.ADMIN, 'pi-users', true, '教務管理');
   public static readonly ADMIN_SCHEDULE = this.register('schedule', '/admin/schedule', '排課管理', UserType.ADMIN, 'pi-table', true, '教務管理');
   public static readonly ADMIN_SESSIONS = this.register('sessions', '/admin/sessions', '課堂搜尋', UserType.ADMIN, 'pi-search', true, '教務管理');
