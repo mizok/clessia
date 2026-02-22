@@ -29,7 +29,6 @@ const ClassSchema = z
     name: z.string(),
     maxStudents: z.number(),
     gradeLevels: z.array(z.string()),
-    isRecommended: z.boolean(),
     nextClassId: z.uuid().nullable(),
     isActive: z.boolean(),
     schedules: z.array(ScheduleSchema).optional(),
@@ -56,7 +55,6 @@ const CreateClassSchema = z
     name: z.string().min(1).max(50),
     maxStudents: z.number().int().min(1).max(200).optional(),
     gradeLevels: z.array(z.string()).optional(),
-    isRecommended: z.boolean().optional(),
     nextClassId: z.uuid().nullable().optional(),
   })
   .openapi('CreateClass');
@@ -66,7 +64,6 @@ const UpdateClassSchema = z
     name: z.string().min(1).max(50).optional(),
     maxStudents: z.number().int().min(1).max(200).optional(),
     gradeLevels: z.array(z.string()).optional(),
-    isRecommended: z.boolean().optional(),
     nextClassId: z.uuid().nullable().optional(),
     isActive: z.boolean().optional(),
   })
@@ -139,7 +136,6 @@ function mapClass(row: Record<string, unknown>, schedules?: unknown[]) {
     name: row['name'] as string,
     maxStudents: row['max_students'] as number,
     gradeLevels: (row['grade_levels'] as string[]) ?? [],
-    isRecommended: row['is_recommended'] as boolean,
     nextClassId: (row['next_class_id'] as string | null) ?? null,
     isActive: row['is_active'] as boolean,
     schedules: schedules?.map((s) => mapSchedule(s as Record<string, unknown>)),
@@ -293,7 +289,6 @@ app.openapi(
         name: body.name,
         max_students: body.maxStudents ?? 20,
         grade_levels: body.gradeLevels ?? [],
-        is_recommended: body.isRecommended ?? false,
         next_class_id: body.nextClassId ?? null,
       })
       .select('*, courses(name)')
@@ -341,7 +336,6 @@ app.openapi(
     if (body.name !== undefined) updateData['name'] = body.name;
     if (body.maxStudents !== undefined) updateData['max_students'] = body.maxStudents;
     if (body.gradeLevels !== undefined) updateData['grade_levels'] = body.gradeLevels;
-    if (body.isRecommended !== undefined) updateData['is_recommended'] = body.isRecommended;
     if (body.nextClassId !== undefined) updateData['next_class_id'] = body.nextClassId;
     if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
 

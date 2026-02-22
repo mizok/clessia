@@ -180,7 +180,6 @@ export class ClassesPage implements OnInit {
     name: '',
     maxStudents: 20,
     gradeLevels: [] as string[],
-    isRecommended: false,
     nextClassId: null as string | null,
     isActive: true,
   });
@@ -450,7 +449,6 @@ export class ClassesPage implements OnInit {
       name: '',
       maxStudents: 20,
       gradeLevels: [],
-      isRecommended: false,
       nextClassId: null,
       isActive: true,
     });
@@ -466,7 +464,6 @@ export class ClassesPage implements OnInit {
       name: cls.name,
       maxStudents: cls.maxStudents,
       gradeLevels: [...cls.gradeLevels],
-      isRecommended: cls.isRecommended,
       nextClassId: cls.nextClassId,
       isActive: cls.isActive,
     });
@@ -530,7 +527,6 @@ export class ClassesPage implements OnInit {
         name: form.name.trim(),
         maxStudents: form.maxStudents,
         gradeLevels: form.gradeLevels,
-        isRecommended: form.isRecommended,
         nextClassId: form.nextClassId,
       };
       this.classesService.create(input).subscribe({
@@ -559,7 +555,6 @@ export class ClassesPage implements OnInit {
         name: form.name.trim(),
         maxStudents: form.maxStudents,
         gradeLevels: form.gradeLevels,
-        isRecommended: form.isRecommended,
         nextClassId: form.nextClassId,
         isActive: form.isActive,
       };

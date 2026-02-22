@@ -9,7 +9,6 @@ CREATE TABLE public.classes (
   name text NOT NULL,
   max_students smallint NOT NULL DEFAULT 20,
   grade_levels text[] DEFAULT '{}',
-  is_recommended boolean NOT NULL DEFAULT false,
   next_class_id uuid REFERENCES public.classes(id) ON DELETE SET NULL,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),

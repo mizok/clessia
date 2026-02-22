@@ -24,7 +24,6 @@ export interface Class {
   name: string;
   maxStudents: number;
   gradeLevels: string[];
-  isRecommended: boolean;
   nextClassId: string | null;
   isActive: boolean;
   schedules?: Schedule[];
@@ -56,7 +55,6 @@ export interface CreateClassInput {
   name: string;
   maxStudents?: number;
   gradeLevels?: string[];
-  isRecommended?: boolean;
   nextClassId?: string | null;
 }
 
@@ -64,7 +62,6 @@ export interface UpdateClassInput {
   name?: string;
   maxStudents?: number;
   gradeLevels?: string[];
-  isRecommended?: boolean;
   nextClassId?: string | null;
   isActive?: boolean;
 }

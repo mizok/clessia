@@ -188,9 +188,6 @@
                           [value]="cls.isActive ? '啟用' : '停用'"
                           [severity]="cls.isActive ? 'success' : 'secondary'"
                         />
-                        @if (cls.isRecommended) {
-                          <p-tag value="推薦" severity="warn" />
-                        }
                       </div>
                     </div>
 
@@ -428,29 +425,17 @@
       />
     </div>
 
-    <!-- Max Students + Recommended -->
-    <div class="form-dialog__row">
-      <div class="form-dialog__field">
-        <label class="form-dialog__label">人數上限</label>
-        <p-inputnumber
-          [ngModel]="classForm().maxStudents"
-          (ngModelChange)="updateClassForm('maxStudents', $event)"
-          [min]="1"
-          [max]="200"
-          [disabled]="classDialogLoading()"
-          styleClass="w-full"
-        />
-      </div>
-      <div class="form-dialog__field form-dialog__field--inline">
-        <label class="form-dialog__label">推薦班級</label>
-        <div class="form-dialog__switch-row">
-          <p-toggleswitch
-            [ngModel]="classForm().isRecommended"
-            (ngModelChange)="updateClassForm('isRecommended', $event)"
-            [disabled]="classDialogLoading()"
-          />
-        </div>
-      </div>
+    <!-- Max Students -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">人數上限</label>
+      <p-inputnumber
+        [ngModel]="classForm().maxStudents"
+        (ngModelChange)="updateClassForm('maxStudents', $event)"
+        [min]="1"
+        [max]="200"
+        [disabled]="classDialogLoading()"
+        styleClass="w-full"
+      />
     </div>
 
     <!-- Grade Levels -->
