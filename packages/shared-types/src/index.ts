@@ -6,7 +6,9 @@ export type UserRole = 'admin' | 'teacher' | 'parent';
 
 export interface User {
   id: string;
-  email: string;
+  email?: string | null;
+  phone?: string | null;
+  username?: string | null;
   displayName: string;
   roles: UserRole[];
   orgId: string;

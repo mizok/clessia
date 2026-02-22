@@ -5,7 +5,7 @@ import { z } from 'zod';
 // ============================================================
 
 export const loginSchema = z.object({
-  email: z.email('請輸入有效的電子郵件'),
+  emailOrPhone: z.string().min(1, '請輸入 Email 或手機號碼'),
   password: z.string().min(6, '密碼至少需要 6 個字元'),
 });
 
