@@ -39,6 +39,7 @@
           placeholder="所有分校"
           [showClear]="true"
           styleClass="classes__filter-select"
+          appendTo="body"
         />
         <p-select
           [options]="subjectOptions()"
@@ -47,6 +48,7 @@
           placeholder="所有科目"
           [showClear]="true"
           styleClass="classes__filter-select"
+          appendTo="body"
         />
         <p-select
           [options]="statusOptions"
@@ -54,6 +56,7 @@
           (ngModelChange)="statusFilter.set($event)"
           placeholder="全部狀態"
           styleClass="classes__filter-select"
+          appendTo="body"
         />
       </div>
 
@@ -310,6 +313,7 @@
           placeholder="選擇分校"
           [disabled]="courseDialogLoading()"
           styleClass="w-full"
+          appendTo="body"
         />
       </div>
     }
@@ -342,6 +346,7 @@
         placeholder="選擇科目"
         [disabled]="courseDialogLoading()"
         styleClass="w-full"
+        appendTo="body"
       />
     </div>
 
@@ -458,6 +463,7 @@
         placeholder="選擇適合年級"
         [disabled]="classDialogLoading()"
         styleClass="w-full"
+        appendTo="body"
       />
     </div>
 
@@ -510,6 +516,7 @@
                   placeholder="星期"
                   [disabled]="classDialogLoading()"
                   styleClass="schedule-entry__weekday"
+                  appendTo="body"
                 />
                 <!-- Start Time -->
                 <input
@@ -548,6 +555,7 @@
                   placeholder="選擇老師"
                   [disabled]="classDialogLoading()"
                   styleClass="schedule-entry__teacher"
+                  appendTo="body"
                 />
                 <!-- Effective From -->
                 <div class="schedule-entry__effective">
@@ -618,6 +626,7 @@
             [showIcon]="true"
             placeholder="選擇日期"
             styleClass="w-full"
+            appendTo="body"
           />
         </div>
         <div class="form-dialog__field">
@@ -629,6 +638,7 @@
             [showIcon]="true"
             placeholder="選擇日期"
             styleClass="w-full"
+            appendTo="body"
           />
         </div>
       </div>
