@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createServiceClient } from '../lib/supabase';
+import { createAuth } from '../auth';
 import type { AppEnv } from '../index';
 
 // ============================================================
@@ -241,14 +241,6 @@ function mapStaff(
   };
 }
 
-async function getCurrentUserOrgId(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<string | null> {
-  const { data } = await supabase.from('profiles').select('org_id').eq('id', userId).single();
-  return data?.org_id || null;
-}
-
 async function checkUserIsAdmin(supabase: SupabaseClient, userId: string): Promise<boolean> {
   const { data } = await supabase
     .from('user_roles')
@@ -311,6 +303,11 @@ async function validateSubjectIdsInOrg(
 function isDuplicateEmailError(message: string): boolean {
   const normalized = message.toLowerCase();
   return normalized.includes('already') && normalized.includes('registered');
+}
+
+function generateRandomPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 
 async function loadStaffRelations(
@@ -409,9 +406,8 @@ const listRoute = createRoute({
 
 app.openapi(listRoute, async (c) => {
   const supabase = c.get('supabase');
-  const requester = c.get('user');
+  const orgId = c.get('orgId');
   const query = c.req.valid('query');
-  const serviceClient = createServiceClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY);
 
   const page = Math.max(parseInt(query.page || '1', 10), 1);
   const pageSize = Math.max(parseInt(query.pageSize || '20', 10), 1);
@@ -419,11 +415,6 @@ app.openapi(listRoute, async (c) => {
 
   let filteredStaffIdsByCampus: string[] | null = null;
   let filteredUserIdsByRole: string[] | null = null;
-  const orgId = await getCurrentUserOrgId(supabase, requester.id);
-
-  if (!orgId) {
-    return c.json({ error: '無法取得組織資訊', code: 'NO_ORG' }, 400);
-  }
 
   if (query.campusId) {
     const { data: campusLinks } = await supabase
@@ -434,7 +425,7 @@ app.openapi(listRoute, async (c) => {
   }
 
   if (query.role) {
-    const { data: orgProfiles, error: orgProfileError } = await serviceClient
+    const { data: orgProfiles, error: orgProfileError } = await supabase
       .from('profiles')
       .select('id')
       .eq('org_id', orgId);
@@ -459,7 +450,7 @@ app.openapi(listRoute, async (c) => {
       );
     }
 
-    const { data: roleRows, error: roleFilterError } = await serviceClient
+    const { data: roleRows, error: roleFilterError } = await supabase
       .from('user_roles')
       .select('user_id')
       .eq('role', query.role)
@@ -529,7 +520,7 @@ app.openapi(listRoute, async (c) => {
   }
 
   const staffRows = (data || []) as Record<string, unknown>[];
-  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(serviceClient, staffRows);
+  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(supabase, staffRows);
   const staffList = staffRows.map((row) => mapStaff(row, campusMap, subjectMap, roleInfoMap));
 
   return c.json(
@@ -580,14 +571,13 @@ const getRoute = createRoute({
 app.openapi(getRoute, async (c) => {
   const supabase = c.get('supabase');
   const { id } = c.req.valid('param');
-  const serviceClient = createServiceClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY);
 
   const staffRow = await getStaffById(supabase, id);
   if (!staffRow) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(serviceClient, [staffRow]);
+  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(supabase, [staffRow]);
   return c.json({ data: mapStaff(staffRow, campusMap, subjectMap, roleInfoMap) }, 200);
 });
 
@@ -645,15 +635,11 @@ const createRouteDef = createRoute({
 
 app.openapi(createRouteDef, async (c) => {
   const supabase = c.get('supabase');
-  const requester = c.get('user');
+  const requesterUserId = c.get('userId');
+  const orgId = c.get('orgId');
   const body = c.req.valid('json');
 
-  const orgId = await getCurrentUserOrgId(supabase, requester.id);
-  if (!orgId) {
-    return c.json({ error: '無法取得組織資訊', code: 'NO_ORG' }, 400);
-  }
-
-  const isAdmin = await checkUserIsAdmin(supabase, requester.id);
+  const isAdmin = await checkUserIsAdmin(supabase, requesterUserId);
   if (!isAdmin) {
     return c.json({ error: '僅管理員可新增人員', code: 'FORBIDDEN' }, 403);
   }
@@ -675,33 +661,55 @@ app.openapi(createRouteDef, async (c) => {
     }
   }
 
-  const serviceClient = createServiceClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY);
+  const auth = createAuth(c.env);
+  const password = generateRandomPassword();
   let createdUserId: string | null = null;
 
-  // 使用 inviteUserByEmail 發送邀請信，用戶點擊連結後自行設定密碼
-  const { data: authUserData, error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(
-    body.email,
-    {
-      data: {
-        display_name: body.displayName,
+  try {
+    const newUser = await auth.api.createUser({
+      body: {
+        name: body.displayName,
+        email: body.email,
+        password,
+        role: 'user',
+        data: {
+          display_name: body.displayName,
+        },
       },
-      redirectTo: `${c.env.WEB_URL}/change-password`,
-    },
-  );
+      asResponse: false,
+    });
 
-  if (inviteError || !authUserData.user) {
-    if (inviteError && isDuplicateEmailError(inviteError.message)) {
+    createdUserId = newUser.user.id;
+  } catch (error) {
+    const authErrorMessage = error instanceof Error ? error.message : String(error);
+    if (isDuplicateEmailError(authErrorMessage)) {
       return c.json({ error: 'Email 已被使用', code: 'DUPLICATE_EMAIL' }, 409);
     }
     return c.json(
-      { error: inviteError?.message || '建立帳號失敗', code: 'CREATE_AUTH_USER_FAILED' },
+      { error: authErrorMessage || '建立帳號失敗', code: 'CREATE_AUTH_USER_FAILED' },
       400,
     );
   }
 
-  createdUserId = authUserData.user.id;
+  const rollbackCreatedUser = async () => {
+    if (!createdUserId) {
+      return;
+    }
 
-  const { error: updateProfileError } = await serviceClient
+    try {
+      await auth.api.removeUser({
+        body: {
+          userId: createdUserId,
+        },
+        headers: c.req.raw.headers,
+        asResponse: false,
+      });
+    } catch (_error) {
+      // ignore rollback errors
+    }
+  };
+
+  const { error: updateProfileError } = await supabase
     .from('profiles')
     .update({
       org_id: orgId,
@@ -710,11 +718,11 @@ app.openapi(createRouteDef, async (c) => {
     .eq('id', createdUserId);
 
   if (updateProfileError) {
-    await serviceClient.auth.admin.deleteUser(createdUserId);
+    await rollbackCreatedUser();
     return c.json({ error: updateProfileError.message, code: 'CREATE_PROFILE_FAILED' }, 400);
   }
 
-  const { data: staffRow, error: insertStaffError } = await serviceClient
+  const { data: staffRow, error: insertStaffError } = await supabase
     .from('staff')
     .insert({
       user_id: createdUserId,
@@ -730,7 +738,7 @@ app.openapi(createRouteDef, async (c) => {
     .single();
 
   if (insertStaffError || !staffRow) {
-    await serviceClient.auth.admin.deleteUser(createdUserId);
+    await rollbackCreatedUser();
     return c.json(
       { error: insertStaffError?.message || '建立人員資料失敗', code: 'CREATE_STAFF_FAILED' },
       400,
@@ -744,11 +752,11 @@ app.openapi(createRouteDef, async (c) => {
     permissions: role === 'admin' ? normalizeAdminPermissions('admin', body.permissions) : [],
   }));
 
-  const { error: roleError } = await serviceClient.from('user_roles').insert(roleRows);
+  const { error: roleError } = await supabase.from('user_roles').insert(roleRows);
 
   if (roleError) {
-    await serviceClient.from('staff').delete().eq('id', staffRow.id);
-    await serviceClient.auth.admin.deleteUser(createdUserId);
+    await supabase.from('staff').delete().eq('id', staffRow.id);
+    await rollbackCreatedUser();
     return c.json({ error: roleError.message, code: 'CREATE_ROLE_FAILED' }, 400);
   }
 
@@ -757,10 +765,10 @@ app.openapi(createRouteDef, async (c) => {
     campus_id: campusId,
   }));
 
-  const { error: staffCampusError } = await serviceClient.from('staff_campuses').insert(campusRows);
+  const { error: staffCampusError } = await supabase.from('staff_campuses').insert(campusRows);
   if (staffCampusError) {
-    await serviceClient.from('staff').delete().eq('id', staffRow.id);
-    await serviceClient.auth.admin.deleteUser(createdUserId);
+    await supabase.from('staff').delete().eq('id', staffRow.id);
+    await rollbackCreatedUser();
     return c.json({ error: staffCampusError.message, code: 'CREATE_STAFF_CAMPUSES_FAILED' }, 400);
   }
 
@@ -770,21 +778,27 @@ app.openapi(createRouteDef, async (c) => {
       subject_id: subjectId,
     }));
 
-    const { error: staffSubjectError } = await serviceClient.from('staff_subjects').insert(subjectRows);
+    const { error: staffSubjectError } = await supabase.from('staff_subjects').insert(subjectRows);
     if (staffSubjectError) {
-      await serviceClient.from('staff').delete().eq('id', staffRow.id);
-      await serviceClient.auth.admin.deleteUser(createdUserId);
+      await supabase.from('staff').delete().eq('id', staffRow.id);
+      await rollbackCreatedUser();
       return c.json({ error: staffSubjectError.message, code: 'CREATE_STAFF_SUBJECTS_FAILED' }, 400);
     }
   }
 
-  const freshStaffRow = await getStaffById(serviceClient, staffRow.id as string);
+  const freshStaffRow = await getStaffById(supabase, staffRow.id as string);
   if (!freshStaffRow) {
     return c.json({ error: '建立人員後讀取失敗', code: 'READ_AFTER_CREATE_FAILED' }, 400);
   }
 
-  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(serviceClient, [freshStaffRow]);
-  return c.json({ data: mapStaff(freshStaffRow, campusMap, subjectMap, roleInfoMap) }, 201);
+  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(supabase, [freshStaffRow]);
+  return c.json(
+    {
+      data: mapStaff(freshStaffRow, campusMap, subjectMap, roleInfoMap),
+      initialPassword: password,
+    },
+    201,
+  );
 });
 
 // PUT /api/staff/:id
@@ -843,7 +857,7 @@ const updateRoute = createRoute({
 
 app.openapi(updateRoute, async (c) => {
   const supabase = c.get('supabase');
-  const requester = c.get('user');
+  const requesterUserId = c.get('userId');
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
 
@@ -852,7 +866,7 @@ app.openapi(updateRoute, async (c) => {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  const isAdmin = await checkUserIsAdmin(supabase, requester.id);
+  const isAdmin = await checkUserIsAdmin(supabase, requesterUserId);
   if (!isAdmin) {
     return c.json({ error: '僅管理員可更新人員', code: 'FORBIDDEN' }, 403);
   }
@@ -873,8 +887,6 @@ app.openapi(updateRoute, async (c) => {
     }
   }
 
-  const serviceClient = createServiceClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY);
-
   const updateData: Record<string, unknown> = {};
   if (body.displayName !== undefined) updateData['display_name'] = body.displayName;
   if (body.phone !== undefined) updateData['phone'] = body.phone;
@@ -883,7 +895,7 @@ app.openapi(updateRoute, async (c) => {
   if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
 
   if (Object.keys(updateData).length > 0) {
-    const { error: updateStaffError } = await serviceClient
+    const { error: updateStaffError } = await supabase
       .from('staff')
       .update(updateData)
       .eq('id', id);
@@ -893,7 +905,7 @@ app.openapi(updateRoute, async (c) => {
   }
 
   if (body.displayName !== undefined) {
-    const { error: updateProfileError } = await serviceClient
+    const { error: updateProfileError } = await supabase
       .from('profiles')
       .update({ display_name: body.displayName })
       .eq('id', staffRow['user_id'] as string);
@@ -906,7 +918,7 @@ app.openapi(updateRoute, async (c) => {
   if (body.campusIds !== undefined) {
     const uniqueCampusIds = Array.from(new Set(body.campusIds));
 
-    const { error: deleteCampusLinksError } = await serviceClient
+    const { error: deleteCampusLinksError } = await supabase
       .from('staff_campuses')
       .delete()
       .eq('staff_id', id);
@@ -923,7 +935,7 @@ app.openapi(updateRoute, async (c) => {
       campus_id: campusId,
     }));
 
-    const { error: insertCampusLinksError } = await serviceClient
+    const { error: insertCampusLinksError } = await supabase
       .from('staff_campuses')
       .insert(campusRows);
 
@@ -938,7 +950,7 @@ app.openapi(updateRoute, async (c) => {
   if (body.subjectIds !== undefined) {
     const uniqueSubjectIds = Array.from(new Set(body.subjectIds));
 
-    const { error: deleteSubjectLinksError } = await serviceClient
+    const { error: deleteSubjectLinksError } = await supabase
       .from('staff_subjects')
       .delete()
       .eq('staff_id', id);
@@ -956,7 +968,7 @@ app.openapi(updateRoute, async (c) => {
         subject_id: subjectId,
       }));
 
-      const { error: insertSubjectLinksError } = await serviceClient
+      const { error: insertSubjectLinksError } = await supabase
         .from('staff_subjects')
         .insert(subjectRows);
 
@@ -974,7 +986,7 @@ app.openapi(updateRoute, async (c) => {
   // Handle roles update
   if (body.roles !== undefined) {
     // Delete existing roles
-    const { error: deleteRolesError } = await serviceClient
+    const { error: deleteRolesError } = await supabase
       .from('user_roles')
       .delete()
       .eq('user_id', userId)
@@ -991,14 +1003,14 @@ app.openapi(updateRoute, async (c) => {
       permissions: role === 'admin' ? normalizeAdminPermissions('admin', body.permissions) : [],
     }));
 
-    const { error: insertRolesError } = await serviceClient.from('user_roles').insert(roleRows);
+    const { error: insertRolesError } = await supabase.from('user_roles').insert(roleRows);
 
     if (insertRolesError) {
       return c.json({ error: insertRolesError.message, code: 'UPDATE_ROLES_FAILED' }, 400);
     }
   } else if (body.permissions !== undefined) {
     // Only update permissions if roles not being changed
-    const { data: existingRoleRows } = await serviceClient
+    const { data: existingRoleRows } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
@@ -1007,7 +1019,7 @@ app.openapi(updateRoute, async (c) => {
     const hasAdminRole = (existingRoleRows || []).some((roleRow) => roleRow.role === 'admin');
     if (hasAdminRole) {
       const permissions = normalizeAdminPermissions('admin', body.permissions);
-      const { error: updatePermissionsError } = await serviceClient
+      const { error: updatePermissionsError } = await supabase
         .from('user_roles')
         .update({ permissions })
         .eq('user_id', userId)
@@ -1022,12 +1034,12 @@ app.openapi(updateRoute, async (c) => {
     }
   }
 
-  const freshStaffRow = await getStaffById(serviceClient, id);
+  const freshStaffRow = await getStaffById(supabase, id);
   if (!freshStaffRow) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(serviceClient, [freshStaffRow]);
+  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(supabase, [freshStaffRow]);
   return c.json({ data: mapStaff(freshStaffRow, campusMap, subjectMap, roleInfoMap) }, 200);
 });
 
@@ -1080,7 +1092,7 @@ const deleteRoute = createRoute({
 
 app.openapi(deleteRoute, async (c) => {
   const supabase = c.get('supabase');
-  const requester = c.get('user');
+  const requesterUserId = c.get('userId');
   const { id } = c.req.valid('param');
 
   const staffRow = await getStaffById(supabase, id);
@@ -1088,20 +1100,19 @@ app.openapi(deleteRoute, async (c) => {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  const isAdmin = await checkUserIsAdmin(supabase, requester.id);
+  const isAdmin = await checkUserIsAdmin(supabase, requesterUserId);
   if (!isAdmin) {
     return c.json({ error: '僅管理員可刪除人員', code: 'FORBIDDEN' }, 403);
   }
 
-  const serviceClient = createServiceClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY);
   const userId = staffRow['user_id'] as string;
 
-  const { error: deleteStaffError } = await serviceClient.from('staff').delete().eq('id', id);
+  const { error: deleteStaffError } = await supabase.from('staff').delete().eq('id', id);
   if (deleteStaffError) {
     return c.json({ error: deleteStaffError.message, code: 'DELETE_STAFF_FAILED' }, 400);
   }
 
-  const { error: deleteRoleError } = await serviceClient
+  const { error: deleteRoleError } = await supabase
     .from('user_roles')
     .delete()
     .eq('user_id', userId)

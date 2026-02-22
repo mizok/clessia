@@ -260,24 +260,13 @@ const createCourseRoute = createRoute({
 
 app.openapi(createCourseRoute, async (c) => {
   const supabase = c.get('supabase');
-  const user = c.get('user');
+  const orgId = c.get('orgId');
   const body = c.req.valid('json');
-
-  // Get user's org_id from profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('org_id')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile?.org_id) {
-    return c.json({ error: '無法取得組織資訊', code: 'NO_ORG' }, 400);
-  }
 
   const { data, error } = await supabase
     .from('courses')
     .insert({
-      org_id: profile.org_id,
+      org_id: orgId,
       campus_id: body.campusId,
       name: body.name,
       subject_id: body.subjectId,

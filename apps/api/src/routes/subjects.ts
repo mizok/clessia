@@ -58,22 +58,12 @@ const listRoute = createRoute({
 
 app.openapi(listRoute, async (c) => {
   const supabase = c.get('supabase');
-  const user = c.get('user');
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('org_id')
-    .eq('id', user.id)
-    .single();
-
-  if (profileError || !profile?.org_id) {
-    return c.json({ error: '無法取得組織資訊', code: 'NO_ORG' }, 400);
-  }
+  const orgId = c.get('orgId');
 
   const { data, error } = await supabase
     .from('subjects')
     .select('id, name, sort_order')
-    .eq('org_id', profile.org_id)
+    .eq('org_id', orgId)
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
@@ -213,27 +203,17 @@ const createSubjectRoute = createRoute({
 
 app.openapi(createSubjectRoute, async (c) => {
   const supabase = c.get('supabase');
-  const user = c.get('user');
+  const orgId = c.get('orgId');
   const body = c.req.valid('json');
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('org_id')
-    .eq('id', user.id)
-    .single();
-
-  if (profileError || !profile?.org_id) {
-    return c.json({ error: '無法取得組織資訊', code: 'NO_ORG' }, 400);
-  }
 
   const { count: maxOrder } = await supabase
     .from('subjects')
     .select('id', { count: 'exact', head: true })
-    .eq('org_id', profile.org_id);
+    .eq('org_id', orgId);
 
   const { data, error } = await supabase
     .from('subjects')
-    .insert({ org_id: profile.org_id, name: body.name.trim(), sort_order: maxOrder ?? 99 })
+    .insert({ org_id: orgId, name: body.name.trim(), sort_order: maxOrder ?? 99 })
     .select('id, name, sort_order')
     .single();
 
