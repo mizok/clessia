@@ -5,5 +5,9 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "latest",
+    "better-auth": "latest"
   }
 }
