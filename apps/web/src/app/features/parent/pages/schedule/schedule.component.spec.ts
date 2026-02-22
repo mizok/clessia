@@ -14,6 +14,7 @@ describe('ScheduleComponent', () => {
 
     fixture = TestBed.createComponent(ScheduleComponent);
     component = fixture.componentInstance;
+    fixture.componentRef.setInput('page', { label: 'Test', relativePath: '', absolutePath: '', role: undefined, icon: '', showInMenu: true });
     await fixture.whenStable();
   });
 

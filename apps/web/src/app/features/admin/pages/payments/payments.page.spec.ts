@@ -14,6 +14,7 @@ describe('PaymentsPage', () => {
 
     fixture = TestBed.createComponent(PaymentsPage);
     component = fixture.componentInstance;
+    fixture.componentRef.setInput('page', { label: 'Test', relativePath: '', absolutePath: '', role: undefined, icon: '', showInMenu: true });
     await fixture.whenStable();
   });
 

@@ -14,6 +14,7 @@ describe('RenewalComponent', () => {
 
     fixture = TestBed.createComponent(RenewalComponent);
     component = fixture.componentInstance;
+    fixture.componentRef.setInput('page', { label: 'Test', relativePath: '', absolutePath: '', role: undefined, icon: '', showInMenu: true });
     await fixture.whenStable();
   });
 

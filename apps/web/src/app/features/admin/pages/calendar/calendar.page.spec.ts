@@ -14,6 +14,7 @@ describe('CalendarPage', () => {
 
     fixture = TestBed.createComponent(CalendarPage);
     component = fixture.componentInstance;
+    fixture.componentRef.setInput('page', { label: 'Test', relativePath: '', absolutePath: '', role: undefined, icon: '', showInMenu: true });
     await fixture.whenStable();
   });
 

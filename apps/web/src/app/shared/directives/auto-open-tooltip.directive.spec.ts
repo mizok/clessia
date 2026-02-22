@@ -2,8 +2,25 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { Tooltip } from 'primeng/tooltip';
-import { vi } from 'vitest';
+import { vi, beforeAll, afterAll } from 'vitest';
 import { AutoOpenTooltipDirective } from './auto-open-tooltip.directive';
+
+// DeviceService uses window.matchMedia which is unavailable in jsdom
+beforeAll(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+});
 
 @Component({
   standalone: true,
