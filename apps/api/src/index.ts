@@ -8,6 +8,7 @@ import campusesRoute from './routes/campuses';
 import coursesRoute from './routes/courses';
 import staffRoute from './routes/staff';
 import subjectsRoute from './routes/subjects';
+import classesRoute from './routes/classes';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ============================================================
@@ -130,6 +131,7 @@ app.route('/api/courses', coursesRoute);
 app.route('/api/campuses', campusesRoute);
 app.route('/api/staff', staffRoute);
 app.route('/api/subjects', subjectsRoute);
+app.route('/api/classes', classesRoute);
 
 // ============================================================
 // Error Handler
