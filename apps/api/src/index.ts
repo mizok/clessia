@@ -3,11 +3,11 @@ import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { authMiddleware } from './middleware/auth';
+import { createAuth } from './auth';
 import campusesRoute from './routes/campuses';
 import coursesRoute from './routes/courses';
 import staffRoute from './routes/staff';
 import subjectsRoute from './routes/subjects';
-import type { User } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ============================================================
@@ -18,12 +18,15 @@ export type Bindings = {
   ENVIRONMENT: string;
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
-  SUPABASE_ANON_KEY: string;
   WEB_URL: string;
+  BETTER_AUTH_SECRET: string;
+  BETTER_AUTH_URL: string;
+  DATABASE_URL: string;
 };
 
 export type Variables = {
-  user: User;
+  userId: string;
+  orgId: string;
   supabase: SupabaseClient;
 };
 
@@ -91,6 +94,12 @@ app.get('/docs', swaggerUI({ url: '/openapi.json' }));
 // ============================================================
 // Protected API Routes
 // ============================================================
+
+// Better Auth handler - must be BEFORE authMiddleware
+app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
+  const auth = createAuth(c.env);
+  return auth.handler(c.req.raw);
+});
 
 app.use('/api/*', authMiddleware);
 
