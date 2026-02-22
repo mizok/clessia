@@ -8,7 +8,7 @@
 | --------- | ----------------------------------------------------------------------- |
 | Frontend  | Angular 21 (Standalone Components + Signals)                            |
 | UI        | PrimeNG 21 + PrimeIcons + `@primeuix/themes` Aura                       |
-| Backend   | Supabase (Auth, PostgreSQL, RLS, Edge Functions)                        |
+| Backend   | Better Auth (Auth) + Supabase (PostgreSQL, Storage)                     |
 | Deploy    | Vercel                                                                  |
 | Utilities | date-fns, xlsx, pdfmake, angularx-qrcode, html5-qrcode, Toast UI Editor |
 
@@ -64,9 +64,10 @@
 ### Supabase / SQL
 
 - Migration 檔案以時間戳命名：`YYYYMMDDHHMMSS_description.sql`
-- 所有表都啟用 RLS
+- 業務表不使用 RLS，授權邏輯在 Hono middleware 層（org_id 過濾）
 - 使用 enum types for fixed value sets (e.g. `user_role`)
-- Trigger-based automation (e.g. auto-create profile on signup)
+- Better Auth 管理 user/session/account tables（前綴 ba_），不要手動修改
+- 新增用戶透過 Better Auth admin.createUser() API，不直接寫 ba_user
 
 ### Prettier
 

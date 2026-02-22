@@ -30,6 +30,11 @@
 | 備註 | 長文字 | 否 | |
 | 帳號狀態 | 開關 | 是 | 啟用/停用 |
 
+### 建立帳號流程（Better Auth）
+
+- 透過 Better Auth admin API `createUser` 建立員工帳號，系統自動產生初始密碼
+- 初始密碼由管理者告知員工
+
 ### 權限設定（管理員角色）
 
 建立管理員帳號時可勾選權限：
@@ -48,7 +53,7 @@
 | 操作 | 資料表 |
 |------|--------|
 | 讀取 | `staff`, `admin_permissions`, `campuses` |
-| 寫入 | `staff`, `admin_permissions`, `auth.users` |
+| 寫入 | `staff`, `admin_permissions`, `ba_user` |
 
 ## PRD 參考
 

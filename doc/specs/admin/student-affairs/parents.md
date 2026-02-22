@@ -45,12 +45,19 @@
 | 停用帳號 | 暫停登入權限，資料保留 |
 | 啟用帳號 | 恢復登入權限 |
 
+### 驗證與登入設計
+
+- 有 email 的家長：使用 email + 密碼登入
+- 只有手機號碼的家長：使用手機號碼 + 密碼登入（後端 Better Auth `username` 欄位存手機號碼）
+- 忘記密碼：有 email → 系統發送重設連結；沒有 email → 請聯絡管理者重設
+- 帳號建立：由管理者後台手動建立，系統產生初始密碼，不需要 SMS OTP
+
 ## 資料依賴
 
 | 操作 | 資料表 |
 |------|--------|
 | 讀取 | `parents`, `parent_student_relations`, `students` |
-| 寫入 | `parents`, `parent_student_relations`, `auth.users` |
+| 寫入 | `parents`, `parent_student_relations`, `ba_user` |
 
 ## PRD 參考
 
