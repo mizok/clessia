@@ -8,9 +8,19 @@
 | --------- | ----------------------------------------------------------------------- |
 | Frontend  | Angular 21 (Standalone Components + Signals)                            |
 | UI        | PrimeNG 21 + PrimeIcons + `@primeuix/themes` Aura                       |
-| Backend   | Supabase (Auth, PostgreSQL, RLS, Edge Functions)                        |
+| Backend   | Better Auth (Auth) + Supabase (PostgreSQL, Storage)                     |
 | Deploy    | Vercel                                                                  |
 | Utilities | date-fns, xlsx, pdfmake, angularx-qrcode, html5-qrcode, Toast UI Editor |
+
+## 開發流程
+
+**重要**：開發新功能前，必須遵循 [`doc/AGENT_GUIDE.md`](doc/AGENT_GUIDE.md) 的流程。
+
+核心要點：
+1. **Phase 0**：先調查環境（版本、設定、現有風格）
+2. **分階段驗證**：每階段完成後驗證才能繼續
+3. **Codex 委派**：必須指定 `sessionId`，prompt 須包含版本資訊
+4. **UI 開發**：必須先參考設計系統，invoke `ui-ux-pro-max` skill
 
 ## Coding Conventions
 
@@ -54,9 +64,10 @@
 ### Supabase / SQL
 
 - Migration 檔案以時間戳命名：`YYYYMMDDHHMMSS_description.sql`
-- 所有表都啟用 RLS
+- 業務表不使用 RLS，授權邏輯在 Hono middleware 層（org_id 過濾）
 - 使用 enum types for fixed value sets (e.g. `user_role`)
-- Trigger-based automation (e.g. auto-create profile on signup)
+- Better Auth 管理 user/session/account tables（前綴 ba_），不要手動修改
+- 新增用戶透過 Better Auth admin.createUser() API，不直接寫 ba_user
 
 ### Prettier
 
@@ -114,7 +125,7 @@ npx ng test           # Run unit tests (Vitest)
 | ------------------------------------------------ | ----------------------- | ---------------- | -------------------------------------- |
 | `/login`, `/trial`, `/enrollment`, `/qr-checkin` | `PublicShellComponent`  | 無需登入         | 雙欄佈局（brand sidebar + content）    |
 | `/select-role`                                   | —                       | 已登入、多重角色 | 角色選擇頁                             |
-| `/admin/**`                                      | `AdminShellComponent`   | `admin`, `staff` | 管理佈局（header + sidebar + content） |
+| `/admin/**`                                      | `AdminShellComponent`   | `admin`          | 管理佈局（header + sidebar + content） |
 | `/teacher/**`                                    | `TeacherShellComponent` | `teacher`        | 課表、點名為主的簡潔佈局               |
 | `/parent/**`                                     | `ParentShellComponent`  | `parent`         | mobile-first 閱讀佈局                  |
 

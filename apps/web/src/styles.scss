@@ -1,0 +1,474 @@
+/* =============================================================================
+   Clessia Design Tokens
+   ============================================================================= */
+:root {
+  /* Base Colors */
+  --color-white: #fff;
+  --color-black: #000;
+
+  /* Zinc Gray Scale */
+  --zinc-50: #fafafa;
+  --zinc-100: #f4f4f5;
+  --zinc-200: #e4e4e7;
+  --zinc-300: #d4d4d8;
+  --zinc-400: #a1a1aa;
+  --zinc-500: #71717a;
+  --zinc-600: #52525b;
+  --zinc-700: #3f3f46;
+  --zinc-800: #27272a;
+  --zinc-900: #18181b;
+
+  /* Accent (Sky Blue) */
+  --accent-50: #f0f9ff;
+  --accent-100: #e0f2fe;
+  --accent-400: #38bdf8;
+  --accent-500: #0ea5e9;
+  --accent-600: #0284c7;
+
+  /* Semantic Colors */
+  --success-100: #dcfce7;
+  --success-600: #16a34a;
+  --warning-100: #fef3c7;
+  --warning-600: #d97706;
+  --error-100: #fee2e2;
+  --error-600: #dc2626;
+
+  /* Spacing (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+
+  /* Typography */
+  --font-sans: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+
+  /* Transitions */
+  --transition-fast: 0.12s ease;
+}
+
+/* =============================================================================
+   Reset & Base
+   ============================================================================= */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: var(--font-medium);
+  color: var(--zinc-900);
+  background-color: var(--zinc-100);
+  line-height: var(--leading-normal);
+  min-height: 100vh;
+}
+
+html,body{
+  height:100%;
+  overflow: hidden;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* =============================================================================
+   Tooltip Styles
+   ============================================================================= */
+.clessia-tooltip.p-tooltip {
+  pointer-events: none;
+  --clessia-tooltip-arrow-size: 6px;
+  --p-tooltip-gutter: var(--clessia-tooltip-arrow-size);
+  --p-tooltip-background: var(--zinc-700);
+  --p-tooltip-color: #fff;
+  transform-origin: 50% 0%;
+  transform: scale(1);
+  transition-property: transform;
+  transition-duration: var(--clessia-tooltip-enter-duration, 180ms);
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+  backface-visibility: hidden;
+  border: none;
+}
+
+.clessia-tooltip.p-tooltip.clessia-tooltip--pre-enter {
+  transform: scale(0.8);
+}
+
+.clessia-tooltip.p-tooltip.p-tooltip-bottom {
+  margin-top: 4px;
+}
+
+.clessia-tooltip.p-tooltip.p-tooltip-top {
+  margin-bottom: 4px;
+}
+
+.clessia-tooltip.p-tooltip.p-tooltip-top {
+  transform-origin: center bottom;
+}
+
+.clessia-tooltip.p-tooltip.p-tooltip-left {
+  transform-origin: right center;
+}
+
+.clessia-tooltip.p-tooltip.p-tooltip-right {
+  transform-origin: left center;
+}
+
+.clessia-tooltip.p-tooltip .p-tooltip-text {
+  max-width: 220px;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-normal);
+  color: var(--p-tooltip-color);
+  background: var(--p-tooltip-background);
+  box-shadow: 0 10px 24px rgb(2 6 23 / 28%);
+  opacity: 1;
+  transition: opacity var(--clessia-tooltip-enter-duration, 180ms) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.clessia-tooltip.p-tooltip.clessia-tooltip--pre-enter .p-tooltip-text {
+  opacity: 0;
+}
+
+.clessia-tooltip.p-tooltip .p-tooltip-arrow {
+  border-color: transparent;
+}
+
+.clessia-tooltip.p-tooltip.p-tooltip-top .p-tooltip-arrow {
+  border-top-color: var(--p-tooltip-background);
+  border-bottom-color: var(--p-tooltip-background);
+}
+
+.clessia-tooltip.p-tooltip.p-tooltip-bottom .p-tooltip-arrow {
+  border-top-color: var(--p-tooltip-background);
+  border-bottom-color: var(--p-tooltip-background);
+}
+
+.clessia-tooltip.p-tooltip.p-tooltip-left .p-tooltip-arrow {
+  border-left-color: var(--p-tooltip-background);
+  border-right-color: var(--p-tooltip-background);
+}
+
+.clessia-tooltip.p-tooltip.p-tooltip-right .p-tooltip-arrow {
+  border-left-color: var(--p-tooltip-background);
+  border-right-color: var(--p-tooltip-background);
+}
+
+.clessia-tooltip.p-tooltip.clessia-tooltip--leaving {
+  transition-duration: var(--clessia-tooltip-leave-duration, 180ms);
+  transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
+  transform: scale(0.8);
+}
+
+.clessia-tooltip.p-tooltip.clessia-tooltip--leaving .p-tooltip-text {
+  opacity: 0;
+  transition-duration: var(--clessia-tooltip-leave-duration, 180ms);
+  transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+
+.clessia-tooltip.p-tooltip.clessia-tooltip--kill-animations,
+.clessia-tooltip.p-tooltip.clessia-tooltip--kill-animations .p-tooltip-text {
+  transition: none !important;
+  opacity: 0 !important;
+  transform: none !important;
+  animation: none !important;
+}
+
+/* User Menu Popover Arrow Alignment Override */
+.user-menu-overlay {
+  background: var(--color-white) !important;
+  border: 1px solid var(--zinc-200) !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+  padding: 0 !important;
+
+  .p-popover-content {
+    padding: 0 !important;
+  }
+}
+
+.user-menu-overlay::after
+{
+  left: auto !important;
+  right: 20px !important;
+  transform: translateX(-50%) !important;
+  display: block !important;
+  border-bottom-color: var(--color-white) !important;
+}
+
+.user-menu-overlay::before {
+  left: auto !important;
+  right: 17px !important;
+  transform: translateX(-50%) !important;
+  display: block !important;
+  border-bottom-color: var(--zinc-200) !important; // Match border
+}
+
+
+
+
+
+
+
+/* =============================================================================
+   Toast Styles
+   ============================================================================= */
+.p-toast {
+  opacity: 1;
+
+  .p-toast-message {
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    border: 1px solid transparent;
+    backdrop-filter: blur(8px);
+
+    .p-toast-message-content {
+      padding: var(--space-4);
+      gap: var(--space-3);
+    }
+
+    .p-toast-message-icon {
+      font-size: 1.25rem;
+    }
+
+    .p-toast-summary {
+      font-weight: var(--font-semibold);
+      font-size: var(--text-md);
+    }
+
+    .p-toast-detail {
+      font-size: var(--text-sm);
+      margin-top: 2px;
+      opacity: 0.9;
+    }
+
+    // Success - Green tones
+    &.p-toast-message-success {
+      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+      border-color: #bbf7d0;
+      color: #166534;
+
+      .p-toast-message-icon {
+        color: #16a34a;
+      }
+    }
+
+    // Error - Red tones
+    &.p-toast-message-error {
+      background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+      border-color: #fecaca;
+      color: #991b1b;
+
+      .p-toast-message-icon {
+        color: #dc2626;
+      }
+    }
+
+    // Warning - Amber tones
+    &.p-toast-message-warn {
+      background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+      border-color: #fde68a;
+      color: #92400e;
+
+      .p-toast-message-icon {
+        color: #d97706;
+      }
+    }
+
+    // Info - Sky blue tones (accent)
+    &.p-toast-message-info {
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border-color: #bae6fd;
+      color: #0c4a6e;
+
+      .p-toast-message-icon {
+        color: #0ea5e9;
+      }
+    }
+  }
+
+  .p-toast-close-button {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.08);
+    }
+
+    &:focus {
+      box-shadow: 0 0 0 2px #0ea5e9;
+    }
+  }
+}
+
+/* =============================================================================
+   Confirm Dialog Styles
+   ============================================================================= */
+.p-confirmdialog {
+  .p-dialog-header {
+    padding: var(--space-5) var(--space-6);
+    border-bottom: 1px solid var(--zinc-100);
+    background: var(--zinc-50);
+
+    .p-dialog-title {
+      font-size: var(--text-lg);
+      font-weight: var(--font-semibold);
+      color: var(--zinc-900);
+    }
+  }
+
+  .p-dialog-content {
+    padding: var(--space-6);
+
+    .p-confirmdialog-message {
+      margin-left: var(--space-4);
+      font-size: var(--text-md);
+      color: var(--zinc-700);
+      line-height: var(--leading-relaxed);
+    }
+  }
+
+  .p-dialog-footer {
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--zinc-100);
+    background: var(--zinc-50);
+    gap: var(--space-3);
+  }
+
+  // Warning icon styling
+  .p-confirmdialog-icon {
+    color: var(--warning-600);
+    font-size: 1.5rem;
+  }
+}
+
+/* =============================================================================
+   Form Input Global Styles
+   ============================================================================= */
+.p-inputtext {
+  border-color: var(--zinc-200);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+
+  &:hover:not(:disabled):not(:focus) {
+    border-color: var(--zinc-400);
+  }
+
+  &:focus {
+    border-color: var(--accent-500);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+  }
+
+  &::placeholder {
+    color: var(--zinc-400);
+  }
+}
+
+/* =============================================================================
+   Button Global Styles
+   ============================================================================= */
+// Primary button - zinc-900 theme
+.p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-secondary):not(.p-button-success):not(.p-button-info):not(.p-button-warn):not(.p-button-danger):not(.p-button-help):not(.p-button-contrast) {
+  background: var(--zinc-900);
+  border-color: var(--zinc-900);
+
+  &:not(:disabled):hover {
+    background: var(--zinc-800);
+    border-color: var(--zinc-800);
+  }
+
+  &:not(:disabled):focus {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--accent-500);
+  }
+
+  &:not(:disabled):active {
+    background: var(--zinc-700);
+    border-color: var(--zinc-700);
+  }
+}
+
+/* =============================================================================
+   Utilities
+   ============================================================================= */
+.u-fill-route-child {
+  display: flex;
+  width: 100%;
+
+  > *:not(router-outlet){
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+.u-centered-flex {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.u-full-height{
+  height: 100%;
+}
+
+.u-scrollable{
+  overflow: auto;
+}

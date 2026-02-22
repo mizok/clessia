@@ -1,0 +1,13 @@
+name = "clessia-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "development"
+WEB_URL = "http://localhost:4200"
+SUPABASE_URL = "http://127.0.0.1:54321"
+SUPABASE_SERVICE_ROLE_KEY = ""
+BETTER_AUTH_URL = "http://localhost:8787"
+BETTER_AUTH_SECRET = "dev-secret-change-in-production"
+DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"

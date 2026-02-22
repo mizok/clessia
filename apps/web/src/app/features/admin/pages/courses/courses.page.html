@@ -1,0 +1,421 @@
+<p-toast />
+<p-confirmDialog />
+
+<div class="courses">
+  <!-- Page Header -->
+  <header class="courses__header">
+    <div class="courses__title-group">
+      <h1 class="courses__title">課程管理</h1>
+      <p class="courses__subtitle">管理您的補習班課程資訊</p>
+    </div>
+    <p-button
+      label="新增課程"
+      icon="pi pi-plus"
+      (onClick)="openCreateDialog()"
+    />
+  </header>
+
+  <!-- Main Card -->
+  <div class="courses__card">
+    <!-- Toolbar with Search and Filters -->
+    <div class="courses__toolbar">
+      <div class="courses__search">
+        <p-iconField iconPosition="left">
+          <p-inputIcon styleClass="pi pi-search" />
+          <input
+            type="text"
+            pInputText
+            placeholder="搜尋課程名稱、科目或說明..."
+            [ngModel]="searchQuery()"
+            (ngModelChange)="searchQuery.set($event)"
+          />
+        </p-iconField>
+      </div>
+
+      <div class="courses__filters">
+        <p-select
+          [options]="campusOptions()"
+          [ngModel]="selectedCampusId()"
+          (ngModelChange)="selectedCampusId.set($event)"
+          placeholder="所有分校"
+          [showClear]="true"
+          styleClass="courses__filter-select"
+        />
+        <p-select
+          [options]="subjectOptions()"
+          [ngModel]="selectedSubjectId()"
+          (ngModelChange)="selectedSubjectId.set($event)"
+          placeholder="所有科目"
+          [showClear]="true"
+          styleClass="courses__filter-select"
+        />
+      </div>
+
+      @if (hasActiveFilters()) {
+        <p-button
+          label="清除篩選"
+          icon="pi pi-filter-slash"
+          [text]="true"
+          severity="secondary"
+          (onClick)="clearFilters()"
+          styleClass="courses__clear-btn"
+        />
+      }
+    </div>
+
+    <!-- Stats Summary -->
+    @if (!loading() && courses().length > 0) {
+      <div class="courses__stats">
+        <div class="courses__stat">
+          <span class="courses__stat-value">{{ courses().length }}</span>
+          <span class="courses__stat-label">個課程</span>
+        </div>
+        <div class="courses__stat">
+          <span class="courses__stat-value">{{ activeCourseCount() }}</span>
+          <span class="courses__stat-label">啟用中</span>
+        </div>
+        <div class="courses__stat">
+          <span class="courses__stat-value">{{ inactiveCourseCount() }}</span>
+          <span class="courses__stat-label">已停用</span>
+        </div>
+        <div class="courses__stat">
+          <span class="courses__stat-value">{{ subjectOptions().length }}</span>
+          <span class="courses__stat-label">科目</span>
+        </div>
+      </div>
+    }
+
+    <!-- Content Area -->
+    <div class="courses__content">
+      @if (loading()) {
+        <!-- Skeleton Loading -->
+        <div class="skeleton-table">
+          @for (i of [1, 2, 3, 4, 5]; track i) {
+            <div class="skeleton-table__row">
+              <div class="skeleton-table__cell skeleton-table__cell--name">
+                <p-skeleton width="100%" height="1.25rem" />
+              </div>
+              <div class="skeleton-table__cell skeleton-table__cell--campus">
+                <p-skeleton width="100%" height="1.25rem" />
+              </div>
+              <div class="skeleton-table__cell skeleton-table__cell--subject">
+                <p-skeleton width="100%" height="1.25rem" />
+              </div>
+              <div class="skeleton-table__cell skeleton-table__cell--status">
+                <p-skeleton width="100%" height="1.25rem" />
+              </div>
+              <div class="skeleton-table__cell skeleton-table__cell--actions">
+                <p-skeleton width="60px" height="1.25rem" />
+              </div>
+            </div>
+          }
+        </div>
+      } @else if (filteredCourses().length === 0) {
+        <!-- Empty State -->
+        @if (hasActiveFilters()) {
+          <app-empty-state
+            icon="pi pi-search"
+            title="找不到符合的課程"
+            description="請嘗試調整搜尋條件或篩選器"
+          >
+            <p-button
+              label="清除篩選"
+              [text]="true"
+              severity="secondary"
+              (onClick)="clearFilters()"
+            />
+          </app-empty-state>
+        } @else {
+          <app-empty-state
+            icon="pi pi-book"
+            title="尚未建立課程"
+            description="開始建立您的第一個課程來管理補習班教學"
+          >
+            <p-button
+              label="新增課程"
+              icon="pi pi-plus"
+              (onClick)="openCreateDialog()"
+            />
+          </app-empty-state>
+        }
+      } @else {
+        <!-- Desktop: Data Table -->
+        <div class="courses__table-view">
+          <p-table
+            [value]="filteredCourses()"
+            [paginator]="filteredCourses().length > 10"
+            [rows]="10"
+            [rowsPerPageOptions]="[10, 20, 50]"
+            [showCurrentPageReport]="true"
+            currentPageReportTemplate="顯示 {first} - {last}，共 {totalRecords} 筆"
+            styleClass="p-datatable-sm"
+          >
+            <ng-template #header>
+              <tr>
+                <th style="width: 25%">課程名稱</th>
+                <th style="width: 20%">分校</th>
+                <th style="width: 15%">科目</th>
+                <th style="width: 20%">說明</th>
+                <th style="width: 10%">狀態</th>
+                <th style="width: 10%; text-align: right">操作</th>
+              </tr>
+            </ng-template>
+            <ng-template #body let-course>
+              <tr>
+                <td>
+                  <div class="course-table__name">
+                    <span class="course-table__icon">
+                      <i class="pi pi-book"></i>
+                    </span>
+                    <span>{{ course.name }}</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="course-table__campus">
+                    {{ course.campusName || getCampusName(course.campusId) }}
+                  </span>
+                </td>
+                <td>
+                  <p-tag [value]="course.subjectName" severity="info" />
+                </td>
+                <td>
+                  @if (course.description) {
+                    <span class="course-table__description">{{ course.description }}</span>
+                  } @else {
+                    <span class="course-table__empty">未填寫</span>
+                  }
+                </td>
+                <td>
+                  <p-tag
+                    [value]="course.isActive ? '啟用' : '停用'"
+                    [severity]="course.isActive ? 'success' : 'secondary'"
+                  />
+                </td>
+                <td>
+                  <div class="course-table__actions">
+                    <p-button
+                      icon="pi pi-pencil"
+                      [rounded]="true"
+                      [text]="true"
+                      severity="secondary"
+                      pTooltip="編輯"
+                      tooltipPosition="top"
+                      (onClick)="openEditDialog(course)"
+                    />
+                    <p-button
+                      icon="pi pi-trash"
+                      [rounded]="true"
+                      [text]="true"
+                      severity="danger"
+                      pTooltip="刪除"
+                      tooltipPosition="top"
+                      (onClick)="confirmDelete(course)"
+                    />
+                  </div>
+                </td>
+              </tr>
+            </ng-template>
+          </p-table>
+        </div>
+
+        <!-- Mobile: Card List -->
+        <div class="courses__card-view">
+          @for (course of filteredCourses(); track course.id) {
+            <article class="course-card">
+              <div class="course-card__header">
+                <div class="course-card__icon">
+                  <i class="pi pi-book"></i>
+                </div>
+                <div class="course-card__title-group">
+                  <h3 class="course-card__name">{{ course.name }}</h3>
+                  <p-tag
+                    [value]="course.isActive ? '啟用' : '停用'"
+                    [severity]="course.isActive ? 'success' : 'secondary'"
+                  />
+                </div>
+              </div>
+
+              <div class="course-card__body">
+                <div class="course-card__field">
+                  <i class="pi pi-building"></i>
+                  <span>{{ course.campusName || getCampusName(course.campusId) }}</span>
+                </div>
+                <div class="course-card__field">
+                  <i class="pi pi-tag"></i>
+                  <p-tag [value]="course.subjectName" severity="info" />
+                </div>
+                @if (course.description) {
+                  <div class="course-card__field course-card__field--description">
+                    <i class="pi pi-align-left"></i>
+                    <span>{{ course.description }}</span>
+                  </div>
+                }
+              </div>
+
+              <div class="course-card__actions">
+                <button
+                  type="button"
+                  class="course-card__action-btn course-card__action-btn--edit"
+                  (click)="openEditDialog(course)"
+                >
+                  <i class="pi pi-pencil"></i>
+                  <span>編輯</span>
+                </button>
+                <button
+                  type="button"
+                  class="course-card__action-btn course-card__action-btn--delete"
+                  (click)="confirmDelete(course)"
+                >
+                  <i class="pi pi-trash"></i>
+                  <span>刪除</span>
+                </button>
+              </div>
+            </article>
+          }
+
+          <!-- Mobile pagination info -->
+          @if (filteredCourses().length > 0) {
+            <div class="courses__mobile-count">
+              共 {{ filteredCourses().length }} 個課程
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- Create/Edit Dialog -->
+<p-dialog
+  [header]="dialogTitle()"
+  [(visible)]="dialogVisible"
+  [modal]="true"
+  [closable]="!dialogLoading()"
+  [style]="{ width: '32rem' }"
+  (onHide)="closeDialog()"
+>
+  <div class="course-dialog__form">
+    <!-- Campus Field (only for create) -->
+    @if (!isEditing()) {
+      <div class="course-dialog__field">
+        <label for="campusId" class="course-dialog__label">
+          分校<span class="course-dialog__required">*</span>
+        </label>
+        <p-select
+          inputId="campusId"
+          [options]="campusOptions()"
+          [ngModel]="formData().campusId"
+          (ngModelChange)="updateCampusId($event)"
+          placeholder="選擇分校"
+          [disabled]="dialogLoading()"
+          styleClass="w-full"
+        />
+      </div>
+    } @else {
+      <div class="course-dialog__field">
+        <label class="course-dialog__label">分校</label>
+        <div class="course-dialog__readonly">
+          {{ getCampusName(formData().campusId) }}
+        </div>
+      </div>
+    }
+
+    <!-- Name Field -->
+    <div class="course-dialog__field">
+      <label for="name" class="course-dialog__label">
+        課程名稱<span class="course-dialog__required">*</span>
+      </label>
+      <input
+        id="name"
+        type="text"
+        pInputText
+        [ngModel]="formData().name"
+        (ngModelChange)="updateName($event)"
+        placeholder="例如：國一數學"
+        [disabled]="dialogLoading()"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Subject Field -->
+    <div class="course-dialog__field">
+      <div class="course-dialog__label-row">
+        <label for="subjectId" class="course-dialog__label">
+          科目<span class="course-dialog__required">*</span>
+        </label>
+        <p-button
+          label="管理科目"
+          icon="pi pi-cog"
+          [text]="true"
+          size="small"
+          severity="secondary"
+          (onClick)="subjectManagerVisible.set(true)"
+        />
+      </div>
+      <p-select
+        inputId="subjectId"
+        [options]="subjectOptions()"
+        [ngModel]="formData().subjectId"
+        (ngModelChange)="updateSubjectId($event)"
+        placeholder="選擇科目"
+        [disabled]="dialogLoading()"
+        styleClass="w-full"
+      />
+    </div>
+
+    <app-subject-manager
+      [(visible)]="subjectManagerVisible"
+      (changed)="onSubjectsChanged($event)"
+    />
+
+    <!-- Description Field -->
+    <div class="course-dialog__field">
+      <label for="description" class="course-dialog__label">說明</label>
+      <textarea
+        id="description"
+        pTextarea
+        [ngModel]="formData().description"
+        (ngModelChange)="updateDescription($event)"
+        placeholder="課程說明（選填）"
+        [disabled]="dialogLoading()"
+        [rows]="3"
+        class="w-full"
+      ></textarea>
+    </div>
+
+    <!-- Status Toggle (only for edit) -->
+    @if (isEditing()) {
+      <div class="course-dialog__field course-dialog__field--inline">
+        <label for="isActive" class="course-dialog__label">狀態</label>
+        <div class="course-dialog__switch-group">
+          <p-toggleswitch
+            inputId="isActive"
+            [ngModel]="formData().isActive"
+            (ngModelChange)="updateIsActive($event)"
+            [disabled]="dialogLoading()"
+          />
+          <span class="course-dialog__switch-label">
+            {{ formData().isActive ? '啟用中' : '已停用' }}
+          </span>
+        </div>
+      </div>
+    }
+
+    <!-- Footer Actions -->
+    <div class="course-dialog__footer">
+      <p-button
+        label="取消"
+        [text]="true"
+        severity="secondary"
+        (onClick)="closeDialog()"
+        [disabled]="dialogLoading()"
+      />
+      <p-button
+        [label]="isEditing() ? '儲存' : '建立'"
+        [icon]="dialogLoading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+        (onClick)="saveCourse()"
+        [disabled]="dialogLoading() || !formData().name.trim() || !formData().subjectId || !formData().campusId"
+      />
+    </div>
+  </div>
+</p-dialog>
