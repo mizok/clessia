@@ -1,7 +1,9 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import type { User } from '@supabase/supabase-js';
-import { SupabaseService } from './supabase.service';
+import { firstValueFrom } from 'rxjs';
+import { environment } from '@env/environment';
+import { authClient } from './auth-client';
 
 export type UserRole = 'admin' | 'teacher' | 'parent';
 
@@ -11,9 +13,20 @@ export interface Profile {
   branch_id: string | null;
 }
 
+interface MeResponse {
+  userId: string;
+  orgId: string;
+  displayName: string;
+  roles: UserRole[];
+  permissions: string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly _user = signal<User | null>(null);
+  private readonly router = inject(Router);
+  private readonly http = inject(HttpClient);
+
+  private readonly _user = signal<{ id: string; email?: string | null; name?: string } | null>(null);
   private readonly _profile = signal<Profile | null>(null);
   private readonly _roles = signal<UserRole[]>([]);
   private readonly _permissions = signal<string[]>([]);
@@ -30,72 +43,56 @@ export class AuthService {
   readonly isAuthenticated = computed(() => !!this._user());
   readonly showRolePicker = this._showRolePicker.asReadonly();
 
-  private readonly supabase: SupabaseService['client'];
+  private readonly shellMap: Record<UserRole, string> = {
+    admin: '/admin',
+    teacher: '/teacher',
+    parent: '/parent',
+  };
 
-  constructor(
-    private readonly supabaseService: SupabaseService,
-    private readonly router: Router,
-  ) {
-    this.supabase = this.supabaseService.client;
-    this.init();
+  constructor() {
+    void this.init();
   }
 
   private async init() {
-    const {
-      data: { session },
-    } = await this.supabase.auth.getSession();
-
-    if (session?.user) {
-      this._user.set(session.user);
-      await this.loadProfile(session.user.id);
-    }
-    this._loading.set(false);
-
-    this.supabase.auth.onAuthStateChange((_event, session) => {
-      this._user.set(session?.user ?? null);
+    try {
+      const { data: session } = await authClient.getSession();
       if (session?.user) {
-        // 不 await，避免阻塞 Supabase 內部的 auth 通知鏈（例如 updateUser 會等通知完成）
-        void this.loadProfile(session.user.id);
-      } else {
-        this._profile.set(null);
-        this._roles.set([]);
-        this._permissions.set([]);
-        this._activeRole.set(null);
-        localStorage.removeItem('clessia:active-role');
+        this._user.set(session.user);
+        await this.loadProfile();
       }
-    });
+    } catch {
+      // No session - user not logged in
+    } finally {
+      this._loading.set(false);
+    }
   }
 
-  private async loadProfile(userId: string) {
-    const [profileResult, rolesResult] = await Promise.all([
-      this.supabase.from('profiles').select('id, display_name, branch_id').eq('id', userId).single(),
-      this.supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
-    ]);
+  private async loadProfile() {
+    try {
+      const me = await firstValueFrom(
+        this.http.get<MeResponse>(`${environment.apiUrl}/api/me`, { withCredentials: true })
+      );
 
-    this._profile.set(profileResult.data as Profile | null);
-    
-    // Aggregate roles and permissions
-    const roles: UserRole[] = [];
-    const allPermissions = new Set<string>();
+      this._profile.set({
+        id: me.userId,
+        display_name: me.displayName,
+        branch_id: null,
+      });
+      this._roles.set(me.roles);
+      this._permissions.set(me.permissions);
 
-    (rolesResult.data ?? []).forEach((r) => {
-      roles.push(r.role as UserRole);
-      if (r.permissions && Array.isArray(r.permissions)) {
-        r.permissions.forEach((p: string) => allPermissions.add(p));
+      if (me.roles.length === 1) {
+        this._activeRole.set(me.roles[0]);
+      } else {
+        const savedRole = localStorage.getItem('clessia:active-role') as UserRole | null;
+        if (savedRole && me.roles.includes(savedRole)) {
+          this._activeRole.set(savedRole);
+        }
       }
-    });
-
-    this._roles.set(roles);
-    this._permissions.set(Array.from(allPermissions));
-
-    // Auto-select if user has exactly one role, or restore from storage
-    if (roles.length === 1) {
-      this._activeRole.set(roles[0]);
-    } else {
-      const savedRole = localStorage.getItem('clessia:active-role') as UserRole | null;
-      if (savedRole && roles.includes(savedRole)) {
-        this._activeRole.set(savedRole);
-      }
+    } catch {
+      this._profile.set(null);
+      this._roles.set([]);
+      this._permissions.set([]);
     }
   }
 
@@ -105,8 +102,6 @@ export class AuthService {
   }
 
   hasPermission(permission: string): boolean {
-    // Super admins might have a wildcard '*' permission or we check for specific permissions
-    // Here we check if the requested permission exists in the user's permission set
     return this.permissions().includes(permission) || this.permissions().includes('*');
   }
 
@@ -118,25 +113,21 @@ export class AuthService {
     this._showRolePicker.set(false);
   }
 
-  async signIn(email: string, password: string, captchaToken?: string): Promise<string | null> {
-    const { data, error } = await this.supabase.auth.signInWithPassword({
-      email,
+  async signIn(emailOrPhone: string, password: string, _captchaToken?: string): Promise<string | null> {
+    const { data, error } = await authClient.signIn.email({
+      email: emailOrPhone,
       password,
-      options: { captchaToken },
+      fetchOptions: { credentials: 'include' },
     });
-    if (error) return '帳號或密碼錯誤'; // Standardized error message
+    if (error || !data?.user) return '帳號或密碼錯誤';
+
     if (data.user) {
       this._user.set(data.user);
-      await this.loadProfile(data.user.id);
+      await this.loadProfile();
     }
+
     return null;
   }
-
-  private readonly shellMap: Record<UserRole, string> = {
-    admin: '/admin',
-    teacher: '/teacher',
-    parent: '/parent',
-  };
 
   navigateToRoleShell(role: UserRole) {
     this.setActiveRole(role);
@@ -144,31 +135,37 @@ export class AuthService {
     this.router.navigate([this.shellMap[role]]);
   }
 
-  setRememberMe(value: boolean): void {
-    localStorage.setItem('clessia:remember-me', String(value));
+  setRememberMe(_value: boolean): void {
+    // Better Auth uses cookies - remember me handled server-side session expiry
   }
 
-  async sendPasswordReset(email: string, captchaToken?: string): Promise<string | null> {
-    const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
+  async sendPasswordReset(email: string, _captchaToken?: string): Promise<string | null> {
+    const { error } = await authClient.requestPasswordReset({
+      email,
       redirectTo: `${window.location.origin}/reset-password`,
-      captchaToken,
     });
+
     return error?.message ?? null;
   }
 
-  async updatePassword(newPassword: string): Promise<string | null> {
-    const { error } = await this.supabase.auth.updateUser({ password: newPassword });
+  async updatePassword(newPassword: string, token?: string): Promise<string | null> {
+    if (!token) {
+      return '目前僅支援透過重設連結更新密碼';
+    }
+
+    const { error } = await authClient.resetPassword({ newPassword, token });
     return error?.message ?? null;
   }
 
   async signOut() {
     this.closeRolePicker();
-    await this.supabase.auth.signOut();
+    await authClient.signOut({ fetchOptions: { credentials: 'include' } });
     this._user.set(null);
     this._profile.set(null);
     this._roles.set([]);
     this._permissions.set([]);
     this._activeRole.set(null);
+    localStorage.removeItem('clessia:active-role');
     this.router.navigate(['/login']);
   }
 }

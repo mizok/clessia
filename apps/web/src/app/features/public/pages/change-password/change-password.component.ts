@@ -2,7 +2,6 @@ import { Component, signal, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '@core/auth.service';
-import { SupabaseService } from '@core/supabase.service';
 
 @Component({
   selector: 'app-change-password',
@@ -15,7 +14,7 @@ import { SupabaseService } from '@core/supabase.service';
 export class ChangePasswordComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  private readonly supabaseService = inject(SupabaseService);
+  private resetToken: string | null = null;
 
   newPassword = '';
   confirmPassword = '';
@@ -25,18 +24,14 @@ export class ChangePasswordComponent implements OnInit {
   processing = signal(true); // 處理邀請 token 中
   tokenError = signal<string | null>(null);
 
-  async ngOnInit() {
-    // Supabase client 有 detectSessionInUrl: true 預設值
-    // 會在初始化時自動從 URL hash 中提取並建立 session（邀請連結會帶 #access_token=...）
-    const { data } = await this.supabaseService.client.auth.getSession();
+  ngOnInit() {
+    this.resetToken = new URLSearchParams(window.location.search).get('token');
 
-    if (!data.session) {
-      this.tokenError.set('連結已失效或已過期，請聯繫管理員重新發送邀請');
-    }
-
-    // 清除 URL hash，避免 token 留在網址列
-    if (window.location.hash) {
+    if (this.resetToken) {
+      // 清除 URL query，避免 token 留在網址列
       window.history.replaceState(null, '', window.location.pathname);
+    } else if (!this.auth.isAuthenticated()) {
+      this.tokenError.set('連結已失效或未登入，請重新取得重設連結');
     }
 
     this.processing.set(false);
@@ -62,7 +57,7 @@ export class ChangePasswordComponent implements OnInit {
     this.submitting.set(true);
 
     try {
-      const errorMsg = await this.auth.updatePassword(this.newPassword);
+      const errorMsg = await this.auth.updatePassword(this.newPassword, this.resetToken ?? undefined);
       if (errorMsg) {
         this.error.set(errorMsg);
       } else {
@@ -72,7 +67,7 @@ export class ChangePasswordComponent implements OnInit {
           this.goBack();
         }, 2000);
       }
-    } catch (e) {
+    } catch {
       this.error.set('發生未知錯誤，請重試');
     } finally {
       this.submitting.set(false);
