@@ -49,7 +49,9 @@
           styleClass="staff__filter-select"
         />
         <p-select
-          [options]="subjectOptions"
+          [options]="subjectOptions()"
+          optionLabel="label"
+          optionValue="value"
           placeholder="科目篩選"
           [ngModel]="subjectFilter()"
           (ngModelChange)="subjectFilter.set($event)"
@@ -175,14 +177,14 @@
                   }
                 </td>
                 <td>
-                  @if (staff.roles.includes('teacher') && staff.subjects.length > 0) {
+                  @if (staff.roles.includes('teacher') && staff.subjectNames.length > 0) {
                     <div class="staff-table__subjects">
-                      @for (subject of getDisplaySubjects(staff.subjects).visible; track subject) {
+                      @for (subject of getDisplaySubjects(staff.subjectNames).visible; track subject) {
                         <span class="staff-table__subject-tag">{{ subject }}</span>
                       }
-                      @if (getDisplaySubjects(staff.subjects).remaining > 0) {
-                        <span class="staff-table__subject-more" [pTooltip]="staff.subjects.join('、')" tooltipPosition="top">
-                          +{{ getDisplaySubjects(staff.subjects).remaining }}
+                      @if (getDisplaySubjects(staff.subjectNames).remaining > 0) {
+                        <span class="staff-table__subject-more" [pTooltip]="staff.subjectNames.join('、')" tooltipPosition="top">
+                          +{{ getDisplaySubjects(staff.subjectNames).remaining }}
                         </span>
                       }
                     </div>
@@ -267,10 +269,10 @@
                     </a>
                   </div>
                 }
-                @if (staff.roles.includes('teacher') && staff.subjects.length > 0) {
+                @if (staff.roles.includes('teacher') && staff.subjectNames.length > 0) {
                   <div class="staff-card__field">
                     <i class="pi pi-book"></i>
-                    <span>{{ staff.subjects.join('、') }}</span>
+                    <span>{{ staff.subjectNames.join('、') }}</span>
                   </div>
                 }
                 <div class="staff-card__field">
@@ -402,14 +404,26 @@
     <!-- Subjects Field (for teacher) -->
     @if (isTeacherRole()) {
       <div class="staff-dialog__field">
-        <label for="subjects" class="staff-dialog__label">
-          教學科目<span class="staff-dialog__required">*</span>
-        </label>
+        <div class="staff-dialog__label-row">
+          <label for="subjectIds" class="staff-dialog__label">
+            教學科目<span class="staff-dialog__required">*</span>
+          </label>
+          <p-button
+            label="管理科目"
+            icon="pi pi-cog"
+            [text]="true"
+            size="small"
+            severity="secondary"
+            (onClick)="subjectManagerVisible.set(true)"
+          />
+        </div>
         <p-multiSelect
-          inputId="subjects"
-          [options]="subjectOptions"
-          [ngModel]="formData().subjects"
-          (ngModelChange)="updateSubjects($event)"
+          inputId="subjectIds"
+          [options]="subjectOptions()"
+          optionLabel="label"
+          optionValue="value"
+          [ngModel]="formData().subjectIds"
+          (ngModelChange)="updateSubjectIds($event)"
           placeholder="選擇科目"
           [disabled]="dialogLoading()"
           styleClass="w-full"
@@ -417,6 +431,11 @@
         />
       </div>
     }
+
+    <app-subject-manager
+      [(visible)]="subjectManagerVisible"
+      (changed)="onSubjectsChanged($event)"
+    />
 
     <!-- Permissions Field (for admin) -->
     @if (isAdminRole()) {

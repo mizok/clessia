@@ -35,14 +35,16 @@
       <div class="courses__filters">
         <p-select
           [options]="campusOptions()"
-          [(ngModel)]="selectedCampusId"
+          [ngModel]="selectedCampusId()"
+          (ngModelChange)="selectedCampusId.set($event)"
           placeholder="所有分校"
           [showClear]="true"
           styleClass="courses__filter-select"
         />
         <p-select
           [options]="subjectOptions()"
-          [(ngModel)]="selectedSubject"
+          [ngModel]="selectedSubjectId()"
+          (ngModelChange)="selectedSubjectId.set($event)"
           placeholder="所有科目"
           [showClear]="true"
           styleClass="courses__filter-select"
@@ -174,7 +176,7 @@
                   </span>
                 </td>
                 <td>
-                  <p-tag [value]="course.subject" severity="info" />
+                  <p-tag [value]="course.subjectName" severity="info" />
                 </td>
                 <td>
                   @if (course.description) {
@@ -240,7 +242,7 @@
                 </div>
                 <div class="course-card__field">
                   <i class="pi pi-tag"></i>
-                  <p-tag [value]="course.subject" severity="info" />
+                  <p-tag [value]="course.subjectName" severity="info" />
                 </div>
                 @if (course.description) {
                   <div class="course-card__field course-card__field--description">
@@ -337,20 +339,34 @@
 
     <!-- Subject Field -->
     <div class="course-dialog__field">
-      <label for="subject" class="course-dialog__label">
-        科目<span class="course-dialog__required">*</span>
-      </label>
-      <input
-        id="subject"
-        type="text"
-        pInputText
-        [ngModel]="formData().subject"
-        (ngModelChange)="updateSubject($event)"
-        placeholder="例如：數學、英文、物理"
+      <div class="course-dialog__label-row">
+        <label for="subjectId" class="course-dialog__label">
+          科目<span class="course-dialog__required">*</span>
+        </label>
+        <p-button
+          label="管理科目"
+          icon="pi pi-cog"
+          [text]="true"
+          size="small"
+          severity="secondary"
+          (onClick)="subjectManagerVisible.set(true)"
+        />
+      </div>
+      <p-select
+        inputId="subjectId"
+        [options]="subjectOptions()"
+        [ngModel]="formData().subjectId"
+        (ngModelChange)="updateSubjectId($event)"
+        placeholder="選擇科目"
         [disabled]="dialogLoading()"
-        class="w-full"
+        styleClass="w-full"
       />
     </div>
+
+    <app-subject-manager
+      [(visible)]="subjectManagerVisible"
+      (changed)="onSubjectsChanged($event)"
+    />
 
     <!-- Description Field -->
     <div class="course-dialog__field">
@@ -398,7 +414,7 @@
         [label]="isEditing() ? '儲存' : '建立'"
         [icon]="dialogLoading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
         (onClick)="saveCourse()"
-        [disabled]="dialogLoading() || !formData().name.trim() || !formData().subject.trim() || !formData().campusId"
+        [disabled]="dialogLoading() || !formData().name.trim() || !formData().subjectId || !formData().campusId"
       />
     </div>
   </div>

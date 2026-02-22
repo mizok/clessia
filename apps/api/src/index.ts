@@ -6,6 +6,7 @@ import { authMiddleware } from './middleware/auth';
 import campusesRoute from './routes/campuses';
 import coursesRoute from './routes/courses';
 import staffRoute from './routes/staff';
+import subjectsRoute from './routes/subjects';
 import type { User } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -97,6 +98,7 @@ app.use('/api/*', authMiddleware);
 app.route('/api/courses', coursesRoute);
 app.route('/api/campuses', campusesRoute);
 app.route('/api/staff', staffRoute);
+app.route('/api/subjects', subjectsRoute);
 
 // ============================================================
 // Error Handler

@@ -72,20 +72,33 @@ BEGIN
         ('9084c27e-b55e-4222-8744-c6566272847d', demo_org_id, '新北板橋校', '新北市板橋區中山路一段50號', '02-2960-1234', false)
     ON CONFLICT (id) DO NOTHING;
 
-    -- 6. Insert demo courses
-    INSERT INTO public.courses (id, org_id, campus_id, name, subject, description, is_active)
+    -- 6. Insert all subjects for demo org (defaults + extras)
+    INSERT INTO public.subjects (org_id, name, sort_order)
+    VALUES
+        (demo_org_id, '國文', 0),
+        (demo_org_id, '英文', 1),
+        (demo_org_id, '數學', 2),
+        (demo_org_id, '自然', 3),
+        (demo_org_id, '社會', 4),
+        (demo_org_id, '其他', 5),
+        (demo_org_id, '物理', 6),
+        (demo_org_id, '化學', 7)
+    ON CONFLICT (org_id, name) DO NOTHING;
+
+    -- 7. Insert demo courses (subject_id via subquery)
+    INSERT INTO public.courses (id, org_id, campus_id, name, subject_id, description, is_active)
     VALUES
         -- 台北信義校課程
-        ('2609f60c-7581-4508-acb0-a925c7beb80c', demo_org_id, 'a2c36d14-0826-4346-a809-0596b512af4e', '國一數學', '數學', '國中一年級數學基礎課程', true),
-        ('4d23ecfb-61b2-45f4-bf4b-f732d1cdd824', demo_org_id, 'a2c36d14-0826-4346-a809-0596b512af4e', '國二數學', '數學', '國中二年級數學進階課程', true),
-        ('b5432516-2892-4863-9ebd-d2b7bb56a571', demo_org_id, 'a2c36d14-0826-4346-a809-0596b512af4e', '國三數學', '數學', '國中三年級數學總複習', true),
-        ('62e3ec9f-45c6-45b7-abdb-3ee72bae2c61', demo_org_id, 'a2c36d14-0826-4346-a809-0596b512af4e', '國一英文', '英文', '國中一年級英文基礎課程', true),
-        ('6d9dbf49-5121-4f9b-8942-0b45619fcb0d', demo_org_id, 'a2c36d14-0826-4346-a809-0596b512af4e', '國二英文', '英文', '國中二年級英文進階課程', true),
+        ('2609f60c-7581-4508-acb0-a925c7beb80c', demo_org_id, 'a2c36d14-0826-4346-a809-0596b512af4e', '國一數學', (SELECT id FROM public.subjects WHERE org_id = demo_org_id AND name = '數學'), '國中一年級數學基礎課程', true),
+        ('4d23ecfb-61b2-45f4-bf4b-f732d1cdd824', demo_org_id, 'a2c36d14-0826-4346-a809-0596b512af4e', '國二數學', (SELECT id FROM public.subjects WHERE org_id = demo_org_id AND name = '數學'), '國中二年級數學進階課程', true),
+        ('b5432516-2892-4863-9ebd-d2b7bb56a571', demo_org_id, 'a2c36d14-0826-4346-a809-0596b512af4e', '國三數學', (SELECT id FROM public.subjects WHERE org_id = demo_org_id AND name = '數學'), '國中三年級數學總複習', true),
+        ('62e3ec9f-45c6-45b7-abdb-3ee72bae2c61', demo_org_id, 'a2c36d14-0826-4346-a809-0596b512af4e', '國一英文', (SELECT id FROM public.subjects WHERE org_id = demo_org_id AND name = '英文'), '國中一年級英文基礎課程', true),
+        ('6d9dbf49-5121-4f9b-8942-0b45619fcb0d', demo_org_id, 'a2c36d14-0826-4346-a809-0596b512af4e', '國二英文', (SELECT id FROM public.subjects WHERE org_id = demo_org_id AND name = '英文'), '國中二年級英文進階課程', true),
         -- 台北大安校課程
-        ('0f42ad85-a6a5-447c-9701-4dc0fbb86585', demo_org_id, '6a9a3987-d180-41cb-a168-882a140a66d6', '高一數學', '數學', '高中一年級數學課程', true),
-        ('6d8333d1-9a41-497a-96b2-f45e2e5b0295', demo_org_id, '6a9a3987-d180-41cb-a168-882a140a66d6', '高二數學', '數學', '高中二年級數學課程', true),
-        ('8ad3380e-806f-4239-84a4-8d04f3f4c99b', demo_org_id, '6a9a3987-d180-41cb-a168-882a140a66d6', '高一物理', '物理', '高中一年級物理課程', true),
-        ('80d23d2d-701b-493e-a198-79209134f0d5', demo_org_id, '6a9a3987-d180-41cb-a168-882a140a66d6', '高一化學', '化學', '高中一年級化學課程', false)
+        ('0f42ad85-a6a5-447c-9701-4dc0fbb86585', demo_org_id, '6a9a3987-d180-41cb-a168-882a140a66d6', '高一數學', (SELECT id FROM public.subjects WHERE org_id = demo_org_id AND name = '數學'), '高中一年級數學課程', true),
+        ('6d8333d1-9a41-497a-96b2-f45e2e5b0295', demo_org_id, '6a9a3987-d180-41cb-a168-882a140a66d6', '高二數學', (SELECT id FROM public.subjects WHERE org_id = demo_org_id AND name = '數學'), '高中二年級數學課程', true),
+        ('8ad3380e-806f-4239-84a4-8d04f3f4c99b', demo_org_id, '6a9a3987-d180-41cb-a168-882a140a66d6', '高一物理', (SELECT id FROM public.subjects WHERE org_id = demo_org_id AND name = '物理'), '高中一年級物理課程', true),
+        ('80d23d2d-701b-493e-a198-79209134f0d5', demo_org_id, '6a9a3987-d180-41cb-a168-882a140a66d6', '高一化學', (SELECT id FROM public.subjects WHERE org_id = demo_org_id AND name = '化學'), '高中一年級化學課程', false)
     ON CONFLICT (id) DO NOTHING;
 
 END $$;

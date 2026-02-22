@@ -26,48 +26,20 @@ export class ChangePasswordComponent implements OnInit {
   tokenError = signal<string | null>(null);
 
   async ngOnInit() {
-    // 檢查 URL 是否有 hash fragment（邀請連結會帶 access_token）
-    const hash = window.location.hash;
+    // Supabase client 有 detectSessionInUrl: true 預設值
+    // 會在初始化時自動從 URL hash 中提取並建立 session（邀請連結會帶 #access_token=...）
+    const { data } = await this.supabaseService.client.auth.getSession();
 
-    if (hash && hash.includes('access_token')) {
-      // 邀請連結：讓 Supabase 處理 hash 中的 token
-      try {
-        const { data, error } = await this.supabaseService.client.auth.getSession();
-
-        if (error) {
-          this.tokenError.set('連結已失效或格式錯誤，請重新申請邀請');
-          this.processing.set(false);
-          return;
-        }
-
-        if (!data.session) {
-          // 可能需要等待 onAuthStateChange 處理
-          // 給一點時間讓 Supabase 處理 token
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
-          const { data: retryData } = await this.supabaseService.client.auth.getSession();
-          if (!retryData.session) {
-            this.tokenError.set('連結已失效，請聯繫管理員重新發送邀請');
-            this.processing.set(false);
-            return;
-          }
-        }
-
-        // 清除 URL hash
-        window.history.replaceState(null, '', window.location.pathname);
-        this.processing.set(false);
-      } catch {
-        this.tokenError.set('處理邀請連結時發生錯誤');
-        this.processing.set(false);
-      }
-    } else {
-      // 不是邀請連結，檢查是否已登入
-      const { data } = await this.supabaseService.client.auth.getSession();
-      if (!data.session) {
-        this.tokenError.set('請先登入後再修改密碼');
-      }
-      this.processing.set(false);
+    if (!data.session) {
+      this.tokenError.set('連結已失效或已過期，請聯繫管理員重新發送邀請');
     }
+
+    // 清除 URL hash，避免 token 留在網址列
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+
+    this.processing.set(false);
   }
 
   async onSubmit() {

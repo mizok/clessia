@@ -444,6 +444,12 @@
     }
   }
 
+  &__label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
   &__label {
     font-size: var(--text-sm);
     font-weight: var(--font-medium);

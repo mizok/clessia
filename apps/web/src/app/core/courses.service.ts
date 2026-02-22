@@ -9,7 +9,8 @@ export interface Course {
   campusId: string;
   campusName?: string;
   name: string;
-  subject: string;
+  subjectId: string;
+  subjectName: string;
   description: string | null;
   isActive: boolean;
   createdAt: string;
@@ -31,20 +32,20 @@ export interface CourseQueryParams {
   pageSize?: number;
   search?: string;
   campusId?: string;
-  subject?: string;
+  subjectId?: string;
   isActive?: boolean;
 }
 
 export interface CreateCourseInput {
   campusId: string;
   name: string;
-  subject: string;
+  subjectId: string;
   description?: string | null;
 }
 
 export interface UpdateCourseInput {
   name?: string;
-  subject?: string;
+  subjectId?: string;
   description?: string | null;
   isActive?: boolean;
 }
@@ -102,8 +103,8 @@ export class CoursesService {
       query['campusId'] = params.campusId;
     }
 
-    if (params.subject !== undefined) {
-      query['subject'] = params.subject;
+    if (params.subjectId !== undefined) {
+      query['subjectId'] = params.subjectId;
     }
 
     if (params.isActive !== undefined) {

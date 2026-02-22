@@ -20,10 +20,6 @@ const PermissionSchema = z
   ])
   .openapi('Permission');
 
-const SubjectSchema = z
-  .enum(['國文', '英文', '數學', '自然', '社會', '其他'])
-  .openapi('StaffSubject');
-
 const DateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD');
 
 const StaffSchema = z
@@ -36,7 +32,8 @@ const StaffSchema = z
     email: z.email(),
     birthday: z.string().nullable(),
     notes: z.string().nullable(),
-    subjects: z.array(z.string()),
+    subjectIds: z.array(z.uuid()),
+    subjectNames: z.array(z.string()),
     isActive: z.boolean(),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -65,7 +62,7 @@ const CreateStaffSchema = z
     phone: z.string().max(30).nullable().optional().openapi({ description: '電話' }),
     birthday: DateStringSchema.nullable().optional().openapi({ description: '生日（YYYY-MM-DD）' }),
     notes: z.string().max(2000).nullable().optional().openapi({ description: '備註' }),
-    subjects: z.array(SubjectSchema).optional().openapi({ description: '教學科目（老師用）' }),
+    subjectIds: z.array(z.uuid()).optional().openapi({ description: '教學科目 IDs（老師用）' }),
     campusIds: z.array(z.uuid()).min(1).openapi({ description: '服務分校 IDs' }),
     roles: z.array(StaffRoleSchema).min(1).openapi({ description: '角色：admin、teacher（可多選）' }),
     permissions: z.array(PermissionSchema).optional().openapi({ description: '管理員權限清單' }),
@@ -78,7 +75,7 @@ const UpdateStaffSchema = z
     phone: z.string().max(30).nullable().optional(),
     birthday: DateStringSchema.nullable().optional(),
     notes: z.string().max(2000).nullable().optional(),
-    subjects: z.array(SubjectSchema).optional(),
+    subjectIds: z.array(z.uuid()).optional(),
     campusIds: z.array(z.uuid()).min(1).optional(),
     roles: z.array(StaffRoleSchema).min(1).optional().openapi({ description: '角色（可多選）' }),
     isActive: z.boolean().optional(),
@@ -120,10 +117,21 @@ interface StaffCampusRow {
   campus_id: string;
 }
 
+interface StaffSubjectRow {
+  staff_id: string;
+  subject_id: string;
+  subjects: { name: string } | { name: string }[] | null;
+}
+
 interface UserRoleRow {
   user_id: string;
   role: StaffRole;
   permissions: unknown;
+}
+
+interface SubjectInfo {
+  ids: string[];
+  names: string[];
 }
 
 // ============================================================
@@ -181,9 +189,32 @@ function toCampusMap(rows: StaffCampusRow[]): Map<string, string[]> {
   return campusMap;
 }
 
+function toSubjectMap(rows: StaffSubjectRow[]): Map<string, SubjectInfo> {
+  const subjectMap = new Map<string, SubjectInfo>();
+
+  for (const row of rows) {
+    const current = subjectMap.get(row.staff_id) || { ids: [], names: [] };
+    if (!current.ids.includes(row.subject_id)) {
+      current.ids.push(row.subject_id);
+    }
+
+    const subjectName = Array.isArray(row.subjects)
+      ? row.subjects[0]?.name
+      : row.subjects?.name;
+    if (subjectName && !current.names.includes(subjectName)) {
+      current.names.push(subjectName);
+    }
+
+    subjectMap.set(row.staff_id, current);
+  }
+
+  return subjectMap;
+}
+
 function mapStaff(
   row: Record<string, unknown>,
   campusMap: Map<string, string[]>,
+  subjectMap: Map<string, SubjectInfo>,
   roleInfoMap: Map<string, RoleInfo>,
 ) {
   const userId = row['user_id'] as string;
@@ -199,9 +230,8 @@ function mapStaff(
     email: row['email'] as string,
     birthday: row['birthday'] as string | null,
     notes: row['notes'] as string | null,
-    subjects: ((row['subjects'] as string[] | null) || []).filter((subject) =>
-      SubjectSchema.options.includes(subject as (typeof SubjectSchema.options)[number]),
-    ),
+    subjectIds: subjectMap.get(staffId)?.ids ?? [],
+    subjectNames: subjectMap.get(staffId)?.names ?? [],
     isActive: row['is_active'] as boolean,
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
@@ -254,6 +284,30 @@ async function validateCampusIdsInOrg(
   return (data || []).length === uniqueCampusIds.length;
 }
 
+async function validateSubjectIdsInOrg(
+  supabase: SupabaseClient,
+  orgId: string,
+  subjectIds: string[],
+): Promise<boolean> {
+  const uniqueSubjectIds = Array.from(new Set(subjectIds));
+
+  if (uniqueSubjectIds.length === 0) {
+    return true;
+  }
+
+  const { data, error } = await supabase
+    .from('subjects')
+    .select('id')
+    .eq('org_id', orgId)
+    .in('id', uniqueSubjectIds);
+
+  if (error) {
+    return false;
+  }
+
+  return (data || []).length === uniqueSubjectIds.length;
+}
+
 function isDuplicateEmailError(message: string): boolean {
   const normalized = message.toLowerCase();
   return normalized.includes('already') && normalized.includes('registered');
@@ -262,21 +316,30 @@ function isDuplicateEmailError(message: string): boolean {
 async function loadStaffRelations(
   supabase: SupabaseClient,
   staffRows: Record<string, unknown>[],
-): Promise<{ campusMap: Map<string, string[]>; roleInfoMap: Map<string, RoleInfo> }> {
+): Promise<{
+  campusMap: Map<string, string[]>;
+  subjectMap: Map<string, SubjectInfo>;
+  roleInfoMap: Map<string, RoleInfo>;
+}> {
   const staffIds = staffRows.map((row) => row['id'] as string);
   const userIds = staffRows.map((row) => row['user_id'] as string);
 
   if (staffIds.length === 0 || userIds.length === 0) {
     return {
       campusMap: new Map<string, string[]>(),
+      subjectMap: new Map<string, SubjectInfo>(),
       roleInfoMap: new Map<string, RoleInfo>(),
     };
   }
 
-  const [{ data: campusRows }, { data: roleRows }] = await Promise.all([
+  const [{ data: campusRows }, { data: subjectRows }, { data: roleRows }] = await Promise.all([
     supabase
       .from('staff_campuses')
       .select('staff_id, campus_id, campuses!inner(id)')
+      .in('staff_id', staffIds),
+    supabase
+      .from('staff_subjects')
+      .select('staff_id, subject_id, subjects(name)')
       .in('staff_id', staffIds),
     supabase.from('user_roles').select('user_id, role, permissions').in('user_id', userIds),
   ]);
@@ -287,6 +350,7 @@ async function loadStaffRelations(
 
   return {
     campusMap: toCampusMap((campusRows || []) as StaffCampusRow[]),
+    subjectMap: toSubjectMap((subjectRows || []) as StaffSubjectRow[]),
     roleInfoMap: toRoleInfoMap(filteredRoleRows),
   };
 }
@@ -465,8 +529,8 @@ app.openapi(listRoute, async (c) => {
   }
 
   const staffRows = (data || []) as Record<string, unknown>[];
-  const { campusMap, roleInfoMap } = await loadStaffRelations(serviceClient, staffRows);
-  const staffList = staffRows.map((row) => mapStaff(row, campusMap, roleInfoMap));
+  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(serviceClient, staffRows);
+  const staffList = staffRows.map((row) => mapStaff(row, campusMap, subjectMap, roleInfoMap));
 
   return c.json(
     {
@@ -523,8 +587,8 @@ app.openapi(getRoute, async (c) => {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  const { campusMap, roleInfoMap } = await loadStaffRelations(serviceClient, [staffRow]);
-  return c.json({ data: mapStaff(staffRow, campusMap, roleInfoMap) }, 200);
+  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(serviceClient, [staffRow]);
+  return c.json({ data: mapStaff(staffRow, campusMap, subjectMap, roleInfoMap) }, 200);
 });
 
 // POST /api/staff
@@ -595,13 +659,20 @@ app.openapi(createRouteDef, async (c) => {
   }
 
   const hasTeacherRole = body.roles.includes('teacher');
-  if (hasTeacherRole && (!body.subjects || body.subjects.length === 0)) {
+  if (hasTeacherRole && (!body.subjectIds || body.subjectIds.length === 0)) {
     return c.json({ error: '老師必須至少有一個教學科目', code: 'SUBJECTS_REQUIRED' }, 400);
   }
 
   const campusesValid = await validateCampusIdsInOrg(supabase, orgId, body.campusIds);
   if (!campusesValid) {
     return c.json({ error: '分校資料不正確', code: 'INVALID_CAMPUSES' }, 400);
+  }
+
+  if (body.subjectIds && body.subjectIds.length > 0) {
+    const subjectsValid = await validateSubjectIdsInOrg(supabase, orgId, body.subjectIds);
+    if (!subjectsValid) {
+      return c.json({ error: '科目資料不正確', code: 'INVALID_SUBJECTS' }, 400);
+    }
   }
 
   const serviceClient = createServiceClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY);
@@ -653,7 +724,6 @@ app.openapi(createRouteDef, async (c) => {
       email: body.email,
       birthday: body.birthday || null,
       notes: body.notes || null,
-      subjects: body.subjects || [],
       is_active: true,
     })
     .select('*')
@@ -694,13 +764,27 @@ app.openapi(createRouteDef, async (c) => {
     return c.json({ error: staffCampusError.message, code: 'CREATE_STAFF_CAMPUSES_FAILED' }, 400);
   }
 
+  if (body.subjectIds && body.subjectIds.length > 0) {
+    const subjectRows = Array.from(new Set(body.subjectIds)).map((subjectId) => ({
+      staff_id: staffRow.id as string,
+      subject_id: subjectId,
+    }));
+
+    const { error: staffSubjectError } = await serviceClient.from('staff_subjects').insert(subjectRows);
+    if (staffSubjectError) {
+      await serviceClient.from('staff').delete().eq('id', staffRow.id);
+      await serviceClient.auth.admin.deleteUser(createdUserId);
+      return c.json({ error: staffSubjectError.message, code: 'CREATE_STAFF_SUBJECTS_FAILED' }, 400);
+    }
+  }
+
   const freshStaffRow = await getStaffById(serviceClient, staffRow.id as string);
   if (!freshStaffRow) {
     return c.json({ error: '建立人員後讀取失敗', code: 'READ_AFTER_CREATE_FAILED' }, 400);
   }
 
-  const { campusMap, roleInfoMap } = await loadStaffRelations(serviceClient, [freshStaffRow]);
-  return c.json({ data: mapStaff(freshStaffRow, campusMap, roleInfoMap) }, 201);
+  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(serviceClient, [freshStaffRow]);
+  return c.json({ data: mapStaff(freshStaffRow, campusMap, subjectMap, roleInfoMap) }, 201);
 });
 
 // PUT /api/staff/:id
@@ -781,6 +865,14 @@ app.openapi(updateRoute, async (c) => {
     }
   }
 
+  if (body.subjectIds !== undefined) {
+    const orgId = staffRow['org_id'] as string;
+    const subjectsValid = await validateSubjectIdsInOrg(supabase, orgId, body.subjectIds);
+    if (!subjectsValid) {
+      return c.json({ error: '科目資料不正確', code: 'INVALID_SUBJECTS' }, 400);
+    }
+  }
+
   const serviceClient = createServiceClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY);
 
   const updateData: Record<string, unknown> = {};
@@ -788,7 +880,6 @@ app.openapi(updateRoute, async (c) => {
   if (body.phone !== undefined) updateData['phone'] = body.phone;
   if (body.birthday !== undefined) updateData['birthday'] = body.birthday;
   if (body.notes !== undefined) updateData['notes'] = body.notes;
-  if (body.subjects !== undefined) updateData['subjects'] = body.subjects;
   if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
 
   if (Object.keys(updateData).length > 0) {
@@ -841,6 +932,40 @@ app.openapi(updateRoute, async (c) => {
         { error: insertCampusLinksError.message, code: 'UPDATE_STAFF_CAMPUSES_FAILED' },
         400,
       );
+    }
+  }
+
+  if (body.subjectIds !== undefined) {
+    const uniqueSubjectIds = Array.from(new Set(body.subjectIds));
+
+    const { error: deleteSubjectLinksError } = await serviceClient
+      .from('staff_subjects')
+      .delete()
+      .eq('staff_id', id);
+
+    if (deleteSubjectLinksError) {
+      return c.json(
+        { error: deleteSubjectLinksError.message, code: 'UPDATE_STAFF_SUBJECTS_FAILED' },
+        400,
+      );
+    }
+
+    if (uniqueSubjectIds.length > 0) {
+      const subjectRows = uniqueSubjectIds.map((subjectId) => ({
+        staff_id: id,
+        subject_id: subjectId,
+      }));
+
+      const { error: insertSubjectLinksError } = await serviceClient
+        .from('staff_subjects')
+        .insert(subjectRows);
+
+      if (insertSubjectLinksError) {
+        return c.json(
+          { error: insertSubjectLinksError.message, code: 'UPDATE_STAFF_SUBJECTS_FAILED' },
+          400,
+        );
+      }
     }
   }
 
@@ -902,8 +1027,8 @@ app.openapi(updateRoute, async (c) => {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  const { campusMap, roleInfoMap } = await loadStaffRelations(serviceClient, [freshStaffRow]);
-  return c.json({ data: mapStaff(freshStaffRow, campusMap, roleInfoMap) }, 200);
+  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(serviceClient, [freshStaffRow]);
+  return c.json({ data: mapStaff(freshStaffRow, campusMap, subjectMap, roleInfoMap) }, 200);
 });
 
 // DELETE /api/staff/:id

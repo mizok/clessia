@@ -12,7 +12,8 @@ const CourseSchema = z
     campusId: z.uuid(),
     campusName: z.string().optional(),
     name: z.string(),
-    subject: z.string(),
+    subjectId: z.uuid(),
+    subjectName: z.string(),
     description: z.string().nullable(),
     isActive: z.boolean(),
     createdAt: z.string(),
@@ -36,7 +37,7 @@ const CreateCourseSchema = z
   .object({
     campusId: z.uuid().openapi({ description: '所屬分校 ID' }),
     name: z.string().min(1).max(50).openapi({ description: '課程名稱', example: '國一數學' }),
-    subject: z.string().min(1).openapi({ description: '科目', example: '數學' }),
+    subjectId: z.uuid().openapi({ description: '科目 ID' }),
     description: z.string().max(500).nullable().optional().openapi({ description: '課程說明' }),
   })
   .openapi('CreateCourse');
@@ -44,7 +45,7 @@ const CreateCourseSchema = z
 const UpdateCourseSchema = z
   .object({
     name: z.string().min(1).max(50).optional(),
-    subject: z.string().min(1).optional(),
+    subjectId: z.uuid().optional(),
     description: z.string().max(500).nullable().optional(),
     isActive: z.boolean().optional(),
   })
@@ -63,7 +64,7 @@ const QueryParamsSchema = z.object({
   pageSize: z.string().optional().openapi({ description: '每頁筆數', example: '20' }),
   search: z.string().optional().openapi({ description: '搜尋課程名稱' }),
   campusId: z.uuid().optional().openapi({ description: '篩選分校' }),
-  subject: z.string().optional().openapi({ description: '篩選科目' }),
+  subjectId: z.uuid().optional().openapi({ description: '篩選科目 ID' }),
   isActive: z.string().optional().openapi({ description: '篩選狀態 (true/false)' }),
 });
 
@@ -78,7 +79,8 @@ function mapCourse(row: Record<string, unknown>) {
     campusId: row['campus_id'] as string,
     campusName: (row['campuses'] as Record<string, unknown> | null)?.['name'] as string | undefined,
     name: row['name'] as string,
-    subject: row['subject'] as string,
+    subjectId: row['subject_id'] as string,
+    subjectName: ((row['subjects'] as { name: string } | null)?.name ?? '') as string,
     description: row['description'] as string | null,
     isActive: row['is_active'] as boolean,
     createdAt: row['created_at'] as string,
@@ -125,7 +127,7 @@ app.openapi(listRoute, async (c) => {
   // Build query
   let dbQuery = supabase
     .from('courses')
-    .select('*, campuses(name)', { count: 'exact' });
+    .select('*, campuses(name), subjects(name)', { count: 'exact' });
 
   // Apply filters
   if (query.search) {
@@ -134,8 +136,8 @@ app.openapi(listRoute, async (c) => {
   if (query.campusId) {
     dbQuery = dbQuery.eq('campus_id', query.campusId);
   }
-  if (query.subject) {
-    dbQuery = dbQuery.eq('subject', query.subject);
+  if (query.subjectId) {
+    dbQuery = dbQuery.eq('subject_id', query.subjectId);
   }
   if (query.isActive !== undefined) {
     dbQuery = dbQuery.eq('is_active', query.isActive === 'true');
@@ -200,7 +202,7 @@ app.openapi(getRoute, async (c) => {
 
   const { data, error } = await supabase
     .from('courses')
-    .select('*, campuses(name)')
+    .select('*, campuses(name), subjects(name)')
     .eq('id', id)
     .single();
 
@@ -278,10 +280,10 @@ app.openapi(createCourseRoute, async (c) => {
       org_id: profile.org_id,
       campus_id: body.campusId,
       name: body.name,
-      subject: body.subject,
+      subject_id: body.subjectId,
       description: body.description || null,
     })
-    .select('*, campuses(name)')
+    .select('*, campuses(name), subjects(name)')
     .single();
 
   if (error) {
@@ -339,7 +341,7 @@ app.openapi(updateRoute, async (c) => {
 
   const updateData: Record<string, unknown> = {};
   if (body.name !== undefined) updateData['name'] = body.name;
-  if (body.subject !== undefined) updateData['subject'] = body.subject;
+  if (body.subjectId !== undefined) updateData['subject_id'] = body.subjectId;
   if (body.description !== undefined) updateData['description'] = body.description;
   if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
 
@@ -347,7 +349,7 @@ app.openapi(updateRoute, async (c) => {
     .from('courses')
     .update(updateData)
     .eq('id', id)
-    .select('*, campuses(name)')
+    .select('*, campuses(name), subjects(name)')
     .single();
 
   if (error || !data) {

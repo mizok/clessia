@@ -50,12 +50,20 @@ export interface Campus {
 // Academic
 // ============================================================
 
+export interface Subject {
+  id: string;
+  orgId: string;
+  name: string;
+  sortOrder: number;
+}
+
 export interface Course {
   id: string;
   orgId: string;
   campusId: string;
   name: string;
-  subject: string;
+  subjectId: string;
+  subjectName: string;
   description: string | null;
   isActive: boolean;
   createdAt: string;

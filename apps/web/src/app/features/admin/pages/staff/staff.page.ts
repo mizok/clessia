@@ -32,12 +32,11 @@ import {
   UpdateStaffInput,
 } from '@core/staff.service';
 import { CampusesService, Campus } from '@core/campuses.service';
+import { SubjectsService, Subject } from '@core/subjects.service';
 
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-
-// Constants
-const SUBJECT_OPTIONS = ['國文', '英文', '數學', '自然', '社會', '其他'];
+import { SubjectManagerComponent } from '@shared/components/subject-manager/subject-manager.component';
 
 const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] = [
   { value: 'basic_operations', label: '日常行政', description: '查詢與處理報名、出勤、請假' },
@@ -82,6 +81,7 @@ const ROLE_OPTIONS: RoleOption[] = [
     TextareaModule,
     CheckboxModule,
     EmptyStateComponent,
+    SubjectManagerComponent,
   ],
   providers: [MessageService, ConfirmationService],
   templateUrl: './staff.page.html',
@@ -90,17 +90,18 @@ const ROLE_OPTIONS: RoleOption[] = [
 export class StaffPage implements OnInit {
   private readonly staffService = inject(StaffService);
   private readonly campusesService = inject(CampusesService);
+  private readonly subjectsService = inject(SubjectsService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
 
   // Constants exposed to template
-  protected readonly subjectOptions = SUBJECT_OPTIONS;
   protected readonly permissionOptions = PERMISSION_OPTIONS;
   protected readonly roleOptions = ROLE_OPTIONS;
 
   // State
   readonly staffList = signal<Staff[]>([]);
   readonly campuses = signal<Campus[]>([]);
+  readonly subjects = signal<Subject[]>([]);
   readonly loading = signal(true);
   readonly searchQuery = signal('');
   readonly roleFilter = signal<StaffRole | null>(null);
@@ -108,6 +109,7 @@ export class StaffPage implements OnInit {
   readonly subjectFilter = signal<string | null>(null);
   readonly dialogVisible = signal(false);
   readonly dialogLoading = signal(false);
+  readonly subjectManagerVisible = signal(false);
 
   // Edit form state
   readonly editingStaff = signal<Staff | null>(null);
@@ -117,7 +119,7 @@ export class StaffPage implements OnInit {
     phone: string;
     birthday: Date | null;
     notes: string;
-    subjects: string[];
+    subjectIds: string[];
     campusIds: string[];
     roles: StaffRole[];
     permissions: Permission[];
@@ -128,7 +130,7 @@ export class StaffPage implements OnInit {
     phone: '',
     birthday: null,
     notes: '',
-    subjects: [],
+    subjectIds: [],
     campusIds: [],
     roles: ['teacher'],
     permissions: [],
@@ -146,7 +148,7 @@ export class StaffPage implements OnInit {
     const query = this.searchQuery().toLowerCase().trim();
     const role = this.roleFilter();
     const campusId = this.campusFilter();
-    const subject = this.subjectFilter();
+    const subjectId = this.subjectFilter();
 
     if (query) {
       list = list.filter(
@@ -163,8 +165,8 @@ export class StaffPage implements OnInit {
       list = list.filter((s) => s.campusIds.includes(campusId));
     }
 
-    if (subject) {
-      list = list.filter((s) => s.subjects.includes(subject));
+    if (subjectId) {
+      list = list.filter((s) => s.subjectIds.includes(subjectId));
     }
 
     return list;
@@ -180,6 +182,10 @@ export class StaffPage implements OnInit {
     this.campuses().map((c) => ({ value: c.id, label: c.name }))
   );
 
+  readonly subjectOptions = computed(() =>
+    this.subjects().map((subject) => ({ value: subject.id, label: subject.name }))
+  );
+
   ngOnInit(): void {
     this.loadData();
   }
@@ -191,6 +197,11 @@ export class StaffPage implements OnInit {
     this.campusesService.list({ pageSize: 100 }).subscribe({
       next: (res) => this.campuses.set(res.data),
       error: (err) => console.error('Failed to load campuses', err),
+    });
+
+    this.subjectsService.list().subscribe({
+      next: (res) => this.subjects.set(res.data),
+      error: (err) => console.error('Failed to load subjects', err),
     });
 
     this.staffService.list({ pageSize: 100 }).subscribe({
@@ -218,7 +229,7 @@ export class StaffPage implements OnInit {
       phone: '',
       birthday: null,
       notes: '',
-      subjects: [],
+      subjectIds: [],
       campusIds: [],
       roles: ['teacher'],
       permissions: [],
@@ -235,7 +246,7 @@ export class StaffPage implements OnInit {
       phone: staff.phone || '',
       birthday: staff.birthday ? new Date(staff.birthday) : null,
       notes: staff.notes || '',
-      subjects: [...staff.subjects],
+      subjectIds: [...staff.subjectIds],
       campusIds: [...staff.campusIds],
       roles: [...staff.roles],
       permissions: [...staff.permissions],
@@ -288,7 +299,7 @@ export class StaffPage implements OnInit {
       return;
     }
 
-    if (form.roles.includes('teacher') && form.subjects.length === 0) {
+    if (form.roles.includes('teacher') && form.subjectIds.length === 0) {
       this.messageService.add({
         severity: 'warn',
         summary: '請選擇教學科目',
@@ -306,7 +317,7 @@ export class StaffPage implements OnInit {
         phone: form.phone.trim() || null,
         birthday: form.birthday ? this.formatDate(form.birthday) : null,
         notes: form.notes.trim() || null,
-        subjects: form.subjects,
+        subjectIds: form.subjectIds,
         campusIds: form.campusIds,
         roles: form.roles,
         isActive: form.isActive,
@@ -341,7 +352,7 @@ export class StaffPage implements OnInit {
         phone: form.phone.trim() || null,
         birthday: form.birthday ? this.formatDate(form.birthday) : null,
         notes: form.notes.trim() || null,
-        subjects: form.subjects,
+        subjectIds: form.subjectIds,
         campusIds: form.campusIds,
         roles: form.roles,
         permissions: form.roles.includes('admin') ? form.permissions : [],
@@ -445,8 +456,8 @@ export class StaffPage implements OnInit {
     this.formData.update((f) => ({ ...f, notes: value }));
   }
 
-  updateSubjects(value: string[]): void {
-    this.formData.update((f) => ({ ...f, subjects: value }));
+  updateSubjectIds(value: string[]): void {
+    this.formData.update((f) => ({ ...f, subjectIds: value }));
   }
 
   updateCampusIds(value: string[]): void {
@@ -502,14 +513,18 @@ export class StaffPage implements OnInit {
     this.subjectFilter.set(null);
   }
 
-  getDisplaySubjects(subjects: string[]): { visible: string[]; remaining: number } {
+  onSubjectsChanged(updated: Subject[]): void {
+    this.subjects.set(updated);
+  }
+
+  getDisplaySubjects(subjectNames: string[]): { visible: string[]; remaining: number } {
     const maxVisible = 2;
-    if (subjects.length <= maxVisible) {
-      return { visible: subjects, remaining: 0 };
+    if (subjectNames.length <= maxVisible) {
+      return { visible: subjectNames, remaining: 0 };
     }
     return {
-      visible: subjects.slice(0, maxVisible),
-      remaining: subjects.length - maxVisible,
+      visible: subjectNames.slice(0, maxVisible),
+      remaining: subjectNames.length - maxVisible,
     };
   }
 }

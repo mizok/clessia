@@ -27,9 +27,11 @@ import {
   UpdateCourseInput,
 } from '@core/courses.service';
 import { CampusesService, Campus } from '@core/campuses.service';
+import { SubjectsService, Subject } from '@core/subjects.service';
 
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { SubjectManagerComponent } from '@shared/components/subject-manager/subject-manager.component';
 
 interface SubjectOption {
   label: string;
@@ -62,6 +64,7 @@ interface CampusOption {
     SelectModule,
     TextareaModule,
     EmptyStateComponent,
+    SubjectManagerComponent,
   ],
   providers: [MessageService, ConfirmationService],
   templateUrl: './courses.page.html',
@@ -70,31 +73,34 @@ interface CampusOption {
 export class CoursesPage implements OnInit {
   private readonly coursesService = inject(CoursesService);
   private readonly campusesService = inject(CampusesService);
+  private readonly subjectsService = inject(SubjectsService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
 
   // State
   readonly courses = signal<Course[]>([]);
   readonly campuses = signal<Campus[]>([]);
+  readonly subjects = signal<Subject[]>([]);
   readonly loading = signal(true);
   readonly searchQuery = signal('');
   readonly selectedCampusId = signal<string | null>(null);
-  readonly selectedSubject = signal<string | null>(null);
+  readonly selectedSubjectId = signal<string | null>(null);
   readonly dialogVisible = signal(false);
   readonly dialogLoading = signal(false);
+  readonly subjectManagerVisible = signal(false);
 
   // Edit form state
   readonly editingCourse = signal<Course | null>(null);
   readonly formData = signal<{
     campusId: string;
     name: string;
-    subject: string;
+    subjectId: string;
     description: string;
     isActive: boolean;
   }>({
     campusId: '',
     name: '',
-    subject: '',
+    subjectId: '',
     description: '',
     isActive: true,
   });
@@ -112,8 +118,10 @@ export class CoursesPage implements OnInit {
   });
 
   readonly subjectOptions = computed<SubjectOption[]>(() => {
-    const subjects = [...new Set(this.courses().map((c) => c.subject))].sort();
-    return subjects.map((s) => ({ label: s, value: s }));
+    return this.subjects().map((subject) => ({
+      label: subject.name,
+      value: subject.id,
+    }));
   });
 
   readonly filteredCourses = computed(() => {
@@ -126,9 +134,9 @@ export class CoursesPage implements OnInit {
     }
 
     // Filter by subject
-    const subject = this.selectedSubject();
-    if (subject) {
-      result = result.filter((c) => c.subject === subject);
+    const subjectId = this.selectedSubjectId();
+    if (subjectId) {
+      result = result.filter((c) => c.subjectId === subjectId);
     }
 
     // Filter by search query
@@ -137,7 +145,7 @@ export class CoursesPage implements OnInit {
       result = result.filter(
         (c) =>
           c.name.toLowerCase().includes(query) ||
-          c.subject.toLowerCase().includes(query) ||
+          c.subjectName.toLowerCase().includes(query) ||
           c.description?.toLowerCase().includes(query) ||
           c.campusName?.toLowerCase().includes(query)
       );
@@ -155,11 +163,12 @@ export class CoursesPage implements OnInit {
   );
 
   readonly hasActiveFilters = computed(
-    () => !!this.selectedCampusId() || !!this.selectedSubject() || !!this.searchQuery()
+    () => !!this.selectedCampusId() || !!this.selectedSubjectId() || !!this.searchQuery()
   );
 
   ngOnInit(): void {
     this.loadCampuses();
+    this.loadSubjects();
     this.loadCourses();
   }
 
@@ -193,9 +202,20 @@ export class CoursesPage implements OnInit {
     });
   }
 
+  loadSubjects(): void {
+    this.subjectsService.list().subscribe({
+      next: (res) => {
+        this.subjects.set(res.data);
+      },
+      error: (err) => {
+        console.error('Failed to load subjects', err);
+      },
+    });
+  }
+
   clearFilters(): void {
     this.selectedCampusId.set(null);
-    this.selectedSubject.set(null);
+    this.selectedSubjectId.set(null);
     this.searchQuery.set('');
   }
 
@@ -204,7 +224,7 @@ export class CoursesPage implements OnInit {
     this.formData.set({
       campusId: this.campusOptions()[0]?.value || '',
       name: '',
-      subject: '',
+      subjectId: this.subjectOptions()[0]?.value || '',
       description: '',
       isActive: true,
     });
@@ -216,7 +236,7 @@ export class CoursesPage implements OnInit {
     this.formData.set({
       campusId: course.campusId,
       name: course.name,
-      subject: course.subject,
+      subjectId: course.subjectId,
       description: course.description || '',
       isActive: course.isActive,
     });
@@ -249,10 +269,10 @@ export class CoursesPage implements OnInit {
       return;
     }
 
-    if (!form.subject.trim()) {
+    if (!form.subjectId) {
       this.messageService.add({
         severity: 'warn',
-        summary: '請填寫科目',
+        summary: '請選擇科目',
         detail: '科目為必填欄位',
       });
       return;
@@ -264,7 +284,7 @@ export class CoursesPage implements OnInit {
       const course = this.editingCourse()!;
       const input: UpdateCourseInput = {
         name: form.name.trim(),
-        subject: form.subject.trim(),
+        subjectId: form.subjectId,
         description: form.description.trim() || null,
         isActive: form.isActive,
       };
@@ -294,7 +314,7 @@ export class CoursesPage implements OnInit {
       const input: CreateCourseInput = {
         campusId: form.campusId,
         name: form.name.trim(),
-        subject: form.subject.trim(),
+        subjectId: form.subjectId,
         description: form.description.trim() || null,
       };
 
@@ -367,8 +387,8 @@ export class CoursesPage implements OnInit {
     this.formData.update((f) => ({ ...f, name: value }));
   }
 
-  updateSubject(value: string): void {
-    this.formData.update((f) => ({ ...f, subject: value }));
+  updateSubjectId(value: string): void {
+    this.formData.update((f) => ({ ...f, subjectId: value }));
   }
 
   updateDescription(value: string): void {
@@ -377,5 +397,9 @@ export class CoursesPage implements OnInit {
 
   updateIsActive(value: boolean): void {
     this.formData.update((f) => ({ ...f, isActive: value }));
+  }
+
+  onSubjectsChanged(updated: Subject[]): void {
+    this.subjects.set(updated);
   }
 }

@@ -60,7 +60,7 @@ export type UpdateCampusInput = z.infer<typeof updateCampusSchema>;
 export const createCourseSchema = z.object({
   campusId: z.uuid('請選擇分校'),
   name: z.string().min(1, '請輸入課程名稱').max(50, '課程名稱不可超過 50 個字元'),
-  subject: z.string().min(1, '請選擇科目'),
+  subjectId: z.uuid('請選擇科目'),
   description: z.string().max(500, '說明不可超過 500 個字元').nullable().optional(),
 });
 
@@ -68,7 +68,7 @@ export type CreateCourseInput = z.infer<typeof createCourseSchema>;
 
 export const updateCourseSchema = z.object({
   name: z.string().min(1, '請輸入課程名稱').max(50, '課程名稱不可超過 50 個字元').optional(),
-  subject: z.string().min(1, '請選擇科目').optional(),
+  subjectId: z.uuid('請選擇科目').optional(),
   description: z.string().max(500, '說明不可超過 500 個字元').nullable().optional(),
   isActive: z.boolean().optional(),
 });

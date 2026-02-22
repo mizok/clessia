@@ -22,7 +22,8 @@ export interface Staff {
   email: string;
   birthday: string | null;
   notes: string | null;
-  subjects: string[];
+  subjectIds: string[];
+  subjectNames: string[];
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -56,7 +57,7 @@ export interface CreateStaffInput {
   phone?: string | null;
   birthday?: string | null;
   notes?: string | null;
-  subjects?: string[];
+  subjectIds?: string[];
   campusIds: string[];
   roles: StaffRole[];
   permissions?: Permission[];
@@ -67,7 +68,7 @@ export interface UpdateStaffInput {
   phone?: string | null;
   birthday?: string | null;
   notes?: string | null;
-  subjects?: string[];
+  subjectIds?: string[];
   campusIds?: string[];
   roles?: StaffRole[];
   isActive?: boolean;

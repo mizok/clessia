@@ -1,0 +1,115 @@
+<p-toast />
+
+<p-dialog
+  [(visible)]="visible"
+  header="管理科目"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  styleClass="subject-manager"
+>
+  <div class="subject-manager__body">
+
+    <!-- Loading skeleton -->
+    @if (loading()) {
+      @for (_ of [1, 2, 3]; track $index) {
+        <div class="subject-manager__row subject-manager__row--skeleton">
+          <p-skeleton height="2rem" />
+        </div>
+      }
+    } @else {
+
+      <!-- Subject list -->
+      @for (subject of subjects(); track subject.id) {
+        <div class="subject-manager__row">
+          @if (editingId() === subject.id) {
+            <!-- Inline edit mode -->
+            <input
+              pInputText
+              class="subject-manager__input"
+              [ngModel]="editingName()"
+              (ngModelChange)="editingName.set($event)"
+              (keydown)="onEditNameKeydown($event)"
+              [disabled]="saving()"
+              autofocus
+            />
+            <p-button
+              icon="pi pi-check"
+              [rounded]="true"
+              [text]="true"
+              severity="success"
+              size="small"
+              [loading]="saving()"
+              (onClick)="confirmRename()"
+              pTooltip="確認"
+              tooltipPosition="top"
+            />
+            <p-button
+              icon="pi pi-times"
+              [rounded]="true"
+              [text]="true"
+              severity="secondary"
+              size="small"
+              [disabled]="saving()"
+              (onClick)="cancelEdit()"
+              pTooltip="取消"
+              tooltipPosition="top"
+            />
+          } @else {
+            <!-- Display mode -->
+            <span class="subject-manager__name">{{ subject.name }}</span>
+            <p-button
+              icon="pi pi-pencil"
+              [rounded]="true"
+              [text]="true"
+              severity="secondary"
+              size="small"
+              (onClick)="startEdit(subject)"
+              pTooltip="改名"
+              tooltipPosition="top"
+            />
+            <p-button
+              icon="pi pi-trash"
+              [rounded]="true"
+              [text]="true"
+              severity="danger"
+              size="small"
+              (onClick)="confirmDelete(subject)"
+              pTooltip="刪除"
+              tooltipPosition="top"
+            />
+          }
+        </div>
+      }
+
+      @if (subjects().length === 0) {
+        <p class="subject-manager__empty">尚無科目，請新增</p>
+      }
+
+      <!-- Divider -->
+      <div class="subject-manager__divider"></div>
+
+      <!-- Add new -->
+      <div class="subject-manager__add">
+        <input
+          pInputText
+          class="subject-manager__input"
+          placeholder="新增科目名稱"
+          [ngModel]="newSubjectName()"
+          (ngModelChange)="newSubjectName.set($event)"
+          (keydown)="onNewNameKeydown($event)"
+          [disabled]="saving()"
+        />
+        <p-button
+          icon="pi pi-plus"
+          label="新增"
+          size="small"
+          [loading]="saving()"
+          [disabled]="!newSubjectName().trim()"
+          (onClick)="addSubject()"
+        />
+      </div>
+    }
+
+  </div>
+</p-dialog>
