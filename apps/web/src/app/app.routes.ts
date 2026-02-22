@@ -219,7 +219,7 @@ export const routes: Routes = [
           {
             path: RoutesCatalog.ADMIN_CLASSES.relativePath,
             loadComponent: () =>
-              import('@features/admin/pages/classes/classes.component').then((m) => m.ClassesComponent),
+              import('@features/admin/pages/classes/classes.page').then((m) => m.ClassesPage),
             data: { animation: 'AdminClasses', page: RoutesCatalog.ADMIN_CLASSES },
           },
           {

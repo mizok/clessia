@@ -1,0 +1,719 @@
+<p-toast />
+<p-confirmDialog />
+
+<div class="classes">
+  <!-- Page Header -->
+  <header class="classes__header">
+    <div class="classes__title-group">
+      <h1 class="classes__title">{{ page().label }}</h1>
+      <p class="classes__subtitle">層級管理課程與班級，設定上課時間</p>
+    </div>
+    <p-button
+      label="新增課程"
+      icon="pi pi-plus"
+      (onClick)="openCreateCourseDialog()"
+    />
+  </header>
+
+  <!-- Filter Bar -->
+  <div class="classes__card">
+    <div class="classes__toolbar">
+      <div class="classes__search">
+        <p-iconField iconPosition="left">
+          <p-inputIcon styleClass="pi pi-search" />
+          <input
+            type="text"
+            pInputText
+            placeholder="搜尋班級名稱..."
+            [ngModel]="searchQuery()"
+            (ngModelChange)="searchQuery.set($event)"
+          />
+        </p-iconField>
+      </div>
+
+      <div class="classes__filters">
+        <p-select
+          [options]="campusOptions()"
+          [ngModel]="selectedCampusId()"
+          (ngModelChange)="selectedCampusId.set($event)"
+          placeholder="所有分校"
+          [showClear]="true"
+          styleClass="classes__filter-select"
+        />
+        <p-select
+          [options]="subjectOptions()"
+          [ngModel]="selectedSubjectId()"
+          (ngModelChange)="selectedSubjectId.set($event)"
+          placeholder="所有科目"
+          [showClear]="true"
+          styleClass="classes__filter-select"
+        />
+        <p-select
+          [options]="statusOptions"
+          [ngModel]="statusFilter()"
+          (ngModelChange)="statusFilter.set($event)"
+          placeholder="全部狀態"
+          styleClass="classes__filter-select"
+        />
+      </div>
+
+      @if (hasActiveFilters()) {
+        <p-button
+          label="清除"
+          icon="pi pi-filter-slash"
+          [text]="true"
+          severity="secondary"
+          (onClick)="clearFilters()"
+        />
+      }
+    </div>
+
+    <!-- Content -->
+    <div class="classes__content">
+      @if (loading()) {
+        <!-- Skeleton -->
+        <div class="classes__skeleton">
+          @for (i of [1, 2, 3]; track i) {
+            <div class="skeleton-group">
+              <div class="skeleton-group__header">
+                <p-skeleton width="220px" height="1.125rem" />
+                <p-skeleton width="80px" height="1.125rem" />
+              </div>
+              @for (j of [1, 2]; track j) {
+                <div class="skeleton-group__row">
+                  <p-skeleton width="16px" height="16px" />
+                  <p-skeleton width="140px" height="1rem" />
+                  <p-skeleton width="200px" height="1rem" />
+                  <p-skeleton width="48px" height="1.5rem" borderRadius="999px" />
+                </div>
+              }
+            </div>
+          }
+        </div>
+      } @else if (courseGroups().length === 0) {
+        <!-- Empty State -->
+        <app-empty-state
+          icon="pi pi-book"
+          title="尚未建立任何課程"
+          description="點擊右上角「新增課程」開始建立課程與班級"
+        >
+          <p-button
+            label="新增課程"
+            icon="pi pi-plus"
+            (onClick)="openCreateCourseDialog()"
+          />
+        </app-empty-state>
+      } @else {
+        <!-- Course Groups -->
+        <div class="classes__groups">
+          @for (group of courseGroups(); track group.course.id) {
+            <div class="course-group">
+              <!-- Course Header -->
+              <div class="course-group__header">
+                <div class="course-group__info">
+                  <div class="course-group__name-row">
+                    <i class="pi pi-book course-group__icon"></i>
+                    <span class="course-group__name">{{ group.course.name }}</span>
+                    <span class="course-group__campus">{{ group.course.campusName ?? getCampusName(group.course.campusId) }}</span>
+                    <p-tag [value]="group.course.subjectName" severity="info" />
+                    @if (!group.course.isActive) {
+                      <p-tag value="已停用" severity="secondary" />
+                    }
+                  </div>
+                  <span class="course-group__count">{{ group.classes.length }} 個班</span>
+                </div>
+                <div class="course-group__actions">
+                  <p-button
+                    label="新增班"
+                    icon="pi pi-plus"
+                    size="small"
+                    [outlined]="true"
+                    severity="secondary"
+                    (onClick)="openCreateClassDialog(group.course.id)"
+                  />
+                  <p-button
+                    icon="pi pi-pencil"
+                    [rounded]="true"
+                    [text]="true"
+                    severity="secondary"
+                    size="small"
+                    pTooltip="編輯課程"
+                    tooltipPosition="top"
+                    (onClick)="openEditCourseDialog(group.course)"
+                  />
+                  <p-button
+                    icon="pi pi-trash"
+                    [rounded]="true"
+                    [text]="true"
+                    severity="danger"
+                    size="small"
+                    pTooltip="刪除課程"
+                    tooltipPosition="top"
+                    (onClick)="confirmDeleteCourse(group.course)"
+                  />
+                </div>
+              </div>
+
+              <!-- Classes List -->
+              <div class="course-group__classes">
+                @for (cls of group.classes; track cls.id) {
+                  <div class="class-row" [class.class-row--expanded]="isExpanded(cls.id)">
+                    <!-- Summary Row (clickable) -->
+                    <div class="class-row__summary" (click)="toggleExpand(cls.id)" role="button" tabindex="0" (keydown.enter)="toggleExpand(cls.id)">
+                      <i
+                        class="pi class-row__chevron"
+                        [class.pi-chevron-right]="!isExpanded(cls.id)"
+                        [class.pi-chevron-down]="isExpanded(cls.id)"
+                      ></i>
+                      <span class="class-row__name">{{ cls.name }}</span>
+                      @if (cls.maxStudents) {
+                        <span class="class-row__capacity">
+                          <i class="pi pi-users"></i>
+                          {{ cls.maxStudents }}
+                        </span>
+                      }
+                      <span class="class-row__schedules">
+                        @if (cls.schedules && cls.schedules.length > 0) {
+                          <i class="pi pi-clock"></i>
+                          {{ getScheduleSummary(cls.schedules) }}
+                        } @else {
+                          <span class="class-row__no-schedule">尚無時間表</span>
+                        }
+                      </span>
+                      <div class="class-row__tags">
+                        <p-tag
+                          [value]="cls.isActive ? '啟用' : '停用'"
+                          [severity]="cls.isActive ? 'success' : 'secondary'"
+                        />
+                        @if (cls.isRecommended) {
+                          <p-tag value="推薦" severity="warn" />
+                        }
+                      </div>
+                    </div>
+
+                    <!-- Expanded Detail -->
+                    @if (isExpanded(cls.id)) {
+                      <div class="class-row__detail">
+                        <!-- Schedules -->
+                        <div class="class-detail__section">
+                          <div class="class-detail__section-title">
+                            <i class="pi pi-clock"></i>
+                            上課時間
+                          </div>
+                          @if (cls.schedules && cls.schedules.length > 0) {
+                            <div class="class-detail__schedules">
+                              @for (s of cls.schedules; track s.id) {
+                                <div class="schedule-badge">
+                                  <span class="schedule-badge__day">{{ getWeekdayLabel(s.weekday) }}</span>
+                                  <span class="schedule-badge__time">{{ s.startTime.substring(0, 5) }}-{{ s.endTime.substring(0, 5) }}</span>
+                                  @if (s.teacherName) {
+                                    <span class="schedule-badge__teacher">
+                                      <i class="pi pi-user"></i>
+                                      {{ s.teacherName }}
+                                    </span>
+                                  }
+                                  <span class="schedule-badge__from">起: {{ s.effectiveFrom }}</span>
+                                </div>
+                              }
+                            </div>
+                          } @else {
+                            <p class="class-detail__empty">尚未設定上課時間</p>
+                          }
+                        </div>
+
+                        <!-- Grade Levels -->
+                        @if (cls.gradeLevels && cls.gradeLevels.length > 0) {
+                          <div class="class-detail__section">
+                            <div class="class-detail__section-title">
+                              <i class="pi pi-graduation-cap"></i>
+                              適合年級
+                            </div>
+                            <div class="class-detail__grades">
+                              @for (grade of cls.gradeLevels; track grade) {
+                                <span class="grade-chip">{{ grade }}</span>
+                              }
+                            </div>
+                          </div>
+                        }
+
+                        <!-- Actions -->
+                        <div class="class-detail__actions">
+                          <p-button
+                            label="編輯班級"
+                            icon="pi pi-pencil"
+                            size="small"
+                            [outlined]="true"
+                            severity="secondary"
+                            (onClick)="openEditClassDialog(cls)"
+                          />
+                          <p-button
+                            label="產生課堂"
+                            icon="pi pi-calendar-plus"
+                            size="small"
+                            [outlined]="true"
+                            severity="info"
+                            (onClick)="openGenerateDialog(cls)"
+                          />
+                          <p-button
+                            [label]="cls.isActive ? '停用' : '啟用'"
+                            [icon]="cls.isActive ? 'pi pi-ban' : 'pi pi-check-circle'"
+                            size="small"
+                            [outlined]="true"
+                            [severity]="cls.isActive ? 'secondary' : 'success'"
+                            (onClick)="confirmToggleActive(cls)"
+                          />
+                          <p-button
+                            label="刪除"
+                            icon="pi pi-trash"
+                            size="small"
+                            [outlined]="true"
+                            severity="danger"
+                            (onClick)="confirmDeleteClass(cls)"
+                          />
+                        </div>
+                      </div>
+                    }
+                  </div>
+                } @empty {
+                  <div class="course-group__empty">此課程尚無班級，點擊「新增班」建立</div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- Course Dialog -->
+<!-- ============================================================ -->
+<p-dialog
+  [header]="courseDialogTitle()"
+  [(visible)]="courseDialogVisible"
+  [modal]="true"
+  [closable]="!courseDialogLoading()"
+  [style]="{ width: '32rem' }"
+>
+  <div class="form-dialog">
+    <!-- Campus (create only) -->
+    @if (courseDialogMode() === 'create') {
+      <div class="form-dialog__field">
+        <label class="form-dialog__label">
+          分校<span class="form-dialog__required">*</span>
+        </label>
+        <p-select
+          [options]="campusOptions()"
+          [ngModel]="courseForm().campusId"
+          (ngModelChange)="updateCourseForm('campusId', $event)"
+          placeholder="選擇分校"
+          [disabled]="courseDialogLoading()"
+          styleClass="w-full"
+        />
+      </div>
+    }
+
+    <!-- Name -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">
+        課程名稱<span class="form-dialog__required">*</span>
+      </label>
+      <input
+        type="text"
+        pInputText
+        [ngModel]="courseForm().name"
+        (ngModelChange)="updateCourseForm('name', $event)"
+        placeholder="例如：國一數學"
+        [disabled]="courseDialogLoading()"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Subject -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">
+        科目<span class="form-dialog__required">*</span>
+      </label>
+      <p-select
+        [options]="subjectOptions()"
+        [ngModel]="courseForm().subjectId"
+        (ngModelChange)="updateCourseForm('subjectId', $event)"
+        placeholder="選擇科目"
+        [disabled]="courseDialogLoading()"
+        styleClass="w-full"
+      />
+    </div>
+
+    <!-- Description -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">說明（選填）</label>
+      <input
+        type="text"
+        pInputText
+        [ngModel]="courseForm().description"
+        (ngModelChange)="updateCourseForm('description', $event)"
+        placeholder="課程說明"
+        [disabled]="courseDialogLoading()"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Status (edit only) -->
+    @if (courseDialogMode() === 'edit') {
+      <div class="form-dialog__field form-dialog__field--inline">
+        <label class="form-dialog__label">狀態</label>
+        <div class="form-dialog__switch-row">
+          <p-toggleswitch
+            [ngModel]="courseForm().isActive"
+            (ngModelChange)="updateCourseForm('isActive', $event)"
+            [disabled]="courseDialogLoading()"
+          />
+          <span class="form-dialog__switch-label">
+            {{ courseForm().isActive ? '啟用中' : '已停用' }}
+          </span>
+        </div>
+      </div>
+    }
+
+    <!-- Footer -->
+    <div class="form-dialog__footer">
+      <p-button
+        label="取消"
+        [text]="true"
+        severity="secondary"
+        [disabled]="courseDialogLoading()"
+        (onClick)="courseDialogVisible.set(false)"
+      />
+      <p-button
+        [label]="courseDialogMode() === 'create' ? '建立' : '儲存'"
+        [icon]="courseDialogLoading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+        [loading]="courseDialogLoading()"
+        (onClick)="saveCourse()"
+        [disabled]="!courseForm().name.trim() || !courseForm().subjectId"
+      />
+    </div>
+  </div>
+</p-dialog>
+
+<!-- ============================================================ -->
+<!-- Class Dialog -->
+<!-- ============================================================ -->
+<p-dialog
+  [header]="classDialogTitle()"
+  [(visible)]="classDialogVisible"
+  [modal]="true"
+  [closable]="!classDialogLoading()"
+  [style]="{ width: '44rem' }"
+>
+  <div class="form-dialog">
+    <!-- Name -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">
+        班級名稱<span class="form-dialog__required">*</span>
+      </label>
+      <input
+        type="text"
+        pInputText
+        [ngModel]="classForm().name"
+        (ngModelChange)="updateClassForm('name', $event)"
+        placeholder="例如：A 班（週六上午）"
+        [disabled]="classDialogLoading()"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Max Students + Recommended -->
+    <div class="form-dialog__row">
+      <div class="form-dialog__field">
+        <label class="form-dialog__label">人數上限</label>
+        <p-inputnumber
+          [ngModel]="classForm().maxStudents"
+          (ngModelChange)="updateClassForm('maxStudents', $event)"
+          [min]="1"
+          [max]="200"
+          [disabled]="classDialogLoading()"
+          styleClass="w-full"
+        />
+      </div>
+      <div class="form-dialog__field form-dialog__field--inline">
+        <label class="form-dialog__label">推薦班級</label>
+        <div class="form-dialog__switch-row">
+          <p-toggleswitch
+            [ngModel]="classForm().isRecommended"
+            (ngModelChange)="updateClassForm('isRecommended', $event)"
+            [disabled]="classDialogLoading()"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Grade Levels -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">適合年級（選填）</label>
+      <p-multiselect
+        [options]="gradeOptions"
+        [ngModel]="classForm().gradeLevels"
+        (ngModelChange)="updateClassForm('gradeLevels', $event)"
+        placeholder="選擇適合年級"
+        [disabled]="classDialogLoading()"
+        styleClass="w-full"
+      />
+    </div>
+
+    <!-- Status (edit only) -->
+    @if (classDialogMode() === 'edit') {
+      <div class="form-dialog__field form-dialog__field--inline">
+        <label class="form-dialog__label">狀態</label>
+        <div class="form-dialog__switch-row">
+          <p-toggleswitch
+            [ngModel]="classForm().isActive"
+            (ngModelChange)="updateClassForm('isActive', $event)"
+            [disabled]="classDialogLoading()"
+          />
+          <span class="form-dialog__switch-label">
+            {{ classForm().isActive ? '啟用中' : '已停用' }}
+          </span>
+        </div>
+      </div>
+    }
+
+    <!-- Schedules Section -->
+    <div class="form-dialog__section">
+      <div class="form-dialog__section-header">
+        <span class="form-dialog__section-title">
+          <i class="pi pi-clock"></i>
+          上課時間
+        </span>
+        <p-button
+          label="新增時段"
+          icon="pi pi-plus"
+          [text]="true"
+          size="small"
+          (onClick)="addScheduleEntry()"
+          [disabled]="classDialogLoading()"
+        />
+      </div>
+
+      @if (scheduleEntries().length === 0) {
+        <p class="form-dialog__empty-note">尚未設定上課時間，點擊「新增時段」添加</p>
+      } @else {
+        <div class="schedule-entries">
+          @for (entry of scheduleEntries(); track $index) {
+            <div class="schedule-entry">
+              <div class="schedule-entry__row">
+                <!-- Weekday -->
+                <p-select
+                  [options]="weekdayOptions"
+                  [ngModel]="entry.weekday"
+                  (ngModelChange)="updateScheduleEntry($index, 'weekday', $event)"
+                  placeholder="星期"
+                  [disabled]="classDialogLoading()"
+                  styleClass="schedule-entry__weekday"
+                />
+                <!-- Start Time -->
+                <input
+                  type="time"
+                  class="schedule-entry__time-input"
+                  [ngModel]="entry.startTime"
+                  (ngModelChange)="updateScheduleEntry($index, 'startTime', $event)"
+                  [disabled]="classDialogLoading()"
+                />
+                <span class="schedule-entry__dash">—</span>
+                <!-- End Time -->
+                <input
+                  type="time"
+                  class="schedule-entry__time-input"
+                  [ngModel]="entry.endTime"
+                  (ngModelChange)="updateScheduleEntry($index, 'endTime', $event)"
+                  [disabled]="classDialogLoading()"
+                />
+                <!-- Remove -->
+                <p-button
+                  icon="pi pi-times"
+                  [rounded]="true"
+                  [text]="true"
+                  severity="danger"
+                  size="small"
+                  (onClick)="removeScheduleEntry($index)"
+                  [disabled]="classDialogLoading()"
+                />
+              </div>
+              <div class="schedule-entry__row schedule-entry__row--meta">
+                <!-- Teacher -->
+                <p-select
+                  [options]="staffOptions()"
+                  [ngModel]="entry.teacherId"
+                  (ngModelChange)="updateScheduleEntry($index, 'teacherId', $event)"
+                  placeholder="選擇老師"
+                  [disabled]="classDialogLoading()"
+                  styleClass="schedule-entry__teacher"
+                />
+                <!-- Effective From -->
+                <div class="schedule-entry__effective">
+                  <label class="schedule-entry__meta-label">起始日期</label>
+                  <input
+                    type="date"
+                    class="schedule-entry__date-input"
+                    [ngModel]="entry.effectiveFrom"
+                    (ngModelChange)="updateScheduleEntry($index, 'effectiveFrom', $event)"
+                    [disabled]="classDialogLoading()"
+                  />
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Footer -->
+    <div class="form-dialog__footer">
+      <p-button
+        label="取消"
+        [text]="true"
+        severity="secondary"
+        [disabled]="classDialogLoading()"
+        (onClick)="classDialogVisible.set(false)"
+      />
+      <p-button
+        [label]="classDialogMode() === 'create' ? '建立' : '儲存'"
+        [icon]="classDialogLoading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+        [loading]="classDialogLoading()"
+        (onClick)="saveClass()"
+        [disabled]="!classForm().name.trim()"
+      />
+    </div>
+  </div>
+</p-dialog>
+
+<!-- ============================================================ -->
+<!-- Generate Sessions Dialog -->
+<!-- ============================================================ -->
+<p-dialog
+  header="產生課堂"
+  [(visible)]="generateDialogVisible"
+  [modal]="true"
+  [closable]="!generateLoading()"
+  [style]="{ width: '40rem' }"
+  (onHide)="generateStep.set('input')"
+>
+  @if (generateStep() === 'input') {
+    <div class="form-dialog">
+      @if (generateTargetClass()) {
+        <div class="generate-info">
+          <i class="pi pi-info-circle"></i>
+          <span>班級：<strong>{{ generateTargetClass()!.name }}</strong></span>
+        </div>
+      }
+      <p class="generate-hint">選擇日期範圍，系統將依照上課時間表批次產生課堂記錄。</p>
+
+      <div class="form-dialog__row">
+        <div class="form-dialog__field">
+          <label class="form-dialog__label">開始日期<span class="form-dialog__required">*</span></label>
+          <p-datepicker
+            [ngModel]="generateFrom()"
+            (ngModelChange)="generateFrom.set($event)"
+            dateFormat="yy-mm-dd"
+            [showIcon]="true"
+            placeholder="選擇日期"
+            styleClass="w-full"
+          />
+        </div>
+        <div class="form-dialog__field">
+          <label class="form-dialog__label">結束日期<span class="form-dialog__required">*</span></label>
+          <p-datepicker
+            [ngModel]="generateTo()"
+            (ngModelChange)="generateTo.set($event)"
+            dateFormat="yy-mm-dd"
+            [showIcon]="true"
+            placeholder="選擇日期"
+            styleClass="w-full"
+          />
+        </div>
+      </div>
+
+      <div class="form-dialog__footer">
+        <p-button
+          label="取消"
+          [text]="true"
+          severity="secondary"
+          [disabled]="generateLoading()"
+          (onClick)="generateDialogVisible.set(false)"
+        />
+        <p-button
+          label="預覽課堂"
+          icon="pi pi-eye"
+          [loading]="generateLoading()"
+          [disabled]="!generateFrom() || !generateTo()"
+          (onClick)="previewSessionsAction()"
+        />
+      </div>
+    </div>
+  } @else {
+    <!-- Preview Step -->
+    <div class="generate-preview">
+      <div class="generate-preview__summary">
+        <span class="generate-preview__total">共 {{ previewSessions().length }} 筆</span>
+        <span class="generate-preview__new">新增：{{ newSessionCount() }}</span>
+        <span class="generate-preview__skip">略過（已存在）：{{ skippedSessionCount() }}</span>
+      </div>
+
+      @if (previewSessions().length === 0) {
+        <div class="generate-preview__empty">
+          <i class="pi pi-calendar-times"></i>
+          <p>在此日期範圍內沒有符合時間表的課堂</p>
+        </div>
+      } @else {
+        <div class="generate-preview__table-wrap">
+          <table class="generate-preview__table">
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>星期</th>
+                <th>時間</th>
+                <th>老師</th>
+                <th>狀態</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (s of previewSessions(); track s.sessionDate + s.startTime) {
+                <tr [class.generate-preview__row--exists]="s.exists">
+                  <td>{{ s.sessionDate }}</td>
+                  <td>{{ getWeekdayLabel(s.weekday) }}</td>
+                  <td>{{ s.startTime.substring(0, 5) }}-{{ s.endTime.substring(0, 5) }}</td>
+                  <td>{{ s.teacherName ?? '—' }}</td>
+                  <td>
+                    @if (s.exists) {
+                      <span class="generate-preview__badge generate-preview__badge--skip">已存在</span>
+                    } @else {
+                      <span class="generate-preview__badge generate-preview__badge--new">將新增</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <div class="form-dialog__footer">
+        <p-button
+          label="返回修改"
+          icon="pi pi-arrow-left"
+          [text]="true"
+          severity="secondary"
+          [disabled]="generateLoading()"
+          (onClick)="generateStep.set('input')"
+        />
+        <p-button
+          label="確認建立"
+          icon="pi pi-check"
+          [loading]="generateLoading()"
+          [disabled]="newSessionCount() === 0"
+          (onClick)="confirmGenerateSessions()"
+        />
+      </div>
+    </div>
+  }
+</p-dialog>
