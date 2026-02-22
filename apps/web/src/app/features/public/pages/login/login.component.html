@@ -2,7 +2,7 @@
   <header class="auth-content__header">
     <p class="auth-content__badge">管理系統</p>
     <h1 class="auth-content__title">登入</h1>
-    <p class="auth-content__subtitle">請使用您的帳號密碼登入管理系統</p>
+    <p class="auth-content__subtitle">請使用 Email 或手機號碼登入</p>
   </header>
 
   <form class="form" (ngSubmit)="onSubmit()">
@@ -14,16 +14,16 @@
     }
 
     <div class="form__field">
-      <label class="form__label" for="email">Email</label>
+      <label class="form__label" for="email">Email 或手機號碼</label>
       <input
         id="email"
-        type="email"
+        type="text"
         class="form__input"
-        placeholder="輸入 Email"
+        placeholder="輸入 Email 或手機號碼"
         [(ngModel)]="email"
         name="email"
         required
-        autocomplete="email"
+        autocomplete="username"
       />
     </div>
 

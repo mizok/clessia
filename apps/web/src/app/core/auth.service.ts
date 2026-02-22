@@ -114,11 +114,18 @@ export class AuthService {
   }
 
   async signIn(emailOrPhone: string, password: string, _captchaToken?: string): Promise<string | null> {
-    const { data, error } = await authClient.signIn.email({
-      email: emailOrPhone,
-      password,
-      fetchOptions: { credentials: 'include' },
-    });
+    const isEmail = emailOrPhone.includes('@');
+    const { data, error } = isEmail
+      ? await authClient.signIn.email({
+          email: emailOrPhone,
+          password,
+          fetchOptions: { credentials: 'include' },
+        })
+      : await authClient.signIn.username({
+          username: emailOrPhone,
+          password,
+          fetchOptions: { credentials: 'include' },
+        });
     if (error || !data?.user) return '帳號或密碼錯誤';
 
     if (data.user) {
