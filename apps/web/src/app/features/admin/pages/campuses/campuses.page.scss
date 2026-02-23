@@ -1,6 +1,8 @@
 // Campuses Page - Following Clessia Design System
 // Uses zinc gray scale + sky accent with consistent spacing
 
+@use 'shared/breakpoints' as bp;
+
 .campuses {
   padding: var(--space-6);
   display: flex;
@@ -468,7 +470,7 @@
 }
 
 // Responsive
-@media (max-width: 1024px) {
+@include bp.respond-to('tablet') {
   .campuses {
     &__stats {
       flex-wrap: wrap;
@@ -476,9 +478,9 @@
   }
 }
 
-@media (max-width: 768px) {
+@include bp.respond-to(768px) {
   .campuses {
-    padding: var(--space-4);
+    padding: var(--space-4) var(--space-1);
     gap: var(--space-4);
 
     &__header {
@@ -537,7 +539,7 @@
 }
 
 // Extra small screens (≤480px)
-@media (max-width: 480px) {
+@include bp.respond-to(480px) {
   .campuses {
     &__title {
       font-size: var(--text-xl);

@@ -1,6 +1,8 @@
 // Classes Page — Clessia Design System
 // Zinc gray + Sky accent, micro-interaction style
 
+@use 'shared/breakpoints' as bp;
+
 .classes {
   padding: var(--space-6);
   display: flex;
@@ -284,6 +286,7 @@
     font-size: var(--text-sm);
     color: var(--zinc-400);
     white-space: nowrap;
+    margin-left: auto;
 
     .pi {
       font-size: 11px;
@@ -792,9 +795,9 @@
 // Responsive
 // ============================================================
 
-@media (max-width: 768px) {
+@include bp.respond-to(768px) {
   .classes {
-    padding: var(--space-4);
+    padding: var(--space-4) var(--space-1);
 
     &__toolbar {
       padding: var(--space-4);

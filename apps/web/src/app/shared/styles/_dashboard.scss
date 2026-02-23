@@ -55,7 +55,7 @@
       grid-template-columns: 2fr 1fr;
       gap: var(--space-8);
 
-      @media (max-width: 1024px) {
+      @include bp.respond-to('tablet') {
         grid-template-columns: 1fr;
       }
     }
