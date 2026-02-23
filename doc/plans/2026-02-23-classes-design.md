@@ -1,4 +1,4 @@
-# 開課班管理 設計文件
+# 課程管理 設計文件
 
 **日期**：2026-02-23
 **路由**：`/admin/classes`
@@ -10,14 +10,16 @@
 
 ### 1. 課程 + 班級合併為同一頁面（方案 B）
 
-**決策**：將 `/admin/courses`（課程管理）與 `/admin/classes`（開課班管理）合併為一個層級式頁面。
+**決策**：將 `/admin/courses`（課程管理）與 `/admin/classes`（課程管理）合併為一個層級式頁面。
 
 **理由**：
+
 - 管理員操作更直覺，一頁看到「哪個課程 → 哪些班」
 - 專案初期，重構成本可接受
 - 課程（course）是班級（class）的父層，視覺上合併呈現更清楚
 
 **影響**：
+
 - `ADMIN_COURSES` 從側邊欄隱藏（`showInMenu: false`）
 - `ADMIN_CLASSES` 成為唯一入口，含課程 CRUD + 班級 CRUD
 - 現有 courses.page 保留但不顯示在選單
@@ -34,6 +36,7 @@
 ### 3. 行事曆整合構想（記錄，留待後續 sprint）
 
 **構想**：課堂搜尋（sessions）、排課管理（schedule）、課務異動（changes）三個頁面合成一個「課程日曆」頁面：
+
 - 搜尋後直接在月曆上顯示結果
 - 點擊月曆上的課堂 → 直接做課務異動
 - 排課管理 = 純行事曆視圖
@@ -47,7 +50,7 @@
 ### 佈局
 
 ```
-[Header] 開課班管理                                [+ 新增課程]
+[Header] 課程管理                                [+ 新增課程]
 
 [搜尋框] [分校 ▼] [科目 ▼] [狀態 ▼]              [清除篩選]
 
@@ -158,29 +161,29 @@ CREATE INDEX sessions_teacher_id_idx ON public.sessions (teacher_id);
 
 ### 已有（不變）
 
-| Method | Path | 說明 |
-|--------|------|------|
-| GET | `/api/courses` | 課程列表（現有） |
-| GET | `/api/courses/:id` | 單一課程（現有） |
-| POST | `/api/courses` | 新增課程（現有） |
-| PUT | `/api/courses/:id` | 更新課程（現有） |
+| Method | Path               | 說明             |
+| ------ | ------------------ | ---------------- |
+| GET    | `/api/courses`     | 課程列表（現有） |
+| GET    | `/api/courses/:id` | 單一課程（現有） |
+| POST   | `/api/courses`     | 新增課程（現有） |
+| PUT    | `/api/courses/:id` | 更新課程（現有） |
 | DELETE | `/api/courses/:id` | 刪除課程（現有） |
 
 ### 新增
 
-| Method | Path | 說明 |
-|--------|------|------|
-| GET | `/api/classes` | 班級列表（分頁 + 篩選） |
-| GET | `/api/classes/:id` | 單一班級（含 schedules） |
-| POST | `/api/classes` | 新增班級 |
-| PUT | `/api/classes/:id` | 更新班級 |
-| PATCH | `/api/classes/:id/toggle-active` | 停用/啟用 |
-| DELETE | `/api/classes/:id` | 刪除班級（無 sessions 才可刪） |
-| POST | `/api/classes/:id/schedules` | 新增上課時間 |
-| PUT | `/api/classes/:id/schedules/:sid` | 更新上課時間 |
-| DELETE | `/api/classes/:id/schedules/:sid` | 刪除上課時間 |
-| GET | `/api/classes/:id/sessions/preview` | 預覽將產生的課堂（帶 `?from=&to=`） |
-| POST | `/api/classes/:id/sessions/generate` | 確認後批次建立課堂 |
+| Method | Path                                 | 說明                                |
+| ------ | ------------------------------------ | ----------------------------------- |
+| GET    | `/api/classes`                       | 班級列表（分頁 + 篩選）             |
+| GET    | `/api/classes/:id`                   | 單一班級（含 schedules）            |
+| POST   | `/api/classes`                       | 新增班級                            |
+| PUT    | `/api/classes/:id`                   | 更新班級                            |
+| PATCH  | `/api/classes/:id/toggle-active`     | 停用/啟用                           |
+| DELETE | `/api/classes/:id`                   | 刪除班級（無 sessions 才可刪）      |
+| POST   | `/api/classes/:id/schedules`         | 新增上課時間                        |
+| PUT    | `/api/classes/:id/schedules/:sid`    | 更新上課時間                        |
+| DELETE | `/api/classes/:id/schedules/:sid`    | 刪除上課時間                        |
+| GET    | `/api/classes/:id/sessions/preview`  | 預覽將產生的課堂（帶 `?from=&to=`） |
+| POST   | `/api/classes/:id/sessions/generate` | 確認後批次建立課堂                  |
 
 ### GET /api/classes 查詢參數
 
@@ -242,26 +245,26 @@ readonly generateLoading = signal(false);
 
 ### 4 個 Dialog
 
-| Dialog | 觸發 | 欄位 |
-|--------|------|------|
-| 新增/編輯課程 | Header「新增課程」/ 課程群組「編輯課程」 | 分校、課程名稱、科目、說明、狀態 |
+| Dialog        | 觸發                                     | 欄位                                                                          |
+| ------------- | ---------------------------------------- | ----------------------------------------------------------------------------- |
+| 新增/編輯課程 | Header「新增課程」/ 課程群組「編輯課程」 | 分校、課程名稱、科目、說明、狀態                                              |
 | 新增/編輯班級 | 課程群組「+ 新增班」/ 展開行「編輯班級」 | 班名、人數上限、適用年級（多選）、推薦開關、下一階班、狀態 + 上課時間動態列表 |
-| 產生課堂 | 展開行「產生課堂」 | 起始日 → 結束日 → 預覽列表 → 確認 |
-| 刪除確認 | 課程/班級刪除 | `p-confirmDialog` |
+| 產生課堂      | 展開行「產生課堂」                       | 起始日 → 結束日 → 預覽列表 → 確認                                             |
+| 刪除確認      | 課程/班級刪除                            | `p-confirmDialog`                                                             |
 
 ---
 
 ## 開發流程（AGENT_GUIDE.md Phase 順序）
 
-| Phase | 說明 | 執行者 |
-|-------|------|--------|
-| Phase 0 | 環境調查（已完成） | 已完成 |
-| Phase 2 | DB Migration（classes, schedules, sessions） | Codex |
-| Phase 3 | API（/api/classes + schedules + sessions） | Codex |
-| Phase 4 | Frontend Service（classes.service.ts） | Codex |
-| Phase 5 | Frontend UI（classes.page 重寫） | Claude |
-| Phase 5b | 側邊欄更新（courses 隱藏） | Claude |
-| Phase 6 | E2E 驗證 | Codex |
+| Phase    | 說明                                         | 執行者 |
+| -------- | -------------------------------------------- | ------ |
+| Phase 0  | 環境調查（已完成）                           | 已完成 |
+| Phase 2  | DB Migration（classes, schedules, sessions） | Codex  |
+| Phase 3  | API（/api/classes + schedules + sessions）   | Codex  |
+| Phase 4  | Frontend Service（classes.service.ts）       | Codex  |
+| Phase 5  | Frontend UI（classes.page 重寫）             | Claude |
+| Phase 5b | 側邊欄更新（courses 隱藏）                   | Claude |
+| Phase 6  | E2E 驗證                                     | Codex  |
 
 ---
 
@@ -280,9 +283,18 @@ readonly generateLoading = signal(false);
 
 ```typescript
 const GRADE_OPTIONS = [
-  '國小一', '國小二', '國小三', '國小四', '國小五', '國小六',
-  '國中一', '國中二', '國中三',
-  '高中一', '高中二', '高中三',
+  '國小一',
+  '國小二',
+  '國小三',
+  '國小四',
+  '國小五',
+  '國小六',
+  '國中一',
+  '國中二',
+  '國中三',
+  '高中一',
+  '高中二',
+  '高中三',
 ];
 ```
 
@@ -296,4 +308,4 @@ const GRADE_OPTIONS = [
 
 ---
 
-*文件由 Claude Code 於 2026-02-23 生成*
+_文件由 Claude Code 於 2026-02-23 生成_

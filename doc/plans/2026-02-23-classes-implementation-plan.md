@@ -1,4 +1,4 @@
-# 開課班管理 Implementation Plan
+# 課程管理 Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
@@ -11,9 +11,11 @@
 ---
 
 ## Task 1: DB Migration（Phase 2）
+
 **執行者：Codex**
 
 **Files:**
+
 - Create: `supabase/migrations/20260223000001_create_classes.sql`
 
 ### Step 1: 建立 migration 檔
@@ -230,9 +232,11 @@ git commit -m "feat(db): add classes, schedules, sessions tables with RLS"
 ---
 
 ## Task 2: API Route — /api/classes（Phase 3）
+
 **執行者：Codex**
 
 **Files:**
+
 - Create: `apps/api/src/routes/classes.ts`
 - Modify: `apps/api/src/index.ts`（新增 import + route mount）
 
@@ -426,7 +430,9 @@ app.openapi(
     if (query.courseId) dbQuery = dbQuery.eq('course_id', query.courseId);
     if (query.isActive !== undefined) dbQuery = dbQuery.eq('is_active', query.isActive === 'true');
 
-    dbQuery = dbQuery.range(offset, offset + pageSize - 1).order('created_at', { ascending: false });
+    dbQuery = dbQuery
+      .range(offset, offset + pageSize - 1)
+      .order('created_at', { ascending: false });
 
     const { data, count, error } = await dbQuery;
     if (error) console.error('DB Error:', error);
@@ -440,7 +446,7 @@ app.openapi(
         totalPages: Math.ceil((count || 0) / pageSize),
       },
     });
-  }
+  },
 );
 
 // GET /api/classes/:id（含 schedules）
@@ -477,14 +483,11 @@ app.openapi(
 
     return c.json(
       {
-        data: mapClass(
-          classResult.data as Record<string, unknown>,
-          schedulesResult.data || []
-        ),
+        data: mapClass(classResult.data as Record<string, unknown>, schedulesResult.data || []),
       },
-      200
+      200,
     );
-  }
+  },
 );
 
 // POST /api/classes
@@ -551,7 +554,7 @@ app.openapi(
     }
 
     return c.json({ data: mapClass(data as Record<string, unknown>) }, 201);
-  }
+  },
 );
 
 // PUT /api/classes/:id
@@ -601,7 +604,7 @@ app.openapi(
     }
 
     return c.json({ data: mapClass(data as Record<string, unknown>) }, 200);
-  }
+  },
 );
 
 // PATCH /api/classes/:id/toggle-active
@@ -649,7 +652,7 @@ app.openapi(
     }
 
     return c.json({ data: mapClass(data as Record<string, unknown>) }, 200);
-  }
+  },
 );
 
 // DELETE /api/classes/:id
@@ -687,7 +690,7 @@ app.openapi(
     if (count && count > 0) {
       return c.json(
         { error: `此班級已有 ${count} 筆課堂記錄，無法刪除`, code: 'HAS_SESSIONS' },
-        409
+        409,
       );
     }
 
@@ -697,7 +700,7 @@ app.openapi(
     }
 
     return c.json({ success: true }, 200);
-  }
+  },
 );
 
 // POST /api/classes/:id/schedules
@@ -753,7 +756,7 @@ app.openapi(
     }
 
     return c.json({ data: mapSchedule(data as Record<string, unknown>) }, 201);
-  }
+  },
 );
 
 // PUT /api/classes/:id/schedules/:sid
@@ -804,7 +807,7 @@ app.openapi(
     }
 
     return c.json({ data: mapSchedule(data as Record<string, unknown>) }, 200);
-  }
+  },
 );
 
 // DELETE /api/classes/:id/schedules/:sid
@@ -830,18 +833,14 @@ app.openapi(
     const supabase = c.get('supabase');
     const { id, sid } = c.req.valid('param');
 
-    const { error } = await supabase
-      .from('schedules')
-      .delete()
-      .eq('id', sid)
-      .eq('class_id', id);
+    const { error } = await supabase.from('schedules').delete().eq('id', sid).eq('class_id', id);
 
     if (error) {
       return c.json({ error: '時段不存在', code: 'NOT_FOUND' }, 404);
     }
 
     return c.json({ success: true }, 200);
-  }
+  },
 );
 
 // GET /api/classes/:id/sessions/preview
@@ -898,8 +897,8 @@ app.openapi(
 
     const existingSet = new Set(
       (existingSessions || []).map(
-        (s: { session_date: string; start_time: string }) => `${s.session_date}|${s.start_time}`
-      )
+        (s: { session_date: string; start_time: string }) => `${s.session_date}|${s.start_time}`,
+      ),
     );
 
     const previews: Array<{
@@ -944,11 +943,11 @@ app.openapi(
 
     previews.sort(
       (a, b) =>
-        a.sessionDate.localeCompare(b.sessionDate) || a.startTime.localeCompare(b.startTime)
+        a.sessionDate.localeCompare(b.sessionDate) || a.startTime.localeCompare(b.startTime),
     );
 
     return c.json({ data: previews });
-  }
+  },
 );
 
 // POST /api/classes/:id/sessions/generate
@@ -994,10 +993,7 @@ app.openapi(
       return c.json({ error: '無效日期格式', code: 'INVALID_DATE' }, 400);
     }
 
-    const { data: schedules } = await supabase
-      .from('schedules')
-      .select('*')
-      .eq('class_id', id);
+    const { data: schedules } = await supabase.from('schedules').select('*').eq('class_id', id);
 
     if (!schedules || schedules.length === 0) {
       return c.json({ created: 0, skipped: 0 });
@@ -1062,7 +1058,7 @@ app.openapi(
     const skipped = toInsert.length - created;
 
     return c.json({ created, skipped });
-  }
+  },
 );
 
 export default app;
@@ -1071,11 +1067,13 @@ export default app;
 ### Step 2: 修改 apps/api/src/index.ts
 
 在第 9 行後（現有 import 區塊末尾）新增：
+
 ```typescript
 import classesRoute from './routes/classes';
 ```
 
 在第 132 行後（`app.route('/api/subjects', subjectsRoute);` 之後）新增：
+
 ```typescript
 app.route('/api/classes', classesRoute);
 ```
@@ -1095,9 +1093,11 @@ git commit -m "feat(api): add /api/classes endpoints with schedules and sessions
 ---
 
 ## Task 3: Frontend Service — classes.service.ts（Phase 4）
+
 **執行者：Codex**
 
 **Files:**
+
 - Create: `apps/web/src/app/core/classes.service.ts`
 
 ### Step 1: 建立 classes.service.ts
@@ -1234,39 +1234,39 @@ export class ClassesService {
   updateSchedule(
     classId: string,
     scheduleId: string,
-    input: Partial<CreateScheduleInput>
+    input: Partial<CreateScheduleInput>,
   ): Observable<{ data: Schedule }> {
     return this.http.put<{ data: Schedule }>(
       `${this.endpoint}/${classId}/schedules/${scheduleId}`,
-      input
+      input,
     );
   }
 
   deleteSchedule(classId: string, scheduleId: string): Observable<{ success: boolean }> {
     return this.http.delete<{ success: boolean }>(
-      `${this.endpoint}/${classId}/schedules/${scheduleId}`
+      `${this.endpoint}/${classId}/schedules/${scheduleId}`,
     );
   }
 
   previewSessions(
     classId: string,
     from: string,
-    to: string
+    to: string,
   ): Observable<{ data: SessionPreview[] }> {
     return this.http.get<{ data: SessionPreview[] }>(
       `${this.endpoint}/${classId}/sessions/preview`,
-      { params: { from, to } }
+      { params: { from, to } },
     );
   }
 
   generateSessions(
     classId: string,
     from: string,
-    to: string
+    to: string,
   ): Observable<{ created: number; skipped: number }> {
     return this.http.post<{ created: number; skipped: number }>(
       `${this.endpoint}/${classId}/sessions/generate`,
-      { from, to }
+      { from, to },
     );
   }
 
@@ -1296,11 +1296,13 @@ git commit -m "feat(service): add ClassesService with full CRUD, schedule, and s
 ---
 
 ## Task 4: Frontend Page — classes.page.ts（Phase 5）
+
 **執行者：Claude**
 
 > ⚠️ **UI 開發前必須 invoke `ui-ux-pro-max` skill**
 
 **Files:**
+
 - Create: `apps/web/src/app/features/admin/pages/classes/classes.page.ts`
 - Create: `apps/web/src/app/features/admin/pages/classes/classes.page.html`
 - Create: `apps/web/src/app/features/admin/pages/classes/classes.page.scss`
@@ -1312,6 +1314,7 @@ git commit -m "feat(service): add ClassesService with full CRUD, schedule, and s
 Component class 名稱：`ClassesPage`（非 ClassesComponent）
 
 **關鍵 Imports：**
+
 - Services: `ClassesService`（from `@core/classes.service`）、`CoursesService`、`CampusesService`、`SubjectsService`、`StaffService`
 - Interface: `Staff`（from `@core/staff.service`，非 StaffMember）
 - PrimeNG: `TableModule`、`ButtonModule`、`InputTextModule`、`SelectModule`、`DialogModule`、`TagModule`、`ToastModule`、`ConfirmDialogModule`、`DatePickerModule`、`MultiSelectModule`、`ToggleSwitchModule`、`TooltipModule`
@@ -1391,19 +1394,21 @@ protected readonly generateStep = signal<'input' | 'preview'>('input');
 ```
 
 **ScheduleFormEntry interface（在 component 外定義）：**
+
 ```typescript
 export interface ScheduleFormEntry {
-  id?: string;        // 現有 schedule id（editing 時）
+  id?: string; // 現有 schedule id（editing 時）
   weekday: number | null;
-  startTime: string;  // HH:mm
+  startTime: string; // HH:mm
   endTime: string;
   teacherId: string;
-  effectiveFrom: string;  // YYYY-MM-DD
+  effectiveFrom: string; // YYYY-MM-DD
   effectiveTo: string | null;
 }
 ```
 
 **靜態選項清單：**
+
 ```typescript
 protected readonly gradeOptions = [
   { label: '國小一', value: '國小一' }, { label: '國小二', value: '國小二' },
@@ -1427,6 +1432,7 @@ protected readonly statusOptions = [
 ```
 
 **loadAll() 方法（ngOnInit 中呼叫）：**
+
 ```typescript
 protected loadAll(): void {
   this.loading.set(true);
@@ -1450,6 +1456,7 @@ protected loadAll(): void {
 > **注意：** `CampusesService.list()` 和 `SubjectsService.list()` 可能沒有 meta wrapper，需確認其回傳型別後調整。
 
 **展開/收合班級 detail：**
+
 ```typescript
 protected toggleExpand(classId: string): void {
   if (this.expandedClassId() === classId) {
@@ -1467,6 +1474,7 @@ protected toggleExpand(classId: string): void {
 **saveCourse()：** 依 courseDialogMode 呼叫 create 或 update，成功後更新 courses signal，關閉 dialog，顯示 toast。
 
 **saveClass()：** 依 classDialogMode：
+
 - create：先 create class，再依序 addSchedule（for each scheduleEntries）
 - edit：先 update class，再 diff schedules（刪除移除的、新增新的）
 - 操作完成後 get(classId) 重新載入完整資料，更新 classes signal
@@ -1478,6 +1486,7 @@ protected toggleExpand(classId: string): void {
 **previewSessionsAction() 和 confirmGenerateSessions()：** 分別呼叫 previewSessions 和 generateSessions，更新 dialog step。
 
 **輔助方法：**
+
 ```typescript
 protected getWeekdayLabel(weekday: number): string {
   return ['', '週一', '週二', '週三', '週四', '週五', '週六', '週日'][weekday] ?? '';
@@ -1516,67 +1525,69 @@ HTML 主要結構：
 
   <!-- Course Groups -->
   @if (loading()) {
-    <p-progressBar mode="indeterminate" />
-  } @else {
-    @for (group of courseGroups(); track group.course.id) {
-      <!-- Course Group Header -->
-      <div class="course-group">
-        <div class="course-header">
-          <span class="course-title">
-            {{ group.course.campusName }} › {{ group.course.name }}
-          </span>
-          <span class="course-subject">{{ group.course.subjectName }}</span>
-          <div class="course-actions">
-            <p-button label="編輯課程" (onClick)="openEditCourseDialog(group.course)" ... />
-            <p-button label="+ 新增班" (onClick)="openCreateClassDialog(group.course.id)" ... />
+  <p-progressBar mode="indeterminate" />
+  } @else { @for (group of courseGroups(); track group.course.id) {
+  <!-- Course Group Header -->
+  <div class="course-group">
+    <div class="course-header">
+      <span class="course-title"> {{ group.course.campusName }} › {{ group.course.name }} </span>
+      <span class="course-subject">{{ group.course.subjectName }}</span>
+      <div class="course-actions">
+        <p-button label="編輯課程" (onClick)="openEditCourseDialog(group.course)" ... />
+        <p-button label="+ 新增班" (onClick)="openCreateClassDialog(group.course.id)" ... />
+      </div>
+    </div>
+
+    <!-- Class Rows -->
+    @for (cls of group.classes; track cls.id) {
+    <div class="class-row" [class.expanded]="isExpanded(cls.id)">
+      <div class="class-summary" (click)="toggleExpand(cls.id)">
+        <i
+          class="pi"
+          [class.pi-chevron-right]="!isExpanded(cls.id)"
+          [class.pi-chevron-down]="isExpanded(cls.id)"
+        ></i>
+        <span class="class-name">{{ cls.name }}</span>
+        <span class="class-schedule">{{ getScheduleSummary(cls.schedules ?? []) }}</span>
+        <p-tag
+          [value]="cls.isActive ? '啟用' : '停用'"
+          [severity]="cls.isActive ? 'success' : 'secondary'"
+        />
+      </div>
+
+      @if (isExpanded(cls.id)) {
+      <div class="class-detail">
+        <div class="schedules-list">
+          @for (s of cls.schedules; track s.id) {
+          <div class="schedule-item">
+            {{ getWeekdayLabel(s.weekday) }} {{ s.startTime.substring(0,5) }}-{{
+            s.endTime.substring(0,5) }} · {{ s.teacherName }} · 起: {{ s.effectiveFrom }}
           </div>
+          }
         </div>
-
-        <!-- Class Rows -->
-        @for (cls of group.classes; track cls.id) {
-          <div class="class-row" [class.expanded]="isExpanded(cls.id)">
-            <div class="class-summary" (click)="toggleExpand(cls.id)">
-              <i class="pi" [class.pi-chevron-right]="!isExpanded(cls.id)"
-                           [class.pi-chevron-down]="isExpanded(cls.id)"></i>
-              <span class="class-name">{{ cls.name }}</span>
-              <span class="class-schedule">{{ getScheduleSummary(cls.schedules ?? []) }}</span>
-              <p-tag [value]="cls.isActive ? '啟用' : '停用'"
-                     [severity]="cls.isActive ? 'success' : 'secondary'" />
-            </div>
-
-            @if (isExpanded(cls.id)) {
-              <div class="class-detail">
-                <div class="schedules-list">
-                  @for (s of cls.schedules; track s.id) {
-                    <div class="schedule-item">
-                      {{ getWeekdayLabel(s.weekday) }}
-                      {{ s.startTime.substring(0,5) }}-{{ s.endTime.substring(0,5) }}
-                      · {{ s.teacherName }}
-                      · 起: {{ s.effectiveFrom }}
-                    </div>
-                  }
-                </div>
-                <div class="class-actions">
-                  <p-button label="編輯班級" (onClick)="openEditClassDialog(cls)" ... />
-                  <p-button label="產生課堂" (onClick)="openGenerateDialog(cls)" ... />
-                  <p-button [label]="cls.isActive ? '停用' : '啟用'"
-                            (onClick)="confirmToggleActive(cls)" ... />
-                  <p-button label="刪除" (onClick)="confirmDeleteClass(cls)" severity="danger" ... />
-                </div>
-              </div>
-            }
-          </div>
-        } @empty {
-          <div class="no-classes">此課程尚無班級</div>
-        }
+        <div class="class-actions">
+          <p-button label="編輯班級" (onClick)="openEditClassDialog(cls)" ... />
+          <p-button label="產生課堂" (onClick)="openGenerateDialog(cls)" ... />
+          <p-button
+            [label]="cls.isActive ? '停用' : '啟用'"
+            (onClick)="confirmToggleActive(cls)"
+            ...
+          />
+          <p-button label="刪除" (onClick)="confirmDeleteClass(cls)" severity="danger" ... />
+        </div>
       </div>
+      }
+    </div>
     } @empty {
-      <div class="empty-state">
-        <i class="pi pi-inbox"></i>
-        <p>尚未建立任何課程</p>
-      </div>
+    <div class="no-classes">此課程尚無班級</div>
     }
-  }
+  </div>
+  } @empty {
+  <div class="empty-state">
+    <i class="pi pi-inbox"></i>
+    <p>尚未建立任何課程</p>
+  </div>
+  } }
 </div>
 
 <!-- Course Dialog -->
@@ -1594,22 +1605,22 @@ HTML 主要結構：
 <!-- Generate Sessions Dialog -->
 <p-dialog [(visible)]="generateDialogVisible()" ... header="產生課堂">
   @if (generateStep() === 'input') {
-    <p-datepicker [(ngModel)]="generateFrom()" ... />
-    <p-datepicker [(ngModel)]="generateTo()" ... />
-    <p-button label="預覽" (onClick)="previewSessionsAction()" [loading]="generateLoading()" />
+  <p-datepicker [(ngModel)]="generateFrom()" ... />
+  <p-datepicker [(ngModel)]="generateTo()" ... />
+  <p-button label="預覽" (onClick)="previewSessionsAction()" [loading]="generateLoading()" />
   } @else {
-    <!-- Preview list table -->
-    @for (s of previewSessions(); track s.sessionDate + s.startTime) {
-      <tr [class.exists]="s.exists">
-        <td>{{ s.sessionDate }}</td>
-        <td>{{ getWeekdayLabel(s.weekday) }}</td>
-        <td>{{ s.startTime.substring(0,5) }}-{{ s.endTime.substring(0,5) }}</td>
-        <td>{{ s.teacherName }}</td>
-        <td>{{ s.exists ? '已存在（略過）' : '將新增' }}</td>
-      </tr>
-    }
-    <p-button label="確認建立" (onClick)="confirmGenerateSessions()" [loading]="generateLoading()" />
-    <p-button label="返回" (onClick)="generateStep.set('input')" ... />
+  <!-- Preview list table -->
+  @for (s of previewSessions(); track s.sessionDate + s.startTime) {
+  <tr [class.exists]="s.exists">
+    <td>{{ s.sessionDate }}</td>
+    <td>{{ getWeekdayLabel(s.weekday) }}</td>
+    <td>{{ s.startTime.substring(0,5) }}-{{ s.endTime.substring(0,5) }}</td>
+    <td>{{ s.teacherName }}</td>
+    <td>{{ s.exists ? '已存在（略過）' : '將新增' }}</td>
+  </tr>
+  }
+  <p-button label="確認建立" (onClick)="confirmGenerateSessions()" [loading]="generateLoading()" />
+  <p-button label="返回" (onClick)="generateStep.set('input')" ... />
   }
 </p-dialog>
 ```
@@ -1619,10 +1630,13 @@ HTML 主要結構：
 ### Step 3: 修改 app.routes.ts
 
 找到以下行：
+
 ```typescript
 loadComponent: () => import('@features/admin/pages/classes/classes.component').then((m) => m.ClassesComponent),
 ```
+
 改為：
+
 ```typescript
 loadComponent: () => import('@features/admin/pages/classes/classes.page').then((m) => m.ClassesPage),
 ```
@@ -1649,18 +1663,23 @@ git commit -m "feat(ui): implement classes page with merged courses+classes hier
 ---
 
 ## Task 5: 側邊欄更新（Phase 5b）
+
 **執行者：Claude**
 
 **Files:**
+
 - Modify: `apps/web/src/app/core/smart-enums/routes-catalog.ts`（第 37 行）
 
 ### Step 1: 隱藏 ADMIN_COURSES
 
 在 `routes-catalog.ts` 第 37 行，找到：
+
 ```typescript
 public static readonly ADMIN_COURSES = this.register('courses', '/admin/courses', '課程列表', UserType.ADMIN, 'pi-book', true, '教務管理');
 ```
+
 將 `true`（showInMenu）改為 `false`：
+
 ```typescript
 public static readonly ADMIN_COURSES = this.register('courses', '/admin/courses', '課程列表', UserType.ADMIN, 'pi-book', false, '教務管理');
 ```
@@ -1680,6 +1699,7 @@ git commit -m "feat(nav): hide ADMIN_COURSES from sidebar (merged into /admin/cl
 ---
 
 ## Task 6: E2E 驗證（Phase 6）
+
 **執行者：Codex**
 
 ### Step 1: 啟動開發環境
@@ -1701,7 +1721,7 @@ cd apps/web && npx ng serve &
 7. 再次產生相同日期範圍 → 預覽顯示「已存在（略過）」
 8. 點「停用」→ 確認班級顯示停用 Tag
 9. 用分校下拉篩選 → 確認只顯示該分校課程
-10. 確認側邊欄「課程列表」項目已消失，只有「開課班管理」
+10. 確認側邊欄「課程列表」項目已消失，只有「課程管理」
 
 ### Step 3: 確認無 console errors
 
@@ -1711,17 +1731,17 @@ cd apps/web && npx ng serve &
 
 ## 注意事項
 
-| 項目 | 說明 |
-|------|------|
-| Zod v4 語法 | `z.uuid()` 而非 `z.string().uuid()` |
-| campus_id 推導 | 新增班級時，campus_id 從 course 取得，frontend 不傳 |
-| Weekday 轉換 | JS `getDay()`: 0=Sun → 我們: 1=Mon, 7=Sun |
-| Session upsert | `ignoreDuplicates: true` 跳過重複而非拋錯 |
-| ngModel + Signal | 表單欄位用 `(ngModelChange)` 手動更新 signal，不可直接 `[(ngModel)]="signal()"` |
-| Staff interface | 使用 `Staff`（來自 `@core/staff.service`），屬性為 `displayName` |
-| SubjectsService.list() | 回傳 `{ data: Subject[] }`（無 meta），注意 CampusesService 確認同樣結構 |
-| schedules 展開載入 | 班級 detail 展開時才觸發 `classesService.get(classId)` 取得完整 schedules |
+| 項目                   | 說明                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------- |
+| Zod v4 語法            | `z.uuid()` 而非 `z.string().uuid()`                                             |
+| campus_id 推導         | 新增班級時，campus_id 從 course 取得，frontend 不傳                             |
+| Weekday 轉換           | JS `getDay()`: 0=Sun → 我們: 1=Mon, 7=Sun                                       |
+| Session upsert         | `ignoreDuplicates: true` 跳過重複而非拋錯                                       |
+| ngModel + Signal       | 表單欄位用 `(ngModelChange)` 手動更新 signal，不可直接 `[(ngModel)]="signal()"` |
+| Staff interface        | 使用 `Staff`（來自 `@core/staff.service`），屬性為 `displayName`                |
+| SubjectsService.list() | 回傳 `{ data: Subject[] }`（無 meta），注意 CampusesService 確認同樣結構        |
+| schedules 展開載入     | 班級 detail 展開時才觸發 `classesService.get(classId)` 取得完整 schedules       |
 
 ---
 
-*計畫由 Claude Code 於 2026-02-23 生成*
+_計畫由 Claude Code 於 2026-02-23 生成_

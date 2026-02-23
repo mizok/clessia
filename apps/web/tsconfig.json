@@ -3,12 +3,13 @@
   "compilerOptions": {
     "outDir": "../../dist/out-tsc",
     "module": "preserve",
+    "baseUrl": ".",
     "paths": {
-      "@app/*": ["apps/web/src/app/*"],
-      "@core/*": ["apps/web/src/app/core/*"],
-      "@shared/*": ["apps/web/src/app/shared/*"],
-      "@features/*": ["apps/web/src/app/features/*"],
-      "@env/*": ["apps/web/src/environments/*"],
+      "@app/*": ["src/app/*"],
+      "@core/*": ["src/app/core/*"],
+      "@shared/*": ["src/app/shared/*"],
+      "@features/*": ["src/app/features/*"],
+      "@env/*": ["src/environments/*"],
       "@clessia/shared-types": ["../../packages/shared-types/src/index.ts"],
       "@clessia/validators": ["../../packages/validators/src/index.ts"]
     }
