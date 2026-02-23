@@ -321,19 +321,16 @@
 
   // ---- Detail Panel ----
   &__detail-wrap {
-    display: grid;
-    grid-template-rows: 1fr;
     overflow: hidden;
-    transition: grid-template-rows 0.25s ease;
+    max-height: 800px;
+    transition: max-height 0.25s ease;
 
     &--hidden {
-      grid-template-rows: 0fr;
+      max-height: 0;
     }
   }
 
   &__detail {
-    overflow: hidden;
-    min-height: 0;
     padding: var(--space-4) var(--space-6) var(--space-4) var(--space-10);
     display: flex;
     flex-direction: column;
