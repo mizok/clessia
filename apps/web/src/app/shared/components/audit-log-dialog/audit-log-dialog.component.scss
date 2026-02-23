@@ -1,0 +1,63 @@
+.audit-log-dialog {
+  &__body {
+    height: 340px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+
+    // Override global skeleton-list padding — dialog already has its own padding
+    .skeleton-list {
+      padding: var(--space-3) 0;
+    }
+  }
+
+  &__empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    color: var(--p-text-muted-color);
+
+    i {
+      font-size: 2rem;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.875rem;
+    }
+  }
+
+  &__time {
+    font-size: 0.8125rem;
+    color: var(--p-text-muted-color);
+    white-space: nowrap;
+  }
+
+  &__resource-type {
+    font-size: 0.75rem;
+    color: var(--p-text-muted-color);
+    margin-right: var(--space-1);
+  }
+
+  &__resource-name {
+    font-size: 0.875rem;
+  }
+
+  &__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-3) 0 var(--space-1);
+    border-top: 1px solid var(--p-content-border-color);
+    margin-top: var(--space-2);
+  }
+
+  &__page-info {
+    font-size: 0.875rem;
+    color: var(--p-text-muted-color);
+  }
+}

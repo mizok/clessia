@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAuth } from '../auth';
 import type { AppEnv } from '../index';
+import { logAudit } from '../utils/audit';
 
 // ============================================================
 // Schemas
@@ -787,6 +788,15 @@ app.openapi(createRouteDef, async (c) => {
     return c.json({ error: '建立人員後讀取失敗', code: 'READ_AFTER_CREATE_FAILED' }, 400);
   }
 
+  logAudit(supabase, {
+    orgId,
+    userId: requesterUserId,
+    resourceType: 'staff',
+    resourceId: staffRow.id as string,
+    resourceName: body.displayName,
+    action: 'create',
+  }, c.executionCtx.waitUntil.bind(c.executionCtx));
+
   const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(supabase, [freshStaffRow]);
   return c.json(
     {
@@ -1035,6 +1045,15 @@ app.openapi(updateRoute, async (c) => {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
 
+  logAudit(supabase, {
+    orgId: freshStaffRow['org_id'] as string,
+    userId: requesterUserId,
+    resourceType: 'staff',
+    resourceId: id,
+    resourceName: freshStaffRow['display_name'] as string,
+    action: 'update',
+  }, c.executionCtx.waitUntil.bind(c.executionCtx));
+
   const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(supabase, [freshStaffRow]);
   return c.json({ data: mapStaff(freshStaffRow, campusMap, subjectMap, roleInfoMap) }, 200);
 });
@@ -1117,6 +1136,15 @@ app.openapi(deleteRoute, async (c) => {
   if (deleteRoleError) {
     return c.json({ error: deleteRoleError.message, code: 'DELETE_ROLE_FAILED' }, 400);
   }
+
+  logAudit(supabase, {
+    orgId: staffRow['org_id'] as string,
+    userId: requesterUserId,
+    resourceType: 'staff',
+    resourceId: id,
+    resourceName: staffRow['display_name'] as string,
+    action: 'delete',
+  }, c.executionCtx.waitUntil.bind(c.executionCtx));
 
   return c.json({ success: true }, 200);
 });

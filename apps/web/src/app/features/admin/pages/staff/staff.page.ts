@@ -37,6 +37,7 @@ import { SubjectsService, Subject } from '@core/subjects.service';
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { SubjectManagerComponent } from '@shared/components/subject-manager/subject-manager.component';
+import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 
 const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] = [
   { value: 'basic_operations', label: '日常行政', description: '查詢與處理報名、出勤、請假' },
@@ -82,6 +83,7 @@ const ROLE_OPTIONS: RoleOption[] = [
     CheckboxModule,
     EmptyStateComponent,
     SubjectManagerComponent,
+    AuditLogDialogComponent,
   ],
   providers: [MessageService, ConfirmationService],
   templateUrl: './staff.page.html',
@@ -110,6 +112,7 @@ export class StaffPage implements OnInit {
   readonly dialogVisible = signal(false);
   readonly dialogLoading = signal(false);
   readonly subjectManagerVisible = signal(false);
+  protected readonly auditLogVisible = signal(false);
 
   // Edit form state
   readonly editingStaff = signal<Staff | null>(null);

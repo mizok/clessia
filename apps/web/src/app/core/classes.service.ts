@@ -9,7 +9,7 @@ export interface Schedule {
   weekday: number; // 1=Monday, 7=Sunday
   startTime: string; // HH:mm:ss
   endTime: string;
-  teacherId: string;
+  teacherId: string | null;
   teacherName?: string;
   effectiveFrom: string; // YYYY-MM-DD
   effectiveTo: string | null;
@@ -26,9 +26,14 @@ export interface Class {
   gradeLevels: string[];
   nextClassId: string | null;
   isActive: boolean;
+  scheduleCount?: number;
+  scheduleTeacherIds?: string[];
+  hasUpcomingSessions?: boolean;
   schedules?: Schedule[];
   createdAt: string;
   updatedAt: string;
+  updatedBy?: string | null;
+  updatedByName?: string | null;
 }
 
 export interface ClassListResponse {
@@ -70,7 +75,7 @@ export interface CreateScheduleInput {
   weekday: number;
   startTime: string;
   endTime: string;
-  teacherId: string;
+  teacherId: string | null;
   effectiveFrom: string;
   effectiveTo?: string | null;
 }
@@ -79,10 +84,30 @@ export interface SessionPreview {
   sessionDate: string;
   startTime: string;
   endTime: string;
-  teacherId: string;
+  teacherId: string | null;
   teacherName?: string;
   weekday: number;
   exists: boolean;
+}
+
+export interface CheckConflictScheduleInput {
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  teacherId: string | null;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+}
+
+export interface ScheduleConflict {
+  scheduleIndex: number;
+  teacherName: string;
+  conflictingClassId: string;
+  conflictingClassName: string;
+  conflictingCourseName: string;
+  conflictingWeekday: number;
+  conflictingStartTime: string;
+  conflictingEndTime: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -141,22 +166,59 @@ export class ClassesService {
   previewSessions(
     classId: string,
     from: string,
-    to: string
+    to: string,
+    excludeDates?: string[]
   ): Observable<{ data: SessionPreview[] }> {
+    const params: Record<string, string> = { from, to };
+    if (excludeDates && excludeDates.length > 0) {
+      params['excludeDates'] = excludeDates.join(',');
+    }
     return this.http.get<{ data: SessionPreview[] }>(
       `${this.endpoint}/${classId}/sessions/preview`,
-      { params: { from, to } }
+      { params }
     );
   }
 
   generateSessions(
     classId: string,
     from: string,
-    to: string
+    to: string,
+    excludeDates?: string[]
   ): Observable<{ created: number; skipped: number }> {
     return this.http.post<{ created: number; skipped: number }>(
       `${this.endpoint}/${classId}/sessions/generate`,
-      { from, to }
+      { from, to, ...(excludeDates && excludeDates.length > 0 ? { excludeDates } : {}) }
+    );
+  }
+
+  checkScheduleConflicts(
+    schedules: CheckConflictScheduleInput[],
+    excludeClassId?: string
+  ): Observable<{ conflicts: ScheduleConflict[] }> {
+    return this.http.post<{ conflicts: ScheduleConflict[] }>(
+      `${this.endpoint}/check-conflicts`,
+      { schedules, ...(excludeClassId ? { excludeClassId } : {}) }
+    );
+  }
+
+  batchSetActive(ids: string[], isActive: boolean): Observable<{ updated: number }> {
+    return this.http.patch<{ updated: number }>(`${this.endpoint}/batch-set-active`, {
+      ids,
+      isActive,
+    });
+  }
+
+  batchDelete(ids: string[]): Observable<{ deleted: number; deletedIds: string[]; skipped: number }> {
+    return this.http.delete<{ deleted: number; deletedIds: string[]; skipped: number }>(
+      `${this.endpoint}/batch`,
+      { body: { ids } }
+    );
+  }
+
+  cancelFutureSessions(id: string): Observable<{ cancelled: number }> {
+    return this.http.post<{ cancelled: number }>(
+      `${this.endpoint}/${id}/cancel-future-sessions`,
+      {}
     );
   }
 

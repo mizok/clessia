@@ -18,6 +18,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
+import { TabsModule } from 'primeng/tabs';
 import { MessageService, ConfirmationService } from 'primeng/api';
 
 // Services
@@ -29,6 +30,8 @@ import {
   CreateClassInput,
   UpdateClassInput,
   CreateScheduleInput,
+  CheckConflictScheduleInput,
+  ScheduleConflict,
 } from '@core/classes.service';
 import { CoursesService, Course, CreateCourseInput, UpdateCourseInput } from '@core/courses.service';
 import { CampusesService, Campus } from '@core/campuses.service';
@@ -37,6 +40,7 @@ import { StaffService, Staff } from '@core/staff.service';
 
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 
 export interface ScheduleFormEntry {
@@ -44,7 +48,7 @@ export interface ScheduleFormEntry {
   weekday: number | null;
   startTime: string;
   endTime: string;
-  teacherId: string;
+  teacherId: string | null;
   effectiveFrom: string;
   effectiveTo: string | null;
 }
@@ -75,7 +79,9 @@ interface CourseGroup {
     SkeletonModule,
     IconFieldModule,
     InputIconModule,
+    TabsModule,
     EmptyStateComponent,
+    AuditLogDialogComponent,
   ],
   providers: [MessageService, ConfirmationService],
   templateUrl: './classes.page.html',
@@ -99,14 +105,35 @@ export class ClassesPage implements OnInit {
   protected readonly subjects = signal<Subject[]>([]);
   protected readonly staff = signal<Staff[]>([]);
   protected readonly loading = signal(false);
+  protected readonly auditLogVisible = signal(false);
   protected readonly expandedClassId = signal<string | null>(null);
   protected readonly expandedCourseIds = signal<Set<string>>(new Set());
+
+  // ---- Selection ----
+  protected readonly selectedClassIds = signal<Set<string>>(new Set());
+
+  protected readonly selectedActiveCount = computed(
+    () =>
+      this.classes().filter((cl) => this.selectedClassIds().has(cl.id) && cl.isActive).length
+  );
+
+  protected readonly selectedInactiveCount = computed(
+    () =>
+      this.classes().filter((cl) => this.selectedClassIds().has(cl.id) && !cl.isActive).length
+  );
+
+  protected readonly allVisibleSelected = computed(() => {
+    const visible = this.courseGroups().flatMap((g) => g.classes);
+    return visible.length > 0 && visible.every((cl) => this.selectedClassIds().has(cl.id));
+  });
 
   // ---- Filters ----
   protected readonly searchQuery = signal('');
   protected readonly selectedCampusId = signal<string | null>(null);
   protected readonly selectedSubjectId = signal<string | null>(null);
+  protected readonly selectedTeacherIds = signal<string[]>([]);
   protected readonly statusFilter = signal<boolean | null>(null);
+  protected readonly showInactiveCourses = signal(false);
 
   // ---- Computed options ----
   protected readonly campusOptions = computed(() =>
@@ -119,6 +146,31 @@ export class ClassesPage implements OnInit {
     this.staff().map((s) => ({ label: s.displayName, value: s.id }))
   );
 
+  // 班級 dialog 對應的課程（用來過濾老師）
+  private readonly classDialogCourse = computed(() =>
+    this.courses().find((c) => c.id === this.classDialogCourseId()) ?? null
+  );
+
+  // 只顯示「服務該分校 + 教該科目」的老師
+  protected readonly filteredStaffOptions = computed(() => {
+    const course = this.classDialogCourse();
+    if (!course) return this.staffOptions();
+
+    return this.staff()
+      .filter(
+        (s) =>
+          s.campusIds.includes(course.campusId) &&
+          s.subjectIds.includes(course.subjectId)
+      )
+      .map((s) => ({ label: s.displayName, value: s.id }));
+  });
+
+  protected readonly editingCourseActiveClassCount = computed(() => {
+    const courseId = this.editingCourseId();
+    if (!courseId) return 0;
+    return this.classes().filter((cl) => cl.courseId === courseId && cl.isActive).length;
+  });
+
   // ---- Computed course groups ----
   protected readonly courseGroups = computed((): CourseGroup[] => {
     const allCourses = this.courses();
@@ -126,10 +178,12 @@ export class ClassesPage implements OnInit {
     const search = this.searchQuery().toLowerCase();
     const campusId = this.selectedCampusId();
     const subjectId = this.selectedSubjectId();
+    const teacherIds = this.selectedTeacherIds();
     const isActive = this.statusFilter();
 
     return allCourses
       .filter((c) => {
+        if (!this.showInactiveCourses() && !c.isActive) return false;
         if (campusId && c.campusId !== campusId) return false;
         if (subjectId && c.subjectId !== subjectId) return false;
         return true;
@@ -141,6 +195,11 @@ export class ClassesPage implements OnInit {
           classes: allClasses.filter((cl) => {
             if (cl.courseId !== course.id) return false;
             if (isActive !== null && cl.isActive !== isActive) return false;
+            if (
+              teacherIds.length > 0 &&
+              !teacherIds.some((id) => cl.scheduleTeacherIds?.includes(id))
+            )
+              return false;
             // 課程名稱符合：顯示該課程所有班級；否則只顯示班級名稱符合的
             if (search && !courseMatchesSearch && !cl.name.toLowerCase().includes(search))
               return false;
@@ -150,7 +209,7 @@ export class ClassesPage implements OnInit {
       })
       .filter((g) => {
         if (g.classes.length > 0) return true;
-        if (!search && isActive === null) return true;
+        if (!search && isActive === null && teacherIds.length === 0) return true;
         // 課程名稱符合搜尋時，即使沒有班級也顯示
         return !!(search && g.course.name.toLowerCase().includes(search));
       });
@@ -159,9 +218,10 @@ export class ClassesPage implements OnInit {
   protected readonly hasActiveFilters = computed(
     () =>
       !!this.searchQuery() ||
-      !!this.selectedCampusId() ||
       !!this.selectedSubjectId() ||
-      this.statusFilter() !== null
+      this.selectedTeacherIds().length > 0 ||
+      this.statusFilter() !== null ||
+      this.showInactiveCourses()
   );
 
   // ---- Course Dialog ----
@@ -200,11 +260,21 @@ export class ClassesPage implements OnInit {
     this.classDialogMode() === 'create' ? '新增班級' : '編輯班級'
   );
 
+  // ---- Deactivate Class Dialog ----
+  protected readonly deactivateDialogVisible = signal(false);
+  protected readonly deactivateTargetClass = signal<Class | null>(null);
+  protected readonly deactivateLoading = signal(false);
+
+  // ---- Conflict Warning Dialog ----
+  protected readonly conflictDialogVisible = signal(false);
+  protected readonly pendingConflicts = signal<ScheduleConflict[]>([]);
+
   // ---- Generate Sessions Dialog ----
   protected readonly generateDialogVisible = signal(false);
   protected readonly generateTargetClass = signal<Class | null>(null);
   protected readonly generateFrom = signal<Date | null>(null);
   protected readonly generateTo = signal<Date | null>(null);
+  protected readonly generateExcludeDates = signal<Date[]>([]);
   protected readonly previewSessions = signal<SessionPreview[]>([]);
   protected readonly generateLoading = signal(false);
   protected readonly generateStep = signal<'input' | 'preview'>('input');
@@ -294,18 +364,36 @@ export class ClassesPage implements OnInit {
     }
     this.classesService.get(classId).subscribe({
       next: (res) => {
-        this.classes.update((list) => list.map((cl) => (cl.id === classId ? res.data : cl)));
+        this.classes.update((list) =>
+          list.map((cl) => {
+            if (cl.id !== classId) return cl;
+            const schedules = res.data.schedules ?? [];
+            return {
+              ...res.data,
+              scheduleCount: schedules.length,
+              scheduleTeacherIds: schedules
+                .map((s) => s.teacherId)
+                .filter((id): id is string => !!id),
+              hasUpcomingSessions: cl.hasUpcomingSessions,
+            };
+          })
+        );
         this.expandedClassId.set(classId);
       },
       error: (err) => console.error('Failed to load class detail', err),
     });
   }
 
+  protected onCampusTabChange(value: string | number | null | undefined): void {
+    this.selectedCampusId.set(!value || value === 'all' ? null : String(value));
+  }
+
   protected clearFilters(): void {
     this.searchQuery.set('');
-    this.selectedCampusId.set(null);
     this.selectedSubjectId.set(null);
+    this.selectedTeacherIds.set([]);
     this.statusFilter.set(null);
+    this.showInactiveCourses.set(false);
   }
 
   protected isCourseCollapsed(courseId: string): boolean {
@@ -520,7 +608,7 @@ export class ClassesPage implements OnInit {
         weekday: 1,
         startTime: '09:00',
         endTime: '11:00',
-        teacherId: this.staffOptions()[0]?.value ?? '',
+        teacherId: null,
         effectiveFrom: today,
         effectiveTo: null,
       },
@@ -539,22 +627,67 @@ export class ClassesPage implements OnInit {
 
   protected saveClass(): void {
     const form = this.classForm();
-    const courseId = this.classDialogCourseId()!;
 
     if (!form.name.trim()) {
       this.messageService.add({ severity: 'warn', summary: '請填寫班級名稱', detail: '' });
       return;
     }
-
-    const incompleteSchedule = this.scheduleEntries().find((e) => !e.teacherId || !e.weekday);
+    const incompleteSchedule = this.scheduleEntries().find((e) => !e.weekday);
     if (incompleteSchedule) {
       this.messageService.add({
         severity: 'warn',
         summary: '時段資料不完整',
-        detail: '請確認每個時段都已指派老師',
+        detail: '請確認每個時段都已設定上課星期',
       });
       return;
     }
+
+    // 只對「新增的」時段（無 id）且有老師指定的做衝突檢查
+    const toCheck: CheckConflictScheduleInput[] = this.scheduleEntries()
+      .filter((e) => !e.id && !!e.teacherId && !!e.weekday)
+      .map((e) => ({
+        weekday: e.weekday!,
+        startTime: e.startTime,
+        endTime: e.endTime,
+        teacherId: e.teacherId,
+        effectiveFrom: e.effectiveFrom,
+        effectiveTo: e.effectiveTo,
+      }));
+
+    if (toCheck.length === 0) {
+      this.doSaveClass();
+      return;
+    }
+
+    const excludeClassId = this.editingClassId() ?? undefined;
+    this.classDialogLoading.set(true);
+    this.classesService.checkScheduleConflicts(toCheck, excludeClassId).subscribe({
+      next: (res) => {
+        this.classDialogLoading.set(false);
+        if (res.conflicts.length > 0) {
+          this.pendingConflicts.set(res.conflicts);
+          this.conflictDialogVisible.set(true);
+        } else {
+          this.doSaveClass();
+        }
+      },
+      error: () => {
+        // 衝突檢查失敗時 soft-fail，直接儲存
+        this.classDialogLoading.set(false);
+        this.doSaveClass();
+      },
+    });
+  }
+
+  protected proceedSaveDespiteConflicts(): void {
+    this.conflictDialogVisible.set(false);
+    this.pendingConflicts.set([]);
+    this.doSaveClass();
+  }
+
+  private doSaveClass(): void {
+    const form = this.classForm();
+    const courseId = this.classDialogCourseId()!;
 
     this.classDialogLoading.set(true);
 
@@ -643,7 +776,7 @@ export class ClassesPage implements OnInit {
       return;
     }
     const entry = entries[index];
-    if (!entry.teacherId || !entry.weekday) {
+    if (!entry.weekday) {
       this.addSchedulesSequentially(classId, entries, index + 1, onComplete);
       return;
     }
@@ -664,10 +797,26 @@ export class ClassesPage implements OnInit {
   private reloadClass(classId: string, mode: 'create' | 'edit'): void {
     this.classesService.get(classId).subscribe({
       next: (res) => {
+        const schedules = res.data.schedules ?? [];
+        const derived = {
+          scheduleCount: schedules.length,
+          scheduleTeacherIds: schedules
+            .map((s) => s.teacherId)
+            .filter((id): id is string => !!id),
+        };
         if (mode === 'create') {
-          this.classes.update((list) => [res.data, ...list]);
+          this.classes.update((list) => [
+            { ...res.data, ...derived, hasUpcomingSessions: false },
+            ...list,
+          ]);
         } else {
-          this.classes.update((list) => list.map((cl) => (cl.id === classId ? res.data : cl)));
+          this.classes.update((list) =>
+            list.map((cl) =>
+              cl.id === classId
+                ? { ...res.data, ...derived, hasUpcomingSessions: cl.hasUpcomingSessions }
+                : cl
+            )
+          );
         }
         this.expandedClassId.set(classId);
         this.classDialogVisible.set(false);
@@ -682,6 +831,151 @@ export class ClassesPage implements OnInit {
         this.classDialogLoading.set(false);
         this.classDialogVisible.set(false);
         this.loadAll();
+      },
+    });
+  }
+
+  // ================================================================
+  // Batch Operations
+  // ================================================================
+
+  protected toggleClassSelection(classId: string, event: Event): void {
+    event.stopPropagation();
+    this.selectedClassIds.update((ids) => {
+      const next = new Set(ids);
+      if (next.has(classId)) {
+        next.delete(classId);
+      } else {
+        next.add(classId);
+      }
+      return next;
+    });
+  }
+
+  protected toggleSelectAll(): void {
+    const visible = this.courseGroups().flatMap((g) => g.classes);
+    if (this.allVisibleSelected()) {
+      this.selectedClassIds.set(new Set());
+    } else {
+      this.selectedClassIds.set(new Set(visible.map((cl) => cl.id)));
+    }
+  }
+
+  protected clearSelection(): void {
+    this.selectedClassIds.set(new Set());
+  }
+
+  protected batchActivate(): void {
+    const ids = this.classes()
+      .filter((cl) => this.selectedClassIds().has(cl.id) && !cl.isActive)
+      .map((cl) => cl.id);
+    if (ids.length === 0) return;
+
+    this.confirmationService.confirm({
+      message: `確定要啟用這 ${ids.length} 個班級嗎？`,
+      header: '批次啟用',
+      icon: 'pi pi-check-circle',
+      acceptLabel: '啟用',
+      rejectLabel: '取消',
+      accept: () => {
+        this.classesService.batchSetActive(ids, true).subscribe({
+          next: (res) => {
+            this.classes.update((list) =>
+              list.map((cl) => (ids.includes(cl.id) ? { ...cl, isActive: true } : cl))
+            );
+            this.selectedClassIds.set(new Set());
+            this.messageService.add({
+              severity: 'success',
+              summary: '批次啟用完成',
+              detail: `已啟用 ${res.updated} 個班級`,
+            });
+          },
+          error: (err) => {
+            this.messageService.add({
+              severity: 'error',
+              summary: '批次啟用失敗',
+              detail: err.error?.error || '請稍後再試',
+            });
+          },
+        });
+      },
+    });
+  }
+
+  protected batchDeactivate(): void {
+    const ids = this.classes()
+      .filter((cl) => this.selectedClassIds().has(cl.id) && cl.isActive)
+      .map((cl) => cl.id);
+    if (ids.length === 0) return;
+
+    this.confirmationService.confirm({
+      message: `確定要停用這 ${ids.length} 個班級嗎？停用後無法新增報名與產生課堂。`,
+      header: '批次停用',
+      icon: 'pi pi-ban',
+      acceptLabel: '停用',
+      rejectLabel: '取消',
+      acceptButtonStyleClass: 'p-button-danger',
+      accept: () => {
+        this.classesService.batchSetActive(ids, false).subscribe({
+          next: (res) => {
+            this.classes.update((list) =>
+              list.map((cl) => (ids.includes(cl.id) ? { ...cl, isActive: false } : cl))
+            );
+            this.selectedClassIds.set(new Set());
+            this.messageService.add({
+              severity: 'success',
+              summary: '批次停用完成',
+              detail: `已停用 ${res.updated} 個班級`,
+            });
+          },
+          error: (err) => {
+            this.messageService.add({
+              severity: 'error',
+              summary: '批次停用失敗',
+              detail: err.error?.error || '請稍後再試',
+            });
+          },
+        });
+      },
+    });
+  }
+
+  protected batchDelete(): void {
+    const ids = [...this.selectedClassIds()];
+    if (ids.length === 0) return;
+
+    this.confirmationService.confirm({
+      message: `確定要刪除這 ${ids.length} 個班級嗎？有課堂記錄的班級將略過。此操作無法復原。`,
+      header: '批次刪除',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: '刪除',
+      rejectLabel: '取消',
+      acceptButtonStyleClass: 'p-button-danger',
+      accept: () => {
+        this.classesService.batchDelete(ids).subscribe({
+          next: (res) => {
+            this.classes.update((list) =>
+              list.filter((cl) => !res.deletedIds.includes(cl.id))
+            );
+            this.selectedClassIds.set(new Set());
+            const detail =
+              res.skipped > 0
+                ? `已刪除 ${res.deleted} 個，略過 ${res.skipped} 個（已有課堂記錄）`
+                : `已刪除 ${res.deleted} 個班級`;
+            this.messageService.add({
+              severity: res.skipped > 0 ? 'warn' : 'success',
+              summary: '批次刪除完成',
+              detail,
+            });
+          },
+          error: (err) => {
+            this.messageService.add({
+              severity: 'error',
+              summary: '批次刪除失敗',
+              detail: err.error?.error || '請稍後再試',
+            });
+          },
+        });
       },
     });
   }
@@ -718,33 +1012,124 @@ export class ClassesPage implements OnInit {
   }
 
   protected confirmToggleActive(cls: Class): void {
-    const action = cls.isActive ? '停用' : '啟用';
-    this.confirmationService.confirm({
-      message: `確定要${action}班級「${cls.name}」嗎？`,
-      header: `確認${action}`,
-      icon: 'pi pi-question-circle',
-      acceptLabel: action,
-      rejectLabel: '取消',
-      accept: () => {
-        this.classesService.toggleActive(cls.id).subscribe({
-          next: (res) => {
-            this.classes.update((list) =>
-              list.map((c) => (c.id === cls.id ? res.data : c))
-            );
+    if (cls.isActive) {
+      // 停用 → 開啟自訂 Dialog
+      this.deactivateTargetClass.set(cls);
+      this.deactivateDialogVisible.set(true);
+    } else {
+      // 啟用 → 維持簡單 confirm
+      this.confirmationService.confirm({
+        message: `確定要啟用班級「${cls.name}」嗎？`,
+        header: '確認啟用',
+        icon: 'pi pi-question-circle',
+        acceptLabel: '啟用',
+        rejectLabel: '取消',
+        accept: () => this.doToggleActive(cls, false),
+      });
+    }
+  }
+
+  protected deactivateOnly(): void {
+    const cls = this.deactivateTargetClass();
+    if (!cls) return;
+    this.deactivateLoading.set(true);
+    this.classesService.toggleActive(cls.id).subscribe({
+      next: (res) => {
+        this.classes.update((list) =>
+          list.map((c) =>
+            c.id === cls.id
+              ? {
+                  ...res.data,
+                  schedules: c.schedules,
+                  scheduleCount: c.scheduleCount,
+                  scheduleTeacherIds: c.scheduleTeacherIds,
+                  hasUpcomingSessions: c.hasUpcomingSessions,
+                }
+              : c
+          )
+        );
+        this.deactivateDialogVisible.set(false);
+        this.deactivateLoading.set(false);
+        this.messageService.add({ severity: 'success', summary: '停用成功', detail: `「${cls.name}」已停用` });
+      },
+      error: (err) => {
+        this.deactivateLoading.set(false);
+        this.messageService.add({ severity: 'error', summary: '停用失敗', detail: err.error?.error || '請稍後再試' });
+      },
+    });
+  }
+
+  protected deactivateAndCancelSessions(): void {
+    const cls = this.deactivateTargetClass();
+    if (!cls) return;
+    this.deactivateLoading.set(true);
+    // 先停用，再取消未來課堂
+    this.classesService.toggleActive(cls.id).subscribe({
+      next: (res) => {
+        this.classes.update((list) =>
+          list.map((c) =>
+            c.id === cls.id
+              ? {
+                  ...res.data,
+                  schedules: c.schedules,
+                  scheduleCount: c.scheduleCount,
+                  scheduleTeacherIds: c.scheduleTeacherIds,
+                  hasUpcomingSessions: c.hasUpcomingSessions,
+                }
+              : c
+          )
+        );
+        this.classesService.cancelFutureSessions(cls.id).subscribe({
+          next: (r) => {
+            this.deactivateDialogVisible.set(false);
+            this.deactivateLoading.set(false);
             this.messageService.add({
               severity: 'success',
-              summary: `${action}成功`,
-              detail: `「${cls.name}」已${action}`,
+              summary: '停用成功',
+              detail: `「${cls.name}」已停用，已取消 ${r.cancelled} 筆未來課堂`,
             });
           },
-          error: (err) => {
+          error: () => {
+            // 停用成功但取消課堂失敗，仍算部分成功
+            this.deactivateDialogVisible.set(false);
+            this.deactivateLoading.set(false);
             this.messageService.add({
-              severity: 'error',
-              summary: `${action}失敗`,
-              detail: err.error?.error || '請稍後再試',
+              severity: 'warn',
+              summary: '班級已停用',
+              detail: '取消未來課堂時發生錯誤，請手動確認',
             });
           },
         });
+      },
+      error: (err) => {
+        this.deactivateLoading.set(false);
+        this.messageService.add({ severity: 'error', summary: '停用失敗', detail: err.error?.error || '請稍後再試' });
+      },
+    });
+  }
+
+  private doToggleActive(cls: Class, expectedIsActive: boolean): void {
+    this.classesService.toggleActive(cls.id).subscribe({
+      next: (res) => {
+        this.classes.update((list) =>
+          list.map((c) =>
+            c.id === cls.id
+              ? {
+                  ...res.data,
+                  schedules: c.schedules,
+                  scheduleCount: c.scheduleCount,
+                  scheduleTeacherIds: c.scheduleTeacherIds,
+                  hasUpcomingSessions: c.hasUpcomingSessions,
+                }
+              : c
+          )
+        );
+        const action = expectedIsActive ? '停用' : '啟用';
+        this.messageService.add({ severity: 'success', summary: `${action}成功`, detail: `「${cls.name}」已${action}` });
+      },
+      error: (err) => {
+        const action = expectedIsActive ? '停用' : '啟用';
+        this.messageService.add({ severity: 'error', summary: `${action}失敗`, detail: err.error?.error || '請稍後再試' });
       },
     });
   }
@@ -757,6 +1142,7 @@ export class ClassesPage implements OnInit {
     this.generateTargetClass.set(cls);
     this.generateFrom.set(null);
     this.generateTo.set(null);
+    this.generateExcludeDates.set([]);
     this.previewSessions.set([]);
     this.generateStep.set('input');
     this.generateDialogVisible.set(true);
@@ -773,7 +1159,13 @@ export class ClassesPage implements OnInit {
     this.generateLoading.set(true);
     const fromStr = from.toISOString().split('T')[0];
     const toStr = to.toISOString().split('T')[0];
-    this.classesService.previewSessions(cls.id, fromStr, toStr).subscribe({
+    const excludeDates = this.generateExcludeDates().map((d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    });
+    this.classesService.previewSessions(cls.id, fromStr, toStr, excludeDates).subscribe({
       next: (res) => {
         this.previewSessions.set(res.data);
         this.generateLoading.set(false);
@@ -799,7 +1191,13 @@ export class ClassesPage implements OnInit {
     this.generateLoading.set(true);
     const fromStr = from.toISOString().split('T')[0];
     const toStr = to.toISOString().split('T')[0];
-    this.classesService.generateSessions(cls.id, fromStr, toStr).subscribe({
+    const excludeDates = this.generateExcludeDates().map((d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    });
+    this.classesService.generateSessions(cls.id, fromStr, toStr, excludeDates).subscribe({
       next: (res) => {
         this.generateLoading.set(false);
         this.generateDialogVisible.set(false);

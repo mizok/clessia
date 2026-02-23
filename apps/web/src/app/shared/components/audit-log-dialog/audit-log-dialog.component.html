@@ -1,0 +1,76 @@
+<p-dialog
+  [header]="title()"
+  [visible]="visible()"
+  (visibleChange)="visible.set($event)"
+  [modal]="true"
+  [style]="{ width: '860px', maxWidth: '95vw' }"
+  [draggable]="false"
+  [resizable]="false"
+  (onShow)="onShow()"
+>
+  <div class="audit-log-dialog__body">
+    @if (loading()) {
+      <div class="skeleton-list">
+        <span class="skeleton-bar skeleton-bar--label"></span>
+        @for (_ of [1, 2, 3, 4, 5]; track $index) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
+    } @else if (logs().length === 0) {
+      <div class="audit-log-dialog__empty">
+        <i class="pi pi-history"></i>
+        <p>尚無操作紀錄</p>
+      </div>
+    } @else {
+      <p-table [value]="logs()" [tableStyle]="{ 'min-width': '600px' }">
+        <ng-template #header>
+          <tr>
+            <th style="width: 180px">時間</th>
+            <th style="width: 120px">操作者</th>
+            <th>對象</th>
+            <th style="width: 120px">動作</th>
+          </tr>
+        </ng-template>
+        <ng-template #body let-log>
+          <tr>
+            <td class="audit-log-dialog__time">{{ log.createdAt | date: 'yyyy-MM-dd HH:mm:ss' }}</td>
+            <td>{{ log.userName ?? '—' }}</td>
+            <td>
+              <span class="audit-log-dialog__resource-type">{{ getResourceTypeLabel(log.resourceType) }}</span>
+              <span class="audit-log-dialog__resource-name">{{ log.resourceName ?? '—' }}</span>
+            </td>
+            <td>
+              <p-tag
+                [value]="getActionConfig(log.action).label"
+                [severity]="getActionConfig(log.action).severity"
+              />
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+
+      <!-- Pagination -->
+      @if (totalPages() > 1) {
+        <div class="audit-log-dialog__pagination">
+          <p-button
+            icon="pi pi-chevron-left"
+            [text]="true"
+            severity="secondary"
+            [disabled]="isFirstPage()"
+            (onClick)="prevPage()"
+          />
+          <span class="audit-log-dialog__page-info">
+            第 {{ page() }} 頁，共 {{ totalPages() }} 頁（{{ total() }} 筆）
+          </span>
+          <p-button
+            icon="pi pi-chevron-right"
+            [text]="true"
+            severity="secondary"
+            [disabled]="isLastPage()"
+            (onClick)="nextPage()"
+          />
+        </div>
+      }
+    }
+  </div>
+</p-dialog>

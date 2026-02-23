@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
+import { logAudit } from '../utils/audit';
 
 // ============================================================
 // Schemas (with OpenAPI metadata)
@@ -261,6 +262,7 @@ const createCourseRoute = createRoute({
 app.openapi(createCourseRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
+  const userId = c.get('userId');
   const body = c.req.valid('json');
 
   const { data, error } = await supabase
@@ -281,6 +283,15 @@ app.openapi(createCourseRoute, async (c) => {
     }
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
+
+  logAudit(supabase, {
+    orgId,
+    userId,
+    resourceType: 'course',
+    resourceId: data.id as string,
+    resourceName: data.name as string,
+    action: 'create',
+  }, c.executionCtx.waitUntil.bind(c.executionCtx));
 
   return c.json({ data: mapCourse(data as Record<string, unknown>) }, 201);
 });
@@ -325,6 +336,8 @@ const updateRoute = createRoute({
 
 app.openapi(updateRoute, async (c) => {
   const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const userId = c.get('userId');
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
 
@@ -344,6 +357,15 @@ app.openapi(updateRoute, async (c) => {
   if (error || !data) {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
+
+  logAudit(supabase, {
+    orgId,
+    userId,
+    resourceType: 'course',
+    resourceId: id,
+    resourceName: data.name as string,
+    action: 'update',
+  }, c.executionCtx.waitUntil.bind(c.executionCtx));
 
   return c.json({ data: mapCourse(data as Record<string, unknown>) }, 200);
 });
@@ -390,6 +412,8 @@ const deleteRoute = createRoute({
 
 app.openapi(deleteRoute, async (c) => {
   const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const userId = c.get('userId');
   const { id } = c.req.valid('param');
 
   // Check for related classes
@@ -405,11 +429,22 @@ app.openapi(deleteRoute, async (c) => {
     );
   }
 
+  const { data: existing } = await supabase.from('courses').select('name').eq('id', id).single();
+
   const { error } = await supabase.from('courses').delete().eq('id', id);
 
   if (error) {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
+
+  logAudit(supabase, {
+    orgId,
+    userId,
+    resourceType: 'course',
+    resourceId: id,
+    resourceName: existing?.name ?? null,
+    action: 'delete',
+  }, c.executionCtx.waitUntil.bind(c.executionCtx));
 
   return c.json({ success: true }, 200);
 });

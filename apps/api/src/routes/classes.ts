@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
+import { logAudit } from '../utils/audit';
 
 // ============================================================
 // Schemas
@@ -12,7 +13,7 @@ const ScheduleSchema = z
     weekday: z.number().int().min(1).max(7),
     startTime: z.string(),
     endTime: z.string(),
-    teacherId: z.uuid(),
+    teacherId: z.uuid().nullable(),
     teacherName: z.string().optional(),
     effectiveFrom: z.string(),
     effectiveTo: z.string().nullable(),
@@ -31,9 +32,14 @@ const ClassSchema = z
     gradeLevels: z.array(z.string()),
     nextClassId: z.uuid().nullable(),
     isActive: z.boolean(),
+    scheduleCount: z.number().optional(),
+    scheduleTeacherIds: z.array(z.string()).optional(),
+    hasUpcomingSessions: z.boolean().optional(),
     schedules: z.array(ScheduleSchema).optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    updatedBy: z.string().nullable().optional(),
+    updatedByName: z.string().nullable().optional(),
   })
   .openapi('Class');
 
@@ -74,7 +80,7 @@ const CreateScheduleSchema = z
     weekday: z.number().int().min(1).max(7),
     startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
     endTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
-    teacherId: z.uuid(),
+    teacherId: z.uuid().nullable().optional(),
     effectiveFrom: z.string(),
     effectiveTo: z.string().nullable().optional(),
   })
@@ -85,7 +91,7 @@ const SessionPreviewSchema = z
     sessionDate: z.string(),
     startTime: z.string(),
     endTime: z.string(),
-    teacherId: z.uuid(),
+    teacherId: z.uuid().nullable(),
     teacherName: z.string().optional(),
     weekday: z.number(),
     exists: z.boolean(),
@@ -98,6 +104,35 @@ const ErrorSchema = z
     code: z.string().optional(),
   })
   .openapi('Error');
+
+const CheckConflictsRequestSchema = z
+  .object({
+    schedules: z.array(
+      z.object({
+        weekday: z.number().int().min(1).max(7),
+        startTime: z.string(),
+        endTime: z.string(),
+        teacherId: z.uuid().nullable(),
+        effectiveFrom: z.string(),
+        effectiveTo: z.string().nullable().optional(),
+      })
+    ),
+    excludeClassId: z.uuid().optional(),
+  })
+  .openapi('CheckConflictsRequest');
+
+const ScheduleConflictItemSchema = z
+  .object({
+    scheduleIndex: z.number().int(),
+    teacherName: z.string(),
+    conflictingClassId: z.uuid(),
+    conflictingClassName: z.string(),
+    conflictingCourseName: z.string(),
+    conflictingWeekday: z.number().int(),
+    conflictingStartTime: z.string(),
+    conflictingEndTime: z.string(),
+  })
+  .openapi('ScheduleConflictItem');
 
 const QueryParamsSchema = z.object({
   page: z.string().optional(),
@@ -119,14 +154,22 @@ function mapSchedule(row: Record<string, unknown>) {
     weekday: row['weekday'] as number,
     startTime: row['start_time'] as string,
     endTime: row['end_time'] as string,
-    teacherId: row['teacher_id'] as string,
+    teacherId: (row['teacher_id'] as string | null) ?? null,
     teacherName: (row['staff'] as { display_name: string } | null)?.display_name,
     effectiveFrom: row['effective_from'] as string,
     effectiveTo: (row['effective_to'] as string | null) ?? null,
   };
 }
 
-function mapClass(row: Record<string, unknown>, schedules?: unknown[]) {
+interface ClassExtras {
+  schedules?: unknown[];
+  scheduleCount?: number;
+  scheduleTeacherIds?: string[];
+  hasUpcomingSessions?: boolean;
+  updatedByName?: string | null;
+}
+
+function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
   return {
     id: row['id'] as string,
     orgId: row['org_id'] as string,
@@ -138,9 +181,14 @@ function mapClass(row: Record<string, unknown>, schedules?: unknown[]) {
     gradeLevels: (row['grade_levels'] as string[]) ?? [],
     nextClassId: (row['next_class_id'] as string | null) ?? null,
     isActive: row['is_active'] as boolean,
-    schedules: schedules?.map((s) => mapSchedule(s as Record<string, unknown>)),
+    scheduleCount: extras?.scheduleCount,
+    scheduleTeacherIds: extras?.scheduleTeacherIds,
+    hasUpcomingSessions: extras?.hasUpcomingSessions,
+    schedules: extras?.schedules?.map((s) => mapSchedule(s as Record<string, unknown>)),
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
+    updatedBy: (row['updated_by'] as string | null) ?? null,
+    updatedByName: extras?.updatedByName ?? null,
   };
 }
 
@@ -186,8 +234,48 @@ app.openapi(
     const { data, count, error } = await dbQuery;
     if (error) console.error('DB Error:', error);
 
+    const rows = data || [];
+    const classIds = rows.map((r) => r.id as string);
+
+    // Batch-fetch schedule counts & teacher IDs for this page
+    const scheduleCountMap: Record<string, number> = {};
+    const scheduleTeacherMap: Record<string, string[]> = {};
+    const hasUpcomingSet = new Set<string>();
+
+    if (classIds.length > 0) {
+      const [schedulesResult, sessionsResult] = await Promise.all([
+        supabase.from('schedules').select('class_id, teacher_id').in('class_id', classIds),
+        supabase
+          .from('sessions')
+          .select('class_id')
+          .in('class_id', classIds)
+          .gte('session_date', new Date().toISOString().split('T')[0])
+          .eq('status', 'scheduled'),
+      ]);
+
+      for (const s of schedulesResult.data || []) {
+        const cid = s.class_id as string;
+        scheduleCountMap[cid] = (scheduleCountMap[cid] ?? 0) + 1;
+        if (s.teacher_id) {
+          scheduleTeacherMap[cid] = scheduleTeacherMap[cid] ?? [];
+          scheduleTeacherMap[cid].push(s.teacher_id as string);
+        }
+      }
+
+      for (const s of sessionsResult.data || []) {
+        hasUpcomingSet.add(s.class_id as string);
+      }
+    }
+
     return c.json({
-      data: (data || []).map((r) => mapClass(r as Record<string, unknown>)),
+      data: rows.map((r) => {
+        const id = r.id as string;
+        return mapClass(r as Record<string, unknown>, {
+          scheduleCount: scheduleCountMap[id] ?? 0,
+          scheduleTeacherIds: scheduleTeacherMap[id] ?? [],
+          hasUpcomingSessions: hasUpcomingSet.has(id),
+        });
+      }),
       meta: {
         total: count || 0,
         page,
@@ -195,6 +283,242 @@ app.openapi(
         totalPages: Math.ceil((count || 0) / pageSize),
       },
     });
+  }
+);
+
+// POST /api/classes/check-conflicts
+// 注意：必須在所有 /{id} 路由之前定義，否則 check-conflicts 會被當成 :id
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/check-conflicts',
+    tags: ['Classes'],
+    summary: '排課衝突預檢（soft check，不阻擋儲存）',
+    request: {
+      body: { content: { 'application/json': { schema: CheckConflictsRequestSchema } } },
+    },
+    responses: {
+      200: {
+        description: '成功',
+        content: {
+          'application/json': {
+            schema: z.object({ conflicts: z.array(ScheduleConflictItemSchema) }),
+          },
+        },
+      },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const { schedules, excludeClassId } = c.req.valid('json');
+
+    const schedulesToCheck = schedules.filter((s) => s.teacherId != null);
+    if (schedulesToCheck.length === 0) {
+      return c.json({ conflicts: [] }, 200);
+    }
+
+    const teacherIds = [...new Set(schedulesToCheck.map((s) => s.teacherId as string))];
+
+    // Step 1: 取得此 org 的所有班級 id（確保跨組織隔離）
+    const { data: orgClasses } = await supabase
+      .from('classes')
+      .select('id')
+      .eq('org_id', orgId);
+    let orgClassIds = (orgClasses || []).map((c) => c.id as string);
+
+    if (excludeClassId) {
+      orgClassIds = orgClassIds.filter((id) => id !== excludeClassId);
+    }
+
+    if (orgClassIds.length === 0) {
+      return c.json({ conflicts: [] }, 200);
+    }
+
+    // Step 2: 查詢這些班級中屬於這些老師的所有時段
+    const { data: existingSchedules, error } = await supabase
+      .from('schedules')
+      .select('*, staff(display_name), classes(name, courses(name))')
+      .in('teacher_id', teacherIds)
+      .in('class_id', orgClassIds);
+
+    if (error) {
+      console.error('check-conflicts DB error:', error);
+      return c.json({ conflicts: [] }, 200); // soft-fail
+    }
+
+    type ConflictItem = {
+      scheduleIndex: number;
+      teacherName: string;
+      conflictingClassId: string;
+      conflictingClassName: string;
+      conflictingCourseName: string;
+      conflictingWeekday: number;
+      conflictingStartTime: string;
+      conflictingEndTime: string;
+    };
+
+    const conflicts: ConflictItem[] = [];
+
+    for (let i = 0; i < schedules.length; i++) {
+      const s = schedules[i];
+      if (!s.teacherId) continue;
+
+      const sStart = s.startTime.substring(0, 5);
+      const sEnd = s.endTime.substring(0, 5);
+
+      for (const existing of existingSchedules || []) {
+        if (existing.teacher_id !== s.teacherId) continue;
+        if (existing.weekday !== s.weekday) continue;
+
+        // 時間重疊：兩段 [s1,e1) 與 [s2,e2) 重疊條件 = s1 < e2 && s2 < e1
+        const eStart = (existing.start_time as string).substring(0, 5);
+        const eEnd = (existing.end_time as string).substring(0, 5);
+        if (sStart >= eEnd || eStart >= sEnd) continue;
+
+        // 日期範圍重疊
+        const sFrom = s.effectiveFrom;
+        const sTo = s.effectiveTo ?? null;
+        const eFrom = existing.effective_from as string;
+        const eTo = (existing.effective_to as string | null) ?? null;
+        if (sTo && sTo < eFrom) continue;
+        if (eTo && eTo < sFrom) continue;
+
+        const clsData = existing.classes as {
+          name: string;
+          courses: { name: string } | null;
+        } | null;
+        const teacherData = existing.staff as { display_name: string } | null;
+
+        conflicts.push({
+          scheduleIndex: i,
+          teacherName: teacherData?.display_name ?? '未知老師',
+          conflictingClassId: existing.class_id as string,
+          conflictingClassName: clsData?.name ?? '未知班級',
+          conflictingCourseName: clsData?.courses?.name ?? '未知課程',
+          conflictingWeekday: existing.weekday as number,
+          conflictingStartTime: existing.start_time as string,
+          conflictingEndTime: existing.end_time as string,
+        });
+      }
+    }
+
+    return c.json({ conflicts }, 200);
+  }
+);
+
+// PATCH /api/classes/batch-set-active
+app.openapi(
+  createRoute({
+    method: 'patch',
+    path: '/batch-set-active',
+    tags: ['Classes'],
+    summary: '批次啟用/停用班級',
+    request: {
+      body: {
+        content: {
+          'application/json': {
+            schema: z.object({ ids: z.array(z.uuid()), isActive: z.boolean() }),
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: '成功',
+        content: { 'application/json': { schema: z.object({ updated: z.number() }) } },
+      },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
+    const { ids, isActive } = c.req.valid('json');
+    if (ids.length === 0) return c.json({ updated: 0 }, 200);
+
+    const { data, error } = await supabase
+      .from('classes')
+      .update({ is_active: isActive, updated_by: userId })
+      .in('id', ids)
+      .select('id');
+
+    if (error) return c.json({ updated: 0 }, 200);
+
+    logAudit(supabase, {
+      orgId,
+      userId,
+      resourceType: 'class',
+      action: isActive ? 'batch_activate' : 'batch_deactivate',
+      details: { count: ids.length },
+    }, c.executionCtx.waitUntil.bind(c.executionCtx));
+
+    return c.json({ updated: data?.length ?? 0 }, 200);
+  }
+);
+
+// DELETE /api/classes/batch
+app.openapi(
+  createRoute({
+    method: 'delete',
+    path: '/batch',
+    tags: ['Classes'],
+    summary: '批次刪除班級（有 sessions 的略過）',
+    request: {
+      body: {
+        content: {
+          'application/json': { schema: z.object({ ids: z.array(z.uuid()) }) },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: '成功',
+        content: {
+          'application/json': {
+            schema: z.object({
+              deleted: z.number(),
+              deletedIds: z.array(z.string()),
+              skipped: z.number(),
+            }),
+          },
+        },
+      },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
+    const { ids } = c.req.valid('json');
+    if (ids.length === 0) return c.json({ deleted: 0, deletedIds: [], skipped: 0 }, 200);
+
+    // 查哪些班級有 sessions（有的不能刪）
+    const { data: withSessions } = await supabase
+      .from('sessions')
+      .select('class_id')
+      .in('class_id', ids);
+
+    const hasSessionsSet = new Set((withSessions || []).map((s) => s.class_id as string));
+    const toDeleteIds = ids.filter((id) => !hasSessionsSet.has(id));
+    const skipped = ids.length - toDeleteIds.length;
+
+    if (toDeleteIds.length === 0) {
+      return c.json({ deleted: 0, deletedIds: [], skipped }, 200);
+    }
+
+    const { error } = await supabase.from('classes').delete().in('id', toDeleteIds);
+    if (error) return c.json({ deleted: 0, deletedIds: [], skipped }, 200);
+
+    logAudit(supabase, {
+      orgId,
+      userId,
+      resourceType: 'class',
+      action: 'batch_delete',
+      details: { count: toDeleteIds.length },
+    }, c.executionCtx.waitUntil.bind(c.executionCtx));
+
+    return c.json({ deleted: toDeleteIds.length, deletedIds: toDeleteIds, skipped }, 200);
   }
 );
 
@@ -230,9 +554,24 @@ app.openapi(
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
+    // 查修改者姓名（profiles.id = ba_user.id，每個登入用戶都有 profile）
+    let updatedByName: string | null = null;
+    const updatedByUserId = classResult.data.updated_by as string | null;
+    if (updatedByUserId) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', updatedByUserId)
+        .maybeSingle();
+      updatedByName = profileData?.display_name ?? null;
+    }
+
     return c.json(
       {
-        data: mapClass(classResult.data as Record<string, unknown>, schedulesResult.data || []),
+        data: mapClass(classResult.data as Record<string, unknown>, {
+          schedules: schedulesResult.data || [],
+          updatedByName,
+        }),
       },
       200
     );
@@ -267,6 +606,7 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
+    const userId = c.get('userId');
     const body = c.req.valid('json');
 
     // 從 course 取得 campus_id
@@ -290,6 +630,7 @@ app.openapi(
         max_students: body.maxStudents ?? 20,
         grade_levels: body.gradeLevels ?? [],
         next_class_id: body.nextClassId ?? null,
+        updated_by: userId,
       })
       .select('*, courses(name)')
       .single();
@@ -301,7 +642,16 @@ app.openapi(
       return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
     }
 
-    return c.json({ data: mapClass(data as Record<string, unknown>) }, 201);
+    logAudit(supabase, {
+      orgId,
+      userId,
+      resourceType: 'class',
+      resourceId: data.id as string,
+      resourceName: data.name as string,
+      action: 'create',
+    }, c.executionCtx.waitUntil.bind(c.executionCtx));
+
+    return c.json({ data: mapClass(data as Record<string, unknown>, {}) }, 201);
   }
 );
 
@@ -329,10 +679,11 @@ app.openapi(
   }),
   async (c) => {
     const supabase = c.get('supabase');
+    const userId = c.get('userId');
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
 
-    const updateData: Record<string, unknown> = {};
+    const updateData: Record<string, unknown> = { updated_by: userId };
     if (body.name !== undefined) updateData['name'] = body.name;
     if (body.maxStudents !== undefined) updateData['max_students'] = body.maxStudents;
     if (body.gradeLevels !== undefined) updateData['grade_levels'] = body.gradeLevels;
@@ -350,7 +701,16 @@ app.openapi(
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
-    return c.json({ data: mapClass(data as Record<string, unknown>) }, 200);
+    logAudit(supabase, {
+      orgId: c.get('orgId'),
+      userId,
+      resourceType: 'class',
+      resourceId: id,
+      resourceName: data.name as string,
+      action: 'update',
+    }, c.executionCtx.waitUntil.bind(c.executionCtx));
+
+    return c.json({ data: mapClass(data as Record<string, unknown>, {}) }, 200);
   }
 );
 
@@ -375,6 +735,7 @@ app.openapi(
   }),
   async (c) => {
     const supabase = c.get('supabase');
+    const userId = c.get('userId');
     const { id } = c.req.valid('param');
 
     const { data: current } = await supabase
@@ -389,7 +750,7 @@ app.openapi(
 
     const { data, error } = await supabase
       .from('classes')
-      .update({ is_active: !current.is_active })
+      .update({ is_active: !current.is_active, updated_by: userId })
       .eq('id', id)
       .select('*, courses(name)')
       .single();
@@ -398,7 +759,17 @@ app.openapi(
       return c.json({ error: '更新失敗', code: 'UPDATE_FAILED' }, 404);
     }
 
-    return c.json({ data: mapClass(data as Record<string, unknown>) }, 200);
+    logAudit(supabase, {
+      orgId: c.get('orgId'),
+      userId,
+      resourceType: 'class',
+      resourceId: id,
+      resourceName: data.name as string,
+      action: 'toggle_active',
+      details: { isActive: !current.is_active },
+    }, c.executionCtx.waitUntil.bind(c.executionCtx));
+
+    return c.json({ data: mapClass(data as Record<string, unknown>, {}) }, 200);
   }
 );
 
@@ -427,6 +798,8 @@ app.openapi(
   }),
   async (c) => {
     const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
     const { id } = c.req.valid('param');
 
     const { count } = await supabase
@@ -441,10 +814,25 @@ app.openapi(
       );
     }
 
+    const { data: existing } = await supabase
+      .from('classes')
+      .select('name')
+      .eq('id', id)
+      .single();
+
     const { error } = await supabase.from('classes').delete().eq('id', id);
     if (error) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
+
+    logAudit(supabase, {
+      orgId,
+      userId,
+      resourceType: 'class',
+      resourceId: id,
+      resourceName: existing?.name ?? null,
+      action: 'delete',
+    }, c.executionCtx.waitUntil.bind(c.executionCtx));
 
     return c.json({ success: true }, 200);
   }
@@ -478,8 +866,12 @@ app.openapi(
   }),
   async (c) => {
     const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
+
+    const { data: cls } = await supabase.from('classes').select('name').eq('id', id).single();
 
     const { data, error } = await supabase
       .from('schedules')
@@ -488,7 +880,7 @@ app.openapi(
         weekday: body.weekday,
         start_time: body.startTime,
         end_time: body.endTime,
-        teacher_id: body.teacherId,
+        teacher_id: body.teacherId ?? null,
         effective_from: body.effectiveFrom,
         effective_to: body.effectiveTo ?? null,
       })
@@ -501,6 +893,16 @@ app.openapi(
       }
       return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
     }
+
+    logAudit(supabase, {
+      orgId,
+      userId,
+      resourceType: 'class',
+      resourceId: id,
+      resourceName: cls?.name ?? null,
+      action: 'add_schedule',
+      details: { weekday: body.weekday, startTime: body.startTime, endTime: body.endTime },
+    }, c.executionCtx.waitUntil.bind(c.executionCtx));
 
     return c.json({ data: mapSchedule(data as Record<string, unknown>) }, 201);
   }
@@ -578,7 +980,11 @@ app.openapi(
   }),
   async (c) => {
     const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
     const { id, sid } = c.req.valid('param');
+
+    const { data: cls } = await supabase.from('classes').select('name').eq('id', id).single();
 
     const { error } = await supabase
       .from('schedules')
@@ -589,6 +995,15 @@ app.openapi(
     if (error) {
       return c.json({ error: '時段不存在', code: 'NOT_FOUND' }, 404);
     }
+
+    logAudit(supabase, {
+      orgId,
+      userId,
+      resourceType: 'class',
+      resourceId: id,
+      resourceName: cls?.name ?? null,
+      action: 'delete_schedule',
+    }, c.executionCtx.waitUntil.bind(c.executionCtx));
 
     return c.json({ success: true }, 200);
   }
@@ -603,7 +1018,7 @@ app.openapi(
     summary: '預覽將產生的課堂',
     request: {
       params: z.object({ id: z.uuid() }),
-      query: z.object({ from: z.string(), to: z.string() }),
+      query: z.object({ from: z.string(), to: z.string(), excludeDates: z.string().optional() }),
     },
     responses: {
       200: {
@@ -621,7 +1036,7 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const { id } = c.req.valid('param');
-    const { from, to } = c.req.valid('query');
+    const { from, to, excludeDates } = c.req.valid('query');
 
     const fromDate = new Date(from);
     const toDate = new Date(to);
@@ -629,6 +1044,8 @@ app.openapi(
     if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
       return c.json({ error: '無效日期格式', code: 'INVALID_DATE' }, 400);
     }
+
+    const excludeSet = new Set(excludeDates ? excludeDates.split(',').filter(Boolean) : []);
 
     const { data: schedules } = await supabase
       .from('schedules')
@@ -656,7 +1073,7 @@ app.openapi(
       sessionDate: string;
       startTime: string;
       endTime: string;
-      teacherId: string;
+      teacherId: string | null;
       teacherName?: string;
       weekday: number;
       exists: boolean;
@@ -668,6 +1085,11 @@ app.openapi(
       // JS getDay(): 0=Sun, 1=Mon...6=Sat → 我們: 1=Mon...7=Sun
       const jsDay = cursor.getDay();
       const weekday = jsDay === 0 ? 7 : jsDay;
+
+      if (excludeSet.has(isoDate)) {
+        cursor.setDate(cursor.getDate() + 1);
+        continue;
+      }
 
       for (const schedule of schedules) {
         if (schedule.weekday !== weekday) continue;
@@ -712,7 +1134,13 @@ app.openapi(
       params: z.object({ id: z.uuid() }),
       body: {
         content: {
-          'application/json': { schema: z.object({ from: z.string(), to: z.string() }) },
+          'application/json': {
+            schema: z.object({
+              from: z.string(),
+              to: z.string(),
+              excludeDates: z.array(z.string()).optional(),
+            }),
+          },
         },
       },
     },
@@ -735,7 +1163,7 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const { id } = c.req.valid('param');
-    const { from, to } = c.req.valid('json');
+    const { from, to, excludeDates } = c.req.valid('json');
 
     const fromDate = new Date(from);
     const toDate = new Date(to);
@@ -743,6 +1171,8 @@ app.openapi(
     if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
       return c.json({ error: '無效日期格式', code: 'INVALID_DATE' }, 400);
     }
+
+    const excludeSet = new Set(excludeDates ?? []);
 
     const { data: schedules } = await supabase.from('schedules').select('*').eq('class_id', id);
 
@@ -757,7 +1187,7 @@ app.openapi(
       session_date: string;
       start_time: string;
       end_time: string;
-      teacher_id: string;
+      teacher_id: string; // sessions require a teacher; schedules without teacher are skipped
       status: string;
     }> = [];
 
@@ -767,8 +1197,14 @@ app.openapi(
       const jsDay = cursor.getDay();
       const weekday = jsDay === 0 ? 7 : jsDay;
 
+      if (excludeSet.has(isoDate)) {
+        cursor.setDate(cursor.getDate() + 1);
+        continue;
+      }
+
       for (const schedule of schedules) {
         if (schedule.weekday !== weekday) continue;
+        if (!schedule.teacher_id) continue; // skip schedules without a teacher
 
         const effFrom = new Date(schedule.effective_from);
         const effTo = schedule.effective_to ? new Date(schedule.effective_to) : null;
@@ -809,6 +1245,62 @@ app.openapi(
     const skipped = toInsert.length - created;
 
     return c.json({ created, skipped }, 200);
+  }
+);
+
+// POST /api/classes/:id/cancel-future-sessions
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/{id}/cancel-future-sessions',
+    tags: ['Classes'],
+    summary: '取消此班級所有未來已排定的課堂',
+    request: { params: z.object({ id: z.uuid() }) },
+    responses: {
+      200: {
+        description: '成功',
+        content: {
+          'application/json': {
+            schema: z.object({ cancelled: z.number() }),
+          },
+        },
+      },
+      404: {
+        description: '班級不存在',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const { id } = c.req.valid('param');
+
+    // 確認班級存在
+    const { data: cls } = await supabase
+      .from('classes')
+      .select('id')
+      .eq('id', id)
+      .single();
+
+    if (!cls) {
+      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+
+    const { data: updated, error } = await supabase
+      .from('sessions')
+      .update({ status: 'cancelled' })
+      .eq('class_id', id)
+      .gte('session_date', today)
+      .eq('status', 'scheduled')
+      .select('id');
+
+    if (error) {
+      return c.json({ error: error.message, code: 'DB_ERROR' }, 404);
+    }
+
+    return c.json({ cancelled: updated?.length ?? 0 }, 200);
   }
 );
 

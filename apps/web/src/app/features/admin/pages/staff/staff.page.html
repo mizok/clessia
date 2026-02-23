@@ -8,7 +8,16 @@
       <h1 class="staff__title">人員管理</h1>
       <p class="staff__subtitle">管理管理員、老師帳號</p>
     </div>
-    <p-button label="新增人員" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+    <div class="staff__header-actions">
+      <p-button
+        label="操作紀錄"
+        icon="pi pi-history"
+        [outlined]="true"
+        severity="secondary"
+        (onClick)="auditLogVisible.set(true)"
+      />
+      <p-button label="新增人員" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+    </div>
   </header>
 
   <!-- Main Card -->
@@ -87,28 +96,9 @@
     <div class="staff__content">
       @if (loading()) {
         <!-- Skeleton Loading -->
-        <div class="skeleton-table">
+        <div class="skeleton-list">
           @for (i of [1, 2, 3, 4, 5]; track i) {
-            <div class="skeleton-table__row">
-              <div class="skeleton-table__cell skeleton-table__cell--name">
-                <p-skeleton width="100%" height="1.25rem" />
-              </div>
-              <div class="skeleton-table__cell skeleton-table__cell--role">
-                <p-skeleton width="60px" height="1.25rem" />
-              </div>
-              <div class="skeleton-table__cell skeleton-table__cell--campus">
-                <p-skeleton width="100%" height="1.25rem" />
-              </div>
-              <div class="skeleton-table__cell skeleton-table__cell--phone">
-                <p-skeleton width="100%" height="1.25rem" />
-              </div>
-              <div class="skeleton-table__cell skeleton-table__cell--status">
-                <p-skeleton width="50px" height="1.25rem" />
-              </div>
-              <div class="skeleton-table__cell skeleton-table__cell--actions">
-                <p-skeleton width="60px" height="1.25rem" />
-              </div>
-            </div>
+            <span class="skeleton-bar"></span>
           }
         </div>
       } @else if (filteredStaff().length === 0) {
@@ -541,3 +531,9 @@
     </div>
   </div>
 </p-dialog>
+
+<app-audit-log-dialog
+  [(visible)]="auditLogVisible"
+  [resourceTypes]="['staff']"
+  title="人員管理操作紀錄"
+/>

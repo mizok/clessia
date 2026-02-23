@@ -27,6 +27,7 @@ import {
 
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 
 @Component({
   selector: 'app-campuses',
@@ -47,6 +48,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
     IconFieldModule,
     InputIconModule,
     EmptyStateComponent,
+    AuditLogDialogComponent,
   ],
   providers: [MessageService, ConfirmationService],
   templateUrl: './campuses.page.html',
@@ -63,6 +65,7 @@ export class CampusesPage implements OnInit {
   readonly searchQuery = signal('');
   readonly dialogVisible = signal(false);
   readonly dialogLoading = signal(false);
+  protected readonly auditLogVisible = signal(false);
 
   // Edit form state
   readonly editingCampus = signal<Campus | null>(null);
