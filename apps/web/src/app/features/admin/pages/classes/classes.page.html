@@ -209,7 +209,10 @@
                     </div>
 
                     <!-- Expanded Detail -->
-                    @if (isExpanded(cls.id)) {
+                    <div
+                      class="class-row__detail-wrap"
+                      [class.class-row__detail-wrap--hidden]="!isExpanded(cls.id)"
+                    >
                       <div class="class-row__detail">
                         <!-- Schedules -->
                         <div class="class-detail__section">
@@ -289,7 +292,7 @@
                           />
                         </div>
                       </div>
-                    }
+                    </div>
                   </div>
                 } @empty {
                   <div class="course-group__empty">此課程尚無班級，點擊「新增班」建立</div>

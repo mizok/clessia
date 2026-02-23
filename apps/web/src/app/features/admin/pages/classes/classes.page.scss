@@ -320,7 +320,19 @@
   }
 
   // ---- Detail Panel ----
+  &__detail-wrap {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.25s ease;
+
+    &--hidden {
+      grid-template-rows: 0fr;
+    }
+  }
+
   &__detail {
+    overflow: hidden;
+    min-height: 0;
     padding: var(--space-4) var(--space-6) var(--space-4) var(--space-10);
     display: flex;
     flex-direction: column;
