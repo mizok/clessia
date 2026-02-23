@@ -208,6 +208,7 @@
   min-height: 100dvh;
   background: var(--zinc-50);
   height: var(--window-height);
+  --app-header-height: 56px;
 }
 
 .shell-layout__body {

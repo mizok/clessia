@@ -307,46 +307,6 @@
   }
 }
 
-// Skeleton Loading
-.skeleton-table {
-  padding: var(--space-4) var(--space-6);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-
-  &__row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    padding: var(--space-3) 0;
-    border-bottom: 1px solid var(--zinc-100);
-
-    &:last-child {
-      border-bottom: none;
-    }
-  }
-
-  &__cell {
-    &--name {
-      flex: 0 0 25%;
-    }
-    &--campus {
-      flex: 0 0 20%;
-    }
-    &--subject {
-      flex: 0 0 15%;
-    }
-    &--status {
-      flex: 0 0 10%;
-    }
-    &--actions {
-      flex: 0 0 10%;
-      display: flex;
-      justify-content: flex-end;
-    }
-  }
-}
-
 // Dialog Form
 .course-dialog {
   &__form {
@@ -558,33 +518,6 @@
 
     &__card-view {
       display: flex;
-    }
-  }
-
-  // Mobile skeleton - simplified
-  .skeleton-table {
-    padding: var(--space-4);
-
-    &__row {
-      flex-wrap: wrap;
-    }
-
-    &__cell {
-      &--name {
-        flex: 1 1 100%;
-      }
-      &--campus {
-        flex: 1 1 100%;
-      }
-      &--subject {
-        flex: 1 1 50%;
-      }
-      &--status {
-        flex: 1 1 50%;
-      }
-      &--actions {
-        display: none;
-      }
     }
   }
 

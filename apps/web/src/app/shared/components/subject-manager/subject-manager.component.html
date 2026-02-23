@@ -14,7 +14,7 @@
     @if (loading()) {
       @for (_ of [1, 2, 3]; track $index) {
         <div class="subject-manager__row subject-manager__row--skeleton">
-          <p-skeleton height="2rem" />
+          <span class="skeleton-bar"></span>
         </div>
       }
     } @else {

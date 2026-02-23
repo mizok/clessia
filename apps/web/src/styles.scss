@@ -272,6 +272,8 @@ select {
    ============================================================================= */
 .p-toast {
   opacity: 1;
+  z-index: 9999 !important;
+  top: calc(var(--app-header-height, 0px) + 20px) !important;
 
   .p-toast-message {
     border-radius: var(--radius-lg);
@@ -443,6 +445,94 @@ select {
     background: var(--zinc-700);
     border-color: var(--zinc-700);
   }
+}
+
+/* =============================================================================
+   Utilities
+   ============================================================================= */
+/* =============================================================================
+   Skeleton Loading Animation (global override)
+   ============================================================================= */
+@keyframes skeleton-wave {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.p-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--p-surface-200) 0%,
+    var(--p-surface-100) 50%,
+    var(--p-surface-200) 100%
+  ) !important;
+  background-size: 200% 100% !important;
+  animation: skeleton-wave 1.5s linear infinite !important;
+
+  &::after {
+    display: none !important;
+  }
+}
+
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-6);
+}
+
+.skeleton-bar {
+  display: block;
+  height: 1rem;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--p-surface-200) 0%,
+    var(--p-surface-100) 50%,
+    var(--p-surface-200) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-wave 1.5s linear infinite;
+
+  &--label {
+    width: 40%;
+    opacity: 0.6;
+  }
+}
+
+/* =============================================================================
+   Route View Transitions
+   ============================================================================= */
+@keyframes vt-fade-in {
+  from { opacity: 0; }
+}
+
+@keyframes vt-fade-out {
+  to { opacity: 0; }
+}
+
+/* Suppress root — prevents sidebar/header from being captured in the snapshot */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+/* Only the content area fades */
+::view-transition-old(route-content) {
+  animation: 150ms ease-in vt-fade-out both;
+}
+
+::view-transition-new(route-content) {
+  animation: 250ms ease-out vt-fade-in both;
+}
+
+/* Tag the content areas that change on route navigation */
+.shell-route-wrapper,
+.shell-content {
+  view-transition-name: route-content;
 }
 
 /* =============================================================================

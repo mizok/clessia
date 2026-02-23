@@ -15,13 +15,11 @@ export const routes: Routes = [
         loadComponent: () =>
           import('@features/public/pages/login/login.component').then((m) => m.LoginComponent),
         canActivate: [guestGuard],
-        data: { animation: 'Login' },
       },
       {
         path: RoutesCatalog.PUBLIC_TRIAL.relativePath,
         loadComponent: () =>
           import('@features/public/pages/trial/trial.component').then((m) => m.TrialComponent),
-        data: { animation: 'Trial' },
       },
       {
         path: RoutesCatalog.PUBLIC_ENROLLMENT.relativePath,
@@ -29,7 +27,6 @@ export const routes: Routes = [
           import('@features/public/pages/enrollment/enrollment.component').then(
             (m) => m.EnrollmentComponent,
           ),
-        data: { animation: 'Enrollment' },
       },
       {
         path: RoutesCatalog.PUBLIC_CHECKIN.relativePath,
@@ -37,7 +34,6 @@ export const routes: Routes = [
           import('@features/public/pages/qr-checkin/qr-checkin.component').then(
             (m) => m.QrCheckinComponent,
           ),
-        data: { animation: 'QrCheckin' },
       },
       {
         path: RoutesCatalog.PUBLIC_FORGOT_PASSWORD.relativePath,
@@ -46,7 +42,6 @@ export const routes: Routes = [
             (m) => m.ForgotPasswordComponent,
           ),
         canActivate: [guestGuard],
-        data: { animation: 'ForgotPassword' },
       },
       {
         path: RoutesCatalog.PUBLIC_RESET_PASSWORD.relativePath,
@@ -55,7 +50,6 @@ export const routes: Routes = [
             (m) => m.ResetPasswordComponent,
           ),
         canActivate: [guestGuard],
-        data: { animation: 'ResetPassword' },
       },
       {
         path: RoutesCatalog.PUBLIC_CHANGE_PASSWORD.relativePath,
@@ -63,7 +57,6 @@ export const routes: Routes = [
           import('@features/public/pages/change-password/change-password.component').then(
             (m) => m.ChangePasswordComponent,
           ),
-        data: { animation: 'ChangePassword' },
       },
       { path: '', redirectTo: 'login', pathMatch: 'full' },
     ],
@@ -104,13 +97,13 @@ export const routes: Routes = [
               import('@features/admin/pages/dashboard/dashboard.component').then(
                 (m) => m.DashboardComponent,
               ),
-            data: { animation: 'AdminDashboard', page: RoutesCatalog.ADMIN_DASHBOARD },
+            data: { page: RoutesCatalog.ADMIN_DASHBOARD },
           },
           {
             path: RoutesCatalog.ADMIN_CALENDAR.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/calendar/calendar.page').then((m) => m.CalendarPage),
-            data: { animation: 'AdminCalendar', page: RoutesCatalog.ADMIN_CALENDAR },
+            data: { page: RoutesCatalog.ADMIN_CALENDAR },
           },
           {
             path: RoutesCatalog.ADMIN_ATTENDANCE.relativePath,
@@ -118,25 +111,25 @@ export const routes: Routes = [
               import('@features/admin/pages/attendance/attendance.page').then(
                 (m) => m.AttendancePage,
               ),
-            data: { animation: 'AdminAttendance', page: RoutesCatalog.ADMIN_ATTENDANCE },
+            data: { page: RoutesCatalog.ADMIN_ATTENDANCE },
           },
           {
             path: RoutesCatalog.ADMIN_LEAVE.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/leave/leave.page').then((m) => m.LeavePage),
-            data: { animation: 'AdminLeave', page: RoutesCatalog.ADMIN_LEAVE },
+            data: { page: RoutesCatalog.ADMIN_LEAVE },
           },
           {
             path: RoutesCatalog.ADMIN_MEALS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/meals/meals.component').then((m) => m.MealsComponent),
-            data: { animation: 'AdminMeals', page: RoutesCatalog.ADMIN_MEALS },
+            data: { page: RoutesCatalog.ADMIN_MEALS },
           },
           {
             path: RoutesCatalog.ADMIN_GRADES.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/grades/grades.component').then((m) => m.GradesComponent),
-            data: { animation: 'AdminGrades', page: RoutesCatalog.ADMIN_GRADES },
+            data: { page: RoutesCatalog.ADMIN_GRADES },
           },
           {
             path: RoutesCatalog.ADMIN_SESSIONS.relativePath,
@@ -144,7 +137,7 @@ export const routes: Routes = [
               import('@features/admin/pages/sessions/sessions.component').then(
                 (m) => m.SessionsComponent,
               ),
-            data: { animation: 'AdminSessions', page: RoutesCatalog.ADMIN_SESSIONS },
+            data: { page: RoutesCatalog.ADMIN_SESSIONS },
           },
           {
             path: RoutesCatalog.ADMIN_CHANGES.relativePath,
@@ -152,13 +145,13 @@ export const routes: Routes = [
               import('@features/admin/pages/changes/changes.component').then(
                 (m) => m.ChangesComponent,
               ),
-            data: { animation: 'AdminChanges', page: RoutesCatalog.ADMIN_CHANGES },
+            data: { page: RoutesCatalog.ADMIN_CHANGES },
           },
           {
             path: RoutesCatalog.ADMIN_TASKS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/tasks/tasks.component').then((m) => m.TasksComponent),
-            data: { animation: 'AdminTasks', page: RoutesCatalog.ADMIN_TASKS },
+            data: { page: RoutesCatalog.ADMIN_TASKS },
           },
           {
             path: RoutesCatalog.ADMIN_NOTIFICATIONS.relativePath,
@@ -166,61 +159,61 @@ export const routes: Routes = [
               import('@features/admin/pages/notifications/notifications.component').then(
                 (m) => m.NotificationsComponent,
               ),
-            data: { animation: 'AdminNotifications', page: RoutesCatalog.ADMIN_NOTIFICATIONS },
+            data: { page: RoutesCatalog.ADMIN_NOTIFICATIONS },
           },
           {
             path: RoutesCatalog.ADMIN_STUDENTS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/students/students.page').then((m) => m.StudentsPage),
-            data: { animation: 'AdminStudents', page: RoutesCatalog.ADMIN_STUDENTS },
+            data: { page: RoutesCatalog.ADMIN_STUDENTS },
           },
           {
             path: RoutesCatalog.ADMIN_PARENTS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/parents/parents.page').then((m) => m.ParentsPage),
-            data: { animation: 'AdminParents', page: RoutesCatalog.ADMIN_PARENTS },
+            data: { page: RoutesCatalog.ADMIN_PARENTS },
           },
           {
             path: RoutesCatalog.ADMIN_COURSES.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/courses/courses.page').then((m) => m.CoursesPage),
-            data: { animation: 'AdminCourses', page: RoutesCatalog.ADMIN_COURSES },
+            data: { page: RoutesCatalog.ADMIN_COURSES },
           },
           {
             path: RoutesCatalog.ADMIN_SCHEDULE.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/schedule/schedule.page').then((m) => m.SchedulePage),
-            data: { animation: 'AdminSchedule', page: RoutesCatalog.ADMIN_SCHEDULE },
+            data: { page: RoutesCatalog.ADMIN_SCHEDULE },
           },
           {
             path: RoutesCatalog.ADMIN_PAYMENTS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/payments/payments.page').then((m) => m.PaymentsPage),
-            data: { animation: 'AdminPayments', page: RoutesCatalog.ADMIN_PAYMENTS },
+            data: { page: RoutesCatalog.ADMIN_PAYMENTS },
           },
           {
             path: RoutesCatalog.ADMIN_REPORTS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/reports/reports.page').then((m) => m.ReportsPage),
-            data: { animation: 'AdminReports', page: RoutesCatalog.ADMIN_REPORTS },
+            data: { page: RoutesCatalog.ADMIN_REPORTS },
           },
           {
             path: RoutesCatalog.ADMIN_CAMPUSES.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/campuses/campuses.page').then((m) => m.CampusesPage),
-            data: { animation: 'AdminCampuses', page: RoutesCatalog.ADMIN_CAMPUSES },
+            data: { page: RoutesCatalog.ADMIN_CAMPUSES },
           },
           {
             path: RoutesCatalog.ADMIN_SETTINGS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/settings/settings.page').then((m) => m.SettingsPage),
-            data: { animation: 'AdminSettings', page: RoutesCatalog.ADMIN_SETTINGS },
+            data: { page: RoutesCatalog.ADMIN_SETTINGS },
           },
           {
             path: RoutesCatalog.ADMIN_CLASSES.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/classes/classes.page').then((m) => m.ClassesPage),
-            data: { animation: 'AdminClasses', page: RoutesCatalog.ADMIN_CLASSES },
+            data: { page: RoutesCatalog.ADMIN_CLASSES },
           },
           {
             path: RoutesCatalog.ADMIN_ENROLLMENT.relativePath,
@@ -228,7 +221,7 @@ export const routes: Routes = [
               import('@features/admin/pages/enrollment/enrollment.component').then(
                 (m) => m.EnrollmentComponent,
               ),
-            data: { animation: 'AdminEnrollment', page: RoutesCatalog.ADMIN_ENROLLMENT },
+            data: { page: RoutesCatalog.ADMIN_ENROLLMENT },
           },
           {
             path: RoutesCatalog.ADMIN_FEE_TEMPLATES.relativePath,
@@ -236,13 +229,13 @@ export const routes: Routes = [
               import('@features/admin/pages/fee-templates/fee-templates.component').then(
                 (m) => m.FeeTemplatesComponent,
               ),
-            data: { animation: 'AdminFeeTemplates', page: RoutesCatalog.ADMIN_FEE_TEMPLATES },
+            data: { page: RoutesCatalog.ADMIN_FEE_TEMPLATES },
           },
           {
             path: RoutesCatalog.ADMIN_STAFF.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/staff/staff.page').then((m) => m.StaffPage),
-            data: { animation: 'AdminStaff', page: RoutesCatalog.ADMIN_STAFF },
+            data: { page: RoutesCatalog.ADMIN_STAFF },
           },
           {
             path: RoutesCatalog.ADMIN_CHANGE_PASSWORD.relativePath,
@@ -250,7 +243,7 @@ export const routes: Routes = [
               import('@features/public/pages/change-password/change-password.component').then(
                 (m) => m.ChangePasswordComponent,
               ),
-            data: { animation: 'AdminChangePassword', page: RoutesCatalog.ADMIN_CHANGE_PASSWORD },
+            data: { page: RoutesCatalog.ADMIN_CHANGE_PASSWORD },
           },
           {
             path: '',
@@ -287,7 +280,7 @@ export const routes: Routes = [
               import('@features/teacher/pages/dashboard/dashboard.component').then(
                 (m) => m.DashboardComponent,
               ),
-            data: { animation: 'TeacherDashboard', page: RoutesCatalog.TEACHER_DASHBOARD },
+            data: { page: RoutesCatalog.TEACHER_DASHBOARD },
           },
           {
             path: RoutesCatalog.TEACHER_NOTIFICATIONS.relativePath,
@@ -295,13 +288,13 @@ export const routes: Routes = [
               import('@features/teacher/pages/notifications/notifications.component').then(
                 (m) => m.NotificationsComponent,
               ),
-            data: { animation: 'TeacherNotifications', page: RoutesCatalog.TEACHER_NOTIFICATIONS },
+            data: { page: RoutesCatalog.TEACHER_NOTIFICATIONS },
           },
           {
             path: RoutesCatalog.TEACHER_SCHEDULE.relativePath,
             loadComponent: () =>
               import('@features/teacher/pages/schedule/schedule.page').then((m) => m.SchedulePage),
-            data: { animation: 'TeacherSchedule', page: RoutesCatalog.TEACHER_SCHEDULE },
+            data: { page: RoutesCatalog.TEACHER_SCHEDULE },
           },
           {
             path: RoutesCatalog.TEACHER_ATTENDANCE.relativePath,
@@ -309,7 +302,7 @@ export const routes: Routes = [
               import('@features/teacher/pages/attendance/attendance.page').then(
                 (m) => m.AttendancePage,
               ),
-            data: { animation: 'TeacherAttendance', page: RoutesCatalog.TEACHER_ATTENDANCE },
+            data: { page: RoutesCatalog.TEACHER_ATTENDANCE },
           },
           {
             path: RoutesCatalog.TEACHER_STUDENTS.relativePath,
@@ -317,7 +310,7 @@ export const routes: Routes = [
               import('@features/teacher/pages/students/students.page').then(
                 (m) => m.StudentsPage,
               ),
-            data: { animation: 'TeacherStudents', page: RoutesCatalog.TEACHER_STUDENTS },
+            data: { page: RoutesCatalog.TEACHER_STUDENTS },
           },
           {
             path: RoutesCatalog.TEACHER_CHANGE_PASSWORD.relativePath,
@@ -325,7 +318,7 @@ export const routes: Routes = [
               import('@features/public/pages/change-password/change-password.component').then(
                 (m) => m.ChangePasswordComponent,
               ),
-            data: { animation: 'TeacherChangePassword', page: RoutesCatalog.TEACHER_CHANGE_PASSWORD },
+            data: { page: RoutesCatalog.TEACHER_CHANGE_PASSWORD },
           },
           {
             path: '',
@@ -360,7 +353,7 @@ export const routes: Routes = [
             path: RoutesCatalog.PARENT_DASHBOARD.relativePath,
             loadComponent: () =>
               import('@features/parent/pages/dashboard/dashboard.component').then((m) => m.DashboardComponent),
-            data: { animation: 'ParentDashboard', page: RoutesCatalog.PARENT_DASHBOARD },
+            data: { page: RoutesCatalog.PARENT_DASHBOARD },
           },
           {
             path: RoutesCatalog.PARENT_ATTENDANCE.relativePath,
@@ -368,7 +361,7 @@ export const routes: Routes = [
               import('@features/parent/pages/attendance/attendance.page').then(
                 (m) => m.AttendancePage,
               ),
-            data: { animation: 'ParentAttendance', page: RoutesCatalog.PARENT_ATTENDANCE },
+            data: { page: RoutesCatalog.PARENT_ATTENDANCE },
           },
           {
             path: RoutesCatalog.PARENT_SCHEDULE.relativePath,
@@ -376,7 +369,7 @@ export const routes: Routes = [
               import('@features/parent/pages/schedule/schedule.component').then(
                 (m) => m.ScheduleComponent,
               ),
-            data: { animation: 'ParentSchedule', page: RoutesCatalog.PARENT_SCHEDULE },
+            data: { page: RoutesCatalog.PARENT_SCHEDULE },
           },
           {
             path: RoutesCatalog.PARENT_GRADES.relativePath,
@@ -384,7 +377,7 @@ export const routes: Routes = [
               import('@features/parent/pages/grades/grades.component').then(
                 (m) => m.GradesComponent,
               ),
-            data: { animation: 'ParentGrades', page: RoutesCatalog.PARENT_GRADES },
+            data: { page: RoutesCatalog.PARENT_GRADES },
           },
           {
             path: RoutesCatalog.PARENT_MEALS.relativePath,
@@ -392,7 +385,7 @@ export const routes: Routes = [
               import('@features/parent/pages/meals/meals.component').then(
                 (m) => m.MealsComponent,
               ),
-            data: { animation: 'ParentMeals', page: RoutesCatalog.PARENT_MEALS },
+            data: { page: RoutesCatalog.PARENT_MEALS },
           },
           {
             path: RoutesCatalog.PARENT_TRIAL.relativePath,
@@ -400,7 +393,7 @@ export const routes: Routes = [
               import('@features/parent/pages/trial/trial.component').then(
                 (m) => m.TrialComponent,
               ),
-            data: { animation: 'ParentTrial', page: RoutesCatalog.PARENT_TRIAL },
+            data: { page: RoutesCatalog.PARENT_TRIAL },
           },
           {
             path: RoutesCatalog.PARENT_ENROLLMENT.relativePath,
@@ -408,7 +401,7 @@ export const routes: Routes = [
               import('@features/parent/pages/enrollment/enrollment.component').then(
                 (m) => m.EnrollmentComponent,
               ),
-            data: { animation: 'ParentEnrollment', page: RoutesCatalog.PARENT_ENROLLMENT },
+            data: { page: RoutesCatalog.PARENT_ENROLLMENT },
           },
           {
             path: RoutesCatalog.PARENT_ADD_COURSE.relativePath,
@@ -416,13 +409,13 @@ export const routes: Routes = [
               import('@features/parent/pages/add-course/add-course.component').then(
                 (m) => m.AddCourseComponent,
               ),
-            data: { animation: 'ParentAddCourse', page: RoutesCatalog.PARENT_ADD_COURSE },
+            data: { page: RoutesCatalog.PARENT_ADD_COURSE },
           },
           {
             path: RoutesCatalog.PARENT_PAYMENTS.relativePath,
             loadComponent: () =>
               import('@features/parent/pages/payments/payments.page').then((m) => m.PaymentsPage),
-            data: { animation: 'ParentPayments', page: RoutesCatalog.PARENT_PAYMENTS },
+            data: { page: RoutesCatalog.PARENT_PAYMENTS },
           },
           {
             path: RoutesCatalog.PARENT_RENEWAL.relativePath,
@@ -430,7 +423,7 @@ export const routes: Routes = [
               import('@features/parent/pages/renewal/renewal.component').then(
                 (m) => m.RenewalComponent,
               ),
-            data: { animation: 'ParentRenewal', page: RoutesCatalog.PARENT_RENEWAL },
+            data: { page: RoutesCatalog.PARENT_RENEWAL },
           },
           {
             path: RoutesCatalog.PARENT_NOTIFICATIONS.relativePath,
@@ -438,7 +431,7 @@ export const routes: Routes = [
               import('@features/parent/pages/notifications/notifications.component').then(
                 (m) => m.NotificationsComponent,
               ),
-            data: { animation: 'ParentNotifications', page: RoutesCatalog.PARENT_NOTIFICATIONS },
+            data: { page: RoutesCatalog.PARENT_NOTIFICATIONS },
           },
           {
             path: RoutesCatalog.PARENT_CHANGE_PASSWORD.relativePath,
@@ -446,7 +439,7 @@ export const routes: Routes = [
               import('@features/public/pages/change-password/change-password.component').then(
                 (m) => m.ChangePasswordComponent,
               ),
-            data: { animation: 'ParentChangePassword', page: RoutesCatalog.PARENT_CHANGE_PASSWORD },
+            data: { page: RoutesCatalog.PARENT_CHANGE_PASSWORD },
           },
           {
             path: '',
