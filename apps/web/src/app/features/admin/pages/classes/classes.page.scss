@@ -135,11 +135,25 @@
     padding: var(--space-4) var(--space-6);
     background: var(--zinc-50);
     gap: var(--space-4);
+    cursor: pointer;
+    user-select: none;
 
     &:hover {
       background: var(--zinc-100);
       transition: background var(--transition-fast);
     }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-500);
+      outline-offset: -2px;
+    }
+  }
+
+  &__chevron {
+    font-size: 11px;
+    color: var(--zinc-400);
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
   }
 
   &__info {

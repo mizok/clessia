@@ -100,6 +100,7 @@ export class ClassesPage implements OnInit {
   protected readonly staff = signal<Staff[]>([]);
   protected readonly loading = signal(false);
   protected readonly expandedClassId = signal<string | null>(null);
+  protected readonly collapsedCourseIds = signal<Set<string>>(new Set());
 
   // ---- Filters ----
   protected readonly searchQuery = signal('');
@@ -133,15 +134,20 @@ export class ClassesPage implements OnInit {
         if (subjectId && c.subjectId !== subjectId) return false;
         return true;
       })
-      .map((course) => ({
-        course,
-        classes: allClasses.filter((cl) => {
-          if (cl.courseId !== course.id) return false;
-          if (search && !cl.name.toLowerCase().includes(search)) return false;
-          if (isActive !== null && cl.isActive !== isActive) return false;
-          return true;
-        }),
-      }))
+      .map((course) => {
+        const courseMatchesSearch = search && course.name.toLowerCase().includes(search);
+        return {
+          course,
+          classes: allClasses.filter((cl) => {
+            if (cl.courseId !== course.id) return false;
+            if (isActive !== null && cl.isActive !== isActive) return false;
+            // 課程名稱符合：顯示該課程所有班級；否則只顯示班級名稱符合的
+            if (search && !courseMatchesSearch && !cl.name.toLowerCase().includes(search))
+              return false;
+            return true;
+          }),
+        };
+      })
       .filter((g) => g.classes.length > 0 || (!search && isActive === null));
   });
 
@@ -295,6 +301,22 @@ export class ClassesPage implements OnInit {
     this.selectedCampusId.set(null);
     this.selectedSubjectId.set(null);
     this.statusFilter.set(null);
+  }
+
+  protected isCourseCollapsed(courseId: string): boolean {
+    return this.collapsedCourseIds().has(courseId);
+  }
+
+  protected toggleCourse(courseId: string): void {
+    this.collapsedCourseIds.update((set) => {
+      const next = new Set(set);
+      if (next.has(courseId)) {
+        next.delete(courseId);
+      } else {
+        next.add(courseId);
+      }
+      return next;
+    });
   }
 
   // ================================================================

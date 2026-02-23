@@ -24,7 +24,7 @@
           <input
             type="text"
             pInputText
-            placeholder="搜尋班級名稱..."
+            placeholder="搜尋課程或班級..."
             [ngModel]="searchQuery()"
             (ngModelChange)="searchQuery.set($event)"
           />
@@ -112,9 +112,22 @@
           @for (group of courseGroups(); track group.course.id) {
             <div class="course-group">
               <!-- Course Header -->
-              <div class="course-group__header">
+              <div
+                class="course-group__header"
+                role="button"
+                tabindex="0"
+                [attr.aria-expanded]="!isCourseCollapsed(group.course.id)"
+                (click)="toggleCourse(group.course.id)"
+                (keydown.enter)="toggleCourse(group.course.id)"
+                (keydown.space)="$event.preventDefault(); toggleCourse(group.course.id)"
+              >
                 <div class="course-group__info">
                   <div class="course-group__name-row">
+                    <i
+                      class="pi course-group__chevron"
+                      [class.pi-chevron-down]="!isCourseCollapsed(group.course.id)"
+                      [class.pi-chevron-right]="isCourseCollapsed(group.course.id)"
+                    ></i>
                     <i class="pi pi-book course-group__icon"></i>
                     <span class="course-group__name">{{ group.course.name }}</span>
                     <span class="course-group__campus">{{ group.course.campusName ?? getCampusName(group.course.campusId) }}</span>
@@ -125,7 +138,7 @@
                   </div>
                   <span class="course-group__count">{{ group.classes.length }} 個班</span>
                 </div>
-                <div class="course-group__actions">
+                <div class="course-group__actions" (click)="$event.stopPropagation()">
                   <p-button
                     label="新增班"
                     icon="pi pi-plus"
@@ -158,6 +171,7 @@
               </div>
 
               <!-- Classes List -->
+              @if (!isCourseCollapsed(group.course.id)) {
               <div class="course-group__classes">
                 @for (cls of group.classes; track cls.id) {
                   <div class="class-row" [class.class-row--expanded]="isExpanded(cls.id)">
@@ -278,6 +292,7 @@
                   <div class="course-group__empty">此課程尚無班級，點擊「新增班」建立</div>
                 }
               </div>
+              }
             </div>
           }
         </div>
