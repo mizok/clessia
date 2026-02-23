@@ -210,7 +210,18 @@
   }
 
   &__classes {
-    // no extra padding; class-row handles its own
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.25s ease;
+
+    &--collapsed {
+      grid-template-rows: 0fr;
+    }
+  }
+
+  &__classes-inner {
+    overflow: hidden;
+    min-height: 0;
   }
 
   &__empty {

@@ -171,8 +171,11 @@
               </div>
 
               <!-- Classes List -->
-              @if (!isCourseCollapsed(group.course.id)) {
-              <div class="course-group__classes">
+              <div
+                class="course-group__classes"
+                [class.course-group__classes--collapsed]="isCourseCollapsed(group.course.id)"
+              >
+                <div class="course-group__classes-inner">
                 @for (cls of group.classes; track cls.id) {
                   <div class="class-row" [class.class-row--expanded]="isExpanded(cls.id)">
                     <!-- Summary Row (clickable) -->
@@ -291,8 +294,8 @@
                 } @empty {
                   <div class="course-group__empty">此課程尚無班級，點擊「新增班」建立</div>
                 }
+                </div>
               </div>
-              }
             </div>
           }
         </div>

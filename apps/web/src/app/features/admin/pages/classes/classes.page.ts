@@ -100,7 +100,7 @@ export class ClassesPage implements OnInit {
   protected readonly staff = signal<Staff[]>([]);
   protected readonly loading = signal(false);
   protected readonly expandedClassId = signal<string | null>(null);
-  protected readonly collapsedCourseIds = signal<Set<string>>(new Set());
+  protected readonly expandedCourseIds = signal<Set<string>>(new Set());
 
   // ---- Filters ----
   protected readonly searchQuery = signal('');
@@ -304,11 +304,11 @@ export class ClassesPage implements OnInit {
   }
 
   protected isCourseCollapsed(courseId: string): boolean {
-    return this.collapsedCourseIds().has(courseId);
+    return !this.expandedCourseIds().has(courseId);
   }
 
   protected toggleCourse(courseId: string): void {
-    this.collapsedCourseIds.update((set) => {
+    this.expandedCourseIds.update((set) => {
       const next = new Set(set);
       if (next.has(courseId)) {
         next.delete(courseId);
