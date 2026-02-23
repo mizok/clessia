@@ -8,11 +8,7 @@
       <h1 class="classes__title">{{ page().label }}</h1>
       <p class="classes__subtitle">層級管理課程與班級，設定上課時間</p>
     </div>
-    <p-button
-      label="新增課程"
-      icon="pi pi-plus"
-      (onClick)="openCreateCourseDialog()"
-    />
+    <p-button label="新增課程" icon="pi pi-plus" (onClick)="openCreateCourseDialog()" />
   </header>
 
   <!-- Filter Bar -->
@@ -100,11 +96,7 @@
           title="尚未建立任何課程"
           description="點擊右上角「新增課程」開始建立課程與班級"
         >
-          <p-button
-            label="新增課程"
-            icon="pi pi-plus"
-            (onClick)="openCreateCourseDialog()"
-          />
+          <p-button label="新增課程" icon="pi pi-plus" (onClick)="openCreateCourseDialog()" />
         </app-empty-state>
       } @else {
         <!-- Course Groups -->
@@ -130,7 +122,9 @@
                     ></i>
                     <i class="pi pi-book course-group__icon"></i>
                     <span class="course-group__name">{{ group.course.name }}</span>
-                    <span class="course-group__campus">{{ group.course.campusName ?? getCampusName(group.course.campusId) }}</span>
+                    <span class="course-group__campus">{{
+                      group.course.campusName ?? getCampusName(group.course.campusId)
+                    }}</span>
                     <p-tag [value]="group.course.subjectName" severity="info" />
                     @if (!group.course.isActive) {
                       <p-tag value="已停用" severity="secondary" />
@@ -176,127 +170,141 @@
                 [class.course-group__classes--collapsed]="isCourseCollapsed(group.course.id)"
               >
                 <div class="course-group__classes-inner">
-                @for (cls of group.classes; track cls.id) {
-                  <div class="class-row" [class.class-row--expanded]="isExpanded(cls.id)">
-                    <!-- Summary Row (clickable) -->
-                    <div class="class-row__summary" (click)="toggleExpand(cls.id)" role="button" tabindex="0" (keydown.enter)="toggleExpand(cls.id)">
-                      <i
-                        class="pi class-row__chevron"
-                        [class.pi-chevron-right]="!isExpanded(cls.id)"
-                        [class.pi-chevron-down]="isExpanded(cls.id)"
-                      ></i>
-                      <span class="class-row__name">{{ cls.name }}</span>
-                      @if (cls.maxStudents) {
-                        <span class="class-row__capacity">
-                          <i class="pi pi-users"></i>
-                          {{ cls.maxStudents }}
-                        </span>
-                      }
-                      <span class="class-row__schedules">
-                        @if (cls.schedules && cls.schedules.length > 0) {
-                          <i class="pi pi-clock"></i>
-                          {{ getScheduleSummary(cls.schedules) }}
-                        } @else {
-                          <span class="class-row__no-schedule">尚無時間表</span>
-                        }
-                      </span>
-                      <div class="class-row__tags">
-                        <p-tag
-                          [value]="cls.isActive ? '啟用' : '停用'"
-                          [severity]="cls.isActive ? 'success' : 'secondary'"
-                        />
-                      </div>
-                    </div>
-
-                    <!-- Expanded Detail -->
-                    <div
-                      class="class-row__detail-wrap"
-                      [class.class-row__detail-wrap--hidden]="!isExpanded(cls.id)"
-                    >
-                      <div class="class-row__detail">
-                        <!-- Schedules -->
-                        <div class="class-detail__section">
-                          <div class="class-detail__section-title">
-                            <i class="pi pi-clock"></i>
-                            上課時間
-                          </div>
+                  @for (cls of group.classes; track cls.id) {
+                    <div class="class-row" [class.class-row--expanded]="isExpanded(cls.id)">
+                      <!-- Summary Row (clickable) -->
+                      <div
+                        class="class-row__summary"
+                        (click)="toggleExpand(cls.id)"
+                        role="button"
+                        tabindex="0"
+                        (keydown.enter)="toggleExpand(cls.id)"
+                      >
+                        <i
+                          class="pi class-row__chevron"
+                          [class.pi-chevron-right]="!isExpanded(cls.id)"
+                          [class.pi-chevron-down]="isExpanded(cls.id)"
+                        ></i>
+                        <span class="class-row__name">{{ cls.name }}</span>
+                        <span class="class-row__schedules">
                           @if (cls.schedules && cls.schedules.length > 0) {
-                            <div class="class-detail__schedules">
-                              @for (s of cls.schedules; track s.id) {
-                                <div class="schedule-badge">
-                                  <span class="schedule-badge__day">{{ getWeekdayLabel(s.weekday) }}</span>
-                                  <span class="schedule-badge__time">{{ s.startTime.substring(0, 5) }}-{{ s.endTime.substring(0, 5) }}</span>
-                                  @if (s.teacherName) {
-                                    <span class="schedule-badge__teacher">
-                                      <i class="pi pi-user"></i>
-                                      {{ s.teacherName }}
-                                    </span>
-                                  }
-                                  <span class="schedule-badge__from">起: {{ s.effectiveFrom }}</span>
-                                </div>
-                              }
-                            </div>
+                            <i class="pi pi-clock"></i>
+                            {{ getScheduleSummary(cls.schedules) }}
                           } @else {
-                            <p class="class-detail__empty">尚未設定上課時間</p>
+                            <span class="class-row__no-schedule">尚無時間表</span>
                           }
+                        </span>
+                        @if (cls.maxStudents) {
+                          <span class="class-row__capacity">
+                            <i class="pi pi-users"></i>
+                            {{ cls.maxStudents }}
+                          </span>
+                        }
+                        <div class="class-row__tags">
+                          <p-tag
+                            [value]="cls.isActive ? '啟用' : '停用'"
+                            [severity]="cls.isActive ? 'success' : 'secondary'"
+                          />
                         </div>
+                      </div>
 
-                        <!-- Grade Levels -->
-                        @if (cls.gradeLevels && cls.gradeLevels.length > 0) {
+                      <!-- Expanded Detail -->
+                      <div
+                        class="class-row__detail-wrap"
+                        [class.class-row__detail-wrap--hidden]="!isExpanded(cls.id)"
+                      >
+                        <div class="class-row__detail">
+                          <!-- Schedules -->
                           <div class="class-detail__section">
                             <div class="class-detail__section-title">
-                              <i class="pi pi-graduation-cap"></i>
-                              適合年級
+                              <i class="pi pi-clock"></i>
+                              上課時間
                             </div>
-                            <div class="class-detail__grades">
-                              @for (grade of cls.gradeLevels; track grade) {
-                                <span class="grade-chip">{{ grade }}</span>
-                              }
-                            </div>
+                            @if (cls.schedules && cls.schedules.length > 0) {
+                              <div class="class-detail__schedules">
+                                @for (s of cls.schedules; track s.id) {
+                                  <div class="schedule-badge">
+                                    <span class="schedule-badge__day">{{
+                                      getWeekdayLabel(s.weekday)
+                                    }}</span>
+                                    <span class="schedule-badge__time"
+                                      >{{ s.startTime.substring(0, 5) }}-{{
+                                        s.endTime.substring(0, 5)
+                                      }}</span
+                                    >
+                                    @if (s.teacherName) {
+                                      <span class="schedule-badge__teacher">
+                                        <i class="pi pi-user"></i>
+                                        {{ s.teacherName }}
+                                      </span>
+                                    }
+                                    <span class="schedule-badge__from"
+                                      >起: {{ s.effectiveFrom }}</span
+                                    >
+                                  </div>
+                                }
+                              </div>
+                            } @else {
+                              <p class="class-detail__empty">尚未設定上課時間</p>
+                            }
                           </div>
-                        }
 
-                        <!-- Actions -->
-                        <div class="class-detail__actions">
-                          <p-button
-                            label="編輯班級"
-                            icon="pi pi-pencil"
-                            size="small"
-                            [outlined]="true"
-                            severity="secondary"
-                            (onClick)="openEditClassDialog(cls)"
-                          />
-                          <p-button
-                            label="產生課堂"
-                            icon="pi pi-calendar-plus"
-                            size="small"
-                            [outlined]="true"
-                            severity="info"
-                            (onClick)="openGenerateDialog(cls)"
-                          />
-                          <p-button
-                            [label]="cls.isActive ? '停用' : '啟用'"
-                            [icon]="cls.isActive ? 'pi pi-ban' : 'pi pi-check-circle'"
-                            size="small"
-                            [outlined]="true"
-                            [severity]="cls.isActive ? 'secondary' : 'success'"
-                            (onClick)="confirmToggleActive(cls)"
-                          />
-                          <p-button
-                            label="刪除"
-                            icon="pi pi-trash"
-                            size="small"
-                            [outlined]="true"
-                            severity="danger"
-                            (onClick)="confirmDeleteClass(cls)"
-                          />
+                          <!-- Grade Levels -->
+                          @if (cls.gradeLevels && cls.gradeLevels.length > 0) {
+                            <div class="class-detail__section">
+                              <div class="class-detail__section-title">
+                                <i class="pi pi-graduation-cap"></i>
+                                適合年級
+                              </div>
+                              <div class="class-detail__grades">
+                                @for (grade of cls.gradeLevels; track grade) {
+                                  <span class="grade-chip">{{ grade }}</span>
+                                }
+                              </div>
+                            </div>
+                          }
+
+                          <!-- Actions -->
+                          <div class="class-detail__actions">
+                            <p-button
+                              label="編輯班級"
+                              icon="pi pi-pencil"
+                              size="small"
+                              [outlined]="true"
+                              severity="secondary"
+                              (onClick)="openEditClassDialog(cls)"
+                            />
+                            <p-button
+                              label="產生課堂"
+                              icon="pi pi-calendar-plus"
+                              size="small"
+                              [outlined]="true"
+                              severity="info"
+                              (onClick)="openGenerateDialog(cls)"
+                            />
+                            <p-button
+                              [label]="cls.isActive ? '停用' : '啟用'"
+                              [icon]="cls.isActive ? 'pi pi-ban' : 'pi pi-check-circle'"
+                              size="small"
+                              [outlined]="true"
+                              [severity]="cls.isActive ? 'secondary' : 'success'"
+                              (onClick)="confirmToggleActive(cls)"
+                            />
+                            <p-button
+                              label="刪除"
+                              icon="pi pi-trash"
+                              size="small"
+                              [outlined]="true"
+                              severity="danger"
+                              (onClick)="confirmDeleteClass(cls)"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                } @empty {
-                  <div class="course-group__empty">此課程尚無班級，點擊「新增班」建立</div>
-                }
+                  } @empty {
+                    <div class="course-group__empty">此課程尚無班級，點擊「新增班」建立</div>
+                  }
                 </div>
               </div>
             </div>
@@ -321,9 +329,7 @@
     <!-- Campus (create only) -->
     @if (courseDialogMode() === 'create') {
       <div class="form-dialog__field">
-        <label class="form-dialog__label">
-          分校<span class="form-dialog__required">*</span>
-        </label>
+        <label class="form-dialog__label"> 分校<span class="form-dialog__required">*</span> </label>
         <p-select
           [options]="campusOptions()"
           [ngModel]="courseForm().campusId"
@@ -354,9 +360,7 @@
 
     <!-- Subject -->
     <div class="form-dialog__field">
-      <label class="form-dialog__label">
-        科目<span class="form-dialog__required">*</span>
-      </label>
+      <label class="form-dialog__label"> 科目<span class="form-dialog__required">*</span> </label>
       <p-select
         [options]="subjectOptions()"
         [ngModel]="courseForm().subjectId"
@@ -617,14 +621,18 @@
       @if (generateTargetClass()) {
         <div class="generate-info">
           <i class="pi pi-info-circle"></i>
-          <span>班級：<strong>{{ generateTargetClass()!.name }}</strong></span>
+          <span
+            >班級：<strong>{{ generateTargetClass()!.name }}</strong></span
+          >
         </div>
       }
       <p class="generate-hint">選擇日期範圍，系統將依照上課時間表批次產生課堂記錄。</p>
 
       <div class="form-dialog__row">
         <div class="form-dialog__field">
-          <label class="form-dialog__label">開始日期<span class="form-dialog__required">*</span></label>
+          <label class="form-dialog__label"
+            >開始日期<span class="form-dialog__required">*</span></label
+          >
           <p-datepicker
             [ngModel]="generateFrom()"
             (ngModelChange)="generateFrom.set($event)"
@@ -636,7 +644,9 @@
           />
         </div>
         <div class="form-dialog__field">
-          <label class="form-dialog__label">結束日期<span class="form-dialog__required">*</span></label>
+          <label class="form-dialog__label"
+            >結束日期<span class="form-dialog__required">*</span></label
+          >
           <p-datepicker
             [ngModel]="generateTo()"
             (ngModelChange)="generateTo.set($event)"
@@ -701,9 +711,13 @@
                   <td>{{ s.teacherName ?? '—' }}</td>
                   <td>
                     @if (s.exists) {
-                      <span class="generate-preview__badge generate-preview__badge--skip">已存在</span>
+                      <span class="generate-preview__badge generate-preview__badge--skip"
+                        >已存在</span
+                      >
                     } @else {
-                      <span class="generate-preview__badge generate-preview__badge--new">將新增</span>
+                      <span class="generate-preview__badge generate-preview__badge--new"
+                        >將新增</span
+                      >
                     }
                   </td>
                 </tr>

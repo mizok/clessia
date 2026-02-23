@@ -470,7 +470,7 @@
 }
 
 // Responsive
-@include bp.respond-to('tablet') {
+@include bp.respond-to('tablet-landscape') {
   .campuses {
     &__stats {
       flex-wrap: wrap;
@@ -478,9 +478,9 @@
   }
 }
 
-@include bp.respond-to(768px) {
+@include bp.respond-to('tablet-portrait') {
   .campuses {
-    padding: var(--space-4) var(--space-1);
+    padding: var(--space-4) 0;
     gap: var(--space-4);
 
     &__header {
@@ -522,11 +522,21 @@
     }
 
     &__cell {
-      &--name { flex: 1 1 100%; }
-      &--address { flex: 1 1 100%; }
-      &--phone { flex: 1 1 50%; }
-      &--status { flex: 1 1 50%; }
-      &--actions { display: none; }
+      &--name {
+        flex: 1 1 100%;
+      }
+      &--address {
+        flex: 1 1 100%;
+      }
+      &--phone {
+        flex: 1 1 50%;
+      }
+      &--status {
+        flex: 1 1 50%;
+      }
+      &--actions {
+        display: none;
+      }
     }
   }
 

@@ -55,7 +55,7 @@
       grid-template-columns: 2fr 1fr;
       gap: var(--space-8);
 
-      @include bp.respond-to('tablet') {
+      @include bp.respond-to('tablet-landscape') {
         grid-template-columns: 1fr;
       }
     }
@@ -148,16 +148,28 @@
     }
 
     &--blue {
-      .stat-card__icon { background: #eff6ff; color: #3b82f6; }
+      .stat-card__icon {
+        background: #eff6ff;
+        color: #3b82f6;
+      }
     }
     &--green {
-      .stat-card__icon { background: #f0fdf4; color: #22c55e; }
+      .stat-card__icon {
+        background: #f0fdf4;
+        color: #22c55e;
+      }
     }
     &--purple {
-      .stat-card__icon { background: #faf5ff; color: #a855f7; }
+      .stat-card__icon {
+        background: #faf5ff;
+        color: #a855f7;
+      }
     }
     &--orange {
-      .stat-card__icon { background: #fff7ed; color: #f97316; }
+      .stat-card__icon {
+        background: #fff7ed;
+        color: #f97316;
+      }
     }
   }
 

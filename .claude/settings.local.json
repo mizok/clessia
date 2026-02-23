@@ -94,7 +94,8 @@
       "mcp__playwright__browser_resize",
       "mcp__playwright__browser_close",
       "Bash(ls:*)",
-      "mcp__codex-cli__listSessions"
+      "mcp__codex-cli__listSessions",
+      "Bash(git:*)"
     ]
   },
   "enabledPlugins": {}

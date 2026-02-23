@@ -241,7 +241,7 @@
 // ─── Mobile Styles (< 640px) ───────────────────────────────────────────────────
 @include bp.respond-to('mobile') {
   .shell-header {
-    padding: 0 var(--space-4);
+    padding: 0 var(--space-3);
 
     &__user-name {
       max-width: 100px;
@@ -255,7 +255,7 @@
   // With new structure (flex col 100dvh), mobile height calc is simplified or handled by flex
   // But if we need specific adjustments:
   .shell-content {
-    padding: var(--space-4);
+    padding: var(--space-3);
     // Ensure bottom padding for bottom bar interaction if needed
     padding-bottom: calc(var(--space-4) + 64px + env(safe-area-inset-bottom, 0px));
   }

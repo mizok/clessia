@@ -276,7 +276,7 @@
     font-size: var(--text-base);
     font-weight: var(--font-medium);
     color: var(--zinc-800);
-    min-width: 120px;
+    min-width: 30px;
   }
 
   &__capacity {
@@ -294,7 +294,6 @@
   }
 
   &__schedules {
-    flex: 1;
     display: flex;
     align-items: center;
     gap: var(--space-2);
@@ -334,12 +333,13 @@
   }
 
   &__detail {
-    padding: var(--space-4) var(--space-6) var(--space-4) var(--space-10);
+    padding: var(--space-4) var(--space-6) 0 var(--space-10);
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    border-top: 1px dashed var(--accent-100);
-    background: #fff;
+    border-top: 1px solid var(--zinc-300);
+    background: var(--zinc-200);
+    border-left: 3px solid var(--accent-300);
   }
 }
 
@@ -392,8 +392,11 @@
     align-items: center;
     gap: var(--space-2);
     flex-wrap: wrap;
-    padding-top: var(--space-2);
-    border-top: 1px solid var(--zinc-100);
+    // 拉到 detail panel 全寬，形成 footer 區塊
+    margin: var(--space-2) calc(-1 * var(--space-6)) 0 calc(-1 * var(--space-10));
+    padding: var(--space-3) var(--space-6) var(--space-3) var(--space-10);
+    border-top: 1px solid var(--zinc-300);
+    background: rgba(255, 255, 255, 0.5);
   }
 }
 
@@ -795,9 +798,9 @@
 // Responsive
 // ============================================================
 
-@include bp.respond-to(768px) {
+@include bp.respond-to('tablet-portrait') {
   .classes {
-    padding: var(--space-4) var(--space-1);
+    padding: var(--space-4) 0;
 
     &__toolbar {
       padding: var(--space-4);
@@ -821,7 +824,7 @@
 
   .course-group {
     &__header {
-      padding: var(--space-3) var(--space-4);
+      padding: var(--space-3) var(--space-2);
     }
 
     &__name-row {
@@ -854,6 +857,8 @@
 
   .class-detail__actions {
     gap: var(--space-2);
+    margin: var(--space-2) calc(-1 * var(--space-4)) 0 calc(-1 * var(--space-4));
+    padding: var(--space-3) var(--space-4) var(--space-3) var(--space-4);
   }
 
   .form-dialog__row {

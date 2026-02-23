@@ -4,14 +4,16 @@
 
 // Breakpoint values
 $breakpoint-mobile: 640px;
-$breakpoint-tablet: 1024px;
+$breakpoint-tablet-portrait: 768px;
+$breakpoint-tablet-landscape: 1024px;
 $breakpoint-desktop: 1280px;
 
 // Map for easier usage in mixins
 $breakpoints: (
   'mobile': $breakpoint-mobile,
-  'tablet': $breakpoint-tablet,
-  'desktop': $breakpoint-desktop
+  'tablet-portrait': $breakpoint-tablet-portrait,
+  'tablet-landscape': $breakpoint-tablet-landscape,
+  'desktop': $breakpoint-desktop,
 );
 
 // Mixin to respond to breakpoints
@@ -21,14 +23,13 @@ $breakpoints: (
     @media (max-width: map-get($breakpoints, $breakpoint)) {
       @content;
     }
-  } 
+  }
   // Allow passing raw pixel values or custom variables
   @else if type-of($breakpoint) == number {
     @media (max-width: $breakpoint) {
       @content;
     }
-  }
-  @else {
+  } @else {
     @warn "Unfortunately, no value could be retrieved from `#{$full-map}`. "
         + "Please make sure it is defined in `$breakpoints` map.";
   }

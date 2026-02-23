@@ -148,7 +148,12 @@ export class ClassesPage implements OnInit {
           }),
         };
       })
-      .filter((g) => g.classes.length > 0 || (!search && isActive === null));
+      .filter((g) => {
+        if (g.classes.length > 0) return true;
+        if (!search && isActive === null) return true;
+        // 課程名稱符合搜尋時，即使沒有班級也顯示
+        return !!(search && g.course.name.toLowerCase().includes(search));
+      });
   });
 
   protected readonly hasActiveFilters = computed(
@@ -538,6 +543,16 @@ export class ClassesPage implements OnInit {
 
     if (!form.name.trim()) {
       this.messageService.add({ severity: 'warn', summary: '請填寫班級名稱', detail: '' });
+      return;
+    }
+
+    const incompleteSchedule = this.scheduleEntries().find((e) => !e.teacherId || !e.weekday);
+    if (incompleteSchedule) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: '時段資料不完整',
+        detail: '請確認每個時段都已指派老師',
+      });
       return;
     }
 

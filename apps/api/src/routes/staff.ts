@@ -671,7 +671,6 @@ app.openapi(createRouteDef, async (c) => {
         name: body.displayName,
         email: body.email,
         password,
-        role: 'user',
         data: {
           display_name: body.displayName,
         },
@@ -709,17 +708,14 @@ app.openapi(createRouteDef, async (c) => {
     }
   };
 
-  const { error: updateProfileError } = await supabase
-    .from('profiles')
-    .update({
-      org_id: orgId,
-      display_name: body.displayName,
-    })
+  const { error: updateUserError } = await supabase
+    .from('ba_user')
+    .update({ orgId: orgId })
     .eq('id', createdUserId);
 
-  if (updateProfileError) {
+  if (updateUserError) {
     await rollbackCreatedUser();
-    return c.json({ error: updateProfileError.message, code: 'CREATE_PROFILE_FAILED' }, 400);
+    return c.json({ error: updateUserError.message, code: 'UPDATE_USER_ORG_FAILED' }, 400);
   }
 
   const { data: staffRow, error: insertStaffError } = await supabase

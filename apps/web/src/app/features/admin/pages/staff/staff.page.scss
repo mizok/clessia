@@ -608,7 +608,7 @@
 }
 
 // Responsive
-@include bp.respond-to('tablet') {
+@include bp.respond-to('tablet-landscape') {
   .staff {
     &__stats {
       flex-wrap: wrap;
@@ -629,9 +629,9 @@
   }
 }
 
-@include bp.respond-to(768px) {
+@include bp.respond-to('tablet-portrait') {
   .staff {
-    padding: var(--space-4) var(--space-1);
+    padding: var(--space-4) 0;
     gap: var(--space-4);
 
     &__header {
