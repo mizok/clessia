@@ -1,0 +1,560 @@
+@use 'shared/breakpoints' as bp;
+
+// =============================================================================
+// Calendar Page
+// =============================================================================
+
+.cal {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  height: 100%;
+  overflow: hidden;
+
+  // ── Header ────────────────────────────────────────────────────────────
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-shrink: 0;
+  }
+
+  &__title-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  &__title {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    color: var(--zinc-900);
+    margin: 0;
+    line-height: var(--leading-tight);
+  }
+
+  &__subtitle {
+    font-size: var(--text-md);
+    color: var(--zinc-500);
+    margin: 0;
+  }
+
+  &__nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  // ── Filters ───────────────────────────────────────────────────────────
+  &__filters {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  &__filter {
+    min-width: 140px;
+  }
+
+  // ── Card ──────────────────────────────────────────────────────────────
+  &__card {
+    background: #fff;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--zinc-200);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  // ── Skeleton ──────────────────────────────────────────────────────────
+  &__skeleton {
+    padding: var(--space-4) var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  // ── Week wrapper (enables horizontal scroll) ──────────────────────────
+  &__week-wrapper {
+    overflow: auto;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  // ── Week grid ─────────────────────────────────────────────────────────
+  &__week {
+    display: grid;
+    grid-template-columns: 56px repeat(7, minmax(80px, 1fr));
+    grid-template-rows: 48px auto;
+    min-width: 640px;
+  }
+
+  // ── Day view ──────────────────────────────────────────────────────────
+  &__day-view {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    overflow: auto;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  // ── Gutter header (top-left cell) ─────────────────────────────────────
+  &__gutter-header {
+    border-right: 1px solid var(--zinc-100);
+    border-bottom: 1px solid var(--zinc-200);
+    background: var(--zinc-50);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  // ── Day header ────────────────────────────────────────────────────────
+  &__day-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--zinc-200);
+    border-left: 1px solid var(--zinc-100);
+    background: var(--zinc-50);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+
+    &--today {
+      background: var(--accent-50);
+    }
+  }
+
+  &__day-dow {
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-500);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &__day-num {
+    font-size: var(--text-lg);
+    font-weight: var(--font-bold);
+    color: var(--zinc-700);
+    line-height: 1;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full);
+
+    &--today {
+      background: var(--accent-500);
+      color: #fff;
+    }
+  }
+
+  // ── Time gutter ───────────────────────────────────────────────────────
+  &__time-gutter {
+    position: relative;
+    border-right: 1px solid var(--zinc-200);
+    background: var(--zinc-50);
+    flex-shrink: 0;
+  }
+
+  &__time-label {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 36px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding-right: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--zinc-400);
+    font-variant-numeric: tabular-nums;
+    transform: translateY(-9px);
+
+    &--half {
+      // half-hour: no label
+    }
+
+    @for $i from 0 through 27 {
+      &:nth-child(#{$i + 1}) {
+        top: #{$i * 36}px;
+      }
+    }
+  }
+
+  // ── Day column ────────────────────────────────────────────────────────
+  &__day-col {
+    position: relative;
+    border-left: 1px solid var(--zinc-100);
+  }
+
+  // ── Hour lines ────────────────────────────────────────────────────────
+  &__hour-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--zinc-100);
+    pointer-events: none;
+
+    &--major {
+      background: var(--zinc-200);
+    }
+  }
+
+  // ── Session blocks ────────────────────────────────────────────────────
+  &__session {
+    position: absolute;
+    left: 3px;
+    right: 3px;
+    border-radius: var(--radius-md);
+    padding: var(--space-1) var(--space-2);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    overflow: hidden;
+    transition: opacity var(--transition-fast), box-shadow var(--transition-fast);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    border-left-width: 3px;
+    border-left-style: solid;
+    z-index: 1;
+
+    &:hover {
+      opacity: 0.85;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+      z-index: 2;
+    }
+
+    // Normal session
+    &--scheduled {
+      background: var(--accent-100);
+      border-left-color: var(--accent-500);
+      color: var(--accent-600);
+    }
+
+    // Cancelled session
+    &--cancelled {
+      background: var(--zinc-100);
+      border-left-color: var(--zinc-400);
+      color: var(--zinc-500);
+
+      .cal__session-class {
+        text-decoration: line-through;
+      }
+    }
+
+    // Session with changes
+    &--changed {
+      background: var(--warning-100);
+      border-left-color: var(--warning-600);
+      color: var(--warning-600);
+    }
+  }
+
+  &__session-time {
+    font-size: 10px;
+    opacity: 0.7;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__session-class {
+    font-weight: var(--font-semibold);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__session-teacher {
+    font-size: 10px;
+    opacity: 0.75;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+// =============================================================================
+// Detail Popup
+// =============================================================================
+
+.cal-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+
+    + .cal-detail__section {
+      border-top: 1px solid var(--zinc-100);
+      padding-top: var(--space-4);
+    }
+  }
+
+  &__section-title {
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-500);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: var(--text-base);
+    color: var(--zinc-700);
+  }
+
+  &__icon {
+    font-size: 14px;
+    color: var(--zinc-400);
+    flex-shrink: 0;
+    width: 16px;
+    text-align: center;
+  }
+
+  &__change {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--zinc-50);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--zinc-100);
+  }
+
+  &__change-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: var(--text-sm);
+    color: var(--zinc-700);
+    min-width: 0;
+    flex: 1;
+  }
+
+  &__reason {
+    color: var(--zinc-500);
+    font-style: italic;
+  }
+
+  &__by {
+    font-size: var(--text-xs);
+    color: var(--zinc-400);
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+
+    // Push close button to the right
+    > p-button:last-child {
+      margin-left: auto;
+    }
+  }
+}
+
+// =============================================================================
+// Operation Forms (Cancel / Substitute / Reschedule dialogs)
+// =============================================================================
+
+.cal-op-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+
+  &__warning {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--warning-100);
+    border-radius: var(--radius-md);
+    border: 1px solid #fde68a;
+    font-size: var(--text-sm);
+    color: #92400e;
+    line-height: var(--leading-relaxed);
+
+    i {
+      color: var(--warning-600);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex: 1;
+  }
+
+  &__row {
+    display: flex;
+    gap: var(--space-3);
+  }
+
+  &__label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--zinc-700);
+  }
+
+  &__required {
+    color: var(--error-600);
+    margin-left: 2px;
+  }
+
+  &__textarea {
+    width: 100%;
+    resize: vertical;
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-md);
+    line-height: var(--leading-normal);
+    min-height: 72px;
+  }
+
+  &__time {
+    width: 100%;
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--zinc-100);
+  }
+}
+
+// =============================================================================
+// PrimeNG Dialog override (scoped)
+// =============================================================================
+
+:host ::ng-deep {
+  .cal-dialog {
+    .p-dialog-header {
+      padding: var(--space-5) var(--space-6);
+      border-bottom: 1px solid var(--zinc-100);
+
+      .p-dialog-title {
+        font-size: var(--text-lg);
+        font-weight: var(--font-semibold);
+        color: var(--zinc-900);
+      }
+    }
+
+    .p-dialog-content {
+      padding: var(--space-5) var(--space-6);
+    }
+
+    .p-dialog-footer {
+      padding: var(--space-4) var(--space-6);
+      border-top: 1px solid var(--zinc-100);
+      background: var(--zinc-50);
+    }
+  }
+
+  .p-tag {
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    padding: 3px 8px;
+    border-radius: var(--radius-full);
+  }
+}
+
+// =============================================================================
+// Responsive
+// =============================================================================
+
+@include bp.respond-to('tablet-portrait') {
+  .cal {
+    padding: var(--space-4) var(--space-3);
+    gap: var(--space-4);
+
+    &__header {
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    &__nav {
+      align-self: flex-start;
+    }
+
+    &__title {
+      font-size: var(--text-xl);
+    }
+
+    &__filters {
+      gap: var(--space-2);
+    }
+
+    &__filter {
+      min-width: 0;
+      flex: 1 1 120px;
+    }
+  }
+
+  :host ::ng-deep {
+    .cal-dialog {
+      width: calc(100vw - var(--space-8)) !important;
+      max-width: 100%;
+      margin: var(--space-4);
+    }
+  }
+
+  .cal-op-form {
+    &__row {
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+  }
+}
+
+@include bp.respond-to('mobile') {
+  .cal {
+    padding: var(--space-3);
+    gap: var(--space-3);
+
+    &__filters {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    &__filter {
+      width: 100%;
+    }
+
+    &__title {
+      font-size: var(--text-lg);
+    }
+  }
+}

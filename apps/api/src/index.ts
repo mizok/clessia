@@ -10,6 +10,7 @@ import staffRoute from './routes/staff';
 import subjectsRoute from './routes/subjects';
 import classesRoute from './routes/classes';
 import auditLogsRoute from './routes/audit-logs';
+import sessionsRoute from './routes/sessions';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ============================================================
@@ -134,6 +135,7 @@ app.route('/api/staff', staffRoute);
 app.route('/api/subjects', subjectsRoute);
 app.route('/api/classes', classesRoute);
 app.route('/api/audit-logs', auditLogsRoute);
+app.route('/api/sessions', sessionsRoute);
 
 // ============================================================
 // Error Handler
