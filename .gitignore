@@ -50,6 +50,9 @@ __screenshots__/
 # Environment files
 .dev.vars
 
+# Worktrees
+.worktrees
+
 # System files
 .DS_Store
 Thumbs.db
