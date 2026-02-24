@@ -1,6 +1,8 @@
-import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { addDays, addWeeks, endOfWeek, format, isToday, startOfWeek } from 'date-fns';
+import { debounceTime, fromEvent } from 'rxjs';
 import { zhTW } from 'date-fns/locale';
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
@@ -52,6 +54,7 @@ export class CalendarPage implements OnInit {
   private readonly staffService = inject(StaffService);
   private readonly sessionsService = inject(SessionsService);
   private readonly messageService = inject(MessageService);
+  private readonly destroyRef = inject(DestroyRef);
 
   // ── View state (signals) ───────────────────────────────────────────────
   protected readonly currentDate = signal(new Date());
@@ -63,6 +66,9 @@ export class CalendarPage implements OnInit {
   protected readonly campuses = signal<Campus[]>([]);
   protected readonly courses = signal<Course[]>([]);
   protected readonly staff = signal<Staff[]>([]);
+
+  // Date picker popup
+  protected readonly showDatePicker = signal(false);
 
   // Detail / change history (signals)
   protected readonly showDetail = signal(false);
@@ -138,6 +144,7 @@ export class CalendarPage implements OnInit {
   ngOnInit(): void {
     this.loadFilters();
     this.loadSessions();
+    this.listenToResize();
   }
 
   // ── Navigation ─────────────────────────────────────────────────────────
@@ -161,6 +168,16 @@ export class CalendarPage implements OnInit {
 
   protected goToday(): void {
     this.currentDate.set(new Date());
+    this.loadSessions();
+  }
+
+  protected toggleDatePicker(): void {
+    this.showDatePicker.update((v) => !v);
+  }
+
+  protected onDateJump(date: Date): void {
+    this.currentDate.set(date);
+    this.showDatePicker.set(false);
     this.loadSessions();
   }
 
@@ -386,6 +403,18 @@ export class CalendarPage implements OnInit {
   }
 
   // ── Private ────────────────────────────────────────────────────────────
+  private listenToResize(): void {
+    fromEvent(window, 'resize')
+      .pipe(debounceTime(150), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        const isWide = window.innerWidth >= 768;
+        if (this.isWeekView() !== isWide) {
+          this.isWeekView.set(isWide);
+          this.loadSessions();
+        }
+      });
+  }
+
   private loadFilters(): void {
     this.campusesService.list({ isActive: true, pageSize: 100 }).subscribe({
       next: (res) => this.campuses.set(res.data),

@@ -5,13 +5,25 @@
   <div class="cal__header">
     <div class="cal__title-group">
       <h1 class="cal__title">課堂行事曆</h1>
-      <p class="cal__subtitle">
+      <button class="cal__subtitle" (click)="toggleDatePicker()">
         @if (isWeekView()) {
           {{ weekLabel() }}
         } @else {
           {{ dayLabel() }}
         }
-      </p>
+        <i class="pi pi-angle-down cal__subtitle-caret"></i>
+      </button>
+      @if (showDatePicker()) {
+        <div class="cal__datepicker-popup">
+          <p-datepicker
+            [ngModel]="currentDate()"
+            [inline]="true"
+            [firstDayOfWeek]="1"
+            (onSelect)="onDateJump($event)"
+            dateFormat="yy/mm/dd"
+          />
+        </div>
+      }
     </div>
 
     <div class="cal__nav">
@@ -54,6 +66,7 @@
       optionValue="id"
       placeholder="所有分校"
       [showClear]="true"
+      appendTo="body"
       [(ngModel)]="selectedCampusId"
       (onChange)="onFilterChange()"
     />
@@ -64,6 +77,7 @@
       optionValue="id"
       placeholder="所有課程"
       [showClear]="true"
+      appendTo="body"
       [(ngModel)]="selectedCourseId"
       (onChange)="onFilterChange()"
     />
@@ -74,6 +88,7 @@
       optionValue="id"
       placeholder="所有老師"
       [showClear]="true"
+      appendTo="body"
       [(ngModel)]="selectedTeacherId"
       (onChange)="onFilterChange()"
     />
