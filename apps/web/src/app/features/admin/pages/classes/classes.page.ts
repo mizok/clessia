@@ -1189,11 +1189,7 @@ export class ClassesPage implements OnInit {
 
   protected loadClassSessions(classId: string): void {
     this.sessionListLoading.set(true);
-    const now = new Date();
-    const from = format(addMonths(now, -1), 'yyyy-MM-dd');
-    const to = format(addMonths(now, 1), 'yyyy-MM-dd');
-
-    this.sessionsService.list({ from, to, classId }).subscribe({
+    this.sessionsService.list({ classId }).subscribe({
       next: (res) => {
         this.classSessions.set(res.data);
         this.sessionListLoading.set(false);

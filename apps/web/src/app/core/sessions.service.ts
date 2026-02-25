@@ -35,8 +35,8 @@ export interface ScheduleChange {
 }
 
 export interface SessionQueryParams {
-  from: string;
-  to: string;
+  from?: string;
+  to?: string;
   campusId?: string;
   courseId?: string;
   teacherId?: string;
@@ -49,8 +49,10 @@ export class SessionsService {
   private readonly endpoint = `${environment.apiUrl}/api/sessions`;
 
   list(params: SessionQueryParams): Observable<{ data: Session[] }> {
-    const query: Record<string, string> = { from: params.from, to: params.to };
+    const query: Record<string, string> = {};
 
+    if (params.from) query['from'] = params.from;
+    if (params.to) query['to'] = params.to;
     if (params.campusId) query['campusId'] = params.campusId;
     if (params.courseId) query['courseId'] = params.courseId;
     if (params.teacherId) query['teacherId'] = params.teacherId;

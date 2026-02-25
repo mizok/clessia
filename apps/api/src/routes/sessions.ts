@@ -33,8 +33,8 @@ const SessionChangeTypeSchema = z
 
 const SessionListQuerySchema = z
   .object({
-    from: DateSchema,
-    to: DateSchema,
+    from: DateSchema.optional(),
+    to: DateSchema.optional(),
     campusId: z.uuid().optional().openapi({ description: '分校 ID' }),
     courseId: z.uuid().optional().openapi({ description: '課程 ID' }),
     teacherId: z.uuid().optional().openapi({ description: '教師 ID' }),
@@ -265,10 +265,15 @@ app.openapi(listSessionsRoute, async (c) => {
     `,
     )
     .eq('org_id', orgId)
-    .gte('session_date', from)
-    .lte('session_date', to)
     .order('session_date')
     .order('start_time');
+
+  if (from) {
+    dbQuery = dbQuery.gte('session_date', from);
+  }
+  if (to) {
+    dbQuery = dbQuery.lte('session_date', to);
+  }
 
   if (campusId) {
     dbQuery = dbQuery.eq('classes.campus_id', campusId);
