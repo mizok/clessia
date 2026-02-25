@@ -686,13 +686,11 @@
   }
 
   &__teacher {
-    flex: 1;
-    min-width: 140px;
-    height: 32px;
+    width: 100%;
+    min-width: 280px;
 
     ::ng-deep .p-select-label {
-      font-size: var(--text-xs) !important;
-      padding: 0 var(--space-2) !important;
+      padding: var(--space-2) var(--space-3) !important;
     }
   }
 

@@ -751,6 +751,8 @@
                   [ngModel]="entry.teacherId"
                   (ngModelChange)="updateScheduleEntry($index, 'teacherId', $event)"
                   placeholder="待指派（選填）"
+                  [filter]="true"
+                  filterBy="label"
                   [showClear]="true"
                   [disabled]="classDialogLoading()"
                   styleClass="schedule-entry__teacher"
