@@ -364,14 +364,6 @@
                               (onClick)="openEditClassDialog(cls)"
                             />
                             <p-button
-                              label="查看課堂"
-                              icon="pi pi-list"
-                              size="small"
-                              [outlined]="true"
-                              severity="info"
-                              (onClick)="openSessionListDialog(cls)"
-                            />
-                            <p-button
                               label="產生課堂"
                               icon="pi pi-calendar-plus"
                               size="small"
@@ -381,6 +373,14 @@
                               [disabled]="!cls.scheduleCount"
                               [pTooltip]="!cls.scheduleCount ? '請先設定上課時間' : ''"
                               tooltipPosition="top"
+                            />
+                            <p-button
+                              label="查看課堂"
+                              icon="pi pi-list"
+                              size="small"
+                              [outlined]="true"
+                              severity="info"
+                              (onClick)="openSessionListDialog(cls)"
                             />
                             <p-button
                               [label]="cls.isActive ? '停用' : '啟用'"
@@ -489,6 +489,60 @@
       </div>
     }
 
+    <!-- Status (edit only) -->
+    @if (courseDialogMode() === 'edit') {
+      <div class="form-dialog__field form-dialog__field--inline">
+        <label class="form-dialog__label">狀態</label>
+        <div class="form-dialog__switch-row">
+          <p-toggleswitch
+            [ngModel]="courseForm().isActive"
+            (ngModelChange)="updateCourseForm('isActive', $event)"
+            [disabled]="courseDialogLoading()"
+          />
+          <span class="form-dialog__switch-label">
+            {{ courseForm().isActive ? '啟用中' : '已停用' }}
+          </span>
+        </div>
+      </div>
+      @if (!courseForm().isActive && editingCourseActiveClassCount() > 0) {
+        <div class="form-dialog__warning">
+          <i class="pi pi-info-circle"></i>
+          此課程下有
+          {{
+            editingCourseActiveClassCount()
+          }}
+          個啟用班級，停用後不影響現有班級運作，但無法新增新班級。
+        </div>
+      }
+    }
+<!-- Status (edit only) -->
+    @if (courseDialogMode() === 'edit') {
+      <div class="form-dialog__field form-dialog__field--inline">
+        <label class="form-dialog__label">狀態</label>
+        <div class="form-dialog__switch-row">
+          <p-toggleswitch
+            [ngModel]="courseForm().isActive"
+            (ngModelChange)="updateCourseForm('isActive', $event)"
+            [disabled]="courseDialogLoading()"
+          />
+          <span class="form-dialog__switch-label">
+            {{ courseForm().isActive ? '啟用中' : '已停用' }}
+          </span>
+        </div>
+      </div>
+      @if (!courseForm().isActive && editingCourseActiveClassCount() > 0) {
+        <div class="form-dialog__warning">
+          <i class="pi pi-info-circle"></i>
+          此課程下有
+          {{
+            editingCourseActiveClassCount()
+          }}
+          個啟用班級，停用後不影響現有班級運作，但無法新增新班級。
+        </div>
+      }
+    }
+
+
     <!-- Name -->
     <div class="form-dialog__field">
       <label class="form-dialog__label">
@@ -533,33 +587,6 @@
       />
     </div>
 
-    <!-- Status (edit only) -->
-    @if (courseDialogMode() === 'edit') {
-      <div class="form-dialog__field form-dialog__field--inline">
-        <label class="form-dialog__label">狀態</label>
-        <div class="form-dialog__switch-row">
-          <p-toggleswitch
-            [ngModel]="courseForm().isActive"
-            (ngModelChange)="updateCourseForm('isActive', $event)"
-            [disabled]="courseDialogLoading()"
-          />
-          <span class="form-dialog__switch-label">
-            {{ courseForm().isActive ? '啟用中' : '已停用' }}
-          </span>
-        </div>
-      </div>
-      @if (!courseForm().isActive && editingCourseActiveClassCount() > 0) {
-        <div class="form-dialog__warning">
-          <i class="pi pi-info-circle"></i>
-          此課程下有
-          {{
-            editingCourseActiveClassCount()
-          }}
-          個啟用班級，停用後不影響現有班級運作，但無法新增新班級。
-        </div>
-      }
-    }
-
     <!-- Footer -->
     <div class="form-dialog__footer">
       <p-button
@@ -593,6 +620,23 @@
   [contentStyle]="{ 'max-height': 'calc(100dvh - 14rem)', 'overflow-y': 'auto' }"
 >
   <div class="form-dialog">
+
+    <!-- Status (edit only) -->
+    @if (classDialogMode() === 'edit') {
+      <div class="form-dialog__field form-dialog__field--inline">
+        <label class="form-dialog__label">狀態</label>
+        <div class="form-dialog__switch-row">
+          <p-toggleswitch
+            [ngModel]="classForm().isActive"
+            (ngModelChange)="updateClassForm('isActive', $event)"
+            [disabled]="classDialogLoading()"
+          />
+          <span class="form-dialog__switch-label">
+            {{ classForm().isActive ? '啟用中' : '已停用' }}
+          </span>
+        </div>
+      </div>
+    }
     <!-- Name -->
     <div class="form-dialog__field">
       <label class="form-dialog__label">
@@ -608,6 +652,8 @@
         class="w-full"
       />
     </div>
+
+    
 
     <!-- Max Students -->
     <div class="form-dialog__field">
@@ -635,23 +681,6 @@
         appendTo="body"
       />
     </div>
-
-    <!-- Status (edit only) -->
-    @if (classDialogMode() === 'edit') {
-      <div class="form-dialog__field form-dialog__field--inline">
-        <label class="form-dialog__label">狀態</label>
-        <div class="form-dialog__switch-row">
-          <p-toggleswitch
-            [ngModel]="classForm().isActive"
-            (ngModelChange)="updateClassForm('isActive', $event)"
-            [disabled]="classDialogLoading()"
-          />
-          <span class="form-dialog__switch-label">
-            {{ classForm().isActive ? '啟用中' : '已停用' }}
-          </span>
-        </div>
-      </div>
-    }
 
     <!-- Schedules Section -->
     <div class="form-dialog__section">

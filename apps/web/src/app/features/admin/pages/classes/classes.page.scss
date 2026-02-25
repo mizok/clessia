@@ -624,6 +624,13 @@
     }
   }
 
+  &__section-subtitle {
+    font-size: var(--text-xs);
+    font-weight: var(--font-normal);
+    color: var(--zinc-500);
+    margin-left: var(--space-1);
+  }
+
   &__empty-note {
     padding: var(--space-4);
     font-size: var(--text-sm);
@@ -676,6 +683,17 @@
 
   &__weekday {
     min-width: 90px;
+  }
+
+  &__teacher {
+    flex: 1;
+    min-width: 140px;
+    height: 32px;
+
+    ::ng-deep .p-select-label {
+      font-size: var(--text-xs) !important;
+      padding: 0 var(--space-2) !important;
+    }
   }
 
   &__time-input,
