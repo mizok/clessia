@@ -1077,12 +1077,12 @@
 >
   <div class="session-list-dialog">
     <div class="session-list-toolbar">
-      <div class="flex items-center gap-2">
+      <div class="session-list-toolbar__toggle" (click)="includePastSessions.set(!includePastSessions()); togglePastSessions(sessionListTargetClass()!.id)">
         <p-toggleswitch
           [(ngModel)]="includePastSessions"
-          (ngModelChange)="togglePastSessions(sessionListTargetClass()!.id)"
+          [readonly]="true"
         />
-        <span class="session-list-hint">包含過往課堂紀錄</span>
+        <span class="session-list-toolbar__label">包含過往課堂紀錄</span>
       </div>
     </div>
 
