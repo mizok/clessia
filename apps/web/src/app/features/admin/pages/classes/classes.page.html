@@ -364,31 +364,23 @@
                               (onClick)="openEditClassDialog(cls)"
                             />
                             <p-button
-                              label="產生課堂"
-                              icon="pi pi-calendar-plus"
-                              size="small"
-                              [outlined]="true"
-                              severity="info"
-                              (onClick)="openGenerateDialog(cls)"
-                              [disabled]="!cls.scheduleCount"
-                              [pTooltip]="!cls.scheduleCount ? '請先設定上課時間' : ''"
-                              tooltipPosition="top"
-                            />
-                            <p-button
                               label="查看課堂"
                               icon="pi pi-list"
                               size="small"
                               [outlined]="true"
-                              severity="secondary"
+                              severity="info"
                               (onClick)="openSessionListDialog(cls)"
                             />
                             <p-button
-                              label="批次指派老師"
-                              icon="pi pi-users"
+                              label="產生課堂"
+                              icon="pi pi-calendar-plus"
                               size="small"
                               [outlined]="true"
-                              severity="info"
-                              (onClick)="openBatchAssignWizard(cls)"
+                              severity="secondary"
+                              (onClick)="openGenerateDialog(cls)"
+                              [disabled]="!cls.scheduleCount"
+                              [pTooltip]="!cls.scheduleCount ? '請先設定上課時間' : ''"
+                              tooltipPosition="top"
                             />
                             <p-button
                               [label]="cls.isActive ? '停用' : '啟用'"
@@ -1159,7 +1151,16 @@
     }
 
     <div class="form-dialog__footer">
-      <p-button label="關閉" (onClick)="sessionListVisible.set(false)" />
+      <p-button
+        label="批次指派老師"
+        icon="pi pi-users"
+        [outlined]="true"
+        severity="info"
+        (onClick)="openBatchAssignWizard(sessionListTargetClass()!)"
+        *ngIf="sessionListTargetClass()"
+      />
+      <div class="flex-grow-1"></div>
+      <p-button label="關閉" severity="secondary" [text]="true" (onClick)="sessionListVisible.set(false)" />
     </div>
   </div>
 </p-dialog>
