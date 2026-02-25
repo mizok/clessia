@@ -469,6 +469,8 @@
   [modal]="true"
   [closable]="!courseDialogLoading()"
   [style]="{ width: '32rem' }"
+  styleClass="form-dialog-container"
+  [contentStyle]="{ 'max-height': 'calc(100dvh - 12rem)', 'overflow-y': 'auto' }"
 >
   <div class="form-dialog">
     <!-- Campus (create only) -->
@@ -587,6 +589,8 @@
   [modal]="true"
   [closable]="!classDialogLoading()"
   [style]="{ width: '44rem' }"
+  styleClass="form-dialog-container"
+  [contentStyle]="{ 'max-height': 'calc(100dvh - 12rem)', 'overflow-y': 'auto' }"
 >
   <div class="form-dialog">
     <!-- Name -->
@@ -770,6 +774,8 @@
   [modal]="true"
   [closable]="!generateLoading()"
   [style]="{ width: '40rem' }"
+  styleClass="form-dialog-container"
+  [contentStyle]="{ 'max-height': 'calc(100dvh - 12rem)', 'overflow-y': 'auto' }"
   (onHide)="generateStep.set('input')"
 >
   @if (generateStep() === 'input') {
@@ -933,6 +939,8 @@
   [modal]="true"
   [closable]="true"
   [style]="{ width: '36rem' }"
+  styleClass="form-dialog-container"
+  [contentStyle]="{ 'max-height': 'calc(100dvh - 12rem)', 'overflow-y': 'auto' }"
 >
   <div class="form-dialog">
     <div class="conflict-dialog__header">
@@ -991,6 +999,8 @@
   [modal]="true"
   [closable]="!deactivateLoading()"
   [style]="{ width: '28rem' }"
+  styleClass="form-dialog-container"
+  [contentStyle]="{ 'max-height': 'calc(100dvh - 12rem)', 'overflow-y': 'auto' }"
 >
   @if (deactivateTargetClass()) {
     <div class="form-dialog">
