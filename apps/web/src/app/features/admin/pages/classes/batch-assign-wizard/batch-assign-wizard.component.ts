@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 // PrimeNG
@@ -88,6 +88,85 @@ export class BatchAssignWizardComponent {
 
   // Step 4: 預覽結果
   protected readonly previewResult = signal<BatchAssignTeacherResult | null>(null);
+
+  // ── Quick Preview（Step 2 即時預覽）─────────────────────────────────
+  protected readonly quickPreview = signal<BatchAssignTeacherResult | null>(null);
+  protected readonly quickPreviewLoading = signal(false);
+  private quickPreviewTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly destroyRef = inject(DestroyRef);
+
+  constructor() {
+    // debounced auto-fetch: 日期 + 老師 + includeAssigned 改變時自動 dryRun
+    effect(() => {
+      const from = this.dateFrom();
+      const to = this.dateTo();
+      const teacherId = this.selectedTeacherId();
+      const includeAssigned = this.includeAssigned();
+
+      // 清除上次 timer
+      if (this.quickPreviewTimer) {
+        clearTimeout(this.quickPreviewTimer);
+        this.quickPreviewTimer = null;
+      }
+
+      // 需 3 個值都有效才觸發
+      if (!from || !to || !teacherId) {
+        this.quickPreview.set(null);
+        return;
+      }
+      const fromStr = this.toDateString(from);
+      const toStr = this.toDateString(to);
+      if (fromStr > toStr) {
+        this.quickPreview.set(null);
+        return;
+      }
+
+      // 500ms debounce
+      this.quickPreviewTimer = setTimeout(() => {
+        this.fetchQuickPreview(fromStr, toStr, teacherId, includeAssigned);
+      }, 500);
+    });
+
+    // Cleanup timer on destroy
+    this.destroyRef.onDestroy(() => {
+      if (this.quickPreviewTimer) {
+        clearTimeout(this.quickPreviewTimer);
+      }
+    });
+  }
+
+  private fetchQuickPreview(
+    from: string,
+    to: string,
+    teacherId: string,
+    includeAssigned: boolean,
+  ): void {
+    this.quickPreviewLoading.set(true);
+    const payload: BatchAssignTeacherInput = {
+      from,
+      to,
+      toTeacherId: teacherId,
+      mode: 'skip-conflicts',
+      includeAssigned,
+      dryRun: true,
+    };
+    this.classesService.batchAssignTeacher(this.classId(), payload).subscribe({
+      next: (result) => {
+        this.quickPreview.set(result);
+        this.quickPreviewLoading.set(false);
+      },
+      error: () => {
+        this.quickPreview.set(null);
+        this.quickPreviewLoading.set(false);
+      },
+    });
+  }
+
+  protected readonly quickPreviewTotal = computed(() => {
+    const qp = this.quickPreview();
+    if (!qp) return 0;
+    return qp.updated + qp.skippedConflicts + qp.skippedNotEligible;
+  });
 
   // ── Options ───────────────────────────────────────────────────────────
   protected readonly teacherOptions = computed(() => {

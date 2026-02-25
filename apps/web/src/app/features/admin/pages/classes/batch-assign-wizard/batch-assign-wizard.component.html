@@ -138,6 +138,41 @@
           }
         </div>
 
+        <!-- Quick Preview 即時摘要 -->
+        @if (quickPreviewLoading()) {
+          <div class="batch-wizard__quick-preview batch-wizard__quick-preview--loading">
+            <i class="pi pi-spin pi-spinner"></i>
+            <span>正在查詢課堂...</span>
+          </div>
+        } @else if (quickPreview(); as qp) {
+          <div class="batch-wizard__quick-preview">
+            <div class="batch-wizard__quick-preview-header">
+              <i class="pi pi-info-circle"></i>
+              <span>此範圍內共 <strong>{{ quickPreviewTotal() }}</strong> 堂課</span>
+            </div>
+            <div class="batch-wizard__quick-preview-chips">
+              <span class="batch-wizard__chip batch-wizard__chip--ok">
+                <i class="pi pi-check"></i> {{ qp.updated }} 堂可指派
+              </span>
+              @if (qp.skippedConflicts > 0) {
+                <span class="batch-wizard__chip batch-wizard__chip--warn">
+                  <i class="pi pi-exclamation-triangle"></i> {{ qp.skippedConflicts }} 堂有衝突
+                </span>
+              }
+              @if (qp.skippedNotEligible > 0) {
+                <span class="batch-wizard__chip batch-wizard__chip--muted">
+                  <i class="pi pi-minus-circle"></i> {{ qp.skippedNotEligible }} 堂已有老師
+                </span>
+              }
+            </div>
+            @if (qp.updated === 0) {
+              <p-message severity="info" styleClass="w-full">
+                <span>此日期範圍內沒有可指派的課堂，請調整日期或勾選「包含已有老師的課堂」。</span>
+              </p-message>
+            }
+          </div>
+        }
+
         <div class="batch-wizard__footer">
           <p-button
             label="上一步"
