@@ -37,6 +37,8 @@ import { CoursesService, Course, CreateCourseInput, UpdateCourseInput } from '@c
 import { CampusesService, Campus } from '@core/campuses.service';
 import { SubjectsService, Subject } from '@core/subjects.service';
 import { StaffService, Staff } from '@core/staff.service';
+import { SessionsService, Session } from '@core/sessions.service';
+import { addMonths, format } from 'date-fns';
 
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -97,6 +99,7 @@ export class ClassesPage implements OnInit {
   private readonly campusesService = inject(CampusesService);
   private readonly subjectsService = inject(SubjectsService);
   private readonly staffService = inject(StaffService);
+  private readonly sessionsService = inject(SessionsService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
 
@@ -288,8 +291,14 @@ export class ClassesPage implements OnInit {
   );
 
   // ---- Batch Assign Wizard Dialog ----
-  protected readonly batchAssignDialogVisible = signal(false);
+  protected readonly batchAssignWizardVisible = signal(false);
   protected readonly batchAssignTargetClass = signal<Class | null>(null);
+
+  // View Sessions Dialog
+  protected readonly sessionListVisible = signal(false);
+  protected readonly sessionListLoading = signal(false);
+  protected readonly sessionListTargetClass = signal<Class | null>(null);
+  protected readonly classSessions = signal<Session[]>([]);
   protected readonly batchAssignSubjectId = computed(() => {
     const cls = this.batchAssignTargetClass();
     if (!cls) return '';
@@ -1168,6 +1177,38 @@ export class ClassesPage implements OnInit {
     this.generateDialogVisible.set(true);
   }
 
+  // View Sessions Dialog
+  // ================================================================
+
+  protected openSessionListDialog(cls: Class): void {
+    this.sessionListTargetClass.set(cls);
+    this.classSessions.set([]);
+    this.sessionListVisible.set(true);
+    this.loadClassSessions(cls.id);
+  }
+
+  protected loadClassSessions(classId: string): void {
+    this.sessionListLoading.set(true);
+    const now = new Date();
+    const from = format(addMonths(now, -1), 'yyyy-MM-dd');
+    const to = format(addMonths(now, 1), 'yyyy-MM-dd');
+
+    this.sessionsService.list({ from, to, classId }).subscribe({
+      next: (res) => {
+        this.classSessions.set(res.data);
+        this.sessionListLoading.set(false);
+      },
+      error: () => {
+        this.messageService.add({
+          severity: 'error',
+          summary: '載入失敗',
+          detail: '無法取得課堂列表，請稍後再試。',
+        });
+        this.sessionListLoading.set(false);
+      },
+    });
+  }
+
   protected previewSessionsAction(): void {
     const cls = this.generateTargetClass();
     const from = this.generateFrom();
@@ -1244,18 +1285,17 @@ export class ClassesPage implements OnInit {
 
   protected openBatchAssignWizard(cls: Class): void {
     this.batchAssignTargetClass.set(cls);
-    this.batchAssignDialogVisible.set(true);
+    this.batchAssignWizardVisible.set(true);
   }
 
   protected onBatchAssignCompleted(): void {
-    this.batchAssignDialogVisible.set(false);
+    this.batchAssignWizardVisible.set(false);
     this.batchAssignTargetClass.set(null);
-    // Reload class data to reflect updated assignments
-    this.loadAll();
+    this.loadAll(); // Refresh data
   }
 
   protected onBatchAssignCancelled(): void {
-    this.batchAssignDialogVisible.set(false);
+    this.batchAssignWizardVisible.set(false);
     this.batchAssignTargetClass.set(null);
   }
 

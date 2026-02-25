@@ -375,6 +375,14 @@
                               tooltipPosition="top"
                             />
                             <p-button
+                              label="查看課堂"
+                              icon="pi pi-list"
+                              size="small"
+                              [outlined]="true"
+                              severity="secondary"
+                              (onClick)="openSessionListDialog(cls)"
+                            />
+                            <p-button
                               label="批次指派老師"
                               icon="pi pi-users"
                               size="small"
@@ -1045,7 +1053,7 @@
 <!-- ============================================================ -->
 <p-dialog
   header="批次指派老師"
-  [(visible)]="batchAssignDialogVisible"
+  [(visible)]="batchAssignWizardVisible"
   [modal]="true"
   [closable]="true"
   [style]="{ width: '40rem' }"
@@ -1063,4 +1071,95 @@
       (cancelled)="onBatchAssignCancelled()"
     />
   }
+</p-dialog>
+
+<!-- ============================================================ -->
+<!-- View Sessions Dialog -->
+<!-- ============================================================ -->
+<p-dialog
+  [header]="sessionListTargetClass()?.name + ' - 課堂列表'"
+  [(visible)]="sessionListVisible"
+  [modal]="true"
+  [style]="{ width: '50rem' }"
+  [breakpoints]="{ '960px': '95vw' }"
+>
+  <div class="session-list-dialog">
+    <p class="session-list-hint">顯示前後一個月內的課堂記錄</p>
+
+    @if (sessionListLoading()) {
+      <div class="skeleton-list">
+        @for (i of [1, 2, 3, 4, 5]; track i) {
+          <div class="skeleton-row" style="height: 3rem; margin-bottom: 0.5rem"></div>
+        }
+      </div>
+    } @else if (classSessions().length === 0) {
+      <app-empty-state
+        icon="pi pi-calendar"
+        title="尚無課堂紀錄"
+        description="這段期間內沒有已排定的課堂"
+      />
+    } @else {
+      <div class="session-table-wrapper">
+        <table class="session-table">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>星期</th>
+              <th>時間</th>
+              <th>老師</th>
+              <th>狀態</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (session of classSessions(); track session.id) {
+              <tr>
+                <td>{{ session.sessionDate }}</td>
+                <td>{{ session.sessionDate | date:'EEEE' }}</td>
+                <td>{{ session.startTime }}-{{ session.endTime }}</td>
+                <td>
+                  @if (session.teacherName) {
+                    {{ session.teacherName }}
+                  } @else {
+                    <span class="text-secondary">未指派</span>
+                  }
+                </td>
+                <td>
+                  @switch (session.status) {
+                    @case ('scheduled') {
+                      <p-tag
+                        value="準時"
+                        severity="success"
+                        [rounded]="true"
+                        styleClass="text-xs"
+                      />
+                    }
+                    @case ('completed') {
+                      <p-tag
+                        value="已完成"
+                        severity="info"
+                        [rounded]="true"
+                        styleClass="text-xs"
+                      />
+                    }
+                    @case ('cancelled') {
+                      <p-tag
+                        value="已停課"
+                        severity="danger"
+                        [rounded]="true"
+                        styleClass="text-xs"
+                      />
+                    }
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <div class="form-dialog__footer">
+      <p-button label="關閉" (onClick)="sessionListVisible.set(false)" />
+    </div>
+  </div>
 </p-dialog>

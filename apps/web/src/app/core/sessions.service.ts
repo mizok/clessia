@@ -40,6 +40,7 @@ export interface SessionQueryParams {
   campusId?: string;
   courseId?: string;
   teacherId?: string;
+  classId?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -53,6 +54,7 @@ export class SessionsService {
     if (params.campusId) query['campusId'] = params.campusId;
     if (params.courseId) query['courseId'] = params.courseId;
     if (params.teacherId) query['teacherId'] = params.teacherId;
+    if (params.classId) query['classId'] = params.classId;
 
     return this.http.get<{ data: Session[] }>(this.endpoint, { params: query });
   }

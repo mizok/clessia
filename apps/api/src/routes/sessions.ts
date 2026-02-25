@@ -38,6 +38,7 @@ const SessionListQuerySchema = z
     campusId: z.uuid().optional().openapi({ description: '分校 ID' }),
     courseId: z.uuid().optional().openapi({ description: '課程 ID' }),
     teacherId: z.uuid().optional().openapi({ description: '教師 ID' }),
+    classId: z.uuid().optional().openapi({ description: '班級 ID' }),
   })
   .openapi('SessionListQuery');
 
@@ -247,7 +248,7 @@ const listSessionsRoute = createRoute({
 app.openapi(listSessionsRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
-  const { from, to, campusId, courseId, teacherId } = c.req.valid('query');
+  const { from, to, campusId, courseId, teacherId, classId } = c.req.valid('query');
 
   let dbQuery = supabase
     .from('sessions')
@@ -277,6 +278,9 @@ app.openapi(listSessionsRoute, async (c) => {
   }
   if (teacherId) {
     dbQuery = dbQuery.eq('teacher_id', teacherId);
+  }
+  if (classId) {
+    dbQuery = dbQuery.eq('class_id', classId);
   }
 
   const { data, error } = await dbQuery;

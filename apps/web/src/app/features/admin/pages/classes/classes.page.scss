@@ -1115,3 +1115,59 @@
     flex-wrap: wrap;
   }
 }
+// ---- View Sessions Dialog ----
+.session-list-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+
+  .session-list-hint {
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+    margin: 0;
+  }
+
+  .session-table-wrapper {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--zinc-100);
+    border-radius: var(--radius-md);
+  }
+
+  .session-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+
+    th {
+      position: sticky;
+      top: 0;
+      background: var(--zinc-50);
+      padding: var(--space-3) var(--space-4);
+      text-align: left;
+      font-weight: var(--font-semibold);
+      color: var(--zinc-600);
+      border-bottom: 2px solid var(--zinc-100);
+      z-index: 1;
+    }
+
+    td {
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--zinc-50);
+      color: var(--zinc-700);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover {
+      background: var(--zinc-50) / 0.5;
+    }
+  }
+
+  .text-secondary {
+    color: var(--zinc-400);
+    font-style: italic;
+  }
+}
