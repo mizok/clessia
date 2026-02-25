@@ -1239,7 +1239,7 @@
 ::ng-deep .session-list-dialog-container {
   @include bp.respond-to('mobile') {
     .p-dialog-content {
-      padding: var(--space-3) !important;
+      padding: var(--space-1) !important;
     }
   }
 }
