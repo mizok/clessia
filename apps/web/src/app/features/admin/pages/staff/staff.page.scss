@@ -568,6 +568,28 @@
 
   .p-checkbox {
     margin-top: 2px;
+
+    .p-checkbox-box {
+      border: 1px solid var(--zinc-300);
+      border-radius: var(--radius-sm, 4px);
+    }
+
+    &.p-checkbox-checked .p-checkbox-box {
+      border-color: var(--p-primary-color);
+    }
+  }
+
+  textarea.p-textarea,
+  .p-textarea {
+    border: 1px solid var(--zinc-300);
+    border-radius: var(--radius-md, 6px);
+
+    &:focus,
+    &:focus-within {
+      border-color: var(--p-primary-color);
+      outline: none;
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--p-primary-color) 15%, transparent);
+    }
   }
 }
 
