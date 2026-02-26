@@ -1,0 +1,36 @@
+@use 'shared/breakpoints' as bp;
+
+// Inherits from .form-dialog and .dialog-header-inline
+
+.deactivate-dialog {
+  &__body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: var(--space-6) var(--space-4);
+    gap: var(--space-3);
+  }
+
+  &__icon {
+    font-size: 3rem;
+    color: var(--error-600);
+    margin-bottom: var(--space-2);
+  }
+
+  &__message {
+    font-size: var(--text-lg);
+    color: var(--zinc-900);
+    margin: 0;
+
+    strong {
+      color: var(--error-600);
+    }
+  }
+
+  &__hint {
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+    margin: 0;
+  }
+}

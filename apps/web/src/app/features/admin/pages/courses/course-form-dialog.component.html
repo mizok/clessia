@@ -1,0 +1,125 @@
+<div class="form-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <span class="dialog-header-inline__breadcrumb">{{ campusName() }}</span>
+      <span class="dialog-header-inline__title">{{ isEditing() ? '編輯課程' : '新增課程' }}</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+  <!-- Status (edit only) -->
+  @if (isEditing()) {
+    <div class="form-dialog__field form-dialog__field--inline">
+      <label class="form-dialog__label">狀態</label>
+      <div class="form-dialog__switch-row">
+        <p-toggleswitch
+          [ngModel]="formData().isActive"
+          (ngModelChange)="updateForm('isActive', $event)"
+          [disabled]="loading()"
+        />
+        <span class="form-dialog__switch-label">
+          {{ formData().isActive ? '啟用中' : '已停用' }}
+        </span>
+      </div>
+    </div>
+  }
+
+  <!-- Campus -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label"> 所屬分校<span class="form-dialog__required">*</span> </label>
+    <p-select
+      [options]="campusOptions()"
+      [ngModel]="formData().campusId"
+      (ngModelChange)="updateForm('campusId', $event)"
+      placeholder="選擇分校"
+      [disabled]="loading() || isEditing()"
+      [appendTo]="'body'"
+      class="w-full"
+    />
+  </div>
+
+  <!-- Subject -->
+  <div class="form-dialog__field">
+    <div class="form-dialog__label-row">
+      <label class="form-dialog__label"> 科目<span class="form-dialog__required">*</span> </label>
+      <p-button
+        label="管理科目"
+        icon="pi pi-cog"
+        [text]="true"
+        size="small"
+        severity="secondary"
+        (onClick)="openSubjectManager()"
+      />
+    </div>
+    <p-select
+      [options]="subjectOptions()"
+      [ngModel]="formData().subjectId"
+      (ngModelChange)="updateForm('subjectId', $event)"
+      placeholder="選擇科目"
+      [disabled]="loading()"
+      [appendTo]="'body'"
+      class="w-full"
+    />
+  </div>
+
+  <!-- Name -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label"> 課程名稱<span class="form-dialog__required">*</span> </label>
+    <input
+      type="text"
+      pInputText
+      [ngModel]="formData().name"
+      (ngModelChange)="updateForm('name', $event)"
+      placeholder="例如：國三數學"
+      [disabled]="loading()"
+      class="w-full"
+    />
+  </div>
+
+  <!-- Grade Levels -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label">學段</label>
+    <p-multiselect
+      [options]="gradeOptions"
+      [ngModel]="formData().gradeLevels"
+      (ngModelChange)="updateForm('gradeLevels', $event)"
+      placeholder="選擇學段（可多選）"
+      [disabled]="loading()"
+      class="w-full"
+      display="chip"
+    />
+  </div>
+
+  <!-- Description -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label">簡介</label>
+    <textarea
+      pTextarea
+      [ngModel]="formData().description"
+      (ngModelChange)="updateForm('description', $event)"
+      [rows]="3"
+      placeholder="課程簡短說明（選填）"
+      [disabled]="loading()"
+      class="w-full"
+    ></textarea>
+  </div>
+
+  <!-- Footer -->
+  <div class="form-dialog__footer">
+    <p-button
+      label="取消"
+      [text]="true"
+      severity="secondary"
+      [disabled]="loading()"
+      (onClick)="cancel()"
+    />
+    <p-button
+      [label]="isEditing() ? '儲存' : '建立'"
+      [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+      [loading]="loading()"
+      (onClick)="save()"
+      [disabled]="!formData().name.trim() || !formData().campusId || !formData().subjectId"
+    />
+  </div>
+</div>

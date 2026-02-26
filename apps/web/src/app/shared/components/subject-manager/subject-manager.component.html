@@ -1,16 +1,16 @@
+<div class="dialog-header-inline">
+  <div class="dialog-header-inline__title-container">
+    <h2 class="dialog-header-inline__title">科目管理</h2>
+  </div>
+  <button class="dialog-header-inline__close" (click)="cancel()">
+    <i class="pi pi-times"></i>
+  </button>
+</div>
+
 <p-toast />
 
-<p-dialog
-  [appendTo]="overlayContainer"
-  [(visible)]="visible"
-  header="管理科目"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  styleClass="subject-manager"
->
+<div class="subject-manager">
   <div class="subject-manager__body">
-
     <!-- Loading skeleton -->
     @if (loading()) {
       @for (_ of [1, 2, 3]; track $index) {
@@ -19,7 +19,6 @@
         </div>
       }
     } @else {
-
       <!-- Subject list -->
       @for (subject of subjects(); track subject.id) {
         <div class="subject-manager__row">
@@ -111,6 +110,5 @@
         />
       </div>
     }
-
   </div>
-</p-dialog>
+</div>

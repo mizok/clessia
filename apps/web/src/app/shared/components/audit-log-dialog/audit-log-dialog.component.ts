@@ -1,15 +1,10 @@
-import { Component, inject, input, model, signal, computed, effect } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
-// PrimeNG
-import { DialogModule } from 'primeng/dialog';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
-
-// Services
+import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { AuditLogsService, type AuditLog } from '@core/audit-logs.service';
-import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 
 interface ActionConfig {
   label: string;
@@ -39,22 +34,16 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
 @Component({
   selector: 'app-audit-log-dialog',
   standalone: true,
-  imports: [CommonModule, DialogModule, TableModule, TagModule, ButtonModule],
+  imports: [CommonModule, TableModule, TagModule, ButtonModule],
   templateUrl: './audit-log-dialog.component.html',
   styleUrl: './audit-log-dialog.component.scss',
 })
 export class AuditLogDialogComponent {
-  readonly resourceTypes = input.required<string[]>();
-  readonly title = input<string>('操作紀錄');
-  readonly visible = model(false);
-
   private readonly auditLogsService = inject(AuditLogsService);
-  private readonly overlayContainerDirective = inject(OverlayContainerDirective, {
-    optional: true,
-  });
-  protected get overlayContainer(): HTMLElement | null {
-    return this.overlayContainerDirective?.nativeHTMLElement ?? null;
-  }
+  private readonly ref = inject(DynamicDialogRef);
+  private readonly config = inject(DynamicDialogConfig);
+
+  protected readonly resourceTypes = signal<string[]>(this.config.data?.resourceTypes ?? []);
 
   protected readonly logs = signal<AuditLog[]>([]);
   protected readonly loading = signal(false);
@@ -73,8 +62,11 @@ export class AuditLogDialogComponent {
     return RESOURCE_TYPE_LABEL[type] ?? type;
   }
 
-  protected onShow(): void {
-    this.page.set(1);
+  protected cancel(): void {
+    this.ref.close();
+  }
+
+  constructor() {
     this.loadPage();
   }
 

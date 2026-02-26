@@ -1,43 +1,28 @@
-import { Component, inject, model, output, effect } from '@angular/core';
+import { Component, inject, output, signal, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
-import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { ToastModule } from 'primeng/toast';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
+import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { SubjectsService, Subject } from '@core/subjects.service';
-import { signal } from '@angular/core';
-import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 
 @Component({
   selector: 'app-subject-manager',
   standalone: true,
-  imports: [
-    FormsModule,
-    DialogModule,
-    ButtonModule,
-    InputTextModule,
-    ToastModule,
-    SkeletonModule,
-    TooltipModule,
-  ],
+  imports: [FormsModule, ButtonModule, InputTextModule, ToastModule, SkeletonModule, TooltipModule],
   providers: [MessageService],
   templateUrl: './subject-manager.component.html',
   styleUrl: './subject-manager.component.scss',
 })
-export class SubjectManagerComponent {
+export class SubjectManagerComponent implements OnInit {
   private readonly subjectsService = inject(SubjectsService);
   private readonly messageService = inject(MessageService);
-  private readonly overlayContainerDirective = inject(OverlayContainerDirective, {
-    optional: true,
-  });
-  protected get overlayContainer(): HTMLElement | null {
-    return this.overlayContainerDirective?.nativeHTMLElement ?? null;
-  }
+  private readonly ref = inject(DynamicDialogRef);
+  private readonly config = inject(DynamicDialogConfig);
 
-  readonly visible = model(false);
   readonly changed = output<Subject[]>();
 
   protected readonly subjects = signal<Subject[]>([]);
@@ -47,16 +32,12 @@ export class SubjectManagerComponent {
   protected readonly newSubjectName = signal('');
   protected readonly saving = signal(false);
 
-  constructor() {
-    effect(() => {
-      if (this.visible()) {
-        this.loadSubjects();
-      } else {
-        this.editingId.set(null);
-        this.editingName.set('');
-        this.newSubjectName.set('');
-      }
-    });
+  ngOnInit(): void {
+    this.loadSubjects();
+  }
+
+  protected cancel(): void {
+    this.ref.close();
   }
 
   protected loadSubjects(): void {

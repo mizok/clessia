@@ -1,0 +1,205 @@
+<div class="form-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <span class="dialog-header-inline__title">{{ isEditing() ? '編輯人員' : '新增人員' }}</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+  <!-- Status (edit only) -->
+  @if (isEditing()) {
+    <div class="form-dialog__field form-dialog__field--inline">
+      <label class="form-dialog__label">狀態</label>
+      <div class="form-dialog__switch-row">
+        <p-toggleswitch
+          [ngModel]="formData().isActive"
+          (ngModelChange)="updateForm('isActive', $event)"
+          [disabled]="loading()"
+        />
+        <span class="form-dialog__switch-label">
+          {{ formData().isActive ? '啟用中' : '已停用' }}
+        </span>
+      </div>
+    </div>
+  }
+
+  <div class="form-grid">
+    <!-- Name -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label"> 姓名<span class="form-dialog__required">*</span> </label>
+      <input
+        type="text"
+        pInputText
+        [ngModel]="formData().displayName"
+        (ngModelChange)="updateForm('displayName', $event)"
+        placeholder="真實姓名"
+        [disabled]="loading()"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Email -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label"> Email<span class="form-dialog__required">*</span> </label>
+      <input
+        type="email"
+        pInputText
+        [ngModel]="formData().email"
+        (ngModelChange)="updateForm('email', $event)"
+        placeholder="登入帳號用的 Email"
+        [disabled]="loading() || isEditing()"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Phone -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">電話</label>
+      <input
+        type="tel"
+        pInputText
+        [ngModel]="formData().phone"
+        (ngModelChange)="updateForm('phone', $event)"
+        placeholder="手機或市話"
+        [disabled]="loading()"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Birthday -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">生日</label>
+      <p-datepicker
+        [ngModel]="formData().birthday"
+        (ngModelChange)="updateForm('birthday', $event)"
+        [showIcon]="true"
+        placeholder="選擇生日"
+        appendTo="body"
+        [disabled]="loading()"
+        styleClass="w-full"
+        [appendTo]="'body'"
+      />
+    </div>
+  </div>
+
+  <!-- Role Selection -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label">角色角色<span class="form-dialog__required">*</span></label>
+    <div class="role-checkboxes">
+      @for (role of roleOptions; track role.value) {
+        <div class="role-checkboxes__item">
+          <p-checkbox
+            [inputId]="'role_' + role.value"
+            [name]="'role'"
+            [value]="role.value"
+            [ngModel]="formData().roles"
+            (onChange)="toggleRole(role.value, $event.checked)"
+            [disabled]="loading()"
+          />
+          <label [for]="'role_' + role.value" class="ml-2">{{ role.label }}</label>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- Campuses -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label"> 服務分校<span class="form-dialog__required">*</span> </label>
+    <p-multiselect
+      [options]="campusOptions()"
+      [ngModel]="formData().campusIds"
+      (ngModelChange)="updateForm('campusIds', $event)"
+      placeholder="選擇服務分校"
+      [disabled]="loading()"
+      class="w-full"
+      display="chip"
+    />
+  </div>
+
+  <!-- Subjects (if teacher) -->
+  @if (isTeacherRole()) {
+    <div class="form-dialog__field">
+      <div class="form-dialog__label-row">
+        <label class="form-dialog__label">
+          教學科目<span class="form-dialog__required">*</span>
+        </label>
+        <p-button
+          label="管理科目"
+          icon="pi pi-cog"
+          [text]="true"
+          size="small"
+          severity="secondary"
+          (onClick)="openSubjectManager()"
+        />
+      </div>
+      <p-multiselect
+        [options]="subjectOptions()"
+        [ngModel]="formData().subjectIds"
+        (ngModelChange)="updateForm('subjectIds', $event)"
+        placeholder="選擇教學科目"
+        [disabled]="loading()"
+        class="w-full"
+        display="chip"
+      />
+    </div>
+  }
+
+  <!-- Permissions (if admin) -->
+  @if (isAdminRole()) {
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">管理權限</label>
+      <div class="permission-grid">
+        @for (opt of permissionOptions; track opt.value) {
+          <div class="permission-item">
+            <p-checkbox
+              [binary]="true"
+              [inputId]="'perm_' + opt.value"
+              [ngModel]="formData().permissions.includes(opt.value)"
+              (onChange)="togglePermission(opt.value, $event.checked)"
+              [disabled]="loading()"
+            />
+            <div class="permission-item__text">
+              <label [for]="'perm_' + opt.value" class="permission-item__label">
+                {{ opt.label }}
+              </label>
+              <p class="permission-item__desc">{{ opt.description }}</p>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Notes -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label">備註</label>
+    <textarea
+      pTextarea
+      [ngModel]="formData().notes"
+      (ngModelChange)="updateForm('notes', $event)"
+      [rows]="3"
+      placeholder="其他備註資訊..."
+      [disabled]="loading()"
+      class="w-full"
+    ></textarea>
+  </div>
+
+  <!-- Footer -->
+  <div class="form-dialog__footer">
+    <p-button
+      label="取消"
+      [text]="true"
+      severity="secondary"
+      [disabled]="loading()"
+      (onClick)="cancel()"
+    />
+    <p-button
+      [label]="isEditing() ? '儲存' : '建立'"
+      [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+      [loading]="loading()"
+      (onClick)="save()"
+      [disabled]="!formData().displayName.trim() || formData().roles.length === 0"
+    />
+  </div>
+</div>

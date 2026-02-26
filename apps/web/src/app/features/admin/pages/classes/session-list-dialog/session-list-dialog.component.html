@@ -1,0 +1,114 @@
+<div class="session-list-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      @if (breadcrumb()) {
+        <span class="dialog-header-inline__breadcrumb">{{ breadcrumb() }}</span>
+      }
+      <span class="dialog-header-inline__title">{{ cls()?.name }} - 課堂列表</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="Close">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <div class="session-list-toolbar">
+    <div class="session-list-toolbar__toggle" (click)="togglePast()">
+      <p-toggleswitch [ngModel]="includePast()" [readonly]="true" />
+      <span class="session-list-toolbar__label">包含過往課堂紀錄</span>
+    </div>
+  </div>
+
+  <div class="session-list-content">
+    @if (loading() && sessions().length === 0) {
+      <div class="skeleton-list">
+        @for (i of [1, 2, 3, 4, 5]; track i) {
+          <div class="skeleton-row" style="height: 3rem; margin-bottom: 0.5rem"></div>
+        }
+      </div>
+    } @else if (sessions().length === 0) {
+      <app-empty-state
+        icon="pi pi-calendar"
+        title="尚無課堂紀錄"
+        description="這段期間內沒有已排定的課堂"
+      />
+    } @else {
+      <div class="session-table-wrapper">
+        <table class="session-table">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>星期</th>
+              <th>時間</th>
+              <th>老師</th>
+              <th>狀態</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (session of sessions(); track session.id) {
+              <tr>
+                <td>{{ session.sessionDate }}</td>
+                <td>{{ session.sessionDate | date: 'EEEE' }}</td>
+                <td>{{ session.startTime }}-{{ session.endTime }}</td>
+                <td>
+                  @if (session.teacherName) {
+                    {{ session.teacherName }}
+                  } @else {
+                    <span class="text-secondary">未指派</span>
+                  }
+                </td>
+                <td>
+                  @switch (session.status) {
+                    @case ('scheduled') {
+                      <p-tag
+                        value="準時"
+                        severity="success"
+                        [rounded]="true"
+                        styleClass="text-xs"
+                      />
+                    }
+                    @case ('completed') {
+                      <p-tag value="已完成" severity="info" [rounded]="true" styleClass="text-xs" />
+                    }
+                    @case ('cancelled') {
+                      <p-tag
+                        value="已停課"
+                        severity="danger"
+                        [rounded]="true"
+                        styleClass="text-xs"
+                      />
+                    }
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        @if (hasMore()) {
+          <div class="session-table-footer">
+            <p-button
+              label="載入更多"
+              [text]="true"
+              severity="secondary"
+              size="small"
+              [loading]="loading()"
+              (onClick)="loadMore()"
+            />
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="form-dialog__footer">
+    <p-button
+      label="批次指派老師"
+      icon="pi pi-users"
+      [outlined]="true"
+      severity="info"
+      (onClick)="openBatchAssign()"
+    />
+    <div class="flex-grow-1"></div>
+    <p-button label="關閉" severity="secondary" [text]="true" (onClick)="close()" />
+  </div>
+</div>

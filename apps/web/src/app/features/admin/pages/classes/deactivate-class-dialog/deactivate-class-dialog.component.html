@@ -1,0 +1,48 @@
+<div class="form-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <span class="dialog-header-inline__breadcrumb">{{ breadcrumb() }}</span>
+      <span class="dialog-header-inline__title">停用班級</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <div class="deactivate-dialog__body">
+    <i class="pi pi-ban deactivate-dialog__icon"></i>
+    <p class="deactivate-dialog__message">
+      確定要停用班級「<strong>{{ cls()?.name }}</strong
+      >」嗎？
+    </p>
+    <p class="deactivate-dialog__hint">停用後將無法新增學生報名，也無法產生新課堂。</p>
+  </div>
+
+  <div class="form-dialog__footer form-dialog__footer--column">
+    <p-button
+      label="停用並取消所有未來課堂"
+      icon="pi pi-calendar-times"
+      severity="danger"
+      [loading]="loading()"
+      (onClick)="deactivateAndCancel()"
+      styleClass="w-full"
+    />
+    <p-button
+      label="僅停用（保留已排課堂）"
+      icon="pi pi-ban"
+      [outlined]="true"
+      severity="secondary"
+      [loading]="loading()"
+      (onClick)="deactivateOnly()"
+      styleClass="w-full"
+    />
+    <p-button
+      label="取消"
+      [text]="true"
+      severity="secondary"
+      [disabled]="loading()"
+      (onClick)="cancel()"
+      styleClass="w-full"
+    />
+  </div>
+</div>

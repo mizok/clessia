@@ -1,6 +1,15 @@
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<!-- 步驟進度條（Steps Only — 不用 p-step-panels）                   -->
-<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="dialog-header-inline">
+  <div class="dialog-header-inline__title-container">
+    <div class="dialog-header-inline__breadcrumb">
+      {{ className() }}
+    </div>
+    <h2 class="dialog-header-inline__title">批次指派老師</h2>
+  </div>
+  <button class="dialog-header-inline__close" (click)="cancel()">
+    <i class="pi pi-times"></i>
+  </button>
+</div>
+
 <div class="batch-wizard">
   <div class="batch-wizard__progress">
     @for (step of stepLabels; track step.value; let i = $index) {
@@ -41,33 +50,28 @@
           <i class="pi pi-user batch-wizard__step-icon"></i>
           <div>
             <h3 class="batch-wizard__step-title">選擇要指派的老師</h3>
-            <p class="batch-wizard__step-desc">
-              為「{{ className() }}」的課堂批次指派老師。
-            </p>
+            <p class="batch-wizard__step-desc">為「{{ className() }}」的課堂批次指派老師。</p>
           </div>
         </div>
 
         <div class="batch-wizard__field">
-          <label class="batch-wizard__label">目標老師 <span class="batch-wizard__required">*</span></label>
+          <label class="batch-wizard__label"
+            >目標老師 <span class="batch-wizard__required">*</span></label
+          >
           <p-select
             [options]="teacherOptions()"
             [ngModel]="selectedTeacherId()"
             (ngModelChange)="selectedTeacherId.set($event)"
             placeholder="選擇老師..."
+            [appendTo]="'body'"
             [filter]="true"
             filterPlaceholder="搜尋老師"
             styleClass="w-full"
-            [appendTo]="overlayContainer"
           />
         </div>
 
         <div class="batch-wizard__footer">
-          <p-button
-            label="取消"
-            severity="secondary"
-            [text]="true"
-            (onClick)="cancelled.emit()"
-          />
+          <p-button label="取消" severity="secondary" [text]="true" (onClick)="cancelled.emit()" />
           <p-button
             label="下一步"
             icon="pi pi-arrow-right"
@@ -86,35 +90,37 @@
           <i class="pi pi-calendar batch-wizard__step-icon"></i>
           <div>
             <h3 class="batch-wizard__step-title">選擇日期範圍</h3>
-            <p class="batch-wizard__step-desc">
-              指定要指派的課堂日期範圍。
-            </p>
+            <p class="batch-wizard__step-desc">指定要指派的課堂日期範圍。</p>
           </div>
         </div>
 
         <div class="batch-wizard__row">
           <div class="batch-wizard__field">
-            <label class="batch-wizard__label">開始日期 <span class="batch-wizard__required">*</span></label>
+            <label class="batch-wizard__label"
+              >開始日期 <span class="batch-wizard__required">*</span></label
+            >
             <p-datepicker
               [ngModel]="dateFrom()"
               (ngModelChange)="dateFrom.set($event)"
               dateFormat="yy/mm/dd"
               placeholder="選擇開始日期"
               [showIcon]="true"
-              [appendTo]="overlayContainer"
               styleClass="w-full"
+              [appendTo]="'body'"
             />
           </div>
           <div class="batch-wizard__field">
-            <label class="batch-wizard__label">結束日期 <span class="batch-wizard__required">*</span></label>
+            <label class="batch-wizard__label"
+              >結束日期 <span class="batch-wizard__required">*</span></label
+            >
             <p-datepicker
               [ngModel]="dateTo()"
               (ngModelChange)="dateTo.set($event)"
               dateFormat="yy/mm/dd"
               placeholder="選擇結束日期"
               [showIcon]="true"
-              [appendTo]="overlayContainer"
               styleClass="w-full"
+              [appendTo]="'body'"
             />
           </div>
         </div>
@@ -132,7 +138,9 @@
           @if (includeAssigned()) {
             <p-message severity="warn" styleClass="w-full">
               <span class="batch-wizard__warning-text">
-                啟用後會覆蓋日期範圍內已指派的課堂，原有老師將被替換為「{{ selectedTeacherName() }}」。
+                啟用後會覆蓋日期範圍內已指派的課堂，原有老師將被替換為「{{
+                  selectedTeacherName()
+                }}」。
               </span>
             </p-message>
           }
@@ -148,7 +156,9 @@
           <div class="batch-wizard__quick-preview">
             <div class="batch-wizard__quick-preview-header">
               <i class="pi pi-info-circle"></i>
-              <span>此範圍內共 <strong>{{ quickPreviewTotal() }}</strong> 堂課</span>
+              <span
+                >此範圍內共 <strong>{{ quickPreviewTotal() }}</strong> 堂課</span
+              >
             </div>
             <div class="batch-wizard__quick-preview-chips">
               <span class="batch-wizard__chip batch-wizard__chip--ok">
@@ -199,9 +209,7 @@
           <i class="pi pi-cog batch-wizard__step-icon"></i>
           <div>
             <h3 class="batch-wizard__step-title">進階設定</h3>
-            <p class="batch-wizard__step-desc">
-              可選篩選條件，不設定則處理日期範圍內的所有課堂。
-            </p>
+            <p class="batch-wizard__step-desc">可選篩選條件，不設定則處理日期範圍內的所有課堂。</p>
           </div>
         </div>
 
@@ -213,7 +221,6 @@
             (ngModelChange)="selectedWeekdays.set($event)"
             placeholder="全部星期"
             styleClass="w-full"
-            [appendTo]="overlayContainer"
             [showClear]="true"
           />
         </div>
@@ -224,8 +231,8 @@
             [options]="conflictModeOptions"
             [ngModel]="conflictMode()"
             (ngModelChange)="conflictMode.set($event)"
+            [appendTo]="'body'"
             styleClass="w-full"
-            [appendTo]="overlayContainer"
           />
         </div>
 
@@ -298,9 +305,7 @@
           <i class="pi pi-eye batch-wizard__step-icon"></i>
           <div>
             <h3 class="batch-wizard__step-title">預覽結果</h3>
-            <p class="batch-wizard__step-desc">
-              確認以下結果後點擊「確認套用」。
-            </p>
+            <p class="batch-wizard__step-desc">確認以下結果後點擊「確認套用」。</p>
           </div>
         </div>
 

@@ -7,6 +7,7 @@ import {
   input,
   output,
   signal,
+  OnInit,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
@@ -16,12 +17,13 @@ import { SelectModule } from 'primeng/select';
 import { DatePickerModule } from 'primeng/datepicker';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { MultiSelectModule } from 'primeng/multiselect';
-
 import { MessageModule } from 'primeng/message';
 import { TooltipModule } from 'primeng/tooltip';
-import { MessageService } from 'primeng/api';
-import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 
+import { MessageService } from 'primeng/api';
+import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
+
+import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 import {
   ClassesService,
   type BatchAssignMode,
@@ -67,16 +69,27 @@ export class BatchAssignWizardComponent {
   // ── Outputs ───────────────────────────────────────────────────────────
   readonly completed = output<void>();
   readonly cancelled = output<void>();
-  private readonly overlayContainerDirective = inject(OverlayContainerDirective, {
-    optional: true,
-  });
-  protected get overlayContainer(): HTMLElement | null {
-    return this.overlayContainerDirective?.nativeHTMLElement ?? null;
-  }
 
   // ── DI ────────────────────────────────────────────────────────────────
   private readonly classesService = inject(ClassesService);
   private readonly messageService = inject(MessageService);
+  private readonly overlayContainerDirective = inject(OverlayContainerDirective, {
+    optional: true,
+  });
+  private readonly ref = inject(DynamicDialogRef, { optional: true });
+  private readonly config = inject(DynamicDialogConfig, { optional: true });
+
+  protected get overlayContainer(): HTMLElement | null {
+    return this.overlayContainerDirective?.nativeHTMLElement ?? null;
+  }
+
+  protected cancel(): void {
+    if (this.ref) {
+      this.ref.close();
+    } else {
+      this.cancelled.emit();
+    }
+  }
 
   // ── Wizard State ──────────────────────────────────────────────────────
   protected readonly activeStep = signal(0);

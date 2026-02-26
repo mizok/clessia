@@ -20,6 +20,7 @@ export interface Class {
   campusId: string;
   courseId: string;
   courseName?: string;
+  campusName?: string;
   name: string;
   maxStudents: number;
   gradeLevels: string[];
@@ -188,17 +189,17 @@ export class ClassesService {
   updateSchedule(
     classId: string,
     scheduleId: string,
-    input: Partial<CreateScheduleInput>
+    input: Partial<CreateScheduleInput>,
   ): Observable<{ data: Schedule }> {
     return this.http.put<{ data: Schedule }>(
       `${this.endpoint}/${classId}/schedules/${scheduleId}`,
-      input
+      input,
     );
   }
 
   deleteSchedule(classId: string, scheduleId: string): Observable<{ success: boolean }> {
     return this.http.delete<{ success: boolean }>(
-      `${this.endpoint}/${classId}/schedules/${scheduleId}`
+      `${this.endpoint}/${classId}/schedules/${scheduleId}`,
     );
   }
 
@@ -206,7 +207,7 @@ export class ClassesService {
     classId: string,
     from: string,
     to: string,
-    excludeDates?: string[]
+    excludeDates?: string[],
   ): Observable<{ data: SessionPreview[] }> {
     const params: Record<string, string> = { from, to };
     if (excludeDates && excludeDates.length > 0) {
@@ -214,7 +215,7 @@ export class ClassesService {
     }
     return this.http.get<{ data: SessionPreview[] }>(
       `${this.endpoint}/${classId}/sessions/preview`,
-      { params }
+      { params },
     );
   }
 
@@ -222,22 +223,23 @@ export class ClassesService {
     classId: string,
     from: string,
     to: string,
-    excludeDates?: string[]
+    excludeDates?: string[],
   ): Observable<GenerateSessionsResult> {
-    return this.http.post<GenerateSessionsResult>(
-      `${this.endpoint}/${classId}/sessions/generate`,
-      { from, to, ...(excludeDates && excludeDates.length > 0 ? { excludeDates } : {}) }
-    );
+    return this.http.post<GenerateSessionsResult>(`${this.endpoint}/${classId}/sessions/generate`, {
+      from,
+      to,
+      ...(excludeDates && excludeDates.length > 0 ? { excludeDates } : {}),
+    });
   }
 
   checkScheduleConflicts(
     schedules: CheckConflictScheduleInput[],
-    excludeClassId?: string
+    excludeClassId?: string,
   ): Observable<{ conflicts: ScheduleConflict[] }> {
-    return this.http.post<{ conflicts: ScheduleConflict[] }>(
-      `${this.endpoint}/check-conflicts`,
-      { schedules, ...(excludeClassId ? { excludeClassId } : {}) }
-    );
+    return this.http.post<{ conflicts: ScheduleConflict[] }>(`${this.endpoint}/check-conflicts`, {
+      schedules,
+      ...(excludeClassId ? { excludeClassId } : {}),
+    });
   }
 
   batchAssignTeacher(
@@ -257,17 +259,19 @@ export class ClassesService {
     });
   }
 
-  batchDelete(ids: string[]): Observable<{ deleted: number; deletedIds: string[]; skipped: number }> {
+  batchDelete(
+    ids: string[],
+  ): Observable<{ deleted: number; deletedIds: string[]; skipped: number }> {
     return this.http.delete<{ deleted: number; deletedIds: string[]; skipped: number }>(
       `${this.endpoint}/batch`,
-      { body: { ids } }
+      { body: { ids } },
     );
   }
 
   cancelFutureSessions(id: string): Observable<{ cancelled: number }> {
     return this.http.post<{ cancelled: number }>(
       `${this.endpoint}/${id}/cancel-future-sessions`,
-      {}
+      {},
     );
   }
 

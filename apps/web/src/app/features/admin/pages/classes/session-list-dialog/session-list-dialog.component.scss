@@ -1,0 +1,120 @@
+@use 'shared/breakpoints' as bp;
+
+// Inherits from .form-dialog and .dialog-header-inline
+
+.session-list-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+
+  @include bp.respond-to('mobile') {
+    gap: var(--space-2);
+  }
+
+  .session-list-hint {
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+    margin: 0;
+  }
+
+  .session-list-toolbar {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: var(--space-2) 0;
+    margin-bottom: var(--space-2);
+    border-bottom: 1px solid var(--zinc-50);
+
+    @include bp.respond-to('mobile') {
+      padding: var(--space-1) 0;
+      margin-bottom: var(--space-1);
+    }
+
+    &__toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-3);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: background var(--transition-fast);
+      user-select: none;
+
+      &:hover {
+        background: var(--zinc-50);
+      }
+
+      &:active {
+        background: var(--zinc-100);
+      }
+    }
+
+    &__label {
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
+      color: var(--zinc-600);
+    }
+  }
+
+  .session-table-wrapper {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--zinc-100);
+    border-radius: var(--radius-md);
+  }
+
+  .session-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+
+    th {
+      position: sticky;
+      top: 0;
+      background: var(--zinc-50);
+      padding: var(--space-3) var(--space-4);
+      text-align: left;
+      font-weight: var(--font-semibold);
+      color: var(--zinc-600);
+      border-bottom: 2px solid var(--zinc-100);
+      z-index: 1;
+
+      @include bp.respond-to('mobile') {
+        padding: var(--space-2) var(--space-3);
+      }
+    }
+
+    td {
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--zinc-50);
+      color: var(--zinc-700);
+
+      @include bp.respond-to('mobile') {
+        padding: var(--space-2) var(--space-3);
+      }
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover {
+      background: var(--zinc-50) / 0.5;
+    }
+  }
+
+  .session-table-footer {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-4);
+    border-top: 1px solid var(--zinc-50);
+  }
+
+  .text-secondary {
+    color: var(--zinc-400);
+    font-style: italic;
+  }
+
+  .flex-grow-1 {
+    flex-grow: 1;
+  }
+}

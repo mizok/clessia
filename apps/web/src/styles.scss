@@ -80,9 +80,6 @@
   --transition-fast: 0.12s ease;
 }
 
-/* =============================================================================
-   Reset & Base
-   ============================================================================= */
 *,
 *::before,
 *::after {
@@ -109,8 +106,9 @@ body {
   min-height: 100vh;
 }
 
-html,body{
-  height:100%;
+html,
+body {
+  height: 100%;
   overflow: hidden;
 }
 
@@ -238,7 +236,10 @@ select {
 .user-menu-overlay {
   background: var(--color-white) !important;
   border: 1px solid var(--zinc-200) !important;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05),
+    0 0 0 1px rgba(0, 0, 0, 0.05) !important;
   padding: 0 !important;
 
   .p-popover-content {
@@ -246,8 +247,7 @@ select {
   }
 }
 
-.user-menu-overlay::after
-{
+.user-menu-overlay::after {
   left: auto !important;
   right: 20px !important;
   transform: translateX(-50%) !important;
@@ -263,12 +263,6 @@ select {
   border-bottom-color: var(--zinc-200) !important; // Match border
 }
 
-
-
-
-
-
-
 /* =============================================================================
    Toast Styles
    ============================================================================= */
@@ -279,7 +273,9 @@ select {
 
   .p-toast-message {
     border-radius: var(--radius-lg);
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    box-shadow:
+      0 10px 25px -5px rgba(0, 0, 0, 0.1),
+      0 8px 10px -6px rgba(0, 0, 0, 0.1);
     border: 1px solid transparent;
     backdrop-filter: blur(8px);
 
@@ -392,8 +388,6 @@ select {
   }
 
   .p-dialog-content {
-    padding: var(--space-6);
-
     .p-confirmdialog-message {
       margin-left: var(--space-4);
       font-size: var(--text-md);
@@ -417,32 +411,51 @@ select {
 }
 
 /* =============================================================================
-   Global Dialog Styles (replaces per-component ::ng-deep overrides)
+   Global Dialog & Form Patterns
    PrimeNG dialogs are teleported to <body>, so these must be global.
    ============================================================================= */
 
-.p-dialog{
+.p-dialog {
   max-height: calc(var(--shell-layout-body-height) - var(--space-3) * 2) !important;
   width: calc(var(--shell-layout-body-width) - var(--space-3) * 2) !important;
   max-width: 30rem;
-  --p-dialog-content-padding:var(--space-2) !important; 
-  .p-dialog-header{
-    border-bottom:1px solid var(--zinc-200);
+  --p-dialog-content-padding: var(--space-4) !important;
+
+  .p-dialog-header {
+    border-bottom: 1px solid var(--zinc-200);
+    padding: var(--space-4) var(--space-6);
   }
-  .p-dialog-footer{
-    border-top:1px solid var(--zinc-200);
+
+  .p-dialog-footer {
+    border-top: 1px solid var(--zinc-200);
+    padding: var(--space-4) var(--space-6);
   }
+
   @include bp.respond-to('mobile') {
-    --p-dialog-content-padding:var(--space-3) !important; 
+    max-width: calc(100vw - var(--space-4));
+
+    .p-dialog-header,
+    .p-dialog-footer {
+      padding: var(--space-3) !important;
+    }
   }
-  
 }
 
-// ---- Custom dialog header with breadcrumb ----
-.dialog-header {
+// ---- Standard inline header with breadcrumb and close button ----
+.dialog-header-inline {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--zinc-100);
+  background: var(--zinc-50) / 0.5;
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
 
   &__breadcrumb {
     font-size: var(--text-xs);
@@ -458,80 +471,191 @@ select {
     color: var(--zinc-900);
     line-height: 1.4;
   }
-}
 
-// ---- Base form dialog (courses, staff, campuses) ----
-.form-dialog {
-  .p-dialog-header {
-    padding: var(--space-5) var(--space-6);
-    border-bottom: 1px solid var(--zinc-100);
+  &__close {
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    color: var(--zinc-400);
+    transition: all var(--transition-fast);
+    margin-top: -2px;
+    margin-right: -8px;
 
-    .p-dialog-title {
-      font-size: var(--text-lg);
-      font-weight: var(--font-semibold);
+    &:hover {
+      background: var(--zinc-100);
       color: var(--zinc-900);
+    }
+
+    &:active {
+      transform: scale(0.95);
+    }
+
+    .pi {
+      font-size: 14px;
     }
   }
 
-  .p-dialog-content {
-    padding: var(--space-6);
-  }
-
-  .p-dialog-footer {
-    padding: 0;
-    border: none;
-  }
-}
-
-// ---- Calendar dialog ----
-.cal-dialog {
-  .p-dialog-header {
-    padding: var(--space-5) var(--space-6);
-    border-bottom: 1px solid var(--zinc-100);
-
-    .p-dialog-title {
-      font-size: var(--text-lg);
-      font-weight: var(--font-semibold);
-      color: var(--zinc-900);
-    }
-  }
-
-  .p-dialog-content {
-    padding: var(--space-5) var(--space-6);
-  }
-
-  .p-dialog-footer {
-    padding: var(--space-4) var(--space-6);
-    border-top: 1px solid var(--zinc-100);
-    background: var(--zinc-50);
-  }
-}
-
-
-// ---- Form / session list dialog (classes page) ----
-.form-dialog-container,
-.session-list-dialog-container {
   @include bp.respond-to('mobile') {
-    margin-bottom: var(--space-4) !important;
-
-    .p-dialog-content {
-      padding: var(--space-3) !important;
-      padding-top: 0 !important;
-    }
-
-    .p-dialog-header {
-      padding: var(--space-3) !important;
-    }
+    padding: var(--space-4);
   }
 }
 
+// ---- Canonical form dialog pattern ----
+.form-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    padding: var(--space-6);
+
+    @include bp.respond-to('mobile') {
+      padding: var(--space-4);
+    }
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+
+    &--inline {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
+  }
+
+  &__label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--zinc-700);
+  }
+
+  &__required {
+    color: var(--error-600);
+    margin-left: 2px;
+  }
+
+  &__switch-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  &__switch-label {
+    font-size: var(--text-sm);
+    color: var(--zinc-600);
+  }
+
+  &__readonly {
+    font-size: var(--text-base);
+    color: var(--zinc-600);
+    padding: var(--space-1) 0;
+  }
+
+  &__section {
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  &__section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    background: var(--zinc-50);
+    border-bottom: 1px solid var(--zinc-200);
+  }
+
+  &__section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-700);
+
+    .pi {
+      font-size: 12px;
+      color: var(--accent-500);
+    }
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--zinc-100);
+    margin-top: var(--space-2);
+
+    &--column {
+      flex-direction: column;
+      gap: var(--space-2);
+      border-top: none;
+      padding-top: 0;
+    }
+  }
+
+  &__empty-note {
+    padding: var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--zinc-400);
+    text-align: center;
+    margin: 0;
+    font-style: italic;
+  }
+}
+
+// Global PrimeNG Form Component Adjustments
+.form-dialog {
+  .p-multiselect,
+  .p-select,
+  .p-datepicker,
+  .p-inputnumber {
+    width: 100%;
+  }
+}
+
+.p-checkbox {
+  .p-checkbox-box {
+    border: 1px solid var(--zinc-300);
+    border-radius: var(--radius-sm);
+  }
+}
+
+textarea.p-textarea,
+.p-textarea {
+  border: 1px solid var(--zinc-300);
+  border-radius: var(--radius-md);
+
+  &:focus {
+    border-color: var(--accent-500);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+  }
+}
 
 /* =============================================================================
    Form Input Global Styles
    ============================================================================= */
 .p-inputtext {
   border-color: var(--zinc-200);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 
   &:hover:not(:disabled):not(:focus) {
     border-color: var(--zinc-400);
@@ -551,7 +675,11 @@ select {
    Button Global Styles
    ============================================================================= */
 // Primary button - zinc-900 theme
-.p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-secondary):not(.p-button-success):not(.p-button-info):not(.p-button-warn):not(.p-button-danger):not(.p-button-help):not(.p-button-contrast) {
+.p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-secondary):not(
+    .p-button-success
+  ):not(.p-button-info):not(.p-button-warn):not(.p-button-danger):not(.p-button-help):not(
+    .p-button-contrast
+  ) {
   background: var(--zinc-900);
   border-color: var(--zinc-900);
 
@@ -561,7 +689,9 @@ select {
   }
 
   &:not(:disabled):focus {
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--accent-500);
+    box-shadow:
+      0 0 0 2px #fff,
+      0 0 0 4px var(--accent-500);
   }
 
   &:not(:disabled):active {
@@ -630,11 +760,15 @@ select {
    Route View Transitions
    ============================================================================= */
 @keyframes vt-fade-in {
-  from { opacity: 0; }
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes vt-fade-out {
-  to { opacity: 0; }
+  to {
+    opacity: 0;
+  }
 }
 
 /* Suppress root — prevents sidebar/header from being captured in the snapshot */
@@ -665,7 +799,7 @@ select {
   display: flex;
   width: 100%;
 
-  > *:not(router-outlet){
+  > *:not(router-outlet) {
     flex: 1 1 auto;
     width: 100%;
     min-width: 0;
@@ -678,10 +812,10 @@ select {
   justify-content: center;
 }
 
-.u-full-height{
+.u-full-height {
   height: 100%;
 }
 
-.u-scrollable{
+.u-scrollable {
   overflow: auto;
 }

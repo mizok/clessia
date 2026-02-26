@@ -5,22 +5,17 @@ import { FormsModule } from '@angular/forms';
 // PrimeNG
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
-import { DialogModule } from 'primeng/dialog';
-import { InputTextModule } from 'primeng/inputtext';
-import { ToggleSwitch } from 'primeng/toggleswitch';
+import { SelectModule } from 'primeng/select';
+import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { TooltipModule } from 'primeng/tooltip';
-import { SkeletonModule } from 'primeng/skeleton';
-import { TagModule } from 'primeng/tag';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
-import { SelectModule } from 'primeng/select';
-import { MultiSelectModule } from 'primeng/multiselect';
-import { DatePickerModule } from 'primeng/datepicker';
-import { TextareaModule } from 'primeng/textarea';
-import { CheckboxModule } from 'primeng/checkbox';
+import { InputTextModule } from 'primeng/inputtext';
 import { MessageService, ConfirmationService } from 'primeng/api';
+import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { StaffFormDialogComponent } from './staff-form-dialog.component';
 
 // Services
 import {
@@ -67,30 +62,22 @@ const ROLE_OPTIONS: RoleOption[] = [
     FormsModule,
     TableModule,
     ButtonModule,
-    DialogModule,
-    InputTextModule,
-    ToggleSwitch,
+    SelectModule,
+    TagModule,
     ToastModule,
     ConfirmDialogModule,
     TooltipModule,
-    SkeletonModule,
-    TagModule,
     IconFieldModule,
     InputIconModule,
-    SelectModule,
-    MultiSelectModule,
-    DatePickerModule,
-    TextareaModule,
-    CheckboxModule,
+    InputTextModule,
     EmptyStateComponent,
-    SubjectManagerComponent,
-    AuditLogDialogComponent,
   ],
-  providers: [MessageService, ConfirmationService],
+  providers: [MessageService, ConfirmationService, DialogService],
   templateUrl: './staff.page.html',
   styleUrl: './staff.page.scss',
 })
 export class StaffPage implements OnInit {
+  private readonly dialogService = inject(DialogService);
   private readonly staffService = inject(StaffService);
   private readonly campusesService = inject(CampusesService);
   private readonly subjectsService = inject(SubjectsService);
@@ -116,43 +103,8 @@ export class StaffPage implements OnInit {
   readonly roleFilter = signal<StaffRole | null>(null);
   readonly campusFilter = signal<string | null>(null);
   readonly subjectFilter = signal<string | null>(null);
-  readonly dialogVisible = signal(false);
-  readonly dialogLoading = signal(false);
-  readonly subjectManagerVisible = signal(false);
-  protected readonly auditLogVisible = signal(false);
-
-  // Edit form state
-  readonly editingStaff = signal<Staff | null>(null);
-  readonly formData = signal<{
-    displayName: string;
-    email: string;
-    phone: string;
-    birthday: Date | null;
-    notes: string;
-    subjectIds: string[];
-    campusIds: string[];
-    roles: StaffRole[];
-    permissions: Permission[];
-    isActive: boolean;
-  }>({
-    displayName: '',
-    email: '',
-    phone: '',
-    birthday: null,
-    notes: '',
-    subjectIds: [],
-    campusIds: [],
-    roles: ['teacher'],
-    permissions: [],
-    isActive: true,
-  });
 
   // Computed
-  readonly isEditing = computed(() => this.editingStaff() !== null);
-  readonly dialogTitle = computed(() => (this.isEditing() ? '編輯人員' : '新增人員'));
-  readonly isAdminRole = computed(() => this.formData().roles.includes('admin'));
-  readonly isTeacherRole = computed(() => this.formData().roles.includes('teacher'));
-
   readonly filteredStaff = computed(() => {
     let list = this.staffList();
     const query = this.searchQuery().toLowerCase().trim();
@@ -206,21 +158,21 @@ export class StaffPage implements OnInit {
 
     // Load staff and campuses in parallel
     this.campusesService.list({ pageSize: 100 }).subscribe({
-      next: (res) => this.campuses.set(res.data),
-      error: (err) => console.error('Failed to load campuses', err),
+      next: (res: { data: Campus[] }) => this.campuses.set(res.data),
+      error: (err: any) => console.error('Failed to load campuses', err),
     });
 
     this.subjectsService.list().subscribe({
-      next: (res) => this.subjects.set(res.data),
-      error: (err) => console.error('Failed to load subjects', err),
+      next: (res: { data: Subject[] }) => this.subjects.set(res.data),
+      error: (err: any) => console.error('Failed to load subjects', err),
     });
 
     this.staffService.list({ pageSize: 100 }).subscribe({
-      next: (res) => {
+      next: (res: { data: Staff[] }) => {
         this.staffList.set(res.data);
         this.loading.set(false);
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to load staff', err);
         this.messageService.add({
           severity: 'error',
@@ -233,164 +185,55 @@ export class StaffPage implements OnInit {
   }
 
   openCreateDialog(): void {
-    this.editingStaff.set(null);
-    this.formData.set({
-      displayName: '',
-      email: '',
-      phone: '',
-      birthday: null,
-      notes: '',
-      subjectIds: [],
-      campusIds: [],
-      roles: ['teacher'],
-      permissions: [],
-      isActive: true,
+    const ref = this.dialogService.open(StaffFormDialogComponent, {
+      header: '新增人員',
+      width: '600px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: {
+        campuses: this.campuses(),
+        subjects: this.subjects(),
+      },
     });
-    this.dialogVisible.set(true);
+
+    if (ref)
+      ref.onClose.subscribe((result) => {
+        if (result) this.loadData();
+      });
   }
 
   openEditDialog(staff: Staff): void {
-    this.editingStaff.set(staff);
-    this.formData.set({
-      displayName: staff.displayName,
-      email: staff.email,
-      phone: staff.phone || '',
-      birthday: staff.birthday ? new Date(staff.birthday) : null,
-      notes: staff.notes || '',
-      subjectIds: [...staff.subjectIds],
-      campusIds: [...staff.campusIds],
-      roles: [...staff.roles],
-      permissions: [...staff.permissions],
-      isActive: staff.isActive,
+    const ref = this.dialogService.open(StaffFormDialogComponent, {
+      header: '編輯人員',
+      width: '600px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: {
+        staff,
+        campuses: this.campuses(),
+        subjects: this.subjects(),
+      },
     });
-    this.dialogVisible.set(true);
+
+    if (ref)
+      ref.onClose.subscribe((result) => {
+        if (result) this.loadData();
+      });
   }
 
-  closeDialog(): void {
-    this.dialogVisible.set(false);
-    this.editingStaff.set(null);
-  }
-
-  saveStaff(): void {
-    const form = this.formData();
-
-    if (!form.displayName.trim()) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: '請填寫姓名',
-        detail: '姓名為必填欄位',
-      });
-      return;
-    }
-
-    if (!this.isEditing() && !form.email.trim()) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: '請填寫 Email',
-        detail: 'Email 為必填欄位',
-      });
-      return;
-    }
-
-    if (form.campusIds.length === 0) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: '請選擇服務分校',
-        detail: '至少需要選擇一個服務分校',
-      });
-      return;
-    }
-
-    if (form.roles.length === 0) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: '請選擇角色',
-        detail: '至少需要選擇一個角色',
-      });
-      return;
-    }
-
-    if (form.roles.includes('teacher') && form.subjectIds.length === 0) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: '請選擇教學科目',
-        detail: '老師至少需要選擇一個教學科目',
-      });
-      return;
-    }
-
-    this.dialogLoading.set(true);
-
-    if (this.isEditing()) {
-      const staff = this.editingStaff()!;
-      const input: UpdateStaffInput = {
-        displayName: form.displayName.trim(),
-        phone: form.phone.trim() || null,
-        birthday: form.birthday ? this.formatDate(form.birthday) : null,
-        notes: form.notes.trim() || null,
-        subjectIds: form.subjectIds,
-        campusIds: form.campusIds,
-        roles: form.roles,
-        isActive: form.isActive,
-        permissions: form.roles.includes('admin') ? form.permissions : [],
-      };
-
-      this.staffService.update(staff.id, input).subscribe({
-        next: () => {
-          this.messageService.add({
-            severity: 'success',
-            summary: '更新成功',
-            detail: `「${form.displayName}」已更新`,
-          });
-          this.closeDialog();
-          this.loadData();
-          this.dialogLoading.set(false);
-        },
-        error: (err) => {
-          console.error('Failed to update staff', err);
-          this.messageService.add({
-            severity: 'error',
-            summary: '更新失敗',
-            detail: err.error?.error || '請稍後再試',
-          });
-          this.dialogLoading.set(false);
-        },
-      });
-    } else {
-      const input: CreateStaffInput = {
-        displayName: form.displayName.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim() || null,
-        birthday: form.birthday ? this.formatDate(form.birthday) : null,
-        notes: form.notes.trim() || null,
-        subjectIds: form.subjectIds,
-        campusIds: form.campusIds,
-        roles: form.roles,
-        permissions: form.roles.includes('admin') ? form.permissions : [],
-      };
-
-      this.staffService.create(input).subscribe({
-        next: () => {
-          this.messageService.add({
-            severity: 'success',
-            summary: '新增成功',
-            detail: `「${form.displayName}」已建立`,
-          });
-          this.closeDialog();
-          this.loadData();
-          this.dialogLoading.set(false);
-        },
-        error: (err) => {
-          console.error('Failed to create staff', err);
-          this.messageService.add({
-            severity: 'error',
-            summary: '新增失敗',
-            detail: err.error?.error || '請稍後再試',
-          });
-          this.dialogLoading.set(false);
-        },
-      });
-    }
+  openAuditLog(): void {
+    this.dialogService.open(AuditLogDialogComponent, {
+      header: '人員管理操作紀錄',
+      width: '800px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: {
+        resourceTypes: ['staff'],
+      },
+    });
   }
 
   confirmDelete(staff: Staff): void {
@@ -415,7 +258,7 @@ export class StaffPage implements OnInit {
         });
         this.loadData();
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to delete staff', err);
         this.messageService.add({
           severity: 'error',
@@ -444,77 +287,6 @@ export class StaffPage implements OnInit {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
-  }
-
-  // Form update methods
-  updateDisplayName(value: string): void {
-    this.formData.update((f) => ({ ...f, displayName: value }));
-  }
-
-  updateEmail(value: string): void {
-    this.formData.update((f) => ({ ...f, email: value }));
-  }
-
-  updatePhone(value: string): void {
-    this.formData.update((f) => ({ ...f, phone: value }));
-  }
-
-  updateBirthday(value: Date | null): void {
-    this.formData.update((f) => ({ ...f, birthday: value }));
-  }
-
-  updateNotes(value: string): void {
-    this.formData.update((f) => ({ ...f, notes: value }));
-  }
-
-  updateSubjectIds(value: string[]): void {
-    this.formData.update((f) => ({ ...f, subjectIds: value }));
-  }
-
-  updateCampusIds(value: string[]): void {
-    this.formData.update((f) => ({ ...f, campusIds: value }));
-  }
-
-  toggleRole(role: StaffRole, checked: boolean): void {
-    this.formData.update((f) => {
-      let newRoles: StaffRole[];
-      if (checked) {
-        newRoles = f.roles.includes(role) ? f.roles : [...f.roles, role];
-      } else {
-        newRoles = f.roles.filter((r) => r !== role);
-      }
-      return {
-        ...f,
-        roles: newRoles,
-        // Clear permissions if no longer admin
-        permissions: newRoles.includes('admin') ? f.permissions : [],
-      };
-    });
-  }
-
-  updateRoles(value: StaffRole[]): void {
-    this.formData.update((f) => ({
-      ...f,
-      roles: value,
-      permissions: value.includes('admin') ? f.permissions : [],
-    }));
-  }
-
-  updatePermissions(value: Permission[]): void {
-    this.formData.update((f) => ({ ...f, permissions: value }));
-  }
-
-  togglePermission(permission: Permission, checked: boolean): void {
-    const current = this.formData().permissions;
-    if (checked) {
-      this.updatePermissions([...current, permission]);
-    } else {
-      this.updatePermissions(current.filter((p) => p !== permission));
-    }
-  }
-
-  updateIsActive(value: boolean): void {
-    this.formData.update((f) => ({ ...f, isActive: value }));
   }
 
   clearFilters(): void {

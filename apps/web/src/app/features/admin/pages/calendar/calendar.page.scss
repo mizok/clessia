@@ -13,6 +13,26 @@
   overflow: hidden;
 }
 
+// PrimeNG Overrides (component-specific only, global styles in styles.scss)
+:host ::ng-deep {
+  .p-dialog-header {
+    padding: var(--space-5) var(--space-6);
+    border-bottom: 1px solid var(--zinc-100);
+
+    .p-dialog-title {
+      font-size: var(--text-lg);
+      font-weight: var(--font-semibold);
+      color: var(--zinc-900);
+    }
+  }
+
+  .p-dialog-footer {
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--zinc-100);
+    background: var(--zinc-50);
+  }
+}
+
 .cal {
   padding: var(--space-6);
   display: flex;

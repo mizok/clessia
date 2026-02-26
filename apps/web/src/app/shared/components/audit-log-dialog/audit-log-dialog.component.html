@@ -1,14 +1,13 @@
-<p-dialog
-  [appendTo]="overlayContainer"
-  [header]="title()"
-  [visible]="visible()"
-  (visibleChange)="visible.set($event)"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  (onShow)="onShow()"
-  styleClass="audit-log-dialog" 
->
+<div class="dialog-header-inline">
+  <div class="dialog-header-inline__title-container">
+    <h2 class="dialog-header-inline__title">操作紀錄</h2>
+  </div>
+  <button class="dialog-header-inline__close" (click)="cancel()">
+    <i class="pi pi-times"></i>
+  </button>
+</div>
+
+<div class="audit-log-dialog">
   <div class="audit-log-dialog__body">
     @if (loading()) {
       <div class="skeleton-list">
@@ -23,7 +22,7 @@
         <p>尚無操作紀錄</p>
       </div>
     } @else {
-      <p-table [value]="logs()" [tableStyle]="{ 'min-width': '600px' }">
+      <p-table [value]="logs()">
         <ng-template #header>
           <tr>
             <th style="width: 180px">時間</th>
@@ -34,10 +33,14 @@
         </ng-template>
         <ng-template #body let-log>
           <tr>
-            <td class="audit-log-dialog__time">{{ log.createdAt | date: 'yyyy-MM-dd HH:mm:ss' }}</td>
+            <td class="audit-log-dialog__time">
+              {{ log.createdAt | date: 'yyyy-MM-dd HH:mm:ss' }}
+            </td>
             <td>{{ log.userName ?? '—' }}</td>
             <td>
-              <span class="audit-log-dialog__resource-type">{{ getResourceTypeLabel(log.resourceType) }}</span>
+              <span class="audit-log-dialog__resource-type">{{
+                getResourceTypeLabel(log.resourceType)
+              }}</span>
               <span class="audit-log-dialog__resource-name">{{ log.resourceName ?? '—' }}</span>
             </td>
             <td>
@@ -74,4 +77,4 @@
       }
     }
   </div>
-</p-dialog>
+</div>

@@ -21,6 +21,7 @@
             [firstDayOfWeek]="1"
             (onSelect)="onDateJump($event)"
             dateFormat="yy/mm/dd"
+            [appendTo]="'body'"
           />
         </div>
       }
@@ -67,8 +68,8 @@
       optionLabel="name"
       optionValue="id"
       placeholder="所有分校"
+      [appendTo]="'body'"
       [showClear]="true"
-      [appendTo]="overlayContainer"
       [(ngModel)]="selectedCampusId"
       (onChange)="onFilterChange()"
     />
@@ -78,8 +79,8 @@
       optionLabel="name"
       optionValue="id"
       placeholder="所有課程"
+      [appendTo]="'body'"
       [showClear]="true"
-      [appendTo]="overlayContainer"
       [(ngModel)]="selectedCourseId"
       (onChange)="onFilterChange()"
     />
@@ -89,8 +90,8 @@
       optionLabel="displayName"
       optionValue="id"
       placeholder="所有老師"
+      [appendTo]="'body'"
       [showClear]="true"
-      [appendTo]="overlayContainer"
       [(ngModel)]="selectedTeacherId"
       (onChange)="onFilterChange()"
     />
@@ -217,7 +218,6 @@
 
 <!-- ── Detail Popup ────────────────────────────────────────────────────── -->
 <p-dialog
-  [appendTo]="overlayContainer"
   [visible]="showDetail()"
   (visibleChange)="showDetail.set($event)"
   [header]="selectedSession()?.className ?? '課堂詳情'"
@@ -248,10 +248,7 @@
         </div>
         <div class="cal-detail__row">
           <i class="pi pi-info-circle cal-detail__icon"></i>
-          <p-tag
-            [value]="sessionStatusLabel(s)"
-            [severity]="sessionStatusSeverity(s)"
-          />
+          <p-tag [value]="sessionStatusLabel(s)" [severity]="sessionStatusSeverity(s)" />
         </div>
       </div>
 
@@ -274,7 +271,9 @@
                   <span>代課老師：{{ c.substituteTeacherName }}</span>
                 }
                 @if (c.newSessionDate) {
-                  <span>新日期：{{ c.newSessionDate }} {{ c.newStartTime }}–{{ c.newEndTime }}</span>
+                  <span
+                    >新日期：{{ c.newSessionDate }} {{ c.newStartTime }}–{{ c.newEndTime }}</span
+                  >
                 }
                 @if (c.reason) {
                   <span class="cal-detail__reason">原因：{{ c.reason }}</span>
@@ -329,7 +328,6 @@
 
 <!-- ── Cancel Dialog ──────────────────────────────────────────────────── -->
 <p-dialog
-  [appendTo]="overlayContainer"
   [visible]="showCancelDialog()"
   (visibleChange)="showCancelDialog.set($event)"
   header="確認停課"
@@ -377,7 +375,6 @@
 
 <!-- ── Substitute Dialog ──────────────────────────────────────────────── -->
 <p-dialog
-  [appendTo]="overlayContainer"
   [visible]="showSubstituteDialog()"
   (visibleChange)="showSubstituteDialog.set($event)"
   header="安排代課"
@@ -388,12 +385,15 @@
 >
   <div class="cal-op-form">
     <div class="cal-op-form__field">
-      <label class="cal-op-form__label">代課老師 <span class="cal-op-form__required">*</span></label>
+      <label class="cal-op-form__label"
+        >代課老師 <span class="cal-op-form__required">*</span></label
+      >
       <p-select
         [options]="activeTeachers()"
         optionLabel="displayName"
         optionValue="id"
         placeholder="選擇代課老師"
+        [appendTo]="'body'"
         [style]="{ width: '100%' }"
         [(ngModel)]="substituteTeacherId"
       />
@@ -433,7 +433,6 @@
 
 <!-- ── Reschedule Dialog ──────────────────────────────────────────────── -->
 <p-dialog
-  [appendTo]="overlayContainer"
   [visible]="showRescheduleDialog()"
   (visibleChange)="showRescheduleDialog.set($event)"
   header="安排調課"
@@ -444,17 +443,22 @@
 >
   <div class="cal-op-form">
     <div class="cal-op-form__field">
-      <label class="cal-op-form__label">調課日期 <span class="cal-op-form__required">*</span></label>
+      <label class="cal-op-form__label"
+        >調課日期 <span class="cal-op-form__required">*</span></label
+      >
       <p-datepicker
         [(ngModel)]="rescheduleDate"
         [style]="{ width: '100%' }"
         dateFormat="yy/mm/dd"
         placeholder="選擇日期"
+        [appendTo]="'body'"
       />
     </div>
     <div class="cal-op-form__row">
       <div class="cal-op-form__field">
-        <label class="cal-op-form__label">開始時間 <span class="cal-op-form__required">*</span></label>
+        <label class="cal-op-form__label"
+          >開始時間 <span class="cal-op-form__required">*</span></label
+        >
         <input
           type="time"
           class="cal-op-form__time p-inputtext"
@@ -462,12 +466,10 @@
         />
       </div>
       <div class="cal-op-form__field">
-        <label class="cal-op-form__label">結束時間 <span class="cal-op-form__required">*</span></label>
-        <input
-          type="time"
-          class="cal-op-form__time p-inputtext"
-          [(ngModel)]="rescheduleEndTime"
-        />
+        <label class="cal-op-form__label"
+          >結束時間 <span class="cal-op-form__required">*</span></label
+        >
+        <input type="time" class="cal-op-form__time p-inputtext" [(ngModel)]="rescheduleEndTime" />
       </div>
     </div>
     <div class="cal-op-form__field">

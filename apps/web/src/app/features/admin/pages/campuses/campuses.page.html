@@ -1,5 +1,5 @@
 <p-toast />
-<p-confirmDialog [appendTo]="overlayContainer" />
+<p-confirmDialog />
 
 <div class="campuses">
   <!-- Page Header -->
@@ -14,13 +14,9 @@
         icon="pi pi-history"
         [outlined]="true"
         severity="secondary"
-        (onClick)="auditLogVisible.set(true)"
+        (onClick)="openAuditLog()"
       />
-      <p-button
-        label="新增分校"
-        icon="pi pi-plus"
-        (onClick)="openCreateDialog()"
-      />
+      <p-button label="新增分校" icon="pi pi-plus" (onClick)="openCreateDialog()" />
     </div>
   </header>
 
@@ -29,8 +25,8 @@
     <!-- Toolbar with Search -->
     <div class="campuses__toolbar">
       <div class="campuses__search">
-        <p-iconField iconPosition="left">
-          <p-inputIcon styleClass="pi pi-search" />
+        <p-iconfield iconPosition="left">
+          <p-inputicon styleClass="pi pi-search" />
           <input
             type="text"
             pInputText
@@ -38,7 +34,7 @@
             [ngModel]="searchQuery()"
             (ngModelChange)="searchQuery.set($event)"
           />
-        </p-iconField>
+        </p-iconfield>
       </div>
     </div>
 
@@ -90,11 +86,7 @@
             title="尚未建立分校"
             description="開始建立您的第一個分校來管理補習班營運"
           >
-            <p-button
-              label="新增分校"
-              icon="pi pi-plus"
-              (onClick)="openCreateDialog()"
-            />
+            <p-button label="新增分校" icon="pi pi-plus" (onClick)="openCreateDialog()" />
           </app-empty-state>
         }
       } @else {
@@ -237,113 +229,10 @@
 
           <!-- Mobile pagination info -->
           @if (filteredCampuses().length > 0) {
-            <div class="campuses__mobile-count">
-              共 {{ filteredCampuses().length }} 個分校
-            </div>
+            <div class="campuses__mobile-count">共 {{ filteredCampuses().length }} 個分校</div>
           }
         </div>
       }
     </div>
   </div>
 </div>
-
-<!-- Create/Edit Dialog -->
-<p-dialog
-  [appendTo]="overlayContainer"
-  [header]="dialogTitle()"
-  [(visible)]="dialogVisible"
-  [modal]="true"
-  [closable]="!dialogLoading()"
-  (onHide)="closeDialog()"
-  styleClass="campus-dialog"
->
-  <div class="campus-dialog__form">
-    <!-- Name Field -->
-    <div class="campus-dialog__field">
-      <label for="name" class="campus-dialog__label">
-        分校名稱<span class="campus-dialog__required">*</span>
-      </label>
-      <input
-        id="name"
-        type="text"
-        pInputText
-        [ngModel]="formData().name"
-        (ngModelChange)="updateName($event)"
-        placeholder="例如：台北信義校"
-        [disabled]="dialogLoading()"
-        class="w-full"
-      />
-    </div>
-
-    <!-- Address Field -->
-    <div class="campus-dialog__field">
-      <label for="address" class="campus-dialog__label">地址</label>
-      <input
-        id="address"
-        type="text"
-        pInputText
-        [ngModel]="formData().address"
-        (ngModelChange)="updateAddress($event)"
-        placeholder="例如：台北市信義區信義路五段 7 號"
-        [disabled]="dialogLoading()"
-        class="w-full"
-      />
-    </div>
-
-    <!-- Phone Field -->
-    <div class="campus-dialog__field">
-      <label for="phone" class="campus-dialog__label">電話</label>
-      <input
-        id="phone"
-        type="tel"
-        pInputText
-        [ngModel]="formData().phone"
-        (ngModelChange)="updatePhone($event)"
-        placeholder="例如：02-2720-1234"
-        [disabled]="dialogLoading()"
-        class="w-full"
-      />
-    </div>
-
-    <!-- Status Toggle (only for edit) -->
-    @if (isEditing()) {
-      <div class="campus-dialog__field campus-dialog__field--inline">
-        <label for="isActive" class="campus-dialog__label">狀態</label>
-        <div class="campus-dialog__switch-group">
-          <p-toggleswitch
-            inputId="isActive"
-            [ngModel]="formData().isActive"
-            (ngModelChange)="updateIsActive($event)"
-            [disabled]="dialogLoading()"
-          />
-          <span class="campus-dialog__switch-label">
-            {{ formData().isActive ? '啟用中' : '已停用' }}
-          </span>
-        </div>
-      </div>
-    }
-
-    <!-- Footer Actions -->
-    <div class="campus-dialog__footer">
-      <p-button
-        label="取消"
-        [text]="true"
-        severity="secondary"
-        (onClick)="closeDialog()"
-        [disabled]="dialogLoading()"
-      />
-      <p-button
-        [label]="isEditing() ? '儲存' : '建立'"
-        [icon]="dialogLoading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
-        (onClick)="saveCampus()"
-        [disabled]="dialogLoading() || !formData().name.trim()"
-      />
-    </div>
-  </div>
-</p-dialog>
-
-<app-audit-log-dialog
-  [(visible)]="auditLogVisible"
-  [resourceTypes]="['campus']"
-  title="分校管理操作紀錄"
-/>
