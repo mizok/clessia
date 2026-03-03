@@ -45,6 +45,60 @@ export interface SessionQueryParams {
   pageSize?: number;
 }
 
+// ── Batch operation types ──────────────────────────────────────
+
+export interface BatchAssignInput {
+  readonly sessionIds: string[];
+  readonly teacherId: string;
+  readonly includeAssigned?: boolean;
+  readonly dryRun?: boolean;
+}
+
+export interface BatchAssignConflict {
+  readonly sessionId: string;
+  readonly sessionDate: string;
+  readonly startTime: string;
+  readonly endTime: string;
+  readonly conflictWithSessionId: string;
+}
+
+export interface BatchAssignResult {
+  readonly updated: number;
+  readonly skippedConflicts: number;
+  readonly skippedNotEligible: number;
+  readonly conflicts: readonly BatchAssignConflict[];
+  readonly dryRun: boolean;
+}
+
+export interface BatchTimeInput {
+  readonly sessionIds: string[];
+  readonly startTime: string;
+  readonly endTime: string;
+  readonly dryRun?: boolean;
+}
+
+export interface BatchCancelInput {
+  readonly sessionIds: string[];
+  readonly reason?: string;
+  readonly dryRun?: boolean;
+}
+
+export interface BatchSessionConflict {
+  readonly sessionId: string;
+  readonly sessionDate: string;
+  readonly reason: string;
+  readonly detail: string;
+  readonly conflictingSessionId?: string;
+}
+
+export interface BatchActionResult {
+  readonly updated: number;
+  readonly skipped: number;
+  readonly processableIds: readonly string[];
+  readonly conflicts: readonly BatchSessionConflict[];
+  readonly dryRun: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SessionsService {
   private readonly http = inject(HttpClient);
@@ -97,5 +151,23 @@ export class SessionsService {
       newEndTime,
       reason,
     });
+  }
+
+  // ── Batch operations ───────────────────────────────────────────
+
+  batchAssignTeacher(input: BatchAssignInput): Observable<BatchAssignResult> {
+    return this.http.patch<BatchAssignResult>(`${this.endpoint}/batch-assign-teacher`, input);
+  }
+
+  batchUpdateTime(input: BatchTimeInput): Observable<BatchActionResult> {
+    return this.http.patch<BatchActionResult>(`${this.endpoint}/batch-update-time`, input);
+  }
+
+  batchCancel(input: BatchCancelInput): Observable<BatchActionResult> {
+    return this.http.patch<BatchActionResult>(`${this.endpoint}/batch-cancel`, input);
+  }
+
+  batchUncancel(input: { sessionIds: string[]; dryRun?: boolean }): Observable<BatchActionResult> {
+    return this.http.patch<BatchActionResult>(`${this.endpoint}/batch-uncancel`, input);
   }
 }
