@@ -13,25 +13,6 @@
   overflow: hidden;
 }
 
-// PrimeNG Overrides (component-specific only, global styles in styles.scss)
-:host ::ng-deep {
-  .p-dialog-header {
-    padding: var(--space-5) var(--space-6);
-    border-bottom: 1px solid var(--zinc-100);
-
-    .p-dialog-title {
-      font-size: var(--text-lg);
-      font-weight: var(--font-semibold);
-      color: var(--zinc-900);
-    }
-  }
-
-  .p-dialog-footer {
-    padding: var(--space-4) var(--space-6);
-    border-top: 1px solid var(--zinc-100);
-    background: var(--zinc-50);
-  }
-}
 
 .cal {
   padding: var(--space-6);
@@ -102,11 +83,24 @@
     overflow: hidden;
   }
 
+  &__header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-shrink: 0;
+  }
+
   &__nav {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     flex-shrink: 0;
+  }
+
+  &__view-toggle {
+    display: flex;
+    gap: var(--space-1);
+    margin-left: auto;
   }
 
   // ── Filters ───────────────────────────────────────────────────────────
@@ -133,6 +127,14 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+  }
+
+  // ── List view ────────────────────────────────────────────────────────
+  &__list {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: auto;
+    padding: var(--space-4);
   }
 
   // ── Skeleton ──────────────────────────────────────────────────────────
@@ -357,172 +359,35 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-}
 
-// =============================================================================
-// Detail Popup
-// =============================================================================
-
-.cal-detail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-
-  &__section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-
-    + .cal-detail__section {
-      border-top: 1px solid var(--zinc-100);
-      padding-top: var(--space-4);
-    }
-  }
-
-  &__section-title {
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
-    color: var(--zinc-500);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  &__row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    font-size: var(--text-base);
-    color: var(--zinc-700);
-  }
-
-  &__icon {
-    font-size: 14px;
-    color: var(--zinc-400);
-    flex-shrink: 0;
-    width: 16px;
-    text-align: center;
-  }
-
-  &__change {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    background: var(--zinc-50);
+  // Session overflow badge (+N)
+  &__session-overflow {
+    position: absolute;
+    width: 33.333%; // Based on MAX_COLS = 3, so it takes the 3rd column
+    height: 24px; // Fixed small height
     border-radius: var(--radius-md);
-    border: 1px solid var(--zinc-100);
-  }
-
-  &__change-body {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    font-size: var(--text-sm);
-    color: var(--zinc-700);
-    min-width: 0;
-    flex: 1;
-  }
-
-  &__reason {
-    color: var(--zinc-500);
-    font-style: italic;
-  }
-
-  &__by {
+    background: var(--zinc-800);
+    color: #fff;
     font-size: var(--text-xs);
-    color: var(--zinc-400);
-  }
-
-  &__actions {
+    font-weight: var(--font-bold);
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    flex-wrap: wrap;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 3;
+    box-shadow: var(--shadow-sm);
+    transition:
+      background var(--transition-fast),
+      transform var(--transition-fast);
 
-    // Push close button to the right
-    > p-button:last-child {
-      margin-left: auto;
+    &:hover {
+      background: var(--zinc-900);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
     }
   }
 }
 
-// =============================================================================
-// Operation Forms (Cancel / Substitute / Reschedule dialogs)
-// =============================================================================
-
-.cal-op-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-
-  &__warning {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-4);
-    background: var(--warning-100);
-    border-radius: var(--radius-md);
-    border: 1px solid #fde68a;
-    font-size: var(--text-sm);
-    color: #92400e;
-    line-height: var(--leading-relaxed);
-
-    i {
-      color: var(--warning-600);
-      flex-shrink: 0;
-      margin-top: 1px;
-    }
-  }
-
-  &__field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    flex: 1;
-  }
-
-  &__row {
-    display: flex;
-    gap: var(--space-3);
-  }
-
-  &__label {
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-    color: var(--zinc-700);
-  }
-
-  &__required {
-    color: var(--error-600);
-    margin-left: 2px;
-  }
-
-  &__textarea {
-    width: 100%;
-    resize: vertical;
-    border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--text-md);
-    line-height: var(--leading-normal);
-    min-height: 72px;
-  }
-
-  &__time {
-    width: 100%;
-    border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-3);
-  }
-
-  &__footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-3);
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--zinc-100);
-  }
-}
-
-// =============================================================================
 
 // =============================================================================
 // Responsive
@@ -556,12 +421,6 @@
     }
   }
 
-  .cal-op-form {
-    &__row {
-      flex-direction: column;
-      gap: var(--space-3);
-    }
-  }
 }
 
 @include bp.respond-to('mobile') {

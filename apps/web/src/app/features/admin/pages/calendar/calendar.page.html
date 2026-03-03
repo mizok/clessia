@@ -1,4 +1,4 @@
-<p-toast />
+<p-toast appendTo="body" [baseZIndex]="25000" />
 
 <div class="cal">
   <!-- Header -->
@@ -27,74 +27,125 @@
       }
     </div>
 
-    <div class="cal__nav">
-      <p-button
-        icon="pi pi-chevron-left"
-        [rounded]="true"
-        severity="secondary"
-        [text]="true"
-        size="small"
-        (onClick)="prevPeriod()"
-        [pTooltip]="isWeekView() ? '上一週' : '前一天'"
-        tooltipStyleClass="clessia-tooltip"
-      />
-      @if (!isCurrentPeriod()) {
+    <div class="cal__header-actions">
+      <div class="cal__nav">
         <p-button
-          [label]="isWeekView() ? '回本週' : '回今天'"
+          icon="pi pi-chevron-left"
+          [rounded]="true"
           severity="secondary"
-          [outlined]="true"
+          [text]="true"
           size="small"
-          (onClick)="goToday()"
+          (onClick)="prevPeriod()"
+          [pTooltip]="isWeekView() ? '上一週' : '前一天'"
+          [tooltipPosition]="'top'"
+          tooltipStyleClass="clessia-tooltip"
         />
-      }
-      <p-button
-        icon="pi pi-chevron-right"
-        [rounded]="true"
-        severity="secondary"
-        [text]="true"
-        size="small"
-        (onClick)="nextPeriod()"
-        [pTooltip]="isWeekView() ? '下一週' : '下一天'"
-        tooltipStyleClass="clessia-tooltip"
-      />
+        @if (!isCurrentPeriod()) {
+          <p-button
+            [label]="isWeekView() ? '回本週' : '回今天'"
+            severity="secondary"
+            [outlined]="true"
+            size="small"
+            (onClick)="goToday()"
+          />
+        }
+        <p-button
+          icon="pi pi-chevron-right"
+          [rounded]="true"
+          severity="secondary"
+          [text]="true"
+          size="small"
+          (onClick)="nextPeriod()"
+          [pTooltip]="isWeekView() ? '下一週' : '下一天'"
+          [tooltipPosition]="'top'"
+          tooltipStyleClass="clessia-tooltip"
+        />
+      </div>
+      <div class="cal__view-toggle">
+        <p-button
+          [outlined]="viewMode() !== 'calendar'"
+          icon="pi pi-calendar"
+          severity="secondary"
+          [rounded]="true"
+          size="small"
+          pTooltip="行事曆視圖"
+          tooltipPosition="top"
+          (onClick)="toggleViewMode('calendar')"
+        />
+        <p-button
+          [outlined]="viewMode() !== 'list'"
+          icon="pi pi-list"
+          severity="secondary"
+          [rounded]="true"
+          size="small"
+          pTooltip="清單視圖"
+          tooltipPosition="top"
+          (onClick)="toggleViewMode('list')"
+        />
+      </div>
     </div>
   </div>
 
   <!-- Filters -->
   <div class="cal__filters">
-    <p-select
-      class="cal__filter"
-      [options]="campuses()"
-      optionLabel="name"
-      optionValue="id"
-      placeholder="所有分校"
-      [appendTo]="'body'"
-      [showClear]="true"
-      [(ngModel)]="selectedCampusId"
-      (onChange)="onFilterChange()"
-    />
-    <p-select
-      class="cal__filter"
-      [options]="courses()"
-      optionLabel="name"
-      optionValue="id"
-      placeholder="所有課程"
-      [appendTo]="'body'"
-      [showClear]="true"
-      [(ngModel)]="selectedCourseId"
-      (onChange)="onFilterChange()"
-    />
-    <p-select
-      class="cal__filter"
-      [options]="activeTeachers()"
-      optionLabel="displayName"
-      optionValue="id"
-      placeholder="所有老師"
-      [appendTo]="'body'"
-      [showClear]="true"
-      [(ngModel)]="selectedTeacherId"
-      (onChange)="onFilterChange()"
-    />
+    @if (campuses().length > 1) {
+      <p-select
+        class="cal__filter"
+        [options]="campuses()"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="選擇分校"
+        [appendTo]="'body'"
+        [filter]="true"
+        filterBy="name"
+        [ngModel]="selectedCampusId()"
+        (ngModelChange)="onCampusChange($event)"
+      />
+    }
+    @if (selectedCampusId() && availableCourses().length > 0) {
+      <p-select
+        class="cal__filter"
+        [options]="availableCourses()"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="所有課程"
+        [appendTo]="'body'"
+        [filter]="true"
+        filterBy="name"
+        [showClear]="true"
+        [ngModel]="selectedCourseId()"
+        (ngModelChange)="onCourseChange($event)"
+      />
+    }
+    @if (selectedCampusId() && availableTeachers().length > 0) {
+      <p-select
+        class="cal__filter"
+        [options]="availableTeachers()"
+        optionLabel="displayName"
+        optionValue="id"
+        placeholder="所有老師"
+        [appendTo]="'body'"
+        [filter]="true"
+        filterBy="displayName"
+        [showClear]="true"
+        [ngModel]="selectedTeacherId()"
+        (ngModelChange)="onTeacherChange($event)"
+      />
+    }
+    @if (selectedCampusId() && availableClasses().length > 0) {
+      <p-select
+        class="cal__filter"
+        [options]="availableClasses()"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="所有班級"
+        [appendTo]="'body'"
+        [filter]="true"
+        [showClear]="true"
+        [ngModel]="selectedClassId()"
+        (ngModelChange)="onClassChange($event)"
+      />
+    }
     @if (hasActiveFilters()) {
       <p-button
         label="清除"
@@ -109,7 +160,11 @@
 
   <!-- Calendar Card -->
   <div class="cal__card">
-    @if (loading()) {
+    @if (viewMode() === 'list') {
+      <div class="cal__list">
+        <!-- list view placeholder -->
+      </div>
+    } @else if (loading()) {
       <div class="cal__skeleton">
         @for (i of [1, 2, 3, 4, 5, 6, 7, 8]; track i) {
           <p-skeleton height="80px" borderRadius="6px" />
@@ -153,19 +208,39 @@
                 ></div>
               }
               <!-- Sessions -->
-              @for (s of getSessionsForDay(day); track s.id) {
+              @let renderData = getRenderSessionsForDay(day);
+              @for (slot of renderData.slots; track slot.session.id) {
                 <div
                   class="cal__session"
-                  [class.cal__session--scheduled]="s.status === 'scheduled' && !s.hasChanges"
-                  [class.cal__session--cancelled]="s.status === 'cancelled'"
-                  [class.cal__session--changed]="s.status === 'scheduled' && s.hasChanges"
-                  [style.top.px]="getSessionTop(s.startTime)"
-                  [style.height.px]="getSessionHeight(s.startTime, s.endTime)"
-                  (click)="openDetail(s)"
+                  [class.cal__session--scheduled]="
+                    slot.session.status === 'scheduled' && !slot.session.hasChanges
+                  "
+                  [class.cal__session--cancelled]="slot.session.status === 'cancelled'"
+                  [class.cal__session--changed]="
+                    slot.session.status === 'scheduled' && slot.session.hasChanges
+                  "
+                  [style.top.px]="getSessionTop(slot.session.startTime)"
+                  [style.height.px]="getSessionHeight(slot.session.startTime, slot.session.endTime)"
+                  [style.left.%]="slot.left"
+                  [style.width.%]="slot.width"
+                  (click)="openDetail(slot.session)"
                 >
-                  <span class="cal__session-time">{{ s.startTime }}–{{ s.endTime }}</span>
-                  <span class="cal__session-class">{{ s.className }}</span>
-                  <span class="cal__session-teacher">{{ s.teacherName }}</span>
+                  <span class="cal__session-time"
+                    >{{ slot.session.startTime }}–{{ slot.session.endTime }}</span
+                  >
+                  <span class="cal__session-class">{{ slot.session.className }}</span>
+                  <span class="cal__session-teacher">{{ slot.session.teacherName }}</span>
+                </div>
+              }
+              <!-- Overflow Badges -->
+              @for (ov of renderData.overflows; track ov.startTime) {
+                <div
+                  class="cal__session-overflow"
+                  [style.top.px]="getSessionTop(ov.startTime)"
+                  [style.left.%]="66.666"
+                  (click)="openOverflowDialog(ov.startTime, ov.sessions)"
+                >
+                  +{{ ov.count }} 堂
                 </div>
               }
             </div>
@@ -195,19 +270,39 @@
               [style.top.px]="getSessionTop(slot)"
             ></div>
           }
-          @for (s of getSessionsForDay(currentDate()); track s.id) {
+          @let renderDataDay = getRenderSessionsForDay(currentDate());
+          @for (slot of renderDataDay.slots; track slot.session.id) {
             <div
               class="cal__session"
-              [class.cal__session--scheduled]="s.status === 'scheduled' && !s.hasChanges"
-              [class.cal__session--cancelled]="s.status === 'cancelled'"
-              [class.cal__session--changed]="s.status === 'scheduled' && s.hasChanges"
-              [style.top.px]="getSessionTop(s.startTime)"
-              [style.height.px]="getSessionHeight(s.startTime, s.endTime)"
-              (click)="openDetail(s)"
+              [class.cal__session--scheduled]="
+                slot.session.status === 'scheduled' && !slot.session.hasChanges
+              "
+              [class.cal__session--cancelled]="slot.session.status === 'cancelled'"
+              [class.cal__session--changed]="
+                slot.session.status === 'scheduled' && slot.session.hasChanges
+              "
+              [style.top.px]="getSessionTop(slot.session.startTime)"
+              [style.height.px]="getSessionHeight(slot.session.startTime, slot.session.endTime)"
+              [style.left.%]="slot.left"
+              [style.width.%]="slot.width"
+              (click)="openDetail(slot.session)"
             >
-              <span class="cal__session-time">{{ s.startTime }}–{{ s.endTime }}</span>
-              <span class="cal__session-class">{{ s.className }}</span>
-              <span class="cal__session-teacher">{{ s.teacherName }}</span>
+              <span class="cal__session-time"
+                >{{ slot.session.startTime }}–{{ slot.session.endTime }}</span
+              >
+              <span class="cal__session-class">{{ slot.session.className }}</span>
+              <span class="cal__session-teacher">{{ slot.session.teacherName }}</span>
+            </div>
+          }
+          <!-- Overflow Badges -->
+          @for (ov of renderDataDay.overflows; track ov.startTime) {
+            <div
+              class="cal__session-overflow"
+              [style.top.px]="getSessionTop(ov.startTime)"
+              [style.left.%]="66.666"
+              (click)="openOverflowDialog(ov.startTime, ov.sessions)"
+            >
+              +{{ ov.count }} 堂
             </div>
           }
         </div>
@@ -215,292 +310,3 @@
     }
   </div>
 </div>
-
-<!-- ── Detail Popup ────────────────────────────────────────────────────── -->
-<p-dialog
-  [visible]="showDetail()"
-  (visibleChange)="showDetail.set($event)"
-  [header]="selectedSession()?.className ?? '課堂詳情'"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  styleClass="cal-dialog"
->
-  @if (selectedSession(); as s) {
-    <div class="cal-detail">
-      <!-- Session info -->
-      <div class="cal-detail__section">
-        <div class="cal-detail__row">
-          <i class="pi pi-calendar cal-detail__icon"></i>
-          <span>{{ s.sessionDate }} {{ s.startTime }}–{{ s.endTime }}</span>
-        </div>
-        <div class="cal-detail__row">
-          <i class="pi pi-book cal-detail__icon"></i>
-          <span>{{ s.courseName }}</span>
-        </div>
-        <div class="cal-detail__row">
-          <i class="pi pi-building cal-detail__icon"></i>
-          <span>{{ s.campusName }}</span>
-        </div>
-        <div class="cal-detail__row">
-          <i class="pi pi-user cal-detail__icon"></i>
-          <span>{{ s.teacherName }}</span>
-        </div>
-        <div class="cal-detail__row">
-          <i class="pi pi-info-circle cal-detail__icon"></i>
-          <p-tag [value]="sessionStatusLabel(s)" [severity]="sessionStatusSeverity(s)" />
-        </div>
-      </div>
-
-      <!-- Change history -->
-      @if (loadingChanges()) {
-        <div class="cal-detail__section">
-          <p-skeleton height="60px" borderRadius="6px" />
-        </div>
-      } @else if (sessionChanges().length > 0) {
-        <div class="cal-detail__section">
-          <p class="cal-detail__section-title">異動紀錄</p>
-          @for (c of sessionChanges(); track c.id) {
-            <div class="cal-detail__change">
-              <p-tag
-                [value]="changeTypeLabel(c.changeType)"
-                [severity]="changeTypeSeverity(c.changeType)"
-              />
-              <div class="cal-detail__change-body">
-                @if (c.substituteTeacherName) {
-                  <span>代課老師：{{ c.substituteTeacherName }}</span>
-                }
-                @if (c.newSessionDate) {
-                  <span
-                    >新日期：{{ c.newSessionDate }} {{ c.newStartTime }}–{{ c.newEndTime }}</span
-                  >
-                }
-                @if (c.reason) {
-                  <span class="cal-detail__reason">原因：{{ c.reason }}</span>
-                }
-                <span class="cal-detail__by">{{ c.createdByName }}</span>
-              </div>
-            </div>
-          }
-        </div>
-      }
-    </div>
-  }
-
-  <ng-template pTemplate="footer">
-    <div class="cal-detail__actions">
-      @if (canOperate(selectedSession())) {
-        <p-button
-          label="停課"
-          severity="danger"
-          [outlined]="true"
-          size="small"
-          icon="pi pi-ban"
-          (onClick)="openCancel()"
-        />
-        <p-button
-          label="代課"
-          severity="warn"
-          [outlined]="true"
-          size="small"
-          icon="pi pi-users"
-          (onClick)="openSubstitute()"
-        />
-        <p-button
-          label="調課"
-          severity="info"
-          [outlined]="true"
-          size="small"
-          icon="pi pi-calendar-plus"
-          (onClick)="openReschedule()"
-        />
-      }
-      <p-button
-        label="關閉"
-        severity="secondary"
-        [text]="true"
-        size="small"
-        (onClick)="closeDetail()"
-      />
-    </div>
-  </ng-template>
-</p-dialog>
-
-<!-- ── Cancel Dialog ──────────────────────────────────────────────────── -->
-<p-dialog
-  [visible]="showCancelDialog()"
-  (visibleChange)="showCancelDialog.set($event)"
-  header="確認停課"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  styleClass="cal-dialog"
->
-  <div class="cal-op-form">
-    <p class="cal-op-form__warning">
-      <i class="pi pi-exclamation-triangle"></i>
-      停課後課堂狀態將改為「已停課」，此操作可記錄但不可撤銷。
-    </p>
-    <div class="cal-op-form__field">
-      <label class="cal-op-form__label">停課原因（選填）</label>
-      <textarea
-        class="cal-op-form__textarea p-inputtext"
-        rows="3"
-        [(ngModel)]="cancelReason"
-        placeholder="輸入停課原因..."
-      ></textarea>
-    </div>
-  </div>
-
-  <ng-template pTemplate="footer">
-    <div class="cal-op-form__footer">
-      <p-button
-        label="取消"
-        severity="secondary"
-        [text]="true"
-        size="small"
-        (onClick)="showCancelDialog.set(false)"
-      />
-      <p-button
-        label="確認停課"
-        severity="danger"
-        size="small"
-        icon="pi pi-ban"
-        [loading]="cancelLoading()"
-        (onClick)="submitCancel()"
-      />
-    </div>
-  </ng-template>
-</p-dialog>
-
-<!-- ── Substitute Dialog ──────────────────────────────────────────────── -->
-<p-dialog
-  [visible]="showSubstituteDialog()"
-  (visibleChange)="showSubstituteDialog.set($event)"
-  header="安排代課"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  styleClass="cal-dialog"
->
-  <div class="cal-op-form">
-    <div class="cal-op-form__field">
-      <label class="cal-op-form__label"
-        >代課老師 <span class="cal-op-form__required">*</span></label
-      >
-      <p-select
-        [options]="activeTeachers()"
-        optionLabel="displayName"
-        optionValue="id"
-        placeholder="選擇代課老師"
-        [appendTo]="'body'"
-        [style]="{ width: '100%' }"
-        [(ngModel)]="substituteTeacherId"
-      />
-    </div>
-    <div class="cal-op-form__field">
-      <label class="cal-op-form__label">備註（選填）</label>
-      <textarea
-        class="cal-op-form__textarea p-inputtext"
-        rows="3"
-        [(ngModel)]="substituteReason"
-        placeholder="輸入備註..."
-      ></textarea>
-    </div>
-  </div>
-
-  <ng-template pTemplate="footer">
-    <div class="cal-op-form__footer">
-      <p-button
-        label="取消"
-        severity="secondary"
-        [text]="true"
-        size="small"
-        (onClick)="showSubstituteDialog.set(false)"
-      />
-      <p-button
-        label="確認代課"
-        severity="warn"
-        size="small"
-        icon="pi pi-check"
-        [loading]="substituteLoading()"
-        [disabled]="!substituteTeacherId"
-        (onClick)="submitSubstitute()"
-      />
-    </div>
-  </ng-template>
-</p-dialog>
-
-<!-- ── Reschedule Dialog ──────────────────────────────────────────────── -->
-<p-dialog
-  [visible]="showRescheduleDialog()"
-  (visibleChange)="showRescheduleDialog.set($event)"
-  header="安排調課"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  styleClass="cal-dialog"
->
-  <div class="cal-op-form">
-    <div class="cal-op-form__field">
-      <label class="cal-op-form__label"
-        >調課日期 <span class="cal-op-form__required">*</span></label
-      >
-      <p-datepicker
-        [(ngModel)]="rescheduleDate"
-        [style]="{ width: '100%' }"
-        dateFormat="yy/mm/dd"
-        placeholder="選擇日期"
-        [appendTo]="'body'"
-      />
-    </div>
-    <div class="cal-op-form__row">
-      <div class="cal-op-form__field">
-        <label class="cal-op-form__label"
-          >開始時間 <span class="cal-op-form__required">*</span></label
-        >
-        <input
-          type="time"
-          class="cal-op-form__time p-inputtext"
-          [(ngModel)]="rescheduleStartTime"
-        />
-      </div>
-      <div class="cal-op-form__field">
-        <label class="cal-op-form__label"
-          >結束時間 <span class="cal-op-form__required">*</span></label
-        >
-        <input type="time" class="cal-op-form__time p-inputtext" [(ngModel)]="rescheduleEndTime" />
-      </div>
-    </div>
-    <div class="cal-op-form__field">
-      <label class="cal-op-form__label">調課原因（選填）</label>
-      <textarea
-        class="cal-op-form__textarea p-inputtext"
-        rows="3"
-        [(ngModel)]="rescheduleReason"
-        placeholder="輸入調課原因..."
-      ></textarea>
-    </div>
-  </div>
-
-  <ng-template pTemplate="footer">
-    <div class="cal-op-form__footer">
-      <p-button
-        label="取消"
-        severity="secondary"
-        [text]="true"
-        size="small"
-        (onClick)="showRescheduleDialog.set(false)"
-      />
-      <p-button
-        label="確認調課"
-        severity="info"
-        size="small"
-        icon="pi pi-check"
-        [loading]="rescheduleLoading()"
-        [disabled]="!rescheduleDate || !rescheduleStartTime || !rescheduleEndTime"
-        (onClick)="submitReschedule()"
-      />
-    </div>
-  </ng-template>
-</p-dialog>

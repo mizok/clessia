@@ -1,7 +1,25 @@
-import { Component, DestroyRef, OnInit, computed, inject, input, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  OnInit,
+  OnDestroy,
+  computed,
+  inject,
+  input,
+  signal,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { addDays, addWeeks, endOfWeek, format, isSameWeek, isToday, startOfWeek } from 'date-fns';
+import {
+  addDays,
+  addWeeks,
+  endOfWeek,
+  format,
+  isSameWeek,
+  isToday,
+  startOfWeek,
+} from 'date-fns';
 import { debounceTime, fromEvent } from 'rxjs';
 import { zhTW } from 'date-fns/locale';
 import { MessageService } from 'primeng/api';
@@ -13,17 +31,20 @@ import { SkeletonModule } from 'primeng/skeleton';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
+import { DialogService } from 'primeng/dynamicdialog';
 import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 
-import type { Campus } from '@core/campuses.service';
-import { CampusesService } from '@core/campuses.service';
-import type { Course } from '@core/courses.service';
-import { CoursesService } from '@core/courses.service';
+import { AuthService } from '@core/auth.service';
+import { Campus, CampusesService } from '@core/campuses.service';
+import { ClassesService } from '@core/classes.service';
+import { Course, CoursesService } from '@core/courses.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import type { ScheduleChange, Session } from '@core/sessions.service';
-import { SessionsService } from '@core/sessions.service';
-import type { Staff } from '@core/staff.service';
-import { StaffService } from '@core/staff.service';
+import { Session, SessionsService, ScheduleChange } from '@core/sessions.service';
+import { Staff, StaffService } from '@core/staff.service';
+import { OverlayContainerService } from '@core/overlay-container.service';
+
+import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
+import { SessionOverflowDialogComponent } from './dialogs/session-overflow-dialog/session-overflow-dialog.component';
 
 const CALENDAR_START_HOUR = 8;
 const CALENDAR_END_HOUR = 22;
@@ -43,29 +64,33 @@ const SLOT_HEIGHT_PX = 36;
     SkeletonModule,
     TooltipModule,
   ],
-  providers: [MessageService],
+  providers: [MessageService, DialogService],
   templateUrl: './calendar.page.html',
   styleUrl: './calendar.page.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CalendarPage implements OnInit {
+export class CalendarPage implements OnInit, OnDestroy {
   readonly page = input.required<RouteObj>();
 
   private readonly campusesService = inject(CampusesService);
+  private readonly classesService = inject(ClassesService);
   private readonly coursesService = inject(CoursesService);
   private readonly staffService = inject(StaffService);
   private readonly sessionsService = inject(SessionsService);
   private readonly messageService = inject(MessageService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly overlayContainerDirective = inject(OverlayContainerDirective, {
-    optional: true,
-  });
+  private readonly overlayContainerService = inject(OverlayContainerService);
+  private readonly dialogService = inject(DialogService);
+  private readonly authService = inject(AuthService); // Added authService injection
+
   protected get overlayContainer(): HTMLElement | null {
-    return this.overlayContainerDirective?.nativeHTMLElement ?? null;
+    return this.overlayContainerService.getContainer();
   }
 
   // ── View state (signals) ───────────────────────────────────────────────
   protected readonly currentDate = signal(new Date());
   protected readonly isWeekView = signal(window.innerWidth >= 768);
+  protected readonly viewMode = signal<'calendar' | 'list'>('calendar');
   protected readonly loading = signal(false);
   protected readonly sessions = signal<Session[]>([]);
 
@@ -73,42 +98,52 @@ export class CalendarPage implements OnInit {
   protected readonly campuses = signal<Campus[]>([]);
   protected readonly courses = signal<Course[]>([]);
   protected readonly staff = signal<Staff[]>([]);
+  protected readonly classes = signal<Array<{ id: string; name: string; courseId: string; campusId: string }>>([]);
 
   // Date picker popup
   protected readonly showDatePicker = signal(false);
 
-  // Detail / change history (signals)
-  protected readonly showDetail = signal(false);
-  protected readonly selectedSession = signal<Session | null>(null);
-  protected readonly sessionChanges = signal<ScheduleChange[]>([]);
-  protected readonly loadingChanges = signal(false);
-
-  // Operation loading states (signals)
-  protected readonly cancelLoading = signal(false);
-  protected readonly substituteLoading = signal(false);
-  protected readonly rescheduleLoading = signal(false);
-
-  // Dialog visibility (signals)
-  protected readonly showCancelDialog = signal(false);
-  protected readonly showSubstituteDialog = signal(false);
-  protected readonly showRescheduleDialog = signal(false);
-
-  // ── Form-bound properties (regular – ngModel compatible) ──────────────
-  protected selectedCampusId: string | null = null;
-  protected selectedCourseId: string | null = null;
-  protected selectedTeacherId: string | null = null;
-
-  protected cancelReason = '';
-
-  protected substituteTeacherId: string | null = null;
-  protected substituteReason = '';
-
-  protected rescheduleDate: Date | null = null;
-  protected rescheduleStartTime = '';
-  protected rescheduleEndTime = '';
-  protected rescheduleReason = '';
+  // ── Filter state ───────────────────────────────────────────────────────
+  protected readonly selectedCampusId = signal<string | null>(null);
+  protected readonly selectedCourseId = signal<string | null>(null);
+  protected readonly selectedTeacherId = signal<string | null>(null);
+  protected readonly selectedClassId = signal<string | null>(null);
 
   // ── Computed ───────────────────────────────────────────────────────────
+  protected readonly availableCourses = computed(() => {
+    const campusId = this.selectedCampusId();
+    if (!campusId) return [];
+    return this.courses().filter((c) => c.campusId === campusId);
+  });
+
+  protected readonly availableTeachers = computed(() => {
+    const campusId = this.selectedCampusId();
+    if (!campusId) return [];
+
+    let filteredTeachers = this.activeTeachers().filter((t) => t.campusIds.includes(campusId));
+    const courseId = this.selectedCourseId();
+    if (courseId) {
+      const course = this.courses().find((c) => c.id === courseId);
+      if (course) {
+        filteredTeachers = filteredTeachers.filter((t) => t.subjectIds.includes(course.subjectId));
+      }
+    }
+    return filteredTeachers;
+  });
+
+  protected readonly availableClasses = computed(() => {
+    const campusId = this.selectedCampusId();
+    const courseId = this.selectedCourseId();
+    if (!campusId) return [];
+    let filtered = this.classes().filter((c) => c.campusId === campusId);
+    if (courseId) filtered = filtered.filter((c) => c.courseId === courseId);
+    return filtered;
+  });
+
+  protected readonly hasActiveFilters = computed(
+    () => !!(this.selectedCourseId() || this.selectedTeacherId() || this.selectedClassId()),
+  );
+
   protected readonly weekStart = computed(() =>
     startOfWeek(this.currentDate(), { weekStartsOn: 1 }),
   );
@@ -132,9 +167,11 @@ export class CalendarPage implements OnInit {
     return dateRange;
   });
 
-  protected readonly dayLabel = computed(() =>
-    format(this.currentDate(), 'yyyy/MM/dd (EEE)', { locale: zhTW }),
-  );
+  protected readonly dayLabel = computed(() => {
+    const date = this.currentDate();
+    const dateStr = format(date, 'M/d (EEE)', { locale: zhTW });
+    return isToday(date) ? `今天 · ${dateStr}` : dateStr;
+  });
 
   protected readonly timeSlots = computed(() => {
     const slots: string[] = [];
@@ -166,6 +203,10 @@ export class CalendarPage implements OnInit {
     this.loadFilters();
     this.loadSessions();
     this.listenToResize();
+  }
+
+  ngOnDestroy(): void {
+    // No explicit cleanup needed for takeUntilDestroyed, but good to have the method if needed later.
   }
 
   // ── Navigation ─────────────────────────────────────────────────────────
@@ -202,20 +243,42 @@ export class CalendarPage implements OnInit {
     this.loadSessions();
   }
 
+  // ── View toggle ──────────────────────────────────────────────────────
+  protected toggleViewMode(mode: 'calendar' | 'list'): void {
+    this.viewMode.set(mode);
+  }
+
   // ── Filters ────────────────────────────────────────────────────────────
-  protected onFilterChange(): void {
+  protected onCampusChange(campusId: string | null): void {
+    this.selectedCampusId.set(campusId);
+    this.selectedCourseId.set(null);
+    this.selectedTeacherId.set(null);
+    this.selectedClassId.set(null);
+    this.loadSessions();
+  }
+
+  protected onCourseChange(courseId: string | null): void {
+    this.selectedCourseId.set(courseId);
+    this.selectedTeacherId.set(null);
+    this.selectedClassId.set(null);
+    this.loadSessions();
+  }
+
+  protected onTeacherChange(teacherId: string | null): void {
+    this.selectedTeacherId.set(teacherId);
+    this.loadSessions();
+  }
+
+  protected onClassChange(classId: string | null): void {
+    this.selectedClassId.set(classId);
     this.loadSessions();
   }
 
   protected clearFilters(): void {
-    this.selectedCampusId = null;
-    this.selectedCourseId = null;
-    this.selectedTeacherId = null;
+    this.selectedCourseId.set(null);
+    this.selectedTeacherId.set(null);
+    this.selectedClassId.set(null);
     this.loadSessions();
-  }
-
-  protected hasActiveFilters(): boolean {
-    return !!(this.selectedCampusId || this.selectedCourseId || this.selectedTeacherId);
   }
 
   // ── Grid helpers ───────────────────────────────────────────────────────
@@ -234,6 +297,105 @@ export class CalendarPage implements OnInit {
   protected getSessionsForDay(day: Date): Session[] {
     const dateStr = format(day, 'yyyy-MM-dd');
     return this.sessions().filter((s) => s.sessionDate === dateStr);
+  }
+
+  protected getRenderSessionsForDay(day: Date): {
+    slots: { session: Session; width: number; left: number }[];
+    overflows: { startTime: string; count: number; sessions: Session[] }[];
+  } {
+    const daySessions = this.getSessionsForDay(day);
+    if (daySessions.length === 0) return { slots: [], overflows: [] };
+
+    // 1. Sort by start time, then end time
+    const sorted = [...daySessions].sort((a, b) => {
+      if (a.startTime !== b.startTime) return a.startTime.localeCompare(b.startTime);
+      return a.endTime.localeCompare(b.endTime);
+    });
+
+    // 2. Group into overlapping clusters
+    const clusters: Session[][] = [];
+    let currentCluster: Session[] = [];
+    let clusterEnd = '';
+
+    for (const s of sorted) {
+      if (currentCluster.length === 0) {
+        currentCluster.push(s);
+        clusterEnd = s.endTime;
+      } else {
+        if (s.startTime < clusterEnd) {
+          currentCluster.push(s);
+          if (s.endTime > clusterEnd) clusterEnd = s.endTime;
+        } else {
+          clusters.push(currentCluster);
+          currentCluster = [s];
+          clusterEnd = s.endTime;
+        }
+      }
+    }
+    if (currentCluster.length > 0) {
+      clusters.push(currentCluster);
+    }
+
+    // 3. Calculate columns for each cluster
+    const MAX_COLS = 3;
+    const slots: { session: Session; width: number; left: number }[] = [];
+    const overflowsMap = new Map<string, Session[]>();
+
+    for (const cluster of clusters) {
+      const columns: Session[][] = [];
+
+      for (const s of cluster) {
+        let placed = false;
+        for (let i = 0; i < columns.length; i++) {
+          const col = columns[i];
+          const lastInCol = col[col.length - 1];
+          if (s.startTime >= lastInCol.endTime) {
+            col.push(s);
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) {
+          columns.push([s]);
+        }
+      }
+
+      // Check if we exceed MAX_COLS
+      if (columns.length > MAX_COLS) {
+        // Render first 2 columns normally, collect everything else into overflow badges by start time
+        for (let i = 0; i < 2; i++) {
+          for (const s of columns[i]) {
+            slots.push({ session: s, width: 100 / MAX_COLS, left: (i * 100) / MAX_COLS });
+          }
+        }
+        for (let i = 2; i < columns.length; i++) {
+          for (const s of columns[i]) {
+            const timeKey = s.startTime;
+            if (!overflowsMap.has(timeKey)) {
+              overflowsMap.set(timeKey, []);
+            }
+            overflowsMap.get(timeKey)!.push(s);
+          }
+        }
+      } else {
+        // Less than or equal to 3 columns, render normally
+        const colCount = columns.length;
+        for (let i = 0; i < colCount; i++) {
+          for (const s of columns[i]) {
+            slots.push({ session: s, width: 100 / colCount, left: (i * 100) / colCount });
+          }
+        }
+      }
+    }
+
+    // Format overflows
+    const overflows = Array.from(overflowsMap.entries()).map(([startTime, sessions]) => ({
+      startTime,
+      count: sessions.length,
+      sessions,
+    }));
+
+    return { slots, overflows };
   }
 
   protected isToday(day: Date): boolean {
@@ -255,7 +417,7 @@ export class CalendarPage implements OnInit {
   // ── Status helpers ─────────────────────────────────────────────────────
   protected sessionStatusLabel(s: Session): string {
     if (s.status === 'cancelled') return '停課';
-    if (s.hasChanges) return '有異動';
+    if (s.hasChanges) return '已調整';
     return '正常';
   }
 
@@ -271,154 +433,31 @@ export class CalendarPage implements OnInit {
 
   // ── Detail popup ───────────────────────────────────────────────────────
   protected openDetail(session: Session): void {
-    this.selectedSession.set(session);
-    this.showDetail.set(true);
-    this.sessionChanges.set([]);
-    this.loadingChanges.set(true);
-    this.sessionsService.getChanges(session.id).subscribe({
-      next: (res) => {
-        this.sessionChanges.set(res.data);
-        this.loadingChanges.set(false);
-      },
-      error: () => {
-        this.loadingChanges.set(false);
-      },
+    const ref = this.dialogService.open(SessionDetailDialogComponent, {
+      header: '課程詳情',
+      width: '400px',
+      data: { session, loadingChanges: true, changes: [] },
+      styleClass: 'cal-dialog',
     });
-  }
 
-  protected closeDetail(): void {
-    this.showDetail.set(false);
-    this.selectedSession.set(null);
-  }
-
-  protected changeTypeLabel(type: ScheduleChange['changeType']): string {
-    const map: Record<ScheduleChange['changeType'], string> = {
-      cancellation: '停課',
-      substitute: '代課',
-      reschedule: '調課',
-    };
-    return map[type];
-  }
-
-  protected changeTypeSeverity(type: ScheduleChange['changeType']): 'secondary' | 'warn' | 'info' {
-    const map: Record<ScheduleChange['changeType'], 'secondary' | 'warn' | 'info'> = {
-      cancellation: 'secondary',
-      substitute: 'warn',
-      reschedule: 'info',
-    };
-    return map[type];
-  }
-
-  // ── Cancel ─────────────────────────────────────────────────────────────
-  protected openCancel(): void {
-    this.cancelReason = '';
-    this.showCancelDialog.set(true);
-  }
-
-  protected submitCancel(): void {
-    const session = this.selectedSession();
-    if (!session) return;
-    this.cancelLoading.set(true);
-    const reason = this.cancelReason.trim() || undefined;
-    this.sessionsService.cancel(session.id, reason).subscribe({
-      next: () => {
-        this.cancelLoading.set(false);
-        this.showCancelDialog.set(false);
-        this.showDetail.set(false);
-        this.messageService.add({
-          severity: 'success',
-          summary: '停課成功',
-          detail: '課堂已標記為停課',
-        });
-        this.loadSessions();
-      },
-      error: () => {
-        this.cancelLoading.set(false);
-        this.messageService.add({
-          severity: 'error',
-          summary: '操作失敗',
-          detail: '請稍後再試',
-        });
-      },
-    });
-  }
-
-  // ── Substitute ─────────────────────────────────────────────────────────
-  protected openSubstitute(): void {
-    this.substituteTeacherId = null;
-    this.substituteReason = '';
-    this.showSubstituteDialog.set(true);
-  }
-
-  protected submitSubstitute(): void {
-    const session = this.selectedSession();
-    const teacherId = this.substituteTeacherId;
-    if (!session || !teacherId) return;
-    this.substituteLoading.set(true);
-    const reason = this.substituteReason.trim() || undefined;
-    this.sessionsService.substitute(session.id, teacherId, reason).subscribe({
-      next: () => {
-        this.substituteLoading.set(false);
-        this.showSubstituteDialog.set(false);
-        this.showDetail.set(false);
-        this.messageService.add({
-          severity: 'success',
-          summary: '代課成功',
-          detail: '代課安排已記錄',
-        });
-        this.loadSessions();
-      },
-      error: () => {
-        this.substituteLoading.set(false);
-        this.messageService.add({
-          severity: 'error',
-          summary: '操作失敗',
-          detail: '請稍後再試',
-        });
-      },
-    });
-  }
-
-  // ── Reschedule ─────────────────────────────────────────────────────────
-  protected openReschedule(): void {
-    this.rescheduleDate = null;
-    this.rescheduleStartTime = '';
-    this.rescheduleEndTime = '';
-    this.rescheduleReason = '';
-    this.showRescheduleDialog.set(true);
-  }
-
-  protected submitReschedule(): void {
-    const session = this.selectedSession();
-    const date = this.rescheduleDate;
-    const start = this.rescheduleStartTime.trim();
-    const end = this.rescheduleEndTime.trim();
-    if (!session || !date || !start || !end) return;
-    this.rescheduleLoading.set(true);
-    const reason = this.rescheduleReason.trim() || undefined;
-    this.sessionsService
-      .reschedule(session.id, format(date, 'yyyy-MM-dd'), start, end, reason)
-      .subscribe({
-        next: () => {
-          this.rescheduleLoading.set(false);
-          this.showRescheduleDialog.set(false);
-          this.showDetail.set(false);
-          this.messageService.add({
-            severity: 'success',
-            summary: '調課成功',
-            detail: '調課安排已記錄',
-          });
+    if (ref) {
+      ref.onClose.subscribe((result) => {
+        // If a dialog closed with 'refresh', reload sessions
+        if (result === 'refresh') {
           this.loadSessions();
-        },
-        error: () => {
-          this.rescheduleLoading.set(false);
-          this.messageService.add({
-            severity: 'error',
-            summary: '操作失敗',
-            detail: '請稍後再試',
-          });
-        },
+        }
       });
+    }
+  }
+
+  protected openOverflowDialog(startTime: string, sessions: Session[]): void {
+    this.dialogService.open(SessionOverflowDialogComponent, {
+      header: `${startTime} 重疊課程`,
+      width: '400px',
+      contentStyle: { padding: '1rem', 'padding-bottom': '1rem' },
+      data: { startTime, sessions },
+      styleClass: 'cal-dialog',
+    });
   }
 
   // ── Private ────────────────────────────────────────────────────────────
@@ -436,13 +475,30 @@ export class CalendarPage implements OnInit {
 
   private loadFilters(): void {
     this.campusesService.list({ isActive: true, pageSize: 100 }).subscribe({
-      next: (res) => this.campuses.set(res.data),
+      next: (res) => {
+        this.campuses.set(res.data);
+        if (res.data.length > 0 && !this.selectedCampusId()) {
+          this.selectedCampusId.set(res.data[0].id);
+          this.loadSessions();
+        }
+      },
     });
     this.coursesService.list({ isActive: true, pageSize: 200 }).subscribe({
       next: (res) => this.courses.set(res.data),
     });
     this.staffService.list({ isActive: true, pageSize: 200 }).subscribe({
       next: (res) => this.staff.set(res.data),
+    });
+    this.classesService.list({ isActive: true, pageSize: 500 }).subscribe({
+      next: (res) =>
+        this.classes.set(
+          res.data.map((c) => ({
+            id: c.id,
+            name: c.name,
+            courseId: c.courseId,
+            campusId: c.campusId,
+          })),
+        ),
     });
   }
 
@@ -459,9 +515,10 @@ export class CalendarPage implements OnInit {
       .list({
         from,
         to,
-        campusId: this.selectedCampusId ?? undefined,
-        courseId: this.selectedCourseId ?? undefined,
-        teacherId: this.selectedTeacherId ?? undefined,
+        campusId: this.selectedCampusId() ?? undefined,
+        courseId: this.selectedCourseId() ?? undefined,
+        teacherId: this.selectedTeacherId() ?? undefined,
+        classId: this.selectedClassId() ?? undefined,
       })
       .subscribe({
         next: (res) => {
