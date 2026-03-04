@@ -1,4 +1,5 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
+<p-menu #sessionMenu [model]="contextMenuItems()" [popup]="true" appendTo="body" />
 
 <div class="cal">
   <!-- Header -->
@@ -243,7 +244,7 @@
                     [text]="true"
                     severity="secondary"
                     size="small"
-                    (click)="openDetail(session)"
+                    (click)="contextSession.set(session); sessionMenu.toggle($event)"
                   ></button>
                 </td>
               </tr>

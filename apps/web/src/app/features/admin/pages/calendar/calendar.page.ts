@@ -23,7 +23,8 @@ import {
 } from 'date-fns';
 import { debounceTime, fromEvent } from 'rxjs';
 import { zhTW } from 'date-fns/locale';
-import { MessageService } from 'primeng/api';
+import { MessageService, type MenuItem } from 'primeng/api';
+import { MenuModule } from 'primeng/menu';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
@@ -53,8 +54,11 @@ import { Session, SessionsService, ScheduleChange } from '@core/sessions.service
 import { Staff, StaffService } from '@core/staff.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 
+import { SessionCancelDialogComponent } from './dialogs/session-cancel-dialog/session-cancel-dialog.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
 import { SessionOverflowDialogComponent } from './dialogs/session-overflow-dialog/session-overflow-dialog.component';
+import { SessionRescheduleDialogComponent } from './dialogs/session-reschedule-dialog/session-reschedule-dialog.component';
+import { SessionSubstituteDialogComponent } from './dialogs/session-substitute-dialog/session-substitute-dialog.component';
 
 const CALENDAR_START_HOUR = 8;
 const CALENDAR_END_HOUR = 22;
@@ -74,6 +78,7 @@ const SLOT_HEIGHT_PX = 36;
     TagModule,
     SkeletonModule,
     TooltipModule,
+    MenuModule,
     CheckboxModule,
     ResponsiveTableComponent,
     RtColDefDirective,
@@ -242,6 +247,51 @@ export class CalendarPage implements OnInit, OnDestroy {
     return page.every((s) => ids.has(s.id));
   });
 
+  // ── Context menu ─────────────────────────────────────────────────────
+  protected readonly contextSession = signal<Session | null>(null);
+  protected readonly contextMenuItems = computed<MenuItem[]>(() => {
+    const s = this.contextSession();
+    if (!s) return [];
+    const items: MenuItem[] = [];
+
+    if (s.status === 'scheduled') {
+      items.push({
+        label: '調課',
+        icon: 'pi pi-calendar-clock',
+        command: () => this.openReschedule(s),
+      });
+    }
+    if (s.status === 'scheduled' && s.assignmentStatus === 'assigned') {
+      items.push({
+        label: '代課',
+        icon: 'pi pi-user-edit',
+        command: () => this.openSubstitute(s),
+      });
+    }
+    if (s.assignmentStatus === 'unassigned' && s.status === 'scheduled') {
+      items.push({
+        label: '指派老師',
+        icon: 'pi pi-user-plus',
+        command: () => this.openAssignSingle(s),
+      });
+    }
+    if (s.status === 'scheduled') {
+      items.push({
+        label: '停課',
+        icon: 'pi pi-ban',
+        command: () => this.openCancelDialog(s),
+      });
+    }
+    if (s.status === 'cancelled') {
+      items.push({
+        label: '取消停課',
+        icon: 'pi pi-replay',
+        command: () => this.uncancelSingle(s),
+      });
+    }
+    return items;
+  });
+
   // ── Lifecycle ──────────────────────────────────────────────────────────
   ngOnInit(): void {
     this.loadFilters();
@@ -327,6 +377,74 @@ export class CalendarPage implements OnInit, OnDestroy {
   protected getDayLabel(dateStr: string): string {
     const DAY_LABELS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
     return DAY_LABELS[new Date(dateStr).getDay()];
+  }
+
+  // ── Single-session actions ───────────────────────────────────────────
+  protected openReschedule(session: Session): void {
+    const ref = this.dialogService.open(SessionRescheduleDialogComponent, {
+      header: '調課',
+      width: '400px',
+      data: { session },
+      styleClass: 'cal-dialog',
+    });
+    ref?.onClose.subscribe((result) => {
+      if (result === 'refresh') this.loadSessions();
+    });
+  }
+
+  protected openSubstitute(session: Session): void {
+    const ref = this.dialogService.open(SessionSubstituteDialogComponent, {
+      header: '安排代課',
+      width: '400px',
+      data: { session },
+      styleClass: 'cal-dialog',
+    });
+    ref?.onClose.subscribe((result) => {
+      if (result === 'refresh') this.loadSessions();
+    });
+  }
+
+  protected openCancelDialog(session: Session): void {
+    const ref = this.dialogService.open(SessionCancelDialogComponent, {
+      header: '停課',
+      width: '400px',
+      data: { session },
+      styleClass: 'cal-dialog',
+    });
+    ref?.onClose.subscribe((result) => {
+      if (result === 'refresh') this.loadSessions();
+    });
+  }
+
+  protected uncancelSingle(session: Session): void {
+    this.sessionsService.batchUncancel({ sessionIds: [session.id] }).subscribe({
+      next: () => {
+        this.loadSessions();
+        this.messageService.add({
+          severity: 'success',
+          summary: '已取消停課',
+          detail: `${session.className} ${session.sessionDate}`,
+        });
+      },
+      error: () => {
+        this.messageService.add({
+          severity: 'error',
+          summary: '操作失敗',
+          detail: '無法取消停課',
+        });
+      },
+    });
+  }
+
+  protected openAssignSingle(session: Session): void {
+    // Use batch assign with single session — simplified approach
+    this.sessionsService
+      .batchAssignTeacher({
+        sessionIds: [session.id],
+        teacherId: '', // Will be replaced when batch panel is ready (Task 8)
+        dryRun: true,
+      })
+      .subscribe(); // placeholder — full assign UI in Task 8
   }
 
   // ── Filters ────────────────────────────────────────────────────────────
