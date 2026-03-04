@@ -6,62 +6,66 @@
   <div class="cal__header">
     <div class="cal__title-group">
       <h1 class="cal__title">課堂行事曆</h1>
-      <button #subtitleButton class="cal__subtitle" (click)="toggleDatePicker()">
-        @if (isWeekView()) {
-          {{ weekLabel() }}
-        } @else {
-          {{ dayLabel() }}
+      @if (viewMode() === 'calendar') {
+        <button #subtitleButton class="cal__subtitle" (click)="toggleDatePicker()">
+          @if (isWeekView()) {
+            {{ weekLabel() }}
+          } @else {
+            {{ dayLabel() }}
+          }
+          <i class="pi pi-angle-down cal__subtitle-caret"></i>
+        </button>
+        @if (showDatePicker()) {
+          <div #datepickerPopup class="cal__datepicker-popup">
+            <p-datepicker
+              [ngModel]="currentDate()"
+              [inline]="true"
+              [firstDayOfWeek]="1"
+              (onSelect)="onDateJump($event)"
+              dateFormat="yy/mm/dd"
+              [appendTo]="'body'"
+            />
+          </div>
         }
-        <i class="pi pi-angle-down cal__subtitle-caret"></i>
-      </button>
-      @if (showDatePicker()) {
-        <div #datepickerPopup class="cal__datepicker-popup">
-          <p-datepicker
-            [ngModel]="currentDate()"
-            [inline]="true"
-            [firstDayOfWeek]="1"
-            (onSelect)="onDateJump($event)"
-            dateFormat="yy/mm/dd"
-            [appendTo]="'body'"
-          />
-        </div>
       }
     </div>
 
     <div class="cal__header-actions">
-      <div class="cal__nav">
-        <p-button
-          icon="pi pi-chevron-left"
-          [rounded]="true"
-          severity="secondary"
-          [text]="true"
-          size="small"
-          (onClick)="prevPeriod()"
-          [pTooltip]="isWeekView() ? '上一週' : '前一天'"
-          [tooltipPosition]="'top'"
-          tooltipStyleClass="clessia-tooltip"
-        />
-        @if (!isCurrentPeriod()) {
+      @if (viewMode() === 'calendar') {
+        <div class="cal__nav">
           <p-button
-            [label]="isWeekView() ? '回本週' : '回今天'"
+            icon="pi pi-chevron-left"
+            [rounded]="true"
             severity="secondary"
-            [outlined]="true"
+            [text]="true"
             size="small"
-            (onClick)="goToday()"
+            (onClick)="prevPeriod()"
+            [pTooltip]="isWeekView() ? '上一週' : '前一天'"
+            [tooltipPosition]="'top'"
+            tooltipStyleClass="clessia-tooltip"
           />
-        }
-        <p-button
-          icon="pi pi-chevron-right"
-          [rounded]="true"
-          severity="secondary"
-          [text]="true"
-          size="small"
-          (onClick)="nextPeriod()"
-          [pTooltip]="isWeekView() ? '下一週' : '下一天'"
-          [tooltipPosition]="'top'"
-          tooltipStyleClass="clessia-tooltip"
-        />
-      </div>
+          @if (!isCurrentPeriod()) {
+            <p-button
+              [label]="isWeekView() ? '回本週' : '回今天'"
+              severity="secondary"
+              [outlined]="true"
+              size="small"
+              (onClick)="goToday()"
+            />
+          }
+          <p-button
+            icon="pi pi-chevron-right"
+            [rounded]="true"
+            severity="secondary"
+            [text]="true"
+            size="small"
+            (onClick)="nextPeriod()"
+            [pTooltip]="isWeekView() ? '下一週' : '下一天'"
+            [tooltipPosition]="'top'"
+            tooltipStyleClass="clessia-tooltip"
+          />
+        </div>
+      }
       <div class="cal__view-toggle">
         <p-button
           [outlined]="viewMode() !== 'calendar'"
@@ -210,7 +214,7 @@
 
           <ng-template #listHead>
             <tr>
-              <th style="width: 48px; text-align: center">
+              <th class="responsive-table__header-cell" style="width: 48px; text-align: center">
                 <p-checkbox
                   [binary]="true"
                   [ngModel]="allPageSelected()"
@@ -234,14 +238,14 @@
               <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">
                 狀態
               </th>
-              <th style="width: 48px"></th>
+              <th class="responsive-table__header-cell" style="width: 48px"></th>
             </tr>
           </ng-template>
 
           <ng-template #listBody>
             @for (session of paginatedSessions(); track session.id) {
               <tr appRtRow [appRtRow]="session" [appRtRowId]="session.id">
-                <td style="text-align: center">
+                <td class="responsive-table__cell" style="text-align: center">
                   <p-checkbox
                     [binary]="true"
                     [ngModel]="isSelected(session.id)"
@@ -269,7 +273,7 @@
                     [value]="sessionStatusLabel(session)"
                   />
                 </td>
-                <td style="text-align: center">
+                <td class="responsive-table__cell" style="text-align: center">
                   <button pButton
                     icon="pi pi-ellipsis-v"
                     [text]="true"
@@ -281,7 +285,7 @@
               </tr>
             } @empty {
               <tr>
-                <td colspan="7" style="text-align: center; padding: 2rem; color: var(--zinc-400)">
+                <td class="responsive-table__cell" colspan="7" style="text-align: center; padding: 2rem; color: var(--zinc-400)">
                   此期間沒有課堂
                 </td>
               </tr>

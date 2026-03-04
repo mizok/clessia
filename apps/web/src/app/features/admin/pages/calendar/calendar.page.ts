@@ -202,7 +202,12 @@ export class CalendarPage implements OnInit, OnDestroy {
     const weekOpts = { weekStartsOn: 1 as const };
     const start = this.weekStart();
     const end = this.weekEnd();
-    const dateRange = `${format(start, 'M/d')} – ${format(end, 'M/d')}`;
+    const sameYear = start.getFullYear() === end.getFullYear();
+    const startFmt = sameYear ? format(start, 'M/d') : format(start, 'yyyy/M/d');
+    const endFmt = format(end, 'yyyy/M/d');
+    const dateRange = sameYear
+      ? `${format(start, 'yyyy')} · ${startFmt} – ${format(end, 'M/d')}`
+      : `${startFmt} – ${endFmt}`;
 
     if (isSameWeek(start, now, weekOpts)) return `本週 · ${dateRange}`;
     if (isSameWeek(start, addWeeks(now, -1), weekOpts)) return `上週 · ${dateRange}`;
