@@ -89,6 +89,21 @@
 
   <!-- Filters -->
   <div class="cal__filters">
+    @if (viewMode() === 'list') {
+      <p-datepicker
+        class="cal__filter cal__filter--date-range"
+        selectionMode="range"
+        [ngModel]="listDateRange()"
+        (ngModelChange)="onListDateRangeChange($event)"
+        dateFormat="yy/mm/dd"
+        placeholder="選擇日期範圍"
+        [showIcon]="true"
+        [appendTo]="'body'"
+        [firstDayOfWeek]="1"
+        [numberOfMonths]="1"
+        [readonlyInput]="true"
+      />
+    }
     @if (campuses().length > 1) {
       <p-select
         class="cal__filter"
@@ -119,19 +134,35 @@
       />
     }
     @if (selectedCampusId() && availableTeachers().length > 0) {
-      <p-select
-        class="cal__filter"
-        [options]="availableTeachers()"
-        optionLabel="displayName"
-        optionValue="id"
-        placeholder="所有老師"
-        [appendTo]="'body'"
-        [filter]="true"
-        filterBy="displayName"
-        [showClear]="true"
-        [ngModel]="selectedTeacherId()"
-        (ngModelChange)="onTeacherChange($event)"
-      />
+      @if (viewMode() === 'list') {
+        <p-multiselect
+          class="cal__filter"
+          [options]="availableTeachers()"
+          optionLabel="displayName"
+          optionValue="id"
+          placeholder="所有老師"
+          selectedItemsLabel="{0} 位老師"
+          [appendTo]="'body'"
+          [filter]="true"
+          filterPlaceholder="搜尋老師..."
+          [ngModel]="selectedTeacherIds()"
+          (ngModelChange)="onTeacherIdsChange($event)"
+        />
+      } @else {
+        <p-select
+          class="cal__filter"
+          [options]="availableTeachers()"
+          optionLabel="displayName"
+          optionValue="id"
+          placeholder="所有老師"
+          [appendTo]="'body'"
+          [filter]="true"
+          filterBy="displayName"
+          [showClear]="true"
+          [ngModel]="selectedTeacherIds().length > 0 ? selectedTeacherIds()[0] : null"
+          (ngModelChange)="onTeacherIdsChange($event ? [$event] : [])"
+        />
+      }
     }
     @if (selectedCampusId() && availableClasses().length > 0) {
       <p-select

@@ -20,6 +20,7 @@ import {
   addDays,
   addWeeks,
   endOfWeek,
+  endOfMonth,
   format,
   isSameWeek,
   isToday,
@@ -32,6 +33,7 @@ import { MenuModule } from 'primeng/menu';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectModule } from 'primeng/select';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
@@ -83,6 +85,7 @@ const SLOT_HEIGHT_PX = 36;
     FormsModule,
     ButtonModule,
     SelectModule,
+    MultiSelectModule,
     DatePickerModule,
     DialogModule,
     ToastModule,
@@ -143,8 +146,11 @@ export class CalendarPage implements OnInit, OnDestroy {
   // ── Filter state ───────────────────────────────────────────────────────
   protected readonly selectedCampusId = signal<string | null>(null);
   protected readonly selectedCourseId = signal<string | null>(null);
-  protected readonly selectedTeacherId = signal<string | null>(null);
+  protected readonly selectedTeacherIds = signal<string[]>([]);
   protected readonly selectedClassId = signal<string | null>(null);
+
+  // ── List view date range (independent from calendar week/day) ──────────
+  protected readonly listDateRange = signal<Date[]>(this.getDefaultListDateRange());
 
   // ── Computed ───────────────────────────────────────────────────────────
   protected readonly availableCourses = computed(() => {
@@ -178,7 +184,7 @@ export class CalendarPage implements OnInit, OnDestroy {
   });
 
   protected readonly hasActiveFilters = computed(
-    () => !!(this.selectedCourseId() || this.selectedTeacherId() || this.selectedClassId()),
+    () => !!(this.selectedCourseId() || this.selectedTeacherIds().length > 0 || this.selectedClassId()),
   );
 
   protected readonly weekStart = computed(() =>
@@ -378,6 +384,7 @@ export class CalendarPage implements OnInit, OnDestroy {
   // ── View toggle ──────────────────────────────────────────────────────
   protected toggleViewMode(mode: 'calendar' | 'list'): void {
     this.viewMode.set(mode);
+    this.loadSessions();
   }
 
   // ── List view ───────────────────────────────────────────────────────
@@ -630,20 +637,20 @@ export class CalendarPage implements OnInit, OnDestroy {
   protected onCampusChange(campusId: string | null): void {
     this.selectedCampusId.set(campusId);
     this.selectedCourseId.set(null);
-    this.selectedTeacherId.set(null);
+    this.selectedTeacherIds.set([]);
     this.selectedClassId.set(null);
     this.loadSessions();
   }
 
   protected onCourseChange(courseId: string | null): void {
     this.selectedCourseId.set(courseId);
-    this.selectedTeacherId.set(null);
+    this.selectedTeacherIds.set([]);
     this.selectedClassId.set(null);
     this.loadSessions();
   }
 
-  protected onTeacherChange(teacherId: string | null): void {
-    this.selectedTeacherId.set(teacherId);
+  protected onTeacherIdsChange(ids: string[]): void {
+    this.selectedTeacherIds.set(ids);
     this.loadSessions();
   }
 
@@ -652,9 +659,16 @@ export class CalendarPage implements OnInit, OnDestroy {
     this.loadSessions();
   }
 
+  protected onListDateRangeChange(range: Date[]): void {
+    this.listDateRange.set(range);
+    if (range.length === 2) {
+      this.loadSessions();
+    }
+  }
+
   protected clearFilters(): void {
     this.selectedCourseId.set(null);
-    this.selectedTeacherId.set(null);
+    this.selectedTeacherIds.set([]);
     this.selectedClassId.set(null);
     this.loadSessions();
   }
@@ -848,8 +862,19 @@ export class CalendarPage implements OnInit, OnDestroy {
       this.selectedClassId.set(params['classId']);
     }
     if (params['from']) {
-      this.currentDate.set(new Date(params['from']));
+      const fromDate = new Date(params['from']);
+      this.currentDate.set(fromDate);
+      if (params['to']) {
+        this.listDateRange.set([fromDate, new Date(params['to'])]);
+      } else {
+        this.listDateRange.set([fromDate, endOfMonth(fromDate)]);
+      }
     }
+  }
+
+  private getDefaultListDateRange(): Date[] {
+    const now = new Date();
+    return [now, endOfMonth(now)];
   }
 
   private listenToResize(): void {
@@ -859,7 +884,10 @@ export class CalendarPage implements OnInit, OnDestroy {
         const isWide = window.innerWidth >= 768;
         if (this.isWeekView() !== isWide) {
           this.isWeekView.set(isWide);
-          this.loadSessions();
+          // Only reload for calendar view; list view has its own date range
+          if (this.viewMode() === 'calendar') {
+            this.loadSessions();
+          }
         }
       });
   }
@@ -894,12 +922,30 @@ export class CalendarPage implements OnInit, OnDestroy {
   }
 
   private loadSessions(): void {
-    const from = this.isWeekView()
-      ? format(this.weekStart(), 'yyyy-MM-dd')
-      : format(this.currentDate(), 'yyyy-MM-dd');
-    const to = this.isWeekView()
-      ? format(this.weekEnd(), 'yyyy-MM-dd')
-      : format(this.currentDate(), 'yyyy-MM-dd');
+    let from: string;
+    let to: string;
+    let teacherId: string | undefined;
+    let teacherIds: string[] | undefined;
+
+    if (this.viewMode() === 'list') {
+      // List view: use independent date range + multi-teacher
+      const range = this.listDateRange();
+      from = range.length > 0 ? format(range[0], 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+      to = range.length > 1 ? format(range[1], 'yyyy-MM-dd') : from;
+      const ids = this.selectedTeacherIds();
+      if (ids.length > 0) teacherIds = ids;
+    } else {
+      // Calendar view: use week/day + single teacher (first from array)
+      from = this.isWeekView()
+        ? format(this.weekStart(), 'yyyy-MM-dd')
+        : format(this.currentDate(), 'yyyy-MM-dd');
+      to = this.isWeekView()
+        ? format(this.weekEnd(), 'yyyy-MM-dd')
+        : format(this.currentDate(), 'yyyy-MM-dd');
+      const ids = this.selectedTeacherIds();
+      if (ids.length === 1) teacherId = ids[0];
+      else if (ids.length > 1) teacherId = ids[0]; // calendar only uses first
+    }
 
     this.loading.set(true);
     this.sessionsService
@@ -908,7 +954,8 @@ export class CalendarPage implements OnInit, OnDestroy {
         to,
         campusId: this.selectedCampusId() ?? undefined,
         courseId: this.selectedCourseId() ?? undefined,
-        teacherId: this.selectedTeacherId() ?? undefined,
+        teacherId,
+        teacherIds,
         classId: this.selectedClassId() ?? undefined,
       })
       .subscribe({

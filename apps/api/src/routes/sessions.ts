@@ -40,7 +40,8 @@ const SessionListQuerySchema = z
     to: DateSchema.optional(),
     campusId: z.uuid().optional().openapi({ description: '分校 ID' }),
     courseId: z.uuid().optional().openapi({ description: '課程 ID' }),
-    teacherId: z.uuid().optional().openapi({ description: '教師 ID' }),
+    teacherId: z.uuid().optional().openapi({ description: '教師 ID（單一）' }),
+    teacherIds: z.string().optional().openapi({ description: '教師 ID（逗號分隔，多選）' }),
     classId: z.uuid().optional().openapi({ description: '班級 ID' }),
     page: z.coerce.number().optional().openapi({ description: '頁碼' }),
     pageSize: z.coerce.number().optional().openapi({ description: '每頁筆數' }),
@@ -358,7 +359,7 @@ const listSessionsRoute = createRoute({
 app.openapi(listSessionsRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
-  const { from, to, campusId, courseId, teacherId, classId, page, pageSize } = c.req.valid('query');
+  const { from, to, campusId, courseId, teacherId, teacherIds, classId, page, pageSize } = c.req.valid('query');
 
   let dbQuery = supabase
     .from('sessions')
@@ -391,7 +392,12 @@ app.openapi(listSessionsRoute, async (c) => {
   if (courseId) {
     dbQuery = dbQuery.eq('classes.course_id', courseId);
   }
-  if (teacherId) {
+  if (teacherIds) {
+    const ids = teacherIds.split(',').filter(Boolean);
+    if (ids.length > 0) {
+      dbQuery = dbQuery.in('teacher_id', ids);
+    }
+  } else if (teacherId) {
     dbQuery = dbQuery.eq('teacher_id', teacherId);
   }
   if (classId) {

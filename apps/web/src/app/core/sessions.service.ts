@@ -40,6 +40,7 @@ export interface SessionQueryParams {
   campusId?: string;
   courseId?: string;
   teacherId?: string;
+  teacherIds?: string[];
   classId?: string;
   page?: number;
   pageSize?: number;
@@ -111,7 +112,11 @@ export class SessionsService {
     if (params.to) query['to'] = params.to;
     if (params.campusId) query['campusId'] = params.campusId;
     if (params.courseId) query['courseId'] = params.courseId;
-    if (params.teacherId) query['teacherId'] = params.teacherId;
+    if (params.teacherIds && params.teacherIds.length > 0) {
+      query['teacherIds'] = params.teacherIds.join(',');
+    } else if (params.teacherId) {
+      query['teacherId'] = params.teacherId;
+    }
     if (params.classId) query['classId'] = params.classId;
     if (params.page) query['page'] = params.page.toString();
     if (params.pageSize) query['pageSize'] = params.pageSize.toString();
