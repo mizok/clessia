@@ -10,6 +10,7 @@ import {
   ChangeDetectionStrategy,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   addDays,
@@ -28,10 +29,19 @@ import { DatePickerModule } from 'primeng/datepicker';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
 import { SkeletonModule } from 'primeng/skeleton';
+import { CheckboxModule } from 'primeng/checkbox';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { DialogService } from 'primeng/dynamicdialog';
+import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
+import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
+import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
+import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
+import type {
+  ResponsiveTablePaginationConfig,
+  ResponsiveTablePageEvent,
+} from '@shared/components/responsive-table/responsive-table.models';
 import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 
 import { AuthService } from '@core/auth.service';
@@ -54,6 +64,7 @@ const SLOT_HEIGHT_PX = 36;
   selector: 'app-calendar',
   standalone: true,
   imports: [
+    DatePipe,
     FormsModule,
     ButtonModule,
     SelectModule,
@@ -63,6 +74,11 @@ const SLOT_HEIGHT_PX = 36;
     TagModule,
     SkeletonModule,
     TooltipModule,
+    CheckboxModule,
+    ResponsiveTableComponent,
+    RtColDefDirective,
+    RtColCellDirective,
+    RtRowDirective,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './calendar.page.html',
@@ -198,6 +214,34 @@ export class CalendarPage implements OnInit, OnDestroy {
     this.staff().filter((s) => s.roles.includes('teacher')),
   );
 
+  // ── List view state ─────────────────────────────────────────────────
+  private readonly listFirst = signal(0);
+  private readonly listRows = signal(20);
+
+  protected readonly listPagination = computed<ResponsiveTablePaginationConfig>(() => ({
+    first: this.listFirst(),
+    rows: this.listRows(),
+    totalRecords: this.sessions().length,
+    rowsPerPageOptions: [20, 50, 100],
+  }));
+
+  protected readonly paginatedSessions = computed(() => {
+    const all = this.sessions();
+    const first = this.listFirst();
+    const rows = this.listRows();
+    return all.slice(first, first + rows);
+  });
+
+  // ── Selection state ─────────────────────────────────────────────────
+  protected readonly selectedIds = signal<Set<string>>(new Set());
+  protected readonly selectedCount = computed(() => this.selectedIds().size);
+  protected readonly allPageSelected = computed(() => {
+    const page = this.paginatedSessions();
+    if (page.length === 0) return false;
+    const ids = this.selectedIds();
+    return page.every((s) => ids.has(s.id));
+  });
+
   // ── Lifecycle ──────────────────────────────────────────────────────────
   ngOnInit(): void {
     this.loadFilters();
@@ -246,6 +290,43 @@ export class CalendarPage implements OnInit, OnDestroy {
   // ── View toggle ──────────────────────────────────────────────────────
   protected toggleViewMode(mode: 'calendar' | 'list'): void {
     this.viewMode.set(mode);
+  }
+
+  // ── List view ───────────────────────────────────────────────────────
+  protected onListPage(event: ResponsiveTablePageEvent): void {
+    this.listFirst.set(event.first);
+    this.listRows.set(event.rows);
+  }
+
+  protected toggleSelectAll(): void {
+    const page = this.paginatedSessions();
+    const ids = new Set(this.selectedIds());
+    if (this.allPageSelected()) {
+      page.forEach((s) => ids.delete(s.id));
+    } else {
+      page.forEach((s) => ids.add(s.id));
+    }
+    this.selectedIds.set(ids);
+  }
+
+  protected toggleSelect(sessionId: string): void {
+    const ids = new Set(this.selectedIds());
+    if (ids.has(sessionId)) ids.delete(sessionId);
+    else ids.add(sessionId);
+    this.selectedIds.set(ids);
+  }
+
+  protected isSelected(sessionId: string): boolean {
+    return this.selectedIds().has(sessionId);
+  }
+
+  protected clearSelection(): void {
+    this.selectedIds.set(new Set());
+  }
+
+  protected getDayLabel(dateStr: string): string {
+    const DAY_LABELS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+    return DAY_LABELS[new Date(dateStr).getDay()];
   }
 
   // ── Filters ────────────────────────────────────────────────────────────

@@ -137,6 +137,23 @@
     padding: var(--space-4);
   }
 
+  // ── Batch bar ───────────────────────────────────────────────────────
+  &__batch-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--zinc-200);
+    background: var(--zinc-50);
+    flex-shrink: 0;
+  }
+
+  &__batch-bar-count {
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-700);
+  }
+
   // ── Skeleton ──────────────────────────────────────────────────────────
   &__skeleton {
     padding: var(--space-4) var(--space-6);

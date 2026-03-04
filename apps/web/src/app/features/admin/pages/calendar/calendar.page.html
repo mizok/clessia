@@ -162,8 +162,115 @@
   <div class="cal__card">
     @if (viewMode() === 'list') {
       <div class="cal__list">
-        <!-- list view placeholder -->
+        @if (loading()) {
+          <div class="cal__skeleton">
+            @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+              <p-skeleton height="48px" borderRadius="6px" />
+            }
+          </div>
+        } @else {
+          <app-responsive-table
+            [headTemplate]="listHead"
+            [bodyTemplate]="listBody"
+            [pagination]="listPagination()"
+            (page)="onListPage($event)"
+          />
+
+          <ng-template #listHead>
+            <tr>
+              <th style="width: 48px; text-align: center">
+                <p-checkbox
+                  [binary]="true"
+                  [ngModel]="allPageSelected()"
+                  (ngModelChange)="toggleSelectAll()"
+                />
+              </th>
+              <th appRtColDef="date" [appRtColDefMinWidth]="100" [appRtColDefPriority]="1"
+                  [appRtColDefCollapsible]="false">
+                日期
+              </th>
+              <th appRtColDef="time" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2"
+                  [appRtColDefCollapsible]="false">
+                時間
+              </th>
+              <th appRtColDef="class" [appRtColDefMinWidth]="140" [appRtColDefPriority]="3">
+                班級
+              </th>
+              <th appRtColDef="teacher" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">
+                老師
+              </th>
+              <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">
+                狀態
+              </th>
+              <th style="width: 48px"></th>
+            </tr>
+          </ng-template>
+
+          <ng-template #listBody>
+            @for (session of paginatedSessions(); track session.id) {
+              <tr appRtRow [appRtRow]="session" [appRtRowId]="session.id">
+                <td style="text-align: center">
+                  <p-checkbox
+                    [binary]="true"
+                    [ngModel]="isSelected(session.id)"
+                    (ngModelChange)="toggleSelect(session.id)"
+                  />
+                </td>
+                <td appRtColCell="date">
+                  {{ session.sessionDate | date: 'MM/dd' }}
+                  ({{ getDayLabel(session.sessionDate) }})
+                </td>
+                <td appRtColCell="time">
+                  {{ session.startTime }}–{{ session.endTime }}
+                </td>
+                <td appRtColCell="class">{{ session.className }}</td>
+                <td appRtColCell="teacher">
+                  @if (session.assignmentStatus === 'unassigned') {
+                    <p-tag severity="warn" value="未指派" />
+                  } @else {
+                    {{ session.teacherName }}
+                  }
+                </td>
+                <td appRtColCell="status">
+                  <p-tag
+                    [severity]="sessionStatusSeverity(session)"
+                    [value]="sessionStatusLabel(session)"
+                  />
+                </td>
+                <td style="text-align: center">
+                  <button pButton
+                    icon="pi pi-ellipsis-v"
+                    [text]="true"
+                    severity="secondary"
+                    size="small"
+                    (click)="openDetail(session)"
+                  ></button>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7" style="text-align: center; padding: 2rem; color: var(--zinc-400)">
+                  此期間沒有課堂
+                </td>
+              </tr>
+            }
+          </ng-template>
+        }
       </div>
+
+      @if (selectedCount() > 0) {
+        <div class="cal__batch-bar">
+          <span class="cal__batch-bar-count">已選 {{ selectedCount() }} 堂</span>
+          <p-button
+            label="取消選取"
+            severity="secondary"
+            [text]="true"
+            size="small"
+            icon="pi pi-times"
+            (onClick)="clearSelection()"
+          />
+        </div>
+      }
     } @else if (loading()) {
       <div class="cal__skeleton">
         @for (i of [1, 2, 3, 4, 5, 6, 7, 8]; track i) {
