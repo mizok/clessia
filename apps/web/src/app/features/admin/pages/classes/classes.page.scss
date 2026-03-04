@@ -383,6 +383,31 @@
     color: var(--accent-600);
     border: 1px solid var(--accent-100);
   }
+
+  &__intervention-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    white-space: nowrap;
+    background: var(--p-orange-50);
+    color: var(--p-orange-700);
+    border: 1px solid var(--p-orange-200);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    .pi {
+      font-size: 11px;
+    }
+
+    &:hover {
+      background: var(--p-orange-100);
+    }
+  }
 }
 
 // ============================================================

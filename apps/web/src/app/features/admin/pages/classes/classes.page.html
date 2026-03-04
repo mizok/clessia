@@ -278,6 +278,16 @@
                             [value]="cls.isActive ? '啟用中' : '停用中'"
                             [severity]="cls.isActive ? 'success' : 'secondary'"
                           />
+                          @if (cls.upcomingUnassignedCount && cls.upcomingUnassignedCount > 0) {
+                            <a
+                              class="class-row__intervention-link"
+                              [routerLink]="['/admin/calendar']"
+                              [queryParams]="{ view: 'list', classId: cls.id }"
+                            >
+                              <i class="pi pi-exclamation-triangle"></i>
+                              {{ cls.upcomingUnassignedCount }} 堂未指派
+                            </a>
+                          }
                           @if (cls.scheduleCount === 0) {
                             <span
                               class="class-row__completeness-warn"

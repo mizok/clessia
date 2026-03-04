@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 
 // PrimeNG
 import { MessageService, ConfirmationService, MenuItem } from 'primeng/api';
@@ -78,6 +78,7 @@ interface CourseGroup {
     PaginatorModule,
     TagModule,
     TooltipModule,
+    RouterModule,
     EmptyStateComponent,
   ],
   providers: [MessageService, ConfirmationService, DialogService],
@@ -358,8 +359,8 @@ export class ClassesPage implements OnInit {
         command: () => this.openGenerateDialog(cls),
       },
       {
-        label: '管理課堂',
-        icon: 'pi pi-list',
+        label: '在行事曆中查看',
+        icon: 'pi pi-calendar',
         command: () => this.navigateToCalendarList(cls),
       },
       {
