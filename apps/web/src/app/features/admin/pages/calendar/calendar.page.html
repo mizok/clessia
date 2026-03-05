@@ -192,8 +192,14 @@
         }
         @if (hasActiveFilters()) {
           <div class="cal__mobile-filter-row" style="justify-content: flex-end">
-            <p-button label="清除全部" severity="secondary" [text]="true" size="small"
-              icon="pi pi-times" (onClick)="clearFilters()" />
+            <p-button
+              label="清除全部"
+              severity="secondary"
+              [text]="true"
+              size="small"
+              icon="pi pi-times"
+              (onClick)="clearFilters()"
+            />
           </div>
         }
       </div>
@@ -330,12 +336,20 @@
                   (ngModelChange)="toggleSelectAll()"
                 />
               </th>
-              <th appRtColDef="date" [appRtColDefMinWidth]="100" [appRtColDefPriority]="1"
-                  [appRtColDefCollapsible]="false">
+              <th
+                appRtColDef="date"
+                [appRtColDefMinWidth]="100"
+                [appRtColDefPriority]="1"
+                [appRtColDefCollapsible]="false"
+              >
                 日期
               </th>
-              <th appRtColDef="time" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2"
-                  [appRtColDefCollapsible]="false">
+              <th
+                appRtColDef="time"
+                [appRtColDefMinWidth]="120"
+                [appRtColDefPriority]="2"
+                [appRtColDefCollapsible]="false"
+              >
                 時間
               </th>
               <th appRtColDef="class" [appRtColDefMinWidth]="140" [appRtColDefPriority]="3">
@@ -365,9 +379,7 @@
                   {{ session.sessionDate | date: 'MM/dd' }}
                   ({{ getDayLabel(session.sessionDate) }})
                 </td>
-                <td appRtColCell="time">
-                  {{ session.startTime }}–{{ session.endTime }}
-                </td>
+                <td appRtColCell="time">{{ session.startTime }}–{{ session.endTime }}</td>
                 <td appRtColCell="class">{{ session.className }}</td>
                 <td appRtColCell="teacher">
                   @if (session.assignmentStatus === 'unassigned') {
@@ -383,7 +395,8 @@
                   />
                 </td>
                 <td class="responsive-table__cell" style="text-align: center">
-                  <button pButton
+                  <button
+                    pButton
                     icon="pi pi-ellipsis-v"
                     [text]="true"
                     severity="secondary"
@@ -394,7 +407,11 @@
               </tr>
             } @empty {
               <tr>
-                <td class="responsive-table__cell" colspan="7" style="text-align: center; padding: 2rem; color: var(--zinc-400)">
+                <td
+                  class="responsive-table__cell"
+                  colspan="7"
+                  style="text-align: center; padding: 2rem; color: var(--zinc-400)"
+                >
                   此期間沒有課堂
                 </td>
               </tr>
@@ -408,15 +425,26 @@
         <div class="cal__mobile-batch-bar">
           <span class="cal__mobile-batch-bar-count">已選 {{ selectedCount() }} 堂</span>
           <div class="cal__mobile-batch-bar-actions">
-            <p-button label="操作" icon="pi pi-bars" size="small"
-              (onClick)="openBatchSheet()" />
-            <p-button icon="pi pi-times" [rounded]="true" [text]="true" size="small"
-              severity="secondary" (onClick)="clearSelection()" pTooltip="取消選取" />
+            <p-button label="操作" icon="pi pi-bars" size="small" (onClick)="openBatchSheet()" />
+            <p-button
+              icon="pi pi-times"
+              [rounded]="true"
+              [text]="true"
+              size="small"
+              severity="secondary"
+              (onClick)="clearSelection()"
+              pTooltip="取消選取"
+            />
           </div>
         </div>
 
-        <p-drawer [(visible)]="showBatchSheet" position="bottom" [modal]="true"
-          styleClass="cal__batch-drawer" [style]="{ height: 'auto' }">
+        <p-drawer
+          [(visible)]="showBatchSheet"
+          position="bottom"
+          [modal]="true"
+          styleClass="cal__batch-drawer"
+          [style]="{ height: 'auto' }"
+        >
           <ng-template #header>
             <span class="cal__batch-drawer-header">已選 {{ selectedCount() }} 堂</span>
           </ng-template>
@@ -461,24 +489,32 @@
                 <h4 class="cal__batch-drawer-title">修改 {{ selectedCount() }} 堂課的時間</h4>
                 <div class="cal__batch-drawer-time-row">
                   <label class="cal__batch-drawer-label">開始</label>
-                  <input pInputText type="time"
+                  <input
+                    pInputText
+                    type="time"
                     [ngModel]="batchStartTime()"
-                    (ngModelChange)="batchStartTime.set($event)" />
+                    (ngModelChange)="batchStartTime.set($event)"
+                  />
                 </div>
                 <div class="cal__batch-drawer-time-row">
                   <label class="cal__batch-drawer-label">結束</label>
-                  <input pInputText type="time"
+                  <input
+                    pInputText
+                    type="time"
                     [ngModel]="batchEndTime()"
-                    (ngModelChange)="batchEndTime.set($event)" />
+                    (ngModelChange)="batchEndTime.set($event)"
+                  />
                 </div>
               }
               @case ('cancel') {
                 <h4 class="cal__batch-drawer-title">停課 {{ selectedCount() }} 堂</h4>
-                <input pInputText
+                <input
+                  pInputText
                   placeholder="原因（選填）"
                   [ngModel]="batchCancelReason()"
                   (ngModelChange)="batchCancelReason.set($event)"
-                  class="w-full" />
+                  class="w-full"
+                />
               }
               @case ('uncancel') {
                 <h4 class="cal__batch-drawer-title">取消停課 {{ selectedCount() }} 堂</h4>
@@ -495,20 +531,29 @@
             }
 
             <div class="cal__batch-drawer-footer">
-              <p-button label="返回" [text]="true" size="small" icon="pi pi-arrow-left"
-                (onClick)="closeBatchPanel()" />
+              <p-button
+                label="返回"
+                [text]="true"
+                size="small"
+                icon="pi pi-arrow-left"
+                (onClick)="closeBatchPanel()"
+              />
               @if (!batchPreview()) {
-                <p-button label="預覽" size="small"
+                <p-button
+                  label="預覽"
+                  size="small"
                   (onClick)="runBatchPreview()"
                   [disabled]="batchMode() === 'assign' && !batchTeacherId()"
-                  [loading]="batchLoading()" />
+                  [loading]="batchLoading()"
+                />
               } @else {
                 <p-button
                   [label]="'確認 (' + getProcessableCount() + ' 堂)'"
                   size="small"
                   (onClick)="applyBatch()"
                   [loading]="batchLoading()"
-                  [disabled]="getProcessableCount() === 0" />
+                  [disabled]="getProcessableCount() === 0"
+                />
               }
             </div>
           }
@@ -539,12 +584,16 @@
                 <h4 class="cal__batch-panel-title">修改 {{ selectedCount() }} 堂課的上課時間</h4>
                 <div class="cal__batch-panel-row">
                   <label class="cal__batch-panel-label">開始</label>
-                  <input pInputText type="time"
+                  <input
+                    pInputText
+                    type="time"
                     [ngModel]="batchStartTime()"
                     (ngModelChange)="batchStartTime.set($event)"
                   />
                   <label class="cal__batch-panel-label">結束</label>
-                  <input pInputText type="time"
+                  <input
+                    pInputText
+                    type="time"
                     [ngModel]="batchEndTime()"
                     (ngModelChange)="batchEndTime.set($event)"
                   />
@@ -552,7 +601,8 @@
               }
               @case ('cancel') {
                 <h4 class="cal__batch-panel-title">停課 {{ selectedCount() }} 堂</h4>
-                <input pInputText
+                <input
+                  pInputText
                   placeholder="原因（選填）"
                   [ngModel]="batchCancelReason()"
                   (ngModelChange)="batchCancelReason.set($event)"
@@ -576,10 +626,13 @@
             <div class="cal__batch-panel-footer">
               <p-button label="取消" [text]="true" size="small" (onClick)="closeBatchPanel()" />
               @if (!batchPreview()) {
-                <p-button label="預覽" size="small"
+                <p-button
+                  label="預覽"
+                  size="small"
                   (onClick)="runBatchPreview()"
                   [disabled]="batchMode() === 'assign' && !batchTeacherId()"
-                  [loading]="batchLoading()" />
+                  [loading]="batchLoading()"
+                />
               } @else {
                 <p-button
                   [label]="'確認 (' + getProcessableCount() + ' 堂)'"
@@ -596,16 +649,45 @@
         <div class="cal__batch-bar">
           <span class="cal__batch-bar-count">已選 {{ selectedCount() }} 堂</span>
           <div class="cal__batch-bar-actions">
-            <p-button label="指派老師" icon="pi pi-user-plus" size="small"
-              [outlined]="true" (onClick)="openBatchPanel('assign')" />
-            <p-button label="改時間" icon="pi pi-clock" size="small" severity="secondary"
-              [outlined]="true" (onClick)="openBatchPanel('time')" />
-            <p-button label="停課" icon="pi pi-ban" size="small" severity="warn"
-              [outlined]="true" (onClick)="openBatchPanel('cancel')" />
-            <p-button label="取消停課" icon="pi pi-replay" size="small" severity="secondary"
-              [outlined]="true" (onClick)="openBatchPanel('uncancel')" />
-            <p-button label="取消選取" [text]="true" size="small" icon="pi pi-times"
-              severity="secondary" (onClick)="clearSelection()" />
+            <p-button
+              label="指派老師"
+              icon="pi pi-user-plus"
+              size="small"
+              [outlined]="true"
+              (onClick)="openBatchPanel('assign')"
+            />
+            <p-button
+              label="改時間"
+              icon="pi pi-clock"
+              size="small"
+              severity="secondary"
+              [outlined]="true"
+              (onClick)="openBatchPanel('time')"
+            />
+            <p-button
+              label="停課"
+              icon="pi pi-ban"
+              size="small"
+              severity="warn"
+              [outlined]="true"
+              (onClick)="openBatchPanel('cancel')"
+            />
+            <p-button
+              label="取消停課"
+              icon="pi pi-replay"
+              size="small"
+              severity="secondary"
+              [outlined]="true"
+              (onClick)="openBatchPanel('uncancel')"
+            />
+            <p-button
+              label="取消選取"
+              [text]="true"
+              size="small"
+              icon="pi pi-times"
+              severity="secondary"
+              (onClick)="clearSelection()"
+            />
           </div>
         </div>
       }

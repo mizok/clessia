@@ -152,7 +152,9 @@ export class CalendarPage implements OnInit, OnDestroy {
   protected readonly campuses = signal<Campus[]>([]);
   protected readonly courses = signal<Course[]>([]);
   protected readonly staff = signal<Staff[]>([]);
-  protected readonly classes = signal<Array<{ id: string; name: string; courseId: string; campusId: string }>>([]);
+  protected readonly classes = signal<
+    Array<{ id: string; name: string; courseId: string; campusId: string }>
+  >([]);
 
   // Date picker popup
   protected readonly showDatePicker = signal(false);
@@ -200,7 +202,8 @@ export class CalendarPage implements OnInit, OnDestroy {
   });
 
   protected readonly hasActiveFilters = computed(
-    () => !!(this.selectedCourseId() || this.selectedTeacherIds().length > 0 || this.selectedClassId()),
+    () =>
+      !!(this.selectedCourseId() || this.selectedTeacherIds().length > 0 || this.selectedClassId()),
   );
 
   protected readonly weekStart = computed(() =>
