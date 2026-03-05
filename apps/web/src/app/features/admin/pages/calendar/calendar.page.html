@@ -109,7 +109,7 @@
         [readonlyInput]="true"
       />
       <button class="cal__mobile-filter-btn" (click)="toggleMobileFilters()">
-        <i class="pi pi-filter"></i>
+        <i class="pi pi-filter cal__mobile-filter-btn-icon"></i>
         篩選
         @if (activeFilterCount() > 0) {
           <span class="cal__mobile-filter-badge">{{ activeFilterCount() }}</span>
@@ -323,7 +323,7 @@
 
           <ng-template #listHead>
             <tr>
-              <th class="responsive-table__header-cell" style="width: 48px; text-align: center">
+              <th class="responsive-table__header-cell" style="width: 36px; text-align: center">
                 <p-checkbox
                   [binary]="true"
                   [ngModel]="allPageSelected()"
@@ -424,19 +424,19 @@
           @if (!batchMode()) {
             <div class="cal__batch-drawer-menu">
               <button class="cal__batch-drawer-item" (click)="selectBatchAction('assign')">
-                <i class="pi pi-user-plus"></i>
+                <i class="pi pi-user-plus cal__batch-drawer-item-icon"></i>
                 <span>指派老師</span>
               </button>
               <button class="cal__batch-drawer-item" (click)="selectBatchAction('time')">
-                <i class="pi pi-clock"></i>
+                <i class="pi pi-clock cal__batch-drawer-item-icon"></i>
                 <span>修改時間</span>
               </button>
               <button class="cal__batch-drawer-item" (click)="selectBatchAction('cancel')">
-                <i class="pi pi-ban"></i>
+                <i class="pi pi-ban cal__batch-drawer-item-icon"></i>
                 <span>停課</span>
               </button>
               <button class="cal__batch-drawer-item" (click)="selectBatchAction('uncancel')">
-                <i class="pi pi-replay"></i>
+                <i class="pi pi-replay cal__batch-drawer-item-icon"></i>
                 <span>取消停課</span>
               </button>
             </div>
