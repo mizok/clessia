@@ -586,6 +586,92 @@
   }
 }
 
+// ── Mobile filters ─────────────────────────────────────────────────
+.cal__mobile-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.cal__mobile-filter-date {
+  flex: 1;
+  min-width: 0;
+}
+
+.cal__mobile-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--zinc-300);
+  border-radius: var(--radius-md);
+  background: #fff;
+  font-size: var(--text-sm);
+  color: var(--zinc-700);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  height: 38px;
+
+  i {
+    font-size: 0.875rem;
+  }
+
+  &:active {
+    background: var(--zinc-100);
+  }
+}
+
+.cal__mobile-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: var(--accent-500);
+  color: #fff;
+  font-size: 11px;
+  font-weight: var(--font-bold);
+  line-height: 1;
+}
+
+.cal__mobile-filter-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 90;
+}
+
+.cal__mobile-filter-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 91;
+  background: #fff;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cal__mobile-filter-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cal__mobile-filter-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--zinc-600);
+}
+
 // ── Batch drawer (bottom sheet) ────────────────────────────────────
 .cal__batch-drawer {
   .p-drawer-content {

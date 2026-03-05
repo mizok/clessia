@@ -127,6 +127,15 @@ export class CalendarPage implements OnInit, OnDestroy {
 
   protected readonly isMobile = this.browserStateService.isMobile;
   protected readonly showBatchSheet = signal(false);
+  protected readonly showMobileFilters = signal(false);
+
+  protected readonly activeFilterCount = computed(() => {
+    let count = 0;
+    if (this.selectedCourseId()) count++;
+    if (this.selectedTeacherIds().length > 0) count++;
+    if (this.selectedClassId()) count++;
+    return count;
+  });
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
@@ -460,6 +469,14 @@ export class CalendarPage implements OnInit, OnDestroy {
 
   protected selectBatchAction(mode: 'assign' | 'time' | 'cancel' | 'uncancel'): void {
     this.openBatchPanel(mode);
+  }
+
+  protected toggleMobileFilters(): void {
+    this.showMobileFilters.update((v) => !v);
+  }
+
+  protected closeMobileFilters(): void {
+    this.showMobileFilters.set(false);
   }
 
   protected runBatchPreview(): void {
