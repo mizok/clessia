@@ -146,47 +146,6 @@
     padding: var(--space-4);
   }
 
-  // ── Mobile floating batch bar ────────────────────────────────────────
-  &__mobile-batch-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: fixed;
-    left: var(--space-3);
-    right: var(--space-3);
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px) + var(--space-3));
-    height: 48px;
-    padding: 0 var(--space-4);
-    background: color-mix(in srgb, var(--zinc-900) 78%, transparent);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    color: var(--color-white);
-    border-radius: var(--radius-xl);
-    z-index: 100;
-    box-shadow:
-      0 4px 16px rgba(0, 0, 0, 0.18),
-      inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
-  }
-
-  &__mobile-batch-bar-count {
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
-  }
-
-  &__mobile-batch-bar-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  &__mobile-batch-bar-close {
-    color: var(--color-white) !important;
-    opacity: 0.8;
-
-    &:hover {
-      opacity: 1;
-    }
-  }
 
   // ── Batch bar ───────────────────────────────────────────────────────
   &__batch-bar {
@@ -740,10 +699,46 @@
       font-size: var(--text-lg);
     }
 
-    // 隱藏桌面版 batch bar / panel
-    &__batch-bar,
-    &__batch-panel {
-      display: none;
+    // ── Mobile floating batch bar ──────────────────────────────────────
+    &__mobile-batch-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: fixed;
+      left: var(--space-3);
+      right: var(--space-3);
+      bottom: calc(64px + env(safe-area-inset-bottom, 0px) + var(--space-3));
+      height: 48px;
+      padding: 0 var(--space-4);
+      background: color-mix(in srgb, var(--zinc-900) 78%, transparent);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--color-white);
+      border-radius: var(--radius-xl);
+      z-index: 100;
+      box-shadow:
+        0 4px 16px rgba(0, 0, 0, 0.18),
+        inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    &__mobile-batch-bar-count {
+      font-size: var(--text-sm);
+      font-weight: var(--font-semibold);
+    }
+
+    &__mobile-batch-bar-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    &__mobile-batch-bar-close {
+      color: var(--color-white) !important;
+      opacity: 0.8;
+
+      &:hover {
+        opacity: 1;
+      }
     }
   }
 }
