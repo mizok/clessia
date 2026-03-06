@@ -41,7 +41,7 @@ import { CheckboxModule } from 'primeng/checkbox';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
-import { DrawerModule } from 'primeng/drawer';
+import { Drawer } from 'primeng/drawer';
 import { DialogService } from 'primeng/dynamicdialog';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
@@ -97,7 +97,7 @@ const SLOT_HEIGHT_PX = 36;
     MenuModule,
     InputTextModule,
     CheckboxModule,
-    DrawerModule,
+    Drawer,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,
