@@ -1,5 +1,5 @@
-<form [formGroup]="form" (ngSubmit)="submit()" class="cal-op-form">
-  <div class="cal-op-form__warning">
+<form [formGroup]="form" (ngSubmit)="submit()" class="session-op-form">
+  <div class="session-op-form__warning">
     <i class="pi pi-exclamation-triangle"></i>
     <p>
       確定要為 {{ session()?.className }} 的
@@ -10,17 +10,17 @@
       停課後可在課堂列表中批次恢復，學生與家長將在系統中看到停課通知。
     </p>
   </div>
-  <div class="cal-op-form__field">
-    <label for="cancelReason" class="cal-op-form__label">停課原因（選填）</label>
+  <div class="session-op-form__field">
+    <label for="cancelReason" class="session-op-form__label">停課原因（選填）</label>
     <textarea
       id="cancelReason"
       pTextarea
       formControlName="reason"
       placeholder="例如：颱風假、老師請假..."
-      class="cal-op-form__textarea"
+      class="session-op-form__textarea"
     ></textarea>
   </div>
-  <div class="cal-op-form__footer">
+  <div class="session-op-form__footer">
     <p-button label="取消" severity="secondary" [text]="true" (onClick)="closeDialog()" />
     <p-button label="確認停課" severity="danger" type="submit" [loading]="isSubmitting()" />
   </div>

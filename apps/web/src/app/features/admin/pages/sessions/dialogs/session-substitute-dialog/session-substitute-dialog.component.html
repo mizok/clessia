@@ -1,7 +1,7 @@
-<form [formGroup]="form" (ngSubmit)="submit()" class="cal-op-form">
-  <div class="cal-op-form__field">
-    <label for="substituteTeacher" class="cal-op-form__label">
-      代課老師<span class="cal-op-form__required">*</span>
+<form [formGroup]="form" (ngSubmit)="submit()" class="session-op-form">
+  <div class="session-op-form__field">
+    <label for="substituteTeacher" class="session-op-form__label">
+      代課老師<span class="session-op-form__required">*</span>
     </label>
     <p-select
       id="substituteTeacher"
@@ -24,20 +24,20 @@
       </ng-template>
     </p-select>
     @if (!loadingTeachers() && teacherOptions().length === 0) {
-      <p class="cal-op-form__hint">目前沒有符合該課堂分校與科目的代課老師。</p>
+      <p class="session-op-form__hint">目前沒有符合該課堂分校與科目的代課老師。</p>
     }
   </div>
-  <div class="cal-op-form__field">
-    <label for="substituteReason" class="cal-op-form__label">代課原因（選填）</label>
+  <div class="session-op-form__field">
+    <label for="substituteReason" class="session-op-form__label">代課原因（選填）</label>
     <textarea
       id="substituteReason"
       pTextarea
       formControlName="reason"
       placeholder="例如：原老師請假..."
-      class="cal-op-form__textarea"
+      class="session-op-form__textarea"
     ></textarea>
   </div>
-  <div class="cal-op-form__footer">
+  <div class="session-op-form__footer">
     <p-button label="取消" severity="secondary" [text]="true" (onClick)="closeDialog()" />
     <p-button
       label="確認代課"

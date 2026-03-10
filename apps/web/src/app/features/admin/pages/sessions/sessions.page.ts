@@ -338,21 +338,21 @@ export class SessionsPage implements OnInit {
   // ── Single-session actions ─────────────────────────────────────────────
   protected openReschedule(session: Session): void {
     const ref = this.dialogService.open(SessionRescheduleDialogComponent, {
-      header: '調課', width: '400px', data: { session }, styleClass: 'cal-dialog',
+      header: '調課', width: '400px', data: { session }, styleClass: 'session-dialog',
     });
     ref?.onClose.subscribe((result) => { if (result === 'refresh') this.loadSessions(); });
   }
 
   protected openSubstitute(session: Session): void {
     const ref = this.dialogService.open(SessionSubstituteDialogComponent, {
-      header: '安排代課', width: '400px', data: { session }, styleClass: 'cal-dialog',
+      header: '安排代課', width: '400px', data: { session }, styleClass: 'session-dialog',
     });
     ref?.onClose.subscribe((result) => { if (result === 'refresh') this.loadSessions(); });
   }
 
   protected openCancelDialog(session: Session): void {
     const ref = this.dialogService.open(SessionCancelDialogComponent, {
-      header: '停課', width: '400px', data: { session }, styleClass: 'cal-dialog',
+      header: '停課', width: '400px', data: { session }, styleClass: 'session-dialog',
     });
     ref?.onClose.subscribe((result?: { result: string } | string) => {
       const didRefresh = typeof result === 'string' ? result === 'refresh' : result?.result === 'refresh';
@@ -380,7 +380,7 @@ export class SessionsPage implements OnInit {
     const ref = this.dialogService.open(SessionAssignDialogComponent, {
       header: '指派老師', width: '400px',
       data: { session, ...(eligibleTeachers.length > 0 ? { teachers: eligibleTeachers } : {}) },
-      styleClass: 'cal-dialog',
+      styleClass: 'session-dialog',
     });
     ref?.onClose.subscribe((result) => { if (result === 'refresh') this.loadSessions(); });
   }
@@ -435,7 +435,7 @@ export class SessionsPage implements OnInit {
   protected openDetail(session: Session): void {
     const ref = this.dialogService.open(SessionDetailDialogComponent, {
       header: '課程詳情', width: '400px',
-      data: { session, loadingChanges: true, changes: [] }, styleClass: 'cal-dialog',
+      data: { session, loadingChanges: true, changes: [] }, styleClass: 'session-dialog',
     });
     if (ref) {
       ref.onClose.subscribe((result) => {

@@ -828,7 +828,7 @@ textarea.p-textarea,
 /* =============================================================================
    Sessions Dialog Styles (extracted)
    ============================================================================= */
-.cal-dialog {
+.session-dialog {
   .p-dialog-header {
     padding: var(--space-5) var(--space-6);
     border-bottom: 1px solid var(--zinc-100);
@@ -851,7 +851,7 @@ textarea.p-textarea,
 // Detail Popup
 // =============================================================================
 
-.cal-detail {
+.session-detail {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -861,7 +861,7 @@ textarea.p-textarea,
     flex-direction: column;
     gap: var(--space-3);
 
-    + .cal-detail__section {
+    + .session-detail__section {
       border-top: 1px solid var(--zinc-100);
       padding-top: var(--space-4);
     }
@@ -943,7 +943,7 @@ textarea.p-textarea,
 // Operation Forms (Cancel / Substitute / Reschedule dialogs)
 // =============================================================================
 
-.cal-op-form {
+.session-op-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -1043,7 +1043,7 @@ textarea.p-textarea,
     color: var(--zinc-500);
   }
 
-  .cal-op-form {
+  .session-op-form {
     &__row {
       flex-direction: column;
       gap: var(--space-3);

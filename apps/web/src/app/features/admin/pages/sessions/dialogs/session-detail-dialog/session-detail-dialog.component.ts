@@ -129,7 +129,7 @@ export class SessionDetailDialogComponent implements OnInit {
       header: '停課',
       width: '400px',
       data: { session: s },
-      styleClass: 'cal-dialog',
+      styleClass: 'session-dialog',
     });
     cancelRef?.onClose.subscribe((result?: { result: string; session: Session }) => {
       if (result?.result === 'refresh') {
@@ -146,7 +146,7 @@ export class SessionDetailDialogComponent implements OnInit {
       header: '安排代課',
       width: '400px',
       data: { session: s },
-      styleClass: 'cal-dialog',
+      styleClass: 'session-dialog',
     });
   }
 
@@ -158,7 +158,7 @@ export class SessionDetailDialogComponent implements OnInit {
       header: '調課',
       width: '400px',
       data: { session: s },
-      styleClass: 'cal-dialog',
+      styleClass: 'session-dialog',
     });
   }
 
