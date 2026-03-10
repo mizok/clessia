@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { mapSessionChange, SESSION_CHANGES_SELECT } from './sessions';
+import {
+  buildSingleSessionChangeInsert,
+  mapSessionChange,
+  SESSION_CHANGES_SELECT,
+} from './sessions';
 
 describe('session history mapping', () => {
   it('maps original teacher and operation source metadata for substitute changes', () => {
@@ -34,6 +38,37 @@ describe('session history mapping', () => {
       originalTeacherName: '王老師',
       operationSource: 'single',
       substituteTeacherName: '李老師',
+    });
+  });
+});
+
+describe('single session history payloads', () => {
+  it('records original teacher snapshot and single operation source for substitute', () => {
+    const payload = buildSingleSessionChangeInsert({
+      orgId: 'org-1',
+      sessionId: 'session-1',
+      changeType: 'substitute',
+      sessionState: {
+        assignmentStatus: 'assigned',
+        status: 'scheduled',
+        classId: 'class-1',
+        sessionDate: '2026-03-10',
+        startTime: '09:00:00',
+        endTime: '11:00:00',
+        teacherId: 'teacher-origin',
+        teacherName: '原任老師',
+      },
+      createdByName: '教務主任',
+      reason: '老師請假',
+      substituteTeacherId: 'teacher-substitute',
+    });
+
+    expect(payload).toMatchObject({
+      change_type: 'substitute',
+      original_teacher_id: 'teacher-origin',
+      original_teacher_name: '原任老師',
+      substitute_teacher_id: 'teacher-substitute',
+      operation_source: 'single',
     });
   });
 });

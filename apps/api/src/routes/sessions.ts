@@ -255,6 +255,30 @@ interface BatchSessionConflictItem {
   readonly conflictingSessionId?: string;
 }
 
+interface SessionOperationState {
+  readonly assignmentStatus: 'assigned' | 'unassigned';
+  readonly status: 'scheduled' | 'completed' | 'cancelled';
+  readonly classId: string;
+  readonly sessionDate: string;
+  readonly startTime: string;
+  readonly endTime: string;
+  readonly teacherId: string | null;
+  readonly teacherName: string | null;
+}
+
+interface SingleSessionChangeInsertInput {
+  readonly orgId: string;
+  readonly sessionId: string;
+  readonly changeType: 'cancellation' | 'substitute' | 'reschedule' | 'uncancel';
+  readonly sessionState: SessionOperationState;
+  readonly createdByName: string | null;
+  readonly reason?: string | null;
+  readonly substituteTeacherId?: string | null;
+  readonly newSessionDate?: string | null;
+  readonly newStartTime?: string | null;
+  readonly newEndTime?: string | null;
+}
+
 function mapSession(row: Record<string, unknown>, hasChanges: boolean) {
   const classRow = row['classes'] as Record<string, unknown> | null;
   const courseRow = classRow?.['courses'] as Record<string, unknown> | null;
@@ -322,23 +346,19 @@ async function loadSessionOperationState(
   supabase: AppEnv['Variables']['supabase'],
   orgId: string,
   id: string,
-): Promise<{
-  assignmentStatus: 'assigned' | 'unassigned';
-  status: 'scheduled' | 'completed' | 'cancelled';
-  classId: string;
-  sessionDate: string;
-  startTime: string;
-  endTime: string;
-  teacherId: string | null;
-} | null> {
+): Promise<SessionOperationState | null> {
   const { data, error } = await supabase
     .from('sessions')
-    .select('status, assignment_status, teacher_id, class_id, session_date, start_time, end_time')
+    .select(
+      'status, assignment_status, teacher_id, class_id, session_date, start_time, end_time, teacher:staff!teacher_id(display_name)',
+    )
     .eq('org_id', orgId)
     .eq('id', id)
     .maybeSingle();
 
   if (error || !data) return null;
+
+  const teacherRow = data.teacher as Record<string, unknown> | null;
 
   const assignmentStatus =
     (data.assignment_status as 'assigned' | 'unassigned' | null) ??
@@ -352,6 +372,30 @@ async function loadSessionOperationState(
     startTime: data.start_time as string,
     endTime: data.end_time as string,
     teacherId: (data.teacher_id as string | null) ?? null,
+    teacherName: (teacherRow?.['display_name'] as string | null | undefined) ?? null,
+  };
+}
+
+export function buildSingleSessionChangeInsert(input: SingleSessionChangeInsertInput) {
+  return {
+    org_id: input.orgId,
+    session_id: input.sessionId,
+    change_type: input.changeType,
+    original_session_date: input.changeType === 'reschedule' ? input.sessionState.sessionDate : null,
+    original_start_time: input.changeType === 'reschedule' ? input.sessionState.startTime : null,
+    original_end_time: input.changeType === 'reschedule' ? input.sessionState.endTime : null,
+    new_session_date: input.changeType === 'reschedule' ? (input.newSessionDate ?? null) : null,
+    new_start_time: input.changeType === 'reschedule' ? (input.newStartTime ?? null) : null,
+    new_end_time: input.changeType === 'reschedule' ? (input.newEndTime ?? null) : null,
+    original_teacher_id:
+      input.changeType === 'substitute' ? (input.sessionState.teacherId ?? null) : null,
+    original_teacher_name:
+      input.changeType === 'substitute' ? (input.sessionState.teacherName ?? null) : null,
+    substitute_teacher_id:
+      input.changeType === 'substitute' ? (input.substituteTeacherId ?? null) : null,
+    reason: input.reason ?? null,
+    created_by_name: input.createdByName,
+    operation_source: 'single' as const,
   };
 }
 
@@ -627,13 +671,16 @@ app.openapi(cancelSessionRoute, async (c) => {
     return c.json({ error: profileError.message, code: 'DB_ERROR' }, 400);
   }
 
-  const { error: insertError } = await supabase.from('schedule_changes').insert({
-    org_id: orgId,
-    session_id: id,
-    change_type: 'cancellation',
-    reason: body.reason ?? null,
-    created_by_name: profile?.display_name ?? null,
-  });
+  const { error: insertError } = await supabase.from('schedule_changes').insert(
+    buildSingleSessionChangeInsert({
+      orgId,
+      sessionId: id,
+      changeType: 'cancellation',
+      sessionState,
+      createdByName: profile?.display_name ?? null,
+      reason: body.reason ?? null,
+    }),
+  );
 
   if (insertError) {
     return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
@@ -878,14 +925,17 @@ app.openapi(substituteSessionRoute, async (c) => {
     return c.json({ error: profileError.message, code: 'DB_ERROR' }, 400);
   }
 
-  const { error: insertError } = await supabase.from('schedule_changes').insert({
-    org_id: orgId,
-    session_id: id,
-    change_type: 'substitute',
-    substitute_teacher_id: body.substituteTeacherId,
-    reason: body.reason ?? null,
-    created_by_name: profile?.display_name ?? null,
-  });
+  const { error: insertError } = await supabase.from('schedule_changes').insert(
+    buildSingleSessionChangeInsert({
+      orgId,
+      sessionId: id,
+      changeType: 'substitute',
+      sessionState,
+      createdByName: profile?.display_name ?? null,
+      reason: body.reason ?? null,
+      substituteTeacherId: body.substituteTeacherId,
+    }),
+  );
 
   if (insertError) {
     return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
@@ -1056,19 +1106,19 @@ app.openapi(rescheduleSessionRoute, async (c) => {
     return c.json({ error: profileError.message, code: 'DB_ERROR' }, 400);
   }
 
-  const { error: insertError } = await supabase.from('schedule_changes').insert({
-    org_id: orgId,
-    session_id: id,
-    change_type: 'reschedule',
-    original_session_date: sessionState.sessionDate,
-    original_start_time: sessionState.startTime,
-    original_end_time: sessionState.endTime,
-    new_session_date: body.newSessionDate,
-    new_start_time: newStartTime,
-    new_end_time: newEndTime,
-    reason: body.reason ?? null,
-    created_by_name: profile?.display_name ?? null,
-  });
+  const { error: insertError } = await supabase.from('schedule_changes').insert(
+    buildSingleSessionChangeInsert({
+      orgId,
+      sessionId: id,
+      changeType: 'reschedule',
+      sessionState,
+      createdByName: profile?.display_name ?? null,
+      reason: body.reason ?? null,
+      newSessionDate: body.newSessionDate,
+      newStartTime,
+      newEndTime,
+    }),
+  );
 
   if (insertError) {
     return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
