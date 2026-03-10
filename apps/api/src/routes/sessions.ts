@@ -279,6 +279,20 @@ interface SingleSessionChangeInsertInput {
   readonly newEndTime?: string | null;
 }
 
+interface BatchSessionChangeState extends SessionOperationState {
+  readonly sessionId: string;
+}
+
+interface BatchSessionChangeInsertInput {
+  readonly orgId: string;
+  readonly createdByName: string | null;
+  readonly changeType: 'cancellation' | 'reschedule' | 'uncancel';
+  readonly sessionStates: readonly BatchSessionChangeState[];
+  readonly reason?: string | null;
+  readonly newStartTime?: string | null;
+  readonly newEndTime?: string | null;
+}
+
 function mapSession(row: Record<string, unknown>, hasChanges: boolean) {
   const classRow = row['classes'] as Record<string, unknown> | null;
   const courseRow = classRow?.['courses'] as Record<string, unknown> | null;
@@ -397,6 +411,26 @@ export function buildSingleSessionChangeInsert(input: SingleSessionChangeInsertI
     created_by_name: input.createdByName,
     operation_source: 'single' as const,
   };
+}
+
+export function buildBatchSessionChangeInserts(input: BatchSessionChangeInsertInput) {
+  return input.sessionStates.map((sessionState) => ({
+    org_id: input.orgId,
+    session_id: sessionState.sessionId,
+    change_type: input.changeType,
+    original_session_date: input.changeType === 'reschedule' ? sessionState.sessionDate : null,
+    original_start_time: input.changeType === 'reschedule' ? sessionState.startTime : null,
+    original_end_time: input.changeType === 'reschedule' ? sessionState.endTime : null,
+    new_session_date: input.changeType === 'reschedule' ? sessionState.sessionDate : null,
+    new_start_time: input.changeType === 'reschedule' ? (input.newStartTime ?? null) : null,
+    new_end_time: input.changeType === 'reschedule' ? (input.newEndTime ?? null) : null,
+    original_teacher_id: null,
+    original_teacher_name: null,
+    substitute_teacher_id: null,
+    reason: input.reason ?? null,
+    created_by_name: input.createdByName,
+    operation_source: 'batch' as const,
+  }));
 }
 
 // ============================================================
@@ -1665,6 +1699,43 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
     if (updateError) {
       return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
     }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('display_name')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      return c.json({ error: profileError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    const changes = buildBatchSessionChangeInserts({
+      orgId,
+      createdByName: profile?.display_name ?? null,
+      changeType: 'reschedule',
+      sessionStates: targetSessions
+        .filter((session) => processableIds.includes(session.id))
+        .map((session) => ({
+          sessionId: session.id,
+          assignmentStatus: session.teacher_id ? 'assigned' : 'unassigned',
+          status: session.status,
+          classId: session.class_id,
+          sessionDate: session.session_date,
+          startTime: session.start_time,
+          endTime: session.end_time,
+          teacherId: session.teacher_id,
+          teacherName: null,
+        })),
+      newStartTime,
+      newEndTime,
+    });
+
+    const { error: insertChangeError } = await supabase.from('schedule_changes').insert(changes);
+
+    if (insertChangeError) {
+      return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 400);
+    }
   }
 
   if (!dryRun) {
@@ -1817,13 +1888,25 @@ app.openapi(batchCancelRoute, async (c) => {
     }
 
     const { error: insertChangeError } = await supabase.from('schedule_changes').insert(
-      processableIds.map((sessionId) => ({
-        org_id: orgId,
-        session_id: sessionId,
-        change_type: 'cancellation',
+      buildBatchSessionChangeInserts({
+        orgId,
+        createdByName: profile?.display_name ?? null,
+        changeType: 'cancellation',
+        sessionStates: targetSessions
+          .filter((session) => processableIds.includes(session.id))
+          .map((session) => ({
+            sessionId: session.id,
+            assignmentStatus: session.teacher_id ? 'assigned' : 'unassigned',
+            status: session.status,
+            classId: session.class_id,
+            sessionDate: session.session_date,
+            startTime: session.start_time,
+            endTime: session.end_time,
+            teacherId: session.teacher_id,
+            teacherName: null,
+          })),
         reason: body.reason ?? null,
-        created_by_name: profile?.display_name ?? null,
-      })),
+      }),
     );
 
     if (insertChangeError) {
@@ -2129,12 +2212,24 @@ app.openapi(batchUncancelRoute, async (c) => {
       .maybeSingle();
 
     const { error: insertChangeError } = await supabase.from('schedule_changes').insert(
-      processableIds.map((sessionId) => ({
-        org_id: orgId,
-        session_id: sessionId,
-        change_type: 'uncancel',
-        created_by_name: profile?.display_name ?? null,
-      })),
+      buildBatchSessionChangeInserts({
+        orgId,
+        createdByName: profile?.display_name ?? null,
+        changeType: 'uncancel',
+        sessionStates: targetSessions
+          .filter((session) => processableIds.includes(session.id))
+          .map((session) => ({
+            sessionId: session.id,
+            assignmentStatus: session.teacher_id ? 'assigned' : 'unassigned',
+            status: session.status,
+            classId: session.class_id,
+            sessionDate: session.session_date,
+            startTime: session.start_time,
+            endTime: session.end_time,
+            teacherId: session.teacher_id,
+            teacherName: null,
+          })),
+      }),
     );
 
     if (insertChangeError) {

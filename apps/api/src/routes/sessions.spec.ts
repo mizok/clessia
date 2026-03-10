@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildBatchSessionChangeInserts,
   buildSingleSessionChangeInsert,
   mapSessionChange,
   SESSION_CHANGES_SELECT,
@@ -70,5 +71,99 @@ describe('single session history payloads', () => {
       substitute_teacher_id: 'teacher-substitute',
       operation_source: 'single',
     });
+  });
+});
+
+describe('batch session history payloads', () => {
+  it('marks batch cancellation and uncancel changes with batch operation source', () => {
+    const changes = buildBatchSessionChangeInserts({
+      orgId: 'org-1',
+      createdByName: '教務主任',
+      changeType: 'cancellation',
+      sessionStates: [
+        {
+          assignmentStatus: 'assigned',
+          status: 'scheduled',
+          classId: 'class-1',
+          sessionDate: '2026-03-11',
+          startTime: '09:00:00',
+          endTime: '11:00:00',
+          teacherId: 'teacher-1',
+          teacherName: '王老師',
+          sessionId: 'session-1',
+        },
+      ],
+      reason: '颱風停課',
+    });
+
+    expect(changes).toEqual([
+      expect.objectContaining({
+        session_id: 'session-1',
+        change_type: 'cancellation',
+        operation_source: 'batch',
+      }),
+    ]);
+
+    const uncancelChanges = buildBatchSessionChangeInserts({
+      orgId: 'org-1',
+      createdByName: '教務主任',
+      changeType: 'uncancel',
+      sessionStates: [
+        {
+          assignmentStatus: 'assigned',
+          status: 'cancelled',
+          classId: 'class-1',
+          sessionDate: '2026-03-11',
+          startTime: '09:00:00',
+          endTime: '11:00:00',
+          teacherId: 'teacher-1',
+          teacherName: '王老師',
+          sessionId: 'session-2',
+        },
+      ],
+    });
+
+    expect(uncancelChanges).toEqual([
+      expect.objectContaining({
+        session_id: 'session-2',
+        change_type: 'uncancel',
+        operation_source: 'batch',
+      }),
+    ]);
+  });
+
+  it('marks batch update-time changes with batch operation source', () => {
+    const changes = buildBatchSessionChangeInserts({
+      orgId: 'org-1',
+      createdByName: '教務主任',
+      changeType: 'reschedule',
+      sessionStates: [
+        {
+          assignmentStatus: 'assigned',
+          status: 'scheduled',
+          classId: 'class-1',
+          sessionDate: '2026-03-12',
+          startTime: '09:00:00',
+          endTime: '11:00:00',
+          teacherId: 'teacher-1',
+          teacherName: '王老師',
+          sessionId: 'session-3',
+        },
+      ],
+      newStartTime: '10:00:00',
+      newEndTime: '12:00:00',
+    });
+
+    expect(changes).toEqual([
+      expect.objectContaining({
+        session_id: 'session-3',
+        change_type: 'reschedule',
+        original_session_date: '2026-03-12',
+        new_session_date: '2026-03-12',
+        new_start_time: '10:00:00',
+        new_end_time: '12:00:00',
+        operation_source: 'batch',
+      }),
+    ]);
   });
 });
