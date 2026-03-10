@@ -131,7 +131,7 @@ export class SessionDetailDialogComponent implements OnInit {
       data: { session: s },
       styleClass: 'cal-dialog',
     });
-    cancelRef.onClose.subscribe((result?: { result: string; session: Session }) => {
+    cancelRef?.onClose.subscribe((result?: { result: string; session: Session }) => {
       if (result?.result === 'refresh') {
         this.ref.close('refresh');
         this.messageService.add({

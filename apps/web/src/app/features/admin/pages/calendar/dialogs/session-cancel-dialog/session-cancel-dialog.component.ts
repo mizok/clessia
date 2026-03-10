@@ -48,11 +48,6 @@ export class SessionCancelDialogComponent implements OnInit {
         this.ref.close({ result: 'refresh', session: s });
       },
       error: () => {
-        this.messageService.add({
-          severity: 'error',
-          summary: '錯誤',
-          detail: '停課失敗，請稍後再試',
-        });
         this.isSubmitting.set(false);
       },
     });
