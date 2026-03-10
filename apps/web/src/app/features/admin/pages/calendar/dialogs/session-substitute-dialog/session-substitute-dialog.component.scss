@@ -1,0 +1,19 @@
+.cal-op-form {
+  &__hint {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+  }
+}
+
+.sub-teacher-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+
+  &__count {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #71717a);
+  }
+}

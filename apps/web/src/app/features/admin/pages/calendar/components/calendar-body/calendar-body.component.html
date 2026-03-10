@@ -1,0 +1,20 @@
+<section
+  class="calendar-body calendar-body--list"
+  [class.calendar-body--with-selection]="selectedCount() > 0"
+>
+  <div class="calendar-body__list">
+    <app-session-list
+      [sessions]="sessions()"
+      [loading]="loading()"
+      [selectedIds]="selectedIds()"
+      (selectedIdsChange)="selectedIdsChange.emit($event)"
+      (contextMenuRequested)="contextMenuRequested.emit($event)"
+    />
+  </div>
+
+  <app-session-batch
+    [selectedCount]="selectedCount()"
+    (clearSelection)="clearSelection.emit()"
+    (openBatchSheet)="openBatchSheet.emit($event)"
+  />
+</section>

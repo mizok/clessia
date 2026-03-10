@@ -1,0 +1,17 @@
+@use 'shared/breakpoints' as bp;
+
+// Styles are now inherited from global .form-dialog in src/styles.scss
+
+.course-form-dialog__status-hint {
+  margin: calc(var(--space-2) * -1) 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--zinc-500);
+}
+
+.course-form-dialog__mode-hint {
+  margin: calc(var(--space-2) * -1) 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--warning-700);
+}

@@ -17,6 +17,7 @@ const CourseSchema = z
     subjectName: z.string(),
     description: z.string().nullable(),
     isActive: z.boolean(),
+    gradeLevels: z.array(z.string()).default([]).openapi({ description: '適合年級' }),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -40,6 +41,7 @@ const CreateCourseSchema = z
     name: z.string().min(1).max(50).openapi({ description: '課程名稱', example: '國一數學' }),
     subjectId: z.uuid().openapi({ description: '科目 ID' }),
     description: z.string().max(500).nullable().optional().openapi({ description: '課程說明' }),
+    gradeLevels: z.array(z.string()).optional().openapi({ description: '適合年級' }),
   })
   .openapi('CreateCourse');
 
@@ -49,6 +51,8 @@ const UpdateCourseSchema = z
     subjectId: z.uuid().optional(),
     description: z.string().max(500).nullable().optional(),
     isActive: z.boolean().optional(),
+    gradeLevels: z.array(z.string()).optional(),
+    deactivateMode: z.enum(['keep_sessions', 'cancel_future_sessions']).optional(),
   })
   .openapi('UpdateCourse');
 
@@ -84,6 +88,7 @@ function mapCourse(row: Record<string, unknown>) {
     subjectName: ((row['subjects'] as { name: string } | null)?.name ?? '') as string,
     description: row['description'] as string | null,
     isActive: row['is_active'] as boolean,
+    gradeLevels: (row['grade_levels'] as string[]) ?? [],
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
   };
@@ -194,6 +199,14 @@ const getRoute = createRoute({
         },
       },
     },
+    400: {
+      description: '操作失敗',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
   },
 });
 
@@ -273,6 +286,7 @@ app.openapi(createCourseRoute, async (c) => {
       name: body.name,
       subject_id: body.subjectId,
       description: body.description || null,
+      grade_levels: body.gradeLevels || [],
     })
     .select('*, campuses(name), subjects(name)')
     .single();
@@ -319,12 +333,23 @@ const updateRoute = createRoute({
       description: '成功更新課程',
       content: {
         'application/json': {
-          schema: z.object({ data: CourseSchema }),
+          schema: z.object({
+            data: CourseSchema,
+            cancelledFutureSessions: z.number().optional(),
+          }),
         },
       },
     },
     404: {
       description: '課程不存在',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    400: {
+      description: '操作失敗',
       content: {
         'application/json': {
           schema: ErrorSchema,
@@ -341,11 +366,26 @@ app.openapi(updateRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
 
+  const { data: existingCourse, error: existingCourseError } = await supabase
+    .from('courses')
+    .select('id, is_active')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (existingCourseError || !existingCourse) {
+    return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
+  }
+
   const updateData: Record<string, unknown> = {};
   if (body.name !== undefined) updateData['name'] = body.name;
   if (body.subjectId !== undefined) updateData['subject_id'] = body.subjectId;
   if (body.description !== undefined) updateData['description'] = body.description;
   if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
+  if (body.gradeLevels !== undefined) updateData['grade_levels'] = body.gradeLevels;
+  const shouldCancelFutureSessions =
+    body.isActive === false &&
+    (existingCourse['is_active'] as boolean) &&
+    body.deactivateMode === 'cancel_future_sessions';
 
   const { data, error } = await supabase
     .from('courses')
@@ -358,6 +398,80 @@ app.openapi(updateRoute, async (c) => {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
 
+  let cancelledFutureSessions = 0;
+  if (shouldCancelFutureSessions) {
+    const { data: classRows, error: classRowsError } = await supabase
+      .from('classes')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('course_id', id);
+
+    if (classRowsError) {
+      return c.json({ error: classRowsError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    const classIds = (classRows ?? [])
+      .map((row) => row['id'] as string | undefined)
+      .filter((classId): classId is string => !!classId);
+
+    if (classIds.length > 0) {
+      const today = new Date().toISOString().split('T')[0];
+
+      // 查出要取消的課堂 IDs
+      const { data: targetSessions, error: fetchError } = await supabase
+        .from('sessions')
+        .select('id')
+        .eq('org_id', orgId)
+        .in('class_id', classIds)
+        .gte('session_date', today)
+        .neq('status', 'completed');
+
+      if (fetchError) {
+        return c.json({ error: fetchError.message, code: 'DB_ERROR' }, 400);
+      }
+
+      const sessionIds = (targetSessions ?? []).map((r) => r['id'] as string);
+
+      if (sessionIds.length > 0) {
+        // 軟刪除：更新狀態為 cancelled
+        const { error: updateError } = await supabase
+          .from('sessions')
+          .update({ status: 'cancelled' })
+          .in('id', sessionIds);
+
+        if (updateError) {
+          return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+        }
+
+        // 取得操作者名稱
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('id', userId)
+          .maybeSingle();
+
+        // 為每堂課建立 schedule_change 紀錄
+        const changeRecords = sessionIds.map((sessionId) => ({
+          org_id: orgId,
+          session_id: sessionId,
+          change_type: 'cancellation',
+          reason: '課程停用',
+          created_by_name: profile?.display_name ?? null,
+        }));
+
+        const { error: insertError } = await supabase
+          .from('schedule_changes')
+          .insert(changeRecords);
+
+        if (insertError) {
+          return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
+        }
+
+        cancelledFutureSessions = sessionIds.length;
+      }
+    }
+  }
+
   logAudit(supabase, {
     orgId,
     userId,
@@ -365,9 +479,19 @@ app.openapi(updateRoute, async (c) => {
     resourceId: id,
     resourceName: data.name as string,
     action: 'update',
+    details: {
+      deactivateMode: body.deactivateMode ?? null,
+      cancelledFutureSessions,
+    },
   }, c.executionCtx.waitUntil.bind(c.executionCtx));
 
-  return c.json({ data: mapCourse(data as Record<string, unknown>) }, 200);
+  return c.json(
+    {
+      data: mapCourse(data as Record<string, unknown>),
+      ...(shouldCancelFutureSessions ? { cancelledFutureSessions } : {}),
+    },
+    200,
+  );
 });
 
 // DELETE /api/courses/:id - 刪除課程

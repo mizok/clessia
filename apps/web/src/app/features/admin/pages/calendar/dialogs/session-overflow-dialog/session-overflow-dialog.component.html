@@ -1,0 +1,37 @@
+<div class="flex flex-col gap-3">
+  @for (s of sessions(); track s.id) {
+    <div
+      class="flex flex-col p-3 rounded-lg border border-zinc-200 bg-white cursor-pointer hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
+      (click)="openDetail(s)"
+    >
+      <div class="flex items-center justify-between mb-1">
+        <span class="font-medium text-zinc-900 line-clamp-1">{{ s.className }}</span>
+        <span class="text-xs text-zinc-500 shrink-0">{{ s.startTime }}–{{ s.endTime }}</span>
+      </div>
+      <div class="flex items-center gap-3 text-sm text-zinc-600">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <i class="pi pi-user text-zinc-400 text-xs shrink-0"></i>
+          <span class="line-clamp-1 truncate">{{ s.teacherName }}</span>
+        </div>
+        <div class="flex items-center gap-1.5 min-w-0">
+          <i class="pi pi-building text-zinc-400 text-xs shrink-0"></i>
+          <span class="line-clamp-1 truncate">{{ s.campusName }}</span>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (sessions().length === 0) {
+    <div class="text-center py-6 text-zinc-500 text-sm">此時段沒有重疊的課程</div>
+  }
+</div>
+
+<div class="flex justify-end pt-4 mt-2 border-t border-zinc-100">
+  <p-button
+    label="關閉"
+    severity="secondary"
+    [text]="true"
+    size="small"
+    (onClick)="closeDialog()"
+  />
+</div>

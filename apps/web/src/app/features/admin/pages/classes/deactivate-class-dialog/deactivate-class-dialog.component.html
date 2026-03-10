@@ -1,0 +1,75 @@
+<div class="form-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <span class="dialog-header-inline__breadcrumb">{{ breadcrumb() }}</span>
+      <span class="dialog-header-inline__title">停用班級</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <div class="deactivate-dialog">
+    <div class="deactivate-dialog__hero">
+      <div class="deactivate-dialog__hero-icon">
+        <i class="pi pi-ban"></i>
+      </div>
+      <p class="deactivate-dialog__message">
+        確定要停用班級「<strong>{{ cls()?.name }}</strong
+        >」嗎？
+      </p>
+      <p class="deactivate-dialog__hint">停用後將無法新增學生報名，也無法產生新課堂。</p>
+    </div>
+
+    <div class="deactivate-dialog__options">
+      <article class="deactivate-dialog__option deactivate-dialog__option--danger">
+        <div class="deactivate-dialog__option-head">
+          <i class="pi pi-calendar-times deactivate-dialog__option-icon"></i>
+          <span class="deactivate-dialog__option-title">模式 A：停用並停課未來課堂</span>
+        </div>
+        <p class="deactivate-dialog__option-desc">
+          會把這個班級所有未來、尚未開始的已排課堂改為停課，歷史課堂保留。
+        </p>
+        <p-button
+          label="停用並停課未來課堂"
+          icon="pi pi-check"
+          severity="danger"
+          [loading]="loading()"
+          [disabled]="loading()"
+          (onClick)="deactivateAndCancel()"
+          styleClass="w-full"
+        />
+      </article>
+
+      <article class="deactivate-dialog__option deactivate-dialog__option--neutral">
+        <div class="deactivate-dialog__option-head">
+          <i class="pi pi-ban deactivate-dialog__option-icon"></i>
+          <span class="deactivate-dialog__option-title">模式 B：僅停用班級</span>
+        </div>
+        <p class="deactivate-dialog__option-desc">
+          只停用班級本身，既有課堂維持原樣，無法新增未來課程排程。
+        </p>
+        <p-button
+          label="僅停用（保留已排課堂）"
+          icon="pi pi-check"
+          [outlined]="true"
+          severity="secondary"
+          [loading]="loading()"
+          [disabled]="loading()"
+          (onClick)="deactivateOnly()"
+          styleClass="w-full"
+        />
+      </article>
+    </div>
+  </div>
+
+  <div class="form-dialog__footer">
+    <p-button
+      label="取消"
+      [text]="true"
+      severity="secondary"
+      [disabled]="loading()"
+      (onClick)="cancel()"
+    />
+  </div>
+</div>

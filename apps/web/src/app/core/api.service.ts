@@ -3,6 +3,11 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '@env/environment';
 
+export interface SystemTimeResponse {
+  epochMs: number;
+  iso: string;
+}
+
 /**
  * API Service
  *
@@ -29,5 +34,12 @@ export class ApiService {
     return this.http.get<{ id: string; email: string; createdAt: string }>(
       `${this.baseUrl}/api/me`
     );
+  }
+
+  /**
+   * 取得伺服器時間（公開 API）
+   */
+  getSystemTime(): Observable<SystemTimeResponse> {
+    return this.http.get<SystemTimeResponse>(`${this.baseUrl}/system-time`);
   }
 }

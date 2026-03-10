@@ -1,4 +1,14 @@
-import { Component, ViewChild, HostListener, inject, computed, input } from '@angular/core';
+import {
+  Component,
+  ViewChild,
+  HostListener,
+  inject,
+  computed,
+  input,
+  viewChild,
+  type ElementRef,
+  afterNextRender,
+} from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { Tooltip } from 'primeng/tooltip';
 import { Popover } from 'primeng/popover';
@@ -7,16 +17,32 @@ import { AuthService, type UserRole } from '@core/auth.service';
 import { AutoOpenTooltipDirective } from '@shared/directives/auto-open-tooltip.directive';
 import { DeviceService } from '@core/device.service';
 import { InheritSizeDirective } from '@shared/directives/inherit-size.directive';
+import { OverlayContainerService } from '@core/overlay-container.service';
+import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 
 @Component({
   selector: 'app-shell-layout',
   standalone: true,
-  imports: [RouterOutlet, Tooltip, AutoOpenTooltipDirective, Popover, JdenticonAvatarComponent, InheritSizeDirective],
+  imports: [
+    RouterOutlet,
+    Tooltip,
+    AutoOpenTooltipDirective,
+    Popover,
+    JdenticonAvatarComponent,
+    InheritSizeDirective,
+    OverlayContainerDirective,
+  ],
   templateUrl: './shell-layout.component.html',
   styleUrl: './shell-layout.component.scss',
 })
 export class ShellLayoutComponent {
   @ViewChild('op') op!: Popover;
+
+  private readonly shellBody = viewChild<ElementRef<HTMLElement>>('shellBody');
+  private readonly overlayContainerService = inject(OverlayContainerService);
+  protected get overlayContainer(): HTMLElement | null {
+    return this.overlayContainerService.getContainer();
+  }
 
   public readonly auth = inject(AuthService);
   protected readonly avatarSeed = computed(() => {

@@ -5,17 +5,9 @@ import { FormsModule } from '@angular/forms';
 // PrimeNG
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
-import { DialogModule } from 'primeng/dialog';
-import { InputTextModule } from 'primeng/inputtext';
-import { ToggleSwitch } from 'primeng/toggleswitch';
-import { ToastModule } from 'primeng/toast';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { TooltipModule } from 'primeng/tooltip';
-import { SkeletonModule } from 'primeng/skeleton';
-import { TagModule } from 'primeng/tag';
-import { IconFieldModule } from 'primeng/iconfield';
-import { InputIconModule } from 'primeng/inputicon';
 import { MessageService, ConfirmationService } from 'primeng/api';
+import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { CampusFormDialogComponent } from './campus-form-dialog.component';
 
 // Services
 import {
@@ -24,10 +16,20 @@ import {
   CreateCampusInput,
   UpdateCampusInput,
 } from '@core/campuses.service';
+import { OverlayContainerService } from '@core/overlay-container.service';
 
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
+
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
+import { ToastModule } from 'primeng/toast';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { TagModule } from 'primeng/tag';
+import { TooltipModule } from 'primeng/tooltip';
+import { SkeletonModule } from 'primeng/skeleton';
+import { InputTextModule } from 'primeng/inputtext';
 
 @Component({
   selector: 'app-campuses',
@@ -37,20 +39,17 @@ import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/aud
     FormsModule,
     TableModule,
     ButtonModule,
-    DialogModule,
-    InputTextModule,
-    ToggleSwitch,
+    InputIconModule,
+    IconFieldModule,
     ToastModule,
     ConfirmDialogModule,
+    TagModule,
     TooltipModule,
     SkeletonModule,
-    TagModule,
-    IconFieldModule,
-    InputIconModule,
+    InputTextModule,
     EmptyStateComponent,
-    AuditLogDialogComponent,
   ],
-  providers: [MessageService, ConfirmationService],
+  providers: [MessageService, ConfirmationService, DialogService],
   templateUrl: './campuses.page.html',
   styleUrl: './campuses.page.scss',
 })
@@ -58,34 +57,18 @@ export class CampusesPage implements OnInit {
   private readonly campusesService = inject(CampusesService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
+  private readonly dialogService = inject(DialogService);
+  private readonly overlayContainerService = inject(OverlayContainerService);
+  protected get overlayContainer(): HTMLElement | null {
+    return this.overlayContainerService.getContainer();
+  }
 
   // State
   readonly campuses = signal<Campus[]>([]);
   readonly loading = signal(true);
   readonly searchQuery = signal('');
-  readonly dialogVisible = signal(false);
-  readonly dialogLoading = signal(false);
-  protected readonly auditLogVisible = signal(false);
-
-  // Edit form state
-  readonly editingCampus = signal<Campus | null>(null);
-  readonly formData = signal<{
-    name: string;
-    address: string;
-    phone: string;
-    isActive: boolean;
-  }>({
-    name: '',
-    address: '',
-    phone: '',
-    isActive: true,
-  });
 
   // Computed
-  readonly isEditing = computed(() => this.editingCampus() !== null);
-  readonly dialogTitle = computed(() =>
-    this.isEditing() ? '編輯分校' : '新增分校'
-  );
   readonly filteredCampuses = computed(() => {
     const query = this.searchQuery().toLowerCase().trim();
     if (!query) return this.campuses();
@@ -93,15 +76,11 @@ export class CampusesPage implements OnInit {
       (c) =>
         c.name.toLowerCase().includes(query) ||
         c.address?.toLowerCase().includes(query) ||
-        c.phone?.includes(query)
+        c.phone?.includes(query),
     );
   });
-  readonly activeCampusCount = computed(
-    () => this.campuses().filter((c) => c.isActive).length
-  );
-  readonly inactiveCampusCount = computed(
-    () => this.campuses().filter((c) => !c.isActive).length
-  );
+  readonly activeCampusCount = computed(() => this.campuses().filter((c) => c.isActive).length);
+  readonly inactiveCampusCount = computed(() => this.campuses().filter((c) => !c.isActive).length);
 
   ngOnInit(): void {
     this.loadCampuses();
@@ -127,105 +106,47 @@ export class CampusesPage implements OnInit {
   }
 
   openCreateDialog(): void {
-    this.editingCampus.set(null);
-    this.formData.set({
-      name: '',
-      address: '',
-      phone: '',
-      isActive: true,
+    const ref = this.dialogService.open(CampusFormDialogComponent, {
+      header: '新增分校',
+      width: '450px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
     });
-    this.dialogVisible.set(true);
+
+    if (ref) {
+      ref.onClose.subscribe((newCampus) => {
+        if (newCampus) this.loadCampuses();
+      });
+    }
   }
 
   openEditDialog(campus: Campus): void {
-    this.editingCampus.set(campus);
-    this.formData.set({
-      name: campus.name,
-      address: campus.address || '',
-      phone: campus.phone || '',
-      isActive: campus.isActive,
+    const ref = this.dialogService.open(CampusFormDialogComponent, {
+      header: '編輯分校',
+      width: '450px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { campus },
     });
-    this.dialogVisible.set(true);
-  }
 
-  closeDialog(): void {
-    this.dialogVisible.set(false);
-    this.editingCampus.set(null);
-  }
-
-  saveCampus(): void {
-    const form = this.formData();
-
-    if (!form.name.trim()) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: '請填寫分校名稱',
-        detail: '分校名稱為必填欄位',
-      });
-      return;
-    }
-
-    this.dialogLoading.set(true);
-
-    if (this.isEditing()) {
-      const campus = this.editingCampus()!;
-      const input: UpdateCampusInput = {
-        name: form.name.trim(),
-        address: form.address.trim() || null,
-        phone: form.phone.trim() || null,
-        isActive: form.isActive,
-      };
-
-      this.campusesService.update(campus.id, input).subscribe({
-        next: () => {
-          this.messageService.add({
-            severity: 'success',
-            summary: '更新成功',
-            detail: `「${form.name}」已更新`,
-          });
-          this.closeDialog();
-          this.loadCampuses();
-          this.dialogLoading.set(false);
-        },
-        error: (err) => {
-          console.error('Failed to update campus', err);
-          this.messageService.add({
-            severity: 'error',
-            summary: '更新失敗',
-            detail: err.error?.error || '請稍後再試',
-          });
-          this.dialogLoading.set(false);
-        },
-      });
-    } else {
-      const input: CreateCampusInput = {
-        name: form.name.trim(),
-        address: form.address.trim() || null,
-        phone: form.phone.trim() || null,
-      };
-
-      this.campusesService.create(input).subscribe({
-        next: () => {
-          this.messageService.add({
-            severity: 'success',
-            summary: '新增成功',
-            detail: `「${form.name}」已建立`,
-          });
-          this.closeDialog();
-          this.loadCampuses();
-          this.dialogLoading.set(false);
-        },
-        error: (err) => {
-          console.error('Failed to create campus', err);
-          this.messageService.add({
-            severity: 'error',
-            summary: '新增失敗',
-            detail: err.error?.error || '請稍後再試',
-          });
-          this.dialogLoading.set(false);
-        },
+    if (ref) {
+      ref.onClose.subscribe((updatedCampus) => {
+        if (updatedCampus) this.loadCampuses();
       });
     }
+  }
+
+  openAuditLog(): void {
+    this.dialogService.open(AuditLogDialogComponent, {
+      header: '分校管理操作紀錄',
+      width: '800px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { resourceTypes: ['campus'] },
+    });
   }
 
   confirmDelete(campus: Campus): void {
@@ -259,21 +180,5 @@ export class CampusesPage implements OnInit {
         });
       },
     });
-  }
-
-  updateName(value: string): void {
-    this.formData.update((f) => ({ ...f, name: value }));
-  }
-
-  updateAddress(value: string): void {
-    this.formData.update((f) => ({ ...f, address: value }));
-  }
-
-  updatePhone(value: string): void {
-    this.formData.update((f) => ({ ...f, phone: value }));
-  }
-
-  updateIsActive(value: boolean): void {
-    this.formData.update((f) => ({ ...f, isActive: value }));
   }
 }

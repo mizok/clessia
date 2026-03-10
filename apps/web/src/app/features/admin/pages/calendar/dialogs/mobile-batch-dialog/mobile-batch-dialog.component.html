@@ -1,0 +1,118 @@
+<div class="mobile-batch-dialog">
+  @if (!batchMode()) {
+    <div class="mobile-batch-dialog__menu">
+      <button class="mobile-batch-dialog__menu-item" (click)="selectAction('assign')">
+        <i class="pi pi-user-plus mobile-batch-dialog__menu-icon"></i>
+        <span>指派老師</span>
+      </button>
+      <button class="mobile-batch-dialog__menu-item" (click)="selectAction('time')">
+        <i class="pi pi-clock mobile-batch-dialog__menu-icon"></i>
+        <span>修改時間</span>
+      </button>
+      <button class="mobile-batch-dialog__menu-item" (click)="selectAction('cancel')">
+        <i class="pi pi-ban mobile-batch-dialog__menu-icon"></i>
+        <span>停課</span>
+      </button>
+      @if (hasCancelledSelection()) {
+        <button class="mobile-batch-dialog__menu-item" (click)="selectAction('uncancel')">
+          <i class="pi pi-replay mobile-batch-dialog__menu-icon"></i>
+          <span>取消停課</span>
+        </button>
+      }
+    </div>
+  } @else {
+    @switch (batchMode()) {
+      @case ('assign') {
+        <h4 class="mobile-batch-dialog__title">指派老師給 {{ selectedCount() }} 堂課</h4>
+        <p-select
+          [options]="teachers()"
+          optionLabel="displayName"
+          optionValue="id"
+          placeholder="選擇老師"
+          [filter]="true"
+          filterBy="displayName"
+          [ngModel]="batchTeacherId()"
+          (ngModelChange)="batchTeacherId.set($event)"
+          appendTo="body"
+          styleClass="w-full"
+        />
+        @if (teachers().length === 0) {
+          <p class="mobile-batch-dialog__hint">所選課堂目前沒有符合科目與分校的可指派老師。</p>
+        }
+      }
+      @case ('time') {
+        <h4 class="mobile-batch-dialog__title">修改 {{ selectedCount() }} 堂課的時間</h4>
+        <div class="mobile-batch-dialog__time-row">
+          <label class="mobile-batch-dialog__label">開始</label>
+          <input
+            pInputText
+            type="time"
+            [ngModel]="batchStartTime()"
+            (ngModelChange)="batchStartTime.set($event)"
+          />
+        </div>
+        <div class="mobile-batch-dialog__time-row">
+          <label class="mobile-batch-dialog__label">結束</label>
+          <input
+            pInputText
+            type="time"
+            [ngModel]="batchEndTime()"
+            (ngModelChange)="batchEndTime.set($event)"
+          />
+        </div>
+      }
+      @case ('cancel') {
+        <h4 class="mobile-batch-dialog__title">停課 {{ selectedCount() }} 堂</h4>
+        <input
+          pInputText
+          placeholder="原因（選填）"
+          [ngModel]="batchCancelReason()"
+          (ngModelChange)="batchCancelReason.set($event)"
+          class="w-full"
+        />
+      }
+      @case ('uncancel') {
+        <h4 class="mobile-batch-dialog__title">取消停課 {{ selectedCount() }} 堂</h4>
+      }
+    }
+
+    @if (batchPreview()) {
+      <div class="mobile-batch-dialog__preview">
+        <span class="mobile-batch-dialog__preview-ok">{{ processableCount() }} 堂可操作</span>
+        @if (skippedCount() > 0) {
+          <span class="mobile-batch-dialog__preview-skip">· {{ skippedCount() }} 堂略過</span>
+        }
+      </div>
+    }
+
+    <div class="mobile-batch-dialog__footer">
+      <p-button
+        label="返回"
+        [text]="true"
+        size="small"
+        icon="pi pi-arrow-left"
+        (onClick)="goBack()"
+      />
+      @if (!batchPreview()) {
+        <p-button
+          label="預覽"
+          size="small"
+          (onClick)="runPreview()"
+          [disabled]="batchMode() === 'assign' && (!batchTeacherId() || teachers().length === 0)"
+          [loading]="batchLoading()"
+        />
+      } @else {
+        <p-button
+          [label]="'確認 (' + processableCount() + ' 堂)'"
+          size="small"
+          (onClick)="apply()"
+          [loading]="batchLoading()"
+          [disabled]="processableCount() === 0"
+        />
+      }
+    </div>
+    @if (batchMode() === 'assign' && teachers().length === 0) {
+      <p class="mobile-batch-dialog__action-hint">沒有符合本批課堂分校與科目的老師可指派。</p>
+    }
+  }
+</div>

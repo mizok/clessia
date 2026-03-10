@@ -69,12 +69,11 @@ CREATE TABLE public.schedules (
   start_time time NOT NULL,
   end_time time NOT NULL,
   teacher_id uuid NOT NULL REFERENCES public.staff(id) ON DELETE RESTRICT,
-  effective_from date NOT NULL,
   effective_to date, -- NULL = 持續有效
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT schedules_time_order CHECK (end_time > start_time),
-  CONSTRAINT schedules_unique_slot UNIQUE (class_id, weekday, start_time, effective_from)
+  CONSTRAINT schedules_unique_slot UNIQUE (class_id, weekday, start_time)
 );
 
 CREATE INDEX schedules_class_id_idx ON public.schedules (class_id);

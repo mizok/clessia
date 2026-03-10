@@ -1,0 +1,57 @@
+@use 'shared/breakpoints' as bp;
+
+// Host element must participate in shell-content flex layout to establish
+// a definite height, enabling the internal flex chain to work correctly.
+:host {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+@include bp.respond-to-container('shell-content', 'mobile') {
+  :host {
+    min-height: 100%;
+  }
+}
+
+.cal {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+
+  &__controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    flex-shrink: 0;
+  }
+}
+
+@include bp.respond-to-container('shell-content', 'tablet-portrait') {
+  .cal {
+    padding: var(--space-4) var(--space-3);
+    gap: var(--space-3);
+
+    &__controls {
+      gap: var(--space-2);
+    }
+  }
+}
+
+@include bp.respond-to-container('shell-content', 'mobile') {
+  .cal {
+    padding: 0;
+    gap: var(--space-2);
+
+    &__controls {
+      padding: var(--space-2) 0 0;
+      gap: var(--space-2);
+    }
+  }
+}

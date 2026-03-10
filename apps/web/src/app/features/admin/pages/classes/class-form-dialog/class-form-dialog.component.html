@@ -1,0 +1,186 @@
+<div class="form-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      @if (breadcrumb()) {
+        <span class="dialog-header-inline__breadcrumb">{{ breadcrumb() }}</span>
+      }
+      <span class="dialog-header-inline__title">{{ dialogTitle() }}</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <div class="form-dialog__content">
+    <!-- Status (edit only) -->
+    @if (isEditing()) {
+      <div class="form-dialog__field form-dialog__field--inline">
+        <label class="form-dialog__label">狀態</label>
+        <div class="form-dialog__switch-row">
+          <p-toggleswitch
+            [ngModel]="formData().isActive"
+            (ngModelChange)="updateForm('isActive', $event)"
+            [disabled]="loading()"
+          />
+          <span class="form-dialog__switch-label">
+            {{ formData().isActive ? '啟用中' : '已停用' }}
+          </span>
+        </div>
+      </div>
+    }
+
+    <!-- Name -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">
+        班級名稱<span class="form-dialog__required">*</span>
+      </label>
+      <input
+        type="text"
+        pInputText
+        [ngModel]="formData().name"
+        (ngModelChange)="updateForm('name', $event)"
+        placeholder="例如：A 班（週六上午）"
+        [disabled]="loading()"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Max Students -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">人數上限</label>
+      <p-inputnumber
+        [ngModel]="formData().maxStudents"
+        (ngModelChange)="updateForm('maxStudents', $event)"
+        [min]="1"
+        [max]="200"
+        [disabled]="loading()"
+        styleClass="w-full"
+      />
+    </div>
+
+    <!-- Schedules Section -->
+    <div class="form-dialog__section">
+      <div class="form-dialog__section-header">
+        <span class="form-dialog__section-title">
+          <i class="pi pi-clock"></i>
+          上課時間
+        </span>
+        <p-button
+          label="新增時段"
+          icon="pi pi-plus"
+          [text]="true"
+          size="small"
+          (onClick)="addScheduleEntry()"
+          [disabled]="loading()"
+        />
+      </div>
+
+      @if (formValidationMessage()) {
+        <div class="form-dialog__error-inline">
+          <i class="pi pi-exclamation-triangle"></i>
+          <span>{{ formValidationMessage() }}</span>
+        </div>
+      }
+
+      @if (scheduleEntries().length === 0) {
+        <p class="form-dialog__empty-note">尚未設定上課時間，點擊「新增時段」添加</p>
+      } @else {
+        <div class="schedule-entries">
+          @for (entry of scheduleEntries(); track $index) {
+            <div class="schedule-entry">
+              <button
+                type="button"
+                class="schedule-entry__close"
+                (click)="removeScheduleEntry($index)"
+                [disabled]="loading()"
+              >
+                <i class="pi pi-times"></i>
+              </button>
+              <div class="schedule-entry__row">
+                <p-select
+                  [options]="weekdayOptions"
+                  [ngModel]="entry.weekday"
+                  (ngModelChange)="updateScheduleEntry($index, 'weekday', $event)"
+                  placeholder="星期"
+                  [disabled]="loading()"
+                  [appendTo]="'body'"
+                  styleClass="schedule-entry__weekday"
+                />
+                <input
+                  type="time"
+                  class="schedule-entry__time-input"
+                  [ngModel]="entry.startTime"
+                  (ngModelChange)="updateScheduleEntry($index, 'startTime', $event)"
+                  [disabled]="loading()"
+                />
+                <span class="schedule-entry__dash">—</span>
+                <input
+                  type="time"
+                  class="schedule-entry__time-input"
+                  [ngModel]="entry.endTime"
+                  (ngModelChange)="updateScheduleEntry($index, 'endTime', $event)"
+                  [disabled]="loading()"
+                />
+              </div>
+              <!-- teacher selection removed per D4: 老師指派改由行事曆批次操作處理 -->
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  <div class="form-dialog__footer">
+    <p-button
+      label="取消"
+      [text]="true"
+      severity="secondary"
+      [disabled]="loading()"
+      (onClick)="cancel()"
+    />
+    <p-button
+      [label]="isEditing() ? '儲存' : '建立'"
+      [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+      [loading]="loading()"
+      (onClick)="save()"
+      [disabled]="!formData().name.trim()"
+    />
+  </div>
+</div>
+
+<!-- Conflict Warning Modal (Nested inside dialog but visible via signal) -->
+@if (conflictDialogVisible()) {
+  <div class="conflict-modal-overlay">
+    <div class="conflict-modal">
+      <div class="conflict-modal__header">
+        <i class="pi pi-exclamation-triangle"></i>
+        <h3>排課衝突警告</h3>
+      </div>
+      <div class="conflict-modal__body">
+        <p>以下老師在指定時間已有其他班級的排課：</p>
+        <div class="conflict-modal__list">
+          @for (conflict of pendingConflicts(); track $index) {
+            <div class="conflict-item">
+              <strong>{{ conflict.teacherName }}</strong
+              >: {{ conflict.conflictingCourseName }} / {{ conflict.conflictingClassName }} ({{
+                getWeekdayLabel(conflict.conflictingWeekday)
+              }}
+              {{ conflict.conflictingStartTime.substring(0, 5) }}–{{
+                conflict.conflictingEndTime.substring(0, 5)
+              }})
+            </div>
+          }
+        </div>
+      </div>
+      <div class="conflict-modal__footer">
+        <p-button
+          label="返回修改"
+          [text]="true"
+          severity="secondary"
+          (onClick)="conflictDialogVisible.set(false)"
+        />
+        <p-button label="仍要儲存" severity="warn" (onClick)="proceedSaveDespiteConflicts()" />
+      </div>
+    </div>
+  </div>
+}

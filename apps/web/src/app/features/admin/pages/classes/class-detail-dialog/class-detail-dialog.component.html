@@ -1,0 +1,71 @@
+<div class="class-detail-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <span class="dialog-header-inline__breadcrumb">{{ campusName() }}</span>
+      <span class="dialog-header-inline__title">{{ course()?.name }} - {{ cls()?.name }}</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="Close">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <div class="class-detail">
+    @if (cls(); as clsData) {
+      <!-- Schedules -->
+      <div class="class-detail__section">
+        <div class="class-detail__section-title">
+          <i class="pi pi-clock"></i>
+          上課時間
+        </div>
+        @if (clsData.schedules && clsData.schedules.length > 0) {
+          <div class="class-detail__schedules">
+            @for (s of clsData.schedules; track s.id) {
+              <div class="schedule-badge">
+                <div class="schedule-badge__header">
+                  <span class="schedule-badge__day">{{ getWeekdayLabel(s.weekday) }}</span>
+                  <span class="schedule-badge__time"
+                    >{{ s.startTime.substring(0, 5) }} - {{ s.endTime.substring(0, 5) }}</span
+                  >
+                </div>
+                <div class="schedule-badge__meta">
+                  @if (s.teacherName) {
+                    <span class="schedule-badge__teacher">
+                      <i class="pi pi-user"></i>
+                      {{ s.teacherName }}
+                    </span>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="class-detail__empty-state">
+            <i class="pi pi-calendar-times"></i>
+            <p>尚未設定上課時間</p>
+          </div>
+        }
+      </div>
+
+      <!-- Grade Levels -->
+      @if (course()?.gradeLevels; as grades) {
+        @if (grades.length > 0) {
+          <div class="class-detail__section">
+            <div class="class-detail__section-title">
+              <i class="pi pi-graduation-cap"></i>
+              適合年級
+            </div>
+            <div class="class-detail__grades">
+              @for (grade of grades; track grade) {
+                <span class="grade-chip">{{ grade }}</span>
+              }
+            </div>
+          </div>
+        }
+      }
+    }
+  </div>
+
+  <div class="form-dialog__footer">
+    <p-button label="關閉" severity="secondary" [text]="true" (onClick)="close()" />
+  </div>
+</div>

@@ -1,0 +1,81 @@
+<form [formGroup]="form" (ngSubmit)="submit()" class="cal-op-form">
+  @if (submitError(); as error) {
+    <div class="cal-op-form__error" role="alert">{{ error }}</div>
+  }
+  <div class="cal-op-form__field">
+    <label for="newSessionDate" class="cal-op-form__label">
+      調課日期<span class="cal-op-form__required">*</span>
+    </label>
+    <p-datepicker
+      id="newSessionDate"
+      formControlName="newSessionDate"
+      [minDate]="minDate"
+      dateFormat="yy-mm-dd"
+      placeholder="選擇新日期"
+      styleClass="w-full"
+      appendTo="body"
+    />
+    @if (loadingTargetDate()) {
+      <p class="cal-op-form__hint">載入中...</p>
+    } @else if (targetDateSessions().length > 0) {
+      <div class="cal-op-form__target-sessions">
+        <p class="cal-op-form__hint">該日已有 {{ targetDateSessions().length }} 堂課：</p>
+        @for (s of targetDateSessions(); track s.className) {
+          <span class="cal-op-form__target-session-chip">
+            {{ s.startTime }}–{{ s.endTime }} {{ s.courseName }} · {{ s.className }}
+          </span>
+        }
+      </div>
+    }
+  </div>
+  <div class="cal-op-form__row">
+    <div class="cal-op-form__field">
+      <label for="newStartTime" class="cal-op-form__label">
+        開始時間<span class="cal-op-form__required">*</span>
+      </label>
+      <p-datepicker
+        id="newStartTime"
+        formControlName="newStartTime"
+        [timeOnly]="true"
+        hourFormat="24"
+        placeholder="開始"
+        styleClass="w-full"
+        appendTo="body"
+      />
+    </div>
+    <div class="cal-op-form__field">
+      <label for="newEndTime" class="cal-op-form__label">
+        結束時間<span class="cal-op-form__required">*</span>
+      </label>
+      <p-datepicker
+        id="newEndTime"
+        formControlName="newEndTime"
+        [timeOnly]="true"
+        hourFormat="24"
+        placeholder="結束"
+        styleClass="w-full"
+        appendTo="body"
+      />
+    </div>
+  </div>
+  <div class="cal-op-form__field">
+    <label for="rescheduleReason" class="cal-op-form__label">調課原因（選填）</label>
+    <textarea
+      id="rescheduleReason"
+      pTextarea
+      formControlName="reason"
+      placeholder="例如：原老師請假、學生家長要求..."
+      class="cal-op-form__textarea"
+    ></textarea>
+  </div>
+  <div class="cal-op-form__footer">
+    <p-button label="取消" severity="secondary" [text]="true" (onClick)="closeDialog()" />
+    <p-button
+      label="確認調課"
+      severity="primary"
+      type="submit"
+      [disabled]="form.invalid"
+      [loading]="isSubmitting()"
+    />
+  </div>
+</form>

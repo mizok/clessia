@@ -11,7 +11,6 @@ export interface Schedule {
   endTime: string;
   teacherId: string | null;
   teacherName?: string;
-  effectiveFrom: string; // YYYY-MM-DD
   effectiveTo: string | null;
 }
 
@@ -21,6 +20,7 @@ export interface Class {
   campusId: string;
   courseId: string;
   courseName?: string;
+  campusName?: string;
   name: string;
   maxStudents: number;
   gradeLevels: string[];
@@ -29,6 +29,13 @@ export interface Class {
   scheduleCount?: number;
   scheduleTeacherIds?: string[];
   hasUpcomingSessions?: boolean;
+  hasAnySessions?: boolean;
+  // TODO: 待老師點名功能完成後，改為依據 status='completed' 判斷
+  hasPastSessions?: boolean;
+  upcomingCancelledCount?: number;
+  upcomingUnassignedCount?: number;
+  upcomingClassConflictCount?: number;
+  upcomingTeacherConflictCount?: number;
   schedules?: Schedule[];
   createdAt: string;
   updatedAt: string;
@@ -76,7 +83,6 @@ export interface CreateScheduleInput {
   startTime: string;
   endTime: string;
   teacherId: string | null;
-  effectiveFrom: string;
   effectiveTo?: string | null;
 }
 
@@ -95,7 +101,6 @@ export interface CheckConflictScheduleInput {
   startTime: string;
   endTime: string;
   teacherId: string | null;
-  effectiveFrom: string;
   effectiveTo?: string | null;
 }
 
@@ -108,6 +113,83 @@ export interface ScheduleConflict {
   conflictingWeekday: number;
   conflictingStartTime: string;
   conflictingEndTime: string;
+}
+
+export interface BatchAssignTimeRangeInput {
+  startTime: string;
+  endTime: string;
+}
+
+export type BatchAssignMode = 'skip-conflicts' | 'strict' | 'force';
+
+export interface BatchAssignTeacherInput {
+  from: string;
+  to: string;
+  toTeacherId: string;
+  weekday?: number[];
+  timeRanges?: BatchAssignTimeRangeInput[];
+  mode?: BatchAssignMode;
+  includeAssigned?: boolean;
+  dryRun?: boolean;
+}
+
+export interface BatchAssignConflict {
+  sessionId: string;
+  sessionDate: string;
+  startTime: string;
+  endTime: string;
+  conflictWithSessionId: string;
+}
+
+export interface BatchAssignTeacherResult {
+  updated: number;
+  skippedConflicts: number;
+  skippedNotEligible: number;
+  conflicts: BatchAssignConflict[];
+  dryRun: boolean;
+}
+
+export type BatchSessionConflictReason =
+  | 'status_not_editable'
+  | 'status_not_cancellable'
+  | 'status_not_reopenable'
+  | 'class_conflict'
+  | 'teacher_conflict';
+
+export interface BatchSessionConflict {
+  sessionId: string;
+  sessionDate: string;
+  reason: BatchSessionConflictReason;
+  detail: string;
+  conflictingSessionId?: string;
+}
+
+export interface BatchSessionActionResult {
+  updated: number;
+  skipped: number;
+  processableIds: string[];
+  conflicts: BatchSessionConflict[];
+  dryRun: boolean;
+}
+
+export interface BatchUpdateSessionTimeInput {
+  sessionIds: string[];
+  startTime: string;
+  endTime: string;
+  dryRun?: boolean;
+}
+
+export interface BatchCancelSessionsInput {
+  sessionIds: string[];
+  dryRun?: boolean;
+}
+
+export interface GenerateSessionsResult {
+  createdAssigned: number;
+  createdUnassigned: number;
+  skippedExisting: number;
+  skippedNoTeacher: number;
+  totalPlanned: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -149,17 +231,17 @@ export class ClassesService {
   updateSchedule(
     classId: string,
     scheduleId: string,
-    input: Partial<CreateScheduleInput>
+    input: Partial<CreateScheduleInput>,
   ): Observable<{ data: Schedule }> {
     return this.http.put<{ data: Schedule }>(
       `${this.endpoint}/${classId}/schedules/${scheduleId}`,
-      input
+      input,
     );
   }
 
   deleteSchedule(classId: string, scheduleId: string): Observable<{ success: boolean }> {
     return this.http.delete<{ success: boolean }>(
-      `${this.endpoint}/${classId}/schedules/${scheduleId}`
+      `${this.endpoint}/${classId}/schedules/${scheduleId}`,
     );
   }
 
@@ -167,7 +249,7 @@ export class ClassesService {
     classId: string,
     from: string,
     to: string,
-    excludeDates?: string[]
+    excludeDates?: string[],
   ): Observable<{ data: SessionPreview[] }> {
     const params: Record<string, string> = { from, to };
     if (excludeDates && excludeDates.length > 0) {
@@ -175,7 +257,7 @@ export class ClassesService {
     }
     return this.http.get<{ data: SessionPreview[] }>(
       `${this.endpoint}/${classId}/sessions/preview`,
-      { params }
+      { params },
     );
   }
 
@@ -183,21 +265,62 @@ export class ClassesService {
     classId: string,
     from: string,
     to: string,
-    excludeDates?: string[]
-  ): Observable<{ created: number; skipped: number }> {
-    return this.http.post<{ created: number; skipped: number }>(
-      `${this.endpoint}/${classId}/sessions/generate`,
-      { from, to, ...(excludeDates && excludeDates.length > 0 ? { excludeDates } : {}) }
-    );
+    excludeDates?: string[],
+  ): Observable<GenerateSessionsResult> {
+    return this.http.post<GenerateSessionsResult>(`${this.endpoint}/${classId}/sessions/generate`, {
+      from,
+      to,
+      ...(excludeDates && excludeDates.length > 0 ? { excludeDates } : {}),
+    });
   }
 
   checkScheduleConflicts(
     schedules: CheckConflictScheduleInput[],
-    excludeClassId?: string
+    excludeClassId?: string,
   ): Observable<{ conflicts: ScheduleConflict[] }> {
-    return this.http.post<{ conflicts: ScheduleConflict[] }>(
-      `${this.endpoint}/check-conflicts`,
-      { schedules, ...(excludeClassId ? { excludeClassId } : {}) }
+    return this.http.post<{ conflicts: ScheduleConflict[] }>(`${this.endpoint}/check-conflicts`, {
+      schedules,
+      ...(excludeClassId ? { excludeClassId } : {}),
+    });
+  }
+
+  batchAssignTeacher(
+    classId: string,
+    input: BatchAssignTeacherInput,
+  ): Observable<BatchAssignTeacherResult> {
+    return this.http.patch<BatchAssignTeacherResult>(
+      `${this.endpoint}/${classId}/sessions/batch-assign-teacher`,
+      input,
+    );
+  }
+
+  batchUpdateSessionTime(
+    classId: string,
+    input: BatchUpdateSessionTimeInput,
+  ): Observable<BatchSessionActionResult> {
+    return this.http.patch<BatchSessionActionResult>(
+      `${this.endpoint}/${classId}/sessions/batch-update-time`,
+      input,
+    );
+  }
+
+  batchCancelSessions(
+    classId: string,
+    input: BatchCancelSessionsInput,
+  ): Observable<BatchSessionActionResult> {
+    return this.http.patch<BatchSessionActionResult>(
+      `${this.endpoint}/${classId}/sessions/batch-cancel`,
+      input,
+    );
+  }
+
+  batchUncancelSessions(
+    classId: string,
+    input: BatchCancelSessionsInput,
+  ): Observable<BatchSessionActionResult> {
+    return this.http.patch<BatchSessionActionResult>(
+      `${this.endpoint}/${classId}/sessions/batch-uncancel`,
+      input,
     );
   }
 
@@ -208,17 +331,19 @@ export class ClassesService {
     });
   }
 
-  batchDelete(ids: string[]): Observable<{ deleted: number; deletedIds: string[]; skipped: number }> {
+  batchDelete(
+    ids: string[],
+  ): Observable<{ deleted: number; deletedIds: string[]; skipped: number }> {
     return this.http.delete<{ deleted: number; deletedIds: string[]; skipped: number }>(
       `${this.endpoint}/batch`,
-      { body: { ids } }
+      { body: { ids } },
     );
   }
 
   cancelFutureSessions(id: string): Observable<{ cancelled: number }> {
     return this.http.post<{ cancelled: number }>(
       `${this.endpoint}/${id}/cancel-future-sessions`,
-      {}
+      {},
     );
   }
 

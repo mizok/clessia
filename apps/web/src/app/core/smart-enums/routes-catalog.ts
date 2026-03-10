@@ -101,14 +101,6 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-bell',
   );
-  public static readonly ADMIN_CALENDAR = this.register(
-    'calendar',
-    '/admin/calendar',
-    '課程日曆',
-    UserType.ADMIN,
-    'pi-calendar',
-  );
-
   // Group: 教務管理
   public static readonly ADMIN_COURSES = this.register(
     'courses',
@@ -128,22 +120,22 @@ export class RoutesCatalog {
     true,
     '教務管理',
   );
+  public static readonly ADMIN_SESSIONS = this.register(
+    'sessions',
+    '/admin/sessions',
+    '課堂管理中心',
+    UserType.ADMIN,
+    'pi-list',
+    true,
+    '教務管理',
+  );
   public static readonly ADMIN_SCHEDULE = this.register(
     'schedule',
     '/admin/schedule',
     '排課管理',
     UserType.ADMIN,
     'pi-table',
-    true,
-    '教務管理',
-  );
-  public static readonly ADMIN_SESSIONS = this.register(
-    'sessions',
-    '/admin/sessions',
-    '課堂搜尋',
-    UserType.ADMIN,
-    'pi-search',
-    true,
+    false,
     '教務管理',
   );
   public static readonly ADMIN_CHANGES = this.register(
@@ -152,7 +144,7 @@ export class RoutesCatalog {
     '課務異動',
     UserType.ADMIN,
     'pi-history',
-    true,
+    false,
     '教務管理',
   );
 

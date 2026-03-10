@@ -1,14 +1,16 @@
-import { Component, inject, input, model, signal, computed, effect } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
-// PrimeNG
-import { DialogModule } from 'primeng/dialog';
-import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
-import { ButtonModule } from 'primeng/button';
-
-// Services
+import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { AuditLogsService, type AuditLog } from '@core/audit-logs.service';
+import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
+import type {
+  ResponsiveTablePageEvent,
+  ResponsiveTablePaginationConfig,
+} from '@shared/components/responsive-table/responsive-table.models';
+import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
+import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
+import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 
 interface ActionConfig {
   label: string;
@@ -38,25 +40,37 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
 @Component({
   selector: 'app-audit-log-dialog',
   standalone: true,
-  imports: [CommonModule, DialogModule, TableModule, TagModule, ButtonModule],
+  imports: [
+    CommonModule,
+    TagModule,
+    ResponsiveTableComponent,
+    RtColDefDirective,
+    RtColCellDirective,
+    RtRowDirective,
+  ],
   templateUrl: './audit-log-dialog.component.html',
   styleUrl: './audit-log-dialog.component.scss',
 })
 export class AuditLogDialogComponent {
-  readonly resourceTypes = input.required<string[]>();
-  readonly title = input<string>('操作紀錄');
-  readonly visible = model(false);
-
   private readonly auditLogsService = inject(AuditLogsService);
+  private readonly ref = inject(DynamicDialogRef);
+  private readonly config = inject(DynamicDialogConfig);
+
+  protected readonly resourceTypes = signal<string[]>(this.config.data?.resourceTypes ?? []);
 
   protected readonly logs = signal<AuditLog[]>([]);
   protected readonly loading = signal(false);
   protected readonly page = signal(1);
-  protected readonly totalPages = signal(0);
+  protected readonly pageSize = signal(10);
   protected readonly total = signal(0);
-
-  protected readonly isFirstPage = computed(() => this.page() <= 1);
-  protected readonly isLastPage = computed(() => this.page() >= this.totalPages());
+  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
+    first: Math.max((this.page() - 1) * this.pageSize(), 0),
+    rows: this.pageSize(),
+    totalRecords: this.total(),
+    showCurrentPageReport: true,
+    currentPageReportTemplate: '顯示 {first} - {last}，共 {totalRecords} 筆',
+    alwaysShow: false,
+  }));
 
   protected getActionConfig(action: string): ActionConfig {
     return ACTION_MAP[action] ?? { label: action, severity: 'secondary' };
@@ -66,23 +80,22 @@ export class AuditLogDialogComponent {
     return RESOURCE_TYPE_LABEL[type] ?? type;
   }
 
-  protected onShow(): void {
-    this.page.set(1);
+  protected cancel(): void {
+    this.ref.close();
+  }
+
+  constructor() {
     this.loadPage();
   }
 
-  protected prevPage(): void {
-    if (this.page() > 1) {
-      this.page.update((p) => p - 1);
-      this.loadPage();
-    }
-  }
+  protected onPage(event: ResponsiveTablePageEvent): void {
+    const nextRows = Math.max(event.rows, 1);
+    const nextFirst = Math.max(event.first, 0);
+    const nextPage = Math.floor(nextFirst / nextRows) + 1;
 
-  protected nextPage(): void {
-    if (this.page() < this.totalPages()) {
-      this.page.update((p) => p + 1);
-      this.loadPage();
-    }
+    this.pageSize.set(nextRows);
+    this.page.set(nextPage);
+    this.loadPage();
   }
 
   private loadPage(): void {
@@ -91,13 +104,12 @@ export class AuditLogDialogComponent {
       .list({
         resourceTypes: this.resourceTypes(),
         page: this.page(),
-        pageSize: 30,
+        pageSize: this.pageSize(),
       })
       .subscribe({
         next: (res) => {
           this.logs.set(res.data);
           this.total.set(res.meta.total);
-          this.totalPages.set(res.meta.totalPages);
           this.loading.set(false);
         },
         error: () => {

@@ -49,7 +49,7 @@
         }}</span>
       </div>
 
-      <p-popover #op styleClass="user-menu-overlay" appendTo="body">
+      <p-popover #op styleClass="user-menu-overlay">
         <div class="user-menu">
           <div class="user-menu__info">
             <app-jdenticon-avatar class="user-menu__avatar" [size]="48" [value]="avatarSeed()" />
@@ -74,7 +74,15 @@
     </div>
   </header>
 
-  <div class="shell-layout__body" appInheritSize [widthVar]="'--shell-layout-body-width'" [heightVar]="'--shell-layout-body-height'">
+  <div
+    class="shell-layout__body"
+    #shellBody
+    id="shell-container"
+    appInheritSize
+    appOverlayContainer
+    [widthVar]="'--shell-layout-body-width'"
+    [heightVar]="'--shell-layout-body-height'"
+  >
     <div class="shell-container">
       <router-outlet name="sidebar" />
       <main class="shell-content" [class.shell-content--centered]="centered()">

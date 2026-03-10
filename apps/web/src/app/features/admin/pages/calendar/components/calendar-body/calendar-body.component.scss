@@ -1,0 +1,67 @@
+@use 'shared/breakpoints' as bp;
+
+:host {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.calendar-body {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--color-white);
+  border: 1px solid var(--zinc-200);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  position: relative;
+
+  &__list {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  &__skeleton {
+    padding: var(--space-4) var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  &--list {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+}
+
+@include bp.respond-to-container('shell-content', 'tablet-portrait') {
+  .calendar-body {
+    &__skeleton {
+      padding: var(--space-4) var(--space-3);
+    }
+  }
+}
+
+@include bp.respond-to-container('shell-content', 'mobile') {
+  .calendar-body {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--zinc-200);
+    box-shadow: none;
+    background: var(--color-white);
+
+    &--list {
+      border: none;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    &__skeleton {
+      padding: var(--space-3);
+      gap: var(--space-2);
+    }
+  }
+}

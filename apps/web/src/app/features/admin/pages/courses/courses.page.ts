@@ -1,23 +1,23 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, model } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 // PrimeNG
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
-import { DialogModule } from 'primeng/dialog';
-import { InputTextModule } from 'primeng/inputtext';
-import { ToggleSwitch } from 'primeng/toggleswitch';
+import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
+import { TextareaModule } from 'primeng/textarea';
+import { TagModule } from 'primeng/tag';
+import { TooltipModule } from 'primeng/tooltip';
 import { ToastModule } from 'primeng/toast';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { TooltipModule } from 'primeng/tooltip';
-import { SkeletonModule } from 'primeng/skeleton';
-import { TagModule } from 'primeng/tag';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
-import { SelectModule } from 'primeng/select';
-import { TextareaModule } from 'primeng/textarea';
+import { InputTextModule } from 'primeng/inputtext';
 import { MessageService, ConfirmationService } from 'primeng/api';
+import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { CourseFormDialogComponent } from './course-form-dialog.component';
 
 // Services
 import {
@@ -28,8 +28,8 @@ import {
 } from '@core/courses.service';
 import { CampusesService, Campus } from '@core/campuses.service';
 import { SubjectsService, Subject } from '@core/subjects.service';
+import { OverlayContainerService } from '@core/overlay-container.service';
 
-// Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { SubjectManagerComponent } from '@shared/components/subject-manager/subject-manager.component';
 
@@ -51,65 +51,62 @@ interface CampusOption {
     FormsModule,
     TableModule,
     ButtonModule,
-    DialogModule,
-    InputTextModule,
-    ToggleSwitch,
+    SelectModule,
+    MultiSelectModule,
+    TextareaModule,
+    TagModule,
+    TooltipModule,
     ToastModule,
     ConfirmDialogModule,
-    TooltipModule,
-    SkeletonModule,
-    TagModule,
     IconFieldModule,
     InputIconModule,
-    SelectModule,
-    TextareaModule,
+    InputTextModule,
     EmptyStateComponent,
-    SubjectManagerComponent,
   ],
-  providers: [MessageService, ConfirmationService],
+  providers: [MessageService, ConfirmationService, DialogService],
   templateUrl: './courses.page.html',
   styleUrl: './courses.page.scss',
 })
 export class CoursesPage implements OnInit {
+  private readonly dialogService = inject(DialogService);
   private readonly coursesService = inject(CoursesService);
   private readonly campusesService = inject(CampusesService);
   private readonly subjectsService = inject(SubjectsService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
+  private readonly overlayContainerService = inject(OverlayContainerService);
+  protected get overlayContainer(): HTMLElement | null {
+    return this.overlayContainerService.getContainer();
+  }
 
   // State
   readonly courses = signal<Course[]>([]);
+  readonly editingCourse = signal<Course | null>(null);
   readonly campuses = signal<Campus[]>([]);
   readonly subjects = signal<Subject[]>([]);
   readonly loading = signal(true);
   readonly searchQuery = signal('');
   readonly selectedCampusId = signal<string | null>(null);
   readonly selectedSubjectId = signal<string | null>(null);
-  readonly dialogVisible = signal(false);
-  readonly dialogLoading = signal(false);
-  readonly subjectManagerVisible = signal(false);
 
-  // Edit form state
-  readonly editingCourse = signal<Course | null>(null);
-  readonly formData = signal<{
-    campusId: string;
-    name: string;
-    subjectId: string;
-    description: string;
-    isActive: boolean;
-  }>({
-    campusId: '',
-    name: '',
-    subjectId: '',
-    description: '',
-    isActive: true,
-  });
+  protected readonly gradeOptions = [
+    { label: '小一', value: '小一' },
+    { label: '小二', value: '小二' },
+    { label: '小三', value: '小三' },
+    { label: '小四', value: '小四' },
+    { label: '小五', value: '小五' },
+    { label: '小六', value: '小六' },
+    { label: '國一', value: '國一' },
+    { label: '國二', value: '國二' },
+    { label: '國三', value: '國三' },
+    { label: '高一', value: '高一' },
+    { label: '高二', value: '高二' },
+    { label: '高三', value: '高三' },
+  ];
 
   // Computed
   readonly isEditing = computed(() => this.editingCourse() !== null);
-  readonly dialogTitle = computed(() =>
-    this.isEditing() ? '編輯課程' : '新增課程'
-  );
+  readonly dialogTitle = computed(() => (this.isEditing() ? '編輯課程' : '新增課程'));
 
   readonly campusOptions = computed<CampusOption[]>(() => {
     return this.campuses()
@@ -147,23 +144,19 @@ export class CoursesPage implements OnInit {
           c.name.toLowerCase().includes(query) ||
           c.subjectName.toLowerCase().includes(query) ||
           c.description?.toLowerCase().includes(query) ||
-          c.campusName?.toLowerCase().includes(query)
+          c.campusName?.toLowerCase().includes(query),
       );
     }
 
     return result;
   });
 
-  readonly activeCourseCount = computed(
-    () => this.courses().filter((c) => c.isActive).length
-  );
+  readonly activeCourseCount = computed(() => this.courses().filter((c) => c.isActive).length);
 
-  readonly inactiveCourseCount = computed(
-    () => this.courses().filter((c) => !c.isActive).length
-  );
+  readonly inactiveCourseCount = computed(() => this.courses().filter((c) => !c.isActive).length);
 
   readonly hasActiveFilters = computed(
-    () => !!this.selectedCampusId() || !!this.selectedSubjectId() || !!this.searchQuery()
+    () => !!this.selectedCampusId() || !!this.selectedSubjectId() || !!this.searchQuery(),
   );
 
   ngOnInit(): void {
@@ -174,10 +167,10 @@ export class CoursesPage implements OnInit {
 
   loadCampuses(): void {
     this.campusesService.list({ pageSize: 100, isActive: true }).subscribe({
-      next: (res) => {
+      next: (res: { data: Campus[] }) => {
         this.campuses.set(res.data);
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to load campuses', err);
       },
     });
@@ -186,11 +179,11 @@ export class CoursesPage implements OnInit {
   loadCourses(): void {
     this.loading.set(true);
     this.coursesService.list({ pageSize: 100 }).subscribe({
-      next: (res) => {
+      next: (res: { data: Course[] }) => {
         this.courses.set(res.data);
         this.loading.set(false);
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to load courses', err);
         this.messageService.add({
           severity: 'error',
@@ -204,10 +197,10 @@ export class CoursesPage implements OnInit {
 
   loadSubjects(): void {
     this.subjectsService.list().subscribe({
-      next: (res) => {
+      next: (res: { data: Subject[] }) => {
         this.subjects.set(res.data);
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to load subjects', err);
       },
     });
@@ -220,126 +213,42 @@ export class CoursesPage implements OnInit {
   }
 
   openCreateDialog(): void {
-    this.editingCourse.set(null);
-    this.formData.set({
-      campusId: this.campusOptions()[0]?.value || '',
-      name: '',
-      subjectId: this.subjectOptions()[0]?.value || '',
-      description: '',
-      isActive: true,
+    const ref = this.dialogService.open(CourseFormDialogComponent, {
+      header: '新增課程',
+      width: '500px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: {
+        campuses: this.campuses(),
+        subjects: this.subjects(),
+      },
     });
-    this.dialogVisible.set(true);
+
+    if (ref)
+      ref.onClose.subscribe((result) => {
+        if (result) this.loadCourses();
+      });
   }
 
   openEditDialog(course: Course): void {
-    this.editingCourse.set(course);
-    this.formData.set({
-      campusId: course.campusId,
-      name: course.name,
-      subjectId: course.subjectId,
-      description: course.description || '',
-      isActive: course.isActive,
+    const ref = this.dialogService.open(CourseFormDialogComponent, {
+      header: '編輯課程',
+      width: '500px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: {
+        course,
+        campuses: this.campuses(),
+        subjects: this.subjects(),
+      },
     });
-    this.dialogVisible.set(true);
-  }
 
-  closeDialog(): void {
-    this.dialogVisible.set(false);
-    this.editingCourse.set(null);
-  }
-
-  saveCourse(): void {
-    const form = this.formData();
-
-    if (!form.campusId) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: '請選擇分校',
-        detail: '分校為必填欄位',
+    if (ref)
+      ref.onClose.subscribe((result) => {
+        if (result) this.loadCourses();
       });
-      return;
-    }
-
-    if (!form.name.trim()) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: '請填寫課程名稱',
-        detail: '課程名稱為必填欄位',
-      });
-      return;
-    }
-
-    if (!form.subjectId) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: '請選擇科目',
-        detail: '科目為必填欄位',
-      });
-      return;
-    }
-
-    this.dialogLoading.set(true);
-
-    if (this.isEditing()) {
-      const course = this.editingCourse()!;
-      const input: UpdateCourseInput = {
-        name: form.name.trim(),
-        subjectId: form.subjectId,
-        description: form.description.trim() || null,
-        isActive: form.isActive,
-      };
-
-      this.coursesService.update(course.id, input).subscribe({
-        next: () => {
-          this.messageService.add({
-            severity: 'success',
-            summary: '更新成功',
-            detail: `「${form.name}」已更新`,
-          });
-          this.closeDialog();
-          this.loadCourses();
-          this.dialogLoading.set(false);
-        },
-        error: (err) => {
-          console.error('Failed to update course', err);
-          this.messageService.add({
-            severity: 'error',
-            summary: '更新失敗',
-            detail: err.error?.error || '請稍後再試',
-          });
-          this.dialogLoading.set(false);
-        },
-      });
-    } else {
-      const input: CreateCourseInput = {
-        campusId: form.campusId,
-        name: form.name.trim(),
-        subjectId: form.subjectId,
-        description: form.description.trim() || null,
-      };
-
-      this.coursesService.create(input).subscribe({
-        next: () => {
-          this.messageService.add({
-            severity: 'success',
-            summary: '新增成功',
-            detail: `「${form.name}」已建立`,
-          });
-          this.closeDialog();
-          this.loadCourses();
-          this.dialogLoading.set(false);
-        },
-        error: (err) => {
-          console.error('Failed to create course', err);
-          this.messageService.add({
-            severity: 'error',
-            summary: '新增失敗',
-            detail: err.error?.error || '請稍後再試',
-          });
-          this.dialogLoading.set(false);
-        },
-      });
-    }
   }
 
   confirmDelete(course: Course): void {
@@ -364,7 +273,7 @@ export class CoursesPage implements OnInit {
         });
         this.loadCourses();
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to delete course', err);
         this.messageService.add({
           severity: 'error',
@@ -377,29 +286,5 @@ export class CoursesPage implements OnInit {
 
   getCampusName(campusId: string): string {
     return this.campuses().find((c) => c.id === campusId)?.name || '未知分校';
-  }
-
-  updateCampusId(value: string): void {
-    this.formData.update((f) => ({ ...f, campusId: value }));
-  }
-
-  updateName(value: string): void {
-    this.formData.update((f) => ({ ...f, name: value }));
-  }
-
-  updateSubjectId(value: string): void {
-    this.formData.update((f) => ({ ...f, subjectId: value }));
-  }
-
-  updateDescription(value: string): void {
-    this.formData.update((f) => ({ ...f, description: value }));
-  }
-
-  updateIsActive(value: boolean): void {
-    this.formData.update((f) => ({ ...f, isActive: value }));
-  }
-
-  onSubjectsChanged(updated: Subject[]): void {
-    this.subjects.set(updated);
   }
 }

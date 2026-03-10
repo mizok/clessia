@@ -1,4 +1,6 @@
 .audit-log-dialog {
+  max-width: 60rem;
+
   &__body {
     height: 340px;
     overflow: hidden;
@@ -9,6 +11,13 @@
     .skeleton-list {
       padding: var(--space-3) 0;
     }
+  }
+
+  &__table {
+    display: block;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
 
   &__empty {
@@ -44,20 +53,5 @@
 
   &__resource-name {
     font-size: 0.875rem;
-  }
-
-  &__pagination {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-3);
-    padding: var(--space-3) 0 var(--space-1);
-    border-top: 1px solid var(--p-content-border-color);
-    margin-top: var(--space-2);
-  }
-
-  &__page-info {
-    font-size: 0.875rem;
-    color: var(--p-text-muted-color);
   }
 }

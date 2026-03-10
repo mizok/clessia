@@ -1,3 +1,6 @@
+@use 'sass:map';
+@use 'sass:meta';
+
 /* =============================================================================
    Breakpoints & Media Queries
    ============================================================================= */
@@ -16,21 +19,43 @@ $breakpoints: (
   'desktop': $breakpoint-desktop,
 );
 
+@function get-breakpoint-value($breakpoint) {
+  @if map.has-key($breakpoints, $breakpoint) {
+    @return map.get($breakpoints, $breakpoint);
+  }
+
+  @if meta.type-of($breakpoint) == 'number' {
+    @return $breakpoint;
+  }
+
+  @return null;
+}
+
+@mixin warn-invalid-breakpoint($breakpoint) {
+  @warn "No value found for `#{$breakpoint}`. Use a key from `$breakpoints` or pass a number.";
+}
+
 // Mixin to respond to breakpoints
 @mixin respond-to($breakpoint) {
-  // Check if the key exists in our map
-  @if map-has-key($breakpoints, $breakpoint) {
-    @media (max-width: map-get($breakpoints, $breakpoint)) {
+  $breakpoint-value: get-breakpoint-value($breakpoint);
+
+  @if $breakpoint-value == null {
+    @include warn-invalid-breakpoint($breakpoint);
+  } @else {
+    @media (max-width: $breakpoint-value) {
       @content;
     }
   }
-  // Allow passing raw pixel values or custom variables
-  @else if type-of($breakpoint) == number {
-    @media (max-width: $breakpoint) {
+}
+
+@mixin respond-to-container($container-name, $breakpoint) {
+  $breakpoint-value: get-breakpoint-value($breakpoint);
+
+  @if $breakpoint-value == null {
+    @include warn-invalid-breakpoint($breakpoint);
+  } @else {
+    @container #{$container-name} (max-width: #{$breakpoint-value}) {
       @content;
     }
-  } @else {
-    @warn "Unfortunately, no value could be retrieved from `#{$full-map}`. "
-        + "Please make sure it is defined in `$breakpoints` map.";
   }
 }

@@ -1,0 +1,107 @@
+@use 'shared/breakpoints' as bp;
+
+:host {
+  display: block;
+  flex-shrink: 0;
+}
+
+.calendar-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+
+  &__title-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    position: relative;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    color: var(--zinc-900);
+    line-height: var(--leading-tight);
+  }
+
+  &__subtitle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    font-size: var(--text-md);
+    color: var(--zinc-500);
+    cursor: pointer;
+    transition: color var(--transition-fast);
+
+    &:hover {
+      color: var(--zinc-700);
+    }
+  }
+
+  &__subtitle-caret {
+    font-size: var(--text-xs);
+    opacity: 0.6;
+  }
+
+  &__datepicker-popup {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    left: 0;
+    z-index: 100;
+    background: var(--color-white);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-shrink: 0;
+  }
+
+  &__nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  &__view-toggle {
+    display: flex;
+    gap: var(--space-1);
+    margin-left: auto;
+  }
+}
+
+@include bp.respond-to-container('shell-content', 'tablet-portrait') {
+  .calendar-header {
+    flex-direction: column;
+    gap: var(--space-3);
+
+    &__title {
+      font-size: var(--text-xl);
+    }
+
+    &__nav {
+      align-self: flex-start;
+    }
+  }
+}
+
+@include bp.respond-to-container('shell-content', 'mobile') {
+  .calendar-header {
+    &__title {
+      font-size: var(--text-lg);
+    }
+  }
+}

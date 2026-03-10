@@ -1,1 +1,42 @@
-<p>calendar works!</p>
+<p-toast appendTo="body" [baseZIndex]="25000" />
+<p-menu #sessionMenu [model]="contextMenuItems()" [popup]="true" appendTo="body" />
+
+<div class="cal">
+  <section class="cal__controls">
+    <app-calendar-header />
+
+    <app-session-filters
+      [listDateRange]="listDateRange()"
+      [campuses]="campuses()"
+      [availableCourses]="availableCourses()"
+      [availableTeachers]="availableTeachers()"
+      [availableClasses]="availableClasses()"
+      [selectedCampusIds]="selectedCampusIds()"
+      [selectedCourseIds]="selectedCourseIds()"
+      [selectedTeacherIds]="selectedTeacherIds()"
+      [selectedClassId]="selectedClassId()"
+      [selectedStatuses]="selectedStatuses()"
+      [activeFilterCount]="activeFilterCount()"
+      [hasActiveFilters]="hasActiveFilters()"
+      (listDateRangeChange)="onListDateRangeChange($event)"
+      (mobileFilterToggle)="toggleMobileFilters()"
+      (campusIdsChange)="onCampusIdsChange($event)"
+      (courseIdsChange)="onCourseIdsChange($event)"
+      (teacherIdsChange)="onTeacherIdsChange($event)"
+      (classChange)="onClassChange($event)"
+      (statusesChange)="onStatusesChange($event)"
+      (clearFilters)="clearFilters()"
+    />
+  </section>
+
+  <app-calendar-body
+    [loading]="loading()"
+    [sessions]="filteredSessions()"
+    [selectedIds]="selectedIds()"
+    [selectedCount]="selectedCount()"
+    (selectedIdsChange)="onSelectedIdsChange($event)"
+    (contextMenuRequested)="onSessionListContextMenu($event)"
+    (clearSelection)="clearSelection()"
+    (openBatchSheet)="openBatchSheet($event)"
+  />
+</div>

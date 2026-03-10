@@ -1,0 +1,86 @@
+<div class="form-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <span class="dialog-header-inline__title">{{ isEditing() ? '編輯分校' : '新增分校' }}</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+  <!-- Status (edit only) -->
+  @if (isEditing()) {
+    <div class="form-dialog__field form-dialog__field--inline">
+      <label class="form-dialog__label">狀態</label>
+      <div class="form-dialog__switch-row">
+        <p-toggleswitch
+          [ngModel]="formData().isActive"
+          (ngModelChange)="updateForm('isActive', $event)"
+          [disabled]="loading()"
+        />
+        <span class="form-dialog__switch-label">
+          {{ formData().isActive ? '啟用中' : '已停用' }}
+        </span>
+      </div>
+    </div>
+  }
+
+  <!-- Name -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label"> 分校名稱<span class="form-dialog__required">*</span> </label>
+    <input
+      type="text"
+      pInputText
+      [ngModel]="formData().name"
+      (ngModelChange)="updateForm('name', $event)"
+      placeholder="例如：台北分校"
+      [disabled]="loading()"
+      class="w-full"
+    />
+  </div>
+
+  <!-- Phone -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label">電話</label>
+    <input
+      type="text"
+      pInputText
+      [ngModel]="formData().phone"
+      (ngModelChange)="updateForm('phone', $event)"
+      placeholder="02-12345678"
+      [disabled]="loading()"
+      class="w-full"
+    />
+  </div>
+
+  <!-- Address -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label">地址</label>
+    <input
+      type="text"
+      pInputText
+      [ngModel]="formData().address"
+      (ngModelChange)="updateForm('address', $event)"
+      placeholder="完整收件地址"
+      [disabled]="loading()"
+      class="w-full"
+    />
+  </div>
+
+  <!-- Footer -->
+  <div class="form-dialog__footer">
+    <p-button
+      label="取消"
+      [text]="true"
+      severity="secondary"
+      [disabled]="loading()"
+      (onClick)="cancel()"
+    />
+    <p-button
+      [label]="isEditing() ? '儲存' : '建立'"
+      [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+      [loading]="loading()"
+      (onClick)="save()"
+      [disabled]="!formData().name.trim()"
+    />
+  </div>
+</div>

@@ -209,13 +209,13 @@
   background: var(--zinc-50);
   height: var(--window-height);
   --app-header-height: 56px;
-}
 
-.shell-layout__body {
-  display: flex;
-  flex-direction: column;
-  flex: 1; /* Fill remaining space below header */
-  overflow: hidden; /* Prevent body scroll if content handles it */
+  &__body {
+    display: flex;
+    flex-direction: column;
+    flex: 1; /* Fill remaining space below header */
+    overflow: hidden; /* Prevent body scroll if content handles it */
+  }
 }
 
 .shell-container {
@@ -232,6 +232,8 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  container-type: inline-size;
+  container-name: shell-content;
 
   &--centered {
     align-items: center;
@@ -258,6 +260,6 @@
   .shell-content {
     padding: var(--space-3);
     // Ensure bottom padding for bottom bar interaction if needed
-    padding-bottom: calc(var(--space-4) + 64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
   }
 }

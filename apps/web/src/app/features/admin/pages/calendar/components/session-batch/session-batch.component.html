@@ -1,0 +1,23 @@
+@if (selectedCount() > 0) {
+  <div class="session-batch__bar">
+    <span class="session-batch__bar-count">已選 {{ selectedCount() }} 堂</span>
+    <div class="session-batch__bar-actions">
+      <p-button
+        label="批次操作"
+        icon="pi pi-bars"
+        size="small"
+        [outlined]="true"
+        severity="secondary"
+        (onClick)="openBatchSheet.emit(null)"
+      />
+      <p-button
+        label="取消選取"
+        [text]="true"
+        size="small"
+        icon="pi pi-times"
+        severity="secondary"
+        (onClick)="clearSelection.emit()"
+      />
+    </div>
+  </div>
+}

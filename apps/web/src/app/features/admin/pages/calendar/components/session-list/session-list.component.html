@@ -1,0 +1,176 @@
+<section class="session-list">
+  @if (loading()) {
+    <div class="session-list__skeleton">
+      @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+        <p-skeleton height="48px" borderRadius="6px" />
+      }
+    </div>
+  } @else {
+    @if (sessionCountLabel()) {
+      <p class="session-list__count">{{ sessionCountLabel() }}</p>
+    }
+    <app-responsive-table
+      class="session-list__table"
+      [headTemplate]="listHead"
+      [bodyTemplate]="listBody"
+      [pagination]="listPagination()"
+      (page)="onListPage($event)"
+    />
+
+    <ng-template #listHead>
+      <tr>
+        <th class="responsive-table__header-cell" style="width: 36px; text-align: center">
+          <p-checkbox [binary]="true" [ngModel]="allPageSelected()" (ngModelChange)="toggleSelectAll()" />
+        </th>
+        <th
+          appRtColDef="date"
+          [appRtColDefMinWidth]="100"
+          [appRtColDefPriority]="1"
+          [appRtColDefCollapsible]="false"
+        >
+          日期
+        </th>
+        <th
+          appRtColDef="time"
+          [appRtColDefMinWidth]="120"
+          [appRtColDefPriority]="2"
+          [appRtColDefCollapsible]="false"
+        >
+          時間
+        </th>
+        <th
+          appRtColDef="class"
+          [appRtColDefMinWidth]="180"
+          [appRtColDefPriority]="3"
+          [appRtColDefCollapsible]="false"
+        >
+          班級 / 課程 / 分校
+        </th>
+        <th appRtColDef="teacher" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">老師</th>
+        <th appRtColDef="adjustment" [appRtColDefMinWidth]="88" [appRtColDefPriority]="5">異動</th>
+        <th appRtColDef="status" [appRtColDefMinWidth]="88" [appRtColDefPriority]="6">狀態</th>
+        <th class="responsive-table__header-cell" style="width: 48px"></th>
+      </tr>
+    </ng-template>
+
+    <ng-template #listBody>
+      @for (session of paginatedSessions(); track session.id) {
+        <tr appRtRow [appRtRow]="session" [appRtRowId]="session.id">
+          <td class="responsive-table__cell" style="text-align: center">
+            <p-checkbox
+              [binary]="true"
+              [ngModel]="selectedIds().has(session.id)"
+              (ngModelChange)="toggleSelect(session.id)"
+            />
+          </td>
+          <td appRtColCell="date">
+            {{ session.sessionDate | date: 'MM/dd' }}
+            ({{ getDayLabel(session.sessionDate) }})
+          </td>
+          <td appRtColCell="time">{{ session.startTime }}–{{ session.endTime }}</td>
+          <td appRtColCell="class">
+            <div class="session-list__class">
+              <span class="session-list__class-line">
+                {{ session.className }} · {{ session.courseName }} · {{ session.campusName }}
+              </span>
+            </div>
+          </td>
+          <td appRtColCell="teacher">
+            @if (session.assignmentStatus === 'unassigned') {
+              <p-tag severity="warn" value="未指派" />
+            } @else {
+              {{ session.teacherName }}
+            }
+          </td>
+          <td appRtColCell="adjustment">
+            @if (session.hasChanges) {
+              <p-tag
+                severity="warn"
+                value="有異動"
+                class="session-list__changes-tag"
+                (click)="openChangesPopover($event, session)"
+              />
+            } @else {
+              <span class="session-list__adjustment-empty">—</span>
+            }
+          </td>
+          <td appRtColCell="status">
+            <p-tag [severity]="sessionStatusSeverity(session)" [value]="sessionStatusLabel(session)" />
+          </td>
+          <td class="responsive-table__cell" style="text-align: center">
+            <button
+              pButton
+              icon="pi pi-ellipsis-v"
+              [text]="true"
+              severity="secondary"
+              size="small"
+              (click)="openContextMenu($event, session)"
+            ></button>
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td
+            class="responsive-table__cell"
+            colspan="8"
+            style="text-align: center; padding: 2rem; color: var(--zinc-400)"
+          >
+            此期間沒有課堂
+          </td>
+        </tr>
+      }
+    </ng-template>
+  }
+
+<p-popover #changesPopover styleClass="session-list__changes-popover">
+  @if (popoverLoading()) {
+    <div class="session-list__popover-loading">
+      <p-skeleton height="14px" borderRadius="4px" />
+      <p-skeleton height="14px" borderRadius="4px" width="80%" />
+    </div>
+  } @else if (popoverChanges().length === 0) {
+    <p class="session-list__popover-empty">無異動紀錄</p>
+  } @else {
+    <ul class="session-list__popover-list">
+      @for (change of popoverChanges(); track change.id) {
+        <li class="session-list__popover-item">
+          <div class="session-list__popover-item-header">
+            <p-tag
+              [severity]="changeTypeSeverity(change.changeType)"
+              [value]="changeTypeLabel(change.changeType)"
+              styleClass="session-list__popover-type-tag"
+            />
+            <span class="session-list__popover-detail">
+              @switch (change.changeType) {
+                @case ('reschedule') {
+                  @if (change.originalSessionDate) {
+                    {{ change.originalSessionDate | date: 'MM/dd' }}
+                    {{ change.originalStartTime }}–{{ change.originalEndTime }}
+                    →
+                  }
+                  {{ change.newSessionDate | date: 'MM/dd' }}
+                  {{ change.newStartTime }}–{{ change.newEndTime }}
+                }
+                @case ('substitute') {
+                  代課老師：{{ change.substituteTeacherName }}
+                }
+                @case ('cancellation') {
+                  {{ change.reason || '（未填原因）' }}
+                }
+                @case ('uncancel') {
+                  恢復為已排課
+                }
+              }
+            </span>
+          </div>
+          @if (change.createdByName) {
+            <div class="session-list__popover-meta">
+              {{ change.createdByName }}・{{ change.createdAt | date: 'MM/dd HH:mm' }}
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  }
+</p-popover>
+</section>

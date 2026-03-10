@@ -1,0 +1,115 @@
+<div class="cal-detail">
+  <!-- Session info -->
+  <div class="cal-detail__section">
+    <div class="cal-detail__row">
+      <i class="pi pi-calendar cal-detail__icon"></i>
+      <span>{{ session()?.sessionDate }} {{ session()?.startTime }}–{{ session()?.endTime }}</span>
+    </div>
+    <div class="cal-detail__row">
+      <i class="pi pi-book cal-detail__icon"></i>
+      <span>{{ session()?.courseName }}</span>
+    </div>
+    <div class="cal-detail__row">
+      <i class="pi pi-building cal-detail__icon"></i>
+      <span>{{ session()?.campusName }}</span>
+    </div>
+    <div class="cal-detail__row">
+      <i class="pi pi-user cal-detail__icon"></i>
+      @if (session()?.assignmentStatus === 'unassigned') {
+        <span class="cal-detail__unassigned">未指派</span>
+      } @else {
+        <span>{{ session()?.teacherName }}</span>
+      }
+    </div>
+    <div class="cal-detail__row">
+      <i class="pi pi-info-circle cal-detail__icon"></i>
+      <p-tag [value]="statusLabel()" [severity]="statusSeverity()" />
+    </div>
+    <div class="cal-detail__row">
+      <i class="pi pi-history cal-detail__icon"></i>
+      <p-tag [value]="adjustmentLabel()" [severity]="adjustmentSeverity()" />
+    </div>
+  </div>
+
+  <!-- Change history -->
+  @if (loadingChanges()) {
+    <div class="cal-detail__section">
+      <p-skeleton height="60px" borderRadius="6px" />
+    </div>
+  } @else if (sessionChanges().length > 0) {
+    <div class="cal-detail__section">
+      <p class="cal-detail__section-title">異動紀錄</p>
+      @for (c of sessionChanges(); track c.id) {
+        <div class="cal-detail__change">
+          <p-tag
+            [value]="changeTypeLabel(c.changeType)"
+            [severity]="changeTypeSeverity(c.changeType)"
+          />
+          <div class="cal-detail__change-body">
+            @if (c.substituteTeacherName) {
+              <span>代課老師：{{ c.substituteTeacherName }}</span>
+            }
+            @if (c.changeType === 'reschedule' && c.newSessionDate) {
+              <span>
+                @if (c.originalSessionDate) {
+                  {{ c.originalSessionDate | date:'MM/dd' }} {{ c.originalStartTime }}–{{ c.originalEndTime }} →
+                }
+                {{ c.newSessionDate | date:'MM/dd' }} {{ c.newStartTime }}–{{ c.newEndTime }}
+              </span>
+            }
+            @if (c.reason) {
+              <span class="cal-detail__reason">原因：{{ c.reason }}</span>
+            }
+            <span class="cal-detail__by">{{ c.createdByName }}・{{ c.createdAt | date:'MM/dd HH:mm' }}</span>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  <div class="cal-detail__actions">
+    @if (session()?.status !== 'cancelled') {
+      <p-button
+        label="停課"
+        severity="danger"
+        [outlined]="true"
+        size="small"
+        icon="pi pi-ban"
+        [disabled]="!canOperate()"
+        [pTooltip]="canOperate() ? '' : '課堂已結束，無法操作'"
+        tooltipPosition="top"
+        (onClick)="openCancel()"
+      />
+      <p-button
+        label="代課"
+        severity="warn"
+        [outlined]="true"
+        size="small"
+        icon="pi pi-users"
+        [disabled]="!canOperate()"
+        [pTooltip]="canOperate() ? '' : '課堂已結束，無法操作'"
+        tooltipPosition="top"
+        (onClick)="openSubstitute()"
+      />
+      <p-button
+        label="調課"
+        severity="info"
+        [outlined]="true"
+        size="small"
+        icon="pi pi-calendar-plus"
+        [disabled]="!canOperate()"
+        [pTooltip]="canOperate() ? '' : '課堂已結束，無法操作'"
+        tooltipPosition="top"
+        (onClick)="openReschedule()"
+      />
+    }
+    <p-button
+      label="關閉"
+      severity="secondary"
+      [text]="true"
+      size="small"
+      (onClick)="closeDialog()"
+      class="ml-auto"
+    />
+  </div>
+</div>

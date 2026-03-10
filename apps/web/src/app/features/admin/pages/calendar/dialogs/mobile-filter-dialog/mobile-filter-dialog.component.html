@@ -1,0 +1,101 @@
+<div class="mobile-filter-dialog">
+  <div class="mobile-filter-dialog__row">
+    <label class="mobile-filter-dialog__label">課堂狀態</label>
+    <p-multiselect
+      [options]="statusOptions"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="課堂狀態"
+      selectedItemsLabel="{0} 種狀態"
+      [appendTo]="'body'"
+      [ngModel]="selectedStatuses()"
+      (ngModelChange)="selectedStatuses.set($event)"
+      styleClass="w-full"
+    />
+  </div>
+  @if (campuses().length > 1) {
+    <div class="mobile-filter-dialog__row">
+      <label class="mobile-filter-dialog__label">分校</label>
+      <p-multiselect
+        [options]="campuses()"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="所有分校"
+        selectedItemsLabel="{0} 個分校"
+        [appendTo]="'body'"
+        [filter]="true"
+        filterBy="name"
+        [ngModel]="selectedCampusIds()"
+        (ngModelChange)="onCampusIdsChange($event)"
+        styleClass="w-full"
+      />
+    </div>
+  }
+  @if (availableCourses().length > 0) {
+    <div class="mobile-filter-dialog__row">
+      <label class="mobile-filter-dialog__label">課程</label>
+      <p-multiselect
+        [options]="availableCourses()"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="所有課程"
+        selectedItemsLabel="{0} 個課程"
+        [appendTo]="'body'"
+        [filter]="true"
+        filterBy="name"
+        [ngModel]="selectedCourseIds()"
+        (ngModelChange)="onCourseIdsChange($event)"
+        styleClass="w-full"
+      />
+    </div>
+  }
+  <div class="mobile-filter-dialog__row">
+    <label class="mobile-filter-dialog__label">老師</label>
+    <p-multiselect
+      [options]="availableTeacherGroups()"
+      [group]="true"
+      optionGroupLabel="label"
+      optionGroupChildren="items"
+      optionLabel="displayName"
+      optionValue="id"
+      placeholder="所有老師"
+      selectedItemsLabel="{0} 位老師"
+      [appendTo]="'body'"
+      [filter]="true"
+      filterPlaceholder="搜尋老師..."
+      [ngModel]="selectedTeacherIds()"
+      (ngModelChange)="onTeacherIdsChange($event)"
+      styleClass="w-full"
+    />
+  </div>
+  @if (availableClasses().length > 0) {
+    <div class="mobile-filter-dialog__row">
+      <label class="mobile-filter-dialog__label">班級</label>
+      <p-select
+        [options]="availableClasses()"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="所有班級"
+        [appendTo]="'body'"
+        [filter]="true"
+        [showClear]="true"
+        [ngModel]="selectedClassId()"
+        (ngModelChange)="onClassChange($event)"
+        styleClass="w-full"
+      />
+    </div>
+  }
+  <div class="mobile-filter-dialog__actions">
+    @if (hasActiveFilters()) {
+      <p-button
+        label="清除全部"
+        severity="secondary"
+        [text]="true"
+        size="small"
+        icon="pi pi-times"
+        (onClick)="clearFilters()"
+      />
+    }
+    <p-button label="套用" size="small" (onClick)="apply()" />
+  </div>
+</div>

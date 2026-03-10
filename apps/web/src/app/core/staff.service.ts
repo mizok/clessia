@@ -101,6 +101,13 @@ export class StaffService {
     return this.http.put<{ data: Staff }>(`${this.endpoint}/${id}`, input);
   }
 
+  archive(id: string): Observable<{ success: boolean; unassignedSessions: number }> {
+    return this.http.patch<{ success: boolean; unassignedSessions: number }>(
+      `${this.endpoint}/${id}/archive`,
+      {},
+    );
+  }
+
   delete(id: string): Observable<{ success: boolean }> {
     return this.http.delete<{ success: boolean }>(`${this.endpoint}/${id}`);
   }

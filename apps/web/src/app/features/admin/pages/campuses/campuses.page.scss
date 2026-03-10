@@ -309,57 +309,7 @@
   }
 }
 
-// Dialog Form
-.campus-dialog {
-  &__form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-5);
-  }
-
-  &__field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-
-    &--inline {
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-    }
-  }
-
-  &__label {
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-    color: var(--zinc-700);
-  }
-
-  &__required {
-    color: var(--error-600);
-    margin-left: 2px;
-  }
-
-  &__switch-group {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-  }
-
-  &__switch-label {
-    font-size: var(--text-sm);
-    color: var(--zinc-600);
-  }
-
-  &__footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-3);
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--zinc-100);
-    margin-top: var(--space-2);
-  }
-}
+// PrimeNG Overrides
 
 // PrimeNG Overrides (component-specific only, global styles in styles.scss)
 :host ::ng-deep {
@@ -397,28 +347,6 @@
       border-top: 1px solid var(--zinc-100);
       padding: var(--space-3) var(--space-4);
       background: var(--zinc-50);
-    }
-  }
-
-  .p-dialog {
-    .p-dialog-header {
-      padding: var(--space-5) var(--space-6);
-      border-bottom: 1px solid var(--zinc-100);
-
-      .p-dialog-title {
-        font-size: var(--text-lg);
-        font-weight: var(--font-semibold);
-        color: var(--zinc-900);
-      }
-    }
-
-    .p-dialog-content {
-      padding: var(--space-6);
-    }
-
-    .p-dialog-footer {
-      padding: 0;
-      border: none;
     }
   }
 
@@ -478,13 +406,6 @@
     &__card-view {
       display: flex;
     }
-  }
-
-  // Dialog full width on mobile
-  :host ::ng-deep .p-dialog {
-    width: calc(100vw - var(--space-8)) !important;
-    max-width: 100%;
-    margin: var(--space-4);
   }
 }
 

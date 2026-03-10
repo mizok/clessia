@@ -1,0 +1,45 @@
+<form [formGroup]="form" (ngSubmit)="submit()" class="cal-op-form">
+  @if (submitError(); as error) {
+    <div class="cal-op-form__error" role="alert">{{ error }}</div>
+  }
+
+  <div class="cal-op-form__summary">
+    <span class="cal-op-form__summary-label">課堂</span>
+    <span class="cal-op-form__summary-value">
+      {{ session()?.className }} · {{ session()?.sessionDate }} {{ session()?.startTime }}–{{ session()?.endTime }}
+    </span>
+  </div>
+
+  <div class="cal-op-form__field">
+    <label for="assignTeacher" class="cal-op-form__label">
+      指派老師<span class="cal-op-form__required">*</span>
+    </label>
+    <p-select
+      id="assignTeacher"
+      formControlName="teacherId"
+      [options]="teachers()"
+      optionLabel="displayName"
+      optionValue="id"
+      placeholder="選擇老師"
+      styleClass="w-full"
+      appendTo="body"
+      [filter]="true"
+      filterBy="displayName"
+      [loading]="loadingTeachers()"
+    />
+    @if (!loadingTeachers() && teachers().length === 0) {
+      <p class="cal-op-form__hint">目前沒有符合該課堂分校與科目的可指派老師。</p>
+    }
+  </div>
+
+  <div class="cal-op-form__footer">
+    <p-button label="取消" severity="secondary" [text]="true" (onClick)="closeDialog()" />
+    <p-button
+      label="確認指派"
+      severity="primary"
+      type="submit"
+      [disabled]="form.invalid || loadingTeachers()"
+      [loading]="isSubmitting()"
+    />
+  </div>
+</form>

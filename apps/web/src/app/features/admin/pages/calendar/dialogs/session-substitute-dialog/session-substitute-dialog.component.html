@@ -1,0 +1,50 @@
+<form [formGroup]="form" (ngSubmit)="submit()" class="cal-op-form">
+  <div class="cal-op-form__field">
+    <label for="substituteTeacher" class="cal-op-form__label">
+      代課老師<span class="cal-op-form__required">*</span>
+    </label>
+    <p-select
+      id="substituteTeacher"
+      formControlName="teacherId"
+      [options]="teacherOptions()"
+      optionLabel="displayName"
+      optionValue="id"
+      placeholder="選擇代課老師"
+      styleClass="w-full"
+      appendTo="body"
+      [filter]="true"
+      filterBy="displayName"
+      [loading]="loadingTeachers()"
+    >
+      <ng-template pTemplate="item" let-item>
+        <div class="sub-teacher-option">
+          <span>{{ item.displayName }}</span>
+          <span class="sub-teacher-option__count">本週 {{ item.weeklySessionCount }} 堂</span>
+        </div>
+      </ng-template>
+    </p-select>
+    @if (!loadingTeachers() && teacherOptions().length === 0) {
+      <p class="cal-op-form__hint">目前沒有符合該課堂分校與科目的代課老師。</p>
+    }
+  </div>
+  <div class="cal-op-form__field">
+    <label for="substituteReason" class="cal-op-form__label">代課原因（選填）</label>
+    <textarea
+      id="substituteReason"
+      pTextarea
+      formControlName="reason"
+      placeholder="例如：原老師請假..."
+      class="cal-op-form__textarea"
+    ></textarea>
+  </div>
+  <div class="cal-op-form__footer">
+    <p-button label="取消" severity="secondary" [text]="true" (onClick)="closeDialog()" />
+    <p-button
+      label="確認代課"
+      severity="primary"
+      type="submit"
+      [disabled]="form.invalid"
+      [loading]="isSubmitting()"
+    />
+  </div>
+</form>

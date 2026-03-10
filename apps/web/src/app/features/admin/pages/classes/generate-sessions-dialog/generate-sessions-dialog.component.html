@@ -1,0 +1,200 @@
+<div class="form-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      @if (breadcrumb()) {
+        <span class="dialog-header-inline__breadcrumb">{{ breadcrumb() }}</span>
+      }
+      <span class="dialog-header-inline__title">產生課堂</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <div class="form-dialog__content">
+    @if (step() === 'result') {
+      <div class="gen-result">
+        <div class="gen-result__icon">
+          <i class="pi pi-check-circle"></i>
+        </div>
+        <div class="gen-result__body">
+          @let result = generationResult()!;
+          <p class="gen-result__title">
+            已建立 {{ result.createdAssigned + result.createdUnassigned }} 堂課
+          </p>
+          @if (result.createdUnassigned > 0) {
+            <p class="gen-result__detail">
+              其中 {{ result.createdUnassigned }} 堂待指派老師
+            </p>
+          }
+          @if (result.skippedExisting > 0) {
+            <p class="gen-result__detail">
+              {{ result.skippedExisting }} 堂已存在，已略過
+            </p>
+          }
+        </div>
+      </div>
+    } @else if (step() === 'input') {
+      <p class="generate-hint">選擇日期範圍，系統將依照上課時間表批次產生課堂記錄。</p>
+
+      <div class="form-dialog__row">
+        <div class="form-dialog__field">
+          <label class="form-dialog__label"
+            >開始日期<span class="form-dialog__required">*</span></label
+          >
+          <p-datepicker
+            [ngModel]="generateFrom()"
+            (ngModelChange)="generateFrom.set($event)"
+            dateFormat="yy-mm-dd"
+            [showIcon]="true"
+            placeholder="選擇日期"
+            styleClass="w-full"
+            [appendTo]="'body'"
+          />
+        </div>
+        <div class="form-dialog__field">
+          <label class="form-dialog__label"
+            >結束日期<span class="form-dialog__required">*</span></label
+          >
+          <p-datepicker
+            [ngModel]="generateTo()"
+            (ngModelChange)="generateTo.set($event)"
+            dateFormat="yy-mm-dd"
+            [showIcon]="true"
+            placeholder="選擇日期"
+            styleClass="w-full"
+            [appendTo]="'body'"
+          />
+        </div>
+      </div>
+
+      <div class="form-dialog__field">
+        <label class="form-dialog__label">排除日期（選填）</label>
+        <p-datepicker
+          [ngModel]="excludeDates()"
+          (ngModelChange)="excludeDates.set($event)"
+          selectionMode="multiple"
+          dateFormat="yy-mm-dd"
+          [showIcon]="true"
+          placeholder="選擇要排除的日期"
+          styleClass="w-full"
+          [appendTo]="'body'"
+        />
+        @if (excludeDates().length > 0) {
+          <span class="generate-exclude-hint">已排除 {{ excludeDates().length }} 個日期</span>
+        }
+      </div>
+    } @else {
+      <!-- Preview Step -->
+      <div class="generate-preview">
+        <div class="generate-preview__summary">
+          <span class="generate-preview__total">共 {{ previewSessions().length }} 筆</span>
+          <span class="generate-preview__new">新增：{{ newCount() }}</span>
+          <span class="generate-preview__skip">略過：{{ skippedCount() }}</span>
+        </div>
+
+        @if (previewSessions().length === 0) {
+          <div class="generate-preview__empty">
+            <i class="pi pi-calendar-times"></i>
+            <p>在此日期範圍內沒有符合時間表的課堂</p>
+          </div>
+        } @else {
+          <div class="generate-preview__table-wrap">
+            <table class="generate-preview__table">
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>星期</th>
+                  <th>時間</th>
+                  <th>老師</th>
+                  <th>狀態</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (s of paginatedPreviewSessions(); track $index) {
+                  <tr [class.generate-preview__row--exists]="s.exists">
+                    <td>{{ s.sessionDate }}</td>
+                    <td>{{ getWeekdayLabel(s.weekday) }}</td>
+                    <td>{{ s.startTime.substring(0, 5) }}-{{ s.endTime.substring(0, 5) }}</td>
+                    <td>{{ s.teacherName ?? '—' }}</td>
+                    <td>
+                      @if (s.exists) {
+                        <span class="generate-preview__badge generate-preview__badge--skip"
+                          >已存在</span
+                        >
+                      } @else {
+                        <span class="generate-preview__badge generate-preview__badge--new"
+                          >將新增</span
+                        >
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          @if (showPreviewPagination()) {
+            <div class="generate-preview__pagination">
+              <p-paginator
+                [first]="previewPaginationFirst()"
+                [rows]="previewPaginationRows()"
+                [totalRecords]="previewSessions().length"
+                [rowsPerPageOptions]="isMobile() ? undefined : previewPaginationRowsPerPageOptions"
+                [showCurrentPageReport]="true"
+                [currentPageReportTemplate]="
+                  isMobile()
+                    ? '第 {currentPage} / {totalPages} 頁'
+                    : '顯示 {first} - {last}，共 {totalRecords} 筆'
+                "
+                [showPageLinks]="!isMobile()"
+                [showFirstLastIcon]="!isMobile()"
+                (onPageChange)="onPreviewPaginationChange($event)"
+              />
+            </div>
+          }
+        }
+      </div>
+    }
+  </div>
+
+  <div class="form-dialog__footer">
+    @if (step() === 'result') {
+      <p-button label="稍後指派" [text]="true" severity="secondary" (onClick)="closeDone()" />
+      @if (generationResult()!.createdUnassigned > 0) {
+        <p-button
+          label="前往指派老師"
+          icon="pi pi-arrow-right"
+          iconPos="right"
+          (onClick)="goToCalendarList()"
+        />
+      } @else {
+        <p-button label="完成" (onClick)="closeDone()" />
+      }
+    } @else if (step() === 'input') {
+      <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+      <p-button
+        label="預覽課堂"
+        icon="pi pi-eye"
+        [loading]="loading()"
+        [disabled]="!generateFrom() || !generateTo()"
+        (onClick)="preview()"
+      />
+    } @else {
+      <p-button
+        label="返回修改"
+        icon="pi pi-arrow-left"
+        [text]="true"
+        severity="secondary"
+        (onClick)="step.set('input')"
+      />
+      <p-button
+        label="確認建立"
+        icon="pi pi-check"
+        [loading]="loading()"
+        [disabled]="newCount() === 0"
+        (onClick)="confirm()"
+      />
+    }
+  </div>
+</div>

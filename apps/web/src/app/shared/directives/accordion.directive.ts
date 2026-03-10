@@ -18,9 +18,9 @@ export class AccordionDirective {
   }
 
   toggle(id: string) {
-    this.openItems.update(current => {
+    this.openItems.update((current) => {
       const isCurrentlyOpen = current.has(id);
-      
+
       if (this.multi()) {
         const newSet = new Set(current);
         if (isCurrentlyOpen) {
@@ -41,17 +41,17 @@ export class AccordionDirective {
   }
 
   expand(id: string) {
-    this.openItems.update(current => {
-       if (this.multi()) {
-         const newSet = new Set(current);
-         newSet.add(id);
-         return newSet;
-       } else {
-         return new Set([id]);
-       }
+    this.openItems.update((current) => {
+      if (this.multi()) {
+        const newSet = new Set(current);
+        newSet.add(id);
+        return newSet;
+      } else {
+        return new Set([id]);
+      }
     });
   }
-  
+
   collapseAll() {
     this.openItems.set(new Set());
   }

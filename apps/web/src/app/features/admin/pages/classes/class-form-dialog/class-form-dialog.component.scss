@@ -1,0 +1,159 @@
+@use 'shared/breakpoints' as bp;
+
+// Inherits .form-dialog and .dialog-header-inline from global styles
+
+.schedule-entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+:host ::ng-deep .form-dialog__error-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) var(--space-4) 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--p-red-200);
+  background: var(--p-red-50);
+  color: var(--p-red-700);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+}
+
+.schedule-entry {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--zinc-50);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--zinc-200);
+
+  &__close {
+    position: absolute;
+    top: 0;
+    right: 0;
+    transform: translate(50%, -50%);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--zinc-400);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: background var(--transition-fast);
+
+    .pi {
+      font-size: 10px;
+    }
+
+    &:hover {
+      background: var(--zinc-600);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+
+    &--meta {
+      gap: var(--space-3);
+    }
+  }
+
+  &__weekday {
+    min-width: 90px;
+  }
+
+  &__teacher {
+    width: 100%;
+    min-width: 280px;
+
+    ::ng-deep .p-select-label {
+      padding: var(--space-2) var(--space-3) !important;
+    }
+  }
+
+  &__time-input,
+  &__date-input {
+    padding: 6px 10px;
+    border: 1px solid var(--zinc-300);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--zinc-800);
+    background: #fff;
+    height: 36px;
+    cursor: pointer;
+    transition: border-color var(--transition-fast);
+
+    &:hover {
+      border-color: var(--accent-400);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: var(--accent-500);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+
+    &:disabled {
+      background: var(--zinc-50);
+      color: var(--zinc-400);
+      cursor: not-allowed;
+    }
+  }
+
+  &__time-input {
+    width: 112px;
+  }
+
+  &__date-input {
+    width: 140px;
+  }
+
+  &__dash {
+    color: var(--zinc-400);
+    font-size: var(--text-sm);
+  }
+
+  &__effective {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  &__meta-label {
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+    white-space: nowrap;
+  }
+}
+
+@include bp.respond-to('tablet-portrait') {
+  .form-dialog {
+    &__row {
+      flex-direction: column;
+    }
+  }
+
+  .schedule-entry {
+    &__row {
+      flex-wrap: wrap;
+    }
+  }
+}

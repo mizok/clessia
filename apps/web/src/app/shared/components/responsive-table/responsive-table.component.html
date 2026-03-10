@@ -1,0 +1,34 @@
+<div class="responsive-table">
+  <div #containerRef class="responsive-table__viewport">
+    <table #tableRef class="responsive-table__table">
+      <thead class="responsive-table__head">
+        <ng-container *ngTemplateOutlet="headTemplate(); injector: templateInjector" />
+      </thead>
+      <tbody class="responsive-table__body">
+        <ng-container
+          *ngTemplateOutlet="bodyTemplate(); context: bodyContext; injector: templateInjector"
+        />
+      </tbody>
+    </table>
+  </div>
+
+  @if (shouldShowPaginator()) {
+    <div class="responsive-table__paginator">
+      @if (effectivePagination(); as pagination) {
+        <p-paginator
+          [first]="pagination.first"
+          [rows]="pagination.rows"
+          [totalRecords]="pagination.totalRecords"
+          [rowsPerPageOptions]="pagination.rowsPerPageOptions"
+          [showCurrentPageReport]="pagination.showCurrentPageReport"
+          [currentPageReportTemplate]="pagination.currentPageReportTemplate"
+          [showPageLinks]="!isCompactPaginator()"
+          [showFirstLastIcon]="!isCompactPaginator()"
+          [alwaysShow]="pagination.alwaysShow"
+          [appendTo]="'body'"
+          (onPageChange)="handlePageChange($event)"
+        />
+      }
+    </div>
+  }
+</div>

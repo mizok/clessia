@@ -19,10 +19,6 @@
     display: flex;
     flex-direction: column; // Change to column to allow stacking if needed, though mostly for the container
     justify-content: flex-end; // Align tabs to bottom
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
     z-index: 120;
     // Remove height/padding/bg from container so it doesn't block clicks in upper space (though overlay handles that)
     pointer-events: none; // Allow clicks to pass through empty space (e.g. above tabs)

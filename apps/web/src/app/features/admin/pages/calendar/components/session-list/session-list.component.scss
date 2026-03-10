@@ -1,0 +1,132 @@
+@use 'shared/breakpoints' as bp;
+
+:host {
+  display: block;
+  min-height: 0;
+  height: 100%;
+}
+
+.session-list {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+  &__count {
+    font-size: 0.8125rem;
+    color: var(--text-secondary, #71717a);
+    padding: var(--space-2) var(--space-1);
+    margin: 0;
+  }
+
+  &__table {
+    min-height: 0;
+    flex: 1 1 0;
+  }
+
+  &__skeleton {
+    padding: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  &__class {
+    display: flex;
+    align-items: center;
+  }
+
+  &__class-line {
+    color: var(--zinc-700);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-normal);
+  }
+
+  &__adjustment-empty {
+    color: var(--zinc-400);
+  }
+
+  &__changes-tag {
+    cursor: pointer;
+
+    &:hover ::ng-deep .p-tag {
+      opacity: 0.85;
+    }
+  }
+
+  &__popover-loading {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 220px;
+    padding: var(--space-1) 0;
+  }
+
+  &__popover-empty {
+    font-size: var(--text-sm);
+    color: var(--zinc-400);
+    margin: 0;
+    padding: var(--space-1) 0;
+  }
+
+  &__popover-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 220px;
+    max-width: 300px;
+  }
+
+  &__popover-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+
+    & + & {
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--zinc-100);
+    }
+  }
+
+  &__popover-item-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  &__popover-type-tag.p-tag {
+    font-size: var(--text-xs);
+    flex-shrink: 0;
+  }
+
+  &__popover-detail {
+    font-size: var(--text-sm);
+    color: var(--zinc-700);
+    line-height: var(--leading-snug);
+  }
+
+  &__popover-meta {
+    font-size: var(--text-xs);
+    color: var(--zinc-400);
+    padding-left: calc(var(--space-2) + 1.75rem); // align under detail text
+  }
+}
+
+@include bp.respond-to-container('shell-content', 'tablet-portrait') {
+  .session-list {
+    &__skeleton {
+      padding: var(--space-2);
+    }
+  }
+}
+
+@include bp.respond-to-container('shell-content', 'mobile') {
+  .session-list {
+    &__skeleton {
+      padding: var(--space-2) var(--space-3);
+    }
+  }
+}

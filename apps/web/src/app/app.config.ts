@@ -8,6 +8,7 @@ import Aura from '@primeuix/themes/aura';
 
 import { routes } from './app.routes';
 import { authInterceptor } from '@core/auth.interceptor';
+import { provideSystemClock } from '@core/system-clock.providers';
 
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -80,6 +81,7 @@ export const appConfig: ApplicationConfig = {
       },
       ripple: true,
     }),
+    provideSystemClock(),
     DialogService,
   ],
 };

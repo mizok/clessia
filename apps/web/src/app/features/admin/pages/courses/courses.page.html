@@ -1,4 +1,4 @@
-<p-toast />
+<p-toast appendTo="body" [baseZIndex]="25000" />
 <p-confirmDialog />
 
 <div class="courses">
@@ -8,11 +8,7 @@
       <h1 class="courses__title">課程管理</h1>
       <p class="courses__subtitle">管理您的補習班課程資訊</p>
     </div>
-    <p-button
-      label="新增課程"
-      icon="pi pi-plus"
-      (onClick)="openCreateDialog()"
-    />
+    <p-button label="新增課程" icon="pi pi-plus" (onClick)="openCreateDialog()" />
   </header>
 
   <!-- Main Card -->
@@ -20,8 +16,8 @@
     <!-- Toolbar with Search and Filters -->
     <div class="courses__toolbar">
       <div class="courses__search">
-        <p-iconField iconPosition="left">
-          <p-inputIcon styleClass="pi pi-search" />
+        <p-iconfield iconPosition="left">
+          <p-inputicon styleClass="pi pi-search" />
           <input
             type="text"
             pInputText
@@ -29,7 +25,7 @@
             [ngModel]="searchQuery()"
             (ngModelChange)="searchQuery.set($event)"
           />
-        </p-iconField>
+        </p-iconfield>
       </div>
 
       <div class="courses__filters">
@@ -39,6 +35,7 @@
           (ngModelChange)="selectedCampusId.set($event)"
           placeholder="所有分校"
           [showClear]="true"
+          [appendTo]="'body'"
           styleClass="courses__filter-select"
         />
         <p-select
@@ -47,6 +44,7 @@
           (ngModelChange)="selectedSubjectId.set($event)"
           placeholder="所有科目"
           [showClear]="true"
+          [appendTo]="'body'"
           styleClass="courses__filter-select"
         />
       </div>
@@ -115,11 +113,7 @@
             title="尚未建立課程"
             description="開始建立您的第一個課程來管理補習班教學"
           >
-            <p-button
-              label="新增課程"
-              icon="pi pi-plus"
-              (onClick)="openCreateDialog()"
-            />
+            <p-button label="新增課程" icon="pi pi-plus" (onClick)="openCreateDialog()" />
           </app-empty-state>
         }
       } @else {
@@ -138,8 +132,9 @@
               <tr>
                 <th style="width: 25%">課程名稱</th>
                 <th style="width: 20%">分校</th>
-                <th style="width: 15%">科目</th>
-                <th style="width: 20%">說明</th>
+                <th style="width: 10%">科目</th>
+                <th style="width: 15%">適合年級</th>
+                <th style="width: 15%">說明</th>
                 <th style="width: 10%">狀態</th>
                 <th style="width: 10%; text-align: right">操作</th>
               </tr>
@@ -161,6 +156,20 @@
                 </td>
                 <td>
                   <p-tag [value]="course.subjectName" severity="info" />
+                </td>
+                <td>
+                  <div class="course-table__grades">
+                    @for (grade of course.gradeLevels; track grade) {
+                      <p-tag
+                        [value]="grade"
+                        severity="secondary"
+                        [rounded]="true"
+                        styleClass="mr-1 mb-1"
+                      />
+                    } @empty {
+                      <span class="course-table__empty">未設定</span>
+                    }
+                  </div>
                 </td>
                 <td>
                   @if (course.description) {
@@ -228,6 +237,16 @@
                   <i class="pi pi-tag"></i>
                   <p-tag [value]="course.subjectName" severity="info" />
                 </div>
+                <div class="course-card__field">
+                  <i class="pi pi-users"></i>
+                  <div class="course-card__grades">
+                    @for (grade of course.gradeLevels; track grade) {
+                      <p-tag [value]="grade" severity="secondary" [rounded]="true" />
+                    } @empty {
+                      <span class="course-table__empty">未設定年級</span>
+                    }
+                  </div>
+                </div>
                 @if (course.description) {
                   <div class="course-card__field course-card__field--description">
                     <i class="pi pi-align-left"></i>
@@ -259,147 +278,10 @@
 
           <!-- Mobile pagination info -->
           @if (filteredCourses().length > 0) {
-            <div class="courses__mobile-count">
-              共 {{ filteredCourses().length }} 個課程
-            </div>
+            <div class="courses__mobile-count">共 {{ filteredCourses().length }} 個課程</div>
           }
         </div>
       }
     </div>
   </div>
 </div>
-
-<!-- Create/Edit Dialog -->
-<p-dialog
-  [header]="dialogTitle()"
-  [(visible)]="dialogVisible"
-  [modal]="true"
-  [closable]="!dialogLoading()"
-  [style]="{ width: '32rem' }"
-  (onHide)="closeDialog()"
->
-  <div class="course-dialog__form">
-    <!-- Campus Field (only for create) -->
-    @if (!isEditing()) {
-      <div class="course-dialog__field">
-        <label for="campusId" class="course-dialog__label">
-          分校<span class="course-dialog__required">*</span>
-        </label>
-        <p-select
-          inputId="campusId"
-          [options]="campusOptions()"
-          [ngModel]="formData().campusId"
-          (ngModelChange)="updateCampusId($event)"
-          placeholder="選擇分校"
-          [disabled]="dialogLoading()"
-          styleClass="w-full"
-        />
-      </div>
-    } @else {
-      <div class="course-dialog__field">
-        <label class="course-dialog__label">分校</label>
-        <div class="course-dialog__readonly">
-          {{ getCampusName(formData().campusId) }}
-        </div>
-      </div>
-    }
-
-    <!-- Name Field -->
-    <div class="course-dialog__field">
-      <label for="name" class="course-dialog__label">
-        課程名稱<span class="course-dialog__required">*</span>
-      </label>
-      <input
-        id="name"
-        type="text"
-        pInputText
-        [ngModel]="formData().name"
-        (ngModelChange)="updateName($event)"
-        placeholder="例如：國一數學"
-        [disabled]="dialogLoading()"
-        class="w-full"
-      />
-    </div>
-
-    <!-- Subject Field -->
-    <div class="course-dialog__field">
-      <div class="course-dialog__label-row">
-        <label for="subjectId" class="course-dialog__label">
-          科目<span class="course-dialog__required">*</span>
-        </label>
-        <p-button
-          label="管理科目"
-          icon="pi pi-cog"
-          [text]="true"
-          size="small"
-          severity="secondary"
-          (onClick)="subjectManagerVisible.set(true)"
-        />
-      </div>
-      <p-select
-        inputId="subjectId"
-        [options]="subjectOptions()"
-        [ngModel]="formData().subjectId"
-        (ngModelChange)="updateSubjectId($event)"
-        placeholder="選擇科目"
-        [disabled]="dialogLoading()"
-        styleClass="w-full"
-      />
-    </div>
-
-    <app-subject-manager
-      [(visible)]="subjectManagerVisible"
-      (changed)="onSubjectsChanged($event)"
-    />
-
-    <!-- Description Field -->
-    <div class="course-dialog__field">
-      <label for="description" class="course-dialog__label">說明</label>
-      <textarea
-        id="description"
-        pTextarea
-        [ngModel]="formData().description"
-        (ngModelChange)="updateDescription($event)"
-        placeholder="課程說明（選填）"
-        [disabled]="dialogLoading()"
-        [rows]="3"
-        class="w-full"
-      ></textarea>
-    </div>
-
-    <!-- Status Toggle (only for edit) -->
-    @if (isEditing()) {
-      <div class="course-dialog__field course-dialog__field--inline">
-        <label for="isActive" class="course-dialog__label">狀態</label>
-        <div class="course-dialog__switch-group">
-          <p-toggleswitch
-            inputId="isActive"
-            [ngModel]="formData().isActive"
-            (ngModelChange)="updateIsActive($event)"
-            [disabled]="dialogLoading()"
-          />
-          <span class="course-dialog__switch-label">
-            {{ formData().isActive ? '啟用中' : '已停用' }}
-          </span>
-        </div>
-      </div>
-    }
-
-    <!-- Footer Actions -->
-    <div class="course-dialog__footer">
-      <p-button
-        label="取消"
-        [text]="true"
-        severity="secondary"
-        (onClick)="closeDialog()"
-        [disabled]="dialogLoading()"
-      />
-      <p-button
-        [label]="isEditing() ? '儲存' : '建立'"
-        [icon]="dialogLoading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
-        (onClick)="saveCourse()"
-        [disabled]="dialogLoading() || !formData().name.trim() || !formData().subjectId || !formData().campusId"
-      />
-    </div>
-  </div>
-</p-dialog>
