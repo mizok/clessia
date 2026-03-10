@@ -287,7 +287,10 @@
                                 classId: cls.id,
                                 campusId: cls.campusId,
                                 courseId: cls.courseId,
+                                assignmentStatus: 'unassigned',
                               }"
+                              pTooltip="查看未指派課堂"
+                              tooltipPosition="top"
                             >
                               <i class="pi pi-exclamation-triangle"></i>
                               {{ cls.upcomingUnassignedCount }} 堂未指派
