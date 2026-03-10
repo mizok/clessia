@@ -140,7 +140,7 @@ export class GenerateSessionsDialogComponent {
     const from = this.generateFrom();
     const to = this.generateTo();
     this.ref.close({
-      action: 'navigate-calendar',
+      action: 'navigate-sessions',
       classId: c?.id,
       campusId: c?.campusId,
       courseId: c?.courseId,

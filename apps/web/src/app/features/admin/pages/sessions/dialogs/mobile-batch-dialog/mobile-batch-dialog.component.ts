@@ -14,7 +14,7 @@ import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { MessageService } from 'primeng/api';
 import type { BatchActionResult, BatchAssignResult } from '@core/sessions.service';
 import type { Staff } from '@core/staff.service';
-import { CalendarActionsService } from '../../services/calendar-actions.service';
+import { SessionsActionsService } from '../../services/sessions-actions.service';
 
 export type MobileBatchMode = 'assign' | 'time' | 'cancel' | 'uncancel';
 
@@ -43,7 +43,7 @@ export interface MobileBatchDialogResult {
 export class MobileBatchDialogComponent implements OnInit {
   private readonly config = inject(DynamicDialogConfig<MobileBatchDialogData>);
   private readonly ref = inject(DynamicDialogRef);
-  private readonly calendarActionsService = inject(CalendarActionsService);
+  private readonly calendarActionsService = inject(SessionsActionsService);
   private readonly messageService = inject(MessageService);
 
   protected readonly teachers = signal<Staff[]>([]);

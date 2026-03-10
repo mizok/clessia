@@ -6,24 +6,24 @@ import {
   type SessionListMenuRequest,
 } from '../session-list/session-list.component';
 
-export type CalendarBodyContextMenuEvent = SessionListMenuRequest;
-export type CalendarBodyBatchMode = BatchMode;
+export type SessionsBodyContextMenuEvent = SessionListMenuRequest;
+export type SessionsBodyBatchMode = BatchMode;
 
 @Component({
-  selector: 'app-calendar-body',
+  selector: 'app-sessions-body',
   imports: [SessionListComponent, SessionBatchComponent],
-  templateUrl: './calendar-body.component.html',
-  styleUrl: './calendar-body.component.scss',
+  templateUrl: './sessions-body.component.html',
+  styleUrl: './sessions-body.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CalendarBodyComponent {
+export class SessionsBodyComponent {
   readonly loading = input(false);
   readonly sessions = input<Session[]>([]);
   readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
   readonly selectedCount = input(0);
 
   readonly selectedIdsChange = output<string[]>();
-  readonly contextMenuRequested = output<CalendarBodyContextMenuEvent>();
+  readonly contextMenuRequested = output<SessionsBodyContextMenuEvent>();
   readonly clearSelection = output<void>();
-  readonly openBatchSheet = output<CalendarBodyBatchMode | null>();
+  readonly openBatchSheet = output<SessionsBodyBatchMode | null>();
 }

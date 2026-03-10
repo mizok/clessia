@@ -35,7 +35,7 @@ import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 import { CourseFormDialogComponent } from '../courses/course-form-dialog.component';
 import { ClassFormDialogComponent } from './class-form-dialog/class-form-dialog.component';
 import { GenerateSessionsDialogComponent } from './generate-sessions-dialog/generate-sessions-dialog.component';
-// SessionListDialogComponent removed — replaced by calendar list view
+// SessionListDialogComponent removed — replaced by sessions list view
 import { ClassDetailDialogComponent } from './class-detail-dialog/class-detail-dialog.component';
 import { DeactivateClassDialogComponent } from './deactivate-class-dialog/deactivate-class-dialog.component';
 
@@ -725,7 +725,7 @@ export class ClassesPage implements OnInit {
 
     if (ref)
       ref.onClose.subscribe((result) => {
-        if (result?.action === 'navigate-calendar') {
+        if (result?.action === 'navigate-sessions') {
           this.router.navigate(['/admin/sessions'], {
             queryParams: {
               classId: result.classId,

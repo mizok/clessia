@@ -8,12 +8,12 @@ import { CoursesService } from '@core/courses.service';
 import { SessionsService, type Session } from '@core/sessions.service';
 import { StaffService, type Staff } from '@core/staff.service';
 
-import { CalendarPage } from './calendar.page';
+import { SessionsPage } from './sessions.page';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
 
-describe('CalendarPage', () => {
-  let component: CalendarPage;
-  let fixture: ComponentFixture<CalendarPage>;
+describe('SessionsPage', () => {
+  let component: SessionsPage;
+  let fixture: ComponentFixture<SessionsPage>;
   const sessionsServiceMock = {
     list: vi.fn(() => of({ data: [] })),
     batchAssignTeacher: vi.fn(() =>
@@ -38,7 +38,7 @@ describe('CalendarPage', () => {
     sessionsServiceMock.batchUncancel.mockClear();
 
     await TestBed.configureTestingModule({
-      imports: [CalendarPage],
+      imports: [SessionsPage],
       providers: [
         {
           provide: ActivatedRoute,
@@ -67,7 +67,7 @@ describe('CalendarPage', () => {
       ],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(CalendarPage);
+    fixture = TestBed.createComponent(SessionsPage);
     component = fixture.componentInstance;
     fixture.componentRef.setInput('page', {
       label: 'Test',

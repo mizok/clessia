@@ -114,7 +114,7 @@ describe('ClassesPage', () => {
     await fixture.whenStable();
   });
 
-  it('navigates to calendar list with first and last session dates for the class', () => {
+  it('navigates to sessions list with first and last session dates for the class', () => {
     const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const cls = {
       id: 'class-1',
@@ -139,7 +139,7 @@ describe('ClassesPage', () => {
       campusId: 'campus-1',
       courseId: 'course-1',
     });
-    expect(navigateSpy).toHaveBeenCalledWith(['/admin/calendar'], {
+    expect(navigateSpy).toHaveBeenCalledWith(['/admin/sessions'], {
       queryParams: {
         view: 'list',
         classId: 'class-1',
@@ -172,7 +172,7 @@ describe('ClassesPage', () => {
       cls,
     );
 
-    expect(navigateSpy).toHaveBeenCalledWith(['/admin/calendar'], {
+    expect(navigateSpy).toHaveBeenCalledWith(['/admin/sessions'], {
       queryParams: {
         view: 'list',
         classId: 'class-1',

@@ -3,7 +3,7 @@
 
 <div class="cal">
   <section class="cal__controls">
-    <app-calendar-header />
+    <app-sessions-header />
 
     <app-session-filters
       [listDateRange]="listDateRange()"
@@ -29,7 +29,7 @@
     />
   </section>
 
-  <app-calendar-body
+  <app-sessions-body
     [loading]="loading()"
     [sessions]="filteredSessions()"
     [selectedIds]="selectedIds()"

@@ -2,10 +2,10 @@ import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { SessionsService } from '@core/sessions.service';
 
-import { CalendarActionsService } from './calendar-actions.service';
+import { SessionsActionsService } from './sessions-actions.service';
 
-describe('CalendarActionsService', () => {
-  let service: CalendarActionsService;
+describe('SessionsActionsService', () => {
+  let service: SessionsActionsService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -25,7 +25,7 @@ describe('CalendarActionsService', () => {
         },
       ],
     });
-    service = TestBed.inject(CalendarActionsService);
+    service = TestBed.inject(SessionsActionsService);
   });
 
   it('should be created', () => {

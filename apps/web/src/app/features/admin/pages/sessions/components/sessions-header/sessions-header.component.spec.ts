@@ -1,17 +1,17 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { CalendarHeaderComponent } from './calendar-header.component';
+import { SessionsHeaderComponent } from './sessions-header.component';
 
-describe('CalendarHeaderComponent', () => {
-  let component: CalendarHeaderComponent;
-  let fixture: ComponentFixture<CalendarHeaderComponent>;
+describe('SessionsHeaderComponent', () => {
+  let component: SessionsHeaderComponent;
+  let fixture: ComponentFixture<SessionsHeaderComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [CalendarHeaderComponent],
+      imports: [SessionsHeaderComponent],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(CalendarHeaderComponent);
+    fixture = TestBed.createComponent(SessionsHeaderComponent);
     component = fixture.componentInstance;
     fixture.componentRef.setInput('currentDate', new Date('2026-03-07T00:00:00.000Z'));
     fixture.componentRef.setInput('weekLabel', '本週');

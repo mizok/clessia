@@ -102,7 +102,7 @@ export const routes: Routes = [
           {
             path: RoutesCatalog.ADMIN_SESSIONS.relativePath,
             loadComponent: () =>
-              import('@features/admin/pages/calendar/calendar.page').then((m) => m.CalendarPage),
+              import('@features/admin/pages/sessions/sessions.page').then((m) => m.SessionsPage),
             data: { page: RoutesCatalog.ADMIN_SESSIONS },
           },
           {

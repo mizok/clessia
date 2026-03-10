@@ -6,10 +6,10 @@ import {
   type BatchAssignResult,
 } from '@core/sessions.service';
 
-export type CalendarActionBatchMode = 'assign' | 'time' | 'cancel' | 'uncancel';
+export type SessionsActionBatchMode = 'assign' | 'time' | 'cancel' | 'uncancel';
 
-export interface CalendarBatchRequest {
-  readonly mode: CalendarActionBatchMode | null;
+export interface SessionsBatchRequest {
+  readonly mode: SessionsActionBatchMode | null;
   readonly sessionIds: readonly string[];
   readonly teacherId: string | null;
   readonly startTime: string;
@@ -20,16 +20,16 @@ export interface CalendarBatchRequest {
 @Injectable({
   providedIn: 'root',
 })
-export class CalendarActionsService {
+export class SessionsActionsService {
   private readonly sessionsService = inject(SessionsService);
 
   previewBatch(
-    request: CalendarBatchRequest,
+    request: SessionsBatchRequest,
   ): Observable<BatchAssignResult | BatchActionResult> | null {
     return this.getBatchObservable(request, true);
   }
 
-  applyBatch(request: CalendarBatchRequest): Observable<BatchAssignResult | BatchActionResult> | null {
+  applyBatch(request: SessionsBatchRequest): Observable<BatchAssignResult | BatchActionResult> | null {
     return this.getBatchObservable(request, false);
   }
 
@@ -38,7 +38,7 @@ export class CalendarActionsService {
   }
 
   private getBatchObservable(
-    request: CalendarBatchRequest,
+    request: SessionsBatchRequest,
     dryRun: boolean,
   ): Observable<BatchAssignResult | BatchActionResult> | null {
     if (request.sessionIds.length === 0) return null;

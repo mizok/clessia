@@ -39,30 +39,30 @@ import {
   type MobileBatchDialogResult,
 } from './dialogs/mobile-batch-dialog/mobile-batch-dialog.component';
 import { SessionFiltersComponent, DEFAULT_STATUSES } from './components/session-filters/session-filters.component';
-import { CalendarHeaderComponent } from './components/calendar-header/calendar-header.component';
+import { SessionsHeaderComponent } from './components/sessions-header/sessions-header.component';
 import {
-  CalendarBodyComponent,
-  type CalendarBodyBatchMode,
-  type CalendarBodyContextMenuEvent,
-} from './components/calendar-body/calendar-body.component';
-import { CalendarActionsService } from './services/calendar-actions.service';
+  SessionsBodyComponent,
+  type SessionsBodyBatchMode,
+  type SessionsBodyContextMenuEvent,
+} from './components/sessions-body/sessions-body.component';
+import { SessionsActionsService } from './services/sessions-actions.service';
 
 @Component({
-  selector: 'app-calendar',
+  selector: 'app-sessions',
   standalone: true,
   imports: [
     ToastModule,
     MenuModule,
-    CalendarHeaderComponent,
-    CalendarBodyComponent,
+    SessionsHeaderComponent,
+    SessionsBodyComponent,
     SessionFiltersComponent,
   ],
   providers: [MessageService, DialogService],
-  templateUrl: './calendar.page.html',
-  styleUrl: './calendar.page.scss',
+  templateUrl: './sessions.page.html',
+  styleUrl: './sessions.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CalendarPage implements OnInit {
+export class SessionsPage implements OnInit {
   readonly page = input.required<RouteObj>();
 
   private readonly campusesService = inject(CampusesService);
@@ -70,7 +70,7 @@ export class CalendarPage implements OnInit {
   private readonly coursesService = inject(CoursesService);
   private readonly staffService = inject(StaffService);
   private readonly sessionsService = inject(SessionsService);
-  private readonly calendarActionsService = inject(CalendarActionsService);
+  private readonly calendarActionsService = inject(SessionsActionsService);
   private readonly messageService = inject(MessageService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly dialogService = inject(DialogService);
@@ -258,7 +258,7 @@ export class CalendarPage implements OnInit {
     this.selectedIds.set(new Set(ids));
   }
 
-  protected onSessionListContextMenu(request: CalendarBodyContextMenuEvent): void {
+  protected onSessionListContextMenu(request: SessionsBodyContextMenuEvent): void {
     this.contextSession.set(request.session);
     this.sessionMenuRef()?.toggle(request.event);
   }
@@ -268,7 +268,7 @@ export class CalendarPage implements OnInit {
   }
 
   // ── Batch dialog ───────────────────────────────────────────────────────
-  protected openBatchSheet(initialMode: CalendarBodyBatchMode | null = null): void {
+  protected openBatchSheet(initialMode: SessionsBodyBatchMode | null = null): void {
     const data: MobileBatchDialogData = {
       sessionIds: [...this.selectedIds()],
       selectedCount: this.selectedCount(),
