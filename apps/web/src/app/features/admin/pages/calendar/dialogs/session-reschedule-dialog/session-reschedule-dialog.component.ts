@@ -28,6 +28,7 @@ export class SessionRescheduleDialogComponent implements OnInit {
   readonly minDate = new Date();
 
   readonly targetDateSessions = signal<Array<{
+    courseName: string;
     className: string;
     startTime: string;
     endTime: string;
@@ -67,6 +68,7 @@ export class SessionRescheduleDialogComponent implements OnInit {
             res.data
               .filter(session => session.status === 'scheduled' && session.id !== s.id)
               .map(session => ({
+                courseName: session.courseName,
                 className: session.className,
                 startTime: session.startTime,
                 endTime: session.endTime,

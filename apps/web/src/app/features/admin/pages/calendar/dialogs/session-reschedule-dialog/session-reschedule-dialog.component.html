@@ -22,7 +22,7 @@
         <p class="cal-op-form__hint">該日已有 {{ targetDateSessions().length }} 堂課：</p>
         @for (s of targetDateSessions(); track s.className) {
           <span class="cal-op-form__target-session-chip">
-            {{ s.startTime }}–{{ s.endTime }} {{ s.className }}
+            {{ s.startTime }}–{{ s.endTime }} {{ s.courseName }} · {{ s.className }}
           </span>
         }
       </div>
