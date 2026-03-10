@@ -30,8 +30,11 @@ export interface ScheduleChange {
   newSessionDate: string | null;
   newStartTime: string | null;
   newEndTime: string | null;
+  originalTeacherId: string | null;
+  originalTeacherName: string | null;
   substituteTeacherId: string | null;
   substituteTeacherName: string | null;
+  operationSource: 'single' | 'batch';
   reason: string | null;
   createdByName: string | null;
   createdAt: string;
