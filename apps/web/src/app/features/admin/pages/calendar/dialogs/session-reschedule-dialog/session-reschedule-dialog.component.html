@@ -15,6 +15,18 @@
       styleClass="w-full"
       appendTo="body"
     />
+    @if (loadingTargetDate()) {
+      <p class="cal-op-form__hint">載入中...</p>
+    } @else if (targetDateSessions().length > 0) {
+      <div class="cal-op-form__target-sessions">
+        <p class="cal-op-form__hint">該日已有 {{ targetDateSessions().length }} 堂課：</p>
+        @for (s of targetDateSessions(); track s.className) {
+          <span class="cal-op-form__target-session-chip">
+            {{ s.startTime }}–{{ s.endTime }} {{ s.className }}
+          </span>
+        }
+      </div>
+    }
   </div>
   <div class="cal-op-form__row">
     <div class="cal-op-form__field">

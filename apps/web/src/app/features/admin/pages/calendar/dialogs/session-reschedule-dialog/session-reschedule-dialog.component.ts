@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { TextareaModule } from 'primeng/textarea';
@@ -18,12 +19,21 @@ export class SessionRescheduleDialogComponent implements OnInit {
   private readonly config = inject(DynamicDialogConfig);
   private readonly ref = inject(DynamicDialogRef);
   private readonly sessionsService = inject(SessionsService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly fb = inject(FormBuilder);
 
   readonly session = signal<Session | null>(null);
   readonly isSubmitting = signal(false);
   readonly submitError = signal<string | null>(null);
   readonly minDate = new Date();
+
+  readonly targetDateSessions = signal<Array<{
+    className: string;
+    startTime: string;
+    endTime: string;
+    teacherName: string | null;
+  }>>([]);
+  readonly loadingTargetDate = signal(false);
 
   readonly form = this.fb.group({
     newSessionDate: [<Date | null>null, Validators.required],
@@ -36,6 +46,37 @@ export class SessionRescheduleDialogComponent implements OnInit {
     if (this.config.data?.session) {
       this.session.set(this.config.data.session);
     }
+
+    this.form.get('newSessionDate')!.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(date => {
+        if (!date) { this.targetDateSessions.set([]); return; }
+        this.loadTargetDateSessions(date);
+      });
+  }
+
+  private loadTargetDateSessions(date: Date): void {
+    const s = this.session();
+    if (!s) return;
+    const dateStr = format(date, 'yyyy-MM-dd');
+    this.loadingTargetDate.set(true);
+    this.sessionsService.list({ from: dateStr, to: dateStr, campusId: s.campusId })
+      .subscribe({
+        next: res => {
+          this.targetDateSessions.set(
+            res.data
+              .filter(session => session.status === 'scheduled' && session.id !== s.id)
+              .map(session => ({
+                className: session.className,
+                startTime: session.startTime,
+                endTime: session.endTime,
+                teacherName: session.teacherName,
+              }))
+          );
+          this.loadingTargetDate.set(false);
+        },
+        error: () => this.loadingTargetDate.set(false),
+      });
   }
 
   protected closeDialog(): void {

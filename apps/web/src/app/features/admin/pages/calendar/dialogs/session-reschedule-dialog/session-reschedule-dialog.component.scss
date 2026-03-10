@@ -1,4 +1,20 @@
 .cal-op-form {
+  &__target-sessions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
+  }
+
+  &__target-session-chip {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--p-zinc-100);
+    color: var(--p-zinc-600);
+    white-space: nowrap;
+  }
+
   &__error {
     border: 1px solid #fecaca;
     background: #fef2f2;
