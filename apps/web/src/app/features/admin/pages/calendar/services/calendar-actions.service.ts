@@ -34,7 +34,7 @@ export class CalendarActionsService {
   }
 
   uncancelSingle(sessionId: string): Observable<BatchActionResult> {
-    return this.sessionsService.batchUncancel({ sessionIds: [sessionId] });
+    return this.sessionsService.batchUncancel({ sessionIds: [sessionId], dryRun: false });
   }
 
   private getBatchObservable(

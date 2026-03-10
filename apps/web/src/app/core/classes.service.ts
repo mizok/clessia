@@ -30,6 +30,8 @@ export interface Class {
   scheduleTeacherIds?: string[];
   hasUpcomingSessions?: boolean;
   hasAnySessions?: boolean;
+  // TODO: 待老師點名功能完成後，改為依據 status='completed' 判斷
+  hasPastSessions?: boolean;
   upcomingCancelledCount?: number;
   upcomingUnassignedCount?: number;
   upcomingClassConflictCount?: number;

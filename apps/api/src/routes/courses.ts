@@ -416,20 +416,59 @@ app.openapi(updateRoute, async (c) => {
 
     if (classIds.length > 0) {
       const today = new Date().toISOString().split('T')[0];
-      const { data: deletedRows, error: deleteError } = await supabase
+
+      // 查出要取消的課堂 IDs
+      const { data: targetSessions, error: fetchError } = await supabase
         .from('sessions')
-        .delete()
+        .select('id')
         .eq('org_id', orgId)
         .in('class_id', classIds)
         .gte('session_date', today)
-        .neq('status', 'completed')
-        .select('id');
+        .neq('status', 'completed');
 
-      if (deleteError) {
-        return c.json({ error: deleteError.message, code: 'DB_ERROR' }, 400);
+      if (fetchError) {
+        return c.json({ error: fetchError.message, code: 'DB_ERROR' }, 400);
       }
 
-      cancelledFutureSessions = deletedRows?.length ?? 0;
+      const sessionIds = (targetSessions ?? []).map((r) => r['id'] as string);
+
+      if (sessionIds.length > 0) {
+        // 軟刪除：更新狀態為 cancelled
+        const { error: updateError } = await supabase
+          .from('sessions')
+          .update({ status: 'cancelled' })
+          .in('id', sessionIds);
+
+        if (updateError) {
+          return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+        }
+
+        // 取得操作者名稱
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('id', userId)
+          .maybeSingle();
+
+        // 為每堂課建立 schedule_change 紀錄
+        const changeRecords = sessionIds.map((sessionId) => ({
+          org_id: orgId,
+          session_id: sessionId,
+          change_type: 'cancellation',
+          reason: '課程停用',
+          created_by_name: profile?.display_name ?? null,
+        }));
+
+        const { error: insertError } = await supabase
+          .from('schedule_changes')
+          .insert(changeRecords);
+
+        if (insertError) {
+          return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
+        }
+
+        cancelledFutureSessions = sessionIds.length;
+      }
     }
   }
 

@@ -15,6 +15,7 @@ import type { Campus } from '@core/campuses.service';
 import type { Course } from '@core/courses.service';
 import type { Session } from '@core/sessions.service';
 import type { Staff } from '@core/staff.service';
+import { SESSION_STATUS_OPTIONS, DEFAULT_STATUSES } from '../../components/session-filters/session-filters.component';
 
 export interface MobileFilterDialogData {
   readonly campuses: Campus[];
@@ -22,17 +23,19 @@ export interface MobileFilterDialogData {
   readonly teachers: Staff[];
   readonly sessions: Session[];
   readonly classes: Array<{ id: string; name: string; courseId: string; campusId: string }>;
-  readonly selectedCampusId: string | null;
-  readonly selectedCourseId: string | null;
+  readonly selectedCampusIds: string[];
+  readonly selectedCourseIds: string[];
   readonly selectedTeacherIds: string[];
   readonly selectedClassId: string | null;
+  readonly selectedStatuses: string[];
 }
 
 export interface MobileFilterDialogResult {
-  readonly campusId: string | null;
-  readonly courseId: string | null;
+  readonly campusIds: string[];
+  readonly courseIds: string[];
   readonly teacherIds: string[];
   readonly classId: string | null;
+  readonly statuses: string[];
 }
 
 @Component({
@@ -54,55 +57,79 @@ export class MobileFilterDialogComponent implements OnInit {
     Array<{ id: string; name: string; courseId: string; campusId: string }>
   >([]);
 
-  protected readonly selectedCampusId = signal<string | null>(null);
-  protected readonly selectedCourseId = signal<string | null>(null);
+  protected readonly selectedCampusIds = signal<string[]>([]);
+  protected readonly selectedCourseIds = signal<string[]>([]);
   protected readonly selectedTeacherIds = signal<string[]>([]);
   protected readonly selectedClassId = signal<string | null>(null);
+  protected readonly selectedStatuses = signal<string[]>([...DEFAULT_STATUSES]);
+
+  protected readonly statusOptions = SESSION_STATUS_OPTIONS;
 
   protected readonly availableCourses = computed(() => {
-    const campusId = this.selectedCampusId();
-    if (!campusId) return [];
-    return this.allCourses().filter((c) => c.campusId === campusId);
+    const campusIds = this.selectedCampusIds();
+    if (campusIds.length === 0) return this.allCourses();
+    return this.allCourses().filter((c) => campusIds.includes(c.campusId));
   });
 
   protected readonly availableTeachers = computed(() => {
-    const campusId = this.selectedCampusId();
-    if (!campusId) return [];
-    let filtered = this.allTeachers().filter((t) => t.campusIds.includes(campusId));
-    const courseId = this.selectedCourseId();
-    if (courseId) {
-      const course = this.allCourses().find((c) => c.id === courseId);
-      if (course) {
-        filtered = filtered.filter((t) => t.subjectIds.includes(course.subjectId));
-      }
+    const campusIds = this.selectedCampusIds();
+    if (campusIds.length === 0) return this.allTeachers();
+
+    let filtered = this.allTeachers().filter((t) =>
+      t.campusIds.some((cid) => campusIds.includes(cid)),
+    );
+
+    const courseIds = this.selectedCourseIds();
+    if (courseIds.length > 0) {
+      const selectedCourses = this.allCourses().filter((c) => courseIds.includes(c.id));
+      const subjectIds = new Set(selectedCourses.map((c) => c.subjectId));
+      filtered = filtered.filter((t) => t.subjectIds.some((sid) => subjectIds.has(sid)));
 
       const assignedTeacherIds = new Set(
         this.allSessions()
           .filter(
-            (session) =>
-              session.campusId === campusId &&
-              session.courseId === courseId &&
-              session.assignmentStatus === 'assigned' &&
-              !!session.teacherId,
+            (s) =>
+              campusIds.includes(s.campusId) &&
+              courseIds.includes(s.courseId) &&
+              s.assignmentStatus === 'assigned' &&
+              !!s.teacherId,
           )
-          .map((session) => session.teacherId)
-          .filter((teacherId): teacherId is string => !!teacherId),
+          .map((s) => s.teacherId)
+          .filter((id): id is string => !!id),
       );
-      filtered = filtered.filter((teacher) => assignedTeacherIds.has(teacher.id));
+      filtered = filtered.filter((t) => assignedTeacherIds.has(t.id));
     }
     return filtered;
   });
 
+  protected readonly availableTeacherGroups = computed<
+    Array<{ label: string; items: Array<{ id: string; displayName: string }> }>
+  >(() => {
+    const groups: Array<{ label: string; items: Array<{ id: string; displayName: string }> }> = [
+      { label: '篩選', items: [{ id: '__unassigned__', displayName: '未指派' }] },
+    ];
+    const teachers = this.availableTeachers();
+    if (teachers.length > 0) {
+      groups.push({ label: '老師', items: teachers });
+    }
+    return groups;
+  });
+
   protected readonly availableClasses = computed(() => {
-    const campusId = this.selectedCampusId();
-    const courseId = this.selectedCourseId();
-    if (!campusId || !courseId) return [];
-    return this.allClasses().filter((c) => c.campusId === campusId && c.courseId === courseId);
+    const campusIds = this.selectedCampusIds();
+    const courseIds = this.selectedCourseIds();
+    if (campusIds.length === 0 || courseIds.length === 0) return [];
+    return this.allClasses().filter(
+      (c) => campusIds.includes(c.campusId) && courseIds.includes(c.courseId),
+    );
   });
 
   protected readonly hasActiveFilters = computed(
     () =>
-      !!(this.selectedCourseId() || this.selectedTeacherIds().length > 0 || this.selectedClassId()),
+      this.selectedCourseIds().length > 0 ||
+      this.selectedTeacherIds().length > 0 ||
+      !!this.selectedClassId() ||
+      !this.isDefaultStatuses(),
   );
 
   ngOnInit(): void {
@@ -113,21 +140,22 @@ export class MobileFilterDialogComponent implements OnInit {
     this.allTeachers.set(data.teachers);
     this.allSessions.set(data.sessions);
     this.allClasses.set(data.classes);
-    this.selectedCampusId.set(data.selectedCampusId);
-    this.selectedCourseId.set(data.selectedCourseId);
+    this.selectedCampusIds.set([...data.selectedCampusIds]);
+    this.selectedCourseIds.set([...data.selectedCourseIds]);
     this.selectedTeacherIds.set([...data.selectedTeacherIds]);
     this.selectedClassId.set(data.selectedClassId);
+    this.selectedStatuses.set([...data.selectedStatuses]);
   }
 
-  protected onCampusChange(campusValue: string | Campus | null): void {
-    this.selectedCampusId.set(this.toId(campusValue));
-    this.selectedCourseId.set(null);
+  protected onCampusIdsChange(ids: string[]): void {
+    this.selectedCampusIds.set(ids);
+    this.selectedCourseIds.set([]);
     this.selectedTeacherIds.set([]);
     this.selectedClassId.set(null);
   }
 
-  protected onCourseChange(courseValue: string | Course | null): void {
-    this.selectedCourseId.set(this.toId(courseValue));
+  protected onCourseIdsChange(ids: string[]): void {
+    this.selectedCourseIds.set(ids);
     this.selectedTeacherIds.set([]);
     this.selectedClassId.set(null);
   }
@@ -143,31 +171,32 @@ export class MobileFilterDialogComponent implements OnInit {
   }
 
   protected clearFilters(): void {
-    this.selectedCourseId.set(null);
+    this.selectedCourseIds.set([]);
     this.selectedTeacherIds.set([]);
     this.selectedClassId.set(null);
+    this.selectedStatuses.set([...DEFAULT_STATUSES]);
   }
 
   protected apply(): void {
     const result: MobileFilterDialogResult = {
-      campusId: this.selectedCampusId(),
-      courseId: this.selectedCourseId(),
+      campusIds: this.selectedCampusIds(),
+      courseIds: this.selectedCourseIds(),
       teacherIds: this.selectedTeacherIds(),
       classId: this.selectedClassId(),
+      statuses: this.selectedStatuses(),
     };
     this.ref.close(result);
   }
 
+  private isDefaultStatuses(): boolean {
+    const current = [...this.selectedStatuses()].sort().join(',');
+    const def = [...DEFAULT_STATUSES].sort().join(',');
+    return current === def;
+  }
+
   private toId(value: unknown): string | null {
-    if (typeof value === 'string') {
-      return value.trim().length > 0 ? value : null;
-    }
-    if (
-      value &&
-      typeof value === 'object' &&
-      'id' in value &&
-      typeof (value as { id: unknown }).id === 'string'
-    ) {
+    if (typeof value === 'string') return value.trim().length > 0 ? value : null;
+    if (value && typeof value === 'object' && 'id' in value && typeof (value as { id: unknown }).id === 'string') {
       const id = (value as { id: string }).id.trim();
       return id.length > 0 ? id : null;
     }
@@ -175,10 +204,7 @@ export class MobileFilterDialogComponent implements OnInit {
   }
 
   private normalizeIdList(values: readonly unknown[]): string[] {
-    const ids = values
-      .map((value) => this.toId(value))
-      .filter((id): id is string => id !== null);
-
+    const ids = values.map((v) => this.toId(v)).filter((id): id is string => id !== null);
     return Array.from(new Set(ids));
   }
 }

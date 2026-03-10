@@ -62,7 +62,7 @@ export class DeactivateClassDialogComponent {
             this.messageService.add({
               severity: 'success',
               summary: '停用成功',
-              detail: `「${c.name}」已停用，已取消 ${res.cancelled} 筆未來課堂`,
+              detail: `「${c.name}」已停用，已停課 ${res.cancelled} 筆未來課堂`,
             });
             this.ref.close(true);
           },
@@ -70,7 +70,7 @@ export class DeactivateClassDialogComponent {
             this.messageService.add({
               severity: 'warn',
               summary: '班級已停用',
-              detail: '取消未來課堂時發生錯誤，請手動確認',
+              detail: '停課未來課堂時發生錯誤，請手動確認',
             });
             this.ref.close(true);
           },

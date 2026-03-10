@@ -45,6 +45,8 @@ const ClassSchema = z
     scheduleTeacherIds: z.array(z.string()).optional(),
     hasUpcomingSessions: z.boolean().optional(),
     hasAnySessions: z.boolean().optional(),
+    // TODO: 待老師點名功能完成後，改為依據 status='completed' 判斷
+    hasPastSessions: z.boolean().optional(),
     upcomingCancelledCount: z.number().optional(),
     upcomingUnassignedCount: z.number().optional(),
     upcomingClassConflictCount: z.number().optional(),
@@ -245,6 +247,8 @@ interface ClassExtras {
   scheduleTeacherIds?: string[];
   hasUpcomingSessions?: boolean;
   hasAnySessions?: boolean;
+  // TODO: 待老師點名功能完成後，改為依據 status='completed' 判斷
+  hasPastSessions?: boolean;
   upcomingCancelledCount?: number;
   upcomingUnassignedCount?: number;
   upcomingClassConflictCount?: number;
@@ -268,6 +272,7 @@ function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     scheduleTeacherIds: extras?.scheduleTeacherIds,
     hasUpcomingSessions: extras?.hasUpcomingSessions,
     hasAnySessions: extras?.hasAnySessions,
+    hasPastSessions: extras?.hasPastSessions,
     upcomingCancelledCount: extras?.upcomingCancelledCount,
     upcomingUnassignedCount: extras?.upcomingUnassignedCount,
     upcomingClassConflictCount: extras?.upcomingClassConflictCount,
@@ -351,6 +356,8 @@ app.openapi(
     const scheduleTeacherMap: Record<string, string[]> = {};
     const hasUpcomingSet = new Set<string>();
     const hasAnySessionSet = new Set<string>();
+    // TODO: 待老師點名功能完成後，改為查 status='completed'
+    const hasPastSessionsSet = new Set<string>();
     const upcomingCancelledCountMap: Record<string, number> = {};
     const upcomingUnassignedCountMap: Record<string, number> = {};
     const upcomingClassConflictCountMap: Record<string, number> = {};
@@ -457,6 +464,17 @@ app.openapi(
         hasAnySessionSet.add(s.class_id as string);
       }
 
+      // TODO: 待老師點名功能完成後，改為查 status='completed'
+      const pastSessionsResult = await supabase
+        .from('sessions')
+        .select('class_id')
+        .in('class_id', classIds)
+        .lt('session_date', new Date().toISOString().slice(0, 10));
+
+      for (const s of pastSessionsResult.data || []) {
+        hasPastSessionsSet.add(s.class_id as string);
+      }
+
       const upcomingCancelledResult = await supabase
         .from('sessions')
         .select('class_id')
@@ -482,6 +500,7 @@ app.openapi(
             .filter((tid): tid is string => !!tid),
           hasUpcomingSessions: hasUpcomingSet.has(id),
           hasAnySessions: hasAnySessionSet.has(id),
+          hasPastSessions: hasPastSessionsSet.has(id),
           upcomingCancelledCount: upcomingCancelledCountMap[id] ?? 0,
           upcomingUnassignedCount: upcomingUnassignedCountMap[id] ?? 0,
           upcomingClassConflictCount: upcomingClassConflictCountMap[id] ?? 0,
@@ -672,7 +691,7 @@ app.openapi(
     method: 'delete',
     path: '/batch',
     tags: ['Classes'],
-    summary: '批次刪除班級（有 sessions 的略過）',
+    summary: '批次刪除班級（有歷史課堂的略過）',
     request: {
       body: {
         content: {
@@ -702,13 +721,16 @@ app.openapi(
     const { ids } = c.req.valid('json');
     if (ids.length === 0) return c.json({ deleted: 0, deletedIds: [], skipped: 0 }, 200);
 
-    // 查哪些班級有 sessions（有的不能刪）
-    const { data: withSessions } = await supabase
+    // 查哪些班級有過去日期的課堂（有則視為已發生業務，不可刪除）
+    // TODO: 待老師點名功能完成後，改為查 status='completed'
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: withPastSessions } = await supabase
       .from('sessions')
       .select('class_id')
-      .in('class_id', ids);
+      .in('class_id', ids)
+      .lt('session_date', today);
 
-    const hasSessionsSet = new Set((withSessions || []).map((s) => s.class_id as string));
+    const hasSessionsSet = new Set((withPastSessions || []).map((s) => s.class_id as string));
     const toDeleteIds = ids.filter((id) => !hasSessionsSet.has(id));
     const skipped = ids.length - toDeleteIds.length;
 
@@ -1033,9 +1055,21 @@ app.openapi(
     const userId = c.get('userId');
     const { id } = c.req.valid('param');
 
+    // 檢查是否有過去日期的課堂 — 有則視為曾實際發生業務，不可刪除，只能停用
+    // TODO: 待老師點名功能完成後，改為檢查 status='completed'
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: pastSessions } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('class_id', id)
+      .lt('session_date', today)
+      .limit(1);
+
+    if (pastSessions && pastSessions.length > 0) {
+      return c.json({ error: '此班級已有歷史課堂記錄，無法刪除，請改為停用', code: 'HAS_PAST_SESSIONS' }, 409);
+    }
+
     // CASCADE DELETE: 刪除關聯資料
-    // 注意：這裡我們手動刪除，以防資料庫層級沒有設 ON DELETE CASCADE
-    // 順序：sessions -> schedules -> enrollments -> class
     await supabase.from('sessions').delete().eq('class_id', id);
     await supabase.from('schedules').delete().eq('class_id', id);
     await supabase.from('enrollments').delete().eq('class_id', id);
@@ -2422,7 +2456,7 @@ app.openapi(
     method: 'post',
     path: '/{id}/cancel-future-sessions',
     tags: ['Classes'],
-    summary: '取消（刪除）此班級所有未來課堂排程',
+    summary: '取消此班級所有未來課堂排程（軟刪除，保留 schedule_change 紀錄）',
     request: { params: z.object({ id: z.uuid() }) },
     responses: {
       200: {
@@ -2432,6 +2466,10 @@ app.openapi(
             schema: z.object({ cancelled: z.number() }),
           },
         },
+      },
+      400: {
+        description: '操作失敗',
+        content: { 'application/json': { schema: ErrorSchema } },
       },
       404: {
         description: '班級不存在',
@@ -2450,21 +2488,62 @@ app.openapi(
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
     const today = new Date().toISOString().split('T')[0];
 
-    const { data: deleted, error } = await supabase
+    // 查出要取消的課堂 IDs
+    const { data: targetSessions, error: fetchError } = await supabase
       .from('sessions')
-      .delete()
+      .select('id')
+      .eq('org_id', orgId)
       .eq('class_id', id)
       .gte('session_date', today)
-      .neq('status', 'completed')
-      .select('id');
+      .neq('status', 'completed');
 
-    if (error) {
-      return c.json({ error: error.message, code: 'DB_ERROR' }, 404);
+    if (fetchError) {
+      return c.json({ error: fetchError.message, code: 'DB_ERROR' }, 400);
     }
 
-    return c.json({ cancelled: deleted?.length ?? 0 }, 200);
+    const sessionIds = (targetSessions ?? []).map((r) => r['id'] as string);
+
+    if (sessionIds.length > 0) {
+      // 軟刪除：更新狀態為 cancelled
+      const { error: updateError } = await supabase
+        .from('sessions')
+        .update({ status: 'cancelled' })
+        .in('id', sessionIds);
+
+      if (updateError) {
+        return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+      }
+
+      // 取得操作者名稱
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', userId)
+        .maybeSingle();
+
+      // 為每堂課建立 schedule_change 紀錄
+      const changeRecords = sessionIds.map((sessionId) => ({
+        org_id: orgId,
+        session_id: sessionId,
+        change_type: 'cancellation',
+        reason: '班級停用',
+        created_by_name: profile?.display_name ?? null,
+      }));
+
+      const { error: insertError } = await supabase
+        .from('schedule_changes')
+        .insert(changeRecords);
+
+      if (insertError) {
+        return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
+      }
+    }
+
+    return c.json({ cancelled: sessionIds.length }, 200);
   },
 );
 

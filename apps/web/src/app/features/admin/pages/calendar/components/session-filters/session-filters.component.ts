@@ -8,6 +8,26 @@ import type { Campus } from '@core/campuses.service';
 import type { Course } from '@core/courses.service';
 import type { Staff } from '@core/staff.service';
 
+export const UNASSIGNED_TEACHER_ID = '__unassigned__';
+
+export const SESSION_STATUS_OPTIONS: Array<{ label: string; value: string }> = [
+  { label: '已排課', value: 'scheduled' },
+  { label: '已完成', value: 'completed' },
+  { label: '已停課', value: 'cancelled' },
+];
+
+export const DEFAULT_STATUSES = ['scheduled', 'completed'];
+
+export interface TeacherSelectOption {
+  readonly id: string;
+  readonly displayName: string;
+}
+
+export interface TeacherOptionGroup {
+  readonly label: string;
+  readonly items: TeacherSelectOption[];
+}
+
 export interface SessionFilterClassOption {
   readonly id: string;
   readonly name: string;
@@ -22,7 +42,6 @@ export interface SessionFilterClassOption {
   styleUrl: './session-filters.component.scss',
 })
 export class SessionFiltersComponent {
-  readonly viewMode = input<'calendar' | 'list'>('calendar');
   readonly listDateRange = input<Date[]>([]);
 
   readonly campuses = input<Campus[]>([]);
@@ -30,66 +49,71 @@ export class SessionFiltersComponent {
   readonly availableTeachers = input<Staff[]>([]);
   readonly availableClasses = input<SessionFilterClassOption[]>([]);
 
-  readonly selectedCampusId = input<string | null>(null);
-  readonly selectedCourseId = input<string | null>(null);
+  readonly selectedCampusIds = input<string[]>([]);
+  readonly selectedCourseIds = input<string[]>([]);
   readonly selectedTeacherIds = input<string[]>([]);
   readonly selectedClassId = input<string | null>(null);
+  readonly selectedStatuses = input<string[]>(DEFAULT_STATUSES);
 
   readonly activeFilterCount = input(0);
   readonly hasActiveFilters = input(false);
-  readonly showOnlyUnassigned = input(false);
 
   readonly listDateRangeChange = output<Date[]>();
-  readonly showOnlyUnassignedChange = output<boolean>();
   readonly mobileFilterToggle = output<void>();
-  readonly campusChange = output<string | null>();
-  readonly courseChange = output<string | null>();
+  readonly campusIdsChange = output<string[]>();
+  readonly courseIdsChange = output<string[]>();
   readonly teacherIdsChange = output<string[]>();
   readonly classChange = output<string | null>();
+  readonly statusesChange = output<string[]>();
   readonly clearFilters = output<void>();
 
-  protected readonly singleTeacherId = computed<string | null>(() => {
-    const ids = this.selectedTeacherIds();
-    return ids.length > 0 ? ids[0] : null;
+  protected readonly statusOptions = SESSION_STATUS_OPTIONS;
+
+  protected readonly teacherOptionGroups = computed<TeacherOptionGroup[]>(() => {
+    const groups: TeacherOptionGroup[] = [
+      { label: '篩選', items: [{ id: UNASSIGNED_TEACHER_ID, displayName: '未指派' }] },
+    ];
+    const teachers = this.filteredTeachers();
+    if (teachers.length > 0) {
+      groups.push({ label: '老師', items: teachers });
+    }
+    return groups;
   });
 
   protected readonly filteredTeachers = computed<Staff[]>(() => {
     const teachers = this.availableTeachers();
-    const selectedCourseId = this.selectedCourseId();
-    if (!selectedCourseId) {
-      return teachers;
-    }
+    const courseIds = this.selectedCourseIds();
+    if (courseIds.length === 0) return teachers;
 
-    const selectedCourse = this.availableCourses().find((course) => course.id === selectedCourseId);
-    if (!selectedCourse) {
-      return teachers;
-    }
+    const selectedCourses = this.availableCourses().filter((c) => courseIds.includes(c.id));
+    if (selectedCourses.length === 0) return teachers;
 
-    return teachers.filter((teacher) => teacher.subjectIds.includes(selectedCourse.subjectId));
+    const subjectIds = new Set(selectedCourses.map((c) => c.subjectId));
+    return teachers.filter((t) => t.subjectIds.some((sid) => subjectIds.has(sid)));
   });
 
   protected onListDateRangeChange(range: Date[]): void {
     this.listDateRangeChange.emit(range);
   }
 
-  protected onCampusSelectChange(value: string | Campus | null): void {
-    this.campusChange.emit(this.toId(value));
+  protected onCampusMultiChange(ids: readonly (string | Campus)[]): void {
+    this.campusIdsChange.emit(this.normalizeIdList(ids));
   }
 
-  protected onCourseSelectChange(value: string | Course | null): void {
-    this.courseChange.emit(this.toId(value));
+  protected onCourseMultiChange(ids: readonly (string | Course)[]): void {
+    this.courseIdsChange.emit(this.normalizeIdList(ids));
   }
 
-  protected onTeacherSingleChange(teacherId: string | null): void {
-    this.teacherIdsChange.emit(this.normalizeIdList(teacherId ? [teacherId] : []));
-  }
-
-  protected onTeacherMultiChange(teacherIds: readonly (string | Staff)[]): void {
-    this.teacherIdsChange.emit(this.normalizeIdList(teacherIds));
+  protected onTeacherMultiChange(ids: readonly (string | Staff)[]): void {
+    this.teacherIdsChange.emit(this.normalizeIdList(ids));
   }
 
   protected onClassSelectChange(value: string | SessionFilterClassOption | null): void {
     this.classChange.emit(this.toId(value));
+  }
+
+  protected onStatusesChange(values: string[] | null): void {
+    this.statusesChange.emit(values ?? []);
   }
 
   private toId(value: unknown): string | null {
@@ -112,7 +136,6 @@ export class SessionFiltersComponent {
     const ids = values
       .map((value) => this.toId(value))
       .filter((id): id is string => id !== null);
-
     return Array.from(new Set(ids));
   }
 }

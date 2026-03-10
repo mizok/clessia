@@ -237,7 +237,7 @@
                       severity="danger"
                       pTooltip="刪除"
                       tooltipPosition="top"
-                      (onClick)="confirmDelete(staff)"
+                      (onClick)="confirmArchive(staff)"
                     />
                   </div>
                 </td>
@@ -313,7 +313,7 @@
                 <button
                   type="button"
                   class="staff-card__action-btn staff-card__action-btn--delete"
-                  (click)="confirmDelete(staff)"
+                  (click)="confirmArchive(staff)"
                 >
                   <i class="pi pi-trash"></i>
                   <span>刪除</span>

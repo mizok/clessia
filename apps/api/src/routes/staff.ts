@@ -1058,6 +1058,105 @@ app.openapi(updateRoute, async (c) => {
   return c.json({ data: mapStaff(freshStaffRow, campusMap, subjectMap, roleInfoMap) }, 200);
 });
 
+// PATCH /api/staff/:id/archive
+const archiveRoute = createRoute({
+  method: 'patch',
+  path: '/{id}/archive',
+  tags: ['Staff'],
+  summary: '封存人員（軟刪除：停用帳號、解除未來課堂指派，保留歷史紀錄）',
+  request: {
+    params: z.object({ id: z.uuid() }),
+  },
+  responses: {
+    200: {
+      description: '封存成功',
+      content: {
+        'application/json': {
+          schema: z.object({ success: z.boolean(), unassignedSessions: z.number() }),
+        },
+      },
+    },
+    400: {
+      description: '封存失敗',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    404: {
+      description: '人員不存在',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+  },
+});
+
+app.openapi(archiveRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const requesterUserId = c.get('userId');
+  const { id } = c.req.valid('param');
+
+  const staffRow = await getStaffById(supabase, id);
+  if (!staffRow) {
+    return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
+  }
+
+  const isAdmin = await checkUserIsAdmin(supabase, requesterUserId);
+  if (!isAdmin) {
+    return c.json({ error: '僅管理員可封存人員', code: 'FORBIDDEN' }, 403);
+  }
+
+  // 停用帳號
+  const { error: deactivateError } = await supabase
+    .from('staff')
+    .update({ is_active: false })
+    .eq('id', id);
+
+  if (deactivateError) {
+    return c.json({ error: deactivateError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  // 移除登入權限
+  const userId = staffRow['user_id'] as string;
+  const { error: roleError } = await supabase
+    .from('user_roles')
+    .delete()
+    .eq('user_id', userId)
+    .in('role', ['admin', 'teacher']);
+
+  if (roleError) {
+    return c.json({ error: roleError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  // 解除未來課堂指派
+  const today = new Date().toISOString().split('T')[0];
+  const { data: unassigned, error: unassignError } = await supabase
+    .from('sessions')
+    .update({ teacher_id: null, assignment_status: 'unassigned' })
+    .eq('org_id', orgId)
+    .eq('teacher_id', id)
+    .eq('status', 'scheduled')
+    .gte('session_date', today)
+    .select('id');
+
+  if (unassignError) {
+    return c.json({ error: unassignError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  logAudit(supabase, {
+    orgId: staffRow['org_id'] as string,
+    userId: requesterUserId,
+    resourceType: 'staff',
+    resourceId: id,
+    resourceName: staffRow['display_name'] as string,
+    action: 'update',
+    details: { archived: true, unassignedSessions: unassigned?.length ?? 0 },
+  }, c.executionCtx.waitUntil.bind(c.executionCtx));
+
+  return c.json({ success: true, unassignedSessions: unassigned?.length ?? 0 }, 200);
+});
+
 // DELETE /api/staff/:id
 const deleteRoute = createRoute({
   method: 'delete',

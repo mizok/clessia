@@ -61,7 +61,7 @@ export class SessionRescheduleDialogComponent implements OnInit {
     if (!s) return;
     const dateStr = format(date, 'yyyy-MM-dd');
     this.loadingTargetDate.set(true);
-    this.sessionsService.list({ from: dateStr, to: dateStr, campusId: s.campusId })
+    this.sessionsService.list({ from: dateStr, to: dateStr, campusIds: [s.campusId] })
       .subscribe({
         next: res => {
           this.targetDateSessions.set(

@@ -65,7 +65,7 @@ export class CourseFormDialogComponent {
 
   protected readonly deactivateModeOptions = [
     { label: '停用課程（保留既有課堂）', value: 'keep_sessions' as const },
-    { label: '停用並取消未來課堂', value: 'cancel_future_sessions' as const },
+    { label: '停用並停課未來課堂', value: 'cancel_future_sessions' as const },
   ];
 
   protected readonly campusOptions = computed(() =>

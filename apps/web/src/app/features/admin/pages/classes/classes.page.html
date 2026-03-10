@@ -281,9 +281,8 @@
                           @if (cls.upcomingUnassignedCount && cls.upcomingUnassignedCount > 0) {
                             <a
                               class="class-row__intervention-link"
-                              [routerLink]="['/admin/calendar']"
+                              [routerLink]="['/admin/sessions']"
                               [queryParams]="{
-                                view: 'list',
                                 classId: cls.id,
                                 campusId: cls.campusId,
                                 courseId: cls.courseId,

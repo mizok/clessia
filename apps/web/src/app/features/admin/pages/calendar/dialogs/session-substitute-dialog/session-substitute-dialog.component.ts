@@ -64,7 +64,7 @@ export class SessionSubstituteDialogComponent implements OnInit {
       weekSessions: this.sessionsService.list({
         from: format(weekStart, 'yyyy-MM-dd'),
         to: format(weekEnd, 'yyyy-MM-dd'),
-        campusId: s.campusId,
+        campusIds: [s.campusId],
       }),
     }).subscribe({
       next: ({ teachersRes, courseRes, weekSessions }) => {

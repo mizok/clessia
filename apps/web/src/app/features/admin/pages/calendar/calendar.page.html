@@ -3,59 +3,40 @@
 
 <div class="cal">
   <section class="cal__controls">
-    <app-calendar-header
-      [currentDate]="currentDate()"
-      [viewMode]="viewMode()"
-      [isWeekView]="isWeekView()"
-      [weekLabel]="weekLabel()"
-      [dayLabel]="dayLabel()"
-      [isCurrentPeriod]="isCurrentPeriod()"
-      (dateJump)="onDateJump($event)"
-      (prevPeriod)="prevPeriod()"
-      (nextPeriod)="nextPeriod()"
-      (goToday)="goToday()"
-      (viewModeChange)="toggleViewMode($event)"
-    />
+    <app-calendar-header />
 
     <app-session-filters
-      [viewMode]="viewMode()"
       [listDateRange]="listDateRange()"
       [campuses]="campuses()"
       [availableCourses]="availableCourses()"
       [availableTeachers]="availableTeachers()"
       [availableClasses]="availableClasses()"
-      [selectedCampusId]="selectedCampusId()"
-      [selectedCourseId]="selectedCourseId()"
+      [selectedCampusIds]="selectedCampusIds()"
+      [selectedCourseIds]="selectedCourseIds()"
       [selectedTeacherIds]="selectedTeacherIds()"
       [selectedClassId]="selectedClassId()"
+      [selectedStatuses]="selectedStatuses()"
       [activeFilterCount]="activeFilterCount()"
       [hasActiveFilters]="hasActiveFilters()"
-      [showOnlyUnassigned]="showOnlyUnassigned()"
       (listDateRangeChange)="onListDateRangeChange($event)"
       (mobileFilterToggle)="toggleMobileFilters()"
-      (campusChange)="onCampusChange($event)"
-      (courseChange)="onCourseChange($event)"
+      (campusIdsChange)="onCampusIdsChange($event)"
+      (courseIdsChange)="onCourseIdsChange($event)"
       (teacherIdsChange)="onTeacherIdsChange($event)"
       (classChange)="onClassChange($event)"
+      (statusesChange)="onStatusesChange($event)"
       (clearFilters)="clearFilters()"
-      (showOnlyUnassignedChange)="showOnlyUnassigned.set($event)"
     />
   </section>
 
   <app-calendar-body
-    [viewMode]="viewMode()"
     [loading]="loading()"
     [sessions]="filteredSessions()"
     [selectedIds]="selectedIds()"
     [selectedCount]="selectedCount()"
-    [isWeekView]="isWeekView()"
-    [weekDays]="weekDays()"
-    [currentDate]="currentDate()"
     (selectedIdsChange)="onSelectedIdsChange($event)"
     (contextMenuRequested)="onSessionListContextMenu($event)"
     (clearSelection)="clearSelection()"
     (openBatchSheet)="openBatchSheet($event)"
-    (sessionClick)="openDetail($event)"
-    (overflowClick)="onCalendarGridOverflow($event)"
   />
 </div>

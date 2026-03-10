@@ -95,6 +95,7 @@ export class ClassesPage implements OnInit {
   private readonly campusesService = inject(CampusesService);
   private readonly subjectsService = inject(SubjectsService);
   private readonly staffService = inject(StaffService);
+  private readonly sessionsService = inject(SessionsService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly overlayContainerService = inject(OverlayContainerService);
@@ -346,7 +347,8 @@ export class ClassesPage implements OnInit {
 
   protected openActionMenu(event: Event, cls: Class, menu: any): void {
     const course = this.courses().find((item) => item.id === cls.courseId);
-    const canGenerateSessions = Boolean(cls.scheduleCount) && cls.isActive && (course?.isActive ?? true);
+    const canGenerateSessions =
+      Boolean(cls.scheduleCount) && cls.isActive && (course?.isActive ?? true);
 
     this.selectedClassForMenu.set(cls);
     this.classActionMenuItems.set([
@@ -362,7 +364,7 @@ export class ClassesPage implements OnInit {
         command: () => this.openGenerateDialog(cls),
       },
       {
-        label: '在行事曆中查看',
+        label: '在列表中查看',
         icon: 'pi pi-calendar',
         command: () => this.navigateToCalendarList(cls),
       },
@@ -376,9 +378,9 @@ export class ClassesPage implements OnInit {
         command: () => this.confirmToggleActive(cls),
       },
       {
-        label: '刪除班級',
+        label: cls.hasPastSessions ? '已有歷史課堂，無法刪除' : '刪除班級',
         icon: 'pi pi-trash',
-        disabled: cls.hasUpcomingSessions,
+        disabled: cls.hasPastSessions,
         itemClass: 'text-red-500',
         command: () => this.confirmDeleteClass(cls),
       },
@@ -539,7 +541,7 @@ export class ClassesPage implements OnInit {
     if (ids.length === 0) return;
 
     this.confirmationService.confirm({
-      message: `確定要刪除這 ${ids.length} 個班級嗎？有課堂記錄的班級將略過。此操作無法復原。`,
+      message: `確定要刪除這 ${ids.length} 個班級嗎？已有歷史課堂記錄的班級將自動略過（請改為停用）。此操作無法復原。`,
       header: '批次刪除',
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: '刪除',
@@ -552,7 +554,7 @@ export class ClassesPage implements OnInit {
             this.selectedClassIds.set(new Set());
             const detail =
               res.skipped > 0
-                ? `已刪除 ${res.deleted} 個，略過 ${res.skipped} 個（已有課堂記錄）`
+                ? `已刪除 ${res.deleted} 個，略過 ${res.skipped} 個（已有歷史課堂記錄）`
                 : `已刪除 ${res.deleted} 個班級`;
             this.messageService.add({
               severity: res.skipped > 0 ? 'warn' : 'success',
@@ -724,9 +726,8 @@ export class ClassesPage implements OnInit {
     if (ref)
       ref.onClose.subscribe((result) => {
         if (result?.action === 'navigate-calendar') {
-          this.router.navigate(['/admin/calendar'], {
+          this.router.navigate(['/admin/sessions'], {
             queryParams: {
-              view: 'list',
               classId: result.classId,
               campusId: result.campusId,
               courseId: result.courseId,
@@ -741,12 +742,34 @@ export class ClassesPage implements OnInit {
   }
 
   protected navigateToCalendarList(cls: Class): void {
-    this.router.navigate(['/admin/calendar'], {
+    this.sessionsService
+      .list({
+        classId: cls.id,
+        campusIds: [cls.campusId],
+        courseIds: [cls.courseId],
+      })
+      .subscribe({
+        next: (res: { data: Array<{ sessionDate: string }> }) => {
+          const sessions = res.data;
+          const firstSessionDate = sessions[0]?.sessionDate;
+          const lastSessionDate = sessions[sessions.length - 1]?.sessionDate;
+
+          this.openCalendarList(cls, firstSessionDate, lastSessionDate);
+        },
+        error: () => {
+          this.openCalendarList(cls);
+        },
+      });
+  }
+
+  private openCalendarList(cls: Class, from?: string, to?: string): void {
+    this.router.navigate(['/admin/sessions'], {
       queryParams: {
-        view: 'list',
         classId: cls.id,
         campusId: cls.campusId,
         courseId: cls.courseId,
+        ...(from ? { from } : {}),
+        ...(to ? { to } : {}),
       },
     });
   }
@@ -796,16 +819,16 @@ export class ClassesPage implements OnInit {
   }
 
   protected confirmDeleteClass(cls: Class): void {
-    const hasSessions = cls.hasUpcomingSessions || (cls.scheduleCount ?? 0) > 0;
-    const message = hasSessions
-      ? `警告：班級「${cls.name}」已有課堂或時段設定。刪除班級將會一併刪除所有相關課堂、出席紀錄與報名資料。此操作無法復原，您確定要繼續嗎？`
+    const hasHistory = (cls.scheduleCount ?? 0) > 0;
+    const message = hasHistory
+      ? `確定要刪除班級「${cls.name}」嗎？歷史課堂、出席紀錄與報名資料將一併刪除。此操作無法復原。`
       : `確定要刪除班級「${cls.name}」嗎？此操作無法復原。`;
 
     this.confirmationService.confirm({
       message,
-      header: '確認刪除' + (hasSessions ? ' (連集刪除警示)' : ''),
+      header: '確認刪除',
       icon: 'pi pi-exclamation-triangle',
-      acceptLabel: hasSessions ? '仍要連集刪除' : '刪除',
+      acceptLabel: '刪除',
       rejectLabel: '取消',
       acceptButtonStyleClass: 'p-button-danger',
       accept: () => {

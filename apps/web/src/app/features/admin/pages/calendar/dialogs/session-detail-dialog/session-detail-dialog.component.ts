@@ -102,9 +102,10 @@ export class SessionDetailDialogComponent implements OnInit {
 
   protected changeTypeLabel(type: string): string {
     const map: Record<string, string> = {
-      cancel: '停課',
+      cancellation: '停課',
       substitute: '代課',
       reschedule: '調課',
+      uncancel: '取消停課',
     };
     return map[type] || type;
   }
@@ -113,9 +114,10 @@ export class SessionDetailDialogComponent implements OnInit {
     type: string,
   ): 'success' | 'secondary' | 'info' | 'warn' | 'danger' | 'contrast' {
     const map: Record<string, 'success' | 'secondary' | 'info' | 'warn' | 'danger' | 'contrast'> = {
-      cancel: 'danger',
+      cancellation: 'danger',
       substitute: 'warn',
       reschedule: 'info',
+      uncancel: 'success',
     };
     return map[type] || 'info';
   }

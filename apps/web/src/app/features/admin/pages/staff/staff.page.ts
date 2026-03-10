@@ -234,33 +234,31 @@ export class StaffPage implements OnInit {
     });
   }
 
-  confirmDelete(staff: Staff): void {
+  confirmArchive(staff: Staff): void {
     this.confirmationService.confirm({
-      message: `確定要刪除「${staff.displayName}」嗎？此操作無法復原。`,
-      header: '確認刪除',
+      message: `確定要封存「${staff.displayName}」嗎？封存後帳號將無法登入，未來課堂指派將自動解除，但歷史紀錄會保留。`,
+      header: '確認封存',
       icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '刪除',
+      acceptLabel: '封存',
       rejectLabel: '取消',
-      acceptButtonStyleClass: 'p-button-danger',
-      accept: () => this.deleteStaff(staff),
+      acceptButtonStyleClass: 'p-button-warning',
+      accept: () => this.archiveStaff(staff),
     });
   }
 
-  private deleteStaff(staff: Staff): void {
-    this.staffService.delete(staff.id).subscribe({
-      next: () => {
-        this.messageService.add({
-          severity: 'success',
-          summary: '刪除成功',
-          detail: `「${staff.displayName}」已刪除`,
-        });
+  private archiveStaff(staff: Staff): void {
+    this.staffService.archive(staff.id).subscribe({
+      next: (res) => {
+        const detail = res.unassignedSessions > 0
+          ? `「${staff.displayName}」已封存，${res.unassignedSessions} 堂未來課堂已設為待指派`
+          : `「${staff.displayName}」已封存`;
+        this.messageService.add({ severity: 'success', summary: '封存成功', detail });
         this.loadData();
       },
       error: (err: any) => {
-        console.error('Failed to delete staff', err);
         this.messageService.add({
           severity: 'error',
-          summary: '刪除失敗',
+          summary: '封存失敗',
           detail: err.error?.error || '請稍後再試',
         });
       },

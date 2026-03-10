@@ -31,15 +31,17 @@ const SessionAssignmentStatusSchema = z
   .openapi('SessionAssignmentStatus');
 
 const SessionChangeTypeSchema = z
-  .enum(['reschedule', 'substitute', 'cancellation'])
+  .enum(['reschedule', 'substitute', 'cancellation', 'uncancel'])
   .openapi('SessionChangeType');
 
 const SessionListQuerySchema = z
   .object({
     from: DateSchema.optional(),
     to: DateSchema.optional(),
-    campusId: z.uuid().optional().openapi({ description: '分校 ID' }),
-    courseId: z.uuid().optional().openapi({ description: '課程 ID' }),
+    campusId: z.uuid().optional().openapi({ description: '分校 ID（單一，舊版）' }),
+    campusIds: z.string().optional().openapi({ description: '分校 ID（逗號分隔，多選）' }),
+    courseId: z.uuid().optional().openapi({ description: '課程 ID（單一，舊版）' }),
+    courseIds: z.string().optional().openapi({ description: '課程 ID（逗號分隔，多選）' }),
     teacherId: z.uuid().optional().openapi({ description: '教師 ID（單一）' }),
     teacherIds: z.string().optional().openapi({ description: '教師 ID（逗號分隔，多選）' }),
     classId: z.uuid().optional().openapi({ description: '班級 ID' }),
@@ -84,6 +86,9 @@ const SessionChangeItemSchema = z
   .object({
     id: z.uuid(),
     changeType: SessionChangeTypeSchema,
+    originalSessionDate: DateSchema.nullable(),
+    originalStartTime: TimeSchema.nullable(),
+    originalEndTime: TimeSchema.nullable(),
     newSessionDate: DateSchema.nullable(),
     newStartTime: TimeSchema.nullable(),
     newEndTime: TimeSchema.nullable(),
@@ -280,6 +285,9 @@ function mapSessionChange(row: Record<string, unknown>) {
   return {
     id: row['id'] as string,
     changeType: row['change_type'] as 'reschedule' | 'substitute' | 'cancellation',
+    originalSessionDate: (row['original_session_date'] as string | null) ?? null,
+    originalStartTime: toHHmm(row['original_start_time'] as string | null),
+    originalEndTime: toHHmm(row['original_end_time'] as string | null),
     newSessionDate: (row['new_session_date'] as string | null) ?? null,
     newStartTime: toHHmm(row['new_start_time'] as string | null),
     newEndTime: toHHmm(row['new_end_time'] as string | null),
@@ -365,7 +373,7 @@ const listSessionsRoute = createRoute({
 app.openapi(listSessionsRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
-  const { from, to, campusId, courseId, teacherId, teacherIds, classId, page, pageSize } = c.req.valid('query');
+  const { from, to, campusId, campusIds, courseId, courseIds, teacherId, teacherIds, classId, page, pageSize } = c.req.valid('query');
 
   let dbQuery = supabase
     .from('sessions')
@@ -392,10 +400,16 @@ app.openapi(listSessionsRoute, async (c) => {
     dbQuery = dbQuery.lte('session_date', to);
   }
 
-  if (campusId) {
+  if (campusIds) {
+    const ids = campusIds.split(',').filter(Boolean);
+    if (ids.length > 0) dbQuery = dbQuery.in('classes.campus_id', ids);
+  } else if (campusId) {
     dbQuery = dbQuery.eq('classes.campus_id', campusId);
   }
-  if (courseId) {
+  if (courseIds) {
+    const ids = courseIds.split(',').filter(Boolean);
+    if (ids.length > 0) dbQuery = dbQuery.in('classes.course_id', ids);
+  } else if (courseId) {
     dbQuery = dbQuery.eq('classes.course_id', courseId);
   }
   if (teacherIds) {
@@ -488,7 +502,9 @@ app.openapi(getSessionChangesRoute, async (c) => {
     .from('schedule_changes')
     .select(
       `
-      id, change_type, new_session_date, new_start_time, new_end_time,
+      id, change_type,
+      original_session_date, original_start_time, original_end_time,
+      new_session_date, new_start_time, new_end_time,
       reason, created_by_name, created_at,
       staff!substitute_teacher_id ( id, display_name )
     `,
@@ -1033,6 +1049,9 @@ app.openapi(rescheduleSessionRoute, async (c) => {
     org_id: orgId,
     session_id: id,
     change_type: 'reschedule',
+    original_session_date: sessionState.sessionDate,
+    original_start_time: sessionState.startTime,
+    original_end_time: sessionState.endTime,
     new_session_date: body.newSessionDate,
     new_start_time: newStartTime,
     new_end_time: newEndTime,
@@ -2074,6 +2093,25 @@ app.openapi(batchUncancelRoute, async (c) => {
 
     if (reopenError) {
       return c.json({ error: reopenError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name')
+      .eq('id', userId)
+      .maybeSingle();
+
+    const { error: insertChangeError } = await supabase.from('schedule_changes').insert(
+      processableIds.map((sessionId) => ({
+        org_id: orgId,
+        session_id: sessionId,
+        change_type: 'uncancel',
+        created_by_name: profile?.display_name ?? null,
+      })),
+    );
+
+    if (insertChangeError) {
+      return c.json({ error: insertChangeError.message, code: 'DB_ERROR' }, 400);
     }
   }
 

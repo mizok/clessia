@@ -49,8 +49,13 @@
             @if (c.substituteTeacherName) {
               <span>代課老師：{{ c.substituteTeacherName }}</span>
             }
-            @if (c.newSessionDate) {
-              <span>新日期：{{ c.newSessionDate }} {{ c.newStartTime }}–{{ c.newEndTime }}</span>
+            @if (c.changeType === 'reschedule' && c.newSessionDate) {
+              <span>
+                @if (c.originalSessionDate) {
+                  {{ c.originalSessionDate | date:'MM/dd' }} {{ c.originalStartTime }}–{{ c.originalEndTime }} →
+                }
+                {{ c.newSessionDate | date:'MM/dd' }} {{ c.newStartTime }}–{{ c.newEndTime }}
+              </span>
             }
             @if (c.reason) {
               <span class="cal-detail__reason">原因：{{ c.reason }}</span>

@@ -100,10 +100,10 @@ export const routes: Routes = [
             data: { page: RoutesCatalog.ADMIN_DASHBOARD },
           },
           {
-            path: RoutesCatalog.ADMIN_CALENDAR.relativePath,
+            path: RoutesCatalog.ADMIN_SESSIONS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/calendar/calendar.page').then((m) => m.CalendarPage),
-            data: { page: RoutesCatalog.ADMIN_CALENDAR },
+            data: { page: RoutesCatalog.ADMIN_SESSIONS },
           },
           {
             path: RoutesCatalog.ADMIN_ATTENDANCE.relativePath,
@@ -132,20 +132,8 @@ export const routes: Routes = [
             data: { page: RoutesCatalog.ADMIN_GRADES },
           },
           {
-            path: RoutesCatalog.ADMIN_SESSIONS.relativePath,
-            loadComponent: () =>
-              import('@features/admin/pages/sessions/sessions.component').then(
-                (m) => m.SessionsComponent,
-              ),
-            data: { page: RoutesCatalog.ADMIN_SESSIONS },
-          },
-          {
             path: RoutesCatalog.ADMIN_CHANGES.relativePath,
-            loadComponent: () =>
-              import('@features/admin/pages/changes/changes.component').then(
-                (m) => m.ChangesComponent,
-              ),
-            data: { page: RoutesCatalog.ADMIN_CHANGES },
+            redirectTo: RoutesCatalog.ADMIN_SESSIONS.relativePath,
           },
           {
             path: RoutesCatalog.ADMIN_TASKS.relativePath,
@@ -181,9 +169,7 @@ export const routes: Routes = [
           },
           {
             path: RoutesCatalog.ADMIN_SCHEDULE.relativePath,
-            loadComponent: () =>
-              import('@features/admin/pages/schedule/schedule.page').then((m) => m.SchedulePage),
-            data: { page: RoutesCatalog.ADMIN_SCHEDULE },
+            redirectTo: RoutesCatalog.ADMIN_SESSIONS.relativePath,
           },
           {
             path: RoutesCatalog.ADMIN_PAYMENTS.relativePath,

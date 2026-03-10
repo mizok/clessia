@@ -23,7 +23,10 @@ export interface Session {
 
 export interface ScheduleChange {
   id: string;
-  changeType: 'reschedule' | 'substitute' | 'cancellation';
+  changeType: 'reschedule' | 'substitute' | 'cancellation' | 'uncancel';
+  originalSessionDate: string | null;
+  originalStartTime: string | null;
+  originalEndTime: string | null;
   newSessionDate: string | null;
   newStartTime: string | null;
   newEndTime: string | null;
@@ -37,9 +40,8 @@ export interface ScheduleChange {
 export interface SessionQueryParams {
   from?: string;
   to?: string;
-  campusId?: string;
-  courseId?: string;
-  teacherId?: string;
+  campusIds?: string[];
+  courseIds?: string[];
   teacherIds?: string[];
   classId?: string;
   page?: number;
@@ -110,12 +112,14 @@ export class SessionsService {
 
     if (params.from) query['from'] = params.from;
     if (params.to) query['to'] = params.to;
-    if (params.campusId) query['campusId'] = params.campusId;
-    if (params.courseId) query['courseId'] = params.courseId;
+    if (params.campusIds && params.campusIds.length > 0) {
+      query['campusIds'] = params.campusIds.join(',');
+    }
+    if (params.courseIds && params.courseIds.length > 0) {
+      query['courseIds'] = params.courseIds.join(',');
+    }
     if (params.teacherIds && params.teacherIds.length > 0) {
       query['teacherIds'] = params.teacherIds.join(',');
-    } else if (params.teacherId) {
-      query['teacherId'] = params.teacherId;
     }
     if (params.classId) query['classId'] = params.classId;
     if (params.page) query['page'] = params.page.toString();

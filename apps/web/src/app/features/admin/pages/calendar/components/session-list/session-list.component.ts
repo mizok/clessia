@@ -1,11 +1,12 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, input, output, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { CheckboxModule } from 'primeng/checkbox';
+import { Popover, PopoverModule } from 'primeng/popover';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TagModule } from 'primeng/tag';
-import type { Session } from '@core/sessions.service';
+import { type ScheduleChange, type Session, SessionsService } from '@core/sessions.service';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
@@ -27,6 +28,7 @@ export interface SessionListMenuRequest {
     FormsModule,
     ButtonModule,
     CheckboxModule,
+    PopoverModule,
     SkeletonModule,
     TagModule,
     ResponsiveTableComponent,
@@ -41,6 +43,12 @@ export class SessionListComponent {
   readonly sessions = input<readonly Session[]>([]);
   readonly loading = input(false);
   readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
+
+  private readonly sessionsService = inject(SessionsService);
+  private readonly changesPopover = viewChild<Popover>('changesPopover');
+
+  protected readonly popoverChanges = signal<ScheduleChange[]>([]);
+  protected readonly popoverLoading = signal(false);
 
   readonly selectedIdsChange = output<string[]>();
   readonly contextMenuRequested = output<SessionListMenuRequest>();
@@ -136,6 +144,40 @@ export class SessionListComponent {
     if (session.status === 'cancelled') return 'secondary';
     if (session.status === 'completed') return 'success';
     return 'info';
+  }
+
+  protected openChangesPopover(event: MouseEvent, session: Session): void {
+    event.stopPropagation();
+    const popover = this.changesPopover();
+    if (!popover) return;
+    popover.toggle(event);
+    this.popoverChanges.set([]);
+    this.popoverLoading.set(true);
+    this.sessionsService.getChanges(session.id).subscribe({
+      next: (res) => {
+        this.popoverChanges.set(res.data);
+        this.popoverLoading.set(false);
+      },
+      error: () => this.popoverLoading.set(false),
+    });
+  }
+
+  protected changeTypeLabel(type: string): string {
+    const map: Record<string, string> = {
+      cancellation: '停課',
+      substitute: '代課',
+      reschedule: '調課',
+      uncancel: '取消停課',
+    };
+    return map[type] ?? type;
+  }
+
+  protected changeTypeSeverity(
+    type: string,
+  ): 'success' | 'info' | 'warn' | 'danger' | 'secondary' | 'contrast' {
+    const map: Record<string, 'success' | 'info' | 'warn' | 'danger' | 'secondary' | 'contrast'> =
+      { cancellation: 'danger', substitute: 'warn', reschedule: 'info', uncancel: 'success' };
+    return map[type] ?? 'info';
   }
 
   private emitSelected(selected: ReadonlySet<string>): void {

@@ -1,38 +1,20 @@
 <section
-  class="calendar-body"
-  [class.calendar-body--list]="viewMode() === 'list'"
-  [class.calendar-body--with-selection]="viewMode() === 'list' && selectedCount() > 0"
+  class="calendar-body calendar-body--list"
+  [class.calendar-body--with-selection]="selectedCount() > 0"
 >
-  @if (viewMode() === 'list') {
-    <div class="calendar-body__list">
-      <app-session-list
-        [sessions]="sessions()"
-        [loading]="loading()"
-        [selectedIds]="selectedIds()"
-        (selectedIdsChange)="selectedIdsChange.emit($event)"
-        (contextMenuRequested)="contextMenuRequested.emit($event)"
-      />
-    </div>
-
-    <app-session-batch
-      [selectedCount]="selectedCount()"
-      (clearSelection)="clearSelection.emit()"
-      (openBatchSheet)="openBatchSheet.emit($event)"
-    />
-  } @else if (loading()) {
-    <div class="calendar-body__skeleton">
-      @for (i of [1, 2, 3, 4, 5, 6, 7, 8]; track i) {
-        <p-skeleton height="80px" borderRadius="6px" />
-      }
-    </div>
-  } @else {
-    <app-session-calendar-grid
+  <div class="calendar-body__list">
+    <app-session-list
       [sessions]="sessions()"
-      [isWeekView]="isWeekView()"
-      [weekDays]="weekDays()"
-      [currentDate]="currentDate()"
-      (sessionClick)="sessionClick.emit($event)"
-      (overflowClick)="overflowClick.emit($event)"
+      [loading]="loading()"
+      [selectedIds]="selectedIds()"
+      (selectedIdsChange)="selectedIdsChange.emit($event)"
+      (contextMenuRequested)="contextMenuRequested.emit($event)"
     />
-  }
+  </div>
+
+  <app-session-batch
+    [selectedCount]="selectedCount()"
+    (clearSelection)="clearSelection.emit()"
+    (openBatchSheet)="openBatchSheet.emit($event)"
+  />
 </section>

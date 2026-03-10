@@ -1,6 +1,5 @@
 import {
   Component,
-  DestroyRef,
   OnInit,
   computed,
   inject,
@@ -9,20 +8,8 @@ import {
   viewChild,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
-import {
-  addDays,
-  addWeeks,
-  endOfWeek,
-  endOfMonth,
-  format,
-  isSameWeek,
-  isToday,
-  startOfWeek,
-} from 'date-fns';
-import { debounceTime, fromEvent } from 'rxjs';
-import { zhTW } from 'date-fns/locale';
+import { endOfMonth, format } from 'date-fns';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { MenuModule, type Menu } from 'primeng/menu';
 import { ToastModule } from 'primeng/toast';
@@ -32,16 +19,12 @@ import { CampusesService, type Campus } from '@core/campuses.service';
 import { ClassesService } from '@core/classes.service';
 import { CoursesService, type Course } from '@core/courses.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import {
-  SessionsService,
-  type Session,
-} from '@core/sessions.service';
+import { SessionsService, type Session } from '@core/sessions.service';
 import { StaffService, type Staff } from '@core/staff.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 
 import { SessionCancelDialogComponent } from './dialogs/session-cancel-dialog/session-cancel-dialog.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
-import { SessionOverflowDialogComponent } from './dialogs/session-overflow-dialog/session-overflow-dialog.component';
 import { SessionRescheduleDialogComponent } from './dialogs/session-reschedule-dialog/session-reschedule-dialog.component';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
 import { SessionSubstituteDialogComponent } from './dialogs/session-substitute-dialog/session-substitute-dialog.component';
@@ -55,13 +38,12 @@ import {
   type MobileBatchDialogData,
   type MobileBatchDialogResult,
 } from './dialogs/mobile-batch-dialog/mobile-batch-dialog.component';
-import { SessionFiltersComponent } from './components/session-filters/session-filters.component';
+import { SessionFiltersComponent, DEFAULT_STATUSES } from './components/session-filters/session-filters.component';
 import { CalendarHeaderComponent } from './components/calendar-header/calendar-header.component';
 import {
   CalendarBodyComponent,
   type CalendarBodyBatchMode,
   type CalendarBodyContextMenuEvent,
-  type CalendarBodyOverflowEvent,
 } from './components/calendar-body/calendar-body.component';
 import { CalendarActionsService } from './services/calendar-actions.service';
 
@@ -90,33 +72,19 @@ export class CalendarPage implements OnInit {
   private readonly sessionsService = inject(SessionsService);
   private readonly calendarActionsService = inject(CalendarActionsService);
   private readonly messageService = inject(MessageService);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly dialogService = inject(DialogService);
   private readonly route = inject(ActivatedRoute);
-
-  protected readonly activeFilterCount = computed(() => {
-    let count = 0;
-    if (this.selectedCourseId()) count++;
-    if (this.selectedTeacherIds().length > 0) count++;
-    if (this.selectedClassId()) count++;
-    if (this.viewMode() === 'list' && this.listDateRangeModified()) count++;
-    if (this.viewMode() === 'list' && this.showOnlyUnassigned()) count++;
-    return count;
-  });
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
   }
 
-  // ── View state (signals) ───────────────────────────────────────────────
-  protected readonly currentDate = signal(new Date());
-  protected readonly isWeekView = signal(window.innerWidth >= 768);
-  protected readonly viewMode = signal<'calendar' | 'list'>('list');
+  // ── View state ─────────────────────────────────────────────────────────
   protected readonly loading = signal(false);
   protected readonly sessions = signal<Session[]>([]);
 
-  // Filter options (signals)
+  // Filter options
   protected readonly campuses = signal<Campus[]>([]);
   protected readonly courses = signal<Course[]>([]);
   protected readonly staff = signal<Staff[]>([]);
@@ -127,126 +95,108 @@ export class CalendarPage implements OnInit {
   private readonly sessionMenuRef = viewChild<Menu>('sessionMenu');
 
   // ── Filter state ───────────────────────────────────────────────────────
-  protected readonly selectedCampusId = signal<string | null>(null);
-  protected readonly selectedCourseId = signal<string | null>(null);
+  protected readonly selectedCampusIds = signal<string[]>([]);
+  protected readonly selectedCourseIds = signal<string[]>([]);
   protected readonly selectedTeacherIds = signal<string[]>([]);
   protected readonly selectedClassId = signal<string | null>(null);
-  protected readonly showOnlyUnassigned = signal(false);
+  protected readonly selectedStatuses = signal<string[]>([...DEFAULT_STATUSES]);
 
-  // ── List view date range (independent from calendar week/day) ──────────
+  // ── List date range ────────────────────────────────────────────────────
   protected readonly listDateRange = signal<Date[]>(this.getDefaultListDateRange());
   protected readonly listDateRangeModified = signal(false);
 
   // ── Computed ───────────────────────────────────────────────────────────
-  protected readonly availableCourses = computed(() => {
-    const campusId = this.selectedCampusId();
-    if (!campusId) return [];
-    return this.courses().filter((c) => c.campusId === campusId);
-  });
-
-  protected readonly availableTeachers = computed(() => {
-    const campusId = this.selectedCampusId();
-    if (!campusId) return [];
-
-    let filteredTeachers = this.activeTeachers().filter((t) => t.campusIds.includes(campusId));
-    const courseId = this.selectedCourseId();
-    if (courseId) {
-      const course = this.courses().find((c) => c.id === courseId);
-      if (course) {
-        filteredTeachers = filteredTeachers.filter((t) => t.subjectIds.includes(course.subjectId));
-      }
-
-      // For selected course, only keep teachers that are actually assigned to
-      // currently loaded sessions under the same campus/course filters.
-      const assignedTeacherIds = new Set(
-        this.sessions()
-          .filter(
-            (session) =>
-              session.campusId === campusId &&
-              session.courseId === courseId &&
-              session.assignmentStatus === 'assigned' &&
-              !!session.teacherId,
-          )
-          .map((session) => session.teacherId)
-          .filter((teacherId): teacherId is string => !!teacherId),
-      );
-
-      filteredTeachers = filteredTeachers.filter((teacher) => assignedTeacherIds.has(teacher.id));
-    }
-    return filteredTeachers;
-  });
-
-  protected readonly availableClasses = computed(() => {
-    const campusId = this.selectedCampusId();
-    const courseId = this.selectedCourseId();
-    if (!campusId || !courseId) return [];
-    return this.classes().filter((c) => c.campusId === campusId && c.courseId === courseId);
-  });
-
-  protected readonly hasActiveFilters = computed(
-    () =>
-      !!(
-        this.selectedCourseId() ||
-        this.selectedTeacherIds().length > 0 ||
-        this.selectedClassId() ||
-        (this.viewMode() === 'list' && this.listDateRangeModified()) ||
-        (this.viewMode() === 'list' && this.showOnlyUnassigned())
-      ),
-  );
-
-  protected readonly filteredSessions = computed(() => {
-    const sessions = this.sessions();
-    if (!this.showOnlyUnassigned()) return sessions;
-    return sessions.filter(s => s.assignmentStatus === 'unassigned' && s.status === 'scheduled');
-  });
-
-  protected readonly weekStart = computed(() =>
-    startOfWeek(this.currentDate(), { weekStartsOn: 1 }),
-  );
-
-  protected readonly weekEnd = computed(() => endOfWeek(this.currentDate(), { weekStartsOn: 1 }));
-
-  protected readonly weekDays = computed(() =>
-    Array.from({ length: 7 }, (_, i) => addDays(this.weekStart(), i)),
-  );
-
-  protected readonly weekLabel = computed(() => {
-    const now = new Date();
-    const weekOpts = { weekStartsOn: 1 as const };
-    const start = this.weekStart();
-    const end = this.weekEnd();
-    const sameYear = start.getFullYear() === end.getFullYear();
-    const startFmt = sameYear ? format(start, 'M/d') : format(start, 'yyyy/M/d');
-    const endFmt = format(end, 'yyyy/M/d');
-    const dateRange = sameYear
-      ? `${format(start, 'yyyy')} · ${startFmt} – ${format(end, 'M/d')}`
-      : `${startFmt} – ${endFmt}`;
-
-    if (isSameWeek(start, now, weekOpts)) return `本週 · ${dateRange}`;
-    if (isSameWeek(start, addWeeks(now, -1), weekOpts)) return `上週 · ${dateRange}`;
-    if (isSameWeek(start, addWeeks(now, 1), weekOpts)) return `下週 · ${dateRange}`;
-    return dateRange;
-  });
-
-  protected readonly dayLabel = computed(() => {
-    const date = this.currentDate();
-    const dateStr = format(date, 'yyyy/M/d (EEE)', { locale: zhTW });
-    return isToday(date) ? `今天 · ${dateStr}` : dateStr;
-  });
-
-  protected readonly isCurrentPeriod = computed(() => {
-    const now = new Date();
-    if (this.isWeekView()) {
-      return isSameWeek(this.currentDate(), now, { weekStartsOn: 1 });
-    }
-    return isToday(this.currentDate());
-  });
-
   protected readonly activeTeachers = computed(() =>
     this.staff().filter((s) => s.roles.includes('teacher')),
   );
 
-  // ── Selection state ─────────────────────────────────────────────────
+  protected readonly availableCourses = computed(() => {
+    const campusIds = this.selectedCampusIds();
+    if (campusIds.length === 0) return this.courses();
+    return this.courses().filter((c) => campusIds.includes(c.campusId));
+  });
+
+  protected readonly availableTeachers = computed(() => {
+    const campusIds = this.selectedCampusIds();
+    if (campusIds.length === 0) return this.activeTeachers();
+
+    let filtered = this.activeTeachers().filter((t) =>
+      t.campusIds.some((cid) => campusIds.includes(cid)),
+    );
+
+    const courseIds = this.selectedCourseIds();
+    if (courseIds.length > 0) {
+      const selectedCourses = this.courses().filter((c) => courseIds.includes(c.id));
+      const subjectIds = new Set(selectedCourses.map((c) => c.subjectId));
+      filtered = filtered.filter((t) => t.subjectIds.some((sid) => subjectIds.has(sid)));
+
+      const assignedTeacherIds = new Set(
+        this.sessions()
+          .filter(
+            (s) =>
+              campusIds.includes(s.campusId) &&
+              courseIds.includes(s.courseId) &&
+              s.assignmentStatus === 'assigned' &&
+              !!s.teacherId,
+          )
+          .map((s) => s.teacherId)
+          .filter((id): id is string => !!id),
+      );
+      filtered = filtered.filter((t) => assignedTeacherIds.has(t.id));
+    }
+    return filtered;
+  });
+
+  protected readonly availableClasses = computed(() => {
+    const campusIds = this.selectedCampusIds();
+    const courseIds = this.selectedCourseIds();
+    if (campusIds.length === 0 || courseIds.length === 0) return [];
+    return this.classes().filter(
+      (c) => campusIds.includes(c.campusId) && courseIds.includes(c.courseId),
+    );
+  });
+
+  protected readonly activeFilterCount = computed(() => {
+    let count = 0;
+    if (this.selectedCourseIds().length > 0) count++;
+    if (this.selectedTeacherIds().length > 0) count++;
+    if (this.selectedClassId()) count++;
+    if (this.listDateRangeModified()) count++;
+    if (!this.isDefaultStatuses()) count++;
+    return count;
+  });
+
+  protected readonly hasActiveFilters = computed(
+    () =>
+      this.selectedCourseIds().length > 0 ||
+      this.selectedTeacherIds().length > 0 ||
+      !!this.selectedClassId() ||
+      this.listDateRangeModified() ||
+      !this.isDefaultStatuses(),
+  );
+
+  protected readonly filteredSessions = computed(() => {
+    const sessions = this.sessions();
+    const teacherIds = this.selectedTeacherIds();
+    const statuses = new Set(this.selectedStatuses());
+    const hasUnassigned = teacherIds.includes('__unassigned__');
+    const realTeacherIds = new Set(teacherIds.filter((id) => id !== '__unassigned__'));
+
+    return sessions.filter((s) => {
+      if (!statuses.has(s.status)) return false;
+
+      if (hasUnassigned || realTeacherIds.size > 0) {
+        const matchesUnassigned =
+          hasUnassigned && s.assignmentStatus === 'unassigned' && s.status === 'scheduled';
+        const matchesTeacher = realTeacherIds.size > 0 && !!s.teacherId && realTeacherIds.has(s.teacherId);
+        if (!matchesUnassigned && !matchesTeacher) return false;
+      }
+
+      return true;
+    });
+  });
+
+  // ── Selection state ────────────────────────────────────────────────────
   protected readonly selectedIds = signal<Set<string>>(new Set());
   protected readonly selectedCount = computed(() => this.selectedIds().size);
   protected readonly selectedSessions = computed(() => {
@@ -260,7 +210,6 @@ export class CalendarPage implements OnInit {
   protected readonly batchAssignableTeachers = computed(() => {
     const sessions = this.selectedSessions();
     if (sessions.length === 0) return [];
-
     const courseSubjectMap = new Map(this.courses().map((course) => [course.id, course.subjectId]));
     return this.activeTeachers().filter((teacher) =>
       sessions.every((session) => {
@@ -273,47 +222,26 @@ export class CalendarPage implements OnInit {
     );
   });
 
-  // ── Context menu ─────────────────────────────────────────────────────
+  // ── Context menu ───────────────────────────────────────────────────────
   protected readonly contextSession = signal<Session | null>(null);
   protected readonly contextMenuItems = computed<MenuItem[]>(() => {
     const s = this.contextSession();
     if (!s) return [];
     const items: MenuItem[] = [];
-
     if (s.status === 'scheduled') {
-      items.push({
-        label: '調課',
-        icon: 'pi pi-calendar-clock',
-        command: () => this.openReschedule(s),
-      });
+      items.push({ label: '調課', icon: 'pi pi-calendar-clock', command: () => this.openReschedule(s) });
     }
     if (s.status === 'scheduled' && s.assignmentStatus === 'assigned') {
-      items.push({
-        label: '代課',
-        icon: 'pi pi-user-edit',
-        command: () => this.openSubstitute(s),
-      });
+      items.push({ label: '代課', icon: 'pi pi-user-edit', command: () => this.openSubstitute(s) });
     }
     if (s.assignmentStatus === 'unassigned' && s.status === 'scheduled') {
-      items.push({
-        label: '指派老師',
-        icon: 'pi pi-user-plus',
-        command: () => this.openAssignSingle(s),
-      });
+      items.push({ label: '指派老師', icon: 'pi pi-user-plus', command: () => this.openAssignSingle(s) });
     }
     if (s.status === 'scheduled') {
-      items.push({
-        label: '停課',
-        icon: 'pi pi-ban',
-        command: () => this.openCancelDialog(s),
-      });
+      items.push({ label: '停課', icon: 'pi pi-ban', command: () => this.openCancelDialog(s) });
     }
     if (s.status === 'cancelled') {
-      items.push({
-        label: '取消停課',
-        icon: 'pi pi-replay',
-        command: () => this.uncancelSingle(s),
-      });
+      items.push({ label: '取消停課', icon: 'pi pi-replay', command: () => this.uncancelSingle(s) });
     }
     return items;
   });
@@ -323,45 +251,9 @@ export class CalendarPage implements OnInit {
     this.applyQueryParams();
     this.loadFilters();
     this.loadSessions();
-    this.listenToResize();
   }
 
-  // ── Navigation ─────────────────────────────────────────────────────────
-  protected prevPeriod(): void {
-    if (this.isWeekView()) {
-      this.currentDate.set(addWeeks(this.currentDate(), -1));
-    } else {
-      this.currentDate.set(addDays(this.currentDate(), -1));
-    }
-    this.loadSessions();
-  }
-
-  protected nextPeriod(): void {
-    if (this.isWeekView()) {
-      this.currentDate.set(addWeeks(this.currentDate(), 1));
-    } else {
-      this.currentDate.set(addDays(this.currentDate(), 1));
-    }
-    this.loadSessions();
-  }
-
-  protected goToday(): void {
-    this.currentDate.set(new Date());
-    this.loadSessions();
-  }
-
-  protected onDateJump(date: Date): void {
-    this.currentDate.set(date);
-    this.loadSessions();
-  }
-
-  // ── View toggle ──────────────────────────────────────────────────────
-  protected toggleViewMode(mode: 'calendar' | 'list'): void {
-    this.viewMode.set(mode);
-    this.loadSessions();
-  }
-
-  // ── List view ───────────────────────────────────────────────────────
+  // ── List actions ───────────────────────────────────────────────────────
   protected onSelectedIdsChange(ids: string[]): void {
     this.selectedIds.set(new Set(ids));
   }
@@ -375,7 +267,7 @@ export class CalendarPage implements OnInit {
     this.selectedIds.set(new Set());
   }
 
-  // ── Batch dialog actions ──────────────────────────────────────────────
+  // ── Batch dialog ───────────────────────────────────────────────────────
   protected openBatchSheet(initialMode: CalendarBodyBatchMode | null = null): void {
     const data: MobileBatchDialogData = {
       sessionIds: [...this.selectedIds()],
@@ -416,10 +308,11 @@ export class CalendarPage implements OnInit {
       teachers: this.activeTeachers(),
       sessions: this.sessions(),
       classes: this.classes(),
-      selectedCampusId: this.selectedCampusId(),
-      selectedCourseId: this.selectedCourseId(),
+      selectedCampusIds: this.selectedCampusIds(),
+      selectedCourseIds: this.selectedCourseIds(),
       selectedTeacherIds: this.selectedTeacherIds(),
       selectedClassId: this.selectedClassId(),
+      selectedStatuses: this.selectedStatuses(),
     };
     const ref = this.dialogService.open(MobileFilterDialogComponent, {
       header: '篩選條件',
@@ -432,57 +325,40 @@ export class CalendarPage implements OnInit {
     });
     ref?.onClose.subscribe((result?: MobileFilterDialogResult) => {
       if (result) {
-        this.selectedCampusId.set(result.campusId);
-        this.selectedCourseId.set(result.courseId);
+        this.selectedCampusIds.set(result.campusIds);
+        this.selectedCourseIds.set(result.courseIds);
         this.selectedTeacherIds.set(result.teacherIds);
         this.selectedClassId.set(result.classId);
+        this.selectedStatuses.set(result.statuses);
         this.loadSessions();
       }
     });
   }
 
-  // ── Single-session actions ───────────────────────────────────────────
+  // ── Single-session actions ─────────────────────────────────────────────
   protected openReschedule(session: Session): void {
     const ref = this.dialogService.open(SessionRescheduleDialogComponent, {
-      header: '調課',
-      width: '400px',
-      data: { session },
-      styleClass: 'cal-dialog',
+      header: '調課', width: '400px', data: { session }, styleClass: 'cal-dialog',
     });
-    ref?.onClose.subscribe((result) => {
-      if (result === 'refresh') this.loadSessions();
-    });
+    ref?.onClose.subscribe((result) => { if (result === 'refresh') this.loadSessions(); });
   }
 
   protected openSubstitute(session: Session): void {
     const ref = this.dialogService.open(SessionSubstituteDialogComponent, {
-      header: '安排代課',
-      width: '400px',
-      data: { session },
-      styleClass: 'cal-dialog',
+      header: '安排代課', width: '400px', data: { session }, styleClass: 'cal-dialog',
     });
-    ref?.onClose.subscribe((result) => {
-      if (result === 'refresh') this.loadSessions();
-    });
+    ref?.onClose.subscribe((result) => { if (result === 'refresh') this.loadSessions(); });
   }
 
   protected openCancelDialog(session: Session): void {
     const ref = this.dialogService.open(SessionCancelDialogComponent, {
-      header: '停課',
-      width: '400px',
-      data: { session },
-      styleClass: 'cal-dialog',
+      header: '停課', width: '400px', data: { session }, styleClass: 'cal-dialog',
     });
     ref?.onClose.subscribe((result?: { result: string } | string) => {
       const didRefresh = typeof result === 'string' ? result === 'refresh' : result?.result === 'refresh';
       if (didRefresh) {
         this.loadSessions();
-        this.messageService.add({
-          severity: 'success',
-          summary: '已停課',
-          detail: '如需安排補課，請至課堂管理中心的清單視圖新增調課',
-          life: 6000,
-        });
+        this.messageService.add({ severity: 'success', summary: '已停課', detail: '如需安排補課，請新增調課', life: 6000 });
       }
     });
   }
@@ -491,50 +367,35 @@ export class CalendarPage implements OnInit {
     this.calendarActionsService.uncancelSingle(session.id).subscribe({
       next: () => {
         this.loadSessions();
-        this.messageService.add({
-          severity: 'success',
-          summary: '已取消停課',
-          detail: `${session.className} ${session.sessionDate}`,
-        });
+        this.messageService.add({ severity: 'success', summary: '已取消停課', detail: `${session.className} ${session.sessionDate}` });
       },
       error: () => {
-        this.messageService.add({
-          severity: 'error',
-          summary: '操作失敗',
-          detail: '無法取消停課',
-        });
+        this.messageService.add({ severity: 'error', summary: '操作失敗', detail: '無法取消停課' });
       },
     });
   }
 
   protected openAssignSingle(session: Session): void {
     const eligibleTeachers = this.getEligibleTeachersForSession(session);
-
     const ref = this.dialogService.open(SessionAssignDialogComponent, {
-      header: '指派老師',
-      width: '400px',
-      data: {
-        session,
-        ...(eligibleTeachers.length > 0 ? { teachers: eligibleTeachers } : {}),
-      },
+      header: '指派老師', width: '400px',
+      data: { session, ...(eligibleTeachers.length > 0 ? { teachers: eligibleTeachers } : {}) },
       styleClass: 'cal-dialog',
     });
-    ref?.onClose.subscribe((result) => {
-      if (result === 'refresh') this.loadSessions();
-    });
+    ref?.onClose.subscribe((result) => { if (result === 'refresh') this.loadSessions(); });
   }
 
   // ── Filters ────────────────────────────────────────────────────────────
-  protected onCampusChange(campusId: string | null): void {
-    this.selectedCampusId.set(campusId);
-    this.selectedCourseId.set(null);
+  protected onCampusIdsChange(ids: string[]): void {
+    this.selectedCampusIds.set(ids);
+    this.selectedCourseIds.set([]);
     this.selectedTeacherIds.set([]);
     this.selectedClassId.set(null);
     this.loadSessions();
   }
 
-  protected onCourseChange(courseId: string | null): void {
-    this.selectedCourseId.set(courseId);
+  protected onCourseIdsChange(ids: string[]): void {
+    this.selectedCourseIds.set(ids);
     this.selectedTeacherIds.set([]);
     this.selectedClassId.set(null);
     this.loadSessions();
@@ -553,88 +414,57 @@ export class CalendarPage implements OnInit {
   protected onListDateRangeChange(range: Date[]): void {
     this.listDateRange.set(range);
     this.listDateRangeModified.set(true);
-    if (range.length === 2) {
-      this.loadSessions();
-    }
+    if (range.length === 2) this.loadSessions();
+  }
+
+  protected onStatusesChange(statuses: string[] | null): void {
+    this.selectedStatuses.set(statuses ?? [...DEFAULT_STATUSES]);
   }
 
   protected clearFilters(): void {
-    this.selectedCourseId.set(null);
+    this.selectedCourseIds.set([]);
     this.selectedTeacherIds.set([]);
     this.selectedClassId.set(null);
-    this.showOnlyUnassigned.set(false);
     this.listDateRange.set(this.getDefaultListDateRange());
     this.listDateRangeModified.set(false);
+    this.selectedStatuses.set([...DEFAULT_STATUSES]);
     this.loadSessions();
-  }
-
-  protected onCalendarGridOverflow(event: CalendarBodyOverflowEvent): void {
-    this.openOverflowDialog(event.startTime, event.sessions);
   }
 
   // ── Detail popup ───────────────────────────────────────────────────────
   protected openDetail(session: Session): void {
     const ref = this.dialogService.open(SessionDetailDialogComponent, {
-      header: '課程詳情',
-      width: '400px',
-      data: { session, loadingChanges: true, changes: [] },
-      styleClass: 'cal-dialog',
+      header: '課程詳情', width: '400px',
+      data: { session, loadingChanges: true, changes: [] }, styleClass: 'cal-dialog',
     });
-
     if (ref) {
       ref.onClose.subscribe((result) => {
-        if (result === 'refresh' || result === 'cancelled') {
-          this.loadSessions();
-        }
+        if (result === 'refresh' || result === 'cancelled') this.loadSessions();
         if (result === 'cancelled') {
-          this.messageService.add({
-            severity: 'success',
-            summary: '已停課',
-            detail: '如需安排補課，請至課堂管理中心的清單視圖新增調課',
-            life: 6000,
-          });
+          this.messageService.add({ severity: 'success', summary: '已停課', detail: '如需安排補課，請新增調課', life: 6000 });
         }
       });
     }
   }
 
-  protected openOverflowDialog(startTime: string, sessions: Session[]): void {
-    this.dialogService.open(SessionOverflowDialogComponent, {
-      header: `${startTime} 重疊課程`,
-      width: '400px',
-      contentStyle: { padding: '1rem', 'padding-bottom': '1rem' },
-      data: { startTime, sessions },
-      styleClass: 'cal-dialog',
-    });
+  // ── Private ────────────────────────────────────────────────────────────
+  private isDefaultStatuses(): boolean {
+    const current = [...this.selectedStatuses()].sort().join(',');
+    const def = [...DEFAULT_STATUSES].sort().join(',');
+    return current === def;
   }
 
-  // ── Private ────────────────────────────────────────────────────────────
   private applyQueryParams(): void {
     const params = this.route.snapshot.queryParams;
-    const viewParam = params['view'];
-    if (viewParam === 'calendar' || viewParam === 'list') {
-      this.viewMode.set(viewParam);
-    }
-    if (params['campusId']) {
-      this.selectedCampusId.set(params['campusId']);
-    }
-    if (params['courseId']) {
-      this.selectedCourseId.set(params['courseId']);
-    }
-    if (params['classId']) {
-      this.selectedClassId.set(params['classId']);
-    }
+    if (params['campusId']) this.selectedCampusIds.set([params['campusId']]);
+    if (params['courseId']) this.selectedCourseIds.set([params['courseId']]);
+    if (params['classId']) this.selectedClassId.set(params['classId']);
     if (params['from']) {
       const fromDate = new Date(params['from']);
-      this.currentDate.set(fromDate);
-      if (params['to']) {
-        this.listDateRange.set([fromDate, new Date(params['to'])]);
-      } else {
-        this.listDateRange.set([fromDate, endOfMonth(fromDate)]);
-      }
+      this.listDateRange.set([fromDate, params['to'] ? new Date(params['to']) : endOfMonth(fromDate)]);
     }
     if (params['assignmentStatus'] === 'unassigned') {
-      this.showOnlyUnassigned.set(true);
+      this.selectedTeacherIds.set(['__unassigned__']);
     }
   }
 
@@ -644,35 +474,18 @@ export class CalendarPage implements OnInit {
   }
 
   private getEligibleTeachersForSession(session: Session): Staff[] {
-    const campusTeachers = this.activeTeachers().filter((teacher) =>
-      teacher.campusIds.includes(session.campusId),
-    );
-    const course = this.courses().find((item) => item.id === session.courseId);
+    const campusTeachers = this.activeTeachers().filter((t) => t.campusIds.includes(session.campusId));
+    const course = this.courses().find((c) => c.id === session.courseId);
     if (!course) return campusTeachers;
-    return campusTeachers.filter((teacher) => teacher.subjectIds.includes(course.subjectId));
-  }
-
-  private listenToResize(): void {
-    fromEvent(window, 'resize')
-      .pipe(debounceTime(150), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        const isWide = window.innerWidth >= 768;
-        if (this.isWeekView() !== isWide) {
-          this.isWeekView.set(isWide);
-          // Only reload for calendar view; list view has its own date range
-          if (this.viewMode() === 'calendar') {
-            this.loadSessions();
-          }
-        }
-      });
+    return campusTeachers.filter((t) => t.subjectIds.includes(course.subjectId));
   }
 
   private loadFilters(): void {
     this.campusesService.list({ isActive: true, pageSize: 100 }).subscribe({
       next: (res) => {
         this.campuses.set(res.data);
-        if (res.data.length > 0 && !this.selectedCampusId()) {
-          this.selectedCampusId.set(res.data[0].id);
+        if (res.data.length > 0 && this.selectedCampusIds().length === 0) {
+          this.selectedCampusIds.set([res.data[0].id]);
           this.loadSessions();
         }
       },
@@ -685,41 +498,22 @@ export class CalendarPage implements OnInit {
     });
     this.classesService.list({ isActive: true, pageSize: 500 }).subscribe({
       next: (res) =>
-        this.classes.set(
-          res.data.map((c) => ({
-            id: c.id,
-            name: c.name,
-            courseId: c.courseId,
-            campusId: c.campusId,
-          })),
-        ),
+        this.classes.set(res.data.map((c) => ({ id: c.id, name: c.name, courseId: c.courseId, campusId: c.campusId }))),
     });
   }
 
   private loadSessions(): void {
-    let from: string;
-    let to: string;
-    let teacherId: string | undefined;
-    let teacherIds: string[] | undefined;
+    const range = this.listDateRange();
+    const from = range.length > 0 ? format(range[0], 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+    const to = range.length > 1 ? format(range[1], 'yyyy-MM-dd') : from;
 
-    if (this.viewMode() === 'list') {
-      // List view: use independent date range + multi-teacher
-      const range = this.listDateRange();
-      from = range.length > 0 ? format(range[0], 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
-      to = range.length > 1 ? format(range[1], 'yyyy-MM-dd') : from;
-      const ids = this.selectedTeacherIds();
-      if (ids.length > 0) teacherIds = ids;
-    } else {
-      // Calendar view: use week/day + single teacher (first from array)
-      from = this.isWeekView()
-        ? format(this.weekStart(), 'yyyy-MM-dd')
-        : format(this.currentDate(), 'yyyy-MM-dd');
-      to = this.isWeekView()
-        ? format(this.weekEnd(), 'yyyy-MM-dd')
-        : format(this.currentDate(), 'yyyy-MM-dd');
-      const ids = this.selectedTeacherIds();
-      if (ids.length === 1) teacherId = ids[0];
-      else if (ids.length > 1) teacherId = ids[0]; // calendar only uses first
+    const rawIds = this.selectedTeacherIds();
+    const realTeacherIds = rawIds.filter((id) => id !== '__unassigned__');
+    let teacherIds: string[] | undefined;
+    if (rawIds.includes('__unassigned__')) {
+      if (realTeacherIds.length > 0) teacherIds = realTeacherIds;
+    } else if (realTeacherIds.length > 0) {
+      teacherIds = realTeacherIds;
     }
 
     this.loading.set(true);
@@ -727,9 +521,8 @@ export class CalendarPage implements OnInit {
       .list({
         from,
         to,
-        campusId: this.selectedCampusId() ?? undefined,
-        courseId: this.selectedCourseId() ?? undefined,
-        teacherId,
+        campusIds: this.selectedCampusIds().length > 0 ? this.selectedCampusIds() : undefined,
+        courseIds: this.selectedCourseIds().length > 0 ? this.selectedCourseIds() : undefined,
         teacherIds,
         classId: this.selectedClassId() ?? undefined,
       })
@@ -740,11 +533,7 @@ export class CalendarPage implements OnInit {
         },
         error: () => {
           this.loading.set(false);
-          this.messageService.add({
-            severity: 'error',
-            summary: '載入失敗',
-            detail: '無法載入課堂資料',
-          });
+          this.messageService.add({ severity: 'error', summary: '載入失敗', detail: '無法載入課堂資料' });
         },
       });
   }

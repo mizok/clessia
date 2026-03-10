@@ -261,16 +261,39 @@ export class ClassFormDialogComponent {
     const existingSchedules = this.cls()?.schedules ?? [];
     const updatedEntries = this.scheduleEntries();
 
-    const existingIds = existingSchedules.map((s) => s.id);
+    const existingById = new Map(existingSchedules.map((s) => [s.id, s]));
     const keptIds = new Set(updatedEntries.filter((e) => e.id).map((e) => e.id!));
-    const toDelete = existingIds.filter((id) => !keptIds.has(id));
+    const toDelete = existingSchedules.map((s) => s.id).filter((id) => !keptIds.has(id));
     const toAdd = updatedEntries.filter((e) => !e.id);
+    const toUpdate = updatedEntries.filter((e) => {
+      if (!e.id) return false;
+      const orig = existingById.get(e.id);
+      if (!orig) return false;
+      return (
+        e.weekday !== orig.weekday ||
+        e.startTime !== orig.startTime.substring(0, 5) ||
+        e.endTime !== orig.endTime.substring(0, 5) ||
+        e.teacherId !== orig.teacherId ||
+        e.effectiveTo !== orig.effectiveTo
+      );
+    });
 
     const deleteOps = toDelete.map((sid) =>
       this.classesService.deleteSchedule(classId, sid).toPromise(),
     );
+    const updateOps = toUpdate.map((e) =>
+      this.classesService
+        .updateSchedule(classId, e.id!, {
+          weekday: e.weekday!,
+          startTime: e.startTime,
+          endTime: e.endTime,
+          teacherId: e.teacherId,
+          effectiveTo: e.effectiveTo,
+        })
+        .toPromise(),
+    );
 
-    Promise.all(deleteOps)
+    Promise.all([...deleteOps, ...updateOps])
       .then(() => {
         if (toAdd.length === 0) {
           this.ref.close({ classId });

@@ -120,12 +120,12 @@ export class RoutesCatalog {
     true,
     '教務管理',
   );
-  public static readonly ADMIN_CALENDAR = this.register(
-    'calendar',
-    '/admin/calendar',
-    '課堂安排中心',
+  public static readonly ADMIN_SESSIONS = this.register(
+    'sessions',
+    '/admin/sessions',
+    '課堂管理中心',
     UserType.ADMIN,
-    'pi-calendar',
+    'pi-list',
     true,
     '教務管理',
   );
@@ -135,15 +135,6 @@ export class RoutesCatalog {
     '排課管理',
     UserType.ADMIN,
     'pi-table',
-    false,
-    '教務管理',
-  );
-  public static readonly ADMIN_SESSIONS = this.register(
-    'sessions',
-    '/admin/sessions',
-    '課堂搜尋',
-    UserType.ADMIN,
-    'pi-search',
     false,
     '教務管理',
   );

@@ -84,7 +84,12 @@
           </td>
           <td appRtColCell="adjustment">
             @if (session.hasChanges) {
-              <p-tag severity="warn" value="有異動" />
+              <p-tag
+                severity="warn"
+                value="有異動"
+                class="session-list__changes-tag"
+                (click)="openChangesPopover($event, session)"
+              />
             } @else {
               <span class="session-list__adjustment-empty">—</span>
             }
@@ -116,4 +121,56 @@
       }
     </ng-template>
   }
+
+<p-popover #changesPopover styleClass="session-list__changes-popover">
+  @if (popoverLoading()) {
+    <div class="session-list__popover-loading">
+      <p-skeleton height="14px" borderRadius="4px" />
+      <p-skeleton height="14px" borderRadius="4px" width="80%" />
+    </div>
+  } @else if (popoverChanges().length === 0) {
+    <p class="session-list__popover-empty">無異動紀錄</p>
+  } @else {
+    <ul class="session-list__popover-list">
+      @for (change of popoverChanges(); track change.id) {
+        <li class="session-list__popover-item">
+          <div class="session-list__popover-item-header">
+            <p-tag
+              [severity]="changeTypeSeverity(change.changeType)"
+              [value]="changeTypeLabel(change.changeType)"
+              styleClass="session-list__popover-type-tag"
+            />
+            <span class="session-list__popover-detail">
+              @switch (change.changeType) {
+                @case ('reschedule') {
+                  @if (change.originalSessionDate) {
+                    {{ change.originalSessionDate | date: 'MM/dd' }}
+                    {{ change.originalStartTime }}–{{ change.originalEndTime }}
+                    →
+                  }
+                  {{ change.newSessionDate | date: 'MM/dd' }}
+                  {{ change.newStartTime }}–{{ change.newEndTime }}
+                }
+                @case ('substitute') {
+                  代課老師：{{ change.substituteTeacherName }}
+                }
+                @case ('cancellation') {
+                  {{ change.reason || '（未填原因）' }}
+                }
+                @case ('uncancel') {
+                  恢復為已排課
+                }
+              }
+            </span>
+          </div>
+          @if (change.createdByName) {
+            <div class="session-list__popover-meta">
+              {{ change.createdByName }}・{{ change.createdAt | date: 'MM/dd HH:mm' }}
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  }
+</p-popover>
 </section>
