@@ -29,6 +29,8 @@ export interface MobileBatchDialogData {
 export interface MobileBatchDialogResult {
   readonly action: 'applied';
   readonly updated: number;
+  readonly skipped: number;
+  readonly mode: MobileBatchMode;
 }
 
 @Component({
@@ -127,12 +129,9 @@ export class MobileBatchDialogComponent implements OnInit {
       next: (result) => {
         this.batchLoading.set(false);
         const updated = 'updated' in result ? result.updated : 0;
-        this.messageService.add({
-          severity: 'success',
-          summary: '批次操作完成',
-          detail: `已更新 ${updated} 堂課`,
-        });
-        this.ref.close({ action: 'applied', updated } satisfies MobileBatchDialogResult);
+        const skipped = this.skippedCount();
+        const mode = this.batchMode() ?? 'cancel';
+        this.ref.close({ action: 'applied', updated, skipped, mode } satisfies MobileBatchDialogResult);
       },
       error: () => {
         this.batchLoading.set(false);

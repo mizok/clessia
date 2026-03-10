@@ -391,6 +391,14 @@ export class CalendarPage implements OnInit {
       if (result?.action === 'applied') {
         this.clearSelection();
         this.loadSessions();
+        const modeLabel: Record<string, string> = {
+          cancel: '停課', uncancel: '取消停課', assign: '指派老師', time: '調整時間',
+        };
+        const label = modeLabel[result.mode] ?? '更新';
+        const detail = result.skipped > 0
+          ? `已${label} ${result.updated} 堂，略過 ${result.skipped} 堂`
+          : `已${label} ${result.updated} 堂`;
+        this.messageService.add({ severity: 'success', summary: '批次操作完成', detail });
       }
     });
   }
