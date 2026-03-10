@@ -480,7 +480,7 @@ export class CalendarPage implements OnInit {
         this.messageService.add({
           severity: 'success',
           summary: '已停課',
-          detail: '如需安排補課，請至行事曆清單視圖新增調課',
+          detail: '如需安排補課，請至課堂管理中心的清單視圖新增調課',
           life: 6000,
         });
       }
@@ -590,7 +590,7 @@ export class CalendarPage implements OnInit {
           this.messageService.add({
             severity: 'success',
             summary: '已停課',
-            detail: '如需安排補課，請至行事曆清單視圖新增調課',
+            detail: '如需安排補課，請至課堂管理中心的清單視圖新增調課',
             life: 6000,
           });
         }
