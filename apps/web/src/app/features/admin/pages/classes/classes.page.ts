@@ -365,7 +365,7 @@ export class ClassesPage implements OnInit {
       },
       {
         label: '在列表中查看',
-        icon: 'pi pi-calendar',
+        icon: 'pi pi-list',
         command: () => this.navigateToSessionsList(cls),
       },
       {

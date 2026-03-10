@@ -38,7 +38,11 @@ import {
   type MobileBatchDialogData,
   type MobileBatchDialogResult,
 } from './dialogs/mobile-batch-dialog/mobile-batch-dialog.component';
-import { SessionFiltersComponent, DEFAULT_STATUSES } from './components/session-filters/session-filters.component';
+import {
+  SessionFiltersComponent,
+  ALL_SESSION_STATUSES,
+  DEFAULT_STATUSES,
+} from './components/session-filters/session-filters.component';
 import { SessionsHeaderComponent } from './components/sessions-header/sessions-header.component';
 import {
   SessionsBodyComponent,
@@ -175,10 +179,15 @@ export class SessionsPage implements OnInit {
       !this.isDefaultStatuses(),
   );
 
+  private readonly effectiveStatuses = computed(() => {
+    const statuses = this.selectedStatuses();
+    return statuses.length > 0 ? statuses : ALL_SESSION_STATUSES;
+  });
+
   protected readonly filteredSessions = computed(() => {
     const sessions = this.sessions();
     const teacherIds = this.selectedTeacherIds();
-    const statuses = new Set(this.selectedStatuses());
+    const statuses = new Set(this.effectiveStatuses());
     const hasUnassigned = teacherIds.includes('__unassigned__');
     const realTeacherIds = new Set(teacherIds.filter((id) => id !== '__unassigned__'));
 
@@ -418,7 +427,7 @@ export class SessionsPage implements OnInit {
   }
 
   protected onStatusesChange(statuses: string[] | null): void {
-    this.selectedStatuses.set(statuses ?? [...DEFAULT_STATUSES]);
+    this.selectedStatuses.set(statuses ?? []);
   }
 
   protected clearFilters(): void {

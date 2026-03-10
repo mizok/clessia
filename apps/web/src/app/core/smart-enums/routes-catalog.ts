@@ -380,7 +380,7 @@ export class RoutesCatalog {
     '/parent/attendance',
     '到班紀錄',
     UserType.PARENT,
-    'pi-calendar',
+    'pi-check-square',
     true,
     '學習狀況',
   );

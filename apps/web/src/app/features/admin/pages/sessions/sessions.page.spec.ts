@@ -273,4 +273,69 @@ describe('SessionsPage', () => {
     expect(activeFilterCount).toBe(3);
     expect(hasActiveFilters).toBe(true);
   });
+
+  it('treats empty status selection as all statuses', () => {
+    (
+      component as unknown as {
+        sessions: { set: (value: Session[]) => void };
+        onStatusesChange: (value: string[] | null) => void;
+        selectedStatuses: () => string[];
+        filteredSessions: () => Session[];
+      }
+    ).sessions.set([
+      {
+        id: 'session-scheduled',
+        classId: 'class-1',
+        className: 'A班',
+        courseId: 'course-1',
+        courseName: '國文課',
+        campusId: 'campus-1',
+        campusName: '示範分校',
+        sessionDate: '2026-03-09',
+        startTime: '09:00',
+        endTime: '11:00',
+        teacherId: null,
+        teacherName: null,
+        status: 'scheduled',
+        assignmentStatus: 'unassigned',
+        hasChanges: false,
+      },
+      {
+        id: 'session-cancelled',
+        classId: 'class-1',
+        className: 'A班',
+        courseId: 'course-1',
+        courseName: '國文課',
+        campusId: 'campus-1',
+        campusName: '示範分校',
+        sessionDate: '2026-03-16',
+        startTime: '09:00',
+        endTime: '11:00',
+        teacherId: null,
+        teacherName: null,
+        status: 'cancelled',
+        assignmentStatus: 'unassigned',
+        hasChanges: false,
+      },
+    ]);
+
+    (
+      component as unknown as {
+        onStatusesChange: (value: string[] | null) => void;
+      }
+    ).onStatusesChange([]);
+
+    const selectedStatuses = (
+      component as unknown as { selectedStatuses: () => string[] }
+    ).selectedStatuses();
+    const filteredSessions = (
+      component as unknown as { filteredSessions: () => Session[] }
+    ).filteredSessions();
+
+    expect(selectedStatuses).toEqual([]);
+    expect(filteredSessions.map((session) => session.id)).toEqual([
+      'session-scheduled',
+      'session-cancelled',
+    ]);
+  });
 });

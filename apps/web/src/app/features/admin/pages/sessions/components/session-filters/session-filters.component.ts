@@ -16,6 +16,7 @@ export const SESSION_STATUS_OPTIONS: Array<{ label: string; value: string }> = [
   { label: '已停課', value: 'cancelled' },
 ];
 
+export const ALL_SESSION_STATUSES = SESSION_STATUS_OPTIONS.map((option) => option.value);
 export const DEFAULT_STATUSES = ['scheduled', 'completed'];
 
 export interface TeacherSelectOption {

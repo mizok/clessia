@@ -1,18 +1,4 @@
 <div class="mobile-filter-dialog">
-  <div class="mobile-filter-dialog__row">
-    <label class="mobile-filter-dialog__label">課堂狀態</label>
-    <p-multiselect
-      [options]="statusOptions"
-      optionLabel="label"
-      optionValue="value"
-      placeholder="課堂狀態"
-      selectedItemsLabel="{0} 種狀態"
-      [appendTo]="'body'"
-      [ngModel]="selectedStatuses()"
-      (ngModelChange)="selectedStatuses.set($event)"
-      styleClass="w-full"
-    />
-  </div>
   @if (campuses().length > 1) {
     <div class="mobile-filter-dialog__row">
       <label class="mobile-filter-dialog__label">分校</label>
@@ -85,6 +71,20 @@
       />
     </div>
   }
+  <div class="mobile-filter-dialog__row">
+    <label class="mobile-filter-dialog__label">課堂狀態</label>
+    <p-multiselect
+      [options]="statusOptions"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="課堂狀態"
+      selectedItemsLabel="{0} 種狀態"
+      [appendTo]="'body'"
+      [ngModel]="selectedStatuses()"
+      (ngModelChange)="selectedStatuses.set($event)"
+      styleClass="w-full"
+    />
+  </div>
   <div class="mobile-filter-dialog__actions">
     @if (hasActiveFilters()) {
       <p-button

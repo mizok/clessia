@@ -36,17 +36,6 @@
       [numberOfMonths]="1"
       [readonlyInput]="true"
     />
-    <p-multiselect
-      class="session-filters__control session-filters__control--status"
-      [options]="statusOptions"
-      optionLabel="label"
-      optionValue="value"
-      placeholder="課堂狀態"
-      selectedItemsLabel="{0} 種狀態"
-      [appendTo]="'body'"
-      [ngModel]="selectedStatuses()"
-      (ngModelChange)="onStatusesChange($event)"
-    />
     @if (campuses().length > 1) {
       <p-multiselect
         class="session-filters__control"
@@ -109,6 +98,17 @@
         (ngModelChange)="onClassSelectChange($event)"
       />
     }
+    <p-multiselect
+      class="session-filters__control session-filters__control--status"
+      [options]="statusOptions"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="課堂狀態"
+      selectedItemsLabel="{0} 種狀態"
+      [appendTo]="'body'"
+      [ngModel]="selectedStatuses()"
+      (ngModelChange)="onStatusesChange($event)"
+    />
     @if (hasActiveFilters()) {
       <p-button
         label="清除"
