@@ -14,6 +14,14 @@ import { SessionDetailDialogComponent } from './session-detail-dialog.component'
 describe('SessionDetailDialogComponent', () => {
   let fixture: ComponentFixture<SessionDetailDialogComponent>;
   let component: SessionDetailDialogComponent;
+  let dialogConfigValue: {
+    data: {
+      session: Session;
+      changes: ScheduleChange[];
+      loadingChanges: boolean;
+    };
+  };
+  const getChangesSpy = vi.fn(() => of({ data: [] }));
 
   const session: Session = {
     id: 'session-1',
@@ -52,21 +60,43 @@ describe('SessionDetailDialogComponent', () => {
       createdByName: '教務主任',
       createdAt: '2026-03-10T08:00:00.000Z',
     },
+    {
+      id: 'change-2',
+      changeType: 'reschedule',
+      originalSessionDate: '2099-03-10',
+      originalStartTime: '09:00',
+      originalEndTime: '11:00',
+      newSessionDate: '2099-03-17',
+      newStartTime: '10:00',
+      newEndTime: '12:00',
+      originalTeacherId: null,
+      originalTeacherName: null,
+      substituteTeacherId: null,
+      substituteTeacherName: null,
+      operationSource: 'batch',
+      reason: '配合模擬考調整',
+      createdByName: '排課系統',
+      createdAt: '2026-03-09T08:00:00.000Z',
+    },
   ];
 
   beforeEach(async () => {
+    dialogConfigValue = {
+      data: {
+        session,
+        changes,
+        loadingChanges: false,
+      },
+    };
+    getChangesSpy.mockReset();
+    getChangesSpy.mockReturnValue(of({ data: [] }));
+
     await TestBed.configureTestingModule({
       imports: [SessionDetailDialogComponent],
       providers: [
         {
           provide: DynamicDialogConfig,
-          useValue: {
-            data: {
-              session,
-              changes,
-              loadingChanges: false,
-            },
-          },
+          useValue: dialogConfigValue,
         },
         {
           provide: DynamicDialogRef,
@@ -75,7 +105,7 @@ describe('SessionDetailDialogComponent', () => {
         {
           provide: SessionsService,
           useValue: {
-            getChanges: vi.fn(() => of({ data: [] })),
+            getChanges: getChangesSpy,
           },
         },
         {
@@ -84,14 +114,38 @@ describe('SessionDetailDialogComponent', () => {
         },
       ],
     }).compileComponents();
+  });
 
+  function createComponent(): void {
     fixture = TestBed.createComponent(SessionDetailDialogComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
-  });
+  }
 
   it('creates with history changes carrying original teacher and operation source metadata', () => {
+    createComponent();
     expect(component).toBeTruthy();
-    expect(component.sessionChanges()).toEqual(changes);
+    expect(
+      (component as unknown as { sessionChanges: () => ScheduleChange[] }).sessionChanges(),
+    ).toEqual(changes);
+  });
+
+  it('renders summary heading and timeline cards with substitute, reschedule and batch source details', () => {
+    createComponent();
+
+    const text = fixture.nativeElement.textContent as string;
+
+    expect(text).toContain('課堂摘要');
+    expect(text).toContain('異動時間線');
+    expect(text).toContain('王老師 → 李老師');
+    expect(text).toContain('03/10 09:00 - 11:00 -> 03/17 10:00 - 12:00');
+    expect(text).toContain('批次操作');
+  });
+
+  it('renders an empty state block when there is no history change', () => {
+    dialogConfigValue.data.changes = [];
+    createComponent();
+
+    expect(fixture.nativeElement.querySelector('.session-detail__empty')).not.toBeNull();
   });
 });

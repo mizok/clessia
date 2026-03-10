@@ -12,8 +12,7 @@ import { SkeletonModule } from 'primeng/skeleton';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { DynamicDialogConfig, DynamicDialogRef, DialogService } from 'primeng/dynamicdialog';
-import { Session, ScheduleChange, SessionsService } from '@core/sessions.service';
-import { OverlayContainerService } from '@core/overlay-container.service';
+import { type Session, type ScheduleChange, SessionsService } from '@core/sessions.service';
 import { SessionCancelDialogComponent } from '../session-cancel-dialog/session-cancel-dialog.component';
 import { SessionSubstituteDialogComponent } from '../session-substitute-dialog/session-substitute-dialog.component';
 import { SessionRescheduleDialogComponent } from '../session-reschedule-dialog/session-reschedule-dialog.component';
@@ -31,15 +30,13 @@ export class SessionDetailDialogComponent implements OnInit {
   private readonly config = inject(DynamicDialogConfig);
   private readonly ref = inject(DynamicDialogRef);
   private readonly dialogService = inject(DialogService);
-  private readonly overlayContainer = inject(OverlayContainerService);
   private readonly sessionsService = inject(SessionsService);
 
-  readonly session = signal<Session | null>(null);
-  readonly sessionChanges = signal<ScheduleChange[]>([]);
-  readonly loadingChanges = signal(false);
+  protected readonly session = signal<Session | null>(null);
+  protected readonly sessionChanges = signal<ScheduleChange[]>([]);
+  protected readonly loadingChanges = signal(false);
 
-  // Status computation logic moved from sessions.page
-  readonly statusLabel = computed(() => {
+  protected readonly statusLabel = computed(() => {
     const s = this.session();
     if (!s) return '';
     if (s.status === 'cancelled') return '已停課';
@@ -47,7 +44,7 @@ export class SessionDetailDialogComponent implements OnInit {
     return '已排課';
   });
 
-  readonly statusSeverity = computed(() => {
+  protected readonly statusSeverity = computed(() => {
     const s = this.session();
     if (!s) return 'info';
     if (s.status === 'cancelled') return 'secondary';
@@ -55,19 +52,19 @@ export class SessionDetailDialogComponent implements OnInit {
     return 'info';
   });
 
-  readonly adjustmentLabel = computed(() => {
+  protected readonly adjustmentLabel = computed(() => {
     const s = this.session();
     if (!s) return '';
     return s.hasChanges ? '有異動' : '無異動';
   });
 
-  readonly adjustmentSeverity = computed(() => {
+  protected readonly adjustmentSeverity = computed(() => {
     const s = this.session();
     if (!s) return 'secondary';
     return s.hasChanges ? 'warn' : 'secondary';
   });
 
-  readonly canOperate = computed(() => {
+  protected readonly canOperate = computed(() => {
     const s = this.session();
     if (!s) return false;
     if (s.status === 'cancelled') return false;
@@ -110,6 +107,40 @@ export class SessionDetailDialogComponent implements OnInit {
     return map[type] || type;
   }
 
+  protected summaryValue(value: string | null | undefined, fallback: string): string {
+    return value && value.trim().length > 0 ? value : fallback;
+  }
+
+  protected changeSummary(change: ScheduleChange): string {
+    if (change.changeType === 'substitute') {
+      const originalTeacher = this.summaryValue(change.originalTeacherName, '原老師未記錄');
+      const substituteTeacher = this.summaryValue(change.substituteTeacherName, '代課老師未記錄');
+      return `${originalTeacher} → ${substituteTeacher}`;
+    }
+
+    if (change.changeType === 'reschedule') {
+      return `${this.formatScheduleSlot(change.originalSessionDate, change.originalStartTime, change.originalEndTime)} -> ${this.formatScheduleSlot(change.newSessionDate, change.newStartTime, change.newEndTime)}`;
+    }
+
+    if (change.changeType === 'uncancel') {
+      return '課堂已恢復為正常上課狀態';
+    }
+
+    return '課堂已標記為停課';
+  }
+
+  protected changeReason(change: ScheduleChange): string {
+    return this.summaryValue(change.reason, '未填寫原因');
+  }
+
+  protected changeActorLabel(change: ScheduleChange): string {
+    return this.summaryValue(change.createdByName, '系統紀錄');
+  }
+
+  protected changeSourceLabel(change: ScheduleChange): string {
+    return change.operationSource === 'batch' ? '批次操作' : '單堂操作';
+  }
+
   protected changeTypeSeverity(
     type: string,
   ): 'success' | 'secondary' | 'info' | 'warn' | 'danger' | 'contrast' {
@@ -120,6 +151,17 @@ export class SessionDetailDialogComponent implements OnInit {
       uncancel: 'success',
     };
     return map[type] || 'info';
+  }
+
+  private formatScheduleSlot(
+    sessionDate: string | null,
+    startTime: string | null,
+    endTime: string | null,
+  ): string {
+    const normalizedDate = sessionDate ? sessionDate.slice(5).replace('-', '/') : '--/--';
+    const normalizedStart = startTime ?? '--:--';
+    const normalizedEnd = endTime ?? '--:--';
+    return `${normalizedDate} ${normalizedStart} - ${normalizedEnd}`;
   }
 
   protected openCancel(): void {
