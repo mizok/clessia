@@ -1,8 +1,8 @@
 <section
-  class="calendar-body calendar-body--list"
-  [class.calendar-body--with-selection]="selectedCount() > 0"
+  class="sessions-body sessions-body--list"
+  [class.sessions-body--with-selection]="selectedCount() > 0"
 >
-  <div class="calendar-body__list">
+  <div class="sessions-body__list">
     <app-session-list
       [sessions]="sessions()"
       [loading]="loading()"

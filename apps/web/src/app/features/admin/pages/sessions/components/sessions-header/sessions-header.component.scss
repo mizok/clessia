@@ -5,7 +5,7 @@
   flex-shrink: 0;
 }
 
-.calendar-header {
+.sessions-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -84,7 +84,7 @@
 }
 
 @include bp.respond-to-container('shell-content', 'tablet-portrait') {
-  .calendar-header {
+  .sessions-header {
     flex-direction: column;
     gap: var(--space-3);
 
@@ -99,7 +99,7 @@
 }
 
 @include bp.respond-to-container('shell-content', 'mobile') {
-  .calendar-header {
+  .sessions-header {
     &__title {
       font-size: var(--text-lg);
     }

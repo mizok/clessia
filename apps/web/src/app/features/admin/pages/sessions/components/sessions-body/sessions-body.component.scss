@@ -6,7 +6,7 @@
   min-height: 0;
 }
 
-.calendar-body {
+.sessions-body {
   display: flex;
   flex: 1 1 0;
   min-height: 0;
@@ -39,7 +39,7 @@
 }
 
 @include bp.respond-to-container('shell-content', 'tablet-portrait') {
-  .calendar-body {
+  .sessions-body {
     &__skeleton {
       padding: var(--space-4) var(--space-3);
     }
@@ -47,7 +47,7 @@
 }
 
 @include bp.respond-to-container('shell-content', 'mobile') {
-  .calendar-body {
+  .sessions-body {
     border-radius: var(--radius-lg);
     border: 1px solid var(--zinc-200);
     box-shadow: none;
