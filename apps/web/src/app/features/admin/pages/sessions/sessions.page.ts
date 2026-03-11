@@ -500,10 +500,6 @@ export class SessionsPage implements OnInit {
     this.campusesService.list({ isActive: true, pageSize: 100 }).subscribe({
       next: (res) => {
         this.campuses.set(res.data);
-        if (res.data.length > 0 && this.selectedCampusIds().length === 0) {
-          this.selectedCampusIds.set([res.data[0].id]);
-          this.loadSessions();
-        }
       },
     });
     this.coursesService.list({ isActive: true, pageSize: 200 }).subscribe({
