@@ -10,6 +10,7 @@ import { StaffService, type Staff } from '@core/staff.service';
 
 import { SessionsPage } from './sessions.page';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
+import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
 
 describe('SessionsPage', () => {
   let component: SessionsPage;
@@ -398,5 +399,115 @@ describe('SessionsPage', () => {
       },
       replaceUrl: true,
     });
+  });
+
+  it('adds history entry to context menu and opens session history dialog', () => {
+    const session = {
+      id: '00000000-0000-0000-0000-000000000021',
+      classId: '00000000-0000-0000-0000-000000000022',
+      className: '國文 A',
+      courseId: '00000000-0000-0000-0000-000000000023',
+      courseName: '國文課',
+      campusId: '00000000-0000-0000-0000-000000000024',
+      campusName: '示範分校',
+      sessionDate: '2026-03-18',
+      startTime: '09:00',
+      endTime: '11:00',
+      teacherId: '00000000-0000-0000-0000-000000000025',
+      teacherName: '王老師',
+      status: 'scheduled',
+      assignmentStatus: 'assigned',
+      hasChanges: true,
+    } as Session;
+
+    (
+      component as unknown as {
+        contextSession: { set: (value: Session) => void };
+      }
+    ).contextSession.set(session);
+
+    const dialogOpenSpy = vi
+      .spyOn(
+        (component as unknown as { dialogService: { open: (...args: unknown[]) => unknown } })
+          .dialogService,
+        'open',
+      )
+      .mockReturnValue({ onClose: of(undefined) });
+
+    const menuItems = (
+      component as unknown as { contextMenuItems: () => Array<{ label?: string; command?: () => void }> }
+    ).contextMenuItems();
+    const detailItem = menuItems.find((item) => item.label === '查看異動紀錄');
+
+    expect(detailItem).toBeDefined();
+    detailItem?.command?.();
+
+    expect(dialogOpenSpy).toHaveBeenCalledWith(
+      SessionDetailDialogComponent,
+      expect.objectContaining({
+        header: '異動紀錄',
+        data: expect.objectContaining({ session }),
+      }),
+    );
+  });
+
+  it('openBatchSheet should show skip reason in toast when sessions are skipped', async () => {
+    const mockResult = {
+      action: 'applied' as const,
+      mode: 'cancel' as const,
+      updated: 3,
+      skipped: 2,
+    };
+
+    const dialogOpenSpy = vi
+      .spyOn(
+        (component as unknown as { dialogService: { open: (...args: unknown[]) => unknown } })
+          .dialogService,
+        'open',
+      )
+      .mockReturnValue({ onClose: of(mockResult) });
+
+    const messageAddSpy = vi.spyOn(
+      (component as unknown as { messageService: { add: (...args: unknown[]) => void } }).messageService,
+      'add',
+    );
+
+    (component as unknown as { openBatchSheet: () => void }).openBatchSheet();
+    await fixture.whenStable();
+
+    expect(dialogOpenSpy).toHaveBeenCalledTimes(1);
+    expect(messageAddSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: expect.stringContaining('已停課的課堂無法重複操作'),
+      }),
+    );
+  });
+
+  it('openBatchSheet should not show skip reason when no sessions are skipped', async () => {
+    const mockResult = {
+      action: 'applied' as const,
+      mode: 'cancel' as const,
+      updated: 5,
+      skipped: 0,
+    };
+
+    vi.spyOn(
+      (component as unknown as { dialogService: { open: (...args: unknown[]) => unknown } }).dialogService,
+      'open',
+    ).mockReturnValue({ onClose: of(mockResult) });
+
+    const messageAddSpy = vi.spyOn(
+      (component as unknown as { messageService: { add: (...args: unknown[]) => void } }).messageService,
+      'add',
+    );
+
+    (component as unknown as { openBatchSheet: () => void }).openBatchSheet();
+    await fixture.whenStable();
+
+    expect(messageAddSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: '已停課 5 堂',
+      }),
+    );
   });
 });

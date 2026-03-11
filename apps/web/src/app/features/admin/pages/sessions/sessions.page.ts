@@ -308,9 +308,17 @@ export class SessionsPage implements OnInit {
           cancel: '停課', uncancel: '取消停課', assign: '指派老師', time: '調整時間',
         };
         const label = modeLabel[result.mode] ?? '更新';
-        const detail = result.skipped > 0
-          ? `已${label} ${result.updated} 堂，略過 ${result.skipped} 堂`
-          : `已${label} ${result.updated} 堂`;
+        const skipReasonMap: Record<string, string> = {
+          cancel: '已停課的課堂無法重複操作',
+          uncancel: '僅停課中的課堂可取消停課',
+          assign: '已指派老師的課堂已略過',
+          time: '已停課的課堂無法調整時間',
+        };
+        const skipReason = skipReasonMap[result.mode] ?? '條件不符';
+        const detail =
+          result.skipped > 0
+            ? `已${label} ${result.updated} 堂，略過 ${result.skipped} 堂（${skipReason}）`
+            : `已${label} ${result.updated} 堂`;
         this.messageService.add({ severity: 'success', summary: '批次操作完成', detail });
       }
     });
