@@ -1,39 +1,25 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  OnInit,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TagModule } from 'primeng/tag';
-import { TooltipModule } from 'primeng/tooltip';
-import { DynamicDialogConfig, DynamicDialogRef, DialogService } from 'primeng/dynamicdialog';
-import { type Session, type ScheduleChange, SessionsService } from '@core/sessions.service';
-import { SessionCancelDialogComponent } from '../session-cancel-dialog/session-cancel-dialog.component';
-import { SessionSubstituteDialogComponent } from '../session-substitute-dialog/session-substitute-dialog.component';
-import { SessionRescheduleDialogComponent } from '../session-reschedule-dialog/session-reschedule-dialog.component';
-import { isPast } from 'date-fns';
+import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { type Session, type SessionHistoryEntry, SessionsService } from '@core/sessions.service';
 
 @Component({
   selector: 'app-session-detail-dialog',
-  imports: [DatePipe, ButtonModule, SkeletonModule, TagModule, TooltipModule],
+  imports: [DatePipe, ButtonModule, SkeletonModule, TagModule],
   templateUrl: './session-detail-dialog.component.html',
   styleUrl: './session-detail-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [DialogService],
 })
 export class SessionDetailDialogComponent implements OnInit {
   private readonly config = inject(DynamicDialogConfig);
   private readonly ref = inject(DynamicDialogRef);
-  private readonly dialogService = inject(DialogService);
   private readonly sessionsService = inject(SessionsService);
 
   protected readonly session = signal<Session | null>(null);
-  protected readonly sessionChanges = signal<ScheduleChange[]>([]);
+  protected readonly historyEntries = signal<SessionHistoryEntry[]>([]);
   protected readonly loadingChanges = signal(false);
   protected readonly loadError = signal(false);
 
@@ -53,24 +39,12 @@ export class SessionDetailDialogComponent implements OnInit {
     return 'info';
   });
 
-  protected readonly adjustmentLabel = computed(() => {
+  protected readonly contextLine = computed(() => {
     const s = this.session();
     if (!s) return '';
-    return s.hasChanges ? '有異動' : '無異動';
-  });
 
-  protected readonly adjustmentSeverity = computed(() => {
-    const s = this.session();
-    if (!s) return 'secondary';
-    return s.hasChanges ? 'warn' : 'secondary';
-  });
-
-  protected readonly canOperate = computed(() => {
-    const s = this.session();
-    if (!s) return false;
-    if (s.status === 'cancelled') return false;
-    const sessionDateTime = new Date(`${s.sessionDate}T${s.endTime}`);
-    return !isPast(sessionDateTime);
+    const teacherLabel = s.assignmentStatus === 'unassigned' ? '未指派' : (s.teacherName ?? '未指派');
+    return `${s.sessionDate.slice(5).replace('-', '/')} ${s.startTime}–${s.endTime} ・ ${s.campusName} ・ ${teacherLabel}`;
   });
 
   ngOnInit() {
@@ -78,7 +52,7 @@ export class SessionDetailDialogComponent implements OnInit {
       this.session.set(this.config.data.session);
     }
     if (this.config.data?.changes) {
-      this.sessionChanges.set(this.config.data.changes);
+      this.historyEntries.set(this.config.data.changes);
     }
     if (this.config.data?.loadingChanges !== undefined) {
       this.loadingChanges.set(this.config.data.loadingChanges);
@@ -88,8 +62,8 @@ export class SessionDetailDialogComponent implements OnInit {
     const s = this.session();
     if (s && this.loadingChanges()) {
       this.sessionsService.getChanges(s.id).subscribe({
-        next: (res: { data: ScheduleChange[] }) => {
-          this.sessionChanges.set(res.data);
+        next: (res: { data: SessionHistoryEntry[] }) => {
+          this.historyEntries.set(res.data);
           this.loadError.set(false);
           this.loadingChanges.set(false);
         },
@@ -103,6 +77,7 @@ export class SessionDetailDialogComponent implements OnInit {
 
   protected changeTypeLabel(type: string): string {
     const map: Record<string, string> = {
+      creation: '建立',
       cancellation: '停課',
       substitute: '代課',
       reschedule: '調課',
@@ -115,7 +90,11 @@ export class SessionDetailDialogComponent implements OnInit {
     return value && value.trim().length > 0 ? value : fallback;
   }
 
-  protected changeSummary(change: ScheduleChange): string {
+  protected changeSummary(change: SessionHistoryEntry): string {
+    if (change.changeType === 'creation') {
+      return '課堂建立';
+    }
+
     if (change.changeType === 'substitute') {
       const originalTeacher = this.summaryValue(change.originalTeacherName, '原老師未記錄');
       const substituteTeacher = this.summaryValue(change.substituteTeacherName, '代課老師未記錄');
@@ -133,15 +112,25 @@ export class SessionDetailDialogComponent implements OnInit {
     return '課堂已標記為停課';
   }
 
-  protected changeReason(change: ScheduleChange): string {
+  protected changeReason(change: SessionHistoryEntry): string | null {
+    if (change.changeType === 'creation') {
+      return null;
+    }
+
     return this.summaryValue(change.reason, '未填寫原因');
   }
 
-  protected changeActorLabel(change: ScheduleChange): string {
-    return this.summaryValue(change.createdByName, '系統紀錄');
+  protected changeActorLabel(change: SessionHistoryEntry): string {
+    const fallback = change.changeType === 'creation' ? '系統排程' : '系統紀錄';
+    const actorName = this.summaryValue(change.createdByName, fallback);
+    return change.changeType === 'creation' ? `建立者：${actorName}` : `操作人：${actorName}`;
   }
 
-  protected changeSourceLabel(change: ScheduleChange): string {
+  protected changeSourceLabel(change: SessionHistoryEntry): string | null {
+    if (change.changeType === 'creation') {
+      return null;
+    }
+
     return change.operationSource === 'batch' ? '批次操作' : '單堂操作';
   }
 
@@ -149,6 +138,7 @@ export class SessionDetailDialogComponent implements OnInit {
     type: string,
   ): 'success' | 'secondary' | 'info' | 'warn' | 'danger' | 'contrast' {
     const map: Record<string, 'success' | 'secondary' | 'info' | 'warn' | 'danger' | 'contrast'> = {
+      creation: 'secondary',
       cancellation: 'danger',
       substitute: 'warn',
       reschedule: 'info',
@@ -166,46 +156,6 @@ export class SessionDetailDialogComponent implements OnInit {
     const normalizedStart = startTime ?? '--:--';
     const normalizedEnd = endTime ?? '--:--';
     return `${normalizedDate} ${normalizedStart} - ${normalizedEnd}`;
-  }
-
-  protected openCancel(): void {
-    const s = this.session();
-    if (!s) return;
-    const cancelRef = this.dialogService.open(SessionCancelDialogComponent, {
-      header: '停課',
-      width: '400px',
-      data: { session: s },
-      styleClass: 'session-dialog',
-    });
-    cancelRef?.onClose.subscribe((result?: { result: string; session: Session }) => {
-      if (result?.result === 'refresh') {
-        this.ref.close('cancelled');
-      }
-    });
-  }
-
-  protected openSubstitute(): void {
-    const s = this.session();
-    if (!s) return;
-    this.ref.close();
-    this.dialogService.open(SessionSubstituteDialogComponent, {
-      header: '安排代課',
-      width: '400px',
-      data: { session: s },
-      styleClass: 'session-dialog',
-    });
-  }
-
-  protected openReschedule(): void {
-    const s = this.session();
-    if (!s) return;
-    this.ref.close();
-    this.dialogService.open(SessionRescheduleDialogComponent, {
-      header: '調課',
-      width: '400px',
-      data: { session: s },
-      styleClass: 'session-dialog',
-    });
   }
 
   protected closeDialog(): void {

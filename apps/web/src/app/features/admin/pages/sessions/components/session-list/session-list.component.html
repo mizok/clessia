@@ -47,8 +47,7 @@
           班級 / 課程 / 分校
         </th>
         <th appRtColDef="teacher" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">老師</th>
-        <th appRtColDef="adjustment" [appRtColDefMinWidth]="88" [appRtColDefPriority]="5">異動</th>
-        <th appRtColDef="status" [appRtColDefMinWidth]="88" [appRtColDefPriority]="6">狀態</th>
+        <th appRtColDef="status" [appRtColDefMinWidth]="88" [appRtColDefPriority]="5">狀態</th>
         <th class="responsive-table__header-cell" style="width: 48px"></th>
       </tr>
     </ng-template>
@@ -82,18 +81,6 @@
               {{ session.teacherName }}
             }
           </td>
-          <td appRtColCell="adjustment">
-            @if (session.hasChanges) {
-              <p-tag
-                severity="warn"
-                value="有異動"
-                class="session-list__changes-tag"
-                (click)="openChangesPopover($event, session)"
-              />
-            } @else {
-              <span class="session-list__adjustment-empty">—</span>
-            }
-          </td>
           <td appRtColCell="status">
             <p-tag [severity]="sessionStatusSeverity(session)" [value]="sessionStatusLabel(session)" />
           </td>
@@ -112,7 +99,7 @@
         <tr>
           <td
             class="responsive-table__cell"
-            colspan="8"
+            colspan="7"
             style="text-align: center; padding: 2rem; color: var(--zinc-400)"
           >
             此期間沒有課堂
@@ -121,56 +108,4 @@
       }
     </ng-template>
   }
-
-<p-popover #changesPopover styleClass="session-list__changes-popover">
-  @if (popoverLoading()) {
-    <div class="session-list__popover-loading">
-      <p-skeleton height="14px" borderRadius="4px" />
-      <p-skeleton height="14px" borderRadius="4px" width="80%" />
-    </div>
-  } @else if (popoverChanges().length === 0) {
-    <p class="session-list__popover-empty">無異動紀錄</p>
-  } @else {
-    <ul class="session-list__popover-list">
-      @for (change of popoverChanges(); track change.id) {
-        <li class="session-list__popover-item">
-          <div class="session-list__popover-item-header">
-            <p-tag
-              [severity]="changeTypeSeverity(change.changeType)"
-              [value]="changeTypeLabel(change.changeType)"
-              styleClass="session-list__popover-type-tag"
-            />
-            <span class="session-list__popover-detail">
-              @switch (change.changeType) {
-                @case ('reschedule') {
-                  @if (change.originalSessionDate) {
-                    {{ change.originalSessionDate | date: 'MM/dd' }}
-                    {{ change.originalStartTime }}–{{ change.originalEndTime }}
-                    →
-                  }
-                  {{ change.newSessionDate | date: 'MM/dd' }}
-                  {{ change.newStartTime }}–{{ change.newEndTime }}
-                }
-                @case ('substitute') {
-                  代課老師：{{ change.substituteTeacherName }}
-                }
-                @case ('cancellation') {
-                  {{ change.reason || '（未填原因）' }}
-                }
-                @case ('uncancel') {
-                  恢復為已排課
-                }
-              }
-            </span>
-          </div>
-          @if (change.createdByName) {
-            <div class="session-list__popover-meta">
-              {{ change.createdByName }}・{{ change.createdAt | date: 'MM/dd HH:mm' }}
-            </div>
-          }
-        </li>
-      }
-    </ul>
-  }
-</p-popover>
 </section>

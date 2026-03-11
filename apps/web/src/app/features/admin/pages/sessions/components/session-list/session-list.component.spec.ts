@@ -65,4 +65,17 @@ describe('SessionListComponent', () => {
     expect(text).toContain('國中數學');
     expect(text).toContain('台北校');
   });
+
+  it('should not render adjustment column in list header', async () => {
+    fixture.componentRef.setInput('sessions', []);
+    fixture.componentRef.setInput('loading', false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const headers = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('th'),
+    ).map((element) => element.textContent?.trim() ?? '');
+
+    expect(headers).not.toContain('異動');
+  });
 });

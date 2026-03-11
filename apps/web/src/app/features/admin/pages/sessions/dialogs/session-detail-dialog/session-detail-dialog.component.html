@@ -1,58 +1,26 @@
 <div class="session-detail">
-  <section class="session-detail__panel session-detail__panel--summary">
+  <section class="session-detail__panel">
     <div class="session-detail__panel-header">
       <div class="session-detail__heading">
-        <p class="session-detail__eyebrow">課堂摘要</p>
-        <h2 class="session-detail__title">{{ session()?.className }}</h2>
-        <p class="session-detail__subtitle">在同一視窗掌握課堂安排與後續異動脈絡</p>
+        <p class="session-detail__eyebrow">課堂異動紀錄</p>
+        <h2 class="session-detail__title">
+          {{ session()?.courseName }} {{ session()?.className }}
+        </h2>
+        <p class="session-detail__subtitle">{{ contextLine() }}</p>
       </div>
       <div class="session-detail__status-group">
         <p-tag [value]="statusLabel()" [severity]="statusSeverity()" />
-        <p-tag [value]="adjustmentLabel()" [severity]="adjustmentSeverity()" />
-      </div>
-    </div>
-
-    <div class="session-detail__summary-grid">
-      <div class="session-detail__summary-card">
-        <span class="session-detail__summary-label">上課時段</span>
-        <strong class="session-detail__summary-value">
-          {{ session()?.sessionDate | date:'MM/dd' }} {{ session()?.startTime }}–{{ session()?.endTime }}
-        </strong>
-      </div>
-      <div class="session-detail__summary-card">
-        <span class="session-detail__summary-label">課程 / 班級</span>
-        <strong class="session-detail__summary-value">
-          {{ session()?.courseName }}
-        </strong>
-        <span class="session-detail__summary-meta">{{ session()?.className }}</span>
-      </div>
-      <div class="session-detail__summary-card">
-        <span class="session-detail__summary-label">分校</span>
-        <strong class="session-detail__summary-value">{{ session()?.campusName }}</strong>
-      </div>
-      <div class="session-detail__summary-card">
-        <span class="session-detail__summary-label">授課老師</span>
-        @if (session()?.assignmentStatus === 'unassigned') {
-          <strong class="session-detail__summary-value session-detail__summary-value--muted">未指派</strong>
-        } @else {
-          <strong class="session-detail__summary-value">{{ session()?.teacherName }}</strong>
-        }
       </div>
     </div>
   </section>
 
-  <section class="session-detail__panel session-detail__panel--history">
-    <div class="session-detail__panel-header">
-      <div class="session-detail__heading">
-        <p class="session-detail__eyebrow">異動時間線</p>
-        <h3 class="session-detail__title session-detail__title--history">保留每一次課務調整脈絡</h3>
-      </div>
-    </div>
+  <div class="session-detail__history">
+    <p class="session-detail__history-title">時間線</p>
 
     @if (loadingChanges()) {
       <div class="session-detail__loading">
-        <p-skeleton height="76px" borderRadius="10px" />
-        <p-skeleton height="76px" borderRadius="10px" />
+        <p-skeleton height="60px" borderRadius="8px" />
+        <p-skeleton height="60px" borderRadius="8px" />
       </div>
     } @else if (loadError()) {
       <div class="session-detail__empty session-detail__empty--error">
@@ -60,83 +28,48 @@
         <p class="session-detail__empty-title">異動紀錄載入失敗</p>
         <p class="session-detail__empty-description">請稍後再試，或重新開啟此課堂視窗。</p>
       </div>
-    } @else if (sessionChanges().length > 0) {
+    } @else if (historyEntries().length > 0) {
       <div class="session-detail__timeline">
-        @for (c of sessionChanges(); track c.id) {
-          <article class="session-detail__timeline-card">
-            <div class="session-detail__timeline-rail"></div>
-            <div class="session-detail__timeline-content">
-              <div class="session-detail__timeline-header">
-                <p-tag
-                  [value]="changeTypeLabel(c.changeType)"
-                  [severity]="changeTypeSeverity(c.changeType)"
-                />
-                <span class="session-detail__timestamp">{{ c.createdAt | date:'MM/dd HH:mm' }}</span>
-              </div>
-
-              <p class="session-detail__timeline-summary">{{ changeSummary(c) }}</p>
-              <p class="session-detail__timeline-reason">原因：{{ changeReason(c) }}</p>
-
-              <div class="session-detail__meta-list">
-                <span class="session-detail__meta-chip">{{ changeSourceLabel(c) }}</span>
-                <span class="session-detail__meta-chip">{{ changeActorLabel(c) }}</span>
-              </div>
+        @for (c of historyEntries(); track c.id) {
+          <div class="session-detail__timeline-item">
+            <div class="session-detail__timeline-header">
+              <p-tag
+                [value]="changeTypeLabel(c.changeType)"
+                [severity]="changeTypeSeverity(c.changeType)"
+              />
+              <span class="session-detail__timestamp">{{
+                c.createdAt | date: 'MM/dd HH:mm'
+              }}</span>
             </div>
-          </article>
+            <p class="session-detail__timeline-summary">{{ changeSummary(c) }}</p>
+            @if (changeReason(c); as reason) {
+              <p class="session-detail__timeline-reason">原因：{{ reason }}</p>
+            }
+            <div class="session-detail__meta-list">
+              @if (changeSourceLabel(c); as sourceLabel) {
+                <span class="session-detail__meta-chip">{{ sourceLabel }}</span>
+              }
+              <span class="session-detail__meta-chip">{{ changeActorLabel(c) }}</span>
+            </div>
+          </div>
         }
       </div>
     } @else {
       <div class="session-detail__empty">
         <i class="pi pi-history session-detail__empty-icon"></i>
-        <p class="session-detail__empty-title">尚無異動紀錄</p>
-        <p class="session-detail__empty-description">此課堂自建立後未曾調課、停課、代課或恢復停課</p>
+        <p class="session-detail__empty-title">尚無時間線資料</p>
+        <p class="session-detail__empty-description">目前無法取得班級建立與後續異動紀錄</p>
       </div>
     }
-  </section>
+  </div>
 
   <div class="session-detail__actions">
-    @if (session()?.status !== 'cancelled') {
-      <p-button
-        label="停課"
-        severity="danger"
-        [outlined]="true"
-        size="small"
-        icon="pi pi-ban"
-        [disabled]="!canOperate()"
-        [pTooltip]="canOperate() ? '' : '課堂已結束，無法操作'"
-        tooltipPosition="top"
-        (onClick)="openCancel()"
-      />
-      <p-button
-        label="代課"
-        severity="warn"
-        [outlined]="true"
-        size="small"
-        icon="pi pi-users"
-        [disabled]="!canOperate()"
-        [pTooltip]="canOperate() ? '' : '課堂已結束，無法操作'"
-        tooltipPosition="top"
-        (onClick)="openSubstitute()"
-      />
-      <p-button
-        label="調課"
-        severity="info"
-        [outlined]="true"
-        size="small"
-        icon="pi pi-calendar-plus"
-        [disabled]="!canOperate()"
-        [pTooltip]="canOperate() ? '' : '課堂已結束，無法操作'"
-        tooltipPosition="top"
-        (onClick)="openReschedule()"
-      />
-    }
     <p-button
       label="關閉"
       severity="secondary"
       [text]="true"
       size="small"
       (onClick)="closeDialog()"
-      class="ml-auto"
     />
   </div>
 </div>

@@ -4,8 +4,8 @@ import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import {
   SessionsService,
-  type ScheduleChange,
   type Session,
+  type SessionHistoryEntry,
 } from '@core/sessions.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 
@@ -17,11 +17,11 @@ describe('SessionDetailDialogComponent', () => {
   let dialogConfigValue: {
     data: {
       session: Session;
-      changes: ScheduleChange[];
+      changes: SessionHistoryEntry[];
       loadingChanges: boolean;
     };
   };
-  const getChangesSpy = vi.fn(() => of({ data: [] }));
+  const getChangesSpy = vi.fn(() => of({ data: [] as SessionHistoryEntry[] }));
 
   const session: Session = {
     id: 'session-1',
@@ -41,7 +41,25 @@ describe('SessionDetailDialogComponent', () => {
     hasChanges: true,
   };
 
-  const changes: ScheduleChange[] = [
+  const changes: SessionHistoryEntry[] = [
+    {
+      id: 'session-create-1',
+      changeType: 'creation',
+      originalSessionDate: null,
+      originalStartTime: null,
+      originalEndTime: null,
+      newSessionDate: null,
+      newStartTime: null,
+      newEndTime: null,
+      originalTeacherId: null,
+      originalTeacherName: null,
+      substituteTeacherId: null,
+      substituteTeacherName: null,
+      operationSource: null,
+      reason: null,
+      createdByName: null,
+      createdAt: '2026-03-01T08:00:00.000Z',
+    },
     {
       id: 'change-1',
       changeType: 'substitute',
@@ -126,31 +144,22 @@ describe('SessionDetailDialogComponent', () => {
     createComponent();
     expect(component).toBeTruthy();
     expect(
-      (component as unknown as { sessionChanges: () => ScheduleChange[] }).sessionChanges(),
+      (component as unknown as { historyEntries: () => SessionHistoryEntry[] }).historyEntries(),
     ).toEqual(changes);
   });
 
-  it('renders summary heading and timeline cards with substitute, reschedule and batch source details', () => {
+  it('renders history dialog with session creation, actor and batch source details', () => {
     createComponent();
 
     const text = fixture.nativeElement.textContent as string;
 
-    expect(text).toContain('課堂摘要');
-    expect(text).toContain('異動時間線');
+    expect(text).toContain('課堂異動紀錄');
+    expect(text).toContain('時間線');
+    expect(text).toContain('課堂建立');
+    expect(text).toContain('建立者：系統排程');
     expect(text).toContain('王老師 → 李老師');
     expect(text).toContain('03/10 09:00 - 11:00 -> 03/17 10:00 - 12:00');
     expect(text).toContain('批次操作');
-  });
-
-  it('renders an empty state block when there is no history change', () => {
-    dialogConfigValue.data.changes = [];
-    createComponent();
-
-    const text = fixture.nativeElement.textContent as string;
-
-    expect(fixture.nativeElement.querySelector('.session-detail__empty')).not.toBeNull();
-    expect(text).toContain('尚無異動紀錄');
-    expect(text).toContain('此課堂自建立後未曾調課、停課、代課或恢復停課');
   });
 
   it('renders an error state when loading changes fails', () => {
@@ -162,5 +171,17 @@ describe('SessionDetailDialogComponent', () => {
     const text = fixture.nativeElement.textContent as string;
 
     expect(text).toContain('異動紀錄載入失敗');
+  });
+
+  it('renders session creation history returned from API as the minimum non-empty timeline', () => {
+    dialogConfigValue.data.changes = [];
+    dialogConfigValue.data.loadingChanges = true;
+    getChangesSpy.mockReturnValue(of({ data: [changes[0]] }));
+    createComponent();
+
+    const text = fixture.nativeElement.textContent as string;
+
+    expect(text).toContain('課堂建立');
+    expect(text).toContain('建立者：系統排程');
   });
 });
