@@ -239,9 +239,11 @@ export class SessionsPage implements OnInit {
   protected readonly contextMenuItems = computed<MenuItem[]>(() => {
     const s = this.contextSession();
     if (!s) return [];
-    const items: MenuItem[] = [];
+    const items: MenuItem[] = [
+      { label: '查看異動紀錄', icon: 'pi pi-eye', command: () => this.openDetail(s) },
+    ];
     if (s.status === 'scheduled') {
-      items.push({ label: '調課', icon: 'pi pi-calendar-clock', command: () => this.openReschedule(s) });
+      items.push({ label: '調課', icon: 'pi pi-arrows-h', command: () => this.openReschedule(s) });
     }
     if (s.status === 'scheduled' && s.assignmentStatus === 'assigned') {
       items.push({ label: '代課', icon: 'pi pi-user-edit', command: () => this.openSubstitute(s) });
@@ -295,6 +297,7 @@ export class SessionsPage implements OnInit {
       closable: true,
       closeOnEscape: true,
       dismissableMask: true,
+      appendTo: this.overlayContainer ?? 'body',
       data,
     });
     ref?.onClose.subscribe((result?: MobileBatchDialogResult) => {
@@ -333,6 +336,7 @@ export class SessionsPage implements OnInit {
       closable: true,
       closeOnEscape: true,
       dismissableMask: true,
+      appendTo: this.overlayContainer ?? 'body',
       data,
     });
     ref?.onClose.subscribe((result?: MobileFilterDialogResult) => {
@@ -352,6 +356,7 @@ export class SessionsPage implements OnInit {
   protected openReschedule(session: Session): void {
     const ref = this.dialogService.open(SessionRescheduleDialogComponent, {
       header: '調課', width: '400px', data: { session }, styleClass: 'session-dialog',
+      appendTo: this.overlayContainer ?? 'body',
     });
     ref?.onClose.subscribe((result) => { if (result === 'refresh') this.loadSessions(); });
   }
@@ -359,6 +364,7 @@ export class SessionsPage implements OnInit {
   protected openSubstitute(session: Session): void {
     const ref = this.dialogService.open(SessionSubstituteDialogComponent, {
       header: '安排代課', width: '400px', data: { session }, styleClass: 'session-dialog',
+      appendTo: this.overlayContainer ?? 'body',
     });
     ref?.onClose.subscribe((result) => { if (result === 'refresh') this.loadSessions(); });
   }
@@ -366,6 +372,7 @@ export class SessionsPage implements OnInit {
   protected openCancelDialog(session: Session): void {
     const ref = this.dialogService.open(SessionCancelDialogComponent, {
       header: '停課', width: '400px', data: { session }, styleClass: 'session-dialog',
+      appendTo: this.overlayContainer ?? 'body',
     });
     ref?.onClose.subscribe((result?: { result: string } | string) => {
       const didRefresh = typeof result === 'string' ? result === 'refresh' : result?.result === 'refresh';
@@ -394,6 +401,7 @@ export class SessionsPage implements OnInit {
       header: '指派老師', width: '400px',
       data: { session, ...(eligibleTeachers.length > 0 ? { teachers: eligibleTeachers } : {}) },
       styleClass: 'session-dialog',
+      appendTo: this.overlayContainer ?? 'body',
     });
     ref?.onClose.subscribe((result) => { if (result === 'refresh') this.loadSessions(); });
   }
@@ -455,18 +463,11 @@ export class SessionsPage implements OnInit {
 
   // ── Detail popup ───────────────────────────────────────────────────────
   protected openDetail(session: Session): void {
-    const ref = this.dialogService.open(SessionDetailDialogComponent, {
-      header: '課程詳情', width: '400px',
+    this.dialogService.open(SessionDetailDialogComponent, {
+      header: '異動紀錄', width: '400px',
       data: { session, loadingChanges: true, changes: [] }, styleClass: 'session-dialog',
+      appendTo: this.overlayContainer ?? 'body',
     });
-    if (ref) {
-      ref.onClose.subscribe((result) => {
-        if (result === 'refresh' || result === 'cancelled') this.loadSessions();
-        if (result === 'cancelled') {
-          this.messageService.add({ severity: 'success', summary: '已停課', detail: '如需安排補課，請新增調課', life: 6000 });
-        }
-      });
-    }
   }
 
   // ── Private ────────────────────────────────────────────────────────────
