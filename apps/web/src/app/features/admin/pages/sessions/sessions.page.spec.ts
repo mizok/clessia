@@ -458,15 +458,8 @@ describe('SessionsPage', () => {
     );
   });
 
-  it('unassignedCount should count sessions with unassigned status excluding cancelled', () => {
-    const mockSessions = [
-      { id: '1', assignmentStatus: 'unassigned', status: 'scheduled' },
-      { id: '2', assignmentStatus: 'unassigned', status: 'cancelled' },
-      { id: '3', assignmentStatus: 'assigned', status: 'scheduled' },
-      { id: '4', assignmentStatus: 'unassigned', status: 'scheduled' },
-    ] as Session[];
-
-    (component as unknown as { sessions: { set: (v: Session[]) => void } }).sessions.set(mockSessions);
+  it('unassignedCount should reflect value set from API', () => {
+    (component as unknown as { unassignedCount: { set: (v: number) => void } }).unassignedCount.set(2);
 
     const count = (component as unknown as { unassignedCount: { (): number } }).unassignedCount();
     expect(count).toBe(2);

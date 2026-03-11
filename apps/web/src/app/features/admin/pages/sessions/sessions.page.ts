@@ -179,12 +179,7 @@ export class SessionsPage implements OnInit {
       !this.isDefaultStatuses(),
   );
 
-  protected readonly unassignedCount = computed(
-    () =>
-      this.sessions().filter(
-        (s) => s.assignmentStatus === 'unassigned' && s.status !== 'cancelled',
-      ).length,
-  );
+  protected readonly unassignedCount = signal(0);
 
   // ── Selection state ────────────────────────────────────────────────────
   protected readonly selectedIds = signal<Set<string>>(new Set());
@@ -500,7 +495,24 @@ export class SessionsPage implements OnInit {
     });
   }
 
+  private loadUnassignedCount(): void {
+    const range = this.listDateRange();
+    this.sessionsService
+      .list({
+        from: range.length > 0 ? format(range[0], 'yyyy-MM-dd') : undefined,
+        to: range.length > 1 ? format(range[1], 'yyyy-MM-dd') : undefined,
+        campusIds: this.selectedCampusIds().length > 0 ? this.selectedCampusIds() : undefined,
+        courseIds: this.selectedCourseIds().length > 0 ? this.selectedCourseIds() : undefined,
+        classId: this.selectedClassIds().length === 1 ? this.selectedClassIds()[0] : undefined,
+        assignmentStatus: 'unassigned',
+        statuses: ['scheduled'],
+        pageSize: 1,
+      })
+      .subscribe({ next: (res) => this.unassignedCount.set(res.meta.total) });
+  }
+
   private loadSessions(): void {
+    this.loadUnassignedCount();
     const range = this.listDateRange();
     const rawIds = this.selectedTeacherIds();
     const realTeacherIds = rawIds.filter((id) => id !== '__unassigned__');
