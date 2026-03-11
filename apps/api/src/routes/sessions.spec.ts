@@ -2,12 +2,29 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildBatchSessionChangeInserts,
+  buildSessionCreationHistory,
   buildSingleSessionChangeInsert,
   mapSessionChange,
   SESSION_CHANGES_SELECT,
 } from './sessions';
 
 describe('session history mapping', () => {
+  it('builds a creation history entry for session creation fallback', () => {
+    const result = buildSessionCreationHistory({
+      sessionId: '11111111-1111-1111-1111-111111111111',
+      sessionCreatedAt: '2026-03-01T08:00:00.000Z',
+      createdByName: '教務主任',
+    });
+
+    expect(result).toMatchObject({
+      id: '11111111-1111-1111-1111-111111111111',
+      changeType: 'creation',
+      operationSource: null,
+      createdByName: '教務主任',
+      createdAt: '2026-03-01T08:00:00.000Z',
+    });
+  });
+
   it('maps original teacher and operation source metadata for substitute changes', () => {
     expect(SESSION_CHANGES_SELECT).toContain('original_teacher_id');
     expect(SESSION_CHANGES_SELECT).toContain('original_teacher_name');

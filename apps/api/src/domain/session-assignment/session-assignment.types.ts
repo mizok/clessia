@@ -41,6 +41,7 @@ export interface SessionGenerationInsertRow {
   readonly start_time: string;
   readonly end_time: string;
   readonly teacher_id: string | null;
+  readonly created_by: string | null;
   readonly status: 'scheduled';
   readonly assignment_status: SessionAssignmentStatus;
 }
@@ -48,6 +49,7 @@ export interface SessionGenerationInsertRow {
 export interface SessionGenerationPlanInput {
   readonly orgId: string;
   readonly classId: string;
+  readonly createdBy?: string | null;
   readonly from: string;
   readonly to: string;
   readonly includeUnassigned: boolean;

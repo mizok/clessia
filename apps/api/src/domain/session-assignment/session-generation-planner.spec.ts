@@ -6,6 +6,7 @@ describe('buildSessionGenerationPlan', () => {
     const plan = buildSessionGenerationPlan({
       orgId: 'org-1',
       classId: 'class-1',
+      createdBy: 'user-1',
       from: '2026-02-02',
       to: '2026-02-02',
       includeUnassigned: true,
@@ -27,6 +28,7 @@ describe('buildSessionGenerationPlan', () => {
     expect(plan.preview[0].willBeUnassigned).toBe(true);
     expect(plan.summary.createdUnassigned).toBe(1);
     expect(plan.toInsert[0]?.assignment_status).toBe('unassigned');
+    expect(plan.toInsert[0]?.created_by).toBe('user-1');
   });
 
   it('includeUnassigned=false 時，無老師時段應略過', () => {

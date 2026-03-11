@@ -107,6 +107,7 @@ export function buildSessionGenerationPlan(
         start_time: startTime,
         end_time: endTime,
         teacher_id: schedule.teacherId,
+        created_by: input.createdBy ?? null,
         status: 'scheduled',
         assignment_status: assignmentStatus,
       });

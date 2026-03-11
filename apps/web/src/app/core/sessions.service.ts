@@ -21,9 +21,9 @@ export interface Session {
   hasChanges: boolean;
 }
 
-export interface ScheduleChange {
+export interface SessionHistoryEntry {
   id: string;
-  changeType: 'reschedule' | 'substitute' | 'cancellation' | 'uncancel';
+  changeType: 'creation' | 'reschedule' | 'substitute' | 'cancellation' | 'uncancel';
   originalSessionDate: string | null;
   originalStartTime: string | null;
   originalEndTime: string | null;
@@ -34,7 +34,7 @@ export interface ScheduleChange {
   originalTeacherName: string | null;
   substituteTeacherId: string | null;
   substituteTeacherName: string | null;
-  operationSource: 'single' | 'batch';
+  operationSource: 'single' | 'batch' | null;
   reason: string | null;
   createdByName: string | null;
   createdAt: string;
@@ -131,8 +131,8 @@ export class SessionsService {
     return this.http.get<{ data: Session[] }>(this.endpoint, { params: query });
   }
 
-  getChanges(sessionId: string): Observable<{ data: ScheduleChange[] }> {
-    return this.http.get<{ data: ScheduleChange[] }>(`${this.endpoint}/${sessionId}/changes`);
+  getChanges(sessionId: string): Observable<{ data: SessionHistoryEntry[] }> {
+    return this.http.get<{ data: SessionHistoryEntry[] }>(`${this.endpoint}/${sessionId}/changes`);
   }
 
   cancel(sessionId: string, reason?: string): Observable<{ success: boolean }> {

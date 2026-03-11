@@ -1444,6 +1444,7 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
+    const userId = c.get('userId');
     const { id } = c.req.valid('param');
     const { from, to, excludeDates, includeUnassigned } = c.req.valid('json');
 
@@ -1514,6 +1515,7 @@ app.openapi(
     const plan = buildSessionGenerationPlan({
       orgId,
       classId: id,
+      createdBy: userId,
       from,
       to,
       includeUnassigned: includeUnassignedValue,

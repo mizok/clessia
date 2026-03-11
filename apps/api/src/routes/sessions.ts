@@ -31,9 +31,9 @@ const SessionAssignmentStatusSchema = z
   .enum(['assigned', 'unassigned'])
   .openapi('SessionAssignmentStatus');
 
-const SessionChangeTypeSchema = z
-  .enum(['reschedule', 'substitute', 'cancellation', 'uncancel'])
-  .openapi('SessionChangeType');
+const SessionHistoryTypeSchema = z
+  .enum(['creation', 'reschedule', 'substitute', 'cancellation', 'uncancel'])
+  .openapi('SessionHistoryType');
 
 const SessionListQuerySchema = z
   .object({
@@ -86,7 +86,7 @@ const SessionListResponseSchema = z
 const SessionChangeItemSchema = z
   .object({
     id: z.uuid(),
-    changeType: SessionChangeTypeSchema,
+    changeType: SessionHistoryTypeSchema,
     originalSessionDate: DateSchema.nullable(),
     originalStartTime: TimeSchema.nullable(),
     originalEndTime: TimeSchema.nullable(),
@@ -97,7 +97,7 @@ const SessionChangeItemSchema = z
     originalTeacherName: z.string().nullable(),
     substituteTeacherId: z.uuid().nullable(),
     substituteTeacherName: z.string().nullable(),
-    operationSource: z.enum(['single', 'batch']),
+    operationSource: z.enum(['single', 'batch']).nullable(),
     reason: z.string().nullable(),
     createdByName: z.string().nullable(),
     createdAt: z.string(),
@@ -318,6 +318,31 @@ function mapSession(row: Record<string, unknown>, hasChanges: boolean) {
   };
 }
 
+export function buildSessionCreationHistory(input: {
+  readonly sessionId: string;
+  readonly sessionCreatedAt: string;
+  readonly createdByName?: string | null;
+}) {
+  return {
+    id: input.sessionId,
+    changeType: 'creation' as const,
+    originalSessionDate: null,
+    originalStartTime: null,
+    originalEndTime: null,
+    newSessionDate: null,
+    newStartTime: null,
+    newEndTime: null,
+    originalTeacherId: null,
+    originalTeacherName: null,
+    substituteTeacherId: null,
+    substituteTeacherName: null,
+    operationSource: null,
+    reason: null,
+    createdByName: input.createdByName ?? null,
+    createdAt: input.sessionCreatedAt,
+  };
+}
+
 export const SESSION_CHANGES_SELECT = `
       id, change_type,
       original_session_date, original_start_time, original_end_time,
@@ -336,7 +361,7 @@ export function mapSessionChange(row: Record<string, unknown>) {
 
   return {
     id: row['id'] as string,
-    changeType: row['change_type'] as 'reschedule' | 'substitute' | 'cancellation' | 'uncancel',
+    changeType: row['change_type'] as 'creation' | 'reschedule' | 'substitute' | 'cancellation' | 'uncancel',
     originalSessionDate: (row['original_session_date'] as string | null) ?? null,
     originalStartTime: toHHmm(row['original_start_time'] as string | null),
     originalEndTime: toHHmm(row['original_end_time'] as string | null),
@@ -349,7 +374,8 @@ export function mapSessionChange(row: Record<string, unknown>) {
     substituteTeacherName: (substituteTeacher?.['display_name'] as string | undefined) ?? null,
     operationSource: ((row['operation_source'] as 'single' | 'batch' | null) ?? 'single') as
       | 'single'
-      | 'batch',
+      | 'batch'
+      | null,
     reason: (row['reason'] as string | null) ?? null,
     createdByName: (row['created_by_name'] as string | null) ?? null,
     createdAt: row['created_at'] as string,
@@ -595,6 +621,28 @@ app.openapi(getSessionChangesRoute, async (c) => {
   const orgId = c.get('orgId');
   const { id } = c.req.valid('param');
 
+  const { data: sessionData, error: sessionError } = await supabase
+    .from('sessions')
+    .select(
+      `
+      id,
+      created_at,
+      created_by,
+      creator:ba_user!created_by ( name )
+    `,
+    )
+    .eq('org_id', orgId)
+    .eq('id', id)
+    .maybeSingle();
+
+  if (sessionError) {
+    return c.json({ error: sessionError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  if (!sessionData) {
+    return c.json({ data: [] }, 200);
+  }
+
   const { data, error } = await supabase
     .from('schedule_changes')
     .select(SESSION_CHANGES_SELECT)
@@ -606,9 +654,25 @@ app.openapi(getSessionChangesRoute, async (c) => {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
 
+  const sessionId = sessionData['id'] as string;
+  const sessionCreatedAt = sessionData['created_at'] as string | undefined;
+  const creatorRow = sessionData['creator'] as Record<string, unknown> | null;
+  const sessionCreatedByName = (creatorRow?.['name'] as string | null | undefined) ?? null;
+  const historyItems = (data ?? []).map((row) => mapSessionChange(row as Record<string, unknown>));
+  if (sessionCreatedAt) {
+    historyItems.push(
+      buildSessionCreationHistory({
+        sessionId,
+        sessionCreatedAt,
+        createdByName: sessionCreatedByName,
+      }),
+    );
+  }
+  historyItems.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+
   return c.json(
     {
-      data: (data ?? []).map((row) => mapSessionChange(row as Record<string, unknown>)),
+      data: historyItems,
     },
     200,
   );
