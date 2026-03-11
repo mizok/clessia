@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
 @Component({
   selector: 'app-sessions-header',
@@ -7,4 +7,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
   styleUrl: './sessions-header.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SessionsHeaderComponent {}
+export class SessionsHeaderComponent {
+  readonly unassignedCount = input<number>(0);
+  readonly filterUnassigned = output<void>();
+}

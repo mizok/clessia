@@ -13,9 +13,26 @@
 
   &__title-group {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    position: relative;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    border: none;
+    border-radius: var(--radius-full);
+    background: var(--p-orange-100);
+    color: var(--p-orange-700);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+
+    &:hover {
+      background: var(--p-orange-200);
+    }
   }
 
   &__title {
