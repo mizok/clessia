@@ -56,7 +56,7 @@
             pInputText
             placeholder="搜尋課程或班級..."
             [ngModel]="searchQuery()"
-            (ngModelChange)="searchQuery.set($event)"
+            (ngModelChange)="onSearchChange($event)"
           />
         </p-iconfield>
       </div>
@@ -65,7 +65,7 @@
         <p-select
           [options]="subjectOptions()"
           [ngModel]="selectedSubjectId()"
-          (ngModelChange)="selectedSubjectId.set($event)"
+          (ngModelChange)="onSubjectChange($event)"
           placeholder="所有科目"
           [showClear]="true"
           styleClass="courses__filter-select"
@@ -74,7 +74,7 @@
         <p-multiselect
           [options]="staffOptions()"
           [ngModel]="selectedTeacherIds()"
-          (ngModelChange)="selectedTeacherIds.set($event)"
+          (ngModelChange)="onTeacherChange($event)"
           placeholder="所有老師"
           selectedItemsLabel="{0} 位老師"
           [filter]="true"
@@ -85,7 +85,7 @@
         <p-select
           [options]="statusOptions"
           [ngModel]="statusFilter()"
-          (ngModelChange)="statusFilter.set($event)"
+          (ngModelChange)="onStatusFilterChange($event)"
           placeholder="全部狀態"
           styleClass="courses__filter-select"
           [appendTo]="'body'"
@@ -98,7 +98,7 @@
         [text]="true"
         size="small"
         severity="secondary"
-        (onClick)="showInactiveCourses.set(!showInactiveCourses())"
+        (onClick)="toggleShowInactiveCourses()"
       />
 
       @if (hasActiveFilters()) {
@@ -151,7 +151,7 @@
       } @else {
         <!-- Course Groups -->
         <div class="courses__groups">
-          @for (group of paginatedCourseGroups(); track group.course.id) {
+          @for (group of courseGroups(); track group.course.id) {
             <div class="course-group">
               <!-- Course Header -->
               <div
@@ -347,13 +347,12 @@
           }
         </div>
 
-        @if (courseGroups().length > paginationRows()) {
+        @if (total() > PAGE_SIZE) {
           <div class="courses__pagination">
             <p-paginator
-              [first]="paginationFirst()"
-              [rows]="paginationRows()"
-              [totalRecords]="courseGroups().length"
-              [rowsPerPageOptions]="isMobile() ? undefined : paginationRowsPerPageOptions"
+              [first]="(currentPage() - 1) * PAGE_SIZE"
+              [rows]="PAGE_SIZE"
+              [totalRecords]="total()"
               [showCurrentPageReport]="true"
               [currentPageReportTemplate]="
                 isMobile()
@@ -362,7 +361,7 @@
               "
               [showPageLinks]="!isMobile()"
               [showFirstLastIcon]="!isMobile()"
-              (onPageChange)="onCoursePaginationChange($event)"
+              (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
             />
           </div>
         }

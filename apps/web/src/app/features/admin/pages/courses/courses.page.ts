@@ -5,8 +5,6 @@ import {
   input,
   signal,
   computed,
-  effect,
-  Injector,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -27,7 +25,7 @@ import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
-import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
+import { PaginatorModule } from 'primeng/paginator';
 
 import { CourseFormDialogComponent } from './course-form-dialog.component';
 import { ClassFormDialogComponent } from './class-form-dialog/class-form-dialog.component';
@@ -96,7 +94,6 @@ export class CoursesPage implements OnInit {
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly overlayContainerService = inject(OverlayContainerService);
-  private readonly injector = inject(Injector);
   private readonly browserStateService = inject(BrowserStateService);
 
   protected get overlayContainer(): HTMLElement | null {
@@ -119,9 +116,9 @@ export class CoursesPage implements OnInit {
 
   // ---- Selection ----
   protected readonly selectedClassIds = signal<Set<string>>(new Set());
-  protected readonly paginationFirst = signal(0);
-  protected readonly paginationRows = signal(10);
-  protected readonly paginationRowsPerPageOptions = [10, 20, 50];
+  protected readonly currentPage = signal(1);
+  protected readonly total = signal(0);
+  protected readonly PAGE_SIZE = 20;
 
   protected readonly selectedActiveCount = computed(
     () => this.classes().filter((cl) => this.selectedClassIds().has(cl.id) && cl.isActive).length,
@@ -132,7 +129,7 @@ export class CoursesPage implements OnInit {
   );
 
   protected readonly allVisibleSelected = computed(() => {
-    const visible = this.paginatedCourseGroups().flatMap((g) => g.classes);
+    const visible = this.courseGroups().flatMap((g) => g.classes);
     return visible.length > 0 && visible.every((cl) => this.selectedClassIds().has(cl.id));
   });
 
@@ -209,12 +206,6 @@ export class CoursesPage implements OnInit {
       this.showInactiveCourses(),
   );
 
-  protected readonly paginatedCourseGroups = computed(() => {
-    const first = this.paginationFirst();
-    const rows = this.paginationRows();
-    return this.courseGroups().slice(first, first + rows);
-  });
-
   // ---- Static options ----
   protected readonly gradeOptions = [
     { label: '小一', value: '小一' },
@@ -252,61 +243,103 @@ export class CoursesPage implements OnInit {
   // ================================================================
 
   ngOnInit(): void {
-    effect(
-      () => {
-        this.searchQuery();
-        this.selectedCampusId();
-        this.selectedSubjectId();
-        this.selectedTeacherIds();
-        this.statusFilter();
-        this.showInactiveCourses();
-        this.paginationFirst.set(0);
-      },
-      { injector: this.injector },
-    );
-
-    effect(
-      () => {
-        const total = this.courseGroups().length;
-        const rows = this.paginationRows();
-        const first = this.paginationFirst();
-        if (total === 0) {
-          if (first !== 0) this.paginationFirst.set(0);
-          return;
-        }
-        if (first >= total) {
-          const lastPageFirst = Math.floor((total - 1) / rows) * rows;
-          this.paginationFirst.set(lastPageFirst);
-        }
-      },
-      { injector: this.injector },
-    );
-
+    this.loadFilterOptions();
     this.loadAll();
   }
 
   protected loadAll(): void {
+    this.loadClasses();
+    this.loadCourses();
+  }
+
+  private loadFilterOptions(): void {
+    this.campusesService.list({ pageSize: 100 }).subscribe({
+      next: (res) => this.campuses.set(res.data),
+      error: (err) => console.error('Failed to load campuses', err),
+    });
+
+    this.subjectsService.list().subscribe({
+      next: (res) => this.subjects.set(res.data),
+      error: (err) => console.error('Failed to load subjects', err),
+    });
+
+    this.staffService.list({ pageSize: 200 }).subscribe({
+      next: (res) => this.staff.set(res.data),
+      error: (err) => console.error('Failed to load staff', err),
+    });
+  }
+
+  private loadClasses(): void {
+    this.classesService.list({ pageSize: 500 }).subscribe({
+      next: (res) => this.classes.set(res.data),
+      error: (err) => console.error('Failed to load classes', err),
+    });
+  }
+
+  private loadCourses(): void {
     this.loading.set(true);
-    Promise.all([
-      this.coursesService.list({ pageSize: 200 }).toPromise(),
-      this.classesService.list({ pageSize: 500 }).toPromise(),
-      this.campusesService.list({ pageSize: 100 }).toPromise(),
-      this.subjectsService.list().toPromise(),
-      this.staffService.list({ pageSize: 200 }).toPromise(),
-    ])
-      .then(([coursesRes, classesRes, campusesRes, subjectsRes, staffRes]) => {
-        this.courses.set(coursesRes?.data ?? []);
-        this.classes.set(classesRes?.data ?? []);
-        this.campuses.set(campusesRes?.data ?? []);
-        this.subjects.set(subjectsRes?.data ?? []);
-        this.staff.set(staffRes?.data ?? []);
-        this.loading.set(false);
+    this.coursesService
+      .list({
+        search: this.searchQuery() || undefined,
+        campusId: this.selectedCampusId() || undefined,
+        subjectId: this.selectedSubjectId() || undefined,
+        isActive: this.showInactiveCourses() ? undefined : true,
+        page: this.currentPage(),
+        pageSize: this.PAGE_SIZE,
       })
-      .catch((err) => {
-        console.error('loadAll failed:', err);
-        this.loading.set(false);
-        this.messageService.add({ severity: 'error', summary: '載入失敗', detail: '無法載入資料' });
+      .subscribe({
+        next: (res) => {
+          this.courses.set(res.data);
+          this.total.set(res.meta?.total ?? res.data.length);
+          this.expandedCourseIds.set(new Set());
+          this.selectedClassIds.set(new Set());
+          this.loading.set(false);
+        },
+        error: (err) => {
+          console.error('loadCourses failed:', err);
+          this.loading.set(false);
+          this.messageService.add({
+            severity: 'error',
+            summary: '載入失敗',
+            detail: '無法載入課程資料',
+          });
+        },
       });
+  }
+
+  protected onSearchChange(value: string): void {
+    this.searchQuery.set(value);
+    this.currentPage.set(1);
+    this.loadCourses();
+  }
+
+  protected onSubjectChange(value: string | null): void {
+    this.selectedSubjectId.set(value);
+    this.currentPage.set(1);
+    this.loadCourses();
+  }
+
+  protected onTeacherChange(value: string[]): void {
+    this.selectedTeacherIds.set(value);
+    this.currentPage.set(1);
+    this.loadCourses();
+  }
+
+  protected onStatusFilterChange(value: boolean | null): void {
+    this.statusFilter.set(value);
+    this.currentPage.set(1);
+    this.loadCourses();
+  }
+
+  protected toggleShowInactiveCourses(): void {
+    this.showInactiveCourses.set(!this.showInactiveCourses());
+    this.currentPage.set(1);
+    this.loadCourses();
+  }
+
+  protected onPageChange(page: number): void {
+    this.currentPage.set(page);
+    this.loadCourses();
   }
 
   // ================================================================
@@ -387,14 +420,19 @@ export class CoursesPage implements OnInit {
 
   protected onCampusTabChange(value: string | number | null | undefined): void {
     this.selectedCampusId.set(!value || value === 'all' ? null : String(value));
+    this.currentPage.set(1);
+    this.loadCourses();
   }
 
   protected clearFilters(): void {
     this.searchQuery.set('');
+    this.selectedCampusId.set(null);
     this.selectedSubjectId.set(null);
     this.selectedTeacherIds.set([]);
     this.statusFilter.set(null);
     this.showInactiveCourses.set(false);
+    this.currentPage.set(1);
+    this.loadCourses();
   }
 
   protected isCourseCollapsed(courseId: string): boolean {
@@ -433,7 +471,7 @@ export class CoursesPage implements OnInit {
   }
 
   protected toggleSelectAll(): void {
-    const visibleIds = this.paginatedCourseGroups()
+    const visibleIds = this.courseGroups()
       .flatMap((g) => g.classes)
       .map((cl) => cl.id);
     const shouldUnselectVisible = this.allVisibleSelected();
@@ -447,11 +485,6 @@ export class CoursesPage implements OnInit {
       }
       return next;
     });
-  }
-
-  protected onCoursePaginationChange(event: PaginatorState): void {
-    this.paginationFirst.set(event.first ?? 0);
-    this.paginationRows.set(event.rows ?? 10);
   }
 
   protected clearSelection(): void {
