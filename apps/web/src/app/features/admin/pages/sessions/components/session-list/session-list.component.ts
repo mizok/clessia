@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, input, output, signal } from '@angular/core';
+import { Component, computed, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { CheckboxModule } from 'primeng/checkbox';
@@ -41,63 +41,49 @@ export class SessionListComponent {
   readonly sessions = input<readonly Session[]>([]);
   readonly loading = input(false);
   readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
+  readonly total = input(0);
+  readonly pageSize = input(50);
+  readonly currentPage = input(1);
 
   readonly selectedIdsChange = output<string[]>();
   readonly contextMenuRequested = output<SessionListMenuRequest>();
-
-  private readonly first = signal(0);
-  private readonly rows = signal(20);
-
-  private readonly paginatedFirst = computed(() => {
-    const total = this.sessions().length;
-    const rows = this.rows();
-    const first = this.first();
-    if (total === 0) return 0;
-    if (first < total) return first;
-    return Math.floor((total - 1) / rows) * rows;
-  });
+  readonly pageChange = output<number>();
 
   protected readonly sessionCountLabel = computed(() => {
-    const total = this.sessions().length;
-    if (total === 0) return '';
+    const visibleCount = this.sessions().length;
+    const total = this.total();
+    if (visibleCount === 0 && total === 0) return '';
     const cancelled = this.sessions().filter(s => s.status === 'cancelled').length;
     const unassigned = this.sessions().filter(
       s => s.assignmentStatus === 'unassigned' && s.status === 'scheduled'
     ).length;
-    const parts = [`共 ${total} 堂`];
+    const parts = [
+      total > visibleCount ? `本頁 ${visibleCount} 堂，共 ${total} 堂` : `共 ${visibleCount} 堂`,
+    ];
     if (unassigned > 0) parts.push(`${unassigned} 堂未指派`);
     if (cancelled > 0) parts.push(`${cancelled} 堂已停課`);
     return parts.join('・');
   });
 
   protected readonly listPagination = computed<ResponsiveTablePaginationConfig>(() => ({
-    first: this.paginatedFirst(),
-    rows: this.rows(),
-    totalRecords: this.sessions().length,
-    rowsPerPageOptions: [20, 50, 100],
+    first: Math.max((this.currentPage() - 1) * this.pageSize(), 0),
+    rows: this.pageSize(),
+    totalRecords: this.total(),
   }));
 
-  protected readonly paginatedSessions = computed(() => {
-    const all = this.sessions();
-    const first = this.paginatedFirst();
-    const rows = this.rows();
-    return all.slice(first, first + rows);
-  });
-
   protected readonly allPageSelected = computed(() => {
-    const page = this.paginatedSessions();
+    const page = this.sessions();
     if (page.length === 0) return false;
     const ids = this.selectedIds();
     return page.every((session) => ids.has(session.id));
   });
 
   protected onListPage(event: ResponsiveTablePageEvent): void {
-    this.first.set(event.first);
-    this.rows.set(event.rows);
+    this.pageChange.emit((event.page ?? 0) + 1);
   }
 
   protected toggleSelectAll(): void {
-    const page = this.paginatedSessions();
+    const page = this.sessions();
     const updated = new Set(this.selectedIds());
     if (this.allPageSelected()) {
       page.forEach((session) => updated.delete(session.id));

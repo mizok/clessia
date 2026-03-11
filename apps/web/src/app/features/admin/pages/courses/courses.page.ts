@@ -37,10 +37,11 @@ import { DeactivateClassDialogComponent } from './deactivate-class-dialog/deacti
 // Services
 import { ClassesService, Class, Schedule } from '@core/classes.service';
 import { CoursesService, Course } from '@core/courses.service';
-import { CampusesService, Campus } from '@core/campuses.service';
-import { SubjectsService, Subject } from '@core/subjects.service';
+import type { Campus } from '@core/campuses.service';
+import type { Subject } from '@core/subjects.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
-import { StaffService, Staff } from '@core/staff.service';
+import type { Staff } from '@core/staff.service';
 import { SessionsService } from '@core/sessions.service';
 import { BrowserStateService } from '@core/browser-state.service';
 
@@ -87,9 +88,7 @@ export class CoursesPage implements OnInit {
   private readonly router = inject(Router);
   private readonly coursesService = inject(CoursesService);
   private readonly classesService = inject(ClassesService);
-  private readonly campusesService = inject(CampusesService);
-  private readonly subjectsService = inject(SubjectsService);
-  private readonly staffService = inject(StaffService);
+  private readonly refData = inject(ReferenceDataService);
   private readonly sessionsService = inject(SessionsService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
@@ -105,9 +104,9 @@ export class CoursesPage implements OnInit {
   // ---- Data ----
   protected readonly courses = signal<Course[]>([]);
   protected readonly classes = signal<Class[]>([]);
-  protected readonly campuses = signal<Campus[]>([]);
-  protected readonly subjects = signal<Subject[]>([]);
-  protected readonly staff = signal<Staff[]>([]);
+  protected readonly campuses = computed(() => this.refData.campuses());
+  protected readonly subjects = computed(() => this.refData.subjects());
+  protected readonly staff = computed(() => this.refData.teachers());
   protected readonly loading = signal(false);
 
   protected readonly classActionMenuItems = signal<MenuItem[]>([]);
@@ -150,7 +149,7 @@ export class CoursesPage implements OnInit {
     this.subjects().map((s) => ({ label: s.name, value: s.id })),
   );
   protected readonly staffOptions = computed(() =>
-    this.staff().map((s) => ({ label: s.displayName, value: s.id })),
+    this.staff().map((s) => ({ label: s.displayName, value: s.id, subjectNames: s.subjectNames })),
   );
 
   // ---- Computed course groups ----
@@ -253,24 +252,13 @@ export class CoursesPage implements OnInit {
   }
 
   private loadFilterOptions(): void {
-    this.campusesService.list({ pageSize: 100 }).subscribe({
-      next: (res) => this.campuses.set(res.data),
-      error: (err) => console.error('Failed to load campuses', err),
-    });
-
-    this.subjectsService.list().subscribe({
-      next: (res) => this.subjects.set(res.data),
-      error: (err) => console.error('Failed to load subjects', err),
-    });
-
-    this.staffService.list({ pageSize: 200 }).subscribe({
-      next: (res) => this.staff.set(res.data),
-      error: (err) => console.error('Failed to load staff', err),
-    });
+    this.refData.loadCampuses();
+    this.refData.loadSubjects();
+    this.refData.loadTeachers();
   }
 
   private loadClasses(): void {
-    this.classesService.list({ pageSize: 500 }).subscribe({
+    this.classesService.list({ pageSize: 0 }).subscribe({
       next: (res) => this.classes.set(res.data),
       error: (err) => console.error('Failed to load classes', err),
     });

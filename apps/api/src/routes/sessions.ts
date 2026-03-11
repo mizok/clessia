@@ -45,6 +45,7 @@ const SessionListQuerySchema = z
     courseIds: z.string().optional().openapi({ description: '課程 ID（逗號分隔，多選）' }),
     teacherId: z.uuid().optional().openapi({ description: '教師 ID（單一）' }),
     teacherIds: z.string().optional().openapi({ description: '教師 ID（逗號分隔，多選）' }),
+    classIds: z.string().optional().openapi({ description: '班級 ID（逗號分隔，多選）' }),
     classId: z.uuid().optional().openapi({ description: '班級 ID' }),
     page: z.coerce.number().optional().openapi({ description: '頁碼' }),
     pageSize: z.coerce.number().optional().openapi({ description: '每頁筆數' }),
@@ -369,10 +370,7 @@ export const SESSION_CHANGES_SELECT = `
     `;
 
 export function mapSessionChange(row: Record<string, unknown>) {
-  const substituteRaw = row['staff'] as Record<string, unknown> | Record<string, unknown>[] | null;
-  const substituteTeacher = Array.isArray(substituteRaw)
-    ? (substituteRaw[0] as Record<string, unknown> | undefined)
-    : substituteRaw;
+  const substituteTeacher = normalizeRelationRow(row['staff']);
 
   return {
     id: row['id'] as string,
@@ -397,6 +395,17 @@ export function mapSessionChange(row: Record<string, unknown>) {
   };
 }
 
+export function normalizeRelationRow(value: unknown): Record<string, unknown> | null {
+  if (Array.isArray(value)) {
+    const firstValue = value[0];
+    return firstValue && typeof firstValue === 'object'
+      ? (firstValue as Record<string, unknown>)
+      : null;
+  }
+
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+}
+
 async function loadSessionOperationState(
   supabase: AppEnv['Variables']['supabase'],
   orgId: string,
@@ -413,7 +422,7 @@ async function loadSessionOperationState(
 
   if (error || !data) return null;
 
-  const teacherRow = data.teacher as Record<string, unknown> | null;
+  const teacherRow = normalizeRelationRow(data.teacher);
 
   const assignmentStatus =
     (data.assignment_status as 'assigned' | 'unassigned' | null) ??
@@ -520,6 +529,7 @@ app.openapi(listSessionsRoute, async (c) => {
     courseIds,
     teacherId,
     teacherIds,
+    classIds,
     classId,
     page,
     pageSize,
@@ -573,7 +583,12 @@ app.openapi(listSessionsRoute, async (c) => {
   } else if (teacherId) {
     dbQuery = dbQuery.eq('teacher_id', teacherId);
   }
-  if (classId) {
+  if (classIds) {
+    const ids = classIds.split(',').filter(Boolean);
+    if (ids.length > 0) {
+      dbQuery = dbQuery.in('class_id', ids);
+    }
+  } else if (classId) {
     dbQuery = dbQuery.eq('class_id', classId);
   }
   if (statuses) {
@@ -597,29 +612,13 @@ app.openapi(listSessionsRoute, async (c) => {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
 
-  // Unassigned count — uses same context filters (date/campus/course/class) but always unassigned+scheduled
-  let unassignedCountQuery = supabase
+  // Unassigned count — global org count, not affected by any filters
+  const { count: unassignedCount } = await supabase
     .from('sessions')
     .select('id', { count: 'exact', head: true })
     .eq('org_id', orgId)
     .eq('assignment_status', 'unassigned')
     .eq('status', 'scheduled');
-  if (from) unassignedCountQuery = unassignedCountQuery.gte('session_date', from);
-  if (to) unassignedCountQuery = unassignedCountQuery.lte('session_date', to);
-  if (campusIds) {
-    const ids = campusIds.split(',').filter(Boolean);
-    if (ids.length > 0) unassignedCountQuery = unassignedCountQuery.in('classes.campus_id', ids);
-  } else if (campusId) {
-    unassignedCountQuery = unassignedCountQuery.eq('classes.campus_id', campusId);
-  }
-  if (courseIds) {
-    const ids = courseIds.split(',').filter(Boolean);
-    if (ids.length > 0) unassignedCountQuery = unassignedCountQuery.in('classes.course_id', ids);
-  } else if (courseId) {
-    unassignedCountQuery = unassignedCountQuery.eq('classes.course_id', courseId);
-  }
-  if (classId) unassignedCountQuery = unassignedCountQuery.eq('class_id', classId);
-  const { count: unassignedCount } = await unassignedCountQuery;
 
   const rows = (data ?? []) as Record<string, unknown>[];
   const sessionIds = rows.map((row) => row['id'] as string);
@@ -723,7 +722,7 @@ app.openapi(getSessionChangesRoute, async (c) => {
 
   const sessionId = sessionData['id'] as string;
   const sessionCreatedAt = sessionData['created_at'] as string | undefined;
-  const creatorRow = sessionData['creator'] as Record<string, unknown> | null;
+  const creatorRow = normalizeRelationRow(sessionData['creator']);
   const sessionCreatedByName = (creatorRow?.['name'] as string | null | undefined) ?? null;
   const historyItems = (data ?? []).map((row) => mapSessionChange(row as Record<string, unknown>));
   if (sessionCreatedAt) {

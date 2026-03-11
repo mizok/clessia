@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
-import { logAudit } from '../utils/audit';
+import { formatAuditCourseResourceName, logAudit } from '../utils/audit';
 
 // ============================================================
 // Schemas (with OpenAPI metadata)
@@ -126,8 +126,10 @@ app.openapi(listRoute, async (c) => {
   const supabase = c.get('supabase');
   const query = c.req.valid('query');
 
-  const page = parseInt(query.page || '1');
-  const pageSize = parseInt(query.pageSize || '20');
+  const page = Math.max(parseInt(query.page || '1'), 1);
+  const rawPageSize = query.pageSize !== undefined ? parseInt(query.pageSize) : 20;
+  const unpaginated = rawPageSize === 0;
+  const pageSize = unpaginated ? 0 : Math.max(rawPageSize, 1);
   const offset = (page - 1) * pageSize;
 
   // Build query
@@ -150,7 +152,8 @@ app.openapi(listRoute, async (c) => {
   }
 
   // Pagination
-  dbQuery = dbQuery.range(offset, offset + pageSize - 1).order('created_at', { ascending: false });
+  dbQuery = dbQuery.order('created_at', { ascending: false });
+  if (!unpaginated) dbQuery = dbQuery.range(offset, offset + pageSize - 1);
 
   const { data, count, error } = await dbQuery;
 
@@ -159,14 +162,15 @@ app.openapi(listRoute, async (c) => {
   }
 
   const courses = (data || []).map((row) => mapCourse(row as Record<string, unknown>));
+  const total = count || 0;
 
   return c.json({
     data: courses,
     meta: {
-      total: count || 0,
-      page,
-      pageSize,
-      totalPages: Math.ceil((count || 0) / pageSize),
+      total,
+      page: unpaginated ? 1 : page,
+      pageSize: unpaginated ? total : pageSize,
+      totalPages: unpaginated ? 1 : Math.ceil(total / pageSize),
     },
   });
 });
@@ -303,7 +307,10 @@ app.openapi(createCourseRoute, async (c) => {
     userId,
     resourceType: 'course',
     resourceId: data.id as string,
-    resourceName: data.name as string,
+    resourceName: formatAuditCourseResourceName({
+      courseName: data.name as string,
+      campusName: (data.campuses as Record<string, unknown> | null)?.['name'] as string | null,
+    }),
     action: 'create',
   }, c.executionCtx.waitUntil.bind(c.executionCtx));
 
@@ -477,7 +484,10 @@ app.openapi(updateRoute, async (c) => {
     userId,
     resourceType: 'course',
     resourceId: id,
-    resourceName: data.name as string,
+    resourceName: formatAuditCourseResourceName({
+      courseName: data.name as string,
+      campusName: (data.campuses as Record<string, unknown> | null)?.['name'] as string | null,
+    }),
     action: 'update',
     details: {
       deactivateMode: body.deactivateMode ?? null,
@@ -553,7 +563,11 @@ app.openapi(deleteRoute, async (c) => {
     );
   }
 
-  const { data: existing } = await supabase.from('courses').select('name').eq('id', id).single();
+  const { data: existing } = await supabase
+    .from('courses')
+    .select('name, campuses(name)')
+    .eq('id', id)
+    .single();
 
   const { error } = await supabase.from('courses').delete().eq('id', id);
 
@@ -566,7 +580,12 @@ app.openapi(deleteRoute, async (c) => {
     userId,
     resourceType: 'course',
     resourceId: id,
-    resourceName: existing?.name ?? null,
+    resourceName: formatAuditCourseResourceName({
+      courseName: existing?.name as string | null | undefined,
+      campusName: (existing?.campuses as Record<string, unknown> | null | undefined)?.[
+        'name'
+      ] as string | null,
+    }),
     action: 'delete',
   }, c.executionCtx.waitUntil.bind(c.executionCtx));
 

@@ -10,6 +10,63 @@
     min-height: 120px;
   }
 
+  &__notice {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-lg);
+    background: var(--zinc-50);
+  }
+
+  &__notice--error {
+    border-color: #fecaca;
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    color: #991b1b;
+  }
+
+  &__notice--success {
+    border-color: #bbf7d0;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    color: #166534;
+  }
+
+  &__notice-copy {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  &__notice-summary {
+    font-size: var(--text-md);
+    font-weight: var(--font-semibold);
+    line-height: var(--leading-normal);
+  }
+
+  &__notice-detail {
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+    opacity: 0.92;
+  }
+
+  &__notice-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    color: currentcolor;
+    transition: background var(--transition-fast);
+
+    &:hover {
+      background: rgb(255 255 255 / 35%);
+    }
+  }
+
   &__row {
     display: flex;
     align-items: center;

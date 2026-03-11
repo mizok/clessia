@@ -51,6 +51,13 @@ interface RoleOption {
   label: string;
 }
 
+interface StaffSummary {
+  total: number;
+  adminCount: number;
+  teacherCount: number;
+  activeCount: number;
+}
+
 const ROLE_OPTIONS: RoleOption[] = [
   { value: 'admin', label: '管理員' },
   { value: 'teacher', label: '老師' },
@@ -106,16 +113,18 @@ export class StaffPage implements OnInit {
   readonly subjectFilter = signal<string | null>(null);
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
-  protected readonly PAGE_SIZE = 50;
+  readonly summary = signal<StaffSummary>({
+    total: 0,
+    adminCount: 0,
+    teacherCount: 0,
+    activeCount: 0,
+  });
+  protected readonly PAGE_SIZE = 20;
 
   // Computed
-  readonly adminCount = computed(
-    () => this.staffList().filter((s) => s.roles.includes('admin')).length,
-  );
-  readonly teacherCount = computed(
-    () => this.staffList().filter((s) => s.roles.includes('teacher')).length,
-  );
-  readonly activeCount = computed(() => this.staffList().filter((s) => s.isActive).length);
+  readonly adminCount = computed(() => this.summary().adminCount);
+  readonly teacherCount = computed(() => this.summary().teacherCount);
+  readonly activeCount = computed(() => this.summary().activeCount);
 
   readonly campusOptions = computed(() =>
     this.campuses().map((c) => ({ value: c.id, label: c.name })),
@@ -157,6 +166,7 @@ export class StaffPage implements OnInit {
         next: (res: StaffListResponse) => {
           this.staffList.set(res.data);
           this.total.set(res.meta.total);
+          this.summary.set(res.summary);
           this.loading.set(false);
         },
         error: (err: any) => {

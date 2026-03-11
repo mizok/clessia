@@ -99,60 +99,71 @@
             <p>在此日期範圍內沒有符合時間表的課堂</p>
           </div>
         } @else {
-          <div class="generate-preview__table-wrap">
-            <table class="generate-preview__table">
-              <thead>
-                <tr>
-                  <th>日期</th>
-                  <th>星期</th>
-                  <th>時間</th>
-                  <th>老師</th>
-                  <th>狀態</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (s of paginatedPreviewSessions(); track $index) {
-                  <tr [class.generate-preview__row--exists]="s.exists">
-                    <td>{{ s.sessionDate }}</td>
-                    <td>{{ getWeekdayLabel(s.weekday) }}</td>
-                    <td>{{ s.startTime.substring(0, 5) }}-{{ s.endTime.substring(0, 5) }}</td>
-                    <td>{{ s.teacherName ?? '—' }}</td>
-                    <td>
-                      @if (s.exists) {
-                        <span class="generate-preview__badge generate-preview__badge--skip"
-                          >已存在</span
-                        >
-                      } @else {
-                        <span class="generate-preview__badge generate-preview__badge--new"
-                          >將新增</span
-                        >
-                      }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
+          <app-responsive-table
+            class="generate-preview__table"
+            [headTemplate]="previewHead"
+            [bodyTemplate]="previewBody"
+            [pagination]="previewPagination()"
+            (page)="onPreviewPaginationChange($event)"
+          />
 
-          @if (showPreviewPagination()) {
-            <div class="generate-preview__pagination">
-              <p-paginator
-                [first]="previewPaginationFirst()"
-                [rows]="previewPaginationRows()"
-                [totalRecords]="previewSessions().length"
-                [rowsPerPageOptions]="isMobile() ? undefined : previewPaginationRowsPerPageOptions"
-                [showCurrentPageReport]="true"
-                [currentPageReportTemplate]="
-                  isMobile()
-                    ? '第 {currentPage} / {totalPages} 頁'
-                    : '顯示 {first} - {last}，共 {totalRecords} 筆'
-                "
-                [showPageLinks]="!isMobile()"
-                [showFirstLastIcon]="!isMobile()"
-                (onPageChange)="onPreviewPaginationChange($event)"
-              />
-            </div>
-          }
+          <ng-template #previewHead>
+            <tr>
+              <th
+                appRtColDef="sessionDate"
+                [appRtColDefMinWidth]="120"
+                [appRtColDefPriority]="1"
+                [appRtColDefCollapsible]="false"
+              >
+                日期
+              </th>
+              <th
+                appRtColDef="weekday"
+                [appRtColDefMinWidth]="96"
+                [appRtColDefPriority]="2"
+                [appRtColDefCollapsible]="false"
+              >
+                星期
+              </th>
+              <th
+                appRtColDef="time"
+                [appRtColDefMinWidth]="140"
+                [appRtColDefPriority]="3"
+                [appRtColDefCollapsible]="false"
+              >
+                時間
+              </th>
+              <th appRtColDef="teacherName" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">
+                老師
+              </th>
+              <th appRtColDef="status" [appRtColDefMinWidth]="108" [appRtColDefPriority]="5">
+                狀態
+              </th>
+            </tr>
+          </ng-template>
+
+          <ng-template #previewBody>
+            @for (s of paginatedPreviewSessions(); track s.sessionDate + s.startTime + s.endTime) {
+              <tr
+                appRtRow
+                [appRtRow]="s"
+                [appRtRowId]="s.sessionDate + '-' + s.startTime + '-' + s.endTime"
+                [class.generate-preview__row--exists]="s.exists"
+              >
+                <td appRtColCell="sessionDate">{{ s.sessionDate }}</td>
+                <td appRtColCell="weekday">{{ getWeekdayLabel(s.weekday) }}</td>
+                <td appRtColCell="time">{{ s.startTime.substring(0, 5) }}-{{ s.endTime.substring(0, 5) }}</td>
+                <td appRtColCell="teacherName">{{ s.teacherName ?? '—' }}</td>
+                <td appRtColCell="status">
+                  @if (s.exists) {
+                    <span class="generate-preview__badge generate-preview__badge--skip">已存在</span>
+                  } @else {
+                    <span class="generate-preview__badge generate-preview__badge--new">將新增</span>
+                  }
+                </td>
+              </tr>
+            }
+          </ng-template>
         }
       </div>
     }

@@ -19,6 +19,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  min-height: 0;
 
   &__summary {
     display: flex;
@@ -41,47 +42,18 @@
     color: var(--zinc-400);
   }
 
-  &__table-wrap {
-    max-height: 400px;
-    overflow-y: auto;
-    border: 1px solid var(--zinc-100);
-    border-radius: var(--radius-md);
-  }
-
-  &__pagination {
-    border: 1px solid var(--zinc-100);
-    border-top: none;
-    border-radius: 0 0 var(--radius-md) var(--radius-md);
-    background: var(--zinc-50);
-    padding: var(--space-2) var(--space-3);
-  }
-
   &__table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--text-xs);
-
-    th {
-      position: sticky;
-      top: 0;
-      background: var(--zinc-50);
-      padding: var(--space-2) var(--space-3);
-      text-align: left;
-      font-weight: var(--font-semibold);
-      color: var(--zinc-500);
-      border-bottom: 1px solid var(--zinc-100);
-      z-index: 1;
-    }
-
-    td {
-      padding: var(--space-2) var(--space-3);
-      border-bottom: 1px solid var(--zinc-50);
-    }
+    display: block;
+    max-height: 400px;
+    min-height: 0;
+    overflow: hidden;
   }
 
   &__row--exists {
-    background: var(--zinc-50) / 0.5;
-    opacity: 0.7;
+    .responsive-table__cell {
+      background: color-mix(in srgb, var(--zinc-50) 78%, var(--color-white));
+      color: var(--zinc-500);
+    }
   }
 
   &__badge {
@@ -153,23 +125,11 @@
   }
 }
 
-:host ::ng-deep {
-  .generate-preview__pagination .p-paginator {
-    border: none;
-    background: transparent;
-    padding: 0;
-  }
-}
-
 @include bp.respond-to('tablet-portrait') {
   .generate-preview {
     &__summary {
       gap: var(--space-2);
       flex-wrap: wrap;
-    }
-
-    &__pagination {
-      padding: var(--space-2);
     }
   }
 }

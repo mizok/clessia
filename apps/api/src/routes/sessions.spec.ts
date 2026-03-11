@@ -5,6 +5,7 @@ import {
   buildSessionCreationHistory,
   buildSingleSessionChangeInsert,
   mapSessionChange,
+  normalizeRelationRow,
   SESSION_CHANGES_SELECT,
 } from './sessions';
 
@@ -57,6 +58,43 @@ describe('session history mapping', () => {
       operationSource: 'single',
       substituteTeacherName: '李老師',
     });
+  });
+
+  it('normalizes single-relation rows returned as arrays', () => {
+    expect(
+      normalizeRelationRow([
+        {
+          display_name: '王老師',
+        },
+      ]),
+    ).toEqual({
+      display_name: '王老師',
+    });
+
+    const result = mapSessionChange({
+      id: '11111111-1111-1111-1111-111111111111',
+      change_type: 'substitute',
+      original_session_date: null,
+      original_start_time: null,
+      original_end_time: null,
+      new_session_date: null,
+      new_start_time: null,
+      new_end_time: null,
+      original_teacher_id: '22222222-2222-2222-2222-222222222222',
+      original_teacher_name: '王老師',
+      operation_source: 'single',
+      reason: '老師請假',
+      created_by_name: '教務主任',
+      created_at: '2026-03-10T08:00:00.000Z',
+      staff: [
+        {
+          id: '33333333-3333-3333-3333-333333333333',
+          display_name: '李老師',
+        },
+      ],
+    });
+
+    expect(result.substituteTeacherName).toBe('李老師');
   });
 });
 

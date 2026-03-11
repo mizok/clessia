@@ -53,7 +53,7 @@
     </ng-template>
 
     <ng-template #listBody>
-      @for (session of paginatedSessions(); track session.id) {
+      @for (session of sessions(); track session.id) {
         <tr appRtRow [appRtRow]="session" [appRtRowId]="session.id">
           <td class="responsive-table__cell" style="text-align: center">
             <p-checkbox

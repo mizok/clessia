@@ -12,6 +12,33 @@ export interface AuditLogParams {
   details?: Record<string, unknown>;
 }
 
+function joinAuditResourceParts(parts: Array<string | null | undefined>): string | null {
+  const normalizedParts = parts
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part));
+
+  if (normalizedParts.length === 0) {
+    return null;
+  }
+
+  return normalizedParts.join(' / ');
+}
+
+export function formatAuditCourseResourceName(params: {
+  courseName?: string | null;
+  campusName?: string | null;
+}): string | null {
+  return joinAuditResourceParts([params.courseName, params.campusName]);
+}
+
+export function formatAuditClassResourceName(params: {
+  className?: string | null;
+  courseName?: string | null;
+  campusName?: string | null;
+}): string | null {
+  return joinAuditResourceParts([params.className, params.courseName, params.campusName]);
+}
+
 /**
  * 寫入 audit_logs。
  * 在 Cloudflare Workers 環境中必須傳入 waitUntil，

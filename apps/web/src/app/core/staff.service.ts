@@ -34,6 +34,12 @@ export interface Staff {
 
 export interface StaffListResponse {
   data: Staff[];
+  summary: {
+    total: number;
+    adminCount: number;
+    teacherCount: number;
+    activeCount: number;
+  };
   meta: {
     total: number;
     page: number;

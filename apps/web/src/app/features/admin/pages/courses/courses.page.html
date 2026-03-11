@@ -78,10 +78,22 @@
           placeholder="所有老師"
           selectedItemsLabel="{0} 位老師"
           [filter]="true"
+          filterBy="label"
           filterPlaceholder="搜尋老師..."
           styleClass="courses__filter-select"
           [appendTo]="overlayContainer"
-        />
+          [virtualScroll]="true"
+          [virtualScrollItemSize]="38"
+        >
+          <ng-template #item let-option>
+            <div class="courses__teacher-option">
+              <span class="courses__teacher-option-name">{{ option.label }}</span>
+              @if (option.subjectNames?.length > 0) {
+                <span class="courses__teacher-option-subjects">{{ option.subjectNames.join('、') }}</span>
+              }
+            </div>
+          </ng-template>
+        </p-multiselect>
         <p-select
           [options]="statusOptions"
           [ngModel]="statusFilter()"

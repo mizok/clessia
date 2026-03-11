@@ -7,8 +7,12 @@
       [sessions]="sessions()"
       [loading]="loading()"
       [selectedIds]="selectedIds()"
+      [total]="total()"
+      [pageSize]="pageSize()"
+      [currentPage]="currentPage()"
       (selectedIdsChange)="selectedIdsChange.emit($event)"
       (contextMenuRequested)="contextMenuRequested.emit($event)"
+      (pageChange)="pageChange.emit($event)"
     />
   </div>
 
@@ -17,14 +21,4 @@
     (clearSelection)="clearSelection.emit()"
     (openBatchSheet)="openBatchSheet.emit($event)"
   />
-
-  @if (total() > pageSize()) {
-    <p-paginator
-      class="sessions-body__paginator"
-      [rows]="pageSize()"
-      [totalRecords]="total()"
-      [first]="(currentPage() - 1) * pageSize()"
-      (onPageChange)="pageChange.emit(($event.page ?? 0) + 1)"
-    />
-  }
 </section>

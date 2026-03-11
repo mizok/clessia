@@ -7,10 +7,29 @@
   </button>
 </div>
 
-<p-toast appendTo="body" [baseZIndex]="25000" />
-
 <div class="subject-manager">
   <div class="subject-manager__body">
+    @if (notice(); as notice) {
+      <div
+        class="subject-manager__notice"
+        [class.subject-manager__notice--error]="notice.severity === 'error'"
+        [class.subject-manager__notice--success]="notice.severity === 'success'"
+      >
+        <div class="subject-manager__notice-copy">
+          <p class="subject-manager__notice-summary">{{ notice.summary }}</p>
+          <p class="subject-manager__notice-detail">{{ notice.detail }}</p>
+        </div>
+        <button
+          type="button"
+          class="subject-manager__notice-close"
+          aria-label="關閉訊息"
+          (click)="dismissNotice()"
+        >
+          <i class="pi pi-times"></i>
+        </button>
+      </div>
+    }
+
     <!-- Loading skeleton -->
     @if (loading()) {
       @for (_ of [1, 2, 3]; track $index) {

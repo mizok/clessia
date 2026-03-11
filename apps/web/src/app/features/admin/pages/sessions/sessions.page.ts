@@ -14,12 +14,13 @@ import { MenuModule, type Menu } from 'primeng/menu';
 import { ToastModule } from 'primeng/toast';
 import { DialogService } from 'primeng/dynamicdialog';
 
-import { CampusesService, type Campus } from '@core/campuses.service';
+import type { Campus } from '@core/campuses.service';
 import { ClassesService } from '@core/classes.service';
 import { CoursesService, type Course } from '@core/courses.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { SessionsService, type Session } from '@core/sessions.service';
-import { StaffService, type Staff } from '@core/staff.service';
+import type { Staff } from '@core/staff.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 
 import { SessionCancelDialogComponent } from './dialogs/session-cancel-dialog/session-cancel-dialog.component';
@@ -67,10 +68,9 @@ import { SessionsActionsService } from './services/sessions-actions.service';
 export class SessionsPage implements OnInit {
   readonly page = input.required<RouteObj>();
 
-  private readonly campusesService = inject(CampusesService);
+  private readonly refData = inject(ReferenceDataService);
   private readonly classesService = inject(ClassesService);
   private readonly coursesService = inject(CoursesService);
-  private readonly staffService = inject(StaffService);
   private readonly sessionsService = inject(SessionsService);
   private readonly sessionsActionsService = inject(SessionsActionsService);
   private readonly messageService = inject(MessageService);
@@ -85,10 +85,10 @@ export class SessionsPage implements OnInit {
   protected readonly loading = signal(false);
   protected readonly sessions = signal<Session[]>([]);
 
-  // Filter options
-  protected readonly campuses = signal<Campus[]>([]);
+  // Filter options — campuses & teachers come from shared cache
+  protected readonly campuses = computed(() => this.refData.campuses());
   protected readonly courses = signal<Course[]>([]);
-  protected readonly staff = signal<Staff[]>([]);
+  protected readonly staff = computed(() => this.refData.teachers());
   protected readonly classes = signal<
     Array<{ id: string; name: string; courseId: string; campusId: string }>
   >([]);
@@ -103,7 +103,7 @@ export class SessionsPage implements OnInit {
   protected readonly selectedStatuses = signal<string[]>([...DEFAULT_STATUSES]);
   protected readonly currentPage = signal(1);
   protected readonly totalSessions = signal(0);
-  protected readonly PAGE_SIZE = 50;
+  protected readonly PAGE_SIZE = 20;
 
   // ── List date range ────────────────────────────────────────────────────
   protected readonly listDateRange = signal<Date[]>([]);
@@ -133,20 +133,6 @@ export class SessionsPage implements OnInit {
       const selectedCourses = this.courses().filter((c) => courseIds.includes(c.id));
       const subjectIds = new Set(selectedCourses.map((c) => c.subjectId));
       filtered = filtered.filter((t) => t.subjectIds.some((sid) => subjectIds.has(sid)));
-
-      const assignedTeacherIds = new Set(
-        this.sessions()
-          .filter(
-            (s) =>
-              campusIds.includes(s.campusId) &&
-              courseIds.includes(s.courseId) &&
-              s.assignmentStatus === 'assigned' &&
-              !!s.teacherId,
-          )
-          .map((s) => s.teacherId)
-          .filter((id): id is string => !!id),
-      );
-      filtered = filtered.filter((t) => assignedTeacherIds.has(t.id));
     }
     return filtered;
   });
@@ -162,6 +148,7 @@ export class SessionsPage implements OnInit {
 
   protected readonly activeFilterCount = computed(() => {
     let count = 0;
+    if (this.selectedCampusIds().length > 0) count++;
     if (this.selectedCourseIds().length > 0) count++;
     if (this.selectedTeacherIds().length > 0) count++;
     if (this.selectedClassIds().length > 0) count++;
@@ -172,6 +159,7 @@ export class SessionsPage implements OnInit {
 
   protected readonly hasActiveFilters = computed(
     () =>
+      this.selectedCampusIds().length > 0 ||
       this.selectedCourseIds().length > 0 ||
       this.selectedTeacherIds().length > 0 ||
       this.selectedClassIds().length > 0 ||
@@ -420,7 +408,7 @@ export class SessionsPage implements OnInit {
     this.listDateRange.set(range);
     this.currentPage.set(1);
     this.listDateRangeModified.set(true);
-    if (range.length === 2) {
+    if (range.length >= 1 && range[0]) {
       this.loadSessions();
     }
   }
@@ -433,12 +421,19 @@ export class SessionsPage implements OnInit {
 
   protected onFilterUnassigned(): void {
     this.currentPage.set(1);
+    this.listDateRange.set([]);
+    this.listDateRangeModified.set(false);
+    this.selectedCampusIds.set([]);
+    this.selectedCourseIds.set([]);
+    this.selectedClassIds.set([]);
+    this.selectedStatuses.set(['scheduled']);
     this.selectedTeacherIds.set(['__unassigned__']);
     this.loadSessions();
   }
 
   protected clearFilters(): void {
     this.currentPage.set(1);
+    this.selectedCampusIds.set([]);
     this.selectedCourseIds.set([]);
     this.selectedTeacherIds.set([]);
     this.selectedClassIds.set([]);
@@ -478,18 +473,12 @@ export class SessionsPage implements OnInit {
   }
 
   private loadFilters(): void {
-    this.campusesService.list({ isActive: true, pageSize: 100 }).subscribe({
-      next: (res) => {
-        this.campuses.set(res.data);
-      },
-    });
-    this.coursesService.list({ isActive: true, pageSize: 200 }).subscribe({
+    this.refData.loadCampuses();
+    this.refData.loadTeachers();
+    this.coursesService.list({ isActive: true, pageSize: 0 }).subscribe({
       next: (res) => this.courses.set(res.data),
     });
-    this.staffService.list({ isActive: true, pageSize: 200 }).subscribe({
-      next: (res) => this.staff.set(res.data),
-    });
-    this.classesService.list({ isActive: true, pageSize: 500 }).subscribe({
+    this.classesService.list({ isActive: true, pageSize: 0 }).subscribe({
       next: (res) =>
         this.classes.set(res.data.map((c) => ({ id: c.id, name: c.name, courseId: c.courseId, campusId: c.campusId }))),
     });
@@ -504,13 +493,13 @@ export class SessionsPage implements OnInit {
     this.loading.set(true);
     this.sessionsService
       .list({
-        from: range.length > 0 ? format(range[0], 'yyyy-MM-dd') : undefined,
-        to: range.length > 1 ? format(range[1], 'yyyy-MM-dd') : undefined,
+        from: range[0] ? format(range[0], 'yyyy-MM-dd') : undefined,
+        to: range[1] ? format(range[1], 'yyyy-MM-dd') : range[0] ? format(range[0], 'yyyy-MM-dd') : undefined,
         campusIds: this.selectedCampusIds().length > 0 ? this.selectedCampusIds() : undefined,
         courseIds: this.selectedCourseIds().length > 0 ? this.selectedCourseIds() : undefined,
         teacherIds: realTeacherIds.length > 0 ? realTeacherIds : undefined,
+        classIds: this.selectedClassIds().length > 0 ? this.selectedClassIds() : undefined,
         assignmentStatus: hasUnassigned ? 'unassigned' : undefined,
-        classId: this.selectedClassIds().length === 1 ? this.selectedClassIds()[0] : undefined,
         statuses: this.selectedStatuses().length > 0 ? this.selectedStatuses() : undefined,
         page: this.currentPage(),
         pageSize: this.PAGE_SIZE,

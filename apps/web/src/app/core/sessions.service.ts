@@ -46,6 +46,7 @@ export interface SessionQueryParams {
   campusIds?: string[];
   courseIds?: string[];
   teacherIds?: string[];
+  classIds?: string[];
   classId?: string;
   statuses?: string[];
   assignmentStatus?: 'assigned' | 'unassigned';
@@ -128,6 +129,9 @@ export class SessionsService {
     }
     if (params.teacherIds && params.teacherIds.length > 0) {
       query['teacherIds'] = params.teacherIds.join(',');
+    }
+    if (params.classIds && params.classIds.length > 0) {
+      query['classIds'] = params.classIds.join(',');
     }
     if (params.classId) query['classId'] = params.classId;
     if (params.statuses && params.statuses.length > 0) query['statuses'] = params.statuses.join(',');

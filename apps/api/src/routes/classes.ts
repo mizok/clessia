@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
-import { logAudit } from '../utils/audit';
+import { formatAuditClassResourceName, logAudit } from '../utils/audit';
 import { planBatchAssign } from '../domain/session-assignment/batch-assign-planner';
 import { buildSessionGenerationPlan } from '../domain/session-assignment/session-generation-planner';
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
@@ -286,6 +286,14 @@ function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
   };
 }
 
+function classAuditResourceName(row: Record<string, unknown> | null | undefined): string | null {
+  return formatAuditClassResourceName({
+    className: row?.['name'] as string | null | undefined,
+    courseName: (row?.['courses'] as { name?: string } | null | undefined)?.name ?? null,
+    campusName: (row?.['campuses'] as { name?: string } | null | undefined)?.name ?? null,
+  });
+}
+
 type BatchSessionConflictReason =
   | 'status_not_editable'
   | 'status_not_cancellable'
@@ -326,8 +334,10 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const query = c.req.valid('query');
-    const page = parseInt(query.page || '1');
-    const pageSize = parseInt(query.pageSize || '50');
+    const page = Math.max(parseInt(query.page || '1'), 1);
+    const rawPageSize = query.pageSize !== undefined ? parseInt(query.pageSize) : 50;
+    const unpaginated = rawPageSize === 0;
+    const pageSize = unpaginated ? 0 : Math.max(rawPageSize, 1);
     const offset = (page - 1) * pageSize;
 
     let dbQuery = supabase
@@ -341,9 +351,8 @@ app.openapi(
     if (query.courseId) dbQuery = dbQuery.eq('course_id', query.courseId);
     if (query.isActive !== undefined) dbQuery = dbQuery.eq('is_active', query.isActive === 'true');
 
-    dbQuery = dbQuery
-      .range(offset, offset + pageSize - 1)
-      .order('created_at', { ascending: false });
+    dbQuery = dbQuery.order('created_at', { ascending: false });
+    if (!unpaginated) dbQuery = dbQuery.range(offset, offset + pageSize - 1);
 
     const { data, count, error } = await dbQuery;
     if (error) console.error('DB Error:', error);
@@ -509,9 +518,9 @@ app.openapi(
       }),
       meta: {
         total: count || 0,
-        page,
-        pageSize,
-        totalPages: Math.ceil((count || 0) / pageSize),
+        page: unpaginated ? 1 : page,
+        pageSize: unpaginated ? (count || 0) : pageSize,
+        totalPages: unpaginated ? 1 : Math.ceil((count || 0) / pageSize),
       },
     });
   },
@@ -874,7 +883,7 @@ app.openapi(
         next_class_id: body.nextClassId ?? null,
         updated_by: userId,
       })
-      .select('*, courses(name)')
+      .select('*, courses(name), campuses(name)')
       .single();
 
     if (error) {
@@ -891,7 +900,7 @@ app.openapi(
         userId,
         resourceType: 'class',
         resourceId: data.id as string,
-        resourceName: data.name as string,
+        resourceName: classAuditResourceName(data as Record<string, unknown>),
         action: 'create',
       },
       c.executionCtx.waitUntil.bind(c.executionCtx),
@@ -939,7 +948,7 @@ app.openapi(
       .from('classes')
       .update(updateData)
       .eq('id', id)
-      .select('*, courses(name)')
+      .select('*, courses(name), campuses(name)')
       .single();
 
     if (error || !data) {
@@ -953,7 +962,7 @@ app.openapi(
         userId,
         resourceType: 'class',
         resourceId: id,
-        resourceName: data.name as string,
+        resourceName: classAuditResourceName(data as Record<string, unknown>),
         action: 'update',
       },
       c.executionCtx.waitUntil.bind(c.executionCtx),
@@ -1001,7 +1010,7 @@ app.openapi(
       .from('classes')
       .update({ is_active: !current.is_active, updated_by: userId })
       .eq('id', id)
-      .select('*, courses(name)')
+      .select('*, courses(name), campuses(name)')
       .single();
 
     if (error || !data) {
@@ -1015,7 +1024,7 @@ app.openapi(
         userId,
         resourceType: 'class',
         resourceId: id,
-        resourceName: data.name as string,
+        resourceName: classAuditResourceName(data as Record<string, unknown>),
         action: 'toggle_active',
         details: { isActive: !current.is_active },
       },
@@ -1074,7 +1083,11 @@ app.openapi(
     await supabase.from('schedules').delete().eq('class_id', id);
     await supabase.from('enrollments').delete().eq('class_id', id);
 
-    const { data: existing } = await supabase.from('classes').select('name').eq('id', id).single();
+    const { data: existing } = await supabase
+      .from('classes')
+      .select('name, courses(name), campuses(name)')
+      .eq('id', id)
+      .single();
 
     const { error } = await supabase.from('classes').delete().eq('id', id);
     if (error) {
@@ -1088,7 +1101,7 @@ app.openapi(
         userId,
         resourceType: 'class',
         resourceId: id,
-        resourceName: existing?.name ?? null,
+        resourceName: classAuditResourceName(existing as Record<string, unknown> | null | undefined),
         action: 'delete',
       },
       c.executionCtx.waitUntil.bind(c.executionCtx),
@@ -1131,7 +1144,11 @@ app.openapi(
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
 
-    const { data: cls } = await supabase.from('classes').select('name').eq('id', id).single();
+    const { data: cls } = await supabase
+      .from('classes')
+      .select('name, courses(name), campuses(name)')
+      .eq('id', id)
+      .single();
 
     const { data, error } = await supabase
       .from('schedules')
@@ -1160,7 +1177,7 @@ app.openapi(
         userId,
         resourceType: 'class',
         resourceId: id,
-        resourceName: cls?.name ?? null,
+        resourceName: classAuditResourceName(cls as Record<string, unknown> | null | undefined),
         action: 'add_schedule',
         details: { weekday: body.weekday, startTime: body.startTime, endTime: body.endTime },
       },
@@ -1246,7 +1263,11 @@ app.openapi(
     const userId = c.get('userId');
     const { id, sid } = c.req.valid('param');
 
-    const { data: cls } = await supabase.from('classes').select('name').eq('id', id).single();
+    const { data: cls } = await supabase
+      .from('classes')
+      .select('name, courses(name), campuses(name)')
+      .eq('id', id)
+      .single();
 
     const { error } = await supabase.from('schedules').delete().eq('id', sid).eq('class_id', id);
 
@@ -1261,7 +1282,7 @@ app.openapi(
         userId,
         resourceType: 'class',
         resourceId: id,
-        resourceName: cls?.name ?? null,
+        resourceName: classAuditResourceName(cls as Record<string, unknown> | null | undefined),
         action: 'delete_schedule',
       },
       c.executionCtx.waitUntil.bind(c.executionCtx),
@@ -1644,7 +1665,7 @@ app.openapi(
 
     const { data: cls } = await supabase
       .from('classes')
-      .select('id, name')
+      .select('id, name, courses(name), campuses(name)')
       .eq('id', id)
       .eq('org_id', orgId)
       .maybeSingle();
@@ -1748,7 +1769,7 @@ app.openapi(
           userId,
           resourceType: 'class',
           resourceId: id,
-          resourceName: (cls.name as string | null) ?? null,
+          resourceName: classAuditResourceName(cls as Record<string, unknown>),
           action: 'batch_assign_teacher',
           details: {
             from: body.from,
@@ -1820,7 +1841,7 @@ app.openapi(
 
     const { data: cls } = await supabase
       .from('classes')
-      .select('id, name')
+      .select('id, name, courses(name), campuses(name)')
       .eq('id', id)
       .eq('org_id', orgId)
       .maybeSingle();
@@ -2018,7 +2039,7 @@ app.openapi(
           userId,
           resourceType: 'class',
           resourceId: id,
-          resourceName: (cls.name as string | null) ?? null,
+          resourceName: classAuditResourceName(cls as Record<string, unknown>),
           action: 'batch_update_session_time',
           details: {
             requested: uniqueSessionIds.length,
@@ -2083,7 +2104,7 @@ app.openapi(
 
     const { data: cls } = await supabase
       .from('classes')
-      .select('id, name')
+      .select('id, name, courses(name), campuses(name)')
       .eq('id', id)
       .eq('org_id', orgId)
       .maybeSingle();
@@ -2181,7 +2202,7 @@ app.openapi(
           userId,
           resourceType: 'class',
           resourceId: id,
-          resourceName: (cls.name as string | null) ?? null,
+          resourceName: classAuditResourceName(cls as Record<string, unknown>),
           action: 'batch_cancel_session',
           details: {
             requested: uniqueSessionIds.length,
@@ -2244,7 +2265,7 @@ app.openapi(
 
     const { data: cls } = await supabase
       .from('classes')
-      .select('id, name')
+      .select('id, name, courses(name), campuses(name)')
       .eq('id', id)
       .eq('org_id', orgId)
       .maybeSingle();
@@ -2427,7 +2448,7 @@ app.openapi(
           userId,
           resourceType: 'class',
           resourceId: id,
-          resourceName: (cls.name as string | null) ?? null,
+          resourceName: classAuditResourceName(cls as Record<string, unknown>),
           action: 'batch_uncancel_session',
           details: {
             requested: uniqueSessionIds.length,

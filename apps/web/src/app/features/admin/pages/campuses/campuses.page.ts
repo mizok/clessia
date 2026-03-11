@@ -13,6 +13,7 @@ import { CampusFormDialogComponent } from './campus-form-dialog.component';
 import {
   CampusesService,
   Campus,
+  CampusListResponse,
   CreateCampusInput,
   UpdateCampusInput,
 } from '@core/campuses.service';
@@ -56,6 +57,11 @@ import { PaginatorModule } from 'primeng/paginator';
   styleUrl: './campuses.page.scss',
 })
 export class CampusesPage implements OnInit {
+  readonly summary = signal({
+    total: 0,
+    activeCount: 0,
+    inactiveCount: 0,
+  });
   private readonly campusesService = inject(CampusesService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
@@ -71,11 +77,11 @@ export class CampusesPage implements OnInit {
   readonly searchQuery = signal('');
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
-  protected readonly PAGE_SIZE = 50;
+  protected readonly PAGE_SIZE = 20;
 
   // Computed
-  readonly activeCampusCount = computed(() => this.campuses().filter((c) => c.isActive).length);
-  readonly inactiveCampusCount = computed(() => this.campuses().filter((c) => !c.isActive).length);
+  readonly activeCampusCount = computed(() => this.summary().activeCount);
+  readonly inactiveCampusCount = computed(() => this.summary().inactiveCount);
 
   ngOnInit(): void {
     this.loadCampuses();
@@ -90,9 +96,10 @@ export class CampusesPage implements OnInit {
         pageSize: this.PAGE_SIZE,
       })
       .subscribe({
-        next: (res) => {
+        next: (res: CampusListResponse) => {
           this.campuses.set(res.data);
           this.total.set(res.meta.total);
+          this.summary.set(res.summary);
           this.loading.set(false);
         },
         error: (err) => {

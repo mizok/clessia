@@ -47,6 +47,12 @@ const StaffSchema = z
 const StaffListResponseSchema = z
   .object({
     data: z.array(StaffSchema),
+    summary: z.object({
+      total: z.number(),
+      adminCount: z.number(),
+      teacherCount: z.number(),
+      activeCount: z.number(),
+    }),
     meta: z.object({
       total: z.number(),
       page: z.number(),
@@ -136,6 +142,13 @@ interface SubjectInfo {
   names: string[];
 }
 
+interface StaffSummary {
+  total: number;
+  adminCount: number;
+  teacherCount: number;
+  activeCount: number;
+}
+
 // ============================================================
 // Helpers
 // ============================================================
@@ -221,7 +234,7 @@ function mapStaff(
 ) {
   const userId = row['user_id'] as string;
   const staffId = row['id'] as string;
-  const roleInfo = roleInfoMap.get(userId) || { roles: ['teacher'] as StaffRole[], permissions: [] };
+  const roleInfo = roleInfoMap.get(userId) ?? { roles: [] as StaffRole[], permissions: [] };
 
   return {
     id: staffId,
@@ -240,6 +253,45 @@ function mapStaff(
     campusIds: campusMap.get(staffId) || [],
     roles: roleInfo.roles,
     permissions: roleInfo.permissions,
+  };
+}
+
+export function buildStaffSummary(
+  rows: Array<{ user_id: string; is_active: boolean }>,
+  roleInfoMap: Map<string, RoleInfo>,
+  total: number,
+): StaffSummary {
+  let adminCount = 0;
+  let teacherCount = 0;
+  let activeCount = 0;
+
+  for (const row of rows) {
+    const roleInfo = roleInfoMap.get(row.user_id);
+    if (roleInfo?.roles.includes('admin')) {
+      adminCount++;
+    }
+    if (roleInfo?.roles.includes('teacher')) {
+      teacherCount++;
+    }
+    if (row.is_active) {
+      activeCount++;
+    }
+  }
+
+  return {
+    total,
+    adminCount,
+    teacherCount,
+    activeCount,
+  };
+}
+
+function emptyStaffSummary(): StaffSummary {
+  return {
+    total: 0,
+    adminCount: 0,
+    teacherCount: 0,
+    activeCount: 0,
   };
 }
 
@@ -412,7 +464,9 @@ app.openapi(listRoute, async (c) => {
   const query = c.req.valid('query');
 
   const page = Math.max(parseInt(query.page || '1', 10), 1);
-  const pageSize = Math.max(parseInt(query.pageSize || '20', 10), 1);
+  const rawPageSize = query.pageSize !== undefined ? parseInt(query.pageSize, 10) : 20;
+  const unpaginated = rawPageSize === 0;
+  const pageSize = unpaginated ? 0 : Math.max(rawPageSize, 1);
   const offset = (page - 1) * pageSize;
 
   let filteredStaffIdsByCampus: string[] | null = null;
@@ -442,6 +496,7 @@ app.openapi(listRoute, async (c) => {
       return c.json(
         {
           data: [],
+          summary: emptyStaffSummary(),
           meta: {
             total: 0,
             page,
@@ -483,6 +538,7 @@ app.openapi(listRoute, async (c) => {
     return c.json(
       {
         data: [],
+        summary: emptyStaffSummary(),
         meta: {
           total: 0,
           page,
@@ -498,6 +554,7 @@ app.openapi(listRoute, async (c) => {
     return c.json(
       {
         data: [],
+        summary: emptyStaffSummary(),
         meta: {
           total: 0,
           page,
@@ -513,6 +570,7 @@ app.openapi(listRoute, async (c) => {
     return c.json(
       {
         data: [],
+        summary: emptyStaffSummary(),
         meta: {
           total: 0,
           page,
@@ -524,7 +582,7 @@ app.openapi(listRoute, async (c) => {
     );
   }
 
-  let dbQuery = supabase.from('staff').select('*', { count: 'exact' });
+  let dbQuery = supabase.from('staff').select('*', { count: 'exact' }).eq('org_id', orgId);
 
   if (query.search) {
     dbQuery = dbQuery.or(`display_name.ilike.%${query.search}%,email.ilike.%${query.search}%`);
@@ -546,7 +604,8 @@ app.openapi(listRoute, async (c) => {
     dbQuery = dbQuery.in('user_id', filteredUserIdsByRole);
   }
 
-  dbQuery = dbQuery.range(offset, offset + pageSize - 1).order('created_at', { ascending: false });
+  dbQuery = dbQuery.order('created_at', { ascending: false });
+  if (!unpaginated) dbQuery = dbQuery.range(offset, offset + pageSize - 1);
 
   const { data, count, error } = await dbQuery;
 
@@ -557,15 +616,72 @@ app.openapi(listRoute, async (c) => {
   const staffRows = (data || []) as Record<string, unknown>[];
   const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(supabase, staffRows);
   const staffList = staffRows.map((row) => mapStaff(row, campusMap, subjectMap, roleInfoMap));
+  const total = count || 0;
+
+  let summaryQuery = supabase.from('staff').select('user_id, is_active').eq('org_id', orgId);
+
+  if (query.search) {
+    summaryQuery = summaryQuery.or(`display_name.ilike.%${query.search}%,email.ilike.%${query.search}%`);
+  }
+
+  if (query.isActive !== undefined) {
+    summaryQuery = summaryQuery.eq('is_active', query.isActive === 'true');
+  }
+
+  if (filteredStaffIdsByCampus) {
+    summaryQuery = summaryQuery.in('id', filteredStaffIdsByCampus);
+  }
+
+  if (filteredStaffIdsBySubject) {
+    summaryQuery = summaryQuery.in('id', filteredStaffIdsBySubject);
+  }
+
+  if (filteredUserIdsByRole) {
+    summaryQuery = summaryQuery.in('user_id', filteredUserIdsByRole);
+  }
+
+  const { data: summaryRows, error: summaryError } = await summaryQuery;
+
+  if (summaryError) {
+    return c.json({ error: summaryError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  const summaryUserIds = Array.from(
+    new Set(((summaryRows || []) as Array<{ user_id: string }>).map((row) => row.user_id)),
+  );
+  let summaryRoleInfoMap = new Map<string, RoleInfo>();
+
+  if (summaryUserIds.length > 0) {
+    const { data: summaryRoleRows, error: summaryRoleError } = await supabase
+      .from('user_roles')
+      .select('user_id, role, permissions')
+      .in('user_id', summaryUserIds);
+
+    if (summaryRoleError) {
+      return c.json({ error: summaryRoleError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    const filteredSummaryRoleRows = (summaryRoleRows || []).filter(
+      (row) => row.role === 'admin' || row.role === 'teacher',
+    ) as UserRoleRow[];
+    summaryRoleInfoMap = toRoleInfoMap(filteredSummaryRoleRows);
+  }
+
+  const summary = buildStaffSummary(
+    ((summaryRows || []) as Array<{ user_id: string; is_active: boolean }>),
+    summaryRoleInfoMap,
+    total,
+  );
 
   return c.json(
     {
       data: staffList,
+      summary,
       meta: {
-        total: count || 0,
-        page,
-        pageSize,
-        totalPages: Math.ceil((count || 0) / pageSize),
+        total,
+        page: unpaginated ? 1 : page,
+        pageSize: unpaginated ? total : pageSize,
+        totalPages: unpaginated ? 1 : Math.ceil(total / pageSize),
       },
     },
     200,

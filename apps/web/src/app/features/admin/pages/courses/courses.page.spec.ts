@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { MessageService, ConfirmationService } from 'primeng/api';
@@ -8,9 +9,7 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { CoursesPage } from './courses.page';
 import { CoursesService } from '@core/courses.service';
 import { ClassesService, type Class } from '@core/classes.service';
-import { CampusesService } from '@core/campuses.service';
-import { SubjectsService } from '@core/subjects.service';
-import { StaffService } from '@core/staff.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { SessionsService, type Session } from '@core/sessions.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { BrowserStateService } from '@core/browser-state.service';
@@ -31,14 +30,13 @@ describe('CoursesPage', () => {
     list: vi.fn(() => of({ data: [] })),
     batchSetActive: vi.fn(() => of({ updated: 0 })),
   };
-  const campusesServiceMock = {
-    list: vi.fn(() => of({ data: [] })),
-  };
-  const subjectsServiceMock = {
-    list: vi.fn(() => of({ data: [] })),
-  };
-  const staffServiceMock = {
-    list: vi.fn(() => of({ data: [] })),
+  const refDataMock = {
+    campuses: signal<unknown[]>([]),
+    subjects: signal<unknown[]>([]),
+    teachers: signal<unknown[]>([]),
+    loadCampuses: vi.fn(),
+    loadSubjects: vi.fn(),
+    loadTeachers: vi.fn(),
   };
   const sessionsServiceMock = {
     list: vi.fn(() =>
@@ -93,9 +91,7 @@ describe('CoursesPage', () => {
         provideRouter([]),
         { provide: CoursesService, useValue: coursesServiceMock },
         { provide: ClassesService, useValue: classesServiceMock },
-        { provide: CampusesService, useValue: campusesServiceMock },
-        { provide: SubjectsService, useValue: subjectsServiceMock },
-        { provide: StaffService, useValue: staffServiceMock },
+        { provide: ReferenceDataService, useValue: refDataMock },
         { provide: SessionsService, useValue: sessionsServiceMock },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
         { provide: BrowserStateService, useValue: { isMobile: () => false } },

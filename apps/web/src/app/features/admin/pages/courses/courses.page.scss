@@ -100,6 +100,25 @@
     }
   }
 
+  &__teacher-option {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__teacher-option-name {
+    color: var(--zinc-900);
+    font-size: var(--text-md);
+    line-height: 1.35;
+  }
+
+  &__teacher-option-subjects {
+    color: var(--zinc-500);
+    font-size: var(--text-xs);
+    line-height: 1.3;
+  }
+
   // ---- Select All ----
   &__select-all {
     display: flex;

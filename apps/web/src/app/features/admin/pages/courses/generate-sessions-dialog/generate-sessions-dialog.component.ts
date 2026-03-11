@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
-import { PaginatorModule, type PaginatorState } from 'primeng/paginator';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import {
@@ -13,12 +12,29 @@ import {
   type GenerateSessionsResult,
 } from '@core/classes.service';
 import { BrowserStateService } from '@core/browser-state.service';
+import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
+import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
+import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
+import type {
+  ResponsiveTablePageEvent,
+  ResponsiveTablePaginationConfig,
+} from '@shared/components/responsive-table/responsive-table.models';
+import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 import { format } from 'date-fns';
 
 @Component({
   selector: 'app-generate-sessions-dialog',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, DatePickerModule, PaginatorModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ButtonModule,
+    DatePickerModule,
+    ResponsiveTableComponent,
+    RtColCellDirective,
+    RtColDefDirective,
+    RtRowDirective,
+  ],
   templateUrl: './generate-sessions-dialog.component.html',
   styleUrl: './generate-sessions-dialog.component.scss',
 })
@@ -54,9 +70,16 @@ export class GenerateSessionsDialogComponent {
     const rows = this.previewPaginationRows();
     return this.previewSessions().slice(first, first + rows);
   });
-  protected readonly showPreviewPagination = computed(
-    () => this.previewSessions().length > this.previewPaginationRows(),
-  );
+  protected readonly previewPagination = computed<ResponsiveTablePaginationConfig>(() => ({
+    first: this.previewPaginationFirst(),
+    rows: this.previewPaginationRows(),
+    totalRecords: this.previewSessions().length,
+    rowsPerPageOptions: this.isMobile() ? undefined : this.previewPaginationRowsPerPageOptions,
+    showCurrentPageReport: true,
+    currentPageReportTemplate: this.isMobile()
+      ? '第 {currentPage} / {totalPages} 頁'
+      : '顯示 {first} - {last}，共 {totalRecords} 筆',
+  }));
 
   protected readonly breadcrumb = computed(() => {
     const c = this.cls();
@@ -150,12 +173,12 @@ export class GenerateSessionsDialogComponent {
   }
 
   protected cancel(): void {
-    this.ref.close();
+    this.ref.close(this.generationResult() ? 'refresh' : undefined);
   }
 
-  protected onPreviewPaginationChange(event: PaginatorState): void {
-    this.previewPaginationFirst.set(event.first ?? 0);
-    this.previewPaginationRows.set(event.rows ?? 10);
+  protected onPreviewPaginationChange(event: ResponsiveTablePageEvent): void {
+    this.previewPaginationFirst.set(event.first);
+    this.previewPaginationRows.set(event.rows);
   }
 
   protected getWeekdayLabel(weekday: number): string {

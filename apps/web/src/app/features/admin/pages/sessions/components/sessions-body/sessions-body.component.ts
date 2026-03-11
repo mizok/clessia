@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
-import { PaginatorModule } from 'primeng/paginator';
 import type { Session } from '@core/sessions.service';
 import { SessionBatchComponent, type BatchMode } from '../session-batch/session-batch.component';
 import {
@@ -12,7 +11,7 @@ export type SessionsBodyBatchMode = BatchMode;
 
 @Component({
   selector: 'app-sessions-body',
-  imports: [SessionListComponent, SessionBatchComponent, PaginatorModule],
+  imports: [SessionListComponent, SessionBatchComponent],
   templateUrl: './sessions-body.component.html',
   styleUrl: './sessions-body.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

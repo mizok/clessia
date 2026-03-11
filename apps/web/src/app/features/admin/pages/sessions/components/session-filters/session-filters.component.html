@@ -47,6 +47,8 @@
         [appendTo]="'body'"
         [filter]="true"
         filterBy="name"
+        [virtualScroll]="true"
+        [virtualScrollItemSize]="38"
         [ngModel]="selectedCampusIds()"
         (ngModelChange)="onCampusMultiChange($event)"
       />
@@ -62,6 +64,8 @@
         [appendTo]="'body'"
         [filter]="true"
         filterBy="name,campusName"
+        [virtualScroll]="true"
+        [virtualScrollItemSize]="38"
         [ngModel]="selectedCourseIds()"
         (ngModelChange)="onCourseMultiChange($event)"
       >
@@ -89,6 +93,8 @@
       [filter]="true"
       filterBy="displayName,subjectNames"
       filterPlaceholder="搜尋老師..."
+      [virtualScroll]="true"
+      [virtualScrollItemSize]="38"
       [ngModel]="selectedTeacherIds()"
       (ngModelChange)="onTeacherMultiChange($event)"
     >
@@ -112,6 +118,8 @@
         [appendTo]="'body'"
         [filter]="true"
         filterBy="name,courseName,campusName"
+        [virtualScroll]="true"
+        [virtualScrollItemSize]="38"
         [ngModel]="selectedClassIds()"
         (ngModelChange)="onClassMultiChange($event)"
       >

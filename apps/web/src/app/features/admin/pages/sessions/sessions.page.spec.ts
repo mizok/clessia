@@ -1,12 +1,13 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
+import { signal } from '@angular/core';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
-import { CampusesService } from '@core/campuses.service';
 import { ClassesService } from '@core/classes.service';
 import { CoursesService } from '@core/courses.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { SessionsService, type Session } from '@core/sessions.service';
-import { StaffService, type Staff } from '@core/staff.service';
+import type { Staff } from '@core/staff.service';
 
 import { SessionsPage } from './sessions.page';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
@@ -17,13 +18,19 @@ describe('SessionsPage', () => {
   let fixture: ComponentFixture<SessionsPage>;
   let router: Router;
   let routeQueryParams: Record<string, string>;
+  const refDataMock = {
+    campuses: signal<{ id: string; name: string }[]>([]),
+    teachers: signal<Staff[]>([]),
+    loadCampuses: vi.fn(),
+    loadTeachers: vi.fn(),
+  };
   const makeListResponse = (data: Session[] = []) => ({
     data,
     meta: {
       total: data.length,
       page: 1,
-      pageSize: 50,
-      totalPages: Math.max(1, Math.ceil(data.length / 50)),
+      pageSize: 20,
+      totalPages: Math.max(1, Math.ceil(data.length / 20)),
     },
   });
   const sessionsServiceMock = {
@@ -63,15 +70,11 @@ describe('SessionsPage', () => {
           },
         },
         {
-          provide: CampusesService,
-          useValue: { list: () => of({ data: [] }) },
+          provide: ReferenceDataService,
+          useValue: refDataMock,
         },
         {
           provide: CoursesService,
-          useValue: { list: () => of({ data: [] }) },
-        },
-        {
-          provide: StaffService,
           useValue: { list: () => of({ data: [] }) },
         },
         {
@@ -138,7 +141,7 @@ describe('SessionsPage', () => {
     expect(sessionsServiceMock.batchAssignTeacher).not.toHaveBeenCalled();
   });
 
-  it('availableTeachers should only include assigned teachers after selecting course', () => {
+  it('availableTeachers should keep all eligible teachers after selecting course', () => {
     (
       component as unknown as {
         selectedCampusIds: { set: (value: string[]) => void };
@@ -158,11 +161,7 @@ describe('SessionsPage', () => {
       }
     ).courses.set([{ id: 'course-math', campusId: 'campus-1', subjectId: 'subject-math' }]);
 
-    (
-      component as unknown as {
-        staff: { set: (value: Staff[]) => void };
-      }
-    ).staff.set([
+    refDataMock.teachers.set([
       {
         id: 'teacher-a',
         userId: 'user-a',
@@ -246,7 +245,7 @@ describe('SessionsPage', () => {
       component as unknown as { availableTeachers: () => Staff[] }
     ).availableTeachers();
 
-    expect(availableTeachers.map((teacher) => teacher.id)).toEqual(['teacher-a']);
+    expect(availableTeachers.map((teacher) => teacher.id)).toEqual(['teacher-a', 'teacher-b']);
   });
 
   it('starts with empty date range and no active filters on init', async () => {
@@ -265,6 +264,40 @@ describe('SessionsPage', () => {
     expect(listDateRange).toHaveLength(0);
     expect(activeFilterCount).toBe(0);
     expect(hasActiveFilters).toBe(false);
+  });
+
+  it('counts campus filter as an active filter and clears it with clearFilters', () => {
+    (
+      component as unknown as {
+        selectedCampusIds: { set: (value: string[]) => void };
+        clearFilters: () => void;
+      }
+    ).selectedCampusIds.set(['campus-1']);
+
+    const activeFilterCountBeforeClear = (
+      component as unknown as { activeFilterCount: () => number }
+    ).activeFilterCount();
+    const hasActiveFiltersBeforeClear = (
+      component as unknown as { hasActiveFilters: () => boolean }
+    ).hasActiveFilters();
+
+    (component as unknown as { clearFilters: () => void }).clearFilters();
+
+    const selectedCampusIdsAfterClear = (
+      component as unknown as { selectedCampusIds: () => string[] }
+    ).selectedCampusIds();
+    const activeFilterCountAfterClear = (
+      component as unknown as { activeFilterCount: () => number }
+    ).activeFilterCount();
+    const hasActiveFiltersAfterClear = (
+      component as unknown as { hasActiveFilters: () => boolean }
+    ).hasActiveFilters();
+
+    expect(activeFilterCountBeforeClear).toBe(1);
+    expect(hasActiveFiltersBeforeClear).toBe(true);
+    expect(selectedCampusIdsAfterClear).toEqual([]);
+    expect(activeFilterCountAfterClear).toBe(0);
+    expect(hasActiveFiltersAfterClear).toBe(false);
   });
 
   it('treats empty status selection as all statuses', () => {
@@ -291,7 +324,7 @@ describe('SessionsPage', () => {
         to: '2026-03-16',
         statuses: undefined,
         page: 1,
-        pageSize: 50,
+        pageSize: 20,
       }),
     );
   });
@@ -341,10 +374,10 @@ describe('SessionsPage', () => {
       courseIds: ['course-1'],
       teacherIds: ['teacher-1'],
       assignmentStatus: 'unassigned',
-      classId: undefined,
+      classIds: ['class-1', 'class-2'],
       statuses: undefined,
       page: 1,
-      pageSize: 50,
+      pageSize: 20,
     });
   });
 
@@ -470,5 +503,22 @@ describe('SessionsPage', () => {
 
     const ids = (component as unknown as { selectedTeacherIds: { (): string[] } }).selectedTeacherIds();
     expect(ids).toEqual(['__unassigned__']);
+  });
+
+  it('onPageChange should call sessions API with the new page number', () => {
+    sessionsServiceMock.list.mockClear();
+
+    (component as unknown as { onPageChange: (page: number) => void }).onPageChange(2);
+
+    expect(sessionsServiceMock.list).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 2, pageSize: 20 }),
+    );
+  });
+
+  it('onPageChange should update currentPage signal', () => {
+    (component as unknown as { onPageChange: (page: number) => void }).onPageChange(3);
+
+    const page = (component as unknown as { currentPage: { (): number } }).currentPage();
+    expect(page).toBe(3);
   });
 });

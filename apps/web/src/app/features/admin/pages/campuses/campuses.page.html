@@ -42,7 +42,7 @@
     @if (!loading() && campuses().length > 0) {
       <div class="campuses__stats">
         <div class="campuses__stat">
-          <span class="campuses__stat-value">{{ campuses().length }}</span>
+          <span class="campuses__stat-value">{{ summary().total }}</span>
           <span class="campuses__stat-label">個分校</span>
         </div>
         <div class="campuses__stat">

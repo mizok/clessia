@@ -16,6 +16,11 @@ export interface Campus {
 
 export interface CampusListResponse {
   data: Campus[];
+  summary: {
+    total: number;
+    activeCount: number;
+    inactiveCount: number;
+  };
   meta: {
     total: number;
     page: number;

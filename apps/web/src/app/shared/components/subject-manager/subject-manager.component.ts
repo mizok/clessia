@@ -1,27 +1,30 @@
-import { Component, inject, output, signal, OnInit } from '@angular/core';
+import { Component, inject, output, signal, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
-import { ToastModule } from 'primeng/toast';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TooltipModule } from 'primeng/tooltip';
-import { MessageService } from 'primeng/api';
-import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
-import { SubjectsService, Subject } from '@core/subjects.service';
+import { DynamicDialogRef } from 'primeng/dynamicdialog';
+import { SubjectsService } from '@core/subjects.service';
+import type { Subject } from '@core/subjects.service';
+
+interface SubjectManagerNotice {
+  readonly severity: 'success' | 'error';
+  readonly summary: string;
+  readonly detail: string;
+}
 
 @Component({
   selector: 'app-subject-manager',
   standalone: true,
-  imports: [FormsModule, ButtonModule, InputTextModule, ToastModule, SkeletonModule, TooltipModule],
-  providers: [MessageService],
+  imports: [FormsModule, ButtonModule, InputTextModule, SkeletonModule, TooltipModule],
   templateUrl: './subject-manager.component.html',
   styleUrl: './subject-manager.component.scss',
 })
-export class SubjectManagerComponent implements OnInit {
+export class SubjectManagerComponent implements OnInit, OnDestroy {
   private readonly subjectsService = inject(SubjectsService);
-  private readonly messageService = inject(MessageService);
   private readonly ref = inject(DynamicDialogRef);
-  private readonly config = inject(DynamicDialogConfig);
+  private noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly changed = output<Subject[]>();
 
@@ -31,13 +34,22 @@ export class SubjectManagerComponent implements OnInit {
   protected readonly editingName = signal('');
   protected readonly newSubjectName = signal('');
   protected readonly saving = signal(false);
+  protected readonly notice = signal<SubjectManagerNotice | null>(null);
 
   ngOnInit(): void {
     this.loadSubjects();
   }
 
+  ngOnDestroy(): void {
+    this.clearNoticeTimer();
+  }
+
   protected cancel(): void {
     this.ref.close();
+  }
+
+  protected dismissNotice(): void {
+    this.clearNotice();
   }
 
   protected loadSubjects(): void {
@@ -78,7 +90,7 @@ export class SubjectManagerComponent implements OnInit {
         this.changed.emit(this.subjects());
       },
       error: (err) => {
-        this.messageService.add({
+        this.showNotice({
           severity: 'error',
           summary: '更新失敗',
           detail: err.error?.error || '科目名稱更新失敗',
@@ -92,7 +104,7 @@ export class SubjectManagerComponent implements OnInit {
     this.subjectsService.delete(subject.id).subscribe({
       next: () => {
         this.subjects.update((list) => list.filter((s) => s.id !== subject.id));
-        this.messageService.add({
+        this.showNotice({
           severity: 'success',
           summary: '已刪除',
           detail: `「${subject.name}」已刪除`,
@@ -100,7 +112,7 @@ export class SubjectManagerComponent implements OnInit {
         this.changed.emit(this.subjects());
       },
       error: (err) => {
-        this.messageService.add({
+        this.showNotice({
           severity: 'error',
           summary: '無法刪除',
           detail: err.error?.error || '刪除失敗',
@@ -122,7 +134,7 @@ export class SubjectManagerComponent implements OnInit {
         this.changed.emit(this.subjects());
       },
       error: (err) => {
-        this.messageService.add({
+        this.showNotice({
           severity: 'error',
           summary: '新增失敗',
           detail: err.error?.error || '科目新增失敗',
@@ -140,5 +152,25 @@ export class SubjectManagerComponent implements OnInit {
   protected onEditNameKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter') this.confirmRename();
     if (event.key === 'Escape') this.cancelEdit();
+  }
+
+  private showNotice(notice: SubjectManagerNotice): void {
+    this.notice.set(notice);
+    this.clearNoticeTimer();
+    this.noticeTimer = globalThis.setTimeout(() => this.notice.set(null), 5000);
+  }
+
+  private clearNotice(): void {
+    this.notice.set(null);
+    this.clearNoticeTimer();
+  }
+
+  private clearNoticeTimer(): void {
+    if (this.noticeTimer === null) {
+      return;
+    }
+
+    globalThis.clearTimeout(this.noticeTimer);
+    this.noticeTimer = null;
   }
 }

@@ -9,6 +9,7 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { TextareaModule } from 'primeng/textarea';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig, DialogService } from 'primeng/dynamicdialog';
+import { OverlayContainerService } from '@core/overlay-container.service';
 import { SubjectManagerComponent } from '@shared/components/subject-manager/subject-manager.component';
 import {
   CoursesService,
@@ -40,8 +41,13 @@ export class CourseFormDialogComponent {
   private readonly coursesService = inject(CoursesService);
   private readonly messageService = inject(MessageService);
   private readonly dialogService = inject(DialogService);
+  private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig);
+
+  protected get overlayContainer(): HTMLElement | null {
+    return this.overlayContainerService.getContainer();
+  }
 
   protected readonly loading = signal(false);
   protected readonly course = signal<Course | null>(this.config.data?.course ?? null);
@@ -200,6 +206,7 @@ export class CourseFormDialogComponent {
       width: '400px',
       modal: true,
       showHeader: false,
+      appendTo: this.overlayContainer ?? 'body',
     });
 
     if (dialogRef) {

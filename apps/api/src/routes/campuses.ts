@@ -22,6 +22,11 @@ const CampusSchema = z
 const CampusListResponseSchema = z
   .object({
     data: z.array(CampusSchema),
+    summary: z.object({
+      total: z.number(),
+      activeCount: z.number(),
+      inactiveCount: z.number(),
+    }),
     meta: z.object({
       total: z.number(),
       page: z.number(),
@@ -81,6 +86,26 @@ function mapCampus(row: Record<string, unknown>) {
   };
 }
 
+interface CampusSummary {
+  total: number;
+  activeCount: number;
+  inactiveCount: number;
+}
+
+export function buildCampusSummary(
+  rows: Array<{ is_active: boolean }>,
+  total: number,
+): CampusSummary {
+  const activeCount = rows.filter((row) => row.is_active).length;
+  const inactiveCount = rows.length - activeCount;
+
+  return {
+    total,
+    activeCount,
+    inactiveCount,
+  };
+}
+
 // ============================================================
 // Routes
 // ============================================================
@@ -113,8 +138,10 @@ app.openapi(listRoute, async (c) => {
   const supabase = c.get('supabase');
   const query = c.req.valid('query');
 
-  const page = parseInt(query.page || '1');
-  const pageSize = parseInt(query.pageSize || '20');
+  const page = Math.max(parseInt(query.page || '1'), 1);
+  const rawPageSize = query.pageSize !== undefined ? parseInt(query.pageSize) : 20;
+  const unpaginated = rawPageSize === 0;
+  const pageSize = unpaginated ? 0 : Math.max(rawPageSize, 1);
   const offset = (page - 1) * pageSize;
 
   // Build query
@@ -129,7 +156,8 @@ app.openapi(listRoute, async (c) => {
   }
 
   // Pagination
-  dbQuery = dbQuery.range(offset, offset + pageSize - 1).order('created_at', { ascending: false });
+  dbQuery = dbQuery.order('created_at', { ascending: false });
+  if (!unpaginated) dbQuery = dbQuery.range(offset, offset + pageSize - 1);
 
   const { data, count, error } = await dbQuery;
 
@@ -138,15 +166,37 @@ app.openapi(listRoute, async (c) => {
   }
 
   const campuses = (data || []).map((row) => mapCampus(row as Record<string, unknown>));
+  const total = count || 0;
+
+  let summaryQuery = supabase.from('campuses').select('is_active');
+
+  if (query.search) {
+    summaryQuery = summaryQuery.ilike('name', `%${query.search}%`);
+  }
+  if (query.isActive !== undefined) {
+    summaryQuery = summaryQuery.eq('is_active', query.isActive === 'true');
+  }
+
+  const { data: summaryRows, error: summaryError } = await summaryQuery;
+
+  if (summaryError) {
+    console.error('DB Error:', summaryError);
+  }
+
+  const summary = buildCampusSummary(
+    (summaryRows || []) as Array<{ is_active: boolean }>,
+    total,
+  );
 
   return c.json(
     {
       data: campuses,
+      summary,
       meta: {
-        total: count || 0,
-        page,
-        pageSize,
-        totalPages: Math.ceil((count || 0) / pageSize),
+        total,
+        page: unpaginated ? 1 : page,
+        pageSize: unpaginated ? total : pageSize,
+        totalPages: unpaginated ? 1 : Math.ceil(total / pageSize),
       },
     },
     200
