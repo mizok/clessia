@@ -48,6 +48,7 @@ export interface StaffQueryParams {
   search?: string;
   role?: StaffRole;
   campusId?: string;
+  subjectId?: string;
   isActive?: boolean;
 }
 
@@ -137,6 +138,10 @@ export class StaffService {
 
     if (params.campusId !== undefined) {
       query['campusId'] = params.campusId;
+    }
+
+    if (params.subjectId !== undefined) {
+      query['subjectId'] = params.subjectId;
     }
 
     if (params.isActive !== undefined) {

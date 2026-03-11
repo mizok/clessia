@@ -13,6 +13,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
+import { PaginatorModule } from 'primeng/paginator';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
@@ -21,6 +22,7 @@ import { StaffFormDialogComponent } from './staff-form-dialog.component';
 import {
   StaffService,
   Staff,
+  StaffListResponse,
   StaffRole,
   Permission,
   CreateStaffInput,
@@ -70,6 +72,7 @@ const ROLE_OPTIONS: RoleOption[] = [
     IconFieldModule,
     InputIconModule,
     InputTextModule,
+    PaginatorModule,
     EmptyStateComponent,
   ],
   providers: [MessageService, ConfirmationService, DialogService],
@@ -101,36 +104,11 @@ export class StaffPage implements OnInit {
   readonly roleFilter = signal<StaffRole | null>(null);
   readonly campusFilter = signal<string | null>(null);
   readonly subjectFilter = signal<string | null>(null);
+  protected readonly currentPage = signal(1);
+  protected readonly total = signal(0);
+  protected readonly PAGE_SIZE = 50;
 
   // Computed
-  readonly filteredStaff = computed(() => {
-    let list = this.staffList();
-    const query = this.searchQuery().toLowerCase().trim();
-    const role = this.roleFilter();
-    const campusId = this.campusFilter();
-    const subjectId = this.subjectFilter();
-
-    if (query) {
-      list = list.filter(
-        (s) => s.displayName.toLowerCase().includes(query) || s.email.toLowerCase().includes(query),
-      );
-    }
-
-    if (role) {
-      list = list.filter((s) => s.roles.includes(role));
-    }
-
-    if (campusId) {
-      list = list.filter((s) => s.campusIds.includes(campusId));
-    }
-
-    if (subjectId) {
-      list = list.filter((s) => s.subjectIds.includes(subjectId));
-    }
-
-    return list;
-  });
-
   readonly adminCount = computed(
     () => this.staffList().filter((s) => s.roles.includes('admin')).length,
   );
@@ -148,13 +126,11 @@ export class StaffPage implements OnInit {
   );
 
   ngOnInit(): void {
-    this.loadData();
+    this.loadFilterOptions();
+    this.loadStaff();
   }
 
-  loadData(): void {
-    this.loading.set(true);
-
-    // Load staff and campuses in parallel
+  private loadFilterOptions(): void {
     this.campusesService.list({ pageSize: 100 }).subscribe({
       next: (res: { data: Campus[] }) => this.campuses.set(res.data),
       error: (err: any) => console.error('Failed to load campuses', err),
@@ -164,22 +140,64 @@ export class StaffPage implements OnInit {
       next: (res: { data: Subject[] }) => this.subjects.set(res.data),
       error: (err: any) => console.error('Failed to load subjects', err),
     });
+  }
 
-    this.staffService.list({ pageSize: 100 }).subscribe({
-      next: (res: { data: Staff[] }) => {
-        this.staffList.set(res.data);
-        this.loading.set(false);
-      },
-      error: (err: any) => {
-        console.error('Failed to load staff', err);
-        this.messageService.add({
-          severity: 'error',
-          summary: '載入失敗',
-          detail: '無法載入人員列表',
-        });
-        this.loading.set(false);
-      },
-    });
+  private loadStaff(): void {
+    this.loading.set(true);
+    this.staffService
+      .list({
+        search: this.searchQuery() || undefined,
+        role: this.roleFilter() || undefined,
+        campusId: this.campusFilter() || undefined,
+        subjectId: this.subjectFilter() || undefined,
+        page: this.currentPage(),
+        pageSize: this.PAGE_SIZE,
+      })
+      .subscribe({
+        next: (res: StaffListResponse) => {
+          this.staffList.set(res.data);
+          this.total.set(res.meta.total);
+          this.loading.set(false);
+        },
+        error: (err: any) => {
+          console.error('Failed to load staff', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: '載入失敗',
+            detail: '無法載入人員列表',
+          });
+          this.loading.set(false);
+        },
+      });
+  }
+
+  protected onSearchChange(value: string): void {
+    this.searchQuery.set(value);
+    this.currentPage.set(1);
+    this.loadStaff();
+  }
+
+  protected onRoleFilterChange(value: StaffRole | null): void {
+    this.roleFilter.set(value);
+    this.currentPage.set(1);
+    this.loadStaff();
+  }
+
+  protected onCampusFilterChange(value: string | null): void {
+    this.campusFilter.set(value);
+    this.currentPage.set(1);
+    this.loadStaff();
+  }
+
+  protected onSubjectFilterChange(value: string | null): void {
+    this.subjectFilter.set(value);
+    this.currentPage.set(1);
+    this.loadStaff();
+  }
+
+  protected onPageChange(page: number): void {
+    this.currentPage.set(page);
+    this.loadStaff();
   }
 
   openCreateDialog(): void {
@@ -197,7 +215,10 @@ export class StaffPage implements OnInit {
 
     if (ref)
       ref.onClose.subscribe((result) => {
-        if (result) this.loadData();
+        if (result) {
+          this.currentPage.set(1);
+          this.loadStaff();
+        }
       });
   }
 
@@ -217,7 +238,7 @@ export class StaffPage implements OnInit {
 
     if (ref)
       ref.onClose.subscribe((result) => {
-        if (result) this.loadData();
+        if (result) this.loadStaff();
       });
   }
 
@@ -253,7 +274,7 @@ export class StaffPage implements OnInit {
           ? `「${staff.displayName}」已封存，${res.unassignedSessions} 堂未來課堂已設為待指派`
           : `「${staff.displayName}」已封存`;
         this.messageService.add({ severity: 'success', summary: '封存成功', detail });
-        this.loadData();
+        this.loadStaff();
       },
       error: (err: any) => {
         this.messageService.add({
@@ -290,6 +311,8 @@ export class StaffPage implements OnInit {
     this.roleFilter.set(null);
     this.campusFilter.set(null);
     this.subjectFilter.set(null);
+    this.currentPage.set(1);
+    this.loadStaff();
   }
 
   onSubjectsChanged(updated: Subject[]): void {

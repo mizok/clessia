@@ -98,6 +98,7 @@ const QueryParamsSchema = z.object({
   search: z.string().optional().openapi({ description: '姓名 / Email 搜尋' }),
   role: StaffRoleSchema.optional().openapi({ description: '角色篩選' }),
   campusId: z.uuid().optional().openapi({ description: '分校篩選' }),
+  subjectId: z.uuid().optional().openapi({ description: '科目篩選' }),
   isActive: z.string().optional().openapi({ description: '篩選狀態 (true/false)' }),
 });
 
@@ -415,6 +416,7 @@ app.openapi(listRoute, async (c) => {
   const offset = (page - 1) * pageSize;
 
   let filteredStaffIdsByCampus: string[] | null = null;
+  let filteredStaffIdsBySubject: string[] | null = null;
   let filteredUserIdsByRole: string[] | null = null;
 
   if (query.campusId) {
@@ -464,6 +466,19 @@ app.openapi(listRoute, async (c) => {
     filteredUserIdsByRole = (roleRows || []).map((row) => row.user_id);
   }
 
+  if (query.subjectId) {
+    const { data: subjectLinks, error: subjectFilterError } = await supabase
+      .from('staff_subjects')
+      .select('staff_id')
+      .eq('subject_id', query.subjectId);
+
+    if (subjectFilterError) {
+      return c.json({ error: subjectFilterError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    filteredStaffIdsBySubject = (subjectLinks || []).map((row) => row.staff_id);
+  }
+
   if (query.campusId && filteredStaffIdsByCampus && filteredStaffIdsByCampus.length === 0) {
     return c.json(
       {
@@ -494,6 +509,21 @@ app.openapi(listRoute, async (c) => {
     );
   }
 
+  if (query.subjectId && filteredStaffIdsBySubject && filteredStaffIdsBySubject.length === 0) {
+    return c.json(
+      {
+        data: [],
+        meta: {
+          total: 0,
+          page,
+          pageSize,
+          totalPages: 0,
+        },
+      },
+      200,
+    );
+  }
+
   let dbQuery = supabase.from('staff').select('*', { count: 'exact' });
 
   if (query.search) {
@@ -506,6 +536,10 @@ app.openapi(listRoute, async (c) => {
 
   if (filteredStaffIdsByCampus) {
     dbQuery = dbQuery.in('id', filteredStaffIdsByCampus);
+  }
+
+  if (filteredStaffIdsBySubject) {
+    dbQuery = dbQuery.in('id', filteredStaffIdsBySubject);
   }
 
   if (filteredUserIdsByRole) {

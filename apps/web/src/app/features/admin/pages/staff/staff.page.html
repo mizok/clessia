@@ -32,7 +32,7 @@
             pInputText
             placeholder="搜尋姓名或 Email..."
             [ngModel]="searchQuery()"
-            (ngModelChange)="searchQuery.set($event)"
+            (ngModelChange)="onSearchChange($event)"
           />
         </p-iconField>
       </div>
@@ -43,7 +43,7 @@
           optionValue="value"
           placeholder="角色篩選"
           [ngModel]="roleFilter()"
-          (ngModelChange)="roleFilter.set($event)"
+          (ngModelChange)="onRoleFilterChange($event)"
           [showClear]="true"
           [appendTo]="'body'"
           styleClass="staff__filter-select"
@@ -54,7 +54,7 @@
           optionValue="value"
           placeholder="分校篩選"
           [ngModel]="campusFilter()"
-          (ngModelChange)="campusFilter.set($event)"
+          (ngModelChange)="onCampusFilterChange($event)"
           [showClear]="true"
           [appendTo]="'body'"
           styleClass="staff__filter-select"
@@ -65,7 +65,7 @@
           optionValue="value"
           placeholder="科目篩選"
           [ngModel]="subjectFilter()"
-          (ngModelChange)="subjectFilter.set($event)"
+          (ngModelChange)="onSubjectFilterChange($event)"
           [showClear]="true"
           [appendTo]="'body'"
           styleClass="staff__filter-select"
@@ -104,7 +104,7 @@
             <span class="skeleton-bar"></span>
           }
         </div>
-      } @else if (filteredStaff().length === 0) {
+      } @else if (staffList().length === 0) {
         <!-- Empty State -->
         @if (searchQuery() || roleFilter() || campusFilter() || subjectFilter()) {
           <app-empty-state
@@ -131,15 +131,7 @@
       } @else {
         <!-- Desktop: Data Table -->
         <div class="staff__table-view">
-          <p-table
-            [value]="filteredStaff()"
-            [paginator]="filteredStaff().length > 10"
-            [rows]="10"
-            [rowsPerPageOptions]="[10, 20, 50]"
-            [showCurrentPageReport]="true"
-            currentPageReportTemplate="顯示 {first} - {last}，共 {totalRecords} 筆"
-            styleClass="p-datatable-sm"
-          >
+          <p-table [value]="staffList()" styleClass="p-datatable-sm">
             <ng-template #header>
               <tr>
                 <th style="width: 18%">姓名</th>
@@ -248,7 +240,7 @@
 
         <!-- Mobile: Card List -->
         <div class="staff__card-view">
-          @for (staff of filteredStaff(); track staff.id) {
+          @for (staff of staffList(); track staff.id) {
             <article class="staff-card">
               <div class="staff-card__header">
                 <div
@@ -323,10 +315,19 @@
           }
 
           <!-- Mobile pagination info -->
-          @if (filteredStaff().length > 0) {
-            <div class="staff__mobile-count">共 {{ filteredStaff().length }} 位人員</div>
+          @if (staffList().length > 0) {
+            <div class="staff__mobile-count">共 {{ total() }} 位人員</div>
           }
         </div>
+
+        @if (total() > PAGE_SIZE) {
+          <p-paginator
+            [rows]="PAGE_SIZE"
+            [totalRecords]="total()"
+            [first]="(currentPage() - 1) * PAGE_SIZE"
+            (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
+          />
+        }
       }
     </div>
   </div>
