@@ -75,34 +75,32 @@
         </ng-template>
       </p-multiselect>
     }
-    @if (selectedCampusIds().length > 0) {
-      <p-multiselect
-        class="session-filters__control"
-        [options]="teacherOptionGroups()"
-        [group]="true"
-        optionGroupLabel="label"
-        optionGroupChildren="items"
-        optionLabel="displayName"
-        optionValue="id"
-        placeholder="所有老師"
-        selectedItemsLabel="{0} 位老師"
-        [appendTo]="'body'"
-        [filter]="true"
-        filterBy="displayName,subjectNames"
-        filterPlaceholder="搜尋老師..."
-        [ngModel]="selectedTeacherIds()"
-        (ngModelChange)="onTeacherMultiChange($event)"
-      >
-        <ng-template #item let-teacher>
-          <div class="session-filters__teacher-option">
-            <span class="session-filters__teacher-option-name">{{ teacher.displayName }}</span>
-            @if (getTeacherSubjectLabel(teacher); as subjectLabel) {
-              <span class="session-filters__teacher-option-subjects">{{ subjectLabel }}</span>
-            }
-          </div>
-        </ng-template>
-      </p-multiselect>
-    }
+    <p-multiselect
+      class="session-filters__control"
+      [options]="teacherOptionGroups()"
+      [group]="true"
+      optionGroupLabel="label"
+      optionGroupChildren="items"
+      optionLabel="displayName"
+      optionValue="id"
+      placeholder="所有老師"
+      selectedItemsLabel="{0} 位老師"
+      [appendTo]="'body'"
+      [filter]="true"
+      filterBy="displayName,subjectNames"
+      filterPlaceholder="搜尋老師..."
+      [ngModel]="selectedTeacherIds()"
+      (ngModelChange)="onTeacherMultiChange($event)"
+    >
+      <ng-template #item let-teacher>
+        <div class="session-filters__teacher-option">
+          <span class="session-filters__teacher-option-name">{{ teacher.displayName }}</span>
+          @if (getTeacherSubjectLabel(teacher); as subjectLabel) {
+            <span class="session-filters__teacher-option-subjects">{{ subjectLabel }}</span>
+          }
+        </div>
+      </ng-template>
+    </p-multiselect>
     @if (selectedCampusIds().length > 0 && selectedCourseIds().length > 0 && availableClasses().length > 0) {
       <p-multiselect
         class="session-filters__control"
