@@ -205,7 +205,7 @@
 .shell-layout {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  min-height: var(--window-height, 100dvh);
   background: var(--zinc-50);
   height: var(--window-height);
   --app-header-height: 56px;

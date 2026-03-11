@@ -14,7 +14,7 @@
 .public-shell {
   display: grid;
   grid-template-columns: 420px 1fr;
-  height: 100dvh;
+  height: var(--window-height, 100dvh);
   overflow: hidden;
 
   &__brand {
@@ -23,7 +23,7 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    height: 100dvh;
+    height: var(--window-height, 100dvh);
     padding: var(--space-8);
     background: linear-gradient(160deg, var(--zinc-900) 0%, var(--zinc-800) 100%);
     color: #fff;
@@ -193,7 +193,7 @@
     display: flex;
     align-items: center; // Vertical centering
     justify-content: center;
-    height: 100dvh;
+    height: var(--window-height, 100dvh);
     padding: var(--space-8);
     background: var(--zinc-50);
     overflow-y: auto;
@@ -224,7 +224,7 @@
   .public-shell {
     grid-template-columns: 1fr;
     height: auto;
-    min-height: 100dvh;
+    min-height: var(--window-height, 100dvh);
     overflow: visible;
 
     /* Push-content: entire page shifts right when menu opens */
@@ -334,7 +334,7 @@
       top: 0;
       left: -280px;
       width: 280px;
-      min-height: 100dvh;
+      min-height: var(--window-height, 100dvh);
       padding: var(--space-4);
       color: #fff;
       background: var(--zinc-900);
