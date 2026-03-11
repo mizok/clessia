@@ -1,6 +1,5 @@
 import {
   Component,
-  DestroyRef,
   OnInit,
   computed,
   inject,
@@ -9,9 +8,6 @@ import {
   viewChild,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
-import { filter } from 'rxjs';
 import { endOfMonth, format } from 'date-fns';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { MenuModule, type Menu } from 'primeng/menu';
@@ -81,10 +77,6 @@ export class SessionsPage implements OnInit {
   private readonly messageService = inject(MessageService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly dialogService = inject(DialogService);
-  private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
-  private readonly destroyRef = inject(DestroyRef);
-  private isSyncingParams = false;
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
@@ -274,23 +266,8 @@ export class SessionsPage implements OnInit {
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
   ngOnInit(): void {
-    this.applyQueryParams();
     this.loadFilters();
     this.loadSessions();
-
-    this.router.events
-      .pipe(
-        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
-        filter(() => !this.isSyncingParams),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe(() => {
-        const params = this.route.snapshot.queryParams;
-        const hasParams = Object.values(params).some((v) => !!v);
-        if (!hasParams) {
-          this.clearFilters();
-        }
-      });
   }
 
   // ── List actions ───────────────────────────────────────────────────────
@@ -380,7 +357,6 @@ export class SessionsPage implements OnInit {
         this.selectedTeacherIds.set(result.teacherIds);
         this.selectedClassIds.set(result.classIds);
         this.selectedStatuses.set(result.statuses);
-        this.syncQueryParams();
         this.loadSessions();
       }
     });
@@ -446,7 +422,6 @@ export class SessionsPage implements OnInit {
     this.selectedCourseIds.set([]);
     this.selectedTeacherIds.set([]);
     this.selectedClassIds.set([]);
-    this.syncQueryParams();
     this.loadSessions();
   }
 
@@ -454,19 +429,16 @@ export class SessionsPage implements OnInit {
     this.selectedCourseIds.set(ids);
     this.selectedTeacherIds.set([]);
     this.selectedClassIds.set([]);
-    this.syncQueryParams();
     this.loadSessions();
   }
 
   protected onTeacherIdsChange(ids: string[]): void {
     this.selectedTeacherIds.set(ids);
-    this.syncQueryParams();
     this.loadSessions();
   }
 
   protected onClassChange(classIds: string[]): void {
     this.selectedClassIds.set(classIds);
-    this.syncQueryParams();
     this.loadSessions();
   }
 
@@ -474,19 +446,16 @@ export class SessionsPage implements OnInit {
     this.listDateRange.set(range);
     this.listDateRangeModified.set(true);
     if (range.length === 2) {
-      this.syncQueryParams();
       this.loadSessions();
     }
   }
 
   protected onStatusesChange(statuses: string[] | null): void {
     this.selectedStatuses.set(statuses ?? []);
-    this.syncQueryParams();
   }
 
   protected onFilterUnassigned(): void {
     this.selectedTeacherIds.set(['__unassigned__']);
-    this.syncQueryParams();
   }
 
   protected clearFilters(): void {
@@ -496,7 +465,6 @@ export class SessionsPage implements OnInit {
     this.listDateRange.set(this.getDefaultListDateRange());
     this.listDateRangeModified.set(false);
     this.selectedStatuses.set([...DEFAULT_STATUSES]);
-    this.syncQueryParams();
     this.loadSessions();
   }
 
@@ -514,89 +482,6 @@ export class SessionsPage implements OnInit {
     const current = [...this.selectedStatuses()].sort().join(',');
     const def = [...DEFAULT_STATUSES].sort().join(',');
     return current === def;
-  }
-
-  private applyQueryParams(): void {
-    const params = this.route.snapshot.queryParams;
-    const campusIds = this.parseMultiValue(params['campusIds'] ?? params['campusId']);
-    if (campusIds.length > 0) this.selectedCampusIds.set(campusIds);
-    const courseIds = this.parseMultiValue(params['courseIds'] ?? params['courseId']);
-    if (courseIds.length > 0) this.selectedCourseIds.set(courseIds);
-    const classIds = this.parseMultiValue(params['classIds'] ?? params['classId']);
-    if (classIds.length > 0) this.selectedClassIds.set(classIds);
-    if (params['from']) {
-      const fromDate = new Date(params['from']);
-      this.listDateRange.set([fromDate, params['to'] ? new Date(params['to']) : endOfMonth(fromDate)]);
-      this.listDateRangeModified.set(true);
-    }
-    const teacherIds = this.parseMultiValue(params['teacherIds']);
-    if (params['assignmentStatus'] === 'unassigned') {
-      teacherIds.push('__unassigned__');
-    }
-    if (teacherIds.length > 0) {
-      this.selectedTeacherIds.set(Array.from(new Set(teacherIds)));
-    }
-    if (params['statuses'] === 'all') {
-      this.selectedStatuses.set([]);
-    } else {
-      const statuses = this.parseMultiValue(params['statuses']);
-      if (statuses.length > 0) {
-        this.selectedStatuses.set(statuses);
-      }
-    }
-  }
-
-  private syncQueryParams(): void {
-    this.isSyncingParams = true;
-    this.router
-      .navigate([], {
-        relativeTo: this.route,
-        queryParams: this.buildQueryParams(),
-        replaceUrl: true,
-      })
-      .then(() => {
-        this.isSyncingParams = false;
-      });
-  }
-
-  private buildQueryParams(): Record<string, string | null> {
-    const query: Record<string, string | null> = {};
-    const campusIds = this.selectedCampusIds();
-    const courseIds = this.selectedCourseIds();
-    const teacherIds = this.selectedTeacherIds();
-    const classIds = this.selectedClassIds();
-    const range = this.listDateRange();
-
-    query['campusIds'] = campusIds.length > 0 ? campusIds.join(',') : null;
-    query['courseIds'] = courseIds.length > 0 ? courseIds.join(',') : null;
-
-    const realTeacherIds = teacherIds.filter((id) => id !== '__unassigned__');
-    query['teacherIds'] = realTeacherIds.length > 0 ? realTeacherIds.join(',') : null;
-    query['assignmentStatus'] = teacherIds.includes('__unassigned__') ? 'unassigned' : null;
-    query['classIds'] = classIds.length > 0 ? classIds.join(',') : null;
-    query['classId'] = null;
-
-    query['from'] = range.length > 0 ? format(range[0], 'yyyy-MM-dd') : null;
-    query['to'] = range.length > 1 ? format(range[1], 'yyyy-MM-dd') : query['from'];
-
-    const statuses = this.selectedStatuses();
-    if (statuses.length === 0) {
-      query['statuses'] = 'all';
-    } else if (this.isDefaultStatuses()) {
-      query['statuses'] = null;
-    } else {
-      query['statuses'] = statuses.join(',');
-    }
-
-    return query;
-  }
-
-  private parseMultiValue(value: string | undefined): string[] {
-    if (!value) return [];
-    return value
-      .split(',')
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0);
   }
 
   private getDefaultListDateRange(): Date[] {
@@ -617,7 +502,6 @@ export class SessionsPage implements OnInit {
         this.campuses.set(res.data);
         if (res.data.length > 0 && this.selectedCampusIds().length === 0) {
           this.selectedCampusIds.set([res.data[0].id]);
-          this.syncQueryParams();
           this.loadSessions();
         }
       },

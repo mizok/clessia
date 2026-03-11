@@ -240,7 +240,7 @@ describe('SessionsPage', () => {
     expect(availableTeachers.map((teacher) => teacher.id)).toEqual(['teacher-a']);
   });
 
-  it('marks date range as active when initialized from query params', async () => {
+  it('uses default date range and inactive filters on init', async () => {
     routeQueryParams = {
       campusId: 'campus-1',
       courseId: 'course-1',
@@ -275,11 +275,11 @@ describe('SessionsPage', () => {
     ).selectedClassIds();
 
     expect(listDateRange).toHaveLength(2);
-    expect(listDateRange[0]?.toISOString()).toContain('2026-02-10');
-    expect(listDateRange[1]?.toISOString()).toContain('2026-06-18');
-    expect(selectedClassIds).toEqual(['class-1', 'class-2']);
-    expect(activeFilterCount).toBe(3);
-    expect(hasActiveFilters).toBe(true);
+    expect(listDateRange[0]).toBeInstanceOf(Date);
+    expect(listDateRange[1]).toBeInstanceOf(Date);
+    expect(selectedClassIds).toEqual([]);
+    expect(activeFilterCount).toBe(0);
+    expect(hasActiveFilters).toBe(false);
   });
 
   it('treats empty status selection as all statuses', () => {
@@ -347,7 +347,7 @@ describe('SessionsPage', () => {
     ]);
   });
 
-  it('syncs current filters back to query params', () => {
+  it('keeps filters in memory without syncing query params', () => {
     const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
     (
@@ -384,20 +384,14 @@ describe('SessionsPage', () => {
       }
     ).onStatusesChange([]);
 
-    expect(navigateSpy).toHaveBeenLastCalledWith([], {
-      relativeTo: TestBed.inject(ActivatedRoute),
-      queryParams: {
-        campusIds: 'campus-1,campus-2',
-        courseIds: 'course-1',
-        teacherIds: 'teacher-1',
-        assignmentStatus: 'unassigned',
-        classId: null,
-        classIds: 'class-1,class-2',
-        from: '2026-03-16',
-        to: '2026-07-02',
-        statuses: 'all',
-      },
-      replaceUrl: true,
+    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(sessionsServiceMock.list).toHaveBeenLastCalledWith({
+      from: '2026-03-16',
+      to: '2026-07-02',
+      campusIds: ['campus-1', 'campus-2'],
+      courseIds: ['course-1'],
+      teacherIds: ['teacher-1'],
+      classId: undefined,
     });
   });
 
