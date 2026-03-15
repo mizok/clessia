@@ -148,8 +148,21 @@ export class CoursesPage implements OnInit {
   protected readonly subjectOptions = computed(() =>
     this.subjects().map((s) => ({ label: s.name, value: s.id })),
   );
-  protected readonly staffOptions = computed(() =>
-    this.staff().map((s) => ({ label: s.displayName, value: s.id, subjectNames: s.subjectNames })),
+  protected readonly filteredStaffOptions = computed(() => {
+    const selectedCampusId = this.selectedCampusId();
+    const teachers = selectedCampusId
+      ? this.staff().filter((teacher) => teacher.campusIds.includes(selectedCampusId))
+      : this.staff();
+
+    return teachers.map((teacher) => ({
+      label: teacher.displayName,
+      value: teacher.id,
+      subjectNames: teacher.subjectNames,
+    }));
+  });
+
+  protected readonly validTeacherIdsForSelectedCampus = computed(() =>
+    new Set(this.filteredStaffOptions().map((option) => option.value)),
   );
 
   // ---- Computed course groups ----
@@ -408,6 +421,9 @@ export class CoursesPage implements OnInit {
 
   protected onCampusTabChange(value: string | number | null | undefined): void {
     this.selectedCampusId.set(!value || value === 'all' ? null : String(value));
+    this.selectedTeacherIds.update((teacherIds) =>
+      teacherIds.filter((teacherId) => this.validTeacherIdsForSelectedCampus().has(teacherId)),
+    );
     this.currentPage.set(1);
     this.loadCourses();
   }

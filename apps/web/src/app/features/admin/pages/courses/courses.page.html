@@ -72,7 +72,7 @@
           [appendTo]="'body'"
         />
         <p-multiselect
-          [options]="staffOptions()"
+          [options]="filteredStaffOptions()"
           [ngModel]="selectedTeacherIds()"
           (ngModelChange)="onTeacherChange($event)"
           placeholder="所有老師"

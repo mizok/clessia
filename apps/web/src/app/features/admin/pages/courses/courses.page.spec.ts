@@ -341,4 +341,86 @@ describe('CoursesPage', () => {
       }),
     );
   });
+
+  it('filters teacher options by selected campus tab', () => {
+    refDataMock.teachers.set([
+      {
+        id: 'teacher-1',
+        displayName: '王老師',
+        subjectNames: ['數學'],
+        campusIds: ['campus-1'],
+      },
+      {
+        id: 'teacher-2',
+        displayName: '李老師',
+        subjectNames: ['英文'],
+        campusIds: ['campus-2'],
+      },
+      {
+        id: 'teacher-3',
+        displayName: '陳老師',
+        subjectNames: ['理化'],
+        campusIds: ['campus-1', 'campus-2'],
+      },
+    ]);
+
+    (
+      component as unknown as {
+        onCampusTabChange: (value: string | number | null | undefined) => void;
+        filteredStaffOptions: () => Array<{ value: string }>;
+      }
+    ).onCampusTabChange('campus-1');
+
+    const options = (
+      component as unknown as {
+        filteredStaffOptions: () => Array<{ value: string }>;
+      }
+    ).filteredStaffOptions();
+
+    expect(options.map((option) => option.value)).toEqual(['teacher-1', 'teacher-3']);
+  });
+
+  it('removes selected teachers that do not belong to the active campus tab', () => {
+    refDataMock.teachers.set([
+      {
+        id: 'teacher-1',
+        displayName: '王老師',
+        subjectNames: ['數學'],
+        campusIds: ['campus-1'],
+      },
+      {
+        id: 'teacher-2',
+        displayName: '李老師',
+        subjectNames: ['英文'],
+        campusIds: ['campus-2'],
+      },
+      {
+        id: 'teacher-3',
+        displayName: '陳老師',
+        subjectNames: ['理化'],
+        campusIds: ['campus-1', 'campus-2'],
+      },
+    ]);
+
+    (
+      component as unknown as {
+        selectedTeacherIds: { set: (value: string[]) => void };
+        onCampusTabChange: (value: string | number | null | undefined) => void;
+      }
+    ).selectedTeacherIds.set(['teacher-1', 'teacher-2', 'teacher-3']);
+
+    (
+      component as unknown as {
+        onCampusTabChange: (value: string | number | null | undefined) => void;
+      }
+    ).onCampusTabChange('campus-1');
+
+    const selectedTeacherIds = (
+      component as unknown as {
+        selectedTeacherIds: () => string[];
+      }
+    ).selectedTeacherIds();
+
+    expect(selectedTeacherIds).toEqual(['teacher-1', 'teacher-3']);
+  });
 });
