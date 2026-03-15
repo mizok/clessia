@@ -4,6 +4,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { authMiddleware } from './middleware/auth';
 import { createAuth } from './auth';
+import { resolveCorsOrigin } from './lib/origins';
 import campusesRoute from './routes/campuses';
 import coursesRoute from './routes/courses';
 import staffRoute from './routes/staff';
@@ -59,7 +60,7 @@ app.use('*', logger());
 app.use(
   '*',
   cors({
-    origin: ['http://localhost:4200', 'https://clessia.pages.dev'],
+    origin: (origin) => resolveCorsOrigin(origin),
     credentials: true,
   })
 );
