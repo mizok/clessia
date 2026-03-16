@@ -1,0 +1,198 @@
+<p-toast appendTo="body" [baseZIndex]="25000" />
+
+<div class="student-detail">
+  <!-- Back Navigation -->
+  <div class="student-detail__nav">
+    <p-button
+      label="學生列表"
+      icon="pi pi-arrow-left"
+      [text]="true"
+      severity="secondary"
+      (onClick)="goBack()"
+    />
+  </div>
+
+  @if (loading()) {
+    <div class="student-detail__loading">
+      <i class="pi pi-spinner pi-spin" style="font-size: 2rem; color: var(--zinc-400)"></i>
+    </div>
+  } @else if (!student()) {
+    <app-empty-state
+      icon="pi pi-user"
+      title="找不到學生資料"
+      description="該學生資料不存在或已被刪除"
+    >
+      <p-button label="返回列表" icon="pi pi-arrow-left" (onClick)="goBack()" />
+    </app-empty-state>
+  } @else {
+    <!-- Profile Header -->
+    <div class="student-detail__profile-card">
+      <div class="student-detail__profile-header">
+        <div class="student-detail__avatar">
+          <i class="pi pi-user"></i>
+        </div>
+        <div class="student-detail__profile-info">
+          <div class="student-detail__name-row">
+            <h1 class="student-detail__name">{{ student()!.name }}</h1>
+            <p-tag
+              [value]="student()!.isActive ? '在籍' : '停用'"
+              [severity]="student()!.isActive ? 'success' : 'secondary'"
+            />
+          </div>
+          <div class="student-detail__meta-row">
+            <span class="student-detail__grade">{{ getGradeLabel(student()!.grade) }}</span>
+            <span class="student-detail__separator">·</span>
+            <span class="student-detail__school">{{ student()!.school }}</span>
+          </div>
+        </div>
+        <div class="student-detail__profile-actions">
+          <p-button
+            label="編輯資料"
+            icon="pi pi-pencil"
+            [outlined]="true"
+            severity="secondary"
+            (onClick)="openEditDialog()"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Basic Info Card -->
+    <div class="student-detail__section-card">
+      <h2 class="student-detail__section-title">基本資料</h2>
+      <div class="student-detail__info-grid">
+        <div class="student-detail__info-item">
+          <span class="student-detail__info-label">性別</span>
+          <span class="student-detail__info-value">{{ getGenderLabel(student()!.gender) }}</span>
+        </div>
+        <div class="student-detail__info-item">
+          <span class="student-detail__info-label">生日</span>
+          <span class="student-detail__info-value">
+            {{ student()!.birthday ?? '未填寫' }}
+          </span>
+        </div>
+        <div class="student-detail__info-item">
+          <span class="student-detail__info-label">電話</span>
+          @if (student()!.phone) {
+            <a [href]="'tel:' + student()!.phone" class="student-detail__phone-link">
+              {{ student()!.phone }}
+            </a>
+          } @else {
+            <span class="student-detail__info-empty">未填寫</span>
+          }
+        </div>
+        <div class="student-detail__info-item student-detail__info-item--full">
+          <span class="student-detail__info-label">地址</span>
+          <span class="student-detail__info-value">
+            {{ student()!.address ?? '未填寫' }}
+          </span>
+        </div>
+        <div class="student-detail__info-item">
+          <span class="student-detail__info-label">緊急聯絡人</span>
+          <span class="student-detail__info-value">
+            {{ student()!.emergencyContactName ?? '未填寫' }}
+          </span>
+        </div>
+        <div class="student-detail__info-item">
+          <span class="student-detail__info-label">緊急聯絡電話</span>
+          @if (student()!.emergencyContactPhone) {
+            <a
+              [href]="'tel:' + student()!.emergencyContactPhone"
+              class="student-detail__phone-link"
+            >
+              {{ student()!.emergencyContactPhone }}
+            </a>
+          } @else {
+            <span class="student-detail__info-empty">未填寫</span>
+          }
+        </div>
+        @if (student()!.notes) {
+          <div class="student-detail__info-item student-detail__info-item--full">
+            <span class="student-detail__info-label">備註</span>
+            <span class="student-detail__info-value">{{ student()!.notes }}</span>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Parents Card -->
+    <div class="student-detail__section-card">
+      <h2 class="student-detail__section-title">關聯家長</h2>
+      @if (student()!.parents?.length === 0) {
+        <div class="student-detail__empty-section">
+          <i class="pi pi-users"></i>
+          <span>尚未關聯家長</span>
+        </div>
+      } @else {
+        <div class="student-detail__parents-list">
+          @for (parent of student()!.parents; track parent.id) {
+            <div class="student-detail__parent-item">
+              <div class="student-detail__parent-avatar">
+                <i class="pi pi-user"></i>
+              </div>
+              <div class="student-detail__parent-info">
+                <div class="student-detail__parent-name-row">
+                  <span class="student-detail__parent-name">{{ parent.name }}</span>
+                  @if (parent.isPrimary) {
+                    <p-tag value="主要聯絡人" severity="info" />
+                  }
+                  @if (parent.relation) {
+                    <span class="student-detail__parent-relation">{{ parent.relation }}</span>
+                  }
+                </div>
+                <div class="student-detail__parent-contacts">
+                  @if (parent.phone) {
+                    <a [href]="'tel:' + parent.phone" class="student-detail__phone-link">
+                      <i class="pi pi-phone"></i> {{ parent.phone }}
+                    </a>
+                  }
+                  @if (parent.email) {
+                    <a [href]="'mailto:' + parent.email" class="student-detail__email-link">
+                      <i class="pi pi-envelope"></i> {{ parent.email }}
+                    </a>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Deferred: Enrollments -->
+    <div class="student-detail__section-card student-detail__section-card--deferred">
+      <div class="student-detail__deferred-header">
+        <h2 class="student-detail__section-title">報名課程</h2>
+        <span class="student-detail__deferred-badge">開發中</span>
+      </div>
+      <div class="student-detail__empty-section">
+        <i class="pi pi-list"></i>
+        <span>報名資料功能開發中</span>
+      </div>
+    </div>
+
+    <!-- Deferred: Attendance -->
+    <div class="student-detail__section-card student-detail__section-card--deferred">
+      <div class="student-detail__deferred-header">
+        <h2 class="student-detail__section-title">出缺席紀錄</h2>
+        <span class="student-detail__deferred-badge">開發中</span>
+      </div>
+      <div class="student-detail__empty-section">
+        <i class="pi pi-calendar"></i>
+        <span>出缺席功能開發中</span>
+      </div>
+    </div>
+
+    <!-- Deferred: Grades -->
+    <div class="student-detail__section-card student-detail__section-card--deferred">
+      <div class="student-detail__deferred-header">
+        <h2 class="student-detail__section-title">成績紀錄</h2>
+        <span class="student-detail__deferred-badge">開發中</span>
+      </div>
+      <div class="student-detail__empty-section">
+        <i class="pi pi-chart-line"></i>
+        <span>成績功能開發中</span>
+      </div>
+    </div>
+  }
+</div>

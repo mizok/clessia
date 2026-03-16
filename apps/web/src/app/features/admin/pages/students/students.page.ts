@@ -1,18 +1,250 @@
-import { Component, input } from '@angular/core';
-import { RouteObj } from '@core/smart-enums/routes-catalog';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+
+// PrimeNG
+import { TableModule } from 'primeng/table';
+import { ButtonModule } from 'primeng/button';
+import { MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
+import { ToastModule } from 'primeng/toast';
+import { TagModule } from 'primeng/tag';
+import { TooltipModule } from 'primeng/tooltip';
+import { SkeletonModule } from 'primeng/skeleton';
+import { InputTextModule } from 'primeng/inputtext';
+import { PaginatorModule } from 'primeng/paginator';
+import { SelectModule } from 'primeng/select';
+
+// Services
+import {
+  StudentsService,
+  Student,
+  StudentListResponse,
+  GradeLevel,
+  GRADE_LEVELS,
+  GRADE_LEVEL_LABELS,
+} from '@core/students.service';
+import { OverlayContainerService } from '@core/overlay-container.service';
+import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
+
+// Shared
+import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
+
+// Local
+import { StudentFormDialogComponent } from './student-form-dialog.component';
 
 @Component({
   selector: 'app-students',
   standalone: true,
-  imports: [],
-  template: `
-    <div class="p-4">
-      <h2 class="text-2xl font-bold mb-4">{{ page().label }}</h2>
-      <p class="text-zinc-500">Students management coming soon...</p>
-    </div>
-  `,
-  styles: ``
+  imports: [
+    CommonModule,
+    FormsModule,
+    TableModule,
+    ButtonModule,
+    InputIconModule,
+    IconFieldModule,
+    ToastModule,
+    TagModule,
+    TooltipModule,
+    SkeletonModule,
+    InputTextModule,
+    PaginatorModule,
+    SelectModule,
+    EmptyStateComponent,
+  ],
+  providers: [MessageService, DialogService],
+  templateUrl: './students.page.html',
+  styleUrl: './students.page.scss',
 })
-export class StudentsPage {
-  readonly page = input.required<RouteObj>();
+export class StudentsPage implements OnInit {
+  private readonly studentsService = inject(StudentsService);
+  private readonly messageService = inject(MessageService);
+  private readonly dialogService = inject(DialogService);
+  private readonly overlayContainerService = inject(OverlayContainerService);
+  private readonly router = inject(Router);
+
+  protected get overlayContainer(): HTMLElement | null {
+    return this.overlayContainerService.getContainer();
+  }
+
+  // State
+  readonly students = signal<Student[]>([]);
+  readonly loading = signal(true);
+  readonly searchQuery = signal('');
+  readonly selectedGrade = signal<GradeLevel | null>(null);
+  readonly summary = signal({ total: 0, activeCount: 0 });
+  protected readonly currentPage = signal(1);
+  protected readonly total = signal(0);
+  protected readonly showInactiveStudents = signal(false);
+  protected readonly PAGE_SIZE = 20;
+
+  // Grade options for dropdown
+  protected readonly gradeOptions = [
+    { label: '全部年級', value: null },
+    ...GRADE_LEVELS.map((g) => ({ label: GRADE_LEVEL_LABELS[g], value: g })),
+  ];
+
+  // Computed
+  readonly activeStudentCount = computed(() => this.summary().activeCount);
+  readonly inactiveStudentCount = computed(
+    () => this.summary().total - this.summary().activeCount,
+  );
+
+  ngOnInit(): void {
+    this.loadStudents();
+  }
+
+  loadStudents(): void {
+    this.loading.set(true);
+    this.studentsService
+      .list({
+        search: this.searchQuery() || undefined,
+        grade: this.selectedGrade() ?? undefined,
+        page: this.currentPage(),
+        pageSize: this.PAGE_SIZE,
+        isActive: this.showInactiveStudents() ? undefined : true,
+      })
+      .subscribe({
+        next: (res: StudentListResponse) => {
+          this.students.set(res.data);
+          this.total.set(res.meta.total);
+          this.summary.set(res.summary);
+          this.loading.set(false);
+        },
+        error: (err) => {
+          console.error('Failed to load students', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: '載入失敗',
+            detail: '無法載入學生列表',
+          });
+          this.loading.set(false);
+        },
+      });
+  }
+
+  protected onSearchChange(value: string): void {
+    this.searchQuery.set(value);
+    this.currentPage.set(1);
+    this.loadStudents();
+  }
+
+  protected onGradeChange(grade: GradeLevel | null): void {
+    this.selectedGrade.set(grade);
+    this.currentPage.set(1);
+    this.loadStudents();
+  }
+
+  protected onPageChange(page: number): void {
+    this.currentPage.set(page);
+    this.loadStudents();
+  }
+
+  protected toggleShowInactiveStudents(): void {
+    this.showInactiveStudents.set(!this.showInactiveStudents());
+    this.currentPage.set(1);
+    this.loadStudents();
+  }
+
+  protected getGradeLabel(grade: GradeLevel): string {
+    return GRADE_LEVEL_LABELS[grade] ?? grade;
+  }
+
+  protected navigateToDetail(student: Student): void {
+    this.router.navigate([RoutesCatalog.ADMIN_STUDENTS.absolutePath, student.id]);
+  }
+
+  openCreateDialog(): void {
+    const ref = this.dialogService.open(StudentFormDialogComponent, {
+      header: '新增學生',
+      width: '560px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+    });
+
+    if (ref) {
+      ref.onClose.subscribe((newStudent) => {
+        if (newStudent) {
+          this.loadStudents();
+          this.messageService.add({
+            severity: 'success',
+            summary: '新增成功',
+            detail: `「${newStudent.name}」已建立`,
+          });
+        }
+      });
+    }
+  }
+
+  openEditDialog(student: Student): void {
+    const ref = this.dialogService.open(StudentFormDialogComponent, {
+      header: '編輯學生',
+      width: '560px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { student },
+    });
+
+    if (ref) {
+      ref.onClose.subscribe((updatedStudent) => {
+        if (updatedStudent) this.loadStudents();
+      });
+    }
+  }
+
+  confirmDeactivate(student: Student): void {
+    this.openConfirmDialog(
+      '確認停用',
+      {
+        message: `確定要停用「${student.name}」嗎？停用後該學生將不會出現在預設篩選結果中。`,
+        acceptLabel: '停用',
+        rejectLabel: '取消',
+        acceptSeverity: 'warn',
+      },
+      () => this.deactivateStudent(student),
+    );
+  }
+
+  private deactivateStudent(student: Student): void {
+    this.studentsService.deactivate(student.id).subscribe({
+      next: () => {
+        this.messageService.add({
+          severity: 'success',
+          summary: '已停用',
+          detail: `「${student.name}」已停用`,
+        });
+        this.loadStudents();
+      },
+      error: (err) => {
+        console.error('Failed to deactivate student', err);
+        this.messageService.add({
+          severity: 'error',
+          summary: '停用失敗',
+          detail: err.error?.error || '請稍後再試',
+        });
+      },
+    });
+  }
+
+  private openConfirmDialog(header: string, data: ConfirmDialogData, onAccept: () => void): void {
+    const ref = this.dialogService.open(ConfirmDialogComponent, {
+      header,
+      width: '420px',
+      modal: true,
+      showHeader: true,
+      appendTo: this.overlayContainer || 'body',
+      data,
+    });
+    if (!ref) return;
+    ref.onClose.subscribe((result) => {
+      if (result) onAccept();
+    });
+  }
 }

@@ -158,6 +158,15 @@ export class RoutesCatalog {
     true,
     '學務管理',
   );
+  public static readonly ADMIN_STUDENT_DETAIL = this.register(
+    'students/:id',
+    '/admin/students/:id',
+    '學生詳情',
+    UserType.ADMIN,
+    'pi-user',
+    false,
+    '學務管理',
+  );
   public static readonly ADMIN_PARENTS = this.register(
     'parents',
     '/admin/parents',

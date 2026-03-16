@@ -1,1 +1,302 @@
-<p>students works!</p>
+<p-toast appendTo="body" [baseZIndex]="25000" />
+
+<div class="students">
+  <!-- Page Header -->
+  <header class="students__header">
+    <div class="students__title-group">
+      <h1 class="students__title">學生資料</h1>
+      <p class="students__subtitle">管理學生基本資料、家長關聯與學習紀錄</p>
+    </div>
+    <div class="students__header-actions">
+      <p-button label="新增學生" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+    </div>
+  </header>
+
+  <!-- Main Card -->
+  <div class="students__card">
+    <!-- Toolbar -->
+    <div class="students__toolbar">
+      <div class="students__search">
+        <p-iconfield iconPosition="left">
+          <p-inputicon styleClass="pi pi-search" />
+          <input
+            type="text"
+            pInputText
+            placeholder="搜尋姓名、學校..."
+            [ngModel]="searchQuery()"
+            (ngModelChange)="onSearchChange($event)"
+          />
+        </p-iconfield>
+      </div>
+
+      <div class="students__grade-filter">
+        <p-select
+          [options]="gradeOptions"
+          [ngModel]="selectedGrade()"
+          (ngModelChange)="onGradeChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部年級"
+          styleClass="students__grade-select"
+        />
+      </div>
+
+      <div
+        class="students__campus-filter"
+        pTooltip="分校篩選需要報名資料，目前尚未開放"
+        tooltipPosition="top"
+      >
+        <p-select
+          [options]="[]"
+          [disabled]="true"
+          placeholder="全部分校（開發中）"
+          styleClass="students__campus-select"
+        />
+      </div>
+
+      @if (inactiveStudentCount() > 0 || showInactiveStudents()) {
+        <p-button
+          [label]="showInactiveStudents() ? '隱藏停用學生' : '顯示停用學生'"
+          [icon]="showInactiveStudents() ? 'pi pi-eye-slash' : 'pi pi-eye'"
+          [text]="true"
+          size="small"
+          severity="secondary"
+          (onClick)="toggleShowInactiveStudents()"
+        />
+      }
+    </div>
+
+    <!-- Stats Summary -->
+    @if (!loading() && students().length > 0) {
+      <div class="students__stats">
+        <div class="students__stat">
+          <span class="students__stat-value">{{ summary().total }}</span>
+          <span class="students__stat-label">名學生</span>
+        </div>
+        <div class="students__stat">
+          <span class="students__stat-value">{{ activeStudentCount() }}</span>
+          <span class="students__stat-label">在籍中</span>
+        </div>
+        @if (inactiveStudentCount() > 0) {
+          <div class="students__stat">
+            <span class="students__stat-value">{{ inactiveStudentCount() }}</span>
+            <span class="students__stat-label">已停用</span>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Content Area -->
+    <div class="students__content">
+      @if (loading()) {
+        <div class="skeleton-list">
+          @for (i of [1, 2, 3, 4, 5]; track i) {
+            <span class="skeleton-bar"></span>
+          }
+        </div>
+      } @else if (students().length === 0) {
+        @if (searchQuery() || selectedGrade()) {
+          <app-empty-state
+            icon="pi pi-search"
+            title="找不到符合的學生"
+            description="請嘗試調整搜尋條件或篩選條件"
+          >
+            <p-button
+              label="清除篩選"
+              [text]="true"
+              severity="secondary"
+              (onClick)="onSearchChange(''); onGradeChange(null)"
+            />
+          </app-empty-state>
+        } @else {
+          <app-empty-state
+            icon="pi pi-users"
+            title="尚未建立學生資料"
+            description="開始新增第一位學生"
+          >
+            <p-button label="新增學生" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+          </app-empty-state>
+        }
+      } @else {
+        <!-- Desktop: Data Table -->
+        <div class="students__table-view">
+          <p-table [value]="students()" styleClass="p-datatable-sm">
+            <ng-template #header>
+              <tr>
+                <th style="width: 22%">姓名</th>
+                <th style="width: 10%">年級</th>
+                <th style="width: 18%">學校</th>
+                <th style="width: 20%">關聯家長</th>
+                <th style="width: 10%">狀態</th>
+                <th style="width: 20%; text-align: right">操作</th>
+              </tr>
+            </ng-template>
+            <ng-template #body let-student>
+              <tr>
+                <td>
+                  <button
+                    type="button"
+                    class="student-table__name-btn"
+                    (click)="navigateToDetail(student)"
+                  >
+                    <span class="student-table__avatar">
+                      <i class="pi pi-user"></i>
+                    </span>
+                    <span class="student-table__name">{{ student.name }}</span>
+                  </button>
+                </td>
+                <td>
+                  <span class="student-table__grade">{{ getGradeLabel(student.grade) }}</span>
+                </td>
+                <td>
+                  @if (student.school) {
+                    <span class="student-table__school">{{ student.school }}</span>
+                  } @else {
+                    <span class="student-table__empty">未填寫</span>
+                  }
+                </td>
+                <td>
+                  @if ((student.parentNames?.length ?? 0) > 0) {
+                    <span class="student-table__parents">
+                      {{ student.parentNames.join('、') }}
+                    </span>
+                  } @else {
+                    <span class="student-table__empty">無關聯家長</span>
+                  }
+                </td>
+                <td>
+                  <p-tag
+                    [value]="student.isActive ? '在籍' : '停用'"
+                    [severity]="student.isActive ? 'success' : 'secondary'"
+                  />
+                </td>
+                <td>
+                  <div class="student-table__actions">
+                    <p-button
+                      icon="pi pi-eye"
+                      [rounded]="true"
+                      [text]="true"
+                      severity="secondary"
+                      pTooltip="查看詳情"
+                      tooltipPosition="top"
+                      (onClick)="navigateToDetail(student)"
+                    />
+                    <p-button
+                      icon="pi pi-pencil"
+                      [rounded]="true"
+                      [text]="true"
+                      severity="secondary"
+                      pTooltip="編輯"
+                      tooltipPosition="top"
+                      (onClick)="openEditDialog(student)"
+                    />
+                    @if (student.isActive) {
+                      <p-button
+                        icon="pi pi-ban"
+                        [rounded]="true"
+                        [text]="true"
+                        severity="warn"
+                        pTooltip="停用"
+                        tooltipPosition="top"
+                        (onClick)="confirmDeactivate(student)"
+                      />
+                    }
+                  </div>
+                </td>
+              </tr>
+            </ng-template>
+          </p-table>
+        </div>
+
+        <!-- Mobile: Card List -->
+        <div class="students__card-view">
+          @for (student of students(); track student.id) {
+            <article class="student-card">
+              <div class="student-card__header">
+                <div class="student-card__avatar">
+                  <i class="pi pi-user"></i>
+                </div>
+                <div class="student-card__title-group">
+                  <button
+                    type="button"
+                    class="student-card__name-btn"
+                    (click)="navigateToDetail(student)"
+                  >
+                    {{ student.name }}
+                  </button>
+                  <div class="student-card__meta">
+                    <span class="student-card__grade">{{ getGradeLabel(student.grade) }}</span>
+                    <p-tag
+                      [value]="student.isActive ? '在籍' : '停用'"
+                      [severity]="student.isActive ? 'success' : 'secondary'"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div class="student-card__body">
+                @if (student.school) {
+                  <div class="student-card__field">
+                    <i class="pi pi-building"></i>
+                    <span>{{ student.school }}</span>
+                  </div>
+                }
+                @if ((student.parentNames?.length ?? 0) > 0) {
+                  <div class="student-card__field">
+                    <i class="pi pi-user"></i>
+                    <span>{{ student.parentNames.join('、') }}</span>
+                  </div>
+                }
+                @if (!student.school && (!student.parentNames || student.parentNames.length === 0)) {
+                  <p class="student-card__empty">尚未填寫資料</p>
+                }
+              </div>
+
+              <div class="student-card__actions">
+                <button
+                  type="button"
+                  class="student-card__action-btn student-card__action-btn--view"
+                  (click)="navigateToDetail(student)"
+                >
+                  <i class="pi pi-eye"></i>
+                  <span>詳情</span>
+                </button>
+                <button
+                  type="button"
+                  class="student-card__action-btn student-card__action-btn--edit"
+                  (click)="openEditDialog(student)"
+                >
+                  <i class="pi pi-pencil"></i>
+                  <span>編輯</span>
+                </button>
+                @if (student.isActive) {
+                  <button
+                    type="button"
+                    class="student-card__action-btn student-card__action-btn--deactivate"
+                    (click)="confirmDeactivate(student)"
+                  >
+                    <i class="pi pi-ban"></i>
+                    <span>停用</span>
+                  </button>
+                }
+              </div>
+            </article>
+          }
+
+          @if (students().length > 0) {
+            <div class="students__mobile-count">共 {{ total() }} 名學生</div>
+          }
+        </div>
+
+        @if (total() > PAGE_SIZE) {
+          <p-paginator
+            [rows]="PAGE_SIZE"
+            [totalRecords]="total()"
+            [first]="(currentPage() - 1) * PAGE_SIZE"
+            (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
+          />
+        }
+      }
+    </div>
+  </div>
+</div>

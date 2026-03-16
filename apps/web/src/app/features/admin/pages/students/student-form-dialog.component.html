@@ -1,0 +1,177 @@
+<div class="form-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <span class="dialog-header-inline__title">{{ isEditing() ? '編輯學生資料' : '新增學生' }}</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <!-- 姓名 -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label">
+      姓名<span class="form-dialog__required">*</span>
+    </label>
+    <input
+      type="text"
+      pInputText
+      [ngModel]="formData().name"
+      (ngModelChange)="updateForm('name', $event)"
+      placeholder="請輸入學生姓名"
+      [disabled]="loading()"
+      class="w-full"
+    />
+  </div>
+
+  <!-- 年級 + 學校 -->
+  <div class="form-dialog__row">
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">
+        年級<span class="form-dialog__required">*</span>
+      </label>
+      <p-select
+        [options]="gradeOptions"
+        [ngModel]="formData().grade"
+        (ngModelChange)="updateForm('grade', $event)"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="選擇年級"
+        [disabled]="loading()"
+        styleClass="w-full"
+      />
+    </div>
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">
+        就讀學校<span class="form-dialog__required">*</span>
+      </label>
+      <input
+        type="text"
+        pInputText
+        [ngModel]="formData().school"
+        (ngModelChange)="updateForm('school', $event)"
+        placeholder="例如：台北國小"
+        [disabled]="loading()"
+        class="w-full"
+      />
+    </div>
+  </div>
+
+  <!-- 生日 + 性別 -->
+  <div class="form-dialog__row">
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">生日</label>
+      <p-datepicker
+        [ngModel]="formData().birthday"
+        (ngModelChange)="updateForm('birthday', $event)"
+        placeholder="選擇生日"
+        dateFormat="yy-mm-dd"
+        [showIcon]="true"
+        [disabled]="loading()"
+        styleClass="w-full"
+      />
+    </div>
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">性別</label>
+      <p-select
+        [options]="genderOptions"
+        [ngModel]="formData().gender"
+        (ngModelChange)="updateForm('gender', $event)"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="選擇性別"
+        [showClear]="true"
+        [disabled]="loading()"
+        styleClass="w-full"
+      />
+    </div>
+  </div>
+
+  <!-- 電話 -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label">學生電話</label>
+    <input
+      type="tel"
+      pInputText
+      [ngModel]="formData().phone"
+      (ngModelChange)="updateForm('phone', $event)"
+      placeholder="0912-345-678"
+      [disabled]="loading()"
+      class="w-full"
+    />
+  </div>
+
+  <!-- 地址 -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label">居住地址</label>
+    <input
+      type="text"
+      pInputText
+      [ngModel]="formData().address"
+      (ngModelChange)="updateForm('address', $event)"
+      placeholder="完整居住地址"
+      [disabled]="loading()"
+      class="w-full"
+    />
+  </div>
+
+  <!-- 緊急聯絡人 -->
+  <div class="form-dialog__row">
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">緊急聯絡人姓名</label>
+      <input
+        type="text"
+        pInputText
+        [ngModel]="formData().emergencyContactName"
+        (ngModelChange)="updateForm('emergencyContactName', $event)"
+        placeholder="緊急聯絡人"
+        [disabled]="loading()"
+        class="w-full"
+      />
+    </div>
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">緊急聯絡人電話</label>
+      <input
+        type="tel"
+        pInputText
+        [ngModel]="formData().emergencyContactPhone"
+        (ngModelChange)="updateForm('emergencyContactPhone', $event)"
+        placeholder="緊急聯絡電話"
+        [disabled]="loading()"
+        class="w-full"
+      />
+    </div>
+  </div>
+
+  <!-- 備註 -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label">備註</label>
+    <textarea
+      pTextarea
+      [ngModel]="formData().notes"
+      (ngModelChange)="updateForm('notes', $event)"
+      placeholder="特殊需求、注意事項..."
+      rows="3"
+      [disabled]="loading()"
+      class="w-full"
+    ></textarea>
+  </div>
+
+  <!-- Footer -->
+  <div class="form-dialog__footer">
+    <p-button
+      label="取消"
+      [text]="true"
+      severity="secondary"
+      [disabled]="loading()"
+      (onClick)="cancel()"
+    />
+    <p-button
+      [label]="isEditing() ? '儲存' : '建立'"
+      [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+      [loading]="loading()"
+      (onClick)="save()"
+      [disabled]="!isFormValid()"
+    />
+  </div>
+</div>

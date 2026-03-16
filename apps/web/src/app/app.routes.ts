@@ -156,6 +156,14 @@ export const routes: Routes = [
             data: { page: RoutesCatalog.ADMIN_STUDENTS },
           },
           {
+            path: RoutesCatalog.ADMIN_STUDENT_DETAIL.relativePath,
+            loadComponent: () =>
+              import('@features/admin/pages/students/detail/student-detail.page').then(
+                (m) => m.StudentDetailPage,
+              ),
+            data: { page: RoutesCatalog.ADMIN_STUDENT_DETAIL },
+          },
+          {
             path: RoutesCatalog.ADMIN_PARENTS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/parents/parents.page').then((m) => m.ParentsPage),
