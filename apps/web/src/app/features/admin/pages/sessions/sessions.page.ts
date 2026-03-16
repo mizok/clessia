@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { format } from 'date-fns';
 import { MessageService, type MenuItem } from 'primeng/api';
+import { ButtonModule } from 'primeng/button';
 import { MenuModule, type Menu } from 'primeng/menu';
 import { ToastModule } from 'primeng/toast';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -22,6 +23,7 @@ import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { SessionsService, type Session } from '@core/sessions.service';
 import type { Staff } from '@core/staff.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 
 import { SessionCancelDialogComponent } from './dialogs/session-cancel-dialog/session-cancel-dialog.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
@@ -56,6 +58,7 @@ import { SessionsActionsService } from './services/sessions-actions.service';
   imports: [
     ToastModule,
     MenuModule,
+    ButtonModule,
     SessionsHeaderComponent,
     SessionsBodyComponent,
     SessionFiltersComponent,
@@ -243,6 +246,17 @@ export class SessionsPage implements OnInit {
 
   protected clearSelection(): void {
     this.selectedIds.set(new Set());
+  }
+
+  protected openAuditLog(): void {
+    this.dialogService.open(AuditLogDialogComponent, {
+      header: '課堂操作紀錄',
+      width: '800px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { resourceTypes: ['session'] },
+    });
   }
 
   // ── Batch dialog ───────────────────────────────────────────────────────

@@ -276,6 +276,7 @@ interface SessionOperationState {
   readonly assignmentStatus: 'assigned' | 'unassigned';
   readonly status: 'scheduled' | 'completed' | 'cancelled';
   readonly classId: string;
+  readonly className?: string | null;
   readonly sessionDate: string;
   readonly startTime: string;
   readonly endTime: string;
@@ -415,7 +416,7 @@ async function loadSessionOperationState(
   const { data, error } = await supabase
     .from('sessions')
     .select(
-      'status, assignment_status, teacher_id, class_id, session_date, start_time, end_time, teacher:staff!teacher_id(display_name)',
+      'status, assignment_status, teacher_id, class_id, session_date, start_time, end_time, teacher:staff!teacher_id(display_name), class:classes!class_id(name)',
     )
     .eq('org_id', orgId)
     .eq('id', id)
@@ -424,6 +425,7 @@ async function loadSessionOperationState(
   if (error || !data) return null;
 
   const teacherRow = normalizeRelationRow(data.teacher);
+  const classRow = normalizeRelationRow(data.class);
 
   const assignmentStatus =
     (data.assignment_status as 'assigned' | 'unassigned' | null) ??
@@ -433,6 +435,7 @@ async function loadSessionOperationState(
     assignmentStatus,
     status: data.status as 'scheduled' | 'completed' | 'cancelled',
     classId: data.class_id as string,
+    className: (classRow?.['name'] as string | null | undefined) ?? null,
     sessionDate: data.session_date as string,
     startTime: data.start_time as string,
     endTime: data.end_time as string,
@@ -911,6 +914,20 @@ app.openapi(cancelSessionRoute, async (c) => {
     return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
   }
 
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'session',
+      resourceId: id,
+      resourceName: `${sessionState.className} ${sessionState.sessionDate}`,
+      action: 'cancel_session',
+      details: { reason: body.reason ?? null },
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
+
   return c.json({ success: true }, 200);
 });
 
@@ -1166,6 +1183,20 @@ app.openapi(substituteSessionRoute, async (c) => {
     return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
   }
 
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'session',
+      resourceId: id,
+      resourceName: `${sessionState.className} ${sessionState.sessionDate}`,
+      action: 'substitute_teacher',
+      details: { newTeacherId: body.substituteTeacherId },
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
+
   return c.json({ success: true }, 200);
 });
 
@@ -1363,6 +1394,24 @@ app.openapi(rescheduleSessionRoute, async (c) => {
   if (insertError) {
     return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
   }
+
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'session',
+      resourceId: id,
+      resourceName: `${sessionState.className} ${sessionState.sessionDate}`,
+      action: 'reschedule_session',
+      details: {
+        newDate: body.newSessionDate,
+        newStartTime: body.newStartTime,
+        newEndTime: body.newEndTime,
+      },
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
 
   return c.json({ success: true }, 200);
 });
@@ -1703,7 +1752,7 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
       {
         orgId,
         userId,
-        resourceType: 'class',
+        resourceType: 'session',
         resourceName: 'sessions',
         action: 'batch_assign_teacher',
         details: {
@@ -1950,7 +1999,7 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
       {
         orgId,
         userId,
-        resourceType: 'class',
+        resourceType: 'session',
         resourceName: 'sessions',
         action: 'batch_update_session_time',
         details: {
@@ -2126,7 +2175,7 @@ app.openapi(batchCancelRoute, async (c) => {
       {
         orgId,
         userId,
-        resourceType: 'class',
+        resourceType: 'session',
         resourceName: 'sessions',
         action: 'batch_cancel_session',
         details: {
@@ -2502,7 +2551,7 @@ app.openapi(batchUncancelRoute, async (c) => {
       {
         orgId,
         userId,
-        resourceType: 'class',
+        resourceType: 'session',
         resourceName: 'sessions',
         action: 'batch_uncancel_session',
         details: {

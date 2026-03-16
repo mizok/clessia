@@ -1329,7 +1329,7 @@ app.openapi(archiveRoute, async (c) => {
       resourceType: 'staff',
       resourceId: id,
       resourceName: staffRow['display_name'] as string,
-      action: 'update',
+      action: 'archive',
       details: { archived: true, unassignedSessions: unassigned?.length ?? 0 },
     },
     c.executionCtx.waitUntil.bind(c.executionCtx),
@@ -1399,8 +1399,77 @@ app.openapi(deactivateRoute, async (c) => {
       resourceType: 'staff',
       resourceId: id,
       resourceName: staffRow['display_name'] as string,
-      action: 'update',
+      action: 'deactivate',
       details: { inactive: true },
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
+
+  return c.json({ success: true }, 200);
+});
+
+// PATCH /api/staff/:id/activate
+const activateRoute = createRoute({
+  method: 'patch',
+  path: '/{id}/activate',
+  tags: ['Staff'],
+  summary: '啟用人員（從停用狀態恢復）',
+  request: {
+    params: z.object({ id: z.uuid() }),
+  },
+  responses: {
+    200: {
+      description: '啟用成功',
+      content: {
+        'application/json': {
+          schema: z.object({ success: z.boolean() }),
+        },
+      },
+    },
+    400: {
+      description: '啟用失敗',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    404: {
+      description: '人員不存在',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+  },
+});
+
+app.openapi(activateRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const requesterUserId = c.get('userId');
+  const { id } = c.req.valid('param');
+
+  const staffRow = await getStaffById(supabase, id);
+  if (!staffRow) {
+    return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
+  }
+
+  const isAdmin = await checkUserIsAdmin(supabase, requesterUserId);
+  if (!isAdmin) {
+    return c.json({ error: '僅管理員可啟用人員', code: 'FORBIDDEN' }, 403);
+  }
+
+  const { error } = await supabase.from('staff').update({ status: 'active' }).eq('id', id);
+  if (error) {
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+  }
+
+  logAudit(
+    supabase,
+    {
+      orgId: staffRow['org_id'] as string,
+      userId: requesterUserId,
+      resourceType: 'staff',
+      resourceId: id,
+      resourceName: staffRow['display_name'] as string,
+      action: 'activate',
     },
     c.executionCtx.waitUntil.bind(c.executionCtx),
   );

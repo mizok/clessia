@@ -122,6 +122,10 @@ export class StaffService {
     return this.http.patch<{ success: boolean }>(`${this.endpoint}/${id}/deactivate`, {});
   }
 
+  activate(id: string): Observable<{ success: boolean }> {
+    return this.http.patch<{ success: boolean }>(`${this.endpoint}/${id}/activate`, {});
+  }
+
   delete(id: string): Observable<{ success: boolean }> {
     return this.http.delete<{ success: boolean }>(`${this.endpoint}/${id}`);
   }

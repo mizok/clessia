@@ -11,10 +11,9 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 
 // PrimeNG
-import { MessageService, ConfirmationService, MenuItem } from 'primeng/api';
+import { MessageService, MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { ToastModule } from 'primeng/toast';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ButtonModule } from 'primeng/button';
 import { TabsModule } from 'primeng/tabs';
 import { MenuModule } from 'primeng/menu';
@@ -48,6 +47,8 @@ import { BrowserStateService } from '@core/browser-state.service';
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 
 interface CourseGroup {
@@ -62,7 +63,6 @@ interface CourseGroup {
     CommonModule,
     FormsModule,
     ToastModule,
-    ConfirmDialogModule,
     ButtonModule,
     TabsModule,
     MenuModule,
@@ -76,8 +76,9 @@ interface CourseGroup {
     TooltipModule,
     RouterModule,
     EmptyStateComponent,
+    ConfirmDialogComponent,
   ],
-  providers: [MessageService, ConfirmationService, DialogService],
+  providers: [MessageService, DialogService],
   templateUrl: './courses.page.html',
   styleUrl: './courses.page.scss',
 })
@@ -91,7 +92,6 @@ export class CoursesPage implements OnInit {
   private readonly refData = inject(ReferenceDataService);
   private readonly sessionsService = inject(SessionsService);
   private readonly messageService = inject(MessageService);
-  private readonly confirmationService = inject(ConfirmationService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly browserStateService = inject(BrowserStateService);
 
@@ -497,13 +497,15 @@ export class CoursesPage implements OnInit {
       .map((cl) => cl.id);
     if (ids.length === 0) return;
 
-    this.confirmationService.confirm({
-      message: `確定要啟用這 ${ids.length} 個班級嗎？`,
-      header: '批次啟用',
-      icon: 'pi pi-check-circle',
-      acceptLabel: '啟用',
-      rejectLabel: '取消',
-      accept: () => {
+    this.openConfirmDialog(
+      '批次啟用',
+      {
+        message: `確定要啟用這 ${ids.length} 個班級嗎？`,
+        acceptLabel: '啟用',
+        rejectLabel: '取消',
+        acceptSeverity: 'success',
+      },
+      () => {
         this.classesService.batchSetActive(ids, true).subscribe({
           next: (res) => {
             this.classes.update((list) =>
@@ -525,7 +527,7 @@ export class CoursesPage implements OnInit {
           },
         });
       },
-    });
+    );
   }
 
   protected batchDeactivate(): void {
@@ -534,14 +536,15 @@ export class CoursesPage implements OnInit {
       .map((cl) => cl.id);
     if (ids.length === 0) return;
 
-    this.confirmationService.confirm({
-      message: `確定要停用這 ${ids.length} 個班級嗎？僅會停用班級本身，已排課堂維持原樣；停用後無法新增報名與產生課堂。`,
-      header: '批次停用',
-      icon: 'pi pi-ban',
-      acceptLabel: '停用',
-      rejectLabel: '取消',
-      acceptButtonStyleClass: 'p-button-danger',
-      accept: () => {
+    this.openConfirmDialog(
+      '批次停用',
+      {
+        message: `確定要停用這 ${ids.length} 個班級嗎？僅會停用班級本身，已排課堂維持原樣；停用後無法新增報名與產生課堂。`,
+        acceptLabel: '停用',
+        rejectLabel: '取消',
+        acceptSeverity: 'warn',
+      },
+      () => {
         this.classesService.batchSetActive(ids, false).subscribe({
           next: (res) => {
             this.classes.update((list) =>
@@ -563,21 +566,22 @@ export class CoursesPage implements OnInit {
           },
         });
       },
-    });
+    );
   }
 
   protected batchDelete(): void {
     const ids = [...this.selectedClassIds()];
     if (ids.length === 0) return;
 
-    this.confirmationService.confirm({
-      message: `確定要刪除這 ${ids.length} 個班級嗎？已有歷史課堂記錄的班級將自動略過（請改為停用）。此操作無法復原。`,
-      header: '批次刪除',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '刪除',
-      rejectLabel: '取消',
-      acceptButtonStyleClass: 'p-button-danger',
-      accept: () => {
+    this.openConfirmDialog(
+      '批次刪除',
+      {
+        message: `確定要刪除這 ${ids.length} 個班級嗎？已有歷史課堂記錄的班級將自動略過（請改為停用）。此操作無法復原。`,
+        acceptLabel: '刪除',
+        rejectLabel: '取消',
+        acceptSeverity: 'danger',
+      },
+      () => {
         this.classesService.batchDelete(ids).subscribe({
           next: (res) => {
             this.classes.update((list) => list.filter((cl) => !res.deletedIds.includes(cl.id)));
@@ -601,7 +605,7 @@ export class CoursesPage implements OnInit {
           },
         });
       },
-    });
+    );
   }
 
   protected openCreateCourseDialog(): void {
@@ -645,14 +649,15 @@ export class CoursesPage implements OnInit {
   }
 
   protected confirmDeleteCourse(course: Course): void {
-    this.confirmationService.confirm({
-      message: `確定要刪除課程「${course.name}」嗎？此操作無法復原。`,
-      header: '確認刪除',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '刪除',
-      rejectLabel: '取消',
-      acceptButtonStyleClass: 'p-button-danger',
-      accept: () => {
+    this.openConfirmDialog(
+      '確認刪除',
+      {
+        message: `確定要刪除課程「${course.name}」嗎？此操作無法復原。`,
+        acceptLabel: '刪除',
+        rejectLabel: '取消',
+        acceptSeverity: 'danger',
+      },
+      () => {
         this.coursesService.delete(course.id).subscribe({
           next: () => {
             this.loadAll();
@@ -664,13 +669,15 @@ export class CoursesPage implements OnInit {
           },
           error: (err) => {
             if (err.error?.code === 'HAS_CLASSES') {
-              this.confirmationService.confirm({
-                message: `「${course.name}」底下還有班級，無法刪除。是否改為停用？`,
-                header: '無法刪除',
-                icon: 'pi pi-info-circle',
-                acceptLabel: '停用',
-                rejectLabel: '取消',
-                accept: () => {
+              this.openConfirmDialog(
+                '無法刪除',
+                {
+                  message: `「${course.name}」底下還有班級，無法刪除。是否改為停用？`,
+                  acceptLabel: '停用',
+                  rejectLabel: '取消',
+                  acceptSeverity: 'warn',
+                },
+                () => {
                   this.coursesService.update(course.id, { isActive: false }).subscribe({
                     next: () => {
                       this.loadAll();
@@ -689,7 +696,7 @@ export class CoursesPage implements OnInit {
                     },
                   });
                 },
-              });
+              );
             } else {
               this.messageService.add({
                 severity: 'error',
@@ -700,7 +707,7 @@ export class CoursesPage implements OnInit {
           },
         });
       },
-    });
+    );
   }
 
   protected openCreateClassDialog(courseId: string): void {
@@ -877,13 +884,15 @@ export class CoursesPage implements OnInit {
           if (result) this.loadAll();
         });
     } else {
-      this.confirmationService.confirm({
-        message: `確定要啟用班級「${cls.name}」嗎？`,
-        header: '確認啟用',
-        icon: 'pi pi-question-circle',
-        acceptLabel: '啟用',
-        rejectLabel: '取消',
-        accept: () => {
+      this.openConfirmDialog(
+        '確認啟用',
+        {
+          message: `確定要啟用班級「${cls.name}」嗎？`,
+          acceptLabel: '啟用',
+          rejectLabel: '取消',
+          acceptSeverity: 'success',
+        },
+        () => {
           this.classesService.toggleActive(cls.id).subscribe({
             next: () => {
               this.loadAll();
@@ -902,19 +911,21 @@ export class CoursesPage implements OnInit {
             },
           });
         },
-      });
+      );
     }
   }
 
   protected confirmDeleteClass(cls: Class): void {
     if (cls.hasPastSessions) {
-      this.confirmationService.confirm({
-        message: `「${cls.name}」已有歷史課堂記錄，無法刪除。是否改為停用？`,
-        header: '無法刪除',
-        icon: 'pi pi-info-circle',
-        acceptLabel: '停用',
-        rejectLabel: '取消',
-        accept: () => {
+      this.openConfirmDialog(
+        '無法刪除',
+        {
+          message: `「${cls.name}」已有歷史課堂記錄，無法刪除。是否改為停用？`,
+          acceptLabel: '停用',
+          rejectLabel: '取消',
+          acceptSeverity: 'warn',
+        },
+        () => {
           this.classesService.toggleActive(cls.id).subscribe({
             next: () => {
               this.loadAll();
@@ -933,18 +944,19 @@ export class CoursesPage implements OnInit {
             },
           });
         },
-      });
+      );
       return;
     }
 
-    this.confirmationService.confirm({
-      message: `確定要刪除班級「${cls.name}」嗎？此操作無法復原。`,
-      header: '確認刪除',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '刪除',
-      rejectLabel: '取消',
-      acceptButtonStyleClass: 'p-button-danger',
-      accept: () => {
+    this.openConfirmDialog(
+      '確認刪除',
+      {
+        message: `確定要刪除班級「${cls.name}」嗎？此操作無法復原。`,
+        acceptLabel: '刪除',
+        rejectLabel: '取消',
+        acceptSeverity: 'danger',
+      },
+      () => {
         this.classesService.delete(cls.id).subscribe({
           next: () => {
             this.loadAll();
@@ -963,12 +975,27 @@ export class CoursesPage implements OnInit {
           },
         });
       },
-    });
+    );
   }
 
   // ================================================================
   // Helpers
   // ================================================================
+
+  private openConfirmDialog(header: string, data: ConfirmDialogData, onAccept: () => void): void {
+    const ref = this.dialogService.open(ConfirmDialogComponent, {
+      header,
+      width: '420px',
+      modal: true,
+      showHeader: true,
+      appendTo: this.overlayContainer || 'body',
+      data,
+    });
+    if (!ref) return;
+    ref.onClose.subscribe((result) => {
+      if (result) onAccept();
+    });
+  }
 
   protected hasCourseNeedsIntervention(group: CourseGroup): boolean {
     const stats = this.getCourseInterventionStats(group);

@@ -21,17 +21,28 @@ const ACTION_MAP: Record<string, ActionConfig> = {
   create: { label: '新增', severity: 'success' },
   update: { label: '編輯', severity: 'info' },
   delete: { label: '刪除', severity: 'danger' },
+  archive: { label: '封存', severity: 'danger' },
+  deactivate: { label: '停用', severity: 'warn' },
+  activate: { label: '啟用', severity: 'success' },
   toggle_active: { label: '切換狀態', severity: 'secondary' },
   batch_activate: { label: '批次啟用', severity: 'success' },
   batch_deactivate: { label: '批次停用', severity: 'secondary' },
   batch_delete: { label: '批次刪除', severity: 'danger' },
+  batch_assign_teacher: { label: '批次指派老師', severity: 'info' },
+  batch_update_session_time: { label: '批次調整時間', severity: 'info' },
+  batch_cancel_session: { label: '批次停課', severity: 'warn' },
+  batch_uncancel_session: { label: '批次恢復課堂', severity: 'success' },
   add_schedule: { label: '新增時段', severity: 'success' },
   update_schedule: { label: '編輯時段', severity: 'info' },
   delete_schedule: { label: '刪除時段', severity: 'danger' },
+  cancel_session: { label: '停課', severity: 'warn' },
+  substitute_teacher: { label: '代課', severity: 'info' },
+  reschedule_session: { label: '調課', severity: 'info' },
 };
 
 const RESOURCE_TYPE_LABEL: Record<string, string> = {
   class: '班級',
+  session: '課堂',
   course: '課程',
   campus: '分校',
   staff: '人員',
@@ -78,6 +89,15 @@ export class AuditLogDialogComponent {
 
   protected getResourceTypeLabel(type: string): string {
     return RESOURCE_TYPE_LABEL[type] ?? type;
+  }
+
+  protected getDetailsSummary(log: AuditLog): string {
+    const d = log.details;
+    if (!d || Object.keys(d).length === 0) return '';
+    if (typeof d['unassignedSessions'] === 'number' && d['unassignedSessions'] > 0) {
+      return `解除 ${d['unassignedSessions']} 堂課堂指派`;
+    }
+    return '';
   }
 
   protected cancel(): void {

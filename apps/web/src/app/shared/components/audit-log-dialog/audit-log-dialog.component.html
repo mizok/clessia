@@ -66,6 +66,9 @@
                 [value]="getActionConfig(log.action).label"
                 [severity]="getActionConfig(log.action).severity"
               />
+              @if (getDetailsSummary(log)) {
+                <div class="audit-log__detail-summary">{{ getDetailsSummary(log) }}</div>
+              }
             </td>
           </tr>
         }

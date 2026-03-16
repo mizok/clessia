@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 // PrimeNG
 import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
-import { MessageService, ConfirmationService } from 'primeng/api';
+import { MessageService } from 'primeng/api';
 import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { CampusFormDialogComponent } from './campus-form-dialog.component';
 
@@ -23,11 +23,12 @@ import { ReferenceDataService } from '@core/reference-data.service';
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { ToastModule } from 'primeng/toast';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
@@ -45,15 +46,15 @@ import { PaginatorModule } from 'primeng/paginator';
     InputIconModule,
     IconFieldModule,
     ToastModule,
-    ConfirmDialogModule,
     TagModule,
     TooltipModule,
     SkeletonModule,
     InputTextModule,
     PaginatorModule,
     EmptyStateComponent,
+    ConfirmDialogComponent,
   ],
-  providers: [MessageService, ConfirmationService, DialogService],
+  providers: [MessageService, DialogService],
   templateUrl: './campuses.page.html',
   styleUrl: './campuses.page.scss',
 })
@@ -65,7 +66,6 @@ export class CampusesPage implements OnInit {
   });
   private readonly campusesService = inject(CampusesService);
   private readonly messageService = inject(MessageService);
-  private readonly confirmationService = inject(ConfirmationService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly refData = inject(ReferenceDataService);
@@ -181,15 +181,16 @@ export class CampusesPage implements OnInit {
   }
 
   confirmDelete(campus: Campus): void {
-    this.confirmationService.confirm({
-      message: `確定要刪除「${campus.name}」嗎？此操作無法復原。`,
-      header: '確認刪除',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '刪除',
-      rejectLabel: '取消',
-      acceptButtonStyleClass: 'p-button-danger',
-      accept: () => this.deleteCampus(campus),
-    });
+    this.openConfirmDialog(
+      '確認刪除',
+      {
+        message: `確定要刪除「${campus.name}」嗎？此操作無法復原。`,
+        acceptLabel: '刪除',
+        rejectLabel: '取消',
+        acceptSeverity: 'danger',
+      },
+      () => this.deleteCampus(campus),
+    );
   }
 
   private deleteCampus(campus: Campus): void {
@@ -205,14 +206,16 @@ export class CampusesPage implements OnInit {
       error: (err) => {
         console.error('Failed to delete campus', err);
         if (err.error?.code === 'HAS_COURSES') {
-          this.confirmationService.confirm({
-            message: `「${campus.name}」底下還有課程，無法刪除。是否改為停用？`,
-            header: '無法刪除',
-            icon: 'pi pi-info-circle',
-            acceptLabel: '停用',
-            rejectLabel: '取消',
-            accept: () => this.deactivateCampus(campus),
-          });
+          this.openConfirmDialog(
+            '無法刪除',
+            {
+              message: `「${campus.name}」底下還有課程，無法刪除。是否改為停用？`,
+              acceptLabel: '停用',
+              rejectLabel: '取消',
+              acceptSeverity: 'warn',
+            },
+            () => this.deactivateCampus(campus),
+          );
         } else {
           this.messageService.add({
             severity: 'error',
@@ -243,6 +246,21 @@ export class CampusesPage implements OnInit {
           detail: err.error?.error || '請稍後再試',
         });
       },
+    });
+  }
+
+  private openConfirmDialog(header: string, data: ConfirmDialogData, onAccept: () => void): void {
+    const ref = this.dialogService.open(ConfirmDialogComponent, {
+      header,
+      width: '420px',
+      modal: true,
+      showHeader: true,
+      appendTo: this.overlayContainer || 'body',
+      data,
+    });
+    if (!ref) return;
+    ref.onClose.subscribe((result) => {
+      if (result) onAccept();
     });
   }
 }

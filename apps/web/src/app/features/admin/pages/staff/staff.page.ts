@@ -8,13 +8,12 @@ import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { TooltipModule } from 'primeng/tooltip';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { PaginatorModule } from 'primeng/paginator';
-import { MessageService, ConfirmationService } from 'primeng/api';
+import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
 
@@ -33,6 +32,8 @@ import { SubjectsService, Subject } from '@core/subjects.service';
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 
@@ -75,15 +76,15 @@ const ROLE_OPTIONS: RoleOption[] = [
     SelectModule,
     TagModule,
     ToastModule,
-    ConfirmDialogModule,
     TooltipModule,
     IconFieldModule,
     InputIconModule,
     InputTextModule,
     PaginatorModule,
     EmptyStateComponent,
+    ConfirmDialogComponent,
   ],
-  providers: [MessageService, ConfirmationService, DialogService],
+  providers: [MessageService, DialogService],
   templateUrl: './staff.page.html',
   styleUrl: './staff.page.scss',
 })
@@ -93,7 +94,6 @@ export class StaffPage implements OnInit {
   private readonly campusesService = inject(CampusesService);
   private readonly subjectsService = inject(SubjectsService);
   private readonly messageService = inject(MessageService);
-  private readonly confirmationService = inject(ConfirmationService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly refData = inject(ReferenceDataService);
   protected get overlayContainer(): HTMLElement | null {
@@ -287,15 +287,16 @@ export class StaffPage implements OnInit {
   }
 
   confirmArchive(staff: Staff): void {
-    this.confirmationService.confirm({
-      message: `確定要封存「${staff.displayName}」嗎？封存後無法取消，帳號將永久停用且無法登入，未來課堂指派將自動解除，但歷史紀錄會保留。`,
-      header: '確認封存',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '封存',
-      rejectLabel: '取消',
-      acceptButtonStyleClass: 'p-button-warning',
-      accept: () => this.archiveStaff(staff),
-    });
+    this.openConfirmDialog(
+      '確認封存',
+      {
+        message: `確定要封存「${staff.displayName}」嗎？封存後無法取消，帳號將永久停用且無法登入，未來課堂指派將自動解除，但歷史紀錄會保留。`,
+        acceptLabel: '封存',
+        rejectLabel: '取消',
+        acceptSeverity: 'danger',
+      },
+      () => this.archiveStaff(staff),
+    );
   }
 
   private archiveStaff(staff: Staff): void {
@@ -321,27 +322,29 @@ export class StaffPage implements OnInit {
 
   protected confirmDeactivate(staff: Staff): void {
     if (staff.status === 'inactive') {
-      this.confirmationService.confirm({
-        message: `確定要重新啟用「${staff.displayName}」嗎？`,
-        header: '確認啟用',
-        icon: 'pi pi-check-circle',
-        acceptLabel: '啟用',
-        rejectLabel: '取消',
-        acceptButtonStyleClass: 'p-button-success',
-        accept: () => this.activateStaff(staff),
-      });
+      this.openConfirmDialog(
+        '確認啟用',
+        {
+          message: `確定要重新啟用「${staff.displayName}」嗎？`,
+          acceptLabel: '啟用',
+          rejectLabel: '取消',
+          acceptSeverity: 'success',
+        },
+        () => this.reactivateStaff(staff),
+      );
       return;
     }
 
-    this.confirmationService.confirm({
-      message: `確定要停用「${staff.displayName}」嗎？停用後帳號將暫時無法使用，但角色與課堂指派會保留。`,
-      header: '確認停用',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '停用',
-      rejectLabel: '取消',
-      acceptButtonStyleClass: 'p-button-warning',
-      accept: () => this.deactivateStaff(staff),
-    });
+    this.openConfirmDialog(
+      '確認停用',
+      {
+        message: `確定要停用「${staff.displayName}」嗎？停用後帳號將暫時無法使用，但角色與課堂指派會保留。`,
+        acceptLabel: '停用',
+        rejectLabel: '取消',
+        acceptSeverity: 'warn',
+      },
+      () => this.deactivateStaff(staff),
+    );
   }
 
   private deactivateStaff(staff: Staff): void {
@@ -365,8 +368,8 @@ export class StaffPage implements OnInit {
     });
   }
 
-  private activateStaff(staff: Staff): void {
-    this.staffService.update(staff.id, { status: 'active' }).subscribe({
+  private reactivateStaff(staff: Staff): void {
+    this.staffService.activate(staff.id).subscribe({
       next: () => {
         this.messageService.add({
           severity: 'success',
@@ -383,6 +386,21 @@ export class StaffPage implements OnInit {
           detail: err.error?.error || '請稍後再試',
         });
       },
+    });
+  }
+
+  private openConfirmDialog(header: string, data: ConfirmDialogData, onAccept: () => void): void {
+    const ref = this.dialogService.open(ConfirmDialogComponent, {
+      header,
+      width: '420px',
+      modal: true,
+      showHeader: true,
+      appendTo: this.overlayContainer || 'body',
+      data,
+    });
+    if (!ref) return;
+    ref.onClose.subscribe((result) => {
+      if (result) onAccept();
     });
   }
 

@@ -3,10 +3,21 @@
 
 <div class="cal">
   <section class="cal__controls">
-    <app-sessions-header
-      [unassignedCount]="displayedUnassignedCount()"
-      (filterUnassigned)="onFilterUnassigned()"
-    />
+    <section class="cal__header">
+      <app-sessions-header
+        [unassignedCount]="displayedUnassignedCount()"
+        (filterUnassigned)="onFilterUnassigned()"
+      />
+      <div class="cal__header-actions">
+        <p-button
+          label="操作紀錄"
+          icon="pi pi-history"
+          [outlined]="true"
+          severity="secondary"
+          (onClick)="openAuditLog()"
+        />
+      </div>
+    </section>
 
     <app-session-filters
       [listDateRange]="listDateRange()"
