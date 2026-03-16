@@ -376,3 +376,58 @@ BEGIN
         END LOOP;
     END LOOP;
 END $$;
+
+-- ===== Students & Parents seed =====
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  student_names TEXT[] := ARRAY[
+    '林子璿', '陳宇翔', '張品妍', '王柏睿', '李語涵',
+    '黃承恩', '劉靖雯', '吳宥廷', '鄭詠晴', '謝家豪',
+    '楊欣妍', '蔡昱辰', '許怡君', '邱冠廷', '曾沛蓉'
+  ];
+  student_grades TEXT[] := ARRAY['J1','J2','J3','J1','P6','J3','S1','J2','P5','S2','J1','J3','P6','J2','S1'];
+  student_schools TEXT[] := ARRAY[
+    '台北市立文山國中', '新北市立景美國中', '台北市立木柵國中',
+    '台北市立信義國中', '台北市立大安國小', '新北市立永和國中',
+    '台北市立中正高中', '台北市立萬芳國中', '台北市立興隆國小',
+    '台北市立南港高中', '台北市立內湖國中', '新北市立土城國中',
+    '台北市立大直國小', '台北市立松山國中', '台北市立南港高中'
+  ];
+  parent_last_names TEXT[] := ARRAY['林', '陳', '張', '王', '李', '黃', '劉', '吳'];
+  parent_given_names TEXT[] := ARRAY['志明', '淑芬', '建國', '美玲', '宗翰', '雅雯', '俊賢', '秀蘭'];
+  v_student_id UUID;
+  v_parent_id UUID;
+  student_index INTEGER;
+BEGIN
+  -- Cleanup（確保冪等）
+  DELETE FROM public.parent_student_relations
+    WHERE student_id IN (SELECT id FROM public.students WHERE org_id = demo_org_id);
+  DELETE FROM public.parents WHERE org_id = demo_org_id;
+  DELETE FROM public.students WHERE org_id = demo_org_id;
+
+  -- 插入 students & parents
+  FOR student_index IN 1..array_length(student_names, 1) LOOP
+    INSERT INTO public.students (org_id, name, grade, school, is_active)
+    VALUES (
+      demo_org_id,
+      student_names[student_index],
+      student_grades[student_index]::public.grade_level,
+      student_schools[student_index],
+      TRUE
+    )
+    RETURNING id INTO v_student_id;
+
+    INSERT INTO public.parents (org_id, name, phone, is_active)
+    VALUES (
+      demo_org_id,
+      parent_last_names[((student_index - 1) % 8) + 1] || parent_given_names[((student_index - 1) % 8) + 1],
+      '09' || LPAD((student_index * 12345678 % 100000000)::TEXT, 8, '0'),
+      TRUE
+    )
+    RETURNING id INTO v_parent_id;
+
+    INSERT INTO public.parent_student_relations (parent_id, student_id, relation, is_primary)
+    VALUES (v_parent_id, v_student_id, 'parent', TRUE);
+  END LOOP;
+END $$;
