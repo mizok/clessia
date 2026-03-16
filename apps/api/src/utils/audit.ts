@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-type ResourceType = 'class' | 'course' | 'campus' | 'staff' | 'session';
+type ResourceType = 'class' | 'course' | 'campus' | 'staff' | 'session' | 'student';
 
 export interface AuditLogParams {
   orgId: string;

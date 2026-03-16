@@ -266,14 +266,18 @@ app.openapi(
 
     const student = toStudentResponse(data as Record<string, unknown>);
 
-    await logAudit(supabase, {
-      orgId,
-      userId: c.get('userId'),
-      resourceType: 'student',
-      resourceId: student.id,
-      action: 'create',
-      newValue: student,
-    });
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId: c.get('userId'),
+        resourceType: 'student',
+        resourceId: student.id,
+        action: 'create',
+        details: { newValue: student },
+      },
+      c.executionCtx.waitUntil.bind(c.executionCtx),
+    );
 
     return c.json({ data: student }, 201);
   },
@@ -283,7 +287,7 @@ app.openapi(
 app.openapi(
   createRoute({
     method: 'get',
-    path: '/:id',
+    path: '/{id}',
     tags: ['Students'],
     summary: '取得學生詳情',
     request: { params: z.object({ id: z.uuid() }) },
@@ -350,7 +354,7 @@ app.openapi(
 app.openapi(
   createRoute({
     method: 'put',
-    path: '/:id',
+    path: '/{id}',
     tags: ['Students'],
     summary: '更新學生資料',
     request: {
@@ -384,6 +388,10 @@ app.openapi(
     if (body.notes !== undefined) updatePayload['notes'] = body.notes;
     if (body.isActive !== undefined) updatePayload['is_active'] = body.isActive;
 
+    if (Object.keys(updatePayload).length === 0) {
+      return c.json({ error: '未提供任何更新欄位' }, 400);
+    }
+
     const { data, error } = await supabase
       .from('students')
       .update(updatePayload)
@@ -398,14 +406,18 @@ app.openapi(
 
     const updated = toStudentResponse(data as Record<string, unknown>);
 
-    await logAudit(supabase, {
-      orgId,
-      userId: c.get('userId'),
-      resourceType: 'student',
-      resourceId: id,
-      action: 'update',
-      newValue: updated,
-    });
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId: c.get('userId'),
+        resourceType: 'student',
+        resourceId: id,
+        action: 'update',
+        details: { newValue: updated },
+      },
+      c.executionCtx.waitUntil.bind(c.executionCtx),
+    );
 
     return c.json({ data: updated }, 200);
   },
@@ -415,7 +427,7 @@ app.openapi(
 app.openapi(
   createRoute({
     method: 'delete',
-    path: '/:id',
+    path: '/{id}',
     tags: ['Students'],
     summary: '停用學生（軟刪除）',
     request: { params: z.object({ id: z.uuid() }) },
@@ -429,23 +441,29 @@ app.openapi(
     const orgId = c.get('orgId');
     const { id } = c.req.valid('param');
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('students')
       .update({ is_active: false })
       .eq('id', id)
-      .eq('org_id', orgId);
+      .eq('org_id', orgId)
+      .select('id')
+      .single();
 
-    if (error) {
-      return c.json({ error: '停用失敗', message: error.message }, 500);
+    if (error || !data) {
+      return c.json({ error: '學生不存在' }, 404);
     }
 
-    await logAudit(supabase, {
-      orgId,
-      userId: c.get('userId'),
-      resourceType: 'student',
-      resourceId: id,
-      action: 'deactivate',
-    });
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId: c.get('userId'),
+        resourceType: 'student',
+        resourceId: id,
+        action: 'deactivate',
+      },
+      c.executionCtx.waitUntil.bind(c.executionCtx),
+    );
 
     return c.json({ success: true }, 200);
   },
