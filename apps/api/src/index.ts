@@ -13,6 +13,7 @@ import subjectsRoute from './routes/subjects';
 import classesRoute from './routes/classes';
 import auditLogsRoute from './routes/audit-logs';
 import sessionsRoute from './routes/sessions';
+import studentsRoute from './routes/students';
 
 // ============================================================
 // Types
@@ -173,6 +174,7 @@ app.route('/api/subjects', subjectsRoute);
 app.route('/api/classes', classesRoute);
 app.route('/api/audit-logs', auditLogsRoute);
 app.route('/api/sessions', sessionsRoute);
+app.route('/api/students', studentsRoute);
 
 // ============================================================
 // Error Handler
