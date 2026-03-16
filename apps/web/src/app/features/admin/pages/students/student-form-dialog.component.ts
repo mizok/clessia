@@ -15,7 +15,6 @@ import {
   StudentGender,
   GRADE_LEVELS,
   GRADE_LEVEL_LABELS,
-  CreateStudentInput,
   UpdateStudentInput,
 } from '@core/students.service';
 
@@ -41,24 +40,20 @@ export class StudentFormDialogComponent {
   private readonly config = inject(DynamicDialogConfig);
 
   protected readonly loading = signal(false);
-  protected readonly student = signal<Student | null>(this.config.data?.student ?? null);
+  protected readonly student = signal<Student>(this.config.data.student);
 
   protected readonly formData = signal({
-    name: this.student()?.name ?? '',
-    grade: this.student()?.grade ?? ('' as GradeLevel),
-    school: this.student()?.school ?? '',
-    birthday: this.student()?.birthday
-      ? new Date(this.student()!.birthday!)
-      : (null as Date | null),
-    gender: this.student()?.gender ?? (null as StudentGender | null),
-    phone: this.student()?.phone ?? '',
-    address: this.student()?.address ?? '',
-    emergencyContactName: this.student()?.emergencyContactName ?? '',
-    emergencyContactPhone: this.student()?.emergencyContactPhone ?? '',
-    notes: this.student()?.notes ?? '',
+    name: this.student().name,
+    grade: this.student().grade,
+    school: this.student().school,
+    birthday: this.student().birthday ? new Date(this.student().birthday!) : (null as Date | null),
+    gender: this.student().gender,
+    phone: this.student().phone ?? '',
+    address: this.student().address ?? '',
+    emergencyContactName: this.student().emergencyContactName ?? '',
+    emergencyContactPhone: this.student().emergencyContactPhone ?? '',
+    notes: this.student().notes ?? '',
   });
-
-  protected readonly isEditing = computed(() => this.student() !== null);
 
   protected readonly gradeOptions = GRADE_LEVELS.map((g) => ({
     label: GRADE_LEVEL_LABELS[g],
@@ -82,63 +77,32 @@ export class StudentFormDialogComponent {
     const f = this.formData();
     this.loading.set(true);
 
-    const birthday = f.birthday ? this.formatDate(f.birthday) : null;
+    const input: UpdateStudentInput = {
+      name: f.name.trim(),
+      grade: f.grade,
+      school: f.school.trim(),
+      birthday: f.birthday ? this.formatDate(f.birthday) : null,
+      gender: f.gender,
+      phone: f.phone.trim() || null,
+      address: f.address.trim() || null,
+      emergencyContactName: f.emergencyContactName.trim() || null,
+      emergencyContactPhone: f.emergencyContactPhone.trim() || null,
+      notes: f.notes.trim() || null,
+    };
 
-    if (this.isEditing()) {
-      const input: UpdateStudentInput = {
-        name: f.name.trim(),
-        grade: f.grade,
-        school: f.school.trim(),
-        birthday,
-        gender: f.gender,
-        phone: f.phone.trim() || null,
-        address: f.address.trim() || null,
-        emergencyContactName: f.emergencyContactName.trim() || null,
-        emergencyContactPhone: f.emergencyContactPhone.trim() || null,
-        notes: f.notes.trim() || null,
-      };
-
-      this.studentsService.update(this.student()!.id, input).subscribe({
-        next: (res) => {
-          this.ref.close(res.data);
-        },
-        error: (err) => {
-          this.messageService.add({
-            severity: 'error',
-            summary: '更新失敗',
-            detail: err.error?.error || '請稍後再試',
-          });
-          this.loading.set(false);
-        },
-      });
-    } else {
-      const input: CreateStudentInput = {
-        name: f.name.trim(),
-        grade: f.grade,
-        school: f.school.trim(),
-        birthday,
-        gender: f.gender,
-        phone: f.phone.trim() || null,
-        address: f.address.trim() || null,
-        emergencyContactName: f.emergencyContactName.trim() || null,
-        emergencyContactPhone: f.emergencyContactPhone.trim() || null,
-        notes: f.notes.trim() || null,
-      };
-
-      this.studentsService.create(input).subscribe({
-        next: (res) => {
-          this.ref.close(res.data);
-        },
-        error: (err) => {
-          this.messageService.add({
-            severity: 'error',
-            summary: '新增失敗',
-            detail: err.error?.error || '請稍後再試',
-          });
-          this.loading.set(false);
-        },
-      });
-    }
+    this.studentsService.update(this.student().id, input).subscribe({
+      next: (res) => {
+        this.ref.close(res.data);
+      },
+      error: (err) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: '更新失敗',
+          detail: err.error?.error || '請稍後再試',
+        });
+        this.loading.set(false);
+      },
+    });
   }
 
   protected cancel(): void {

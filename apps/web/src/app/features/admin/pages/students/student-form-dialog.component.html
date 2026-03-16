@@ -1,7 +1,7 @@
 <div class="form-dialog">
   <div class="dialog-header-inline">
     <div class="dialog-header-inline__content">
-      <span class="dialog-header-inline__title">{{ isEditing() ? '編輯學生資料' : '新增學生' }}</span>
+      <span class="dialog-header-inline__title">編輯學生資料</span>
     </div>
     <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
       <i class="pi pi-times"></i>
@@ -167,7 +167,7 @@
       (onClick)="cancel()"
     />
     <p-button
-      [label]="isEditing() ? '儲存' : '建立'"
+      label="儲存"
       [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
       [loading]="loading()"
       (onClick)="save()"

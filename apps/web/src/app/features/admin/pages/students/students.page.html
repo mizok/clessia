@@ -7,9 +7,6 @@
       <h1 class="students__title">學生資料</h1>
       <p class="students__subtitle">管理學生基本資料、家長關聯與學習紀錄</p>
     </div>
-    <div class="students__header-actions">
-      <p-button label="新增學生" icon="pi pi-plus" (onClick)="openCreateDialog()" />
-    </div>
   </header>
 
   <!-- Main Card -->
@@ -111,11 +108,9 @@
         } @else {
           <app-empty-state
             icon="pi pi-users"
-            title="尚未建立學生資料"
-            description="開始新增第一位學生"
-          >
-            <p-button label="新增學生" icon="pi pi-plus" (onClick)="openCreateDialog()" />
-          </app-empty-state>
+            title="尚未有學生資料"
+            description="學生資料由報名流程自動建立"
+          />
         }
       } @else {
         <!-- Desktop: Data Table -->

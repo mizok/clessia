@@ -159,29 +159,6 @@ export class StudentsPage implements OnInit {
     this.router.navigate([RoutesCatalog.ADMIN_STUDENTS.absolutePath, student.id]);
   }
 
-  openCreateDialog(): void {
-    const ref = this.dialogService.open(StudentFormDialogComponent, {
-      header: '新增學生',
-      width: '560px',
-      modal: true,
-      showHeader: false,
-      appendTo: this.overlayContainer || 'body',
-    });
-
-    if (ref) {
-      ref.onClose.subscribe((newStudent) => {
-        if (newStudent) {
-          this.loadStudents();
-          this.messageService.add({
-            severity: 'success',
-            summary: '新增成功',
-            detail: `「${newStudent.name}」已建立`,
-          });
-        }
-      });
-    }
-  }
-
   openEditDialog(student: Student): void {
     const ref = this.dialogService.open(StudentFormDialogComponent, {
       header: '編輯學生',

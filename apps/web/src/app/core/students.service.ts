@@ -57,10 +57,10 @@ export interface StudentQueryParams {
   isActive?: boolean;
 }
 
-export interface CreateStudentInput {
-  name: string;
-  grade: GradeLevel;
-  school: string;
+export interface UpdateStudentInput {
+  name?: string;
+  grade?: GradeLevel;
+  school?: string;
   birthday?: string | null;
   gender?: StudentGender | null;
   phone?: string | null;
@@ -68,9 +68,8 @@ export interface CreateStudentInput {
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
   notes?: string | null;
+  isActive?: boolean;
 }
-
-export type UpdateStudentInput = Partial<CreateStudentInput> & { isActive?: boolean };
 
 export const GRADE_LEVELS: GradeLevel[] = [
   'K',
@@ -99,10 +98,6 @@ export class StudentsService {
 
   get(id: string): Observable<{ data: StudentDetail }> {
     return this.http.get<{ data: StudentDetail }>(`${this.endpoint}/${id}`);
-  }
-
-  create(input: CreateStudentInput): Observable<{ data: Student }> {
-    return this.http.post<{ data: Student }>(this.endpoint, input);
   }
 
   update(id: string, input: UpdateStudentInput): Observable<{ data: Student }> {

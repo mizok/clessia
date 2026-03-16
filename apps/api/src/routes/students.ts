@@ -63,11 +63,11 @@ const StudentListResponseSchema = z
   })
   .openapi('StudentListResponse');
 
-const CreateStudentSchema = z
+const UpdateStudentSchema = z
   .object({
-    name: z.string().min(1, '姓名不得為空'),
-    grade: GradeLevelSchema,
-    school: z.string().min(1, '就讀學校不得為空'),
+    name: z.string().min(1).optional(),
+    grade: GradeLevelSchema.optional(),
+    school: z.string().min(1).optional(),
     birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD').nullable().optional(),
     gender: StudentGenderSchema.nullable().optional(),
     phone: z.string().nullable().optional(),
@@ -75,11 +75,8 @@ const CreateStudentSchema = z
     emergencyContactName: z.string().nullable().optional(),
     emergencyContactPhone: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
+    isActive: z.boolean().optional(),
   })
-  .openapi('CreateStudent');
-
-const UpdateStudentSchema = CreateStudentSchema.partial()
-  .extend({ isActive: z.boolean().optional() })
   .openapi('UpdateStudent');
 
 // ============================================================
@@ -217,69 +214,6 @@ app.openapi(
       },
       200,
     );
-  },
-);
-
-// POST /api/students
-app.openapi(
-  createRoute({
-    method: 'post',
-    path: '/',
-    tags: ['Students'],
-    summary: '新增學生',
-    request: {
-      body: { content: { 'application/json': { schema: CreateStudentSchema } } },
-    },
-    responses: {
-      201: {
-        description: '學生建立成功',
-        content: { 'application/json': { schema: z.object({ data: StudentSchema }) } },
-      },
-    },
-  }),
-  async (c) => {
-    const supabase = c.get('supabase');
-    const orgId = c.get('orgId');
-    const body = c.req.valid('json');
-
-    const { data, error } = await supabase
-      .from('students')
-      .insert({
-        org_id: orgId,
-        name: body.name,
-        grade: body.grade,
-        school: body.school,
-        birthday: body.birthday ?? null,
-        gender: body.gender ?? null,
-        phone: body.phone ?? null,
-        address: body.address ?? null,
-        emergency_contact_name: body.emergencyContactName ?? null,
-        emergency_contact_phone: body.emergencyContactPhone ?? null,
-        notes: body.notes ?? null,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      return c.json({ error: '新增學生失敗', message: error.message }, 500);
-    }
-
-    const student = toStudentResponse(data as Record<string, unknown>);
-
-    logAudit(
-      supabase,
-      {
-        orgId,
-        userId: c.get('userId'),
-        resourceType: 'student',
-        resourceId: student.id,
-        action: 'create',
-        details: { newValue: student },
-      },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
-    );
-
-    return c.json({ data: student }, 201);
   },
 );
 
