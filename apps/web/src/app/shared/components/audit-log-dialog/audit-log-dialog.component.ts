@@ -32,6 +32,7 @@ const ACTION_MAP: Record<string, ActionConfig> = {
   batch_update_session_time: { label: '批次調整時間', severity: 'info' },
   batch_cancel_session: { label: '批次停課', severity: 'warn' },
   batch_uncancel_session: { label: '批次恢復課堂', severity: 'success' },
+  generate_sessions: { label: '建立課堂', severity: 'success' },
   add_schedule: { label: '新增時段', severity: 'success' },
   update_schedule: { label: '編輯時段', severity: 'info' },
   delete_schedule: { label: '刪除時段', severity: 'danger' },

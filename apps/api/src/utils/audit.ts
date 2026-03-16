@@ -39,6 +39,16 @@ export function formatAuditClassResourceName(params: {
   return joinAuditResourceParts([params.className, params.courseName, params.campusName]);
 }
 
+export function formatAuditSessionResourceName(params: {
+  courseName?: string | null;
+  className?: string | null;
+  sessionDate?: string | null;
+  startTime?: string | null;
+}): string | null {
+  const dateTime = [params.sessionDate, params.startTime].filter(Boolean).join(' ');
+  return joinAuditResourceParts([params.courseName, params.className, dateTime || null]);
+}
+
 /**
  * 寫入 audit_logs。
  * 在 Cloudflare Workers 環境中必須傳入 waitUntil，

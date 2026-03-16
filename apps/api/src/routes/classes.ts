@@ -1480,7 +1480,9 @@ app.openapi(
 
     const { data: cls, error: clsError } = await supabase
       .from('classes')
-      .select('id, is_active, courses(id, is_active)')
+      .select(
+        'id, name, is_active, courses!course_id(id, name, is_active, campus:campuses!campus_id(name))',
+      )
       .eq('id', id)
       .eq('org_id', orgId)
       .maybeSingle();
@@ -1495,10 +1497,24 @@ app.openapi(
       return c.json({ error: '班級已停用，無法新增未來課程排程', code: 'CLASS_INACTIVE' }, 409);
     }
     const linkedCourseRaw = cls.courses as
-      | { id?: string; is_active?: boolean | null }
-      | Array<{ id?: string; is_active?: boolean | null }>
+      | {
+          id?: string;
+          name?: string | null;
+          is_active?: boolean | null;
+          campus?: { name?: string | null } | Array<{ name?: string | null }> | null;
+        }
+      | Array<{
+          id?: string;
+          name?: string | null;
+          is_active?: boolean | null;
+          campus?: { name?: string | null } | Array<{ name?: string | null }> | null;
+        }>
       | null;
     const linkedCourse = Array.isArray(linkedCourseRaw) ? linkedCourseRaw[0] : linkedCourseRaw;
+    const linkedCampusRaw = linkedCourse?.campus;
+    const linkedCampus = Array.isArray(linkedCampusRaw) ? linkedCampusRaw[0] : linkedCampusRaw;
+    const courseName = linkedCourse?.name ?? null;
+    const campusName = linkedCampus?.name ?? null;
     if (linkedCourse && linkedCourse.is_active === false) {
       return c.json({ error: '課程已停用，無法新增未來課程排程', code: 'COURSE_INACTIVE' }, 409);
     }
@@ -1553,6 +1569,23 @@ app.openapi(
     });
 
     if (plan.toInsert.length === 0) {
+      logAudit(
+        supabase,
+        {
+          orgId,
+          userId,
+          resourceType: 'session',
+          action: 'generate_sessions',
+          resourceName: formatAuditClassResourceName({
+            className: (cls.name as string | null | undefined) ?? null,
+            courseName,
+            campusName,
+          }),
+          details: { from, to, created: 0 },
+        },
+        c.executionCtx.waitUntil.bind(c.executionCtx),
+      );
+
       return c.json(plan.summary, 200);
     }
 
@@ -1577,6 +1610,23 @@ app.openapi(
       (row) => row.assignment_status === 'unassigned',
     ).length;
     const raceConditionSkipped = plan.toInsert.length - insertedRows.length;
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'session',
+        action: 'generate_sessions',
+        resourceName: formatAuditClassResourceName({
+          className: (cls.name as string | null | undefined) ?? null,
+          courseName,
+          campusName,
+        }),
+        details: { from, to, createdAssigned, createdUnassigned },
+      },
+      c.executionCtx.waitUntil.bind(c.executionCtx),
+    );
 
     return c.json(
       {

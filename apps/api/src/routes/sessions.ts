@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
-import { logAudit } from '../utils/audit';
+import { logAudit, formatAuditSessionResourceName } from '../utils/audit';
 import {
   assertSessionOperable,
   SessionCancelledError,
@@ -277,6 +277,8 @@ interface SessionOperationState {
   readonly status: 'scheduled' | 'completed' | 'cancelled';
   readonly classId: string;
   readonly className?: string | null;
+  readonly courseName?: string | null;
+  readonly campusName?: string | null;
   readonly sessionDate: string;
   readonly startTime: string;
   readonly endTime: string;
@@ -416,7 +418,7 @@ async function loadSessionOperationState(
   const { data, error } = await supabase
     .from('sessions')
     .select(
-      'status, assignment_status, teacher_id, class_id, session_date, start_time, end_time, teacher:staff!teacher_id(display_name), class:classes!class_id(name)',
+      'status, assignment_status, teacher_id, class_id, session_date, start_time, end_time, teacher:staff!teacher_id(display_name), class:classes!class_id(name, course:courses!course_id(name, campus:campuses!campus_id(name)))',
     )
     .eq('org_id', orgId)
     .eq('id', id)
@@ -426,6 +428,8 @@ async function loadSessionOperationState(
 
   const teacherRow = normalizeRelationRow(data.teacher);
   const classRow = normalizeRelationRow(data.class);
+  const courseRow = normalizeRelationRow(classRow?.['course']);
+  const campusRow = normalizeRelationRow(courseRow?.['campus']);
 
   const assignmentStatus =
     (data.assignment_status as 'assigned' | 'unassigned' | null) ??
@@ -436,6 +440,8 @@ async function loadSessionOperationState(
     status: data.status as 'scheduled' | 'completed' | 'cancelled',
     classId: data.class_id as string,
     className: (classRow?.['name'] as string | null | undefined) ?? null,
+    courseName: (courseRow?.['name'] as string | null | undefined) ?? null,
+    campusName: (campusRow?.['name'] as string | null | undefined) ?? null,
     sessionDate: data.session_date as string,
     startTime: data.start_time as string,
     endTime: data.end_time as string,
@@ -921,7 +927,12 @@ app.openapi(cancelSessionRoute, async (c) => {
       userId,
       resourceType: 'session',
       resourceId: id,
-      resourceName: `${sessionState.className} ${sessionState.sessionDate}`,
+      resourceName: formatAuditSessionResourceName({
+        courseName: sessionState.courseName,
+        className: sessionState.className,
+        sessionDate: sessionState.sessionDate,
+        startTime: sessionState.startTime,
+      }),
       action: 'cancel_session',
       details: { reason: body.reason ?? null },
     },
@@ -1190,7 +1201,12 @@ app.openapi(substituteSessionRoute, async (c) => {
       userId,
       resourceType: 'session',
       resourceId: id,
-      resourceName: `${sessionState.className} ${sessionState.sessionDate}`,
+      resourceName: formatAuditSessionResourceName({
+        courseName: sessionState.courseName,
+        className: sessionState.className,
+        sessionDate: sessionState.sessionDate,
+        startTime: sessionState.startTime,
+      }),
       action: 'substitute_teacher',
       details: { newTeacherId: body.substituteTeacherId },
     },
@@ -1402,7 +1418,12 @@ app.openapi(rescheduleSessionRoute, async (c) => {
       userId,
       resourceType: 'session',
       resourceId: id,
-      resourceName: `${sessionState.className} ${sessionState.sessionDate}`,
+      resourceName: formatAuditSessionResourceName({
+        courseName: sessionState.courseName,
+        className: sessionState.className,
+        sessionDate: sessionState.sessionDate,
+        startTime: sessionState.startTime,
+      }),
       action: 'reschedule_session',
       details: {
         newDate: body.newSessionDate,
