@@ -70,23 +70,24 @@
   &__row {
     display: flex;
     align-items: center;
-    gap: var(--space-1);
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--border-radius);
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-2);
+    border-radius: var(--radius-md);
     transition: background 0.15s;
+    cursor: default;
 
     &:hover {
       background: var(--zinc-50);
     }
 
     &--skeleton {
-      padding: var(--space-1) 0;
+      padding: var(--space-2) 0;
     }
   }
 
   &__name {
     flex: 1;
-    font-size: 0.9375rem;
+    font-size: var(--text-md);
     color: var(--zinc-800);
   }
 
@@ -105,7 +106,7 @@
   &__divider {
     height: 1px;
     background: var(--zinc-200);
-    margin: var(--space-2) 0;
+    margin: var(--space-3) 0;
   }
 
   &__add {
