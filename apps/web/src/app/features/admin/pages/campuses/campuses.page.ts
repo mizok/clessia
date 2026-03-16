@@ -18,6 +18,7 @@ import {
   UpdateCampusInput,
 } from '@core/campuses.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -67,6 +68,7 @@ export class CampusesPage implements OnInit {
   private readonly confirmationService = inject(ConfirmationService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
+  private readonly refData = inject(ReferenceDataService);
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
   }
@@ -78,12 +80,19 @@ export class CampusesPage implements OnInit {
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
   protected readonly PAGE_SIZE = 20;
+  protected readonly showInactiveCampuses = signal(false);
 
   // Computed
   readonly activeCampusCount = computed(() => this.summary().activeCount);
   readonly inactiveCampusCount = computed(() => this.summary().inactiveCount);
 
   ngOnInit(): void {
+    this.loadCampuses();
+  }
+
+  protected toggleShowInactiveCampuses(): void {
+    this.showInactiveCampuses.set(!this.showInactiveCampuses());
+    this.currentPage.set(1);
     this.loadCampuses();
   }
 
@@ -94,6 +103,7 @@ export class CampusesPage implements OnInit {
         search: this.searchQuery() || undefined,
         page: this.currentPage(),
         pageSize: this.PAGE_SIZE,
+        isActive: this.showInactiveCampuses() ? undefined : true,
       })
       .subscribe({
         next: (res: CampusListResponse) => {
@@ -101,6 +111,7 @@ export class CampusesPage implements OnInit {
           this.total.set(res.meta.total);
           this.summary.set(res.summary);
           this.loading.set(false);
+          this.refData.invalidate('campuses');
         },
         error: (err) => {
           console.error('Failed to load campuses', err);
@@ -193,9 +204,42 @@ export class CampusesPage implements OnInit {
       },
       error: (err) => {
         console.error('Failed to delete campus', err);
+        if (err.error?.code === 'HAS_COURSES') {
+          this.confirmationService.confirm({
+            message: `「${campus.name}」底下還有課程，無法刪除。是否改為停用？`,
+            header: '無法刪除',
+            icon: 'pi pi-info-circle',
+            acceptLabel: '停用',
+            rejectLabel: '取消',
+            accept: () => this.deactivateCampus(campus),
+          });
+        } else {
+          this.messageService.add({
+            severity: 'error',
+            summary: '刪除失敗',
+            detail: err.error?.error || '請稍後再試',
+          });
+        }
+      },
+    });
+  }
+
+  private deactivateCampus(campus: Campus): void {
+    this.campusesService.update(campus.id, { isActive: false }).subscribe({
+      next: () => {
+        if (!this.showInactiveCampuses()) this.showInactiveCampuses.set(true);
+        this.loadCampuses();
+        this.messageService.add({
+          severity: 'success',
+          summary: '已停用',
+          detail: `「${campus.name}」已停用`,
+        });
+      },
+      error: (err) => {
+        console.error('Failed to deactivate campus', err);
         this.messageService.add({
           severity: 'error',
-          summary: '刪除失敗',
+          summary: '停用失敗',
           detail: err.error?.error || '請稍後再試',
         });
       },

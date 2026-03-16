@@ -21,6 +21,8 @@ const PermissionSchema = z
   ])
   .openapi('Permission');
 
+const StaffStatusSchema = z.enum(['active', 'inactive', 'archived']).openapi('StaffStatus');
+
 const DateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD');
 
 const StaffSchema = z
@@ -35,7 +37,7 @@ const StaffSchema = z
     notes: z.string().nullable(),
     subjectIds: z.array(z.uuid()),
     subjectNames: z.array(z.string()),
-    isActive: z.boolean(),
+    status: StaffStatusSchema,
     createdAt: z.string(),
     updatedAt: z.string(),
     campusIds: z.array(z.uuid()),
@@ -52,6 +54,8 @@ const StaffListResponseSchema = z
       adminCount: z.number(),
       teacherCount: z.number(),
       activeCount: z.number(),
+      inactiveCount: z.number(),
+      archivedCount: z.number(),
     }),
     meta: z.object({
       total: z.number(),
@@ -71,7 +75,10 @@ const CreateStaffSchema = z
     notes: z.string().max(2000).nullable().optional().openapi({ description: '備註' }),
     subjectIds: z.array(z.uuid()).optional().openapi({ description: '教學科目 IDs（老師用）' }),
     campusIds: z.array(z.uuid()).min(1).openapi({ description: '服務分校 IDs' }),
-    roles: z.array(StaffRoleSchema).min(1).openapi({ description: '角色：admin、teacher（可多選）' }),
+    roles: z
+      .array(StaffRoleSchema)
+      .min(1)
+      .openapi({ description: '角色：admin、teacher（可多選）' }),
     permissions: z.array(PermissionSchema).optional().openapi({ description: '管理員權限清單' }),
   })
   .openapi('CreateStaff');
@@ -85,7 +92,7 @@ const UpdateStaffSchema = z
     subjectIds: z.array(z.uuid()).optional(),
     campusIds: z.array(z.uuid()).min(1).optional(),
     roles: z.array(StaffRoleSchema).min(1).optional().openapi({ description: '角色（可多選）' }),
-    isActive: z.boolean().optional(),
+    status: StaffStatusSchema.optional(),
     permissions: z.array(PermissionSchema).optional(),
   })
   .openapi('UpdateStaff');
@@ -105,7 +112,7 @@ const QueryParamsSchema = z.object({
   role: StaffRoleSchema.optional().openapi({ description: '角色篩選' }),
   campusId: z.uuid().optional().openapi({ description: '分校篩選' }),
   subjectId: z.uuid().optional().openapi({ description: '科目篩選' }),
-  isActive: z.string().optional().openapi({ description: '篩選狀態 (true/false)' }),
+  status: StaffStatusSchema.optional().openapi({ description: '篩選狀態' }),
 });
 
 // ============================================================
@@ -147,6 +154,8 @@ interface StaffSummary {
   adminCount: number;
   teacherCount: number;
   activeCount: number;
+  inactiveCount: number;
+  archivedCount: number;
 }
 
 // ============================================================
@@ -213,9 +222,7 @@ function toSubjectMap(rows: StaffSubjectRow[]): Map<string, SubjectInfo> {
       current.ids.push(row.subject_id);
     }
 
-    const subjectName = Array.isArray(row.subjects)
-      ? row.subjects[0]?.name
-      : row.subjects?.name;
+    const subjectName = Array.isArray(row.subjects) ? row.subjects[0]?.name : row.subjects?.name;
     if (subjectName && !current.names.includes(subjectName)) {
       current.names.push(subjectName);
     }
@@ -247,7 +254,7 @@ function mapStaff(
     notes: row['notes'] as string | null,
     subjectIds: subjectMap.get(staffId)?.ids ?? [],
     subjectNames: subjectMap.get(staffId)?.names ?? [],
-    isActive: row['is_active'] as boolean,
+    status: row['status'] as 'active' | 'inactive' | 'archived',
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
     campusIds: campusMap.get(staffId) || [],
@@ -257,13 +264,14 @@ function mapStaff(
 }
 
 export function buildStaffSummary(
-  rows: Array<{ user_id: string; is_active: boolean }>,
+  rows: Array<{ user_id: string; status: string }>,
   roleInfoMap: Map<string, RoleInfo>,
-  total: number,
 ): StaffSummary {
   let adminCount = 0;
   let teacherCount = 0;
   let activeCount = 0;
+  let inactiveCount = 0;
+  let archivedCount = 0;
 
   for (const row of rows) {
     const roleInfo = roleInfoMap.get(row.user_id);
@@ -273,16 +281,22 @@ export function buildStaffSummary(
     if (roleInfo?.roles.includes('teacher')) {
       teacherCount++;
     }
-    if (row.is_active) {
+    if (row.status === 'active') {
       activeCount++;
+    } else if (row.status === 'inactive') {
+      inactiveCount++;
+    } else {
+      archivedCount++;
     }
   }
 
   return {
-    total,
+    total: rows.length,
     adminCount,
     teacherCount,
     activeCount,
+    inactiveCount,
+    archivedCount,
   };
 }
 
@@ -292,6 +306,8 @@ function emptyStaffSummary(): StaffSummary {
     adminCount: 0,
     teacherCount: 0,
     activeCount: 0,
+    inactiveCount: 0,
+    archivedCount: 0,
   };
 }
 
@@ -588,8 +604,8 @@ app.openapi(listRoute, async (c) => {
     dbQuery = dbQuery.or(`display_name.ilike.%${query.search}%,email.ilike.%${query.search}%`);
   }
 
-  if (query.isActive !== undefined) {
-    dbQuery = dbQuery.eq('is_active', query.isActive === 'true');
+  if (query.status !== undefined) {
+    dbQuery = dbQuery.eq('status', query.status);
   }
 
   if (filteredStaffIdsByCampus) {
@@ -618,14 +634,13 @@ app.openapi(listRoute, async (c) => {
   const staffList = staffRows.map((row) => mapStaff(row, campusMap, subjectMap, roleInfoMap));
   const total = count || 0;
 
-  let summaryQuery = supabase.from('staff').select('user_id, is_active').eq('org_id', orgId);
+  // summary 不套用 status filter，永遠反映全機構（含封存）的真實總數
+  let summaryQuery = supabase.from('staff').select('user_id, status').eq('org_id', orgId);
 
   if (query.search) {
-    summaryQuery = summaryQuery.or(`display_name.ilike.%${query.search}%,email.ilike.%${query.search}%`);
-  }
-
-  if (query.isActive !== undefined) {
-    summaryQuery = summaryQuery.eq('is_active', query.isActive === 'true');
+    summaryQuery = summaryQuery.or(
+      `display_name.ilike.%${query.search}%,email.ilike.%${query.search}%`,
+    );
   }
 
   if (filteredStaffIdsByCampus) {
@@ -667,11 +682,8 @@ app.openapi(listRoute, async (c) => {
     summaryRoleInfoMap = toRoleInfoMap(filteredSummaryRoleRows);
   }
 
-  const summary = buildStaffSummary(
-    ((summaryRows || []) as Array<{ user_id: string; is_active: boolean }>),
-    summaryRoleInfoMap,
-    total,
-  );
+  const typedSummaryRows = (summaryRows || []) as Array<{ user_id: string; status: string }>;
+  const summary = buildStaffSummary(typedSummaryRows, summaryRoleInfoMap);
 
   return c.json(
     {
@@ -879,7 +891,7 @@ app.openapi(createRouteDef, async (c) => {
       email: body.email,
       birthday: body.birthday || null,
       notes: body.notes || null,
-      is_active: true,
+      status: 'active',
     })
     .select('*')
     .single();
@@ -929,7 +941,10 @@ app.openapi(createRouteDef, async (c) => {
     if (staffSubjectError) {
       await supabase.from('staff').delete().eq('id', staffRow.id);
       await rollbackCreatedUser();
-      return c.json({ error: staffSubjectError.message, code: 'CREATE_STAFF_SUBJECTS_FAILED' }, 400);
+      return c.json(
+        { error: staffSubjectError.message, code: 'CREATE_STAFF_SUBJECTS_FAILED' },
+        400,
+      );
     }
   }
 
@@ -938,16 +953,22 @@ app.openapi(createRouteDef, async (c) => {
     return c.json({ error: '建立人員後讀取失敗', code: 'READ_AFTER_CREATE_FAILED' }, 400);
   }
 
-  logAudit(supabase, {
-    orgId,
-    userId: requesterUserId,
-    resourceType: 'staff',
-    resourceId: staffRow.id as string,
-    resourceName: body.displayName,
-    action: 'create',
-  }, c.executionCtx.waitUntil.bind(c.executionCtx));
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId: requesterUserId,
+      resourceType: 'staff',
+      resourceId: staffRow.id as string,
+      resourceName: body.displayName,
+      action: 'create',
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
 
-  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(supabase, [freshStaffRow]);
+  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(supabase, [
+    freshStaffRow,
+  ]);
   return c.json(
     {
       data: mapStaff(freshStaffRow, campusMap, subjectMap, roleInfoMap),
@@ -1048,7 +1069,7 @@ app.openapi(updateRoute, async (c) => {
   if (body.phone !== undefined) updateData['phone'] = body.phone;
   if (body.birthday !== undefined) updateData['birthday'] = body.birthday;
   if (body.notes !== undefined) updateData['notes'] = body.notes;
-  if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
+  if (body.status !== undefined) updateData['status'] = body.status;
 
   if (Object.keys(updateData).length > 0) {
     const { error: updateStaffError } = await supabase
@@ -1195,16 +1216,22 @@ app.openapi(updateRoute, async (c) => {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  logAudit(supabase, {
-    orgId: freshStaffRow['org_id'] as string,
-    userId: requesterUserId,
-    resourceType: 'staff',
-    resourceId: id,
-    resourceName: freshStaffRow['display_name'] as string,
-    action: 'update',
-  }, c.executionCtx.waitUntil.bind(c.executionCtx));
+  logAudit(
+    supabase,
+    {
+      orgId: freshStaffRow['org_id'] as string,
+      userId: requesterUserId,
+      resourceType: 'staff',
+      resourceId: id,
+      resourceName: freshStaffRow['display_name'] as string,
+      action: 'update',
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
 
-  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(supabase, [freshStaffRow]);
+  const { campusMap, subjectMap, roleInfoMap } = await loadStaffRelations(supabase, [
+    freshStaffRow,
+  ]);
   return c.json({ data: mapStaff(freshStaffRow, campusMap, subjectMap, roleInfoMap) }, 200);
 });
 
@@ -1260,7 +1287,7 @@ app.openapi(archiveRoute, async (c) => {
   // 停用帳號
   const { error: deactivateError } = await supabase
     .from('staff')
-    .update({ is_active: false })
+    .update({ status: 'archived' })
     .eq('id', id);
 
   if (deactivateError) {
@@ -1294,17 +1321,91 @@ app.openapi(archiveRoute, async (c) => {
     return c.json({ error: unassignError.message, code: 'DB_ERROR' }, 400);
   }
 
-  logAudit(supabase, {
-    orgId: staffRow['org_id'] as string,
-    userId: requesterUserId,
-    resourceType: 'staff',
-    resourceId: id,
-    resourceName: staffRow['display_name'] as string,
-    action: 'update',
-    details: { archived: true, unassignedSessions: unassigned?.length ?? 0 },
-  }, c.executionCtx.waitUntil.bind(c.executionCtx));
+  logAudit(
+    supabase,
+    {
+      orgId: staffRow['org_id'] as string,
+      userId: requesterUserId,
+      resourceType: 'staff',
+      resourceId: id,
+      resourceName: staffRow['display_name'] as string,
+      action: 'update',
+      details: { archived: true, unassignedSessions: unassigned?.length ?? 0 },
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
 
   return c.json({ success: true, unassignedSessions: unassigned?.length ?? 0 }, 200);
+});
+
+// PATCH /api/staff/:id/deactivate
+const deactivateRoute = createRoute({
+  method: 'patch',
+  path: '/{id}/deactivate',
+  tags: ['Staff'],
+  summary: '停用人員（僅暫時停用，不移除角色與課堂指派）',
+  request: {
+    params: z.object({ id: z.uuid() }),
+  },
+  responses: {
+    200: {
+      description: '停用成功',
+      content: {
+        'application/json': {
+          schema: z.object({ success: z.boolean() }),
+        },
+      },
+    },
+    400: {
+      description: '停用失敗',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    404: {
+      description: '人員不存在',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+  },
+});
+
+app.openapi(deactivateRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const requesterUserId = c.get('userId');
+  const { id } = c.req.valid('param');
+
+  const staffRow = await getStaffById(supabase, id);
+  if (!staffRow) {
+    return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
+  }
+
+  const isAdmin = await checkUserIsAdmin(supabase, requesterUserId);
+  if (!isAdmin) {
+    return c.json({ error: '僅管理員可停用人員', code: 'FORBIDDEN' }, 403);
+  }
+
+  const { error } = await supabase.from('staff').update({ status: 'inactive' }).eq('id', id);
+  if (error) {
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+  }
+
+  logAudit(
+    supabase,
+    {
+      orgId: staffRow['org_id'] as string,
+      userId: requesterUserId,
+      resourceType: 'staff',
+      resourceId: id,
+      resourceName: staffRow['display_name'] as string,
+      action: 'update',
+      details: { inactive: true },
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
+
+  return c.json({ success: true }, 200);
 });
 
 // DELETE /api/staff/:id
@@ -1386,14 +1487,18 @@ app.openapi(deleteRoute, async (c) => {
     return c.json({ error: deleteRoleError.message, code: 'DELETE_ROLE_FAILED' }, 400);
   }
 
-  logAudit(supabase, {
-    orgId: staffRow['org_id'] as string,
-    userId: requesterUserId,
-    resourceType: 'staff',
-    resourceId: id,
-    resourceName: staffRow['display_name'] as string,
-    action: 'delete',
-  }, c.executionCtx.waitUntil.bind(c.executionCtx));
+  logAudit(
+    supabase,
+    {
+      orgId: staffRow['org_id'] as string,
+      userId: requesterUserId,
+      resourceType: 'staff',
+      resourceId: id,
+      resourceName: staffRow['display_name'] as string,
+      action: 'delete',
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
 
   return c.json({ success: true }, 200);
 });

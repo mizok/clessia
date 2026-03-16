@@ -7,6 +7,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { SubjectsService } from '@core/subjects.service';
 import type { Subject } from '@core/subjects.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 
 interface SubjectManagerNotice {
   readonly severity: 'success' | 'error';
@@ -24,6 +25,7 @@ interface SubjectManagerNotice {
 export class SubjectManagerComponent implements OnInit, OnDestroy {
   private readonly subjectsService = inject(SubjectsService);
   private readonly ref = inject(DynamicDialogRef);
+  private readonly refData = inject(ReferenceDataService);
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly changed = output<Subject[]>();
@@ -87,6 +89,7 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
         this.editingId.set(null);
         this.editingName.set('');
         this.saving.set(false);
+        this.refData.invalidate('subjects');
         this.changed.emit(this.subjects());
       },
       error: (err) => {
@@ -109,6 +112,7 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
           summary: '已刪除',
           detail: `「${subject.name}」已刪除`,
         });
+        this.refData.invalidate('subjects');
         this.changed.emit(this.subjects());
       },
       error: (err) => {
@@ -131,6 +135,7 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
         this.subjects.update((list) => [...list, res.data]);
         this.newSubjectName.set('');
         this.saving.set(false);
+        this.refData.invalidate('subjects');
         this.changed.emit(this.subjects());
       },
       error: (err) => {

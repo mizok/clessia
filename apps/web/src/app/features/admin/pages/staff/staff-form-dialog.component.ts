@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
-import { ToggleSwitch } from 'primeng/toggleswitch';
 import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { DatePickerModule } from 'primeng/datepicker';
@@ -46,7 +45,6 @@ const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
     FormsModule,
     ButtonModule,
     InputTextModule,
-    ToggleSwitch,
     SelectModule,
     MultiSelectModule,
     DatePickerModule,
@@ -88,7 +86,6 @@ export class StaffFormDialogComponent {
     campusIds: this.staff()?.campusIds ?? [],
     roles: this.staff()?.roles ?? ['teacher'],
     permissions: this.staff()?.permissions ?? [],
-    isActive: this.staff()?.isActive ?? true,
   });
 
   protected readonly isEditing = computed(() => this.staff() !== null);
@@ -140,10 +137,7 @@ export class StaffFormDialogComponent {
     };
 
     if (this.isEditing()) {
-      const input: UpdateStaffInput = {
-        ...commonInput,
-        isActive: form.isActive,
-      };
+      const input: UpdateStaffInput = commonInput;
 
       this.staffService.update(this.staff()!.id, input).subscribe({
         next: (res) => {

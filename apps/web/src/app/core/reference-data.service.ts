@@ -52,7 +52,7 @@ export class ReferenceDataService {
   loadTeachers(): void {
     if (this.loaded['teachers']) return;
     this.loaded['teachers'] = true;
-    this.staffApi.list({ isActive: true, role: 'teacher', pageSize: 0 }).subscribe({
+    this.staffApi.list({ status: 'active', role: 'teacher', pageSize: 0 }).subscribe({
       next: (res) => this.teachers.set(res.data),
       error: () => {
         this.loaded['teachers'] = false;

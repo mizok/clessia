@@ -53,7 +53,13 @@ describe('SessionAssignDialogComponent', () => {
           provide: SessionsService,
           useValue: {
             batchAssignTeacher: vi.fn(() =>
-              of({ updated: 1, skippedConflicts: 0, skippedNotEligible: 0, conflicts: [], dryRun: false }),
+              of({
+                updated: 1,
+                skippedConflicts: 0,
+                skippedNotEligible: 0,
+                conflicts: [],
+                dryRun: false,
+              }),
             ),
           },
         },
@@ -123,7 +129,7 @@ describe('SessionAssignDialogComponent', () => {
                   campusIds: ['campus-a'],
                   subjectIds: ['subject-math'],
                   roles: ['teacher'],
-                  isActive: true,
+                  status: 'active',
                 },
               ],
             },

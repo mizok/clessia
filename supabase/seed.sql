@@ -255,20 +255,20 @@ BEGIN
         ON CONFLICT (user_id, role) DO UPDATE SET
             permissions = EXCLUDED.permissions;
 
-        INSERT INTO public.staff (user_id, org_id, display_name, phone, email, is_active)
+        INSERT INTO public.staff (user_id, org_id, display_name, phone, email, status)
         VALUES (
             admin_user_id,
             demo_org_id,
             format('管理員%s', lpad(staff_index::text, 2, '0')),
             format('0911%06s', lpad(staff_index::text, 6, '0')),
             format('admin%02s@demo.clessia.app', staff_index),
-            true
+            'active'
         )
         ON CONFLICT (user_id, org_id) DO UPDATE SET
             display_name = EXCLUDED.display_name,
             phone = EXCLUDED.phone,
             email = EXCLUDED.email,
-            is_active = EXCLUDED.is_active,
+            status = EXCLUDED.status,
             updated_at = NOW()
         RETURNING id INTO v_admin_staff_id;
 
@@ -342,20 +342,20 @@ BEGIN
             ON CONFLICT (user_id, role) DO UPDATE SET
                 permissions = EXCLUDED.permissions;
 
-            INSERT INTO public.staff (user_id, org_id, display_name, phone, email, is_active)
+            INSERT INTO public.staff (user_id, org_id, display_name, phone, email, status)
             VALUES (
                 teacher_user_id,
                 demo_org_id,
                 v_teacher_display_name,
                 '0922' || lpad(teacher_index::text, 6, '0'),
                 format('teacher%s@demo.clessia.app', lpad(teacher_index::text, 4, '0')),
-                true
+                'active'
             )
             ON CONFLICT (user_id, org_id) DO UPDATE SET
                 display_name = EXCLUDED.display_name,
                 phone = EXCLUDED.phone,
                 email = EXCLUDED.email,
-                is_active = EXCLUDED.is_active,
+                status = EXCLUDED.status,
                 updated_at = NOW()
             RETURNING id INTO v_teacher_staff_id;
 

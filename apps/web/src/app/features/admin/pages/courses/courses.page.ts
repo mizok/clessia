@@ -138,7 +138,6 @@ export class CoursesPage implements OnInit {
   protected readonly selectedSubjectId = signal<string | null>(null);
   protected readonly selectedTeacherIds = signal<string[]>([]);
   protected readonly statusFilter = signal<boolean | null>(null);
-  protected readonly showInactiveCourses = signal(false);
 
   // ---- Computed options ----
   protected readonly activeCampuses = computed(() => this.campuses().filter((c) => c.isActive));
@@ -175,9 +174,16 @@ export class CoursesPage implements OnInit {
     const teacherIds = this.selectedTeacherIds();
     const isActive = this.statusFilter();
 
+    // statusFilter 語意：
+    //   false（已停用）→ 只顯示停用課程，班級不額外過濾
+    //   true（啟用中） → 只顯示啟用課程，且只顯示啟用班級
+    //   null（全部）   → 只顯示啟用課程，班級不過濾
+    const classActiveFilter = isActive === true ? true : null;
+
     return allCourses
       .filter((c) => {
-        if (!this.showInactiveCourses() && !c.isActive) return false;
+        if (isActive === false && c.isActive) return false;
+        if (isActive !== false && !c.isActive) return false;
         if (campusId && c.campusId !== campusId) return false;
         if (subjectId && c.subjectId !== subjectId) return false;
         return true;
@@ -188,13 +194,12 @@ export class CoursesPage implements OnInit {
           course,
           classes: allClasses.filter((cl) => {
             if (cl.courseId !== course.id) return false;
-            if (isActive !== null && cl.isActive !== isActive) return false;
+            if (classActiveFilter !== null && cl.isActive !== classActiveFilter) return false;
             if (
               teacherIds.length > 0 &&
               !teacherIds.some((id) => cl.scheduleTeacherIds?.includes(id))
             )
               return false;
-            // 課程名稱符合：顯示該課程所有班級；否則只顯示班級名稱符合的
             if (search && !courseMatchesSearch && !cl.name.toLowerCase().includes(search))
               return false;
             return true;
@@ -203,8 +208,7 @@ export class CoursesPage implements OnInit {
       })
       .filter((g) => {
         if (g.classes.length > 0) return true;
-        if (!search && isActive === null && teacherIds.length === 0) return true;
-        // 課程名稱符合搜尋時，即使沒有班級也顯示
+        if (!search && teacherIds.length === 0) return true;
         return !!(search && g.course.name.toLowerCase().includes(search));
       });
   });
@@ -214,8 +218,7 @@ export class CoursesPage implements OnInit {
       !!this.searchQuery() ||
       !!this.selectedSubjectId() ||
       this.selectedTeacherIds().length > 0 ||
-      this.statusFilter() !== null ||
-      this.showInactiveCourses(),
+      this.statusFilter() !== null,
   );
 
   // ---- Static options ----
@@ -284,7 +287,7 @@ export class CoursesPage implements OnInit {
         search: this.searchQuery() || undefined,
         campusId: this.selectedCampusId() || undefined,
         subjectId: this.selectedSubjectId() || undefined,
-        isActive: this.showInactiveCourses() ? undefined : true,
+        isActive: this.statusFilter() ?? true,
         page: this.currentPage(),
         pageSize: this.PAGE_SIZE,
       })
@@ -328,12 +331,6 @@ export class CoursesPage implements OnInit {
 
   protected onStatusFilterChange(value: boolean | null): void {
     this.statusFilter.set(value);
-    this.currentPage.set(1);
-    this.loadCourses();
-  }
-
-  protected toggleShowInactiveCourses(): void {
-    this.showInactiveCourses.set(!this.showInactiveCourses());
     this.currentPage.set(1);
     this.loadCourses();
   }
@@ -434,7 +431,6 @@ export class CoursesPage implements OnInit {
     this.selectedSubjectId.set(null);
     this.selectedTeacherIds.set([]);
     this.statusFilter.set(null);
-    this.showInactiveCourses.set(false);
     this.currentPage.set(1);
     this.loadCourses();
   }
@@ -644,14 +640,6 @@ export class CoursesPage implements OnInit {
     if (ref)
       ref.onClose.subscribe((result: Course | undefined) => {
         if (!result) return;
-        if (!result.isActive && !this.showInactiveCourses()) {
-          this.showInactiveCourses.set(true);
-          this.messageService.add({
-            severity: 'info',
-            summary: '課程已停用',
-            detail: '已自動顯示停用課程，避免在清單中看起來像被刪除',
-          });
-        }
         this.loadAll();
       });
   }
@@ -675,11 +663,40 @@ export class CoursesPage implements OnInit {
             });
           },
           error: (err) => {
-            this.messageService.add({
-              severity: 'error',
-              summary: '刪除失敗',
-              detail: err.error?.error || '請稍後再試',
-            });
+            if (err.error?.code === 'HAS_CLASSES') {
+              this.confirmationService.confirm({
+                message: `「${course.name}」底下還有班級，無法刪除。是否改為停用？`,
+                header: '無法刪除',
+                icon: 'pi pi-info-circle',
+                acceptLabel: '停用',
+                rejectLabel: '取消',
+                accept: () => {
+                  this.coursesService.update(course.id, { isActive: false }).subscribe({
+                    next: () => {
+                      this.loadAll();
+                      this.messageService.add({
+                        severity: 'success',
+                        summary: '已停用',
+                        detail: `「${course.name}」已停用`,
+                      });
+                    },
+                    error: (updateErr) => {
+                      this.messageService.add({
+                        severity: 'error',
+                        summary: '停用失敗',
+                        detail: updateErr.error?.error || '請稍後再試',
+                      });
+                    },
+                  });
+                },
+              });
+            } else {
+              this.messageService.add({
+                severity: 'error',
+                summary: '刪除失敗',
+                detail: err.error?.error || '請稍後再試',
+              });
+            }
           },
         });
       },
@@ -891,10 +908,31 @@ export class CoursesPage implements OnInit {
 
   protected confirmDeleteClass(cls: Class): void {
     if (cls.hasPastSessions) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: '無法刪除班級',
-        detail: '此班級已有歷史課堂記錄，請改為停用',
+      this.confirmationService.confirm({
+        message: `「${cls.name}」已有歷史課堂記錄，無法刪除。是否改為停用？`,
+        header: '無法刪除',
+        icon: 'pi pi-info-circle',
+        acceptLabel: '停用',
+        rejectLabel: '取消',
+        accept: () => {
+          this.classesService.toggleActive(cls.id).subscribe({
+            next: () => {
+              this.loadAll();
+              this.messageService.add({
+                severity: 'success',
+                summary: '已停用',
+                detail: `「${cls.name}」已停用`,
+              });
+            },
+            error: (err) => {
+              this.messageService.add({
+                severity: 'error',
+                summary: '停用失敗',
+                detail: err.error?.error || '請稍後再試',
+              });
+            },
+          });
+        },
       });
       return;
     }

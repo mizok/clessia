@@ -7,23 +7,6 @@
       <i class="pi pi-times"></i>
     </button>
   </div>
-  <!-- Status (edit only) -->
-  @if (isEditing()) {
-    <div class="form-dialog__field form-dialog__field--inline">
-      <label class="form-dialog__label">狀態</label>
-      <div class="form-dialog__switch-row">
-        <p-toggleswitch
-          [ngModel]="formData().isActive"
-          (ngModelChange)="updateForm('isActive', $event)"
-          [disabled]="loading()"
-        />
-        <span class="form-dialog__switch-label">
-          {{ formData().isActive ? '啟用中' : '已停用' }}
-        </span>
-      </div>
-    </div>
-  }
-
   <div class="form-grid">
     <!-- Name -->
     <div class="form-dialog__field">

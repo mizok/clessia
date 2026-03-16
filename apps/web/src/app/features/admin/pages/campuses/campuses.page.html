@@ -36,6 +36,16 @@
           />
         </p-iconfield>
       </div>
+      @if (inactiveCampusCount() > 0 || showInactiveCampuses()) {
+        <p-button
+          [label]="showInactiveCampuses() ? '隱藏停用分校' : '顯示停用分校'"
+          [icon]="showInactiveCampuses() ? 'pi pi-eye-slash' : 'pi pi-eye'"
+          [text]="true"
+          size="small"
+          severity="secondary"
+          (onClick)="toggleShowInactiveCampuses()"
+        />
+      }
     </div>
 
     <!-- Stats Summary -->

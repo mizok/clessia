@@ -12,14 +12,30 @@ import { StaffPage } from './staff.page';
 describe('StaffPage', () => {
   let component: StaffPage;
   let fixture: ComponentFixture<StaffPage>;
-  const buildStaffResponse = (overrides?: Partial<{
-    data: Staff[];
-    meta: { total: number; page: number; pageSize: number; totalPages: number };
-    summary: { total: number; adminCount: number; teacherCount: number; activeCount: number };
-  }>) => ({
+  const buildStaffResponse = (
+    overrides?: Partial<{
+      data: Staff[];
+      meta: { total: number; page: number; pageSize: number; totalPages: number };
+      summary: {
+        total: number;
+        adminCount: number;
+        teacherCount: number;
+        activeCount: number;
+        inactiveCount: number;
+        archivedCount: number;
+      };
+    }>,
+  ) => ({
     data: [],
     meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
-    summary: { total: 0, adminCount: 0, teacherCount: 0, activeCount: 0 },
+    summary: {
+      total: 0,
+      adminCount: 0,
+      teacherCount: 0,
+      activeCount: 0,
+      inactiveCount: 0,
+      archivedCount: 0,
+    },
     ...overrides,
   });
   const staffServiceMock = {
@@ -84,7 +100,7 @@ describe('StaffPage', () => {
         notes: null,
         subjectIds: [],
         subjectNames: [],
-        isActive: true,
+        status: 'active',
         createdAt: '2026-03-11T00:00:00.000Z',
         updatedAt: '2026-03-11T00:00:00.000Z',
         campusIds: [],
@@ -99,7 +115,14 @@ describe('StaffPage', () => {
     (
       component as unknown as {
         summary: {
-          set: (value: { total: number; adminCount: number; teacherCount: number; activeCount: number }) => void;
+          set: (value: {
+            total: number;
+            adminCount: number;
+            teacherCount: number;
+            activeCount: number;
+            inactiveCount: number;
+            archivedCount: number;
+          }) => void;
         };
       }
     ).summary.set({
@@ -107,6 +130,8 @@ describe('StaffPage', () => {
       adminCount: 0,
       teacherCount: 1,
       activeCount: 1,
+      inactiveCount: 0,
+      archivedCount: 0,
     });
     fixture.detectChanges();
 
@@ -130,7 +155,7 @@ describe('StaffPage', () => {
         notes: null,
         subjectIds: [],
         subjectNames: [],
-        isActive: true,
+        status: 'active',
         createdAt: '2026-03-11T00:00:00.000Z',
         updatedAt: '2026-03-11T00:00:00.000Z',
         campusIds: [],
@@ -144,7 +169,14 @@ describe('StaffPage', () => {
     (
       component as unknown as {
         summary: {
-          set: (value: { total: number; adminCount: number; teacherCount: number; activeCount: number }) => void;
+          set: (value: {
+            total: number;
+            adminCount: number;
+            teacherCount: number;
+            activeCount: number;
+            inactiveCount: number;
+            archivedCount: number;
+          }) => void;
         };
       }
     ).summary.set({
@@ -152,6 +184,8 @@ describe('StaffPage', () => {
       adminCount: 7,
       teacherCount: 121,
       activeCount: 119,
+      inactiveCount: 5,
+      archivedCount: 4,
     });
     fixture.detectChanges();
 

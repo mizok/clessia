@@ -128,7 +128,9 @@ describe('SessionsPage', () => {
       )
       .mockReturnValue({ onClose: of(undefined) });
 
-    (component as unknown as { openAssignSingle: (target: Session) => void }).openAssignSingle(session);
+    (component as unknown as { openAssignSingle: (target: Session) => void }).openAssignSingle(
+      session,
+    );
 
     expect(dialogOpenSpy).toHaveBeenCalledTimes(1);
     expect(dialogOpenSpy).toHaveBeenCalledWith(
@@ -157,7 +159,9 @@ describe('SessionsPage', () => {
 
     (
       component as unknown as {
-        courses: { set: (value: Array<{ id: string; campusId: string; subjectId: string }>) => void };
+        courses: {
+          set: (value: Array<{ id: string; campusId: string; subjectId: string }>) => void;
+        };
       }
     ).courses.set([{ id: 'course-math', campusId: 'campus-1', subjectId: 'subject-math' }]);
 
@@ -173,7 +177,7 @@ describe('SessionsPage', () => {
         notes: null,
         subjectIds: ['subject-math'],
         subjectNames: ['Math'],
-        isActive: true,
+        status: 'active',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
         campusIds: ['campus-1'],
@@ -191,7 +195,7 @@ describe('SessionsPage', () => {
         notes: null,
         subjectIds: ['subject-math'],
         subjectNames: ['Math'],
-        isActive: true,
+        status: 'active',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
         campusIds: ['campus-1'],
@@ -251,9 +255,7 @@ describe('SessionsPage', () => {
   it('starts with empty date range and no active filters on init', async () => {
     await fixture.whenStable();
 
-    const listDateRange = (
-      component as unknown as { listDateRange: () => Date[] }
-    ).listDateRange();
+    const listDateRange = (component as unknown as { listDateRange: () => Date[] }).listDateRange();
     const activeFilterCount = (
       component as unknown as { activeFilterCount: () => number }
     ).activeFilterCount();
@@ -415,7 +417,9 @@ describe('SessionsPage', () => {
       .mockReturnValue({ onClose: of(undefined) });
 
     const menuItems = (
-      component as unknown as { contextMenuItems: () => Array<{ label?: string; command?: () => void }> }
+      component as unknown as {
+        contextMenuItems: () => Array<{ label?: string; command?: () => void }>;
+      }
     ).contextMenuItems();
     const detailItem = menuItems.find((item) => item.label === '查看異動紀錄');
 
@@ -448,7 +452,8 @@ describe('SessionsPage', () => {
       .mockReturnValue({ onClose: of(mockResult) });
 
     const messageAddSpy = vi.spyOn(
-      (component as unknown as { messageService: { add: (...args: unknown[]) => void } }).messageService,
+      (component as unknown as { messageService: { add: (...args: unknown[]) => void } })
+        .messageService,
       'add',
     );
 
@@ -472,12 +477,14 @@ describe('SessionsPage', () => {
     };
 
     vi.spyOn(
-      (component as unknown as { dialogService: { open: (...args: unknown[]) => unknown } }).dialogService,
+      (component as unknown as { dialogService: { open: (...args: unknown[]) => unknown } })
+        .dialogService,
       'open',
     ).mockReturnValue({ onClose: of(mockResult) });
 
     const messageAddSpy = vi.spyOn(
-      (component as unknown as { messageService: { add: (...args: unknown[]) => void } }).messageService,
+      (component as unknown as { messageService: { add: (...args: unknown[]) => void } })
+        .messageService,
       'add',
     );
 
@@ -492,7 +499,9 @@ describe('SessionsPage', () => {
   });
 
   it('unassignedCount should reflect value set from API', () => {
-    (component as unknown as { unassignedCount: { set: (v: number) => void } }).unassignedCount.set(2);
+    (component as unknown as { unassignedCount: { set: (v: number) => void } }).unassignedCount.set(
+      2,
+    );
 
     const count = (component as unknown as { unassignedCount: { (): number } }).unassignedCount();
     expect(count).toBe(2);
@@ -501,7 +510,9 @@ describe('SessionsPage', () => {
   it('onFilterUnassigned should set selectedTeacherIds to __unassigned__', () => {
     (component as unknown as { onFilterUnassigned: () => void }).onFilterUnassigned();
 
-    const ids = (component as unknown as { selectedTeacherIds: { (): string[] } }).selectedTeacherIds();
+    const ids = (
+      component as unknown as { selectedTeacherIds: { (): string[] } }
+    ).selectedTeacherIds();
     expect(ids).toEqual(['__unassigned__']);
   });
 

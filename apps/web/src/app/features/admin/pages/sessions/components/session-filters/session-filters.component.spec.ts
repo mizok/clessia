@@ -10,9 +10,8 @@ describe('SessionFiltersComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [SessionFiltersComponent]
-    })
-    .compileComponents();
+      imports: [SessionFiltersComponent],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(SessionFiltersComponent);
     component = fixture.componentInstance;
@@ -35,7 +34,9 @@ describe('SessionFiltersComponent', () => {
     ]);
     fixture.detectChanges();
 
-    const teachers = (component as unknown as { filteredTeachers: () => Staff[] }).filteredTeachers();
+    const teachers = (
+      component as unknown as { filteredTeachers: () => Staff[] }
+    ).filteredTeachers();
     expect(teachers.map((teacher) => teacher.id)).toEqual(['teacher-1']);
   });
 
@@ -49,7 +50,11 @@ describe('SessionFiltersComponent', () => {
       component as unknown as {
         onCourseMultiChange: (values: readonly (string | Course)[]) => void;
       }
-    ).onCourseMultiChange(['course-1', buildCourse({ id: 'course-2' }), buildCourse({ id: 'course-1' })]);
+    ).onCourseMultiChange([
+      'course-1',
+      buildCourse({ id: 'course-2' }),
+      buildCourse({ id: 'course-1' }),
+    ]);
 
     expect(emitted).toEqual(['course-1', 'course-2']);
   });
@@ -86,7 +91,10 @@ describe('SessionFiltersComponent', () => {
   it('should join class course and campus label for display', () => {
     const metaLabel = (
       component as unknown as {
-        getClassMetaLabel: (classOption: { readonly courseName: string | null; readonly campusName: string | null }) => string | null;
+        getClassMetaLabel: (classOption: {
+          readonly courseName: string | null;
+          readonly campusName: string | null;
+        }) => string | null;
       }
     ).getClassMetaLabel({
       courseName: '國文 七年級基礎先修班',
@@ -141,7 +149,7 @@ function buildTeacher(overrides: Partial<Staff>): Staff {
     notes: null,
     subjectIds: [],
     subjectNames: [],
-    isActive: true,
+    status: 'active',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     campusIds: ['campus-1'],

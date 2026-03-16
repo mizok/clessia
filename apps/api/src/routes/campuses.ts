@@ -168,13 +168,11 @@ app.openapi(listRoute, async (c) => {
   const campuses = (data || []).map((row) => mapCampus(row as Record<string, unknown>));
   const total = count || 0;
 
+  // summary 不套用 isActive filter，永遠反映全機構的真實總數
   let summaryQuery = supabase.from('campuses').select('is_active');
 
   if (query.search) {
     summaryQuery = summaryQuery.ilike('name', `%${query.search}%`);
-  }
-  if (query.isActive !== undefined) {
-    summaryQuery = summaryQuery.eq('is_active', query.isActive === 'true');
   }
 
   const { data: summaryRows, error: summaryError } = await summaryQuery;

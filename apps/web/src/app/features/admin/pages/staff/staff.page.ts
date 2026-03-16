@@ -15,7 +15,7 @@ import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { PaginatorModule } from 'primeng/paginator';
 import { MessageService, ConfirmationService } from 'primeng/api';
-import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { DialogService } from 'primeng/dynamicdialog';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
 
 // Services
@@ -24,18 +24,17 @@ import {
   Staff,
   StaffListResponse,
   StaffRole,
+  StaffStatus,
   Permission,
-  CreateStaffInput,
-  UpdateStaffInput,
 } from '@core/staff.service';
 import { CampusesService, Campus } from '@core/campuses.service';
 import { SubjectsService, Subject } from '@core/subjects.service';
 
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { SubjectManagerComponent } from '@shared/components/subject-manager/subject-manager.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 
 const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] = [
   { value: 'basic_operations', label: '日常行政', description: '查詢與處理報名、出勤、請假' },
@@ -56,6 +55,8 @@ interface StaffSummary {
   adminCount: number;
   teacherCount: number;
   activeCount: number;
+  inactiveCount: number;
+  archivedCount: number;
 }
 
 const ROLE_OPTIONS: RoleOption[] = [
@@ -94,6 +95,7 @@ export class StaffPage implements OnInit {
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly overlayContainerService = inject(OverlayContainerService);
+  private readonly refData = inject(ReferenceDataService);
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
   }
@@ -101,6 +103,11 @@ export class StaffPage implements OnInit {
   // Constants exposed to template
   protected readonly permissionOptions = PERMISSION_OPTIONS;
   protected readonly roleOptions = ROLE_OPTIONS;
+  protected readonly staffStatusOptions = [
+    { value: 'active', label: '啟用中' },
+    { value: 'inactive', label: '已停用' },
+    { value: 'archived', label: '已封存' },
+  ];
 
   // State
   readonly staffList = signal<Staff[]>([]);
@@ -111,6 +118,7 @@ export class StaffPage implements OnInit {
   readonly roleFilter = signal<StaffRole | null>(null);
   readonly campusFilter = signal<string | null>(null);
   readonly subjectFilter = signal<string | null>(null);
+  protected readonly staffStatusFilter = signal<StaffStatus | null>(null);
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
   readonly summary = signal<StaffSummary>({
@@ -118,6 +126,8 @@ export class StaffPage implements OnInit {
     adminCount: 0,
     teacherCount: 0,
     activeCount: 0,
+    inactiveCount: 0,
+    archivedCount: 0,
   });
   protected readonly PAGE_SIZE = 20;
 
@@ -159,6 +169,7 @@ export class StaffPage implements OnInit {
         role: this.roleFilter() || undefined,
         campusId: this.campusFilter() || undefined,
         subjectId: this.subjectFilter() || undefined,
+        status: this.staffStatusFilter() ?? undefined,
         page: this.currentPage(),
         pageSize: this.PAGE_SIZE,
       })
@@ -205,6 +216,12 @@ export class StaffPage implements OnInit {
     this.loadStaff();
   }
 
+  protected onStaffStatusFilterChange(value: StaffStatus | null): void {
+    this.staffStatusFilter.set(value);
+    this.currentPage.set(1);
+    this.loadStaff();
+  }
+
   protected onPageChange(page: number): void {
     this.currentPage.set(page);
     this.loadStaff();
@@ -226,6 +243,7 @@ export class StaffPage implements OnInit {
     if (ref)
       ref.onClose.subscribe((result) => {
         if (result) {
+          this.refData.invalidate('teachers');
           this.currentPage.set(1);
           this.loadStaff();
         }
@@ -248,7 +266,10 @@ export class StaffPage implements OnInit {
 
     if (ref)
       ref.onClose.subscribe((result) => {
-        if (result) this.loadStaff();
+        if (result) {
+          this.refData.invalidate('teachers');
+          this.loadStaff();
+        }
       });
   }
 
@@ -267,7 +288,7 @@ export class StaffPage implements OnInit {
 
   confirmArchive(staff: Staff): void {
     this.confirmationService.confirm({
-      message: `確定要封存「${staff.displayName}」嗎？封存後帳號將無法登入，未來課堂指派將自動解除，但歷史紀錄會保留。`,
+      message: `確定要封存「${staff.displayName}」嗎？封存後無法取消，帳號將永久停用且無法登入，未來課堂指派將自動解除，但歷史紀錄會保留。`,
       header: '確認封存',
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: '封存',
@@ -280,10 +301,12 @@ export class StaffPage implements OnInit {
   private archiveStaff(staff: Staff): void {
     this.staffService.archive(staff.id).subscribe({
       next: (res) => {
-        const detail = res.unassignedSessions > 0
-          ? `「${staff.displayName}」已封存，${res.unassignedSessions} 堂未來課堂已設為待指派`
-          : `「${staff.displayName}」已封存`;
+        const detail =
+          res.unassignedSessions > 0
+            ? `「${staff.displayName}」已封存，${res.unassignedSessions} 堂未來課堂已設為待指派`
+            : `「${staff.displayName}」已封存`;
         this.messageService.add({ severity: 'success', summary: '封存成功', detail });
+        this.refData.invalidate('teachers');
         this.loadStaff();
       },
       error: (err: any) => {
@@ -294,6 +317,91 @@ export class StaffPage implements OnInit {
         });
       },
     });
+  }
+
+  protected confirmDeactivate(staff: Staff): void {
+    if (staff.status === 'inactive') {
+      this.confirmationService.confirm({
+        message: `確定要重新啟用「${staff.displayName}」嗎？`,
+        header: '確認啟用',
+        icon: 'pi pi-check-circle',
+        acceptLabel: '啟用',
+        rejectLabel: '取消',
+        acceptButtonStyleClass: 'p-button-success',
+        accept: () => this.activateStaff(staff),
+      });
+      return;
+    }
+
+    this.confirmationService.confirm({
+      message: `確定要停用「${staff.displayName}」嗎？停用後帳號將暫時無法使用，但角色與課堂指派會保留。`,
+      header: '確認停用',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: '停用',
+      rejectLabel: '取消',
+      acceptButtonStyleClass: 'p-button-warning',
+      accept: () => this.deactivateStaff(staff),
+    });
+  }
+
+  private deactivateStaff(staff: Staff): void {
+    this.staffService.deactivate(staff.id).subscribe({
+      next: () => {
+        this.messageService.add({
+          severity: 'success',
+          summary: '停用成功',
+          detail: `「${staff.displayName}」已停用`,
+        });
+        this.refData.invalidate('teachers');
+        this.loadStaff();
+      },
+      error: (err: any) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: '停用失敗',
+          detail: err.error?.error || '請稍後再試',
+        });
+      },
+    });
+  }
+
+  private activateStaff(staff: Staff): void {
+    this.staffService.update(staff.id, { status: 'active' }).subscribe({
+      next: () => {
+        this.messageService.add({
+          severity: 'success',
+          summary: '啟用成功',
+          detail: `「${staff.displayName}」已重新啟用`,
+        });
+        this.refData.invalidate('teachers');
+        this.loadStaff();
+      },
+      error: (err: any) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: '啟用失敗',
+          detail: err.error?.error || '請稍後再試',
+        });
+      },
+    });
+  }
+
+  protected getStaffStatusLabel(status: StaffStatus): string {
+    if (status === 'active') return '啟用';
+    if (status === 'inactive') return '停用';
+    return '封存';
+  }
+
+  protected getStaffStatusSeverity(status: StaffStatus): 'success' | 'warn' | 'secondary' {
+    if (status === 'active') return 'success';
+    if (status === 'inactive') return 'warn';
+    return 'secondary';
+  }
+
+  protected getStaffStatusText(status: StaffStatus): string {
+    if (status === 'active') return '啟用中';
+    if (status === 'inactive') return '已停用';
+    return '已封存';
   }
 
   getCampusNames(campusIds: string[]): string {
@@ -321,6 +429,7 @@ export class StaffPage implements OnInit {
     this.roleFilter.set(null);
     this.campusFilter.set(null);
     this.subjectFilter.set(null);
+    this.staffStatusFilter.set(null);
     this.currentPage.set(1);
     this.loadStaff();
   }

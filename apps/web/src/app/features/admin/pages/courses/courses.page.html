@@ -104,15 +104,6 @@
         />
       </div>
 
-      <p-button
-        [label]="showInactiveCourses() ? '隱藏停用課程' : '顯示停用課程'"
-        [icon]="showInactiveCourses() ? 'pi pi-eye-slash' : 'pi pi-eye'"
-        [text]="true"
-        size="small"
-        severity="secondary"
-        (onClick)="toggleShowInactiveCourses()"
-      />
-
       @if (hasActiveFilters()) {
         <p-button
           label="清除"

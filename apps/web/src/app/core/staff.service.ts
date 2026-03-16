@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '@env/environment';
 
 export type StaffRole = 'admin' | 'teacher';
+export type StaffStatus = 'active' | 'inactive' | 'archived';
 
 export type Permission =
   | 'basic_operations'
@@ -24,7 +25,7 @@ export interface Staff {
   notes: string | null;
   subjectIds: string[];
   subjectNames: string[];
-  isActive: boolean;
+  status: StaffStatus;
   createdAt: string;
   updatedAt: string;
   campusIds: string[];
@@ -39,6 +40,8 @@ export interface StaffListResponse {
     adminCount: number;
     teacherCount: number;
     activeCount: number;
+    inactiveCount: number;
+    archivedCount: number;
   };
   meta: {
     total: number;
@@ -55,7 +58,7 @@ export interface StaffQueryParams {
   role?: StaffRole;
   campusId?: string;
   subjectId?: string;
-  isActive?: boolean;
+  status?: StaffStatus;
 }
 
 export interface CreateStaffInput {
@@ -78,7 +81,7 @@ export interface UpdateStaffInput {
   subjectIds?: string[];
   campusIds?: string[];
   roles?: StaffRole[];
-  isActive?: boolean;
+  status?: StaffStatus;
   permissions?: Permission[];
 }
 
@@ -113,6 +116,10 @@ export class StaffService {
       `${this.endpoint}/${id}/archive`,
       {},
     );
+  }
+
+  deactivate(id: string): Observable<{ success: boolean }> {
+    return this.http.patch<{ success: boolean }>(`${this.endpoint}/${id}/deactivate`, {});
   }
 
   delete(id: string): Observable<{ success: boolean }> {
@@ -150,8 +157,8 @@ export class StaffService {
       query['subjectId'] = params.subjectId;
     }
 
-    if (params.isActive !== undefined) {
-      query['isActive'] = params.isActive;
+    if (params.status !== undefined) {
+      query['status'] = params.status;
     }
 
     return query;

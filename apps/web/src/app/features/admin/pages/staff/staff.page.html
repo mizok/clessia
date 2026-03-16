@@ -70,6 +70,17 @@
           [appendTo]="'body'"
           styleClass="staff__filter-select"
         />
+        <p-select
+          [options]="staffStatusOptions"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="狀態篩選"
+          [ngModel]="staffStatusFilter()"
+          (ngModelChange)="onStaffStatusFilterChange($event)"
+          [showClear]="true"
+          [appendTo]="'body'"
+          styleClass="staff__filter-select"
+        />
       </div>
     </div>
 
@@ -106,7 +117,9 @@
         </div>
       } @else if (staffList().length === 0) {
         <!-- Empty State -->
-        @if (searchQuery() || roleFilter() || campusFilter() || subjectFilter()) {
+        @if (
+          searchQuery() || roleFilter() || campusFilter() || subjectFilter() || staffStatusFilter()
+        ) {
           <app-empty-state
             icon="pi pi-search"
             title="找不到符合的人員"
@@ -207,8 +220,8 @@
                 </td>
                 <td>
                   <p-tag
-                    [value]="staff.isActive ? '啟用' : '停用'"
-                    [severity]="staff.isActive ? 'success' : 'secondary'"
+                    [value]="getStaffStatusLabel(staff.status)"
+                    [severity]="getStaffStatusSeverity(staff.status)"
                   />
                 </td>
                 <td>
@@ -221,6 +234,16 @@
                       pTooltip="編輯"
                       tooltipPosition="top"
                       (onClick)="openEditDialog(staff)"
+                    />
+                    <p-button
+                      [icon]="staff.status === 'inactive' ? 'pi pi-unlock' : 'pi pi-lock'"
+                      [rounded]="true"
+                      [text]="true"
+                      [severity]="staff.status === 'inactive' ? 'success' : 'warn'"
+                      [pTooltip]="staff.status === 'inactive' ? '啟用' : '停用'"
+                      tooltipPosition="top"
+                      [disabled]="staff.status === 'archived'"
+                      (onClick)="confirmDeactivate(staff)"
                     />
                     <p-button
                       icon="pi pi-box"
@@ -286,10 +309,10 @@
                 <div class="staff-card__field">
                   <i
                     class="pi pi-circle-fill"
-                    [class.staff-card__status--active]="staff.isActive"
-                    [class.staff-card__status--inactive]="!staff.isActive"
+                    [class.staff-card__status--active]="staff.status === 'active'"
+                    [class.staff-card__status--inactive]="staff.status !== 'active'"
                   ></i>
-                  <span>{{ staff.isActive ? '啟用中' : '已停用' }}</span>
+                  <span>{{ getStaffStatusText(staff.status) }}</span>
                 </div>
               </div>
 
@@ -301,6 +324,15 @@
                 >
                   <i class="pi pi-pencil"></i>
                   <span>編輯</span>
+                </button>
+                <button
+                  type="button"
+                  class="staff-card__action-btn staff-card__action-btn--edit"
+                  [disabled]="staff.status === 'archived'"
+                  (click)="confirmDeactivate(staff)"
+                >
+                  <i [class]="staff.status === 'inactive' ? 'pi pi-unlock' : 'pi pi-lock'"></i>
+                  <span>{{ staff.status === 'inactive' ? '啟用' : '停用' }}</span>
                 </button>
                 <button
                   type="button"
