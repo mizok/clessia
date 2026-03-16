@@ -1,11 +1,13 @@
-<div class="dialog-header-inline">
-  <div class="dialog-header-inline__title-container">
-    <h2 class="dialog-header-inline__title">科目管理</h2>
+@if (isDialog()) {
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__title-container">
+      <h2 class="dialog-header-inline__title">科目管理</h2>
+    </div>
+    <button class="dialog-header-inline__close" (click)="cancel()">
+      <i class="pi pi-times"></i>
+    </button>
   </div>
-  <button class="dialog-header-inline__close" (click)="cancel()">
-    <i class="pi pi-times"></i>
-  </button>
-</div>
+}
 
 <div class="subject-manager">
   <div class="subject-manager__body">

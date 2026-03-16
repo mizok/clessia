@@ -24,7 +24,7 @@ interface SubjectManagerNotice {
 })
 export class SubjectManagerComponent implements OnInit, OnDestroy {
   private readonly subjectsService = inject(SubjectsService);
-  private readonly ref = inject(DynamicDialogRef);
+  private readonly ref = inject(DynamicDialogRef, { optional: true });
   private readonly refData = inject(ReferenceDataService);
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -37,6 +37,7 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
   protected readonly newSubjectName = signal('');
   protected readonly saving = signal(false);
   protected readonly notice = signal<SubjectManagerNotice | null>(null);
+  protected readonly isDialog = signal(!!this.ref);
 
   ngOnInit(): void {
     this.loadSubjects();
@@ -47,7 +48,7 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
   }
 
   protected cancel(): void {
-    this.ref.close();
+    this.ref?.close();
   }
 
   protected dismissNotice(): void {

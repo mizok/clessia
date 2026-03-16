@@ -184,6 +184,12 @@ export const routes: Routes = [
             data: { page: RoutesCatalog.ADMIN_CAMPUSES },
           },
           {
+            path: RoutesCatalog.ADMIN_SUBJECTS.relativePath,
+            loadComponent: () =>
+              import('@features/admin/pages/subjects/subjects.page').then((m) => m.SubjectsPage),
+            data: { page: RoutesCatalog.ADMIN_SUBJECTS },
+          },
+          {
             path: RoutesCatalog.ADMIN_SETTINGS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/settings/settings.page').then((m) => m.SettingsPage),

@@ -252,6 +252,15 @@ export class RoutesCatalog {
     true,
     '系統設定',
   );
+  public static readonly ADMIN_SUBJECTS = this.register(
+    'subjects',
+    '/admin/subjects',
+    '科目管理',
+    UserType.ADMIN,
+    'pi-tag',
+    true,
+    '系統設定',
+  );
   public static readonly ADMIN_SETTINGS = this.register(
     'settings',
     '/admin/settings',
