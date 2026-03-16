@@ -110,9 +110,10 @@ export class MobileBatchDialogComponent implements OnInit {
         this.batchPreview.set(result);
         this.batchLoading.set(false);
       },
-      error: () => {
+      error: (err: { error?: { error?: string } }) => {
         this.batchLoading.set(false);
-        this.messageService.add({ severity: 'error', summary: '預覽失敗', detail: '無法執行預覽' });
+        const detail = err?.error?.error ?? '無法執行預覽';
+        this.messageService.add({ severity: 'error', summary: '預覽失敗', detail });
       },
     });
   }
@@ -133,9 +134,10 @@ export class MobileBatchDialogComponent implements OnInit {
         const mode = this.batchMode() ?? 'cancel';
         this.ref.close({ action: 'applied', updated, skipped, mode } satisfies MobileBatchDialogResult);
       },
-      error: () => {
+      error: (err: { error?: { error?: string } }) => {
         this.batchLoading.set(false);
-        this.messageService.add({ severity: 'error', summary: '操作失敗', detail: '批次操作失敗' });
+        const detail = err?.error?.error ?? '批次操作失敗';
+        this.messageService.add({ severity: 'error', summary: '操作失敗', detail });
       },
     });
   }

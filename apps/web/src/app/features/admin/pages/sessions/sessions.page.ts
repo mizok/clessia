@@ -270,8 +270,7 @@ export class SessionsPage implements OnInit {
     };
     const ref = this.dialogService.open(MobileBatchDialogComponent, {
       header: `已選 ${this.selectedCount()} 堂`,
-      width: 'calc(var(--window-width, 360px) * 0.9)',
-      style: { 'max-width': '400px' },
+      width: '420px',
       closable: true,
       closeOnEscape: true,
       dismissableMask: true,
@@ -317,8 +316,7 @@ export class SessionsPage implements OnInit {
     };
     const ref = this.dialogService.open(MobileFilterDialogComponent, {
       header: '篩選條件',
-      width: 'calc(var(--window-width, 360px) * 0.9)',
-      style: { 'max-width': '400px' },
+      width: '420px',
       closable: true,
       closeOnEscape: true,
       dismissableMask: true,

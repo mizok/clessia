@@ -1042,7 +1042,7 @@ app.openapi(substituteSessionRoute, async (c) => {
       .eq('staff_id', body.substituteTeacherId),
     supabase
       .from('staff')
-      .select('id, user_id, is_active')
+      .select('id, user_id, status')
       .eq('org_id', orgId)
       .eq('id', body.substituteTeacherId)
       .maybeSingle(),
@@ -1068,8 +1068,8 @@ app.openapi(substituteSessionRoute, async (c) => {
   }
 
   const substituteTeacherUserId = teacherRow['user_id'] as string | undefined;
-  const substituteTeacherActive = (teacherRow['is_active'] as boolean | null) ?? false;
-  if (!substituteTeacherUserId || !substituteTeacherActive) {
+  const substituteTeacherStatus = (teacherRow['status'] as string | null) ?? 'inactive';
+  if (!substituteTeacherUserId || substituteTeacherStatus !== 'active') {
     return c.json({ error: '代課老師不符合課程科目或分校資格', code: 'TEACHER_NOT_ELIGIBLE' }, 409);
   }
 
@@ -1537,7 +1537,7 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
         .eq('staff_id', body.teacherId),
       supabase
         .from('staff')
-        .select('id, user_id, is_active')
+        .select('id, user_id, status')
         .eq('org_id', orgId)
         .eq('id', body.teacherId)
         .maybeSingle(),
@@ -1569,8 +1569,8 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
   }
 
   const batchTeacherUserId = teacherRow['user_id'] as string | undefined;
-  const batchTeacherActive = (teacherRow['is_active'] as boolean | null) ?? false;
-  if (!batchTeacherUserId || !batchTeacherActive) {
+  const batchTeacherStatus = (teacherRow['status'] as string | null) ?? 'inactive';
+  if (!batchTeacherUserId || batchTeacherStatus !== 'active') {
     return c.json(
       {
         updated: 0,
@@ -2481,12 +2481,12 @@ app.openapi(batchUncancelRoute, async (c) => {
       ),
     ];
 
-    // 批次查詢老師 is_active 狀態（若無老師則跳過）
+    // 批次查詢老師 status 狀態（若無老師則跳過）
     const activeTeacherIds = new Set<string>();
     if (teacherIdsToCheck.length > 0) {
       const { data: staffRows, error: staffError } = await supabase
         .from('staff')
-        .select('id, is_active')
+        .select('id, status')
         .in('id', teacherIdsToCheck);
 
       if (staffError) {
@@ -2494,8 +2494,8 @@ app.openapi(batchUncancelRoute, async (c) => {
       }
 
       for (const staff of staffRows ?? []) {
-        if ((staff as { id: string; is_active: boolean }).is_active) {
-          activeTeacherIds.add((staff as { id: string; is_active: boolean }).id);
+        if ((staff as { id: string; status: string }).status === 'active') {
+          activeTeacherIds.add((staff as { id: string; status: string }).id);
         }
       }
     }
