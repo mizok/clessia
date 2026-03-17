@@ -255,19 +255,15 @@ BEGIN
         ON CONFLICT (user_id, role) DO UPDATE SET
             permissions = EXCLUDED.permissions;
 
-        INSERT INTO public.staff (user_id, org_id, display_name, phone, email, status)
+        INSERT INTO public.staff (user_id, org_id, display_name, status)
         VALUES (
             admin_user_id,
             demo_org_id,
             format('管理員%s', lpad(staff_index::text, 2, '0')),
-            format('0911%06s', lpad(staff_index::text, 6, '0')),
-            'admin' || lpad(staff_index::text, 2, '0') || '@demo.clessia.app',
             'active'
         )
         ON CONFLICT (user_id, org_id) DO UPDATE SET
             display_name = EXCLUDED.display_name,
-            phone = EXCLUDED.phone,
-            email = EXCLUDED.email,
             status = EXCLUDED.status,
             updated_at = NOW()
         RETURNING id INTO v_admin_staff_id;
@@ -342,19 +338,15 @@ BEGIN
             ON CONFLICT (user_id, role) DO UPDATE SET
                 permissions = EXCLUDED.permissions;
 
-            INSERT INTO public.staff (user_id, org_id, display_name, phone, email, status)
+            INSERT INTO public.staff (user_id, org_id, display_name, status)
             VALUES (
                 teacher_user_id,
                 demo_org_id,
                 v_teacher_display_name,
-                '0922' || lpad(teacher_index::text, 6, '0'),
-                format('teacher%s@demo.clessia.app', lpad(teacher_index::text, 4, '0')),
                 'active'
             )
             ON CONFLICT (user_id, org_id) DO UPDATE SET
                 display_name = EXCLUDED.display_name,
-                phone = EXCLUDED.phone,
-                email = EXCLUDED.email,
                 status = EXCLUDED.status,
                 updated_at = NOW()
             RETURNING id INTO v_teacher_staff_id;
@@ -466,13 +458,11 @@ BEGIN
       "updatedAt" = NOW();
 
     -- 建立家長資料
-    INSERT INTO public.parents (org_id, user_id, name, phone, email, status)
+    INSERT INTO public.parents (org_id, user_id, name, status)
     VALUES (
       demo_org_id,
       v_parent_user_id,
       parent_last_names[((student_index - 1) % 8) + 1] || parent_given_names[((student_index - 1) % 8) + 1],
-      '09' || LPAD((student_index * 12345678 % 100000000)::TEXT, 8, '0'),
-      'parent' || lpad(student_index::text, 2, '0') || '@demo.clessia.app',
       'active'
     )
     RETURNING id INTO v_parent_id;

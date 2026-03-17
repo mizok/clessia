@@ -113,19 +113,26 @@ export class AuthService {
     this._showRolePicker.set(false);
   }
 
-  async signIn(email: string, password: string, _captchaToken?: string): Promise<string | null> {
-    const { data, error } = await authClient.signIn.email({
-      email,
-      password,
-      fetchOptions: { credentials: 'include' },
+  async signIn(account: string, password: string, _captchaToken?: string): Promise<string | null> {
+    const res = await fetch(`${environment.apiUrl}/api/login`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account, password }),
     });
-    if (error || !data?.user) return '帳號或密碼錯誤';
 
-    if (data.user) {
-      this._user.set(data.user);
-      await this.loadProfile();
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      if ((body as { code?: string }).code === 'ACCOUNT_DISABLED') {
+        return '帳號已停用，請聯繫管理員';
+      }
+      return '帳號或密碼錯誤';
     }
 
+    // Session cookie is now set. Sync client state.
+    const { data: session } = await authClient.getSession();
+    this._user.set(session?.user ?? null);
+    await this.loadProfile();
     return null;
   }
 
