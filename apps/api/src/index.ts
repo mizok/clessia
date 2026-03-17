@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { authMiddleware } from './middleware/auth';
 import { createAuth } from './auth';
 import { resolveCorsOrigin } from './lib/origins';
+import { createServiceClientFromEnv } from './lib/supabase';
 import campusesRoute from './routes/campuses';
 import coursesRoute from './routes/courses';
 import staffRoute from './routes/staff';
@@ -141,6 +142,66 @@ app.get('/docs', swaggerUI({ url: '/openapi.json' }));
 app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
   const auth = createAuth(c.env);
   return auth.handler(c.req.raw);
+});
+
+// ── 家長登入（反查）- must be BEFORE authMiddleware ──────────────────────────
+// 接受 email 或手機號碼，反查 parents 表後透過 Better Auth 驗證密碼
+app.post('/api/parents/login', async (c) => {
+  const body = await c.req.json<{ account?: string; password?: string }>();
+  const account = body.account?.trim();
+  const password = body.password;
+
+  if (!account || !password) {
+    return c.json({ error: 'account 與 password 為必填', code: 'MISSING_FIELDS' }, 400);
+  }
+
+  const supabase = createServiceClientFromEnv(c.env);
+
+  // 反查 parents 表（email 或 phone 任一符合，取 active 狀態）
+  const { data: parentRow } = await supabase
+    .from('parents')
+    .select('user_id, status')
+    .or(`email.eq.${account},phone.eq.${account}`)
+    .eq('status', 'active')
+    .limit(1)
+    .maybeSingle();
+
+  if (!parentRow) {
+    return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
+  }
+
+  // 取得 ba_user 的登入憑證（email 優先，否則用 username = phone）
+  const { data: baUser } = await supabase
+    .from('ba_user')
+    .select('email, username')
+    .eq('id', parentRow.user_id)
+    .single();
+
+  if (!baUser) {
+    return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
+  }
+
+  const auth = createAuth(c.env);
+
+  try {
+    if (baUser.email) {
+      // email 登入
+      const res = await auth.api.signInEmail({
+        body: { email: baUser.email as string, password },
+        asResponse: true,
+      });
+      return res;
+    } else {
+      // 僅手機（username）登入
+      const res = await (auth.api as any).signInUsername({
+        body: { username: baUser.username as string, password },
+        asResponse: true,
+      });
+      return res;
+    }
+  } catch {
+    return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
+  }
 });
 
 app.use('/api/*', authMiddleware);

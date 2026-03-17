@@ -148,7 +148,7 @@ BEGIN
             demo_org_id,
             v_campus_name,
             format('台北市示範區校園路%s號', campus_index),
-            format('02-28%02s-%04s', campus_index, 1000 + campus_index),
+            '02-28' || lpad(campus_index::text, 2, '0') || '-' || (1000 + campus_index)::text,
             true
         )
         ON CONFLICT (org_id, name) DO UPDATE SET
@@ -216,9 +216,9 @@ BEGIN
         VALUES (
             admin_user_id,
             format('管理員%s', lpad(staff_index::text, 2, '0')),
-            format('admin%02s@demo.clessia.app', staff_index),
+            'admin' || lpad(staff_index::text, 2, '0') || '@demo.clessia.app',
             true,
-            format('demo_admin_%02s', staff_index),
+            'demo_admin_' || lpad(staff_index::text, 2, '0'),
             demo_org_id,
             NOW(),
             NOW()
@@ -261,7 +261,7 @@ BEGIN
             demo_org_id,
             format('管理員%s', lpad(staff_index::text, 2, '0')),
             format('0911%06s', lpad(staff_index::text, 6, '0')),
-            format('admin%02s@demo.clessia.app', staff_index),
+            'admin' || lpad(staff_index::text, 2, '0') || '@demo.clessia.app',
             'active'
         )
         ON CONFLICT (user_id, org_id) DO UPDATE SET
@@ -381,8 +381,9 @@ END $$;
 DO $$
 DECLARE
   demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
-  demo_parent_password_hash TEXT := '$2a$10$GC7RHybGBPm5JMX8CqDm8.GWV0WI37K4ZFTwJFJI1l0GOz2uCCTxG';
-  -- demo_parent_password_hash = bcrypt hash of 'Demo1234!'
+  demo_parent_password_hash TEXT := '4e8ad8afc37c5a4e5bff1dc9e6829e07:a5d317f78db1d1e7064900c47e06baf4a0bcebdc8590d7a8a5d31279cee453ef37dce95e8ab264c7b0f7ddf399d63ff176250de82c2a74be400b134a5964bf61';
+  -- demo_parent_password_hash = scrypt hash of 'Demo1234!'
+  -- Better Auth uses hex string as salt (not bytes), NFKC-normalized password
   student_names TEXT[] := ARRAY[
     '林子璿', '陳宇翔', '張品妍', '王柏睿', '李語涵',
     '黃承恩', '劉靖雯', '吳宥廷', '鄭詠晴', '謝家豪',
@@ -437,9 +438,9 @@ BEGIN
     VALUES (
       v_parent_user_id,
       parent_last_names[((student_index - 1) % 8) + 1] || parent_given_names[((student_index - 1) % 8) + 1],
-      format('parent%02s@demo.clessia.app', student_index),
+      'parent' || lpad(student_index::text, 2, '0') || '@demo.clessia.app',
       true,
-      format('demo_parent_%02s', student_index),
+      'demo_parent_' || lpad(student_index::text, 2, '0'),
       demo_org_id,
       NOW(),
       NOW()
@@ -465,12 +466,13 @@ BEGIN
       "updatedAt" = NOW();
 
     -- 建立家長資料
-    INSERT INTO public.parents (org_id, user_id, name, phone, status)
+    INSERT INTO public.parents (org_id, user_id, name, phone, email, status)
     VALUES (
       demo_org_id,
       v_parent_user_id,
       parent_last_names[((student_index - 1) % 8) + 1] || parent_given_names[((student_index - 1) % 8) + 1],
       '09' || LPAD((student_index * 12345678 % 100000000)::TEXT, 8, '0'),
+      'parent' || lpad(student_index::text, 2, '0') || '@demo.clessia.app',
       'active'
     )
     RETURNING id INTO v_parent_id;
