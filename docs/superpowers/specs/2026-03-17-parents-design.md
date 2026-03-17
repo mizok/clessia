@@ -16,7 +16,8 @@
 | 帳號狀態設計 | 三態 enum：`active / inactive / archived` | 與 Staff 一致；補習班有學年週期，家長會「畢業」，封存比刪除合理 |
 | `is_active` 欄位 | 移除，改用 `status` enum | 布林無法表達封存語意 |
 | `archived → active` 轉換 | 允許（管理員可手動恢復） | 規格說「需管理員手動改回」，API 不應拒絕此操作 |
-| 狀態路由設計 | 單一 `PUT /api/parents/:id/status` | 父母狀態語意較單純，不像 staff 需分三個語意端點；單一端點減少前端複雜度 |
+| 狀態路由設計 | 三個獨立 PATCH：`/activate`、`/deactivate`、`/archive` | 對齊 staff.ts 模式；語意更清晰，每個操作可獨立做業務邏輯 |
+| 封存可逆性 | 單向，無 unarchive API | 對齊 staff.ts；封存前 UI 顯示確認警告 |
 | 密碼長度 | 10 碼英數混合 | 對齊 `staff.ts` 的 `generateRandomPassword()`，統一規格 |
 | seed.sql 更新策略 | 直接 INSERT `ba_user`（方案 A） | seed.sql 是 PL/pgSQL，無法呼叫 BA JS API；對齊 staff seed 的做法，直接插入固定 UUID 測試帳號 |
 
