@@ -383,10 +383,10 @@ mcp__codex-cli__codex({
 ### 技術棧
 
 ```
-Frontend: Angular 19 + PrimeNG 19 + Signals
+Frontend: Angular 21 + PrimeNG 21 + Signals
 Backend:  Hono (Cloudflare Workers)
-Database: Supabase (PostgreSQL + RLS)
-Deployment: Cloudflare Pages + Workers
+Database: Supabase (PostgreSQL)
+Deployment: Vercel
 ```
 
 ### 版本檢查指令
