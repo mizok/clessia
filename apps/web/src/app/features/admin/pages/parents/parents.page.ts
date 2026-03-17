@@ -253,7 +253,7 @@ export class ParentsPage implements OnInit {
     this.openConfirmDialog(
       '封存家長帳號',
       {
-        message: `確定要封存「${parent.name}」嗎？封存後帳號將停用並從一般列表隱藏。`,
+        message: `封存後無法透過系統自動復原。確定要封存「${parent.name}」的帳號嗎？`,
         acceptLabel: '封存',
         rejectLabel: '取消',
         acceptSeverity: 'danger',

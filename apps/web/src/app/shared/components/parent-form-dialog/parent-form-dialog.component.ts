@@ -23,6 +23,7 @@ interface StudentOption {
   selector: 'app-parent-form-dialog',
   standalone: true,
   imports: [FormsModule, ButtonModule, InputTextModule, MultiSelectModule, TextareaModule],
+  providers: [MessageService],
   templateUrl: './parent-form-dialog.component.html',
   styleUrl: './parent-form-dialog.component.scss',
 })

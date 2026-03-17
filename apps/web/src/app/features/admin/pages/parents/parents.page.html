@@ -275,6 +275,16 @@
                     <span>啟用</span>
                   </button>
                 }
+                @if (parent.status !== 'archived') {
+                  <button
+                    type="button"
+                    class="parent-card__action-btn parent-card__action-btn--archive"
+                    (click)="confirmArchive(parent)"
+                  >
+                    <i class="pi pi-inbox"></i>
+                    <span>封存</span>
+                  </button>
+                }
               </div>
             </article>
           }
