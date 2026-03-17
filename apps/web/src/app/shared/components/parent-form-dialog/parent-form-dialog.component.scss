@@ -1,0 +1,40 @@
+@use 'shared/breakpoints' as bp;
+
+// Styles inherited from global .form-dialog in src/styles.scss
+
+.form-dialog {
+  &__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+
+    @include bp.respond-to('mobile') {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__hint {
+    margin-left: var(--space-1);
+    font-size: 0.6875rem;
+    font-weight: 400;
+    color: var(--zinc-400, #a1a1aa);
+  }
+
+  &__notice {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background-color: var(--sky-50, #f0f9ff);
+    border: 1px solid var(--sky-200, #bae6fd);
+    border-radius: var(--border-radius, 6px);
+    font-size: 0.8125rem;
+    color: var(--sky-700, #0369a1);
+
+    i {
+      flex-shrink: 0;
+      margin-top: 2px;
+      font-size: 0.875rem;
+    }
+  }
+}

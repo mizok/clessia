@@ -1,0 +1,124 @@
+<div class="form-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <span class="dialog-header-inline__title">
+        {{ isEditMode() ? '編輯家長資料' : '新增家長' }}
+      </span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="關閉">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <!-- 姓名 -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label">
+      姓名<span class="form-dialog__required">*</span>
+    </label>
+    <input
+      type="text"
+      pInputText
+      [ngModel]="formData().name"
+      (ngModelChange)="updateForm('name', $event)"
+      placeholder="請輸入家長姓名"
+      [disabled]="loading()"
+      class="w-full"
+    />
+  </div>
+
+  <!-- Email + 手機 -->
+  <div class="form-dialog__row">
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">
+        Email
+        @if (!isEditMode()) {
+          <span class="form-dialog__hint">（擇一必填）</span>
+        }
+      </label>
+      <input
+        type="email"
+        pInputText
+        [ngModel]="formData().email"
+        (ngModelChange)="updateForm('email', $event)"
+        placeholder="parent@example.com"
+        [disabled]="loading()"
+        class="w-full"
+      />
+    </div>
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">
+        手機號碼
+        @if (!isEditMode()) {
+          <span class="form-dialog__hint">（擇一必填）</span>
+        }
+      </label>
+      <input
+        type="tel"
+        pInputText
+        [ngModel]="formData().phone"
+        (ngModelChange)="updateForm('phone', $event)"
+        placeholder="0912-345-678"
+        [disabled]="loading()"
+        class="w-full"
+      />
+    </div>
+  </div>
+
+  <!-- 關聯學生 -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label">關聯學生</label>
+    <p-multiselect
+      [options]="studentOptions()"
+      [ngModel]="formData().studentIds"
+      (ngModelChange)="updateForm('studentIds', $event)"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="選擇關聯學生（可複選）"
+      [loading]="studentsLoading()"
+      [disabled]="loading()"
+      [filter]="true"
+      filterPlaceholder="搜尋學生"
+      [showClear]="true"
+      styleClass="w-full"
+    />
+  </div>
+
+  <!-- 備註 -->
+  <div class="form-dialog__field">
+    <label class="form-dialog__label">備註</label>
+    <textarea
+      pTextarea
+      [ngModel]="formData().notes"
+      (ngModelChange)="updateForm('notes', $event)"
+      placeholder="特殊需求、注意事項..."
+      rows="3"
+      [disabled]="loading()"
+      class="w-full"
+    ></textarea>
+  </div>
+
+  @if (!isEditMode()) {
+    <div class="form-dialog__notice">
+      <i class="pi pi-info-circle"></i>
+      <span>系統將自動產生初始密碼，建立後可下載帳號資訊卡</span>
+    </div>
+  }
+
+  <!-- Footer -->
+  <div class="form-dialog__footer">
+    <p-button
+      label="取消"
+      [text]="true"
+      severity="secondary"
+      [disabled]="loading()"
+      (onClick)="cancel()"
+    />
+    <p-button
+      [label]="isEditMode() ? '儲存' : '建立家長'"
+      [icon]="loading() ? 'pi pi-spinner pi-spin' : (isEditMode() ? 'pi pi-check' : 'pi pi-plus')"
+      [loading]="loading()"
+      [disabled]="!isFormValid()"
+      (onClick)="save()"
+    />
+  </div>
+</div>

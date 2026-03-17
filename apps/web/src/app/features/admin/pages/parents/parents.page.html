@@ -1,1 +1,298 @@
-<p>parents works!</p>
+<p-toast appendTo="body" [baseZIndex]="25000" />
+
+<div class="parents">
+  <!-- Page Header -->
+  <header class="parents__header">
+    <div class="parents__title-group">
+      <h1 class="parents__title">家長管理</h1>
+      <p class="parents__subtitle">管理家長帳號、關聯學生及帳號狀態</p>
+    </div>
+    <div class="parents__header-actions">
+      <p-button
+        label="新增家長"
+        icon="pi pi-plus"
+        (onClick)="openCreateDialog()"
+      />
+    </div>
+  </header>
+
+  <!-- Main Card -->
+  <div class="parents__card">
+    <!-- Toolbar -->
+    <div class="parents__toolbar">
+      <div class="parents__search">
+        <p-iconfield iconPosition="left">
+          <p-inputicon styleClass="pi pi-search" />
+          <input
+            type="text"
+            pInputText
+            placeholder="搜尋姓名、Email、手機..."
+            [ngModel]="searchQuery()"
+            (ngModelChange)="onSearchChange($event)"
+          />
+        </p-iconfield>
+      </div>
+
+      <div class="parents__status-filter">
+        <p-select
+          [options]="statusOptions"
+          [ngModel]="selectedStatus()"
+          (ngModelChange)="onStatusChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部狀態"
+          styleClass="parents__status-select"
+        />
+      </div>
+    </div>
+
+    <!-- Stats Summary -->
+    @if (!loading() && parents().length > 0) {
+      <div class="parents__stats">
+        <div class="parents__stat">
+          <span class="parents__stat-value">{{ summary().total }}</span>
+          <span class="parents__stat-label">位家長</span>
+        </div>
+        <div class="parents__stat">
+          <span class="parents__stat-value">{{ activeCount() }}</span>
+          <span class="parents__stat-label">啟用中</span>
+        </div>
+        @if (inactiveCount() > 0) {
+          <div class="parents__stat">
+            <span class="parents__stat-value">{{ inactiveCount() }}</span>
+            <span class="parents__stat-label">已停用</span>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Content Area -->
+    <div class="parents__content">
+      @if (loading()) {
+        <div class="skeleton-list">
+          @for (i of [1, 2, 3, 4, 5]; track i) {
+            <span class="skeleton-bar"></span>
+          }
+        </div>
+      } @else if (parents().length === 0) {
+        @if (searchQuery() || selectedStatus()) {
+          <app-empty-state
+            icon="pi pi-search"
+            title="找不到符合的家長"
+            description="請嘗試調整搜尋條件或狀態篩選"
+          >
+            <p-button
+              label="清除篩選"
+              [text]="true"
+              severity="secondary"
+              (onClick)="onSearchChange(''); onStatusChange(null)"
+            />
+          </app-empty-state>
+        } @else {
+          <app-empty-state
+            icon="pi pi-users"
+            title="尚未有家長資料"
+            description="點選「新增家長」來建立第一位家長帳號"
+          >
+            <p-button
+              label="新增家長"
+              icon="pi pi-plus"
+              (onClick)="openCreateDialog()"
+            />
+          </app-empty-state>
+        }
+      } @else {
+        <!-- Desktop: Data Table -->
+        <div class="parents__table-view">
+          <p-table [value]="parents()" styleClass="p-datatable-sm">
+            <ng-template #header>
+              <tr>
+                <th style="width: 20%">姓名</th>
+                <th style="width: 22%">登入帳號</th>
+                <th style="width: 18%">關聯學生</th>
+                <th style="width: 10%">狀態</th>
+                <th style="width: 30%; text-align: right">操作</th>
+              </tr>
+            </ng-template>
+            <ng-template #body let-parent>
+              <tr>
+                <td>
+                  <div class="parent-table__name-cell">
+                    <span class="parent-table__avatar">
+                      <i class="pi pi-user"></i>
+                    </span>
+                    <span class="parent-table__name">{{ parent.name }}</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="parent-table__account">{{ parent.loginAccount }}</span>
+                </td>
+                <td>
+                  @if (parent.studentCount > 0) {
+                    <span class="parent-table__student-count">
+                      {{ parent.studentCount }} 位學生
+                    </span>
+                  } @else {
+                    <span class="parent-table__empty">無關聯</span>
+                  }
+                </td>
+                <td>
+                  <p-tag
+                    [value]="parent.status === 'active' ? '啟用' : parent.status === 'inactive' ? '停用' : '封存'"
+                    [severity]="getStatusSeverity(parent.status)"
+                  />
+                </td>
+                <td>
+                  <div class="parent-table__actions">
+                    <p-button
+                      icon="pi pi-pencil"
+                      [rounded]="true"
+                      [text]="true"
+                      severity="secondary"
+                      pTooltip="編輯"
+                      tooltipPosition="top"
+                      [disabled]="parent.status === 'archived'"
+                      (onClick)="openEditDialog(parent)"
+                    />
+                    <p-button
+                      icon="pi pi-key"
+                      [rounded]="true"
+                      [text]="true"
+                      severity="secondary"
+                      pTooltip="重設密碼"
+                      tooltipPosition="top"
+                      [disabled]="parent.status === 'archived'"
+                      (onClick)="confirmResetPassword(parent)"
+                    />
+                    @if (parent.status === 'active') {
+                      <p-button
+                        icon="pi pi-ban"
+                        [rounded]="true"
+                        [text]="true"
+                        severity="warn"
+                        pTooltip="停用"
+                        tooltipPosition="top"
+                        (onClick)="confirmDeactivate(parent)"
+                      />
+                    }
+                    @if (parent.status === 'inactive') {
+                      <p-button
+                        icon="pi pi-check-circle"
+                        [rounded]="true"
+                        [text]="true"
+                        severity="success"
+                        pTooltip="啟用"
+                        tooltipPosition="top"
+                        (onClick)="confirmActivate(parent)"
+                      />
+                    }
+                    @if (parent.status !== 'archived') {
+                      <p-button
+                        icon="pi pi-inbox"
+                        [rounded]="true"
+                        [text]="true"
+                        severity="danger"
+                        pTooltip="封存"
+                        tooltipPosition="top"
+                        (onClick)="confirmArchive(parent)"
+                      />
+                    }
+                  </div>
+                </td>
+              </tr>
+            </ng-template>
+          </p-table>
+        </div>
+
+        <!-- Mobile: Card List -->
+        <div class="parents__card-view">
+          @for (parent of parents(); track parent.id) {
+            <article class="parent-card" [class.parent-card--inactive]="parent.status !== 'active'">
+              <div class="parent-card__header">
+                <div class="parent-card__avatar">
+                  <i class="pi pi-user"></i>
+                </div>
+                <div class="parent-card__title-group">
+                  <span class="parent-card__name">{{ parent.name }}</span>
+                  <div class="parent-card__meta">
+                    <p-tag
+                      [value]="parent.status === 'active' ? '啟用' : parent.status === 'inactive' ? '停用' : '封存'"
+                      [severity]="getStatusSeverity(parent.status)"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div class="parent-card__body">
+                <div class="parent-card__field">
+                  <i class="pi pi-at"></i>
+                  <span>{{ parent.loginAccount }}</span>
+                </div>
+                @if (parent.studentCount > 0) {
+                  <div class="parent-card__field">
+                    <i class="pi pi-users"></i>
+                    <span>關聯 {{ parent.studentCount }} 位學生</span>
+                  </div>
+                }
+              </div>
+
+              <div class="parent-card__actions">
+                <button
+                  type="button"
+                  class="parent-card__action-btn parent-card__action-btn--edit"
+                  [disabled]="parent.status === 'archived'"
+                  (click)="openEditDialog(parent)"
+                >
+                  <i class="pi pi-pencil"></i>
+                  <span>編輯</span>
+                </button>
+                <button
+                  type="button"
+                  class="parent-card__action-btn parent-card__action-btn--key"
+                  [disabled]="parent.status === 'archived'"
+                  (click)="confirmResetPassword(parent)"
+                >
+                  <i class="pi pi-key"></i>
+                  <span>重設密碼</span>
+                </button>
+                @if (parent.status === 'active') {
+                  <button
+                    type="button"
+                    class="parent-card__action-btn parent-card__action-btn--deactivate"
+                    (click)="confirmDeactivate(parent)"
+                  >
+                    <i class="pi pi-ban"></i>
+                    <span>停用</span>
+                  </button>
+                }
+                @if (parent.status === 'inactive') {
+                  <button
+                    type="button"
+                    class="parent-card__action-btn parent-card__action-btn--activate"
+                    (click)="confirmActivate(parent)"
+                  >
+                    <i class="pi pi-check-circle"></i>
+                    <span>啟用</span>
+                  </button>
+                }
+              </div>
+            </article>
+          }
+
+          @if (parents().length > 0) {
+            <div class="parents__mobile-count">共 {{ total() }} 位家長</div>
+          }
+        </div>
+
+        @if (total() > PAGE_SIZE) {
+          <p-paginator
+            [rows]="PAGE_SIZE"
+            [totalRecords]="total()"
+            [first]="(currentPage() - 1) * PAGE_SIZE"
+            (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
+          />
+        }
+      }
+    </div>
+  </div>
+</div>
