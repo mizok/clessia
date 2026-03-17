@@ -15,24 +15,33 @@ Replace role-specific login endpoints with a single `POST /api/login` that accep
 
 ## Scope
 
-`POST /api/login` covers **staff and parent accounts only**. System accounts (e.g. `root`) have no staff or parents record and use Better Auth's native endpoint (`/api/auth/sign-in/username`) directly. There is no fallback path in `/api/login`.
+`POST /api/login` covers **all accounts** — staff, parents, and system accounts (e.g. `root`). All accounts authenticate via email (`root@clessia.com`) or phone number. There is no separate endpoint for system accounts.
 
 ---
 
 ## Credential Strategy
 
-Every account needs a Better Auth-compatible credential for password verification:
+Password verification is done manually against Better Auth's stored hash, bypassing `signInEmail` / `signInUsername`. This allows a single code path regardless of whether the account has an email or is phone-only.
 
-| Account type | ba_user.email | ba_user.phone | ba_user.username | Better Auth method |
-|---|---|---|---|---|
-| Staff / admin (email) | set | optional | optional | `signInEmail` |
-| Parent (email) | set | optional | optional | `signInEmail` |
-| Parent (phone-only) | NULL | set | = phone number | `signInUsername` |
-| System (root) | NULL | NULL | `root` | `signInUsername` (external) |
+**Flow:**
+1. Look up `ba_user` by email or phone → obtain `ba_user.id`
+2. Query `ba_account WHERE userId = ba_user.id AND providerId = 'credential'` → get `password` field (format: `saltHex:keyHex`)
+3. Derive key: `scrypt(inputPassword.normalize('NFKC'), saltHex, { N: 16384, r: 16, p: 1, dkLen: 64 })`
+   - `saltHex` is passed as a hex string (not decoded to bytes) — matching Better Auth's own implementation
+4. Compare derived hex key with stored `keyHex`
+5. On match → call `auth.api.admin.createSession({ userId: ba_user.id, asResponse: true })` and forward response to client
 
-**Phone-only accounts** store the phone number in both `ba_user.phone` (for lookup) and `ba_user.username` (for Better Auth `signInUsername`). The login endpoint looks up by `ba_user.phone`, then authenticates via `signInUsername` using the stored username (= phone).
+**Why not `signInEmail` / `signInUsername`?**
+Better Auth has no `signInByUserId`. For phone-only accounts there is no email to pass. Storing `username = phone` as a workaround works technically but is a design smell. Manual verification + `createSession` is cleaner and treats all account types uniformly.
 
-This is the only case where username equals a phone number. All other usernames are human-readable (e.g. `demo_admin`).
+**`ba_user` lookup summary:**
+
+| Input type | Lookup column | Notes |
+|---|---|---|
+| Contains `@` | `ba_user.email` | Standard email accounts |
+| Otherwise | `ba_user.phone` | Phone-only parents |
+
+Phone-only accounts have `ba_user.email = NULL`. No username field is overloaded.
 
 ---
 
@@ -72,8 +81,8 @@ ALTER TABLE parents DROP COLUMN phone;
 ```
 
 **Application code to update simultaneously:**
-- `parents.ts` CREATE: remove `email` / `phone` from `parents` INSERT; write to `ba_user` via `auth.api.admin.createUser()`; for phone-only accounts, set `username = phone`
-- `parents.ts` UPDATE: remove `email` / `phone` from `parents` UPDATE SET; sync changes to `ba_user` via `auth.api.admin.updateUser()`; if phone changes, update `ba_user.username` as well
+- `parents.ts` CREATE: remove `email` / `phone` from `parents` INSERT; write to `ba_user` via `auth.api.admin.createUser()`
+- `parents.ts` UPDATE: remove `email` / `phone` from `parents` UPDATE SET; sync changes to `ba_user` via `auth.api.admin.updateUser()`
 - `parents.ts` LIST / GET: JOIN `ba_user` to include `email` and `phone` in response
 - `parents.ts` SEARCH: rewrite to query `ba_user` columns (see Search Queries section)
 - `ParentSchema`: `email` and `phone` remain optional (at least one required); both come from `ba_user`
@@ -159,14 +168,19 @@ Public route (before `authMiddleware`). Replaces `POST /api/parents/login`.
    - If in parents AND parents.status ≠ active → parent_blocked
    - If ALL found records are blocked → 401 ACCOUNT_DISABLED
    - If at least one record is active → proceed
-   - If no records in either table → 401 INVALID_CREDENTIALS
+   - If no records in either table → proceed (system account, e.g. root)
 
-5. Verify password via Better Auth
-   ba_user.email present → auth.api.signInEmail({ email, password }, asResponse: true)
-   ba_user.email absent  → auth.api.signInUsername({ username: ba_user.username, password }, asResponse: true)
+5. Verify password manually
+   Query ba_account WHERE userId = ba_user.id AND providerId = 'credential'
+   Not found → 401 INVALID_CREDENTIALS
+   Split stored password field → saltHex:keyHex
+   Derive: scrypt(inputPassword.normalize('NFKC'), saltHex, { N: 16384, r: 16, p: 1, dkLen: 64 })
+   Compare derived hex with keyHex
+   Mismatch → 401 INVALID_CREDENTIALS
+
+6. Create session
+   auth.api.admin.createSession({ userId: ba_user.id, asResponse: true })
    Forward raw response to client (includes Set-Cookie)
-
-6. On Better Auth error → 401 INVALID_CREDENTIALS
 ```
 
 **Error responses:**
@@ -225,7 +239,7 @@ No changes needed.
 
 ## Seed Data Updates
 
-- Parent accounts: write phone to `ba_user.phone` AND `ba_user.username` (for phone-only accounts); remove phone/email from `parents` INSERT
+- Parent accounts: write phone to `ba_user.phone`; remove phone/email from `parents` INSERT. No need to set `ba_user.username = phone`.
 - Staff accounts: remove email/phone from `staff` INSERT
 - No `banUser()` calls for any seed accounts
 

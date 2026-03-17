@@ -43,10 +43,10 @@ DECLARE
     v_teacher_staff_id UUID;
 BEGIN
     -- 1. Insert users into Better Auth ba_user table
-    -- root: username-only account (no email), logs in via username + password
+    -- root: email-based account
     INSERT INTO public.ba_user (id, name, email, "emailVerified", username, "orgId", "createdAt", "updatedAt")
     VALUES
-        (root_id::text, 'Super Admin', NULL, false, 'root', NULL, NOW(), NOW()),
+        (root_id::text, 'Super Admin', 'root@clessia.com', true, 'root', NULL, NOW(), NOW()),
         (demo_admin_id::text, 'Demo Admin', demo_admin_email, true, 'demo_admin', NULL, NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
