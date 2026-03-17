@@ -15,12 +15,13 @@ import { environment } from '@env/environment';
 export class LoginComponent implements AfterViewInit {
   @ViewChild('turnstileContainer') turnstileContainer!: ElementRef;
 
-  email = '';
+  account = '';
   password = '';
   rememberMe = false;
   error = signal<string | null>(null);
   submitting = signal(false);
   captchaToken = signal<string | null>(null);
+  showPassword = signal(false);
 
   constructor(
     private readonly auth: AuthService,
@@ -47,7 +48,7 @@ export class LoginComponent implements AfterViewInit {
     this.submitting.set(true);
 
     this.auth.setRememberMe(this.rememberMe);
-    const errorMsg = await this.auth.signIn(this.email, this.password, this.captchaToken() ?? undefined);
+    const errorMsg = await this.auth.signIn(this.account, this.password, this.captchaToken() ?? undefined);
     this.submitting.set(false);
 
     if (errorMsg) {

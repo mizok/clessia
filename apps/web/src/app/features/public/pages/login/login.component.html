@@ -14,31 +14,41 @@
     }
 
     <div class="form__field">
-      <label class="form__label" for="email">Email</label>
+      <label class="form__label" for="account">帳號</label>
       <input
-        id="email"
-        type="email"
+        id="account"
+        type="text"
         class="form__input"
-        placeholder="輸入 Email"
-        [(ngModel)]="email"
-        name="email"
+        placeholder="輸入 Email 或手機號碼"
+        [(ngModel)]="account"
+        name="account"
         required
-        autocomplete="email"
+        autocomplete="username"
       />
     </div>
 
     <div class="form__field">
       <label class="form__label" for="password">密碼</label>
-      <input
-        id="password"
-        type="password"
-        class="form__input"
-        placeholder="輸入密碼"
-        [(ngModel)]="password"
-        name="password"
-        required
-        autocomplete="current-password"
-      />
+      <div class="form__input-wrapper">
+        <input
+          id="password"
+          [type]="showPassword() ? 'text' : 'password'"
+          class="form__input"
+          placeholder="輸入密碼"
+          [(ngModel)]="password"
+          name="password"
+          required
+          autocomplete="current-password"
+        />
+        <button
+          type="button"
+          class="form__reveal-btn"
+          (click)="showPassword.set(!showPassword())"
+          [attr.aria-label]="showPassword() ? '隱藏密碼' : '顯示密碼'"
+        >
+          <i [class]="showPassword() ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
+        </button>
+      </div>
     </div>
 
     <div class="form__row">
@@ -55,7 +65,7 @@
     <button
       type="submit"
       class="form__submit"
-      [disabled]="submitting() || !email || !password"
+      [disabled]="submitting() || !account || !password"
     >
       @if (submitting()) {
         <i class="pi pi-spinner pi-spin"></i>

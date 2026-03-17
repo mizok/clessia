@@ -1,8 +1,7 @@
 DO $$
 DECLARE
     root_id UUID := '00000000-0000-0000-0000-000000000000';
-    root_email TEXT := 'root@clessia.com';
-    -- scrypt hash of 'Test123' (salt:key format for Better Auth using @noble/hashes/scrypt)
+    -- scrypt hash of 'Test123' (Better Auth format: hex-string salt, NFKC-normalized password)
     root_password_hash TEXT := 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6:6ad04372a2a78a5adde77793f33e0a316de3077333eb0704947f8213c2adac9fdf3713001d762b95d0c259fa048006a2b79b994c79c7de0d380668f31695ce75';
     demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
     demo_admin_id UUID := '22222222-2222-2222-2222-222222222222';
@@ -44,9 +43,10 @@ DECLARE
     v_teacher_staff_id UUID;
 BEGIN
     -- 1. Insert users into Better Auth ba_user table
+    -- root: username-only account (no email), logs in via username + password
     INSERT INTO public.ba_user (id, name, email, "emailVerified", username, "orgId", "createdAt", "updatedAt")
     VALUES
-        (root_id::text, 'Super Admin', root_email, true, 'root', NULL, NOW(), NOW()),
+        (root_id::text, 'Super Admin', NULL, false, 'root', NULL, NOW(), NOW()),
         (demo_admin_id::text, 'Demo Admin', demo_admin_email, true, 'demo_admin', NULL, NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
