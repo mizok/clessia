@@ -1,5 +1,7 @@
-import { Component, OnInit, inject, signal, computed, input } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject, signal, computed, input } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 
 // PrimeNG
 import { TableModule } from 'primeng/table';
@@ -60,12 +62,17 @@ export class ParentsPage implements OnInit {
   private readonly messageService = inject(MessageService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly page = input.required<RouteObj>();
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
   }
+
+  protected static readonly PAGE_SIZE = 20;
+  protected readonly PAGE_SIZE = ParentsPage.PAGE_SIZE;
+  protected readonly statusLabels = PARENT_STATUS_LABELS;
 
   // State
   protected readonly parents = signal<Parent[]>([]);
@@ -75,7 +82,8 @@ export class ParentsPage implements OnInit {
   protected readonly summary = signal({ total: 0, activeCount: 0, inactiveCount: 0, archivedCount: 0 });
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
-  protected readonly PAGE_SIZE = 20;
+
+  private readonly searchSubject = new Subject<string>();
 
   // Status options
   protected readonly statusOptions = [
@@ -89,6 +97,15 @@ export class ParentsPage implements OnInit {
   protected readonly inactiveCount = computed(() => this.summary().inactiveCount);
 
   ngOnInit(): void {
+    this.searchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe((value) => {
+      this.searchQuery.set(value);
+      this.currentPage.set(1);
+      this.loadParents();
+    });
     this.loadParents();
   }
 
@@ -116,9 +133,7 @@ export class ParentsPage implements OnInit {
   }
 
   protected onSearchChange(value: string): void {
-    this.searchQuery.set(value);
-    this.currentPage.set(1);
-    this.loadParents();
+    this.searchSubject.next(value);
   }
 
   protected onStatusChange(status: ParentStatus | null): void {
@@ -130,6 +145,10 @@ export class ParentsPage implements OnInit {
   protected onPageChange(page: number): void {
     this.currentPage.set(page);
     this.loadParents();
+  }
+
+  protected getStatusLabel(status: ParentStatus): string {
+    return PARENT_STATUS_LABELS[status] ?? status;
   }
 
   protected getStatusSeverity(status: ParentStatus): 'success' | 'secondary' | 'danger' {
@@ -150,7 +169,7 @@ export class ParentsPage implements OnInit {
     });
 
     if (!ref) return;
-    ref.onClose.subscribe((result?: { type: string; data: Parent; password: string }) => {
+    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result?: { type: string; data: Parent; password: string }) => {
       if (!result) return;
       if (result.type === 'created') {
         this.loadParents();
@@ -172,7 +191,7 @@ export class ParentsPage implements OnInit {
         });
 
         if (!ref) return;
-        ref.onClose.subscribe((result?: { type: string }) => {
+        ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result?: { type: string }) => {
           if (result?.type === 'updated') this.loadParents();
         });
       },
@@ -293,6 +312,6 @@ export class ParentsPage implements OnInit {
       data,
     });
     if (!ref) return;
-    ref.onClose.subscribe((result) => { if (result) onAccept(); });
+    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => { if (result) onAccept(); });
   }
 }

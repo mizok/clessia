@@ -5,6 +5,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { TextareaModule } from 'primeng/textarea';
 import { MessageService } from 'primeng/api';
+import { ToastModule } from 'primeng/toast';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import {
   ParentsService,
@@ -22,7 +23,7 @@ interface StudentOption {
 @Component({
   selector: 'app-parent-form-dialog',
   standalone: true,
-  imports: [FormsModule, ButtonModule, InputTextModule, MultiSelectModule, TextareaModule],
+  imports: [FormsModule, ButtonModule, InputTextModule, MultiSelectModule, TextareaModule, ToastModule],
   providers: [MessageService],
   templateUrl: './parent-form-dialog.component.html',
   styleUrl: './parent-form-dialog.component.scss',

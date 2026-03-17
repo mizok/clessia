@@ -35,12 +35,21 @@ export class PasswordRevealDialogComponent {
         detail: `${label} 已複製到剪貼簿`,
         life: 2000,
       });
+    }).catch(() => {
+      this.messageService.add({
+        severity: 'error',
+        summary: '複製失敗',
+        detail: '請手動選取並複製文字',
+        life: 3000,
+      });
     });
   }
 
   protected generateAccountCard(): void {
-    import('pdfmake/build/pdfmake').then((pdfMakeModule) => {
-      import('pdfmake/build/vfs_fonts').then((vfsFontsModule) => {
+    Promise.all([
+      import('pdfmake/build/pdfmake'),
+      import('pdfmake/build/vfs_fonts'),
+    ]).then(([pdfMakeModule, vfsFontsModule]) => {
         const pdfMake = (pdfMakeModule.default ?? pdfMakeModule) as any;
         const vfsFonts = (vfsFontsModule.default ?? vfsFontsModule) as any;
 
@@ -119,6 +128,12 @@ export class PasswordRevealDialogComponent {
         };
 
         pdfMake.createPdf(docDefinition).download(`${this.parentName()}_帳號資訊卡.pdf`);
+    }).catch(() => {
+      this.messageService.add({
+        severity: 'error',
+        summary: '產生失敗',
+        detail: '無法產生帳號資訊卡，請稍後再試',
+        life: 3000,
       });
     });
   }
