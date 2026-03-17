@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool } from '@neondatabase/serverless';
 import { betterAuth } from 'better-auth';
 import { admin as adminPlugin, username } from 'better-auth/plugins';
 import type { Bindings } from './index';
