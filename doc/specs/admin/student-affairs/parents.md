@@ -57,10 +57,11 @@
 | 停用 | `inactive` | 暫停登入（`ba_user.banned = true`），資料保留，可恢復 |
 | 封存 | `archived` | 孩子已畢業/離校，永久停用（`ba_user.banned = true`），從預設列表隱藏，歷史紀錄保留 |
 
-狀態轉換規則：
+狀態轉換規則（對齊人員管理）：
 - `active` ↔ `inactive`：可雙向切換
-- `active` / `inactive` → `archived`：封存後不可自行恢復（需管理員手動改回）
+- `active` / `inactive` → `archived`：單向，無法透過 API 解除封存
 - 停用與封存皆同步設定 `ba_user.banned = true`
+- 封存前 UI 需顯示確認警告
 
 ### 帳號管理功能
 
@@ -69,9 +70,9 @@
 | 重設密碼 | 產生新的隨機密碼 | `Better Auth admin.setPassword()` |
 | 更換登入帳號 | 修改 Email 或手機 | 更新 `ba_user`，同步更新 `parents` |
 | 產生帳號資訊卡 | 顯示目前帳號 + 最新密碼（PDF 或可列印格式） | 前端產生，含補習班名稱、帳號、密碼、說明 |
-| 停用帳號 | 暫停登入權限，資料保留，可恢復 | `parents.status = 'inactive'`，`ba_user.banned = true` |
-| 啟用帳號 | 恢復登入權限 | `parents.status = 'active'`，`ba_user.banned = false` |
-| 封存帳號 | 孩子已離校，永久停用，從預設列表隱藏 | `parents.status = 'archived'`，`ba_user.banned = true` |
+| 停用帳號 | 暫停登入權限，資料保留，可恢復 | `PATCH /deactivate`，`ba_user.banned = true` |
+| 啟用帳號 | 恢復登入權限（從停用恢復） | `PATCH /activate`，`ba_user.banned = false` |
+| 封存帳號 | 孩子已離校，單向封存，從預設列表隱藏 | `PATCH /archive`，`ba_user.banned = true`；前端需顯示警告 |
 
 **重設密碼後**：新密碼必須顯示給管理員（提示「請記下或立刻產生帳號資訊卡」），不發送 email 通知（因為不一定有 email）。
 

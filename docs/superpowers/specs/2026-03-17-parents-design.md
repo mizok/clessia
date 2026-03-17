@@ -79,7 +79,9 @@ alter table public.audit_logs
 | `GET` | `/api/parents/:id` | 詳情（含關聯學生） |
 | `PUT` | `/api/parents/:id` | 更新基本資料 + 關聯學生（含 email/phone 同步 ba_user） |
 | `POST` | `/api/parents/:id/reset-password` | 重設密碼，回傳新密碼 |
-| `PUT` | `/api/parents/:id/status` | 更新狀態（active / inactive / archived），含 archived → active |
+| `PATCH` | `/api/parents/:id/activate` | 停用 → 啟用（對齊 staff） |
+| `PATCH` | `/api/parents/:id/deactivate` | 啟用 → 停用（對齊 staff） |
+| `PATCH` | `/api/parents/:id/archive` | 封存（單向，無法透過 API 解除） |
 
 ### 主要 Schemas
 
@@ -159,17 +161,15 @@ alter table public.audit_logs
 - phone 有變更且目前用 phone 作為 username → 更新 `ba_user.username`
 - `studentIds` 採**全量替換**：先 DELETE 所有現有關聯，再 INSERT 新的；傳入 `[]` 表示解除所有關聯
 
-### PUT /api/parents/:id/status 狀態轉換
+### 狀態轉換（對齊 staff.ts）
 
-完整狀態機：
+| Endpoint | 來源 | 目標 | BA user 操作 |
+|----------|------|------|-------------|
+| `PATCH /activate` | `inactive` | `active` | `ba_user.banned = false` |
+| `PATCH /deactivate` | `active` | `inactive` | `ba_user.banned = true` |
+| `PATCH /archive` | `active` / `inactive` | `archived` | `ba_user.banned = true` |
 
-| 來源 | 目標 | BA user 操作 | 備註 |
-|------|------|-------------|------|
-| `active` | `inactive` | `ba_user.banned = true` | 可恢復 |
-| `inactive` | `active` | `ba_user.banned = false` | 恢復啟用 |
-| `active` | `archived` | `ba_user.banned = true` | 封存 |
-| `inactive` | `archived` | `ba_user.banned = true` | 封存 |
-| `archived` | `active` | `ba_user.banned = false` | 管理員手動恢復，允許 |
+封存為單向操作，無「解除封存」API。前端封存前需顯示確認警告：「封存後無法自動復原，確定要封存嗎？」
 
 所有狀態變更記錄至 audit log（resource_type: `'parent'`）。
 
@@ -248,7 +248,9 @@ get(id: string): Observable<{ data: ParentDetail }>
 create(input: CreateParentInput): Observable<{ data: Parent; initialPassword: string }>
 update(id: string, input: UpdateParentInput): Observable<{ data: Parent }>
 resetPassword(id: string): Observable<{ password: string }>
-updateStatus(id: string, status: ParentStatus): Observable<{ data: Parent }>
+activate(id: string): Observable<{ success: boolean }>
+deactivate(id: string): Observable<{ success: boolean }>
+archive(id: string): Observable<{ success: boolean }>
 ```
 
 ---
