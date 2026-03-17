@@ -14,6 +14,7 @@ import classesRoute from './routes/classes';
 import auditLogsRoute from './routes/audit-logs';
 import sessionsRoute from './routes/sessions';
 import studentsRoute from './routes/students';
+import parentsRoute from './routes/parents';
 
 // ============================================================
 // Types
@@ -175,6 +176,7 @@ app.route('/api/classes', classesRoute);
 app.route('/api/audit-logs', auditLogsRoute);
 app.route('/api/sessions', sessionsRoute);
 app.route('/api/students', studentsRoute);
+app.route('/api/parents', parentsRoute);
 
 // ============================================================
 // Error Handler
