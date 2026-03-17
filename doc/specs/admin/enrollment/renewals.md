@@ -59,3 +59,8 @@
 - 需實作年級不符檢查（Grade Mismatch Check）
 - 需實作名額檢查（Capacity Check）
 - 有異動申請的學生會暫停自動開單
+
+## 相關規則與流程
+
+- [續課流程（預告制）](../../../flows/renewal.md) — T-5/T-0 時間軸、異動暫停邏輯
+- [報名與繳費規則](../../../rules/enrollment-rules.md) — 繳費狀態與自動失效規則
