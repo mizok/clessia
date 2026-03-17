@@ -381,6 +381,8 @@ END $$;
 DO $$
 DECLARE
   demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  demo_parent_password_hash TEXT := '$2a$10$GC7RHybGBPm5JMX8CqDm8.GWV0WI37K4ZFTwJFJI1l0GOz2uCCTxG';
+  -- demo_parent_password_hash = bcrypt hash of 'Demo1234!'
   student_names TEXT[] := ARRAY[
     '林子璿', '陳宇翔', '張品妍', '王柏睿', '李語涵',
     '黃承恩', '劉靖雯', '吳宥廷', '鄭詠晴', '謝家豪',
@@ -398,16 +400,23 @@ DECLARE
   parent_given_names TEXT[] := ARRAY['志明', '淑芬', '建國', '美玲', '宗翰', '雅雯', '俊賢', '秀蘭'];
   v_student_id UUID;
   v_parent_id UUID;
+  v_parent_user_id TEXT;
   student_index INTEGER;
 BEGIN
-  -- Cleanup（確保冪等）
+  -- Cleanup（確保冪等）——順序很重要
   DELETE FROM public.parent_student_relations
     WHERE student_id IN (SELECT id FROM public.students WHERE org_id = demo_org_id);
   DELETE FROM public.parents WHERE org_id = demo_org_id;
+  -- 清理對應的 ba_user（UUID 前綴 50000000-...）
+  DELETE FROM public.ba_account
+    WHERE "userId" LIKE '50000000-0000-0000-%';
+  DELETE FROM public.ba_user
+    WHERE id LIKE '50000000-0000-0000-%';
   DELETE FROM public.students WHERE org_id = demo_org_id;
 
   -- 插入 students & parents
   FOR student_index IN 1..array_length(student_names, 1) LOOP
+    -- 建立學生
     INSERT INTO public.students (org_id, name, grade, school, is_active)
     VALUES (
       demo_org_id,
@@ -418,12 +427,51 @@ BEGIN
     )
     RETURNING id INTO v_student_id;
 
-    INSERT INTO public.parents (org_id, name, phone, is_active)
+    -- 建立家長 ba_user（固定 UUID 前綴）
+    v_parent_user_id := format('50000000-0000-0000-%s-%s',
+      lpad(student_index::text, 4, '0'),
+      lpad(student_index::text, 12, '0')
+    );
+
+    INSERT INTO public.ba_user (id, name, email, "emailVerified", username, "orgId", "createdAt", "updatedAt")
+    VALUES (
+      v_parent_user_id,
+      parent_last_names[((student_index - 1) % 8) + 1] || parent_given_names[((student_index - 1) % 8) + 1],
+      format('parent%02s@demo.clessia.app', student_index),
+      true,
+      format('demo_parent_%02s', student_index),
+      demo_org_id,
+      NOW(),
+      NOW()
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      name = EXCLUDED.name,
+      email = EXCLUDED.email,
+      "orgId" = EXCLUDED."orgId",
+      "updatedAt" = NOW();
+
+    INSERT INTO public.ba_account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
+    VALUES (
+      'credential-' || v_parent_user_id,
+      v_parent_user_id,
+      'credential',
+      v_parent_user_id,
+      demo_parent_password_hash,
+      NOW(),
+      NOW()
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      password = EXCLUDED.password,
+      "updatedAt" = NOW();
+
+    -- 建立家長資料
+    INSERT INTO public.parents (org_id, user_id, name, phone, status)
     VALUES (
       demo_org_id,
+      v_parent_user_id,
       parent_last_names[((student_index - 1) % 8) + 1] || parent_given_names[((student_index - 1) % 8) + 1],
       '09' || LPAD((student_index * 12345678 % 100000000)::TEXT, 8, '0'),
-      TRUE
+      'active'
     )
     RETURNING id INTO v_parent_id;
 
