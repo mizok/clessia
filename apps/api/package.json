@@ -8,6 +8,8 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "latest",
-    "better-auth": "latest"
+    "@types/pg": "^8.18.0",
+    "better-auth": "latest",
+    "pg": "^8.20.0"
   }
 }
