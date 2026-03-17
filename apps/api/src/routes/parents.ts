@@ -91,9 +91,13 @@ export function generateRandomPassword(): string {
   return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 
-export function toParentResponse(row: Record<string, unknown>, studentCount = 0) {
-  const email = (row['email'] as string | null) ?? null;
-  const phone = (row['phone'] as string | null) ?? null;
+export function toParentResponse(
+  row: Record<string, unknown>,
+  studentCount = 0,
+  baUser?: { email: string | null; phone: string | null },
+) {
+  const email = baUser?.email ?? (row['email'] as string | null) ?? null;
+  const phone = baUser?.phone ?? (row['phone'] as string | null) ?? null;
   return {
     id: row['id'] as string,
     userId: row['user_id'] as string,
@@ -186,7 +190,17 @@ app.openapi(
       .order('name');
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%,email.ilike.%${search}%`);
+      const { data: baMatches } = await supabase
+        .from('ba_user')
+        .select('id')
+        .or(`email.ilike.%${search}%,phone.ilike.%${search}%`);
+      const matchingUserIds = (baMatches ?? []).map((u: { id: string }) => u.id);
+
+      if (matchingUserIds.length > 0) {
+        query = query.or(`name.ilike.%${search}%,user_id.in.(${matchingUserIds.join(',')})`);
+      } else {
+        query = query.ilike('name', `%${search}%`);
+      }
     }
     if (status) {
       query = query.eq('status', status);
@@ -201,10 +215,25 @@ app.openapi(
     }
 
     const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const userIds = rows.map((r) => r['user_id'] as string).filter(Boolean);
+    const baUserMap = new Map<string, { email: string | null; phone: string | null }>();
+    if (userIds.length > 0) {
+      const { data: baUsers } = await supabase.from('ba_user').select('id, email, phone').in('id', userIds);
+      for (const u of baUsers ?? []) {
+        baUserMap.set(u.id as string, {
+          email: (u.email as string | null) ?? null,
+          phone: (u.phone as string | null) ?? null,
+        });
+      }
+    }
     const total = count ?? 0;
 
     const parents = rows.map((row) =>
-      toParentResponse(row, studentCountMap.get(row['id'] as string) ?? 0),
+      toParentResponse(
+        row,
+        studentCountMap.get(row['id'] as string) ?? 0,
+        baUserMap.get(row['user_id'] as string),
+      ),
     );
 
     // Summary（不受 status filter 影響）
@@ -271,7 +300,7 @@ app.openapi(
         body: {
           name: body.name,
           email: body.email ?? undefined,
-          username: !body.email && body.phone ? body.phone : undefined,
+          phone: body.phone ?? undefined,
           password,
         },
         asResponse: false,
@@ -315,8 +344,6 @@ app.openapi(
         user_id: createdUserId,
         org_id: orgId,
         name: body.name,
-        email: body.email ?? null,
-        phone: body.phone ?? null,
         notes: body.notes ?? null,
         status: 'active',
       })
@@ -410,6 +437,14 @@ app.openapi(
     }
 
     const row = data as Record<string, unknown>;
+    const { data: baUserData } = await supabase
+      .from('ba_user')
+      .select('email, phone')
+      .eq('id', row['user_id'] as string)
+      .maybeSingle();
+    const baUser = baUserData
+      ? { email: baUserData.email as string | null, phone: baUserData.phone as string | null }
+      : undefined;
     const relations = (
       row['parent_student_relations'] as Array<{
         id: string;
@@ -430,7 +465,7 @@ app.openapi(
       }));
 
     return c.json(
-      { data: { ...toParentResponse(row, students.length), students } },
+      { data: { ...toParentResponse(row, students.length, baUser), students } },
       200,
     );
   },
@@ -479,8 +514,6 @@ app.openapi(
     // 更新 parents 表
     const updatePayload: Record<string, unknown> = {};
     if (body.name !== undefined) updatePayload['name'] = body.name;
-    if (body.email !== undefined) updatePayload['email'] = body.email;
-    if (body.phone !== undefined) updatePayload['phone'] = body.phone;
     if (body.notes !== undefined) updatePayload['notes'] = body.notes;
 
     if (Object.keys(updatePayload).length > 0) {
@@ -497,7 +530,7 @@ app.openapi(
     const auth = createAuth(c.env);
     const userId = existingRow['user_id'] as string;
 
-    if (body.email !== undefined && body.email !== (existingRow['email'] as string | null)) {
+    if (body.email !== undefined) {
       try {
         await auth.api.updateUser({
           body: { userId, email: body.email ?? undefined },
@@ -506,6 +539,10 @@ app.openapi(
       } catch {
         // best effort - 若 email 重複在這裡會拋錯
       }
+    }
+
+    if (body.phone !== undefined) {
+      await supabase.from('ba_user').update({ phone: body.phone }).eq('id', userId);
     }
 
     // studentIds 全量替換
@@ -669,16 +706,6 @@ app.openapi(
       return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
     }
 
-    // 解除 ba_user.banned
-    const { error: banError } = await supabase
-      .from('ba_user')
-      .update({ banned: false })
-      .eq('id', (parentRow as Record<string, unknown>)['user_id'] as string);
-
-    if (banError) {
-      return c.json({ error: banError.message, code: 'DB_ERROR' }, 400);
-    }
-
     logAudit(
       supabase,
       {
@@ -736,16 +763,6 @@ app.openapi(
 
     if (updateError) {
       return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
-    }
-
-    // 設定 ba_user.banned = true
-    const { error: banError } = await supabase
-      .from('ba_user')
-      .update({ banned: true })
-      .eq('id', (parentRow as Record<string, unknown>)['user_id'] as string);
-
-    if (banError) {
-      return c.json({ error: banError.message, code: 'DB_ERROR' }, 400);
     }
 
     logAudit(
@@ -810,16 +827,6 @@ app.openapi(
 
     if (updateError) {
       return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
-    }
-
-    // 設定 ba_user.banned = true
-    const { error: banError } = await supabase
-      .from('ba_user')
-      .update({ banned: true })
-      .eq('id', (parentRow as Record<string, unknown>)['user_id'] as string);
-
-    if (banError) {
-      return c.json({ error: banError.message, code: 'DB_ERROR' }, 400);
     }
 
     logAudit(
