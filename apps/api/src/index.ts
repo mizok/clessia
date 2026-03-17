@@ -203,14 +203,25 @@ app.post('/api/login', async (c) => {
     return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
   }
 
-  // 5. Create session and return response with Set-Cookie
+  // 5. Create session — reuse BA's signIn to get proper session cookie
   const auth = createAuth(c.env);
   try {
-    const sessionRes = await (auth.api as any).adminCreateSession({
-      body: { userId: baUser.id },
-      asResponse: true,
-    });
-    return sessionRes;
+    if (baUser.email) {
+      const sessionRes = await auth.api.signInEmail({
+        body: { email: baUser.email, password },
+        asResponse: true,
+      });
+      return sessionRes;
+    } else if (baUser.phone) {
+      // Phone-only account uses username plugin (phone stored as username)
+      const sessionRes = await (auth.api as any).signInUsername({
+        body: { username: baUser.phone, password },
+        asResponse: true,
+      });
+      return sessionRes;
+    } else {
+      return c.json({ error: 'Session creation failed', code: 'SESSION_ERROR' }, 500);
+    }
   } catch {
     return c.json({ error: 'Session creation failed', code: 'SESSION_ERROR' }, 500);
   }
