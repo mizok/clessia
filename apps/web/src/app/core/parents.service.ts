@@ -15,6 +15,7 @@ export interface Parent {
   loginAccount: string; // email 優先，否則 phone
   status: ParentStatus;
   studentCount: number;
+  studentNames: string[]; // 關聯學生姓名列表
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -54,7 +55,6 @@ export interface CreateParentInput {
   name: string;
   email?: string;
   phone?: string;
-  studentIds?: string[];
   notes?: string;
 }
 
@@ -62,7 +62,6 @@ export interface UpdateParentInput {
   name?: string;
   email?: string | null;
   phone?: string | null;
-  studentIds?: string[]; // 全量替換；[] 表示解除所有關聯
   notes?: string | null;
 }
 

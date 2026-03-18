@@ -29,14 +29,12 @@
   </div>
 
   <!-- Email + 手機 -->
+  @if (!isEditMode()) {
+    <p class="form-dialog__row-hint">Email 與手機號碼擇一必填</p>
+  }
   <div class="form-dialog__row">
     <div class="form-dialog__field">
-      <label class="form-dialog__label">
-        Email
-        @if (!isEditMode()) {
-          <span class="form-dialog__hint">（擇一必填）</span>
-        }
-      </label>
+      <label class="form-dialog__label">Email</label>
       <input
         type="email"
         pInputText
@@ -48,12 +46,7 @@
       />
     </div>
     <div class="form-dialog__field">
-      <label class="form-dialog__label">
-        手機號碼
-        @if (!isEditMode()) {
-          <span class="form-dialog__hint">（擇一必填）</span>
-        }
-      </label>
+      <label class="form-dialog__label">手機號碼</label>
       <input
         type="tel"
         pInputText
@@ -64,25 +57,6 @@
         class="w-full"
       />
     </div>
-  </div>
-
-  <!-- 關聯學生 -->
-  <div class="form-dialog__field">
-    <label class="form-dialog__label">關聯學生</label>
-    <p-multiselect
-      [options]="studentOptions()"
-      [ngModel]="formData().studentIds"
-      (ngModelChange)="updateForm('studentIds', $event)"
-      optionLabel="label"
-      optionValue="value"
-      placeholder="選擇關聯學生（可複選）"
-      [loading]="studentsLoading()"
-      [disabled]="loading()"
-      [filter]="true"
-      filterPlaceholder="搜尋學生"
-      [showClear]="true"
-      styleClass="w-full"
-    />
   </div>
 
   <!-- 備註 -->
