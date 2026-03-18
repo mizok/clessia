@@ -1,12 +1,14 @@
-import { Component, OnInit, DestroyRef, inject, signal, computed, input } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject, signal, computed, input, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 
 // PrimeNG
-import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
+import { MenuModule } from 'primeng/menu';
+import { Menu } from 'primeng/menu';
 import { MessageService } from 'primeng/api';
+import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
@@ -15,8 +17,17 @@ import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
-import { PaginatorModule } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
+
+// Responsive Table
+import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
+import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
+import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
+import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
+import type {
+  ResponsiveTablePageEvent,
+  ResponsiveTablePaginationConfig,
+} from '@shared/components/responsive-table/responsive-table.models';
 
 // Services
 import {
@@ -34,13 +45,13 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { PasswordRevealDialogComponent } from '@shared/components/password-reveal-dialog/password-reveal-dialog.component';
 import { ParentFormDialogComponent } from '@shared/components/parent-form-dialog/parent-form-dialog.component';
+import { StudentFormDialogComponent } from '@features/admin/pages/students/student-form-dialog.component';
 
 @Component({
   selector: 'app-parents',
   standalone: true,
   imports: [
     FormsModule,
-    TableModule,
     ButtonModule,
     InputIconModule,
     IconFieldModule,
@@ -49,9 +60,13 @@ import { ParentFormDialogComponent } from '@shared/components/parent-form-dialog
     TooltipModule,
     SkeletonModule,
     InputTextModule,
-    PaginatorModule,
     SelectModule,
     EmptyStateComponent,
+    MenuModule,
+    ResponsiveTableComponent,
+    RtColDefDirective,
+    RtColCellDirective,
+    RtRowDirective,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './parents.page.html',
@@ -95,6 +110,55 @@ export class ParentsPage implements OnInit {
 
   protected readonly activeCount = computed(() => this.summary().activeCount);
   protected readonly inactiveCount = computed(() => this.summary().inactiveCount);
+
+  // Action menu
+  protected readonly actionMenu = viewChild.required<Menu>('actionMenu');
+  protected readonly selectedParent = signal<Parent | null>(null);
+  protected readonly actionMenuItems = computed<MenuItem[]>(() => {
+    const parent = this.selectedParent();
+    if (!parent) return [];
+    const items: MenuItem[] = [
+      {
+        label: '新增學生',
+        icon: 'pi pi-user-plus',
+        disabled: parent.status === 'archived',
+        command: () => this.openAddStudentDialog(parent),
+      },
+      {
+        label: '編輯',
+        icon: 'pi pi-pencil',
+        disabled: parent.status === 'archived',
+        command: () => this.openEditDialog(parent),
+      },
+      {
+        label: '重設密碼',
+        icon: 'pi pi-key',
+        disabled: parent.status === 'archived',
+        command: () => this.confirmResetPassword(parent),
+      },
+      { separator: true },
+    ];
+    if (parent.status === 'active') {
+      items.push({ label: '停用帳號', icon: 'pi pi-lock', command: () => this.confirmDeactivate(parent) });
+    } else if (parent.status === 'inactive') {
+      items.push({ label: '啟用帳號', icon: 'pi pi-unlock', command: () => this.confirmActivate(parent) });
+    }
+    if (parent.status !== 'archived') {
+      items.push({ label: '封存帳號', icon: 'pi pi-inbox', command: () => this.confirmArchive(parent) });
+    }
+    return items;
+  });
+
+  protected openActionMenu(event: MouseEvent, parent: Parent): void {
+    this.selectedParent.set(parent);
+    this.actionMenu().toggle(event);
+  }
+
+  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
+    first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
+    rows: this.PAGE_SIZE,
+    totalRecords: this.total(),
+  }));
 
   ngOnInit(): void {
     this.searchSubject.pipe(
@@ -142,8 +206,8 @@ export class ParentsPage implements OnInit {
     this.loadParents();
   }
 
-  protected onPageChange(page: number): void {
-    this.currentPage.set(page);
+  protected onPage(event: ResponsiveTablePageEvent): void {
+    this.currentPage.set(event.page + 1);
     this.loadParents();
   }
 
@@ -198,6 +262,28 @@ export class ParentsPage implements OnInit {
       error: () => {
         this.messageService.add({ severity: 'error', summary: '載入失敗', detail: '無法載入家長資料' });
       },
+    });
+  }
+
+  protected openAddStudentDialog(parent: Parent): void {
+    const ref = this.dialogService.open(StudentFormDialogComponent, {
+      width: '560px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { student: null, parentId: parent.id },
+    });
+
+    if (!ref) return;
+    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
+      if (result) {
+        this.messageService.add({
+          severity: 'success',
+          summary: '學生已建立',
+          detail: `「${result.name}」已建立並關聯至「${parent.name}」`,
+        });
+        this.loadParents();
+      }
     });
   }
 
