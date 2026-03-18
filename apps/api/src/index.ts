@@ -203,28 +203,56 @@ app.post('/api/login', async (c) => {
     return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
   }
 
-  // 5. Create session — reuse BA's signIn to get proper session cookie
-  const auth = createAuth(c.env);
-  try {
-    if (baUser.email) {
-      const sessionRes = await auth.api.signInEmail({
-        body: { email: baUser.email, password },
-        asResponse: true,
-      });
-      return sessionRes;
-    } else if (baUser.phone) {
-      // Phone-only account uses username plugin (phone stored as username)
-      const sessionRes = await (auth.api as any).signInUsername({
-        body: { username: baUser.phone, password },
-        asResponse: true,
-      });
-      return sessionRes;
-    } else {
-      return c.json({ error: 'Session creation failed', code: 'SESSION_ERROR' }, 500);
-    }
-  } catch {
+  // 5. Create session directly in ba_session, then sign and set cookie
+  //    (avoids a second password verification round-trip through Better Auth)
+  const sessionToken = crypto.randomUUID().replace(/-/g, '');
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+  const { error: sessionError } = await supabase.from('ba_session').insert({
+    id: sessionToken,
+    token: sessionToken,
+    userId: baUser.id,
+    expiresAt: expiresAt.toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ipAddress: c.req.header('cf-connecting-ip') ?? null,
+    userAgent: c.req.header('user-agent') ?? null,
+  });
+
+  if (sessionError) {
     return c.json({ error: 'Session creation failed', code: 'SESSION_ERROR' }, 500);
   }
+
+  // Sign token with HMAC-SHA256 — same algorithm as Better Auth's serializeSignedCookie
+  const secretBuf = new TextEncoder().encode(c.env.BETTER_AUTH_SECRET);
+  const key = await crypto.subtle.importKey(
+    'raw',
+    secretBuf,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const rawSig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(sessionToken));
+  const base64Sig = btoa(String.fromCharCode(...new Uint8Array(rawSig)));
+  const signedValue = encodeURIComponent(`${sessionToken}.${base64Sig}`);
+
+  const isDev = c.env.ENVIRONMENT === 'development';
+  const cookieStr = [
+    `better-auth.session_token=${signedValue}`,
+    'HttpOnly',
+    'Path=/',
+    'SameSite=Lax',
+    `Max-Age=${7 * 24 * 60 * 60}`,
+    ...(isDev ? [] : ['Secure']),
+  ].join('; ');
+
+  return new Response(JSON.stringify({ user: baUser }), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Set-Cookie': cookieStr,
+    },
+  });
 });
 
 app.use('/api/*', authMiddleware);
