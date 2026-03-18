@@ -24,6 +24,7 @@ const StudentSchema = z
     birthday: z.string().nullable(),
     gender: StudentGenderSchema.nullable(),
     phone: z.string().nullable(),
+    email: z.string().nullable(),
     address: z.string().nullable(),
     emergencyContactName: z.string().nullable(),
     emergencyContactPhone: z.string().nullable(),
@@ -71,6 +72,7 @@ const UpdateStudentSchema = z
     birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD').nullable().optional(),
     gender: StudentGenderSchema.nullable().optional(),
     phone: z.string().nullable().optional(),
+    email: z.string().email().nullable().optional(),
     address: z.string().nullable().optional(),
     emergencyContactName: z.string().nullable().optional(),
     emergencyContactPhone: z.string().nullable().optional(),
@@ -78,6 +80,23 @@ const UpdateStudentSchema = z
     isActive: z.boolean().optional(),
   })
   .openapi('UpdateStudent');
+
+const CreateStudentSchema = z
+  .object({
+    name: z.string().min(1),
+    grade: GradeLevelSchema,
+    school: z.string().min(1),
+    birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD').nullable().optional(),
+    gender: StudentGenderSchema.nullable().optional(),
+    phone: z.string().nullable().optional(),
+    email: z.string().email().nullable().optional(),
+    address: z.string().nullable().optional(),
+    emergencyContactName: z.string().nullable().optional(),
+    emergencyContactPhone: z.string().nullable().optional(),
+    notes: z.string().nullable().optional(),
+    parentId: z.string().uuid().optional(),
+  })
+  .openapi('CreateStudent');
 
 // ============================================================
 // Helpers (exported for unit testing)
@@ -103,6 +122,7 @@ export function toStudentResponse(row: Record<string, unknown>, parentNames: str
     birthday: (row['birthday'] as string | null) ?? null,
     gender: (row['gender'] as string | null) ?? null,
     phone: (row['phone'] as string | null) ?? null,
+    email: (row['email'] as string | null) ?? null,
     address: (row['address'] as string | null) ?? null,
     emergencyContactName: (row['emergency_contact_name'] as string | null) ?? null,
     emergencyContactPhone: (row['emergency_contact_phone'] as string | null) ?? null,
@@ -218,6 +238,76 @@ app.openapi(
 );
 
 // GET /api/students/:id
+// POST /api/students
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/',
+    tags: ['Students'],
+    summary: '建立學生',
+    request: {
+      body: { content: { 'application/json': { schema: CreateStudentSchema } } },
+    },
+    responses: {
+      201: {
+        description: '建立成功',
+        content: { 'application/json': { schema: z.object({ data: StudentSchema }) } },
+      },
+      500: {
+        description: '建立失敗',
+        content: {
+          'application/json': {
+            schema: z.object({ error: z.string(), message: z.string() }),
+          },
+        },
+      },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const body = c.req.valid('json');
+
+    const insertPayload: Record<string, unknown> = {
+      org_id: orgId,
+      name: body.name,
+      grade: body.grade,
+      school: body.school,
+    };
+    if (body.birthday !== undefined) insertPayload['birthday'] = body.birthday;
+    if (body.gender !== undefined) insertPayload['gender'] = body.gender;
+    if (body.phone !== undefined) insertPayload['phone'] = body.phone;
+    if (body.email !== undefined) insertPayload['email'] = body.email;
+    if (body.address !== undefined) insertPayload['address'] = body.address;
+    if (body.emergencyContactName !== undefined)
+      insertPayload['emergency_contact_name'] = body.emergencyContactName;
+    if (body.emergencyContactPhone !== undefined)
+      insertPayload['emergency_contact_phone'] = body.emergencyContactPhone;
+    if (body.notes !== undefined) insertPayload['notes'] = body.notes;
+
+    const { data, error } = await supabase.from('students').insert(insertPayload).select().single();
+
+    if (error || !data) {
+      return c.json({ error: '建立學生失敗', message: error?.message ?? '' }, 500);
+    }
+
+    const student = StudentSchema.parse(toStudentResponse(data as Record<string, unknown>));
+
+    // 建立家長關聯（若有提供 parentId）
+    if (body.parentId) {
+      await supabase.from('parent_student_relations').insert({
+        parent_id: body.parentId,
+        student_id: student.id,
+        is_primary: true,
+        relation: null,
+      });
+    }
+
+    return c.json({ data: student }, 201);
+  },
+);
+
+// GET /api/students/:id
 app.openapi(
   createRoute({
     method: 'get',
@@ -243,7 +333,7 @@ app.openapi(
       .select(
         `*, parent_student_relations(
           id, is_primary, relation,
-          parents(id, name, phone, email)
+          parents(id, name, user_id)
         )`,
       )
       .eq('id', id)
@@ -259,19 +349,37 @@ app.openapi(
       id: string;
       is_primary: boolean;
       relation: string | null;
-      parents: { id: string; name: string; phone: string | null; email: string | null } | null;
+      parents: { id: string; name: string; user_id: string } | null;
     }>) ?? [];
 
-    const parents = relations
-      .filter((r) => r.parents)
-      .map((r) => ({
+    const validRelations = relations.filter((r) => r.parents);
+    const userIds = validRelations.map((r) => r.parents!.user_id).filter(Boolean);
+
+    const baUserMap = new Map<string, { email: string | null; phone: string | null }>();
+    if (userIds.length > 0) {
+      const { data: baUsers } = await supabase
+        .from('ba_user')
+        .select('id, email, phone')
+        .in('id', userIds);
+      for (const u of baUsers ?? []) {
+        baUserMap.set(u.id as string, {
+          email: (u.email as string | null) ?? null,
+          phone: (u.phone as string | null) ?? null,
+        });
+      }
+    }
+
+    const parents = validRelations.map((r) => {
+      const baUser = baUserMap.get(r.parents!.user_id) ?? { email: null, phone: null };
+      return {
         id: r.parents!.id,
         name: r.parents!.name,
-        phone: r.parents!.phone,
-        email: r.parents!.email,
+        phone: baUser.phone,
+        email: baUser.email,
         relation: r.relation,
         isPrimary: r.is_primary,
-      }));
+      };
+    });
 
     const parentNames = parents
       .sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0))
@@ -316,6 +424,7 @@ app.openapi(
     if (body.birthday !== undefined) updatePayload['birthday'] = body.birthday;
     if (body.gender !== undefined) updatePayload['gender'] = body.gender;
     if (body.phone !== undefined) updatePayload['phone'] = body.phone;
+    if (body.email !== undefined) updatePayload['email'] = body.email;
     if (body.address !== undefined) updatePayload['address'] = body.address;
     if (body.emergencyContactName !== undefined) updatePayload['emergency_contact_name'] = body.emergencyContactName;
     if (body.emergencyContactPhone !== undefined) updatePayload['emergency_contact_phone'] = body.emergencyContactPhone;
