@@ -1,7 +1,7 @@
 <div class="form-dialog">
   <div class="dialog-header-inline">
     <div class="dialog-header-inline__content">
-      <span class="dialog-header-inline__title">編輯學生資料</span>
+      <span class="dialog-header-inline__title">{{ isCreateMode() ? '新增學生' : '編輯學生資料' }}</span>
     </div>
     <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
       <i class="pi pi-times"></i>
@@ -87,18 +87,32 @@
     </div>
   </div>
 
-  <!-- 電話 -->
-  <div class="form-dialog__field">
-    <label class="form-dialog__label">學生電話</label>
-    <input
-      type="tel"
-      pInputText
-      [ngModel]="formData().phone"
-      (ngModelChange)="updateForm('phone', $event)"
-      placeholder="0912-345-678"
-      [disabled]="loading()"
-      class="w-full"
-    />
+  <!-- 電話 + Email -->
+  <div class="form-dialog__row">
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">學生電話</label>
+      <input
+        type="tel"
+        pInputText
+        [ngModel]="formData().phone"
+        (ngModelChange)="updateForm('phone', $event)"
+        placeholder="0912-345-678"
+        [disabled]="loading()"
+        class="w-full"
+      />
+    </div>
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">學生 Email</label>
+      <input
+        type="email"
+        pInputText
+        [ngModel]="formData().email"
+        (ngModelChange)="updateForm('email', $event)"
+        placeholder="student@example.com"
+        [disabled]="loading()"
+        class="w-full"
+      />
+    </div>
   </div>
 
   <!-- 地址 -->
@@ -167,7 +181,7 @@
       (onClick)="cancel()"
     />
     <p-button
-      label="儲存"
+      [label]="isCreateMode() ? '建立學生' : '儲存'"
       [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
       [loading]="loading()"
       (onClick)="save()"

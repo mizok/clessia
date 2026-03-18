@@ -15,6 +15,7 @@ import {
   StudentGender,
   GRADE_LEVELS,
   GRADE_LEVEL_LABELS,
+  CreateStudentInput,
   UpdateStudentInput,
 } from '@core/students.service';
 
@@ -30,6 +31,7 @@ import {
     TextareaModule,
     DatePickerModule,
   ],
+  providers: [MessageService],
   templateUrl: './student-form-dialog.component.html',
   styleUrl: './student-form-dialog.component.scss',
 })
@@ -40,19 +42,21 @@ export class StudentFormDialogComponent {
   private readonly config = inject(DynamicDialogConfig);
 
   protected readonly loading = signal(false);
-  protected readonly student = signal<Student>(this.config.data.student);
+  protected readonly student = signal<Student | null>(this.config.data?.student ?? null);
+  protected readonly isCreateMode = computed(() => this.student() === null);
 
   protected readonly formData = signal({
-    name: this.student().name,
-    grade: this.student().grade,
-    school: this.student().school,
-    birthday: this.student().birthday ? new Date(this.student().birthday!) : (null as Date | null),
-    gender: this.student().gender,
-    phone: this.student().phone ?? '',
-    address: this.student().address ?? '',
-    emergencyContactName: this.student().emergencyContactName ?? '',
-    emergencyContactPhone: this.student().emergencyContactPhone ?? '',
-    notes: this.student().notes ?? '',
+    name: this.student()?.name ?? '',
+    grade: (this.student()?.grade ?? '') as GradeLevel | '',
+    school: this.student()?.school ?? '',
+    birthday: this.student()?.birthday ? new Date(this.student()!.birthday!) : (null as Date | null),
+    gender: this.student()?.gender ?? (null as StudentGender | null),
+    phone: this.student()?.phone ?? '',
+    email: this.student()?.email ?? '',
+    address: this.student()?.address ?? '',
+    emergencyContactName: this.student()?.emergencyContactName ?? '',
+    emergencyContactPhone: this.student()?.emergencyContactPhone ?? '',
+    notes: this.student()?.notes ?? '',
   });
 
   protected readonly gradeOptions = GRADE_LEVELS.map((g) => ({
@@ -77,32 +81,50 @@ export class StudentFormDialogComponent {
     const f = this.formData();
     this.loading.set(true);
 
-    const input: UpdateStudentInput = {
+    const commonFields = {
       name: f.name.trim(),
-      grade: f.grade,
+      grade: f.grade as GradeLevel,
       school: f.school.trim(),
       birthday: f.birthday ? this.formatDate(f.birthday) : null,
       gender: f.gender,
       phone: f.phone.trim() || null,
+      email: f.email.trim() || null,
       address: f.address.trim() || null,
       emergencyContactName: f.emergencyContactName.trim() || null,
       emergencyContactPhone: f.emergencyContactPhone.trim() || null,
       notes: f.notes.trim() || null,
     };
 
-    this.studentsService.update(this.student().id, input).subscribe({
-      next: (res) => {
-        this.ref.close(res.data);
-      },
-      error: (err) => {
-        this.messageService.add({
-          severity: 'error',
-          summary: '更新失敗',
-          detail: err.error?.error || '請稍後再試',
-        });
-        this.loading.set(false);
-      },
-    });
+    if (this.isCreateMode()) {
+      const input: CreateStudentInput = {
+        ...commonFields,
+        parentId: this.config.data?.parentId ?? undefined,
+      };
+      this.studentsService.create(input).subscribe({
+        next: (res) => this.ref.close(res.data),
+        error: (err) => {
+          this.messageService.add({
+            severity: 'error',
+            summary: '建立失敗',
+            detail: err.error?.error || '請稍後再試',
+          });
+          this.loading.set(false);
+        },
+      });
+    } else {
+      const input: UpdateStudentInput = commonFields;
+      this.studentsService.update(this.student()!.id, input).subscribe({
+        next: (res) => this.ref.close(res.data),
+        error: (err) => {
+          this.messageService.add({
+            severity: 'error',
+            summary: '更新失敗',
+            detail: err.error?.error || '請稍後再試',
+          });
+          this.loading.set(false);
+        },
+      });
+    }
   }
 
   protected cancel(): void {
