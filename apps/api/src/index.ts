@@ -6,7 +6,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { authMiddleware } from './middleware/auth';
 import { createAuth } from './auth';
 import { resolveCorsOrigin } from './lib/origins';
-import { verifyPassword } from './lib/password';
 import { createServiceClientFromEnv } from './lib/supabase';
 import campusesRoute from './routes/campuses';
 import coursesRoute from './routes/courses';
@@ -146,8 +145,8 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
 });
 
 // ── Unified login (before authMiddleware) ────────────────────────────────────
-// Accepts email or phone. Looks up ba_user, checks status, verifies scrypt hash,
-// creates session via Better Auth admin API.
+// Accepts email or phone. Looks up ba_user, checks status, then delegates sign-in
+// to Better Auth for password verification + session creation.
 app.post('/api/login', async (c) => {
   const body = await c.req.json<{ account?: string; password?: string }>();
   const account = body.account?.trim();
@@ -185,74 +184,28 @@ app.post('/api/login', async (c) => {
   }
   // If no rows in staff or parents → system account (e.g. root), proceed
 
-  // 3. Fetch password hash from ba_account
-  const { data: baAccount } = await supabase
-    .from('ba_account')
-    .select('password')
-    .eq('userId', baUser.id)
-    .eq('providerId', 'credential')
-    .maybeSingle();
-
-  if (!baAccount?.password) {
+  // 3. Delegate sign-in to Better Auth (password verification + session creation)
+  const auth = createAuth(c.env);
+  try {
+    if (baUser.email) {
+      const sessionRes = await auth.api.signInEmail({
+        body: { email: baUser.email as string, password },
+        asResponse: true,
+      });
+      return sessionRes;
+    } else if (baUser.phone) {
+      // Phone-only account: phone is stored as username (set at createUser time)
+      const sessionRes = await (auth.api as any).signInUsername({
+        body: { username: baUser.phone as string, password },
+        asResponse: true,
+      });
+      return sessionRes;
+    } else {
+      return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
+    }
+  } catch {
     return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
   }
-
-  // 4. Verify password
-  const valid = await verifyPassword(password, baAccount.password);
-  if (!valid) {
-    return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
-  }
-
-  // 5. Create session directly in ba_session, then sign and set cookie
-  //    (avoids a second password verification round-trip through Better Auth)
-  const sessionToken = crypto.randomUUID().replace(/-/g, '');
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-
-  const { error: sessionError } = await supabase.from('ba_session').insert({
-    id: sessionToken,
-    token: sessionToken,
-    userId: baUser.id,
-    expiresAt: expiresAt.toISOString(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    ipAddress: c.req.header('cf-connecting-ip') ?? null,
-    userAgent: c.req.header('user-agent') ?? null,
-  });
-
-  if (sessionError) {
-    return c.json({ error: 'Session creation failed', code: 'SESSION_ERROR' }, 500);
-  }
-
-  // Sign token with HMAC-SHA256 — same algorithm as Better Auth's serializeSignedCookie
-  const secretBuf = new TextEncoder().encode(c.env.BETTER_AUTH_SECRET);
-  const key = await crypto.subtle.importKey(
-    'raw',
-    secretBuf,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const rawSig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(sessionToken));
-  const base64Sig = btoa(String.fromCharCode(...new Uint8Array(rawSig)));
-  const signedValue = encodeURIComponent(`${sessionToken}.${base64Sig}`);
-
-  const isDev = c.env.ENVIRONMENT === 'development';
-  const cookieStr = [
-    `better-auth.session_token=${signedValue}`,
-    'HttpOnly',
-    'Path=/',
-    'SameSite=Lax',
-    `Max-Age=${7 * 24 * 60 * 60}`,
-    ...(isDev ? [] : ['Secure']),
-  ].join('; ');
-
-  return new Response(JSON.stringify({ user: baUser }), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Set-Cookie': cookieStr,
-    },
-  });
 });
 
 app.use('/api/*', authMiddleware);

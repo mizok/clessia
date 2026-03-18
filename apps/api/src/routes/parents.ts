@@ -296,11 +296,13 @@ app.openapi(
     let createdUserId: string | null = null;
 
     try {
-      const newUser = await auth.api.createUser({
+      const newUser = await (auth.api as any).createUser({
         body: {
           name: body.name,
           email: body.email ?? undefined,
           phone: body.phone ?? undefined,
+          // Phone-only accounts use phone as username so signInUsername can look them up
+          username: !body.email && body.phone ? body.phone : undefined,
           password,
         },
         asResponse: false,

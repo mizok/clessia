@@ -432,7 +432,7 @@ BEGIN
       parent_last_names[((student_index - 1) % 8) + 1] || parent_given_names[((student_index - 1) % 8) + 1],
       'parent' || lpad(student_index::text, 2, '0') || '@demo.clessia.app',
       true,
-      'demo_parent_' || lpad(student_index::text, 2, '0'),
+      '09' || LPAD((student_index * 12345678 % 100000000)::TEXT, 8, '0'),
       demo_org_id,
       NOW(),
       NOW()
