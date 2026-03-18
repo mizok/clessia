@@ -20,6 +20,7 @@ export interface Student {
   birthday: string | null;
   gender: StudentGender | null;
   phone: string | null;
+  email: string | null;
   address: string | null;
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
@@ -64,11 +65,27 @@ export interface UpdateStudentInput {
   birthday?: string | null;
   gender?: StudentGender | null;
   phone?: string | null;
+  email?: string | null;
   address?: string | null;
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
   notes?: string | null;
   isActive?: boolean;
+}
+
+export interface CreateStudentInput {
+  name: string;
+  grade: GradeLevel;
+  school: string;
+  birthday?: string | null;
+  gender?: StudentGender | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  notes?: string | null;
+  parentId?: string;
 }
 
 export const GRADE_LEVELS: GradeLevel[] = [
@@ -94,6 +111,10 @@ export class StudentsService {
     return this.http.get<StudentListResponse>(this.endpoint, {
       params: this.toQueryParams(params),
     });
+  }
+
+  create(input: CreateStudentInput): Observable<{ data: Student }> {
+    return this.http.post<{ data: Student }>(this.endpoint, input);
   }
 
   get(id: string): Observable<{ data: StudentDetail }> {
