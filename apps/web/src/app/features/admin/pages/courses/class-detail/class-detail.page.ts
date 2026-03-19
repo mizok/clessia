@@ -135,7 +135,7 @@ export class ClassDetailPage implements OnInit {
       data: { existingStudentIds },
     });
 
-    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((student?: Student) => {
+    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((student?: Student) => {
       if (!student) return;
       this.addStudent(student);
     });
@@ -257,7 +257,7 @@ export class ClassDetailPage implements OnInit {
       appendTo: this.overlayContainer || 'body',
       data,
     });
-    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
+    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
       if (result) onAccept(typeof result === 'object' ? result.notes : undefined);
     });
   }
