@@ -22,6 +22,7 @@ interface MeResponse {
   birthday: string | null;
   roles: UserRole[];
   permissions: string[];
+  isRootUser: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -36,6 +37,7 @@ export class AuthService {
   private readonly _activeRole = signal<UserRole | null>(null);
   private readonly _loading = signal(true);
   private readonly _showRolePicker = signal(false);
+  private readonly _isRootUser = signal(false);
 
   readonly user = this._user.asReadonly();
   readonly profile = this._profile.asReadonly();
@@ -45,6 +47,7 @@ export class AuthService {
   readonly loading = this._loading.asReadonly();
   readonly isAuthenticated = computed(() => !!this._user());
   readonly showRolePicker = this._showRolePicker.asReadonly();
+  readonly isRootUser = this._isRootUser.asReadonly();
 
   private readonly shellMap: Record<UserRole, string> = {
     admin: '/admin',
@@ -83,6 +86,7 @@ export class AuthService {
       });
       this._roles.set(me.roles);
       this._permissions.set(me.permissions);
+      this._isRootUser.set(me.isRootUser);
 
       if (me.roles.length === 1) {
         this._activeRole.set(me.roles[0]);
