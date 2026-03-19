@@ -17,6 +17,9 @@ interface MeResponse {
   userId: string;
   orgId: string;
   displayName: string;
+  email: string | null;
+  phone: string | null;
+  birthday: string | null;
   roles: UserRole[];
   permissions: string[];
 }
@@ -111,6 +114,10 @@ export class AuthService {
 
   closeRolePicker() {
     this._showRolePicker.set(false);
+  }
+
+  async refreshRoles(): Promise<void> {
+    await this.loadProfile();
   }
 
   async signIn(

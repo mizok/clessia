@@ -17,6 +17,7 @@ import sessionsRoute from './routes/sessions';
 import studentsRoute from './routes/students';
 import parentsRoute from './routes/parents';
 import enrollmentsRoute from './routes/enrollments';
+import meRoute from './routes/me';
 
 // ============================================================
 // Types
@@ -227,29 +228,8 @@ app.post('/api/login', async (c) => {
 
 app.use('/api/*', authMiddleware);
 
-// GET /api/me - 取得目前登入用戶的 profile 和 roles
-app.get('/api/me', async (c) => {
-  const supabase = c.get('supabase');
-  const userId = c.get('userId');
-  const orgId = c.get('orgId');
-
-  const [profileResult, rolesResult] = await Promise.all([
-    supabase.from('profiles').select('display_name').eq('id', userId).single(),
-    supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
-  ]);
-
-  return c.json({
-    userId,
-    orgId,
-    displayName: profileResult.data?.display_name ?? '',
-    roles: (rolesResult.data ?? []).map((r: { role: string; permissions: unknown[] }) => r.role),
-    permissions: (rolesResult.data ?? []).flatMap((r: { role: string; permissions: unknown[] }) =>
-      Array.isArray(r.permissions) ? r.permissions : []
-    ),
-  });
-});
-
 // Mount routes
+app.route('/api/me', meRoute);
 app.route('/api/courses', coursesRoute);
 app.route('/api/campuses', campusesRoute);
 app.route('/api/staff', staffRoute);

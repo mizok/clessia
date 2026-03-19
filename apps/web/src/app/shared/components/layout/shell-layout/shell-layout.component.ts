@@ -12,6 +12,7 @@ import {
 import { Router, RouterOutlet } from '@angular/router';
 import { Tooltip } from 'primeng/tooltip';
 import { Popover } from 'primeng/popover';
+import { DialogService } from 'primeng/dynamicdialog';
 import { JdenticonAvatarComponent } from '@shared/components/jdenticon-avatar/jdenticon-avatar.component';
 import { AuthService, type UserRole } from '@core/auth.service';
 import { AutoOpenTooltipDirective } from '@shared/directives/auto-open-tooltip.directive';
@@ -19,6 +20,7 @@ import { DeviceService } from '@core/device.service';
 import { InheritSizeDirective } from '@shared/directives/inherit-size.directive';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
+import { AccountSettingsDialogComponent } from '@shared/components/account-settings-dialog/account-settings-dialog.component';
 
 @Component({
   selector: 'app-shell-layout',
@@ -32,6 +34,7 @@ import { OverlayContainerDirective } from '@shared/directives/overlay-container.
     InheritSizeDirective,
     OverlayContainerDirective,
   ],
+  providers: [DialogService],
   templateUrl: './shell-layout.component.html',
   styleUrl: './shell-layout.component.scss',
 })
@@ -58,6 +61,7 @@ export class ShellLayoutComponent {
   };
 
   private readonly router = inject(Router);
+  private readonly dialogService = inject(DialogService);
 
   readonly centered = input(false, { transform: (v: boolean | string) => v === '' || v === true });
 
@@ -66,10 +70,14 @@ export class ShellLayoutComponent {
     this.op?.hide();
   }
 
-  changePassword() {
+  openAccountSettings() {
     this.op.hide();
-    const role = this.auth.activeRole();
-    this.router.navigate([`/${role}/change-password`]);
+    this.dialogService.open(AccountSettingsDialogComponent, {
+      header: '帳號設定',
+      width: '480px',
+      modal: true,
+      appendTo: this.overlayContainer ?? 'body',
+    });
   }
 
   signOut() {

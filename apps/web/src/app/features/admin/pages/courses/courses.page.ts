@@ -385,7 +385,7 @@ export class CoursesPage implements OnInit {
         command: () => this.openGenerateDialog(cls),
       },
       {
-        label: '課堂列表',
+        label: '課堂管理',
         icon: 'pi pi-list',
         command: () => this.navigateToSessionsList(cls),
       },

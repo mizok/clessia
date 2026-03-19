@@ -1,0 +1,163 @@
+<p-toast position="top-center" [baseZIndex]="30000" />
+<p-confirmdialog key="account-settings-confirm" appendTo="body" />
+
+<div class="account-settings">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      @if (view() === 'main') {
+        <span class="dialog-header-inline__title">帳號設定</span>
+      } @else if (view() === 'activate-step1') {
+        <button type="button" class="dialog-header-inline__back" (click)="view.set('main')">
+          <i class="pi pi-arrow-left"></i>
+        </button>
+        <span class="dialog-header-inline__title">啟用家長身份（1/2）</span>
+      } @else {
+        <button type="button" class="dialog-header-inline__back" (click)="goBackToStep1()">
+          <i class="pi pi-arrow-left"></i>
+        </button>
+        <span class="dialog-header-inline__title">啟用家長身份（2/2）</span>
+      }
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="關閉">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  @if (view() === 'main') {
+    <section class="account-settings__section">
+      <h3 class="account-settings__section-title">基本資料</h3>
+
+      <div class="account-settings__field">
+        <label class="account-settings__label">顯示名稱</label>
+        <div class="account-settings__input-row">
+          <input pInputText [(ngModel)]="displayName" [disabled]="saving()" class="w-full" />
+          <p-button label="儲存" size="small" [loading]="saving()" (onClick)="saveDisplayName()" />
+        </div>
+      </div>
+
+      <div class="account-settings__field">
+        <label class="account-settings__label">Email</label>
+        <div class="account-settings__input-row">
+          <input pInputText type="email" [(ngModel)]="email" [disabled]="saving()" class="w-full" />
+          <p-button label="儲存" size="small" [loading]="saving()" (onClick)="confirmSaveEmail()" />
+        </div>
+        <p class="account-settings__hint">修改後需用新 Email 登入</p>
+      </div>
+
+      <div class="account-settings__field">
+        <label class="account-settings__label">電話</label>
+        <div class="account-settings__input-row">
+          <input pInputText type="tel" [(ngModel)]="phone" [disabled]="saving()" class="w-full" />
+          <p-button label="儲存" size="small" [loading]="saving()" (onClick)="confirmSavePhone()" />
+        </div>
+        <p class="account-settings__hint">修改後需用新電話登入</p>
+      </div>
+
+      <div class="account-settings__field">
+        <label class="account-settings__label">生日</label>
+        <div class="account-settings__input-row">
+          <p-datepicker
+            [(ngModel)]="birthday"
+            [showIcon]="true"
+            placeholder="選擇生日"
+            appendTo="body"
+            styleClass="w-full"
+            [disabled]="saving()"
+          />
+          <p-button label="儲存" size="small" [loading]="saving()" (onClick)="saveBirthday()" />
+        </div>
+      </div>
+    </section>
+
+    <section class="account-settings__section">
+      <h3 class="account-settings__section-title">安全性</h3>
+      <button
+        type="button"
+        class="account-settings__action-row"
+        (click)="goToChangePassword()"
+      >
+        <i class="pi pi-key account-settings__action-icon"></i>
+        <span>修改密碼</span>
+        <i class="pi pi-chevron-right account-settings__action-chevron"></i>
+      </button>
+    </section>
+
+    @if (!hasParentRole()) {
+      <section class="account-settings__section">
+        <h3 class="account-settings__section-title">家長身份</h3>
+        <p class="account-settings__desc">
+          啟用後可使用家長 portal 查看子女的出缺席與課表。
+        </p>
+        <p-button
+          label="啟用家長身份"
+          icon="pi pi-user-plus"
+          [outlined]="true"
+          (onClick)="startActivateParent()"
+        />
+      </section>
+    }
+  }
+
+  @if (view() === 'activate-step1') {
+    <div class="account-settings__step">
+      <div class="account-settings__field">
+        <label class="account-settings__label">
+          子女姓名<span class="account-settings__required">*</span>
+        </label>
+        <input
+          pInputText
+          [(ngModel)]="studentName"
+          placeholder="子女的真實姓名"
+          class="w-full"
+        />
+      </div>
+
+      <div class="account-settings__field">
+        <label class="account-settings__label">
+          年級<span class="account-settings__required">*</span>
+        </label>
+        <p-select
+          [options]="gradeOptions"
+          [(ngModel)]="studentGrade"
+          placeholder="選擇年級"
+          class="w-full"
+        />
+      </div>
+
+      <div class="account-settings__footer">
+        <p-button
+          label="下一步"
+          icon="pi pi-arrow-right"
+          iconPos="right"
+          [disabled]="!studentName.trim() || !studentGrade"
+          (onClick)="goToStep2()"
+        />
+      </div>
+    </div>
+  }
+
+  @if (view() === 'activate-step2') {
+    <div class="account-settings__step">
+      <div class="account-settings__confirm-card">
+        <div class="account-settings__confirm-row">
+          <span class="account-settings__confirm-label">子女姓名</span>
+          <span class="account-settings__confirm-value">{{ studentName }}</span>
+        </div>
+        <div class="account-settings__confirm-row">
+          <span class="account-settings__confirm-label">年級</span>
+          <span class="account-settings__confirm-value">{{ studentGrade }}</span>
+        </div>
+      </div>
+      <p class="account-settings__desc">確認後系統將建立子女資料並啟用家長身份。</p>
+
+      <div class="account-settings__footer">
+        <p-button
+          label="確認啟用"
+          icon="pi pi-check"
+          [loading]="activating()"
+          (onClick)="confirmActivate()"
+        />
+      </div>
+    </div>
+  }
+</div>
