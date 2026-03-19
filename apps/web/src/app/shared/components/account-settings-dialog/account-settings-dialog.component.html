@@ -44,72 +44,6 @@
       }
 
       <div class="form-dialog__field">
-        <label class="form-dialog__label">Email</label>
-        <div class="account-settings__input-row">
-          <input pInputText type="email" [(ngModel)]="email" [disabled]="saving()" />
-          <span class="account-settings__save-btn">
-            @if (savedField() === 'email') {
-              <p-button
-                icon="pi pi-check"
-                size="small"
-                severity="success"
-                [outlined]="true"
-                [disabled]="true"
-              />
-            } @else {
-              <p-button
-                label="儲存"
-                size="small"
-                severity="secondary"
-                [outlined]="true"
-                [loading]="savingField() === 'email'"
-                [disabled]="saving()"
-                (onClick)="confirmSaveEmail()"
-              />
-            }
-          </span>
-        </div>
-        @if (fieldError()?.field === 'email') {
-          <p class="account-settings__error">{{ fieldError()!.msg }}</p>
-        } @else {
-          <p class="account-settings__hint">修改後需用新 Email 登入</p>
-        }
-      </div>
-
-      <div class="form-dialog__field">
-        <label class="form-dialog__label">電話</label>
-        <div class="account-settings__input-row">
-          <input pInputText type="tel" [(ngModel)]="phone" [disabled]="saving()" />
-          <span class="account-settings__save-btn">
-            @if (savedField() === 'phone') {
-              <p-button
-                icon="pi pi-check"
-                size="small"
-                severity="success"
-                [outlined]="true"
-                [disabled]="true"
-              />
-            } @else {
-              <p-button
-                label="儲存"
-                size="small"
-                severity="secondary"
-                [outlined]="true"
-                [loading]="savingField() === 'phone'"
-                [disabled]="saving()"
-                (onClick)="confirmSavePhone()"
-              />
-            }
-          </span>
-        </div>
-        @if (fieldError()?.field === 'phone') {
-          <p class="account-settings__error">{{ fieldError()!.msg }}</p>
-        } @else {
-          <p class="account-settings__hint">修改後需用新電話登入</p>
-        }
-      </div>
-
-      <div class="form-dialog__field">
         <label class="form-dialog__label">生日</label>
         <div class="account-settings__input-row">
           <p-datepicker
@@ -142,6 +76,44 @@
             }
           </span>
         </div>
+      </div>
+
+      <div class="form-dialog__field">
+        <label class="form-dialog__label">Email</label>
+        <div class="account-settings__input-row">
+          <input pInputText type="email" [(ngModel)]="email" [disabled]="saving()" />
+          <span class="account-settings__save-btn">
+            @if (savedField() === 'email') {
+              <p-button icon="pi pi-check" size="small" severity="success" [outlined]="true" [disabled]="true" />
+            } @else {
+              <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="savingField() === 'email'" [disabled]="saving()" (onClick)="confirmSaveEmail()" />
+            }
+          </span>
+        </div>
+        @if (fieldError()?.field === 'email') {
+          <p class="account-settings__error">{{ fieldError()!.msg }}</p>
+        } @else {
+          <p class="account-settings__hint">修改後需用新 Email 登入</p>
+        }
+      </div>
+
+      <div class="form-dialog__field">
+        <label class="form-dialog__label">電話</label>
+        <div class="account-settings__input-row">
+          <input pInputText type="tel" [(ngModel)]="phone" [disabled]="saving()" />
+          <span class="account-settings__save-btn">
+            @if (savedField() === 'phone') {
+              <p-button icon="pi pi-check" size="small" severity="success" [outlined]="true" [disabled]="true" />
+            } @else {
+              <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="savingField() === 'phone'" [disabled]="saving()" (onClick)="confirmSavePhone()" />
+            }
+          </span>
+        </div>
+        @if (fieldError()?.field === 'phone') {
+          <p class="account-settings__error">{{ fieldError()!.msg }}</p>
+        } @else {
+          <p class="account-settings__hint">修改後需用新電話登入</p>
+        }
       </div>
     </div>
 
