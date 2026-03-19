@@ -14,3 +14,14 @@ describe('public system-time route CORS', () => {
     expect(response.headers.get('access-control-allow-origin')).toBe('http://localhost:4201');
   });
 });
+
+describe('/api/login', () => {
+  it('returns 400 when account is empty regardless of loginType', async () => {
+    const response = await app.request('http://localhost/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ account: '', password: 'anything', loginType: 'username' }),
+    });
+    expect(response.status).toBe(400);
+  });
+});

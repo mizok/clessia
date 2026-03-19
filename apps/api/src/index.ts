@@ -152,10 +152,25 @@ app.post('/api/login', async (c) => {
   const body = await c.req.json<{ account?: string; password?: string; loginType?: string }>();
   const account = body.account?.trim();
   const password = body.password;
-  const loginType = body.loginType === 'phone' ? 'phone' : 'email';
+  const loginType =
+    body.loginType === 'phone' ? 'phone' : body.loginType === 'username' ? 'username' : 'email';
 
   if (!account || !password) {
     return c.json({ error: 'account 與 password 為必填', code: 'MISSING_FIELDS' }, 400);
+  }
+
+  // Username-only login (e.g. root) — skip ba_user lookup and status check
+  if (loginType === 'username') {
+    const auth = createAuth(c.env);
+    try {
+      const sessionRes = await (auth.api as any).signInUsername({
+        body: { username: account, password },
+        asResponse: true,
+      });
+      return sessionRes;
+    } catch {
+      return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
+    }
   }
 
   const supabase = createServiceClientFromEnv(c.env);
