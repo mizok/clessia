@@ -30,16 +30,16 @@
       <div class="form-dialog__field">
         <label class="form-dialog__label">顯示名稱</label>
         <div class="account-settings__input-row">
-          <input pInputText [(ngModel)]="displayName" [disabled]="saving()" class="w-full" />
-          <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="saving()" (onClick)="saveDisplayName()" styleClass="account-settings__save-btn" />
+          <input pInputText [(ngModel)]="displayName" [disabled]="saving()" />
+          <span class="account-settings__save-btn"><p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="saving()" (onClick)="saveDisplayName()" [style]="{'white-space':'nowrap'}" /></span>
         </div>
       </div>
 
       <div class="form-dialog__field">
         <label class="form-dialog__label">Email</label>
         <div class="account-settings__input-row">
-          <input pInputText type="email" [(ngModel)]="email" [disabled]="saving()" class="w-full" />
-          <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="saving()" (onClick)="confirmSaveEmail()" styleClass="account-settings__save-btn" />
+          <input pInputText type="email" [(ngModel)]="email" [disabled]="saving()" />
+          <span class="account-settings__save-btn"><p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="saving()" (onClick)="confirmSaveEmail()" [style]="{'white-space':'nowrap'}" /></span>
         </div>
         <p class="account-settings__hint">修改後需用新 Email 登入</p>
       </div>
@@ -47,8 +47,8 @@
       <div class="form-dialog__field">
         <label class="form-dialog__label">電話</label>
         <div class="account-settings__input-row">
-          <input pInputText type="tel" [(ngModel)]="phone" [disabled]="saving()" class="w-full" />
-          <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="saving()" (onClick)="confirmSavePhone()" styleClass="account-settings__save-btn" />
+          <input pInputText type="tel" [(ngModel)]="phone" [disabled]="saving()" />
+          <span class="account-settings__save-btn"><p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="saving()" (onClick)="confirmSavePhone()" [style]="{'white-space':'nowrap'}" /></span>
         </div>
         <p class="account-settings__hint">修改後需用新電話登入</p>
       </div>
@@ -58,12 +58,13 @@
         <div class="account-settings__input-row">
           <p-datepicker
             [(ngModel)]="birthday"
+            [showIcon]="true"
             placeholder="選擇生日"
             appendTo="body"
-            styleClass="w-full"
+            class="account-settings__date-picker"
             [disabled]="saving()"
           />
-          <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="saving()" (onClick)="saveBirthday()" styleClass="account-settings__save-btn" />
+          <span class="account-settings__save-btn"><p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="saving()" (onClick)="saveBirthday()" /></span>
         </div>
       </div>
     </div>

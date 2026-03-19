@@ -28,12 +28,22 @@
     display: flex;
     gap: var(--space-2);
     align-items: center;
+
+    // 一般 input 撐滿剩餘空間
+    input {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  &__date-picker {
+    flex: 1;
+    min-width: 0;
   }
 
   &__save-btn {
     flex-shrink: 0;
     align-self: center;
-    white-space: nowrap;
   }
 
   &__hint {
