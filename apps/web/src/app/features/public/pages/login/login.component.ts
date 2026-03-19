@@ -1,6 +1,14 @@
-import { Component, ElementRef, signal, AfterViewInit, inject, viewChild } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  OnInit,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '@core/auth.service';
 import { CaptchaService } from '@core/captcha.service';
 import { environment } from '@env/environment';
@@ -12,19 +20,29 @@ import { environment } from '@env/environment';
   styleUrl: './login.component.scss',
   host: { class: 'u-centered-flex' },
 })
-export class LoginComponent implements AfterViewInit {
+export class LoginComponent implements OnInit, AfterViewInit {
   private readonly turnstileContainer = viewChild.required<ElementRef>('turnstileContainer');
   private readonly captchaToken = signal<string | null>(null);
   private readonly auth = inject(AuthService);
   private readonly captcha = inject(CaptchaService);
+  private readonly route = inject(ActivatedRoute);
 
   protected account = '';
   protected password = '';
   protected rememberMe = false;
-  protected readonly loginMode = signal<'email' | 'phone'>('email');
+  protected readonly isRootMode = signal(false);
+  protected readonly loginMode = signal<'email' | 'phone' | 'username'>('email');
   protected readonly error = signal<string | null>(null);
   protected readonly submitting = signal(false);
   protected readonly showPassword = signal(false);
+
+  ngOnInit(): void {
+    if (this.route.snapshot.queryParamMap.get('role') === 'root') {
+      this.isRootMode.set(true);
+      this.loginMode.set('username');
+      this.account = 'root';
+    }
+  }
 
   ngAfterViewInit() {
     this.captcha.render(
