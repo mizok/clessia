@@ -59,6 +59,18 @@ export class ClassDetailPage implements OnInit {
 
   protected readonly statusLabels = ENROLLMENT_STATUS_LABELS;
 
+  /** 用 courseId + classId 決定性地 hash 出一個色相值（0–359） */
+  protected readonly avatarHue = computed(() => {
+    const seed = this.courseId() + this.classId();
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = (hash * 31 + seed.charCodeAt(i)) & 0xfffffff;
+    }
+    // 跳過偏黃區間（45–65°），那個範圍白字對比太差
+    const raw = hash % 320;
+    return raw < 45 ? raw : raw + 20;
+  });
+
   protected readonly actionMenu = viewChild.required<Menu>('actionMenu');
   protected readonly selectedEnrollment = signal<Enrollment | null>(null);
   protected readonly actionMenuItems = computed<MenuItem[]>(() => {
@@ -110,7 +122,9 @@ export class ClassDetailPage implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          this.enrollments.set(res.data);
+          this.enrollments.set(
+            res.data.filter((e) => e.status !== 'withdrawal' && e.status !== 'void'),
+          );
           this.enrollmentsLoading.set(false);
         },
         error: () => this.enrollmentsLoading.set(false),
@@ -273,6 +287,10 @@ export class ClassDetailPage implements OnInit {
 
   protected getWeekdayLabel(weekday: number): string {
     return ['', '週一', '週二', '週三', '週四', '週五', '週六', '週日'][weekday] ?? '';
+  }
+
+  protected navigateToStudent(studentId: string): void {
+    this.router.navigate(['/admin/students', studentId]);
   }
 
   protected goBack(): void {

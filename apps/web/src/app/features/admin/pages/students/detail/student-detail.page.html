@@ -171,7 +171,18 @@
 
     <!-- 在籍班級 -->
     <div class="student-detail__section-card">
-      <h2 class="student-detail__section-title">在籍班級</h2>
+      <div class="student-detail__section-header">
+        <h2 class="student-detail__section-title">在籍班級</h2>
+        @if (student()?.isActive) {
+          <p-button
+            label="加入班級"
+            icon="pi pi-plus"
+            size="small"
+            [outlined]="true"
+            (onClick)="openClassPicker()"
+          />
+        }
+      </div>
       @if (enrollmentsLoading()) {
         <p-skeleton height="48px" />
       } @else if (enrollments().length === 0) {
@@ -182,15 +193,25 @@
       } @else {
         <div class="student-detail__enrollments-list">
           @for (enrollment of enrollments(); track enrollment.id) {
-            <div class="student-detail__enrollment-item">
+            <div
+              class="student-detail__enrollment-item"
+              role="button"
+              tabindex="0"
+              (click)="navigateToClass(enrollment.courseId, enrollment.classId)"
+              (keydown.enter)="navigateToClass(enrollment.courseId, enrollment.classId)"
+            >
               <div class="student-detail__enrollment-info">
                 <span class="student-detail__enrollment-class">{{ enrollment.className }}</span>
+                <span class="student-detail__enrollment-course">{{ enrollment.courseName }}</span>
                 <span class="student-detail__enrollment-since">自 {{ enrollment.effectiveFrom }}</span>
               </div>
-              <p-tag
-                [value]="ENROLLMENT_STATUS_LABELS[enrollment.status]"
-                [severity]="enrollment.status === 'active' ? 'success' : 'warn'"
-              />
+              <div class="student-detail__enrollment-right">
+                <p-tag
+                  [value]="ENROLLMENT_STATUS_LABELS[enrollment.status]"
+                  [severity]="enrollment.status === 'active' ? 'success' : 'warn'"
+                />
+                <i class="pi pi-chevron-right student-detail__enrollment-arrow"></i>
+              </div>
             </div>
           }
         </div>

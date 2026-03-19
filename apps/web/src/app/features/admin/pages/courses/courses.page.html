@@ -238,10 +238,14 @@
                 <div class="course-group__classes-inner">
                   @for (cls of group.classes; track cls.id) {
                     <div class="class-row">
-                      <!-- Summary Row (clickable to open detail) -->
+                      <!-- Summary Row (整行可點擊，前往班級詳情) -->
                       <div
                         class="class-row__summary"
                         [class.class-row__summary--selected]="selectedClassIds().has(cls.id)"
+                        role="button"
+                        tabindex="0"
+                        (click)="navigateToClass(group.course.id, cls.id)"
+                        (keydown.enter)="navigateToClass(group.course.id, cls.id)"
                       >
                         <input
                           type="checkbox"
@@ -250,20 +254,8 @@
                           (change)="toggleClassSelection(cls.id, $event)"
                           (click)="$event.stopPropagation()"
                         />
-                        <button
-                          type="button"
-                          class="class-row__name class-row__name--link"
-                          (click)="navigateToClass(group.course.id, cls.id); $event.stopPropagation()"
-                        >{{ cls.name }}</button>
-                        <span
-                          class="class-row__schedules"
-                          (click)="openDetail(cls); $event.stopPropagation()"
-                          role="button"
-                          tabindex="0"
-                          (keydown.enter)="openDetail(cls); $event.stopPropagation()"
-                          pTooltip="點擊查看班級詳情"
-                          [tooltipPosition]="'top'"
-                        >
+                        <span class="class-row__name">{{ cls.name }}</span>
+                        <span class="class-row__schedules">
                           <i class="pi pi-info-circle"></i>
                           @if (cls.schedules && cls.schedules.length > 0) {
                             <span class="schedule-text">{{

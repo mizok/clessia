@@ -17,6 +17,8 @@ const EnrollmentSchema = z
     orgId: z.uuid(),
     classId: z.uuid(),
     className: z.string(),
+    courseId: z.uuid(),
+    courseName: z.string(),
     studentId: z.uuid(),
     studentName: z.string(),
     status: EnrollmentStatusSchema,
@@ -81,6 +83,8 @@ function toEnrollmentResponse(row: any): z.infer<typeof EnrollmentSchema> {
     orgId: row.org_id,
     classId: row.class_id,
     className: row.classes?.name ?? '',
+    courseId: row.classes?.courses?.id ?? '',
+    courseName: row.classes?.courses?.name ?? '',
     studentId: row.student_id,
     studentName: row.students?.name ?? '',
     status: row.status,
@@ -135,7 +139,7 @@ app.openapi(
     let query = supabase
       .from('enrollments')
       .select(
-        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name), students(name), creator:ba_user!created_by(name)',
+        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, courses(id, name)), students(name), creator:ba_user!created_by(name)',
         { count: 'exact' },
       )
       .eq('org_id', orgId)
@@ -190,7 +194,7 @@ app.openapi(
         notes: body.notes ?? null,
         created_by: userId,
       })
-      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name), students(name), creator:ba_user!created_by(name)')
+      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, courses(id, name)), students(name), creator:ba_user!created_by(name)')
       .single();
 
     if (error) {
@@ -234,7 +238,7 @@ app.openapi(
       .update(updates)
       .eq('id', id)
       .eq('org_id', orgId)
-      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name), students(name), creator:ba_user!created_by(name)')
+      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, courses(id, name)), students(name), creator:ba_user!created_by(name)')
       .single();
 
     if (error) return c.json({ error: 'NOT_FOUND' }, 404);
@@ -297,7 +301,7 @@ app.openapi(
       .update(updates)
       .eq('id', id)
       .eq('org_id', orgId)
-      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name), students(name), creator:ba_user!created_by(name)')
+      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, courses(id, name)), students(name), creator:ba_user!created_by(name)')
       .single();
 
     if (error) return c.json({ error: error.message }, 500);

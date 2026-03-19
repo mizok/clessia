@@ -114,8 +114,8 @@
         <ng-template #headTpl>
           <tr>
             <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">姓名</th>
-            <th appRtColDef="email" [appRtColDefMinWidth]="180" [appRtColDefPriority]="2">Email</th>
-            <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="3">手機</th>
+            <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">手機</th>
+            <th appRtColDef="email" [appRtColDefMinWidth]="180" [appRtColDefPriority]="3">Email</th>
             <th appRtColDef="students" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">關聯學生</th>
             <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">狀態</th>
             <th class="responsive-table__header-cell" style="width: 56px"></th>
@@ -133,16 +133,16 @@
                   <span class="parent-table__name">{{ parent.name }}</span>
                 </div>
               </td>
-              <td appRtColCell="email">
-                @if (parent.email) {
-                  <span class="parent-table__account-item">{{ parent.email }}</span>
+              <td appRtColCell="phone">
+                @if (parent.phone) {
+                  <span class="parent-table__account-item">{{ parent.phone }}</span>
                 } @else {
                   <span class="parent-table__empty">—</span>
                 }
               </td>
-              <td appRtColCell="phone">
-                @if (parent.phone) {
-                  <span class="parent-table__account-item">{{ parent.phone }}</span>
+              <td appRtColCell="email">
+                @if (parent.email) {
+                  <span class="parent-table__account-item">{{ parent.email }}</span>
                 } @else {
                   <span class="parent-table__empty">—</span>
                 }

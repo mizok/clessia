@@ -312,10 +312,18 @@
     gap: var(--space-3);
     padding: var(--space-3) var(--space-6) var(--space-3) var(--space-10);
     transition: background var(--transition-fast);
+    cursor: pointer;
+    user-select: none;
 
     &:hover {
+      background: var(--accent-50);
+
       ::ng-deep .p-button.p-button-secondary {
         color: var(--accent-500);
+      }
+
+      .class-row__name {
+        color: var(--accent-600);
       }
     }
 
@@ -326,22 +334,10 @@
 
   &__name {
     font-size: var(--text-base);
-    font-weight: var(--font-medium);
+    font-weight: var(--font-semibold);
     color: var(--zinc-800);
     min-width: 30px;
-
-    &--link {
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 0;
-      text-align: left;
-
-      &:hover {
-        color: var(--accent-600);
-        text-decoration: underline;
-      }
-    }
+    transition: color var(--transition-fast);
   }
 
   &__capacity {

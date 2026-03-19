@@ -110,11 +110,18 @@
     }
   }
 
+  &__section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+  }
+
   &__section-title {
     font-size: var(--text-base);
     font-weight: var(--font-semibold);
     color: var(--zinc-900);
-    margin: 0 0 var(--space-4);
+    margin: 0;
   }
 
   &__deferred-header {
@@ -274,10 +281,40 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-3) var(--space-2);
+    padding: var(--space-3) var(--space-3);
     border-radius: var(--radius-md);
-    border: 1px solid var(--color-border);
-    background: var(--color-surface);
+    border: 1px solid var(--zinc-200);
+    background: #fff;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+
+    &:hover {
+      border-color: var(--accent-200);
+      box-shadow: 0 2px 8px -2px rgba(14, 165, 233, 0.12);
+
+      .student-detail__enrollment-class {
+        color: var(--accent-600);
+      }
+
+      .student-detail__enrollment-arrow {
+        color: var(--accent-500);
+        transform: translateX(2px);
+      }
+    }
+  }
+
+  &__enrollment-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-shrink: 0;
+  }
+
+  &__enrollment-arrow {
+    font-size: 11px;
+    color: var(--zinc-300);
+    transition: color var(--transition-fast), transform var(--transition-fast);
   }
 
   &__enrollment-info {
@@ -288,9 +325,15 @@
   }
 
   &__enrollment-class {
-    font-weight: 500;
-    color: var(--color-text);
+    font-weight: 600;
+    color: var(--zinc-800);
     font-size: var(--text-sm);
+  }
+
+  &__enrollment-course {
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+    font-weight: var(--font-medium);
   }
 
   &__enrollment-since {

@@ -1,11 +1,4 @@
-import {
-  Component,
-  OnInit,
-  inject,
-  input,
-  signal,
-  computed,
-} from '@angular/core';
+import { Component, OnInit, inject, input, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -160,8 +153,8 @@ export class CoursesPage implements OnInit {
     }));
   });
 
-  protected readonly validTeacherIdsForSelectedCampus = computed(() =>
-    new Set(this.filteredStaffOptions().map((option) => option.value)),
+  protected readonly validTeacherIdsForSelectedCampus = computed(
+    () => new Set(this.filteredStaffOptions().map((option) => option.value)),
   );
 
   // ---- Computed course groups ----
@@ -392,7 +385,7 @@ export class CoursesPage implements OnInit {
         command: () => this.openGenerateDialog(cls),
       },
       {
-        label: '在列表中查看',
+        label: '課堂列表',
         icon: 'pi pi-list',
         command: () => this.navigateToSessionsList(cls),
       },

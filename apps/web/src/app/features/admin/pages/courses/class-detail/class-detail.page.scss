@@ -1,76 +1,174 @@
 .class-detail {
   padding: var(--space-6);
-  max-width: 900px;
+  max-width: 960px;
+  margin: 0 auto;
 
   &__nav {
-    margin-bottom: var(--space-4);
+    margin-bottom: var(--space-5);
   }
 
   &__loading {
+    padding: var(--space-6) 0;
+  }
+
+  // ---- Hero Header ----
+  &__hero {
     display: flex;
-    justify-content: center;
-    padding: var(--space-12) 0;
-  }
-
-  &__header {
+    align-items: flex-start;
+    gap: var(--space-5);
+    padding: var(--space-6);
+    background: #fff;
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
     margin-bottom: var(--space-6);
+
+    &--skeleton {
+      align-items: center;
+    }
   }
 
-  &__title-row {
+  &__hero-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(
+      135deg,
+      hsl(var(--avatar-hue, 200) 72% 52%),
+      hsl(var(--avatar-hue, 200) 80% 36%)
+    );
+    color: #fff;
+    font-size: 1.75rem;
+    font-weight: var(--font-bold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    letter-spacing: -0.02em;
+    box-shadow: 0 4px 12px -2px hsl(var(--avatar-hue, 200) 70% 45% / 0.35);
+  }
+
+  &__hero-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  &__hero-name-row {
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    margin-bottom: var(--space-2);
+    flex-wrap: wrap;
   }
 
-  &__title {
+  &__hero-name {
     margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: var(--color-text);
+    font-size: 1.625rem;
+    font-weight: var(--font-bold);
+    color: var(--zinc-900);
+    line-height: 1.2;
   }
 
-  &__meta {
+  &__hero-course {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+    font-weight: var(--font-medium);
+  }
+
+  &__hero-stats {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    color: var(--color-text-muted);
-    font-size: 0.875rem;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    margin-top: var(--space-1);
   }
 
-  &__sep {
-    color: var(--color-border);
+  &__stat {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--zinc-600);
+    font-weight: var(--font-medium);
+
+    .pi {
+      font-size: 13px;
+      color: var(--zinc-400);
+    }
+
+    &--warn {
+      color: var(--p-orange-600);
+
+      .pi {
+        color: var(--p-orange-500);
+      }
+    }
   }
 
-  &__tab-actions {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: var(--space-4);
+  // ---- Card (tabs wrapper) ----
+  &__card {
+    background: #fff;
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
   }
 
   &__skeletons {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+    padding: var(--space-4) var(--space-5);
   }
 
+  // ---- Empty State ----
   &__empty {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-10) 0;
-    color: var(--color-text-muted);
+    padding: var(--space-14) var(--space-6);
+    text-align: center;
+  }
 
-    i {
-      font-size: 2rem;
+  &__empty-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--zinc-100);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--space-1);
+
+    .pi {
+      font-size: 1.5rem;
+      color: var(--zinc-400);
     }
   }
 
+  &__empty-title {
+    margin: 0;
+    font-size: var(--text-base);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-700);
+  }
+
+  &__empty-desc {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--zinc-400);
+  }
+
+  // ---- Student List ----
   &__student-list {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+    padding-bottom: var(--space-4);
   }
 
   &__student-item {
@@ -78,21 +176,37 @@
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
-    background: var(--color-surface);
+    background: #fff;
     border-radius: var(--radius-md);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--zinc-200);
+    cursor: pointer;
+    user-select: none;
+    transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+
+    &:hover {
+      border-color: var(--accent-200);
+      box-shadow: 0 2px 8px -2px rgba(14, 165, 233, 0.12);
+
+      .class-detail__student-name {
+        color: var(--accent-600);
+      }
+    }
   }
 
   &__student-avatar {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
-    background: var(--color-surface-hover);
+    background: var(--zinc-100);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--color-text-muted);
+    color: var(--zinc-500);
     flex-shrink: 0;
+
+    .pi {
+      font-size: 16px;
+    }
   }
 
   &__student-info {
@@ -100,16 +214,18 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    min-width: 0;
   }
 
   &__student-name {
-    font-weight: 500;
-    color: var(--color-text);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-800);
+    font-size: var(--text-sm);
   }
 
   &__student-since {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    color: var(--zinc-400);
   }
 
   &__action-btn {
@@ -118,14 +234,16 @@
     cursor: pointer;
     padding: var(--space-2);
     border-radius: var(--radius-sm);
-    color: var(--color-text-muted);
-    transition: background 0.15s;
+    color: var(--zinc-400);
+    transition: background var(--transition-fast), color var(--transition-fast);
 
     &:hover {
-      background: var(--color-surface-hover);
+      background: var(--zinc-100);
+      color: var(--zinc-600);
     }
   }
 
+  // ---- Schedule List ----
   &__schedules {
     display: flex;
     flex-direction: column;
@@ -138,25 +256,99 @@
     align-items: center;
     gap: var(--space-4);
     padding: var(--space-3) var(--space-4);
-    background: var(--color-surface);
+    background: #fff;
     border-radius: var(--radius-md);
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--zinc-200);
   }
 
   &__schedule-day {
-    font-weight: 500;
-    min-width: 40px;
-    color: var(--color-text);
+    font-weight: var(--font-semibold);
+    min-width: 44px;
+    color: var(--accent-600);
+    font-size: var(--text-sm);
   }
 
   &__schedule-time {
-    color: var(--color-text-muted);
-    font-size: 0.875rem;
+    color: var(--zinc-700);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
   }
 
   &__schedule-teacher {
     margin-left: auto;
-    font-size: 0.875rem;
-    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+    background: var(--zinc-100);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+  }
+}
+
+// ---- PrimeNG Tabs overrides (card 內) ----
+:host ::ng-deep {
+  .class-detail__card {
+    .p-tabs {
+      background: transparent;
+    }
+
+    .p-tablist {
+      background: var(--zinc-50);
+      border-bottom: 1px solid var(--zinc-200);
+      padding: 0 var(--space-5);
+      display: flex;
+      align-items: center;
+    }
+
+    .p-tablist-content {
+      flex: 1;
+    }
+
+    .p-tablist-tab-list {
+      background: transparent;
+      border: none;
+    }
+
+    .p-tab {
+      font-size: var(--text-sm);
+      font-weight: var(--font-medium);
+      color: var(--zinc-500);
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: var(--space-3) var(--space-1);
+      margin-right: var(--space-5);
+      background: transparent;
+      transition: color var(--transition-fast), border-color var(--transition-fast);
+
+      &:hover {
+        color: var(--zinc-700);
+      }
+
+      &.p-tab-active {
+        color: var(--accent-600);
+        border-bottom-color: var(--accent-500);
+        background: transparent;
+      }
+    }
+
+    .p-tablist-active-bar {
+      display: none;
+    }
+
+    // end slot — 讓按鈕靠右對齊
+    .p-tablist-nav-end {
+      display: flex;
+      align-items: center;
+      padding: var(--space-2) 0;
+      margin-left: auto;
+    }
+
+    .p-tabpanels {
+      background: transparent;
+      padding: var(--space-5);
+    }
+
+    .p-tabpanel {
+      padding: 0;
+    }
   }
 }

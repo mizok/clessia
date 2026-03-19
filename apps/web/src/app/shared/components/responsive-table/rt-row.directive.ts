@@ -82,7 +82,8 @@ export class RtRowDirective {
     this.renderer.appendChild(expandButton, iconElement);
     this.renderer.appendChild(expandCell, expandButton);
 
-    this.removeClickListener = this.renderer.listen(expandButton, 'click', () => {
+    this.removeClickListener = this.renderer.listen(expandButton, 'click', (event: MouseEvent) => {
+      event.stopPropagation();
       this.table.toggleRow(this.rowId());
     });
 

@@ -19,6 +19,8 @@ export interface Enrollment {
   orgId: string;
   classId: string;
   className: string;
+  courseId: string;
+  courseName: string;
   studentId: string;
   studentName: string;
   status: EnrollmentStatus;

@@ -19,6 +19,8 @@ import { OverlayContainerService } from '@core/overlay-container.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { StudentFormDialogComponent } from '../student-form-dialog.component';
+import { ClassPickerDialogComponent } from './class-picker-dialog/class-picker-dialog.component';
+import type { Class } from '@core/classes.service';
 
 @Component({
   selector: 'app-student-detail',
@@ -117,6 +119,53 @@ export class StudentDetailPage implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  protected navigateToClass(courseId: string, classId: string): void {
+    this.router.navigate(['/admin/courses', courseId, 'classes', classId]);
+  }
+
+  protected openClassPicker(): void {
+    const s = this.student();
+    if (!s) return;
+    const existingClassIds = this.enrollments().map((e) => e.classId);
+    const ref = this.dialogService.open(ClassPickerDialogComponent, {
+      header: '選擇班級',
+      width: '520px',
+      modal: true,
+      showHeader: true,
+      appendTo: this.overlayContainer || 'body',
+      data: { existingClassIds },
+    });
+    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((cls: Class | undefined) => {
+      if (cls) this.addToClass(cls);
+    });
+  }
+
+  private addToClass(cls: Class): void {
+    const s = this.student();
+    if (!s) return;
+    this.enrollmentsService
+      .create({ classId: cls.id, studentId: s.id })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.messageService.add({
+            severity: 'success',
+            summary: '加入成功',
+            detail: `「${s.name}」已加入「${cls.name}」`,
+          });
+          const id = this.route.snapshot.paramMap.get('id');
+          if (id) this.loadEnrollments(id);
+        },
+        error: () => {
+          this.messageService.add({
+            severity: 'error',
+            summary: '加入失敗',
+            detail: '無法將學生加入班級，請稍後再試',
+          });
+        },
+      });
   }
 
   private loadEnrollments(studentId: string): void {

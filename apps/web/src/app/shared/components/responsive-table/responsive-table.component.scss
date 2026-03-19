@@ -71,7 +71,8 @@
       box-shadow var(--transition-fast);
   }
 
-  &__row:nth-child(odd) &__cell {
+  &__row:nth-child(odd) &__cell,
+  &__row:nth-child(odd) &__expand-cell {
     background: color-mix(in srgb, var(--zinc-50) 65%, var(--color-white));
   }
 
@@ -85,7 +86,8 @@
     vertical-align: middle;
   }
 
-  &__row:hover &__cell {
+  &__row:hover &__cell,
+  &__row:hover &__expand-cell {
     background: color-mix(in srgb, var(--accent-50) 48%, var(--color-white));
   }
 

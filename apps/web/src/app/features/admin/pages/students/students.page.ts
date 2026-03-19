@@ -122,7 +122,6 @@ export class StudentsPage implements OnInit {
     const student = this.selectedStudent();
     if (!student) return [];
     return [
-      { label: '查看詳情', icon: 'pi pi-eye', routerLink: [RoutesCatalog.ADMIN_STUDENTS.absolutePath, student.id] },
       { label: '編輯', icon: 'pi pi-pencil', command: () => this.openEditDialog(student) },
       ...(student.isActive
         ? [{ separator: true }, { label: '停用', icon: 'pi pi-lock', command: () => this.confirmDeactivate(student) }]

@@ -1,0 +1,59 @@
+<div class="class-picker">
+  <div class="class-picker__search">
+    <p-iconfield iconPosition="left" styleClass="class-picker__iconfield">
+      <p-inputicon styleClass="pi pi-search" />
+      <input
+        type="text"
+        pInputText
+        placeholder="搜尋課程或班級名稱..."
+        [ngModel]="searchQuery()"
+        (ngModelChange)="onSearchChange($event)"
+        class="class-picker__input"
+      />
+    </p-iconfield>
+  </div>
+
+  @if (loading()) {
+    <div class="class-picker__list">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <p-skeleton height="60px" borderRadius="10px" styleClass="mb-2" />
+      }
+    </div>
+  } @else if (filteredClasses().length === 0) {
+    <div class="class-picker__empty">
+      <i class="pi pi-inbox"></i>
+      <span>{{ searchQuery() ? '找不到符合的班級' : '目前沒有可加入的班級' }}</span>
+    </div>
+  } @else {
+    <div class="class-picker__list">
+      @for (cls of filteredClasses(); track cls.id) {
+        <button type="button" class="class-picker__item" (click)="select(cls)">
+          <div class="class-picker__item-info">
+            <span class="class-picker__item-name">{{ cls.name }}</span>
+            <span class="class-picker__item-meta">
+              {{ cls.courseName }}
+              @if (cls.campusName) {
+                · {{ cls.campusName }}
+              }
+            </span>
+          </div>
+          <div class="class-picker__item-right">
+            @if (cls.maxStudents) {
+              <span class="class-picker__item-capacity">
+                <i class="pi pi-users"></i> {{ cls.maxStudents }} 人上限
+              </span>
+            }
+            <i class="pi pi-chevron-right class-picker__item-arrow"></i>
+          </div>
+        </button>
+      }
+    </div>
+    @if (total() > PAGE_SIZE) {
+      <p class="class-picker__total">共 {{ total() }} 個班級</p>
+    }
+  }
+
+  <div class="class-picker__footer">
+    <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+  </div>
+</div>

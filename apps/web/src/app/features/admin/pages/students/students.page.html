@@ -135,18 +135,21 @@
 
         <ng-template #bodyTpl>
           @for (student of students(); track student.id) {
-            <tr appRtRow [appRtRow]="student" [appRtRowId]="student.id">
+            <tr
+              appRtRow [appRtRow]="student" [appRtRowId]="student.id"
+              class="student-table__row"
+              (click)="navigateToDetail(student)"
+              pTooltip="點擊查看學生詳情"
+              tooltipPosition="top"
+              [tooltipOptions]="{ showDelay: 600 }"
+            >
               <td appRtColCell="name">
-                <button
-                  type="button"
-                  class="student-table__name-btn"
-                  (click)="navigateToDetail(student)"
-                >
+                <div class="student-table__name-btn">
                   <span class="student-table__avatar">
                     <i class="pi pi-user"></i>
                   </span>
                   <span class="student-table__name">{{ student.name }}</span>
-                </button>
+                </div>
               </td>
               <td appRtColCell="grade">
                 <span class="student-table__grade">{{ getGradeLabel(student.grade) }}</span>
@@ -177,7 +180,7 @@
                   [rounded]="true"
                   [text]="true"
                   severity="secondary"
-                  (onClick)="openActionMenu($event, student)"
+                  (onClick)="openActionMenu($event, student); $event.stopPropagation()"
                 />
               </td>
             </tr>
