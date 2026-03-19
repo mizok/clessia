@@ -24,14 +24,9 @@
 
   @if (view() === 'main') {
     <div class="account-settings__section">
-      <p class="account-settings__section-label">基本資料</p>
-
-      <div class="form-dialog__field">
-        <label class="form-dialog__label">顯示名稱</label>
-        @if (isRootUser()) {
-          <span class="account-settings__readonly">{{ displayName }}</span>
-          <p class="account-settings__hint">系統帳號名稱不可修改</p>
-        } @else {
+      @if (!isRootUser()) {
+        <div class="form-dialog__field">
+          <label class="form-dialog__label">顯示名稱</label>
           <div class="account-settings__input-row">
             <input pInputText [(ngModel)]="displayName" [disabled]="saving()" />
             <span class="account-settings__save-btn">
@@ -45,8 +40,8 @@
           @if (fieldError()?.field === 'displayName') {
             <p class="account-settings__error">{{ fieldError()!.msg }}</p>
           }
-        }
-      </div>
+        </div>
+      }
 
       <div class="form-dialog__field">
         <label class="form-dialog__label">Email</label>
@@ -54,9 +49,23 @@
           <input pInputText type="email" [(ngModel)]="email" [disabled]="saving()" />
           <span class="account-settings__save-btn">
             @if (savedField() === 'email') {
-              <p-button icon="pi pi-check" size="small" severity="success" [outlined]="true" [disabled]="true" />
+              <p-button
+                icon="pi pi-check"
+                size="small"
+                severity="success"
+                [outlined]="true"
+                [disabled]="true"
+              />
             } @else {
-              <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="savingField() === 'email'" [disabled]="saving()" (onClick)="confirmSaveEmail()" />
+              <p-button
+                label="儲存"
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                [loading]="savingField() === 'email'"
+                [disabled]="saving()"
+                (onClick)="confirmSaveEmail()"
+              />
             }
           </span>
         </div>
@@ -73,9 +82,23 @@
           <input pInputText type="tel" [(ngModel)]="phone" [disabled]="saving()" />
           <span class="account-settings__save-btn">
             @if (savedField() === 'phone') {
-              <p-button icon="pi pi-check" size="small" severity="success" [outlined]="true" [disabled]="true" />
+              <p-button
+                icon="pi pi-check"
+                size="small"
+                severity="success"
+                [outlined]="true"
+                [disabled]="true"
+              />
             } @else {
-              <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="savingField() === 'phone'" [disabled]="saving()" (onClick)="confirmSavePhone()" />
+              <p-button
+                label="儲存"
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                [loading]="savingField() === 'phone'"
+                [disabled]="saving()"
+                (onClick)="confirmSavePhone()"
+              />
             }
           </span>
         </div>
@@ -99,9 +122,23 @@
           />
           <span class="account-settings__save-btn">
             @if (savedField() === 'birthday') {
-              <p-button icon="pi pi-check" size="small" severity="success" [outlined]="true" [disabled]="true" />
+              <p-button
+                icon="pi pi-check"
+                size="small"
+                severity="success"
+                [outlined]="true"
+                [disabled]="true"
+              />
             } @else {
-              <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="savingField() === 'birthday'" [disabled]="saving()" (onClick)="saveBirthday()" />
+              <p-button
+                label="儲存"
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                [loading]="savingField() === 'birthday'"
+                [disabled]="saving()"
+                (onClick)="saveBirthday()"
+              />
             }
           </span>
         </div>
@@ -111,9 +148,7 @@
     @if (!hasParentRole()) {
       <div class="account-settings__section">
         <p class="account-settings__section-label">家長身份</p>
-        <p class="account-settings__desc">
-          啟用後可使用家長 portal 查看子女的出缺席與課表。
-        </p>
+        <p class="account-settings__desc">啟用後可使用家長 portal 查看子女的出缺席與課表。</p>
         <p-button
           label="啟用家長身份"
           icon="pi pi-user-plus"
@@ -130,18 +165,11 @@
         <label class="form-dialog__label">
           子女姓名<span class="form-dialog__required">*</span>
         </label>
-        <input
-          pInputText
-          [(ngModel)]="studentName"
-          placeholder="子女的真實姓名"
-          class="w-full"
-        />
+        <input pInputText [(ngModel)]="studentName" placeholder="子女的真實姓名" class="w-full" />
       </div>
 
       <div class="form-dialog__field">
-        <label class="form-dialog__label">
-          年級<span class="form-dialog__required">*</span>
-        </label>
+        <label class="form-dialog__label"> 年級<span class="form-dialog__required">*</span> </label>
         <p-select
           [options]="gradeOptions"
           [(ngModel)]="studentGrade"
