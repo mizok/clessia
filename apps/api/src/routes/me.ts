@@ -273,8 +273,8 @@ app.openapi(
 
     // Step 4：新增 parent role
     const { error: roleError } = await supabase.from('user_roles').upsert(
-      { user_id: userId, org_id: orgId, role: 'parent', permissions: [] },
-      { onConflict: 'user_id,role,org_id', ignoreDuplicates: true },
+      { user_id: userId, role: 'parent', permissions: [] },
+      { onConflict: 'user_id,role', ignoreDuplicates: true },
     );
 
     if (roleError) {
