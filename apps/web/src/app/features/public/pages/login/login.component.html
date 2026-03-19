@@ -96,6 +96,8 @@
         </label>
         <a class="form__link" routerLink="/forgot-password">忘記密碼？</a>
       </div>
+    } @else {
+      <p class="auth-content__hint">若忘記密碼，請聯繫技術人員重設</p>
     }
 
     <div #turnstileContainer></div>
