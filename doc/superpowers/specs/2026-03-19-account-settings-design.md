@@ -10,13 +10,15 @@
 
 admin / teacher 帳號由管理者在人員管理頁建立，但基本個人資料（姓名、Email、電話、生日）應允許帳號持有者自行維護。此外，具備 admin 或 teacher 角色的使用者，若本身也有子女就讀，需要能自助啟用 `parent` 角色，而不需要另外開一個新帳號。
 
+> **注意**：此 Phase 的使用者皆為 admin 或 teacher，必定有對應的 `staff` 記錄。純 parent 帳號（無 staff 記錄）的個人設定頁留待後續 Phase 處理。
+
 ---
 
 ## 範圍
 
 1. Header user dropdown 新增「帳號設定」入口
 2. 帳號設定 Dialog（基本資料編輯 + 修改密碼捷徑 + 家長身份啟用）
-3. 後端 `/api/me` 路由（`PATCH` 更新資料、`POST /activate-parent` 啟用家長）
+3. 後端 `/api/me` 新增 `PATCH` 與 `POST /activate-parent` handler（與現有 `GET /api/me` 整合至 `apps/api/src/routes/me.ts`）
 
 ---
 
@@ -61,7 +63,7 @@ Email 與電話需要確認 dialog 的原因：兩者皆為登入憑據，變更
 
 #### 區塊二：安全性
 
-- 「修改密碼」按鈕：關閉 dialog，導航至現有的 `/{role}/change-password` 頁面（保留現有邏輯）。
+- 「修改密碼」按鈕：關閉 dialog，導航至 `/{activeRole}/change-password`（例如 `/admin/change-password`）。各 role 的 change-password 路由已存在於 app.routes.ts，保留現有邏輯。
 
 #### 區塊三：家長身份
 
@@ -88,12 +90,24 @@ Email 與電話需要確認 dialog 的原因：兩者皆為登入憑據，變更
 
 - 顯示 Step 1 填寫的資訊。
 - 「確認啟用」→ 呼叫 `POST /api/me/activate-parent`。
-- 成功後顯示訊息：「家長身份已啟用，下次切換角色時即可使用。」
+- 成功後呼叫 `AuthService.refreshRoles()`，更新前端 roles signal。
+- 顯示訊息：「家長身份已啟用，下次切換角色時即可使用。」
 - 「完成」→ 回到帳號設定主畫面，`parent` 區塊消失（因為已有 parent role）。
 
 ---
 
 ### 4. 後端 API
+
+#### 路由整合策略
+
+現有 `GET /api/me` 定義在 `apps/api/src/index.ts`。此 Phase 將：
+
+1. 新增 `apps/api/src/routes/me.ts`，包含 `GET`、`PATCH`、`POST /activate-parent` 三個 handler
+2. 將 `apps/api/src/index.ts` 的 `GET /api/me` 移入 `me.ts`，並在 `index.ts` 中 `app.route('/api/me', meRoutes)` 統一掛載
+
+#### `GET /api/me`（擴充）
+
+現有 response 僅含 `userId, orgId, displayName, roles, permissions`。移入 `me.ts` 時，需同時回傳帳號設定 Dialog 預填所需的欄位，加上：`email`、`phone`、`birthday`（JOIN `staff` 表取得）。
 
 #### `PATCH /api/me`
 
@@ -105,17 +119,20 @@ Email 與電話需要確認 dialog 的原因：兩者皆為登入憑據，變更
   "displayName": "string",
   "email": "string",
   "phone": "string | null",
-  "birthday": "string | null"  // YYYY-MM-DD
+  "birthday": "string | null"
 }
 ```
 
 **行為：**
-- `displayName`：更新 `profiles.display_name` + Better Auth `updateUser({ name })`
-- `email`：呼叫 BA `updateUser({ email })`，直接更新（不寄驗證信）
-- `phone`：更新 `ba_user.phone`（透過 BA admin API 或直接 update）
-- `birthday`：更新 `staffs.birthday`
 
-**Response：** 更新後的使用者資料。
+- `displayName`：同時更新 `profiles.display_name`（Supabase）與 Better Auth `auth.api.updateUser({ body: { name } })`
+- `email`：呼叫 BA `auth.api.updateUser({ body: { email } })`，直接更新（不寄驗證信）；若 email 已被他人使用，BA 回傳錯誤，轉為 422 `EMAIL_ALREADY_IN_USE`
+- `phone`：
+  - 直接更新 `ba_user.phone`
+  - 若該使用者為 phone-only 帳號（`ba_user.email IS NULL`），則同步更新 `ba_user.username`（phone-only 登入時 `username = phone`）
+- `birthday`：更新 `staff.birthday`（此 Phase 的使用者皆為 admin/teacher，必有 staff 記錄）
+
+**Response：** 更新後的使用者資料（displayName, email, phone, birthday）。
 
 #### `POST /api/me/activate-parent`
 
@@ -129,19 +146,34 @@ Email 與電話需要確認 dialog 的原因：兩者皆為登入憑據，變更
 }
 ```
 
-**行為（需在 transaction 內）：**
-1. 建立 `students` 記錄（name + grade，其他欄位為 null）
-2. 建立 `student_parents` 關聯（studentId + parentUserId）
-3. 在 `user_roles` 新增 `parent` role（若不存在）
-4. 更新 `AuthService` 的 roles signal（前端重新呼叫 `/api/me` 或由 response 帶回新 roles）
+**行為（需在 transaction 內執行）：**
+
+1. 建立 `students` 記錄：`{ name: studentName, grade, orgId: c.get('orgId'), isActive: true }`（其他欄位為 null）
+2. 建立 `student_parents` 關聯：`{ student_id, parent_user_id: userId, relation: null, is_primary: true }`
+3. 在 `user_roles` 新增 `{ user_id: userId, role: 'parent', org_id: orgId }`（若已存在則忽略）
+4. 回傳更新後的完整 roles 清單
 
 **Response：**
 ```json
 {
   "studentId": "string",
-  "roles": ["admin", "parent"]  // 更新後的完整 roles 清單
+  "roles": ["admin", "parent"]
 }
 ```
+
+---
+
+### 5. AuthService 變更
+
+在 `AuthService` 新增公開方法 `refreshRoles()`：
+
+```typescript
+async refreshRoles(): Promise<void> {
+  // 重新呼叫 GET /api/me，更新 _roles signal
+}
+```
+
+前端在 `activate-parent` 成功後呼叫此方法，確保 `roles()` signal 立即反映新增的 `parent` role。
 
 ---
 
@@ -156,12 +188,12 @@ Email 與電話需要確認 dialog 的原因：兩者皆為登入憑據，變更
   → (email/phone) 確認 dialog → PATCH /api/me → 更新 AuthService profile signal
 
 修改密碼：
-  → 關閉 dialog → navigate /{role}/change-password
+  → 關閉 dialog → navigate /{activeRole}/change-password
 
 啟用家長身份：
   → Step 1 填寫子女 → Step 2 確認
   → POST /api/me/activate-parent
-  → 成功：AuthService roles 更新（加入 parent）
+  → 成功：AuthService.refreshRoles() 更新 roles signal
   → 下次開啟 /select-role 會出現「家長」選項
 ```
 
@@ -172,9 +204,10 @@ Email 與電話需要確認 dialog 的原因：兩者皆為登入憑據，變更
 | 情況 | 處理 |
 |------|------|
 | 使用者已有 parent role | 帳號設定不顯示「家長身份」區塊 |
-| email 改為已被他人使用的信箱 | BA `updateUser` 回傳錯誤，顯示「此 Email 已被使用」 |
-| 啟用家長身份後立即切換 | AuthService roles signal 更新後，`/select-role` 即可看到 parent 選項 |
+| email 改為已被他人使用的信箱 | 顯示「此 Email 已被使用」 |
+| phone-only 帳號更新電話 | 同步更新 `ba_user.username` |
 | activate-parent 部分失敗 | Transaction rollback，不留下孤兒 student 記錄 |
+| activate-parent 成功後立即切換角色 | `refreshRoles()` 後 `/select-role` 即可看到 parent 選項 |
 
 ---
 
@@ -182,19 +215,21 @@ Email 與電話需要確認 dialog 的原因：兩者皆為登入憑據，變更
 
 - Email 變更驗證信流程
 - 頭像自訂上傳
-- 家長啟用後關聯多個子女（此 phase 只支援一次啟用建立一筆學生）
+- 家長啟用後關聯多個子女（此 phase 只支援一次建立一筆學生）
 - 解除家長身份
+- 純 parent 帳號（無 staff 記錄）的帳號設定頁
 
 ---
 
 ## 檔案清單
 
-| 動作 | 檔案 |
-|------|------|
-| 修改 | `apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.html` |
-| 修改 | `apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.ts` |
-| 新增 | `apps/web/src/app/shared/components/account-settings-dialog/account-settings-dialog.component.ts` |
-| 新增 | `apps/web/src/app/shared/components/account-settings-dialog/account-settings-dialog.component.html` |
-| 新增 | `apps/web/src/app/shared/components/account-settings-dialog/account-settings-dialog.component.scss` |
-| 新增 | `apps/api/src/routes/me.ts` |
-| 修改 | `apps/api/src/index.ts`（註冊 `/api/me` 路由） |
+| 動作 | 檔案 | 說明 |
+|------|------|------|
+| 修改 | `apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.html` | dropdown 換成「帳號設定」 |
+| 修改 | `apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.ts` | 開啟 AccountSettingsDialog |
+| 新增 | `apps/web/src/app/shared/components/account-settings-dialog/account-settings-dialog.component.ts` | Dialog 主元件 |
+| 新增 | `apps/web/src/app/shared/components/account-settings-dialog/account-settings-dialog.component.html` | Dialog 模板 |
+| 新增 | `apps/web/src/app/shared/components/account-settings-dialog/account-settings-dialog.component.scss` | Dialog 樣式 |
+| 修改 | `apps/web/src/app/core/auth.service.ts` | 新增 `refreshRoles()` 公開方法 |
+| 新增 | `apps/api/src/routes/me.ts` | GET + PATCH + POST /activate-parent |
+| 修改 | `apps/api/src/index.ts` | 移除舊 GET /api/me，改用 `app.route('/api/me', meRoutes)` |
