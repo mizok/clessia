@@ -43,10 +43,10 @@ DECLARE
     v_teacher_staff_id UUID;
 BEGIN
     -- 1. Insert users into Better Auth ba_user table
-    -- root: email-based account
+    -- root: username-only account (no email, no phone) — login via /login?role=root
     INSERT INTO public.ba_user (id, name, email, "emailVerified", username, "orgId", "createdAt", "updatedAt")
     VALUES
-        (root_id::text, 'Super Admin', 'root@clessia.com', true, 'root', NULL, NOW(), NOW()),
+        (root_id::text, 'Super Admin', NULL, false, 'root', NULL, NOW(), NOW()),
         (demo_admin_id::text, 'Demo Admin', demo_admin_email, true, 'demo_admin', NULL, NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
@@ -56,11 +56,13 @@ BEGIN
         "updatedAt" = NOW();
 
     -- 2. Insert credentials into ba_account (scrypt hash format: salt:key)
+    -- root accountId = 'root' (matches username for signInUsername to work)
     INSERT INTO public.ba_account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
     VALUES
-        ('credential-' || root_id::text, root_id::text, 'credential', root_id::text, root_password_hash, NOW(), NOW()),
+        ('credential-' || root_id::text, 'root', 'credential', root_id::text, root_password_hash, NOW(), NOW()),
         ('credential-' || demo_admin_id::text, demo_admin_id::text, 'credential', demo_admin_id::text, demo_admin_password_hash, NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
+        "accountId" = EXCLUDED."accountId",
         password = EXCLUDED.password,
         "updatedAt" = NOW();
 
