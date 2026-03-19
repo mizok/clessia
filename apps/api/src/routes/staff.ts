@@ -17,6 +17,7 @@ const PermissionSchema = z
     'manage_students',
     'manage_finance',
     'manage_staff',
+    'manage_roles',
     'view_reports',
   ])
   .openapi('Permission');

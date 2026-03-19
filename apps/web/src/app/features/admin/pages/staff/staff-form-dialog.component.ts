@@ -29,6 +29,7 @@ const PERMISSION_OPTIONS: { value: Permission; label: string; description: strin
   { value: 'manage_students', label: '學生管理', description: '學生與家長資料管理' },
   { value: 'manage_finance', label: '財務管理', description: '財務與收費管理' },
   { value: 'manage_staff', label: '帳號管理', description: '系統帳號與權限管理' },
+  { value: 'manage_roles', label: '角色管理', description: '指派或變更帳號角色與權限' },
   { value: 'view_reports', label: '報表查看', description: '查看營收與統計報表' },
 ];
 
