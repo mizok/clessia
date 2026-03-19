@@ -22,6 +22,18 @@
 3. **Codex 委派**：必須指定 `sessionId`，prompt 須包含版本資訊
 4. **UI 開發**：必須先參考設計系統，invoke `ui-ux-pro-max` skill
 
+## 文件目錄規則
+
+**所有文件必須放在 `doc/` 目錄下，禁止另起 `docs/` 或其他平行目錄。**
+
+| 類型 | 路徑 |
+|------|------|
+| 功能規格 | `doc/specs/<角色>/<功能>.md` |
+| 流程圖 | `doc/flows/<功能>.md` |
+| 業務規則 | `doc/rules/<功能>-rules.md` |
+| Superpowers 實作計畫 | `doc/superpowers/plans/<日期>-<功能>.md` |
+| Superpowers 技術設計 | `doc/superpowers/specs/<日期>-<功能>-design.md` |
+
 ## Coding Conventions
 
 ### Angular

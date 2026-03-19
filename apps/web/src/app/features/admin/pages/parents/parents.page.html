@@ -102,206 +102,80 @@
           </app-empty-state>
         }
       } @else {
-        <!-- Desktop: Data Table -->
-        <div class="parents__table-view">
-          <p-table [value]="parents()" [dataKey]="'id'" styleClass="p-datatable-sm">
-            <ng-template #header>
-              <tr>
-                <th style="width: 20%">姓名</th>
-                <th style="width: 22%">登入帳號</th>
-                <th style="width: 18%">關聯學生</th>
-                <th style="width: 10%">狀態</th>
-                <th style="width: 30%; text-align: right">操作</th>
-              </tr>
-            </ng-template>
-            <ng-template #body let-parent>
-              <tr>
-                <td>
-                  <div class="parent-table__name-cell">
-                    <span class="parent-table__avatar">
-                      <i class="pi pi-user"></i>
-                    </span>
-                    <span class="parent-table__name">{{ parent.name }}</span>
-                  </div>
-                </td>
-                <td>
-                  <span class="parent-table__account">{{ parent.loginAccount }}</span>
-                </td>
-                <td>
-                  @if (parent.studentCount > 0) {
-                    <span class="parent-table__student-count">
-                      {{ parent.studentCount }} 位學生
-                    </span>
-                  } @else {
-                    <span class="parent-table__empty">無關聯</span>
-                  }
-                </td>
-                <td>
-                  <p-tag
-                    [value]="getStatusLabel(parent.status)"
-                    [severity]="getStatusSeverity(parent.status)"
-                  />
-                </td>
-                <td>
-                  <div class="parent-table__actions">
-                    <p-button
-                      icon="pi pi-pencil"
-                      [rounded]="true"
-                      [text]="true"
-                      severity="secondary"
-                      pTooltip="編輯"
-                      tooltipPosition="top"
-                      [disabled]="parent.status === 'archived'"
-                      (onClick)="openEditDialog(parent)"
-                    />
-                    <p-button
-                      icon="pi pi-key"
-                      [rounded]="true"
-                      [text]="true"
-                      severity="secondary"
-                      pTooltip="重設密碼"
-                      tooltipPosition="top"
-                      [disabled]="parent.status === 'archived'"
-                      (onClick)="confirmResetPassword(parent)"
-                    />
-                    @if (parent.status === 'active') {
-                      <p-button
-                        icon="pi pi-ban"
-                        [rounded]="true"
-                        [text]="true"
-                        severity="warn"
-                        pTooltip="停用"
-                        tooltipPosition="top"
-                        (onClick)="confirmDeactivate(parent)"
-                      />
-                    }
-                    @if (parent.status === 'inactive') {
-                      <p-button
-                        icon="pi pi-check-circle"
-                        [rounded]="true"
-                        [text]="true"
-                        severity="success"
-                        pTooltip="啟用"
-                        tooltipPosition="top"
-                        (onClick)="confirmActivate(parent)"
-                      />
-                    }
-                    @if (parent.status !== 'archived') {
-                      <p-button
-                        icon="pi pi-inbox"
-                        [rounded]="true"
-                        [text]="true"
-                        severity="danger"
-                        pTooltip="封存"
-                        tooltipPosition="top"
-                        (onClick)="confirmArchive(parent)"
-                      />
-                    }
-                  </div>
-                </td>
-              </tr>
-            </ng-template>
-          </p-table>
-        </div>
+        <p-menu #actionMenu [popup]="true" [model]="actionMenuItems()" appendTo="body" />
 
-        <!-- Mobile: Card List -->
-        <div class="parents__card-view">
+        <app-responsive-table
+          [headTemplate]="headTpl"
+          [bodyTemplate]="bodyTpl"
+          [pagination]="pagination()"
+          (page)="onPage($event)"
+        />
+
+        <ng-template #headTpl>
+          <tr>
+            <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">姓名</th>
+            <th appRtColDef="email" [appRtColDefMinWidth]="180" [appRtColDefPriority]="2">Email</th>
+            <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="3">手機</th>
+            <th appRtColDef="students" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">關聯學生</th>
+            <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">狀態</th>
+            <th class="responsive-table__header-cell" style="width: 56px"></th>
+          </tr>
+        </ng-template>
+
+        <ng-template #bodyTpl>
           @for (parent of parents(); track parent.id) {
-            <article class="parent-card" [class.parent-card--inactive]="parent.status !== 'active'">
-              <div class="parent-card__header">
-                <div class="parent-card__avatar">
-                  <i class="pi pi-user"></i>
+            <tr appRtRow [appRtRow]="parent" [appRtRowId]="parent.id">
+              <td appRtColCell="name">
+                <div class="parent-table__name-cell">
+                  <span class="parent-table__avatar">
+                    <i class="pi pi-user"></i>
+                  </span>
+                  <span class="parent-table__name">{{ parent.name }}</span>
                 </div>
-                <div class="parent-card__title-group">
-                  <span class="parent-card__name">{{ parent.name }}</span>
-                  <div class="parent-card__meta">
-                    <p-tag
-                      [value]="getStatusLabel(parent.status)"
-                      [severity]="getStatusSeverity(parent.status)"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div class="parent-card__body">
-                <div class="parent-card__field">
-                  <i class="pi pi-at"></i>
-                  <span>{{ parent.loginAccount }}</span>
-                </div>
+              </td>
+              <td appRtColCell="email">
+                @if (parent.email) {
+                  <span class="parent-table__account-item">{{ parent.email }}</span>
+                } @else {
+                  <span class="parent-table__empty">—</span>
+                }
+              </td>
+              <td appRtColCell="phone">
+                @if (parent.phone) {
+                  <span class="parent-table__account-item">{{ parent.phone }}</span>
+                } @else {
+                  <span class="parent-table__empty">—</span>
+                }
+              </td>
+              <td appRtColCell="students">
                 @if (parent.studentCount > 0) {
-                  <div class="parent-card__field">
-                    <i class="pi pi-users"></i>
-                    <span>關聯 {{ parent.studentCount }} 位學生</span>
-                  </div>
+                  <span class="parent-table__students">
+                    @for (name of parent.studentNames; track name) {
+                      <span class="parent-table__student-tag">{{ name }}</span>
+                    }
+                  </span>
+                } @else {
+                  <span class="parent-table__empty">無關聯</span>
                 }
-              </div>
-
-              <div class="parent-card__actions">
-                <button
-                  type="button"
-                  class="parent-card__action-btn parent-card__action-btn--edit"
-                  [disabled]="parent.status === 'archived'"
-                  (click)="openEditDialog(parent)"
-                >
-                  <i class="pi pi-pencil"></i>
-                  <span>編輯</span>
-                </button>
-                <button
-                  type="button"
-                  class="parent-card__action-btn parent-card__action-btn--key"
-                  [disabled]="parent.status === 'archived'"
-                  (click)="confirmResetPassword(parent)"
-                >
-                  <i class="pi pi-key"></i>
-                  <span>重設密碼</span>
-                </button>
-                @if (parent.status === 'active') {
-                  <button
-                    type="button"
-                    class="parent-card__action-btn parent-card__action-btn--deactivate"
-                    (click)="confirmDeactivate(parent)"
-                  >
-                    <i class="pi pi-ban"></i>
-                    <span>停用</span>
-                  </button>
-                }
-                @if (parent.status === 'inactive') {
-                  <button
-                    type="button"
-                    class="parent-card__action-btn parent-card__action-btn--activate"
-                    (click)="confirmActivate(parent)"
-                  >
-                    <i class="pi pi-check-circle"></i>
-                    <span>啟用</span>
-                  </button>
-                }
-                @if (parent.status !== 'archived') {
-                  <button
-                    type="button"
-                    class="parent-card__action-btn parent-card__action-btn--archive"
-                    (click)="confirmArchive(parent)"
-                  >
-                    <i class="pi pi-inbox"></i>
-                    <span>封存</span>
-                  </button>
-                }
-              </div>
-            </article>
+              </td>
+              <td appRtColCell="status">
+                <p-tag
+                  [value]="getStatusLabel(parent.status)"
+                  [severity]="getStatusSeverity(parent.status)"
+                />
+              </td>
+              <td class="responsive-table__cell" style="text-align: center">
+                <p-button
+                  icon="pi pi-ellipsis-v"
+                  [rounded]="true"
+                  [text]="true"
+                  severity="secondary"
+                  (onClick)="openActionMenu($event, parent)"
+                />
+              </td>
+            </tr>
           }
-
-          @if (parents().length > 0) {
-            <div class="parents__mobile-count">共 {{ total() }} 位家長</div>
-          }
-        </div>
-
-        @if (total() > PAGE_SIZE) {
-          <p-paginator
-            [rows]="PAGE_SIZE"
-            [totalRecords]="total()"
-            [first]="(currentPage() - 1) * PAGE_SIZE"
-            (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
-          />
-        }
+        </ng-template>
       }
     </div>
   </div>

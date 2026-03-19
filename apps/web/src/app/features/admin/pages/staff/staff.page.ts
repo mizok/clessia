@@ -1,10 +1,11 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 // PrimeNG
-import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
+import { MenuModule } from 'primeng/menu';
+import { Menu } from 'primeng/menu';
 import { SelectModule } from 'primeng/select';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
@@ -12,9 +13,19 @@ import { TooltipModule } from 'primeng/tooltip';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
-import { PaginatorModule } from 'primeng/paginator';
 import { MessageService } from 'primeng/api';
+import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
+
+// Responsive Table
+import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
+import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
+import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
+import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
+import type {
+  ResponsiveTablePageEvent,
+  ResponsiveTablePaginationConfig,
+} from '@shared/components/responsive-table/responsive-table.models';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
 
 // Services
@@ -71,7 +82,6 @@ const ROLE_OPTIONS: RoleOption[] = [
   imports: [
     CommonModule,
     FormsModule,
-    TableModule,
     ButtonModule,
     SelectModule,
     TagModule,
@@ -80,9 +90,13 @@ const ROLE_OPTIONS: RoleOption[] = [
     IconFieldModule,
     InputIconModule,
     InputTextModule,
-    PaginatorModule,
     EmptyStateComponent,
     ConfirmDialogComponent,
+    MenuModule,
+    ResponsiveTableComponent,
+    RtColDefDirective,
+    RtColCellDirective,
+    RtRowDirective,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './staff.page.html',
@@ -135,6 +149,38 @@ export class StaffPage implements OnInit {
   readonly adminCount = computed(() => this.summary().adminCount);
   readonly teacherCount = computed(() => this.summary().teacherCount);
   readonly activeCount = computed(() => this.summary().activeCount);
+
+  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
+    first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
+    rows: this.PAGE_SIZE,
+    totalRecords: this.total(),
+  }));
+
+  // Action menu
+  protected readonly actionMenu = viewChild.required<Menu>('actionMenu');
+  protected readonly selectedStaff = signal<Staff | null>(null);
+  protected readonly actionMenuItems = computed<MenuItem[]>(() => {
+    const staff = this.selectedStaff();
+    if (!staff) return [];
+    const items: MenuItem[] = [
+      { label: '編輯', icon: 'pi pi-pencil', command: () => this.openEditDialog(staff) },
+      { separator: true },
+    ];
+    if (staff.status === 'inactive') {
+      items.push({ label: '重新啟用', icon: 'pi pi-unlock', command: () => this.confirmDeactivate(staff) });
+    } else if (staff.status === 'active') {
+      items.push({ label: '停用帳號', icon: 'pi pi-lock', command: () => this.confirmDeactivate(staff) });
+    }
+    if (staff.status !== 'archived') {
+      items.push({ label: '封存帳號', icon: 'pi pi-box', command: () => this.confirmArchive(staff) });
+    }
+    return items;
+  });
+
+  protected openActionMenu(event: MouseEvent, staff: Staff): void {
+    this.selectedStaff.set(staff);
+    this.actionMenu().toggle(event);
+  }
 
   readonly campusOptions = computed(() =>
     this.campuses().map((c) => ({ value: c.id, label: c.name })),
@@ -222,8 +268,8 @@ export class StaffPage implements OnInit {
     this.loadStaff();
   }
 
-  protected onPageChange(page: number): void {
-    this.currentPage.set(page);
+  protected onPage(event: ResponsiveTablePageEvent): void {
+    this.currentPage.set(event.page + 1);
     this.loadStaff();
   }
 

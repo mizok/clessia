@@ -54,13 +54,13 @@
 | 狀態 | DB 值 | 說明 |
 |------|-------|------|
 | 啟用 | `active` | 正常狀態，可登入 |
-| 停用 | `inactive` | 暫停登入（`ba_user.banned = true`），資料保留，可恢復 |
-| 封存 | `archived` | 孩子已畢業/離校，永久停用（`ba_user.banned = true`），從預設列表隱藏，歷史紀錄保留 |
+| 停用 | `inactive` | 暫停登入，資料保留，可恢復 |
+| 封存 | `archived` | 孩子已畢業/離校，永久停用，從預設列表隱藏，歷史紀錄保留 |
 
 狀態轉換規則（對齊人員管理）：
 - `active` ↔ `inactive`：可雙向切換
 - `active` / `inactive` → `archived`：單向，無法透過 API 解除封存
-- 停用與封存皆同步設定 `ba_user.banned = true`
+- 登入狀態由 `/api/login` 查 `parents.status` 判斷，非 active 一律拒絕
 - 封存前 UI 需顯示確認警告
 
 ### 帳號管理功能
@@ -68,11 +68,11 @@
 | 功能 | 說明 | 實作方式 |
 |------|------|---------|
 | 重設密碼 | 產生新的隨機密碼 | `Better Auth admin.setPassword()` |
-| 更換登入帳號 | 修改 Email 或手機 | 更新 `ba_user`，同步更新 `parents` |
+| 更換登入帳號 | 修改 Email 或手機 | 更新 `ba_user`（email 透過 BA `updateUser`，phone 直接寫 `ba_user.phone`） |
 | 產生帳號資訊卡 | 顯示目前帳號 + 最新密碼（PDF 或可列印格式） | 前端產生，含補習班名稱、帳號、密碼、說明 |
-| 停用帳號 | 暫停登入權限，資料保留，可恢復 | `PATCH /deactivate`，`ba_user.banned = true` |
-| 啟用帳號 | 恢復登入權限（從停用恢復） | `PATCH /activate`，`ba_user.banned = false` |
-| 封存帳號 | 孩子已離校，單向封存，從預設列表隱藏 | `PATCH /archive`，`ba_user.banned = true`；前端需顯示警告 |
+| 停用帳號 | 暫停登入權限，資料保留，可恢復 | `PATCH /deactivate`，更新 `parents.status = 'inactive'` |
+| 啟用帳號 | 恢復登入權限（從停用恢復） | `PATCH /activate`，更新 `parents.status = 'active'` |
+| 封存帳號 | 孩子已離校，單向封存，從預設列表隱藏 | `PATCH /archive`，更新 `parents.status = 'archived'`；前端需顯示警告 |
 
 **重設密碼後**：新密碼必須顯示給管理員（提示「請記下或立刻產生帳號資訊卡」），不發送 email 通知（因為不一定有 email）。
 
@@ -96,7 +96,9 @@
 - `parents.status` 為 enum（`active / inactive / archived`），取代原本的 `is_active` 布林欄位
 - Email/手機唯一性在後端 API 層驗證，回傳明確錯誤訊息
 - 所有帳號操作（建立、重設密碼、停用/啟用/封存）記錄於稽核紀錄
-- 不直接修改 `ba_user` 表——帳號操作一律透過 Better Auth Admin API
+- Email/手機統一儲存在 `ba_user`（`ba_user.email`、`ba_user.phone`），`parents` 表不含這兩個欄位
+- phone 直接寫 `ba_user.phone`；email 透過 Better Auth `admin.updateUser()` 更新（BA 負責唯一性驗證）
+- 登入狀態不使用 `ba_user.banned`，由 `/api/login` 查 `parents.status` 判斷
 - 初始密碼建議格式：8 碼英數混合，可用 `crypto.randomBytes` 產生
 
 ## 相關規則與流程

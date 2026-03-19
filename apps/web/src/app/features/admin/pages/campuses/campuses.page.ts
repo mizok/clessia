@@ -1,13 +1,25 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 // PrimeNG
-import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
+import { MenuModule } from 'primeng/menu';
+import { Menu } from 'primeng/menu';
 import { MessageService } from 'primeng/api';
-import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
+import type { MenuItem } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
 import { CampusFormDialogComponent } from './campus-form-dialog.component';
+
+// Responsive Table
+import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
+import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
+import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
+import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
+import type {
+  ResponsiveTablePageEvent,
+  ResponsiveTablePaginationConfig,
+} from '@shared/components/responsive-table/responsive-table.models';
 
 // Services
 import {
@@ -33,7 +45,6 @@ import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
-import { PaginatorModule } from 'primeng/paginator';
 
 @Component({
   selector: 'app-campuses',
@@ -41,7 +52,6 @@ import { PaginatorModule } from 'primeng/paginator';
   imports: [
     CommonModule,
     FormsModule,
-    TableModule,
     ButtonModule,
     InputIconModule,
     IconFieldModule,
@@ -50,9 +60,13 @@ import { PaginatorModule } from 'primeng/paginator';
     TooltipModule,
     SkeletonModule,
     InputTextModule,
-    PaginatorModule,
     EmptyStateComponent,
     ConfirmDialogComponent,
+    MenuModule,
+    ResponsiveTableComponent,
+    RtColDefDirective,
+    RtColCellDirective,
+    RtRowDirective,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './campuses.page.html',
@@ -85,6 +99,36 @@ export class CampusesPage implements OnInit {
   // Computed
   readonly activeCampusCount = computed(() => this.summary().activeCount);
   readonly inactiveCampusCount = computed(() => this.summary().inactiveCount);
+
+  // Action menu
+  protected readonly actionMenu = viewChild.required<Menu>('actionMenu');
+  protected readonly selectedCampus = signal<Campus | null>(null);
+  protected readonly actionMenuItems = computed<MenuItem[]>(() => {
+    const campus = this.selectedCampus();
+    if (!campus) return [];
+    const items: MenuItem[] = [
+      { label: '編輯', icon: 'pi pi-pencil', command: () => this.openEditDialog(campus) },
+      { separator: true },
+    ];
+    if (campus.isActive) {
+      items.push({ label: '停用分校', icon: 'pi pi-lock', command: () => this.confirmDeactivate(campus) });
+    } else {
+      items.push({ label: '啟用分校', icon: 'pi pi-unlock', command: () => this.confirmActivate(campus) });
+    }
+    items.push({ label: '刪除分校', icon: 'pi pi-trash', command: () => this.confirmDelete(campus) });
+    return items;
+  });
+
+  protected openActionMenu(event: MouseEvent, campus: Campus): void {
+    this.selectedCampus.set(campus);
+    this.actionMenu().toggle(event);
+  }
+
+  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
+    first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
+    rows: this.PAGE_SIZE,
+    totalRecords: this.total(),
+  }));
 
   ngOnInit(): void {
     this.loadCampuses();
@@ -131,8 +175,8 @@ export class CampusesPage implements OnInit {
     this.loadCampuses();
   }
 
-  protected onPageChange(page: number): void {
-    this.currentPage.set(page);
+  protected onPage(event: ResponsiveTablePageEvent): void {
+    this.currentPage.set(event.page + 1);
     this.loadCampuses();
   }
 
@@ -227,6 +271,32 @@ export class CampusesPage implements OnInit {
     });
   }
 
+  confirmDeactivate(campus: Campus): void {
+    this.openConfirmDialog(
+      '停用分校',
+      {
+        message: `確定要停用「${campus.name}」嗎？停用後該分校將無法新增課程。`,
+        acceptLabel: '停用',
+        rejectLabel: '取消',
+        acceptSeverity: 'warn',
+      },
+      () => this.deactivateCampus(campus),
+    );
+  }
+
+  confirmActivate(campus: Campus): void {
+    this.openConfirmDialog(
+      '啟用分校',
+      {
+        message: `確定要啟用「${campus.name}」嗎？`,
+        acceptLabel: '啟用',
+        rejectLabel: '取消',
+        acceptSeverity: 'success',
+      },
+      () => this.activateCampus(campus),
+    );
+  }
+
   private deactivateCampus(campus: Campus): void {
     this.campusesService.update(campus.id, { isActive: false }).subscribe({
       next: () => {
@@ -243,6 +313,26 @@ export class CampusesPage implements OnInit {
         this.messageService.add({
           severity: 'error',
           summary: '停用失敗',
+          detail: err.error?.error || '請稍後再試',
+        });
+      },
+    });
+  }
+
+  private activateCampus(campus: Campus): void {
+    this.campusesService.update(campus.id, { isActive: true }).subscribe({
+      next: () => {
+        this.loadCampuses();
+        this.messageService.add({
+          severity: 'success',
+          summary: '已啟用',
+          detail: `「${campus.name}」已啟用`,
+        });
+      },
+      error: (err) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: '啟用失敗',
           detail: err.error?.error || '請稍後再試',
         });
       },

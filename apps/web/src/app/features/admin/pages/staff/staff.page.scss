@@ -85,26 +85,7 @@
   }
 
   &__content {
-    padding: 0;
-  }
-
-  // Responsive view switching
-  &__table-view {
-    display: block;
-  }
-
-  &__card-view {
-    display: none;
     padding: var(--space-4);
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  &__mobile-count {
-    text-align: center;
-    padding: var(--space-3);
-    font-size: var(--text-sm);
-    color: var(--zinc-500);
   }
 
   // Stats Summary
@@ -130,160 +111,6 @@
     &-label {
       font-size: var(--text-sm);
       color: var(--zinc-500);
-    }
-  }
-}
-
-// Mobile Card Styles
-.staff-card {
-  background: var(--color-white);
-  border: 1px solid var(--zinc-200);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-
-  &__header {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    border-bottom: 1px solid var(--zinc-100);
-  }
-
-  &__icon {
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius-md);
-    background: var(--success-100);
-    color: var(--success-600);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    flex-shrink: 0;
-
-    &--admin {
-      background: var(--accent-100);
-      color: var(--accent-600);
-    }
-  }
-
-  &__title-group {
-    flex: 1;
-    min-width: 0;
-  }
-
-  &__name-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-  }
-
-  &__name {
-    font-size: var(--text-base);
-    font-weight: var(--font-semibold);
-    color: var(--zinc-900);
-    margin: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  &__email {
-    font-size: var(--text-sm);
-    color: var(--zinc-500);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  &__body {
-    padding: var(--space-4);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
-  &__field {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-2);
-    font-size: var(--text-sm);
-    color: var(--zinc-600);
-
-    i {
-      color: var(--zinc-400);
-      font-size: 14px;
-      margin-top: 2px;
-      flex-shrink: 0;
-    }
-  }
-
-  &__phone-link {
-    color: var(--accent-600);
-    text-decoration: none;
-
-    &:active {
-      color: var(--accent-500);
-    }
-  }
-
-  &__status {
-    &--active {
-      color: var(--success-600) !important;
-      font-size: 8px !important;
-    }
-
-    &--inactive {
-      color: var(--zinc-400) !important;
-      font-size: 8px !important;
-    }
-  }
-
-  &__actions {
-    display: flex;
-    border-top: 1px solid var(--zinc-100);
-  }
-
-  &__action-btn {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    min-height: 48px;
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-    color: var(--zinc-600);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    transition: background-color var(--transition-fast);
-
-    i {
-      font-size: 14px;
-    }
-
-    &:active {
-      background: var(--zinc-100);
-    }
-
-    &--edit {
-      border-right: 1px solid var(--zinc-100);
-
-      &:active {
-        background: var(--accent-50);
-        color: var(--accent-600);
-      }
-    }
-
-    &--delete {
-      color: var(--error-600);
-
-      &:active {
-        background: var(--error-100);
-      }
     }
   }
 }
@@ -391,8 +218,6 @@
 }
 
 // Responsive
-
-// Responsive
 @include bp.respond-to('tablet-landscape') {
   .staff {
     &__stats {
@@ -432,15 +257,6 @@
       padding: var(--space-3) var(--space-4);
       gap: var(--space-4);
     }
-
-    // Switch to card view on mobile
-    &__table-view {
-      display: none;
-    }
-
-    &__card-view {
-      display: flex;
-    }
   }
 }
 
@@ -461,20 +277,6 @@
       &-value {
         font-size: var(--text-base);
       }
-    }
-  }
-
-  .staff-card {
-    &__header {
-      padding: var(--space-3);
-    }
-
-    &__body {
-      padding: var(--space-3);
-    }
-
-    &__name {
-      font-size: var(--text-sm);
     }
   }
 }

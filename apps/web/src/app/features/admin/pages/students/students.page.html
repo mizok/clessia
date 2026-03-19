@@ -113,184 +113,76 @@
           />
         }
       } @else {
-        <!-- Desktop: Data Table -->
-        <div class="students__table-view">
-          <p-table [value]="students()" styleClass="p-datatable-sm">
-            <ng-template #header>
-              <tr>
-                <th style="width: 22%">姓名</th>
-                <th style="width: 10%">年級</th>
-                <th style="width: 18%">學校</th>
-                <th style="width: 20%">關聯家長</th>
-                <th style="width: 10%">狀態</th>
-                <th style="width: 20%; text-align: right">操作</th>
-              </tr>
-            </ng-template>
-            <ng-template #body let-student>
-              <tr>
-                <td>
-                  <button
-                    type="button"
-                    class="student-table__name-btn"
-                    (click)="navigateToDetail(student)"
-                  >
-                    <span class="student-table__avatar">
-                      <i class="pi pi-user"></i>
-                    </span>
-                    <span class="student-table__name">{{ student.name }}</span>
-                  </button>
-                </td>
-                <td>
-                  <span class="student-table__grade">{{ getGradeLabel(student.grade) }}</span>
-                </td>
-                <td>
-                  @if (student.school) {
-                    <span class="student-table__school">{{ student.school }}</span>
-                  } @else {
-                    <span class="student-table__empty">未填寫</span>
-                  }
-                </td>
-                <td>
-                  @if ((student.parentNames?.length ?? 0) > 0) {
-                    <span class="student-table__parents">
-                      {{ student.parentNames.join('、') }}
-                    </span>
-                  } @else {
-                    <span class="student-table__empty">無關聯家長</span>
-                  }
-                </td>
-                <td>
-                  <p-tag
-                    [value]="student.isActive ? '在籍' : '停用'"
-                    [severity]="student.isActive ? 'success' : 'secondary'"
-                  />
-                </td>
-                <td>
-                  <div class="student-table__actions">
-                    <p-button
-                      icon="pi pi-eye"
-                      [rounded]="true"
-                      [text]="true"
-                      severity="secondary"
-                      pTooltip="查看詳情"
-                      tooltipPosition="top"
-                      (onClick)="navigateToDetail(student)"
-                    />
-                    <p-button
-                      icon="pi pi-pencil"
-                      [rounded]="true"
-                      [text]="true"
-                      severity="secondary"
-                      pTooltip="編輯"
-                      tooltipPosition="top"
-                      (onClick)="openEditDialog(student)"
-                    />
-                    @if (student.isActive) {
-                      <p-button
-                        icon="pi pi-ban"
-                        [rounded]="true"
-                        [text]="true"
-                        severity="warn"
-                        pTooltip="停用"
-                        tooltipPosition="top"
-                        (onClick)="confirmDeactivate(student)"
-                      />
-                    }
-                  </div>
-                </td>
-              </tr>
-            </ng-template>
-          </p-table>
-        </div>
+        <p-menu #actionMenu [popup]="true" [model]="actionMenuItems()" appendTo="body" />
 
-        <!-- Mobile: Card List -->
-        <div class="students__card-view">
+        <app-responsive-table
+          [headTemplate]="headTpl"
+          [bodyTemplate]="bodyTpl"
+          [pagination]="pagination()"
+          (page)="onPage($event)"
+        />
+
+        <ng-template #headTpl>
+          <tr>
+            <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">姓名</th>
+            <th appRtColDef="grade" [appRtColDefMinWidth]="80" [appRtColDefPriority]="2">年級</th>
+            <th appRtColDef="school" [appRtColDefMinWidth]="140" [appRtColDefPriority]="4">學校</th>
+            <th appRtColDef="parents" [appRtColDefMinWidth]="160" [appRtColDefPriority]="3">關聯家長</th>
+            <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">狀態</th>
+            <th class="responsive-table__header-cell" style="width: 56px"></th>
+          </tr>
+        </ng-template>
+
+        <ng-template #bodyTpl>
           @for (student of students(); track student.id) {
-            <article class="student-card">
-              <div class="student-card__header">
-                <div class="student-card__avatar">
-                  <i class="pi pi-user"></i>
-                </div>
-                <div class="student-card__title-group">
-                  <button
-                    type="button"
-                    class="student-card__name-btn"
-                    (click)="navigateToDetail(student)"
-                  >
-                    {{ student.name }}
-                  </button>
-                  <div class="student-card__meta">
-                    <span class="student-card__grade">{{ getGradeLabel(student.grade) }}</span>
-                    <p-tag
-                      [value]="student.isActive ? '在籍' : '停用'"
-                      [severity]="student.isActive ? 'success' : 'secondary'"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div class="student-card__body">
-                @if (student.school) {
-                  <div class="student-card__field">
-                    <i class="pi pi-building"></i>
-                    <span>{{ student.school }}</span>
-                  </div>
-                }
-                @if ((student.parentNames?.length ?? 0) > 0) {
-                  <div class="student-card__field">
-                    <i class="pi pi-user"></i>
-                    <span>{{ student.parentNames.join('、') }}</span>
-                  </div>
-                }
-                @if (!student.school && (!student.parentNames || student.parentNames.length === 0)) {
-                  <p class="student-card__empty">尚未填寫資料</p>
-                }
-              </div>
-
-              <div class="student-card__actions">
+            <tr appRtRow [appRtRow]="student" [appRtRowId]="student.id">
+              <td appRtColCell="name">
                 <button
                   type="button"
-                  class="student-card__action-btn student-card__action-btn--view"
+                  class="student-table__name-btn"
                   (click)="navigateToDetail(student)"
                 >
-                  <i class="pi pi-eye"></i>
-                  <span>詳情</span>
+                  <span class="student-table__avatar">
+                    <i class="pi pi-user"></i>
+                  </span>
+                  <span class="student-table__name">{{ student.name }}</span>
                 </button>
-                <button
-                  type="button"
-                  class="student-card__action-btn student-card__action-btn--edit"
-                  (click)="openEditDialog(student)"
-                >
-                  <i class="pi pi-pencil"></i>
-                  <span>編輯</span>
-                </button>
-                @if (student.isActive) {
-                  <button
-                    type="button"
-                    class="student-card__action-btn student-card__action-btn--deactivate"
-                    (click)="confirmDeactivate(student)"
-                  >
-                    <i class="pi pi-ban"></i>
-                    <span>停用</span>
-                  </button>
+              </td>
+              <td appRtColCell="grade">
+                <span class="student-table__grade">{{ getGradeLabel(student.grade) }}</span>
+              </td>
+              <td appRtColCell="school">
+                @if (student.school) {
+                  <span class="student-table__school">{{ student.school }}</span>
+                } @else {
+                  <span class="student-table__empty">未填寫</span>
                 }
-              </div>
-            </article>
+              </td>
+              <td appRtColCell="parents">
+                @if ((student.parentNames?.length ?? 0) > 0) {
+                  <span class="student-table__parents">{{ student.parentNames.join('、') }}</span>
+                } @else {
+                  <span class="student-table__empty">無關聯家長</span>
+                }
+              </td>
+              <td appRtColCell="status">
+                <p-tag
+                  [value]="student.isActive ? '在籍' : '停用'"
+                  [severity]="student.isActive ? 'success' : 'secondary'"
+                />
+              </td>
+              <td class="responsive-table__cell" style="text-align: center">
+                <p-button
+                  icon="pi pi-ellipsis-v"
+                  [rounded]="true"
+                  [text]="true"
+                  severity="secondary"
+                  (onClick)="openActionMenu($event, student)"
+                />
+              </td>
+            </tr>
           }
-
-          @if (students().length > 0) {
-            <div class="students__mobile-count">共 {{ total() }} 名學生</div>
-          }
-        </div>
-
-        @if (total() > PAGE_SIZE) {
-          <p-paginator
-            [rows]="PAGE_SIZE"
-            [totalRecords]="total()"
-            [first]="(currentPage() - 1) * PAGE_SIZE"
-            (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
-          />
-        }
+        </ng-template>
       }
     </div>
   </div>

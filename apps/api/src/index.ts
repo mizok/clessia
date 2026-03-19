@@ -148,9 +148,10 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
 // Accepts email or phone. Looks up ba_user, checks status, then delegates sign-in
 // to Better Auth for password verification + session creation.
 app.post('/api/login', async (c) => {
-  const body = await c.req.json<{ account?: string; password?: string }>();
+  const body = await c.req.json<{ account?: string; password?: string; loginType?: string }>();
   const account = body.account?.trim();
   const password = body.password;
+  const loginType = body.loginType === 'phone' ? 'phone' : 'email';
 
   if (!account || !password) {
     return c.json({ error: 'account 與 password 為必填', code: 'MISSING_FIELDS' }, 400);
@@ -158,11 +159,11 @@ app.post('/api/login', async (c) => {
 
   const supabase = createServiceClientFromEnv(c.env);
 
-  // 1. Look up ba_user by email or phone
-  const isEmail = account.includes('@');
-  const { data: baUser } = isEmail
-    ? await supabase.from('ba_user').select('id, email, phone').eq('email', account).maybeSingle()
-    : await supabase.from('ba_user').select('id, email, phone').eq('phone', account).maybeSingle();
+  // 1. Look up ba_user by email or phone (determined by loginType from frontend)
+  const { data: baUser } =
+    loginType === 'phone'
+      ? await supabase.from('ba_user').select('id, email, phone').eq('phone', account).maybeSingle()
+      : await supabase.from('ba_user').select('id, email, phone').eq('email', account).maybeSingle();
 
   if (!baUser) {
     return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);

@@ -1,6 +1,6 @@
-import { Component, ElementRef, ViewChild, signal, AfterViewInit } from '@angular/core';
+import { Component, ElementRef, signal, AfterViewInit, inject, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '@core/auth.service';
 import { CaptchaService } from '@core/captcha.service';
 import { environment } from '@env/environment';
@@ -13,42 +13,45 @@ import { environment } from '@env/environment';
   host: { class: 'u-centered-flex' },
 })
 export class LoginComponent implements AfterViewInit {
-  @ViewChild('turnstileContainer') turnstileContainer!: ElementRef;
+  private readonly turnstileContainer = viewChild.required<ElementRef>('turnstileContainer');
+  private readonly captchaToken = signal<string | null>(null);
+  private readonly auth = inject(AuthService);
+  private readonly captcha = inject(CaptchaService);
 
-  account = '';
-  password = '';
-  rememberMe = false;
-  error = signal<string | null>(null);
-  submitting = signal(false);
-  captchaToken = signal<string | null>(null);
-  showPassword = signal(false);
-
-  constructor(
-    private readonly auth: AuthService,
-    private readonly router: Router,
-    private readonly captcha: CaptchaService,
-  ) {}
+  protected account = '';
+  protected password = '';
+  protected rememberMe = false;
+  protected readonly loginMode = signal<'email' | 'phone'>('email');
+  protected readonly error = signal<string | null>(null);
+  protected readonly submitting = signal(false);
+  protected readonly showPassword = signal(false);
 
   ngAfterViewInit() {
     this.captcha.render(
-      this.turnstileContainer.nativeElement,
+      this.turnstileContainer().nativeElement,
       environment.turnstileSiteKey,
-      (token) => {
-        this.captchaToken.set(token);
-      },
-      {
-        appearance: 'always',
-        size: 'invisible',
-      },
+      (token) => this.captchaToken.set(token),
+      { appearance: 'always', size: 'invisible' },
     );
   }
 
-  async onSubmit() {
+  protected setLoginMode(mode: 'email' | 'phone') {
+    this.loginMode.set(mode);
+    this.account = '';
+    this.error.set(null);
+  }
+
+  protected async onSubmit() {
     this.error.set(null);
     this.submitting.set(true);
 
     this.auth.setRememberMe(this.rememberMe);
-    const errorMsg = await this.auth.signIn(this.account, this.password, this.captchaToken() ?? undefined);
+    const errorMsg = await this.auth.signIn(
+      this.account,
+      this.password,
+      this.captchaToken() ?? undefined,
+      this.loginMode(),
+    );
     this.submitting.set(false);
 
     if (errorMsg) {

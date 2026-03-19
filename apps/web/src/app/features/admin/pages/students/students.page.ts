@@ -1,12 +1,14 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
 // PrimeNG
-import { TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
+import { MenuModule } from 'primeng/menu';
+import { Menu } from 'primeng/menu';
 import { MessageService } from 'primeng/api';
+import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
@@ -15,8 +17,17 @@ import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
-import { PaginatorModule } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
+
+// Responsive Table
+import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
+import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
+import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
+import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
+import type {
+  ResponsiveTablePageEvent,
+  ResponsiveTablePaginationConfig,
+} from '@shared/components/responsive-table/responsive-table.models';
 
 // Services
 import {
@@ -44,7 +55,6 @@ import { StudentFormDialogComponent } from './student-form-dialog.component';
   imports: [
     CommonModule,
     FormsModule,
-    TableModule,
     ButtonModule,
     InputIconModule,
     IconFieldModule,
@@ -53,9 +63,13 @@ import { StudentFormDialogComponent } from './student-form-dialog.component';
     TooltipModule,
     SkeletonModule,
     InputTextModule,
-    PaginatorModule,
     SelectModule,
     EmptyStateComponent,
+    MenuModule,
+    ResponsiveTableComponent,
+    RtColDefDirective,
+    RtColCellDirective,
+    RtRowDirective,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './students.page.html',
@@ -94,6 +108,33 @@ export class StudentsPage implements OnInit {
   readonly inactiveStudentCount = computed(
     () => this.summary().total - this.summary().activeCount,
   );
+
+  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
+    first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
+    rows: this.PAGE_SIZE,
+    totalRecords: this.total(),
+  }));
+
+  // Action menu
+  protected readonly actionMenu = viewChild.required<Menu>('actionMenu');
+  protected readonly selectedStudent = signal<Student | null>(null);
+  protected readonly actionMenuItems = computed<MenuItem[]>(() => {
+    const student = this.selectedStudent();
+    if (!student) return [];
+    return [
+      { label: '查看詳情', icon: 'pi pi-eye', routerLink: [RoutesCatalog.ADMIN_STUDENTS.absolutePath, student.id] },
+      { label: '編輯', icon: 'pi pi-pencil', command: () => this.openEditDialog(student) },
+      ...(student.isActive
+        ? [{ separator: true }, { label: '停用', icon: 'pi pi-lock', command: () => this.confirmDeactivate(student) }]
+        : []
+      ),
+    ];
+  });
+
+  protected openActionMenu(event: MouseEvent, student: Student): void {
+    this.selectedStudent.set(student);
+    this.actionMenu().toggle(event);
+  }
 
   ngOnInit(): void {
     this.loadStudents();
@@ -140,8 +181,8 @@ export class StudentsPage implements OnInit {
     this.loadStudents();
   }
 
-  protected onPageChange(page: number): void {
-    this.currentPage.set(page);
+  protected onPage(event: ResponsiveTablePageEvent): void {
+    this.currentPage.set(event.page + 1);
     this.loadStudents();
   }
 

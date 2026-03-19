@@ -99,149 +99,70 @@
           </app-empty-state>
         }
       } @else {
-        <!-- Desktop: Data Table -->
-        <div class="campuses__table-view">
-          <p-table [value]="campuses()" styleClass="p-datatable-sm">
-            <ng-template #header>
-              <tr>
-                <th style="width: 25%">分校名稱</th>
-                <th style="width: 30%">地址</th>
-                <th style="width: 15%">電話</th>
-                <th style="width: 10%">狀態</th>
-                <th style="width: 20%; text-align: right">操作</th>
-              </tr>
-            </ng-template>
-            <ng-template #body let-campus>
-              <tr>
-                <td>
-                  <div class="campus-table__name">
-                    <span class="campus-table__icon">
-                      <i class="pi pi-building"></i>
-                    </span>
-                    <span>{{ campus.name }}</span>
-                  </div>
-                </td>
-                <td>
-                  @if (campus.address) {
-                    <span class="campus-table__address">{{ campus.address }}</span>
-                  } @else {
-                    <span class="campus-table__empty">未填寫</span>
-                  }
-                </td>
-                <td>
-                  @if (campus.phone) {
-                    <a [href]="'tel:' + campus.phone" class="campus-table__phone-link">
-                      {{ campus.phone }}
-                    </a>
-                  } @else {
-                    <span class="campus-table__empty">未填寫</span>
-                  }
-                </td>
-                <td>
-                  <p-tag
-                    [value]="campus.isActive ? '啟用' : '停用'"
-                    [severity]="campus.isActive ? 'success' : 'secondary'"
-                  />
-                </td>
-                <td>
-                  <div class="campus-table__actions">
-                    <p-button
-                      icon="pi pi-pencil"
-                      [rounded]="true"
-                      [text]="true"
-                      severity="secondary"
-                      pTooltip="編輯"
-                      tooltipPosition="top"
-                      (onClick)="openEditDialog(campus)"
-                    />
-                    <p-button
-                      icon="pi pi-trash"
-                      [rounded]="true"
-                      [text]="true"
-                      severity="danger"
-                      pTooltip="刪除"
-                      tooltipPosition="top"
-                      (onClick)="confirmDelete(campus)"
-                    />
-                  </div>
-                </td>
-              </tr>
-            </ng-template>
-          </p-table>
-        </div>
+        <p-menu #actionMenu [popup]="true" [model]="actionMenuItems()" appendTo="body" />
 
-        <!-- Mobile: Card List -->
-        <div class="campuses__card-view">
+        <app-responsive-table
+          [headTemplate]="headTpl"
+          [bodyTemplate]="bodyTpl"
+          [pagination]="pagination()"
+          (page)="onPage($event)"
+        />
+
+        <ng-template #headTpl>
+          <tr>
+            <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">分校名稱</th>
+            <th appRtColDef="address" [appRtColDefMinWidth]="200" [appRtColDefPriority]="3">地址</th>
+            <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">電話</th>
+            <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="2">狀態</th>
+            <th class="responsive-table__header-cell" style="width: 56px"></th>
+          </tr>
+        </ng-template>
+
+        <ng-template #bodyTpl>
           @for (campus of campuses(); track campus.id) {
-            <article class="campus-card">
-              <div class="campus-card__header">
-                <div class="campus-card__icon">
-                  <i class="pi pi-building"></i>
+            <tr appRtRow [appRtRow]="campus" [appRtRowId]="campus.id">
+              <td appRtColCell="name">
+                <div class="campus-table__name">
+                  <span class="campus-table__icon">
+                    <i class="pi pi-building"></i>
+                  </span>
+                  <span>{{ campus.name }}</span>
                 </div>
-                <div class="campus-card__title-group">
-                  <h3 class="campus-card__name">{{ campus.name }}</h3>
-                  <p-tag
-                    [value]="campus.isActive ? '啟用' : '停用'"
-                    [severity]="campus.isActive ? 'success' : 'secondary'"
-                  />
-                </div>
-              </div>
-
-              <div class="campus-card__body">
+              </td>
+              <td appRtColCell="address">
                 @if (campus.address) {
-                  <div class="campus-card__field">
-                    <i class="pi pi-map-marker"></i>
-                    <span>{{ campus.address }}</span>
-                  </div>
+                  <span class="campus-table__address">{{ campus.address }}</span>
+                } @else {
+                  <span class="campus-table__empty">未填寫</span>
                 }
+              </td>
+              <td appRtColCell="phone">
                 @if (campus.phone) {
-                  <div class="campus-card__field">
-                    <i class="pi pi-phone"></i>
-                    <a [href]="'tel:' + campus.phone" class="campus-card__phone-link">
-                      {{ campus.phone }}
-                    </a>
-                  </div>
+                  <a [href]="'tel:' + campus.phone" class="campus-table__phone-link">
+                    {{ campus.phone }}
+                  </a>
+                } @else {
+                  <span class="campus-table__empty">未填寫</span>
                 }
-                @if (!campus.address && !campus.phone) {
-                  <p class="campus-card__empty">尚未填寫聯絡資訊</p>
-                }
-              </div>
-
-              <div class="campus-card__actions">
-                <button
-                  type="button"
-                  class="campus-card__action-btn campus-card__action-btn--edit"
-                  (click)="openEditDialog(campus)"
-                >
-                  <i class="pi pi-pencil"></i>
-                  <span>編輯</span>
-                </button>
-                <button
-                  type="button"
-                  class="campus-card__action-btn campus-card__action-btn--delete"
-                  (click)="confirmDelete(campus)"
-                >
-                  <i class="pi pi-trash"></i>
-                  <span>刪除</span>
-                </button>
-              </div>
-            </article>
+              </td>
+              <td appRtColCell="status">
+                <p-tag
+                  [value]="campus.isActive ? '啟用' : '停用'"
+                  [severity]="campus.isActive ? 'success' : 'secondary'"
+                />
+              </td>
+              <td class="responsive-table__cell" style="text-align: center">
+                <p-button
+                  icon="pi pi-ellipsis-v"
+                  [rounded]="true"
+                  [text]="true"
+                  severity="secondary"
+                  (onClick)="openActionMenu($event, campus)"
+                />
+              </td>
+            </tr>
           }
-
-          <!-- Mobile pagination info -->
-          @if (campuses().length > 0) {
-            <div class="campuses__mobile-count">共 {{ total() }} 個分校</div>
-          }
-        </div>
-
-        @if (total() > PAGE_SIZE) {
-          <p-paginator
-            [rows]="PAGE_SIZE"
-            [totalRecords]="total()"
-            [first]="(currentPage() - 1) * PAGE_SIZE"
-            (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
-          />
-        }
+        </ng-template>
       }
     </div>
   </div>

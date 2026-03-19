@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
-import { ToggleSwitch } from 'primeng/toggleswitch';
+
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import {
@@ -16,7 +16,7 @@ import {
 @Component({
   selector: 'app-campus-form-dialog',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, InputTextModule, ToggleSwitch],
+  imports: [CommonModule, FormsModule, ButtonModule, InputTextModule],
   templateUrl: './campus-form-dialog.component.html',
   styleUrl: './campus-form-dialog.component.scss',
 })
@@ -33,7 +33,6 @@ export class CampusFormDialogComponent {
     name: this.campus()?.name ?? '',
     address: this.campus()?.address ?? '',
     phone: this.campus()?.phone ?? '',
-    isActive: this.campus()?.isActive ?? true,
   });
 
   protected readonly isEditing = computed(() => this.campus() !== null);
@@ -56,7 +55,6 @@ export class CampusFormDialogComponent {
         name: form.name.trim(),
         address: form.address.trim() || null,
         phone: form.phone.trim() || null,
-        isActive: form.isActive,
       };
 
       this.campusesService.update(this.campus()!.id, input).subscribe({

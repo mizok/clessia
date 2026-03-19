@@ -113,12 +113,17 @@ export class AuthService {
     this._showRolePicker.set(false);
   }
 
-  async signIn(account: string, password: string, _captchaToken?: string): Promise<string | null> {
+  async signIn(
+    account: string,
+    password: string,
+    _captchaToken?: string,
+    loginType: 'email' | 'phone' = 'email',
+  ): Promise<string | null> {
     const res = await fetch(`${environment.apiUrl}/api/login`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ account, password }),
+      body: JSON.stringify({ account, password, loginType }),
     });
 
     if (!res.ok) {

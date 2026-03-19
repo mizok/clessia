@@ -1,6 +1,6 @@
 # Unified Login Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace `POST /api/parents/login` with a unified `POST /api/login` that supports email and phone for all account types, removes contact fields from `staff` and `parents` tables, and uses manual scrypt verification + session creation.
 
@@ -19,7 +19,7 @@
 **Files:**
 - Create: `supabase/migrations/20260317000003_unified_login_schema.sql`
 
-- [ ] **Step 1: Create the migration file**
+- [x] **Step 1: Create the migration file**
 
 ```sql
 -- supabase/migrations/20260317000003_unified_login_schema.sql
@@ -40,12 +40,12 @@ ALTER TABLE public.parents
   DROP COLUMN IF EXISTS phone;
 ```
 
-- [ ] **Step 2: Verify the file exists**
+- [x] **Step 2: Verify the file exists**
 
 Run: `ls supabase/migrations/20260317000003_unified_login_schema.sql`
 Expected: file listed
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add supabase/migrations/20260317000003_unified_login_schema.sql
@@ -68,7 +68,7 @@ The new endpoint:
 6. Verifies scrypt hash manually
 7. Creates a session via Better Auth admin API
 
-- [ ] **Step 1: Write a unit test for the password verification helper**
+- [x] **Step 1: Write a unit test for the password verification helper**
 
 Create file `apps/api/src/lib/password.spec.ts`:
 
@@ -100,12 +100,12 @@ describe('verifyPassword', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test — expect FAIL (module not found)**
+- [x] **Step 2: Run the test — expect FAIL (module not found)**
 
 Run: `cd apps/api && npx vitest run src/lib/password.spec.ts`
 Expected: FAIL — `Cannot find module './password'`
 
-- [ ] **Step 3: Create the verifyPassword helper**
+- [x] **Step 3: Create the verifyPassword helper**
 
 Create file `apps/api/src/lib/password.ts`:
 
@@ -151,12 +151,12 @@ export async function verifyPassword(
 }
 ```
 
-- [ ] **Step 4: Run the test — expect PASS**
+- [x] **Step 4: Run the test — expect PASS**
 
 Run: `cd apps/api && npx vitest run src/lib/password.spec.ts`
 Expected: PASS (3/3)
 
-- [ ] **Step 5: Replace /api/parents/login with /api/login in index.ts**
+- [x] **Step 5: Replace /api/parents/login with /api/login in index.ts**
 
 In `apps/api/src/index.ts`, remove the entire `app.post('/api/parents/login', ...)` block (lines 147–205) and replace it with:
 
@@ -248,7 +248,7 @@ import { verifyPassword } from './lib/password';
 
 > **Note:** The Better Auth admin `createSession` method name must be verified from the type system. Run `cd apps/api && npx tsc --noEmit` after writing and check the error if `adminCreateSession` doesn't exist. Alternative names to try: `createSession`, `adminCreateSession`, or inspect `Object.keys(auth.api)` at runtime.
 
-- [ ] **Step 6: Build check — verify createSession method name**
+- [x] **Step 6: Build check — verify createSession method name**
 
 Run: `cd apps/api && npx tsc --noEmit`
 
@@ -259,12 +259,12 @@ If TypeScript errors on `auth.api.createSession` not found:
 
 Expected: 0 errors
 
-- [ ] **Step 7: Run existing tests to ensure no regression**
+- [x] **Step 7: Run existing tests to ensure no regression**
 
 Run: `cd apps/api && npx vitest run`
 Expected: all tests pass
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/api/src/lib/password.ts apps/api/src/lib/password.spec.ts apps/api/src/index.ts
@@ -288,12 +288,12 @@ Currently, `mapStaff()` reads `email` and `phone` from the `staff` row. After th
 - Update `getStaffById()` to also fetch `ba_user` data
 - Update the search query to first look up matching `ba_user` IDs, then filter staff
 
-- [ ] **Step 1: Write a unit test for the `buildStaffSummary` helper (it should still pass after changes)**
+- [x] **Step 1: Write a unit test for the `buildStaffSummary` helper (it should still pass after changes)**
 
 Run: `cd apps/api && npx vitest run src/routes/staff.spec.ts`
 Expected: all pass (no changes needed here, just verify baseline)
 
-- [ ] **Step 2: Update `loadStaffRelations` to batch-fetch ba_user**
+- [x] **Step 2: Update `loadStaffRelations` to batch-fetch ba_user**
 
 In `apps/api/src/routes/staff.ts`, update `loadStaffRelations()` (currently around line 383):
 
@@ -354,7 +354,7 @@ async function loadStaffRelations(
 }
 ```
 
-- [ ] **Step 3: Update `mapStaff` to accept and use baUserMap**
+- [x] **Step 3: Update `mapStaff` to accept and use baUserMap**
 
 Update `mapStaff()` signature and body:
 
@@ -392,7 +392,7 @@ function mapStaff(
 }
 ```
 
-- [ ] **Step 4: Update all `mapStaff` call sites to pass `baUserMap`**
+- [x] **Step 4: Update all `mapStaff` call sites to pass `baUserMap`**
 
 There are two call sites: in the LIST handler and the GET handler. Update both:
 
@@ -427,7 +427,7 @@ const { campusMap, subjectMap, roleInfoMap, baUserMap } = await loadStaffRelatio
 return c.json({ data: mapStaff(freshStaffRow, campusMap, subjectMap, roleInfoMap, baUserMap) }, 200);
 ```
 
-- [ ] **Step 5: Update the LIST search query to use two-step ba_user lookup**
+- [x] **Step 5: Update the LIST search query to use two-step ba_user lookup**
 
 Currently (around line 603):
 ```typescript
@@ -475,17 +475,17 @@ if (query.search) {
 }
 ```
 
-- [ ] **Step 6: Build check**
+- [x] **Step 6: Build check**
 
 Run: `cd apps/api && npx tsc --noEmit`
 Expected: 0 errors
 
-- [ ] **Step 7: Run all tests**
+- [x] **Step 7: Run all tests**
 
 Run: `cd apps/api && npx vitest run`
 Expected: all pass
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/api/src/routes/staff.ts
@@ -503,7 +503,7 @@ Currently the CREATE writes `email` and `phone` to the `staff` table. After the 
 
 > **Note — staff ban calls:** The spec (Schema Changes §4) mentions removing `ba_user.banned` calls from `PATCH /api/staff/:id/deactivate|activate|archive`. The current staff routes do **not** call `banUser`/`unbanUser` — no changes needed for staff status routes on this front.
 
-- [ ] **Step 1: Update CREATE handler — remove email/phone from staff INSERT**
+- [x] **Step 1: Update CREATE handler — remove email/phone from staff INSERT**
 
 In the CREATE handler (around line 884), find:
 ```typescript
@@ -535,7 +535,7 @@ const { data: staffRow, error: insertStaffError } = await supabase
   })
 ```
 
-- [ ] **Step 2: Update CREATE handler — add phone to createUser + write to ba_user**
+- [x] **Step 2: Update CREATE handler — add phone to createUser + write to ba_user**
 
 **2a.** First, update the `auth.api.createUser()` call (around line 832) to include phone:
 
@@ -573,7 +573,7 @@ if (body.phone) {
 }
 ```
 
-- [ ] **Step 3: Update UPDATE handler — remove phone from staff updateData, sync to ba_user**
+- [x] **Step 3: Update UPDATE handler — remove phone from staff updateData, sync to ba_user**
 
 In the update handler (around line 1069), find:
 ```typescript
@@ -593,17 +593,17 @@ Where `userId = staffRow['user_id'] as string` (already defined earlier in the h
 
 > **Note — staff email update:** The `UpdateStaffSchema` does **not** include an `email` field. Staff email is set at CREATE time and cannot be changed via `PUT /api/staff/:id`. No email sync needed in the UPDATE handler.
 
-- [ ] **Step 4: Build check**
+- [x] **Step 4: Build check**
 
 Run: `cd apps/api && npx tsc --noEmit`
 Expected: 0 errors
 
-- [ ] **Step 5: Run all tests**
+- [x] **Step 5: Run all tests**
 
 Run: `cd apps/api && npx vitest run`
 Expected: all pass
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/api/src/routes/staff.ts
@@ -619,12 +619,12 @@ git commit -m "refactor: staff CREATE/UPDATE write phone to ba_user, remove from
 
 Currently, `toParentResponse()` reads `email` and `phone` from the parent row. After the migration, these don't exist in `parents`. We need to enrich from `ba_user`.
 
-- [ ] **Step 1: Run existing parents tests to establish baseline**
+- [x] **Step 1: Run existing parents tests to establish baseline**
 
 Run: `cd apps/api && npx vitest run src/routes/parents.spec.ts`
 Expected: all pass
 
-- [ ] **Step 2: Update `toParentResponse` to accept optional baUser override**
+- [x] **Step 2: Update `toParentResponse` to accept optional baUser override**
 
 Find `toParentResponse` (around line 94):
 ```typescript
@@ -665,12 +665,12 @@ export function toParentResponse(
 
 This is backward-compatible: existing tests still pass because they don't pass `baUser` and the function falls back to `row['email']`/`row['phone']`.
 
-- [ ] **Step 3: Run tests — expect still PASS (backward compatible)**
+- [x] **Step 3: Run tests — expect still PASS (backward compatible)**
 
 Run: `cd apps/api && npx vitest run src/routes/parents.spec.ts`
 Expected: all pass
 
-- [ ] **Step 4: Update LIST handler — batch-fetch ba_user for contact info**
+- [x] **Step 4: Update LIST handler — batch-fetch ba_user for contact info**
 
 In the LIST handler, after fetching `data` from `supabase.from('parents')`, add a batch ba_user fetch and build a map:
 
@@ -703,7 +703,7 @@ const parents = rows.map((row) =>
 );
 ```
 
-- [ ] **Step 5: Update LIST search to use two-step ba_user lookup**
+- [x] **Step 5: Update LIST search to use two-step ba_user lookup**
 
 Currently (around line 188):
 ```typescript
@@ -732,7 +732,7 @@ if (search) {
 }
 ```
 
-- [ ] **Step 6: Update GET /api/parents/:id to fetch ba_user**
+- [x] **Step 6: Update GET /api/parents/:id to fetch ba_user**
 
 In the GET handler, after fetching the parent row, add a ba_user fetch:
 
@@ -756,17 +756,17 @@ return c.json(
 );
 ```
 
-- [ ] **Step 7: Build check**
+- [x] **Step 7: Build check**
 
 Run: `cd apps/api && npx tsc --noEmit`
 Expected: 0 errors
 
-- [ ] **Step 8: Run tests**
+- [x] **Step 8: Run tests**
 
 Run: `cd apps/api && npx vitest run src/routes/parents.spec.ts`
 Expected: all pass
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add apps/api/src/routes/parents.ts
@@ -785,7 +785,7 @@ Changes:
 2. UPDATE: remove `email`/`phone` from `parents` UPDATE; sync email via `auth.api.updateUser`, sync phone directly via supabase
 3. activate/deactivate/archive: remove all `ba_user.banned` calls
 
-- [ ] **Step 1: Update CREATE handler — remove email/phone from parents INSERT**
+- [x] **Step 1: Update CREATE handler — remove email/phone from parents INSERT**
 
 Find in CREATE handler (around line 312):
 ```typescript
@@ -835,7 +835,7 @@ const newUser = await auth.api.createUser({
 });
 ```
 
-- [ ] **Step 2: Update UPDATE handler — remove email/phone from parents UPDATE**
+- [x] **Step 2: Update UPDATE handler — remove email/phone from parents UPDATE**
 
 Find in PUT handler (around line 480):
 ```typescript
@@ -879,7 +879,7 @@ if (body.phone !== undefined) {
 }
 ```
 
-- [ ] **Step 3: Remove ba_user.banned calls from activate handler**
+- [x] **Step 3: Remove ba_user.banned calls from activate handler**
 
 Find activate handler (around line 670):
 ```typescript
@@ -896,7 +896,7 @@ if (banError) {
 
 Delete this entire block (7 lines). Status is managed via `parents.status` only.
 
-- [ ] **Step 4: Remove ba_user.banned calls from deactivate handler**
+- [x] **Step 4: Remove ba_user.banned calls from deactivate handler**
 
 Find deactivate handler (around line 741):
 ```typescript
@@ -913,7 +913,7 @@ if (banError) {
 
 Delete this entire block.
 
-- [ ] **Step 5: Remove ba_user.banned calls from archive handler**
+- [x] **Step 5: Remove ba_user.banned calls from archive handler**
 
 Find archive handler (around line 815):
 ```typescript
@@ -930,17 +930,17 @@ if (banError) {
 
 Delete this entire block.
 
-- [ ] **Step 6: Build check**
+- [x] **Step 6: Build check**
 
 Run: `cd apps/api && npx tsc --noEmit`
 Expected: 0 errors
 
-- [ ] **Step 7: Run all tests**
+- [x] **Step 7: Run all tests**
 
 Run: `cd apps/api && npx vitest run`
 Expected: all pass
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/api/src/routes/parents.ts
@@ -958,7 +958,7 @@ git commit -m "refactor: parents write email/phone to ba_user, remove banned cal
 
 The migration drops `staff.email`, `staff.phone`, `parents.email`, `parents.phone`. The seed must not insert into these columns.
 
-- [ ] **Step 1: Remove email/phone from the 11 admin staff INSERT (around line 258)**
+- [x] **Step 1: Remove email/phone from the 11 admin staff INSERT (around line 258)**
 
 Find:
 ```typescript
@@ -992,7 +992,7 @@ ON CONFLICT (user_id, org_id) DO UPDATE SET
     status = EXCLUDED.status,
 ```
 
-- [ ] **Step 2: Remove email/phone from the teacher staff INSERT (around line 345)**
+- [x] **Step 2: Remove email/phone from the teacher staff INSERT (around line 345)**
 
 Find:
 ```sql
@@ -1026,7 +1026,7 @@ ON CONFLICT (user_id, org_id) DO UPDATE SET
     status = EXCLUDED.status,
 ```
 
-- [ ] **Step 3: Remove email/phone from parents INSERT (around line 469)**
+- [x] **Step 3: Remove email/phone from parents INSERT (around line 469)**
 
 Find:
 ```sql
@@ -1056,7 +1056,7 @@ VALUES (
 
 Note: email and phone are already in `ba_user` (written by the `ba_user` INSERT above). The `parents` table no longer has email/phone columns after the migration.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add supabase/seed.sql
@@ -1072,7 +1072,7 @@ git commit -m "chore: remove email/phone from staff and parents seed INSERTs (no
 
 Currently `signIn()` calls `authClient.signIn.email()`. Replace with a plain `fetch` to `/api/login`. After the fetch succeeds, call `authClient.getSession()` to sync the client state.
 
-- [ ] **Step 1: Update `signIn()` method in AuthService**
+- [x] **Step 1: Update `signIn()` method in AuthService**
 
 In `apps/web/src/app/core/auth.service.ts`, find and replace the entire `signIn()` method.
 
@@ -1109,12 +1109,12 @@ async signIn(account: string, password: string, _captchaToken?: string): Promise
 }
 ```
 
-- [ ] **Step 2: Build check (Angular)**
+- [x] **Step 2: Build check (Angular)**
 
 Run: `cd apps/web && npx ng build --configuration development`
 Expected: build succeeds with 0 errors
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/web/src/app/core/auth.service.ts
@@ -1125,7 +1125,7 @@ git commit -m "feat: AuthService.signIn() uses POST /api/login instead of authCl
 
 ### Task 9: Apply migrations and verify end-to-end
 
-- [ ] **Step 1: Reset the local database**
+- [x] **Step 1: Reset the local database**
 
 Run: `supabase db reset`
 Expected:
@@ -1140,11 +1140,11 @@ Finished supabase db reset.
 
 If seed fails with a column error (`email`, `phone`), check that Task 7 changes are complete.
 
-- [ ] **Step 2: Start the API server**
+- [x] **Step 2: Start the API server**
 
 Run: `cd apps/api && npx wrangler dev --local` (keep running in background)
 
-- [ ] **Step 3: Test root login via /api/login (email)**
+- [x] **Step 3: Test root login via /api/login (email)**
 
 ```bash
 curl -s -c /tmp/cookies.txt -X POST http://localhost:8787/api/login \
@@ -1153,7 +1153,7 @@ curl -s -c /tmp/cookies.txt -X POST http://localhost:8787/api/login \
 ```
 Expected: `200 OK` with a JSON body containing user info and `Set-Cookie` headers.
 
-- [ ] **Step 4: Test admin login via /api/login**
+- [x] **Step 4: Test admin login via /api/login**
 
 Admin seed password is `password123` (see `demo_admin_password_hash` in seed.sql).
 
@@ -1164,7 +1164,7 @@ curl -s -X POST http://localhost:8787/api/login \
 ```
 Expected: `200 OK`
 
-- [ ] **Step 5: Test wrong password**
+- [x] **Step 5: Test wrong password**
 
 ```bash
 curl -s -X POST http://localhost:8787/api/login \
@@ -1173,7 +1173,7 @@ curl -s -X POST http://localhost:8787/api/login \
 ```
 Expected: `401` with `INVALID_CREDENTIALS`
 
-- [ ] **Step 6: Test parent login via email**
+- [x] **Step 6: Test parent login via email**
 
 Parent email is in `ba_user` (seed inserts it at `ba_user.email = 'parent01@demo.clessia.app'`).
 Parent seed password is `Demo1234!` (see `demo_parent_password_hash` in seed.sql).
@@ -1185,7 +1185,7 @@ curl -s -X POST http://localhost:8787/api/login \
 ```
 Expected: `200 OK`
 
-- [ ] **Step 7: Test /api/parents/login is gone (404)**
+- [x] **Step 7: Test /api/parents/login is gone (404)**
 
 ```bash
 curl -s -X POST http://localhost:8787/api/parents/login \
@@ -1194,7 +1194,7 @@ curl -s -X POST http://localhost:8787/api/parents/login \
 ```
 Expected: `404 Not Found`
 
-- [ ] **Step 8: Verify staff GET returns email/phone from ba_user**
+- [x] **Step 8: Verify staff GET returns email/phone from ba_user**
 
 ```bash
 # First get a token via login
@@ -1207,7 +1207,7 @@ curl -s -b /tmp/cookies.txt http://localhost:8787/api/staff
 ```
 Expected: staff list with `email` and `phone` fields populated from ba_user.
 
-- [ ] **Step 9: Start web dev server and test login UI**
+- [x] **Step 9: Start web dev server and test login UI**
 
 Run: `cd apps/web && npx ng serve` (in background)
 
@@ -1216,12 +1216,12 @@ Navigate to `http://localhost:4200/login`:
 - Login with wrong password → shows "帳號或密碼錯誤"
 - Password reveal button works (eye icon toggles)
 
-- [ ] **Step 10: Run all API unit tests**
+- [x] **Step 10: Run all API unit tests**
 
 Run: `cd apps/api && npx vitest run`
 Expected: all pass
 
-- [ ] **Step 11: Final commit (if any uncommitted changes remain)**
+- [x] **Step 11: Final commit (if any uncommitted changes remain)**
 
 ```bash
 git status
@@ -1236,3 +1236,48 @@ git add supabase/migrations/20260317000003_unified_login_schema.sql \
         apps/web/src/app/core/auth.service.ts
 git commit -m "chore: verify unified login implementation complete"
 ```
+
+---
+
+## 實作備注（事後歸檔）
+
+> 以下記錄實際執行時與計畫原設計的差異，供未來參考。
+
+### 架構調整：從手動 scrypt + adminCreateSession → 委派 Better Auth
+
+**計畫原設計：**
+1. 手動從 `ba_account` 讀 scrypt hash
+2. 呼叫 `verifyPassword()` 自行驗證
+3. 呼叫 `auth.api.adminCreateSession({ userId })` 建立 session
+
+**實際執行遇到的問題：**
+- `auth.api.adminCreateSession` **不存在**。Better Auth admin plugin 沒有這個方法。
+- 改嘗試手動建立 session（直接寫 `ba_session` + 手動 HMAC-SHA256 簽 cookie）→ 此做法耦合 BA 內部格式，有維護風險。
+
+**最終採用的設計：**
+直接委派 Better Auth 官方 API 同時做密碼驗證和 session 建立：
+- email 用戶 → `auth.api.signInEmail({ email, password })`
+- phone-only 用戶 → `auth.api.signInUsername({ username: phone, password })`
+
+**結果：** `/api/login` 只做兩件事：
+1. 從 `ba_user` 查找帳號（email or phone）
+2. 檢查 staff/parents 狀態
+
+密碼驗證和 session 建立完全委派給 BA，避免耦合內部實作。
+
+### Phone-only 用戶的 username 策略
+
+Better Auth 要求每個 credential 帳號必須有 email **或** username。
+Phone-only 家長沒有 email，因此採用 `username = phone`：
+
+- CREATE 時：`auth.api.createUser({ ..., username: !body.email && body.phone ? body.phone : undefined })`
+- `/api/login` 時：查到 phone-only 用戶後呼叫 `signInUsername({ username: phone })`
+
+### password.ts / password.spec.ts 已刪除
+
+原計畫的 TDD 流程（Task 2, Step 1-4）產生的 `apps/api/src/lib/password.ts` 和 `password.spec.ts` 在改用委派 BA 的設計後已移除，不再需要手動 scrypt 驗證。
+
+### ba_user.banned 呼叫已移除
+
+原 parents 路由的 activate/deactivate/archive 有呼叫 `ba_user.banned = true/false`，這會影響 BA 自己的登入判斷。
+已全部移除，帳號狀態改由 `parents.status` 欄位單一管理，/api/login 的狀態檢查也以此為準。

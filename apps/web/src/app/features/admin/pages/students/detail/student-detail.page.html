@@ -81,6 +81,16 @@
             <span class="student-detail__info-empty">未填寫</span>
           }
         </div>
+        <div class="student-detail__info-item">
+          <span class="student-detail__info-label">Email</span>
+          @if (student()!.email) {
+            <a [href]="'mailto:' + student()!.email" class="student-detail__email-link">
+              {{ student()!.email }}
+            </a>
+          } @else {
+            <span class="student-detail__info-empty">未填寫</span>
+          }
+        </div>
         <div class="student-detail__info-item student-detail__info-item--full">
           <span class="student-detail__info-label">地址</span>
           <span class="student-detail__info-value">

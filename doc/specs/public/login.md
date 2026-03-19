@@ -9,20 +9,24 @@
 
 ## MVP 功能
 
-- 登入欄位：Email
-- 密碼輸入與驗證
+- 登入方式切換：**Email** / **手機號碼** 兩個 Tab（滑動 pill 指示器動畫），切換後 input 類型與 placeholder 對應改變
+  - Email Tab：`type="email"`，placeholder「Email」
+  - 手機 Tab：`type="tel"`，placeholder「手機號碼（09xxxxxxxx）」
+- 密碼輸入與顯示/隱藏切換
 - 忘記密碼連結（⚠️ 尚未完整實作，見下方 Backlog）
-- 錯誤訊息提示（帳號不存在、密碼錯誤）
+- 錯誤訊息提示（帳號不存在、密碼錯誤、帳號已停用）
 - 登入成功後依角色導向對應首頁
 
+## 登入端點
+
+統一登入端點：`POST /api/login`
+
+- `account`：Email 或手機號碼（後端以是否包含 `@` 判斷）
+- `password`：密碼
+- 後端查 `ba_user` 後，委派 Better Auth `signInEmail` / `signInUsername` 完成驗證與 session 建立
+- 停用/封存帳號回傳 `ACCOUNT_DISABLED`（HTTP 401）
+
 ## Backlog
-
-### 手機號碼登入（延後至家長介面開發時）
-
-- 沒有 email 的家長可使用手機號碼登入（格式：`09xxxxxxxx`）
-- 實作方式：輸入手機號碼 → 後端查 `ba_user.phone` 反查帳號 → 用 email 登入
-- 沒有 email 的帳號忘記密碼時，需聯絡管理者處理
-- 需要新增自訂 Hono endpoint：`POST /api/auth/sign-in/phone`
 
 ### 忘記密碼完整實作（獨立 branch）
 

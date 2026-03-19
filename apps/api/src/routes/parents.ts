@@ -20,6 +20,7 @@ const ParentSchema = z
     loginAccount: z.string(), // email 優先，否則 phone
     status: ParentStatusSchema,
     studentCount: z.number(),
+    studentNames: z.array(z.string()), // 關聯學生姓名列表
     notes: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -95,6 +96,7 @@ export function toParentResponse(
   row: Record<string, unknown>,
   studentCount = 0,
   baUser?: { email: string | null; phone: string | null },
+  studentNames: string[] = [],
 ) {
   const email = baUser?.email ?? (row['email'] as string | null) ?? null;
   const phone = baUser?.phone ?? (row['phone'] as string | null) ?? null;
@@ -106,8 +108,9 @@ export function toParentResponse(
     phone,
     email,
     loginAccount: email ?? phone ?? '',
-    status: row['status'] as string,
+    status: row['status'] as 'active' | 'inactive' | 'archived',
     studentCount,
+    studentNames,
     notes: (row['notes'] as string | null) ?? null,
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
@@ -158,6 +161,10 @@ app.openapi(
         description: '家長列表',
         content: { 'application/json': { schema: ParentListResponseSchema } },
       },
+      500: {
+        description: '伺服器錯誤',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
     },
   }),
   async (c) => {
@@ -166,21 +173,27 @@ app.openapi(
     const { search, status, page = 1, pageSize = 20 } = c.req.valid('query');
     const offset = (page - 1) * pageSize;
 
-    // 計算 student counts
-    const { data: relCounts } = await supabase
-      .from('parent_student_relations')
-      .select('parent_id')
-      .in(
-        'parent_id',
-        (
-          await supabase.from('parents').select('id').eq('org_id', orgId)
-        ).data?.map((p: { id: string }) => p.id) ?? [],
-      );
+    // 取得 org 下所有 parent 的 id，用來查 student 關聯
+    const { data: allParentIds } = await supabase
+      .from('parents')
+      .select('id')
+      .eq('org_id', orgId);
+    const parentIdList = (allParentIds ?? []).map((p: { id: string }) => p.id);
 
-    const studentCountMap = new Map<string, number>();
-    for (const rel of relCounts ?? []) {
-      const r = rel as { parent_id: string };
-      studentCountMap.set(r.parent_id, (studentCountMap.get(r.parent_id) ?? 0) + 1);
+    // 取得 student relations（含學生姓名）
+    const studentRelMap = new Map<string, Array<{ id: string; name: string }>>();
+    if (parentIdList.length > 0) {
+      const { data: relRows } = await supabase
+        .from('parent_student_relations')
+        .select('parent_id, students(id, name)')
+        .in('parent_id', parentIdList);
+      for (const rel of relRows ?? []) {
+        const r = rel as unknown as { parent_id: string; students: { id: string; name: string } | null };
+        if (!r.students) continue;
+        const existing = studentRelMap.get(r.parent_id) ?? [];
+        existing.push(r.students);
+        studentRelMap.set(r.parent_id, existing);
+      }
     }
 
     let query = supabase
@@ -190,17 +203,33 @@ app.openapi(
       .order('name');
 
     if (search) {
+      // 搜尋 ba_user email/phone
       const { data: baMatches } = await supabase
         .from('ba_user')
         .select('id')
         .or(`email.ilike.%${search}%,phone.ilike.%${search}%`);
       const matchingUserIds = (baMatches ?? []).map((u: { id: string }) => u.id);
 
-      if (matchingUserIds.length > 0) {
-        query = query.or(`name.ilike.%${search}%,user_id.in.(${matchingUserIds.join(',')})`);
-      } else {
-        query = query.ilike('name', `%${search}%`);
+      // 搜尋學生姓名 → 找到對應的 parent_id
+      const { data: studentMatches } = await supabase
+        .from('students')
+        .select('id')
+        .eq('org_id', orgId)
+        .ilike('name', `%${search}%`);
+      const matchingStudentIds = (studentMatches ?? []).map((s: { id: string }) => s.id);
+      let parentIdsFromStudents: string[] = [];
+      if (matchingStudentIds.length > 0) {
+        const { data: relMatches } = await supabase
+          .from('parent_student_relations')
+          .select('parent_id')
+          .in('student_id', matchingStudentIds);
+        parentIdsFromStudents = [...new Set((relMatches ?? []).map((r: { parent_id: string }) => r.parent_id))];
       }
+
+      const orParts: string[] = [`name.ilike.%${search}%`];
+      if (matchingUserIds.length > 0) orParts.push(`user_id.in.(${matchingUserIds.join(',')})`);
+      if (parentIdsFromStudents.length > 0) orParts.push(`id.in.(${parentIdsFromStudents.join(',')})`);
+      query = query.or(orParts.join(','));
     }
     if (status) {
       query = query.eq('status', status);
@@ -228,13 +257,15 @@ app.openapi(
     }
     const total = count ?? 0;
 
-    const parents = rows.map((row) =>
-      toParentResponse(
+    const parents = rows.map((row) => {
+      const parentStudents = studentRelMap.get(row['id'] as string) ?? [];
+      return toParentResponse(
         row,
-        studentCountMap.get(row['id'] as string) ?? 0,
+        parentStudents.length,
         baUserMap.get(row['user_id'] as string),
-      ),
-    );
+        parentStudents.map((s) => s.name),
+      );
+    });
 
     // Summary（不受 status filter 影響）
     const { data: summaryRows } = await supabase
@@ -467,7 +498,7 @@ app.openapi(
       }));
 
     return c.json(
-      { data: { ...toParentResponse(row, students.length, baUser), students } },
+      { data: { ...toParentResponse(row, students.length, baUser, students.map((s) => s.name)), students } },
       200,
     );
   },
@@ -532,15 +563,9 @@ app.openapi(
     const auth = createAuth(c.env);
     const userId = existingRow['user_id'] as string;
 
-    if (body.email !== undefined) {
-      try {
-        await auth.api.updateUser({
-          body: { userId, email: body.email ?? undefined },
-          asResponse: false,
-        });
-      } catch {
-        // best effort - 若 email 重複在這裡會拋錯
-      }
+    if (body.email !== undefined && body.email !== null) {
+      // 直接更新 ba_user email（best effort，忽略重複 email 錯誤）
+      await supabase.from('ba_user').update({ email: body.email }).eq('id', userId);
     }
 
     if (body.phone !== undefined) {
@@ -577,11 +602,17 @@ app.openapi(
       return c.json({ error: '讀取更新後資料失敗', code: 'READ_AFTER_UPDATE_FAILED' }, 400);
     }
 
-    // 計算 student count
-    const { count: studentCount } = await supabase
+    // 計算 student count + 取得學生姓名
+    const { data: updatedRels } = await supabase
       .from('parent_student_relations')
-      .select('*', { count: 'exact', head: true })
+      .select('students(id, name)')
       .eq('parent_id', id);
+    const updatedStudents = (updatedRels ?? []).flatMap(
+      (r: unknown) => {
+        const students = (r as { students: Array<{ id: string; name: string }> }).students ?? [];
+        return students;
+      },
+    );
 
     logAudit(
       supabase,
@@ -597,7 +628,14 @@ app.openapi(
     );
 
     return c.json(
-      { data: toParentResponse(updatedRow as Record<string, unknown>, studentCount ?? 0) },
+      {
+        data: toParentResponse(
+          updatedRow as Record<string, unknown>,
+          updatedStudents.length,
+          undefined,
+          updatedStudents.map((s) => s.name),
+        ),
+      },
       200,
     );
   },
@@ -616,6 +654,7 @@ app.openapi(
         description: '重設成功',
         content: { 'application/json': { schema: z.object({ password: z.string() }) } },
       },
+      400: { description: '重設失敗', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: '家長不存在', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -640,8 +679,8 @@ app.openapi(
     const userId = (parentRow as Record<string, unknown>)['user_id'] as string;
 
     try {
-      await auth.api.setPassword({
-        body: { userId, password: newPassword },
+      await (auth.api as any).setUserPassword({
+        body: { userId, newPassword },
         asResponse: false,
       });
     } catch (err) {
