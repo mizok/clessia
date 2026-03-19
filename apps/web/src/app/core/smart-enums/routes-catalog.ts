@@ -60,14 +60,6 @@ export class RoutesCatalog {
     'pi-key',
     false,
   );
-  public static readonly PUBLIC_CHANGE_PASSWORD = this.register(
-    'change-password',
-    '/change-password',
-    '變更密碼',
-    undefined,
-    'pi-key',
-    false,
-  );
 
   // Admin
   public static readonly ADMIN_ROOT = this.register(
@@ -288,14 +280,6 @@ export class RoutesCatalog {
     true,
     '系統設定',
   );
-  public static readonly ADMIN_CHANGE_PASSWORD = this.register(
-    'change-password',
-    '/admin/change-password',
-    '變更密碼',
-    UserType.ADMIN,
-    'pi-key',
-    false,
-  );
 
   // Teacher
   public static readonly TEACHER_ROOT = this.register(
@@ -320,14 +304,6 @@ export class RoutesCatalog {
     '通知中心',
     UserType.TEACHER,
     'pi-bell',
-  );
-  public static readonly TEACHER_CHANGE_PASSWORD = this.register(
-    'change-password',
-    '/teacher/change-password',
-    '變更密碼',
-    UserType.TEACHER,
-    'pi-key',
-    false,
   );
 
   // Group: 教學課務
@@ -382,14 +358,6 @@ export class RoutesCatalog {
     '通知中心',
     UserType.PARENT,
     'pi-bell',
-  );
-  public static readonly PARENT_CHANGE_PASSWORD = this.register(
-    'change-password',
-    '/parent/change-password',
-    '變更密碼',
-    UserType.PARENT,
-    'pi-key',
-    false,
   );
 
   // Group: 學習狀況

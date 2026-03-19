@@ -51,13 +51,6 @@ export const routes: Routes = [
           ),
         canActivate: [guestGuard],
       },
-      {
-        path: RoutesCatalog.PUBLIC_CHANGE_PASSWORD.relativePath,
-        loadComponent: () =>
-          import('@features/public/pages/change-password/change-password.component').then(
-            (m) => m.ChangePasswordComponent,
-          ),
-      },
       { path: '', redirectTo: 'login', pathMatch: 'full' },
     ],
   },
@@ -240,14 +233,6 @@ export const routes: Routes = [
             data: { page: RoutesCatalog.ADMIN_STAFF },
           },
           {
-            path: RoutesCatalog.ADMIN_CHANGE_PASSWORD.relativePath,
-            loadComponent: () =>
-              import('@features/public/pages/change-password/change-password.component').then(
-                (m) => m.ChangePasswordComponent,
-              ),
-            data: { page: RoutesCatalog.ADMIN_CHANGE_PASSWORD },
-          },
-          {
             path: '',
             redirectTo: RoutesCatalog.ADMIN_DASHBOARD.relativePath,
             pathMatch: 'full',
@@ -313,14 +298,6 @@ export const routes: Routes = [
                 (m) => m.StudentsPage,
               ),
             data: { page: RoutesCatalog.TEACHER_STUDENTS },
-          },
-          {
-            path: RoutesCatalog.TEACHER_CHANGE_PASSWORD.relativePath,
-            loadComponent: () =>
-              import('@features/public/pages/change-password/change-password.component').then(
-                (m) => m.ChangePasswordComponent,
-              ),
-            data: { page: RoutesCatalog.TEACHER_CHANGE_PASSWORD },
           },
           {
             path: '',
@@ -434,14 +411,6 @@ export const routes: Routes = [
                 (m) => m.NotificationsComponent,
               ),
             data: { page: RoutesCatalog.PARENT_NOTIFICATIONS },
-          },
-          {
-            path: RoutesCatalog.PARENT_CHANGE_PASSWORD.relativePath,
-            loadComponent: () =>
-              import('@features/public/pages/change-password/change-password.component').then(
-                (m) => m.ChangePasswordComponent,
-              ),
-            data: { page: RoutesCatalog.PARENT_CHANGE_PASSWORD },
           },
           {
             path: '',

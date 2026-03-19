@@ -9,7 +9,7 @@ import {
   type ElementRef,
   afterNextRender,
 } from '@angular/core';
-import { Router, RouterOutlet } from '@angular/router';
+import { RouterOutlet } from '@angular/router';
 import { Tooltip } from 'primeng/tooltip';
 import { Popover } from 'primeng/popover';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -21,6 +21,7 @@ import { InheritSizeDirective } from '@shared/directives/inherit-size.directive'
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 import { AccountSettingsDialogComponent } from '@shared/components/account-settings-dialog/account-settings-dialog.component';
+import { ChangePasswordDialogComponent } from '@shared/components/change-password-dialog/change-password-dialog.component';
 
 @Component({
   selector: 'app-shell-layout',
@@ -60,7 +61,6 @@ export class ShellLayoutComponent {
     parent: '家長',
   };
 
-  private readonly router = inject(Router);
   private readonly dialogService = inject(DialogService);
 
   readonly centered = input(false, { transform: (v: boolean | string) => v === '' || v === true });
@@ -72,8 +72,12 @@ export class ShellLayoutComponent {
 
   changePassword() {
     this.op.hide();
-    const role = this.auth.activeRole();
-    this.router.navigate([`/${role}/change-password`]);
+    this.dialogService.open(ChangePasswordDialogComponent, {
+      width: '420px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer ?? 'body',
+    });
   }
 
   openAccountSettings() {

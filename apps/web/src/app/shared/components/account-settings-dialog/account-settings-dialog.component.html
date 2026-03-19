@@ -18,9 +18,23 @@
           <input pInputText [(ngModel)]="displayName" [disabled]="saving()" />
           <span class="account-settings__save-btn">
             @if (savedField() === 'displayName') {
-              <p-button icon="pi pi-check" size="small" severity="success" [outlined]="true" [disabled]="true" />
+              <p-button
+                icon="pi pi-check"
+                size="small"
+                severity="success"
+                [outlined]="true"
+                [disabled]="true"
+              />
             } @else {
-              <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="savingField() === 'displayName'" [disabled]="saving()" (onClick)="saveDisplayName()" />
+              <p-button
+                label="儲存"
+                size="small"
+                severity="secondary"
+                [outlined]="true"
+                [loading]="savingField() === 'displayName'"
+                [disabled]="saving()"
+                (onClick)="saveDisplayName()"
+              />
             }
           </span>
         </div>
@@ -71,9 +85,23 @@
         <input pInputText type="email" [(ngModel)]="email" [disabled]="saving()" />
         <span class="account-settings__save-btn">
           @if (savedField() === 'email') {
-            <p-button icon="pi pi-check" size="small" severity="success" [outlined]="true" [disabled]="true" />
+            <p-button
+              icon="pi pi-check"
+              size="small"
+              severity="success"
+              [outlined]="true"
+              [disabled]="true"
+            />
           } @else {
-            <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="savingField() === 'email'" [disabled]="saving()" (onClick)="confirmSaveEmail()" />
+            <p-button
+              label="儲存"
+              size="small"
+              severity="secondary"
+              [outlined]="true"
+              [loading]="savingField() === 'email'"
+              [disabled]="saving()"
+              (onClick)="confirmSaveEmail()"
+            />
           }
         </span>
       </div>
@@ -90,9 +118,23 @@
         <input pInputText type="tel" [(ngModel)]="phone" [disabled]="saving()" />
         <span class="account-settings__save-btn">
           @if (savedField() === 'phone') {
-            <p-button icon="pi pi-check" size="small" severity="success" [outlined]="true" [disabled]="true" />
+            <p-button
+              icon="pi pi-check"
+              size="small"
+              severity="success"
+              [outlined]="true"
+              [disabled]="true"
+            />
           } @else {
-            <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="savingField() === 'phone'" [disabled]="saving()" (onClick)="confirmSavePhone()" />
+            <p-button
+              label="儲存"
+              size="small"
+              severity="secondary"
+              [outlined]="true"
+              [loading]="savingField() === 'phone'"
+              [disabled]="saving()"
+              (onClick)="confirmSavePhone()"
+            />
           }
         </span>
       </div>
@@ -107,7 +149,6 @@
   @if (!hasParentRole()) {
     <div class="account-settings__section">
       <p class="account-settings__section-label">家長身份</p>
-      <p class="account-settings__desc">啟用後可使用家長 portal 查看子女的出缺席與課表。</p>
       @if (activateError()) {
         <p class="account-settings__error">{{ activateError() }}</p>
       }
@@ -118,6 +159,7 @@
         [loading]="activating()"
         (onClick)="confirmActivateParent()"
       />
+      <p class="account-settings__desc">啟用後可使用家長 portal 查看子女的出缺席與課表。</p>
     </div>
   }
 </div>
