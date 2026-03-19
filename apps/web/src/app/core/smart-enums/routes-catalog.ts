@@ -111,6 +111,15 @@ export class RoutesCatalog {
     true,
     '教務管理',
   );
+  public static readonly ADMIN_CLASS_DETAIL = this.register(
+    'courses/:courseId/classes/:classId',
+    '/admin/courses/:courseId/classes/:classId',
+    '開課班詳情',
+    UserType.ADMIN,
+    'pi-users',
+    false,
+    '教務管理',
+  );
   public static readonly ADMIN_SESSIONS = this.register(
     'sessions',
     '/admin/sessions',
