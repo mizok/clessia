@@ -1,5 +1,18 @@
 <div class="confirm-dialog">
   <p class="confirm-dialog__message">{{ data.message }}</p>
+
+  @if (data.requireNotes) {
+    <div class="confirm-dialog__notes">
+      <textarea
+        pTextarea
+        [(ngModel)]="notes"
+        [placeholder]="data.notesPlaceholder ?? '請填寫原因（必填）'"
+        rows="3"
+        class="w-full"
+      ></textarea>
+    </div>
+  }
+
   <div class="confirm-dialog__actions">
     <p-button
       [label]="data.rejectLabel ?? '取消'"
@@ -10,6 +23,7 @@
     <p-button
       [label]="data.acceptLabel ?? '確認'"
       [severity]="data.acceptSeverity ?? 'danger'"
+      [disabled]="!canAccept"
       (onClick)="accept()"
     />
   </div>

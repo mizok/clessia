@@ -7,6 +7,10 @@
     color: var(--color-text);
   }
 
+  &__notes {
+    margin-bottom: var(--space-4);
+  }
+
   &__actions {
     display: flex;
     justify-content: flex-end;

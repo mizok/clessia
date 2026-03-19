@@ -1,5 +1,7 @@
 import { Component, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
+import { TextareaModule } from 'primeng/textarea';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 
 export interface ConfirmDialogData {
@@ -7,12 +9,14 @@ export interface ConfirmDialogData {
   acceptLabel?: string;
   rejectLabel?: string;
   acceptSeverity?: 'danger' | 'warn' | 'success' | 'secondary';
+  requireNotes?: boolean;
+  notesPlaceholder?: string;
 }
 
 @Component({
   selector: 'app-confirm-dialog',
   standalone: true,
-  imports: [ButtonModule],
+  imports: [ButtonModule, FormsModule, TextareaModule],
   templateUrl: './confirm-dialog.component.html',
   styleUrl: './confirm-dialog.component.scss',
 })
@@ -24,8 +28,16 @@ export class ConfirmDialogComponent {
     return this.config.data;
   }
 
+  protected notes = '';
+
+  protected get canAccept(): boolean {
+    if (this.data.requireNotes) return this.notes.trim().length > 0;
+    return true;
+  }
+
   protected accept(): void {
-    this.ref.close(true);
+    if (!this.canAccept) return;
+    this.ref.close(this.data.requireNotes ? { notes: this.notes.trim() } : true);
   }
 
   protected reject(): void {
