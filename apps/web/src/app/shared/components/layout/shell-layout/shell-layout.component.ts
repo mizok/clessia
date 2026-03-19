@@ -73,9 +73,9 @@ export class ShellLayoutComponent {
   openAccountSettings() {
     this.op.hide();
     this.dialogService.open(AccountSettingsDialogComponent, {
-      header: '帳號設定',
       width: '480px',
       modal: true,
+      showHeader: false,
       appendTo: this.overlayContainer ?? 'body',
     });
   }

@@ -31,7 +31,7 @@
         <label class="account-settings__label">顯示名稱</label>
         <div class="account-settings__input-row">
           <input pInputText [(ngModel)]="displayName" [disabled]="saving()" class="w-full" />
-          <p-button label="儲存" size="small" [loading]="saving()" (onClick)="saveDisplayName()" />
+          <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="saving()" (onClick)="saveDisplayName()" styleClass="account-settings__save-btn" />
         </div>
       </div>
 
@@ -39,7 +39,7 @@
         <label class="account-settings__label">Email</label>
         <div class="account-settings__input-row">
           <input pInputText type="email" [(ngModel)]="email" [disabled]="saving()" class="w-full" />
-          <p-button label="儲存" size="small" [loading]="saving()" (onClick)="confirmSaveEmail()" />
+          <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="saving()" (onClick)="confirmSaveEmail()" styleClass="account-settings__save-btn" />
         </div>
         <p class="account-settings__hint">修改後需用新 Email 登入</p>
       </div>
@@ -48,7 +48,7 @@
         <label class="account-settings__label">電話</label>
         <div class="account-settings__input-row">
           <input pInputText type="tel" [(ngModel)]="phone" [disabled]="saving()" class="w-full" />
-          <p-button label="儲存" size="small" [loading]="saving()" (onClick)="confirmSavePhone()" />
+          <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="saving()" (onClick)="confirmSavePhone()" styleClass="account-settings__save-btn" />
         </div>
         <p class="account-settings__hint">修改後需用新電話登入</p>
       </div>
@@ -64,7 +64,7 @@
             styleClass="w-full"
             [disabled]="saving()"
           />
-          <p-button label="儲存" size="small" [loading]="saving()" (onClick)="saveBirthday()" />
+          <p-button label="儲存" size="small" severity="secondary" [outlined]="true" [loading]="saving()" (onClick)="saveBirthday()" styleClass="account-settings__save-btn" />
         </div>
       </div>
     </section>

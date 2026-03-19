@@ -48,6 +48,12 @@
     align-items: center;
   }
 
+  &__save-btn {
+    flex-shrink: 0;
+    align-self: center;
+    height: 2rem;
+  }
+
   &__hint {
     font-size: 0.75rem;
     color: var(--zinc-500);
