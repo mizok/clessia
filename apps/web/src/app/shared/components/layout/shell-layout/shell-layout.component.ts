@@ -70,6 +70,12 @@ export class ShellLayoutComponent {
     this.op?.hide();
   }
 
+  changePassword() {
+    this.op.hide();
+    const role = this.auth.activeRole();
+    this.router.navigate([`/${role}/change-password`]);
+  }
+
   openAccountSettings() {
     this.op.hide();
     this.dialogService.open(AccountSettingsDialogComponent, {
