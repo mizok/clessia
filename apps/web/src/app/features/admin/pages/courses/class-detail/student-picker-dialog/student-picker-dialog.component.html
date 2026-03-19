@@ -1,0 +1,74 @@
+<div class="student-picker">
+  <!-- 搜尋 + 篩選 -->
+  <div class="student-picker__filters">
+    <p-iconfield class="student-picker__search">
+      <p-inputicon styleClass="pi pi-search" />
+      <input
+        type="text"
+        pInputText
+        placeholder="搜尋學生姓名"
+        (input)="onSearchChange($any($event.target).value)"
+        class="w-full"
+      />
+    </p-iconfield>
+    <div class="student-picker__filter-row">
+      <p-select
+        [options]="gradeOptions"
+        [ngModel]="selectedGrade"
+        (ngModelChange)="selectedGrade = $event; onFilterChange()"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="年級"
+        styleClass="w-full"
+      />
+      <p-select
+        [options]="genderOptions"
+        [ngModel]="selectedGender"
+        (ngModelChange)="selectedGender = $event; onFilterChange()"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="性別"
+        styleClass="w-full"
+      />
+      <p-select
+        [options]="isActiveOptions"
+        [ngModel]="selectedIsActive"
+        (ngModelChange)="selectedIsActive = $event; onFilterChange()"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="狀態"
+        styleClass="w-full"
+      />
+    </div>
+  </div>
+
+  <!-- 學生列表 -->
+  <div class="student-picker__list">
+    @if (loading()) {
+      @for (i of [1,2,3,4,5]; track i) {
+        <div class="student-picker__skeleton">
+          <p-skeleton height="48px" />
+        </div>
+      }
+    } @else if (filteredStudents().length === 0) {
+      <div class="student-picker__empty">
+        <i class="pi pi-users"></i>
+        <span>沒有符合條件的學生</span>
+      </div>
+    } @else {
+      @for (student of filteredStudents(); track student.id) {
+        <button type="button" class="student-picker__item" (click)="select(student)">
+          <div class="student-picker__item-info">
+            <span class="student-picker__item-name">{{ student.name }}</span>
+            <span class="student-picker__item-meta">{{ gradeLabelMap[student.grade] }} · {{ student.school }}</span>
+          </div>
+          <i class="pi pi-chevron-right student-picker__item-arrow"></i>
+        </button>
+      }
+    }
+  </div>
+
+  <div class="student-picker__footer">
+    <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+  </div>
+</div>
