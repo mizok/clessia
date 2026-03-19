@@ -6,8 +6,7 @@ import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { ToastModule } from 'primeng/toast';
-import { ConfirmationService, MessageService } from 'primeng/api';
+import { ConfirmationService } from 'primeng/api';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { AuthService } from '@core/auth.service';
 import { GRADE_LEVELS, GRADE_LEVEL_LABELS } from '@core/students.service';
@@ -15,6 +14,7 @@ import { environment } from '@env/environment';
 import { firstValueFrom } from 'rxjs';
 
 type AccountView = 'main' | 'activate-step1' | 'activate-step2';
+type FieldKey = 'displayName' | 'email' | 'phone' | 'birthday';
 
 @Component({
   selector: 'app-account-settings-dialog',
@@ -26,22 +26,25 @@ type AccountView = 'main' | 'activate-step1' | 'activate-step2';
     DatePickerModule,
     SelectModule,
     ConfirmDialogModule,
-    ToastModule,
   ],
-  providers: [ConfirmationService, MessageService],
+  providers: [ConfirmationService],
   templateUrl: './account-settings-dialog.component.html',
   styleUrl: './account-settings-dialog.component.scss',
 })
 export class AccountSettingsDialogComponent {
   private readonly http = inject(HttpClient);
-private readonly ref = inject(DynamicDialogRef);
+  private readonly ref = inject(DynamicDialogRef);
   private readonly auth = inject(AuthService);
-  private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
 
   protected readonly view = signal<AccountView>('main');
-  protected readonly saving = signal(false);
+  protected readonly savingField = signal<FieldKey | null>(null);
+  protected readonly savedField = signal<FieldKey | null>(null);
+  protected readonly fieldError = signal<{ field: FieldKey; msg: string } | null>(null);
   protected readonly activating = signal(false);
+  protected readonly activateError = signal<string | null>(null);
+
+  protected readonly saving = computed(() => this.savingField() !== null);
 
   protected readonly hasParentRole = computed(() =>
     this.auth.roles().includes('parent'),
@@ -84,11 +87,11 @@ private readonly ref = inject(DynamicDialogRef);
   }
 
   protected saveDisplayName() {
-    this.patchMe({ displayName: this.displayName.trim() }, '顯示名稱已更新');
+    this.patchMe('displayName', { displayName: this.displayName.trim() });
   }
 
   protected saveBirthday() {
-    this.patchMe({ birthday: this.birthday ? this.formatDate(this.birthday) : null }, '生日已更新');
+    this.patchMe('birthday', { birthday: this.birthday ? this.formatDate(this.birthday) : null });
   }
 
   protected confirmSaveEmail() {
@@ -98,7 +101,7 @@ private readonly ref = inject(DynamicDialogRef);
       header: '確認修改 Email',
       acceptLabel: '確定修改',
       rejectLabel: '取消',
-      accept: () => this.patchMe({ email: this.email.trim() }, 'Email 已更新'),
+      accept: () => this.patchMe('email', { email: this.email.trim() }),
     });
   }
 
@@ -109,31 +112,37 @@ private readonly ref = inject(DynamicDialogRef);
       header: '確認修改電話',
       acceptLabel: '確定修改',
       rejectLabel: '取消',
-      accept: () => this.patchMe({ phone: this.phone.trim() || null }, '電話已更新'),
+      accept: () => this.patchMe('phone', { phone: this.phone.trim() || null }),
     });
   }
 
-  private patchMe(payload: Record<string, unknown>, successMsg: string) {
-    this.saving.set(true);
+  private patchMe(field: FieldKey, payload: Record<string, unknown>) {
+    this.savingField.set(field);
+    this.fieldError.set(null);
     this.http
       .patch(`${environment.apiUrl}/api/me`, payload, { withCredentials: true })
       .subscribe({
         next: () => {
-          this.messageService.add({ severity: 'success', summary: successMsg });
-          this.saving.set(false);
+          this.savingField.set(null);
+          this.savedField.set(field);
           void this.auth.refreshRoles();
+          setTimeout(() => {
+            if (this.savedField() === field) this.savedField.set(null);
+          }, 2000);
         },
         error: (err) => {
+          this.savingField.set(null);
           const code = (err.error as { code?: string } | null)?.code;
-          const msg =
-            code === 'EMAIL_ALREADY_IN_USE' ? '此 Email 已被使用' : '更新失敗，請稍後再試';
-          this.messageService.add({ severity: 'error', summary: msg });
-          this.saving.set(false);
+          const msg = code === 'EMAIL_ALREADY_IN_USE' ? '此 Email 已被使用' : '更新失敗，請稍後再試';
+          this.fieldError.set({ field, msg });
+          setTimeout(() => {
+            if (this.fieldError()?.field === field) this.fieldError.set(null);
+          }, 4000);
         },
       });
   }
 
-protected startActivateParent() {
+  protected startActivateParent() {
     this.studentName = '';
     this.studentGrade = '';
     this.view.set('activate-step1');
@@ -150,6 +159,7 @@ protected startActivateParent() {
 
   protected confirmActivate() {
     this.activating.set(true);
+    this.activateError.set(null);
     this.http
       .post(
         `${environment.apiUrl}/api/me/activate-parent`,
@@ -159,16 +169,11 @@ protected startActivateParent() {
       .subscribe({
         next: () => {
           void this.auth.refreshRoles();
-          this.messageService.add({
-            severity: 'success',
-            summary: '家長身份已啟用',
-            detail: '下次切換角色時即可使用',
-          });
           this.activating.set(false);
           this.view.set('main');
         },
         error: () => {
-          this.messageService.add({ severity: 'error', summary: '啟用失敗，請稍後再試' });
+          this.activateError.set('啟用失敗，請稍後再試');
           this.activating.set(false);
         },
       });

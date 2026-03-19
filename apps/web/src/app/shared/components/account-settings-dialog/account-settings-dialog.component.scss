@@ -52,6 +52,12 @@
     margin: 0;
   }
 
+  &__error {
+    font-size: var(--text-xs);
+    color: var(--red-500);
+    margin: 0;
+  }
+
   &__desc {
     font-size: var(--text-sm);
     color: var(--zinc-500);
