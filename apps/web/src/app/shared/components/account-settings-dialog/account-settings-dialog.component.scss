@@ -66,34 +66,7 @@
     margin: 0 0 var(--space-3);
   }
 
-  &__action-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    width: 100%;
-    padding: var(--space-2) 0;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--zinc-700);
-    font-size: 0.875rem;
-
-    &:hover {
-      color: var(--zinc-900);
-    }
-  }
-
-  &__action-icon {
-    color: var(--zinc-500);
-  }
-
-  &__action-chevron {
-    margin-left: auto;
-    color: var(--zinc-400);
-    font-size: 0.75rem;
-  }
-
-  &__step {
+&__step {
     padding: var(--space-4) var(--space-5);
     display: flex;
     flex-direction: column;

@@ -69,20 +69,7 @@
       </div>
     </section>
 
-    <section class="account-settings__section">
-      <h3 class="account-settings__section-title">安全性</h3>
-      <button
-        type="button"
-        class="account-settings__action-row"
-        (click)="goToChangePassword()"
-      >
-        <i class="pi pi-key account-settings__action-icon"></i>
-        <span>修改密碼</span>
-        <i class="pi pi-chevron-right account-settings__action-chevron"></i>
-      </button>
-    </section>
-
-    @if (!hasParentRole()) {
+@if (!hasParentRole()) {
       <section class="account-settings__section">
         <h3 class="account-settings__section-title">家長身份</h3>
         <p class="account-settings__desc">

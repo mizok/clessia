@@ -1,7 +1,6 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { Router } from '@angular/router';
 import { InputTextModule } from 'primeng/inputtext';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
@@ -35,8 +34,7 @@ type AccountView = 'main' | 'activate-step1' | 'activate-step2';
 })
 export class AccountSettingsDialogComponent {
   private readonly http = inject(HttpClient);
-  private readonly router = inject(Router);
-  private readonly ref = inject(DynamicDialogRef);
+private readonly ref = inject(DynamicDialogRef);
   private readonly auth = inject(AuthService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
@@ -135,13 +133,7 @@ export class AccountSettingsDialogComponent {
       });
   }
 
-  protected goToChangePassword() {
-    const role = this.auth.activeRole();
-    this.ref.close();
-    this.router.navigate([`/${role}/change-password`]);
-  }
-
-  protected startActivateParent() {
+protected startActivateParent() {
     this.studentName = '';
     this.studentGrade = '';
     this.view.set('activate-step1');
