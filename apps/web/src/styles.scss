@@ -484,6 +484,33 @@ select {
     line-height: 1.4;
   }
 
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  &__back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    color: var(--zinc-500);
+    transition: all var(--transition-fast);
+
+    &:hover {
+      background: var(--zinc-100);
+      color: var(--zinc-900);
+    }
+
+    .pi {
+      font-size: 13px;
+    }
+  }
+
   &__close {
     width: 2rem;
     height: 2rem;
