@@ -2,8 +2,8 @@
   &__section {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
-    padding: var(--space-5) var(--space-6);
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-6);
     border-bottom: 1px solid var(--zinc-100);
 
     &:last-child {
@@ -33,7 +33,7 @@
   &__save-btn {
     flex-shrink: 0;
     align-self: center;
-    height: 2rem;
+    white-space: nowrap;
   }
 
   &__hint {
