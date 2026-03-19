@@ -15,6 +15,7 @@ const MeResponseSchema = z
     birthday: z.string().nullable(),
     roles: z.array(z.string()),
     permissions: z.array(z.string()),
+    isRootUser: z.boolean(),
   })
   .openapi('MeResponse');
 
@@ -65,7 +66,7 @@ app.openapi(
       supabase.from('profiles').select('display_name').eq('id', userId).single(),
       supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
       supabase.from('staff').select('birthday').eq('user_id', userId).maybeSingle(),
-      supabase.from('ba_user').select('email, phone').eq('id', userId).single(),
+      supabase.from('ba_user').select('email, phone, username').eq('id', userId).single(),
     ]);
 
     return c.json({
@@ -79,6 +80,7 @@ app.openapi(
       permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
         Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
       ),
+      isRootUser: (baUserResult.data?.username as string | null) === 'root',
     }, 200);
   },
 );
@@ -151,7 +153,7 @@ app.openapi(
       supabase.from('profiles').select('display_name').eq('id', userId).single(),
       supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
       supabase.from('staff').select('birthday').eq('user_id', userId).maybeSingle(),
-      supabase.from('ba_user').select('email, phone').eq('id', userId).single(),
+      supabase.from('ba_user').select('email, phone, username').eq('id', userId).single(),
     ]);
 
     return c.json({
@@ -165,6 +167,7 @@ app.openapi(
       permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
         Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
       ),
+      isRootUser: (baUserResult.data?.username as string | null) === 'root',
     }, 200);
   },
 );

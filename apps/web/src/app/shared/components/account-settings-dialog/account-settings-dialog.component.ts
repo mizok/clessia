@@ -43,6 +43,7 @@ export class AccountSettingsDialogComponent {
   protected readonly fieldError = signal<{ field: FieldKey; msg: string } | null>(null);
   protected readonly activating = signal(false);
   protected readonly activateError = signal<string | null>(null);
+  protected readonly isRootUser = signal(false);
 
   protected readonly saving = computed(() => this.savingField() !== null);
 
@@ -75,12 +76,14 @@ export class AccountSettingsDialogComponent {
           email: string | null;
           phone: string | null;
           birthday: string | null;
+          isRootUser: boolean;
         }>(`${environment.apiUrl}/api/me`, { withCredentials: true }),
       );
       this.displayName = me.displayName;
       this.email = me.email ?? '';
       this.phone = me.phone ?? '';
       this.birthday = me.birthday ? new Date(me.birthday) : null;
+      this.isRootUser.set(me.isRootUser);
     } catch {
       // silently ignore — 初始值已從 auth.user() 設定
     }

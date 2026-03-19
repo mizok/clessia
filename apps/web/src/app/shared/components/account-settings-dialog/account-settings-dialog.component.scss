@@ -46,6 +46,12 @@
     align-self: center;
   }
 
+  &__readonly {
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+    padding: var(--space-2) 0;
+  }
+
   &__hint {
     font-size: var(--text-xs);
     color: var(--zinc-400);
