@@ -169,16 +169,32 @@
       }
     </div>
 
-    <!-- Deferred: Enrollments -->
-    <div class="student-detail__section-card student-detail__section-card--deferred">
-      <div class="student-detail__deferred-header">
-        <h2 class="student-detail__section-title">報名課程</h2>
-        <span class="student-detail__deferred-badge">開發中</span>
-      </div>
-      <div class="student-detail__empty-section">
-        <i class="pi pi-list"></i>
-        <span>報名資料功能開發中</span>
-      </div>
+    <!-- 在籍班級 -->
+    <div class="student-detail__section-card">
+      <h2 class="student-detail__section-title">在籍班級</h2>
+      @if (enrollmentsLoading()) {
+        <p-skeleton height="48px" />
+      } @else if (enrollments().length === 0) {
+        <div class="student-detail__empty-section">
+          <i class="pi pi-list"></i>
+          <span>尚未加入任何班級</span>
+        </div>
+      } @else {
+        <div class="student-detail__enrollments-list">
+          @for (enrollment of enrollments(); track enrollment.id) {
+            <div class="student-detail__enrollment-item">
+              <div class="student-detail__enrollment-info">
+                <span class="student-detail__enrollment-class">{{ enrollment.className }}</span>
+                <span class="student-detail__enrollment-since">自 {{ enrollment.effectiveFrom }}</span>
+              </div>
+              <p-tag
+                [value]="ENROLLMENT_STATUS_LABELS[enrollment.status]"
+                [severity]="enrollment.status === 'active' ? 'success' : 'warn'"
+              />
+            </div>
+          }
+        </div>
+      }
     </div>
 
     <!-- Deferred: Attendance -->
