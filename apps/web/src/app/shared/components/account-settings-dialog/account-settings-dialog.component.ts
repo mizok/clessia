@@ -4,16 +4,13 @@ import { HttpClient } from '@angular/common/http';
 import { InputTextModule } from 'primeng/inputtext';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
-import { SelectModule } from 'primeng/select';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ConfirmationService } from 'primeng/api';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { AuthService } from '@core/auth.service';
-import { GRADE_LEVELS, GRADE_LEVEL_LABELS } from '@core/students.service';
 import { environment } from '@env/environment';
 import { firstValueFrom } from 'rxjs';
 
-type AccountView = 'main' | 'activate-step1' | 'activate-step2';
 type FieldKey = 'displayName' | 'email' | 'phone' | 'birthday';
 
 @Component({
@@ -24,7 +21,6 @@ type FieldKey = 'displayName' | 'email' | 'phone' | 'birthday';
     InputTextModule,
     ButtonModule,
     DatePickerModule,
-    SelectModule,
     ConfirmDialogModule,
   ],
   providers: [ConfirmationService],
@@ -37,7 +33,6 @@ export class AccountSettingsDialogComponent {
   private readonly auth = inject(AuthService);
   private readonly confirmationService = inject(ConfirmationService);
 
-  protected readonly view = signal<AccountView>('main');
   protected readonly savingField = signal<FieldKey | null>(null);
   protected readonly savedField = signal<FieldKey | null>(null);
   protected readonly fieldError = signal<{ field: FieldKey; msg: string } | null>(null);
@@ -55,14 +50,6 @@ export class AccountSettingsDialogComponent {
   protected email = this.auth.user()?.email ?? '';
   protected phone = '';
   protected birthday: Date | null = null;
-
-  protected studentName = '';
-  protected studentGrade = '';
-
-  protected readonly gradeOptions = GRADE_LEVELS.map((g) => ({
-    label: GRADE_LEVEL_LABELS[g],
-    value: g,
-  }));
 
   constructor() {
     void this.loadMe();
@@ -145,35 +132,26 @@ export class AccountSettingsDialogComponent {
       });
   }
 
-  protected startActivateParent() {
-    this.studentName = '';
-    this.studentGrade = '';
-    this.view.set('activate-step1');
+  protected confirmActivateParent() {
+    this.confirmationService.confirm({
+      key: 'account-settings-confirm',
+      message: '啟用後即可使用家長 portal 查看子女的出缺席與課表，之後可在家長頁面中新增子女。',
+      header: '確認啟用家長身份',
+      acceptLabel: '確認啟用',
+      rejectLabel: '取消',
+      accept: () => this.activateParent(),
+    });
   }
 
-  protected goToStep2() {
-    if (!this.studentName.trim() || !this.studentGrade) return;
-    this.view.set('activate-step2');
-  }
-
-  protected goBackToStep1() {
-    this.view.set('activate-step1');
-  }
-
-  protected confirmActivate() {
+  private activateParent() {
     this.activating.set(true);
     this.activateError.set(null);
     this.http
-      .post(
-        `${environment.apiUrl}/api/me/activate-parent`,
-        { studentName: this.studentName.trim(), grade: this.studentGrade },
-        { withCredentials: true },
-      )
+      .post(`${environment.apiUrl}/api/me/activate-parent`, {}, { withCredentials: true })
       .subscribe({
         next: () => {
           void this.auth.refreshRoles();
           this.activating.set(false);
-          this.view.set('main');
         },
         error: () => {
           this.activateError.set('啟用失敗，請稍後再試');

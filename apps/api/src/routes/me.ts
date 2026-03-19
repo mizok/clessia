@@ -1,10 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 
-const GradeLevelSchema = z
-  .enum(['K', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'J1', 'J2', 'J3', 'S1', 'S2', 'S3'])
-  .openapi('MeGradeLevel');
-
 const MeResponseSchema = z
   .object({
     userId: z.string(),
@@ -31,13 +27,6 @@ const PatchMeSchema = z
       .optional(),
   })
   .openapi('PatchMeRequest');
-
-const ActivateParentSchema = z
-  .object({
-    studentName: z.string().min(1),
-    grade: GradeLevelSchema,
-  })
-  .openapi('ActivateParentRequest');
 
 const ErrorSchema = z.object({ error: z.string(), code: z.string() });
 
@@ -178,16 +167,13 @@ app.openapi(
     method: 'post',
     path: '/activate-parent',
     tags: ['Me'],
-    summary: '啟用家長身份並建立子女學生資料',
-    request: {
-      body: { content: { 'application/json': { schema: ActivateParentSchema } } },
-    },
+    summary: '啟用家長身份',
     responses: {
       200: {
         description: '啟用成功',
         content: {
           'application/json': {
-            schema: z.object({ studentId: z.string(), roles: z.array(z.string()) }),
+            schema: z.object({ roles: z.array(z.string()) }),
           },
         },
       },
@@ -201,7 +187,6 @@ app.openapi(
     const supabase = c.get('supabase');
     const userId = c.get('userId');
     const orgId = c.get('orgId');
-    const body = c.req.valid('json');
 
     // Step 1：取得或建立 parents 記錄
     const { data: existingParent } = await supabase
@@ -211,86 +196,38 @@ app.openapi(
       .eq('org_id', orgId)
       .maybeSingle();
 
-    let parentId: string;
-
-    if (existingParent) {
-      parentId = (existingParent as Record<string, unknown>)['id'] as string;
-    } else {
+    if (!existingParent) {
       const { data: profile } = await supabase
         .from('profiles')
         .select('display_name')
         .eq('id', userId)
         .single();
 
-      const { data: newParent, error: parentError } = await supabase
-        .from('parents')
-        .insert({
-          user_id: userId,
-          org_id: orgId,
-          name: (profile as Record<string, unknown> | null)?.['display_name'] ?? '家長',
-          status: 'active',
-        })
-        .select('id')
-        .single();
+      const { error: parentError } = await supabase.from('parents').insert({
+        user_id: userId,
+        org_id: orgId,
+        name: (profile as Record<string, unknown> | null)?.['display_name'] ?? '家長',
+        status: 'active',
+      });
 
-      if (parentError || !newParent) {
+      if (parentError) {
         return c.json({ error: '建立家長資料失敗', code: 'CREATE_PARENT_FAILED' }, 500);
       }
-      parentId = (newParent as Record<string, unknown>)['id'] as string;
     }
 
-    // Step 2：建立學生記錄
-    const { data: newStudent, error: studentError } = await supabase
-      .from('students')
-      .insert({
-        org_id: orgId,
-        name: body.studentName,
-        grade: body.grade,
-        school: '',
-        is_active: true,
-      })
-      .select('id')
-      .single();
-
-    if (studentError || !newStudent) {
-      return c.json({ error: '建立學生資料失敗', code: 'CREATE_STUDENT_FAILED' }, 500);
-    }
-
-    const studentId = (newStudent as Record<string, unknown>)['id'] as string;
-
-    // Step 3：建立 parent_student_relations
-    const { error: relError } = await supabase.from('parent_student_relations').insert({
-      parent_id: parentId,
-      student_id: studentId,
-      is_primary: true,
-      relation: null,
-    });
-
-    if (relError) {
-      await supabase.from('students').delete().eq('id', studentId);
-      return c.json({ error: '建立關聯失敗', code: 'CREATE_RELATION_FAILED' }, 500);
-    }
-
-    // Step 4：新增 parent role
+    // Step 2：新增 parent role
     const { error: roleError } = await supabase.from('user_roles').upsert(
       { user_id: userId, role: 'parent', permissions: [] },
       { onConflict: 'user_id,role', ignoreDuplicates: true },
     );
 
     if (roleError) {
-      await supabase
-        .from('parent_student_relations')
-        .delete()
-        .eq('parent_id', parentId)
-        .eq('student_id', studentId);
-      await supabase.from('students').delete().eq('id', studentId);
       return c.json({ error: '賦予角色失敗', code: 'GRANT_ROLE_FAILED' }, 500);
     }
 
     const { data: rolesResult } = await supabase.from('user_roles').select('role').eq('user_id', userId);
 
     return c.json({
-      studentId,
       roles: (rolesResult ?? []).map((r: { role: string }) => r.role),
     }, 200);
   },
