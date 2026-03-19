@@ -117,7 +117,7 @@ export class AuthService {
     account: string,
     password: string,
     _captchaToken?: string,
-    loginType: 'email' | 'phone' = 'email',
+    loginType: 'email' | 'phone' | 'username' = 'email',
   ): Promise<string | null> {
     const res = await fetch(`${environment.apiUrl}/api/login`, {
       method: 'POST',
