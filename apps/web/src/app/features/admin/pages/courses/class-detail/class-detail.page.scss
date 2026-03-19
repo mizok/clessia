@@ -1,0 +1,162 @@
+.class-detail {
+  padding: var(--space-6);
+  max-width: 900px;
+
+  &__nav {
+    margin-bottom: var(--space-4);
+  }
+
+  &__loading {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-12) 0;
+  }
+
+  &__header {
+    margin-bottom: var(--space-6);
+  }
+
+  &__title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+  }
+
+  &__sep {
+    color: var(--color-border);
+  }
+
+  &__tab-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--space-4);
+  }
+
+  &__skeletons {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  &__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-10) 0;
+    color: var(--color-text-muted);
+
+    i {
+      font-size: 2rem;
+    }
+  }
+
+  &__student-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  &__student-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+  }
+
+  &__student-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--color-surface-hover);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+  }
+
+  &__student-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__student-name {
+    font-weight: 500;
+    color: var(--color-text);
+  }
+
+  &__student-since {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
+
+  &__action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-muted);
+    transition: background 0.15s;
+
+    &:hover {
+      background: var(--color-surface-hover);
+    }
+  }
+
+  &__schedules {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4) 0;
+  }
+
+  &__schedule-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+  }
+
+  &__schedule-day {
+    font-weight: 500;
+    min-width: 40px;
+    color: var(--color-text);
+  }
+
+  &__schedule-time {
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+  }
+
+  &__schedule-teacher {
+    margin-left: auto;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+  }
+}

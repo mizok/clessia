@@ -1,0 +1,119 @@
+<p-toast position="top-center" [baseZIndex]="30000" />
+<p-menu #actionMenu [model]="actionMenuItems()" [popup]="true" [appendTo]="overlayContainer || 'body'" />
+
+<div class="class-detail">
+  <div class="class-detail__nav">
+    <p-button
+      label="課程列表"
+      icon="pi pi-arrow-left"
+      [text]="true"
+      severity="secondary"
+      (onClick)="goBack()"
+    />
+  </div>
+
+  @if (loading()) {
+    <div class="class-detail__loading">
+      <i class="pi pi-spinner pi-spin" style="font-size: 2rem; color: var(--zinc-400)"></i>
+    </div>
+  } @else if (cls()) {
+    <div class="class-detail__header">
+      <div class="class-detail__title-row">
+        <h1 class="class-detail__title">{{ cls()!.name }}</h1>
+        <p-tag
+          [value]="cls()!.isActive ? '開班中' : '已停班'"
+          [severity]="cls()!.isActive ? 'success' : 'secondary'"
+        />
+      </div>
+      <div class="class-detail__meta">
+        <span>{{ cls()!.courseName }}</span>
+        <span class="class-detail__sep">·</span>
+        <span>上限 {{ cls()!.maxStudents }} 人</span>
+      </div>
+    </div>
+
+    <p-tabs value="0">
+      <p-tablist>
+        <p-tab value="0">學生名單</p-tab>
+        <p-tab value="1">課表</p-tab>
+      </p-tablist>
+
+      <p-tabpanels>
+        <!-- 學生名單 tab -->
+        <p-tabpanel value="0">
+          <div class="class-detail__tab-actions">
+            <p-button
+              label="加入學生"
+              icon="pi pi-user-plus"
+              (onClick)="openStudentPicker()"
+              [disabled]="!cls()!.isActive"
+            />
+          </div>
+
+          @if (enrollmentsLoading()) {
+            <div class="class-detail__skeletons">
+              @for (i of [1, 2, 3]; track i) {
+                <p-skeleton height="56px" styleClass="mb-2" />
+              }
+            </div>
+          } @else if (enrollments().length === 0) {
+            <div class="class-detail__empty">
+              <i class="pi pi-users"></i>
+              <span>尚未加入任何學生</span>
+            </div>
+          } @else {
+            <div class="class-detail__student-list">
+              @for (enrollment of enrollments(); track enrollment.id) {
+                <div class="class-detail__student-item">
+                  <div class="class-detail__student-avatar">
+                    <i class="pi pi-user"></i>
+                  </div>
+                  <div class="class-detail__student-info">
+                    <span class="class-detail__student-name">{{ enrollment.studentName }}</span>
+                    <span class="class-detail__student-since">自 {{ enrollment.effectiveFrom }}</span>
+                  </div>
+                  <p-tag
+                    [value]="statusLabels[enrollment.status]"
+                    [severity]="getStatusSeverity(enrollment.status)"
+                  />
+                  <button
+                    type="button"
+                    class="class-detail__action-btn"
+                    (click)="openActionMenu($event, enrollment)"
+                    aria-label="操作"
+                  >
+                    <i class="pi pi-ellipsis-v"></i>
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </p-tabpanel>
+
+        <!-- 課表 tab -->
+        <p-tabpanel value="1">
+          <div class="class-detail__schedules">
+            @if (!cls()!.schedules?.length) {
+              <div class="class-detail__empty">
+                <i class="pi pi-calendar"></i>
+                <span>尚未設定課表</span>
+              </div>
+            } @else {
+              @for (schedule of cls()!.schedules ?? []; track schedule.id) {
+                <div class="class-detail__schedule-item">
+                  <span class="class-detail__schedule-day">{{ getWeekdayLabel(schedule.weekday) }}</span>
+                  <span class="class-detail__schedule-time">
+                    {{ schedule.startTime }} – {{ schedule.endTime }}
+                  </span>
+                  @if (schedule.teacherName) {
+                    <span class="class-detail__schedule-teacher">{{ schedule.teacherName }}</span>
+                  }
+                </div>
+              }
+            }
+          </div>
+        </p-tabpanel>
+      </p-tabpanels>
+    </p-tabs>
+  }
+</div>
