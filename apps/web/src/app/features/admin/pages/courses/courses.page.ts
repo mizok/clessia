@@ -799,6 +799,10 @@ export class CoursesPage implements OnInit {
       });
   }
 
+  protected navigateToClass(courseId: string, classId: string): void {
+    this.router.navigate(['/admin/courses', courseId, 'classes', classId]);
+  }
+
   protected navigateToSessionsList(cls: Class): void {
     this.sessionsService
       .list({

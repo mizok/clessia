@@ -329,6 +329,19 @@
     font-weight: var(--font-medium);
     color: var(--zinc-800);
     min-width: 30px;
+
+    &--link {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      text-align: left;
+
+      &:hover {
+        color: var(--accent-600);
+        text-decoration: underline;
+      }
+    }
   }
 
   &__capacity {

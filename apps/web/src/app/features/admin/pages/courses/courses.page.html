@@ -250,7 +250,11 @@
                           (change)="toggleClassSelection(cls.id, $event)"
                           (click)="$event.stopPropagation()"
                         />
-                        <span class="class-row__name">{{ cls.name }}</span>
+                        <button
+                          type="button"
+                          class="class-row__name class-row__name--link"
+                          (click)="navigateToClass(group.course.id, cls.id); $event.stopPropagation()"
+                        >{{ cls.name }}</button>
                         <span
                           class="class-row__schedules"
                           (click)="openDetail(cls); $event.stopPropagation()"
