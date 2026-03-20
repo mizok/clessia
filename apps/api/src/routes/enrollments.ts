@@ -74,6 +74,24 @@ const UpdateEnrollmentStatusSchema = z
   })
   .openapi('UpdateEnrollmentStatus');
 
+const BatchCreateEnrollmentSchema = z
+  .object({
+    classId: z.uuid(),
+    studentIds: z.array(z.uuid()).min(1).max(50),
+  })
+  .openapi('BatchCreateEnrollment');
+
+const BatchCreateResultItemSchema = z.object({
+  studentId: z.uuid(),
+  status: z.enum(['enrolled', 'already_exists', 'error']),
+  enrollmentId: z.uuid().optional(),
+  message: z.string().optional(),
+});
+
+const BatchCreateResultSchema = z
+  .object({ results: z.array(BatchCreateResultItemSchema) })
+  .openapi('BatchCreateEnrollmentResult');
+
 // ============================================================
 // Helper
 // ============================================================
@@ -308,6 +326,81 @@ app.openapi(
 
     if (error) return c.json({ error: error.message }, 500);
     return c.json({ data: toEnrollmentResponse(data) }, 200);
+  },
+);
+
+// POST /api/enrollments/batch
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/batch',
+    tags: ['Enrollments'],
+    request: { body: { content: { 'application/json': { schema: BatchCreateEnrollmentSchema } } } },
+    responses: {
+      200: { content: { 'application/json': { schema: BatchCreateResultSchema } }, description: 'OK' },
+      400: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Bad Request (over_quota)',
+      },
+      404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Class not found' },
+      500: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Internal Server Error' },
+    },
+  }),
+  async (c) => {
+    const { classId, studentIds } = c.req.valid('json');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
+    const supabase = c.get('supabase');
+
+    const { data: cls } = await supabase
+      .from('classes')
+      .select('max_students')
+      .eq('id', classId)
+      .eq('org_id', orgId)
+      .single();
+
+    if (!cls) return c.json({ error: 'CLASS_NOT_FOUND' }, 404);
+
+    const { count: activeCount } = await supabase
+      .from('enrollments')
+      .select('*', { count: 'exact', head: true })
+      .eq('class_id', classId)
+      .eq('org_id', orgId)
+      .in('status', ['active', 'pending_payment']);
+
+    if ((activeCount ?? 0) + studentIds.length > (cls.max_students ?? 9999)) {
+      return c.json({ error: 'over_quota' }, 400);
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const results: z.infer<typeof BatchCreateResultItemSchema>[] = [];
+
+    for (const studentId of studentIds) {
+      const { data, error } = await supabase
+        .from('enrollments')
+        .insert({
+          org_id: orgId,
+          class_id: classId,
+          student_id: studentId,
+          status: 'active',
+          effective_from: today,
+          created_by: userId,
+        })
+        .select('id')
+        .single();
+
+      if (error) {
+        if (error.code === '23505') {
+          results.push({ studentId, status: 'already_exists' });
+        } else {
+          results.push({ studentId, status: 'error', message: error.message });
+        }
+      } else {
+        results.push({ studentId, status: 'enrolled', enrollmentId: data.id });
+      }
+    }
+
+    return c.json({ results }, 200);
   },
 );
 

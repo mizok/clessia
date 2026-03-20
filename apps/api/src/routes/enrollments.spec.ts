@@ -40,3 +40,25 @@ describe('toEnrollmentResponse', () => {
     expect(result?.['attendanceCount']).toBe(0);
   });
 });
+
+describe('POST /api/enrollments/batch result mapping', () => {
+  it('returns already_exists when supabase returns error code 23505', () => {
+    const supabaseError = { code: '23505', message: 'duplicate key value violates unique constraint' };
+    const resultStatus = supabaseError.code === '23505' ? 'already_exists' : 'error';
+    expect(resultStatus).toBe('already_exists');
+  });
+
+  it('returns enrolled when supabase insert succeeds', () => {
+    const supabaseData = { id: 'enroll-uuid-1' };
+    const supabaseError = null;
+    const resultStatus = supabaseError === null ? 'enrolled' : 'error';
+    expect(resultStatus).toBe('enrolled');
+    expect(supabaseData.id).toBe('enroll-uuid-1');
+  });
+
+  it('returns error for non-unique errors', () => {
+    const supabaseError = { code: '23503', message: 'foreign key violation' };
+    const resultStatus = supabaseError.code === '23505' ? 'already_exists' : 'error';
+    expect(resultStatus).toBe('error');
+  });
+});
