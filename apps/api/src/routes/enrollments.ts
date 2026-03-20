@@ -159,7 +159,7 @@ app.openapi(
     let query = supabase
       .from('enrollments')
       .select(
-        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, courses(id, name)), students(name), creator:ba_user!created_by(name), attendances(count)',
+        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, courses(id, name)), students(name), creator:ba_user!created_by(name)',
         { count: 'exact' },
       )
       .eq('org_id', orgId)
