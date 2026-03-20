@@ -17,6 +17,7 @@ import {
   Enrollment,
   EnrollmentStatus,
   ENROLLMENT_STATUS_LABELS,
+  BatchCreateResultItem,
 } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -25,7 +26,6 @@ import {
   type ConfirmDialogData,
 } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { StudentPickerDialogComponent } from './student-picker-dialog/student-picker-dialog.component';
-import type { Student } from '@core/students.service';
 
 @Component({
   selector: 'app-class-detail',
@@ -77,6 +77,7 @@ export class ClassDetailPage implements OnInit {
     const e = this.selectedEnrollment();
     if (!e) return [];
     const items: MenuItem[] = [];
+
     if (e.status === 'active') {
       items.push({ label: '停權', icon: 'pi pi-lock', command: () => this.confirmSuspend(e) });
     }
@@ -85,12 +86,17 @@ export class ClassDetailPage implements OnInit {
     }
     if (e.status === 'pending_payment') {
       items.push({ label: '確認收款', icon: 'pi pi-check', command: () => this.changeStatus(e, 'active') });
-      items.push({ label: '刪除', icon: 'pi pi-trash', command: () => this.confirmDelete(e) });
     }
+
     if (!['withdrawal', 'void'].includes(e.status)) {
       items.push({ separator: true });
-      items.push({ label: '退班', icon: 'pi pi-sign-out', command: () => this.confirmWithdrawal(e) });
+      if (e.attendanceCount === 0) {
+        items.push({ label: '移除', icon: 'pi pi-trash', command: () => this.confirmRemove(e) });
+      } else {
+        items.push({ label: '退班', icon: 'pi pi-sign-out', command: () => this.confirmWithdrawal(e) });
+      }
     }
+
     return items;
   });
 
@@ -141,51 +147,42 @@ export class ClassDetailPage implements OnInit {
       .filter((e) => !['withdrawal', 'void'].includes(e.status))
       .map((e) => e.studentId);
 
+    const currentActiveCount = this.enrollments().filter((e) =>
+      ['active', 'pending_payment'].includes(e.status),
+    ).length;
+
     const ref = this.dialogService.open(StudentPickerDialogComponent, {
       header: '選擇學生',
       width: '560px',
       modal: true,
       appendTo: this.overlayContainer || 'body',
-      data: { existingStudentIds },
+      data: {
+        existingStudentIds,
+        maxStudents: this.cls()?.maxStudents ?? 9999,
+        currentActiveCount,
+        classId: this.classId(),
+      },
     });
 
-    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((student?: Student) => {
-      if (!student) return;
-      this.addStudent(student);
-    });
-  }
-
-  private addStudent(student: Student): void {
-    const activeCount = this.enrollments().filter((e) =>
-      ['active', 'pending_payment'].includes(e.status),
-    ).length;
-    const maxStudents = this.cls()?.maxStudents ?? 0;
-
-    this.enrollmentsService
-      .create({ classId: this.classId(), studentId: student.id, status: 'active' })
+    ref?.onClose
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          if (activeCount >= maxStudents) {
-            this.messageService.add({
-              severity: 'warn',
-              summary: '已超過人數上限',
-              detail: `班級人數已達 ${maxStudents} 人，已超額加入`,
-            });
-          } else {
-            this.messageService.add({
-              severity: 'success',
-              summary: '已加入',
-              detail: `「${student.name}」已加入班級`,
-            });
-          }
-          this.loadEnrollments();
-        },
-        error: (err) => {
-          const code = err.error?.error;
-          const detail = code === 'ALREADY_ENROLLED' ? '該學生已在此班' : '請稍後再試';
-          this.messageService.add({ severity: 'error', summary: '加入失敗', detail });
-        },
+      .subscribe((res?: { results: BatchCreateResultItem[] }) => {
+        if (!res?.results?.length) return;
+        const enrolled = res.results.filter((r) => r.status === 'enrolled').length;
+        const alreadyExists = res.results.filter((r) => r.status === 'already_exists').length;
+        const errors = res.results.filter((r) => r.status === 'error').length;
+
+        const parts: string[] = [];
+        if (enrolled > 0) parts.push(`成功加入 ${enrolled} 人`);
+        if (alreadyExists > 0) parts.push(`${alreadyExists} 人已在班（略過）`);
+        if (errors > 0) parts.push(`${errors} 人失敗`);
+
+        this.messageService.add({
+          severity: errors > 0 ? 'warn' : 'success',
+          summary: '加入完成',
+          detail: parts.join('，'),
+        });
+        this.loadEnrollments();
       });
   }
 
@@ -236,12 +233,12 @@ export class ClassDetailPage implements OnInit {
     );
   }
 
-  private confirmDelete(enrollment: Enrollment): void {
+  private confirmRemove(enrollment: Enrollment): void {
     this.openConfirmDialog(
-      '刪除報名',
+      '移除學生',
       {
-        message: `確定要刪除「${enrollment.studentName}」的報名記錄嗎？`,
-        acceptLabel: '刪除',
+        message: `確定要移除「${enrollment.studentName}」？此操作不留紀錄，無法復原。`,
+        acceptLabel: '移除',
         rejectLabel: '取消',
         acceptSeverity: 'danger',
       },
@@ -251,8 +248,13 @@ export class ClassDetailPage implements OnInit {
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe({
             next: () => {
-              this.messageService.add({ severity: 'success', summary: '已刪除' });
+              this.messageService.add({ severity: 'success', summary: '已移除', detail: `「${enrollment.studentName}」已從班級移除` });
               this.loadEnrollments();
+            },
+            error: (err) => {
+              const code = err.error?.error;
+              const detail = code === 'has_attendance' ? '此學生已有出勤紀錄，請改用退班流程' : '請稍後再試';
+              this.messageService.add({ severity: 'error', summary: '移除失敗', detail });
             },
           });
       },
