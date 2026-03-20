@@ -32,6 +32,7 @@ export interface Enrollment {
   createdByName: string | null;
   createdAt: string;
   updatedAt: string;
+  attendanceCount: number;
 }
 
 export interface CreateEnrollmentInput {
@@ -64,6 +65,18 @@ export interface EnrollmentQueryParams {
   pageSize?: number;
 }
 
+export interface BatchCreateResultItem {
+  studentId: string;
+  status: 'enrolled' | 'already_exists' | 'error';
+  enrollmentId?: string;
+  message?: string;
+}
+
+export interface BatchCreateInput {
+  classId: string;
+  studentIds: string[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class EnrollmentsService {
   private readonly http = inject(HttpClient);
@@ -81,6 +94,10 @@ export class EnrollmentsService {
 
   create(input: CreateEnrollmentInput): Observable<{ data: Enrollment }> {
     return this.http.post<{ data: Enrollment }>(this.base, input);
+  }
+
+  batchCreate(input: BatchCreateInput): Observable<{ results: BatchCreateResultItem[] }> {
+    return this.http.post<{ results: BatchCreateResultItem[] }>(`${this.base}/batch`, input);
   }
 
   update(id: string, input: UpdateEnrollmentInput): Observable<{ data: Enrollment }> {
