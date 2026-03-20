@@ -17,6 +17,8 @@ import {
   GRADE_LEVELS,
   GRADE_LEVEL_LABELS,
 } from '@core/students.service';
+import { EnrollmentsService, BatchCreateResultItem } from '@core/enrollments.service';
+import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
 @Component({
   selector: 'app-student-picker-dialog',
@@ -24,31 +26,44 @@ import {
   imports: [
     FormsModule, ButtonModule, InputTextModule, SelectModule,
     TagModule, SkeletonModule, IconFieldModule, InputIconModule,
+    InlineNoticeComponent,
   ],
   templateUrl: './student-picker-dialog.component.html',
   styleUrl: './student-picker-dialog.component.scss',
 })
 export class StudentPickerDialogComponent implements OnInit {
   private readonly studentsService = inject(StudentsService);
+  private readonly enrollmentsService = inject(EnrollmentsService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig);
   private readonly destroyRef = inject(DestroyRef);
   private readonly searchSubject = new Subject<string>();
 
   protected readonly loading = signal(true);
+  protected readonly confirming = signal(false);
+  protected readonly confirmError = signal<string | null>(null);
   protected readonly students = signal<Student[]>([]);
   protected readonly total = signal(0);
   protected readonly currentPage = signal(1);
   protected readonly PAGE_SIZE = 20;
 
   protected readonly searchQuery = signal('');
-  // ngModel 用 plain properties（signals 不相容 [(ngModel)] two-way binding）
   protected selectedGrade: GradeLevel | null = null;
   protected selectedGender: string | null = null;
   protected selectedIsActive: boolean | null = null;
 
-  // 已在班的學生 ID 列表（從 config.data 傳入）
+  // 兩步 wizard 狀態
+  protected readonly step = signal<'selecting' | 'reviewing'>('selecting');
+
+  // 多選狀態：選中的 studentId set
+  protected readonly selectedIds = signal<Set<string>>(new Set());
+
+  // 從 class-detail 傳入的 config
   private readonly existingStudentIds = new Set<string>(this.config.data?.existingStudentIds ?? []);
+  private readonly maxStudents: number = this.config.data?.maxStudents ?? 9999;
+  private readonly currentActiveCount: number = this.config.data?.currentActiveCount ?? 0;
+  private readonly classId: string = this.config.data?.classId ?? '';
+  protected readonly remainingSlots = this.maxStudents - this.currentActiveCount;
 
   protected readonly gradeOptions = [
     { label: '全部年級', value: null },
@@ -67,8 +82,22 @@ export class StudentPickerDialogComponent implements OnInit {
     { label: '停用', value: false },
   ];
 
+  // 過濾掉已在班的學生
   protected readonly filteredStudents = computed(() =>
     this.students().filter((s) => !this.existingStudentIds.has(s.id)),
+  );
+
+  // 選中的人數
+  protected readonly selectedCount = computed(() => this.selectedIds().size);
+
+  // 選中的 Student 物件清單（Step 2 預覽用）
+  protected readonly selectedStudents = computed(() =>
+    this.students().filter((s) => this.selectedIds().has(s.id)),
+  );
+
+  // 超額檢查（Step 2 用）
+  protected readonly overQuotaCount = computed(() =>
+    Math.max(0, this.selectedCount() - this.remainingSlots),
   );
 
   ngOnInit(): void {
@@ -112,8 +141,55 @@ export class StudentPickerDialogComponent implements OnInit {
     this.load();
   }
 
-  protected select(student: Student): void {
-    this.ref.close(student);
+  protected toggleSelection(student: Student): void {
+    const ids = new Set(this.selectedIds());
+    if (ids.has(student.id)) {
+      ids.delete(student.id);
+    } else {
+      ids.add(student.id);
+    }
+    this.selectedIds.set(ids);
+  }
+
+  protected isSelected(studentId: string): boolean {
+    return this.selectedIds().has(studentId);
+  }
+
+  protected goToReview(): void {
+    this.step.set('reviewing');
+  }
+
+  protected goBack(): void {
+    this.step.set('selecting');
+  }
+
+  protected removeFromReview(studentId: string): void {
+    const ids = new Set(this.selectedIds());
+    ids.delete(studentId);
+    this.selectedIds.set(ids);
+    if (ids.size === 0) this.step.set('selecting');
+  }
+
+  // 確認加入：dialog 自行呼叫 API，顯示 loading，完成後關閉並傳回結果
+  protected confirm(): void {
+    this.confirming.set(true);
+    this.confirmError.set(null);
+    this.enrollmentsService
+      .batchCreate({ classId: this.classId, studentIds: Array.from(this.selectedIds()) })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.confirming.set(false);
+          this.ref.close(res); // 傳 { results: BatchCreateResultItem[] } 給 parent
+        },
+        error: (err) => {
+          this.confirming.set(false);
+          const code = err.error?.error;
+          this.confirmError.set(
+            code === 'over_quota' ? '超過班級人數上限，請減少加入人數' : '加入失敗，請稍後再試',
+          );
+        },
+      });
   }
 
   protected cancel(): void {

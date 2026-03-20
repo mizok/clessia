@@ -1,74 +1,143 @@
 <div class="student-picker">
-  <!-- 搜尋 + 篩選 -->
-  <div class="student-picker__filters">
-    <p-iconfield class="student-picker__search">
-      <p-inputicon styleClass="pi pi-search" />
-      <input
-        type="text"
-        pInputText
-        placeholder="搜尋學生姓名"
-        (input)="onSearchChange($any($event.target).value)"
-        class="w-full"
-      />
-    </p-iconfield>
-    <div class="student-picker__filter-row">
-      <p-select
-        [options]="gradeOptions"
-        [ngModel]="selectedGrade"
-        (ngModelChange)="selectedGrade = $event; onFilterChange()"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="年級"
-        styleClass="w-full"
-      />
-      <p-select
-        [options]="genderOptions"
-        [ngModel]="selectedGender"
-        (ngModelChange)="selectedGender = $event; onFilterChange()"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="性別"
-        styleClass="w-full"
-      />
-      <p-select
-        [options]="isActiveOptions"
-        [ngModel]="selectedIsActive"
-        (ngModelChange)="selectedIsActive = $event; onFilterChange()"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="狀態"
-        styleClass="w-full"
+  @if (step() === 'selecting') {
+    <!-- Step 1：搜尋與選擇 -->
+    <div class="student-picker__filters">
+      <p-iconfield class="student-picker__search">
+        <p-inputicon styleClass="pi pi-search" />
+        <input
+          type="text"
+          pInputText
+          placeholder="搜尋學生姓名"
+          (input)="onSearchChange($any($event.target).value)"
+          class="w-full"
+        />
+      </p-iconfield>
+      <div class="student-picker__filter-row">
+        <p-select
+          [options]="gradeOptions"
+          [ngModel]="selectedGrade"
+          (ngModelChange)="selectedGrade = $event; onFilterChange()"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="年級"
+          styleClass="w-full"
+        />
+        <p-select
+          [options]="genderOptions"
+          [ngModel]="selectedGender"
+          (ngModelChange)="selectedGender = $event; onFilterChange()"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="性別"
+          styleClass="w-full"
+        />
+        <p-select
+          [options]="isActiveOptions"
+          [ngModel]="selectedIsActive"
+          (ngModelChange)="selectedIsActive = $event; onFilterChange()"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="狀態"
+          styleClass="w-full"
+        />
+      </div>
+    </div>
+
+    <div class="student-picker__list">
+      @if (loading()) {
+        @for (i of [1,2,3,4,5]; track i) {
+          <div class="student-picker__skeleton">
+            <p-skeleton height="48px" />
+          </div>
+        }
+      } @else if (filteredStudents().length === 0) {
+        <div class="student-picker__empty">
+          <i class="pi pi-users"></i>
+          <span>沒有符合條件的學生</span>
+        </div>
+      } @else {
+        @for (student of filteredStudents(); track student.id) {
+          <button
+            type="button"
+            class="student-picker__item"
+            [class.student-picker__item--selected]="isSelected(student.id)"
+            (click)="toggleSelection(student)"
+          >
+            <div class="student-picker__checkbox">
+              <i [class]="isSelected(student.id) ? 'pi pi-check-square' : 'pi pi-stop'"></i>
+            </div>
+            <div class="student-picker__item-info">
+              <span class="student-picker__item-name">{{ student.name }}</span>
+              <span class="student-picker__item-meta">{{ gradeLabelMap[student.grade] }} · {{ student.school }}</span>
+            </div>
+          </button>
+        }
+      }
+    </div>
+
+    <div class="student-picker__footer">
+      <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+      <p-button
+        [label]="'下一步（已選 ' + selectedCount() + ' 人）'"
+        [disabled]="selectedCount() === 0"
+        icon="pi pi-arrow-right"
+        iconPos="right"
+        (onClick)="goToReview()"
       />
     </div>
-  </div>
+  } @else {
+    <!-- Step 2：預覽確認 -->
+    <div class="student-picker__step-header">
+      <button type="button" class="student-picker__back-btn" (click)="goBack()">
+        <i class="pi pi-arrow-left"></i>
+        返回選擇
+      </button>
+      <span class="student-picker__step-title">確認加入名單</span>
+    </div>
 
-  <!-- 學生列表 -->
-  <div class="student-picker__list">
-    @if (loading()) {
-      @for (i of [1,2,3,4,5]; track i) {
-        <div class="student-picker__skeleton">
-          <p-skeleton height="48px" />
-        </div>
-      }
-    } @else if (filteredStudents().length === 0) {
-      <div class="student-picker__empty">
-        <i class="pi pi-users"></i>
-        <span>沒有符合條件的學生</span>
-      </div>
-    } @else {
-      @for (student of filteredStudents(); track student.id) {
-        <button type="button" class="student-picker__item" (click)="select(student)">
+    @if (overQuotaCount() > 0) {
+      <app-inline-notice
+        severity="error"
+        [detail]="'班級剩餘 ' + remainingSlots + ' 個名額，已選 ' + selectedCount() + ' 人，請移除 ' + overQuotaCount() + ' 人'"
+        [dismissible]="false"
+      />
+    }
+
+    <div class="student-picker__review-list">
+      @for (student of selectedStudents(); track student.id) {
+        <div class="student-picker__review-item">
           <div class="student-picker__item-info">
             <span class="student-picker__item-name">{{ student.name }}</span>
             <span class="student-picker__item-meta">{{ gradeLabelMap[student.grade] }} · {{ student.school }}</span>
           </div>
-          <i class="pi pi-chevron-right student-picker__item-arrow"></i>
-        </button>
+          <button
+            type="button"
+            class="student-picker__remove-btn"
+            (click)="removeFromReview(student.id)"
+            aria-label="移除"
+          >
+            <i class="pi pi-times"></i>
+          </button>
+        </div>
       }
-    }
-  </div>
+    </div>
 
-  <div class="student-picker__footer">
-    <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
-  </div>
+    @if (confirmError()) {
+      <app-inline-notice
+        severity="error"
+        [detail]="confirmError()!"
+        [dismissible]="false"
+      />
+    }
+
+    <div class="student-picker__footer">
+      <p-button label="上一步" [text]="true" severity="secondary" icon="pi pi-arrow-left" [disabled]="confirming()" (onClick)="goBack()" />
+      <p-button
+        [label]="confirming() ? '' : '確認加入 ' + selectedCount() + ' 人'"
+        [loading]="confirming()"
+        [disabled]="selectedCount() === 0 || overQuotaCount() > 0 || confirming()"
+        (onClick)="confirm()"
+      />
+    </div>
+  }
 </div>
