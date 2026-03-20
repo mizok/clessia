@@ -1,0 +1,20 @@
+<div class="inline-notice inline-notice--{{ severity() }}">
+  <div class="inline-notice__copy">
+    @if (summary()) {
+      <p class="inline-notice__summary">{{ summary() }}</p>
+    }
+    @if (detail()) {
+      <p class="inline-notice__detail">{{ detail() }}</p>
+    }
+  </div>
+  @if (dismissible()) {
+    <button
+      type="button"
+      class="inline-notice__close"
+      aria-label="關閉訊息"
+      (click)="dismissed.emit()"
+    >
+      <i class="pi pi-times"></i>
+    </button>
+  }
+</div>

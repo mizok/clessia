@@ -8,9 +8,10 @@ import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { SubjectsService } from '@core/subjects.service';
 import type { Subject } from '@core/subjects.service';
 import { ReferenceDataService } from '@core/reference-data.service';
+import { InlineNoticeComponent, type InlineNoticeSeverity } from '@shared/components/inline-notice/inline-notice.component';
 
 interface SubjectManagerNotice {
-  readonly severity: 'success' | 'error';
+  readonly severity: InlineNoticeSeverity;
   readonly summary: string;
   readonly detail: string;
 }
@@ -18,7 +19,7 @@ interface SubjectManagerNotice {
 @Component({
   selector: 'app-subject-manager',
   standalone: true,
-  imports: [FormsModule, ButtonModule, InputTextModule, SkeletonModule, TooltipModule],
+  imports: [FormsModule, ButtonModule, InputTextModule, SkeletonModule, TooltipModule, InlineNoticeComponent],
   templateUrl: './subject-manager.component.html',
   styleUrl: './subject-manager.component.scss',
 })

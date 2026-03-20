@@ -4,11 +4,12 @@ import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { authClient } from '@core/auth-client';
+import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
 @Component({
   selector: 'app-change-password-dialog',
   standalone: true,
-  imports: [FormsModule, ButtonModule, InputTextModule],
+  imports: [FormsModule, ButtonModule, InputTextModule, InlineNoticeComponent],
   templateUrl: './change-password-dialog.component.html',
   styleUrl: './change-password-dialog.component.scss',
 })
