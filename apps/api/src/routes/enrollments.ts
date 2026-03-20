@@ -415,6 +415,7 @@ app.openapi(
       204: { description: 'No Content' },
       400: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Bad Request' },
       404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Not Found' },
+      409: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Has attendance records' },
     },
   }),
   async (c) => {
@@ -424,13 +425,21 @@ app.openapi(
 
     const { data: existing } = await supabase
       .from('enrollments')
-      .select('status')
+      .select('id')
       .eq('id', id)
       .eq('org_id', orgId)
       .single();
 
     if (!existing) return c.json({ error: 'NOT_FOUND' }, 404);
-    if (existing.status !== 'pending_payment') return c.json({ error: 'CANNOT_DELETE' }, 400);
+
+    const { count: attendanceCount } = await supabase
+      .from('attendances')
+      .select('*', { count: 'exact', head: true })
+      .eq('enrollment_id', id);
+
+    if ((attendanceCount ?? 0) > 0) {
+      return c.json({ error: 'has_attendance' }, 409);
+    }
 
     await supabase.from('enrollments').delete().eq('id', id);
     return new Response(null, { status: 204 });
