@@ -117,6 +117,20 @@
     overflow: hidden;
   }
 
+  &__tabs-wrapper {
+    position: relative;
+  }
+
+  &__tab-action {
+    position: absolute;
+    top: 0;
+    right: var(--space-5);
+    display: flex;
+    align-items: center;
+    padding: var(--space-2) 0;
+    pointer-events: auto;
+  }
+
   &__skeletons {
     display: flex;
     flex-direction: column;
@@ -332,14 +346,6 @@
 
     .p-tablist-active-bar {
       display: none;
-    }
-
-    // end slot — 讓按鈕靠右對齊
-    .p-tablist-nav-end {
-      display: flex;
-      align-items: center;
-      padding: var(--space-2) 0;
-      margin-left: auto;
     }
 
     .p-tabpanels {

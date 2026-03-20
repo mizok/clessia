@@ -59,20 +59,12 @@
     </div>
 
     <div class="class-detail__card">
-      <p-tabs value="0">
-        <p-tablist>
-          <p-tab value="0">學生名單</p-tab>
-          <p-tab value="1">課表</p-tab>
-          <ng-template #end>
-            <p-button
-              label="加入學生"
-              icon="pi pi-user-plus"
-              size="small"
-              (onClick)="openStudentPicker()"
-              [disabled]="!cls()!.isActive"
-            />
-          </ng-template>
-        </p-tablist>
+      <div class="class-detail__tabs-wrapper">
+        <p-tabs value="0">
+          <p-tablist>
+            <p-tab value="0">學生名單</p-tab>
+            <p-tab value="1">課表</p-tab>
+          </p-tablist>
 
         <p-tabpanels>
           <!-- 學生名單 tab -->
@@ -161,7 +153,17 @@
             }
           </p-tabpanel>
         </p-tabpanels>
-      </p-tabs>
+        </p-tabs>
+        <div class="class-detail__tab-action">
+          <p-button
+            label="加入學生"
+            icon="pi pi-user-plus"
+            size="small"
+            (onClick)="openStudentPicker()"
+            [disabled]="!cls()!.isActive"
+          />
+        </div>
+      </div>
     </div>
   }
 </div>
