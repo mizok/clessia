@@ -72,7 +72,7 @@
             @if (enrollmentsLoading()) {
               <div class="class-detail__skeletons">
                 @for (i of [1, 2, 3]; track i) {
-                  <p-skeleton height="60px" styleClass="mb-2" borderRadius="10px" />
+                  <p-skeleton height="56px" styleClass="mb-1" borderRadius="8px" />
                 }
               </div>
             } @else if (enrollments().length === 0) {
@@ -92,8 +92,24 @@
                 }
               </div>
             } @else {
+              <!-- Section header：人數摘要 + 加入按鈕 -->
+              <div class="class-detail__list-header">
+                <span class="class-detail__list-count">
+                  {{ enrollments().length }} 位學生
+                </span>
+                @if (cls()!.isActive) {
+                  <p-button
+                    label="加入學生"
+                    icon="pi pi-user-plus"
+                    size="small"
+                    [outlined]="true"
+                    (onClick)="openStudentPicker()"
+                  />
+                }
+              </div>
+              <!-- 花名冊 -->
               <div class="class-detail__student-list">
-                @for (enrollment of enrollments(); track enrollment.id) {
+                @for (enrollment of enrollments(); track enrollment.id; let idx = $index) {
                   <div
                     class="class-detail__student-item"
                     role="button"
@@ -101,17 +117,19 @@
                     (click)="navigateToStudent(enrollment.studentId)"
                     (keydown.enter)="navigateToStudent(enrollment.studentId)"
                   >
-                    <div class="class-detail__student-avatar">
-                      <i class="pi pi-user"></i>
-                    </div>
+                    <span class="class-detail__student-index">{{ idx + 1 }}</span>
+                    <div
+                      class="class-detail__student-avatar"
+                      [style.--item-hue]="getStudentHue(enrollment.studentId)"
+                    >{{ enrollment.studentName[0] }}</div>
                     <div class="class-detail__student-info">
                       <span class="class-detail__student-name">{{ enrollment.studentName }}</span>
-                      <span class="class-detail__student-since">自 {{ enrollment.effectiveFrom }}</span>
+                      <span class="class-detail__student-since">加入於 {{ enrollment.effectiveFrom }}</span>
                     </div>
-                    <p-tag
-                      [value]="statusLabels[enrollment.status]"
-                      [severity]="getStatusSeverity(enrollment.status)"
-                    />
+                    <div class="class-detail__student-status" [attr.data-status]="enrollment.status">
+                      <span class="class-detail__status-dot"></span>
+                      <span class="class-detail__status-label">{{ statusLabels[enrollment.status] }}</span>
+                    </div>
                     <button
                       type="button"
                       class="class-detail__action-btn"
@@ -154,15 +172,6 @@
           </p-tabpanel>
         </p-tabpanels>
         </p-tabs>
-        <div class="class-detail__tab-action">
-          <p-button
-            label="加入學生"
-            icon="pi pi-user-plus"
-            size="small"
-            (onClick)="openStudentPicker()"
-            [disabled]="!cls()!.isActive"
-          />
-        </div>
       </div>
     </div>
   }

@@ -278,6 +278,15 @@ export class ClassDetailPage implements OnInit {
     });
   }
 
+  protected getStudentHue(studentId: string): number {
+    let hash = 0;
+    for (let i = 0; i < studentId.length; i++) {
+      hash = (hash * 31 + studentId.charCodeAt(i)) & 0xfffffff;
+    }
+    const raw = hash % 320;
+    return raw < 45 ? raw + 160 : raw;
+  }
+
   protected getStatusSeverity(
     status: EnrollmentStatus,
   ): 'success' | 'warn' | 'secondary' | 'danger' {

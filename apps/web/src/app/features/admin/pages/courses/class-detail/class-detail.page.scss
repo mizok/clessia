@@ -121,16 +121,6 @@
     position: relative;
   }
 
-  &__tab-action {
-    position: absolute;
-    top: 0;
-    right: var(--space-5);
-    display: flex;
-    align-items: center;
-    padding: var(--space-2) 0;
-    pointer-events: auto;
-  }
-
   &__skeletons {
     display: flex;
     flex-direction: column;
@@ -177,12 +167,33 @@
     color: var(--zinc-400);
   }
 
-  // ---- Student List ----
+  // ---- List header (count + action) ----
+  &__list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) 0 var(--space-3);
+    margin-bottom: var(--space-2);
+    border-bottom: 1px solid var(--zinc-100);
+  }
+
+  &__list-count {
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-400);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  // ---- Student Roster ----
   &__student-list {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
-    padding-bottom: var(--space-4);
+    // 單邊框包整個名冊
+    border: 1px solid var(--zinc-150, var(--zinc-200));
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-bottom: var(--space-2);
   }
 
   &__student-item {
@@ -191,43 +202,67 @@
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
     background: #fff;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--zinc-200);
     cursor: pointer;
     user-select: none;
-    transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+    border-left: 3px solid transparent;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+
+    // 行間分隔線（不用 gap 製造浮牌感）
+    & + & {
+      border-top: 1px solid var(--zinc-100);
+    }
 
     &:hover {
-      border-color: var(--accent-200);
-      box-shadow: 0 2px 8px -2px rgba(14, 165, 233, 0.12);
+      background: var(--zinc-50);
+      border-left-color: var(--accent-400);
 
       .class-detail__student-name {
-        color: var(--accent-600);
+        color: var(--accent-700);
+      }
+
+      .class-detail__action-btn {
+        opacity: 1;
       }
     }
   }
 
+  &__student-index {
+    font-size: 11px;
+    color: var(--zinc-300);
+    font-weight: var(--font-medium);
+    width: 18px;
+    text-align: right;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
   &__student-avatar {
-    width: 38px;
-    height: 38px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
-    background: var(--zinc-100);
+    background: linear-gradient(
+      135deg,
+      hsl(var(--item-hue, 210) 65% 60%),
+      hsl(var(--item-hue, 210) 75% 42%)
+    );
+    box-shadow: 0 2px 6px -1px hsl(var(--item-hue, 210) 65% 50% / 0.28);
+    color: #fff;
+    font-size: 0.8125rem;
+    font-weight: var(--font-bold);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--zinc-500);
     flex-shrink: 0;
-
-    .pi {
-      font-size: 16px;
-    }
+    letter-spacing: -0.01em;
+    user-select: none;
   }
 
   &__student-info {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
     min-width: 0;
   }
 
@@ -235,11 +270,61 @@
     font-weight: var(--font-semibold);
     color: var(--zinc-800);
     font-size: var(--text-sm);
+    transition: color var(--transition-fast);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   &__student-since {
-    font-size: var(--text-xs);
+    font-size: 11px;
     color: var(--zinc-400);
+    font-variant-numeric: tabular-nums;
+  }
+
+  // ---- 自訂狀態 pill（取代 PrimeNG p-tag）----
+  &__student-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px var(--space-2);
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+
+    &[data-status='active'] {
+      background: #f0fdf4;
+      .class-detail__status-dot { background: #22c55e; }
+      .class-detail__status-label { color: #15803d; }
+    }
+    &[data-status='pending_payment'] {
+      background: #fff7ed;
+      .class-detail__status-dot { background: #fb923c; }
+      .class-detail__status-label { color: #c2410c; }
+    }
+    &[data-status='suspended'] {
+      background: var(--zinc-100);
+      .class-detail__status-dot { background: var(--zinc-400); }
+      .class-detail__status-label { color: var(--zinc-500); }
+    }
+    &[data-status='withdrawal'],
+    &[data-status='void'] {
+      background: var(--zinc-50);
+      .class-detail__status-dot { background: var(--zinc-300); }
+      .class-detail__status-label { color: var(--zinc-400); }
+    }
+  }
+
+  &__status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  &__status-label {
+    font-size: 11px;
+    font-weight: var(--font-semibold);
+    white-space: nowrap;
   }
 
   &__action-btn {
@@ -249,11 +334,13 @@
     padding: var(--space-2);
     border-radius: var(--radius-sm);
     color: var(--zinc-400);
-    transition: background var(--transition-fast), color var(--transition-fast);
+    opacity: 0;
+    transition: background var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+    flex-shrink: 0;
 
     &:hover {
       background: var(--zinc-100);
-      color: var(--zinc-600);
+      color: var(--zinc-700);
     }
   }
 
