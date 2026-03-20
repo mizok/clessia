@@ -30,6 +30,7 @@ const EnrollmentSchema = z
     createdByName: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    attendanceCount: z.number().int().min(0),
   })
   .openapi('Enrollment');
 
@@ -77,7 +78,7 @@ const UpdateEnrollmentStatusSchema = z
 // Helper
 // ============================================================
 
-function toEnrollmentResponse(row: any): z.infer<typeof EnrollmentSchema> {
+export function toEnrollmentResponse(row: any): z.infer<typeof EnrollmentSchema> {
   return {
     id: row.id,
     orgId: row.org_id,
@@ -96,6 +97,7 @@ function toEnrollmentResponse(row: any): z.infer<typeof EnrollmentSchema> {
     createdByName: row.creator?.name ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    attendanceCount: row.attendances?.[0]?.count ?? 0,
   };
 }
 
@@ -139,7 +141,7 @@ app.openapi(
     let query = supabase
       .from('enrollments')
       .select(
-        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, courses(id, name)), students(name), creator:ba_user!created_by(name)',
+        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, courses(id, name)), students(name), creator:ba_user!created_by(name), attendances(count)',
         { count: 'exact' },
       )
       .eq('org_id', orgId)
