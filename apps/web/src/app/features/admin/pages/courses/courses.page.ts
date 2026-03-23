@@ -2,6 +2,7 @@ import { Component, OnInit, inject, input, signal, computed } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
+import { format } from 'date-fns';
 
 // PrimeNG
 import { MessageService, MenuItem } from 'primeng/api';
@@ -15,6 +16,8 @@ import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
+import { DatePickerModule } from 'primeng/datepicker';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { PaginatorModule } from 'primeng/paginator';
@@ -64,6 +67,8 @@ interface CourseGroup {
     InputTextModule,
     SelectModule,
     MultiSelectModule,
+    DatePickerModule,
+    ToggleSwitchModule,
     PaginatorModule,
     TagModule,
     TooltipModule,
@@ -101,6 +106,11 @@ export class CoursesPage implements OnInit {
   protected readonly subjects = computed(() => this.refData.subjects());
   protected readonly staff = computed(() => this.refData.teachers());
   protected readonly loading = signal(false);
+  protected readonly showHistorical = signal(false);
+  protected readonly historicalDateFrom = signal<Date | null>(null);
+  protected readonly historicalDateTo = signal<Date | null>(null);
+  protected readonly historicalClasses = signal<Class[]>([]);
+  protected readonly loadingHistorical = signal(false);
 
   protected readonly classActionMenuItems = signal<MenuItem[]>([]);
   protected readonly selectedClassForMenu = signal<Class | null>(null);
@@ -113,11 +123,17 @@ export class CoursesPage implements OnInit {
   protected readonly PAGE_SIZE = 20;
 
   protected readonly selectedActiveCount = computed(
-    () => this.classes().filter((cl) => this.selectedClassIds().has(cl.id) && cl.isActive).length,
+    () =>
+      this.allClasses().filter(
+        (cl) => this.selectedClassIds().has(cl.id) && cl.isActive && !this.isHistorical(cl),
+      ).length,
   );
 
   protected readonly selectedInactiveCount = computed(
-    () => this.classes().filter((cl) => this.selectedClassIds().has(cl.id) && !cl.isActive).length,
+    () =>
+      this.allClasses().filter(
+        (cl) => this.selectedClassIds().has(cl.id) && !cl.isActive && !this.isHistorical(cl),
+      ).length,
   );
 
   protected readonly allVisibleSelected = computed(() => {
@@ -157,10 +173,23 @@ export class CoursesPage implements OnInit {
     () => new Set(this.filteredStaffOptions().map((option) => option.value)),
   );
 
+  protected isHistorical(cls: Class): boolean {
+    if (!cls.endDate) return false;
+    const end = new Date(cls.endDate + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return end < today;
+  }
+
+  protected readonly allClasses = computed(() => [
+    ...this.classes(),
+    ...(this.showHistorical() ? this.historicalClasses() : []),
+  ]);
+
   // ---- Computed course groups ----
   protected readonly courseGroups = computed((): CourseGroup[] => {
     const allCourses = this.courses();
-    const allClasses = this.classes();
+    const allClasses = this.allClasses();
     const search = this.searchQuery().toLowerCase();
     const campusId = this.selectedCampusId();
     const subjectId = this.selectedSubjectId();
@@ -188,6 +217,8 @@ export class CoursesPage implements OnInit {
           classes: allClasses.filter((cl) => {
             if (cl.courseId !== course.id) return false;
             if (classActiveFilter !== null && cl.isActive !== classActiveFilter) return false;
+            // 「啟用中」filter 時，歷史班級即使 isActive=true 也不顯示
+            if (classActiveFilter === true && this.isHistorical(cl)) return false;
             if (
               teacherIds.length > 0 &&
               !teacherIds.some((id) => cl.scheduleTeacherIds?.includes(id))
@@ -211,7 +242,8 @@ export class CoursesPage implements OnInit {
       !!this.searchQuery() ||
       !!this.selectedSubjectId() ||
       this.selectedTeacherIds().length > 0 ||
-      this.statusFilter() !== null,
+      this.statusFilter() !== null ||
+      this.showHistorical(),
   );
 
   // ---- Static options ----
@@ -273,6 +305,29 @@ export class CoursesPage implements OnInit {
     });
   }
 
+  private loadHistoricalClasses(): void {
+    this.loadingHistorical.set(true);
+    const from = this.historicalDateFrom();
+    const to = this.historicalDateTo();
+    this.classesService
+      .list({
+        pageSize: 0,
+        includeHistorical: true,
+        historicalFrom: from ? format(from, 'yyyy-MM-dd') : undefined,
+        historicalTo: to ? format(to, 'yyyy-MM-dd') : undefined,
+      })
+      .subscribe({
+        next: (res) => {
+          const currentIds = new Set(this.classes().map((c) => c.id));
+          this.historicalClasses.set(res.data.filter((c) => !currentIds.has(c.id)));
+          this.loadingHistorical.set(false);
+        },
+        error: () => {
+          this.loadingHistorical.set(false);
+        },
+      });
+  }
+
   private loadCourses(): void {
     this.loading.set(true);
     this.coursesService
@@ -326,6 +381,32 @@ export class CoursesPage implements OnInit {
     this.statusFilter.set(value);
     this.currentPage.set(1);
     this.loadCourses();
+  }
+
+  protected onToggleHistorical(value: boolean): void {
+    this.showHistorical.set(value);
+    if (value) {
+      this.loadHistoricalClasses();
+    } else {
+      const historicalIds = new Set(this.historicalClasses().map((c) => c.id));
+      this.historicalClasses.set([]);
+      this.historicalDateFrom.set(null);
+      this.historicalDateTo.set(null);
+      if (historicalIds.size > 0) {
+        const current = this.selectedClassIds();
+        this.selectedClassIds.set(new Set([...current].filter((id) => !historicalIds.has(id))));
+      }
+    }
+  }
+
+  protected onHistoricalDateFromChange(value: Date | null): void {
+    this.historicalDateFrom.set(value);
+    if (this.showHistorical()) this.loadHistoricalClasses();
+  }
+
+  protected onHistoricalDateToChange(value: Date | null): void {
+    this.historicalDateTo.set(value);
+    if (this.showHistorical()) this.loadHistoricalClasses();
   }
 
   protected onPageChange(page: number): void {
@@ -419,6 +500,9 @@ export class CoursesPage implements OnInit {
   }
 
   protected clearFilters(): void {
+    if (this.showHistorical()) {
+      this.onToggleHistorical(false);
+    }
     this.searchQuery.set('');
     this.selectedCampusId.set(null);
     this.selectedSubjectId.set(null);
@@ -563,7 +647,8 @@ export class CoursesPage implements OnInit {
   }
 
   protected batchDelete(): void {
-    const ids = [...this.selectedClassIds()];
+    const classMap = new Map(this.allClasses().map((c) => [c.id, c]));
+    const ids = [...this.selectedClassIds()].filter((id) => !this.isHistorical(classMap.get(id)!));
     if (ids.length === 0) return;
 
     this.openConfirmDialog(
