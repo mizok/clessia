@@ -55,6 +55,8 @@ const ClassSchema = z
     updatedAt: z.string(),
     updatedBy: z.string().nullable().optional(),
     updatedByName: z.string().nullable().optional(),
+    startDate: z.string().nullable().optional(), // 'yyyy-MM-dd' or null
+    endDate: z.string().nullable().optional(),
   })
   .openapi('Class');
 
@@ -76,6 +78,8 @@ const CreateClassSchema = z
     name: z.string().min(1).max(50),
     maxStudents: z.number().int().min(1).max(200).optional(),
     nextClassId: z.uuid().nullable().optional(),
+    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   })
   .openapi('CreateClass');
 
@@ -85,6 +89,8 @@ const UpdateClassSchema = z
     maxStudents: z.number().int().min(1).max(200).optional(),
     nextClassId: z.uuid().nullable().optional(),
     isActive: z.boolean().optional(),
+    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   })
   .openapi('UpdateClass');
 
@@ -221,6 +227,9 @@ const QueryParamsSchema = z.object({
   campusId: z.uuid().optional(),
   courseId: z.uuid().optional(),
   isActive: z.string().optional(),
+  includeHistorical: z.string().optional(), // 'true' | undefined
+  historicalFrom: z.string().optional(), // 'yyyy-MM-dd'
+  historicalTo: z.string().optional(), // 'yyyy-MM-dd'
 });
 
 // ============================================================
@@ -282,6 +291,8 @@ function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     updatedBy: (row['updated_by'] as string | null) ?? null,
     updatedByName:
       extras?.updatedByName || (row['ba_user'] as { name: string } | null)?.name || null,
+    startDate: (row['start_date'] as string | null) ?? null,
+    endDate: (row['end_date'] as string | null) ?? null,
   };
 }
 
@@ -350,13 +361,43 @@ app.openapi(
     if (query.courseId) dbQuery = dbQuery.eq('course_id', query.courseId);
     if (query.isActive !== undefined) dbQuery = dbQuery.eq('is_active', query.isActive === 'true');
 
+    // 歷史班級過濾：預設排除，includeHistorical=true 時拉全部（JS post-filter 處理日期範圍）
+    if (query.includeHistorical !== 'true') {
+      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(
+        new Date(),
+      );
+      dbQuery = dbQuery.or(`end_date.is.null,end_date.gte.${todayStr}`);
+    }
+
     dbQuery = dbQuery.order('created_at', { ascending: false });
     if (!unpaginated) dbQuery = dbQuery.range(offset, offset + pageSize - 1);
 
     const { data, count, error } = await dbQuery;
     if (error) console.error('DB Error:', error);
 
-    const rows = data || [];
+    let rows = data || [];
+
+    if (query.includeHistorical === 'true' && (query.historicalFrom || query.historicalTo)) {
+      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(
+        new Date(),
+      );
+      const from = query.historicalFrom;
+      const to = query.historicalTo;
+
+      rows = rows.filter((row) => {
+        const endDate = row['end_date'] as string | null;
+        const startDate = row['start_date'] as string | null;
+        const isHistorical = endDate != null && endDate < todayStr;
+
+        if (!isHistorical) return true; // 現役班級永遠保留
+
+        // 歷史班級：檢查有效期間是否與查詢範圍重疊
+        if (from && endDate < from) return false;
+        if (to && startDate != null && startDate > to) return false;
+        return true;
+      });
+    }
+
     const classIds = rows.map((r) => r.id as string);
 
     // Batch-fetch schedule counts & teacher IDs for this page
@@ -496,6 +537,12 @@ app.openapi(
       }
     }
 
+    // 有 JS post-filter 時，DB count 會不准，改用 rows.length
+    const effectiveTotal =
+      query.includeHistorical === 'true' && (query.historicalFrom || query.historicalTo)
+        ? rows.length
+        : (count ?? 0);
+
     return c.json({
       data: rows.map((r) => {
         const id = r.id as string;
@@ -516,10 +563,10 @@ app.openapi(
         });
       }),
       meta: {
-        total: count || 0,
+        total: effectiveTotal,
         page: unpaginated ? 1 : page,
-        pageSize: unpaginated ? (count || 0) : pageSize,
-        totalPages: unpaginated ? 1 : Math.ceil((count || 0) / pageSize),
+        pageSize: unpaginated ? effectiveTotal : pageSize,
+        totalPages: unpaginated ? 1 : Math.ceil(effectiveTotal / pageSize),
       },
     });
   },
@@ -880,6 +927,8 @@ app.openapi(
         name: body.name,
         max_students: body.maxStudents ?? 20,
         next_class_id: body.nextClassId ?? null,
+        start_date: body.startDate ?? null,
+        end_date: body.endDate ?? null,
         updated_by: userId,
       })
       .select('*, courses(name), campuses(name)')
@@ -942,6 +991,8 @@ app.openapi(
     if (body.maxStudents !== undefined) updateData['max_students'] = body.maxStudents;
     if (body.nextClassId !== undefined) updateData['next_class_id'] = body.nextClassId;
     if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
+    if (body.startDate !== undefined) updateData['start_date'] = body.startDate;
+    if (body.endDate !== undefined) updateData['end_date'] = body.endDate;
 
     const { data, error } = await supabase
       .from('classes')
