@@ -228,8 +228,8 @@ const QueryParamsSchema = z.object({
   courseId: z.uuid().optional(),
   isActive: z.string().optional(),
   includeHistorical: z.string().optional(), // 'true' | undefined
-  historicalFrom: z.string().optional(), // 'yyyy-MM-dd'
-  historicalTo: z.string().optional(), // 'yyyy-MM-dd'
+  historicalFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  historicalTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 // ============================================================
@@ -350,6 +350,10 @@ app.openapi(
     const pageSize = unpaginated ? 0 : Math.max(rawPageSize, 1);
     const offset = (page - 1) * pageSize;
 
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(
+      new Date(),
+    );
+
     let dbQuery = supabase
       .from('classes')
       .select('*, courses(name), schedules(*, staff(display_name)), ba_user!updated_by(name)', {
@@ -363,9 +367,6 @@ app.openapi(
 
     // 歷史班級過濾：預設排除，includeHistorical=true 時拉全部（JS post-filter 處理日期範圍）
     if (query.includeHistorical !== 'true') {
-      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(
-        new Date(),
-      );
       dbQuery = dbQuery.or(`end_date.is.null,end_date.gte.${todayStr}`);
     }
 
@@ -378,9 +379,6 @@ app.openapi(
     let rows = data || [];
 
     if (query.includeHistorical === 'true' && (query.historicalFrom || query.historicalTo)) {
-      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(
-        new Date(),
-      );
       const from = query.historicalFrom;
       const to = query.historicalTo;
 
