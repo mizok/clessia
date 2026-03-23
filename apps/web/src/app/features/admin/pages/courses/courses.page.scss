@@ -336,6 +336,28 @@
 
   &:hover {
     border-left-color: var(--accent-400);
+
+    .class-row__summary {
+      background: var(--zinc-50);
+    }
+
+    .class-row__date-row {
+      background: var(--zinc-50);
+    }
+
+    .class-row__name {
+      color: var(--accent-600);
+    }
+
+    .class-row__nav-btn {
+      background: var(--accent-100);
+      color: var(--accent-600);
+      transform: translateX(2px);
+    }
+
+    ::ng-deep .p-button.p-button-secondary {
+      color: var(--accent-500);
+    }
   }
 
   &--historical {
@@ -357,20 +379,6 @@
 
     &:hover {
       background: var(--zinc-50);
-
-      ::ng-deep .p-button.p-button-secondary {
-        color: var(--accent-500);
-      }
-
-      .class-row__name {
-        color: var(--accent-600);
-      }
-
-      .class-row__nav-btn {
-        background: var(--accent-100);
-        color: var(--accent-600);
-        transform: translateX(2px);
-      }
     }
 
     &--selected {
@@ -404,6 +412,8 @@
     color: var(--zinc-400);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
+    text-align: right;
+    transition: background var(--transition-fast);
   }
 
   &__schedules {
