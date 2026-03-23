@@ -1,3 +1,5 @@
+@use 'shared/breakpoints' as bp;
+
 .class-detail {
   padding: var(--space-6);
   max-width: 960px;
@@ -262,7 +264,15 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__student-name-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
     min-width: 0;
   }
 
@@ -276,10 +286,22 @@
     text-overflow: ellipsis;
   }
 
-  &__student-since {
+  &__student-meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     font-size: 11px;
     color: var(--zinc-400);
-    font-variant-numeric: tabular-nums;
+    flex-wrap: wrap;
+  }
+
+  &__student-school {
+    color: var(--zinc-500);
+    font-weight: var(--font-medium);
+  }
+
+  &__meta-sep {
+    color: var(--zinc-300);
   }
 
   // ---- 自訂狀態 pill（取代 PrimeNG p-tag）----
@@ -289,7 +311,7 @@
     gap: 5px;
     padding: 3px var(--space-2);
     border-radius: var(--radius-full);
-    flex-shrink: 0;
+    white-space: nowrap;
 
     &[data-status='active'] {
       background: #f0fdf4;
@@ -338,6 +360,10 @@
     transition: background var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
     flex-shrink: 0;
 
+    @media (hover: none) {
+      opacity: 1;
+    }
+
     &:hover {
       background: var(--zinc-100);
       color: var(--zinc-700);
@@ -382,6 +408,64 @@
     background: var(--zinc-100);
     padding: 2px var(--space-2);
     border-radius: var(--radius-full);
+  }
+
+  // ---- Grade Levels ----
+  &__section {
+    padding: var(--space-4) 0 var(--space-2);
+    border-top: 1px solid var(--zinc-100);
+    margin-top: var(--space-2);
+  }
+
+  &__section-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-400);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 var(--space-3);
+
+    .pi {
+      font-size: 12px;
+    }
+  }
+
+  &__grade-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  &__grade-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px var(--space-3);
+    border-radius: var(--radius-full);
+    background: var(--accent-50);
+    color: var(--accent-700);
+    border: 1px solid var(--accent-100);
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+  }
+}
+
+@include bp.respond-to('tablet-portrait') {
+  .class-detail {
+    padding: var(--space-4) 0;
+
+    &__hero {
+      flex-direction: column;
+      align-items: flex-start;
+      padding: var(--space-4);
+      gap: var(--space-3);
+    }
+
+    &__hero-name {
+      font-size: 1.375rem;
+    }
   }
 }
 

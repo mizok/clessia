@@ -123,12 +123,24 @@
                       [style.--item-hue]="getStudentHue(enrollment.studentId)"
                     >{{ enrollment.studentName[0] }}</div>
                     <div class="class-detail__student-info">
-                      <span class="class-detail__student-name">{{ enrollment.studentName }}</span>
-                      <span class="class-detail__student-since">加入於 {{ enrollment.effectiveFrom }}</span>
-                    </div>
-                    <div class="class-detail__student-status" [attr.data-status]="enrollment.status">
-                      <span class="class-detail__status-dot"></span>
-                      <span class="class-detail__status-label">{{ statusLabels[enrollment.status] }}</span>
+                      <div class="class-detail__student-name-row">
+                        <span class="class-detail__student-name">{{ enrollment.studentName }}</span>
+                        <div class="class-detail__student-status" [attr.data-status]="enrollment.status">
+                          <span class="class-detail__status-dot"></span>
+                          <span class="class-detail__status-label">{{ statusLabels[enrollment.status] }}</span>
+                        </div>
+                      </div>
+                      <span class="class-detail__student-meta">
+                        @if (enrollment.studentSchool) {
+                          <span class="class-detail__student-school">{{ enrollment.studentSchool }}</span>
+                          <span class="class-detail__meta-sep">·</span>
+                        }
+                        @if (enrollment.studentGrade) {
+                          <span>{{ getGradeLabel(enrollment.studentGrade) }}</span>
+                          <span class="class-detail__meta-sep">·</span>
+                        }
+                        <span>加入 {{ enrollment.effectiveFrom }}</span>
+                      </span>
                     </div>
                     <button
                       type="button"
@@ -167,6 +179,19 @@
                     }
                   </div>
                 }
+              </div>
+            }
+            @if (cls()!.gradeLevels?.length) {
+              <div class="class-detail__section">
+                <p class="class-detail__section-label">
+                  <i class="pi pi-graduation-cap"></i>
+                  適合年級
+                </p>
+                <div class="class-detail__grade-chips">
+                  @for (grade of cls()!.gradeLevels!; track grade) {
+                    <span class="class-detail__grade-chip">{{ getGradeLabel(grade) }}</span>
+                  }
+                </div>
               </div>
             }
           </p-tabpanel>
