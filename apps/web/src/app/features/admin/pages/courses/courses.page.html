@@ -103,6 +103,39 @@
         />
       </div>
 
+      <div class="courses__historical-filter">
+        <p-toggleswitch
+          [ngModel]="showHistorical()"
+          (ngModelChange)="onToggleHistorical($event)"
+          inputId="toggleHistorical"
+        />
+        <label for="toggleHistorical" class="courses__historical-label">含歷史班級</label>
+        @if (showHistorical()) {
+          <p-datepicker
+            [ngModel]="historicalDateFrom()"
+            (ngModelChange)="onHistoricalDateFromChange($event)"
+            dateFormat="yy-mm-dd"
+            [showIcon]="true"
+            placeholder="開始"
+            styleClass="courses__historical-date"
+            [appendTo]="'body'"
+          />
+          <span class="courses__historical-sep">～</span>
+          <p-datepicker
+            [ngModel]="historicalDateTo()"
+            (ngModelChange)="onHistoricalDateToChange($event)"
+            dateFormat="yy-mm-dd"
+            [showIcon]="true"
+            placeholder="結束"
+            styleClass="courses__historical-date"
+            [appendTo]="'body'"
+          />
+        }
+        @if (loadingHistorical()) {
+          <i class="pi pi-spin pi-spinner courses__historical-loading"></i>
+        }
+      </div>
+
       @if (hasActiveFilters()) {
         <p-button
           label="清除"
@@ -237,7 +270,7 @@
               >
                 <div class="course-group__classes-inner">
                   @for (cls of group.classes; track cls.id) {
-                    <div class="class-row">
+                    <div class="class-row" [class.class-row--historical]="isHistorical(cls)">
                       <!-- Summary Row (整行可點擊，前往班級詳情) -->
                       <div
                         class="class-row__summary"
@@ -254,86 +287,104 @@
                           (change)="toggleClassSelection(cls.id, $event)"
                           (click)="$event.stopPropagation()"
                         />
-                        <span class="class-row__name">{{ cls.name }}</span>
-                        <span class="class-row__schedules">
-                          <i class="pi pi-info-circle"></i>
-                          @if (cls.schedules && cls.schedules.length > 0) {
-                            <span class="schedule-text">{{
-                              getScheduleSummary(cls.schedules)
-                            }}</span>
-                          } @else {
-                            <span class="schedule-text class-row__no-schedule">尚無時間表</span>
+                        <span class="class-row__name-group">
+                          <span class="class-row__name-row">
+                            <span class="class-row__name">{{ cls.name }}</span>
+                            <span class="class-row__nav-btn">
+                              <i class="pi pi-angle-right"></i>
+                            </span>
+                          </span>
+                          @if (cls.startDate || cls.endDate) {
+                            <span class="class-row__date-range">
+                              {{ cls.startDate ? (cls.startDate | slice:0:7) : '' }}
+                              ～
+                              {{ cls.endDate ? (cls.endDate | slice:0:7) : '' }}
+                            </span>
                           }
                         </span>
-                        @if (cls.maxStudents) {
-                          <span class="class-row__capacity">
-                            <i class="pi pi-users"></i>
-                            {{ cls.maxStudents }}
-                          </span>
+                        <span class="class-row__schedules">
+                          @if (cls.schedules && cls.schedules.length > 0) {
+                            {{ getScheduleSummary(cls.schedules) }}
+                          } @else {
+                            <span class="class-row__no-schedule">尚無時間表</span>
+                          }
+                        </span>
+                        <div class="class-row__info">
+                          @if (cls.maxStudents) {
+                            <span class="class-row__capacity">
+                              <i class="pi pi-users"></i>
+                              {{ cls.maxStudents }}
+                            </span>
+                          }
+                          <div class="class-row__tags">
+                            <p-tag
+                              [value]="cls.isActive ? '啟用中' : '停用中'"
+                              [severity]="cls.isActive ? 'success' : 'secondary'"
+                            />
+                            @if (isHistorical(cls)) {
+                              <span class="class-row__tag-historical">已結束</span>
+                            }
+                            @if (cls.upcomingUnassignedCount && cls.upcomingUnassignedCount > 0) {
+                              <button
+                                type="button"
+                                class="class-row__intervention-link"
+                                (click)="navigateToUnassignedSessions(cls); $event.stopPropagation()"
+                                pTooltip="查看未指派課堂"
+                                tooltipPosition="top"
+                              >
+                                <i class="pi pi-exclamation-triangle"></i>
+                                {{ cls.upcomingUnassignedCount }} 堂未指派
+                              </button>
+                            }
+                            @if (cls.scheduleCount === 0) {
+                              <span
+                                class="class-row__completeness-warn"
+                                pTooltip="尚未設定上課時間"
+                                tooltipPosition="top"
+                              >
+                                <i class="pi pi-exclamation-triangle"></i>
+                                無時段
+                              </span>
+                            } @else if (
+                              cls.isActive &&
+                              !cls.hasUpcomingSessions &&
+                              (cls.upcomingCancelledCount ?? 0) > 0
+                            ) {
+                              <span
+                                class="class-row__completeness-info"
+                                pTooltip="未來課堂皆為停課狀態"
+                                tooltipPosition="top"
+                              >
+                                <i class="pi pi-calendar-times"></i>
+                                {{ isMobile() ? '皆停課' : '未來皆停課' }}
+                              </span>
+                            } @else if (cls.isActive && !cls.hasUpcomingSessions) {
+                              <span
+                                class="class-row__completeness-info"
+                                pTooltip="目前無未來排程（含今天）"
+                                tooltipPosition="top"
+                              >
+                                <i class="pi pi-calendar-plus"></i>
+                                {{ isMobile() ? '無排程' : '無未來排程' }}
+                              </span>
+                            }
+                          </div>
+                        </div>
+                        @if (!isHistorical(cls)) {
+                          <div class="class-row__actions-group">
+                            <p-button
+                              #menuTrigger
+                              icon="pi pi-ellipsis-v"
+                              [text]="true"
+                              [rounded]="true"
+                              severity="secondary"
+                              size="small"
+                              (onClick)="
+                                openActionMenu($event, cls, actionMenu); $event.stopPropagation()
+                              "
+                            />
+                          </div>
                         }
-                        <div class="class-row__tags">
-                          <p-tag
-                            [value]="cls.isActive ? '啟用中' : '停用中'"
-                            [severity]="cls.isActive ? 'success' : 'secondary'"
-                          />
-                          @if (cls.upcomingUnassignedCount && cls.upcomingUnassignedCount > 0) {
-                            <button
-                              type="button"
-                              class="class-row__intervention-link"
-                              (click)="navigateToUnassignedSessions(cls); $event.stopPropagation()"
-                              pTooltip="查看未指派課堂"
-                              tooltipPosition="top"
-                            >
-                              <i class="pi pi-exclamation-triangle"></i>
-                              {{ cls.upcomingUnassignedCount }} 堂未指派
-                            </button>
-                          }
-                          @if (cls.scheduleCount === 0) {
-                            <span
-                              class="class-row__completeness-warn"
-                              pTooltip="尚未設定上課時間"
-                              tooltipPosition="top"
-                            >
-                              <i class="pi pi-exclamation-triangle"></i>
-                              無時段
-                            </span>
-                          } @else if (
-                            cls.isActive &&
-                            !cls.hasUpcomingSessions &&
-                            (cls.upcomingCancelledCount ?? 0) > 0
-                          ) {
-                            <span
-                              class="class-row__completeness-info"
-                              pTooltip="未來課堂皆為停課狀態"
-                              tooltipPosition="top"
-                            >
-                              <i class="pi pi-calendar-times"></i>
-                              {{ isMobile() ? '皆停課' : '未來皆停課' }}
-                            </span>
-                          } @else if (cls.isActive && !cls.hasUpcomingSessions) {
-                            <span
-                              class="class-row__completeness-info"
-                              pTooltip="目前無未來排程（含今天）"
-                              tooltipPosition="top"
-                            >
-                              <i class="pi pi-calendar-plus"></i>
-                              {{ isMobile() ? '無排程' : '無未來排程' }}
-                            </span>
-                          }
-                        </div>
-                        <div class="class-row__actions-group">
-                          <p-button
-                            #menuTrigger
-                            icon="pi pi-ellipsis-v"
-                            [text]="true"
-                            [rounded]="true"
-                            severity="secondary"
-                            size="small"
-                            (onClick)="
-                              openActionMenu($event, cls, actionMenu); $event.stopPropagation()
-                            "
-                          />
-                        </div>
                       </div>
                     </div>
                   } @empty {
