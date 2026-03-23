@@ -301,13 +301,6 @@
                           }
                         </span>
                         <div class="class-row__info">
-                          @if (cls.startDate || cls.endDate) {
-                            <span class="class-row__date-range">
-                              {{ cls.startDate ? (cls.startDate | slice:0:7) : '' }}
-                              ～
-                              {{ cls.endDate ? (cls.endDate | slice:0:7) : '' }}
-                            </span>
-                          }
                           @if (cls.maxStudents) {
                             <span class="class-row__capacity">
                               <i class="pi pi-users"></i>
@@ -384,6 +377,13 @@
                           </div>
                         }
                       </div>
+                      @if (cls.startDate || cls.endDate) {
+                        <div class="class-row__date-row">
+                          {{ cls.startDate ? (cls.startDate | slice:0:7) : '' }}
+                          ～
+                          {{ cls.endDate ? (cls.endDate | slice:0:7) : '' }}
+                        </div>
+                      }
                     </div>
                   } @empty {
                     <div class="course-group__empty">此課程尚無班級，點擊「新增班」建立</div>

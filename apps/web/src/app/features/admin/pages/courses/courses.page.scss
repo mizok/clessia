@@ -398,12 +398,12 @@
     transition: color var(--transition-fast);
   }
 
-  &__date-range {
+  &__date-row {
+    padding: 0 var(--space-6) var(--space-2) var(--space-10);
     font-size: var(--text-xs);
     color: var(--zinc-400);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
-    white-space: nowrap;
   }
 
   &__schedules {
