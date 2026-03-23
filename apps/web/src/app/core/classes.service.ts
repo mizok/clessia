@@ -36,11 +36,13 @@ export interface Class {
   upcomingUnassignedCount?: number;
   upcomingClassConflictCount?: number;
   upcomingTeacherConflictCount?: number;
-  schedules?: Schedule[];
   createdAt: string;
   updatedAt: string;
   updatedBy?: string | null;
   updatedByName?: string | null;
+  startDate?: string | null; // 'yyyy-MM-dd'
+  endDate?: string | null;
+  schedules?: Schedule[];
 }
 
 export interface ClassListResponse {
@@ -60,6 +62,9 @@ export interface ClassQueryParams {
   campusId?: string;
   courseId?: string;
   isActive?: boolean;
+  includeHistorical?: boolean;   // 新增
+  historicalFrom?: string;        // 新增 'yyyy-MM-dd'
+  historicalTo?: string;          // 新增 'yyyy-MM-dd'
 }
 
 export interface CreateClassInput {
@@ -68,6 +73,8 @@ export interface CreateClassInput {
   maxStudents?: number;
   gradeLevels?: string[];
   nextClassId?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 export interface UpdateClassInput {
@@ -75,6 +82,8 @@ export interface UpdateClassInput {
   maxStudents?: number;
   gradeLevels?: string[];
   nextClassId?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   isActive?: boolean;
 }
 
@@ -357,6 +366,9 @@ export class ClassesService {
     if (params.campusId !== undefined) query['campusId'] = params.campusId;
     if (params.courseId !== undefined) query['courseId'] = params.courseId;
     if (params.isActive !== undefined) query['isActive'] = params.isActive;
+    if (params.includeHistorical) query['includeHistorical'] = 'true';
+    if (params.historicalFrom) query['historicalFrom'] = params.historicalFrom;
+    if (params.historicalTo) query['historicalTo'] = params.historicalTo;
 
     return query;
   }
