@@ -648,7 +648,10 @@ export class CoursesPage implements OnInit {
 
   protected batchDelete(): void {
     const classMap = new Map(this.allClasses().map((c) => [c.id, c]));
-    const ids = [...this.selectedClassIds()].filter((id) => !this.isHistorical(classMap.get(id)!));
+    const ids = [...this.selectedClassIds()].filter((id) => {
+      const cls = classMap.get(id);
+      return cls ? !this.isHistorical(cls) : true;
+    });
     if (ids.length === 0) return;
 
     this.openConfirmDialog(
