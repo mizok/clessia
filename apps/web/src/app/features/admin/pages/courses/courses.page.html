@@ -288,18 +288,9 @@
                           (click)="$event.stopPropagation()"
                         />
                         <span class="class-row__name-group">
-                          <span class="class-row__name-row">
-                            <span class="class-row__name">{{ cls.name }}</span>
-                            <span class="class-row__nav-btn">
-                              <i class="pi pi-angle-right"></i>
-                            </span>
-                            @if (cls.startDate || cls.endDate) {
-                              <span class="class-row__date-range">
-                                {{ cls.startDate ? (cls.startDate | slice:0:7) : '' }}
-                                ～
-                                {{ cls.endDate ? (cls.endDate | slice:0:7) : '' }}
-                              </span>
-                            }
+                          <span class="class-row__name">{{ cls.name }}</span>
+                          <span class="class-row__nav-btn">
+                            <i class="pi pi-angle-right"></i>
                           </span>
                         </span>
                         <span class="class-row__schedules">
@@ -310,6 +301,13 @@
                           }
                         </span>
                         <div class="class-row__info">
+                          @if (cls.startDate || cls.endDate) {
+                            <span class="class-row__date-range">
+                              {{ cls.startDate ? (cls.startDate | slice:0:7) : '' }}
+                              ～
+                              {{ cls.endDate ? (cls.endDate | slice:0:7) : '' }}
+                            </span>
+                          }
                           @if (cls.maxStudents) {
                             <span class="class-row__capacity">
                               <i class="pi pi-users"></i>
