@@ -379,13 +379,11 @@
   }
 
   &__name-group {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+    display: inline-flex;
+    align-items: center;
     flex-shrink: 0;
-    max-width: 40%;
+    max-width: 50%;
     min-width: 0;
-    gap: 1px;
   }
 
   &__name-row {
@@ -393,6 +391,7 @@
     align-items: center;
     gap: var(--space-2);
     min-width: 0;
+    flex-wrap: wrap;
   }
 
   &__name {

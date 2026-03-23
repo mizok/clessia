@@ -293,14 +293,14 @@
                             <span class="class-row__nav-btn">
                               <i class="pi pi-angle-right"></i>
                             </span>
+                            @if (cls.startDate || cls.endDate) {
+                              <span class="class-row__date-range">
+                                {{ cls.startDate ? (cls.startDate | slice:0:7) : '' }}
+                                ～
+                                {{ cls.endDate ? (cls.endDate | slice:0:7) : '' }}
+                              </span>
+                            }
                           </span>
-                          @if (cls.startDate || cls.endDate) {
-                            <span class="class-row__date-range">
-                              {{ cls.startDate ? (cls.startDate | slice:0:7) : '' }}
-                              ～
-                              {{ cls.endDate ? (cls.endDate | slice:0:7) : '' }}
-                            </span>
-                          }
                         </span>
                         <span class="class-row__schedules">
                           @if (cls.schedules && cls.schedules.length > 0) {
