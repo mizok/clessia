@@ -272,8 +272,8 @@ describe('CoursesPage', () => {
   });
 
   it('uses hasPastSessions instead of scheduleCount for delete warning copy', () => {
-    const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
-    const confirmSpy = vi.spyOn(confirmationService, 'confirm');
+    const dialogService = fixture.debugElement.injector.get(DialogService);
+    const openSpy = vi.spyOn(dialogService, 'open');
     const cls = {
       id: 'class-2',
       campusId: 'campus-1',
@@ -294,16 +294,19 @@ describe('CoursesPage', () => {
       component as unknown as { confirmDeleteClass: (target: Class) => void }
     ).confirmDeleteClass(cls);
 
-    expect(confirmSpy).toHaveBeenCalledWith(
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
-        message: '確定要刪除班級「英文 B 班」嗎？此操作無法復原。',
+        data: expect.objectContaining({
+          message: '確定要刪除班級「英文 B 班」嗎？此操作無法復原。',
+        }),
       }),
     );
   });
 
   it('explains that batch deactivate keeps existing scheduled sessions', () => {
-    const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
-    const confirmSpy = vi.spyOn(confirmationService, 'confirm');
+    const dialogService = fixture.debugElement.injector.get(DialogService);
+    const openSpy = vi.spyOn(dialogService, 'open');
 
     (
       component as unknown as {
@@ -334,10 +337,13 @@ describe('CoursesPage', () => {
 
     (component as unknown as { batchDeactivate: () => void }).batchDeactivate();
 
-    expect(confirmSpy).toHaveBeenCalledWith(
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
-        message:
-          '確定要停用這 1 個班級嗎？僅會停用班級本身，已排課堂維持原樣；停用後無法新增報名與產生課堂。',
+        data: expect.objectContaining({
+          message:
+            '確定要停用這 1 個班級嗎？僅會停用班級本身，已排課堂維持原樣；停用後無法新增報名與產生課堂。',
+        }),
       }),
     );
   });

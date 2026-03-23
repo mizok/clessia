@@ -26,7 +26,6 @@ import { CourseFormDialogComponent } from './course-form-dialog.component';
 import { ClassFormDialogComponent } from './class-form-dialog/class-form-dialog.component';
 import { GenerateSessionsDialogComponent } from './generate-sessions-dialog/generate-sessions-dialog.component';
 // SessionListDialogComponent removed — replaced by sessions list view
-import { ClassDetailDialogComponent } from './class-detail-dialog/class-detail-dialog.component';
 import { DeactivateClassDialogComponent } from './deactivate-class-dialog/deactivate-class-dialog.component';
 
 // Services
@@ -418,21 +417,6 @@ export class CoursesPage implements OnInit {
   // Expand/Collapse
   // ================================================================
 
-  protected openDetail(cls: Class): void {
-    const course = this.courses().find((c) => c.id === cls.courseId);
-    this.dialogService.open(ClassDetailDialogComponent, {
-      header: '班級詳情',
-      width: '500px',
-      modal: true,
-      showHeader: false,
-      appendTo: this.overlayContainer || 'body',
-      data: {
-        cls,
-        course,
-        campuses: this.campuses(),
-      },
-    });
-  }
 
   openAuditLog(): void {
     this.dialogService.open(AuditLogDialogComponent, {
