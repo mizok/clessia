@@ -19,36 +19,15 @@
 
     <ng-template #listHead>
       <tr>
-        <th appRtColDef="select" [appRtColDefMinWidth]="36" [appRtColDefCollapsible]="false" style="text-align: center">
+        <th appRtColDef="select" [appRtColDefMinWidth]="36" [appRtColDefPriority]="0" [appRtColDefCollapsible]="false" style="text-align: center">
           <p-checkbox [binary]="true" [ngModel]="allPageSelected()" (ngModelChange)="toggleSelectAll()" />
         </th>
-        <th
-          appRtColDef="date"
-          [appRtColDefMinWidth]="100"
-          [appRtColDefPriority]="1"
-          [appRtColDefCollapsible]="false"
-        >
-          日期
-        </th>
-        <th
-          appRtColDef="time"
-          [appRtColDefMinWidth]="120"
-          [appRtColDefPriority]="2"
-          [appRtColDefCollapsible]="false"
-        >
-          時間
-        </th>
-        <th
-          appRtColDef="class"
-          [appRtColDefMinWidth]="180"
-          [appRtColDefPriority]="3"
-          [appRtColDefCollapsible]="false"
-        >
-          班級 / 課程 / 分校
-        </th>
+        <th appRtColDef="date" [appRtColDefMinWidth]="100" [appRtColDefPriority]="1">日期</th>
+        <th appRtColDef="time" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">時間</th>
+        <th appRtColDef="class" [appRtColDefMinWidth]="180" [appRtColDefPriority]="3">班級 / 課程 / 分校</th>
         <th appRtColDef="teacher" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">老師</th>
         <th appRtColDef="status" [appRtColDefMinWidth]="88" [appRtColDefPriority]="5">狀態</th>
-        <th appRtColDef="actions" [appRtColDefMinWidth]="48" [appRtColDefCollapsible]="false" aria-hidden="true"></th>
+        <th appRtColDef="actions" [appRtColDefMinWidth]="48" [appRtColDefPriority]="0" [appRtColDefCollapsible]="false" aria-hidden="true"></th>
       </tr>
     </ng-template>
 
