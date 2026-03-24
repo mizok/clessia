@@ -37,114 +37,53 @@
       </p-tabs>
     }
     <div class="courses__toolbar">
-      <label class="courses__select-all" pTooltip="全選 / 取消全選" tooltipPosition="top">
-        <input
-          type="checkbox"
-          class="batch-checkbox"
-          [checked]="allVisibleSelected()"
-          [indeterminate]="selectedClassIds().size > 0 && !allVisibleSelected()"
-          (change)="toggleSelectAll()"
-        />
-      </label>
-
-      <div class="courses__search">
-        <p-iconfield iconPosition="left">
-          <p-inputicon styleClass="pi pi-search" />
+      <div class="courses__toolbar-main">
+        <label class="courses__select-all" pTooltip="全選 / 取消全選" tooltipPosition="top">
           <input
-            type="text"
-            pInputText
-            placeholder="搜尋課程或班級..."
-            [ngModel]="searchQuery()"
-            (ngModelChange)="onSearchChange($event)"
+            type="checkbox"
+            class="batch-checkbox"
+            [checked]="allVisibleSelected()"
+            [indeterminate]="selectedClassIds().size > 0 && !allVisibleSelected()"
+            (change)="toggleSelectAll()"
           />
-        </p-iconfield>
-      </div>
+        </label>
 
-      <div class="courses__filters">
-        <p-select
-          [options]="subjectOptions()"
-          [ngModel]="selectedSubjectId()"
-          (ngModelChange)="onSubjectChange($event)"
-          placeholder="所有科目"
-          [showClear]="true"
-          styleClass="courses__filter-select"
-          [appendTo]="'body'"
-        />
-        <p-multiselect
-          [options]="filteredStaffOptions()"
-          [ngModel]="selectedTeacherIds()"
-          (ngModelChange)="onTeacherChange($event)"
-          placeholder="所有老師"
-          selectedItemsLabel="{0} 位老師"
-          [filter]="true"
-          filterBy="label"
-          filterPlaceholder="搜尋老師..."
-          styleClass="courses__filter-select"
-          [appendTo]="overlayContainer"
-          [virtualScroll]="true"
-          [virtualScrollItemSize]="38"
+        <div class="courses__search">
+          <p-iconfield iconPosition="left">
+            <p-inputicon styleClass="pi pi-search" />
+            <input
+              type="text"
+              pInputText
+              placeholder="搜尋課程或班級..."
+              [ngModel]="searchQuery()"
+              (ngModelChange)="onSearchChange($event)"
+            />
+          </p-iconfield>
+        </div>
+
+        <button
+          type="button"
+          class="courses__filter-btn"
+          [class.courses__filter-btn--active]="activeFilterCount() > 0"
+          (click)="onFilterBtnClick($event)"
         >
-          <ng-template #item let-option>
-            <div class="courses__teacher-option">
-              <span class="courses__teacher-option-name">{{ option.label }}</span>
-              @if (option.subjectNames?.length > 0) {
-                <span class="courses__teacher-option-subjects">{{ option.subjectNames.join('、') }}</span>
-              }
-            </div>
-          </ng-template>
-        </p-multiselect>
-        <p-select
-          [options]="statusOptions"
-          [ngModel]="statusFilter()"
-          (ngModelChange)="onStatusFilterChange($event)"
-          placeholder="全部狀態"
-          styleClass="courses__filter-select"
-          [appendTo]="'body'"
-        />
-      </div>
+          <i class="pi pi-sliders-h"></i>
+          篩選
+          @if (activeFilterCount() > 0) {
+            <span class="courses__filter-badge">{{ activeFilterCount() }}</span>
+          }
+        </button>
 
-      <div class="courses__historical-filter">
-        <p-toggleswitch
-          [ngModel]="showHistorical()"
-          (ngModelChange)="onToggleHistorical($event)"
-          inputId="toggleHistorical"
-        />
-        <label for="toggleHistorical" class="courses__historical-label">含歷史班級</label>
-        @if (showHistorical()) {
-          <p-datepicker
-            [ngModel]="historicalDateFrom()"
-            (ngModelChange)="onHistoricalDateFromChange($event)"
-            dateFormat="yy-mm-dd"
-            [showIcon]="true"
-            placeholder="開始"
-            styleClass="courses__historical-date"
-            [appendTo]="'body'"
-          />
-          <span class="courses__historical-sep">～</span>
-          <p-datepicker
-            [ngModel]="historicalDateTo()"
-            (ngModelChange)="onHistoricalDateToChange($event)"
-            dateFormat="yy-mm-dd"
-            [showIcon]="true"
-            placeholder="結束"
-            styleClass="courses__historical-date"
-            [appendTo]="'body'"
+        @if (hasActiveFilters()) {
+          <p-button
+            label="清除"
+            icon="pi pi-filter-slash"
+            [text]="true"
+            severity="secondary"
+            (onClick)="clearFilters()"
           />
         }
-        @if (loadingHistorical()) {
-          <i class="pi pi-spin pi-spinner courses__historical-loading"></i>
-        }
-      </div>
-
-      @if (hasActiveFilters()) {
-        <p-button
-          label="清除"
-          icon="pi pi-filter-slash"
-          [text]="true"
-          severity="secondary"
-          (onClick)="clearFilters()"
-        />
-      }
+      </div><!-- /toolbar-main -->
     </div>
 
     <!-- Content -->
@@ -270,11 +209,10 @@
               >
                 <div class="course-group__classes-inner">
                   @for (cls of group.classes; track cls.id) {
-                    <div class="class-row" [class.class-row--historical]="isHistorical(cls)">
+                    <div class="class-row" [class.class-row--historical]="isHistorical(cls)" [class.class-row--selected]="selectedClassIds().has(cls.id)">
                       <!-- Summary Row (整行可點擊，前往班級詳情) -->
                       <div
                         class="class-row__summary"
-                        [class.class-row__summary--selected]="selectedClassIds().has(cls.id)"
                         role="button"
                         tabindex="0"
                         (click)="navigateToClass(group.course.id, cls.id)"
@@ -460,6 +398,134 @@
       </div>
     }
   </div>
+
+  <!-- 桌面: Popover 篩選面板 -->
+  <p-popover #filterPopover styleClass="courses__filter-popover">
+    <ng-container [ngTemplateOutlet]="filterContent" />
+  </p-popover>
+
+  <!-- 手機: Drawer 篩選面板 -->
+  <p-drawer
+    header="篩選"
+    position="bottom"
+    [visible]="filterPanelVisible()"
+    (visibleChange)="filterPanelVisible.set($event)"
+    styleClass="courses__filter-drawer"
+  >
+    <ng-container [ngTemplateOutlet]="filterContent" />
+  </p-drawer>
+
+  <!-- 共用篩選內容 -->
+  <ng-template #filterContent>
+    <div class="courses__filter-panel">
+      <!-- 科目 -->
+      <div class="courses__filter-section">
+        <span class="courses__filter-label">科目</span>
+        <p-select
+          [options]="subjectOptions()"
+          [ngModel]="selectedSubjectId()"
+          (ngModelChange)="onSubjectChange($event)"
+          placeholder="全部科目"
+          [showClear]="true"
+          styleClass="courses__filter-full-select"
+          [appendTo]="'body'"
+        />
+      </div>
+
+      <!-- 老師 -->
+      <!-- Note: appendTo 由 overlayContainer 改為 'body'，因為 panel 在 popover/drawer 內部，
+           overlay 需掛在 body 層才能超出 panel 範圍。若 z-index 有衝突可恢復為 [appendTo]="overlayContainer"。 -->
+      <div class="courses__filter-section">
+        <span class="courses__filter-label">老師</span>
+        <p-multiselect
+          [options]="filteredStaffOptions()"
+          [ngModel]="selectedTeacherIds()"
+          (ngModelChange)="onTeacherChange($event)"
+          placeholder="全部老師"
+          selectedItemsLabel="{0} 位老師"
+          [filter]="true"
+          filterBy="label"
+          filterPlaceholder="搜尋老師..."
+          styleClass="courses__filter-full-select"
+          [appendTo]="'body'"
+          [virtualScroll]="true"
+          [virtualScrollItemSize]="38"
+        >
+          <ng-template #item let-option>
+            <div class="courses__teacher-option">
+              <span class="courses__teacher-option-name">{{ option.label }}</span>
+              @if (option.subjectNames?.length > 0) {
+                <span class="courses__teacher-option-subjects">{{ option.subjectNames.join('、') }}</span>
+              }
+            </div>
+          </ng-template>
+        </p-multiselect>
+      </div>
+
+      <!-- 狀態 -->
+      <div class="courses__filter-section">
+        <span class="courses__filter-label">狀態</span>
+        <p-select
+          [options]="statusOptions"
+          [ngModel]="statusFilter()"
+          (ngModelChange)="onStatusFilterChange($event)"
+          placeholder="全部狀態"
+          styleClass="courses__filter-full-select"
+          [appendTo]="'body'"
+        />
+      </div>
+
+      <!-- 含歷史班級 + 日期範圍（獨立顯示，不依賴 toggle）-->
+      <div class="courses__filter-section">
+        <span class="courses__filter-label">歷史班級</span>
+        <div class="courses__filter-historical-row">
+          <p-toggleswitch
+            [ngModel]="showHistorical()"
+            (ngModelChange)="onToggleHistorical($event)"
+          />
+          <span class="courses__filter-historical-label">含歷史班級</span>
+        </div>
+        <div class="courses__filter-dates">
+          <p-datepicker
+            [ngModel]="historicalDateFrom()"
+            (ngModelChange)="onHistoricalDateFromChange($event)"
+            dateFormat="yy-mm-dd"
+            [showIcon]="true"
+            placeholder="開始日期"
+            styleClass="courses__historical-date"
+            [appendTo]="'body'"
+          />
+          <span class="courses__filter-date-sep">～</span>
+          <p-datepicker
+            [ngModel]="historicalDateTo()"
+            (ngModelChange)="onHistoricalDateToChange($event)"
+            dateFormat="yy-mm-dd"
+            [showIcon]="true"
+            placeholder="結束日期"
+            styleClass="courses__historical-date"
+            [appendTo]="'body'"
+          />
+          @if (loadingHistorical()) {
+            <i class="pi pi-spin pi-spinner courses__historical-loading"></i>
+          }
+        </div>
+      </div>
+
+      <!-- Panel Footer：有 active filter 時顯示清除按鈕 -->
+      @if (activeFilterCount() > 0) {
+        <div class="courses__filter-footer">
+          <p-button
+            label="清除篩選"
+            icon="pi pi-filter-slash"
+            [text]="true"
+            severity="secondary"
+            size="small"
+            (onClick)="clearFilters()"
+          />
+        </div>
+      }
+    </div>
+  </ng-template>
 </div>
 
 <!-- Class Action Menu -->
