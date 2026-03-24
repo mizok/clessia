@@ -675,6 +675,12 @@ select {
   font-size: var(--text-sm);
 }
 
+// courses filter drawer: override PrimeNG bottom drawer default height (10rem)
+.p-drawer-bottom.courses__filter-drawer {
+  height: auto;
+  max-height: calc(var(--window-height, 667px) * 0.8);
+}
+
 .form-dialog {
   .p-multiselect,
   .p-select,

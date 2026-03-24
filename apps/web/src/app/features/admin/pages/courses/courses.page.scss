@@ -783,9 +783,6 @@
       max-width: unset;
       width: 100%;
       padding: var(--space-3);
-      // 避免 drawer 內容超出可視區域（不用 vh，用 --window-height）
-      max-height: calc(var(--window-height, 640px) * 0.65);
-      overflow-y: auto;
     }
 
     // Note: 若 PrimeNG datepicker 的 styleClass 因 ViewEncapsulation 限制導致
