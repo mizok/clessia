@@ -1174,7 +1174,7 @@ export class CoursesPage implements OnInit {
   protected getScheduleSummary(schedules: Schedule[] | undefined): string {
     if (!schedules || schedules.length === 0) return '';
     const items = schedules.map(
-      (s) => `${this.getWeekdayLabel(s.weekday)} ${s.startTime.substring(0, 5)}`,
+      (s) => `${this.getWeekdayLabel(s.weekday)} ${s.startTime.substring(0, 5)}–${s.endTime.substring(0, 5)}`,
     );
 
     const maxVisible = this.isMobile() ? 1 : 2;
