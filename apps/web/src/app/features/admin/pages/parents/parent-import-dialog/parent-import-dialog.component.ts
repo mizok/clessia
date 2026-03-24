@@ -1,11 +1,425 @@
-import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Component, computed, inject, signal } from '@angular/core';
+import { finalize } from 'rxjs';
+import { ButtonModule } from 'primeng/button';
+import { DynamicDialogRef } from 'primeng/dynamicdialog';
+import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { TableModule } from 'primeng/table';
+import { TagModule } from 'primeng/tag';
+import * as XLSX from 'xlsx';
+import {
+  ParentsService,
+  type BatchImportResponse,
+  type BatchImportRow,
+} from '../../../../../core/parents.service';
+
+// 年級對照表
+const GRADE_MAP: Record<string, string> = {
+  小一: 'P1',
+  小二: 'P2',
+  小三: 'P3',
+  小四: 'P4',
+  小五: 'P5',
+  小六: 'P6',
+  國一: 'J1',
+  國二: 'J2',
+  國三: 'J3',
+  高一: 'S1',
+  高二: 'S2',
+  高三: 'S3',
+};
+
+// 性別對照表
+const GENDER_MAP: Record<string, string> = {
+  男: 'male',
+  女: 'female',
+  不提供: 'prefer_not_to_say',
+};
+
+const VALID_GRADE_CODES = new Set(Object.values(GRADE_MAP));
+
+interface ParsedRow {
+  index: number;
+  parentName: string;
+  parentPhone: string;
+  parentEmail: string;
+  parentNotes: string;
+  studentName: string;
+  studentGrade: string;
+  studentSchool: string;
+  studentBirthday: string;
+  studentGender: string;
+  errors: string[];
+  warnings: string[];
+  mergeNote: string | null;
+}
 
 @Component({
   selector: 'app-parent-import-dialog',
-  imports: [],
+  standalone: true,
+  imports: [CommonModule, ButtonModule, TableModule, TagModule, ProgressSpinnerModule],
   templateUrl: './parent-import-dialog.component.html',
   styleUrl: './parent-import-dialog.component.scss',
 })
 export class ParentImportDialogComponent {
+  private readonly ref = inject(DynamicDialogRef);
+  private readonly parentsService = inject(ParentsService);
 
+  protected readonly step = signal<1 | 2 | 3 | 4>(1);
+  protected readonly rows = signal<ParsedRow[]>([]);
+  protected readonly submitting = signal(false);
+  protected readonly submitResult = signal<BatchImportResponse | null>(null);
+
+  protected readonly hasErrors = computed(() => this.rows().some((row) => row.errors.length > 0));
+  protected readonly parentsCount = computed(() => this.countDistinctParents(this.rows()));
+  protected readonly failedCount = computed(() => {
+    const result = this.submitResult();
+    if (!result) return 0;
+    return result.results.filter((item) => item.status === 'failed').length;
+  });
+
+  protected onFileChange(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+
+    this.parseExcelFile(file)
+      .then((sheetRows) => {
+        const parsedRows = this.parseRows(sheetRows);
+        this.rows.set(parsedRows);
+        this.submitResult.set(null);
+        this.step.set(2);
+      })
+      .catch((error: unknown) => {
+        console.error('解析 Excel 失敗:', error);
+        this.rows.set([]);
+        this.step.set(1);
+      })
+      .finally(() => {
+        target.value = '';
+      });
+  }
+
+  protected onSubmit(): void {
+    const batchRows: BatchImportRow[] = this.rows()
+      .filter((row) => row.errors.length === 0)
+      .map((row) => {
+        const gradeCode = this.toGradeCode(row.studentGrade) ?? row.studentGrade;
+        const genderCode = this.toGenderCode(row.studentGender);
+        return {
+          parentName: row.parentName,
+          parentPhone: row.parentPhone || undefined,
+          parentEmail: row.parentEmail || undefined,
+          parentNotes: row.parentNotes || undefined,
+          studentName: row.studentName,
+          studentGrade: gradeCode,
+          studentSchool: row.studentSchool,
+          studentBirthday: row.studentBirthday || undefined,
+          studentGender: genderCode ?? undefined,
+        };
+      });
+
+    if (batchRows.length === 0) return;
+
+    this.submitting.set(true);
+    this.step.set(3);
+
+    this.parentsService
+      .batchImport(batchRows)
+      .pipe(finalize(() => this.submitting.set(false)))
+      .subscribe({
+        next: (result) => {
+          this.submitResult.set(result);
+          this.step.set(4);
+        },
+        error: (error: unknown) => {
+          console.error('批次匯入失敗:', error);
+          this.step.set(2);
+        },
+      });
+  }
+
+  protected onClose(): void {
+    this.ref.close();
+  }
+
+  protected onDone(): void {
+    this.ref.close('imported');
+  }
+
+  private parseExcelFile(file: File): Promise<unknown[][]> {
+    return new Promise<unknown[][]>((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        try {
+          const result = reader.result;
+          if (!(result instanceof ArrayBuffer)) {
+            reject(new Error('Excel 內容讀取失敗'));
+            return;
+          }
+
+          const workbook = XLSX.read(result, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          if (!firstSheetName) {
+            resolve([]);
+            return;
+          }
+
+          const firstSheet = workbook.Sheets[firstSheetName];
+          const rawRows = XLSX.utils.sheet_to_json<unknown[]>(firstSheet, {
+            header: 1,
+            defval: '',
+          });
+          resolve(rawRows as unknown[][]);
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      reader.onerror = () => {
+        reject(reader.error ?? new Error('Excel 檔案讀取錯誤'));
+      };
+
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  private parseRows(sheetRows: unknown[][]): ParsedRow[] {
+    if (sheetRows.length <= 1) return [];
+
+    const dataRows = sheetRows.slice(1).filter((row) => this.hasAnyData(row));
+    const parsedRows = dataRows.map((row, index) => this.parseSingleRow(row, index + 1));
+
+    this.applySameNameWarnings(parsedRows);
+    this.applyMergeNotes(parsedRows);
+
+    return parsedRows;
+  }
+
+  private parseSingleRow(row: unknown[], index: number): ParsedRow {
+    const parentName = this.readText(row[0]);
+    const parentPhone = this.normalizePhone(this.readText(row[1]));
+    const parentEmail = this.normalizeEmail(this.readText(row[2]));
+    const parentNotes = this.readText(row[3]);
+    const studentName = this.readText(row[4]);
+    const studentGrade = this.readText(row[5]);
+    const studentSchool = this.readText(row[6]);
+    const studentBirthday = this.toBirthdayString(row[7]);
+    const studentGender = this.readText(row[8]);
+
+    const errors: string[] = [];
+
+    if (!parentName) errors.push('家長姓名不可空白');
+    if (!studentName) errors.push('學生姓名不可空白');
+    if (!this.toGradeCode(studentGrade)) errors.push('學生年級格式不正確');
+    if (!studentSchool) errors.push('學生就讀學校不可空白');
+    if (!parentPhone && !parentEmail) errors.push('家長電話與 Email 不可同時空白');
+    if (parentPhone && !/^09\d{8}$/.test(parentPhone)) errors.push('家長電話格式錯誤（需為 09 開頭 10 碼）');
+    if (parentEmail && !this.isValidEmail(parentEmail)) errors.push('家長 Email 格式錯誤');
+
+    return {
+      index,
+      parentName,
+      parentPhone,
+      parentEmail,
+      parentNotes,
+      studentName,
+      studentGrade,
+      studentSchool,
+      studentBirthday,
+      studentGender,
+      errors,
+      warnings: [],
+      mergeNote: null,
+    };
+  }
+
+  private applySameNameWarnings(rows: ParsedRow[]): void {
+    const rowsByName = new Map<string, ParsedRow[]>();
+
+    for (const row of rows) {
+      const nameKey = row.parentName.trim();
+      if (!nameKey) continue;
+      const bucket = rowsByName.get(nameKey) ?? [];
+      bucket.push(row);
+      rowsByName.set(nameKey, bucket);
+    }
+
+    for (const sameNameRows of rowsByName.values()) {
+      if (sameNameRows.length <= 1) continue;
+
+      for (let i = 0; i < sameNameRows.length; i += 1) {
+        const current = sameNameRows[i];
+        let hasConflict = false;
+
+        for (let j = 0; j < sameNameRows.length; j += 1) {
+          if (i === j) continue;
+          if (this.hasDifferentContacts(current, sameNameRows[j])) {
+            hasConflict = true;
+            break;
+          }
+        }
+
+        if (hasConflict) {
+          current.warnings.push('同名家長但聯絡資訊不同');
+        }
+      }
+    }
+  }
+
+  private applyMergeNotes(rows: ParsedRow[]): void {
+    const phoneFirstRowMap = new Map<string, number>();
+    const emailFirstRowMap = new Map<string, number>();
+
+    for (const row of rows) {
+      const mergeTargets: number[] = [];
+
+      if (row.parentPhone && phoneFirstRowMap.has(row.parentPhone)) {
+        mergeTargets.push(phoneFirstRowMap.get(row.parentPhone) as number);
+      }
+      if (row.parentEmail && emailFirstRowMap.has(row.parentEmail)) {
+        mergeTargets.push(emailFirstRowMap.get(row.parentEmail) as number);
+      }
+
+      const mergeTargetRow = mergeTargets.length > 0 ? Math.min(...mergeTargets) : null;
+      if (mergeTargetRow !== null) {
+        row.mergeNote = `將與第 ${mergeTargetRow} 行合併至同一家長帳號`;
+      }
+
+      const baseRow = mergeTargetRow ?? row.index;
+      if (row.parentPhone && !phoneFirstRowMap.has(row.parentPhone)) {
+        phoneFirstRowMap.set(row.parentPhone, baseRow);
+      }
+      if (row.parentEmail && !emailFirstRowMap.has(row.parentEmail)) {
+        emailFirstRowMap.set(row.parentEmail, baseRow);
+      }
+    }
+  }
+
+  private countDistinctParents(rows: ParsedRow[]): number {
+    const nodeParent = new Map<string, string>();
+    let rowsWithoutContact = 0;
+
+    const ensureNode = (node: string): void => {
+      if (!nodeParent.has(node)) nodeParent.set(node, node);
+    };
+
+    const findRoot = (node: string): string => {
+      let root = node;
+      while (nodeParent.get(root) !== root) {
+        root = nodeParent.get(root) as string;
+      }
+
+      let current = node;
+      while (nodeParent.get(current) !== current) {
+        const next = nodeParent.get(current) as string;
+        nodeParent.set(current, root);
+        current = next;
+      }
+
+      return root;
+    };
+
+    const unionNode = (a: string, b: string): void => {
+      const rootA = findRoot(a);
+      const rootB = findRoot(b);
+      if (rootA !== rootB) {
+        nodeParent.set(rootB, rootA);
+      }
+    };
+
+    for (const row of rows) {
+      const contacts: string[] = [];
+      if (row.parentPhone) contacts.push(`phone:${row.parentPhone}`);
+      if (row.parentEmail) contacts.push(`email:${row.parentEmail}`);
+
+      if (contacts.length === 0) {
+        rowsWithoutContact += 1;
+        continue;
+      }
+
+      for (const contact of contacts) ensureNode(contact);
+      for (let i = 1; i < contacts.length; i += 1) {
+        unionNode(contacts[0], contacts[i]);
+      }
+    }
+
+    const roots = new Set<string>();
+    for (const node of nodeParent.keys()) {
+      roots.add(findRoot(node));
+    }
+
+    return roots.size + rowsWithoutContact;
+  }
+
+  private hasAnyData(row: unknown[]): boolean {
+    return row.some((cell) => this.readText(cell) !== '');
+  }
+
+  private toGradeCode(value: string): string | null {
+    if (!value) return null;
+    if (GRADE_MAP[value]) return GRADE_MAP[value];
+
+    const normalized = value.toUpperCase();
+    if (VALID_GRADE_CODES.has(normalized)) return normalized;
+
+    return null;
+  }
+
+  private toGenderCode(value: string): string | null {
+    if (!value) return null;
+    return GENDER_MAP[value] ?? null;
+  }
+
+  private hasDifferentContacts(a: ParsedRow, b: ParsedRow): boolean {
+    return a.parentPhone !== b.parentPhone && a.parentEmail !== b.parentEmail;
+  }
+
+  private normalizePhone(value: string): string {
+    return value.replace(/\s+/g, '');
+  }
+
+  private normalizeEmail(value: string): string {
+    return value.trim().toLowerCase();
+  }
+
+  private readText(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    return String(value).trim();
+  }
+
+  private toBirthdayString(value: unknown): string {
+    if (typeof value === 'number') {
+      const parsed = XLSX.SSF.parse_date_code(value);
+      if (parsed) {
+        const year = String(parsed.y).padStart(4, '0');
+        const month = String(parsed.m).padStart(2, '0');
+        const day = String(parsed.d).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+    }
+
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      const year = String(value.getFullYear()).padStart(4, '0');
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      const day = String(value.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    const text = this.readText(value);
+    if (!text) return '';
+
+    const slashDateMatch = text.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+    if (slashDateMatch) {
+      const [, y, m, d] = slashDateMatch;
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+
+    return text;
+  }
+
+  private isValidEmail(value: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
 }

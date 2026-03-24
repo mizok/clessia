@@ -1,0 +1,90 @@
+.pid {
+  display: block;
+
+  &__upload-area {
+    display: grid;
+    gap: var(--space-4, 1rem);
+    justify-items: center;
+    border: 1px dashed var(--surface-border, #d4d4d8);
+    border-radius: 12px;
+    padding: var(--space-8, 2rem) var(--space-6, 1.5rem);
+    text-align: center;
+  }
+
+  &__upload-label {
+    display: grid;
+    gap: var(--space-2, 0.5rem);
+    cursor: pointer;
+  }
+
+  &__file-input {
+    display: none;
+  }
+
+  &__upload-title {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  &__upload-hint {
+    font-size: 0.875rem;
+    color: var(--text-color-secondary, #71717a);
+  }
+
+  &__template-link {
+    font-size: 0.875rem;
+    color: var(--primary-color, #0ea5e9);
+    text-decoration: none;
+  }
+
+  &__summary {
+    margin-bottom: var(--space-4, 1rem);
+    font-weight: 600;
+  }
+
+  &__status {
+    display: grid;
+    gap: var(--space-2, 0.5rem);
+  }
+
+  &__status-tags {
+    display: flex;
+    gap: var(--space-2, 0.5rem);
+    flex-wrap: wrap;
+  }
+
+  &__status-text {
+    color: var(--text-color-secondary, #71717a);
+    line-height: 1.4;
+  }
+
+  &__footer {
+    margin-top: var(--space-4, 1rem);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3, 0.75rem);
+  }
+
+  &__footer--single {
+    justify-content: center;
+  }
+
+  &__loading {
+    min-height: 220px;
+    display: grid;
+    place-items: center;
+    gap: var(--space-3, 0.75rem);
+    text-align: center;
+  }
+
+  &__result {
+    display: grid;
+    gap: var(--space-3, 0.75rem);
+  }
+
+  &__result-note {
+    margin-top: var(--space-2, 0.5rem);
+    color: var(--text-color-secondary, #71717a);
+    line-height: 1.6;
+  }
+}
