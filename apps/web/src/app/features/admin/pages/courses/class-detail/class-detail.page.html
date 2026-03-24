@@ -54,6 +54,16 @@
               <span>尚未設定課表</span>
             </span>
           }
+          @if (cls()!.startDate || cls()!.endDate) {
+            <span class="class-detail__stat">
+              <i class="pi pi-calendar-range"></i>
+              <span>
+                {{ cls()!.startDate ?? '不限' }}
+                ～
+                {{ cls()!.endDate ?? '不限' }}
+              </span>
+            </span>
+          }
         </div>
       </div>
     </div>
