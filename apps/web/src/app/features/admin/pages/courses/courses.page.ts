@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, input, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, input, signal, computed, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -18,6 +18,9 @@ import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { DatePickerModule } from 'primeng/datepicker';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { PopoverModule } from 'primeng/popover';
+import { DrawerModule } from 'primeng/drawer';
+import type { Popover } from 'primeng/popover';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { PaginatorModule } from 'primeng/paginator';
@@ -68,6 +71,8 @@ interface CourseGroup {
     MultiSelectModule,
     DatePickerModule,
     ToggleSwitchModule,
+    PopoverModule,
+    DrawerModule,
     PaginatorModule,
     TagModule,
     TooltipModule,
@@ -146,6 +151,19 @@ export class CoursesPage implements OnInit {
   protected readonly selectedSubjectId = signal<string | null>(null);
   protected readonly selectedTeacherIds = signal<string[]>([]);
   protected readonly statusFilter = signal<boolean | null>(null);
+  // ---- Filter Panel ----
+  protected readonly filterPanelVisible = signal(false);
+  protected readonly filterPopoverRef = viewChild<Popover>('filterPopover');
+
+  protected readonly activeFilterCount = computed(() => {
+    let count = 0;
+    if (this.selectedSubjectId()) count++;
+    if (this.selectedTeacherIds().length > 0) count++;
+    if (this.statusFilter() !== null) count++;
+    if (this.showHistorical()) count++;
+    if (this.historicalDateFrom() || this.historicalDateTo()) count++;
+    return count;
+  });
 
   // ---- Computed options ----
   protected readonly activeCampuses = computed(() => this.campuses().filter((c) => c.isActive));
@@ -242,7 +260,9 @@ export class CoursesPage implements OnInit {
       !!this.selectedSubjectId() ||
       this.selectedTeacherIds().length > 0 ||
       this.statusFilter() !== null ||
-      this.showHistorical(),
+      this.showHistorical() ||
+      !!this.historicalDateFrom() ||
+      !!this.historicalDateTo(),
   );
 
   // ---- Static options ----
@@ -484,6 +504,9 @@ export class CoursesPage implements OnInit {
   }
 
   protected clearFilters(): void {
+    // 關閉篩選面板
+    this.filterPanelVisible.set(false);
+    this.filterPopoverRef()?.hide();
     if (this.showHistorical()) {
       this.onToggleHistorical(false);
     }
@@ -492,8 +515,18 @@ export class CoursesPage implements OnInit {
     this.selectedSubjectId.set(null);
     this.selectedTeacherIds.set([]);
     this.statusFilter.set(null);
+    this.historicalDateFrom.set(null);
+    this.historicalDateTo.set(null);
     this.currentPage.set(1);
     this.loadCourses();
+  }
+
+  protected onFilterBtnClick(event: Event): void {
+    if (this.isMobile()) {
+      this.filterPanelVisible.set(true);
+    } else {
+      this.filterPopoverRef()?.toggle(event);
+    }
   }
 
   protected isCourseCollapsed(courseId: string): boolean {
