@@ -14,7 +14,7 @@ import {
   type BatchMatchCandidate,
   type BatchMatchItem,
   type BatchMatchResultItem,
-} from '../../../../../core/enrollments.service';
+} from '../../../../../../core/enrollments.service';
 
 @Component({
   selector: 'app-student-excel-import-dialog',

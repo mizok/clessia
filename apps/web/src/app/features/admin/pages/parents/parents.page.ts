@@ -46,7 +46,7 @@ import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confir
 import { PasswordRevealDialogComponent } from '@shared/components/password-reveal-dialog/password-reveal-dialog.component';
 import { ParentFormDialogComponent } from '@shared/components/parent-form-dialog/parent-form-dialog.component';
 import { StudentFormDialogComponent } from '@features/admin/pages/students/student-form-dialog.component';
-import ParentImportDialogComponent from './parent-import-dialog/parent-import-dialog.component';
+import { ParentImportDialogComponent } from './parent-import-dialog/parent-import-dialog.component';
 
 @Component({
   selector: 'app-parents',
@@ -260,7 +260,7 @@ export class ParentsPage implements OnInit {
       modal: true,
       appendTo: this.overlayContainer || 'body',
     });
-    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
+    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
       if (result === 'imported') this.loadParents();
     });
   }
@@ -298,7 +298,7 @@ export class ParentsPage implements OnInit {
     });
 
     if (!ref) return;
-    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
+    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
       if (result) {
         this.messageService.add({
           severity: 'success',
@@ -421,6 +421,6 @@ export class ParentsPage implements OnInit {
       data,
     });
     if (!ref) return;
-    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => { if (result) onAccept(); });
+    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => { if (result) onAccept(); });
   }
 }

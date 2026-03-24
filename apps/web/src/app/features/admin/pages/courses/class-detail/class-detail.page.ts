@@ -28,7 +28,7 @@ import {
   type ConfirmDialogData,
 } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { StudentPickerDialogComponent } from './student-picker-dialog/student-picker-dialog.component';
-import StudentExcelImportDialogComponent from './student-excel-import-dialog/student-excel-import-dialog.component';
+import { StudentExcelImportDialogComponent } from './student-excel-import-dialog/student-excel-import-dialog.component';
 
 @Component({
   selector: 'app-class-detail',
