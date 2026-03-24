@@ -397,8 +397,8 @@ export class CoursesPage implements OnInit {
         campusId: this.selectedCampusId() || undefined,
         subjectId: this.selectedSubjectId() || undefined,
         isActive: this.statusFilter() === 'intervention' || this.statusFilter() === null ? true : (this.statusFilter() as boolean),
-        page: this.currentPage(),
-        pageSize: this.PAGE_SIZE,
+        page: this.statusFilter() === 'intervention' ? 1 : this.currentPage(),
+        pageSize: this.statusFilter() === 'intervention' ? 9999 : this.PAGE_SIZE,
       })
       .subscribe({
         next: (res) => {

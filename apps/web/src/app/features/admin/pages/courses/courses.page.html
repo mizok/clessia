@@ -335,7 +335,7 @@
           }
         </div>
 
-        @if (total() > PAGE_SIZE) {
+        @if (total() > PAGE_SIZE && statusFilter() !== 'intervention') {
           <div class="courses__pagination">
             <p-paginator
               [first]="(currentPage() - 1) * PAGE_SIZE"
