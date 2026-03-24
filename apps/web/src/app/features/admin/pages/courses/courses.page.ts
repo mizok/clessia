@@ -396,7 +396,7 @@ export class CoursesPage implements OnInit {
         search: this.searchQuery() || undefined,
         campusId: this.selectedCampusId() || undefined,
         subjectId: this.selectedSubjectId() || undefined,
-        isActive: this.statusFilter() === 'intervention' ? true : (this.statusFilter() ?? true),
+        isActive: this.statusFilter() === 'intervention' || this.statusFilter() === null ? true : (this.statusFilter() as boolean),
         page: this.currentPage(),
         pageSize: this.PAGE_SIZE,
       })
