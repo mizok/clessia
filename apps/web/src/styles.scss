@@ -668,6 +668,12 @@ select {
 }
 
 // Global PrimeNG Form Component Adjustments
+// courses filter panel: p-select-label has hardcoded font-size: 1rem in PrimeNG source,
+// so inheritance from wrapper doesn't work — override directly here.
+.courses__filter-full-select .p-select-label {
+  font-size: var(--text-sm);
+}
+
 .form-dialog {
   .p-multiselect,
   .p-select,
@@ -915,7 +921,7 @@ textarea.p-textarea,
     flex-direction: column;
     gap: var(--space-3);
 
-    + .session-detail__section {
+    & + & {
       border-top: 1px solid var(--zinc-100);
       padding-top: var(--space-4);
     }
