@@ -94,6 +94,46 @@ const BatchCreateResultSchema = z
   .object({ results: z.array(BatchCreateResultItemSchema) })
   .openapi('BatchCreateEnrollmentResult');
 
+const BatchMatchBodySchema = z
+  .object({
+    classId: z.string().uuid(),
+    items: z
+      .array(
+        z.object({
+          name: z.string().min(1),
+          school: z.string().min(1),
+        }),
+      )
+      .min(1)
+      .max(200),
+  })
+  .openapi('BatchMatchBody');
+
+const BatchMatchCandidateSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    grade: z.string(),
+    school: z.string(),
+    birthday: z.string().nullable().optional(),
+  })
+  .openapi('BatchMatchCandidate');
+
+const BatchMatchResultItemSchema = z
+  .object({
+    index: z.number(),
+    status: z.enum(['matched', 'ambiguous', 'not_found', 'already_enrolled']),
+    studentId: z.string().optional(),
+    candidates: z.array(BatchMatchCandidateSchema).optional(),
+  })
+  .openapi('BatchMatchResultItem');
+
+const BatchMatchResponseSchema = z
+  .object({
+    results: z.array(BatchMatchResultItemSchema),
+  })
+  .openapi('BatchMatchResponse');
+
 // ============================================================
 // Helper
 // ============================================================
@@ -447,6 +487,78 @@ app.openapi(
 
     await supabase.from('enrollments').delete().eq('id', id);
     return new Response(null, { status: 204 });
+  },
+);
+
+// POST /api/enrollments/batch-match
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/batch-match',
+    tags: ['Enrollments'],
+    summary: '批次比對學生（唯讀）',
+    request: { body: { content: { 'application/json': { schema: BatchMatchBodySchema } } } },
+    responses: {
+      200: { content: { 'application/json': { schema: BatchMatchResponseSchema } }, description: 'OK' },
+      500: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Internal Server Error' },
+    },
+  }),
+  async (c) => {
+    const body = c.req.valid('json');
+    const orgId = c.get('orgId');
+    const supabase = c.get('supabase');
+
+    const { data: enrolled, error: enrolledError } = await supabase
+      .from('enrollments')
+      .select('student_id')
+      .eq('class_id', body.classId)
+      .in('status', ['active', 'pending_payment']);
+
+    if (enrolledError) return c.json({ error: enrolledError.message }, 500);
+
+    const enrolledIds = new Set((enrolled ?? []).map((e) => e.student_id));
+    const results: z.infer<typeof BatchMatchResultItemSchema>[] = [];
+
+    for (const [index, item] of body.items.entries()) {
+      const { data: exactMatches, error: exactError } = await supabase
+        .from('students')
+        .select('id, name, grade, school, birthday')
+        .eq('org_id', orgId)
+        .eq('name', item.name)
+        .eq('school', item.school)
+        .eq('is_active', true);
+
+      if (exactError) return c.json({ error: exactError.message }, 500);
+
+      let candidates = exactMatches ?? [];
+
+      if (candidates.length === 0) {
+        const { data: ilikeMatches, error: ilikeError } = await supabase
+          .from('students')
+          .select('id, name, grade, school, birthday')
+          .eq('org_id', orgId)
+          .ilike('name', item.name)
+          .ilike('school', item.school)
+          .eq('is_active', true);
+
+        if (ilikeError) return c.json({ error: ilikeError.message }, 500);
+        candidates = ilikeMatches ?? [];
+      }
+
+      const available = candidates.filter((candidate) => !enrolledIds.has(candidate.id));
+
+      if (candidates.length > 0 && available.length === 0) {
+        results.push({ index, status: 'already_enrolled' });
+      } else if (available.length === 1) {
+        results.push({ index, status: 'matched', studentId: available[0].id });
+      } else if (available.length > 1) {
+        results.push({ index, status: 'ambiguous', candidates: available });
+      } else {
+        results.push({ index, status: 'not_found' });
+      }
+    }
+
+    return c.json({ results }, 200);
   },
 );
 
