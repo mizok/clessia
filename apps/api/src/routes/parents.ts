@@ -887,4 +887,336 @@ app.openapi(
   },
 );
 
+// ============================================================
+// POST /api/parents/batch-import
+// ============================================================
+
+const BatchImportRowSchema = z
+  .object({
+    parentName: z.string().min(1).max(100),
+    parentPhone: z.string().max(20).optional(),
+    parentEmail: z.string().email().optional(),
+    parentNotes: z.string().max(2000).optional(),
+    studentName: z.string().min(1).max(50),
+    studentGrade: z.enum(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'J1', 'J2', 'J3', 'S1', 'S2', 'S3']),
+    studentSchool: z.string().min(1).max(100),
+    studentBirthday: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    studentGender: z.enum(['male', 'female', 'prefer_not_to_say']).optional(),
+  })
+  .openapi('BatchImportRow');
+
+const BatchImportBodySchema = z
+  .object({
+    rows: z.array(BatchImportRowSchema).min(1).max(500),
+  })
+  .openapi('BatchImportBody');
+
+const BatchImportResultItemSchema = z
+  .object({
+    rowIndex: z.number(),
+    status: z.enum(['success', 'failed']),
+    parentId: z.string().optional(),
+    studentId: z.string().optional(),
+    error: z.string().optional(),
+  })
+  .openapi('BatchImportResultItem');
+
+const BatchImportResponseSchema = z
+  .object({
+    parentsCreated: z.number(),
+    studentsCreated: z.number(),
+    results: z.array(BatchImportResultItemSchema),
+  })
+  .openapi('BatchImportResponse');
+
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/batch-import',
+    tags: ['Parents'],
+    summary: '批次匯入家長與學生（Excel 批次建立）',
+    request: {
+      body: { content: { 'application/json': { schema: BatchImportBodySchema } } },
+    },
+    responses: {
+      200: {
+        description: '批次匯入結果（部分失敗仍回傳 200）',
+        content: { 'application/json': { schema: BatchImportResponseSchema } },
+      },
+      400: { description: '請求格式錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const body = c.req.valid('json');
+    const { rows } = body;
+
+    // 結果陣列
+    const results: Array<{
+      rowIndex: number;
+      status: 'success' | 'failed';
+      parentId?: string;
+      studentId?: string;
+      error?: string;
+    }> = [];
+
+    let parentsCreated = 0;
+    let studentsCreated = 0;
+
+    // ────────────────────────────────────────────────────────
+    // Step 1：按 phone / email 分組，決定哪些 rows 共用同一家長
+    // ────────────────────────────────────────────────────────
+    type GroupKey = string; // normalize(phone) or normalize(email)
+    // 對應 groupKey → rowIndexes
+    const groupKeyToRowIndexes = new Map<GroupKey, number[]>();
+    // rowIndex → groupKey（可能有多個 key 對到同一組，以第一個為主）
+    const rowIndexToGroupKey = new Map<number, GroupKey>();
+
+    // 先蒐集每個 row 的 normalize key（phone 優先，其次 email）
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const normalizedPhone = row.parentPhone ? row.parentPhone.trim().toLowerCase() : null;
+      const normalizedEmail = row.parentEmail ? row.parentEmail.trim().toLowerCase() : null;
+      const key: GroupKey | null = normalizedPhone ?? normalizedEmail ?? null;
+
+      if (key) {
+        const existing = groupKeyToRowIndexes.get(key);
+        if (existing) {
+          existing.push(i);
+        } else {
+          groupKeyToRowIndexes.set(key, [i]);
+        }
+        rowIndexToGroupKey.set(i, key);
+      } else {
+        // 沒有 phone 也沒有 email：無法建立家長帳號，直接失敗
+        results.push({
+          rowIndex: i,
+          status: 'failed',
+          error: 'parentPhone 或 parentEmail 至少填一個',
+        });
+      }
+    }
+
+    // ────────────────────────────────────────────────────────
+    // Step 2：逐 group key 解析對應的「代表 row」（取第一個）
+    //         並查找 / 建立家長帳號
+    // ────────────────────────────────────────────────────────
+    const groupKeyToParentId = new Map<GroupKey, string>();
+
+    for (const [groupKey, rowIndexes] of groupKeyToRowIndexes) {
+      const representativeRowIdx = rowIndexes[0];
+      const representativeRow = rows[representativeRowIdx];
+
+      let parentId: string | null = null;
+
+      try {
+        // 2a. 查 ba_user
+        const normalizedPhone = representativeRow.parentPhone?.trim().toLowerCase() ?? null;
+        const normalizedEmail = representativeRow.parentEmail?.trim().toLowerCase() ?? null;
+
+        let baUserId: string | null = null;
+
+        if (normalizedPhone || normalizedEmail) {
+          const orParts: string[] = [];
+          if (normalizedEmail) orParts.push(`email.eq.${normalizedEmail}`);
+          if (normalizedPhone) orParts.push(`phone.eq.${normalizedPhone}`);
+
+          const { data: baMatches } = await supabase
+            .from('ba_user')
+            .select('id')
+            .or(orParts.join(','))
+            .limit(1);
+
+          if (baMatches && baMatches.length > 0) {
+            baUserId = (baMatches[0] as { id: string }).id;
+          }
+        }
+
+        // 2b. 若找到 baUserId，查 parents 表
+        if (baUserId) {
+          const { data: parentMatch } = await supabase
+            .from('parents')
+            .select('id')
+            .eq('user_id', baUserId)
+            .eq('org_id', orgId)
+            .limit(1)
+            .maybeSingle();
+
+          if (parentMatch) {
+            parentId = (parentMatch as { id: string }).id;
+          }
+        }
+
+        // 2c. 若無既有家長 → 建立新帳號
+        if (!parentId) {
+          const auth = createAuth(c.env);
+          const password = generateRandomPassword();
+
+          let createdUserId: string | null = null;
+          try {
+            const newUser = await (auth.api as any).createUser({
+              body: {
+                name: representativeRow.parentName,
+                email: representativeRow.parentEmail ?? undefined,
+                phone: representativeRow.parentPhone ?? undefined,
+                username:
+                  !representativeRow.parentEmail && representativeRow.parentPhone
+                    ? representativeRow.parentPhone
+                    : undefined,
+                password,
+              },
+              asResponse: false,
+            });
+            createdUserId = newUser.user.id;
+          } catch (authErr) {
+            const msg = authErr instanceof Error ? authErr.message : String(authErr);
+            // Better Auth 可能因為 duplicate 拋錯，嘗試再查一次
+            if (isDuplicateEmailError(msg) || isDuplicateUsernameError(msg)) {
+              const orParts: string[] = [];
+              if (normalizedEmail) orParts.push(`email.eq.${normalizedEmail}`);
+              if (normalizedPhone) orParts.push(`phone.eq.${normalizedPhone}`);
+
+              if (orParts.length > 0) {
+                const { data: retryMatches } = await supabase
+                  .from('ba_user')
+                  .select('id')
+                  .or(orParts.join(','))
+                  .limit(1);
+
+                if (retryMatches && retryMatches.length > 0) {
+                  const existingBaUserId = (retryMatches[0] as { id: string }).id;
+                  const { data: retryParent } = await supabase
+                    .from('parents')
+                    .select('id')
+                    .eq('user_id', existingBaUserId)
+                    .eq('org_id', orgId)
+                    .limit(1)
+                    .maybeSingle();
+
+                  if (retryParent) {
+                    parentId = (retryParent as { id: string }).id;
+                    groupKeyToParentId.set(groupKey, parentId);
+                    continue;
+                  }
+                }
+              }
+            }
+            throw authErr;
+          }
+
+          // 更新 orgId
+          await supabase.from('ba_user').update({ orgId }).eq('id', createdUserId);
+
+          // INSERT parents
+          const { data: newParentRow, error: insertParentError } = await supabase
+            .from('parents')
+            .insert({
+              user_id: createdUserId,
+              org_id: orgId,
+              name: representativeRow.parentName,
+              notes: representativeRow.parentNotes ?? null,
+              status: 'active',
+            })
+            .select('id')
+            .single();
+
+          if (insertParentError || !newParentRow) {
+            // 嘗試 rollback BA user
+            try {
+              await auth.api.removeUser({ body: { userId: createdUserId! }, asResponse: false });
+            } catch {
+              // ignore
+            }
+            throw new Error(insertParentError?.message ?? '建立家長資料失敗');
+          }
+
+          parentId = (newParentRow as { id: string }).id;
+          parentsCreated++;
+        }
+
+        groupKeyToParentId.set(groupKey, parentId);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        // 將這個 group 內的所有 rows 標記為失敗
+        for (const rowIdx of rowIndexes) {
+          // 若該 rowIdx 還未被處理過（沒有 email/phone 缺少的錯誤）
+          if (!results.find((r) => r.rowIndex === rowIdx)) {
+            results.push({ rowIndex: rowIdx, status: 'failed', error: errMsg });
+          }
+        }
+      }
+    }
+
+    // ────────────────────────────────────────────────────────
+    // Step 3：逐 row 建立學生 + parent_student_relations
+    // ────────────────────────────────────────────────────────
+    for (let i = 0; i < rows.length; i++) {
+      // 已處理過（失敗的）rows 跳過
+      if (results.find((r) => r.rowIndex === i)) continue;
+
+      const row = rows[i];
+      const groupKey = rowIndexToGroupKey.get(i);
+      const parentId = groupKey ? groupKeyToParentId.get(groupKey) : undefined;
+
+      if (!parentId) {
+        results.push({ rowIndex: i, status: 'failed', error: '無法取得家長 ID' });
+        continue;
+      }
+
+      try {
+        // INSERT students
+        const { data: newStudentRow, error: insertStudentError } = await supabase
+          .from('students')
+          .insert({
+            org_id: orgId,
+            name: row.studentName,
+            grade: row.studentGrade,
+            school: row.studentSchool,
+            birthday: row.studentBirthday ?? null,
+            gender: row.studentGender ?? null,
+            status: 'active',
+          })
+          .select('id')
+          .single();
+
+        if (insertStudentError || !newStudentRow) {
+          throw new Error(insertStudentError?.message ?? '建立學生失敗');
+        }
+
+        const studentId = (newStudentRow as { id: string }).id;
+        studentsCreated++;
+
+        // INSERT parent_student_relations
+        const { error: relError } = await supabase.from('parent_student_relations').insert({
+          parent_id: parentId,
+          student_id: studentId,
+          is_primary: true,
+          relation: null,
+        });
+
+        if (relError) {
+          // 嘗試刪除剛建立的學生（best effort）
+          await supabase.from('students').delete().eq('id', studentId);
+          studentsCreated--;
+          throw new Error(relError.message);
+        }
+
+        results.push({ rowIndex: i, status: 'success', parentId, studentId });
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        results.push({ rowIndex: i, status: 'failed', parentId, error: errMsg });
+      }
+    }
+
+    // 依 rowIndex 排序
+    results.sort((a, b) => a.rowIndex - b.rowIndex);
+
+    return c.json({ parentsCreated, studentsCreated, results }, 200);
+  },
+);
+
 export default app;
