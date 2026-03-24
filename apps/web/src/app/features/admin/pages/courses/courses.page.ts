@@ -587,7 +587,7 @@ export class CoursesPage implements OnInit {
     });
   }
 
-  protected onCourseHeaderSpace(event: KeyboardEvent, group: CourseGroup): void {
+  protected onCourseHeaderSpace(event: Event, group: CourseGroup): void {
     if (group.classes.length === 0) return;
     event.preventDefault();
     this.toggleCourse(group.course.id);
