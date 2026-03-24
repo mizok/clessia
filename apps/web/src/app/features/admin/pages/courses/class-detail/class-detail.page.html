@@ -108,13 +108,23 @@
                   {{ enrollments().length }} 位學生
                 </span>
                 @if (cls()!.isActive) {
-                  <p-button
-                    label="加入學生"
-                    icon="pi pi-user-plus"
-                    size="small"
-                    [outlined]="true"
-                    (onClick)="openStudentPicker()"
-                  />
+                  <div class="class-detail__list-actions">
+                    <p-button
+                      label="Excel 匯入"
+                      icon="pi pi-file-excel"
+                      severity="secondary"
+                      size="small"
+                      [outlined]="true"
+                      (onClick)="openExcelImport()"
+                    />
+                    <p-button
+                      label="加入學生"
+                      icon="pi pi-user-plus"
+                      size="small"
+                      [outlined]="true"
+                      (onClick)="openStudentPicker()"
+                    />
+                  </div>
                 }
               </div>
               <!-- 花名冊 -->

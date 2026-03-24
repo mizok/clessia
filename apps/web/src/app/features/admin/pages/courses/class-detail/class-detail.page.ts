@@ -28,11 +28,20 @@ import {
   type ConfirmDialogData,
 } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { StudentPickerDialogComponent } from './student-picker-dialog/student-picker-dialog.component';
+import StudentExcelImportDialogComponent from './student-excel-import-dialog/student-excel-import-dialog.component';
 
 @Component({
   selector: 'app-class-detail',
   standalone: true,
-  imports: [ButtonModule, TagModule, ToastModule, TabsModule, MenuModule, SkeletonModule],
+  imports: [
+    ButtonModule,
+    TagModule,
+    ToastModule,
+    TabsModule,
+    MenuModule,
+    SkeletonModule,
+    StudentExcelImportDialogComponent,
+  ],
   providers: [MessageService, DialogService],
   templateUrl: './class-detail.page.html',
   styleUrl: './class-detail.page.scss',
@@ -194,6 +203,27 @@ export class ClassDetailPage implements OnInit {
         });
         this.loadEnrollments();
       });
+  }
+
+  protected openExcelImport(): void {
+    const cls = this.cls();
+    if (!cls) return;
+
+    const activeCount = this.enrollments().filter((e) =>
+      ['active', 'pending_payment'].includes(e.status),
+    ).length;
+    const remainingSlots = (cls.maxStudents ?? 9999) - activeCount;
+
+    const ref = this.dialogService.open(StudentExcelImportDialogComponent, {
+      header: 'Excel 批次加入學生',
+      width: '640px',
+      modal: true,
+      appendTo: this.overlayContainer || 'body',
+      data: { classId: cls.id, remainingSlots },
+    });
+    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
+      if (result === 'imported') this.loadEnrollments();
+    });
   }
 
   protected changeStatus(enrollment: Enrollment, status: EnrollmentStatus, notes?: string): void {
