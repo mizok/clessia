@@ -179,13 +179,11 @@
                 </div>
               </td>
               <td appRtColCell="role">
-                @for (role of staff.roles; track role) {
-                  <p-tag
-                    [value]="getRoleLabel(role)"
-                    [severity]="getRoleSeverity(role)"
-                    styleClass="mr-1"
-                  />
-                }
+                <div class="staff-table__roles">
+                  @for (role of staff.roles; track role) {
+                    <p-tag [value]="getRoleLabel(role)" [severity]="getRoleSeverity(role)" />
+                  }
+                </div>
               </td>
               <td appRtColCell="subjects">
                 @if (staff.roles.includes('teacher') && staff.subjectNames.length > 0) {
