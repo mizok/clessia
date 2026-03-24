@@ -54,6 +54,8 @@
     border: 1px solid var(--zinc-200);
     box-shadow: var(--shadow-sm);
     overflow: hidden;
+    container-type: inline-size;
+    container-name: staff-card;
   }
 
   &__toolbar {
@@ -91,32 +93,54 @@
   // Stats Summary
   &__stats {
     display: flex;
-    gap: var(--space-6);
-    padding: var(--space-4) var(--space-6);
+    padding: var(--space-3) var(--space-6);
     background: var(--zinc-50);
     border-bottom: 1px solid var(--zinc-100);
   }
 
   &__stat {
     display: flex;
-    align-items: center;
-    gap: var(--space-2);
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-2) var(--space-5);
+
+    &:first-child { padding-left: 0; }
+    & + & { border-left: 1px solid var(--zinc-200); }
 
     &-value {
-      font-size: var(--text-lg);
+      font-size: 1.375rem;
       font-weight: var(--font-bold);
       color: var(--zinc-900);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
     }
 
     &-label {
-      font-size: var(--text-sm);
-      color: var(--zinc-500);
+      font-size: var(--text-xs);
+      color: var(--zinc-400);
+      font-weight: var(--font-medium);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
   }
 }
 
 // Table Styles
 .staff-table {
+  &__row {
+    border-left: 3px solid transparent;
+    transition: background var(--transition-fast), border-left-color var(--transition-fast);
+
+    &:hover {
+      background: var(--zinc-50);
+      border-left-color: var(--accent-400);
+    }
+  }
+
+  &__row:hover &__display-name {
+    color: var(--accent-600);
+  }
+
   &__name {
     display: flex;
     align-items: center;
@@ -126,18 +150,27 @@
   &__icon {
     width: 36px;
     height: 36px;
-    border-radius: var(--radius-md);
-    background: var(--success-100);
-    color: var(--success-600);
+    border-radius: 50%;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--h, 210) 65% 60%),
+      hsl(var(--h, 210) 75% 44%)
+    );
+    box-shadow: 0 2px 5px -1px hsl(var(--h, 210) 65% 50% / 0.22);
+    color: #fff;
+    font-size: 13px;
+    font-weight: var(--font-bold);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
     flex-shrink: 0;
+    user-select: none;
+    letter-spacing: -0.01em;
 
+    // Admin 角色：accent 強調色加深辨識度
     &--admin {
-      background: var(--accent-100);
-      color: var(--accent-600);
+      background: linear-gradient(135deg, var(--accent-400), var(--accent-600));
+      box-shadow: 0 2px 5px -1px hsl(200 80% 45% / 0.30);
     }
   }
 
@@ -151,6 +184,10 @@
   &__display-name {
     font-weight: var(--font-semibold);
     color: var(--zinc-900);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__email {
@@ -217,13 +254,11 @@
   }
 }
 
-// Responsive
-@include bp.respond-to('tablet-landscape') {
-  .staff {
-    &__stats {
-      flex-wrap: wrap;
-    }
+// Responsive — 卡片內部用 container query，頁面層級用 viewport breakpoint
 
+// 卡片內：toolbar 在容器 ≤ 640px 時改為直向
+@include bp.respond-to-container('staff-card', 640px) {
+  .staff {
     &__toolbar {
       flex-direction: column;
       align-items: stretch;
@@ -236,9 +271,29 @@
     &__filters {
       flex-wrap: wrap;
     }
+
+    &__filter-select {
+      min-width: 120px;
+      flex: 1 1 120px;
+    }
+
+    &__stats {
+      flex-wrap: wrap;
+      gap: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+    }
+
+    &__stat {
+      flex: 1 1 calc(50% - var(--space-2));
+
+      &-value {
+        font-size: var(--text-base);
+      }
+    }
   }
 }
 
+// 頁面層級（header 在 viewport 小時折行）
 @include bp.respond-to('tablet-portrait') {
   .staff {
     padding: var(--space-4) 0;
@@ -253,30 +308,12 @@
       padding: var(--space-4);
     }
 
-    &__stats {
-      padding: var(--space-3) var(--space-4);
-      gap: var(--space-4);
-    }
-  }
-}
-
-// Extra small screens
-@include bp.respond-to(480px) {
-  .staff {
     &__title {
       font-size: var(--text-xl);
     }
 
     &__subtitle {
       font-size: var(--text-sm);
-    }
-
-    &__stat {
-      flex: 1 1 calc(50% - var(--space-2));
-
-      &-value {
-        font-size: var(--text-base);
-      }
     }
   }
 }
