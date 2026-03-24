@@ -126,11 +126,6 @@
   }
 }
 
-// 防止 p-tag 文字換行
-.staff-table .p-tag {
-  white-space: nowrap;
-}
-
 // Table Styles
 .staff-table {
   &__row {
