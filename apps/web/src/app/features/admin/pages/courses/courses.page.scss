@@ -202,8 +202,8 @@
 
   &__filter-full-select {
     width: 100%;
-    --p-inputtext-font-size: var(--text-sm);
-    --p-inputtext-padding-y: var(--space-1);
+    font-size: var(--text-sm);
+    --p-form-field-padding-y: var(--space-1);
   }
 
   &__filter-historical-row {
