@@ -411,6 +411,7 @@
     [visible]="filterPanelVisible()"
     (visibleChange)="filterPanelVisible.set($event)"
     styleClass="courses__filter-drawer"
+    [appendTo]="'body'"
   >
     <ng-container [ngTemplateOutlet]="filterContent" />
   </p-drawer>
