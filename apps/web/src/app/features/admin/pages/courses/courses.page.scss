@@ -99,7 +99,7 @@
   }
 
   &__historical-date {
-    width: 130px;
+    width: 100%;
     --p-datepicker-input-font-size: var(--text-sm);
     --p-datepicker-input-padding-y: var(--space-1);
     --p-inputtext-font-size: var(--text-sm);
@@ -217,15 +217,8 @@
 
   &__filter-dates {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: var(--space-2);
-    flex-wrap: wrap;
-  }
-
-  &__filter-date-sep {
-    font-size: var(--text-sm);
-    color: var(--zinc-400);
-    flex-shrink: 0;
   }
 
   &__filter-footer {
@@ -793,19 +786,7 @@
       overflow-y: auto;
     }
 
-    &__filter-dates {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
     // Note: 若 PrimeNG datepicker 的 styleClass 因 ViewEncapsulation 限制導致
     // width: 100% 未生效，改在 HTML template 上對 <p-datepicker> 加 [style]="{ width: '100%' }"
-    &__historical-date {
-      width: 100%;
-    }
-
-    &__filter-date-sep {
-      display: none;
-    }
   }
 }
