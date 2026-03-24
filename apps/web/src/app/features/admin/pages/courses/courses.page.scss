@@ -567,6 +567,19 @@
     flex-shrink: 0;
   }
 
+  &__status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    background: var(--zinc-300);
+    flex-shrink: 0;
+
+    &--active {
+      background: #22c55e;
+    }
+  }
+
   &__tag-historical {
     display: inline-flex;
     align-items: center;
