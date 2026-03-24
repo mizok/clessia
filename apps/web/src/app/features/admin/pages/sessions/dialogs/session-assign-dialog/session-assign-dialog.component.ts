@@ -7,6 +7,7 @@ import { MessageService } from 'primeng/api';
 import { SessionsService, type Session } from '@core/sessions.service';
 import { StaffService, type Staff } from '@core/staff.service';
 import { CoursesService } from '@core/courses.service';
+import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import { forkJoin } from 'rxjs';
 
 interface SessionAssignDialogData {
@@ -16,7 +17,7 @@ interface SessionAssignDialogData {
 
 @Component({
   selector: 'app-session-assign-dialog',
-  imports: [ReactiveFormsModule, ButtonModule, SelectModule],
+  imports: [ReactiveFormsModule, ButtonModule, SelectModule, InlineNoticeComponent],
   templateUrl: './session-assign-dialog.component.html',
   styleUrl: './session-assign-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

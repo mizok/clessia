@@ -13,7 +13,13 @@
   gap: var(--space-2);
 
   &__count {
-    font-size: 0.75rem;
-    color: var(--text-secondary, #71717a);
+    font-size: var(--text-xs);
+    color: var(--zinc-400);
+    background: var(--zinc-100);
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    font-weight: var(--font-medium);
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 }

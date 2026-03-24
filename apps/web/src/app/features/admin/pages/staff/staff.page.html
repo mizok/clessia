@@ -154,11 +154,21 @@
           <tr>
             <th appRtColDef="name" [appRtColDefMinWidth]="180" [appRtColDefPriority]="1">姓名</th>
             <th appRtColDef="role" [appRtColDefMinWidth]="80" [appRtColDefPriority]="2">角色</th>
-            <th appRtColDef="subjects" [appRtColDefMinWidth]="140" [appRtColDefPriority]="5">教學科目</th>
-            <th appRtColDef="campuses" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">服務分校</th>
+            <th appRtColDef="subjects" [appRtColDefMinWidth]="140" [appRtColDefPriority]="5">
+              教學科目
+            </th>
+            <th appRtColDef="campuses" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">
+              服務分校
+            </th>
             <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="6">電話</th>
             <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="3">狀態</th>
-            <th appRtColDef="actions" [appRtColDefMinWidth]="56" [appRtColDefPriority]="0" [appRtColDefCollapsible]="false" aria-hidden="true"></th>
+            <th
+              appRtColDef="actions"
+              [appRtColDefMinWidth]="56"
+              [appRtColDefPriority]="0"
+              [appRtColDefCollapsible]="false"
+              aria-hidden="true"
+            ></th>
           </tr>
         </ng-template>
 
@@ -171,7 +181,8 @@
                     class="staff-table__icon"
                     [class.staff-table__icon--admin]="staff.roles.includes('admin')"
                     [style.--h]="getPersonHue(staff.id)"
-                  >{{ staff.displayName[0] }}</span>
+                    >{{ staff.displayName[0] }}</span
+                  >
                   <div class="staff-table__name-group">
                     <span class="staff-table__display-name">{{ staff.displayName }}</span>
                     <span class="staff-table__email">{{ staff.email }}</span>
@@ -188,7 +199,10 @@
               <td appRtColCell="subjects">
                 @if (staff.roles.includes('teacher') && staff.subjectNames.length > 0) {
                   <div class="staff-table__subjects">
-                    @for (subject of getDisplaySubjects(staff.subjectNames).visible; track subject) {
+                    @for (
+                      subject of getDisplaySubjects(staff.subjectNames).visible;
+                      track subject
+                    ) {
                       <span class="staff-table__subject-tag">{{ subject }}</span>
                     }
                     @if (getDisplaySubjects(staff.subjectNames).remaining > 0) {
@@ -218,10 +232,12 @@
                 }
               </td>
               <td appRtColCell="status">
-                <p-tag
-                  [value]="getStaffStatusLabel(staff.status)"
-                  [severity]="getStaffStatusSeverity(staff.status)"
-                />
+                <div class="staff-table__status">
+                  <p-tag
+                    [value]="getStaffStatusLabel(staff.status)"
+                    [severity]="getStaffStatusSeverity(staff.status)"
+                  />
+                </div>
               </td>
               <td class="responsive-table__cell" style="text-align: center">
                 <p-button

@@ -31,12 +31,10 @@
       background: var(--zinc-50);
       color: var(--zinc-800);
     }
+  }
 
-    &--collapsed {
-      .sidebar__group-icon {
-        transform: rotate(-90deg);
-      }
-    }
+  &__group-header--collapsed &__group-icon {
+    transform: rotate(-90deg);
   }
 
   &__group-title {
@@ -57,12 +55,11 @@
     gap: 2px;
     min-height: 0;
   }
-  
+
   &__item--indented {
-      // Visual Scope Indication
-      margin-left: var(--space-3);
-      padding-left: var(--space-2);
-      border-left: 2px solid var(--zinc-100);
+    // Visual Scope Indication
+    margin-left: var(--space-3);
+    padding-left: var(--space-2);
   }
 
   &__item {
@@ -87,11 +84,11 @@
     &--active {
       background: var(--accent-50);
       color: var(--accent-600);
-
-      .sidebar__icon {
-        color: var(--accent-500);
-      }
     }
+  }
+
+  &__item--active &__icon {
+    color: var(--accent-500);
   }
 
   &__icon {

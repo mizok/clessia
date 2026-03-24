@@ -44,7 +44,7 @@
 - `parent_student_relations` 表：`parent_id (→ parents.id), student_id, is_primary, relation`
 - `ba_user` 表可直接用 Supabase 更新：`id (text), email, phone, username, name`
 - phone-only 帳號特徵：`ba_user.email IS NULL`，且 `ba_user.username = phone`
-- GradeLevel: `'K' | 'P1'–'P6' | 'J1'–'J3' | 'S1'–'S3'`
+- GradeLevel: `'P1'–'P6' | 'J1'–'J3' | 'S1'–'S3'`
 - `displayName` 只需更新 `profiles.display_name`（app 所有地方讀的都是這欄），不需要呼叫 BA `updateUser` 更新 `ba_user.name`
 
 - [ ] **Step 1：新增 `apps/api/src/routes/me.ts`**
@@ -54,7 +54,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 
 const GradeLevelSchema = z
-  .enum(['K', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'J1', 'J2', 'J3', 'S1', 'S2', 'S3'])
+  .enum(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'J1', 'J2', 'J3', 'S1', 'S2', 'S3'])
   .openapi('MeGradeLevel');
 
 const MeResponseSchema = z

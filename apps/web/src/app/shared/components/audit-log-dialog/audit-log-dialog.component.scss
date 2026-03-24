@@ -56,8 +56,10 @@
   }
 }
 
-.audit-log__detail-summary {
-  font-size: 0.75rem;
-  color: var(--color-text-muted, #6b7280);
-  margin-top: 2px;
+.audit-log {
+  &__detail-summary {
+    font-size: 0.75rem;
+    color: var(--color-text-muted, #6b7280);
+    margin-top: 2px;
+  }
 }

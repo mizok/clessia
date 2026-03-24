@@ -3,12 +3,14 @@
 // Styles inherited from global .form-dialog in src/styles.scss
 // Additional student-form-specific overrides
 
-.form-dialog__row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-4);
+.form-dialog {
+  &__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
 
-  @include bp.respond-to('mobile') {
-    grid-template-columns: 1fr;
+    @include bp.respond-to('mobile') {
+      grid-template-columns: 1fr;
+    }
   }
 }

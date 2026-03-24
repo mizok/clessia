@@ -100,7 +100,9 @@
     overflow-x: auto;
     scrollbar-width: none;
 
-    &::-webkit-scrollbar { display: none; }
+    &::-webkit-scrollbar {
+      display: none;
+    }
   }
 
   &__stat {
@@ -110,7 +112,9 @@
     padding: var(--space-2) var(--space-4);
     flex-shrink: 0;
 
-    & + & { border-left: 1px solid var(--zinc-200); }
+    & + & {
+      border-left: 1px solid var(--zinc-200);
+    }
 
     &-value {
       font-size: var(--text-xl);
@@ -133,7 +137,9 @@
 .staff-table {
   &__row {
     border-left: 3px solid transparent;
-    transition: background var(--transition-fast), border-left-color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      border-left-color var(--transition-fast);
 
     &:hover {
       background: var(--zinc-50);
@@ -145,10 +151,12 @@
     color: var(--accent-600);
   }
 
-  &__roles {
+  &__roles,
+  &__status {
     display: flex;
     gap: var(--space-1);
     flex-wrap: nowrap;
+    white-space: nowrap;
   }
 
   &__name {
@@ -161,11 +169,7 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(
-      135deg,
-      hsl(var(--h, 210) 65% 60%),
-      hsl(var(--h, 210) 75% 44%)
-    );
+    background: linear-gradient(135deg, hsl(var(--h, 210) 65% 60%), hsl(var(--h, 210) 75% 44%));
     box-shadow: 0 2px 5px -1px hsl(var(--h, 210) 65% 50% / 0.22);
     color: #fff;
     font-size: 13px;
@@ -180,7 +184,7 @@
     // Admin 角色：accent 強調色加深辨識度
     &--admin {
       background: linear-gradient(135deg, var(--accent-400), var(--accent-600));
-      box-shadow: 0 2px 5px -1px hsl(200 80% 45% / 0.30);
+      box-shadow: 0 2px 5px -1px hsl(200 80% 45% / 0.3);
     }
   }
 
@@ -273,6 +277,15 @@
 
 // Responsive — 卡片內部用 container query，頁面層級用 viewport breakpoint
 
+// 卡片內：容器 ≤ 480px 時隱藏頭像 icon
+@include bp.respond-to-container('staff-card', 640px) {
+  .staff-table {
+    &__icon {
+      display: none;
+    }
+  }
+}
+
 // 卡片內：toolbar 在容器 ≤ 640px 時改為直向
 @include bp.respond-to-container('staff-card', 640px) {
   .staff {
@@ -293,7 +306,6 @@
       min-width: 120px;
       flex: 1 1 120px;
     }
-
   }
 }
 

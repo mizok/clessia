@@ -5,14 +5,14 @@
 
   &--collapsed {
     grid-template-rows: 0fr;
+  }
 
-    .collapsible__inner {
-      opacity: 0;
-      transform: translateY(-8px);
-      // Ensure it takes no space visually when collapsed
-      margin-top: 0; 
-      margin-bottom: 0;
-    }
+  &--collapsed &__inner {
+    opacity: 0;
+    transform: translateY(-8px);
+    // Ensure it takes no space visually when collapsed
+    margin-top: 0;
+    margin-bottom: 0;
   }
 
   &__inner {

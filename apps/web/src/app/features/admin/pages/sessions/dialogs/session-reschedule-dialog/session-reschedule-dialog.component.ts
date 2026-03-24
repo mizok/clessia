@@ -6,11 +6,12 @@ import { TextareaModule } from 'primeng/textarea';
 import { DatePickerModule } from 'primeng/datepicker';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { Session, SessionsService } from '@core/sessions.service';
+import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import { format, parse } from 'date-fns';
 
 @Component({
   selector: 'app-session-reschedule-dialog',
-  imports: [ReactiveFormsModule, ButtonModule, TextareaModule, DatePickerModule],
+  imports: [ReactiveFormsModule, ButtonModule, TextareaModule, DatePickerModule, InlineNoticeComponent],
   templateUrl: './session-reschedule-dialog.component.html',
   styleUrl: './session-reschedule-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

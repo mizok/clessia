@@ -88,12 +88,12 @@
     &:hover {
       color: var(--color-white);
       background: var(--zinc-800);
-
-      // Contextual styling for child avatar
-      .shell-header__avatar {
-        border-color: var(--color-white);
-      }
     }
+  }
+
+  // Contextual styling for child avatar
+  &__user:hover &__avatar {
+    border-color: var(--color-white);
   }
 
   &__avatar {

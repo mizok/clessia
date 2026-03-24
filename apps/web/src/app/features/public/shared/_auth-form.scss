@@ -51,10 +51,6 @@
     padding: 3px;
     background: var(--zinc-100);
     border-radius: var(--radius-md);
-
-    &[data-mode='phone'] .form__tabs-indicator {
-      transform: translateX(100%);
-    }
   }
 
   &__tabs-indicator {
@@ -68,6 +64,10 @@
     box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: none;
+  }
+
+  &__tabs[data-mode='phone'] &__tabs-indicator {
+    transform: translateX(100%);
   }
 
   &__tab {
@@ -99,10 +99,10 @@
 
   &__input-wrapper {
     position: relative;
+  }
 
-    .form__input {
-      padding-right: 44px;
-    }
+  &__input-wrapper &__input {
+    padding-right: 44px;
   }
 
   &__reveal-btn {

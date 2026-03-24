@@ -4,10 +4,11 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '@core/auth.service';
 import { CaptchaService } from '@core/captcha.service';
 import { environment } from '@env/environment';
+import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
 @Component({
   selector: 'app-forgot-password',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, InlineNoticeComponent],
   templateUrl: './forgot-password.component.html',
   styleUrl: './forgot-password.component.scss',
   host: { class: 'u-centered-flex' },

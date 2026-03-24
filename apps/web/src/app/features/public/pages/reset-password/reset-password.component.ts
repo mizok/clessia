@@ -2,10 +2,11 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '@core/auth.service';
+import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
 @Component({
   selector: 'app-reset-password',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, InlineNoticeComponent],
   templateUrl: './reset-password.component.html',
   styleUrl: './reset-password.component.scss',
   host: { class: 'u-centered-flex' },

@@ -221,6 +221,15 @@ export class ParentsPage implements OnInit {
     return 'danger';
   }
 
+  protected getPersonHue(id: string): number {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+      hash = (hash * 31 + id.charCodeAt(i)) & 0xfffffff;
+    }
+    const raw = hash % 320;
+    return raw < 45 ? raw + 160 : raw;
+  }
+
   // ── Create / Edit ──────────────────────────────────────────────────────────
 
   protected openCreateDialog(): void {

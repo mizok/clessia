@@ -1,6 +1,6 @@
 <form [formGroup]="form" (ngSubmit)="submit()" class="session-op-form">
-  @if (submitError(); as error) {
-    <div class="session-op-form__error" role="alert">{{ error }}</div>
+  @if (submitError()) {
+    <app-inline-notice severity="error" [detail]="submitError()" (dismissed)="submitError.set(null)" />
   }
 
   <div class="session-op-form__summary">

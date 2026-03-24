@@ -6,6 +6,7 @@ import { TextareaModule } from 'primeng/textarea';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
+import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import {
   ParentsService,
   ParentDetail,
@@ -16,7 +17,7 @@ import {
 @Component({
   selector: 'app-parent-form-dialog',
   standalone: true,
-  imports: [FormsModule, ButtonModule, InputTextModule, TextareaModule, ToastModule],
+  imports: [FormsModule, ButtonModule, InputTextModule, TextareaModule, ToastModule, InlineNoticeComponent],
   providers: [MessageService],
   templateUrl: './parent-form-dialog.component.html',
   styleUrl: './parent-form-dialog.component.scss',

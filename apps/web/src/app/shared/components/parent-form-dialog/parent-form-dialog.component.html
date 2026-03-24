@@ -74,10 +74,11 @@
   </div>
 
   @if (!isEditMode()) {
-    <div class="form-dialog__notice">
-      <i class="pi pi-info-circle"></i>
-      <span>系統將自動產生初始密碼，建立後可下載帳號資訊卡</span>
-    </div>
+    <app-inline-notice
+      severity="info"
+      detail="系統將自動產生初始密碼，建立後可下載帳號資訊卡"
+      [dismissible]="false"
+    />
   }
 
   <!-- Footer -->

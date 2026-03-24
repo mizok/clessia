@@ -79,10 +79,10 @@
   &__cell {
     padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--zinc-200);
-    color: var(--zinc-700);
+    color: var(--rt-cell-color, var(--zinc-700));
     font-size: var(--text-md);
     line-height: var(--leading-normal);
-    background: transparent;
+    background: var(--rt-cell-bg, transparent);
     vertical-align: middle;
   }
 

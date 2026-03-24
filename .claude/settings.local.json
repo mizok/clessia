@@ -95,7 +95,8 @@
       "mcp__playwright__browser_close",
       "Bash(ls:*)",
       "mcp__codex-cli__listSessions",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "mcp__plugin_telegram_telegram__reply"
     ]
   },
   "enabledPlugins": {}

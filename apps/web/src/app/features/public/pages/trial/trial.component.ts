@@ -1,8 +1,9 @@
 import { Component } from '@angular/core';
+import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
 @Component({
   selector: 'app-trial',
-  imports: [],
+  imports: [InlineNoticeComponent],
   templateUrl: './trial.component.html',
   styleUrl: './trial.component.scss',
   host: { class: 'u-centered-flex' },

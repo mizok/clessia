@@ -4,11 +4,12 @@ import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
+import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
 @Component({
   selector: 'app-password-reveal-dialog',
   standalone: true,
-  imports: [ButtonModule, TooltipModule, ToastModule],
+  imports: [ButtonModule, TooltipModule, ToastModule, InlineNoticeComponent],
   providers: [MessageService],
   templateUrl: './password-reveal-dialog.component.html',
   styleUrl: './password-reveal-dialog.component.scss',

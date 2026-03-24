@@ -89,12 +89,12 @@
     background: var(--zinc-100);
     border-radius: var(--radius-md);
     flex-shrink: 0;
+  }
 
-    .select-role__option:hover &,
-    .select-role__option--active & {
-      color: var(--accent-600);
-      background: var(--accent-100);
-    }
+  &__option:hover &__option-icon,
+  &__option--active &__option-icon {
+    color: var(--accent-600);
+    background: var(--accent-100);
   }
 
   &__option-text {

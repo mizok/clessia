@@ -16,15 +16,21 @@
     padding: var(--space-3) var(--space-4);
     background: transparent;
     border: 1px solid var(--zinc-200);
-    border-radius: var(--radius-md);
+    border-left: 3px solid transparent;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
     font-size: var(--text-md);
     color: var(--zinc-700);
     cursor: pointer;
-    transition: background-color var(--transition-fast);
+    transition: background var(--transition-fast), border-left-color var(--transition-fast);
 
     &:hover {
       background: var(--zinc-50);
+      border-left-color: var(--accent-400);
     }
+  }
+
+  &__menu-item:hover &__menu-icon {
+    color: var(--accent-500);
   }
 
   &__menu-icon {
