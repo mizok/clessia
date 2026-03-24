@@ -670,7 +670,8 @@ select {
 // Global PrimeNG Form Component Adjustments
 // courses filter panel: p-select-label has hardcoded font-size: 1rem in PrimeNG source,
 // so inheritance from wrapper doesn't work — override directly here.
-.courses__filter-full-select .p-select-label {
+.courses__filter-full-select .p-select-label,
+.courses__historical-date .p-inputtext {
   font-size: var(--text-sm);
 }
 
