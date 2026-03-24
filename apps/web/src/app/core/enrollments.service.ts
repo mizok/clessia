@@ -79,6 +79,30 @@ export interface BatchCreateInput {
   studentIds: string[];
 }
 
+export interface BatchMatchItem {
+  name: string;
+  school: string;
+}
+
+export interface BatchMatchCandidate {
+  id: string;
+  name: string;
+  grade: string;
+  school: string;
+  birthday?: string | null;
+}
+
+export interface BatchMatchResultItem {
+  index: number;
+  status: 'matched' | 'ambiguous' | 'not_found' | 'already_enrolled';
+  studentId?: string;
+  candidates?: BatchMatchCandidate[];
+}
+
+export interface BatchMatchResponse {
+  results: BatchMatchResultItem[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class EnrollmentsService {
   private readonly http = inject(HttpClient);
@@ -112,5 +136,9 @@ export class EnrollmentsService {
 
   delete(id: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/${id}`);
+  }
+
+  batchMatch(classId: string, items: BatchMatchItem[]): Observable<BatchMatchResponse> {
+    return this.http.post<BatchMatchResponse>(`${this.base}/batch-match`, { classId, items });
   }
 }
