@@ -677,7 +677,8 @@ select {
 }
 
 // staff table: prevent p-tag text wrapping in role/status columns
-.staff-table .p-tag {
+.staff-table .p-tag,
+.staff-table .p-tag-label {
   white-space: nowrap;
 }
 
