@@ -158,21 +158,20 @@
             <th appRtColDef="campuses" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">服務分校</th>
             <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="6">電話</th>
             <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="3">狀態</th>
-            <th class="responsive-table__header-cell" style="width: 56px"></th>
+            <th appRtColDef="actions" [appRtColDefMinWidth]="56" [appRtColDefCollapsible]="false" aria-hidden="true"></th>
           </tr>
         </ng-template>
 
         <ng-template #bodyTpl>
           @for (staff of staffList(); track staff.id) {
-            <tr appRtRow [appRtRow]="staff" [appRtRowId]="staff.id">
+            <tr appRtRow [appRtRow]="staff" [appRtRowId]="staff.id" class="staff-table__row">
               <td appRtColCell="name">
                 <div class="staff-table__name">
                   <span
                     class="staff-table__icon"
                     [class.staff-table__icon--admin]="staff.roles.includes('admin')"
-                  >
-                    <i [class]="staff.roles.includes('admin') ? 'pi pi-shield' : 'pi pi-user'"></i>
-                  </span>
+                    [style.--h]="getPersonHue(staff.id)"
+                  >{{ staff.displayName[0] }}</span>
                   <div class="staff-table__name-group">
                     <span class="staff-table__display-name">{{ staff.displayName }}</span>
                     <span class="staff-table__email">{{ staff.email }}</span>

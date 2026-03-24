@@ -41,6 +41,7 @@
           optionLabel="label"
           optionValue="value"
           placeholder="全部狀態"
+          [fluid]="true"
           styleClass="parents__status-select"
         />
       </div>
@@ -118,18 +119,16 @@
             <th appRtColDef="email" [appRtColDefMinWidth]="180" [appRtColDefPriority]="3">Email</th>
             <th appRtColDef="students" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">關聯學生</th>
             <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">狀態</th>
-            <th class="responsive-table__header-cell" style="width: 56px"></th>
+            <th appRtColDef="actions" [appRtColDefMinWidth]="56" [appRtColDefCollapsible]="false" aria-hidden="true"></th>
           </tr>
         </ng-template>
 
         <ng-template #bodyTpl>
           @for (parent of parents(); track parent.id) {
-            <tr appRtRow [appRtRow]="parent" [appRtRowId]="parent.id">
+            <tr appRtRow [appRtRow]="parent" [appRtRowId]="parent.id" class="parent-table__row">
               <td appRtColCell="name">
                 <div class="parent-table__name-cell">
-                  <span class="parent-table__avatar">
-                    <i class="pi pi-user"></i>
-                  </span>
+                  <span class="parent-table__avatar" [style.--h]="getPersonHue(parent.id)">{{ parent.name[0] }}</span>
                   <span class="parent-table__name">{{ parent.name }}</span>
                 </div>
               </td>

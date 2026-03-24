@@ -34,6 +34,7 @@
           optionLabel="label"
           optionValue="value"
           placeholder="全部年級"
+          [fluid]="true"
           styleClass="students__grade-select"
         />
       </div>
@@ -47,6 +48,7 @@
           [options]="[]"
           [disabled]="true"
           placeholder="全部分校（開發中）"
+          [fluid]="true"
           styleClass="students__campus-select"
         />
       </div>
@@ -129,7 +131,7 @@
             <th appRtColDef="school" [appRtColDefMinWidth]="140" [appRtColDefPriority]="4">學校</th>
             <th appRtColDef="parents" [appRtColDefMinWidth]="160" [appRtColDefPriority]="3">關聯家長</th>
             <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">狀態</th>
-            <th class="responsive-table__header-cell" style="width: 56px"></th>
+            <th appRtColDef="actions" [appRtColDefMinWidth]="56" [appRtColDefCollapsible]="false" aria-hidden="true"></th>
           </tr>
         </ng-template>
 
@@ -145,9 +147,7 @@
             >
               <td appRtColCell="name">
                 <div class="student-table__name-btn">
-                  <span class="student-table__avatar">
-                    <i class="pi pi-user"></i>
-                  </span>
+                  <span class="student-table__avatar" [style.--h]="getPersonHue(student.id)">{{ student.name[0] }}</span>
                   <span class="student-table__name">{{ student.name }}</span>
                 </div>
               </td>

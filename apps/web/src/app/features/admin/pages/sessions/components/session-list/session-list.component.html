@@ -19,7 +19,7 @@
 
     <ng-template #listHead>
       <tr>
-        <th class="responsive-table__header-cell" style="width: 36px; text-align: center">
+        <th appRtColDef="select" [appRtColDefMinWidth]="36" [appRtColDefCollapsible]="false" style="text-align: center">
           <p-checkbox [binary]="true" [ngModel]="allPageSelected()" (ngModelChange)="toggleSelectAll()" />
         </th>
         <th
@@ -48,13 +48,13 @@
         </th>
         <th appRtColDef="teacher" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">老師</th>
         <th appRtColDef="status" [appRtColDefMinWidth]="88" [appRtColDefPriority]="5">狀態</th>
-        <th class="responsive-table__header-cell" style="width: 48px"></th>
+        <th appRtColDef="actions" [appRtColDefMinWidth]="48" [appRtColDefCollapsible]="false" aria-hidden="true"></th>
       </tr>
     </ng-template>
 
     <ng-template #listBody>
       @for (session of sessions(); track session.id) {
-        <tr appRtRow [appRtRow]="session" [appRtRowId]="session.id">
+        <tr appRtRow [appRtRow]="session" [appRtRowId]="session.id" class="session-list__row">
           <td class="responsive-table__cell" style="text-align: center">
             <p-checkbox
               [binary]="true"
