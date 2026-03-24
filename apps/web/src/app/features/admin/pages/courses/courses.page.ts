@@ -163,6 +163,7 @@ export class CoursesPage implements OnInit {
   protected readonly selectedSubjectId = signal<string | null>(null);
   protected readonly selectedTeacherIds = signal<string[]>([]);
   protected readonly statusFilter = signal<boolean | null>(null);
+  protected readonly needsInterventionFilter = signal(false);
   // ---- Filter Panel ----
   protected readonly filterPanelVisible = signal(false);
   protected readonly filterPopoverRef = viewChild<Popover>('filterPopover');
@@ -172,6 +173,7 @@ export class CoursesPage implements OnInit {
     if (this.selectedSubjectId()) count++;
     if (this.selectedTeacherIds().length > 0) count++;
     if (this.statusFilter() !== null) count++;
+    if (this.needsInterventionFilter()) count++;
     if (this.showHistorical()) count++;
     if (this.historicalDateFrom() || this.historicalDateTo()) count++;
     return count;
@@ -263,7 +265,8 @@ export class CoursesPage implements OnInit {
         if (g.classes.length > 0) return true;
         if (!search && teacherIds.length === 0) return true;
         return !!(search && g.course.name.toLowerCase().includes(search));
-      });
+      })
+      .filter((g) => !this.needsInterventionFilter() || this.hasCourseNeedsIntervention(g));
   });
 
   protected readonly hasActiveFilters = computed(
@@ -272,6 +275,7 @@ export class CoursesPage implements OnInit {
       !!this.selectedSubjectId() ||
       this.selectedTeacherIds().length > 0 ||
       this.statusFilter() !== null ||
+      this.needsInterventionFilter() ||
       this.showHistorical() ||
       !!this.historicalDateFrom() ||
       !!this.historicalDateTo(),
@@ -321,6 +325,7 @@ export class CoursesPage implements OnInit {
     this.selectedSubjectId.set(s.selectedSubjectId);
     this.selectedTeacherIds.set(s.selectedTeacherIds);
     this.statusFilter.set(s.statusFilter);
+    this.needsInterventionFilter.set(s.needsInterventionFilter);
     this.showHistorical.set(s.showHistorical);
     this.historicalDateFrom.set(s.historicalDateFrom);
     this.historicalDateTo.set(s.historicalDateTo);
@@ -337,6 +342,7 @@ export class CoursesPage implements OnInit {
       fs.selectedSubjectId = this.selectedSubjectId();
       fs.selectedTeacherIds = this.selectedTeacherIds();
       fs.statusFilter = this.statusFilter();
+      fs.needsInterventionFilter = this.needsInterventionFilter();
       fs.showHistorical = this.showHistorical();
       fs.historicalDateFrom = this.historicalDateFrom();
       fs.historicalDateTo = this.historicalDateTo();
@@ -553,6 +559,7 @@ export class CoursesPage implements OnInit {
     this.selectedSubjectId.set(null);
     this.selectedTeacherIds.set([]);
     this.statusFilter.set(null);
+    this.needsInterventionFilter.set(false);
     this.historicalDateFrom.set(null);
     this.historicalDateTo.set(null);
     this.currentPage.set(1);

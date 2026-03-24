@@ -479,6 +479,18 @@
         />
       </div>
 
+      <!-- 需介入 -->
+      <div class="courses__filter-section">
+        <span class="courses__filter-label">需介入</span>
+        <div class="courses__filter-historical-row">
+          <p-toggleswitch
+            [ngModel]="needsInterventionFilter()"
+            (ngModelChange)="needsInterventionFilter.set($event)"
+          />
+          <span class="courses__filter-historical-label">只顯示需介入</span>
+        </div>
+      </div>
+
       <!-- 含歷史班級 + 日期範圍（獨立顯示，不依賴 toggle）-->
       <div class="courses__filter-section">
         <span class="courses__filter-label">歷史班級</span>

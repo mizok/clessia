@@ -8,6 +8,7 @@ export class CoursesFilterStateService {
   selectedSubjectId: string | null = null;
   selectedTeacherIds: string[] = [];
   statusFilter: boolean | null = null;
+  needsInterventionFilter = false;
   showHistorical = false;
   historicalDateFrom: Date | null = null;
   historicalDateTo: Date | null = null;
