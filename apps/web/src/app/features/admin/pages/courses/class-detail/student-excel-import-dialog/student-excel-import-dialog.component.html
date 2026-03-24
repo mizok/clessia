@@ -1,1 +1,100 @@
-<p>student-excel-import-dialog works!</p>
+<div class="seid">
+  @if (step() === 1) {
+    <div class="seid__upload-area">
+      <input type="file" accept=".xlsx,.xls" (change)="onFileChange($event)" />
+      <a
+        class="seid__template-link"
+        href="/assets/templates/student-class-import-template.xlsx"
+        target="_blank"
+        rel="noopener"
+        >下載範本</a
+      >
+
+      @if (loading()) {
+        <div class="seid__spinner-wrap">
+          <p-progressSpinner strokeWidth="4" />
+        </div>
+      }
+    </div>
+  }
+
+  @if (step() === 2) {
+    <div class="seid__summary">剩餘名額：{{ remainingSlots() }} | 本次可加入：{{ resolvedCount() }}</div>
+
+    <p-table [value]="matchResults()" [scrollable]="true" scrollHeight="350px">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>序號</th>
+          <th>姓名</th>
+          <th>學校</th>
+          <th>狀態</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-r let-rowIndex="rowIndex">
+        <tr>
+          <td>{{ rowIndex + 1 }}</td>
+          <td>{{ rawItems()[r.index]?.name }}</td>
+          <td>{{ rawItems()[r.index]?.school }}</td>
+          <td>
+            @if (r.status === 'matched') {
+              <p-tag severity="success" value="✅ 已比對" />
+            }
+            @if (r.status === 'already_enrolled') {
+              <p-tag severity="info" value="已在班級" />
+            }
+            @if (r.status === 'not_found') {
+              <p-tag severity="danger" value="找不到" />
+            }
+            @if (r.status === 'ambiguous') {
+              <p-select
+                [options]="candidateOptions(r.candidates)"
+                optionLabel="name"
+                optionValue="id"
+                placeholder="請選擇學生"
+                (onChange)="resolveAmbiguous(r.index, $event.value)"
+              />
+            }
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+
+    @if (resolvedCount() > remainingSlots()) {
+      <div class="seid__warning">超出名額上限</div>
+    }
+
+    <div class="seid__actions">
+      <button pButton type="button" label="取消" severity="secondary" (click)="onClose()"></button>
+      <button
+        pButton
+        type="button"
+        [label]="'確認加入 ' + resolvedCount() + ' 人'"
+        [disabled]="!canSubmit()"
+        (click)="onSubmit()"
+      ></button>
+    </div>
+  }
+
+  @if (step() === 3) {
+    <div class="seid__processing">
+      <p-progressSpinner strokeWidth="4" />
+      <div class="seid__processing-text">處理中，請稍候...</div>
+    </div>
+  }
+
+  @if (step() === 4) {
+    <div class="seid__result">
+      @if (overQuota()) {
+        <div class="seid__result-text">班級人數已達上限，本次匯入已取消</div>
+      } @else {
+        <div class="seid__result-text">
+          成功加入 {{ submitResult()?.success }} 人、略過 {{ submitResult()?.skipped }} 人
+        </div>
+      }
+
+      <div class="seid__actions seid__actions--single">
+        <button pButton type="button" label="完成" (click)="onDone()"></button>
+      </div>
+    </div>
+  }
+</div>
