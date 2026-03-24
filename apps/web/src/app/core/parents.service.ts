@@ -65,6 +65,32 @@ export interface UpdateParentInput {
   notes?: string | null;
 }
 
+export interface BatchImportRow {
+  parentName: string;
+  parentPhone?: string;
+  parentEmail?: string;
+  parentNotes?: string;
+  studentName: string;
+  studentGrade: string; // 'P1'|'P2'|...|'S3'
+  studentSchool: string;
+  studentBirthday?: string;
+  studentGender?: string;
+}
+
+export interface BatchImportResultItem {
+  rowIndex: number;
+  status: 'success' | 'failed';
+  parentId?: string;
+  studentId?: string;
+  error?: string;
+}
+
+export interface BatchImportResponse {
+  parentsCreated: number;
+  studentsCreated: number;
+  results: BatchImportResultItem[];
+}
+
 export const PARENT_STATUS_LABELS: Record<ParentStatus, string> = {
   active: '啟用',
   inactive: '停用',
@@ -108,6 +134,10 @@ export class ParentsService {
 
   archive(id: string): Observable<{ success: boolean }> {
     return this.http.patch<{ success: boolean }>(`${this.endpoint}/${id}/archive`, {});
+  }
+
+  batchImport(rows: BatchImportRow[]): Observable<BatchImportResponse> {
+    return this.http.post<BatchImportResponse>(`${this.endpoint}/batch-import`, { rows });
   }
 
   private toQueryParams(params?: ParentQueryParams): Record<string, string | number> {
