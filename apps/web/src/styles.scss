@@ -673,6 +673,7 @@ select {
 .courses__filter-full-select .p-select-label,
 .courses__historical-date .p-inputtext {
   font-size: var(--text-sm);
+  min-height: 36px;
 }
 
 // courses filter drawer: override PrimeNG bottom drawer default height (10rem)
