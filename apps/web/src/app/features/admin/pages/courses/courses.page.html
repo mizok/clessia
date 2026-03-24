@@ -130,20 +130,25 @@
               <!-- Course Header -->
               <div
                 class="course-group__header"
-                role="button"
-                tabindex="0"
-                [attr.aria-expanded]="!isCourseCollapsed(group.course.id)"
-                (click)="toggleCourse(group.course.id)"
-                (keydown.enter)="toggleCourse(group.course.id)"
-                (keydown.space)="$event.preventDefault(); toggleCourse(group.course.id)"
+                [class.course-group__header--no-classes]="group.classes.length === 0"
+                [attr.role]="group.classes.length > 0 ? 'button' : null"
+                [attr.tabindex]="group.classes.length > 0 ? 0 : null"
+                [attr.aria-expanded]="group.classes.length > 0 ? !isCourseCollapsed(group.course.id) : null"
+                (click)="group.classes.length > 0 && toggleCourse(group.course.id)"
+                (keydown.enter)="group.classes.length > 0 && toggleCourse(group.course.id)"
+                (keydown.space)="onCourseHeaderSpace($event, group)"
               >
                 <div class="course-group__info">
                   <div class="course-group__name-row">
-                    <i
-                      class="pi course-group__chevron"
-                      [class.pi-chevron-down]="!isCourseCollapsed(group.course.id)"
-                      [class.pi-chevron-right]="isCourseCollapsed(group.course.id)"
-                    ></i>
+                    @if (group.classes.length > 0) {
+                      <i
+                        class="pi course-group__chevron"
+                        [class.pi-chevron-down]="!isCourseCollapsed(group.course.id)"
+                        [class.pi-chevron-right]="isCourseCollapsed(group.course.id)"
+                      ></i>
+                    } @else {
+                      <i class="pi course-group__chevron course-group__chevron--placeholder"></i>
+                    }
                     <i class="pi pi-book course-group__icon"></i>
                     <div class="course-group__name-stack">
                       <span class="course-group__name">

@@ -310,10 +310,22 @@
     &:hover {
       background: var(--zinc-100);
     }
+
+    &--no-classes {
+      cursor: default;
+
+      &:hover {
+        background: var(--zinc-50);
+      }
+    }
   }
 
   &__chevron {
     color: var(--zinc-400);
+
+    &--placeholder {
+      visibility: hidden;
+    }
   }
 
   &__info {

@@ -587,6 +587,12 @@ export class CoursesPage implements OnInit {
     });
   }
 
+  protected onCourseHeaderSpace(event: KeyboardEvent, group: CourseGroup): void {
+    if (group.classes.length === 0) return;
+    event.preventDefault();
+    this.toggleCourse(group.course.id);
+  }
+
   // ================================================================
 
   // ================================================================
