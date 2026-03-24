@@ -162,8 +162,7 @@ export class CoursesPage implements OnInit {
   protected readonly selectedCampusId = signal<string | null>(null);
   protected readonly selectedSubjectId = signal<string | null>(null);
   protected readonly selectedTeacherIds = signal<string[]>([]);
-  protected readonly statusFilter = signal<boolean | null>(null);
-  protected readonly needsInterventionFilter = signal(false);
+  protected readonly statusFilter = signal<boolean | 'intervention' | null>(null);
   // ---- Filter Panel ----
   protected readonly filterPanelVisible = signal(false);
   protected readonly filterPopoverRef = viewChild<Popover>('filterPopover');
@@ -173,7 +172,6 @@ export class CoursesPage implements OnInit {
     if (this.selectedSubjectId()) count++;
     if (this.selectedTeacherIds().length > 0) count++;
     if (this.statusFilter() !== null) count++;
-    if (this.needsInterventionFilter()) count++;
     if (this.showHistorical()) count++;
     if (this.historicalDateFrom() || this.historicalDateTo()) count++;
     return count;
@@ -228,15 +226,17 @@ export class CoursesPage implements OnInit {
     const isActive = this.statusFilter();
 
     // statusFilter 語意：
-    //   false（已停用）→ 只顯示停用課程，班級不額外過濾
-    //   true（啟用中） → 只顯示啟用課程，且只顯示啟用班級
-    //   null（全部）   → 只顯示啟用課程，班級不過濾
-    const classActiveFilter = isActive === true ? true : null;
+    //   false（已停用）      → 只顯示停用課程，班級不額外過濾
+    //   true（啟用中）       → 只顯示啟用課程，且只顯示啟用班級
+    //   null（全部）         → 只顯示啟用課程，班級不過濾
+    //   'intervention'（需介入）→ 同啟用中，再 client-side 過濾需介入的群組
+    const effectiveActive = isActive === 'intervention' ? true : isActive;
+    const classActiveFilter = effectiveActive === true ? true : null;
 
     return allCourses
       .filter((c) => {
-        if (isActive === false && c.isActive) return false;
-        if (isActive !== false && !c.isActive) return false;
+        if (effectiveActive === false && c.isActive) return false;
+        if (effectiveActive !== false && !c.isActive) return false;
         if (campusId && c.campusId !== campusId) return false;
         if (subjectId && c.subjectId !== subjectId) return false;
         return true;
@@ -266,7 +266,7 @@ export class CoursesPage implements OnInit {
         if (!search && teacherIds.length === 0) return true;
         return !!(search && g.course.name.toLowerCase().includes(search));
       })
-      .filter((g) => !this.needsInterventionFilter() || this.hasCourseNeedsIntervention(g));
+      .filter((g) => isActive !== 'intervention' || this.hasCourseNeedsIntervention(g));
   });
 
   protected readonly hasActiveFilters = computed(
@@ -275,7 +275,6 @@ export class CoursesPage implements OnInit {
       !!this.selectedSubjectId() ||
       this.selectedTeacherIds().length > 0 ||
       this.statusFilter() !== null ||
-      this.needsInterventionFilter() ||
       this.showHistorical() ||
       !!this.historicalDateFrom() ||
       !!this.historicalDateTo(),
@@ -311,6 +310,7 @@ export class CoursesPage implements OnInit {
     { label: '全部狀態', value: null },
     { label: '啟用中', value: true },
     { label: '已停用', value: false },
+    { label: '需介入', value: 'intervention' },
   ];
 
   // ================================================================
@@ -325,7 +325,6 @@ export class CoursesPage implements OnInit {
     this.selectedSubjectId.set(s.selectedSubjectId);
     this.selectedTeacherIds.set(s.selectedTeacherIds);
     this.statusFilter.set(s.statusFilter);
-    this.needsInterventionFilter.set(s.needsInterventionFilter);
     this.showHistorical.set(s.showHistorical);
     this.historicalDateFrom.set(s.historicalDateFrom);
     this.historicalDateTo.set(s.historicalDateTo);
@@ -342,7 +341,6 @@ export class CoursesPage implements OnInit {
       fs.selectedSubjectId = this.selectedSubjectId();
       fs.selectedTeacherIds = this.selectedTeacherIds();
       fs.statusFilter = this.statusFilter();
-      fs.needsInterventionFilter = this.needsInterventionFilter();
       fs.showHistorical = this.showHistorical();
       fs.historicalDateFrom = this.historicalDateFrom();
       fs.historicalDateTo = this.historicalDateTo();
@@ -398,7 +396,7 @@ export class CoursesPage implements OnInit {
         search: this.searchQuery() || undefined,
         campusId: this.selectedCampusId() || undefined,
         subjectId: this.selectedSubjectId() || undefined,
-        isActive: this.statusFilter() ?? true,
+        isActive: this.statusFilter() === 'intervention' ? true : (this.statusFilter() ?? true),
         page: this.currentPage(),
         pageSize: this.PAGE_SIZE,
       })
@@ -559,7 +557,6 @@ export class CoursesPage implements OnInit {
     this.selectedSubjectId.set(null);
     this.selectedTeacherIds.set([]);
     this.statusFilter.set(null);
-    this.needsInterventionFilter.set(false);
     this.historicalDateFrom.set(null);
     this.historicalDateTo.set(null);
     this.currentPage.set(1);
