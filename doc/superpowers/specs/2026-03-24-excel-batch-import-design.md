@@ -28,12 +28,31 @@
 | 家長Email | 至少一個 | 標準 Email 格式 |
 | 家長備註 | ❌ | 最長 2000 字 |
 | 學生姓名 | ✅ | 最長 50 字 |
-| 學生年級 | ✅ | 固定值：國小一年級～六年級、國中一年級～三年級、高中一年級～三年級 |
+| 學生年級 | ✅ | 固定值（見下方對照表） |
 | 學生就讀學校 | ✅ | 最長 100 字 |
 | 學生生日 | ❌ | 格式：YYYY-MM-DD |
 | 學生性別 | ❌ | 固定值：男、女、不提供 |
 
-**範本附說明頁**，列出年級與性別的合法值。
+**年級對照表**（範本說明頁列出，前端解析時將中文轉換為系統碼）
+
+| Excel 填寫值 | 系統碼 |
+|--------------|--------|
+| 小一 | P1 |
+| 小二 | P2 |
+| 小三 | P3 |
+| 小四 | P4 |
+| 小五 | P5 |
+| 小六 | P6 |
+| 國一 | J1 |
+| 國二 | J2 |
+| 國三 | J3 |
+| 高一 | S1 |
+| 高二 | S2 |
+| 高三 | S3 |
+
+**性別對照表**：男 → `male`、女 → `female`、不提供 → `prefer_not_to_say`
+
+電話格式驗證（`09xxxxxxxx`）僅在前端 preview 執行；後端只驗證最長 20 字，不重複格式驗證。
 
 ### 2.2 班級加學生範本
 
@@ -94,6 +113,9 @@
 **步驟 4 — 確認匯入**
 - 呼叫現有 `POST /api/enrollments/batch`（傳入確認的 studentIds）
 - 顯示結果：成功加入 N 人、略過 N 人
+- 若後端回傳 `over_quota`（班級人數已達上限）：顯示錯誤提示「班級人數已達上限，本次匯入已取消」，不進行部分匯入
+- **備註**：現有 `POST /api/enrollments/batch` 在 insert 前先做 quota 檢查（整批取消，無部分寫入問題），無需額外改造
+- **前端預防**：比對預覽步驟應顯示「班級剩餘名額 N 人 / 本次將加入 M 人」，若 M > N 則在 preview 警示，讓管理者在送出前就能發現
 
 ---
 
@@ -110,7 +132,7 @@
     parentEmail?: string;
     parentNotes?: string;
     studentName: string;
-    studentGrade: GradeLevel;        // 'elementary_1'～'high_3'
+    studentGrade: GradeLevel;        // 'P1'|'P2'|'P3'|'P4'|'P5'|'P6'|'J1'|'J2'|'J3'|'S1'|'S2'|'S3'
     studentSchool: string;
     studentBirthday?: string;        // 'YYYY-MM-DD'
     studentGender?: StudentGender;   // 'male' | 'female' | 'prefer_not_to_say'
@@ -137,6 +159,22 @@
 1. 先將同一批次的行按電話/Email 分組，確定哪些行要共用同一個家長帳號
 2. 依序建立家長（若同批次已建立則取 id）→ 建立學生 → 建立 parent_student_relations
 3. 任一步失敗，該行記錄 `failed`，繼續下一行
+
+**冪等行為（家長電話/Email 已存在於系統）**
+
+若 batch-import 中的家長電話/Email 在資料庫中已存在（即該家長之前已建立過帳號）：
+- **不重複建立帳號**，直接取得現有家長的 id
+- 繼續建立學生並關聯至現有家長
+- response 中該行 `status: 'success'`，`parentId` 指向現有帳號
+
+此行為使批次匯入可安全重試，不會因為部分家長已存在而失敗。`DUPLICATE_EMAIL` / `DUPLICATE_PHONE` 錯誤碼保留給「同一批次內」重複（前端 preview 應已攔截，後端為保險兜底）。
+
+**學生建立行為（永遠新建）**
+
+批次匯入中的每個學生均視為全新建立，不嘗試比對系統中已存在的學生：
+- 即使系統中已有同名同校的學生，仍建立新帳號
+- 這是刻意設計：批次匯入是一次性上線資料匯入場景，不是增量更新
+- `org_id` 由後端從認證 session 取得，不由前端傳入
 
 ---
 
@@ -168,7 +206,34 @@
 }
 ```
 
-**比對邏輯**：`name ILIKE %input% AND school ILIKE %input%`（精確全字比對優先，退而全字模糊）
+**比對邏輯**（兩段式）
+
+```sql
+-- 第一段：精確全字比對
+SELECT * FROM students
+WHERE org_id = $orgId
+  AND name = $name
+  AND school = $school
+  AND is_active = true;
+
+-- 若第一段無結果，執行第二段：模糊比對
+SELECT * FROM students
+WHERE org_id = $orgId
+  AND name ILIKE $name
+  AND school ILIKE $school
+  AND is_active = true;
+```
+
+執行順序：
+1. 依上述兩段查詢取得候選清單
+2. 從候選中排除已在 classId 的 enrollments 中的學生（`already_enrolled` 檢查為後處理步驟）
+3. 排除後：
+   - 唯一剩餘 → `matched`
+   - 多筆剩餘 → `ambiguous`（回傳所有候選）
+   - 剩餘為空但排除前有結果 → `already_enrolled`
+   - 兩段皆無結果 → `not_found`
+
+`org_id` 由後端從認證 session 取得，不由前端傳入。
 
 ---
 
@@ -215,4 +280,4 @@ apps/web/src/app/
 
 - 匯入結果的 audit log（現有 audit log 機制不在本次範圍）
 - 更新現有家長/學生資料（本次僅建立新資料）
-- 家長帳號初始密碼顯示（本次批次匯入不逐一顯示，僅在結果頁提示「密碼已寄送 / 請另行通知家長」）
+- 家長帳號初始密碼顯示（批次匯入不逐一彈窗顯示。結果頁提示：「各帳號已建立，請透過家長管理頁的『重設密碼』功能取得初始密碼後再通知家長」）
