@@ -46,6 +46,7 @@ import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confir
 import { PasswordRevealDialogComponent } from '@shared/components/password-reveal-dialog/password-reveal-dialog.component';
 import { ParentFormDialogComponent } from '@shared/components/parent-form-dialog/parent-form-dialog.component';
 import { StudentFormDialogComponent } from '@features/admin/pages/students/student-form-dialog.component';
+import ParentImportDialogComponent from './parent-import-dialog/parent-import-dialog.component';
 
 @Component({
   selector: 'app-parents',
@@ -67,6 +68,7 @@ import { StudentFormDialogComponent } from '@features/admin/pages/students/stude
     RtColDefDirective,
     RtColCellDirective,
     RtRowDirective,
+    ParentImportDialogComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './parents.page.html',
@@ -248,6 +250,18 @@ export class ParentsPage implements OnInit {
         this.loadParents();
         this.openPasswordRevealDialog(result.data, result.password);
       }
+    });
+  }
+
+  protected openImportDialog(): void {
+    const ref = this.dialogService.open(ParentImportDialogComponent, {
+      header: '批次匯入家長',
+      width: '720px',
+      modal: true,
+      appendTo: this.overlayContainer || 'body',
+    });
+    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
+      if (result === 'imported') this.loadParents();
     });
   }
 

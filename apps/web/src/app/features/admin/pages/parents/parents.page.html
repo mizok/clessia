@@ -9,6 +9,12 @@
     </div>
     <div class="parents__header-actions">
       <p-button
+        label="匯入"
+        icon="pi pi-upload"
+        severity="secondary"
+        (onClick)="openImportDialog()"
+      />
+      <p-button
         label="新增家長"
         icon="pi pi-plus"
         (onClick)="openCreateDialog()"
