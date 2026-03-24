@@ -2,6 +2,53 @@
 
 // Inherits from .form-dialog and .dialog-header-inline
 
+.generate-date-range {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--accent-50);
+  border: 1px solid var(--accent-100);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-1);
+
+  &__label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    color: var(--accent-600);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+
+    i { font-size: 11px; }
+  }
+
+  &__dates {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  &__chip {
+    padding: var(--space-1) var(--space-3);
+    background: #fff;
+    border: 1px solid var(--accent-200);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-800);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+  }
+
+  &__sep {
+    font-size: 11px;
+    color: var(--accent-400);
+  }
+}
+
 .generate-hint {
   font-size: var(--text-sm);
   color: var(--zinc-500);
@@ -44,16 +91,11 @@
 
   &__table {
     display: block;
-    max-height: 400px;
-    min-height: 0;
-    overflow: hidden;
   }
 
   &__row--exists {
-    .responsive-table__cell {
-      background: color-mix(in srgb, var(--zinc-50) 78%, var(--color-white));
-      color: var(--zinc-500);
-    }
+    --rt-cell-bg: color-mix(in srgb, var(--zinc-50) 78%, var(--color-white));
+    --rt-cell-color: var(--zinc-500);
   }
 
   &__badge {

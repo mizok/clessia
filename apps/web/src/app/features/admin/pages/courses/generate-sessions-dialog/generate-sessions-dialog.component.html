@@ -35,38 +35,62 @@
         </div>
       </div>
     } @else if (step() === 'input') {
-      <p class="generate-hint">選擇日期範圍，系統將依照上課時間表批次產生課堂記錄。</p>
-
-      <div class="form-dialog__row">
-        <div class="form-dialog__field">
-          <label class="form-dialog__label"
-            >開始日期<span class="form-dialog__required">*</span></label
-          >
-          <p-datepicker
-            [ngModel]="generateFrom()"
-            (ngModelChange)="generateFrom.set($event)"
-            dateFormat="yy-mm-dd"
-            [showIcon]="true"
-            placeholder="選擇日期"
-            styleClass="w-full"
-            [appendTo]="'body'"
-          />
+      @if (hasBothClassDates()) {
+        <!-- 有完整班級日期：顯示日期卡片，直接跳過選擇 -->
+        <div class="generate-date-range">
+          <span class="generate-date-range__label">
+            <i class="pi pi-calendar"></i>
+            班級有效期間
+          </span>
+          <div class="generate-date-range__dates">
+            <span class="generate-date-range__chip">
+              {{ classStartDate()! | date: 'yyyy-MM-dd' }}
+            </span>
+            <i class="pi pi-arrow-right generate-date-range__sep"></i>
+            <span class="generate-date-range__chip">
+              {{ classEndDate()! | date: 'yyyy-MM-dd' }}
+            </span>
+          </div>
         </div>
-        <div class="form-dialog__field">
-          <label class="form-dialog__label"
-            >結束日期<span class="form-dialog__required">*</span></label
-          >
-          <p-datepicker
-            [ngModel]="generateTo()"
-            (ngModelChange)="generateTo.set($event)"
-            dateFormat="yy-mm-dd"
-            [showIcon]="true"
-            placeholder="選擇日期"
-            styleClass="w-full"
-            [appendTo]="'body'"
-          />
+        <p class="generate-hint">選擇要排除的日期，其餘將依上課時間表批次產生課堂記錄。</p>
+      } @else {
+        <!-- 無完整班級日期：手動選擇範圍 -->
+        <p class="generate-hint">選擇日期範圍，系統將依照上課時間表批次產生課堂記錄。</p>
+        <div class="form-dialog__row">
+          <div class="form-dialog__field">
+            <label class="form-dialog__label"
+              >開始日期<span class="form-dialog__required">*</span></label
+            >
+            <p-datepicker
+              [ngModel]="generateFrom()"
+              (ngModelChange)="generateFrom.set($event)"
+              dateFormat="yy-mm-dd"
+              [showIcon]="true"
+              placeholder="選擇日期"
+              styleClass="w-full"
+              [appendTo]="'body'"
+              [minDate]="classStartDate()"
+              [maxDate]="classEndDate()"
+            />
+          </div>
+          <div class="form-dialog__field">
+            <label class="form-dialog__label"
+              >結束日期<span class="form-dialog__required">*</span></label
+            >
+            <p-datepicker
+              [ngModel]="generateTo()"
+              (ngModelChange)="generateTo.set($event)"
+              dateFormat="yy-mm-dd"
+              [showIcon]="true"
+              placeholder="選擇日期"
+              styleClass="w-full"
+              [appendTo]="'body'"
+              [minDate]="generateFrom() ?? classStartDate()"
+              [maxDate]="classEndDate()"
+            />
+          </div>
         </div>
-      </div>
+      }
 
       <div class="form-dialog__field">
         <label class="form-dialog__label">排除日期（選填）</label>
@@ -76,9 +100,11 @@
           selectionMode="multiple"
           dateFormat="yy-mm-dd"
           [showIcon]="true"
-          placeholder="選擇要排除的日期"
+          placeholder="點選日曆選取要排除的日期"
           styleClass="w-full"
           [appendTo]="'body'"
+          [minDate]="classStartDate()"
+          [maxDate]="classEndDate()"
         />
         @if (excludeDates().length > 0) {
           <span class="generate-exclude-hint">已排除 {{ excludeDates().length }} 個日期</span>
@@ -188,7 +214,7 @@
         label="預覽課堂"
         icon="pi pi-eye"
         [loading]="loading()"
-        [disabled]="!generateFrom() || !generateTo()"
+        [disabled]="!hasBothClassDates() && (!generateFrom() || !generateTo())"
         (onClick)="preview()"
       />
     } @else {

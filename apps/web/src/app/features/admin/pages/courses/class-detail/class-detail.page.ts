@@ -5,6 +5,7 @@ import { ButtonModule } from 'primeng/button';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { TabsModule } from 'primeng/tabs';
+import type { TabListPassThrough } from 'primeng/types/tabs';
 import { MenuModule } from 'primeng/menu';
 import { Menu } from 'primeng/menu';
 import { SkeletonModule } from 'primeng/skeleton';
@@ -12,6 +13,7 @@ import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { ClassesService, Class } from '@core/classes.service';
+import { GRADE_LEVEL_LABELS } from '@core/students.service';
 import {
   EnrollmentsService,
   Enrollment,
@@ -58,6 +60,14 @@ export class ClassDetailPage implements OnInit {
   protected readonly enrollmentsLoading = signal(true);
 
   protected readonly statusLabels = ENROLLMENT_STATUS_LABELS;
+  protected readonly tabListPt: TabListPassThrough = {
+    tabList: {
+      style: {
+        padding: '0 var(--space-5)',
+        alignItems: 'center',
+      },
+    },
+  };
 
   /** 用 courseId + classId 決定性地 hash 出一個色相值（0–359） */
   protected readonly avatarHue = computed(() => {
@@ -294,6 +304,10 @@ export class ClassDetailPage implements OnInit {
     if (status === 'pending_payment') return 'warn';
     if (status === 'suspended') return 'secondary';
     return 'danger';
+  }
+
+  protected getGradeLabel(grade: string): string {
+    return GRADE_LEVEL_LABELS[grade as keyof typeof GRADE_LEVEL_LABELS] ?? grade;
   }
 
   protected getWeekdayLabel(weekday: number): string {

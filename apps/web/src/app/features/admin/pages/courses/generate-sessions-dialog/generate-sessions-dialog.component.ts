@@ -50,14 +50,29 @@ export class GenerateSessionsDialogComponent {
   protected readonly step = signal<'input' | 'preview' | 'result'>('input');
   protected readonly generationResult = signal<GenerateSessionsResult | null>(null);
 
-  protected readonly generateFrom = signal<Date | null>(null);
-  protected readonly generateTo = signal<Date | null>(null);
+  protected readonly generateFrom = signal<Date | null>(
+    this.config.data?.cls?.startDate ? new Date(this.config.data.cls.startDate + 'T00:00:00') : null,
+  );
+  protected readonly generateTo = signal<Date | null>(
+    this.config.data?.cls?.endDate ? new Date(this.config.data.cls.endDate + 'T00:00:00') : null,
+  );
   protected readonly excludeDates = signal<Date[]>([]);
   protected readonly previewSessions = signal<SessionPreview[]>([]);
   protected readonly previewPaginationFirst = signal(0);
   protected readonly previewPaginationRows = signal(10);
   protected readonly previewPaginationRowsPerPageOptions = [10, 20, 50];
   protected readonly isMobile = this.browserStateService.isMobile;
+  protected readonly classStartDate = computed(() => {
+    const d = this.cls()?.startDate;
+    return d ? new Date(d + 'T00:00:00') : undefined;
+  });
+  protected readonly classEndDate = computed(() => {
+    const d = this.cls()?.endDate;
+    return d ? new Date(d + 'T00:00:00') : undefined;
+  });
+  protected readonly hasBothClassDates = computed(
+    () => !!(this.cls()?.startDate && this.cls()?.endDate),
+  );
 
   protected readonly newCount = computed(
     () => this.previewSessions().filter((s) => !s.exists).length,

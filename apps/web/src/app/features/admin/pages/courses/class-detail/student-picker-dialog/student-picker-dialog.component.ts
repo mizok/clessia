@@ -38,6 +38,7 @@ export class StudentPickerDialogComponent implements OnInit {
   private readonly config = inject(DynamicDialogConfig);
   private readonly destroyRef = inject(DestroyRef);
   private readonly searchSubject = new Subject<string>();
+  private readonly schoolSubject = new Subject<string>();
 
   protected readonly loading = signal(true);
   protected readonly confirming = signal(false);
@@ -48,6 +49,7 @@ export class StudentPickerDialogComponent implements OnInit {
   protected readonly PAGE_SIZE = 20;
 
   protected readonly searchQuery = signal('');
+  protected readonly schoolQuery = signal('');
   protected selectedGrade: GradeLevel | null = null;
   protected selectedGender: string | null = null;
   protected selectedIsActive: boolean | null = null;
@@ -108,6 +110,13 @@ export class StudentPickerDialogComponent implements OnInit {
         this.currentPage.set(1);
         this.load();
       });
+    this.schoolSubject
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        this.schoolQuery.set(value);
+        this.currentPage.set(1);
+        this.load();
+      });
     this.load();
   }
 
@@ -118,6 +127,7 @@ export class StudentPickerDialogComponent implements OnInit {
         search: this.searchQuery() || undefined,
         grade: this.selectedGrade ?? undefined,
         isActive: this.selectedIsActive ?? undefined,
+        school: this.schoolQuery() || undefined,
         page: this.currentPage(),
         pageSize: this.PAGE_SIZE,
       })
@@ -134,6 +144,10 @@ export class StudentPickerDialogComponent implements OnInit {
 
   protected onSearchChange(value: string): void {
     this.searchSubject.next(value);
+  }
+
+  protected onSchoolChange(value: string): void {
+    this.schoolSubject.next(value);
   }
 
   protected onFilterChange(): void {
@@ -194,5 +208,14 @@ export class StudentPickerDialogComponent implements OnInit {
 
   protected cancel(): void {
     this.ref.close();
+  }
+
+  protected getStudentHue(studentId: string): number {
+    let hash = 0;
+    for (let i = 0; i < studentId.length; i++) {
+      hash = (hash * 31 + studentId.charCodeAt(i)) & 0xfffffff;
+    }
+    const raw = hash % 320;
+    return raw < 45 ? raw + 160 : raw;
   }
 }

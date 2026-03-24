@@ -1,35 +1,109 @@
-.student-picker {
+.spd {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   min-height: 0;
 
+  // ---- Command Bar ----
+  &__bar {
+    background: var(--zinc-50);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  &__bar-inputs {
+    display: flex;
+    align-items: stretch;
+    min-height: 46px;
+    border-bottom: 1px solid var(--zinc-200);
+  }
+
+  &__input-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    transition: background 0.12s;
+
+    &:focus-within {
+      background: #fff;
+    }
+  }
+
+  &__bar-sep {
+    width: 1px;
+    background: var(--zinc-200);
+    flex-shrink: 0;
+  }
+
+  &__input-icon {
+    color: var(--zinc-400);
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  &__input {
+    flex: 1;
+    font-size: var(--text-sm);
+    color: var(--zinc-800);
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+    height: auto;
+    border-radius: 0;
+
+    &:focus {
+      border: none;
+      box-shadow: none;
+      outline: none;
+    }
+
+    &::placeholder {
+      color: var(--zinc-400);
+    }
+  }
+
   &__filters {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  &__search {
-    width: 100%;
-  }
-
-  &__filter-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    align-items: center;
     gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+
+    p-select {
+      min-width: 80px;
+      --p-select-border-color: var(--zinc-200);
+      --p-select-hover-border-color: var(--zinc-300);
+      --p-select-background: #fff;
+      --p-select-color: var(--zinc-600);
+      --p-select-sm-font-size: var(--text-xs);
+      --p-select-sm-padding-y: 0;
+      --p-select-sm-padding-x: var(--space-2);
+      --p-select-dropdown-width: 1.75rem;
+    }
   }
 
+  // ---- List ----
   &__list {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
-    max-height: 380px;
+    max-height: 340px;
+    overflow-y: auto;
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    flex-shrink: 0;
+    // Allow scroll while keeping border radius
     overflow-y: auto;
   }
 
-  &__skeleton {
-    padding: var(--space-1) 0;
+  &__skeleton-row {
+    & + & {
+      border-top: 1px solid var(--zinc-100);
+    }
   }
 
   &__empty {
@@ -37,82 +111,187 @@
     flex-direction: column;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-8) 0;
-    color: var(--color-text-muted);
+    padding: var(--space-12) var(--space-4);
+    color: var(--zinc-400);
 
-    i {
-      font-size: 2rem;
+    .pi {
+      font-size: 1.75rem;
+      color: var(--zinc-300);
+    }
+
+    span {
+      font-size: var(--text-sm);
     }
   }
 
+  // ---- Student Item ----
   &__item {
-    display: flex;
+    display: grid;
+    grid-template-columns: 22px 34px 1fr;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-3) var(--space-2);
-    border-radius: var(--radius-md);
-    background: none;
+    padding: var(--space-3) var(--space-4);
+    background: #fff;
     border: none;
+    border-left: 3px solid transparent;
     cursor: pointer;
-    width: 100%;
     text-align: left;
-    transition: background 0.15s;
+    width: 100%;
+    transition: background 0.12s, border-left-color 0.12s;
+
+    & + & {
+      border-top: 1px solid var(--zinc-100);
+    }
 
     &:hover {
-      background: var(--color-surface-hover);
+      background: var(--zinc-50);
+      border-left-color: var(--accent-300);
+    }
+
+    &--selected {
+      background: hsl(200 90% 97%);
+      border-left-color: var(--accent-500);
     }
   }
 
-  &__item-info {
-    flex: 1;
+  &__item:hover &__item-name {
+    color: var(--accent-700);
+  }
+
+  &__item--selected &__item-name {
+    color: var(--accent-700);
+  }
+
+  &__item--selected &__item-check {
+    background: var(--accent-500);
+    border-color: var(--accent-500);
+  }
+
+  &__item--selected &__item-check .pi {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  // Custom checkbox — hollow square → filled check on select
+  &__item-check {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    border: 1.5px solid var(--zinc-300);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.12s, border-color 0.12s;
+
+    .pi {
+      font-size: 10px;
+      color: #fff;
+      opacity: 0;
+      transform: scale(0.4);
+      transition: opacity 0.1s, transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+  }
+
+  // Deterministic color avatar
+  &__item-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--h, 210) 65% 60%),
+      hsl(var(--h, 210) 75% 44%)
+    );
+    box-shadow: 0 2px 6px -1px hsl(var(--h, 210) 65% 50% / 0.25);
+    color: #fff;
+    font-size: 13px;
+    font-weight: var(--font-bold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    user-select: none;
+    letter-spacing: -0.01em;
+  }
+
+  &__item-body {
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
+    gap: 1px;
+    min-width: 0;
   }
 
   &__item-name {
-    font-weight: 500;
-    color: var(--color-text);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-800);
+    transition: color 0.12s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   &__item-meta {
-    font-size: 0.875rem;
-    color: var(--color-text-muted);
+    font-size: 11px;
+    color: var(--zinc-400);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  &__item-arrow {
-    color: var(--color-text-muted);
-    font-size: 0.75rem;
-  }
-
-  &__footer {
+  // ---- Review List ----
+  &__review-list {
     display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    padding-top: var(--space-2);
-    border-top: 1px solid var(--color-border);
-  }
-
-  &__item--selected {
-    background: var(--sky-50);
-    border: 1px solid var(--sky-200);
-  }
-
-  &__checkbox {
-    font-size: 1.1rem;
-    color: var(--sky-600);
+    flex-direction: column;
+    max-height: 340px;
+    overflow-y: auto;
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-lg);
     flex-shrink: 0;
-    width: 20px;
+  }
+
+  &__review-item {
     display: flex;
     align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: #fff;
+
+    & + & {
+      border-top: 1px solid var(--zinc-100);
+    }
   }
 
+  &__remove-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--zinc-300);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+    margin-left: auto;
+    transition: color 0.12s, background 0.12s;
+
+    .pi {
+      font-size: 11px;
+    }
+
+    &:hover {
+      color: var(--error-600);
+      background: #fef2f2;
+    }
+  }
+
+  // ---- Step Header ----
   &__step-header {
     display: flex;
     align-items: center;
     gap: var(--space-3);
     padding-bottom: var(--space-3);
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--zinc-100);
+    flex-shrink: 0;
   }
 
   &__back-btn {
@@ -122,49 +301,30 @@
     background: none;
     border: none;
     cursor: pointer;
-    color: var(--color-text-muted);
-    font-size: 0.875rem;
+    color: var(--zinc-500);
+    font-size: var(--text-sm);
     padding: 0;
+    transition: color 0.12s;
 
     &:hover {
-      color: var(--color-text);
+      color: var(--zinc-800);
     }
   }
 
   &__step-title {
-    font-weight: 500;
-    color: var(--color-text);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-700);
   }
 
-  &__review-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    max-height: 380px;
-    overflow-y: auto;
-  }
-
-  &__review-item {
+  // ---- Footer ----
+  &__footer {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: var(--space-3);
-    padding: var(--space-3) var(--space-2);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border);
-  }
-
-  &__remove-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--color-text-muted);
-    padding: var(--space-1);
-    border-radius: var(--radius-sm);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--zinc-100);
     flex-shrink: 0;
-
-    &:hover {
-      color: var(--error-600);
-      background: var(--error-50);
-    }
   }
 }

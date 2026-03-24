@@ -217,15 +217,15 @@
     &:hover {
       background: var(--zinc-50);
       border-left-color: var(--accent-400);
-
-      .class-detail__student-name {
-        color: var(--accent-700);
-      }
-
-      .class-detail__action-btn {
-        opacity: 1;
-      }
     }
+  }
+
+  &__student-item:hover &__student-name {
+    color: var(--accent-700);
+  }
+
+  &__student-item:hover &__action-btn {
+    opacity: 1;
   }
 
   &__student-index {
@@ -315,25 +315,32 @@
 
     &[data-status='active'] {
       background: #f0fdf4;
-      .class-detail__status-dot { background: #22c55e; }
-      .class-detail__status-label { color: #15803d; }
     }
     &[data-status='pending_payment'] {
       background: #fff7ed;
-      .class-detail__status-dot { background: #fb923c; }
-      .class-detail__status-label { color: #c2410c; }
     }
     &[data-status='suspended'] {
       background: var(--zinc-100);
-      .class-detail__status-dot { background: var(--zinc-400); }
-      .class-detail__status-label { color: var(--zinc-500); }
     }
     &[data-status='withdrawal'],
     &[data-status='void'] {
       background: var(--zinc-50);
-      .class-detail__status-dot { background: var(--zinc-300); }
-      .class-detail__status-label { color: var(--zinc-400); }
     }
+  }
+
+  &__student-status[data-status='active'] &__status-dot { background: #22c55e; }
+  &__student-status[data-status='active'] &__status-label { color: #15803d; }
+  &__student-status[data-status='pending_payment'] &__status-dot { background: #fb923c; }
+  &__student-status[data-status='pending_payment'] &__status-label { color: #c2410c; }
+  &__student-status[data-status='suspended'] &__status-dot { background: var(--zinc-400); }
+  &__student-status[data-status='suspended'] &__status-label { color: var(--zinc-500); }
+  &__student-status[data-status='withdrawal'] &__status-dot,
+  &__student-status[data-status='void'] &__status-dot {
+    background: var(--zinc-300);
+  }
+  &__student-status[data-status='withdrawal'] &__status-label,
+  &__student-status[data-status='void'] &__status-label {
+    color: var(--zinc-400);
   }
 
   &__status-dot {
@@ -470,62 +477,30 @@
 }
 
 // ---- PrimeNG Tabs overrides (card 內) ----
-:host ::ng-deep {
-  .class-detail__card {
-    .p-tabs {
-      background: transparent;
-    }
+.class-detail {
+  &__tabs-wrapper {
+    font-size: var(--text-sm);
+  }
 
-    .p-tablist {
-      background: var(--zinc-50);
-      border-bottom: 1px solid var(--zinc-200);
-      padding: 0 var(--space-5);
-      display: flex;
-      align-items: center;
-    }
-
-    .p-tablist-content {
-      flex: 1;
-    }
-
-    .p-tablist-tab-list {
-      background: transparent;
-      border: none;
-    }
-
-    .p-tab {
-      font-size: var(--text-sm);
-      font-weight: var(--font-medium);
-      color: var(--zinc-500);
-      border: none;
-      border-bottom: 2px solid transparent;
-      padding: var(--space-3) var(--space-1);
-      margin-right: var(--space-5);
-      background: transparent;
-      transition: color var(--transition-fast), border-color var(--transition-fast);
-
-      &:hover {
-        color: var(--zinc-700);
-      }
-
-      &.p-tab-active {
-        color: var(--accent-600);
-        border-bottom-color: var(--accent-500);
-        background: transparent;
-      }
-    }
-
-    .p-tablist-active-bar {
-      display: none;
-    }
-
-    .p-tabpanels {
-      background: transparent;
-      padding: var(--space-5);
-    }
-
-    .p-tabpanel {
-      padding: 0;
-    }
+  &__card {
+    --p-tabs-tablist-background: var(--zinc-50);
+    --p-tabs-tablist-border-color: var(--zinc-200);
+    --p-tabs-tablist-border-width: 0;
+    --p-tabs-tab-background: transparent;
+    --p-tabs-tab-hover-background: transparent;
+    --p-tabs-tab-active-background: transparent;
+    --p-tabs-tab-color: var(--zinc-500);
+    --p-tabs-tab-hover-color: var(--zinc-700);
+    --p-tabs-tab-active-color: var(--accent-600);
+    --p-tabs-tab-font-weight: var(--font-medium);
+    --p-tabs-tab-padding: var(--space-3) var(--space-1);
+    --p-tabs-tab-margin: 0 var(--space-5) 0 0;
+    --p-tabs-tab-border-width: 0 0 2px 0;
+    --p-tabs-tab-border-color: transparent;
+    --p-tabs-tab-hover-border-color: transparent;
+    --p-tabs-tab-active-border-color: transparent transparent var(--accent-500) transparent;
+    --p-tabs-active-bar-height: 0;
+    --p-tabs-tabpanel-background: transparent;
+    --p-tabs-tabpanel-padding: var(--space-5);
   }
 }

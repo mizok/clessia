@@ -1,18 +1,29 @@
-<div class="student-picker">
+<div class="spd">
   @if (step() === 'selecting') {
-    <!-- Step 1：搜尋與選擇 -->
-    <div class="student-picker__filters">
-      <p-iconfield class="student-picker__search">
-        <p-inputicon styleClass="pi pi-search" />
-        <input
-          type="text"
-          pInputText
-          placeholder="搜尋學生姓名"
-          (input)="onSearchChange($any($event.target).value)"
-          class="w-full"
-        />
-      </p-iconfield>
-      <div class="student-picker__filter-row">
+    <!-- Command Bar -->
+    <div class="spd__bar">
+      <div class="spd__bar-inputs">
+        <div class="spd__input-wrap">
+          <i class="pi pi-search spd__input-icon"></i>
+          <input
+            pInputText
+            class="spd__input"
+            placeholder="搜尋學生姓名"
+            (input)="onSearchChange($any($event.target).value)"
+          />
+        </div>
+        <div class="spd__bar-sep"></div>
+        <div class="spd__input-wrap">
+          <i class="pi pi-building spd__input-icon"></i>
+          <input
+            pInputText
+            class="spd__input"
+            placeholder="在讀學校"
+            (input)="onSchoolChange($any($event.target).value)"
+          />
+        </div>
+      </div>
+      <div class="spd__filters">
         <p-select
           [options]="gradeOptions"
           [ngModel]="selectedGrade"
@@ -20,7 +31,7 @@
           optionLabel="label"
           optionValue="value"
           placeholder="年級"
-          styleClass="w-full"
+          size="small"
         />
         <p-select
           [options]="genderOptions"
@@ -29,7 +40,7 @@
           optionLabel="label"
           optionValue="value"
           placeholder="性別"
-          styleClass="w-full"
+          size="small"
         />
         <p-select
           [options]="isActiveOptions"
@@ -38,20 +49,21 @@
           optionLabel="label"
           optionValue="value"
           placeholder="狀態"
-          styleClass="w-full"
+          size="small"
         />
       </div>
     </div>
 
-    <div class="student-picker__list">
+    <!-- Student List -->
+    <div class="spd__list">
       @if (loading()) {
         @for (i of [1,2,3,4,5]; track i) {
-          <div class="student-picker__skeleton">
-            <p-skeleton height="48px" />
+          <div class="spd__skeleton-row">
+            <p-skeleton height="54px" borderRadius="0" />
           </div>
         }
       } @else if (filteredStudents().length === 0) {
-        <div class="student-picker__empty">
+        <div class="spd__empty">
           <i class="pi pi-users"></i>
           <span>沒有符合條件的學生</span>
         </div>
@@ -59,26 +71,28 @@
         @for (student of filteredStudents(); track student.id) {
           <button
             type="button"
-            class="student-picker__item"
-            [class.student-picker__item--selected]="isSelected(student.id)"
+            class="spd__item"
+            [class.spd__item--selected]="isSelected(student.id)"
             (click)="toggleSelection(student)"
           >
-            <div class="student-picker__checkbox">
-              <i [class]="isSelected(student.id) ? 'pi pi-check-square' : 'pi pi-stop'"></i>
-            </div>
-            <div class="student-picker__item-info">
-              <span class="student-picker__item-name">{{ student.name }}</span>
-              <span class="student-picker__item-meta">{{ gradeLabelMap[student.grade] }} · {{ student.school }}</span>
-            </div>
+            <span class="spd__item-check">
+              <i class="pi pi-check"></i>
+            </span>
+            <span class="spd__item-avatar" [style.--h]="getStudentHue(student.id)">{{ student.name[0] }}</span>
+            <span class="spd__item-body">
+              <span class="spd__item-name">{{ student.name }}</span>
+              <span class="spd__item-meta">{{ gradeLabelMap[student.grade] }}・{{ student.school }}</span>
+            </span>
           </button>
         }
       }
     </div>
 
-    <div class="student-picker__footer">
+    <!-- Footer -->
+    <div class="spd__footer">
       <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
       <p-button
-        [label]="'下一步（已選 ' + selectedCount() + ' 人）'"
+        [label]="selectedCount() > 0 ? '下一步（' + selectedCount() + ' 人）' : '下一步'"
         [disabled]="selectedCount() === 0"
         icon="pi pi-arrow-right"
         iconPos="right"
@@ -86,13 +100,13 @@
       />
     </div>
   } @else {
-    <!-- Step 2：預覽確認 -->
-    <div class="student-picker__step-header">
-      <button type="button" class="student-picker__back-btn" (click)="goBack()">
+    <!-- Step 2: Review -->
+    <div class="spd__step-header">
+      <button type="button" class="spd__back-btn" (click)="goBack()">
         <i class="pi pi-arrow-left"></i>
         返回選擇
       </button>
-      <span class="student-picker__step-title">確認加入名單</span>
+      <span class="spd__step-title">確認加入 {{ selectedCount() }} 位學生</span>
     </div>
 
     @if (overQuotaCount() > 0) {
@@ -103,16 +117,17 @@
       />
     }
 
-    <div class="student-picker__review-list">
+    <div class="spd__review-list">
       @for (student of selectedStudents(); track student.id) {
-        <div class="student-picker__review-item">
-          <div class="student-picker__item-info">
-            <span class="student-picker__item-name">{{ student.name }}</span>
-            <span class="student-picker__item-meta">{{ gradeLabelMap[student.grade] }} · {{ student.school }}</span>
-          </div>
+        <div class="spd__review-item">
+          <span class="spd__item-avatar" [style.--h]="getStudentHue(student.id)">{{ student.name[0] }}</span>
+          <span class="spd__item-body">
+            <span class="spd__item-name">{{ student.name }}</span>
+            <span class="spd__item-meta">{{ gradeLabelMap[student.grade] }}・{{ student.school }}</span>
+          </span>
           <button
             type="button"
-            class="student-picker__remove-btn"
+            class="spd__remove-btn"
             (click)="removeFromReview(student.id)"
             aria-label="移除"
           >
@@ -123,15 +138,18 @@
     </div>
 
     @if (confirmError()) {
-      <app-inline-notice
-        severity="error"
-        [detail]="confirmError()!"
-        [dismissible]="false"
-      />
+      <app-inline-notice severity="error" [detail]="confirmError()!" [dismissible]="false" />
     }
 
-    <div class="student-picker__footer">
-      <p-button label="上一步" [text]="true" severity="secondary" icon="pi pi-arrow-left" [disabled]="confirming()" (onClick)="goBack()" />
+    <div class="spd__footer">
+      <p-button
+        label="上一步"
+        [text]="true"
+        severity="secondary"
+        icon="pi pi-arrow-left"
+        [disabled]="confirming()"
+        (onClick)="goBack()"
+      />
       <p-button
         [label]="confirming() ? '' : '確認加入 ' + selectedCount() + ' 人'"
         [loading]="confirming()"

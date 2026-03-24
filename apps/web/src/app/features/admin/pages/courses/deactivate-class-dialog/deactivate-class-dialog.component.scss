@@ -103,22 +103,17 @@
   &__option--danger {
     border-color: var(--error-200);
     background: linear-gradient(180deg, rgba(254, 242, 242, 0.6) 0%, #fff 100%);
-
-    .deactivate-dialog__option-icon {
-      color: var(--error-600);
-    }
   }
 
   &__option--neutral {
-    .deactivate-dialog__option-icon {
-      color: var(--zinc-500);
-    }
   }
-}
 
-:host ::ng-deep {
-  .deactivate-dialog__option .p-button {
-    width: 100%;
+  &__option--danger &__option-icon {
+    color: var(--error-600);
+  }
+
+  &__option--neutral &__option-icon {
+    color: var(--zinc-500);
   }
 }
 

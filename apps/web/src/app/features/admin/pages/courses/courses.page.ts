@@ -1,4 +1,13 @@
-import { Component, OnInit, inject, input, signal, computed, viewChild } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  OnInit,
+  computed,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -48,6 +57,7 @@ import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/aud
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
+import { CoursesFilterStateService } from './courses-filter-state.service';
 
 interface CourseGroup {
   course: Course;
@@ -96,6 +106,8 @@ export class CoursesPage implements OnInit {
   private readonly messageService = inject(MessageService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly browserStateService = inject(BrowserStateService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly filterState = inject(CoursesFilterStateService);
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
@@ -302,8 +314,34 @@ export class CoursesPage implements OnInit {
   // ================================================================
 
   ngOnInit(): void {
+    // 還原上次離開時的 filter 狀態
+    const s = this.filterState;
+    this.searchQuery.set(s.searchQuery);
+    this.selectedCampusId.set(s.selectedCampusId);
+    this.selectedSubjectId.set(s.selectedSubjectId);
+    this.selectedTeacherIds.set(s.selectedTeacherIds);
+    this.statusFilter.set(s.statusFilter);
+    this.showHistorical.set(s.showHistorical);
+    this.historicalDateFrom.set(s.historicalDateFrom);
+    this.historicalDateTo.set(s.historicalDateTo);
+    this.currentPage.set(s.currentPage);
+
     this.loadFilterOptions();
     this.loadAll();
+
+    // 離開頁面時儲存 filter 快照
+    this.destroyRef.onDestroy(() => {
+      const fs = this.filterState;
+      fs.searchQuery = this.searchQuery();
+      fs.selectedCampusId = this.selectedCampusId();
+      fs.selectedSubjectId = this.selectedSubjectId();
+      fs.selectedTeacherIds = this.selectedTeacherIds();
+      fs.statusFilter = this.statusFilter();
+      fs.showHistorical = this.showHistorical();
+      fs.historicalDateFrom = this.historicalDateFrom();
+      fs.historicalDateTo = this.historicalDateTo();
+      fs.currentPage = this.currentPage();
+    });
   }
 
   protected loadAll(): void {
