@@ -23,6 +23,8 @@ export interface Enrollment {
   courseName: string;
   studentId: string;
   studentName: string;
+  studentSchool: string;
+  studentGrade: string;
   status: EnrollmentStatus;
   paymentCycle: PaymentCycle | null;
   effectiveFrom: string;

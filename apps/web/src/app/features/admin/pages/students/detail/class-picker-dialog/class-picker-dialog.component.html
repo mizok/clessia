@@ -1,5 +1,5 @@
 <div class="class-picker">
-  <div class="class-picker__search">
+  <div class="class-picker__toolbar">
     <p-iconfield iconPosition="left" styleClass="class-picker__iconfield">
       <p-inputicon styleClass="pi pi-search" />
       <input
@@ -11,6 +11,17 @@
         class="class-picker__input"
       />
     </p-iconfield>
+    <p-select
+      [options]="gradeOptions"
+      [ngModel]="gradeFilter()"
+      (ngModelChange)="gradeFilter.set($event)"
+      optionLabel="label"
+      optionValue="value"
+      [showClear]="true"
+      placeholder="學段"
+      styleClass="class-picker__grade-select"
+      [appendTo]="'body'"
+    />
   </div>
 
   @if (loading()) {
@@ -36,6 +47,12 @@
                 · {{ cls.campusName }}
               }
             </span>
+            @if (cls.startDate || cls.endDate) {
+              <span class="class-picker__item-dates">
+                <i class="pi pi-calendar"></i>
+                {{ cls.startDate ?? '不限' }} — {{ cls.endDate ?? '不限' }}
+              </span>
+            }
           </div>
           <div class="class-picker__item-right">
             @if (cls.maxStudents) {

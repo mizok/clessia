@@ -7,7 +7,7 @@ import { logAudit } from '../utils/audit';
 // ============================================================
 
 const GradeLevelSchema = z
-  .enum(['K', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'J1', 'J2', 'J3', 'S1', 'S2', 'S3'])
+  .enum(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'J1', 'J2', 'J3', 'S1', 'S2', 'S3'])
   .openapi('GradeLevel');
 
 const StudentGenderSchema = z
@@ -31,6 +31,7 @@ const StudentSchema = z
     notes: z.string().nullable(),
     isActive: z.boolean(),
     parentNames: z.array(z.string()),
+    hasEnrollments: z.boolean(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -112,7 +113,11 @@ export function buildStudentSummary(
   };
 }
 
-export function toStudentResponse(row: Record<string, unknown>, parentNames: string[] = []) {
+export function toStudentResponse(
+  row: Record<string, unknown>,
+  parentNames: string[] = [],
+  hasEnrollments: boolean = false,
+) {
   return {
     id: row['id'] as string,
     orgId: row['org_id'] as string,
@@ -129,6 +134,7 @@ export function toStudentResponse(row: Record<string, unknown>, parentNames: str
     notes: (row['notes'] as string | null) ?? null,
     isActive: row['is_active'] as boolean,
     parentNames,
+    hasEnrollments,
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
   };
@@ -173,14 +179,35 @@ app.openapi(
     let query = supabase
       .from('students')
       .select(
-        `*, parent_student_relations(is_primary, relation, parents(id, name))`,
+        `*, parent_student_relations(is_primary, relation, parents(id, name)), enrollments(id)`,
         { count: 'exact' },
       )
       .eq('org_id', orgId)
       .order('name');
 
     if (search) {
-      query = query.ilike('name', `%${search}%`);
+      const { data: relationRows, error: relationError } = await supabase
+        .from('parent_student_relations')
+        .select('student_id, parents!inner(name)')
+        .ilike('parents.name', `%${search}%`);
+
+      if (relationError) {
+        return c.json({ error: '讀取學生列表失敗', message: relationError.message }, 500);
+      }
+
+      const matchedStudentIds = Array.from(
+        new Set(
+          ((relationRows ?? []) as Array<{ student_id: string | null }>)
+            .map((row) => row.student_id)
+            .filter((studentId): studentId is string => !!studentId),
+        ),
+      );
+
+      if (matchedStudentIds.length > 0) {
+        query = query.or(`name.ilike.%${search}%,school.ilike.%${search}%,id.in.(${matchedStudentIds.join(',')})`);
+      } else {
+        query = query.or(`name.ilike.%${search}%,school.ilike.%${search}%`);
+      }
     }
     if (grade) {
       query = query.eq('grade', grade);
@@ -218,7 +245,9 @@ app.openapi(
         .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0))
         .map((r) => r.parents?.name ?? '')
         .filter(Boolean);
-      return toStudentResponse(row, parentNames);
+      const enrollmentRows = (row['enrollments'] as Array<{ id: string }>) ?? [];
+      const hasEnrollments = enrollmentRows.length > 0;
+      return toStudentResponse(row, parentNames, hasEnrollments);
     });
 
     return c.json(
@@ -466,16 +495,17 @@ app.openapi(
   },
 );
 
-// DELETE /api/students/:id (soft delete)
+// DELETE /api/students/:id
 app.openapi(
   createRoute({
     method: 'delete',
     path: '/{id}',
     tags: ['Students'],
-    summary: '停用學生（軟刪除）',
+    summary: '刪除學生',
     request: { params: z.object({ id: z.uuid() }) },
     responses: {
-      200: { description: '停用成功' },
+      200: { description: '刪除成功' },
+      409: { description: '學生已有報名紀錄，無法刪除' },
       404: { description: '學生不存在' },
     },
   }),
@@ -484,9 +514,22 @@ app.openapi(
     const orgId = c.get('orgId');
     const { id } = c.req.valid('param');
 
+    const { count: enrollmentCount, error: enrollmentCountError } = await supabase
+      .from('enrollments')
+      .select('*', { count: 'exact', head: true })
+      .eq('student_id', id);
+
+    if (enrollmentCountError) {
+      return c.json({ error: '查詢學生報名紀錄失敗', message: enrollmentCountError.message }, 500);
+    }
+
+    if ((enrollmentCount ?? 0) > 0) {
+      return c.json({ error: '學生已有報名紀錄，無法刪除' }, 409);
+    }
+
     const { data, error } = await supabase
       .from('students')
-      .update({ is_active: false })
+      .delete()
       .eq('id', id)
       .eq('org_id', orgId)
       .select('id')
@@ -503,7 +546,7 @@ app.openapi(
         userId: c.get('userId'),
         resourceType: 'student',
         resourceId: id,
-        action: 'deactivate',
+        action: 'delete',
       },
       c.executionCtx.waitUntil.bind(c.executionCtx),
     );

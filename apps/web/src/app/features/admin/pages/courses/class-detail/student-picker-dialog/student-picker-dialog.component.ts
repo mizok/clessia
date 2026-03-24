@@ -38,7 +38,6 @@ export class StudentPickerDialogComponent implements OnInit {
   private readonly config = inject(DynamicDialogConfig);
   private readonly destroyRef = inject(DestroyRef);
   private readonly searchSubject = new Subject<string>();
-  private readonly schoolSubject = new Subject<string>();
 
   protected readonly loading = signal(true);
   protected readonly confirming = signal(false);
@@ -49,10 +48,8 @@ export class StudentPickerDialogComponent implements OnInit {
   protected readonly PAGE_SIZE = 20;
 
   protected readonly searchQuery = signal('');
-  protected readonly schoolQuery = signal('');
   protected selectedGrade: GradeLevel | null = null;
   protected selectedGender: string | null = null;
-  protected selectedIsActive: boolean | null = null;
 
   // 兩步 wizard 狀態
   protected readonly step = signal<'selecting' | 'reviewing'>('selecting');
@@ -78,12 +75,6 @@ export class StudentPickerDialogComponent implements OnInit {
     { label: '女', value: 'female' },
     { label: '不提供', value: 'prefer_not_to_say' },
   ];
-  protected readonly isActiveOptions = [
-    { label: '全部狀態', value: null },
-    { label: '在籍', value: true },
-    { label: '停用', value: false },
-  ];
-
   // 過濾掉已在班的學生
   protected readonly filteredStudents = computed(() =>
     this.students().filter((s) => !this.existingStudentIds.has(s.id)),
@@ -110,13 +101,6 @@ export class StudentPickerDialogComponent implements OnInit {
         this.currentPage.set(1);
         this.load();
       });
-    this.schoolSubject
-      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe((value) => {
-        this.schoolQuery.set(value);
-        this.currentPage.set(1);
-        this.load();
-      });
     this.load();
   }
 
@@ -126,8 +110,7 @@ export class StudentPickerDialogComponent implements OnInit {
       .list({
         search: this.searchQuery() || undefined,
         grade: this.selectedGrade ?? undefined,
-        isActive: this.selectedIsActive ?? undefined,
-        school: this.schoolQuery() || undefined,
+        isActive: true,
         page: this.currentPage(),
         pageSize: this.PAGE_SIZE,
       })
@@ -144,10 +127,6 @@ export class StudentPickerDialogComponent implements OnInit {
 
   protected onSearchChange(value: string): void {
     this.searchSubject.next(value);
-  }
-
-  protected onSchoolChange(value: string): void {
-    this.schoolSubject.next(value);
   }
 
   protected onFilterChange(): void {

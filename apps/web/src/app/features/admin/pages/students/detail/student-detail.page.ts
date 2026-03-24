@@ -62,6 +62,15 @@ export class StudentDetailPage implements OnInit {
     return GRADE_LEVEL_LABELS[grade] ?? grade;
   }
 
+  protected getPersonHue(id: string): number {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+      hash = (hash * 31 + id.charCodeAt(i)) & 0xfffffff;
+    }
+    const raw = hash % 320;
+    return raw < 45 ? raw + 160 : raw;
+  }
+
   protected getGenderLabel(gender: string | null): string {
     if (!gender) return '未填寫';
     const map: Record<string, string> = {
@@ -135,7 +144,7 @@ export class StudentDetailPage implements OnInit {
       modal: true,
       showHeader: true,
       appendTo: this.overlayContainer || 'body',
-      data: { existingClassIds },
+      data: { existingClassIds, studentGrade: s.grade },
     });
     ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((cls: Class | undefined) => {
       if (cls) this.addToClass(cls);

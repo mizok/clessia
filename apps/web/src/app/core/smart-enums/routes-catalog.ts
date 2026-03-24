@@ -141,19 +141,10 @@ export class RoutesCatalog {
   );
 
   // Group: 學務管理
-  public static readonly ADMIN_ENROLLMENT = this.register(
-    'enrollment',
-    '/admin/enrollment',
-    '學生報名',
-    UserType.ADMIN,
-    'pi-user-plus',
-    true,
-    '學務管理',
-  );
   public static readonly ADMIN_STUDENTS = this.register(
     'students',
     '/admin/students',
-    '學生資料',
+    '學生管理',
     UserType.ADMIN,
     'pi-users',
     true,

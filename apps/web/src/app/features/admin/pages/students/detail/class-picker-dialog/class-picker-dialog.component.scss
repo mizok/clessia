@@ -3,16 +3,26 @@
   flex-direction: column;
   gap: var(--space-3);
 
-  &__search {
+  &__toolbar {
+    display: flex;
+    gap: var(--space-2);
     padding: 0 var(--space-1);
+    --p-form-field-padding-y: 0.75rem; // 42px 高度
   }
 
   &__iconfield {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
   }
 
   &__input {
     width: 100%;
+    height: 42px;
+  }
+
+  &__grade-select {
+    width: 130px;
+    flex-shrink: 0;
   }
 
   &__list {
@@ -48,21 +58,26 @@
     padding: var(--space-3) var(--space-4);
     background: #fff;
     border: 1px solid var(--zinc-200);
-    border-radius: var(--radius-md);
+    border-left: 3px solid transparent;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
     cursor: pointer;
     text-align: left;
     width: 100%;
-    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    transition: background var(--transition-fast), border-left-color var(--transition-fast);
 
     &:hover {
-      border-color: var(--accent-300);
-      box-shadow: 0 2px 8px -2px rgba(14, 165, 233, 0.15);
-
-      .class-picker__item-arrow {
-        color: var(--accent-500);
-        transform: translateX(2px);
-      }
+      background: var(--zinc-50);
+      border-left-color: var(--accent-400);
     }
+  }
+
+  &__item:hover &__item-name {
+    color: var(--accent-600);
+  }
+
+  &__item:hover &__item-arrow {
+    color: var(--accent-500);
+    transform: translateX(2px);
   }
 
   &__item-info {
@@ -85,6 +100,18 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  &__item-dates {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--text-xs);
+    color: var(--zinc-400);
+
+    .pi {
+      font-size: 10px;
+    }
   }
 
   &__item-right {

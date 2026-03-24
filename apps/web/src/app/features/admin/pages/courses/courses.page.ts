@@ -501,6 +501,14 @@ export class CoursesPage implements OnInit {
     this.selectedClassForMenu.set(cls);
     this.classActionMenuItems.set([
       {
+        label: '班級詳情',
+        icon: 'pi pi-arrow-right',
+        command: () => this.navigateToClass(cls.courseId, cls.id),
+      },
+      {
+        separator: true,
+      },
+      {
         label: '編輯班級',
         icon: 'pi pi-pencil',
         command: () => this.openEditClassDialog(cls),

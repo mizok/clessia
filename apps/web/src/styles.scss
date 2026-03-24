@@ -667,23 +667,34 @@ select {
   }
 }
 
-// Global PrimeNG Form Component Adjustments
-// courses filter panel: p-select-label has hardcoded font-size: 1rem in PrimeNG source,
-// so inheritance from wrapper doesn't work — override directly here.
-.courses__filter-full-select .p-select-label,
-.courses__historical-date .p-inputtext {
-  font-size: var(--text-sm);
-  min-height: 36px;
+// Global PrimeNG Form Component Helpers
+// p-select-label has hardcoded font-size: 1rem in PrimeNG source,
+// so inheritance from wrapper doesn't work — override via helper class.
+.select-sm {
+  width: 100%;
+  --p-form-field-padding-y: var(--space-1);
+
+  .p-select-label {
+    font-size: var(--text-sm);
+    min-height: 36px;
+  }
 }
 
-// staff table: prevent p-tag text wrapping in role/status columns
-.staff-table .p-tag,
-.staff-table .p-tag-label {
-  white-space: nowrap;
+.datepicker-sm {
+  width: 100%;
+  --p-datepicker-input-font-size: var(--text-sm);
+  --p-datepicker-input-padding-y: var(--space-1);
+  --p-inputtext-font-size: var(--text-sm);
+  --p-inputtext-padding-y: var(--space-1);
+
+  .p-inputtext {
+    font-size: var(--text-sm);
+    min-height: 36px;
+  }
 }
 
-// courses filter drawer: override PrimeNG bottom drawer default height (10rem)
-.p-drawer-bottom.courses__filter-drawer {
+// Override PrimeNG bottom drawer default height (10rem)
+.p-drawer-bottom.drawer-auto {
   height: auto;
   max-height: calc(var(--window-height, 667px) * 0.8);
 }

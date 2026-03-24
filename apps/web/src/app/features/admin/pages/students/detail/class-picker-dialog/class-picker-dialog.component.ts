@@ -8,15 +8,17 @@ import { TagModule } from 'primeng/tag';
 import { SkeletonModule } from 'primeng/skeleton';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
+import { SelectModule } from 'primeng/select';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { ClassesService, Class } from '@core/classes.service';
+import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/students.service';
 
 @Component({
   selector: 'app-class-picker-dialog',
   standalone: true,
   imports: [
     FormsModule, ButtonModule, InputTextModule, TagModule,
-    SkeletonModule, IconFieldModule, InputIconModule,
+    SkeletonModule, IconFieldModule, InputIconModule, SelectModule,
   ],
   templateUrl: './class-picker-dialog.component.html',
   styleUrl: './class-picker-dialog.component.scss',
@@ -34,13 +36,24 @@ export class ClassPickerDialogComponent implements OnInit {
   protected readonly currentPage = signal(1);
   protected readonly PAGE_SIZE = 20;
   protected readonly searchQuery = signal('');
+  protected readonly gradeFilter = signal<GradeLevel | null>(
+    (this.config.data?.studentGrade as GradeLevel) ?? null,
+  );
 
   // 已加入的 classId 集合（從 config.data 傳入），用於過濾
   private readonly existingClassIds = new Set<string>(this.config.data?.existingClassIds ?? []);
 
-  protected readonly filteredClasses = computed(() =>
-    this.classes().filter((c) => !this.existingClassIds.has(c.id)),
-  );
+  protected readonly gradeOptions = [
+    { label: '全部學段', value: null },
+    ...GRADE_LEVELS.map((g) => ({ label: GRADE_LEVEL_LABELS[g], value: g })),
+  ];
+
+  protected readonly filteredClasses = computed(() => {
+    const grade = this.gradeFilter();
+    return this.classes()
+      .filter((c) => !this.existingClassIds.has(c.id))
+      .filter((c) => !grade || c.gradeLevels?.includes(grade));
+  });
 
   ngOnInit(): void {
     this.searchSubject

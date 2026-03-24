@@ -4,10 +4,18 @@ import { Observable } from 'rxjs';
 import { environment } from '@env/environment';
 
 export type GradeLevel =
-  | 'K'
-  | 'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6'
-  | 'J1' | 'J2' | 'J3'
-  | 'S1' | 'S2' | 'S3';
+  | 'P1'
+  | 'P2'
+  | 'P3'
+  | 'P4'
+  | 'P5'
+  | 'P6'
+  | 'J1'
+  | 'J2'
+  | 'J3'
+  | 'S1'
+  | 'S2'
+  | 'S3';
 
 export type StudentGender = 'male' | 'female' | 'prefer_not_to_say';
 
@@ -27,6 +35,7 @@ export interface Student {
   notes: string | null;
   isActive: boolean;
   parentNames: string[];
+  hasEnrollments: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,6 +65,7 @@ export interface StudentQueryParams {
   page?: number;
   pageSize?: number;
   isActive?: boolean;
+  school?: string;
 }
 
 export interface UpdateStudentInput {
@@ -89,17 +99,33 @@ export interface CreateStudentInput {
 }
 
 export const GRADE_LEVELS: GradeLevel[] = [
-  'K',
-  'P1', 'P2', 'P3', 'P4', 'P5', 'P6',
-  'J1', 'J2', 'J3',
-  'S1', 'S2', 'S3',
+  'P1',
+  'P2',
+  'P3',
+  'P4',
+  'P5',
+  'P6',
+  'J1',
+  'J2',
+  'J3',
+  'S1',
+  'S2',
+  'S3',
 ];
 
 export const GRADE_LEVEL_LABELS: Record<GradeLevel, string> = {
-  K: '幼稚園',
-  P1: '小一', P2: '小二', P3: '小三', P4: '小四', P5: '小五', P6: '小六',
-  J1: '國一', J2: '國二', J3: '國三',
-  S1: '高一', S2: '高二', S3: '高三',
+  P1: '小一',
+  P2: '小二',
+  P3: '小三',
+  P4: '小四',
+  P5: '小五',
+  P6: '小六',
+  J1: '國一',
+  J2: '國二',
+  J3: '國三',
+  S1: '高一',
+  S2: '高二',
+  S3: '高三',
 };
 
 @Injectable({ providedIn: 'root' })
@@ -125,7 +151,7 @@ export class StudentsService {
     return this.http.put<{ data: Student }>(`${this.endpoint}/${id}`, input);
   }
 
-  deactivate(id: string): Observable<{ success: boolean }> {
+  delete(id: string): Observable<{ success: boolean }> {
     return this.http.delete<{ success: boolean }>(`${this.endpoint}/${id}`);
   }
 
@@ -137,6 +163,7 @@ export class StudentsService {
     if (params.page !== undefined) q['page'] = params.page;
     if (params.pageSize !== undefined) q['pageSize'] = params.pageSize;
     if (params.isActive !== undefined) q['isActive'] = params.isActive;
+    if (params.school !== undefined) q['school'] = params.school;
     return q;
   }
 }

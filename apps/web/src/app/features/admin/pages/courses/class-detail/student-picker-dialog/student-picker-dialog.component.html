@@ -2,27 +2,16 @@
   @if (step() === 'selecting') {
     <!-- Command Bar -->
     <div class="spd__bar">
-      <div class="spd__bar-inputs">
-        <div class="spd__input-wrap">
-          <i class="pi pi-search spd__input-icon"></i>
-          <input
-            pInputText
-            class="spd__input"
-            placeholder="搜尋學生姓名"
-            (input)="onSearchChange($any($event.target).value)"
-          />
-        </div>
-        <div class="spd__bar-sep"></div>
-        <div class="spd__input-wrap">
-          <i class="pi pi-building spd__input-icon"></i>
-          <input
-            pInputText
-            class="spd__input"
-            placeholder="在讀學校"
-            (input)="onSchoolChange($any($event.target).value)"
-          />
-        </div>
-      </div>
+      <p-iconfield iconPosition="left" styleClass="spd__search-field">
+        <p-inputicon styleClass="pi pi-search" />
+        <input
+          type="text"
+          pInputText
+          class="spd__search-input"
+          placeholder="搜尋姓名、在讀學校或家長姓名..."
+          (input)="onSearchChange($any($event.target).value)"
+        />
+      </p-iconfield>
       <div class="spd__filters">
         <p-select
           [options]="gradeOptions"
@@ -32,6 +21,7 @@
           optionValue="value"
           placeholder="年級"
           size="small"
+          [appendTo]="'body'"
         />
         <p-select
           [options]="genderOptions"
@@ -41,15 +31,7 @@
           optionValue="value"
           placeholder="性別"
           size="small"
-        />
-        <p-select
-          [options]="isActiveOptions"
-          [ngModel]="selectedIsActive"
-          (ngModelChange)="selectedIsActive = $event; onFilterChange()"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="狀態"
-          size="small"
+          [appendTo]="'body'"
         />
       </div>
     </div>

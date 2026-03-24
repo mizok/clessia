@@ -19,14 +19,15 @@
           <input
             type="text"
             pInputText
-            placeholder="搜尋姓名、學校..."
+            placeholder="搜尋姓名、學校或家長姓名..."
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchChange($event)"
+            class="students__search-input"
           />
         </p-iconfield>
       </div>
 
-      <div class="students__grade-filter">
+      <div class="students__filters">
         <p-select
           [options]="gradeOptions"
           [ngModel]="selectedGrade()"
@@ -34,35 +35,22 @@
           optionLabel="label"
           optionValue="value"
           placeholder="全部年級"
-          [fluid]="true"
-          styleClass="students__grade-select"
+          styleClass="students__filter-select"
+          [appendTo]="'body'"
         />
-      </div>
 
-      <div
-        class="students__campus-filter"
-        pTooltip="分校篩選需要報名資料，目前尚未開放"
-        tooltipPosition="top"
-      >
         <p-select
-          [options]="[]"
-          [disabled]="true"
-          placeholder="全部分校（開發中）"
-          [fluid]="true"
-          styleClass="students__campus-select"
+          [options]="statusOptions"
+          [ngModel]="statusFilter()"
+          (ngModelChange)="onStatusFilterChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部狀態"
+          [showClear]="true"
+          styleClass="students__filter-select"
+          [appendTo]="'body'"
         />
       </div>
-
-      @if (inactiveStudentCount() > 0 || showInactiveStudents()) {
-        <p-button
-          [label]="showInactiveStudents() ? '隱藏停用學生' : '顯示停用學生'"
-          [icon]="showInactiveStudents() ? 'pi pi-eye-slash' : 'pi pi-eye'"
-          [text]="true"
-          size="small"
-          severity="secondary"
-          (onClick)="toggleShowInactiveStudents()"
-        />
-      }
     </div>
 
     <!-- Stats Summary -->
@@ -140,10 +128,6 @@
             <tr
               appRtRow [appRtRow]="student" [appRtRowId]="student.id"
               class="student-table__row"
-              (click)="navigateToDetail(student)"
-              pTooltip="點擊查看學生詳情"
-              tooltipPosition="top"
-              [tooltipOptions]="{ showDelay: 600 }"
             >
               <td appRtColCell="name">
                 <div class="student-table__name-btn">

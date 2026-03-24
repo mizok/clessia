@@ -94,13 +94,18 @@ export class StudentsPage implements OnInit {
   readonly summary = signal({ total: 0, activeCount: 0 });
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
-  protected readonly showInactiveStudents = signal(false);
+  protected readonly statusFilter = signal<boolean | null>(null);
   protected readonly PAGE_SIZE = 20;
 
   // Grade options for dropdown
   protected readonly gradeOptions = [
     { label: '全部年級', value: null },
     ...GRADE_LEVELS.map((g) => ({ label: GRADE_LEVEL_LABELS[g], value: g })),
+  ];
+
+  protected readonly statusOptions = [
+    { label: '啟用中', value: true },
+    { label: '已停用', value: false },
   ];
 
   // Computed
@@ -122,11 +127,21 @@ export class StudentsPage implements OnInit {
     const student = this.selectedStudent();
     if (!student) return [];
     return [
+      { label: '學生詳情', icon: 'pi pi-arrow-right', command: () => this.navigateToDetail(student) },
+      { separator: true },
       { label: '編輯', icon: 'pi pi-pencil', command: () => this.openEditDialog(student) },
       ...(student.isActive
         ? [{ separator: true }, { label: '停用', icon: 'pi pi-lock', command: () => this.confirmDeactivate(student) }]
         : []
       ),
+      { separator: true },
+      {
+        label: student.hasEnrollments ? '已有報名紀錄，無法刪除' : '刪除學生',
+        icon: 'pi pi-trash',
+        disabled: student.hasEnrollments,
+        styleClass: student.hasEnrollments ? '' : 'text-red-500',
+        command: () => this.confirmDelete(student),
+      },
     ];
   });
 
@@ -147,7 +162,7 @@ export class StudentsPage implements OnInit {
         grade: this.selectedGrade() ?? undefined,
         page: this.currentPage(),
         pageSize: this.PAGE_SIZE,
-        isActive: this.showInactiveStudents() ? undefined : true,
+        isActive: this.statusFilter() ?? undefined,
       })
       .subscribe({
         next: (res: StudentListResponse) => {
@@ -180,19 +195,29 @@ export class StudentsPage implements OnInit {
     this.loadStudents();
   }
 
+  protected onStatusFilterChange(value: boolean | null): void {
+    this.statusFilter.set(value);
+    this.currentPage.set(1);
+    this.loadStudents();
+  }
+
   protected onPage(event: ResponsiveTablePageEvent): void {
     this.currentPage.set(event.page + 1);
     this.loadStudents();
   }
 
-  protected toggleShowInactiveStudents(): void {
-    this.showInactiveStudents.set(!this.showInactiveStudents());
-    this.currentPage.set(1);
-    this.loadStudents();
-  }
 
   protected getGradeLabel(grade: GradeLevel): string {
     return GRADE_LEVEL_LABELS[grade] ?? grade;
+  }
+
+  protected getPersonHue(id: string): number {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+      hash = (hash * 31 + id.charCodeAt(i)) & 0xfffffff;
+    }
+    const raw = hash % 320;
+    return raw < 45 ? raw + 160 : raw;
   }
 
   protected navigateToDetail(student: Student): void {
@@ -229,8 +254,42 @@ export class StudentsPage implements OnInit {
     );
   }
 
+  confirmDelete(student: Student): void {
+    if (student.hasEnrollments) return;
+    this.openConfirmDialog(
+      '確認刪除',
+      {
+        message: `確定要刪除「${student.name}」嗎？此操作無法復原。`,
+        acceptLabel: '刪除',
+        rejectLabel: '取消',
+        acceptSeverity: 'danger',
+      },
+      () => this.deleteStudent(student),
+    );
+  }
+
+  private deleteStudent(student: Student): void {
+    this.studentsService.delete(student.id).subscribe({
+      next: () => {
+        this.messageService.add({
+          severity: 'success',
+          summary: '已刪除',
+          detail: `「${student.name}」已刪除`,
+        });
+        this.loadStudents();
+      },
+      error: (err) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: '刪除失敗',
+          detail: err.error?.error || '請稍後再試',
+        });
+      },
+    });
+  }
+
   private deactivateStudent(student: Student): void {
-    this.studentsService.deactivate(student.id).subscribe({
+    this.studentsService.delete(student.id).subscribe({
       next: () => {
         this.messageService.add({
           severity: 'success',

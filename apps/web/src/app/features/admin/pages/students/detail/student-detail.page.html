@@ -28,8 +28,8 @@
     <!-- Profile Header -->
     <div class="student-detail__profile-card">
       <div class="student-detail__profile-header">
-        <div class="student-detail__avatar">
-          <i class="pi pi-user"></i>
+        <div class="student-detail__avatar" [style.--h]="getPersonHue(student()!.id)">
+          {{ student()!.name[0] }}
         </div>
         <div class="student-detail__profile-info">
           <div class="student-detail__name-row">
@@ -51,6 +51,7 @@
             icon="pi pi-pencil"
             [outlined]="true"
             severity="secondary"
+            styleClass="student-detail__edit-button"
             (onClick)="openEditDialog()"
           />
         </div>
@@ -137,8 +138,8 @@
         <div class="student-detail__parents-list">
           @for (parent of student()!.parents; track parent.id) {
             <div class="student-detail__parent-item">
-              <div class="student-detail__parent-avatar">
-                <i class="pi pi-user"></i>
+              <div class="student-detail__parent-avatar" [style.--h]="getPersonHue(parent.id)">
+                {{ parent.name[0] }}
               </div>
               <div class="student-detail__parent-info">
                 <div class="student-detail__parent-name-row">
@@ -203,7 +204,9 @@
               <div class="student-detail__enrollment-info">
                 <span class="student-detail__enrollment-class">{{ enrollment.className }}</span>
                 <span class="student-detail__enrollment-course">{{ enrollment.courseName }}</span>
-                <span class="student-detail__enrollment-since">自 {{ enrollment.effectiveFrom }}</span>
+                <span class="student-detail__enrollment-since"
+                  >自 {{ enrollment.effectiveFrom }}</span
+                >
               </div>
               <div class="student-detail__enrollment-right">
                 <p-tag

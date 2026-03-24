@@ -215,14 +215,7 @@
                 <div class="course-group__classes-inner">
                   @for (cls of group.classes; track cls.id) {
                     <div class="class-row" [class.class-row--historical]="isHistorical(cls)" [class.class-row--selected]="selectedClassIds().has(cls.id)">
-                      <!-- Summary Row (整行可點擊，前往班級詳情) -->
-                      <div
-                        class="class-row__summary"
-                        role="button"
-                        tabindex="0"
-                        (click)="navigateToClass(group.course.id, cls.id)"
-                        (keydown.enter)="navigateToClass(group.course.id, cls.id)"
-                      >
+                      <div class="class-row__summary" (click)="toggleClassSelection(cls.id, $event)">
                         <input
                           type="checkbox"
                           class="batch-checkbox"
@@ -232,9 +225,14 @@
                         />
                         <span class="class-row__name-group">
                           <span class="class-row__name">{{ cls.name }}</span>
-                          <span class="class-row__nav-btn">
+                          <button
+                            type="button"
+                            class="class-row__nav-btn"
+                            (click)="navigateToClass(group.course.id, cls.id); $event.stopPropagation()"
+                            aria-label="前往班級詳情"
+                          >
                             <i class="pi pi-angle-right"></i>
-                          </span>
+                          </button>
                         </span>
                         <span class="class-row__schedules">
                           @if (cls.schedules && cls.schedules.length > 0) {
@@ -418,7 +416,7 @@
     position="bottom"
     [visible]="filterPanelVisible()"
     (visibleChange)="filterPanelVisible.set($event)"
-    styleClass="courses__filter-drawer"
+    styleClass="drawer-auto"
     [appendTo]="'body'"
   >
     <ng-container [ngTemplateOutlet]="filterContent" />
@@ -436,7 +434,7 @@
           (ngModelChange)="onSubjectChange($event)"
           placeholder="全部科目"
           [showClear]="true"
-          styleClass="courses__filter-full-select"
+          styleClass="select-sm"
           [appendTo]="'body'"
         />
       </div>
@@ -455,7 +453,7 @@
           [filter]="true"
           filterBy="label"
           filterPlaceholder="搜尋老師..."
-          styleClass="courses__filter-full-select"
+          styleClass="select-sm"
           [appendTo]="'body'"
           [virtualScroll]="true"
           [virtualScrollItemSize]="38"
@@ -479,7 +477,7 @@
           [ngModel]="statusFilter()"
           (ngModelChange)="onStatusFilterChange($event)"
           placeholder="全部狀態"
-          styleClass="courses__filter-full-select"
+          styleClass="select-sm"
           [appendTo]="'body'"
         />
       </div>
@@ -501,7 +499,7 @@
             dateFormat="yy-mm-dd"
             [showIcon]="true"
             placeholder="開始日期"
-            styleClass="courses__historical-date"
+            styleClass="datepicker-sm"
             [appendTo]="'body'"
           />
           <p-datepicker
@@ -510,7 +508,7 @@
             dateFormat="yy-mm-dd"
             [showIcon]="true"
             placeholder="結束日期"
-            styleClass="courses__historical-date"
+            styleClass="datepicker-sm"
             [appendTo]="'body'"
           />
           @if (loadingHistorical()) {

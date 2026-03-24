@@ -49,6 +49,8 @@
     border: 1px solid var(--zinc-200);
     box-shadow: var(--shadow-sm);
     overflow: hidden;
+    container-type: inline-size;
+    container-name: students-card;
   }
 
   &__toolbar {
@@ -58,59 +60,64 @@
     align-items: center;
     gap: var(--space-3);
     flex-wrap: wrap;
+    // 統一 toolbar 內 p-select 高度為 42px
+    // 42px = padding-y * 2 + font-size(16px) + border(2px) → padding-y ≈ 12px = 0.75rem
+    --p-form-field-padding-y: 0.75rem;
   }
 
   &__search {
     flex: 1;
     min-width: 200px;
     max-width: 280px;
-
-    .p-inputtext {
-      width: 100%;
-    }
   }
 
-  &__grade-filter {
-    width: 130px;
-
-    .students__grade-select {
-      width: 100%;
-    }
+  &__search-input {
+    width: 100%;
+    height: 42px;
   }
 
-  &__campus-filter {
-    width: 180px;
-    opacity: 0.6;
-    cursor: not-allowed;
-
-    .students__campus-select {
-      width: 100%;
-      pointer-events: none;
-    }
+  &__filters {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
   }
+
+  &__filter-select {
+    min-width: 120px;
+  }
+
 
   &__stats {
     display: flex;
-    gap: var(--space-6);
-    padding: var(--space-4) var(--space-6);
+    padding: var(--space-3) var(--space-6);
     background: var(--zinc-50);
     border-bottom: 1px solid var(--zinc-100);
   }
 
   &__stat {
     display: flex;
-    align-items: center;
-    gap: var(--space-2);
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-2) var(--space-5);
+
+    &:first-child { padding-left: 0; }
+    & + & { border-left: 1px solid var(--zinc-200); }
 
     &-value {
-      font-size: var(--text-lg);
+      font-size: 1.375rem;
       font-weight: var(--font-bold);
       color: var(--zinc-900);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
     }
 
     &-label {
-      font-size: var(--text-sm);
-      color: var(--zinc-500);
+      font-size: var(--text-xs);
+      color: var(--zinc-400);
+      font-weight: var(--font-medium);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
   }
 
@@ -122,14 +129,11 @@
 // Table styles
 .student-table {
   &__row {
-    cursor: pointer;
     transition: background var(--transition-fast);
+  }
 
-    &:hover {
-      .student-table__name {
-        color: var(--accent-600);
-      }
-    }
+  &__row:hover &__name {
+    color: var(--accent-600);
   }
 
   &__name-btn {
@@ -139,22 +143,34 @@
   }
 
   &__avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-md);
-    background: var(--accent-50);
-    color: var(--accent-600);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--h, 210) 65% 60%),
+      hsl(var(--h, 210) 75% 44%)
+    );
+    box-shadow: 0 2px 5px -1px hsl(var(--h, 210) 65% 50% / 0.22);
+    color: #fff;
+    font-size: 13px;
+    font-weight: var(--font-bold);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
     flex-shrink: 0;
+    user-select: none;
+    letter-spacing: -0.01em;
   }
 
   &__name {
     font-weight: var(--font-semibold);
     color: var(--zinc-900);
     transition: color var(--transition-fast);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__grade {
@@ -183,17 +199,11 @@
 }
 
 // PrimeNG Overrides
-:host ::ng-deep {
-  .p-tag {
-    font-size: var(--text-xs);
-    font-weight: var(--font-medium);
-    padding: 4px 8px;
-    border-radius: var(--radius-full);
-  }
-
-  .p-select {
-    width: 100%;
-  }
+:host {
+  --p-tag-font-size: var(--text-xs);
+  --p-tag-font-weight: var(--font-medium);
+  --p-tag-padding: var(--space-1) var(--space-2);
+  --p-tag-border-radius: var(--radius-full);
 }
 
 // Responsive
