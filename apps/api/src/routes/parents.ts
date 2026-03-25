@@ -930,7 +930,7 @@ const BatchCheckBodySchema = z
 const BatchCheckWarningSchema = z
   .object({
     rowIndex: z.number().int().min(0),
-    type: z.literal('same_name_exists'),
+    type: z.enum(['same_name_exists', 'student_already_exists']),
     message: z.string(),
   })
   .openapi('BatchCheckWarning');
@@ -1021,9 +1021,9 @@ app.openapi(
     }
 
     // Step 4: 比對每個匯入行
-    const warnings: Array<{ rowIndex: number; type: 'same_name_exists'; message: string }> = [];
+    const warnings: Array<{ rowIndex: number; type: 'same_name_exists' | 'student_already_exists'; message: string }> = [];
     const merges: Array<{ rowIndex: number; type: 'merging_with_existing'; message: string }> = [];
-    const errors: Array<{ rowIndex: number; type: 'student_already_exists'; message: string }> = [];
+    const errors: Array<{ rowIndex: number; type: 'student_already_exists'; message: string }> = []; // 保留供未來使用
 
     for (const [normalizedName, rowIndexes] of nameMap.entries()) {
       const matchingDbParents = (dbParents as Array<{ id: string; name: string; user_id: string }>).filter(
@@ -1080,10 +1080,10 @@ app.openapi(
           }
 
           if (isDuplicateStudent) {
-            errors.push({
+            warnings.push({
               rowIndex,
               type: 'student_already_exists',
-              message: `學生「${row.studentName!.trim()}」已存在於此家長帳號下，無需重複建立`,
+              message: `學生「${row.studentName!.trim()}」已存在於此家長帳號下，匯入時將略過學生建立`,
             });
             continue;
           }
@@ -1405,6 +1405,31 @@ app.openapi(
       }
 
       try {
+        // 查重複學生：若同名學生已存在於此家長下，略過建立
+        const { data: existingRelData } = await supabase
+          .from('parent_student_relations')
+          .select('student_id')
+          .eq('parent_id', parentId);
+
+        const existingStudentIds = (existingRelData ?? []).map((r: { student_id: string }) => r.student_id);
+        if (existingStudentIds.length > 0) {
+          const { data: existingStudentData } = await supabase
+            .from('students')
+            .select('id, name')
+            .in('id', existingStudentIds);
+
+          const duplicate = (existingStudentData ?? []).find(
+            (s: { id: string; name: string }) =>
+              s.name.trim().toLowerCase() === row.studentName.trim().toLowerCase(),
+          );
+
+          if (duplicate) {
+            // 已存在，略過學生建立，直接標記成功
+            results.push({ rowIndex: i, status: 'success', parentId, studentId: (duplicate as { id: string }).id });
+            continue;
+          }
+        }
+
         // INSERT students
         const { data: newStudentRow, error: insertStudentError } = await supabase
           .from('students')

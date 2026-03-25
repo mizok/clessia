@@ -100,7 +100,7 @@ export interface BatchCheckRow {
 
 export interface BatchCheckWarning {
   rowIndex: number; // 0-based, maps to parsedRows array index
-  type: 'same_name_exists';
+  type: 'same_name_exists' | 'student_already_exists';
   message: string;
 }
 
