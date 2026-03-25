@@ -81,11 +81,13 @@ export class CopyRosterDialogComponent implements OnInit {
   /** 同分校的全部班級（已排除自身） */
   private readonly allClassOptions = signal<ClassOption[]>([]);
 
-  /** 課程篩選選項（從 allClassOptions 動態產生） */
+  /** 課程篩選選項（依目前年級篩選後動態產生） */
   protected readonly courseOptions = computed<CourseOption[]>(() => {
+    const grade = this.selectedGradeLevel();
     const seen = new Set<string>();
     const options: CourseOption[] = [{ label: '全部課程', value: '' }];
     for (const cls of this.allClassOptions()) {
+      if (grade && !cls.gradeLevels.includes(grade)) continue;
       if (cls.courseId && !seen.has(cls.courseId)) {
         seen.add(cls.courseId);
         options.push({ label: cls.courseName || cls.courseId, value: cls.courseId });
