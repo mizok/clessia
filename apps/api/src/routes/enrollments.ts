@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 
 // ============================================================
@@ -134,6 +135,23 @@ const BatchMatchResponseSchema = z
   })
   .openapi('BatchMatchResponse');
 
+const CopyFromClassBodySchema = z
+  .object({
+    targetClassId: z.uuid(),
+    sourceClassId: z.uuid(),
+    statuses: z
+      .array(z.enum(['pending_payment', 'active', 'suspended', 'withdrawal', 'void']))
+      .min(1),
+  })
+  .openapi('CopyFromClassBody');
+
+const CopyFromClassResponseSchema = z
+  .object({
+    copied: z.number().int().min(0),
+    skipped: z.number().int().min(0),
+  })
+  .openapi('CopyFromClassResponse');
+
 // ============================================================
 // Helper
 // ============================================================
@@ -161,6 +179,43 @@ export function toEnrollmentResponse(row: any): z.infer<typeof EnrollmentSchema>
     updatedAt: row.updated_at,
     attendanceCount: row.attendances?.[0]?.count ?? 0,
   };
+}
+
+interface CopyFromClassStudentRow {
+  student_id: string;
+}
+
+interface CopyFromClassPlan {
+  sourceStudentIds: string[];
+  toInsertStudentIds: string[];
+  skipped: number;
+}
+
+interface CopyFromClassQuotaInput {
+  currentActiveCount: number | null;
+  maxStudents: number | null;
+  toInsertCount: number;
+}
+
+export function buildCopyFromClassPlan(
+  sourceEnrollments: ReadonlyArray<CopyFromClassStudentRow>,
+  targetActiveEnrollments: ReadonlyArray<CopyFromClassStudentRow>,
+): CopyFromClassPlan {
+  const sourceStudentIds = Array.from(new Set(sourceEnrollments.map((row) => row.student_id)));
+  const alreadyInSet = new Set(targetActiveEnrollments.map((row) => row.student_id));
+  const toInsertStudentIds = sourceStudentIds.filter((studentId) => !alreadyInSet.has(studentId));
+
+  return {
+    sourceStudentIds,
+    toInsertStudentIds,
+    skipped: sourceStudentIds.length - toInsertStudentIds.length,
+  };
+}
+
+export function isCopyFromClassOverQuota(input: CopyFromClassQuotaInput): boolean {
+  const maxStudents = input.maxStudents ?? 9999;
+  const currentActiveCount = input.currentActiveCount ?? 0;
+  return currentActiveCount + input.toInsertCount > maxStudents;
 }
 
 // ============================================================
@@ -507,6 +562,133 @@ app.openapi(
 
     await supabase.from('enrollments').delete().eq('id', id);
     return new Response(null, { status: 204 });
+  },
+);
+
+// POST /api/enrollments/copy-from-class
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/copy-from-class',
+    tags: ['Enrollments'],
+    middleware: [requireAdminMiddleware] as const,
+    request: {
+      body: { content: { 'application/json': { schema: CopyFromClassBodySchema } } },
+    },
+    responses: {
+      200: {
+        content: { 'application/json': { schema: CopyFromClassResponseSchema } },
+        description: 'OK',
+      },
+      400: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Bad Request (SAME_CLASS / OVER_QUOTA / invalid statuses)',
+      },
+      404: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Class not found',
+      },
+      500: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Internal Server Error',
+      },
+    },
+  }),
+  async (c) => {
+    const { targetClassId, sourceClassId, statuses } = c.req.valid('json');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
+    const supabase = c.get('supabase');
+
+    if (sourceClassId === targetClassId) {
+      return c.json({ error: '來源班級不能與目標班級相同', code: 'SAME_CLASS' }, 400);
+    }
+
+    const { data: targetClass, error: targetClassError } = await supabase
+      .from('classes')
+      .select('id, max_students')
+      .eq('id', targetClassId)
+      .eq('org_id', orgId)
+      .maybeSingle();
+
+    if (targetClassError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+    if (!targetClass) return c.json({ error: 'TARGET_CLASS_NOT_FOUND' }, 404);
+
+    const { data: sourceClass, error: sourceClassError } = await supabase
+      .from('classes')
+      .select('id')
+      .eq('id', sourceClassId)
+      .eq('org_id', orgId)
+      .maybeSingle();
+
+    if (sourceClassError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+    if (!sourceClass) return c.json({ error: 'SOURCE_CLASS_NOT_FOUND' }, 404);
+
+    const { data: sourceEnrollments, error: sourceEnrollmentsError } = await supabase
+      .from('enrollments')
+      .select('student_id')
+      .eq('class_id', sourceClassId)
+      .eq('org_id', orgId)
+      .in('status', statuses);
+
+    if (sourceEnrollmentsError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+
+    const sourceRows = (sourceEnrollments ?? []) as Array<CopyFromClassStudentRow>;
+    if (sourceRows.length === 0) {
+      return c.json({ copied: 0, skipped: 0 }, 200);
+    }
+
+    const { data: activeEnrollments, error: activeEnrollmentsError } = await supabase
+      .from('enrollments')
+      .select('student_id')
+      .eq('class_id', targetClassId)
+      .eq('org_id', orgId)
+      .in('status', ['active', 'pending_payment', 'suspended']);
+
+    if (activeEnrollmentsError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+
+    const activeRows = (activeEnrollments ?? []) as Array<CopyFromClassStudentRow>;
+    const { toInsertStudentIds, skipped } = buildCopyFromClassPlan(sourceRows, activeRows);
+
+    if (toInsertStudentIds.length === 0) {
+      return c.json({ copied: 0, skipped }, 200);
+    }
+
+    const { count: currentActiveCount, error: countError } = await supabase
+      .from('enrollments')
+      .select('*', { count: 'exact', head: true })
+      .eq('class_id', targetClassId)
+      .eq('org_id', orgId)
+      .in('status', ['active', 'pending_payment']);
+
+    if (countError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+
+    const maxStudents =
+      typeof targetClass.max_students === 'number' ? targetClass.max_students : null;
+    if (
+      isCopyFromClassOverQuota({
+        currentActiveCount: currentActiveCount ?? null,
+        maxStudents,
+        toInsertCount: toInsertStudentIds.length,
+      })
+    ) {
+      return c.json({ error: '人數已達上限', code: 'OVER_QUOTA' }, 400);
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = toInsertStudentIds.map((studentId) => ({
+      org_id: orgId,
+      class_id: targetClassId,
+      student_id: studentId,
+      status: 'active' as const,
+      effective_from: today,
+      created_by: userId,
+    }));
+
+    const { error: insertError } = await supabase.from('enrollments').insert(rows);
+    if (insertError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+
+    return c.json({ copied: toInsertStudentIds.length, skipped }, 200);
   },
 );
 

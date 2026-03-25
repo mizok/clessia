@@ -86,3 +86,83 @@ describe('DELETE enrollment attendance gate logic', () => {
     expect(status).toBe('suspended');
   });
 });
+
+describe('copy-from-class helper logic', () => {
+  const buildCopyFromClassPlan = (enrollmentsRoute as Record<string, unknown>)[
+    'buildCopyFromClassPlan'
+  ] as
+    | ((
+        sourceEnrollments: Array<{ student_id: string }>,
+        targetActiveEnrollments: Array<{ student_id: string }>,
+      ) => {
+        sourceStudentIds: string[];
+        toInsertStudentIds: string[];
+        skipped: number;
+      })
+    | undefined;
+
+  const isCopyFromClassOverQuota = (enrollmentsRoute as Record<string, unknown>)[
+    'isCopyFromClassOverQuota'
+  ] as
+    | ((input: { currentActiveCount: number | null; maxStudents: number | null; toInsertCount: number }) => boolean)
+    | undefined;
+
+  it('dedupes source rows and skips students already in target active set', () => {
+    expect(buildCopyFromClassPlan).toBeTypeOf('function');
+
+    const plan = buildCopyFromClassPlan?.(
+      [
+        { student_id: 'student-1' },
+        { student_id: 'student-1' },
+        { student_id: 'student-2' },
+        { student_id: 'student-3' },
+      ],
+      [{ student_id: 'student-2' }, { student_id: 'student-9' }],
+    );
+
+    expect(plan).toEqual({
+      sourceStudentIds: ['student-1', 'student-2', 'student-3'],
+      toInsertStudentIds: ['student-1', 'student-3'],
+      skipped: 1,
+    });
+  });
+
+  it('returns zero skipped when target class has no active enrollments', () => {
+    expect(buildCopyFromClassPlan).toBeTypeOf('function');
+
+    const plan = buildCopyFromClassPlan?.(
+      [{ student_id: 'student-1' }, { student_id: 'student-2' }],
+      [],
+    );
+
+    expect(plan).toEqual({
+      sourceStudentIds: ['student-1', 'student-2'],
+      toInsertStudentIds: ['student-1', 'student-2'],
+      skipped: 0,
+    });
+  });
+
+  it('detects over quota when projected active exceeds max students', () => {
+    expect(isCopyFromClassOverQuota).toBeTypeOf('function');
+
+    const isOverQuota = isCopyFromClassOverQuota?.({
+      currentActiveCount: 18,
+      maxStudents: 20,
+      toInsertCount: 3,
+    });
+
+    expect(isOverQuota).toBe(true);
+  });
+
+  it('uses 9999 fallback when max students is null', () => {
+    expect(isCopyFromClassOverQuota).toBeTypeOf('function');
+
+    const isOverQuota = isCopyFromClassOverQuota?.({
+      currentActiveCount: 5000,
+      maxStudents: null,
+      toInsertCount: 10,
+    });
+
+    expect(isOverQuota).toBe(false);
+  });
+});
