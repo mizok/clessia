@@ -28,7 +28,6 @@ import {
   Enrollment,
   EnrollmentStatus,
   ENROLLMENT_STATUS_LABELS,
-  BatchCreateResultItem,
 } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -37,7 +36,6 @@ import {
   type ConfirmDialogData,
 } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { StudentPickerDialogComponent } from './student-picker-dialog/student-picker-dialog.component';
-import { StudentExcelImportDialogComponent } from './student-excel-import-dialog/student-excel-import-dialog.component';
 import { CopyRosterDialogComponent } from './copy-roster-dialog/copy-roster-dialog.component';
 
 @Component({
@@ -50,7 +48,6 @@ import { CopyRosterDialogComponent } from './copy-roster-dialog/copy-roster-dial
     TabsModule,
     MenuModule,
     SkeletonModule,
-    StudentExcelImportDialogComponent,
     CopyRosterDialogComponent,
   ],
   providers: [MessageService, DialogService],
@@ -212,7 +209,7 @@ export class ClassDetailPage implements OnInit {
 
     ref?.onClose
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res?: { results: BatchCreateResultItem[] }) => {
+      .subscribe((res?: { results: { studentId: string; status: string }[] }) => {
         if (!res?.results?.length) return;
         const enrolled = res.results.filter((r) => r.status === 'enrolled').length;
         const alreadyExists = res.results.filter((r) => r.status === 'already_exists').length;
@@ -230,27 +227,6 @@ export class ClassDetailPage implements OnInit {
         });
         this.loadEnrollments();
       });
-  }
-
-  protected openExcelImport(): void {
-    const cls = this.cls();
-    if (!cls) return;
-
-    const activeCount = this.enrollments().filter((e) =>
-      ['active', 'pending_payment'].includes(e.status),
-    ).length;
-    const remainingSlots = (cls.maxStudents ?? 9999) - activeCount;
-
-    const ref = this.dialogService.open(StudentExcelImportDialogComponent, {
-      header: '批次加入學生',
-      width: '640px',
-      modal: true,
-      appendTo: this.overlayContainer || 'body',
-      data: { classId: cls.id, remainingSlots },
-    });
-    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
-      if (result === 'imported') this.loadEnrollments();
-    });
   }
 
   protected openCopyRoster(): void {
