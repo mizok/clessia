@@ -238,7 +238,7 @@ export class ClassDetailPage implements OnInit {
       width: '480px',
       modal: true,
       appendTo: this.overlayContainer || 'body',
-      data: { classId: cls.id },
+      data: { classId: cls.id, campusId: cls.campusId, campusName: cls.campusName },
     });
 
     ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {

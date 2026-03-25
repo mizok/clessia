@@ -1,50 +1,83 @@
 <div class="copy-roster-dialog">
   @if (step() === 1) {
     <div class="copy-roster-dialog__body">
-      <p class="copy-roster-dialog__hint">選擇要複製名單的來源班級：</p>
+      <!-- 分校標注 -->
+      @if (campusName) {
+        <div class="copy-roster-dialog__campus-badge">
+          <i class="pi pi-building"></i>
+          <span>從 <strong>{{ campusName }}</strong> 的其他課程複製名單</span>
+        </div>
+      }
 
-      @if (classesLoading()) {
-        <p-skeleton height="42px" borderRadius="8px" />
-      } @else {
+      <!-- 課程篩選 -->
+      <div class="copy-roster-dialog__filter-row">
+        <label class="copy-roster-dialog__filter-label">課程</label>
         <p-select
-          [options]="classOptions()"
-          [ngModel]="selectedClassId()"
-          (ngModelChange)="selectedClassId.set($event ?? null); onClassSelect($event ?? null)"
+          [options]="courseOptions()"
+          [ngModel]="selectedCourseId()"
+          (ngModelChange)="selectedCourseId.set($event ?? ''); selectedClassId.set(null)"
           optionLabel="label"
           optionValue="value"
-          placeholder="搜尋或選擇班級…"
-          [filter]="true"
-          filterBy="label,courseName"
-          [showClear]="true"
-          styleClass="w-full"
+          styleClass="copy-roster-dialog__course-select"
           [appendTo]="'body'"
-          [disabled]="enrollmentsLoading()"
-        >
-          <ng-template #selectedItem let-opt>
-            @if (opt) {
-              <div class="copy-roster-dialog__select-item">
-                <span>{{ opt.label }}</span>
-                @if (opt.isEnded) {
-                  <span class="copy-roster-dialog__ended-tag">已結束</span>
-                }
-              </div>
-            }
-          </ng-template>
-          <ng-template #item let-opt>
-            <div class="copy-roster-dialog__option">
-              <div class="copy-roster-dialog__option-main">
-                <span class="copy-roster-dialog__option-name">{{ opt.label }}</span>
-                @if (opt.isEnded) {
-                  <span class="copy-roster-dialog__ended-tag">已結束</span>
-                }
-              </div>
-              @if (opt.courseName) {
-                <span class="copy-roster-dialog__option-course">{{ opt.courseName }}</span>
+        />
+        <label class="copy-roster-dialog__toggle-label">
+          <p-checkbox
+            [ngModel]="showOnlyWithStudents()"
+            (ngModelChange)="showOnlyWithStudents.set($event)"
+            [binary]="true"
+            inputId="only-with-students"
+          />
+          <span>僅顯示有學生的班級</span>
+        </label>
+      </div>
+
+      <!-- 班級選擇 -->
+      <div class="copy-roster-dialog__class-select-wrap">
+        @if (classesLoading()) {
+          <p-skeleton height="42px" borderRadius="8px" />
+        } @else {
+          <p-select
+            [options]="classOptions()"
+            [ngModel]="selectedClassId()"
+            (ngModelChange)="selectedClassId.set($event ?? null); onClassSelect($event ?? null)"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="搜尋或選擇班級…"
+            [filter]="true"
+            filterBy="label,courseName"
+            [showClear]="true"
+            styleClass="w-full"
+            [appendTo]="'body'"
+            [disabled]="enrollmentsLoading()"
+            [emptyMessage]="showOnlyWithStudents() ? '此課程下沒有有學生的班級' : '沒有符合的班級'"
+          >
+            <ng-template #selectedItem let-opt>
+              @if (opt) {
+                <div class="copy-roster-dialog__select-item">
+                  <span>{{ opt.label }}</span>
+                  @if (opt.isEnded) {
+                    <span class="copy-roster-dialog__ended-tag">已結束</span>
+                  }
+                </div>
               }
-            </div>
-          </ng-template>
-        </p-select>
-      }
+            </ng-template>
+            <ng-template #item let-opt>
+              <div class="copy-roster-dialog__option">
+                <div class="copy-roster-dialog__option-main">
+                  <span class="copy-roster-dialog__option-name">{{ opt.label }}</span>
+                  @if (opt.isEnded) {
+                    <span class="copy-roster-dialog__ended-tag">已結束</span>
+                  }
+                </div>
+                @if (opt.courseName) {
+                  <span class="copy-roster-dialog__option-course">{{ opt.courseName }}</span>
+                }
+              </div>
+            </ng-template>
+          </p-select>
+        }
+      </div>
 
       @if (enrollmentsLoading()) {
         <div class="copy-roster-dialog__loading-hint">

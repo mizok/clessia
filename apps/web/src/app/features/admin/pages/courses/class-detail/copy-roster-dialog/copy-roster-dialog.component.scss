@@ -19,6 +19,63 @@
     }
   }
 
+  &__campus-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--accent-50);
+    border: 1px solid var(--accent-100);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--accent-700);
+
+    strong {
+      font-weight: var(--font-semibold);
+    }
+
+    .pi {
+      font-size: 13px;
+      color: var(--accent-500);
+      flex-shrink: 0;
+    }
+  }
+
+  &__filter-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  &__filter-label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--zinc-500);
+    white-space: nowrap;
+  }
+
+  &__course-select {
+    min-width: 160px;
+    flex: 1;
+  }
+
+  &__toggle-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    user-select: none;
+    font-size: var(--text-sm);
+    color: var(--zinc-600);
+    white-space: nowrap;
+    margin-left: auto;
+  }
+
+  &__class-select-wrap {
+    // 確保 skeleton 和 select 等高
+  }
+
   &__hint {
     margin: 0;
     color: var(--zinc-600);
