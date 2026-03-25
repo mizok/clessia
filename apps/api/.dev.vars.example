@@ -1,3 +1,6 @@
 SUPABASE_URL=http://127.0.0.1:54321
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 SUPABASE_ANON_KEY=your-anon-key
+# 僅有電話（無 email）的家長會用此 domain 產生虛擬 email（如 0912345678@phone.internal）
+# 這個 domain 不存在於公開網路，僅供系統內部識別用
+PLACEHOLDER_EMAIL_DOMAIN=phone.internal
