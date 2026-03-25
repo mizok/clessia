@@ -92,6 +92,15 @@ export function generateRandomPassword(): string {
   return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 
+export function generatePlaceholderEmail(phone: string, domain: string | undefined): string {
+  return `${phone}@${domain ?? 'phone.internal'}`;
+}
+
+export function isPlaceholderEmail(email: string | null, domain: string): boolean {
+  if (!email) return false;
+  return email.endsWith(`@${domain}`);
+}
+
 export function toParentResponse(
   row: Record<string, unknown>,
   studentCount = 0,
@@ -130,8 +139,9 @@ function isDuplicateUsernameError(message: string): boolean {
   const normalized = message.toLowerCase();
   return (
     (normalized.includes('username') &&
-      (normalized.includes('taken') || normalized.includes('already'))) ||
-    normalized.includes('username_exists')
+      (normalized.includes('taken') || normalized.includes('already') || normalized.includes('unique'))) ||
+    normalized.includes('username_exists') ||
+    normalized.includes('ba_user_username_key')
   );
 }
 
@@ -248,9 +258,11 @@ app.openapi(
     const baUserMap = new Map<string, { email: string | null; phone: string | null }>();
     if (userIds.length > 0) {
       const { data: baUsers } = await supabase.from('ba_user').select('id, email, phone').in('id', userIds);
+      const placeholderDomain = c.env.PLACEHOLDER_EMAIL_DOMAIN;
       for (const u of baUsers ?? []) {
+        const rawEmail = (u.email as string | null) ?? null;
         baUserMap.set(u.id as string, {
-          email: (u.email as string | null) ?? null,
+          email: isPlaceholderEmail(rawEmail, placeholderDomain) ? null : rawEmail,
           phone: (u.phone as string | null) ?? null,
         });
       }
@@ -326,15 +338,19 @@ app.openapi(
     const password = generateRandomPassword();
     let createdUserId: string | null = null;
 
+    const isPhoneOnly = !body.email && !!body.phone;
+    const authEmail = body.email ?? generatePlaceholderEmail(body.phone!, c.env.PLACEHOLDER_EMAIL_DOMAIN);
+
     try {
       const newUser = await (auth.api as any).createUser({
         body: {
           name: body.name,
-          email: body.email ?? undefined,
-          phone: body.phone ?? undefined,
-          // Phone-only accounts use phone as username so signInUsername can look them up
-          username: !body.email && body.phone ? body.phone : undefined,
+          email: authEmail,
           password,
+          data: {
+            ...(body.phone ? { phone: body.phone } : {}),
+            ...(isPhoneOnly ? { username: body.phone } : {}),
+          },
         },
         asResponse: false,
       });
@@ -475,8 +491,13 @@ app.openapi(
       .select('email, phone')
       .eq('id', row['user_id'] as string)
       .maybeSingle();
+    const placeholderDomain = c.env.PLACEHOLDER_EMAIL_DOMAIN;
+    const rawEmail = baUserData ? (baUserData.email as string | null) : null;
     const baUser = baUserData
-      ? { email: baUserData.email as string | null, phone: baUserData.phone as string | null }
+      ? {
+          email: isPlaceholderEmail(rawEmail, placeholderDomain) ? null : rawEmail,
+          phone: baUserData.phone as string | null,
+        }
       : undefined;
     const relations = (
       row['parent_student_relations'] as Array<{
@@ -888,6 +909,145 @@ app.openapi(
 );
 
 // ============================================================
+// POST /api/parents/batch-check
+// ============================================================
+
+const BatchCheckRowSchema = z
+  .object({
+    parentName: z.string().min(1).max(100),
+    parentPhone: z.string().optional(),
+    parentEmail: z.string().optional(),
+  })
+  .openapi('BatchCheckRow');
+
+const BatchCheckBodySchema = z
+  .object({
+    rows: z.array(BatchCheckRowSchema).min(1).max(500),
+  })
+  .openapi('BatchCheckBody');
+
+const BatchCheckWarningSchema = z
+  .object({
+    rowIndex: z.number().int().min(0),
+    type: z.literal('same_name_exists'),
+    message: z.string(),
+  })
+  .openapi('BatchCheckWarning');
+
+const BatchCheckResponseSchema = z
+  .object({
+    warnings: z.array(BatchCheckWarningSchema),
+  })
+  .openapi('BatchCheckResponse');
+
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/batch-check',
+    tags: ['Parents'],
+    summary: '批次匯入前 DB 同名衝突預檢（僅讀取）',
+    request: {
+      body: { content: { 'application/json': { schema: BatchCheckBodySchema } } },
+    },
+    responses: {
+      200: {
+        description: '預檢結果（warnings 為空代表無衝突）',
+        content: { 'application/json': { schema: BatchCheckResponseSchema } },
+      },
+      400: { description: '請求格式錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const { rows } = c.req.valid('json');
+    const placeholderDomain = c.env.PLACEHOLDER_EMAIL_DOMAIN ?? 'phone.internal';
+
+    // Step 1: 收集不重複的正規化姓名
+    const nameMap = new Map<string, number[]>(); // normalizedName -> rowIndexes
+    for (let i = 0; i < rows.length; i++) {
+      const normalized = rows[i].parentName.trim().toLowerCase();
+      if (!normalized) continue;
+      const bucket = nameMap.get(normalized) ?? [];
+      bucket.push(i);
+      nameMap.set(normalized, bucket);
+    }
+
+    if (nameMap.size === 0) {
+      return c.json({ warnings: [] }, 200);
+    }
+
+    // Step 2: 查詢 DB 同名家長（ilike 縮小範圍，JS 端精確比對）
+    const namesToQuery = Array.from(nameMap.keys());
+    const { data: dbParents, error: parentsError } = await supabase
+      .from('parents')
+      .select('id, name, user_id')
+      .eq('org_id', orgId)
+      .or(namesToQuery.map((n) => `name.ilike.${n}`).join(','));
+
+    if (parentsError || !dbParents || dbParents.length === 0) {
+      return c.json({ warnings: [] }, 200);
+    }
+
+    // Step 3: 查詢每個 DB 家長的聯絡資訊
+    const userIds = dbParents.map((p: { user_id: string }) => p.user_id);
+    const { data: baUsers } = await supabase.from('ba_user').select('id, phone, email').in('id', userIds);
+
+    const userContactMap = new Map<string, { phone: string | null; email: string | null }>();
+    for (const u of (baUsers ?? []) as Array<{ id: string; phone: string | null; email: string | null }>) {
+      userContactMap.set(u.id, {
+        phone: u.phone ?? null,
+        email: isPlaceholderEmail(u.email, placeholderDomain) ? null : (u.email ?? null),
+      });
+    }
+
+    // Step 4: 比對每個匯入行
+    const warnings: Array<{ rowIndex: number; type: 'same_name_exists'; message: string }> = [];
+
+    for (const [normalizedName, rowIndexes] of nameMap.entries()) {
+      // 找 DB 中同名家長（JS 精確比對）
+      const matchingDbParents = (dbParents as Array<{ id: string; name: string; user_id: string }>).filter(
+        (p) => p.name.trim().toLowerCase() === normalizedName,
+      );
+      if (matchingDbParents.length === 0) continue;
+
+      for (const rowIndex of rowIndexes) {
+        const row = rows[rowIndex];
+        const importPhone = (row.parentPhone ?? '').trim();
+        const importEmail = (row.parentEmail ?? '').trim().toLowerCase();
+
+        // 對每個同名 DB 家長判斷是否可合併
+        let canMerge = false;
+        for (const dbParent of matchingDbParents) {
+          const contact = userContactMap.get(dbParent.user_id);
+          if (!contact) continue;
+
+          const phoneMatch = importPhone && contact.phone && importPhone === contact.phone;
+          const emailMatch = importEmail && contact.email && importEmail === contact.email.toLowerCase();
+
+          if (phoneMatch || emailMatch) {
+            canMerge = true;
+            break;
+          }
+        }
+
+        if (!canMerge) {
+          // 取第一個無法合併的同名家長的原始名稱作為訊息
+          const displayName = matchingDbParents[0].name;
+          warnings.push({
+            rowIndex,
+            type: 'same_name_exists',
+            message: `系統已有同名家長「${displayName}」，請確認是否為不同人`,
+          });
+        }
+      }
+    }
+
+    return c.json({ warnings }, 200);
+  },
+);
+
+// ============================================================
 // POST /api/parents/batch-import
 // ============================================================
 
@@ -1023,7 +1183,11 @@ app.openapi(
         if (normalizedPhone || normalizedEmail) {
           const orParts: string[] = [];
           if (normalizedEmail) orParts.push(`email.eq.${normalizedEmail}`);
-          if (normalizedPhone) orParts.push(`phone.eq.${normalizedPhone}`);
+          if (normalizedPhone) {
+            orParts.push(`phone.eq.${normalizedPhone}`);
+            // phone-only 家長的 username 即為 phone，舊資料 phone 欄位可能為 null
+            orParts.push(`username.eq.${normalizedPhone}`);
+          }
 
           const { data: baMatches } = await supabase
             .from('ba_user')
@@ -1040,13 +1204,18 @@ app.openapi(
         if (baUserId) {
           const { data: parentMatch } = await supabase
             .from('parents')
-            .select('id')
+            .select('id, name')
             .eq('user_id', baUserId)
             .eq('org_id', orgId)
             .limit(1)
             .maybeSingle();
 
           if (parentMatch) {
+            const existingName = (parentMatch as { id: string; name: string }).name.trim();
+            const importedName = representativeRow.parentName.trim();
+            if (existingName !== importedName) {
+              throw new Error(`此電話／Email 已屬於另一位家長「${existingName}」，無法建立為「${importedName}」`);
+            }
             parentId = (parentMatch as { id: string }).id;
           }
         }
@@ -1055,19 +1224,22 @@ app.openapi(
         if (!parentId) {
           const auth = createAuth(c.env);
           const password = generateRandomPassword();
+          const isPhoneOnlyRow = !representativeRow.parentEmail && !!representativeRow.parentPhone;
+          const rowAuthEmail =
+            representativeRow.parentEmail ??
+            generatePlaceholderEmail(representativeRow.parentPhone!, c.env.PLACEHOLDER_EMAIL_DOMAIN);
 
           let createdUserId: string | null = null;
           try {
             const newUser = await (auth.api as any).createUser({
               body: {
                 name: representativeRow.parentName,
-                email: representativeRow.parentEmail ?? undefined,
-                phone: representativeRow.parentPhone ?? undefined,
-                username:
-                  !representativeRow.parentEmail && representativeRow.parentPhone
-                    ? representativeRow.parentPhone
-                    : undefined,
+                email: rowAuthEmail,
                 password,
+                data: {
+                  ...(representativeRow.parentPhone ? { phone: representativeRow.parentPhone } : {}),
+                  ...(isPhoneOnlyRow ? { username: representativeRow.parentPhone } : {}),
+                },
               },
               asResponse: false,
             });
@@ -1078,7 +1250,10 @@ app.openapi(
             if (isDuplicateEmailError(msg) || isDuplicateUsernameError(msg)) {
               const orParts: string[] = [];
               if (normalizedEmail) orParts.push(`email.eq.${normalizedEmail}`);
-              if (normalizedPhone) orParts.push(`phone.eq.${normalizedPhone}`);
+              if (normalizedPhone) {
+                orParts.push(`phone.eq.${normalizedPhone}`);
+                orParts.push(`username.eq.${normalizedPhone}`);
+              }
 
               if (orParts.length > 0) {
                 const { data: retryMatches } = await supabase
@@ -1091,13 +1266,18 @@ app.openapi(
                   const existingBaUserId = (retryMatches[0] as { id: string }).id;
                   const { data: retryParent } = await supabase
                     .from('parents')
-                    .select('id')
+                    .select('id, name')
                     .eq('user_id', existingBaUserId)
                     .eq('org_id', orgId)
                     .limit(1)
                     .maybeSingle();
 
                   if (retryParent) {
+                    const existingName = (retryParent as { id: string; name: string }).name.trim();
+                    const importedName = representativeRow.parentName.trim();
+                    if (existingName !== importedName) {
+                      throw new Error(`此電話／Email 已屬於另一位家長「${existingName}」，無法建立為「${importedName}」`);
+                    }
                     parentId = (retryParent as { id: string }).id;
                     groupKeyToParentId.set(groupKey, parentId);
                     continue;
@@ -1141,6 +1321,7 @@ app.openapi(
         groupKeyToParentId.set(groupKey, parentId);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[batch-import] Step2 failed for groupKey="${groupKey}" rowIndexes=${JSON.stringify(rowIndexes)}:`, errMsg, err);
         // 將這個 group 內的所有 rows 標記為失敗
         for (const rowIdx of rowIndexes) {
           // 若該 rowIdx 還未被處理過（沒有 email/phone 缺少的錯誤）
@@ -1163,6 +1344,7 @@ app.openapi(
       const parentId = groupKey ? groupKeyToParentId.get(groupKey) : undefined;
 
       if (!parentId) {
+        console.error(`[batch-import] Step3 row=${i}: parentId not found for groupKey="${groupKey}"`);
         results.push({ rowIndex: i, status: 'failed', error: '無法取得家長 ID' });
         continue;
       }
@@ -1178,12 +1360,13 @@ app.openapi(
             school: row.studentSchool,
             birthday: row.studentBirthday ?? null,
             gender: row.studentGender ?? null,
-            status: 'active',
+            is_active: true,
           })
           .select('id')
           .single();
 
         if (insertStudentError || !newStudentRow) {
+          console.error(`[batch-import] Step3 row=${i} INSERT students error:`, insertStudentError);
           throw new Error(insertStudentError?.message ?? '建立學生失敗');
         }
 
@@ -1199,6 +1382,7 @@ app.openapi(
         });
 
         if (relError) {
+          console.error(`[batch-import] Step3 row=${i} INSERT parent_student_relations error:`, relError);
           // 嘗試刪除剛建立的學生（best effort）
           await supabase.from('students').delete().eq('id', studentId);
           studentsCreated--;
@@ -1208,6 +1392,7 @@ app.openapi(
         results.push({ rowIndex: i, status: 'success', parentId, studentId });
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[batch-import] Step3 row=${i} failed:`, errMsg, err);
         results.push({ rowIndex: i, status: 'failed', parentId, error: errMsg });
       }
     }
