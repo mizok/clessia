@@ -40,13 +40,11 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
 export const requireAdminMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   const supabase = c.get('supabase');
   const userId = c.get('userId');
-  const orgId = c.get('orgId');
 
   const { data: roleRow, error } = await supabase
     .from('user_roles')
     .select('role')
     .eq('user_id', userId)
-    .eq('org_id', orgId)
     .eq('role', 'admin')
     .maybeSingle();
 
