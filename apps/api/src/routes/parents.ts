@@ -1021,7 +1021,7 @@ app.openapi(
     }
 
     // Step 4: 比對每個匯入行
-    const warnings: Array<{ rowIndex: number; type: 'same_name_exists' | 'student_already_exists'; message: string }> = [];
+    const warnings: Array<{ rowIndex: number; type: 'same_name_exists' | 'student_already_exists' | 'merging_with_existing'; message: string }> = [];
     const merges: Array<{ rowIndex: number; type: 'merging_with_existing'; message: string }> = [];
     const errors: Array<{ rowIndex: number; type: 'student_already_exists'; message: string }> = []; // 保留供未來使用
 
@@ -1304,7 +1304,8 @@ app.openapi(
             // Better Auth 可能因為 duplicate 拋錯，嘗試再查一次
             if (isDuplicateEmailError(msg) || isDuplicateUsernameError(msg)) {
               const orParts: string[] = [];
-              if (normalizedEmail) orParts.push(`email.eq.${normalizedEmail}`);
+              // rowAuthEmail 涵蓋真實 email 或 placeholder（phone@phone.internal）
+              orParts.push(`email.eq.${rowAuthEmail}`);
               if (normalizedPhone) {
                 orParts.push(`phone.eq.${normalizedPhone}`);
                 orParts.push(`username.eq.${normalizedPhone}`);
