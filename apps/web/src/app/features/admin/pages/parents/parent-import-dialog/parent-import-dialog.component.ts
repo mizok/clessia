@@ -12,6 +12,8 @@ import {
   type BatchImportResponse,
   type BatchImportRow,
   type BatchCheckRow,
+  type BatchCheckMerge,
+  type BatchCheckError,
   type BatchCheckResponse,
 } from '../../../../../core/parents.service';
 
@@ -115,19 +117,28 @@ export class ParentImportDialogComponent {
       const sheetRows = await this.parseExcelFile(file);
       const parsedRows = this.parseRows(sheetRows);
 
-      // DB 同名衝突檢查（靜默降級：API 失敗不阻擋流程）
+      // DB 衝突預檢（靜默降級：API 失敗不阻擋流程）
       const checkRows: BatchCheckRow[] = parsedRows.map((row) => ({
         parentName: row.parentName,
         parentPhone: row.parentPhone || undefined,
         parentEmail: row.parentEmail || undefined,
+        studentName: row.studentName || undefined,
       }));
 
       const dbResult: BatchCheckResponse = await firstValueFrom(
-        this.parentsService.batchCheck(checkRows)
-      ).catch((): BatchCheckResponse => ({ warnings: [] }));
+        this.parentsService.batchCheck(checkRows),
+      ).catch((): BatchCheckResponse => ({ warnings: [], merges: [], errors: [] }));
 
       for (const w of dbResult.warnings) {
         parsedRows[w.rowIndex]?.warnings.push(w.message);
+      }
+      for (const m of dbResult.merges) {
+        if (parsedRows[m.rowIndex]) {
+          parsedRows[m.rowIndex].mergeNote = m.message; // DB merge info overrides in-file merge note
+        }
+      }
+      for (const e of dbResult.errors) {
+        parsedRows[e.rowIndex]?.errors.push(e.message);
       }
 
       this.rows.set(parsedRows);

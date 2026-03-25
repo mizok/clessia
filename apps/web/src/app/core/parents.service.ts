@@ -95,6 +95,7 @@ export interface BatchCheckRow {
   parentName: string;
   parentPhone?: string;
   parentEmail?: string;
+  studentName?: string; // optional; absent means skip student duplicate check
 }
 
 export interface BatchCheckWarning {
@@ -103,8 +104,22 @@ export interface BatchCheckWarning {
   message: string;
 }
 
+export interface BatchCheckMerge {
+  rowIndex: number; // 0-based array index
+  type: 'merging_with_existing';
+  message: string;
+}
+
+export interface BatchCheckError {
+  rowIndex: number; // 0-based array index
+  type: 'student_already_exists';
+  message: string;
+}
+
 export interface BatchCheckResponse {
   warnings: BatchCheckWarning[];
+  merges: BatchCheckMerge[];
+  errors: BatchCheckError[];
 }
 
 export const PARENT_STATUS_LABELS: Record<ParentStatus, string> = {
