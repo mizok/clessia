@@ -1,4 +1,13 @@
-import { Component, OnInit, inject, signal, computed, DestroyRef, input, viewChild } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  inject,
+  signal,
+  computed,
+  DestroyRef,
+  input,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
@@ -101,10 +110,18 @@ export class ClassDetailPage implements OnInit {
       items.push({ label: '停權', icon: 'pi pi-lock', command: () => this.confirmSuspend(e) });
     }
     if (e.status === 'suspended') {
-      items.push({ label: '恢復在籍', icon: 'pi pi-unlock', command: () => this.changeStatus(e, 'active') });
+      items.push({
+        label: '恢復在籍',
+        icon: 'pi pi-unlock',
+        command: () => this.changeStatus(e, 'active'),
+      });
     }
     if (e.status === 'pending_payment') {
-      items.push({ label: '確認收款', icon: 'pi pi-check', command: () => this.changeStatus(e, 'active') });
+      items.push({
+        label: '確認收款',
+        icon: 'pi pi-check',
+        command: () => this.changeStatus(e, 'active'),
+      });
     }
 
     if (!['withdrawal', 'void'].includes(e.status)) {
@@ -112,7 +129,11 @@ export class ClassDetailPage implements OnInit {
       if (e.attendanceCount === 0) {
         items.push({ label: '移除', icon: 'pi pi-trash', command: () => this.confirmRemove(e) });
       } else {
-        items.push({ label: '退班', icon: 'pi pi-sign-out', command: () => this.confirmWithdrawal(e) });
+        items.push({
+          label: '退班',
+          icon: 'pi pi-sign-out',
+          command: () => this.confirmWithdrawal(e),
+        });
       }
     }
 
@@ -134,7 +155,11 @@ export class ClassDetailPage implements OnInit {
           this.loading.set(false);
         },
         error: () => {
-          this.messageService.add({ severity: 'error', summary: '載入失敗', detail: '無法載入班級資料' });
+          this.messageService.add({
+            severity: 'error',
+            summary: '載入失敗',
+            detail: '無法載入班級資料',
+          });
           this.loading.set(false);
         },
       });
@@ -215,7 +240,7 @@ export class ClassDetailPage implements OnInit {
     const remainingSlots = (cls.maxStudents ?? 9999) - activeCount;
 
     const ref = this.dialogService.open(StudentExcelImportDialogComponent, {
-      header: 'Excel 批次加入學生',
+      header: '批次加入學生',
       width: '640px',
       modal: true,
       appendTo: this.overlayContainer || 'body',
@@ -288,12 +313,17 @@ export class ClassDetailPage implements OnInit {
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe({
             next: () => {
-              this.messageService.add({ severity: 'success', summary: '已移除', detail: `「${enrollment.studentName}」已從班級移除` });
+              this.messageService.add({
+                severity: 'success',
+                summary: '已移除',
+                detail: `「${enrollment.studentName}」已從班級移除`,
+              });
               this.loadEnrollments();
             },
             error: (err) => {
               const code = err.error?.error;
-              const detail = code === 'has_attendance' ? '此學生已有出勤紀錄，請改用退班流程' : '請稍後再試';
+              const detail =
+                code === 'has_attendance' ? '此學生已有出勤紀錄，請改用退班流程' : '請稍後再試';
               this.messageService.add({ severity: 'error', summary: '移除失敗', detail });
             },
           });

@@ -169,7 +169,22 @@
     color: var(--zinc-400);
   }
 
+  &__empty-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: var(--space-1);
+  }
+
   // ---- List header (count + action) ----
+  &__list-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
   &__list-header {
     display: flex;
     align-items: center;

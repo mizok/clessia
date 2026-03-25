@@ -93,12 +93,21 @@
                 <p class="class-detail__empty-title">尚未加入任何學生</p>
                 <p class="class-detail__empty-desc">將學生加入班級後，可在此管理在籍狀態</p>
                 @if (cls()!.isActive) {
-                  <p-button
-                    label="加入第一位學生"
-                    icon="pi pi-user-plus"
-                    [outlined]="true"
-                    (onClick)="openStudentPicker()"
-                  />
+                  <div class="class-detail__empty-actions">
+                    <p-button
+                      label="Excel 匯入"
+                      icon="pi pi-file-excel"
+                      severity="secondary"
+                      [outlined]="true"
+                      (onClick)="openExcelImport()"
+                    />
+                    <p-button
+                      label="加入第一位學生"
+                      icon="pi pi-user-plus"
+                      [outlined]="true"
+                      (onClick)="openStudentPicker()"
+                    />
+                  </div>
                 }
               </div>
             } @else {
