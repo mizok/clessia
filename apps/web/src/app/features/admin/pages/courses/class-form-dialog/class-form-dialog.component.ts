@@ -79,9 +79,13 @@ export class ClassFormDialogComponent {
     this.cls()?.endDate ? new Date(this.cls()!.endDate + 'T00:00:00') : null,
   );
   protected readonly startDateMin = computed<Date | undefined>(() => {
-    if (this.isEditing()) return undefined; // 編輯已開課班級時不限制
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    if (this.isEditing()) {
+      // 若原開始日期在過去，允許保留但不能選更早；否則限今天
+      const original = this.cls()?.startDate ? new Date(this.cls()!.startDate + 'T00:00:00') : null;
+      return original && original < today ? original : today;
+    }
     return today;
   });
   protected readonly endDateMin = computed<Date | undefined>(() => {
