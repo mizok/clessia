@@ -917,6 +917,7 @@ const BatchCheckRowSchema = z
     parentName: z.string().min(1).max(100),
     parentPhone: z.string().optional(),
     parentEmail: z.string().optional(),
+    studentName: z.string().max(50).optional(), // optional: skip student check if absent
   })
   .openapi('BatchCheckRow');
 
@@ -934,9 +935,27 @@ const BatchCheckWarningSchema = z
   })
   .openapi('BatchCheckWarning');
 
+const BatchCheckMergeSchema = z
+  .object({
+    rowIndex: z.number().int().min(0),
+    type: z.literal('merging_with_existing'),
+    message: z.string(),
+  })
+  .openapi('BatchCheckMerge');
+
+const BatchCheckErrorSchema = z
+  .object({
+    rowIndex: z.number().int().min(0),
+    type: z.literal('student_already_exists'),
+    message: z.string(),
+  })
+  .openapi('BatchCheckError');
+
 const BatchCheckResponseSchema = z
   .object({
     warnings: z.array(BatchCheckWarningSchema),
+    merges: z.array(BatchCheckMergeSchema),
+    errors: z.array(BatchCheckErrorSchema),
   })
   .openapi('BatchCheckResponse');
 
@@ -974,7 +993,7 @@ app.openapi(
     }
 
     if (nameMap.size === 0) {
-      return c.json({ warnings: [] }, 200);
+      return c.json({ warnings: [], merges: [], errors: [] }, 200);
     }
 
     // Step 2: 查詢 DB 同名家長（ilike 縮小範圍，JS 端精確比對）
@@ -986,7 +1005,7 @@ app.openapi(
       .or(namesToQuery.map((n) => `name.ilike.${n}`).join(','));
 
     if (parentsError || !dbParents || dbParents.length === 0) {
-      return c.json({ warnings: [] }, 200);
+      return c.json({ warnings: [], merges: [], errors: [] }, 200);
     }
 
     // Step 3: 查詢每個 DB 家長的聯絡資訊
@@ -1003,9 +1022,10 @@ app.openapi(
 
     // Step 4: 比對每個匯入行
     const warnings: Array<{ rowIndex: number; type: 'same_name_exists'; message: string }> = [];
+    const merges: Array<{ rowIndex: number; type: 'merging_with_existing'; message: string }> = [];
+    const errors: Array<{ rowIndex: number; type: 'student_already_exists'; message: string }> = [];
 
     for (const [normalizedName, rowIndexes] of nameMap.entries()) {
-      // 找 DB 中同名家長（JS 精確比對）
       const matchingDbParents = (dbParents as Array<{ id: string; name: string; user_id: string }>).filter(
         (p) => p.name.trim().toLowerCase() === normalizedName,
       );
@@ -1016,34 +1036,58 @@ app.openapi(
         const importPhone = (row.parentPhone ?? '').trim();
         const importEmail = (row.parentEmail ?? '').trim().toLowerCase();
 
-        // 對每個同名 DB 家長判斷是否可合併
-        let canMerge = false;
-        for (const dbParent of matchingDbParents) {
-          const contact = userContactMap.get(dbParent.user_id);
-          if (!contact) continue;
-
+        // 找第一個可合併的 DB 家長（phone 或 email 任一匹配）
+        const mergeTarget = matchingDbParents.find((p) => {
+          const contact = userContactMap.get(p.user_id);
+          if (!contact) return false;
           const phoneMatch = importPhone && contact.phone && importPhone === contact.phone;
           const emailMatch = importEmail && contact.email && importEmail === contact.email.toLowerCase();
+          return !!(phoneMatch || emailMatch);
+        });
 
-          if (phoneMatch || emailMatch) {
-            canMerge = true;
-            break;
-          }
-        }
-
-        if (!canMerge) {
-          // 取第一個無法合併的同名家長的原始名稱作為訊息
-          const displayName = matchingDbParents[0].name;
+        if (!mergeTarget) {
+          // canMerge = false → 同名不同聯絡
           warnings.push({
             rowIndex,
             type: 'same_name_exists',
-            message: `系統已有同名家長「${displayName}」，請確認是否為不同人`,
+            message: `系統已有同名家長「${matchingDbParents[0].name}」，請確認是否為不同人`,
           });
+          continue;
         }
+
+        // canMerge = true → 查重複學生
+        const importStudentName = (row.studentName ?? '').trim().toLowerCase();
+
+        if (importStudentName) {
+          const { data: relations } = await supabase
+            .from('parent_student_relations')
+            .select('students!inner(id, name)')
+            .eq('parent_id', mergeTarget.id);
+
+          const isDuplicateStudent = (relations ?? []).some((r: { students: { id: string; name: string }[] }) =>
+            r.students.some((s) => s.name.trim().toLowerCase() === importStudentName),
+          );
+
+          if (isDuplicateStudent) {
+            errors.push({
+              rowIndex,
+              type: 'student_already_exists',
+              message: `學生「${row.studentName!.trim()}」已存在於此家長帳號下，無需重複建立`,
+            });
+            continue;
+          }
+        }
+
+        // canMerge = true + 無重複學生
+        merges.push({
+          rowIndex,
+          type: 'merging_with_existing',
+          message: '此家長已存在於系統，匯入將合併至現有帳號',
+        });
       }
     }
 
-    return c.json({ warnings }, 200);
+    return c.json({ warnings, merges, errors }, 200);
   },
 );
 
