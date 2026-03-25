@@ -79,6 +79,17 @@ export interface BatchCreateInput {
   studentIds: string[];
 }
 
+export interface CopyFromClassInput {
+  targetClassId: string;
+  sourceClassId: string;
+  statuses: EnrollmentStatus[];
+}
+
+export interface CopyFromClassResult {
+  copied: number;
+  skipped: number;
+}
+
 export interface BatchMatchItem {
   name: string;
   school: string;
@@ -140,5 +151,9 @@ export class EnrollmentsService {
 
   batchMatch(classId: string, items: BatchMatchItem[]): Observable<BatchMatchResponse> {
     return this.http.post<BatchMatchResponse>(`${this.base}/batch-match`, { classId, items });
+  }
+
+  copyFromClass(input: CopyFromClassInput): Observable<CopyFromClassResult> {
+    return this.http.post<CopyFromClassResult>(`${this.base}/copy-from-class`, input);
   }
 }
