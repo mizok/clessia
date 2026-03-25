@@ -78,6 +78,12 @@ export class ClassFormDialogComponent {
   protected readonly endDate = signal<Date | null>(
     this.cls()?.endDate ? new Date(this.cls()!.endDate + 'T00:00:00') : null,
   );
+  protected readonly startDateMin = computed<Date | undefined>(() => {
+    if (this.isEditing()) return undefined; // 編輯已開課班級時不限制
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  });
   protected readonly endDateMin = computed<Date | undefined>(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
