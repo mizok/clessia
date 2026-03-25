@@ -40,6 +40,24 @@
     }
   }
 
+  // ---- 篩選列 ----
+  &__filters {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-3);
+    align-items: end;
+  }
+
+  &__filter-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+
+    &--sm {
+      min-width: 110px;
+    }
+  }
+
   // ---- 表單欄位 ----
   &__field {
     display: flex;

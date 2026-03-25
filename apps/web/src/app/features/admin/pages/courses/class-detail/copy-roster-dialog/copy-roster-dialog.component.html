@@ -10,18 +10,32 @@
         </div>
       }
 
-      <!-- 課程篩選 -->
-      <div class="copy-roster-dialog__field">
-        <label class="copy-roster-dialog__label">課程</label>
-        <p-select
-          [options]="courseOptions()"
-          [ngModel]="selectedCourseId()"
-          (ngModelChange)="selectedCourseId.set($event ?? ''); selectedClassId.set(null)"
-          optionLabel="label"
-          optionValue="value"
-          styleClass="w-full"
-          [appendTo]="'body'"
-        />
+      <!-- 課程 + 年級篩選 -->
+      <div class="copy-roster-dialog__filters">
+        <div class="copy-roster-dialog__filter-item">
+          <label class="copy-roster-dialog__label">課程</label>
+          <p-select
+            [options]="courseOptions()"
+            [ngModel]="selectedCourseId()"
+            (ngModelChange)="selectedCourseId.set($event ?? ''); selectedClassId.set(null)"
+            optionLabel="label"
+            optionValue="value"
+            styleClass="w-full"
+            [appendTo]="'body'"
+          />
+        </div>
+        <div class="copy-roster-dialog__filter-item copy-roster-dialog__filter-item--sm">
+          <label class="copy-roster-dialog__label">適合年級</label>
+          <p-select
+            [options]="gradeLevelOptions"
+            [ngModel]="selectedGradeLevel()"
+            (ngModelChange)="selectedGradeLevel.set($event ?? ''); selectedClassId.set(null)"
+            optionLabel="label"
+            optionValue="value"
+            styleClass="w-full"
+            [appendTo]="'body'"
+          />
+        </div>
       </div>
 
       <!-- 班級選擇 -->

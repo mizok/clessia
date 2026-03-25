@@ -16,6 +16,7 @@ import { SelectModule } from 'primeng/select';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TagModule } from 'primeng/tag';
 import { ClassesService, type Class } from '@core/classes.service';
+import { GRADE_LEVELS, GRADE_LEVEL_LABELS } from '@core/students.service';
 import {
   ENROLLMENT_STATUS_LABELS,
   EnrollmentsService,
@@ -32,11 +33,17 @@ interface ClassOption {
   value: string;
   isEnded: boolean;
   hasStudents: boolean;
+  gradeLevels: string[];
 }
 
 interface CourseOption {
   label: string;
   value: string; // courseId
+}
+
+interface GradeLevelOption {
+  label: string;
+  value: string; // grade key e.g. 'J1'
 }
 
 @Component({
@@ -90,11 +97,22 @@ export class CopyRosterDialogComponent implements OnInit {
   /** 目前選中的課程 filter（空字串 = 全部） */
   protected readonly selectedCourseId = signal<string>('');
 
-  /** 依課程篩選後的班級清單（預設排除無學生的班） */
+  /** 目前選中的年級 filter（空字串 = 全部） */
+  protected readonly selectedGradeLevel = signal<string>('');
+
+  /** 年級選項（固定清單，加上「全部年級」） */
+  protected readonly gradeLevelOptions: GradeLevelOption[] = [
+    { label: '全部年級', value: '' },
+    ...GRADE_LEVELS.map((g) => ({ label: GRADE_LEVEL_LABELS[g], value: g })),
+  ];
+
+  /** 依課程 + 年級篩選後的班級清單 */
   protected readonly classOptions = computed<ClassOption[]>(() => {
     const courseId = this.selectedCourseId();
+    const grade = this.selectedGradeLevel();
     return this.allClassOptions().filter((cls) => {
       if (courseId && cls.courseId !== courseId) return false;
+      if (grade && !cls.gradeLevels.includes(grade)) return false;
       return true;
     });
   });
@@ -148,8 +166,7 @@ export class CopyRosterDialogComponent implements OnInit {
               value: cls.id,
               isEnded: !!cls.endDate && cls.endDate < today,
               hasStudents: (cls.scheduleCount ?? 0) > 0 || !cls.isActive,
-              // scheduleCount 不代表學生數，用 enrollmentCount 會更準確；
-              // 但目前 Class 介面沒有 enrollmentCount，先保守地以 isActive 判斷
+              gradeLevels: cls.gradeLevels ?? [],
             }));
 
           // 為了正確判斷「有學生」，用 enrollmentCount 欄位（若後端有回傳）
@@ -257,5 +274,7 @@ export class CopyRosterDialogComponent implements OnInit {
     this.sourceEnrollments.set([]);
     this.selectedStatuses.set(['active', 'pending_payment']);
     this.copyError.set(null);
+    this.selectedCourseId.set('');
+    this.selectedGradeLevel.set('');
   }
 }
