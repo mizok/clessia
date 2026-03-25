@@ -267,9 +267,9 @@ export class ParentImportDialogComponent {
   }
 
   private parseRows(sheetRows: unknown[][]): ParsedRow[] {
-    if (sheetRows.length <= 1) return [];
+    if (sheetRows.length <= 2) return [];
 
-    const dataRows = sheetRows.slice(1).filter((row) => this.hasAnyData(row));
+    const dataRows = sheetRows.slice(2).filter((row) => this.hasAnyData(row));
     const parsedRows = dataRows.map((row, index) => this.parseSingleRow(row, index + 1));
 
     this.applySameNameWarnings(parsedRows);
