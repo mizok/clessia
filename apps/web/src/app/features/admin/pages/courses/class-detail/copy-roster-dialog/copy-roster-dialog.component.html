@@ -1,0 +1,138 @@
+<div class="copy-roster-dialog">
+  @if (step() === 1) {
+    <div class="copy-roster-dialog__body">
+      <p class="copy-roster-dialog__hint">選擇要複製名單的來源班級：</p>
+
+      @if (classesLoading()) {
+        <p-skeleton height="42px" borderRadius="8px" />
+      } @else {
+        <p-select
+          [options]="classOptions()"
+          [ngModel]="selectedClassId()"
+          (ngModelChange)="selectedClassId.set($event ?? null); onClassSelect($event ?? null)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="搜尋或選擇班級…"
+          [filter]="true"
+          filterBy="label,courseName"
+          [showClear]="true"
+          styleClass="w-full"
+          [appendTo]="'body'"
+          [disabled]="enrollmentsLoading()"
+        >
+          <ng-template #selectedItem let-opt>
+            @if (opt) {
+              <div class="copy-roster-dialog__select-item">
+                <span>{{ opt.label }}</span>
+                @if (opt.isEnded) {
+                  <span class="copy-roster-dialog__ended-tag">已結束</span>
+                }
+              </div>
+            }
+          </ng-template>
+          <ng-template #item let-opt>
+            <div class="copy-roster-dialog__option">
+              <div class="copy-roster-dialog__option-main">
+                <span class="copy-roster-dialog__option-name">{{ opt.label }}</span>
+                @if (opt.isEnded) {
+                  <span class="copy-roster-dialog__ended-tag">已結束</span>
+                }
+              </div>
+              @if (opt.courseName) {
+                <span class="copy-roster-dialog__option-course">{{ opt.courseName }}</span>
+              }
+            </div>
+          </ng-template>
+        </p-select>
+      }
+
+      @if (enrollmentsLoading()) {
+        <div class="copy-roster-dialog__loading-hint">
+          <i class="pi pi-spinner pi-spin"></i>
+          <span>正在載入學生名單…</span>
+        </div>
+      }
+
+      @if (copyError()) {
+        <app-inline-notice severity="error" [detail]="copyError()" [dismissible]="false" />
+      }
+    </div>
+
+    <div class="copy-roster-dialog__footer">
+      <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+    </div>
+  }
+
+  @if (step() === 2) {
+    <div class="copy-roster-dialog__body">
+      <p class="copy-roster-dialog__source-name">
+        <i class="pi pi-arrow-right-arrow-left"></i>
+        來源：<strong>{{ selectedClassName() }}</strong>
+      </p>
+
+      <p class="copy-roster-dialog__hint">選擇要複製的學生狀態：</p>
+
+      <div class="copy-roster-dialog__checkboxes">
+        @for (opt of statusOptions; track opt.value) {
+          <div class="copy-roster-dialog__checkbox-row">
+            <p-checkbox
+              [ngModel]="isStatusChecked(opt.value)"
+              (ngModelChange)="toggleStatus(opt.value, $event)"
+              [binary]="true"
+              [inputId]="'status-' + opt.value"
+            />
+            <label [for]="'status-' + opt.value" class="copy-roster-dialog__checkbox-label">
+              {{ opt.label }}
+            </label>
+          </div>
+        }
+      </div>
+
+      <p class="copy-roster-dialog__preview">
+        共 <strong>{{ filteredCount() }}</strong> 位學生將被複製
+      </p>
+
+      @if (copyError()) {
+        <app-inline-notice severity="error" [detail]="copyError()" [dismissible]="false" />
+      }
+    </div>
+
+    <div class="copy-roster-dialog__footer">
+      <p-button
+        label="上一步"
+        [text]="true"
+        severity="secondary"
+        (onClick)="back()"
+        [disabled]="submitting()"
+      />
+      <p-button
+        label="複製"
+        icon="pi pi-copy"
+        [loading]="submitting()"
+        [disabled]="selectedStatuses().length === 0 || filteredCount() === 0"
+        (onClick)="submit()"
+      />
+    </div>
+  }
+
+  @if (step() === 3) {
+    <div class="copy-roster-dialog__body copy-roster-dialog__body--result">
+      <div class="copy-roster-dialog__result-icon">
+        <i class="pi pi-check-circle"></i>
+      </div>
+      <p class="copy-roster-dialog__result-main">
+        成功加入 <strong>{{ copyResult()?.copied ?? 0 }}</strong> 位學生
+      </p>
+      @if ((copyResult()?.skipped ?? 0) > 0) {
+        <p class="copy-roster-dialog__result-skip">
+          <i class="pi pi-info-circle"></i>
+          {{ copyResult()!.skipped }} 位學生已在本班，已略過
+        </p>
+      }
+    </div>
+
+    <div class="copy-roster-dialog__footer">
+      <p-button label="完成" icon="pi pi-check" (onClick)="done()" />
+    </div>
+  }
+</div>
