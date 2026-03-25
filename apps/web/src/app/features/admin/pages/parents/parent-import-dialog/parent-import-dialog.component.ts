@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { finalize } from 'rxjs';
+import { finalize, firstValueFrom } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
@@ -11,6 +11,8 @@ import {
   ParentsService,
   type BatchImportResponse,
   type BatchImportRow,
+  type BatchCheckRow,
+  type BatchCheckResponse,
 } from '../../../../../core/parents.service';
 
 // 年級對照表
@@ -69,6 +71,7 @@ export class ParentImportDialogComponent {
   protected readonly rows = signal<ParsedRow[]>([]);
   protected readonly submitting = signal(false);
   protected readonly submitResult = signal<BatchImportResponse | null>(null);
+  protected readonly dragging = signal(false);
 
   protected readonly hasErrors = computed(() => this.rows().some((row) => row.errors.length > 0));
   protected readonly parentsCount = computed(() => this.countDistinctParents(this.rows()));
@@ -82,22 +85,59 @@ export class ParentImportDialogComponent {
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
     if (!file) return;
+    this.processFile(file);
+    target.value = '';
+  }
 
-    this.parseExcelFile(file)
-      .then((sheetRows) => {
-        const parsedRows = this.parseRows(sheetRows);
-        this.rows.set(parsedRows);
-        this.submitResult.set(null);
-        this.step.set(2);
-      })
-      .catch((error: unknown) => {
-        console.error('解析 Excel 失敗:', error);
-        this.rows.set([]);
-        this.step.set(1);
-      })
-      .finally(() => {
-        target.value = '';
-      });
+  protected onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragging.set(true);
+  }
+
+  protected onDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragging.set(false);
+  }
+
+  protected onDrop(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragging.set(false);
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+    this.processFile(file);
+  }
+
+  private async processFile(file: File): Promise<void> {
+    try {
+      const sheetRows = await this.parseExcelFile(file);
+      const parsedRows = this.parseRows(sheetRows);
+
+      // DB 同名衝突檢查（靜默降級：API 失敗不阻擋流程）
+      const checkRows: BatchCheckRow[] = parsedRows.map((row) => ({
+        parentName: row.parentName,
+        parentPhone: row.parentPhone || undefined,
+        parentEmail: row.parentEmail || undefined,
+      }));
+
+      const dbResult: BatchCheckResponse = await firstValueFrom(
+        this.parentsService.batchCheck(checkRows)
+      ).catch((): BatchCheckResponse => ({ warnings: [] }));
+
+      for (const w of dbResult.warnings) {
+        parsedRows[w.rowIndex]?.warnings.push(w.message);
+      }
+
+      this.rows.set(parsedRows);
+      this.submitResult.set(null);
+      this.step.set(2);
+    } catch (error: unknown) {
+      console.error('解析 Excel 失敗:', error);
+      this.rows.set([]);
+      this.step.set(1);
+    }
   }
 
   protected onSubmit(): void {
@@ -129,11 +169,16 @@ export class ParentImportDialogComponent {
       .pipe(finalize(() => this.submitting.set(false)))
       .subscribe({
         next: (result) => {
+          console.log('[batch-import] result:', result);
+          const failed = result.results.filter((r) => r.status === 'failed');
+          if (failed.length > 0) {
+            console.error('[batch-import] failed rows:', failed);
+          }
           this.submitResult.set(result);
           this.step.set(4);
         },
         error: (error: unknown) => {
-          console.error('批次匯入失敗:', error);
+          console.error('[batch-import] HTTP error:', error);
           this.step.set(2);
         },
       });
@@ -230,7 +275,7 @@ export class ParentImportDialogComponent {
     if (!studentName) errors.push('學生姓名不可空白');
     if (!this.toGradeCode(studentGrade)) errors.push('學生年級格式不正確');
     if (!studentSchool) errors.push('學生就讀學校不可空白');
-    if (!parentPhone && !parentEmail) errors.push('家長電話與 Email 不可同時空白');
+    if (!parentEmail && !parentPhone) errors.push('家長電話與 Email 不可同時空白');
     if (parentPhone && !/^09\d{8}$/.test(parentPhone)) errors.push('家長電話格式錯誤（需為 09 開頭 10 碼）');
     if (parentEmail && !this.isValidEmail(parentEmail)) errors.push('家長 Email 格式錯誤');
 

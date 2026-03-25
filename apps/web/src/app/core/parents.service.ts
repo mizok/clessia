@@ -91,6 +91,22 @@ export interface BatchImportResponse {
   results: BatchImportResultItem[];
 }
 
+export interface BatchCheckRow {
+  parentName: string;
+  parentPhone?: string;
+  parentEmail?: string;
+}
+
+export interface BatchCheckWarning {
+  rowIndex: number; // 0-based, maps to parsedRows array index
+  type: 'same_name_exists';
+  message: string;
+}
+
+export interface BatchCheckResponse {
+  warnings: BatchCheckWarning[];
+}
+
 export const PARENT_STATUS_LABELS: Record<ParentStatus, string> = {
   active: '啟用',
   inactive: '停用',
@@ -138,6 +154,10 @@ export class ParentsService {
 
   batchImport(rows: BatchImportRow[]): Observable<BatchImportResponse> {
     return this.http.post<BatchImportResponse>(`${this.endpoint}/batch-import`, { rows });
+  }
+
+  batchCheck(rows: BatchCheckRow[]): Observable<BatchCheckResponse> {
+    return this.http.post<BatchCheckResponse>(`${this.endpoint}/batch-check`, { rows });
   }
 
   private toQueryParams(params?: ParentQueryParams): Record<string, string | number> {
