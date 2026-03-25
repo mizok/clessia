@@ -164,17 +164,17 @@ BEGIN
             v_subject_name := subject_names[((course_index - 1) % array_length(subject_names, 1)) + 1];
             v_course_name := format('%s %s', v_subject_name, course_themes[course_index]);
             v_grade_levels := CASE course_index
-                WHEN 1 THEN ARRAY['國一']
-                WHEN 2 THEN ARRAY['國二']
-                WHEN 3 THEN ARRAY['國三']
-                WHEN 4 THEN ARRAY['高一']
-                WHEN 5 THEN ARRAY['高二']
-                WHEN 6 THEN ARRAY['高三']
-                WHEN 7 THEN ARRAY['國二', '國三']
-                WHEN 8 THEN ARRAY['小五', '小六']
-                WHEN 9 THEN ARRAY['國一', '國二']
-                WHEN 10 THEN ARRAY['國二', '國三']
-                ELSE ARRAY['高一', '高二']
+                WHEN 1 THEN ARRAY['J1']
+                WHEN 2 THEN ARRAY['J2']
+                WHEN 3 THEN ARRAY['J3']
+                WHEN 4 THEN ARRAY['S1']
+                WHEN 5 THEN ARRAY['S2']
+                WHEN 6 THEN ARRAY['S3']
+                WHEN 7 THEN ARRAY['J2', 'J3']
+                WHEN 8 THEN ARRAY['P5', 'P6']
+                WHEN 9 THEN ARRAY['J1', 'J2']
+                WHEN 10 THEN ARRAY['J2', 'J3']
+                ELSE ARRAY['S1', 'S2']
             END;
 
             INSERT INTO public.courses (org_id, campus_id, name, subject_id, description, is_active, grade_levels)

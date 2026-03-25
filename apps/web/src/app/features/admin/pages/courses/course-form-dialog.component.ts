@@ -89,18 +89,18 @@ export class CourseFormDialogComponent {
   });
 
   protected readonly gradeOptions = [
-    { label: '小一', value: '小一' },
-    { label: '小二', value: '小二' },
-    { label: '小三', value: '小三' },
-    { label: '小四', value: '小四' },
-    { label: '小五', value: '小五' },
-    { label: '小六', value: '小六' },
-    { label: '國一', value: '國一' },
-    { label: '國二', value: '國二' },
-    { label: '國三', value: '國三' },
-    { label: '高一', value: '高一' },
-    { label: '高二', value: '高二' },
-    { label: '高三', value: '高三' },
+    { label: '小一', value: 'P1' },
+    { label: '小二', value: 'P2' },
+    { label: '小三', value: 'P3' },
+    { label: '小四', value: 'P4' },
+    { label: '小五', value: 'P5' },
+    { label: '小六', value: 'P6' },
+    { label: '國一', value: 'J1' },
+    { label: '國二', value: 'J2' },
+    { label: '國三', value: 'J3' },
+    { label: '高一', value: 'S1' },
+    { label: '高二', value: 'S2' },
+    { label: '高三', value: 'S3' },
   ];
 
   protected save(): void {
@@ -118,7 +118,7 @@ export class CourseFormDialogComponent {
       return;
     }
     if (form.gradeLevels.length === 0) {
-      this.messageService.add({ severity: 'warn', summary: '請至少選擇一個學段' });
+      this.messageService.add({ severity: 'warn', summary: '請至少選擇一個適合年級' });
       return;
     }
 
@@ -137,7 +137,12 @@ export class CourseFormDialogComponent {
       this.coursesService.update(this.course()!.id, input).subscribe({
         next: (res: UpdateCourseResult) => {
           const cancelledCount = res.cancelledFutureSessions ?? 0;
-          const detail = this.buildUpdateSuccessDetail(form.name, form.isActive, form.deactivateMode, cancelledCount);
+          const detail = this.buildUpdateSuccessDetail(
+            form.name,
+            form.isActive,
+            form.deactivateMode,
+            cancelledCount,
+          );
           this.messageService.add({
             severity: 'success',
             summary: '更新成功',
