@@ -35,6 +35,7 @@ const ClassSchema = z
     campusId: z.uuid(),
     courseId: z.uuid(),
     courseName: z.string().optional(),
+    campusName: z.string().optional(),
     name: z.string(),
     maxStudents: z.number(),
     gradeLevels: z.array(z.string()),
@@ -271,6 +272,7 @@ function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     campusId: row['campus_id'] as string,
     courseId: row['course_id'] as string,
     courseName: (row['courses'] as { name: string } | null)?.name,
+    campusName: (row['campuses'] as { name: string } | null)?.name,
     name: row['name'] as string,
     maxStudents: row['max_students'] as number,
     gradeLevels: (row['grade_levels'] as string[]) ?? [],
@@ -356,7 +358,7 @@ app.openapi(
 
     let dbQuery = supabase
       .from('classes')
-      .select('*, courses(name), schedules(*, staff(display_name)), ba_user!updated_by(name)', {
+      .select('*, courses(name), campuses(name), schedules(*, staff(display_name)), ba_user!updated_by(name)', {
         count: 'exact',
       });
 
