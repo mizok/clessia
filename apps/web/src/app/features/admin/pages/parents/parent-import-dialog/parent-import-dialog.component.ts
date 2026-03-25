@@ -75,6 +75,8 @@ export class ParentImportDialogComponent {
   protected readonly submitting = signal(false);
   protected readonly submitResult = signal<BatchImportResponse | null>(null);
   protected readonly dragging = signal(false);
+  // 記錄每筆送出行對應的原始 Excel 序號（1-based），用於結果頁顯示
+  protected readonly submittedIndexes = signal<number[]>([]);
 
   protected readonly hasErrors = computed(() => this.rows().some((row) => row.errors.length > 0));
   protected readonly importableCount = computed(
@@ -159,23 +161,23 @@ export class ParentImportDialogComponent {
   }
 
   protected onSubmit(): void {
-    const batchRows: BatchImportRow[] = this.rows()
-      .filter((row) => row.errors.length === 0 && !row.skipped)
-      .map((row) => {
-        const gradeCode = this.toGradeCode(row.studentGrade) ?? row.studentGrade;
-        const genderCode = this.toGenderCode(row.studentGender);
-        return {
-          parentName: row.parentName,
-          parentPhone: row.parentPhone || undefined,
-          parentEmail: row.parentEmail || undefined,
-          parentNotes: row.parentNotes || undefined,
-          studentName: row.studentName,
-          studentGrade: gradeCode,
-          studentSchool: row.studentSchool,
-          studentBirthday: row.studentBirthday || undefined,
-          studentGender: genderCode ?? undefined,
-        };
-      });
+    const importableRows = this.rows().filter((row) => row.errors.length === 0 && !row.skipped);
+    const batchRows: BatchImportRow[] = importableRows.map((row) => {
+      const gradeCode = this.toGradeCode(row.studentGrade) ?? row.studentGrade;
+      const genderCode = this.toGenderCode(row.studentGender);
+      return {
+        parentName: row.parentName,
+        parentPhone: row.parentPhone || undefined,
+        parentEmail: row.parentEmail || undefined,
+        parentNotes: row.parentNotes || undefined,
+        studentName: row.studentName,
+        studentGrade: gradeCode,
+        studentSchool: row.studentSchool,
+        studentBirthday: row.studentBirthday || undefined,
+        studentGender: genderCode ?? undefined,
+      };
+    });
+    this.submittedIndexes.set(importableRows.map((row) => row.index));
 
     if (batchRows.length === 0) return;
 

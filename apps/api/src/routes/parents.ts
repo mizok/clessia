@@ -1018,6 +1018,38 @@ app.openapi(
       });
     }
 
+    // Step 3.5: 預載所有 dbParent 的學生名稱（批次查詢，避免 N+1）
+    const allDbParentIds = (dbParents as Array<{ id: string }>).map((p) => p.id);
+    const { data: allRelData } = await supabase
+      .from('parent_student_relations')
+      .select('parent_id, student_id')
+      .in('parent_id', allDbParentIds);
+
+    const allStudentIds = [
+      ...new Set((allRelData ?? []).map((r: { student_id: string }) => r.student_id)),
+    ];
+    const parentStudentNamesMap = new Map<string, Set<string>>(); // parentId -> Set<normalizedStudentName>
+
+    if (allStudentIds.length > 0) {
+      const { data: allStudents } = await supabase
+        .from('students')
+        .select('id, name')
+        .in('id', allStudentIds);
+
+      const studentNameById = new Map<string, string>();
+      for (const s of (allStudents ?? []) as Array<{ id: string; name: string }>) {
+        studentNameById.set(s.id, s.name.trim().toLowerCase());
+      }
+
+      for (const rel of (allRelData ?? []) as Array<{ parent_id: string; student_id: string }>) {
+        const sName = studentNameById.get(rel.student_id);
+        if (!sName) continue;
+        const bucket = parentStudentNamesMap.get(rel.parent_id) ?? new Set<string>();
+        bucket.add(sName);
+        parentStudentNamesMap.set(rel.parent_id, bucket);
+      }
+    }
+
     // Step 4: 比對每個匯入行
     const warnings: Array<{ rowIndex: number; type: 'same_name_exists' | 'student_already_exists' | 'merging_with_existing'; message: string }> = [];
     const errors: Array<{ rowIndex: number; type: 'student_already_exists' | 'contact_belongs_to_another_parent'; message: string }> = [];
@@ -1056,25 +1088,9 @@ app.openapi(
         const importStudentName = (row.studentName ?? '').trim().toLowerCase();
 
         if (importStudentName) {
-          // 先取 student_id 清單，再查 students，避免 PostgREST join 回傳格式不確定問題
-          const { data: relData } = await supabase
-            .from('parent_student_relations')
-            .select('student_id')
-            .eq('parent_id', mergeTarget.id);
-
-          const studentIds = (relData ?? []).map((r: { student_id: string }) => r.student_id);
-
-          let isDuplicateStudent = false;
-          if (studentIds.length > 0) {
-            const { data: existingStudents } = await supabase
-              .from('students')
-              .select('name')
-              .in('id', studentIds);
-
-            isDuplicateStudent = (existingStudents ?? []).some(
-              (s: { name: string }) => s.name.trim().toLowerCase() === importStudentName,
-            );
-          }
+          // 使用 Step 3.5 預載的 Map，O(1) 查詢，無 N+1 問題
+          const isDuplicateStudent =
+            parentStudentNamesMap.get(mergeTarget.id)?.has(importStudentName) ?? false;
 
           if (isDuplicateStudent) {
             warnings.push({
