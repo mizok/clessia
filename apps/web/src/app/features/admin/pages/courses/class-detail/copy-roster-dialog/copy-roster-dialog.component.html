@@ -1,39 +1,32 @@
 <div class="copy-roster-dialog">
   @if (step() === 1) {
     <div class="copy-roster-dialog__body">
+
       <!-- 分校標注 -->
       @if (campusName) {
         <div class="copy-roster-dialog__campus-badge">
           <i class="pi pi-building"></i>
-          <span>從 <strong>{{ campusName }}</strong> 的其他課程複製名單</span>
+          從 <strong>{{ campusName }}</strong> 的其他課程複製名單
         </div>
       }
 
       <!-- 課程篩選 -->
-      <div class="copy-roster-dialog__filter-row">
-        <label class="copy-roster-dialog__filter-label">課程</label>
+      <div class="copy-roster-dialog__field">
+        <label class="copy-roster-dialog__label">課程</label>
         <p-select
           [options]="courseOptions()"
           [ngModel]="selectedCourseId()"
           (ngModelChange)="selectedCourseId.set($event ?? ''); selectedClassId.set(null)"
           optionLabel="label"
           optionValue="value"
-          styleClass="copy-roster-dialog__course-select"
+          styleClass="w-full"
           [appendTo]="'body'"
         />
-        <label class="copy-roster-dialog__toggle-label">
-          <p-checkbox
-            [ngModel]="showOnlyWithStudents()"
-            (ngModelChange)="showOnlyWithStudents.set($event)"
-            [binary]="true"
-            inputId="only-with-students"
-          />
-          <span>僅顯示有學生的班級</span>
-        </label>
       </div>
 
       <!-- 班級選擇 -->
-      <div class="copy-roster-dialog__class-select-wrap">
+      <div class="copy-roster-dialog__field">
+        <label class="copy-roster-dialog__label">來源班級</label>
         @if (classesLoading()) {
           <p-skeleton height="42px" borderRadius="8px" />
         } @else {
@@ -43,14 +36,14 @@
             (ngModelChange)="selectedClassId.set($event ?? null); onClassSelect($event ?? null)"
             optionLabel="label"
             optionValue="value"
-            placeholder="搜尋或選擇班級…"
+            placeholder="選擇班級…"
             [filter]="true"
             filterBy="label,courseName"
             [showClear]="true"
             styleClass="w-full"
             [appendTo]="'body'"
             [disabled]="enrollmentsLoading()"
-            [emptyMessage]="showOnlyWithStudents() ? '此課程下沒有有學生的班級' : '沒有符合的班級'"
+            [emptyMessage]="'沒有符合的班級'"
           >
             <ng-template #selectedItem let-opt>
               @if (opt) {
@@ -82,7 +75,7 @@
       @if (enrollmentsLoading()) {
         <div class="copy-roster-dialog__loading-hint">
           <i class="pi pi-spinner pi-spin"></i>
-          <span>正在載入學生名單…</span>
+          正在載入學生名單…
         </div>
       }
 
@@ -98,32 +91,32 @@
 
   @if (step() === 2) {
     <div class="copy-roster-dialog__body">
-      <p class="copy-roster-dialog__source-name">
-        <i class="pi pi-arrow-right-arrow-left"></i>
-        來源：<strong>{{ selectedClassName() }}</strong>
-      </p>
-
-      <p class="copy-roster-dialog__hint">選擇要複製的學生狀態：</p>
-
-      <div class="copy-roster-dialog__checkboxes">
-        @for (opt of statusOptions; track opt.value) {
-          <div class="copy-roster-dialog__checkbox-row">
-            <p-checkbox
-              [ngModel]="isStatusChecked(opt.value)"
-              (ngModelChange)="toggleStatus(opt.value, $event)"
-              [binary]="true"
-              [inputId]="'status-' + opt.value"
-            />
-            <label [for]="'status-' + opt.value" class="copy-roster-dialog__checkbox-label">
-              {{ opt.label }}
-            </label>
-          </div>
-        }
+      <div class="copy-roster-dialog__source-banner">
+        <i class="pi pi-copy"></i>
+        <span>複製自 <strong>{{ selectedClassName() }}</strong></span>
       </div>
 
-      <p class="copy-roster-dialog__preview">
-        共 <strong>{{ filteredCount() }}</strong> 位學生將被複製
-      </p>
+      <div class="copy-roster-dialog__status-section">
+        <p class="copy-roster-dialog__label">複製以下狀態的學生</p>
+        <div class="copy-roster-dialog__checkboxes">
+          @for (opt of statusOptions; track opt.value) {
+            <label class="copy-roster-dialog__checkbox-row">
+              <p-checkbox
+                [ngModel]="isStatusChecked(opt.value)"
+                (ngModelChange)="toggleStatus(opt.value, $event)"
+                [binary]="true"
+                [inputId]="'status-' + opt.value"
+              />
+              <span class="copy-roster-dialog__checkbox-label">{{ opt.label }}</span>
+            </label>
+          }
+        </div>
+      </div>
+
+      <div class="copy-roster-dialog__preview">
+        <span class="copy-roster-dialog__preview-count">{{ filteredCount() }}</span>
+        <span class="copy-roster-dialog__preview-text">位學生將被複製</span>
+      </div>
 
       @if (copyError()) {
         <app-inline-notice severity="error" [detail]="copyError()" [dismissible]="false" />
@@ -131,13 +124,7 @@
     </div>
 
     <div class="copy-roster-dialog__footer">
-      <p-button
-        label="上一步"
-        [text]="true"
-        severity="secondary"
-        (onClick)="back()"
-        [disabled]="submitting()"
-      />
+      <p-button label="上一步" [text]="true" severity="secondary" (onClick)="back()" [disabled]="submitting()" />
       <p-button
         label="複製"
         icon="pi pi-copy"
@@ -159,7 +146,7 @@
       @if ((copyResult()?.skipped ?? 0) > 0) {
         <p class="copy-roster-dialog__result-skip">
           <i class="pi pi-info-circle"></i>
-          {{ copyResult()!.skipped }} 位學生已在本班，已略過
+          {{ copyResult()!.skipped }} 位已在本班，已略過
         </p>
       }
     </div>

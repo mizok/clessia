@@ -1,7 +1,6 @@
 .copy-roster-dialog {
   display: flex;
   flex-direction: column;
-  min-height: 240px;
 
   &__body {
     display: flex;
@@ -14,18 +13,18 @@
       align-items: center;
       gap: var(--space-3);
       justify-content: center;
-      padding: var(--space-8) var(--space-5);
+      padding: var(--space-10) var(--space-5);
       text-align: center;
     }
   }
 
+  // ---- 分校標注 ----
   &__campus-badge {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
     background: var(--accent-50);
-    border: 1px solid var(--accent-100);
     border-radius: var(--radius-md);
     font-size: var(--text-sm);
     color: var(--accent-700);
@@ -35,71 +34,28 @@
     }
 
     .pi {
-      font-size: 13px;
-      color: var(--accent-500);
+      color: var(--accent-400);
       flex-shrink: 0;
+      font-size: 13px;
     }
   }
 
-  &__filter-row {
+  // ---- 表單欄位 ----
+  &__field {
     display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-  }
-
-  &__filter-label {
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
-    color: var(--zinc-500);
-    white-space: nowrap;
-  }
-
-  &__course-select {
-    min-width: 160px;
-    flex: 1;
-  }
-
-  &__toggle-label {
-    display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: var(--space-2);
-    cursor: pointer;
-    user-select: none;
-    font-size: var(--text-sm);
-    color: var(--zinc-600);
-    white-space: nowrap;
-    margin-left: auto;
   }
 
-  &__class-select-wrap {
-    // 確保 skeleton 和 select 等高
+  &__label {
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-400);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
   }
 
-  &__hint {
-    margin: 0;
-    color: var(--zinc-600);
-    font-size: var(--text-sm);
-  }
-
-  &__source-name {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    margin: 0;
-    color: var(--zinc-500);
-    font-size: var(--text-sm);
-
-    strong {
-      color: var(--zinc-800);
-    }
-
-    .pi {
-      color: var(--zinc-400);
-      font-size: 12px;
-    }
-  }
-
+  // ---- 下拉選項 ----
   &__select-item {
     display: flex;
     align-items: center;
@@ -134,7 +90,7 @@
     border: 1px solid var(--zinc-200);
     border-radius: var(--radius-full);
     background: var(--zinc-100);
-    color: var(--zinc-500);
+    color: var(--zinc-400);
     font-size: 11px;
     font-weight: var(--font-medium);
     padding: 1px var(--space-2);
@@ -144,41 +100,82 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    color: var(--zinc-500);
+    color: var(--zinc-400);
     font-size: var(--text-sm);
   }
 
-  &__checkboxes {
+  // ---- Step 2 ----
+  &__source-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--zinc-50);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--zinc-600);
+
+    strong {
+      color: var(--zinc-800);
+      font-weight: var(--font-semibold);
+    }
+
+    .pi {
+      color: var(--zinc-400);
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+  }
+
+  &__status-section {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+  }
+
+  &__checkboxes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2) var(--space-4);
   }
 
   &__checkbox-row {
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    cursor: pointer;
+    user-select: none;
   }
 
   &__checkbox-label {
-    cursor: pointer;
-    user-select: none;
-    color: var(--zinc-700);
     font-size: var(--text-sm);
+    color: var(--zinc-700);
   }
 
   &__preview {
-    margin: var(--space-2) 0 0;
-    border-top: 1px solid var(--zinc-100);
-    color: var(--zinc-500);
-    font-size: var(--text-sm);
-    padding-top: var(--space-3);
-
-    strong {
-      color: var(--accent-600);
-    }
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+    background: var(--zinc-50);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--zinc-150, var(--zinc-200));
   }
 
+  &__preview-count {
+    font-size: 1.5rem;
+    font-weight: var(--font-bold);
+    color: var(--accent-600);
+    line-height: 1;
+  }
+
+  &__preview-text {
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+  }
+
+  // ---- Footer ----
   &__footer {
     display: flex;
     justify-content: flex-end;
@@ -187,10 +184,11 @@
     padding: var(--space-4) var(--space-5);
   }
 
+  // ---- Step 3 result ----
   &__result-icon {
     .pi {
       color: #22c55e;
-      font-size: 2.5rem;
+      font-size: 3rem;
     }
   }
 
@@ -201,7 +199,10 @@
 
     strong {
       color: var(--zinc-900);
-      font-size: 1.25rem;
+      font-size: 1.75rem;
+      font-weight: var(--font-bold);
+      display: block;
+      line-height: 1.1;
     }
   }
 
@@ -210,7 +211,7 @@
     align-items: center;
     gap: var(--space-1);
     margin: 0;
-    color: var(--zinc-500);
+    color: var(--zinc-400);
     font-size: var(--text-sm);
 
     .pi {

@@ -90,16 +90,11 @@ export class CopyRosterDialogComponent implements OnInit {
   /** 目前選中的課程 filter（空字串 = 全部） */
   protected readonly selectedCourseId = signal<string>('');
 
-  /** 是否只顯示有學生的班級 */
-  protected readonly showOnlyWithStudents = signal(true);
-
-  /** 依課程 + 是否有學生篩選後的班級清單 */
+  /** 依課程篩選後的班級清單（預設排除無學生的班） */
   protected readonly classOptions = computed<ClassOption[]>(() => {
     const courseId = this.selectedCourseId();
-    const onlyWithStudents = this.showOnlyWithStudents();
     return this.allClassOptions().filter((cls) => {
       if (courseId && cls.courseId !== courseId) return false;
-      if (onlyWithStudents && !cls.hasStudents) return false;
       return true;
     });
   });

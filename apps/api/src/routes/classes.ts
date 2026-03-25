@@ -836,7 +836,7 @@ app.openapi(
     const [classResult, schedulesResult] = await Promise.all([
       supabase
         .from('classes')
-        .select('*, courses(name), ba_user!updated_by(name)')
+        .select('*, courses(name), campuses(name), ba_user!updated_by(name)')
         .eq('id', id)
         .single(),
       supabase.from('schedules').select('*, staff(display_name)').eq('class_id', id),
