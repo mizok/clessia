@@ -29,7 +29,7 @@
           <p-select
             [options]="gradeLevelOptions"
             [ngModel]="selectedGradeLevel()"
-            (ngModelChange)="selectedGradeLevel.set($event ?? ''); selectedClassId.set(null)"
+            (ngModelChange)="selectedGradeLevel.set($event ?? ''); selectedCourseId.set(''); selectedClassId.set(null)"
             optionLabel="label"
             optionValue="value"
             styleClass="w-full"
