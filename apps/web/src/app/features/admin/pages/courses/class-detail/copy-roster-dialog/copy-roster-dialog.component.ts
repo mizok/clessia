@@ -102,10 +102,10 @@ export class CopyRosterDialogComponent implements OnInit {
   /** 目前選中的年級 filter（空字串 = 全部） */
   protected readonly selectedGradeLevel = signal<string>('');
 
-  /** 年級選項（固定清單，加上「全部年級」） */
+  /** 年級選項（value 使用中文 label，與課程表單儲存格式一致） */
   protected readonly gradeLevelOptions: GradeLevelOption[] = [
     { label: '全部年級', value: '' },
-    ...GRADE_LEVELS.map((g) => ({ label: GRADE_LEVEL_LABELS[g], value: g })),
+    ...GRADE_LEVELS.map((g) => ({ label: GRADE_LEVEL_LABELS[g], value: GRADE_LEVEL_LABELS[g] })),
   ];
 
   /** 依課程 + 年級篩選後的班級清單 */
