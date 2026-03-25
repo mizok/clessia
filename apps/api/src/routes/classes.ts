@@ -271,11 +271,11 @@ function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     orgId: row['org_id'] as string,
     campusId: row['campus_id'] as string,
     courseId: row['course_id'] as string,
-    courseName: (row['courses'] as { name: string } | null)?.name,
+    courseName: (row['courses'] as { name: string; grade_levels: string[] } | null)?.name,
     campusName: (row['campuses'] as { name: string } | null)?.name,
     name: row['name'] as string,
     maxStudents: row['max_students'] as number,
-    gradeLevels: (row['grade_levels'] as string[]) ?? [],
+    gradeLevels: (row['courses'] as { name: string; grade_levels: string[] } | null)?.grade_levels ?? [],
     nextClassId: (row['next_class_id'] as string | null) ?? null,
     isActive: row['is_active'] as boolean,
     scheduleCount: extras?.scheduleCount,
@@ -358,7 +358,7 @@ app.openapi(
 
     let dbQuery = supabase
       .from('classes')
-      .select('*, courses(name), campuses(name), schedules(*, staff(display_name)), ba_user!updated_by(name)', {
+      .select('*, courses(name, grade_levels), campuses(name), schedules(*, staff(display_name)), ba_user!updated_by(name)', {
         count: 'exact',
       });
 
@@ -838,7 +838,7 @@ app.openapi(
     const [classResult, schedulesResult] = await Promise.all([
       supabase
         .from('classes')
-        .select('*, courses(name), campuses(name), ba_user!updated_by(name)')
+        .select('*, courses(name, grade_levels), campuses(name), ba_user!updated_by(name)')
         .eq('id', id)
         .single(),
       supabase.from('schedules').select('*, staff(display_name)').eq('class_id', id),
