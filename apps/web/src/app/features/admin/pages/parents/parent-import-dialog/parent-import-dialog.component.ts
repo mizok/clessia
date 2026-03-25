@@ -56,6 +56,7 @@ interface ParsedRow {
   errors: string[];
   warnings: string[];
   mergeNote: string | null;
+  skipped: boolean; // 家長+學生皆已存在，無需匯入
 }
 
 @Component({
@@ -76,6 +77,9 @@ export class ParentImportDialogComponent {
   protected readonly dragging = signal(false);
 
   protected readonly hasErrors = computed(() => this.rows().some((row) => row.errors.length > 0));
+  protected readonly importableCount = computed(
+    () => this.rows().filter((row) => row.errors.length === 0 && !row.skipped).length,
+  );
   protected readonly parentsCount = computed(() => this.countDistinctParents(this.rows()));
   protected readonly failedCount = computed(() => {
     const result = this.submitResult();
@@ -130,7 +134,12 @@ export class ParentImportDialogComponent {
       ).catch((): BatchCheckResponse => ({ warnings: [], merges: [], errors: [] }));
 
       for (const w of dbResult.warnings) {
-        parsedRows[w.rowIndex]?.warnings.push(w.message);
+        if (w.type === 'student_already_exists' && parsedRows[w.rowIndex]) {
+          parsedRows[w.rowIndex].skipped = true;
+          parsedRows[w.rowIndex].warnings.push(w.message);
+        } else {
+          parsedRows[w.rowIndex]?.warnings.push(w.message);
+        }
       }
       for (const m of dbResult.merges) {
         if (parsedRows[m.rowIndex]) {
@@ -153,7 +162,7 @@ export class ParentImportDialogComponent {
 
   protected onSubmit(): void {
     const batchRows: BatchImportRow[] = this.rows()
-      .filter((row) => row.errors.length === 0)
+      .filter((row) => row.errors.length === 0 && !row.skipped)
       .map((row) => {
         const gradeCode = this.toGradeCode(row.studentGrade) ?? row.studentGrade;
         const genderCode = this.toGenderCode(row.studentGender);
@@ -304,6 +313,7 @@ export class ParentImportDialogComponent {
       errors,
       warnings: [],
       mergeNote: null,
+      skipped: false,
     };
   }
 

@@ -1,27 +1,46 @@
-<div class="pid">
+<div class="pid import-dialog">
   @if (step() === 1) {
-    <div class="pid__upload-area">
-      <label class="pid__upload-label">
-        <input
-          class="pid__file-input"
-          type="file"
-          accept=".xlsx,.xls,.csv"
-          (change)="onFileChange($event)"
-        />
-        <span class="pid__upload-title">點擊選擇 Excel 檔案</span>
-        <span class="pid__upload-hint">支援 .xlsx / .xls</span>
-      </label>
-      <a class="pid__template-link" href="/assets/templates/parent-import-template.xlsx" download>
-        下載範本
-      </a>
+    <div
+      class="import-dialog__upload-area"
+      [class.import-dialog__upload-area--drag-over]="dragging()"
+      (click)="fileInput.click()"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)"
+    >
+      <input
+        #fileInput
+        class="import-dialog__file-input"
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        (change)="onFileChange($event)"
+      />
+      <div class="import-dialog__upload-icon">
+        <i class="pi pi-cloud-upload"></i>
+      </div>
+      <span class="import-dialog__upload-title">點擊或拖曳 Excel 檔案至此</span>
+      <span class="import-dialog__upload-hint">支援 .xlsx / .xls / .csv</span>
     </div>
-    <div class="pid__footer pid__footer--single">
+
+    <a
+      class="import-dialog__template-link"
+      href="/assets/templates/parent-import-template.xlsx"
+      download
+      (click)="$event.stopPropagation()"
+    >
+      <i class="pi pi-download"></i>
+      下載範本
+    </a>
+
+    <div class="import-dialog__footer import-dialog__footer--single">
       <button pButton type="button" severity="secondary" (click)="onClose()">取消</button>
     </div>
   }
 
   @if (step() === 2) {
-    <div class="pid__summary">共 {{ rows().length }} 筆、去重後 {{ parentsCount() }} 位家長</div>
+    <div class="import-dialog__summary">
+      共 {{ rows().length }} 筆、去重後 {{ parentsCount() }} 位家長
+    </div>
 
     <p-table [value]="rows()" [scrollable]="true" scrollHeight="400px">
       <ng-template pTemplate="header">
@@ -51,6 +70,9 @@
               @if (row.errors.length > 0) {
                 <p-tag severity="danger" [value]="'錯誤 ' + row.errors.length"></p-tag>
                 <small class="pid__status-text">{{ row.errors[0] }}</small>
+              } @else if (row.skipped) {
+                <p-tag severity="secondary" value="無需匯入"></p-tag>
+                <small class="pid__status-text">{{ row.warnings[0] }}</small>
               } @else {
                 <div class="pid__status-tags">
                   @if (row.warnings.length > 0) {
@@ -76,42 +98,70 @@
       </ng-template>
     </p-table>
 
-    <div class="pid__footer">
+    <div class="import-dialog__footer">
       <button pButton type="button" severity="secondary" (click)="onClose()">取消</button>
       <button
         pButton
         type="button"
-        [disabled]="hasErrors() || submitting()"
+        [disabled]="hasErrors() || importableCount() === 0 || submitting()"
         (click)="onSubmit()"
       >
-        確認匯入 {{ rows().length }} 筆
+        確認匯入 {{ importableCount() }} 筆
       </button>
     </div>
   }
 
   @if (step() === 3) {
-    <div class="pid__loading">
+    <div class="import-dialog__loading">
       <p-progress-spinner strokeWidth="4"></p-progress-spinner>
-      <p>處理中，請稍候...</p>
+      <p class="import-dialog__loading-text">處理中，請稍候...</p>
     </div>
   }
 
   @if (step() === 4) {
-    <div class="pid__result">
+    <div class="import-dialog__result">
+      <div class="import-dialog__result-icon import-dialog__result-icon--success">
+        <i class="pi pi-check"></i>
+      </div>
+
+      <p class="import-dialog__result-title">匯入完成</p>
+
       @if (submitResult(); as result) {
-        <h3>匯入完成</h3>
-        <p>成功建立家長 {{ result.parentsCreated }} 個</p>
-        <p>成功建立學生 {{ result.studentsCreated }} 個</p>
-        <p>失敗 {{ failedCount() }} 筆</p>
-      } @else {
-        <h3>匯入結果</h3>
+        <div class="import-dialog__result-stats">
+          <div class="import-dialog__result-stat">
+            <span class="import-dialog__result-stat-value">{{ result.parentsCreated }}</span>
+            <span class="import-dialog__result-stat-label">家長建立</span>
+          </div>
+          <div class="import-dialog__result-stat">
+            <span class="import-dialog__result-stat-value">{{ result.studentsCreated }}</span>
+            <span class="import-dialog__result-stat-label">學生建立</span>
+          </div>
+          @if (failedCount() > 0) {
+            <div class="import-dialog__result-stat import-dialog__result-stat--muted">
+              <span class="import-dialog__result-stat-value">{{ failedCount() }}</span>
+              <span class="import-dialog__result-stat-label">失敗</span>
+            </div>
+          }
+        </div>
+        @if (failedCount() > 0) {
+          <div class="pid__error-list">
+            @for (r of result.results; track r.rowIndex) {
+              @if (r.status === 'failed') {
+                <div class="pid__error-item">
+                  <span class="pid__error-row">第 {{ r.rowIndex + 1 }} 筆</span>
+                  <span class="pid__error-msg">{{ r.error }}</span>
+                </div>
+              }
+            }
+          </div>
+        }
       }
 
       <p class="pid__result-note">
         各帳號已建立，請透過家長管理頁的「重設密碼」功能取得初始密碼後，再通知家長登入。
       </p>
 
-      <div class="pid__footer pid__footer--single">
+      <div class="import-dialog__footer import-dialog__footer--single">
         <button pButton type="button" (click)="onDone()">完成</button>
       </div>
     </div>
