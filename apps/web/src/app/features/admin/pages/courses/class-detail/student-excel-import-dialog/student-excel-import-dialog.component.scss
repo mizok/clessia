@@ -1,72 +1,8 @@
 .seid {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-
-  &__upload-area {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    border: 1px dashed var(--p-surface-300);
-    border-radius: 12px;
-    background: var(--p-surface-0);
-  }
-
-  &__template-link {
-    width: fit-content;
-    color: var(--p-primary-color);
-    text-decoration: underline;
-  }
-
-  &__spinner-wrap {
-    display: flex;
-    justify-content: center;
-    padding: var(--space-4) 0;
-  }
-
-  &__summary {
-    font-weight: 600;
-    color: var(--p-text-color);
-  }
-
+  // Over-quota warning shown above the action buttons in step 2
   &__warning {
     color: var(--p-red-600);
-    font-weight: 600;
-  }
-
-  &__actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-3);
-    margin-top: var(--space-2);
-
-    &--single {
-      justify-content: center;
-    }
-  }
-
-  &__processing {
-    min-height: 200px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-3);
-  }
-
-  &__processing-text,
-  &__result-text {
-    color: var(--p-text-color);
-    text-align: center;
-  }
-
-  &__result {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-    align-items: center;
-    justify-content: center;
-    min-height: 160px;
+    font-weight: var(--font-semibold);
+    font-size: var(--text-base);
   }
 }

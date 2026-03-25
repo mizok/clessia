@@ -77,9 +77,9 @@
             @if (r.status === 'ambiguous') {
               <p-select
                 [options]="candidateOptions(r.candidates)"
-                optionLabel="name"
-                optionValue="id"
-                placeholder="請選擇學生"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="請選擇學生（同名）"
                 (onChange)="resolveAmbiguous(r.index, $event.value)"
               />
             }

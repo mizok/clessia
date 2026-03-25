@@ -206,7 +206,20 @@ export class StudentExcelImportDialogComponent {
     this.ref.close(success > 0 && !this.overQuota() && !this.submitFailed() ? 'imported' : undefined);
   }
 
-  protected candidateOptions(candidates?: BatchMatchCandidate[]): BatchMatchCandidate[] {
-    return candidates ?? [];
+  protected candidateOptions(candidates?: BatchMatchCandidate[]): { label: string; value: string }[] {
+    return (candidates ?? []).map((c) => ({
+      label: this.buildCandidateLabel(c),
+      value: c.id,
+    }));
+  }
+
+  private buildCandidateLabel(c: BatchMatchCandidate): string {
+    const parts: string[] = [c.name];
+    const details: string[] = [];
+    if (c.grade) details.push(c.grade);
+    if (c.school) details.push(c.school);
+    if (c.birthday) details.push(c.birthday);
+    if (details.length > 0) parts.push(`（${details.join('・')}）`);
+    return parts.join('');
   }
 }
