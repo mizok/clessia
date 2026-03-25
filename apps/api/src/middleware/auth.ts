@@ -36,3 +36,23 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
 
   return next();
 });
+
+export const requireAdminMiddleware = createMiddleware<AppEnv>(async (c, next) => {
+  const supabase = c.get('supabase');
+  const userId = c.get('userId');
+  const orgId = c.get('orgId');
+
+  const { data: roleRow } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .eq('org_id', orgId)
+    .eq('role', 'admin')
+    .maybeSingle();
+
+  if (!roleRow) {
+    return c.json({ error: '權限不足，僅管理者可執行此操作', code: 'FORBIDDEN' }, 403);
+  }
+
+  return next();
+});

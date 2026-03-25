@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { createAuth } from '../auth';
+import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 
@@ -960,6 +961,7 @@ app.openapi(
     path: '/batch-check',
     tags: ['Parents'],
     summary: '批次匯入前 DB 同名衝突預檢（僅讀取）',
+    middleware: [requireAdminMiddleware] as const,
     request: {
       body: { content: { 'application/json': { schema: BatchCheckBodySchema } } },
     },
@@ -969,6 +971,7 @@ app.openapi(
         content: { 'application/json': { schema: BatchCheckResponseSchema } },
       },
       400: { description: '請求格式錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -997,7 +1000,7 @@ app.openapi(
       .from('parents')
       .select('id, name, user_id')
       .eq('org_id', orgId)
-      .or(namesToQuery.map((n) => `name.ilike.${n}`).join(','));
+      .or(namesToQuery.map((n) => `name.ilike."${n.replace(/"/g, '\\"')}"`).join(','));
 
     if (parentsError || !dbParents || dbParents.length === 0) {
       return c.json({ warnings: [], errors: [] }, 200);
@@ -1223,6 +1226,7 @@ app.openapi(
     path: '/batch-import',
     tags: ['Parents'],
     summary: '批次匯入家長與學生（Excel 批次建立）',
+    middleware: [requireAdminMiddleware] as const,
     request: {
       body: { content: { 'application/json': { schema: BatchImportBodySchema } } },
     },
@@ -1232,6 +1236,7 @@ app.openapi(
         content: { 'application/json': { schema: BatchImportResponseSchema } },
       },
       400: { description: '請求格式錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
