@@ -1059,14 +1059,25 @@ app.openapi(
         const importStudentName = (row.studentName ?? '').trim().toLowerCase();
 
         if (importStudentName) {
-          const { data: relations } = await supabase
+          // 先取 student_id 清單，再查 students，避免 PostgREST join 回傳格式不確定問題
+          const { data: relData } = await supabase
             .from('parent_student_relations')
-            .select('students!inner(id, name)')
+            .select('student_id')
             .eq('parent_id', mergeTarget.id);
 
-          const isDuplicateStudent = (relations ?? []).some((r: { students: { id: string; name: string }[] }) =>
-            r.students.some((s) => s.name.trim().toLowerCase() === importStudentName),
-          );
+          const studentIds = (relData ?? []).map((r: { student_id: string }) => r.student_id);
+
+          let isDuplicateStudent = false;
+          if (studentIds.length > 0) {
+            const { data: existingStudents } = await supabase
+              .from('students')
+              .select('name')
+              .in('id', studentIds);
+
+            isDuplicateStudent = (existingStudents ?? []).some(
+              (s: { name: string }) => s.name.trim().toLowerCase() === importStudentName,
+            );
+          }
 
           if (isDuplicateStudent) {
             errors.push({
