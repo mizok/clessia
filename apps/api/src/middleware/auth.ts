@@ -42,13 +42,17 @@ export const requireAdminMiddleware = createMiddleware<AppEnv>(async (c, next) =
   const userId = c.get('userId');
   const orgId = c.get('orgId');
 
-  const { data: roleRow } = await supabase
+  const { data: roleRow, error } = await supabase
     .from('user_roles')
     .select('role')
     .eq('user_id', userId)
     .eq('org_id', orgId)
     .eq('role', 'admin')
     .maybeSingle();
+
+  if (error) {
+    return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+  }
 
   if (!roleRow) {
     return c.json({ error: '權限不足，僅管理者可執行此操作', code: 'FORBIDDEN' }, 403);

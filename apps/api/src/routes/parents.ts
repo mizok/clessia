@@ -90,7 +90,8 @@ const ErrorSchema = z
 
 export function generateRandomPassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  const randomValues = crypto.getRandomValues(new Uint32Array(10));
+  return Array.from(randomValues, (value) => chars[value % chars.length]).join('');
 }
 
 export function generatePlaceholderEmail(phone: string, domain: string | undefined): string {
@@ -148,6 +149,14 @@ function isDuplicateUsernameError(message: string): boolean {
 
 function normalizeParentName(name: string): string {
   return name.trim().toLowerCase();
+}
+
+function quotePostgrestValue(value: string): string {
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
+function buildPostgrestEq(field: string, value: string): string {
+  return `${field}.eq.${quotePostgrestValue(value)}`;
 }
 
 // ============================================================
@@ -972,6 +981,7 @@ app.openapi(
       },
       400: { description: '請求格式錯誤', content: { 'application/json': { schema: ErrorSchema } } },
       403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -1002,7 +1012,12 @@ app.openapi(
       .eq('org_id', orgId)
       .or(namesToQuery.map((n) => `name.ilike."${n.replace(/"/g, '\\"')}"`).join(','));
 
-    if (parentsError || !dbParents || dbParents.length === 0) {
+    if (parentsError || !dbParents) {
+      console.error('[batch-check] Step2 query parents failed:', parentsError);
+      return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+    }
+
+    if (dbParents.length === 0) {
       return c.json({ warnings: [], errors: [] }, 200);
     }
 
@@ -1020,10 +1035,15 @@ app.openapi(
 
     // Step 3.5: 預載所有 dbParent 的學生名稱（批次查詢，避免 N+1）
     const allDbParentIds = (dbParents as Array<{ id: string }>).map((p) => p.id);
-    const { data: allRelData } = await supabase
+    const { data: allRelData, error: allRelError } = await supabase
       .from('parent_student_relations')
       .select('parent_id, student_id')
       .in('parent_id', allDbParentIds);
+
+    if (allRelError || !allRelData) {
+      console.error('[batch-check] Step3.5 query parent_student_relations failed:', allRelError);
+      return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+    }
 
     const allStudentIds = [
       ...new Set((allRelData ?? []).map((r: { student_id: string }) => r.student_id)),
@@ -1031,10 +1051,15 @@ app.openapi(
     const parentStudentNamesMap = new Map<string, Set<string>>(); // parentId -> Set<normalizedStudentName>
 
     if (allStudentIds.length > 0) {
-      const { data: allStudents } = await supabase
+      const { data: allStudents, error: allStudentsError } = await supabase
         .from('students')
         .select('id, name')
         .in('id', allStudentIds);
+
+      if (allStudentsError || !allStudents) {
+        console.error('[batch-check] Step3.5 query students failed:', allStudentsError);
+        return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+      }
 
       const studentNameById = new Map<string, string>();
       for (const s of (allStudents ?? []) as Array<{ id: string; name: string }>) {
@@ -1132,20 +1157,25 @@ app.openapi(
 
     const contactOrParts: string[] = [];
     for (const phone of phoneRowMap.keys()) {
-      contactOrParts.push(`phone.eq.${phone}`);
-      contactOrParts.push(`username.eq.${phone}`);
+      contactOrParts.push(buildPostgrestEq('phone', phone));
+      contactOrParts.push(buildPostgrestEq('username', phone));
     }
     for (const email of emailRowMap.keys()) {
-      contactOrParts.push(`email.eq.${email}`);
+      contactOrParts.push(buildPostgrestEq('email', email));
     }
 
     if (contactOrParts.length > 0) {
-      const { data: contactMatches } = await supabase
+      const { data: contactMatches, error: contactMatchesError } = await supabase
         .from('ba_user')
         .select('id, phone, email, username')
         .or(contactOrParts.join(','));
 
-      if (contactMatches && contactMatches.length > 0) {
+      if (contactMatchesError || !contactMatches) {
+        console.error('[batch-check] Step5 query ba_user contacts failed:', contactMatchesError);
+        return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+      }
+
+      if (contactMatches.length > 0) {
         const matchedUserIds = (contactMatches as Array<{ id: string }>).map((u) => u.id);
         const { data: contactParents } = await supabase
           .from('parents')
@@ -1158,6 +1188,7 @@ app.openapi(
           userIdToParentName.set(p.user_id, p.name.trim());
         }
 
+        const errorRowIndexSet = new Set<number>();
         for (const u of contactMatches as Array<{
           id: string;
           phone: string | null;
@@ -1177,11 +1208,13 @@ app.openapi(
           for (const rowIndex of affectedIndexes) {
             const importName = rows[rowIndex].parentName.trim();
             if (normalizeParentName(importName) === normalizeParentName(existingName)) continue; // 同名 → Step 4 已處理
+            if (errorRowIndexSet.has(rowIndex)) continue;
             errors.push({
               rowIndex,
               type: 'contact_belongs_to_another_parent',
               message: `此電話／Email 已屬於家長「${existingName}」，無法建立為「${importName}」`,
             });
+            errorRowIndexSet.add(rowIndex);
           }
         }
       }
@@ -1328,11 +1361,11 @@ app.openapi(
 
         if (normalizedPhone || normalizedEmail) {
           const orParts: string[] = [];
-          if (normalizedEmail) orParts.push(`email.eq.${normalizedEmail}`);
+          if (normalizedEmail) orParts.push(buildPostgrestEq('email', normalizedEmail));
           if (normalizedPhone) {
-            orParts.push(`phone.eq.${normalizedPhone}`);
+            orParts.push(buildPostgrestEq('phone', normalizedPhone));
             // phone-only 家長的 username 即為 phone，舊資料 phone 欄位可能為 null
-            orParts.push(`username.eq.${normalizedPhone}`);
+            orParts.push(buildPostgrestEq('username', normalizedPhone));
           }
 
           const { data: baMatches } = await supabase
@@ -1396,10 +1429,10 @@ app.openapi(
             if (isDuplicateEmailError(msg) || isDuplicateUsernameError(msg)) {
               const orParts: string[] = [];
               // rowAuthEmail 涵蓋真實 email 或 placeholder（phone@phone.internal）
-              orParts.push(`email.eq.${rowAuthEmail}`);
+              orParts.push(buildPostgrestEq('email', rowAuthEmail));
               if (normalizedPhone) {
-                orParts.push(`phone.eq.${normalizedPhone}`);
-                orParts.push(`username.eq.${normalizedPhone}`);
+                orParts.push(buildPostgrestEq('phone', normalizedPhone));
+                orParts.push(buildPostgrestEq('username', normalizedPhone));
               }
 
               if (orParts.length > 0) {

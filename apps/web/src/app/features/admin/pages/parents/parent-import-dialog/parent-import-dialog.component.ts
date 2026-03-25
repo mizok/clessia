@@ -126,28 +126,39 @@ export class ParentImportDialogComponent {
       const parsedRows = this.parseRows(sheetRows);
 
       // DB 衝突預檢（靜默降級：API 失敗不阻擋流程）
-      const checkRows: BatchCheckRow[] = parsedRows.map((row) => ({
+      const checkableRows = parsedRows
+        .map((row, originalIndex) => ({ row, originalIndex }))
+        .filter(({ row }) => row.errors.length === 0);
+      const checkRows: BatchCheckRow[] = checkableRows.map(({ row }) => ({
         parentName: row.parentName,
         parentPhone: row.parentPhone || undefined,
         parentEmail: row.parentEmail || undefined,
         studentName: row.studentName || undefined,
       }));
 
-      const dbResult: BatchCheckResponse = await firstValueFrom(
-        this.parentsService.batchCheck(checkRows),
-      ).catch((): BatchCheckResponse => ({ warnings: [], errors: [] }));
+      const dbResult: BatchCheckResponse =
+        checkRows.length > 0
+          ? await firstValueFrom(this.parentsService.batchCheck(checkRows)).catch(
+              (): BatchCheckResponse => ({ warnings: [], errors: [] }),
+            )
+          : { warnings: [], errors: [] };
 
       for (const w of dbResult.warnings) {
-        if (w.type === 'student_already_exists' && parsedRows[w.rowIndex]) {
-          parsedRows[w.rowIndex].skipped = true;
-          parsedRows[w.rowIndex].skipReason = w.message;
-          parsedRows[w.rowIndex].warnings.push(w.message);
+        const mappedRowIndex = checkableRows[w.rowIndex]?.originalIndex;
+        if (mappedRowIndex === undefined || !parsedRows[mappedRowIndex]) continue;
+
+        if (w.type === 'student_already_exists') {
+          parsedRows[mappedRowIndex].skipped = true;
+          parsedRows[mappedRowIndex].skipReason = w.message;
+          parsedRows[mappedRowIndex].warnings.push(w.message);
         } else {
-          parsedRows[w.rowIndex]?.warnings.push(w.message);
+          parsedRows[mappedRowIndex].warnings.push(w.message);
         }
       }
       for (const e of dbResult.errors) {
-        parsedRows[e.rowIndex]?.errors.push(e.message);
+        const mappedRowIndex = checkableRows[e.rowIndex]?.originalIndex;
+        if (mappedRowIndex === undefined) continue;
+        parsedRows[mappedRowIndex]?.errors.push(e.message);
       }
 
       this.rows.set(parsedRows);
