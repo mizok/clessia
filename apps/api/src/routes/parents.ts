@@ -930,7 +930,7 @@ const BatchCheckBodySchema = z
 const BatchCheckWarningSchema = z
   .object({
     rowIndex: z.number().int().min(0),
-    type: z.enum(['same_name_exists', 'student_already_exists']),
+    type: z.enum(['same_name_exists', 'student_already_exists', 'merging_with_existing']),
     message: z.string(),
   })
   .openapi('BatchCheckWarning');
@@ -1090,7 +1090,7 @@ app.openapi(
         }
 
         // canMerge = true + 無重複學生
-        merges.push({
+        warnings.push({
           rowIndex,
           type: 'merging_with_existing',
           message: '此家長已存在於系統，匯入將合併至現有帳號',
