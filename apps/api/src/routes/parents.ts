@@ -946,7 +946,7 @@ const BatchCheckMergeSchema = z
 const BatchCheckErrorSchema = z
   .object({
     rowIndex: z.number().int().min(0),
-    type: z.literal('student_already_exists'),
+    type: z.enum(['student_already_exists', 'contact_belongs_to_another_parent']),
     message: z.string(),
   })
   .openapi('BatchCheckError');
@@ -1023,7 +1023,7 @@ app.openapi(
     // Step 4: 比對每個匯入行
     const warnings: Array<{ rowIndex: number; type: 'same_name_exists' | 'student_already_exists' | 'merging_with_existing'; message: string }> = [];
     const merges: Array<{ rowIndex: number; type: 'merging_with_existing'; message: string }> = [];
-    const errors: Array<{ rowIndex: number; type: 'student_already_exists'; message: string }> = []; // 保留供未來使用
+    const errors: Array<{ rowIndex: number; type: 'student_already_exists' | 'contact_belongs_to_another_parent'; message: string }> = [];
 
     for (const [normalizedName, rowIndexes] of nameMap.entries()) {
       const matchingDbParents = (dbParents as Array<{ id: string; name: string; user_id: string }>).filter(
@@ -1095,6 +1095,82 @@ app.openapi(
           type: 'merging_with_existing',
           message: '此家長已存在於系統，匯入將合併至現有帳號',
         });
+      }
+    }
+
+    // Step 5: 反向查詢 — 電話/Email 是否已屬於「不同名」的家長
+    const phoneRowMap = new Map<string, number[]>();
+    const emailRowMap = new Map<string, number[]>();
+
+    for (let i = 0; i < rows.length; i++) {
+      const phone = (rows[i].parentPhone ?? '').trim();
+      const email = (rows[i].parentEmail ?? '').trim().toLowerCase();
+      if (phone) {
+        const b = phoneRowMap.get(phone) ?? [];
+        b.push(i);
+        phoneRowMap.set(phone, b);
+      }
+      if (email) {
+        const b = emailRowMap.get(email) ?? [];
+        b.push(i);
+        emailRowMap.set(email, b);
+      }
+    }
+
+    const contactOrParts: string[] = [];
+    for (const phone of phoneRowMap.keys()) {
+      contactOrParts.push(`phone.eq.${phone}`);
+      contactOrParts.push(`username.eq.${phone}`);
+    }
+    for (const email of emailRowMap.keys()) {
+      contactOrParts.push(`email.eq.${email}`);
+    }
+
+    if (contactOrParts.length > 0) {
+      const { data: contactMatches } = await supabase
+        .from('ba_user')
+        .select('id, phone, email, username')
+        .or(contactOrParts.join(','));
+
+      if (contactMatches && contactMatches.length > 0) {
+        const matchedUserIds = (contactMatches as Array<{ id: string }>).map((u) => u.id);
+        const { data: contactParents } = await supabase
+          .from('parents')
+          .select('id, name, user_id')
+          .eq('org_id', orgId)
+          .in('user_id', matchedUserIds);
+
+        const userIdToParentName = new Map<string, string>();
+        for (const p of (contactParents ?? []) as Array<{ user_id: string; name: string }>) {
+          userIdToParentName.set(p.user_id, p.name.trim());
+        }
+
+        for (const u of contactMatches as Array<{
+          id: string;
+          phone: string | null;
+          email: string | null;
+          username: string | null;
+        }>) {
+          const existingName = userIdToParentName.get(u.id);
+          if (!existingName) continue;
+
+          const affectedIndexes = new Set<number>();
+          if (u.phone) phoneRowMap.get(u.phone)?.forEach((i) => affectedIndexes.add(i));
+          if (u.username) phoneRowMap.get(u.username)?.forEach((i) => affectedIndexes.add(i));
+          if (u.email && !isPlaceholderEmail(u.email, placeholderDomain)) {
+            emailRowMap.get(u.email.toLowerCase())?.forEach((i) => affectedIndexes.add(i));
+          }
+
+          for (const rowIndex of affectedIndexes) {
+            const importName = rows[rowIndex].parentName.trim();
+            if (importName.toLowerCase() === existingName.toLowerCase()) continue; // 同名 → Step 4 已處理
+            errors.push({
+              rowIndex,
+              type: 'contact_belongs_to_another_parent',
+              message: `此電話／Email 已屬於家長「${existingName}」，無法建立為「${importName}」`,
+            });
+          }
+        }
       }
     }
 

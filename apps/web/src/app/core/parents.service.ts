@@ -112,7 +112,7 @@ export interface BatchCheckMerge {
 
 export interface BatchCheckError {
   rowIndex: number; // 0-based array index
-  type: 'student_already_exists';
+  type: 'student_already_exists' | 'contact_belongs_to_another_parent';
   message: string;
 }
 
