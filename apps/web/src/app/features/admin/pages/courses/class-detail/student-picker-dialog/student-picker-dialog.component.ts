@@ -177,9 +177,11 @@ export class StudentPickerDialogComponent implements OnInit {
         },
         error: (err) => {
           this.confirming.set(false);
-          const code = err.error?.error;
+          const code = err?.error?.code ?? err?.error?.error;
           this.confirmError.set(
-            code === 'over_quota' ? '超過班級人數上限，請減少加入人數' : '加入失敗，請稍後再試',
+            code === 'OVER_QUOTA' || code === 'over_quota'
+              ? '超過班級人數上限，請減少加入人數'
+              : '加入失敗，請稍後再試',
           );
         },
       });

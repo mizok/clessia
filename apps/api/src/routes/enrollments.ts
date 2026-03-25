@@ -167,7 +167,12 @@ export function toEnrollmentResponse(row: any): z.infer<typeof EnrollmentSchema>
 // Shared schemas
 // ============================================================
 
-const ErrorSchema = z.object({ error: z.string() }).openapi('EnrollmentError');
+const ErrorSchema = z
+  .object({
+    error: z.string(),
+    code: z.string().optional(),
+  })
+  .openapi('EnrollmentError');
 
 // ============================================================
 // Routes
@@ -395,31 +400,46 @@ app.openapi(
     const orgId = c.get('orgId');
     const userId = c.get('userId');
     const supabase = c.get('supabase');
+    const uniqueStudentIds = Array.from(new Set(studentIds));
 
-    const { data: cls } = await supabase
+    const { data: cls, error: classError } = await supabase
       .from('classes')
       .select('max_students')
       .eq('id', classId)
       .eq('org_id', orgId)
-      .single();
+      .maybeSingle();
 
+    if (classError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
     if (!cls) return c.json({ error: 'CLASS_NOT_FOUND' }, 404);
 
-    const { count: activeCount } = await supabase
+    const { count: activeCount, error: activeCountError } = await supabase
       .from('enrollments')
       .select('*', { count: 'exact', head: true })
       .eq('class_id', classId)
       .eq('org_id', orgId)
       .in('status', ['active', 'pending_payment']);
 
-    if ((activeCount ?? 0) + studentIds.length > (cls.max_students ?? 9999)) {
-      return c.json({ error: 'over_quota' }, 400);
+    if (activeCountError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+
+    const { count: alreadyInCount, error: alreadyInCountError } = await supabase
+      .from('enrollments')
+      .select('*', { count: 'exact', head: true })
+      .eq('class_id', classId)
+      .eq('org_id', orgId)
+      .in('status', ['active', 'pending_payment'])
+      .in('student_id', uniqueStudentIds);
+
+    if (alreadyInCountError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+
+    const projectedNewCount = uniqueStudentIds.length - (alreadyInCount ?? 0);
+    if ((activeCount ?? 0) + projectedNewCount > (cls.max_students ?? 9999)) {
+      return c.json({ error: '人數已達上限', code: 'OVER_QUOTA' }, 400);
     }
 
     const today = new Date().toISOString().slice(0, 10);
     const results: z.infer<typeof BatchCreateResultItemSchema>[] = [];
 
-    for (const studentId of studentIds) {
+    for (const studentId of uniqueStudentIds) {
       const { data, error } = await supabase
         .from('enrollments')
         .insert({
@@ -500,6 +520,7 @@ app.openapi(
     request: { body: { content: { 'application/json': { schema: BatchMatchBodySchema } } } },
     responses: {
       200: { content: { 'application/json': { schema: BatchMatchResponseSchema } }, description: 'OK' },
+      404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Class not found' },
       500: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Internal Server Error' },
     },
   }),
@@ -508,42 +529,70 @@ app.openapi(
     const orgId = c.get('orgId');
     const supabase = c.get('supabase');
 
+    const { data: classData, error: classError } = await supabase
+      .from('classes')
+      .select('id')
+      .eq('id', body.classId)
+      .eq('org_id', orgId)
+      .maybeSingle();
+
+    if (classError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+    if (!classData) return c.json({ error: 'CLASS_NOT_FOUND' }, 404);
+
     const { data: enrolled, error: enrolledError } = await supabase
       .from('enrollments')
       .select('student_id')
       .eq('class_id', body.classId)
-      .in('status', ['active', 'pending_payment']);
+      .eq('org_id', orgId)
+      .not('status', 'in', '(withdrawal,void)');
 
     if (enrolledError) return c.json({ error: enrolledError.message }, 500);
 
     const enrolledIds = new Set((enrolled ?? []).map((e) => e.student_id));
-    const results: z.infer<typeof BatchMatchResultItemSchema>[] = [];
+    const uniqueNames = Array.from(new Set(body.items.map((item) => item.name.trim()).filter(Boolean)));
+    const uniqueSchools = Array.from(
+      new Set(body.items.map((item) => item.school.trim()).filter(Boolean)),
+    );
 
-    for (const [index, item] of body.items.entries()) {
-      const { data: exactMatches, error: exactError } = await supabase
+    let students: z.infer<typeof BatchMatchCandidateSchema>[] = [];
+    if (uniqueNames.length > 0 && uniqueSchools.length > 0) {
+      const { data: allCandidates, error: candidatesError } = await supabase
         .from('students')
         .select('id, name, grade, school, birthday')
         .eq('org_id', orgId)
-        .eq('name', item.name)
-        .eq('school', item.school)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .in('name', uniqueNames)
+        .in('school', uniqueSchools);
 
-      if (exactError) return c.json({ error: exactError.message }, 500);
+      if (candidatesError) return c.json({ error: candidatesError.message }, 500);
+      students = allCandidates ?? [];
+    }
 
-      let candidates = exactMatches ?? [];
+    const exactIndex = new Map<string, z.infer<typeof BatchMatchCandidateSchema>[]>();
+    const ilikeIndex = new Map<string, z.infer<typeof BatchMatchCandidateSchema>[]>();
 
-      if (candidates.length === 0) {
-        const { data: ilikeMatches, error: ilikeError } = await supabase
-          .from('students')
-          .select('id, name, grade, school, birthday')
-          .eq('org_id', orgId)
-          .ilike('name', item.name)
-          .ilike('school', item.school)
-          .eq('is_active', true);
+    for (const student of students) {
+      const exactKey = `${student.name}\u0000${student.school}`;
+      const ilikeKey = `${student.name.toLowerCase()}\u0000${student.school.toLowerCase()}`;
 
-        if (ilikeError) return c.json({ error: ilikeError.message }, 500);
-        candidates = ilikeMatches ?? [];
-      }
+      const exactBucket = exactIndex.get(exactKey) ?? [];
+      exactBucket.push(student);
+      exactIndex.set(exactKey, exactBucket);
+
+      const ilikeBucket = ilikeIndex.get(ilikeKey) ?? [];
+      ilikeBucket.push(student);
+      ilikeIndex.set(ilikeKey, ilikeBucket);
+    }
+
+    const results: z.infer<typeof BatchMatchResultItemSchema>[] = [];
+
+    for (const [index, item] of body.items.entries()) {
+      const exactKey = `${item.name}\u0000${item.school}`;
+      const ilikeKey = `${item.name.toLowerCase()}\u0000${item.school.toLowerCase()}`;
+
+      const exactMatches = exactIndex.get(exactKey) ?? [];
+      const ilikeMatches = ilikeIndex.get(ilikeKey) ?? [];
+      const candidates = exactMatches.length > 0 ? exactMatches : ilikeMatches;
 
       const available = candidates.filter((candidate) => !enrolledIds.has(candidate.id));
 

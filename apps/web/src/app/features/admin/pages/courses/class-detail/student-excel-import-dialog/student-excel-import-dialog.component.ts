@@ -35,18 +35,34 @@ export class StudentExcelImportDialogComponent {
   protected readonly loading = signal<boolean>(false);
   protected readonly submitResult = signal<{ success: number; skipped: number } | null>(null);
   protected readonly overQuota = signal<boolean>(false);
+  protected readonly submitFailed = signal<boolean>(false);
+  protected readonly dragging = signal<boolean>(false);
 
   protected readonly classId = computed(() => this.config.data?.classId as string);
   protected readonly remainingSlots = computed(() => (this.config.data?.remainingSlots ?? 9999) as number);
 
-  protected readonly resolvedCount = computed(() => {
+  protected readonly resolvedStudentIds = computed(() => {
     const results = this.matchResults();
     const resolved = this.resolvedIds();
 
-    return results.filter(
-      (r) => r.status === 'matched' || (r.status === 'ambiguous' && resolved.has(r.index)),
-    ).length;
+    const ids = results
+      .map((r) => {
+        if (r.status === 'matched') {
+          return r.studentId;
+        }
+
+        if (r.status === 'ambiguous') {
+          return resolved.get(r.index);
+        }
+
+        return undefined;
+      })
+      .filter((id): id is string => typeof id === 'string');
+
+    return Array.from(new Set(ids));
   });
+
+  protected readonly resolvedCount = computed(() => this.resolvedStudentIds().length);
 
   protected readonly canSubmit = computed(
     () => this.resolvedCount() > 0 && this.resolvedCount() <= this.remainingSlots(),
@@ -55,29 +71,46 @@ export class StudentExcelImportDialogComponent {
   protected onFileChange(event: Event): void {
     const input = event.target as HTMLInputElement | null;
     const file = input?.files?.[0];
+    if (!file) return;
+    this.processFile(file);
+  }
 
-    if (!file) {
-      return;
-    }
+  protected onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragging.set(true);
+  }
 
+  protected onDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragging.set(false);
+  }
+
+  protected onDrop(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragging.set(false);
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+    this.processFile(file);
+  }
+
+  private processFile(file: File): void {
     const isCsv = file.name.toLowerCase().endsWith('.csv');
     const reader = new FileReader();
 
     reader.onload = () => {
       try {
         const data = reader.result;
-        if (!data) {
-          return;
-        }
+        if (!data) return;
 
         const workbook = isCsv
           ? XLSX.read(data as string, { type: 'string' })
           : XLSX.read(data as ArrayBuffer, { type: 'array' });
 
         const firstSheetName = workbook.SheetNames[0];
-        if (!firstSheetName) {
-          return;
-        }
+        if (!firstSheetName) return;
 
         const worksheet = workbook.Sheets[firstSheetName];
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][];
@@ -94,6 +127,7 @@ export class StudentExcelImportDialogComponent {
         this.matchResults.set([]);
         this.resolvedIds.set(new Map());
         this.overQuota.set(false);
+        this.submitFailed.set(false);
         this.submitResult.set(null);
         this.loading.set(true);
 
@@ -126,19 +160,7 @@ export class StudentExcelImportDialogComponent {
   }
 
   protected onSubmit(): void {
-    const studentIds = this.matchResults()
-      .map((r) => {
-        if (r.status === 'matched') {
-          return r.studentId;
-        }
-
-        if (r.status === 'ambiguous') {
-          return this.resolvedIds().get(r.index);
-        }
-
-        return undefined;
-      })
-      .filter((id): id is string => typeof id === 'string');
+    const studentIds = this.resolvedStudentIds();
 
     const input: BatchCreateInput = {
       classId: this.classId(),
@@ -147,6 +169,7 @@ export class StudentExcelImportDialogComponent {
 
     this.loading.set(true);
     this.overQuota.set(false);
+    this.submitFailed.set(false);
     this.submitResult.set(null);
     this.step.set(3);
 
@@ -164,9 +187,12 @@ export class StudentExcelImportDialogComponent {
         error: (err: { error?: { code?: string } }) => {
           if (err?.error?.code === 'OVER_QUOTA') {
             this.overQuota.set(true);
-            this.submitResult.set({ success: 0, skipped: 0 });
-            this.step.set(4);
+          } else {
+            this.submitFailed.set(true);
           }
+
+          this.submitResult.set({ success: 0, skipped: 0 });
+          this.step.set(4);
         },
       });
   }
@@ -176,7 +202,8 @@ export class StudentExcelImportDialogComponent {
   }
 
   protected onDone(): void {
-    this.ref.close('imported');
+    const success = this.submitResult()?.success ?? 0;
+    this.ref.close(success > 0 && !this.overQuota() && !this.submitFailed() ? 'imported' : undefined);
   }
 
   protected candidateOptions(candidates?: BatchMatchCandidate[]): BatchMatchCandidate[] {

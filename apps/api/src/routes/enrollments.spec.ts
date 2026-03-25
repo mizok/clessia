@@ -71,7 +71,7 @@ describe('DELETE enrollment attendance gate logic', () => {
   });
 
   it('blocks delete and returns 409 when attendanceCount > 0', () => {
-    const attendanceCount = 3;
+    const attendanceCount: number = 3;
     const canDelete = attendanceCount === 0;
     expect(canDelete).toBe(false);
     const errorCode = 'has_attendance';
@@ -80,7 +80,7 @@ describe('DELETE enrollment attendance gate logic', () => {
 
   it('blocks delete even when status is suspended but has attendance', () => {
     const status = 'suspended';
-    const attendanceCount = 1;
+    const attendanceCount: number = 1;
     const canDelete = attendanceCount === 0;
     expect(canDelete).toBe(false);
     expect(status).toBe('suspended');
