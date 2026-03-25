@@ -103,7 +103,7 @@
       <button
         pButton
         type="button"
-        [disabled]="hasErrors() || importableCount() === 0 || submitting()"
+        [disabled]="importableCount() === 0 || submitting()"
         (click)="onSubmit()"
       >
         確認匯入 {{ importableCount() }} 筆
