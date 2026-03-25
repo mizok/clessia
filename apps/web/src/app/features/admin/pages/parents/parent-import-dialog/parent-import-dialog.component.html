@@ -72,7 +72,7 @@
                 <small class="pid__status-text">{{ row.errors[0] }}</small>
               } @else if (row.skipped) {
                 <p-tag severity="secondary" value="無需匯入"></p-tag>
-                <small class="pid__status-text">{{ row.warnings[0] }}</small>
+                <small class="pid__status-text">{{ row.skipReason }}</small>
               } @else {
                 <div class="pid__status-tags">
                   @if (row.warnings.length > 0) {

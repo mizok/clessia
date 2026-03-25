@@ -145,6 +145,10 @@ function isDuplicateUsernameError(message: string): boolean {
   );
 }
 
+function normalizeParentName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
 // ============================================================
 // Routes
 // ============================================================
@@ -935,14 +939,6 @@ const BatchCheckWarningSchema = z
   })
   .openapi('BatchCheckWarning');
 
-const BatchCheckMergeSchema = z
-  .object({
-    rowIndex: z.number().int().min(0),
-    type: z.literal('merging_with_existing'),
-    message: z.string(),
-  })
-  .openapi('BatchCheckMerge');
-
 const BatchCheckErrorSchema = z
   .object({
     rowIndex: z.number().int().min(0),
@@ -954,7 +950,6 @@ const BatchCheckErrorSchema = z
 const BatchCheckResponseSchema = z
   .object({
     warnings: z.array(BatchCheckWarningSchema),
-    merges: z.array(BatchCheckMergeSchema),
     errors: z.array(BatchCheckErrorSchema),
   })
   .openapi('BatchCheckResponse');
@@ -985,7 +980,7 @@ app.openapi(
     // Step 1: 收集不重複的正規化姓名
     const nameMap = new Map<string, number[]>(); // normalizedName -> rowIndexes
     for (let i = 0; i < rows.length; i++) {
-      const normalized = rows[i].parentName.trim().toLowerCase();
+      const normalized = normalizeParentName(rows[i].parentName);
       if (!normalized) continue;
       const bucket = nameMap.get(normalized) ?? [];
       bucket.push(i);
@@ -993,7 +988,7 @@ app.openapi(
     }
 
     if (nameMap.size === 0) {
-      return c.json({ warnings: [], merges: [], errors: [] }, 200);
+      return c.json({ warnings: [], errors: [] }, 200);
     }
 
     // Step 2: 查詢 DB 同名家長（ilike 縮小範圍，JS 端精確比對）
@@ -1005,7 +1000,7 @@ app.openapi(
       .or(namesToQuery.map((n) => `name.ilike.${n}`).join(','));
 
     if (parentsError || !dbParents || dbParents.length === 0) {
-      return c.json({ warnings: [], merges: [], errors: [] }, 200);
+      return c.json({ warnings: [], errors: [] }, 200);
     }
 
     // Step 3: 查詢每個 DB 家長的聯絡資訊
@@ -1022,12 +1017,11 @@ app.openapi(
 
     // Step 4: 比對每個匯入行
     const warnings: Array<{ rowIndex: number; type: 'same_name_exists' | 'student_already_exists' | 'merging_with_existing'; message: string }> = [];
-    const merges: Array<{ rowIndex: number; type: 'merging_with_existing'; message: string }> = [];
     const errors: Array<{ rowIndex: number; type: 'student_already_exists' | 'contact_belongs_to_another_parent'; message: string }> = [];
 
     for (const [normalizedName, rowIndexes] of nameMap.entries()) {
       const matchingDbParents = (dbParents as Array<{ id: string; name: string; user_id: string }>).filter(
-        (p) => p.name.trim().toLowerCase() === normalizedName,
+        (p) => normalizeParentName(p.name) === normalizedName,
       );
       if (matchingDbParents.length === 0) continue;
 
@@ -1163,7 +1157,7 @@ app.openapi(
 
           for (const rowIndex of affectedIndexes) {
             const importName = rows[rowIndex].parentName.trim();
-            if (importName.toLowerCase() === existingName.toLowerCase()) continue; // 同名 → Step 4 已處理
+            if (normalizeParentName(importName) === normalizeParentName(existingName)) continue; // 同名 → Step 4 已處理
             errors.push({
               rowIndex,
               type: 'contact_belongs_to_another_parent',
@@ -1174,7 +1168,7 @@ app.openapi(
       }
     }
 
-    return c.json({ warnings, merges, errors }, 200);
+    return c.json({ warnings, errors }, 200);
   },
 );
 
@@ -1344,7 +1338,7 @@ app.openapi(
           if (parentMatch) {
             const existingName = (parentMatch as { id: string; name: string }).name.trim();
             const importedName = representativeRow.parentName.trim();
-            if (existingName !== importedName) {
+            if (normalizeParentName(existingName) !== normalizeParentName(importedName)) {
               throw new Error(`此電話／Email 已屬於另一位家長「${existingName}」，無法建立為「${importedName}」`);
             }
             parentId = (parentMatch as { id: string }).id;
@@ -1407,7 +1401,7 @@ app.openapi(
                   if (retryParent) {
                     const existingName = (retryParent as { id: string; name: string }).name.trim();
                     const importedName = representativeRow.parentName.trim();
-                    if (existingName !== importedName) {
+                    if (normalizeParentName(existingName) !== normalizeParentName(importedName)) {
                       throw new Error(`此電話／Email 已屬於另一位家長「${existingName}」，無法建立為「${importedName}」`);
                     }
                     parentId = (retryParent as { id: string }).id;
@@ -1421,7 +1415,18 @@ app.openapi(
           }
 
           // 更新 orgId
-          await supabase.from('ba_user').update({ orgId }).eq('id', createdUserId);
+          const { error: updateOrgError } = await supabase
+            .from('ba_user')
+            .update({ orgId })
+            .eq('id', createdUserId);
+          if (updateOrgError) {
+            try {
+              await auth.api.removeUser({ body: { userId: createdUserId! }, asResponse: false });
+            } catch {
+              // ignore rollback error
+            }
+            throw new Error('更新組織資訊失敗，已回滾帳號建立');
+          }
 
           // INSERT parents
           const { data: newParentRow, error: insertParentError } = await supabase
@@ -1443,7 +1448,7 @@ app.openapi(
             } catch {
               // ignore
             }
-            throw new Error(insertParentError?.message ?? '建立家長資料失敗');
+            throw new Error('建立家長資料失敗，請稍後再試');
           }
 
           parentId = (newParentRow as { id: string }).id;
@@ -1524,7 +1529,7 @@ app.openapi(
 
         if (insertStudentError || !newStudentRow) {
           console.error(`[batch-import] Step3 row=${i} INSERT students error:`, insertStudentError);
-          throw new Error(insertStudentError?.message ?? '建立學生失敗');
+          throw new Error('建立學生失敗，請稍後再試');
         }
 
         const studentId = (newStudentRow as { id: string }).id;
@@ -1543,7 +1548,7 @@ app.openapi(
           // 嘗試刪除剛建立的學生（best effort）
           await supabase.from('students').delete().eq('id', studentId);
           studentsCreated--;
-          throw new Error(relError.message);
+          throw new Error('建立家長學生關聯失敗，請稍後再試');
         }
 
         results.push({ rowIndex: i, status: 'success', parentId, studentId });

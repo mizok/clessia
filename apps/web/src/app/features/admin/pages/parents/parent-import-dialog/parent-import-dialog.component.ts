@@ -12,7 +12,6 @@ import {
   type BatchImportResponse,
   type BatchImportRow,
   type BatchCheckRow,
-  type BatchCheckMerge,
   type BatchCheckError,
   type BatchCheckResponse,
 } from '../../../../../core/parents.service';
@@ -57,6 +56,7 @@ interface ParsedRow {
   warnings: string[];
   mergeNote: string | null;
   skipped: boolean; // 家長+學生皆已存在，無需匯入
+  skipReason: string; // skipped = true 時的顯示訊息
 }
 
 @Component({
@@ -80,7 +80,9 @@ export class ParentImportDialogComponent {
   protected readonly importableCount = computed(
     () => this.rows().filter((row) => row.errors.length === 0 && !row.skipped).length,
   );
-  protected readonly parentsCount = computed(() => this.countDistinctParents(this.rows()));
+  protected readonly parentsCount = computed(() =>
+    this.countDistinctParents(this.rows().filter((r) => r.errors.length === 0 && !r.skipped)),
+  );
   protected readonly failedCount = computed(() => {
     const result = this.submitResult();
     if (!result) return 0;
@@ -131,19 +133,15 @@ export class ParentImportDialogComponent {
 
       const dbResult: BatchCheckResponse = await firstValueFrom(
         this.parentsService.batchCheck(checkRows),
-      ).catch((): BatchCheckResponse => ({ warnings: [], merges: [], errors: [] }));
+      ).catch((): BatchCheckResponse => ({ warnings: [], errors: [] }));
 
       for (const w of dbResult.warnings) {
         if (w.type === 'student_already_exists' && parsedRows[w.rowIndex]) {
           parsedRows[w.rowIndex].skipped = true;
+          parsedRows[w.rowIndex].skipReason = w.message;
           parsedRows[w.rowIndex].warnings.push(w.message);
         } else {
           parsedRows[w.rowIndex]?.warnings.push(w.message);
-        }
-      }
-      for (const m of dbResult.merges) {
-        if (parsedRows[m.rowIndex]) {
-          parsedRows[m.rowIndex].mergeNote = m.message; // DB merge info overrides in-file merge note
         }
       }
       for (const e of dbResult.errors) {
@@ -298,6 +296,8 @@ export class ParentImportDialogComponent {
     if (!parentEmail && !parentPhone) errors.push('家長電話與 Email 不可同時空白');
     if (parentPhone && !/^09\d{8}$/.test(parentPhone)) errors.push('家長電話格式錯誤（需為 09 開頭 10 碼）');
     if (parentEmail && !this.isValidEmail(parentEmail)) errors.push('家長 Email 格式錯誤');
+    if (studentBirthday && !/^\d{4}-\d{2}-\d{2}$/.test(studentBirthday))
+      errors.push('學生生日格式錯誤（需為 YYYY-MM-DD，如 2010-05-20）');
 
     return {
       index,
@@ -314,6 +314,7 @@ export class ParentImportDialogComponent {
       warnings: [],
       mergeNote: null,
       skipped: false,
+      skipReason: '',
     };
   }
 

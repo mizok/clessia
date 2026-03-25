@@ -104,12 +104,6 @@ export interface BatchCheckWarning {
   message: string;
 }
 
-export interface BatchCheckMerge {
-  rowIndex: number; // 0-based array index
-  type: 'merging_with_existing';
-  message: string;
-}
-
 export interface BatchCheckError {
   rowIndex: number; // 0-based array index
   type: 'student_already_exists' | 'contact_belongs_to_another_parent';
@@ -118,7 +112,6 @@ export interface BatchCheckError {
 
 export interface BatchCheckResponse {
   warnings: BatchCheckWarning[];
-  merges: BatchCheckMerge[];
   errors: BatchCheckError[];
 }
 
