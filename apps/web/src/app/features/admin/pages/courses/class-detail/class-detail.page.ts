@@ -38,6 +38,7 @@ import {
 } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { StudentPickerDialogComponent } from './student-picker-dialog/student-picker-dialog.component';
 import { StudentExcelImportDialogComponent } from './student-excel-import-dialog/student-excel-import-dialog.component';
+import { CopyRosterDialogComponent } from './copy-roster-dialog/copy-roster-dialog.component';
 
 @Component({
   selector: 'app-class-detail',
@@ -50,6 +51,7 @@ import { StudentExcelImportDialogComponent } from './student-excel-import-dialog
     MenuModule,
     SkeletonModule,
     StudentExcelImportDialogComponent,
+    CopyRosterDialogComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './class-detail.page.html',
@@ -248,6 +250,23 @@ export class ClassDetailPage implements OnInit {
     });
     ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
       if (result === 'imported') this.loadEnrollments();
+    });
+  }
+
+  protected openCopyRoster(): void {
+    const cls = this.cls();
+    if (!cls) return;
+
+    const ref = this.dialogService.open(CopyRosterDialogComponent, {
+      header: '從既有班級複製名單',
+      width: '480px',
+      modal: true,
+      appendTo: this.overlayContainer || 'body',
+      data: { classId: cls.id },
+    });
+
+    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
+      if (result === 'copied') this.loadEnrollments();
     });
   }
 
