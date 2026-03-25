@@ -148,18 +148,30 @@ export class ParentImportDialogComponent {
   }
 
   private parseExcelFile(file: File): Promise<unknown[][]> {
+    const isCsv = file.name.toLowerCase().endsWith('.csv');
+
     return new Promise<unknown[][]>((resolve, reject) => {
       const reader = new FileReader();
 
       reader.onload = () => {
         try {
           const result = reader.result;
-          if (!(result instanceof ArrayBuffer)) {
-            reject(new Error('Excel 內容讀取失敗'));
-            return;
+          let workbook: XLSX.WorkBook;
+
+          if (isCsv) {
+            if (typeof result !== 'string') {
+              reject(new Error('CSV 內容讀取失敗'));
+              return;
+            }
+            workbook = XLSX.read(result, { type: 'string' });
+          } else {
+            if (!(result instanceof ArrayBuffer)) {
+              reject(new Error('Excel 內容讀取失敗'));
+              return;
+            }
+            workbook = XLSX.read(result, { type: 'array' });
           }
 
-          const workbook = XLSX.read(result, { type: 'array' });
           const firstSheetName = workbook.SheetNames[0];
           if (!firstSheetName) {
             resolve([]);
@@ -178,10 +190,14 @@ export class ParentImportDialogComponent {
       };
 
       reader.onerror = () => {
-        reject(reader.error ?? new Error('Excel 檔案讀取錯誤'));
+        reject(reader.error ?? new Error('檔案讀取錯誤'));
       };
 
-      reader.readAsArrayBuffer(file);
+      if (isCsv) {
+        reader.readAsText(file, 'UTF-8');
+      } else {
+        reader.readAsArrayBuffer(file);
+      }
     });
   }
 

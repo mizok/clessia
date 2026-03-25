@@ -1,7 +1,7 @@
 <div class="seid">
   @if (step() === 1) {
     <div class="seid__upload-area">
-      <input type="file" accept=".xlsx,.xls" (change)="onFileChange($event)" />
+      <input type="file" accept=".xlsx,.xls,.csv" (change)="onFileChange($event)" />
       <a
         class="seid__template-link"
         href="/assets/templates/student-class-import-template.xlsx"

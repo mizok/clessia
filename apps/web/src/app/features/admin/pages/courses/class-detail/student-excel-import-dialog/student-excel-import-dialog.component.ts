@@ -60,6 +60,7 @@ export class StudentExcelImportDialogComponent {
       return;
     }
 
+    const isCsv = file.name.toLowerCase().endsWith('.csv');
     const reader = new FileReader();
 
     reader.onload = () => {
@@ -69,7 +70,10 @@ export class StudentExcelImportDialogComponent {
           return;
         }
 
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = isCsv
+          ? XLSX.read(data as string, { type: 'string' })
+          : XLSX.read(data as ArrayBuffer, { type: 'array' });
+
         const firstSheetName = workbook.SheetNames[0];
         if (!firstSheetName) {
           return;
@@ -108,7 +112,11 @@ export class StudentExcelImportDialogComponent {
       }
     };
 
-    reader.readAsArrayBuffer(file);
+    if (isCsv) {
+      reader.readAsText(file, 'UTF-8');
+    } else {
+      reader.readAsArrayBuffer(file);
+    }
   }
 
   protected resolveAmbiguous(index: number, studentId: string): void {
