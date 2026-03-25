@@ -1083,7 +1083,7 @@ app.openapi(
             warnings.push({
               rowIndex,
               type: 'student_already_exists',
-              message: `家長與學生「${row.studentName!.trim()}」皆已存在於系統，無需重複匯入`,
+              message: `家長「${row.parentName.trim()}」及其學生「${row.studentName!.trim()}」皆已存在於系統，無需重複匯入`,
             });
             continue;
           }
