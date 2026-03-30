@@ -23,9 +23,7 @@
         </span>
       </div>
     </div>
-    <p class="course-form-dialog__status-hint">
-      停用後不會刪除課程資料，也無法新增未來課程排程。
-    </p>
+    <p class="course-form-dialog__status-hint">停用後不會刪除課程資料，也無法新增未來課程排程。</p>
     @if (shouldShowDeactivateMode()) {
       <div class="form-dialog__field">
         <label class="form-dialog__label">停用模式</label>
@@ -100,13 +98,13 @@
 
   <!-- Grade Levels -->
   <div class="form-dialog__field">
-    <label class="form-dialog__label">學段<span class="form-dialog__required">*</span></label>
+    <label class="form-dialog__label">適合年級<span class="form-dialog__required">*</span></label>
     <p-multiselect
       [options]="gradeOptions"
       [ngModel]="formData().gradeLevels"
       (ngModelChange)="updateForm('gradeLevels', $event)"
-      placeholder="選擇學段（至少一項）"
-      selectedItemsLabel="{0} 個學段"
+      placeholder="選擇適合年級（至少一項）"
+      selectedItemsLabel="{0} 個適合年級"
       [disabled]="loading()"
       [appendTo]="'body'"
       class="w-full"
@@ -142,7 +140,12 @@
       [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
       [loading]="loading()"
       (onClick)="save()"
-      [disabled]="!formData().name.trim() || !formData().campusId || !formData().subjectId || formData().gradeLevels.length === 0"
+      [disabled]="
+        !formData().name.trim() ||
+        !formData().campusId ||
+        !formData().subjectId ||
+        formData().gradeLevels.length === 0
+      "
     />
   </div>
 </div>

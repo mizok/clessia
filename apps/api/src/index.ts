@@ -31,6 +31,7 @@ export type Bindings = {
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
   DATABASE_URL: string;
+  PLACEHOLDER_EMAIL_DOMAIN: string;
 };
 
 export type Variables = {

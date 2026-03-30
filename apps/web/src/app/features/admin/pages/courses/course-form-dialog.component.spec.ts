@@ -82,7 +82,7 @@ describe('CourseFormDialogComponent', () => {
 
     expect(coursesServiceMock.create).not.toHaveBeenCalled();
     expect(messageServiceMock.add).toHaveBeenCalledWith(
-      expect.objectContaining({ severity: 'warn', summary: '請至少選擇一個學段' }),
+      expect.objectContaining({ severity: 'warn', summary: '請至少選擇一個適合年級' }),
     );
   });
 

@@ -869,14 +869,14 @@ app.openapi(createRouteDef, async (c) => {
   let createdUserId: string | null = null;
 
   try {
-    const newUser = await auth.api.createUser({
+    const newUser = await (auth.api as any).createUser({
       body: {
         name: body.displayName,
         email: body.email,
-        phone: body.phone ?? undefined,
         password,
         data: {
           display_name: body.displayName,
+          ...(body.phone ? { phone: body.phone } : {}),
         },
       },
       asResponse: false,

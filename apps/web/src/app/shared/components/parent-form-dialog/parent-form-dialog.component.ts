@@ -3,8 +3,6 @@ import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { TextareaModule } from 'primeng/textarea';
-import { MessageService } from 'primeng/api';
-import { ToastModule } from 'primeng/toast';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import {
@@ -17,18 +15,17 @@ import {
 @Component({
   selector: 'app-parent-form-dialog',
   standalone: true,
-  imports: [FormsModule, ButtonModule, InputTextModule, TextareaModule, ToastModule, InlineNoticeComponent],
-  providers: [MessageService],
+  imports: [FormsModule, ButtonModule, InputTextModule, TextareaModule, InlineNoticeComponent],
   templateUrl: './parent-form-dialog.component.html',
   styleUrl: './parent-form-dialog.component.scss',
 })
 export class ParentFormDialogComponent {
   private readonly parentsService = inject(ParentsService);
-  private readonly messageService = inject(MessageService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig);
 
   protected readonly loading = signal(false);
+  protected readonly errorMessage = signal<string | null>(null);
 
   protected readonly parent = signal<ParentDetail | null>(this.config.data?.parent ?? null);
   protected readonly isEditMode = computed(() => this.parent() !== null);
@@ -57,6 +54,7 @@ export class ParentFormDialogComponent {
   protected save(): void {
     if (!this.isFormValid()) return;
 
+    this.errorMessage.set(null);
     const f = this.formData();
     this.loading.set(true);
 
@@ -70,7 +68,7 @@ export class ParentFormDialogComponent {
 
       this.parentsService.update(this.parent()!.id, input).subscribe({
         next: (res) => this.ref.close({ type: 'updated', data: res.data }),
-        error: (err) => this.handleError(err, '更新失敗'),
+        error: (err) => this.handleError(err),
       });
     } else {
       const input: CreateParentInput = {
@@ -82,7 +80,7 @@ export class ParentFormDialogComponent {
 
       this.parentsService.create(input).subscribe({
         next: (res) => this.ref.close({ type: 'created', data: res.data, password: res.initialPassword }),
-        error: (err) => this.handleError(err, '建立失敗'),
+        error: (err) => this.handleError(err),
       });
     }
   }
@@ -91,15 +89,15 @@ export class ParentFormDialogComponent {
     this.ref.close();
   }
 
-  private handleError(err: { error?: { error?: string } }, summary: string): void {
+  private handleError(err: { error?: { error?: string } }): void {
     const code = err.error?.error;
-    let detail = '請稍後再試';
-    if (code === 'DUPLICATE_EMAIL') detail = '此 Email 已被使用';
-    else if (code === 'DUPLICATE_PHONE') detail = '此手機號碼已被使用';
-    else if (code === 'CREATE_PARENT_FAILED') detail = '建立帳號失敗，請稍後再試';
-    else if (err.error?.error) detail = err.error.error;
+    let message = '請稍後再試';
+    if (code === 'DUPLICATE_EMAIL') message = '此 Email 已被使用';
+    else if (code === 'DUPLICATE_PHONE') message = '此手機號碼已被使用';
+    else if (code === 'CREATE_PARENT_FAILED') message = '建立帳號失敗，請稍後再試';
+    else if (err.error?.error) message = err.error.error;
 
-    this.messageService.add({ severity: 'error', summary, detail });
+    this.errorMessage.set(message);
     this.loading.set(false);
   }
 }

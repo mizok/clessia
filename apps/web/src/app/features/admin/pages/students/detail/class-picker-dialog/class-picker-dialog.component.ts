@@ -17,8 +17,14 @@ import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/student
   selector: 'app-class-picker-dialog',
   standalone: true,
   imports: [
-    FormsModule, ButtonModule, InputTextModule, TagModule,
-    SkeletonModule, IconFieldModule, InputIconModule, SelectModule,
+    FormsModule,
+    ButtonModule,
+    InputTextModule,
+    TagModule,
+    SkeletonModule,
+    IconFieldModule,
+    InputIconModule,
+    SelectModule,
   ],
   templateUrl: './class-picker-dialog.component.html',
   styleUrl: './class-picker-dialog.component.scss',
@@ -44,7 +50,7 @@ export class ClassPickerDialogComponent implements OnInit {
   private readonly existingClassIds = new Set<string>(this.config.data?.existingClassIds ?? []);
 
   protected readonly gradeOptions = [
-    { label: '全部學段', value: null },
+    { label: '全部適合年級', value: null },
     ...GRADE_LEVELS.map((g) => ({ label: GRADE_LEVEL_LABELS[g], value: g })),
   ];
 
