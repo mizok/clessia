@@ -174,12 +174,13 @@ export class LeavePage implements OnInit {
       accept: () => {
         this.leaveService.delete(record.id).subscribe({
           next: () => {
+            this.records.update((list) => list.filter((r) => r.id !== record.id));
+            this.totalRecords.update((n) => Math.max(n - 1, 0));
             this.messageService.add({
               severity: 'success',
               summary: '已刪除',
               detail: '請假紀錄已刪除',
             });
-            this.loadRecords();
           },
           error: () => {
             this.messageService.add({
