@@ -1,1 +1,37 @@
-<p>settings works!</p>
+<p-toast />
+
+<div class="settings-page">
+  <div class="settings-page__header">
+    <h2 class="settings-page__title">{{ page().label }}</h2>
+  </div>
+
+  @if (loading()) {
+    <div class="settings-page__section">
+      <p-skeleton height="2rem" styleClass="mb-2" />
+      <p-skeleton height="3rem" />
+    </div>
+  } @else {
+    <div class="settings-page__section">
+      <h3 class="settings-page__section-title">出勤紀錄模式</h3>
+      <p class="settings-page__section-desc">
+        <strong>隨堂點名</strong>：老師在每堂課結束後逐一標記學生出席狀態。<br />
+        <strong>日到班</strong>：學生抵達分校打卡後，系統自動勾選當天所有課堂為出席。
+      </p>
+      <div class="settings-page__control">
+        <p-selectbutton
+          [options]="attendanceModeOptions"
+          [(ngModel)]="attendanceModeValue"
+          optionLabel="label"
+          optionValue="value"
+        />
+        <p-button
+          label="儲存"
+          icon="pi pi-check"
+          [loading]="saving()"
+          (onClick)="saveAttendanceMode()"
+          styleClass="ml-3"
+        />
+      </div>
+    </div>
+  }
+</div>

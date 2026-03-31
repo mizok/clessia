@@ -1,0 +1,42 @@
+.settings-page {
+  padding: var(--space-6);
+
+  &__header {
+    margin-bottom: var(--space-6);
+  }
+
+  &__title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--zinc-900);
+    margin: 0;
+  }
+
+  &__section {
+    background: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius);
+    padding: var(--space-6);
+    margin-bottom: var(--space-4);
+    max-width: 640px;
+  }
+
+  &__section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--zinc-800);
+    margin: 0 0 var(--space-2);
+  }
+
+  &__section-desc {
+    font-size: 0.875rem;
+    color: var(--zinc-500);
+    margin: 0 0 var(--space-4);
+    line-height: 1.6;
+  }
+
+  &__control {
+    display: flex;
+    align-items: center;
+  }
+}
