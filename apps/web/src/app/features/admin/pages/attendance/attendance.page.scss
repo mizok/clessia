@@ -1,0 +1,59 @@
+.attendance-page {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--zinc-900);
+    margin: 0;
+  }
+
+  &__filters {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  &__filter-item {
+    min-width: 160px;
+  }
+
+  &__status-select {
+    border: none;
+    background: transparent;
+    padding: 0;
+  }
+
+  &__skeleton-bar {
+    height: 20px;
+    border-radius: 4px;
+    background: var(--zinc-100, #f4f4f5);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  &__empty {
+    text-align: center;
+    color: var(--zinc-400, #a1a1aa);
+    padding: var(--space-8) 0;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

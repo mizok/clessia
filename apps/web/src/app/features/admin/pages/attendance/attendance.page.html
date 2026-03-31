@@ -1,1 +1,113 @@
-<p>attendance works!</p>
+<p-toast appendTo="body" />
+
+<div class="attendance-page">
+  <div class="attendance-page__header">
+    <h2 class="attendance-page__title">{{ page().label }}</h2>
+  </div>
+
+  <div class="attendance-page__filters">
+    <p-select
+      [options]="campuses()"
+      [(ngModel)]="filterCampusId"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="全部分校"
+      (onChange)="onFilterChange()"
+      styleClass="attendance-page__filter-item"
+      [appendTo]="'body'"
+    />
+    <p-datepicker
+      [(ngModel)]="filterDateRange"
+      selectionMode="range"
+      placeholder="日期範圍"
+      dateFormat="yy-mm-dd"
+      (onClose)="onFilterChange()"
+      styleClass="attendance-page__filter-item"
+      [appendTo]="'body'"
+    />
+    <p-select
+      [options]="statusOptions"
+      [(ngModel)]="filterStatus"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="全部狀態"
+      (onChange)="onFilterChange()"
+      styleClass="attendance-page__filter-item"
+      [appendTo]="'body'"
+    />
+    <p-button
+      icon="pi pi-refresh"
+      severity="secondary"
+      (onClick)="onFilterChange()"
+      pTooltip="重新整理"
+    />
+  </div>
+
+  <app-responsive-table
+    [headTemplate]="headTpl"
+    [bodyTemplate]="bodyTpl"
+    [pagination]="pagination()"
+    (page)="onPage($event)"
+  />
+
+  <ng-template #headTpl>
+    <tr>
+      <th appRtColDef="studentName" [appRtColDefMinWidth]="120" [appRtColDefPriority]="1">學生姓名</th>
+      <th appRtColDef="campusName" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">分校</th>
+      <th appRtColDef="className" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">班級</th>
+      <th appRtColDef="eventDate" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">日期</th>
+      <th appRtColDef="time" [appRtColDefMinWidth]="120" [appRtColDefPriority]="5">時間</th>
+      <th appRtColDef="status" [appRtColDefMinWidth]="120" [appRtColDefPriority]="0" [appRtColDefCollapsible]="false">狀態</th>
+    </tr>
+  </ng-template>
+
+  <ng-template #bodyTpl>
+    @if (loading()) {
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <tr>
+          <td class="responsive-table__cell" colspan="6">
+            <div class="attendance-page__skeleton-bar"></div>
+          </td>
+        </tr>
+      }
+    } @else if (records().length === 0) {
+      <tr>
+        <td class="responsive-table__cell attendance-page__empty" colspan="6">沒有出勤紀錄</td>
+      </tr>
+    } @else {
+      @for (record of records(); track record.id) {
+        <tr appRtRow [appRtRow]="record" [appRtRowId]="record.id">
+          <td appRtColCell="studentName">{{ record.studentName }}</td>
+          <td appRtColCell="campusName">{{ record.campusName ?? '—' }}</td>
+          <td appRtColCell="className">{{ record.className ?? '—' }}</td>
+          <td appRtColCell="eventDate">{{ record.eventDate }}</td>
+          <td appRtColCell="time">
+            @if (record.startTime && record.endTime) {
+              {{ record.startTime }} – {{ record.endTime }}
+            } @else {
+              —
+            }
+          </td>
+          <td appRtColCell="status">
+            <p-select
+              [options]="statusEditOptions"
+              [ngModel]="record.status"
+              optionLabel="label"
+              optionValue="value"
+              (onChange)="updateStatus(record, $event.value)"
+              styleClass="attendance-page__status-select"
+              [appendTo]="'body'"
+            >
+              <ng-template #selectedItem>
+                <p-tag
+                  [value]="ATTENDANCE_STATUS_LABELS[record.status]"
+                  [severity]="ATTENDANCE_STATUS_SEVERITIES[record.status]"
+                />
+              </ng-template>
+            </p-select>
+          </td>
+        </tr>
+      }
+    }
+  </ng-template>
+</div>
