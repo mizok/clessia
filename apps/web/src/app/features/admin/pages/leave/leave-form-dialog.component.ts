@@ -64,6 +64,9 @@ import { LeaveService, type CreateLeaveInput } from '@core/leave.service';
           [disabled]="!canSubmit()"
         />
       </div>
+      @if (errorMessage()) {
+        <p class="leave-form__error">{{ errorMessage() }}</p>
+      }
     </div>
   `,
   styles: [
@@ -93,6 +96,12 @@ import { LeaveService, type CreateLeaveInput } from '@core/leave.service';
           gap: 0.75rem;
           padding-top: 0.5rem;
         }
+        &__error {
+          color: var(--red-500);
+          font-size: 0.875rem;
+          text-align: right;
+          margin-top: -0.5rem;
+        }
       }
     `,
   ],
@@ -108,6 +117,7 @@ export class LeaveFormDialogComponent {
 
   protected readonly saving = signal(false);
   protected readonly studentSuggestions = signal<Student[]>([]);
+  protected readonly errorMessage = signal<string | null>(null);
 
   protected canSubmit(): boolean {
     return !!this.selectedStudent && !!this.dateRange?.[0] && !!this.dateRange?.[1];
@@ -137,6 +147,7 @@ export class LeaveFormDialogComponent {
       },
       error: () => {
         this.saving.set(false);
+        this.errorMessage.set('新增請假失敗，請稍後再試');
       },
     });
   }

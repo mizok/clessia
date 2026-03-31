@@ -87,7 +87,6 @@ app.openapi(
     request: {
       query: z.object({
         campusId: z.uuid().optional(),
-        classId: z.uuid().optional(),
         studentId: z.uuid().optional(),
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
@@ -106,7 +105,7 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const { campusId, classId, studentId, dateFrom, dateTo, status, page = 1, pageSize = 20 } =
+    const { campusId, studentId, dateFrom, dateTo, status, page = 1, pageSize = 20 } =
       c.req.valid('query');
 
     let query = supabase
