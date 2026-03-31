@@ -18,6 +18,7 @@ import studentsRoute from './routes/students';
 import parentsRoute from './routes/parents';
 import enrollmentsRoute from './routes/enrollments';
 import meRoute from './routes/me';
+import orgSettingsRoute from './routes/org-settings';
 
 // ============================================================
 // Types
@@ -241,6 +242,7 @@ app.route('/api/sessions', sessionsRoute);
 app.route('/api/students', studentsRoute);
 app.route('/api/parents', parentsRoute);
 app.route('/api/enrollments', enrollmentsRoute);
+app.route('/api/org', orgSettingsRoute);
 
 // ============================================================
 // Error Handler
