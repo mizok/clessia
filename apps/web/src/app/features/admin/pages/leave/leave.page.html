@@ -1,1 +1,102 @@
-<p>leave works!</p>
+<p-toast appendTo="body" />
+<p-confirmdialog />
+
+<div class="leave-page">
+  <div class="leave-page__header">
+    <h2 class="leave-page__title">{{ page().label }}</h2>
+    <p-button
+      label="新增請假"
+      icon="pi pi-plus"
+      (onClick)="openCreateDialog()"
+    />
+  </div>
+
+  <div class="leave-page__filters">
+    <p-select
+      [options]="campuses()"
+      [(ngModel)]="filterCampusId"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="全部分校"
+      (onChange)="onFilterChange()"
+      styleClass="leave-page__filter-item"
+      [appendTo]="'body'"
+    />
+    <p-datepicker
+      [(ngModel)]="filterDateRange"
+      selectionMode="range"
+      placeholder="日期範圍"
+      dateFormat="yy-mm-dd"
+      (onClose)="onFilterChange()"
+      styleClass="leave-page__filter-item"
+      [appendTo]="'body'"
+    />
+    <p-button
+      icon="pi pi-refresh"
+      severity="secondary"
+      (onClick)="onFilterChange()"
+      pTooltip="重新整理"
+    />
+  </div>
+
+  <app-responsive-table
+    [headTemplate]="headTpl"
+    [bodyTemplate]="bodyTpl"
+    [pagination]="pagination()"
+    (page)="onPage($event)"
+  />
+
+  <ng-template #headTpl>
+    <tr>
+      <th appRtColDef="studentName" [appRtColDefMinWidth]="120" [appRtColDefPriority]="1">學生姓名</th>
+      <th appRtColDef="startDate" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">開始日期</th>
+      <th appRtColDef="endDate" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">結束日期</th>
+      <th appRtColDef="days" [appRtColDefMinWidth]="80" [appRtColDefPriority]="4">天數</th>
+      <th appRtColDef="reason" [appRtColDefMinWidth]="140" [appRtColDefPriority]="5">原因</th>
+      <th appRtColDef="submittedByRole" [appRtColDefMinWidth]="100" [appRtColDefPriority]="6">申請方</th>
+      <th appRtColDef="actions" [appRtColDefMinWidth]="80" [appRtColDefPriority]="0" [appRtColDefCollapsible]="false">操作</th>
+    </tr>
+  </ng-template>
+
+  <ng-template #bodyTpl>
+    @if (loading()) {
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <tr>
+          <td class="responsive-table__cell" colspan="7">
+            <div class="leave-page__skeleton-bar"></div>
+          </td>
+        </tr>
+      }
+    } @else if (records().length === 0) {
+      <tr>
+        <td class="responsive-table__cell leave-page__empty" colspan="7">沒有請假紀錄</td>
+      </tr>
+    } @else {
+      @for (record of records(); track record.id) {
+        <tr appRtRow [appRtRow]="record" [appRtRowId]="record.id">
+          <td appRtColCell="studentName">{{ record.studentName }}</td>
+          <td appRtColCell="startDate">{{ record.startDate }}</td>
+          <td appRtColCell="endDate">{{ record.endDate }}</td>
+          <td appRtColCell="days">{{ calcDays(record.startDate, record.endDate) }} 天</td>
+          <td appRtColCell="reason">{{ record.reason ?? '—' }}</td>
+          <td appRtColCell="submittedByRole">
+            <p-tag
+              [value]="submittedByRoleLabel(record.submittedByRole)"
+              [severity]="submittedByRoleSeverity(record.submittedByRole)"
+            />
+          </td>
+          <td appRtColCell="actions">
+            <p-button
+              icon="pi pi-trash"
+              severity="danger"
+              [text]="true"
+              size="small"
+              pTooltip="刪除"
+              (onClick)="confirmDelete(record)"
+            />
+          </td>
+        </tr>
+      }
+    }
+  </ng-template>
+</div>
