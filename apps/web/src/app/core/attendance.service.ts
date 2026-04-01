@@ -60,6 +60,43 @@ export interface UpdateAttendanceInput {
   note?: string | null;
 }
 
+export interface EventSessionSummary {
+  eventId: string;
+  classId: string;
+  className: string;
+  teacherName: string | null;
+  campusId: string | null;
+  campusName: string | null;
+  eventDate: string;
+  startTime: string | null;
+  endTime: string | null;
+  enrolledCount: number;
+  presentCount: number;
+  onLeaveCount: number;
+  absentCount: number;
+  takenAt: string | null;
+}
+
+export interface RosterStudent {
+  studentId: string;
+  studentName: string;
+  grade: string | null;
+  school: string | null;
+  recordId: string | null;
+  status: 'present' | 'absent' | 'on_leave' | null;
+}
+
+export interface AttendanceRoster {
+  eventId: string;
+  takenAt: string | null;
+  students: RosterStudent[];
+}
+
+export interface BatchAttendanceUpdate {
+  eventId: string;
+  updates: { studentId: string; status: 'present' | 'absent' }[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class AttendanceService {
   private readonly http = inject(HttpClient);
@@ -80,5 +117,27 @@ export class AttendanceService {
 
   update(id: string, input: UpdateAttendanceInput): Observable<AttendanceRecord> {
     return this.http.patch<AttendanceRecord>(`${this.baseUrl}/${id}`, input);
+  }
+
+  sessions(params: {
+    date?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    campusId?: string;
+  }): Observable<EventSessionSummary[]> {
+    let p = new HttpParams();
+    if (params.date) p = p.set('date', params.date);
+    if (params.dateFrom) p = p.set('dateFrom', params.dateFrom);
+    if (params.dateTo) p = p.set('dateTo', params.dateTo);
+    if (params.campusId) p = p.set('campusId', params.campusId);
+    return this.http.get<EventSessionSummary[]>(`${this.baseUrl}/sessions`, { params: p });
+  }
+
+  roster(eventId: string): Observable<AttendanceRoster> {
+    return this.http.get<AttendanceRoster>(`${this.baseUrl}/roster/${eventId}`);
+  }
+
+  batchUpdate(input: BatchAttendanceUpdate): Observable<{ updated: number; takenAt: string }> {
+    return this.http.patch<{ updated: number; takenAt: string }>(`${this.baseUrl}/batch`, input);
   }
 }
