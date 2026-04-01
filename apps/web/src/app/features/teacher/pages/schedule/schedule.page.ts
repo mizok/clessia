@@ -12,11 +12,12 @@ import {
   differenceInDays,
 } from 'date-fns';
 import { ButtonModule } from 'primeng/button';
-import { DrawerModule } from 'primeng/drawer';
 import { TagModule } from 'primeng/tag';
+import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
 import { OrgSettingsService } from '@core/org-settings.service';
+import { OverlayContainerService } from '@core/overlay-container.service';
 import {
   AttendanceRosterPanelComponent,
   type RosterPanelSession,
@@ -27,7 +28,8 @@ const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 @Component({
   selector: 'app-schedule',
   standalone: true,
-  imports: [DatePipe, ButtonModule, DrawerModule, TagModule, AttendanceRosterPanelComponent],
+  imports: [DatePipe, ButtonModule, DynamicDialogModule, TagModule],
+  providers: [DialogService],
   templateUrl: './schedule.page.html',
   styleUrl: './schedule.page.scss',
 })
@@ -36,13 +38,12 @@ export class SchedulePage implements OnInit {
 
   private readonly attendanceService = inject(AttendanceService);
   private readonly orgSettingsService = inject(OrgSettingsService);
+  private readonly dialogService = inject(DialogService);
+  private readonly overlayContainerService = inject(OverlayContainerService);
 
   protected readonly currentWeekStart = signal<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   protected readonly sessions = signal<EventSessionSummary[]>([]);
   protected readonly loading = signal(false);
-
-  protected readonly panelVisible = signal(false);
-  protected readonly activeSession = signal<RosterPanelSession | null>(null);
 
   protected readonly weekLabel = computed(() => {
     const start = this.currentWeekStart();
@@ -72,6 +73,10 @@ export class SchedulePage implements OnInit {
     }
     return map;
   });
+
+  protected get overlayContainer(): HTMLElement | null {
+    return this.overlayContainerService.getContainer();
+  }
 
   ngOnInit(): void {
     this.orgSettingsService.getSettings().subscribe({
@@ -129,17 +134,39 @@ export class SchedulePage implements OnInit {
   }
 
   protected openPanel(session: EventSessionSummary): void {
-    this.activeSession.set({
+    const data: RosterPanelSession = {
       eventId: session.eventId,
       className: session.className,
       eventDate: session.eventDate,
-    });
-    this.panelVisible.set(true);
-  }
+    };
 
-  protected onPanelSaved(result: { eventId: string; takenAt: string }): void {
-    this.sessions.update((list) =>
-      list.map((s) => (s.eventId === result.eventId ? { ...s, takenAt: result.takenAt } : s)),
+    const ref = this.dialogService.open(AttendanceRosterPanelComponent, {
+      width: '480px',
+      modal: true,
+      showHeader: false,
+      closable: false,
+      appendTo: this.overlayContainer ?? 'body',
+      data,
+    });
+
+    ref?.onClose.subscribe(
+      (result?: { eventId: string; takenAt: string; presentCount: number; absentCount: number; onLeaveCount: number }) => {
+        if (result) {
+          this.sessions.update((list) =>
+            list.map((s) =>
+              s.eventId === result.eventId
+                ? {
+                    ...s,
+                    takenAt: result.takenAt,
+                    presentCount: result.presentCount,
+                    absentCount: result.absentCount,
+                    onLeaveCount: result.onLeaveCount,
+                  }
+                : s,
+            ),
+          );
+        }
+      },
     );
   }
 }

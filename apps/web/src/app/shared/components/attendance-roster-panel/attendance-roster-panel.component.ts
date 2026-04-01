@@ -1,10 +1,11 @@
-import { Component, OnInit, inject, input, output, signal } from '@angular/core';
-import { AttendanceService, AttendanceRoster, RosterStudent } from '@core/attendance.service';
-import { MessageService } from 'primeng/api';
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { AttendanceService, type AttendanceRoster, type RosterStudent } from '@core/attendance.service';
 import { ButtonModule } from 'primeng/button';
 import { TagModule } from 'primeng/tag';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
+import { InlineNoticeComponent, type InlineNoticeSeverity } from '@shared/components/inline-notice/inline-notice.component';
 
 export interface RosterPanelSession {
   eventId: string;
@@ -15,23 +16,22 @@ export interface RosterPanelSession {
 @Component({
   selector: 'app-attendance-roster-panel',
   standalone: true,
-  imports: [ButtonModule, TagModule, ProgressSpinnerModule],
+  imports: [ButtonModule, TagModule, ProgressSpinnerModule, InlineNoticeComponent],
   templateUrl: './attendance-roster-panel.component.html',
   styleUrl: './attendance-roster-panel.component.scss',
 })
 export class AttendanceRosterPanelComponent implements OnInit {
   private readonly attendanceService = inject(AttendanceService);
-  private readonly messageService = inject(MessageService);
+  private readonly config = inject(DynamicDialogConfig);
+  private readonly ref = inject(DynamicDialogRef);
 
-  readonly session = input.required<RosterPanelSession>();
-  readonly closed = output<void>();
-  readonly saved = output<{ eventId: string; takenAt: string }>();
+  protected readonly session = this.config.data as RosterPanelSession;
 
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
   protected readonly roster = signal<AttendanceRoster | null>(null);
-
   protected readonly localStatus = signal<Map<string, 'present' | 'absent'>>(new Map());
+  protected readonly notice = signal<{ severity: InlineNoticeSeverity; detail: string } | null>(null);
 
   ngOnInit(): void {
     this.loadRoster();
@@ -39,7 +39,7 @@ export class AttendanceRosterPanelComponent implements OnInit {
 
   private loadRoster(): void {
     this.loading.set(true);
-    this.attendanceService.roster(this.session().eventId).subscribe({
+    this.attendanceService.roster(this.session.eventId).subscribe({
       next: (data) => {
         this.roster.set(data);
         const map = new Map<string, 'present' | 'absent'>();
@@ -52,7 +52,7 @@ export class AttendanceRosterPanelComponent implements OnInit {
         this.loading.set(false);
       },
       error: () => {
-        this.messageService.add({ severity: 'error', summary: '錯誤', detail: '無法載入點名名單' });
+        this.notice.set({ severity: 'error', detail: '無法載入點名名單' });
         this.loading.set(false);
       },
     });
@@ -86,21 +86,28 @@ export class AttendanceRosterPanelComponent implements OnInit {
       .filter((s) => !this.isOnLeave(s))
       .map((s) => ({ studentId: s.studentId, status: this.getStatus(s.studentId) }));
 
-    this.attendanceService.batchUpdate({ eventId: this.session().eventId, updates }).subscribe({
+    this.attendanceService.batchUpdate({ eventId: this.session.eventId, updates }).subscribe({
       next: (res) => {
         this.saving.set(false);
-        this.messageService.add({ severity: 'success', summary: '已儲存', detail: '點名完成' });
-        this.saved.emit({ eventId: this.session().eventId, takenAt: res.takenAt });
-        this.closed.emit();
+        const onLeaveCount = roster.students.filter((s) => s.status === 'on_leave').length;
+        const presentCount = updates.filter((u) => u.status === 'present').length;
+        const absentCount = updates.filter((u) => u.status === 'absent').length;
+        this.ref.close({
+          eventId: this.session.eventId,
+          takenAt: res.takenAt,
+          presentCount,
+          absentCount,
+          onLeaveCount,
+        });
       },
       error: () => {
         this.saving.set(false);
-        this.messageService.add({ severity: 'error', summary: '錯誤', detail: '儲存失敗，請稍後再試' });
+        this.notice.set({ severity: 'error', detail: '儲存失敗，請稍後再試' });
       },
     });
   }
 
   protected close(): void {
-    this.closed.emit();
+    this.ref.close();
   }
 }

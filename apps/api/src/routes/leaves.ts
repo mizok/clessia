@@ -9,6 +9,8 @@ const LeaveRequestSchema = z
     studentName: z.string(),
     startDate: z.string(),
     endDate: z.string(),
+    startTime: z.string().nullable(),
+    endTime: z.string().nullable(),
     reason: z.string().nullable(),
     submittedBy: z.string(),
     submittedByRole: z.enum(['parent', 'admin']),
@@ -34,9 +36,16 @@ const CreateLeaveSchema = z
     studentId: z.uuid(),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    startTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
+    endTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
     reason: z.string().nullable().optional(),
   })
   .openapi('CreateLeave');
+
+function toHHmm(t: string | null | undefined): string | null {
+  if (!t) return null;
+  return t.slice(0, 5); // "HH:MM:SS" → "HH:MM"
+}
 
 export function toLeaveResponse(row: Record<string, unknown>) {
   return {
@@ -46,6 +55,8 @@ export function toLeaveResponse(row: Record<string, unknown>) {
     studentName: row['student_name'] as string,
     startDate: row['start_date'] as string,
     endDate: row['end_date'] as string,
+    startTime: toHHmm(row['start_time'] as string | null),
+    endTime: toHHmm(row['end_time'] as string | null),
     reason: (row['reason'] as string | null) ?? null,
     submittedBy: row['submitted_by'] as string,
     submittedByRole: row['submitted_by_role'] as 'parent' | 'admin',
@@ -69,6 +80,7 @@ app.openapi(
         studentId: z.uuid().optional(),
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
+        coverDate: z.string().optional(),
         page: z.coerce.number().min(1).default(1).optional(),
         pageSize: z.coerce.number().min(1).max(100).default(20).optional(),
       }),
@@ -83,7 +95,7 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const { studentId, dateFrom, dateTo, page = 1, pageSize = 20 } = c.req.valid('query');
+    const { studentId, dateFrom, dateTo, coverDate, page = 1, pageSize = 20 } = c.req.valid('query');
 
     let query = supabase
       .from('leave_requests')
@@ -93,6 +105,10 @@ app.openapi(
     if (studentId) query = query.eq('student_id', studentId);
     if (dateFrom) query = query.gte('start_date', dateFrom);
     if (dateTo) query = query.lte('end_date', dateTo);
+    // coverDate: 找出請假範圍包含指定日期的紀錄（start_date <= date AND end_date >= date）
+    if (coverDate) {
+      query = query.lte('start_date', coverDate).gte('end_date', coverDate);
+    }
 
     const from = (page - 1) * pageSize;
     query = query.range(from, from + pageSize - 1).order('created_at', { ascending: false });
@@ -143,7 +159,27 @@ app.openapi(
     const userId = c.get('userId');
     const body = c.req.valid('json');
 
-    // 1. 建立請假紀錄
+    // 1. 衝突檢查：同學生是否有重疊的請假紀錄
+    const { data: conflicts } = await supabase
+      .from('leave_requests')
+      .select('id, start_date, end_date')
+      .eq('org_id', orgId)
+      .eq('student_id', body.studentId)
+      .lte('start_date', body.endDate)
+      .gte('end_date', body.startDate);
+
+    if (conflicts && conflicts.length > 0) {
+      const overlap = conflicts[0] as { start_date: string; end_date: string };
+      return c.json(
+        {
+          error: '請假時間重疊',
+          message: `該學生在 ${overlap.start_date} ~ ${overlap.end_date} 已有請假紀錄`,
+        },
+        409,
+      );
+    }
+
+    // 2. 建立請假紀錄
     const { data: leave, error: leaveError } = await supabase
       .from('leave_requests')
       .insert({
@@ -151,6 +187,8 @@ app.openapi(
         student_id: body.studentId,
         start_date: body.startDate,
         end_date: body.endDate,
+        start_time: body.startTime ?? null,
+        end_time: body.endTime ?? null,
         reason: body.reason ?? null,
         submitted_by: userId,
         submitted_by_role: 'admin',
@@ -206,6 +244,9 @@ app.openapi(
     summary: '刪除請假（attendance 恢復為 absent）',
     request: {
       params: z.object({ id: z.uuid() }),
+      query: z.object({
+        mode: z.enum(['truncate', 'full']).default('truncate').optional(),
+      }),
     },
     responses: {
       204: { description: '已刪除' },
@@ -215,8 +256,9 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const { id } = c.req.valid('param');
+    const { mode = 'truncate' } = c.req.valid('query');
 
-    // 1. 找到這筆請假的 studentId 和日期範圍
+    // 1. 找到請假紀錄
     const { data: leave } = await supabase
       .from('leave_requests')
       .select('student_id, start_date, end_date')
@@ -228,28 +270,46 @@ app.openapi(
       return c.json({ error: '找不到請假紀錄' }, 404);
     }
 
-    // 2. 刪除請假
-    await supabase.from('leave_requests').delete().eq('id', id).eq('org_id', orgId);
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD (UTC)
+    const startDate = (leave as any).start_date as string;
+    const endDate = (leave as any).end_date as string;
 
-    // 3. 將對應 attendance_records 的 on_leave 改回 absent
-    const { data: events } = await supabase
-      .from('events')
-      .select('id')
-      .eq('org_id', orgId)
-      .gte('event_date', (leave as any).start_date)
-      .lte('event_date', (leave as any).end_date);
+    // 內部工具：將指定日期區間的 on_leave attendance 改回 absent
+    const revertAttendance = async (from: string, to: string) => {
+      const { data: events } = await supabase
+        .from('events')
+        .select('id')
+        .eq('org_id', orgId)
+        .gte('event_date', from)
+        .lte('event_date', to);
+      if (events && events.length > 0) {
+        await supabase
+          .from('attendance_records')
+          .update({ status: 'absent' })
+          .eq('student_id', (leave as any).student_id)
+          .eq('status', 'on_leave')
+          .in('event_id', events.map((e: any) => e.id));
+      }
+    };
 
-    if (events && events.length > 0) {
-      const eventIds = events.map((e: any) => e.id);
+    const isActive = startDate <= today && endDate >= today;
+
+    // truncate 模式且為進行中：保留過去，截斷今日起
+    if (mode === 'truncate' && isActive) {
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
       await supabase
-        .from('attendance_records')
-        .update({ status: 'absent' })
-        .eq('student_id', (leave as any).student_id)
-        .eq('status', 'on_leave')
-        .in('event_id', eventIds);
+        .from('leave_requests')
+        .update({ end_date: yesterday })
+        .eq('id', id)
+        .eq('org_id', orgId);
+      await revertAttendance(today, endDate);
+      return new Response(null, { status: 204 });
     }
 
-    return c.body(null, 204);
+    // 其他情況（full 模式、未開始、已結束）：完整刪除
+    await supabase.from('leave_requests').delete().eq('id', id).eq('org_id', orgId);
+    await revertAttendance(startDate, endDate);
+    return new Response(null, { status: 204 });
   },
 );
 

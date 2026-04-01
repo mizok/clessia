@@ -61,18 +61,3 @@
   </div>
 </div>
 
-<p-drawer
-  [visible]="panelVisible()"
-  (visibleChange)="panelVisible.set($event)"
-  position="right"
-  [style]="{ width: '380px' }"
-  [showCloseIcon]="false"
->
-  @if (activeSession()) {
-    <app-attendance-roster-panel
-      [session]="activeSession()!"
-      (closed)="panelVisible.set(false)"
-      (saved)="onPanelSaved($event)"
-    />
-  }
-</p-drawer>

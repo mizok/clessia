@@ -19,6 +19,8 @@ export interface Enrollment {
   orgId: string;
   classId: string;
   className: string;
+  campusId: string | null;
+  campusName: string | null;
   courseId: string;
   courseName: string;
   studentId: string;

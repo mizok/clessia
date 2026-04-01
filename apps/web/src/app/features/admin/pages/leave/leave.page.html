@@ -75,8 +75,22 @@
       @for (record of records(); track record.id) {
         <tr appRtRow [appRtRow]="record" [appRtRowId]="record.id">
           <td appRtColCell="studentName">{{ record.studentName }}</td>
-          <td appRtColCell="startDate">{{ record.startDate }}</td>
-          <td appRtColCell="endDate">{{ record.endDate }}</td>
+          <td appRtColCell="startDate">
+            <div class="leave-page__date-cell">
+              <span>{{ record.startDate }}</span>
+              @if (record.startTime) {
+                <span class="leave-page__date-time">{{ record.startTime }}</span>
+              }
+            </div>
+          </td>
+          <td appRtColCell="endDate">
+            <div class="leave-page__date-cell">
+              <span>{{ record.endDate }}</span>
+              @if (record.endTime) {
+                <span class="leave-page__date-time">{{ record.endTime }}</span>
+              }
+            </div>
+          </td>
           <td appRtColCell="days">{{ calcDays(record.startDate, record.endDate) }} 天</td>
           <td appRtColCell="reason">{{ record.reason ?? '—' }}</td>
           <td appRtColCell="submittedByRole">
@@ -91,7 +105,7 @@
               severity="danger"
               [text]="true"
               size="small"
-              pTooltip="刪除"
+              pTooltip="取消請假"
               (onClick)="confirmDelete(record)"
             />
           </td>

@@ -40,6 +40,17 @@
     color: var(--zinc-400, #a1a1aa);
     padding: var(--space-8) 0;
   }
+
+  &__date-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__date-time {
+    font-size: 0.75rem;
+    color: var(--zinc-400);
+  }
 }
 
 @keyframes pulse {

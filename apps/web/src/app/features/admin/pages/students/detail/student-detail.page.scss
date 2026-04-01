@@ -343,6 +343,12 @@
     gap: 2px;
   }
 
+  &__enrollment-name-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
   &__enrollment-class {
     font-weight: 600;
     color: var(--zinc-800);

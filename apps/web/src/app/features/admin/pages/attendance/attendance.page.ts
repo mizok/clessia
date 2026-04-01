@@ -1,14 +1,15 @@
-import { Component, OnInit, inject, signal, computed, input } from '@angular/core';
+import { Component, OnInit, inject, signal, input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
-import { DrawerModule } from 'primeng/drawer';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
+import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
 import { format } from 'date-fns';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
 import { OrgSettingsService } from '@core/org-settings.service';
+import { OverlayContainerService } from '@core/overlay-container.service';
 import {
   AttendanceRosterPanelComponent,
   type RosterPanelSession,
@@ -17,15 +18,8 @@ import {
 @Component({
   selector: 'app-attendance',
   standalone: true,
-  imports: [
-    FormsModule,
-    ButtonModule,
-    DatePickerModule,
-    DrawerModule,
-    ToastModule,
-    AttendanceRosterPanelComponent,
-  ],
-  providers: [MessageService],
+  imports: [FormsModule, ButtonModule, DatePickerModule, DynamicDialogModule, ToastModule],
+  providers: [MessageService, DialogService],
   templateUrl: './attendance.page.html',
   styleUrl: './attendance.page.scss',
 })
@@ -34,13 +28,16 @@ export class AttendancePage implements OnInit {
 
   private readonly attendanceService = inject(AttendanceService);
   private readonly orgSettingsService = inject(OrgSettingsService);
+  private readonly dialogService = inject(DialogService);
+  private readonly overlayContainerService = inject(OverlayContainerService);
 
   protected readonly selectedDate = signal<Date>(new Date());
   protected readonly sessions = signal<EventSessionSummary[]>([]);
   protected readonly loading = signal(false);
 
-  protected readonly panelVisible = signal(false);
-  protected readonly activeSession = signal<RosterPanelSession | null>(null);
+  protected get overlayContainer(): HTMLElement | null {
+    return this.overlayContainerService.getContainer();
+  }
 
   ngOnInit(): void {
     this.orgSettingsService.getSettings().subscribe({
@@ -67,17 +64,47 @@ export class AttendancePage implements OnInit {
   }
 
   protected openPanel(session: EventSessionSummary): void {
-    this.activeSession.set({
+    const data: RosterPanelSession = {
       eventId: session.eventId,
       className: session.className,
       eventDate: session.eventDate,
+    };
+
+    const ref = this.dialogService.open(AttendanceRosterPanelComponent, {
+      width: '480px',
+      modal: true,
+      showHeader: false,
+      closable: false,
+      appendTo: this.overlayContainer ?? 'body',
+      data,
     });
-    this.panelVisible.set(true);
+
+    ref?.onClose.subscribe(
+      (result?: { eventId: string; takenAt: string; presentCount: number; absentCount: number; onLeaveCount: number }) => {
+        if (result) this.onPanelSaved(result);
+      },
+    );
   }
 
-  protected onPanelSaved(result: { eventId: string; takenAt: string }): void {
+  protected onPanelSaved(result: {
+    eventId: string;
+    takenAt: string;
+    presentCount: number;
+    absentCount: number;
+    onLeaveCount: number;
+  }): void {
     this.sessions.update((list) =>
-      list.map((s) => (s.eventId === result.eventId ? { ...s, takenAt: result.takenAt } : s)),
+      list.map((s) =>
+        s.eventId === result.eventId
+          ? {
+              ...s,
+              takenAt: result.takenAt,
+              presentCount: result.presentCount,
+              absentCount: result.absentCount,
+              onLeaveCount: result.onLeaveCount,
+            }
+          : s,
+      ),
     );
   }
 

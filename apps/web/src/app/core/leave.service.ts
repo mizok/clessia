@@ -10,6 +10,8 @@ export interface LeaveRequest {
   studentName: string;
   startDate: string;
   endDate: string;
+  startTime: string | null;
+  endTime: string | null;
   reason: string | null;
   submittedBy: string;
   submittedByRole: 'parent' | 'admin';
@@ -27,6 +29,7 @@ export interface LeaveQueryParams {
   studentId?: string;
   dateFrom?: string;
   dateTo?: string;
+  coverDate?: string;
   page?: number;
   pageSize?: number;
 }
@@ -35,6 +38,8 @@ export interface CreateLeaveInput {
   studentId: string;
   startDate: string;
   endDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
   reason?: string | null;
 }
 
@@ -49,6 +54,7 @@ export class LeaveService {
     if (params.studentId) httpParams = httpParams.set('studentId', params.studentId);
     if (params.dateFrom) httpParams = httpParams.set('dateFrom', params.dateFrom);
     if (params.dateTo) httpParams = httpParams.set('dateTo', params.dateTo);
+    if (params.coverDate) httpParams = httpParams.set('coverDate', params.coverDate);
     if (params.page) httpParams = httpParams.set('page', params.page);
     if (params.pageSize) httpParams = httpParams.set('pageSize', params.pageSize);
     return this.http.get<LeaveListResponse>(this.baseUrl, { params: httpParams });
@@ -58,7 +64,9 @@ export class LeaveService {
     return this.http.post<LeaveRequest>(this.baseUrl, input);
   }
 
-  delete(id: string): Observable<void> {
-    return this.http.delete<void>(`${this.baseUrl}/${id}`);
+  delete(id: string, mode: 'truncate' | 'full' = 'truncate'): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/${id}`, {
+      params: new HttpParams().set('mode', mode),
+    });
   }
 }

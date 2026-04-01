@@ -78,11 +78,11 @@ const AttendanceRosterSchema = z
 
 const BatchAttendanceUpdateSchema = z
   .object({
-    eventId: z.uuid(),
+    eventId: z.string(),
     updates: z
       .array(
         z.object({
-          studentId: z.uuid(),
+          studentId: z.string(),
           status: z.enum(['present', 'absent']),
         }),
       )
@@ -274,15 +274,101 @@ app.openapi(
   },
 );
 
+// PATCH /api/attendance/batch
+app.openapi(
+  createRoute({
+    method: 'patch',
+    path: '/batch',
+    tags: ['Attendance'],
+    summary: '批次儲存點名結果（原子性，同步更新 attendance_taken_at）',
+    request: {
+      body: { content: { 'application/json': { schema: BatchAttendanceUpdateSchema } } },
+    },
+    responses: {
+      200: {
+        description: '成功',
+        content: {
+          'application/json': {
+            schema: z.object({ updated: z.number(), takenAt: z.string() }),
+          },
+        },
+      },
+      400: { description: '參數錯誤' },
+      403: { description: '無權限' },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
+    const { eventId, updates } = c.req.valid('json');
+
+    const { data: ev } = await supabase
+      .from('events')
+      .select('id, attendance_taken_at, sessions(class_id), event_date')
+      .eq('id', eventId)
+      .eq('org_id', orgId)
+      .single();
+
+    if (!ev) return c.json({ error: '找不到課堂或無權限' }, 403);
+
+    const classId = (ev as any).sessions?.[0]?.class_id;
+    const eventDate = (ev as any).event_date as string;
+
+    const { data: validEnrollments } = await supabase
+      .from('enrollments')
+      .select('student_id')
+      .eq('class_id', classId)
+      .eq('status', 'active')
+      .lte('effective_from', eventDate)
+      .or(`effective_to.is.null,effective_to.gte.${eventDate}`);
+
+    const validIds = new Set((validEnrollments ?? []).map((e: any) => e.student_id));
+    const invalidIds = updates.filter((u) => !validIds.has(u.studentId));
+    if (invalidIds.length > 0) {
+      return c.json({ error: '部分學生不在此課堂修課名單中' }, 400);
+    }
+
+    const records = updates.map((u) => ({
+      org_id: orgId,
+      event_id: eventId,
+      student_id: u.studentId,
+      status: u.status,
+      recorded_by: userId,
+      recorded_by_role: 'admin',
+    }));
+
+    const { error: upsertError } = await supabase
+      .from('attendance_records')
+      .upsert(records, { onConflict: 'event_id,student_id' });
+
+    if (upsertError) {
+      return c.json({ error: '儲存出勤失敗', message: upsertError.message }, 500);
+    }
+
+    const takenAt = (ev as any).attendance_taken_at ?? new Date().toISOString();
+
+    if (!(ev as any).attendance_taken_at) {
+      await supabase
+        .from('events')
+        .update({ attendance_taken_at: takenAt })
+        .eq('id', eventId)
+        .eq('org_id', orgId);
+    }
+
+    return c.json({ updated: updates.length, takenAt }, 200);
+  },
+);
+
 // PATCH /api/attendance/:id
 app.openapi(
   createRoute({
     method: 'patch',
-    path: '/:id',
+    path: '/{id}',
     tags: ['Attendance'],
     summary: '修改出勤狀態',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: z.string() }),
       body: { content: { 'application/json': { schema: UpdateAttendanceSchema } } },
     },
     responses: {
@@ -370,7 +456,7 @@ app.openapi(
         campus_id, campuses(name),
         sessions(
           class_id,
-          classes(name, teacher_id, ba_user:teacher_id(name))
+          classes(name)
         )
       `)
       .eq('org_id', orgId)
@@ -417,7 +503,7 @@ app.openapi(
           eventId: ev.id,
           classId: classId ?? '',
           className: classRow?.name ?? '',
-          teacherName: classRow?.ba_user?.name ?? null,
+          teacherName: null,
           campusId: ev.campus_id ?? null,
           campusName: ev.campuses?.name ?? null,
           eventDate: ev.event_date,
@@ -440,11 +526,11 @@ app.openapi(
 app.openapi(
   createRoute({
     method: 'get',
-    path: '/roster/:eventId',
+    path: '/roster/{eventId}',
     tags: ['Attendance'],
     summary: '取得課堂點名名單（懶建立，不寫 DB）',
     request: {
-      params: z.object({ eventId: z.uuid() }),
+      params: z.object({ eventId: z.string() }),
     },
     responses: {
       200: {
@@ -472,7 +558,7 @@ app.openapi(
 
     const { data: enrollments } = await supabase
       .from('enrollments')
-      .select('student_id, students(name, grade_level, school)')
+      .select('student_id, students(name, grade, school)')
       .eq('class_id', classId)
       .eq('status', 'active')
       .lte('effective_from', eventDate)
@@ -493,7 +579,7 @@ app.openapi(
       return {
         studentId: e.student_id,
         studentName: e.students?.name ?? '',
-        grade: e.students?.grade_level ?? null,
+        grade: e.students?.grade ?? null,
         school: e.students?.school ?? null,
         recordId: rec?.id ?? null,
         status: rec?.status ?? null,
@@ -508,92 +594,6 @@ app.openapi(
       },
       200,
     );
-  },
-);
-
-// PATCH /api/attendance/batch
-app.openapi(
-  createRoute({
-    method: 'patch',
-    path: '/batch',
-    tags: ['Attendance'],
-    summary: '批次儲存點名結果（原子性，同步更新 attendance_taken_at）',
-    request: {
-      body: { content: { 'application/json': { schema: BatchAttendanceUpdateSchema } } },
-    },
-    responses: {
-      200: {
-        description: '成功',
-        content: {
-          'application/json': {
-            schema: z.object({ updated: z.number(), takenAt: z.string() }),
-          },
-        },
-      },
-      400: { description: '參數錯誤' },
-      403: { description: '無權限' },
-    },
-  }),
-  async (c) => {
-    const supabase = c.get('supabase');
-    const orgId = c.get('orgId');
-    const userId = c.get('userId');
-    const { eventId, updates } = c.req.valid('json');
-
-    const { data: ev } = await supabase
-      .from('events')
-      .select('id, attendance_taken_at, sessions(class_id), event_date')
-      .eq('id', eventId)
-      .eq('org_id', orgId)
-      .single();
-
-    if (!ev) return c.json({ error: '找不到課堂或無權限' }, 403);
-
-    const classId = (ev as any).sessions?.[0]?.class_id;
-    const eventDate = (ev as any).event_date as string;
-
-    const { data: validEnrollments } = await supabase
-      .from('enrollments')
-      .select('student_id')
-      .eq('class_id', classId)
-      .eq('status', 'active')
-      .lte('effective_from', eventDate)
-      .or(`effective_to.is.null,effective_to.gte.${eventDate}`);
-
-    const validIds = new Set((validEnrollments ?? []).map((e: any) => e.student_id));
-    const invalidIds = updates.filter((u) => !validIds.has(u.studentId));
-    if (invalidIds.length > 0) {
-      return c.json({ error: '部分學生不在此課堂修課名單中' }, 400);
-    }
-
-    const records = updates.map((u) => ({
-      org_id: orgId,
-      event_id: eventId,
-      student_id: u.studentId,
-      status: u.status,
-      recorded_by: userId,
-      recorded_by_role: 'admin',
-    }));
-
-    const { error: upsertError } = await supabase
-      .from('attendance_records')
-      .upsert(records, { onConflict: 'event_id,student_id' });
-
-    if (upsertError) {
-      return c.json({ error: '儲存出勤失敗', message: upsertError.message }, 500);
-    }
-
-    const takenAt = (ev as any).attendance_taken_at ?? new Date().toISOString();
-
-    if (!(ev as any).attendance_taken_at) {
-      await supabase
-        .from('events')
-        .update({ attendance_taken_at: takenAt })
-        .eq('id', eventId)
-        .eq('org_id', orgId);
-    }
-
-    return c.json({ updated: updates.length, takenAt }, 200);
   },
 );
 

@@ -481,9 +481,12 @@ DECLARE
   demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
   demo_campus_name TEXT := '示範分校01';
   demo_campus_id UUID;
-  math_teacher_id TEXT := '40000000-0000-0000-0000-000000000003';
-  english_teacher_id TEXT := '40000000-0000-0000-0000-000000000002';
-  science_teacher_id TEXT := '40000000-0000-0000-0000-000000000004';
+  math_teacher_user_id TEXT := '40000000-0000-0000-0000-000000000003';
+  english_teacher_user_id TEXT := '40000000-0000-0000-0000-000000000002';
+  science_teacher_user_id TEXT := '40000000-0000-0000-0000-000000000004';
+  math_teacher_id UUID;
+  english_teacher_id UUID;
+  science_teacher_id UUID;
   math_course_id UUID;
   english_course_id UUID;
   science_course_id UUID;
@@ -514,6 +517,13 @@ BEGIN
   IF demo_campus_id IS NULL THEN
     RAISE EXCEPTION 'Attendance seed campus not found: %', demo_campus_name;
   END IF;
+
+  SELECT id INTO math_teacher_id FROM public.staff
+    WHERE org_id = demo_org_id AND user_id = math_teacher_user_id LIMIT 1;
+  SELECT id INTO english_teacher_id FROM public.staff
+    WHERE org_id = demo_org_id AND user_id = english_teacher_user_id LIMIT 1;
+  SELECT id INTO science_teacher_id FROM public.staff
+    WHERE org_id = demo_org_id AND user_id = science_teacher_user_id LIMIT 1;
 
   SELECT id
   INTO math_course_id
@@ -582,7 +592,7 @@ BEGIN
       ARRAY['J1', 'J2', 'J3'],
       TRUE,
       CURRENT_DATE - 30,
-      math_teacher_id
+      math_teacher_user_id
     ),
     (
       english_class_id,
@@ -594,7 +604,7 @@ BEGIN
       ARRAY['J2', 'J3', 'S1'],
       TRUE,
       CURRENT_DATE - 30,
-      english_teacher_id
+      english_teacher_user_id
     ),
     (
       science_class_id,
@@ -606,7 +616,7 @@ BEGIN
       ARRAY['J1', 'J2', 'S1', 'S2'],
       TRUE,
       CURRENT_DATE - 30,
-      science_teacher_id
+      science_teacher_user_id
     )
   ON CONFLICT DO NOTHING;
 
@@ -624,7 +634,7 @@ BEGIN
     format('61000000-0000-0000-0000-%s', lpad(student_no::text, 12, '0'))::uuid,
     'active'::public.enrollment_status,
     CURRENT_DATE - 30,
-    math_teacher_id
+    math_teacher_user_id
   FROM generate_series(1, 8) AS student_no
   ON CONFLICT DO NOTHING;
 
@@ -642,7 +652,7 @@ BEGIN
     format('61000000-0000-0000-0000-%s', lpad(student_no::text, 12, '0'))::uuid,
     'active'::public.enrollment_status,
     CURRENT_DATE - 30,
-    english_teacher_id
+    english_teacher_user_id
   FROM generate_series(5, 12) AS student_no
   ON CONFLICT DO NOTHING;
 
@@ -660,7 +670,7 @@ BEGIN
     science_students.s_id,
     'active'::public.enrollment_status,
     CURRENT_DATE - 30,
-    science_teacher_id
+    science_teacher_user_id
   FROM (
     SELECT format('61000000-0000-0000-0000-%s', lpad(student_no::text, 12, '0'))::uuid AS s_id
     FROM generate_series(1, 4) AS student_no
@@ -766,6 +776,82 @@ BEGIN
   ) AS science_events
   ON CONFLICT DO NOTHING;
 
+  -- sessions rows（讓 events JOIN sessions 能取得 class_id）
+  INSERT INTO public.sessions (
+    org_id, class_id, session_date, start_time, end_time, teacher_id, assignment_status, event_id
+  )
+  SELECT
+    demo_org_id,
+    math_class_id,
+    event_date,
+    '10:00'::time,
+    '12:00'::time,
+    math_teacher_id::uuid,
+    'assigned'::public.session_assignment_status,
+    (
+      substr(event_hash, 1, 8) || '-' ||
+      substr(event_hash, 9, 4) || '-' ||
+      substr(event_hash, 13, 4) || '-' ||
+      substr(event_hash, 17, 4) || '-' ||
+      substr(event_hash, 21, 12)
+    )::uuid
+  FROM (
+    SELECT session_day::date AS event_date, md5('attendance-math-' || session_day::date::text) AS event_hash
+    FROM generate_series(CURRENT_DATE - 14, CURRENT_DATE + 7, '1 day'::interval) AS session_day
+    WHERE EXTRACT(DOW FROM session_day) IN (1, 3, 5)
+  ) AS math_ev
+  ON CONFLICT (class_id, session_date, start_time) DO NOTHING;
+
+  INSERT INTO public.sessions (
+    org_id, class_id, session_date, start_time, end_time, teacher_id, assignment_status, event_id
+  )
+  SELECT
+    demo_org_id,
+    english_class_id,
+    event_date,
+    '14:00'::time,
+    '16:00'::time,
+    english_teacher_id::uuid,
+    'assigned'::public.session_assignment_status,
+    (
+      substr(event_hash, 1, 8) || '-' ||
+      substr(event_hash, 9, 4) || '-' ||
+      substr(event_hash, 13, 4) || '-' ||
+      substr(event_hash, 17, 4) || '-' ||
+      substr(event_hash, 21, 12)
+    )::uuid
+  FROM (
+    SELECT session_day::date AS event_date, md5('attendance-english-' || session_day::date::text) AS event_hash
+    FROM generate_series(CURRENT_DATE - 14, CURRENT_DATE + 7, '1 day'::interval) AS session_day
+    WHERE EXTRACT(DOW FROM session_day) IN (2, 4)
+  ) AS english_ev
+  ON CONFLICT (class_id, session_date, start_time) DO NOTHING;
+
+  INSERT INTO public.sessions (
+    org_id, class_id, session_date, start_time, end_time, teacher_id, assignment_status, event_id
+  )
+  SELECT
+    demo_org_id,
+    science_class_id,
+    event_date,
+    '09:00'::time,
+    '11:00'::time,
+    science_teacher_id::uuid,
+    'assigned'::public.session_assignment_status,
+    (
+      substr(event_hash, 1, 8) || '-' ||
+      substr(event_hash, 9, 4) || '-' ||
+      substr(event_hash, 13, 4) || '-' ||
+      substr(event_hash, 17, 4) || '-' ||
+      substr(event_hash, 21, 12)
+    )::uuid
+  FROM (
+    SELECT session_day::date AS event_date, md5('attendance-science-' || session_day::date::text) AS event_hash
+    FROM generate_series(CURRENT_DATE - 14, CURRENT_DATE + 7, '1 day'::interval) AS session_day
+    WHERE EXTRACT(DOW FROM session_day) = 6
+  ) AS science_ev
+  ON CONFLICT (class_id, session_date, start_time) DO NOTHING;
+
   INSERT INTO public.attendance_records (
     org_id,
     event_id,
@@ -830,9 +916,9 @@ BEGIN
       ELSE NULL
     END,
     CASE past_events.title
-      WHEN '數學班 A' THEN math_teacher_id
-      WHEN '英文班 B' THEN english_teacher_id
-      ELSE science_teacher_id
+      WHEN '數學班 A' THEN math_teacher_user_id
+      WHEN '英文班 B' THEN english_teacher_user_id
+      ELSE science_teacher_user_id
     END,
     'teacher'
   FROM past_events

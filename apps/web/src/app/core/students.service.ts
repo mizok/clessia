@@ -35,6 +35,7 @@ export interface Student {
   notes: string | null;
   isActive: boolean;
   parentNames: string[];
+  campusNames: string[];
   hasEnrollments: boolean;
   createdAt: string;
   updatedAt: string;
@@ -62,6 +63,7 @@ export interface StudentListResponse {
 export interface StudentQueryParams {
   search?: string;
   grade?: GradeLevel;
+  campusId?: string;
   page?: number;
   pageSize?: number;
   isActive?: boolean;
@@ -160,6 +162,7 @@ export class StudentsService {
     const q: Record<string, string | number | boolean> = {};
     if (params.search !== undefined) q['search'] = params.search;
     if (params.grade !== undefined) q['grade'] = params.grade;
+    if (params.campusId !== undefined) q['campusId'] = params.campusId;
     if (params.page !== undefined) q['page'] = params.page;
     if (params.pageSize !== undefined) q['pageSize'] = params.pageSize;
     if (params.isActive !== undefined) q['isActive'] = params.isActive;

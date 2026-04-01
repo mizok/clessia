@@ -7,7 +7,7 @@ import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { MessageService, ConfirmationService } from 'primeng/api';
+import { MessageService, ConfirmationService, ConfirmEventType } from 'primeng/api';
 import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
 import { format, differenceInCalendarDays } from 'date-fns';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -73,6 +73,13 @@ export class LeavePage implements OnInit {
 
   protected calcDays(startDate: string, endDate: string): number {
     return differenceInCalendarDays(new Date(endDate), new Date(startDate)) + 1;
+  }
+
+  protected leaveState(record: LeaveRequest): 'future' | 'active' | 'past' {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    if (record.startDate > today) return 'future';
+    if (record.endDate >= today) return 'active';
+    return 'past';
   }
 
   protected submittedByRoleLabel(role: 'parent' | 'admin'): string {
@@ -165,30 +172,99 @@ export class LeavePage implements OnInit {
   }
 
   protected confirmDelete(record: LeaveRequest): void {
+    const state = this.leaveState(record);
+
+    if (state === 'active') {
+      this.confirmActiveDelete(record);
+    } else if (state === 'past') {
+      this.confirmPastDelete(record);
+    } else {
+      this.confirmFutureDelete(record);
+    }
+  }
+
+  private confirmFutureDelete(record: LeaveRequest): void {
     this.confirmationService.confirm({
-      message: `確定要刪除 ${record.studentName} 的請假紀錄（${record.startDate} ~ ${record.endDate}）？`,
-      header: '確認刪除',
+      message: `確定要取消 ${record.studentName} 的請假申請（${record.startDate} ~ ${record.endDate}）？`,
+      header: '取消請假申請',
       icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '刪除',
-      rejectLabel: '取消',
-      accept: () => {
-        this.leaveService.delete(record.id).subscribe({
-          next: () => {
-            this.records.update((list) => list.filter((r) => r.id !== record.id));
-            this.totalRecords.update((n) => Math.max(n - 1, 0));
-            this.messageService.add({
-              severity: 'success',
-              summary: '已刪除',
-              detail: '請假紀錄已刪除',
-            });
-          },
-          error: () => {
-            this.messageService.add({
-              severity: 'error',
-              summary: '錯誤',
-              detail: '刪除失敗，請稍後再試',
-            });
-          },
+      acceptLabel: '確認取消',
+      rejectLabel: '返回',
+      accept: () => this.executeDelete(record, 'full', '已取消請假', `${record.studentName} 的請假申請已取消`),
+    });
+  }
+
+  private confirmPastDelete(record: LeaveRequest): void {
+    this.confirmationService.confirm({
+      message:
+        `注意：此請假紀錄已結束（${record.startDate} ~ ${record.endDate}）。\n` +
+        `刪除後將同步恢復對應課堂的出勤狀態，此操作無法復原。\n\n` +
+        `確定要刪除這筆歷史紀錄嗎？`,
+      header: '刪除歷史請假紀錄',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: '確認刪除',
+      rejectLabel: '返回',
+      accept: () => this.executeDelete(record, 'full', '已刪除', `${record.studentName} 的歷史請假紀錄已刪除`),
+    });
+  }
+
+  private confirmActiveDelete(record: LeaveRequest): void {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const yesterday = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
+
+    this.confirmationService.confirm({
+      message:
+        `此假期目前進行中（${record.startDate} ~ ${record.endDate}）。\n` +
+        `請選擇操作方式：`,
+      header: '取消進行中假期',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: '取消剩餘假期',
+      rejectLabel: '完全刪除',
+      accept: () =>
+        this.executeDelete(
+          record,
+          'truncate',
+          '已取消剩餘假期',
+          `已保留至 ${yesterday} 的請假，${today} 起恢復出勤`,
+        ),
+      reject: (type?: ConfirmEventType) => {
+        if (type === ConfirmEventType.REJECT) {
+          this.confirmFullActiveDelete(record);
+        }
+      },
+    });
+  }
+
+  private confirmFullActiveDelete(record: LeaveRequest): void {
+    this.confirmationService.confirm({
+      message:
+        `確定要完全刪除 ${record.studentName} 的請假紀錄（${record.startDate} ~ ${record.endDate}）？\n` +
+        `包含已過去的請假天數也將一併撤銷，此操作無法復原。`,
+      header: '完全刪除請假紀錄',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: '確認完全刪除',
+      rejectLabel: '返回',
+      accept: () =>
+        this.executeDelete(record, 'full', '已刪除請假紀錄', `${record.studentName} 的請假紀錄已完全刪除`),
+    });
+  }
+
+  private executeDelete(
+    record: LeaveRequest,
+    mode: 'truncate' | 'full',
+    summary: string,
+    detail: string,
+  ): void {
+    this.leaveService.delete(record.id, mode).subscribe({
+      next: () => {
+        this.messageService.add({ severity: 'success', summary, detail });
+        this.loadRecords();
+      },
+      error: () => {
+        this.messageService.add({
+          severity: 'error',
+          summary: '錯誤',
+          detail: '操作失敗，請稍後再試',
         });
       },
     });

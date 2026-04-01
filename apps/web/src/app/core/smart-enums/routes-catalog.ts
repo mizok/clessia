@@ -171,7 +171,7 @@ export class RoutesCatalog {
   public static readonly ADMIN_ATTENDANCE = this.register(
     'attendance',
     '/admin/attendance',
-    '出勤紀錄',
+    '課堂出勤紀錄',
     UserType.ADMIN,
     'pi-check-circle',
     true,
@@ -180,7 +180,7 @@ export class RoutesCatalog {
   public static readonly ADMIN_LEAVE = this.register(
     'leave',
     '/admin/leave',
-    '請假管理',
+    '學生請假紀錄',
     UserType.ADMIN,
     'pi-file',
     true,
@@ -234,7 +234,7 @@ export class RoutesCatalog {
     '行政財務',
   );
 
-  // Group: 系統設定
+  // Group: 人事管理
   public static readonly ADMIN_STAFF = this.register(
     'staff',
     '/admin/staff',
@@ -242,8 +242,10 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-id-card',
     true,
-    '系統設定',
+    '人事管理',
   );
+
+  // Group: 系統設定
   public static readonly ADMIN_CAMPUSES = this.register(
     'campuses',
     '/admin/campuses',

@@ -31,6 +31,7 @@ const StudentSchema = z
     notes: z.string().nullable(),
     isActive: z.boolean(),
     parentNames: z.array(z.string()),
+    campusNames: z.array(z.string()),
     hasEnrollments: z.boolean(),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -116,6 +117,7 @@ export function buildStudentSummary(
 export function toStudentResponse(
   row: Record<string, unknown>,
   parentNames: string[] = [],
+  campusNames: string[] = [],
   hasEnrollments: boolean = false,
 ) {
   return {
@@ -134,6 +136,7 @@ export function toStudentResponse(
     notes: (row['notes'] as string | null) ?? null,
     isActive: row['is_active'] as boolean,
     parentNames,
+    campusNames,
     hasEnrollments,
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
@@ -157,8 +160,7 @@ app.openapi(
       query: z.object({
         search: z.string().optional(),
         grade: GradeLevelSchema.optional(),
-        // campusId: deferred — 需要 enrollments 表，待 enrollments 功能完成後實作
-        // campusId: z.uuid().optional(),
+        campusId: z.uuid().optional(),
         page: z.coerce.number().min(1).default(1).optional(),
         pageSize: z.coerce.number().min(1).max(100).default(20).optional(),
         isActive: z.coerce.boolean().optional(),
@@ -174,12 +176,12 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const { search, grade, page = 1, pageSize = 20, isActive } = c.req.valid('query');
+    const { search, grade, campusId, page = 1, pageSize = 20, isActive } = c.req.valid('query');
 
     let query = supabase
       .from('students')
       .select(
-        `*, parent_student_relations(is_primary, relation, parents(id, name)), enrollments(id)`,
+        `*, parent_student_relations(is_primary, relation, parents(id, name)), enrollments(id, classes(campus_id, campuses(name)))`,
         { count: 'exact' },
       )
       .eq('org_id', orgId)
@@ -211,6 +213,27 @@ app.openapi(
     }
     if (grade) {
       query = query.eq('grade', grade);
+    }
+    if (campusId) {
+      const { data: enrollmentRows } = await supabase
+        .from('enrollments')
+        .select('student_id, classes!inner(campus_id)')
+        .eq('classes.campus_id', campusId);
+
+      const campusStudentIds = Array.from(
+        new Set(
+          ((enrollmentRows ?? []) as Array<{ student_id: string | null }>)
+            .map((row) => row.student_id)
+            .filter((id): id is string => !!id),
+        ),
+      );
+
+      if (campusStudentIds.length > 0) {
+        query = query.in('id', campusStudentIds);
+      } else {
+        // 該分校無學生，直接回空集合
+        query = query.in('id', ['00000000-0000-0000-0000-000000000000']);
+      }
     }
     if (isActive !== undefined) {
       query = query.eq('is_active', isActive);
@@ -245,9 +268,19 @@ app.openapi(
         .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0))
         .map((r) => r.parents?.name ?? '')
         .filter(Boolean);
-      const enrollmentRows = (row['enrollments'] as Array<{ id: string }>) ?? [];
+      const enrollmentRows = (row['enrollments'] as Array<{
+        id: string;
+        classes: { campus_id: string | null; campuses: { name: string } | null } | null;
+      }>) ?? [];
       const hasEnrollments = enrollmentRows.length > 0;
-      return toStudentResponse(row, parentNames, hasEnrollments);
+      const campusNames = Array.from(
+        new Set(
+          enrollmentRows
+            .map((e) => e.classes?.campuses?.name)
+            .filter((n): n is string => !!n),
+        ),
+      );
+      return toStudentResponse(row, parentNames, campusNames, hasEnrollments);
     });
 
     return c.json(

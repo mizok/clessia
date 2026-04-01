@@ -132,7 +132,12 @@
               <td appRtColCell="name">
                 <div class="student-table__name-btn">
                   <span class="student-table__avatar" [style.--h]="getPersonHue(student.id)">{{ student.name[0] }}</span>
-                  <span class="student-table__name">{{ student.name }}</span>
+                  <div class="student-table__name-info">
+                    <span class="student-table__name">{{ student.name }}</span>
+                    @if ((student.campusNames?.length ?? 0) > 0) {
+                      <span class="student-table__campuses">{{ student.campusNames.join('・') }}</span>
+                    }
+                  </div>
                 </div>
               </td>
               <td appRtColCell="grade">

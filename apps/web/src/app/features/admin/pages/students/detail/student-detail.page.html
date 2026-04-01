@@ -202,7 +202,12 @@
               (keydown.enter)="navigateToClass(enrollment.courseId, enrollment.classId)"
             >
               <div class="student-detail__enrollment-info">
-                <span class="student-detail__enrollment-class">{{ enrollment.className }}</span>
+                <div class="student-detail__enrollment-name-row">
+                  <span class="student-detail__enrollment-class">{{ enrollment.className }}</span>
+                  @if (enrollment.campusName) {
+                    <p-tag [value]="enrollment.campusName" severity="secondary" />
+                  }
+                </div>
                 <span class="student-detail__enrollment-course">{{ enrollment.courseName }}</span>
                 <span class="student-detail__enrollment-since"
                   >自 {{ enrollment.effectiveFrom }}</span

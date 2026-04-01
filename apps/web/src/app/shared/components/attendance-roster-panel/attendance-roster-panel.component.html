@@ -1,11 +1,19 @@
 <div class="roster-panel">
   <div class="roster-panel__header">
     <div>
-      <div class="roster-panel__title">{{ session().className }}</div>
-      <div class="roster-panel__subtitle">{{ session().eventDate }}</div>
+      <div class="roster-panel__title">{{ session.className }}</div>
+      <div class="roster-panel__subtitle">{{ session.eventDate }}</div>
     </div>
     <p-button icon="pi pi-times" [text]="true" severity="secondary" (onClick)="close()" />
   </div>
+
+  @if (notice()) {
+    <app-inline-notice
+      [severity]="notice()!.severity"
+      [detail]="notice()!.detail"
+      (dismissed)="notice.set(null)"
+    />
+  }
 
   @if (loading()) {
     <div class="roster-panel__loading">
