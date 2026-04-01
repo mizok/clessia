@@ -5,109 +5,74 @@
     <h2 class="attendance-page__title">{{ page().label }}</h2>
   </div>
 
-  <div class="attendance-page__filters">
-    <p-select
-      [options]="campuses()"
-      [(ngModel)]="filterCampusId"
-      optionLabel="label"
-      optionValue="value"
-      placeholder="全部分校"
-      (onChange)="onFilterChange()"
-      styleClass="attendance-page__filter-item"
-      [appendTo]="'body'"
-    />
+  <div class="attendance-page__toolbar">
     <p-datepicker
-      [(ngModel)]="filterDateRange"
-      selectionMode="range"
-      placeholder="日期範圍"
+      [ngModel]="selectedDate()"
+      (ngModelChange)="onDateChange($event)"
       dateFormat="yy-mm-dd"
-      (onClose)="onFilterChange()"
-      styleClass="attendance-page__filter-item"
-      [appendTo]="'body'"
-    />
-    <p-select
-      [options]="statusOptions"
-      [(ngModel)]="filterStatus"
-      optionLabel="label"
-      optionValue="value"
-      placeholder="全部狀態"
-      (onChange)="onFilterChange()"
-      styleClass="attendance-page__filter-item"
-      [appendTo]="'body'"
+      [showIcon]="true"
+      appendTo="body"
     />
     <p-button
       icon="pi pi-refresh"
       severity="secondary"
-      (onClick)="onFilterChange()"
-      pTooltip="重新整理"
+      [text]="true"
+      (onClick)="loadSessions()"
     />
   </div>
 
-  <app-responsive-table
-    [headTemplate]="headTpl"
-    [bodyTemplate]="bodyTpl"
-    [pagination]="pagination()"
-    (page)="onPage($event)"
-  />
-
-  <ng-template #headTpl>
-    <tr>
-      <th appRtColDef="studentName" [appRtColDefMinWidth]="120" [appRtColDefPriority]="1">學生姓名</th>
-      <th appRtColDef="campusName" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">分校</th>
-      <th appRtColDef="className" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">班級</th>
-      <th appRtColDef="eventDate" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">日期</th>
-      <th appRtColDef="time" [appRtColDefMinWidth]="120" [appRtColDefPriority]="5">時間</th>
-      <th appRtColDef="status" [appRtColDefMinWidth]="120" [appRtColDefPriority]="0" [appRtColDefCollapsible]="false">狀態</th>
-    </tr>
-  </ng-template>
-
-  <ng-template #bodyTpl>
+  <div class="attendance-page__body">
     @if (loading()) {
-      @for (i of [1, 2, 3, 4, 5]; track i) {
-        <tr>
-          <td class="responsive-table__cell" colspan="6">
-            <div class="attendance-page__skeleton-bar"></div>
-          </td>
-        </tr>
+      @for (i of [1, 2, 3]; track i) {
+        <div class="attendance-page__skeleton"></div>
       }
-    } @else if (records().length === 0) {
-      <tr>
-        <td class="responsive-table__cell attendance-page__empty" colspan="6">沒有出勤紀錄</td>
-      </tr>
+    } @else if (sessions().length === 0) {
+      <div class="attendance-page__empty">今天沒有課堂</div>
     } @else {
-      @for (record of records(); track record.id) {
-        <tr appRtRow [appRtRow]="record" [appRtRowId]="record.id">
-          <td appRtColCell="studentName">{{ record.studentName }}</td>
-          <td appRtColCell="campusName">{{ record.campusName ?? '—' }}</td>
-          <td appRtColCell="className">{{ record.className ?? '—' }}</td>
-          <td appRtColCell="eventDate">{{ record.eventDate }}</td>
-          <td appRtColCell="time">
-            @if (record.startTime && record.endTime) {
-              {{ record.startTime }} – {{ record.endTime }}
+      @for (session of sessions(); track session.eventId) {
+        <div class="attendance-page__card">
+          <div class="attendance-page__card-info">
+            <div class="attendance-page__card-title">{{ session.className }}</div>
+            <div class="attendance-page__card-meta">
+              {{ session.startTime ?? '--:--' }}–{{ session.endTime ?? '--:--' }}
+              @if (session.teacherName) { · {{ session.teacherName }} }
+              @if (session.campusName) { · {{ session.campusName }} }
+            </div>
+          </div>
+          <div class="attendance-page__card-stats">
+            @if (isTaken(session)) {
+              <span class="attendance-page__stat attendance-page__stat--present">✓ {{ session.presentCount }}</span>
+              <span class="attendance-page__stat attendance-page__stat--leave">🏳 {{ session.onLeaveCount }}</span>
+              <span class="attendance-page__stat attendance-page__stat--absent">✗ {{ session.absentCount }}</span>
             } @else {
-              —
+              <span class="attendance-page__untaken">◌ {{ session.enrolledCount }} 人未點名</span>
             }
-          </td>
-          <td appRtColCell="status">
-            <p-select
-              [options]="statusEditOptions"
-              [ngModel]="record.status"
-              optionLabel="label"
-              optionValue="value"
-              (onChange)="updateStatus(record, $event.value)"
-              styleClass="attendance-page__status-select"
-              [appendTo]="'body'"
-            >
-              <ng-template #selectedItem>
-                <p-tag
-                  [value]="ATTENDANCE_STATUS_LABELS[record.status]"
-                  [severity]="ATTENDANCE_STATUS_SEVERITIES[record.status]"
-                />
-              </ng-template>
-            </p-select>
-          </td>
-        </tr>
+          </div>
+          <p-button
+            [label]="isTaken(session) ? '修改點名' : '點名'"
+            [outlined]="!isAdminLed() || isTaken(session)"
+            [severity]="isAdminLed() && !isTaken(session) ? 'primary' : 'secondary'"
+            size="small"
+            (onClick)="openPanel(session)"
+          />
+        </div>
       }
     }
-  </ng-template>
+  </div>
 </div>
+
+<p-drawer
+  [visible]="panelVisible()"
+  (visibleChange)="panelVisible.set($event)"
+  position="right"
+  [style]="{ width: '380px' }"
+  [showCloseIcon]="false"
+>
+  @if (activeSession()) {
+    <app-attendance-roster-panel
+      [session]="activeSession()!"
+      (closed)="panelVisible.set(false)"
+      (saved)="onPanelSaved($event)"
+    />
+  }
+</p-drawer>
