@@ -371,6 +371,7 @@ BEGIN
     END LOOP;
 END $$;
 
+
 -- ===== Students & Parents seed =====
 DO $$
 DECLARE
@@ -472,4 +473,380 @@ BEGIN
     INSERT INTO public.parent_student_relations (parent_id, student_id, relation, is_primary)
     VALUES (v_parent_id, v_student_id, 'parent', TRUE);
   END LOOP;
+END $$;
+
+-- ===== Attendance test seed =====
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  demo_campus_name TEXT := '示範分校01';
+  demo_campus_id UUID;
+  math_teacher_id TEXT := '40000000-0000-0000-0000-000000000003';
+  english_teacher_id TEXT := '40000000-0000-0000-0000-000000000002';
+  science_teacher_id TEXT := '40000000-0000-0000-0000-000000000004';
+  math_course_id UUID;
+  english_course_id UUID;
+  science_course_id UUID;
+  math_class_id UUID := '62000000-0000-0000-0000-000000000001';
+  english_class_id UUID := '62000000-0000-0000-0000-000000000002';
+  science_class_id UUID := '62000000-0000-0000-0000-000000000003';
+  student_names TEXT[] := ARRAY[
+    '出勤測試學生01', '出勤測試學生02', '出勤測試學生03', '出勤測試學生04',
+    '出勤測試學生05', '出勤測試學生06', '出勤測試學生07', '出勤測試學生08',
+    '出勤測試學生09', '出勤測試學生10', '出勤測試學生11', '出勤測試學生12'
+  ];
+  student_grades TEXT[] := ARRAY['J1', 'J1', 'J2', 'J2', 'J3', 'J3', 'S1', 'S1', 'J1', 'J2', 'S2', 'S3'];
+  student_schools TEXT[] := ARRAY[
+    '台北市立測試國中', '台北市立測試國中', '新北市立測試國中', '新北市立測試國中',
+    '桃園市立測試國中', '桃園市立測試國中', '台中市立測試高中', '台中市立測試高中',
+    '新竹市立測試國中', '新竹市立測試國中', '台南市立測試高中', '高雄市立測試高中'
+  ];
+  student_index INTEGER;
+  student_id UUID;
+BEGIN
+  SELECT id
+  INTO demo_campus_id
+  FROM public.campuses
+  WHERE org_id = demo_org_id
+    AND name = demo_campus_name
+  LIMIT 1;
+
+  IF demo_campus_id IS NULL THEN
+    RAISE EXCEPTION 'Attendance seed campus not found: %', demo_campus_name;
+  END IF;
+
+  SELECT id
+  INTO math_course_id
+  FROM public.courses
+  WHERE org_id = demo_org_id
+    AND campus_id = demo_campus_id
+    AND name = '數學 九年級會考總複習班'
+  LIMIT 1;
+
+  SELECT id
+  INTO english_course_id
+  FROM public.courses
+  WHERE org_id = demo_org_id
+    AND campus_id = demo_campus_id
+    AND name = '英文 八年級重點進階班'
+  LIMIT 1;
+
+  SELECT id
+  INTO science_course_id
+  FROM public.courses
+  WHERE org_id = demo_org_id
+    AND campus_id = demo_campus_id
+    AND name = '自然 高一銜接先修班'
+  LIMIT 1;
+
+  IF math_course_id IS NULL OR english_course_id IS NULL OR science_course_id IS NULL THEN
+    RAISE EXCEPTION 'Attendance seed courses not found for campus %', demo_campus_name;
+  END IF;
+
+  FOR student_index IN 1..12 LOOP
+    student_id := format('61000000-0000-0000-0000-%s', lpad(student_index::text, 12, '0'))::uuid;
+
+    INSERT INTO public.students (id, org_id, name, grade, school, email, is_active)
+    VALUES (
+      student_id,
+      demo_org_id,
+      student_names[student_index],
+      student_grades[student_index]::public.grade_level,
+      student_schools[student_index],
+      format('attendance-student-%s@demo.clessia.app', lpad(student_index::text, 2, '0')),
+      TRUE
+    )
+    ON CONFLICT DO NOTHING;
+  END LOOP;
+
+  INSERT INTO public.classes (
+    id,
+    org_id,
+    campus_id,
+    course_id,
+    name,
+    max_students,
+    grade_levels,
+    is_active,
+    start_date,
+    updated_by
+  )
+  VALUES
+    (
+      math_class_id,
+      demo_org_id,
+      demo_campus_id,
+      math_course_id,
+      '數學班 A',
+      20,
+      ARRAY['J1', 'J2', 'J3'],
+      TRUE,
+      CURRENT_DATE - 30,
+      math_teacher_id
+    ),
+    (
+      english_class_id,
+      demo_org_id,
+      demo_campus_id,
+      english_course_id,
+      '英文班 B',
+      20,
+      ARRAY['J2', 'J3', 'S1'],
+      TRUE,
+      CURRENT_DATE - 30,
+      english_teacher_id
+    ),
+    (
+      science_class_id,
+      demo_org_id,
+      demo_campus_id,
+      science_course_id,
+      '自然班 C',
+      20,
+      ARRAY['J1', 'J2', 'S1', 'S2'],
+      TRUE,
+      CURRENT_DATE - 30,
+      science_teacher_id
+    )
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO public.enrollments (
+    org_id,
+    class_id,
+    student_id,
+    status,
+    effective_from,
+    created_by
+  )
+  SELECT
+    demo_org_id,
+    math_class_id,
+    format('61000000-0000-0000-0000-%s', lpad(student_no::text, 12, '0'))::uuid,
+    'active'::public.enrollment_status,
+    CURRENT_DATE - 30,
+    math_teacher_id
+  FROM generate_series(1, 8) AS student_no
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO public.enrollments (
+    org_id,
+    class_id,
+    student_id,
+    status,
+    effective_from,
+    created_by
+  )
+  SELECT
+    demo_org_id,
+    english_class_id,
+    format('61000000-0000-0000-0000-%s', lpad(student_no::text, 12, '0'))::uuid,
+    'active'::public.enrollment_status,
+    CURRENT_DATE - 30,
+    english_teacher_id
+  FROM generate_series(5, 12) AS student_no
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO public.enrollments (
+    org_id,
+    class_id,
+    student_id,
+    status,
+    effective_from,
+    created_by
+  )
+  SELECT
+    demo_org_id,
+    science_class_id,
+    science_students.s_id,
+    'active'::public.enrollment_status,
+    CURRENT_DATE - 30,
+    science_teacher_id
+  FROM (
+    SELECT format('61000000-0000-0000-0000-%s', lpad(student_no::text, 12, '0'))::uuid AS s_id
+    FROM generate_series(1, 4) AS student_no
+    UNION ALL
+    SELECT format('61000000-0000-0000-0000-%s', lpad(student_no::text, 12, '0'))::uuid AS s_id
+    FROM generate_series(9, 12) AS student_no
+  ) AS science_students
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO public.events (
+    id,
+    org_id,
+    event_type,
+    title,
+    campus_id,
+    event_date,
+    start_time,
+    end_time
+  )
+  SELECT
+    (
+      substr(event_hash, 1, 8) || '-' ||
+      substr(event_hash, 9, 4) || '-' ||
+      substr(event_hash, 13, 4) || '-' ||
+      substr(event_hash, 17, 4) || '-' ||
+      substr(event_hash, 21, 12)
+    )::uuid,
+    demo_org_id,
+    'session'::public.event_type,
+    '數學班 A',
+    demo_campus_id,
+    event_date,
+    '10:00'::time,
+    '12:00'::time
+  FROM (
+    SELECT session_day::date AS event_date, md5('attendance-math-' || session_day::date::text) AS event_hash
+    FROM generate_series(CURRENT_DATE - 14, CURRENT_DATE + 7, '1 day'::interval) AS session_day
+    WHERE EXTRACT(DOW FROM session_day) IN (1, 3, 5)
+  ) AS math_events
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO public.events (
+    id,
+    org_id,
+    event_type,
+    title,
+    campus_id,
+    event_date,
+    start_time,
+    end_time
+  )
+  SELECT
+    (
+      substr(event_hash, 1, 8) || '-' ||
+      substr(event_hash, 9, 4) || '-' ||
+      substr(event_hash, 13, 4) || '-' ||
+      substr(event_hash, 17, 4) || '-' ||
+      substr(event_hash, 21, 12)
+    )::uuid,
+    demo_org_id,
+    'session'::public.event_type,
+    '英文班 B',
+    demo_campus_id,
+    event_date,
+    '14:00'::time,
+    '16:00'::time
+  FROM (
+    SELECT session_day::date AS event_date, md5('attendance-english-' || session_day::date::text) AS event_hash
+    FROM generate_series(CURRENT_DATE - 14, CURRENT_DATE + 7, '1 day'::interval) AS session_day
+    WHERE EXTRACT(DOW FROM session_day) IN (2, 4)
+  ) AS english_events
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO public.events (
+    id,
+    org_id,
+    event_type,
+    title,
+    campus_id,
+    event_date,
+    start_time,
+    end_time
+  )
+  SELECT
+    (
+      substr(event_hash, 1, 8) || '-' ||
+      substr(event_hash, 9, 4) || '-' ||
+      substr(event_hash, 13, 4) || '-' ||
+      substr(event_hash, 17, 4) || '-' ||
+      substr(event_hash, 21, 12)
+    )::uuid,
+    demo_org_id,
+    'session'::public.event_type,
+    '自然班 C',
+    demo_campus_id,
+    event_date,
+    '09:00'::time,
+    '11:00'::time
+  FROM (
+    SELECT session_day::date AS event_date, md5('attendance-science-' || session_day::date::text) AS event_hash
+    FROM generate_series(CURRENT_DATE - 14, CURRENT_DATE + 7, '1 day'::interval) AS session_day
+    WHERE EXTRACT(DOW FROM session_day) = 6
+  ) AS science_events
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO public.attendance_records (
+    org_id,
+    event_id,
+    student_id,
+    status,
+    note,
+    recorded_by,
+    recorded_by_role
+  )
+  WITH past_events AS (
+    SELECT
+      e.id,
+      e.org_id,
+      e.title,
+      row_number() OVER (PARTITION BY e.title ORDER BY e.event_date, e.start_time, e.id) AS event_rank
+    FROM public.events e
+    WHERE e.org_id = demo_org_id
+      AND e.title IN ('數學班 A', '英文班 B', '自然班 C')
+      AND (e.event_date + e.start_time) < NOW()
+  ),
+  active_enrollments AS (
+    SELECT enr.class_id, enr.student_id
+    FROM public.enrollments enr
+    WHERE enr.org_id = demo_org_id
+      AND class_id IN (math_class_id, english_class_id, science_class_id)
+      AND status = 'active'
+      AND effective_from <= CURRENT_DATE
+      AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+  )
+  SELECT
+    demo_org_id,
+    past_events.id,
+    active_enrollments.student_id,
+    CASE
+      WHEN past_events.title = '數學班 A'
+        AND past_events.event_rank = 1
+        AND active_enrollments.student_id = '61000000-0000-0000-0000-000000000001'::uuid
+        THEN 'absent'::public.attendance_status
+      WHEN past_events.title = '英文班 B'
+        AND past_events.event_rank = 1
+        AND active_enrollments.student_id = '61000000-0000-0000-0000-000000000005'::uuid
+        THEN 'absent'::public.attendance_status
+      WHEN past_events.title = '自然班 C'
+        AND past_events.event_rank = 1
+        AND active_enrollments.student_id = '61000000-0000-0000-0000-000000000009'::uuid
+        THEN 'absent'::public.attendance_status
+      ELSE 'present'::public.attendance_status
+    END,
+    CASE
+      WHEN past_events.title = '數學班 A'
+        AND past_events.event_rank = 1
+        AND active_enrollments.student_id = '61000000-0000-0000-0000-000000000001'::uuid
+        THEN '固定測試缺席'
+      WHEN past_events.title = '英文班 B'
+        AND past_events.event_rank = 1
+        AND active_enrollments.student_id = '61000000-0000-0000-0000-000000000005'::uuid
+        THEN '固定測試缺席'
+      WHEN past_events.title = '自然班 C'
+        AND past_events.event_rank = 1
+        AND active_enrollments.student_id = '61000000-0000-0000-0000-000000000009'::uuid
+        THEN '固定測試缺席'
+      ELSE NULL
+    END,
+    CASE past_events.title
+      WHEN '數學班 A' THEN math_teacher_id
+      WHEN '英文班 B' THEN english_teacher_id
+      ELSE science_teacher_id
+    END,
+    'teacher'
+  FROM past_events
+  JOIN active_enrollments
+    ON active_enrollments.class_id = CASE past_events.title
+      WHEN '數學班 A' THEN math_class_id
+      WHEN '英文班 B' THEN english_class_id
+      ELSE science_class_id
+    END
+  ON CONFLICT DO NOTHING;
+
+  UPDATE public.events
+  SET attendance_taken_at = NOW()
+  WHERE org_id = demo_org_id
+    AND title = '數學班 A'
+    AND event_date = CURRENT_DATE;
 END $$;
