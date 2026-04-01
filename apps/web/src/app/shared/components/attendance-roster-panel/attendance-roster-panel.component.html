@@ -1,0 +1,57 @@
+<div class="roster-panel">
+  <div class="roster-panel__header">
+    <div>
+      <div class="roster-panel__title">{{ session().className }}</div>
+      <div class="roster-panel__subtitle">{{ session().eventDate }}</div>
+    </div>
+    <p-button icon="pi pi-times" [text]="true" severity="secondary" (onClick)="close()" />
+  </div>
+
+  @if (loading()) {
+    <div class="roster-panel__loading">
+      <p-progressSpinner strokeWidth="4" />
+    </div>
+  } @else if (roster()) {
+    <div class="roster-panel__list">
+      @for (student of roster()!.students; track student.studentId) {
+        <div class="roster-panel__row" [class.roster-panel__row--on-leave]="isOnLeave(student)">
+          <div class="roster-panel__student">
+            <span class="roster-panel__name">{{ student.studentName }}</span>
+            <span class="roster-panel__sub">
+              {{ gradeLabel(student.grade) }}{{ student.school ? ' · ' + student.school : '' }}
+            </span>
+          </div>
+          @if (isOnLeave(student)) {
+            <p-tag value="請假中" severity="warn" />
+          } @else {
+            <div class="roster-panel__toggle">
+              <p-button
+                label="出席"
+                size="small"
+                [outlined]="getStatus(student.studentId) !== 'present'"
+                severity="success"
+                (onClick)="setStatus(student.studentId, 'present')"
+              />
+              <p-button
+                label="缺席"
+                size="small"
+                [outlined]="getStatus(student.studentId) !== 'absent'"
+                severity="danger"
+                (onClick)="setStatus(student.studentId, 'absent')"
+              />
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="roster-panel__footer">
+      <p-button
+        label="儲存點名"
+        icon="pi pi-check"
+        [loading]="saving()"
+        (onClick)="save()"
+      />
+    </div>
+  }
+</div>

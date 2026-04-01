@@ -1,0 +1,79 @@
+.roster-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--zinc-200);
+  }
+
+  &__title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--zinc-900);
+  }
+
+  &__subtitle {
+    font-size: 0.75rem;
+    color: var(--zinc-500);
+    margin-top: 2px;
+  }
+
+  &__loading {
+    display: flex;
+    justify-content: center;
+    padding: var(--space-8);
+  }
+
+  &__list {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-2) 0;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--zinc-100);
+
+    &--on-leave {
+      background: var(--zinc-50);
+      opacity: 0.7;
+    }
+  }
+
+  &__student {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--zinc-800);
+  }
+
+  &__sub {
+    font-size: 0.75rem;
+    color: var(--zinc-400);
+  }
+
+  &__toggle {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  &__footer {
+    padding: var(--space-4);
+    border-top: 1px solid var(--zinc-200);
+  }
+}
