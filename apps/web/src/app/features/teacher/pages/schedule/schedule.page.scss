@@ -1,0 +1,127 @@
+.schedule-page {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+
+  &__header {
+    display: flex;
+    align-items: center;
+  }
+
+  &__title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--zinc-900);
+    margin: 0;
+  }
+
+  &__week-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  &__week-label {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--zinc-700);
+    min-width: 200px;
+    text-align: center;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: var(--space-2);
+    overflow-x: auto;
+  }
+
+  &__day {
+    min-width: 120px;
+    border: 1px solid var(--zinc-200);
+    border-radius: 8px;
+    overflow: hidden;
+
+    &--today {
+      border-color: var(--sky-400);
+    }
+  }
+
+  &__day-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-2);
+    background: var(--zinc-50);
+    border-bottom: 1px solid var(--zinc-200);
+
+    .schedule-page__day--today & {
+      background: var(--sky-50);
+    }
+  }
+
+  &__day-label {
+    font-size: 0.75rem;
+    color: var(--zinc-500);
+  }
+
+  &__day-date {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--zinc-800);
+  }
+
+  &__day-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    min-height: 60px;
+  }
+
+  &__session-card {
+    padding: var(--space-2);
+    background: #fff;
+    border: 1px solid var(--zinc-200);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__session-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--zinc-800);
+  }
+
+  &__session-time,
+  &__session-count {
+    font-size: 0.7rem;
+    color: var(--zinc-500);
+  }
+
+  &__locked,
+  &__untaken {
+    font-size: 0.7rem;
+    color: var(--zinc-400);
+  }
+
+  &__summary {
+    display: flex;
+    gap: var(--space-2);
+    font-size: 0.75rem;
+
+    &--present { color: var(--green-600); }
+    &--leave { color: var(--yellow-600); }
+    &--absent { color: var(--red-600); }
+  }
+
+  &__no-class {
+    text-align: center;
+    color: var(--zinc-300);
+    font-size: 0.8rem;
+    padding: var(--space-2);
+  }
+}

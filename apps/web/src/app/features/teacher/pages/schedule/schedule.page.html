@@ -1,1 +1,79 @@
-<p>schedule works!</p>
+<div class="schedule-page">
+  <div class="schedule-page__header">
+    <h2 class="schedule-page__title">{{ page().label }}</h2>
+  </div>
+
+  <div class="schedule-page__week-nav">
+    <p-button icon="pi pi-chevron-left" [text]="true" (onClick)="prevWeek()" />
+    <span class="schedule-page__week-label">{{ weekLabel() }}</span>
+    <p-button icon="pi pi-chevron-right" [text]="true" (onClick)="nextWeek()" />
+  </div>
+
+  <div class="schedule-page__grid">
+    @for (day of weekDays(); track day.dateStr) {
+      <div class="schedule-page__day" [class.schedule-page__day--today]="isToday(day.dateStr)">
+        <div class="schedule-page__day-header">
+          <span class="schedule-page__day-label">{{ day.label }}</span>
+          <span class="schedule-page__day-date">{{ day.date | date:'M/d' }}</span>
+        </div>
+        <div class="schedule-page__day-body">
+          @for (session of sessionsByDay().get(day.dateStr) ?? []; track session.eventId) {
+            <div class="schedule-page__session-card">
+              <div class="schedule-page__session-name">{{ session.className }}</div>
+              <div class="schedule-page__session-time">
+                {{ session.startTime ?? '--:--' }}–{{ session.endTime ?? '--:--' }}
+              </div>
+              <div class="schedule-page__session-count">{{ session.enrolledCount }} 人</div>
+
+              @if (isTeacherLed()) {
+                @if (isFuture(session)) {
+                  <!-- 未來課堂，不顯示點名 -->
+                } @else if (isRetroactiveLocked(session)) {
+                  <span class="schedule-page__locked">點名已截止</span>
+                } @else if (session.takenAt) {
+                  <p-button
+                    label="已點名"
+                    size="small"
+                    [outlined]="true"
+                    severity="secondary"
+                    (onClick)="openPanel(session)"
+                  />
+                } @else {
+                  <p-button label="開始點名" size="small" (onClick)="openPanel(session)" />
+                }
+              } @else {
+                @if (session.takenAt) {
+                  <div class="schedule-page__summary">
+                    <span class="schedule-page__summary--present">✓{{ session.presentCount }}</span>
+                    <span class="schedule-page__summary--leave">🏳{{ session.onLeaveCount }}</span>
+                    <span class="schedule-page__summary--absent">✗{{ session.absentCount }}</span>
+                  </div>
+                } @else if (!isFuture(session)) {
+                  <span class="schedule-page__untaken">未點名</span>
+                }
+              }
+            </div>
+          } @empty {
+            <div class="schedule-page__no-class">—</div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+<p-drawer
+  [visible]="panelVisible()"
+  (visibleChange)="panelVisible.set($event)"
+  position="right"
+  [style]="{ width: '380px' }"
+  [showCloseIcon]="false"
+>
+  @if (activeSession()) {
+    <app-attendance-roster-panel
+      [session]="activeSession()!"
+      (closed)="panelVisible.set(false)"
+      (saved)="onPanelSaved($event)"
+    />
+  }
+</p-drawer>
