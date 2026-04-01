@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TagModule } from 'primeng/tag';
@@ -17,6 +18,7 @@ export class SessionDetailDialogComponent implements OnInit {
   private readonly config = inject(DynamicDialogConfig);
   private readonly ref = inject(DynamicDialogRef);
   private readonly sessionsService = inject(SessionsService);
+  private readonly router = inject(Router);
 
   protected readonly session = signal<Session | null>(null);
   protected readonly historyEntries = signal<SessionHistoryEntry[]>([]);
@@ -42,7 +44,6 @@ export class SessionDetailDialogComponent implements OnInit {
   protected readonly contextLine = computed(() => {
     const s = this.session();
     if (!s) return '';
-
     const teacherLabel = s.assignmentStatus === 'unassigned' ? '未指派' : (s.teacherName ?? '未指派');
     return `${s.sessionDate.slice(5).replace('-', '/')} ${s.startTime}–${s.endTime} ・ ${s.campusName} ・ ${teacherLabel}`;
   });
@@ -91,9 +92,7 @@ export class SessionDetailDialogComponent implements OnInit {
   }
 
   protected changeSummary(change: SessionHistoryEntry): string {
-    if (change.changeType === 'creation') {
-      return '課堂建立';
-    }
+    if (change.changeType === 'creation') return '課堂建立';
 
     if (change.changeType === 'substitute') {
       const originalTeacher = this.summaryValue(change.originalTeacherName, '原老師未記錄');
@@ -105,18 +104,13 @@ export class SessionDetailDialogComponent implements OnInit {
       return `${this.formatScheduleSlot(change.originalSessionDate, change.originalStartTime, change.originalEndTime)} -> ${this.formatScheduleSlot(change.newSessionDate, change.newStartTime, change.newEndTime)}`;
     }
 
-    if (change.changeType === 'uncancel') {
-      return '課堂已恢復為正常上課狀態';
-    }
+    if (change.changeType === 'uncancel') return '課堂已恢復為正常上課狀態';
 
     return '課堂已標記為停課';
   }
 
   protected changeReason(change: SessionHistoryEntry): string | null {
-    if (change.changeType === 'creation') {
-      return null;
-    }
-
+    if (change.changeType === 'creation') return null;
     return this.summaryValue(change.reason, '未填寫原因');
   }
 
@@ -127,10 +121,7 @@ export class SessionDetailDialogComponent implements OnInit {
   }
 
   protected changeSourceLabel(change: SessionHistoryEntry): string | null {
-    if (change.changeType === 'creation') {
-      return null;
-    }
-
+    if (change.changeType === 'creation') return null;
     return change.operationSource === 'batch' ? '批次操作' : '單堂操作';
   }
 
@@ -156,6 +147,14 @@ export class SessionDetailDialogComponent implements OnInit {
     const normalizedStart = startTime ?? '--:--';
     const normalizedEnd = endTime ?? '--:--';
     return `${normalizedDate} ${normalizedStart} - ${normalizedEnd}`;
+  }
+
+  protected goToAttendance(): void {
+    const date = this.session()?.sessionDate;
+    this.router.navigate(['/admin/attendance'], {
+      queryParams: date ? { date } : {},
+    });
+    this.ref.close();
   }
 
   protected closeDialog(): void {

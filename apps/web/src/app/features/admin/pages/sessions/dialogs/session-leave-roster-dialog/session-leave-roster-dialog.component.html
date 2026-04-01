@@ -1,0 +1,112 @@
+<div class="leave-roster">
+  @if (session(); as s) {
+    <p class="leave-roster__meta">
+      {{ s.className }} · {{ s.sessionDate }} {{ s.startTime }}–{{ s.endTime }}
+    </p>
+  }
+
+  @if (loading()) {
+    <div class="leave-roster__loading">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <p-skeleton height="52px" borderRadius="6px" />
+      }
+    </div>
+  } @else if (error()) {
+    <div class="leave-roster__empty">
+      <i class="pi pi-exclamation-triangle leave-roster__empty-icon"></i>
+      <p class="leave-roster__empty-text">{{ error() }}</p>
+    </div>
+  } @else if (roster().length === 0) {
+    <div class="leave-roster__empty">
+      <i class="pi pi-users leave-roster__empty-icon"></i>
+      <p class="leave-roster__empty-text">此班級尚無在籍學生</p>
+    </div>
+  } @else {
+    <div class="leave-roster__filters">
+      <input
+        pInputText
+        class="leave-roster__search"
+        type="text"
+        placeholder="搜尋學生姓名…"
+        [value]="nameFilter()"
+        (input)="setNameFilter($any($event.target).value)"
+      />
+      <div class="leave-roster__filter-tabs">
+        @for (opt of leaveOptions; track opt.value) {
+          <button
+            class="leave-roster__filter-tab"
+            [class.leave-roster__filter-tab--active]="leaveFilter() === opt.value"
+            (click)="setLeaveFilter(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <p class="leave-roster__summary" [class.leave-roster__summary--warn]="onLeaveCount > 0">
+      共 {{ roster().length }} 人
+      @if (onLeaveCount > 0) {
+        ・{{ onLeaveCount }} 人請假
+      }
+    </p>
+
+    @if (pagedRoster().length === 0) {
+      <div class="leave-roster__empty leave-roster__empty--inline">
+        <p class="leave-roster__empty-text">沒有符合條件的學生</p>
+      </div>
+    } @else {
+      <div class="leave-roster__list">
+        @for (row of pagedRoster(); track row.studentId) {
+          <div class="leave-roster__item" [class.leave-roster__item--on-leave]="row.isOnLeave">
+            <div class="leave-roster__item-main">
+              <div class="leave-roster__name-block">
+                <span class="leave-roster__name">{{ row.studentName }}</span>
+                <span class="leave-roster__student-sub">{{ gradeLabel(row.studentGrade) }} · {{ row.studentSchool }}</span>
+              </div>
+              @if (row.isOnLeave) {
+                <p-tag value="請假" severity="warn" />
+              }
+            </div>
+            @if (row.isOnLeave) {
+              <p class="leave-roster__reason">
+                @if (row.leaveStartTime || row.leaveEndTime) {
+                  {{ row.leaveStartTime ?? '--:--' }}–{{ row.leaveEndTime ?? '--:--' }}
+                  @if (row.leaveReason) { · {{ row.leaveReason }} }
+                } @else if (row.leaveReason) {
+                  {{ row.leaveReason }}
+                }
+              </p>
+            }
+          </div>
+        }
+      </div>
+
+      @if (totalPages() > 1) {
+        <div class="leave-roster__pagination">
+          <p-button
+            icon="pi pi-chevron-left"
+            severity="secondary"
+            [text]="true"
+            size="small"
+            [disabled]="currentPage() === 1"
+            (onClick)="prevPage()"
+          />
+          <span class="leave-roster__page-info">{{ currentPage() }} / {{ totalPages() }}</span>
+          <p-button
+            icon="pi pi-chevron-right"
+            severity="secondary"
+            [text]="true"
+            size="small"
+            [disabled]="currentPage() === totalPages()"
+            (onClick)="nextPage()"
+          />
+        </div>
+      }
+    }
+  }
+
+  <div class="leave-roster__actions">
+    <p-button label="關閉" severity="secondary" [text]="true" size="small" (onClick)="close()" />
+  </div>
+</div>

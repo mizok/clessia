@@ -27,6 +27,7 @@ import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/aud
 
 import { SessionCancelDialogComponent } from './dialogs/session-cancel-dialog/session-cancel-dialog.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
+import { SessionLeaveRosterDialogComponent } from './dialogs/session-leave-roster-dialog/session-leave-roster-dialog.component';
 import { SessionRescheduleDialogComponent } from './dialogs/session-reschedule-dialog/session-reschedule-dialog.component';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
 import { SessionSubstituteDialogComponent } from './dialogs/session-substitute-dialog/session-substitute-dialog.component';
@@ -208,6 +209,7 @@ export class SessionsPage implements OnInit {
     const s = this.contextSession();
     if (!s) return [];
     const items: MenuItem[] = [
+      { label: '查看請假名單', icon: 'pi pi-users', command: () => this.openLeaveRoster(s) },
       { label: '查看異動紀錄', icon: 'pi pi-eye', command: () => this.openDetail(s) },
     ];
     if (s.status === 'scheduled') {
@@ -457,6 +459,17 @@ export class SessionsPage implements OnInit {
     this.listDateRangeModified.set(false);
     this.selectedStatuses.set([...DEFAULT_STATUSES]);
     this.loadSessions();
+  }
+
+  // ── Leave roster popup ─────────────────────────────────────────────────
+  protected openLeaveRoster(session: Session): void {
+    this.dialogService.open(SessionLeaveRosterDialogComponent, {
+      header: '請假名單',
+      width: '360px',
+      data: { session },
+      styleClass: 'session-dialog',
+      appendTo: this.overlayContainer ?? 'body',
+    });
   }
 
   // ── Detail popup ───────────────────────────────────────────────────────
