@@ -38,6 +38,58 @@ const AttendanceListResponseSchema = z
   })
   .openapi('AttendanceListResponse');
 
+const EventSessionSummarySchema = z
+  .object({
+    eventId: z.uuid(),
+    classId: z.uuid(),
+    className: z.string(),
+    teacherName: z.string().nullable(),
+    campusId: z.uuid().nullable(),
+    campusName: z.string().nullable(),
+    eventDate: z.string(),
+    startTime: z.string().nullable(),
+    endTime: z.string().nullable(),
+    enrolledCount: z.number(),
+    presentCount: z.number(),
+    onLeaveCount: z.number(),
+    absentCount: z.number(),
+    takenAt: z.string().nullable(),
+  })
+  .openapi('EventSessionSummary');
+
+const RosterStudentSchema = z
+  .object({
+    studentId: z.uuid(),
+    studentName: z.string(),
+    grade: z.string().nullable(),
+    school: z.string().nullable(),
+    recordId: z.uuid().nullable(),
+    status: AttendanceStatusSchema.nullable(),
+  })
+  .openapi('RosterStudent');
+
+const AttendanceRosterSchema = z
+  .object({
+    eventId: z.uuid(),
+    takenAt: z.string().nullable(),
+    students: z.array(RosterStudentSchema),
+  })
+  .openapi('AttendanceRoster');
+
+const BatchAttendanceUpdateSchema = z
+  .object({
+    eventId: z.uuid(),
+    updates: z
+      .array(
+        z.object({
+          studentId: z.uuid(),
+          status: z.enum(['present', 'absent']),
+        }),
+      )
+      .min(1),
+  })
+  .openapi('BatchAttendanceUpdate');
+
 const UpdateAttendanceSchema = z
   .object({
     status: AttendanceStatusSchema.optional(),
@@ -114,8 +166,7 @@ app.openapi(
         `
         id, org_id, student_id, event_id, status, note, recorded_by, recorded_by_role, created_at, updated_at,
         students!inner(name),
-        events!inner(event_date, start_time, end_time, campus_id, campuses(name)),
-        events!inner(sessions(class_id, classes(name)))
+        events!inner(event_date, start_time, end_time, campus_id, campuses(name), sessions(class_id, classes(name)))
         `,
         { count: 'exact' },
       )
@@ -277,6 +328,272 @@ app.openapi(
     };
 
     return c.json(toAttendanceResponse(row), 200);
+  },
+);
+
+// GET /api/attendance/sessions
+app.openapi(
+  createRoute({
+    method: 'get',
+    path: '/sessions',
+    tags: ['Attendance'],
+    summary: '取得課堂出勤摘要列表（by 日期）',
+    request: {
+      query: z.object({
+        date: z.string().optional(),
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
+        campusId: z.uuid().optional(),
+      }),
+    },
+    responses: {
+      200: {
+        description: '課堂出勤摘要',
+        content: { 'application/json': { schema: z.array(EventSessionSummarySchema) } },
+      },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const { date, dateFrom, dateTo, campusId } = c.req.valid('query');
+
+    const from = date ?? dateFrom;
+    const to = date ?? dateTo;
+
+    if (!from) return c.json({ error: 'date 或 dateFrom 為必填' }, 400);
+
+    let eventsQuery = supabase
+      .from('events')
+      .select(`
+        id, event_date, start_time, end_time, attendance_taken_at,
+        campus_id, campuses(name),
+        sessions(
+          class_id,
+          classes(name, teacher_id, ba_user:teacher_id(name))
+        )
+      `)
+      .eq('org_id', orgId)
+      .gte('event_date', from)
+      .lte('event_date', to ?? from)
+      .order('start_time', { ascending: true });
+
+    if (campusId) eventsQuery = eventsQuery.eq('campus_id', campusId);
+
+    const { data: events, error: eventsError } = await eventsQuery;
+    if (eventsError) return c.json({ error: '查詢課堂失敗', message: eventsError.message }, 500);
+
+    const results = await Promise.all(
+      (events ?? []).map(async (ev: any) => {
+        const session = ev.sessions?.[0];
+        const classRow = session?.classes;
+        const classId = session?.class_id ?? null;
+
+        let presentCount = 0, onLeaveCount = 0, absentCount = 0;
+
+        if (ev.attendance_taken_at) {
+          const { data: records } = await supabase
+            .from('attendance_records')
+            .select('status')
+            .eq('event_id', ev.id)
+            .eq('org_id', orgId);
+
+          for (const r of records ?? []) {
+            if (r.status === 'present') presentCount++;
+            else if (r.status === 'on_leave') onLeaveCount++;
+            else if (r.status === 'absent') absentCount++;
+          }
+        }
+
+        const { count: enrolledCount } = await supabase
+          .from('enrollments')
+          .select('id', { count: 'exact', head: true })
+          .eq('class_id', classId)
+          .eq('status', 'active')
+          .lte('effective_from', ev.event_date)
+          .or(`effective_to.is.null,effective_to.gte.${ev.event_date}`);
+
+        return {
+          eventId: ev.id,
+          classId: classId ?? '',
+          className: classRow?.name ?? '',
+          teacherName: classRow?.ba_user?.name ?? null,
+          campusId: ev.campus_id ?? null,
+          campusName: ev.campuses?.name ?? null,
+          eventDate: ev.event_date,
+          startTime: ev.start_time ? ev.start_time.slice(0, 5) : null,
+          endTime: ev.end_time ? ev.end_time.slice(0, 5) : null,
+          enrolledCount: enrolledCount ?? 0,
+          presentCount,
+          onLeaveCount,
+          absentCount,
+          takenAt: ev.attendance_taken_at ?? null,
+        };
+      }),
+    );
+
+    return c.json(results, 200);
+  },
+);
+
+// GET /api/attendance/roster/:eventId
+app.openapi(
+  createRoute({
+    method: 'get',
+    path: '/roster/:eventId',
+    tags: ['Attendance'],
+    summary: '取得課堂點名名單（懶建立，不寫 DB）',
+    request: {
+      params: z.object({ eventId: z.uuid() }),
+    },
+    responses: {
+      200: {
+        description: '課堂點名名單',
+        content: { 'application/json': { schema: AttendanceRosterSchema } },
+      },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const { eventId } = c.req.valid('param');
+
+    const { data: ev, error: evError } = await supabase
+      .from('events')
+      .select('id, event_date, attendance_taken_at, sessions(class_id)')
+      .eq('id', eventId)
+      .eq('org_id', orgId)
+      .single();
+
+    if (evError || !ev) return c.json({ error: '找不到課堂' }, 404);
+
+    const classId = (ev as any).sessions?.[0]?.class_id;
+    const eventDate = (ev as any).event_date as string;
+
+    const { data: enrollments } = await supabase
+      .from('enrollments')
+      .select('student_id, students(name, grade_level, school)')
+      .eq('class_id', classId)
+      .eq('status', 'active')
+      .lte('effective_from', eventDate)
+      .or(`effective_to.is.null,effective_to.gte.${eventDate}`);
+
+    const { data: records } = await supabase
+      .from('attendance_records')
+      .select('id, student_id, status')
+      .eq('event_id', eventId)
+      .eq('org_id', orgId);
+
+    const recordMap = new Map(
+      (records ?? []).map((r: any) => [r.student_id, { id: r.id, status: r.status }]),
+    );
+
+    const students = (enrollments ?? []).map((e: any) => {
+      const rec = recordMap.get(e.student_id);
+      return {
+        studentId: e.student_id,
+        studentName: e.students?.name ?? '',
+        grade: e.students?.grade_level ?? null,
+        school: e.students?.school ?? null,
+        recordId: rec?.id ?? null,
+        status: rec?.status ?? null,
+      };
+    });
+
+    return c.json(
+      {
+        eventId,
+        takenAt: (ev as any).attendance_taken_at ?? null,
+        students,
+      },
+      200,
+    );
+  },
+);
+
+// PATCH /api/attendance/batch
+app.openapi(
+  createRoute({
+    method: 'patch',
+    path: '/batch',
+    tags: ['Attendance'],
+    summary: '批次儲存點名結果（原子性，同步更新 attendance_taken_at）',
+    request: {
+      body: { content: { 'application/json': { schema: BatchAttendanceUpdateSchema } } },
+    },
+    responses: {
+      200: {
+        description: '成功',
+        content: {
+          'application/json': {
+            schema: z.object({ updated: z.number(), takenAt: z.string() }),
+          },
+        },
+      },
+      400: { description: '參數錯誤' },
+      403: { description: '無權限' },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
+    const { eventId, updates } = c.req.valid('json');
+
+    const { data: ev } = await supabase
+      .from('events')
+      .select('id, attendance_taken_at, sessions(class_id), event_date')
+      .eq('id', eventId)
+      .eq('org_id', orgId)
+      .single();
+
+    if (!ev) return c.json({ error: '找不到課堂或無權限' }, 403);
+
+    const classId = (ev as any).sessions?.[0]?.class_id;
+    const eventDate = (ev as any).event_date as string;
+
+    const { data: validEnrollments } = await supabase
+      .from('enrollments')
+      .select('student_id')
+      .eq('class_id', classId)
+      .eq('status', 'active')
+      .lte('effective_from', eventDate)
+      .or(`effective_to.is.null,effective_to.gte.${eventDate}`);
+
+    const validIds = new Set((validEnrollments ?? []).map((e: any) => e.student_id));
+    const invalidIds = updates.filter((u) => !validIds.has(u.studentId));
+    if (invalidIds.length > 0) {
+      return c.json({ error: '部分學生不在此課堂修課名單中' }, 400);
+    }
+
+    const records = updates.map((u) => ({
+      org_id: orgId,
+      event_id: eventId,
+      student_id: u.studentId,
+      status: u.status,
+      recorded_by: userId,
+      recorded_by_role: 'admin',
+    }));
+
+    const { error: upsertError } = await supabase
+      .from('attendance_records')
+      .upsert(records, { onConflict: 'event_id,student_id' });
+
+    if (upsertError) {
+      return c.json({ error: '儲存出勤失敗', message: upsertError.message }, 500);
+    }
+
+    const takenAt = (ev as any).attendance_taken_at ?? new Date().toISOString();
+
+    if (!(ev as any).attendance_taken_at) {
+      await supabase
+        .from('events')
+        .update({ attendance_taken_at: takenAt })
+        .eq('id', eventId)
+        .eq('org_id', orgId);
+    }
+
+    return c.json({ updated: updates.length, takenAt }, 200);
   },
 );
 
