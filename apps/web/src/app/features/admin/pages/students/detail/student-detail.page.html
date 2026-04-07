@@ -1,6 +1,8 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
 <div class="student-detail">
+  <app-page-breadcrumb [items]="breadcrumbItems()" />
+
   <!-- Back Navigation -->
   <div class="student-detail__nav">
     <p-button

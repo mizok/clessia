@@ -22,6 +22,7 @@ import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { ClassesService, Class } from '@core/classes.service';
+import { PageBreadcrumbComponent, type BreadcrumbItem } from '@shared/components/page-breadcrumb/page-breadcrumb.component';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
 import {
   EnrollmentsService,
@@ -49,6 +50,7 @@ import { CopyRosterDialogComponent } from './copy-roster-dialog/copy-roster-dial
     MenuModule,
     SkeletonModule,
     CopyRosterDialogComponent,
+    PageBreadcrumbComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './class-detail.page.html',
@@ -80,6 +82,16 @@ export class ClassDetailPage implements OnInit {
   }
 
   protected readonly cls = signal<Class | null>(null);
+
+  protected readonly breadcrumbItems = computed<BreadcrumbItem[]>(() => {
+    const c = this.cls();
+    return [
+      { label: '課務管理' },
+      { label: '課程', routerLink: '/admin/courses' },
+      { label: c?.courseName ?? '...', routerLink: c ? `/admin/courses/${c.courseId}` : undefined },
+      { label: c?.name ?? '...' },
+    ];
+  });
   protected readonly enrollments = signal<Enrollment[]>([]);
   protected readonly loading = signal(true);
   protected readonly enrollmentsLoading = signal(true);

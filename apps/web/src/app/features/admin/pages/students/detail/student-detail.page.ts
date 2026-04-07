@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, DestroyRef } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -18,6 +18,7 @@ import {
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { PageBreadcrumbComponent, type BreadcrumbItem } from '@shared/components/page-breadcrumb/page-breadcrumb.component';
 import { StudentFormDialogComponent } from '../student-form-dialog.component';
 import { ClassPickerDialogComponent } from './class-picker-dialog/class-picker-dialog.component';
 import type { Class } from '@core/classes.service';
@@ -25,7 +26,7 @@ import type { Class } from '@core/classes.service';
 @Component({
   selector: 'app-student-detail',
   standalone: true,
-  imports: [CommonModule, ButtonModule, TagModule, SkeletonModule, ToastModule, EmptyStateComponent],
+  imports: [CommonModule, ButtonModule, TagModule, SkeletonModule, ToastModule, EmptyStateComponent, PageBreadcrumbComponent],
   providers: [MessageService, DialogService],
   templateUrl: './student-detail.page.html',
   styleUrl: './student-detail.page.scss',
@@ -45,6 +46,15 @@ export class StudentDetailPage implements OnInit {
   }
 
   readonly student = signal<StudentDetail | null>(null);
+
+  protected readonly breadcrumbItems = computed<BreadcrumbItem[]>(() => {
+    const s = this.student();
+    return [
+      { label: '學務管理' },
+      { label: '學生', routerLink: '/admin/students' },
+      { label: s?.name ?? '...' },
+    ];
+  });
   readonly loading = signal(true);
   protected readonly enrollments = signal<Enrollment[]>([]);
   protected readonly enrollmentsLoading = signal(false);

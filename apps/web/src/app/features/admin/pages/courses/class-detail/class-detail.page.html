@@ -2,6 +2,8 @@
 <p-menu #actionMenu [model]="actionMenuItems()" [popup]="true" [appendTo]="overlayContainer || 'body'" />
 
 <div class="class-detail">
+  <app-page-breadcrumb [items]="breadcrumbItems()" />
+
   <div class="class-detail__nav">
     <p-button
       label="課程列表"
