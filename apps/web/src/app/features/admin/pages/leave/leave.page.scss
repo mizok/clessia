@@ -10,6 +10,12 @@
     justify-content: space-between;
   }
 
+  &__header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
   &__title {
     font-size: 1.5rem;
     font-weight: 700;
@@ -18,14 +24,7 @@
   }
 
   &__filters {
-    display: flex;
-    gap: var(--space-3);
-    flex-wrap: wrap;
     align-items: center;
-  }
-
-  &__filter-item {
-    min-width: 160px;
   }
 
   &__skeleton-bar {

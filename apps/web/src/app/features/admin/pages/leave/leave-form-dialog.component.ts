@@ -1,7 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
-import { AutoCompleteModule } from 'primeng/autocomplete';
 import { DatePickerModule } from 'primeng/datepicker';
 import { TextareaModule } from 'primeng/textarea';
 import { SelectModule } from 'primeng/select';
@@ -16,10 +15,22 @@ import {
 } from '@core/students.service';
 import { CampusesService, type Campus } from '@core/campuses.service';
 import { LeaveService, type CreateLeaveInput } from '@core/leave.service';
+import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 
 interface SelectOption<T> {
   label: string;
   value: T | null;
+}
+
+function isStudentSelection(value: unknown): value is Student {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    typeof value['id'] === 'string' &&
+    'name' in value &&
+    typeof value['name'] === 'string'
+  );
 }
 
 @Component({
@@ -28,10 +39,10 @@ interface SelectOption<T> {
   imports: [
     FormsModule,
     ButtonModule,
-    AutoCompleteModule,
     DatePickerModule,
     TextareaModule,
     SelectModule,
+    StudentAutocompleteComponent,
   ],
   template: `
     <div class="leave-form">
@@ -62,53 +73,57 @@ interface SelectOption<T> {
         </div>
       </div>
 
-      <div class="leave-form__field">
+      <div class="leave-form__field leave-form__field--full">
         <label class="leave-form__label">學生 <span class="leave-form__required">*</span></label>
-        <p-autocomplete
-          [(ngModel)]="selectedStudent"
+        <app-student-autocomplete
+          [value]="selectedStudent"
+          (valueChange)="selectedStudent = $event"
           [suggestions]="studentSuggestions()"
-          (completeMethod)="searchStudents($event)"
-          optionLabel="name"
-          placeholder="輸入姓名模糊搜尋"
-          styleClass="w-full"
-          [forceSelection]="true"
+          (queryChange)="searchStudents($event)"
         />
       </div>
 
-      <div class="leave-form__field">
-        <label class="leave-form__label">請假日期 <span class="leave-form__required">*</span></label>
-        <p-datepicker
-          [(ngModel)]="dateRange"
-          selectionMode="range"
-          placeholder="選擇日期區間"
-          dateFormat="yy-mm-dd"
-          styleClass="w-full"
-          appendTo="body"
-        />
-      </div>
-
-      <div class="leave-form__time-row">
-        <div class="leave-form__field">
-          <label class="leave-form__label">起始時間（選填）</label>
-          <p-datepicker
-            [(ngModel)]="startTime"
-            [timeOnly]="true"
-            hourFormat="24"
-            placeholder="--:--"
-            styleClass="w-full"
-            appendTo="body"
-          />
+      <div class="leave-form__range-grid">
+        <div class="leave-form__range-group">
+          <label class="leave-form__label">開始日期時間 <span class="leave-form__required">*</span></label>
+          <div class="leave-form__date-time-row">
+            <p-datepicker
+              [(ngModel)]="startDate"
+              placeholder="開始日期"
+              dateFormat="yy-mm-dd"
+              styleClass="w-full"
+              appendTo="body"
+            />
+            <p-datepicker
+              [(ngModel)]="startTime"
+              [timeOnly]="true"
+              hourFormat="24"
+              placeholder="開始時間"
+              styleClass="w-full"
+              appendTo="body"
+            />
+          </div>
         </div>
-        <div class="leave-form__field">
-          <label class="leave-form__label">結束時間（選填）</label>
-          <p-datepicker
-            [(ngModel)]="endTime"
-            [timeOnly]="true"
-            hourFormat="24"
-            placeholder="--:--"
-            styleClass="w-full"
-            appendTo="body"
-          />
+        <div class="leave-form__range-group">
+          <label class="leave-form__label">結束日期時間 <span class="leave-form__required">*</span></label>
+          <div class="leave-form__date-time-row">
+            <p-datepicker
+              [(ngModel)]="endDate"
+              placeholder="結束日期"
+              dateFormat="yy-mm-dd"
+              [minDate]="startDate ?? undefined"
+              styleClass="w-full"
+              appendTo="body"
+            />
+            <p-datepicker
+              [(ngModel)]="endTime"
+              [timeOnly]="true"
+              hourFormat="24"
+              placeholder="結束時間"
+              styleClass="w-full"
+              appendTo="body"
+            />
+          </div>
         </div>
       </div>
 
@@ -166,7 +181,19 @@ interface SelectOption<T> {
           flex-direction: column;
           gap: 0.375rem;
         }
-        &__time-row {
+        &__field--full {
+          width: 100%;
+        }
+        &__range-grid {
+          display: grid;
+          gap: 0.75rem;
+        }
+        &__range-group {
+          display: flex;
+          flex-direction: column;
+          gap: 0.375rem;
+        }
+        &__date-time-row {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 0.75rem;
@@ -203,12 +230,12 @@ export class LeaveFormDialogComponent implements OnInit {
 
   protected selectedCampusId: string | null = null;
   protected selectedGrade: GradeLevel | null = null;
-  protected selectedStudent: Student | null = null;
-  protected dateRange: Date[] | null = null;
+  protected selectedStudent: Student | string | null = null;
+  protected startDate: Date | null = null;
+  protected endDate: Date | null = null;
   protected startTime: Date | null = null;
   protected endTime: Date | null = null;
   protected reason = '';
-
 
   protected readonly saving = signal(false);
   protected readonly studentSuggestions = signal<Student[]>([]);
@@ -239,13 +266,19 @@ export class LeaveFormDialogComponent implements OnInit {
   }
 
   protected canSubmit(): boolean {
-    return !!this.selectedStudent && !!this.dateRange?.[0] && !!this.dateRange?.[1];
+    return (
+      isStudentSelection(this.selectedStudent) &&
+      !!this.startDate &&
+      !!this.endDate &&
+      this.startDate <= this.endDate
+    );
   }
 
-  protected searchStudents(event: { query: string }): void {
+  protected searchStudents(query: string): void {
     this.studentsService
       .list({
-        search: event.query,
+        search: query,
+        searchScope: 'student_name',
         campusId: this.selectedCampusId ?? undefined,
         grade: this.selectedGrade ?? undefined,
         isActive: true,
@@ -257,14 +290,35 @@ export class LeaveFormDialogComponent implements OnInit {
   }
 
   protected submit(): void {
-    if (!this.canSubmit()) return;
+    if (!isStudentSelection(this.selectedStudent)) {
+      this.errorMessage.set('請從建議清單選擇一位學生');
+      return;
+    }
+    if (!this.startDate || !this.endDate) {
+      this.errorMessage.set('請完整填寫開始與結束日期');
+      return;
+    }
+    if (this.startDate > this.endDate) {
+      this.errorMessage.set('結束日期不可早於開始日期');
+      return;
+    }
+    if (
+      format(this.startDate, 'yyyy-MM-dd') === format(this.endDate, 'yyyy-MM-dd') &&
+      this.startTime &&
+      this.endTime &&
+      format(this.startTime, 'HH:mm') > format(this.endTime, 'HH:mm')
+    ) {
+      this.errorMessage.set('同一天請假的結束時間不可早於開始時間');
+      return;
+    }
+
     this.saving.set(true);
     this.errorMessage.set(null);
 
     const input: CreateLeaveInput = {
-      studentId: this.selectedStudent!.id,
-      startDate: format(this.dateRange![0], 'yyyy-MM-dd'),
-      endDate: format(this.dateRange![1], 'yyyy-MM-dd'),
+      studentId: this.selectedStudent.id,
+      startDate: format(this.startDate, 'yyyy-MM-dd'),
+      endDate: format(this.endDate, 'yyyy-MM-dd'),
       startTime: this.startTime ? format(this.startTime, 'HH:mm') : null,
       endTime: this.endTime ? format(this.endTime, 'HH:mm') : null,
       reason: this.reason || null,

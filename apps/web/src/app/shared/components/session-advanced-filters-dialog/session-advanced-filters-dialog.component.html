@@ -1,0 +1,168 @@
+<div class="session-advanced-filters-dialog">
+  <div class="session-advanced-filters-dialog__summary">
+    <div class="session-advanced-filters-dialog__summary-copy">
+      <span class="session-advanced-filters-dialog__eyebrow">{{ modeLabel() }}</span>
+      <p class="session-advanced-filters-dialog__summary-title">目前範圍：{{ scopeSummary() }}</p>
+    </div>
+    <div class="session-advanced-filters-dialog__summary-badges">
+      <span class="session-advanced-filters-dialog__badge">
+        {{ appliedFilterCount() }} 個進階條件
+      </span>
+      @if (showClassFilter()) {
+        <span
+          class="session-advanced-filters-dialog__badge session-advanced-filters-dialog__badge--accent"
+        >
+          已啟用班級篩選
+        </span>
+      }
+    </div>
+  </div>
+
+  <div class="session-advanced-filters-dialog__row">
+    <label class="session-advanced-filters-dialog__label">課程</label>
+    <p-multiselect
+      [options]="filteredCourseOptions()"
+      optionLabel="name"
+      optionValue="id"
+      placeholder="選擇課程"
+      selectedItemsLabel="{0} 個課程"
+      [filter]="false"
+      [showClear]="true"
+      [appendTo]="'body'"
+      [ngModel]="selectedCourseIds()"
+      (ngModelChange)="selectedCourseIds.set($event ?? []); selectedClassIds.set([])"
+      styleClass="w-full"
+      panelStyleClass="session-advanced-filters-dialog__panel"
+    >
+      <ng-template #filter>
+        <app-ime-filter-input
+          placeholder="搜尋課程名稱..."
+          (filterChange)="courseFilterQuery.set($event)"
+        />
+      </ng-template>
+    </p-multiselect>
+    <span class="session-advanced-filters-dialog__hint">
+      先選課程，再縮小到可用班級；搜尋會限制在目前分校範圍。
+    </span>
+  </div>
+
+  @if (showClassFilter()) {
+    <div class="session-advanced-filters-dialog__row">
+      <label class="session-advanced-filters-dialog__label">班級</label>
+      <p-multiselect
+        [options]="filteredClassOptions()"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="選擇班級"
+        selectedItemsLabel="{0} 個班級"
+        [filter]="false"
+        [showClear]="true"
+        [appendTo]="'body'"
+        [ngModel]="selectedClassIds()"
+        (ngModelChange)="selectedClassIds.set($event ?? [])"
+        styleClass="w-full"
+      >
+        <ng-template #filter>
+          <app-ime-filter-input
+            placeholder="搜尋班級名稱..."
+            (filterChange)="classFilterQuery.set($event)"
+          />
+        </ng-template>
+        <ng-template #item let-classOption>
+          <div class="session-advanced-filters-dialog__option">
+            <span class="session-advanced-filters-dialog__option-title">{{
+              classOption.name
+            }}</span>
+            @if (getClassMetaLabel(classOption); as metaLabel) {
+              <span class="session-advanced-filters-dialog__option-meta">
+                {{ metaLabel }}
+              </span>
+            }
+          </div>
+        </ng-template>
+      </p-multiselect>
+    </div>
+  }
+
+  @if (isAttendanceMode()) {
+    <div class="session-advanced-filters-dialog__row">
+      <label class="session-advanced-filters-dialog__label">學生</label>
+      <p-multiselect
+        [options]="students()"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="選擇學生"
+        selectedItemsLabel="{0} 位學生"
+        [filter]="true"
+        filterBy="name,school"
+        [showClear]="true"
+        [resetFilterOnHide]="true"
+        [appendTo]="'body'"
+        [ngModel]="selectedStudentIds()"
+        (ngModelChange)="selectedStudentIds.set($event ?? [])"
+        styleClass="w-full"
+      >
+        <ng-template #filter let-options="options">
+          <app-ime-filter-input
+            placeholder="搜尋學生姓名或學校..."
+            (filterChange)="options.filter(buildMultiSelectFilterEvent($event))"
+          />
+        </ng-template>
+      </p-multiselect>
+    </div>
+  }
+
+  @if (isSessionsMode()) {
+    <div class="session-advanced-filters-dialog__row">
+      <label class="session-advanced-filters-dialog__label">老師</label>
+      <p-multiselect
+        [options]="filteredTeacherOptions()"
+        optionLabel="displayName"
+        optionValue="id"
+        placeholder="選擇老師"
+        selectedItemsLabel="{0} 位老師"
+        [filter]="false"
+        [showClear]="true"
+        [appendTo]="'body'"
+        [ngModel]="selectedTeacherIds()"
+        (ngModelChange)="selectedTeacherIds.set($event ?? [])"
+        styleClass="w-full"
+      >
+        <ng-template #filter>
+          <app-ime-filter-input
+            placeholder="搜尋老師姓名或科目..."
+            (filterChange)="teacherFilterQuery.set($event)"
+          />
+        </ng-template>
+      </p-multiselect>
+    </div>
+
+    <div class="session-advanced-filters-dialog__row">
+      <label class="session-advanced-filters-dialog__label">課堂狀態</label>
+      <p-multiselect
+        [options]="statusOptions"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="選擇課堂狀態"
+        selectedItemsLabel="{0} 種狀態"
+        [showClear]="true"
+        [appendTo]="'body'"
+        [ngModel]="selectedStatuses()"
+        (ngModelChange)="selectedStatuses.set($event ?? [])"
+        styleClass="w-full"
+      />
+    </div>
+  }
+
+  <div class="session-advanced-filters-dialog__actions">
+    <p-button
+      label="清除全部"
+      severity="secondary"
+      [text]="true"
+      size="small"
+      icon="pi pi-times"
+      (onClick)="clearFilters()"
+    />
+    <p-button label="套用" size="small" (onClick)="apply()" />
+  </div>
+</div>

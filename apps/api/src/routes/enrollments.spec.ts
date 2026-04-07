@@ -166,3 +166,68 @@ describe('copy-from-class helper logic', () => {
     expect(isOverQuota).toBe(false);
   });
 });
+
+describe('leave backfill helper logic', () => {
+  const buildEnrollmentLeaveAttendanceUpserts = (enrollmentsRoute as Record<string, unknown>)[
+    'buildEnrollmentLeaveAttendanceUpserts'
+  ] as
+    | ((
+        input: {
+          orgId: string;
+          studentId: string;
+          recordedBy: string;
+          events: Array<{ id: string; event_date: string }>;
+          leaves: Array<{ start_date: string; end_date: string }>;
+        },
+      ) => Array<{
+        org_id: string;
+        student_id: string;
+        event_id: string;
+        status: 'on_leave';
+        recorded_by: string;
+        recorded_by_role: 'system';
+      }>)
+    | undefined;
+
+  it('回填先請假後入班時，將落在請假區間內的課堂改為 on_leave', () => {
+    expect(buildEnrollmentLeaveAttendanceUpserts).toBeTypeOf('function');
+
+    const rows = buildEnrollmentLeaveAttendanceUpserts?.({
+      orgId: 'org-1',
+      studentId: 'student-1',
+      recordedBy: 'user-1',
+      events: [
+        { id: 'event-1', event_date: '2026-04-02' },
+        { id: 'event-2', event_date: '2026-04-17' },
+      ],
+      leaves: [
+        { start_date: '2026-04-01', end_date: '2026-04-16' },
+      ],
+    });
+
+    expect(rows).toEqual([
+      {
+        org_id: 'org-1',
+        student_id: 'student-1',
+        event_id: 'event-1',
+        status: 'on_leave',
+        recorded_by: 'user-1',
+        recorded_by_role: 'system',
+      },
+    ]);
+  });
+
+  it('沒有重疊請假時不回填 attendance', () => {
+    expect(buildEnrollmentLeaveAttendanceUpserts).toBeTypeOf('function');
+
+    const rows = buildEnrollmentLeaveAttendanceUpserts?.({
+      orgId: 'org-1',
+      studentId: 'student-1',
+      recordedBy: 'user-1',
+      events: [{ id: 'event-1', event_date: '2026-04-20' }],
+      leaves: [{ start_date: '2026-04-01', end_date: '2026-04-16' }],
+    });
+
+    expect(rows).toEqual([]);
+  });
+});

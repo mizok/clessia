@@ -141,6 +141,68 @@ select {
   padding-top: 0;
 }
 
+.clessia-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  --p-select-color: var(--zinc-600);
+  --p-multiselect-color: var(--zinc-600);
+  --p-inputtext-color: var(--zinc-600);
+  --p-select-sm-font-size: var(--text-md);
+  --p-select-sm-padding-y: var(--p-select-padding-y);
+  --p-select-sm-padding-x: var(--p-select-padding-x);
+  --p-multiselect-sm-font-size: var(--text-md);
+  --p-multiselect-sm-padding-y: var(--p-multiselect-padding-y);
+  --p-multiselect-sm-padding-x: var(--p-multiselect-padding-x);
+  --p-inputtext-sm-font-size: var(--text-md);
+  --p-inputtext-sm-padding-y: var(--p-inputtext-padding-y);
+  --p-inputtext-sm-padding-x: var(--p-inputtext-padding-x);
+}
+
+.clessia-filter-bar .p-select,
+.clessia-filter-bar .p-multiselect,
+.clessia-filter-bar .p-datepicker .p-inputtext,
+.clessia-filter-bar .p-button {
+  min-height: 38px;
+  font-size: var(--text-md);
+}
+
+.clessia-filter-bar .p-select-label,
+.clessia-filter-bar .p-multiselect-label,
+.clessia-filter-bar .p-datepicker .p-inputtext,
+.clessia-filter-bar .p-button-label {
+  font-size: var(--text-md);
+}
+
+.clessia-filter-control {
+  min-width: 160px;
+}
+
+.clessia-filter-control--date-range {
+  min-width: 220px;
+}
+
+.clessia-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.clessia-filter-search {
+  flex: 1;
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.clessia-filter-search .p-inputtext,
+.clessia-filter-search-input {
+  width: 100%;
+  min-height: 38px;
+  font-size: var(--text-md);
+}
+
 /* =============================================================================
    Tooltip Styles
    ============================================================================= */

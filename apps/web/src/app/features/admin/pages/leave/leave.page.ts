@@ -21,6 +21,7 @@ import type {
   ResponsiveTablePageEvent,
   ResponsiveTablePaginationConfig,
 } from '@shared/components/responsive-table/responsive-table.models';
+import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { LeaveFormDialogComponent } from './leave-form-dialog.component';
 
 @Component({
@@ -171,6 +172,19 @@ export class LeavePage implements OnInit {
     });
   }
 
+  protected openAuditLog(): void {
+    this.dialogService.open(AuditLogDialogComponent, {
+      header: '請假管理操作紀錄',
+      width: '800px',
+      modal: true,
+      showHeader: false,
+      appendTo: 'body',
+      data: {
+        resourceTypes: ['leave'],
+      },
+    });
+  }
+
   protected confirmDelete(record: LeaveRequest): void {
     const state = this.leaveState(record);
 
@@ -229,7 +243,7 @@ export class LeavePage implements OnInit {
         ),
       reject: (type?: ConfirmEventType) => {
         if (type === ConfirmEventType.REJECT) {
-          this.confirmFullActiveDelete(record);
+          setTimeout(() => this.confirmFullActiveDelete(record));
         }
       },
     });

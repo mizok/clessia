@@ -1,6 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import type { Course } from '@core/courses.service';
-import type { Staff } from '@core/staff.service';
+import type { Campus } from '@core/campuses.service';
 
 import { SessionFiltersComponent } from './session-filters.component';
 
@@ -22,139 +21,74 @@ describe('SessionFiltersComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should filter teachers by selected course subject', () => {
-    fixture.componentRef.setInput('selectedCourseIds', ['course-math']);
-    fixture.componentRef.setInput('availableCourses', [
-      buildCourse({ id: 'course-math', subjectId: 'subject-math' }),
-      buildCourse({ id: 'course-english', subjectId: 'subject-english' }),
+  it('renders a lightweight toolbar with date, campus, filter button, and clear button only', () => {
+    fixture.componentRef.setInput('campuses', [
+      buildCampus({ id: 'campus-1', name: '中正分校' }),
+      buildCampus({ id: 'campus-2', name: '大安分校' }),
     ]);
-    fixture.componentRef.setInput('availableTeachers', [
-      buildTeacher({ id: 'teacher-1', subjectIds: ['subject-math'] }),
-      buildTeacher({ id: 'teacher-2', subjectIds: ['subject-english'] }),
-    ]);
+    fixture.componentRef.setInput('selectedCampusIds', ['campus-1']);
+    fixture.componentRef.setInput('activeFilterCount', 3);
+    fixture.componentRef.setInput('hasActiveFilters', true);
     fixture.detectChanges();
 
-    const teachers = (
-      component as unknown as { filteredTeachers: () => Staff[] }
-    ).filteredTeachers();
-    expect(teachers.map((teacher) => teacher.id)).toEqual(['teacher-1']);
+    const text = fixture.nativeElement.textContent as string;
+
+    expect(text).toContain('進階篩選');
+    expect(text).toContain('清除篩選');
+    expect(text).not.toContain('所有課程');
+    expect(text).not.toContain('所有老師');
+    expect(text).not.toContain('所有班級');
+    expect(text).not.toContain('課堂狀態');
   });
 
-  it('should emit normalized course ids from multi-select values', () => {
+  it('emits openAdvancedFilters when filter button is clicked', () => {
+    let openCount = 0;
+    component.openAdvancedFilters.subscribe(() => {
+      openCount += 1;
+    });
+
+    fixture.componentRef.setInput('activeFilterCount', 2);
+    fixture.detectChanges();
+
+    const button = Array.from(fixture.nativeElement.querySelectorAll('button')).find((element) =>
+      (element as HTMLButtonElement).textContent?.includes('進階篩選'),
+    ) as HTMLButtonElement | undefined;
+
+    button?.click();
+
+    expect(openCount).toBe(1);
+  });
+
+  it('emits normalized campus ids from multi-select values', () => {
     let emitted: string[] = [];
-    component.courseIdsChange.subscribe((value: string[]) => {
+    component.campusIdsChange.subscribe((value: string[]) => {
       emitted = value;
     });
 
     (
       component as unknown as {
-        onCourseMultiChange: (values: readonly (string | Course)[]) => void;
+        onCampusMultiChange: (values: readonly (string | Campus)[]) => void;
       }
-    ).onCourseMultiChange([
-      'course-1',
-      buildCourse({ id: 'course-2' }),
-      buildCourse({ id: 'course-1' }),
+    ).onCampusMultiChange([
+      'campus-1',
+      buildCampus({ id: 'campus-2', name: '大安分校' }),
+      buildCampus({ id: 'campus-1', name: '中正分校' }),
     ]);
 
-    expect(emitted).toEqual(['course-1', 'course-2']);
-  });
-
-  it('should emit normalized teacher ids for multi-select values', () => {
-    let emitted: string[] = [];
-    component.teacherIdsChange.subscribe((value) => {
-      emitted = value;
-    });
-
-    (
-      component as unknown as {
-        onTeacherMultiChange: (values: readonly (string | Staff)[]) => void;
-      }
-    ).onTeacherMultiChange([
-      'teacher-1',
-      buildTeacher({ id: 'teacher-2' }),
-      buildTeacher({ id: 'teacher-1' }),
-    ]);
-
-    expect(emitted).toEqual(['teacher-1', 'teacher-2']);
-  });
-
-  it('should join teacher subject names for display', () => {
-    const subjectLabel = (
-      component as unknown as {
-        getTeacherSubjectLabel: (teacher: { readonly subjectNames?: string[] }) => string | null;
-      }
-    ).getTeacherSubjectLabel(buildTeacher({ subjectNames: ['國文', '英文'] }));
-
-    expect(subjectLabel).toBe('國文、英文');
-  });
-
-  it('should join class course and campus label for display', () => {
-    const metaLabel = (
-      component as unknown as {
-        getClassMetaLabel: (classOption: {
-          readonly courseName: string | null;
-          readonly campusName: string | null;
-        }) => string | null;
-      }
-    ).getClassMetaLabel({
-      courseName: '國文 七年級基礎先修班',
-      campusName: '示範分校01',
-    });
-
-    expect(metaLabel).toBe('國文 七年級基礎先修班 · 示範分校01');
-  });
-
-  it('should emit normalized class ids from multi-select values', () => {
-    let emitted: string[] = [];
-    component.classIdsChange.subscribe((value: string[]) => {
-      emitted = value;
-    });
-
-    (
-      component as unknown as {
-        onClassMultiChange: (values: readonly (string | { readonly id: string })[]) => void;
-      }
-    ).onClassMultiChange(['class-1', { id: 'class-2' }, { id: 'class-1' }]);
-
-    expect(emitted).toEqual(['class-1', 'class-2']);
+    expect(emitted).toEqual(['campus-1', 'campus-2']);
   });
 });
 
-function buildCourse(overrides: Partial<Course>): Course {
+function buildCampus(overrides: Partial<Campus>): Campus {
   return {
-    id: 'course-default',
+    id: 'campus-default',
     orgId: 'org-1',
-    campusId: 'campus-1',
-    name: 'Course',
-    subjectId: 'subject-default',
-    subjectName: 'Subject',
-    description: null,
-    isActive: true,
-    gradeLevels: [],
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    ...overrides,
-  };
-}
-
-function buildTeacher(overrides: Partial<Staff>): Staff {
-  return {
-    id: 'teacher-default',
-    userId: 'user-1',
-    orgId: 'org-1',
-    displayName: 'Teacher',
+    name: '示範分校',
+    address: null,
     phone: null,
-    email: 'teacher@example.com',
-    birthday: null,
-    notes: null,
-    subjectIds: [],
-    subjectNames: [],
-    status: 'active',
+    isActive: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
-    campusIds: ['campus-1'],
-    roles: ['teacher'],
-    permissions: [],
     ...overrides,
   };
 }

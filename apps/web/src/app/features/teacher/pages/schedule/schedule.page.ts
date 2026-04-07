@@ -106,8 +106,8 @@ export class SchedulePage implements OnInit {
         dateTo: format(end, 'yyyy-MM-dd'),
       })
       .subscribe({
-        next: (data) => {
-          this.sessions.set(data);
+        next: (response) => {
+          this.sessions.set(response.data);
           this.loading.set(false);
         },
         error: () => this.loading.set(false),
@@ -150,7 +150,13 @@ export class SchedulePage implements OnInit {
     });
 
     ref?.onClose.subscribe(
-      (result?: { eventId: string; takenAt: string; presentCount: number; absentCount: number; onLeaveCount: number }) => {
+      (result?: {
+        eventId: string;
+        takenAt: string;
+        presentCount: number;
+        absentCount: number;
+        onLeaveCount: number;
+      }) => {
         if (result) {
           this.sessions.update((list) =>
             list.map((s) =>

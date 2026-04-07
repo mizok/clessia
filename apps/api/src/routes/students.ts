@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
+import { DbUuidSchema } from '../lib/validation';
 
 // ============================================================
 // Schemas
@@ -143,6 +144,22 @@ export function toStudentResponse(
   };
 }
 
+export function buildStudentSearchClause(
+  search: string,
+  matchedStudentIds: string[],
+  searchScope: 'default' | 'student_name' = 'default',
+): string {
+  if (searchScope === 'student_name') {
+    return `name.ilike.%${search}%`;
+  }
+
+  if (matchedStudentIds.length > 0) {
+    return `name.ilike.%${search}%,school.ilike.%${search}%,id.in.(${matchedStudentIds.join(',')})`;
+  }
+
+  return `name.ilike.%${search}%,school.ilike.%${search}%`;
+}
+
 // ============================================================
 // Routes
 // ============================================================
@@ -159,8 +176,9 @@ app.openapi(
     request: {
       query: z.object({
         search: z.string().optional(),
+        searchScope: z.enum(['default', 'student_name']).default('default').optional(),
         grade: GradeLevelSchema.optional(),
-        campusId: z.uuid().optional(),
+        campusId: DbUuidSchema.optional(),
         page: z.coerce.number().min(1).default(1).optional(),
         pageSize: z.coerce.number().min(1).max(100).default(20).optional(),
         isActive: z.coerce.boolean().optional(),
@@ -176,7 +194,15 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const { search, grade, campusId, page = 1, pageSize = 20, isActive } = c.req.valid('query');
+    const {
+      search,
+      searchScope = 'default',
+      grade,
+      campusId,
+      page = 1,
+      pageSize = 20,
+      isActive,
+    } = c.req.valid('query');
 
     let query = supabase
       .from('students')
@@ -188,28 +214,28 @@ app.openapi(
       .order('name');
 
     if (search) {
-      const { data: relationRows, error: relationError } = await supabase
-        .from('parent_student_relations')
-        .select('student_id, parents!inner(name)')
-        .ilike('parents.name', `%${search}%`);
+      let matchedStudentIds: string[] = [];
 
-      if (relationError) {
-        return c.json({ error: '讀取學生列表失敗', message: relationError.message }, 500);
+      if (searchScope === 'default') {
+        const { data: relationRows, error: relationError } = await supabase
+          .from('parent_student_relations')
+          .select('student_id, parents!inner(name)')
+          .ilike('parents.name', `%${search}%`);
+
+        if (relationError) {
+          return c.json({ error: '讀取學生列表失敗', message: relationError.message }, 500);
+        }
+
+        matchedStudentIds = Array.from(
+          new Set(
+            ((relationRows ?? []) as Array<{ student_id: string | null }>)
+              .map((row) => row.student_id)
+              .filter((studentId): studentId is string => !!studentId),
+          ),
+        );
       }
 
-      const matchedStudentIds = Array.from(
-        new Set(
-          ((relationRows ?? []) as Array<{ student_id: string | null }>)
-            .map((row) => row.student_id)
-            .filter((studentId): studentId is string => !!studentId),
-        ),
-      );
-
-      if (matchedStudentIds.length > 0) {
-        query = query.or(`name.ilike.%${search}%,school.ilike.%${search}%,id.in.(${matchedStudentIds.join(',')})`);
-      } else {
-        query = query.or(`name.ilike.%${search}%,school.ilike.%${search}%`);
-      }
+      query = query.or(buildStudentSearchClause(search, matchedStudentIds, searchScope));
     }
     if (grade) {
       query = query.eq('grade', grade);
@@ -376,7 +402,7 @@ app.openapi(
     path: '/{id}',
     tags: ['Students'],
     summary: '取得學生詳情',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '學生詳情',
@@ -462,7 +488,7 @@ app.openapi(
     tags: ['Students'],
     summary: '更新學生資料',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: { content: { 'application/json': { schema: UpdateStudentSchema } } },
     },
     responses: {
@@ -535,7 +561,7 @@ app.openapi(
     path: '/{id}',
     tags: ['Students'],
     summary: '刪除學生',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: { description: '刪除成功' },
       409: { description: '學生已有報名紀錄，無法刪除' },

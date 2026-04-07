@@ -38,6 +38,16 @@
         @if (cls()!.courseName) {
           <p class="class-detail__hero-course">{{ cls()!.courseName }}</p>
         }
+        @if (cls()!.gradeLevels?.length) {
+          <div class="class-detail__hero-grade-row">
+            <span class="class-detail__hero-grade-label">適合年級</span>
+            <div class="class-detail__hero-grade-chips">
+              @for (grade of cls()!.gradeLevels!; track grade) {
+                <span class="class-detail__hero-grade-chip">{{ getGradeLabel(grade) }}</span>
+              }
+            </div>
+          </div>
+        }
         <div class="class-detail__hero-stats">
           <span class="class-detail__stat">
             <i class="pi pi-users"></i>
@@ -208,19 +218,6 @@
                     }
                   </div>
                 }
-              </div>
-            }
-            @if (cls()!.gradeLevels?.length) {
-              <div class="class-detail__section">
-                <p class="class-detail__section-label">
-                  <i class="pi pi-graduation-cap"></i>
-                  適合年級
-                </p>
-                <div class="class-detail__grade-chips">
-                  @for (grade of cls()!.gradeLevels!; track grade) {
-                    <span class="class-detail__grade-chip">{{ getGradeLabel(grade) }}</span>
-                  }
-                </div>
               </div>
             }
           </p-tabpanel>

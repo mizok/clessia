@@ -14,7 +14,11 @@ import type { Campus } from '@core/campuses.service';
 import type { Course } from '@core/courses.service';
 import type { Session } from '@core/sessions.service';
 import type { Staff } from '@core/staff.service';
-import { SESSION_STATUS_OPTIONS, DEFAULT_STATUSES } from '../../components/session-filters/session-filters.component';
+import { ImeFilterInputComponent } from '@shared/components/ime-filter-input/ime-filter-input.component';
+import {
+  SESSION_STATUS_OPTIONS,
+  DEFAULT_STATUSES,
+} from '../../components/session-filters/session-filters.component';
 
 export interface MobileFilterDialogData {
   readonly campuses: Campus[];
@@ -48,7 +52,7 @@ interface MobileFilterClassDisplayOption {
 
 @Component({
   selector: 'app-mobile-filter-dialog',
-  imports: [FormsModule, ButtonModule, MultiSelectModule],
+  imports: [FormsModule, ButtonModule, MultiSelectModule, ImeFilterInputComponent],
   templateUrl: './mobile-filter-dialog.component.html',
   styleUrl: './mobile-filter-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -70,13 +74,22 @@ export class MobileFilterDialogComponent implements OnInit {
   protected readonly selectedTeacherIds = signal<string[]>([]);
   protected readonly selectedClassIds = signal<string[]>([]);
   protected readonly selectedStatuses = signal<string[]>([...DEFAULT_STATUSES]);
+  protected readonly courseFilterQuery = signal('');
+  protected readonly classFilterQuery = signal('');
 
   protected readonly statusOptions = SESSION_STATUS_OPTIONS;
 
   protected readonly availableCourses = computed(() => {
     const campusIds = this.selectedCampusIds();
-    if (campusIds.length === 0) return this.allCourses();
-    return this.allCourses().filter((c) => campusIds.includes(c.campusId));
+    const courses =
+      campusIds.length === 0
+        ? this.allCourses()
+        : this.allCourses().filter((course) => campusIds.includes(course.campusId));
+
+    return this.matchByQuery(courses, this.courseFilterQuery(), (course) => [
+      course.name,
+      course.campusName ?? this.campusNameById().get(course.campusId),
+    ]);
   });
 
   protected readonly availableTeachers = computed(() => {
@@ -126,10 +139,19 @@ export class MobileFilterDialogComponent implements OnInit {
   protected readonly availableClasses = computed(() => {
     const campusIds = this.selectedCampusIds();
     const courseIds = this.selectedCourseIds();
-    if (campusIds.length === 0 || courseIds.length === 0) return [];
-    return this.allClasses().filter(
-      (c) => campusIds.includes(c.campusId) && courseIds.includes(c.courseId),
+    if (courseIds.length === 0) return [];
+
+    const classes = this.allClasses().filter(
+      (classOption) =>
+        courseIds.includes(classOption.courseId) &&
+        (campusIds.length === 0 || campusIds.includes(classOption.campusId)),
     );
+
+    return this.matchByQuery(classes, this.classFilterQuery(), (classOption) => [
+      classOption.name,
+      this.courseNameById().get(classOption.courseId),
+      this.campusNameById().get(classOption.campusId),
+    ]);
   });
 
   protected readonly campusNameById = computed(
@@ -234,7 +256,12 @@ export class MobileFilterDialogComponent implements OnInit {
 
   private toId(value: unknown): string | null {
     if (typeof value === 'string') return value.trim().length > 0 ? value : null;
-    if (value && typeof value === 'object' && 'id' in value && typeof (value as { id: unknown }).id === 'string') {
+    if (
+      value &&
+      typeof value === 'object' &&
+      'id' in value &&
+      typeof (value as { id: unknown }).id === 'string'
+    ) {
       const id = (value as { id: string }).id.trim();
       return id.length > 0 ? id : null;
     }
@@ -244,5 +271,20 @@ export class MobileFilterDialogComponent implements OnInit {
   private normalizeIdList(values: readonly unknown[]): string[] {
     const ids = values.map((v) => this.toId(v)).filter((id): id is string => id !== null);
     return Array.from(new Set(ids));
+  }
+
+  private matchByQuery<T>(
+    items: T[],
+    query: string,
+    fields: (item: T) => Array<string | null | undefined>,
+  ): T[] {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return items;
+    }
+
+    return items.filter((item) =>
+      fields(item).some((value) => value?.toLowerCase().includes(normalizedQuery)),
+    );
   }
 }

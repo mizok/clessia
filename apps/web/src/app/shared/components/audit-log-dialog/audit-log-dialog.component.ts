@@ -21,6 +21,10 @@ const ACTION_MAP: Record<string, ActionConfig> = {
   create: { label: '新增', severity: 'success' },
   update: { label: '編輯', severity: 'info' },
   delete: { label: '刪除', severity: 'danger' },
+  batch_update_attendance: { label: '批次點名', severity: 'info' },
+  sync_leave_to_attendance: { label: '套用請假', severity: 'warn' },
+  revert_leave_attendance: { label: '恢復出勤', severity: 'success' },
+  truncate_leave: { label: '取消剩餘假期', severity: 'warn' },
   archive: { label: '封存', severity: 'danger' },
   deactivate: { label: '停用', severity: 'warn' },
   activate: { label: '啟用', severity: 'success' },
@@ -47,6 +51,8 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
   course: '課程',
   campus: '分校',
   staff: '人員',
+  attendance: '出勤',
+  leave: '請假',
 };
 
 @Component({
@@ -98,7 +104,25 @@ export class AuditLogDialogComponent {
     if (typeof d['unassignedSessions'] === 'number' && d['unassignedSessions'] > 0) {
       return `解除 ${d['unassignedSessions']} 堂課堂指派`;
     }
+    if (typeof d['updatedCount'] === 'number') {
+      const presentCount = typeof d['presentCount'] === 'number' ? d['presentCount'] : 0;
+      const absentCount = typeof d['absentCount'] === 'number' ? d['absentCount'] : 0;
+      return `更新 ${d['updatedCount']} 筆（出席 ${presentCount} / 缺席 ${absentCount}）`;
+    }
+    if (typeof d['affectedEventCount'] === 'number') {
+      return `影響 ${d['affectedEventCount']} 堂課`;
+    }
+    if (typeof d['studentName'] === 'string' && typeof d['status'] === 'string') {
+      return `${d['studentName']} → ${this.getAttendanceStatusLabel(d['status'])}`;
+    }
     return '';
+  }
+
+  private getAttendanceStatusLabel(status: string): string {
+    if (status === 'present') return '出席';
+    if (status === 'absent') return '缺席';
+    if (status === 'on_leave') return '請假';
+    return status;
   }
 
   protected cancel(): void {

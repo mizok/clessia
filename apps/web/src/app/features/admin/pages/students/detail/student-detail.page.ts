@@ -51,11 +51,19 @@ export class StudentDetailPage implements OnInit {
   protected readonly ENROLLMENT_STATUS_LABELS = ENROLLMENT_STATUS_LABELS;
 
   ngOnInit(): void {
-    const id = this.route.snapshot.paramMap.get('id');
-    if (id) {
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const id = params.get('id');
+      if (!id) {
+        this.student.set(null);
+        this.enrollments.set([]);
+        this.loading.set(false);
+        this.enrollmentsLoading.set(false);
+        return;
+      }
+
       this.loadStudent(id);
       this.loadEnrollments(id);
-    }
+    });
   }
 
   protected getGradeLabel(grade: GradeLevel): string {

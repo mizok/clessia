@@ -1,0 +1,119 @@
+.session-advanced-filters-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: min(32rem, 100%);
+  color: var(--zinc-900);
+}
+
+.session-advanced-filters-dialog__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--zinc-200);
+  border-radius: 1rem;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(241, 245, 249, 0.88) 100%);
+}
+
+.session-advanced-filters-dialog__summary-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.session-advanced-filters-dialog__eyebrow {
+  color: var(--zinc-500);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.session-advanced-filters-dialog__summary-title {
+  margin: 0;
+  color: var(--zinc-900);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.session-advanced-filters-dialog__summary-text {
+  margin: 0;
+  color: var(--zinc-600);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.session-advanced-filters-dialog__summary-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.session-advanced-filters-dialog__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem 0.625rem;
+  border-radius: 999px;
+  background: var(--zinc-900);
+  color: var(--color-white);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.session-advanced-filters-dialog__badge--accent {
+  background: var(--sky-600, #0284c7);
+}
+
+.session-advanced-filters-dialog__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--zinc-200);
+  border-radius: 0.875rem;
+  background: var(--color-white);
+}
+
+.session-advanced-filters-dialog__label {
+  color: var(--zinc-700);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.session-advanced-filters-dialog__option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.session-advanced-filters-dialog__option-title {
+  font-weight: 600;
+}
+
+.session-advanced-filters-dialog__option-meta {
+  color: var(--surface-500, #64748b);
+  font-size: 0.75rem;
+}
+
+.session-advanced-filters-dialog__hint {
+  color: var(--zinc-500);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.session-advanced-filters-dialog__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+}

@@ -20,7 +20,7 @@ doc/specs/
 │   ├── calendar.md                   # 課程日曆
 │   ├── notifications.md              # 通知中心
 │   │
-│   ├── academic/                     # 教務管理
+│   ├── academic/                     # 課務管理
 │   │   ├── courses.md                # 課程列表
 │   │   ├── classes.md                # 課程管理
 │   │   ├── schedule.md               # 排課管理
@@ -102,7 +102,7 @@ doc/specs/
 | RoutesCatalog Group | Spec 目錄                |
 | ------------------- | ------------------------ |
 | （無分組）          | `admin/` 根目錄          |
-| 教務管理            | `admin/academic/`        |
+| 課務管理            | `admin/academic/`        |
 | 學務管理            | `admin/student-affairs/` |
 | （新增）報名管理    | `admin/enrollment/`      |
 | 行政財務 → 財務管理 | `admin/finance/`         |

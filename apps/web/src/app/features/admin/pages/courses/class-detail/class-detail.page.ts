@@ -9,7 +9,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
@@ -61,11 +61,19 @@ export class ClassDetailPage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
-  readonly page = input.required<RouteObj>();
-  readonly courseId = input.required<string>();
-  readonly classId = input.required<string>();
+  readonly page = input<RouteObj | undefined>();
+  readonly courseId = input<string | undefined>();
+  readonly classId = input<string | undefined>();
+
+  private readonly resolvedCourseId = computed(
+    () => this.courseId() ?? this.route.snapshot.paramMap.get('courseId') ?? '',
+  );
+  private readonly resolvedClassId = computed(
+    () => this.classId() ?? this.route.snapshot.paramMap.get('classId') ?? '',
+  );
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
@@ -88,7 +96,7 @@ export class ClassDetailPage implements OnInit {
 
   /** 用 courseId + classId 決定性地 hash 出一個色相值（0–359） */
   protected readonly avatarHue = computed(() => {
-    const seed = this.courseId() + this.classId();
+    const seed = this.resolvedCourseId() + this.resolvedClassId();
     let hash = 0;
     for (let i = 0; i < seed.length; i++) {
       hash = (hash * 31 + seed.charCodeAt(i)) & 0xfffffff;
@@ -145,8 +153,14 @@ export class ClassDetailPage implements OnInit {
   }
 
   protected loadClass(): void {
+    const classId = this.resolvedClassId();
+    if (!classId) {
+      this.loading.set(false);
+      return;
+    }
+
     this.classesService
-      .get(this.classId())
+      .get(classId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
@@ -165,9 +179,15 @@ export class ClassDetailPage implements OnInit {
   }
 
   protected loadEnrollments(): void {
+    const classId = this.resolvedClassId();
+    if (!classId) {
+      this.enrollmentsLoading.set(false);
+      return;
+    }
+
     this.enrollmentsLoading.set(true);
     this.enrollmentsService
-      .list({ classId: this.classId(), pageSize: 100 })
+      .list({ classId, pageSize: 100 })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
@@ -203,7 +223,7 @@ export class ClassDetailPage implements OnInit {
         existingStudentIds,
         maxStudents: this.cls()?.maxStudents ?? 9999,
         currentActiveCount,
-        classId: this.classId(),
+        classId: this.resolvedClassId(),
       },
     });
 

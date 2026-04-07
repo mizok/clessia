@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { formatAuditClassResourceName, logAudit } from '../utils/audit';
+import { DbUuidSchema } from '../lib/validation';
 import { buildSessionGenerationPlan } from '../domain/session-assignment/session-generation-planner';
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
 import type { BatchAssignMode, BatchAssignPlanOutput, BatchAssignConflict } from '../domain/session-assignment/session-assignment.types';
@@ -225,8 +226,8 @@ const QueryParamsSchema = z.object({
   page: z.string().optional(),
   pageSize: z.string().optional(),
   search: z.string().optional(),
-  campusId: z.uuid().optional(),
-  courseId: z.uuid().optional(),
+  campusId: DbUuidSchema.optional(),
+  courseId: DbUuidSchema.optional(),
   isActive: z.string().optional(),
   includeHistorical: z.string().optional(), // 'true' | undefined
   historicalFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -304,6 +305,13 @@ function classAuditResourceName(row: Record<string, unknown> | null | undefined)
     courseName: (row?.['courses'] as { name?: string } | null | undefined)?.name ?? null,
     campusName: (row?.['campuses'] as { name?: string } | null | undefined)?.name ?? null,
   });
+}
+
+export function applyClassDetailScheduleScope<T extends { eq: (column: string, value: unknown) => T }>(
+  query: T,
+  classId: string,
+): T {
+  return query.eq('class_id', classId);
 }
 
 type BatchSessionConflictReason =
@@ -819,7 +827,7 @@ app.openapi(
     path: '/{id}',
     tags: ['Classes'],
     summary: '取得單一班級（含上課時間）',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '成功',
@@ -833,6 +841,7 @@ app.openapi(
   }),
   async (c) => {
     const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
     const { id } = c.req.valid('param');
 
     const [classResult, schedulesResult] = await Promise.all([
@@ -840,8 +849,12 @@ app.openapi(
         .from('classes')
         .select('*, courses(name, grade_levels), campuses(name), ba_user!updated_by(name)')
         .eq('id', id)
+        .eq('org_id', orgId)
         .single(),
-      supabase.from('schedules').select('*, staff(display_name)').eq('class_id', id),
+      applyClassDetailScheduleScope(
+        supabase.from('schedules').select('*, staff(display_name)'),
+        id,
+      ),
     ]);
 
     if (classResult.error || !classResult.data) {

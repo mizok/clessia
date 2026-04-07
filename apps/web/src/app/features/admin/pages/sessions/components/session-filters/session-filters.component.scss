@@ -3,18 +3,6 @@
 :host {
   display: block;
   flex-shrink: 0;
-  --p-select-color: var(--zinc-600);
-  --p-multiselect-color: var(--zinc-600);
-  --p-inputtext-color: var(--zinc-600);
-  --p-select-sm-font-size: var(--text-md);
-  --p-select-sm-padding-y: var(--p-select-padding-y);
-  --p-select-sm-padding-x: var(--p-select-padding-x);
-  --p-multiselect-sm-font-size: var(--text-md);
-  --p-multiselect-sm-padding-y: var(--p-multiselect-padding-y);
-  --p-multiselect-sm-padding-x: var(--p-multiselect-padding-x);
-  --p-inputtext-sm-font-size: var(--text-md);
-  --p-inputtext-sm-padding-y: var(--p-inputtext-padding-y);
-  --p-inputtext-sm-padding-x: var(--p-inputtext-padding-x);
 }
 
 .session-filters {
@@ -26,8 +14,6 @@
   }
 
   &__control {
-    min-width: 140px;
-
     &--date-range {
       min-width: 220px;
     }

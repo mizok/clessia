@@ -27,12 +27,17 @@
         placeholder="所有課程"
         selectedItemsLabel="{0} 個課程"
         [appendTo]="'body'"
-        [filter]="true"
-        filterBy="name,campusName"
+        [filter]="false"
         [ngModel]="selectedCourseIds()"
         (ngModelChange)="onCourseIdsChange($event)"
         styleClass="w-full"
       >
+        <ng-template #filter>
+          <app-ime-filter-input
+            placeholder="搜尋課程..."
+            (filterChange)="courseFilterQuery.set($event)"
+          />
+        </ng-template>
         <ng-template #item let-course>
           <div class="mobile-filter-dialog__course-option">
             <span class="mobile-filter-dialog__course-option-name">{{ course.name }}</span>
@@ -83,12 +88,17 @@
         placeholder="所有班級"
         selectedItemsLabel="{0} 個班級"
         [appendTo]="'body'"
-        [filter]="true"
-        filterBy="name,courseName,campusName"
+        [filter]="false"
         [ngModel]="selectedClassIds()"
         (ngModelChange)="onClassIdsChange($event)"
         styleClass="w-full"
       >
+        <ng-template #filter>
+          <app-ime-filter-input
+            placeholder="搜尋班級..."
+            (filterChange)="classFilterQuery.set($event)"
+          />
+        </ng-template>
         <ng-template #item let-classOption>
           <div class="mobile-filter-dialog__class-option">
             <span class="mobile-filter-dialog__class-option-name">{{ classOption.name }}</span>

@@ -62,6 +62,7 @@ export interface StudentListResponse {
 
 export interface StudentQueryParams {
   search?: string;
+  searchScope?: 'default' | 'student_name';
   grade?: GradeLevel;
   campusId?: string;
   page?: number;
@@ -161,6 +162,7 @@ export class StudentsService {
     if (!params) return {};
     const q: Record<string, string | number | boolean> = {};
     if (params.search !== undefined) q['search'] = params.search;
+    if (params.searchScope !== undefined) q['searchScope'] = params.searchScope;
     if (params.grade !== undefined) q['grade'] = params.grade;
     if (params.campusId !== undefined) q['campusId'] = params.campusId;
     if (params.page !== undefined) q['page'] = params.page;

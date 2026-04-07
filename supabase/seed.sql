@@ -680,6 +680,27 @@ BEGIN
   ) AS science_students
   ON CONFLICT DO NOTHING;
 
+  INSERT INTO public.schedules (
+    class_id,
+    weekday,
+    start_time,
+    end_time,
+    teacher_id,
+    effective_to
+  )
+  VALUES
+    (math_class_id, 1, '10:00'::time, '12:00'::time, math_teacher_id, NULL),
+    (math_class_id, 3, '10:00'::time, '12:00'::time, math_teacher_id, NULL),
+    (math_class_id, 5, '10:00'::time, '12:00'::time, math_teacher_id, NULL),
+    (english_class_id, 2, '14:00'::time, '16:00'::time, english_teacher_id, NULL),
+    (english_class_id, 4, '14:00'::time, '16:00'::time, english_teacher_id, NULL),
+    (science_class_id, 6, '09:00'::time, '11:00'::time, science_teacher_id, NULL)
+  ON CONFLICT (class_id, weekday, start_time) DO UPDATE SET
+    end_time = EXCLUDED.end_time,
+    teacher_id = EXCLUDED.teacher_id,
+    effective_to = EXCLUDED.effective_to,
+    updated_at = NOW();
+
   INSERT INTO public.events (
     id,
     org_id,
@@ -778,11 +799,19 @@ BEGIN
 
   -- sessions rows（讓 events JOIN sessions 能取得 class_id）
   INSERT INTO public.sessions (
-    org_id, class_id, session_date, start_time, end_time, teacher_id, assignment_status, event_id
+    org_id, class_id, schedule_id, session_date, start_time, end_time, teacher_id, assignment_status, event_id
   )
   SELECT
     demo_org_id,
     math_class_id,
+    (
+      SELECT sch.id
+      FROM public.schedules sch
+      WHERE sch.class_id = math_class_id
+        AND sch.weekday = EXTRACT(ISODOW FROM event_date)::smallint
+        AND sch.start_time = '10:00'::time
+      LIMIT 1
+    ),
     event_date,
     '10:00'::time,
     '12:00'::time,
@@ -803,11 +832,19 @@ BEGIN
   ON CONFLICT (class_id, session_date, start_time) DO NOTHING;
 
   INSERT INTO public.sessions (
-    org_id, class_id, session_date, start_time, end_time, teacher_id, assignment_status, event_id
+    org_id, class_id, schedule_id, session_date, start_time, end_time, teacher_id, assignment_status, event_id
   )
   SELECT
     demo_org_id,
     english_class_id,
+    (
+      SELECT sch.id
+      FROM public.schedules sch
+      WHERE sch.class_id = english_class_id
+        AND sch.weekday = EXTRACT(ISODOW FROM event_date)::smallint
+        AND sch.start_time = '14:00'::time
+      LIMIT 1
+    ),
     event_date,
     '14:00'::time,
     '16:00'::time,
@@ -828,11 +865,19 @@ BEGIN
   ON CONFLICT (class_id, session_date, start_time) DO NOTHING;
 
   INSERT INTO public.sessions (
-    org_id, class_id, session_date, start_time, end_time, teacher_id, assignment_status, event_id
+    org_id, class_id, schedule_id, session_date, start_time, end_time, teacher_id, assignment_status, event_id
   )
   SELECT
     demo_org_id,
     science_class_id,
+    (
+      SELECT sch.id
+      FROM public.schedules sch
+      WHERE sch.class_id = science_class_id
+        AND sch.weekday = EXTRACT(ISODOW FROM event_date)::smallint
+        AND sch.start_time = '09:00'::time
+      LIMIT 1
+    ),
     event_date,
     '09:00'::time,
     '11:00'::time,

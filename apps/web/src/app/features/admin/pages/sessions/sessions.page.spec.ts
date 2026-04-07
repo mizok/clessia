@@ -12,6 +12,7 @@ import type { Staff } from '@core/staff.service';
 import { SessionsPage } from './sessions.page';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
+import { SessionAdvancedFiltersDialogComponent } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
 
 describe('SessionsPage', () => {
   let component: SessionsPage;
@@ -268,13 +269,36 @@ describe('SessionsPage', () => {
     expect(hasActiveFilters).toBe(false);
   });
 
-  it('counts campus filter as an active filter and clears it with clearFilters', () => {
+  it('clearFilters only resets advanced filters and keeps campus/date scope', () => {
     (
       component as unknown as {
         selectedCampusIds: { set: (value: string[]) => void };
+        listDateRange: { set: (value: Date[]) => void };
+        selectedCourseIds: { set: (value: string[]) => void };
+        selectedStatuses: { set: (value: string[]) => void };
         clearFilters: () => void;
       }
     ).selectedCampusIds.set(['campus-1']);
+    (
+      component as unknown as {
+        listDateRange: { set: (value: Date[]) => void };
+      }
+    ).listDateRange.set([new Date('2026-03-01'), new Date('2026-03-10')]);
+    (
+      component as unknown as {
+        listDateRangeModified: { set: (value: boolean) => void };
+      }
+    ).listDateRangeModified.set(true);
+    (
+      component as unknown as {
+        selectedCourseIds: { set: (value: string[]) => void };
+      }
+    ).selectedCourseIds.set(['course-1']);
+    (
+      component as unknown as {
+        selectedStatuses: { set: (value: string[]) => void };
+      }
+    ).selectedStatuses.set(['cancelled']);
 
     const activeFilterCountBeforeClear = (
       component as unknown as { activeFilterCount: () => number }
@@ -288,6 +312,9 @@ describe('SessionsPage', () => {
     const selectedCampusIdsAfterClear = (
       component as unknown as { selectedCampusIds: () => string[] }
     ).selectedCampusIds();
+    const listDateRangeAfterClear = (
+      component as unknown as { listDateRange: () => Date[] }
+    ).listDateRange();
     const activeFilterCountAfterClear = (
       component as unknown as { activeFilterCount: () => number }
     ).activeFilterCount();
@@ -295,11 +322,64 @@ describe('SessionsPage', () => {
       component as unknown as { hasActiveFilters: () => boolean }
     ).hasActiveFilters();
 
-    expect(activeFilterCountBeforeClear).toBe(1);
+    expect(activeFilterCountBeforeClear).toBe(2);
     expect(hasActiveFiltersBeforeClear).toBe(true);
-    expect(selectedCampusIdsAfterClear).toEqual([]);
+    expect(selectedCampusIdsAfterClear).toEqual(['campus-1']);
+    expect(listDateRangeAfterClear).toHaveLength(2);
     expect(activeFilterCountAfterClear).toBe(0);
     expect(hasActiveFiltersAfterClear).toBe(false);
+  });
+
+  it('openAdvancedFiltersDialog should apply result from shared dialog and reload sessions', async () => {
+    (
+      component as unknown as {
+        selectedCampusIds: { set: (value: string[]) => void };
+      }
+    ).selectedCampusIds.set(['campus-1']);
+
+    const dialogOpenSpy = vi
+      .spyOn(
+        (component as unknown as { dialogService: { open: (...args: unknown[]) => unknown } })
+          .dialogService,
+        'open',
+      )
+      .mockReturnValue({
+        onClose: of({
+          courseIds: ['course-1'],
+          classIds: ['class-1'],
+          teacherIds: ['teacher-1'],
+          studentIds: [],
+          statuses: ['completed'],
+        }),
+      });
+
+    await (
+      component as unknown as {
+        openAdvancedFiltersDialog: () => void;
+      }
+    ).openAdvancedFiltersDialog();
+
+    expect(dialogOpenSpy).toHaveBeenCalledWith(
+      SessionAdvancedFiltersDialogComponent,
+      expect.objectContaining({
+        header: '進階篩選',
+        closable: true,
+        data: expect.objectContaining({
+          mode: 'sessions',
+          selectedCampusIds: ['campus-1'],
+        }),
+      }),
+    );
+    expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        campusIds: ['campus-1'],
+        courseIds: ['course-1'],
+        teacherIds: ['teacher-1'],
+        classIds: ['class-1'],
+        statuses: ['completed'],
+        page: 1,
+      }),
+    );
   });
 
   it('treats empty status selection as all statuses', () => {
@@ -433,6 +513,41 @@ describe('SessionsPage', () => {
         data: expect.objectContaining({ session }),
       }),
     );
+  });
+
+  it('context menu should not include leave roster entry', () => {
+    (
+      component as unknown as {
+        contextSession: { set: (value: Session) => void };
+      }
+    ).contextSession.set({
+      id: 'session-1',
+      classId: 'class-1',
+      className: 'A班',
+      courseId: 'course-1',
+      courseName: '英文課',
+      campusId: 'campus-1',
+      campusName: '示範分校',
+      sessionDate: '2026-04-02',
+      startTime: '14:00',
+      endTime: '16:00',
+      teacherId: null,
+      teacherName: null,
+      status: 'scheduled',
+      assignmentStatus: 'unassigned',
+      hasChanges: false,
+    } as Session);
+
+    const labels = (
+      component as unknown as {
+        contextMenuItems: () => Array<{ label?: string }>;
+      }
+    )
+      .contextMenuItems()
+      .map((item) => item.label)
+      .filter(Boolean);
+
+    expect(labels).not.toContain('查看請假名單');
   });
 
   it('openBatchSheet should show skip reason in toast when sessions are skipped', async () => {

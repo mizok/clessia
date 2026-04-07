@@ -24,10 +24,13 @@ import { SessionsService, type Session } from '@core/sessions.service';
 import type { Staff } from '@core/staff.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
+import {
+  SessionAdvancedFiltersDialogComponent,
+  type SessionAdvancedFiltersDialogResult,
+} from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
 
 import { SessionCancelDialogComponent } from './dialogs/session-cancel-dialog/session-cancel-dialog.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
-import { SessionLeaveRosterDialogComponent } from './dialogs/session-leave-roster-dialog/session-leave-roster-dialog.component';
 import { SessionRescheduleDialogComponent } from './dialogs/session-reschedule-dialog/session-reschedule-dialog.component';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
 import { SessionSubstituteDialogComponent } from './dialogs/session-substitute-dialog/session-substitute-dialog.component';
@@ -142,26 +145,34 @@ export class SessionsPage implements OnInit {
   });
 
   protected readonly availableClasses = computed(() => {
-    const campusIds = this.selectedCampusIds();
     const courseIds = this.selectedCourseIds();
-    if (campusIds.length === 0 || courseIds.length === 0) return [];
+    const campusIds = this.selectedCampusIds();
+    if (courseIds.length === 0) return [];
     return this.classes().filter(
-      (c) => campusIds.includes(c.campusId) && courseIds.includes(c.courseId),
+      (c) =>
+        courseIds.includes(c.courseId) &&
+        (campusIds.length === 0 || campusIds.includes(c.campusId)),
     );
   });
 
   protected readonly activeFilterCount = computed(() => {
     let count = 0;
-    if (this.selectedCampusIds().length > 0) count++;
     if (this.selectedCourseIds().length > 0) count++;
     if (this.selectedTeacherIds().length > 0) count++;
     if (this.selectedClassIds().length > 0) count++;
-    if (this.listDateRangeModified()) count++;
     if (!this.isDefaultStatuses()) count++;
     return count;
   });
 
   protected readonly hasActiveFilters = computed(
+    () =>
+      this.selectedCourseIds().length > 0 ||
+      this.selectedTeacherIds().length > 0 ||
+      this.selectedClassIds().length > 0 ||
+      !this.isDefaultStatuses(),
+  );
+
+  protected readonly hasAnyScopedFilters = computed(
     () =>
       this.selectedCampusIds().length > 0 ||
       this.selectedCourseIds().length > 0 ||
@@ -174,7 +185,7 @@ export class SessionsPage implements OnInit {
   protected readonly unassignedCount = signal(0);
   protected readonly filteredUnassignedCount = signal(0);
   protected readonly displayedUnassignedCount = computed(() =>
-    this.hasActiveFilters() ? this.filteredUnassignedCount() : this.unassignedCount(),
+    this.hasAnyScopedFilters() ? this.filteredUnassignedCount() : this.unassignedCount(),
   );
 
   // ── Selection state ────────────────────────────────────────────────────
@@ -209,7 +220,6 @@ export class SessionsPage implements OnInit {
     const s = this.contextSession();
     if (!s) return [];
     const items: MenuItem[] = [
-      { label: '查看請假名單', icon: 'pi pi-users', command: () => this.openLeaveRoster(s) },
       { label: '查看異動紀錄', icon: 'pi pi-eye', command: () => this.openDetail(s) },
     ];
     if (s.status === 'scheduled') {
@@ -219,13 +229,21 @@ export class SessionsPage implements OnInit {
       items.push({ label: '代課', icon: 'pi pi-user-edit', command: () => this.openSubstitute(s) });
     }
     if (s.assignmentStatus === 'unassigned' && s.status === 'scheduled') {
-      items.push({ label: '指派老師', icon: 'pi pi-user-plus', command: () => this.openAssignSingle(s) });
+      items.push({
+        label: '指派老師',
+        icon: 'pi pi-user-plus',
+        command: () => this.openAssignSingle(s),
+      });
     }
     if (s.status === 'scheduled') {
       items.push({ label: '停課', icon: 'pi pi-ban', command: () => this.openCancelDialog(s) });
     }
     if (s.status === 'cancelled') {
-      items.push({ label: '取消停課', icon: 'pi pi-replay', command: () => this.uncancelSingle(s) });
+      items.push({
+        label: '取消停課',
+        icon: 'pi pi-replay',
+        command: () => this.uncancelSingle(s),
+      });
     }
     return items;
   });
@@ -284,7 +302,10 @@ export class SessionsPage implements OnInit {
         this.clearSelection();
         this.loadSessions();
         const modeLabel: Record<string, string> = {
-          cancel: '停課', uncancel: '取消停課', assign: '指派老師', time: '調整時間',
+          cancel: '停課',
+          uncancel: '取消停課',
+          assign: '指派老師',
+          time: '調整時間',
         };
         const label = modeLabel[result.mode] ?? '更新';
         const skipReasonMap: Record<string, string> = {
@@ -303,7 +324,48 @@ export class SessionsPage implements OnInit {
     });
   }
 
-  protected toggleMobileFilters(): void {
+  protected openAdvancedFiltersDialog(): void {
+    if (this.isMobileViewport()) {
+      this.openMobileFiltersDialog();
+      return;
+    }
+
+    const ref = this.dialogService.open(SessionAdvancedFiltersDialogComponent, {
+      header: '進階篩選',
+      width: '36rem',
+      modal: true,
+      closable: true,
+      dismissableMask: true,
+      appendTo: this.overlayContainer ?? 'body',
+      data: {
+        mode: 'sessions',
+        campuses: this.campuses(),
+        courses: this.courses(),
+        classes: this.classes(),
+        teachers: this.activeTeachers(),
+        selectedCampusIds: this.selectedCampusIds(),
+        selectedCourseIds: this.selectedCourseIds(),
+        selectedClassIds: this.selectedClassIds(),
+        selectedTeacherIds: this.selectedTeacherIds(),
+        selectedStatuses: this.selectedStatuses(),
+      },
+    });
+
+    ref?.onClose.subscribe((result?: SessionAdvancedFiltersDialogResult) => {
+      if (!result) {
+        return;
+      }
+
+      this.currentPage.set(1);
+      this.selectedCourseIds.set(result.courseIds);
+      this.selectedTeacherIds.set(result.teacherIds);
+      this.selectedClassIds.set(result.classIds);
+      this.selectedStatuses.set(result.statuses);
+      this.loadSessions();
+    });
+  }
+
+  private openMobileFiltersDialog(): void {
     const data: MobileFilterDialogData = {
       campuses: this.campuses(),
       courses: this.courses(),
@@ -341,30 +403,49 @@ export class SessionsPage implements OnInit {
   // ── Single-session actions ─────────────────────────────────────────────
   protected openReschedule(session: Session): void {
     const ref = this.dialogService.open(SessionRescheduleDialogComponent, {
-      header: '調課', width: '400px', data: { session }, styleClass: 'session-dialog',
+      header: '調課',
+      width: '400px',
+      data: { session },
+      styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
-    ref?.onClose.subscribe((result) => { if (result === 'refresh') this.loadSessions(); });
+    ref?.onClose.subscribe((result) => {
+      if (result === 'refresh') this.loadSessions();
+    });
   }
 
   protected openSubstitute(session: Session): void {
     const ref = this.dialogService.open(SessionSubstituteDialogComponent, {
-      header: '安排代課', width: '400px', data: { session }, styleClass: 'session-dialog',
+      header: '安排代課',
+      width: '400px',
+      data: { session },
+      styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
-    ref?.onClose.subscribe((result) => { if (result === 'refresh') this.loadSessions(); });
+    ref?.onClose.subscribe((result) => {
+      if (result === 'refresh') this.loadSessions();
+    });
   }
 
   protected openCancelDialog(session: Session): void {
     const ref = this.dialogService.open(SessionCancelDialogComponent, {
-      header: '停課', width: '400px', data: { session }, styleClass: 'session-dialog',
+      header: '停課',
+      width: '400px',
+      data: { session },
+      styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
     ref?.onClose.subscribe((result?: { result: string } | string) => {
-      const didRefresh = typeof result === 'string' ? result === 'refresh' : result?.result === 'refresh';
+      const didRefresh =
+        typeof result === 'string' ? result === 'refresh' : result?.result === 'refresh';
       if (didRefresh) {
         this.loadSessions();
-        this.messageService.add({ severity: 'success', summary: '已停課', detail: '如需安排補課，請新增調課', life: 6000 });
+        this.messageService.add({
+          severity: 'success',
+          summary: '已停課',
+          detail: '如需安排補課，請新增調課',
+          life: 6000,
+        });
       }
     });
   }
@@ -373,7 +454,11 @@ export class SessionsPage implements OnInit {
     this.sessionsActionsService.uncancelSingle(session.id).subscribe({
       next: () => {
         this.loadSessions();
-        this.messageService.add({ severity: 'success', summary: '已取消停課', detail: `${session.className} ${session.sessionDate}` });
+        this.messageService.add({
+          severity: 'success',
+          summary: '已取消停課',
+          detail: `${session.className} ${session.sessionDate}`,
+        });
       },
       error: () => {
         this.messageService.add({ severity: 'error', summary: '操作失敗', detail: '無法取消停課' });
@@ -384,12 +469,15 @@ export class SessionsPage implements OnInit {
   protected openAssignSingle(session: Session): void {
     const eligibleTeachers = this.getEligibleTeachersForSession(session);
     const ref = this.dialogService.open(SessionAssignDialogComponent, {
-      header: '指派老師', width: '400px',
+      header: '指派老師',
+      width: '400px',
       data: { session, ...(eligibleTeachers.length > 0 ? { teachers: eligibleTeachers } : {}) },
       styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
-    ref?.onClose.subscribe((result) => { if (result === 'refresh') this.loadSessions(); });
+    ref?.onClose.subscribe((result) => {
+      if (result === 'refresh') this.loadSessions();
+    });
   }
 
   // ── Filters ────────────────────────────────────────────────────────────
@@ -451,32 +539,20 @@ export class SessionsPage implements OnInit {
 
   protected clearFilters(): void {
     this.currentPage.set(1);
-    this.selectedCampusIds.set([]);
     this.selectedCourseIds.set([]);
     this.selectedTeacherIds.set([]);
     this.selectedClassIds.set([]);
-    this.listDateRange.set([]);
-    this.listDateRangeModified.set(false);
     this.selectedStatuses.set([...DEFAULT_STATUSES]);
     this.loadSessions();
-  }
-
-  // ── Leave roster popup ─────────────────────────────────────────────────
-  protected openLeaveRoster(session: Session): void {
-    this.dialogService.open(SessionLeaveRosterDialogComponent, {
-      header: '請假名單',
-      width: '360px',
-      data: { session },
-      styleClass: 'session-dialog',
-      appendTo: this.overlayContainer ?? 'body',
-    });
   }
 
   // ── Detail popup ───────────────────────────────────────────────────────
   protected openDetail(session: Session): void {
     this.dialogService.open(SessionDetailDialogComponent, {
-      header: '異動紀錄', width: '400px',
-      data: { session, loadingChanges: true, changes: [] }, styleClass: 'session-dialog',
+      header: '異動紀錄',
+      width: '400px',
+      data: { session, loadingChanges: true, changes: [] },
+      styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
   }
@@ -493,9 +569,22 @@ export class SessionsPage implements OnInit {
     return current === def;
   }
 
+  private isMobileViewport(): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    if (typeof window.matchMedia === 'function') {
+      return window.matchMedia('(max-width: 768px)').matches;
+    }
+
+    return window.innerWidth <= 768;
+  }
 
   private getEligibleTeachersForSession(session: Session): Staff[] {
-    const campusTeachers = this.activeTeachers().filter((t) => t.campusIds.includes(session.campusId));
+    const campusTeachers = this.activeTeachers().filter((t) =>
+      t.campusIds.includes(session.campusId),
+    );
     const course = this.courses().find((c) => c.id === session.courseId);
     if (!course) return campusTeachers;
     return campusTeachers.filter((t) => t.subjectIds.includes(course.subjectId));
@@ -509,7 +598,14 @@ export class SessionsPage implements OnInit {
     });
     this.classesService.list({ isActive: true, pageSize: 0 }).subscribe({
       next: (res) =>
-        this.classes.set(res.data.map((c) => ({ id: c.id, name: c.name, courseId: c.courseId, campusId: c.campusId }))),
+        this.classes.set(
+          res.data.map((c) => ({
+            id: c.id,
+            name: c.name,
+            courseId: c.courseId,
+            campusId: c.campusId,
+          })),
+        ),
     });
   }
 
@@ -523,7 +619,11 @@ export class SessionsPage implements OnInit {
     this.sessionsService
       .list({
         from: range[0] ? format(range[0], 'yyyy-MM-dd') : undefined,
-        to: range[1] ? format(range[1], 'yyyy-MM-dd') : range[0] ? format(range[0], 'yyyy-MM-dd') : undefined,
+        to: range[1]
+          ? format(range[1], 'yyyy-MM-dd')
+          : range[0]
+            ? format(range[0], 'yyyy-MM-dd')
+            : undefined,
         campusIds: this.selectedCampusIds().length > 0 ? this.selectedCampusIds() : undefined,
         courseIds: this.selectedCourseIds().length > 0 ? this.selectedCourseIds() : undefined,
         teacherIds: realTeacherIds.length > 0 ? realTeacherIds : undefined,
@@ -543,7 +643,11 @@ export class SessionsPage implements OnInit {
         },
         error: () => {
           this.loading.set(false);
-          this.messageService.add({ severity: 'error', summary: '載入失敗', detail: '無法載入課堂資料' });
+          this.messageService.add({
+            severity: 'error',
+            summary: '載入失敗',
+            detail: '無法載入課堂資料',
+          });
         },
       });
   }

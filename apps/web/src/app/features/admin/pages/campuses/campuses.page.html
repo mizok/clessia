@@ -22,8 +22,8 @@
   <!-- Main Card -->
   <div class="campuses__card">
     <!-- Toolbar with Search -->
-    <div class="campuses__toolbar">
-      <div class="campuses__search">
+    <div class="campuses__toolbar clessia-filter-bar">
+      <div class="campuses__search clessia-filter-search">
         <p-iconfield iconPosition="left">
           <p-inputicon styleClass="pi pi-search" />
           <input
@@ -32,6 +32,7 @@
             placeholder="搜尋分校名稱、地址或電話..."
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchChange($event)"
+            class="clessia-filter-search-input"
           />
         </p-iconfield>
       </div>

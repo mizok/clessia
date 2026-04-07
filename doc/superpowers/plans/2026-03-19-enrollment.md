@@ -13,6 +13,7 @@
 ## 檔案清單
 
 ### 新建
+
 - `supabase/migrations/20260319000001_create_enrollments.sql` — enrollments 表 + enum + partial index + audit_logs 更新
 - `apps/api/src/routes/enrollments.ts` — Enrollment CRUD + 狀態變更 API
 - `apps/web/src/app/core/enrollments.service.ts` — Angular HTTP service
@@ -24,6 +25,7 @@
 - `apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.scss`
 
 ### 修改
+
 - `apps/api/src/index.ts` — 掛載 enrollmentsRoute
 - `apps/web/src/app/core/smart-enums/routes-catalog.ts` — 新增 `ADMIN_CLASS_DETAIL`
 - `apps/web/src/app/app.routes.ts` — 新增開課班詳情頁路由
@@ -41,6 +43,7 @@
 停權／退班操作需要填寫原因，現有 `ConfirmDialogComponent` 不支援。需擴充其介面，讓需要原因的操作能在 confirm dialog 內收集 notes 並回傳。
 
 **Files:**
+
 - Modify: `apps/web/src/app/shared/components/confirm-dialog/confirm-dialog.component.ts`
 - Modify: `apps/web/src/app/shared/components/confirm-dialog/confirm-dialog.component.html`
 
@@ -60,8 +63,8 @@ export interface ConfirmDialogData {
   acceptLabel?: string;
   rejectLabel?: string;
   acceptSeverity?: 'danger' | 'warn' | 'success' | 'secondary';
-  requireNotes?: boolean;        // 若 true，顯示備註 textarea，且必填
-  notesPlaceholder?: string;     // 備註欄 placeholder
+  requireNotes?: boolean; // 若 true，顯示備註 textarea，且必填
+  notesPlaceholder?: string; // 備註欄 placeholder
 }
 
 @Component({
@@ -104,15 +107,15 @@ export class ConfirmDialogComponent {
   <p class="confirm-dialog__message">{{ data.message }}</p>
 
   @if (data.requireNotes) {
-    <div class="confirm-dialog__notes">
-      <textarea
-        pTextarea
-        [(ngModel)]="notes"
-        [placeholder]="data.notesPlaceholder ?? '請填寫原因（必填）'"
-        rows="3"
-        class="w-full"
-      ></textarea>
-    </div>
+  <div class="confirm-dialog__notes">
+    <textarea
+      pTextarea
+      [(ngModel)]="notes"
+      [placeholder]="data.notesPlaceholder ?? '請填寫原因（必填）'"
+      rows="3"
+      class="w-full"
+    ></textarea>
+  </div>
   }
 
   <div class="confirm-dialog__actions">
@@ -144,6 +147,7 @@ git commit -m "feat(shared): extend ConfirmDialogComponent to support requireNot
 ## Task 1：資料庫 Migration
 
 **Files:**
+
 - Create: `supabase/migrations/20260319000001_create_enrollments.sql`
 
 - [ ] **Step 1: 建立 migration 檔案**
@@ -266,6 +270,7 @@ git commit -m "feat(db): create enrollments table with status enum and partial u
 ## Task 2：Enrollment API
 
 **Files:**
+
 - Create: `apps/api/src/routes/enrollments.ts`
 - Modify: `apps/api/src/index.ts`
 
@@ -391,7 +396,10 @@ app.openapi(
       }),
     },
     responses: {
-      200: { content: { 'application/json': { schema: EnrollmentListResponseSchema } }, description: 'OK' },
+      200: {
+        content: { 'application/json': { schema: EnrollmentListResponseSchema } },
+        description: 'OK',
+      },
     },
   }),
   async (c) => {
@@ -432,9 +440,18 @@ app.openapi(
     tags: ['Enrollments'],
     request: { body: { content: { 'application/json': { schema: CreateEnrollmentSchema } } } },
     responses: {
-      201: { content: { 'application/json': { schema: z.object({ data: EnrollmentSchema }) } }, description: 'Created' },
-      400: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Bad Request' },
-      409: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Conflict' },
+      201: {
+        content: { 'application/json': { schema: z.object({ data: EnrollmentSchema }) } },
+        description: 'Created',
+      },
+      400: {
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        description: 'Bad Request',
+      },
+      409: {
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        description: 'Conflict',
+      },
     },
   }),
   async (c) => {
@@ -456,7 +473,9 @@ app.openapi(
         notes: body.notes ?? null,
         created_by: userId,
       })
-      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name), students(name), creator:ba_user!created_by(name)')
+      .select(
+        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name), students(name), creator:ba_user!created_by(name)',
+      )
       .single();
 
     if (error) {
@@ -479,8 +498,14 @@ app.openapi(
       body: { content: { 'application/json': { schema: UpdateEnrollmentSchema } } },
     },
     responses: {
-      200: { content: { 'application/json': { schema: z.object({ data: EnrollmentSchema }) } }, description: 'OK' },
-      404: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Not Found' },
+      200: {
+        content: { 'application/json': { schema: z.object({ data: EnrollmentSchema }) } },
+        description: 'OK',
+      },
+      404: {
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        description: 'Not Found',
+      },
     },
   }),
   async (c) => {
@@ -500,7 +525,9 @@ app.openapi(
       .update(updates)
       .eq('id', id)
       .eq('org_id', orgId)
-      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name), students(name), creator:ba_user!created_by(name)')
+      .select(
+        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name), students(name), creator:ba_user!created_by(name)',
+      )
       .single();
 
     if (error) return c.json({ error: 'NOT_FOUND' }, 404);
@@ -519,9 +546,18 @@ app.openapi(
       body: { content: { 'application/json': { schema: UpdateEnrollmentStatusSchema } } },
     },
     responses: {
-      200: { content: { 'application/json': { schema: z.object({ data: EnrollmentSchema }) } }, description: 'OK' },
-      400: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Bad Request' },
-      404: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Not Found' },
+      200: {
+        content: { 'application/json': { schema: z.object({ data: EnrollmentSchema }) } },
+        description: 'OK',
+      },
+      400: {
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        description: 'Bad Request',
+      },
+      404: {
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        description: 'Not Found',
+      },
     },
   }),
   async (c) => {
@@ -567,7 +603,9 @@ app.openapi(
       .update(updates)
       .eq('id', id)
       .eq('org_id', orgId)
-      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name), students(name), creator:ba_user!created_by(name)')
+      .select(
+        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name), students(name), creator:ba_user!created_by(name)',
+      )
       .single();
 
     if (error) return c.json({ error: error.message }, 500);
@@ -584,8 +622,14 @@ app.openapi(
     request: { params: z.object({ id: z.uuid() }) },
     responses: {
       204: { description: 'No Content' },
-      400: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Bad Request' },
-      404: { content: { 'application/json': { schema: z.object({ error: z.string() }) } }, description: 'Not Found' },
+      400: {
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        description: 'Bad Request',
+      },
+      404: {
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+        description: 'Not Found',
+      },
     },
   }),
   async (c) => {
@@ -614,11 +658,13 @@ export default app;
 - [ ] **Step 2: 掛載至 `apps/api/src/index.ts`**
 
 在 `parentsRoute` import 下方新增：
+
 ```typescript
 import enrollmentsRoute from './routes/enrollments';
 ```
 
 在 `app.route('/api/parents', parentsRoute)` 下方新增：
+
 ```typescript
 app.route('/api/enrollments', enrollmentsRoute);
 ```
@@ -643,6 +689,7 @@ git commit -m "feat(api): add enrollments CRUD routes with status machine"
 ## Task 3：前端 EnrollmentsService
 
 **Files:**
+
 - Create: `apps/web/src/app/core/enrollments.service.ts`
 
 - [ ] **Step 1: 建立 service**
@@ -735,7 +782,11 @@ export class EnrollmentsService {
     return this.http.patch<{ data: Enrollment }>(`${this.base}/${id}`, input);
   }
 
-  updateStatus(id: string, status: EnrollmentStatus, notes?: string): Observable<{ data: Enrollment }> {
+  updateStatus(
+    id: string,
+    status: EnrollmentStatus,
+    notes?: string,
+  ): Observable<{ data: Enrollment }> {
     return this.http.patch<{ data: Enrollment }>(`${this.base}/${id}/status`, { status, notes });
   }
 
@@ -757,6 +808,7 @@ git commit -m "feat(service): add EnrollmentsService"
 ## Task 4：RoutesCatalog + 路由設定
 
 **Files:**
+
 - Modify: `apps/web/src/app/core/smart-enums/routes-catalog.ts`
 - Modify: `apps/web/src/app/app.routes.ts`
 
@@ -770,7 +822,7 @@ public static readonly ADMIN_CLASS_DETAIL = this.register(
   UserType.ADMIN,
   'pi-users',
   false,
-  '教務管理',
+  '課務管理',
 );
 ```
 
@@ -800,6 +852,7 @@ git commit -m "feat(routes): add ADMIN_CLASS_DETAIL route"
 ## Task 5：學生選擇 Dialog
 
 **Files:**
+
 - Create: `apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.ts`
 - Create: `.../student-picker-dialog.component.html`
 - Create: `.../student-picker-dialog.component.scss`
@@ -839,8 +892,14 @@ import {
   selector: 'app-student-picker-dialog',
   standalone: true,
   imports: [
-    FormsModule, ButtonModule, InputTextModule, SelectModule,
-    TagModule, SkeletonModule, IconFieldModule, InputIconModule,
+    FormsModule,
+    ButtonModule,
+    InputTextModule,
+    SelectModule,
+    TagModule,
+    SkeletonModule,
+    IconFieldModule,
+    InputIconModule,
   ],
   templateUrl: './student-picker-dialog.component.html',
   styleUrl: './student-picker-dialog.component.scss',
@@ -894,34 +953,35 @@ export class StudentPickerDialogComponent implements OnInit {
   );
 
   ngOnInit(): void {
-    this.searchSubject.pipe(
-      debounceTime(300),
-      distinctUntilChanged(),
-      takeUntilDestroyed(this.destroyRef),
-    ).subscribe((value) => {
-      this.searchQuery.set(value);
-      this.currentPage.set(1);
-      this.load();
-    });
+    this.searchSubject
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        this.searchQuery.set(value);
+        this.currentPage.set(1);
+        this.load();
+      });
     this.load();
   }
 
   protected load(): void {
     this.loading.set(true);
-    this.studentsService.list({
-      search: this.searchQuery() || undefined,
-      grade: this.selectedGrade ?? undefined,
-      isActive: this.selectedIsActive ?? undefined,
-      page: this.currentPage(),
-      pageSize: this.PAGE_SIZE,
-    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (res) => {
-        this.students.set(res.data);
-        this.total.set(res.meta.total);
-        this.loading.set(false);
-      },
-      error: () => this.loading.set(false),
-    });
+    this.studentsService
+      .list({
+        search: this.searchQuery() || undefined,
+        grade: this.selectedGrade ?? undefined,
+        isActive: this.selectedIsActive ?? undefined,
+        page: this.currentPage(),
+        pageSize: this.PAGE_SIZE,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.students.set(res.data);
+          this.total.set(res.meta.total);
+          this.loading.set(false);
+        },
+        error: () => this.loading.set(false),
+      });
   }
 
   protected onSearchChange(value: string): void {
@@ -999,28 +1059,26 @@ export class StudentPickerDialogComponent implements OnInit {
 
   <!-- 學生列表 -->
   <div class="student-picker__list">
-    @if (loading()) {
-      @for (i of [1,2,3,4,5]; track i) {
-        <div class="student-picker__skeleton">
-          <p-skeleton height="48px" />
-        </div>
-      }
-    } @else if (filteredStudents().length === 0) {
-      <div class="student-picker__empty">
-        <i class="pi pi-users"></i>
-        <span>沒有符合條件的學生</span>
+    @if (loading()) { @for (i of [1,2,3,4,5]; track i) {
+    <div class="student-picker__skeleton">
+      <p-skeleton height="48px" />
+    </div>
+    } } @else if (filteredStudents().length === 0) {
+    <div class="student-picker__empty">
+      <i class="pi pi-users"></i>
+      <span>沒有符合條件的學生</span>
+    </div>
+    } @else { @for (student of filteredStudents(); track student.id) {
+    <button type="button" class="student-picker__item" (click)="select(student)">
+      <div class="student-picker__item-info">
+        <span class="student-picker__item-name">{{ student.name }}</span>
+        <span class="student-picker__item-meta"
+          >{{ gradeLabelMap[student.grade] }} · {{ student.school }}</span
+        >
       </div>
-    } @else {
-      @for (student of filteredStudents(); track student.id) {
-        <button type="button" class="student-picker__item" (click)="select(student)">
-          <div class="student-picker__item-info">
-            <span class="student-picker__item-name">{{ student.name }}</span>
-            <span class="student-picker__item-meta">{{ gradeLabelMap[student.grade] }} · {{ student.school }}</span>
-          </div>
-          <i class="pi pi-chevron-right student-picker__item-arrow"></i>
-        </button>
-      }
-    }
+      <i class="pi pi-chevron-right student-picker__item-arrow"></i>
+    </button>
+    } }
   </div>
 
   <div class="student-picker__footer">
@@ -1041,6 +1099,7 @@ git commit -m "feat(ui): add StudentPickerDialogComponent"
 ## Task 6：開課班詳情頁
 
 **Files:**
+
 - Create: `apps/web/src/app/features/admin/pages/courses/class-detail/class-detail.page.ts`
 - Create: `.../class-detail.page.html`
 - Create: `.../class-detail.page.scss`
@@ -1123,15 +1182,27 @@ export class ClassDetailPage implements OnInit {
       items.push({ label: '停權', icon: 'pi pi-lock', command: () => this.confirmSuspend(e) });
     }
     if (e.status === 'suspended') {
-      items.push({ label: '恢復在籍', icon: 'pi pi-unlock', command: () => this.changeStatus(e, 'active') });
+      items.push({
+        label: '恢復在籍',
+        icon: 'pi pi-unlock',
+        command: () => this.changeStatus(e, 'active'),
+      });
     }
     if (e.status === 'pending_payment') {
-      items.push({ label: '確認收款', icon: 'pi pi-check', command: () => this.changeStatus(e, 'active') });
+      items.push({
+        label: '確認收款',
+        icon: 'pi pi-check',
+        command: () => this.changeStatus(e, 'active'),
+      });
       items.push({ label: '刪除', icon: 'pi pi-trash', command: () => this.confirmDelete(e) });
     }
     if (!['withdrawal', 'void'].includes(e.status)) {
       items.push({ separator: true });
-      items.push({ label: '退班', icon: 'pi pi-sign-out', command: () => this.confirmWithdrawal(e) });
+      items.push({
+        label: '退班',
+        icon: 'pi pi-sign-out',
+        command: () => this.confirmWithdrawal(e),
+      });
     }
     return items;
   });
@@ -1147,31 +1218,37 @@ export class ClassDetailPage implements OnInit {
   }
 
   protected loadClass(): void {
-    this.classesService.get(this.classId()).pipe(
-      takeUntilDestroyed(this.destroyRef),
-    ).subscribe({
-      next: (res) => {
-        this.cls.set(res.data);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.messageService.add({ severity: 'error', summary: '載入失敗', detail: '無法載入班級資料' });
-        this.loading.set(false);
-      },
-    });
+    this.classesService
+      .get(this.classId())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.cls.set(res.data);
+          this.loading.set(false);
+        },
+        error: () => {
+          this.messageService.add({
+            severity: 'error',
+            summary: '載入失敗',
+            detail: '無法載入班級資料',
+          });
+          this.loading.set(false);
+        },
+      });
   }
 
   protected loadEnrollments(): void {
     this.enrollmentsLoading.set(true);
-    this.enrollmentsService.list({ classId: this.classId(), pageSize: 100 }).pipe(
-      takeUntilDestroyed(this.destroyRef),
-    ).subscribe({
-      next: (res) => {
-        this.enrollments.set(res.data);
-        this.enrollmentsLoading.set(false);
-      },
-      error: () => this.enrollmentsLoading.set(false),
-    });
+    this.enrollmentsService
+      .list({ classId: this.classId(), pageSize: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.enrollments.set(res.data);
+          this.enrollmentsLoading.set(false);
+        },
+        error: () => this.enrollmentsLoading.set(false),
+      });
   }
 
   protected openActionMenu(event: MouseEvent, enrollment: Enrollment): void {
@@ -1199,86 +1276,111 @@ export class ClassDetailPage implements OnInit {
   }
 
   private addStudent(student: Student): void {
-    const activeCount = this.enrollments().filter(
-      (e) => ['active', 'pending_payment'].includes(e.status),
+    const activeCount = this.enrollments().filter((e) =>
+      ['active', 'pending_payment'].includes(e.status),
     ).length;
     const maxStudents = this.cls()?.maxStudents ?? 0;
 
-    this.enrollmentsService.create({
-      classId: this.classId(),
-      studentId: student.id,
-      status: 'active',
-    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => {
-        if (activeCount >= maxStudents) {
-          this.messageService.add({
-            severity: 'warn',
-            summary: '已超過人數上限',
-            detail: `班級人數已達 ${maxStudents} 人，已超額加入`,
-          });
-        } else {
-          this.messageService.add({ severity: 'success', summary: '已加入', detail: `「${student.name}」已加入班級` });
-        }
-        this.loadEnrollments();
-      },
-      error: (err) => {
-        const code = err.error?.error;
-        const detail = code === 'ALREADY_ENROLLED' ? '該學生已在此班' : '請稍後再試';
-        this.messageService.add({ severity: 'error', summary: '加入失敗', detail });
-      },
-    });
+    this.enrollmentsService
+      .create({
+        classId: this.classId(),
+        studentId: student.id,
+        status: 'active',
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          if (activeCount >= maxStudents) {
+            this.messageService.add({
+              severity: 'warn',
+              summary: '已超過人數上限',
+              detail: `班級人數已達 ${maxStudents} 人，已超額加入`,
+            });
+          } else {
+            this.messageService.add({
+              severity: 'success',
+              summary: '已加入',
+              detail: `「${student.name}」已加入班級`,
+            });
+          }
+          this.loadEnrollments();
+        },
+        error: (err) => {
+          const code = err.error?.error;
+          const detail = code === 'ALREADY_ENROLLED' ? '該學生已在此班' : '請稍後再試';
+          this.messageService.add({ severity: 'error', summary: '加入失敗', detail });
+        },
+      });
   }
 
   protected changeStatus(enrollment: Enrollment, status: EnrollmentStatus, notes?: string): void {
-    this.enrollmentsService.updateStatus(enrollment.id, status, notes).pipe(
-      takeUntilDestroyed(this.destroyRef),
-    ).subscribe({
-      next: () => {
-        this.messageService.add({ severity: 'success', summary: '狀態已更新', detail: ENROLLMENT_STATUS_LABELS[status] });
-        this.loadEnrollments();
-      },
-      error: () => {
-        this.messageService.add({ severity: 'error', summary: '更新失敗', detail: '請稍後再試' });
-      },
-    });
+    this.enrollmentsService
+      .updateStatus(enrollment.id, status, notes)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.messageService.add({
+            severity: 'success',
+            summary: '狀態已更新',
+            detail: ENROLLMENT_STATUS_LABELS[status],
+          });
+          this.loadEnrollments();
+        },
+        error: () => {
+          this.messageService.add({ severity: 'error', summary: '更新失敗', detail: '請稍後再試' });
+        },
+      });
   }
 
   private confirmSuspend(enrollment: Enrollment): void {
-    this.openConfirmDialog('停權', {
-      message: `確定要停權「${enrollment.studentName}」嗎？請填寫停權原因。`,
-      acceptLabel: '停權',
-      rejectLabel: '取消',
-      acceptSeverity: 'warn',
-      requireNotes: true,
-    }, (notes) => this.changeStatus(enrollment, 'suspended', notes));
+    this.openConfirmDialog(
+      '停權',
+      {
+        message: `確定要停權「${enrollment.studentName}」嗎？請填寫停權原因。`,
+        acceptLabel: '停權',
+        rejectLabel: '取消',
+        acceptSeverity: 'warn',
+        requireNotes: true,
+      },
+      (notes) => this.changeStatus(enrollment, 'suspended', notes),
+    );
   }
 
   private confirmWithdrawal(enrollment: Enrollment): void {
-    this.openConfirmDialog('退班', {
-      message: `確定要讓「${enrollment.studentName}」退班嗎？`,
-      acceptLabel: '退班',
-      rejectLabel: '取消',
-      acceptSeverity: 'danger',
-      requireNotes: true,
-    }, (notes) => this.changeStatus(enrollment, 'withdrawal', notes));
+    this.openConfirmDialog(
+      '退班',
+      {
+        message: `確定要讓「${enrollment.studentName}」退班嗎？`,
+        acceptLabel: '退班',
+        rejectLabel: '取消',
+        acceptSeverity: 'danger',
+        requireNotes: true,
+      },
+      (notes) => this.changeStatus(enrollment, 'withdrawal', notes),
+    );
   }
 
   private confirmDelete(enrollment: Enrollment): void {
-    this.openConfirmDialog('刪除報名', {
-      message: `確定要刪除「${enrollment.studentName}」的報名記錄嗎？`,
-      acceptLabel: '刪除',
-      rejectLabel: '取消',
-      acceptSeverity: 'danger',
-    }, () => {
-      this.enrollmentsService.delete(enrollment.id).pipe(
-        takeUntilDestroyed(this.destroyRef),
-      ).subscribe({
-        next: () => {
-          this.messageService.add({ severity: 'success', summary: '已刪除' });
-          this.loadEnrollments();
-        },
-      });
-    });
+    this.openConfirmDialog(
+      '刪除報名',
+      {
+        message: `確定要刪除「${enrollment.studentName}」的報名記錄嗎？`,
+        acceptLabel: '刪除',
+        rejectLabel: '取消',
+        acceptSeverity: 'danger',
+      },
+      () => {
+        this.enrollmentsService
+          .delete(enrollment.id)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: () => {
+              this.messageService.add({ severity: 'success', summary: '已刪除' });
+              this.loadEnrollments();
+            },
+          });
+      },
+    );
   }
 
   private openConfirmDialog(
@@ -1299,7 +1401,9 @@ export class ClassDetailPage implements OnInit {
     });
   }
 
-  protected getStatusSeverity(status: EnrollmentStatus): 'success' | 'warn' | 'secondary' | 'danger' {
+  protected getStatusSeverity(
+    status: EnrollmentStatus,
+  ): 'success' | 'warn' | 'secondary' | 'danger' {
     if (status === 'active') return 'success';
     if (status === 'pending_payment') return 'warn';
     if (status === 'suspended') return 'secondary';
@@ -1316,119 +1420,131 @@ export class ClassDetailPage implements OnInit {
 
 ```html
 <p-toast position="top-center" [baseZIndex]="30000" />
-<p-menu #actionMenu [model]="actionMenuItems()" [popup]="true" [appendTo]="overlayContainer || 'body'" />
+<p-menu
+  #actionMenu
+  [model]="actionMenuItems()"
+  [popup]="true"
+  [appendTo]="overlayContainer || 'body'"
+/>
 
 <div class="class-detail">
   <div class="class-detail__nav">
-    <p-button label="課程列表" icon="pi pi-arrow-left" [text]="true" severity="secondary" (onClick)="goBack()" />
+    <p-button
+      label="課程列表"
+      icon="pi pi-arrow-left"
+      [text]="true"
+      severity="secondary"
+      (onClick)="goBack()"
+    />
   </div>
 
   @if (loading()) {
-    <div class="class-detail__loading">
-      <i class="pi pi-spinner pi-spin" style="font-size: 2rem; color: var(--zinc-400)"></i>
-    </div>
+  <div class="class-detail__loading">
+    <i class="pi pi-spinner pi-spin" style="font-size: 2rem; color: var(--zinc-400)"></i>
+  </div>
   } @else if (cls()) {
-    <div class="class-detail__header">
-      <div class="class-detail__title-row">
-        <h1 class="class-detail__title">{{ cls()!.name }}</h1>
-        <p-tag
-          [value]="cls()!.isActive ? '開班中' : '已停班'"
-          [severity]="cls()!.isActive ? 'success' : 'secondary'"
-        />
-      </div>
-      <div class="class-detail__meta">
-        <span>{{ cls()!.courseName }}</span>
-        <span class="class-detail__sep">·</span>
-        <span>上限 {{ cls()!.maxStudents }} 人</span>
-      </div>
+  <div class="class-detail__header">
+    <div class="class-detail__title-row">
+      <h1 class="class-detail__title">{{ cls()!.name }}</h1>
+      <p-tag
+        [value]="cls()!.isActive ? '開班中' : '已停班'"
+        [severity]="cls()!.isActive ? 'success' : 'secondary'"
+      />
     </div>
+    <div class="class-detail__meta">
+      <span>{{ cls()!.courseName }}</span>
+      <span class="class-detail__sep">·</span>
+      <span>上限 {{ cls()!.maxStudents }} 人</span>
+    </div>
+  </div>
 
-    <p-tabs value="0">
-      <p-tablist>
-        <p-tab value="0">學生名單</p-tab>
-        <p-tab value="1">課表</p-tab>
-      </p-tablist>
+  <p-tabs value="0">
+    <p-tablist>
+      <p-tab value="0">學生名單</p-tab>
+      <p-tab value="1">課表</p-tab>
+    </p-tablist>
 
-      <p-tabpanels>
-        <!-- 學生名單 tab -->
-        <p-tabpanel value="0">
-          <div class="class-detail__tab-actions">
-            <p-button
-              label="加入學生"
-              icon="pi pi-user-plus"
-              (onClick)="openStudentPicker()"
-              [disabled]="!cls()!.isActive"
-            />
-          </div>
+    <p-tabpanels>
+      <!-- 學生名單 tab -->
+      <p-tabpanel value="0">
+        <div class="class-detail__tab-actions">
+          <p-button
+            label="加入學生"
+            icon="pi pi-user-plus"
+            (onClick)="openStudentPicker()"
+            [disabled]="!cls()!.isActive"
+          />
+        </div>
 
-          @if (enrollmentsLoading()) {
-            <div class="class-detail__skeletons">
-              @for (i of [1,2,3]; track i) {
-                <p-skeleton height="56px" styleClass="mb-2" />
-              }
-            </div>
-          } @else if (enrollments().length === 0) {
-            <div class="class-detail__empty">
-              <i class="pi pi-users"></i>
-              <span>尚未加入任何學生</span>
-            </div>
-          } @else {
-            <div class="class-detail__student-list">
-              @for (enrollment of enrollments(); track enrollment.id) {
-                <div class="class-detail__student-item">
-                  <div class="class-detail__student-avatar">
-                    <i class="pi pi-user"></i>
-                  </div>
-                  <div class="class-detail__student-info">
-                    <span class="class-detail__student-name">{{ enrollment.studentName }}</span>
-                    <span class="class-detail__student-since">自 {{ enrollment.effectiveFrom }}</span>
-                  </div>
-                  <p-tag
-                    [value]="statusLabels[enrollment.status]"
-                    [severity]="getStatusSeverity(enrollment.status)"
-                  />
-                  <button
-                    type="button"
-                    class="class-detail__action-btn"
-                    (click)="openActionMenu($event, enrollment)"
-                    aria-label="操作"
-                  >
-                    <i class="pi pi-ellipsis-v"></i>
-                  </button>
-                </div>
-              }
-            </div>
+        @if (enrollmentsLoading()) {
+        <div class="class-detail__skeletons">
+          @for (i of [1,2,3]; track i) {
+          <p-skeleton height="56px" styleClass="mb-2" />
           }
-        </p-tabpanel>
+        </div>
+        } @else if (enrollments().length === 0) {
+        <div class="class-detail__empty">
+          <i class="pi pi-users"></i>
+          <span>尚未加入任何學生</span>
+        </div>
+        } @else {
+        <div class="class-detail__student-list">
+          @for (enrollment of enrollments(); track enrollment.id) {
+          <div class="class-detail__student-item">
+            <div class="class-detail__student-avatar">
+              <i class="pi pi-user"></i>
+            </div>
+            <div class="class-detail__student-info">
+              <span class="class-detail__student-name">{{ enrollment.studentName }}</span>
+              <span class="class-detail__student-since">自 {{ enrollment.effectiveFrom }}</span>
+            </div>
+            <p-tag
+              [value]="statusLabels[enrollment.status]"
+              [severity]="getStatusSeverity(enrollment.status)"
+            />
+            <button
+              type="button"
+              class="class-detail__action-btn"
+              (click)="openActionMenu($event, enrollment)"
+              aria-label="操作"
+            >
+              <i class="pi pi-ellipsis-v"></i>
+            </button>
+          </div>
+          }
+        </div>
+        }
+      </p-tabpanel>
 
-        <!-- 課表 tab -->
-        <p-tabpanel value="1">
-          <div class="class-detail__schedules">
-            @if (cls()!.schedules?.length === 0) {
-              <div class="class-detail__empty">
-                <i class="pi pi-calendar"></i>
-                <span>尚未設定課表</span>
-              </div>
-            } @else {
-              @for (schedule of cls()!.schedules ?? []; track schedule.id) {
-                <div class="class-detail__schedule-item">
-                  <span class="class-detail__schedule-day">{{ getWeekdayLabel(schedule.weekday) }}</span>
-                  <span class="class-detail__schedule-time">{{ schedule.startTime }} – {{ schedule.endTime }}</span>
-                  @if (schedule.teacherName) {
-                    <span class="class-detail__schedule-teacher">{{ schedule.teacherName }}</span>
-                  }
-                </div>
-              }
+      <!-- 課表 tab -->
+      <p-tabpanel value="1">
+        <div class="class-detail__schedules">
+          @if (cls()!.schedules?.length === 0) {
+          <div class="class-detail__empty">
+            <i class="pi pi-calendar"></i>
+            <span>尚未設定課表</span>
+          </div>
+          } @else { @for (schedule of cls()!.schedules ?? []; track schedule.id) {
+          <div class="class-detail__schedule-item">
+            <span class="class-detail__schedule-day">{{ getWeekdayLabel(schedule.weekday) }}</span>
+            <span class="class-detail__schedule-time"
+              >{{ schedule.startTime }} – {{ schedule.endTime }}</span
+            >
+            @if (schedule.teacherName) {
+            <span class="class-detail__schedule-teacher">{{ schedule.teacherName }}</span>
             }
           </div>
-        </p-tabpanel>
-      </p-tabpanels>
-    </p-tabs>
+          } }
+        </div>
+      </p-tabpanel>
+    </p-tabpanels>
+  </p-tabs>
   }
 </div>
 ```
 
 > 注意：`getWeekdayLabel()` 方法需在 `.ts` 中補上：
+>
 > ```typescript
 > protected getWeekdayLabel(weekday: number): string {
 >   return ['', '週一', '週二', '週三', '週四', '週五', '週六', '週日'][weekday] ?? '';
@@ -1438,6 +1554,7 @@ export class ClassDetailPage implements OnInit {
 - [ ] **Step 4: 確認 `ClassesService` 有 `get(id)` 方法**
 
 查看 `apps/web/src/app/core/classes.service.ts`，若無 `get(id): Observable<{ data: Class }>` 方法則補上：
+
 ```typescript
 get(id: string): Observable<{ data: Class }> {
   return this.http.get<{ data: Class }>(`${this.base}/${id}?includeSchedules=true`);
@@ -1456,6 +1573,7 @@ git commit -m "feat(ui): add ClassDetailPage with student list tab"
 ## Task 7：courses 列表頁 — 班級點擊導航
 
 **Files:**
+
 - Modify: `apps/web/src/app/features/admin/pages/courses/courses.page.ts`
 - Modify: `apps/web/src/app/features/admin/pages/courses/courses.page.html`
 
@@ -1474,12 +1592,9 @@ protected navigateToClass(courseId: string, classId: string): void {
 - [ ] **Step 2: 在 `courses.page.html` 的班級名稱處改為可點擊**
 
 找到顯示班級名稱的元素，改為：
+
 ```html
-<button
-  type="button"
-  class="class-name-link"
-  (click)="navigateToClass(course.id, cls.id)"
->
+<button type="button" class="class-name-link" (click)="navigateToClass(course.id, cls.id)">
   {{ cls.name }}
 </button>
 ```
@@ -1496,12 +1611,14 @@ git commit -m "feat(ui): navigate to class detail page from courses list"
 ## Task 8：學生詳情頁 — 在籍班級區塊
 
 **Files:**
+
 - Modify: `apps/web/src/app/features/admin/pages/students/detail/student-detail.page.ts`
 - Modify: `apps/web/src/app/features/admin/pages/students/detail/student-detail.page.html`
 
 - [ ] **Step 1: 在 `student-detail.page.ts` 載入 enrollments**
 
 新增以下 inject 和 signal：
+
 ```typescript
 private readonly enrollmentsService = inject(EnrollmentsService);
 protected readonly enrollments = signal<Enrollment[]>([]);
@@ -1510,6 +1627,7 @@ protected readonly ENROLLMENT_STATUS_LABELS = ENROLLMENT_STATUS_LABELS;
 ```
 
 在 `ngOnInit` 或 `loadStudent()` 成功後呼叫：
+
 ```typescript
 private loadEnrollments(studentId: string): void {
   this.enrollmentsLoading.set(true);
@@ -1532,40 +1650,40 @@ private loadEnrollments(studentId: string): void {
 - [ ] **Step 2: 取代 `student-detail.page.html` 的「報名課程」placeholder**
 
 將以下 deferred placeholder：
+
 ```html
 <!-- Deferred: Enrollments -->
-<div class="student-detail__section-card student-detail__section-card--deferred">
-  ...
-</div>
+<div class="student-detail__section-card student-detail__section-card--deferred">...</div>
 ```
 
 替換為：
+
 ```html
 <!-- 在籍班級 -->
 <div class="student-detail__section-card">
   <h2 class="student-detail__section-title">在籍班級</h2>
   @if (enrollmentsLoading()) {
-    <p-skeleton height="48px" />
+  <p-skeleton height="48px" />
   } @else if (enrollments().length === 0) {
-    <div class="student-detail__empty-section">
-      <i class="pi pi-list"></i>
-      <span>尚未加入任何班級</span>
-    </div>
+  <div class="student-detail__empty-section">
+    <i class="pi pi-list"></i>
+    <span>尚未加入任何班級</span>
+  </div>
   } @else {
-    <div class="student-detail__enrollments-list">
-      @for (enrollment of enrollments(); track enrollment.id) {
-        <div class="student-detail__enrollment-item">
-          <div class="student-detail__enrollment-info">
-            <span class="student-detail__enrollment-class">{{ enrollment.className }}</span>
-            <span class="student-detail__enrollment-since">自 {{ enrollment.effectiveFrom }}</span>
-          </div>
-          <p-tag
-            [value]="ENROLLMENT_STATUS_LABELS[enrollment.status]"
-            [severity]="enrollment.status === 'active' ? 'success' : 'warn'"
-          />
-        </div>
-      }
+  <div class="student-detail__enrollments-list">
+    @for (enrollment of enrollments(); track enrollment.id) {
+    <div class="student-detail__enrollment-item">
+      <div class="student-detail__enrollment-info">
+        <span class="student-detail__enrollment-class">{{ enrollment.className }}</span>
+        <span class="student-detail__enrollment-since">自 {{ enrollment.effectiveFrom }}</span>
+      </div>
+      <p-tag
+        [value]="ENROLLMENT_STATUS_LABELS[enrollment.status]"
+        [severity]="enrollment.status === 'active' ? 'success' : 'warn'"
+      />
     </div>
+    }
+  </div>
   }
 </div>
 ```
@@ -1573,7 +1691,11 @@ private loadEnrollments(studentId: string): void {
 - [ ] **Step 3: 確認 EnrollmentsService import 加入 `student-detail.page.ts`**
 
 ```typescript
-import { EnrollmentsService, Enrollment, ENROLLMENT_STATUS_LABELS } from '@core/enrollments.service';
+import {
+  EnrollmentsService,
+  Enrollment,
+  ENROLLMENT_STATUS_LABELS,
+} from '@core/enrollments.service';
 import { SkeletonModule } from 'primeng/skeleton';
 ```
 

@@ -4,22 +4,28 @@
 <div class="leave-page">
   <div class="leave-page__header">
     <h2 class="leave-page__title">{{ page().label }}</h2>
-    <p-button
-      label="新增請假"
-      icon="pi pi-plus"
-      (onClick)="openCreateDialog()"
-    />
+    <div class="leave-page__header-actions">
+      <p-button
+        label="操作紀錄"
+        icon="pi pi-history"
+        [outlined]="true"
+        severity="secondary"
+        (onClick)="openAuditLog()"
+      />
+      <p-button label="新增請假" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+    </div>
   </div>
 
-  <div class="leave-page__filters">
+  <div class="leave-page__filters clessia-filter-bar">
     <p-select
       [options]="campuses()"
       [(ngModel)]="filterCampusId"
       optionLabel="label"
       optionValue="value"
+      size="small"
       placeholder="全部分校"
       (onChange)="onFilterChange()"
-      styleClass="leave-page__filter-item"
+      styleClass="clessia-filter-control"
       [appendTo]="'body'"
     />
     <p-datepicker
@@ -27,16 +33,12 @@
       selectionMode="range"
       placeholder="日期範圍"
       dateFormat="yy-mm-dd"
+      inputStyleClass="p-inputtext-sm"
       (onClose)="onFilterChange()"
-      styleClass="leave-page__filter-item"
+      styleClass="clessia-filter-control clessia-filter-control--date-range"
       [appendTo]="'body'"
     />
-    <p-button
-      icon="pi pi-refresh"
-      severity="secondary"
-      (onClick)="onFilterChange()"
-      pTooltip="重新整理"
-    />
+    <p-button size="small" severity="secondary" (onClick)="onFilterChange()"> 重置篩選 </p-button>
   </div>
 
   <app-responsive-table
@@ -48,13 +50,26 @@
 
   <ng-template #headTpl>
     <tr>
-      <th appRtColDef="studentName" [appRtColDefMinWidth]="120" [appRtColDefPriority]="1">學生姓名</th>
-      <th appRtColDef="startDate" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">開始日期</th>
+      <th appRtColDef="studentName" [appRtColDefMinWidth]="120" [appRtColDefPriority]="1">
+        學生姓名
+      </th>
+      <th appRtColDef="startDate" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
+        開始日期
+      </th>
       <th appRtColDef="endDate" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">結束日期</th>
       <th appRtColDef="days" [appRtColDefMinWidth]="80" [appRtColDefPriority]="4">天數</th>
       <th appRtColDef="reason" [appRtColDefMinWidth]="140" [appRtColDefPriority]="5">原因</th>
-      <th appRtColDef="submittedByRole" [appRtColDefMinWidth]="100" [appRtColDefPriority]="6">申請方</th>
-      <th appRtColDef="actions" [appRtColDefMinWidth]="80" [appRtColDefPriority]="0" [appRtColDefCollapsible]="false">操作</th>
+      <th appRtColDef="submittedByRole" [appRtColDefMinWidth]="100" [appRtColDefPriority]="6">
+        申請方
+      </th>
+      <th
+        appRtColDef="actions"
+        [appRtColDefMinWidth]="80"
+        [appRtColDefPriority]="0"
+        [appRtColDefCollapsible]="false"
+      >
+        操作
+      </th>
     </tr>
   </ng-template>
 

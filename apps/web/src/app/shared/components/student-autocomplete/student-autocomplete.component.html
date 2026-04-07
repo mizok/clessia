@@ -1,0 +1,20 @@
+<p-autocomplete
+  [ngModel]="value()"
+  (ngModelChange)="onValueChange($event)"
+  [suggestions]="suggestions()"
+  (completeMethod)="onComplete($event)"
+  optionLabel="name"
+  [placeholder]="placeholder()"
+  [disabled]="disabled()"
+  [fluid]="true"
+  [inputStyle]="{ width: '100%' }"
+  [forceSelection]="forceSelection()"
+  class="student-autocomplete"
+>
+  <ng-template pTemplate="item" let-student>
+    <div class="student-autocomplete__item">
+      <span class="student-autocomplete__name">{{ student.name }}</span>
+      <span class="student-autocomplete__meta">{{ formatStudentMeta(student) }}</span>
+    </div>
+  </ng-template>
+</p-autocomplete>

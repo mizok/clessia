@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
+import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 
 const AttendanceStatusSchema = z
   .enum(['present', 'absent', 'on_leave'])
@@ -43,6 +44,7 @@ const EventSessionSummarySchema = z
     eventId: z.uuid(),
     classId: z.uuid(),
     className: z.string(),
+    courseName: z.string().nullable(),
     teacherName: z.string().nullable(),
     campusId: z.uuid().nullable(),
     campusName: z.string().nullable(),
@@ -56,6 +58,18 @@ const EventSessionSummarySchema = z
     takenAt: z.string().nullable(),
   })
   .openapi('EventSessionSummary');
+
+const AttendanceSessionListResponseSchema = z
+  .object({
+    data: z.array(EventSessionSummarySchema),
+    meta: z.object({
+      total: z.number(),
+      page: z.number(),
+      pageSize: z.number(),
+      totalPages: z.number(),
+    }),
+  })
+  .openapi('AttendanceSessionListResponse');
 
 const RosterStudentSchema = z
   .object({
@@ -105,6 +119,201 @@ const CreateAttendanceSchema = z
     note: z.string().nullable().optional(),
   })
   .openapi('CreateAttendance');
+
+type AttendanceSessionStatus = 'scheduled' | 'completed' | 'cancelled';
+
+interface AttendanceAuditResourceNameInput {
+  readonly courseName?: string | null;
+  readonly className?: string | null;
+  readonly eventDate?: string | null;
+  readonly startTime?: string | null;
+}
+
+interface AttendanceBatchAuditUpdate {
+  readonly studentId: string;
+  readonly status: 'present' | 'absent';
+}
+
+export function buildAttendanceAuditResourceName(
+  input: AttendanceAuditResourceNameInput,
+): string | null {
+  return formatAuditSessionResourceName({
+    courseName: input.courseName,
+    className: input.className,
+    sessionDate: input.eventDate,
+    startTime: input.startTime,
+  });
+}
+
+export function buildAttendanceAuditBatchDetails(
+  updates: ReadonlyArray<AttendanceBatchAuditUpdate>,
+) {
+  return {
+    updatedCount: updates.length,
+    presentCount: updates.filter((update) => update.status === 'present').length,
+    absentCount: updates.filter((update) => update.status === 'absent').length,
+  };
+}
+
+export function normalizeAttendanceSessionStatuses(
+  statuses: string | undefined,
+): AttendanceSessionStatus[] | null {
+  if (!statuses) {
+    return null;
+  }
+
+  const normalized = statuses
+    .split(',')
+    .map((status) => status.trim())
+    .filter(
+      (status): status is AttendanceSessionStatus =>
+        status === 'scheduled' || status === 'completed' || status === 'cancelled',
+    );
+
+  return normalized.length > 0 ? normalized : null;
+}
+
+export function normalizeAttendanceFilterIds(filterIds: string | undefined): string[] {
+  if (!filterIds) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      filterIds
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+export async function ensureAttendanceSessionEvents(input: {
+  readonly supabase: AppEnv['Variables']['supabase'];
+  readonly orgId: string;
+  readonly campusId?: string;
+  readonly courseIdList: readonly string[];
+  readonly classIdList: readonly string[];
+  readonly statusList: readonly AttendanceSessionStatus[];
+  readonly dateFromValue?: string;
+  readonly dateToValue?: string;
+}): Promise<{ readonly created: number; readonly error: string | null }> {
+  const {
+    supabase,
+    orgId,
+    campusId,
+    courseIdList,
+    classIdList,
+    statusList,
+    dateFromValue,
+    dateToValue,
+  } = input;
+
+  let missingSessionsQuery = supabase
+    .from('sessions')
+    .select(
+      `
+      id,
+      event_id,
+      session_date,
+      start_time,
+      end_time,
+      status,
+      class_id,
+      classes!inner(name, course_id, campus_id, courses(name))
+    `,
+    )
+    .eq('org_id', orgId)
+    .is('event_id', null)
+    .in('status', [...statusList]);
+
+  if (dateFromValue) {
+    missingSessionsQuery = missingSessionsQuery.gte('session_date', dateFromValue);
+    missingSessionsQuery = missingSessionsQuery.lte('session_date', dateToValue ?? dateFromValue);
+  }
+
+  if (campusId) {
+    missingSessionsQuery = missingSessionsQuery.eq('classes.campus_id', campusId);
+  }
+  if (courseIdList.length > 0) {
+    missingSessionsQuery = missingSessionsQuery.in('classes.course_id', [...courseIdList]);
+  }
+  if (classIdList.length > 0) {
+    missingSessionsQuery = missingSessionsQuery.in('class_id', [...classIdList]);
+  }
+
+  const { data: missingSessions, error: missingSessionsError } = await missingSessionsQuery;
+  if (missingSessionsError) {
+    return { created: 0, error: missingSessionsError.message };
+  }
+
+  if (!missingSessions || missingSessions.length === 0) {
+    return { created: 0, error: null };
+  }
+
+  const eventsToInsert = missingSessions.map((session: any) => {
+    const classRow = Array.isArray(session.classes) ? session.classes[0] : session.classes;
+
+    return {
+      id: crypto.randomUUID(),
+      org_id: orgId,
+      event_type: 'session' as const,
+      title: classRow?.name ?? '課堂',
+      campus_id: classRow?.campus_id ?? null,
+      event_date: session.session_date,
+      start_time: session.start_time,
+      end_time: session.end_time,
+    };
+  });
+
+  const { error: insertEventsError } = await supabase.from('events').insert(eventsToInsert);
+  if (insertEventsError) {
+    return { created: 0, error: insertEventsError.message };
+  }
+
+  const sessionUpdateResults = await Promise.all(
+    missingSessions.map((session: any, index) =>
+      supabase
+        .from('sessions')
+        .update({ event_id: eventsToInsert[index]?.id ?? null })
+        .eq('id', session.id),
+    ),
+  );
+
+  const updateError = sessionUpdateResults.find((result) => result.error)?.error;
+  if (updateError) {
+    return { created: 0, error: updateError.message };
+  }
+
+  return { created: missingSessions.length, error: null };
+}
+
+export function buildAttendanceSessionListMeta(total: number, page: number, pageSize: number) {
+  return {
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  };
+}
+
+function extractAttendanceAuditContext(source: Record<string, any> | null | undefined) {
+  const event = source?.['events'] ?? source;
+  const sessionRows = Array.isArray(event?.sessions)
+    ? event.sessions
+    : event?.sessions
+      ? [event.sessions]
+      : [];
+  const classRow = sessionRows[0]?.classes;
+  const courseRow = Array.isArray(classRow?.courses) ? classRow.courses[0] : classRow?.courses;
+
+  return {
+    courseName: (courseRow?.name as string | null | undefined) ?? null,
+    className: (classRow?.name as string | null | undefined) ?? null,
+    eventDate: (event?.event_date as string | null | undefined) ?? null,
+    startTime: (event?.start_time as string | null | undefined)?.slice(0, 5) ?? null,
+  };
+}
 
 export function toAttendanceResponse(row: Record<string, unknown>) {
   return {
@@ -157,8 +366,15 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const { campusId, studentId, dateFrom, dateTo, status, page = 1, pageSize = 20 } =
-      c.req.valid('query');
+    const {
+      campusId,
+      studentId,
+      dateFrom,
+      dateTo,
+      status,
+      page = 1,
+      pageSize = 20,
+    } = c.req.valid('query');
 
     let query = supabase
       .from('attendance_records')
@@ -252,7 +468,7 @@ app.openapi(
         recorded_by_role: 'admin',
       })
       .select(
-        '*, students(name), events(event_date, start_time, end_time, campus_id, campuses(name))',
+        '*, students(name), events(event_date, start_time, end_time, campus_id, campuses(name), sessions(classes(name, courses(name))))',
       )
       .single();
 
@@ -269,6 +485,26 @@ app.openapi(
       campus_name: (data as any).events?.campuses?.name ?? null,
       class_name: null,
     };
+
+    const auditContext = extractAttendanceAuditContext(data as Record<string, any>);
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'attendance',
+        resourceId: body.eventId,
+        resourceName: buildAttendanceAuditResourceName(auditContext),
+        action: 'create',
+        details: {
+          studentName: row.student_name,
+          status: body.status,
+          note: body.note ?? null,
+        },
+      },
+      c.executionCtx.waitUntil.bind(c.executionCtx),
+    );
 
     return c.json(toAttendanceResponse(row), 201);
   },
@@ -305,7 +541,9 @@ app.openapi(
 
     const { data: ev } = await supabase
       .from('events')
-      .select('id, attendance_taken_at, sessions(class_id), event_date')
+      .select(
+        'id, attendance_taken_at, event_date, start_time, sessions(class_id, classes(name, courses(name)))',
+      )
       .eq('id', eventId)
       .eq('org_id', orgId)
       .single();
@@ -314,6 +552,10 @@ app.openapi(
 
     const classId = (ev as any).sessions?.[0]?.class_id;
     const eventDate = (ev as any).event_date as string;
+
+    if (eventDate > getCurrentTaipeiDateString()) {
+      return c.json({ error: '未來課堂尚未開放點名' }, 400);
+    }
 
     const { data: validEnrollments } = await supabase
       .from('enrollments')
@@ -356,6 +598,22 @@ app.openapi(
         .eq('org_id', orgId);
     }
 
+    const auditContext = extractAttendanceAuditContext(ev as Record<string, any>);
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'attendance',
+        resourceId: eventId,
+        resourceName: buildAttendanceAuditResourceName(auditContext),
+        action: 'batch_update_attendance',
+        details: buildAttendanceAuditBatchDetails(updates),
+      },
+      c.executionCtx.waitUntil.bind(c.executionCtx),
+    );
+
     return c.json({ updated: updates.length, takenAt }, 200);
   },
 );
@@ -395,7 +653,7 @@ app.openapi(
       .eq('id', id)
       .eq('org_id', orgId)
       .select(
-        '*, students(name), events(event_date, start_time, end_time, campus_id, campuses(name))',
+        '*, students(name), events(event_date, start_time, end_time, campus_id, campuses(name), sessions(classes(name, courses(name))))',
       )
       .single();
 
@@ -412,6 +670,26 @@ app.openapi(
       campus_name: (data as any).events?.campuses?.name ?? null,
       class_name: null,
     };
+
+    const auditContext = extractAttendanceAuditContext(data as Record<string, any>);
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'attendance',
+        resourceId: row.event_id,
+        resourceName: buildAttendanceAuditResourceName(auditContext),
+        action: 'update',
+        details: {
+          studentName: row.student_name,
+          status: row.status,
+          note: row.note,
+        },
+      },
+      c.executionCtx.waitUntil.bind(c.executionCtx),
+    );
 
     return c.json(toAttendanceResponse(row), 200);
   },
@@ -430,58 +708,126 @@ app.openapi(
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
         campusId: z.uuid().optional(),
+        courseIds: z.string().optional(),
+        classIds: z.string().optional(),
+        statuses: z.string().optional(),
+        page: z.coerce.number().min(1).default(1).optional(),
+        pageSize: z.coerce.number().min(1).max(100).default(20).optional(),
       }),
     },
     responses: {
       200: {
         description: '課堂出勤摘要',
-        content: { 'application/json': { schema: z.array(EventSessionSummarySchema) } },
+        content: { 'application/json': { schema: AttendanceSessionListResponseSchema } },
       },
     },
   }),
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const { date, dateFrom, dateTo, campusId } = c.req.valid('query');
+    const {
+      date,
+      dateFrom,
+      dateTo,
+      campusId,
+      courseIds,
+      classIds,
+      statuses,
+      page = 1,
+      pageSize = 20,
+    } = c.req.valid('query');
 
-    const from = date ?? dateFrom;
-    const to = date ?? dateTo;
+    const dateFromValue = date ?? dateFrom;
+    const dateToValue = date ?? dateTo;
 
-    if (!from) return c.json({ error: 'date 或 dateFrom 為必填' }, 400);
+    const courseIdList = normalizeAttendanceFilterIds(courseIds);
+    const classIdList = normalizeAttendanceFilterIds(classIds);
+    const statusList = normalizeAttendanceSessionStatuses(statuses) ?? ['scheduled', 'completed'];
+    const fromIndex = (page - 1) * pageSize;
+    const toIndex = fromIndex + pageSize - 1;
 
-    let eventsQuery = supabase
-      .from('events')
-      .select(`
-        id, event_date, start_time, end_time, attendance_taken_at,
-        campus_id, campuses(name),
-        sessions(
-          class_id,
-          classes(name)
+    const ensureEventsResult = await ensureAttendanceSessionEvents({
+      supabase,
+      orgId,
+      campusId,
+      courseIdList,
+      classIdList,
+      statusList,
+      dateFromValue,
+      dateToValue,
+    });
+    if (ensureEventsResult.error) {
+      return c.json({ error: '補齊課堂事件失敗', message: ensureEventsResult.error }, 500);
+    }
+
+    let sessionsQuery = supabase
+      .from('sessions')
+      .select(
+        `
+        event_id,
+        session_date,
+        start_time,
+        end_time,
+        status,
+        class_id,
+        classes!inner(name, course_id, campus_id, campuses(name), courses(name)),
+        events!event_id!inner(
+          id,
+          event_date,
+          start_time,
+          end_time,
+          attendance_taken_at,
+          campus_id,
+          campuses(name)
         )
-      `)
+      `,
+        { count: 'exact' },
+      )
       .eq('org_id', orgId)
-      .gte('event_date', from)
-      .lte('event_date', to ?? from)
-      .order('start_time', { ascending: true });
+      .order('session_date', { ascending: true })
+      .order('start_time', { ascending: true })
+      .range(fromIndex, toIndex);
 
-    if (campusId) eventsQuery = eventsQuery.eq('campus_id', campusId);
+    if (dateFromValue) {
+      sessionsQuery = sessionsQuery.gte('session_date', dateFromValue);
+      sessionsQuery = sessionsQuery.lte('session_date', dateToValue ?? dateFromValue);
+    }
 
-    const { data: events, error: eventsError } = await eventsQuery;
-    if (eventsError) return c.json({ error: '查詢課堂失敗', message: eventsError.message }, 500);
+    if (campusId) sessionsQuery = sessionsQuery.eq('classes.campus_id', campusId);
+    if (courseIdList.length > 0) {
+      sessionsQuery = sessionsQuery.in('classes.course_id', courseIdList);
+    }
+    if (classIdList.length > 0) {
+      sessionsQuery = sessionsQuery.in('class_id', classIdList);
+    }
+    sessionsQuery = sessionsQuery.in('status', statusList);
+
+    const { data: sessions, error: sessionsError, count } = await sessionsQuery;
+    if (sessionsError) return c.json({ error: '查詢課堂失敗', message: sessionsError.message }, 500);
 
     const results = await Promise.all(
-      (events ?? []).map(async (ev: any) => {
-        const session = ev.sessions?.[0];
-        const classRow = session?.classes;
-        const classId = session?.class_id ?? null;
+      (sessions ?? []).map(async (session: any) => {
+        const classRow = session.classes;
+        const courseRow = Array.isArray(classRow?.courses)
+          ? classRow.courses[0]
+          : classRow?.courses;
+        const classCampusRow = Array.isArray(classRow?.campuses)
+          ? classRow.campuses[0]
+          : classRow?.campuses;
+        const eventRow = Array.isArray(session.events) ? session.events[0] : session.events;
+        const classId = session.class_id ?? null;
+        const eventId = session.event_id ?? eventRow?.id ?? null;
+        const sessionDate = eventRow?.event_date ?? session.session_date ?? null;
 
-        let presentCount = 0, onLeaveCount = 0, absentCount = 0;
+        let presentCount = 0,
+          onLeaveCount = 0,
+          absentCount = 0;
 
-        if (ev.attendance_taken_at) {
+        if (eventId && eventRow?.attendance_taken_at) {
           const { data: records } = await supabase
             .from('attendance_records')
             .select('status')
-            .eq('event_id', ev.id)
+            .eq('event_id', eventId)
             .eq('org_id', orgId);
 
           for (const r of records ?? []) {
@@ -496,29 +842,36 @@ app.openapi(
           .select('id', { count: 'exact', head: true })
           .eq('class_id', classId)
           .eq('status', 'active')
-          .lte('effective_from', ev.event_date)
-          .or(`effective_to.is.null,effective_to.gte.${ev.event_date}`);
+          .lte('effective_from', sessionDate)
+          .or(`effective_to.is.null,effective_to.gte.${sessionDate}`);
 
         return {
-          eventId: ev.id,
+          eventId: eventId ?? '',
           classId: classId ?? '',
           className: classRow?.name ?? '',
+          courseName: courseRow?.name ?? null,
           teacherName: null,
-          campusId: ev.campus_id ?? null,
-          campusName: ev.campuses?.name ?? null,
-          eventDate: ev.event_date,
-          startTime: ev.start_time ? ev.start_time.slice(0, 5) : null,
-          endTime: ev.end_time ? ev.end_time.slice(0, 5) : null,
+          campusId: eventRow?.campus_id ?? classRow?.campus_id ?? null,
+          campusName: eventRow?.campuses?.name ?? classCampusRow?.name ?? null,
+          eventDate: sessionDate ?? '',
+          startTime: (eventRow?.start_time ?? session.start_time)?.slice(0, 5) ?? null,
+          endTime: (eventRow?.end_time ?? session.end_time)?.slice(0, 5) ?? null,
           enrolledCount: enrolledCount ?? 0,
           presentCount,
           onLeaveCount,
           absentCount,
-          takenAt: ev.attendance_taken_at ?? null,
+          takenAt: eventRow?.attendance_taken_at ?? null,
         };
       }),
     );
 
-    return c.json(results, 200);
+    return c.json(
+      {
+        data: results,
+        meta: buildAttendanceSessionListMeta(count ?? 0, page, pageSize),
+      },
+      200,
+    );
   },
 );
 
@@ -596,5 +949,20 @@ app.openapi(
     );
   },
 );
+
+function getCurrentTaipeiDateString(): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === 'year')?.value ?? '0000';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
+  const day = parts.find((part) => part.type === 'day')?.value ?? '01';
+
+  return `${year}-${month}-${day}`;
+}
 
 export default app;

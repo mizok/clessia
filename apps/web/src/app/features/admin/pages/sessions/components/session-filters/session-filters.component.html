@@ -1,20 +1,20 @@
 <section class="session-filters">
   <div class="session-filters__mobile">
     <p-datepicker
-      class="session-filters__mobile-date"
+      class="session-filters__mobile-date clessia-filter-control clessia-filter-control--date-range"
       selectionMode="range"
       [ngModel]="listDateRange()"
       (ngModelChange)="onListDateRangeChange($event)"
       dateFormat="mm/dd"
       placeholder="日期範圍"
-      inputStyleClass="p-inputtext-sm"
+      inputStyleClass="p-inputtext-sm clessia-filter-input"
       [showIcon]="true"
       [appendTo]="'body'"
       [firstDayOfWeek]="1"
       [numberOfMonths]="1"
       [readonlyInput]="true"
     />
-    <button class="session-filters__mobile-toggle" (click)="mobileFilterToggle.emit()">
+    <button class="session-filters__mobile-toggle" (click)="openAdvancedFilters.emit()">
       <i class="pi pi-filter session-filters__mobile-toggle-icon"></i>
       篩選
       @if (activeFilterCount() > 0) {
@@ -23,15 +23,15 @@
     </button>
   </div>
 
-  <div class="session-filters__row session-filters__row--list">
+  <div class="session-filters__row session-filters__row--list clessia-filter-bar">
     <p-datepicker
-      class="session-filters__control session-filters__control--date-range"
+      class="session-filters__control clessia-filter-control clessia-filter-control--date-range"
       selectionMode="range"
       [ngModel]="listDateRange()"
       (ngModelChange)="onListDateRangeChange($event)"
       dateFormat="yy/mm/dd"
       placeholder="選擇日期範圍"
-      inputStyleClass="p-inputtext-sm"
+      inputStyleClass="p-inputtext-sm clessia-filter-input"
       [showIcon]="true"
       [appendTo]="'body'"
       [firstDayOfWeek]="1"
@@ -40,7 +40,7 @@
     />
     @if (campuses().length > 1) {
       <p-multiselect
-        class="session-filters__control"
+        class="session-filters__control clessia-filter-control"
         size="small"
         panelStyleClass="session-filters-panel"
         [options]="filteredCampusOptions()"
@@ -63,122 +63,22 @@
         </ng-template>
       </p-multiselect>
     }
-    @if (selectedCampusIds().length > 0 && availableCourses().length > 0) {
-      <p-multiselect
-        class="session-filters__control"
-        size="small"
-        panelStyleClass="session-filters-panel"
-        [options]="filteredCourseOptions()"
-        optionLabel="name"
-        optionValue="id"
-        placeholder="所有課程"
-        selectedItemsLabel="{0} 個課程"
-        [appendTo]="'body'"
-        [filter]="false"
-        [virtualScroll]="true"
-        [virtualScrollItemSize]="38"
-        [ngModel]="selectedCourseIds()"
-        (ngModelChange)="onCourseMultiChange($event)"
-      >
-        <ng-template #filter>
-          <app-ime-filter-input
-            placeholder="搜尋課程..."
-            (filterChange)="courseFilterQuery.set($event)"
-          />
-        </ng-template>
-        <ng-template #item let-course>
-          <div class="session-filters__course-option">
-            <span class="session-filters__course-option-name">{{ course.name }}</span>
-            @if (getCourseCampusName(course); as campusName) {
-              <span class="session-filters__course-option-campus">{{ campusName }}</span>
-            }
-          </div>
-        </ng-template>
-      </p-multiselect>
-    }
-    <p-multiselect
-      class="session-filters__control"
+    <p-button
+      styleClass="session-filters__advanced-button"
       size="small"
-      panelStyleClass="session-filters-panel"
-      [options]="teacherOptionGroups()"
-      [group]="true"
-      optionGroupLabel="label"
-      optionGroupChildren="items"
-      optionLabel="displayName"
-      optionValue="id"
-      placeholder="所有老師"
-      selectedItemsLabel="{0} 位老師"
-      [appendTo]="'body'"
-      [filter]="false"
-      [ngModel]="selectedTeacherIds()"
-      (ngModelChange)="onTeacherMultiChange($event)"
+      severity="secondary"
+      [outlined]="true"
+      (onClick)="openAdvancedFilters.emit()"
     >
-      <ng-template #filter>
-        <app-ime-filter-input
-          placeholder="搜尋老師..."
-          (filterChange)="teacherFilterQuery.set($event)"
-        />
-      </ng-template>
-      <ng-template #item let-teacher>
-        <div class="session-filters__teacher-option">
-          <span class="session-filters__teacher-option-name">{{ teacher.displayName }}</span>
-          @if (getTeacherSubjectLabel(teacher); as subjectLabel) {
-            <span class="session-filters__teacher-option-subjects">{{ subjectLabel }}</span>
-          }
-          @if (getTeacherCampusLabel(teacher); as campusLabel) {
-            <span class="session-filters__teacher-option-campuses">{{ campusLabel }}</span>
-          }
-        </div>
-      </ng-template>
-    </p-multiselect>
-    @if (selectedCampusIds().length > 0 && selectedCourseIds().length > 0 && availableClasses().length > 0) {
-      <p-multiselect
-        class="session-filters__control"
-        size="small"
-        panelStyleClass="session-filters-panel"
-        [options]="filteredClassOptions()"
-        optionLabel="name"
-        optionValue="id"
-        placeholder="所有班級"
-        selectedItemsLabel="{0} 個班級"
-        [appendTo]="'body'"
-        [filter]="false"
-        [virtualScroll]="true"
-        [virtualScrollItemSize]="38"
-        [ngModel]="selectedClassIds()"
-        (ngModelChange)="onClassMultiChange($event)"
-      >
-        <ng-template #filter>
-          <app-ime-filter-input
-            placeholder="搜尋班級..."
-            (filterChange)="classFilterQuery.set($event)"
-          />
-        </ng-template>
-        <ng-template #item let-classOption>
-          <div class="session-filters__class-option">
-            <span class="session-filters__class-option-name">{{ classOption.name }}</span>
-            @if (getClassMetaLabel(classOption); as metaLabel) {
-              <span class="session-filters__class-option-meta">{{ metaLabel }}</span>
-            }
-          </div>
-        </ng-template>
-      </p-multiselect>
-    }
-    <p-multiselect
-      class="session-filters__control session-filters__control--status"
-      size="small"
-      [options]="statusOptions"
-      optionLabel="label"
-      optionValue="value"
-      placeholder="課堂狀態"
-      selectedItemsLabel="{0} 種狀態"
-      [appendTo]="'body'"
-      [ngModel]="selectedStatuses()"
-      (ngModelChange)="onStatusesChange($event)"
-    />
+      <i class="pi pi-sliders-h"></i>
+      進階篩選
+      @if (activeFilterCount() > 0) {
+        <span class="session-filters__advanced-badge">{{ activeFilterCount() }}</span>
+      }
+    </p-button>
     @if (hasActiveFilters()) {
       <p-button
-        label="清除"
+        label="清除篩選"
         severity="secondary"
         [text]="true"
         size="small"

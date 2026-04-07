@@ -12,8 +12,8 @@
   <!-- Main Card -->
   <div class="students__card">
     <!-- Toolbar -->
-    <div class="students__toolbar">
-      <div class="students__search">
+    <div class="students__toolbar clessia-filter-bar">
+      <div class="students__search clessia-filter-search">
         <p-iconfield iconPosition="left">
           <p-inputicon styleClass="pi pi-search" />
           <input
@@ -22,20 +22,21 @@
             placeholder="搜尋姓名、學校或家長姓名..."
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchChange($event)"
-            class="students__search-input"
+            class="students__search-input clessia-filter-search-input"
           />
         </p-iconfield>
       </div>
 
-      <div class="students__filters">
+      <div class="students__filters clessia-filter-group">
         <p-select
           [options]="gradeOptions"
           [ngModel]="selectedGrade()"
           (ngModelChange)="onGradeChange($event)"
           optionLabel="label"
           optionValue="value"
+          size="small"
           placeholder="全部年級"
-          styleClass="students__filter-select"
+          styleClass="students__filter-select clessia-filter-control"
           [appendTo]="'body'"
         />
 
@@ -45,9 +46,10 @@
           (ngModelChange)="onStatusFilterChange($event)"
           optionLabel="label"
           optionValue="value"
+          size="small"
           placeholder="全部狀態"
           [showClear]="true"
-          styleClass="students__filter-select"
+          styleClass="students__filter-select clessia-filter-control"
           [appendTo]="'body'"
         />
       </div>

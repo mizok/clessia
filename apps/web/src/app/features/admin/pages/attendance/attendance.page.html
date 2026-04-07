@@ -3,22 +3,67 @@
 <div class="attendance-page">
   <div class="attendance-page__header">
     <h2 class="attendance-page__title">{{ page().label }}</h2>
+    <div class="attendance-page__header-actions">
+      <p-button
+        label="操作紀錄"
+        icon="pi pi-history"
+        [outlined]="true"
+        severity="secondary"
+        (onClick)="openAuditLog()"
+      />
+    </div>
   </div>
 
-  <div class="attendance-page__toolbar">
+  <div class="attendance-page__toolbar clessia-filter-bar">
     <p-datepicker
-      [ngModel]="selectedDate()"
-      (ngModelChange)="onDateChange($event)"
-      dateFormat="yy-mm-dd"
+      class="clessia-filter-control clessia-filter-control--date-range"
+      selectionMode="range"
+      [ngModel]="selectedDateRange()"
+      (ngModelChange)="onDateRangeChange($event)"
+      dateFormat="yy/mm/dd"
+      inputStyleClass="p-inputtext-sm"
+      placeholder="選擇日期範圍"
       [showIcon]="true"
-      appendTo="body"
+      [readonlyInput]="true"
+      [firstDayOfWeek]="1"
+      [appendTo]="overlayContainer ?? 'body'"
     />
+    @if (campuses().length > 0) {
+      <p-select
+        class="clessia-filter-control"
+        [options]="campusOptions()"
+        optionLabel="name"
+        optionValue="id"
+        size="small"
+        [ngModel]="selectedCampusId()"
+        (ngModelChange)="onCampusChange($event)"
+        placeholder="選擇分校"
+        [appendTo]="overlayContainer ?? 'body'"
+      />
+    }
     <p-button
-      icon="pi pi-refresh"
+      styleClass="attendance-page__filter-button"
+      size="small"
       severity="secondary"
-      [text]="true"
-      (onClick)="loadSessions()"
-    />
+      [outlined]="true"
+      (onClick)="openAdvancedFiltersDialog()"
+    >
+      <i class="pi pi-sliders-h"></i>
+      篩選
+      @if (activeFilterCount() > 0) {
+        <span class="attendance-page__filter-badge">{{ activeFilterCount() }}</span>
+      }
+    </p-button>
+    @if (hasActiveFilters()) {
+      <p-button
+        label="清除篩選"
+        size="small"
+        severity="secondary"
+        [text]="true"
+        icon="pi pi-times"
+        (onClick)="clearFilters()"
+      />
+    }
   </div>
 
   <div class="attendance-page__body">
@@ -26,38 +71,62 @@
       @for (i of [1, 2, 3]; track i) {
         <div class="attendance-page__skeleton"></div>
       }
-    } @else if (sessions().length === 0) {
-      <div class="attendance-page__empty">今天沒有課堂</div>
+    } @else if (filteredSessions().length === 0) {
+      <div class="attendance-page__empty">沒有符合條件的課堂</div>
     } @else {
-      @for (session of sessions(); track session.eventId) {
+      @for (session of filteredSessions(); track session.eventId) {
         <div class="attendance-page__card">
           <div class="attendance-page__card-info">
-            <div class="attendance-page__card-title">{{ session.className }}</div>
+            <div class="attendance-page__card-top">
+              <div class="attendance-page__card-titles">
+                @if (session.courseName) {
+                  <div class="attendance-page__card-course">{{ session.courseName }}</div>
+                }
+                <div class="attendance-page__card-class">{{ session.className }}</div>
+              </div>
+            </div>
             <div class="attendance-page__card-meta">
-              {{ session.startTime ?? '--:--' }}–{{ session.endTime ?? '--:--' }}
-              @if (session.teacherName) { · {{ session.teacherName }} }
-              @if (session.campusName) { · {{ session.campusName }} }
+              <span class="attendance-page__card-date attendance-page__card-date--meta">
+                {{ formatEventDate(session.eventDate) }}
+              </span>
+              <div class="attendance-page__card-meta-row">
+                <span class="attendance-page__card-meta-item">
+                  {{ session.startTime ?? '--:--' }}–{{ session.endTime ?? '--:--' }}
+                </span>
+                @if (session.campusName) {
+                  <span class="attendance-page__card-meta-item">{{ session.campusName }}</span>
+                }
+              </div>
             </div>
           </div>
           <div class="attendance-page__card-stats">
             @if (isTaken(session)) {
-              <span class="attendance-page__stat attendance-page__stat--present">✓ {{ session.presentCount }}</span>
-              <span class="attendance-page__stat attendance-page__stat--leave">🏳 {{ session.onLeaveCount }}</span>
-              <span class="attendance-page__stat attendance-page__stat--absent">✗ {{ session.absentCount }}</span>
+              <span class="attendance-page__stat attendance-page__stat--present"
+                >✓ {{ session.presentCount }}</span
+              >
+              <span class="attendance-page__stat attendance-page__stat--leave"
+                >🏳 {{ session.onLeaveCount }}</span
+              >
+              <span class="attendance-page__stat attendance-page__stat--absent"
+                >✗ {{ session.absentCount }}</span
+              >
             } @else {
               <span class="attendance-page__untaken">◌ {{ session.enrolledCount }} 人未點名</span>
             }
           </div>
-          <p-button
-            [label]="isTaken(session) ? '修改點名' : '點名'"
-            [outlined]="!isAdminLed() || isTaken(session)"
-            [severity]="isAdminLed() && !isTaken(session) ? 'primary' : 'secondary'"
-            size="small"
-            (onClick)="openPanel(session)"
-          />
+          @if (isFuture(session)) {
+            <span class="attendance-page__locked">尚未開放點名</span>
+          } @else {
+            <p-button
+              [label]="isTaken(session) ? '修改點名' : '點名'"
+              [outlined]="!isAdminLed() || isTaken(session)"
+              [severity]="isAdminLed() && !isTaken(session) ? 'primary' : 'secondary'"
+              size="small"
+              (onClick)="openPanel(session)"
+            />
+          }
         </div>
       }
     }
   </div>
 </div>
-

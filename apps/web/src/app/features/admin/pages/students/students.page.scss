@@ -56,35 +56,18 @@
   &__toolbar {
     padding: var(--space-4) var(--space-6);
     border-bottom: 1px solid var(--zinc-100);
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-    // 統一 toolbar 內 p-select 高度為 42px
-    // 42px = padding-y * 2 + font-size(16px) + border(2px) → padding-y ≈ 12px = 0.75rem
-    --p-form-field-padding-y: 0.75rem;
   }
 
   &__search {
-    flex: 1;
-    min-width: 200px;
-    max-width: 280px;
   }
 
   &__search-input {
-    width: 100%;
-    height: 42px;
   }
 
   &__filters {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-wrap: wrap;
   }
 
   &__filter-select {
-    min-width: 120px;
   }
 
 

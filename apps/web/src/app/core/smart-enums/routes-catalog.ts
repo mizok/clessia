@@ -93,7 +93,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-bell',
   );
-  // Group: 教務管理
+  // Group: 課務管理
   public static readonly ADMIN_COURSES = this.register(
     'courses',
     '/admin/courses',
@@ -101,7 +101,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-users',
     true,
-    '教務管理',
+    '課務管理',
   );
   public static readonly ADMIN_CLASS_DETAIL = this.register(
     'courses/:courseId/classes/:classId',
@@ -110,7 +110,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-users',
     false,
-    '教務管理',
+    '課務管理',
   );
   public static readonly ADMIN_SESSIONS = this.register(
     'sessions',
@@ -119,7 +119,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-list',
     true,
-    '教務管理',
+    '課務管理',
   );
   public static readonly ADMIN_SCHEDULE = this.register(
     'schedule',
@@ -128,7 +128,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-table',
     false,
-    '教務管理',
+    '課務管理',
   );
   public static readonly ADMIN_CHANGES = this.register(
     'changes',
@@ -137,7 +137,16 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-history',
     false,
-    '教務管理',
+    '課務管理',
+  );
+  public static readonly ADMIN_ATTENDANCE = this.register(
+    'attendance',
+    '/admin/attendance',
+    '課堂出勤紀錄',
+    UserType.ADMIN,
+    'pi-check-circle',
+    true,
+    '課務管理',
   );
 
   // Group: 學務管理
@@ -168,19 +177,10 @@ export class RoutesCatalog {
     true,
     '學務管理',
   );
-  public static readonly ADMIN_ATTENDANCE = this.register(
-    'attendance',
-    '/admin/attendance',
-    '課堂出勤紀錄',
-    UserType.ADMIN,
-    'pi-check-circle',
-    true,
-    '學務管理',
-  );
   public static readonly ADMIN_LEAVE = this.register(
     'leave',
     '/admin/leave',
-    '學生請假紀錄',
+    '學生請假管理',
     UserType.ADMIN,
     'pi-file',
     true,

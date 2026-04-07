@@ -1,11 +1,13 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
+import { DbUuidSchema } from '../lib/validation';
+import { logAudit } from '../utils/audit';
 
 const LeaveRequestSchema = z
   .object({
     id: z.uuid(),
     orgId: z.uuid(),
-    studentId: z.uuid(),
+    studentId: DbUuidSchema,
     studentName: z.string(),
     startDate: z.string(),
     endDate: z.string(),
@@ -33,7 +35,7 @@ const LeaveListResponseSchema = z
 
 const CreateLeaveSchema = z
   .object({
-    studentId: z.uuid(),
+    studentId: DbUuidSchema,
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     startTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
@@ -45,6 +47,92 @@ const CreateLeaveSchema = z
 function toHHmm(t: string | null | undefined): string | null {
   if (!t) return null;
   return t.slice(0, 5); // "HH:MM:SS" → "HH:MM"
+}
+
+interface LeaveValidationInput {
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly startTime?: string | null;
+  readonly endTime?: string | null;
+}
+
+interface LeaveAttendanceEventRow {
+  readonly id: string;
+  readonly event_date: string;
+  readonly sessions: { class_id: string } | Array<{ class_id: string }> | null;
+}
+
+interface LeaveAttendanceEnrollmentRow {
+  readonly class_id: string;
+  readonly effective_from: string;
+  readonly effective_to: string | null;
+}
+
+interface BuildLeaveAttendanceUpsertsInput {
+  readonly orgId: string;
+  readonly studentId: string;
+  readonly recordedBy: string;
+  readonly events: ReadonlyArray<LeaveAttendanceEventRow>;
+  readonly enrollments: ReadonlyArray<LeaveAttendanceEnrollmentRow>;
+}
+
+interface LeaveAuditResourceNameInput {
+  readonly studentName?: string | null;
+  readonly startDate: string;
+  readonly endDate: string;
+}
+
+export function buildLeaveAuditResourceName(input: LeaveAuditResourceNameInput): string {
+  return `${input.studentName?.trim() || '請假紀錄'} / ${input.startDate} ~ ${input.endDate}`;
+}
+
+export function buildLeaveAttendanceAuditDetails(affectedEventCount: number) {
+  return { affectedEventCount };
+}
+
+export function getLeaveValidationError(input: LeaveValidationInput): string | null {
+  if (input.endDate < input.startDate) {
+    return '結束日期不可早於開始日期';
+  }
+
+  if (
+    input.startDate === input.endDate &&
+    input.startTime &&
+    input.endTime &&
+    input.endTime < input.startTime
+  ) {
+    return '同一天請假的結束時間不可早於開始時間';
+  }
+
+  return null;
+}
+
+export function buildLeaveAttendanceUpserts(input: BuildLeaveAttendanceUpsertsInput) {
+  return input.events
+    .filter((eventRow) =>
+      input.enrollments.some((enrollment) => {
+        const sessionRows = Array.isArray(eventRow.sessions)
+          ? eventRow.sessions
+          : eventRow.sessions
+            ? [eventRow.sessions]
+            : [];
+
+        return sessionRows.some(
+          (sessionRow) =>
+            enrollment.class_id === sessionRow.class_id &&
+            enrollment.effective_from <= eventRow.event_date &&
+            (!enrollment.effective_to || enrollment.effective_to >= eventRow.event_date),
+        );
+      }),
+    )
+    .map((eventRow) => ({
+      org_id: input.orgId,
+      student_id: input.studentId,
+      event_id: eventRow.id,
+      status: 'on_leave' as const,
+      recorded_by: input.recordedBy,
+      recorded_by_role: 'system',
+    }));
 }
 
 export function toLeaveResponse(row: Record<string, unknown>) {
@@ -76,8 +164,8 @@ app.openapi(
     summary: '查詢請假紀錄',
     request: {
       query: z.object({
-        campusId: z.uuid().optional(),
-        studentId: z.uuid().optional(),
+        campusId: DbUuidSchema.optional(),
+        studentId: DbUuidSchema.optional(),
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
         coverDate: z.string().optional(),
@@ -159,6 +247,11 @@ app.openapi(
     const userId = c.get('userId');
     const body = c.req.valid('json');
 
+    const validationError = getLeaveValidationError(body);
+    if (validationError) {
+      return c.json({ error: '請假資料無效', message: validationError }, 400);
+    }
+
     // 1. 衝突檢查：同學生是否有重疊的請假紀錄
     const { data: conflicts } = await supabase
       .from('leave_requests')
@@ -200,29 +293,76 @@ app.openapi(
       return c.json({ error: '新增請假失敗', message: leaveError?.message }, 500);
     }
 
-    // 2. 自動更新對應日期範圍內的 attendance_records → on_leave
+    // 3. 自動更新對應日期範圍內、且該學生實際有報名的 attendance_records → on_leave
     const { data: events } = await supabase
       .from('events')
-      .select('id')
+      .select('id, event_date, sessions!inner(class_id)')
       .eq('org_id', orgId)
+      .eq('event_type', 'session')
       .gte('event_date', body.startDate)
       .lte('event_date', body.endDate);
 
     if (events && events.length > 0) {
-      const eventIds = events.map((e: any) => e.id);
-      await supabase
-        .from('attendance_records')
-        .upsert(
-          eventIds.map((eventId: string) => ({
-            org_id: orgId,
-            student_id: body.studentId,
-            event_id: eventId,
-            status: 'on_leave',
-            recorded_by: userId,
-            recorded_by_role: 'system',
-          })),
-          { onConflict: 'student_id,event_id' },
+      const classIds = Array.from(
+        new Set(
+          (events as LeaveAttendanceEventRow[])
+            .flatMap((eventRow) =>
+              Array.isArray(eventRow.sessions)
+                ? eventRow.sessions.map((sessionRow) => sessionRow.class_id)
+                : eventRow.sessions?.class_id
+                  ? [eventRow.sessions.class_id]
+                  : [],
+            )
+            .filter((classId): classId is string => !!classId),
+        ),
+      );
+
+      const { data: enrollments } =
+        classIds.length === 0
+          ? { data: [] }
+          : await supabase
+              .from('enrollments')
+              .select('class_id, effective_from, effective_to')
+              .eq('org_id', orgId)
+              .eq('student_id', body.studentId)
+              .eq('status', 'active')
+              .in('class_id', classIds)
+              .lte('effective_from', body.endDate)
+              .or(`effective_to.is.null,effective_to.gte.${body.startDate}`);
+
+      const attendanceUpserts = buildLeaveAttendanceUpserts({
+        orgId,
+        studentId: body.studentId,
+        recordedBy: userId,
+        events: (events ?? []) as LeaveAttendanceEventRow[],
+        enrollments: (enrollments ?? []) as LeaveAttendanceEnrollmentRow[],
+      });
+
+      if (attendanceUpserts.length > 0) {
+        await supabase.from('attendance_records').upsert(attendanceUpserts, {
+          onConflict: 'student_id,event_id',
+        });
+      }
+
+      if (attendanceUpserts.length > 0) {
+        logAudit(
+          supabase,
+          {
+            orgId,
+            userId,
+            resourceType: 'attendance',
+            resourceId: leave.id as string,
+            resourceName: buildLeaveAuditResourceName({
+              studentName: (leave as any).students?.name ?? '',
+              startDate: body.startDate,
+              endDate: body.endDate,
+            }),
+            action: 'sync_leave_to_attendance',
+            details: buildLeaveAttendanceAuditDetails(attendanceUpserts.length),
+          },
+          c.executionCtx.waitUntil.bind(c.executionCtx),
         );
+      }
     }
 
     const row = {
@@ -230,6 +370,28 @@ app.openapi(
       student_name: (leave as any).students?.name ?? '',
       submitted_by_name: (leave as any).ba_user?.name ?? null,
     };
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'leave',
+        resourceId: leave.id as string,
+        resourceName: buildLeaveAuditResourceName({
+          studentName: row.student_name,
+          startDate: body.startDate,
+          endDate: body.endDate,
+        }),
+        action: 'create',
+        details: {
+          startTime: body.startTime ?? null,
+          endTime: body.endTime ?? null,
+          reason: body.reason ?? null,
+        },
+      },
+      c.executionCtx.waitUntil.bind(c.executionCtx),
+    );
 
     return c.json(toLeaveResponse(row), 201);
   },
@@ -243,7 +405,7 @@ app.openapi(
     tags: ['Leaves'],
     summary: '刪除請假（attendance 恢復為 absent）',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       query: z.object({
         mode: z.enum(['truncate', 'full']).default('truncate').optional(),
       }),
@@ -261,7 +423,7 @@ app.openapi(
     // 1. 找到請假紀錄
     const { data: leave } = await supabase
       .from('leave_requests')
-      .select('student_id, start_date, end_date')
+      .select('id, student_id, start_date, end_date, students(name)')
       .eq('id', id)
       .eq('org_id', orgId)
       .single();
@@ -290,6 +452,7 @@ app.openapi(
           .eq('status', 'on_leave')
           .in('event_id', events.map((e: any) => e.id));
       }
+      return events?.length ?? 0;
     };
 
     const isActive = startDate <= today && endDate >= today;
@@ -302,13 +465,90 @@ app.openapi(
         .update({ end_date: yesterday })
         .eq('id', id)
         .eq('org_id', orgId);
-      await revertAttendance(today, endDate);
+      const revertedCount = await revertAttendance(today, endDate);
+
+      logAudit(
+        supabase,
+        {
+          orgId,
+          userId: c.get('userId'),
+          resourceType: 'leave',
+          resourceId: id,
+          resourceName: buildLeaveAuditResourceName({
+            studentName: (leave as any).students?.name ?? '',
+            startDate,
+            endDate,
+          }),
+          action: 'truncate_leave',
+          details: { truncatedFrom: today, truncatedTo: yesterday },
+        },
+        c.executionCtx.waitUntil.bind(c.executionCtx),
+      );
+
+      if (revertedCount > 0) {
+        logAudit(
+          supabase,
+          {
+            orgId,
+            userId: c.get('userId'),
+            resourceType: 'attendance',
+            resourceId: id,
+            resourceName: buildLeaveAuditResourceName({
+              studentName: (leave as any).students?.name ?? '',
+              startDate,
+              endDate,
+            }),
+            action: 'revert_leave_attendance',
+            details: buildLeaveAttendanceAuditDetails(revertedCount),
+          },
+          c.executionCtx.waitUntil.bind(c.executionCtx),
+        );
+      }
+
       return new Response(null, { status: 204 });
     }
 
     // 其他情況（full 模式、未開始、已結束）：完整刪除
     await supabase.from('leave_requests').delete().eq('id', id).eq('org_id', orgId);
-    await revertAttendance(startDate, endDate);
+    const revertedCount = await revertAttendance(startDate, endDate);
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId: c.get('userId'),
+        resourceType: 'leave',
+        resourceId: id,
+        resourceName: buildLeaveAuditResourceName({
+          studentName: (leave as any).students?.name ?? '',
+          startDate,
+          endDate,
+        }),
+        action: 'delete',
+      },
+      c.executionCtx.waitUntil.bind(c.executionCtx),
+    );
+
+    if (revertedCount > 0) {
+      logAudit(
+        supabase,
+        {
+          orgId,
+          userId: c.get('userId'),
+          resourceType: 'attendance',
+          resourceId: id,
+          resourceName: buildLeaveAuditResourceName({
+            studentName: (leave as any).students?.name ?? '',
+            startDate,
+            endDate,
+          }),
+          action: 'revert_leave_attendance',
+          details: buildLeaveAttendanceAuditDetails(revertedCount),
+        },
+        c.executionCtx.waitUntil.bind(c.executionCtx),
+      );
+    }
+
     return new Response(null, { status: 204 });
   },
 );

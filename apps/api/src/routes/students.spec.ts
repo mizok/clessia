@@ -84,3 +84,24 @@ describe('toStudentResponse', () => {
     expect(result?.['parentNames']).toEqual([]);
   });
 });
+
+describe('buildStudentSearchClause', () => {
+  it('uses student name only when search scope is student_name', () => {
+    const buildStudentSearchClause = (studentsRoute as Record<string, unknown>)[
+      'buildStudentSearchClause'
+    ] as ((search: string, matchedStudentIds: string[], searchScope?: string) => string) | undefined;
+
+    expect(buildStudentSearchClause).toBeTypeOf('function');
+    expect(buildStudentSearchClause?.('劉', ['student-1'], 'student_name')).toBe('name.ilike.%劉%');
+  });
+
+  it('includes parent matches in default scope', () => {
+    const buildStudentSearchClause = (studentsRoute as Record<string, unknown>)[
+      'buildStudentSearchClause'
+    ] as ((search: string, matchedStudentIds: string[], searchScope?: string) => string) | undefined;
+
+    expect(buildStudentSearchClause?.('劉', ['student-1'], 'default')).toBe(
+      'name.ilike.%劉%,school.ilike.%劉%,id.in.(student-1)',
+    );
+  });
+});

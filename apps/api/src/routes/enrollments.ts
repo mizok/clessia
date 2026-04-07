@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
+import { DbUuidSchema } from '../lib/validation';
 
 // ============================================================
 // Schemas
@@ -53,8 +54,8 @@ const EnrollmentListResponseSchema = z
 
 const CreateEnrollmentSchema = z
   .object({
-    classId: z.uuid(),
-    studentId: z.uuid(),
+    classId: DbUuidSchema,
+    studentId: DbUuidSchema,
     status: z.enum(['pending_payment', 'active']).default('active'),
     paymentCycle: PaymentCycleSchema.optional(),
     effectiveFrom: z.string().date().optional(),
@@ -81,8 +82,8 @@ const UpdateEnrollmentStatusSchema = z
 
 const BatchCreateEnrollmentSchema = z
   .object({
-    classId: z.uuid(),
-    studentIds: z.array(z.uuid()).min(1).max(50),
+    classId: DbUuidSchema,
+    studentIds: z.array(DbUuidSchema).min(1).max(50),
   })
   .openapi('BatchCreateEnrollment');
 
@@ -99,7 +100,7 @@ const BatchCreateResultSchema = z
 
 const BatchMatchBodySchema = z
   .object({
-    classId: z.string().uuid(),
+    classId: DbUuidSchema,
     items: z
       .array(
         z.object({
@@ -139,8 +140,8 @@ const BatchMatchResponseSchema = z
 
 const CopyFromClassBodySchema = z
   .object({
-    targetClassId: z.uuid(),
-    sourceClassId: z.uuid(),
+    targetClassId: DbUuidSchema,
+    sourceClassId: DbUuidSchema,
     statuses: z
       .array(z.enum(['pending_payment', 'active', 'suspended', 'withdrawal', 'void']))
       .min(1),
@@ -201,6 +202,16 @@ interface CopyFromClassQuotaInput {
   toInsertCount: number;
 }
 
+interface EnrollmentLeaveRequestRow {
+  start_date: string;
+  end_date: string;
+}
+
+interface EnrollmentEventRow {
+  id: string;
+  event_date: string;
+}
+
 export function buildCopyFromClassPlan(
   sourceEnrollments: ReadonlyArray<CopyFromClassStudentRow>,
   targetActiveEnrollments: ReadonlyArray<CopyFromClassStudentRow>,
@@ -220,6 +231,123 @@ export function isCopyFromClassOverQuota(input: CopyFromClassQuotaInput): boolea
   const maxStudents = input.maxStudents ?? 9999;
   const currentActiveCount = input.currentActiveCount ?? 0;
   return currentActiveCount + input.toInsertCount > maxStudents;
+}
+
+export function buildEnrollmentLeaveAttendanceUpserts(input: {
+  orgId: string;
+  studentId: string;
+  recordedBy: string | null;
+  events: ReadonlyArray<EnrollmentEventRow>;
+  leaves: ReadonlyArray<EnrollmentLeaveRequestRow>;
+}) {
+  return input.events
+    .filter((eventRow) =>
+      input.leaves.some(
+        (leaveRow) =>
+          leaveRow.start_date <= eventRow.event_date && leaveRow.end_date >= eventRow.event_date,
+      ),
+    )
+    .map((eventRow) => ({
+      org_id: input.orgId,
+      student_id: input.studentId,
+      event_id: eventRow.id,
+      status: 'on_leave' as const,
+      recorded_by: input.recordedBy,
+      recorded_by_role: 'system' as const,
+    }));
+}
+
+async function syncLeaveAttendanceForEnrollment(params: {
+  supabase: AppEnv['Variables']['supabase'];
+  orgId: string;
+  studentId: string;
+  classId: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  recordedBy: string | null;
+}) {
+  const { supabase, orgId, studentId, classId, effectiveFrom, effectiveTo, recordedBy } = params;
+
+  let leaveQuery = supabase
+    .from('leave_requests')
+    .select('start_date, end_date')
+    .eq('org_id', orgId)
+    .eq('student_id', studentId)
+    .gte('end_date', effectiveFrom);
+
+  if (effectiveTo) {
+    leaveQuery = leaveQuery.lte('start_date', effectiveTo);
+  }
+
+  const { data: leaves, error: leaveError } = await leaveQuery;
+  if (leaveError || !leaves || leaves.length === 0) {
+    return;
+  }
+
+  const overlappingLeaves = (leaves as EnrollmentLeaveRequestRow[]).filter(
+    (leaveRow) => !effectiveTo || leaveRow.start_date <= effectiveTo,
+  );
+  if (overlappingLeaves.length === 0) {
+    return;
+  }
+
+  const firstLeaveDate = overlappingLeaves
+    .map((leaveRow) => leaveRow.start_date)
+    .sort()[0];
+  const lastLeaveDate = overlappingLeaves
+    .map((leaveRow) => leaveRow.end_date)
+    .sort()
+    .at(-1);
+
+  const dateFrom = effectiveFrom > firstLeaveDate ? effectiveFrom : firstLeaveDate;
+  const dateTo = effectiveTo
+    ? effectiveTo < (lastLeaveDate ?? effectiveTo)
+      ? effectiveTo
+      : (lastLeaveDate ?? effectiveTo)
+    : lastLeaveDate;
+
+  if (!dateTo || dateFrom > dateTo) {
+    return;
+  }
+
+  const { data: events, error: eventError } = await supabase
+    .from('events')
+    .select('id, event_date, sessions!inner(class_id)')
+    .eq('org_id', orgId)
+    .eq('event_type', 'session')
+    .eq('sessions.class_id', classId)
+    .gte('event_date', dateFrom)
+    .lte('event_date', dateTo);
+
+  if (eventError || !events || events.length === 0) {
+    return;
+  }
+
+  const attendanceUpserts = buildEnrollmentLeaveAttendanceUpserts({
+    orgId,
+    studentId,
+    recordedBy,
+    events: (events as Array<{ id: string; event_date: string }>).map((eventRow) => ({
+      id: eventRow.id,
+      event_date: eventRow.event_date,
+    })),
+    leaves: overlappingLeaves,
+  });
+
+  if (attendanceUpserts.length === 0) {
+    return;
+  }
+
+  const { error: attendanceError } = await supabase.from('attendance_records').upsert(
+    attendanceUpserts,
+    {
+      onConflict: 'event_id,student_id',
+    },
+  );
+
+  if (attendanceError) {
+    throw attendanceError;
+  }
 }
 
 // ============================================================
@@ -247,8 +375,8 @@ app.openapi(
     tags: ['Enrollments'],
     request: {
       query: z.object({
-        classId: z.uuid().optional(),
-        studentId: z.uuid().optional(),
+        classId: DbUuidSchema.optional(),
+        studentId: DbUuidSchema.optional(),
         status: EnrollmentStatusSchema.optional(),
         page: z.coerce.number().int().min(1).default(1).optional(),
         pageSize: z.coerce.number().int().min(1).max(100).default(20).optional(),
@@ -308,6 +436,8 @@ app.openapi(
     const orgId = c.get('orgId');
     const userId = c.get('userId');
     const supabase = c.get('supabase');
+    const effectiveFrom = body.effectiveFrom ?? new Date().toISOString().slice(0, 10);
+    const effectiveTo = body.effectiveTo ?? null;
 
     const { data, error } = await supabase
       .from('enrollments')
@@ -317,8 +447,8 @@ app.openapi(
         student_id: body.studentId,
         status: body.status ?? 'active',
         payment_cycle: body.paymentCycle ?? null,
-        effective_from: body.effectiveFrom ?? new Date().toISOString().slice(0, 10),
-        effective_to: body.effectiveTo ?? null,
+        effective_from: effectiveFrom,
+        effective_to: effectiveTo,
         notes: body.notes ?? null,
         created_by: userId,
       })
@@ -328,6 +458,18 @@ app.openapi(
     if (error) {
       if (error.code === '23505') return c.json({ error: 'ALREADY_ENROLLED' }, 409);
       return c.json({ error: error.message }, 500);
+    }
+
+    if ((body.status ?? 'active') === 'active') {
+      await syncLeaveAttendanceForEnrollment({
+        supabase,
+        orgId,
+        studentId: body.studentId,
+        classId: body.classId,
+        effectiveFrom,
+        effectiveTo,
+        recordedBy: userId,
+      });
     }
 
     return c.json({ data: toEnrollmentResponse(data) }, 201);
@@ -370,6 +512,19 @@ app.openapi(
       .single();
 
     if (error) return c.json({ error: 'NOT_FOUND' }, 404);
+
+    if (data.status === 'active') {
+      await syncLeaveAttendanceForEnrollment({
+        supabase,
+        orgId,
+        studentId: data.student_id,
+        classId: data.class_id,
+        effectiveFrom: data.effective_from,
+        effectiveTo: data.effective_to ?? null,
+        recordedBy: c.get('userId'),
+      });
+    }
+
     return c.json({ data: toEnrollmentResponse(data) }, 200);
   },
 );
@@ -433,6 +588,19 @@ app.openapi(
       .single();
 
     if (error) return c.json({ error: error.message }, 500);
+
+    if (data.status === 'active') {
+      await syncLeaveAttendanceForEnrollment({
+        supabase,
+        orgId,
+        studentId: data.student_id,
+        classId: data.class_id,
+        effectiveFrom: data.effective_from,
+        effectiveTo: data.effective_to ?? null,
+        recordedBy: c.get('userId'),
+      });
+    }
+
     return c.json({ data: toEnrollmentResponse(data) }, 200);
   },
 );
@@ -520,6 +688,15 @@ app.openapi(
         }
       } else {
         results.push({ studentId, status: 'enrolled', enrollmentId: data.id });
+        await syncLeaveAttendanceForEnrollment({
+          supabase,
+          orgId,
+          studentId,
+          classId,
+          effectiveFrom: today,
+          effectiveTo: null,
+          recordedBy: userId,
+        });
       }
     }
 
@@ -691,6 +868,20 @@ app.openapi(
 
     const { error: insertError } = await supabase.from('enrollments').insert(rows);
     if (insertError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+
+    await Promise.all(
+      toInsertStudentIds.map((studentId) =>
+        syncLeaveAttendanceForEnrollment({
+          supabase,
+          orgId,
+          studentId,
+          classId: targetClassId,
+          effectiveFrom: today,
+          effectiveTo: null,
+          recordedBy: userId,
+        }),
+      ),
+    );
 
     return c.json({ copied: toInsertStudentIds.length, skipped }, 200);
   },

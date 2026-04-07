@@ -1,0 +1,29 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+.student-autocomplete {
+  display: block;
+  width: 100%;
+
+  &__item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-block: var(--space-1);
+  }
+
+  &__name {
+    color: var(--zinc-900);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  &__meta {
+    color: var(--zinc-500);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+  }
+}

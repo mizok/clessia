@@ -4,6 +4,7 @@ import type { Observable } from 'rxjs';
 import { environment } from '@env/environment';
 
 export type AttendanceStatus = 'present' | 'absent' | 'on_leave';
+export type AttendanceSessionStatus = 'scheduled' | 'completed' | 'cancelled';
 
 export const ATTENDANCE_STATUS_LABELS: Record<AttendanceStatus, string> = {
   present: '到課',
@@ -64,6 +65,7 @@ export interface EventSessionSummary {
   eventId: string;
   classId: string;
   className: string;
+  courseName: string | null;
   teacherName: string | null;
   campusId: string | null;
   campusName: string | null;
@@ -90,6 +92,11 @@ export interface AttendanceRoster {
   eventId: string;
   takenAt: string | null;
   students: RosterStudent[];
+}
+
+export interface AttendanceSessionListResponse {
+  data: EventSessionSummary[];
+  meta: { total: number; page: number; pageSize: number; totalPages: number };
 }
 
 export interface BatchAttendanceUpdate {
@@ -124,13 +131,27 @@ export class AttendanceService {
     dateFrom?: string;
     dateTo?: string;
     campusId?: string;
-  }): Observable<EventSessionSummary[]> {
+    courseIds?: string[];
+    classIds?: string[];
+    statuses?: AttendanceSessionStatus[];
+    page?: number;
+    pageSize?: number;
+  }): Observable<AttendanceSessionListResponse> {
     let p = new HttpParams();
     if (params.date) p = p.set('date', params.date);
     if (params.dateFrom) p = p.set('dateFrom', params.dateFrom);
     if (params.dateTo) p = p.set('dateTo', params.dateTo);
     if (params.campusId) p = p.set('campusId', params.campusId);
-    return this.http.get<EventSessionSummary[]>(`${this.baseUrl}/sessions`, { params: p });
+    if (params.courseIds && params.courseIds.length > 0) {
+      p = p.set('courseIds', params.courseIds.join(','));
+    }
+    if (params.classIds && params.classIds.length > 0)
+      p = p.set('classIds', params.classIds.join(','));
+    if (params.statuses && params.statuses.length > 0)
+      p = p.set('statuses', params.statuses.join(','));
+    if (params.page) p = p.set('page', params.page);
+    if (params.pageSize) p = p.set('pageSize', params.pageSize);
+    return this.http.get<AttendanceSessionListResponse>(`${this.baseUrl}/sessions`, { params: p });
   }
 
   roster(eventId: string): Observable<AttendanceRoster> {

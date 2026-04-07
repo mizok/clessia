@@ -22,8 +22,8 @@
   <!-- Main Card -->
   <div class="staff__card">
     <!-- Toolbar with Search and Filters -->
-    <div class="staff__toolbar">
-      <div class="staff__search">
+    <div class="staff__toolbar clessia-filter-bar">
+      <div class="staff__search clessia-filter-search">
         <p-iconField iconPosition="left">
           <p-inputIcon styleClass="pi pi-search" />
           <input
@@ -32,10 +32,11 @@
             placeholder="搜尋姓名或 Email..."
             [ngModel]="searchQuery()"
             (ngModelChange)="onSearchChange($event)"
+            class="clessia-filter-search-input"
           />
         </p-iconField>
       </div>
-      <div class="staff__filters">
+      <div class="staff__filters clessia-filter-group">
         <p-select
           [options]="roleOptions"
           optionLabel="label"
@@ -43,9 +44,10 @@
           placeholder="角色篩選"
           [ngModel]="roleFilter()"
           (ngModelChange)="onRoleFilterChange($event)"
+          size="small"
           [showClear]="true"
           [appendTo]="'body'"
-          styleClass="staff__filter-select"
+          styleClass="staff__filter-select clessia-filter-control"
         />
         <p-select
           [options]="campusOptions()"
@@ -54,9 +56,10 @@
           placeholder="分校篩選"
           [ngModel]="campusFilter()"
           (ngModelChange)="onCampusFilterChange($event)"
+          size="small"
           [showClear]="true"
           [appendTo]="'body'"
-          styleClass="staff__filter-select"
+          styleClass="staff__filter-select clessia-filter-control"
         />
         <p-select
           [options]="subjectOptions()"
@@ -65,9 +68,10 @@
           placeholder="科目篩選"
           [ngModel]="subjectFilter()"
           (ngModelChange)="onSubjectFilterChange($event)"
+          size="small"
           [showClear]="true"
           [appendTo]="'body'"
-          styleClass="staff__filter-select"
+          styleClass="staff__filter-select clessia-filter-control"
         />
         <p-select
           [options]="staffStatusOptions"
@@ -76,9 +80,10 @@
           placeholder="狀態篩選"
           [ngModel]="staffStatusFilter()"
           (ngModelChange)="onStaffStatusFilterChange($event)"
+          size="small"
           [showClear]="true"
           [appendTo]="'body'"
-          styleClass="staff__filter-select"
+          styleClass="staff__filter-select clessia-filter-control"
         />
       </div>
     </div>
