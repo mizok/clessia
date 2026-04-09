@@ -33,7 +33,8 @@
 
   &__class {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: var(--space-1);
   }
 
   &__class-line {
@@ -42,10 +43,31 @@
     line-height: var(--leading-normal);
   }
 
+  &__class-meta {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #71717a);
+    line-height: var(--leading-normal);
+  }
+
+  &__attendance {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  &__attendance-summary {
+    color: var(--text-secondary, #71717a);
+    font-size: 0.75rem;
+    line-height: var(--leading-normal);
+    white-space: nowrap;
+  }
+
   // Table row hover — left-border accent consistent with other list pages
   &__row {
     border-left: 3px solid transparent;
-    transition: background var(--transition-fast), border-left-color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      border-left-color var(--transition-fast);
 
     &:hover {
       background: var(--zinc-50);

@@ -8,6 +8,9 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionsHeaderComponent {
-  readonly unassignedCount = input<number>(0);
+  readonly monthUnassignedCount = input<number>(0);
+  readonly todayPendingAttendanceCount = input<number>(0);
+  readonly campusName = input<string | null>(null);
   readonly filterUnassigned = output<void>();
+  readonly filterPendingAttendance = output<void>();
 }

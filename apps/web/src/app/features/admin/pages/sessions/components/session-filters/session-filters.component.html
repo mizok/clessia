@@ -39,29 +39,22 @@
       [readonlyInput]="true"
     />
     @if (campuses().length > 1) {
-      <p-multiselect
+      <p-select
         class="session-filters__control clessia-filter-control"
         size="small"
         panelStyleClass="session-filters-panel"
-        [options]="filteredCampusOptions()"
+        [options]="campuses()"
         optionLabel="name"
         optionValue="id"
         placeholder="所有分校"
-        selectedItemsLabel="{0} 個分校"
+        [showClear]="true"
         [appendTo]="'body'"
-        [filter]="false"
-        [virtualScroll]="true"
-        [virtualScrollItemSize]="38"
-        [ngModel]="selectedCampusIds()"
-        (ngModelChange)="onCampusMultiChange($event)"
-      >
-        <ng-template #filter>
-          <app-ime-filter-input
-            placeholder="搜尋分校..."
-            (filterChange)="campusFilterQuery.set($event)"
-          />
-        </ng-template>
-      </p-multiselect>
+        [filter]="true"
+        filterBy="name"
+        filterPlaceholder="搜尋分校..."
+        [ngModel]="selectedCampusId()"
+        (ngModelChange)="onCampusChange($event)"
+      />
     }
     <p-button
       styleClass="session-filters__advanced-button"

@@ -10,7 +10,7 @@ import type { Student } from '@core/students.service';
 import { ImeFilterInputComponent } from '@shared/components/ime-filter-input/ime-filter-input.component';
 
 const SESSION_STATUS_OPTIONS: Array<{ label: string; value: string }> = [
-  { label: '已排課', value: 'scheduled' },
+  { label: '正常', value: 'scheduled' },
   { label: '已完成', value: 'completed' },
   { label: '已停課', value: 'cancelled' },
 ];
@@ -52,6 +52,8 @@ interface DialogClassDisplayOption extends SessionAdvancedFilterClassOption {
   readonly courseName: string | null;
   readonly campusName: string | null;
 }
+
+type TeacherOption = Pick<Staff, 'id' | 'displayName' | 'campusIds' | 'subjectIds' | 'subjectNames'>;
 
 @Component({
   selector: 'app-session-advanced-filters-dialog',
@@ -165,7 +167,19 @@ export class SessionAdvancedFiltersDialogComponent {
     ]);
   });
 
-  protected readonly filteredTeacherOptions = computed(() => {
+  protected readonly teacherScopeHint = computed(() => {
+    const campusScopeIds = this.campusScopeIds();
+    if (campusScopeIds.length === 0) {
+      return '顯示全部分校的任課老師。';
+    }
+    const names = campusScopeIds
+      .map((id) => this.campusNameById().get(id))
+      .filter((name): name is string => !!name);
+    if (names.length === 0) return '搜尋範圍限在目前所選分校。';
+    return `搜尋範圍限在 ${names.join('、')}。`;
+  });
+
+  protected readonly filteredTeacherOptions = computed<TeacherOption[]>(() => {
     const scopedTeachers = this.teachers()
       .filter((teacher) => {
         const campusScopeIds = this.campusScopeIds();
@@ -188,13 +202,26 @@ export class SessionAdvancedFiltersDialogComponent {
         return teacher.subjectIds.some((subjectId) => subjectIds.has(subjectId));
       });
 
-    return matchByQuery(scopedTeachers, this.teacherFilterQuery(), (teacher) => [
+    const matched = matchByQuery(scopedTeachers, this.teacherFilterQuery(), (teacher) => [
       teacher.displayName,
       ...teacher.subjectNames,
       ...teacher.campusIds
         .map((campusId) => this.campusNameById().get(campusId))
         .filter((campusName): campusName is string => !!campusName),
     ]);
+
+    if (this.isSessionsMode()) {
+      const unassigned: TeacherOption = {
+        id: '__unassigned__',
+        displayName: '未指派',
+        campusIds: [],
+        subjectIds: [],
+        subjectNames: [],
+      };
+      return [unassigned, ...matched];
+    }
+
+    return matched;
   });
 
   constructor() {
@@ -236,6 +263,26 @@ export class SessionAdvancedFiltersDialogComponent {
     };
 
     this.ref.close(result);
+  }
+
+  protected getStudentOptionMeta(student: Student): string | null {
+    const gradeMap: Record<string, string> = {
+      P1: '小一', P2: '小二', P3: '小三', P4: '小四', P5: '小五', P6: '小六',
+      J1: '國一', J2: '國二', J3: '國三',
+      S1: '高一', S2: '高二', S3: '高三',
+    };
+    const parts = [student.school, gradeMap[student.grade]].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : null;
+  }
+
+  protected getTeacherOptionMeta(teacher: TeacherOption): string | null {
+    const subjects = teacher.subjectNames.join('、');
+    const campuses = teacher.campusIds
+      .map((id) => this.campusNameById().get(id))
+      .filter((name): name is string => !!name)
+      .join('、');
+    const parts = [subjects, campuses].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : null;
   }
 
   protected getClassMetaLabel(classOption: DialogClassDisplayOption): string | null {

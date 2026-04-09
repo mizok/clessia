@@ -33,6 +33,31 @@
     gap: var(--space-1);
   }
 
+  &__title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    border: none;
+    border-radius: var(--radius-full);
+    background: var(--p-red-100);
+    color: var(--p-red-700);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+
+    &:hover {
+      background: var(--p-red-200);
+    }
+  }
+
   &__title {
     font-size: var(--text-2xl);
     font-weight: var(--font-bold);

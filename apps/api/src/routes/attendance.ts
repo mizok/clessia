@@ -456,6 +456,18 @@ app.openapi(
     const userId = c.get('userId');
     const body = c.req.valid('json');
 
+    const { data: ev } = await supabase
+      .from('events')
+      .select('event_date')
+      .eq('id', body.eventId)
+      .eq('org_id', orgId)
+      .single();
+
+    if (!ev) return c.json({ error: '找不到課堂或無權限', message: undefined }, 500);
+    if ((ev as any).event_date > getCurrentTaipeiDateString()) {
+      return c.json({ error: '未來課堂尚未開放點名', message: undefined }, 500);
+    }
+
     const { data, error } = await supabase
       .from('attendance_records')
       .insert({
@@ -643,6 +655,19 @@ app.openapi(
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
 
+    const { data: existing } = await supabase
+      .from('attendance_records')
+      .select('events(event_date)')
+      .eq('id', id)
+      .eq('org_id', orgId)
+      .single();
+
+    if (!existing) return c.json({ error: '找不到出勤紀錄或無權限', message: undefined }, 500);
+    const existingEventDate = (existing as any).events?.event_date as string | null;
+    if (existingEventDate && existingEventDate > getCurrentTaipeiDateString()) {
+      return c.json({ error: '未來課堂尚未開放點名', message: undefined }, 500);
+    }
+
     const updates: Record<string, unknown> = { recorded_by: userId, recorded_by_role: 'admin' };
     if (body.status !== undefined) updates['status'] = body.status;
     if (body.note !== undefined) updates['note'] = body.note;
@@ -823,7 +848,7 @@ app.openapi(
           onLeaveCount = 0,
           absentCount = 0;
 
-        if (eventId && eventRow?.attendance_taken_at) {
+        if (eventId) {
           const { data: records } = await supabase
             .from('attendance_records')
             .select('status')

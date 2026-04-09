@@ -915,7 +915,7 @@ export class StudentPickerDialogComponent implements OnInit {
   protected readonly students = signal<Student[]>([]);
   protected readonly total = signal(0);
   protected readonly currentPage = signal(1);
-  protected readonly PAGE_SIZE = 20;
+  protected readonly PAGE_SIZE = 8;
 
   protected readonly searchQuery = signal('');
   // ngModel 用 plain properties（signals 不相容 [(ngModel)] two-way binding）

@@ -1,0 +1,67 @@
+.parent-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-2);
+
+  &__info {
+    font-size: 0.875rem;
+    color: var(--p-zinc-500);
+  }
+
+  &__section-title {
+    margin: 0 0 var(--space-3);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--p-zinc-700);
+  }
+
+  &__student-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__student-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--p-zinc-200);
+    border-radius: 8px;
+    background: var(--p-zinc-50);
+  }
+
+  &__student-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  &__student-name {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--p-zinc-900);
+  }
+
+  &__student-grade {
+    font-size: 0.75rem;
+    color: var(--p-zinc-500);
+  }
+
+  &__empty {
+    padding: var(--space-6) 0;
+    font-size: 0.875rem;
+    color: var(--p-zinc-400);
+    text-align: center;
+  }
+
+  &__skeleton {
+    padding: var(--space-2);
+  }
+}

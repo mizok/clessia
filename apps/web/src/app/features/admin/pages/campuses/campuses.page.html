@@ -100,7 +100,7 @@
           </app-empty-state>
         }
       } @else {
-        <p-menu #actionMenu [popup]="true" [model]="actionMenuItems()" appendTo="body" />
+        <app-popup-menu #actionMenu [model]="actionMenuItems()" />
 
         <app-responsive-table
           [headTemplate]="headTpl"

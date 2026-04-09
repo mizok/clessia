@@ -1,5 +1,5 @@
 <p-toast position="top-right" appendTo="body" [baseZIndex]="25000" />
-<p-menu #actionMenu [model]="actionMenuItems()" [popup]="true" [appendTo]="overlayContainer || 'body'" />
+<app-popup-menu #actionMenu [model]="actionMenuItems()" />
 
 <div class="class-detail">
   <app-page-breadcrumb [items]="breadcrumbItems()" />
@@ -28,7 +28,9 @@
   } @else if (cls()) {
     <!-- Hero Header -->
     <div class="class-detail__hero">
-      <div class="class-detail__hero-avatar" [style.--avatar-hue]="avatarHue()">{{ cls()!.name[0] }}</div>
+      <div class="class-detail__hero-avatar" [style.--avatar-hue]="avatarHue()">
+        {{ cls()!.name[0] }}
+      </div>
       <div class="class-detail__hero-info">
         <div class="class-detail__hero-name-row">
           <h1 class="class-detail__hero-name">{{ cls()!.name }}</h1>
@@ -40,7 +42,7 @@
         @if (cls()!.courseName) {
           <p class="class-detail__hero-course">{{ cls()!.courseName }}</p>
         }
-        @if (cls()!.gradeLevels?.length) {
+        @if (cls()!.gradeLevels.length) {
           <div class="class-detail__hero-grade-row">
             <span class="class-detail__hero-grade-label">適合年級</span>
             <div class="class-detail__hero-grade-chips">
@@ -88,142 +90,155 @@
             <p-tab value="1">課表</p-tab>
           </p-tablist>
 
-        <p-tabpanels>
-          <!-- 學生名單 tab -->
-          <p-tabpanel value="0">
-            @if (enrollmentsLoading()) {
-              <div class="class-detail__skeletons">
-                @for (i of [1, 2, 3]; track i) {
-                  <p-skeleton height="56px" styleClass="mb-1" borderRadius="8px" />
-                }
-              </div>
-            } @else if (enrollments().length === 0) {
-              <div class="class-detail__empty">
-                <div class="class-detail__empty-icon">
-                  <i class="pi pi-users"></i>
+          <p-tabpanels>
+            <!-- 學生名單 tab -->
+            <p-tabpanel value="0">
+              @if (enrollmentsLoading()) {
+                <div class="class-detail__skeletons">
+                  @for (i of [1, 2, 3]; track i) {
+                    <p-skeleton height="56px" styleClass="mb-1" borderRadius="8px" />
+                  }
                 </div>
-                <p class="class-detail__empty-title">尚未加入任何學生</p>
-                <p class="class-detail__empty-desc">將學生加入班級後，可在此管理在籍狀態</p>
-                @if (cls()!.isActive) {
-                  <div class="class-detail__empty-actions">
-                    <p-button
-                      label="加入第一位學生"
-                      icon="pi pi-user-plus"
-                      [outlined]="true"
-                      (onClick)="openStudentPicker()"
-                    />
-                    <p-button
-                      label="複製名單"
-                      icon="pi pi-copy"
-                      severity="secondary"
-                      [outlined]="true"
-                      (onClick)="openCopyRoster()"
-                    />
+              } @else if (enrollments().length === 0) {
+                <div class="class-detail__empty">
+                  <div class="class-detail__empty-icon">
+                    <i class="pi pi-users"></i>
                   </div>
-                }
-              </div>
-            } @else {
-              <!-- Section header：人數摘要 + 加入按鈕 -->
-              <div class="class-detail__list-header">
-                <span class="class-detail__list-count">
-                  {{ enrollments().length }} 位學生
-                </span>
-                @if (cls()!.isActive) {
-                  <div class="class-detail__list-actions">
-                    <p-button
-                      label="加入學生"
-                      icon="pi pi-user-plus"
-                      size="small"
-                      [outlined]="true"
-                      (onClick)="openStudentPicker()"
-                    />
-                    <p-button
-                      label="複製名單"
-                      icon="pi pi-copy"
-                      size="small"
-                      severity="secondary"
-                      [outlined]="true"
-                      (onClick)="openCopyRoster()"
-                    />
-                  </div>
-                }
-              </div>
-              <!-- 花名冊 -->
-              <div class="class-detail__student-list">
-                @for (enrollment of enrollments(); track enrollment.id; let idx = $index) {
-                  <div
-                    class="class-detail__student-item"
-                    role="button"
-                    tabindex="0"
-                    (click)="navigateToStudent(enrollment.studentId)"
-                    (keydown.enter)="navigateToStudent(enrollment.studentId)"
-                  >
-                    <span class="class-detail__student-index">{{ idx + 1 }}</span>
-                    <div
-                      class="class-detail__student-avatar"
-                      [style.--item-hue]="getStudentHue(enrollment.studentId)"
-                    >{{ enrollment.studentName[0] }}</div>
-                    <div class="class-detail__student-info">
-                      <div class="class-detail__student-name-row">
-                        <span class="class-detail__student-name">{{ enrollment.studentName }}</span>
-                        <div class="class-detail__student-status" [attr.data-status]="enrollment.status">
-                          <span class="class-detail__status-dot"></span>
-                          <span class="class-detail__status-label">{{ statusLabels[enrollment.status] }}</span>
-                        </div>
-                      </div>
-                      <span class="class-detail__student-meta">
-                        @if (enrollment.studentSchool) {
-                          <span class="class-detail__student-school">{{ enrollment.studentSchool }}</span>
-                          <span class="class-detail__meta-sep">·</span>
-                        }
-                        @if (enrollment.studentGrade) {
-                          <span>{{ getGradeLabel(enrollment.studentGrade) }}</span>
-                          <span class="class-detail__meta-sep">·</span>
-                        }
-                        <span>加入 {{ enrollment.effectiveFrom }}</span>
-                      </span>
+                  <p class="class-detail__empty-title">尚未加入任何學生</p>
+                  <p class="class-detail__empty-desc">將學生加入班級後，可在此管理在籍狀態</p>
+                  @if (cls()!.isActive) {
+                    <div class="class-detail__empty-actions">
+                      <p-button
+                        label="加入第一位學生"
+                        icon="pi pi-user-plus"
+                        [outlined]="true"
+                        (onClick)="openStudentPicker()"
+                      />
+                      <p-button
+                        label="複製名單"
+                        icon="pi pi-copy"
+                        severity="secondary"
+                        [outlined]="true"
+                        (onClick)="openCopyRoster()"
+                      />
                     </div>
-                    <button
-                      type="button"
-                      class="class-detail__action-btn"
-                      (click)="openActionMenu($event, enrollment); $event.stopPropagation()"
-                      aria-label="操作"
-                    >
-                      <i class="pi pi-ellipsis-v"></i>
-                    </button>
-                  </div>
-                }
-              </div>
-            }
-          </p-tabpanel>
-
-          <!-- 課表 tab -->
-          <p-tabpanel value="1">
-            @if (!cls()!.schedules?.length) {
-              <div class="class-detail__empty">
-                <div class="class-detail__empty-icon">
-                  <i class="pi pi-calendar"></i>
+                  }
                 </div>
-                <p class="class-detail__empty-title">尚未設定課表</p>
-                <p class="class-detail__empty-desc">在課堂管理中設定上課時間後會顯示於此</p>
-              </div>
-            } @else {
-              <div class="class-detail__schedules">
-                @for (schedule of cls()!.schedules ?? []; track schedule.id) {
-                  <div class="class-detail__schedule-item">
-                    <span class="class-detail__schedule-day">{{ getWeekdayLabel(schedule.weekday) }}</span>
-                    <span class="class-detail__schedule-time">
-                      {{ schedule.startTime.slice(0, 5) }} – {{ schedule.endTime.slice(0, 5) }}
-                    </span>
-                    @if (schedule.teacherName) {
-                      <span class="class-detail__schedule-teacher">{{ schedule.teacherName }}</span>
-                    }
+              } @else {
+                <!-- Section header：人數摘要 + 加入按鈕 -->
+                <div class="class-detail__list-header">
+                  <span class="class-detail__list-count"> {{ enrollments().length }} 位學生 </span>
+                  @if (cls()!.isActive) {
+                    <div class="class-detail__list-actions">
+                      <p-button
+                        label="加入學生"
+                        icon="pi pi-user-plus"
+                        size="small"
+                        [outlined]="true"
+                        (onClick)="openStudentPicker()"
+                      />
+                      <p-button
+                        label="複製名單"
+                        icon="pi pi-copy"
+                        size="small"
+                        severity="secondary"
+                        [outlined]="true"
+                        (onClick)="openCopyRoster()"
+                      />
+                    </div>
+                  }
+                </div>
+                <!-- 花名冊 -->
+                <div class="class-detail__student-list">
+                  @for (enrollment of enrollments(); track enrollment.id; let idx = $index) {
+                    <div
+                      class="class-detail__student-item"
+                      role="button"
+                      tabindex="0"
+                      (click)="navigateToStudent(enrollment.studentId)"
+                      (keydown.enter)="navigateToStudent(enrollment.studentId)"
+                    >
+                      <span class="class-detail__student-index">{{ idx + 1 }}</span>
+                      <div
+                        class="class-detail__student-avatar"
+                        [style.--item-hue]="getStudentHue(enrollment.studentId)"
+                      >
+                        {{ enrollment.studentName[0] }}
+                      </div>
+                      <div class="class-detail__student-info">
+                        <div class="class-detail__student-name-row">
+                          <span class="class-detail__student-name">{{
+                            enrollment.studentName
+                          }}</span>
+                          <div
+                            class="class-detail__student-status"
+                            [attr.data-status]="enrollment.status"
+                          >
+                            <span class="class-detail__status-dot"></span>
+                            <span class="class-detail__status-label">{{
+                              statusLabels[enrollment.status]
+                            }}</span>
+                          </div>
+                        </div>
+                        <span class="class-detail__student-meta">
+                          @if (enrollment.studentSchool) {
+                            <span class="class-detail__student-school">{{
+                              enrollment.studentSchool
+                            }}</span>
+                            <span class="class-detail__meta-sep">·</span>
+                          }
+                          @if (enrollment.studentGrade) {
+                            <span>{{ getGradeLabel(enrollment.studentGrade) }}</span>
+                            <span class="class-detail__meta-sep">·</span>
+                          }
+                          <span>加入 {{ enrollment.effectiveFrom }}</span>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        class="class-detail__action-btn"
+                        (click)="openActionMenu($event, enrollment); $event.stopPropagation()"
+                        aria-label="操作"
+                      >
+                        <i class="pi pi-ellipsis-v"></i>
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+            </p-tabpanel>
+
+            <!-- 課表 tab -->
+            <p-tabpanel value="1">
+              @if (!cls()!.schedules?.length) {
+                <div class="class-detail__empty">
+                  <div class="class-detail__empty-icon">
+                    <i class="pi pi-calendar"></i>
                   </div>
-                }
-              </div>
-            }
-          </p-tabpanel>
-        </p-tabpanels>
+                  <p class="class-detail__empty-title">尚未設定課表</p>
+                  <p class="class-detail__empty-desc">在課堂管理中設定上課時間後會顯示於此</p>
+                </div>
+              } @else {
+                <div class="class-detail__schedules">
+                  @for (schedule of cls()!.schedules ?? []; track schedule.id) {
+                    <div class="class-detail__schedule-item">
+                      <span class="class-detail__schedule-day">{{
+                        getWeekdayLabel(schedule.weekday)
+                      }}</span>
+                      <span class="class-detail__schedule-time">
+                        {{ schedule.startTime.slice(0, 5) }} – {{ schedule.endTime.slice(0, 5) }}
+                      </span>
+                      @if (schedule.teacherName) {
+                        <span class="class-detail__schedule-teacher">{{
+                          schedule.teacherName
+                        }}</span>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </p-tabpanel>
+          </p-tabpanels>
         </p-tabs>
       </div>
     </div>

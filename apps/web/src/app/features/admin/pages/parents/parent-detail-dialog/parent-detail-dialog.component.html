@@ -1,0 +1,52 @@
+<div class="parent-detail">
+  @if (notice(); as n) {
+    <app-inline-notice
+      [severity]="n.severity"
+      [summary]="n.summary"
+      [detail]="n.detail"
+      (dismissed)="dismissNotice()"
+    />
+  }
+
+  @if (loading()) {
+    <div class="parent-detail__skeleton">
+      <p-skeleton height="20px" width="60%" />
+      <p-skeleton height="16px" width="40%" styleClass="mt-2" />
+    </div>
+  } @else if (parent(); as parentDetail) {
+    <div class="parent-detail__info">
+      <span class="parent-detail__contact">
+        {{ parentDetail.phone ?? parentDetail.email ?? '無聯絡資訊' }}
+      </span>
+    </div>
+
+    <section class="parent-detail__students">
+      <h3 class="parent-detail__section-title">關聯學生</h3>
+
+      @if (parentDetail.students.length === 0) {
+        <p class="parent-detail__empty">尚未建立學生資料</p>
+      } @else {
+        <ul class="parent-detail__student-list">
+          @for (student of parentDetail.students; track student.id) {
+            <li class="parent-detail__student-item">
+              <div class="parent-detail__student-info">
+                <span class="parent-detail__student-name">{{ student.name }}</span>
+                <span class="parent-detail__student-grade">{{ getGradeLabel(student.grade) }}</span>
+              </div>
+              <p-button
+                label="報名班級"
+                icon="pi pi-plus"
+                severity="secondary"
+                size="small"
+                [loading]="enrollingStudentId() === student.id"
+                (onClick)="openClassPicker(student)"
+              />
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  } @else {
+    <p class="parent-detail__empty">載入失敗，請關閉後重試</p>
+  }
+</div>

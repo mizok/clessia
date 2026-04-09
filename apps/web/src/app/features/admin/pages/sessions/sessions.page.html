@@ -1,12 +1,15 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
-<p-menu #sessionMenu [model]="contextMenuItems()" [popup]="true" appendTo="body" />
+<app-popup-menu #sessionMenu [model]="contextMenuItems()" />
 
 <div class="cal">
   <section class="cal__controls">
     <section class="cal__header">
       <app-sessions-header
-        [unassignedCount]="displayedUnassignedCount()"
+        [monthUnassignedCount]="monthUnassignedCount()"
+        [todayPendingAttendanceCount]="todayPendingAttendanceCount()"
+        [campusName]="selectedCampusName()"
         (filterUnassigned)="onFilterUnassigned()"
+        (filterPendingAttendance)="onFilterPendingAttendance()"
       />
       <div class="cal__header-actions">
         <p-button
@@ -14,7 +17,7 @@
           icon="pi pi-history"
           [outlined]="true"
           severity="secondary"
-          (onClick)="openAuditLog()"
+          (onClick)="openOperationsLog()"
         />
       </div>
     </section>
@@ -22,22 +25,22 @@
     <app-session-filters
       [listDateRange]="listDateRange()"
       [campuses]="campuses()"
-      [selectedCampusIds]="selectedCampusIds()"
+      [selectedCampusId]="selectedCampusId()"
       [activeFilterCount]="activeFilterCount()"
       [hasActiveFilters]="hasActiveFilters()"
       (listDateRangeChange)="onListDateRangeChange($event)"
       (openAdvancedFilters)="openAdvancedFiltersDialog()"
-      (campusIdsChange)="onCampusIdsChange($event)"
+      (campusIdChange)="onCampusIdChange($event)"
       (clearFilters)="clearFilters()"
     />
   </section>
 
   <app-sessions-body
     [loading]="loading()"
-    [sessions]="sessions()"
+    [sessions]="displayedSessions()"
     [selectedIds]="selectedIds()"
     [selectedCount]="selectedCount()"
-    [total]="totalSessions()"
+    [total]="displayedTotal()"
     [pageSize]="PAGE_SIZE"
     [currentPage]="currentPage()"
     (selectedIdsChange)="onSelectedIdsChange($event)"

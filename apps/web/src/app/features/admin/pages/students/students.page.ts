@@ -5,8 +5,6 @@ import { Router } from '@angular/router';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
-import { MenuModule } from 'primeng/menu';
-import { Menu } from 'primeng/menu';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -45,6 +43,7 @@ import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 
 // Local
 import { StudentFormDialogComponent } from './student-form-dialog.component';
@@ -65,7 +64,7 @@ import { StudentFormDialogComponent } from './student-form-dialog.component';
     InputTextModule,
     SelectModule,
     EmptyStateComponent,
-    MenuModule,
+    PopupMenuComponent,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,
@@ -95,7 +94,7 @@ export class StudentsPage implements OnInit {
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
   protected readonly statusFilter = signal<boolean | null>(null);
-  protected readonly PAGE_SIZE = 20;
+  protected readonly PAGE_SIZE = 8;
 
   // Grade options for dropdown
   protected readonly gradeOptions = [
@@ -110,9 +109,7 @@ export class StudentsPage implements OnInit {
 
   // Computed
   readonly activeStudentCount = computed(() => this.summary().activeCount);
-  readonly inactiveStudentCount = computed(
-    () => this.summary().total - this.summary().activeCount,
-  );
+  readonly inactiveStudentCount = computed(() => this.summary().total - this.summary().activeCount);
 
   protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
     first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
@@ -121,19 +118,25 @@ export class StudentsPage implements OnInit {
   }));
 
   // Action menu
-  protected readonly actionMenu = viewChild.required<Menu>('actionMenu');
+  protected readonly actionMenu = viewChild.required<PopupMenuComponent>('actionMenu');
   protected readonly selectedStudent = signal<Student | null>(null);
   protected readonly actionMenuItems = computed<MenuItem[]>(() => {
     const student = this.selectedStudent();
     if (!student) return [];
     return [
-      { label: '學生詳情', icon: 'pi pi-arrow-right', command: () => this.navigateToDetail(student) },
+      {
+        label: '學生詳情',
+        icon: 'pi pi-arrow-right',
+        command: () => this.navigateToDetail(student),
+      },
       { separator: true },
       { label: '編輯', icon: 'pi pi-pencil', command: () => this.openEditDialog(student) },
       ...(student.isActive
-        ? [{ separator: true }, { label: '停用', icon: 'pi pi-lock', command: () => this.confirmDeactivate(student) }]
-        : []
-      ),
+        ? [
+            { separator: true },
+            { label: '停用', icon: 'pi pi-lock', command: () => this.confirmDeactivate(student) },
+          ]
+        : []),
       { separator: true },
       {
         label: student.hasEnrollments ? '已有報名紀錄，無法刪除' : '刪除學生',
@@ -205,7 +208,6 @@ export class StudentsPage implements OnInit {
     this.currentPage.set(event.page + 1);
     this.loadStudents();
   }
-
 
   protected getGradeLabel(grade: GradeLevel): string {
     return GRADE_LEVEL_LABELS[grade] ?? grade;

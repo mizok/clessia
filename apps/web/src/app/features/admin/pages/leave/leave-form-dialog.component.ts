@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
@@ -13,7 +13,7 @@ import {
   GRADE_LEVEL_LABELS,
   type GradeLevel,
 } from '@core/students.service';
-import { CampusesService, type Campus } from '@core/campuses.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { LeaveService, type CreateLeaveInput } from '@core/leave.service';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 
@@ -225,7 +225,7 @@ function isStudentSelection(value: unknown): value is Student {
 export class LeaveFormDialogComponent implements OnInit {
   private readonly dialogRef = inject(DynamicDialogRef);
   private readonly studentsService = inject(StudentsService);
-  private readonly campusesService = inject(CampusesService);
+  private readonly refData = inject(ReferenceDataService);
   private readonly leaveService = inject(LeaveService);
 
   protected selectedCampusId: string | null = null;
@@ -240,8 +240,12 @@ export class LeaveFormDialogComponent implements OnInit {
   protected readonly saving = signal(false);
   protected readonly studentSuggestions = signal<Student[]>([]);
   protected readonly errorMessage = signal<string | null>(null);
-  protected readonly campusOptions = signal<SelectOption<string>[]>([
+  protected readonly campusOptions = computed<SelectOption<string>[]>(() => [
     { label: '全部分校', value: null },
+    ...this.refData
+      .campuses()
+      .filter((campus) => campus.isActive)
+      .map((campus) => ({ label: campus.name, value: campus.id })),
   ]);
 
   protected readonly gradeOptions: SelectOption<GradeLevel>[] = [
@@ -250,14 +254,7 @@ export class LeaveFormDialogComponent implements OnInit {
   ];
 
   ngOnInit(): void {
-    this.campusesService.list({ isActive: true, pageSize: 100 }).subscribe({
-      next: (res) => {
-        this.campusOptions.set([
-          { label: '全部分校', value: null },
-          ...res.data.map((c: Campus) => ({ label: c.name, value: c.id })),
-        ]);
-      },
-    });
+    this.refData.loadCampuses();
   }
 
   protected onFilterChange(): void {

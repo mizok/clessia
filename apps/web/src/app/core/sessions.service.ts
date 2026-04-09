@@ -19,6 +19,11 @@ export interface Session {
   teacherId: string | null;
   teacherName: string | null;
   hasChanges: boolean;
+  attendanceTakenAt?: string | null;
+  attendanceEnrolledCount?: number;
+  attendancePresentCount?: number;
+  attendanceOnLeaveCount?: number;
+  attendanceAbsentCount?: number;
 }
 
 export interface SessionHistoryEntry {
@@ -115,7 +120,7 @@ export class SessionsService {
 
   list(params: SessionQueryParams): Observable<{
     data: Session[];
-    meta: { total: number; page: number; pageSize: number; totalPages: number; unassignedCount: number; filteredUnassignedCount: number };
+    meta: { total: number; page: number; pageSize: number; totalPages: number; monthUnassignedCount: number; todayPendingAttendanceCount: number };
   }> {
     const query: Record<string, string> = {};
 
@@ -141,7 +146,7 @@ export class SessionsService {
 
     return this.http.get<{
       data: Session[];
-      meta: { total: number; page: number; pageSize: number; totalPages: number; unassignedCount: number; filteredUnassignedCount: number };
+      meta: { total: number; page: number; pageSize: number; totalPages: number; monthUnassignedCount: number; todayPendingAttendanceCount: number };
     }>(this.endpoint, { params: query });
   }
 

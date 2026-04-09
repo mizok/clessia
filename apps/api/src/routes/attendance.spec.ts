@@ -418,6 +418,56 @@ describe('GET /api/attendance/sessions', () => {
       }),
     ]);
   });
+
+  it('counts leave and attendance records even when attendance_taken_at is null', async () => {
+    const app = createAttendanceTestApp(
+      createMockSupabase({
+        events: [
+          {
+            ...buildEvent({
+              id: 'event-1',
+              classId: 'class-1',
+              className: '數學 A',
+              courseId: 'course-1',
+              courseName: '數學',
+              sessionStatus: 'scheduled',
+            }),
+            attendance_taken_at: null,
+          },
+        ],
+        attendanceRecordsByEventId: {
+          'event-1': [{ status: 'on_leave' }, { status: 'present' }, { status: 'absent' }],
+        },
+        enrollmentCountsByClassId: {
+          'class-1': 12,
+        },
+      }),
+    );
+
+    const response = await app.request(
+      '/api/attendance/sessions?dateFrom=2026-04-01&dateTo=2026-04-03&page=1&pageSize=20',
+    );
+    const payload = (await response.json()) as {
+      data: Array<{
+        eventId: string;
+        takenAt: string | null;
+        presentCount: number;
+        onLeaveCount: number;
+        absentCount: number;
+      }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.data).toEqual([
+      expect.objectContaining({
+        eventId: 'event-1',
+        takenAt: null,
+        presentCount: 1,
+        onLeaveCount: 1,
+        absentCount: 1,
+      }),
+    ]);
+  });
 });
 
 describe('PATCH /api/attendance/batch', () => {

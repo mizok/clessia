@@ -4,8 +4,6 @@ import { FormsModule } from '@angular/forms';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
-import { MenuModule } from 'primeng/menu';
-import { Menu } from 'primeng/menu';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -37,6 +35,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
@@ -61,8 +60,7 @@ import { InputTextModule } from 'primeng/inputtext';
     SkeletonModule,
     InputTextModule,
     EmptyStateComponent,
-    ConfirmDialogComponent,
-    MenuModule,
+    PopupMenuComponent,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,
@@ -93,7 +91,7 @@ export class CampusesPage implements OnInit {
   readonly searchQuery = signal('');
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
-  protected readonly PAGE_SIZE = 20;
+  protected readonly PAGE_SIZE = 8;
   protected readonly showInactiveCampuses = signal(false);
 
   // Computed
@@ -101,7 +99,7 @@ export class CampusesPage implements OnInit {
   readonly inactiveCampusCount = computed(() => this.summary().inactiveCount);
 
   // Action menu
-  protected readonly actionMenu = viewChild.required<Menu>('actionMenu');
+  protected readonly actionMenu = viewChild.required<PopupMenuComponent>('actionMenu');
   protected readonly selectedCampus = signal<Campus | null>(null);
   protected readonly actionMenuItems = computed<MenuItem[]>(() => {
     const campus = this.selectedCampus();
@@ -111,11 +109,23 @@ export class CampusesPage implements OnInit {
       { separator: true },
     ];
     if (campus.isActive) {
-      items.push({ label: '停用分校', icon: 'pi pi-lock', command: () => this.confirmDeactivate(campus) });
+      items.push({
+        label: '停用分校',
+        icon: 'pi pi-lock',
+        command: () => this.confirmDeactivate(campus),
+      });
     } else {
-      items.push({ label: '啟用分校', icon: 'pi pi-unlock', command: () => this.confirmActivate(campus) });
+      items.push({
+        label: '啟用分校',
+        icon: 'pi pi-unlock',
+        command: () => this.confirmActivate(campus),
+      });
     }
-    items.push({ label: '刪除分校', icon: 'pi pi-trash', command: () => this.confirmDelete(campus) });
+    items.push({
+      label: '刪除分校',
+      icon: 'pi pi-trash',
+      command: () => this.confirmDelete(campus),
+    });
     return items;
   });
 

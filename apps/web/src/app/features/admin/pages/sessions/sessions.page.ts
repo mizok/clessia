@@ -8,29 +8,34 @@ import {
   viewChild,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { format } from 'date-fns';
+import { endOfMonth, format, startOfMonth } from 'date-fns';
+import { toObservable } from '@angular/core/rxjs-interop';
+import { catchError, filter, forkJoin, map, of, switchMap, take } from 'rxjs';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
-import { MenuModule, type Menu } from 'primeng/menu';
 import { ToastModule } from 'primeng/toast';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import type { Campus } from '@core/campuses.service';
+import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
 import { ClassesService } from '@core/classes.service';
 import { CoursesService, type Course } from '@core/courses.service';
+import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { SessionsService, type Session } from '@core/sessions.service';
 import type { Staff } from '@core/staff.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
-import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
+import { StudentsService, type Student } from '@core/students.service';
 import {
   SessionAdvancedFiltersDialogComponent,
   type SessionAdvancedFiltersDialogResult,
 } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
 
 import { SessionCancelDialogComponent } from './dialogs/session-cancel-dialog/session-cancel-dialog.component';
+import { SessionAttendanceDialogComponent } from './dialogs/session-attendance-dialog/session-attendance-dialog.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
+import { SessionOperationsLogDialogComponent } from './dialogs/session-operations-log-dialog/session-operations-log-dialog.component';
 import { SessionRescheduleDialogComponent } from './dialogs/session-reschedule-dialog/session-reschedule-dialog.component';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
 import { SessionSubstituteDialogComponent } from './dialogs/session-substitute-dialog/session-substitute-dialog.component';
@@ -49,6 +54,7 @@ import {
   DEFAULT_STATUSES,
 } from './components/session-filters/session-filters.component';
 import { SessionsHeaderComponent } from './components/sessions-header/sessions-header.component';
+import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import {
   SessionsBodyComponent,
   type SessionsBodyBatchMode,
@@ -56,12 +62,20 @@ import {
 } from './components/sessions-body/sessions-body.component';
 import { SessionsActionsService } from './services/sessions-actions.service';
 
+interface AttendanceDialogCloseResult {
+  readonly eventId: string;
+  readonly takenAt: string;
+  readonly presentCount: number;
+  readonly absentCount: number;
+  readonly onLeaveCount: number;
+}
+
 @Component({
   selector: 'app-sessions',
   standalone: true,
   imports: [
     ToastModule,
-    MenuModule,
+    PopupMenuComponent,
     ButtonModule,
     SessionsHeaderComponent,
     SessionsBodyComponent,
@@ -78,11 +92,14 @@ export class SessionsPage implements OnInit {
   private readonly refData = inject(ReferenceDataService);
   private readonly classesService = inject(ClassesService);
   private readonly coursesService = inject(CoursesService);
+  private readonly enrollmentsService = inject(EnrollmentsService);
+  private readonly attendanceService = inject(AttendanceService);
   private readonly sessionsService = inject(SessionsService);
   private readonly sessionsActionsService = inject(SessionsActionsService);
   private readonly messageService = inject(MessageService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly dialogService = inject(DialogService);
+  private readonly studentsService = inject(StudentsService);
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
@@ -94,26 +111,43 @@ export class SessionsPage implements OnInit {
 
   // Filter options — campuses & teachers come from shared cache
   protected readonly campuses = computed(() => this.refData.campuses());
+  private readonly firstCampus$ = toObservable(this.campuses).pipe(
+    filter((campuses) => campuses.length > 0),
+    take(1),
+  );
   protected readonly courses = signal<Course[]>([]);
   protected readonly staff = computed(() => this.refData.teachers());
   protected readonly classes = signal<
     Array<{ id: string; name: string; courseId: string; campusId: string }>
   >([]);
 
-  private readonly sessionMenuRef = viewChild<Menu>('sessionMenu');
+  private readonly sessionMenuRef = viewChild<PopupMenuComponent>('sessionMenu');
 
   // ── Filter state ───────────────────────────────────────────────────────
   protected readonly selectedCampusIds = signal<string[]>([]);
+  protected readonly selectedCampusId = computed(() => this.selectedCampusIds()[0] ?? null);
+  protected readonly selectedCampusName = computed(() => {
+    const id = this.selectedCampusId();
+    if (!id) return null;
+    return this.campuses().find((c) => c.id === id)?.name ?? null;
+  });
   protected readonly selectedCourseIds = signal<string[]>([]);
   protected readonly selectedTeacherIds = signal<string[]>([]);
   protected readonly selectedClassIds = signal<string[]>([]);
+  protected readonly selectedStudentIds = signal<string[]>([]);
   protected readonly selectedStatuses = signal<string[]>([...DEFAULT_STATUSES]);
   protected readonly currentPage = signal(1);
   protected readonly totalSessions = signal(0);
-  protected readonly PAGE_SIZE = 20;
+  protected readonly PAGE_SIZE = 8;
+  protected readonly students = signal<Student[]>([]);
+  protected readonly studentEnrolledClassIds = signal<Set<string>>(new Set());
+  protected readonly studentFilteredEnrollments = signal<Enrollment[]>([]);
 
   // ── List date range ────────────────────────────────────────────────────
-  protected readonly listDateRange = signal<Date[]>([]);
+  protected readonly listDateRange = signal<Date[]>([
+    startOfMonth(new Date()),
+    endOfMonth(new Date()),
+  ]);
   protected readonly listDateRangeModified = signal(false);
 
   // ── Computed ───────────────────────────────────────────────────────────
@@ -160,6 +194,7 @@ export class SessionsPage implements OnInit {
     if (this.selectedCourseIds().length > 0) count++;
     if (this.selectedTeacherIds().length > 0) count++;
     if (this.selectedClassIds().length > 0) count++;
+    if (this.selectedStudentIds().length > 0) count++;
     if (!this.isDefaultStatuses()) count++;
     return count;
   });
@@ -169,23 +204,30 @@ export class SessionsPage implements OnInit {
       this.selectedCourseIds().length > 0 ||
       this.selectedTeacherIds().length > 0 ||
       this.selectedClassIds().length > 0 ||
+      this.selectedStudentIds().length > 0 ||
       !this.isDefaultStatuses(),
   );
 
-  protected readonly hasAnyScopedFilters = computed(
-    () =>
-      this.selectedCampusIds().length > 0 ||
-      this.selectedCourseIds().length > 0 ||
-      this.selectedTeacherIds().length > 0 ||
-      this.selectedClassIds().length > 0 ||
-      this.listDateRangeModified() ||
-      !this.isDefaultStatuses(),
-  );
+  protected readonly monthUnassignedCount = signal(0);
+  protected readonly todayPendingAttendanceCount = signal(0);
+  protected readonly displayedSessions = computed(() => {
+    if (this.selectedStudentIds().length === 0) {
+      return this.sessions();
+    }
 
-  protected readonly unassignedCount = signal(0);
-  protected readonly filteredUnassignedCount = signal(0);
-  protected readonly displayedUnassignedCount = computed(() =>
-    this.hasAnyScopedFilters() ? this.filteredUnassignedCount() : this.unassignedCount(),
+    const enrollments = this.studentFilteredEnrollments();
+    const classIds = this.studentEnrolledClassIds();
+    if (classIds.size === 0 || enrollments.length === 0) {
+      return [];
+    }
+
+    return this.sessions().filter(
+      (session) =>
+        classIds.has(session.classId) && this.hasMatchingStudentEnrollment(session, enrollments),
+    );
+  });
+  protected readonly displayedTotal = computed(() =>
+    this.selectedStudentIds().length > 0 ? this.displayedSessions().length : this.totalSessions(),
   );
 
   // ── Selection state ────────────────────────────────────────────────────
@@ -194,7 +236,7 @@ export class SessionsPage implements OnInit {
   protected readonly selectedSessions = computed(() => {
     const selected = this.selectedIds();
     if (selected.size === 0) return [];
-    return this.sessions().filter((session) => selected.has(session.id));
+    return this.displayedSessions().filter((session) => selected.has(session.id));
   });
   protected readonly hasCancelledSelection = computed(() =>
     this.selectedSessions().some((session) => session.status === 'cancelled'),
@@ -221,6 +263,12 @@ export class SessionsPage implements OnInit {
     if (!s) return [];
     const items: MenuItem[] = [
       { label: '查看異動紀錄', icon: 'pi pi-eye', command: () => this.openDetail(s) },
+      {
+        label: '管理出勤狀況',
+        icon: 'pi pi-id-card',
+        disabled: s.sessionDate > new Date().toISOString().slice(0, 10),
+        command: () => this.openAttendance(s),
+      },
     ];
     if (s.status === 'scheduled') {
       items.push({ label: '調課', icon: 'pi pi-arrows-h', command: () => this.openReschedule(s) });
@@ -251,7 +299,11 @@ export class SessionsPage implements OnInit {
   // ── Lifecycle ──────────────────────────────────────────────────────────
   ngOnInit(): void {
     this.loadFilters();
-    this.loadSessions();
+    this.loadStudents();
+    this.firstCampus$.subscribe((campuses) => {
+      this.selectedCampusIds.set([campuses[0].id]);
+      this.loadSessions();
+    });
   }
 
   // ── List actions ───────────────────────────────────────────────────────
@@ -268,14 +320,13 @@ export class SessionsPage implements OnInit {
     this.selectedIds.set(new Set());
   }
 
-  protected openAuditLog(): void {
-    this.dialogService.open(AuditLogDialogComponent, {
-      header: '課堂操作紀錄',
+  protected openOperationsLog(): void {
+    this.dialogService.open(SessionOperationsLogDialogComponent, {
+      header: '操作紀錄',
       width: '800px',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
-      data: { resourceTypes: ['session'] },
     });
   }
 
@@ -342,10 +393,12 @@ export class SessionsPage implements OnInit {
         campuses: this.campuses(),
         courses: this.courses(),
         classes: this.classes(),
+        students: this.students(),
         teachers: this.activeTeachers(),
         selectedCampusIds: this.selectedCampusIds(),
         selectedCourseIds: this.selectedCourseIds(),
         selectedClassIds: this.selectedClassIds(),
+        selectedStudentIds: this.selectedStudentIds(),
         selectedTeacherIds: this.selectedTeacherIds(),
         selectedStatuses: this.selectedStatuses(),
       },
@@ -361,7 +414,8 @@ export class SessionsPage implements OnInit {
       this.selectedTeacherIds.set(result.teacherIds);
       this.selectedClassIds.set(result.classIds);
       this.selectedStatuses.set(result.statuses);
-      this.loadSessions();
+      this.selectedStudentIds.set(result.studentIds);
+      this.refreshStudentEnrolledClassIds(result.studentIds, () => this.loadSessions());
     });
   }
 
@@ -370,12 +424,14 @@ export class SessionsPage implements OnInit {
       campuses: this.campuses(),
       courses: this.courses(),
       teachers: this.activeTeachers(),
+      students: this.students(),
       sessions: this.sessions(),
       classes: this.classes(),
       selectedCampusIds: this.selectedCampusIds(),
       selectedCourseIds: this.selectedCourseIds(),
       selectedTeacherIds: this.selectedTeacherIds(),
       selectedClassIds: this.selectedClassIds(),
+      selectedStudentIds: this.selectedStudentIds(),
       selectedStatuses: this.selectedStatuses(),
     };
     const ref = this.dialogService.open(MobileFilterDialogComponent, {
@@ -394,8 +450,9 @@ export class SessionsPage implements OnInit {
         this.selectedCourseIds.set(result.courseIds);
         this.selectedTeacherIds.set(result.teacherIds);
         this.selectedClassIds.set(result.classIds);
+        this.selectedStudentIds.set(result.studentIds);
         this.selectedStatuses.set(result.statuses);
-        this.loadSessions();
+        this.refreshStudentEnrolledClassIds(result.studentIds, () => this.loadSessions());
       }
     });
   }
@@ -481,13 +538,13 @@ export class SessionsPage implements OnInit {
   }
 
   // ── Filters ────────────────────────────────────────────────────────────
-  protected onCampusIdsChange(ids: string[]): void {
+  protected onCampusIdChange(id: string | null): void {
     this.currentPage.set(1);
-    this.selectedCampusIds.set(ids);
+    this.selectedCampusIds.set(id ? [id] : []);
     this.selectedCourseIds.set([]);
     this.selectedTeacherIds.set([]);
     this.selectedClassIds.set([]);
-    this.loadSessions();
+    this.refreshStudentEnrolledClassIds(this.selectedStudentIds(), () => this.loadSessions());
   }
 
   protected onCourseIdsChange(ids: string[]): void {
@@ -527,13 +584,27 @@ export class SessionsPage implements OnInit {
 
   protected onFilterUnassigned(): void {
     this.currentPage.set(1);
-    this.listDateRange.set([]);
+    const now = new Date();
+    this.listDateRange.set([startOfMonth(now), endOfMonth(now)]);
     this.listDateRangeModified.set(false);
-    this.selectedCampusIds.set([]);
     this.selectedCourseIds.set([]);
     this.selectedClassIds.set([]);
+    this.selectedStudentIds.set([]);
     this.selectedStatuses.set(['scheduled']);
     this.selectedTeacherIds.set(['__unassigned__']);
+    this.loadSessions();
+  }
+
+  protected onFilterPendingAttendance(): void {
+    this.currentPage.set(1);
+    const today = new Date();
+    this.listDateRange.set([today, today]);
+    this.listDateRangeModified.set(true);
+    this.selectedCourseIds.set([]);
+    this.selectedClassIds.set([]);
+    this.selectedStudentIds.set([]);
+    this.selectedTeacherIds.set([]);
+    this.selectedStatuses.set(['scheduled', 'completed']);
     this.loadSessions();
   }
 
@@ -542,6 +613,9 @@ export class SessionsPage implements OnInit {
     this.selectedCourseIds.set([]);
     this.selectedTeacherIds.set([]);
     this.selectedClassIds.set([]);
+    this.selectedStudentIds.set([]);
+    this.studentEnrolledClassIds.set(new Set());
+    this.studentFilteredEnrollments.set([]);
     this.selectedStatuses.set([...DEFAULT_STATUSES]);
     this.loadSessions();
   }
@@ -554,6 +628,37 @@ export class SessionsPage implements OnInit {
       data: { session, loadingChanges: true, changes: [] },
       styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
+    });
+  }
+
+  protected openAttendance(session: Session): void {
+    const ref = this.dialogService.open(SessionAttendanceDialogComponent, {
+      header: '管理出勤狀況',
+      width: '480px',
+      closable: true,
+      data: { session },
+      styleClass: 'session-dialog',
+      appendTo: this.overlayContainer ?? 'body',
+    });
+
+    ref?.onClose.subscribe((result?: AttendanceDialogCloseResult) => {
+      if (!result) {
+        return;
+      }
+
+      this.sessions.update((sessions) =>
+        sessions.map((item) =>
+          item.id === session.id
+            ? {
+                ...item,
+                attendanceTakenAt: result.takenAt,
+                attendancePresentCount: result.presentCount,
+                attendanceAbsentCount: result.absentCount,
+                attendanceOnLeaveCount: result.onLeaveCount,
+              }
+            : item,
+        ),
+      );
     });
   }
 
@@ -609,36 +714,109 @@ export class SessionsPage implements OnInit {
     });
   }
 
+  private loadStudents(): void {
+    this.studentsService.list({ isActive: true, page: 1, pageSize: 100 }).subscribe({
+      next: (firstPage) => {
+        const totalPages = firstPage.meta.totalPages ?? 1;
+        if (totalPages <= 1) {
+          this.students.set(firstPage.data);
+          return;
+        }
+
+        forkJoin(
+          Array.from({ length: totalPages - 1 }, (_, index) =>
+            this.studentsService.list({
+              isActive: true,
+              page: index + 2,
+              pageSize: 100,
+            }),
+          ),
+        ).subscribe({
+          next: (otherPages) => {
+            this.students.set([firstPage.data, ...otherPages.map((page) => page.data)].flat());
+          },
+          error: () => {
+            this.students.set(firstPage.data);
+          },
+        });
+      },
+      error: () => {
+        this.students.set([]);
+      },
+    });
+  }
+
   private loadSessions(): void {
     const range = this.listDateRange();
     const rawIds = this.selectedTeacherIds();
     const realTeacherIds = rawIds.filter((id) => id !== '__unassigned__');
     const hasUnassigned = rawIds.includes('__unassigned__');
+    const dateFrom = range[0] ? format(range[0], 'yyyy-MM-dd') : undefined;
+    const dateTo = range[1]
+      ? format(range[1], 'yyyy-MM-dd')
+      : range[0]
+        ? format(range[0], 'yyyy-MM-dd')
+        : undefined;
+
+    // When student filter is active, restrict API query to that student's enrolled classes.
+    // Without this, pagination means only a fraction of matching sessions would be visible.
+    let effectiveClassIds: string[] | undefined;
+    if (this.selectedStudentIds().length > 0) {
+      const studentClassIds = [...this.studentEnrolledClassIds()];
+      if (studentClassIds.length === 0) {
+        // Student has no matching enrollments — nothing to show
+        this.sessions.set([]);
+        this.totalSessions.set(0);
+        this.loading.set(false);
+        return;
+      }
+      const explicitClassIds = this.selectedClassIds();
+      if (explicitClassIds.length > 0) {
+        const studentSet = new Set(studentClassIds);
+        effectiveClassIds = explicitClassIds.filter((id) => studentSet.has(id));
+        if (effectiveClassIds.length === 0) {
+          this.sessions.set([]);
+          this.totalSessions.set(0);
+          this.loading.set(false);
+          return;
+        }
+      } else {
+        effectiveClassIds = studentClassIds;
+      }
+    } else {
+      effectiveClassIds = this.selectedClassIds().length > 0 ? this.selectedClassIds() : undefined;
+    }
 
     this.loading.set(true);
     this.sessionsService
       .list({
-        from: range[0] ? format(range[0], 'yyyy-MM-dd') : undefined,
-        to: range[1]
-          ? format(range[1], 'yyyy-MM-dd')
-          : range[0]
-            ? format(range[0], 'yyyy-MM-dd')
-            : undefined,
+        from: dateFrom,
+        to: dateTo,
         campusIds: this.selectedCampusIds().length > 0 ? this.selectedCampusIds() : undefined,
         courseIds: this.selectedCourseIds().length > 0 ? this.selectedCourseIds() : undefined,
         teacherIds: realTeacherIds.length > 0 ? realTeacherIds : undefined,
-        classIds: this.selectedClassIds().length > 0 ? this.selectedClassIds() : undefined,
+        classIds: effectiveClassIds,
         assignmentStatus: hasUnassigned ? 'unassigned' : undefined,
         statuses: this.selectedStatuses().length > 0 ? this.selectedStatuses() : undefined,
         page: this.currentPage(),
         pageSize: this.PAGE_SIZE,
       })
+      .pipe(
+        switchMap((res) =>
+          this.loadAttendanceSummaries(res.data, dateFrom, dateTo).pipe(
+            map((summaries) => ({
+              res,
+              sessions: this.mergeAttendanceSummaries(res.data, summaries),
+            })),
+          ),
+        ),
+      )
       .subscribe({
-        next: (res) => {
-          this.sessions.set(res.data);
+        next: ({ res, sessions }) => {
+          this.sessions.set(sessions);
           this.totalSessions.set(res.meta.total);
-          this.unassignedCount.set(res.meta.unassignedCount);
-          this.filteredUnassignedCount.set(res.meta.filteredUnassignedCount);
+          this.monthUnassignedCount.set(res.meta.monthUnassignedCount);
+          this.todayPendingAttendanceCount.set(res.meta.todayPendingAttendanceCount);
           this.loading.set(false);
         },
         error: () => {
@@ -651,4 +829,151 @@ export class SessionsPage implements OnInit {
         },
       });
   }
+
+  private loadAttendanceSummaries(
+    sessions: readonly Session[],
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
+    if (sessions.length === 0) {
+      return of([] as EventSessionSummary[]);
+    }
+
+    const classIds = [...new Set(sessions.map((session) => session.classId))];
+    const dates = sessions.map((session) => session.sessionDate).sort();
+
+    return this.attendanceService
+      .sessions({
+        classIds,
+        dateFrom: dateFrom ?? dates[0],
+        dateTo: dateTo ?? dates.at(-1),
+        page: 1,
+        pageSize: 100,
+      })
+      .pipe(
+        map((response) => response.data),
+        catchError(() => of([] as EventSessionSummary[])),
+      );
+  }
+
+  private mergeAttendanceSummaries(
+    sessions: readonly Session[],
+    summaries: readonly EventSessionSummary[],
+  ): Session[] {
+    const summaryMap = new Map(
+      summaries.map((summary) => [this.getAttendanceSummaryKey(summary), summary]),
+    );
+
+    return sessions.map((session) => {
+      const summary = summaryMap.get(this.getAttendanceSummaryKey(session));
+      if (!summary) {
+        return session;
+      }
+
+      return {
+        ...session,
+        attendanceTakenAt: summary.takenAt,
+        attendanceEnrolledCount: summary.enrolledCount,
+        attendancePresentCount: summary.presentCount,
+        attendanceOnLeaveCount: summary.onLeaveCount,
+        attendanceAbsentCount: summary.absentCount,
+      };
+    });
+  }
+
+  private getAttendanceSummaryKey(
+    value:
+      | Pick<Session, 'classId' | 'sessionDate' | 'startTime' | 'endTime'>
+      | Pick<EventSessionSummary, 'classId' | 'eventDate' | 'startTime' | 'endTime'>,
+  ): string {
+    const date = 'sessionDate' in value ? value.sessionDate : value.eventDate;
+    return [value.classId, date, value.startTime ?? '', value.endTime ?? ''].join('|');
+  }
+
+  private refreshStudentEnrolledClassIds(studentIds: string[], onComplete?: () => void): void {
+    if (studentIds.length === 0) {
+      this.studentEnrolledClassIds.set(new Set());
+      this.studentFilteredEnrollments.set([]);
+      onComplete?.();
+      return;
+    }
+
+    forkJoin(studentIds.map((studentId) => this.loadAllStudentEnrollments(studentId))).subscribe({
+      next: (results) => {
+        const enrollments = results
+          .flat()
+          .filter((item) => isAttendanceStudentEnrollmentStatus(item.status));
+        const campusIds = this.selectedCampusIds();
+        const classIds = new Set(
+          enrollments
+            .filter(
+              (item) =>
+                campusIds.length === 0 || !item.campusId || campusIds.includes(item.campusId),
+            )
+            .map((item) => item.classId),
+        );
+        this.studentFilteredEnrollments.set(enrollments);
+        this.studentEnrolledClassIds.set(classIds);
+        onComplete?.();
+      },
+      error: () => {
+        this.studentFilteredEnrollments.set([]);
+        this.studentEnrolledClassIds.set(new Set());
+        onComplete?.();
+      },
+    });
+  }
+
+  private loadAllStudentEnrollments(studentId: string) {
+    return this.enrollmentsService.list({ studentId, page: 1, pageSize: 100 }).pipe(
+      switchMap((firstPage) => {
+        const totalPages = firstPage.meta.totalPages ?? 1;
+        if (totalPages <= 1) {
+          return of(firstPage.data);
+        }
+
+        return forkJoin(
+          Array.from({ length: totalPages - 1 }, (_, index) =>
+            this.enrollmentsService.list({
+              studentId,
+              page: index + 2,
+              pageSize: 100,
+            }),
+          ),
+        ).pipe(
+          map((otherPages) => [firstPage.data, ...otherPages.map((page) => page.data)].flat()),
+          catchError(() => of(firstPage.data)),
+        );
+      }),
+    );
+  }
+
+  private hasMatchingStudentEnrollment(
+    session: Session,
+    enrollments: ReadonlyArray<Enrollment>,
+  ): boolean {
+    return enrollments.some((enrollment) => {
+      if (enrollment.classId !== session.classId) {
+        return false;
+      }
+
+      if (enrollment.campusId && enrollment.campusId !== session.campusId) {
+        return false;
+      }
+
+      return isDateWithinRange(
+        session.sessionDate,
+        enrollment.effectiveFrom,
+        enrollment.effectiveTo,
+      );
+    });
+  }
+}
+
+function isDateWithinRange(date: string, start: string, end: string | null): boolean {
+  return date >= start && (end === null || date <= end);
+}
+
+function isAttendanceStudentEnrollmentStatus(status: Enrollment['status']): boolean {
+  return status === 'active' || status === 'suspended' || status === 'withdrawal';
 }

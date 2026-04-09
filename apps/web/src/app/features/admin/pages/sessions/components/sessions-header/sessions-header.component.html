@@ -1,14 +1,29 @@
 <section class="sessions-header">
   <div class="sessions-header__title-group">
     <h1 class="sessions-header__title">課堂管理</h1>
-    @if (unassignedCount() > 0) {
-      <button
-        type="button"
-        class="sessions-header__badge"
-        (click)="filterUnassigned.emit()"
-      >
-        {{ unassignedCount() }} 堂未指派
-      </button>
-    }
+    <div class="sessions-header__tag-group">
+      @if (monthUnassignedCount() > 0) {
+        <button type="button" class="sessions-header__badge" (click)="filterUnassigned.emit()">
+          @if (campusName()) {
+            此分校本月未指派 {{ monthUnassignedCount() }} 堂
+          } @else {
+            本月未指派 {{ monthUnassignedCount() }} 堂
+          }
+        </button>
+      }
+      @if (todayPendingAttendanceCount() > 0) {
+        <button
+          type="button"
+          class="sessions-header__badge sessions-header__badge--attendance"
+          (click)="filterPendingAttendance.emit()"
+        >
+          @if (campusName()) {
+            此分校今日未點名 {{ todayPendingAttendanceCount() }} 堂
+          } @else {
+            今日未點名 {{ todayPendingAttendanceCount() }} 堂
+          }
+        </button>
+      }
+    </div>
   </div>
 </section>

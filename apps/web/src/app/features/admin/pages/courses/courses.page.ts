@@ -19,7 +19,6 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { ToastModule } from 'primeng/toast';
 import { ButtonModule } from 'primeng/button';
 import { TabsModule } from 'primeng/tabs';
-import { MenuModule } from 'primeng/menu';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
@@ -55,6 +54,7 @@ import { BrowserStateService } from '@core/browser-state.service';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { CoursesFilterStateService } from './courses-filter-state.service';
@@ -73,7 +73,7 @@ interface CourseGroup {
     ToastModule,
     ButtonModule,
     TabsModule,
-    MenuModule,
+    PopupMenuComponent,
     IconFieldModule,
     InputIconModule,
     InputTextModule,
@@ -88,7 +88,6 @@ interface CourseGroup {
     TooltipModule,
     RouterModule,
     EmptyStateComponent,
-    ConfirmDialogComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './courses.page.html',
@@ -136,7 +135,7 @@ export class CoursesPage implements OnInit {
   protected readonly selectedClassIds = signal<Set<string>>(new Set());
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
-  protected readonly PAGE_SIZE = 20;
+  protected readonly PAGE_SIZE = 8;
 
   protected readonly selectedActiveCount = computed(
     () =>
@@ -280,6 +279,34 @@ export class CoursesPage implements OnInit {
       !!this.historicalDateTo(),
   );
 
+  // 需介入的課程數量（依分校範圍，不受其他篩選影響）
+  protected readonly interventionCount = computed(() => {
+    const campusId = this.selectedCampusId();
+    const activeCourses = this.courses().filter((c) => {
+      if (!c.isActive) return false;
+      if (campusId && c.campusId !== campusId) return false;
+      return true;
+    });
+    const activeClassesByCourse = new Map<string, Class[]>();
+    for (const cl of this.allClasses()) {
+      if (!cl.isActive) continue;
+      if (!activeClassesByCourse.has(cl.courseId)) activeClassesByCourse.set(cl.courseId, []);
+      activeClassesByCourse.get(cl.courseId)!.push(cl);
+    }
+    return activeCourses.filter((course) =>
+      this.hasCourseNeedsIntervention({
+        course,
+        classes: activeClassesByCourse.get(course.id) ?? [],
+      }),
+    ).length;
+  });
+
+  protected readonly selectedCampusName = computed(() => {
+    const id = this.selectedCampusId();
+    if (!id) return null;
+    return this.campuses().find((c) => c.id === id)?.name ?? null;
+  });
+
   // ---- Static options ----
   protected readonly gradeOptions = [
     { label: '小一', value: '小一' },
@@ -396,7 +423,10 @@ export class CoursesPage implements OnInit {
         search: this.searchQuery() || undefined,
         campusId: this.selectedCampusId() || undefined,
         subjectId: this.selectedSubjectId() || undefined,
-        isActive: this.statusFilter() === 'intervention' || this.statusFilter() === null ? true : (this.statusFilter() as boolean),
+        isActive:
+          this.statusFilter() === 'intervention' || this.statusFilter() === null
+            ? true
+            : (this.statusFilter() as boolean),
         page: this.statusFilter() === 'intervention' ? 1 : this.currentPage(),
         pageSize: this.statusFilter() === 'intervention' ? 0 : this.PAGE_SIZE,
       })
@@ -479,7 +509,6 @@ export class CoursesPage implements OnInit {
   // Expand/Collapse
   // ================================================================
 
-
   openAuditLog(): void {
     this.dialogService.open(AuditLogDialogComponent, {
       header: '課程管理操作紀錄',
@@ -493,7 +522,7 @@ export class CoursesPage implements OnInit {
     });
   }
 
-  protected openActionMenu(event: Event, cls: Class, menu: any): void {
+  protected openActionMenu(event: Event, cls: Class, menu: PopupMenuComponent): void {
     const course = this.courses().find((item) => item.id === cls.courseId);
     const canGenerateSessions =
       Boolean(cls.scheduleCount) && cls.isActive && (course?.isActive ?? true);
@@ -542,6 +571,12 @@ export class CoursesPage implements OnInit {
       },
     ]);
     menu.toggle(event);
+  }
+
+  protected onFilterIntervention(): void {
+    this.statusFilter.set('intervention');
+    this.currentPage.set(1);
+    this.loadCourses();
   }
 
   protected onCampusTabChange(value: string | number | null | undefined): void {
@@ -1192,7 +1227,8 @@ export class CoursesPage implements OnInit {
   protected getScheduleSummary(schedules: Schedule[] | undefined): string {
     if (!schedules || schedules.length === 0) return '';
     const items = schedules.map(
-      (s) => `${this.getWeekdayLabel(s.weekday)} ${s.startTime.substring(0, 5)}–${s.endTime.substring(0, 5)}`,
+      (s) =>
+        `${this.getWeekdayLabel(s.weekday)} ${s.startTime.substring(0, 5)}–${s.endTime.substring(0, 5)}`,
     );
 
     const maxVisible = this.isMobile() ? 1 : 2;

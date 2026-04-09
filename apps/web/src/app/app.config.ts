@@ -1,3 +1,5 @@
+import { registerLocaleData } from '@angular/common';
+import localeZhTW from '@angular/common/locales/zh-Hant';
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter, withComponentInputBinding, withViewTransitions } from '@angular/router';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
@@ -11,6 +13,8 @@ import { authInterceptor } from '@core/auth.interceptor';
 import { provideSystemClock } from '@core/system-clock.providers';
 
 import { DialogService } from 'primeng/dynamicdialog';
+
+registerLocaleData(localeZhTW, 'zh-TW');
 
 // Clessia Design System - PrimeNG Theme Preset
 // Based on Aura with zinc primary + sky accent

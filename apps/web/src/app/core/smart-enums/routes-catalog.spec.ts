@@ -8,6 +8,7 @@ describe('RoutesCatalog', () => {
 
   it('should place attendance under academic affairs before student affairs routes', () => {
     expect(RoutesCatalog.ADMIN_ATTENDANCE.group).toBe('課務管理');
+    expect(RoutesCatalog.ADMIN_ATTENDANCE.showInMenu).toBe(false);
 
     const attendanceIndex = RoutesCatalog.values.indexOf(RoutesCatalog.ADMIN_ATTENDANCE);
     const studentsIndex = RoutesCatalog.values.indexOf(RoutesCatalog.ADMIN_STUDENTS);

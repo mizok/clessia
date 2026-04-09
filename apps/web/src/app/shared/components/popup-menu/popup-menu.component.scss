@@ -1,0 +1,76 @@
+// PopupMenu 使用 CDK Overlay portal 到 body 之外，
+// 因此 component 設為 ViewEncapsulation.None，
+// 以下 class 直接使用 BEM，對應的 overlay panel 也會掛上 .popup-menu__panel
+.popup-menu {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  background: var(--p-menu-background, #ffffff);
+  border: 1px solid var(--p-menu-border-color, var(--p-surface-200, #e4e4e7));
+  border-radius: var(--p-menu-border-radius, 0.5rem);
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.08),
+    0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  min-width: 12rem;
+  color: var(--p-menu-color, var(--p-text-color, #27272a));
+  font-size: 0.875rem;
+
+  &__item-wrapper {
+    display: block;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    transition: background-color 0.15s ease;
+
+    &:hover:not(:disabled) {
+      background: var(--p-menu-item-focus-background, var(--p-surface-100, #f4f4f5));
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--p-focus-ring-color, var(--p-primary-color, #0ea5e9));
+      outline-offset: -2px;
+    }
+
+    &--disabled,
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    font-size: 0.875rem;
+    width: 1rem;
+    display: inline-flex;
+    justify-content: center;
+  }
+
+  &__label {
+    flex: 1;
+    white-space: nowrap;
+  }
+
+  &__separator {
+    height: 1px;
+    margin: 0.25rem 0;
+    background: var(--p-menu-separator-border-color, var(--p-surface-200, #e4e4e7));
+  }
+}
+
+// CDK overlay panel wrapper
+.popup-menu__panel {
+  // 讓 overlay 不會被 parent stacking context 蓋住
+  pointer-events: auto;
+}

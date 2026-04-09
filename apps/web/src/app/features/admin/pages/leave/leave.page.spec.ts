@@ -1,10 +1,12 @@
 import { of } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { ConfirmEventType, ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
+import type { Campus } from '@core/campuses.service';
 import type { LeaveRequest } from '@core/leave.service';
 import { LeaveService } from '@core/leave.service';
-import { CampusesService } from '@core/campuses.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { LeavePage } from './leave.page';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 
@@ -18,8 +20,9 @@ describe('LeavePage', () => {
     ),
     delete: vi.fn(() => of(void 0)),
   };
-  const campusesServiceMock = {
-    list: vi.fn(() => of({ data: [] })),
+  const referenceDataServiceMock = {
+    campuses: signal<Campus[]>([]),
+    loadCampuses: vi.fn(),
   };
   const confirmationService = new ConfirmationService();
   const messageService = new MessageService();
@@ -49,7 +52,7 @@ describe('LeavePage', () => {
     vi.useFakeTimers();
     leaveServiceMock.list.mockClear();
     leaveServiceMock.delete.mockClear();
-    campusesServiceMock.list.mockClear();
+    referenceDataServiceMock.loadCampuses.mockClear();
     vi.restoreAllMocks();
     dialogServiceMock.open.mockClear();
 
@@ -57,7 +60,7 @@ describe('LeavePage', () => {
       imports: [LeavePage],
       providers: [
         { provide: LeaveService, useValue: leaveServiceMock },
-        { provide: CampusesService, useValue: campusesServiceMock },
+        { provide: ReferenceDataService, useValue: referenceDataServiceMock },
       ],
     })
       .overrideComponent(LeavePage, {

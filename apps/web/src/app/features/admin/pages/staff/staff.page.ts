@@ -4,8 +4,6 @@ import { FormsModule } from '@angular/forms';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
-import { MenuModule } from 'primeng/menu';
-import { Menu } from 'primeng/menu';
 import { SelectModule } from 'primeng/select';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
@@ -45,6 +43,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 
@@ -91,8 +90,7 @@ const ROLE_OPTIONS: RoleOption[] = [
     InputIconModule,
     InputTextModule,
     EmptyStateComponent,
-    ConfirmDialogComponent,
-    MenuModule,
+    PopupMenuComponent,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,
@@ -143,7 +141,7 @@ export class StaffPage implements OnInit {
     inactiveCount: 0,
     archivedCount: 0,
   });
-  protected readonly PAGE_SIZE = 20;
+  protected readonly PAGE_SIZE = 8;
 
   // Computed
   readonly adminCount = computed(() => this.summary().adminCount);
@@ -157,7 +155,7 @@ export class StaffPage implements OnInit {
   }));
 
   // Action menu
-  protected readonly actionMenu = viewChild.required<Menu>('actionMenu');
+  protected readonly actionMenu = viewChild.required<PopupMenuComponent>('actionMenu');
   protected readonly selectedStaff = signal<Staff | null>(null);
   protected readonly actionMenuItems = computed<MenuItem[]>(() => {
     const staff = this.selectedStaff();
@@ -167,12 +165,24 @@ export class StaffPage implements OnInit {
       { separator: true },
     ];
     if (staff.status === 'inactive') {
-      items.push({ label: '重新啟用', icon: 'pi pi-unlock', command: () => this.confirmDeactivate(staff) });
+      items.push({
+        label: '重新啟用',
+        icon: 'pi pi-unlock',
+        command: () => this.confirmDeactivate(staff),
+      });
     } else if (staff.status === 'active') {
-      items.push({ label: '停用帳號', icon: 'pi pi-lock', command: () => this.confirmDeactivate(staff) });
+      items.push({
+        label: '停用帳號',
+        icon: 'pi pi-lock',
+        command: () => this.confirmDeactivate(staff),
+      });
     }
     if (staff.status !== 'archived') {
-      items.push({ label: '封存帳號', icon: 'pi pi-box', command: () => this.confirmArchive(staff) });
+      items.push({
+        label: '封存帳號',
+        icon: 'pi pi-box',
+        command: () => this.confirmArchive(staff),
+      });
     }
     return items;
   });

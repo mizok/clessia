@@ -105,7 +105,7 @@
           />
         }
       } @else {
-        <p-menu #actionMenu [popup]="true" [model]="actionMenuItems()" appendTo="body" />
+        <app-popup-menu #actionMenu [model]="actionMenuItems()" />
 
         <app-responsive-table
           [headTemplate]="headTpl"
@@ -136,7 +136,7 @@
                   <span class="student-table__avatar" [style.--h]="getPersonHue(student.id)">{{ student.name[0] }}</span>
                   <div class="student-table__name-info">
                     <span class="student-table__name">{{ student.name }}</span>
-                    @if ((student.campusNames?.length ?? 0) > 0) {
+                    @if (student.campusNames.length > 0) {
                       <span class="student-table__campuses">{{ student.campusNames.join('・') }}</span>
                     }
                   </div>
@@ -153,7 +153,7 @@
                 }
               </td>
               <td appRtColCell="parents">
-                @if ((student.parentNames?.length ?? 0) > 0) {
+                @if (student.parentNames.length > 0) {
                   <span class="student-table__parents">{{ student.parentNames.join('、') }}</span>
                 } @else {
                   <span class="student-table__empty">無關聯家長</span>

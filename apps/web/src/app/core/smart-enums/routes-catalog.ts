@@ -145,7 +145,7 @@ export class RoutesCatalog {
     '課堂出勤紀錄',
     UserType.ADMIN,
     'pi-check-circle',
-    true,
+    false,
     '課務管理',
   );
 

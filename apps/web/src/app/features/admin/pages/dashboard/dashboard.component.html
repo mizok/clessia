@@ -1,4 +1,117 @@
-<div class="p-4">
-  <h2 class="text-2xl font-bold mb-4">{{ page().label }}</h2>
-  <p class="text-zinc-500">Dashboard content coming soon...</p>
+<div class="dashboard">
+  <header class="dashboard__header">
+    <div>
+      <h1 class="dashboard__title">{{ page().label }}</h1>
+      <p class="dashboard__date">{{ today | date:'yyyy/MM/dd' }}</p>
+    </div>
+  </header>
+
+  <div class="dashboard__stats">
+    @for (card of statCards; track card.label) {
+      <div
+        class="dashboard__stat-card"
+        [class.dashboard__stat-card--accent]="card.accent"
+        [class.dashboard__stat-card--clickable]="!!card.routerLink"
+        [routerLink]="card.routerLink ?? null"
+      >
+        <div class="dashboard__stat-icon">
+          <i class="pi {{ card.icon }}"></i>
+        </div>
+        <div class="dashboard__stat-body">
+          <p class="dashboard__stat-value">{{ card.value }}</p>
+          <p class="dashboard__stat-label">{{ card.label }}</p>
+          @if (card.sub) {
+            <p class="dashboard__stat-sub">{{ card.sub }}</p>
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  <section class="dashboard__section">
+    <div class="dashboard__section-header">
+      <h2 class="dashboard__section-title">今日課表</h2>
+      <a class="dashboard__section-link" [routerLink]="['/admin/sessions']">查看全部 →</a>
+    </div>
+
+    @if (todaySessions.length === 0) {
+      <div class="dashboard__empty">
+        <i class="pi pi-calendar dashboard__empty-icon"></i>
+        <p>今日尚無排課</p>
+      </div>
+    } @else {
+      <ul class="dashboard__session-list">
+        @for (session of todaySessions; track session.time) {
+          <li class="dashboard__session-item">
+            <span class="dashboard__session-time">{{ session.time }}</span>
+            <span class="dashboard__session-class">{{ session.className }}</span>
+            <span class="dashboard__session-teacher">{{ session.teacher }}</span>
+            <span class="dashboard__session-room">{{ session.room }}</span>
+            <p-tag
+              [value]="session.statusLabel"
+              [severity]="getSessionSeverity(session.status)"
+            />
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  <div class="dashboard__pending">
+    <section class="dashboard__pending-card">
+      <div class="dashboard__section-header">
+        <h2 class="dashboard__section-title">待確認請假</h2>
+        <a class="dashboard__section-link" [routerLink]="['/admin/leave']">前往管理 →</a>
+      </div>
+
+      @if (pendingLeaves.length === 0) {
+        <p class="dashboard__pending-empty">目前無待確認請假</p>
+      } @else {
+        <ul class="dashboard__pending-list">
+          @for (item of pendingLeaves; track item.studentName) {
+            <li class="dashboard__pending-item">
+              <span>{{ item.studentName }}</span>
+              <span class="dashboard__pending-class">{{ item.className }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <section class="dashboard__pending-card">
+      <div class="dashboard__section-header">
+        <h2 class="dashboard__section-title">待審核報名</h2>
+        <a class="dashboard__section-link" [routerLink]="['/admin/parents']">前往管理 →</a>
+      </div>
+
+      @if (pendingEnrollments.length === 0) {
+        <p class="dashboard__pending-empty">目前無待審核報名</p>
+      } @else {
+        <ul class="dashboard__pending-list">
+          @for (item of pendingEnrollments; track item.studentName) {
+            <li class="dashboard__pending-item">
+              <span>{{ item.studentName }}</span>
+              <span class="dashboard__pending-class">{{ item.className }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  </div>
+
+  <section class="dashboard__section dashboard__section--overview">
+    <h2 class="dashboard__section-title">管理概覽</h2>
+    <div class="dashboard__charts">
+      <div class="dashboard__chart-placeholder">
+        <i class="pi pi-chart-bar dashboard__chart-icon"></i>
+        <p>各班出席率</p>
+        <p class="dashboard__chart-note">資料串接中</p>
+      </div>
+      <div class="dashboard__chart-placeholder">
+        <i class="pi pi-chart-line dashboard__chart-icon"></i>
+        <p>學生人數趨勢</p>
+        <p class="dashboard__chart-note">資料串接中</p>
+      </div>
+    </div>
+  </section>
 </div>

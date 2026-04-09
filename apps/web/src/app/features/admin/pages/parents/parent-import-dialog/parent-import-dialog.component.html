@@ -148,7 +148,7 @@
             @for (r of result.results; track r.rowIndex) {
               @if (r.status === 'failed') {
                 <div class="pid__error-item">
-                  <span class="pid__error-row">第 {{ submittedIndexes()[r.rowIndex] ?? (r.rowIndex + 1) }} 筆</span>
+                  <span class="pid__error-row">第 {{ submittedIndexes()[r.rowIndex] }} 筆</span>
                   <span class="pid__error-msg">{{ r.error }}</span>
                 </div>
               }

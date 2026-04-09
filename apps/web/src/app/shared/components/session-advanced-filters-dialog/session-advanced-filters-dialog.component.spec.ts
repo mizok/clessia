@@ -122,16 +122,16 @@ describe('SessionAdvancedFiltersDialogComponent', () => {
     expect(studentMultiSelect?.filterBy).toBe('name,school');
   });
 
-  it('shows teacher/status filters in sessions mode and hides student filter', () => {
+  it('shows teacher/status filters in sessions mode and keeps student filter available', () => {
     dialogData = buildDialogData({ mode: 'sessions' });
 
     createComponent();
 
     const text = fixture.nativeElement.textContent as string;
 
+    expect(text).toContain('學生');
     expect(text).toContain('老師');
     expect(text).toContain('課堂狀態');
-    expect(text).not.toContain('學生');
   });
 
 });

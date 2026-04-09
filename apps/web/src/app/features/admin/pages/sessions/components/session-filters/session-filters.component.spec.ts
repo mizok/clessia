@@ -26,7 +26,7 @@ describe('SessionFiltersComponent', () => {
       buildCampus({ id: 'campus-1', name: '中正分校' }),
       buildCampus({ id: 'campus-2', name: '大安分校' }),
     ]);
-    fixture.componentRef.setInput('selectedCampusIds', ['campus-1']);
+    fixture.componentRef.setInput('selectedCampusId', 'campus-1');
     fixture.componentRef.setInput('activeFilterCount', 3);
     fixture.componentRef.setInput('hasActiveFilters', true);
     fixture.detectChanges();
@@ -59,23 +59,19 @@ describe('SessionFiltersComponent', () => {
     expect(openCount).toBe(1);
   });
 
-  it('emits normalized campus ids from multi-select values', () => {
-    let emitted: string[] = [];
-    component.campusIdsChange.subscribe((value: string[]) => {
+  it('emits campus id from single-select', () => {
+    let emitted: string | null = null;
+    component.campusIdChange.subscribe((value: string | null) => {
       emitted = value;
     });
 
     (
       component as unknown as {
-        onCampusMultiChange: (values: readonly (string | Campus)[]) => void;
+        onCampusChange: (id: string | null) => void;
       }
-    ).onCampusMultiChange([
-      'campus-1',
-      buildCampus({ id: 'campus-2', name: '大安分校' }),
-      buildCampus({ id: 'campus-1', name: '中正分校' }),
-    ]);
+    ).onCampusChange('campus-1');
 
-    expect(emitted).toEqual(['campus-1', 'campus-2']);
+    expect(emitted).toBe('campus-1');
   });
 });
 

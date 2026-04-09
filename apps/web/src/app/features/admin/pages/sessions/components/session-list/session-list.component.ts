@@ -115,13 +115,54 @@ export class SessionListComponent {
   protected sessionStatusLabel(session: Session): string {
     if (session.status === 'cancelled') return '已停課';
     if (session.status === 'completed') return '已完成';
-    return '已排課';
+    return '正常';
   }
 
   protected sessionStatusSeverity(session: Session): 'info' | 'secondary' | 'success' {
     if (session.status === 'cancelled') return 'secondary';
     if (session.status === 'completed') return 'success';
     return 'info';
+  }
+
+  private isFutureSession(session: Session): boolean {
+    return session.sessionDate > new Date().toISOString().slice(0, 10);
+  }
+
+  protected attendanceStatusLabel(session: Session): string {
+    if (session.status === 'cancelled') return '不適用';
+    if (this.isFutureSession(session)) return '未開放點名';
+    if (session.attendanceTakenAt) return '已點名';
+
+    const enrolledCount = session.attendanceEnrolledCount;
+    return typeof enrolledCount === 'number' && enrolledCount > 0
+      ? `未點名 ${enrolledCount} 人`
+      : '未點名';
+  }
+
+  protected attendanceStatusSeverity(
+    session: Session,
+  ): 'success' | 'info' | 'secondary' | 'warn' {
+    if (session.status === 'cancelled') return 'secondary';
+    if (this.isFutureSession(session)) return 'secondary';
+    if (session.attendanceTakenAt) return 'success';
+    if (session.status === 'completed') return 'warn';
+    return 'info';
+  }
+
+  protected attendanceStatusSummary(session: Session): string {
+    if (session.status === 'cancelled') return '';
+    if (this.isFutureSession(session)) return '';
+    const presentCount = session.attendancePresentCount ?? 0;
+    const onLeaveCount = session.attendanceOnLeaveCount ?? 0;
+    const absentCount = session.attendanceAbsentCount ?? 0;
+    const hasRecordedStatuses = presentCount > 0 || onLeaveCount > 0 || absentCount > 0;
+
+    if (session.attendanceTakenAt || hasRecordedStatuses) {
+      return `到 ${presentCount} ・ 請 ${onLeaveCount} ・ 缺 ${absentCount}`;
+    }
+
+    const enrolledCount = session.attendanceEnrolledCount;
+    return typeof enrolledCount === 'number' && enrolledCount > 0 ? `${enrolledCount} 人待點名` : '';
   }
 
   private emitSelected(selected: ReadonlySet<string>): void {

@@ -19,15 +19,34 @@
 
     <ng-template #listHead>
       <tr>
-        <th appRtColDef="select" [appRtColDefMinWidth]="36" [appRtColDefPriority]="0" [appRtColDefCollapsible]="false" style="text-align: center">
-          <p-checkbox [binary]="true" [ngModel]="allPageSelected()" (ngModelChange)="toggleSelectAll()" />
+        <th
+          appRtColDef="select"
+          [appRtColDefMinWidth]="36"
+          [appRtColDefPriority]="0"
+          [appRtColDefCollapsible]="false"
+          style="text-align: center"
+        >
+          <p-checkbox
+            [binary]="true"
+            [ngModel]="allPageSelected()"
+            (ngModelChange)="toggleSelectAll()"
+          />
         </th>
-        <th appRtColDef="date" [appRtColDefMinWidth]="100" [appRtColDefPriority]="1">日期</th>
-        <th appRtColDef="time" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">時間</th>
-        <th appRtColDef="class" [appRtColDefMinWidth]="180" [appRtColDefPriority]="3">班級 / 課程 / 分校</th>
-        <th appRtColDef="teacher" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">老師</th>
-        <th appRtColDef="status" [appRtColDefMinWidth]="88" [appRtColDefPriority]="5">狀態</th>
-        <th appRtColDef="actions" [appRtColDefMinWidth]="48" [appRtColDefPriority]="0" [appRtColDefCollapsible]="false" aria-hidden="true"></th>
+        <th appRtColDef="class" [appRtColDefMinWidth]="200" [appRtColDefPriority]="1">
+          班級 / 課程 / 分校
+        </th>
+        <th appRtColDef="teacher" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">老師</th>
+        <th appRtColDef="attendance" [appRtColDefMinWidth]="140" [appRtColDefPriority]="3">
+          出勤狀態
+        </th>
+        <th appRtColDef="status" [appRtColDefMinWidth]="88" [appRtColDefPriority]="4">狀態</th>
+        <th
+          appRtColDef="actions"
+          [appRtColDefMinWidth]="48"
+          [appRtColDefPriority]="0"
+          [appRtColDefCollapsible]="false"
+          aria-hidden="true"
+        ></th>
       </tr>
     </ng-template>
 
@@ -41,15 +60,14 @@
               (ngModelChange)="toggleSelect(session.id)"
             />
           </td>
-          <td appRtColCell="date">
-            {{ session.sessionDate | date: 'MM/dd' }}
-            ({{ getDayLabel(session.sessionDate) }})
-          </td>
-          <td appRtColCell="time">{{ session.startTime }}–{{ session.endTime }}</td>
           <td appRtColCell="class">
             <div class="session-list__class">
               <span class="session-list__class-line">
                 {{ session.className }} · {{ session.courseName }} · {{ session.campusName }}
+              </span>
+              <span class="session-list__class-meta">
+                {{ session.sessionDate | date: 'MM/dd' }} ({{ getDayLabel(session.sessionDate) }})
+                · {{ session.startTime }}–{{ session.endTime }}
               </span>
             </div>
           </td>
@@ -60,8 +78,22 @@
               {{ session.teacherName }}
             }
           </td>
+          <td appRtColCell="attendance">
+            <div class="session-list__attendance">
+              <p-tag
+                [severity]="attendanceStatusSeverity(session)"
+                [value]="attendanceStatusLabel(session)"
+              />
+              @if (attendanceStatusSummary(session); as summary) {
+                <span class="session-list__attendance-summary">{{ summary }}</span>
+              }
+            </div>
+          </td>
           <td appRtColCell="status">
-            <p-tag [severity]="sessionStatusSeverity(session)" [value]="sessionStatusLabel(session)" />
+            <p-tag
+              [severity]="sessionStatusSeverity(session)"
+              [value]="sessionStatusLabel(session)"
+            />
           </td>
           <td class="responsive-table__cell" style="text-align: center">
             <button
@@ -78,7 +110,7 @@
         <tr>
           <td
             class="responsive-table__cell"
-            colspan="7"
+            colspan="6"
             style="text-align: center; padding: 2rem; color: var(--zinc-400)"
           >
             此期間沒有課堂

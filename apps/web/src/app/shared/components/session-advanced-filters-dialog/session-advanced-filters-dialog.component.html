@@ -41,9 +41,7 @@
         />
       </ng-template>
     </p-multiselect>
-    <span class="session-advanced-filters-dialog__hint">
-      先選課程，再縮小到可用班級；搜尋會限制在目前分校範圍。
-    </span>
+    <span class="session-advanced-filters-dialog__hint"> 搜尋範圍限在目前分校。 </span>
   </div>
 
   @if (showClassFilter()) {
@@ -84,7 +82,7 @@
     </div>
   }
 
-  @if (isAttendanceMode()) {
+  @if (students().length > 0) {
     <div class="session-advanced-filters-dialog__row">
       <label class="session-advanced-filters-dialog__label">學生</label>
       <p-multiselect
@@ -108,7 +106,18 @@
             (filterChange)="options.filter(buildMultiSelectFilterEvent($event))"
           />
         </ng-template>
+        <ng-template #item let-student>
+          <div class="session-advanced-filters-dialog__option">
+            <span class="session-advanced-filters-dialog__option-title">{{ student.name }}</span>
+            @if (getStudentOptionMeta(student); as meta) {
+              <span class="session-advanced-filters-dialog__option-meta">{{ meta }}</span>
+            }
+          </div>
+        </ng-template>
       </p-multiselect>
+      <span class="session-advanced-filters-dialog__hint">
+        只顯示所選學生目前有在籍的班級課堂。
+      </span>
     </div>
   }
 
@@ -134,7 +143,18 @@
             (filterChange)="teacherFilterQuery.set($event)"
           />
         </ng-template>
+        <ng-template #item let-teacher>
+          <div class="session-advanced-filters-dialog__option">
+            <span class="session-advanced-filters-dialog__option-title">{{
+              teacher.displayName
+            }}</span>
+            @if (getTeacherOptionMeta(teacher); as meta) {
+              <span class="session-advanced-filters-dialog__option-meta">{{ meta }}</span>
+            }
+          </div>
+        </ng-template>
       </p-multiselect>
+      <span class="session-advanced-filters-dialog__hint">{{ teacherScopeHint() }}</span>
     </div>
 
     <div class="session-advanced-filters-dialog__row">

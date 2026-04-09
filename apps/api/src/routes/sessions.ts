@@ -94,8 +94,8 @@ const SessionListResponseSchema = z
       page: z.number(),
       pageSize: z.number(),
       totalPages: z.number(),
-      unassignedCount: z.number(),
-      filteredUnassignedCount: z.number(),
+      monthUnassignedCount: z.number(),
+      todayPendingAttendanceCount: z.number(),
     }),
   })
   .openapi('SessionListResponse');
@@ -313,11 +313,21 @@ interface BatchSessionChangeInsertInput {
   readonly newEndTime?: string | null;
 }
 
-function mapSession(row: Record<string, unknown>, hasChanges: boolean) {
+function mapSession(
+  row: Record<string, unknown>,
+  hasChanges: boolean,
+  attendanceCountMap: Map<string, { present: number; onLeave: number; absent: number }>,
+  enrolledCountMap: Map<string, number>,
+) {
   const classRow = row['classes'] as Record<string, unknown> | null;
   const courseRow = classRow?.['courses'] as Record<string, unknown> | null;
   const campusRow = classRow?.['campuses'] as Record<string, unknown> | null;
   const teacherRow = row['staff'] as Record<string, unknown> | null;
+  const eventRow = row['events'] as Record<string, unknown> | null;
+
+  const eventId = row['event_id'] as string | null;
+  const classId = row['class_id'] as string;
+  const attendanceCounts = eventId ? attendanceCountMap.get(eventId) : undefined;
 
   return {
     id: row['id'] as string,
@@ -325,7 +335,7 @@ function mapSession(row: Record<string, unknown>, hasChanges: boolean) {
     startTime: toHHmm(row['start_time'] as string | null) ?? '',
     endTime: toHHmm(row['end_time'] as string | null) ?? '',
     status: row['status'] as 'scheduled' | 'completed' | 'cancelled',
-    classId: row['class_id'] as string,
+    classId,
     className: (classRow?.['name'] as string | undefined) ?? '',
     courseId: (courseRow?.['id'] as string | undefined) ?? '',
     courseName: (courseRow?.['name'] as string | undefined) ?? '',
@@ -335,6 +345,11 @@ function mapSession(row: Record<string, unknown>, hasChanges: boolean) {
     teacherName: (teacherRow?.['display_name'] as string | undefined) ?? null,
     assignmentStatus: (row['assignment_status'] as 'assigned' | 'unassigned' | null) ?? 'assigned',
     hasChanges,
+    attendanceTakenAt: (eventRow?.['attendance_taken_at'] as string | null) ?? null,
+    attendanceEnrolledCount: enrolledCountMap.get(classId) ?? 0,
+    attendancePresentCount: attendanceCounts?.present ?? 0,
+    attendanceOnLeaveCount: attendanceCounts?.onLeave ?? 0,
+    attendanceAbsentCount: attendanceCounts?.absent ?? 0,
   };
 }
 
@@ -568,13 +583,14 @@ app.openapi(listSessionsRoute, async (c) => {
     .select(
       `
       id, session_date, start_time, end_time, status, assignment_status,
-      class_id, teacher_id,
+      class_id, teacher_id, event_id,
       classes!inner (
         name,
         courses!inner ( id, name ),
         campuses!inner ( id, name )
       ),
-      staff ( display_name )
+      staff ( display_name ),
+      events!event_id ( attendance_taken_at )
     `,
       { count: 'exact' },
     )
@@ -638,56 +654,45 @@ app.openapi(listSessionsRoute, async (c) => {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
 
-  // Unassigned count — global org count, not affected by any filters
-  const { count: unassignedCount } = await supabase
+  // 本月未指派 / 今日未點名 — 受 campus filter 影響，但不受其他 filter 影響
+  const effectiveCampusIds = (() => {
+    if (campusIds) {
+      const ids = campusIds.split(',').filter(Boolean);
+      if (ids.length > 0) return ids;
+    }
+    if (campusId) return [campusId];
+    return null;
+  })();
+
+  const { monthStart, monthEnd } = getCurrentTaipeiMonthRange();
+  let monthUnassignedQuery = supabase
     .from('sessions')
-    .select('id', { count: 'exact', head: true })
+    .select('id, classes!inner(campus_id)', { count: 'exact', head: true })
     .eq('org_id', orgId)
     .eq('assignment_status', 'unassigned')
-    .eq('status', 'scheduled');
+    .eq('status', 'scheduled')
+    .gte('session_date', monthStart)
+    .lte('session_date', monthEnd);
+  if (effectiveCampusIds) {
+    monthUnassignedQuery = monthUnassignedQuery.in('classes.campus_id', effectiveCampusIds);
+  }
+  const { count: monthUnassignedCount } = await monthUnassignedQuery;
 
-  // Filtered unassigned count — 套用所有現行篩選條件（不含 pagination）
-  let filteredUnassignedQuery = supabase
+  const today = getCurrentTaipeiDateString();
+  let todayPendingQuery = supabase
     .from('sessions')
-    .select(
-      `id, classes!inner ( name, courses!inner ( id, name ), campuses!inner ( id, name ) )`,
-      { count: 'exact', head: true },
-    )
+    .select('id, classes!inner(campus_id), events!inner(attendance_taken_at)', {
+      count: 'exact',
+      head: true,
+    })
     .eq('org_id', orgId)
-    .eq('assignment_status', 'unassigned')
-    .eq('status', 'scheduled');
-
-  if (from) filteredUnassignedQuery = filteredUnassignedQuery.gte('session_date', from);
-  if (to) filteredUnassignedQuery = filteredUnassignedQuery.lte('session_date', to);
-
-  if (campusIds) {
-    const ids = campusIds.split(',').filter(Boolean);
-    if (ids.length > 0)
-      filteredUnassignedQuery = filteredUnassignedQuery.in('classes.campus_id', ids);
-  } else if (campusId) {
-    filteredUnassignedQuery = filteredUnassignedQuery.eq('classes.campus_id', campusId);
+    .eq('session_date', today)
+    .neq('status', 'cancelled')
+    .is('events.attendance_taken_at', null);
+  if (effectiveCampusIds) {
+    todayPendingQuery = todayPendingQuery.in('classes.campus_id', effectiveCampusIds);
   }
-  if (courseIds) {
-    const ids = courseIds.split(',').filter(Boolean);
-    if (ids.length > 0)
-      filteredUnassignedQuery = filteredUnassignedQuery.in('classes.course_id', ids);
-  } else if (courseId) {
-    filteredUnassignedQuery = filteredUnassignedQuery.eq('classes.course_id', courseId);
-  }
-  if (teacherIds) {
-    const ids = teacherIds.split(',').filter(Boolean);
-    if (ids.length > 0) filteredUnassignedQuery = filteredUnassignedQuery.in('teacher_id', ids);
-  } else if (teacherId) {
-    filteredUnassignedQuery = filteredUnassignedQuery.eq('teacher_id', teacherId);
-  }
-  if (classIds) {
-    const ids = classIds.split(',').filter(Boolean);
-    if (ids.length > 0) filteredUnassignedQuery = filteredUnassignedQuery.in('class_id', ids);
-  } else if (classId) {
-    filteredUnassignedQuery = filteredUnassignedQuery.eq('class_id', classId);
-  }
-
-  const { count: filteredUnassignedCount } = await filteredUnassignedQuery;
+  const { count: todayPendingAttendanceCount } = await todayPendingQuery;
 
   const rows = (data ?? []) as Record<string, unknown>[];
   const sessionIds = rows.map((row) => row['id'] as string);
@@ -708,16 +713,63 @@ app.openapi(listSessionsRoute, async (c) => {
     }
   }
 
+  // Batch-fetch attendance counts per event
+  const eventIds = rows
+    .map((row) => row['event_id'] as string | null)
+    .filter((id): id is string => Boolean(id));
+
+  const attendanceCountMap = new Map<string, { present: number; onLeave: number; absent: number }>();
+  if (eventIds.length > 0) {
+    const { data: attendanceRecords } = await supabase
+      .from('attendance_records')
+      .select('event_id, status')
+      .in('event_id', eventIds)
+      .eq('org_id', orgId);
+
+    for (const record of attendanceRecords ?? []) {
+      const eid = record.event_id as string;
+      const counts = attendanceCountMap.get(eid) ?? { present: 0, onLeave: 0, absent: 0 };
+      if (record.status === 'present') counts.present++;
+      else if (record.status === 'on_leave') counts.onLeave++;
+      else if (record.status === 'absent') counts.absent++;
+      attendanceCountMap.set(eid, counts);
+    }
+  }
+
+  // Batch-fetch active enrollment counts per class
+  const uniqueClassIds = [...new Set(rows.map((row) => row['class_id'] as string))];
+  const enrolledCountMap = new Map<string, number>();
+  if (uniqueClassIds.length > 0) {
+    const { data: enrollments } = await supabase
+      .from('enrollments')
+      .select('class_id')
+      .in('class_id', uniqueClassIds)
+      .eq('status', 'active')
+      .eq('org_id', orgId);
+
+    for (const enrollment of enrollments ?? []) {
+      const cid = enrollment.class_id as string;
+      enrolledCountMap.set(cid, (enrolledCountMap.get(cid) ?? 0) + 1);
+    }
+  }
+
   return c.json(
     {
-      data: rows.map((row) => mapSession(row, changedIds.has(row['id'] as string))),
+      data: rows.map((row) =>
+        mapSession(
+          row,
+          changedIds.has(row['id'] as string),
+          attendanceCountMap,
+          enrolledCountMap,
+        ),
+      ),
       meta: {
         total: count ?? 0,
         page: resolvedPage,
         pageSize: resolvedPageSize,
         totalPages: Math.ceil((count ?? 0) / resolvedPageSize),
-        unassignedCount: unassignedCount ?? 0,
-        filteredUnassignedCount: filteredUnassignedCount ?? 0,
+        monthUnassignedCount: monthUnassignedCount ?? 0,
+        todayPendingAttendanceCount: todayPendingAttendanceCount ?? 0,
       },
     },
     200,
@@ -2596,5 +2648,32 @@ app.openapi(batchUncancelRoute, async (c) => {
     200,
   );
 });
+
+function getCurrentTaipeiDateString(): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === 'year')?.value ?? '0000';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
+  const day = parts.find((part) => part.type === 'day')?.value ?? '01';
+
+  return `${year}-${month}-${day}`;
+}
+
+function getCurrentTaipeiMonthRange(): { monthStart: string; monthEnd: string } {
+  const today = getCurrentTaipeiDateString();
+  const [yearStr, monthStr] = today.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const monthStart = `${yearStr}-${monthStr}-01`;
+  // JavaScript Date: month 0-indexed, day 0 of next month = last day of current month
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const monthEnd = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+  return { monthStart, monthEnd };
+}
 
 export default app;

@@ -14,20 +14,21 @@
 
 ## 檔案清單
 
-| 動作 | 檔案 | 說明 |
-|------|------|------|
-| 修改 | `apps/api/src/routes/enrollments.ts` | 新增 batch 端點、修改 DELETE、GET 加 attendanceCount |
-| 修改 | `apps/web/src/app/core/enrollments.service.ts` | 加 attendanceCount 欄位、batchCreate() |
-| 修改 | `apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.ts` | 單選 → 兩步多選 wizard |
-| 修改 | `apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.html` | 兩步 UI |
-| 修改 | `apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.scss` | checkbox、review list、quota warning 樣式 |
-| 修改 | `apps/web/src/app/features/admin/pages/courses/class-detail/class-detail.page.ts` | 批次加入流程 + 移除/退班 action menu |
+| 動作 | 檔案                                                                                                                    | 說明                                                 |
+| ---- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 修改 | `apps/api/src/routes/enrollments.ts`                                                                                    | 新增 batch 端點、修改 DELETE、GET 加 attendanceCount |
+| 修改 | `apps/web/src/app/core/enrollments.service.ts`                                                                          | 加 attendanceCount 欄位、batchCreate()               |
+| 修改 | `apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.ts`   | 單選 → 兩步多選 wizard                               |
+| 修改 | `apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.html` | 兩步 UI                                              |
+| 修改 | `apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.scss` | checkbox、review list、quota warning 樣式            |
+| 修改 | `apps/web/src/app/features/admin/pages/courses/class-detail/class-detail.page.ts`                                       | 批次加入流程 + 移除/退班 action menu                 |
 
 ---
 
 ## Task 1：API — GET 加入 `attendanceCount`
 
 **Files:**
+
 - Modify: `apps/api/src/routes/enrollments.ts:14-100`
 
 ### 背景知識
@@ -57,9 +58,9 @@
 ```typescript
 // apps/api/src/routes/enrollments.ts 第 142 行
 // 將 select 字串從：
-'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, courses(id, name)), students(name), creator:ba_user!created_by(name)'
+'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, courses(id, name)), students(name), creator:ba_user!created_by(name)';
 // 改為：
-'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, courses(id, name)), students(name), creator:ba_user!created_by(name), attendances(count)'
+'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, courses(id, name)), students(name), creator:ba_user!created_by(name), attendances(count)';
 ```
 
 - [ ] **Step 4：寫單元測試驗證 `toEnrollmentResponse` 正確 mapping attendanceCount**
@@ -77,9 +78,17 @@ describe('toEnrollmentResponse', () => {
 
   it('maps attendances count to attendanceCount', () => {
     const row = {
-      id: 'e1', org_id: 'o1', class_id: 'c1', student_id: 's1',
-      status: 'active', payment_cycle: null, effective_from: '2026-01-01',
-      effective_to: null, notes: null, created_by: null, created_at: '2026-01-01T00:00:00Z',
+      id: 'e1',
+      org_id: 'o1',
+      class_id: 'c1',
+      student_id: 's1',
+      status: 'active',
+      payment_cycle: null,
+      effective_from: '2026-01-01',
+      effective_to: null,
+      notes: null,
+      created_by: null,
+      created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
       classes: { name: '測試班', courses: { id: 'co1', name: '數學' } },
       students: { name: '王小明' },
@@ -91,9 +100,17 @@ describe('toEnrollmentResponse', () => {
 
   it('defaults attendanceCount to 0 when attendances is empty', () => {
     const row = {
-      id: 'e2', org_id: 'o1', class_id: 'c1', student_id: 's2',
-      status: 'active', payment_cycle: null, effective_from: '2026-01-01',
-      effective_to: null, notes: null, created_by: null, created_at: '2026-01-01T00:00:00Z',
+      id: 'e2',
+      org_id: 'o1',
+      class_id: 'c1',
+      student_id: 's2',
+      status: 'active',
+      payment_cycle: null,
+      effective_from: '2026-01-01',
+      effective_to: null,
+      notes: null,
+      created_by: null,
+      created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
       classes: { name: '測試班', courses: { id: 'co1', name: '數學' } },
       students: { name: '李小華' },
@@ -125,6 +142,7 @@ git commit -m "feat(api): add attendanceCount to GET /api/enrollments response"
 ## Task 2：API — POST /api/enrollments/batch
 
 **Files:**
+
 - Modify: `apps/api/src/routes/enrollments.ts`（在 DELETE 之前加入新 route）
 
 ### 背景知識
@@ -171,10 +189,22 @@ app.openapi(
     tags: ['Enrollments'],
     request: { body: { content: { 'application/json': { schema: BatchCreateEnrollmentSchema } } } },
     responses: {
-      200: { content: { 'application/json': { schema: BatchCreateResultSchema } }, description: 'OK' },
-      400: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Bad Request (over_quota)' },
-      404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Class not found' },
-      500: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Internal Server Error' },
+      200: {
+        content: { 'application/json': { schema: BatchCreateResultSchema } },
+        description: 'OK',
+      },
+      400: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Bad Request (over_quota)',
+      },
+      404: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Class not found',
+      },
+      500: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Internal Server Error',
+      },
     },
   }),
   async (c) => {
@@ -246,7 +276,10 @@ app.openapi(
 describe('POST /api/enrollments/batch result mapping', () => {
   it('returns already_exists when supabase returns error code 23505', () => {
     // 模擬 DB unique violation 的回應
-    const supabaseError = { code: '23505', message: 'duplicate key value violates unique constraint' };
+    const supabaseError = {
+      code: '23505',
+      message: 'duplicate key value violates unique constraint',
+    };
     const resultStatus = supabaseError.code === '23505' ? 'already_exists' : 'error';
     expect(resultStatus).toBe('already_exists');
   });
@@ -287,6 +320,7 @@ git commit -m "feat(api): add POST /api/enrollments/batch endpoint"
 ## Task 3：API — 更新 DELETE（以出勤紀錄取代 status 檢查）
 
 **Files:**
+
 - Modify: `apps/api/src/routes/enrollments.ts:312-343`
 
 ### 背景知識
@@ -386,6 +420,7 @@ git commit -m "feat(api): update DELETE enrollment to check attendance count ins
 ## Task 4：Frontend Service — `attendanceCount` + `batchCreate()`
 
 **Files:**
+
 - Modify: `apps/web/src/app/core/enrollments.service.ts`
 
 - [ ] **Step 1：在 `Enrollment` interface 加入 `attendanceCount`**
@@ -393,7 +428,7 @@ git commit -m "feat(api): update DELETE enrollment to check attendance count ins
 ```typescript
 // apps/web/src/app/core/enrollments.service.ts
 // Enrollment interface 在 updatedAt 之後加：
-  attendanceCount: number;
+attendanceCount: number;
 ```
 
 - [ ] **Step 2：新增 `BatchCreateResult` 相關 interfaces**
@@ -443,6 +478,7 @@ git commit -m "feat(service): add attendanceCount to Enrollment interface and ba
 ## Task 5：Frontend — `StudentPickerDialog` 兩步 wizard
 
 **Files:**
+
 - Modify: `apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.ts`
 - Modify: `apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.html`
 - Modify: `apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.scss`
@@ -483,8 +519,14 @@ import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-n
   selector: 'app-student-picker-dialog',
   standalone: true,
   imports: [
-    FormsModule, ButtonModule, InputTextModule, SelectModule,
-    TagModule, SkeletonModule, IconFieldModule, InputIconModule,
+    FormsModule,
+    ButtonModule,
+    InputTextModule,
+    SelectModule,
+    TagModule,
+    SkeletonModule,
+    IconFieldModule,
+    InputIconModule,
     InlineNoticeComponent,
   ],
   templateUrl: './student-picker-dialog.component.html',
@@ -504,7 +546,7 @@ export class StudentPickerDialogComponent implements OnInit {
   protected readonly students = signal<Student[]>([]);
   protected readonly total = signal(0);
   protected readonly currentPage = signal(1);
-  protected readonly PAGE_SIZE = 20;
+  protected readonly PAGE_SIZE = 8;
 
   protected readonly searchQuery = signal('');
   protected selectedGrade: GradeLevel | null = null;
@@ -644,7 +686,9 @@ export class StudentPickerDialogComponent implements OnInit {
         error: (err) => {
           this.confirming.set(false);
           const code = err.error?.error;
-          this.confirmError.set(code === 'over_quota' ? '超過班級人數上限，請減少加入人數' : '加入失敗，請稍後再試');
+          this.confirmError.set(
+            code === 'over_quota' ? '超過班級人數上限，請減少加入人數' : '加入失敗，請稍後再試',
+          );
         },
       });
   }
@@ -660,145 +704,148 @@ export class StudentPickerDialogComponent implements OnInit {
 ```html
 <div class="student-picker">
   @if (step() === 'selecting') {
-    <!-- Step 1：搜尋與選擇 -->
-    <div class="student-picker__filters">
-      <p-iconfield class="student-picker__search">
-        <p-inputicon styleClass="pi pi-search" />
-        <input
-          type="text"
-          pInputText
-          placeholder="搜尋學生姓名"
-          (input)="onSearchChange($any($event.target).value)"
-          class="w-full"
-        />
-      </p-iconfield>
-      <div class="student-picker__filter-row">
-        <p-select
-          [options]="gradeOptions"
-          [ngModel]="selectedGrade"
-          (ngModelChange)="selectedGrade = $event; onFilterChange()"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="年級"
-          styleClass="w-full"
-        />
-        <p-select
-          [options]="genderOptions"
-          [ngModel]="selectedGender"
-          (ngModelChange)="selectedGender = $event; onFilterChange()"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="性別"
-          styleClass="w-full"
-        />
-        <p-select
-          [options]="isActiveOptions"
-          [ngModel]="selectedIsActive"
-          (ngModelChange)="selectedIsActive = $event; onFilterChange()"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="狀態"
-          styleClass="w-full"
-        />
+  <!-- Step 1：搜尋與選擇 -->
+  <div class="student-picker__filters">
+    <p-iconfield class="student-picker__search">
+      <p-inputicon styleClass="pi pi-search" />
+      <input
+        type="text"
+        pInputText
+        placeholder="搜尋學生姓名"
+        (input)="onSearchChange($any($event.target).value)"
+        class="w-full"
+      />
+    </p-iconfield>
+    <div class="student-picker__filter-row">
+      <p-select
+        [options]="gradeOptions"
+        [ngModel]="selectedGrade"
+        (ngModelChange)="selectedGrade = $event; onFilterChange()"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="年級"
+        styleClass="w-full"
+      />
+      <p-select
+        [options]="genderOptions"
+        [ngModel]="selectedGender"
+        (ngModelChange)="selectedGender = $event; onFilterChange()"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="性別"
+        styleClass="w-full"
+      />
+      <p-select
+        [options]="isActiveOptions"
+        [ngModel]="selectedIsActive"
+        (ngModelChange)="selectedIsActive = $event; onFilterChange()"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="狀態"
+        styleClass="w-full"
+      />
+    </div>
+  </div>
+
+  <div class="student-picker__list">
+    @if (loading()) { @for (i of [1,2,3,4,5]; track i) {
+    <div class="student-picker__skeleton">
+      <p-skeleton height="48px" />
+    </div>
+    } } @else if (filteredStudents().length === 0) {
+    <div class="student-picker__empty">
+      <i class="pi pi-users"></i>
+      <span>沒有符合條件的學生</span>
+    </div>
+    } @else { @for (student of filteredStudents(); track student.id) {
+    <button
+      type="button"
+      class="student-picker__item"
+      [class.student-picker__item--selected]="isSelected(student.id)"
+      (click)="toggleSelection(student)"
+    >
+      <div class="student-picker__checkbox">
+        <i [class]="isSelected(student.id) ? 'pi pi-check-square' : 'pi pi-stop'"></i>
       </div>
-    </div>
+      <div class="student-picker__item-info">
+        <span class="student-picker__item-name">{{ student.name }}</span>
+        <span class="student-picker__item-meta"
+          >{{ gradeLabelMap[student.grade] }} · {{ student.school }}</span
+        >
+      </div>
+    </button>
+    } }
+  </div>
 
-    <div class="student-picker__list">
-      @if (loading()) {
-        @for (i of [1,2,3,4,5]; track i) {
-          <div class="student-picker__skeleton">
-            <p-skeleton height="48px" />
-          </div>
-        }
-      } @else if (filteredStudents().length === 0) {
-        <div class="student-picker__empty">
-          <i class="pi pi-users"></i>
-          <span>沒有符合條件的學生</span>
-        </div>
-      } @else {
-        @for (student of filteredStudents(); track student.id) {
-          <button
-            type="button"
-            class="student-picker__item"
-            [class.student-picker__item--selected]="isSelected(student.id)"
-            (click)="toggleSelection(student)"
-          >
-            <div class="student-picker__checkbox">
-              <i [class]="isSelected(student.id) ? 'pi pi-check-square' : 'pi pi-stop'"></i>
-            </div>
-            <div class="student-picker__item-info">
-              <span class="student-picker__item-name">{{ student.name }}</span>
-              <span class="student-picker__item-meta">{{ gradeLabelMap[student.grade] }} · {{ student.school }}</span>
-            </div>
-          </button>
-        }
-      }
-    </div>
-
-    <div class="student-picker__footer">
-      <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
-      <p-button
-        [label]="'下一步（已選 ' + selectedCount() + ' 人）'"
-        [disabled]="selectedCount() === 0"
-        icon="pi pi-arrow-right"
-        iconPos="right"
-        (onClick)="goToReview()"
-      />
-    </div>
+  <div class="student-picker__footer">
+    <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+    <p-button
+      [label]="'下一步（已選 ' + selectedCount() + ' 人）'"
+      [disabled]="selectedCount() === 0"
+      icon="pi pi-arrow-right"
+      iconPos="right"
+      (onClick)="goToReview()"
+    />
+  </div>
   } @else {
-    <!-- Step 2：預覽確認 -->
-    <div class="student-picker__step-header">
-      <button type="button" class="student-picker__back-btn" (click)="goBack()">
-        <i class="pi pi-arrow-left"></i>
-        返回選擇
+  <!-- Step 2：預覽確認 -->
+  <div class="student-picker__step-header">
+    <button type="button" class="student-picker__back-btn" (click)="goBack()">
+      <i class="pi pi-arrow-left"></i>
+      返回選擇
+    </button>
+    <span class="student-picker__step-title">確認加入名單</span>
+  </div>
+
+  @if (overQuotaCount() > 0) {
+  <app-inline-notice
+    severity="error"
+    [detail]="'班級剩餘 ' + remainingSlots + ' 個名額，已選 ' + selectedCount() + ' 人，請移除 ' + overQuotaCount() + ' 人'"
+    [dismissible]="false"
+  />
+  }
+
+  <div class="student-picker__review-list">
+    @for (student of selectedStudents(); track student.id) {
+    <div class="student-picker__review-item">
+      <div class="student-picker__item-info">
+        <span class="student-picker__item-name">{{ student.name }}</span>
+        <span class="student-picker__item-meta"
+          >{{ gradeLabelMap[student.grade] }} · {{ student.school }}</span
+        >
+      </div>
+      <button
+        type="button"
+        class="student-picker__remove-btn"
+        (click)="removeFromReview(student.id)"
+        aria-label="移除"
+      >
+        <i class="pi pi-times"></i>
       </button>
-      <span class="student-picker__step-title">確認加入名單</span>
     </div>
-
-    @if (overQuotaCount() > 0) {
-      <app-inline-notice
-        severity="error"
-        [detail]="'班級剩餘 ' + remainingSlots + ' 個名額，已選 ' + selectedCount() + ' 人，請移除 ' + overQuotaCount() + ' 人'"
-        [dismissible]="false"
-      />
     }
+  </div>
 
-    <div class="student-picker__review-list">
-      @for (student of selectedStudents(); track student.id) {
-        <div class="student-picker__review-item">
-          <div class="student-picker__item-info">
-            <span class="student-picker__item-name">{{ student.name }}</span>
-            <span class="student-picker__item-meta">{{ gradeLabelMap[student.grade] }} · {{ student.school }}</span>
-          </div>
-          <button
-            type="button"
-            class="student-picker__remove-btn"
-            (click)="removeFromReview(student.id)"
-            aria-label="移除"
-          >
-            <i class="pi pi-times"></i>
-          </button>
-        </div>
-      }
-    </div>
+  @if (confirmError()) {
+  <app-inline-notice severity="error" [detail]="confirmError()!" [dismissible]="false" />
+  }
 
-    @if (confirmError()) {
-      <app-inline-notice
-        severity="error"
-        [detail]="confirmError()!"
-        [dismissible]="false"
-      />
-    }
-
-    <div class="student-picker__footer">
-      <p-button label="上一步" [text]="true" severity="secondary" icon="pi pi-arrow-left" [disabled]="confirming()" (onClick)="goBack()" />
-      <p-button
-        [label]="confirming() ? '' : '確認加入 ' + selectedCount() + ' 人'"
-        [loading]="confirming()"
-        [disabled]="selectedCount() === 0 || overQuotaCount() > 0 || confirming()"
-        (onClick)="confirm()"
-      />
-    </div>
+  <div class="student-picker__footer">
+    <p-button
+      label="上一步"
+      [text]="true"
+      severity="secondary"
+      icon="pi pi-arrow-left"
+      [disabled]="confirming()"
+      (onClick)="goBack()"
+    />
+    <p-button
+      [label]="confirming() ? '' : '確認加入 ' + selectedCount() + ' 人'"
+      [loading]="confirming()"
+      [disabled]="selectedCount() === 0 || overQuotaCount() > 0 || confirming()"
+      (onClick)="confirm()"
+    />
+  </div>
   }
 </div>
 ```
@@ -808,75 +855,80 @@ export class StudentPickerDialogComponent implements OnInit {
 在 `student-picker.component.scss` 現有樣式後面加入：
 
 ```scss
-  &__item--selected {
-    background: var(--sky-50);
-    border: 1px solid var(--sky-200);
-  }
+&__item--selected {
+  background: var(--sky-50);
+  border: 1px solid var(--sky-200);
+}
 
-  &__checkbox {
-    font-size: 1.1rem;
-    color: var(--sky-600);
-    flex-shrink: 0;
-    width: 20px;
-    display: flex;
-    align-items: center;
-  }
+&__checkbox {
+  font-size: 1.1rem;
+  color: var(--sky-600);
+  flex-shrink: 0;
+  width: 20px;
+  display: flex;
+  align-items: center;
+}
 
-  &__step-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding-bottom: var(--space-3);
-    border-bottom: 1px solid var(--color-border);
-  }
+&__step-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
 
-  &__back-btn {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--color-text-muted);
-    font-size: 0.875rem;
-    padding: 0;
+&__back-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  padding: 0;
 
-    &:hover { color: var(--color-text); }
-  }
-
-  &__step-title {
-    font-weight: 500;
+  &:hover {
     color: var(--color-text);
   }
+}
 
-  &__review-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    max-height: 380px;
-    overflow-y: auto;
+&__step-title {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+&__review-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+&__review-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+&__remove-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+
+  &:hover {
+    color: var(--error-600);
+    background: var(--error-50);
   }
-
-  &__review-item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-2);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-border);
-  }
-
-  &__remove-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--color-text-muted);
-    padding: var(--space-1);
-    border-radius: var(--radius-sm);
-    flex-shrink: 0;
-
-    &:hover { color: var(--error-600); background: var(--error-50); }
-  }
+}
 ```
 
 - [ ] **Step 4：commit**
@@ -891,6 +943,7 @@ git commit -m "feat(ui): upgrade StudentPickerDialog to multi-select two-step wi
 ## Task 6：Frontend — class-detail.page.ts 批次加入 + 移除/退班 logic
 
 **Files:**
+
 - Modify: `apps/web/src/app/features/admin/pages/courses/class-detail/class-detail.page.ts`
 
 ### 背景知識
@@ -907,6 +960,7 @@ git commit -m "feat(ui): upgrade StudentPickerDialog to multi-select two-step wi
 在 `class-detail.page.ts` 中找到 `cls()` signal 對應的型別（通常在 `classes.service.ts` 或 `class-detail.page.ts` 自定義的 interface）。
 
 確認 interface 有：
+
 ```typescript
 maxStudents: number | null;
 ```
@@ -914,6 +968,7 @@ maxStudents: number | null;
 若沒有，在對應的 interface 加入該欄位，並在 `ClassesService` 的 response mapping 加入 `maxStudents: row.max_students ?? null`。
 
 執行 tsc 確認無 TypeScript 錯誤：
+
 ```bash
 cd apps/web && npx tsc --noEmit 2>&1 | grep -i "maxStudents\|max_students" | head -5
 ```

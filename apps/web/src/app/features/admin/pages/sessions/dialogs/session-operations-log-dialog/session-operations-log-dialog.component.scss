@@ -1,0 +1,49 @@
+@use 'shared/breakpoints' as bp;
+
+:host {
+  display: block;
+}
+
+.session-operations-log-dialog {
+  &__body {
+    padding-top: var(--space-4);
+  }
+
+  &__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-8);
+    color: var(--zinc-500);
+    text-align: center;
+  }
+
+  &__time {
+    color: var(--zinc-500);
+    white-space: nowrap;
+  }
+
+  &__resource-type {
+    display: inline-block;
+    min-width: 2.5rem;
+    color: var(--zinc-500);
+    margin-right: var(--space-2);
+  }
+
+  &__resource-name {
+    color: var(--zinc-900);
+    font-weight: var(--font-medium);
+  }
+
+  &__detail-summary {
+    margin-top: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+  }
+
+  @include bp.respond-to('mobile') {
+    --p-tabs-tabpanel-padding: 0px;
+  }
+}

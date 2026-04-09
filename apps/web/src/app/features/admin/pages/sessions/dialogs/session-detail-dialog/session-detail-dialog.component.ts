@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TagModule } from 'primeng/tag';
@@ -18,7 +18,7 @@ export class SessionDetailDialogComponent implements OnInit {
   private readonly config = inject(DynamicDialogConfig);
   private readonly ref = inject(DynamicDialogRef);
   private readonly sessionsService = inject(SessionsService);
-  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly session = signal<Session | null>(null);
   protected readonly historyEntries = signal<SessionHistoryEntry[]>([]);
@@ -30,7 +30,7 @@ export class SessionDetailDialogComponent implements OnInit {
     if (!s) return '';
     if (s.status === 'cancelled') return '已停課';
     if (s.status === 'completed') return '已完成';
-    return '已排課';
+    return '正常';
   });
 
   protected readonly statusSeverity = computed(() => {
@@ -48,7 +48,7 @@ export class SessionDetailDialogComponent implements OnInit {
     return `${s.sessionDate.slice(5).replace('-', '/')} ${s.startTime}–${s.endTime} ・ ${s.campusName} ・ ${teacherLabel}`;
   });
 
-  ngOnInit() {
+  ngOnInit(): void {
     if (this.config.data?.session) {
       this.session.set(this.config.data.session);
     }
@@ -62,7 +62,10 @@ export class SessionDetailDialogComponent implements OnInit {
 
     const s = this.session();
     if (s && this.loadingChanges()) {
-      this.sessionsService.getChanges(s.id).subscribe({
+      this.sessionsService
+        .getChanges(s.id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
         next: (res: { data: SessionHistoryEntry[] }) => {
           this.historyEntries.set(res.data);
           this.loadError.set(false);
@@ -72,8 +75,9 @@ export class SessionDetailDialogComponent implements OnInit {
           this.loadError.set(true);
           this.loadingChanges.set(false);
         },
-      });
+        });
     }
+
   }
 
   protected changeTypeLabel(type: string): string {
@@ -147,14 +151,6 @@ export class SessionDetailDialogComponent implements OnInit {
     const normalizedStart = startTime ?? '--:--';
     const normalizedEnd = endTime ?? '--:--';
     return `${normalizedDate} ${normalizedStart} - ${normalizedEnd}`;
-  }
-
-  protected goToAttendance(): void {
-    const date = this.session()?.sessionDate;
-    this.router.navigate(['/admin/attendance'], {
-      queryParams: date ? { date } : {},
-    });
-    this.ref.close();
   }
 
   protected closeDialog(): void {

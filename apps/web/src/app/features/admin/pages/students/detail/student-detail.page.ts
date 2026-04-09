@@ -19,8 +19,8 @@ import { OverlayContainerService } from '@core/overlay-container.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageBreadcrumbComponent, type BreadcrumbItem } from '@shared/components/page-breadcrumb/page-breadcrumb.component';
+import { ClassPickerDialogComponent } from '@shared/components/class-picker-dialog/class-picker-dialog.component';
 import { StudentFormDialogComponent } from '../student-form-dialog.component';
-import { ClassPickerDialogComponent } from './class-picker-dialog/class-picker-dialog.component';
 import type { Class } from '@core/classes.service';
 
 @Component({

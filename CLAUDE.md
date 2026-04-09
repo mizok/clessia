@@ -22,6 +22,35 @@
 3. **Codex 委派**：必須指定 `sessionId`，prompt 須包含版本資訊
 4. **UI 開發**：必須先參考設計系統，invoke `ui-ux-pro-max` skill
 
+## Claude Code 工作策略
+
+當前 repo 已安裝 `code-review-graph`，Claude Code 在處理此專案時必須優先使用 graph MCP 工具，而不是先大範圍掃描檔案。
+
+### 預設工作順序
+
+1. 先呼叫 `get_minimal_context`，用任務描述當 `task`
+2. 若是 review 目前變更，依序優先用 `detect_changes`、`get_affected_flows`、`query_graph`
+3. 若是找功能或追邏輯，優先用 `semantic_search_nodes`、`query_graph`
+4. 只有在 graph 結果不足時，才用 Grep/Glob/Read 打開少量精準檔案
+5. 完成分析後再提出結論，不要先憑印象猜
+
+### Review 規則
+
+- Review 當前 branch 或未提交改動時，先用 `detect_changes`
+- 對高風險節點，再用 `query_graph` 的 `tests_for`、`callers_of`、`callees_of`
+- 只讀取 graph 指向的相關檔案與行段，不要先通讀整個 feature
+
+### 實作與除錯規則
+
+- 修改前先用 graph 確認呼叫鏈、依賴與波及面
+- 如果 graph 顯示資料過舊或查不到新符號，先執行 `code-review-graph update --skip-flows`
+- 若 `.code-review-graph/graph.db` 不存在或明顯失效，才執行 `code-review-graph build`
+
+### Angular 專案特別注意
+
+- 找 route、shell、guard、service 關聯時，先用 graph，再讀 `app.routes.ts` 與對應 feature 檔案
+- 變更 component / service / guard 前，先確認其 callers、imports、tests，避免只改到表層
+
 ## 文件目錄規則
 
 **所有文件必須放在 `doc/` 目錄下，禁止另起 `docs/` 或其他平行目錄。**
@@ -213,3 +242,42 @@ src/app/
 | 系統架構設計 / 重大技術決策                            | `architecture-design`                 |
 | 實作功能或修 bug 前先寫測試                            | `superpowers:test-driven-development` |
 | 完成一個主要步驟後 review 程式碼                       | 使用 `code-reviewer` subagent         |
+
+<!-- code-review-graph MCP tools -->
+## MCP Tools: code-review-graph
+
+**IMPORTANT: This project has a knowledge graph. ALWAYS use the
+code-review-graph MCP tools BEFORE using Grep/Glob/Read to explore
+the codebase.** The graph is faster, cheaper (fewer tokens), and gives
+you structural context (callers, dependents, test coverage) that file
+scanning cannot.
+
+### When to use graph tools FIRST
+
+- **Exploring code**: `semantic_search_nodes` or `query_graph` instead of Grep
+- **Understanding impact**: `get_impact_radius` instead of manually tracing imports
+- **Code review**: `detect_changes` + `get_review_context` instead of reading entire files
+- **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
+- **Architecture questions**: `get_architecture_overview` + `list_communities`
+
+Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
+
+### Key Tools
+
+| Tool | Use when |
+|------|----------|
+| `detect_changes` | Reviewing code changes — gives risk-scored analysis |
+| `get_review_context` | Need source snippets for review — token-efficient |
+| `get_impact_radius` | Understanding blast radius of a change |
+| `get_affected_flows` | Finding which execution paths are impacted |
+| `query_graph` | Tracing callers, callees, imports, tests, dependencies |
+| `semantic_search_nodes` | Finding functions/classes by name or keyword |
+| `get_architecture_overview` | Understanding high-level codebase structure |
+| `refactor_tool` | Planning renames, finding dead code |
+
+### Workflow
+
+1. The graph auto-updates on file changes (via hooks).
+2. Use `detect_changes` for code review.
+3. Use `get_affected_flows` to understand impact.
+4. Use `query_graph` pattern="tests_for" to check coverage.

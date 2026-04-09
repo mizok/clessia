@@ -99,5 +99,8 @@
       "mcp__plugin_telegram_telegram__reply"
     ]
   },
-  "enabledPlugins": {}
+  "enabledPlugins": {},
+  "enabledMcpjsonServers": [
+    "code-review-graph"
+  ]
 }

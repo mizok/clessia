@@ -14,6 +14,12 @@
   &__title-group {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  &__tag-group {
+    display: flex;
     gap: var(--space-3);
   }
 
@@ -35,6 +41,15 @@
     }
   }
 
+  &__badge--attendance {
+    background: var(--p-amber-100);
+    color: var(--p-amber-800);
+
+    &:hover {
+      background: var(--p-amber-200);
+    }
+  }
+
   &__title {
     margin: 0;
     font-size: var(--text-2xl);
@@ -45,7 +60,6 @@
 
   &__subtitle {
     display: inline-flex;
-    align-items: center;
     gap: var(--space-1);
     margin: 0;
     padding: 0;
@@ -56,6 +70,7 @@
     color: var(--zinc-500);
     cursor: pointer;
     transition: color var(--transition-fast);
+    flex-basis: 100%;
 
     &:hover {
       color: var(--zinc-700);

@@ -40,7 +40,7 @@ export class ClassPickerDialogComponent implements OnInit {
   protected readonly classes = signal<Class[]>([]);
   protected readonly total = signal(0);
   protected readonly currentPage = signal(1);
-  protected readonly PAGE_SIZE = 20;
+  protected readonly PAGE_SIZE = 8;
   protected readonly searchQuery = signal('');
   protected readonly gradeFilter = signal<GradeLevel | null>(
     (this.config.data?.studentGrade as GradeLevel) ?? null,

@@ -12,7 +12,7 @@ import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
 import { format, differenceInCalendarDays } from 'date-fns';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { LeaveService, type LeaveRequest } from '@core/leave.service';
-import { CampusesService } from '@core/campuses.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
@@ -50,7 +50,7 @@ export class LeavePage implements OnInit {
   readonly page = input.required<RouteObj>();
 
   private readonly leaveService = inject(LeaveService);
-  private readonly campusesService = inject(CampusesService);
+  private readonly refData = inject(ReferenceDataService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly dialogService = inject(DialogService);
@@ -59,12 +59,18 @@ export class LeavePage implements OnInit {
   protected readonly records = signal<LeaveRequest[]>([]);
   protected readonly totalRecords = signal(0);
   protected readonly currentPage = signal(1);
-  protected readonly PAGE_SIZE = 20;
+  protected readonly PAGE_SIZE = 8;
 
   protected filterCampusId: string | null = null;
   protected filterDateRange: Date[] | null = null;
 
-  protected readonly campuses = signal<{ label: string; value: string }[]>([]);
+  protected readonly campuses = computed(() => [
+    { label: '全部分校', value: '' },
+    ...this.refData
+      .campuses()
+      .filter((campus) => campus.isActive)
+      .map((campus) => ({ label: campus.name, value: campus.id })),
+  ]);
 
   protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
     first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
@@ -87,9 +93,7 @@ export class LeavePage implements OnInit {
     return role === 'parent' ? '家長' : '管理員';
   }
 
-  protected submittedByRoleSeverity(
-    role: 'parent' | 'admin',
-  ): 'info' | 'secondary' {
+  protected submittedByRoleSeverity(role: 'parent' | 'admin'): 'info' | 'secondary' {
     return role === 'parent' ? 'info' : 'secondary';
   }
 
@@ -99,14 +103,7 @@ export class LeavePage implements OnInit {
   }
 
   private loadCampuses(): void {
-    this.campusesService.list({ isActive: true }).subscribe({
-      next: (res) => {
-        this.campuses.set([
-          { label: '全部分校', value: '' },
-          ...res.data.map((c) => ({ label: c.name, value: c.id })),
-        ]);
-      },
-    });
+    this.refData.loadCampuses();
   }
 
   protected loadRecords(): void {
@@ -204,7 +201,8 @@ export class LeavePage implements OnInit {
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: '確認取消',
       rejectLabel: '返回',
-      accept: () => this.executeDelete(record, 'full', '已取消請假', `${record.studentName} 的請假申請已取消`),
+      accept: () =>
+        this.executeDelete(record, 'full', '已取消請假', `${record.studentName} 的請假申請已取消`),
     });
   }
 
@@ -218,7 +216,8 @@ export class LeavePage implements OnInit {
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: '確認刪除',
       rejectLabel: '返回',
-      accept: () => this.executeDelete(record, 'full', '已刪除', `${record.studentName} 的歷史請假紀錄已刪除`),
+      accept: () =>
+        this.executeDelete(record, 'full', '已刪除', `${record.studentName} 的歷史請假紀錄已刪除`),
     });
   }
 
@@ -228,8 +227,7 @@ export class LeavePage implements OnInit {
 
     this.confirmationService.confirm({
       message:
-        `此假期目前進行中（${record.startDate} ~ ${record.endDate}）。\n` +
-        `請選擇操作方式：`,
+        `此假期目前進行中（${record.startDate} ~ ${record.endDate}）。\n` + `請選擇操作方式：`,
       header: '取消進行中假期',
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: '取消剩餘假期',
@@ -259,7 +257,12 @@ export class LeavePage implements OnInit {
       acceptLabel: '確認完全刪除',
       rejectLabel: '返回',
       accept: () =>
-        this.executeDelete(record, 'full', '已刪除請假紀錄', `${record.studentName} 的請假紀錄已完全刪除`),
+        this.executeDelete(
+          record,
+          'full',
+          '已刪除請假紀錄',
+          `${record.studentName} 的請假紀錄已完全刪除`,
+        ),
     });
   }
 

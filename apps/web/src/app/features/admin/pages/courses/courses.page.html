@@ -5,7 +5,22 @@
   <!-- Page Header -->
   <header class="courses__header">
     <div class="courses__title-group">
-      <h1 class="courses__title">{{ page().label }}</h1>
+      <div class="courses__title-row">
+        <h1 class="courses__title">{{ page().label }}</h1>
+        @if (interventionCount() > 0) {
+          <button
+            type="button"
+            class="courses__badge"
+            (click)="onFilterIntervention()"
+          >
+            @if (selectedCampusName(); as name) {
+              {{ name }} · 需介入 {{ interventionCount() }} 個課程
+            } @else {
+              需介入 {{ interventionCount() }} 個課程
+            }
+          </button>
+        }
+      </div>
       <p class="courses__subtitle">層級管理課程與班級，設定上課時間</p>
     </div>
     <div class="courses__header-actions">
@@ -535,4 +550,4 @@
 </div>
 
 <!-- Class Action Menu -->
-<p-menu #actionMenu [model]="classActionMenuItems()" [popup]="true" [appendTo]="'body'" />
+<app-popup-menu #actionMenu [model]="classActionMenuItems()" />

@@ -100,11 +100,7 @@ export const routes: Routes = [
           },
           {
             path: RoutesCatalog.ADMIN_ATTENDANCE.relativePath,
-            loadComponent: () =>
-              import('@features/admin/pages/attendance/attendance.page').then(
-                (m) => m.AttendancePage,
-              ),
-            data: { page: RoutesCatalog.ADMIN_ATTENDANCE },
+            redirectTo: RoutesCatalog.ADMIN_SESSIONS.relativePath,
           },
           {
             path: RoutesCatalog.ADMIN_LEAVE.relativePath,

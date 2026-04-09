@@ -1,0 +1,98 @@
+<div class="dialog-header-inline">
+  <div class="dialog-header-inline__title-container">
+    <h2 class="dialog-header-inline__title">操作紀錄</h2>
+  </div>
+  <button class="dialog-header-inline__close" (click)="close()">
+    <i class="pi pi-times"></i>
+  </button>
+</div>
+
+<div class="session-operations-log-dialog">
+  <p-tabs [value]="selectedTab()" (valueChange)="onTabChange($event)">
+    <p-tablist>
+      <p-tab value="session">課堂異動</p-tab>
+      <p-tab value="attendance">出勤紀錄</p-tab>
+    </p-tablist>
+
+    <p-tabpanels>
+      <p-tabpanel value="session">
+        <ng-container
+          *ngTemplateOutlet="logContent; context: { emptyTitle: '尚無課堂異動紀錄' }"
+        />
+      </p-tabpanel>
+      <p-tabpanel value="attendance">
+        <ng-container
+          *ngTemplateOutlet="logContent; context: { emptyTitle: '尚無出勤操作紀錄' }"
+        />
+      </p-tabpanel>
+    </p-tabpanels>
+  </p-tabs>
+
+  <ng-template #logContent let-emptyTitle="emptyTitle">
+    <div class="session-operations-log-dialog__body">
+      @if (loading()) {
+        <div class="skeleton-list">
+          <span class="skeleton-bar skeleton-bar--label"></span>
+          @for (_ of [1, 2, 3, 4, 5]; track $index) {
+            <span class="skeleton-bar"></span>
+          }
+        </div>
+      } @else if (logs().length === 0) {
+        <div class="session-operations-log-dialog__empty">
+          <i class="pi pi-history"></i>
+          <p>{{ emptyTitle }}</p>
+        </div>
+      } @else {
+        <app-responsive-table
+          class="session-operations-log-dialog__table"
+          [headTemplate]="headTemplate"
+          [bodyTemplate]="bodyTemplate"
+          [pagination]="pagination()"
+          expandControlPosition="start"
+          expandIcon="pi-chevron-right"
+          collapseIcon="pi-chevron-down"
+          (page)="onPage($event)"
+        />
+      }
+    </div>
+  </ng-template>
+
+  <ng-template #headTemplate>
+    <tr>
+      <th appRtColDef="userName" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">操作者</th>
+      <th appRtColDef="createdAt" [appRtColDefMinWidth]="180" [appRtColDefPriority]="1">時間</th>
+      <th appRtColDef="resourceName" [appRtColDefMinWidth]="220" [appRtColDefPriority]="3">
+        對象
+      </th>
+      <th appRtColDef="action" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">動作</th>
+    </tr>
+  </ng-template>
+
+  <ng-template #bodyTemplate>
+    @for (log of logs(); track log.id) {
+      <tr appRtRow [appRtRow]="log" [appRtRowId]="log.id">
+        <td appRtColCell="userName">{{ log.userName ?? '—' }}</td>
+        <td appRtColCell="createdAt" class="session-operations-log-dialog__time">
+          {{ log.createdAt | date: 'yyyy-MM-dd HH:mm:ss' }}
+        </td>
+        <td appRtColCell="resourceName">
+          <span class="session-operations-log-dialog__resource-type">{{
+            getResourceTypeLabel(log.resourceType)
+          }}</span>
+          <span class="session-operations-log-dialog__resource-name">{{ log.resourceName ?? '—' }}</span>
+        </td>
+        <td appRtColCell="action">
+          <p-tag
+            [value]="getActionConfig(log.action).label"
+            [severity]="getActionConfig(log.action).severity"
+          />
+          @if (getDetailsSummary(log)) {
+            <div class="session-operations-log-dialog__detail-summary">
+              {{ getDetailsSummary(log) }}
+            </div>
+          }
+        </td>
+      </tr>
+    }
+  </ng-template>
+</div>

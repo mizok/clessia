@@ -1,12 +1,19 @@
-import { Component, OnInit, DestroyRef, inject, signal, computed, input, viewChild } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  DestroyRef,
+  inject,
+  signal,
+  computed,
+  input,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
-import { MenuModule } from 'primeng/menu';
-import { Menu } from 'primeng/menu';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -30,12 +37,7 @@ import type {
 } from '@shared/components/responsive-table/responsive-table.models';
 
 // Services
-import {
-  ParentsService,
-  Parent,
-  ParentStatus,
-  PARENT_STATUS_LABELS,
-} from '@core/parents.service';
+import { ParentsService, Parent, ParentStatus, PARENT_STATUS_LABELS } from '@core/parents.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 
@@ -45,8 +47,10 @@ import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confir
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { PasswordRevealDialogComponent } from '@shared/components/password-reveal-dialog/password-reveal-dialog.component';
 import { ParentFormDialogComponent } from '@shared/components/parent-form-dialog/parent-form-dialog.component';
+import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import { StudentFormDialogComponent } from '@features/admin/pages/students/student-form-dialog.component';
 import { ParentImportDialogComponent } from './parent-import-dialog/parent-import-dialog.component';
+import { ParentDetailDialogComponent } from './parent-detail-dialog/parent-detail-dialog.component';
 
 @Component({
   selector: 'app-parents',
@@ -63,12 +67,11 @@ import { ParentImportDialogComponent } from './parent-import-dialog/parent-impor
     InputTextModule,
     SelectModule,
     EmptyStateComponent,
-    MenuModule,
+    PopupMenuComponent,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,
     RtRowDirective,
-    ParentImportDialogComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './parents.page.html',
@@ -87,7 +90,7 @@ export class ParentsPage implements OnInit {
     return this.overlayContainerService.getContainer();
   }
 
-  protected static readonly PAGE_SIZE = 20;
+  protected static readonly PAGE_SIZE = 8;
   protected readonly PAGE_SIZE = ParentsPage.PAGE_SIZE;
   protected readonly statusLabels = PARENT_STATUS_LABELS;
 
@@ -96,7 +99,12 @@ export class ParentsPage implements OnInit {
   protected readonly loading = signal(true);
   protected readonly searchQuery = signal('');
   protected readonly selectedStatus = signal<ParentStatus | null>(null);
-  protected readonly summary = signal({ total: 0, activeCount: 0, inactiveCount: 0, archivedCount: 0 });
+  protected readonly summary = signal({
+    total: 0,
+    activeCount: 0,
+    inactiveCount: 0,
+    archivedCount: 0,
+  });
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
 
@@ -114,12 +122,17 @@ export class ParentsPage implements OnInit {
   protected readonly inactiveCount = computed(() => this.summary().inactiveCount);
 
   // Action menu
-  protected readonly actionMenu = viewChild.required<Menu>('actionMenu');
+  protected readonly actionMenu = viewChild.required<PopupMenuComponent>('actionMenu');
   protected readonly selectedParent = signal<Parent | null>(null);
   protected readonly actionMenuItems = computed<MenuItem[]>(() => {
     const parent = this.selectedParent();
     if (!parent) return [];
     const items: MenuItem[] = [
+      {
+        label: '查看詳情',
+        icon: 'pi pi-user',
+        command: () => this.openDetailDialog(parent),
+      },
       {
         label: '新增學生',
         icon: 'pi pi-user-plus',
@@ -141,12 +154,24 @@ export class ParentsPage implements OnInit {
       { separator: true },
     ];
     if (parent.status === 'active') {
-      items.push({ label: '停用帳號', icon: 'pi pi-lock', command: () => this.confirmDeactivate(parent) });
+      items.push({
+        label: '停用帳號',
+        icon: 'pi pi-lock',
+        command: () => this.confirmDeactivate(parent),
+      });
     } else if (parent.status === 'inactive') {
-      items.push({ label: '啟用帳號', icon: 'pi pi-unlock', command: () => this.confirmActivate(parent) });
+      items.push({
+        label: '啟用帳號',
+        icon: 'pi pi-unlock',
+        command: () => this.confirmActivate(parent),
+      });
     }
     if (parent.status !== 'archived') {
-      items.push({ label: '封存帳號', icon: 'pi pi-inbox', command: () => this.confirmArchive(parent) });
+      items.push({
+        label: '封存帳號',
+        icon: 'pi pi-inbox',
+        command: () => this.confirmArchive(parent),
+      });
     }
     return items;
   });
@@ -163,15 +188,13 @@ export class ParentsPage implements OnInit {
   }));
 
   ngOnInit(): void {
-    this.searchSubject.pipe(
-      debounceTime(300),
-      distinctUntilChanged(),
-      takeUntilDestroyed(this.destroyRef),
-    ).subscribe((value) => {
-      this.searchQuery.set(value);
-      this.currentPage.set(1);
-      this.loadParents();
-    });
+    this.searchSubject
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        this.searchQuery.set(value);
+        this.currentPage.set(1);
+        this.loadParents();
+      });
     this.loadParents();
   }
 
@@ -192,7 +215,11 @@ export class ParentsPage implements OnInit {
           this.loading.set(false);
         },
         error: () => {
-          this.messageService.add({ severity: 'error', summary: '載入失敗', detail: '無法載入家長列表' });
+          this.messageService.add({
+            severity: 'error',
+            summary: '載入失敗',
+            detail: '無法載入家長列表',
+          });
           this.loading.set(false);
         },
       });
@@ -244,13 +271,15 @@ export class ParentsPage implements OnInit {
     });
 
     if (!ref) return;
-    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result?: { type: string; data: Parent; password: string }) => {
-      if (!result) return;
-      if (result.type === 'created') {
-        this.loadParents();
-        this.openPasswordRevealDialog(result.data, result.password);
-      }
-    });
+    ref.onClose
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result?: { type: string; data: Parent; password: string }) => {
+        if (!result) return;
+        if (result.type === 'created') {
+          this.loadParents();
+          this.openPasswordRevealDialog(result.data, result.password);
+        }
+      });
   }
 
   protected openImportDialog(): void {
@@ -278,12 +307,18 @@ export class ParentsPage implements OnInit {
         });
 
         if (!ref) return;
-        ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result?: { type: string }) => {
-          if (result?.type === 'updated') this.loadParents();
-        });
+        ref.onClose
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe((result?: { type: string }) => {
+            if (result?.type === 'updated') this.loadParents();
+          });
       },
       error: () => {
-        this.messageService.add({ severity: 'error', summary: '載入失敗', detail: '無法載入家長資料' });
+        this.messageService.add({
+          severity: 'error',
+          summary: '載入失敗',
+          detail: '無法載入家長資料',
+        });
       },
     });
   }
@@ -307,6 +342,17 @@ export class ParentsPage implements OnInit {
         });
         this.loadParents();
       }
+    });
+  }
+
+  protected openDetailDialog(parent: Parent): void {
+    this.dialogService.open(ParentDetailDialogComponent, {
+      header: parent.name,
+      width: '480px',
+      modal: true,
+      showHeader: true,
+      appendTo: this.overlayContainer || 'body',
+      data: { parentId: parent.id },
     });
   }
 
@@ -390,20 +436,30 @@ export class ParentsPage implements OnInit {
     );
   }
 
-  private changeStatus(parent: Parent, action: 'activate' | 'deactivate' | 'archive', successMsg: string): void {
-    const req = action === 'activate'
-      ? this.parentsService.activate(parent.id)
-      : action === 'deactivate'
-        ? this.parentsService.deactivate(parent.id)
-        : this.parentsService.archive(parent.id);
+  private changeStatus(
+    parent: Parent,
+    action: 'activate' | 'deactivate' | 'archive',
+    successMsg: string,
+  ): void {
+    const req =
+      action === 'activate'
+        ? this.parentsService.activate(parent.id)
+        : action === 'deactivate'
+          ? this.parentsService.deactivate(parent.id)
+          : this.parentsService.archive(parent.id);
 
     req.subscribe({
       next: () => {
-        this.messageService.add({ severity: 'success', summary: successMsg, detail: `「${parent.name}」${successMsg}` });
+        this.messageService.add({
+          severity: 'success',
+          summary: successMsg,
+          detail: `「${parent.name}」${successMsg}`,
+        });
         this.loadParents();
       },
       error: (err) => {
-        const detail = err.error?.error === 'ALREADY_ARCHIVED' ? '帳號已封存，無法再次操作' : '請稍後再試';
+        const detail =
+          err.error?.error === 'ALREADY_ARCHIVED' ? '帳號已封存，無法再次操作' : '請稍後再試';
         this.messageService.add({ severity: 'error', summary: '操作失敗', detail });
       },
     });
@@ -421,6 +477,8 @@ export class ParentsPage implements OnInit {
       data,
     });
     if (!ref) return;
-    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => { if (result) onAccept(); });
+    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
+      if (result) onAccept();
+    });
   }
 }

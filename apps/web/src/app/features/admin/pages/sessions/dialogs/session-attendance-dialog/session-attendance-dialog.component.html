@@ -1,0 +1,115 @@
+<div class="session-attendance">
+  @if (sessionSummary(); as summary) {
+    <section class="session-attendance__summary">
+      <div class="session-attendance__summary-header">
+        <div class="session-attendance__summary-copy">
+          @if (summary.courseName) {
+            <p class="session-attendance__eyebrow">{{ summary.courseName }}</p>
+          }
+          <h2 class="session-attendance__title">{{ summary.className }}</h2>
+          <p class="session-attendance__meta">
+            {{ summary.eventDate }} · {{ summary.startTime ?? '--:--' }}–{{ summary.endTime ?? '--:--' }}
+            @if (summary.campusName) {
+              · {{ summary.campusName }}
+            }
+          </p>
+        </div>
+        @if (summary.takenAt) {
+          <p-tag value="已點名" severity="success" />
+        } @else {
+          <p-tag [value]="'未點名 ' + summary.enrolledCount + ' 人'" severity="secondary" />
+        }
+      </div>
+
+      <div class="session-attendance__stats">
+        <div class="session-attendance__stat">
+          <span class="session-attendance__stat-label">出席</span>
+          <strong class="session-attendance__stat-value">{{ summary.presentCount }}</strong>
+        </div>
+        <div class="session-attendance__stat">
+          <span class="session-attendance__stat-label">請假</span>
+          <strong class="session-attendance__stat-value">{{ summary.onLeaveCount }}</strong>
+        </div>
+        <div class="session-attendance__stat">
+          <span class="session-attendance__stat-label">缺席</span>
+          <strong class="session-attendance__stat-value">{{ summary.absentCount }}</strong>
+        </div>
+      </div>
+
+      @if (summary.takenAt) {
+        <p class="session-attendance__taken-at">
+          上次點名：{{ summary.takenAt | date: 'yyyy/MM/dd HH:mm' }}
+        </p>
+      }
+    </section>
+  }
+
+  @if (notice()) {
+    <app-inline-notice
+      [severity]="notice()!.severity"
+      [detail]="notice()!.detail"
+      (dismissed)="notice.set(null)"
+    />
+  }
+
+  @if (loading()) {
+    <div class="session-attendance__loading">
+      <p-progressSpinner strokeWidth="4" />
+    </div>
+  } @else if (roster()?.students?.length === 0) {
+    <div class="session-attendance__empty">
+      <i class="pi pi-users session-attendance__empty-icon"></i>
+      <p class="session-attendance__empty-text">此班級尚無學生</p>
+    </div>
+  } @else if (roster(); as currentRoster) {
+    <div class="session-attendance__list">
+      @for (student of currentRoster.students; track student.studentId) {
+        <div
+          class="session-attendance__item"
+          [class.session-attendance__item--on-leave]="isOnLeave(student)"
+        >
+          <div class="session-attendance__student">
+            <span class="session-attendance__name">{{ student.studentName }}</span>
+            <span class="session-attendance__sub">
+              {{ gradeLabel(student.grade) }}
+              @if (student.school) {
+                · {{ student.school }}
+              }
+            </span>
+          </div>
+          @if (isOnLeave(student)) {
+            <p-tag value="請假中" severity="warn" />
+          } @else {
+            <div class="session-attendance__toggle">
+              <p-button
+                label="出席"
+                size="small"
+                [outlined]="getStatus(student.studentId) !== 'present'"
+                severity="success"
+                (onClick)="setStatus(student.studentId, 'present')"
+              />
+              <p-button
+                label="缺席"
+                size="small"
+                [outlined]="getStatus(student.studentId) !== 'absent'"
+                severity="danger"
+                (onClick)="setStatus(student.studentId, 'absent')"
+              />
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  <div class="session-attendance__actions">
+    <p-button label="關閉" severity="secondary" [text]="true" size="small" (onClick)="close()" />
+    <p-button
+      label="儲存點名"
+      icon="pi pi-check"
+      [loading]="saving()"
+      [disabled]="loading() || !roster()"
+      (onClick)="save()"
+    />
+  </div>
+</div>

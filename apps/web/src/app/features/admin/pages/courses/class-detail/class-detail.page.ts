@@ -15,8 +15,6 @@ import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { TabsModule } from 'primeng/tabs';
 import type { TabListPassThrough } from 'primeng/types/tabs';
-import { MenuModule } from 'primeng/menu';
-import { Menu } from 'primeng/menu';
 import { SkeletonModule } from 'primeng/skeleton';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
@@ -36,6 +34,7 @@ import {
   ConfirmDialogComponent,
   type ConfirmDialogData,
 } from '@shared/components/confirm-dialog/confirm-dialog.component';
+import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import { StudentPickerDialogComponent } from './student-picker-dialog/student-picker-dialog.component';
 import { CopyRosterDialogComponent } from './copy-roster-dialog/copy-roster-dialog.component';
 
@@ -47,10 +46,9 @@ import { CopyRosterDialogComponent } from './copy-roster-dialog/copy-roster-dial
     TagModule,
     ToastModule,
     TabsModule,
-    MenuModule,
     SkeletonModule,
-    CopyRosterDialogComponent,
     PageBreadcrumbComponent,
+    PopupMenuComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './class-detail.page.html',
@@ -118,7 +116,7 @@ export class ClassDetailPage implements OnInit {
     return raw < 45 ? raw : raw + 20;
   });
 
-  protected readonly actionMenu = viewChild.required<Menu>('actionMenu');
+  protected readonly actionMenu = viewChild.required<PopupMenuComponent>('actionMenu');
   protected readonly selectedEnrollment = signal<Enrollment | null>(null);
   protected readonly actionMenuItems = computed<MenuItem[]>(() => {
     const e = this.selectedEnrollment();

@@ -1,11 +1,13 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { of } from 'rxjs';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { LeaveFormDialogComponent } from './leave-form-dialog.component';
 import { StudentsService } from '@core/students.service';
-import { CampusesService } from '@core/campuses.service';
 import { LeaveService } from '@core/leave.service';
+import { ReferenceDataService } from '@core/reference-data.service';
+import type { Campus } from '@core/campuses.service';
 
 describe('LeaveFormDialogComponent', () => {
   let fixture: ComponentFixture<LeaveFormDialogComponent>;
@@ -23,13 +25,20 @@ describe('LeaveFormDialogComponent', () => {
       }),
     ),
   };
-  const campusesServiceMock = {
-    list: vi.fn(() =>
-      of({
-        data: [{ id: 'campus-1', name: '示範分校' }],
-        meta: { total: 1, page: 1, pageSize: 100, totalPages: 1 },
-      }),
-    ),
+  const referenceDataServiceMock = {
+    campuses: signal<Campus[]>([
+      {
+        id: 'campus-1',
+        orgId: 'org-1',
+        name: '示範分校',
+        address: null,
+        phone: null,
+        isActive: true,
+        createdAt: '2026-04-09T00:00:00.000Z',
+        updatedAt: '2026-04-09T00:00:00.000Z',
+      },
+    ]),
+    loadCampuses: vi.fn(),
   };
   const leaveServiceMock = {
     create: vi.fn(() =>
@@ -43,13 +52,14 @@ describe('LeaveFormDialogComponent', () => {
   beforeEach(async () => {
     dialogRefMock.close.mockReset();
     leaveServiceMock.create.mockClear();
+    referenceDataServiceMock.loadCampuses.mockClear();
 
     await TestBed.configureTestingModule({
       imports: [LeaveFormDialogComponent],
       providers: [
         { provide: DynamicDialogRef, useValue: dialogRefMock },
         { provide: StudentsService, useValue: studentsServiceMock },
-        { provide: CampusesService, useValue: campusesServiceMock },
+        { provide: ReferenceDataService, useValue: referenceDataServiceMock },
         { provide: LeaveService, useValue: leaveServiceMock },
       ],
     }).compileComponents();

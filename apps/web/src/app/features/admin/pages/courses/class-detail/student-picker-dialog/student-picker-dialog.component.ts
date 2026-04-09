@@ -24,8 +24,14 @@ import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-n
   selector: 'app-student-picker-dialog',
   standalone: true,
   imports: [
-    FormsModule, ButtonModule, InputTextModule, SelectModule,
-    TagModule, SkeletonModule, IconFieldModule, InputIconModule,
+    FormsModule,
+    ButtonModule,
+    InputTextModule,
+    SelectModule,
+    TagModule,
+    SkeletonModule,
+    IconFieldModule,
+    InputIconModule,
     InlineNoticeComponent,
   ],
   templateUrl: './student-picker-dialog.component.html',
@@ -45,7 +51,7 @@ export class StudentPickerDialogComponent implements OnInit {
   protected readonly students = signal<Student[]>([]);
   protected readonly total = signal(0);
   protected readonly currentPage = signal(1);
-  protected readonly PAGE_SIZE = 20;
+  protected readonly PAGE_SIZE = 8;
 
   protected readonly searchQuery = signal('');
   protected selectedGrade: GradeLevel | null = null;

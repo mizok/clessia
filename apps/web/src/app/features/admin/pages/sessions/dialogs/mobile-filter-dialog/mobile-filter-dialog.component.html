@@ -2,17 +2,18 @@
   @if (campuses().length > 1) {
     <div class="mobile-filter-dialog__row">
       <label class="mobile-filter-dialog__label">分校</label>
-      <p-multiselect
+      <p-select
         [options]="campuses()"
         optionLabel="name"
         optionValue="id"
         placeholder="所有分校"
-        selectedItemsLabel="{0} 個分校"
+        [showClear]="true"
         [appendTo]="'body'"
         [filter]="true"
         filterBy="name"
-        [ngModel]="selectedCampusIds()"
-        (ngModelChange)="onCampusIdsChange($event)"
+        filterPlaceholder="搜尋分校..."
+        [ngModel]="selectedCampusId()"
+        (ngModelChange)="onCampusIdChange($event)"
         styleClass="w-full"
       />
     </div>
@@ -110,6 +111,24 @@
       </p-multiselect>
     </div>
   }
+  <div class="mobile-filter-dialog__row">
+    <label class="mobile-filter-dialog__label">學生</label>
+    <p-multiselect
+      [options]="availableStudents()"
+      optionLabel="name"
+      optionValue="id"
+      placeholder="所有學生"
+      selectedItemsLabel="{0} 位學生"
+      [appendTo]="'body'"
+      [filter]="true"
+      filterBy="name,school"
+      [showClear]="true"
+      [resetFilterOnHide]="true"
+      [ngModel]="selectedStudentIds()"
+      (ngModelChange)="onStudentIdsChange($event)"
+      styleClass="w-full"
+    />
+  </div>
   <div class="mobile-filter-dialog__row">
     <label class="mobile-filter-dialog__label">課堂狀態</label>
     <p-multiselect
