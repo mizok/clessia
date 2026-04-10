@@ -4,7 +4,7 @@
   <!-- Page Header -->
   <header class="parents__header">
     <div class="parents__title-group">
-      <h1 class="parents__title">家長管理</h1>
+      <h1 class="parents__title">{{ page().label }}</h1>
       <p class="parents__subtitle">管理家長帳號、關聯學生及帳號狀態</p>
     </div>
     <div class="parents__header-actions">
@@ -14,11 +14,7 @@
         severity="secondary"
         (onClick)="openImportDialog()"
       />
-      <p-button
-        label="新增家長"
-        icon="pi pi-plus"
-        (onClick)="openCreateDialog()"
-      />
+      <p-button label="新增家長" icon="pi pi-plus" (onClick)="openCreateDialog()" />
     </div>
   </header>
 
@@ -103,11 +99,7 @@
             title="尚未有家長資料"
             description="點選「新增家長」來建立第一位家長帳號"
           >
-            <p-button
-              label="新增家長"
-              icon="pi pi-plus"
-              (onClick)="openCreateDialog()"
-            />
+            <p-button label="新增家長" icon="pi pi-plus" (onClick)="openCreateDialog()" />
           </app-empty-state>
         }
       } @else {
@@ -125,9 +117,17 @@
             <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">姓名</th>
             <th appRtColDef="phone" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">手機</th>
             <th appRtColDef="email" [appRtColDefMinWidth]="180" [appRtColDefPriority]="3">Email</th>
-            <th appRtColDef="students" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">關聯學生</th>
+            <th appRtColDef="students" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">
+              關聯學生
+            </th>
             <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">狀態</th>
-            <th appRtColDef="actions" [appRtColDefMinWidth]="56" [appRtColDefPriority]="0" [appRtColDefCollapsible]="false" aria-hidden="true"></th>
+            <th
+              appRtColDef="actions"
+              [appRtColDefMinWidth]="56"
+              [appRtColDefPriority]="0"
+              [appRtColDefCollapsible]="false"
+              aria-hidden="true"
+            ></th>
           </tr>
         </ng-template>
 
@@ -136,7 +136,9 @@
             <tr appRtRow [appRtRow]="parent" [appRtRowId]="parent.id" class="parent-table__row">
               <td appRtColCell="name">
                 <div class="parent-table__name-cell">
-                  <span class="parent-table__avatar" [style.--h]="getPersonHue(parent.id)">{{ parent.name[0] }}</span>
+                  <span class="parent-table__avatar" [style.--h]="getPersonHue(parent.id)">{{
+                    parent.name[0]
+                  }}</span>
                   <span class="parent-table__name">{{ parent.name }}</span>
                 </div>
               </td>

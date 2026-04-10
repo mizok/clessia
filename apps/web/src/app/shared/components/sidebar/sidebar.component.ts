@@ -1,11 +1,12 @@
 import { Component, inject, computed } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NavigationService, type NavItem } from '@core/navigation.service';
+import type { NavigationGroup } from '@core/smart-enums/navigation-group';
 import { CollapsibleComponent } from '@shared/components/collapsible/collapsible.component';
 import { AccordionDirective } from '@shared/directives/accordion.directive';
 
 interface NavGroup {
-  readonly label?: string;
+  readonly label?: NavigationGroup;
   readonly items: NavItem[];
 }
 
@@ -32,7 +33,7 @@ export class SidebarComponent {
     const ungroupedItems = items.filter(item => !item.group);
     const sortedItems = [...ungroupedItems, ...groupedItems];
 
-    let currentGroupLabel: string | undefined = sortedItems[0].group;
+    let currentGroupLabel: NavigationGroup | undefined = sortedItems[0].group;
     let currentGroupItems: NavItem[] = [sortedItems[0]];
     const groups: NavGroup[] = [];
 

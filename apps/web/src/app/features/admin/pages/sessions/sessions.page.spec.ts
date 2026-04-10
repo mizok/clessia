@@ -331,7 +331,7 @@ describe('SessionsPage', () => {
       component as unknown as { hasActiveFilters: () => boolean }
     ).hasActiveFilters();
 
-    expect(listDateRange).toHaveLength(0);
+    expect(listDateRange).toHaveLength(2);
     expect(activeFilterCount).toBe(0);
     expect(hasActiveFilters).toBe(false);
   });
@@ -493,7 +493,7 @@ describe('SessionsPage', () => {
         to: '2026-03-16',
         statuses: undefined,
         page: 1,
-        pageSize: 20,
+        pageSize: 8,
       }),
     );
   });
@@ -546,7 +546,7 @@ describe('SessionsPage', () => {
       classIds: ['class-1', 'class-2'],
       statuses: undefined,
       page: 1,
-      pageSize: 20,
+      pageSize: 8,
     });
   });
 
@@ -954,7 +954,7 @@ describe('SessionsPage', () => {
     (component as unknown as { onPageChange: (page: number) => void }).onPageChange(2);
 
     expect(sessionsServiceMock.list).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 2, pageSize: 20 }),
+      expect.objectContaining({ page: 2, pageSize: 8 }),
     );
   });
 
@@ -1019,10 +1019,10 @@ describe('SessionsPage', () => {
     expect(attendanceServiceMock.sessions).toHaveBeenCalledWith(
       expect.objectContaining({
         classIds: ['class-1'],
-        dateFrom: '2026-04-08',
-        dateTo: '2026-04-08',
+        dateFrom: '2026-04-01',
+        dateTo: '2026-04-30',
         page: 1,
-        pageSize: 1000,
+        pageSize: 100,
       }),
     );
     expect(

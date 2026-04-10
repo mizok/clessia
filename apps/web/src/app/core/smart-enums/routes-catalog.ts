@@ -1,4 +1,5 @@
 import { UserType } from './user-type';
+import { NavigationGroup } from './navigation-group';
 
 export class RouteObj {
   constructor(
@@ -8,7 +9,7 @@ export class RouteObj {
     public readonly role: UserType | undefined,
     public readonly icon: string,
     public readonly showInMenu: boolean = true,
-    public readonly group?: string,
+    public readonly group?: NavigationGroup,
   ) {}
 }
 
@@ -101,7 +102,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-users',
     true,
-    '課務管理',
+    NavigationGroup.ADMIN_ACADEMICS,
   );
   public static readonly ADMIN_CLASS_DETAIL = this.register(
     'courses/:courseId/classes/:classId',
@@ -110,7 +111,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-users',
     false,
-    '課務管理',
+    NavigationGroup.ADMIN_ACADEMICS,
   );
   public static readonly ADMIN_SESSIONS = this.register(
     'sessions',
@@ -119,7 +120,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-list',
     true,
-    '課務管理',
+    NavigationGroup.ADMIN_ACADEMICS,
   );
   public static readonly ADMIN_SCHEDULE = this.register(
     'schedule',
@@ -128,7 +129,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-table',
     false,
-    '課務管理',
+    NavigationGroup.ADMIN_ACADEMICS,
   );
   public static readonly ADMIN_CHANGES = this.register(
     'changes',
@@ -137,7 +138,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-history',
     false,
-    '課務管理',
+    NavigationGroup.ADMIN_ACADEMICS,
   );
   public static readonly ADMIN_ATTENDANCE = this.register(
     'attendance',
@@ -146,7 +147,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-check-circle',
     false,
-    '課務管理',
+    NavigationGroup.ADMIN_ACADEMICS,
   );
 
   // Group: 學務管理
@@ -157,7 +158,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-users',
     true,
-    '學務管理',
+    NavigationGroup.ADMIN_STUDENT_AFFAIRS,
   );
   public static readonly ADMIN_STUDENT_DETAIL = this.register(
     'students/:id',
@@ -166,16 +167,16 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-user',
     false,
-    '學務管理',
+    NavigationGroup.ADMIN_STUDENT_AFFAIRS,
   );
   public static readonly ADMIN_PARENTS = this.register(
     'parents',
     '/admin/parents',
-    '家長資料',
+    '家長管理',
     UserType.ADMIN,
     'pi-user',
     true,
-    '學務管理',
+    NavigationGroup.ADMIN_STUDENT_AFFAIRS,
   );
   public static readonly ADMIN_LEAVE = this.register(
     'leave',
@@ -184,16 +185,44 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-file',
     true,
-    '學務管理',
+    NavigationGroup.ADMIN_STUDENT_AFFAIRS,
   );
+  // Group: 考務與成績
   public static readonly ADMIN_GRADES = this.register(
     'grades',
     '/admin/grades',
-    '成績查閱',
+    '考務與成績',
     UserType.ADMIN,
     'pi-chart-line',
+    false,
+    NavigationGroup.ADMIN_LEARNING_CENTER,
+  );
+  public static readonly ADMIN_GRADES_ACADEMY_EXAMS = this.register(
+    'grades/academy-exams',
+    '/admin/grades/academy-exams',
+    '補習班考試',
+    UserType.ADMIN,
+    'pi-megaphone',
     true,
-    '學務管理',
+    NavigationGroup.ADMIN_LEARNING_CENTER,
+  );
+  public static readonly ADMIN_GRADES_TERM_ENTRY = this.register(
+    'grades/term-exam-entry',
+    '/admin/grades/term-exam-entry',
+    '段考登錄',
+    UserType.ADMIN,
+    'pi-pencil',
+    true,
+    NavigationGroup.ADMIN_LEARNING_CENTER,
+  );
+  public static readonly ADMIN_GRADES_RECORDS = this.register(
+    'grades/score-records',
+    '/admin/grades/score-records',
+    '成績查閱',
+    UserType.ADMIN,
+    'pi-table',
+    true,
+    NavigationGroup.ADMIN_LEARNING_CENTER,
   );
 
   // Group: 行政財務
@@ -204,7 +233,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-wallet',
     true,
-    '行政財務',
+    NavigationGroup.ADMIN_FINANCE,
   );
   public static readonly ADMIN_MEALS = this.register(
     'meals',
@@ -213,7 +242,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-dollar',
     true,
-    '行政財務',
+    NavigationGroup.ADMIN_FINANCE,
   );
   public static readonly ADMIN_PAYMENTS = this.register(
     'payments',
@@ -222,7 +251,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-credit-card',
     true,
-    '行政財務',
+    NavigationGroup.ADMIN_FINANCE,
   );
   public static readonly ADMIN_REPORTS = this.register(
     'reports',
@@ -231,7 +260,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-chart-bar',
     true,
-    '行政財務',
+    NavigationGroup.ADMIN_FINANCE,
   );
 
   // Group: 人事管理
@@ -242,7 +271,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-id-card',
     true,
-    '人事管理',
+    NavigationGroup.ADMIN_STAFF,
   );
 
   // Group: 系統設定
@@ -253,7 +282,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-building',
     true,
-    '系統設定',
+    NavigationGroup.ADMIN_SETTINGS,
   );
   public static readonly ADMIN_SUBJECTS = this.register(
     'subjects',
@@ -262,7 +291,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-tag',
     true,
-    '系統設定',
+    NavigationGroup.ADMIN_SETTINGS,
   );
   public static readonly ADMIN_SETTINGS = this.register(
     'settings',
@@ -271,7 +300,7 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-cog',
     true,
-    '系統設定',
+    NavigationGroup.ADMIN_SETTINGS,
   );
 
   // Teacher
@@ -307,7 +336,7 @@ export class RoutesCatalog {
     UserType.TEACHER,
     'pi-calendar',
     true,
-    '教學課務',
+    NavigationGroup.TEACHER_ACADEMICS,
   );
   public static readonly TEACHER_ATTENDANCE = this.register(
     'attendance',
@@ -316,7 +345,7 @@ export class RoutesCatalog {
     UserType.TEACHER,
     'pi-check-circle',
     true,
-    '教學課務',
+    NavigationGroup.TEACHER_ACADEMICS,
   );
   public static readonly TEACHER_STUDENTS = this.register(
     'students',
@@ -325,7 +354,7 @@ export class RoutesCatalog {
     UserType.TEACHER,
     'pi-users',
     true,
-    '教學課務',
+    NavigationGroup.TEACHER_ACADEMICS,
   );
 
   // Parent
@@ -361,7 +390,7 @@ export class RoutesCatalog {
     UserType.PARENT,
     'pi-calendar-plus',
     true,
-    '學習狀況',
+    NavigationGroup.PARENT_LEARNING,
   );
   public static readonly PARENT_ATTENDANCE = this.register(
     'attendance',
@@ -370,7 +399,7 @@ export class RoutesCatalog {
     UserType.PARENT,
     'pi-check-square',
     true,
-    '學習狀況',
+    NavigationGroup.PARENT_LEARNING,
   );
   public static readonly PARENT_GRADES = this.register(
     'grades',
@@ -379,7 +408,7 @@ export class RoutesCatalog {
     UserType.PARENT,
     'pi-chart-line',
     true,
-    '學習狀況',
+    NavigationGroup.PARENT_LEARNING,
   );
 
   // Group: 行政服務
@@ -390,7 +419,7 @@ export class RoutesCatalog {
     UserType.PARENT,
     'pi-headphones',
     true,
-    '行政服務',
+    NavigationGroup.PARENT_SERVICES,
   );
   public static readonly PARENT_ENROLLMENT = this.register(
     'enrollment',
@@ -399,7 +428,7 @@ export class RoutesCatalog {
     UserType.PARENT,
     'pi-user-plus',
     true,
-    '行政服務',
+    NavigationGroup.PARENT_SERVICES,
   );
   public static readonly PARENT_ADD_COURSE = this.register(
     'add-course',
@@ -408,7 +437,7 @@ export class RoutesCatalog {
     UserType.PARENT,
     'pi-plus-circle',
     true,
-    '行政服務',
+    NavigationGroup.PARENT_SERVICES,
   );
   public static readonly PARENT_RENEWAL = this.register(
     'renewal',
@@ -417,7 +446,7 @@ export class RoutesCatalog {
     UserType.PARENT,
     'pi-refresh',
     true,
-    '行政服務',
+    NavigationGroup.PARENT_SERVICES,
   );
 
   // Group: 生活與繳費
@@ -428,7 +457,7 @@ export class RoutesCatalog {
     UserType.PARENT,
     'pi-dollar',
     true,
-    '生活與繳費',
+    NavigationGroup.PARENT_LIFE_AND_PAYMENTS,
   );
   public static readonly PARENT_PAYMENTS = this.register(
     'payments',
@@ -437,7 +466,7 @@ export class RoutesCatalog {
     UserType.PARENT,
     'pi-wallet',
     true,
-    '生活與繳費',
+    NavigationGroup.PARENT_LIFE_AND_PAYMENTS,
   );
 
   private static register(
@@ -447,7 +476,7 @@ export class RoutesCatalog {
     role: UserType | undefined,
     icon: string,
     showInMenu: boolean = true,
-    group?: string,
+    group?: NavigationGroup,
   ): RouteObj {
     const route = new RouteObj(relativePath, absolutePath, label, role, icon, showInMenu, group);
     this.values.push(route);

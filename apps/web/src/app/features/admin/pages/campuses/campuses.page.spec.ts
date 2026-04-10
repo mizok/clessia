@@ -53,8 +53,8 @@ describe('CampusesPage', () => {
     expect(component).toBeTruthy();
   });
 
-  it('uses 20 records per page', () => {
-    expect((component as unknown as { PAGE_SIZE: number }).PAGE_SIZE).toBe(20);
+  it('uses 8 records per page', () => {
+    expect((component as unknown as { PAGE_SIZE: number }).PAGE_SIZE).toBe(8);
   });
 
   it('shows summary counts returned by the API', () => {

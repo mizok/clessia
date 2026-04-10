@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed, viewChild } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, viewChild, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -37,7 +37,7 @@ import {
   GRADE_LEVEL_LABELS,
 } from '@core/students.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
-import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
+import { RouteObj, RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -85,6 +85,7 @@ export class StudentsPage implements OnInit {
     return this.overlayContainerService.getContainer();
   }
 
+  readonly page = input.required<RouteObj>();
   // State
   readonly students = signal<Student[]>([]);
   readonly loading = signal(true);

@@ -64,4 +64,28 @@
   &__skeleton {
     padding: var(--space-2);
   }
+
+  &__conflict {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--p-warning-200, #fde68a);
+    border-radius: 8px;
+    background: var(--p-warning-50, #fffbeb);
+  }
+
+  &__conflict-list {
+    margin: 0;
+    padding-left: var(--space-5);
+    font-size: 0.8125rem;
+    color: var(--p-zinc-700);
+    line-height: 1.6;
+  }
+
+  &__conflict-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
 }

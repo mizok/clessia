@@ -4,10 +4,10 @@
       @if (group.label) {
         <div
           class="sidebar__group-header"
-          [class.sidebar__group-header--collapsed]="!accordion.isOpen(group.label)"
-          (click)="accordion.toggle(group.label); handleScroll($event)"
+          [class.sidebar__group-header--collapsed]="!accordion.isOpen(group.label.label)"
+          (click)="accordion.toggle(group.label.label); handleScroll($event)"
         >
-          <span class="sidebar__group-title">{{ group.label }}</span>
+          <span class="sidebar__group-title">{{ group.label.label }}</span>
           <i class="pi pi-chevron-down sidebar__group-icon"></i>
         </div>
       }
@@ -30,7 +30,7 @@
           }
         </div>
       } @else {
-        <app-collapsible [collapsed]="!accordion.isOpen(group.label)">
+        <app-collapsible [collapsed]="!accordion.isOpen(group.label.label)">
           <div class="sidebar__group-items">
             @for (item of group.items; track item.route) {
               <a

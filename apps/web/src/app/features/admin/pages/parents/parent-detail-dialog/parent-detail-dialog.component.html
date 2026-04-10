@@ -8,6 +8,50 @@
     />
   }
 
+  @if (conflictPrompt(); as prompt) {
+    <div class="parent-detail__conflict">
+      <app-inline-notice
+        severity="warning"
+        summary="與其他班級時段衝突"
+        [detail]="'此學生已報名以下時段衝突的班級'"
+        [dismissible]="false"
+      />
+      <ul class="parent-detail__conflict-list">
+        @for (
+          warning of prompt.warnings;
+          track warning.studentId +
+            '-' +
+            warning.conflictingClassId +
+            '-' +
+            warning.weekday +
+            '-' +
+            warning.startTime
+        ) {
+          <li>
+            {{ warning.conflictingCourseName }} · {{ warning.conflictingClassName }}
+            （週{{ weekdayLabel(warning.weekday) }} {{ warning.startTime.substring(0, 5) }}–{{
+              warning.endTime.substring(0, 5)
+            }}）
+          </li>
+        }
+      </ul>
+      <div class="parent-detail__conflict-actions">
+        <p-button
+          label="取消"
+          severity="secondary"
+          [text]="true"
+          (onClick)="cancelConflictPrompt()"
+        />
+        <p-button
+          label="仍要報名"
+          severity="warn"
+          [loading]="enrollingStudentId() === prompt.student.id"
+          (onClick)="confirmConflictEnroll()"
+        />
+      </div>
+    </div>
+  }
+
   @if (loading()) {
     <div class="parent-detail__skeleton">
       <p-skeleton height="20px" width="60%" />

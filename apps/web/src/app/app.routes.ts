@@ -118,7 +118,37 @@ export const routes: Routes = [
             path: RoutesCatalog.ADMIN_GRADES.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/grades/grades.component').then((m) => m.GradesComponent),
-            data: { page: RoutesCatalog.ADMIN_GRADES },
+            children: [
+              {
+                path: '',
+                redirectTo: 'academy-exams',
+                pathMatch: 'full',
+              },
+              {
+                path: 'academy-exams',
+                loadComponent: () =>
+                  import('@features/admin/pages/grades/academy-exams/academy-exams.component').then(
+                    (m) => m.AcademyExamsComponent,
+                  ),
+                data: { page: RoutesCatalog.ADMIN_GRADES_ACADEMY_EXAMS },
+              },
+              {
+                path: 'term-exam-entry',
+                loadComponent: () =>
+                  import(
+                    '@features/admin/pages/grades/term-exam-entry/term-exam-entry.component'
+                  ).then((m) => m.TermExamEntryComponent),
+                data: { page: RoutesCatalog.ADMIN_GRADES_TERM_ENTRY },
+              },
+              {
+                path: 'score-records',
+                loadComponent: () =>
+                  import('@features/admin/pages/grades/score-records/score-records.component').then(
+                    (m) => m.ScoreRecordsComponent,
+                  ),
+                data: { page: RoutesCatalog.ADMIN_GRADES_RECORDS },
+              },
+            ],
           },
           {
             path: RoutesCatalog.ADMIN_CHANGES.relativePath,

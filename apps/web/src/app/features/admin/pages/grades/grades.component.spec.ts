@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
 import { GradesComponent } from './grades.component';
 
@@ -8,14 +9,13 @@ describe('GradesComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [GradesComponent]
-    })
-    .compileComponents();
+      imports: [GradesComponent],
+      providers: [provideRouter([])],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(GradesComponent);
     component = fixture.componentInstance;
-    fixture.componentRef.setInput('page', { label: 'Test', relativePath: '', absolutePath: '', role: undefined, icon: '', showInMenu: true });
-    await fixture.whenStable();
+    fixture.detectChanges();
   });
 
   it('should create', () => {

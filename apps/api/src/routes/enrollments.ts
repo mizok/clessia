@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
+import { checkEnrollmentPreconditions } from './enrollments/validation';
 
 // ============================================================
 // Schemas
@@ -40,6 +41,18 @@ const EnrollmentSchema = z
   })
   .openapi('Enrollment');
 
+const ScheduleConflictWarningSchema = z
+  .object({
+    studentId: z.uuid(),
+    conflictingClassId: z.uuid(),
+    conflictingClassName: z.string(),
+    conflictingCourseName: z.string(),
+    weekday: z.number().int().min(1).max(7),
+    startTime: z.string(),
+    endTime: z.string(),
+  })
+  .openapi('ScheduleConflictWarning');
+
 const EnrollmentListResponseSchema = z
   .object({
     data: z.array(EnrollmentSchema),
@@ -61,6 +74,7 @@ const CreateEnrollmentSchema = z
     effectiveFrom: z.string().date().optional(),
     effectiveTo: z.string().date().nullable().optional(),
     notes: z.string().max(2000).optional(),
+    skipConflictCheck: z.boolean().optional(),
   })
   .openapi('CreateEnrollment');
 
@@ -84,6 +98,7 @@ const BatchCreateEnrollmentSchema = z
   .object({
     classId: DbUuidSchema,
     studentIds: z.array(DbUuidSchema).min(1).max(50),
+    skipConflictCheck: z.boolean().optional(),
   })
   .openapi('BatchCreateEnrollment');
 
@@ -95,7 +110,10 @@ const BatchCreateResultItemSchema = z.object({
 });
 
 const BatchCreateResultSchema = z
-  .object({ results: z.array(BatchCreateResultItemSchema) })
+  .object({
+    results: z.array(BatchCreateResultItemSchema),
+    warnings: z.array(ScheduleConflictWarningSchema).optional(),
+  })
   .openapi('BatchCreateEnrollmentResult');
 
 const BatchMatchBodySchema = z
@@ -361,6 +379,15 @@ const ErrorSchema = z
   })
   .openapi('EnrollmentError');
 
+const OverQuotaErrorSchema = ErrorSchema.extend({
+  quota: z.number().optional(),
+  currentActive: z.number().optional(),
+});
+
+const ScheduleConflictErrorSchema = ErrorSchema.extend({
+  warnings: z.array(ScheduleConflictWarningSchema).optional(),
+});
+
 // ============================================================
 // Routes
 // ============================================================
@@ -425,9 +452,23 @@ app.openapi(
     tags: ['Enrollments'],
     request: { body: { content: { 'application/json': { schema: CreateEnrollmentSchema } } } },
     responses: {
-      201: { content: { 'application/json': { schema: z.object({ data: EnrollmentSchema }) } }, description: 'Created' },
-      400: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Bad Request' },
-      409: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Conflict' },
+      201: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              data: EnrollmentSchema,
+              warnings: z.array(ScheduleConflictWarningSchema).optional(),
+            }),
+          },
+        },
+        description: 'Created',
+      },
+      400: { content: { 'application/json': { schema: OverQuotaErrorSchema } }, description: 'Bad Request' },
+      404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Not Found' },
+      409: {
+        content: { 'application/json': { schema: ScheduleConflictErrorSchema } },
+        description: 'Conflict',
+      },
       500: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Internal Server Error' },
     },
   }),
@@ -438,6 +479,46 @@ app.openapi(
     const supabase = c.get('supabase');
     const effectiveFrom = body.effectiveFrom ?? new Date().toISOString().slice(0, 10);
     const effectiveTo = body.effectiveTo ?? null;
+    const skipConflictCheck = body.skipConflictCheck === true;
+
+    const preconditions = await checkEnrollmentPreconditions({
+      supabase,
+      orgId,
+      classId: body.classId,
+      studentIds: [body.studentId],
+      effectiveFrom,
+      effectiveTo,
+    });
+
+    if (preconditions.error) {
+      switch (preconditions.error.code) {
+        case 'CLASS_NOT_FOUND':
+          return c.json({ error: preconditions.error.message, code: 'CLASS_NOT_FOUND' }, 404);
+        case 'OVER_QUOTA':
+          return c.json(
+            {
+              error: preconditions.error.message,
+              code: 'OVER_QUOTA',
+              quota: preconditions.error.quota,
+              currentActive: preconditions.error.currentActive,
+            },
+            400,
+          );
+        case 'SERVER_ERROR':
+          return c.json({ error: preconditions.error.message, code: 'SERVER_ERROR' }, 500);
+      }
+    }
+
+    if (!skipConflictCheck && preconditions.conflicts.length > 0) {
+      return c.json(
+        {
+          error: 'SCHEDULE_CONFLICT',
+          code: 'SCHEDULE_CONFLICT',
+          warnings: preconditions.conflicts,
+        },
+        409,
+      );
+    }
 
     const { data, error } = await supabase
       .from('enrollments')
@@ -456,7 +537,9 @@ app.openapi(
       .single();
 
     if (error) {
-      if (error.code === '23505') return c.json({ error: 'ALREADY_ENROLLED' }, 409);
+      if (error.code === '23505') {
+        return c.json({ error: '此學生已在此班', code: 'ALREADY_ENROLLED' }, 409);
+      }
       return c.json({ error: error.message }, 500);
     }
 
@@ -619,51 +702,52 @@ app.openapi(
         description: 'Bad Request (over_quota)',
       },
       404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Class not found' },
+      409: {
+        content: { 'application/json': { schema: ScheduleConflictErrorSchema } },
+        description: 'Conflict',
+      },
       500: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Internal Server Error' },
     },
   }),
   async (c) => {
-    const { classId, studentIds } = c.req.valid('json');
+    const { classId, studentIds, skipConflictCheck } = c.req.valid('json');
     const orgId = c.get('orgId');
     const userId = c.get('userId');
     const supabase = c.get('supabase');
     const uniqueStudentIds = Array.from(new Set(studentIds));
 
-    const { data: cls, error: classError } = await supabase
-      .from('classes')
-      .select('max_students')
-      .eq('id', classId)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    const today = new Date().toISOString().slice(0, 10);
+    const preconditions = await checkEnrollmentPreconditions({
+      supabase,
+      orgId,
+      classId,
+      studentIds: uniqueStudentIds,
+      effectiveFrom: today,
+      effectiveTo: null,
+    });
 
-    if (classError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
-    if (!cls) return c.json({ error: 'CLASS_NOT_FOUND' }, 404);
-
-    const { count: activeCount, error: activeCountError } = await supabase
-      .from('enrollments')
-      .select('*', { count: 'exact', head: true })
-      .eq('class_id', classId)
-      .eq('org_id', orgId)
-      .in('status', ['active', 'pending_payment']);
-
-    if (activeCountError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
-
-    const { count: alreadyInCount, error: alreadyInCountError } = await supabase
-      .from('enrollments')
-      .select('*', { count: 'exact', head: true })
-      .eq('class_id', classId)
-      .eq('org_id', orgId)
-      .in('status', ['active', 'pending_payment'])
-      .in('student_id', uniqueStudentIds);
-
-    if (alreadyInCountError) return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
-
-    const projectedNewCount = uniqueStudentIds.length - (alreadyInCount ?? 0);
-    if ((activeCount ?? 0) + projectedNewCount > (cls.max_students ?? 9999)) {
-      return c.json({ error: '人數已達上限', code: 'OVER_QUOTA' }, 400);
+    if (preconditions.error) {
+      switch (preconditions.error.code) {
+        case 'CLASS_NOT_FOUND':
+          return c.json({ error: 'CLASS_NOT_FOUND', code: 'CLASS_NOT_FOUND' }, 404);
+        case 'OVER_QUOTA':
+          return c.json({ error: '人數已達上限', code: 'OVER_QUOTA' }, 400);
+        case 'SERVER_ERROR':
+          return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+      }
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    if (!skipConflictCheck && preconditions.conflicts.length > 0) {
+      return c.json(
+        {
+          error: 'SCHEDULE_CONFLICT',
+          code: 'SCHEDULE_CONFLICT',
+          warnings: preconditions.conflicts,
+        },
+        409,
+      );
+    }
+
     const results: z.infer<typeof BatchCreateResultItemSchema>[] = [];
 
     for (const studentId of uniqueStudentIds) {
@@ -700,7 +784,7 @@ app.openapi(
       }
     }
 
-    return c.json({ results }, 200);
+    return c.json({ results, warnings: preconditions.conflicts }, 200);
   },
 );
 

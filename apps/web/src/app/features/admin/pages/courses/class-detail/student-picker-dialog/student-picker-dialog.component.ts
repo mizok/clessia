@@ -17,7 +17,7 @@ import {
   GRADE_LEVELS,
   GRADE_LEVEL_LABELS,
 } from '@core/students.service';
-import { EnrollmentsService, BatchCreateResultItem } from '@core/enrollments.service';
+import { EnrollmentsService, type ScheduleConflictWarning } from '@core/enrollments.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
 @Component({
@@ -48,6 +48,7 @@ export class StudentPickerDialogComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly confirming = signal(false);
   protected readonly confirmError = signal<string | null>(null);
+  protected readonly conflictWarnings = signal<readonly ScheduleConflictWarning[]>([]);
   protected readonly students = signal<Student[]>([]);
   protected readonly total = signal(0);
   protected readonly currentPage = signal(1);
@@ -92,6 +93,9 @@ export class StudentPickerDialogComponent implements OnInit {
   // 選中的 Student 物件清單（Step 2 預覽用）
   protected readonly selectedStudents = computed(() =>
     this.students().filter((s) => this.selectedIds().has(s.id)),
+  );
+  protected readonly studentNameMap = computed(() =>
+    new Map(this.students().map((student) => [student.id, student.name])),
   );
 
   // 超額檢查（Step 2 用）
@@ -170,20 +174,36 @@ export class StudentPickerDialogComponent implements OnInit {
   }
 
   // 確認加入：dialog 自行呼叫 API，顯示 loading，完成後關閉並傳回結果
-  protected confirm(): void {
+  protected confirm(force = false): void {
     this.confirming.set(true);
     this.confirmError.set(null);
+    if (!force) {
+      this.conflictWarnings.set([]);
+    }
+
     this.enrollmentsService
-      .batchCreate({ classId: this.classId, studentIds: Array.from(this.selectedIds()) })
+      .batchCreate({
+        classId: this.classId,
+        studentIds: Array.from(this.selectedIds()),
+        skipConflictCheck: force,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
           this.confirming.set(false);
-          this.ref.close(res); // 傳 { results: BatchCreateResultItem[] } 給 parent
+          this.ref.close(res);
         },
         error: (err) => {
           this.confirming.set(false);
-          const code = err?.error?.code ?? err?.error?.error;
+          const code = err?.error?.code;
+          const warnings = err?.error?.warnings as ScheduleConflictWarning[] | undefined;
+
+          if (code === 'SCHEDULE_CONFLICT' && warnings?.length) {
+            this.conflictWarnings.set(warnings);
+            return;
+          }
+
+          this.conflictWarnings.set([]);
           this.confirmError.set(
             code === 'OVER_QUOTA' || code === 'over_quota'
               ? '超過班級人數上限，請減少加入人數'
@@ -191,6 +211,22 @@ export class StudentPickerDialogComponent implements OnInit {
           );
         },
       });
+  }
+
+  protected confirmForce(): void {
+    this.confirm(true);
+  }
+
+  protected clearConflicts(): void {
+    this.conflictWarnings.set([]);
+  }
+
+  protected studentName(studentId: string): string {
+    return this.studentNameMap().get(studentId) ?? '未知學生';
+  }
+
+  protected weekdayLabel(weekday: number): string {
+    return ['一', '二', '三', '四', '五', '六', '日'][weekday - 1] ?? `${weekday}`;
   }
 
   protected cancel(): void {

@@ -104,8 +104,6 @@ describe('SessionListComponent', () => {
 
     expect(headers).toEqual([
       '班級 / 課程 / 分校',
-      '日期',
-      '時間',
       '老師',
       '出勤狀態',
       '狀態',

@@ -1,12 +1,13 @@
 import { Injectable, computed, inject } from '@angular/core';
 import { AuthService } from './auth.service';
+import type { NavigationGroup } from './smart-enums/navigation-group';
 import { RoutesCatalog } from './smart-enums/routes-catalog';
 
 export interface NavItem {
   readonly label: string;
   readonly icon: string;
   readonly route: string;
-  readonly group?: string;
+  readonly group?: NavigationGroup;
   readonly badge?: number;
 }
 

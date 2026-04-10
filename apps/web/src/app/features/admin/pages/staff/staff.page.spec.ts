@@ -83,8 +83,8 @@ describe('StaffPage', () => {
     expect(component).toBeTruthy();
   });
 
-  it('uses 20 records per page', () => {
-    expect((component as unknown as { PAGE_SIZE: number }).PAGE_SIZE).toBe(20);
+  it('uses 8 records per page', () => {
+    expect((component as unknown as { PAGE_SIZE: number }).PAGE_SIZE).toBe(8);
   });
 
   it('shows the total staff count in the summary card', () => {

@@ -5,36 +5,57 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { TagModule } from 'primeng/tag';
 import { SkeletonModule } from 'primeng/skeleton';
-import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
-import { ToastModule } from 'primeng/toast';
 
 import { StudentsService, StudentDetail, GradeLevel, GRADE_LEVEL_LABELS } from '@core/students.service';
 import {
   EnrollmentsService,
   Enrollment,
   ENROLLMENT_STATUS_LABELS,
+  ScheduleConflictWarning,
 } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageBreadcrumbComponent, type BreadcrumbItem } from '@shared/components/page-breadcrumb/page-breadcrumb.component';
 import { ClassPickerDialogComponent } from '@shared/components/class-picker-dialog/class-picker-dialog.component';
+import {
+  InlineNoticeComponent,
+  type InlineNoticeSeverity,
+} from '@shared/components/inline-notice/inline-notice.component';
 import { StudentFormDialogComponent } from '../student-form-dialog.component';
 import type { Class } from '@core/classes.service';
+
+interface InlineNoticeState {
+  readonly severity: InlineNoticeSeverity;
+  readonly summary: string;
+  readonly detail: string;
+}
+
+interface ConflictPrompt {
+  readonly cls: Class;
+  readonly warnings: readonly ScheduleConflictWarning[];
+}
 
 @Component({
   selector: 'app-student-detail',
   standalone: true,
-  imports: [CommonModule, ButtonModule, TagModule, SkeletonModule, ToastModule, EmptyStateComponent, PageBreadcrumbComponent],
-  providers: [MessageService, DialogService],
+  imports: [
+    CommonModule,
+    ButtonModule,
+    TagModule,
+    SkeletonModule,
+    EmptyStateComponent,
+    PageBreadcrumbComponent,
+    InlineNoticeComponent,
+  ],
+  providers: [DialogService],
   templateUrl: './student-detail.page.html',
   styleUrl: './student-detail.page.scss',
 })
 export class StudentDetailPage implements OnInit {
   private readonly studentsService = inject(StudentsService);
   private readonly enrollmentsService = inject(EnrollmentsService);
-  private readonly messageService = inject(MessageService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly route = inject(ActivatedRoute);
@@ -58,6 +79,9 @@ export class StudentDetailPage implements OnInit {
   readonly loading = signal(true);
   protected readonly enrollments = signal<Enrollment[]>([]);
   protected readonly enrollmentsLoading = signal(false);
+  protected readonly notice = signal<InlineNoticeState | null>(null);
+  protected readonly conflictPrompt = signal<ConflictPrompt | null>(null);
+  protected readonly enrollingClassId = signal<string | null>(null);
   protected readonly ENROLLMENT_STATUS_LABELS = ENROLLMENT_STATUS_LABELS;
 
   ngOnInit(): void {
@@ -119,7 +143,7 @@ export class StudentDetailPage implements OnInit {
         if (updated) {
           const id = this.route.snapshot.paramMap.get('id');
           if (id) this.loadStudent(id);
-          this.messageService.add({
+          this.notice.set({
             severity: 'success',
             summary: '更新成功',
             detail: `「${updated.name}」已更新`,
@@ -138,7 +162,7 @@ export class StudentDetailPage implements OnInit {
       },
       error: (err) => {
         console.error('Failed to load student', err);
-        this.messageService.add({
+        this.notice.set({
           severity: 'error',
           summary: '載入失敗',
           detail: '無法載入學生資料',
@@ -169,15 +193,40 @@ export class StudentDetailPage implements OnInit {
     });
   }
 
-  private addToClass(cls: Class): void {
+  protected dismissNotice(): void {
+    this.notice.set(null);
+  }
+
+  protected confirmConflictEnroll(): void {
+    const prompt = this.conflictPrompt();
+    if (!prompt) {
+      return;
+    }
+
+    this.addToClass(prompt.cls, true);
+  }
+
+  protected cancelConflictPrompt(): void {
+    this.enrollingClassId.set(null);
+    this.conflictPrompt.set(null);
+  }
+
+  protected weekdayLabel(weekday: number): string {
+    return ['一', '二', '三', '四', '五', '六', '日'][weekday - 1] ?? `${weekday}`;
+  }
+
+  private addToClass(cls: Class, force = false): void {
     const s = this.student();
     if (!s) return;
+    this.enrollingClassId.set(cls.id);
     this.enrollmentsService
-      .create({ classId: cls.id, studentId: s.id })
+      .create({ classId: cls.id, studentId: s.id, skipConflictCheck: force })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.messageService.add({
+          this.enrollingClassId.set(null);
+          this.conflictPrompt.set(null);
+          this.notice.set({
             severity: 'success',
             summary: '加入成功',
             detail: `「${s.name}」已加入「${cls.name}」`,
@@ -185,8 +234,38 @@ export class StudentDetailPage implements OnInit {
           const id = this.route.snapshot.paramMap.get('id');
           if (id) this.loadEnrollments(id);
         },
-        error: () => {
-          this.messageService.add({
+        error: (err) => {
+          this.enrollingClassId.set(null);
+          const code = err?.error?.code;
+          const warnings = err?.error?.warnings as ScheduleConflictWarning[] | undefined;
+
+          if (code === 'SCHEDULE_CONFLICT' && warnings?.length) {
+            this.conflictPrompt.set({ cls, warnings });
+            this.notice.set(null);
+            return;
+          }
+
+          this.conflictPrompt.set(null);
+
+          if (code === 'OVER_QUOTA') {
+            this.notice.set({
+              severity: 'error',
+              summary: '班級人數已達上限',
+              detail: '無法將學生加入班級，請調整人數上限或改選其他班級',
+            });
+            return;
+          }
+
+          if (code === 'ALREADY_ENROLLED') {
+            this.notice.set({
+              severity: 'warning',
+              summary: '已經在此班',
+              detail: `「${s.name}」已經是「${cls.name}」的成員`,
+            });
+            return;
+          }
+
+          this.notice.set({
             severity: 'error',
             summary: '加入失敗',
             detail: '無法將學生加入班級，請稍後再試',

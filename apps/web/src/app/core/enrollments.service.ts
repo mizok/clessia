@@ -39,6 +39,16 @@ export interface Enrollment {
   attendanceCount: number;
 }
 
+export interface ScheduleConflictWarning {
+  studentId: string;
+  conflictingClassId: string;
+  conflictingClassName: string;
+  conflictingCourseName: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+}
+
 export interface CreateEnrollmentInput {
   classId: string;
   studentId: string;
@@ -47,6 +57,7 @@ export interface CreateEnrollmentInput {
   effectiveFrom?: string;
   effectiveTo?: string | null;
   notes?: string;
+  skipConflictCheck?: boolean;
 }
 
 export interface UpdateEnrollmentInput {
@@ -79,6 +90,17 @@ export interface BatchCreateResultItem {
 export interface BatchCreateInput {
   classId: string;
   studentIds: string[];
+  skipConflictCheck?: boolean;
+}
+
+export interface BatchCreateResult {
+  results: BatchCreateResultItem[];
+  warnings?: ScheduleConflictWarning[];
+}
+
+export interface CreateEnrollmentResponse {
+  data: Enrollment;
+  warnings?: ScheduleConflictWarning[];
 }
 
 export interface CopyFromClassInput {
@@ -131,12 +153,12 @@ export class EnrollmentsService {
     return this.http.get<EnrollmentListResponse>(`${this.base}?${query}`);
   }
 
-  create(input: CreateEnrollmentInput): Observable<{ data: Enrollment }> {
-    return this.http.post<{ data: Enrollment }>(this.base, input);
+  create(input: CreateEnrollmentInput): Observable<CreateEnrollmentResponse> {
+    return this.http.post<CreateEnrollmentResponse>(this.base, input);
   }
 
-  batchCreate(input: BatchCreateInput): Observable<{ results: BatchCreateResultItem[] }> {
-    return this.http.post<{ results: BatchCreateResultItem[] }>(`${this.base}/batch`, input);
+  batchCreate(input: BatchCreateInput): Observable<BatchCreateResult> {
+    return this.http.post<BatchCreateResult>(`${this.base}/batch`, input);
   }
 
   update(id: string, input: UpdateEnrollmentInput): Observable<{ data: Enrollment }> {

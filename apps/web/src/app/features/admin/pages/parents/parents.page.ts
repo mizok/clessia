@@ -83,7 +83,6 @@ export class ParentsPage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly destroyRef = inject(DestroyRef);
-
   readonly page = input.required<RouteObj>();
 
   protected get overlayContainer(): HTMLElement | null {

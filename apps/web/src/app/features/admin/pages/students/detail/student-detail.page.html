@@ -1,7 +1,58 @@
-<p-toast appendTo="body" [baseZIndex]="25000" />
-
 <div class="student-detail">
   <app-page-breadcrumb [items]="breadcrumbItems()" />
+
+  @if (notice(); as n) {
+    <app-inline-notice
+      [severity]="n.severity"
+      [summary]="n.summary"
+      [detail]="n.detail"
+      (dismissed)="dismissNotice()"
+    />
+  }
+
+  @if (conflictPrompt(); as prompt) {
+    <div class="student-detail__conflict">
+      <app-inline-notice
+        severity="warning"
+        summary="與其他班級時段衝突"
+        [detail]="'此學生已報名以下時段衝突的班級'"
+        [dismissible]="false"
+      />
+      <ul class="student-detail__conflict-list">
+        @for (
+          warning of prompt.warnings;
+          track warning.studentId +
+            '-' +
+            warning.conflictingClassId +
+            '-' +
+            warning.weekday +
+            '-' +
+            warning.startTime
+        ) {
+          <li>
+            {{ warning.conflictingCourseName }} · {{ warning.conflictingClassName }}
+            （週{{ weekdayLabel(warning.weekday) }} {{ warning.startTime.substring(0, 5) }}–{{
+              warning.endTime.substring(0, 5)
+            }}）
+          </li>
+        }
+      </ul>
+      <div class="student-detail__conflict-actions">
+        <p-button
+          label="取消"
+          severity="secondary"
+          [text]="true"
+          (onClick)="cancelConflictPrompt()"
+        />
+        <p-button
+          label="仍要加入"
+          severity="warn"
+          [loading]="enrollingClassId() === prompt.cls.id"
+          (onClick)="confirmConflictEnroll()"
+        />
+      </div>
+    </div>
+  }
 
   <!-- Back Navigation -->
   <div class="student-detail__nav">

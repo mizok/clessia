@@ -123,6 +123,53 @@
       <app-inline-notice severity="error" [detail]="confirmError()!" [dismissible]="false" />
     }
 
+    @if (conflictWarnings().length > 0) {
+      <div class="spd__conflict">
+        <app-inline-notice
+          severity="warning"
+          summary="部分學生與其他班級時段衝突"
+          [detail]="'若已確認可覆蓋，仍可繼續加入'"
+          [dismissible]="false"
+        />
+        <ul class="spd__conflict-list">
+          @for (
+            warning of conflictWarnings();
+            track warning.studentId +
+              '-' +
+              warning.conflictingClassId +
+              '-' +
+              warning.weekday +
+              '-' +
+              warning.startTime
+          ) {
+            <li>
+              {{ studentName(warning.studentId) }}：
+              {{ warning.conflictingCourseName }} · {{ warning.conflictingClassName }}
+              （週{{ weekdayLabel(warning.weekday) }} {{ warning.startTime.substring(0, 5) }}–{{
+                warning.endTime.substring(0, 5)
+              }}）
+            </li>
+          }
+        </ul>
+        <div class="spd__conflict-actions">
+          <p-button
+            label="取消"
+            severity="secondary"
+            [text]="true"
+            [disabled]="confirming()"
+            (onClick)="clearConflicts()"
+          />
+          <p-button
+            label="仍要加入"
+            severity="warn"
+            [loading]="confirming()"
+            [disabled]="confirming()"
+            (onClick)="confirmForce()"
+          />
+        </div>
+      </div>
+    }
+
     <div class="spd__footer">
       <p-button
         label="上一步"
