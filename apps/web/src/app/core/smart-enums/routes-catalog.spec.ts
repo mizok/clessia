@@ -25,13 +25,19 @@ describe('RoutesCatalog', () => {
     expect(RoutesCatalog.ADMIN_GRADES.showInMenu).toBe(false);
   });
 
-  it('should expose exam subpages under the exams and scores board', () => {
-    expect(RoutesCatalog.ADMIN_GRADES_ACADEMY_EXAMS.label).toBe('補習班考試');
-    expect(RoutesCatalog.ADMIN_GRADES_TERM_ENTRY.label).toBe('段考登錄');
-    expect(RoutesCatalog.ADMIN_GRADES_RECORDS.label).toBe('成績查閱');
-    expect(RoutesCatalog.ADMIN_GRADES_ACADEMY_EXAMS.group).toBe(NavigationGroup.ADMIN_LEARNING_CENTER);
-    expect(RoutesCatalog.ADMIN_GRADES_TERM_ENTRY.group).toBe(NavigationGroup.ADMIN_LEARNING_CENTER);
-    expect(RoutesCatalog.ADMIN_GRADES_RECORDS.group).toBe(NavigationGroup.ADMIN_LEARNING_CENTER);
+  it('should expose exam management and score overview under the exams and scores board', () => {
+    expect(RoutesCatalog.ADMIN_GRADES_EXAMS.label).toBe('考試管理');
+    expect(RoutesCatalog.ADMIN_GRADES_OVERVIEW.label).toBe('成績總覽');
+    expect(RoutesCatalog.ADMIN_GRADES_EXAMS.group).toBe(NavigationGroup.ADMIN_LEARNING_CENTER);
+    expect(RoutesCatalog.ADMIN_GRADES_OVERVIEW.group).toBe(NavigationGroup.ADMIN_LEARNING_CENTER);
+    expect(RoutesCatalog.ADMIN_GRADES_EXAMS.showInMenu).toBe(true);
+    expect(RoutesCatalog.ADMIN_GRADES_OVERVIEW.showInMenu).toBe(true);
+  });
+
+  it('should register score entry as a non-menu sub-page under grades', () => {
+    expect(RoutesCatalog.ADMIN_GRADES_SCORE_ENTRY.label).toBe('成績登錄');
+    expect(RoutesCatalog.ADMIN_GRADES_SCORE_ENTRY.showInMenu).toBe(false);
+    expect(RoutesCatalog.ADMIN_GRADES_SCORE_ENTRY.relativePath).toBe('grades/exams/:type/:id/scores');
   });
 
   it('should centralize navigation board labels in smart enums', () => {

@@ -197,28 +197,28 @@ export class RoutesCatalog {
     false,
     NavigationGroup.ADMIN_LEARNING_CENTER,
   );
-  public static readonly ADMIN_GRADES_ACADEMY_EXAMS = this.register(
-    'grades/academy-exams',
-    '/admin/grades/academy-exams',
-    '補習班考試',
+  public static readonly ADMIN_GRADES_EXAMS = this.register(
+    'grades/exams',
+    '/admin/grades/exams',
+    '考試管理',
     UserType.ADMIN,
     'pi-megaphone',
     true,
     NavigationGroup.ADMIN_LEARNING_CENTER,
   );
-  public static readonly ADMIN_GRADES_TERM_ENTRY = this.register(
-    'grades/term-exam-entry',
-    '/admin/grades/term-exam-entry',
-    '段考登錄',
+  public static readonly ADMIN_GRADES_SCORE_ENTRY = this.register(
+    'grades/exams/:type/:id/scores',
+    '/admin/grades/exams/:type/:id/scores',
+    '成績登錄',
     UserType.ADMIN,
     'pi-pencil',
-    true,
+    false,
     NavigationGroup.ADMIN_LEARNING_CENTER,
   );
-  public static readonly ADMIN_GRADES_RECORDS = this.register(
-    'grades/score-records',
-    '/admin/grades/score-records',
-    '成績查閱',
+  public static readonly ADMIN_GRADES_OVERVIEW = this.register(
+    'grades/overview',
+    '/admin/grades/overview',
+    '成績總覽',
     UserType.ADMIN,
     'pi-table',
     true,

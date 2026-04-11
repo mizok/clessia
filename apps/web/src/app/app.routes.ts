@@ -121,33 +121,37 @@ export const routes: Routes = [
             children: [
               {
                 path: '',
-                redirectTo: 'academy-exams',
+                redirectTo: 'exams',
                 pathMatch: 'full',
               },
               {
-                path: 'academy-exams',
+                path: 'exams',
                 loadComponent: () =>
-                  import('@features/admin/pages/grades/academy-exams/academy-exams.component').then(
-                    (m) => m.AcademyExamsComponent,
+                  import('@features/admin/pages/grades/exams/exams.component').then(
+                    (m) => m.ExamsComponent,
                   ),
-                data: { page: RoutesCatalog.ADMIN_GRADES_ACADEMY_EXAMS },
+                data: { page: RoutesCatalog.ADMIN_GRADES_EXAMS },
               },
               {
-                path: 'term-exam-entry',
+                path: 'exams/:type/:id/scores',
                 loadComponent: () =>
                   import(
-                    '@features/admin/pages/grades/term-exam-entry/term-exam-entry.component'
-                  ).then((m) => m.TermExamEntryComponent),
-                data: { page: RoutesCatalog.ADMIN_GRADES_TERM_ENTRY },
+                    '@features/admin/pages/grades/exams/score-entry/score-entry.component'
+                  ).then((m) => m.ScoreEntryComponent),
+                data: { page: RoutesCatalog.ADMIN_GRADES_SCORE_ENTRY },
               },
               {
-                path: 'score-records',
+                path: 'overview',
                 loadComponent: () =>
-                  import('@features/admin/pages/grades/score-records/score-records.component').then(
-                    (m) => m.ScoreRecordsComponent,
+                  import('@features/admin/pages/grades/overview/overview.component').then(
+                    (m) => m.OverviewComponent,
                   ),
-                data: { page: RoutesCatalog.ADMIN_GRADES_RECORDS },
+                data: { page: RoutesCatalog.ADMIN_GRADES_OVERVIEW },
               },
+              // 舊路由 redirect
+              { path: 'academy-exams', redirectTo: 'exams', pathMatch: 'full' },
+              { path: 'term-exam-entry', redirectTo: 'exams', pathMatch: 'full' },
+              { path: 'score-records', redirectTo: 'overview', pathMatch: 'full' },
             ],
           },
           {
