@@ -1,0 +1,159 @@
+.exams {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: 100%;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  &__title-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  &__title {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    color: var(--zinc-900);
+    margin: 0;
+    line-height: var(--leading-tight);
+  }
+
+  &__subtitle {
+    font-size: var(--text-md);
+    color: var(--zinc-500);
+    margin: 0;
+  }
+
+  &__header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  &__card {
+    background: #fff;
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--zinc-200);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    container-type: inline-size;
+    container-name: exams-card;
+  }
+
+  &__todo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-6);
+    background: var(--amber-50, #fef3c7);
+    color: var(--amber-800, #92400e);
+    border-bottom: 1px solid var(--amber-200, #fde68a);
+    font-size: var(--text-sm);
+  }
+
+  &__todo-icon {
+    font-size: var(--text-lg);
+    flex-shrink: 0;
+  }
+
+  &__todo-text {
+    line-height: var(--leading-normal);
+
+    strong {
+      font-weight: var(--font-semibold);
+      font-size: var(--text-md);
+    }
+  }
+
+  &__toolbar {
+    padding: var(--space-4) var(--space-6);
+    border-bottom: 1px solid var(--zinc-100);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  &__type-filter {
+    flex-shrink: 0;
+  }
+
+  &__filter {
+    flex: 1 1 180px;
+    min-width: 160px;
+    max-width: 240px;
+  }
+
+  &__content {
+    padding: var(--space-2) var(--space-4) var(--space-4);
+  }
+
+  &__row {
+    transition: background-color 150ms ease-out;
+
+    &:hover {
+      background: var(--zinc-50);
+    }
+  }
+
+  &__name-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--sky-600);
+    font-weight: var(--font-semibold);
+    font-size: var(--text-md);
+    cursor: pointer;
+    text-align: left;
+    transition: color 150ms ease-out;
+
+    &:hover {
+      color: var(--sky-700);
+      text-decoration: underline;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--sky-500);
+      outline-offset: 2px;
+      border-radius: var(--radius-sm);
+    }
+  }
+
+  &__name-meta {
+    margin-top: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+  }
+
+  &__date {
+    color: var(--zinc-700);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__scope {
+    color: var(--zinc-600);
+    font-size: var(--text-sm);
+  }
+
+  &__score {
+    color: var(--zinc-800);
+    font-weight: var(--font-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__actions-cell {
+    text-align: center;
+    width: 56px;
+  }
+}
