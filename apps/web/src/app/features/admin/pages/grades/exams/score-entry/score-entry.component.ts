@@ -7,6 +7,7 @@ import {
   inject,
   input,
   signal,
+  viewChild,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -21,6 +22,7 @@ import {
   PageBreadcrumbComponent,
   type BreadcrumbItem,
 } from '@shared/components/page-breadcrumb/page-breadcrumb.component';
+import { AcademyScoreEditorComponent } from './academy-score-editor/academy-score-editor.component';
 
 import {
   AcademyExamsService,
@@ -58,6 +60,7 @@ interface SummaryStats {
     TagModule,
     ConfirmDialogModule,
     PageBreadcrumbComponent,
+    AcademyScoreEditorComponent,
   ],
   providers: [MessageService],
   templateUrl: './score-entry.component.html',
@@ -83,6 +86,7 @@ export class ScoreEntryComponent implements OnInit {
 
   protected readonly academyExam = signal<AcademyExamDetail | null>(null);
   protected readonly termExam = signal<TermExamDetail | null>(null);
+  protected readonly academyEditor = viewChild<AcademyScoreEditorComponent>('academyEditor');
 
   protected readonly breadcrumbs: BreadcrumbItem[] = [
     { label: '考試管理', routerLink: '/admin/grades/exams' },
@@ -215,6 +219,14 @@ export class ScoreEntryComponent implements OnInit {
   protected onSaved(): void {
     this.dirty.set(false);
     this.loadExam(); // refresh summary stats
+  }
+
+  protected saveScores(): void {
+    const editor = this.academyEditor();
+    if (editor) {
+      editor.save();
+    }
+    // Term editor will be added in Task 12
   }
 
   protected goBack(): void {

@@ -41,6 +41,18 @@ describe('ScoreEntryComponent', () => {
     updatedAt: '2026-03-20T00:00:00Z',
   };
 
+  const mockScores = [
+    {
+      studentId: 'stu-1',
+      studentName: '王小明',
+      studentGrade: '國一',
+      score: 85,
+      status: 'scored',
+      notes: null,
+      updatedAt: '2026-04-01T00:00:00Z',
+    },
+  ];
+
   const refDataStub = {
     campuses: () => [],
     subjects: () => [],
@@ -50,7 +62,20 @@ describe('ScoreEntryComponent', () => {
     loadTeachers: () => undefined,
   };
 
+  /** Flush both the exam detail and the child editor's getScores request */
+  function flushAcademyRequests(examData = mockAcademyDetail): void {
+    const examReq = http.expectOne(`${environment.apiUrl}/api/academy-exams/a1`);
+    examReq.flush({ data: examData });
+
+    // Child AcademyScoreEditorComponent fires getScores after exam loads
+    fixture.detectChanges();
+    const scoresReq = http.match(`${environment.apiUrl}/api/academy-exams/a1/scores`);
+    scoresReq.forEach((r) => r.flush({ data: mockScores }));
+  }
+
   async function setup(type: string, id: string) {
+    TestBed.resetTestingModule();
+
     await TestBed.configureTestingModule({
       imports: [ScoreEntryComponent],
       providers: [
@@ -81,9 +106,7 @@ describe('ScoreEntryComponent', () => {
 
   it('should create and load academy exam', async () => {
     await setup('academy', 'a1');
-
-    const req = http.expectOne(`${environment.apiUrl}/api/academy-exams/a1`);
-    req.flush({ data: mockAcademyDetail });
+    flushAcademyRequests();
 
     await fixture.whenStable();
     fixture.detectChanges();
@@ -95,9 +118,7 @@ describe('ScoreEntryComponent', () => {
 
   it('computes summary stats for academy', async () => {
     await setup('academy', 'a1');
-
-    const req = http.expectOne(`${environment.apiUrl}/api/academy-exams/a1`);
-    req.flush({ data: mockAcademyDetail });
+    flushAcademyRequests();
 
     await fixture.whenStable();
     fixture.detectChanges();
@@ -111,9 +132,7 @@ describe('ScoreEntryComponent', () => {
 
   it('builds meta line with type, subject, date, classes', async () => {
     await setup('academy', 'a1');
-
-    const req = http.expectOne(`${environment.apiUrl}/api/academy-exams/a1`);
-    req.flush({ data: mockAcademyDetail });
+    flushAcademyRequests();
 
     await fixture.whenStable();
     fixture.detectChanges();
@@ -153,9 +172,7 @@ describe('ScoreEntryComponent', () => {
 
   it('detects closed status', async () => {
     await setup('academy', 'a1');
-
-    const req = http.expectOne(`${environment.apiUrl}/api/academy-exams/a1`);
-    req.flush({ data: { ...mockAcademyDetail, status: 'closed' } });
+    flushAcademyRequests({ ...mockAcademyDetail, status: 'closed' as const });
 
     await fixture.whenStable();
     fixture.detectChanges();
@@ -166,9 +183,7 @@ describe('ScoreEntryComponent', () => {
 
   it('canDeactivate returns true when not dirty', async () => {
     await setup('academy', 'a1');
-
-    const req = http.expectOne(`${environment.apiUrl}/api/academy-exams/a1`);
-    req.flush({ data: mockAcademyDetail });
+    flushAcademyRequests();
 
     await fixture.whenStable();
     expect(component.canDeactivate()).toBe(true);
@@ -176,9 +191,7 @@ describe('ScoreEntryComponent', () => {
 
   it('canSave is false when not dirty', async () => {
     await setup('academy', 'a1');
-
-    const req = http.expectOne(`${environment.apiUrl}/api/academy-exams/a1`);
-    req.flush({ data: mockAcademyDetail });
+    flushAcademyRequests();
 
     await fixture.whenStable();
     fixture.detectChanges();

@@ -1,0 +1,131 @@
+.academy-score-editor {
+  &__loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-12);
+    color: var(--zinc-500);
+    font-size: var(--text-sm);
+  }
+
+  &__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-12);
+    color: var(--zinc-400);
+    font-size: var(--text-sm);
+
+    i {
+      font-size: var(--text-2xl);
+    }
+  }
+
+  &__toolbar {
+    padding: var(--space-4) var(--space-4) 0;
+  }
+
+  &__class-select {
+    min-width: 200px;
+  }
+
+  &__table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+
+  &__th {
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-600);
+    border-bottom: 1px solid var(--zinc-200);
+    white-space: nowrap;
+
+    &--grade {
+      width: 80px;
+    }
+
+    &--score {
+      width: 140px;
+    }
+
+    &--status {
+      width: 130px;
+    }
+
+    &--notes {
+      width: 180px;
+    }
+  }
+
+  &__total {
+    font-weight: var(--font-normal);
+    color: var(--zinc-400);
+  }
+
+  &__row {
+    transition: background-color 150ms ease-out;
+
+    &:hover {
+      background: var(--zinc-50);
+    }
+  }
+
+  &__cell {
+    padding: var(--space-2) var(--space-4);
+    border-bottom: 1px solid var(--zinc-100);
+    vertical-align: middle;
+
+    &--grade {
+      color: var(--zinc-500);
+      font-size: var(--text-xs);
+    }
+
+    &--score {
+      width: 140px;
+    }
+
+    &--status {
+      width: 130px;
+    }
+
+    &--notes {
+      width: 180px;
+    }
+  }
+
+  &__student-name {
+    font-weight: var(--font-medium);
+    color: var(--zinc-800);
+  }
+
+  &__score-input {
+    width: 100%;
+    max-width: 120px;
+  }
+
+  &__score-field {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__status-select {
+    width: 100%;
+    max-width: 120px;
+  }
+
+  &__notes-input {
+    width: 100%;
+    max-width: 160px;
+    font-size: var(--text-sm);
+  }
+}

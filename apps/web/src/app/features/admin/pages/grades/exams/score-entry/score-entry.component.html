@@ -53,14 +53,19 @@
       </div>
     }
 
-    <!-- Editor Area (placeholder for Task 11/12) -->
+    <!-- Editor Area -->
     <div class="score-entry__editor">
-      @if (type() === 'academy') {
-        <div class="score-entry__editor-placeholder">
-          <i class="pi pi-pencil"></i>
-          <span>補習班考試成績編輯器（Task 11）</span>
-        </div>
-      } @else {
+      @if (type() === 'academy' && academyExam(); as exam) {
+        <app-academy-score-editor
+          #academyEditor
+          [exam]="exam"
+          [examId]="examId()"
+          [disabled]="isClosed()"
+          (dirtyChange)="onDirtyChange($event)"
+          (savingChange)="onSavingChange($event)"
+          (saved)="onSaved()"
+        />
+      } @else if (type() === 'term') {
         <div class="score-entry__editor-placeholder">
           <i class="pi pi-pencil"></i>
           <span>段考成績編輯器（Task 12）</span>
@@ -83,6 +88,7 @@
           icon="pi pi-save"
           [disabled]="!canSave()"
           [loading]="saving()"
+          (onClick)="saveScores()"
         />
       </div>
     }
