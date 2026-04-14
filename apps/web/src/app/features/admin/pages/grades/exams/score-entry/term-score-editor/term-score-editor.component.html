@@ -1,0 +1,155 @@
+<div class="term-score-editor">
+  <!-- Search & Filter Bar -->
+  <div class="term-score-editor__toolbar">
+    <div class="term-score-editor__search">
+      <span class="p-input-icon-left w-full">
+        <i class="pi pi-search"></i>
+        <input
+          type="text"
+          pInputText
+          [ngModel]="searchTerm()"
+          (ngModelChange)="onSearchInput($event)"
+          placeholder="搜尋學生姓名（至少 2 字）"
+          class="w-full"
+        />
+      </span>
+    </div>
+    <div class="term-score-editor__grade-filter">
+      <p-selectbutton
+        [options]="gradeOptions"
+        [ngModel]="gradeFilter()"
+        (ngModelChange)="onGradeFilterChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        [allowEmpty]="true"
+        [multiple]="false"
+        size="small"
+      />
+    </div>
+  </div>
+
+  <!-- Recent Students -->
+  @if (recentStudents().length > 0) {
+    <div class="term-score-editor__recent">
+      <span class="term-score-editor__recent-label">最近登錄：</span>
+      @for (s of recentStudents(); track s.studentId) {
+        <button
+          type="button"
+          class="term-score-editor__recent-chip"
+          [class.term-score-editor__recent-chip--active]="isExpanded(s.studentId)"
+          (click)="toggleStudent(s.studentId, s.studentName, s.studentGrade)"
+        >
+          {{ s.studentName }}
+        </button>
+      }
+    </div>
+  }
+
+  <!-- Search Results -->
+  @if (loadingSearch()) {
+    <div class="term-score-editor__hint">
+      <i class="pi pi-spinner pi-spin"></i>
+      搜尋中...
+    </div>
+  } @else if (searchTerm().length >= 2 && searchResults().length > 0) {
+    <div class="term-score-editor__results">
+      @for (student of searchResults(); track student.id) {
+        <button
+          type="button"
+          class="term-score-editor__result-row"
+          [class.term-score-editor__result-row--expanded]="isExpanded(student.id)"
+          (click)="toggleStudent(student.id, student.name, student.grade)"
+        >
+          <span class="term-score-editor__result-name">{{ student.name }}</span>
+          <span class="term-score-editor__result-grade">{{ student.grade }}</span>
+          <i class="pi" [class.pi-chevron-down]="!isExpanded(student.id)" [class.pi-chevron-up]="isExpanded(student.id)"></i>
+        </button>
+      }
+    </div>
+  } @else if (searchTerm().length >= 2 && searchResults().length === 0) {
+    <div class="term-score-editor__hint">找不到符合的學生</div>
+  }
+
+  <!-- Expanded Students (Accordion) -->
+  @for (student of expandedStudents(); track student.studentId) {
+    <div class="term-score-editor__student-card">
+      <button
+        type="button"
+        class="term-score-editor__student-header"
+        (click)="toggleStudent(student.studentId, student.studentName, student.studentGrade)"
+      >
+        <div class="term-score-editor__student-info">
+          <span class="term-score-editor__student-name">{{ student.studentName }}</span>
+          <span class="term-score-editor__student-grade">{{ student.studentGrade ?? '' }}</span>
+        </div>
+        <i class="pi pi-chevron-up"></i>
+      </button>
+
+      @if (student.loading) {
+        <div class="term-score-editor__student-loading">
+          <i class="pi pi-spinner pi-spin"></i>
+          載入成績中...
+        </div>
+      } @else {
+        <table class="term-score-editor__table">
+          <thead>
+            <tr>
+              <th class="term-score-editor__th">科目</th>
+              <th class="term-score-editor__th term-score-editor__th--score">分數</th>
+              <th class="term-score-editor__th term-score-editor__th--status">狀態</th>
+              <th class="term-score-editor__th term-score-editor__th--notes">備註</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of student.rows; track row.subjectId) {
+              <tr class="term-score-editor__row">
+                <td class="term-score-editor__cell">{{ row.subjectName }}</td>
+                <td class="term-score-editor__cell term-score-editor__cell--score">
+                  <p-inputnumber
+                    [ngModel]="row.score"
+                    (ngModelChange)="onScoreChange(row, $event)"
+                    [min]="0"
+                    [max]="100"
+                    [disabled]="disabled() || isAbsent(row)"
+                    [placeholder]="isAbsent(row) ? '—' : ''"
+                    styleClass="term-score-editor__score-input"
+                  />
+                </td>
+                <td class="term-score-editor__cell term-score-editor__cell--status">
+                  <p-select
+                    [options]="statusOptions"
+                    [ngModel]="row.status"
+                    (ngModelChange)="onStatusChange(row, $event)"
+                    optionLabel="label"
+                    optionValue="value"
+                    [disabled]="disabled()"
+                    size="small"
+                    styleClass="term-score-editor__status-select"
+                  />
+                </td>
+                <td class="term-score-editor__cell term-score-editor__cell--notes">
+                  <input
+                    type="text"
+                    pInputText
+                    [ngModel]="row.notes"
+                    (ngModelChange)="onNotesChange(row, $event)"
+                    [disabled]="disabled()"
+                    placeholder="備註"
+                    class="term-score-editor__notes-input"
+                  />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  }
+
+  @if (expandedStudents().length === 0 && searchTerm().length < 2) {
+    <div class="term-score-editor__empty">
+      <i class="pi pi-users"></i>
+      <span>請搜尋學生或點擊「最近登錄」的學生來登錄成績</span>
+    </div>
+  }
+</div>

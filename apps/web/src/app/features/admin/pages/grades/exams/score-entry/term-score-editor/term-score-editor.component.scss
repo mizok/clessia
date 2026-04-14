@@ -1,0 +1,242 @@
+.term-score-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+
+  &__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: flex-start;
+  }
+
+  &__search {
+    flex: 1 1 240px;
+    min-width: 200px;
+    max-width: 400px;
+  }
+
+  &__grade-filter {
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+
+  &__recent {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+  }
+
+  &__recent-label {
+    color: var(--zinc-500);
+    font-size: var(--text-xs);
+    flex-shrink: 0;
+  }
+
+  &__recent-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--zinc-200);
+    background: #fff;
+    color: var(--zinc-700);
+    font-size: var(--text-xs);
+    cursor: pointer;
+    transition: all 150ms ease-out;
+
+    &:hover {
+      background: var(--sky-50, #f0f9ff);
+      border-color: var(--sky-300, #7dd3fc);
+    }
+
+    &--active {
+      background: var(--sky-100, #e0f2fe);
+      border-color: var(--sky-400, #38bdf8);
+      color: var(--sky-800, #075985);
+    }
+  }
+
+  &__hint {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+  }
+
+  &__results {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  &__result-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: #fff;
+    border: none;
+    border-bottom: 1px solid var(--zinc-100);
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 150ms ease-out;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: var(--zinc-50);
+    }
+
+    &--expanded {
+      background: var(--sky-50, #f0f9ff);
+    }
+  }
+
+  &__result-name {
+    font-weight: var(--font-medium);
+    color: var(--zinc-800);
+  }
+
+  &__result-grade {
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+  }
+
+  &__student-card {
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  &__student-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    background: var(--zinc-50);
+    border: none;
+    border-bottom: 1px solid var(--zinc-200);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  &__student-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  &__student-name {
+    font-weight: var(--font-semibold);
+    color: var(--zinc-900);
+  }
+
+  &__student-grade {
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+  }
+
+  &__student-loading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+
+  &__th {
+    text-align: left;
+    padding: var(--space-2) var(--space-4);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-600);
+    border-bottom: 1px solid var(--zinc-200);
+    white-space: nowrap;
+    font-size: var(--text-xs);
+
+    &--score {
+      width: 120px;
+    }
+
+    &--status {
+      width: 120px;
+    }
+
+    &--notes {
+      width: 160px;
+    }
+  }
+
+  &__row {
+    transition: background-color 150ms ease-out;
+
+    &:hover {
+      background: var(--zinc-50);
+    }
+  }
+
+  &__cell {
+    padding: var(--space-2) var(--space-4);
+    border-bottom: 1px solid var(--zinc-100);
+    vertical-align: middle;
+
+    &--score {
+      width: 120px;
+    }
+
+    &--status {
+      width: 120px;
+    }
+
+    &--notes {
+      width: 160px;
+    }
+  }
+
+  &__score-input {
+    width: 100%;
+    max-width: 100px;
+  }
+
+  &__status-select {
+    width: 100%;
+    max-width: 110px;
+  }
+
+  &__notes-input {
+    width: 100%;
+    max-width: 140px;
+    font-size: var(--text-sm);
+  }
+
+  &__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-12);
+    color: var(--zinc-400);
+    font-size: var(--text-sm);
+
+    i {
+      font-size: var(--text-2xl);
+    }
+  }
+}

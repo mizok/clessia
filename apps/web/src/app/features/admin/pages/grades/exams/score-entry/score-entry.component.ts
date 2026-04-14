@@ -23,6 +23,7 @@ import {
   type BreadcrumbItem,
 } from '@shared/components/page-breadcrumb/page-breadcrumb.component';
 import { AcademyScoreEditorComponent } from './academy-score-editor/academy-score-editor.component';
+import { TermScoreEditorComponent } from './term-score-editor/term-score-editor.component';
 
 import {
   AcademyExamsService,
@@ -61,6 +62,7 @@ interface SummaryStats {
     ConfirmDialogModule,
     PageBreadcrumbComponent,
     AcademyScoreEditorComponent,
+    TermScoreEditorComponent,
   ],
   providers: [MessageService],
   templateUrl: './score-entry.component.html',
@@ -87,6 +89,7 @@ export class ScoreEntryComponent implements OnInit {
   protected readonly academyExam = signal<AcademyExamDetail | null>(null);
   protected readonly termExam = signal<TermExamDetail | null>(null);
   protected readonly academyEditor = viewChild<AcademyScoreEditorComponent>('academyEditor');
+  protected readonly termEditor = viewChild<TermScoreEditorComponent>('termEditor');
 
   protected readonly breadcrumbs: BreadcrumbItem[] = [
     { label: '考試管理', routerLink: '/admin/grades/exams' },
@@ -222,11 +225,15 @@ export class ScoreEntryComponent implements OnInit {
   }
 
   protected saveScores(): void {
-    const editor = this.academyEditor();
-    if (editor) {
-      editor.save();
+    const academyEd = this.academyEditor();
+    if (academyEd) {
+      academyEd.save();
+      return;
     }
-    // Term editor will be added in Task 12
+    const termEd = this.termEditor();
+    if (termEd) {
+      termEd.save();
+    }
   }
 
   protected goBack(): void {

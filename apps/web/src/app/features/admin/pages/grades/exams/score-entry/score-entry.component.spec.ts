@@ -162,6 +162,11 @@ describe('ScoreEntryComponent', () => {
       },
     });
 
+    fixture.detectChanges();
+    // Term editor fires getRecentStudents
+    const recentReq = http.match(`${environment.apiUrl}/api/term-exams/t1/recent-students`);
+    recentReq.forEach((r) => r.flush({ data: [] }));
+
     await fixture.whenStable();
     fixture.detectChanges();
 
