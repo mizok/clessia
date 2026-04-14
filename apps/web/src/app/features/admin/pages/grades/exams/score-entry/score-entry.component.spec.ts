@@ -1,0 +1,190 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+
+import { ScoreEntryComponent } from './score-entry.component';
+import { environment } from '@env/environment';
+import { ReferenceDataService } from '@core/reference-data.service';
+
+describe('ScoreEntryComponent', () => {
+  let component: ScoreEntryComponent;
+  let fixture: ComponentFixture<ScoreEntryComponent>;
+  let http: HttpTestingController;
+
+  const mockAcademyDetail = {
+    id: 'a1',
+    name: '數學小考',
+    examType: 'quiz',
+    status: 'active',
+    examDate: '2026-04-01',
+    totalScore: 100,
+    scopeNote: '第一章',
+    campusId: 'c1',
+    subjectId: 's1',
+    subjectName: '數學',
+    classes: [
+      { classId: 'cls-1', className: '數學A班' },
+      { classId: 'cls-2', className: '數學B班' },
+    ],
+    summary: {
+      averageScore: 72.3,
+      highestScore: 98,
+      lowestScore: 35,
+      absentCount: 2,
+      recordedCount: 28,
+    },
+    createdBy: null,
+    createdAt: '2026-03-20T00:00:00Z',
+    updatedAt: '2026-03-20T00:00:00Z',
+  };
+
+  const refDataStub = {
+    campuses: () => [],
+    subjects: () => [],
+    teachers: () => [],
+    loadCampuses: () => undefined,
+    loadSubjects: () => undefined,
+    loadTeachers: () => undefined,
+  };
+
+  async function setup(type: string, id: string) {
+    await TestBed.configureTestingModule({
+      imports: [ScoreEntryComponent],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        provideNoopAnimations(),
+        { provide: ReferenceDataService, useValue: refDataStub },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { params: { type, id } },
+          },
+        },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(ScoreEntryComponent);
+    component = fixture.componentInstance;
+    http = TestBed.inject(HttpTestingController);
+
+    fixture.detectChanges(); // ngOnInit
+  }
+
+  afterEach(() => {
+    http.verify();
+  });
+
+  it('should create and load academy exam', async () => {
+    await setup('academy', 'a1');
+
+    const req = http.expectOne(`${environment.apiUrl}/api/academy-exams/a1`);
+    req.flush({ data: mockAcademyDetail });
+
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component).toBeTruthy();
+    expect(component['type']()).toBe('academy');
+    expect(component['examInfo']()?.name).toBe('數學小考');
+  });
+
+  it('computes summary stats for academy', async () => {
+    await setup('academy', 'a1');
+
+    const req = http.expectOne(`${environment.apiUrl}/api/academy-exams/a1`);
+    req.flush({ data: mockAcademyDetail });
+
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const stats = component['summaryStats']();
+    expect(stats?.recordedCount).toBe(28);
+    expect(stats?.average).toBe(72.3);
+    expect(stats?.highest).toBe(98);
+    expect(stats?.lowest).toBe(35);
+  });
+
+  it('builds meta line with type, subject, date, classes', async () => {
+    await setup('academy', 'a1');
+
+    const req = http.expectOne(`${environment.apiUrl}/api/academy-exams/a1`);
+    req.flush({ data: mockAcademyDetail });
+
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const info = component['examInfo']();
+    expect(info?.metaLine).toContain('小考');
+    expect(info?.metaLine).toContain('數學');
+    expect(info?.metaLine).toContain('數學A班');
+  });
+
+  it('loads term exam', async () => {
+    await setup('term', 't1');
+
+    const req = http.expectOne(`${environment.apiUrl}/api/term-exams/t1`);
+    req.flush({
+      data: {
+        id: 't1',
+        academicYear: 114,
+        semester: 2,
+        period: 'midterm_2',
+        label: '114-2 期中考',
+        examDate: '2026-04-10',
+        status: 'active',
+        summary: { bySubject: [], totalRecordedCount: 15 },
+        createdAt: '2026-03-20T00:00:00Z',
+        updatedAt: '2026-03-20T00:00:00Z',
+      },
+    });
+
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component['type']()).toBe('term');
+    expect(component['examInfo']()?.name).toBe('114-2 期中考');
+    expect(component['summaryStats']()?.recordedCount).toBe(15);
+  });
+
+  it('detects closed status', async () => {
+    await setup('academy', 'a1');
+
+    const req = http.expectOne(`${environment.apiUrl}/api/academy-exams/a1`);
+    req.flush({ data: { ...mockAcademyDetail, status: 'closed' } });
+
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component['isClosed']()).toBe(true);
+    expect(component['canSave']()).toBe(false);
+  });
+
+  it('canDeactivate returns true when not dirty', async () => {
+    await setup('academy', 'a1');
+
+    const req = http.expectOne(`${environment.apiUrl}/api/academy-exams/a1`);
+    req.flush({ data: mockAcademyDetail });
+
+    await fixture.whenStable();
+    expect(component.canDeactivate()).toBe(true);
+  });
+
+  it('canSave is false when not dirty', async () => {
+    await setup('academy', 'a1');
+
+    const req = http.expectOne(`${environment.apiUrl}/api/academy-exams/a1`);
+    req.flush({ data: mockAcademyDetail });
+
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component['canSave']()).toBe(false);
+    component['dirty'].set(true);
+    expect(component['canSave']()).toBe(true);
+  });
+});

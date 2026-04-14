@@ -139,6 +139,9 @@ export const routes: Routes = [
                     '@features/admin/pages/grades/exams/score-entry/score-entry.component'
                   ).then((m) => m.ScoreEntryComponent),
                 data: { page: RoutesCatalog.ADMIN_GRADES_SCORE_ENTRY },
+                canDeactivate: [
+                  (component: { canDeactivate: () => boolean }) => component.canDeactivate(),
+                ],
               },
               {
                 path: 'overview',

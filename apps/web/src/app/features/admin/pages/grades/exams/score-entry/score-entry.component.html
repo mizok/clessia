@@ -1,0 +1,90 @@
+<p-toast appendTo="body" [baseZIndex]="25000" />
+
+<div class="score-entry">
+  <!-- Breadcrumb -->
+  <app-page-breadcrumb [items]="breadcrumbs" />
+
+  @if (loading()) {
+    <div class="score-entry__loading">
+      <i class="pi pi-spinner pi-spin"></i>
+      <span>載入考試資料中...</span>
+    </div>
+  } @else if (examInfo(); as info) {
+    <!-- Exam Header -->
+    <div class="score-entry__header">
+      <div class="score-entry__title-row">
+        <h1 class="score-entry__title">{{ info.name }}</h1>
+        <p-tag
+          [value]="getStatusLabel(info.status)"
+          [severity]="getStatusSeverity(info.status)"
+        />
+      </div>
+      <p class="score-entry__meta">{{ info.metaLine }}</p>
+    </div>
+
+    <!-- Summary Stats -->
+    @if (summaryStats(); as stats) {
+      <div class="score-entry__stats">
+        <div class="score-entry__stat">
+          <span class="score-entry__stat-value">{{ stats.recordedCount }}</span>
+          <span class="score-entry__stat-label">已登錄</span>
+        </div>
+        @if (type() === 'academy') {
+          <div class="score-entry__stat">
+            <span class="score-entry__stat-value">{{ formatStat(stats.average) }}</span>
+            <span class="score-entry__stat-label">平均</span>
+          </div>
+          <div class="score-entry__stat">
+            <span class="score-entry__stat-value">{{ formatStat(stats.highest) }}</span>
+            <span class="score-entry__stat-label">最高</span>
+          </div>
+          <div class="score-entry__stat">
+            <span class="score-entry__stat-value">{{ formatStat(stats.lowest) }}</span>
+            <span class="score-entry__stat-label">最低</span>
+          </div>
+        }
+      </div>
+    }
+
+    @if (isClosed()) {
+      <div class="score-entry__closed-hint">
+        <i class="pi pi-lock"></i>
+        此考試已結束，僅供檢視成績，無法編輯。
+      </div>
+    }
+
+    <!-- Editor Area (placeholder for Task 11/12) -->
+    <div class="score-entry__editor">
+      @if (type() === 'academy') {
+        <div class="score-entry__editor-placeholder">
+          <i class="pi pi-pencil"></i>
+          <span>補習班考試成績編輯器（Task 11）</span>
+        </div>
+      } @else {
+        <div class="score-entry__editor-placeholder">
+          <i class="pi pi-pencil"></i>
+          <span>段考成績編輯器（Task 12）</span>
+        </div>
+      }
+    </div>
+
+    <!-- Bottom Action Bar -->
+    @if (!isClosed()) {
+      <div class="score-entry__actions">
+        <p-button
+          label="返回考試管理"
+          [text]="true"
+          severity="secondary"
+          icon="pi pi-arrow-left"
+          (onClick)="goBack()"
+        />
+        <p-button
+          label="儲存成績"
+          icon="pi pi-save"
+          [disabled]="!canSave()"
+          [loading]="saving()"
+        />
+      </div>
+    }
+  }
+</div>
