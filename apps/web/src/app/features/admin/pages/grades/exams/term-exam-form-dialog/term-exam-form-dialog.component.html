@@ -1,0 +1,109 @@
+<div class="form-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <span class="dialog-header-inline__breadcrumb">段考</span>
+      <span class="dialog-header-inline__title">{{ isEditing() ? '編輯段考' : '新增段考' }}</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="term-exam-form-dialog__loading">
+      <i class="pi pi-spinner pi-spin"></i>
+      <span>載入中...</span>
+    </div>
+  } @else {
+    @if (isClosed()) {
+      <div class="term-exam-form-dialog__hint term-exam-form-dialog__hint--warn">
+        <i class="pi pi-lock"></i>
+        此段考已結束，欄位無法修改；如需調整請先重新開啟。
+      </div>
+    } @else if (hasScores()) {
+      <div class="term-exam-form-dialog__hint">
+        <i class="pi pi-info-circle"></i>
+        已有成績登錄，學年／學期／時段將鎖定以避免資料不一致。
+      </div>
+    }
+
+    <!-- Academic Year -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">學年度<span class="form-dialog__required">*</span></label>
+      <p-inputnumber
+        [ngModel]="formData().academicYear"
+        (ngModelChange)="updateField('academicYear', $event)"
+        [min]="100"
+        [max]="200"
+        [showButtons]="true"
+        [useGrouping]="false"
+        [disabled]="lockYear()"
+        styleClass="w-full"
+      />
+      <span class="term-exam-form-dialog__hint-text">以民國年表示，例如 114</span>
+    </div>
+
+    <!-- Semester -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">學期<span class="form-dialog__required">*</span></label>
+      <p-select
+        [options]="semesterOptions"
+        [ngModel]="formData().semester"
+        (ngModelChange)="updateField('semester', $event)"
+        optionLabel="label"
+        optionValue="value"
+        [disabled]="lockSemester()"
+        [appendTo]="'body'"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Period -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">時段<span class="form-dialog__required">*</span></label>
+      <p-select
+        [options]="periodOptions"
+        [ngModel]="formData().period"
+        (ngModelChange)="updateField('period', $event)"
+        optionLabel="label"
+        optionValue="value"
+        [disabled]="lockPeriod()"
+        [appendTo]="'body'"
+        class="w-full"
+      />
+    </div>
+
+    <!-- Exam Date -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">考試日期</label>
+      <p-datepicker
+        [ngModel]="formData().examDate"
+        (ngModelChange)="updateField('examDate', $event)"
+        dateFormat="yy-mm-dd"
+        placeholder="選擇日期（選填）"
+        [disabled]="lockExamDate()"
+        [appendTo]="'body'"
+        [showIcon]="true"
+        styleClass="w-full"
+      />
+    </div>
+
+    <!-- Footer -->
+    <div class="form-dialog__footer">
+      <p-button
+        label="取消"
+        [text]="true"
+        severity="secondary"
+        [disabled]="saving()"
+        (onClick)="cancel()"
+      />
+      <p-button
+        [label]="isEditing() ? '儲存' : '建立'"
+        [icon]="saving() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+        [loading]="saving()"
+        [disabled]="!canSave()"
+        (onClick)="save()"
+      />
+    </div>
+  }
+</div>

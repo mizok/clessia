@@ -39,6 +39,12 @@ import {
   type ConfirmDialogData,
 } from '@shared/components/confirm-dialog/confirm-dialog.component';
 
+// Dialogs
+import { AcademyExamFormDialogComponent } from './academy-exam-form-dialog/academy-exam-form-dialog.component';
+import type { AcademyExamFormDialogResult } from './academy-exam-form-dialog/academy-exam-form-dialog.component';
+import { TermExamFormDialogComponent } from './term-exam-form-dialog/term-exam-form-dialog.component';
+import type { TermExamFormDialogResult } from './term-exam-form-dialog/term-exam-form-dialog.component';
+
 // Services
 import {
   AcademyExamsService,
@@ -441,28 +447,53 @@ export class ExamsComponent implements OnInit {
   }
 
   protected editExam(row: ExamRow): void {
-    // Task 9 會補上 dialog；此處先給 placeholder toast，避免 runtime 壞掉
-    this.messageService.add({
-      severity: 'info',
-      summary: '編輯功能',
-      detail: `[Task 9] 編輯 ${row.name}`,
-    });
+    if (row.kind === 'academy') {
+      this.openAcademyDialog('edit', row.id);
+    } else {
+      this.openTermDialog('edit', row.id);
+    }
   }
 
   protected openCreateAcademyDialog(): void {
-    this.messageService.add({
-      severity: 'info',
-      summary: '新增考試',
-      detail: '[Task 9] 補習班考試建立 dialog',
-    });
+    this.openAcademyDialog('create');
   }
 
   protected openCreateTermDialog(): void {
-    this.messageService.add({
-      severity: 'info',
-      summary: '新增考試',
-      detail: '[Task 9] 段考建立 dialog',
+    this.openTermDialog('create');
+  }
+
+  private openAcademyDialog(mode: 'create' | 'edit', examId?: string): void {
+    const ref = this.dialogService.open(AcademyExamFormDialogComponent, {
+      header: mode === 'create' ? '新增補習班考試' : '編輯補習班考試',
+      width: '520px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { mode, examId },
     });
+    if (!ref) return;
+    ref.onClose
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result: AcademyExamFormDialogResult | undefined) => {
+        if (result) this.loadExams();
+      });
+  }
+
+  private openTermDialog(mode: 'create' | 'edit', examId?: string): void {
+    const ref = this.dialogService.open(TermExamFormDialogComponent, {
+      header: mode === 'create' ? '新增段考' : '編輯段考',
+      width: '480px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { mode, examId },
+    });
+    if (!ref) return;
+    ref.onClose
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result: TermExamFormDialogResult | undefined) => {
+        if (result) this.loadExams();
+      });
   }
 
   protected confirmCloseExam(row: ExamRow): void {
