@@ -205,4 +205,34 @@ describe('ScoreEntryComponent', () => {
     component['dirty'].set(true);
     expect(component['canSave']()).toBe(true);
   });
+
+  it('renders the mobile-ready shell structure', async () => {
+    await setup('academy', 'a1');
+    flushAcademyRequests({ ...mockAcademyDetail, status: 'closed' as const });
+
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('.score-entry__header-card')).not.toBeNull();
+    expect(host.querySelector('.score-entry__editor')).not.toBeNull();
+    expect(host.querySelector('.score-entry__actions')).not.toBeNull();
+    expect(host.querySelector('.score-entry__closed-hint')).not.toBeNull();
+  });
+
+  it('shows dirty status banner when editor has unsaved changes', async () => {
+    await setup('academy', 'a1');
+    flushAcademyRequests();
+
+    await fixture.whenStable();
+    component['dirty'].set(true);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const dirtyBanner = host.querySelector('.score-entry__dirty-banner');
+
+    expect(dirtyBanner).not.toBeNull();
+    expect(dirtyBanner?.textContent).toContain('尚未儲存');
+  });
 });

@@ -10,26 +10,26 @@
       <span>載入考試資料中...</span>
     </div>
   } @else if (examInfo(); as info) {
-    <!-- Exam Header -->
-    <div class="score-entry__header">
-      <div class="score-entry__title-row">
-        <h1 class="score-entry__title">{{ info.name }}</h1>
-        <p-tag
-          [value]="getStatusLabel(info.status)"
-          [severity]="getStatusSeverity(info.status)"
-        />
-      </div>
-      <p class="score-entry__meta">{{ info.metaLine }}</p>
-    </div>
-
-    <!-- Summary Stats -->
-    @if (summaryStats(); as stats) {
-      <div class="score-entry__stats">
-        <div class="score-entry__stat">
-          <span class="score-entry__stat-value">{{ stats.recordedCount }}</span>
-          <span class="score-entry__stat-label">已登錄</span>
+    <!-- Combined Header Card -->
+    <div class="score-entry__header-card">
+      <div class="score-entry__header">
+        <div class="score-entry__title-row">
+          <h1 class="score-entry__title">{{ info.name }}</h1>
+          <p-tag
+            class="score-entry__status-tag"
+            [value]="getStatusLabel(info.status)"
+            [severity]="getStatusSeverity(info.status)"
+          />
         </div>
-        @if (type() === 'academy') {
+        <p class="score-entry__meta">{{ info.metaLine }}</p>
+      </div>
+
+      @if (type() === 'academy' && summaryStats(); as stats) {
+        <div class="score-entry__stats">
+          <div class="score-entry__stat">
+            <span class="score-entry__stat-value">{{ stats.recordedCount }}</span>
+            <span class="score-entry__stat-label">已登錄</span>
+          </div>
           <div class="score-entry__stat">
             <span class="score-entry__stat-value">{{ formatStat(stats.average) }}</span>
             <span class="score-entry__stat-label">平均</span>
@@ -42,16 +42,40 @@
             <span class="score-entry__stat-value">{{ formatStat(stats.lowest) }}</span>
             <span class="score-entry__stat-label">最低</span>
           </div>
-        }
-      </div>
-    }
+        </div>
+      }
 
-    @if (isClosed()) {
-      <div class="score-entry__closed-hint">
-        <i class="pi pi-lock"></i>
-        此考試已結束，僅供檢視成績，無法編輯。
-      </div>
-    }
+      @if (type() === 'term' && termExam(); as exam) {
+        <div class="score-entry__term-summary">
+          <div class="score-entry__term-total">
+            <span class="score-entry__term-total-value">{{ exam.summary.totalRecordedCount }}</span>
+            <span class="score-entry__term-total-label">筆已登錄</span>
+          </div>
+          @if (exam.summary.bySubject.length > 0) {
+            <div class="score-entry__term-subjects">
+              @for (subj of exam.summary.bySubject; track subj.subjectId) {
+                <div class="score-entry__term-subject">
+                  <span class="score-entry__term-subject-name">{{ subj.subjectName }}</span>
+                  <span class="score-entry__term-subject-detail">
+                    {{ subj.recordedCount }} 筆
+                    @if (subj.averageScore !== null) {
+                       · 平均 {{ formatStat(subj.averageScore) }}
+                    }
+                  </span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      @if (isClosed()) {
+        <div class="score-entry__closed-hint">
+          <i class="pi pi-lock"></i>
+          此考試已結束，僅供檢視成績，無法編輯。
+        </div>
+      }
+    </div>
 
     <!-- Editor Area -->
     <div class="score-entry__editor">
@@ -79,23 +103,35 @@
     </div>
 
     <!-- Bottom Action Bar -->
-    @if (!isClosed()) {
-      <div class="score-entry__actions">
+    <div class="score-entry__actions" [class.score-entry__actions--dirty]="dirty()">
+      @if (dirty()) {
+        <div class="score-entry__dirty-banner">
+          <div class="score-entry__dirty-copy">
+            <span class="score-entry__dirty-title">尚未儲存的成績變更</span>
+            <span class="score-entry__dirty-text">請先儲存，再離開此頁面。</span>
+          </div>
+        </div>
+      }
+      <div class="score-entry__action-buttons">
         <p-button
+          styleClass="score-entry__back-button"
           label="返回考試管理"
           [text]="true"
           severity="secondary"
           icon="pi pi-arrow-left"
           (onClick)="goBack()"
         />
-        <p-button
-          label="儲存成績"
-          icon="pi pi-save"
-          [disabled]="!canSave()"
-          [loading]="saving()"
-          (onClick)="saveScores()"
-        />
+        @if (!isClosed()) {
+          <p-button
+            styleClass="score-entry__save-button"
+            label="儲存成績"
+            icon="pi pi-save"
+            [disabled]="!canSave()"
+            [loading]="saving()"
+            (onClick)="saveScores()"
+          />
+        }
       </div>
-    }
+    </div>
   }
 </div>

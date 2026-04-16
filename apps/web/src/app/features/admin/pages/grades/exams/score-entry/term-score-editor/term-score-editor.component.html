@@ -14,22 +14,26 @@
         />
       </span>
     </div>
-    <div class="term-score-editor__grade-filter">
-      <p-selectbutton
-        [options]="gradeOptions"
-        [ngModel]="gradeFilter()"
-        (ngModelChange)="onGradeFilterChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        [allowEmpty]="true"
-        [multiple]="false"
-        size="small"
-      />
-    </div>
+    <p-select
+      [options]="gradeOptions"
+      [ngModel]="gradeFilter()"
+      (ngModelChange)="onGradeFilterChange($event)"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="全部年級"
+      [showClear]="true"
+      size="small"
+      styleClass="term-score-editor__grade-select"
+    />
   </div>
 
   <!-- Recent Students -->
-  @if (recentStudents().length > 0) {
+  @if (loadingRecent()) {
+    <div class="term-score-editor__hint">
+      <i class="pi pi-spinner pi-spin"></i>
+      載入最近登錄...
+    </div>
+  } @else if (recentStudents().length > 0) {
     <div class="term-score-editor__recent">
       <span class="term-score-editor__recent-label">最近登錄：</span>
       @for (s of recentStudents(); track s.studentId) {
@@ -61,7 +65,7 @@
           (click)="toggleStudent(student.id, student.name, student.grade)"
         >
           <span class="term-score-editor__result-name">{{ student.name }}</span>
-          <span class="term-score-editor__result-grade">{{ student.grade }}</span>
+          <span class="term-score-editor__result-grade">{{ formatGrade(student.grade) }}</span>
           <i class="pi" [class.pi-chevron-down]="!isExpanded(student.id)" [class.pi-chevron-up]="isExpanded(student.id)"></i>
         </button>
       }
@@ -80,7 +84,9 @@
       >
         <div class="term-score-editor__student-info">
           <span class="term-score-editor__student-name">{{ student.studentName }}</span>
-          <span class="term-score-editor__student-grade">{{ student.studentGrade ?? '' }}</span>
+          <span class="term-score-editor__student-grade">{{
+            formatGrade(student.studentGrade)
+          }}</span>
         </div>
         <i class="pi pi-chevron-up"></i>
       </button>
@@ -91,57 +97,115 @@
           載入成績中...
         </div>
       } @else {
-        <table class="term-score-editor__table">
-          <thead>
-            <tr>
-              <th class="term-score-editor__th">科目</th>
-              <th class="term-score-editor__th term-score-editor__th--score">分數</th>
-              <th class="term-score-editor__th term-score-editor__th--status">狀態</th>
-              <th class="term-score-editor__th term-score-editor__th--notes">備註</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of student.rows; track row.subjectId) {
-              <tr class="term-score-editor__row">
-                <td class="term-score-editor__cell">{{ row.subjectName }}</td>
-                <td class="term-score-editor__cell term-score-editor__cell--score">
-                  <p-inputnumber
-                    [ngModel]="row.score"
-                    (ngModelChange)="onScoreChange(row, $event)"
-                    [min]="0"
-                    [max]="100"
-                    [disabled]="disabled() || isAbsent(row)"
-                    [placeholder]="isAbsent(row) ? '—' : ''"
-                    styleClass="term-score-editor__score-input"
-                  />
-                </td>
-                <td class="term-score-editor__cell term-score-editor__cell--status">
-                  <p-select
-                    [options]="statusOptions"
-                    [ngModel]="row.status"
-                    (ngModelChange)="onStatusChange(row, $event)"
-                    optionLabel="label"
-                    optionValue="value"
-                    [disabled]="disabled()"
-                    size="small"
-                    styleClass="term-score-editor__status-select"
-                  />
-                </td>
-                <td class="term-score-editor__cell term-score-editor__cell--notes">
-                  <input
-                    type="text"
-                    pInputText
-                    [ngModel]="row.notes"
-                    (ngModelChange)="onNotesChange(row, $event)"
-                    [disabled]="disabled()"
-                    placeholder="備註"
-                    class="term-score-editor__notes-input"
-                  />
-                </td>
+        <div class="term-score-editor__table-wrap">
+          <table class="term-score-editor__table">
+            <thead>
+              <tr>
+                <th class="term-score-editor__th term-score-editor__th--subject">科目</th>
+                <th class="term-score-editor__th term-score-editor__th--score">分數</th>
+                <th class="term-score-editor__th term-score-editor__th--status">狀態</th>
+                <th class="term-score-editor__th">備註</th>
               </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (row of student.rows; track row.subjectId) {
+                <tr class="term-score-editor__row" [class.term-score-editor__row--dirty]="isRowDirty(row)">
+                  <td class="term-score-editor__cell">{{ row.subjectName }}</td>
+                  <td class="term-score-editor__cell">
+                    <p-inputnumber
+                      [ngModel]="row.score"
+                      (ngModelChange)="onScoreChange(row, $event)"
+                      [min]="0"
+                      [max]="100"
+                      [disabled]="disabled() || isAbsent(row)"
+                      [placeholder]="isAbsent(row) ? '—' : ''"
+                      styleClass="term-score-editor__score-input"
+                    />
+                  </td>
+                  <td class="term-score-editor__cell">
+                    <p-select
+                      [options]="statusOptions"
+                      [ngModel]="row.status"
+                      (ngModelChange)="onStatusChange(row, $event)"
+                      optionLabel="label"
+                      optionValue="value"
+                      [disabled]="disabled()"
+                      size="small"
+                      styleClass="term-score-editor__status-select"
+                    />
+                  </td>
+                  <td class="term-score-editor__cell">
+                    <input
+                      type="text"
+                      pInputText
+                      [ngModel]="row.notes"
+                      (ngModelChange)="onNotesChange(row, $event)"
+                      [disabled]="disabled()"
+                      placeholder="備註"
+                      class="term-score-editor__notes-input"
+                    />
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="term-score-editor__subject-cards">
+          @for (row of student.rows; track row.subjectId) {
+            <article
+              class="term-score-editor__subject-card"
+              [class.term-score-editor__subject-card--dirty]="isRowDirty(row)"
+            >
+              <div class="term-score-editor__subject-card-header">
+                <span class="term-score-editor__subject-name">{{ row.subjectName }}</span>
+                @if (isAbsent(row)) {
+                  <span class="term-score-editor__subject-status-pill">缺考</span>
+                }
+              </div>
+
+              <div class="term-score-editor__subject-field">
+                <label class="term-score-editor__subject-label">分數</label>
+                <p-inputnumber
+                  [ngModel]="row.score"
+                  (ngModelChange)="onScoreChange(row, $event)"
+                  [min]="0"
+                  [max]="100"
+                  [disabled]="disabled() || isAbsent(row)"
+                  [placeholder]="isAbsent(row) ? '—' : ''"
+                  styleClass="term-score-editor__score-input term-score-editor__score-input--card"
+                />
+              </div>
+
+              <div class="term-score-editor__subject-field">
+                <label class="term-score-editor__subject-label">狀態</label>
+                <p-select
+                  [options]="statusOptions"
+                  [ngModel]="row.status"
+                  (ngModelChange)="onStatusChange(row, $event)"
+                  optionLabel="label"
+                  optionValue="value"
+                  [disabled]="disabled()"
+                  size="small"
+                  styleClass="term-score-editor__status-select term-score-editor__status-select--card"
+                />
+              </div>
+
+              <div class="term-score-editor__subject-field">
+                <label class="term-score-editor__subject-label">備註</label>
+                <input
+                  type="text"
+                  pInputText
+                  [ngModel]="row.notes"
+                  (ngModelChange)="onNotesChange(row, $event)"
+                  [disabled]="disabled()"
+                  placeholder="備註"
+                  class="term-score-editor__notes-input"
+                />
+              </div>
+            </article>
+          }
+        </div>
       }
     </div>
   }

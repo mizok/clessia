@@ -152,4 +152,21 @@ describe('TermScoreEditorComponent', () => {
     component.save();
     expect(termExamsServiceMock.saveScores).not.toHaveBeenCalled();
   });
+
+  it('renders mobile subject cards for expanded student rows', () => {
+    component['toggleStudent']('stu-1', '王小明', 'J1');
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const cards = host.querySelectorAll('.term-score-editor__subject-card');
+
+    expect(host.querySelector('.term-score-editor__subject-cards')).not.toBeNull();
+    expect(cards.length).toBe(2);
+
+    const firstCard = cards[0] as HTMLElement;
+    expect(firstCard.textContent).toContain('國文');
+    expect(firstCard.textContent).toContain('分數');
+    expect(firstCard.textContent).toContain('狀態');
+    expect(firstCard.textContent).toContain('備註');
+  });
 });

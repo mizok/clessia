@@ -42,7 +42,7 @@ export interface ScoreRow {
 }
 
 const STATUS_OPTIONS: Array<{ label: string; value: AcademyScoreStatus }> = [
-  { label: '已作答', value: 'scored' },
+  { label: '未登錄', value: 'scored' },
   { label: '缺考', value: 'absent' },
   { label: '補考', value: 'makeup' },
 ];
@@ -62,6 +62,21 @@ const STATUS_OPTIONS: Array<{ label: string; value: AcademyScoreStatus }> = [
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AcademyScoreEditorComponent implements OnInit {
+  private static readonly GRADE_LABELS: Record<string, string> = {
+    P1: '小一',
+    P2: '小二',
+    P3: '小三',
+    P4: '小四',
+    P5: '小五',
+    P6: '小六',
+    J1: '國一',
+    J2: '國二',
+    J3: '國三',
+    S1: '高一',
+    S2: '高二',
+    S3: '高三',
+  };
+
   readonly exam = input.required<AcademyExamDetail>();
   readonly examId = input.required<string>();
   readonly disabled = input(false);
@@ -171,6 +186,11 @@ export class AcademyScoreEditorComponent implements OnInit {
     return row.status === 'absent';
   }
 
+  protected formatGrade(grade: string | null): string {
+    if (!grade) return '—';
+    return AcademyScoreEditorComponent.GRADE_LABELS[grade] ?? grade;
+  }
+
   save(): void {
     const dirtyRows = this.rows().filter(
       (r) => this.isRowDirty(r) && (r.score !== null || r.status !== 'scored'),
@@ -214,7 +234,7 @@ export class AcademyScoreEditorComponent implements OnInit {
       });
   }
 
-  private isRowDirty(row: ScoreRow): boolean {
+  protected isRowDirty(row: ScoreRow): boolean {
     return (
       row.score !== row.original.score ||
       row.status !== row.original.status ||

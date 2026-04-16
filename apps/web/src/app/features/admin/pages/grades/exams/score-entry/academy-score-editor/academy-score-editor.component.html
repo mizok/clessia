@@ -1,93 +1,163 @@
-@if (loading()) {
-  <div class="academy-score-editor__loading">
-    <i class="pi pi-spinner pi-spin"></i>
-    <span>載入學生名單...</span>
-  </div>
-} @else {
-  <!-- Class filter -->
-  @if (classOptions().length > 0) {
-    <div class="academy-score-editor__toolbar">
-      <p-select
-        [options]="classOptions()"
-        [ngModel]="classFilter()"
-        (ngModelChange)="classFilter.set($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="篩選班級"
-        [showClear]="true"
-        size="small"
-        styleClass="academy-score-editor__class-select"
-      />
-    </div>
-  }
-
-  @if (filteredRows().length === 0) {
-    <div class="academy-score-editor__empty">
-      <i class="pi pi-users"></i>
-      <span>目前沒有學生可登錄成績</span>
+<div class="academy-score-editor">
+  @if (loading()) {
+    <div class="academy-score-editor__loading">
+      <i class="pi pi-spinner pi-spin"></i>
+      <span>載入學生名單...</span>
     </div>
   } @else {
-    <div class="academy-score-editor__table-wrap">
-      <table class="academy-score-editor__table">
-        <thead>
-          <tr>
-            <th class="academy-score-editor__th">學生</th>
-            <th class="academy-score-editor__th academy-score-editor__th--grade">年級</th>
-            <th class="academy-score-editor__th academy-score-editor__th--score">
-              分數 <span class="academy-score-editor__total">/{{ exam().totalScore }}</span>
-            </th>
-            <th class="academy-score-editor__th academy-score-editor__th--status">狀態</th>
-            <th class="academy-score-editor__th academy-score-editor__th--notes">備註</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of filteredRows(); track row.studentId) {
-            <tr class="academy-score-editor__row">
-              <td class="academy-score-editor__cell">
-                <span class="academy-score-editor__student-name">{{ row.studentName }}</span>
-              </td>
-              <td class="academy-score-editor__cell academy-score-editor__cell--grade">
-                {{ row.studentGrade ?? '—' }}
-              </td>
-              <td class="academy-score-editor__cell academy-score-editor__cell--score">
-                <p-inputnumber
-                  [ngModel]="row.score"
-                  (ngModelChange)="onScoreChange(row, $event)"
-                  [min]="0"
-                  [max]="exam().totalScore"
-                  [disabled]="disabled() || isAbsent(row)"
-                  [placeholder]="isAbsent(row) ? '—' : ''"
-                  styleClass="academy-score-editor__score-input"
-                  [inputStyleClass]="'academy-score-editor__score-field'"
-                />
-              </td>
-              <td class="academy-score-editor__cell academy-score-editor__cell--status">
-                <p-select
-                  [options]="statusOptions"
-                  [ngModel]="row.status"
-                  (ngModelChange)="onStatusChange(row, $event)"
-                  optionLabel="label"
-                  optionValue="value"
-                  [disabled]="disabled()"
-                  size="small"
-                  styleClass="academy-score-editor__status-select"
-                />
-              </td>
-              <td class="academy-score-editor__cell academy-score-editor__cell--notes">
-                <input
-                  type="text"
-                  pInputText
-                  [ngModel]="row.notes"
-                  (ngModelChange)="onNotesChange(row, $event)"
-                  [disabled]="disabled()"
-                  placeholder="備註"
-                  class="academy-score-editor__notes-input"
-                />
-              </td>
+    <!-- Class filter -->
+    @if (classOptions().length > 0) {
+      <div class="academy-score-editor__toolbar">
+        <p-select
+          [options]="classOptions()"
+          [ngModel]="classFilter()"
+          (ngModelChange)="classFilter.set($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="篩選班級"
+          [showClear]="true"
+          size="small"
+          styleClass="academy-score-editor__class-select"
+        />
+      </div>
+    }
+
+    @if (filteredRows().length === 0) {
+      <div class="academy-score-editor__empty">
+        <i class="pi pi-users"></i>
+        <span>目前沒有學生可登錄成績</span>
+      </div>
+    } @else {
+      <div class="academy-score-editor__table-wrap">
+        <table class="academy-score-editor__table">
+          <thead>
+            <tr>
+              <th class="academy-score-editor__th">學生</th>
+              <th class="academy-score-editor__th academy-score-editor__th--grade">年級</th>
+              <th class="academy-score-editor__th academy-score-editor__th--score">
+                分數 <span class="academy-score-editor__total">/{{ exam().totalScore }}</span>
+              </th>
+              <th class="academy-score-editor__th academy-score-editor__th--status">狀態</th>
+              <th class="academy-score-editor__th academy-score-editor__th--notes">備註</th>
             </tr>
-          }
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            @for (row of filteredRows(); track row.studentId) {
+              <tr
+                class="academy-score-editor__row"
+                [class.academy-score-editor__row--dirty]="isRowDirty(row)"
+              >
+                <td class="academy-score-editor__cell">
+                  <span class="academy-score-editor__student-name">{{ row.studentName }}</span>
+                </td>
+                <td class="academy-score-editor__cell academy-score-editor__cell--grade">
+                  {{ formatGrade(row.studentGrade) }}
+                </td>
+                <td class="academy-score-editor__cell academy-score-editor__cell--score">
+                  <p-inputnumber
+                    [ngModel]="row.score"
+                    (ngModelChange)="onScoreChange(row, $event)"
+                    [min]="0"
+                    [max]="exam().totalScore"
+                    [disabled]="disabled() || isAbsent(row)"
+                    [placeholder]="isAbsent(row) ? '—' : ''"
+                    styleClass="academy-score-editor__score-input"
+                    [inputStyleClass]="'academy-score-editor__score-field'"
+                  />
+                </td>
+                <td class="academy-score-editor__cell academy-score-editor__cell--status">
+                  <p-select
+                    [options]="statusOptions"
+                    [ngModel]="row.status"
+                    (ngModelChange)="onStatusChange(row, $event)"
+                    optionLabel="label"
+                    optionValue="value"
+                    [disabled]="disabled()"
+                    size="small"
+                    styleClass="academy-score-editor__status-select"
+                  />
+                </td>
+                <td class="academy-score-editor__cell academy-score-editor__cell--notes">
+                  <input
+                    type="text"
+                    pInputText
+                    [ngModel]="row.notes"
+                    (ngModelChange)="onNotesChange(row, $event)"
+                    [disabled]="disabled()"
+                    placeholder="備註"
+                    class="academy-score-editor__notes-input"
+                  />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="academy-score-editor__card-list">
+        @for (row of filteredRows(); track row.studentId) {
+          <article
+            class="academy-score-editor__card"
+            [class.academy-score-editor__card--dirty]="isRowDirty(row)"
+          >
+            <div class="academy-score-editor__card-header">
+              <div class="academy-score-editor__card-identity">
+                <span class="academy-score-editor__student-name">{{ row.studentName }}</span>
+                <span class="academy-score-editor__card-grade">{{
+                  formatGrade(row.studentGrade)
+                }}</span>
+              </div>
+              @if (isAbsent(row)) {
+                <span class="academy-score-editor__card-status-pill">缺考</span>
+              }
+            </div>
+
+            <div class="academy-score-editor__card-field">
+              <label class="academy-score-editor__card-label">
+                分數
+                <span class="academy-score-editor__total">/{{ exam().totalScore }}</span>
+              </label>
+              <p-inputnumber
+                [ngModel]="row.score"
+                (ngModelChange)="onScoreChange(row, $event)"
+                [min]="0"
+                [max]="exam().totalScore"
+                [disabled]="disabled() || isAbsent(row)"
+                [placeholder]="isAbsent(row) ? '—' : ''"
+                styleClass="academy-score-editor__score-input academy-score-editor__score-input--card"
+                [inputStyleClass]="'academy-score-editor__score-field'"
+              />
+            </div>
+
+            <div class="academy-score-editor__card-field">
+              <label class="academy-score-editor__card-label">狀態</label>
+              <p-select
+                [options]="statusOptions"
+                [ngModel]="row.status"
+                (ngModelChange)="onStatusChange(row, $event)"
+                optionLabel="label"
+                optionValue="value"
+                [disabled]="disabled()"
+                size="small"
+                styleClass="academy-score-editor__status-select academy-score-editor__status-select--card"
+              />
+            </div>
+
+            <div class="academy-score-editor__card-field">
+              <label class="academy-score-editor__card-label">備註</label>
+              <input
+                type="text"
+                pInputText
+                [ngModel]="row.notes"
+                (ngModelChange)="onNotesChange(row, $event)"
+                [disabled]="disabled()"
+                placeholder="備註"
+                class="academy-score-editor__notes-input academy-score-editor__notes-input--card"
+              />
+            </div>
+          </article>
+        }
+      </div>
+    }
   }
-}
+</div>
