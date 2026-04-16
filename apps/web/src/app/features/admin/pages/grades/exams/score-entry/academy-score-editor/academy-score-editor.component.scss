@@ -104,6 +104,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: var(--text-sm);
+    table-layout: fixed;
   }
 
   &__th {
@@ -114,20 +115,20 @@
     border-bottom: 1px solid var(--zinc-200);
     white-space: nowrap;
 
+    &--name {
+      width: 120px;
+    }
+
     &--grade {
-      width: 80px;
+      width: 60px;
     }
 
     &--score {
-      width: 140px;
+      width: 120px;
     }
 
     &--status {
-      width: 130px;
-    }
-
-    &--notes {
-      width: 180px;
+      width: 120px;
     }
   }
 
@@ -158,17 +159,6 @@
       font-size: var(--text-xs);
     }
 
-    &--score {
-      width: 140px;
-    }
-
-    &--status {
-      width: 130px;
-    }
-
-    &--notes {
-      width: 180px;
-    }
   }
 
   &__student-name {
@@ -178,7 +168,6 @@
 
   &__score-input {
     width: 100%;
-    max-width: 120px;
   }
 
   &__score-field {
@@ -188,12 +177,10 @@
 
   &__status-select {
     width: 100%;
-    max-width: 120px;
   }
 
   &__notes-input {
     width: 100%;
-    max-width: 160px;
     font-size: var(--text-sm);
 
     &--card {
