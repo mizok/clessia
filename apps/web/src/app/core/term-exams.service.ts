@@ -27,6 +27,12 @@ export interface TermSubjectSummary {
   recordedCount: number;
 }
 
+export interface TermExamSchedule {
+  readonly schoolId: string;
+  readonly schoolName: string;
+  readonly examDate: string | null;
+}
+
 export interface TermExamDetail {
   id: string;
   academicYear: number;
@@ -34,6 +40,7 @@ export interface TermExamDetail {
   period: TermExamPeriod;
   label: string;
   examDate: string | null;
+  readonly schedules: TermExamSchedule[];
   status: TermExamStatus;
   summary: {
     bySubject: TermSubjectSummary[];
@@ -90,6 +97,7 @@ export interface CreateTermExamInput {
   semester: 1 | 2;
   period: TermExamPeriod;
   examDate?: string;
+  schedules?: Array<{ schoolId: string; examDate: string | null }>;
 }
 
 export interface UpdateTermExamInput {
@@ -97,6 +105,7 @@ export interface UpdateTermExamInput {
   semester?: 1 | 2;
   period?: TermExamPeriod;
   examDate?: string | null;
+  schedules?: Array<{ schoolId: string; examDate: string | null }>;
 }
 
 export interface RecentStudent {
