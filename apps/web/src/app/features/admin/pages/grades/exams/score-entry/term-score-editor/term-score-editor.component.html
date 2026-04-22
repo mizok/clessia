@@ -25,6 +25,20 @@
         [appendTo]="'body'"
         styleClass="term-score-editor__grade-select"
       />
+      <p-select
+        [options]="schools()"
+        [ngModel]="schoolFilter()"
+        (ngModelChange)="onSchoolFilterChange($event)"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="全部學校"
+        [showClear]="true"
+        [filter]="true"
+        filterBy="name,shortName"
+        size="small"
+        [appendTo]="'body'"
+        styleClass="term-score-editor__school-select"
+      />
       <div class="term-score-editor__search">
         <p-iconfield iconPosition="left">
           <p-inputicon styleClass="pi pi-search" />

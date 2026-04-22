@@ -40,6 +40,7 @@ import {
 } from '@core/term-exams.service';
 import { type GradeLevel } from '@core/students.service';
 import { ReferenceDataService } from '@core/reference-data.service';
+import { SchoolsService, type School } from '@core/schools.service';
 
 export interface TermScoreRow {
   subjectId: string;
@@ -137,6 +138,7 @@ export class TermScoreEditorComponent implements OnInit {
 
   private readonly termExamsService = inject(TermExamsService);
   private readonly refData = inject(ReferenceDataService);
+  private readonly schoolsService = inject(SchoolsService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly destroyRef = inject(DestroyRef);
@@ -150,9 +152,17 @@ export class TermScoreEditorComponent implements OnInit {
   protected readonly statusFilter = signal<TermExamStudentStatus>('all');
   protected readonly searchTerm = signal('');
   protected readonly gradeFilter = signal<GradeLevel | null>(null);
+  protected readonly schoolFilter = signal<string | null>(null);
+  protected readonly schools = signal<School[]>([]);
 
   // Student list
-  protected readonly students = signal<TermExamStudent[]>([]);
+  protected readonly allStudents = signal<TermExamStudent[]>([]);
+  protected readonly students = computed(() => {
+    const list = this.allStudents();
+    const school = this.schoolFilter();
+    if (!school) return list;
+    return list.filter((s) => s.schoolId === school);
+  });
   protected readonly loadingStudents = signal(false);
   protected readonly totalStudents = signal(0);
   protected readonly page = signal(1);
@@ -199,6 +209,27 @@ export class TermScoreEditorComponent implements OnInit {
     this.refData.loadSubjects();
     this.refData.loadCampuses();
     this.setupSearch();
+    this.loadSchools();
+  }
+
+  private loadSchools(): void {
+    this.schoolsService
+      .list({ isActive: true })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.schools.set(res.data),
+        error: () => {
+          this.messageService.add({
+            severity: 'warn',
+            summary: '學校清單載入失敗',
+            detail: '學校篩選暫時無法使用',
+          });
+        },
+      });
+  }
+
+  protected onSchoolFilterChange(value: string | null): void {
+    this.schoolFilter.set(value);
   }
 
   private setupSearch(): void {
@@ -238,7 +269,7 @@ export class TermScoreEditorComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          this.students.set(res.data);
+          this.allStudents.set(res.data);
           this.totalStudents.set(res.meta.total);
           this.loadingStudents.set(false);
         },

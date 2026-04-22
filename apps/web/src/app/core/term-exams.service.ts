@@ -122,6 +122,8 @@ export interface TermExamStudent {
   studentId: string;
   studentName: string;
   studentGrade: string | null;
+  schoolId: string | null;
+  schoolName: string | null;
   campusNames: string[];
   scoreCount: number;
   subjectCount: number;

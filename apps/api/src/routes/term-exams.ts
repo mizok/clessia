@@ -123,6 +123,8 @@ const TermExamStudentRowSchema = z
     studentId: z.uuid(),
     studentName: z.string(),
     studentGrade: z.string().nullable(),
+    schoolId: z.uuid().nullable(),
+    schoolName: z.string().nullable(),
     campusNames: z.array(z.string()),
     scoreCount: z.number().int(),
     subjectCount: z.number().int(),
@@ -1461,7 +1463,9 @@ app.openapi(studentsRoute, async (c) => {
 
   let studentsQuery = supabase
     .from('students')
-    .select('id, name, grade, is_active, enrollments(id, classes(campus_id, campuses(name)))')
+    .select(
+      'id, name, grade, is_active, school_id, schools(id, name, short_name), enrollments(id, classes(campus_id, campuses(name)))',
+    )
     .eq('org_id', orgId)
     .eq('is_active', true)
     .order('name');
@@ -1515,6 +1519,11 @@ app.openapi(studentsRoute, async (c) => {
     name: string | null;
     grade: string | null;
     is_active: boolean;
+    school_id: string | null;
+    schools?:
+      | { id: string; name: string; short_name: string | null }
+      | Array<{ id: string; name: string; short_name: string | null }>
+      | null;
     enrollments?: Array<{
       id: string;
       classes: { campus_id: string | null; campuses: { name: string } | null } | null;
@@ -1585,11 +1594,14 @@ app.openapi(studentsRoute, async (c) => {
           .filter((n): n is string => !!n),
       ),
     );
+    const school = pickRelationFirst(row.schools);
 
     return {
       studentId: row.id,
       studentName: row.name ?? '',
       studentGrade: row.grade,
+      schoolId: school?.id ?? row.school_id ?? null,
+      schoolName: school?.name ?? null,
       campusNames,
       scoreCount: agg?.scoreCount ?? 0,
       subjectCount: subjectCount ?? 0,
