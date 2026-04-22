@@ -61,9 +61,9 @@
               <span class="student-view__row-grade-chip">{{ formatGrade(s.grade) }}</span>
             </div>
             <div class="student-view__row-meta">
-              @if (s.school?.name) {
+              @if (s.school?.name; as schoolName) {
                 <span class="student-view__row-school">
-                  <i class="pi pi-book"></i>{{ s.school.name }}
+                  <i class="pi pi-book"></i>{{ schoolName }}
                 </span>
               }
               @for (cn of s.campusNames; track cn) {
