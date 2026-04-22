@@ -9,7 +9,8 @@ type ResourceType =
   | 'student'
   | 'parent'
   | 'attendance'
-  | 'leave';
+  | 'leave'
+  | 'school';
 
 export interface AuditLogParams {
   orgId: string;
