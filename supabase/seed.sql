@@ -1184,20 +1184,34 @@ BEGIN
   END LOOP;
 
   -- ========================================
-  -- TERM EXAMS (3 exams)
+  -- TERM EXAMS (3 exams — 綁到第一所 demo school)
   -- ========================================
 
-  -- 1. 114學年 第1學期 期中考
-  INSERT INTO public.term_exams (id, org_id, academic_year, semester, period, label, exam_date, status)
-  VALUES (te_114_1_mid, demo_org_id, 114, 1, 'midterm_1', '114學年 上學期 第一次段考', CURRENT_DATE - INTERVAL '30 days', 'active');
+  DECLARE
+    demo_school_id uuid;
+  BEGIN
+    SELECT id INTO demo_school_id
+      FROM public.schools
+      WHERE org_id = demo_org_id
+      ORDER BY name
+      LIMIT 1;
 
-  -- 2. 114學年 第1學期 期末考
-  INSERT INTO public.term_exams (id, org_id, academic_year, semester, period, label, exam_date, status)
-  VALUES (te_114_1_fin, demo_org_id, 114, 1, 'final_1', '114學年 上學期 期末考', CURRENT_DATE - INTERVAL '7 days', 'active');
+    IF demo_school_id IS NULL THEN
+      RAISE EXCEPTION 'No school found for demo_org; cannot seed term_exams';
+    END IF;
 
-  -- 3. 113學年 第2學期 期末考 (closed)
-  INSERT INTO public.term_exams (id, org_id, academic_year, semester, period, label, exam_date, status)
-  VALUES (te_113_2_fin, demo_org_id, 113, 2, 'final_2', '113學年 下學期 期末考', CURRENT_DATE - INTERVAL '180 days', 'closed');
+    -- 1. 114學年 第1學期 期中考
+    INSERT INTO public.term_exams (id, org_id, school_id, academic_year, semester, period, label, exam_date, status)
+    VALUES (te_114_1_mid, demo_org_id, demo_school_id, 114, 1, 'midterm_1', '114學年 上學期 第一次段考', CURRENT_DATE - INTERVAL '30 days', 'active');
+
+    -- 2. 114學年 第1學期 期末考
+    INSERT INTO public.term_exams (id, org_id, school_id, academic_year, semester, period, label, exam_date, status)
+    VALUES (te_114_1_fin, demo_org_id, demo_school_id, 114, 1, 'final_1', '114學年 上學期 期末考', CURRENT_DATE - INTERVAL '7 days', 'active');
+
+    -- 3. 113學年 第2學期 期末考 (closed)
+    INSERT INTO public.term_exams (id, org_id, school_id, academic_year, semester, period, label, exam_date, status)
+    VALUES (te_113_2_fin, demo_org_id, demo_school_id, 113, 2, 'final_2', '113學年 下學期 期末考', CURRENT_DATE - INTERVAL '180 days', 'closed');
+  END;
 
   -- ========================================
   -- TERM SCORES
