@@ -98,40 +98,27 @@
           (dirtyChange)="onDirtyChange($event)"
           (savingChange)="onSavingChange($event)"
           (saved)="onSaved()"
+          (filterChange)="onTermFilterChange($event)"
         />
       }
     </div>
 
-    <!-- Bottom Action Bar -->
-    <div class="score-entry__actions" [class.score-entry__actions--dirty]="dirty()">
-      @if (dirty()) {
-        <div class="score-entry__dirty-banner">
-          <div class="score-entry__dirty-copy">
-            <span class="score-entry__dirty-title">尚未儲存的成績變更</span>
-            <span class="score-entry__dirty-text">請先儲存，再離開此頁面。</span>
-          </div>
-        </div>
-      }
-      <div class="score-entry__action-buttons">
-        <p-button
-          styleClass="score-entry__back-button"
-          label="返回考試管理"
-          [text]="true"
-          severity="secondary"
-          icon="pi pi-arrow-left"
-          (onClick)="goBack()"
-        />
-        @if (!isClosed()) {
-          <p-button
-            styleClass="score-entry__save-button"
-            label="儲存成績"
-            icon="pi pi-save"
-            [disabled]="!canSave()"
-            [loading]="saving()"
-            (onClick)="saveScores()"
-          />
+    <!-- FAB Save Button -->
+    @if (!isClosed() && canSave()) {
+      <button
+        type="button"
+        class="score-entry__fab"
+        [class.score-entry__fab--saving]="saving()"
+        [disabled]="saving()"
+        (click)="saveScores()"
+      >
+        @if (saving()) {
+          <i class="pi pi-spinner pi-spin"></i>
+        } @else {
+          <i class="pi pi-save"></i>
         }
-      </div>
-    </div>
+        <span>儲存成績</span>
+      </button>
+    }
   }
 </div>

@@ -35,6 +35,7 @@ import {
   type TermExamDetail,
 } from '@core/term-exams.service';
 import { ReferenceDataService } from '@core/reference-data.service';
+import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 
 type ScoreEntryType = 'academy' | 'term';
@@ -85,6 +86,7 @@ export class ScoreEntryComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly dirty = signal(false);
+  private readonly termFilter = signal<{ campusId: string; grade: string | null } | null>(null);
 
   protected readonly academyExam = signal<AcademyExamDetail | null>(null);
   protected readonly termExam = signal<TermExamDetail | null>(null);
@@ -100,11 +102,25 @@ export class ScoreEntryComponent implements OnInit {
     if (this.type() === 'academy') {
       const exam = this.academyExam();
       if (!exam) return null;
+      const campuses = Array.from(
+        new Set(exam.classes.map((c) => c.campusName).filter((n): n is string => !!n)),
+      );
+      const courses = Array.from(
+        new Set(exam.classes.map((c) => c.courseName).filter((n): n is string => !!n)),
+      );
+      const classNames = exam.classes.map((c) => c.className).filter(Boolean);
+      const hierarchy = [
+        exam.campusName ?? campuses.join('、'),
+        courses.join('、'),
+        classNames.join('、'),
+      ]
+        .filter(Boolean)
+        .join(' › ');
       const parts = [
+        hierarchy,
         this.getAcademyTypeLabel(exam.examType),
         exam.subjectName,
         exam.examDate,
-        exam.classes.map((c) => c.className).join('、'),
       ].filter(Boolean);
       return {
         name: exam.name,
@@ -114,9 +130,17 @@ export class ScoreEntryComponent implements OnInit {
     }
     const exam = this.termExam();
     if (!exam) return null;
+    const filter = this.termFilter();
+    const campusName = filter?.campusId
+      ? (this.refData.campuses().find((c) => c.id === filter.campusId)?.name ?? null)
+      : '全部分校';
+    const gradeLabel = filter?.grade
+      ? (GRADE_LEVEL_LABELS[filter.grade as GradeLevel] ?? filter.grade)
+      : '全部年級';
+    const parts = [exam.examDate ?? '日期未定', campusName, gradeLabel].filter(Boolean);
     return {
       name: exam.label,
-      metaLine: [exam.examDate ?? '日期未定'].filter(Boolean).join(' · '),
+      metaLine: parts.join(' · '),
       status: exam.status,
     };
   });
@@ -153,6 +177,7 @@ export class ScoreEntryComponent implements OnInit {
 
   ngOnInit(): void {
     this.refData.loadSubjects();
+    this.refData.loadCampuses();
     const params = this.route.snapshot.params;
     const type = params['type'] as ScoreEntryType;
     const id = params['id'] as string;
@@ -190,8 +215,12 @@ export class ScoreEntryComponent implements OnInit {
           },
         });
     } else {
+      const filter = this.termFilter();
       this.termExamsService
-        .get(this.examId())
+        .get(this.examId(), {
+          campusId: filter?.campusId || undefined,
+          grade: filter?.grade ?? undefined,
+        })
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: ({ data }) => {
@@ -211,6 +240,29 @@ export class ScoreEntryComponent implements OnInit {
     }
   }
 
+  private refreshTermSummary(): void {
+    if (this.type() !== 'term') return;
+    const filter = this.termFilter();
+    this.termExamsService
+      .get(this.examId(), {
+        campusId: filter?.campusId || undefined,
+        grade: filter?.grade ?? undefined,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ data }) => {
+          this.termExam.set(data);
+        },
+        error: () => {
+          this.messageService.add({
+            severity: 'error',
+            summary: '載入失敗',
+            detail: '無法更新段考統計',
+          });
+        },
+      });
+  }
+
   protected onDirtyChange(isDirty: boolean): void {
     this.dirty.set(isDirty);
   }
@@ -221,7 +273,16 @@ export class ScoreEntryComponent implements OnInit {
 
   protected onSaved(): void {
     this.dirty.set(false);
-    this.loadExam(); // refresh summary stats
+    this.refreshTermSummary();
+  }
+
+  protected onTermFilterChange(filter: { campusId: string; grade: string | null }): void {
+    const current = this.termFilter();
+    if (current?.campusId === filter.campusId && current?.grade === filter.grade) {
+      return;
+    }
+    this.termFilter.set(filter);
+    this.refreshTermSummary();
   }
 
   protected saveScores(): void {

@@ -4,10 +4,12 @@ import {
   DestroyRef,
   OnInit,
   computed,
+  effect,
   inject,
   input,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -15,19 +17,28 @@ import { Subject, debounceTime, distinctUntilChanged, switchMap, of } from 'rxjs
 
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
 import { SelectModule } from 'primeng/select';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { ButtonModule } from 'primeng/button';
-import { MessageService } from 'primeng/api';
+import { DialogModule } from 'primeng/dialog';
+import { DrawerModule } from 'primeng/drawer';
+import { TagModule } from 'primeng/tag';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { PaginatorModule } from 'primeng/paginator';
+import { MessageService, ConfirmationService } from 'primeng/api';
 
 import {
   TermExamsService,
   type TermExamDetail,
+  type TermExamStudent,
+  type TermExamStudentStatus,
   type TermScore,
   type TermScoreStatus,
-  type RecentStudent,
   type SaveTermScoresInput,
 } from '@core/term-exams.service';
-import { StudentsService, type Student, type GradeLevel } from '@core/students.service';
+import { type GradeLevel } from '@core/students.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 
 export interface TermScoreRow {
@@ -39,7 +50,7 @@ export interface TermScoreRow {
   original: { score: number | null; status: TermScoreStatus; notes: string };
 }
 
-interface ExpandedStudent {
+interface DialogStudent {
   studentId: string;
   studentName: string;
   studentGrade: string | null;
@@ -62,8 +73,16 @@ const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel }> = [
   { label: '高三', value: 'S3' },
 ];
 
-const STATUS_OPTIONS: Array<{ label: string; value: TermScoreStatus }> = [
-  { label: '未登錄', value: 'scored' },
+const SCORE_STATUS_OPTIONS: Array<{ label: string; value: TermScoreStatus }> = [
+  { label: '正常', value: 'scored' },
+  { label: '缺考', value: 'absent' },
+  { label: '補考', value: 'makeup' },
+];
+
+const STUDENT_STATUS_OPTIONS: Array<{ label: string; value: TermExamStudentStatus }> = [
+  { label: '全部', value: 'all' },
+  { label: '待登錄', value: 'pending' },
+  { label: '已登錄', value: 'scored' },
   { label: '缺考', value: 'absent' },
   { label: '補考', value: 'makeup' },
 ];
@@ -75,12 +94,21 @@ const STATUS_OPTIONS: Array<{ label: string; value: TermScoreStatus }> = [
     FormsModule,
     InputNumberModule,
     InputTextModule,
+    IconFieldModule,
+    InputIconModule,
     SelectModule,
+    SelectButtonModule,
     ButtonModule,
+    DialogModule,
+    DrawerModule,
+    TagModule,
+    ConfirmDialogModule,
+    PaginatorModule,
   ],
   templateUrl: './term-score-editor.component.html',
   styleUrl: './term-score-editor.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [ConfirmationService],
 })
 export class TermScoreEditorComponent implements OnInit {
   private static readonly GRADE_LABELS: Record<string, string> = {
@@ -105,59 +133,72 @@ export class TermScoreEditorComponent implements OnInit {
   readonly dirtyChange = output<boolean>();
   readonly savingChange = output<boolean>();
   readonly saved = output<void>();
+  readonly filterChange = output<{ campusId: string; grade: string | null }>();
 
   private readonly termExamsService = inject(TermExamsService);
-  private readonly studentsService = inject(StudentsService);
   private readonly refData = inject(ReferenceDataService);
   private readonly messageService = inject(MessageService);
+  private readonly confirmationService = inject(ConfirmationService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly gradeOptions = GRADE_OPTIONS;
-  protected readonly statusOptions = STATUS_OPTIONS;
+  protected readonly scoreStatusOptions = SCORE_STATUS_OPTIONS;
+  protected readonly studentStatusOptions = STUDENT_STATUS_OPTIONS;
 
+  // Filters
+  protected readonly campusId = signal<string>('');
+  protected readonly statusFilter = signal<TermExamStudentStatus>('all');
   protected readonly searchTerm = signal('');
   protected readonly gradeFilter = signal<GradeLevel | null>(null);
-  protected readonly recentStudents = signal<RecentStudent[]>([]);
-  protected readonly searchResults = signal<Student[]>([]);
-  protected readonly expandedStudents = signal<ExpandedStudent[]>([]);
-  protected readonly loadingRecent = signal(true);
-  protected readonly loadingSearch = signal(false);
+
+  // Student list
+  protected readonly students = signal<TermExamStudent[]>([]);
+  protected readonly loadingStudents = signal(false);
+  protected readonly totalStudents = signal(0);
+  protected readonly page = signal(1);
+  protected readonly pageSize = 50;
+
+  // Dialog
+  protected dialogVisible = false;
+  protected readonly dialogStudent = signal<DialogStudent | null>(null);
+
+  // Mobile bottom sheet (for individual subject in dialog)
+  protected subjectSheetVisible = false;
+  protected readonly subjectSheetRow = signal<TermScoreRow | null>(null);
 
   protected readonly subjects = computed(() => this.refData.subjects());
+
+  protected readonly campusOptions = computed(() =>
+    this.refData.campuses().map((c) => ({ label: c.name, value: c.id })),
+  );
 
   private readonly searchTerm$ = new Subject<string>();
 
   protected readonly isDirty = computed(() => {
-    return this.expandedStudents().some((s) =>
-      s.rows.some(
-        (r) =>
-          r.score !== r.original.score ||
-          r.status !== r.original.status ||
-          r.notes !== r.original.notes,
-      ),
+    const ds = this.dialogStudent();
+    if (!ds) return false;
+    return ds.rows.some(
+      (r) =>
+        r.score !== r.original.score ||
+        r.status !== r.original.status ||
+        r.notes !== r.original.notes,
     );
   });
 
-  ngOnInit(): void {
-    this.refData.loadSubjects();
-    this.loadRecentStudents();
-    this.setupSearch();
+  constructor() {
+    effect(() => {
+      const list = this.refData.campuses();
+      if (list.length === 0) return;
+      if (untracked(() => this.campusId())) return;
+      this.campusId.set(list[0].id);
+      untracked(() => this.loadStudents());
+    });
   }
 
-  private loadRecentStudents(): void {
-    this.loadingRecent.set(true);
-    this.termExamsService
-      .getRecentStudents(this.examId())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ data }) => {
-          this.recentStudents.set(data);
-          this.loadingRecent.set(false);
-        },
-        error: () => {
-          this.loadingRecent.set(false);
-        },
-      });
+  ngOnInit(): void {
+    this.refData.loadSubjects();
+    this.refData.loadCampuses();
+    this.setupSearch();
   }
 
   private setupSearch(): void {
@@ -165,32 +206,49 @@ export class TermScoreEditorComponent implements OnInit {
       .pipe(
         debounceTime(300),
         distinctUntilChanged(),
-        switchMap((term) => {
-          if (term.length < 2) {
-            return of(null);
-          }
-          this.loadingSearch.set(true);
-          return this.studentsService.list({
-            search: term,
-            searchScope: 'student_name',
-            grade: this.gradeFilter() ?? undefined,
-            isActive: true,
-            pageSize: 20,
-          });
-        }),
         takeUntilDestroyed(this.destroyRef),
       )
+      .subscribe(() => {
+        this.page.set(1);
+        this.loadStudents();
+      });
+  }
+
+  private lastEmittedFilter: { campusId: string; grade: string | null } = { campusId: '', grade: null };
+
+  protected loadStudents(): void {
+    this.loadingStudents.set(true);
+    const currentFilter = { campusId: this.campusId(), grade: this.gradeFilter() };
+    if (
+      currentFilter.campusId !== this.lastEmittedFilter.campusId ||
+      currentFilter.grade !== this.lastEmittedFilter.grade
+    ) {
+      this.lastEmittedFilter = currentFilter;
+      this.filterChange.emit(currentFilter);
+    }
+    this.termExamsService
+      .getStudents(this.examId(), {
+        campusId: this.campusId() || undefined,
+        status: this.statusFilter(),
+        search: this.searchTerm() || undefined,
+        grade: this.gradeFilter() ?? undefined,
+        page: this.page(),
+        pageSize: this.pageSize,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          if (res === null) {
-            this.searchResults.set([]);
-          } else {
-            this.searchResults.set(res.data);
-          }
-          this.loadingSearch.set(false);
+          this.students.set(res.data);
+          this.totalStudents.set(res.meta.total);
+          this.loadingStudents.set(false);
         },
         error: () => {
-          this.loadingSearch.set(false);
+          this.loadingStudents.set(false);
+          this.messageService.add({
+            severity: 'error',
+            summary: '載入失敗',
+            detail: '無法載入學生列表',
+          });
         },
       });
   }
@@ -200,16 +258,27 @@ export class TermScoreEditorComponent implements OnInit {
     this.searchTerm$.next(value);
   }
 
-  protected onGradeFilterChange(value: GradeLevel | null): void {
-    this.gradeFilter.set(value);
-    // Re-trigger search with new grade
-    if (this.searchTerm().length >= 2) {
-      this.searchTerm$.next(this.searchTerm());
-    }
+  protected onCampusChange(value: string): void {
+    this.campusId.set(value);
+    this.page.set(1);
+    this.loadStudents();
   }
 
-  protected isExpanded(studentId: string): boolean {
-    return this.expandedStudents().some((s) => s.studentId === studentId);
+  protected onStatusFilterChange(value: TermExamStudentStatus): void {
+    this.statusFilter.set(value);
+    this.page.set(1);
+    this.loadStudents();
+  }
+
+  protected onGradeFilterChange(value: GradeLevel | null): void {
+    this.gradeFilter.set(value);
+    this.page.set(1);
+    this.loadStudents();
+  }
+
+  protected onPageChange(event: { page?: number }): void {
+    this.page.set((event.page ?? 0) + 1);
+    this.loadStudents();
   }
 
   protected formatGrade(grade: string | null): string {
@@ -217,52 +286,132 @@ export class TermScoreEditorComponent implements OnInit {
     return TermScoreEditorComponent.GRADE_LABELS[grade] ?? grade;
   }
 
-  protected toggleStudent(studentId: string, studentName: string, studentGrade: string | null): void {
-    const existing = this.expandedStudents().find((s) => s.studentId === studentId);
-    if (existing) {
-      this.expandedStudents.update((list) =>
-        list.filter((s) => s.studentId !== studentId),
-      );
-      this.emitDirty();
-      return;
-    }
+  protected getProgressText(s: TermExamStudent): string {
+    if (s.scoreCount === 0) return '待登錄';
+    if (s.subjectCount > 0 && s.scoreCount >= s.subjectCount) return '已完成';
+    return `${s.scoreCount}/${s.subjectCount}`;
+  }
 
-    const entry: ExpandedStudent = {
-      studentId,
-      studentName,
-      studentGrade,
+  protected getProgressSeverity(
+    s: TermExamStudent,
+  ): 'success' | 'warn' | 'danger' | 'info' | 'secondary' | 'contrast' | undefined {
+    if (s.scoreCount === 0) return 'warn';
+    if (s.subjectCount > 0 && s.scoreCount >= s.subjectCount) return 'success';
+    return 'info';
+  }
+
+  // --- Dialog ---
+
+  protected openStudentDialog(s: TermExamStudent): void {
+    const ds: DialogStudent = {
+      studentId: s.studentId,
+      studentName: s.studentName,
+      studentGrade: s.studentGrade,
       rows: [],
       loading: true,
     };
-    this.expandedStudents.update((list) => [...list, entry]);
+    this.dialogStudent.set(ds);
+    this.dialogVisible = true;
 
-    // Load scores for this student
     this.termExamsService
-      .getScores(this.examId(), studentId)
+      .getScores(this.examId(), s.studentId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ data }) => {
           const rows = this.buildScoreRows(data);
-          this.expandedStudents.update((list) =>
-            list.map((s) =>
-              s.studentId === studentId ? { ...s, rows, loading: false } : s,
-            ),
-          );
+          this.dialogStudent.set({ ...ds, rows, loading: false });
         },
         error: () => {
-          this.expandedStudents.update((list) =>
-            list.map((s) =>
-              s.studentId === studentId ? { ...s, loading: false } : s,
-            ),
-          );
+          this.dialogStudent.set({ ...ds, loading: false });
           this.messageService.add({
             severity: 'error',
             summary: '載入失敗',
-            detail: `無法載入 ${studentName} 的成績`,
+            detail: `無法載入 ${s.studentName} 的成績`,
           });
         },
       });
   }
+
+  protected onDialogHide(): void {
+    if (this.isDirty()) {
+      this.dialogVisible = true;
+      this.confirmationService.confirm({
+        message: '尚有未儲存的變更，是否要儲存？',
+        header: '確認',
+        icon: 'pi pi-exclamation-triangle',
+        acceptLabel: '儲存',
+        rejectLabel: '不儲存',
+        accept: () => {
+          this.saveDialog();
+        },
+        reject: () => {
+          this.dialogStudent.set(null);
+          this.dialogVisible = false;
+        },
+      });
+      return;
+    }
+    this.dialogStudent.set(null);
+  }
+
+  protected saveDialog(): void {
+    const ds = this.dialogStudent();
+    if (!ds) return;
+
+    const allInputs: SaveTermScoresInput[] = [];
+    for (const row of ds.rows) {
+      if (!this.isRowDirty(row)) continue;
+      if (row.score === null && row.status === 'scored') continue;
+
+      allInputs.push({
+        studentId: ds.studentId,
+        subjectId: row.subjectId,
+        score: row.score,
+        status: row.status,
+        notes: row.notes.trim() || null,
+      });
+    }
+
+    if (allInputs.length === 0) {
+      this.dialogVisible = false;
+      this.dialogStudent.set(null);
+      return;
+    }
+
+    this.savingChange.emit(true);
+    this.termExamsService
+      .saveScores(this.examId(), allInputs)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ affected }) => {
+          this.messageService.add({
+            severity: 'success',
+            summary: '儲存成功',
+            detail: `已更新 ${affected} 筆成績`,
+          });
+          for (const row of ds.rows) {
+            row.original = { score: row.score, status: row.status, notes: row.notes };
+          }
+          this.dialogStudent.set({ ...ds });
+          this.savingChange.emit(false);
+          this.dirtyChange.emit(false);
+          this.saved.emit();
+          this.dialogVisible = false;
+          this.dialogStudent.set(null);
+          this.loadStudents();
+        },
+        error: () => {
+          this.messageService.add({
+            severity: 'error',
+            summary: '儲存失敗',
+            detail: '無法儲存成績，請稍後再試',
+          });
+          this.savingChange.emit(false);
+        },
+      });
+  }
+
+  // --- Score row helpers ---
 
   private buildScoreRows(existingScores: TermScore[]): TermScoreRow[] {
     const subjects = this.subjects();
@@ -301,6 +450,11 @@ export class TermScoreEditorComponent implements OnInit {
     this.notifyChanged();
   }
 
+  protected openSubjectSheet(row: TermScoreRow): void {
+    this.subjectSheetRow.set(row);
+    this.subjectSheetVisible = true;
+  }
+
   protected isAbsent(row: TermScoreRow): boolean {
     return row.status === 'absent';
   }
@@ -313,63 +467,22 @@ export class TermScoreEditorComponent implements OnInit {
     );
   }
 
+  protected dirtyCount(): number {
+    const ds = this.dialogStudent();
+    if (!ds) return 0;
+    return ds.rows.filter((r) => this.isRowDirty(r)).length;
+  }
+
   private notifyChanged(): void {
-    this.expandedStudents.update((list) => [...list]);
+    const ds = this.dialogStudent();
+    if (ds) {
+      this.dialogStudent.set({ ...ds });
+    }
     this.emitDirty();
   }
 
   save(): void {
-    const allInputs: SaveTermScoresInput[] = [];
-
-    for (const student of this.expandedStudents()) {
-      for (const row of student.rows) {
-        const isDirty = this.isRowDirty(row);
-        if (!isDirty) continue;
-        if (row.score === null && row.status === 'scored') continue; // empty scored = skip
-
-        allInputs.push({
-          studentId: student.studentId,
-          subjectId: row.subjectId,
-          score: row.score,
-          status: row.status,
-          notes: row.notes.trim() || null,
-        });
-      }
-    }
-
-    if (allInputs.length === 0) return;
-
-    this.savingChange.emit(true);
-    this.termExamsService
-      .saveScores(this.examId(), allInputs)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: ({ affected }) => {
-          this.messageService.add({
-            severity: 'success',
-            summary: '儲存成功',
-            detail: `已更新 ${affected} 筆成績`,
-          });
-          // Update originals
-          for (const student of this.expandedStudents()) {
-            for (const row of student.rows) {
-              row.original = { score: row.score, status: row.status, notes: row.notes };
-            }
-          }
-          this.savingChange.emit(false);
-          this.emitDirty();
-          this.saved.emit();
-          this.loadRecentStudents(); // refresh recent list
-        },
-        error: () => {
-          this.messageService.add({
-            severity: 'error',
-            summary: '儲存失敗',
-            detail: '無法儲存成績，請稍後再試',
-          });
-          this.savingChange.emit(false);
-        },
-      });
+    this.saveDialog();
   }
 
   private emitDirty(): void {

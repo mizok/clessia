@@ -1,0 +1,270 @@
+<div class="class-view">
+  <app-page-breadcrumb [items]="breadcrumbs" />
+
+  <!-- Toolbar: Campus + Search -->
+  <div class="class-view__toolbar">
+    <p-select
+      [options]="campusOptions()"
+      [ngModel]="campusId()"
+      (ngModelChange)="onCampusChange($event)"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="選擇分校"
+      size="small"
+      styleClass="class-view__campus-select"
+    />
+    <div class="class-view__search">
+      <i class="pi pi-search class-view__search-icon"></i>
+      <input
+        pInputText
+        type="text"
+        [ngModel]="searchText()"
+        (ngModelChange)="onSearchChange($event)"
+        placeholder="搜尋課程或班級..."
+        class="class-view__search-input"
+      />
+    </div>
+  </div>
+
+  <!-- Course groups -->
+  @if (!campusId()) {
+    <app-empty-state
+      icon="pi pi-building"
+      title="請先選擇分校"
+      description="選擇分校後即可瀏覽該校的課程與班級"
+    />
+  } @else if (loadingGroups()) {
+    <div class="class-view__loading">
+      <i class="pi pi-spinner pi-spin"></i>
+      載入課程列表...
+    </div>
+  } @else if (filteredGroups().length === 0) {
+    <app-empty-state
+      icon="pi pi-th-large"
+      title="無符合的課程"
+      description="請嘗試調整搜尋關鍵字或分校"
+    />
+  } @else {
+    <div class="class-view__groups">
+      @for (group of filteredGroups(); track group.courseId) {
+        <div class="class-view__course-group">
+          <div class="class-view__course-header">
+            <span class="class-view__course-name">{{ group.courseName }}</span>
+            <span class="class-view__course-subject">{{ group.subjectName }}</span>
+            @if (group.gradeRange) {
+              <span class="class-view__course-grades">{{ group.gradeRange }}</span>
+            }
+          </div>
+          <div class="class-view__class-list">
+            @for (cls of group.classes; track cls.id) {
+              <button
+                type="button"
+                class="class-view__class-row"
+                [class.class-view__class-row--active]="selectedClassId() === cls.id"
+                (click)="selectClass(cls)"
+              >
+                <div class="class-view__class-info">
+                  <span class="class-view__class-name">{{ cls.name }}</span>
+                  @if (cls.gradeLabels) {
+                    <span class="class-view__class-grades">{{ cls.gradeLabels }}</span>
+                  }
+                </div>
+                <div class="class-view__class-meta">
+                  <span class="class-view__class-capacity">上限 {{ cls.maxStudents }} 人</span>
+                  <i
+                    class="pi class-view__class-chevron"
+                    [class.pi-chevron-down]="selectedClassId() !== cls.id"
+                    [class.pi-chevron-up]="selectedClassId() === cls.id"
+                  ></i>
+                </div>
+              </button>
+
+              @if (selectedClassId() === cls.id) {
+                <div class="class-view__detail">
+                  <!-- Exam selector -->
+                  <div class="class-view__exam-selector">
+                    <p-select
+                      [options]="examOptions()"
+                      [ngModel]="selectedExamId()"
+                      (ngModelChange)="onExamChange($event)"
+                      optionLabel="label"
+                      optionValue="value"
+                      placeholder="選擇考試"
+                      [filter]="true"
+                      filterPlaceholder="搜尋考試"
+                      [showClear]="true"
+                      [loading]="loadingExams()"
+                      styleClass="class-view__exam-select"
+                    />
+                  </div>
+
+                  @if (loadingStats()) {
+                    <div class="class-view__loading class-view__loading--inline">
+                      <i class="pi pi-spinner pi-spin"></i>
+                      載入統計中...
+                    </div>
+                  } @else if (stats(); as data) {
+                    <!-- Summary Cards -->
+                    <div class="class-view__summary">
+                      <div class="class-view__stat-card class-view__stat-card--avg">
+                        <div class="class-view__stat-icon">
+                          <i class="pi pi-chart-line"></i>
+                        </div>
+                        <div class="class-view__stat-body">
+                          <span class="class-view__stat-label">平均分數</span>
+                          <span class="class-view__stat-value">
+                            {{ data.summary.averageScore !== null ? data.summary.averageScore : '—' }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="class-view__stat-card class-view__stat-card--high">
+                        <div class="class-view__stat-icon">
+                          <i class="pi pi-arrow-up"></i>
+                        </div>
+                        <div class="class-view__stat-body">
+                          <span class="class-view__stat-label">最高分</span>
+                          <span class="class-view__stat-value">
+                            {{ data.summary.highestScore !== null ? data.summary.highestScore : '—' }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="class-view__stat-card class-view__stat-card--low">
+                        <div class="class-view__stat-icon">
+                          <i class="pi pi-arrow-down"></i>
+                        </div>
+                        <div class="class-view__stat-body">
+                          <span class="class-view__stat-label">最低分</span>
+                          <span class="class-view__stat-value">
+                            {{ data.summary.lowestScore !== null ? data.summary.lowestScore : '—' }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="class-view__stat-card class-view__stat-card--count">
+                        <div class="class-view__stat-icon">
+                          <i class="pi pi-users"></i>
+                        </div>
+                        <div class="class-view__stat-body">
+                          <span class="class-view__stat-label">已登錄 / 缺考</span>
+                          <span class="class-view__stat-value">
+                            {{ data.summary.recordedCount }} / {{ data.summary.absentCount }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Score Status Filter -->
+                    <div class="class-view__score-filter">
+                      <p-selectbutton
+                        [options]="scoreStatusOptions"
+                        [ngModel]="scoreStatusFilter()"
+                        (ngModelChange)="scoreStatusFilter.set($event ?? 'all')"
+                        optionLabel="label"
+                        optionValue="value"
+                        [allowEmpty]="false"
+                        size="small"
+                      />
+                    </div>
+
+                    <!-- Score Table -->
+                    @if (sortedScores().length === 0) {
+                      <app-empty-state
+                        icon="pi pi-chart-bar"
+                        title="尚無成績紀錄"
+                        description="此班級的這場考試尚無登錄成績"
+                      />
+                    } @else {
+                      <div class="class-view__table-wrap">
+                        <table class="class-view__table">
+                          <thead>
+                            <tr>
+                              <th class="class-view__th">#</th>
+                              <th class="class-view__th">學生姓名</th>
+                              <th class="class-view__th class-view__th--score">分數</th>
+                              <th class="class-view__th">狀態</th>
+                              <th class="class-view__th">備註</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (row of sortedScores(); track row.studentId; let i = $index) {
+                              <tr class="class-view__row">
+                                <td class="class-view__cell class-view__cell--rank">{{ i + 1 }}</td>
+                                <td class="class-view__cell">{{ row.studentName }}</td>
+                                <td
+                                  class="class-view__cell class-view__cell--score"
+                                  [class.class-view__cell--fail]="row.score !== null && row.score < 60"
+                                >
+                                  @if (row.score !== null && row.score < 60) {
+                                    <i class="pi pi-exclamation-triangle class-view__fail-icon" aria-label="不及格"></i>
+                                  }
+                                  {{ row.score !== null ? row.score : '—' }}
+                                </td>
+                                <td class="class-view__cell">
+                                  <p-tag
+                                    [value]="getStatusLabel(row.status)"
+                                    [severity]="getStatusSeverity(row.status)"
+                                  />
+                                </td>
+                                <td class="class-view__cell class-view__cell--notes">{{ row.notes ?? '—' }}</td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div class="class-view__mobile-list">
+                        @for (row of sortedScores(); track row.studentId; let i = $index) {
+                          <article class="class-view__mobile-card">
+                            <div class="class-view__mobile-header">
+                              <div class="class-view__mobile-rank">
+                                <span class="class-view__mobile-rank-label">排名</span>
+                                <span class="class-view__mobile-rank-value">{{ i + 1 }}</span>
+                              </div>
+                              <div class="class-view__mobile-identity">
+                                <span class="class-view__mobile-name">{{ row.studentName }}</span>
+                                <p-tag
+                                  [value]="getStatusLabel(row.status)"
+                                  [severity]="getStatusSeverity(row.status)"
+                                />
+                              </div>
+                            </div>
+
+                            <div class="class-view__mobile-score-row">
+                              <span class="class-view__mobile-label">分數</span>
+                              <span
+                                class="class-view__mobile-score"
+                                [class.class-view__mobile-score--fail]="row.score !== null && row.score < 60"
+                              >
+                                {{ row.score !== null ? row.score : '—' }}
+                              </span>
+                            </div>
+
+                            <div class="class-view__mobile-notes">
+                              <span class="class-view__mobile-label">備註</span>
+                              <p class="class-view__mobile-note-text">{{ row.notes ?? '—' }}</p>
+                            </div>
+                          </article>
+                        }
+                      </div>
+                    }
+                  } @else if (!loadingExams() && examOptions().length === 0) {
+                    <app-empty-state
+                      icon="pi pi-file"
+                      title="此班級尚未建立考試"
+                      description="請先到考試管理建立考試，再回到此處查看該班級統計資料"
+                    />
+                  } @else if (!selectedExamId()) {
+                    <app-empty-state
+                      icon="pi pi-file-edit"
+                      title="請選擇考試"
+                      description="選擇一場補習班考試以查看該班的成績統計與學生排名"
+                    />
+                  }
+                </div>
+              }
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

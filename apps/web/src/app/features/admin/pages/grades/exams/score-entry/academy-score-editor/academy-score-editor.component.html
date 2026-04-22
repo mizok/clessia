@@ -94,43 +94,66 @@
         </table>
       </div>
 
-      <div class="academy-score-editor__card-list">
+      <!-- Mobile compact list -->
+      <div class="academy-score-editor__mobile-list">
         @for (row of filteredRows(); track row.studentId) {
-          <article
-            class="academy-score-editor__card"
-            [class.academy-score-editor__card--dirty]="isRowDirty(row)"
+          <button
+            type="button"
+            class="academy-score-editor__mobile-row"
+            (click)="openSheet(row)"
           >
-            <div class="academy-score-editor__card-header">
-              <div class="academy-score-editor__card-identity">
-                <span class="academy-score-editor__student-name">{{ row.studentName }}</span>
-                <span class="academy-score-editor__card-grade">{{
-                  formatGrade(row.studentGrade)
-                }}</span>
-              </div>
-              @if (isAbsent(row)) {
-                <span class="academy-score-editor__card-status-pill">缺考</span>
-              }
+            <div class="academy-score-editor__mobile-info">
+              <span class="academy-score-editor__mobile-name">{{ row.studentName }}</span>
+              <span class="academy-score-editor__mobile-grade">{{ formatGrade(row.studentGrade) }}</span>
             </div>
+            <span
+              class="academy-score-editor__mobile-score"
+              [class.academy-score-editor__mobile-score--absent]="isAbsent(row)"
+              [class.academy-score-editor__mobile-score--fail]="row.score !== null && row.score < 60"
+              [class.academy-score-editor__mobile-score--dirty]="isRowDirty(row)"
+            >
+              @if (isAbsent(row)) {
+                缺考
+              } @else if (row.score !== null) {
+                {{ row.score }}
+              } @else {
+                未登錄
+              }
+            </span>
+          </button>
+        }
+      </div>
 
-            <div class="academy-score-editor__card-field">
-              <label class="academy-score-editor__card-label">
-                分數
-                <span class="academy-score-editor__total">/{{ exam().totalScore }}</span>
-              </label>
+      <!-- Bottom Sheet (PrimeNG Drawer) -->
+      <p-drawer
+        [(visible)]="sheetVisible"
+        position="bottom"
+        [modal]="true"
+        [appendTo]="'body'"
+        styleClass="academy-score-editor__sheet drawer-auto"
+      >
+        @if (sheetRow(); as row) {
+          <ng-template #header>
+            <div class="academy-score-editor__sheet-header">
+              <span class="academy-score-editor__sheet-name">{{ row.studentName }}</span>
+              <span class="academy-score-editor__sheet-grade">{{ formatGrade(row.studentGrade) }}</span>
+            </div>
+          </ng-template>
+
+          <div class="academy-score-editor__sheet-body">
+            <div class="academy-score-editor__sheet-field">
+              <label class="academy-score-editor__sheet-label">分數 /{{ exam().totalScore }}</label>
               <p-inputnumber
                 [ngModel]="row.score"
                 (ngModelChange)="onScoreChange(row, $event)"
                 [min]="0"
                 [max]="exam().totalScore"
                 [disabled]="disabled() || isAbsent(row)"
-                [placeholder]="isAbsent(row) ? '—' : ''"
-                styleClass="academy-score-editor__score-input academy-score-editor__score-input--card"
-                [inputStyleClass]="'academy-score-editor__score-field'"
+                styleClass="academy-score-editor__sheet-input"
               />
             </div>
-
-            <div class="academy-score-editor__card-field">
-              <label class="academy-score-editor__card-label">狀態</label>
+            <div class="academy-score-editor__sheet-field">
+              <label class="academy-score-editor__sheet-label">狀態</label>
               <p-select
                 [options]="statusOptions"
                 [ngModel]="row.status"
@@ -138,26 +161,25 @@
                 optionLabel="label"
                 optionValue="value"
                 [disabled]="disabled()"
-                size="small"
-                styleClass="academy-score-editor__status-select academy-score-editor__status-select--card"
+                [appendTo]="'body'"
+                styleClass="academy-score-editor__sheet-select"
               />
             </div>
-
-            <div class="academy-score-editor__card-field">
-              <label class="academy-score-editor__card-label">備註</label>
+            <div class="academy-score-editor__sheet-field">
+              <label class="academy-score-editor__sheet-label">備註</label>
               <input
                 type="text"
                 pInputText
                 [ngModel]="row.notes"
                 (ngModelChange)="onNotesChange(row, $event)"
                 [disabled]="disabled()"
-                placeholder="備註"
-                class="academy-score-editor__notes-input academy-score-editor__notes-input--card"
+                placeholder="輸入備註..."
+                class="academy-score-editor__sheet-notes"
               />
             </div>
-          </article>
+          </div>
         }
-      </div>
+      </p-drawer>
     }
   }
 </div>

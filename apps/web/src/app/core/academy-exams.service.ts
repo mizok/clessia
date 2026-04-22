@@ -27,6 +27,8 @@ export interface AcademyExam {
 export interface AcademyExamDetailClass {
   classId: string;
   className: string;
+  campusName: string | null;
+  courseName: string | null;
 }
 
 export interface AcademyExamDetailSummary {
@@ -46,6 +48,7 @@ export interface AcademyExamDetail {
   totalScore: number;
   scopeNote: string | null;
   campusId: string | null;
+  campusName: string | null;
   subjectId: string | null;
   subjectName: string | null;
   classes: AcademyExamDetailClass[];
@@ -70,6 +73,7 @@ export interface AcademyExamListParams {
   status?: AcademyExamStatus;
   campusId?: string;
   subjectId?: string;
+  classId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -170,6 +174,7 @@ export class AcademyExamsService {
     if (params.status !== undefined) query['status'] = params.status;
     if (params.campusId !== undefined) query['campus_id'] = params.campusId;
     if (params.subjectId !== undefined) query['subject_id'] = params.subjectId;
+    if (params.classId !== undefined) query['class_id'] = params.classId;
     if (params.page !== undefined) query['page'] = params.page;
     if (params.pageSize !== undefined) query['pageSize'] = params.pageSize;
 

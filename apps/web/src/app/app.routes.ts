@@ -145,11 +145,32 @@ export const routes: Routes = [
               },
               {
                 path: 'overview',
-                loadComponent: () =>
-                  import('@features/admin/pages/grades/overview/overview.component').then(
-                    (m) => m.OverviewComponent,
-                  ),
-                data: { page: RoutesCatalog.ADMIN_GRADES_OVERVIEW },
+                children: [
+                  {
+                    path: '',
+                    loadComponent: () =>
+                      import('@features/admin/pages/grades/overview/overview.component').then(
+                        (m) => m.OverviewComponent,
+                      ),
+                    data: { page: RoutesCatalog.ADMIN_GRADES_OVERVIEW },
+                  },
+                  {
+                    path: 'student',
+                    loadComponent: () =>
+                      import(
+                        '@features/admin/pages/grades/overview/student-view/student-view.component'
+                      ).then((m) => m.StudentViewComponent),
+                    data: { page: RoutesCatalog.ADMIN_GRADES_OVERVIEW_STUDENT },
+                  },
+                  {
+                    path: 'class',
+                    loadComponent: () =>
+                      import(
+                        '@features/admin/pages/grades/overview/class-view/class-view.component'
+                      ).then((m) => m.ClassViewComponent),
+                    data: { page: RoutesCatalog.ADMIN_GRADES_OVERVIEW_CLASS },
+                  },
+                ],
               },
               // 舊路由 redirect
               { path: 'academy-exams', redirectTo: 'exams', pathMatch: 'full' },

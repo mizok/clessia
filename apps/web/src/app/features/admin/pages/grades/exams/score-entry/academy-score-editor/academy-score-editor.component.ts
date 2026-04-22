@@ -16,6 +16,7 @@ import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { ButtonModule } from 'primeng/button';
+import { DrawerModule } from 'primeng/drawer';
 import { MessageService } from 'primeng/api';
 
 import {
@@ -42,7 +43,7 @@ export interface ScoreRow {
 }
 
 const STATUS_OPTIONS: Array<{ label: string; value: AcademyScoreStatus }> = [
-  { label: '未登錄', value: 'scored' },
+  { label: '正常', value: 'scored' },
   { label: '缺考', value: 'absent' },
   { label: '補考', value: 'makeup' },
 ];
@@ -56,6 +57,7 @@ const STATUS_OPTIONS: Array<{ label: string; value: AcademyScoreStatus }> = [
     InputTextModule,
     SelectModule,
     ButtonModule,
+    DrawerModule,
   ],
   templateUrl: './academy-score-editor.component.html',
   styleUrl: './academy-score-editor.component.scss',
@@ -93,6 +95,10 @@ export class AcademyScoreEditorComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly rows = signal<ScoreRow[]>([]);
   protected readonly classFilter = signal<string | null>(null);
+
+  // Bottom sheet state
+  protected sheetVisible = false;
+  protected readonly sheetRow = signal<ScoreRow | null>(null);
 
   protected readonly classOptions = computed(() => {
     const exam = this.exam();
@@ -180,6 +186,11 @@ export class AcademyScoreEditorComponent implements OnInit {
   private notifyRowsChanged(): void {
     this.rows.set([...this.rows()]);
     this.emitDirty();
+  }
+
+  protected openSheet(row: ScoreRow): void {
+    this.sheetRow.set(row);
+    this.sheetVisible = true;
   }
 
   protected isAbsent(row: ScoreRow): boolean {

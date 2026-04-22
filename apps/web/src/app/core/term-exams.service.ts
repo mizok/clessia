@@ -107,6 +107,39 @@ export interface RecentStudent {
   lastUpdatedAt: string;
 }
 
+export type TermExamStudentStatus = 'all' | 'pending' | 'scored' | 'absent' | 'makeup';
+
+export interface TermExamStudent {
+  studentId: string;
+  studentName: string;
+  studentGrade: string | null;
+  campusNames: string[];
+  scoreCount: number;
+  subjectCount: number;
+  hasScored: boolean;
+  hasAbsent: boolean;
+  hasMakeup: boolean;
+  lastUpdatedAt: string | null;
+}
+
+export interface TermExamStudentListParams {
+  campusId?: string;
+  status?: TermExamStudentStatus;
+  search?: string;
+  grade?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface TermExamStudentListResponse {
+  data: TermExamStudent[];
+  meta: {
+    total: number;
+    page: number;
+    pageSize: number;
+  };
+}
+
 export interface SaveTermScoresInput {
   studentId: string;
   subjectId: string;
@@ -126,8 +159,14 @@ export class TermExamsService {
     });
   }
 
-  get(id: string): Observable<{ data: TermExamDetail }> {
-    return this.http.get<{ data: TermExamDetail }>(`${this.base}/${id}`);
+  get(
+    id: string,
+    params?: { campusId?: string; grade?: string },
+  ): Observable<{ data: TermExamDetail }> {
+    const query: Record<string, string> = {};
+    if (params?.campusId) query['campusId'] = params.campusId;
+    if (params?.grade) query['grade'] = params.grade;
+    return this.http.get<{ data: TermExamDetail }>(`${this.base}/${id}`, { params: query });
   }
 
   create(data: CreateTermExamInput): Observable<{ data: { id: string; label: string } }> {
@@ -158,6 +197,22 @@ export class TermExamsService {
 
   getRecentStudents(examId: string): Observable<{ data: RecentStudent[] }> {
     return this.http.get<{ data: RecentStudent[] }>(`${this.base}/${examId}/recent-students`);
+  }
+
+  getStudents(
+    examId: string,
+    params?: TermExamStudentListParams,
+  ): Observable<TermExamStudentListResponse> {
+    const query: Record<string, string | number | boolean> = {};
+    if (params?.campusId) query['campusId'] = params.campusId;
+    if (params?.status && params.status !== 'all') query['status'] = params.status;
+    if (params?.search) query['search'] = params.search;
+    if (params?.grade) query['grade'] = params.grade;
+    if (params?.page) query['page'] = params.page;
+    if (params?.pageSize) query['pageSize'] = params.pageSize;
+    return this.http.get<TermExamStudentListResponse>(`${this.base}/${examId}/students`, {
+      params: query,
+    });
   }
 
   saveScores(

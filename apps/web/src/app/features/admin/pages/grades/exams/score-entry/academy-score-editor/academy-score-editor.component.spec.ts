@@ -150,18 +150,15 @@ describe('AcademyScoreEditorComponent', () => {
     expect(component['classOptions']().length).toBe(3);
   });
 
-  it('renders mobile score cards with student info and editable fields', () => {
+  it('renders mobile compact list with student info', () => {
     const host = fixture.nativeElement as HTMLElement;
-    const cards = host.querySelectorAll('.academy-score-editor__card');
+    const rows = host.querySelectorAll('.academy-score-editor__mobile-row');
 
-    expect(host.querySelector('.academy-score-editor__card-list')).not.toBeNull();
-    expect(cards.length).toBe(2);
+    expect(host.querySelector('.academy-score-editor__mobile-list')).not.toBeNull();
+    expect(rows.length).toBe(2);
 
-    const firstCard = cards[0] as HTMLElement;
-    expect(firstCard.textContent).toContain('王小明');
-    expect(firstCard.textContent).toContain('國一');
-    expect(firstCard.textContent).toContain('分數');
-    expect(firstCard.textContent).toContain('狀態');
-    expect(firstCard.textContent).toContain('備註');
+    const firstRow = rows[0] as HTMLElement;
+    expect(firstRow.textContent).toContain('王小明');
+    expect(firstRow.textContent).toContain('國一');
   });
 });

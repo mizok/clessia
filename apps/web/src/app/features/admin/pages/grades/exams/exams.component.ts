@@ -16,10 +16,12 @@ import { forkJoin } from 'rxjs';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
+import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
+import { DialogModule } from 'primeng/dialog';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -60,10 +62,12 @@ import {
 import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
+import { subMonths } from 'date-fns';
 
 type ExamKind = 'academy' | 'term';
 type ExamTypeFilter = 'all' | ExamKind;
 type StatusFilter = 'all' | 'active' | 'closed';
+type TimeRange = 'all' | '1m' | '3m' | '6m';
 
 export interface AcademyExamRow {
   readonly kind: 'academy';
@@ -110,6 +114,13 @@ const STATUS_OPTIONS: Array<{ label: string; value: StatusFilter }> = [
   { label: '已結束', value: 'closed' },
 ];
 
+const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
+  { label: '近1月', value: '1m' },
+  { label: '近3月', value: '3m' },
+  { label: '近半年', value: '6m' },
+  { label: '全部', value: 'all' },
+];
+
 const PAGE_SIZE = 10;
 
 @Component({
@@ -119,6 +130,7 @@ const PAGE_SIZE = 10;
     FormsModule,
     RouterModule,
     ButtonModule,
+    InputTextModule,
     SelectModule,
     SelectButtonModule,
     TagModule,
@@ -129,6 +141,7 @@ const PAGE_SIZE = 10;
     RtRowDirective,
     EmptyStateComponent,
     PopupMenuComponent,
+    DialogModule,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './exams.component.html',
@@ -149,6 +162,7 @@ export class ExamsComponent implements OnInit {
 
   protected readonly examTypeOptions = EXAM_TYPE_OPTIONS;
   protected readonly statusOptions = STATUS_OPTIONS;
+  protected readonly timeRangeOptions = TIME_RANGE_OPTIONS;
 
   // Reference data
   protected readonly campuses = computed(() => this.refData.campuses());
@@ -172,6 +186,21 @@ export class ExamsComponent implements OnInit {
   protected readonly campusId = signal<string | null>(null);
   protected readonly subjectId = signal<string | null>(null);
   protected readonly statusFilter = signal<StatusFilter>('all');
+  protected readonly searchText = signal('');
+  protected readonly timeRange = signal<TimeRange>('all');
+
+  // Mobile filter dialog
+  protected filterDialogVisible = false;
+
+  protected readonly filterBadge = computed(() => {
+    let count = 0;
+    if (this.timeRange() !== 'all') count++;
+    if (this.examType() !== 'all') count++;
+    if (this.campusId()) count++;
+    if (this.subjectId()) count++;
+    if (this.statusFilter() !== 'all') count++;
+    return count > 0 ? `篩選 (${count})` : '篩選';
+  });
 
   // Pagination
   protected readonly currentPage = signal(1);
@@ -183,6 +212,13 @@ export class ExamsComponent implements OnInit {
     const campus = this.campusId();
     const subject = this.subjectId();
     const status = this.statusFilter();
+    const keyword = this.searchText().trim().toLowerCase();
+    const range = this.timeRange();
+
+    const cutoff =
+      range !== 'all'
+        ? subMonths(new Date(), range === '1m' ? 1 : range === '3m' ? 3 : 6)
+        : null;
 
     const rows: ExamRow[] = [];
 
@@ -192,6 +228,8 @@ export class ExamsComponent implements OnInit {
         if (campus && exam.campusId !== campus) continue;
         if (subject && exam.subjectId !== subject) continue;
         if (status !== 'all' && exam.status !== status) continue;
+        if (keyword && !exam.name.toLowerCase().includes(keyword)) continue;
+        if (cutoff && new Date(exam.examDate) < cutoff) continue;
         rows.push({
           kind: 'academy',
           id: exam.id,
@@ -212,6 +250,8 @@ export class ExamsComponent implements OnInit {
     if (typeFilter !== 'academy' && !campus && !subject) {
       for (const exam of this.termExams()) {
         if (status !== 'all' && exam.status !== status) continue;
+        if (keyword && !exam.label.toLowerCase().includes(keyword)) continue;
+        if (cutoff && exam.examDate && new Date(exam.examDate) < cutoff) continue;
         rows.push({
           kind: 'term',
           id: exam.id,
@@ -244,6 +284,16 @@ export class ExamsComponent implements OnInit {
   });
 
   protected readonly totalRows = computed(() => this.mergedExams().length);
+
+  protected readonly hasActiveFilters = computed(
+    () =>
+      this.examType() !== 'all' ||
+      this.campusId() !== null ||
+      this.subjectId() !== null ||
+      this.statusFilter() !== 'all' ||
+      this.searchText().trim() !== '' ||
+      this.timeRange() !== 'all',
+  );
 
   protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
     first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
@@ -377,11 +427,23 @@ export class ExamsComponent implements OnInit {
     this.currentPage.set(1);
   }
 
+  protected onSearchChange(value: string): void {
+    this.searchText.set(value);
+    this.currentPage.set(1);
+  }
+
+  protected onTimeRangeChange(value: TimeRange | null): void {
+    this.timeRange.set(value ?? 'all');
+    this.currentPage.set(1);
+  }
+
   protected clearFilters(): void {
     this.examType.set('all');
     this.campusId.set(null);
     this.subjectId.set(null);
     this.statusFilter.set('all');
+    this.searchText.set('');
+    this.timeRange.set('all');
     this.currentPage.set(1);
   }
 
@@ -465,7 +527,7 @@ export class ExamsComponent implements OnInit {
   private openAcademyDialog(mode: 'create' | 'edit', examId?: string): void {
     const ref = this.dialogService.open(AcademyExamFormDialogComponent, {
       header: mode === 'create' ? '新增補習班考試' : '編輯補習班考試',
-      width: '520px',
+      width: 'min(520px, 96vw)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
@@ -482,7 +544,7 @@ export class ExamsComponent implements OnInit {
   private openTermDialog(mode: 'create' | 'edit', examId?: string): void {
     const ref = this.dialogService.open(TermExamFormDialogComponent, {
       header: mode === 'create' ? '新增段考' : '編輯段考',
-      width: '480px',
+      width: 'min(480px, 96vw)',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
@@ -599,7 +661,7 @@ export class ExamsComponent implements OnInit {
   ): void {
     const ref = this.dialogService.open(ConfirmDialogComponent, {
       header,
-      width: '420px',
+      width: 'min(420px, 96vw)',
       modal: true,
       showHeader: true,
       appendTo: this.overlayContainer || 'body',

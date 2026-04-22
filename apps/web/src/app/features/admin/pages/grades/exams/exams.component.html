@@ -26,9 +26,145 @@
       </div>
     }
 
-    <!-- Toolbar -->
+    <!-- Mobile toolbar: search + filter button -->
+    <div class="exams__mobile-toolbar">
+      <div class="exams__search">
+        <i class="pi pi-search exams__search-icon"></i>
+        <input
+          pInputText
+          type="text"
+          [ngModel]="searchText()"
+          (ngModelChange)="onSearchChange($event)"
+          placeholder="搜尋考試名稱..."
+          class="exams__search-input"
+        />
+      </div>
+      <p-button
+        [label]="filterBadge()"
+        icon="pi pi-filter"
+        [outlined]="true"
+        severity="secondary"
+        size="small"
+        (onClick)="filterDialogVisible = true"
+      />
+    </div>
+
+    <p-dialog
+      header="篩選條件"
+      [(visible)]="filterDialogVisible"
+      [modal]="true"
+      [draggable]="false"
+      [resizable]="false"
+      styleClass="exams__filter-dialog"
+      [style]="{ width: 'min(400px, 96vw)' }"
+    >
+      <div class="exams__filter-dialog-body">
+        <div class="exams__filter-group">
+          <label class="exams__filter-label">時間範圍</label>
+          <p-selectbutton
+            [options]="timeRangeOptions"
+            [ngModel]="timeRange()"
+            (ngModelChange)="onTimeRangeChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            [allowEmpty]="false"
+            size="small"
+          />
+        </div>
+        <div class="exams__filter-group">
+          <label class="exams__filter-label">考試類型</label>
+          <p-selectbutton
+            [options]="examTypeOptions"
+            [ngModel]="examType()"
+            (ngModelChange)="onExamTypeChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            [allowEmpty]="false"
+            size="small"
+          />
+        </div>
+        <div class="exams__filter-group">
+          <label class="exams__filter-label">校區</label>
+          <p-select
+            [options]="campusOptions()"
+            [ngModel]="campusId()"
+            (ngModelChange)="onCampusChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            size="small"
+            placeholder="全部校區"
+            [showClear]="true"
+            styleClass="exams__filter-select"
+          />
+        </div>
+        <div class="exams__filter-group">
+          <label class="exams__filter-label">科目</label>
+          <p-select
+            [options]="subjectOptions()"
+            [ngModel]="subjectId()"
+            (ngModelChange)="onSubjectChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            size="small"
+            placeholder="全部科目"
+            [showClear]="true"
+            styleClass="exams__filter-select"
+          />
+        </div>
+        <div class="exams__filter-group">
+          <label class="exams__filter-label">狀態</label>
+          <p-select
+            [options]="statusOptions"
+            [ngModel]="statusFilter()"
+            (ngModelChange)="onStatusChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            size="small"
+            placeholder="全部狀態"
+            styleClass="exams__filter-select"
+          />
+        </div>
+      </div>
+
+      <ng-template #footer>
+        <div class="exams__filter-actions">
+          <p-button
+            label="清除"
+            [text]="true"
+            severity="secondary"
+            (onClick)="clearFilters(); filterDialogVisible = false"
+          />
+          <p-button label="套用" (onClick)="filterDialogVisible = false" />
+        </div>
+      </ng-template>
+    </p-dialog>
+
+    <!-- Desktop toolbar -->
     <div class="exams__toolbar clessia-filter-bar">
-      <div class="exams__type-filter">
+      <div class="exams__toolbar-top">
+        <div class="exams__search">
+          <i class="pi pi-search exams__search-icon"></i>
+          <input
+            pInputText
+            type="text"
+            [ngModel]="searchText()"
+            (ngModelChange)="onSearchChange($event)"
+            placeholder="搜尋考試名稱..."
+            class="exams__search-input"
+          />
+        </div>
+        <p-selectbutton
+          [options]="timeRangeOptions"
+          [ngModel]="timeRange()"
+          (ngModelChange)="onTimeRangeChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          [allowEmpty]="false"
+          size="small"
+        />
+      </div>
+
+      <div class="exams__toolbar-bottom">
         <p-selectbutton
           [options]="examTypeOptions"
           [ngModel]="examType()"
@@ -36,11 +172,10 @@
           optionLabel="label"
           optionValue="value"
           [allowEmpty]="false"
+          size="small"
           styleClass="exams__type-select"
         />
-      </div>
 
-      <div class="exams__filter">
         <p-select
           [options]="campusOptions()"
           [ngModel]="campusId()"
@@ -50,12 +185,9 @@
           size="small"
           placeholder="全部校區"
           [showClear]="true"
-          [fluid]="true"
           styleClass="clessia-filter-control"
         />
-      </div>
 
-      <div class="exams__filter">
         <p-select
           [options]="subjectOptions()"
           [ngModel]="subjectId()"
@@ -65,12 +197,9 @@
           size="small"
           placeholder="全部科目"
           [showClear]="true"
-          [fluid]="true"
           styleClass="clessia-filter-control"
         />
-      </div>
 
-      <div class="exams__filter">
         <p-select
           [options]="statusOptions"
           [ngModel]="statusFilter()"
@@ -79,11 +208,23 @@
           optionValue="value"
           size="small"
           placeholder="全部狀態"
-          [fluid]="true"
           styleClass="clessia-filter-control"
         />
       </div>
     </div>
+
+    <!-- Result Count -->
+    @if (!loading() && hasActiveFilters()) {
+      <div class="exams__result-bar">
+        <span class="exams__result-count">
+          找到 <strong>{{ totalRows() }}</strong> 筆結果
+        </span>
+        <button type="button" class="exams__clear-filters" (click)="clearFilters()">
+          <i class="pi pi-filter-slash"></i>
+          清除篩選
+        </button>
+      </div>
+    }
 
     <!-- Content -->
     <div class="exams__content">
@@ -94,13 +235,26 @@
           }
         </div>
       } @else if (mergedExams().length === 0) {
-        <app-empty-state
-          icon="pi pi-inbox"
-          title="尚無考試資料"
-          description="點選「新增考試」建立補習班考試或段考"
-        >
-          <p-button label="新增考試" icon="pi pi-plus" (onClick)="openCreateMenu($event)" />
-        </app-empty-state>
+        @if (hasActiveFilters()) {
+          <app-empty-state
+            icon="pi pi-filter-slash"
+            title="無符合條件的結果"
+            description="請調整篩選條件，或清除篩選後查看全部考試"
+          >
+            <button type="button" class="exams__clear-filters" (click)="clearFilters()">
+              <i class="pi pi-filter-slash"></i>
+              清除篩選
+            </button>
+          </app-empty-state>
+        } @else {
+          <app-empty-state
+            icon="pi pi-inbox"
+            title="尚無考試資料"
+            description="點選「新增考試」建立補習班考試或段考"
+          >
+            <p-button label="新增考試" icon="pi pi-plus" (onClick)="openCreateMenu($event)" />
+          </app-empty-state>
+        }
       } @else {
         <app-popup-menu #actionMenu [model]="actionMenuItems()" />
 

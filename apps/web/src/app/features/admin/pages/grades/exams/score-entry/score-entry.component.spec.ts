@@ -217,11 +217,12 @@ describe('ScoreEntryComponent', () => {
 
     expect(host.querySelector('.score-entry__header-card')).not.toBeNull();
     expect(host.querySelector('.score-entry__editor')).not.toBeNull();
-    expect(host.querySelector('.score-entry__actions')).not.toBeNull();
     expect(host.querySelector('.score-entry__closed-hint')).not.toBeNull();
+    // FAB is hidden when exam is closed
+    expect(host.querySelector('.score-entry__fab')).toBeNull();
   });
 
-  it('shows dirty status banner when editor has unsaved changes', async () => {
+  it('shows FAB save button when editor has unsaved changes', async () => {
     await setup('academy', 'a1');
     flushAcademyRequests();
 
@@ -230,9 +231,9 @@ describe('ScoreEntryComponent', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    const dirtyBanner = host.querySelector('.score-entry__dirty-banner');
+    const fab = host.querySelector('.score-entry__fab');
 
-    expect(dirtyBanner).not.toBeNull();
-    expect(dirtyBanner?.textContent).toContain('尚未儲存');
+    expect(fab).not.toBeNull();
+    expect(fab?.textContent).toContain('儲存成績');
   });
 });

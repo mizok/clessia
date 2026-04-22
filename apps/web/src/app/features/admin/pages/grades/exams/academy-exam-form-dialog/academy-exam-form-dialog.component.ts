@@ -123,6 +123,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
   protected readonly lockName = computed(() => this.isClosed());
   protected readonly lockExamDate = computed(() => this.isClosed());
   protected readonly lockScopeNote = computed(() => this.isClosed());
+  protected readonly lockCampus = computed(() => this.isEditing());
 
   protected readonly canSave = computed(() => {
     if (this.isClosed()) return false;
@@ -230,7 +231,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
       if (!this.lockTotalScore()) input.totalScore = f.totalScore;
       if (!this.lockScopeNote()) input.scopeNote = f.scopeNote.trim() || null;
       if (!this.lockClasses()) input.classIds = f.classIds;
-      input.campusId = f.campusId;
+      if (!this.lockCampus()) input.campusId = f.campusId;
 
       const examId = this.config.data?.examId;
       if (!examId) {

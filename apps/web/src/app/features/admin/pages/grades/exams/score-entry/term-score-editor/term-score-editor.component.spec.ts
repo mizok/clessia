@@ -1,10 +1,9 @@
-import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
-import { MessageService } from 'primeng/api';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 
-import { TermExamsService, type TermExamDetail } from '@core/term-exams.service';
-import { StudentsService } from '@core/students.service';
+import { TermExamsService, type TermExamDetail, type TermExamStudent } from '@core/term-exams.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { TermScoreEditorComponent } from './term-score-editor.component';
 
@@ -25,28 +24,46 @@ describe('TermScoreEditorComponent', () => {
     updatedAt: '2026-03-20T00:00:00Z',
   };
 
-  const termExamsServiceMock = {
-    getRecentStudents: vi.fn(() => of({
-      data: [
-        { studentId: 'stu-1', studentName: '王小明', studentGrade: 'J1', scoreCount: 3, lastUpdatedAt: '2026-04-10T00:00:00Z' },
-      ],
-    })),
-    getScores: vi.fn(() => of({
-      data: [
-        { studentId: 'stu-1', studentName: '王小明', studentGrade: 'J1', subjectId: 's1', subjectName: '國文', score: 85, status: 'scored' as const, notes: null, updatedAt: '2026-04-10T00:00:00Z' },
-      ],
-    })),
-    saveScores: vi.fn(() => of({ success: true, affected: 1 })),
-  };
+  const mockStudents: TermExamStudent[] = [
+    {
+      studentId: 'stu-1',
+      studentName: '王小明',
+      studentGrade: 'J1',
+      campusNames: ['台北分校'],
+      scoreCount: 2,
+      subjectCount: 2,
+      hasScored: true,
+      hasAbsent: false,
+      hasMakeup: false,
+      lastUpdatedAt: '2026-04-10T00:00:00Z',
+    },
+  ];
 
-  const studentsServiceMock = {
-    list: vi.fn(() => of({
-      data: [
-        { id: 'stu-2', name: '李小華', grade: 'J1', isActive: true } as any,
-      ],
-      summary: { total: 1, activeCount: 1 },
-      meta: { total: 1, page: 1, pageSize: 20, totalPages: 1 },
-    })),
+  const termExamsServiceMock = {
+    getStudents: vi.fn(() =>
+      of({
+        data: mockStudents,
+        meta: { total: 1, page: 1, pageSize: 50 },
+      }),
+    ),
+    getScores: vi.fn(() =>
+      of({
+        data: [
+          {
+            studentId: 'stu-1',
+            studentName: '王小明',
+            studentGrade: 'J1',
+            subjectId: 's1',
+            subjectName: '國文',
+            score: 85,
+            status: 'scored' as const,
+            notes: null,
+            updatedAt: '2026-04-10T00:00:00Z',
+          },
+        ],
+      }),
+    ),
+    saveScores: vi.fn(() => of({ success: true, affected: 1 })),
   };
 
   const refDataMock = {
@@ -54,25 +71,24 @@ describe('TermScoreEditorComponent', () => {
       { id: 's1', name: '國文', sortOrder: 0 },
       { id: 's2', name: '英文', sortOrder: 1 },
     ],
+    campuses: () => [{ id: 'c1', name: '台北分校' }],
     loadSubjects: vi.fn(),
+    loadCampuses: vi.fn(),
   };
 
   const messageServiceMock = { add: vi.fn() };
+  const confirmationServiceMock = { confirm: vi.fn() };
 
   beforeEach(async () => {
-    termExamsServiceMock.getRecentStudents.mockClear();
-    termExamsServiceMock.getScores.mockClear();
-    termExamsServiceMock.saveScores.mockClear();
-    studentsServiceMock.list.mockClear();
-    messageServiceMock.add.mockClear();
+    vi.clearAllMocks();
 
     await TestBed.configureTestingModule({
       imports: [TermScoreEditorComponent],
       providers: [
         { provide: TermExamsService, useValue: termExamsServiceMock },
-        { provide: StudentsService, useValue: studentsServiceMock },
         { provide: ReferenceDataService, useValue: refDataMock },
         { provide: MessageService, useValue: messageServiceMock },
+        { provide: ConfirmationService, useValue: confirmationServiceMock },
       ],
     }).compileComponents();
 
@@ -86,46 +102,37 @@ describe('TermScoreEditorComponent', () => {
     fixture.detectChanges();
   });
 
-  it('loads recent students on init', () => {
-    expect(termExamsServiceMock.getRecentStudents).toHaveBeenCalledWith('t1');
-    expect(component['recentStudents']().length).toBe(1);
+  it('loads students on init (auto-selects first campus)', () => {
+    expect(termExamsServiceMock.getStudents).toHaveBeenCalled();
+    expect(component['students']().length).toBe(1);
   });
 
-  it('toggles student expansion and loads scores', () => {
-    component['toggleStudent']('stu-1', '王小明', 'J1');
-    expect(component['expandedStudents']().length).toBe(1);
+  it('opens dialog and loads scores', () => {
+    component['openStudentDialog'](mockStudents[0]);
     expect(termExamsServiceMock.getScores).toHaveBeenCalledWith('t1', 'stu-1');
 
-    // Builds rows from subjects
-    const student = component['expandedStudents']()[0];
-    expect(student.rows.length).toBe(2); // 國文, 英文
-    expect(student.rows[0].subjectName).toBe('國文');
-    expect(student.rows[0].score).toBe(85); // existing score
-    expect(student.rows[1].score).toBeNull(); // no existing score for 英文
+    const ds = component['dialogStudent']();
+    expect(ds).not.toBeNull();
+    expect(ds!.rows.length).toBe(2);
+    expect(ds!.rows[0].score).toBe(85);
+    expect(ds!.rows[1].score).toBeNull();
   });
 
-  it('collapses student on second toggle', () => {
-    component['toggleStudent']('stu-1', '王小明', 'J1');
-    expect(component['expandedStudents']().length).toBe(1);
-    component['toggleStudent']('stu-1', '王小明', 'J1');
-    expect(component['expandedStudents']().length).toBe(0);
-  });
-
-  it('detects dirty state', () => {
-    component['toggleStudent']('stu-1', '王小明', 'J1');
+  it('detects dirty state in dialog', () => {
+    component['openStudentDialog'](mockStudents[0]);
     expect(component['isDirty']()).toBe(false);
 
-    const rows = component['expandedStudents']()[0].rows;
-    component['onScoreChange'](rows[1], 72);
+    const ds = component['dialogStudent']()!;
+    component['onScoreChange'](ds.rows[1], 72);
     expect(component['isDirty']()).toBe(true);
   });
 
-  it('saves dirty scores', () => {
-    component['toggleStudent']('stu-1', '王小明', 'J1');
-    const rows = component['expandedStudents']()[0].rows;
-    component['onScoreChange'](rows[1], 72); // 英文 score
+  it('saves dirty scores from dialog', () => {
+    component['openStudentDialog'](mockStudents[0]);
+    const ds = component['dialogStudent']()!;
+    component['onScoreChange'](ds.rows[1], 72);
 
-    component.save();
+    component['saveDialog']();
 
     expect(termExamsServiceMock.saveScores).toHaveBeenCalledWith(
       't1',
@@ -141,32 +148,16 @@ describe('TermScoreEditorComponent', () => {
   });
 
   it('clears score when status is absent', () => {
-    component['toggleStudent']('stu-1', '王小明', 'J1');
-    const rows = component['expandedStudents']()[0].rows;
-    component['onStatusChange'](rows[0], 'absent');
-    expect(rows[0].score).toBeNull();
+    component['openStudentDialog'](mockStudents[0]);
+    const ds = component['dialogStudent']()!;
+    component['onStatusChange'](ds.rows[0], 'absent');
+    expect(ds.rows[0].score).toBeNull();
   });
 
-  it('does not save empty unchanged rows', () => {
-    component['toggleStudent']('stu-1', '王小明', 'J1');
-    component.save();
-    expect(termExamsServiceMock.saveScores).not.toHaveBeenCalled();
-  });
-
-  it('renders mobile subject cards for expanded student rows', () => {
-    component['toggleStudent']('stu-1', '王小明', 'J1');
-    fixture.detectChanges();
-
+  it('renders student list', () => {
     const host = fixture.nativeElement as HTMLElement;
-    const cards = host.querySelectorAll('.term-score-editor__subject-card');
-
-    expect(host.querySelector('.term-score-editor__subject-cards')).not.toBeNull();
-    expect(cards.length).toBe(2);
-
-    const firstCard = cards[0] as HTMLElement;
-    expect(firstCard.textContent).toContain('國文');
-    expect(firstCard.textContent).toContain('分數');
-    expect(firstCard.textContent).toContain('狀態');
-    expect(firstCard.textContent).toContain('備註');
+    const rows = host.querySelectorAll('.term-score-editor__row');
+    expect(rows.length).toBe(1);
+    expect(rows[0].textContent).toContain('王小明');
   });
 });

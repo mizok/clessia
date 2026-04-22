@@ -224,6 +224,24 @@ export class RoutesCatalog {
     true,
     NavigationGroup.ADMIN_LEARNING_CENTER,
   );
+  public static readonly ADMIN_GRADES_OVERVIEW_STUDENT = this.register(
+    'grades/overview/student',
+    '/admin/grades/overview/student',
+    '學生視角',
+    UserType.ADMIN,
+    'pi-user',
+    false,
+    NavigationGroup.ADMIN_LEARNING_CENTER,
+  );
+  public static readonly ADMIN_GRADES_OVERVIEW_CLASS = this.register(
+    'grades/overview/class',
+    '/admin/grades/overview/class',
+    '班級視角',
+    UserType.ADMIN,
+    'pi-building',
+    false,
+    NavigationGroup.ADMIN_LEARNING_CENTER,
+  );
 
   // Group: 行政財務
   public static readonly ADMIN_FEE_TEMPLATES = this.register(

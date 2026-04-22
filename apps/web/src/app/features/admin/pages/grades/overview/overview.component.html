@@ -1,0 +1,21 @@
+<div class="overview">
+  <app-page-breadcrumb [items]="breadcrumbs" />
+
+  <header class="overview__header">
+    <h1 class="overview__title">成績總覽</h1>
+    <p class="overview__subtitle">選擇檢視模式</p>
+  </header>
+
+  <div class="overview__portals">
+    <button type="button" class="overview__portal" (click)="goTo('student')">
+      <i class="pi pi-user overview__portal-icon"></i>
+      <h2 class="overview__portal-title">學生視角</h2>
+      <p class="overview__portal-desc">查看個別學生的成績走勢、科目摘要與歷次紀錄</p>
+    </button>
+    <button type="button" class="overview__portal" (click)="goTo('class')">
+      <i class="pi pi-building overview__portal-icon"></i>
+      <h2 class="overview__portal-title">班級視角</h2>
+      <p class="overview__portal-desc">查看班級考試統計、排名與成績分布，按課程分組</p>
+    </button>
+  </div>
+</div>
