@@ -63,7 +63,9 @@
             <span class="spd__item-avatar" [style.--h]="getStudentHue(student.id)">{{ student.name[0] }}</span>
             <span class="spd__item-body">
               <span class="spd__item-name">{{ student.name }}</span>
-              <span class="spd__item-meta">{{ gradeLabelMap[student.grade] }}・{{ student.school }}</span>
+              <span class="spd__item-meta">
+                {{ gradeLabelMap[student.grade] }}・{{ student.school?.name ?? '未填寫' }}
+              </span>
             </span>
           </button>
         }
@@ -105,7 +107,9 @@
           <span class="spd__item-avatar" [style.--h]="getStudentHue(student.id)">{{ student.name[0] }}</span>
           <span class="spd__item-body">
             <span class="spd__item-name">{{ student.name }}</span>
-            <span class="spd__item-meta">{{ gradeLabelMap[student.grade] }}・{{ student.school }}</span>
+            <span class="spd__item-meta">
+              {{ gradeLabelMap[student.grade] }}・{{ student.school?.name ?? '未填寫' }}
+            </span>
           </span>
           <button
             type="button"

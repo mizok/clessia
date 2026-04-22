@@ -31,6 +31,6 @@ export class StudentAutocompleteComponent {
   }
 
   protected formatStudentMeta(student: Student): string {
-    return `${GRADE_LEVEL_LABELS[student.grade]} · ${student.school}`;
+    return `${GRADE_LEVEL_LABELS[student.grade]} · ${student.school?.name ?? '未填寫'}`;
   }
 }

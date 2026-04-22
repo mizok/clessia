@@ -155,8 +155,8 @@
                 <span class="student-table__grade">{{ getGradeLabel(student.grade) }}</span>
               </td>
               <td appRtColCell="school">
-                @if (student.school) {
-                  <span class="student-table__school">{{ student.school }}</span>
+                @if (student.school?.name) {
+                  <span class="student-table__school">{{ student.school.name }}</span>
                 } @else {
                   <span class="student-table__empty">未填寫</span>
                 }

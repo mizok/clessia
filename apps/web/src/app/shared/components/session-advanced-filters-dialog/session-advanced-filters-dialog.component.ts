@@ -271,7 +271,7 @@ export class SessionAdvancedFiltersDialogComponent {
       J1: '國一', J2: '國二', J3: '國三',
       S1: '高一', S2: '高二', S3: '高三',
     };
-    const parts = [student.school, gradeMap[student.grade]].filter(Boolean);
+    const parts = [student.school?.name, gradeMap[student.grade]].filter(Boolean);
     return parts.length > 0 ? parts.join(' · ') : null;
   }
 

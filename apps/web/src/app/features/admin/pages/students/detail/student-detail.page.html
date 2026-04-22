@@ -95,7 +95,7 @@
           <div class="student-detail__meta-row">
             <span class="student-detail__grade">{{ getGradeLabel(student()!.grade) }}</span>
             <span class="student-detail__separator">·</span>
-            <span class="student-detail__school">{{ student()!.school }}</span>
+            <span class="student-detail__school">{{ student()!.school?.name ?? '未填寫' }}</span>
           </div>
         </div>
         <div class="student-detail__profile-actions">
