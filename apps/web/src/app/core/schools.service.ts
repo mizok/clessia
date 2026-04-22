@@ -33,7 +33,7 @@ export interface UpdateSchoolInput {
 @Injectable({ providedIn: 'root' })
 export class SchoolsService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiUrl}/schools`;
+  private readonly base = `${environment.apiUrl}/api/schools`;
 
   private readonly _cache = signal<School[]>([]);
   readonly cache = this._cache.asReadonly();
