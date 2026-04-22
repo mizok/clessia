@@ -137,7 +137,26 @@ export class ScoreEntryComponent implements OnInit {
     const gradeLabel = filter?.grade
       ? (GRADE_LEVEL_LABELS[filter.grade as GradeLevel] ?? filter.grade)
       : '全部年級';
-    const parts = [exam.examDate ?? '日期未定', campusName, gradeLabel].filter(Boolean);
+
+    const schedules = exam.schedules ?? [];
+    let dateLabel = '日期未定';
+    if (schedules.length === 1) {
+      dateLabel = schedules[0].examDate ?? '日期未定';
+    } else if (schedules.length > 1) {
+      const dates = schedules
+        .map((s) => s.examDate)
+        .filter((d): d is string => !!d)
+        .sort();
+      if (dates.length === 0) {
+        dateLabel = '多校排程';
+      } else if (dates[0] === dates[dates.length - 1]) {
+        dateLabel = dates[0];
+      } else {
+        dateLabel = `${dates[0]} ~ ${dates[dates.length - 1]}`;
+      }
+    }
+
+    const parts = [dateLabel, campusName, gradeLabel].filter(Boolean);
     return {
       name: exam.label,
       metaLine: parts.join(' · '),
