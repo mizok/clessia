@@ -410,15 +410,24 @@ BEGIN
     WHERE id LIKE '50000000-0000-0000-%';
   DELETE FROM public.students WHERE org_id = demo_org_id;
 
+  -- 先 seed 這批學生會用到的 schools（去重，冪等）
+  INSERT INTO public.schools (org_id, name)
+  SELECT DISTINCT demo_org_id, school_name
+  FROM UNNEST(student_schools) AS school_name
+  ON CONFLICT (org_id, name) DO NOTHING;
+
   -- 插入 students & parents
   FOR student_index IN 1..array_length(student_names, 1) LOOP
     -- 建立學生
-    INSERT INTO public.students (org_id, name, grade, school, is_active)
+    INSERT INTO public.students (org_id, name, grade, school_id, is_active)
     VALUES (
       demo_org_id,
       student_names[student_index],
       student_grades[student_index]::public.grade_level,
-      student_schools[student_index],
+      (SELECT id FROM public.schools
+        WHERE org_id = demo_org_id
+          AND name = student_schools[student_index]
+        LIMIT 1),
       TRUE
     )
     RETURNING id INTO v_student_id;
@@ -553,16 +562,25 @@ BEGIN
     RAISE EXCEPTION 'Attendance seed courses not found for campus %', demo_campus_name;
   END IF;
 
+  -- 先 seed 這批出勤測試學生會用到的 schools（去重，冪等）
+  INSERT INTO public.schools (org_id, name)
+  SELECT DISTINCT demo_org_id, school_name
+  FROM UNNEST(student_schools) AS school_name
+  ON CONFLICT (org_id, name) DO NOTHING;
+
   FOR student_index IN 1..12 LOOP
     student_id := format('61000000-0000-0000-0000-%s', lpad(student_index::text, 12, '0'))::uuid;
 
-    INSERT INTO public.students (id, org_id, name, grade, school, email, is_active)
+    INSERT INTO public.students (id, org_id, name, grade, school_id, email, is_active)
     VALUES (
       student_id,
       demo_org_id,
       student_names[student_index],
       student_grades[student_index]::public.grade_level,
-      student_schools[student_index],
+      (SELECT id FROM public.schools
+        WHERE org_id = demo_org_id
+          AND name = student_schools[student_index]
+        LIMIT 1),
       format('attendance-student-%s@demo.clessia.app', lpad(student_index::text, 2, '0')),
       TRUE
     )
@@ -980,4 +998,252 @@ BEGIN
   WHERE org_id = demo_org_id
     AND title = '數學班 A'
     AND event_date = CURRENT_DATE;
+END $$;
+
+-- ============================================================
+-- EXAM & SCORE SEED DATA
+-- ============================================================
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  demo_campus_id UUID;
+  demo_admin_id TEXT := '22222222-2222-2222-2222-222222222222';
+  -- class ids (from attendance seed)
+  math_class_id UUID := '62000000-0000-0000-0000-000000000001';
+  english_class_id UUID := '62000000-0000-0000-0000-000000000002';
+  science_class_id UUID := '62000000-0000-0000-0000-000000000003';
+  -- subject ids (looked up)
+  math_subject_id UUID;
+  english_subject_id UUID;
+  science_subject_id UUID;
+  chinese_subject_id UUID;
+  social_subject_id UUID;
+  -- academy exam ids
+  ae_math_quiz_1 UUID := '70000000-0000-0000-0000-000000000001';
+  ae_math_quiz_2 UUID := '70000000-0000-0000-0000-000000000002';
+  ae_english_mock UUID := '70000000-0000-0000-0000-000000000003';
+  ae_science_quiz UUID := '70000000-0000-0000-0000-000000000004';
+  ae_math_placement UUID := '70000000-0000-0000-0000-000000000005';
+  ae_closed_exam UUID := '70000000-0000-0000-0000-000000000006';
+  -- term exam ids
+  te_114_1_mid UUID := '71000000-0000-0000-0000-000000000001';
+  te_114_1_fin UUID := '71000000-0000-0000-0000-000000000002';
+  te_113_2_fin UUID := '71000000-0000-0000-0000-000000000003';
+  -- student base
+  s_id UUID;
+  i INTEGER;
+  v_score NUMERIC(6,2);
+BEGIN
+  -- Look up campus
+  SELECT id INTO demo_campus_id
+  FROM public.campuses
+  WHERE org_id = demo_org_id AND name = '示範分校01'
+  LIMIT 1;
+
+  -- Look up subjects
+  SELECT id INTO math_subject_id FROM public.subjects WHERE org_id = demo_org_id AND name = '數學';
+  SELECT id INTO english_subject_id FROM public.subjects WHERE org_id = demo_org_id AND name = '英文';
+  SELECT id INTO science_subject_id FROM public.subjects WHERE org_id = demo_org_id AND name = '自然';
+  SELECT id INTO chinese_subject_id FROM public.subjects WHERE org_id = demo_org_id AND name = '國文';
+  SELECT id INTO social_subject_id FROM public.subjects WHERE org_id = demo_org_id AND name = '社會';
+
+  -- Cleanup previous exam seed data
+  DELETE FROM public.academy_scores WHERE exam_id IN (
+    ae_math_quiz_1, ae_math_quiz_2, ae_english_mock, ae_science_quiz, ae_math_placement, ae_closed_exam
+  );
+  DELETE FROM public.academy_exam_classes WHERE exam_id IN (
+    ae_math_quiz_1, ae_math_quiz_2, ae_english_mock, ae_science_quiz, ae_math_placement, ae_closed_exam
+  );
+  DELETE FROM public.academy_exams WHERE id IN (
+    ae_math_quiz_1, ae_math_quiz_2, ae_english_mock, ae_science_quiz, ae_math_placement, ae_closed_exam
+  );
+  DELETE FROM public.term_scores WHERE term_exam_id IN (te_114_1_mid, te_114_1_fin, te_113_2_fin);
+  DELETE FROM public.term_exams WHERE id IN (te_114_1_mid, te_114_1_fin, te_113_2_fin);
+
+  -- ========================================
+  -- ACADEMY EXAMS (6 exams)
+  -- ========================================
+
+  -- 1. 數學小考 第1回 (active, has scores)
+  INSERT INTO public.academy_exams (id, org_id, campus_id, name, exam_type, subject_id, exam_date, total_score, scope_note, status, created_by)
+  VALUES (ae_math_quiz_1, demo_org_id, demo_campus_id, '數學小考 第1回', 'quiz', math_subject_id, CURRENT_DATE - INTERVAL '14 days', 100, '第一章 整數與分數', 'active', demo_admin_id);
+
+  INSERT INTO public.academy_exam_classes (exam_id, class_id) VALUES
+    (ae_math_quiz_1, math_class_id);
+
+  -- 2. 數學小考 第2回 (active, no scores yet)
+  INSERT INTO public.academy_exams (id, org_id, campus_id, name, exam_type, subject_id, exam_date, total_score, scope_note, status, created_by)
+  VALUES (ae_math_quiz_2, demo_org_id, demo_campus_id, '數學小考 第2回', 'quiz', math_subject_id, CURRENT_DATE - INTERVAL '3 days', 100, '第二章 一元一次方程式', 'active', demo_admin_id);
+
+  INSERT INTO public.academy_exam_classes (exam_id, class_id) VALUES
+    (ae_math_quiz_2, math_class_id);
+
+  -- 3. 英文模擬考 (active, has scores)
+  INSERT INTO public.academy_exams (id, org_id, campus_id, name, exam_type, subject_id, exam_date, total_score, scope_note, status, created_by)
+  VALUES (ae_english_mock, demo_org_id, demo_campus_id, '英文模擬考 April', 'mock_exam', english_subject_id, CURRENT_DATE - INTERVAL '7 days', 100, 'Units 1-4', 'active', demo_admin_id);
+
+  INSERT INTO public.academy_exam_classes (exam_id, class_id) VALUES
+    (ae_english_mock, english_class_id);
+
+  -- 4. 自然隨堂測驗 (active, has scores)
+  INSERT INTO public.academy_exams (id, org_id, campus_id, name, exam_type, subject_id, exam_date, total_score, scope_note, status, created_by)
+  VALUES (ae_science_quiz, demo_org_id, demo_campus_id, '自然隨堂測驗', 'quiz', science_subject_id, CURRENT_DATE - INTERVAL '5 days', 50, '力學與運動', 'active', demo_admin_id);
+
+  INSERT INTO public.academy_exam_classes (exam_id, class_id) VALUES
+    (ae_science_quiz, science_class_id);
+
+  -- 5. 數學分級測驗 (active, multi-class, has scores)
+  INSERT INTO public.academy_exams (id, org_id, campus_id, name, exam_type, subject_id, exam_date, total_score, scope_note, status, created_by)
+  VALUES (ae_math_placement, demo_org_id, demo_campus_id, '數學分級測驗', 'placement_test', math_subject_id, CURRENT_DATE - INTERVAL '21 days', 100, '國中數學綜合評量', 'active', demo_admin_id);
+
+  INSERT INTO public.academy_exam_classes (exam_id, class_id) VALUES
+    (ae_math_placement, math_class_id),
+    (ae_math_placement, science_class_id);
+
+  -- 6. 已結案的考試 (closed)
+  INSERT INTO public.academy_exams (id, org_id, campus_id, name, exam_type, subject_id, exam_date, total_score, scope_note, status, created_by)
+  VALUES (ae_closed_exam, demo_org_id, demo_campus_id, '英文期末總複習考', 'mock_exam', english_subject_id, CURRENT_DATE - INTERVAL '60 days', 100, 'Final review', 'closed', demo_admin_id);
+
+  INSERT INTO public.academy_exam_classes (exam_id, class_id) VALUES
+    (ae_closed_exam, english_class_id);
+
+  -- ========================================
+  -- ACADEMY SCORES
+  -- ========================================
+
+  -- Exam 1: 數學小考 第1回 — 12 students from math_class (students 1-8 enrolled)
+  FOR i IN 1..8 LOOP
+    s_id := format('61000000-0000-0000-0000-%s', lpad(i::text, 12, '0'))::uuid;
+    v_score := CASE
+      WHEN i = 3 THEN NULL  -- student 3 is absent
+      ELSE (55 + random() * 45)::numeric(6,2)
+    END;
+    INSERT INTO public.academy_scores (exam_id, student_id, score, status, notes, created_by)
+    VALUES (
+      ae_math_quiz_1,
+      s_id,
+      v_score,
+      CASE WHEN i = 3 THEN 'absent'::public.score_status ELSE 'scored'::public.score_status END,
+      CASE WHEN i = 3 THEN '當天請病假' ELSE NULL END,
+      demo_admin_id
+    ) ON CONFLICT DO NOTHING;
+  END LOOP;
+
+  -- Exam 3: 英文模擬考 — students 1-8 (english_class)
+  FOR i IN 1..8 LOOP
+    s_id := format('61000000-0000-0000-0000-%s', lpad(i::text, 12, '0'))::uuid;
+    v_score := CASE
+      WHEN i = 5 THEN NULL  -- student 5 absent
+      WHEN i = 7 THEN NULL  -- student 7 makeup pending
+      ELSE (40 + random() * 60)::numeric(6,2)
+    END;
+    INSERT INTO public.academy_scores (exam_id, student_id, score, status, notes, created_by)
+    VALUES (
+      ae_english_mock,
+      s_id,
+      v_score,
+      CASE
+        WHEN i = 5 THEN 'absent'::public.score_status
+        WHEN i = 7 THEN 'makeup'::public.score_status
+        ELSE 'scored'::public.score_status
+      END,
+      CASE
+        WHEN i = 5 THEN '出國'
+        WHEN i = 7 THEN '等待補考'
+        ELSE NULL
+      END,
+      demo_admin_id
+    ) ON CONFLICT DO NOTHING;
+  END LOOP;
+
+  -- Exam 4: 自然隨堂測驗 — students 5-12 (science_class, total=50)
+  FOR i IN 5..12 LOOP
+    s_id := format('61000000-0000-0000-0000-%s', lpad(i::text, 12, '0'))::uuid;
+    v_score := (20 + random() * 30)::numeric(6,2);
+    INSERT INTO public.academy_scores (exam_id, student_id, score, status, notes, created_by)
+    VALUES (ae_science_quiz, s_id, v_score, 'scored'::public.score_status, NULL, demo_admin_id)
+    ON CONFLICT DO NOTHING;
+  END LOOP;
+
+  -- Exam 5: 數學分級測驗 — students 1-12 (multi-class)
+  FOR i IN 1..12 LOOP
+    s_id := format('61000000-0000-0000-0000-%s', lpad(i::text, 12, '0'))::uuid;
+    v_score := (30 + random() * 70)::numeric(6,2);
+    INSERT INTO public.academy_scores (exam_id, student_id, score, status, notes, created_by)
+    VALUES (ae_math_placement, s_id, v_score, 'scored'::public.score_status, NULL, demo_admin_id)
+    ON CONFLICT DO NOTHING;
+  END LOOP;
+
+  -- Exam 6: 已結案英文考 — students 1-8
+  FOR i IN 1..8 LOOP
+    s_id := format('61000000-0000-0000-0000-%s', lpad(i::text, 12, '0'))::uuid;
+    v_score := (50 + random() * 50)::numeric(6,2);
+    INSERT INTO public.academy_scores (exam_id, student_id, score, status, notes, created_by)
+    VALUES (ae_closed_exam, s_id, v_score, 'scored'::public.score_status, NULL, demo_admin_id)
+    ON CONFLICT DO NOTHING;
+  END LOOP;
+
+  -- ========================================
+  -- TERM EXAMS (3 exams)
+  -- ========================================
+
+  -- 1. 114學年 第1學期 期中考
+  INSERT INTO public.term_exams (id, org_id, academic_year, semester, period, label, exam_date, status)
+  VALUES (te_114_1_mid, demo_org_id, 114, 1, 'midterm_1', '114學年 上學期 第一次段考', CURRENT_DATE - INTERVAL '30 days', 'active');
+
+  -- 2. 114學年 第1學期 期末考
+  INSERT INTO public.term_exams (id, org_id, academic_year, semester, period, label, exam_date, status)
+  VALUES (te_114_1_fin, demo_org_id, 114, 1, 'final_1', '114學年 上學期 期末考', CURRENT_DATE - INTERVAL '7 days', 'active');
+
+  -- 3. 113學年 第2學期 期末考 (closed)
+  INSERT INTO public.term_exams (id, org_id, academic_year, semester, period, label, exam_date, status)
+  VALUES (te_113_2_fin, demo_org_id, 113, 2, 'final_2', '113學年 下學期 期末考', CURRENT_DATE - INTERVAL '180 days', 'closed');
+
+  -- ========================================
+  -- TERM SCORES
+  -- ========================================
+
+  -- 114-1 期中考: 學生 1-8, 各 5 科 (國英數自社)
+  FOR i IN 1..8 LOOP
+    s_id := format('61000000-0000-0000-0000-%s', lpad(i::text, 12, '0'))::uuid;
+
+    INSERT INTO public.term_scores (term_exam_id, student_id, subject_id, score, status, notes, created_by)
+    VALUES
+      (te_114_1_mid, s_id, chinese_subject_id, (50 + random() * 50)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
+      (te_114_1_mid, s_id, english_subject_id, (40 + random() * 60)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
+      (te_114_1_mid, s_id, math_subject_id,    (35 + random() * 65)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
+      (te_114_1_mid, s_id, science_subject_id,  (45 + random() * 55)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
+      (te_114_1_mid, s_id, social_subject_id,   (55 + random() * 45)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id)
+    ON CONFLICT DO NOTHING;
+  END LOOP;
+
+  -- 114-1 期末考: 學生 1-6 已登錄, 7-8 尚未登錄（模擬部分登錄狀態）
+  FOR i IN 1..6 LOOP
+    s_id := format('61000000-0000-0000-0000-%s', lpad(i::text, 12, '0'))::uuid;
+
+    INSERT INTO public.term_scores (term_exam_id, student_id, subject_id, score, status, notes, created_by)
+    VALUES
+      (te_114_1_fin, s_id, chinese_subject_id, (50 + random() * 50)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
+      (te_114_1_fin, s_id, english_subject_id, (45 + random() * 55)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
+      (te_114_1_fin, s_id, math_subject_id,    (30 + random() * 70)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
+      (te_114_1_fin, s_id, science_subject_id,  (40 + random() * 60)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
+      (te_114_1_fin, s_id, social_subject_id,   (50 + random() * 50)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id)
+    ON CONFLICT DO NOTHING;
+  END LOOP;
+
+  -- 113-2 期末考 (closed): 學生 1-12 全部登錄
+  FOR i IN 1..12 LOOP
+    s_id := format('61000000-0000-0000-0000-%s', lpad(i::text, 12, '0'))::uuid;
+
+    INSERT INTO public.term_scores (term_exam_id, student_id, subject_id, score, status, notes, created_by)
+    VALUES
+      (te_113_2_fin, s_id, chinese_subject_id, (45 + random() * 55)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
+      (te_113_2_fin, s_id, english_subject_id, (40 + random() * 60)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
+      (te_113_2_fin, s_id, math_subject_id,    (30 + random() * 70)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
+      (te_113_2_fin, s_id, science_subject_id,  (35 + random() * 65)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
+      (te_113_2_fin, s_id, social_subject_id,   (50 + random() * 50)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id)
+    ON CONFLICT DO NOTHING;
+  END LOOP;
+
+  RAISE NOTICE 'Exam seed data inserted successfully';
 END $$;
