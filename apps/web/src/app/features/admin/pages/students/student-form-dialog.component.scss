@@ -13,4 +13,21 @@
       grid-template-columns: 1fr;
     }
   }
+
+  &__school-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: stretch;
+
+    :first-child {
+      flex: 1;
+    }
+  }
+
+  &__school-create {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    margin-top: var(--space-2);
+  }
 }

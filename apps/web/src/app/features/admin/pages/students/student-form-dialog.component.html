@@ -45,15 +45,55 @@
       <label class="form-dialog__label">
         就讀學校<span class="form-dialog__required">*</span>
       </label>
-      <input
-        type="text"
-        pInputText
-        [ngModel]="formData().school"
-        (ngModelChange)="updateForm('school', $event)"
-        placeholder="例如：台北國小"
-        [disabled]="loading()"
-        class="w-full"
-      />
+      <div class="form-dialog__school-row">
+        <p-select
+          [options]="schools()"
+          [ngModel]="formData().schoolId"
+          (ngModelChange)="updateForm('schoolId', $event)"
+          optionLabel="name"
+          optionValue="id"
+          [filter]="true"
+          filterBy="name,shortName"
+          [showClear]="true"
+          placeholder="選擇或搜尋學校"
+          [disabled]="loading()"
+          [appendTo]="'body'"
+          styleClass="w-full"
+        />
+        <p-button
+          icon="pi pi-plus"
+          severity="secondary"
+          size="small"
+          [text]="true"
+          (onClick)="creatingSchool.set(true)"
+          [disabled]="loading()"
+          pTooltip="新增學校"
+        />
+      </div>
+      @if (creatingSchool()) {
+        <div class="form-dialog__school-create">
+          <input
+            pInputText
+            [ngModel]="newSchoolName()"
+            (ngModelChange)="newSchoolName.set($event)"
+            placeholder="輸入新學校全名"
+            class="w-full"
+          />
+          <p-button
+            label="建立"
+            size="small"
+            [disabled]="!newSchoolName().trim()"
+            (onClick)="quickCreateSchool()"
+          />
+          <p-button
+            label="取消"
+            severity="secondary"
+            size="small"
+            [text]="true"
+            (onClick)="creatingSchool.set(false); newSchoolName.set('')"
+          />
+        </div>
+      }
     </div>
   </div>
 
