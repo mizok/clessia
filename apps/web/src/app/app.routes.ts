@@ -239,6 +239,12 @@ export const routes: Routes = [
             data: { page: RoutesCatalog.ADMIN_CAMPUSES },
           },
           {
+            path: RoutesCatalog.ADMIN_SCHOOLS.relativePath,
+            loadComponent: () =>
+              import('@features/admin/pages/schools/schools.page').then((m) => m.SchoolsPage),
+            data: { page: RoutesCatalog.ADMIN_SCHOOLS },
+          },
+          {
             path: RoutesCatalog.ADMIN_SUBJECTS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/subjects/subjects.page').then((m) => m.SubjectsPage),

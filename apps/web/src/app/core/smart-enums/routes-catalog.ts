@@ -302,6 +302,15 @@ export class RoutesCatalog {
     true,
     NavigationGroup.ADMIN_SETTINGS,
   );
+  public static readonly ADMIN_SCHOOLS = this.register(
+    'schools',
+    '/admin/schools',
+    '學校管理',
+    UserType.ADMIN,
+    'pi-building-columns',
+    true,
+    NavigationGroup.ADMIN_SETTINGS,
+  );
   public static readonly ADMIN_SUBJECTS = this.register(
     'subjects',
     '/admin/subjects',
