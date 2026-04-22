@@ -24,7 +24,7 @@ export interface Student {
   orgId: string;
   name: string;
   grade: GradeLevel;
-  school: string;
+  school: { id: string; name: string; shortName: string | null } | null;
   birthday: string | null;
   gender: StudentGender | null;
   phone: string | null;
@@ -68,13 +68,13 @@ export interface StudentQueryParams {
   page?: number;
   pageSize?: number;
   isActive?: boolean;
-  school?: string;
+  schoolId?: string | null;
 }
 
 export interface UpdateStudentInput {
   name?: string;
   grade?: GradeLevel;
-  school?: string;
+  schoolId?: string | null;
   birthday?: string | null;
   gender?: StudentGender | null;
   phone?: string | null;
@@ -89,7 +89,7 @@ export interface UpdateStudentInput {
 export interface CreateStudentInput {
   name: string;
   grade: GradeLevel;
-  school: string;
+  schoolId?: string | null;
   birthday?: string | null;
   gender?: StudentGender | null;
   phone?: string | null;
@@ -168,7 +168,7 @@ export class StudentsService {
     if (params.page !== undefined) q['page'] = params.page;
     if (params.pageSize !== undefined) q['pageSize'] = params.pageSize;
     if (params.isActive !== undefined) q['isActive'] = params.isActive;
-    if (params.school !== undefined) q['school'] = params.school;
+    if (params.schoolId !== undefined && params.schoolId !== null) q['schoolId'] = params.schoolId;
     return q;
   }
 }
