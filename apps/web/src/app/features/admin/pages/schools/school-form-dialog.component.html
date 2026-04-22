@@ -1,0 +1,64 @@
+<p-dialog
+  [visible]="visible()"
+  (visibleChange)="visible.set($event)"
+  [modal]="true"
+  [header]="mode() === 'create' ? '新增學校' : '編輯學校'"
+  [style]="{ width: '480px', maxWidth: '95vw' }"
+  [closable]="true"
+  [draggable]="false"
+  [resizable]="false"
+  (onHide)="onHide()"
+>
+  <div class="school-form">
+    <label class="school-form__field">
+      <span class="school-form__label"
+        >學校全名<span class="school-form__required">*</span></span
+      >
+      <input
+        pInputText
+        [ngModel]="name()"
+        (ngModelChange)="name.set($event)"
+        placeholder="例：台北市立明湖國中"
+      />
+    </label>
+
+    <label class="school-form__field">
+      <span class="school-form__label">簡稱（選填）</span>
+      <input
+        pInputText
+        [ngModel]="shortName()"
+        (ngModelChange)="shortName.set($event)"
+        placeholder="例：明湖國中"
+      />
+    </label>
+
+    <label class="school-form__field school-form__field--inline">
+      <p-checkbox
+        [ngModel]="isActive()"
+        (ngModelChange)="isActive.set($event)"
+        [binary]="true"
+        inputId="school-active"
+      />
+      <span>啟用</span>
+    </label>
+  </div>
+
+  <ng-template #footer>
+    <button
+      pButton
+      label="取消"
+      severity="secondary"
+      size="small"
+      text
+      (click)="visible.set(false)"
+    ></button>
+    <button
+      pButton
+      label="儲存"
+      size="small"
+      [disabled]="!canSubmit()"
+      [loading]="submitting()"
+      (click)="submit()"
+    ></button>
+  </ng-template>
+</p-dialog>
