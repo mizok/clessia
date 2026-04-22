@@ -98,6 +98,36 @@ const RecentTermExamStudentSchema = z
   })
   .openapi('RecentTermExamStudent');
 
+const TermExamStudentStatusSchema = z
+  .enum(['pending', 'scored', 'absent', 'makeup'])
+  .openapi('TermExamStudentStatus');
+
+const TermExamStudentRowSchema = z
+  .object({
+    studentId: z.uuid(),
+    studentName: z.string(),
+    studentGrade: z.string().nullable(),
+    campusNames: z.array(z.string()),
+    scoreCount: z.number().int(),
+    subjectCount: z.number().int(),
+    hasScored: z.boolean(),
+    hasAbsent: z.boolean(),
+    hasMakeup: z.boolean(),
+    lastUpdatedAt: z.string().nullable(),
+  })
+  .openapi('TermExamStudentRow');
+
+const TermExamStudentListResponseSchema = z
+  .object({
+    data: z.array(TermExamStudentRowSchema),
+    meta: z.object({
+      total: z.number().int().min(0),
+      page: z.number().int().min(1),
+      pageSize: z.number().int().min(1),
+    }),
+  })
+  .openapi('TermExamStudentListResponse');
+
 const TermScoreSchema = z
   .object({
     studentId: z.uuid(),
@@ -269,7 +299,7 @@ const listRoute = createRoute({
       academic_year: z.coerce.number().int().optional(),
       semester: z.coerce.number().int().min(1).max(2).optional(),
       page: z.coerce.number().int().min(1).default(1).optional(),
-      pageSize: z.coerce.number().int().min(1).max(100).default(20).optional(),
+      pageSize: z.coerce.number().int().min(1).max(200).default(20).optional(),
     }),
   },
   responses: {
@@ -360,9 +390,13 @@ const getRoute = createRoute({
   method: 'get',
   path: '/{id}',
   tags: ['TermExams'],
-  summary: '取得段考單筆',
+  summary: '取得段考單筆（summary 可依 campus/grade 過濾）',
   request: {
     params: z.object({ id: DbUuidSchema }),
+    query: z.object({
+      campusId: DbUuidSchema.optional(),
+      grade: z.string().optional(),
+    }),
   },
   responses: {
     200: {
@@ -396,16 +430,81 @@ app.openapi(getRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
   const { id } = c.req.valid('param');
+  const { campusId, grade } = c.req.valid('query');
 
   const termExam = await ensureTermExamOwnedByOrg(supabase, id, orgId);
   if (!termExam) {
     return c.json({ error: '找不到段考事件', code: 'NOT_FOUND' }, 404);
   }
 
-  const { data: scoreRows, error: scoreError } = await supabase
+  let studentIdFilter: string[] | null = null;
+
+  if (campusId || grade) {
+    let studentQuery = supabase
+      .from('students')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('is_active', true);
+
+    if (grade) {
+      studentQuery = studentQuery.eq('grade', grade);
+    }
+
+    if (campusId) {
+      const { data: enrollmentRows } = await supabase
+        .from('enrollments')
+        .select('student_id, classes!inner(campus_id)')
+        .eq('classes.campus_id', campusId);
+
+      const campusStudentIds = Array.from(
+        new Set(
+          ((enrollmentRows ?? []) as Array<{ student_id: string | null }>)
+            .map((row) => row.student_id)
+            .filter((sid): sid is string => !!sid),
+        ),
+      );
+
+      if (campusStudentIds.length === 0) {
+        studentIdFilter = [];
+      } else {
+        studentQuery = studentQuery.in('id', campusStudentIds);
+      }
+    }
+
+    if (studentIdFilter === null) {
+      const { data: studentRows } = await studentQuery;
+      studentIdFilter = (studentRows ?? []).map((r) => (r as { id: string }).id);
+    }
+  }
+
+  let scoreQuery = supabase
     .from('term_scores')
-    .select('subject_id, score, subjects(id, name)')
+    .select('student_id, subject_id, score, subjects(id, name)')
     .eq('term_exam_id', id);
+
+  if (studentIdFilter !== null && studentIdFilter.length > 0) {
+    scoreQuery = scoreQuery.in('student_id', studentIdFilter);
+  } else if (studentIdFilter !== null && studentIdFilter.length === 0) {
+    return c.json(
+      {
+        data: {
+          id: termExam.id,
+          academicYear: termExam.academic_year,
+          semester: termExam.semester,
+          period: termExam.period,
+          label: termExam.label,
+          examDate: termExam.exam_date,
+          status: termExam.status,
+          summary: { bySubject: [], totalRecordedCount: 0 },
+          createdAt: termExam.created_at,
+          updatedAt: termExam.updated_at,
+        },
+      },
+      200,
+    );
+  }
+
+  const { data: scoreRows, error: scoreError } = await scoreQuery;
 
   if (scoreError) {
     return c.json({ error: scoreError.message, code: 'DB_ERROR' }, 400);
@@ -1200,6 +1299,242 @@ app.openapi(recentStudentsRoute, async (c) => {
   );
 
   return c.json({ data: rows }, 200);
+});
+
+const studentsRoute = createRoute({
+  method: 'get',
+  path: '/{id}/students',
+  tags: ['TermExams'],
+  summary: '取得段考下的學生列表（支援 campus / status / search / grade 過濾）',
+  request: {
+    params: z.object({ id: DbUuidSchema }),
+    query: z.object({
+      campusId: DbUuidSchema.optional(),
+      status: z.enum(['all', 'pending', 'scored', 'absent', 'makeup']).default('all').optional(),
+      search: z.string().trim().min(1).optional(),
+      grade: z.string().optional(),
+      page: z.coerce.number().int().min(1).default(1).optional(),
+      pageSize: z.coerce.number().int().min(1).max(200).default(50).optional(),
+    }),
+  },
+  responses: {
+    200: {
+      description: '學生列表',
+      content: {
+        'application/json': {
+          schema: TermExamStudentListResponseSchema,
+        },
+      },
+    },
+    400: {
+      description: '查詢失敗',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    404: {
+      description: '找不到資料',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(studentsRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const { id } = c.req.valid('param');
+  const {
+    campusId,
+    status = 'all',
+    search,
+    grade,
+    page = 1,
+    pageSize = 50,
+  } = c.req.valid('query');
+
+  const termExam = await ensureTermExamOwnedByOrg(supabase, id, orgId);
+  if (!termExam) {
+    return c.json({ error: '找不到段考事件', code: 'NOT_FOUND' }, 404);
+  }
+
+  const { count: subjectCount } = await supabase
+    .from('subjects')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId);
+
+  let studentsQuery = supabase
+    .from('students')
+    .select('id, name, grade, is_active, enrollments(id, classes(campus_id, campuses(name)))')
+    .eq('org_id', orgId)
+    .eq('is_active', true)
+    .order('name');
+
+  if (grade) {
+    studentsQuery = studentsQuery.eq('grade', grade);
+  }
+  if (search) {
+    studentsQuery = studentsQuery.ilike('name', `%${search}%`);
+  }
+
+  if (campusId) {
+    const { data: enrollmentRows, error: enrollmentError } = await supabase
+      .from('enrollments')
+      .select('student_id, classes!inner(campus_id)')
+      .eq('classes.campus_id', campusId);
+
+    if (enrollmentError) {
+      return c.json({ error: enrollmentError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    const campusStudentIds = Array.from(
+      new Set(
+        ((enrollmentRows ?? []) as Array<{ student_id: string | null }>)
+          .map((row) => row.student_id)
+          .filter((studentId): studentId is string => !!studentId),
+      ),
+    );
+
+    if (campusStudentIds.length === 0) {
+      return c.json(
+        {
+          data: [],
+          meta: { total: 0, page, pageSize },
+        },
+        200,
+      );
+    }
+
+    studentsQuery = studentsQuery.in('id', campusStudentIds);
+  }
+
+  const { data: studentsData, error: studentsError } = await studentsQuery;
+
+  if (studentsError) {
+    return c.json({ error: studentsError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  const studentRows = (studentsData ?? []) as unknown as Array<{
+    id: string;
+    name: string | null;
+    grade: string | null;
+    is_active: boolean;
+    enrollments?: Array<{
+      id: string;
+      classes: { campus_id: string | null; campuses: { name: string } | null } | null;
+    }> | null;
+  }>;
+
+  const studentIds = studentRows.map((row) => row.id);
+
+  if (studentIds.length === 0) {
+    return c.json(
+      {
+        data: [],
+        meta: { total: 0, page, pageSize },
+      },
+      200,
+    );
+  }
+
+  const { data: scoreRows, error: scoreError } = await supabase
+    .from('term_scores')
+    .select('student_id, status, updated_at')
+    .eq('term_exam_id', id)
+    .in('student_id', studentIds);
+
+  if (scoreError) {
+    return c.json({ error: scoreError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  const aggregated = new Map<
+    string,
+    {
+      scoreCount: number;
+      hasScored: boolean;
+      hasAbsent: boolean;
+      hasMakeup: boolean;
+      lastUpdatedAt: string | null;
+    }
+  >();
+
+  for (const row of (scoreRows ?? []) as Array<{
+    student_id: string;
+    status: 'scored' | 'absent' | 'makeup';
+    updated_at: string;
+  }>) {
+    const entry = aggregated.get(row.student_id) ?? {
+      scoreCount: 0,
+      hasScored: false,
+      hasAbsent: false,
+      hasMakeup: false,
+      lastUpdatedAt: null as string | null,
+    };
+    entry.scoreCount += 1;
+    if (row.status === 'scored') entry.hasScored = true;
+    if (row.status === 'absent') entry.hasAbsent = true;
+    if (row.status === 'makeup') entry.hasMakeup = true;
+    if (!entry.lastUpdatedAt || Date.parse(row.updated_at) > Date.parse(entry.lastUpdatedAt)) {
+      entry.lastUpdatedAt = row.updated_at;
+    }
+    aggregated.set(row.student_id, entry);
+  }
+
+  const allRows = studentRows.map((row) => {
+    const agg = aggregated.get(row.id);
+    const campusNames = Array.from(
+      new Set(
+        (row.enrollments ?? [])
+          .map((e) => e.classes?.campuses?.name)
+          .filter((n): n is string => !!n),
+      ),
+    );
+
+    return {
+      studentId: row.id,
+      studentName: row.name ?? '',
+      studentGrade: row.grade,
+      campusNames,
+      scoreCount: agg?.scoreCount ?? 0,
+      subjectCount: subjectCount ?? 0,
+      hasScored: agg?.hasScored ?? false,
+      hasAbsent: agg?.hasAbsent ?? false,
+      hasMakeup: agg?.hasMakeup ?? false,
+      lastUpdatedAt: agg?.lastUpdatedAt ?? null,
+    };
+  });
+
+  const filtered = allRows.filter((row) => {
+    switch (status) {
+      case 'pending':
+        return row.scoreCount === 0;
+      case 'scored':
+        return row.hasScored;
+      case 'absent':
+        return row.hasAbsent;
+      case 'makeup':
+        return row.hasMakeup;
+      default:
+        return true;
+    }
+  });
+
+  const total = filtered.length;
+  const from = (page - 1) * pageSize;
+  const paged = filtered.slice(from, from + pageSize);
+
+  return c.json(
+    {
+      data: paged,
+      meta: { total, page, pageSize },
+    },
+    200,
+  );
 });
 
 const byStudentRoute = createRoute({

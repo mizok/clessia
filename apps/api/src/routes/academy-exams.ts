@@ -54,6 +54,8 @@ const AcademyExamClassSchema = z
   .object({
     classId: z.uuid(),
     className: z.string(),
+    campusName: z.string().nullable(),
+    courseName: z.string().nullable(),
   })
   .openapi('AcademyExamClass');
 
@@ -77,6 +79,7 @@ const AcademyExamDetailSchema = z
     totalScore: z.number(),
     scopeNote: z.string().nullable(),
     campusId: z.uuid().nullable(),
+    campusName: z.string().nullable(),
     subjectId: z.uuid().nullable(),
     subjectName: z.string().nullable(),
     classes: z.array(AcademyExamClassSchema),
@@ -167,7 +170,18 @@ interface ExamListRow {
 
 interface ExamClassRow {
   class_id: string;
-  classes?: { name: string | null } | Array<{ name: string | null }> | null;
+  classes?:
+    | {
+        name: string | null;
+        campuses?: { name: string | null } | Array<{ name: string | null }> | null;
+        courses?: { name: string | null } | Array<{ name: string | null }> | null;
+      }
+    | Array<{
+        name: string | null;
+        campuses?: { name: string | null } | Array<{ name: string | null }> | null;
+        courses?: { name: string | null } | Array<{ name: string | null }> | null;
+      }>
+    | null;
 }
 
 interface AcademyScoreRow {
@@ -244,8 +258,9 @@ const listRoute = createRoute({
       status: AcademyExamStatusSchema.optional(),
       campus_id: DbUuidSchema.optional(),
       subject_id: DbUuidSchema.optional(),
+      class_id: DbUuidSchema.optional(),
       page: z.coerce.number().int().min(1).default(1).optional(),
-      pageSize: z.coerce.number().int().min(1).max(100).default(20).optional(),
+      pageSize: z.coerce.number().int().min(1).max(200).default(20).optional(),
     }),
   },
   responses: {
@@ -276,6 +291,7 @@ app.openapi(listRoute, async (c) => {
     status,
     campus_id: campusId,
     subject_id: subjectId,
+    class_id: classId,
     page = 1,
     pageSize = 20,
   } = c.req.valid('query');
@@ -314,6 +330,18 @@ app.openapi(listRoute, async (c) => {
   }
   if (subjectId) {
     query = query.eq('subject_id', subjectId);
+  }
+  if (classId) {
+    // Look up exam IDs associated with this class, then filter
+    const { data: classExamRows } = await supabase
+      .from('academy_exam_classes')
+      .select('exam_id')
+      .eq('class_id', classId);
+    const examIds = (classExamRows ?? []).map((r: { exam_id: string }) => r.exam_id);
+    if (examIds.length === 0) {
+      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+    }
+    query = query.in('id', examIds);
   }
 
   const from = (page - 1) * pageSize;
@@ -420,7 +448,8 @@ app.openapi(getRoute, async (c) => {
       created_by,
       created_at,
       updated_at,
-      subjects(name)
+      subjects(name),
+      campuses(name)
     `,
     )
     .eq('id', id)
@@ -435,7 +464,7 @@ app.openapi(getRoute, async (c) => {
     await Promise.all([
       supabase
         .from('academy_exam_classes')
-        .select('class_id, classes(name)')
+        .select('class_id, classes(name, campuses(name), courses(name))')
         .eq('exam_id', id),
       supabase.from('academy_scores').select('score, status').eq('exam_id', id),
     ]);
@@ -444,10 +473,15 @@ app.openapi(getRoute, async (c) => {
     return c.json({ error: classError?.message ?? scoreError?.message ?? '查詢失敗' }, 400);
   }
 
-  const classes = ((classRows ?? []) as ExamClassRow[]).map((row) => ({
-    classId: row.class_id,
-    className: pickRelationFirst(row.classes)?.name ?? '',
-  }));
+  const classes = ((classRows ?? []) as ExamClassRow[]).map((row) => {
+    const classRel = pickRelationFirst(row.classes);
+    return {
+      classId: row.class_id,
+      className: classRel?.name ?? '',
+      campusName: pickRelationFirst(classRel?.campuses)?.name ?? null,
+      courseName: pickRelationFirst(classRel?.courses)?.name ?? null,
+    };
+  });
 
   const typedScoreRows = (scoreRows ?? []) as AcademyScoreRow[];
   const scoreNumbers = typedScoreRows
@@ -463,6 +497,9 @@ app.openapi(getRoute, async (c) => {
   const absentCount = typedScoreRows.filter((row) => row.status === 'absent').length;
 
   const subject = pickRelationFirst(examRow.subjects);
+  const campus = pickRelationFirst(
+    (examRow as unknown as { campuses?: { name: string | null } | Array<{ name: string | null }> | null }).campuses,
+  );
 
   return c.json(
     {
@@ -475,6 +512,7 @@ app.openapi(getRoute, async (c) => {
         totalScore: examRow.total_score,
         scopeNote: examRow.scope_note,
         campusId: examRow.campus_id,
+        campusName: campus?.name ?? null,
         subjectId: examRow.subject_id,
         subjectName: subject?.name ?? null,
         classes,

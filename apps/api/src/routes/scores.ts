@@ -146,7 +146,7 @@ const listRoute = createRoute({
       dateTo: z.string().date().optional(),
       search: z.string().optional(),
       page: z.coerce.number().int().min(1).default(1).optional(),
-      pageSize: z.coerce.number().int().min(1).max(100).default(20).optional(),
+      pageSize: z.coerce.number().int().min(1).max(200).default(20).optional(),
     }),
   },
   responses: {
@@ -524,12 +524,12 @@ app.openapi(studentSummaryRoute, async (c) => {
   const [academyResult, termResult] = await Promise.all([
     supabase
       .from('academy_scores')
-      .select('score, status, academy_exams!inner(subject_id, org_id, subjects(name))')
+      .select('score, status, academy_exams!inner(subject_id, org_id, exam_date, subjects(name))')
       .eq('student_id', studentId)
       .eq('academy_exams.org_id', orgId),
     supabase
       .from('term_scores')
-      .select('score, status, subject_id, subjects(name), term_exams!inner(org_id)')
+      .select('score, status, subject_id, subjects(name), term_exams!inner(org_id, exam_date, academic_year, semester, period)')
       .eq('student_id', studentId)
       .eq('term_exams.org_id', orgId),
   ]);
@@ -551,12 +551,56 @@ app.openapi(studentSummaryRoute, async (c) => {
     }
   >();
 
+  const termRows = (termResult.data ?? []).map((rawRow) => {
+    const row = rawRow as any;
+    const exam = Array.isArray(row.term_exams) ? row.term_exams[0] : row.term_exams;
+    const subject = Array.isArray(row.subjects) ? row.subjects[0] : row.subjects;
+    return {
+      subjectName: subject?.name ?? `科目-${row.subject_id ?? 'unknown'}`,
+      score: row.score as number | null,
+      status: row.status as string,
+      examDate: exam?.exam_date as string | null,
+      academicYear: exam?.academic_year as number,
+      semester: exam?.semester as number,
+    };
+  });
+
+  const latestTermExamKey = termRows.reduce<string | null>((best, r) => {
+    const key = `${r.academicYear}-${r.semester}-${r.examDate ?? ''}`;
+    if (!best) return key;
+    return key > best ? key : best;
+  }, null);
+
+  // 補習班成績以「最近段考之後」為範圍；若學生從未參加過段考則取全部
+  const cycleStartDate = termRows.reduce<string | null>((best, r) => {
+    if (!r.examDate) return best;
+    if (!best || r.examDate > best) return r.examDate;
+    return best;
+  }, null);
+
+  for (const row of termRows) {
+    if (!summaryMap.has(row.subjectName)) {
+      summaryMap.set(row.subjectName, { subjectName: row.subjectName, academyScores: [], termScores: [], totalRecords: 0 });
+    }
+    const bucket = summaryMap.get(row.subjectName)!;
+    bucket.totalRecords += 1;
+    const key = `${row.academicYear}-${row.semester}-${row.examDate ?? ''}`;
+    if (key === latestTermExamKey && row.status !== 'absent' && typeof row.score === 'number' && Number.isFinite(row.score)) {
+      bucket.termScores.push(row.score);
+    }
+  }
+
   for (const rawRow of academyResult.data ?? []) {
     const row = rawRow as any;
     const exam = Array.isArray(row.academy_exams) ? row.academy_exams[0] : row.academy_exams;
     const subject = exam?.subjects;
     const subjectName =
       (Array.isArray(subject) ? subject[0]?.name : subject?.name) ?? `科目-${exam?.subject_id ?? 'unknown'}`;
+    const examDate = exam?.exam_date as string | null;
+    // 只取最近段考之後的成績；無段考紀錄則全部計入
+    if (cycleStartDate && (!examDate || examDate <= cycleStartDate)) {
+      continue;
+    }
     if (!summaryMap.has(subjectName)) {
       summaryMap.set(subjectName, { subjectName, academyScores: [], termScores: [], totalRecords: 0 });
     }
@@ -564,20 +608,6 @@ app.openapi(studentSummaryRoute, async (c) => {
     bucket.totalRecords += 1;
     if (row.status !== 'absent' && typeof row.score === 'number' && Number.isFinite(row.score)) {
       bucket.academyScores.push(row.score);
-    }
-  }
-
-  for (const rawRow of termResult.data ?? []) {
-    const row = rawRow as any;
-    const subject = Array.isArray(row.subjects) ? row.subjects[0] : row.subjects;
-    const subjectName = subject?.name ?? `科目-${row.subject_id ?? 'unknown'}`;
-    if (!summaryMap.has(subjectName)) {
-      summaryMap.set(subjectName, { subjectName, academyScores: [], termScores: [], totalRecords: 0 });
-    }
-    const bucket = summaryMap.get(subjectName)!;
-    bucket.totalRecords += 1;
-    if (row.status !== 'absent' && typeof row.score === 'number' && Number.isFinite(row.score)) {
-      bucket.termScores.push(row.score);
     }
   }
 

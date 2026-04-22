@@ -13,6 +13,8 @@ describe('toOrgSettingsResponse', () => {
       id: 'org-1',
       name: '測試補習班',
       attendanceMode: 'per_session',
+      attendanceResponsible: 'admin',
+      attendanceRetroactiveDays: 0,
     });
   });
 

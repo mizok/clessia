@@ -23,6 +23,9 @@ import orgSettingsRoute from './routes/org-settings';
 import attendanceRoute from './routes/attendance';
 import leavesRoute from './routes/leaves';
 import dailyCheckinsRoute from './routes/daily-checkins';
+import academyExamsRoute from './routes/academy-exams';
+import termExamsRoute from './routes/term-exams';
+import scoresRoute from './routes/scores';
 
 // ============================================================
 // Types
@@ -166,27 +169,18 @@ app.post('/api/login', async (c) => {
     return c.json({ error: 'account 與 password 為必填', code: 'MISSING_FIELDS' }, 400);
   }
 
-  // Username-only login (e.g. root) — skip ba_user lookup and status check
-  if (loginType === 'username') {
-    const auth = createAuth(c.env);
-    try {
-      const sessionRes = await (auth.api as any).signInUsername({
-        body: { username: account, password },
-        asResponse: true,
-      });
-      return sessionRes;
-    } catch {
-      return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
-    }
-  }
-
   const supabase = createServiceClientFromEnv(c.env);
 
-  // 1. Look up ba_user by email or phone (determined by loginType from frontend)
-  const { data: baUser } =
-    loginType === 'phone'
-      ? await supabase.from('ba_user').select('id, email, phone').eq('phone', account).maybeSingle()
-      : await supabase.from('ba_user').select('id, email, phone').eq('email', account).maybeSingle();
+  // 1. Look up ba_user by email, phone, or username (determined by loginType from frontend)
+  let baUserQuery;
+  if (loginType === 'username') {
+    baUserQuery = supabase.from('ba_user').select('id, email, phone, username').eq('username', account).maybeSingle();
+  } else if (loginType === 'phone') {
+    baUserQuery = supabase.from('ba_user').select('id, email, phone, username').eq('phone', account).maybeSingle();
+  } else {
+    baUserQuery = supabase.from('ba_user').select('id, email, phone, username').eq('email', account).maybeSingle();
+  }
+  const { data: baUser } = await baUserQuery;
 
   if (!baUser) {
     return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
@@ -211,7 +205,14 @@ app.post('/api/login', async (c) => {
   // 3. Delegate sign-in to Better Auth (password verification + session creation)
   const auth = createAuth(c.env);
   try {
-    if (baUser.email) {
+    if (loginType === 'username' && baUser.username) {
+      // Username login (e.g. root) — status already checked above
+      const sessionRes = await (auth.api as any).signInUsername({
+        body: { username: baUser.username as string, password },
+        asResponse: true,
+      });
+      return sessionRes;
+    } else if (baUser.email) {
       const sessionRes = await auth.api.signInEmail({
         body: { email: baUser.email as string, password },
         asResponse: true,
@@ -251,6 +252,9 @@ app.route('/api/org', orgSettingsRoute);
 app.route('/api/attendance', attendanceRoute);
 app.route('/api/leaves', leavesRoute);
 app.route('/api/daily-checkins', dailyCheckinsRoute);
+app.route('/api/academy-exams', academyExamsRoute);
+app.route('/api/term-exams', termExamsRoute);
+app.route('/api/scores', scoresRoute);
 
 // ============================================================
 // Error Handler

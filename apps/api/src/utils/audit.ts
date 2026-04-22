@@ -10,6 +10,8 @@ type ResourceType =
   | 'parent'
   | 'attendance'
   | 'leave'
+  | 'academy_exam'
+  | 'term_exam'
   | 'school';
 
 export interface AuditLogParams {
