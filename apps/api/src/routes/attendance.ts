@@ -936,7 +936,7 @@ app.openapi(
 
     const { data: enrollments } = await supabase
       .from('enrollments')
-      .select('student_id, students(name, grade, school)')
+      .select('student_id, students(name, grade, schools(id, name, short_name))')
       .eq('class_id', classId)
       .eq('status', 'active')
       .lte('effective_from', eventDate)
@@ -958,7 +958,7 @@ app.openapi(
         studentId: e.student_id,
         studentName: e.students?.name ?? '',
         grade: e.students?.grade ?? null,
-        school: e.students?.school ?? null,
+        school: e.students?.schools?.short_name ?? e.students?.schools?.name ?? null,
         recordId: rec?.id ?? null,
         status: rec?.status ?? null,
       };

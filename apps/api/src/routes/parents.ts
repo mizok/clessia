@@ -1526,6 +1526,39 @@ app.openapi(
     // ────────────────────────────────────────────────────────
     // Step 3：逐 row 建立學生 + parent_student_relations
     // ────────────────────────────────────────────────────────
+
+    // 預先整理所有 rows 的學校名稱 → school_id（不存在則建立）
+    const uniqueSchoolNames = Array.from(
+      new Set(rows.map((r) => r.studentSchool.trim()).filter(Boolean)),
+    );
+    const schoolIdByName = new Map<string, string>();
+    if (uniqueSchoolNames.length > 0) {
+      const { data: existingSchools } = await supabase
+        .from('schools')
+        .select('id, name')
+        .eq('org_id', orgId)
+        .in('name', uniqueSchoolNames);
+      for (const s of (existingSchools ?? []) as Array<{ id: string; name: string }>) {
+        schoolIdByName.set(s.name, s.id);
+      }
+      const missingSchools = uniqueSchoolNames.filter((n) => !schoolIdByName.has(n));
+      if (missingSchools.length > 0) {
+        const { data: insertedSchools, error: insertSchoolsError } = await supabase
+          .from('schools')
+          .upsert(
+            missingSchools.map((name) => ({ org_id: orgId, name })),
+            { onConflict: 'org_id,name' },
+          )
+          .select('id, name');
+        if (insertSchoolsError) {
+          console.error('[batch-import] Step3 upsert schools error:', insertSchoolsError);
+        }
+        for (const s of (insertedSchools ?? []) as Array<{ id: string; name: string }>) {
+          schoolIdByName.set(s.name, s.id);
+        }
+      }
+    }
+
     for (let i = 0; i < rows.length; i++) {
       // 已處理過（失敗的）rows 跳過
       if (results.find((r) => r.rowIndex === i)) continue;
@@ -1567,13 +1600,14 @@ app.openapi(
         }
 
         // INSERT students
+        const studentSchoolId = schoolIdByName.get(row.studentSchool.trim()) ?? null;
         const { data: newStudentRow, error: insertStudentError } = await supabase
           .from('students')
           .insert({
             org_id: orgId,
             name: row.studentName,
             grade: row.studentGrade,
-            school: row.studentSchool,
+            school_id: studentSchoolId,
             birthday: row.studentBirthday ?? null,
             gender: row.studentGender ?? null,
             is_active: true,

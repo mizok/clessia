@@ -189,7 +189,7 @@ export function toEnrollmentResponse(row: any): z.infer<typeof EnrollmentSchema>
     courseName: row.classes?.courses?.name ?? '',
     studentId: row.student_id,
     studentName: row.students?.name ?? '',
-    studentSchool: row.students?.school ?? '',
+    studentSchool: row.students?.schools?.name ?? '',
     studentGrade: row.students?.grade ?? '',
     status: row.status,
     paymentCycle: row.payment_cycle ?? null,
@@ -422,7 +422,7 @@ app.openapi(
     let query = supabase
       .from('enrollments')
       .select(
-        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, school, grade), creator:ba_user!created_by(name)',
+        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
         { count: 'exact' },
       )
       .eq('org_id', orgId)
@@ -533,7 +533,7 @@ app.openapi(
         notes: body.notes ?? null,
         created_by: userId,
       })
-      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, school, grade), creator:ba_user!created_by(name)')
+      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)')
       .single();
 
     if (error) {
@@ -591,7 +591,7 @@ app.openapi(
       .update(updates)
       .eq('id', id)
       .eq('org_id', orgId)
-      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, school, grade), creator:ba_user!created_by(name)')
+      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)')
       .single();
 
     if (error) return c.json({ error: 'NOT_FOUND' }, 404);
@@ -667,7 +667,7 @@ app.openapi(
       .update(updates)
       .eq('id', id)
       .eq('org_id', orgId)
-      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, school, grade), creator:ba_user!created_by(name)')
+      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)')
       .single();
 
     if (error) return c.json({ error: error.message }, 500);
@@ -1011,30 +1011,63 @@ app.openapi(
 
     const enrolledIds = new Set((enrolled ?? []).map((e) => e.student_id));
     const uniqueNames = Array.from(new Set(body.items.map((item) => item.name.trim()).filter(Boolean)));
-    const uniqueSchools = Array.from(
+    const uniqueSchoolNames = Array.from(
       new Set(body.items.map((item) => item.school.trim()).filter(Boolean)),
     );
 
-    let students: z.infer<typeof BatchMatchCandidateSchema>[] = [];
-    if (uniqueNames.length > 0 && uniqueSchools.length > 0) {
+    const schoolIdByName = new Map<string, string>();
+    const schoolIdByLowerName = new Map<string, string>();
+    if (uniqueSchoolNames.length > 0) {
+      const { data: schoolRows, error: schoolsError } = await supabase
+        .from('schools')
+        .select('id, name')
+        .eq('org_id', orgId)
+        .in('name', uniqueSchoolNames);
+      if (schoolsError) return c.json({ error: schoolsError.message }, 500);
+      for (const s of (schoolRows ?? []) as Array<{ id: string; name: string }>) {
+        schoolIdByName.set(s.name, s.id);
+        schoolIdByLowerName.set(s.name.toLowerCase(), s.id);
+      }
+    }
+    const uniqueSchoolIds = Array.from(new Set(schoolIdByName.values()));
+
+    type CandidateRow = {
+      id: string;
+      name: string;
+      grade: string;
+      birthday: string | null;
+      school_id: string | null;
+      schools: { name: string } | null;
+    };
+    let students: CandidateRow[] = [];
+    if (uniqueNames.length > 0 && uniqueSchoolIds.length > 0) {
       const { data: allCandidates, error: candidatesError } = await supabase
         .from('students')
-        .select('id, name, grade, school, birthday')
+        .select('id, name, grade, birthday, school_id, schools(name)')
         .eq('org_id', orgId)
         .eq('is_active', true)
         .in('name', uniqueNames)
-        .in('school', uniqueSchools);
+        .in('school_id', uniqueSchoolIds);
 
       if (candidatesError) return c.json({ error: candidatesError.message }, 500);
-      students = allCandidates ?? [];
+      students = (allCandidates ?? []) as unknown as CandidateRow[];
     }
 
-    const exactIndex = new Map<string, z.infer<typeof BatchMatchCandidateSchema>[]>();
-    const ilikeIndex = new Map<string, z.infer<typeof BatchMatchCandidateSchema>[]>();
+    const toCandidate = (s: CandidateRow): z.infer<typeof BatchMatchCandidateSchema> => ({
+      id: s.id,
+      name: s.name,
+      grade: s.grade,
+      school: s.schools?.name ?? '',
+      birthday: s.birthday,
+    });
+
+    const exactIndex = new Map<string, CandidateRow[]>();
+    const ilikeIndex = new Map<string, CandidateRow[]>();
 
     for (const student of students) {
-      const exactKey = `${student.name}\u0000${student.school}`;
-      const ilikeKey = `${student.name.toLowerCase()}\u0000${student.school.toLowerCase()}`;
+      if (!student.school_id) continue;
+      const exactKey = `${student.name}|||${student.school_id}`;
+      const ilikeKey = `${student.name.toLowerCase()}|||${student.school_id}`;
 
       const exactBucket = exactIndex.get(exactKey) ?? [];
       exactBucket.push(student);
@@ -1048,12 +1081,20 @@ app.openapi(
     const results: z.infer<typeof BatchMatchResultItemSchema>[] = [];
 
     for (const [index, item] of body.items.entries()) {
-      const exactKey = `${item.name}\u0000${item.school}`;
-      const ilikeKey = `${item.name.toLowerCase()}\u0000${item.school.toLowerCase()}`;
+      const schoolNameTrim = item.school.trim();
+      const itemSchoolId =
+        schoolIdByName.get(schoolNameTrim) ?? schoolIdByLowerName.get(schoolNameTrim.toLowerCase());
+      if (!itemSchoolId) {
+        results.push({ index, status: 'not_found' });
+        continue;
+      }
+      const exactKey = `${item.name}|||${itemSchoolId}`;
+      const ilikeKey = `${item.name.toLowerCase()}|||${itemSchoolId}`;
 
       const exactMatches = exactIndex.get(exactKey) ?? [];
       const ilikeMatches = ilikeIndex.get(ilikeKey) ?? [];
-      const candidates = exactMatches.length > 0 ? exactMatches : ilikeMatches;
+      const rawCandidates = exactMatches.length > 0 ? exactMatches : ilikeMatches;
+      const candidates = rawCandidates.map(toCandidate);
 
       const available = candidates.filter((candidate) => !enrolledIds.has(candidate.id));
 
