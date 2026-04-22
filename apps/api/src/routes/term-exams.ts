@@ -52,6 +52,19 @@ const TermExamSubjectSummarySchema = z
   })
   .openapi('TermExamSubjectSummary');
 
+const TermExamScheduleSchema = z
+  .object({
+    schoolId: z.uuid(),
+    schoolName: z.string(),
+    examDate: z.string().nullable(),
+  })
+  .openapi('TermExamSchedule');
+
+const TermExamScheduleInputSchema = z.object({
+  schoolId: z.uuid(),
+  examDate: z.string().date().nullable().optional(),
+});
+
 const TermExamDetailSchema = z
   .object({
     id: z.uuid(),
@@ -65,6 +78,7 @@ const TermExamDetailSchema = z
       bySubject: z.array(TermExamSubjectSummarySchema),
       totalRecordedCount: z.number().int(),
     }),
+    schedules: z.array(TermExamScheduleSchema),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -76,6 +90,7 @@ const CreateTermExamSchema = z
     semester: z.union([z.literal(1), z.literal(2)]),
     period: TermExamPeriodSchema,
     examDate: z.string().date().optional(),
+    schedules: z.array(TermExamScheduleInputSchema).optional(),
   })
   .openapi('CreateTermExam');
 
@@ -85,6 +100,7 @@ const UpdateTermExamSchema = z
     semester: z.union([z.literal(1), z.literal(2)]).optional(),
     period: TermExamPeriodSchema.optional(),
     examDate: z.string().date().nullable().optional(),
+    schedules: z.array(TermExamScheduleInputSchema).optional(),
   })
   .openapi('UpdateTermExam');
 
@@ -203,9 +219,24 @@ interface SubjectRelation {
   name: string | null;
 }
 
+interface SchoolRelation {
+  id: string;
+  name: string | null;
+}
+
 interface StudentRelation {
   name: string | null;
   grade: string | null;
+}
+
+interface TermExamScheduleRow {
+  school_id: string;
+  exam_date: string | null;
+  schools?: SchoolRelation | SchoolRelation[] | null;
+}
+
+interface TermExamDetailRow extends TermExamRow {
+  term_exam_schedules?: TermExamScheduleRow[] | null;
 }
 
 interface ScoreRowWithRelations {
@@ -432,10 +463,29 @@ app.openapi(getRoute, async (c) => {
   const { id } = c.req.valid('param');
   const { campusId, grade } = c.req.valid('query');
 
-  const termExam = await ensureTermExamOwnedByOrg(supabase, id, orgId);
-  if (!termExam) {
+  const { data: termExamData, error: termExamError } = await supabase
+    .from('term_exams')
+    .select(
+      'id, academic_year, semester, period, label, exam_date, status, created_at, updated_at, term_exam_schedules(school_id, exam_date, schools(id, name))',
+    )
+    .eq('id', id)
+    .eq('org_id', orgId)
+    .maybeSingle();
+
+  if (termExamError) {
+    return c.json({ error: termExamError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  if (!termExamData) {
     return c.json({ error: '找不到段考事件', code: 'NOT_FOUND' }, 404);
   }
+
+  const termExam = termExamData as TermExamDetailRow;
+  const schedules = (termExam.term_exam_schedules ?? []).map((schedule) => ({
+    schoolId: schedule.school_id,
+    schoolName: pickRelationFirst(schedule.schools)?.name ?? '',
+    examDate: schedule.exam_date,
+  }));
 
   let studentIdFilter: string[] | null = null;
 
@@ -496,6 +546,7 @@ app.openapi(getRoute, async (c) => {
           examDate: termExam.exam_date,
           status: termExam.status,
           summary: { bySubject: [], totalRecordedCount: 0 },
+          schedules,
           createdAt: termExam.created_at,
           updatedAt: termExam.updated_at,
         },
@@ -560,6 +611,7 @@ app.openapi(getRoute, async (c) => {
           bySubject,
           totalRecordedCount: (scoreRows ?? []).length,
         },
+        schedules,
         createdAt: termExam.created_at,
         updatedAt: termExam.updated_at,
       },
@@ -640,6 +692,20 @@ app.openapi(createRouteDef, async (c) => {
       return c.json({ error: '相同學年度/學期/考次已存在', code: 'DUPLICATE' }, 409);
     }
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+  }
+
+  if (body.schedules && body.schedules.length > 0) {
+    const { error: scheduleError } = await supabase.from('term_exam_schedules').insert(
+      body.schedules.map((schedule) => ({
+        term_exam_id: data.id,
+        school_id: schedule.schoolId,
+        exam_date: schedule.examDate ?? null,
+      })),
+    );
+
+    if (scheduleError) {
+      return c.json({ error: scheduleError.message, code: 'DB_ERROR' }, 400);
+    }
   }
 
   logAudit(
@@ -745,6 +811,31 @@ app.openapi(updateRouteDef, async (c) => {
       return c.json({ error: '相同學年度/學期/考次已存在', code: 'DUPLICATE' }, 400);
     }
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+  }
+
+  if (body.schedules !== undefined) {
+    const { error: deleteSchedulesError } = await supabase
+      .from('term_exam_schedules')
+      .delete()
+      .eq('term_exam_id', id);
+
+    if (deleteSchedulesError) {
+      return c.json({ error: deleteSchedulesError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    if (body.schedules.length > 0) {
+      const { error: scheduleError } = await supabase.from('term_exam_schedules').insert(
+        body.schedules.map((schedule) => ({
+          term_exam_id: id,
+          school_id: schedule.schoolId,
+          exam_date: schedule.examDate ?? null,
+        })),
+      );
+
+      if (scheduleError) {
+        return c.json({ error: scheduleError.message, code: 'DB_ERROR' }, 400);
+      }
+    }
   }
 
   logAudit(
