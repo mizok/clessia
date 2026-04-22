@@ -281,14 +281,14 @@ app.openapi(deleteRouteDef, async (c) => {
     return c.json({ error: '此學校仍有學生關聯，無法刪除', code: 'CONSTRAINT' }, 409);
   }
 
-  const { count: scheduleCount, error: scheduleCountError } = await supabase
-    .from('term_exam_schedules')
+  const { count: termExamCount, error: termExamCountError } = await supabase
+    .from('term_exams')
     .select('id', { count: 'exact', head: true })
     .eq('school_id', id);
 
-  if (scheduleCountError) return c.json({ error: scheduleCountError.message, code: 'DB_ERROR' }, 400);
-  if ((scheduleCount ?? 0) > 0) {
-    return c.json({ error: '此學校仍有段考排程，無法刪除', code: 'CONSTRAINT' }, 409);
+  if (termExamCountError) return c.json({ error: termExamCountError.message, code: 'DB_ERROR' }, 400);
+  if ((termExamCount ?? 0) > 0) {
+    return c.json({ error: '此學校仍有段考事件，無法刪除', code: 'CONSTRAINT' }, 409);
   }
 
   const { data, error } = await supabase

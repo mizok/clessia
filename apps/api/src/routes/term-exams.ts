@@ -26,6 +26,8 @@ const TermExamListItemSchema = z
     label: z.string(),
     examDate: z.string().nullable(),
     status: TermExamStatusSchema,
+    schoolId: z.uuid(),
+    schoolName: z.string(),
     scoreCount: z.number().int(),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -52,19 +54,6 @@ const TermExamSubjectSummarySchema = z
   })
   .openapi('TermExamSubjectSummary');
 
-const TermExamScheduleSchema = z
-  .object({
-    schoolId: z.uuid(),
-    schoolName: z.string(),
-    examDate: z.string().nullable(),
-  })
-  .openapi('TermExamSchedule');
-
-const TermExamScheduleInputSchema = z.object({
-  schoolId: z.uuid(),
-  examDate: z.string().date().nullable().optional(),
-});
-
 const TermExamDetailSchema = z
   .object({
     id: z.uuid(),
@@ -74,11 +63,12 @@ const TermExamDetailSchema = z
     label: z.string(),
     examDate: z.string().nullable(),
     status: TermExamStatusSchema,
+    schoolId: z.uuid(),
+    schoolName: z.string(),
     summary: z.object({
       bySubject: z.array(TermExamSubjectSummarySchema),
       totalRecordedCount: z.number().int(),
     }),
-    schedules: z.array(TermExamScheduleSchema),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -89,8 +79,8 @@ const CreateTermExamSchema = z
     academicYear: z.number().int().min(2000).max(9999),
     semester: z.union([z.literal(1), z.literal(2)]),
     period: TermExamPeriodSchema,
-    examDate: z.string().date().optional(),
-    schedules: z.array(TermExamScheduleInputSchema).optional(),
+    schoolId: DbUuidSchema,
+    examDate: z.string().date().nullable().optional(),
   })
   .openapi('CreateTermExam');
 
@@ -99,8 +89,8 @@ const UpdateTermExamSchema = z
     academicYear: z.number().int().min(2000).max(9999).optional(),
     semester: z.union([z.literal(1), z.literal(2)]).optional(),
     period: TermExamPeriodSchema.optional(),
+    schoolId: DbUuidSchema.optional(),
     examDate: z.string().date().nullable().optional(),
-    schedules: z.array(TermExamScheduleInputSchema).optional(),
   })
   .openapi('UpdateTermExam');
 
@@ -123,8 +113,6 @@ const TermExamStudentRowSchema = z
     studentId: z.uuid(),
     studentName: z.string(),
     studentGrade: z.string().nullable(),
-    schoolId: z.uuid().nullable(),
-    schoolName: z.string().nullable(),
     campusNames: z.array(z.string()),
     scoreCount: z.number().int(),
     subjectCount: z.number().int(),
@@ -208,6 +196,7 @@ interface TermExamRow {
   label: string;
   exam_date: string | null;
   status: 'active' | 'closed';
+  school_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -231,14 +220,8 @@ interface StudentRelation {
   grade: string | null;
 }
 
-interface TermExamScheduleRow {
-  school_id: string;
-  exam_date: string | null;
-  schools?: SchoolRelation | SchoolRelation[] | null;
-}
-
 interface TermExamDetailRow extends TermExamRow {
-  term_exam_schedules?: TermExamScheduleRow[] | null;
+  schools?: SchoolRelation | SchoolRelation[] | null;
 }
 
 interface ScoreRowWithRelations {
@@ -310,7 +293,9 @@ async function ensureTermExamOwnedByOrg(
 ): Promise<TermExamRow | null> {
   const { data, error } = await supabase
     .from('term_exams')
-    .select('id, academic_year, semester, period, label, exam_date, status, created_at, updated_at')
+    .select(
+      'id, academic_year, semester, period, label, exam_date, status, school_id, created_at, updated_at',
+    )
     .eq('id', termExamId)
     .eq('org_id', orgId)
     .maybeSingle();
@@ -363,7 +348,7 @@ app.openapi(listRoute, async (c) => {
   let query = supabase
     .from('term_exams')
     .select(
-      'id, academic_year, semester, period, label, exam_date, status, created_at, updated_at, term_scores(count)',
+      'id, academic_year, semester, period, label, exam_date, status, school_id, schools(id, name), created_at, updated_at, term_scores(count)',
       {
       count: 'exact',
       },
@@ -391,8 +376,16 @@ app.openapi(listRoute, async (c) => {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
 
-  const rows = ((data ?? []) as Array<TermExamRow & { term_scores?: TermScoreCountRow[] | null }>).map(
-    (row) => ({
+  const rows = (
+    (data ?? []) as Array<
+      TermExamRow & {
+        term_scores?: TermScoreCountRow[] | null;
+        schools?: SchoolRelation | SchoolRelation[] | null;
+      }
+    >
+  ).map((row) => {
+    const school = pickRelationFirst(row.schools);
+    return {
       id: row.id,
       academicYear: row.academic_year,
       semester: row.semester,
@@ -400,11 +393,13 @@ app.openapi(listRoute, async (c) => {
       label: row.label,
       examDate: row.exam_date,
       status: row.status,
+      schoolId: row.school_id,
+      schoolName: school?.name ?? '',
       scoreCount: row.term_scores?.[0]?.count ?? 0,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-    }),
-  );
+    };
+  });
 
   return c.json(
     {
@@ -468,7 +463,7 @@ app.openapi(getRoute, async (c) => {
   const { data: termExamData, error: termExamError } = await supabase
     .from('term_exams')
     .select(
-      'id, academic_year, semester, period, label, exam_date, status, created_at, updated_at, term_exam_schedules(school_id, exam_date, schools(id, name))',
+      'id, academic_year, semester, period, label, exam_date, status, school_id, schools(id, name), created_at, updated_at',
     )
     .eq('id', id)
     .eq('org_id', orgId)
@@ -483,11 +478,8 @@ app.openapi(getRoute, async (c) => {
   }
 
   const termExam = termExamData as TermExamDetailRow;
-  const schedules = (termExam.term_exam_schedules ?? []).map((schedule) => ({
-    schoolId: schedule.school_id,
-    schoolName: pickRelationFirst(schedule.schools)?.name ?? '',
-    examDate: schedule.exam_date,
-  }));
+  const school = pickRelationFirst(termExam.schools);
+  const schoolName = school?.name ?? '';
 
   let studentIdFilter: string[] | null = null;
 
@@ -547,8 +539,9 @@ app.openapi(getRoute, async (c) => {
           label: termExam.label,
           examDate: termExam.exam_date,
           status: termExam.status,
+          schoolId: termExam.school_id,
+          schoolName,
           summary: { bySubject: [], totalRecordedCount: 0 },
-          schedules,
           createdAt: termExam.created_at,
           updatedAt: termExam.updated_at,
         },
@@ -609,11 +602,12 @@ app.openapi(getRoute, async (c) => {
         label: termExam.label,
         examDate: termExam.exam_date,
         status: termExam.status,
+        schoolId: termExam.school_id,
+        schoolName,
         summary: {
           bySubject,
           totalRecordedCount: (scoreRows ?? []).length,
         },
-        schedules,
         createdAt: termExam.created_at,
         updatedAt: termExam.updated_at,
       },
@@ -676,10 +670,26 @@ app.openapi(createRouteDef, async (c) => {
     period: body.period,
   });
 
+  const { data: school, error: schoolError } = await supabase
+    .from('schools')
+    .select('id')
+    .eq('id', body.schoolId)
+    .eq('org_id', orgId)
+    .maybeSingle();
+
+  if (schoolError) {
+    return c.json({ error: schoolError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  if (!school) {
+    return c.json({ error: '指定的學校不存在', code: 'SCHOOL_NOT_FOUND' }, 400);
+  }
+
   const { data, error } = await supabase
     .from('term_exams')
     .insert({
       org_id: orgId,
+      school_id: body.schoolId,
       academic_year: body.academicYear,
       semester: body.semester,
       period: body.period,
@@ -691,23 +701,9 @@ app.openapi(createRouteDef, async (c) => {
 
   if (error) {
     if (error.code === '23505') {
-      return c.json({ error: '相同學年度/學期/考次已存在', code: 'DUPLICATE' }, 409);
+      return c.json({ error: '同一學校相同學年度/學期/考次已存在', code: 'DUPLICATE' }, 409);
     }
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
-  }
-
-  if (body.schedules && body.schedules.length > 0) {
-    const { error: scheduleError } = await supabase.from('term_exam_schedules').insert(
-      body.schedules.map((schedule) => ({
-        term_exam_id: data.id,
-        school_id: schedule.schoolId,
-        exam_date: schedule.examDate ?? null,
-      })),
-    );
-
-    if (scheduleError) {
-      return c.json({ error: scheduleError.message, code: 'DB_ERROR' }, 400);
-    }
   }
 
   logAudit(
@@ -723,6 +719,7 @@ app.openapi(createRouteDef, async (c) => {
         academicYear: body.academicYear,
         semester: body.semester,
         period: body.period,
+        schoolId: body.schoolId,
       },
     },
     c.executionCtx.waitUntil.bind(c.executionCtx),
@@ -786,9 +783,27 @@ app.openapi(updateRouteDef, async (c) => {
     return c.json({ error: '找不到段考事件', code: 'NOT_FOUND' }, 404);
   }
 
+  if (body.schoolId !== undefined && body.schoolId !== existing.school_id) {
+    const { data: school, error: schoolError } = await supabase
+      .from('schools')
+      .select('id')
+      .eq('id', body.schoolId)
+      .eq('org_id', orgId)
+      .maybeSingle();
+
+    if (schoolError) {
+      return c.json({ error: schoolError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    if (!school) {
+      return c.json({ error: '指定的學校不存在', code: 'SCHOOL_NOT_FOUND' }, 400);
+    }
+  }
+
   const nextAcademicYear = body.academicYear ?? existing.academic_year;
   const nextSemester = body.semester ?? existing.semester;
   const nextPeriod = body.period ?? existing.period;
+  const nextSchoolId = body.schoolId ?? existing.school_id;
   const nextExamDate = body.examDate === undefined ? existing.exam_date : body.examDate;
   const nextLabel = buildTermExamLabel({
     academicYear: nextAcademicYear,
@@ -802,6 +817,7 @@ app.openapi(updateRouteDef, async (c) => {
       academic_year: nextAcademicYear,
       semester: nextSemester,
       period: nextPeriod,
+      school_id: nextSchoolId,
       label: nextLabel,
       exam_date: nextExamDate,
     })
@@ -810,34 +826,9 @@ app.openapi(updateRouteDef, async (c) => {
 
   if (error) {
     if (error.code === '23505') {
-      return c.json({ error: '相同學年度/學期/考次已存在', code: 'DUPLICATE' }, 400);
+      return c.json({ error: '同一學校相同學年度/學期/考次已存在', code: 'DUPLICATE' }, 400);
     }
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
-  }
-
-  if (body.schedules !== undefined) {
-    const { error: deleteSchedulesError } = await supabase
-      .from('term_exam_schedules')
-      .delete()
-      .eq('term_exam_id', id);
-
-    if (deleteSchedulesError) {
-      return c.json({ error: deleteSchedulesError.message, code: 'DB_ERROR' }, 400);
-    }
-
-    if (body.schedules.length > 0) {
-      const { error: scheduleError } = await supabase.from('term_exam_schedules').insert(
-        body.schedules.map((schedule) => ({
-          term_exam_id: id,
-          school_id: schedule.schoolId,
-          exam_date: schedule.examDate ?? null,
-        })),
-      );
-
-      if (scheduleError) {
-        return c.json({ error: scheduleError.message, code: 'DB_ERROR' }, 400);
-      }
-    }
   }
 
   logAudit(
@@ -853,6 +844,7 @@ app.openapi(updateRouteDef, async (c) => {
         academicYear: nextAcademicYear,
         semester: nextSemester,
         period: nextPeriod,
+        schoolId: nextSchoolId,
       },
     },
     c.executionCtx.waitUntil.bind(c.executionCtx),
@@ -1464,10 +1456,11 @@ app.openapi(studentsRoute, async (c) => {
   let studentsQuery = supabase
     .from('students')
     .select(
-      'id, name, grade, is_active, school_id, schools(id, name, short_name), enrollments(id, classes(campus_id, campuses(name)))',
+      'id, name, grade, is_active, enrollments(id, classes(campus_id, campuses(name)))',
     )
     .eq('org_id', orgId)
     .eq('is_active', true)
+    .eq('school_id', termExam.school_id)
     .order('name');
 
   if (grade) {
@@ -1519,11 +1512,6 @@ app.openapi(studentsRoute, async (c) => {
     name: string | null;
     grade: string | null;
     is_active: boolean;
-    school_id: string | null;
-    schools?:
-      | { id: string; name: string; short_name: string | null }
-      | Array<{ id: string; name: string; short_name: string | null }>
-      | null;
     enrollments?: Array<{
       id: string;
       classes: { campus_id: string | null; campuses: { name: string } | null } | null;
@@ -1594,14 +1582,11 @@ app.openapi(studentsRoute, async (c) => {
           .filter((n): n is string => !!n),
       ),
     );
-    const school = pickRelationFirst(row.schools);
 
     return {
       studentId: row.id,
       studentName: row.name ?? '',
       studentGrade: row.grade,
-      schoolId: school?.id ?? row.school_id ?? null,
-      schoolName: school?.name ?? null,
       campusNames,
       scoreCount: agg?.scoreCount ?? 0,
       subjectCount: subjectCount ?? 0,

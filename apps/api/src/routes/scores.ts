@@ -529,13 +529,19 @@ app.openapi(studentSummaryRoute, async (c) => {
       .select('score, status, academy_exams!inner(subject_id, org_id, exam_date, subjects(name))')
       .eq('student_id', studentId)
       .eq('academy_exams.org_id', orgId),
-    supabase
-      .from('term_scores')
-      .select(
-        'score, status, subject_id, subjects(name), term_exams!inner(org_id, exam_date, academic_year, semester, period, term_exam_schedules(school_id, exam_date))',
-      )
-      .eq('student_id', studentId)
-      .eq('term_exams.org_id', orgId),
+    (() => {
+      let query = supabase
+        .from('term_scores')
+        .select(
+          'score, status, subject_id, subjects(name), term_exams!inner(org_id, exam_date, academic_year, semester, period, school_id)',
+        )
+        .eq('student_id', studentId)
+        .eq('term_exams.org_id', orgId);
+      if (studentSchoolId) {
+        query = query.eq('term_exams.school_id', studentSchoolId);
+      }
+      return query;
+    })(),
   ]);
 
   if (academyResult.error || termResult.error) {
@@ -560,24 +566,11 @@ app.openapi(studentSummaryRoute, async (c) => {
     const exam = Array.isArray(row.term_exams) ? row.term_exams[0] : row.term_exams;
     const subject = Array.isArray(row.subjects) ? row.subjects[0] : row.subjects;
 
-    // 以學生就讀學校對應的 schedule 日期為 cutoff 基準；沒對應 schedule 時退回 term_exams.exam_date
-    const schedules = (exam?.term_exam_schedules ?? []) as Array<{
-      school_id: string;
-      exam_date: string | null;
-    }>;
-    let examDate: string | null = exam?.exam_date ?? null;
-    if (studentSchoolId) {
-      const match = schedules.find((s) => s.school_id === studentSchoolId);
-      if (match) {
-        examDate = match.exam_date ?? exam?.exam_date ?? null;
-      }
-    }
-
     return {
       subjectName: subject?.name ?? `科目-${row.subject_id ?? 'unknown'}`,
       score: row.score as number | null,
       status: row.status as string,
-      examDate,
+      examDate: (exam?.exam_date ?? null) as string | null,
       academicYear: exam?.academic_year as number,
       semester: exam?.semester as number,
     };
