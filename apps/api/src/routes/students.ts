@@ -15,13 +15,21 @@ const StudentGenderSchema = z
   .enum(['male', 'female', 'prefer_not_to_say'])
   .openapi('StudentGender');
 
+const StudentSchoolSchema = z
+  .object({
+    id: z.uuid(),
+    name: z.string(),
+    shortName: z.string().nullable(),
+  })
+  .openapi('StudentSchool');
+
 const StudentSchema = z
   .object({
     id: z.uuid(),
     orgId: z.uuid(),
     name: z.string(),
     grade: GradeLevelSchema,
-    school: z.string(),
+    school: StudentSchoolSchema.nullable(),
     birthday: z.string().nullable(),
     gender: StudentGenderSchema.nullable(),
     phone: z.string().nullable(),
@@ -71,7 +79,7 @@ const UpdateStudentSchema = z
   .object({
     name: z.string().min(1).optional(),
     grade: GradeLevelSchema.optional(),
-    school: z.string().min(1).optional(),
+    schoolId: z.uuid().nullable().optional(),
     birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD').nullable().optional(),
     gender: StudentGenderSchema.nullable().optional(),
     phone: z.string().nullable().optional(),
@@ -88,7 +96,7 @@ const CreateStudentSchema = z
   .object({
     name: z.string().min(1),
     grade: GradeLevelSchema,
-    school: z.string().min(1),
+    schoolId: z.uuid().nullable().optional(),
     birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD').nullable().optional(),
     gender: StudentGenderSchema.nullable().optional(),
     phone: z.string().nullable().optional(),
@@ -121,12 +129,23 @@ export function toStudentResponse(
   campusNames: string[] = [],
   hasEnrollments: boolean = false,
 ) {
+  const school = row['schools'] as
+    | { id: string; name: string; short_name: string | null }
+    | null
+    | undefined;
+
   return {
     id: row['id'] as string,
     orgId: row['org_id'] as string,
     name: row['name'] as string,
     grade: row['grade'] as string,
-    school: row['school'] as string,
+    school: school
+      ? {
+          id: school.id,
+          name: school.name,
+          shortName: school.short_name,
+        }
+      : null,
     birthday: (row['birthday'] as string | null) ?? null,
     gender: (row['gender'] as string | null) ?? null,
     phone: (row['phone'] as string | null) ?? null,
@@ -154,10 +173,10 @@ export function buildStudentSearchClause(
   }
 
   if (matchedStudentIds.length > 0) {
-    return `name.ilike.%${search}%,school.ilike.%${search}%,id.in.(${matchedStudentIds.join(',')})`;
+    return `name.ilike.%${search}%,id.in.(${matchedStudentIds.join(',')})`;
   }
 
-  return `name.ilike.%${search}%,school.ilike.%${search}%`;
+  return `name.ilike.%${search}%`;
 }
 
 // ============================================================
@@ -207,7 +226,7 @@ app.openapi(
     let query = supabase
       .from('students')
       .select(
-        `*, parent_student_relations(is_primary, relation, parents(id, name)), enrollments(id, classes(campus_id, campuses(name)))`,
+        `*, schools(id, name, short_name), parent_student_relations(is_primary, relation, parents(id, name)), enrollments(id, classes(campus_id, campuses(name)))`,
         { count: 'exact' },
       )
       .eq('org_id', orgId)
@@ -360,7 +379,7 @@ app.openapi(
       org_id: orgId,
       name: body.name,
       grade: body.grade,
-      school: body.school,
+      school_id: body.schoolId ?? null,
     };
     if (body.birthday !== undefined) insertPayload['birthday'] = body.birthday;
     if (body.gender !== undefined) insertPayload['gender'] = body.gender;
@@ -373,7 +392,11 @@ app.openapi(
       insertPayload['emergency_contact_phone'] = body.emergencyContactPhone;
     if (body.notes !== undefined) insertPayload['notes'] = body.notes;
 
-    const { data, error } = await supabase.from('students').insert(insertPayload).select().single();
+    const { data, error } = await supabase
+      .from('students')
+      .insert(insertPayload)
+      .select('*, schools(id, name, short_name)')
+      .single();
 
     if (error || !data) {
       return c.json({ error: '建立學生失敗', message: error?.message ?? '' }, 500);
@@ -419,7 +442,7 @@ app.openapi(
     const { data, error } = await supabase
       .from('students')
       .select(
-        `*, parent_student_relations(
+        `*, schools(id, name, short_name), parent_student_relations(
           id, is_primary, relation,
           parents(id, name, user_id)
         )`,
@@ -508,7 +531,7 @@ app.openapi(
     const updatePayload: Record<string, unknown> = {};
     if (body.name !== undefined) updatePayload['name'] = body.name;
     if (body.grade !== undefined) updatePayload['grade'] = body.grade;
-    if (body.school !== undefined) updatePayload['school'] = body.school;
+    if (body.schoolId !== undefined) updatePayload['school_id'] = body.schoolId;
     if (body.birthday !== undefined) updatePayload['birthday'] = body.birthday;
     if (body.gender !== undefined) updatePayload['gender'] = body.gender;
     if (body.phone !== undefined) updatePayload['phone'] = body.phone;
@@ -528,7 +551,7 @@ app.openapi(
       .update(updatePayload)
       .eq('id', id)
       .eq('org_id', orgId)
-      .select()
+      .select('*, schools(id, name, short_name)')
       .single();
 
     if (error || !data) {

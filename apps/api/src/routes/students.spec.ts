@@ -34,7 +34,11 @@ describe('toStudentResponse', () => {
       org_id: 'org-456',
       name: '林子璿',
       grade: 'J1',
-      school: '台北市立文山國中',
+      schools: {
+        id: 'school-1',
+        name: '台北市立文山國中',
+        short_name: '文山',
+      },
       birthday: '2010-05-15',
       gender: 'male',
       phone: null,
@@ -54,7 +58,11 @@ describe('toStudentResponse', () => {
       orgId: 'org-456',
       name: '林子璿',
       grade: 'J1',
-      school: '台北市立文山國中',
+      school: {
+        id: 'school-1',
+        name: '台北市立文山國中',
+        shortName: '文山',
+      },
       birthday: '2010-05-15',
       gender: 'male',
       emergencyContactName: '林志明',
@@ -71,7 +79,7 @@ describe('toStudentResponse', () => {
 
     const row = {
       id: 'abc-123', org_id: 'org-456', name: '林子璿', grade: 'J1',
-      school: '學校', birthday: null, gender: null, phone: null,
+      schools: null, birthday: null, gender: null, phone: null,
       address: null, emergency_contact_name: null, emergency_contact_phone: null,
       notes: null, is_active: false, created_at: '2026-01-01', updated_at: '2026-01-01',
     };
@@ -80,6 +88,7 @@ describe('toStudentResponse', () => {
 
     expect(result?.['birthday']).toBeNull();
     expect(result?.['gender']).toBeNull();
+    expect(result?.['school']).toBeNull();
     expect(result?.['emergencyContactName']).toBeNull();
     expect(result?.['parentNames']).toEqual([]);
   });
@@ -101,7 +110,7 @@ describe('buildStudentSearchClause', () => {
     ] as ((search: string, matchedStudentIds: string[], searchScope?: string) => string) | undefined;
 
     expect(buildStudentSearchClause?.('劉', ['student-1'], 'default')).toBe(
-      'name.ilike.%劉%,school.ilike.%劉%,id.in.(student-1)',
+      'name.ilike.%劉%,id.in.(student-1)',
     );
   });
 });
