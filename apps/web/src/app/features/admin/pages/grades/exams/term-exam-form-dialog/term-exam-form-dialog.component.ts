@@ -38,16 +38,12 @@ const PERIOD_OPTIONS: Array<{ label: string; value: TermExamPeriod }> = [
   { label: '期末考（下）', value: 'final_2' },
 ];
 
-interface ScheduleRow {
-  schoolId: string | null;
-  examDate: Date | null;
-}
-
 interface FormData {
   academicYear: number;
   semester: 1 | 2;
   period: TermExamPeriod;
-  schedules: ScheduleRow[];
+  schoolId: string | null;
+  examDate: Date | null;
 }
 
 @Component({
@@ -83,7 +79,8 @@ export class TermExamFormDialogComponent implements OnInit {
     academicYear: this.guessAcademicYear(),
     semester: 2,
     period: 'midterm_1',
-    schedules: [],
+    schoolId: null,
+    examDate: null,
   });
 
   protected readonly mode = computed(() => this.config.data?.mode ?? 'create');
@@ -96,14 +93,14 @@ export class TermExamFormDialogComponent implements OnInit {
   protected readonly lockYear = computed(() => this.hasScores() || this.isClosed());
   protected readonly lockSemester = computed(() => this.hasScores() || this.isClosed());
   protected readonly lockPeriod = computed(() => this.hasScores() || this.isClosed());
-  protected readonly lockSchedules = computed(() => this.isClosed());
+  protected readonly lockSchool = computed(() => this.hasScores() || this.isClosed());
+  protected readonly lockExamDate = computed(() => this.isClosed());
 
   protected readonly canSave = computed(() => {
     if (this.isClosed()) return false;
     const f = this.formData();
     if (f.academicYear <= 0 || !f.semester || !f.period) return false;
-    // schedules 若有填就必須選學校（日期可選填）；空陣列則允許（= 未定）
-    return f.schedules.every((s) => !!s.schoolId);
+    return !!f.schoolId;
   });
 
   ngOnInit(): void {
@@ -121,10 +118,8 @@ export class TermExamFormDialogComponent implements OnInit {
               academicYear: data.academicYear,
               semester: data.semester,
               period: data.period,
-              schedules: (data.schedules ?? []).map((s) => ({
-                schoolId: s.schoolId,
-                examDate: s.examDate ? new Date(s.examDate) : null,
-              })),
+              schoolId: data.schoolId,
+              examDate: data.examDate ? new Date(data.examDate) : null,
             });
             this.loading.set(false);
           },
@@ -156,51 +151,13 @@ export class TermExamFormDialogComponent implements OnInit {
       });
   }
 
-  protected updateField<K extends Exclude<keyof FormData, 'schedules'>>(
-    field: K,
-    value: FormData[K],
-  ): void {
+  protected updateField<K extends keyof FormData>(field: K, value: FormData[K]): void {
     this.formData.update((f) => ({ ...f, [field]: value }));
-  }
-
-  protected addSchedule(): void {
-    this.formData.update((f) => ({
-      ...f,
-      schedules: [...f.schedules, { schoolId: null, examDate: null }],
-    }));
-  }
-
-  protected removeSchedule(index: number): void {
-    this.formData.update((f) => ({
-      ...f,
-      schedules: f.schedules.filter((_, i) => i !== index),
-    }));
-  }
-
-  protected updateScheduleSchool(index: number, schoolId: string | null): void {
-    this.formData.update((f) => ({
-      ...f,
-      schedules: f.schedules.map((s, i) => (i === index ? { ...s, schoolId } : s)),
-    }));
-  }
-
-  protected updateScheduleDate(index: number, examDate: Date | null): void {
-    this.formData.update((f) => ({
-      ...f,
-      schedules: f.schedules.map((s, i) => (i === index ? { ...s, examDate } : s)),
-    }));
   }
 
   protected save(): void {
     if (!this.canSave() || this.saving()) return;
     const f = this.formData();
-
-    const validSchedules = f.schedules
-      .filter((s) => !!s.schoolId)
-      .map((s) => ({
-        schoolId: s.schoolId!,
-        examDate: this.toIsoDate(s.examDate),
-      }));
 
     this.saving.set(true);
 
@@ -209,7 +166,8 @@ export class TermExamFormDialogComponent implements OnInit {
       if (!this.lockYear()) input.academicYear = f.academicYear;
       if (!this.lockSemester()) input.semester = f.semester;
       if (!this.lockPeriod()) input.period = f.period;
-      if (!this.lockSchedules()) input.schedules = validSchedules;
+      if (!this.lockSchool() && f.schoolId) input.schoolId = f.schoolId;
+      if (!this.lockExamDate()) input.examDate = this.toIsoDate(f.examDate);
 
       const examId = this.config.data?.examId;
       if (!examId) {
@@ -244,7 +202,8 @@ export class TermExamFormDialogComponent implements OnInit {
       academicYear: f.academicYear,
       semester: f.semester,
       period: f.period,
-      ...(validSchedules.length > 0 ? { schedules: validSchedules } : {}),
+      schoolId: f.schoolId!,
+      examDate: this.toIsoDate(f.examDate),
     };
 
     this.termExamsService.create(input)

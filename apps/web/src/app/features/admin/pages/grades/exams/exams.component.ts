@@ -258,7 +258,7 @@ export class ExamsComponent implements OnInit {
           name: exam.label,
           examDate: exam.examDate,
           status: exam.status,
-          scope: '全科目',
+          scope: exam.schoolName ? `${exam.schoolName} · 全科目` : '全科目',
           scoreCount: exam.scoreCount,
           raw: exam,
         });

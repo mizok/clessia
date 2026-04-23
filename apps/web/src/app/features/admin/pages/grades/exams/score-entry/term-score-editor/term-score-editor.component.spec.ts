@@ -19,6 +19,8 @@ describe('TermScoreEditorComponent', () => {
     label: '114-2 第一次段考',
     examDate: '2026-04-10',
     status: 'active',
+    schoolId: 'sch-1',
+    schoolName: '測試國中',
     summary: { bySubject: [], totalRecordedCount: 0 },
     createdAt: '2026-03-20T00:00:00Z',
     updatedAt: '2026-03-20T00:00:00Z',

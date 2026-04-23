@@ -23,9 +23,28 @@
     } @else if (hasScores()) {
       <div class="term-exam-form-dialog__hint">
         <i class="pi pi-info-circle"></i>
-        已有成績登錄，學年／學期／時段將鎖定以避免資料不一致。
+        已有成績登錄，學年／學期／時段／學校將鎖定以避免資料不一致。
       </div>
     }
+
+    <!-- School -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">就讀學校<span class="form-dialog__required">*</span></label>
+      <p-select
+        [options]="schools()"
+        [ngModel]="formData().schoolId"
+        (ngModelChange)="updateField('schoolId', $event)"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="選擇學校"
+        [filter]="true"
+        filterBy="name,shortName"
+        [disabled]="lockSchool()"
+        [appendTo]="'body'"
+        class="w-full"
+      />
+      <span class="term-exam-form-dialog__hint-text">一場段考代表一所學校的單次考試事件</span>
+    </div>
 
     <!-- Academic Year -->
     <div class="form-dialog__field">
@@ -73,71 +92,20 @@
       />
     </div>
 
-    <!-- Schedules (per-school exam dates) -->
+    <!-- Exam Date -->
     <div class="form-dialog__field">
-      <label class="form-dialog__label">各分校考試日期</label>
-
-      @if (formData().schedules.length === 0) {
-        <div class="term-exam-form-dialog__schedules-empty">
-          尚未設定任何分校排程；若此段考尚未確定日期，可稍後再補。
-        </div>
-      } @else {
-        <div class="term-exam-form-dialog__schedules">
-          <div class="term-exam-form-dialog__schedules-header">
-            <span>學校</span>
-            <span>考試日期</span>
-            <span aria-hidden="true"></span>
-          </div>
-          @for (row of formData().schedules; track $index; let i = $index) {
-            <div class="term-exam-form-dialog__schedule-row">
-              <p-select
-                [options]="schools()"
-                [ngModel]="row.schoolId"
-                (ngModelChange)="updateScheduleSchool(i, $event)"
-                optionLabel="name"
-                optionValue="id"
-                placeholder="選擇學校"
-                [disabled]="lockSchedules()"
-                [appendTo]="'body'"
-                class="w-full"
-              />
-              <p-datepicker
-                [ngModel]="row.examDate"
-                (ngModelChange)="updateScheduleDate(i, $event)"
-                dateFormat="yy-mm-dd"
-                placeholder="選擇日期（選填）"
-                [disabled]="lockSchedules()"
-                [appendTo]="'body'"
-                [showIcon]="true"
-                styleClass="w-full"
-              />
-              <button
-                type="button"
-                pButton
-                icon="pi pi-trash"
-                severity="danger"
-                [text]="true"
-                [rounded]="true"
-                [disabled]="lockSchedules()"
-                (click)="removeSchedule(i)"
-                aria-label="移除此排程"
-              ></button>
-            </div>
-          }
-        </div>
-      }
-
-      <button
-        type="button"
-        pButton
-        icon="pi pi-plus"
-        label="新增學校排程"
-        [text]="true"
-        size="small"
-        [disabled]="lockSchedules()"
-        (click)="addSchedule()"
-        class="term-exam-form-dialog__schedule-add"
-      ></button>
+      <label class="form-dialog__label">考試日期</label>
+      <p-datepicker
+        [ngModel]="formData().examDate"
+        (ngModelChange)="updateField('examDate', $event)"
+        dateFormat="yy-mm-dd"
+        placeholder="選擇日期（選填）"
+        [disabled]="lockExamDate()"
+        [appendTo]="'body'"
+        [showIcon]="true"
+        styleClass="w-full"
+      />
+      <span class="term-exam-form-dialog__hint-text">若日期尚未確定可稍後再補</span>
     </div>
 
     <!-- Footer -->
