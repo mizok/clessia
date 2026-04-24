@@ -88,6 +88,13 @@
           [disabled]="loading()"
           [minDate]="startDate() ?? undefined"
         />
+        @if (willBecomeHistorical()) {
+          <app-inline-notice
+            severity="warn"
+            detail="結束日期在今日之前，儲存後此班級將成為歷史班級"
+            [dismissible]="false"
+          />
+        }
       </div>
     </div>
 
@@ -173,39 +180,15 @@
       (onClick)="cancel()"
     />
     <p-button
-      [label]="isEditing() ? '儲存' : '建立'"
-      [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+      [label]="willBecomeHistorical() ? '確定歸檔' : isEditing() ? '儲存' : '建立'"
+      [icon]="loading() ? 'pi pi-spinner pi-spin' : willBecomeHistorical() ? 'pi pi-history' : 'pi pi-check'"
+      [severity]="willBecomeHistorical() ? 'warn' : 'primary'"
       [loading]="loading()"
       (onClick)="save()"
       [disabled]="!formData().name.trim()"
     />
   </div>
 </div>
-
-<!-- Historical Class Warning Modal -->
-@if (historicalWarningVisible()) {
-  <div class="conflict-modal-overlay">
-    <div class="conflict-modal">
-      <div class="conflict-modal__header">
-        <i class="pi pi-history"></i>
-        <h3>將成為歷史班級</h3>
-      </div>
-      <div class="conflict-modal__body">
-        <p>結束日期設定在今日之前，儲存後此班級將被視為<strong>歷史班級</strong>，不會出現在一般班級列表中。</p>
-        <p>確定要繼續嗎？</p>
-      </div>
-      <div class="conflict-modal__footer">
-        <p-button
-          label="返回修改"
-          [text]="true"
-          severity="secondary"
-          (onClick)="historicalWarningVisible.set(false)"
-        />
-        <p-button label="確定歸檔" severity="warn" (onClick)="proceedSaveAfterHistoricalWarning()" />
-      </div>
-    </div>
-  </div>
-}
 
 <!-- Conflict Warning Modal (Nested inside dialog but visible via signal) -->
 @if (conflictDialogVisible()) {

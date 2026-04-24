@@ -118,7 +118,9 @@ export class ClassFormDialogComponent {
 
   protected readonly pendingConflicts = signal<ScheduleConflict[]>([]);
   protected readonly conflictDialogVisible = signal(false);
-  protected readonly historicalWarningVisible = signal(false);
+  protected readonly willBecomeHistorical = computed(
+    () => this.isEditing() && this.isEndDateInPast(),
+  );
   protected readonly formValidationMessage = signal<string | null>(null);
 
   protected updateForm(field: keyof ReturnType<typeof this.formData>, value: any): void {
@@ -182,12 +184,6 @@ export class ClassFormDialogComponent {
       return;
     }
 
-    // Historical class warning（編輯模式且結束日期在過去）
-    if (this.isEditing() && this.isEndDateInPast()) {
-      this.historicalWarningVisible.set(true);
-      return;
-    }
-
     // Conflict check for NEW schedules (only when teacherId is set)
     const toCheck: CheckConflictScheduleInput[] = this.scheduleEntries()
       .filter((e) => !e.id && !!e.teacherId && !!e.weekday)
@@ -226,42 +222,6 @@ export class ClassFormDialogComponent {
   protected proceedSaveDespiteConflicts(): void {
     this.conflictDialogVisible.set(false);
     this.doSave();
-  }
-
-  protected proceedSaveAfterHistoricalWarning(): void {
-    this.historicalWarningVisible.set(false);
-    // 繼續走衝突檢查流程
-    const toCheck: CheckConflictScheduleInput[] = this.scheduleEntries()
-      .filter((e) => !e.id && !!e.teacherId && !!e.weekday)
-      .map((e) => ({
-        weekday: e.weekday!,
-        startTime: e.startTime,
-        endTime: e.endTime,
-        teacherId: e.teacherId!,
-        effectiveTo: e.effectiveTo,
-      }));
-
-    if (toCheck.length === 0) {
-      this.doSave();
-      return;
-    }
-
-    this.loading.set(true);
-    this.classesService.checkScheduleConflicts(toCheck, this.cls()?.id).subscribe({
-      next: (res) => {
-        this.loading.set(false);
-        if (res.conflicts.length > 0) {
-          this.pendingConflicts.set(res.conflicts);
-          this.conflictDialogVisible.set(true);
-        } else {
-          this.doSave();
-        }
-      },
-      error: () => {
-        this.loading.set(false);
-        this.doSave();
-      },
-    });
   }
 
   private doSave(): void {
