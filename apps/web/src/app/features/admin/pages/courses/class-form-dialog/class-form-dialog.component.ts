@@ -78,6 +78,17 @@ export class ClassFormDialogComponent {
   protected readonly endDate = signal<Date | null>(
     this.cls()?.endDate ? new Date(this.cls()!.endDate + 'T00:00:00') : null,
   );
+  protected readonly endDateMin = computed<Date | undefined>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = this.startDate();
+    if (this.isEditing()) {
+      // 編輯模式：不允許設定到過去，minDate = max(today, startDate)
+      return start && start > today ? start : today;
+    }
+    // 新增模式：只限制不早於開始日期
+    return start ?? undefined;
+  });
 
   protected readonly scheduleEntries = signal<ScheduleFormEntry[]>(
     (this.cls()?.schedules ?? []).map((s) => ({
@@ -118,9 +129,6 @@ export class ClassFormDialogComponent {
 
   protected readonly pendingConflicts = signal<ScheduleConflict[]>([]);
   protected readonly conflictDialogVisible = signal(false);
-  protected readonly willBecomeHistorical = computed(
-    () => this.isEditing() && this.isEndDateInPast(),
-  );
   protected readonly formValidationMessage = signal<string | null>(null);
 
   protected updateForm(field: keyof ReturnType<typeof this.formData>, value: any): void {
@@ -386,16 +394,6 @@ export class ClassFormDialogComponent {
       }
     }
     return null;
-  }
-
-  private isEndDateInPast(): boolean {
-    const end = this.endDate();
-    if (!end) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const endDay = new Date(end);
-    endDay.setHours(0, 0, 0, 0);
-    return endDay < today;
   }
 
   protected cancel(): void {

@@ -86,15 +86,8 @@
           styleClass="w-full"
           [appendTo]="'body'"
           [disabled]="loading()"
-          [minDate]="startDate() ?? undefined"
+          [minDate]="endDateMin()"
         />
-        @if (willBecomeHistorical()) {
-          <app-inline-notice
-            severity="warn"
-            detail="結束日期在今日之前，儲存後此班級將成為歷史班級"
-            [dismissible]="false"
-          />
-        }
       </div>
     </div>
 
@@ -180,9 +173,8 @@
       (onClick)="cancel()"
     />
     <p-button
-      [label]="willBecomeHistorical() ? '確定歸檔' : isEditing() ? '儲存' : '建立'"
-      [icon]="loading() ? 'pi pi-spinner pi-spin' : willBecomeHistorical() ? 'pi pi-history' : 'pi pi-check'"
-      [severity]="willBecomeHistorical() ? 'warn' : 'primary'"
+      [label]="isEditing() ? '儲存' : '建立'"
+      [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
       [loading]="loading()"
       (onClick)="save()"
       [disabled]="!formData().name.trim()"
