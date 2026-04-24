@@ -1,7 +1,9 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { format } from 'date-fns';
 import { ButtonModule } from 'primeng/button';
+import { DatePickerModule } from 'primeng/datepicker';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { SelectModule } from 'primeng/select';
@@ -20,6 +22,7 @@ import {
 } from '@core/classes.service';
 import { Course } from '@core/courses.service';
 import { Staff } from '@core/staff.service';
+import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
 export interface ScheduleFormEntry {
   id?: string;
@@ -37,11 +40,13 @@ export interface ScheduleFormEntry {
     CommonModule,
     FormsModule,
     ButtonModule,
+    DatePickerModule,
     InputTextModule,
     InputNumberModule,
     SelectModule,
     ToggleSwitch,
     TooltipModule,
+    InlineNoticeComponent,
   ],
   templateUrl: './class-form-dialog.component.html',
   styleUrl: './class-form-dialog.component.scss',
@@ -67,6 +72,12 @@ export class ClassFormDialogComponent {
     nextClassId: this.cls()?.nextClassId ?? null,
     isActive: this.cls()?.isActive ?? true,
   });
+  protected readonly startDate = signal<Date | null>(
+    this.cls()?.startDate ? new Date(this.cls()!.startDate + 'T00:00:00') : null,
+  );
+  protected readonly endDate = signal<Date | null>(
+    this.cls()?.endDate ? new Date(this.cls()!.endDate + 'T00:00:00') : null,
+  );
 
   protected readonly scheduleEntries = signal<ScheduleFormEntry[]>(
     (this.cls()?.schedules ?? []).map((s) => ({
@@ -107,6 +118,7 @@ export class ClassFormDialogComponent {
 
   protected readonly pendingConflicts = signal<ScheduleConflict[]>([]);
   protected readonly conflictDialogVisible = signal(false);
+  protected readonly historicalWarningVisible = signal(false);
   protected readonly formValidationMessage = signal<string | null>(null);
 
   protected updateForm(field: keyof ReturnType<typeof this.formData>, value: any): void {
@@ -170,6 +182,12 @@ export class ClassFormDialogComponent {
       return;
     }
 
+    // Historical class warning（編輯模式且結束日期在過去）
+    if (this.isEditing() && this.isEndDateInPast()) {
+      this.historicalWarningVisible.set(true);
+      return;
+    }
+
     // Conflict check for NEW schedules (only when teacherId is set)
     const toCheck: CheckConflictScheduleInput[] = this.scheduleEntries()
       .filter((e) => !e.id && !!e.teacherId && !!e.weekday)
@@ -210,6 +228,42 @@ export class ClassFormDialogComponent {
     this.doSave();
   }
 
+  protected proceedSaveAfterHistoricalWarning(): void {
+    this.historicalWarningVisible.set(false);
+    // 繼續走衝突檢查流程
+    const toCheck: CheckConflictScheduleInput[] = this.scheduleEntries()
+      .filter((e) => !e.id && !!e.teacherId && !!e.weekday)
+      .map((e) => ({
+        weekday: e.weekday!,
+        startTime: e.startTime,
+        endTime: e.endTime,
+        teacherId: e.teacherId!,
+        effectiveTo: e.effectiveTo,
+      }));
+
+    if (toCheck.length === 0) {
+      this.doSave();
+      return;
+    }
+
+    this.loading.set(true);
+    this.classesService.checkScheduleConflicts(toCheck, this.cls()?.id).subscribe({
+      next: (res) => {
+        this.loading.set(false);
+        if (res.conflicts.length > 0) {
+          this.pendingConflicts.set(res.conflicts);
+          this.conflictDialogVisible.set(true);
+        } else {
+          this.doSave();
+        }
+      },
+      error: () => {
+        this.loading.set(false);
+        this.doSave();
+      },
+    });
+  }
+
   private doSave(): void {
     this.loading.set(true);
     const form = this.formData();
@@ -219,6 +273,8 @@ export class ClassFormDialogComponent {
         name: form.name.trim(),
         maxStudents: form.maxStudents,
         nextClassId: form.nextClassId,
+        startDate: this.startDate() ? format(this.startDate()!, 'yyyy-MM-dd') : null,
+        endDate: this.endDate() ? format(this.endDate()!, 'yyyy-MM-dd') : null,
         isActive: form.isActive,
       };
       this.classesService.update(this.cls()!.id, updateInput).subscribe({
@@ -240,6 +296,8 @@ export class ClassFormDialogComponent {
         name: form.name.trim(),
         maxStudents: form.maxStudents,
         nextClassId: form.nextClassId,
+        startDate: this.startDate() ? format(this.startDate()!, 'yyyy-MM-dd') : null,
+        endDate: this.endDate() ? format(this.endDate()!, 'yyyy-MM-dd') : null,
       };
       this.classesService.create(input).subscribe({
         next: (res) => {
@@ -368,6 +426,16 @@ export class ClassFormDialogComponent {
       }
     }
     return null;
+  }
+
+  private isEndDateInPast(): boolean {
+    const end = this.endDate();
+    if (!end) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDay = new Date(end);
+    endDay.setHours(0, 0, 0, 0);
+    return endDay < today;
   }
 
   protected cancel(): void {

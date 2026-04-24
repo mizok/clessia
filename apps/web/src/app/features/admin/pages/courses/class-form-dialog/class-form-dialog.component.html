@@ -58,6 +58,39 @@
       />
     </div>
 
+    <!-- Date Range -->
+    <div class="form-dialog__row">
+      <div class="form-dialog__field">
+        <label class="form-dialog__label">開始日期</label>
+        <p-datepicker
+          [ngModel]="startDate()"
+          (ngModelChange)="startDate.set($event)"
+          dateFormat="yy-mm-dd"
+          [showIcon]="true"
+          [showClear]="true"
+          placeholder="不限"
+          styleClass="w-full"
+          [appendTo]="'body'"
+          [disabled]="loading()"
+        />
+      </div>
+      <div class="form-dialog__field">
+        <label class="form-dialog__label">結束日期</label>
+        <p-datepicker
+          [ngModel]="endDate()"
+          (ngModelChange)="endDate.set($event)"
+          dateFormat="yy-mm-dd"
+          [showIcon]="true"
+          [showClear]="true"
+          placeholder="不限"
+          styleClass="w-full"
+          [appendTo]="'body'"
+          [disabled]="loading()"
+          [minDate]="startDate() ?? undefined"
+        />
+      </div>
+    </div>
+
     <!-- Schedules Section -->
     <div class="form-dialog__section">
       <div class="form-dialog__section-header">
@@ -76,10 +109,11 @@
       </div>
 
       @if (formValidationMessage()) {
-        <div class="form-dialog__error-inline">
-          <i class="pi pi-exclamation-triangle"></i>
-          <span>{{ formValidationMessage() }}</span>
-        </div>
+        <app-inline-notice
+          severity="error"
+          [detail]="formValidationMessage()"
+          [dismissible]="false"
+        />
       }
 
       @if (scheduleEntries().length === 0) {
@@ -147,6 +181,31 @@
     />
   </div>
 </div>
+
+<!-- Historical Class Warning Modal -->
+@if (historicalWarningVisible()) {
+  <div class="conflict-modal-overlay">
+    <div class="conflict-modal">
+      <div class="conflict-modal__header">
+        <i class="pi pi-history"></i>
+        <h3>將成為歷史班級</h3>
+      </div>
+      <div class="conflict-modal__body">
+        <p>結束日期設定在今日之前，儲存後此班級將被視為<strong>歷史班級</strong>，不會出現在一般班級列表中。</p>
+        <p>確定要繼續嗎？</p>
+      </div>
+      <div class="conflict-modal__footer">
+        <p-button
+          label="返回修改"
+          [text]="true"
+          severity="secondary"
+          (onClick)="historicalWarningVisible.set(false)"
+        />
+        <p-button label="確定歸檔" severity="warn" (onClick)="proceedSaveAfterHistoricalWarning()" />
+      </div>
+    </div>
+  </div>
+}
 
 <!-- Conflict Warning Modal (Nested inside dialog but visible via signal) -->
 @if (conflictDialogVisible()) {

@@ -9,20 +9,6 @@
   padding: var(--space-4);
 }
 
-:host ::ng-deep .form-dialog__error-inline {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: var(--space-3) var(--space-4) 0;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--p-red-200);
-  background: var(--p-red-50);
-  color: var(--p-red-700);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-}
-
 .schedule-entry {
   position: relative;
   display: flex;
@@ -78,15 +64,6 @@
 
   &__weekday {
     min-width: 90px;
-  }
-
-  &__teacher {
-    width: 100%;
-    min-width: 280px;
-
-    ::ng-deep .p-select-label {
-      padding: var(--space-2) var(--space-3) !important;
-    }
   }
 
   &__time-input,
