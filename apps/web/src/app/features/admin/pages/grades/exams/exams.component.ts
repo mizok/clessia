@@ -44,8 +44,8 @@ import {
 // Dialogs
 import { AcademyExamFormDialogComponent } from './academy-exam-form-dialog/academy-exam-form-dialog.component';
 import type { AcademyExamFormDialogResult } from './academy-exam-form-dialog/academy-exam-form-dialog.component';
-import { TermExamFormDialogComponent } from './term-exam-form-dialog/term-exam-form-dialog.component';
-import type { TermExamFormDialogResult } from './term-exam-form-dialog/term-exam-form-dialog.component';
+import { SchoolExamFormDialogComponent } from './school-exam-form-dialog/school-exam-form-dialog.component';
+import type { SchoolExamFormDialogResult } from './school-exam-form-dialog/school-exam-form-dialog.component';
 
 // Services
 import {
@@ -55,16 +55,17 @@ import {
   type AcademyExamType,
 } from '@core/academy-exams.service';
 import {
-  TermExamsService,
-  type TermExam,
-  type TermExamStatus,
-} from '@core/term-exams.service';
+  SchoolExamsService,
+  type SchoolExam,
+  type SchoolExamStatus,
+  schoolExamTypeLabel,
+} from '@core/school-exams.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { subMonths } from 'date-fns';
 
-type ExamKind = 'academy' | 'term';
+type ExamKind = 'academy' | 'school';
 type ExamTypeFilter = 'all' | ExamKind;
 type StatusFilter = 'all' | 'active' | 'closed';
 type TimeRange = 'all' | '1m' | '3m' | '6m';
@@ -83,18 +84,18 @@ export interface AcademyExamRow {
   readonly raw: AcademyExam;
 }
 
-export interface TermExamRow {
-  readonly kind: 'term';
+export interface SchoolExamRow {
+  readonly kind: 'school';
   readonly id: string;
   readonly name: string;
   readonly examDate: string | null;
-  readonly status: TermExamStatus;
+  readonly status: SchoolExamStatus;
   readonly scope: string;
   readonly scoreCount: number;
-  readonly raw: TermExam;
+  readonly raw: SchoolExam;
 }
 
-export type ExamRow = AcademyExamRow | TermExamRow;
+export type ExamRow = AcademyExamRow | SchoolExamRow;
 
 const ACADEMY_EXAM_TYPE_LABELS: Record<AcademyExamType, string> = {
   quiz: '小考',
@@ -105,7 +106,7 @@ const ACADEMY_EXAM_TYPE_LABELS: Record<AcademyExamType, string> = {
 const EXAM_TYPE_OPTIONS: Array<{ label: string; value: ExamTypeFilter }> = [
   { label: '全部', value: 'all' },
   { label: '補習班考試', value: 'academy' },
-  { label: '段考', value: 'term' },
+  { label: '學校考試', value: 'school' },
 ];
 
 const STATUS_OPTIONS: Array<{ label: string; value: StatusFilter }> = [
@@ -152,7 +153,7 @@ export class ExamsComponent implements OnInit {
   readonly page = input<RouteObj>();
 
   private readonly academyExamsService = inject(AcademyExamsService);
-  private readonly termExamsService = inject(TermExamsService);
+  private readonly schoolExamsService = inject(SchoolExamsService);
   private readonly refData = inject(ReferenceDataService);
   private readonly messageService = inject(MessageService);
   private readonly dialogService = inject(DialogService);
@@ -178,7 +179,7 @@ export class ExamsComponent implements OnInit {
 
   // Data
   protected readonly academyExams = signal<AcademyExam[]>([]);
-  protected readonly termExams = signal<TermExam[]>([]);
+  protected readonly schoolExams = signal<SchoolExam[]>([]);
   protected readonly loading = signal(true);
 
   // Filters
@@ -223,7 +224,7 @@ export class ExamsComponent implements OnInit {
     const rows: ExamRow[] = [];
 
     // Academy 段
-    if (typeFilter !== 'term') {
+    if (typeFilter !== 'school') {
       for (const exam of this.academyExams()) {
         if (campus && exam.campusId !== campus) continue;
         if (subject && exam.subjectId !== subject) continue;
@@ -248,12 +249,12 @@ export class ExamsComponent implements OnInit {
 
     // Term 段（campus / subject 不適用 → 設定時直接過濾）
     if (typeFilter !== 'academy' && !campus && !subject) {
-      for (const exam of this.termExams()) {
+      for (const exam of this.schoolExams()) {
         if (status !== 'all' && exam.status !== status) continue;
         if (keyword && !exam.label.toLowerCase().includes(keyword)) continue;
         if (cutoff && exam.examDate && new Date(exam.examDate) < cutoff) continue;
         rows.push({
-          kind: 'term',
+          kind: 'school',
           id: exam.id,
           name: exam.label,
           examDate: exam.examDate,
@@ -306,10 +307,10 @@ export class ExamsComponent implements OnInit {
     const pendingAcademy = this.academyExams().filter(
       (e) => e.status === 'active' && e.scoreCount === 0,
     ).length;
-    const pendingTerm = this.termExams().filter(
+    const pendingSchool = this.schoolExams().filter(
       (e) => e.status === 'active' && e.scoreCount === 0,
     ).length;
-    return pendingAcademy + pendingTerm;
+    return pendingAcademy + pendingSchool;
   });
 
   // Action menu
@@ -364,9 +365,9 @@ export class ExamsComponent implements OnInit {
       command: () => this.openCreateAcademyDialog(),
     },
     {
-      label: '新增段考',
+      label: '新增學校考試',
       icon: 'pi pi-calendar',
-      command: () => this.openCreateTermDialog(),
+      command: () => this.openCreateSchoolDialog(),
     },
   ];
 
@@ -385,13 +386,13 @@ export class ExamsComponent implements OnInit {
     this.loading.set(true);
     forkJoin({
       academy: this.academyExamsService.list({ pageSize: 200 }),
-      term: this.termExamsService.list({ pageSize: 200 }),
+      school: this.schoolExamsService.list({ pageSize: 200 }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ academy, term }) => {
+        next: ({ academy, school }) => {
           this.academyExams.set(academy.data);
-          this.termExams.set(term.data);
+          this.schoolExams.set(school.data);
           this.loading.set(false);
         },
         error: () => {
@@ -453,7 +454,7 @@ export class ExamsComponent implements OnInit {
 
   // ── Row helpers ───────────────────────────────────────────────────────
   protected getKindLabel(kind: ExamKind): string {
-    return kind === 'academy' ? '補習班考試' : '段考';
+    return kind === 'academy' ? '補習班考試' : '學校考試';
   }
 
   protected getKindSeverity(kind: ExamKind): 'info' | 'contrast' {
@@ -464,12 +465,19 @@ export class ExamsComponent implements OnInit {
     return ACADEMY_EXAM_TYPE_LABELS[type];
   }
 
-  protected getStatusLabel(status: AcademyExamStatus | TermExamStatus): string {
+  protected getSchoolDisplayName(row: ExamRow): string {
+    if (row.kind !== 'school') return row.name;
+    const typeLabel = schoolExamTypeLabel(row.raw.examType);
+    const customName = row.raw.name?.trim();
+    return customName ? `${typeLabel} · ${customName}` : typeLabel;
+  }
+
+  protected getStatusLabel(status: AcademyExamStatus | SchoolExamStatus): string {
     return status === 'active' ? '進行中' : '已結束';
   }
 
   protected getStatusSeverity(
-    status: AcademyExamStatus | TermExamStatus,
+    status: AcademyExamStatus | SchoolExamStatus,
   ): 'success' | 'secondary' {
     return status === 'active' ? 'success' : 'secondary';
   }
@@ -512,7 +520,7 @@ export class ExamsComponent implements OnInit {
     if (row.kind === 'academy') {
       this.openAcademyDialog('edit', row.id);
     } else {
-      this.openTermDialog('edit', row.id);
+      this.openSchoolDialog('edit', row.id);
     }
   }
 
@@ -520,8 +528,8 @@ export class ExamsComponent implements OnInit {
     this.openAcademyDialog('create');
   }
 
-  protected openCreateTermDialog(): void {
-    this.openTermDialog('create');
+  protected openCreateSchoolDialog(): void {
+    this.openSchoolDialog('create');
   }
 
   private openAcademyDialog(mode: 'create' | 'edit', examId?: string): void {
@@ -541,9 +549,9 @@ export class ExamsComponent implements OnInit {
       });
   }
 
-  private openTermDialog(mode: 'create' | 'edit', examId?: string): void {
-    const ref = this.dialogService.open(TermExamFormDialogComponent, {
-      header: mode === 'create' ? '新增段考' : '編輯段考',
+  private openSchoolDialog(mode: 'create' | 'edit', examId?: string): void {
+    const ref = this.dialogService.open(SchoolExamFormDialogComponent, {
+      header: mode === 'create' ? '新增學校考試' : '編輯學校考試',
       width: 'min(480px, 96vw)',
       modal: true,
       showHeader: false,
@@ -553,7 +561,7 @@ export class ExamsComponent implements OnInit {
     if (!ref) return;
     ref.onClose
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((result: TermExamFormDialogResult | undefined) => {
+      .subscribe((result: SchoolExamFormDialogResult | undefined) => {
         if (result) this.loadExams();
       });
   }
@@ -574,7 +582,7 @@ export class ExamsComponent implements OnInit {
     const call$ =
       row.kind === 'academy'
         ? this.academyExamsService.close(row.id)
-        : this.termExamsService.close(row.id);
+        : this.schoolExamsService.close(row.id);
     call$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.messageService.add({
@@ -598,7 +606,7 @@ export class ExamsComponent implements OnInit {
     const call$ =
       row.kind === 'academy'
         ? this.academyExamsService.reopen(row.id)
-        : this.termExamsService.reopen(row.id);
+        : this.schoolExamsService.reopen(row.id);
     call$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.messageService.add({
@@ -634,7 +642,7 @@ export class ExamsComponent implements OnInit {
     const call$ =
       row.kind === 'academy'
         ? this.academyExamsService.delete(row.id)
-        : this.termExamsService.delete(row.id);
+        : this.schoolExamsService.delete(row.id);
     call$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.messageService.add({

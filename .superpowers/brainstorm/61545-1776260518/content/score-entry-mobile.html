@@ -1,0 +1,77 @@
+<h2>成績登錄 — 手機版學生列表設計</h2>
+<p class="subtitle">目前每個學生是一張完整卡片（分數/狀態/備註全攤開），佔空間大且找人困難。<br>以下是兩種改善方向：</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>緊湊列表 + 點擊展開</h3>
+      <p>每個學生只顯示一行：<strong>姓名 · 年級 · 分數</strong>（或「未登錄」）。點擊該行展開 inline 編輯區（分數輸入、狀態、備註）。同一時間只展開一個學生。</p>
+      <div style="margin-top:12px; padding:16px; background:#f8fafc; border-radius:8px; font-size:13px; font-family:monospace; line-height:2.2;">
+        <div style="display:flex; justify-content:space-between; padding:8px 12px; background:#fff; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:4px;">
+          <span>王小明 · 國二</span>
+          <span style="color:#94a3b8;">未登錄 ▾</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:8px 12px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; margin-bottom:2px;">
+          <span>李小華 · 國一</span>
+          <span style="color:#0369a1; font-weight:600;">85 ▴</span>
+        </div>
+        <div style="padding:12px; background:#fff; border:1px solid #bae6fd; border-top:0; border-radius:0 0 6px 6px; margin-bottom:4px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <span style="flex:1; padding:6px 10px; background:#f1f5f9; border-radius:4px;">分數: <strong>85</strong></span>
+            <span style="flex:1; padding:6px 10px; background:#f1f5f9; border-radius:4px;">狀態: 已登錄</span>
+          </div>
+          <div style="margin-top:6px; padding:6px 10px; background:#f1f5f9; border-radius:4px;">備註: ...</div>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:8px 12px; background:#fff; border:1px solid #e2e8f0; border-radius:6px; margin-bottom:4px;">
+          <span>張三 · 國二</span>
+          <span style="color:#059669; font-weight:600;">92</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:8px 12px; background:#fff; border:1px solid #e2e8f0; border-radius:6px;">
+          <span>陳美麗 · 國一</span>
+          <span style="color:#dc2626;">45 ⚠</span>
+        </div>
+      </div>
+      <div style="margin-top:8px; font-size:13px; color:#64748b;">
+        ✓ 一屏可見 6-8 個學生<br>
+        ✓ 快速掃描誰已登錄/未登錄<br>
+        ✓ 展開後原地編輯，不跳頁
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>純列表 + 點擊開 Bottom Sheet</h3>
+      <p>學生列表更極致精簡，每行只有<strong>姓名 + 分數</strong>。點擊後從底部滑出 sheet 做編輯，編輯完自動關閉回到列表。</p>
+      <div style="margin-top:12px; padding:16px; background:#f8fafc; border-radius:8px; font-size:13px; font-family:monospace; line-height:2.2;">
+        <div style="display:flex; justify-content:space-between; padding:6px 12px; border-bottom:1px solid #f1f5f9;">
+          <span>王小明</span>
+          <span style="color:#94a3b8;">—</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:6px 12px; border-bottom:1px solid #f1f5f9;">
+          <span>李小華</span>
+          <span style="color:#0369a1; font-weight:600;">85</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:6px 12px; border-bottom:1px solid #f1f5f9;">
+          <span>張三</span>
+          <span style="color:#059669; font-weight:600;">92</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:6px 12px; border-bottom:1px solid #f1f5f9;">
+          <span>陳美麗</span>
+          <span style="color:#dc2626;">45 ⚠</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:6px 12px;">
+          <span>林小傑</span>
+          <span style="color:#94a3b8;">—</span>
+        </div>
+      </div>
+      <div style="margin-top:8px; font-size:13px; color:#64748b;">
+        ✓ 一屏可見 10+ 個學生<br>
+        ✓ 列表最精簡，掃描最快<br>
+        ✗ 編輯需要額外的彈出步驟
+      </div>
+    </div>
+  </div>
+</div>

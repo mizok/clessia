@@ -1,7 +1,7 @@
-<div class="term-score-editor">
+<div class="school-score-editor">
   <!-- Toolbar -->
-  <div class="term-score-editor__toolbar">
-    <div class="term-score-editor__toolbar-row">
+  <div class="school-score-editor__toolbar">
+    <div class="school-score-editor__toolbar-row">
       <p-select
         [options]="campusOptions()"
         [ngModel]="campusId()"
@@ -11,7 +11,7 @@
         placeholder="選擇分校"
         size="small"
         [appendTo]="'body'"
-        styleClass="term-score-editor__campus-select"
+        styleClass="school-score-editor__campus-select"
       />
       <p-select
         [options]="gradeOptions"
@@ -23,9 +23,9 @@
         [showClear]="true"
         size="small"
         [appendTo]="'body'"
-        styleClass="term-score-editor__grade-select"
+        styleClass="school-score-editor__grade-select"
       />
-      <div class="term-score-editor__search">
+      <div class="school-score-editor__search">
         <p-iconfield iconPosition="left">
           <p-inputicon styleClass="pi pi-search" />
           <input
@@ -34,12 +34,12 @@
             [ngModel]="searchTerm()"
             (ngModelChange)="onSearchInput($event)"
             placeholder="搜尋學生姓名"
-            class="term-score-editor__search-input"
+            class="school-score-editor__search-input"
           />
         </p-iconfield>
       </div>
     </div>
-    <div class="term-score-editor__toolbar-row">
+    <div class="school-score-editor__toolbar-row">
       <p-selectbutton
         [options]="studentStatusOptions"
         [ngModel]="statusFilter()"
@@ -53,12 +53,12 @@
 
   <!-- Student list -->
   @if (loadingStudents()) {
-    <div class="term-score-editor__hint">
+    <div class="school-score-editor__hint">
       <i class="pi pi-spinner pi-spin"></i>
       載入學生列表...
     </div>
   } @else if (students().length === 0) {
-    <div class="term-score-editor__empty">
+    <div class="school-score-editor__empty">
       <i class="pi pi-users"></i>
       <span>
         @if (statusFilter() === 'pending') {
@@ -69,24 +69,24 @@
       </span>
     </div>
   } @else {
-    <div class="term-score-editor__list">
+    <div class="school-score-editor__list">
       @for (s of students(); track s.studentId) {
         <button
           type="button"
-          class="term-score-editor__row"
+          class="school-score-editor__row"
           (click)="openStudentDialog(s)"
         >
-          <div class="term-score-editor__row-main">
-            <span class="term-score-editor__row-name">{{ s.studentName }}</span>
-            <span class="term-score-editor__row-grade">{{ formatGrade(s.studentGrade) }}</span>
+          <div class="school-score-editor__row-main">
+            <span class="school-score-editor__row-name">{{ s.studentName }}</span>
+            <span class="school-score-editor__row-grade">{{ formatGrade(s.studentGrade) }}</span>
           </div>
-          <div class="term-score-editor__row-end">
+          <div class="school-score-editor__row-end">
             <p-tag
               [value]="getProgressText(s)"
               [severity]="getProgressSeverity(s)"
               [rounded]="true"
             />
-            <i class="pi pi-chevron-right term-score-editor__row-chevron"></i>
+            <i class="pi pi-chevron-right school-score-editor__row-chevron"></i>
           </div>
         </button>
       }
@@ -113,15 +113,15 @@
     [style]="{ width: '640px', maxWidth: '95vw' }"
     [contentStyle]="{ 'max-height': 'calc(var(--window-height, 667px) * 0.65)', overflow: 'auto' }"
     (onHide)="onDialogHide()"
-    styleClass="term-score-editor__dialog"
+    styleClass="school-score-editor__dialog"
   >
     <ng-template #header>
       @if (dialogStudent(); as ds) {
-        <div class="term-score-editor__dialog-header">
-          <span class="term-score-editor__dialog-name">{{ ds.studentName }}</span>
-          <span class="term-score-editor__dialog-grade">{{ formatGrade(ds.studentGrade) }}</span>
+        <div class="school-score-editor__dialog-header">
+          <span class="school-score-editor__dialog-name">{{ ds.studentName }}</span>
+          <span class="school-score-editor__dialog-grade">{{ formatGrade(ds.studentGrade) }}</span>
           @if (isDirty()) {
-            <span class="term-score-editor__dialog-dirty">
+            <span class="school-score-editor__dialog-dirty">
               <i class="pi pi-circle-fill"></i>
               {{ dirtyCount() }} 科未儲存
             </span>
@@ -132,32 +132,32 @@
 
     @if (dialogStudent(); as ds) {
       @if (ds.loading) {
-        <div class="term-score-editor__dialog-loading">
+        <div class="school-score-editor__dialog-loading">
           <i class="pi pi-spinner pi-spin"></i>
           載入成績中...
         </div>
       } @else {
         <!-- Desktop table -->
-        <div class="term-score-editor__table-wrap">
-          <table class="term-score-editor__table">
+        <div class="school-score-editor__table-wrap">
+          <table class="school-score-editor__table">
             <thead>
               <tr>
-                <th class="term-score-editor__th term-score-editor__th--subject">科目</th>
-                <th class="term-score-editor__th term-score-editor__th--score">分數</th>
-                <th class="term-score-editor__th term-score-editor__th--status">狀態</th>
-                <th class="term-score-editor__th">備註</th>
+                <th class="school-score-editor__th school-score-editor__th--subject">科目</th>
+                <th class="school-score-editor__th school-score-editor__th--score">分數</th>
+                <th class="school-score-editor__th school-score-editor__th--status">狀態</th>
+                <th class="school-score-editor__th">備註</th>
               </tr>
             </thead>
             <tbody>
               @for (row of ds.rows; track row.subjectId) {
                 <tr
-                  class="term-score-editor__tr"
-                  [class.term-score-editor__tr--dirty]="isRowDirty(row)"
+                  class="school-score-editor__tr"
+                  [class.school-score-editor__tr--dirty]="isRowDirty(row)"
                 >
-                  <td class="term-score-editor__cell term-score-editor__cell--subject">
+                  <td class="school-score-editor__cell school-score-editor__cell--subject">
                     {{ row.subjectName }}
                   </td>
-                  <td class="term-score-editor__cell term-score-editor__cell--score">
+                  <td class="school-score-editor__cell school-score-editor__cell--score">
                     <p-inputnumber
                       [ngModel]="row.score"
                       (ngModelChange)="onScoreChange(row, $event)"
@@ -165,11 +165,11 @@
                       [max]="100"
                       [disabled]="disabled() || isAbsent(row)"
                       [placeholder]="isAbsent(row) ? '—' : ''"
-                      styleClass="term-score-editor__score-input"
-                      [inputStyleClass]="'term-score-editor__score-field'"
+                      styleClass="school-score-editor__score-input"
+                      [inputStyleClass]="'school-score-editor__score-field'"
                     />
                   </td>
-                  <td class="term-score-editor__cell term-score-editor__cell--status">
+                  <td class="school-score-editor__cell school-score-editor__cell--status">
                     <p-select
                       [options]="scoreStatusOptions"
                       [ngModel]="row.status"
@@ -179,10 +179,10 @@
                       [disabled]="disabled()"
                       size="small"
                       [appendTo]="'body'"
-                      styleClass="term-score-editor__status-select"
+                      styleClass="school-score-editor__status-select"
                     />
                   </td>
-                  <td class="term-score-editor__cell term-score-editor__cell--notes">
+                  <td class="school-score-editor__cell school-score-editor__cell--notes">
                     <input
                       type="text"
                       pInputText
@@ -190,7 +190,7 @@
                       (ngModelChange)="onNotesChange(row, $event)"
                       [disabled]="disabled()"
                       placeholder="備註"
-                      class="term-score-editor__notes-input"
+                      class="school-score-editor__notes-input"
                     />
                   </td>
                 </tr>
@@ -200,28 +200,28 @@
         </div>
 
         <!-- Mobile compact list -->
-        <div class="term-score-editor__mobile-subjects">
+        <div class="school-score-editor__mobile-subjects">
           @for (row of ds.rows; track row.subjectId) {
             <button
               type="button"
-              class="term-score-editor__mobile-subject-row"
-              [class.term-score-editor__mobile-subject-row--dirty]="isRowDirty(row)"
+              class="school-score-editor__mobile-subject-row"
+              [class.school-score-editor__mobile-subject-row--dirty]="isRowDirty(row)"
               (click)="openSubjectSheet(row)"
             >
-              <div class="term-score-editor__mobile-subject-info">
-                <span class="term-score-editor__mobile-subject-name">{{ row.subjectName }}</span>
+              <div class="school-score-editor__mobile-subject-info">
+                <span class="school-score-editor__mobile-subject-name">{{ row.subjectName }}</span>
                 @if (isRowDirty(row)) {
-                  <span class="term-score-editor__mobile-subject-flag">
+                  <span class="school-score-editor__mobile-subject-flag">
                     <i class="pi pi-circle-fill"></i>
                     未儲存
                   </span>
                 }
               </div>
               <span
-                class="term-score-editor__mobile-subject-score"
-                [class.term-score-editor__mobile-subject-score--absent]="isAbsent(row)"
-                [class.term-score-editor__mobile-subject-score--fail]="row.score !== null && row.score < 60"
-                [class.term-score-editor__mobile-subject-score--empty]="!isAbsent(row) && row.score === null"
+                class="school-score-editor__mobile-subject-score"
+                [class.school-score-editor__mobile-subject-score--absent]="isAbsent(row)"
+                [class.school-score-editor__mobile-subject-score--fail]="row.score !== null && row.score < 60"
+                [class.school-score-editor__mobile-subject-score--empty]="!isAbsent(row) && row.score === null"
               >
                 @if (isAbsent(row)) {
                   缺考
@@ -238,7 +238,7 @@
     }
 
     <ng-template #footer>
-      <div class="term-score-editor__dialog-footer">
+      <div class="school-score-editor__dialog-footer">
         <p-button
           label="儲存"
           icon="pi pi-check"
@@ -255,29 +255,29 @@
     position="bottom"
     [modal]="true"
     [appendTo]="'body'"
-    styleClass="term-score-editor__sheet drawer-auto"
+    styleClass="school-score-editor__sheet drawer-auto"
   >
     @if (subjectSheetRow(); as row) {
       <ng-template #header>
-        <div class="term-score-editor__sheet-header">
-          <span class="term-score-editor__sheet-name">{{ row.subjectName }}</span>
+        <div class="school-score-editor__sheet-header">
+          <span class="school-score-editor__sheet-name">{{ row.subjectName }}</span>
         </div>
       </ng-template>
 
-      <div class="term-score-editor__sheet-body">
-        <div class="term-score-editor__sheet-field">
-          <label class="term-score-editor__sheet-label">分數</label>
+      <div class="school-score-editor__sheet-body">
+        <div class="school-score-editor__sheet-field">
+          <label class="school-score-editor__sheet-label">分數</label>
           <p-inputnumber
             [ngModel]="row.score"
             (ngModelChange)="onScoreChange(row, $event)"
             [min]="0"
             [max]="100"
             [disabled]="disabled() || isAbsent(row)"
-            styleClass="term-score-editor__sheet-input"
+            styleClass="school-score-editor__sheet-input"
           />
         </div>
-        <div class="term-score-editor__sheet-field">
-          <label class="term-score-editor__sheet-label">狀態</label>
+        <div class="school-score-editor__sheet-field">
+          <label class="school-score-editor__sheet-label">狀態</label>
           <p-select
             [options]="scoreStatusOptions"
             [ngModel]="row.status"
@@ -286,11 +286,11 @@
             optionValue="value"
             [disabled]="disabled()"
             [appendTo]="'body'"
-            styleClass="term-score-editor__sheet-select"
+            styleClass="school-score-editor__sheet-select"
           />
         </div>
-        <div class="term-score-editor__sheet-field">
-          <label class="term-score-editor__sheet-label">備註</label>
+        <div class="school-score-editor__sheet-field">
+          <label class="school-score-editor__sheet-label">備註</label>
           <input
             type="text"
             pInputText
@@ -298,7 +298,7 @@
             (ngModelChange)="onNotesChange(row, $event)"
             [disabled]="disabled()"
             placeholder="輸入備註..."
-            class="term-score-editor__sheet-notes"
+            class="school-score-editor__sheet-notes"
           />
         </div>
       </div>

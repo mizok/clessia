@@ -23,7 +23,12 @@
     } @else if (hasScores()) {
       <div class="academy-exam-form-dialog__hint">
         <i class="pi pi-info-circle"></i>
-        已有成績登錄，考試類型／科目／滿分／關聯班級將鎖定以避免資料不一致。
+        已有成績登錄，類型／科目／校區／滿分／關聯班級皆已鎖定以避免資料不一致。
+      </div>
+    } @else if (isEditing()) {
+      <div class="academy-exam-form-dialog__hint">
+        <i class="pi pi-info-circle"></i>
+        考試建立後，類型／科目／校區／滿分不可修改；如需更改請刪除後重建。
       </div>
     }
 
@@ -35,7 +40,7 @@
         pInputText
         [ngModel]="formData().name"
         (ngModelChange)="updateField('name', $event)"
-        placeholder="例如：第一次段考模擬"
+        placeholder="例如：段考模擬"
         [disabled]="lockName()"
         class="w-full"
       />

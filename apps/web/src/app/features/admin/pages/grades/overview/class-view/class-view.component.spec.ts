@@ -48,56 +48,74 @@ describe('ClassViewComponent', () => {
     expect(component['selectedClassId']()).toBeNull();
   });
 
-  it('should load courses and classes on campus change', () => {
+  it('should load grouped classes with a single classes request on campus change', () => {
     component['onCampusChange']('campus-1');
     expect(component['campusId']()).toBe('campus-1');
 
-    const coursesReq = http.expectOne((r) => r.url.includes('/api/courses'));
-    coursesReq.flush({
-      data: [
-        {
-          id: 'course-1',
-          orgId: 'o1',
-          campusId: 'campus-1',
-          name: '數學進階',
-          subjectId: 's1',
-          subjectName: '數學',
-          description: null,
-          isActive: true,
-          gradeLevels: ['J1', 'J2', 'J3'],
-          createdAt: '',
-          updatedAt: '',
-        },
-      ],
-      meta: { total: 1, page: 1, pageSize: 100, totalPages: 1 },
-    });
+    const classRequests = http.match((r) => r.url.includes('/api/classes'));
+    expect(classRequests).toHaveLength(1);
+    expect(http.match((r) => r.url.includes('/api/courses'))).toHaveLength(0);
 
-    const classesReq = http.expectOne(
-      (r) => r.url.includes('/api/classes') && r.params.get('courseId') === 'course-1',
-    );
-    classesReq.flush({
+    classRequests[0].flush({
       data: [
         {
           id: 'class-1',
+          orgId: 'org-1',
+          campusId: 'campus-1',
+          courseId: 'course-1',
+          courseName: '數學進階',
+          campusName: '台北校',
           name: 'A班',
           maxStudents: 20,
-          gradeLevels: ['J1'],
+          gradeLevels: ['J1', 'J2', 'J3'],
+          subjectName: '數學',
+          nextClassId: null,
+          isActive: true,
+          createdAt: '',
+          updatedAt: '',
         },
         {
           id: 'class-2',
+          orgId: 'org-1',
+          campusId: 'campus-1',
+          courseId: 'course-1',
+          courseName: '數學進階',
+          campusName: '台北校',
           name: 'B班',
           maxStudents: 25,
+          gradeLevels: ['J1', 'J2', 'J3'],
+          subjectName: '數學',
+          nextClassId: null,
+          isActive: true,
+          createdAt: '',
+          updatedAt: '',
+        },
+        {
+          id: 'class-3',
+          orgId: 'org-1',
+          campusId: 'campus-1',
+          courseId: 'course-2',
+          courseName: '英文衝刺',
+          campusName: '台北校',
+          name: 'C班',
+          maxStudents: 18,
           gradeLevels: ['J2'],
+          subjectName: '英文',
+          nextClassId: null,
+          isActive: true,
+          createdAt: '',
+          updatedAt: '',
         },
       ],
       meta: { total: 2, page: 1, pageSize: 100, totalPages: 1 },
     });
 
     const groups = component['courseGroups']();
-    expect(groups).toHaveLength(1);
+    expect(groups).toHaveLength(2);
     expect(groups[0].courseName).toBe('數學進階');
     expect(groups[0].gradeRange).toBe('國一～國三');
     expect(groups[0].classes).toHaveLength(2);
+    expect(groups[0].subjectName).toBe('數學');
   });
 
   it('should filter groups by searchText', () => {

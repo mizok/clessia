@@ -116,14 +116,14 @@ export class AcademyExamFormDialogComponent implements OnInit {
   protected readonly isClosed = computed(() => this.exam()?.status === 'closed');
 
   // Metadata lock rules
-  protected readonly lockExamType = computed(() => this.hasScores() || this.isClosed());
-  protected readonly lockSubject = computed(() => this.hasScores() || this.isClosed());
-  protected readonly lockTotalScore = computed(() => this.hasScores() || this.isClosed());
+  protected readonly lockExamType = computed(() => this.isEditing());
+  protected readonly lockSubject = computed(() => this.isEditing());
+  protected readonly lockTotalScore = computed(() => this.isEditing());
+  protected readonly lockCampus = computed(() => this.isEditing());
   protected readonly lockClasses = computed(() => this.hasScores() || this.isClosed());
   protected readonly lockName = computed(() => this.isClosed());
   protected readonly lockExamDate = computed(() => this.isClosed());
   protected readonly lockScopeNote = computed(() => this.isClosed());
-  protected readonly lockCampus = computed(() => this.isEditing());
 
   protected readonly canSave = computed(() => {
     if (this.isClosed()) return false;

@@ -27,12 +27,12 @@ ALTER TABLE public.academy_exams
 
 DROP TYPE public.academy_exam_status_old;
 
--- 2. term_exams: 新增 exam_date 和 status
-CREATE TYPE public.term_exam_status AS ENUM ('active', 'closed');
+-- 2. school_exams: 新增 exam_date 和 status
+CREATE TYPE public.school_exam_status AS ENUM ('active', 'closed');
 
-ALTER TABLE public.term_exams
+ALTER TABLE public.school_exams
   ADD COLUMN exam_date date,
-  ADD COLUMN status public.term_exam_status NOT NULL DEFAULT 'active';
+  ADD COLUMN status public.school_exam_status NOT NULL DEFAULT 'active';
 
-CREATE INDEX term_exams_exam_date_idx ON public.term_exams (exam_date);
-CREATE INDEX term_exams_status_idx ON public.term_exams (status);
+CREATE INDEX school_exams_exam_date_idx ON public.school_exams (exam_date);
+CREATE INDEX school_exams_status_idx ON public.school_exams (status);

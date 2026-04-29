@@ -1057,8 +1057,8 @@ BEGIN
   DELETE FROM public.academy_exams WHERE id IN (
     ae_math_quiz_1, ae_math_quiz_2, ae_english_mock, ae_science_quiz, ae_math_placement, ae_closed_exam
   );
-  DELETE FROM public.term_scores WHERE term_exam_id IN (te_114_1_mid, te_114_1_fin, te_113_2_fin);
-  DELETE FROM public.term_exams WHERE id IN (te_114_1_mid, te_114_1_fin, te_113_2_fin);
+  DELETE FROM public.school_scores WHERE school_exam_id IN (te_114_1_mid, te_114_1_fin, te_113_2_fin);
+  DELETE FROM public.school_exams WHERE id IN (te_114_1_mid, te_114_1_fin, te_113_2_fin);
 
   -- ========================================
   -- ACADEMY EXAMS (6 exams)
@@ -1197,31 +1197,31 @@ BEGIN
       LIMIT 1;
 
     IF demo_school_id IS NULL THEN
-      RAISE EXCEPTION 'No school found for demo_org; cannot seed term_exams';
+      RAISE EXCEPTION 'No school found for demo_org; cannot seed school_exams';
     END IF;
 
-    -- 1. 114學年 第1學期 期中考
-    INSERT INTO public.term_exams (id, org_id, school_id, academic_year, semester, period, label, exam_date, status)
-    VALUES (te_114_1_mid, demo_org_id, demo_school_id, 114, 1, 'midterm_1', '114學年 上學期 第一次段考', CURRENT_DATE - INTERVAL '30 days', 'active');
+    -- 1. 114學年 第1學期 段考
+    INSERT INTO public.school_exams (id, org_id, school_id, academic_year, semester, exam_type, name, label, exam_date, status)
+    VALUES (te_114_1_mid, demo_org_id, demo_school_id, 114, 1, 'term_exam', NULL, '114-1 段考', CURRENT_DATE - INTERVAL '30 days', 'active');
 
-    -- 2. 114學年 第1學期 期末考
-    INSERT INTO public.term_exams (id, org_id, school_id, academic_year, semester, period, label, exam_date, status)
-    VALUES (te_114_1_fin, demo_org_id, demo_school_id, 114, 1, 'final_1', '114學年 上學期 期末考', CURRENT_DATE - INTERVAL '7 days', 'active');
+    -- 2. 114學年 第1學期 段考（第二次）
+    INSERT INTO public.school_exams (id, org_id, school_id, academic_year, semester, exam_type, name, label, exam_date, status)
+    VALUES (te_114_1_fin, demo_org_id, demo_school_id, 114, 1, 'term_exam', '第二次', '114-1 段考 · 第二次', CURRENT_DATE - INTERVAL '7 days', 'active');
 
-    -- 3. 113學年 第2學期 期末考 (closed)
-    INSERT INTO public.term_exams (id, org_id, school_id, academic_year, semester, period, label, exam_date, status)
-    VALUES (te_113_2_fin, demo_org_id, demo_school_id, 113, 2, 'final_2', '113學年 下學期 期末考', CURRENT_DATE - INTERVAL '180 days', 'closed');
+    -- 3. 113學年 第2學期 段考 (closed)
+    INSERT INTO public.school_exams (id, org_id, school_id, academic_year, semester, exam_type, name, label, exam_date, status)
+    VALUES (te_113_2_fin, demo_org_id, demo_school_id, 113, 2, 'term_exam', NULL, '113-2 段考', CURRENT_DATE - INTERVAL '180 days', 'closed');
   END;
 
   -- ========================================
   -- TERM SCORES
   -- ========================================
 
-  -- 114-1 期中考: 學生 1-8, 各 5 科 (國英數自社)
+  -- 114-1 段考: 學生 1-8, 各 5 科 (國英數自社)
   FOR i IN 1..8 LOOP
     s_id := format('61000000-0000-0000-0000-%s', lpad(i::text, 12, '0'))::uuid;
 
-    INSERT INTO public.term_scores (term_exam_id, student_id, subject_id, score, status, notes, created_by)
+    INSERT INTO public.school_scores (school_exam_id, student_id, subject_id, score, status, notes, created_by)
     VALUES
       (te_114_1_mid, s_id, chinese_subject_id, (50 + random() * 50)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
       (te_114_1_mid, s_id, english_subject_id, (40 + random() * 60)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
@@ -1231,11 +1231,11 @@ BEGIN
     ON CONFLICT DO NOTHING;
   END LOOP;
 
-  -- 114-1 期末考: 學生 1-6 已登錄, 7-8 尚未登錄（模擬部分登錄狀態）
+  -- 114-1 段考（第二次）: 學生 1-6 已登錄, 7-8 尚未登錄（模擬部分登錄狀態）
   FOR i IN 1..6 LOOP
     s_id := format('61000000-0000-0000-0000-%s', lpad(i::text, 12, '0'))::uuid;
 
-    INSERT INTO public.term_scores (term_exam_id, student_id, subject_id, score, status, notes, created_by)
+    INSERT INTO public.school_scores (school_exam_id, student_id, subject_id, score, status, notes, created_by)
     VALUES
       (te_114_1_fin, s_id, chinese_subject_id, (50 + random() * 50)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
       (te_114_1_fin, s_id, english_subject_id, (45 + random() * 55)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
@@ -1245,11 +1245,11 @@ BEGIN
     ON CONFLICT DO NOTHING;
   END LOOP;
 
-  -- 113-2 期末考 (closed): 學生 1-12 全部登錄
+  -- 113-2 段考 (closed): 學生 1-12 全部登錄
   FOR i IN 1..12 LOOP
     s_id := format('61000000-0000-0000-0000-%s', lpad(i::text, 12, '0'))::uuid;
 
-    INSERT INTO public.term_scores (term_exam_id, student_id, subject_id, score, status, notes, created_by)
+    INSERT INTO public.school_scores (school_exam_id, student_id, subject_id, score, status, notes, created_by)
     VALUES
       (te_113_2_fin, s_id, chinese_subject_id, (45 + random() * 55)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),
       (te_113_2_fin, s_id, english_subject_id, (40 + random() * 60)::numeric(6,2), 'scored'::public.score_status, NULL, demo_admin_id),

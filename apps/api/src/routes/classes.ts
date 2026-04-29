@@ -36,6 +36,7 @@ const ClassSchema = z
     campusId: z.uuid(),
     courseId: z.uuid(),
     courseName: z.string().optional(),
+    subjectName: z.string().nullable().optional(),
     campusName: z.string().optional(),
     name: z.string(),
     maxStudents: z.number(),
@@ -267,16 +268,21 @@ interface ClassExtras {
 }
 
 function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
+  const course = row['courses'] as
+    | { name: string; grade_levels: string[]; subjects?: { name: string | null } | null }
+    | null;
+
   return {
     id: row['id'] as string,
     orgId: row['org_id'] as string,
     campusId: row['campus_id'] as string,
     courseId: row['course_id'] as string,
-    courseName: (row['courses'] as { name: string; grade_levels: string[] } | null)?.name,
+    courseName: course?.name,
+    subjectName: course?.subjects?.name ?? null,
     campusName: (row['campuses'] as { name: string } | null)?.name,
     name: row['name'] as string,
     maxStudents: row['max_students'] as number,
-    gradeLevels: (row['courses'] as { name: string; grade_levels: string[] } | null)?.grade_levels ?? [],
+    gradeLevels: course?.grade_levels ?? [],
     nextClassId: (row['next_class_id'] as string | null) ?? null,
     isActive: row['is_active'] as boolean,
     scheduleCount: extras?.scheduleCount,
@@ -366,7 +372,7 @@ app.openapi(
 
     let dbQuery = supabase
       .from('classes')
-      .select('*, courses(name, grade_levels), campuses(name), schedules(*, staff(display_name)), ba_user!updated_by(name)', {
+      .select('*, courses(name, grade_levels, subjects(name)), campuses(name), schedules(*, staff(display_name)), ba_user!updated_by(name)', {
         count: 'exact',
       });
 

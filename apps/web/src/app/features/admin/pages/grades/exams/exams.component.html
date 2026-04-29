@@ -5,7 +5,7 @@
   <header class="exams__header">
     <div class="exams__title-group">
       <h1 class="exams__title">{{ page()?.label ?? '考試管理' }}</h1>
-      <p class="exams__subtitle">管理補習班考試與段考，統一查看狀態、進入成績登錄</p>
+      <p class="exams__subtitle">管理補習班考試與學校考試，統一查看狀態、進入成績登錄</p>
     </div>
     <div class="exams__header-actions">
       <app-popup-menu #createExamMenu [model]="createMenuItems" />
@@ -250,7 +250,7 @@
           <app-empty-state
             icon="pi pi-inbox"
             title="尚無考試資料"
-            description="點選「新增考試」建立補習班考試或段考"
+            description="點選「新增考試」建立補習班考試或學校考試"
           >
             <p-button label="新增考試" icon="pi pi-plus" (onClick)="openCreateMenu($event)" />
           </app-empty-state>
@@ -297,7 +297,7 @@
                   class="exams__name-link"
                   (click)="onRowNameClick(row)"
                 >
-                  {{ row.name }}
+                  {{ getSchoolDisplayName(row) }}
                 </button>
                 @if (row.kind === 'academy') {
                   <div class="exams__name-meta">

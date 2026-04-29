@@ -115,7 +115,41 @@ describe('AcademyExamFormDialogComponent', () => {
     );
   });
 
-  it('locks meta fields when scores already exist', async () => {
+  it('locks identity fields whenever in edit mode (no scores)', async () => {
+    academyExamsServiceMock.get.mockReturnValueOnce(
+      of({
+        data: {
+          id: 'exam-1',
+          name: '尚未登錄成績',
+          examType: 'quiz',
+          status: 'active',
+          subjectId: 's1',
+          campusId: 'c1',
+          examDate: '2026-03-20',
+          totalScore: 100,
+          scopeNote: '',
+          classes: [{ classId: 'cls-1', className: 'A班' }],
+          summary: { recordedCount: 0, expectedCount: 10 },
+        },
+      }),
+    );
+    await createComponent({ data: { mode: 'edit', examId: 'exam-1' } });
+
+    expect(component['hasScores']()).toBe(false);
+    // Identity fields locked in edit mode regardless of scores
+    expect(component['lockExamType']()).toBe(true);
+    expect(component['lockSubject']()).toBe(true);
+    expect(component['lockTotalScore']()).toBe(true);
+    expect(component['lockCampus']()).toBe(true);
+    // Without scores, classes are still adjustable
+    expect(component['lockClasses']()).toBe(false);
+    // Mutable fields stay editable
+    expect(component['lockName']()).toBe(false);
+    expect(component['lockExamDate']()).toBe(false);
+    expect(component['lockScopeNote']()).toBe(false);
+  });
+
+  it('also locks classes when scores already exist', async () => {
     academyExamsServiceMock.get.mockReturnValueOnce(
       of({
         data: {
@@ -139,6 +173,7 @@ describe('AcademyExamFormDialogComponent', () => {
     expect(component['lockExamType']()).toBe(true);
     expect(component['lockSubject']()).toBe(true);
     expect(component['lockTotalScore']()).toBe(true);
+    expect(component['lockCampus']()).toBe(true);
     expect(component['lockClasses']()).toBe(true);
     // Name and date should remain editable
     expect(component['lockName']()).toBe(false);

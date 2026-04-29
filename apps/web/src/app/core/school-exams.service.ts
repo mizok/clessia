@@ -3,18 +3,29 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '@env/environment';
 
-export type TermExamPeriod = 'midterm_1' | 'final_1' | 'midterm_2' | 'final_2';
-export type TermExamStatus = 'active' | 'closed';
-export type TermScoreStatus = 'scored' | 'absent' | 'makeup';
+export type SchoolExamType = 'term_exam' | 'mock_exam' | 'other';
+export type SchoolExamStatus = 'active' | 'closed';
+export type SchoolScoreStatus = 'scored' | 'absent' | 'makeup';
 
-export interface TermExam {
+const SCHOOL_EXAM_TYPE_LABELS: Record<SchoolExamType, string> = {
+  term_exam: '段考',
+  mock_exam: '模擬考',
+  other: '其他',
+};
+
+export function schoolExamTypeLabel(examType: SchoolExamType): string {
+  return SCHOOL_EXAM_TYPE_LABELS[examType];
+}
+
+export interface SchoolExam {
   id: string;
   academicYear: number;
   semester: 1 | 2;
-  period: TermExamPeriod;
+  examType: SchoolExamType;
+  name: string | null;
   label: string;
   examDate: string | null;
-  status: TermExamStatus;
+  status: SchoolExamStatus;
   schoolId: string;
   schoolName: string;
   scoreCount: number;
@@ -22,66 +33,68 @@ export interface TermExam {
   updatedAt: string;
 }
 
-export interface TermSubjectSummary {
+export interface SchoolSubjectSummary {
   subjectId: string;
   subjectName: string;
   averageScore: number | null;
   recordedCount: number;
 }
 
-export interface TermExamDetail {
+export interface SchoolExamDetail {
   id: string;
   academicYear: number;
   semester: 1 | 2;
-  period: TermExamPeriod;
+  examType: SchoolExamType;
+  name: string | null;
   label: string;
   examDate: string | null;
-  status: TermExamStatus;
+  status: SchoolExamStatus;
   schoolId: string;
   schoolName: string;
   summary: {
-    bySubject: TermSubjectSummary[];
+    bySubject: SchoolSubjectSummary[];
     totalRecordedCount: number;
   };
   createdAt: string;
   updatedAt: string;
 }
 
-export interface TermScore {
+export interface SchoolScore {
   studentId: string;
   studentName: string;
   studentGrade: string | null;
   subjectId: string;
   subjectName: string;
   score: number | null;
-  status: TermScoreStatus;
+  status: SchoolScoreStatus;
   notes: string | null;
   updatedAt: string;
 }
 
-export interface StudentTermScore {
-  termExamId: string;
+export interface StudentSchoolScore {
+  schoolExamId: string;
   label: string;
   academicYear: number;
   semester: 1 | 2;
-  period: TermExamPeriod;
+  examType: SchoolExamType;
+  name: string | null;
   subjectId: string;
   subjectName: string;
   score: number | null;
-  status: TermScoreStatus;
+  status: SchoolScoreStatus;
   notes: string | null;
   updatedAt: string;
 }
 
-export interface TermExamListParams {
+export interface SchoolExamListParams {
   academicYear?: number;
   semester?: 1 | 2;
   page?: number;
   pageSize?: number;
 }
 
-export interface TermExamListResponse {
-  data: TermExam[];
+export interface SchoolExamListResponse {
+  data: SchoolExam[];
   meta: {
     total: number;
     page: number;
@@ -89,18 +102,20 @@ export interface TermExamListResponse {
   };
 }
 
-export interface CreateTermExamInput {
+export interface CreateSchoolExamInput {
   academicYear: number;
   semester: 1 | 2;
-  period: TermExamPeriod;
+  examType: SchoolExamType;
+  name?: string | null;
   schoolId: string;
   examDate?: string | null;
 }
 
-export interface UpdateTermExamInput {
+export interface UpdateSchoolExamInput {
   academicYear?: number;
   semester?: 1 | 2;
-  period?: TermExamPeriod;
+  examType?: SchoolExamType;
+  name?: string | null;
   schoolId?: string;
   examDate?: string | null;
 }
@@ -113,9 +128,9 @@ export interface RecentStudent {
   lastUpdatedAt: string;
 }
 
-export type TermExamStudentStatus = 'all' | 'pending' | 'scored' | 'absent' | 'makeup';
+export type SchoolExamStudentStatus = 'all' | 'pending' | 'scored' | 'absent' | 'makeup';
 
-export interface TermExamStudent {
+export interface SchoolExamStudent {
   studentId: string;
   studentName: string;
   studentGrade: string | null;
@@ -128,17 +143,17 @@ export interface TermExamStudent {
   lastUpdatedAt: string | null;
 }
 
-export interface TermExamStudentListParams {
+export interface SchoolExamStudentListParams {
   campusId?: string;
-  status?: TermExamStudentStatus;
+  status?: SchoolExamStudentStatus;
   search?: string;
   grade?: string;
   page?: number;
   pageSize?: number;
 }
 
-export interface TermExamStudentListResponse {
-  data: TermExamStudent[];
+export interface SchoolExamStudentListResponse {
+  data: SchoolExamStudent[];
   meta: {
     total: number;
     page: number;
@@ -146,21 +161,21 @@ export interface TermExamStudentListResponse {
   };
 }
 
-export interface SaveTermScoresInput {
+export interface SaveSchoolScoresInput {
   studentId: string;
   subjectId: string;
   score: number | null;
-  status: TermScoreStatus;
+  status: SchoolScoreStatus;
   notes?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
-export class TermExamsService {
+export class SchoolExamsService {
   private readonly http = inject(HttpClient);
-  private readonly base = `${environment.apiUrl}/api/term-exams`;
+  private readonly base = `${environment.apiUrl}/api/school-exams`;
 
-  list(params?: TermExamListParams): Observable<TermExamListResponse> {
-    return this.http.get<TermExamListResponse>(this.base, {
+  list(params?: SchoolExamListParams): Observable<SchoolExamListResponse> {
+    return this.http.get<SchoolExamListResponse>(this.base, {
       params: this.toQueryParams(params),
     });
   }
@@ -168,18 +183,18 @@ export class TermExamsService {
   get(
     id: string,
     params?: { campusId?: string; grade?: string },
-  ): Observable<{ data: TermExamDetail }> {
+  ): Observable<{ data: SchoolExamDetail }> {
     const query: Record<string, string> = {};
     if (params?.campusId) query['campusId'] = params.campusId;
     if (params?.grade) query['grade'] = params.grade;
-    return this.http.get<{ data: TermExamDetail }>(`${this.base}/${id}`, { params: query });
+    return this.http.get<{ data: SchoolExamDetail }>(`${this.base}/${id}`, { params: query });
   }
 
-  create(data: CreateTermExamInput): Observable<{ data: { id: string; label: string } }> {
+  create(data: CreateSchoolExamInput): Observable<{ data: { id: string; label: string } }> {
     return this.http.post<{ data: { id: string; label: string } }>(this.base, data);
   }
 
-  update(id: string, data: UpdateTermExamInput): Observable<{ success: boolean; label: string }> {
+  update(id: string, data: UpdateSchoolExamInput): Observable<{ success: boolean; label: string }> {
     return this.http.put<{ success: boolean; label: string }>(`${this.base}/${id}`, data);
   }
 
@@ -195,10 +210,10 @@ export class TermExamsService {
     return this.http.patch<{ success: boolean }>(`${this.base}/${id}/reopen`, {});
   }
 
-  getScores(examId: string, studentId?: string): Observable<{ data: TermScore[] }> {
+  getScores(examId: string, studentId?: string): Observable<{ data: SchoolScore[] }> {
     const params: Record<string, string> = {};
     if (studentId) params['studentId'] = studentId;
-    return this.http.get<{ data: TermScore[] }>(`${this.base}/${examId}/scores`, { params });
+    return this.http.get<{ data: SchoolScore[] }>(`${this.base}/${examId}/scores`, { params });
   }
 
   getRecentStudents(examId: string): Observable<{ data: RecentStudent[] }> {
@@ -207,8 +222,8 @@ export class TermExamsService {
 
   getStudents(
     examId: string,
-    params?: TermExamStudentListParams,
-  ): Observable<TermExamStudentListResponse> {
+    params?: SchoolExamStudentListParams,
+  ): Observable<SchoolExamStudentListResponse> {
     const query: Record<string, string | number | boolean> = {};
     if (params?.campusId) query['campusId'] = params.campusId;
     if (params?.status && params.status !== 'all') query['status'] = params.status;
@@ -216,25 +231,25 @@ export class TermExamsService {
     if (params?.grade) query['grade'] = params.grade;
     if (params?.page) query['page'] = params.page;
     if (params?.pageSize) query['pageSize'] = params.pageSize;
-    return this.http.get<TermExamStudentListResponse>(`${this.base}/${examId}/students`, {
+    return this.http.get<SchoolExamStudentListResponse>(`${this.base}/${examId}/students`, {
       params: query,
     });
   }
 
   saveScores(
     examId: string,
-    scores: SaveTermScoresInput[],
+    scores: SaveSchoolScoresInput[],
   ): Observable<{ success: boolean; affected: number }> {
     return this.http.post<{ success: boolean; affected: number }>(`${this.base}/${examId}/scores`, {
       scores,
     });
   }
 
-  getByStudent(studentId: string): Observable<{ data: StudentTermScore[] }> {
-    return this.http.get<{ data: StudentTermScore[] }>(`${this.base}/by-student/${studentId}`);
+  getByStudent(studentId: string): Observable<{ data: StudentSchoolScore[] }> {
+    return this.http.get<{ data: StudentSchoolScore[] }>(`${this.base}/by-student/${studentId}`);
   }
 
-  private toQueryParams(params?: TermExamListParams): Record<string, string | number | boolean> {
+  private toQueryParams(params?: SchoolExamListParams): Record<string, string | number | boolean> {
     if (!params) return {};
 
     const query: Record<string, string | number | boolean> = {};

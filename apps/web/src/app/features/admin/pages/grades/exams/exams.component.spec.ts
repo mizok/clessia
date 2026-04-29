@@ -48,15 +48,18 @@ describe('ExamsComponent', () => {
     },
   ];
 
-  const mockTermExams = [
+  const mockSchoolExams = [
     {
       id: 't1',
       academicYear: 114,
       semester: 2,
-      period: 'midterm_2',
-      label: '114-2 期中考',
+      examType: 'term_exam',
+      name: null,
+      label: '114-2 段考',
       examDate: '2026-04-10',
       status: 'active',
+      schoolId: 'sch-1',
+      schoolName: '測試國中',
       scoreCount: 0,
       createdAt: '2026-03-20T00:00:00Z',
       updatedAt: '2026-03-20T00:00:00Z',
@@ -101,11 +104,11 @@ describe('ExamsComponent', () => {
     });
 
     const termReq = http.expectOne((req) =>
-      req.url.startsWith(`${environment.apiUrl}/api/term-exams`),
+      req.url.startsWith(`${environment.apiUrl}/api/school-exams`),
     );
     termReq.flush({
-      data: mockTermExams,
-      meta: { total: mockTermExams.length, page: 1, pageSize: 200 },
+      data: mockSchoolExams,
+      meta: { total: mockSchoolExams.length, page: 1, pageSize: 200 },
     });
 
     await fixture.whenStable();
@@ -120,26 +123,26 @@ describe('ExamsComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('merges academy and term exams and sorts by date desc', () => {
+  it('merges academy and school exams and sorts by date desc', () => {
     const merged = component['mergedExams']();
     expect(merged.length).toBe(3);
-    // 2026-04-10 term 最新，然後 2026-04-01 academy，最後 2026-03-15 academy
+    // 2026-04-10 school 最新，然後 2026-04-01 academy，最後 2026-03-15 academy
     expect(merged[0].id).toBe('t1');
     expect(merged[1].id).toBe('a1');
     expect(merged[2].id).toBe('a2');
   });
 
-  it('filters by exam type chip — academy only hides term', () => {
+  it('filters by exam type chip — academy only hides school', () => {
     component['onExamTypeChange']('academy');
     const merged = component['mergedExams']();
     expect(merged.every((r) => r.kind === 'academy')).toBe(true);
     expect(merged.length).toBe(2);
   });
 
-  it('filters by exam type chip — term only hides academy', () => {
-    component['onExamTypeChange']('term');
+  it('filters by exam type chip — school only hides academy', () => {
+    component['onExamTypeChange']('school');
     const merged = component['mergedExams']();
-    expect(merged.every((r) => r.kind === 'term')).toBe(true);
+    expect(merged.every((r) => r.kind === 'school')).toBe(true);
     expect(merged.length).toBe(1);
   });
 
@@ -155,7 +158,7 @@ describe('ExamsComponent', () => {
     expect(merged[0].id).toBe('a2');
   });
 
-  it('hides term exams when campus filter is set', () => {
+  it('hides school exams when campus filter is set', () => {
     component['onCampusChange']('c1');
     const merged = component['mergedExams']();
     expect(merged.every((r) => r.kind === 'academy')).toBe(true);

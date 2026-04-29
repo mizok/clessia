@@ -3,20 +3,21 @@ import { ConfirmationService, MessageService } from 'primeng/api';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 
-import { TermExamsService, type TermExamDetail, type TermExamStudent } from '@core/term-exams.service';
+import { SchoolExamsService, type SchoolExamDetail, type SchoolExamStudent } from '@core/school-exams.service';
 import { ReferenceDataService } from '@core/reference-data.service';
-import { TermScoreEditorComponent } from './term-score-editor.component';
+import { SchoolScoreEditorComponent } from './school-score-editor.component';
 
-describe('TermScoreEditorComponent', () => {
-  let fixture: ComponentFixture<TermScoreEditorComponent>;
-  let component: TermScoreEditorComponent;
+describe('SchoolScoreEditorComponent', () => {
+  let fixture: ComponentFixture<SchoolScoreEditorComponent>;
+  let component: SchoolScoreEditorComponent;
 
-  const mockExam: TermExamDetail = {
+  const mockExam: SchoolExamDetail = {
     id: 't1',
     academicYear: 114,
     semester: 2,
-    period: 'midterm_1',
-    label: '114-2 第一次段考',
+    examType: 'term_exam',
+    name: null,
+    label: '114-2 段考',
     examDate: '2026-04-10',
     status: 'active',
     schoolId: 'sch-1',
@@ -26,7 +27,7 @@ describe('TermScoreEditorComponent', () => {
     updatedAt: '2026-03-20T00:00:00Z',
   };
 
-  const mockStudents: TermExamStudent[] = [
+  const mockStudents: SchoolExamStudent[] = [
     {
       studentId: 'stu-1',
       studentName: '王小明',
@@ -41,7 +42,7 @@ describe('TermScoreEditorComponent', () => {
     },
   ];
 
-  const termExamsServiceMock = {
+  const schoolExamsServiceMock = {
     getStudents: vi.fn(() =>
       of({
         data: mockStudents,
@@ -85,16 +86,16 @@ describe('TermScoreEditorComponent', () => {
     vi.clearAllMocks();
 
     await TestBed.configureTestingModule({
-      imports: [TermScoreEditorComponent],
+      imports: [SchoolScoreEditorComponent],
       providers: [
-        { provide: TermExamsService, useValue: termExamsServiceMock },
+        { provide: SchoolExamsService, useValue: schoolExamsServiceMock },
         { provide: ReferenceDataService, useValue: refDataMock },
         { provide: MessageService, useValue: messageServiceMock },
         { provide: ConfirmationService, useValue: confirmationServiceMock },
       ],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(TermScoreEditorComponent);
+    fixture = TestBed.createComponent(SchoolScoreEditorComponent);
     component = fixture.componentInstance;
     fixture.componentRef.setInput('exam', mockExam);
     fixture.componentRef.setInput('examId', 't1');
@@ -105,13 +106,13 @@ describe('TermScoreEditorComponent', () => {
   });
 
   it('loads students on init (auto-selects first campus)', () => {
-    expect(termExamsServiceMock.getStudents).toHaveBeenCalled();
+    expect(schoolExamsServiceMock.getStudents).toHaveBeenCalled();
     expect(component['students']().length).toBe(1);
   });
 
   it('opens dialog and loads scores', () => {
     component['openStudentDialog'](mockStudents[0]);
-    expect(termExamsServiceMock.getScores).toHaveBeenCalledWith('t1', 'stu-1');
+    expect(schoolExamsServiceMock.getScores).toHaveBeenCalledWith('t1', 'stu-1');
 
     const ds = component['dialogStudent']();
     expect(ds).not.toBeNull();
@@ -136,7 +137,7 @@ describe('TermScoreEditorComponent', () => {
 
     component['saveDialog']();
 
-    expect(termExamsServiceMock.saveScores).toHaveBeenCalledWith(
+    expect(schoolExamsServiceMock.saveScores).toHaveBeenCalledWith(
       't1',
       expect.arrayContaining([
         expect.objectContaining({
@@ -158,7 +159,7 @@ describe('TermScoreEditorComponent', () => {
 
   it('renders student list', () => {
     const host = fixture.nativeElement as HTMLElement;
-    const rows = host.querySelectorAll('.term-score-editor__row');
+    const rows = host.querySelectorAll('.school-score-editor__row');
     expect(rows.length).toBe(1);
     expect(rows[0].textContent).toContain('王小明');
   });

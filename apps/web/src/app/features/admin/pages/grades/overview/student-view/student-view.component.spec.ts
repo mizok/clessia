@@ -74,14 +74,14 @@ describe('StudentViewComponent', () => {
   it('should filter scores by type', () => {
     component['scores'].set([
       { id: '1', type: 'academy', examName: 'Quiz 1', subjectName: '數學', examDate: '2026-04-01' },
-      { id: '2', type: 'term', examName: '段考一', subjectName: '英文', examDate: '2026-04-01' },
+      { id: '2', type: 'school', examName: '段考一', subjectName: '英文', examDate: '2026-04-01' },
       { id: '3', type: 'academy', examName: 'Quiz 2', subjectName: '數學', examDate: '2026-04-01' },
     ] as any);
 
     component['typeFilter'].set('academy');
     expect(component['filteredScores']()).toHaveLength(2);
 
-    component['typeFilter'].set('term');
+    component['typeFilter'].set('school');
     expect(component['filteredScores']()).toHaveLength(1);
 
     component['typeFilter'].set('all');
@@ -92,7 +92,7 @@ describe('StudentViewComponent', () => {
     component['scores'].set([
       { id: '1', type: 'academy', subjectName: '數學', examDate: '2026-04-01' },
       { id: '2', type: 'academy', subjectName: '英文', examDate: '2026-04-01' },
-      { id: '3', type: 'term', subjectName: '數學', examDate: '2026-04-01' },
+      { id: '3', type: 'school', subjectName: '數學', examDate: '2026-04-01' },
     ] as any);
 
     component['subjectFilter'].set('數學');

@@ -45,7 +45,7 @@
         </div>
       }
 
-      @if (type() === 'term' && termExam(); as exam) {
+      @if (type() === 'school' && schoolExam(); as exam) {
         <div class="score-entry__term-summary">
           <div class="score-entry__term-total">
             <span class="score-entry__term-total-value">{{ exam.summary.totalRecordedCount }}</span>
@@ -89,16 +89,16 @@
           (savingChange)="onSavingChange($event)"
           (saved)="onSaved()"
         />
-      } @else if (type() === 'term' && termExam(); as exam) {
-        <app-term-score-editor
-          #termEditor
+      } @else if (type() === 'school' && schoolExam(); as exam) {
+        <app-school-score-editor
+          #schoolEditor
           [exam]="exam"
           [examId]="examId()"
           [disabled]="isClosed()"
           (dirtyChange)="onDirtyChange($event)"
           (savingChange)="onSavingChange($event)"
           (saved)="onSaved()"
-          (filterChange)="onTermFilterChange($event)"
+          (filterChange)="onSchoolFilterChange($event)"
         />
       }
     </div>

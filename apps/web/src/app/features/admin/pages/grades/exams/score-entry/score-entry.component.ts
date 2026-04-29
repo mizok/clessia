@@ -23,7 +23,7 @@ import {
   type BreadcrumbItem,
 } from '@shared/components/page-breadcrumb/page-breadcrumb.component';
 import { AcademyScoreEditorComponent } from './academy-score-editor/academy-score-editor.component';
-import { TermScoreEditorComponent } from './term-score-editor/term-score-editor.component';
+import { SchoolScoreEditorComponent } from './school-score-editor/school-score-editor.component';
 
 import {
   AcademyExamsService,
@@ -31,14 +31,14 @@ import {
   type AcademyExamDetailSummary,
 } from '@core/academy-exams.service';
 import {
-  TermExamsService,
-  type TermExamDetail,
-} from '@core/term-exams.service';
+  SchoolExamsService,
+  type SchoolExamDetail,
+} from '@core/school-exams.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 
-type ScoreEntryType = 'academy' | 'term';
+type ScoreEntryType = 'academy' | 'school';
 
 interface ExamInfo {
   readonly name: string;
@@ -63,7 +63,7 @@ interface SummaryStats {
     ConfirmDialogModule,
     PageBreadcrumbComponent,
     AcademyScoreEditorComponent,
-    TermScoreEditorComponent,
+    SchoolScoreEditorComponent,
   ],
   providers: [MessageService],
   templateUrl: './score-entry.component.html',
@@ -76,7 +76,7 @@ export class ScoreEntryComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly academyExamsService = inject(AcademyExamsService);
-  private readonly termExamsService = inject(TermExamsService);
+  private readonly schoolExamsService = inject(SchoolExamsService);
   private readonly refData = inject(ReferenceDataService);
   private readonly messageService = inject(MessageService);
   private readonly destroyRef = inject(DestroyRef);
@@ -86,12 +86,12 @@ export class ScoreEntryComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly dirty = signal(false);
-  private readonly termFilter = signal<{ campusId: string; grade: string | null } | null>(null);
+  private readonly schoolFilter = signal<{ campusId: string; grade: string | null } | null>(null);
 
   protected readonly academyExam = signal<AcademyExamDetail | null>(null);
-  protected readonly termExam = signal<TermExamDetail | null>(null);
+  protected readonly schoolExam = signal<SchoolExamDetail | null>(null);
   protected readonly academyEditor = viewChild<AcademyScoreEditorComponent>('academyEditor');
-  protected readonly termEditor = viewChild<TermScoreEditorComponent>('termEditor');
+  protected readonly schoolEditor = viewChild<SchoolScoreEditorComponent>('schoolEditor');
 
   protected readonly breadcrumbs: BreadcrumbItem[] = [
     { label: '考試管理', routerLink: '/admin/grades/exams' },
@@ -128,9 +128,9 @@ export class ScoreEntryComponent implements OnInit {
         status: exam.status,
       };
     }
-    const exam = this.termExam();
+    const exam = this.schoolExam();
     if (!exam) return null;
-    const filter = this.termFilter();
+    const filter = this.schoolFilter();
     const campusName = filter?.campusId
       ? (this.refData.campuses().find((c) => c.id === filter.campusId)?.name ?? null)
       : '全部分校';
@@ -160,7 +160,7 @@ export class ScoreEntryComponent implements OnInit {
         lowest: s.lowestScore,
       };
     }
-    const exam = this.termExam();
+    const exam = this.schoolExam();
     if (!exam) return null;
     return {
       recordedCount: exam.summary.totalRecordedCount,
@@ -186,7 +186,7 @@ export class ScoreEntryComponent implements OnInit {
     const type = params['type'] as ScoreEntryType;
     const id = params['id'] as string;
 
-    if (type !== 'academy' && type !== 'term') {
+    if (type !== 'academy' && type !== 'school') {
       this.router.navigate(['/admin/grades/exams']);
       return;
     }
@@ -219,8 +219,8 @@ export class ScoreEntryComponent implements OnInit {
           },
         });
     } else {
-      const filter = this.termFilter();
-      this.termExamsService
+      const filter = this.schoolFilter();
+      this.schoolExamsService
         .get(this.examId(), {
           campusId: filter?.campusId || undefined,
           grade: filter?.grade ?? undefined,
@@ -228,14 +228,14 @@ export class ScoreEntryComponent implements OnInit {
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: ({ data }) => {
-            this.termExam.set(data);
+            this.schoolExam.set(data);
             this.loading.set(false);
           },
           error: () => {
             this.messageService.add({
               severity: 'error',
               summary: '載入失敗',
-              detail: '無法載入段考資料',
+              detail: '無法載入學校考試資料',
             });
             this.loading.set(false);
             this.router.navigate(['/admin/grades/exams']);
@@ -244,10 +244,10 @@ export class ScoreEntryComponent implements OnInit {
     }
   }
 
-  private refreshTermSummary(): void {
-    if (this.type() !== 'term') return;
-    const filter = this.termFilter();
-    this.termExamsService
+  private refreshSchoolSummary(): void {
+    if (this.type() !== 'school') return;
+    const filter = this.schoolFilter();
+    this.schoolExamsService
       .get(this.examId(), {
         campusId: filter?.campusId || undefined,
         grade: filter?.grade ?? undefined,
@@ -255,13 +255,13 @@ export class ScoreEntryComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ data }) => {
-          this.termExam.set(data);
+          this.schoolExam.set(data);
         },
         error: () => {
           this.messageService.add({
             severity: 'error',
             summary: '載入失敗',
-            detail: '無法更新段考統計',
+            detail: '無法更新學校考試統計',
           });
         },
       });
@@ -277,16 +277,16 @@ export class ScoreEntryComponent implements OnInit {
 
   protected onSaved(): void {
     this.dirty.set(false);
-    this.refreshTermSummary();
+    this.refreshSchoolSummary();
   }
 
-  protected onTermFilterChange(filter: { campusId: string; grade: string | null }): void {
-    const current = this.termFilter();
+  protected onSchoolFilterChange(filter: { campusId: string; grade: string | null }): void {
+    const current = this.schoolFilter();
     if (current?.campusId === filter.campusId && current?.grade === filter.grade) {
       return;
     }
-    this.termFilter.set(filter);
-    this.refreshTermSummary();
+    this.schoolFilter.set(filter);
+    this.refreshSchoolSummary();
   }
 
   protected saveScores(): void {
@@ -295,9 +295,9 @@ export class ScoreEntryComponent implements OnInit {
       academyEd.save();
       return;
     }
-    const termEd = this.termEditor();
-    if (termEd) {
-      termEd.save();
+    const schoolEd = this.schoolEditor();
+    if (schoolEd) {
+      schoolEd.save();
     }
   }
 

@@ -56,7 +56,7 @@ interface SubjectOption {
 const TYPE_OPTIONS: Array<{ label: string; value: TypeFilter }> = [
   { label: '全部', value: 'all' },
   { label: '補習班考試', value: 'academy' },
-  { label: '段考', value: 'term' },
+  { label: '學校考試', value: 'school' },
 ];
 
 const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
@@ -246,7 +246,7 @@ export class StudentViewComponent implements OnInit {
   }
 
   protected getTypeLabel(type: ScoreRecordType): string {
-    return type === 'academy' ? '補習班' : '段考';
+    return type === 'academy' ? '補習班' : '學校考試';
   }
 
   protected getTypeSeverity(type: ScoreRecordType): 'info' | 'contrast' {

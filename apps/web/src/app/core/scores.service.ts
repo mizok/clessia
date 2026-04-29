@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '@env/environment';
 
-export type ScoreRecordType = 'academy' | 'term';
+export type ScoreRecordType = 'academy' | 'school';
 export type ScoreRecordStatus = 'scored' | 'absent' | 'makeup';
 
 export interface ScoreRecord {
@@ -42,7 +42,7 @@ export interface ScoreListResponse {
 export interface SubjectAverage {
   subjectName: string;
   academyAvg: number | null;
-  termAvg: number | null;
+  schoolAvg: number | null;
   totalRecords: number;
 }
 

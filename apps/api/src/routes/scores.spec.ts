@@ -14,8 +14,8 @@ interface ScoresState {
 function createTestApp(state: ScoresState) {
   const app = new Hono();
   app.use('/api/scores/*', async (c, next) => {
-    c.set('supabase', createSupabase(state));
-    c.set('orgId', 'org-1');
+    (c as any).set('supabase', createSupabase(state));
+    (c as any).set('orgId', 'org-1');
     await next();
   });
   app.route('/api/scores', scoresApp);
@@ -28,7 +28,7 @@ function createSupabase(state: ScoresState) {
       if (table === 'students') return createStudentsQuery(state);
       if (table === 'academy_exams') return createAcademyExamsQuery(state);
       if (table === 'academy_scores') return createAcademyScoresQuery(state);
-      if (table === 'term_scores') return createEmptyTermScoresQuery();
+      if (table === 'school_scores') return createEmptySchoolScoresQuery();
       throw new Error(`Unsupported table: ${table}`);
     },
   };
@@ -162,7 +162,7 @@ function createAcademyScoresQuery(state: ScoresState) {
   return query;
 }
 
-function createEmptyTermScoresQuery() {
+function createEmptySchoolScoresQuery() {
   return {
     select() {
       return this;
@@ -192,7 +192,7 @@ describe('scores partial coverage', () => {
 
     const res = await app.request('/api/scores?type=academy&search=衝刺考');
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { data: Array<{ examName: string }> };
     expect(body.data).toHaveLength(1);
     expect(body.data[0].examName).toBe('期中衝刺考');
   });

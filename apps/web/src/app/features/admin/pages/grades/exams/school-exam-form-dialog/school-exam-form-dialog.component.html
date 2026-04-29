@@ -1,0 +1,158 @@
+<div class="form-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <span class="dialog-header-inline__breadcrumb">學校考試</span>
+      <span class="dialog-header-inline__title">{{
+        isEditing() ? '編輯學校考試' : '新增學校考試'
+      }}</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  @if (isInitialLoading()) {
+    <div class="school-exam-form-dialog__loading">
+      <i class="pi pi-spinner pi-spin"></i>
+      <span>載入中...</span>
+    </div>
+  } @else if (hasNoSchools()) {
+    <div class="school-exam-form-dialog__empty">
+      <i class="pi pi-building school-exam-form-dialog__empty-icon"></i>
+      <h3 class="school-exam-form-dialog__empty-title">尚未建立任何學校</h3>
+      <p class="school-exam-form-dialog__empty-desc">
+        學校考試需要綁定一所學校。請先到「學校管理」建立學校後，再回來新增學校考試。
+      </p>
+      <div class="school-exam-form-dialog__empty-actions">
+        <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+        <p-button
+          label="前往學校管理"
+          icon="pi pi-arrow-right"
+          iconPos="right"
+          (onClick)="goToSchools()"
+        />
+      </div>
+    </div>
+  } @else {
+    @if (isClosed()) {
+      <div class="school-exam-form-dialog__hint school-exam-form-dialog__hint--warn">
+        <i class="pi pi-lock"></i>
+        此學校考試已結束，欄位無法修改；如需調整請先重新開啟。
+      </div>
+    } @else if (hasScores()) {
+      <div class="school-exam-form-dialog__hint">
+        <i class="pi pi-info-circle"></i>
+        已有成績登錄，學年／學期／考試類型／學校將鎖定以避免資料不一致。
+      </div>
+    }
+
+    <ng-container [formGroup]="form">
+      <!-- School -->
+      <div class="form-dialog__field">
+        <label class="form-dialog__label"
+          >就讀學校<span class="form-dialog__required">*</span></label
+        >
+        <p-select
+          [options]="schools()"
+          formControlName="schoolId"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="選擇學校"
+          [filter]="true"
+          filterBy="name,shortName"
+          [appendTo]="'body'"
+          class="w-full"
+        />
+      </div>
+
+      <!-- Academic Year -->
+      <div class="form-dialog__field">
+        <label class="form-dialog__label">學年度<span class="form-dialog__required">*</span></label>
+        <p-inputnumber
+          formControlName="academicYear"
+          [min]="100"
+          [max]="200"
+          [showButtons]="true"
+          [useGrouping]="false"
+          styleClass="w-full"
+        />
+        <span class="school-exam-form-dialog__hint-text">以民國年表示，例如 114</span>
+      </div>
+
+      <!-- Semester -->
+      <div class="form-dialog__field">
+        <label class="form-dialog__label">學期<span class="form-dialog__required">*</span></label>
+        <p-select
+          [options]="semesterOptions"
+          formControlName="semester"
+          optionLabel="label"
+          optionValue="value"
+          [appendTo]="'body'"
+          class="w-full"
+        />
+      </div>
+
+      <!-- Exam Type -->
+      <div class="form-dialog__field">
+        <label class="form-dialog__label"
+          >考試類型<span class="form-dialog__required">*</span></label
+        >
+        <p-select
+          [options]="examTypeOptions"
+          formControlName="examType"
+          optionLabel="label"
+          optionValue="value"
+          [appendTo]="'body'"
+          class="w-full"
+        />
+      </div>
+
+      <!-- Name -->
+      <div class="form-dialog__field">
+        <label class="form-dialog__label">{{ nameLabel() }}</label>
+        <input
+          pInputText
+          type="text"
+          formControlName="name"
+          [placeholder]="namePlaceholder()"
+          class="w-full"
+        />
+        @if (showNameRequiredError()) {
+          <span class="school-exam-form-dialog__error-text">「其他」類型需填寫考試名稱</span>
+        }
+      </div>
+
+      <!-- Exam Date -->
+      <div class="form-dialog__field">
+        <label class="form-dialog__label">考試日期</label>
+        <p-datepicker
+          formControlName="examDate"
+          dateFormat="yy-mm-dd"
+          placeholder="選擇日期（選填）"
+          [appendTo]="'body'"
+          [showIcon]="true"
+          styleClass="w-full"
+        />
+        <span class="school-exam-form-dialog__hint-text">若日期尚未確定可稍後再補</span>
+      </div>
+
+      <!-- Footer -->
+      <div class="form-dialog__footer">
+        <p-button
+          label="取消"
+          [text]="true"
+          severity="secondary"
+          [disabled]="saving()"
+          (onClick)="cancel()"
+        />
+        <p-button
+          [label]="isEditing() ? '儲存' : '建立'"
+          [icon]="saving() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
+          [loading]="saving()"
+          [disabled]="!canSave()"
+          (onClick)="save()"
+        />
+      </div>
+    </ng-container>
+  }
+</div>

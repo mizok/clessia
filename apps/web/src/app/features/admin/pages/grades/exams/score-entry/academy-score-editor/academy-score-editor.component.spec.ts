@@ -40,9 +40,10 @@ describe('AcademyScoreEditorComponent', () => {
     totalScore: 100,
     scopeNote: '第一章',
     campusId: 'c1',
+    campusName: '台北分校',
     subjectId: 's1',
     subjectName: '數學',
-    classes: [{ classId: 'cls-1', className: 'A班' }],
+    classes: [{ classId: 'cls-1', className: 'A班', campusName: '台北分校', courseName: '數學' }],
     summary: {
       averageScore: 85,
       highestScore: 85,
@@ -140,8 +141,8 @@ describe('AcademyScoreEditorComponent', () => {
     const multiClassExam: AcademyExamDetail = {
       ...mockExam,
       classes: [
-        { classId: 'cls-1', className: 'A班' },
-        { classId: 'cls-2', className: 'B班' },
+        { classId: 'cls-1', className: 'A班', campusName: '台北分校', courseName: '數學' },
+        { classId: 'cls-2', className: 'B班', campusName: '台北分校', courseName: '數學' },
       ],
     };
     fixture.componentRef.setInput('exam', multiClassExam);

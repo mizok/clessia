@@ -99,8 +99,10 @@
       "mcp__plugin_telegram_telegram__reply"
     ]
   },
-  "enabledPlugins": {},
   "enabledMcpjsonServers": [
-    "code-review-graph"
-  ]
+    "code-review-graph",
+    "codex"
+  ],
+  "enabledPlugins": {},
+  "enableAllProjectMcpServers": true
 }

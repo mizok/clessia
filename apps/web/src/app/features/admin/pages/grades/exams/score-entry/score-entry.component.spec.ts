@@ -143,19 +143,22 @@ describe('ScoreEntryComponent', () => {
     expect(info?.metaLine).toContain('數學A班');
   });
 
-  it('loads term exam', async () => {
-    await setup('term', 't1');
+  it('loads school exam', async () => {
+    await setup('school', 't1');
 
-    const req = http.expectOne(`${environment.apiUrl}/api/term-exams/t1`);
+    const req = http.expectOne(`${environment.apiUrl}/api/school-exams/t1`);
     req.flush({
       data: {
         id: 't1',
         academicYear: 114,
         semester: 2,
-        period: 'midterm_2',
-        label: '114-2 期中考',
+        examType: 'term_exam',
+        name: null,
+        label: '114-2 段考',
         examDate: '2026-04-10',
         status: 'active',
+        schoolId: 'sch-1',
+        schoolName: '測試國中',
         summary: { bySubject: [], totalRecordedCount: 15 },
         createdAt: '2026-03-20T00:00:00Z',
         updatedAt: '2026-03-20T00:00:00Z',
@@ -164,14 +167,14 @@ describe('ScoreEntryComponent', () => {
 
     fixture.detectChanges();
     // Term editor fires getRecentStudents
-    const recentReq = http.match(`${environment.apiUrl}/api/term-exams/t1/recent-students`);
+    const recentReq = http.match(`${environment.apiUrl}/api/school-exams/t1/recent-students`);
     recentReq.forEach((r) => r.flush({ data: [] }));
 
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(component['type']()).toBe('term');
-    expect(component['examInfo']()?.name).toBe('114-2 期中考');
+    expect(component['type']()).toBe('school');
+    expect(component['examInfo']()?.name).toBe('114-2 段考');
     expect(component['summaryStats']()?.recordedCount).toBe(15);
   });
 

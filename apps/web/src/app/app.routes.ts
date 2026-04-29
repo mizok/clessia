@@ -174,7 +174,7 @@ export const routes: Routes = [
               },
               // 舊路由 redirect
               { path: 'academy-exams', redirectTo: 'exams', pathMatch: 'full' },
-              { path: 'term-exam-entry', redirectTo: 'exams', pathMatch: 'full' },
+              { path: 'school-exam-entry', redirectTo: 'exams', pathMatch: 'full' },
               { path: 'score-records', redirectTo: 'overview', pathMatch: 'full' },
             ],
           },

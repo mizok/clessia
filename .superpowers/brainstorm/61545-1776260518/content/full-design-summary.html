@@ -1,0 +1,346 @@
+<h2>成績模組重設計 — 完整方案</h2>
+<p class="subtitle">以下是所有頁面的設計方案總覽，請確認是否符合預期</p>
+
+<!-- 1. Exam Filter Mobile -->
+<div class="section">
+  <h3>1. 考試管理 — 手機版篩選</h3>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">現狀（篩選太多行）</div>
+      <div class="mockup-body" style="font-size:13px;">
+        <div style="padding:12px; display:flex; flex-direction:column; gap:8px;">
+          <div style="padding:8px 12px; background:#f1f5f9; border-radius:6px;">🔍 搜尋考試名稱...</div>
+          <div style="display:flex; gap:4px; flex-wrap:wrap;">
+            <span style="padding:4px 10px; background:#e0f2fe; border-radius:4px; font-size:12px;">近1月</span>
+            <span style="padding:4px 10px; background:#f1f5f9; border-radius:4px; font-size:12px;">近3月</span>
+            <span style="padding:4px 10px; background:#f1f5f9; border-radius:4px; font-size:12px;">近半年</span>
+            <span style="padding:4px 10px; background:#f1f5f9; border-radius:4px; font-size:12px;">全部</span>
+          </div>
+          <div style="display:flex; gap:4px; flex-wrap:wrap;">
+            <span style="padding:4px 10px; background:#e0f2fe; border-radius:4px; font-size:12px;">全部</span>
+            <span style="padding:4px 10px; background:#f1f5f9; border-radius:4px; font-size:12px;">補習班</span>
+            <span style="padding:4px 10px; background:#f1f5f9; border-radius:4px; font-size:12px;">段考</span>
+          </div>
+          <div style="display:flex; gap:4px; flex-wrap:wrap;">
+            <span style="padding:4px 10px; background:#f1f5f9; border-radius:4px; font-size:12px;">全部校區 ▾</span>
+            <span style="padding:4px 10px; background:#f1f5f9; border-radius:4px; font-size:12px;">全部科目 ▾</span>
+            <span style="padding:4px 10px; background:#f1f5f9; border-radius:4px; font-size:12px;">全部狀態 ▾</span>
+          </div>
+        </div>
+        <div style="padding:8px 12px; color:#dc2626; font-size:11px; text-align:center;">← 4 行篩選，佔掉半個螢幕 →</div>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">改善：搜尋 + 篩選按鈕 → Dialog</div>
+      <div class="mockup-body" style="font-size:13px;">
+        <div style="padding:12px; display:flex; gap:8px; align-items:center;">
+          <div style="flex:1; padding:8px 12px; background:#f1f5f9; border-radius:6px;">🔍 搜尋考試名稱...</div>
+          <div style="padding:8px 14px; background:#0284c7; color:#fff; border-radius:6px; font-size:12px; white-space:nowrap; cursor:pointer;">
+            ☰ 篩選
+          </div>
+        </div>
+        <div style="padding:8px 12px; color:#059669; font-size:11px; text-align:center;">✓ 只佔 1 行，其餘篩選在 Dialog 中</div>
+        <div style="margin:12px; padding:16px; background:#fff; border:2px solid #e2e8f0; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+          <div style="font-weight:600; margin-bottom:12px; font-size:14px;">篩選條件</div>
+          <div style="display:flex; flex-direction:column; gap:10px; font-size:12px;">
+            <div>
+              <div style="color:#64748b; margin-bottom:4px;">時間範圍</div>
+              <div style="display:flex; gap:4px;">
+                <span style="padding:4px 10px; background:#e0f2fe; border-radius:4px;">近1月</span>
+                <span style="padding:4px 10px; background:#f1f5f9; border-radius:4px;">近3月</span>
+                <span style="padding:4px 10px; background:#f1f5f9; border-radius:4px;">近半年</span>
+                <span style="padding:4px 10px; background:#f1f5f9; border-radius:4px;">全部</span>
+              </div>
+            </div>
+            <div>
+              <div style="color:#64748b; margin-bottom:4px;">考試類型</div>
+              <div style="display:flex; gap:4px;">
+                <span style="padding:4px 10px; background:#e0f2fe; border-radius:4px;">全部</span>
+                <span style="padding:4px 10px; background:#f1f5f9; border-radius:4px;">補習班</span>
+                <span style="padding:4px 10px; background:#f1f5f9; border-radius:4px;">段考</span>
+              </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <div style="flex:1;"><div style="color:#64748b; margin-bottom:4px;">校區</div><div style="padding:6px 10px; background:#f1f5f9; border-radius:4px;">全部校區 ▾</div></div>
+              <div style="flex:1;"><div style="color:#64748b; margin-bottom:4px;">科目</div><div style="padding:6px 10px; background:#f1f5f9; border-radius:4px;">全部科目 ▾</div></div>
+            </div>
+            <div><div style="color:#64748b; margin-bottom:4px;">狀態</div><div style="padding:6px 10px; background:#f1f5f9; border-radius:4px;">全部狀態 ▾</div></div>
+            <div style="display:flex; gap:8px; margin-top:4px;">
+              <div style="flex:1; padding:8px; text-align:center; color:#64748b; border:1px solid #e2e8f0; border-radius:6px; cursor:pointer;">清除</div>
+              <div style="flex:1; padding:8px; text-align:center; background:#0284c7; color:#fff; border-radius:6px; cursor:pointer;">套用</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 2. Score Entry Desktop -->
+<div class="section">
+  <h3>2. 成績登錄 — 桌面版表格修復</h3>
+  <p class="subtitle">修復：input/select 重疊、年級改中文、「已作答」→「未登錄」、移除 sticky footer 改 FAB</p>
+  <div class="mockup">
+    <div class="mockup-header">改善後的桌面版表格</div>
+    <div class="mockup-body" style="font-size:13px;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead>
+          <tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0;">
+            <th style="text-align:left; padding:10px 12px; font-weight:600; color:#475569;">學生</th>
+            <th style="text-align:left; padding:10px 12px; font-weight:600; color:#475569; width:60px;">年級</th>
+            <th style="text-align:left; padding:10px 12px; font-weight:600; color:#475569; width:100px;">分數 <span style="color:#94a3b8;">/100</span></th>
+            <th style="text-align:left; padding:10px 12px; font-weight:600; color:#475569; width:100px;">狀態</th>
+            <th style="text-align:left; padding:10px 12px; font-weight:600; color:#475569;">備註</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:8px 12px; font-weight:500;">王小明</td>
+            <td style="padding:8px 12px; color:#64748b; font-size:12px;">國二</td>
+            <td style="padding:8px 12px;"><div style="padding:5px 8px; border:1px solid #e2e8f0; border-radius:4px; text-align:right; width:80px;">85</div></td>
+            <td style="padding:8px 12px;"><div style="padding:5px 8px; border:1px solid #e2e8f0; border-radius:4px; font-size:12px;">未登錄 ▾</div></td>
+            <td style="padding:8px 12px;"><div style="padding:5px 8px; border:1px solid #e2e8f0; border-radius:4px; color:#94a3b8;">備註</div></td>
+          </tr>
+          <tr style="border-bottom:1px solid #f1f5f9; background:#f0f9ff;">
+            <td style="padding:8px 12px; font-weight:500;">李小華</td>
+            <td style="padding:8px 12px; color:#64748b; font-size:12px;">國一</td>
+            <td style="padding:8px 12px;"><div style="padding:5px 8px; border:1px solid #bae6fd; border-radius:4px; text-align:right; width:80px; background:#fff;">92</div></td>
+            <td style="padding:8px 12px;"><div style="padding:5px 8px; border:1px solid #bae6fd; border-radius:4px; font-size:12px; background:#fff;">未登錄 ▾</div></td>
+            <td style="padding:8px 12px;"><div style="padding:5px 8px; border:1px solid #bae6fd; border-radius:4px; background:#fff;">很棒</div></td>
+          </tr>
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:8px 12px; font-weight:500;">張三</td>
+            <td style="padding:8px 12px; color:#64748b; font-size:12px;">國二</td>
+            <td style="padding:8px 12px;"><div style="padding:5px 8px; border:1px solid #e2e8f0; border-radius:4px; text-align:right; width:80px;">—</div></td>
+            <td style="padding:8px 12px;"><div style="padding:5px 8px; border:1px solid #e2e8f0; border-radius:4px; font-size:12px;">缺考 ▾</div></td>
+            <td style="padding:8px 12px;"><div style="padding:5px 8px; border:1px solid #e2e8f0; border-radius:4px; color:#94a3b8;">備註</div></td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:16px; font-size:12px; color:#64748b;">
+        ✓ 年級用中文（國一、國二…）<br>
+        ✓ 欄位寬度合理不重疊<br>
+        ✓ 「已作答」→「未登錄」（預設狀態名稱更直覺）<br>
+        ✓ 備註欄佔剩餘寬度
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 3. Score Entry Mobile -->
+<div class="section">
+  <h3>3. 成績登錄 — 手機版列表 + Bottom Sheet</h3>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">精簡列表</div>
+      <div class="mockup-body" style="font-size:13px;">
+        <div style="padding:8px 12px; display:flex; gap:8px; align-items:center; border-bottom:1px solid #f1f5f9;">
+          <div style="flex:1; padding:6px 10px; background:#f1f5f9; border-radius:6px; font-size:12px;">🔍 搜尋學生...</div>
+          <div style="padding:6px 10px; background:#f1f5f9; border-radius:6px; font-size:12px;">全部年級 ▾</div>
+        </div>
+        <div style="padding:0 4px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 8px; border-bottom:1px solid #f8fafc;">
+            <div><span style="font-weight:500;">王小明</span> <span style="color:#94a3b8; font-size:11px;">國二</span></div>
+            <span style="color:#94a3b8; font-size:12px;">未登錄</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 8px; border-bottom:1px solid #f8fafc;">
+            <div><span style="font-weight:500;">李小華</span> <span style="color:#94a3b8; font-size:11px;">國一</span></div>
+            <span style="color:#0369a1; font-weight:600; font-size:14px;">85</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 8px; border-bottom:1px solid #f8fafc;">
+            <div><span style="font-weight:500;">張三</span> <span style="color:#94a3b8; font-size:11px;">國二</span></div>
+            <span style="color:#f59e0b; font-size:12px;">缺考</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 8px; border-bottom:1px solid #f8fafc;">
+            <div><span style="font-weight:500;">陳美麗</span> <span style="color:#94a3b8; font-size:11px;">國一</span></div>
+            <span style="color:#dc2626; font-weight:600; font-size:14px;">45 ⚠</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 8px; border-bottom:1px solid #f8fafc;">
+            <div><span style="font-weight:500;">林小傑</span> <span style="color:#94a3b8; font-size:11px;">國三</span></div>
+            <span style="color:#059669; font-weight:600; font-size:14px;">92</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 8px;">
+            <div><span style="font-weight:500;">黃大偉</span> <span style="color:#94a3b8; font-size:11px;">國二</span></div>
+            <span style="color:#94a3b8; font-size:12px;">未登錄</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">點擊後 — Bottom Sheet</div>
+      <div class="mockup-body" style="font-size:13px; position:relative; min-height:280px; background:#00000020;">
+        <div style="position:absolute; bottom:0; left:0; right:0; background:#fff; border-radius:16px 16px 0 0; padding:20px; box-shadow:0 -4px 20px rgba(0,0,0,0.1);">
+          <div style="width:36px; height:4px; background:#d4d4d8; border-radius:2px; margin:0 auto 16px;"></div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div>
+              <div style="font-weight:600; font-size:15px;">李小華</div>
+              <div style="font-size:12px; color:#64748b;">國一</div>
+            </div>
+            <div style="padding:4px 10px; background:#e0f2fe; color:#0369a1; border-radius:4px; font-size:11px;">已修改</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div>
+              <div style="font-size:11px; color:#64748b; margin-bottom:4px; font-weight:600;">分數 /100</div>
+              <div style="padding:10px 12px; border:1px solid #e2e8f0; border-radius:8px; text-align:right; font-size:16px; font-weight:600;">85</div>
+            </div>
+            <div>
+              <div style="font-size:11px; color:#64748b; margin-bottom:4px; font-weight:600;">狀態</div>
+              <div style="padding:10px 12px; border:1px solid #e2e8f0; border-radius:8px;">未登錄 ▾</div>
+            </div>
+            <div>
+              <div style="font-size:11px; color:#64748b; margin-bottom:4px; font-weight:600;">備註</div>
+              <div style="padding:10px 12px; border:1px solid #e2e8f0; border-radius:8px; color:#94a3b8;">輸入備註...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 4. FAB -->
+<div class="section">
+  <h3>4. 儲存按鈕 — FAB 浮動</h3>
+  <div class="mockup">
+    <div class="mockup-header">有未儲存變更時浮現</div>
+    <div class="mockup-body" style="font-size:13px; position:relative; min-height:100px;">
+      <div style="text-align:center; color:#94a3b8; padding:20px;">（表格內容...）</div>
+      <div style="position:absolute; bottom:16px; right:16px; display:flex; align-items:center; gap:8px; padding:10px 20px; background:#0284c7; color:#fff; border-radius:28px; box-shadow:0 4px 12px rgba(2,132,199,0.4); font-size:14px; font-weight:500; cursor:pointer;">
+        💾 儲存成績
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. Overview Portal -->
+<div class="section">
+  <h3>5. 成績總覽 — 入口頁</h3>
+  <div class="mockup">
+    <div class="mockup-header">兩個大方塊選擇視角</div>
+    <div class="mockup-body" style="font-size:13px; padding:20px;">
+      <div style="text-align:center; margin-bottom:16px;">
+        <div style="font-size:18px; font-weight:700; color:#18181b;">成績總覽</div>
+        <div style="font-size:13px; color:#71717a;">選擇檢視模式</div>
+      </div>
+      <div style="display:flex; gap:16px;">
+        <div style="flex:1; padding:24px; border:2px solid #e2e8f0; border-radius:12px; cursor:pointer; text-align:center; transition:all 0.15s;">
+          <div style="font-size:28px; margin-bottom:8px;">👤</div>
+          <div style="font-weight:600; font-size:15px; margin-bottom:4px;">學生視角</div>
+          <div style="font-size:12px; color:#64748b; line-height:1.5;">查看個別學生的成績走勢、科目摘要與歷次紀錄</div>
+        </div>
+        <div style="flex:1; padding:24px; border:2px solid #e2e8f0; border-radius:12px; cursor:pointer; text-align:center;">
+          <div style="font-size:28px; margin-bottom:8px;">🏫</div>
+          <div style="font-weight:600; font-size:15px; margin-bottom:4px;">班級視角</div>
+          <div style="font-size:12px; color:#64748b; line-height:1.5;">查看班級考試統計、排名與成績分布，按課程分組</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 6. Student View -->
+<div class="section">
+  <h3>6. 學生視角 — 預設載入資料</h3>
+  <p class="subtitle">預設顯示第一個分校的學生清單，搜尋 + 篩選在頁面內</p>
+  <div class="mockup">
+    <div class="mockup-header">學生視角（進場即有資料）</div>
+    <div class="mockup-body" style="font-size:13px;">
+      <div style="padding:8px 12px; font-size:11px; color:#64748b;">
+        成績總覽 &gt; 學生視角
+      </div>
+      <div style="padding:8px 12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; border-bottom:1px solid #f1f5f9;">
+        <div style="padding:6px 10px; background:#f1f5f9; border-radius:6px; font-size:12px;">信義分校 ▾</div>
+        <div style="flex:1; min-width:150px; padding:6px 10px; background:#f1f5f9; border-radius:6px; font-size:12px;">🔍 搜尋學生姓名...</div>
+        <div style="padding:6px 10px; background:#f1f5f9; border-radius:6px; font-size:12px;">全部年級 ▾</div>
+      </div>
+      <div style="padding:4px 8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 8px; border-bottom:1px solid #f8fafc;">
+          <div>
+            <span style="font-weight:500;">王小明</span>
+            <span style="color:#94a3b8; font-size:11px; margin-left:4px;">國二</span>
+          </div>
+          <div style="font-size:11px; color:#64748b;">5 筆成績 · 平均 78</div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 8px; border-bottom:1px solid #f8fafc;">
+          <div>
+            <span style="font-weight:500;">李小華</span>
+            <span style="color:#94a3b8; font-size:11px; margin-left:4px;">國一</span>
+          </div>
+          <div style="font-size:11px; color:#64748b;">8 筆成績 · 平均 85</div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 8px; border-bottom:1px solid #f8fafc;">
+          <div>
+            <span style="font-weight:500;">張三</span>
+            <span style="color:#94a3b8; font-size:11px; margin-left:4px;">國二</span>
+          </div>
+          <div style="font-size:11px; color:#64748b;">3 筆成績 · 平均 62</div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 8px;">
+          <div>
+            <span style="font-weight:500;">陳美麗</span>
+            <span style="color:#94a3b8; font-size:11px; margin-left:4px;">國一</span>
+          </div>
+          <div style="font-size:11px; color:#64748b;">6 筆成績 · 平均 91</div>
+        </div>
+      </div>
+      <div style="padding:8px 12px; font-size:11px; color:#94a3b8; text-align:center;">點擊學生查看成績明細 →</div>
+    </div>
+  </div>
+</div>
+
+<!-- 7. Class View -->
+<div class="section">
+  <h3>7. 班級視角 — 按課程分組</h3>
+  <p class="subtitle">預設第一個分校，班級按課程分組顯示</p>
+  <div class="mockup">
+    <div class="mockup-header">班級視角（按課程分組）</div>
+    <div class="mockup-body" style="font-size:13px;">
+      <div style="padding:8px 12px; font-size:11px; color:#64748b;">
+        成績總覽 &gt; 班級視角
+      </div>
+      <div style="padding:8px 12px; display:flex; gap:8px; align-items:center; border-bottom:1px solid #f1f5f9;">
+        <div style="padding:6px 10px; background:#f1f5f9; border-radius:6px; font-size:12px;">信義分校 ▾</div>
+        <div style="flex:1; min-width:150px; padding:6px 10px; background:#f1f5f9; border-radius:6px; font-size:12px;">🔍 搜尋班級...</div>
+      </div>
+      <div style="padding:8px 12px;">
+        <!-- Course Group 1 -->
+        <div style="margin-bottom:16px;">
+          <div style="font-weight:600; color:#0369a1; font-size:13px; margin-bottom:8px; padding-bottom:4px; border-bottom:2px solid #e0f2fe;">
+            📘 國中數學（適合：國一～國三）
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px; padding-left:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; background:#f8fafc; border-radius:6px; cursor:pointer;">
+              <div>
+                <span style="font-weight:500;">國一數學 A 班</span>
+                <span style="color:#94a3b8; font-size:11px; margin-left:6px;">12 人</span>
+              </div>
+              <span style="font-size:11px; color:#64748b;">3 場考試 &gt;</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; background:#f8fafc; border-radius:6px; cursor:pointer;">
+              <div>
+                <span style="font-weight:500;">國二數學 B 班</span>
+                <span style="color:#94a3b8; font-size:11px; margin-left:6px;">15 人</span>
+              </div>
+              <span style="font-size:11px; color:#64748b;">5 場考試 &gt;</span>
+            </div>
+          </div>
+        </div>
+        <!-- Course Group 2 -->
+        <div>
+          <div style="font-weight:600; color:#0369a1; font-size:13px; margin-bottom:8px; padding-bottom:4px; border-bottom:2px solid #e0f2fe;">
+            📗 國中英文（適合：國一～國三）
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px; padding-left:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; background:#f8fafc; border-radius:6px; cursor:pointer;">
+              <div>
+                <span style="font-weight:500;">國一英文班</span>
+                <span style="color:#94a3b8; font-size:11px; margin-left:6px;">10 人</span>
+              </div>
+              <span style="font-size:11px; color:#64748b;">2 場考試 &gt;</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

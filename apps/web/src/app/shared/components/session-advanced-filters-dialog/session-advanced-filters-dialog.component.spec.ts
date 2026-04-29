@@ -220,7 +220,7 @@ function buildStudent(): Student {
     orgId: 'org-1',
     name: '王小明',
     grade: 'J1',
-    school: '測試國中',
+    school: { id: 'school-1', name: '測試國中', shortName: null },
     birthday: null,
     gender: null,
     phone: null,

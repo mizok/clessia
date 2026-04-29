@@ -1,6 +1,6 @@
 @use 'shared/breakpoints' as *;
 
-.term-score-editor {
+.school-score-editor {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
@@ -431,7 +431,7 @@
 }
 
 @include respond-to('tablet-portrait') {
-  .term-score-editor {
+  .school-score-editor {
     padding: var(--space-4);
     gap: var(--space-4);
 

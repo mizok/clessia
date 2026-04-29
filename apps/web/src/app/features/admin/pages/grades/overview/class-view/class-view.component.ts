@@ -12,8 +12,6 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin, of } from 'rxjs';
-import { map, switchMap } from 'rxjs/operators';
 
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
@@ -27,7 +25,6 @@ import {
   type BreadcrumbItem,
 } from '@shared/components/page-breadcrumb/page-breadcrumb.component';
 import { ClassesService, type Class } from '@core/classes.service';
-import { CoursesService, type Course } from '@core/courses.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/students.service';
 import {
@@ -90,7 +87,6 @@ interface ExamOption {
 })
 export class ClassViewComponent implements OnInit {
   private readonly classesService = inject(ClassesService);
-  private readonly coursesService = inject(CoursesService);
   private readonly academyExamsService = inject(AcademyExamsService);
   private readonly scoresService = inject(ScoresService);
   private readonly refData = inject(ReferenceDataService);
@@ -254,33 +250,16 @@ export class ClassViewComponent implements OnInit {
       return;
     }
     this.loadingGroups.set(true);
-    this.coursesService
-      .list({ campusId: this.campusId(), isActive: true, pageSize: 100 })
-      .pipe(
-        switchMap(({ data: courses }) => {
-          if (courses.length === 0) return of<CourseGroup[]>([]);
-          return forkJoin(
-            courses.map((course) =>
-              this.classesService
-                .list({
-                  courseId: course.id,
-                  campusId: this.campusId(),
-                  isActive: true,
-                  pageSize: 100,
-                })
-                .pipe(
-                  map(({ data: classes }) =>
-                    this.buildCourseGroup(course, classes),
-                  ),
-                ),
-            ),
-          );
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      )
+    this.classesService
+      .list({
+        campusId: this.campusId(),
+        isActive: true,
+        pageSize: 0,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (groups) => {
-          this.courseGroups.set(groups.filter((g) => g.classes.length > 0));
+        next: ({ data: classes }) => {
+          this.courseGroups.set(this.buildCourseGroups(classes));
           this.loadingGroups.set(false);
         },
         error: () => {
@@ -295,19 +274,33 @@ export class ClassViewComponent implements OnInit {
       });
   }
 
-  private buildCourseGroup(course: Course, classes: Class[]): CourseGroup {
-    return {
-      courseId: course.id,
-      courseName: course.name,
-      subjectName: course.subjectName,
-      gradeRange: this.formatGradeRange(course.gradeLevels),
-      classes: classes.map((c) => ({
-        id: c.id,
-        name: c.name,
-        maxStudents: c.maxStudents,
-        gradeLabels: this.formatGradeRange(c.gradeLevels),
-      })),
-    };
+  private buildCourseGroups(classes: Class[]): CourseGroup[] {
+    const groups = new Map<string, CourseGroup>();
+
+    for (const cls of classes) {
+      const existing = groups.get(cls.courseId);
+      const classItem: ClassItem = {
+        id: cls.id,
+        name: cls.name,
+        maxStudents: cls.maxStudents,
+        gradeLabels: this.formatGradeRange(cls.gradeLevels),
+      };
+
+      if (existing) {
+        existing.classes.push(classItem);
+        continue;
+      }
+
+      groups.set(cls.courseId, {
+        courseId: cls.courseId,
+        courseName: cls.courseName ?? '未命名課程',
+        subjectName: cls.subjectName ?? '未指定科目',
+        gradeRange: this.formatGradeRange(cls.gradeLevels),
+        classes: [classItem],
+      });
+    }
+
+    return Array.from(groups.values());
   }
 
   private formatGradeRange(levels: string[]): string {

@@ -24,7 +24,7 @@ import attendanceRoute from './routes/attendance';
 import leavesRoute from './routes/leaves';
 import dailyCheckinsRoute from './routes/daily-checkins';
 import academyExamsRoute from './routes/academy-exams';
-import termExamsRoute from './routes/term-exams';
+import schoolExamsRoute from './routes/school-exams';
 import scoresRoute from './routes/scores';
 
 // ============================================================
@@ -253,7 +253,7 @@ app.route('/api/attendance', attendanceRoute);
 app.route('/api/leaves', leavesRoute);
 app.route('/api/daily-checkins', dailyCheckinsRoute);
 app.route('/api/academy-exams', academyExamsRoute);
-app.route('/api/term-exams', termExamsRoute);
+app.route('/api/school-exams', schoolExamsRoute);
 app.route('/api/scores', scoresRoute);
 
 // ============================================================

@@ -30,31 +30,31 @@ import { PaginatorModule } from 'primeng/paginator';
 import { MessageService, ConfirmationService } from 'primeng/api';
 
 import {
-  TermExamsService,
-  type TermExamDetail,
-  type TermExamStudent,
-  type TermExamStudentStatus,
-  type TermScore,
-  type TermScoreStatus,
-  type SaveTermScoresInput,
-} from '@core/term-exams.service';
+  SchoolExamsService,
+  type SchoolExamDetail,
+  type SchoolExamStudent,
+  type SchoolExamStudentStatus,
+  type SchoolScore,
+  type SchoolScoreStatus,
+  type SaveSchoolScoresInput,
+} from '@core/school-exams.service';
 import { type GradeLevel } from '@core/students.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 
-export interface TermScoreRow {
+export interface SchoolScoreRow {
   subjectId: string;
   subjectName: string;
   score: number | null;
-  status: TermScoreStatus;
+  status: SchoolScoreStatus;
   notes: string;
-  original: { score: number | null; status: TermScoreStatus; notes: string };
+  original: { score: number | null; status: SchoolScoreStatus; notes: string };
 }
 
 interface DialogStudent {
   studentId: string;
   studentName: string;
   studentGrade: string | null;
-  rows: TermScoreRow[];
+  rows: SchoolScoreRow[];
   loading: boolean;
 }
 
@@ -73,13 +73,13 @@ const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel }> = [
   { label: '高三', value: 'S3' },
 ];
 
-const SCORE_STATUS_OPTIONS: Array<{ label: string; value: TermScoreStatus }> = [
+const SCORE_STATUS_OPTIONS: Array<{ label: string; value: SchoolScoreStatus }> = [
   { label: '正常', value: 'scored' },
   { label: '缺考', value: 'absent' },
   { label: '補考', value: 'makeup' },
 ];
 
-const STUDENT_STATUS_OPTIONS: Array<{ label: string; value: TermExamStudentStatus }> = [
+const STUDENT_STATUS_OPTIONS: Array<{ label: string; value: SchoolExamStudentStatus }> = [
   { label: '全部', value: 'all' },
   { label: '待登錄', value: 'pending' },
   { label: '已登錄', value: 'scored' },
@@ -88,7 +88,7 @@ const STUDENT_STATUS_OPTIONS: Array<{ label: string; value: TermExamStudentStatu
 ];
 
 @Component({
-  selector: 'app-term-score-editor',
+  selector: 'app-school-score-editor',
   standalone: true,
   imports: [
     FormsModule,
@@ -105,12 +105,12 @@ const STUDENT_STATUS_OPTIONS: Array<{ label: string; value: TermExamStudentStatu
     ConfirmDialogModule,
     PaginatorModule,
   ],
-  templateUrl: './term-score-editor.component.html',
-  styleUrl: './term-score-editor.component.scss',
+  templateUrl: './school-score-editor.component.html',
+  styleUrl: './school-score-editor.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [ConfirmationService],
 })
-export class TermScoreEditorComponent implements OnInit {
+export class SchoolScoreEditorComponent implements OnInit {
   private static readonly GRADE_LABELS: Record<string, string> = {
     P1: '小一',
     P2: '小二',
@@ -126,7 +126,7 @@ export class TermScoreEditorComponent implements OnInit {
     S3: '高三',
   };
 
-  readonly exam = input.required<TermExamDetail>();
+  readonly exam = input.required<SchoolExamDetail>();
   readonly examId = input.required<string>();
   readonly disabled = input(false);
 
@@ -135,7 +135,7 @@ export class TermScoreEditorComponent implements OnInit {
   readonly saved = output<void>();
   readonly filterChange = output<{ campusId: string; grade: string | null }>();
 
-  private readonly termExamsService = inject(TermExamsService);
+  private readonly schoolExamsService = inject(SchoolExamsService);
   private readonly refData = inject(ReferenceDataService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
@@ -147,12 +147,12 @@ export class TermScoreEditorComponent implements OnInit {
 
   // Filters
   protected readonly campusId = signal<string>('');
-  protected readonly statusFilter = signal<TermExamStudentStatus>('all');
+  protected readonly statusFilter = signal<SchoolExamStudentStatus>('all');
   protected readonly searchTerm = signal('');
   protected readonly gradeFilter = signal<GradeLevel | null>(null);
 
   // Student list
-  protected readonly students = signal<TermExamStudent[]>([]);
+  protected readonly students = signal<SchoolExamStudent[]>([]);
   protected readonly loadingStudents = signal(false);
   protected readonly totalStudents = signal(0);
   protected readonly page = signal(1);
@@ -164,7 +164,7 @@ export class TermScoreEditorComponent implements OnInit {
 
   // Mobile bottom sheet (for individual subject in dialog)
   protected subjectSheetVisible = false;
-  protected readonly subjectSheetRow = signal<TermScoreRow | null>(null);
+  protected readonly subjectSheetRow = signal<SchoolScoreRow | null>(null);
 
   protected readonly subjects = computed(() => this.refData.subjects());
 
@@ -226,7 +226,7 @@ export class TermScoreEditorComponent implements OnInit {
       this.lastEmittedFilter = currentFilter;
       this.filterChange.emit(currentFilter);
     }
-    this.termExamsService
+    this.schoolExamsService
       .getStudents(this.examId(), {
         campusId: this.campusId() || undefined,
         status: this.statusFilter(),
@@ -264,7 +264,7 @@ export class TermScoreEditorComponent implements OnInit {
     this.loadStudents();
   }
 
-  protected onStatusFilterChange(value: TermExamStudentStatus): void {
+  protected onStatusFilterChange(value: SchoolExamStudentStatus): void {
     this.statusFilter.set(value);
     this.page.set(1);
     this.loadStudents();
@@ -283,17 +283,17 @@ export class TermScoreEditorComponent implements OnInit {
 
   protected formatGrade(grade: string | null): string {
     if (!grade) return '—';
-    return TermScoreEditorComponent.GRADE_LABELS[grade] ?? grade;
+    return SchoolScoreEditorComponent.GRADE_LABELS[grade] ?? grade;
   }
 
-  protected getProgressText(s: TermExamStudent): string {
+  protected getProgressText(s: SchoolExamStudent): string {
     if (s.scoreCount === 0) return '待登錄';
     if (s.subjectCount > 0 && s.scoreCount >= s.subjectCount) return '已完成';
     return `${s.scoreCount}/${s.subjectCount}`;
   }
 
   protected getProgressSeverity(
-    s: TermExamStudent,
+    s: SchoolExamStudent,
   ): 'success' | 'warn' | 'danger' | 'info' | 'secondary' | 'contrast' | undefined {
     if (s.scoreCount === 0) return 'warn';
     if (s.subjectCount > 0 && s.scoreCount >= s.subjectCount) return 'success';
@@ -302,7 +302,7 @@ export class TermScoreEditorComponent implements OnInit {
 
   // --- Dialog ---
 
-  protected openStudentDialog(s: TermExamStudent): void {
+  protected openStudentDialog(s: SchoolExamStudent): void {
     const ds: DialogStudent = {
       studentId: s.studentId,
       studentName: s.studentName,
@@ -313,7 +313,7 @@ export class TermScoreEditorComponent implements OnInit {
     this.dialogStudent.set(ds);
     this.dialogVisible = true;
 
-    this.termExamsService
+    this.schoolExamsService
       .getScores(this.examId(), s.studentId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -358,7 +358,7 @@ export class TermScoreEditorComponent implements OnInit {
     const ds = this.dialogStudent();
     if (!ds) return;
 
-    const allInputs: SaveTermScoresInput[] = [];
+    const allInputs: SaveSchoolScoresInput[] = [];
     for (const row of ds.rows) {
       if (!this.isRowDirty(row)) continue;
       if (row.score === null && row.status === 'scored') continue;
@@ -379,7 +379,7 @@ export class TermScoreEditorComponent implements OnInit {
     }
 
     this.savingChange.emit(true);
-    this.termExamsService
+    this.schoolExamsService
       .saveScores(this.examId(), allInputs)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -413,7 +413,7 @@ export class TermScoreEditorComponent implements OnInit {
 
   // --- Score row helpers ---
 
-  private buildScoreRows(existingScores: TermScore[]): TermScoreRow[] {
+  private buildScoreRows(existingScores: SchoolScore[]): SchoolScoreRow[] {
     const subjects = this.subjects();
     return subjects.map((sub) => {
       const existing = existingScores.find((s) => s.subjectId === sub.id);
@@ -432,12 +432,12 @@ export class TermScoreEditorComponent implements OnInit {
     });
   }
 
-  protected onScoreChange(row: TermScoreRow, value: number | null): void {
+  protected onScoreChange(row: SchoolScoreRow, value: number | null): void {
     row.score = value;
     this.notifyChanged();
   }
 
-  protected onStatusChange(row: TermScoreRow, value: TermScoreStatus): void {
+  protected onStatusChange(row: SchoolScoreRow, value: SchoolScoreStatus): void {
     row.status = value;
     if (value === 'absent') {
       row.score = null;
@@ -445,21 +445,21 @@ export class TermScoreEditorComponent implements OnInit {
     this.notifyChanged();
   }
 
-  protected onNotesChange(row: TermScoreRow, value: string): void {
+  protected onNotesChange(row: SchoolScoreRow, value: string): void {
     row.notes = value;
     this.notifyChanged();
   }
 
-  protected openSubjectSheet(row: TermScoreRow): void {
+  protected openSubjectSheet(row: SchoolScoreRow): void {
     this.subjectSheetRow.set(row);
     this.subjectSheetVisible = true;
   }
 
-  protected isAbsent(row: TermScoreRow): boolean {
+  protected isAbsent(row: SchoolScoreRow): boolean {
     return row.status === 'absent';
   }
 
-  protected isRowDirty(row: TermScoreRow): boolean {
+  protected isRowDirty(row: SchoolScoreRow): boolean {
     return (
       row.score !== row.original.score ||
       row.status !== row.original.status ||

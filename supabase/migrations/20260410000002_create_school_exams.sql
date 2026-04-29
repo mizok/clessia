@@ -1,40 +1,46 @@
 -- ============================================================
 -- term exam enums
 -- ============================================================
-CREATE TYPE public.term_exam_period AS ENUM (
-  'midterm_1',
-  'final_1',
-  'midterm_2',
-  'final_2'
+-- exam_type：學校考試的子類型
+--   段考：term_exam
+--   模擬考：mock_exam
+--   其他：other（需填 name）
+CREATE TYPE public.school_exam_type AS ENUM (
+  'term_exam',
+  'mock_exam',
+  'other'
 );
 
 -- ============================================================
--- term_exams
+-- school_exams
 -- ============================================================
-CREATE TABLE public.term_exams (
+CREATE TABLE public.school_exams (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   academic_year smallint NOT NULL,
   semester smallint NOT NULL CHECK (semester IN (1, 2)),
-  period public.term_exam_period NOT NULL,
+  exam_type public.school_exam_type NOT NULL,
+  name text,
   label text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (org_id, academic_year, semester, period)
+  CONSTRAINT school_exams_name_required_for_other CHECK (
+    exam_type <> 'other' OR (name IS NOT NULL AND btrim(name) <> '')
+  )
 );
 
-CREATE INDEX term_exams_org_id_idx ON public.term_exams (org_id);
+CREATE INDEX school_exams_org_id_idx ON public.school_exams (org_id);
 
-CREATE TRIGGER term_exams_updated_at
-  BEFORE UPDATE ON public.term_exams
+CREATE TRIGGER school_exams_updated_at
+  BEFORE UPDATE ON public.school_exams
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
 -- ============================================================
--- term_scores
+-- school_scores
 -- ============================================================
-CREATE TABLE public.term_scores (
+CREATE TABLE public.school_scores (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  term_exam_id uuid NOT NULL REFERENCES public.term_exams(id) ON DELETE CASCADE,
+  school_exam_id uuid NOT NULL REFERENCES public.school_exams(id) ON DELETE CASCADE,
   student_id uuid NOT NULL REFERENCES public.students(id) ON DELETE RESTRICT,
   subject_id uuid NOT NULL REFERENCES public.subjects(id) ON DELETE RESTRICT,
   score numeric(6, 2),
@@ -43,19 +49,19 @@ CREATE TABLE public.term_scores (
   created_by text REFERENCES public.ba_user(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (term_exam_id, student_id, subject_id)
+  UNIQUE (school_exam_id, student_id, subject_id)
 );
 
-CREATE INDEX term_scores_term_exam_id_idx ON public.term_scores (term_exam_id);
-CREATE INDEX term_scores_student_id_idx ON public.term_scores (student_id);
-CREATE INDEX term_scores_subject_id_idx ON public.term_scores (subject_id);
+CREATE INDEX school_scores_school_exam_id_idx ON public.school_scores (school_exam_id);
+CREATE INDEX school_scores_student_id_idx ON public.school_scores (student_id);
+CREATE INDEX school_scores_subject_id_idx ON public.school_scores (subject_id);
 
-CREATE TRIGGER term_scores_updated_at
-  BEFORE UPDATE ON public.term_scores
+CREATE TRIGGER school_scores_updated_at
+  BEFORE UPDATE ON public.school_scores
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
 -- ============================================================
--- 更新 audit_logs resource_type constraint（加入 term_exam）
+-- 更新 audit_logs resource_type constraint（加入 school_exam）
 -- ============================================================
 ALTER TABLE public.audit_logs DROP CONSTRAINT audit_logs_resource_type_check;
 ALTER TABLE public.audit_logs ADD CONSTRAINT audit_logs_resource_type_check
@@ -72,6 +78,6 @@ ALTER TABLE public.audit_logs ADD CONSTRAINT audit_logs_resource_type_check
       'attendance',
       'leave',
       'academy_exam',
-      'term_exam'
+      'school_exam'
     )
   );

@@ -3,98 +3,111 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 
-const TermExamPeriodSchema = z
-  .enum(['midterm_1', 'final_1', 'midterm_2', 'final_2'])
-  .openapi('TermExamPeriod');
-const TermExamStatusSchema = z.enum(['active', 'closed']).openapi('TermExamStatus');
+const SchoolExamTypeSchema = z.enum(['term_exam', 'mock_exam', 'other']).openapi('SchoolExamType');
+const SchoolExamStatusSchema = z.enum(['active', 'closed']).openapi('SchoolExamStatus');
 
-const ScoreStatusSchema = z.enum(['scored', 'absent', 'makeup']).openapi('TermExamScoreStatus');
+type SchoolExamType = z.infer<typeof SchoolExamTypeSchema>;
+
+const ScoreStatusSchema = z.enum(['scored', 'absent', 'makeup']).openapi('SchoolExamScoreStatus');
 
 const ErrorSchema = z
   .object({
     error: z.string(),
     code: z.string().optional(),
   })
-  .openapi('TermExamError');
+  .openapi('SchoolExamError');
 
-const TermExamListItemSchema = z
+const SchoolExamListItemSchema = z
   .object({
     id: z.uuid(),
     academicYear: z.number().int(),
     semester: z.union([z.literal(1), z.literal(2)]),
-    period: TermExamPeriodSchema,
+    examType: SchoolExamTypeSchema,
+    name: z.string().nullable(),
     label: z.string(),
     examDate: z.string().nullable(),
-    status: TermExamStatusSchema,
+    status: SchoolExamStatusSchema,
     schoolId: z.uuid(),
     schoolName: z.string(),
     scoreCount: z.number().int(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
-  .openapi('TermExamListItem');
+  .openapi('SchoolExamListItem');
 
-const TermExamListResponseSchema = z
+const SchoolExamListResponseSchema = z
   .object({
-    data: z.array(TermExamListItemSchema),
+    data: z.array(SchoolExamListItemSchema),
     meta: z.object({
       total: z.number().int().min(0),
       page: z.number().int().min(1),
       pageSize: z.number().int().min(1),
     }),
   })
-  .openapi('TermExamListResponse');
+  .openapi('SchoolExamListResponse');
 
-const TermExamSubjectSummarySchema = z
+const SchoolExamSubjectSummarySchema = z
   .object({
     subjectId: z.uuid(),
     subjectName: z.string(),
     averageScore: z.number().nullable(),
     recordedCount: z.number().int(),
   })
-  .openapi('TermExamSubjectSummary');
+  .openapi('SchoolExamSubjectSummary');
 
-const TermExamDetailSchema = z
+const SchoolExamDetailSchema = z
   .object({
     id: z.uuid(),
     academicYear: z.number().int(),
     semester: z.union([z.literal(1), z.literal(2)]),
-    period: TermExamPeriodSchema,
+    examType: SchoolExamTypeSchema,
+    name: z.string().nullable(),
     label: z.string(),
     examDate: z.string().nullable(),
-    status: TermExamStatusSchema,
+    status: SchoolExamStatusSchema,
     schoolId: z.uuid(),
     schoolName: z.string(),
     summary: z.object({
-      bySubject: z.array(TermExamSubjectSummarySchema),
+      bySubject: z.array(SchoolExamSubjectSummarySchema),
       totalRecordedCount: z.number().int(),
     }),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
-  .openapi('TermExamDetail');
+  .openapi('SchoolExamDetail');
 
-const CreateTermExamSchema = z
+const CreateSchoolExamSchema = z
   .object({
-    academicYear: z.number().int().min(2000).max(9999),
+    academicYear: z.number().int().min(100).max(999),
     semester: z.union([z.literal(1), z.literal(2)]),
-    period: TermExamPeriodSchema,
+    examType: SchoolExamTypeSchema,
+    name: z.string().trim().min(1).max(100).nullable().optional(),
     schoolId: DbUuidSchema,
     examDate: z.string().date().nullable().optional(),
   })
-  .openapi('CreateTermExam');
+  .superRefine((data, ctx) => {
+    if (data.examType === 'other' && !data.name) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['name'],
+        message: '學校考試（其他）需填寫名稱',
+      });
+    }
+  })
+  .openapi('CreateSchoolExam');
 
-const UpdateTermExamSchema = z
+const UpdateSchoolExamSchema = z
   .object({
-    academicYear: z.number().int().min(2000).max(9999).optional(),
+    academicYear: z.number().int().min(100).max(200).optional(),
     semester: z.union([z.literal(1), z.literal(2)]).optional(),
-    period: TermExamPeriodSchema.optional(),
+    examType: SchoolExamTypeSchema.optional(),
+    name: z.string().trim().max(100).nullable().optional(),
     schoolId: DbUuidSchema.optional(),
     examDate: z.string().date().nullable().optional(),
   })
-  .openapi('UpdateTermExam');
+  .openapi('UpdateSchoolExam');
 
-const RecentTermExamStudentSchema = z
+const RecentSchoolExamStudentSchema = z
   .object({
     studentId: z.uuid(),
     studentName: z.string(),
@@ -102,13 +115,13 @@ const RecentTermExamStudentSchema = z
     scoreCount: z.number().int(),
     lastUpdatedAt: z.string(),
   })
-  .openapi('RecentTermExamStudent');
+  .openapi('RecentSchoolExamStudent');
 
-const TermExamStudentStatusSchema = z
+const SchoolExamStudentStatusSchema = z
   .enum(['pending', 'scored', 'absent', 'makeup'])
-  .openapi('TermExamStudentStatus');
+  .openapi('SchoolExamStudentStatus');
 
-const TermExamStudentRowSchema = z
+const SchoolExamStudentRowSchema = z
   .object({
     studentId: z.uuid(),
     studentName: z.string(),
@@ -121,20 +134,20 @@ const TermExamStudentRowSchema = z
     hasMakeup: z.boolean(),
     lastUpdatedAt: z.string().nullable(),
   })
-  .openapi('TermExamStudentRow');
+  .openapi('SchoolExamStudentRow');
 
-const TermExamStudentListResponseSchema = z
+const SchoolExamStudentListResponseSchema = z
   .object({
-    data: z.array(TermExamStudentRowSchema),
+    data: z.array(SchoolExamStudentRowSchema),
     meta: z.object({
       total: z.number().int().min(0),
       page: z.number().int().min(1),
       pageSize: z.number().int().min(1),
     }),
   })
-  .openapi('TermExamStudentListResponse');
+  .openapi('SchoolExamStudentListResponse');
 
-const TermScoreSchema = z
+const SchoolScoreSchema = z
   .object({
     studentId: z.uuid(),
     studentName: z.string(),
@@ -146,15 +159,15 @@ const TermScoreSchema = z
     notes: z.string().nullable(),
     updatedAt: z.string(),
   })
-  .openapi('TermScore');
+  .openapi('SchoolScore');
 
-const TermScoreListResponseSchema = z
+const SchoolScoreListResponseSchema = z
   .object({
-    data: z.array(TermScoreSchema),
+    data: z.array(SchoolScoreSchema),
   })
-  .openapi('TermScoreListResponse');
+  .openapi('SchoolScoreListResponse');
 
-const BatchUpsertTermScoresSchema = z
+const BatchUpsertSchoolScoresSchema = z
   .object({
     scores: z
       .array(
@@ -168,15 +181,16 @@ const BatchUpsertTermScoresSchema = z
       )
       .min(1),
   })
-  .openapi('BatchUpsertTermScores');
+  .openapi('BatchUpsertSchoolScores');
 
-const StudentTermScoreSchema = z
+const StudentSchoolScoreSchema = z
   .object({
-    termExamId: z.uuid(),
+    schoolExamId: z.uuid(),
     label: z.string(),
     academicYear: z.number().int(),
     semester: z.union([z.literal(1), z.literal(2)]),
-    period: TermExamPeriodSchema,
+    examType: SchoolExamTypeSchema,
+    name: z.string().nullable(),
     subjectId: z.uuid(),
     subjectName: z.string(),
     score: z.number().nullable(),
@@ -184,15 +198,16 @@ const StudentTermScoreSchema = z
     notes: z.string().nullable(),
     updatedAt: z.string(),
   })
-  .openapi('StudentTermScore');
+  .openapi('StudentSchoolScore');
 
 const app = new OpenAPIHono<AppEnv>();
 
-interface TermExamRow {
+interface SchoolExamRow {
   id: string;
   academic_year: number;
   semester: 1 | 2;
-  period: 'midterm_1' | 'final_1' | 'midterm_2' | 'final_2';
+  exam_type: SchoolExamType;
+  name: string | null;
   label: string;
   exam_date: string | null;
   status: 'active' | 'closed';
@@ -201,7 +216,7 @@ interface TermExamRow {
   updated_at: string;
 }
 
-interface TermScoreCountRow {
+interface SchoolScoreCountRow {
   count: number | null;
 }
 
@@ -220,7 +235,7 @@ interface StudentRelation {
   grade: string | null;
 }
 
-interface TermExamDetailRow extends TermExamRow {
+interface SchoolExamDetailRow extends SchoolExamRow {
   schools?: SchoolRelation | SchoolRelation[] | null;
 }
 
@@ -240,9 +255,9 @@ interface StudentScoreRow {
   status: 'scored' | 'absent' | 'makeup';
   notes: string | null;
   updated_at: string;
-  term_exams?:
-    | (TermExamRow & { org_id?: string | null })
-    | Array<TermExamRow & { org_id?: string | null }>
+  school_exams?:
+    | (SchoolExamRow & { org_id?: string | null })
+    | Array<SchoolExamRow & { org_id?: string | null }>
     | null;
   subjects?: SubjectRelation | SubjectRelation[] | null;
 }
@@ -252,51 +267,75 @@ function pickRelationFirst<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-function periodLabel(period: 'midterm_1' | 'final_1' | 'midterm_2' | 'final_2'): string {
-  const map: Record<'midterm_1' | 'final_1' | 'midterm_2' | 'final_2', string> = {
-    midterm_1: '第一次段考',
-    final_1: '第一次期末考',
-    midterm_2: '第二次段考',
-    final_2: '第二次期末考',
+function examTypeLabel(examType: SchoolExamType): string {
+  const map: Record<SchoolExamType, string> = {
+    term_exam: '段考',
+    mock_exam: '模擬考',
+    other: '其他',
   };
-
-  return map[period];
+  return map[examType];
 }
 
-function buildTermExamLabel(input: {
+function buildSchoolExamLabel(input: {
   academicYear: number;
   semester: 1 | 2;
-  period: 'midterm_1' | 'final_1' | 'midterm_2' | 'final_2';
+  examType: SchoolExamType;
+  name?: string | null;
+  examDate?: string | null;
 }): string {
-  const semesterLabel = input.semester === 1 ? '上' : '下';
-  return `${input.academicYear} ${semesterLabel}學期 ${periodLabel(input.period)}`;
+  const prefix = `${input.academicYear}-${input.semester}`;
+  const trimmedName = input.name?.trim();
+
+  if (input.examType === 'term_exam') {
+    if (trimmedName) {
+      return `${prefix} 段考 · ${trimmedName}`;
+    }
+    if (input.examDate) {
+      return `${prefix} 段考（${input.examDate}）`;
+    }
+    return `${prefix} 段考`;
+  }
+
+  if (input.examType === 'other') {
+    return `${prefix} ${trimmedName ?? '學校考試'}`;
+  }
+
+  const typeLabel = examTypeLabel(input.examType);
+  if (trimmedName) {
+    return `${prefix} ${typeLabel} · ${trimmedName}`;
+  }
+  return `${prefix} ${typeLabel}`;
 }
 
-function compareTermPeriod(
-  left: 'midterm_1' | 'final_1' | 'midterm_2' | 'final_2',
-  right: 'midterm_1' | 'final_1' | 'midterm_2' | 'final_2',
+function compareSchoolExamChronologically(
+  left: { examDate: string | null; createdAt: string; id: string },
+  right: { examDate: string | null; createdAt: string; id: string },
 ): number {
-  const order: Record<'midterm_1' | 'final_1' | 'midterm_2' | 'final_2', number> = {
-    midterm_1: 1,
-    final_1: 2,
-    midterm_2: 3,
-    final_2: 4,
-  };
+  const leftDate = left.examDate ? Date.parse(left.examDate) : Number.NEGATIVE_INFINITY;
+  const rightDate = right.examDate ? Date.parse(right.examDate) : Number.NEGATIVE_INFINITY;
+  if (leftDate !== rightDate) {
+    return rightDate - leftDate;
+  }
 
-  return order[left] - order[right];
+  const createdDiff = Date.parse(right.createdAt) - Date.parse(left.createdAt);
+  if (createdDiff !== 0) {
+    return createdDiff;
+  }
+
+  return left.id.localeCompare(right.id);
 }
 
-async function ensureTermExamOwnedByOrg(
+async function ensureSchoolExamOwnedByOrg(
   supabase: AppEnv['Variables']['supabase'],
-  termExamId: string,
+  schoolExamId: string,
   orgId: string,
-): Promise<TermExamRow | null> {
+): Promise<SchoolExamRow | null> {
   const { data, error } = await supabase
-    .from('term_exams')
+    .from('school_exams')
     .select(
-      'id, academic_year, semester, period, label, exam_date, status, school_id, created_at, updated_at',
+      'id, academic_year, semester, exam_type, name, label, exam_date, status, school_id, created_at, updated_at',
     )
-    .eq('id', termExamId)
+    .eq('id', schoolExamId)
     .eq('org_id', orgId)
     .maybeSingle();
 
@@ -304,14 +343,14 @@ async function ensureTermExamOwnedByOrg(
     return null;
   }
 
-  return data as TermExamRow;
+  return data as SchoolExamRow;
 }
 
 const listRoute = createRoute({
   method: 'get',
   path: '/',
-  tags: ['TermExams'],
-  summary: '取得段考列表',
+  tags: ['SchoolExams'],
+  summary: '取得學校考試列表',
   request: {
     query: z.object({
       academic_year: z.coerce.number().int().optional(),
@@ -322,10 +361,10 @@ const listRoute = createRoute({
   },
   responses: {
     200: {
-      description: '段考列表',
+      description: '學校考試列表',
       content: {
         'application/json': {
-          schema: TermExamListResponseSchema,
+          schema: SchoolExamListResponseSchema,
         },
       },
     },
@@ -346,9 +385,9 @@ app.openapi(listRoute, async (c) => {
   const { academic_year: academicYear, semester, page = 1, pageSize = 20 } = c.req.valid('query');
 
   let query = supabase
-    .from('term_exams')
+    .from('school_exams')
     .select(
-      'id, academic_year, semester, period, label, exam_date, status, school_id, schools(id, name), created_at, updated_at, term_scores(count)',
+      'id, academic_year, semester, exam_type, name, label, exam_date, status, school_id, schools(id, name), created_at, updated_at, school_scores(count)',
       {
       count: 'exact',
       },
@@ -366,9 +405,8 @@ app.openapi(listRoute, async (c) => {
   query = query
     .range(from, from + pageSize - 1)
     .order('exam_date', { ascending: false, nullsFirst: false })
-    .order('academic_year', { ascending: false })
-    .order('semester', { ascending: false })
-    .order('period', { ascending: true });
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: true });
 
   const { data, error, count } = await query;
 
@@ -378,8 +416,8 @@ app.openapi(listRoute, async (c) => {
 
   const rows = (
     (data ?? []) as Array<
-      TermExamRow & {
-        term_scores?: TermScoreCountRow[] | null;
+      SchoolExamRow & {
+        school_scores?: SchoolScoreCountRow[] | null;
         schools?: SchoolRelation | SchoolRelation[] | null;
       }
     >
@@ -389,13 +427,14 @@ app.openapi(listRoute, async (c) => {
       id: row.id,
       academicYear: row.academic_year,
       semester: row.semester,
-      period: row.period,
+      examType: row.exam_type,
+      name: row.name,
       label: row.label,
       examDate: row.exam_date,
       status: row.status,
       schoolId: row.school_id,
       schoolName: school?.name ?? '',
-      scoreCount: row.term_scores?.[0]?.count ?? 0,
+      scoreCount: row.school_scores?.[0]?.count ?? 0,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -417,8 +456,8 @@ app.openapi(listRoute, async (c) => {
 const getRoute = createRoute({
   method: 'get',
   path: '/{id}',
-  tags: ['TermExams'],
-  summary: '取得段考單筆（summary 可依 campus/grade 過濾）',
+  tags: ['SchoolExams'],
+  summary: '取得學校考試單筆（summary 可依 campus/grade 過濾）',
   request: {
     params: z.object({ id: DbUuidSchema }),
     query: z.object({
@@ -428,10 +467,10 @@ const getRoute = createRoute({
   },
   responses: {
     200: {
-      description: '段考明細',
+      description: '學校考試明細',
       content: {
         'application/json': {
-          schema: z.object({ data: TermExamDetailSchema }),
+          schema: z.object({ data: SchoolExamDetailSchema }),
         },
       },
     },
@@ -460,25 +499,25 @@ app.openapi(getRoute, async (c) => {
   const { id } = c.req.valid('param');
   const { campusId, grade } = c.req.valid('query');
 
-  const { data: termExamData, error: termExamError } = await supabase
-    .from('term_exams')
+  const { data: schoolExamData, error: schoolExamError } = await supabase
+    .from('school_exams')
     .select(
-      'id, academic_year, semester, period, label, exam_date, status, school_id, schools(id, name), created_at, updated_at',
+      'id, academic_year, semester, exam_type, name, label, exam_date, status, school_id, schools(id, name), created_at, updated_at',
     )
     .eq('id', id)
     .eq('org_id', orgId)
     .maybeSingle();
 
-  if (termExamError) {
-    return c.json({ error: termExamError.message, code: 'DB_ERROR' }, 400);
+  if (schoolExamError) {
+    return c.json({ error: schoolExamError.message, code: 'DB_ERROR' }, 400);
   }
 
-  if (!termExamData) {
-    return c.json({ error: '找不到段考事件', code: 'NOT_FOUND' }, 404);
+  if (!schoolExamData) {
+    return c.json({ error: '找不到學校考試', code: 'NOT_FOUND' }, 404);
   }
 
-  const termExam = termExamData as TermExamDetailRow;
-  const school = pickRelationFirst(termExam.schools);
+  const schoolExam = schoolExamData as SchoolExamDetailRow;
+  const school = pickRelationFirst(schoolExam.schools);
   const schoolName = school?.name ?? '';
 
   let studentIdFilter: string[] | null = null;
@@ -522,9 +561,9 @@ app.openapi(getRoute, async (c) => {
   }
 
   let scoreQuery = supabase
-    .from('term_scores')
+    .from('school_scores')
     .select('student_id, subject_id, score, subjects(id, name)')
-    .eq('term_exam_id', id);
+    .eq('school_exam_id', id);
 
   if (studentIdFilter !== null && studentIdFilter.length > 0) {
     scoreQuery = scoreQuery.in('student_id', studentIdFilter);
@@ -532,18 +571,19 @@ app.openapi(getRoute, async (c) => {
     return c.json(
       {
         data: {
-          id: termExam.id,
-          academicYear: termExam.academic_year,
-          semester: termExam.semester,
-          period: termExam.period,
-          label: termExam.label,
-          examDate: termExam.exam_date,
-          status: termExam.status,
-          schoolId: termExam.school_id,
+          id: schoolExam.id,
+          academicYear: schoolExam.academic_year,
+          semester: schoolExam.semester,
+          examType: schoolExam.exam_type,
+          name: schoolExam.name,
+          label: schoolExam.label,
+          examDate: schoolExam.exam_date,
+          status: schoolExam.status,
+          schoolId: schoolExam.school_id,
           schoolName,
           summary: { bySubject: [], totalRecordedCount: 0 },
-          createdAt: termExam.created_at,
-          updatedAt: termExam.updated_at,
+          createdAt: schoolExam.created_at,
+          updatedAt: schoolExam.updated_at,
         },
       },
       200,
@@ -595,21 +635,22 @@ app.openapi(getRoute, async (c) => {
   return c.json(
     {
       data: {
-        id: termExam.id,
-        academicYear: termExam.academic_year,
-        semester: termExam.semester,
-        period: termExam.period,
-        label: termExam.label,
-        examDate: termExam.exam_date,
-        status: termExam.status,
-        schoolId: termExam.school_id,
+        id: schoolExam.id,
+        academicYear: schoolExam.academic_year,
+        semester: schoolExam.semester,
+        examType: schoolExam.exam_type,
+        name: schoolExam.name,
+        label: schoolExam.label,
+        examDate: schoolExam.exam_date,
+        status: schoolExam.status,
+        schoolId: schoolExam.school_id,
         schoolName,
         summary: {
           bySubject,
           totalRecordedCount: (scoreRows ?? []).length,
         },
-        createdAt: termExam.created_at,
-        updatedAt: termExam.updated_at,
+        createdAt: schoolExam.created_at,
+        updatedAt: schoolExam.updated_at,
       },
     },
     200,
@@ -619,13 +660,13 @@ app.openapi(getRoute, async (c) => {
 const createRouteDef = createRoute({
   method: 'post',
   path: '/',
-  tags: ['TermExams'],
-  summary: '建立段考事件',
+  tags: ['SchoolExams'],
+  summary: '建立學校考試',
   request: {
     body: {
       content: {
         'application/json': {
-          schema: CreateTermExamSchema,
+          schema: CreateSchoolExamSchema,
         },
       },
     },
@@ -648,7 +689,7 @@ const createRouteDef = createRoute({
       },
     },
     409: {
-      description: '重複段考事件',
+      description: '重複學校考試',
       content: {
         'application/json': {
           schema: ErrorSchema,
@@ -664,10 +705,15 @@ app.openapi(createRouteDef, async (c) => {
   const userId = c.get('userId');
   const body = c.req.valid('json');
 
-  const label = buildTermExamLabel({
+  const trimmedName = body.name?.trim() ?? null;
+  const normalizedName = trimmedName && trimmedName.length > 0 ? trimmedName : null;
+
+  const label = buildSchoolExamLabel({
     academicYear: body.academicYear,
     semester: body.semester,
-    period: body.period,
+    examType: body.examType,
+    name: normalizedName,
+    examDate: body.examDate ?? null,
   });
 
   const { data: school, error: schoolError } = await supabase
@@ -686,13 +732,14 @@ app.openapi(createRouteDef, async (c) => {
   }
 
   const { data, error } = await supabase
-    .from('term_exams')
+    .from('school_exams')
     .insert({
       org_id: orgId,
       school_id: body.schoolId,
       academic_year: body.academicYear,
       semester: body.semester,
-      period: body.period,
+      exam_type: body.examType,
+      name: normalizedName,
       label,
       exam_date: body.examDate ?? null,
     })
@@ -701,7 +748,7 @@ app.openapi(createRouteDef, async (c) => {
 
   if (error) {
     if (error.code === '23505') {
-      return c.json({ error: '同一學校相同學年度/學期/考次已存在', code: 'DUPLICATE' }, 409);
+      return c.json({ error: '資料重複，請確認後再試', code: 'DUPLICATE' }, 409);
     }
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
@@ -711,14 +758,15 @@ app.openapi(createRouteDef, async (c) => {
     {
       orgId,
       userId,
-      resourceType: 'term_exam',
+      resourceType: 'school_exam',
       resourceId: data.id,
       resourceName: data.label,
-      action: 'term_exam.create',
+      action: 'school_exam.create',
       details: {
         academicYear: body.academicYear,
         semester: body.semester,
-        period: body.period,
+        examType: body.examType,
+        name: normalizedName,
         schoolId: body.schoolId,
       },
     },
@@ -731,14 +779,14 @@ app.openapi(createRouteDef, async (c) => {
 const updateRouteDef = createRoute({
   method: 'put',
   path: '/{id}',
-  tags: ['TermExams'],
-  summary: '更新段考事件',
+  tags: ['SchoolExams'],
+  summary: '更新學校考試',
   request: {
     params: z.object({ id: DbUuidSchema }),
     body: {
       content: {
         'application/json': {
-          schema: UpdateTermExamSchema,
+          schema: UpdateSchoolExamSchema,
         },
       },
     },
@@ -778,9 +826,9 @@ app.openapi(updateRouteDef, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
 
-  const existing = await ensureTermExamOwnedByOrg(supabase, id, orgId);
+  const existing = await ensureSchoolExamOwnedByOrg(supabase, id, orgId);
   if (!existing) {
-    return c.json({ error: '找不到段考事件', code: 'NOT_FOUND' }, 404);
+    return c.json({ error: '找不到學校考試', code: 'NOT_FOUND' }, 404);
   }
 
   if (body.schoolId !== undefined && body.schoolId !== existing.school_id) {
@@ -802,21 +850,39 @@ app.openapi(updateRouteDef, async (c) => {
 
   const nextAcademicYear = body.academicYear ?? existing.academic_year;
   const nextSemester = body.semester ?? existing.semester;
-  const nextPeriod = body.period ?? existing.period;
+  const nextExamType = body.examType ?? existing.exam_type;
   const nextSchoolId = body.schoolId ?? existing.school_id;
   const nextExamDate = body.examDate === undefined ? existing.exam_date : body.examDate;
-  const nextLabel = buildTermExamLabel({
+
+  let nextName: string | null;
+  if (body.name === undefined) {
+    nextName = existing.name;
+  } else if (body.name === null) {
+    nextName = null;
+  } else {
+    const trimmed = body.name.trim();
+    nextName = trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (nextExamType === 'other' && !nextName) {
+    return c.json({ error: '學校考試（其他）需填寫名稱', code: 'NAME_REQUIRED' }, 400);
+  }
+
+  const nextLabel = buildSchoolExamLabel({
     academicYear: nextAcademicYear,
     semester: nextSemester,
-    period: nextPeriod,
+    examType: nextExamType,
+    name: nextName,
+    examDate: nextExamDate,
   });
 
   const { error } = await supabase
-    .from('term_exams')
+    .from('school_exams')
     .update({
       academic_year: nextAcademicYear,
       semester: nextSemester,
-      period: nextPeriod,
+      exam_type: nextExamType,
+      name: nextName,
       school_id: nextSchoolId,
       label: nextLabel,
       exam_date: nextExamDate,
@@ -826,7 +892,7 @@ app.openapi(updateRouteDef, async (c) => {
 
   if (error) {
     if (error.code === '23505') {
-      return c.json({ error: '同一學校相同學年度/學期/考次已存在', code: 'DUPLICATE' }, 400);
+      return c.json({ error: '資料重複，請確認後再試', code: 'DUPLICATE' }, 400);
     }
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
@@ -836,14 +902,15 @@ app.openapi(updateRouteDef, async (c) => {
     {
       orgId,
       userId,
-      resourceType: 'term_exam',
+      resourceType: 'school_exam',
       resourceId: id,
       resourceName: nextLabel,
-      action: 'term_exam.update',
+      action: 'school_exam.update',
       details: {
         academicYear: nextAcademicYear,
         semester: nextSemester,
-        period: nextPeriod,
+        examType: nextExamType,
+        name: nextName,
         schoolId: nextSchoolId,
       },
     },
@@ -856,8 +923,8 @@ app.openapi(updateRouteDef, async (c) => {
 const deleteRouteDef = createRoute({
   method: 'delete',
   path: '/{id}',
-  tags: ['TermExams'],
-  summary: '刪除段考事件',
+  tags: ['SchoolExams'],
+  summary: '刪除學校考試',
   request: {
     params: z.object({ id: DbUuidSchema }),
   },
@@ -895,15 +962,15 @@ app.openapi(deleteRouteDef, async (c) => {
   const userId = c.get('userId');
   const { id } = c.req.valid('param');
 
-  const existing = await ensureTermExamOwnedByOrg(supabase, id, orgId);
+  const existing = await ensureSchoolExamOwnedByOrg(supabase, id, orgId);
   if (!existing) {
-    return c.json({ error: '找不到段考事件', code: 'NOT_FOUND' }, 404);
+    return c.json({ error: '找不到學校考試', code: 'NOT_FOUND' }, 404);
   }
 
   const { count, error: countError } = await supabase
-    .from('term_scores')
+    .from('school_scores')
     .select('id', { count: 'exact', head: true })
-    .eq('term_exam_id', id);
+    .eq('school_exam_id', id);
 
   if (countError) {
     return c.json({ error: countError.message, code: 'DB_ERROR' }, 400);
@@ -913,7 +980,7 @@ app.openapi(deleteRouteDef, async (c) => {
     return c.json({ error: '已有成績紀錄，無法刪除', code: 'HAS_SCORES' }, 400);
   }
 
-  const { error } = await supabase.from('term_exams').delete().eq('id', id).eq('org_id', orgId);
+  const { error } = await supabase.from('school_exams').delete().eq('id', id).eq('org_id', orgId);
 
   if (error) {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
@@ -924,10 +991,10 @@ app.openapi(deleteRouteDef, async (c) => {
     {
       orgId,
       userId,
-      resourceType: 'term_exam',
+      resourceType: 'school_exam',
       resourceId: id,
       resourceName: existing.label,
-      action: 'term_exam.delete',
+      action: 'school_exam.delete',
     },
     c.executionCtx.waitUntil.bind(c.executionCtx),
   );
@@ -938,8 +1005,8 @@ app.openapi(deleteRouteDef, async (c) => {
 const listScoresRoute = createRoute({
   method: 'get',
   path: '/{id}/scores',
-  tags: ['TermExams'],
-  summary: '取得段考成績',
+  tags: ['SchoolExams'],
+  summary: '取得學校考試成績',
   request: {
     params: z.object({ id: DbUuidSchema }),
     query: z.object({
@@ -951,7 +1018,7 @@ const listScoresRoute = createRoute({
       description: '成績列表',
       content: {
         'application/json': {
-          schema: TermScoreListResponseSchema,
+          schema: SchoolScoreListResponseSchema,
         },
       },
     },
@@ -980,15 +1047,15 @@ app.openapi(listScoresRoute, async (c) => {
   const { id } = c.req.valid('param');
   const { studentId } = c.req.valid('query');
 
-  const termExam = await ensureTermExamOwnedByOrg(supabase, id, orgId);
-  if (!termExam) {
-    return c.json({ error: '找不到段考事件', code: 'NOT_FOUND' }, 404);
+  const schoolExam = await ensureSchoolExamOwnedByOrg(supabase, id, orgId);
+  if (!schoolExam) {
+    return c.json({ error: '找不到學校考試', code: 'NOT_FOUND' }, 404);
   }
 
   let query = supabase
-    .from('term_scores')
+    .from('school_scores')
     .select('student_id, subject_id, score, status, notes, updated_at, students(name, grade), subjects(id, name)')
-    .eq('term_exam_id', id);
+    .eq('school_exam_id', id);
 
   if (studentId) {
     query = query.eq('student_id', studentId);
@@ -1023,14 +1090,14 @@ app.openapi(listScoresRoute, async (c) => {
 const upsertScoresRoute = createRoute({
   method: 'post',
   path: '/{id}/scores',
-  tags: ['TermExams'],
-  summary: '批次登錄/更新段考成績',
+  tags: ['SchoolExams'],
+  summary: '批次登錄/更新學校考試成績',
   request: {
     params: z.object({ id: DbUuidSchema }),
     body: {
       content: {
         'application/json': {
-          schema: BatchUpsertTermScoresSchema,
+          schema: BatchUpsertSchoolScoresSchema,
         },
       },
     },
@@ -1070,13 +1137,13 @@ app.openapi(upsertScoresRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
 
-  const termExam = await ensureTermExamOwnedByOrg(supabase, id, orgId);
-  if (!termExam) {
-    return c.json({ error: '找不到段考事件', code: 'NOT_FOUND' }, 404);
+  const schoolExam = await ensureSchoolExamOwnedByOrg(supabase, id, orgId);
+  if (!schoolExam) {
+    return c.json({ error: '找不到學校考試', code: 'NOT_FOUND' }, 404);
   }
 
-  if (termExam.status === 'closed') {
-    return c.json({ error: '段考已結束，無法登錄成績', code: 'EXAM_CLOSED' }, 400);
+  if (schoolExam.status === 'closed') {
+    return c.json({ error: '學校考試已結束，無法登錄成績', code: 'EXAM_CLOSED' }, 400);
   }
 
   const studentIds = Array.from(new Set(body.scores.map((item) => item.studentId)));
@@ -1101,7 +1168,7 @@ app.openapi(upsertScoresRoute, async (c) => {
   }
 
   const payload = body.scores.map((item) => ({
-    term_exam_id: id,
+    school_exam_id: id,
     student_id: item.studentId,
     subject_id: item.subjectId,
     score: item.score,
@@ -1111,8 +1178,8 @@ app.openapi(upsertScoresRoute, async (c) => {
   }));
 
   const { error } = await supabase
-    .from('term_scores')
-    .upsert(payload, { onConflict: 'term_exam_id,student_id,subject_id' });
+    .from('school_scores')
+    .upsert(payload, { onConflict: 'school_exam_id,student_id,subject_id' });
 
   if (error) {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
@@ -1123,10 +1190,10 @@ app.openapi(upsertScoresRoute, async (c) => {
     {
       orgId,
       userId,
-      resourceType: 'term_exam',
+      resourceType: 'school_exam',
       resourceId: id,
-      resourceName: termExam.label,
-      action: 'term_exam.scores.upsert',
+      resourceName: schoolExam.label,
+      action: 'school_exam.scores.upsert',
       details: {
         affected: payload.length,
       },
@@ -1140,8 +1207,8 @@ app.openapi(upsertScoresRoute, async (c) => {
 const closeRoute = createRoute({
   method: 'patch',
   path: '/{id}/close',
-  tags: ['TermExams'],
-  summary: '結束段考（active -> closed）',
+  tags: ['SchoolExams'],
+  summary: '結束學校考試（active -> closed）',
   request: {
     params: z.object({ id: DbUuidSchema }),
   },
@@ -1179,9 +1246,9 @@ app.openapi(closeRoute, async (c) => {
   const userId = c.get('userId');
   const { id } = c.req.valid('param');
 
-  const existing = await ensureTermExamOwnedByOrg(supabase, id, orgId);
+  const existing = await ensureSchoolExamOwnedByOrg(supabase, id, orgId);
   if (!existing) {
-    return c.json({ error: '找不到段考事件', code: 'NOT_FOUND' }, 404);
+    return c.json({ error: '找不到學校考試', code: 'NOT_FOUND' }, 404);
   }
 
   if (existing.status !== 'active') {
@@ -1189,7 +1256,7 @@ app.openapi(closeRoute, async (c) => {
   }
 
   const { error } = await supabase
-    .from('term_exams')
+    .from('school_exams')
     .update({ status: 'closed' })
     .eq('id', id)
     .eq('org_id', orgId);
@@ -1203,10 +1270,10 @@ app.openapi(closeRoute, async (c) => {
     {
       orgId,
       userId,
-      resourceType: 'term_exam',
+      resourceType: 'school_exam',
       resourceId: id,
       resourceName: existing.label,
-      action: 'term_exam.close',
+      action: 'school_exam.close',
     },
     c.executionCtx.waitUntil.bind(c.executionCtx),
   );
@@ -1217,8 +1284,8 @@ app.openapi(closeRoute, async (c) => {
 const reopenRoute = createRoute({
   method: 'patch',
   path: '/{id}/reopen',
-  tags: ['TermExams'],
-  summary: '重新開啟段考（closed -> active）',
+  tags: ['SchoolExams'],
+  summary: '重新開啟學校考試（closed -> active）',
   request: {
     params: z.object({ id: DbUuidSchema }),
   },
@@ -1256,9 +1323,9 @@ app.openapi(reopenRoute, async (c) => {
   const userId = c.get('userId');
   const { id } = c.req.valid('param');
 
-  const existing = await ensureTermExamOwnedByOrg(supabase, id, orgId);
+  const existing = await ensureSchoolExamOwnedByOrg(supabase, id, orgId);
   if (!existing) {
-    return c.json({ error: '找不到段考事件', code: 'NOT_FOUND' }, 404);
+    return c.json({ error: '找不到學校考試', code: 'NOT_FOUND' }, 404);
   }
 
   if (existing.status !== 'closed') {
@@ -1266,7 +1333,7 @@ app.openapi(reopenRoute, async (c) => {
   }
 
   const { error } = await supabase
-    .from('term_exams')
+    .from('school_exams')
     .update({ status: 'active' })
     .eq('id', id)
     .eq('org_id', orgId);
@@ -1280,10 +1347,10 @@ app.openapi(reopenRoute, async (c) => {
     {
       orgId,
       userId,
-      resourceType: 'term_exam',
+      resourceType: 'school_exam',
       resourceId: id,
       resourceName: existing.label,
-      action: 'term_exam.reopen',
+      action: 'school_exam.reopen',
     },
     c.executionCtx.waitUntil.bind(c.executionCtx),
   );
@@ -1294,8 +1361,8 @@ app.openapi(reopenRoute, async (c) => {
 const recentStudentsRoute = createRoute({
   method: 'get',
   path: '/{id}/recent-students',
-  tags: ['TermExams'],
-  summary: '該段考已有成績的學生列表（最近登錄優先）',
+  tags: ['SchoolExams'],
+  summary: '該學校考試已有成績的學生列表（最近登錄優先）',
   request: {
     params: z.object({ id: DbUuidSchema }),
   },
@@ -1305,7 +1372,7 @@ const recentStudentsRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            data: z.array(RecentTermExamStudentSchema),
+            data: z.array(RecentSchoolExamStudentSchema),
           }),
         },
       },
@@ -1334,15 +1401,15 @@ app.openapi(recentStudentsRoute, async (c) => {
   const orgId = c.get('orgId');
   const { id } = c.req.valid('param');
 
-  const termExam = await ensureTermExamOwnedByOrg(supabase, id, orgId);
-  if (!termExam) {
-    return c.json({ error: '找不到段考事件', code: 'NOT_FOUND' }, 404);
+  const schoolExam = await ensureSchoolExamOwnedByOrg(supabase, id, orgId);
+  if (!schoolExam) {
+    return c.json({ error: '找不到學校考試', code: 'NOT_FOUND' }, 404);
   }
 
   const { data, error } = await supabase
-    .from('term_scores')
+    .from('school_scores')
     .select('student_id, updated_at, students(name, grade)')
-    .eq('term_exam_id', id);
+    .eq('school_exam_id', id);
 
   if (error) {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
@@ -1389,8 +1456,8 @@ app.openapi(recentStudentsRoute, async (c) => {
 const studentsRoute = createRoute({
   method: 'get',
   path: '/{id}/students',
-  tags: ['TermExams'],
-  summary: '取得段考下的學生列表（支援 campus / status / search / grade 過濾）',
+  tags: ['SchoolExams'],
+  summary: '取得學校考試下的學生列表（支援 campus / status / search / grade 過濾）',
   request: {
     params: z.object({ id: DbUuidSchema }),
     query: z.object({
@@ -1407,7 +1474,7 @@ const studentsRoute = createRoute({
       description: '學生列表',
       content: {
         'application/json': {
-          schema: TermExamStudentListResponseSchema,
+          schema: SchoolExamStudentListResponseSchema,
         },
       },
     },
@@ -1443,9 +1510,9 @@ app.openapi(studentsRoute, async (c) => {
     pageSize = 50,
   } = c.req.valid('query');
 
-  const termExam = await ensureTermExamOwnedByOrg(supabase, id, orgId);
-  if (!termExam) {
-    return c.json({ error: '找不到段考事件', code: 'NOT_FOUND' }, 404);
+  const schoolExam = await ensureSchoolExamOwnedByOrg(supabase, id, orgId);
+  if (!schoolExam) {
+    return c.json({ error: '找不到學校考試', code: 'NOT_FOUND' }, 404);
   }
 
   const { count: subjectCount } = await supabase
@@ -1460,7 +1527,7 @@ app.openapi(studentsRoute, async (c) => {
     )
     .eq('org_id', orgId)
     .eq('is_active', true)
-    .eq('school_id', termExam.school_id)
+    .eq('school_id', schoolExam.school_id)
     .order('name');
 
   if (grade) {
@@ -1531,9 +1598,9 @@ app.openapi(studentsRoute, async (c) => {
   }
 
   const { data: scoreRows, error: scoreError } = await supabase
-    .from('term_scores')
+    .from('school_scores')
     .select('student_id, status, updated_at')
-    .eq('term_exam_id', id)
+    .eq('school_exam_id', id)
     .in('student_id', studentIds);
 
   if (scoreError) {
@@ -1628,17 +1695,17 @@ app.openapi(studentsRoute, async (c) => {
 const byStudentRoute = createRoute({
   method: 'get',
   path: '/by-student/{studentId}',
-  tags: ['TermExams'],
-  summary: '取得學生段考成績',
+  tags: ['SchoolExams'],
+  summary: '取得學生學校考試成績',
   request: {
     params: z.object({ studentId: DbUuidSchema }),
   },
   responses: {
     200: {
-      description: '學生段考成績列表',
+      description: '學生學校考試成績列表',
       content: {
         'application/json': {
-          schema: z.object({ data: z.array(StudentTermScoreSchema) }),
+          schema: z.object({ data: z.array(StudentSchoolScoreSchema) }),
         },
       },
     },
@@ -1682,12 +1749,12 @@ app.openapi(byStudentRoute, async (c) => {
   }
 
   const { data, error } = await supabase
-    .from('term_scores')
+    .from('school_scores')
     .select(
-      'score, status, notes, updated_at, term_exams!inner(id, academic_year, semester, period, label, org_id), subjects(id, name)',
+      'score, status, notes, updated_at, school_exams!inner(id, academic_year, semester, exam_type, name, label, exam_date, created_at, org_id), subjects(id, name)',
     )
     .eq('student_id', studentId)
-    .eq('term_exams.org_id', orgId);
+    .eq('school_exams.org_id', orgId);
 
   if (error) {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
@@ -1696,19 +1763,22 @@ app.openapi(byStudentRoute, async (c) => {
   const rows = (data ?? []) as StudentScoreRow[];
   const mapped = rows
     .map((row) => {
-      const termExam = pickRelationFirst(row.term_exams);
+      const schoolExam = pickRelationFirst(row.school_exams);
       const subject = pickRelationFirst(row.subjects);
 
-      if (!termExam || !subject) {
+      if (!schoolExam || !subject) {
         return null;
       }
 
       return {
-        termExamId: termExam.id,
-        label: termExam.label,
-        academicYear: termExam.academic_year,
-        semester: termExam.semester,
-        period: termExam.period,
+        schoolExamId: schoolExam.id,
+        label: schoolExam.label,
+        academicYear: schoolExam.academic_year,
+        semester: schoolExam.semester,
+        examType: schoolExam.exam_type,
+        name: schoolExam.name,
+        examDate: schoolExam.exam_date,
+        examCreatedAt: schoolExam.created_at,
         subjectId: subject.id,
         subjectName: subject.name ?? '',
         score: row.score,
@@ -1719,10 +1789,25 @@ app.openapi(byStudentRoute, async (c) => {
     })
     .filter((row): row is NonNullable<typeof row> => row !== null)
     .sort((a, b) => {
-      if (a.academicYear !== b.academicYear) return b.academicYear - a.academicYear;
-      if (a.semester !== b.semester) return b.semester - a.semester;
-      return compareTermPeriod(a.period, b.period);
-    });
+      return compareSchoolExamChronologically(
+        { examDate: a.examDate, createdAt: a.examCreatedAt, id: a.schoolExamId },
+        { examDate: b.examDate, createdAt: b.examCreatedAt, id: b.schoolExamId },
+      );
+    })
+    .map((row) => ({
+      schoolExamId: row.schoolExamId,
+      label: row.label,
+      academicYear: row.academicYear,
+      semester: row.semester,
+      examType: row.examType,
+      name: row.name,
+      subjectId: row.subjectId,
+      subjectName: row.subjectName,
+      score: row.score,
+      status: row.status,
+      notes: row.notes,
+      updatedAt: row.updatedAt,
+    }));
 
   return c.json({ data: mapped }, 200);
 });
