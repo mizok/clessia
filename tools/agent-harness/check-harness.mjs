@@ -124,7 +124,14 @@ if (mode === 'write' && onDisk && onDisk.length > 0) {
 
 const locked = readLock();
 
-if (mode !== 'write' && onDisk && JSON.stringify(onDisk) !== JSON.stringify(locked)) {
+// 磁碟 ↔ lock 是**本機**的不變量（提醒你 lock 過期了），CI 不該跑它。
+//
+// 不能只靠「目錄不存在就跳過」：`.agents/skills/` 底下有 9 個 skill 的內容在 gitignore 規則
+// 加上去之前就已經進了版控，所以 CI 的 clone 裡那個目錄是**部分存在**的 —— 少了後來才搬進去
+// 的 ui-ux-pro-max。第二次 CI 就是這樣紅的。
+const isCI = Boolean(process.env.CI);
+
+if (mode !== 'write' && !isCI && onDisk && JSON.stringify(onDisk) !== JSON.stringify(locked)) {
   fail('skills-lock.json 與 .agents/skills/ 磁碟現況不符。重生：npm run harness:write');
 }
 
