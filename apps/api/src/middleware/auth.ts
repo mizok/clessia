@@ -19,19 +19,20 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   // Create service role client (no RLS - auth is handled at middleware level)
   const supabase: SupabaseClient = createServiceClientFromEnv(c.env);
 
-  // Get org_id from profiles table using the Better Auth user ID
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('org_id')
-    .eq('id', session.user.id)
-    .single();
+  // org 的唯一真相是 `ba_user.orgId`（Better Auth additionalField），不是 `profiles.org_id`。
+  //
+  // 這裡曾經查 profiles，但 `profiles` 只剩 seed.sql 會寫入 —— 原本自動建列的
+  // `handle_new_user()` 觸發器在 Better Auth 遷移（20260222000001）時就被 DROP 了，沒有替代品。
+  // 而 staff.ts 與 parents.ts 建立帳號時寫的都是 `ba_user.orgId`。結果是**任何透過 app 建立的
+  // 使用者都沒有 profiles 列，每一個請求都會拿到 400 NO_ORG**，等於完全無法使用系統。
+  const orgId = (session.user as { orgId?: string | null }).orgId;
 
-  if (profileError || !profile?.org_id) {
+  if (!orgId) {
     return c.json({ error: '無法取得組織資訊', code: 'NO_ORG' }, 400);
   }
 
   c.set('userId', session.user.id);
-  c.set('orgId', profile.org_id);
+  c.set('orgId', orgId);
   c.set('supabase', supabase);
 
   return next();

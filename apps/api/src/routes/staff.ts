@@ -514,16 +514,18 @@ app.openapi(listRoute, async (c) => {
   }
 
   if (query.role) {
-    const { data: orgProfiles, error: orgProfileError } = await supabase
-      .from('profiles')
+    // 用 ba_user.orgId 而不是 profiles.org_id：profiles 只有 seed.sql 會寫入，
+    // 透過 app 建立的員工在那裡沒有列，拿它篩選會讓這些人整批從結果消失。
+    const { data: orgUsers, error: orgProfileError } = await supabase
+      .from('ba_user')
       .select('id')
-      .eq('org_id', orgId);
+      .eq('orgId', orgId);
 
     if (orgProfileError) {
       return c.json({ error: orgProfileError.message, code: 'DB_ERROR' }, 400);
     }
 
-    const orgUserIds = (orgProfiles || []).map((profile) => profile.id);
+    const orgUserIds = (orgUsers || []).map((user) => user.id);
     if (orgUserIds.length === 0) {
       return c.json(
         {
@@ -1279,7 +1281,10 @@ app.openapi(updateRoute, async (c) => {
   const { campusMap, subjectMap, roleInfoMap, baUserMap } = await loadStaffRelations(supabase, [
     freshStaffRow,
   ]);
-  return c.json({ data: mapStaff(freshStaffRow, campusMap, subjectMap, roleInfoMap, baUserMap) }, 200);
+  return c.json(
+    { data: mapStaff(freshStaffRow, campusMap, subjectMap, roleInfoMap, baUserMap) },
+    200,
+  );
 });
 
 // PATCH /api/staff/:id/archive
