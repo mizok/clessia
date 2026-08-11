@@ -135,19 +135,19 @@ scroll container 下行為不可靠。
 
 ---
 
-## 附錄 — 尚未成為法條的爭議點
+## 附錄 — 已結案的爭議點
 
-以下是文件與程式碼實際不一致、但**刻意不寫成條款**的項目。寫成法條會讓 gate 立刻紅燈，而正確的
-處置是先由人裁決要改哪一邊。
+本附錄用來暫放「文件與程式碼不一致、但需要人裁決要改哪一邊」的項目。
+**目前沒有待裁決項目。**
 
-| 議題 | 文件宣稱 | 程式碼現況 | 待裁決 |
-| --- | --- | --- | --- |
-| 業務表 RLS | 「業務表不使用 RLS，授權在 middleware」 | 7 支 migration 對 `staff`、`campuses`、`subjects` 等表 `enable row level security`；但 middleware 用 service role client，會繞過 RLS | 要移除 RLS，還是改寫文件承認雙層防護？ |
-
-### 已結案
-
-- **org_id 來源**（2026-08-11）—— 結論不是「兩種說法」，而是寫入端早已搬到 `ba_user.orgId`、
+- **org_id 來源**（2026-08-11）—— 不是兩種說法，而是寫入端早已搬到 `ba_user.orgId`、
   讀取端留在死掉的 `profiles.org_id`，導致所有由 app 建立的使用者 400 NO_ORG。
-  已修，並由 `apps/api/src/org-source.spec.ts` 守住。詳見 `kb/wiki/lessons/doc-code-drift-2026-08.md`。
-- **api 測試**（2026-08-11）—— 已補上 `vitest.config.mts` 與 nx `test` / `typecheck` target，
-  20 支 spec / 101 個測試現在會執行，並接進 Stop gate。
+  已修，由 `apps/api/src/org-source.spec.ts` 守住。
+- **api 測試**（2026-08-11）—— 已補上 vitest 設定與 nx `test` / `typecheck` target，
+  101 個測試會執行並接進 Stop gate。
+- **業務表 RLS**（2026-08-11）—— 授權確實只在 middleware（service role 繞過 RLS），
+  但 RLS 保持啟用且零 policy 是刻意的 fail-closed 後盾，不可關閉。
+  三條依賴 `auth.uid()` 與死表 `profiles` 的殭屍 policy 已於
+  `20260811034702_drop_zombie_rls_policies.sql` 移除。
+
+詳見 `kb/wiki/lessons/doc-code-drift-2026-08.md`。
