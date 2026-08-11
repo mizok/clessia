@@ -116,6 +116,92 @@ const UpdateAcademyExamSchema = z
   })
   .openapi('UpdateAcademyExam');
 
+export interface AcademyScoreListRow {
+  studentId: string;
+  studentName: string;
+  studentGrade: string | null;
+  score: number | null;
+  status: 'scored' | 'absent' | 'makeup';
+  notes: string | null;
+  updatedAt: string | null;
+  classIds: string[];
+}
+
+interface EnrollmentRowInput {
+  student_id: string;
+  class_id: string | null;
+  students: unknown;
+}
+
+interface ScoredRowInput {
+  student_id: string;
+  score: number | null;
+  status: 'scored' | 'absent' | 'makeup';
+  notes: string | null;
+  updated_at: string | null;
+  students: unknown;
+}
+
+/**
+ * 把「這場考試的在籍學生」與「已登錄的成績」合併成成績登錄畫面的列。
+ *
+ * classIds 是**陣列**：一個學生可能同時在這場考試的多個班級裡（例如數學 A 班 + 數學進階班）。
+ * 取第一個命中的班級會讓「按班級篩選」漏掉跨班學生 —— 明明有成績卻找不到人。
+ */
+export function buildAcademyScoreRows(
+  enrolledStudents: readonly EnrollmentRowInput[],
+  scoredRows: readonly ScoredRowInput[],
+): AcademyScoreListRow[] {
+  const studentMap = new Map<string, AcademyScoreListRow>();
+
+  for (const row of enrolledStudents) {
+    const student = pickRelationFirst(row.students) as { name?: string; grade?: string } | null;
+    const existing = studentMap.get(row.student_id);
+    // 同一學生在多個班級各有一筆 enrollment —— classIds 要累積而不是覆蓋
+    const classIds = existing ? [...existing.classIds] : [];
+    if (row.class_id && !classIds.includes(row.class_id)) classIds.push(row.class_id);
+
+    studentMap.set(row.student_id, {
+      studentId: row.student_id,
+      studentName: student?.name ?? existing?.studentName ?? '',
+      studentGrade: student?.grade ?? existing?.studentGrade ?? null,
+      score: existing?.score ?? null,
+      status: existing?.status ?? 'scored',
+      notes: existing?.notes ?? null,
+      updatedAt: existing?.updatedAt ?? null,
+      classIds,
+    });
+  }
+
+  for (const row of scoredRows) {
+    const student = pickRelationFirst(row.students) as { name?: string; grade?: string } | null;
+    const existingRow = studentMap.get(row.student_id);
+    studentMap.set(row.student_id, {
+      studentId: row.student_id,
+      studentName: student?.name ?? existingRow?.studentName ?? '',
+      studentGrade: student?.grade ?? existingRow?.studentGrade ?? null,
+      score: row.score,
+      status: row.status,
+      notes: row.notes,
+      updatedAt: row.updated_at,
+      // 成績那一輪不知道班級，沿用 enrollment 那一輪累積的結果
+      classIds: existingRow?.classIds ?? [],
+    });
+  }
+
+  return Array.from(studentMap.values()).sort((a, b) => {
+    const aTs = a.updatedAt ? Date.parse(a.updatedAt) : Number.NaN;
+    const bTs = b.updatedAt ? Date.parse(b.updatedAt) : Number.NaN;
+    const aHasTs = Number.isFinite(aTs);
+    const bHasTs = Number.isFinite(bTs);
+
+    if (aHasTs && bHasTs) return bTs - aTs;
+    if (aHasTs) return -1;
+    if (bHasTs) return 1;
+    return a.studentName.localeCompare(b.studentName, 'zh-Hant');
+  });
+}
+
 const AcademyScoreSchema = z
   .object({
     studentId: z.uuid(),
@@ -125,6 +211,9 @@ const AcademyScoreSchema = z
     status: ScoreStatusSchema,
     notes: z.string().nullable(),
     updatedAt: z.string().nullable(),
+    // 一個學生可能同時在這場考試的多個班級裡（例如數學 A 班 + 數學進階班），
+    // 所以是陣列而非單一 classId —— 取第一個會讓「按班級篩選」漏掉跨班的學生。
+    classIds: z.array(z.uuid()),
   })
   .openapi('AcademyScore');
 
@@ -1048,7 +1137,7 @@ app.openapi(listScoresRoute, async (c) => {
     classIds.length > 0
       ? await supabase
           .from('enrollments')
-          .select('student_id, students(name, grade)')
+          .select('student_id, class_id, students(name, grade)')
           .in('class_id', classIds)
           .eq('status', 'active')
       : { data: [], error: null };
@@ -1067,56 +1156,7 @@ app.openapi(listScoresRoute, async (c) => {
     return c.json({ error: scoredRowsError.message, code: 'DB_ERROR' }, 400);
   }
 
-  interface CandidateScoreItem {
-    studentId: string;
-    studentName: string;
-    studentGrade: string | null;
-    score: number | null;
-    status: 'scored' | 'absent' | 'makeup';
-    notes: string | null;
-    updatedAt: string | null;
-  }
-
-  const studentMap = new Map<string, CandidateScoreItem>();
-
-  for (const row of enrolledStudents ?? []) {
-    const student = pickRelationFirst(row.students);
-    studentMap.set(row.student_id, {
-      studentId: row.student_id,
-      studentName: student?.name ?? '',
-      studentGrade: student?.grade ?? null,
-      score: null,
-      status: 'scored',
-      notes: null,
-      updatedAt: null,
-    });
-  }
-
-  for (const row of scoredRows ?? []) {
-    const student = pickRelationFirst(row.students);
-    const existingRow = studentMap.get(row.student_id);
-    studentMap.set(row.student_id, {
-      studentId: row.student_id,
-      studentName: student?.name ?? existingRow?.studentName ?? '',
-      studentGrade: student?.grade ?? existingRow?.studentGrade ?? null,
-      score: row.score,
-      status: row.status,
-      notes: row.notes,
-      updatedAt: row.updated_at,
-    });
-  }
-
-  const data = Array.from(studentMap.values()).sort((a, b) => {
-    const aTs = a.updatedAt ? Date.parse(a.updatedAt) : Number.NaN;
-    const bTs = b.updatedAt ? Date.parse(b.updatedAt) : Number.NaN;
-    const aHasTs = Number.isFinite(aTs);
-    const bHasTs = Number.isFinite(bTs);
-
-    if (aHasTs && bHasTs) return bTs - aTs;
-    if (aHasTs) return -1;
-    if (bHasTs) return 1;
-    return a.studentName.localeCompare(b.studentName, 'zh-Hant');
-  });
+  const data = buildAcademyScoreRows(enrolledStudents ?? [], scoredRows ?? []);
 
   return c.json({ data }, 200);
 });

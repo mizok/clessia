@@ -66,6 +66,8 @@ export interface AcademyScore {
   status: AcademyScoreStatus;
   notes: string | null;
   updatedAt: string;
+  /** 這名學生在本場考試中所屬的班級。可能多於一個（跨班報名）。 */
+  classIds: string[];
 }
 
 export interface AcademyExamListParams {
@@ -74,6 +76,10 @@ export interface AcademyExamListParams {
   campusId?: string;
   subjectId?: string;
   classId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  todo?: boolean;
+  order?: 'date_asc' | 'date_desc';
   page?: number;
   pageSize?: number;
 }
@@ -85,6 +91,10 @@ export interface AcademyExamListResponse {
     page: number;
     pageSize: number;
   };
+}
+
+export interface ExamTodoCountResponse {
+  count: number;
 }
 
 export interface CreateAcademyExamInput {
@@ -125,6 +135,10 @@ export class AcademyExamsService {
     return this.http.get<AcademyExamListResponse>(this.base, {
       params: this.toQueryParams(params),
     });
+  }
+
+  getTodoCount(): Observable<ExamTodoCountResponse> {
+    return this.http.get<ExamTodoCountResponse>(`${this.base}/todo-count`);
   }
 
   get(id: string): Observable<{ data: AcademyExamDetail }> {
@@ -175,6 +189,10 @@ export class AcademyExamsService {
     if (params.campusId !== undefined) query['campus_id'] = params.campusId;
     if (params.subjectId !== undefined) query['subject_id'] = params.subjectId;
     if (params.classId !== undefined) query['class_id'] = params.classId;
+    if (params.dateFrom !== undefined) query['date_from'] = params.dateFrom;
+    if (params.dateTo !== undefined) query['date_to'] = params.dateTo;
+    if (params.todo !== undefined) query['todo'] = params.todo;
+    if (params.order !== undefined) query['order'] = params.order;
     if (params.page !== undefined) query['page'] = params.page;
     if (params.pageSize !== undefined) query['pageSize'] = params.pageSize;
 

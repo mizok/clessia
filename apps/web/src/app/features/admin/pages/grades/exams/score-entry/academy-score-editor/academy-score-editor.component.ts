@@ -34,6 +34,8 @@ export interface ScoreRow {
   score: number | null;
   status: AcademyScoreStatus;
   notes: string;
+  /** 這名學生在本場考試中所屬的班級，可能多於一個（跨班報名） */
+  classIds: string[];
   /** 原始快照，用於 dirty check */
   original: {
     score: number | null;
@@ -113,10 +115,8 @@ export class AcademyScoreEditorComponent implements OnInit {
     const filter = this.classFilter();
     const all = this.rows();
     if (!filter) return all;
-    // API returns class info per student — 目前 AcademyScore 不含 classId
-    // 所以 classFilter 暫時只在前端做篩選 placeholder
-    // TODO: 當 API 回傳 classId 時啟用篩選
-    return all;
+    // 學生可能跨班，所以用 includes 而不是相等比較 —— 否則跨班學生會在篩選時消失
+    return all.filter((row) => row.classIds.includes(filter));
   });
 
   protected readonly isDirty = computed(() => {
@@ -156,6 +156,7 @@ export class AcademyScoreEditorComponent implements OnInit {
       score: s.score,
       status: s.status,
       notes: s.notes ?? '',
+      classIds: s.classIds,
       original: {
         score: s.score,
         status: s.status,
