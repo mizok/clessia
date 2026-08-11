@@ -59,6 +59,13 @@ Thumbs.db
 .agent
 .agents
 .angular
-.claude
 .codex
 .gemini
+
+# Agent harness：設定與 hook 進版控（換一台機器才有東西可用），
+# 個人覆寫與 vendored skills 不進。邏輯本體在 tools/agent-harness/，本來就進版控。
+.claude/*
+!.claude/settings.json
+!.claude/settings.md
+!.claude/hooks/
+!.claude/agents/

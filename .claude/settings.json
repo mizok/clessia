@@ -2,8 +2,31 @@
   "enabledPlugins": {
     "ui-ux-pro-max@ui-ux-pro-max-skill": true
   },
+  "enableAllProjectMcpServers": true,
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-guard.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/format.sh",
+            "timeout": 30
+          }
+        ]
+      },
       {
         "matcher": "Edit|Write|Bash",
         "hooks": [
@@ -11,6 +34,17 @@
             "type": "command",
             "command": "code-review-graph update --skip-flows",
             "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/doc-router.sh",
+            "timeout": 10
           }
         ]
       }
@@ -25,6 +59,66 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/stop-verify.sh",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "Bash(npm run build*)",
+      "Bash(npm run harness*)",
+      "Bash(npx nx affected *)",
+      "Bash(npx nx run-many *)",
+      "Bash(npx nx test *)",
+      "Bash(npx nx build *)",
+      "Bash(npx nx graph *)",
+      "Bash(npx prettier *)",
+      "Bash(npx supabase migration new *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git fetch *)",
+      "Bash(git worktree *)",
+      "mcp__code-review-graph__detect_changes_tool",
+      "mcp__code-review-graph__get_review_context_tool",
+      "mcp__code-review-graph__get_impact_radius_tool",
+      "mcp__code-review-graph__get_affected_flows_tool",
+      "mcp__code-review-graph__query_graph_tool",
+      "mcp__code-review-graph__semantic_search_nodes_tool",
+      "mcp__code-review-graph__get_minimal_context_tool"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(rtk git push --force *)",
+      "Bash(rtk proxy git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(rtk git push -f *)",
+      "Bash(rtk proxy git push -f *)",
+      "Bash(git push --delete *)",
+      "Bash(rtk git push --delete *)",
+      "Bash(rtk proxy git push --delete *)",
+      "Bash(rm -rf *)",
+      "Bash(rtk rm -rf *)",
+      "Bash(rtk proxy rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(rtk rm -fr *)",
+      "Bash(rtk proxy rm -fr *)",
+      "Bash(npx supabase db reset*)",
+      "Bash(rtk npx supabase db reset*)",
+      "Bash(supabase db reset*)",
+      "Bash(npm run db:reset*)",
+      "Bash(rtk npm run db:reset*)",
+      "Edit(kb/architecture/constitution.md)",
+      "Edit(.worktrees/**/kb/architecture/constitution.md)"
     ]
   }
 }

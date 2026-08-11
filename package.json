@@ -12,7 +12,13 @@
     "test": "nx run-many -t test",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
-    "db:reset": "supabase db reset"
+    "db:reset": "supabase db reset",
+    "harness": "node tools/agent-harness/check-harness.mjs && node tools/agent-harness/kb-gate.mjs",
+    "harness:write": "node tools/agent-harness/check-harness.mjs --write && node tools/agent-harness/kb-gate.mjs --write",
+    "harness:test": "node --test 'tools/agent-harness/**/*.test.mjs'",
+    "kb": "node tools/agent-harness/kb-gate.mjs",
+    "kb:write": "node tools/agent-harness/kb-gate.mjs --write",
+    "test:baseline": "npx nx affected -t test --base=main 2>&1 | node tools/agent-harness/test-gate.mjs --write"
   },
   "prettier": {
     "printWidth": 100,
