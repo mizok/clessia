@@ -178,6 +178,7 @@ app.openapi(
         description: '請假紀錄列表',
         content: { 'application/json': { schema: LeaveListResponseSchema } },
       },
+      500: { description: '伺服器錯誤' },
     },
   }),
   async (c) => {
@@ -239,6 +240,8 @@ app.openapi(
         description: '建立的請假紀錄',
         content: { 'application/json': { schema: LeaveRequestSchema } },
       },
+      400: { description: '參數錯誤' },
+      500: { description: '伺服器錯誤' },
     },
   }),
   async (c) => {

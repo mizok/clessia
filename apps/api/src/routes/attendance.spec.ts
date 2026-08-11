@@ -890,14 +890,17 @@ function buildEvent(input: {
   courseId: string;
   courseName: string;
   sessionStatus: 'scheduled' | 'completed' | 'cancelled';
+  /** 呼叫端本來就在傳這個欄位，但先前的簽章沒有它，於是被靜默忽略、日期永遠是同一天。 */
+  eventDate?: string;
 }): MockAttendanceEvent {
+  const eventDate = input.eventDate ?? '2026-04-02';
   return {
     id: input.id,
     org_id: 'org-1',
-    event_date: '2026-04-02',
+    event_date: eventDate,
     start_time: '09:00:00',
     end_time: '11:00:00',
-    attendance_taken_at: input.sessionStatus === 'completed' ? '2026-04-02T09:00:00Z' : null,
+    attendance_taken_at: input.sessionStatus === 'completed' ? `${eventDate}T09:00:00Z` : null,
     campus_id: '11111111-1111-4111-8111-111111111111',
     campuses: { name: '示範分校' },
     sessions: [

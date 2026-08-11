@@ -23,6 +23,8 @@ const SchoolExamListItemSchema = z
     academicYear: z.number().int(),
     semester: z.union([z.literal(1), z.literal(2)]),
     examType: SchoolExamTypeSchema,
+    subjectId: z.string().uuid().nullable(),
+    subjectName: z.string().nullable(),
     name: z.string().nullable(),
     label: z.string(),
     examDate: z.string().nullable(),
@@ -61,6 +63,8 @@ const SchoolExamDetailSchema = z
     academicYear: z.number().int(),
     semester: z.union([z.literal(1), z.literal(2)]),
     examType: SchoolExamTypeSchema,
+    subjectId: z.string().uuid().nullable(),
+    subjectName: z.string().nullable(),
     name: z.string().nullable(),
     label: z.string(),
     examDate: z.string().nullable(),
@@ -81,6 +85,7 @@ const CreateSchoolExamSchema = z
     academicYear: z.number().int().min(100).max(999),
     semester: z.union([z.literal(1), z.literal(2)]),
     examType: SchoolExamTypeSchema,
+    subjectId: z.string().uuid().nullable().optional(),
     name: z.string().trim().min(1).max(100).nullable().optional(),
     schoolId: DbUuidSchema,
     examDate: z.string().date().nullable().optional(),
@@ -101,6 +106,7 @@ const UpdateSchoolExamSchema = z
     academicYear: z.number().int().min(100).max(200).optional(),
     semester: z.union([z.literal(1), z.literal(2)]).optional(),
     examType: SchoolExamTypeSchema.optional(),
+    subjectId: z.string().uuid().nullable().optional(),
     name: z.string().trim().max(100).nullable().optional(),
     schoolId: DbUuidSchema.optional(),
     examDate: z.string().date().nullable().optional(),
@@ -207,6 +213,7 @@ interface SchoolExamRow {
   academic_year: number;
   semester: 1 | 2;
   exam_type: SchoolExamType;
+  subject_id: string | null;
   name: string | null;
   label: string;
   exam_date: string | null;
@@ -237,6 +244,7 @@ interface StudentRelation {
 
 interface SchoolExamDetailRow extends SchoolExamRow {
   schools?: SchoolRelation | SchoolRelation[] | null;
+  subjects?: SubjectRelation | SubjectRelation[] | null;
 }
 
 interface ScoreRowWithRelations {
@@ -333,7 +341,7 @@ async function ensureSchoolExamOwnedByOrg(
   const { data, error } = await supabase
     .from('school_exams')
     .select(
-      'id, academic_year, semester, exam_type, name, label, exam_date, status, school_id, created_at, updated_at',
+      'id, academic_year, semester, exam_type, subject_id, name, label, exam_date, status, school_id, created_at, updated_at',
     )
     .eq('id', schoolExamId)
     .eq('org_id', orgId)
@@ -355,6 +363,13 @@ const listRoute = createRoute({
     query: z.object({
       academic_year: z.coerce.number().int().optional(),
       semester: z.coerce.number().int().min(1).max(2).optional(),
+      search: z.string().optional(),
+      status: SchoolExamStatusSchema.optional(),
+      school_id: DbUuidSchema.optional(),
+      subject_id: DbUuidSchema.optional(),
+      date_from: z.string().date().optional(),
+      date_to: z.string().date().optional(),
+      todo: z.coerce.boolean().optional(),
       page: z.coerce.number().int().min(1).default(1).optional(),
       pageSize: z.coerce.number().int().min(1).max(200).default(20).optional(),
     }),
@@ -382,12 +397,24 @@ const listRoute = createRoute({
 app.openapi(listRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
-  const { academic_year: academicYear, semester, page = 1, pageSize = 20 } = c.req.valid('query');
+  const {
+    academic_year: academicYear,
+    semester,
+    search,
+    status,
+    school_id: schoolId,
+    subject_id: subjectId,
+    date_from: dateFrom,
+    date_to: dateTo,
+    todo = false,
+    page = 1,
+    pageSize = 20,
+  } = c.req.valid('query');
 
   let query = supabase
     .from('school_exams')
     .select(
-      'id, academic_year, semester, exam_type, name, label, exam_date, status, school_id, schools(id, name), created_at, updated_at, school_scores(count)',
+      'id, academic_year, semester, exam_type, subject_id, name, label, exam_date, status, school_id, schools(id, name), subjects(id, name), created_at, updated_at, school_scores(count)',
       {
       count: 'exact',
       },
@@ -399,6 +426,79 @@ app.openapi(listRoute, async (c) => {
   }
   if (semester !== undefined) {
     query = query.eq('semester', semester);
+  }
+  if (search?.trim()) {
+    query = query.ilike('label', `%${search.trim()}%`);
+  }
+  if (todo) {
+    query = query.eq('status', 'active');
+  } else if (status) {
+    query = query.eq('status', status);
+  }
+  if (schoolId) {
+    query = query.eq('school_id', schoolId);
+  }
+  if (subjectId) {
+    query = query.eq('subject_id', subjectId);
+  }
+  if (dateFrom) {
+    query = query.gte('exam_date', dateFrom);
+  }
+  if (dateTo) {
+    query = query.lte('exam_date', dateTo);
+  }
+
+  if (todo) {
+    let todoIdQuery = supabase.from('school_exams').select('id').eq('org_id', orgId).eq('status', 'active');
+
+    if (academicYear !== undefined) {
+      todoIdQuery = todoIdQuery.eq('academic_year', academicYear);
+    }
+    if (semester !== undefined) {
+      todoIdQuery = todoIdQuery.eq('semester', semester);
+    }
+    if (search?.trim()) {
+      todoIdQuery = todoIdQuery.ilike('label', `%${search.trim()}%`);
+    }
+    if (schoolId) {
+      todoIdQuery = todoIdQuery.eq('school_id', schoolId);
+    }
+    if (subjectId) {
+      todoIdQuery = todoIdQuery.eq('subject_id', subjectId);
+    }
+    if (dateFrom) {
+      todoIdQuery = todoIdQuery.gte('exam_date', dateFrom);
+    }
+    if (dateTo) {
+      todoIdQuery = todoIdQuery.lte('exam_date', dateTo);
+    }
+
+    const { data: activeRows, error: todoRowsError } = await todoIdQuery;
+    if (todoRowsError) {
+      return c.json({ error: todoRowsError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    const activeExamIds = (activeRows ?? []).map((row: { id: string }) => row.id);
+    if (activeExamIds.length === 0) {
+      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+    }
+
+    const { data: scoreRows, error: scoreRowsError } = await supabase
+      .from('school_scores')
+      .select('school_exam_id')
+      .in('school_exam_id', activeExamIds);
+    if (scoreRowsError) {
+      return c.json({ error: scoreRowsError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    const scoredExamIds = new Set(
+      (scoreRows ?? []).map((row: { school_exam_id: string }) => row.school_exam_id),
+    );
+    const todoExamIds = activeExamIds.filter((examId) => !scoredExamIds.has(examId));
+    if (todoExamIds.length === 0) {
+      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+    }
+    query = query.in('id', todoExamIds);
   }
 
   const from = (page - 1) * pageSize;
@@ -419,15 +519,19 @@ app.openapi(listRoute, async (c) => {
       SchoolExamRow & {
         school_scores?: SchoolScoreCountRow[] | null;
         schools?: SchoolRelation | SchoolRelation[] | null;
+        subjects?: SubjectRelation | SubjectRelation[] | null;
       }
     >
   ).map((row) => {
     const school = pickRelationFirst(row.schools);
+    const subject = pickRelationFirst(row.subjects);
     return {
       id: row.id,
       academicYear: row.academic_year,
       semester: row.semester,
       examType: row.exam_type,
+      subjectId: row.subject_id,
+      subjectName: subject?.name ?? null,
       name: row.name,
       label: row.label,
       examDate: row.exam_date,
@@ -451,6 +555,67 @@ app.openapi(listRoute, async (c) => {
     },
     200,
   );
+});
+
+const todoCountRoute = createRoute({
+  method: 'get',
+  path: '/todo-count',
+  tags: ['SchoolExams'],
+  summary: '取得學校考試待登錄數量',
+  responses: {
+    200: {
+      description: '成功',
+      content: {
+        'application/json': {
+          schema: z.object({ count: z.number().int().min(0) }),
+        },
+      },
+    },
+    400: {
+      description: '查詢失敗',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(todoCountRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+
+  const { data: activeRows, error: activeRowsError } = await supabase
+    .from('school_exams')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('status', 'active');
+
+  if (activeRowsError) {
+    return c.json({ error: activeRowsError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  const activeExamIds = (activeRows ?? []).map((row: { id: string }) => row.id);
+  if (activeExamIds.length === 0) {
+    return c.json({ count: 0 }, 200);
+  }
+
+  const { data: scoreRows, error: scoreRowsError } = await supabase
+    .from('school_scores')
+    .select('school_exam_id')
+    .in('school_exam_id', activeExamIds);
+
+  if (scoreRowsError) {
+    return c.json({ error: scoreRowsError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  const scoredExamIds = new Set(
+    (scoreRows ?? []).map((row: { school_exam_id: string }) => row.school_exam_id),
+  );
+  const count = activeExamIds.filter((examId) => !scoredExamIds.has(examId)).length;
+
+  return c.json({ count }, 200);
 });
 
 const getRoute = createRoute({
@@ -502,7 +667,7 @@ app.openapi(getRoute, async (c) => {
   const { data: schoolExamData, error: schoolExamError } = await supabase
     .from('school_exams')
     .select(
-      'id, academic_year, semester, exam_type, name, label, exam_date, status, school_id, schools(id, name), created_at, updated_at',
+      'id, academic_year, semester, exam_type, subject_id, name, label, exam_date, status, school_id, schools(id, name), subjects(id, name), created_at, updated_at',
     )
     .eq('id', id)
     .eq('org_id', orgId)
@@ -518,6 +683,7 @@ app.openapi(getRoute, async (c) => {
 
   const schoolExam = schoolExamData as SchoolExamDetailRow;
   const school = pickRelationFirst(schoolExam.schools);
+  const subject = pickRelationFirst(schoolExam.subjects);
   const schoolName = school?.name ?? '';
 
   let studentIdFilter: string[] | null = null;
@@ -575,6 +741,8 @@ app.openapi(getRoute, async (c) => {
           academicYear: schoolExam.academic_year,
           semester: schoolExam.semester,
           examType: schoolExam.exam_type,
+          subjectId: schoolExam.subject_id,
+          subjectName: subject?.name ?? null,
           name: schoolExam.name,
           label: schoolExam.label,
           examDate: schoolExam.exam_date,
@@ -639,6 +807,8 @@ app.openapi(getRoute, async (c) => {
         academicYear: schoolExam.academic_year,
         semester: schoolExam.semester,
         examType: schoolExam.exam_type,
+        subjectId: schoolExam.subject_id,
+        subjectName: subject?.name ?? null,
         name: schoolExam.name,
         label: schoolExam.label,
         examDate: schoolExam.exam_date,
@@ -707,6 +877,7 @@ app.openapi(createRouteDef, async (c) => {
 
   const trimmedName = body.name?.trim() ?? null;
   const normalizedName = trimmedName && trimmedName.length > 0 ? trimmedName : null;
+  const subjectId = body.examType === 'other' ? (body.subjectId ?? null) : null;
 
   const label = buildSchoolExamLabel({
     academicYear: body.academicYear,
@@ -739,6 +910,7 @@ app.openapi(createRouteDef, async (c) => {
       academic_year: body.academicYear,
       semester: body.semester,
       exam_type: body.examType,
+      subject_id: subjectId,
       name: normalizedName,
       label,
       exam_date: body.examDate ?? null,
@@ -766,6 +938,7 @@ app.openapi(createRouteDef, async (c) => {
         academicYear: body.academicYear,
         semester: body.semester,
         examType: body.examType,
+        subjectId,
         name: normalizedName,
         schoolId: body.schoolId,
       },
@@ -853,6 +1026,12 @@ app.openapi(updateRouteDef, async (c) => {
   const nextExamType = body.examType ?? existing.exam_type;
   const nextSchoolId = body.schoolId ?? existing.school_id;
   const nextExamDate = body.examDate === undefined ? existing.exam_date : body.examDate;
+  const nextSubjectId =
+    nextExamType === 'other'
+      ? body.subjectId === undefined
+        ? existing.subject_id
+        : body.subjectId
+      : null;
 
   let nextName: string | null;
   if (body.name === undefined) {
@@ -882,6 +1061,7 @@ app.openapi(updateRouteDef, async (c) => {
       academic_year: nextAcademicYear,
       semester: nextSemester,
       exam_type: nextExamType,
+      subject_id: nextSubjectId,
       name: nextName,
       school_id: nextSchoolId,
       label: nextLabel,
@@ -910,6 +1090,7 @@ app.openapi(updateRouteDef, async (c) => {
         academicYear: nextAcademicYear,
         semester: nextSemester,
         examType: nextExamType,
+        subjectId: nextSubjectId,
         name: nextName,
         schoolId: nextSchoolId,
       },
@@ -1144,6 +1325,16 @@ app.openapi(upsertScoresRoute, async (c) => {
 
   if (schoolExam.status === 'closed') {
     return c.json({ error: '學校考試已結束，無法登錄成績', code: 'EXAM_CLOSED' }, 400);
+  }
+
+  if (schoolExam.subject_id !== null) {
+    const hasDisallowedSubject = body.scores.some((item) => item.subjectId !== schoolExam.subject_id);
+    if (hasDisallowedSubject) {
+      return c.json(
+        { error: '此考試僅允許登錄指定科目的成績', code: 'SUBJECT_NOT_ALLOWED' },
+        400,
+      );
+    }
   }
 
   const studentIds = Array.from(new Set(body.scores.map((item) => item.studentId)));

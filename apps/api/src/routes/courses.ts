@@ -172,15 +172,19 @@ app.openapi(listRoute, async (c) => {
   const courses = (data || []).map((row) => mapCourse(row as Record<string, unknown>));
   const total = count || 0;
 
-  return c.json({
-    data: courses,
-    meta: {
-      total,
-      page: unpaginated ? 1 : page,
-      pageSize: unpaginated ? total : pageSize,
-      totalPages: unpaginated ? 1 : Math.ceil(total / pageSize),
+  // 必須明寫 200：不帶狀態碼時型別無法選中 200 分支，會去跟 400 的 error schema 比對而報錯。
+  return c.json(
+    {
+      data: courses,
+      meta: {
+        total,
+        page: unpaginated ? 1 : page,
+        pageSize: unpaginated ? total : pageSize,
+        totalPages: unpaginated ? 1 : Math.ceil(total / pageSize),
+      },
     },
-  });
+    200,
+  );
 });
 
 // GET /api/courses/:id - 取得單一課程
@@ -236,9 +240,12 @@ app.openapi(getRoute, async (c) => {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  return c.json({
-    data: mapCourse(data as Record<string, unknown>),
-  }, 200);
+  return c.json(
+    {
+      data: mapCourse(data as Record<string, unknown>),
+    },
+    200,
+  );
 });
 
 // POST /api/courses - 新增課程
@@ -310,17 +317,21 @@ app.openapi(createCourseRoute, async (c) => {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
 
-  logAudit(supabase, {
-    orgId,
-    userId,
-    resourceType: 'course',
-    resourceId: data.id as string,
-    resourceName: formatAuditCourseResourceName({
-      courseName: data.name as string,
-      campusName: (data.campuses as Record<string, unknown> | null)?.['name'] as string | null,
-    }),
-    action: 'create',
-  }, c.executionCtx.waitUntil.bind(c.executionCtx));
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'course',
+      resourceId: data.id as string,
+      resourceName: formatAuditCourseResourceName({
+        courseName: data.name as string,
+        campusName: (data.campuses as Record<string, unknown> | null)?.['name'] as string | null,
+      }),
+      action: 'create',
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
 
   return c.json({ data: mapCourse(data as Record<string, unknown>) }, 201);
 });
@@ -471,10 +482,7 @@ app.openapi(updateRoute, async (c) => {
 
         if (insertError) {
           // Rollback sessions
-          await supabase
-            .from('sessions')
-            .update({ status: 'scheduled' })
-            .in('id', sessionIds);
+          await supabase.from('sessions').update({ status: 'scheduled' }).in('id', sessionIds);
           return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
         }
 
@@ -494,21 +502,25 @@ app.openapi(updateRoute, async (c) => {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  logAudit(supabase, {
-    orgId,
-    userId,
-    resourceType: 'course',
-    resourceId: id,
-    resourceName: formatAuditCourseResourceName({
-      courseName: data.name as string,
-      campusName: (data.campuses as Record<string, unknown> | null)?.['name'] as string | null,
-    }),
-    action: 'update',
-    details: {
-      deactivateMode: body.deactivateMode ?? null,
-      cancelledFutureSessions,
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'course',
+      resourceId: id,
+      resourceName: formatAuditCourseResourceName({
+        courseName: data.name as string,
+        campusName: (data.campuses as Record<string, unknown> | null)?.['name'] as string | null,
+      }),
+      action: 'update',
+      details: {
+        deactivateMode: body.deactivateMode ?? null,
+        cancelledFutureSessions,
+      },
     },
-  }, c.executionCtx.waitUntil.bind(c.executionCtx));
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
 
   return c.json(
     {
@@ -572,10 +584,7 @@ app.openapi(deleteRoute, async (c) => {
     .eq('course_id', id);
 
   if (count && count > 0) {
-    return c.json(
-      { error: `此課程有 ${count} 個開課班，無法刪除`, code: 'HAS_CLASSES' },
-      409
-    );
+    return c.json({ error: `此課程有 ${count} 個開課班，無法刪除`, code: 'HAS_CLASSES' }, 409);
   }
 
   const { data: existing } = await supabase
@@ -590,19 +599,22 @@ app.openapi(deleteRoute, async (c) => {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  logAudit(supabase, {
-    orgId,
-    userId,
-    resourceType: 'course',
-    resourceId: id,
-    resourceName: formatAuditCourseResourceName({
-      courseName: existing?.name as string | null | undefined,
-      campusName: (existing?.campuses as Record<string, unknown> | null | undefined)?.[
-        'name'
-      ] as string | null,
-    }),
-    action: 'delete',
-  }, c.executionCtx.waitUntil.bind(c.executionCtx));
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'course',
+      resourceId: id,
+      resourceName: formatAuditCourseResourceName({
+        courseName: existing?.name as string | null | undefined,
+        campusName: (existing?.campuses as Record<string, unknown> | null | undefined)?.['name'] as
+          string | null,
+      }),
+      action: 'delete',
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
 
   return c.json({ success: true }, 200);
 });

@@ -36,6 +36,7 @@ const ClassSchema = z
     campusId: z.uuid(),
     courseId: z.uuid(),
     courseName: z.string().optional(),
+    subjectId: z.string().uuid().nullable().optional(),
     subjectName: z.string().nullable().optional(),
     campusName: z.string().optional(),
     name: z.string(),
@@ -269,7 +270,11 @@ interface ClassExtras {
 
 function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
   const course = row['courses'] as
-    | { name: string; grade_levels: string[]; subjects?: { name: string | null } | null }
+    | {
+        name: string;
+        grade_levels: string[];
+        subjects?: { id: string; name: string | null } | null;
+      }
     | null;
 
   return {
@@ -278,6 +283,7 @@ function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     campusId: row['campus_id'] as string,
     courseId: row['course_id'] as string,
     courseName: course?.name,
+    subjectId: course?.subjects?.id ?? null,
     subjectName: course?.subjects?.name ?? null,
     campusName: (row['campuses'] as { name: string } | null)?.name,
     name: row['name'] as string,
@@ -372,7 +378,7 @@ app.openapi(
 
     let dbQuery = supabase
       .from('classes')
-      .select('*, courses(name, grade_levels, subjects(name)), campuses(name), schedules(*, staff(display_name)), ba_user!updated_by(name)', {
+      .select('*, courses(name, grade_levels, subjects(id, name)), campuses(name), schedules(*, staff(display_name)), ba_user!updated_by(name)', {
         count: 'exact',
       });
 
@@ -850,18 +856,18 @@ app.openapi(
     const orgId = c.get('orgId');
     const { id } = c.req.valid('param');
 
-    const [classResult, schedulesResult] = await Promise.all([
-      supabase
-        .from('classes')
-        .select('*, courses(name, grade_levels), campuses(name), ba_user!updated_by(name)')
-        .eq('id', id)
-        .eq('org_id', orgId)
-        .single(),
-      applyClassDetailScheduleScope(
-        supabase.from('schedules').select('*, staff(display_name)'),
-        id,
-      ),
-    ]);
+    const classQuery = supabase
+      .from('classes')
+      .select('*, courses(name, grade_levels, subjects(id, name)), campuses(name), ba_user!updated_by(name)')
+      .eq('id', id)
+      .eq('org_id', orgId)
+      .single();
+    const scheduleQuery = applyClassDetailScheduleScope(
+      supabase.from('schedules').select('*, staff(display_name)') as any,
+      id,
+    ) as any;
+
+    const [classResult, schedulesResult] = await Promise.all([classQuery, scheduleQuery]);
 
     if (classResult.error || !classResult.data) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
@@ -950,7 +956,7 @@ app.openapi(
         end_date: body.endDate ?? null,
         updated_by: userId,
       })
-      .select('*, courses(name), campuses(name)')
+      .select('*, courses(name, grade_levels, subjects(id, name)), campuses(name)')
       .single();
 
     if (error) {
@@ -1017,7 +1023,7 @@ app.openapi(
       .from('classes')
       .update(updateData)
       .eq('id', id)
-      .select('*, courses(name), campuses(name)')
+      .select('*, courses(name, grade_levels, subjects(id, name)), campuses(name)')
       .single();
 
     if (error || !data) {
@@ -1079,7 +1085,7 @@ app.openapi(
       .from('classes')
       .update({ is_active: !current.is_active, updated_by: userId })
       .eq('id', id)
-      .select('*, courses(name), campuses(name)')
+      .select('*, courses(name, grade_levels, subjects(id, name)), campuses(name)')
       .single();
 
     if (error || !data) {

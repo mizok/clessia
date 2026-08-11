@@ -1,232 +1,258 @@
-# Clessia - 學程管家
+# Clessia 專案指引
 
-你是一名資深的全端開發者, 你只會用繁體中文來回應, 你要開發一個名為Clessia的補習班管理系統：管理端優先，支援多分校（一個組織、多個校區）。
+> **所有 agent 的唯一專案指引。** Claude Code 透過 `CLAUDE.md` 的 `@AGENTS.md` 讀它，Codex /
+> Gemini 等 CLI 直接讀它。**新規則、慣例、指引一律寫進這個檔**，不要寫進 `CLAUDE.md` /
+> `GEMINI.md`（那兩個只做 import，且被 gate 盯著行數）。
+>
+> 具約束力的架構不變量屬於 `kb/architecture/constitution.md`（走修訂流程）；本檔是描述性的。
+
+你是一名資深的全端開發者，只用繁體中文回應。Clessia 是補習班管理系統：管理端優先，支援多分校
+（一個組織、多個校區）。
 
 ## Tech Stack
 
-| Layer     | Technology                                                              |
-| --------- | ----------------------------------------------------------------------- |
-| Frontend  | Angular 21 (Standalone Components + Signals)                            |
-| UI        | PrimeNG 21 + PrimeIcons + `@primeuix/themes` Aura                       |
-| Backend   | Better Auth (Auth) + Supabase (PostgreSQL, Storage)                     |
-| Deploy    | Vercel                                                                  |
-| Utilities | date-fns, xlsx, pdfmake, angularx-qrcode, html5-qrcode, Toast UI Editor |
+| Layer     | Technology                                                                |
+| --------- | ------------------------------------------------------------------------- |
+| Frontend  | Angular 21（Standalone Components + Signals）                             |
+| UI        | PrimeNG 21 + PrimeIcons + `@primeuix/themes` Aura                         |
+| Backend   | Hono (apps/api) + Better Auth + Supabase (PostgreSQL, Storage)            |
+| Monorepo  | Nx（`apps/web`、`apps/api`；`packages/*` 是 TS path 別名，非 Nx project） |
+| Deploy    | Vercel                                                                    |
+| Utilities | date-fns, xlsx, pdfmake, angularx-qrcode, html5-qrcode, Toast UI Editor   |
 
-## Coding Conventions
+### Banned Approaches
 
-### Angular
+這些是**具約束力的憲法條款**，不是風格偏好。全文與強制機制見
+`kb/architecture/constitution.md`；此處只列對照：
 
-- 建立 component / directive / service / pipe / guard 等一律使用 `ng generate`，並帶上 `--type` 參數（例如 `ng g c foo --type component`）確保檔名含 type suffix
-- **Standalone Components only** — no NgModules
-- **Signals** for reactive state (`signal`, `computed`, `effect`)；RxJS flow for HTTP streams
-- 檔案命名：`feature-name.component.ts` / `.html` / `.scss`（保留 `.component` type suffix）
-- Services: `feature-name.service.ts`，Guards: `feature-name.guard.ts`
-- `providedIn: 'root'` for singleton services
-- Functional guards (`CanActivateFn`)，不用 class-based guards
-- Template 使用 Angular 原生 control flow (`@if`, `@for`, `@switch`)，不用 `*ngIf` / `*ngFor`
-- Lazy load feature components via `loadComponent` in routes
-- Prefer functional API :
-  - inject() > constructor injection
-  - input() > @Input
-  - output() > @Output
-  - mode() > @Input/@Output 雙重宣告
-  - **Child()/**Children() > @**Child/@**Children (for example viewChild()> @ViewChild)
-
-### TypeScript
-
-- `strict: true` — no implicit any, strict null checks
-- `readonly` 修飾所有不會重新賦值的 properties
-- `private readonly` for DI constructor params
-- `protected readonly` for props that is only use in Angular component html template
-- `protected` for methods that is only use in Angular component html template
-- Interface over type alias（除非需要 union type）
-- `import type` for type-only imports
-
-### CSS / SCSS
-
-- BEM 命名：`.block__element--modifier`
-- 全域 design tokens 放在 `src/styles.scss`（CSS custom properties）
-- Component styles 放在各自的 `.component.scss`
-- 色彩系統：Zinc gray scale + Accent sky blue
-- Spacing 基準：4px（使用 `var(--space-*)` tokens）
-- 字體：Inter (Latin) + Noto Sans TC (CJK)
-
-### Supabase / SQL
-
-- Migration 檔案以時間戳命名：`YYYYMMDDHHMMSS_description.sql`
-- 業務表不使用 RLS，授權邏輯在 Hono middleware 層（org_id 過濾）
-- 使用 enum types for fixed value sets (e.g. `user_role`)
-- Better Auth 管理 user/session/account tables（前綴 ba_），不要手動修改
-- 新增用戶透過 Better Auth admin.createUser() API，不直接寫 ba_user
-
-### Prettier
-
-專案內建 Prettier config（在 `package.json`）：
-
-- `printWidth: 100`
-- `singleQuote: true`
-- HTML 使用 `angular` parser
+| 禁止                                                        | Clause |
+| ----------------------------------------------------------- | ------ |
+| 修改已提交的 migration 檔                                   | c3     |
+| 直接寫入 `ba_*`（Better Auth）表                            | c2     |
+| SCSS 使用 `vh` / `vw` / `dvh` / `svh` / `lvh`               | c6     |
+| Template 使用 `*ngIf` / `*ngFor` / `*ngSwitch`              | c7     |
+| 使用 `@Input()` / `@Output()` / `@ViewChild()` 等裝飾器 API | c8     |
+| 在 `kb/` 之外另起文件目錄（`docs/` 等）                     | c9     |
+| feature 之間互相 import                                     | c5     |
+| 把規則寫進 `CLAUDE.md` / `GEMINI.md`                        | c10    |
+| 在文件裡手抄會腐化的清單                                    | c11    |
 
 ## Commands
 
-```bash
-# Dev server
-npx ng serve
+| 任務              | 指令                                                 |
+| ----------------- | ---------------------------------------------------- |
+| 開發（web + api） | `npm run dev`                                        |
+| 建置              | `npm run build`                                      |
+| 測試              | `npm test`                                           |
+| 型別檢查（api）   | `npx nx typecheck api`                               |
+| Harness + KB gate | `npm run harness`                                    |
+| 兩者重生成        | `npm run harness:write`                              |
+| Harness 自我測試  | `npm run harness:test`                               |
+| 只檢查 / 重生 KB  | `npm run kb` / `npm run kb:write`                    |
+| 重錄測試基線      | `npm run test:baseline`                              |
+| Supabase 本機     | `npm run db:start` / `db:reset`                      |
+| 新增 migration    | `npx supabase migration new <description>`           |
+| 產生元件等        | `npx ng g c foo --type component`（一律帶 `--type`） |
 
-# Build
-npx ng build
+> `nx.json` 的 `defaultBase` 是 `dev`，但這個 branch 不存在 —— 跑 `nx affected` 一律自己帶
+> `--base=main`。
 
-# Supabase
-supabase start        # Start local Supabase
-supabase db reset     # Reset DB & re-run migrations
-supabase migration new <name>  # Create new migration
-
-# Test
-npx ng test           # Run unit tests (Vitest)
-```
-
-## Environments
-
-- `src/environments/environment.ts` — local Supabase (http://127.0.0.1:54321)
-- `src/environments/environment.production.ts` — production (TBD)
-- angular.json `fileReplacements` handles environment switching
-
-## 角色架構
-
-### 角色定義
-
-| 角色     | DB 值     | 說明                                     |
-| -------- | --------- | ---------------------------------------- |
-| 管理者   | `admin`   | 最高權限，跨分校管理、系統設定、日常營運 |
-| 任課老師 | `teacher` | 課表、點名、學生學習紀錄                 |
-| 家長     | `parent`  | 查看孩子出缺席、學習進度、繳費           |
-
-### 多重角色
-
-- 一個使用者**可同時擁有多個角色**（例如：既是行政老師也是任課老師）
-- DB 使用 `user_roles` junction table（非單一 enum 欄位），需重構目前的 `profiles.role`
-- 登入後若有多重角色 → 先進入**角色選擇頁** (`/select-role`)，讓使用者選擇要進入的角色介面
-- 若只有單一角色 → 跳過選擇頁，直接導向對應 shell
-- 選定的角色存在 `AuthService.activeRole` signal，可隨時切換
-
-### Shell 對應
-
-| 路由                                             | Shell                   | 角色             | 說明                                   |
-| ------------------------------------------------ | ----------------------- | ---------------- | -------------------------------------- |
-| `/login`, `/trial`, `/enrollment`, `/qr-checkin` | `PublicShellComponent`  | 無需登入         | 雙欄佈局（brand sidebar + content）    |
-| `/select-role`                                   | —                       | 已登入、多重角色 | 角色選擇頁                             |
-| `/admin/**`                                      | `AdminShellComponent`   | `admin`          | 管理佈局（header + sidebar + content） |
-| `/teacher/**`                                    | `TeacherShellComponent` | `teacher`        | 課表、點名為主的簡潔佈局               |
-| `/parent/**`                                     | `ParentShellComponent`  | `parent`         | mobile-first 閱讀佈局                  |
-
-### 目錄結構
+## Project Structure
 
 ```text
-src/app/
-├── core/                  # Singleton（整個 app 只有一份）
-│   ├── auth.service.ts        # Auth 狀態 + signIn/signOut + activeRole
-│   ├── auth.guard.ts          # 登入檢查
-│   ├── role.guard.ts          # 角色權限檢查
-│   └── supabase.service.ts    # Supabase client wrapper
-│
-├── shared/                # 跨角色共用（被多個 feature 引用時才建立）
-│   ├── components/
-│   ├── directives/
-│   └── pipes/
-│
-├── features/              # 依角色分 shell
-│   ├── public/                # 公開頁（無需登入）
-│   │   ├── public-shell.*
-│   │   └── pages/
-│   ├── select-role/           # 角色選擇頁（多重角色時）
-│   ├── admin/                 # 負責人 / 管理者 / 行政老師
-│   │   ├── admin-shell.*
-│   │   └── pages/
-│   ├── teacher/               # 任課老師
-│   │   ├── teacher-shell.*
-│   │   └── pages/
-│   └── parent/                # 家長
-│       ├── parent-shell.*
-│       └── pages/
-│
-├── app.component.*
-├── app.config.ts
-└── app.routes.ts
+apps/
+  web/          Angular 應用
+  api/          Hono API（routes/ 一支路由一檔，多數帶 .spec.ts）
+packages/
+  shared-types/ 前後端共用型別
+  validators/   共用驗證
+supabase/
+  migrations/   YYYYMMDDHHMMSS_description.sql，已提交者不可改（c3）
+  seed.sql
+tools/
+  agent-harness/  agent hook 邏輯 + gate（runtime-neutral，.claude/.codex 只放薄 adapter）
+kb/            所有文件的唯一去處（c9）
 ```
 
-### 分層原則
+`apps/web/src/app/` 的分層：
 
-- **`core/`** — 全域 singleton services、guards、interceptors。只被 `app.config.ts` 或 root 層級注入，feature 直接 `inject()` 使用
-- **`shared/`** — 被 2 個以上 feature 引用的元件、directive、pipe。不含業務邏輯，只負責 UI 呈現
-- **`features/`** — 依角色隔離的業務模組。各自有獨立的 shell layout 和子路由。feature 內部的元件不應被其他 feature 直接引用
+- **`core/`** — 全域 singleton services、guards、interceptors，`providedIn: 'root'`
+- **`shared/`** — 被 2 個以上 feature 引用的元件 / directive / pipe，不含業務邏輯
+- **`features/`** — 依角色隔離的業務模組（`public` / `select-role` / `admin` / `teacher` / `parent`）。
+  feature 內部元件不得被其他 feature 直接引用（c5）；要共用就往 `shared/` 提。
+
+> 刻意**不列舉**各 feature 底下有哪些頁面、有哪些 API route、有幾支 migration —— 手抄的狀態清單
+> 必然腐化（c11）。要知道現況就去看目錄。
+
+## 角色與授權架構
+
+| 角色     | DB 值     | 說明                                                              |
+| -------- | --------- | ----------------------------------------------------------------- |
+| 管理者   | `admin`   | 行政人員、分校主任、總管理者都是這個角色，靠 permissions 區分職責 |
+| 任課老師 | `teacher` | 課表、點名、學生學習紀錄                                          |
+| 家長     | `parent`  | 查看孩子出缺席、學習進度、繳費                                    |
+
+- 角色存在 `user_roles` junction table，一個使用者可同時擁有多個角色。
+- **細部權限存在 `user_roles.permissions`（jsonb 陣列）**，例如 `["view_revenue", "manage_staff"]`；
+  不是獨立的權限表。擁有 `manage_staff` 的管理員可以調整他人權限。
+- 多重角色 → 登入後進 `/select-role`；單一角色直接導向對應 shell。選定角色存在
+  `AuthService.activeRole` signal。
+
+### Shell
+
+| 路由                                                      | 元件                                                                  |
+| --------------------------------------------------------- | --------------------------------------------------------------------- |
+| `/login`、`/trial`、`/enrollment`、`/qr-checkin` 等公開頁 | `features/public/PublicShellComponent`                                |
+| `/admin/**`、`/teacher/**`、`/parent/**`                  | **共用** `shared/components/layout/shell-layout/ShellLayoutComponent` |
+
+admin / teacher / parent **沒有各自的 shell 元件**，三個角色走同一個 `ShellLayoutComponent`，選單依
+角色與 permissions 動態產生。
 
 ### 路由守衛
 
-- `authGuard` — 檢查是否登入
-- `roleGuard(roles)` — 檢查 `AuthService.activeRole` 是否在允許清單中
-- 登入後依角色數量自動導向 `/select-role` 或對應 shell
+- `authGuard` — 是否登入
+- `roleGuard(roles)` — `activeRole` 是否在允許清單
+- `permissionGuard(permission)` — `auth.hasPermission()` 檢查細部權限
 
-## Skills / MCP 自動引用規則
+## Architecture Constitution（binding）
 
-以下情境應自動叫用對應的 Skill，不需要使用者提示：
+具約束力的架構不變量以**法條**形式存在 `kb/architecture/constitution.md`：每條有 clause ID、
+可決定性分類（Deterministic / Semantic）、以及理由指標。**動架構之前先讀它**——它不是 always-load，
+`UserPromptSubmit` 的 doc router 會在架構類 prompt 上提示。
 
-| 情境                                                   | Skill                                 |
-| ------------------------------------------------------ | ------------------------------------- |
-| 寫或修改 Angular component / service / directive       | `angular-coding`                      |
-| 使用 Signals（signal, computed, effect, model, input） | `angular-signals`                     |
-| Angular 效能優化（@defer, httpResource, zoneless）     | `angular-best-practices-v20`          |
-| 處理 RxJS（Observable, Subject, operators）            | `angular-rxjs-patterns`               |
-| 設計 DI 架構（providers, injection tokens）            | `angular-dependency-injection`        |
-| 寫或 review SCSS / CSS（BEM 命名、component styles）   | `angular-scss-bem-standards`          |
-| 設計 UI / 頁面佈局 / 視覺風格                          | `ui-ux-pro-max`                       |
-| 排版、色彩、spacing、字型搭配                          | `visual-design-foundations`           |
-| 建立前端頁面或美化 UI                                  | `frontend-design`                     |
-| 新增 icon 到 UI                                        | `add-icon`                            |
-| 寫 SQL migration / schema 設計 / index 優化            | `postgres-patterns`                   |
-| 從需求產生 Supabase schema                             | `supabase-schema-from-requirements`   |
-| Supabase SDK 使用模式（TypeScript client）             | `supabase-sdk-patterns`               |
-| Supabase 專案架構 / 目錄規劃                           | `supabase-reference-architecture`     |
-| 多環境 Supabase 設定（dev / staging / prod）           | `supabase-multi-env-setup`            |
-| PII / GDPR / 資料保留政策                              | `supabase-data-handling`              |
-| 系統架構設計 / 重大技術決策                            | `architecture-design`                 |
-| 實作功能或修 bug 前先寫測試                            | `superpowers:test-driven-development` |
-| 完成一個主要步驟後 review 程式碼                       | 使用 `code-reviewer` subagent         |
+每條 clause 用什麼機制守（regex、gate、人工 review）另外寫在
+`kb/architecture/constitution-enforcement.md`；**改機制不算修法**。
 
-<!-- code-review-graph MCP tools -->
-## MCP Tools: code-review-graph
+## Development Conventions
 
-**IMPORTANT: This project has a knowledge graph. ALWAYS use the
-code-review-graph MCP tools BEFORE using Grep/Glob/Read to explore
-the codebase.** The graph is faster, cheaper (fewer tokens), and gives
-you structural context (callers, dependents, test coverage) that file
-scanning cannot.
+### Angular
 
-### When to use graph tools FIRST
+- 建立 component / directive / service / pipe / guard 一律用 `ng generate` 並帶 `--type`
+- **Standalone Components only** — 沒有 NgModule
+- **Signals** 管反應式狀態（`signal` / `computed` / `effect`）；HTTP 串流用 RxJS
+- 檔名保留 type suffix：`feature-name.component.ts` / `.service.ts` / `.guard.ts`
+- Functional guards（`CanActivateFn`），不用 class-based
+- Template 用原生 control flow `@if` / `@for` / `@switch`（c7）
+- 路由用 `loadComponent` lazy load
+- **一律 functional API**（c8）：`inject()` / `input()` / `output()` / `model()` /
+  `viewChild()` / `contentChild()`
 
-- **Exploring code**: `semantic_search_nodes` or `query_graph` instead of Grep
-- **Understanding impact**: `get_impact_radius` instead of manually tracing imports
-- **Code review**: `detect_changes` + `get_review_context` instead of reading entire files
-- **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
-- **Architecture questions**: `get_architecture_overview` + `list_communities`
+### TypeScript
 
-Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
+- `strict: true`
+- 不會重新賦值的 property 一律 `readonly`
+- 只在 template 用到的 property 用 `protected readonly`，method 用 `protected`
+- Interface 優先於 type alias（除非需要 union）
+- type-only import 用 `import type`
 
-### Key Tools
+### CSS / SCSS
 
-| Tool | Use when |
-|------|----------|
-| `detect_changes` | Reviewing code changes — gives risk-scored analysis |
-| `get_review_context` | Need source snippets for review — token-efficient |
-| `get_impact_radius` | Understanding blast radius of a change |
-| `get_affected_flows` | Finding which execution paths are impacted |
-| `query_graph` | Tracing callers, callees, imports, tests, dependencies |
-| `semantic_search_nodes` | Finding functions/classes by name or keyword |
-| `get_architecture_overview` | Understanding high-level codebase structure |
-| `refactor_tool` | Planning renames, finding dead code |
+- BEM：`.block__element--modifier`
+- 全域 design tokens 在 `apps/web/src/styles.scss`（CSS custom properties）
+- 色彩 Zinc gray + Accent sky blue；spacing 基準 4px（`var(--space-*)`）；字體 Inter + Noto Sans TC
+- **禁止 viewport 單位**（c6）。上層 directive 用 ResizeObserver 寫入 `--window-width` /
+  `--window-height` 等變數，子元素用 `calc(var(--window-width, 360px) * 0.9)` 取代 `90vw`
+- 寫 SCSS 前先 invoke `angular-scss-bem-standards` skill
 
-### Workflow
+### Supabase / SQL
 
-1. The graph auto-updates on file changes (via hooks).
-2. Use `detect_changes` for code review.
-3. Use `get_affected_flows` to understand impact.
-4. Use `query_graph` pattern="tests_for" to check coverage.
+- Migration 命名 `YYYYMMDDHHMMSS_description.sql`
+- **已提交的 migration 不可修改**（c3）——schema 變更一律新增 ALTER TABLE migration
+- 授權邏輯在 Hono middleware 層（org_id 過濾）
+- 固定值集合用 enum type
+- `ba_*` 表由 Better Auth 管理，可讀不可寫（c2）；新增使用者走 `admin.createUser()`
+
+### Prettier
+
+`package.json` 內建設定：`printWidth: 100`、`singleQuote: true`、HTML 用 `angular` parser。
+PostToolUse hook 會在每次編輯後自動跑，不用手動格式化。
+
+### Git
+
+- Commit 訊息用 conventional commits（`feat(web): ...`、`fix(api): ...`）
+- 不要在 `main` 上直接工作
+
+## 文件目錄規則
+
+**所有文件放 `kb/`，禁止另起 `docs/` 或其他平行目錄**（c9，由 pre-write guard 與 harness gate 雙重把關）。
+
+| 類型               | 路徑                        |
+| ------------------ | --------------------------- |
+| 架構法條與強制機制 | `kb/architecture/`          |
+| 功能規格           | `kb/specs/<角色>/<功能>.md` |
+| 流程圖             | `kb/flows/<功能>.md`        |
+| 業務規則           | `kb/rules/<功能>-rules.md`  |
+
+### `kb/` 就是知識庫
+
+`kb/` 是**唯一的文件樹**（c9）—— 產品規格、流程、業務規則、架構法條、工程知識全部住這裡，
+靠 `category` 分類而不是靠平行目錄分家。三份必讀：
+
+| 檔案                                                                 | 用途                                                                                                          |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| [`kb/schema.md`](kb/schema.md)                                       | **操作手冊** —— 收錄標準、frontmatter 欄位、status 生命週期、「我要寫的東西該放哪」決策表。任何文件操作前先讀 |
+| [`kb/index.md`](kb/index.md)                                         | 全部頁面的分類索引，自動生成。**查資料先看索引的 summary 挑頁面，不要一開始就 grep 全 `kb/`**                 |
+| [`kb/architecture/constitution.md`](kb/architecture/constitution.md) | 法條                                                                                                          |
+
+每一頁都必須有 `title` / `summary` / `category` / `status` / `updated` 五個 frontmatter 欄位，
+由 `npm run kb` 檢查、`npm run kb:write` 自動補齊（只補缺少的，**不覆寫既有值**）。
+
+實作計畫與技術設計**不進 KB** —— 它們是過程產物，記錄的是「當時打算怎麼做」而非現況。
+知識沉澱到 `kb/wiki/lessons/`，需求真相沉澱到 `rules` / `flows` / `specs`。
+
+## Operating Principles
+
+- **先用 graph 再開檔**：本 repo 裝了 `code-review-graph`，探索程式碼優先用 MCP 工具而非大範圍掃檔
+- 薄垂直切片：實作 → 測試 → 驗證 → 擴張
+- 加法優先：先加新路徑，再移除舊的
+- 不要過早抽象：三行相似程式碼好過一個錯的抽象
+- 先找既有依賴：加套件或手刻工具前，先確認已安裝的依賴是否已涵蓋（查文件/型別，不要憑記憶）
+- **不要手抄會腐化的清單**（c11）：狀態類資訊要嘛自動生成 + gate，要嘛指向目錄
+
+### code-review-graph 使用順序
+
+1. 先 `get_minimal_context`，用任務描述當 `task`
+2. Review 改動 → `detect_changes`、`get_affected_flows`、`query_graph`
+3. 找功能或追邏輯 → `semantic_search_nodes`、`query_graph`
+4. graph 不夠用時才用 Grep/Glob/Read 開少量精準檔案
+5. 改 component / service / guard 前，先確認 callers、imports、tests，避免只改到表層
+6. graph 過舊 → `code-review-graph update --skip-flows`；`.code-review-graph/graph.db` 不存在才 `build`
+
+## Definition of Done
+
+- 行為符合驗收條件
+- `npm test` 沒有新增紅燈（Stop hook 用 `test-baseline.json` 做基線比對，只擋這輪弄壞的）
+- `npm run harness` 綠（含 KB gate）
+- `npx nx affected -t typecheck` 綠
+- 沒有新增 Banned Approaches 表裡的任何一項
+- 非顯而易見的新 pattern 有寫進 `kb/`
+
+## Agent skills
+
+第一方 skill 的真身在 `.agents/skills/`，`.claude/skills`、`.codex/skills`、`.agent/skills`、
+`.gemini/skills` 都是相對 symlink —— 改一份處處生效。下表由 `npm run harness:write` 從磁碟生成，
+**不要手改**；宣稱存在但實際不存在的 skill 會讓 gate 紅燈。
+
+<!-- SKILLS:START — auto-generated by tools/agent-harness/check-harness.mjs; do not hand-edit -->
+
+| Skill | 用途 |
+| --- | --- |
+| `add-icon` | Add or update supported language, framework, library, tool, or platform icons in Socialify. Use when a requ… |
+| `angular` | >- |
+| `angular-best-practices` | Angular performance optimization and best practices guide. Use when writing, reviewing, or refactoring Angu… |
+| `angular-scss-bem-standards` | Use when writing, reviewing, or refactoring Angular component styles (SCSS/CSS). Triggers on BEM naming iss… |
+| `angular-state-management` | Master modern Angular state management with Signals, NgRx, and RxJS. Use when setting up global state, mana… |
+| `angular-ui-patterns` | Modern Angular UI patterns for loading states, error handling, and data display. Use when building UI compo… |
+| `frontend-design` | Create distinctive, production-grade frontend interfaces with intentional aesthetics, high craft, and non-g… |
+| `postgres-patterns` | PostgreSQL database patterns for query optimization, schema design, indexing, and security. Based on Supaba… |
+| `supabase-postgres-best-practices` | Postgres performance optimization and best practices from Supabase. Use this skill when writing, reviewing,… |
+| `ui-ux-pro-max` | UI/UX design intelligence. 50 styles, 21 palettes, 50 font pairings, 20 charts, 9 stacks. |
+
+<!-- SKILLS:END -->
+
+Claude Code 另外透過 plugin 取得 `ui-ux-pro-max` 等 skill（見 `.claude/settings.json` 的
+`enabledPlugins`），那些不在上表內。
+
+## MCP servers
+
+`.mcp.json`（進版控、團隊共用）：`code-review-graph`（知識圖譜）、`codex`（委派 OpenAI codex-cli）。

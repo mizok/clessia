@@ -259,6 +259,10 @@ const listRoute = createRoute({
       campus_id: DbUuidSchema.optional(),
       subject_id: DbUuidSchema.optional(),
       class_id: DbUuidSchema.optional(),
+      date_from: z.string().date().optional(),
+      date_to: z.string().date().optional(),
+      todo: z.coerce.boolean().optional(),
+      order: z.enum(['date_asc', 'date_desc']).default('date_desc').optional(),
       page: z.coerce.number().int().min(1).default(1).optional(),
       pageSize: z.coerce.number().int().min(1).max(200).default(20).optional(),
     }),
@@ -292,9 +296,29 @@ app.openapi(listRoute, async (c) => {
     campus_id: campusId,
     subject_id: subjectId,
     class_id: classId,
+    date_from: dateFrom,
+    date_to: dateTo,
+    todo = false,
+    order = 'date_desc',
     page = 1,
     pageSize = 20,
   } = c.req.valid('query');
+  const isDateAsc = order === 'date_asc';
+
+  let classFilteredExamIds: string[] | null = null;
+  if (classId) {
+    const { data: classExamRows, error: classExamError } = await supabase
+      .from('academy_exam_classes')
+      .select('exam_id')
+      .eq('class_id', classId);
+    if (classExamError) {
+      return c.json({ error: classExamError.message, code: 'DB_ERROR' }, 400);
+    }
+    classFilteredExamIds = (classExamRows ?? []).map((row: { exam_id: string }) => row.exam_id);
+    if (classFilteredExamIds.length === 0) {
+      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+    }
+  }
 
   let query = supabase
     .from('academy_exams')
@@ -322,7 +346,9 @@ app.openapi(listRoute, async (c) => {
   if (search?.trim()) {
     query = query.ilike('name', `%${search.trim()}%`);
   }
-  if (status) {
+  if (todo) {
+    query = query.eq('status', 'active');
+  } else if (status) {
     query = query.eq('status', status);
   }
   if (campusId) {
@@ -331,21 +357,69 @@ app.openapi(listRoute, async (c) => {
   if (subjectId) {
     query = query.eq('subject_id', subjectId);
   }
-  if (classId) {
-    // Look up exam IDs associated with this class, then filter
-    const { data: classExamRows } = await supabase
-      .from('academy_exam_classes')
-      .select('exam_id')
-      .eq('class_id', classId);
-    const examIds = (classExamRows ?? []).map((r: { exam_id: string }) => r.exam_id);
-    if (examIds.length === 0) {
+  if (dateFrom) {
+    query = query.gte('exam_date', dateFrom);
+  }
+  if (dateTo) {
+    query = query.lte('exam_date', dateTo);
+  }
+  if (classFilteredExamIds) {
+    query = query.in('id', classFilteredExamIds);
+  }
+
+  if (todo) {
+    let todoIdQuery = supabase.from('academy_exams').select('id').eq('org_id', orgId).eq('status', 'active');
+    if (search?.trim()) {
+      todoIdQuery = todoIdQuery.ilike('name', `%${search.trim()}%`);
+    }
+    if (campusId) {
+      todoIdQuery = todoIdQuery.eq('campus_id', campusId);
+    }
+    if (subjectId) {
+      todoIdQuery = todoIdQuery.eq('subject_id', subjectId);
+    }
+    if (dateFrom) {
+      todoIdQuery = todoIdQuery.gte('exam_date', dateFrom);
+    }
+    if (dateTo) {
+      todoIdQuery = todoIdQuery.lte('exam_date', dateTo);
+    }
+    if (classFilteredExamIds) {
+      todoIdQuery = todoIdQuery.in('id', classFilteredExamIds);
+    }
+
+    const { data: activeRows, error: todoQueryError } = await todoIdQuery.order('exam_date', {
+      ascending: isDateAsc,
+      nullsFirst: false,
+    });
+    if (todoQueryError) {
+      return c.json({ error: todoQueryError.message, code: 'DB_ERROR' }, 400);
+    }
+    const activeExamIds = (activeRows ?? []).map((row: { id: string }) => row.id);
+    if (activeExamIds.length === 0) {
       return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
     }
-    query = query.in('id', examIds);
+
+    const { data: scoreRows, error: scoreRowsError } = await supabase
+      .from('academy_scores')
+      .select('exam_id')
+      .in('exam_id', activeExamIds);
+    if (scoreRowsError) {
+      return c.json({ error: scoreRowsError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    const scoredExamIds = new Set((scoreRows ?? []).map((row: { exam_id: string }) => row.exam_id));
+    const todoExamIds = activeExamIds.filter((examId) => !scoredExamIds.has(examId));
+    if (todoExamIds.length === 0) {
+      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+    }
+    query = query.in('id', todoExamIds);
   }
 
   const from = (page - 1) * pageSize;
-  query = query.range(from, from + pageSize - 1).order('exam_date', { ascending: false });
+  query = query
+    .range(from, from + pageSize - 1)
+    .order('exam_date', { ascending: isDateAsc, nullsFirst: false });
 
   const { data, error, count } = await query;
 
@@ -387,6 +461,65 @@ app.openapi(listRoute, async (c) => {
     },
     200,
   );
+});
+
+const todoCountRoute = createRoute({
+  method: 'get',
+  path: '/todo-count',
+  tags: ['AcademyExams'],
+  summary: '取得補習班考試待登錄數量',
+  responses: {
+    200: {
+      description: '成功',
+      content: {
+        'application/json': {
+          schema: z.object({ count: z.number().int().min(0) }),
+        },
+      },
+    },
+    400: {
+      description: '查詢失敗',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(todoCountRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+
+  const { data: activeRows, error: activeRowsError } = await supabase
+    .from('academy_exams')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('status', 'active');
+
+  if (activeRowsError) {
+    return c.json({ error: activeRowsError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  const activeExamIds = (activeRows ?? []).map((row: { id: string }) => row.id);
+  if (activeExamIds.length === 0) {
+    return c.json({ count: 0 }, 200);
+  }
+
+  const { data: scoreRows, error: scoreRowsError } = await supabase
+    .from('academy_scores')
+    .select('exam_id')
+    .in('exam_id', activeExamIds);
+
+  if (scoreRowsError) {
+    return c.json({ error: scoreRowsError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  const scoredExamIds = new Set((scoreRows ?? []).map((row: { exam_id: string }) => row.exam_id));
+  const count = activeExamIds.filter((examId) => !scoredExamIds.has(examId)).length;
+
+  return c.json({ count }, 200);
 });
 
 const getRoute = createRoute({

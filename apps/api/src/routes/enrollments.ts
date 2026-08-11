@@ -526,7 +526,8 @@ app.openapi(
         {
           error: 'SCHEDULE_CONFLICT',
           code: 'SCHEDULE_CONFLICT',
-          warnings: preconditions.conflicts,
+          // conflicts 是 readonly 陣列，OpenAPI schema 期望可變陣列，展開一層即可
+          warnings: [...preconditions.conflicts],
         },
         409,
       );
@@ -778,7 +779,8 @@ app.openapi(
         {
           error: 'SCHEDULE_CONFLICT',
           code: 'SCHEDULE_CONFLICT',
-          warnings: preconditions.conflicts,
+          // conflicts 是 readonly 陣列，OpenAPI schema 期望可變陣列，展開一層即可
+          warnings: [...preconditions.conflicts],
         },
         409,
       );
@@ -820,7 +822,7 @@ app.openapi(
       }
     }
 
-    return c.json({ results, warnings: preconditions.conflicts }, 200);
+    return c.json({ results, warnings: [...preconditions.conflicts] }, 200);
   },
 );
 

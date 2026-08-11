@@ -361,6 +361,7 @@ app.openapi(
         description: '出勤紀錄列表',
         content: { 'application/json': { schema: AttendanceListResponseSchema } },
       },
+      500: { description: '伺服器錯誤' },
     },
   }),
   async (c) => {
@@ -448,6 +449,7 @@ app.openapi(
         description: '建立的出勤紀錄',
         content: { 'application/json': { schema: AttendanceRecordSchema } },
       },
+      500: { description: '伺服器錯誤' },
     },
   }),
   async (c) => {
@@ -646,6 +648,7 @@ app.openapi(
         description: '更新後的出勤紀錄',
         content: { 'application/json': { schema: AttendanceRecordSchema } },
       },
+      500: { description: '伺服器錯誤' },
     },
   }),
   async (c) => {
@@ -745,6 +748,7 @@ app.openapi(
         description: '課堂出勤摘要',
         content: { 'application/json': { schema: AttendanceSessionListResponseSchema } },
       },
+      500: { description: '伺服器錯誤' },
     },
   }),
   async (c) => {
@@ -915,6 +919,7 @@ app.openapi(
         description: '課堂點名名單',
         content: { 'application/json': { schema: AttendanceRosterSchema } },
       },
+      404: { description: '找不到資源' },
     },
   }),
   async (c) => {

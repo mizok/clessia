@@ -53,6 +53,7 @@ app.openapi(
         description: '組織設定',
         content: { 'application/json': { schema: OrgSettingsSchema } },
       },
+      500: { description: '伺服器錯誤' },
     },
   }),
   async (c) => {
@@ -88,6 +89,7 @@ app.openapi(
         description: '更新後的組織設定',
         content: { 'application/json': { schema: OrgSettingsSchema } },
       },
+      500: { description: '伺服器錯誤' },
     },
   }),
   async (c) => {

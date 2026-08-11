@@ -1,10 +1,7 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 import * as enrollmentsRoute from './enrollments';
-import {
-  checkEnrollmentAttendance,
-  checkEnrollmentPreconditions,
-} from './enrollments/validation';
+import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
 
 interface FakeSupabaseDataSet {
   readonly classes?: unknown[];
@@ -74,7 +71,7 @@ function getFilteredRows(
 ) {
   return (dataSet[table] ?? []).filter((row) =>
     filters.every((filter) => {
-      const currentValue = (row as Record<string, unknown>)[filter.column];
+      const currentValue = (row as unknown as Record<string, unknown>)[filter.column];
       if (filter.type === 'eq') {
         return currentValue === filter.value;
       }
@@ -214,7 +211,7 @@ function createClassesQuery(state: { classes: MockClassRow[] }) {
       const row =
         state.classes.find((item) =>
           filters.every(
-            (filter) => (item as Record<string, unknown>)[filter.column] === filter.value,
+            (filter) => (item as unknown as Record<string, unknown>)[filter.column] === filter.value,
           ),
         ) ?? null;
       return { data: row, error: null };
@@ -243,7 +240,7 @@ function createSchedulesQuery(state: { schedules: MockScheduleRow[] }) {
     ) {
       const rows = state.schedules.filter((item) =>
         filters.every(
-          (filter) => (item as Record<string, unknown>)[filter.column] === filter.value,
+          (filter) => (item as unknown as Record<string, unknown>)[filter.column] === filter.value,
         ),
       );
       return Promise.resolve({ data: rows, error: null }).then(onfulfilled, onrejected);
@@ -368,7 +365,7 @@ function filterEnrollmentRows(
 ) {
   return rows.filter((row) =>
     filters.every((filter) => {
-      const currentValue = (row as Record<string, unknown>)[filter.column];
+      const currentValue = (row as unknown as Record<string, unknown>)[filter.column];
       if (filter.type === 'eq') {
         return currentValue === filter.value;
       }
@@ -1125,14 +1122,14 @@ describe('checkEnrollmentAttendance', () => {
 
   /** 讓指定資料表的查詢回傳錯誤，用來驗證 fail-closed。 */
   function createFailingSupabase(failingTable: string) {
-    const builder: Record<string, unknown> = {};
-    for (const method of ['select', 'eq', 'in']) {
-      builder[method] = () => builder;
-    }
-    builder.then = (onfulfilled?: (value: unknown) => unknown) =>
-      Promise.resolve({ data: null, count: null, error: { message: `${failingTable} exploded` } }).then(
-        onfulfilled ?? undefined,
-      );
+    const error = { message: `${failingTable} exploded` };
+    const builder = {
+      select: () => builder,
+      eq: () => builder,
+      in: () => builder,
+      then: (onfulfilled?: (value: unknown) => unknown) =>
+        Promise.resolve({ data: null, count: null, error }).then(onfulfilled ?? undefined),
+    };
     return { from: () => builder };
   }
 

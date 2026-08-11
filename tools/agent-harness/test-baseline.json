@@ -1,0 +1,5 @@
+{
+  "note": "收工閘門的已知紅燈基線。清掉一支就從這裡移除一支；清空 knownFailing 後閘門回到「非全綠不可」。重錄：npm run test:baseline",
+  "recorded": "2026-08-11",
+  "knownFailing": []
+}

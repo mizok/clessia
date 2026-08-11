@@ -35,6 +35,13 @@
         "command": "npx vitest run",
         "cwd": "apps/api"
       }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npx tsc -p tsconfig.json --noEmit",
+        "cwd": "apps/api"
+      }
     }
   }
 }

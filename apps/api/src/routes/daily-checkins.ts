@@ -38,6 +38,7 @@ app.openapi(
         description: '打卡紀錄',
         content: { 'application/json': { schema: DailyCheckinSchema } },
       },
+      500: { description: '伺服器錯誤' },
     },
   }),
   async (c) => {

@@ -208,6 +208,7 @@ app.openapi(
         description: '學生列表',
         content: { 'application/json': { schema: StudentListResponseSchema } },
       },
+      500: { description: '伺服器錯誤' },
     },
   }),
   async (c) => {

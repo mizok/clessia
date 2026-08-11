@@ -1,0 +1,40 @@
+{
+  "$comment": "Deterministic constitution clauses, screened at write time. Narrow and low-false-positive on purpose — this is a fast screen, not the law. Full statements: kb/architecture/constitution.md. Tuning a regex here is NOT an amendment. Every id below must exist in the constitution — check-harness.mjs asserts it.",
+  "rules": [
+    {
+      "id": "c2",
+      "path": "^apps/api/src/.*\\.ts$",
+      "forbid": "from\\('ba_[a-z_]+'\\)[\\s\\S]{0,120}?\\.(insert|update|upsert|delete)\\(",
+      "message": "ba_* 是 Better Auth 管的表，不得直接寫入。新增使用者走 admin.createUser()（讀取不受限）"
+    },
+    {
+      "id": "c3",
+      "path": "^supabase/migrations/.*\\.sql$",
+      "whenTracked": true,
+      "message": "已提交的 migration 不得修改。schema 變更請新增一支 ALTER TABLE migration：npx supabase migration new <description>"
+    },
+    {
+      "id": "c6",
+      "path": "\\.scss$",
+      "forbid": "[0-9](vh|vw|dvh|svh|lvh)\\b",
+      "message": "禁止 viewport 單位。改用上層 directive 寫入的 CSS 變數，例如 calc(var(--window-width, 360px) * 0.9)"
+    },
+    {
+      "id": "c7",
+      "path": "\\.html$",
+      "forbid": "\\*ngIf|\\*ngFor|\\*ngSwitch",
+      "message": "禁止舊版結構指令。改用原生 control flow：@if / @for / @switch"
+    },
+    {
+      "id": "c8",
+      "path": "^apps/web/src/.*(?<!\\.spec)\\.ts$",
+      "forbid": "@(Input|Output|ViewChild|ViewChildren|ContentChild|ContentChildren)\\(",
+      "message": "禁止裝飾器版 API。改用 functional API：input() / output() / model() / viewChild() / contentChild()"
+    },
+    {
+      "id": "c9",
+      "path": "^docs?/",
+      "message": "文件只准放 kb/。禁止 doc/、docs/ 或任何其他平行文件目錄"
+    }
+  ]
+}

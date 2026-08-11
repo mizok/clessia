@@ -1,4 +1,6 @@
-const STATIC_ALLOWED_ORIGINS = ['https://clessia.pages.dev'] as const;
+// 型別標成 readonly string[] 而不是 `as const`：`as const` 會把它縮成字面量 tuple，
+// 使得 `.includes(someString)` 在型別層被拒。仍然是唯讀，語意不變。
+const STATIC_ALLOWED_ORIGINS: readonly string[] = ['https://clessia.pages.dev'];
 const LOCAL_DEV_HOSTS = new Set(['localhost', '127.0.0.1']);
 const LOCAL_DEV_PROTOCOLS = new Set(['http:', 'https:']);
 
@@ -25,7 +27,9 @@ export function isAllowedOrigin(origin: string | null | undefined): boolean {
   }
 
   const parsedOrigin = new URL(normalizedOrigin);
-  return LOCAL_DEV_PROTOCOLS.has(parsedOrigin.protocol) && LOCAL_DEV_HOSTS.has(parsedOrigin.hostname);
+  return (
+    LOCAL_DEV_PROTOCOLS.has(parsedOrigin.protocol) && LOCAL_DEV_HOSTS.has(parsedOrigin.hostname)
+  );
 }
 
 export function resolveCorsOrigin(origin: string | undefined): string | undefined {
@@ -44,7 +48,9 @@ interface ResolveTrustedOriginsOptions {
 export function resolveTrustedOrigins(options: ResolveTrustedOriginsOptions = {}): string[] {
   const origins = new Set<string>(STATIC_ALLOWED_ORIGINS);
   const normalizedWebUrl = options.webUrl ? normalizeOrigin(options.webUrl) : null;
-  const normalizedRequestOrigin = options.requestOrigin ? normalizeOrigin(options.requestOrigin) : null;
+  const normalizedRequestOrigin = options.requestOrigin
+    ? normalizeOrigin(options.requestOrigin)
+    : null;
 
   if (normalizedWebUrl && isAllowedOrigin(normalizedWebUrl)) {
     origins.add(normalizedWebUrl);
