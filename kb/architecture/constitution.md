@@ -119,8 +119,8 @@ scroll container 下行為不可靠。
 
 ### c10 專案指引單一真相在 `AGENTS.md` [Deterministic]
 
-`CLAUDE.md`、`GEMINI.md` 只得 import `AGENTS.md` 並補充該 CLI 專屬的操作資訊，不得承載專案
-規則。任何 agent 都不得靠「三個檔案都改一遍」來新增規則。
+各 CLI 的入口檔（目前只有 `CLAUDE.md`）只得 import `AGENTS.md` 並補充該 CLI 專屬的操作資訊，
+不得承載專案規則。任何 agent 都不得靠「多個檔案各改一遍」來新增規則。
 
 > 理由：本專案曾同時維護三份近似副本，實測漂出 53 行分歧，且分歧的部分描述的是**已經不存在
 > 的架構**（三個獨立 shell 元件、`admin_permissions` 表）。
