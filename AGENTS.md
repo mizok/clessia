@@ -158,7 +158,11 @@ admin / teacher / parent **沒有各自的 shell 元件**，三個角色走同�
 
 - Migration 命名 `YYYYMMDDHHMMSS_description.sql`
 - **已提交的 migration 不可修改**（c3）——schema 變更一律新增 ALTER TABLE migration
-- 授權邏輯在 Hono middleware 層（org_id 過濾）
+- **授權只發生在 Hono middleware 層**（org_id 過濾，c1）。API 使用 service role key，
+  它會繞過 RLS —— RLS 不是第二道防線
+- 業務表**仍然啟用 RLS 且沒有任何 policy**，這是刻意的 fail-closed 後盾：目前沒有任何
+  非 service-role client（web 端沒有 supabase-js），所以碰不到它；但將來若真的接上 anon
+  client，會被全拒而不是全放。**不要為了「反正沒用到」把 RLS 關掉**
 - 固定值集合用 enum type
 - `ba_*` 表由 Better Auth 管理，可讀不可寫（c2）；新增使用者走 `admin.createUser()`
 

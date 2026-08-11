@@ -140,8 +140,14 @@ scroll container 下行為不可靠。
 以下是文件與程式碼實際不一致、但**刻意不寫成條款**的項目。寫成法條會讓 gate 立刻紅燈，而正確的
 處置是先由人裁決要改哪一邊。
 
-| 議題        | 文件宣稱                                                                      | 程式碼現況                                                                             | 待裁決                                 |
-| ----------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------- |
-| 業務表 RLS  | 「業務表不使用 RLS，授權在 middleware」                                       | 7 支 migration 對 `staff`、`campuses`、`subjects` 等表 `enable row level security`     | 要移除 RLS，還是改寫文件承認雙層防護？ |
-| org_id 來源 | 舊筆記稱「auth middleware 必須用 `session.user.orgId`，查 `profiles` 會 400」 | `apps/api/src/middleware/auth.ts:24` 就是查 `profiles` 取 `org_id`，且運作中           | 舊筆記是否已過時？若是，該筆記應刪除   |
-| api 測試    | —                                                                             | `apps/api` 有 12 支 `.spec.ts`，但 `project.json` 沒有 `test` target，這些測試從未執行 | 補 target 還是刪測試？                 |
+| 議題 | 文件宣稱 | 程式碼現況 | 待裁決 |
+| --- | --- | --- | --- |
+| 業務表 RLS | 「業務表不使用 RLS，授權在 middleware」 | 7 支 migration 對 `staff`、`campuses`、`subjects` 等表 `enable row level security`；但 middleware 用 service role client，會繞過 RLS | 要移除 RLS，還是改寫文件承認雙層防護？ |
+
+### 已結案
+
+- **org_id 來源**（2026-08-11）—— 結論不是「兩種說法」，而是寫入端早已搬到 `ba_user.orgId`、
+  讀取端留在死掉的 `profiles.org_id`，導致所有由 app 建立的使用者 400 NO_ORG。
+  已修，並由 `apps/api/src/org-source.spec.ts` 守住。詳見 `kb/wiki/lessons/doc-code-drift-2026-08.md`。
+- **api 測試**（2026-08-11）—— 已補上 `vitest.config.mts` 與 nx `test` / `typecheck` target，
+  20 支 spec / 101 個測試現在會執行，並接進 Stop gate。

@@ -52,8 +52,18 @@ updated: 2026-08-11
 
 ## 五、文件與程式碼各說各話
 
-- **RLS**（未解決）：文件說「業務表不使用 RLS，授權在 middleware」，但 7 支 migration 對 `staff`、
-  `campuses`、`subjects` 等表 `enable row level security`。仍在憲法的「尚未成為法條的爭議點」附錄裡。
+- **RLS**（2026-08-11 已解決）：文件說「業務表不使用 RLS」，但實際有 **12 張表**開著 RLS。
+
+  查清楚之後結論不是「文件錯」也不是「該關掉」：**沒有任何非 service-role client 存在**
+  （web 端沒有 supabase-js、環境沒有 anon key，全部資料走 Hono API 的 service role key，
+  而 service role 繞過 RLS），所以 RLS 目前碰不到。9 張表零 policy，另外 3 張
+  （`classes`/`schedules`/`sessions`）剩下的 policy 同時依賴 `auth.uid()`（Better Auth 遷移後
+  永遠 NULL）與死表 `profiles`，一樣永遠不會 match。
+
+  處置：**保留 RLS 啟用**（零 policy 是 fail-closed，將來接上 anon client 會被全拒而不是全放；
+  關掉反而危險），只刪掉那 3 條會誤導人的殭屍 policy
+  （`20260811034702_drop_zombie_rls_policies.sql`），並把文件用詞改成準確描述。
+
 - **org_id 來源**（2026-08-11 已解決，而且它不是爭議、是 bug）：舊筆記說「必須用
   `session.user.orgId`」是對的，只是**那個修復從來沒有被套用**。
 
