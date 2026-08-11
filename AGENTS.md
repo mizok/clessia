@@ -206,6 +206,11 @@ PostToolUse hook 會在每次編輯後自動跑，不用手動格式化。
 
 ## Operating Principles
 
+- **交付一個功能或修跨檔案的 bug？走 `clessia-feature-slice` skill** —— 它強制
+  「設計未經批准不得寫實作程式碼」的 STOP gate，並串起探索 → 釐清 → 設計 → worktree →
+  test-first → gate → 同步文件 → PR 的完整迴圈
+- **開工前先讀 [`kb/roadmap.md`](kb/roadmap.md) 的結構現況表** —— 它會告訴你這個功能區
+  目前是已接通、空殼、還是未開始
 - **先用 graph 再開檔**：本 repo 裝了 `code-review-graph`，探索程式碼優先用 MCP 工具而非大範圍掃檔
 - 薄垂直切片：實作 → 測試 → 驗證 → 擴張
 - 加法優先：先加新路徑，再移除舊的
@@ -245,6 +250,7 @@ PostToolUse hook 會在每次編輯後自動跑，不用手動格式化。
 | `angular-scss-bem-standards` | Use when writing, reviewing, or refactoring Angular component styles (SCSS/CSS). Triggers on BEM naming iss… |
 | `angular-state-management` | Master modern Angular state management with Signals, NgRx, and RxJS. Use when setting up global state, mana… |
 | `angular-ui-patterns` | Modern Angular UI patterns for loading states, error handling, and data display. Use when building UI compo… |
+| `clessia-feature-slice` | Use when delivering a Clessia feature or fixing a non-trivial bug end to end — from exploration through a G… |
 | `frontend-design` | Create distinctive, production-grade frontend interfaces with intentional aesthetics, high craft, and non-g… |
 | `supabase-postgres-best-practices` | Postgres performance optimization and best practices from Supabase. Use this skill when writing, reviewing,… |
 | `ui-ux-pro-max` | UI/UX design intelligence. 50 styles, 21 palettes, 50 font pairings, 20 charts, 9 stacks. |

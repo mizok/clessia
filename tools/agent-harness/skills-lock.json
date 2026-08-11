@@ -23,6 +23,10 @@
       "description": "Modern Angular UI patterns for loading states, error handling, and data display. Use when building UI compo…"
     },
     {
+      "name": "clessia-feature-slice",
+      "description": "Use when delivering a Clessia feature or fixing a non-trivial bug end to end — from exploration through a G…"
+    },
+    {
       "name": "frontend-design",
       "description": "Create distinctive, production-grade frontend interfaces with intentional aesthetics, high craft, and non-g…"
     },

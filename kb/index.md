@@ -85,11 +85,12 @@ updated: 2026-08-11
 - [2026-08 文件與程式碼漂移稽核](wiki/lessons/doc-code-drift-2026-08.md) — 建立 agent harness 時逐項驗證文件宣稱，找出五處與程式碼不符之處。含一個活的 bug（查詢不存在的資料表）與兩個沉默失效的設定。
 - [本機綠不等於 repo 綠](wiki/lessons/local-green-is-not-repo-green.md) — 導入 CI 的過程連紅六次，每一次的根因都是「本機狀態 ≠ 版控狀態」。附上推送前該怎麼自我驗證。
 
-### 總覽與指引（4）
+### 總覽與指引（5）
 
 - [Agent 開發流程指南](AGENT_GUIDE.md) — 本文件定義 Claude 與 Codex 協作開發時應遵循的工作流程。 目標：減少 token 消耗、提升成品品質、確保可追蹤性。
 - [Clessia 功能開發清單](BACKLOG.md) — ---
 - [Clessia 系統總覽](overview.md) — 本文件整理 PRD 第 1-5 章，說明專案背景、系統目標、核心名詞與角色邊界，作為各流程與功能規格的共同語意基準。
+- [Clessia 路線圖](roadmap.md) — 功能區現況（自動生成、由 gate 盯著）與接下來的優先順序。取代先前手畫的 BACKLOG 依賴圖。
 - [Clessia 知識庫規範](schema.md) — kb/ 的收錄標準、frontmatter 欄位、頁面生命週期與操作流程。任何文件操作前先讀這份。
 
 <!-- KB-INDEX:END -->
