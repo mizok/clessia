@@ -1,0 +1,4 @@
+interface:
+  display_name: "Angular SCSS BEM Standards"
+  short_description: "Create and review Angular SCSS with strict BEM rules"
+  default_prompt: "Apply this skill to produce a BEM class map, updated template classes, flat SCSS selectors, and a pass/fail checklist."

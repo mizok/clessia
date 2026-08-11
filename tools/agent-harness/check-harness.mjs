@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const AGENTS_MD = join(ROOT, 'AGENTS.md');
 const SKILLS_DIR = join(ROOT, '.agents/skills');
-const THIN_ENTRYPOINTS = ['CLAUDE.md', 'GEMINI.md'];
+const THIN_ENTRYPOINTS = ['CLAUDE.md'];
 const THIN_MAX_LINES = 60;
 
 const START =
@@ -28,26 +28,40 @@ const failures = [];
 const fail = (message) => failures.push(message);
 
 /**
- * Skill 檔本身不進版控（`.agents/` 被 gitignore，那些是 vendored 的第三方目錄），
- * 所以 AGENTS.md 的表格不能直接以磁碟為準 —— CI 的 clone 裡根本沒有那些目錄，
- * 第一次跑 CI 就是這樣紅的（本機 10 個、CI 9 個）。
+ * `skills-lock.json` 是 AGENTS.md skill 表的真相來源；磁碟用來重生 lock。
  *
- * 改成 package.json / node_modules 的模型：**`skills-lock.json` 進版控當真相**，
- * 磁碟只在本機用來重生 lock。於是驗證鏈在兩個環境各守一段：
- *   本機   磁碟 ←→ lock ←→ AGENTS.md
- *   CI            lock ←→ AGENTS.md
+ * 由來：skill 一度只有部分進版控（`.agents/` 被 gitignore，但多數檔案在規則加上去之前
+ * 就已經在裡面了），CI 的 clone 因此看到部分存在的目錄，第一次跑就紅。現在 skill 全部
+ * 進版控，兩個環境看到的是同一份，lock 保留下來作為文件與現實之間的明確接縫。
  */
 const LOCK = join(ROOT, 'tools/agent-harness/skills-lock.json');
 
 /** Canonical order: plain alphabetical. Never rely on readdir order — it is platform-dependent. */
 function skillsOnDisk() {
-  if (!existsSync(SKILLS_DIR)) return null; // 目錄不存在（CI）→ 無從比對，不是錯誤
+  if (!existsSync(SKILLS_DIR)) return null; // 目錄不存在 → 無從比對，不是錯誤
   const names = readdirSync(SKILLS_DIR, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
     .map((entry) => entry.name)
     .filter((name) => existsSync(join(SKILLS_DIR, name, 'SKILL.md')))
     .sort();
-  return names.map((name) => ({ name, description: skillDescription(name) }));
+  return names.map((name) => {
+    const entry = { name, description: skillDescription(name) };
+    const source = skillOrigin(name);
+    if (source) entry.source = source;
+    return entry;
+  });
+}
+
+/**
+ * 選擇性的 `ORIGIN` 檔（`<url> <ref>`）記錄該 skill 的 upstream。
+ *
+ * 只有 angular-scss-bem-standards 有 —— 它原本是一個巢狀 git clone，於是 git 只存了一個
+ * 160000 gitlink 而非內容，clone 出來是空目錄（CI 因此紅過）。解除巢狀 repo 之後，
+ * upstream 就靠這個檔案留存。其餘 skill 沒有 upstream，就是這份。
+ */
+function skillOrigin(name) {
+  const path = join(SKILLS_DIR, name, 'ORIGIN');
+  return existsSync(path) ? readFileSync(path, 'utf8').trim() : null;
 }
 
 function skillDescription(name) {
@@ -113,7 +127,7 @@ if (mode === 'write' && onDisk && onDisk.length > 0) {
     LOCK,
     `${JSON.stringify(
       {
-        note: 'AGENTS.md skill 表的真相來源。skill 檔本身不進版控（.agents/ 被 gitignore），所以 CI 靠這份 manifest 驗證文件。重生：npm run harness:write',
+        note: 'AGENTS.md skill 表的真相來源。skill 本身也進版控；這份 manifest 是文件與磁碟之間的明確接縫。重生：npm run harness:write',
         skills: onDisk,
       },
       null,
@@ -134,8 +148,8 @@ if (mode !== 'write' && onDisk && JSON.stringify(onDisk) !== JSON.stringify(lock
 // ── A6. 每個 skill 在各 CLI 目錄都有 symlink ─────────────────────────────────────────────
 // `.agents/skills/` 是真身，其餘 CLI 目錄靠相對 symlink 共用同一份。這個結構會無聲漂掉：
 // 實際發生過 —— .codex 少了 angular-scss-bem-standards（而 AGENTS.md 明文要求寫 SCSS 前
-// 先 invoke 它），.gemini 少了 ui-ux-pro-max，沒有任何東西發現。
-const SYMLINK_TARGETS = ['.claude', '.agent', '.codex', '.gemini'];
+// 先 invoke 它），沒有任何東西發現。
+const SYMLINK_TARGETS = ['.claude', '.codex'];
 // Claude 由 plugin 取得 ui-ux-pro-max，不需要本地副本；其餘 CLI 沒有 plugin 機制。
 const SYMLINK_EXEMPT = { '.claude': ['ui-ux-pro-max'] };
 
@@ -164,7 +178,7 @@ if (spliceBlock(agentsSource, inner) === null) {
   fail('AGENTS.md 的 skill 清單與 skills-lock.json 不符。重生：npm run harness:write');
 }
 
-// ── A2. CLAUDE.md / GEMINI.md stay thin importers ────────────────────────────────────────
+// ── A2. CLAUDE.md stays a thin importer ──────────────────────────────────────────────────
 for (const name of THIN_ENTRYPOINTS) {
   const path = join(ROOT, name);
   if (!existsSync(path)) continue;

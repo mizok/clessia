@@ -1,5 +1,5 @@
 {
-  "note": "AGENTS.md skill 表的真相來源。skill 檔本身不進版控（.agents/ 被 gitignore），所以 CI 靠這份 manifest 驗證文件。重生：npm run harness:write",
+  "note": "AGENTS.md skill 表的真相來源。skill 本身也進版控；這份 manifest 是文件與磁碟之間的明確接縫。重生：npm run harness:write",
   "skills": [
     {
       "name": "angular",
@@ -11,7 +11,8 @@
     },
     {
       "name": "angular-scss-bem-standards",
-      "description": "Use when writing, reviewing, or refactoring Angular component styles (SCSS/CSS). Triggers on BEM naming iss…"
+      "description": "Use when writing, reviewing, or refactoring Angular component styles (SCSS/CSS). Triggers on BEM naming iss…",
+      "source": "https://github.com/mizok/angular-scss-bem-standards-skill.git 64e647cc320016c0de0f93f2acfaf76764eaa1ca"
     },
     {
       "name": "angular-state-management",
