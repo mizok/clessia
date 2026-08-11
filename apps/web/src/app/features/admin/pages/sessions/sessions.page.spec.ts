@@ -102,6 +102,17 @@ describe('SessionsPage', () => {
     ),
   };
 
+  // 元件的預設日期範圍是 startOfMonth(new Date()) ~ endOfMonth(new Date())，而本檔所有 fixture
+  // 都是 2026-04。不凍結時鐘的話，這支測試只有 2026 年 4 月會通過。
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] }); // 只假造 Date，setTimeout 保持真實，否則 whenStable 會卡住
+    vi.setSystemTime(new Date('2026-04-15T12:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(async () => {
     routeQueryParams = {};
     sessionsServiceMock.list.mockClear();
@@ -1026,11 +1037,15 @@ describe('SessionsPage', () => {
       }),
     );
     expect(
-      (component as unknown as {
-        sessions: {
-          (): Array<Session & { attendanceTakenAt?: string | null; attendancePresentCount?: number }>;
-        };
-      }).sessions()[0],
+      (
+        component as unknown as {
+          sessions: {
+            (): Array<
+              Session & { attendanceTakenAt?: string | null; attendancePresentCount?: number }
+            >;
+          };
+        }
+      ).sessions()[0],
     ).toEqual(
       expect.objectContaining({
         attendanceTakenAt: '2026-04-08T11:05:00.000Z',

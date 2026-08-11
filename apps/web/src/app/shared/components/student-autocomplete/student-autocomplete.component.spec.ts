@@ -17,7 +17,8 @@ describe('StudentAutocompleteComponent', () => {
   });
 
   it('does not force selection by default to avoid clearing IME input prematurely', () => {
-    const autoComplete = fixture.debugElement.query(By.directive(AutoComplete)).componentInstance as AutoComplete;
+    const autoComplete = fixture.debugElement.query(By.directive(AutoComplete))
+      .componentInstance as AutoComplete;
 
     expect(autoComplete.forceSelection).toBe(false);
   });
@@ -31,7 +32,7 @@ describe('StudentAutocompleteComponent', () => {
         orgId: 'org-1',
         name: '王小明',
         grade: 'J2',
-        school: '示範國中',
+        school: { id: 'school-1', name: '示範國中', shortName: null },
         birthday: null,
         gender: null,
         phone: null,

@@ -41,6 +41,12 @@ jobs:
 
       - run: npm ci
 
+      # apps/api 是獨立的 npm package（有自己的 package.json / package-lock.json，因為它用
+      # wrangler 部署到 Cloudflare Workers），依賴不會被根目錄的 npm ci 裝起來。
+      # 本機測試之所以會過，是因為 apps/api/node_modules 早就存在 —— CI 第一次跑才暴露。
+      - run: npm ci
+        working-directory: apps/api
+
       # ── 文件與現實是否同步（skill 清單、入口檔行數、憲法條款引用、KB frontmatter 與索引）
       - name: harness + KB gate
         run: npm run harness
