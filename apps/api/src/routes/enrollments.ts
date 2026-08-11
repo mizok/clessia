@@ -309,9 +309,7 @@ async function syncLeaveAttendanceForEnrollment(params: {
     return;
   }
 
-  const firstLeaveDate = overlappingLeaves
-    .map((leaveRow) => leaveRow.start_date)
-    .sort()[0];
+  const firstLeaveDate = overlappingLeaves.map((leaveRow) => leaveRow.start_date).sort()[0];
   const lastLeaveDate = overlappingLeaves
     .map((leaveRow) => leaveRow.end_date)
     .sort()
@@ -356,12 +354,11 @@ async function syncLeaveAttendanceForEnrollment(params: {
     return;
   }
 
-  const { error: attendanceError } = await supabase.from('attendance_records').upsert(
-    attendanceUpserts,
-    {
+  const { error: attendanceError } = await supabase
+    .from('attendance_records')
+    .upsert(attendanceUpserts, {
       onConflict: 'event_id,student_id',
-    },
-  );
+    });
 
   if (attendanceError) {
     throw attendanceError;
@@ -410,8 +407,14 @@ app.openapi(
       }),
     },
     responses: {
-      200: { content: { 'application/json': { schema: EnrollmentListResponseSchema } }, description: 'OK' },
-      500: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Internal Server Error' },
+      200: {
+        content: { 'application/json': { schema: EnrollmentListResponseSchema } },
+        description: 'OK',
+      },
+      500: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Internal Server Error',
+      },
     },
   }),
   async (c) => {
@@ -437,10 +440,13 @@ app.openapi(
     if (error) return c.json({ error: error.message }, 500);
 
     const total = count ?? 0;
-    return c.json({
-      data: (data ?? []).map(toEnrollmentResponse),
-      meta: { total, page, pageSize, totalPages: Math.ceil(total / pageSize) },
-    }, 200);
+    return c.json(
+      {
+        data: (data ?? []).map(toEnrollmentResponse),
+        meta: { total, page, pageSize, totalPages: Math.ceil(total / pageSize) },
+      },
+      200,
+    );
   },
 );
 
@@ -463,13 +469,19 @@ app.openapi(
         },
         description: 'Created',
       },
-      400: { content: { 'application/json': { schema: OverQuotaErrorSchema } }, description: 'Bad Request' },
+      400: {
+        content: { 'application/json': { schema: OverQuotaErrorSchema } },
+        description: 'Bad Request',
+      },
       404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Not Found' },
       409: {
         content: { 'application/json': { schema: ScheduleConflictErrorSchema } },
         description: 'Conflict',
       },
-      500: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Internal Server Error' },
+      500: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Internal Server Error',
+      },
     },
   }),
   async (c) => {
@@ -533,7 +545,9 @@ app.openapi(
         notes: body.notes ?? null,
         created_by: userId,
       })
-      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)')
+      .select(
+        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
+      )
       .single();
 
     if (error) {
@@ -570,7 +584,10 @@ app.openapi(
       body: { content: { 'application/json': { schema: UpdateEnrollmentSchema } } },
     },
     responses: {
-      200: { content: { 'application/json': { schema: z.object({ data: EnrollmentSchema }) } }, description: 'OK' },
+      200: {
+        content: { 'application/json': { schema: z.object({ data: EnrollmentSchema }) } },
+        description: 'OK',
+      },
       404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Not Found' },
     },
   }),
@@ -591,7 +608,9 @@ app.openapi(
       .update(updates)
       .eq('id', id)
       .eq('org_id', orgId)
-      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)')
+      .select(
+        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
+      )
       .single();
 
     if (error) return c.json({ error: 'NOT_FOUND' }, 404);
@@ -623,10 +642,16 @@ app.openapi(
       body: { content: { 'application/json': { schema: UpdateEnrollmentStatusSchema } } },
     },
     responses: {
-      200: { content: { 'application/json': { schema: z.object({ data: EnrollmentSchema }) } }, description: 'OK' },
+      200: {
+        content: { 'application/json': { schema: z.object({ data: EnrollmentSchema }) } },
+        description: 'OK',
+      },
       400: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Bad Request' },
       404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Not Found' },
-      500: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Internal Server Error' },
+      500: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Internal Server Error',
+      },
     },
   }),
   async (c) => {
@@ -667,7 +692,9 @@ app.openapi(
       .update(updates)
       .eq('id', id)
       .eq('org_id', orgId)
-      .select('id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)')
+      .select(
+        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
+      )
       .single();
 
     if (error) return c.json({ error: error.message }, 500);
@@ -696,17 +723,26 @@ app.openapi(
     tags: ['Enrollments'],
     request: { body: { content: { 'application/json': { schema: BatchCreateEnrollmentSchema } } } },
     responses: {
-      200: { content: { 'application/json': { schema: BatchCreateResultSchema } }, description: 'OK' },
+      200: {
+        content: { 'application/json': { schema: BatchCreateResultSchema } },
+        description: 'OK',
+      },
       400: {
         content: { 'application/json': { schema: ErrorSchema } },
         description: 'Bad Request (over_quota)',
       },
-      404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Class not found' },
+      404: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Class not found',
+      },
       409: {
         content: { 'application/json': { schema: ScheduleConflictErrorSchema } },
         description: 'Conflict',
       },
-      500: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Internal Server Error' },
+      500: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Internal Server Error',
+      },
     },
   }),
   async (c) => {
@@ -799,7 +835,10 @@ app.openapi(
       204: { description: 'No Content' },
       400: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Bad Request' },
       404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Not Found' },
-      409: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Has attendance records' },
+      409: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Has attendance records',
+      },
     },
   }),
   async (c) => {
@@ -980,9 +1019,18 @@ app.openapi(
     summary: '批次比對學生（唯讀）',
     request: { body: { content: { 'application/json': { schema: BatchMatchBodySchema } } } },
     responses: {
-      200: { content: { 'application/json': { schema: BatchMatchResponseSchema } }, description: 'OK' },
-      404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Class not found' },
-      500: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Internal Server Error' },
+      200: {
+        content: { 'application/json': { schema: BatchMatchResponseSchema } },
+        description: 'OK',
+      },
+      404: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Class not found',
+      },
+      500: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Internal Server Error',
+      },
     },
   }),
   async (c) => {
@@ -1010,7 +1058,9 @@ app.openapi(
     if (enrolledError) return c.json({ error: enrolledError.message }, 500);
 
     const enrolledIds = new Set((enrolled ?? []).map((e) => e.student_id));
-    const uniqueNames = Array.from(new Set(body.items.map((item) => item.name.trim()).filter(Boolean)));
+    const uniqueNames = Array.from(
+      new Set(body.items.map((item) => item.name.trim()).filter(Boolean)),
+    );
     const uniqueSchoolNames = Array.from(
       new Set(body.items.map((item) => item.school.trim()).filter(Boolean)),
     );
