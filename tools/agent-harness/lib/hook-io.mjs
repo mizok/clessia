@@ -17,7 +17,10 @@ export function readHookPayload() {
 export function toRepoPath(filePath, root) {
   if (!filePath) return '';
   const rel = isAbsolute(filePath) ? relative(root, filePath) : filePath;
-  return rel.split('\\').join('/').replace(/^\.worktrees\/[^/]+\//, '');
+  return rel
+    .split('\\')
+    .join('/')
+    .replace(/^\.worktrees\/[^/]+\//, '');
 }
 
 /**

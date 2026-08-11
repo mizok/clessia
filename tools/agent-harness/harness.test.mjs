@@ -12,7 +12,8 @@ import routerRules from './rules/doc-router.rules.json' with { type: 'json' };
 import { compareToBaseline, failingSpecs } from './test-gate.mjs';
 
 const ROOT = '/repo';
-const guard = (filePath, text) => matchWriteRules([{ filePath, text }], guardRules.rules).map((v) => v.id);
+const guard = (filePath, text) =>
+  matchWriteRules([{ filePath, text }], guardRules.rules).map((v) => v.id);
 
 test('toRepoPath 去掉 worktree 前綴，路徑錨點才咬得住', () => {
   assert.equal(toRepoPath('/repo/apps/web/a.scss', ROOT), 'apps/web/a.scss');
@@ -21,7 +22,11 @@ test('toRepoPath 去掉 worktree 前綴，路徑錨點才咬得住', () => {
 
 test('pendingWrites 只取新寫入的內容，不取整個檔案', () => {
   const payload = {
-    tool_input: { file_path: '/repo/a.scss', old_string: 'height: 100vh;', new_string: 'height: 100%;' },
+    tool_input: {
+      file_path: '/repo/a.scss',
+      old_string: 'height: 100vh;',
+      new_string: 'height: 100%;',
+    },
   };
   const [write] = pendingWrites(payload, ROOT);
   assert.equal(write.text, 'height: 100%;');
@@ -41,7 +46,10 @@ test('c7 擋舊版結構指令', () => {
 test('c8 擋裝飾器 API，但放過 spec 檔', () => {
   assert.deepEqual(guard('apps/web/src/app/a.component.ts', '@Input() name!: string;'), ['c8']);
   assert.deepEqual(guard('apps/web/src/app/a.component.spec.ts', '@Input() name!: string;'), []);
-  assert.deepEqual(guard('apps/web/src/app/a.component.ts', 'readonly name = input<string>();'), []);
+  assert.deepEqual(
+    guard('apps/web/src/app/a.component.ts', 'readonly name = input<string>();'),
+    [],
+  );
 });
 
 test('c9 擋平行文件目錄', () => {
@@ -55,7 +63,10 @@ test('c2 擋寫入 ba_* 表，但放過讀取', () => {
     ['c2'],
   );
   assert.deepEqual(
-    guard('apps/api/src/routes/students.ts', "await supabase.from('ba_user').select('id').eq('id', x)"),
+    guard(
+      'apps/api/src/routes/students.ts',
+      "await supabase.from('ba_user').select('id').eq('id', x)",
+    ),
     [],
   );
 });
@@ -83,7 +94,10 @@ test('failingSpecs 從 vitest 輸出撈出失敗的 spec 檔，且去重', () =>
     ' FAIL  web apps/web/src/app/b.spec.ts > Suite > case two',
     ' FAIL  web apps/web/src/app/c.spec.ts > Other',
   ].join('\n');
-  assert.deepEqual(failingSpecs(output), ['apps/web/src/app/b.spec.ts', 'apps/web/src/app/c.spec.ts']);
+  assert.deepEqual(failingSpecs(output), [
+    'apps/web/src/app/b.spec.ts',
+    'apps/web/src/app/c.spec.ts',
+  ]);
 });
 
 test('failingSpecs 不把通過的檔案算進去', () => {
@@ -93,9 +107,10 @@ test('failingSpecs 不把通過的檔案算進去', () => {
 test('基線內的紅燈不算 regression，基線外的才算', () => {
   const known = ['apps/web/a.spec.ts'];
   assert.deepEqual(compareToBaseline(['apps/web/a.spec.ts'], known).regressions, []);
-  assert.deepEqual(compareToBaseline(['apps/web/a.spec.ts', 'apps/web/b.spec.ts'], known).regressions, [
-    'apps/web/b.spec.ts',
-  ]);
+  assert.deepEqual(
+    compareToBaseline(['apps/web/a.spec.ts', 'apps/web/b.spec.ts'], known).regressions,
+    ['apps/web/b.spec.ts'],
+  );
 });
 
 test('基線項目恢復時要被指出來，但不擋人', () => {

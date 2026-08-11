@@ -1,0 +1,51 @@
+name: verify
+
+# 這是專案唯一「不可繞過」的驗證層。
+#
+# 本機的 Stop hook 跑的是同一組 gate，但它繞得過（Bash heredoc 寫檔不觸發 PreToolUse、
+# CLESSIA_STOP_GATE=0、git commit --no-verify、直接關掉 hook）。所以本機那層的定位是
+# 「把回饋左移到編輯當下」，真正的把關在這裡。
+#
+# 刻意用 run-many 而不是 affected：整套跑完本機只要 8 秒，affected 需要正確的 base ref
+# （nx.json 的 defaultBase 是不存在的 `dev`），為了省幾秒去換一個會安靜失準的東西不划算。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# 同一個 PR 連續推送時取消前一次，只留最新結果
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # kb-gate 在推導缺漏的 `updated` 欄位時會用 git log 查最後提交日；
+          # shallow clone 會讓它退回檔案 mtime（在 CI 上永遠是 checkout 當下的時間）。
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # ── 文件與現實是否同步（skill 清單、入口檔行數、憲法條款引用、KB frontmatter 與索引）
+      - name: harness + KB gate
+        run: npm run harness
+
+      # ── harness 自己的單元測試：規則引擎壞掉時，上面那層會安靜地放行
+      - name: harness self-test
+        run: npm run harness:test
+
+      - name: typecheck
+        run: npx nx run-many -t typecheck
+
+      - name: test
+        run: npx nx run-many -t test
