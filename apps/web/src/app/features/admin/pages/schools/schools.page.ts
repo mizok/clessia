@@ -12,6 +12,7 @@ import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { ConfirmationService, MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
@@ -40,9 +41,8 @@ import {
     ConfirmDialogModule,
     PageBreadcrumbComponent,
     EmptyStateComponent,
-    SchoolFormDialogComponent,
   ],
-  providers: [MessageService, ConfirmationService],
+  providers: [MessageService, ConfirmationService, DialogService],
   templateUrl: './schools.page.html',
   styleUrl: './schools.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -51,6 +51,7 @@ export class SchoolsPage implements OnInit {
   private readonly schoolsService = inject(SchoolsService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
+  private readonly dialogService = inject(DialogService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly breadcrumbs: BreadcrumbItem[] = [{ label: '系統設定' }, { label: '學校管理' }];
@@ -58,8 +59,6 @@ export class SchoolsPage implements OnInit {
   protected readonly schools = signal<School[]>([]);
   protected readonly loading = signal(true);
   protected readonly search = signal('');
-  protected readonly dialogOpen = signal(false);
-  protected readonly editing = signal<School | null>(null);
 
   ngOnInit(): void {
     this.load();
@@ -92,20 +91,20 @@ export class SchoolsPage implements OnInit {
   }
 
   protected openCreate(): void {
-    this.editing.set(null);
-    this.dialogOpen.set(true);
+    this.openSchoolDialog(null);
   }
 
   protected openEdit(school: School): void {
-    this.editing.set(school);
-    this.dialogOpen.set(true);
+    this.openSchoolDialog(school);
   }
 
-  protected onSaved(result: SchoolFormResult): void {
-    this.dialogOpen.set(false);
+  private onSaved(result: SchoolFormResult): void {
+    const name = result.school?.name?.trim();
+    const action = result.mode === 'create' ? '已新增學校' : '已更新學校';
     this.messageService.add({
       severity: 'success',
       summary: result.mode === 'create' ? '新增成功' : '更新成功',
+      detail: name ? `${action}「${name}」` : action,
     });
     this.load();
   }
@@ -140,6 +139,21 @@ export class SchoolsPage implements OnInit {
             },
           });
       },
+    });
+  }
+
+  private openSchoolDialog(editing: School | null): void {
+    const ref = this.dialogService.open(SchoolFormDialogComponent, {
+      width: 'min(480px, 96vw)',
+      modal: true,
+      showHeader: false,
+      appendTo: 'body',
+      data: { editing },
+    });
+    if (!ref) return;
+    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result: SchoolFormResult | undefined) => {
+      if (!result) return;
+      this.onSaved(result);
     });
   }
 }

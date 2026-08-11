@@ -22,8 +22,24 @@ describe('AcademyExamFormDialogComponent', () => {
     list: vi.fn(() =>
       of({
         data: [
-          { id: 'cls-1', name: 'A班', isActive: true, campusId: 'c1', campusName: '台北', courseName: '數學' },
-          { id: 'cls-2', name: 'B班', isActive: true, campusId: 'c2', campusName: '新竹', courseName: '數學' },
+          {
+            id: 'cls-1',
+            name: 'A班',
+            isActive: true,
+            campusId: 'c1',
+            campusName: '台北',
+            courseName: '數學',
+            subjectId: 's1',
+          },
+          {
+            id: 'cls-2',
+            name: 'B班',
+            isActive: true,
+            campusId: 'c2',
+            campusName: '新竹',
+            courseName: '英文',
+            subjectId: 's2',
+          },
         ],
         meta: { total: 2, page: 1, pageSize: 0 },
       }),
@@ -211,6 +227,14 @@ describe('AcademyExamFormDialogComponent', () => {
     await createComponent({ data: { mode: 'create' } });
     expect(component['classOptions']().length).toBe(2);
     component['onCampusChange']('c1');
+    expect(component['classOptions']().length).toBe(1);
+    expect(component['classOptions']()[0].value).toBe('cls-1');
+  });
+
+  it('filters classes by subject selection', async () => {
+    await createComponent({ data: { mode: 'create' } });
+    expect(component['classOptions']().length).toBe(2);
+    component['onSubjectChange']('s1');
     expect(component['classOptions']().length).toBe(1);
     expect(component['classOptions']()[0].value).toBe('cls-1');
   });

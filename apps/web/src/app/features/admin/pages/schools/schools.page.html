@@ -64,14 +64,6 @@
     </p-table>
   }
 
-  @if (dialogOpen()) {
-    <app-school-form-dialog
-      [editing]="editing()"
-      (saved)="onSaved($event)"
-      (closed)="dialogOpen.set(false)"
-    />
-  }
-
   <p-toast />
   <p-confirmDialog />
 </div>

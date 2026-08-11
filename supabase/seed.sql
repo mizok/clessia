@@ -1201,16 +1201,16 @@ BEGIN
     END IF;
 
     -- 1. 114學年 第1學期 段考
-    INSERT INTO public.school_exams (id, org_id, school_id, academic_year, semester, exam_type, name, label, exam_date, status)
-    VALUES (te_114_1_mid, demo_org_id, demo_school_id, 114, 1, 'term_exam', NULL, '114-1 段考', CURRENT_DATE - INTERVAL '30 days', 'active');
+    INSERT INTO public.school_exams (id, org_id, school_id, academic_year, semester, exam_type, subject_id, name, label, exam_date, status)
+    VALUES (te_114_1_mid, demo_org_id, demo_school_id, 114, 1, 'term_exam', NULL, NULL, '114-1 段考', CURRENT_DATE - INTERVAL '30 days', 'active');
 
     -- 2. 114學年 第1學期 段考（第二次）
-    INSERT INTO public.school_exams (id, org_id, school_id, academic_year, semester, exam_type, name, label, exam_date, status)
-    VALUES (te_114_1_fin, demo_org_id, demo_school_id, 114, 1, 'term_exam', '第二次', '114-1 段考 · 第二次', CURRENT_DATE - INTERVAL '7 days', 'active');
+    INSERT INTO public.school_exams (id, org_id, school_id, academic_year, semester, exam_type, subject_id, name, label, exam_date, status)
+    VALUES (te_114_1_fin, demo_org_id, demo_school_id, 114, 1, 'term_exam', NULL, '第二次', '114-1 段考 · 第二次', CURRENT_DATE - INTERVAL '7 days', 'active');
 
     -- 3. 113學年 第2學期 段考 (closed)
-    INSERT INTO public.school_exams (id, org_id, school_id, academic_year, semester, exam_type, name, label, exam_date, status)
-    VALUES (te_113_2_fin, demo_org_id, demo_school_id, 113, 2, 'term_exam', NULL, '113-2 段考', CURRENT_DATE - INTERVAL '180 days', 'closed');
+    INSERT INTO public.school_exams (id, org_id, school_id, academic_year, semester, exam_type, subject_id, name, label, exam_date, status)
+    VALUES (te_113_2_fin, demo_org_id, demo_school_id, 113, 2, 'term_exam', NULL, NULL, '113-2 段考', CURRENT_DATE - INTERVAL '180 days', 'closed');
   END;
 
   -- ========================================

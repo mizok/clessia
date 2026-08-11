@@ -8,20 +8,17 @@ import {
   inject,
   input,
   signal,
-  untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { SelectModule } from 'primeng/select';
-import { SelectButtonModule } from 'primeng/selectbutton';
 import { TagModule } from 'primeng/tag';
 import { InputTextModule } from 'primeng/inputtext';
 import { PaginatorModule } from 'primeng/paginator';
-import { DialogModule } from 'primeng/dialog';
-import { TooltipModule } from 'primeng/tooltip';
+import { DialogService } from 'primeng/dynamicdialog';
+import { ButtonModule } from 'primeng/button';
 import { MessageService } from 'primeng/api';
-import { subMonths } from 'date-fns';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import {
@@ -29,47 +26,37 @@ import {
   type BreadcrumbItem,
 } from '@shared/components/page-breadcrumb/page-breadcrumb.component';
 import { JdenticonAvatarComponent } from '@shared/components/jdenticon-avatar/jdenticon-avatar.component';
-import {
-  ScoresService,
-  type ScoreRecord,
-  type ScoreRecordType,
-  type SubjectAverage,
-} from '@core/scores.service';
-import {
-  StudentsService,
-  type Student,
-  type GradeLevel,
-  GRADE_LEVELS,
-  GRADE_LEVEL_LABELS,
-} from '@core/students.service';
 import { ReferenceDataService } from '@core/reference-data.service';
+import { SchoolsService } from '@core/schools.service';
+import {
+  GRADE_LEVEL_LABELS,
+  GRADE_LEVELS,
+  StudentsService,
+  type GradeLevel,
+  type Student,
+  type StudentQueryParams,
+} from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
+import { forkJoin, map, of, switchMap } from 'rxjs';
 
-type TypeFilter = 'all' | ScoreRecordType;
-type TimeRange = 'all' | '1m' | '3m' | '6m';
+import { StudentScoreDetailDialogComponent } from './student-score-detail-dialog/student-score-detail-dialog.component';
+import {
+  StudentViewFilterDialogComponent,
+  type FilterOption,
+  type StudentActiveStatusFilter,
+  type StudentViewFilterSnapshot,
+} from './student-view-filter-dialog/student-view-filter-dialog.component';
 
-interface SubjectOption {
-  label: string;
-  value: string;
-}
-
-const TYPE_OPTIONS: Array<{ label: string; value: TypeFilter }> = [
-  { label: '全部', value: 'all' },
-  { label: '補習班考試', value: 'academy' },
-  { label: '學校考試', value: 'school' },
-];
-
-const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
-  { label: '近1月', value: '1m' },
-  { label: '近3月', value: '3m' },
-  { label: '近半年', value: '6m' },
-  { label: '全部', value: 'all' },
-];
-
-const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel }> = GRADE_LEVELS.map((g) => ({
-  label: GRADE_LEVEL_LABELS[g],
-  value: g,
+const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel }> = GRADE_LEVELS.map((grade) => ({
+  label: GRADE_LEVEL_LABELS[grade],
+  value: grade,
 }));
+
+const STATUS_OPTIONS: Array<FilterOption<StudentActiveStatusFilter>> = [
+  { label: '全部', value: 'all' },
+  { label: '啟用', value: 'active' },
+  { label: '停用', value: 'inactive' },
+];
 
 const PAGE_SIZE = 8;
 
@@ -79,12 +66,10 @@ const PAGE_SIZE = 8;
   imports: [
     FormsModule,
     SelectModule,
-    SelectButtonModule,
     TagModule,
     InputTextModule,
     PaginatorModule,
-    DialogModule,
-    TooltipModule,
+    ButtonModule,
     EmptyStateComponent,
     PageBreadcrumbComponent,
     JdenticonAvatarComponent,
@@ -92,14 +77,16 @@ const PAGE_SIZE = 8;
   templateUrl: './student-view.component.html',
   styleUrl: './student-view.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [MessageService],
+  providers: [DialogService, MessageService],
 })
 export class StudentViewComponent implements OnInit {
-  private readonly scoresService = inject(ScoresService);
   private readonly studentsService = inject(StudentsService);
+  private readonly schoolsService = inject(SchoolsService);
   private readonly refData = inject(ReferenceDataService);
+  private readonly dialogService = inject(DialogService);
   private readonly messageService = inject(MessageService);
   private readonly destroyRef = inject(DestroyRef);
+  private studentsRequestToken = 0;
 
   readonly page = input<RouteObj>();
 
@@ -108,230 +95,277 @@ export class StudentViewComponent implements OnInit {
     { label: '學生視角' },
   ];
 
-  protected readonly typeOptions = TYPE_OPTIONS;
-  protected readonly timeRangeOptions = TIME_RANGE_OPTIONS;
   protected readonly gradeOptions = GRADE_OPTIONS;
-  protected readonly PAGE_SIZE = PAGE_SIZE;
+  protected readonly statusOptions = STATUS_OPTIONS;
+  protected readonly pageSize = PAGE_SIZE;
 
-  // Filters (all optional — no filter = global search)
   protected readonly campusId = signal<string>('');
   protected readonly gradeFilter = signal<GradeLevel | ''>('');
   protected readonly searchText = signal('');
+  protected readonly schoolIdFilter = signal<string | null>(null);
+  protected readonly activeStatusFilter = signal<StudentActiveStatusFilter>('active');
 
-  // Student list state
-  protected readonly studentList = signal<Student[]>([]);
+  protected readonly rawStudents = signal<Student[]>([]);
   protected readonly loadingList = signal(true);
   protected readonly currentPage = signal(1);
-  protected readonly totalStudents = signal(0);
 
-  // Dialog state
-  protected dialogVisible = false;
-  protected readonly selectedStudent = signal<Student | null>(null);
-  protected readonly scores = signal<ScoreRecord[]>([]);
-  protected readonly summary = signal<SubjectAverage[]>([]);
-  protected readonly loadingScores = signal(false);
-  protected readonly loadingSummary = signal(false);
-  protected readonly typeFilter = signal<TypeFilter>('all');
-  protected readonly timeRange = signal<TimeRange>('all');
-  protected readonly subjectFilter = signal<string | null>(null);
-  protected readonly scorePage = signal(0);
-  protected readonly SCORE_PAGE_SIZE = 10;
+  protected readonly schoolOptionsState = signal<Array<FilterOption<string>>>([]);
 
   protected readonly campusOptions = computed(() =>
-    this.refData.campuses().map((c) => ({ label: c.name, value: c.id })),
+    this.refData.campuses().map((campus) => ({ label: campus.name, value: campus.id })),
   );
 
-  protected readonly subjectOptions = computed<SubjectOption[]>(() => {
-    const names = new Set<string>();
-    for (const s of this.scores()) {
-      if (s.subjectName) names.add(s.subjectName);
-    }
-    return Array.from(names)
-      .sort((a, b) => a.localeCompare(b, 'zh-Hant'))
-      .map((name) => ({ label: name, value: name }));
-  });
+  protected readonly schoolOptions = computed(() => this.schoolOptionsState());
 
-  protected readonly filteredScores = computed(() => {
-    const type = this.typeFilter();
-    const range = this.timeRange();
-    const subject = this.subjectFilter();
-    let result = this.scores();
+  protected readonly filteredStudents = computed<Student[]>(() => {
+    const schoolId = this.schoolIdFilter();
+    let result = this.rawStudents();
 
-    if (type !== 'all') {
-      result = result.filter((s) => s.type === type);
-    }
-
-    if (subject) {
-      result = result.filter((s) => s.subjectName === subject);
-    }
-
-    if (range !== 'all') {
-      const months = range === '1m' ? 1 : range === '3m' ? 3 : 6;
-      const cutoff = subMonths(new Date(), months);
-      result = result.filter((s) => new Date(s.examDate) >= cutoff);
+    if (schoolId) {
+      result = result.filter((student) => student.school?.id === schoolId);
     }
 
     return result;
   });
 
-  protected readonly pagedScores = computed(() => {
-    const all = this.filteredScores();
-    const start = this.scorePage() * this.SCORE_PAGE_SIZE;
-    return all.slice(start, start + this.SCORE_PAGE_SIZE);
+  protected readonly totalStudents = computed(() => this.filteredStudents().length);
+
+  protected readonly pagedStudents = computed(() => {
+    const start = (this.currentPage() - 1) * PAGE_SIZE;
+    return this.filteredStudents().slice(start, start + PAGE_SIZE);
   });
 
   constructor() {
     effect(() => {
-      this.typeFilter();
-      this.timeRange();
-      this.subjectFilter();
-      untracked(() => this.scorePage.set(0));
+      const total = this.totalStudents();
+      const maxPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      if (this.currentPage() > maxPage) {
+        this.currentPage.set(maxPage);
+      }
     });
   }
 
   ngOnInit(): void {
     this.refData.loadCampuses();
+    this.loadSchools();
     this.loadStudents();
   }
 
   protected onCampusChange(id: string | null): void {
-    this.campusId.set(id ?? '');
+    const nextCampusId = id ?? '';
+    if (this.campusId() === nextCampusId) return;
+    this.campusId.set(nextCampusId);
     this.resetAndReload();
   }
 
   protected onGradeChange(grade: GradeLevel | null | ''): void {
-    this.gradeFilter.set(grade ?? '');
+    const nextGrade = grade ?? '';
+    if (this.gradeFilter() === nextGrade) return;
+    this.gradeFilter.set(nextGrade);
     this.resetAndReload();
   }
 
   protected onSearchChange(text: string): void {
+    if (this.searchText() === text) return;
     this.searchText.set(text);
+    this.resetAndReload();
+  }
+
+  protected onSchoolChange(schoolId: string | null): void {
+    this.schoolIdFilter.set(schoolId);
+    this.currentPage.set(1);
+  }
+
+  protected onActiveStatusChange(status: StudentActiveStatusFilter | null): void {
+    const nextStatus = status ?? 'active';
+    if (this.activeStatusFilter() === nextStatus) return;
+    this.activeStatusFilter.set(nextStatus);
     this.resetAndReload();
   }
 
   protected onPageChange(page: number): void {
     this.currentPage.set(page);
-    this.loadStudents();
+  }
+
+  protected openMobileFilterDialog(): void {
+    this.dialogService.open(StudentViewFilterDialogComponent, {
+      width: 'min(420px, 95vw)',
+      modal: true,
+      showHeader: false,
+      appendTo: 'body',
+      contentStyle: {
+        'max-height': 'calc(var(--window-height, 800px) * 0.85)',
+        overflow: 'auto',
+      },
+      data: {
+        initial: this.buildFilterSnapshot(),
+        options: {
+          campusOptions: this.campusOptions(),
+          gradeOptions: this.gradeOptions,
+          schoolOptions: this.schoolOptions(),
+          statusOptions: this.statusOptions,
+        },
+        onClear: () => {
+          this.clearFilters();
+        },
+        onChange: (next: StudentViewFilterSnapshot) => {
+          this.applyFilterSnapshot(next);
+        },
+      },
+    });
   }
 
   protected selectStudent(student: Student): void {
-    this.selectedStudent.set(student);
-    this.scores.set([]);
-    this.summary.set([]);
-    this.typeFilter.set('all');
-    this.timeRange.set('all');
-    this.subjectFilter.set(null);
-    this.scorePage.set(0);
-    this.dialogVisible = true;
-    this.loadScores(student.id);
-    this.loadSummary(student.id);
-  }
-
-  protected onScorePageChange(event: { page?: number }): void {
-    this.scorePage.set(event.page ?? 0);
-  }
-
-  protected onDialogHide(): void {
-    this.selectedStudent.set(null);
-    this.scores.set([]);
-    this.summary.set([]);
+    this.dialogService.open(StudentScoreDetailDialogComponent, {
+      width: 'min(720px, 95vw)',
+      modal: true,
+      showHeader: false,
+      appendTo: 'body',
+      contentStyle: {
+        'max-height': 'calc(var(--window-height, 800px) * 0.85)',
+        overflow: 'auto',
+      },
+      data: { student },
+    });
   }
 
   protected formatGrade(grade: GradeLevel): string {
     return GRADE_LEVEL_LABELS[grade] ?? grade;
   }
 
-  protected formatAvg(value: number | null): string {
-    return value !== null ? String(value) : '—';
+  private buildFilterSnapshot(): StudentViewFilterSnapshot {
+    return {
+      campusId: this.campusId(),
+      searchText: this.searchText(),
+      grade: this.gradeFilter(),
+      schoolId: this.schoolIdFilter(),
+      status: this.activeStatusFilter(),
+    };
   }
 
-  protected getTypeLabel(type: ScoreRecordType): string {
-    return type === 'academy' ? '補習班' : '學校考試';
+  private applyFilterSnapshot(next: StudentViewFilterSnapshot): void {
+    const prevCampusId = this.campusId();
+    const shouldReload =
+      prevCampusId !== next.campusId ||
+      this.searchText() !== next.searchText ||
+      this.gradeFilter() !== next.grade ||
+      this.activeStatusFilter() !== next.status;
+
+    this.campusId.set(next.campusId);
+    this.searchText.set(next.searchText);
+    this.gradeFilter.set(next.grade);
+    this.schoolIdFilter.set(next.schoolId);
+    this.activeStatusFilter.set(next.status);
+
+    this.currentPage.set(1);
+    if (shouldReload) {
+      this.loadStudents();
+    }
   }
 
-  protected getTypeSeverity(type: ScoreRecordType): 'info' | 'contrast' {
-    return type === 'academy' ? 'info' : 'contrast';
-  }
+  private clearFilters(): void {
+    const hadServerFilters =
+      !!this.campusId() ||
+      !!this.searchText() ||
+      !!this.gradeFilter() ||
+      this.activeStatusFilter() !== 'active';
 
-  protected formatScore(score: number | null, totalScore: number | null): string {
-    if (score === null) return '—';
-    if (totalScore) return `${score} / ${totalScore}`;
-    return String(score);
+    this.campusId.set('');
+    this.searchText.set('');
+    this.gradeFilter.set('');
+    this.schoolIdFilter.set(null);
+    this.activeStatusFilter.set('active');
+    this.currentPage.set(1);
+
+    if (hadServerFilters) {
+      this.loadStudents();
+    }
   }
 
   private resetAndReload(): void {
-    this.selectedStudent.set(null);
-    this.scores.set([]);
-    this.summary.set([]);
     this.currentPage.set(1);
     this.loadStudents();
   }
 
-  private loadStudents(): void {
-    this.loadingList.set(true);
-    this.studentsService
-      .list({
-        campusId: this.campusId() || undefined,
-        grade: this.gradeFilter() || undefined,
-        search: this.searchText() || undefined,
-        searchScope: 'student_name',
-        isActive: true,
-        page: this.currentPage(),
-        pageSize: PAGE_SIZE,
-      })
+  private loadSchools(): void {
+    this.schoolsService
+      .list({ isActive: true })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
-          this.studentList.set(res.data);
-          this.totalStudents.set(res.meta?.total ?? res.data.length);
-          this.loadingList.set(false);
+          this.schoolOptionsState.set(
+            res.data
+              .map((school) => ({ label: school.name, value: school.id }))
+              .sort((a, b) => a.label.localeCompare(b.label, 'zh-Hant')),
+          );
         },
         error: () => {
-          this.studentList.set([]);
-          this.totalStudents.set(0);
-          this.loadingList.set(false);
+          this.schoolOptionsState.set([]);
         },
       });
   }
 
-  private loadScores(studentId: string): void {
-    this.loadingScores.set(true);
-    this.scoresService
-      .list({ studentId, pageSize: 200 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => {
-          const sorted = [...res.data].sort(
-            (a, b) => new Date(b.examDate).getTime() - new Date(a.examDate).getTime(),
+  private loadStudents(): void {
+    const requestToken = ++this.studentsRequestToken;
+    this.loadingList.set(true);
+
+    const baseParams = this.buildStudentQueryParams();
+
+    this.studentsService
+      .list({ ...baseParams, page: 1, pageSize: 100 })
+      .pipe(
+        switchMap((firstPage) => {
+          const totalPages =
+            firstPage.meta?.totalPages ??
+            Math.max(1, Math.ceil((firstPage.meta?.total ?? firstPage.data.length) / 100));
+
+          if (totalPages <= 1) {
+            return of(firstPage.data);
+          }
+
+          const requests = Array.from({ length: totalPages - 1 }, (_, index) => {
+            const page = index + 2;
+            return this.studentsService.list({ ...baseParams, page, pageSize: 100 });
+          });
+
+          return forkJoin(requests).pipe(
+            map((responses) => [firstPage, ...responses].flatMap((response) => response.data)),
           );
-          this.scores.set(sorted);
-          this.loadingScores.set(false);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (students) => {
+          if (requestToken !== this.studentsRequestToken) return;
+          this.rawStudents.set(students);
+          this.loadingList.set(false);
         },
         error: () => {
+          if (requestToken !== this.studentsRequestToken) return;
+          this.rawStudents.set([]);
+          this.loadingList.set(false);
           this.messageService.add({
             severity: 'error',
             summary: '載入失敗',
-            detail: '無法載入學生成績',
+            detail: '無法載入學生名單',
           });
-          this.loadingScores.set(false);
         },
       });
   }
 
-  private loadSummary(studentId: string): void {
-    this.loadingSummary.set(true);
-    this.scoresService
-      .getStudentSummary(studentId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => {
-          this.summary.set(res.data.subjects);
-          this.loadingSummary.set(false);
-        },
-        error: () => {
-          this.summary.set([]);
-          this.loadingSummary.set(false);
-        },
-      });
+  private buildStudentQueryParams(): StudentQueryParams {
+    return {
+      campusId: this.campusId() || undefined,
+      grade: this.gradeFilter() || undefined,
+      search: this.searchText() || undefined,
+      searchScope: 'student_name',
+      isActive: this.toIsActiveParam(this.activeStatusFilter()),
+    };
+  }
+
+  private toIsActiveParam(status: StudentActiveStatusFilter): boolean | undefined {
+    if (status === 'active') return true;
+    if (status === 'inactive') return false;
+    return undefined;
   }
 }

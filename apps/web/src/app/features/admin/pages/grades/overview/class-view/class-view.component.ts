@@ -13,10 +13,10 @@ import {
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
+import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectModule } from 'primeng/select';
-import { SelectButtonModule } from 'primeng/selectbutton';
-import { TagModule } from 'primeng/tag';
 import { InputTextModule } from 'primeng/inputtext';
+import { DialogService } from 'primeng/dynamicdialog';
 import { MessageService } from 'primeng/api';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -24,48 +24,33 @@ import {
   PageBreadcrumbComponent,
   type BreadcrumbItem,
 } from '@shared/components/page-breadcrumb/page-breadcrumb.component';
-import { ClassesService, type Class } from '@core/classes.service';
+import { type Class, ClassesService } from '@core/classes.service';
 import { ReferenceDataService } from '@core/reference-data.service';
+import { AcademyExamsService } from '@core/academy-exams.service';
 import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/students.service';
-import {
-  AcademyExamsService,
-  type AcademyExam,
-} from '@core/academy-exams.service';
-import {
-  ScoresService,
-  type ClassExamStats,
-  type ClassExamScore,
-  type ScoreRecordStatus,
-} from '@core/scores.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
+import { catchError, forkJoin, map, of } from 'rxjs';
 
-type ScoreStatusFilter = 'all' | ScoreRecordStatus;
-
-const SCORE_STATUS_OPTIONS: Array<{ label: string; value: ScoreStatusFilter }> = [
-  { label: '全部', value: 'all' },
-  { label: '已登錄', value: 'scored' },
-  { label: '缺考', value: 'absent' },
-  { label: '補考', value: 'makeup' },
-];
+import { ClassScoresDialogComponent } from './class-scores-dialog/class-scores-dialog.component';
+import {
+  ClassViewFilterDialogComponent,
+  type ClassViewFilterDialogResult,
+  type ClassViewFilterSnapshot,
+} from './class-view-filter-dialog/class-view-filter-dialog.component';
 
 interface ClassItem {
-  id: string;
-  name: string;
-  maxStudents: number;
-  gradeLabels: string;
+  readonly classInfo: Class;
+  readonly gradeLabels: string;
+  readonly gradeLevels: GradeLevel[];
 }
 
 interface CourseGroup {
-  courseId: string;
-  courseName: string;
-  subjectName: string;
-  gradeRange: string;
-  classes: ClassItem[];
-}
-
-interface ExamOption {
-  label: string;
-  value: string;
+  readonly courseId: string;
+  readonly courseName: string;
+  readonly subjectId: string | null;
+  readonly subjectName: string;
+  readonly gradeRange: string;
+  readonly classes: ClassItem[];
 }
 
 @Component({
@@ -73,9 +58,8 @@ interface ExamOption {
   standalone: true,
   imports: [
     FormsModule,
+    MultiSelectModule,
     SelectModule,
-    SelectButtonModule,
-    TagModule,
     InputTextModule,
     EmptyStateComponent,
     PageBreadcrumbComponent,
@@ -83,13 +67,13 @@ interface ExamOption {
   templateUrl: './class-view.component.html',
   styleUrl: './class-view.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  providers: [MessageService],
+  providers: [DialogService, MessageService],
 })
 export class ClassViewComponent implements OnInit {
   private readonly classesService = inject(ClassesService);
-  private readonly academyExamsService = inject(AcademyExamsService);
-  private readonly scoresService = inject(ScoresService);
   private readonly refData = inject(ReferenceDataService);
+  private readonly academyExamsService = inject(AcademyExamsService);
+  private readonly dialogService = inject(DialogService);
   private readonly messageService = inject(MessageService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -100,86 +84,92 @@ export class ClassViewComponent implements OnInit {
     { label: '班級視角' },
   ];
 
-  protected readonly scoreStatusOptions = SCORE_STATUS_OPTIONS;
+  protected readonly gradeOptions = GRADE_LEVELS.map((grade) => ({
+    label: GRADE_LEVEL_LABELS[grade],
+    value: grade,
+  }));
 
-  // Filters
   protected readonly campusId = signal<string>('');
   protected readonly searchText = signal('');
+  protected readonly selectedGrades = signal<GradeLevel[]>([]);
+  protected readonly subjectIdFilter = signal<string | null>(null);
+  protected readonly todoOnly = signal(false);
 
-  // Course groups
   protected readonly courseGroups = signal<CourseGroup[]>([]);
   protected readonly loadingGroups = signal(true);
+  protected readonly todoExamCountMap = signal<Record<string, number>>({});
+  protected readonly loadingTodoMap = signal(false);
 
-  // Selected class & exam
-  protected readonly selectedClassId = signal<string | null>(null);
-  protected readonly selectedClassName = signal<string>('');
-  protected readonly exams = signal<AcademyExam[]>([]);
-  protected readonly selectedExamId = signal<string | null>(null);
-  protected readonly loadingExams = signal(false);
-  protected readonly stats = signal<ClassExamStats | null>(null);
-  protected readonly loadingStats = signal(false);
-  protected readonly scoreStatusFilter = signal<ScoreStatusFilter>('all');
+  private todoMapRequestToken = 0;
 
   protected readonly campusOptions = computed(() =>
-    this.refData.campuses().map((c) => ({ label: c.name, value: c.id })),
+    this.refData.campuses().map((campus) => ({ label: campus.name, value: campus.id })),
   );
 
-  protected readonly filteredGroups = computed<CourseGroup[]>(() => {
-    const text = this.searchText().trim().toLowerCase();
-    if (!text) return this.courseGroups();
-    return this.courseGroups()
-      .map((g) => ({
-        ...g,
-        classes: g.classes.filter(
-          (c) =>
-            c.name.toLowerCase().includes(text) ||
-            g.courseName.toLowerCase().includes(text),
-        ),
-      }))
-      .filter((g) => g.classes.length > 0);
-  });
-
-  protected readonly examOptions = computed<ExamOption[]>(() =>
-    this.exams().map((e) => ({
-      label: `${e.name} (${e.examDate})`,
-      value: e.id,
+  protected readonly subjectOptions = computed(() =>
+    this.refData.subjects().map((subject) => ({
+      label: subject.name,
+      value: subject.id,
     })),
   );
 
-  protected readonly sortedScores = computed<ClassExamScore[]>(() => {
-    const s = this.stats();
-    if (!s) return [];
-    const statusFilter = this.scoreStatusFilter();
-    let result = [...s.scores];
-    if (statusFilter !== 'all') {
-      result = result.filter((r) => r.status === statusFilter);
-    }
-    return result.sort((a, b) => {
-      if (a.score === null && b.score === null) return 0;
-      if (a.score === null) return 1;
-      if (b.score === null) return -1;
-      return b.score - a.score;
-    });
+  protected readonly todoClassCount = computed(() =>
+    Object.values(this.todoExamCountMap()).filter((count) => count > 0).length,
+  );
+
+  protected readonly mobileFilterCount = computed(() => {
+    let count = 0;
+    if (this.selectedGrades().length > 0) count += 1;
+    if (this.subjectIdFilter()) count += 1;
+    return count;
+  });
+
+  protected readonly filteredGroups = computed<CourseGroup[]>(() => {
+    const text = this.searchText().trim().toLowerCase();
+    const selectedGrades = this.selectedGrades();
+    const selectedSubjectId = this.subjectIdFilter();
+    const todoOnly = this.todoOnly();
+
+    return this.courseGroups()
+      .filter((group) => !selectedSubjectId || group.subjectId === selectedSubjectId)
+      .map((group) => {
+        const classes = group.classes.filter((cls) => {
+          const matchesText =
+            !text ||
+            cls.classInfo.name.toLowerCase().includes(text) ||
+            group.courseName.toLowerCase().includes(text);
+          const matchesGrade =
+            selectedGrades.length === 0 ||
+            cls.gradeLevels.some((grade) => selectedGrades.includes(grade));
+          const matchesTodo = !todoOnly || this.getTodoExamCount(cls.classInfo.id) > 0;
+          return matchesText && matchesGrade && matchesTodo;
+        });
+
+        return {
+          ...group,
+          classes,
+        };
+      })
+      .filter((group) => group.classes.length > 0);
   });
 
   constructor() {
-    // Auto-select first campus once campuses are loaded (if user hasn't picked one yet)
     effect(() => {
-      const list = this.refData.campuses();
-      if (list.length === 0) return;
+      const campuses = this.refData.campuses();
+      if (campuses.length === 0) return;
       if (untracked(() => this.campusId())) return;
-      this.campusId.set(list[0].id);
+      this.campusId.set(campuses[0].id);
       this.loadGroups();
     });
   }
 
   ngOnInit(): void {
     this.refData.loadCampuses();
+    this.refData.loadSubjects();
   }
 
   protected onCampusChange(id: string): void {
     this.campusId.set(id);
-    this.resetSelection();
     this.loadGroups();
   }
 
@@ -187,68 +177,84 @@ export class ClassViewComponent implements OnInit {
     this.searchText.set(text);
   }
 
-  protected selectClass(cls: ClassItem): void {
-    if (this.selectedClassId() === cls.id) {
-      this.resetSelection();
-      return;
-    }
-    this.selectedClassId.set(cls.id);
-    this.selectedClassName.set(cls.name);
-    this.selectedExamId.set(null);
-    this.stats.set(null);
-    this.loadExamsForClass(cls.id);
+  protected onGradeFilterChange(values: GradeLevel[] | null): void {
+    this.selectedGrades.set(values ?? []);
   }
 
-  protected onExamChange(examId: string | null): void {
-    this.selectedExamId.set(examId);
-    this.stats.set(null);
-    this.scoreStatusFilter.set('all');
-
-    const classId = this.selectedClassId();
-    if (!examId || !classId) return;
-    this.loadStats(classId, examId);
+  protected onSubjectFilterChange(value: string | null): void {
+    this.subjectIdFilter.set(value);
   }
 
-  protected getStatusLabel(status: string): string {
-    switch (status) {
-      case 'scored':
-        return '已登錄';
-      case 'absent':
-        return '缺考';
-      case 'makeup':
-        return '補考';
-      default:
-        return status;
-    }
+  protected toggleTodoOnly(): void {
+    this.todoOnly.update((value) => !value);
   }
 
-  protected getStatusSeverity(status: string): 'success' | 'danger' | 'warn' | 'info' {
-    switch (status) {
-      case 'scored':
-        return 'success';
-      case 'absent':
-        return 'danger';
-      case 'makeup':
-        return 'warn';
-      default:
-        return 'info';
-    }
+  protected openMobileFilterDialog(): void {
+    const ref = this.dialogService.open(ClassViewFilterDialogComponent, {
+      width: 'min(420px, 95vw)',
+      modal: true,
+      showHeader: false,
+      appendTo: 'body',
+      data: {
+        initial: {
+          campusId: this.campusId(),
+          search: this.searchText(),
+          selectedGrades: this.selectedGrades(),
+          subjectId: this.subjectIdFilter(),
+        },
+        options: {
+          campusOptions: this.campusOptions(),
+          gradeOptions: this.gradeOptions,
+          subjectOptions: this.subjectOptions(),
+        },
+      },
+    });
+
+    if (!ref) return;
+
+    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result?: ClassViewFilterDialogResult) => {
+      if (!result) return;
+      if (result.cleared) {
+        this.searchText.set('');
+        this.selectedGrades.set([]);
+        this.subjectIdFilter.set(null);
+        return;
+      }
+      if (!result.snapshot) return;
+      this.applyMobileFilterSnapshot(result.snapshot);
+    });
   }
 
-  private resetSelection(): void {
-    this.selectedClassId.set(null);
-    this.selectedClassName.set('');
-    this.selectedExamId.set(null);
-    this.exams.set([]);
-    this.stats.set(null);
+  protected getTodoExamCount(classId: string): number {
+    return this.todoExamCountMap()[classId] ?? 0;
+  }
+
+  protected openClassScores(cls: Class, todoOnly = false): void {
+    this.dialogService.open(ClassScoresDialogComponent, {
+      width: 'min(900px, 95vw)',
+      modal: true,
+      showHeader: false,
+      appendTo: 'body',
+      contentStyle: {
+        'max-height': 'calc(var(--window-height, 800px) * 0.85)',
+        overflow: 'auto',
+      },
+      data: {
+        class: cls,
+        campusId: this.campusId() || null,
+        todoOnly,
+      },
+    });
   }
 
   private loadGroups(): void {
     if (!this.campusId()) {
       this.courseGroups.set([]);
+      this.todoExamCountMap.set({});
       this.loadingGroups.set(false);
       return;
     }
+
     this.loadingGroups.set(true);
     this.classesService
       .list({
@@ -260,6 +266,7 @@ export class ClassViewComponent implements OnInit {
       .subscribe({
         next: ({ data: classes }) => {
           this.courseGroups.set(this.buildCourseGroups(classes));
+          this.loadTodoExamCounts(classes);
           this.loadingGroups.set(false);
         },
         error: () => {
@@ -269,8 +276,42 @@ export class ClassViewComponent implements OnInit {
             detail: '無法載入課程/班級列表',
           });
           this.courseGroups.set([]);
+          this.todoExamCountMap.set({});
           this.loadingGroups.set(false);
         },
+      });
+  }
+
+  private loadTodoExamCounts(classes: Class[]): void {
+    const token = ++this.todoMapRequestToken;
+    const classIds = classes.map((cls) => cls.id);
+
+    if (classIds.length === 0) {
+      this.todoExamCountMap.set({});
+      this.loadingTodoMap.set(false);
+      return;
+    }
+
+    this.loadingTodoMap.set(true);
+    const requests = classIds.map((classId) =>
+      this.academyExamsService.list({ classId, todo: true, pageSize: 1 }).pipe(
+        map((res) => ({ classId, count: res.meta.total })),
+        catchError(() => of({ classId, count: 0 })),
+      ),
+    );
+
+    forkJoin(requests)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((items) => {
+        if (token !== this.todoMapRequestToken) return;
+
+        const next: Record<string, number> = {};
+        for (const item of items) {
+          next[item.classId] = item.count;
+        }
+
+        this.todoExamCountMap.set(next);
+        this.loadingTodoMap.set(false);
       });
   }
 
@@ -278,14 +319,17 @@ export class ClassViewComponent implements OnInit {
     const groups = new Map<string, CourseGroup>();
 
     for (const cls of classes) {
-      const existing = groups.get(cls.courseId);
+      const validGradeLevels = cls.gradeLevels.filter((grade): grade is GradeLevel =>
+        (GRADE_LEVELS as readonly string[]).includes(grade),
+      );
+
       const classItem: ClassItem = {
-        id: cls.id,
-        name: cls.name,
-        maxStudents: cls.maxStudents,
-        gradeLabels: this.formatGradeRange(cls.gradeLevels),
+        classInfo: cls,
+        gradeLabels: this.formatGradeRange(validGradeLevels),
+        gradeLevels: validGradeLevels,
       };
 
+      const existing = groups.get(cls.courseId);
       if (existing) {
         existing.classes.push(classItem);
         continue;
@@ -294,8 +338,9 @@ export class ClassViewComponent implements OnInit {
       groups.set(cls.courseId, {
         courseId: cls.courseId,
         courseName: cls.courseName ?? '未命名課程',
+        subjectId: cls.subjectId ?? null,
         subjectName: cls.subjectName ?? '未指定科目',
-        gradeRange: this.formatGradeRange(cls.gradeLevels),
+        gradeRange: this.formatGradeRange(validGradeLevels),
         classes: [classItem],
       });
     }
@@ -303,60 +348,26 @@ export class ClassViewComponent implements OnInit {
     return Array.from(groups.values());
   }
 
-  private formatGradeRange(levels: string[]): string {
-    if (!levels || levels.length === 0) return '';
-    const valid = levels.filter((g): g is GradeLevel =>
-      (GRADE_LEVELS as readonly string[]).includes(g),
-    );
-    if (valid.length === 0) return '';
-    if (valid.length === 1) return GRADE_LEVEL_LABELS[valid[0]];
-    const sorted = [...valid].sort(
-      (a, b) => GRADE_LEVELS.indexOf(a) - GRADE_LEVELS.indexOf(b),
-    );
+  private formatGradeRange(levels: GradeLevel[]): string {
+    if (levels.length === 0) return '';
+    if (levels.length === 1) return GRADE_LEVEL_LABELS[levels[0]];
+
+    const sorted = [...levels].sort((a, b) => GRADE_LEVELS.indexOf(a) - GRADE_LEVELS.indexOf(b));
     const first = GRADE_LEVEL_LABELS[sorted[0]];
     const last = GRADE_LEVEL_LABELS[sorted[sorted.length - 1]];
     return first === last ? first : `${first}～${last}`;
   }
 
-  private loadExamsForClass(classId: string): void {
-    this.loadingExams.set(true);
-    this.academyExamsService
-      .list({ classId, pageSize: 200 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => {
-          this.exams.set(res.data);
-          this.loadingExams.set(false);
-        },
-        error: () => {
-          this.messageService.add({
-            severity: 'error',
-            summary: '載入失敗',
-            detail: '無法載入考試列表',
-          });
-          this.loadingExams.set(false);
-        },
-      });
-  }
+  private applyMobileFilterSnapshot(snapshot: ClassViewFilterSnapshot): void {
+    const prevCampusId = this.campusId();
+    const nextCampusId = snapshot.campusId;
 
-  private loadStats(classId: string, examId: string): void {
-    this.loadingStats.set(true);
-    this.scoresService
-      .getClassExamStats(classId, examId)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => {
-          this.stats.set(res.data);
-          this.loadingStats.set(false);
-        },
-        error: () => {
-          this.messageService.add({
-            severity: 'error',
-            summary: '載入失敗',
-            detail: '無法載入班級成績統計',
-          });
-          this.loadingStats.set(false);
-        },
-      });
+    this.searchText.set(snapshot.search);
+    this.selectedGrades.set(snapshot.selectedGrades);
+    this.subjectIdFilter.set(snapshot.subjectId);
+
+    if (prevCampusId !== nextCampusId) {
+      this.onCampusChange(nextCampusId);
+    }
   }
 }

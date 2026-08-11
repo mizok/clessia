@@ -153,6 +153,8 @@ describe('ScoreEntryComponent', () => {
         academicYear: 114,
         semester: 2,
         examType: 'term_exam',
+        subjectId: 's1',
+        subjectName: '國文',
         name: null,
         label: '114-2 段考',
         examDate: '2026-04-10',
@@ -175,6 +177,7 @@ describe('ScoreEntryComponent', () => {
 
     expect(component['type']()).toBe('school');
     expect(component['examInfo']()?.name).toBe('114-2 段考');
+    expect(component['examInfo']()?.metaLine).toContain('科目：國文');
     expect(component['summaryStats']()?.recordedCount).toBe(15);
   });
 

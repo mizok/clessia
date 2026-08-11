@@ -1,8 +1,7 @@
 <div class="student-view">
   <app-page-breadcrumb [items]="breadcrumbs" />
 
-  <!-- Toolbar: Campus + Search + Grade -->
-  <div class="student-view__toolbar">
+  <div class="student-view__toolbar student-view__toolbar--desktop">
     <p-select
       [options]="campusOptions()"
       [ngModel]="campusId()"
@@ -14,6 +13,7 @@
       size="small"
       styleClass="student-view__campus-select"
     />
+
     <div class="student-view__search">
       <i class="pi pi-search student-view__search-icon"></i>
       <input
@@ -25,6 +25,7 @@
         class="student-view__search-input"
       />
     </div>
+
     <p-select
       [options]="gradeOptions"
       [ngModel]="gradeFilter()"
@@ -36,15 +37,46 @@
       size="small"
       styleClass="student-view__grade-select"
     />
+
+    <p-select
+      [options]="schoolOptions()"
+      [ngModel]="schoolIdFilter()"
+      (ngModelChange)="onSchoolChange($event)"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="全部學校"
+      [showClear]="true"
+      size="small"
+      styleClass="student-view__school-select"
+    />
+
+    <p-select
+      [options]="statusOptions"
+      [ngModel]="activeStatusFilter()"
+      (ngModelChange)="onActiveStatusChange($event)"
+      optionLabel="label"
+      optionValue="value"
+      size="small"
+      styleClass="student-view__status-select"
+    />
   </div>
 
-  <!-- Student list -->
+  <div class="student-view__toolbar student-view__toolbar--mobile">
+    <p-button
+      label="篩選"
+      icon="pi pi-sliders-h"
+      severity="secondary"
+      [outlined]="true"
+      (onClick)="openMobileFilterDialog()"
+    />
+  </div>
+
   @if (loadingList()) {
     <div class="student-view__loading">
       <i class="pi pi-spinner pi-spin"></i>
       載入學生名單...
     </div>
-  } @else if (studentList().length === 0) {
+  } @else if (pagedStudents().length === 0) {
     <app-empty-state
       icon="pi pi-users"
       title="無符合的學生"
@@ -52,7 +84,7 @@
     />
   } @else {
     <div class="student-view__list">
-      @for (s of studentList(); track s.id) {
+      @for (s of pagedStudents(); track s.id) {
         <button type="button" class="student-view__row" (click)="selectStudent(s)">
           <app-jdenticon-avatar class="student-view__row-avatar" [value]="s.id" [size]="44" />
           <div class="student-view__row-main">
@@ -76,12 +108,11 @@
       }
     </div>
 
-    <!-- Pagination -->
-    @if (totalStudents() > PAGE_SIZE) {
+    @if (totalStudents() > pageSize) {
       <div class="student-view__pagination">
         <p-paginator
-          [first]="(currentPage() - 1) * PAGE_SIZE"
-          [rows]="PAGE_SIZE"
+          [first]="(currentPage() - 1) * pageSize"
+          [rows]="pageSize"
           [totalRecords]="totalStudents()"
           [showCurrentPageReport]="true"
           currentPageReportTemplate="顯示 {first} - {last}，共 {totalRecords} 位學生"
@@ -90,228 +121,4 @@
       </div>
     }
   }
-
-  <!-- Score Detail Dialog -->
-  <p-dialog
-    [(visible)]="dialogVisible"
-    [modal]="true"
-    [closable]="true"
-    [draggable]="false"
-    [resizable]="false"
-    [appendTo]="'body'"
-    [style]="{ width: '720px', maxWidth: '95vw' }"
-    [contentStyle]="{ 'max-height': 'calc(var(--window-height, 667px) * 0.65)', overflow: 'auto' }"
-    (onHide)="onDialogHide()"
-    styleClass="student-view__dialog"
-  >
-    <ng-template #header>
-      @if (selectedStudent(); as s) {
-        <div class="student-view__dialog-header">
-          <app-jdenticon-avatar [value]="s.id" [size]="36" />
-          <div class="student-view__dialog-header-text">
-            <span class="student-view__dialog-name">{{ s.name }}</span>
-            <span class="student-view__dialog-grade">{{ formatGrade(s.grade) }}</span>
-          </div>
-        </div>
-      }
-    </ng-template>
-
-    @if (selectedStudent()) {
-      <div class="student-view__dialog-body">
-        <!-- Subject Summary Cards -->
-        @if (loadingSummary()) {
-          <div class="student-view__loading student-view__loading--inline">
-            <i class="pi pi-spinner pi-spin"></i>
-            載入科目摘要...
-          </div>
-        } @else if (summary().length > 0) {
-          <div class="student-view__summary">
-            @for (subj of summary(); track subj.subjectName) {
-              <div class="student-view__summary-card">
-                <span class="student-view__summary-subject">{{ subj.subjectName }}</span>
-                <div class="student-view__summary-scores">
-                  <div class="student-view__summary-item">
-                    <span class="student-view__summary-label">
-                      近期小考
-                      <i
-                        class="pi pi-info-circle student-view__summary-info"
-                        pTooltip="最近一次段考之後的補習班考試平均；若無段考紀錄則取全部歷史。"
-                        tooltipPosition="top"
-                      ></i>
-                    </span>
-                    <span
-                      class="student-view__summary-value"
-                      [class.student-view__summary-value--fail]="
-                        subj.academyAvg !== null && subj.academyAvg < 60
-                      "
-                    >
-                      {{ formatAvg(subj.academyAvg) }}
-                    </span>
-                  </div>
-                  <div class="student-view__summary-item">
-                    <span class="student-view__summary-label">最近段考</span>
-                    <span
-                      class="student-view__summary-value"
-                      [class.student-view__summary-value--fail]="
-                        subj.schoolAvg !== null && subj.schoolAvg < 60
-                      "
-                    >
-                      {{ formatAvg(subj.schoolAvg) }}
-                    </span>
-                  </div>
-                </div>
-                <span class="student-view__summary-count">{{ subj.totalRecords }} 筆</span>
-              </div>
-            }
-          </div>
-        }
-
-        <!-- Score Filters -->
-        <div class="student-view__filters">
-          <div class="student-view__filter-row">
-            <p-select
-              [options]="typeOptions"
-              [ngModel]="typeFilter()"
-              (ngModelChange)="typeFilter.set($event)"
-              optionLabel="label"
-              optionValue="value"
-              size="small"
-              [appendTo]="'body'"
-              styleClass="student-view__type-select"
-            />
-            <p-select
-              [options]="subjectOptions()"
-              [ngModel]="subjectFilter()"
-              (ngModelChange)="subjectFilter.set($event)"
-              optionLabel="label"
-              optionValue="value"
-              placeholder="全部科目"
-              [showClear]="true"
-              size="small"
-              [appendTo]="'body'"
-              styleClass="student-view__subject-select"
-            />
-          </div>
-          <p-selectbutton
-            [options]="timeRangeOptions"
-            [ngModel]="timeRange()"
-            (ngModelChange)="timeRange.set($event)"
-            optionLabel="label"
-            optionValue="value"
-            size="small"
-          />
-        </div>
-
-        <!-- Result count -->
-        @if (!loadingScores() && scores().length > 0) {
-          <div class="student-view__result-bar">
-            <span class="student-view__result-count">
-              顯示 <strong>{{ filteredScores().length }}</strong> / {{ scores().length }} 筆
-            </span>
-          </div>
-        }
-
-        @if (loadingScores()) {
-          <div class="student-view__loading student-view__loading--inline">
-            <i class="pi pi-spinner pi-spin"></i>
-            載入成績中...
-          </div>
-        } @else if (filteredScores().length === 0) {
-          <app-empty-state
-            icon="pi pi-chart-bar"
-            title="尚無成績紀錄"
-            description="此學生目前沒有符合篩選條件的成績"
-          />
-        } @else {
-          <!-- Desktop table -->
-          <div class="student-view__table-wrap">
-            <table class="student-view__table">
-              <thead>
-                <tr>
-                  <th class="student-view__th">日期</th>
-                  <th class="student-view__th">考試名稱</th>
-                  <th class="student-view__th">類型</th>
-                  <th class="student-view__th">科目</th>
-                  <th class="student-view__th student-view__th--score">分數</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (record of pagedScores(); track record.id) {
-                  <tr class="student-view__score-row">
-                    <td class="student-view__cell student-view__cell--date">
-                      {{ record.examDate }}
-                    </td>
-                    <td class="student-view__cell">{{ record.examName }}</td>
-                    <td class="student-view__cell">
-                      <p-tag
-                        [value]="getTypeLabel(record.type)"
-                        [severity]="getTypeSeverity(record.type)"
-                      />
-                    </td>
-                    <td class="student-view__cell">{{ record.subjectName ?? '—' }}</td>
-                    <td
-                      class="student-view__cell student-view__cell--score"
-                      [class.student-view__cell--fail]="record.score !== null && record.score < 60"
-                    >
-                      @if (record.score !== null && record.score < 60) {
-                        <i
-                          class="pi pi-exclamation-triangle student-view__fail-icon"
-                          aria-label="不及格"
-                        ></i>
-                      }
-                      {{ formatScore(record.score, record.totalScore) }}
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Mobile cards -->
-          <div class="student-view__record-cards">
-            @for (record of pagedScores(); track record.id) {
-              <article class="student-view__record-card">
-                <div class="student-view__record-top">
-                  <div class="student-view__record-meta">
-                    <span class="student-view__record-date">{{ record.examDate }}</span>
-                    <span class="student-view__record-name">{{ record.examName }}</span>
-                  </div>
-                  <p-tag
-                    [value]="getTypeLabel(record.type)"
-                    [severity]="getTypeSeverity(record.type)"
-                  />
-                </div>
-                <div class="student-view__record-grid">
-                  <div class="student-view__record-field">
-                    <span class="student-view__record-label">科目</span>
-                    <span class="student-view__record-value">{{ record.subjectName ?? '—' }}</span>
-                  </div>
-                  <div class="student-view__record-field">
-                    <span class="student-view__record-label">分數</span>
-                    <span
-                      class="student-view__record-value student-view__record-value--score"
-                      [class.student-view__record-value--fail]="
-                        record.score !== null && record.score < 60
-                      "
-                    >
-                      {{ formatScore(record.score, record.totalScore) }}
-                    </span>
-                  </div>
-                </div>
-              </article>
-            }
-          </div>
-
-          @if (filteredScores().length > SCORE_PAGE_SIZE) {
-            <p-paginator
-              [rows]="SCORE_PAGE_SIZE"
-              [totalRecords]="filteredScores().length"
-              [first]="scorePage() * SCORE_PAGE_SIZE"
-              (onPageChange)="onScorePageChange($event)"
-            />
-          }
-        }
-      </div>
-    }
-  </p-dialog>
 </div>

@@ -13,19 +13,23 @@
     align-items: center;
     gap: var(--space-3);
     flex-wrap: wrap;
+
+    &--mobile {
+      display: none;
+    }
   }
 
-  &__campus-select {
-    min-width: 160px;
-  }
-
-  &__grade-select {
-    min-width: 140px;
+  &__campus-select,
+  &__grade-select,
+  &__school-select,
+  &__status-select {
+    min-width: 150px;
   }
 
   &__search {
     position: relative;
     flex: 1;
+    min-width: 220px;
     max-width: 360px;
   }
 
@@ -72,7 +76,6 @@
       outline: 2px solid var(--sky-500);
       outline-offset: 2px;
     }
-
   }
 
   &__row-avatar {
@@ -154,222 +157,6 @@
     font-size: var(--text-sm);
   }
 
-  &__pagination {
-    display: flex;
-    justify-content: center;
-    margin-top: var(--space-2);
-  }
-
-  // Dialog header
-  &__dialog-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-  }
-
-  &__dialog-header-text {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-
-  &__dialog-name {
-    font-size: var(--text-lg);
-    font-weight: var(--font-semibold);
-    color: var(--zinc-900);
-  }
-
-  &__dialog-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-  }
-
-  &__dialog-grade {
-    display: inline-flex;
-    align-items: center;
-    padding: 1px var(--space-2);
-    border-radius: var(--radius-sm);
-    background: var(--sky-50, #f0f9ff);
-    color: var(--sky-700, #0369a1);
-    font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
-  }
-
-  &__summary {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: var(--space-3);
-  }
-
-  &__summary-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-4);
-    background: #fff;
-    border: 1px solid var(--zinc-200);
-    border-radius: var(--radius-lg);
-  }
-
-  &__summary-subject {
-    font-weight: var(--font-semibold);
-    font-size: var(--text-sm);
-    color: var(--zinc-800);
-  }
-
-  &__summary-scores {
-    display: flex;
-    gap: var(--space-4);
-  }
-
-  &__summary-item {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  &__summary-label {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    font-size: var(--text-xs);
-    color: var(--zinc-500);
-  }
-
-  &__summary-info {
-    font-size: 0.85em;
-    color: var(--zinc-400);
-    cursor: help;
-    transition: color 150ms ease-out;
-
-    &:hover {
-      color: var(--zinc-600);
-    }
-  }
-
-  &__summary-value {
-    font-size: var(--text-lg);
-    font-weight: var(--font-bold);
-    color: var(--zinc-900);
-    font-variant-numeric: tabular-nums;
-
-    &--fail {
-      color: var(--red-600, #dc2626);
-    }
-  }
-
-  &__summary-count {
-    font-size: var(--text-xs);
-    color: var(--zinc-400);
-  }
-
-  &__filters {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  &__filter-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-  }
-
-  &__type-select {
-    min-width: 140px;
-  }
-
-  &__subject-select {
-    min-width: 160px;
-  }
-
-  &__result-bar {
-    display: flex;
-    align-items: center;
-  }
-
-  &__result-count {
-    font-size: var(--text-sm);
-    color: var(--zinc-500);
-
-    strong {
-      font-weight: var(--font-semibold);
-      color: var(--zinc-700);
-    }
-  }
-
-  &__record-cards {
-    display: none;
-    gap: var(--space-3);
-  }
-
-  &__record-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    border: 1px solid var(--zinc-200);
-    border-radius: var(--radius-lg);
-    background: linear-gradient(180deg, #fff, var(--zinc-50));
-  }
-
-  &__record-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-3);
-  }
-
-  &__record-meta {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-
-  &__record-date,
-  &__record-label {
-    font-size: var(--text-xs);
-    font-weight: var(--font-semibold);
-    color: var(--zinc-500);
-  }
-
-  &__record-name {
-    font-size: var(--text-md);
-    font-weight: var(--font-semibold);
-    color: var(--zinc-900);
-  }
-
-  &__record-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-3);
-  }
-
-  &__record-field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    padding: var(--space-3);
-    border-radius: var(--radius-md);
-    background: #fff;
-  }
-
-  &__record-value {
-    color: var(--zinc-800);
-
-    &--score {
-      font-size: var(--text-lg);
-      font-weight: var(--font-bold);
-      font-variant-numeric: tabular-nums;
-    }
-
-    &--fail {
-      color: var(--red-600, #dc2626);
-    }
-  }
-
   &__loading {
     display: flex;
     align-items: center;
@@ -378,71 +165,12 @@
     padding: var(--space-8);
     font-size: var(--text-sm);
     color: var(--zinc-500);
-
-    &--inline {
-      padding: var(--space-4);
-    }
   }
 
-  &__table-wrap {
-    overflow-x: auto;
-    background: #fff;
-    border: 1px solid var(--zinc-200);
-    border-radius: var(--radius-lg);
-  }
-
-  &__table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--text-sm);
-  }
-
-  &__th {
-    text-align: left;
-    padding: var(--space-3) var(--space-4);
-    font-weight: var(--font-semibold);
-    color: var(--zinc-600);
-    border-bottom: 1px solid var(--zinc-200);
-    white-space: nowrap;
-
-    &--score {
-      text-align: right;
-    }
-  }
-
-  &__score-row {
-    transition: background-color 150ms ease-out;
-
-    &:hover {
-      background: var(--zinc-50);
-    }
-  }
-
-  &__cell {
-    padding: var(--space-2) var(--space-4);
-    border-bottom: 1px solid var(--zinc-100);
-    vertical-align: middle;
-
-    &--date {
-      font-variant-numeric: tabular-nums;
-      color: var(--zinc-700);
-      white-space: nowrap;
-    }
-
-    &--score {
-      text-align: right;
-      font-weight: var(--font-semibold);
-      font-variant-numeric: tabular-nums;
-    }
-
-    &--fail {
-      color: var(--red-600, #dc2626);
-    }
-  }
-
-  &__fail-icon {
-    font-size: var(--text-xs);
-    margin-right: var(--space-1);
+  &__pagination {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--space-2);
   }
 }
 
@@ -452,44 +180,17 @@
     gap: var(--space-3);
 
     &__toolbar {
-      flex-direction: column;
-      align-items: stretch;
+      &--desktop {
+        display: none;
+      }
+
+      &--mobile {
+        display: flex;
+      }
     }
 
-    &__campus-select,
-    &__grade-select,
-    &__search {
-      width: 100%;
-      max-width: none;
-      min-width: 0;
-    }
-
-    &__filter-row {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    &__type-select,
-    &__subject-select {
-      width: 100%;
-      min-width: 0;
-    }
-
-    &__summary {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    &__summary-scores {
-      flex-direction: column;
-      gap: var(--space-2);
-    }
-
-    &__table-wrap {
-      display: none;
-    }
-
-    &__record-cards {
-      display: grid;
+    &__row {
+      padding: var(--space-3);
     }
   }
 }

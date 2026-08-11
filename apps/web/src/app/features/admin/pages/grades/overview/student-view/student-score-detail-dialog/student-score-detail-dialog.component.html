@@ -1,0 +1,196 @@
+<div class="student-score-detail-dialog">
+  @if (student; as s) {
+    <div class="dialog-header-inline">
+      <div class="dialog-header-inline__content student-score-detail-dialog__header-content">
+        <app-jdenticon-avatar [value]="s.id" [size]="36" />
+        <div class="student-score-detail-dialog__header-text">
+          <span class="student-score-detail-dialog__name">{{ s.name }}</span>
+          <span class="student-score-detail-dialog__grade">{{ formatGrade(s.grade) }}</span>
+        </div>
+      </div>
+      <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="關閉">
+        <i class="pi pi-times"></i>
+      </button>
+    </div>
+
+    <div class="student-score-detail-dialog__body">
+      @if (loadingSummary()) {
+        <div class="student-score-detail-dialog__loading student-score-detail-dialog__loading--inline">
+          <i class="pi pi-spinner pi-spin"></i>
+          載入科目摘要...
+        </div>
+      } @else if (summary().length > 0) {
+        <div class="student-score-detail-dialog__summary">
+          @for (subj of summary(); track subj.subjectName) {
+            <div class="student-score-detail-dialog__summary-card">
+              <span class="student-score-detail-dialog__summary-subject">{{ subj.subjectName }}</span>
+              <div class="student-score-detail-dialog__summary-scores">
+                <div class="student-score-detail-dialog__summary-item">
+                  <span class="student-score-detail-dialog__summary-label">
+                    近期小考
+                    <i
+                      class="pi pi-info-circle student-score-detail-dialog__summary-info"
+                      pTooltip="最近一次段考之後的補習班考試平均；若無段考紀錄則取全部歷史。"
+                      tooltipPosition="top"
+                    ></i>
+                  </span>
+                  <span
+                    class="student-score-detail-dialog__summary-value"
+                    [class.student-score-detail-dialog__summary-value--fail]="
+                      subj.academyAvg !== null && subj.academyAvg < 60
+                    "
+                  >
+                    {{ formatAvg(subj.academyAvg) }}
+                  </span>
+                </div>
+                <div class="student-score-detail-dialog__summary-item">
+                  <span class="student-score-detail-dialog__summary-label">最近段考</span>
+                  <span
+                    class="student-score-detail-dialog__summary-value"
+                    [class.student-score-detail-dialog__summary-value--fail]="
+                      subj.schoolAvg !== null && subj.schoolAvg < 60
+                    "
+                  >
+                    {{ formatAvg(subj.schoolAvg) }}
+                  </span>
+                </div>
+              </div>
+              <span class="student-score-detail-dialog__summary-count">{{ subj.totalRecords }} 筆</span>
+            </div>
+          }
+        </div>
+      }
+
+      <div class="student-score-detail-dialog__filters">
+        <div class="student-score-detail-dialog__filter-row">
+          <p-select
+            [options]="typeOptions"
+            [ngModel]="typeFilter()"
+            (ngModelChange)="onTypeChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            size="small"
+            [appendTo]="'body'"
+            styleClass="student-score-detail-dialog__type-select"
+          />
+          <p-select
+            [options]="subjectOptions()"
+            [ngModel]="subjectFilter()"
+            (ngModelChange)="onSubjectChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="全部科目"
+            [showClear]="true"
+            size="small"
+            [appendTo]="'body'"
+            styleClass="student-score-detail-dialog__subject-select"
+          />
+        </div>
+        <p-selectbutton
+          [options]="timeRangeOptions"
+          [ngModel]="timeRange()"
+          (ngModelChange)="onTimeRangeChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          size="small"
+        />
+      </div>
+
+      @if (!loadingScores() && scores().length > 0) {
+        <div class="student-score-detail-dialog__result-bar">
+          <span class="student-score-detail-dialog__result-count">
+            顯示 <strong>{{ filteredScores().length }}</strong> / {{ scores().length }} 筆
+          </span>
+        </div>
+      }
+
+      @if (loadingScores()) {
+        <div class="student-score-detail-dialog__loading student-score-detail-dialog__loading--inline">
+          <i class="pi pi-spinner pi-spin"></i>
+          載入成績中...
+        </div>
+      } @else if (filteredScores().length === 0) {
+        <app-empty-state icon="pi pi-chart-bar" title="尚無成績紀錄" description="此學生目前沒有符合篩選條件的成績" />
+      } @else {
+        <div class="student-score-detail-dialog__table-wrap">
+          <table class="student-score-detail-dialog__table">
+            <thead>
+              <tr>
+                <th class="student-score-detail-dialog__th">日期</th>
+                <th class="student-score-detail-dialog__th">考試名稱</th>
+                <th class="student-score-detail-dialog__th">類型</th>
+                <th class="student-score-detail-dialog__th">科目</th>
+                <th class="student-score-detail-dialog__th student-score-detail-dialog__th--score">分數</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (record of pagedScores(); track record.id) {
+                <tr class="student-score-detail-dialog__score-row">
+                  <td class="student-score-detail-dialog__cell student-score-detail-dialog__cell--date">
+                    {{ record.examDate }}
+                  </td>
+                  <td class="student-score-detail-dialog__cell">{{ record.examName }}</td>
+                  <td class="student-score-detail-dialog__cell">
+                    <p-tag [value]="getTypeLabel(record.type)" [severity]="getTypeSeverity(record.type)" />
+                  </td>
+                  <td class="student-score-detail-dialog__cell">{{ record.subjectName ?? '—' }}</td>
+                  <td
+                    class="student-score-detail-dialog__cell student-score-detail-dialog__cell--score"
+                    [class.student-score-detail-dialog__cell--fail]="
+                      record.score !== null && record.score < 60
+                    "
+                  >
+                    @if (record.score !== null && record.score < 60) {
+                      <i class="pi pi-exclamation-triangle student-score-detail-dialog__fail-icon" aria-label="不及格"></i>
+                    }
+                    {{ formatScore(record.score, record.totalScore) }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="student-score-detail-dialog__record-cards">
+          @for (record of pagedScores(); track record.id) {
+            <article class="student-score-detail-dialog__record-card">
+              <div class="student-score-detail-dialog__record-top">
+                <div class="student-score-detail-dialog__record-meta">
+                  <span class="student-score-detail-dialog__record-date">{{ record.examDate }}</span>
+                  <span class="student-score-detail-dialog__record-name">{{ record.examName }}</span>
+                </div>
+                <p-tag [value]="getTypeLabel(record.type)" [severity]="getTypeSeverity(record.type)" />
+              </div>
+              <div class="student-score-detail-dialog__record-grid">
+                <div class="student-score-detail-dialog__record-field">
+                  <span class="student-score-detail-dialog__record-label">科目</span>
+                  <span class="student-score-detail-dialog__record-value">{{ record.subjectName ?? '—' }}</span>
+                </div>
+                <div class="student-score-detail-dialog__record-field">
+                  <span class="student-score-detail-dialog__record-label">分數</span>
+                  <span
+                    class="student-score-detail-dialog__record-value student-score-detail-dialog__record-value--score"
+                    [class.student-score-detail-dialog__record-value--fail]="
+                      record.score !== null && record.score < 60
+                    "
+                  >
+                    {{ formatScore(record.score, record.totalScore) }}
+                  </span>
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+
+        @if (filteredScores().length > scorePageSize) {
+          <p-paginator
+            [rows]="scorePageSize"
+            [totalRecords]="filteredScores().length"
+            [first]="scorePage() * scorePageSize"
+            (onPageChange)="onScorePageChange($event)"
+          />
+        }
+      }
+    </div>
+  }
+</div>

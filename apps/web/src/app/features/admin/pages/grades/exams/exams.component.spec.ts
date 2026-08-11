@@ -54,6 +54,8 @@ describe('ExamsComponent', () => {
       academicYear: 114,
       semester: 2,
       examType: 'term_exam',
+      subjectId: null,
+      subjectName: null,
       name: null,
       label: '114-2 段考',
       examDate: '2026-04-10',
@@ -66,17 +68,41 @@ describe('ExamsComponent', () => {
     },
   ];
 
-  beforeEach(async () => {
-    // 確保 ReferenceDataService 不會在 ngOnInit 對 campuses/subjects API 發出真實請求
-    const refDataStub = {
-      campuses: () => [],
-      subjects: () => [],
-      teachers: () => [],
-      loadCampuses: () => undefined,
-      loadSubjects: () => undefined,
-      loadTeachers: () => undefined,
-    };
+  const refDataStub = {
+    campuses: () => [],
+    subjects: () => [],
+    teachers: () => [],
+    loadCampuses: () => undefined,
+    loadSubjects: () => undefined,
+    loadTeachers: () => undefined,
+  };
 
+  function flushInitialRequests(): void {
+    const academyListReq = http.expectOne((req) =>
+      req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+      req.params.get('page') === '1' &&
+      req.params.get('pageSize') === '8',
+    );
+    academyListReq.flush({ data: mockAcademyExams, meta: { total: 2, page: 1, pageSize: 8 } });
+
+    const academyTodoReq = http.expectOne(`${environment.apiUrl}/api/academy-exams/todo-count`);
+    academyTodoReq.flush({ count: 2 });
+
+    const schoolTodoReq = http.expectOne(`${environment.apiUrl}/api/school-exams/todo-count`);
+    schoolTodoReq.flush({ count: 1 });
+
+    const schoolsReq = http.expectOne((req) =>
+      req.url === `${environment.apiUrl}/api/schools` && req.params.get('isActive') === 'true',
+    );
+    schoolsReq.flush({
+      data: [{ id: 'sch-1', name: '測試國中', shortName: '測中', isActive: true, studentCount: 10, createdAt: '', updatedAt: '' }],
+      meta: { total: 1 },
+    });
+
+    fixture.detectChanges();
+  }
+
+  beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ExamsComponent],
       providers: [
@@ -92,25 +118,8 @@ describe('ExamsComponent', () => {
     component = fixture.componentInstance;
     http = TestBed.inject(HttpTestingController);
 
-    fixture.detectChanges(); // ngOnInit
-
-    // 攔截並回應兩個列表請求
-    const academyReq = http.expectOne((req) =>
-      req.url.startsWith(`${environment.apiUrl}/api/academy-exams`),
-    );
-    academyReq.flush({
-      data: mockAcademyExams,
-      meta: { total: mockAcademyExams.length, page: 1, pageSize: 200 },
-    });
-
-    const termReq = http.expectOne((req) =>
-      req.url.startsWith(`${environment.apiUrl}/api/school-exams`),
-    );
-    termReq.flush({
-      data: mockSchoolExams,
-      meta: { total: mockSchoolExams.length, page: 1, pageSize: 200 },
-    });
-
+    fixture.detectChanges();
+    flushInitialRequests();
     await fixture.whenStable();
     fixture.detectChanges();
   });
@@ -119,71 +128,77 @@ describe('ExamsComponent', () => {
     http.verify();
   });
 
-  it('should create', () => {
+  it('should create and load academy tab rows from server', () => {
     expect(component).toBeTruthy();
+    expect(component['examType']()).toBe('academy');
+    expect(component['currentRows']().length).toBe(2);
+    expect(component['totalRows']()).toBe(2);
   });
 
-  it('merges academy and school exams and sorts by date desc', () => {
-    const merged = component['mergedExams']();
-    expect(merged.length).toBe(3);
-    // 2026-04-10 school 最新，然後 2026-04-01 academy，最後 2026-03-15 academy
-    expect(merged[0].id).toBe('t1');
-    expect(merged[1].id).toBe('a1');
-    expect(merged[2].id).toBe('a2');
-  });
-
-  it('filters by exam type chip — academy only hides school', () => {
-    component['onExamTypeChange']('academy');
-    const merged = component['mergedExams']();
-    expect(merged.every((r) => r.kind === 'academy')).toBe(true);
-    expect(merged.length).toBe(2);
-  });
-
-  it('filters by exam type chip — school only hides academy', () => {
+  it('switches to school tab and requests school list from server', () => {
     component['onExamTypeChange']('school');
-    const merged = component['mergedExams']();
-    expect(merged.every((r) => r.kind === 'school')).toBe(true);
-    expect(merged.length).toBe(1);
+    fixture.detectChanges();
+
+    const schoolListReq = http.expectOne((req) =>
+      req.url.startsWith(`${environment.apiUrl}/api/school-exams`) &&
+      req.params.get('page') === '1' &&
+      req.params.get('pageSize') === '8',
+    );
+    schoolListReq.flush({ data: mockSchoolExams, meta: { total: 1, page: 1, pageSize: 8 } });
+
+    fixture.detectChanges();
+    expect(component['currentRows']().length).toBe(1);
+    expect(component['currentRows']()[0].kind).toBe('school');
   });
 
-  it('computes todoCount as active exams with zero score', () => {
-    // a1 (active, 0), t1 (active, 0), a2 (closed, 25) → 2
-    expect(component['todoCount']()).toBe(2);
+  it('uses todo=true query when status filter is todo', () => {
+    component['onStatusChange']('todo');
+    fixture.detectChanges();
+
+    const todoReq = http.expectOne((req) =>
+      req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && req.params.get('todo') === 'true',
+    );
+    todoReq.flush({
+      data: [mockAcademyExams[0]],
+      meta: { total: 1, page: 1, pageSize: 8 },
+    });
+
+    fixture.detectChanges();
+    expect(component['currentRows']().length).toBe(1);
+    expect(component['currentRows']()[0].id).toBe('a1');
   });
 
-  it('filters by status', () => {
-    component['onStatusChange']('closed');
-    const merged = component['mergedExams']();
-    expect(merged.length).toBe(1);
-    expect(merged[0].id).toBe('a2');
+  it('clicking todo KPI banner applies todo filter', () => {
+    const banner = fixture.nativeElement.querySelector('.exams__todo') as HTMLButtonElement;
+    expect(banner).not.toBeNull();
+
+    banner.click();
+    fixture.detectChanges();
+
+    const todoReq = http.expectOne((req) =>
+      req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && req.params.get('todo') === 'true',
+    );
+    todoReq.flush({ data: [mockAcademyExams[0]], meta: { total: 1, page: 1, pageSize: 8 } });
+
+    expect(component['statusFilter']()).toBe('todo');
   });
 
-  it('hides school exams when campus filter is set', () => {
-    component['onCampusChange']('c1');
-    const merged = component['mergedExams']();
-    expect(merged.every((r) => r.kind === 'academy')).toBe(true);
-    expect(merged.length).toBe(2);
-  });
+  it('clearFilters resets todo back to all', () => {
+    component['onStatusChange']('todo');
+    fixture.detectChanges();
+    const todoReq = http.expectOne((req) =>
+      req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && req.params.get('todo') === 'true',
+    );
+    todoReq.flush({ data: [mockAcademyExams[0]], meta: { total: 1, page: 1, pageSize: 8 } });
 
-  it('builds action menu with reopen for closed exam', () => {
-    const merged = component['mergedExams']();
-    const closedRow = merged.find((r) => r.status === 'closed');
-    expect(closedRow).toBeTruthy();
-    component['selectedRow'].set(closedRow ?? null);
-    const items = component['actionMenuItems']();
-    const labels = items.map((i) => i.label).filter(Boolean);
-    expect(labels).toContain('重新開啟');
-    expect(labels).not.toContain('結束考試');
-  });
+    component['clearFilters']();
+    fixture.detectChanges();
 
-  it('builds action menu with close for active exam', () => {
-    const merged = component['mergedExams']();
-    const activeRow = merged.find((r) => r.status === 'active');
-    expect(activeRow).toBeTruthy();
-    component['selectedRow'].set(activeRow ?? null);
-    const items = component['actionMenuItems']();
-    const labels = items.map((i) => i.label).filter(Boolean);
-    expect(labels).toContain('結束考試');
-    expect(labels).not.toContain('重新開啟');
+    const clearReq = http.expectOne((req) =>
+      req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && !req.params.has('todo'),
+    );
+    clearReq.flush({ data: mockAcademyExams, meta: { total: 2, page: 1, pageSize: 8 } });
+
+    expect(component['statusFilter']()).toBe('all');
   });
 });

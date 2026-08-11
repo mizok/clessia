@@ -20,6 +20,7 @@ export interface Class {
   campusId: string;
   courseId: string;
   courseName?: string;
+  subjectId?: string | null;
   subjectName?: string | null;
   campusName?: string;
   name: string;

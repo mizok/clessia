@@ -22,6 +22,8 @@ export interface SchoolExam {
   academicYear: number;
   semester: 1 | 2;
   examType: SchoolExamType;
+  subjectId?: string | null;
+  subjectName?: string | null;
   name: string | null;
   label: string;
   examDate: string | null;
@@ -45,6 +47,8 @@ export interface SchoolExamDetail {
   academicYear: number;
   semester: 1 | 2;
   examType: SchoolExamType;
+  subjectId?: string | null;
+  subjectName?: string | null;
   name: string | null;
   label: string;
   examDate: string | null;
@@ -89,6 +93,13 @@ export interface StudentSchoolScore {
 export interface SchoolExamListParams {
   academicYear?: number;
   semester?: 1 | 2;
+  search?: string;
+  status?: SchoolExamStatus;
+  schoolId?: string;
+  subjectId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  todo?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -106,6 +117,7 @@ export interface CreateSchoolExamInput {
   academicYear: number;
   semester: 1 | 2;
   examType: SchoolExamType;
+  subjectId?: string | null;
   name?: string | null;
   schoolId: string;
   examDate?: string | null;
@@ -115,6 +127,7 @@ export interface UpdateSchoolExamInput {
   academicYear?: number;
   semester?: 1 | 2;
   examType?: SchoolExamType;
+  subjectId?: string | null;
   name?: string | null;
   schoolId?: string;
   examDate?: string | null;
@@ -169,6 +182,10 @@ export interface SaveSchoolScoresInput {
   notes?: string | null;
 }
 
+export interface ExamTodoCountResponse {
+  count: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SchoolExamsService {
   private readonly http = inject(HttpClient);
@@ -178,6 +195,10 @@ export class SchoolExamsService {
     return this.http.get<SchoolExamListResponse>(this.base, {
       params: this.toQueryParams(params),
     });
+  }
+
+  getTodoCount(): Observable<ExamTodoCountResponse> {
+    return this.http.get<ExamTodoCountResponse>(`${this.base}/todo-count`);
   }
 
   get(
@@ -255,6 +276,13 @@ export class SchoolExamsService {
     const query: Record<string, string | number | boolean> = {};
     if (params.academicYear !== undefined) query['academic_year'] = params.academicYear;
     if (params.semester !== undefined) query['semester'] = params.semester;
+    if (params.search !== undefined) query['search'] = params.search;
+    if (params.status !== undefined) query['status'] = params.status;
+    if (params.schoolId !== undefined) query['school_id'] = params.schoolId;
+    if (params.subjectId !== undefined) query['subject_id'] = params.subjectId;
+    if (params.dateFrom !== undefined) query['date_from'] = params.dateFrom;
+    if (params.dateTo !== undefined) query['date_to'] = params.dateTo;
+    if (params.todo !== undefined) query['todo'] = params.todo;
     if (params.page !== undefined) query['page'] = params.page;
     if (params.pageSize !== undefined) query['pageSize'] = params.pageSize;
 

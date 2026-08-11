@@ -1,0 +1,95 @@
+<div class="exams-filter-dialog">
+  <div class="exams-filter-dialog__body">
+    <div class="exams-filter-dialog__group">
+      <label class="exams-filter-dialog__label">時間範圍</label>
+      <p-selectbutton
+        [options]="options?.timeRangeOptions ?? []"
+        [ngModel]="timeRange()"
+        (ngModelChange)="timeRange.set($event)"
+        optionLabel="label"
+        optionValue="value"
+        [allowEmpty]="false"
+        size="small"
+      />
+    </div>
+
+    <div class="exams-filter-dialog__group">
+      <label class="exams-filter-dialog__label">考試類型</label>
+      <p-selectbutton
+        [options]="options?.examTypeOptions ?? []"
+        [ngModel]="examType()"
+        (ngModelChange)="examType.set($event)"
+        optionLabel="label"
+        optionValue="value"
+        [allowEmpty]="false"
+        size="small"
+      />
+    </div>
+
+    @if (isAcademy()) {
+      <div class="exams-filter-dialog__group">
+        <label class="exams-filter-dialog__label">校區</label>
+        <p-select
+          [options]="options?.campusOptions ?? []"
+          [ngModel]="campusId()"
+          (ngModelChange)="campusId.set($event)"
+          optionLabel="label"
+          optionValue="value"
+          size="small"
+          placeholder="全部校區"
+          [showClear]="true"
+          styleClass="exams-filter-dialog__select"
+        />
+      </div>
+    } @else {
+      <div class="exams-filter-dialog__group">
+        <label class="exams-filter-dialog__label">學校</label>
+        <p-select
+          [options]="options?.schoolOptions ?? []"
+          [ngModel]="schoolId()"
+          (ngModelChange)="schoolId.set($event)"
+          optionLabel="label"
+          optionValue="value"
+          size="small"
+          placeholder="全部學校"
+          [showClear]="true"
+          styleClass="exams-filter-dialog__select"
+        />
+      </div>
+    }
+
+    <div class="exams-filter-dialog__group">
+      <label class="exams-filter-dialog__label">科目</label>
+      <p-select
+        [options]="options?.subjectOptions ?? []"
+        [ngModel]="subjectId()"
+        (ngModelChange)="subjectId.set($event)"
+        optionLabel="label"
+        optionValue="value"
+        size="small"
+        placeholder="全部科目"
+        [showClear]="true"
+        styleClass="exams-filter-dialog__select"
+      />
+    </div>
+
+    <div class="exams-filter-dialog__group">
+      <label class="exams-filter-dialog__label">狀態</label>
+      <p-select
+        [options]="options?.statusOptions ?? []"
+        [ngModel]="status()"
+        (ngModelChange)="status.set($event)"
+        optionLabel="label"
+        optionValue="value"
+        size="small"
+        placeholder="全部狀態"
+        styleClass="exams-filter-dialog__select"
+      />
+    </div>
+  </div>
+
+  <div class="exams-filter-dialog__actions">
+    <p-button label="清除" [text]="true" severity="secondary" (onClick)="clear()" />
+    <p-button label="套用" (onClick)="apply()" />
+  </div>
+</div>

@@ -140,8 +140,10 @@ export class ScoreEntryComponent implements OnInit {
 
     const dateLabel = exam.examDate ?? '日期未定';
     const schoolName = exam.schoolName || null;
+    const subjectLabel =
+      exam.subjectId && exam.subjectName ? `科目：${exam.subjectName}` : null;
 
-    const parts = [schoolName, dateLabel, campusName, gradeLabel].filter(Boolean);
+    const parts = [schoolName, subjectLabel, dateLabel, campusName, gradeLabel].filter(Boolean);
     return {
       name: exam.label,
       metaLine: parts.join(' · '),

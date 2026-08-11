@@ -1,36 +1,33 @@
-<p-dialog
-  [visible]="visible()"
-  (visibleChange)="visible.set($event)"
-  [modal]="true"
-  [header]="mode() === 'create' ? '新增學校' : '編輯學校'"
-  [style]="{ width: '480px', maxWidth: '95vw' }"
-  [closable]="true"
-  [draggable]="false"
-  [resizable]="false"
-  (onHide)="onHide()"
->
+<div class="form-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content">
+      <span class="dialog-header-inline__title">{{ mode() === 'create' ? '新增學校' : '編輯學校' }}</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="關閉">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
   <div class="school-form">
-    <label class="school-form__field">
-      <span class="school-form__label"
-        >學校全名<span class="school-form__required">*</span></span
-      >
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">學校全名<span class="form-dialog__required">*</span></label>
       <input
         pInputText
         [ngModel]="name()"
         (ngModelChange)="name.set($event)"
         placeholder="例：台北市立明湖國中"
       />
-    </label>
+    </div>
 
-    <label class="school-form__field">
-      <span class="school-form__label">簡稱（選填）</span>
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">簡稱（選填）</label>
       <input
         pInputText
         [ngModel]="shortName()"
         (ngModelChange)="shortName.set($event)"
         placeholder="例：明湖國中"
       />
-    </label>
+    </div>
 
     <label class="school-form__field school-form__field--inline">
       <p-checkbox
@@ -41,24 +38,17 @@
       />
       <span>啟用</span>
     </label>
-  </div>
 
-  <ng-template #footer>
-    <button
-      pButton
-      label="取消"
-      severity="secondary"
-      size="small"
-      text
-      (click)="visible.set(false)"
-    ></button>
-    <button
-      pButton
-      label="儲存"
-      size="small"
-      [disabled]="!canSubmit()"
-      [loading]="submitting()"
-      (click)="submit()"
-    ></button>
-  </ng-template>
-</p-dialog>
+    <div class="form-dialog__footer">
+      <button pButton label="取消" severity="secondary" size="small" text (click)="close()"></button>
+      <button
+        pButton
+        label="儲存"
+        size="small"
+        [disabled]="!canSubmit()"
+        [loading]="submitting()"
+        (click)="submit()"
+      ></button>
+    </div>
+  </div>
+</div>

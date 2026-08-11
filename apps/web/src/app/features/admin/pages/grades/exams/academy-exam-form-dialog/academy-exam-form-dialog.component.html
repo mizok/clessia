@@ -68,7 +68,7 @@
       <p-select
         [options]="subjectOptions()"
         [ngModel]="formData().subjectId"
-        (ngModelChange)="updateField('subjectId', $event)"
+        (ngModelChange)="onSubjectChange($event)"
         optionLabel="label"
         optionValue="value"
         placeholder="選擇科目"

@@ -107,6 +107,21 @@
         />
       </div>
 
+      @if (isOtherExamType()) {
+        <div class="form-dialog__field">
+          <label class="form-dialog__label">科目</label>
+          <p-select
+            [options]="subjectOptions()"
+            formControlName="subjectId"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="選擇科目（預設全科）"
+            [appendTo]="'body'"
+            class="w-full"
+          />
+        </div>
+      }
+
       <!-- Name -->
       <div class="form-dialog__field">
         <label class="form-dialog__label">{{ nameLabel() }}</label>

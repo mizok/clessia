@@ -1,0 +1,186 @@
+<div class="score-edit-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content score-edit-dialog__header-content">
+      <span class="score-edit-dialog__name">{{ data?.studentName ?? '學生' }}</span>
+      <span class="score-edit-dialog__grade">{{ formatGrade(data?.studentGrade ?? null) }}</span>
+      @if (isDirty()) {
+        <span class="score-edit-dialog__dirty">
+          <i class="pi pi-circle-fill"></i>
+          {{ dirtyCount() }} 科未儲存
+        </span>
+      }
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="關閉">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="score-edit-dialog__loading">
+      <i class="pi pi-spinner pi-spin"></i>
+      載入成績中...
+    </div>
+  } @else {
+    @if (data?.examSubjectId) {
+      <div class="score-edit-dialog__hint">此考試只登錄「{{ data?.examSubjectName ?? '指定科目' }}」科。</div>
+    }
+
+    <div class="score-edit-dialog__table-wrap">
+      <table class="score-edit-dialog__table">
+        <thead>
+          <tr>
+            <th class="score-edit-dialog__th score-edit-dialog__th--subject">科目</th>
+            <th class="score-edit-dialog__th score-edit-dialog__th--score">分數</th>
+            <th class="score-edit-dialog__th score-edit-dialog__th--status">狀態</th>
+            <th class="score-edit-dialog__th">備註</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.subjectId) {
+            <tr class="score-edit-dialog__tr" [class.score-edit-dialog__tr--dirty]="isRowDirty(row)">
+              <td class="score-edit-dialog__cell score-edit-dialog__cell--subject">{{ row.subjectName }}</td>
+              <td class="score-edit-dialog__cell score-edit-dialog__cell--score">
+                <p-inputnumber
+                  [ngModel]="row.score"
+                  (ngModelChange)="onScoreChange(row, $event)"
+                  [min]="0"
+                  [max]="100"
+                  [disabled]="!!data?.disabled || isAbsent(row)"
+                  [placeholder]="isAbsent(row) ? '—' : ''"
+                  styleClass="score-edit-dialog__score-input"
+                  [inputStyleClass]="'score-edit-dialog__score-field'"
+                />
+              </td>
+              <td class="score-edit-dialog__cell score-edit-dialog__cell--status">
+                <p-select
+                  [options]="scoreStatusOptions"
+                  [ngModel]="row.status"
+                  (ngModelChange)="onStatusChange(row, $event)"
+                  optionLabel="label"
+                  optionValue="value"
+                  [disabled]="!!data?.disabled"
+                  size="small"
+                  [appendTo]="'body'"
+                  styleClass="score-edit-dialog__status-select"
+                />
+              </td>
+              <td class="score-edit-dialog__cell score-edit-dialog__cell--notes">
+                <input
+                  type="text"
+                  pInputText
+                  [ngModel]="row.notes"
+                  (ngModelChange)="onNotesChange(row, $event)"
+                  [disabled]="!!data?.disabled"
+                  placeholder="備註"
+                  class="score-edit-dialog__notes-input"
+                />
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="score-edit-dialog__mobile-subjects">
+      @for (row of rows(); track row.subjectId) {
+        <button
+          type="button"
+          class="score-edit-dialog__mobile-subject-row"
+          [class.score-edit-dialog__mobile-subject-row--dirty]="isRowDirty(row)"
+          (click)="openSubjectSheet(row)"
+        >
+          <div class="score-edit-dialog__mobile-subject-info">
+            <span class="score-edit-dialog__mobile-subject-name">{{ row.subjectName }}</span>
+            @if (isRowDirty(row)) {
+              <span class="score-edit-dialog__mobile-subject-flag">
+                <i class="pi pi-circle-fill"></i>
+                未儲存
+              </span>
+            }
+          </div>
+          <span
+            class="score-edit-dialog__mobile-subject-score"
+            [class.score-edit-dialog__mobile-subject-score--absent]="isAbsent(row)"
+            [class.score-edit-dialog__mobile-subject-score--fail]="row.score !== null && row.score < 60"
+            [class.score-edit-dialog__mobile-subject-score--empty]="!isAbsent(row) && row.score === null"
+          >
+            @if (isAbsent(row)) {
+              缺考
+            } @else if (row.score !== null) {
+              {{ row.score }}
+            } @else {
+              未登錄
+            }
+          </span>
+        </button>
+      }
+    </div>
+
+    <div class="score-edit-dialog__footer">
+      <p-button
+        label="儲存"
+        icon="pi pi-check"
+        [loading]="saving()"
+        (onClick)="save()"
+        [disabled]="!isDirty() || !!data?.disabled"
+      />
+    </div>
+  }
+</div>
+
+<p-drawer
+  [(visible)]="subjectSheetVisible"
+  position="bottom"
+  [modal]="true"
+  [appendTo]="'body'"
+  styleClass="score-edit-dialog__sheet drawer-auto"
+>
+  @if (subjectSheetRow(); as row) {
+    <ng-template #header>
+      <div class="score-edit-dialog__sheet-header">
+        <span class="score-edit-dialog__sheet-name">{{ row.subjectName }}</span>
+      </div>
+    </ng-template>
+
+    <div class="score-edit-dialog__sheet-body">
+      <div class="score-edit-dialog__sheet-field">
+        <label class="score-edit-dialog__sheet-label">分數</label>
+        <p-inputnumber
+          [ngModel]="row.score"
+          (ngModelChange)="onScoreChange(row, $event)"
+          [min]="0"
+          [max]="100"
+          [disabled]="!!data?.disabled || isAbsent(row)"
+          styleClass="score-edit-dialog__sheet-input"
+        />
+      </div>
+      <div class="score-edit-dialog__sheet-field">
+        <label class="score-edit-dialog__sheet-label">狀態</label>
+        <p-select
+          [options]="scoreStatusOptions"
+          [ngModel]="row.status"
+          (ngModelChange)="onStatusChange(row, $event)"
+          optionLabel="label"
+          optionValue="value"
+          [disabled]="!!data?.disabled"
+          [appendTo]="'body'"
+          styleClass="score-edit-dialog__sheet-select"
+        />
+      </div>
+      <div class="score-edit-dialog__sheet-field">
+        <label class="score-edit-dialog__sheet-label">備註</label>
+        <input
+          type="text"
+          pInputText
+          [ngModel]="row.notes"
+          (ngModelChange)="onNotesChange(row, $event)"
+          [disabled]="!!data?.disabled"
+          placeholder="輸入備註..."
+          class="score-edit-dialog__sheet-notes"
+        />
+      </div>
+    </div>
+  }
+</p-drawer>
+
+<p-confirmdialog />

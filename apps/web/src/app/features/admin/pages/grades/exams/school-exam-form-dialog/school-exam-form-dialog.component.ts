@@ -18,6 +18,7 @@ import {
   type SchoolExamType,
   type UpdateSchoolExamInput,
 } from '@core/school-exams.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { SchoolsService, type School } from '@core/schools.service';
 
 export interface SchoolExamFormDialogData {
@@ -67,6 +68,7 @@ export class SchoolExamFormDialogComponent implements OnInit {
   private readonly formBuilder = inject(FormBuilder);
   private readonly schoolExamsService = inject(SchoolExamsService);
   private readonly schoolsService = inject(SchoolsService);
+  private readonly refData = inject(ReferenceDataService);
   private readonly messageService = inject(MessageService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig<SchoolExamFormDialogData>);
@@ -82,6 +84,11 @@ export class SchoolExamFormDialogComponent implements OnInit {
   protected readonly exam = signal<SchoolExamDetail | null>(null);
   protected readonly schools = signal<School[]>([]);
   protected readonly schoolsLoaded = signal(false);
+  protected readonly subjects = computed(() => this.refData.subjects());
+  protected readonly subjectOptions = computed(() => [
+    { label: '全科', value: null as string | null },
+    ...this.subjects().map((subject) => ({ label: subject.name, value: subject.id as string | null })),
+  ]);
 
   protected readonly form = this.formBuilder.group({
     academicYear: this.formBuilder.nonNullable.control<number>(this.guessAcademicYear(), {
@@ -93,6 +100,7 @@ export class SchoolExamFormDialogComponent implements OnInit {
     examType: this.formBuilder.nonNullable.control<SchoolExamType>('term_exam', {
       validators: [Validators.required],
     }),
+    subjectId: this.formBuilder.control<string | null>(null),
     name: this.formBuilder.nonNullable.control<string>('', {
       validators: [Validators.maxLength(100)],
     }),
@@ -133,6 +141,7 @@ export class SchoolExamFormDialogComponent implements OnInit {
     () => this.isEditing() || this.hasScores() || this.isClosed(),
   );
   protected readonly lockSchool = computed(() => this.isEditing() || this.hasScores() || this.isClosed());
+  protected readonly lockSubject = computed(() => this.hasScores() || this.isClosed());
   protected readonly lockExamDate = computed(() => this.isClosed());
   protected readonly lockName = computed(() => this.isClosed());
 
@@ -148,6 +157,7 @@ export class SchoolExamFormDialogComponent implements OnInit {
       this.setControlDisabled('semester', this.lockSemester());
       this.setControlDisabled('examType', this.lockExamType());
       this.setControlDisabled('schoolId', this.lockSchool());
+      this.setControlDisabled('subjectId', this.lockSubject());
       this.setControlDisabled('examDate', this.lockExamDate());
       this.setControlDisabled('name', this.lockName());
     });
@@ -155,11 +165,17 @@ export class SchoolExamFormDialogComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadSchools();
+    this.refData.loadSubjects();
     this.applyNameValidator(this.form.controls.examType.value);
 
     this.form.controls.examType.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((examType) => this.applyNameValidator(examType));
+      .subscribe((examType) => {
+        this.applyNameValidator(examType);
+        if (examType !== 'other') {
+          this.form.controls.subjectId.setValue(null);
+        }
+      });
 
     const examId = this.config.data?.examId;
     if (this.isEditing() && examId) {
@@ -174,6 +190,7 @@ export class SchoolExamFormDialogComponent implements OnInit {
               academicYear: data.academicYear,
               semester: data.semester,
               examType: data.examType,
+              subjectId: data.subjectId ?? null,
               name: data.name ?? '',
               schoolId: data.schoolId,
               examDate: data.examDate ? new Date(data.examDate) : null,
@@ -239,6 +256,9 @@ export class SchoolExamFormDialogComponent implements OnInit {
       const input: UpdateSchoolExamInput = {};
       if (!this.lockExamDate()) input.examDate = this.toIsoDate(value.examDate);
       if (!this.lockName()) input.name = normalizedName;
+      if (!this.lockSubject()) {
+        input.subjectId = this.normalizeSubjectId(value.examType, value.subjectId);
+      }
 
       this.schoolExamsService
         .update(examId, input)
@@ -274,6 +294,7 @@ export class SchoolExamFormDialogComponent implements OnInit {
       academicYear: value.academicYear,
       semester: value.semester,
       examType: value.examType,
+      subjectId: this.normalizeSubjectId(value.examType, value.subjectId),
       name: normalizedName,
       schoolId,
       examDate: this.toIsoDate(value.examDate),
@@ -319,7 +340,14 @@ export class SchoolExamFormDialogComponent implements OnInit {
   }
 
   private setControlDisabled(
-    controlName: 'academicYear' | 'semester' | 'examType' | 'schoolId' | 'examDate' | 'name',
+    controlName:
+      | 'academicYear'
+      | 'semester'
+      | 'examType'
+      | 'subjectId'
+      | 'schoolId'
+      | 'examDate'
+      | 'name',
     disabled: boolean,
   ): void {
     const control = this.form.controls[controlName];
@@ -335,6 +363,11 @@ export class SchoolExamFormDialogComponent implements OnInit {
   private normalizeName(name: string): string | null {
     const trimmed = name.trim();
     return trimmed ? trimmed : null;
+  }
+
+  private normalizeSubjectId(examType: SchoolExamType, subjectId: string | null): string | null {
+    if (examType !== 'other') return null;
+    return subjectId ?? null;
   }
 
   private toIsoDate(date: Date | null): string | null {

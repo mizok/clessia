@@ -1,4 +1,5 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
@@ -64,6 +65,7 @@ interface FormData {
   styleUrl: './academy-exam-form-dialog.component.scss',
 })
 export class AcademyExamFormDialogComponent implements OnInit {
+  private readonly destroyRef = inject(DestroyRef);
   private readonly academyExamsService = inject(AcademyExamsService);
   private readonly classesService = inject(ClassesService);
   private readonly refData = inject(ReferenceDataService);
@@ -89,9 +91,13 @@ export class AcademyExamFormDialogComponent implements OnInit {
     ...this.campuses().map((c) => ({ label: c.name, value: c.id as string | null })),
   ]);
   protected readonly classOptions = computed(() => {
-    const filter = this.formData().campusId;
+    const campusFilter = this.formData().campusId;
+    const subjectFilter = this.formData().subjectId;
     const rows = this.classes().filter(
-      (c) => c.isActive && (!filter || c.campusId === filter),
+      (c) =>
+        c.isActive &&
+        (!campusFilter || c.campusId === campusFilter) &&
+        (!subjectFilter || c.subjectId === subjectFilter),
     );
     return rows.map((c) => ({
       label: `${c.campusName ?? ''} ${c.courseName ?? ''} / ${c.name}`.trim(),
@@ -152,37 +158,39 @@ export class AcademyExamFormDialogComponent implements OnInit {
       forkJoin({
         detail: this.academyExamsService.get(examId),
         classes: classes$,
-      }).subscribe({
-        next: ({ detail, classes }) => {
-          this.classes.set(classes.data);
-          this.exam.set(detail.data);
-          const d = detail.data;
-          this.formData.set({
-            name: d.name,
-            examType: d.examType,
-            subjectId: d.subjectId,
-            campusId: d.campusId,
-            examDate: d.examDate ? new Date(d.examDate) : null,
-            totalScore: d.totalScore,
-            scopeNote: d.scopeNote ?? '',
-            classIds: d.classes.map((c) => c.classId),
-          });
-          this.loading.set(false);
-        },
-        error: () => {
-          this.messageService.add({
-            severity: 'error',
-            summary: '載入失敗',
-            detail: '無法載入考試資料',
-          });
-          this.loading.set(false);
-          this.ref.close();
-        },
-      });
+      })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: ({ detail, classes }) => {
+            this.classes.set(classes.data);
+            this.exam.set(detail.data);
+            const d = detail.data;
+            this.formData.set({
+              name: d.name,
+              examType: d.examType,
+              subjectId: d.subjectId,
+              campusId: d.campusId,
+              examDate: d.examDate ? new Date(d.examDate) : null,
+              totalScore: d.totalScore,
+              scopeNote: d.scopeNote ?? '',
+              classIds: d.classes.map((c) => c.classId),
+            });
+            this.loading.set(false);
+          },
+          error: () => {
+            this.messageService.add({
+              severity: 'error',
+              summary: '載入失敗',
+              detail: '無法載入考試資料',
+            });
+            this.loading.set(false);
+            this.ref.close();
+          },
+        });
       return;
     }
 
-    classes$.subscribe({
+    classes$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.classes.set(res.data);
         this.loading.set(false);
@@ -214,6 +222,17 @@ export class AcademyExamFormDialogComponent implements OnInit {
     }));
   }
 
+  protected onSubjectChange(value: string | null): void {
+    this.formData.update((f) => ({
+      ...f,
+      subjectId: value,
+      classIds: f.classIds.filter((id) => {
+        const cls = this.classes().find((c) => c.id === id);
+        return !value || cls?.subjectId === value;
+      }),
+    }));
+  }
+
   protected save(): void {
     if (!this.canSave() || this.saving()) return;
     const f = this.formData();
@@ -239,24 +258,27 @@ export class AcademyExamFormDialogComponent implements OnInit {
         return;
       }
 
-      this.academyExamsService.update(examId, input).subscribe({
-        next: () => {
-          this.messageService.add({
-            severity: 'success',
-            summary: '更新成功',
-            detail: `「${f.name}」已更新`,
-          });
-          this.ref.close({ id: examId } satisfies AcademyExamFormDialogResult);
-        },
-        error: (err) => {
-          this.messageService.add({
-            severity: 'error',
-            summary: '更新失敗',
-            detail: err?.error?.error || '請稍後再試',
-          });
-          this.saving.set(false);
-        },
-      });
+      this.academyExamsService
+        .update(examId, input)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            this.messageService.add({
+              severity: 'success',
+              summary: '更新成功',
+              detail: `「${f.name}」已更新`,
+            });
+            this.ref.close({ id: examId } satisfies AcademyExamFormDialogResult);
+          },
+          error: (err) => {
+            this.messageService.add({
+              severity: 'error',
+              summary: '更新失敗',
+              detail: err?.error?.error || '請稍後再試',
+            });
+            this.saving.set(false);
+          },
+        });
       return;
     }
 
@@ -271,24 +293,27 @@ export class AcademyExamFormDialogComponent implements OnInit {
       classIds: f.classIds,
     };
 
-    this.academyExamsService.create(input).subscribe({
-      next: (res) => {
-        this.messageService.add({
-          severity: 'success',
-          summary: '建立成功',
-          detail: `「${f.name}」已建立`,
-        });
-        this.ref.close({ id: res.data.id } satisfies AcademyExamFormDialogResult);
-      },
-      error: (err) => {
-        this.messageService.add({
-          severity: 'error',
-          summary: '建立失敗',
-          detail: err?.error?.error || '請稍後再試',
-        });
-        this.saving.set(false);
-      },
-    });
+    this.academyExamsService
+      .create(input)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.messageService.add({
+            severity: 'success',
+            summary: '建立成功',
+            detail: `「${f.name}」已建立`,
+          });
+          this.ref.close({ id: res.data.id } satisfies AcademyExamFormDialogResult);
+        },
+        error: (err) => {
+          this.messageService.add({
+            severity: 'error',
+            summary: '建立失敗',
+            detail: err?.error?.error || '請稍後再試',
+          });
+          this.saving.set(false);
+        },
+      });
   }
 
   protected cancel(): void {

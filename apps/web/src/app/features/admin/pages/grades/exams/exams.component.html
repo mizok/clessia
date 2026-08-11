@@ -15,14 +15,41 @@
 
   <!-- Main Card -->
   <div class="exams__card">
-    <!-- Todo reminder -->
-    @if (todoCount() > 0) {
-      <div class="exams__todo">
-        <i class="pi pi-exclamation-circle exams__todo-icon"></i>
-        <div class="exams__todo-text">
-          <strong>{{ todoCount() }}</strong>
-          場進行中的考試尚未登錄任何成績，建議盡快處理
-        </div>
+    <!-- Todo reminders (clickable KPIs, per-tab) -->
+    @if (academyTodoCount() > 0 || schoolTodoCount() > 0) {
+      <div class="exams__todo-list">
+        @if (academyTodoCount() > 0) {
+          <button
+            type="button"
+            class="exams__todo"
+            [class.exams__todo--active]="examType() === 'academy' && statusFilter() === 'todo'"
+            (click)="onTodoBannerClick('academy')"
+            [attr.aria-pressed]="examType() === 'academy' && statusFilter() === 'todo'"
+          >
+            <i class="pi pi-exclamation-circle exams__todo-icon"></i>
+            <div class="exams__todo-text">
+              有 <strong>{{ academyTodoCount() }}</strong> 場
+              <strong>進行中</strong>的補習班考試尚未登錄成績
+            </div>
+            <i class="pi pi-arrow-right exams__todo-arrow"></i>
+          </button>
+        }
+        @if (schoolTodoCount() > 0) {
+          <button
+            type="button"
+            class="exams__todo"
+            [class.exams__todo--active]="examType() === 'school' && statusFilter() === 'todo'"
+            (click)="onTodoBannerClick('school')"
+            [attr.aria-pressed]="examType() === 'school' && statusFilter() === 'todo'"
+          >
+            <i class="pi pi-exclamation-circle exams__todo-icon"></i>
+            <div class="exams__todo-text">
+              有 <strong>{{ schoolTodoCount() }}</strong> 場
+              <strong>進行中</strong>的學校考試尚未登錄成績
+            </div>
+            <i class="pi pi-arrow-right exams__todo-arrow"></i>
+          </button>
+        }
       </div>
     }
 
@@ -45,99 +72,9 @@
         [outlined]="true"
         severity="secondary"
         size="small"
-        (onClick)="filterDialogVisible = true"
+        (onClick)="openFilterDialog()"
       />
     </div>
-
-    <p-dialog
-      header="篩選條件"
-      [(visible)]="filterDialogVisible"
-      [modal]="true"
-      [draggable]="false"
-      [resizable]="false"
-      styleClass="exams__filter-dialog"
-      [style]="{ width: 'min(400px, 96vw)' }"
-    >
-      <div class="exams__filter-dialog-body">
-        <div class="exams__filter-group">
-          <label class="exams__filter-label">時間範圍</label>
-          <p-selectbutton
-            [options]="timeRangeOptions"
-            [ngModel]="timeRange()"
-            (ngModelChange)="onTimeRangeChange($event)"
-            optionLabel="label"
-            optionValue="value"
-            [allowEmpty]="false"
-            size="small"
-          />
-        </div>
-        <div class="exams__filter-group">
-          <label class="exams__filter-label">考試類型</label>
-          <p-selectbutton
-            [options]="examTypeOptions"
-            [ngModel]="examType()"
-            (ngModelChange)="onExamTypeChange($event)"
-            optionLabel="label"
-            optionValue="value"
-            [allowEmpty]="false"
-            size="small"
-          />
-        </div>
-        <div class="exams__filter-group">
-          <label class="exams__filter-label">校區</label>
-          <p-select
-            [options]="campusOptions()"
-            [ngModel]="campusId()"
-            (ngModelChange)="onCampusChange($event)"
-            optionLabel="label"
-            optionValue="value"
-            size="small"
-            placeholder="全部校區"
-            [showClear]="true"
-            styleClass="exams__filter-select"
-          />
-        </div>
-        <div class="exams__filter-group">
-          <label class="exams__filter-label">科目</label>
-          <p-select
-            [options]="subjectOptions()"
-            [ngModel]="subjectId()"
-            (ngModelChange)="onSubjectChange($event)"
-            optionLabel="label"
-            optionValue="value"
-            size="small"
-            placeholder="全部科目"
-            [showClear]="true"
-            styleClass="exams__filter-select"
-          />
-        </div>
-        <div class="exams__filter-group">
-          <label class="exams__filter-label">狀態</label>
-          <p-select
-            [options]="statusOptions"
-            [ngModel]="statusFilter()"
-            (ngModelChange)="onStatusChange($event)"
-            optionLabel="label"
-            optionValue="value"
-            size="small"
-            placeholder="全部狀態"
-            styleClass="exams__filter-select"
-          />
-        </div>
-      </div>
-
-      <ng-template #footer>
-        <div class="exams__filter-actions">
-          <p-button
-            label="清除"
-            [text]="true"
-            severity="secondary"
-            (onClick)="clearFilters(); filterDialogVisible = false"
-          />
-          <p-button label="套用" (onClick)="filterDialogVisible = false" />
-        </div>
-      </ng-template>
-    </p-dialog>
 
     <!-- Desktop toolbar -->
     <div class="exams__toolbar clessia-filter-bar">
@@ -176,17 +113,31 @@
           styleClass="exams__type-select"
         />
 
-        <p-select
-          [options]="campusOptions()"
-          [ngModel]="campusId()"
-          (ngModelChange)="onCampusChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          size="small"
-          placeholder="全部校區"
-          [showClear]="true"
-          styleClass="clessia-filter-control"
-        />
+        @if (examType() === 'academy') {
+          <p-select
+            [options]="campusOptions()"
+            [ngModel]="campusId()"
+            (ngModelChange)="onCampusChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            size="small"
+            placeholder="全部校區"
+            [showClear]="true"
+            styleClass="clessia-filter-control"
+          />
+        } @else {
+          <p-select
+            [options]="schoolOptions()"
+            [ngModel]="schoolId()"
+            (ngModelChange)="onSchoolChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            size="small"
+            placeholder="全部學校"
+            [showClear]="true"
+            styleClass="clessia-filter-control"
+          />
+        }
 
         <p-select
           [options]="subjectOptions()"
@@ -234,7 +185,7 @@
             <span class="skeleton-bar"></span>
           }
         </div>
-      } @else if (mergedExams().length === 0) {
+      } @else if (currentRows().length === 0) {
         @if (hasActiveFilters()) {
           <app-empty-state
             icon="pi pi-filter-slash"
@@ -284,7 +235,7 @@
         </ng-template>
 
         <ng-template #bodyTpl>
-          @for (row of pagedExams(); track row.kind + '-' + row.id) {
+          @for (row of currentRows(); track row.kind + '-' + row.id) {
             <tr
               appRtRow
               [appRtRow]="row"
@@ -324,7 +275,10 @@
                 <span class="exams__scope">{{ row.scope }}</span>
               </td>
               <td appRtColCell="score">
-                <span class="exams__score">{{ row.scoreCount }}</span>
+                <span
+                  class="exams__score"
+                  [class.exams__score--zero]="row.scoreCount === 0 && row.status === 'active'"
+                >{{ row.scoreCount }}</span>
               </td>
               <td appRtColCell="status">
                 <p-tag

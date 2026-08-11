@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  effect,
   OnInit,
   computed,
   inject,
@@ -12,7 +13,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin } from 'rxjs';
+import { format, subMonths } from 'date-fns';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
@@ -21,7 +22,6 @@ import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
-import { DialogModule } from 'primeng/dialog';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -46,6 +46,10 @@ import { AcademyExamFormDialogComponent } from './academy-exam-form-dialog/acade
 import type { AcademyExamFormDialogResult } from './academy-exam-form-dialog/academy-exam-form-dialog.component';
 import { SchoolExamFormDialogComponent } from './school-exam-form-dialog/school-exam-form-dialog.component';
 import type { SchoolExamFormDialogResult } from './school-exam-form-dialog/school-exam-form-dialog.component';
+import {
+  ExamsFilterDialogComponent,
+  type ExamsFilterDialogResult,
+} from './exams-filter-dialog/exams-filter-dialog.component';
 
 // Services
 import {
@@ -56,18 +60,19 @@ import {
 } from '@core/academy-exams.service';
 import {
   SchoolExamsService,
+  type SchoolExamListParams,
   type SchoolExam,
   type SchoolExamStatus,
   schoolExamTypeLabel,
 } from '@core/school-exams.service';
+import { SchoolsService, type School } from '@core/schools.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import { subMonths } from 'date-fns';
 
 type ExamKind = 'academy' | 'school';
-type ExamTypeFilter = 'all' | ExamKind;
-type StatusFilter = 'all' | 'active' | 'closed';
+type ExamTypeFilter = ExamKind;
+type StatusFilter = 'all' | 'todo' | 'active' | 'closed';
 type TimeRange = 'all' | '1m' | '3m' | '6m';
 
 export interface AcademyExamRow {
@@ -92,6 +97,9 @@ export interface SchoolExamRow {
   readonly status: SchoolExamStatus;
   readonly scope: string;
   readonly scoreCount: number;
+  readonly schoolId: string;
+  readonly subjectId: string | null;
+  readonly subjectName: string | null;
   readonly raw: SchoolExam;
 }
 
@@ -104,13 +112,13 @@ const ACADEMY_EXAM_TYPE_LABELS: Record<AcademyExamType, string> = {
 };
 
 const EXAM_TYPE_OPTIONS: Array<{ label: string; value: ExamTypeFilter }> = [
-  { label: '全部', value: 'all' },
   { label: '補習班考試', value: 'academy' },
   { label: '學校考試', value: 'school' },
 ];
 
 const STATUS_OPTIONS: Array<{ label: string; value: StatusFilter }> = [
   { label: '全部狀態', value: 'all' },
+  { label: '待登錄', value: 'todo' },
   { label: '進行中', value: 'active' },
   { label: '已結束', value: 'closed' },
 ];
@@ -122,7 +130,7 @@ const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
   { label: '全部', value: 'all' },
 ];
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 8;
 
 @Component({
   selector: 'app-exams',
@@ -142,7 +150,6 @@ const PAGE_SIZE = 10;
     RtRowDirective,
     EmptyStateComponent,
     PopupMenuComponent,
-    DialogModule,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './exams.component.html',
@@ -154,6 +161,7 @@ export class ExamsComponent implements OnInit {
 
   private readonly academyExamsService = inject(AcademyExamsService);
   private readonly schoolExamsService = inject(SchoolExamsService);
+  private readonly schoolsService = inject(SchoolsService);
   private readonly refData = inject(ReferenceDataService);
   private readonly messageService = inject(MessageService);
   private readonly dialogService = inject(DialogService);
@@ -168,9 +176,14 @@ export class ExamsComponent implements OnInit {
   // Reference data
   protected readonly campuses = computed(() => this.refData.campuses());
   protected readonly subjects = computed(() => this.refData.subjects());
+  protected readonly schools = signal<School[]>([]);
   protected readonly campusOptions = computed(() => [
     { label: '全部校區', value: null as string | null },
     ...this.campuses().map((c) => ({ label: c.name, value: c.id as string | null })),
+  ]);
+  protected readonly schoolOptions = computed(() => [
+    { label: '全部學校', value: null as string | null },
+    ...this.schools().map((school) => ({ label: school.name, value: school.id as string | null })),
   ]);
   protected readonly subjectOptions = computed(() => [
     { label: '全部科目', value: null as string | null },
@@ -178,26 +191,26 @@ export class ExamsComponent implements OnInit {
   ]);
 
   // Data
-  protected readonly academyExams = signal<AcademyExam[]>([]);
-  protected readonly schoolExams = signal<SchoolExam[]>([]);
+  protected readonly currentRows = signal<ExamRow[]>([]);
+  protected readonly total = signal(0);
   protected readonly loading = signal(true);
+  protected readonly academyTodoCount = signal(0);
+  protected readonly schoolTodoCount = signal(0);
 
   // Filters
-  protected readonly examType = signal<ExamTypeFilter>('all');
+  protected readonly examType = signal<ExamTypeFilter>('academy');
   protected readonly campusId = signal<string | null>(null);
+  protected readonly schoolId = signal<string | null>(null);
   protected readonly subjectId = signal<string | null>(null);
   protected readonly statusFilter = signal<StatusFilter>('all');
   protected readonly searchText = signal('');
   protected readonly timeRange = signal<TimeRange>('all');
 
-  // Mobile filter dialog
-  protected filterDialogVisible = false;
-
   protected readonly filterBadge = computed(() => {
     let count = 0;
     if (this.timeRange() !== 'all') count++;
-    if (this.examType() !== 'all') count++;
-    if (this.campusId()) count++;
+    if (this.examType() === 'academy' && this.campusId()) count++;
+    if (this.examType() === 'school' && this.schoolId()) count++;
     if (this.subjectId()) count++;
     if (this.statusFilter() !== 'all') count++;
     return count > 0 ? `篩選 (${count})` : '篩選';
@@ -206,90 +219,27 @@ export class ExamsComponent implements OnInit {
   // Pagination
   protected readonly currentPage = signal(1);
   protected readonly PAGE_SIZE = PAGE_SIZE;
+  private readonly reloadToken = signal(0);
+  private latestListRequestId = 0;
 
-  // Merged rows (全部合併、篩選、排序)
-  protected readonly mergedExams = computed<ExamRow[]>(() => {
-    const typeFilter = this.examType();
-    const campus = this.campusId();
-    const subject = this.subjectId();
-    const status = this.statusFilter();
-    const keyword = this.searchText().trim().toLowerCase();
-    const range = this.timeRange();
+  private readonly listQuery = computed(() => ({
+    examType: this.examType(),
+    campusId: this.campusId(),
+    schoolId: this.schoolId(),
+    subjectId: this.subjectId(),
+    status: this.statusFilter(),
+    searchText: this.searchText().trim(),
+    timeRange: this.timeRange(),
+    page: this.currentPage(),
+    pageSize: this.PAGE_SIZE,
+    reloadToken: this.reloadToken(),
+  }));
 
-    const cutoff =
-      range !== 'all'
-        ? subMonths(new Date(), range === '1m' ? 1 : range === '3m' ? 3 : 6)
-        : null;
-
-    const rows: ExamRow[] = [];
-
-    // Academy 段
-    if (typeFilter !== 'school') {
-      for (const exam of this.academyExams()) {
-        if (campus && exam.campusId !== campus) continue;
-        if (subject && exam.subjectId !== subject) continue;
-        if (status !== 'all' && exam.status !== status) continue;
-        if (keyword && !exam.name.toLowerCase().includes(keyword)) continue;
-        if (cutoff && new Date(exam.examDate) < cutoff) continue;
-        rows.push({
-          kind: 'academy',
-          id: exam.id,
-          name: exam.name,
-          examDate: exam.examDate,
-          status: exam.status,
-          examType: exam.examType,
-          scope: exam.scopeNote?.trim() || '—',
-          campusId: exam.campusId,
-          subjectId: exam.subjectId,
-          scoreCount: exam.scoreCount,
-          raw: exam,
-        });
-      }
-    }
-
-    // Term 段（campus / subject 不適用 → 設定時直接過濾）
-    if (typeFilter !== 'academy' && !campus && !subject) {
-      for (const exam of this.schoolExams()) {
-        if (status !== 'all' && exam.status !== status) continue;
-        if (keyword && !exam.label.toLowerCase().includes(keyword)) continue;
-        if (cutoff && exam.examDate && new Date(exam.examDate) < cutoff) continue;
-        rows.push({
-          kind: 'school',
-          id: exam.id,
-          name: exam.label,
-          examDate: exam.examDate,
-          status: exam.status,
-          scope: exam.schoolName ? `${exam.schoolName} · 全科目` : '全科目',
-          scoreCount: exam.scoreCount,
-          raw: exam,
-        });
-      }
-    }
-
-    // 排序：日期新→舊；null 擺最後；同日期 active 優先
-    const toTime = (date: string | null): number => (date ? new Date(date).getTime() : -Infinity);
-    rows.sort((a, b) => {
-      const diff = toTime(b.examDate) - toTime(a.examDate);
-      if (diff !== 0) return diff;
-      if (a.status === b.status) return 0;
-      return a.status === 'active' ? -1 : 1;
-    });
-
-    return rows;
-  });
-
-  protected readonly pagedExams = computed<ExamRow[]>(() => {
-    const all = this.mergedExams();
-    const start = (this.currentPage() - 1) * this.PAGE_SIZE;
-    return all.slice(start, start + this.PAGE_SIZE);
-  });
-
-  protected readonly totalRows = computed(() => this.mergedExams().length);
+  protected readonly totalRows = computed(() => this.total());
 
   protected readonly hasActiveFilters = computed(
     () =>
-      this.examType() !== 'all' ||
-      this.campusId() !== null ||
+      (this.examType() === 'academy' ? this.campusId() !== null : this.schoolId() !== null) ||
       this.subjectId() !== null ||
       this.statusFilter() !== 'all' ||
       this.searchText().trim() !== '' ||
@@ -304,13 +254,7 @@ export class ExamsComponent implements OnInit {
 
   // 待辦提醒：active 且 scoreCount = 0
   protected readonly todoCount = computed(() => {
-    const pendingAcademy = this.academyExams().filter(
-      (e) => e.status === 'active' && e.scoreCount === 0,
-    ).length;
-    const pendingSchool = this.schoolExams().filter(
-      (e) => e.status === 'active' && e.scoreCount === 0,
-    ).length;
-    return pendingAcademy + pendingSchool;
+    return this.examType() === 'academy' ? this.academyTodoCount() : this.schoolTodoCount();
   });
 
   // Action menu
@@ -375,31 +319,171 @@ export class ExamsComponent implements OnInit {
     return this.overlayContainerService.getContainer();
   }
 
+  constructor() {
+    effect(() => {
+      const query = this.listQuery();
+      this.loadExamRows(query);
+    });
+  }
+
   ngOnInit(): void {
     this.refData.loadCampuses();
     this.refData.loadSubjects();
-    this.loadExams();
+    this.loadSchools();
+    this.loadTodoCounts();
   }
 
   // ── Loaders ───────────────────────────────────────────────────────────
-  protected loadExams(): void {
-    this.loading.set(true);
-    forkJoin({
-      academy: this.academyExamsService.list({ pageSize: 200 }),
-      school: this.schoolExamsService.list({ pageSize: 200 }),
-    })
+  private loadSchools(): void {
+    this.schoolsService
+      .list({ isActive: true })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ academy, school }) => {
-          this.academyExams.set(academy.data);
-          this.schoolExams.set(school.data);
-          this.loading.set(false);
+        next: (res) => {
+          this.schools.set(res.data);
         },
         error: () => {
           this.messageService.add({
+            severity: 'warn',
+            summary: '學校清單載入失敗',
+            detail: '請稍後重試',
+          });
+        },
+      });
+  }
+
+  private loadTodoCounts(): void {
+    this.academyExamsService
+      .getTodoCount()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.academyTodoCount.set(res.count),
+        error: () => this.academyTodoCount.set(0),
+      });
+
+    this.schoolExamsService
+      .getTodoCount()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.schoolTodoCount.set(res.count),
+        error: () => this.schoolTodoCount.set(0),
+      });
+  }
+
+  private loadExamRows(query: {
+    examType: ExamTypeFilter;
+    campusId: string | null;
+    schoolId: string | null;
+    subjectId: string | null;
+    status: StatusFilter;
+    searchText: string;
+    timeRange: TimeRange;
+    page: number;
+    pageSize: number;
+    reloadToken: number;
+  }): void {
+    const requestId = ++this.latestListRequestId;
+    this.loading.set(true);
+
+    const dateFrom = this.resolveDateFrom(query.timeRange);
+    const status = query.status !== 'all' && query.status !== 'todo' ? query.status : undefined;
+    const todo = query.status === 'todo' ? true : undefined;
+
+    if (query.examType === 'academy') {
+      this.academyExamsService
+        .list({
+          search: query.searchText || undefined,
+          status,
+          campusId: query.campusId ?? undefined,
+          subjectId: query.subjectId ?? undefined,
+          dateFrom,
+          todo,
+          page: query.page,
+          pageSize: query.pageSize,
+        })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (res) => {
+            if (requestId !== this.latestListRequestId) return;
+            this.currentRows.set(
+              res.data.map((exam) => ({
+                kind: 'academy' as const,
+                id: exam.id,
+                name: exam.name,
+                examDate: exam.examDate,
+                status: exam.status,
+                examType: exam.examType,
+                scope: exam.scopeNote?.trim() || '—',
+                campusId: exam.campusId,
+                subjectId: exam.subjectId,
+                scoreCount: exam.scoreCount,
+                raw: exam,
+              })),
+            );
+            this.total.set(res.meta.total);
+            this.loading.set(false);
+          },
+          error: () => {
+            if (requestId !== this.latestListRequestId) return;
+            this.currentRows.set([]);
+            this.total.set(0);
+            this.messageService.add({
+              severity: 'error',
+              summary: '載入失敗',
+              detail: '無法載入補習班考試列表',
+            });
+            this.loading.set(false);
+          },
+        });
+      return;
+    }
+
+    const schoolParams: SchoolExamListParams = {
+      search: query.searchText || undefined,
+      status: status as SchoolExamStatus | undefined,
+      schoolId: query.schoolId ?? undefined,
+      subjectId: query.subjectId ?? undefined,
+      dateFrom,
+      todo,
+      page: query.page,
+      pageSize: query.pageSize,
+    };
+    this.schoolExamsService
+      .list(schoolParams)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          if (requestId !== this.latestListRequestId) return;
+          this.currentRows.set(
+            res.data.map((exam) => ({
+              kind: 'school' as const,
+              id: exam.id,
+              name: exam.label,
+              examDate: exam.examDate,
+              status: exam.status,
+              scope: exam.schoolName
+                ? `${exam.schoolName} · ${exam.subjectId ? exam.subjectName ?? '指定科目' : '全科目'}`
+                : exam.subjectId
+                  ? exam.subjectName ?? '指定科目'
+                  : '全科目',
+              scoreCount: exam.scoreCount,
+              schoolId: exam.schoolId,
+              subjectId: exam.subjectId ?? null,
+              subjectName: exam.subjectName ?? null,
+              raw: exam,
+            })),
+          );
+          this.total.set(res.meta.total);
+          this.loading.set(false);
+        },
+        error: () => {
+          if (requestId !== this.latestListRequestId) return;
+          this.currentRows.set([]);
+          this.total.set(0);
+          this.messageService.add({
             severity: 'error',
             summary: '載入失敗',
-            detail: '無法載入考試列表',
+            detail: '無法載入學校考試列表',
           });
           this.loading.set(false);
         },
@@ -408,8 +492,7 @@ export class ExamsComponent implements OnInit {
 
   // ── Filter handlers ───────────────────────────────────────────────────
   protected onExamTypeChange(value: ExamTypeFilter | null): void {
-    // SelectButton 允許清空，但我們強制至少一個值
-    this.examType.set(value ?? 'all');
+    this.examType.set(value ?? 'academy');
     this.currentPage.set(1);
   }
 
@@ -423,8 +506,19 @@ export class ExamsComponent implements OnInit {
     this.currentPage.set(1);
   }
 
+  protected onSchoolChange(value: string | null): void {
+    this.schoolId.set(value);
+    this.currentPage.set(1);
+  }
+
   protected onStatusChange(value: StatusFilter): void {
     this.statusFilter.set(value);
+    this.currentPage.set(1);
+  }
+
+  protected onTodoBannerClick(tab: ExamKind): void {
+    this.examType.set(tab);
+    this.statusFilter.set('todo');
     this.currentPage.set(1);
   }
 
@@ -439,8 +533,8 @@ export class ExamsComponent implements OnInit {
   }
 
   protected clearFilters(): void {
-    this.examType.set('all');
     this.campusId.set(null);
+    this.schoolId.set(null);
     this.subjectId.set(null);
     this.statusFilter.set('all');
     this.searchText.set('');
@@ -448,8 +542,63 @@ export class ExamsComponent implements OnInit {
     this.currentPage.set(1);
   }
 
+  protected openFilterDialog(): void {
+    const ref = this.dialogService.open(ExamsFilterDialogComponent, {
+      header: '篩選條件',
+      width: 'min(400px, 96vw)',
+      modal: true,
+      appendTo: this.overlayContainer || 'body',
+      data: {
+        initial: {
+          examType: this.examType(),
+          campusId: this.campusId(),
+          schoolId: this.schoolId(),
+          subjectId: this.subjectId(),
+          status: this.statusFilter(),
+          timeRange: this.timeRange(),
+        },
+        options: {
+          campusOptions: this.campusOptions(),
+          schoolOptions: this.schoolOptions(),
+          subjectOptions: this.subjectOptions(),
+          statusOptions: this.statusOptions,
+          examTypeOptions: this.examTypeOptions,
+          timeRangeOptions: this.timeRangeOptions,
+        },
+      },
+    });
+    if (!ref) return;
+    ref.onClose
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result: ExamsFilterDialogResult | undefined) => {
+        if (!result) return;
+        if (result.cleared) {
+          this.clearFilters();
+          return;
+        }
+        this.examType.set(result.examType ?? this.examType());
+        this.campusId.set(result.campusId ?? null);
+        this.schoolId.set(result.schoolId ?? null);
+        this.subjectId.set(result.subjectId ?? null);
+        this.statusFilter.set(result.status ?? 'all');
+        this.timeRange.set(result.timeRange ?? 'all');
+        this.currentPage.set(1);
+      });
+  }
+
   protected onPage(event: ResponsiveTablePageEvent): void {
     this.currentPage.set(event.page + 1);
+  }
+
+  private resolveDateFrom(range: TimeRange): string | undefined {
+    if (range === 'all') return undefined;
+    const months = range === '1m' ? 1 : range === '3m' ? 3 : 6;
+    return format(subMonths(new Date(), months), 'yyyy-MM-dd');
+  }
+
+  private reloadListAndCounts(): void {
+    this.reloadToken.update((v) => v + 1);
+    this.loadTodoCounts();
   }
 
   // ── Row helpers ───────────────────────────────────────────────────────
@@ -545,7 +694,7 @@ export class ExamsComponent implements OnInit {
     ref.onClose
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result: AcademyExamFormDialogResult | undefined) => {
-        if (result) this.loadExams();
+        if (result) this.reloadListAndCounts();
       });
   }
 
@@ -562,7 +711,7 @@ export class ExamsComponent implements OnInit {
     ref.onClose
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result: SchoolExamFormDialogResult | undefined) => {
-        if (result) this.loadExams();
+        if (result) this.reloadListAndCounts();
       });
   }
 
@@ -590,7 +739,7 @@ export class ExamsComponent implements OnInit {
           summary: '已結束',
           detail: `「${row.name}」已結束`,
         });
-        this.loadExams();
+        this.reloadListAndCounts();
       },
       error: () => {
         this.messageService.add({
@@ -614,7 +763,7 @@ export class ExamsComponent implements OnInit {
           summary: '已重新開啟',
           detail: `「${row.name}」已恢復為進行中`,
         });
-        this.loadExams();
+        this.reloadListAndCounts();
       },
       error: () => {
         this.messageService.add({
@@ -650,7 +799,7 @@ export class ExamsComponent implements OnInit {
           summary: '已刪除',
           detail: `「${row.name}」已刪除`,
         });
-        this.loadExams();
+        this.reloadListAndCounts();
       },
       error: () => {
         this.messageService.add({
