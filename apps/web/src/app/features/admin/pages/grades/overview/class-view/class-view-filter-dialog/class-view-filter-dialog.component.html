@@ -1,0 +1,62 @@
+<div class="class-view-filter-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content class-view-filter-dialog__header-content">
+      <span class="class-view-filter-dialog__title">班級篩選</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="關閉">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <div class="class-view-filter-dialog__body">
+    <div class="class-view-filter-dialog__group">
+      <label class="class-view-filter-dialog__label">分校</label>
+      <p-select
+        [options]="options?.campusOptions ?? []"
+        [ngModel]="campusId()"
+        (ngModelChange)="campusId.set($event)"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="選擇分校"
+        size="small"
+        [appendTo]="'body'"
+      />
+    </div>
+
+    <div class="class-view-filter-dialog__group">
+      <label class="class-view-filter-dialog__label">年級</label>
+      <p-multiselect
+        [options]="options?.gradeOptions ?? []"
+        [ngModel]="selectedGrades()"
+        (ngModelChange)="selectedGrades.set($event ?? [])"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="全部年級"
+        [showClear]="true"
+        [maxSelectedLabels]="2"
+        size="small"
+        [appendTo]="'body'"
+      />
+    </div>
+
+    <div class="class-view-filter-dialog__group">
+      <label class="class-view-filter-dialog__label">科目</label>
+      <p-select
+        [options]="options?.subjectOptions ?? []"
+        [ngModel]="subjectId()"
+        (ngModelChange)="subjectId.set($event)"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="全部科目"
+        [showClear]="true"
+        size="small"
+        [appendTo]="'body'"
+      />
+    </div>
+  </div>
+
+  <div class="class-view-filter-dialog__actions">
+    <p-button label="重設" [text]="true" severity="secondary" (onClick)="clear()" />
+    <p-button label="套用" (onClick)="apply()" />
+  </div>
+</div>

@@ -1,0 +1,87 @@
+<div class="student-view-filter-dialog">
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content student-view-filter-dialog__header-content">
+      <span class="student-view-filter-dialog__title">篩選</span>
+    </div>
+    <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="關閉">
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <div class="student-view-filter-dialog__body">
+    <div class="student-view-filter-dialog__group">
+      <label class="student-view-filter-dialog__label">分校</label>
+      <p-select
+        [options]="options?.campusOptions ?? []"
+        [ngModel]="campusId()"
+        (ngModelChange)="onCampusChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="全部分校"
+        [showClear]="true"
+        size="small"
+        [appendTo]="'body'"
+      />
+    </div>
+
+    <div class="student-view-filter-dialog__group">
+      <label class="student-view-filter-dialog__label">搜尋</label>
+      <input
+        pInputText
+        type="text"
+        [ngModel]="searchText()"
+        (ngModelChange)="onSearchChange($event)"
+        placeholder="搜尋學生姓名"
+      />
+    </div>
+
+    <div class="student-view-filter-dialog__row">
+      <div class="student-view-filter-dialog__group">
+        <label class="student-view-filter-dialog__label">年級</label>
+        <p-select
+          [options]="options?.gradeOptions ?? []"
+          [ngModel]="grade()"
+          (ngModelChange)="onGradeChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部年級"
+          [showClear]="true"
+          size="small"
+          [appendTo]="'body'"
+        />
+      </div>
+
+      <div class="student-view-filter-dialog__group">
+        <label class="student-view-filter-dialog__label">就讀學校</label>
+        <p-select
+          [options]="options?.schoolOptions ?? []"
+          [ngModel]="schoolId()"
+          (ngModelChange)="onSchoolChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部學校"
+          [showClear]="true"
+          size="small"
+          [appendTo]="'body'"
+        />
+      </div>
+    </div>
+
+    <div class="student-view-filter-dialog__group">
+      <label class="student-view-filter-dialog__label">啟用狀態</label>
+      <p-select
+        [options]="options?.statusOptions ?? []"
+        [ngModel]="status()"
+        (ngModelChange)="onStatusChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        size="small"
+        [appendTo]="'body'"
+      />
+    </div>
+  </div>
+
+  <div class="student-view-filter-dialog__actions">
+    <p-button label="重設" severity="secondary" [text]="true" (onClick)="clear()" />
+  </div>
+</div>

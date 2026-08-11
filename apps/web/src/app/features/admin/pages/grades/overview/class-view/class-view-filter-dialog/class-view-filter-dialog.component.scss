@@ -1,0 +1,42 @@
+.class-view-filter-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+
+  &__header-content {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+  }
+
+  &__title {
+    font-size: var(--text-md);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-900);
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  &__label {
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-500);
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+}
