@@ -246,3 +246,66 @@ export async function checkEnrollmentPreconditions(
 function toHM(value: string): string {
   return value.slice(0, 5);
 }
+
+// ── 刪除報名前的出勤守門 ────────────────────────────────────────────────────────────────
+
+export type EnrollmentAttendanceCheck =
+  | { readonly status: 'none' }
+  | { readonly status: 'has-attendance' }
+  | { readonly status: 'check-failed'; readonly message: string };
+
+export interface EnrollmentAttendanceCheckInput {
+  readonly supabase: SupabaseClient;
+  readonly orgId: string;
+  readonly classId: string;
+  readonly studentId: string;
+}
+
+/**
+ * 這筆報名底下是否已經有出勤紀錄。
+ *
+ * `attendance_records` 掛在 `(event_id, student_id)` 上，**沒有 `enrollment_id`**，所以要走
+ * enrollment → 該班的 sessions → 它們的 `event_id` → 配上 student 去查。
+ *
+ * 這是資料完整性的守門查詢，任何一段查不到答案都回 `check-failed` 讓呼叫端 **fail closed**。
+ * 舊版把錯誤吞掉、用 `count ?? 0` 當 0，於是守門從來沒有生效過。
+ */
+export async function checkEnrollmentAttendance({
+  supabase,
+  orgId,
+  classId,
+  studentId,
+}: EnrollmentAttendanceCheckInput): Promise<EnrollmentAttendanceCheck> {
+  const { data: sessionRows, error: sessionsError } = await supabase
+    .from('sessions')
+    .select('event_id')
+    .eq('org_id', orgId)
+    .eq('class_id', classId);
+
+  if (sessionsError) {
+    return { status: 'check-failed', message: sessionsError.message };
+  }
+
+  // 在 JS 過濾 null，而不是用 .not('event_id', 'is', null)：存量 session 允許沒有 event，
+  // 而且一個班的 session 量有限。ponytail: 真的爆量再改成 RPC/view。
+  const eventIds = (sessionRows ?? [])
+    .map((row) => (row as { event_id: string | null }).event_id)
+    .filter((eventId): eventId is string => Boolean(eventId));
+
+  if (eventIds.length === 0) {
+    return { status: 'none' };
+  }
+
+  const { count, error: attendanceError } = await supabase
+    .from('attendance_records')
+    .select('*', { count: 'exact', head: true })
+    .eq('org_id', orgId)
+    .eq('student_id', studentId)
+    .in('event_id', eventIds);
+
+  if (attendanceError) {
+    return { status: 'check-failed', message: attendanceError.message };
+  }
+
+  return (count ?? 0) > 0 ? { status: 'has-attendance' } : { status: 'none' };
+}

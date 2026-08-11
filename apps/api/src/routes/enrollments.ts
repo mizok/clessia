@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
-import { checkEnrollmentPreconditions } from './enrollments/validation';
+import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
 
 // ============================================================
 // Schemas
@@ -839,6 +839,10 @@ app.openapi(
         content: { 'application/json': { schema: ErrorSchema } },
         description: 'Has attendance records',
       },
+      500: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: 'Attendance check failed — deletion refused (fail closed)',
+      },
     },
   }),
   async (c) => {
@@ -848,19 +852,26 @@ app.openapi(
 
     const { data: existing } = await supabase
       .from('enrollments')
-      .select('id')
+      .select('id, student_id, class_id')
       .eq('id', id)
       .eq('org_id', orgId)
       .single();
 
     if (!existing) return c.json({ error: 'NOT_FOUND' }, 404);
 
-    const { count: attendanceCount } = await supabase
-      .from('attendances')
-      .select('*', { count: 'exact', head: true })
-      .eq('enrollment_id', id);
+    const attendance = await checkEnrollmentAttendance({
+      supabase,
+      orgId,
+      classId: existing.class_id,
+      studentId: existing.student_id,
+    });
 
-    if ((attendanceCount ?? 0) > 0) {
+    // 守門查詢失敗一律 fail closed —— 不確定有沒有出勤紀錄時，不准刪。
+    if (attendance.status === 'check-failed') {
+      return c.json({ error: 'ATTENDANCE_CHECK_FAILED' }, 500);
+    }
+
+    if (attendance.status === 'has-attendance') {
       return c.json({ error: 'has_attendance' }, 409);
     }
 

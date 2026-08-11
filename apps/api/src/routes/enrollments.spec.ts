@@ -1,12 +1,17 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 import * as enrollmentsRoute from './enrollments';
-import { checkEnrollmentPreconditions } from './enrollments/validation';
+import {
+  checkEnrollmentAttendance,
+  checkEnrollmentPreconditions,
+} from './enrollments/validation';
 
 interface FakeSupabaseDataSet {
   readonly classes?: unknown[];
   readonly enrollments?: unknown[];
   readonly schedules?: unknown[];
+  readonly sessions?: unknown[];
+  readonly attendance_records?: unknown[];
 }
 
 function createFakeSupabase(dataSet: FakeSupabaseDataSet) {
@@ -45,9 +50,7 @@ function createFakeQueryBuilder(table: keyof FakeSupabaseDataSet, dataSet: FakeS
     then(
       onfulfilled?:
         | ((
-            value:
-              | { data: unknown[]; error: null }
-              | { data: null; error: null; count: number },
+            value: { data: unknown[]; error: null } | { data: null; error: null; count: number },
           ) => unknown)
         | null,
     ) {
@@ -196,9 +199,7 @@ function createMockEnrollmentsSupabase(seed: MockEnrollmentsRouteData) {
   };
 }
 
-function createClassesQuery(state: {
-  classes: MockClassRow[];
-}) {
+function createClassesQuery(state: { classes: MockClassRow[] }) {
   const filters: Array<{ column: string; value: unknown }> = [];
 
   const query = {
@@ -212,7 +213,9 @@ function createClassesQuery(state: {
     async maybeSingle() {
       const row =
         state.classes.find((item) =>
-          filters.every((filter) => (item as Record<string, unknown>)[filter.column] === filter.value),
+          filters.every(
+            (filter) => (item as Record<string, unknown>)[filter.column] === filter.value,
+          ),
         ) ?? null;
       return { data: row, error: null };
     },
@@ -221,9 +224,7 @@ function createClassesQuery(state: {
   return query;
 }
 
-function createSchedulesQuery(state: {
-  schedules: MockScheduleRow[];
-}) {
+function createSchedulesQuery(state: { schedules: MockScheduleRow[] }) {
   const filters: Array<{ column: string; value: unknown }> = [];
 
   const query = {
@@ -241,7 +242,9 @@ function createSchedulesQuery(state: {
       onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
     ) {
       const rows = state.schedules.filter((item) =>
-        filters.every((filter) => (item as Record<string, unknown>)[filter.column] === filter.value),
+        filters.every(
+          (filter) => (item as Record<string, unknown>)[filter.column] === filter.value,
+        ),
       );
       return Promise.resolve({ data: rows, error: null }).then(onfulfilled, onrejected);
     },
@@ -393,8 +396,7 @@ function createLeaveRequestsQuery() {
     },
     then<TResult1 = unknown, TResult2 = never>(
       onfulfilled?:
-        | ((value: { data: never[]; error: null }) => TResult1 | PromiseLike<TResult1>)
-        | null,
+        ((value: { data: never[]; error: null }) => TResult1 | PromiseLike<TResult1>) | null,
       onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
     ) {
       return Promise.resolve({ data: [], error: null }).then(onfulfilled, onrejected);
@@ -420,8 +422,7 @@ function createEventsBackfillQuery() {
     },
     then<TResult1 = unknown, TResult2 = never>(
       onfulfilled?:
-        | ((value: { data: never[]; error: null }) => TResult1 | PromiseLike<TResult1>)
-        | null,
+        ((value: { data: never[]; error: null }) => TResult1 | PromiseLike<TResult1>) | null,
       onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
     ) {
       return Promise.resolve({ data: [], error: null }).then(onfulfilled, onrejected);
@@ -457,7 +458,10 @@ describe('toEnrollmentResponse', () => {
     created_by: null,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
-    classes: { name: '英文班', courses: { id: '00000000-0000-0000-0000-000000000005', name: '英文' } },
+    classes: {
+      name: '英文班',
+      courses: { id: '00000000-0000-0000-0000-000000000005', name: '英文' },
+    },
     students: { name: '王小明' },
     creator: null,
   };
@@ -481,7 +485,10 @@ describe('toEnrollmentResponse', () => {
 
 describe('POST /api/enrollments/batch result mapping', () => {
   it('returns already_exists when supabase returns error code 23505', () => {
-    const supabaseError = { code: '23505', message: 'duplicate key value violates unique constraint' };
+    const supabaseError = {
+      code: '23505',
+      message: 'duplicate key value violates unique constraint',
+    };
     const resultStatus = supabaseError.code === '23505' ? 'already_exists' : 'error';
     expect(resultStatus).toBe('already_exists');
   });
@@ -985,7 +992,11 @@ describe('copy-from-class helper logic', () => {
   const isCopyFromClassOverQuota = (enrollmentsRoute as Record<string, unknown>)[
     'isCopyFromClassOverQuota'
   ] as
-    | ((input: { currentActiveCount: number | null; maxStudents: number | null; toInsertCount: number }) => boolean)
+    | ((input: {
+        currentActiveCount: number | null;
+        maxStudents: number | null;
+        toInsertCount: number;
+      }) => boolean)
     | undefined;
 
   it('dedupes source rows and skips students already in target active set', () => {
@@ -1052,15 +1063,13 @@ describe('leave backfill helper logic', () => {
   const buildEnrollmentLeaveAttendanceUpserts = (enrollmentsRoute as Record<string, unknown>)[
     'buildEnrollmentLeaveAttendanceUpserts'
   ] as
-    | ((
-        input: {
-          orgId: string;
-          studentId: string;
-          recordedBy: string;
-          events: Array<{ id: string; event_date: string }>;
-          leaves: Array<{ start_date: string; end_date: string }>;
-        },
-      ) => Array<{
+    | ((input: {
+        orgId: string;
+        studentId: string;
+        recordedBy: string;
+        events: Array<{ id: string; event_date: string }>;
+        leaves: Array<{ start_date: string; end_date: string }>;
+      }) => Array<{
         org_id: string;
         student_id: string;
         event_id: string;
@@ -1081,9 +1090,7 @@ describe('leave backfill helper logic', () => {
         { id: 'event-1', event_date: '2026-04-02' },
         { id: 'event-2', event_date: '2026-04-17' },
       ],
-      leaves: [
-        { start_date: '2026-04-01', end_date: '2026-04-16' },
-      ],
+      leaves: [{ start_date: '2026-04-01', end_date: '2026-04-16' }],
     });
 
     expect(rows).toEqual([
@@ -1110,5 +1117,92 @@ describe('leave backfill helper logic', () => {
     });
 
     expect(rows).toEqual([]);
+  });
+});
+
+describe('checkEnrollmentAttendance', () => {
+  const base = { orgId: 'org-1', classId: 'class-1', studentId: 'student-1' };
+
+  /** 讓指定資料表的查詢回傳錯誤，用來驗證 fail-closed。 */
+  function createFailingSupabase(failingTable: string) {
+    const builder: Record<string, unknown> = {};
+    for (const method of ['select', 'eq', 'in']) {
+      builder[method] = () => builder;
+    }
+    builder.then = (onfulfilled?: (value: unknown) => unknown) =>
+      Promise.resolve({ data: null, count: null, error: { message: `${failingTable} exploded` } }).then(
+        onfulfilled ?? undefined,
+      );
+    return { from: () => builder };
+  }
+
+  it('沒有任何 session 時視為無出勤紀錄', async () => {
+    const supabase = createFakeSupabase({ sessions: [] });
+    await expect(
+      checkEnrollmentAttendance({ supabase: supabase as never, ...base }),
+    ).resolves.toEqual({ status: 'none' });
+  });
+
+  it('session 都還沒產生 event 時視為無出勤紀錄', async () => {
+    const supabase = createFakeSupabase({
+      sessions: [{ org_id: 'org-1', class_id: 'class-1', event_id: null }],
+    });
+    await expect(
+      checkEnrollmentAttendance({ supabase: supabase as never, ...base }),
+    ).resolves.toEqual({ status: 'none' });
+  });
+
+  it('該學生在本班的 event 上有出勤紀錄時要擋下刪除', async () => {
+    const supabase = createFakeSupabase({
+      sessions: [{ org_id: 'org-1', class_id: 'class-1', event_id: 'event-1' }],
+      attendance_records: [{ org_id: 'org-1', event_id: 'event-1', student_id: 'student-1' }],
+    });
+    await expect(
+      checkEnrollmentAttendance({ supabase: supabase as never, ...base }),
+    ).resolves.toEqual({ status: 'has-attendance' });
+  });
+
+  it('出勤紀錄屬於別的學生時不算數（守門必須以 student 為範圍）', async () => {
+    const supabase = createFakeSupabase({
+      sessions: [{ org_id: 'org-1', class_id: 'class-1', event_id: 'event-1' }],
+      attendance_records: [{ org_id: 'org-1', event_id: 'event-1', student_id: 'student-2' }],
+    });
+    await expect(
+      checkEnrollmentAttendance({ supabase: supabase as never, ...base }),
+    ).resolves.toEqual({ status: 'none' });
+  });
+
+  it('別班 session 的出勤紀錄不算數', async () => {
+    const supabase = createFakeSupabase({
+      sessions: [{ org_id: 'org-1', class_id: 'class-2', event_id: 'event-9' }],
+      attendance_records: [{ org_id: 'org-1', event_id: 'event-9', student_id: 'student-1' }],
+    });
+    await expect(
+      checkEnrollmentAttendance({ supabase: supabase as never, ...base }),
+    ).resolves.toEqual({ status: 'none' });
+  });
+
+  it('sessions 查詢失敗時 fail closed，不得回報「沒有出勤」', async () => {
+    const result = await checkEnrollmentAttendance({
+      supabase: createFailingSupabase('sessions') as never,
+      ...base,
+    });
+    expect(result.status).toBe('check-failed');
+  });
+
+  it('attendance_records 查詢失敗時 fail closed', async () => {
+    // sessions 正常、attendance 爆炸 —— 這正是舊版 `count ?? 0` 會誤判成「可以刪」的情境。
+    const supabase = {
+      from(table: string) {
+        if (table === 'sessions') {
+          return createFakeSupabase({
+            sessions: [{ org_id: 'org-1', class_id: 'class-1', event_id: 'event-1' }],
+          }).from('sessions' as never);
+        }
+        return createFailingSupabase('attendance_records').from();
+      },
+    };
+    const result = await checkEnrollmentAttendance({ supabase: supabase as never, ...base });
+    expect(result.status).toBe('check-failed');
   });
 });
