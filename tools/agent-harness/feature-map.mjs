@@ -223,24 +223,6 @@ function pageDomainServices(page) {
   return [...found].sort();
 }
 
-function pageLines(page) {
-  const dir = join(ADMIN_PAGES, page);
-  if (!existsSync(dir)) return 0;
-  let total = 0;
-  const stack = [dir];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    for (const entry of readdirSync(current, { withFileTypes: true })) {
-      const full = join(current, entry.name);
-      if (entry.isDirectory()) stack.push(full);
-      else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) {
-        total += readFileSync(full, 'utf8').split('\n').length;
-      }
-    }
-  }
-  return total;
-}
-
 const mountedRoutes = existsSync(API_INDEX)
   ? [...readFileSync(API_INDEX, 'utf8').matchAll(/app\.route\('\/api\/([a-z-]+)'/g)].map(
       (m) => m[1],
@@ -281,7 +263,6 @@ function render() {
     );
     const specs = area.specs.filter((s) => diskSpecs.includes(s));
     const wired = pages.filter((p) => pageDomainServices(p).length > 0);
-    const lines = pages.reduce((sum, p) => sum + pageLines(p), 0);
 
     let status;
     if (area.planned && pages.length === 0 && routes.length === 0) status = '⬜ 未開始';
@@ -295,7 +276,6 @@ function render() {
       area: area.name,
       ui: pages.length,
       wired: wired.length,
-      lines,
       api: mounted.length,
       specs: specs.length,
       status,
@@ -304,11 +284,10 @@ function render() {
 
   const shells = rows.filter((r) => r.status.includes('空殼'));
   return [
-    '| 功能區 | UI 頁面 | 已接後端 | TS 行數 | 已掛載 API | 規格 | 狀態 |',
-    '| --- | --- | --- | --- | --- | --- | --- |',
+    '| 功能區 | UI 頁面 | 已接後端 | 已掛載 API | 規格 | 狀態 |',
+    '| --- | --- | --- | --- | --- | --- |',
     ...rows.map(
-      (r) =>
-        `| ${r.area} | ${r.ui} | ${r.wired} | ${r.lines} | ${r.api} | ${r.specs} | ${r.status} |`,
+      (r) => `| ${r.area} | ${r.ui} | ${r.wired} | ${r.api} | ${r.specs} | ${r.status} |`,
     ),
     '',
     `**共 ${AREAS.length} 個功能區：${rows.filter((r) => r.status.includes('已接通')).length} 個已接通、${shells.length} 個空殼、${rows.filter((r) => r.status.includes('未開始')).length} 個未開始。**`,
