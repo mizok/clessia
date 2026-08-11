@@ -66,8 +66,7 @@ Thumbs.db
 # 的 repo 裡不構成成本。先前這裡寫著「vendored skills 不進」，但實際上多數早就在版控裡，
 # 只有後來新增的沒進 —— 那個不一致讓第一次 CI 直接紅了（本機 10 個 skill、CI 9 個）。
 #
-# .agents/skills/ 是真身，其餘四個 CLI 目錄是指向它的相對 symlink（改一份處處生效）。
+# .agents/skills/ 是真身，.claude/skills 與 .codex/skills 是指向它的相對 symlink（改一份處處生效）。
 .claude/settings.local.json
 .claude/worktrees/
 .claude/tdd-guard/
-.gemini/antigravity/
