@@ -1,3 +1,11 @@
+---
+title: Clessia 系統架構腦力激盪提示詞 (Brainstorm Prompt)
+summary: 你是一位資深的教育科技架構師與產品經理，專精於補習班（課後輔導）ERP 系統的設計。 你的目標是分析「Clessia」(學程管家) 目前的系統設計，並提出一套完整的 functional specification (功能規格) 結構。
+category: spec
+status: active
+updated: 2026-04-07
+---
+
 # Clessia 系統架構腦力激盪提示詞 (Brainstorm Prompt)
 
 你是一位**資深的教育科技架構師**與**產品經理**，專精於補習班（課後輔導）ERP 系統的設計。
@@ -29,9 +37,9 @@
 
 ### 第二部分：目錄結構提案 (Folder Structure Proposal)
 
-提出一個與功能模組 1:1 對應的 `doc/specs/` 檔案結構。
+提出一個與功能模組 1:1 對應的 `kb/specs/` 檔案結構。
 
-- 範例：`doc/specs/admin/academic/courses.md`
+- 範例：`kb/specs/admin/academic/courses.md`
 
 ### 第三部分：頁面規格 (Page Specification - 重點)
 

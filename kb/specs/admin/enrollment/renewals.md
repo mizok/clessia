@@ -1,3 +1,11 @@
+---
+title: 續課管理
+summary: 查看續課狀態、處理異動申請。
+category: spec
+status: active
+updated: 2026-03-17
+---
+
 # 續課管理
 
 **路徑**: `/admin/renewals`
@@ -43,10 +51,10 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                                                           |
+| ---- | -------------------------------------------------------------------------------- |
 | 讀取 | `enrollments`, `renewal_requests`, `classes`, `fee_templates`, `billing_periods` |
-| 寫入 | `enrollments`, `renewal_requests`, `invoices`, `tasks` |
+| 寫入 | `enrollments`, `renewal_requests`, `invoices`, `tasks`                           |
 
 ## PRD 參考
 

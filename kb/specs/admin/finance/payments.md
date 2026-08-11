@@ -1,3 +1,11 @@
+---
+title: 繳費紀錄
+summary: 管理繳費單、確認收款。
+category: spec
+status: active
+updated: 2026-03-17
+---
+
 # 繳費紀錄
 
 **路徑**: `/admin/payments`
@@ -55,10 +63,10 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                                              |
+| ---- | ------------------------------------------------------------------- |
 | 讀取 | `invoices`, `payment_records`, `students`, `classes`, `enrollments` |
-| 寫入 | `invoices`, `payment_records`, `enrollments` |
+| 寫入 | `invoices`, `payment_records`, `enrollments`                        |
 
 ## PRD 參考
 

@@ -1,3 +1,11 @@
+---
+title: 課程日曆
+summary: 以日曆視圖查看全校課堂，快速進入課堂詳情。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 課程日曆
 
 **路徑**: `/admin/calendar`
@@ -43,10 +51,10 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                                                               |
+| ---- | ------------------------------------------------------------------------------------ |
 | 讀取 | `sessions`, `classes`, `teachers`, `schedule_changes`, `attendances`, `teacher_logs` |
-| 寫入 | `attendances`, `leaves`, `schedule_changes` |
+| 寫入 | `attendances`, `leaves`, `schedule_changes`                                          |
 
 ## PRD 參考
 

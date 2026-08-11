@@ -1,3 +1,11 @@
+---
+title: 試聽管理
+summary: 管理試聽申請、安排試聽、跟進結果。
+category: spec
+status: active
+updated: 2026-03-17
+---
+
 # 試聽管理
 
 **路徑**: `/admin/trials`
@@ -42,10 +50,10 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                  |
+| ---- | --------------------------------------- |
 | 讀取 | `trial_requests`, `courses`, `sessions` |
-| 寫入 | `trial_requests`, `tasks` |
+| 寫入 | `trial_requests`, `tasks`               |
 
 ## PRD 參考
 

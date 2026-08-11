@@ -1,3 +1,11 @@
+---
+title: 課程列表
+summary: ---
+category: spec
+status: active
+updated: 2026-04-07
+---
+
 # 課程列表
 
 > **Self-contained Spec** - 工程師實作時只需讀取此檔案

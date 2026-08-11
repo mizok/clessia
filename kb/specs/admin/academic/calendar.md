@@ -1,3 +1,11 @@
+---
+title: 課堂行事曆（Admin Calendar）
+summary: 統一行事曆介面，管理員可瀏覽課堂並直接處理停課、代課、調課。
+category: spec
+status: active
+updated: 2026-02-24
+---
+
 # 課堂行事曆（Admin Calendar）
 
 > 取代原本的排課管理（schedule）、課堂搜尋（sessions）、課務異動（changes）三個分頁。
@@ -17,11 +25,11 @@
 
 ## 課堂狀態與色彩
 
-| 狀態   | Class modifier   | 顏色                           |
-|--------|-----------------|--------------------------------|
-| 正常   | `--scheduled`   | accent-100 背景，accent-500 左邊框 |
-| 停課   | `--cancelled`   | zinc-100 背景，zinc-400 左邊框，刪除線 |
-| 有異動 | `--changed`     | warning-100 背景，warning-600 左邊框 |
+| 狀態   | Class modifier | 顏色                                   |
+| ------ | -------------- | -------------------------------------- |
+| 正常   | `--scheduled`  | accent-100 背景，accent-500 左邊框     |
+| 停課   | `--cancelled`  | zinc-100 背景，zinc-400 左邊框，刪除線 |
+| 有異動 | `--changed`    | warning-100 背景，warning-600 左邊框   |
 
 ## API
 

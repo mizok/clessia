@@ -1,3 +1,11 @@
+---
+title: 餐費管理
+summary: 新增和查詢餐費紀錄。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 餐費管理
 
 **路徑**: `/admin/meals`
@@ -47,10 +55,10 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                     |
+| ---- | -------------------------- |
 | 讀取 | `meal_records`, `students` |
-| 寫入 | `meal_records` |
+| 寫入 | `meal_records`             |
 
 ## PRD 參考
 

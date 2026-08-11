@@ -1,3 +1,11 @@
+---
+title: 課程管理
+summary: 管理開課班，設定上課時間，產生課堂。
+category: spec
+status: active
+updated: 2026-04-07
+---
+
 # 課程管理
 
 **路徑**: `/admin/classes`

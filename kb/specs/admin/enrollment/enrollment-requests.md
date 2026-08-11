@@ -1,3 +1,11 @@
+---
+title: 報名審核
+summary: 審核家長提交的報名申請。
+category: spec
+status: active
+updated: 2026-03-17
+---
+
 # 報名審核
 
 **路徑**: `/admin/enrollment-requests`
@@ -25,12 +33,14 @@
 ### 審核操作
 
 **審核通過**：
+
 1. 查看申請詳情
 2. 確認費用（可調整金額，如早鳥優惠、兄弟姊妹折扣）
 3. 建立繳費單
 4. 系統同步建立 `pending_payment` 狀態的 Enrollment
 
 **拒絕**：
+
 1. 填寫拒絕原因
 2. 確認拒絕
 
@@ -45,10 +55,10 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                                        |
+| ---- | ------------------------------------------------------------- |
 | 讀取 | `enrollment_requests`, `classes`, `students`, `fee_templates` |
-| 寫入 | `enrollment_requests`, `enrollments`, `invoices`, `tasks` |
+| 寫入 | `enrollment_requests`, `enrollments`, `invoices`, `tasks`     |
 
 ## PRD 參考
 

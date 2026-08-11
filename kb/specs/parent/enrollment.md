@@ -1,3 +1,11 @@
+---
+title: 報名申請（家長）
+summary: 已有帳號的家長為孩子加報課程、查看申請狀態。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 報名申請（家長）
 
 **路徑**: `/parent/enrollment`
@@ -46,6 +54,7 @@
 ### 申請詳情 Popup
 
 點擊申請項目後展開：
+
 - 基本資訊：孩子、開課班、期望開始日期、備註
 - 狀態時間軸
 - 若為「待付款」狀態：
@@ -59,10 +68,10 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                                   |
+| ---- | -------------------------------------------------------- |
 | 讀取 | `enrollment_requests`, `students`, `classes`, `invoices` |
-| 寫入 | `enrollment_requests` |
+| 寫入 | `enrollment_requests`                                    |
 
 ## PRD 參考
 

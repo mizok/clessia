@@ -1,3 +1,11 @@
+---
+title: 老師儀表板
+summary: 老師首頁，快速掌握今日課程與待處理事項。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 老師儀表板
 
 **路徑**: `/teacher/dashboard`
@@ -16,8 +24,8 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                                                  |
+| ---- | ----------------------------------------------------------------------- |
 | 讀取 | `sessions`, `teacher_logs`, `grades`, `assessments`, `schedule_changes` |
 
 ## PRD 參考

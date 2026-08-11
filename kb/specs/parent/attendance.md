@@ -1,3 +1,11 @@
+---
+title: 到班紀錄
+summary: 查看孩子的到班歷史。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 到班紀錄
 
 **路徑**: `/parent/attendance`
@@ -35,8 +43,8 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                                |
+| ---- | ----------------------------------------------------- |
 | 讀取 | `check_ins`, `sessions`, `attendances`, `enrollments` |
 
 ## PRD 參考

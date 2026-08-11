@@ -1,3 +1,11 @@
+---
+title: 點名
+summary: 查看和修改當天課堂的出勤狀態。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 點名
 
 **路徑**: `/teacher/attendance`
@@ -31,10 +39,10 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                               |
+| ---- | ---------------------------------------------------- |
 | 讀取 | `sessions`, `students`, `enrollments`, `attendances` |
-| 寫入 | `attendances`（僅當天） |
+| 寫入 | `attendances`（僅當天）                              |
 
 ## PRD 參考
 

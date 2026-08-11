@@ -1,3 +1,11 @@
+---
+title: 課表查看
+summary: 查看孩子的課表和課堂詳情。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 課表查看
 
 **路徑**: `/parent/schedule`
@@ -43,8 +51,8 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                                                                                             |
+| ---- | ------------------------------------------------------------------------------------------------------------------ |
 | 讀取 | `sessions`, `enrollments`, `classes`, `teachers`, `schedule_changes`, `attendances`, `teacher_logs`, `assessments` |
 
 ## PRD 參考

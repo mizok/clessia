@@ -1,3 +1,11 @@
+---
+title: 待處理工作
+summary: 集中管理所有待辦任務，支援認領與處理。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 待處理工作
 
 **路徑**: `/admin/tasks`
@@ -33,10 +41,10 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                                       |
+| ---- | ------------------------------------------------------------ |
 | 讀取 | `tasks`, `enrollment_requests`, `invoices`, `trial_requests` |
-| 寫入 | `tasks` |
+| 寫入 | `tasks`                                                      |
 
 ## PRD 參考
 

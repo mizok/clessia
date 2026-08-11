@@ -1,3 +1,11 @@
+---
+title: 到班與出勤流程
+summary: 本文件整理 PRD 6.4-6.5，並補充 4.16 的模式定義，說明「日到班（Check-in）」如何轉成課堂出勤（Attendance），以及管理員如何補登與補請假。
+category: flow
+status: active
+updated: 2026-03-17
+---
+
 # 到班與出勤流程
 
 本文件整理 PRD 6.4-6.5，並補充 4.16 的模式定義，說明「日到班（Check-in）」如何轉成課堂出勤（Attendance），以及管理員如何補登與補請假。

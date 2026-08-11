@@ -1,3 +1,11 @@
+---
+title: 通知中心（老師）
+summary: 查看課務異動通知。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 通知中心（老師）
 
 **路徑**: `/teacher/notifications`
@@ -18,9 +26,9 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
-| 讀取 | `notifications` |
+| 操作 | 資料表                          |
+| ---- | ------------------------------- |
+| 讀取 | `notifications`                 |
 | 寫入 | `notifications`（更新已讀狀態） |
 
 ## PRD 參考

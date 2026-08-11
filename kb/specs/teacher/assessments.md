@@ -1,3 +1,11 @@
+---
+title: 考試管理
+summary: 建立考試事件、輸入成績。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 考試管理
 
 **路徑**: `/teacher/assessments`
@@ -57,6 +65,7 @@
 支援 CSV 和 Excel（.xlsx）格式
 
 **匯入流程**：
+
 1. 點擊「下載範本」
 2. 範本內容：學生 ID、學生姓名、開課班、分數、狀態
 3. 填寫分數欄位
@@ -66,10 +75,10 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                                                    |
+| ---- | ------------------------------------------------------------------------- |
 | 讀取 | `assessments`, `grades`, `sessions`, `classes`, `students`, `enrollments` |
-| 寫入 | `assessments`, `grades` |
+| 寫入 | `assessments`, `grades`                                                   |
 
 ## PRD 參考
 

@@ -1,3 +1,11 @@
+---
+title: 學生
+summary: 查看自己任課班級的學生名單。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 學生
 
 **路徑**: `/teacher/students`
@@ -26,8 +34,8 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                                        |
+| ---- | ------------------------------------------------------------- |
 | 讀取 | `students`, `enrollments`, `classes`, `attendances`, `grades` |
 
 ## PRD 參考

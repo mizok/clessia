@@ -1,3 +1,11 @@
+---
+title: 營收報表
+summary: 查看營收統計報表。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 營收報表
 
 **路徑**: `/admin/reports`
@@ -35,8 +43,8 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                               |
+| ---- | ---------------------------------------------------- |
 | 讀取 | `invoices`, `payment_records`, `classes`, `campuses` |
 
 ## PRD 參考

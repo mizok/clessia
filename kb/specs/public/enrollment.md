@@ -1,3 +1,11 @@
+---
+title: 新生報名表單
+summary: 新家長為孩子提交報名申請。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 新生報名表單
 
 **路徑**: `/enrollment`
@@ -54,10 +62,10 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                |
+| ---- | ------------------------------------- |
 | 讀取 | `classes`, `courses`, `fee_templates` |
-| 寫入 | `enrollment_requests` |
+| 寫入 | `enrollment_requests`                 |
 
 ## PRD 參考
 

@@ -1,3 +1,11 @@
+---
+title: 成績查閱
+summary: 查看孩子的考試成績。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 成績查閱
 
 **路徑**: `/parent/grades`
@@ -28,8 +36,8 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                             |
+| ---- | ---------------------------------- |
 | 讀取 | `grades`, `assessments`, `courses` |
 
 ## PRD 參考

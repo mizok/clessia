@@ -1,3 +1,11 @@
+---
+title: 成績查閱
+summary: 查詢所有學生成績。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 成績查閱
 
 **路徑**: `/admin/grades`
@@ -30,8 +38,8 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                                    |
+| ---- | --------------------------------------------------------- |
 | 讀取 | `grades`, `assessments`, `students`, `classes`, `courses` |
 
 ## PRD 參考

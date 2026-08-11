@@ -1,3 +1,11 @@
+---
+title: Clessia 頁面規格文件
+summary: 本目錄包含 Clessia（學程管家）系統所有頁面的功能規格摘要。
+category: spec
+status: active
+updated: 2026-04-07
+---
+
 # Clessia 頁面規格文件
 
 本目錄包含 Clessia（學程管家）系統所有頁面的功能規格摘要。
@@ -5,7 +13,7 @@
 ## 目錄結構
 
 ```text
-doc/specs/
+kb/specs/
 ├── README.md                         # 本文件
 │
 ├── public/                           # 公開頁面（無需登入）

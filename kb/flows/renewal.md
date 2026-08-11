@@ -1,3 +1,11 @@
+---
+title: 續課流程（預告制）
+summary: 本文件整理 PRD 6.10，定義預告制自動續課（Pre-Notification Auto-Renewal）的時間軸、角色動作與例外處理。
+category: flow
+status: active
+updated: 2026-03-17
+---
+
 # 續課流程（預告制）
 
 本文件整理 PRD 6.10，定義預告制自動續課（Pre-Notification Auto-Renewal）的時間軸、角色動作與例外處理。

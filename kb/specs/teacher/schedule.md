@@ -1,3 +1,11 @@
+---
+title: 課表（我的課表）
+summary: 查看自己任課的課堂，進入課堂詳情。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # 課表（我的課表）
 
 **路徑**: `/teacher/schedule`
@@ -53,10 +61,10 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                                                                                        |
+| ---- | ------------------------------------------------------------------------------------------------------------- |
 | 讀取 | `sessions`, `classes`, `teacher_logs`, `assessments`, `grades`, `schedule_changes`, `attendances`, `students` |
-| 寫入 | `attendances`（僅當天）, `teacher_logs`, `assessments` |
+| 寫入 | `attendances`（僅當天）, `teacher_logs`, `assessments`                                                        |
 
 ## PRD 參考
 

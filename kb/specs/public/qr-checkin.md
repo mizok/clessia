@@ -1,3 +1,11 @@
+---
+title: QR 到班打卡
+summary: 學生掃碼完成當日到班登記。
+category: spec
+status: active
+updated: 2026-02-13
+---
+
 # QR 到班打卡
 
 **路徑**: `/qr-checkin`
@@ -16,10 +24,10 @@
 
 ## 資料依賴
 
-| 操作 | 資料表 |
-|------|--------|
+| 操作 | 資料表                                |
+| ---- | ------------------------------------- |
 | 讀取 | `students`, `sessions`, `enrollments` |
-| 寫入 | `check_ins`, `attendances` |
+| 寫入 | `check_ins`, `attendances`            |
 
 ## PRD 參考
 

@@ -1,3 +1,11 @@
+---
+title: Clessia 功能開發清單
+summary: ---
+category: guide
+status: active
+updated: 2026-03-19
+---
+
 # Clessia 功能開發清單
 
 > 依據 `PRD.md` 提取的功能模組清單，按依賴關係排序。
@@ -50,15 +58,15 @@
 
 ## ✅ 已完成
 
-| #   | 功能                     | 路徑                | 完成日期 |
-| --- | ------------------------ | ------------------- | -------- |
-| 1   | 分校管理 (Campuses)      | `/admin/campuses`   | 2026-02  |
-| 2   | 課程管理 (Courses)       | `/admin/courses`    | 2026-02  |
-| 3   | 人員管理 (Staff)         | `/admin/staff`      | 2026-02  |
-| 4   | 班級管理 (Classes)       | `/admin/classes`    | 2026-03  |
-| 5   | 上課時間設定 (Schedules) | `/admin/classes`    | 2026-03  |
-| 6   | 課堂管理 (Sessions)      | `/admin/sessions`   | 2026-03  |
-| 7   | 學生管理 (Students)      | `/admin/students`   | 2026-03  |
+| #   | 功能                     | 路徑              | 完成日期 |
+| --- | ------------------------ | ----------------- | -------- |
+| 1   | 分校管理 (Campuses)      | `/admin/campuses` | 2026-02  |
+| 2   | 課程管理 (Courses)       | `/admin/courses`  | 2026-02  |
+| 3   | 人員管理 (Staff)         | `/admin/staff`    | 2026-02  |
+| 4   | 班級管理 (Classes)       | `/admin/classes`  | 2026-03  |
+| 5   | 上課時間設定 (Schedules) | `/admin/classes`  | 2026-03  |
+| 6   | 課堂管理 (Sessions)      | `/admin/sessions` | 2026-03  |
+| 7   | 學生管理 (Students)      | `/admin/students` | 2026-03  |
 
 ---
 
@@ -95,11 +103,11 @@ _Phase 2 已全部完成。課堂管理含批次操作（指派/調時間/停課
 
 ### Phase 3: 學生管理
 
-| #   | 功能     | 路徑                | 依賴         | 說明                       |
-| --- | -------- | ------------------- | ------------ | -------------------------- |
-| 7   | ~~學生管理~~ ✅ | `/admin/students` | — | 查詢/編輯用，學生由報名流程自動建立 |
-| 8   | ~~家長管理~~ ✅ | `/admin/parents`    | 學生         | CRUD、關聯學生、帳號資訊卡 |
-| 9   | 學生報名 | `/admin/enrollment` | 學生、開課班 | 直接報名（跳過申請流程）   |
+| #   | 功能            | 路徑                | 依賴         | 說明                                |
+| --- | --------------- | ------------------- | ------------ | ----------------------------------- |
+| 7   | ~~學生管理~~ ✅ | `/admin/students`   | —            | 查詢/編輯用，學生由報名流程自動建立 |
+| 8   | ~~家長管理~~ ✅ | `/admin/parents`    | 學生         | CRUD、關聯學生、帳號資訊卡          |
+| 9   | 學生報名        | `/admin/enrollment` | 學生、開課班 | 直接報名（跳過申請流程）            |
 
 - 學生資料由報名流程（EnrollmentRequest 完成後）自動建立
 - `/admin/students` 是查詢/編輯用，不提供手動新增
@@ -179,11 +187,11 @@ _Phase 2 已全部完成。課堂管理含批次操作（指派/調時間/停課
 ```
 請開始開發「[功能名稱]」功能。
 
-規格：doc/specs/[角色]/[分類]/[功能].md
+規格：kb/specs/[角色]/[分類]/[功能].md
 路徑：[路由]
 依賴：[已完成的依賴功能]
 
-請遵循 doc/AGENT_GUIDE.md 流程：
+請遵循 kb/AGENT_GUIDE.md 流程：
 1. Phase 0：環境調查
 2. Phase 1：讀取規格檔（spec 已存在，不需另寫）
 3. Phase 2-6：依序實作並驗證
@@ -195,24 +203,24 @@ Phase 2-4 優先委派 Codex。
 
 | 功能     | Spec 路徑                                  |
 | -------- | ------------------------------------------ |
-| 人員管理 | `doc/specs/admin/system/staff.md`          |
-| 課程管理 | `doc/specs/admin/academic/classes.md`      |
-| 學生管理 | `doc/specs/admin/academic/students.md`     |
-| 家長管理 | `doc/specs/admin/academic/parents.md`      |
-| 出勤管理 | `doc/specs/admin/attendance/attendance.md` |
+| 人員管理 | `kb/specs/admin/system/staff.md`          |
+| 課程管理 | `kb/specs/admin/academic/classes.md`      |
+| 學生管理 | `kb/specs/admin/academic/students.md`     |
+| 家長管理 | `kb/specs/admin/academic/parents.md`      |
+| 出勤管理 | `kb/specs/admin/attendance/attendance.md` |
 
-> 完整 spec 檔案列表請執行：`find doc/specs -name "*.md" | sort`
+> 完整 spec 檔案列表請執行：`find kb/specs -name "*.md" | sort`
 
 ### 範例：下一個功能
 
 ```
 請開始開發「人員管理」功能。
 
-規格：doc/specs/admin/system/staff.md
+規格：kb/specs/admin/system/staff.md
 路徑：/admin/staff
 依賴：分校（已完成）
 
-請遵循 doc/AGENT_GUIDE.md 流程。Phase 2-4 優先委派 Codex。
+請遵循 kb/AGENT_GUIDE.md 流程。Phase 2-4 優先委派 Codex。
 ```
 
 ---
@@ -250,10 +258,10 @@ Phase 2-4 優先委派 Codex。
 
 ## 更新紀錄
 
-| 日期       | 更新內容                                                     |
-| ---------- | ------------------------------------------------------------ |
-| 2026-02-15 | 初始建立，從 PRD.md 提取功能清單                             |
-| 2026-02-22 | 標記人員管理已完成；新增技術債區段（忘記密碼、手機號碼登入） |
-| 2026-03-16 | 標記 Phase 2 全部完成（班級、排課、課堂管理）；人員管理補三態 status（active/inactive/archived） |
-| 2026-03-17 | 標記學生管理（#7）完成；文件重組（新增 doc/flows/, doc/rules/, doc/overview.md）；重寫 4 份關鍵 spec |
-| 2026-03-18 | 標記家長管理（#8）完成；統一登入技術債解除（手機號碼登入已實作）；文件目錄整合（docs/ → doc/superpowers/）|
+| 日期       | 更新內容                                                                                                   |
+| ---------- | ---------------------------------------------------------------------------------------------------------- |
+| 2026-02-15 | 初始建立，從 PRD.md 提取功能清單                                                                           |
+| 2026-02-22 | 標記人員管理已完成；新增技術債區段（忘記密碼、手機號碼登入）                                               |
+| 2026-03-16 | 標記 Phase 2 全部完成（班級、排課、課堂管理）；人員管理補三態 status（active/inactive/archived）           |
+| 2026-03-17 | 標記學生管理（#7）完成；文件重組（新增 kb/flows/, kb/rules/, kb/overview.md）；重寫 4 份關鍵 spec       |
+| 2026-03-18 | 標記家長管理（#8）完成；統一登入技術債解除（手機號碼登入已實作）；文件目錄整合（docs/ → kb/superpowers/） |
