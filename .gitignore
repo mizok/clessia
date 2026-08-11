@@ -56,16 +56,18 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
-.agent
-.agents
 .angular
-.codex
-.gemini
 
-# Agent harness：設定與 hook 進版控（換一台機器才有東西可用），
-# 個人覆寫與 vendored skills 不進。邏輯本體在 tools/agent-harness/，本來就進版控。
-.claude/*
-!.claude/settings.json
-!.claude/settings.md
-!.claude/hooks/
-!.claude/agents/
+# ── Agent harness ────────────────────────────────────────────────────────────────
+# 設定、hook、subagent、skill 全部進版控 —— 換一台機器 clone 下來就是完整可用的。
+#
+# skill 為什麼進版控：8 個 skill 裡有 6 個**沒有任何 upstream**（不是從哪裡拉來的，
+# 就是這份），砍掉只能從 git 歷史挖。而總量只有 76 檔 / 767 KB，在一個有 node_modules
+# 的 repo 裡不構成成本。先前這裡寫著「vendored skills 不進」，但實際上多數早就在版控裡，
+# 只有後來新增的沒進 —— 那個不一致讓第一次 CI 直接紅了（本機 10 個 skill、CI 9 個）。
+#
+# .agents/skills/ 是真身，其餘四個 CLI 目錄是指向它的相對 symlink（改一份處處生效）。
+.claude/settings.local.json
+.claude/worktrees/
+.claude/tdd-guard/
+.gemini/antigravity/

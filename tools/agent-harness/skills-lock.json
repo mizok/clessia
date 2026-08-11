@@ -2,10 +2,6 @@
   "note": "AGENTS.md skill 表的真相來源。skill 檔本身不進版控（.agents/ 被 gitignore），所以 CI 靠這份 manifest 驗證文件。重生：npm run harness:write",
   "skills": [
     {
-      "name": "add-icon",
-      "description": "Add or update supported language, framework, library, tool, or platform icons in Socialify. Use when a requ…"
-    },
-    {
       "name": "angular",
       "description": ">-"
     },
@@ -28,10 +24,6 @@
     {
       "name": "frontend-design",
       "description": "Create distinctive, production-grade frontend interfaces with intentional aesthetics, high craft, and non-g…"
-    },
-    {
-      "name": "postgres-patterns",
-      "description": "PostgreSQL database patterns for query optimization, schema design, indexing, and security. Based on Supaba…"
     },
     {
       "name": "supabase-postgres-best-practices",

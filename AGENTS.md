@@ -241,14 +241,12 @@ PostToolUse hook 會在每次編輯後自動跑，不用手動格式化。
 
 | Skill | 用途 |
 | --- | --- |
-| `add-icon` | Add or update supported language, framework, library, tool, or platform icons in Socialify. Use when a requ… |
 | `angular` | >- |
 | `angular-best-practices` | Angular performance optimization and best practices guide. Use when writing, reviewing, or refactoring Angu… |
 | `angular-scss-bem-standards` | Use when writing, reviewing, or refactoring Angular component styles (SCSS/CSS). Triggers on BEM naming iss… |
 | `angular-state-management` | Master modern Angular state management with Signals, NgRx, and RxJS. Use when setting up global state, mana… |
 | `angular-ui-patterns` | Modern Angular UI patterns for loading states, error handling, and data display. Use when building UI compo… |
 | `frontend-design` | Create distinctive, production-grade frontend interfaces with intentional aesthetics, high craft, and non-g… |
-| `postgres-patterns` | PostgreSQL database patterns for query optimization, schema design, indexing, and security. Based on Supaba… |
 | `supabase-postgres-best-practices` | Postgres performance optimization and best practices from Supabase. Use this skill when writing, reviewing,… |
 | `ui-ux-pro-max` | UI/UX design intelligence. 50 styles, 21 palettes, 50 font pairings, 20 charts, 9 stacks. |
 

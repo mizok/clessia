@@ -124,15 +124,31 @@ if (mode === 'write' && onDisk && onDisk.length > 0) {
 
 const locked = readLock();
 
-// 磁碟 ↔ lock 是**本機**的不變量（提醒你 lock 過期了），CI 不該跑它。
-//
-// 不能只靠「目錄不存在就跳過」：`.agents/skills/` 底下有 9 個 skill 的內容在 gitignore 規則
-// 加上去之前就已經進了版控，所以 CI 的 clone 裡那個目錄是**部分存在**的 —— 少了後來才搬進去
-// 的 ui-ux-pro-max。第二次 CI 就是這樣紅的。
-const isCI = Boolean(process.env.CI);
-
-if (mode !== 'write' && !isCI && onDisk && JSON.stringify(onDisk) !== JSON.stringify(locked)) {
+// skill 現在全部進版控，所以 CI 的 clone 與本機看到的是同一份 —— 這個比對兩邊都跑。
+// （先前 `.agents/` 被 gitignore 但多數 skill 早已在版控裡，CI 看到的是部分存在的目錄，
+//  當時只能用 process.env.CI 跳過。把版控狀態弄一致之後那個 workaround 就不需要了。）
+if (mode !== 'write' && onDisk && JSON.stringify(onDisk) !== JSON.stringify(locked)) {
   fail('skills-lock.json 與 .agents/skills/ 磁碟現況不符。重生：npm run harness:write');
+}
+
+// ── A6. 每個 skill 在各 CLI 目錄都有 symlink ─────────────────────────────────────────────
+// `.agents/skills/` 是真身，其餘 CLI 目錄靠相對 symlink 共用同一份。這個結構會無聲漂掉：
+// 實際發生過 —— .codex 少了 angular-scss-bem-standards（而 AGENTS.md 明文要求寫 SCSS 前
+// 先 invoke 它），.gemini 少了 ui-ux-pro-max，沒有任何東西發現。
+const SYMLINK_TARGETS = ['.claude', '.agent', '.codex', '.gemini'];
+// Claude 由 plugin 取得 ui-ux-pro-max，不需要本地副本；其餘 CLI 沒有 plugin 機制。
+const SYMLINK_EXEMPT = { '.claude': ['ui-ux-pro-max'] };
+
+for (const dir of SYMLINK_TARGETS) {
+  const skillsDir = join(ROOT, dir, 'skills');
+  if (!existsSync(skillsDir)) continue;
+  const exempt = SYMLINK_EXEMPT[dir] ?? [];
+  for (const { name } of locked) {
+    if (exempt.includes(name)) continue;
+    if (!existsSync(join(skillsDir, name, 'SKILL.md'))) {
+      fail(`${dir}/skills/${name} 不存在或斷鏈 —— 該 CLI 叫不到這個 skill。`);
+    }
+  }
 }
 
 // ── A1b. AGENTS.md 的表格與 lock 一致（CI 只驗得到這一段，因為它沒有 skill 檔）───────────
