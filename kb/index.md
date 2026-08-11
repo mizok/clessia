@@ -85,6 +85,11 @@ updated: 2026-08-11
 - [2026-08 文件與程式碼漂移稽核](wiki/lessons/doc-code-drift-2026-08.md) — 建立 agent harness 時逐項驗證文件宣稱，找出五處與程式碼不符之處。含一個活的 bug（查詢不存在的資料表）與兩個沉默失效的設定。
 - [本機綠不等於 repo 綠](wiki/lessons/local-green-is-not-repo-green.md) — 導入 CI 的過程連紅六次，每一次的根因都是「本機狀態 ≠ 版控狀態」。附上推送前該怎麼自我驗證。
 
+### 實作模式（2）
+
+- [刻意不設計「學部」這一層](wiki/architecture/no-division-scoping.md) — 補習班有國小部／國中部（未來高中部），但系統不建立「部」的概念，也不依部隔離可見範圍。原因是實際的人力本來就跨部。
+- [記錄授課歷程，但不做薪資計算](wiki/architecture/teaching-history-not-payroll.md) — 老師多為鐘點計酬，但系統刻意不計算薪資。職責是把「誰在什麼時候上了哪一堂」記到可信，計算方式留給人。
+
 ### 總覽與指引（5）
 
 - [Agent 開發流程指南](AGENT_GUIDE.md) — 本文件定義 Claude 與 Codex 協作開發時應遵循的工作流程。 目標：減少 token 消耗、提升成品品質、確保可追蹤性。
