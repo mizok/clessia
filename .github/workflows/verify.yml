@@ -9,10 +9,15 @@ name: verify
 # 刻意用 run-many 而不是 affected：整套跑完本機只要 8 秒，affected 需要正確的 base ref
 # （nx.json 的 defaultBase 是不存在的 `dev`），為了省幾秒去換一個會安靜失準的東西不划算。
 
+# 觸發條件刻意涵蓋所有分支的 push，而不是只有 main + PR：
+# 這個專案的實際工作方式是在長期 feature branch 上直接推送，PR 開得晚。
+# 只掛 main + pull_request 的話，功能開發全程都不會有任何 CI 回饋 —— 第一版就是這樣寫的，
+# 推上去之後零個 run，連 workflow 語法都沒被 GitHub 驗證到。
+#
+# 不另外掛 pull_request：開 PR 時該 commit 早已被 push 驗證過，重複跑只是浪費。
 on:
-  pull_request:
   push:
-    branches: [main]
+  workflow_dispatch:
 
 # 同一個 PR 連續推送時取消前一次，只留最新結果
 concurrency:
