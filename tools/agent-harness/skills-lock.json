@@ -1,0 +1,45 @@
+{
+  "note": "AGENTS.md skill 表的真相來源。skill 檔本身不進版控（.agents/ 被 gitignore），所以 CI 靠這份 manifest 驗證文件。重生：npm run harness:write",
+  "skills": [
+    {
+      "name": "add-icon",
+      "description": "Add or update supported language, framework, library, tool, or platform icons in Socialify. Use when a requ…"
+    },
+    {
+      "name": "angular",
+      "description": ">-"
+    },
+    {
+      "name": "angular-best-practices",
+      "description": "Angular performance optimization and best practices guide. Use when writing, reviewing, or refactoring Angu…"
+    },
+    {
+      "name": "angular-scss-bem-standards",
+      "description": "Use when writing, reviewing, or refactoring Angular component styles (SCSS/CSS). Triggers on BEM naming iss…"
+    },
+    {
+      "name": "angular-state-management",
+      "description": "Master modern Angular state management with Signals, NgRx, and RxJS. Use when setting up global state, mana…"
+    },
+    {
+      "name": "angular-ui-patterns",
+      "description": "Modern Angular UI patterns for loading states, error handling, and data display. Use when building UI compo…"
+    },
+    {
+      "name": "frontend-design",
+      "description": "Create distinctive, production-grade frontend interfaces with intentional aesthetics, high craft, and non-g…"
+    },
+    {
+      "name": "postgres-patterns",
+      "description": "PostgreSQL database patterns for query optimization, schema design, indexing, and security. Based on Supaba…"
+    },
+    {
+      "name": "supabase-postgres-best-practices",
+      "description": "Postgres performance optimization and best practices from Supabase. Use this skill when writing, reviewing,…"
+    },
+    {
+      "name": "ui-ux-pro-max",
+      "description": "UI/UX design intelligence. 50 styles, 21 palettes, 50 font pairings, 20 charts, 9 stacks."
+    }
+  ]
+}

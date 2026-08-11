@@ -27,14 +27,27 @@ const mode = process.argv.includes('--write') ? 'write' : 'check';
 const failures = [];
 const fail = (message) => failures.push(message);
 
+/**
+ * Skill 檔本身不進版控（`.agents/` 被 gitignore，那些是 vendored 的第三方目錄），
+ * 所以 AGENTS.md 的表格不能直接以磁碟為準 —— CI 的 clone 裡根本沒有那些目錄，
+ * 第一次跑 CI 就是這樣紅的（本機 10 個、CI 9 個）。
+ *
+ * 改成 package.json / node_modules 的模型：**`skills-lock.json` 進版控當真相**，
+ * 磁碟只在本機用來重生 lock。於是驗證鏈在兩個環境各守一段：
+ *   本機   磁碟 ←→ lock ←→ AGENTS.md
+ *   CI            lock ←→ AGENTS.md
+ */
+const LOCK = join(ROOT, 'tools/agent-harness/skills-lock.json');
+
 /** Canonical order: plain alphabetical. Never rely on readdir order — it is platform-dependent. */
-function installedSkills() {
-  if (!existsSync(SKILLS_DIR)) return [];
-  return readdirSync(SKILLS_DIR, { withFileTypes: true })
+function skillsOnDisk() {
+  if (!existsSync(SKILLS_DIR)) return null; // 目錄不存在（CI）→ 無從比對，不是錯誤
+  const names = readdirSync(SKILLS_DIR, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
     .map((entry) => entry.name)
     .filter((name) => existsSync(join(SKILLS_DIR, name, 'SKILL.md')))
     .sort();
+  return names.map((name) => ({ name, description: skillDescription(name) }));
 }
 
 function skillDescription(name) {
@@ -44,13 +57,17 @@ function skillDescription(name) {
   return text.length > 110 ? `${text.slice(0, 107)}…` : text;
 }
 
-function renderSkillBlock() {
-  const skills = installedSkills();
-  if (skills.length === 0) return '_（`.agents/skills/` 目前是空的。）_';
+function readLock() {
+  if (!existsSync(LOCK)) return [];
+  return JSON.parse(readFileSync(LOCK, 'utf8')).skills ?? [];
+}
+
+function renderSkillBlock(skills) {
+  if (skills.length === 0) return '_（`skills-lock.json` 目前是空的。）_';
   return [
     '| Skill | 用途 |',
     '| --- | --- |',
-    ...skills.map((name) => `| \`${name}\` | ${skillDescription(name) || '—'} |`),
+    ...skills.map((skill) => `| \`${skill.name}\` | ${skill.description || '—'} |`),
   ].join('\n');
 }
 
@@ -88,9 +105,32 @@ function normalize(block) {
     .join('\n');
 }
 
-// ── A1. AGENTS.md skill table matches .agents/skills/ ────────────────────────────────────
+// ── A1a. skills-lock.json 與磁碟一致（只在磁碟有 skill 目錄時，即本機）────────────────────
+const onDisk = skillsOnDisk();
+
+if (mode === 'write' && onDisk && onDisk.length > 0) {
+  writeFileSync(
+    LOCK,
+    `${JSON.stringify(
+      {
+        note: 'AGENTS.md skill 表的真相來源。skill 檔本身不進版控（.agents/ 被 gitignore），所以 CI 靠這份 manifest 驗證文件。重生：npm run harness:write',
+        skills: onDisk,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
+
+const locked = readLock();
+
+if (mode !== 'write' && onDisk && JSON.stringify(onDisk) !== JSON.stringify(locked)) {
+  fail('skills-lock.json 與 .agents/skills/ 磁碟現況不符。重生：npm run harness:write');
+}
+
+// ── A1b. AGENTS.md 的表格與 lock 一致（CI 只驗得到這一段，因為它沒有 skill 檔）───────────
 const agentsSource = readFileSync(AGENTS_MD, 'utf8');
-const inner = renderSkillBlock();
+const inner = renderSkillBlock(locked);
 
 if (spliceBlock(agentsSource, inner) === null) {
   fail(`AGENTS.md 缺少 SKILLS:START / SKILLS:END marker，無法同步 skill 清單。`);
@@ -98,7 +138,7 @@ if (spliceBlock(agentsSource, inner) === null) {
   writeFileSync(AGENTS_MD, spliceBlock(agentsSource, inner));
   console.log('✓ AGENTS.md skill 清單已重生');
 } else if (normalize(currentInner(agentsSource)) !== normalize(inner)) {
-  fail('AGENTS.md 的 skill 清單過期。重生：npm run harness:write');
+  fail('AGENTS.md 的 skill 清單與 skills-lock.json 不符。重生：npm run harness:write');
 }
 
 // ── A2. CLAUDE.md / GEMINI.md stay thin importers ────────────────────────────────────────
@@ -163,5 +203,5 @@ if (failures.length > 0 && mode !== 'write') {
 if (failures.length > 0) {
   console.warn(`⚠ 另有 ${failures.length} 項無法自動修，需要人工處理（細節跑 npm run harness）`);
 } else {
-  console.log(`✓ harness gate 全綠（${installedSkills().length} 個 skill）`);
+  console.log(`✓ harness gate 全綠（${locked.length} 個 skill）`);
 }
