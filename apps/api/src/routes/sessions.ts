@@ -1,5 +1,10 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
+import { DbUuidSchema } from '../lib/validation';
+import {
+  buildSubstitutedAwayEntries,
+  type SubstitutedAwayRow,
+} from './sessions/substituted-away';
 import { logAudit, formatAuditSessionResourceName } from '../utils/audit';
 import {
   assertSessionOperable,
@@ -775,6 +780,76 @@ app.openapi(listSessionsRoute, async (c) => {
     200,
   );
 });
+
+const SubstitutedAwayQuerySchema = z.object({
+  teacherId: DbUuidSchema,
+  from: z.string().date(),
+  to: z.string().date(),
+});
+
+const SubstitutedAwayEntrySchema = z
+  .object({
+    changeId: z.uuid(),
+    sessionId: z.uuid(),
+    sessionDate: z.string().nullable(),
+    startTime: z.string().nullable(),
+    endTime: z.string().nullable(),
+    className: z.string().nullable(),
+    substituteTeacherName: z.string().nullable(),
+    reason: z.string().nullable(),
+    changedAt: z.string(),
+  })
+  .openapi('SubstitutedAwayEntry');
+
+const getSubstitutedAwayRoute = createRoute({
+  method: 'get',
+  path: '/substituted-away',
+  tags: ['Sessions'],
+  summary: '查詢某位老師原本排到、但被換掉的課堂',
+  request: { query: SubstitutedAwayQuerySchema },
+  responses: {
+    200: {
+      description: '成功',
+      content: {
+        'application/json': { schema: z.object({ data: z.array(SubstitutedAwayEntrySchema) }) },
+      },
+    },
+    400: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+});
+
+app.openapi(getSubstitutedAwayRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const { teacherId, from, to } = c.req.valid('query');
+
+  // 代課時 sessions.teacher_id 已被改寫成代課老師，所以原老師只能從
+  // schedule_changes.original_teacher_id 找回來（見 substituted-away.ts 的說明）。
+  const { data, error } = await supabase
+    .from('schedule_changes')
+    .select(
+      `
+      id, session_id, created_at, original_teacher_id, reason,
+      sessions!inner ( session_date, start_time, end_time, classes ( name ) ),
+      staff!substitute_teacher_id ( id, display_name )
+    `,
+    )
+    .eq('org_id', orgId)
+    .eq('change_type', 'substitute')
+    .eq('original_teacher_id', teacherId)
+    .gte('sessions.session_date', from)
+    .lte('sessions.session_date', to);
+
+  if (error) {
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+  }
+
+  return c.json(
+    { data: buildSubstitutedAwayEntries((data ?? []) as unknown as SubstitutedAwayRow[]) },
+    200,
+  );
+});
+
 
 const getSessionChangesRoute = createRoute({
   method: 'get',
