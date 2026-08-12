@@ -59,6 +59,30 @@ export interface SessionQueryParams {
   pageSize?: number;
 }
 
+export interface ChangeLogEntry {
+  id: string;
+  sessionId: string;
+  changeType: 'reschedule' | 'substitute' | 'cancellation' | 'uncancel' | 'time_change' | 'creation';
+  /** 後端組好的一句話，例如「代課：王小明 → 李老師」 */
+  summary: string;
+  sessionDate: string | null;
+  className: string | null;
+  reason: string | null;
+  createdByName: string | null;
+  createdAt: string;
+  /** 批次操作會產生多筆，標記出來才不會看起來像有人重複操作 */
+  isBatch: boolean;
+}
+
+export interface ChangeLogParams {
+  from: string;
+  to: string;
+  changeType?: string;
+  campusId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 export interface SubstitutedAwayEntry {
   changeId: string;
   sessionId: string;
@@ -176,6 +200,22 @@ export class SessionsService {
     return this.http.get<{ data: SubstitutedAwayEntry[] }>(`${this.endpoint}/substituted-away`, {
       params: { teacherId: params.teacherId, from: params.from, to: params.to },
     });
+  }
+
+  /** 跨課堂的課務異動紀錄。依 created_at 由新到舊 —— 這是 log，關心「最近發生什麼」。 */
+  listChanges(
+    params: ChangeLogParams,
+  ): Observable<{ data: ChangeLogEntry[]; meta: { total: number; page: number; pageSize: number } }> {
+    const query: Record<string, string> = { from: params.from, to: params.to };
+    if (params.changeType) query['changeType'] = params.changeType;
+    if (params.campusId) query['campusId'] = params.campusId;
+    if (params.page !== undefined) query['page'] = String(params.page);
+    if (params.pageSize !== undefined) query['pageSize'] = String(params.pageSize);
+
+    return this.http.get<{
+      data: ChangeLogEntry[];
+      meta: { total: number; page: number; pageSize: number };
+    }>(`${this.endpoint}/changes`, { params: query });
   }
 
   getChanges(sessionId: string): Observable<{ data: SessionHistoryEntry[] }> {

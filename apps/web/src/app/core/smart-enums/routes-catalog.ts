@@ -121,7 +121,7 @@ export class RoutesCatalog {
     '課務異動',
     UserType.ADMIN,
     'pi-history',
-    false,
+    true,
     NavigationGroup.ADMIN_ACADEMICS,
   );
   public static readonly ADMIN_ATTENDANCE = this.register(

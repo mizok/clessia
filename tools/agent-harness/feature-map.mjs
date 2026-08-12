@@ -131,7 +131,9 @@ const AREAS = [
     routes: [],
     specs: ['admin/notifications.md', 'teacher/notifications.md', 'parent/notifications.md'],
   },
-  { name: '課務異動', pages: ['changes'], routes: [], specs: [] },
+  // 後端沒有自己的 route 檔：`GET /api/sessions/changes` 掛在 sessions 底下（異動紀錄本來就
+  // 是課堂的附屬資料）。認領 `sessions` 讓狀態反映「這頁真的接得到後端」。
+  { name: '課務異動', pages: ['changes'], routes: ['sessions'], specs: [] },
   {
     name: '系統設定',
     pages: ['settings'],
