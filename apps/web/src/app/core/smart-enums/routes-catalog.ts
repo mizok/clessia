@@ -80,13 +80,6 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-home',
   );
-  public static readonly ADMIN_TASKS = this.register(
-    'tasks',
-    '/admin/tasks',
-    '待處理工作',
-    UserType.ADMIN,
-    'pi-list',
-  );
   public static readonly ADMIN_NOTIFICATIONS = this.register(
     'notifications',
     '/admin/notifications',
@@ -120,15 +113,6 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-list',
     true,
-    NavigationGroup.ADMIN_ACADEMICS,
-  );
-  public static readonly ADMIN_SCHEDULE = this.register(
-    'schedule',
-    '/admin/schedule',
-    '排課管理',
-    UserType.ADMIN,
-    'pi-table',
-    false,
     NavigationGroup.ADMIN_ACADEMICS,
   );
   public static readonly ADMIN_CHANGES = this.register(

@@ -68,7 +68,7 @@ const AREAS = [
   },
   {
     name: '課表與課堂',
-    pages: ['schedule', 'sessions'],
+    pages: ['sessions'],
     routes: ['sessions'],
     specs: [
       'admin/academic/calendar.md',
@@ -131,7 +131,6 @@ const AREAS = [
     routes: [],
     specs: ['admin/notifications.md', 'teacher/notifications.md', 'parent/notifications.md'],
   },
-  { name: '待辦', pages: ['tasks'], routes: [], specs: ['admin/tasks.md'] },
   { name: '課務異動', pages: ['changes'], routes: [], specs: [] },
   {
     name: '系統設定',
@@ -203,23 +202,66 @@ const INFRA_SERVICES = new Set([
   'reference-data',
 ]);
 
-function pageDomainServices(page) {
-  const dir = join(ADMIN_PAGES, page);
-  if (!existsSync(dir)) return [];
-  const found = new Set();
+const WEB_SRC = join(ROOT, 'apps/web/src/app');
+
+/** 把 `@shared/foo/bar.component` 這種別名解析成實體檔案路徑。 */
+function resolveAlias(specifier) {
+  const m = /^@(shared|core)\/(.+)$/.exec(specifier);
+  if (!m) return null;
+  const base = join(WEB_SRC, m[1], m[2]);
+  for (const candidate of [`${base}.ts`, join(base, 'index.ts')]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function collectTsFiles(dir) {
+  const out = [];
   const stack = [dir];
   while (stack.length > 0) {
     const current = stack.pop();
     for (const entry of readdirSync(current, { withFileTypes: true })) {
       const full = join(current, entry.name);
       if (entry.isDirectory()) stack.push(full);
-      else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) {
-        for (const m of readFileSync(full, 'utf8').matchAll(/from '@core\/([a-z-]+)\.service'/g)) {
-          if (!INFRA_SERVICES.has(m[1])) found.add(m[1]);
-        }
-      }
+      else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) out.push(full);
     }
   }
+  return out;
+}
+
+/**
+ * 頁面有沒有真的接後端 = 它（或它遞移引用的 shared 元件）import 了 `@core/<domain>.service`。
+ *
+ * **必須跟著 @shared 走**：`admin/subjects` 只有 11 行，內容是 `<app-subject-manager />` ——
+ * 功能整個在共用元件裡。只看頁面目錄的話會把它誤判成空殼，然後有人（我）就會提議刪掉它。
+ * 這種「頁面是薄容器、功能在 shared」的結構在本專案不只一處。
+ *
+ * 基礎設施 service（overlay/browser-state 之類）不算數：它們是純前端的。
+ */
+function pageDomainServices(page) {
+  const dir = join(ADMIN_PAGES, page);
+  if (!existsSync(dir)) return [];
+
+  const found = new Set();
+  const seen = new Set();
+  const queue = collectTsFiles(dir);
+
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (seen.has(file) || !existsSync(file)) continue;
+    seen.add(file);
+
+    const source = readFileSync(file, 'utf8');
+    for (const m of source.matchAll(/from '@core\/([a-z-]+)\.service'/g)) {
+      if (!INFRA_SERVICES.has(m[1])) found.add(m[1]);
+    }
+    // 跟著 @shared / @core 的引用往下追，才看得到薄容器頁面背後的真功能
+    for (const m of source.matchAll(/from '(@(?:shared|core)\/[^']+)'/g)) {
+      const resolved = resolveAlias(m[1]);
+      if (resolved && !seen.has(resolved)) queue.push(resolved);
+    }
+  }
+
   return [...found].sort();
 }
 

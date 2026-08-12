@@ -183,12 +183,6 @@ export const routes: Routes = [
             redirectTo: RoutesCatalog.ADMIN_SESSIONS.relativePath,
           },
           {
-            path: RoutesCatalog.ADMIN_TASKS.relativePath,
-            loadComponent: () =>
-              import('@features/admin/pages/tasks/tasks.component').then((m) => m.TasksComponent),
-            data: { page: RoutesCatalog.ADMIN_TASKS },
-          },
-          {
             path: RoutesCatalog.ADMIN_NOTIFICATIONS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/notifications/notifications.component').then(
@@ -215,10 +209,6 @@ export const routes: Routes = [
             loadComponent: () =>
               import('@features/admin/pages/parents/parents.page').then((m) => m.ParentsPage),
             data: { page: RoutesCatalog.ADMIN_PARENTS },
-          },
-          {
-            path: RoutesCatalog.ADMIN_SCHEDULE.relativePath,
-            redirectTo: RoutesCatalog.ADMIN_SESSIONS.relativePath,
           },
           {
             path: RoutesCatalog.ADMIN_PAYMENTS.relativePath,
