@@ -25,6 +25,7 @@ import type {
   ResponsiveTablePaginationConfig,
 } from '@shared/components/responsive-table/responsive-table.models';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
+import { TeachingLogDialogComponent } from './teaching-log-dialog/teaching-log-dialog.component';
 
 // Services
 import {
@@ -162,6 +163,11 @@ export class StaffPage implements OnInit {
     if (!staff) return [];
     const items: MenuItem[] = [
       { label: '編輯', icon: 'pi pi-pencil', command: () => this.openEditDialog(staff) },
+      {
+        label: '授課紀錄',
+        icon: 'pi pi-history',
+        command: () => this.openTeachingLog(staff),
+      },
       { separator: true },
     ];
     if (staff.status === 'inactive') {
@@ -304,6 +310,17 @@ export class StaffPage implements OnInit {
           this.loadStaff();
         }
       });
+  }
+
+  /** 唯讀的授課紀錄檢視。不計算薪資，只呈現這位老師某段期間上了哪些課。 */
+  openTeachingLog(staff: Staff): void {
+    this.dialogService.open(TeachingLogDialogComponent, {
+      header: `授課紀錄 · ${staff.displayName}`,
+      width: '760px',
+      modal: true,
+      appendTo: this.overlayContainer || 'body',
+      data: { staffId: staff.id, staffName: staff.displayName },
+    });
   }
 
   openEditDialog(staff: Staff): void {

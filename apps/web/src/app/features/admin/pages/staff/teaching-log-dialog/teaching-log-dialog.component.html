@@ -1,0 +1,94 @@
+<div class="teaching-log">
+  <header class="teaching-log__header">
+    <p-select
+      [options]="monthOptions"
+      [ngModel]="month()"
+      (ngModelChange)="onMonthChange($event)"
+      optionLabel="label"
+      optionValue="value"
+      styleClass="teaching-log__month"
+    />
+  </header>
+
+  @if (loading()) {
+    <p class="teaching-log__state">載入中…</p>
+  } @else if (loadError()) {
+    <p class="teaching-log__state teaching-log__state--error">課堂查詢失敗，請稍後再試。</p>
+  } @else {
+    <section class="teaching-log__summary">
+      <div class="teaching-log__metric">
+        <span class="teaching-log__metric-value">{{ summary().totalHours }}</span>
+        <span class="teaching-log__metric-label">小時</span>
+      </div>
+      <div class="teaching-log__metric">
+        <span class="teaching-log__metric-value">{{ summary().countedSessions }}</span>
+        <span class="teaching-log__metric-label">堂</span>
+      </div>
+      @if (summary().missingAttendance.length > 0) {
+        <p-tag severity="warn" [value]="summary().missingAttendance.length + ' 堂沒有點名紀錄'" />
+      }
+      @if (summary().invalidDuration.length > 0) {
+        <p-tag severity="danger" [value]="summary().invalidDuration.length + ' 堂時間資料異常'" />
+      }
+    </section>
+
+    @if (summary().counted.length > 0) {
+      <table class="teaching-log__table">
+        <thead>
+          <tr>
+            <th>日期</th>
+            <th>時間</th>
+            <th>班級</th>
+            <th>狀態</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of summary().counted; track row.id) {
+            <tr>
+              <td>{{ row.sessionDate }}</td>
+              <td>{{ row.startTime }}–{{ row.endTime }}</td>
+              <td>{{ row.className }}</td>
+              <td>
+                @if (missingAttendanceIds().has(row.id)) {
+                  <p-tag severity="warn" value="未點名" />
+                } @else {
+                  <p-tag severity="success" value="已點名" />
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    } @else {
+      <p class="teaching-log__state">這個月沒有課堂紀錄。</p>
+    }
+
+    @if (summary().cancelled.length > 0) {
+      <section class="teaching-log__section">
+        <h3 class="teaching-log__section-title">停課（不計入時數）</h3>
+        <ul class="teaching-log__list">
+          @for (row of summary().cancelled; track row.id) {
+            <li>{{ row.sessionDate }} {{ row.startTime }}–{{ row.endTime }} · {{ row.className }}</li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (substitutedAway().length > 0) {
+      <section class="teaching-log__section">
+        <h3 class="teaching-log__section-title">被代課（不計入時數）</h3>
+        <ul class="teaching-log__list">
+          @for (row of substitutedAway(); track row.changeId) {
+            <li>
+              {{ row.sessionDate }} {{ row.startTime }}–{{ row.endTime }} · {{ row.className }}
+              → 由 {{ row.substituteTeacherName ?? '未指定' }} 代課
+              @if (row.reason) {
+                <span class="teaching-log__reason">（{{ row.reason }}）</span>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  }
+</div>

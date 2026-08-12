@@ -43,6 +43,13 @@ description: Use when delivering a Clessia feature or fixing a non-trivial bug e
 `git worktree add .worktrees/<name> -b <branch>`，從當前的整合分支開。
 不要在 `main` 上直接工作，也不要把不相關的改動混進同一個分支。
 
+**worktree 開好後要先在 `apps/api` 跑一次 `npm ci`** —— 它是獨立的 npm package，
+根目錄的 node_modules 走 walk-up 解析不到它的依賴（`pg`、`better-auth` 等），
+不裝的話 api 測試會以 `Cannot find package 'pg'` 失敗。web 的依賴可從根目錄解析，不用裝。
+
+**step 3 的設計文件記得搬進這個分支** —— 它是在開 worktree 之前寫的，會留在原本的
+checkout 裡。第一次跑這個流程時就漏了一次。
+
 ### 5. 實作，測試先行
 
 每個行為：先看到一個失敗的測試 → 最小改動讓它通過 → 重構 → commit。
