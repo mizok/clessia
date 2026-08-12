@@ -20,8 +20,8 @@
           }
         ],
         "styles": [
-          "node_modules/primeicons/primeicons.css",
-          "node_modules/hamburgers/dist/hamburgers.min.css",
+          "primeicons/primeicons.css",
+          "hamburgers/dist/hamburgers.min.css",
           "apps/web/src/styles.scss"
         ],
         "stylePreprocessorOptions": {
