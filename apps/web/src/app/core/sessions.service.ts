@@ -59,6 +59,18 @@ export interface SessionQueryParams {
   pageSize?: number;
 }
 
+export interface SubstitutedAwayEntry {
+  changeId: string;
+  sessionId: string;
+  sessionDate: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  className: string | null;
+  substituteTeacherName: string | null;
+  reason: string | null;
+  changedAt: string;
+}
+
 // ── Batch operation types ──────────────────────────────────────
 
 export interface BatchAssignInput {
@@ -148,6 +160,22 @@ export class SessionsService {
       data: Session[];
       meta: { total: number; page: number; pageSize: number; totalPages: number; monthUnassignedCount: number; todayPendingAttendanceCount: number };
     }>(this.endpoint, { params: query });
+  }
+
+  /**
+   * 某位老師原本排到、但後來被換掉的課堂。
+   *
+   * 代課時 sessions.teacher_id 已被改寫成代課老師，所以這些課堂用 list() 查不到 ——
+   * 原老師保存在 schedule_changes.original_teacher_id。這些不計入時數，只是讓紀錄完整。
+   */
+  substitutedAway(params: {
+    teacherId: string;
+    from: string;
+    to: string;
+  }): Observable<{ data: SubstitutedAwayEntry[] }> {
+    return this.http.get<{ data: SubstitutedAwayEntry[] }>(`${this.endpoint}/substituted-away`, {
+      params: { teacherId: params.teacherId, from: params.from, to: params.to },
+    });
   }
 
   getChanges(sessionId: string): Observable<{ data: SessionHistoryEntry[] }> {
