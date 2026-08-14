@@ -99,6 +99,8 @@ const BatchCreateEnrollmentSchema = z
     classId: DbUuidSchema,
     studentIds: z.array(DbUuidSchema).min(1).max(50),
     skipConflictCheck: z.boolean().optional(),
+    // 不給就是今天。名單補灌時要往前調到開課日，否則過去的課堂名單會是空的
+    effectiveFrom: z.string().date().optional(),
   })
   .openapi('BatchCreateEnrollment');
 
@@ -747,19 +749,19 @@ app.openapi(
     },
   }),
   async (c) => {
-    const { classId, studentIds, skipConflictCheck } = c.req.valid('json');
+    const { classId, studentIds, skipConflictCheck, effectiveFrom } = c.req.valid('json');
     const orgId = c.get('orgId');
     const userId = c.get('userId');
     const supabase = c.get('supabase');
     const uniqueStudentIds = Array.from(new Set(studentIds));
 
-    const today = new Date().toISOString().slice(0, 10);
+    const startDate = effectiveFrom ?? new Date().toISOString().slice(0, 10);
     const preconditions = await checkEnrollmentPreconditions({
       supabase,
       orgId,
       classId,
       studentIds: uniqueStudentIds,
-      effectiveFrom: today,
+      effectiveFrom: startDate,
       effectiveTo: null,
     });
 
@@ -796,7 +798,7 @@ app.openapi(
           class_id: classId,
           student_id: studentId,
           status: 'active',
-          effective_from: today,
+          effective_from: startDate,
           created_by: userId,
         })
         .select('id')
@@ -815,7 +817,7 @@ app.openapi(
           orgId,
           studentId,
           classId,
-          effectiveFrom: today,
+          effectiveFrom: startDate,
           effectiveTo: null,
           recordedBy: userId,
         });

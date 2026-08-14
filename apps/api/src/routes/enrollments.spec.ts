@@ -282,6 +282,12 @@ function createEnrollmentsQueryForRoutes(state: {
       filters.push({ type: 'neq', column, value });
       return query;
     },
+    order() {
+      return query;
+    },
+    range() {
+      return query;
+    },
     insert(payload: Record<string, unknown>) {
       insertPayload = payload;
       return query;
@@ -945,6 +951,42 @@ describe('POST /api/enrollments/batch route integration', () => {
       expect.objectContaining({ studentId: secondStudentId, status: 'enrolled' }),
     ]);
     expect(payload.warnings).toEqual([expect.objectContaining({ studentId })]);
+  });
+
+  // effective_from 是課堂名單的閘門（attendance.ts 用它決定學生出不出現在點名表）。
+  // 上線時把跑了五週的班級名單灌進來，寫死今天會讓前五週的名單是空的、補點名補不了。
+  it('honours effectiveFrom so a roster can be backfilled to the term start', async () => {
+    const app = createEnrollmentsTestApp({
+      classes: [{ id: classId, org_id: 'org-1', max_students: null }],
+    });
+
+    await app.request('/api/enrollments/batch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ classId, studentIds: [studentId], effectiveFrom: '2026-06-01' }),
+    });
+
+    const listed = await app.request(`/api/enrollments?classId=${classId}`);
+    const payload = (await listed.json()) as { data: Array<{ effectiveFrom: string }> };
+
+    expect(payload.data[0].effectiveFrom).toBe('2026-06-01');
+  });
+
+  it('defaults effectiveFrom to today when omitted', async () => {
+    const app = createEnrollmentsTestApp({
+      classes: [{ id: classId, org_id: 'org-1', max_students: null }],
+    });
+
+    await app.request('/api/enrollments/batch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ classId, studentIds: [studentId] }),
+    });
+
+    const listed = await app.request(`/api/enrollments?classId=${classId}`);
+    const payload = (await listed.json()) as { data: Array<{ effectiveFrom: string }> };
+
+    expect(payload.data[0].effectiveFrom).toBe(new Date().toISOString().slice(0, 10));
   });
 });
 
