@@ -381,6 +381,7 @@ const ErrorSchema = z
 const OverQuotaErrorSchema = ErrorSchema.extend({
   quota: z.number().optional(),
   currentActive: z.number().optional(),
+  adding: z.number().optional(),
 });
 
 const ScheduleConflictErrorSchema = ErrorSchema.extend({
@@ -731,7 +732,7 @@ app.openapi(
         description: 'OK',
       },
       400: {
-        content: { 'application/json': { schema: ErrorSchema } },
+        content: { 'application/json': { schema: OverQuotaErrorSchema } },
         description: 'Bad Request (over_quota)',
       },
       404: {
@@ -770,7 +771,17 @@ app.openapi(
         case 'CLASS_NOT_FOUND':
           return c.json({ error: 'CLASS_NOT_FOUND', code: 'CLASS_NOT_FOUND' }, 404);
         case 'OVER_QUOTA':
-          return c.json({ error: '人數已達上限', code: 'OVER_QUOTA' }, 400);
+          // 帶數字才有辦法告訴使用者超了幾個 —— 只說「已達上限」等於要他自己去數
+          return c.json(
+            {
+              error: preconditions.error.message,
+              code: 'OVER_QUOTA',
+              quota: preconditions.error.quota,
+              currentActive: preconditions.error.currentActive,
+              adding: preconditions.error.adding,
+            },
+            400,
+          );
         case 'SERVER_ERROR':
           return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
       }

@@ -972,6 +972,37 @@ describe('POST /api/enrollments/batch route integration', () => {
     expect(payload.data[0].effectiveFrom).toBe('2026-06-01');
   });
 
+  // 「人數已達上限」沒有數字的話，使用者不知道要刪幾個人或把上限調到多少
+  it('reports the quota numbers so the message can say how many are over', async () => {
+    const app = createEnrollmentsTestApp({
+      classes: [{ id: classId, org_id: 'org-1', max_students: 1 }],
+      enrollments: [
+        {
+          org_id: 'org-1',
+          class_id: classId,
+          student_id: '55555555-5555-4555-8555-555555555555',
+          status: 'active',
+          effective_from: '2026-04-01',
+        },
+      ],
+    });
+
+    const response = await app.request('/api/enrollments/batch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ classId, studentIds: [studentId, secondStudentId] }),
+    });
+    const payload = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(400);
+    expect(payload).toMatchObject({
+      code: 'OVER_QUOTA',
+      quota: 1,
+      currentActive: 1,
+      adding: 2,
+    });
+  });
+
   it('defaults effectiveFrom to today when omitted', async () => {
     const app = createEnrollmentsTestApp({
       classes: [{ id: classId, org_id: 'org-1', max_students: null }],
