@@ -180,7 +180,11 @@ export const routes: Routes = [
           },
           {
             path: RoutesCatalog.ADMIN_CHANGES.relativePath,
-            redirectTo: RoutesCatalog.ADMIN_SESSIONS.relativePath,
+            loadComponent: () =>
+              import('@features/admin/pages/changes/changes.component').then(
+                (m) => m.ChangesComponent,
+              ),
+            data: { page: RoutesCatalog.ADMIN_CHANGES },
           },
           {
             path: RoutesCatalog.ADMIN_NOTIFICATIONS.relativePath,
