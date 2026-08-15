@@ -3,6 +3,7 @@ import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
+import { buildPeriodFilter, buildSelect, sortColumn } from './enrollments/list-query';
 
 // ============================================================
 // Schemas
@@ -401,7 +402,12 @@ app.openapi(
       query: z.object({
         classId: DbUuidSchema.optional(),
         studentId: DbUuidSchema.optional(),
+        campusId: DbUuidSchema.optional(),
         status: EnrollmentStatusSchema.optional(),
+        // 期間內「發生過事情」：這段期間開始生效（新報名）或結束（退班）
+        from: z.string().date().optional(),
+        to: z.string().date().optional(),
+        sort: z.enum(['createdAt', 'updatedAt']).optional(),
         page: z.coerce.number().int().min(1).default(1).optional(),
         pageSize: z.coerce.number().int().min(1).max(100).default(20).optional(),
       }),
@@ -418,23 +424,34 @@ app.openapi(
     },
   }),
   async (c) => {
-    const { classId, studentId, status, page = 1, pageSize = 20 } = c.req.valid('query');
+    const {
+      classId,
+      studentId,
+      campusId,
+      status,
+      from,
+      to,
+      sort,
+      page = 1,
+      pageSize = 20,
+    } = c.req.valid('query');
     const orgId = c.get('orgId');
     const supabase = c.get('supabase');
 
     let query = supabase
       .from('enrollments')
-      .select(
-        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
-        { count: 'exact' },
-      )
+      .select(buildSelect(campusId), { count: 'exact' })
       .eq('org_id', orgId)
-      .order('created_at', { ascending: false })
+      .order(sortColumn(sort), { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
 
     if (classId) query = query.eq('class_id', classId);
     if (studentId) query = query.eq('student_id', studentId);
+    if (campusId) query = query.eq('classes.campus_id', campusId);
     if (status) query = query.eq('status', status);
+
+    const periodFilter = buildPeriodFilter(from, to);
+    if (periodFilter) query = query.or(periodFilter);
 
     const { data, count, error } = await query;
     if (error) return c.json({ error: error.message }, 500);
