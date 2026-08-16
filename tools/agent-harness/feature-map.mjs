@@ -6,8 +6,8 @@
  *   node tools/agent-harness/feature-map.mjs --write    # 重生
  *
  * 為什麼要生成而不是手寫：本專案的 kb/BACKLOG.md 是一張手畫的 ASCII 依賴圖，追蹤 8 個
- * 完成項目，而系統實際有 21 個 admin 功能區 —— 其中 7 個是完全沒有後端的空殼。手寫的
- * 狀態表必然腐化（憲法 c11），而路線圖腐化的後果是「不知道自己在哪」。
+ * 完成項目，而系統實際有 21 個功能區橫跨三個角色 —— 其中大半是完全沒有後端的空殼。
+ * 手寫的狀態表必然腐化（憲法 c11），而路線圖腐化的後果是「不知道自己在哪」。
  *
  * 這張表證明什麼：某個功能區的 UI、API、規格、測試各自存不存在。
  * **不證明**功能正確或完整 —— 一個有 API 呼叫但邏輯全錯的頁面照樣顯示為 built。
@@ -18,7 +18,19 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const ROADMAP = join(ROOT, 'kb/roadmap.md');
-const ADMIN_PAGES = join(ROOT, 'apps/web/src/app/features/admin/pages');
+/**
+ * 三個角色都要掃。
+ *
+ * 第一版只掃 admin，結果這張表在整個 2026-08 期間都在宣稱「21 個功能區現況」，
+ * 卻從來沒看過 teacher 與 parent —— 而 parent 的 11 個頁面全是空殼。
+ * 用它排優先順序的人（我）因此得出過「這是唯一沒有畫面的功能」這種結論。
+ */
+const ROLES = ['admin', 'teacher', 'parent'];
+const ROLE_LABELS = { admin: '管理端', teacher: '老師端', parent: '家長端' };
+const WEB_FEATURES = join(ROOT, 'apps/web/src/app/features');
+
+/** 頁面一律用 `<role>/<dir>` 稱呼，避免 admin/attendance 與 teacher/attendance 撞名 */
+const rolePagesDir = (role) => join(WEB_FEATURES, role, 'pages');
 const API_ROUTES = join(ROOT, 'apps/api/src/routes');
 const API_INDEX = join(ROOT, 'apps/api/src/index.ts');
 const SPECS = join(ROOT, 'kb/specs');
@@ -40,35 +52,35 @@ const SPEC_EXEMPT = ['README.md', 'BRAINSTORM_PROMPT.md'];
 const AREAS = [
   {
     name: '儀表板',
-    pages: ['dashboard'],
+    pages: ['admin/dashboard', 'teacher/dashboard', 'parent/dashboard'],
     routes: ['me'],
     specs: ['admin/dashboard.md', 'teacher/dashboard.md', 'parent/dashboard.md'],
   },
   {
     name: '學生',
-    pages: ['students'],
+    pages: ['admin/students', 'teacher/students'],
     routes: ['students'],
     specs: ['admin/student-affairs/students.md', 'teacher/students.md'],
   },
   {
     name: '家長',
-    pages: ['parents'],
+    pages: ['admin/parents'],
     routes: ['parents'],
     specs: ['admin/student-affairs/parents.md'],
   },
-  { name: '人員', pages: ['staff'], routes: ['staff'], specs: ['admin/system/staff.md'] },
-  { name: '分校', pages: ['campuses'], routes: ['campuses'], specs: ['admin/system/campuses.md'] },
-  { name: '學校', pages: ['schools'], routes: ['schools'], specs: [] },
-  { name: '科目', pages: ['subjects'], routes: ['subjects'], specs: [] },
+  { name: '人員', pages: ['admin/staff'], routes: ['staff'], specs: ['admin/system/staff.md'] },
+  { name: '分校', pages: ['admin/campuses'], routes: ['campuses'], specs: ['admin/system/campuses.md'] },
+  { name: '學校', pages: ['admin/schools'], routes: ['schools'], specs: [] },
+  { name: '科目', pages: ['admin/subjects'], routes: ['subjects'], specs: [] },
   {
     name: '課程與班級',
-    pages: ['courses'],
+    pages: ['admin/courses'],
     routes: ['courses', 'classes'],
     specs: ['admin/academic/courses.md', 'admin/academic/classes.md'],
   },
   {
     name: '課表與課堂',
-    pages: ['sessions'],
+    pages: ['admin/sessions', 'teacher/schedule', 'parent/schedule'],
     routes: ['sessions'],
     specs: [
       'admin/academic/calendar.md',
@@ -79,7 +91,7 @@ const AREAS = [
   },
   {
     name: '報名',
-    pages: [],
+    pages: ['parent/enrollment', 'parent/add-course', 'parent/renewal', 'parent/trial'],
     routes: ['enrollments'],
     specs: [
       'admin/enrollment/enrollment.md',
@@ -96,7 +108,7 @@ const AREAS = [
   },
   {
     name: '出勤與到班',
-    pages: ['attendance'],
+    pages: ['admin/attendance', 'teacher/attendance', 'parent/attendance'],
     routes: ['attendance', 'daily-checkins'],
     specs: [
       'admin/student-affairs/attendance.md',
@@ -105,38 +117,38 @@ const AREAS = [
       'public/qr-checkin.md',
     ],
   },
-  { name: '請假', pages: ['leave'], routes: ['leaves'], specs: ['admin/student-affairs/leave.md'] },
+  { name: '請假', pages: ['admin/leave'], routes: ['leaves'], specs: ['admin/student-affairs/leave.md'] },
   {
     name: '考試與成績',
-    pages: ['grades'],
+    pages: ['admin/grades', 'parent/grades'],
     routes: ['academy-exams', 'school-exams', 'scores'],
     specs: ['admin/student-affairs/grades.md', 'teacher/assessments.md', 'parent/grades.md'],
   },
   {
     name: '餐費',
-    pages: ['meals'],
+    pages: ['admin/meals', 'parent/meals'],
     routes: [],
     specs: ['admin/finance/meals.md', 'parent/meals.md'],
   },
   {
     name: '繳費',
-    pages: ['payments', 'fee-templates'],
+    pages: ['admin/payments', 'admin/fee-templates', 'parent/payments'],
     routes: [],
     specs: ['admin/finance/payments.md', 'admin/finance/fee-templates.md', 'parent/payments.md'],
   },
-  { name: '報表', pages: ['reports'], routes: [], specs: ['admin/finance/reports.md'] },
+  { name: '報表', pages: ['admin/reports'], routes: [], specs: ['admin/finance/reports.md'] },
   {
     name: '通知',
-    pages: ['notifications'],
+    pages: ['admin/notifications', 'teacher/notifications', 'parent/notifications'],
     routes: [],
     specs: ['admin/notifications.md', 'teacher/notifications.md', 'parent/notifications.md'],
   },
   // 後端沒有自己的 route 檔：`GET /api/sessions/changes` 掛在 sessions 底下（異動紀錄本來就
   // 是課堂的附屬資料）。認領 `sessions` 讓狀態反映「這頁真的接得到後端」。
-  { name: '課務異動', pages: ['changes'], routes: ['sessions'], specs: [] },
+  { name: '課務異動', pages: ['admin/changes'], routes: ['sessions'], specs: [] },
   {
     name: '系統設定',
-    pages: ['settings'],
+    pages: ['admin/settings'],
     routes: ['org-settings'],
     specs: ['admin/system/settings.md'],
   },
@@ -241,7 +253,8 @@ function collectTsFiles(dir) {
  * 基礎設施 service（overlay/browser-state 之類）不算數：它們是純前端的。
  */
 function pageDomainServices(page) {
-  const dir = join(ADMIN_PAGES, page);
+  const [role, name] = page.split('/');
+  const dir = join(rolePagesDir(role), name);
   if (!existsSync(dir)) return [];
 
   const found = new Set();
@@ -273,7 +286,9 @@ const mountedRoutes = existsSync(API_INDEX)
     )
   : [];
 
-const diskPages = listDirs(ADMIN_PAGES);
+const diskPages = ROLES.flatMap((role) =>
+  listDirs(rolePagesDir(role)).map((name) => `${role}/${name}`),
+);
 const diskRoutes = listRoutes();
 const diskSpecs = walkSpecs(SPECS).filter((s) => !SPEC_EXEMPT.includes(s));
 
@@ -285,7 +300,7 @@ const claimed = {
   specs: new Set(AREAS.flatMap((a) => a.specs)),
 };
 for (const [label, disk, set] of [
-  ['admin 頁面', diskPages, claimed.pages],
+  ['頁面', diskPages, claimed.pages],
   ['api route', diskRoutes, claimed.routes],
   ['spec', diskSpecs, claimed.specs],
 ]) {
@@ -316,9 +331,20 @@ function render() {
     else if (pages.length > 0 && wired.length < pages.length) status = '🟡 部分接上';
     else status = '✅ 已接通';
 
+    // 每個角色各自的狀態：有接後端 / 只有空殼 / 根本沒這個頁
+    const byRole = Object.fromEntries(
+      ROLES.map((role) => {
+        const own = pages.filter((p) => p.startsWith(`${role}/`));
+        if (own.length === 0) return [role, '—'];
+        const ok = own.filter((p) => wired.includes(p)).length;
+        if (ok === 0) return [role, '🚧'];
+        return [role, ok === own.length ? '✅' : `🟡 ${ok}/${own.length}`];
+      }),
+    );
+
     return {
       area: area.name,
-      ui: pages.length,
+      byRole,
       wired: wired.length,
       api: mounted.length,
       specs: specs.length,
@@ -327,16 +353,26 @@ function render() {
   });
 
   const shells = rows.filter((r) => r.status.includes('空殼'));
+  const roleCols = ROLES.map((r) => ROLE_LABELS[r]).join(' | ');
+
+  /** 某個角色底下所有頁面都是空殼的功能區 */
+  const shellsFor = (role) =>
+    rows.filter((r) => r.byRole[role] === '🚧').map((r) => r.area);
+
   return [
-    '| 功能區 | UI 頁面 | 已接後端 | 已掛載 API | 規格 | 狀態 |',
-    '| --- | --- | --- | --- | --- | --- |',
+    `| 功能區 | ${roleCols} | 已掛載 API | 規格 | 狀態 |`,
+    `| --- | ${ROLES.map(() => '---').join(' | ')} | --- | --- | --- |`,
     ...rows.map(
-      (r) => `| ${r.area} | ${r.ui} | ${r.wired} | ${r.api} | ${r.specs} | ${r.status} |`,
+      (r) =>
+        `| ${r.area} | ${ROLES.map((role) => r.byRole[role]).join(' | ')} | ${r.api} | ${r.specs} | ${r.status} |`,
     ),
     '',
     `**共 ${AREAS.length} 個功能區：${rows.filter((r) => r.status.includes('已接通')).length} 個已接通、${shells.length} 個空殼、${rows.filter((r) => r.status.includes('未開始')).length} 個未開始。**`,
     '',
-    `空殼（有 UI 沒後端）：${shells.map((s) => s.area).join('、') || '無'}`,
+    ...ROLES.map(
+      (role) =>
+        `${ROLE_LABELS[role]}空殼（有頁面沒後端）：${shellsFor(role).join('、') || '無'}`,
+    ),
     `未開始（MVP 有列，磁碟上完全不存在）：${
       rows
         .filter((r) => r.status.includes('未開始'))
@@ -344,31 +380,10 @@ function render() {
         .join('、') || '無'
     }`,
     '',
-    '> 「已接後端」= 該頁面 import 了 `@core/<domain>.service`（排除純前端的基礎設施 service）。',
+    '> ✅ 該角色的頁面都 import 了 `@core/<domain>.service`；🚧 有頁面但完全沒接後端；',
+    '> 🟡 部分接上；— 這個角色沒有這個功能的頁面。',
     '> 這張表只證明東西存不存在，**不證明**功能正確或完整。',
   ].join('\n');
-}
-
-const mode = process.argv.includes('--write') ? 'write' : 'check';
-const body = render();
-
-if (failures.length > 0 && mode !== 'write') {
-  console.error(`✖ feature map 有 ${failures.length} 項問題：`);
-  for (const f of failures) console.error(`  - ${f}`);
-  process.exit(1);
-}
-
-if (!existsSync(ROADMAP)) {
-  console.error('✖ kb/roadmap.md 不存在。');
-  process.exit(1);
-}
-
-const source = readFileSync(ROADMAP, 'utf8');
-const from = source.indexOf(START);
-const to = source.indexOf(END);
-if (from === -1 || to === -1) {
-  console.error('✖ kb/roadmap.md 缺少 FEATURE-MAP marker。');
-  process.exit(1);
 }
 
 const normalize = (t) =>
@@ -383,16 +398,45 @@ const normalize = (t) =>
     .filter(Boolean)
     .join('\n');
 
-if (mode === 'write') {
-  const { writeFileSync } = await import('node:fs');
-  writeFileSync(
-    ROADMAP,
-    `${source.slice(0, from + START.length)}\n\n${body}\n\n${source.slice(to)}`,
-  );
-  console.log(`✓ 功能區現況表已重生（${AREAS.length} 個功能區）`);
-} else if (normalize(source.slice(from + START.length, to)) !== normalize(body)) {
-  console.error('✖ kb/roadmap.md 的功能區現況表過期。重生：npm run harness:write');
-  process.exit(1);
-} else {
-  console.log(`✓ 功能區現況表同步（${AREAS.length} 個功能區）`);
+// 測試要 import 這支檔案，所以主流程包起來 —— 跟 test-gate.mjs 同一個做法
+export { AREAS, ROLES, diskPages, failures, render };
+
+async function main() {
+  const mode = process.argv.includes('--write') ? 'write' : 'check';
+  const body = render();
+
+  if (failures.length > 0 && mode !== 'write') {
+    console.error(`✖ feature map 有 ${failures.length} 項問題：`);
+    for (const f of failures) console.error(`  - ${f}`);
+    process.exit(1);
+  }
+
+  if (!existsSync(ROADMAP)) {
+    console.error('✖ kb/roadmap.md 不存在。');
+    process.exit(1);
+  }
+
+  const source = readFileSync(ROADMAP, 'utf8');
+  const from = source.indexOf(START);
+  const to = source.indexOf(END);
+  if (from === -1 || to === -1) {
+    console.error('✖ kb/roadmap.md 缺少 FEATURE-MAP marker。');
+    process.exit(1);
+  }
+
+  if (mode === 'write') {
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(
+      ROADMAP,
+      `${source.slice(0, from + START.length)}\n\n${body}\n\n${source.slice(to)}`,
+    );
+    console.log(`✓ 功能區現況表已重生（${AREAS.length} 個功能區）`);
+  } else if (normalize(source.slice(from + START.length, to)) !== normalize(body)) {
+    console.error('✖ kb/roadmap.md 的功能區現況表過期。重生：npm run harness:write');
+    process.exit(1);
+  } else {
+    console.log(`✓ 功能區現況表同步（${AREAS.length} 個功能區）`);
+  }
 }
+
+if (process.argv[1]?.endsWith('feature-map.mjs')) await main();
