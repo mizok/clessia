@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { resolveTeacherScope } from './attendance/teacher-scope';
 import type { AppEnv } from '../index';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 
@@ -739,6 +740,8 @@ app.openapi(
         courseIds: z.string().optional(),
         classIds: z.string().optional(),
         statuses: z.string().optional(),
+        // 只有管理員說了算：老師一律被蓋成自己（見 attendance/teacher-scope.ts）
+        teacherId: z.uuid().optional(),
         page: z.coerce.number().min(1).default(1).optional(),
         pageSize: z.coerce.number().min(1).max(100).default(20).optional(),
       }),
@@ -762,12 +765,32 @@ app.openapi(
       courseIds,
       classIds,
       statuses,
+      teacherId,
       page = 1,
       pageSize = 20,
     } = c.req.valid('query');
 
     const dateFromValue = date ?? dateFrom;
     const dateToValue = date ?? dateTo;
+
+    const roles = c.get('roles') ?? [];
+
+    // 管理員不受老師範圍限制，所以不必查 staff —— 這支 route 每次請求都會跑
+    let ownStaffId: string | null = null;
+    if (!roles.includes('admin')) {
+      const { data: ownStaff } = await supabase
+        .from('staff')
+        .select('id')
+        .eq('user_id', c.get('userId'))
+        .eq('org_id', orgId)
+        .maybeSingle();
+      ownStaffId = (ownStaff?.id as string | undefined) ?? null;
+    }
+
+    const scope = resolveTeacherScope({ roles, requested: teacherId, ownStaffId });
+    if ('forbidden' in scope) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
 
     const courseIdList = normalizeAttendanceFilterIds(courseIds);
     const classIdList = normalizeAttendanceFilterIds(classIds);
@@ -829,6 +852,7 @@ app.openapi(
     if (classIdList.length > 0) {
       sessionsQuery = sessionsQuery.in('class_id', classIdList);
     }
+    if (scope.teacherId) sessionsQuery = sessionsQuery.eq('teacher_id', scope.teacherId);
     sessionsQuery = sessionsQuery.in('status', statusList);
 
     const { data: sessions, error: sessionsError, count } = await sessionsQuery;

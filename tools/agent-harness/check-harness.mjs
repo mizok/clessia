@@ -225,6 +225,26 @@ if (!existsSync(constitutionPath)) {
   }
 }
 
+// ── A7. 每一支 API route 掛載時都宣告了可用角色（clause c1）─────────────────────────────
+// 這個洞當初長出來的方式：新增 route 時沒有人想到要限制角色，而預設是全開。
+// 18 支 route 裡只有 2 支擋了角色，其餘任何登入者（含家長）都讀得到全組織的學生與成績。
+// 見 kb/wiki/architecture/role-authorization.md
+const apiIndex = join(ROOT, 'apps/api/src/index.ts');
+if (existsSync(apiIndex)) {
+  const source = readFileSync(apiIndex, 'utf8');
+
+  for (const [, path] of source.matchAll(/app\.route\('(\/api\/[^']+)'/g)) {
+    fail(`${path} 用 app.route 掛載，沒有宣告可用角色。改用 mount(path, route, roles)`);
+  }
+
+  for (const [call, path] of source.matchAll(/mount\('(\/api\/[^']+)'[^;]*;/g)) {
+    // mount(path, route, roles) —— 少了第三個引數就是忘了宣告
+    if (call.split(',').length < 3) {
+      fail(`${path} 的 mount() 少了角色宣告`);
+    }
+  }
+}
+
 // A4（kb/ frontmatter 與索引）由 tools/agent-harness/kb-gate.mjs 負責，涵蓋全部 kb/ 而非
 // 只有 kb/architecture/，欄位也多一個 category。兩支都由 `npm run harness` 執行。
 

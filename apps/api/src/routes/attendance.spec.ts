@@ -547,6 +547,7 @@ function createAttendanceTestApp(supabase: ReturnType<typeof createMockSupabase>
     context.set('supabase', supabase);
     context.set('orgId', 'org-1');
     context.set('userId', 'user-1');
+    context.set('roles', ['admin']);
     await next();
   });
 
