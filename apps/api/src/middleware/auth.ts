@@ -31,31 +31,50 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     return c.json({ error: '無法取得組織資訊', code: 'NO_ORG' }, 400);
   }
 
+  // 角色每次請求查表，不從 session 讀。
+  //
+  // Better Auth 的 session 是登入當下的快照 —— 管理員撤銷某人的 teacher 角色後，
+  // 那個人的 session 還在，讀 session 的話他就還是 teacher，權限要等到重新登入才生效。
+  const { data: roleRows, error: rolesError } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', session.user.id);
+
+  if (rolesError) {
+    return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+  }
+
   c.set('userId', session.user.id);
   c.set('orgId', orgId);
+  c.set('roles', (roleRows ?? []).map((row) => row.role as string));
   c.set('supabase', supabase);
 
   return next();
 });
 
-export const requireAdminMiddleware = createMiddleware<AppEnv>(async (c, next) => {
-  const supabase = c.get('supabase');
-  const userId = c.get('userId');
+/**
+ * 這個角色能不能呼叫這支 route。
+ *
+ * **fail-closed**：context 沒有 roles、帳號沒有任何角色、允許清單是空的 —— 一律拒絕。
+ * 授權的洞幾乎都長在「不確定的時候放行」上，所以這裡每一種不確定都收斂到拒絕。
+ */
+export const requireRoles = (...allowed: string[]) =>
+  createMiddleware<AppEnv>(async (c, next) => {
+    const roles = c.get('roles');
 
-  const { data: roleRow, error } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', userId)
-    .eq('role', 'admin')
-    .maybeSingle();
+    if (!roles || roles.length === 0 || allowed.length === 0) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
 
-  if (error) {
-    return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
-  }
+    if (!roles.some((role) => allowed.includes(role))) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
 
-  if (!roleRow) {
-    return c.json({ error: '權限不足，僅管理者可執行此操作', code: 'FORBIDDEN' }, 403);
-  }
+    return next();
+  });
 
-  return next();
-});
+/**
+ * 舊的別名。角色已經在 authMiddleware 查好放進 context，這裡不再各自查一次 ——
+ * 同一個請求原本會查兩次 user_roles，現在一次。
+ */
+export const requireAdminMiddleware = requireRoles('admin');

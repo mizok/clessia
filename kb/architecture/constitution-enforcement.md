@@ -36,7 +36,7 @@ PreToolUse guard  →   Stop verify gate    →    程式碼審查
 
 | Clause                     | 分類          | 機制                                                          | 狀態                                                                                                                        |
 | -------------------------- | ------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| c1 授權在 API 層           | Semantic      | 人工 review                                                   | 未機器化（也不該機器化）                                                                                                    |
+| c1 授權在 API 層           | Semantic      | harness gate A7（每支 route 掛載必須宣告角色）+ 人工 review        | ⚠️ 部分：准入已機器化，資料範圍靠 review                                                    |
 | c2 `ba_*` 不得寫入         | Deterministic | pre-guard regex（只擋 insert/update/upsert/delete，讀取放行） | ✅ 已接                                                                                                                     |
 | c3 已提交 migration 不可改 | Deterministic | pre-guard + `whenTracked`（git 已追蹤才擋，新建不受影響）     | ✅ 已接                                                                                                                     |
 | c4 migration 檔名          | Deterministic | 由 `supabase migration new` 保證                              | 依賴工具，未另外 gate                                                                                                       |
@@ -59,6 +59,7 @@ PreToolUse guard  →   Stop verify gate    →    程式碼審查
 | A2   | `CLAUDE.md`、`GEMINI.md` 含 `@AGENTS.md` 且不超過 60 行（c10）                    |
 | A3   | 沒有 `docs/` 目錄（c9）                                                           |
 | A5   | pre-guard **與 doc-router** 引用的每個 clause id 都存在於憲法中                   |
+| A7   | `apps/api/src/index.ts` 每支 route 都用 `mount(path, route, roles)` 宣告角色（c1） |
 
 `npm run harness` 會接著跑 KB gate（下一節）。
 

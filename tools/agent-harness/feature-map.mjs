@@ -267,10 +267,12 @@ function pageDomainServices(page) {
   return [...found].sort();
 }
 
+// 掛載一律走 mount()（強制宣告角色，見 check-harness 的 A7）；app.route 是舊寫法，
+// 兩種都認才不會在轉換期間把「已掛載 API」全部算成 0
 const mountedRoutes = existsSync(API_INDEX)
-  ? [...readFileSync(API_INDEX, 'utf8').matchAll(/app\.route\('\/api\/([a-z-]+)'/g)].map(
-      (m) => m[1],
-    )
+  ? [
+      ...readFileSync(API_INDEX, 'utf8').matchAll(/(?:app\.route|mount)\('\/api\/([a-z-]+)'/g),
+    ].map((m) => m[1])
   : [];
 
 const diskPages = listDirs(ADMIN_PAGES);
