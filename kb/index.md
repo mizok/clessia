@@ -87,8 +87,9 @@ updated: 2026-08-11
 - [選單開了、頁面寫了，路由還在 redirect](wiki/lessons/menu-entry-without-a-route.md) — M1 的課務異動畫面上線後完全打不開 —— 元件測試全綠，因為漏掉的東西不在元件裡，而在選單與路由表之間的縫。
 - [現況表只掃了三分之一的系統](wiki/lessons/status-table-blind-spot.md) — 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
 
-### 實作模式（7）
+### 實作模式（8）
 
+- [站內公告的設計](wiki/architecture/announcements.md) — 管理員發布、老師收件匣、已讀狀態。取代 LINE 群組通知的第一步，不接外部服務。
 - [課務異動紀錄的設計](wiki/architecture/change-log-view.md) — M1 第二個畫面。填掉 admin/changes 空殼，把一直在寫卻沒人看得到的 schedule_changes 呈現出來。唯讀。
 - [報名管理端的設計](wiki/architecture/enrollment-admin-view.md) — M2。兩個互不依賴的切片：班級頁的 Excel 名單匯入精靈、獨立的報名進出總覽頁。既有的班級／學生兩個報名入口不動。
 - [刻意不設計「學部」這一層](wiki/architecture/no-division-scoping.md) — 補習班有國小部／國中部（未來高中部），但系統不建立「部」的概念，也不依部隔離可見範圍。原因是實際的人力本來就跨部。

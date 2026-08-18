@@ -1,0 +1,139 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { of, throwError } from 'rxjs';
+import { vi } from 'vitest';
+
+import { AnnouncementsService, type Announcement } from '@core/announcements.service';
+import { CampusesService } from '@core/campuses.service';
+import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
+
+import { NotificationsComponent } from './notifications.component';
+
+function announcement(overrides: Partial<Announcement> = {}): Announcement {
+  return {
+    id: 'a1',
+    title: '本週三停課',
+    body: '因颱風假停課一天。',
+    audience: 'all_teachers',
+    campusId: null,
+    campusName: null,
+    publishedAt: '2026-08-18T02:00:00Z',
+    createdByName: '王主任',
+    isRead: false,
+    ...overrides,
+  };
+}
+
+describe('NotificationsComponent（管理端發布）', () => {
+  let fixture: ComponentFixture<NotificationsComponent>;
+  let component: NotificationsComponent;
+
+  const listMock = vi.fn();
+  const createMock = vi.fn();
+  const campusesMock = vi.fn();
+
+  async function setup(data: Announcement[] = []) {
+    listMock.mockReset();
+    createMock.mockReset();
+    campusesMock.mockReset();
+    listMock.mockReturnValue(of({ data, meta: { total: data.length, unread: 0 } }));
+    createMock.mockReturnValue(of({ data: announcement() }));
+    campusesMock.mockReturnValue(of({ data: [{ id: 'c1', name: '本校' }] }));
+
+    await TestBed.configureTestingModule({
+      imports: [NotificationsComponent],
+      providers: [
+        {
+          provide: AnnouncementsService,
+          useValue: { list: listMock, create: createMock },
+        },
+        { provide: CampusesService, useValue: { list: campusesMock } },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(NotificationsComponent);
+    component = fixture.componentInstance;
+    fixture.componentRef.setInput('page', RoutesCatalog.ADMIN_NOTIFICATIONS);
+    fixture.detectChanges();
+  }
+
+  it('標題或內容空白時不能送出', async () => {
+    await setup();
+
+    expect(component['canSubmit']()).toBe(false);
+
+    component['title'].set('停課通知');
+    expect(component['canSubmit']()).toBe(false);
+
+    component['body'].set('內容');
+    expect(component['canSubmit']()).toBe(true);
+  });
+
+  it('只有空白字元也算空白', async () => {
+    await setup();
+    component['title'].set('   ');
+    component['body'].set('   ');
+
+    expect(component['canSubmit']()).toBe(false);
+  });
+
+  it('送出時去掉前後空白並帶上分校', async () => {
+    await setup();
+    component['title'].set('  停課通知  ');
+    component['body'].set('  內容  ');
+    component['campusId'].set('c1');
+
+    component['submit']();
+
+    expect(createMock).toHaveBeenCalledWith({
+      title: '停課通知',
+      body: '內容',
+      audience: 'all_teachers',
+      campusId: 'c1',
+    });
+  });
+
+  // 家長端全是空殼，發給家長沒人收得到
+  it('發送對象目前固定是全體老師', async () => {
+    await setup();
+
+    expect(component['audience']).toBe('all_teachers');
+  });
+
+  it('發布成功後清空表單並重新載入清單', async () => {
+    await setup();
+    component['title'].set('停課通知');
+    component['body'].set('內容');
+    listMock.mockClear();
+
+    component['submit']();
+
+    expect(component['title']()).toBe('');
+    expect(component['body']()).toBe('');
+    expect(listMock).toHaveBeenCalled();
+  });
+
+  it('發布失敗時保留輸入內容並顯示錯誤', async () => {
+    await setup();
+    createMock.mockReturnValue(throwError(() => new Error('boom')));
+    component['title'].set('停課通知');
+    component['body'].set('內容');
+
+    component['submit']();
+
+    expect(component['submitError']()).toContain('發布失敗');
+    expect(component['title']()).toBe('停課通知');
+  });
+
+  it('列出已發布的公告', async () => {
+    await setup([announcement({ campusName: '本校' })]);
+
+    expect(fixture.nativeElement.textContent).toContain('本週三停課');
+    expect(fixture.nativeElement.textContent).toContain('全體老師');
+  });
+
+  it('沒有分校的公告顯示為全部分校', async () => {
+    await setup([announcement({ campusName: null })]);
+
+    expect(fixture.nativeElement.textContent).toContain('全部分校');
+  });
+});
