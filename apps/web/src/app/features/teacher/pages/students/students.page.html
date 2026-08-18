@@ -1,1 +1,50 @@
-<p>students works!</p>
+<div class="teacher-students">
+  <header class="teacher-students__header">
+    <h1 class="teacher-students__title">{{ page().label }}</h1>
+    <p class="teacher-students__subtitle">你任課班級的在籍學生。</p>
+  </header>
+
+  <div class="teacher-students__filters">
+    <input
+      class="teacher-students__search"
+      type="search"
+      placeholder="搜尋姓名"
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event)"
+    />
+    <p-select
+      [options]="classOptions()"
+      [ngModel]="classFilter()"
+      (ngModelChange)="classFilter.set($event)"
+      optionLabel="label"
+      optionValue="value"
+    />
+  </div>
+
+  @if (loading()) {
+    <p class="teacher-students__state">載入中…</p>
+  } @else if (loadError()) {
+    <p class="teacher-students__state teacher-students__state--error">查詢失敗，請稍後再試。</p>
+  } @else if (total() === 0) {
+    <p class="teacher-students__state">目前沒有任課班級的學生。</p>
+  } @else if (groups().length === 0) {
+    <p class="teacher-students__state">沒有符合條件的學生。</p>
+  } @else {
+    @for (group of groups(); track group.className) {
+      <section class="teacher-students__group">
+        <h2 class="teacher-students__group-title">
+          {{ group.className }}
+          <span class="teacher-students__group-count">{{ group.students.length }} 人</span>
+        </h2>
+        <ul class="teacher-students__list">
+          @for (student of group.students; track student.id) {
+            <li class="teacher-students__item">
+              <span class="teacher-students__name">{{ student.name }}</span>
+              <span class="teacher-students__grade">{{ gradeLabel(student.grade) }}</span>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  }
+</div>

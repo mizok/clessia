@@ -267,7 +267,7 @@ mount('/api/subjects', subjectsRoute, ADMIN_ONLY);
 mount('/api/classes', classesRoute, ADMIN_ONLY);
 mount('/api/audit-logs', auditLogsRoute, ADMIN_ONLY);
 mount('/api/sessions', sessionsRoute, ADMIN_ONLY);
-mount('/api/students', studentsRoute, ADMIN_ONLY);
+mount('/api/students', studentsRoute, ['admin', 'teacher']);
 mount('/api/parents', parentsRoute, ADMIN_ONLY);
 mount('/api/enrollments', enrollmentsRoute, ADMIN_ONLY);
 mount('/api/org', orgSettingsRoute, ['admin', 'teacher']);
