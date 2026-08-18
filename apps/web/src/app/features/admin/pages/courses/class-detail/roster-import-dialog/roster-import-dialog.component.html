@@ -1,0 +1,196 @@
+<div class="roster-import">
+  @switch (step()) {
+    <!-- ── 步驟一：上傳 ────────────────────────────────────────────── -->
+    @case ('upload') {
+      <div class="roster-import__body">
+        <p class="roster-import__hint">
+          兩欄就好：<strong>姓名</strong>、<strong>就讀學校</strong>。一次最多
+          {{ maxRows }} 人。
+        </p>
+
+        <a class="roster-import__template" href="/assets/templates/roster-import-template.xlsx" download>
+          <i class="pi pi-download"></i>
+          下載範本
+        </a>
+
+        <label
+          class="roster-import__dropzone"
+          [class.roster-import__dropzone--dragging]="dragging()"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)"
+        >
+          <i class="pi pi-file-excel roster-import__dropzone-icon"></i>
+          <span class="roster-import__dropzone-title">把檔案拖進來，或點擊選擇</span>
+          <span class="roster-import__dropzone-desc">支援 .xlsx 與 .csv</span>
+          <input type="file" accept=".xlsx,.xls,.csv" hidden (change)="onFileChange($event)" />
+        </label>
+
+        @if (parseError()) {
+          <app-inline-notice severity="error" [detail]="parseError()" (dismissed)="parseError.set(null)" />
+        }
+      </div>
+    }
+
+    <!-- ── 步驟二：學校對照 ────────────────────────────────────────── -->
+    @case ('schools') {
+      <div class="roster-import__body">
+        <p class="roster-import__hint">
+          名單上的學校寫法要對到系統裡的學校。對錯了學生就會配到別間學校，所以請確認一次。
+        </p>
+
+        <div class="roster-import__schools">
+          @for (match of schoolMatches(); track match.input) {
+            <div class="roster-import__school-row">
+              <span class="roster-import__school-input">{{ match.input }}</span>
+              <i class="pi pi-arrow-right roster-import__school-arrow"></i>
+              <p-select
+                class="roster-import__school-select"
+                [options]="schoolOptions(match)"
+                [ngModel]="schoolChoice()[match.input]"
+                (ngModelChange)="onSchoolChoice(match.input, $event)"
+                [filter]="true"
+                filterBy="label"
+                placeholder="系統裡找不到，請選一間"
+                appendTo="body"
+              />
+            </div>
+          }
+        </div>
+
+        @if (unresolvedSchools().length > 0) {
+          <app-inline-notice
+            severity="warning"
+            [detail]="'還有 ' + unresolvedSchools().length + ' 間學校沒有對照，對照完才能繼續'"
+            [dismissible]="false"
+          />
+        }
+      </div>
+
+      <div class="roster-import__footer">
+        <p-button label="重新選檔" severity="secondary" [text]="true" (onClick)="backToUpload()" />
+        <p-button
+          label="下一步"
+          [disabled]="unresolvedSchools().length > 0 || busy()"
+          [loading]="busy()"
+          (onClick)="runMatch()"
+        />
+      </div>
+    }
+
+    <!-- ── 步驟三：確認名單 ────────────────────────────────────────── -->
+    @case ('review') {
+      <div class="roster-import__body">
+        <div class="roster-import__date">
+          <label class="roster-import__date-label" for="roster-import-date">生效日</label>
+          <p-datepicker
+            inputId="roster-import-date"
+            [ngModel]="effectiveFrom()"
+            (ngModelChange)="effectiveFrom.set($event)"
+            dateFormat="yy-mm-dd"
+            appendTo="body"
+          />
+          <span class="roster-import__date-hint">
+            要讓學生出現在過去的課堂名單（例如補灌已經開跑的班），把日期往前調
+          </span>
+        </div>
+
+        <div class="roster-import__table" role="table">
+          @for (item of reviewRows(); track item.row.index) {
+            <div
+              class="roster-import__row"
+              [class.roster-import__row--blocked]="
+                item.result?.status === 'not_found' || item.result?.status === 'already_enrolled'
+              "
+              role="row"
+            >
+              <span class="roster-import__cell roster-import__cell--index">{{ item.row.index }}</span>
+              <span class="roster-import__cell roster-import__cell--name">{{ item.row.name }}</span>
+              <span class="roster-import__cell roster-import__cell--school">{{ item.row.school }}</span>
+
+              @if (item.result?.status === 'ambiguous') {
+                <p-select
+                  class="roster-import__cell roster-import__cell--picker"
+                  [options]="candidateOptions(item.result!)"
+                  [ngModel]="ambiguousChoice()[item.row.index]"
+                  (ngModelChange)="onCandidateChoice(item.row.index, $event)"
+                  placeholder="同名同校，請指定"
+                  appendTo="body"
+                />
+              } @else {
+                <span class="roster-import__cell roster-import__cell--status">
+                  <p-tag
+                    [value]="statusLabel(item.result)"
+                    [severity]="item.result?.status === 'matched' ? 'success' : 'secondary'"
+                  />
+                </span>
+              }
+            </div>
+          }
+        </div>
+
+        <p class="roster-import__summary">
+          可匯入 <strong>{{ selectedStudentIds().length }}</strong> 人
+          @if (blockedCount() > 0) {
+            ，略過 {{ blockedCount() }} 人
+          }
+        </p>
+
+        @if (conflicts().length > 0) {
+          <div class="roster-import__conflicts">
+            <app-inline-notice
+              severity="warning"
+              summary="有學生的時段跟其他班衝突"
+              [dismissible]="false"
+            />
+            <ul class="roster-import__conflict-list">
+              @for (conflict of conflicts(); track conflict.studentId + conflict.conflictingClassId) {
+                <li class="roster-import__conflict-item">
+                  {{ studentNameOf(conflict.studentId) }} —— 週{{ weekdayLabel(conflict.weekday) }}
+                  {{ conflict.startTime }}–{{ conflict.endTime }}
+                  與「{{ conflict.conflictingClassName }}」重疊
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        @if (submitError()) {
+          <app-inline-notice severity="error" [detail]="submitError()" (dismissed)="submitError.set(null)" />
+        }
+      </div>
+
+      <div class="roster-import__footer">
+        <p-button label="重新選檔" severity="secondary" [text]="true" (onClick)="backToUpload()" />
+        @if (conflicts().length > 0) {
+          <p-button label="仍要匯入" severity="warn" [loading]="busy()" (onClick)="submitForce()" />
+        } @else {
+          <p-button
+            label="匯入"
+            [disabled]="selectedStudentIds().length === 0 || busy()"
+            [loading]="busy()"
+            (onClick)="submit()"
+          />
+        }
+      </div>
+    }
+
+    <!-- ── 步驟四：結果 ────────────────────────────────────────────── -->
+    @case ('done') {
+      <div class="roster-import__body roster-import__body--result">
+        <i class="pi pi-check-circle roster-import__result-icon"></i>
+        <p class="roster-import__result-title">已匯入 {{ enrolledCount() }} 人</p>
+        @if (skippedCount() > 0) {
+          <p class="roster-import__result-desc">{{ skippedCount() }} 人略過（已在班上或建立失敗）</p>
+        }
+        <p class="roster-import__result-desc">
+          生效日 {{ effectiveFrom() | date: 'yyyy-MM-dd' }}
+        </p>
+      </div>
+
+      <div class="roster-import__footer">
+        <p-button label="完成" (onClick)="close()" />
+      </div>
+    }
+  }
+</div>

@@ -1,1 +1,80 @@
-<p>changes works!</p>
+<div class="changes">
+  <header class="changes__header">
+    <div class="changes__title-group">
+      <h1 class="changes__title">{{ page().label }}</h1>
+      <p class="changes__subtitle">調課、代課、停課的完整紀錄。此頁唯讀，要修改課堂請至課堂管理。</p>
+    </div>
+  </header>
+
+  <div class="changes__filters">
+    <p-select
+      [options]="monthOptions"
+      [ngModel]="month()"
+      (ngModelChange)="onMonthChange($event)"
+      optionLabel="label"
+      optionValue="value"
+    />
+    <p-select
+      [options]="changeTypeOptions"
+      [ngModel]="changeType()"
+      (ngModelChange)="onChangeTypeChange($event)"
+      optionLabel="label"
+      optionValue="value"
+    />
+    <p-select
+      [options]="campusOptions()"
+      [ngModel]="campusId()"
+      (ngModelChange)="onCampusChange($event)"
+      optionLabel="label"
+      optionValue="value"
+    />
+  </div>
+
+  @if (loading()) {
+    <p class="changes__state">載入中…</p>
+  } @else if (loadError()) {
+    <p class="changes__state changes__state--error">查詢失敗，請稍後再試。</p>
+  } @else if (entries().length === 0) {
+    <p class="changes__state">這個月沒有課務異動。</p>
+  } @else {
+    <table class="changes__table">
+      <thead>
+        <tr>
+          <th>異動時間</th>
+          <th>類型</th>
+          <th>課堂</th>
+          <th>變更內容</th>
+          <th>操作者</th>
+          <th>原因</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of entries(); track row.id) {
+          <tr>
+            <td>{{ row.createdAt | date: 'MM/dd HH:mm' }}</td>
+            <td>
+              <p-tag [value]="typeLabel(row.changeType)" severity="secondary" />
+              @if (row.isBatch) {
+                <p-tag value="批次" severity="info" styleClass="changes__batch" />
+              }
+            </td>
+            <td>
+              <span class="changes__session-date">{{ row.sessionDate }}</span>
+              <span class="changes__class-name">{{ row.className }}</span>
+            </td>
+            <td>{{ row.summary }}</td>
+            <td>{{ row.createdByName ?? '—' }}</td>
+            <td class="changes__reason">{{ row.reason ?? '—' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <p-paginator
+      [first]="first()"
+      [rows]="pageSize"
+      [totalRecords]="total()"
+      (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
+    />
+  }
+</div>

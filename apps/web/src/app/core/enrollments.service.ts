@@ -91,6 +91,8 @@ export interface BatchCreateInput {
   classId: string;
   studentIds: string[];
   skipConflictCheck?: boolean;
+  /** 不給就是今天。名單補灌時往前調到開課日，過去的課堂名單才有人 */
+  effectiveFrom?: string;
 }
 
 export interface BatchCreateResult {

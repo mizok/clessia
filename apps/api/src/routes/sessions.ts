@@ -5,6 +5,7 @@ import {
   buildSubstitutedAwayEntries,
   type SubstitutedAwayRow,
 } from './sessions/substituted-away';
+import { describeChange, type ChangeLogRow } from './sessions/change-log';
 import { logAudit, formatAuditSessionResourceName } from '../utils/audit';
 import {
   assertSessionOperable,
@@ -846,6 +847,99 @@ app.openapi(getSubstitutedAwayRoute, async (c) => {
 
   return c.json(
     { data: buildSubstitutedAwayEntries((data ?? []) as unknown as SubstitutedAwayRow[]) },
+    200,
+  );
+});
+
+
+const ChangeLogQuerySchema = z.object({
+  from: z.string().date(),
+  to: z.string().date(),
+  changeType: z
+    .enum(['reschedule', 'substitute', 'cancellation', 'uncancel', 'time_change'])
+    .optional(),
+  campusId: DbUuidSchema.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+const ChangeLogEntrySchema = z
+  .object({
+    id: z.uuid(),
+    sessionId: z.uuid(),
+    changeType: z.string(),
+    summary: z.string(),
+    sessionDate: z.string().nullable(),
+    className: z.string().nullable(),
+    reason: z.string().nullable(),
+    createdByName: z.string().nullable(),
+    createdAt: z.string(),
+    isBatch: z.boolean(),
+  })
+  .openapi('ChangeLogEntry');
+
+const listChangeLogRoute = createRoute({
+  method: 'get',
+  path: '/changes',
+  tags: ['Sessions'],
+  summary: '跨課堂的課務異動紀錄',
+  request: { query: ChangeLogQuerySchema },
+  responses: {
+    200: {
+      description: '成功',
+      content: {
+        'application/json': {
+          schema: z.object({
+            data: z.array(ChangeLogEntrySchema),
+            meta: z.object({ total: z.number(), page: z.number(), pageSize: z.number() }),
+          }),
+        },
+      },
+    },
+    400: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+});
+
+app.openapi(listChangeLogRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const { from, to, changeType, campusId, page, pageSize } = c.req.valid('query');
+
+  // 排序用 created_at 而非課堂日期：這是 log 檢視，關心的是「最近發生了什麼」。
+  // （授課紀錄剛好相反，它用課堂日期排 —— 同一份資料在不同問題下有不同的自然順序。）
+  let query = supabase
+    .from('schedule_changes')
+    .select(
+      `
+      id, session_id, change_type, operation_source, reason, created_by_name, created_at,
+      original_session_date, original_start_time, original_end_time,
+      new_session_date, new_start_time, new_end_time,
+      original_teacher_name,
+      sessions!inner ( session_date, classes!inner ( name, campus_id ) ),
+      staff!substitute_teacher_id ( display_name )
+    `,
+      { count: 'exact' },
+    )
+    .eq('org_id', orgId)
+    .gte('sessions.session_date', from)
+    .lte('sessions.session_date', to)
+    .order('created_at', { ascending: false })
+    .range((page - 1) * pageSize, page * pageSize - 1);
+
+  if (changeType) query = query.eq('change_type', changeType);
+  if (campusId) query = query.eq('sessions.classes.campus_id', campusId);
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+  }
+
+  return c.json(
+    {
+      data: ((data ?? []) as unknown as ChangeLogRow[]).map(describeChange),
+      meta: { total: count ?? 0, page, pageSize },
+    },
     200,
   );
 });

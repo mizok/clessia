@@ -1,0 +1,240 @@
+.roster-import {
+  display: flex;
+  flex-direction: column;
+
+  &__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-5);
+
+    &--result {
+      align-items: center;
+      gap: var(--space-3);
+      justify-content: center;
+      padding: var(--space-10) var(--space-5);
+      text-align: center;
+    }
+  }
+
+  &__hint {
+    margin: 0;
+    color: var(--zinc-600);
+    font-size: var(--text-sm);
+    line-height: 1.6;
+  }
+
+  &__template {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--accent-600);
+    font-size: var(--text-sm);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  // ---- 拖放區 ----
+  &__dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-10) var(--space-5);
+    border: 2px dashed var(--zinc-300);
+    border-radius: var(--radius-lg);
+    background: var(--zinc-50);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+
+    &--dragging {
+      border-color: var(--accent-500);
+      background: var(--accent-50);
+    }
+  }
+
+  &__dropzone-icon {
+    color: var(--zinc-400);
+    font-size: var(--text-2xl);
+  }
+
+  &__dropzone-title {
+    color: var(--zinc-700);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
+  &__dropzone-desc {
+    color: var(--zinc-500);
+    font-size: var(--text-xs);
+  }
+
+  // ---- 學校對照 ----
+  &__schools {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  &__school-row {
+    display: grid;
+    align-items: center;
+    gap: var(--space-3);
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 2fr);
+  }
+
+  &__school-input {
+    color: var(--zinc-800);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  &__school-arrow {
+    color: var(--zinc-400);
+    font-size: var(--text-xs);
+  }
+
+  &__school-select {
+    min-width: 0;
+  }
+
+  // ---- 生效日 ----
+  &__date {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--zinc-50);
+  }
+
+  &__date-label {
+    color: var(--zinc-700);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
+  &__date-hint {
+    flex: 1 1 100%;
+    color: var(--zinc-500);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+  }
+
+  // ---- 名單 ----
+  &__table {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(var(--window-height, 720px) * 0.4);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-md);
+    overflow-y: auto;
+  }
+
+  &__row {
+    display: grid;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--zinc-100);
+    grid-template-columns: var(--space-6) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.6fr);
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &--blocked {
+      background: var(--zinc-50);
+      color: var(--zinc-400);
+    }
+  }
+
+  &__cell {
+    font-size: var(--text-sm);
+    overflow-wrap: anywhere;
+
+    &--index {
+      color: var(--zinc-400);
+      font-size: var(--text-xs);
+    }
+
+    &--name {
+      font-weight: 600;
+    }
+
+    &--school {
+      color: var(--zinc-500);
+    }
+
+    &--picker {
+      min-width: 0;
+    }
+
+    &--status {
+      justify-self: end;
+    }
+  }
+
+  &__row--blocked &__cell--name {
+    font-weight: 500;
+  }
+
+  &__summary {
+    margin: 0;
+    color: var(--zinc-700);
+    font-size: var(--text-sm);
+  }
+
+  // ---- 衝堂 ----
+  &__conflicts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  &__conflict-list {
+    margin: 0;
+    padding-left: var(--space-5);
+    color: var(--zinc-600);
+    font-size: var(--text-sm);
+  }
+
+  &__conflict-item {
+    line-height: 1.6;
+  }
+
+  // ---- 結果 ----
+  &__result-icon {
+    color: var(--success-600);
+    font-size: var(--text-3xl);
+  }
+
+  &__result-title {
+    margin: 0;
+    color: var(--zinc-900);
+    font-size: var(--text-lg);
+    font-weight: 600;
+  }
+
+  &__result-desc {
+    margin: 0;
+    color: var(--zinc-500);
+    font-size: var(--text-sm);
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-5);
+    border-top: 1px solid var(--zinc-200);
+  }
+}

@@ -99,6 +99,8 @@ const BatchCreateEnrollmentSchema = z
     classId: DbUuidSchema,
     studentIds: z.array(DbUuidSchema).min(1).max(50),
     skipConflictCheck: z.boolean().optional(),
+    // 不給就是今天。名單補灌時要往前調到開課日，否則過去的課堂名單會是空的
+    effectiveFrom: z.string().date().optional(),
   })
   .openapi('BatchCreateEnrollment');
 
@@ -379,6 +381,7 @@ const ErrorSchema = z
 const OverQuotaErrorSchema = ErrorSchema.extend({
   quota: z.number().optional(),
   currentActive: z.number().optional(),
+  adding: z.number().optional(),
 });
 
 const ScheduleConflictErrorSchema = ErrorSchema.extend({
@@ -729,7 +732,7 @@ app.openapi(
         description: 'OK',
       },
       400: {
-        content: { 'application/json': { schema: ErrorSchema } },
+        content: { 'application/json': { schema: OverQuotaErrorSchema } },
         description: 'Bad Request (over_quota)',
       },
       404: {
@@ -747,19 +750,19 @@ app.openapi(
     },
   }),
   async (c) => {
-    const { classId, studentIds, skipConflictCheck } = c.req.valid('json');
+    const { classId, studentIds, skipConflictCheck, effectiveFrom } = c.req.valid('json');
     const orgId = c.get('orgId');
     const userId = c.get('userId');
     const supabase = c.get('supabase');
     const uniqueStudentIds = Array.from(new Set(studentIds));
 
-    const today = new Date().toISOString().slice(0, 10);
+    const startDate = effectiveFrom ?? new Date().toISOString().slice(0, 10);
     const preconditions = await checkEnrollmentPreconditions({
       supabase,
       orgId,
       classId,
       studentIds: uniqueStudentIds,
-      effectiveFrom: today,
+      effectiveFrom: startDate,
       effectiveTo: null,
     });
 
@@ -768,7 +771,17 @@ app.openapi(
         case 'CLASS_NOT_FOUND':
           return c.json({ error: 'CLASS_NOT_FOUND', code: 'CLASS_NOT_FOUND' }, 404);
         case 'OVER_QUOTA':
-          return c.json({ error: '人數已達上限', code: 'OVER_QUOTA' }, 400);
+          // 帶數字才有辦法告訴使用者超了幾個 —— 只說「已達上限」等於要他自己去數
+          return c.json(
+            {
+              error: preconditions.error.message,
+              code: 'OVER_QUOTA',
+              quota: preconditions.error.quota,
+              currentActive: preconditions.error.currentActive,
+              adding: preconditions.error.adding,
+            },
+            400,
+          );
         case 'SERVER_ERROR':
           return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
       }
@@ -796,7 +809,7 @@ app.openapi(
           class_id: classId,
           student_id: studentId,
           status: 'active',
-          effective_from: today,
+          effective_from: startDate,
           created_by: userId,
         })
         .select('id')
@@ -815,7 +828,7 @@ app.openapi(
           orgId,
           studentId,
           classId,
-          effectiveFrom: today,
+          effectiveFrom: startDate,
           effectiveTo: null,
           recordedBy: userId,
         });
