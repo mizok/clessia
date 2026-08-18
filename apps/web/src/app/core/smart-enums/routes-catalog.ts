@@ -162,6 +162,15 @@ export class RoutesCatalog {
     true,
     NavigationGroup.ADMIN_STUDENT_AFFAIRS,
   );
+  public static readonly ADMIN_ENROLLMENTS = this.register(
+    'enrollments',
+    '/admin/enrollments',
+    '報名進出',
+    UserType.ADMIN,
+    'pi-sign-in',
+    true,
+    NavigationGroup.ADMIN_STUDENT_AFFAIRS,
+  );
   public static readonly ADMIN_LEAVE = this.register(
     'leave',
     '/admin/leave',

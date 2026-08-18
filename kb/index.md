@@ -78,19 +78,21 @@ updated: 2026-08-11
 - [課表（我的課表）](specs/teacher/schedule.md) — 查看自己任課的課堂，進入課堂詳情。
 - [學生](specs/teacher/students.md) — 查看自己任課班級的學生名單。
 
-### 工程教訓（5）
+### 工程教訓（6）
 
 - [Better Auth 的 session 一律委派官方 API，不要手刻](wiki/lessons/better-auth-session-delegation.md) — adminCreateSession 不存在；手寫 ba_session + HMAC cookie 會耦合 BA 內部格式。最終做法是把密碼驗證與 session 建立都交給 signInEmail / signInUsername。
 - [2026-08 文件與程式碼漂移稽核](wiki/lessons/doc-code-drift-2026-08.md) — 建立 agent harness 時逐項驗證文件宣稱，找出五處與程式碼不符之處。含一個活的 bug（查詢不存在的資料表）與兩個沉默失效的設定。
 - [生成的表不會因為它是生成的就正確](wiki/lessons/generated-tables-need-verifying.md) — 功能區現況表的判定邏輯改了四版。第三版看起來完全合理，卻差點導致刪掉一個會動的功能——只有人工逐一驗證才發現。
 - [本機綠不等於 repo 綠](wiki/lessons/local-green-is-not-repo-green.md) — 導入 CI 的過程連紅六次，每一次的根因都是「本機狀態 ≠ 版控狀態」。附上推送前該怎麼自我驗證。
+- [選單開了、頁面寫了，路由還在 redirect](wiki/lessons/menu-entry-without-a-route.md) — M1 的課務異動畫面上線後完全打不開 —— 元件測試全綠，因為漏掉的東西不在元件裡，而在選單與路由表之間的縫。
 - [現況表只掃了三分之一的系統](wiki/lessons/status-table-blind-spot.md) — 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
 
-### 實作模式（5）
+### 實作模式（6）
 
 - [課務異動紀錄的設計](wiki/architecture/change-log-view.md) — M1 第二個畫面。填掉 admin/changes 空殼，把一直在寫卻沒人看得到的 schedule_changes 呈現出來。唯讀。
 - [報名管理端的設計](wiki/architecture/enrollment-admin-view.md) — M2。兩個互不依賴的切片：班級頁的 Excel 名單匯入精靈、獨立的報名進出總覽頁。既有的班級／學生兩個報名入口不動。
 - [刻意不設計「學部」這一層](wiki/architecture/no-division-scoping.md) — 補習班有國小部／國中部（未來高中部），但系統不建立「部」的概念，也不依部隔離可見範圍。原因是實際的人力本來就跨部。
+- [角色授權的設計](wiki/architecture/role-authorization.md) — 18 支 route 只驗身分不看角色。改成掛載時強制宣告可用角色、沒宣告就拒絕，並用 harness gate 守住。分兩層：route 層准入、資料層範圍。
 - [記錄授課歷程，但不做薪資計算](wiki/architecture/teaching-history-not-payroll.md) — 老師多為鐘點計酬，但系統刻意不計算薪資。職責是把「誰在什麼時候上了哪一堂」記到可信，計算方式留給人。
 - [老師授課紀錄的設計](wiki/architecture/teaching-log-view.md) — M1 第一個畫面。選老師 + 期間，列出課堂並加總時數。不計算薪資，設計原則是可追溯——代課、停課、缺點名證據都看得見。
 

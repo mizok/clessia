@@ -3,7 +3,7 @@ import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { authMiddleware } from './middleware/auth';
+import { authMiddleware, requireRoles } from './middleware/auth';
 import { createAuth } from './auth';
 import { resolveCorsOrigin } from './lib/origins';
 import { createServiceClientFromEnv } from './lib/supabase';
@@ -45,6 +45,8 @@ export type Bindings = {
 export type Variables = {
   userId: string;
   orgId: string;
+  /** 每次請求從 user_roles 查出來的角色，不是 session 快照 */
+  roles: string[];
   supabase: SupabaseClient;
 };
 
@@ -235,26 +237,46 @@ app.post('/api/login', async (c) => {
 
 app.use('/api/*', authMiddleware);
 
+// ============================================================
 // Mount routes
-app.route('/api/me', meRoute);
-app.route('/api/courses', coursesRoute);
-app.route('/api/campuses', campusesRoute);
-app.route('/api/schools', schoolsRoute);
-app.route('/api/staff', staffRoute);
-app.route('/api/subjects', subjectsRoute);
-app.route('/api/classes', classesRoute);
-app.route('/api/audit-logs', auditLogsRoute);
-app.route('/api/sessions', sessionsRoute);
-app.route('/api/students', studentsRoute);
-app.route('/api/parents', parentsRoute);
-app.route('/api/enrollments', enrollmentsRoute);
-app.route('/api/org', orgSettingsRoute);
-app.route('/api/attendance', attendanceRoute);
-app.route('/api/leaves', leavesRoute);
-app.route('/api/daily-checkins', dailyCheckinsRoute);
-app.route('/api/academy-exams', academyExamsRoute);
-app.route('/api/school-exams', schoolExamsRoute);
-app.route('/api/scores', scoresRoute);
+//
+// 每一支掛載都必須宣告可用角色 —— roles 不是 optional，忘了寫連編譯都過不了。
+// 想全開要明寫 ANY_ROLE，那是一個看得見的決定，不是忘記的後果。
+// 由 tools/agent-harness 的 gate 守住（見 kb/wiki/architecture/role-authorization.md）。
+//
+// **只開現在真的有頁面在用的。** 老師端規格提到要看學生與成績，但那些頁面還是空殼；
+// 做到那一頁時再連同「只看自己班」的範圍限制一起開。
+// ============================================================
+
+const ANY_ROLE = ['admin', 'teacher', 'parent'];
+const ADMIN_ONLY = ['admin'];
+
+// app.route 有多載，Parameters<> 取不到正確的那一個；掛載的 route 全是 OpenAPIHono
+function mount(path: string, route: OpenAPIHono<AppEnv>, roles: string[]) {
+  app.use(path, requireRoles(...roles));
+  app.use(`${path}/*`, requireRoles(...roles));
+  app.route(path, route);
+}
+
+mount('/api/me', meRoute, ANY_ROLE);
+mount('/api/courses', coursesRoute, ADMIN_ONLY);
+mount('/api/campuses', campusesRoute, ADMIN_ONLY);
+mount('/api/schools', schoolsRoute, ADMIN_ONLY);
+mount('/api/staff', staffRoute, ADMIN_ONLY);
+mount('/api/subjects', subjectsRoute, ADMIN_ONLY);
+mount('/api/classes', classesRoute, ADMIN_ONLY);
+mount('/api/audit-logs', auditLogsRoute, ADMIN_ONLY);
+mount('/api/sessions', sessionsRoute, ADMIN_ONLY);
+mount('/api/students', studentsRoute, ADMIN_ONLY);
+mount('/api/parents', parentsRoute, ADMIN_ONLY);
+mount('/api/enrollments', enrollmentsRoute, ADMIN_ONLY);
+mount('/api/org', orgSettingsRoute, ['admin', 'teacher']);
+mount('/api/attendance', attendanceRoute, ['admin', 'teacher']);
+mount('/api/leaves', leavesRoute, ADMIN_ONLY);
+mount('/api/daily-checkins', dailyCheckinsRoute, ADMIN_ONLY);
+mount('/api/academy-exams', academyExamsRoute, ADMIN_ONLY);
+mount('/api/school-exams', schoolExamsRoute, ADMIN_ONLY);
+mount('/api/scores', scoresRoute, ADMIN_ONLY);
 
 // ============================================================
 // Error Handler

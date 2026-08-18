@@ -75,7 +75,13 @@ export interface EnrollmentListResponse {
 export interface EnrollmentQueryParams {
   classId?: string;
   studentId?: string;
+  campusId?: string;
   status?: EnrollmentStatus;
+  /** 期間內「發生過事情」：這段期間開始生效（新報名）或結束（退班） */
+  from?: string;
+  to?: string;
+  /** 預設 createdAt；進出總覽用 updatedAt，見 list-query.ts */
+  sort?: 'createdAt' | 'updatedAt';
   page?: number;
   pageSize?: number;
 }
@@ -91,6 +97,8 @@ export interface BatchCreateInput {
   classId: string;
   studentIds: string[];
   skipConflictCheck?: boolean;
+  /** 不給就是今天。名單補灌時往前調到開課日，過去的課堂名單才有人 */
+  effectiveFrom?: string;
 }
 
 export interface BatchCreateResult {
@@ -147,7 +155,11 @@ export class EnrollmentsService {
     const query = new URLSearchParams();
     if (params.classId) query.set('classId', params.classId);
     if (params.studentId) query.set('studentId', params.studentId);
+    if (params.campusId) query.set('campusId', params.campusId);
     if (params.status) query.set('status', params.status);
+    if (params.from) query.set('from', params.from);
+    if (params.to) query.set('to', params.to);
+    if (params.sort) query.set('sort', params.sort);
     if (params.page) query.set('page', String(params.page));
     if (params.pageSize) query.set('pageSize', String(params.pageSize));
     return this.http.get<EnrollmentListResponse>(`${this.base}?${query}`);

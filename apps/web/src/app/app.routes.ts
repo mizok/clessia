@@ -180,7 +180,11 @@ export const routes: Routes = [
           },
           {
             path: RoutesCatalog.ADMIN_CHANGES.relativePath,
-            redirectTo: RoutesCatalog.ADMIN_SESSIONS.relativePath,
+            loadComponent: () =>
+              import('@features/admin/pages/changes/changes.component').then(
+                (m) => m.ChangesComponent,
+              ),
+            data: { page: RoutesCatalog.ADMIN_CHANGES },
           },
           {
             path: RoutesCatalog.ADMIN_NOTIFICATIONS.relativePath,
@@ -209,6 +213,14 @@ export const routes: Routes = [
             loadComponent: () =>
               import('@features/admin/pages/parents/parents.page').then((m) => m.ParentsPage),
             data: { page: RoutesCatalog.ADMIN_PARENTS },
+          },
+          {
+            path: RoutesCatalog.ADMIN_ENROLLMENTS.relativePath,
+            loadComponent: () =>
+              import('@features/admin/pages/enrollments/enrollments.page').then(
+                (m) => m.EnrollmentsPage,
+              ),
+            data: { page: RoutesCatalog.ADMIN_ENROLLMENTS },
           },
           {
             path: RoutesCatalog.ADMIN_PAYMENTS.relativePath,

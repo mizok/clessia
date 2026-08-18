@@ -3,6 +3,7 @@ import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
+import { buildPeriodFilter, buildSelect, sortColumn } from './enrollments/list-query';
 
 // ============================================================
 // Schemas
@@ -99,6 +100,8 @@ const BatchCreateEnrollmentSchema = z
     classId: DbUuidSchema,
     studentIds: z.array(DbUuidSchema).min(1).max(50),
     skipConflictCheck: z.boolean().optional(),
+    // 不給就是今天。名單補灌時要往前調到開課日，否則過去的課堂名單會是空的
+    effectiveFrom: z.string().date().optional(),
   })
   .openapi('BatchCreateEnrollment');
 
@@ -379,6 +382,7 @@ const ErrorSchema = z
 const OverQuotaErrorSchema = ErrorSchema.extend({
   quota: z.number().optional(),
   currentActive: z.number().optional(),
+  adding: z.number().optional(),
 });
 
 const ScheduleConflictErrorSchema = ErrorSchema.extend({
@@ -401,7 +405,12 @@ app.openapi(
       query: z.object({
         classId: DbUuidSchema.optional(),
         studentId: DbUuidSchema.optional(),
+        campusId: DbUuidSchema.optional(),
         status: EnrollmentStatusSchema.optional(),
+        // 期間內「發生過事情」：這段期間開始生效（新報名）或結束（退班）
+        from: z.string().date().optional(),
+        to: z.string().date().optional(),
+        sort: z.enum(['createdAt', 'updatedAt']).optional(),
         page: z.coerce.number().int().min(1).default(1).optional(),
         pageSize: z.coerce.number().int().min(1).max(100).default(20).optional(),
       }),
@@ -418,23 +427,34 @@ app.openapi(
     },
   }),
   async (c) => {
-    const { classId, studentId, status, page = 1, pageSize = 20 } = c.req.valid('query');
+    const {
+      classId,
+      studentId,
+      campusId,
+      status,
+      from,
+      to,
+      sort,
+      page = 1,
+      pageSize = 20,
+    } = c.req.valid('query');
     const orgId = c.get('orgId');
     const supabase = c.get('supabase');
 
     let query = supabase
       .from('enrollments')
-      .select(
-        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
-        { count: 'exact' },
-      )
+      .select(buildSelect(campusId), { count: 'exact' })
       .eq('org_id', orgId)
-      .order('created_at', { ascending: false })
+      .order(sortColumn(sort), { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
 
     if (classId) query = query.eq('class_id', classId);
     if (studentId) query = query.eq('student_id', studentId);
+    if (campusId) query = query.eq('classes.campus_id', campusId);
     if (status) query = query.eq('status', status);
+
+    const periodFilter = buildPeriodFilter(from, to);
+    if (periodFilter) query = query.or(periodFilter);
 
     const { data, count, error } = await query;
     if (error) return c.json({ error: error.message }, 500);
@@ -729,7 +749,7 @@ app.openapi(
         description: 'OK',
       },
       400: {
-        content: { 'application/json': { schema: ErrorSchema } },
+        content: { 'application/json': { schema: OverQuotaErrorSchema } },
         description: 'Bad Request (over_quota)',
       },
       404: {
@@ -747,19 +767,19 @@ app.openapi(
     },
   }),
   async (c) => {
-    const { classId, studentIds, skipConflictCheck } = c.req.valid('json');
+    const { classId, studentIds, skipConflictCheck, effectiveFrom } = c.req.valid('json');
     const orgId = c.get('orgId');
     const userId = c.get('userId');
     const supabase = c.get('supabase');
     const uniqueStudentIds = Array.from(new Set(studentIds));
 
-    const today = new Date().toISOString().slice(0, 10);
+    const startDate = effectiveFrom ?? new Date().toISOString().slice(0, 10);
     const preconditions = await checkEnrollmentPreconditions({
       supabase,
       orgId,
       classId,
       studentIds: uniqueStudentIds,
-      effectiveFrom: today,
+      effectiveFrom: startDate,
       effectiveTo: null,
     });
 
@@ -768,7 +788,17 @@ app.openapi(
         case 'CLASS_NOT_FOUND':
           return c.json({ error: 'CLASS_NOT_FOUND', code: 'CLASS_NOT_FOUND' }, 404);
         case 'OVER_QUOTA':
-          return c.json({ error: '人數已達上限', code: 'OVER_QUOTA' }, 400);
+          // 帶數字才有辦法告訴使用者超了幾個 —— 只說「已達上限」等於要他自己去數
+          return c.json(
+            {
+              error: preconditions.error.message,
+              code: 'OVER_QUOTA',
+              quota: preconditions.error.quota,
+              currentActive: preconditions.error.currentActive,
+              adding: preconditions.error.adding,
+            },
+            400,
+          );
         case 'SERVER_ERROR':
           return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
       }
@@ -796,7 +826,7 @@ app.openapi(
           class_id: classId,
           student_id: studentId,
           status: 'active',
-          effective_from: today,
+          effective_from: startDate,
           created_by: userId,
         })
         .select('id')
@@ -815,7 +845,7 @@ app.openapi(
           orgId,
           studentId,
           classId,
-          effectiveFrom: today,
+          effectiveFrom: startDate,
           effectiveTo: null,
           recordedBy: userId,
         });

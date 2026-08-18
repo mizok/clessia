@@ -99,7 +99,8 @@ export class SchedulePage implements OnInit {
     this.loading.set(true);
     const start = this.currentWeekStart();
     const end = endOfWeek(start, { weekStartsOn: 1 });
-    // TODO: 待 API 支援 teacherId 篩選後加入
+    // 不必傳 teacherId：後端看角色強制套用老師自己的 id（attendance/teacher-scope.ts）。
+    // 由前端傳的話，直接打 API 的人就能指定別人 —— 前端隱藏不構成授權（c1）。
     this.attendanceService
       .sessions({
         dateFrom: format(start, 'yyyy-MM-dd'),

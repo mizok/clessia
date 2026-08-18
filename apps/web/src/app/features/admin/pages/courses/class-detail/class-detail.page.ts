@@ -37,6 +37,7 @@ import {
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import { StudentPickerDialogComponent } from './student-picker-dialog/student-picker-dialog.component';
 import { CopyRosterDialogComponent } from './copy-roster-dialog/copy-roster-dialog.component';
+import { RosterImportDialogComponent } from './roster-import-dialog/roster-import-dialog.component';
 
 @Component({
   selector: 'app-class-detail',
@@ -273,6 +274,23 @@ export class ClassDetailPage implements OnInit {
 
     ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
       if (result === 'copied') this.loadEnrollments();
+    });
+  }
+
+  protected openRosterImport(): void {
+    const cls = this.cls();
+    if (!cls) return;
+
+    const ref = this.dialogService.open(RosterImportDialogComponent, {
+      header: '從 Excel 匯入名單',
+      width: '640px',
+      modal: true,
+      appendTo: this.overlayContainer || 'body',
+      data: { classId: cls.id },
+    });
+
+    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
+      if (result === 'imported') this.loadEnrollments();
     });
   }
 
