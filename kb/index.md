@@ -78,13 +78,14 @@ updated: 2026-08-11
 - [課表（我的課表）](specs/teacher/schedule.md) — 查看自己任課的課堂，進入課堂詳情。
 - [學生](specs/teacher/students.md) — 查看自己任課班級的學生名單。
 
-### 工程教訓（5）
+### 工程教訓（6）
 
 - [Better Auth 的 session 一律委派官方 API，不要手刻](wiki/lessons/better-auth-session-delegation.md) — adminCreateSession 不存在；手寫 ba_session + HMAC cookie 會耦合 BA 內部格式。最終做法是把密碼驗證與 session 建立都交給 signInEmail / signInUsername。
 - [2026-08 文件與程式碼漂移稽核](wiki/lessons/doc-code-drift-2026-08.md) — 建立 agent harness 時逐項驗證文件宣稱，找出五處與程式碼不符之處。含一個活的 bug（查詢不存在的資料表）與兩個沉默失效的設定。
 - [生成的表不會因為它是生成的就正確](wiki/lessons/generated-tables-need-verifying.md) — 功能區現況表的判定邏輯改了四版。第三版看起來完全合理，卻差點導致刪掉一個會動的功能——只有人工逐一驗證才發現。
 - [本機綠不等於 repo 綠](wiki/lessons/local-green-is-not-repo-green.md) — 導入 CI 的過程連紅六次，每一次的根因都是「本機狀態 ≠ 版控狀態」。附上推送前該怎麼自我驗證。
 - [選單開了、頁面寫了，路由還在 redirect](wiki/lessons/menu-entry-without-a-route.md) — M1 的課務異動畫面上線後完全打不開 —— 元件測試全綠，因為漏掉的東西不在元件裡，而在選單與路由表之間的縫。
+- [現況表只掃了三分之一的系統](wiki/lessons/status-table-blind-spot.md) — 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
 
 ### 實作模式（6）
 

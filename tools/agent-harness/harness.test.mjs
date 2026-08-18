@@ -118,3 +118,31 @@ test('基線項目恢復時要被指出來，但不擋人', () => {
   assert.deepEqual(result.recovered, ['apps/web/a.spec.ts']);
   assert.deepEqual(result.regressions, [], '恢復不該被當成 regression');
 });
+
+// ── 現況表的掃描範圍 ─────────────────────────────────────────────────────────
+// 這組測試存在的理由：feature-map 曾經只掃 features/admin/pages，於是家長端 11 個空殼
+// 從來沒出現在任何報告裡，而所有優先順序決策都以那張表為依據。
+// 見 kb/wiki/lessons/status-table-blind-spot.md
+
+const featureMap = await import('./feature-map.mjs');
+
+test('現況表掃遍三個角色，不是只有 admin', () => {
+  assert.deepEqual(featureMap.ROLES, ['admin', 'teacher', 'parent']);
+
+  for (const role of featureMap.ROLES) {
+    const found = featureMap.diskPages.filter((p) => p.startsWith(`${role}/`));
+    assert.ok(found.length > 0, `${role} 底下一個頁面都沒掃到，掃描範圍可能又縮回去了`);
+  }
+});
+
+test('磁碟上每個角色的頁面都被藍圖認領，沒有靜默消失的', () => {
+  assert.deepEqual(featureMap.failures, []);
+});
+
+test('產出的表格每個角色各一欄', () => {
+  const body = featureMap.render();
+
+  for (const label of ['管理端', '老師端', '家長端']) {
+    assert.ok(body.includes(label), `表頭少了「${label}」欄`);
+  }
+});
