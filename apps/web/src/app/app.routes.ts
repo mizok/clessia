@@ -327,14 +327,6 @@ export const routes: Routes = [
             data: { page: RoutesCatalog.TEACHER_SCHEDULE },
           },
           {
-            path: RoutesCatalog.TEACHER_ATTENDANCE.relativePath,
-            loadComponent: () =>
-              import('@features/teacher/pages/attendance/attendance.page').then(
-                (m) => m.AttendancePage,
-              ),
-            data: { page: RoutesCatalog.TEACHER_ATTENDANCE },
-          },
-          {
             path: RoutesCatalog.TEACHER_STUDENTS.relativePath,
             loadComponent: () =>
               import('@features/teacher/pages/students/students.page').then(

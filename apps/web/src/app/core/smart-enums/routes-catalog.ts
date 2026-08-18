@@ -349,15 +349,6 @@ export class RoutesCatalog {
     true,
     NavigationGroup.TEACHER_ACADEMICS,
   );
-  public static readonly TEACHER_ATTENDANCE = this.register(
-    'attendance',
-    '/teacher/attendance',
-    '點名',
-    UserType.TEACHER,
-    'pi-check-circle',
-    true,
-    NavigationGroup.TEACHER_ACADEMICS,
-  );
   public static readonly TEACHER_STUDENTS = this.register(
     'students',
     '/teacher/students',

@@ -1,0 +1,80 @@
+.teacher-students {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+
+  &__title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  &__subtitle {
+    margin: var(--space-1) 0 0;
+    color: var(--text-muted);
+  }
+
+  &__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  &__search {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+  }
+
+  &__state {
+    margin: 0;
+    color: var(--text-muted);
+
+    &--error {
+      color: var(--red-500);
+    }
+  }
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  &__group-title {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  &__group-count {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    font-weight: 400;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--surface-border);
+  }
+
+  &__grade {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+}
