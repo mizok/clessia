@@ -36,6 +36,8 @@ export interface Student {
   isActive: boolean;
   parentNames: string[];
   campusNames: string[];
+  /** 在籍班級名稱，老師端用來分組 */
+  classNames: string[];
   hasEnrollments: boolean;
   createdAt: string;
   updatedAt: string;
@@ -69,6 +71,8 @@ export interface StudentQueryParams {
   pageSize?: number;
   isActive?: boolean;
   schoolId?: string | null;
+  /** 老師端用。實際範圍由後端依角色決定，這個旗標只是意圖 */
+  taughtByMe?: boolean;
 }
 
 export interface UpdateStudentInput {
@@ -169,6 +173,7 @@ export class StudentsService {
     if (params.pageSize !== undefined) q['pageSize'] = params.pageSize;
     if (params.isActive !== undefined) q['isActive'] = params.isActive;
     if (params.schoolId !== undefined && params.schoolId !== null) q['schoolId'] = params.schoolId;
+    if (params.taughtByMe !== undefined) q['taughtByMe'] = params.taughtByMe;
     return q;
   }
 }

@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { resolveStudentScope } from './students/teacher-scope';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
@@ -41,6 +42,8 @@ const StudentSchema = z
     isActive: z.boolean(),
     parentNames: z.array(z.string()),
     campusNames: z.array(z.string()),
+    /** 在籍班級（老師端用來分組；管理端目前不顯示） */
+    classNames: z.array(z.string()),
     hasEnrollments: z.boolean(),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -128,6 +131,7 @@ export function toStudentResponse(
   parentNames: string[] = [],
   campusNames: string[] = [],
   hasEnrollments: boolean = false,
+  classNames: string[] = [],
 ) {
   const school = row['schools'] as
     | { id: string; name: string; short_name: string | null }
@@ -157,6 +161,7 @@ export function toStudentResponse(
     isActive: row['is_active'] as boolean,
     parentNames,
     campusNames,
+    classNames,
     hasEnrollments,
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
@@ -201,6 +206,8 @@ app.openapi(
         page: z.coerce.number().min(1).default(1).optional(),
         pageSize: z.coerce.number().min(1).max(100).default(20).optional(),
         isActive: z.coerce.boolean().optional(),
+        // 意圖提示而已：老師的範圍由角色決定（見 students/teacher-scope.ts）
+        taughtByMe: z.coerce.boolean().optional(),
       }),
     },
     responses: {
@@ -222,16 +229,81 @@ app.openapi(
       page = 1,
       pageSize = 20,
       isActive,
+      taughtByMe = false,
     } = c.req.valid('query');
+
+    const roles = c.get('roles') ?? [];
+
+    // 管理員不受限，所以不必查 staff
+    let ownStaffId: string | null = null;
+    if (!roles.includes('admin')) {
+      const { data: ownStaff } = await supabase
+        .from('staff')
+        .select('id')
+        .eq('user_id', c.get('userId'))
+        .eq('org_id', orgId)
+        .maybeSingle();
+      ownStaffId = (ownStaff?.id as string | undefined) ?? null;
+    }
+
+    const scope = resolveStudentScope({ roles, taughtByMe, ownStaffId });
+    if ('forbidden' in scope) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
+
+    // 老師只看得到自己固定任課的班（schedules，不是 sessions —— 代課不算「我的學生」）
+    let taughtStudentIds: string[] | null = null;
+    if (scope.teacherStaffId) {
+      const { data: scheduleRows, error: scheduleError } = await supabase
+        .from('schedules')
+        .select('class_id')
+        .eq('org_id', orgId)
+        .eq('teacher_id', scope.teacherStaffId);
+      if (scheduleError) {
+        return c.json({ error: '讀取任課班級失敗', message: scheduleError.message }, 500);
+      }
+
+      const classIds = Array.from(
+        new Set((scheduleRows ?? []).map((r) => r['class_id'] as string)),
+      );
+
+      if (classIds.length === 0) {
+        taughtStudentIds = [];
+      } else {
+        const { data: enrolledRows, error: enrolledError } = await supabase
+          .from('enrollments')
+          .select('student_id')
+          .eq('org_id', orgId)
+          .in('class_id', classIds)
+          .in('status', ['active', 'pending_payment']);
+        if (enrolledError) {
+          return c.json({ error: '讀取在籍學生失敗', message: enrolledError.message }, 500);
+        }
+        taughtStudentIds = Array.from(
+          new Set((enrolledRows ?? []).map((r) => r['student_id'] as string)),
+        );
+      }
+    }
 
     let query = supabase
       .from('students')
       .select(
-        `*, schools(id, name, short_name), parent_student_relations(is_primary, relation, parents(id, name)), enrollments(id, classes(campus_id, campuses(name)))`,
+        `*, schools(id, name, short_name), parent_student_relations(is_primary, relation, parents(id, name)), enrollments(id, status, classes(id, name, campus_id, campuses(name)))`,
         { count: 'exact' },
       )
       .eq('org_id', orgId)
       .order('name');
+
+    if (taughtStudentIds !== null) {
+      // 空陣列代表這位老師沒有任何任課班 —— 結果必須是空的，不是「不篩」
+      if (taughtStudentIds.length === 0) {
+        return c.json(
+          { data: [], meta: { total: 0, page, pageSize, totalPages: 0 } },
+          200,
+        );
+      }
+      query = query.in('id', taughtStudentIds);
+    }
 
     if (search) {
       let matchedStudentIds: string[] = [];
@@ -316,7 +388,13 @@ app.openapi(
         .filter(Boolean);
       const enrollmentRows = (row['enrollments'] as Array<{
         id: string;
-        classes: { campus_id: string | null; campuses: { name: string } | null } | null;
+        status?: string;
+        classes: {
+          id: string;
+          name: string;
+          campus_id: string | null;
+          campuses: { name: string } | null;
+        } | null;
       }>) ?? [];
       const hasEnrollments = enrollmentRows.length > 0;
       const campusNames = Array.from(
@@ -326,7 +404,17 @@ app.openapi(
             .filter((n): n is string => !!n),
         ),
       );
-      return toStudentResponse(row, parentNames, campusNames, hasEnrollments);
+      // 只算在籍的班 —— 退班的班名不該出現在老師的分組裡
+      const classNames = Array.from(
+        new Set(
+          enrollmentRows
+            .filter((e) => !e.status || ['active', 'pending_payment'].includes(e.status))
+            .map((e) => e.classes?.name)
+            .filter((n): n is string => !!n),
+        ),
+      );
+
+      return toStudentResponse(row, parentNames, campusNames, hasEnrollments, classNames);
     });
 
     return c.json(
