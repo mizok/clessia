@@ -79,7 +79,7 @@ const AREAS = [
   },
   {
     name: '報名',
-    pages: [],
+    pages: ['enrollments'],
     routes: ['enrollments'],
     specs: [
       'admin/enrollment/enrollment.md',

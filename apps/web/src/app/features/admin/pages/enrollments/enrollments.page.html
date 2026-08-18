@@ -1,0 +1,100 @@
+<div class="enrollments">
+  <header class="enrollments__header">
+    <div class="enrollments__title-group">
+      <h1 class="enrollments__title">{{ page().label }}</h1>
+      <p class="enrollments__subtitle">
+        這段期間的報名進出。此頁唯讀，要調整報名狀態請點進班級。
+      </p>
+    </div>
+  </header>
+
+  <div class="enrollments__filters">
+    <p-select
+      [options]="monthOptions"
+      [ngModel]="month()"
+      (ngModelChange)="onMonthChange($event)"
+      optionLabel="label"
+      optionValue="value"
+    />
+    <p-select
+      [options]="statusOptions"
+      [ngModel]="status()"
+      (ngModelChange)="onStatusChange($event)"
+      optionLabel="label"
+      optionValue="value"
+    />
+    <p-select
+      [options]="campusOptions()"
+      [ngModel]="campusId()"
+      (ngModelChange)="onCampusChange($event)"
+      optionLabel="label"
+      optionValue="value"
+    />
+  </div>
+
+  @if (loading()) {
+    <p class="enrollments__state">載入中…</p>
+  } @else if (loadError()) {
+    <p class="enrollments__state enrollments__state--error">查詢失敗，請稍後再試。</p>
+  } @else if (rows().length === 0) {
+    <p class="enrollments__state">
+      @if (hasPeriod()) {
+        這個月沒有報名進出。
+      } @else {
+        沒有符合條件的報名。
+      }
+    </p>
+  } @else {
+    <p class="enrollments__summary">
+      本頁 新報名 <strong>{{ joinedCount() }}</strong> 筆、退班
+      <strong>{{ leftCount() }}</strong> 筆，共 {{ total() }} 筆
+    </p>
+
+    <table class="enrollments__table">
+      <thead>
+        <tr>
+          <th>事件</th>
+          <th>日期</th>
+          <th>學生</th>
+          <th>班級</th>
+          <th>分校</th>
+          <th>狀態</th>
+          <th>最後異動</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.enrollment.id) {
+          <tr
+            class="enrollments__row"
+            tabindex="0"
+            (click)="openClass(row)"
+            (keydown.enter)="openClass(row)"
+          >
+            <td>
+              <p-tag
+                [value]="EVENT_LABELS[row.event.kind]"
+                [severity]="row.event.kind === 'joined' ? 'success' : 'secondary'"
+              />
+            </td>
+            <td>{{ row.event.date | date: 'MM/dd' }}</td>
+            <td>
+              {{ row.enrollment.studentName }}
+              <span class="enrollments__grade">{{ row.enrollment.studentGrade }}</span>
+            </td>
+            <td>{{ row.enrollment.className }}</td>
+            <td>{{ row.enrollment.campusName ?? '—' }}</td>
+            <td>{{ STATUS_LABELS[row.enrollment.status] }}</td>
+            <td>{{ row.enrollment.updatedAt | date: 'MM/dd HH:mm' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <p-paginator
+      [first]="first()"
+      [rows]="pageSize"
+      [totalRecords]="total()"
+      (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
+    />
+  }
+</div>
