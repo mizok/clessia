@@ -39,7 +39,7 @@ if (violations.length > 0) {
       '憲法 guard — 這次寫入被擋下：',
       ...lines,
       '',
-      '法條全文：kb/architecture/constitution.md',
+      '法條全文：kb/wiki/architecture/constitution.md',
       '誤判？調 tools/agent-harness/rules/pre-guard.rules.json 的 regex 即可，不用改程式碼。',
     ].join('\n'),
   );

@@ -4,6 +4,7 @@ summary: 補習班有國小部／國中部（未來高中部），但系統不�
 category: architecture
 status: active
 updated: 2026-08-11
+tags: [architecture, no-division-scoping]
 ---
 
 # 刻意不設計「學部」這一層

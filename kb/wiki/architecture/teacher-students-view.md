@@ -4,6 +4,7 @@ summary: 老師看自己任課班級的學生。同時處理 teacher/attendance 
 category: architecture
 status: active
 updated: 2026-08-18
+tags: [architecture, teacher-students-view]
 ---
 
 # 老師端學生名單的設計
@@ -45,7 +46,7 @@ Teacher attendance content coming soon...
 
 ## API：開 `students` 給 teacher，同時鎖範圍
 
-照 [`角色授權的設計`](role-authorization.md) 講好的做法：**做到哪一頁才開哪一支，
+照 [[architecture/role-authorization|`角色授權的設計`]] 講好的做法：**做到哪一頁才開哪一支，
 而且開的同時就把範圍限制做完**。先開路、之後才補範圍的話，中間那段時間就是個洞。
 
 - `mount('/api/students', studentsRoute, ['admin', 'teacher'])`

@@ -4,11 +4,12 @@ summary: 功能區現況表的判定邏輯改了四版。第三版看起來完�
 category: lesson
 status: active
 updated: 2026-08-12
+tags: [lessons, generated-tables-need-verifying]
 ---
 
 # 生成的表不會因為它是生成的就正確
 
-`kb/roadmap.md` 的功能區現況表用來回答「哪些功能是空殼」，而那個答案會直接變成**裁撤決定**。
+`kb/wiki/roadmap.md` 的功能區現況表用來回答「哪些功能是空殼」，而那個答案會直接變成**裁撤決定**。
 判定「這個頁面有沒有接後端」的邏輯改了四版才對。
 
 ## 四個版本

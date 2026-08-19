@@ -4,13 +4,14 @@ summary: 自動生成的功能區現況表只掃 features/admin/pages，於是�
 category: lesson
 status: active
 updated: 2026-08-16
+tags: [lessons, status-table-blind-spot]
 ---
 
 # 現況表只掃了三分之一的系統
 
 ## 發生什麼
 
-`tools/agent-harness/feature-map.mjs` 生成 `kb/roadmap.md` 的功能區現況表，用來回答
+`tools/agent-harness/feature-map.mjs` 生成 `kb/wiki/roadmap.md` 的功能區現況表，用來回答
 「這個功能區是已接通、空殼、還是未開始」。它被 gate 盯著，每次改動都會重生，
 `AGENTS.md` 也明寫「開工前先讀現況表」。
 

@@ -25,7 +25,7 @@ if (hints.length > 0) {
   const body = [
     'Clessia 相關參考（動手前先看，advisory）：',
     ...hints.slice(0, MAX_HINTS).map((hint) => `- ${hint}`),
-    '(binding law 是 kb/architecture/constitution.md。)',
+    '(binding law 是 kb/wiki/architecture/constitution.md。)',
   ].join('\n');
 
   process.stdout.write(

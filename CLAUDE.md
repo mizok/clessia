@@ -4,7 +4,7 @@
 > CLI 讀到的是同一份。
 >
 > **維護規則：新的專案規則一律加到 `AGENTS.md`，永遠不要加到這個檔** —— 這裡只做 import。
-> 具約束力的架構不變量走 `kb/architecture/constitution.md` 的修訂流程。
+> 具約束力的架構不變量走 `kb/wiki/architecture/constitution.md` 的修訂流程。
 > 本檔行數由 `npm run harness` 把關（clause c11）。
 
 @AGENTS.md
