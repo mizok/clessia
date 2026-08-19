@@ -3,7 +3,7 @@ title: 報名管理端的設計
 summary: M2。兩個互不依賴的切片：班級頁的 Excel 名單匯入精靈、獨立的報名進出總覽頁。既有的班級／學生兩個報名入口不動。
 category: architecture
 status: active
-updated: 2026-08-14
+updated: 2026-08-19
 tags: [architecture, enrollment-admin-view]
 ---
 
@@ -40,7 +40,7 @@ tags: [architecture, enrollment-admin-view]
 
 ### 位置對應的兩欄範本，不讀標題列
 
-沿用家長匯入的既定慣例（`parent-import-dialog.component.ts:292`）：跳過前兩列、
+沿用家長匯入的既定慣例（`parent-import-dialog.component.ts` 的 `parseSingleRow()`）：跳過前兩列、
 `row[0]` `row[1]` 位置對應，附一份可下載的範本。報名只需要**姓名**與**就讀學校**兩欄
 （年級不用 —— 學生已經在系統裡，年級是學生資料）。
 
@@ -50,7 +50,7 @@ tags: [architecture, enrollment-admin-view]
 
 ### 學校名稱在前端正規化，由人確認
 
-`batch-match` 解析學校是用 `schools.name` **完全相符**（`enrollments.ts:1082` 的
+`batch-match` 解析學校是用 `schools.name` **完全相符**（`enrollments.ts` 的 `POST /batch-match` handler 的
 `.in('name', ...)`，外加一次 lowercase 比對）。系統裡的學校叫「台北市立文山國中」，
 名單上寫的是「文山國中」—— **每一列都會回 `not_found`，功能等於沒做。**
 
@@ -65,7 +65,7 @@ tags: [architecture, enrollment-admin-view]
 ### 生效日可選，預設今天
 
 `POST /enrollments/batch` 現在寫死 `effective_from = 今天`。而 `effective_from` 是**課堂
-名單的閘門**（`attendance.ts:579` 用 `effective_from <= 課堂日期` 決定學生出不出現在點名表）。
+名單的閘門**（`attendance.ts` 取課堂名單的查詢 用 `effective_from <= 課堂日期` 決定學生出不出現在點名表）。
 
 寫死今天在一個情況下會出事，而那正好是**上線第一天**：學期已經開跑五週，把現有名單灌進
 系統 → 全部生效日是今天 → 前五週的課堂名單是空的，補點名補不了。
@@ -73,7 +73,7 @@ tags: [architecture, enrollment-admin-view]
 所以 `POST /enrollments/batch` 加一個 optional `effectiveFrom`，不給維持今天（學生挑選器
 那條路不用改）。精靈裡放日期欄，預設今天，附說明「要讓學生出現在過去的課堂名單，把日期往前調」。
 
-往前調是安全的：`syncLeaveAttendanceForEnrollment`（`enrollments.ts:289`）只針對**已存在的
+往前調是安全的：`syncLeaveAttendanceForEnrollment`（`syncLeaveAttendanceForEnrollment()`）只針對**已存在的
 請假單**補記錄，不會回頭灌出一堆出勤資料。
 
 **不自動抓「該班第一堂課的日期」**：得多打一支 sessions API、排序、還要處理沒有課堂的班；
@@ -84,8 +84,8 @@ tags: [architecture, enrollment-admin-view]
 
 `batch-match` 上限 200、`batchCreate` 上限 50。原本打算切塊循序送，**否決**：
 
-- 衝堂是整批回 409（`enrollments.ts:777`）而非逐筆 → 切三塊、第三塊 409 → 一半進系統一半沒有
-- 人數上限也是整批檢查（`validation.ts:128`）→ 錯誤訊息裡的數字對不上使用者看到的名單
+- 衝堂是整批回 409（`enrollments.ts` 的 `POST /batch` handler）而非逐筆 → 切三塊、第三塊 409 → 一半進系統一半沒有
+- 人數上限也是整批檢查（`checkEnrollmentPreconditions()` 的人數上限判斷）→ 錯誤訊息裡的數字對不上使用者看到的名單
 
 改成解析階段就擋掉超過 50 列的檔案。班級 `max_students` 預設 20，補習班大班撐死 40，
 這條線實務上碰不到。**用一個不會發生的限制，換掉「部分寫入」整類 bug。**
@@ -125,7 +125,7 @@ API 完全不同，抽成共用精靈會變成一個帶滿 flag 的殼。
 只有「**這個月進了幾個、退了幾個**」沒有任何畫面回答。那是總覽頁獨佔的價值，
 而它是招生進出的檢視，不是名冊瀏覽。
 
-資料對得上：退班會把 `effective_to` 寫成當天（`enrollments.ts:688`）。所以本月進出 =
+資料對得上：退班會把 `effective_to` 寫成當天（`enrollments.ts` 的 `PATCH /:id/status` handler）。所以本月進出 =
 `effective_from` 落在本月（新進）**或** `effective_to` 落在本月（退出）。
 
 一張表兩種列，用一欄標「新報名 / 退班」。期間欄位**可以清空**，清空後退化成全部在籍的
@@ -160,7 +160,7 @@ PostgREST 沒辦法照「兩欄取其一」排序。三條路：
 ### 完全唯讀
 
 報名狀態變更的唯一入口是班級詳情頁（學生詳情頁的在籍清單也只是唯讀，
-`student-detail.page.html:254` 點下去跳班級）。總覽頁沿用這條線：列點下去跳到該筆報名
+`student-detail.page.html` 的在籍清單列 點下去跳班級）。總覽頁沿用這條線：列點下去跳到該筆報名
 所屬的班級詳情頁。
 
 **動作只有一個家**：停權要看班況、退班要看剩幾堂、失效要看繳費——三個判斷都需要班級脈絡。

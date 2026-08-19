@@ -3,13 +3,14 @@ title: 課程管理
 summary: 管理開課班，設定上課時間，產生課堂。
 category: spec
 status: active
-updated: 2026-04-07
+updated: 2026-08-19
 tags: [specs, admin, academic, classes]
 ---
 
 # 課程管理
 
-**路徑**: `/admin/classes`
+**路徑**: `/admin/courses/:courseId/classes/:classId`（開課班詳情）與 `/admin/courses`（列表）
+> 漂移修正 2026-08-19：原本寫 `/admin/classes`，該路由不存在；開課班管理實際掛在課程底下。
 **角色**: Admin
 **分組**: 課務管理
 
@@ -72,7 +73,7 @@ tags: [specs, admin, academic, classes]
 
 | 操作 | 資料表                                                                  |
 | ---- | ----------------------------------------------------------------------- |
-| 讀取 | `classes`, `schedules`, `courses`, `campuses`, `teachers`, `classrooms` |
+| 讀取 | `classes`, `schedules`, `courses`, `campuses`, `staff`, `classrooms` |
 | 寫入 | `classes`, `schedules`, `sessions`                                      |
 
 ## PRD 參考

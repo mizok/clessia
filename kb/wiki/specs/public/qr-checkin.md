@@ -28,7 +28,7 @@ tags: [specs, public, qr-checkin]
 | 操作 | 資料表                                |
 | ---- | ------------------------------------- |
 | 讀取 | `students`, `sessions`, `enrollments` |
-| 寫入 | `check_ins`, `attendances`            |
+| 寫入 | `daily_checkins`, `attendance_records`            |
 
 ## PRD 參考
 

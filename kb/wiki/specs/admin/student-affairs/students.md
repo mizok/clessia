@@ -60,7 +60,7 @@ tags: [specs, admin, student-affairs, students]
 
 | 操作 | 資料表                                                                                    |
 | ---- | ----------------------------------------------------------------------------------------- |
-| 讀取 | `students`, `parents`, `parent_student_relations`, `enrollments`, `attendances`, `grades` |
+| 讀取 | `students`, `parents`, `parent_student_relations`, `enrollments`, `attendance_records`, `academy_scores`, `school_scores` |
 | 寫入 | `students`                                                                                |
 
 ## 相關規則與流程

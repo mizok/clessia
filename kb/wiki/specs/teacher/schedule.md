@@ -64,8 +64,8 @@ tags: [specs, teacher, schedule]
 
 | 操作 | 資料表                                                                                                        |
 | ---- | ------------------------------------------------------------------------------------------------------------- |
-| 讀取 | `sessions`, `classes`, `teacher_logs`, `assessments`, `grades`, `schedule_changes`, `attendances`, `students` |
-| 寫入 | `attendances`（僅當天）, `teacher_logs`, `assessments`                                                        |
+| 讀取 | `sessions`, `classes`, `teacher_logs`, `academy_exams`, `school_exams`, `academy_scores`, `school_scores`, `schedule_changes`, `attendance_records`, `students` |
+| 寫入 | `attendance_records`（僅當天）, `teacher_logs`, `academy_exams`, `school_exams`                                                        |
 
 ## PRD 參考
 

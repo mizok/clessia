@@ -3,7 +3,7 @@ title: 2026-08 文件與程式碼漂移稽核
 summary: 建立 agent harness 時逐項驗證文件宣稱，找出五處與程式碼不符之處。含一個活的 bug（查詢不存在的資料表）與兩個沉默失效的設定。
 category: lesson
 status: active
-updated: 2026-08-11
+updated: 2026-08-19
 tags: [lessons, doc-code-drift-2026-08]
 ---
 
@@ -13,9 +13,12 @@ tags: [lessons, doc-code-drift-2026-08]
 不符之處，全部附 `file:line`。這一頁的價值不只是清單，而是它示範了「沒有 gate 的敘述會漂移到
 什麼程度」—— 這正是憲法 c11 的實證基礎。
 
-## 一、活的 bug：查詢不存在的資料表
+## 一、活的 bug：查詢不存在的資料表（已於 2026-08 修復）
 
-`apps/api/src/routes/enrollments.ts:820` 查 `from('attendances')`。
+當時 `apps/api/src/routes/enrollments.ts` 有一處查 `from('attendances')`。
+
+> **2026-08-19 複驗**：全 repo 已無任何 `from('attendances')`，這個 bug 已修。
+> 以下保留當時的分析，因為「查一張不存在的表卻沒有人發現」這個機制本身才是教訓。
 
 **這張表在任何 migration 裡都不存在。** 出勤主表是 `attendance_records`（全 repo 12 處使用）。
 這行是唯一使用 `attendances` 的地方。

@@ -78,8 +78,8 @@ tags: [specs, admin, student-affairs, attendance]
 
 | 操作 | 資料表                                                          |
 | ---- | --------------------------------------------------------------- |
-| 讀取 | `sessions`, `attendances`, `students`, `classes`, `enrollments` |
-| 寫入 | `attendances`                                                   |
+| 讀取 | `sessions`, `attendance_records`, `students`, `classes`, `enrollments` |
+| 寫入 | `attendance_records`                                                   |
 
 ## 相關規則與流程
 

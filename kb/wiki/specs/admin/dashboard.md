@@ -27,7 +27,7 @@ tags: [specs, admin, dashboard]
 
 | 操作 | 資料表                                  |
 | ---- | --------------------------------------- |
-| 讀取 | `sessions`, `tasks`, `schedule_changes` |
+| 讀取 | `sessions`, `schedule_changes` |
 
 ## PRD 參考
 
