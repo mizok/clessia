@@ -1,4 +1,70 @@
-<div class="p-4">
-  <h2 class="text-2xl font-bold mb-4">{{ page().label }}</h2>
-  <p class="text-zinc-500">Dashboard content coming soon...</p>
+<div class="teacher-dashboard">
+  <header class="teacher-dashboard__header">
+    <h1 class="teacher-dashboard__title">{{ page().label }}</h1>
+    <p class="teacher-dashboard__date">{{ today | date: 'yyyy/MM/dd（EEE）' }}</p>
+  </header>
+
+  @if (loading()) {
+    <p class="teacher-dashboard__state">載入中…</p>
+  } @else if (loadError()) {
+    <p class="teacher-dashboard__state teacher-dashboard__state--error">
+      查詢失敗，請稍後再試。
+    </p>
+  } @else {
+    <div class="teacher-dashboard__cards">
+      <div class="teacher-dashboard__card">
+        <span class="teacher-dashboard__value">{{ stats().todayTotal }}</span>
+        <span class="teacher-dashboard__label">今天的課</span>
+      </div>
+      <div
+        class="teacher-dashboard__card"
+        [class.teacher-dashboard__card--alert]="stats().todayPending > 0"
+      >
+        <span class="teacher-dashboard__value">{{ stats().todayPending }}</span>
+        <span class="teacher-dashboard__label">還沒點名</span>
+      </div>
+      <div class="teacher-dashboard__card">
+        <span class="teacher-dashboard__value">{{ stats().weekTotal }}</span>
+        <span class="teacher-dashboard__label">本週課堂</span>
+      </div>
+      <div class="teacher-dashboard__card">
+        <span class="teacher-dashboard__value">{{ studentCount() }}</span>
+        <span class="teacher-dashboard__label">我的學生</span>
+      </div>
+    </div>
+
+    <section class="teacher-dashboard__section">
+      <h2 class="teacher-dashboard__section-title">今日課表</h2>
+      @if (todaySessions().length === 0) {
+        <p class="teacher-dashboard__state">今天沒有課。</p>
+      } @else {
+        <ul class="teacher-dashboard__list">
+          @for (session of todaySessions(); track session.eventId) {
+            <li class="teacher-dashboard__item">
+              <span class="teacher-dashboard__time">
+                {{ session.startTime ?? '—' }}–{{ session.endTime ?? '—' }}
+              </span>
+              <span class="teacher-dashboard__class">{{ session.className }}</span>
+              <span class="teacher-dashboard__count">{{ session.enrolledCount }} 人</span>
+              <span
+                class="teacher-dashboard__taken"
+                [class.teacher-dashboard__taken--done]="session.takenAt"
+              >
+                {{ session.takenAt ? '已點名' : '未點名' }}
+              </span>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <div class="teacher-dashboard__actions">
+      <button type="button" class="teacher-dashboard__link" (click)="goToSchedule()">
+        前往課表點名 →
+      </button>
+      <button type="button" class="teacher-dashboard__link" (click)="goToStudents()">
+        我的學生 →
+      </button>
+    </div>
+  }
 </div>

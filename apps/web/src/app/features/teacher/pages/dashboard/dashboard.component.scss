@@ -1,3 +1,112 @@
-@use 'shared/styles/dashboard' as dash;
+.teacher-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
 
-@include dash.dashboard-styles;
+  &__title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  &__date {
+    margin: var(--space-1) 0 0;
+    color: var(--text-muted);
+  }
+
+  &__state {
+    margin: 0;
+    color: var(--text-muted);
+
+    &--error {
+      color: var(--red-500);
+    }
+  }
+
+  &__cards {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  &__card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-4);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+
+    &--alert {
+      border-color: var(--warning-600);
+    }
+  }
+
+  &__value {
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  &__label {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+
+  &__section-title {
+    margin: 0 0 var(--space-2);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__item {
+    display: grid;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--surface-border);
+    grid-template-columns: auto 1fr auto auto;
+  }
+
+  &__time {
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__count,
+  &__taken {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+
+  &__taken--done {
+    color: var(--success-600);
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  &__link {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--accent-600);
+    cursor: pointer;
+    font-size: 0.875rem;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
