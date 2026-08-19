@@ -3,13 +3,16 @@ title: 學生報名
 summary: 管理員直接將學生加入開課班（跳過申請流程），適用現場報名、老生加報、特殊例外。
 category: spec
 status: active
-updated: 2026-03-19
+updated: 2026-08-19
 tags: [specs, admin, enrollment]
 ---
 
 # 學生報名
 
-**路徑**: `/admin/enrollment`
+**路徑**: 尚未建置。`/admin/enrollments` 存在但**不是這一頁** —— 那是唯讀的報名進出總覽
+> 漂移修正 2026-08-19：本頁描述的「直接報名精靈」（含繳費週期與繳費單）仍未建置，
+> 因為它依賴 `invoices` / `fee_templates` 兩張不存在的表。現有的報名入口在班級詳情頁與
+> 學生詳情頁，見 [[architecture/enrollment-admin-view]]。
 **角色**: Admin
 **分組**: 報名管理
 

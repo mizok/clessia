@@ -40,7 +40,7 @@ Tags: `specs`, `admin`, `dashboard`
 
 Tags: `specs`, `admin`, `enrollment`
 
-Links to: [[rules/enrollment-rules|報名與繳費規則]], [[flows/enrollment|報名申請流程]]
+Links to: [[architecture/enrollment-admin-view]], [[rules/enrollment-rules|報名與繳費規則]], [[flows/enrollment|報名申請流程]]
 
 ## [[specs/admin/enrollment/enrollment-requests|報名審核]]
 
@@ -273,6 +273,8 @@ Tags: `specs`, `teacher`, `assessments`
 查看和修改當天課堂的出勤狀態。
 
 Tags: `specs`, `teacher`, `attendance`
+
+Links to: [[architecture/teacher-students-view]]
 
 ## [[specs/teacher/dashboard|老師儀表板]]
 

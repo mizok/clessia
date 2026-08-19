@@ -3,13 +3,15 @@ title: 課程日曆
 summary: 以日曆視圖查看全校課堂，快速進入課堂詳情。
 category: spec
 status: active
-updated: 2026-02-13
+updated: 2026-08-19
 tags: [specs, admin, calendar]
 ---
 
 # 課程日曆
 
-**路徑**: `/admin/calendar`
+**路徑**: `/admin/sessions`（課堂管理）
+> 漂移修正 2026-08-19：原本寫 `/admin/calendar`，該路由不存在。日曆視圖已併進課堂管理，
+> 見 roadmap「已裁撤」一節（`admin/schedule` 當初也是併進 sessions）。
 **角色**: Admin
 
 ## 核心目的
@@ -54,8 +56,8 @@ tags: [specs, admin, calendar]
 
 | 操作 | 資料表                                                                               |
 | ---- | ------------------------------------------------------------------------------------ |
-| 讀取 | `sessions`, `classes`, `teachers`, `schedule_changes`, `attendances`, `teacher_logs` |
-| 寫入 | `attendances`, `leaves`, `schedule_changes`                                          |
+| 讀取 | `sessions`, `classes`, `staff`, `schedule_changes`, `attendance_records`, `teacher_logs` |
+| 寫入 | `attendance_records`, `leave_requests`, `schedule_changes`                                          |
 
 ## PRD 參考
 

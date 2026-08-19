@@ -72,8 +72,8 @@ tags: [specs, admin, system, settings]
 
 | 操作 | 資料表                               |
 | ---- | ------------------------------------ |
-| 讀取 | `system_settings`, `billing_periods` |
-| 寫入 | `system_settings`, `billing_periods` |
+| 讀取 | `organizations`, `billing_periods` |
+| 寫入 | `organizations`, `billing_periods` |
 
 ## PRD 參考
 

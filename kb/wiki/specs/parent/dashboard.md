@@ -82,7 +82,7 @@ tags: [specs, parent, dashboard]
 
 | 操作 | 資料表                                                                                                             |
 | ---- | ------------------------------------------------------------------------------------------------------------------ |
-| 讀取 | `students`, `check_ins`, `sessions`, `teacher_logs`, `assessments`, `grades`, `invoices`, `classes`, `enrollments` |
+| 讀取 | `students`, `daily_checkins`, `sessions`, `teacher_logs`, `academy_exams`, `school_exams`, `academy_scores`, `school_scores`, `invoices`, `classes`, `enrollments` |
 
 ## PRD 參考
 

@@ -46,7 +46,7 @@ tags: [specs, parent, attendance]
 
 | 操作 | 資料表                                                |
 | ---- | ----------------------------------------------------- |
-| 讀取 | `check_ins`, `sessions`, `attendances`, `enrollments` |
+| 讀取 | `daily_checkins`, `sessions`, `attendance_records`, `enrollments` |
 
 ## PRD 參考
 

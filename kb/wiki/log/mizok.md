@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-08-19] lint | Health check: 0 errors, 0 warnings, 54 info
+- Mode: structural
+- Pages scanned: 82
+- Issues found: 54
+
+## [2026-08-19] map | Rebuilt index + 5 MOCs
+- Pages indexed: 74
+- Total links: 33
+- Orphan pages: 69
+
+## [2026-08-19] verify | Drift 稽核：73 頁分類、29 頁修正
+
+- 範圍：可用程式碼驗證的頁面（specs 的路徑與資料依賴、architecture 的 file 引用）
+- 跳過：lessons 的歷史引用（保存當時的觀察，非現況主張）、未建功能的前瞻規格
+- 修正：24 頁假表名（attendances→attendance_records、grades→academy_scores/school_scores、
+  assessments→academy_exams/school_exams、teachers→staff、check_ins→daily_checkins、
+  leaves→leave_requests、notifications→announcements、system_settings→organizations、tasks 移除）
+- 修正：4 頁路徑（/admin/classes、/admin/calendar、/teacher/attendance、/admin/enrollment）
+- 修正：2 頁行號引用改成符號引用；1 頁「活的 bug」標記為已修
+- 🅿️ 不算漂移：invoices/fee_templates/teacher_logs 等 11 個未建功能的表名、4 條未建功能的路由
+- 複驗：獨立重跑，假表名歸零；過程中抓到檢查器自身兩個誤判（正則沒含大寫、同名檔案挑錯）
+
 ## [2026-08-19] lint | Health check: 0 errors, 0 warnings, 57 info
 - Mode: structural
 - Pages scanned: 81

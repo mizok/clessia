@@ -72,8 +72,8 @@ tags: [specs, admin, student-affairs, leave]
 
 | 操作 | 資料表                                                         |
 | ---- | -------------------------------------------------------------- |
-| 讀取 | `leaves`, `students`, `sessions`, `enrollments`, `attendances` |
-| 寫入 | `leaves`, `attendances`                                        |
+| 讀取 | `leave_requests`, `students`, `sessions`, `enrollments`, `attendance_records` |
+| 寫入 | `leave_requests`, `attendance_records`                                        |
 
 ## 相關規則與流程
 

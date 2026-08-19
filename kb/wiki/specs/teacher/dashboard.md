@@ -27,7 +27,7 @@ tags: [specs, teacher, dashboard]
 
 | 操作 | 資料表                                                                  |
 | ---- | ----------------------------------------------------------------------- |
-| 讀取 | `sessions`, `teacher_logs`, `grades`, `assessments`, `schedule_changes` |
+| 讀取 | `sessions`, `teacher_logs`, `academy_scores`, `school_scores`, `academy_exams`, `school_exams`, `schedule_changes` |
 
 ## PRD 參考
 
