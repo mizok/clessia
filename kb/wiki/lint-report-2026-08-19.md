@@ -1,8 +1,8 @@
 # Wiki Health Check Report
 
-Date: 2026-08-19T07:12:42.331Z
+Date: 2026-08-19T07:19:21.269Z
 
-**Summary: 0 errors, 0 warnings, 55 info**
+**Summary: 0 errors, 0 warnings, 57 info**
 
 ## orphan
 
@@ -52,11 +52,13 @@ Date: 2026-08-19T07:12:42.331Z
 - [i] Orphan page — no other page links to it (specs/teacher/assessments.md)
 - [i] Orphan page — no other page links to it (specs/teacher/attendance.md)
 - [i] Orphan page — no other page links to it (architecture/teacher-students-view.md)
+- [i] Orphan page — no other page links to it (architecture/announcements.md)
 - [i] Orphan page — no other page links to it (architecture/enrollment-admin-view.md)
 - [i] Orphan page — no other page links to it (roadmap.md)
 - [i] Orphan page — no other page links to it (lessons/backlog-legacy.md)
 - [i] Orphan page — no other page links to it (lessons/agent-workflow-guide.md)
 - [i] Orphan page — no other page links to it (lessons/menu-entry-without-a-route.md)
+- [i] Orphan page — no other page links to it (lessons/rls-backstop-drift.md)
 - [i] Orphan page — no other page links to it (lessons/status-table-blind-spot.md)
 - [i] Orphan page — no other page links to it (lessons/doc-code-drift-2026-08.md)
 - [i] Orphan page — no other page links to it (lessons/better-auth-session-delegation.md)

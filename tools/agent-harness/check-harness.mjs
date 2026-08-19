@@ -245,6 +245,41 @@ if (existsSync(apiIndex)) {
   }
 }
 
+// ── A8. 每張業務表都啟用了 RLS（clause c1 的 fail-closed 後盾）─────────────────────────
+// 這是靜態掃 migration 而不是查 DB：gate 在 CI 上跑，那裡沒有資料庫。
+// 漂移是這樣發生的：早期的表都有開，後來新增的忘了，而沒有任何東西會提醒。
+// 30 張表裡有 16 張就這樣一路沒開。
+const MIGRATIONS = join(ROOT, 'supabase/migrations');
+if (existsSync(MIGRATIONS)) {
+  const sql = readdirSync(MIGRATIONS)
+    .filter((f) => f.endsWith('.sql'))
+    .map((f) => readFileSync(join(MIGRATIONS, f), 'utf8'))
+    .join('\n');
+
+  // Better Auth 的表不歸我們管（c2）
+  const created = [...sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_]+)/gi)]
+    .map((m) => m[1])
+    .filter((name) => !name.startsWith('ba_'));
+
+  const rlsEnabled = new Set(
+    [...sql.matchAll(/alter\s+table\s+(?:public\.)?([a-z_]+)\s+enable\s+row\s+level\s+security/gi)].map(
+      (m) => m[1],
+    ),
+  );
+
+  // 建了又刪的不算 —— school_exam_schedules 就是這樣被誤報的
+  const dropped = new Set(
+    [...sql.matchAll(/drop\s+table\s+(?:if\s+exists\s+)?(?:public\.)?([a-z_]+)/gi)].map((m) => m[1]),
+  );
+
+  for (const table of new Set(created)) {
+    if (dropped.has(table)) continue;
+    if (!rlsEnabled.has(table)) {
+      fail(`業務表 ${table} 沒有 ENABLE ROW LEVEL SECURITY（c1 的 fail-closed 後盾）`);
+    }
+  }
+}
+
 // kb/ 的內容健康度（frontmatter、索引新鮮度、斷鏈、孤兒頁）由 kb-wiki skill 的 lint 負責，
 // 不由 harness gate 管 —— 這跟 fvg 的配置一致：harness 守程式碼與流程，kb-wiki 守知識庫。
 

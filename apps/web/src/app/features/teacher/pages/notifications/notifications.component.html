@@ -1,0 +1,50 @@
+<div class="teacher-notifications">
+  <header class="teacher-notifications__header">
+    <h1 class="teacher-notifications__title">
+      {{ page().label }}
+      @if (unread() > 0) {
+        <span class="teacher-notifications__badge">{{ unread() }} 則未讀</span>
+      }
+    </h1>
+  </header>
+
+  @if (loading()) {
+    <p class="teacher-notifications__state">載入中…</p>
+  } @else if (loadError()) {
+    <p class="teacher-notifications__state teacher-notifications__state--error">
+      查詢失敗，請稍後再試。
+    </p>
+  } @else if (announcements().length === 0) {
+    <p class="teacher-notifications__state">目前沒有公告。</p>
+  } @else {
+    <ul class="teacher-notifications__list">
+      @for (item of announcements(); track item.id) {
+        <li class="teacher-notifications__item" [class.teacher-notifications__item--unread]="!item.isRead">
+          <button type="button" class="teacher-notifications__summary" (click)="toggle(item)">
+            <span class="teacher-notifications__item-title">
+              @if (!item.isRead) {
+                <span class="teacher-notifications__dot" aria-label="未讀"></span>
+              }
+              {{ item.title }}
+            </span>
+            <span class="teacher-notifications__meta">
+              {{ item.publishedAt | date: 'MM/dd HH:mm' }}
+              @if (item.campusName) {
+                · {{ item.campusName }}
+              }
+            </span>
+          </button>
+
+          @if (openId() === item.id) {
+            <div class="teacher-notifications__body">
+              <p class="teacher-notifications__text">{{ item.body }}</p>
+              @if (item.createdByName) {
+                <p class="teacher-notifications__author">—— {{ item.createdByName }}</p>
+              }
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  }
+</div>

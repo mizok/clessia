@@ -48,6 +48,12 @@ M1 的課務異動畫面上線後完全打不開 —— 元件測試全綠，因
 
 Tags: `lessons`, `menu-entry-without-a-route`
 
+## [[lessons/rls-backstop-drift|後盾在沒人看的時候悄悄少了一半]]
+
+業務表該一律啟用 RLS 當 fail-closed 後盾，但 30 張裡有 16 張沒開——早期的都有、後期新增的都沒有，而沒有任何東西會提醒。
+
+Tags: `lessons`, `rls-backstop-drift`
+
 ## [[lessons/status-table-blind-spot|現況表只掃了三分之一的系統]]
 
 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。

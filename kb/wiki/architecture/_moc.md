@@ -4,6 +4,14 @@
 
 ---
 
+## [[architecture/announcements|站內公告的設計]]
+
+管理員發布、老師收件匣、已讀狀態。取代 LINE 群組通知的第一步，不接外部服務。
+
+Tags: `architecture`, `announcements`
+
+Links to: [[architecture/role-authorization|角色授權設計]]
+
 ## [[architecture/change-log-view|課務異動紀錄的設計]]
 
 M1 第二個畫面。填掉 admin/changes 空殼，把一直在寫卻沒人看得到的 schedule_changes 呈現出來。唯讀。

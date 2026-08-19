@@ -1,0 +1,90 @@
+<div class="admin-notifications">
+  <header class="admin-notifications__header">
+    <h1 class="admin-notifications__title">{{ page().label }}</h1>
+    <p class="admin-notifications__subtitle">
+      發布站內公告給老師。公告會出現在老師的通知頁，並顯示未讀數。
+    </p>
+  </header>
+
+  <section class="admin-notifications__composer">
+    <h2 class="admin-notifications__section-title">發布新公告</h2>
+
+    <label class="admin-notifications__field">
+      <span class="admin-notifications__label">標題</span>
+      <input
+        class="admin-notifications__input"
+        type="text"
+        maxlength="200"
+        [ngModel]="title()"
+        (ngModelChange)="title.set($event)"
+      />
+    </label>
+
+    <label class="admin-notifications__field">
+      <span class="admin-notifications__label">內容</span>
+      <textarea
+        class="admin-notifications__textarea"
+        rows="5"
+        maxlength="5000"
+        [ngModel]="body()"
+        (ngModelChange)="body.set($event)"
+      ></textarea>
+    </label>
+
+    <div class="admin-notifications__row">
+      <label class="admin-notifications__field">
+        <span class="admin-notifications__label">發送對象</span>
+        <span class="admin-notifications__static">{{ AUDIENCE_LABELS[audience] }}</span>
+      </label>
+
+      <label class="admin-notifications__field">
+        <span class="admin-notifications__label">分校範圍</span>
+        <p-select
+          [options]="campusOptions()"
+          [ngModel]="campusId()"
+          (ngModelChange)="campusId.set($event)"
+          optionLabel="label"
+          optionValue="value"
+        />
+      </label>
+    </div>
+
+    @if (submitError()) {
+      <p class="admin-notifications__error">{{ submitError() }}</p>
+    }
+
+    <p-button
+      label="發布"
+      [disabled]="!canSubmit()"
+      [loading]="submitting()"
+      (onClick)="submit()"
+    />
+  </section>
+
+  <section class="admin-notifications__history">
+    <h2 class="admin-notifications__section-title">已發布</h2>
+
+    @if (loading()) {
+      <p class="admin-notifications__state">載入中…</p>
+    } @else if (loadError()) {
+      <p class="admin-notifications__state admin-notifications__state--error">
+        查詢失敗，請稍後再試。
+      </p>
+    } @else if (announcements().length === 0) {
+      <p class="admin-notifications__state">還沒有發布過公告。</p>
+    } @else {
+      <ul class="admin-notifications__list">
+        @for (item of announcements(); track item.id) {
+          <li class="admin-notifications__item">
+            <span class="admin-notifications__item-title">{{ item.title }}</span>
+            <span class="admin-notifications__meta">
+              {{ item.publishedAt | date: 'yyyy/MM/dd HH:mm' }}
+              · {{ AUDIENCE_LABELS[item.audience] }}
+              · {{ item.campusName ?? '全部分校' }}
+            </span>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</div>
