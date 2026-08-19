@@ -4,6 +4,7 @@ summary: 導入 CI 的過程連紅六次，每一次的根因都是「本機狀�
 category: lesson
 status: active
 updated: 2026-08-11
+tags: [lessons, local-green-is-not-repo-green]
 ---
 
 # 本機綠不等於 repo 綠

@@ -19,8 +19,8 @@ tools: Read, Grep, Glob, Bash, mcp__code-review-graph__query_graph_tool, mcp__co
 
 ## 真相在哪（讀它們，不要重述）
 
-- 法：`kb/architecture/constitution.md`；速查：`AGENTS.md` 的 Banned Approaches
-- 規格與規則：`kb/specs/`、`kb/rules/`、`kb/flows/`
+- 法：`kb/wiki/architecture/constitution.md`；速查：`AGENTS.md` 的 Banned Approaches
+- 規格與規則：`kb/wiki/specs/`、`kb/wiki/rules/`、`kb/wiki/flows/`
 - 學生的分校歸屬**來自 enrollments**，不是 students 上的欄位 —— 追分校問題先看這裡
 
 ## 已知陷阱（先驗證再引用）

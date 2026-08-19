@@ -4,6 +4,7 @@ summary: adminCreateSession 不存在；手寫 ba_session + HMAC cookie 會耦�
 category: lesson
 status: active
 updated: 2026-08-11
+tags: [lessons, better-auth-session-delegation]
 ---
 
 # Better Auth 的 session 一律委派官方 API，不要手刻
@@ -47,7 +48,7 @@ BA 要求 credential 帳號必須有 email **或** username。沒有 email 的�
 
 ## 相關
 
-- 憲法 c2（`ba_*` 表由 Better Auth 獨佔寫入）：[`kb/architecture/constitution.md`](../../architecture/constitution.md)
+- 憲法 c2（`ba_*` 表由 Better Auth 獨佔寫入）：[[architecture/constitution|`kb/wiki/architecture/constitution.md`]]
 - 原始的實作計畫已隨 `kb/superpowers/` 一併移除（2026-08-11）。需要當時的完整推導過程時從
   git 歷史取回 —— 注意**要用舊路徑 `doc/superpowers/`**，該目錄是在刪除的同一批改動裡才更名為
   `kb/` 的，所以新路徑查不到歷史：

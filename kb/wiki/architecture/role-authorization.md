@@ -4,6 +4,7 @@ summary: 18 支 route 只驗身分不看角色。改成掛載時強制宣告可�
 category: architecture
 status: active
 updated: 2026-08-16
+tags: [architecture, role-authorization]
 ---
 
 # 角色授權的設計
@@ -84,7 +85,7 @@ DELETE 只給 admin）就在該 route 檔內再加一道，收斂但不放寬。
 | `org` | ✅ | ✅ | — | 同上，判斷該不該讓老師點名、能不能補點 |
 | 其餘 15 支 | ✅ | — | — | 目前沒有任何 teacher/parent 頁面用得到 |
 
-老師端規格提到要看自己班的學生與成績（`kb/specs/teacher/{students,assessments}.md`），
+老師端規格提到要看自己班的學生與成績（`kb/wiki/specs/teacher/{students,assessments}.md`），
 但那兩個頁面現在是 18 行空殼。**做到那一頁時再開那一支**，並在同一個切片裡把範圍限制
 一起做完 —— 先開路、之後才補範圍的話，中間那段時間就是個洞。
 
@@ -116,7 +117,7 @@ teacher 角色後，那個人的 session 還在，就還是 teacher。權限要�
 任何一支沒有角色宣告就紅燈。這樣新增 route 時忘記宣告會被擋下來，而不是靜默全開 ——
 **這正是這個洞當初長出來的方式。**
 
-機制寫進 `kb/architecture/constitution-enforcement.md` 的 c1 那一列，不新增法條：
+機制寫進 `kb/wiki/architecture/constitution-enforcement.md` 的 c1 那一列，不新增法條：
 c1 本來就涵蓋角色過濾，缺的是實作與強制。
 
 ## 刻意不做

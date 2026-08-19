@@ -4,6 +4,7 @@ summary: 管理員發布、老師收件匣、已讀狀態。取代 LINE 群組�
 category: architecture
 status: active
 updated: 2026-08-18
+tags: [architecture, announcements]
 ---
 
 # 站內公告的設計
@@ -58,7 +59,7 @@ updated: 2026-08-18
 
 `mount('/api/announcements', announcementsRoute, ANY_ROLE)` —— 收件匣三個角色都要用。
 **發布與管理端列表在 route 內另外要求 admin**（`middleware: [requireRoles('admin')]`），
-這是[角色授權設計](role-authorization.md)講的「掛載層是上限，單一 endpoint 可以更嚴」。
+這是[[architecture/role-authorization|角色授權設計]]講的「掛載層是上限，單一 endpoint 可以更嚴」。
 
 ## 刻意不做
 

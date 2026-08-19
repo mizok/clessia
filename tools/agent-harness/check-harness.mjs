@@ -205,9 +205,9 @@ for (const stray of ['doc', 'docs']) {
 // The guard blocks a write citing a clause id, and the router tells the agent which clause to
 // read. Renumbering the law without updating them points the agent at a phantom article —
 // which is exactly what happened the first time these clauses were renumbered.
-const constitutionPath = join(ROOT, 'kb/architecture/constitution.md');
+const constitutionPath = join(ROOT, 'kb/wiki/architecture/constitution.md');
 if (!existsSync(constitutionPath)) {
-  fail('kb/architecture/constitution.md 不存在，但 harness 規則引用它。');
+  fail('kb/wiki/architecture/constitution.md 不存在，但 harness 規則引用它。');
 } else {
   const law = readFileSync(constitutionPath, 'utf8');
   const declared = new Set([...law.matchAll(/^###\s+(c\d+)\s/gm)].map((match) => match[1]));
@@ -280,8 +280,8 @@ if (existsSync(MIGRATIONS)) {
   }
 }
 
-// A4（kb/ frontmatter 與索引）由 tools/agent-harness/kb-gate.mjs 負責，涵蓋全部 kb/ 而非
-// 只有 kb/architecture/，欄位也多一個 category。兩支都由 `npm run harness` 執行。
+// kb/ 的內容健康度（frontmatter、索引新鮮度、斷鏈、孤兒頁）由 kb-wiki skill 的 lint 負責，
+// 不由 harness gate 管 —— 這跟 fvg 的配置一致：harness 守程式碼與流程，kb-wiki 守知識庫。
 
 // ── report ───────────────────────────────────────────────────────────────────────────────
 // --write 一律 exit 0：它的工作是「修好能自動修的」，剩下的（例如 CLAUDE.md 被塞進規則）

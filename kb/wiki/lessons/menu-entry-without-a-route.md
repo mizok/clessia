@@ -4,6 +4,7 @@ summary: M1 的課務異動畫面上線後完全打不開 —— 元件測試全
 category: lesson
 status: active
 updated: 2026-08-15
+tags: [lessons, menu-entry-without-a-route]
 ---
 
 # 選單開了、頁面寫了，路由還在 redirect

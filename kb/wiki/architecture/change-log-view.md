@@ -4,6 +4,7 @@ summary: M1 第二個畫面。填掉 admin/changes 空殼，把一直在寫卻�
 category: architecture
 status: active
 updated: 2026-08-12
+tags: [architecture, change-log-view]
 ---
 
 # 課務異動紀錄的設計

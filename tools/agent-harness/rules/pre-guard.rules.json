@@ -1,5 +1,5 @@
 {
-  "$comment": "Deterministic constitution clauses, screened at write time. Narrow and low-false-positive on purpose — this is a fast screen, not the law. Full statements: kb/architecture/constitution.md. Tuning a regex here is NOT an amendment. Every id below must exist in the constitution — check-harness.mjs asserts it.",
+  "$comment": "Deterministic constitution clauses, screened at write time. Narrow and low-false-positive on purpose — this is a fast screen, not the law. Full statements: kb/wiki/architecture/constitution.md. Tuning a regex here is NOT an amendment. Every id below must exist in the constitution — check-harness.mjs asserts it.",
   "rules": [
     {
       "id": "c2",

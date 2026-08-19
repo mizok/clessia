@@ -61,7 +61,7 @@
   - 回合中已經 commit → 工作樹變乾淨，這輪就不受管。已知缺口。
 - **臨時關掉**：`CLESSIA_STOP_GATE=0`。
 - ⚠️ **這個 gate 目前對 API 改動形同虛設** —— `apps/api` 沒有 `test` target，那 12 支
-  `.spec.ts` 不會被執行。見 `kb/architecture/constitution-enforcement.md` 的已知缺口。
+  `.spec.ts` 不會被執行。見 `kb/wiki/architecture/constitution-enforcement.md` 的已知缺口。
 
 ## Permissions
 
@@ -70,7 +70,7 @@
 - **allow**：測試 / 建置 / harness gate / nx affected / prettier / 新增 migration /
   `git add`·`commit`·`fetch`·`worktree` / code-review-graph 的唯讀查詢工具。
 - **deny**：force push、delete push、`rm -rf`、`db:reset`（會清掉本機資料與 seed），
-  以及 `Edit(kb/architecture/constitution.md)` —— **修法是人類的行為**，任何 agent session
+  以及 `Edit(kb/wiki/architecture/constitution.md)` —— **修法是人類的行為**，任何 agent session
   都不得直接改法條，不論 allow 怎麼寫。
 
 ⚠️ **`deny` 是字面比對**：`rtk git push --force` 這種前綴包裝會直接繞過去。本專案的全域規則

@@ -4,6 +4,7 @@ summary: M1 第一個畫面。選老師 + 期間，列出課堂並加總時數�
 category: architecture
 status: active
 updated: 2026-08-12
+tags: [architecture, teaching-log-view]
 ---
 
 # 老師授課紀錄的設計
@@ -15,7 +16,7 @@ updated: 2026-08-12
 老師多為鐘點計酬，每個月得有人統計「誰上了幾堂、幾小時」。目前這件事在 Excel 上做，
 而系統裡的資料其實比 Excel 完整 —— 只是**沒有任何畫面看得到**。
 
-本畫面**不計算薪資**（見 [`記錄授課歷程但不做薪資`](teaching-history-not-payroll.md)），
+本畫面**不計算薪資**（見 [[architecture/teaching-history-not-payroll|`記錄授課歷程但不做薪資`]]），
 只回答「這個月老師 X 上了哪些課、加起來幾小時、有沒有異常」。
 
 ## 資料現況（已驗證）

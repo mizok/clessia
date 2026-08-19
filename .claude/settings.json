@@ -117,8 +117,8 @@
       "Bash(supabase db reset*)",
       "Bash(npm run db:reset*)",
       "Bash(rtk npm run db:reset*)",
-      "Edit(kb/architecture/constitution.md)",
-      "Edit(.worktrees/**/kb/architecture/constitution.md)"
+      "Edit(kb/wiki/architecture/constitution.md)",
+      "Edit(.worktrees/**/kb/wiki/architecture/constitution.md)"
     ]
   }
 }

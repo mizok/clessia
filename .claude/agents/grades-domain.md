@@ -19,7 +19,7 @@ tools: Read, Grep, Glob, Bash, mcp__code-review-graph__query_graph_tool, mcp__co
 
 ## 真相在哪（讀它們，不要重述）
 
-- 法：`kb/architecture/constitution.md`；速查：`AGENTS.md` 的 Banned Approaches
+- 法：`kb/wiki/architecture/constitution.md`；速查：`AGENTS.md` 的 Banned Approaches
 - 概念邊界（成績可追溯到具體考試事件）：`kb/overview.md`
 - 段考綁定單一學校的 schema 演進：`supabase/migrations/20260422000001_school_exams_school_fk.sql`
   —— 這支就是「不回頭改建表 migration，另開一支 ALTER」（c3）的正確示範

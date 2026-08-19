@@ -4,6 +4,7 @@ summary: 老師多為鐘點計酬，但系統刻意不計算薪資。職責是�
 category: architecture
 status: active
 updated: 2026-08-11
+tags: [architecture, teaching-history-not-payroll]
 ---
 
 # 記錄授課歷程，但不做薪資計算

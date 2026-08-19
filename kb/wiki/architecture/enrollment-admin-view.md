@@ -4,13 +4,14 @@ summary: M2。兩個互不依賴的切片：班級頁的 Excel 名單匯入精�
 category: architecture
 status: active
 updated: 2026-08-14
+tags: [architecture, enrollment-admin-view]
 ---
 
 # 報名管理端的設計
 
 ## 現況先講清楚
 
-`kb/roadmap.md` 的現況表把「報名」標成 🔌 僅後端，那是因為磁碟上沒有
+`kb/wiki/roadmap.md` 的現況表把「報名」標成 🔌 僅後端，那是因為磁碟上沒有
 `admin/pages/enrollments/` 目錄 —— 但**報名功能實際上已經有兩個入口**：
 
 | 既有入口   | 位置                   | 能做什麼                                                                                  |

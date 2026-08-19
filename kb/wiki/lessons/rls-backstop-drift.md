@@ -4,6 +4,7 @@ summary: 業務表該一律啟用 RLS 當 fail-closed 後盾，但 30 張裡有 
 category: lesson
 status: active
 updated: 2026-08-18
+tags: [lessons, rls-backstop-drift]
 ---
 
 # 後盾在沒人看的時候悄悄少了一半

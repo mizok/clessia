@@ -4,22 +4,22 @@
     {
       "match": "migration|schema|資料表|欄位|supabase|sql",
       "hints": [
-        "kb/architecture/constitution.md → c3（已提交的 migration 不可修改）、c2（ba_* 表）",
+        "kb/wiki/architecture/constitution.md → c3（已提交的 migration 不可修改）、c2（ba_* 表）",
         "supabase/migrations/ 的既有檔案是命名與風格範本"
       ]
     },
     {
       "match": "報名|enrollment|招生",
       "hints": [
-        "kb/rules/ 的 enrollment 規則",
-        "kb/specs/ 對應功能規格",
+        "kb/wiki/rules/ 的 enrollment 規則",
+        "kb/wiki/specs/ 對應功能規格",
         "apps/api/src/routes/enrollments/"
       ]
     },
     {
       "match": "出勤|請假|點名|attendance|leave|checkin|簽到",
       "hints": [
-        "kb/flows/ 對應流程圖",
+        "kb/wiki/flows/ 對應流程圖",
         "apps/api/src/routes/attendance.ts、leaves.ts、daily-checkins.ts"
       ]
     },
@@ -41,7 +41,7 @@
     {
       "match": "scss|樣式|bem|排版|design token|stylesheet|\\bcss\\b",
       "hints": [
-        "kb/architecture/constitution.md → c6（禁 viewport 單位）",
+        "kb/wiki/architecture/constitution.md → c6（禁 viewport 單位）",
         "先 invoke angular-scss-bem-standards skill",
         "全域 design tokens：apps/web/src/styles.scss"
       ]
@@ -49,8 +49,8 @@
     {
       "match": "架構|architecture|重構|refactor|分層",
       "hints": [
-        "kb/architecture/constitution.md（binding law — 動架構前必讀）",
-        "kb/architecture/constitution-enforcement.md（每條 clause 用什麼機制守）"
+        "kb/wiki/architecture/constitution.md（binding law — 動架構前必讀）",
+        "kb/wiki/architecture/constitution-enforcement.md（每條 clause 用什麼機制守）"
       ]
     }
   ]

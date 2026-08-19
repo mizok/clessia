@@ -4,7 +4,7 @@
 > Codex 等 CLI 直接讀它。**新規則、慣例、指引一律寫進這個檔**，不要寫進 `CLAUDE.md`
 > （它只做 import，且被 gate 盯著行數）。
 >
-> 具約束力的架構不變量屬於 `kb/architecture/constitution.md`（走修訂流程）；本檔是描述性的。
+> 具約束力的架構不變量屬於 `kb/wiki/architecture/constitution.md`（走修訂流程）；本檔是描述性的。
 
 你是一名資深的全端開發者，只用繁體中文回應。Clessia 是補習班管理系統：管理端優先，支援多分校
 （一個組織、多個校區）。
@@ -23,7 +23,7 @@
 ### Banned Approaches
 
 這些是**具約束力的憲法條款**，不是風格偏好。全文與強制機制見
-`kb/architecture/constitution.md`；此處只列對照：
+`kb/wiki/architecture/constitution.md`；此處只列對照：
 
 | 禁止                                                        | Clause |
 | ----------------------------------------------------------- | ------ |
@@ -48,7 +48,7 @@
 | Harness + KB gate | `npm run harness`                                    |
 | 兩者重生成        | `npm run harness:write`                              |
 | Harness 自我測試  | `npm run harness:test`                               |
-| 只檢查 / 重生 KB  | `npm run kb` / `npm run kb:write`                    |
+| KB 檢查 / 重建索引 | kb-wiki skill：`/kb-wiki lint` / `/kb-wiki map`        |
 | 重錄測試基線      | `npm run test:baseline`                              |
 | Supabase 本機     | `npm run db:start` / `db:reset`                      |
 | 新增 migration    | `npx supabase migration new <description>`           |
@@ -116,12 +116,12 @@ admin / teacher / parent **沒有各自的 shell 元件**，三個角色走同�
 
 ## Architecture Constitution（binding）
 
-具約束力的架構不變量以**法條**形式存在 `kb/architecture/constitution.md`：每條有 clause ID、
+具約束力的架構不變量以**法條**形式存在 `kb/wiki/architecture/constitution.md`：每條有 clause ID、
 可決定性分類（Deterministic / Semantic）、以及理由指標。**動架構之前先讀它**——它不是 always-load，
 `UserPromptSubmit` 的 doc router 會在架構類 prompt 上提示。
 
 每條 clause 用什麼機制守（regex、gate、人工 review）另外寫在
-`kb/architecture/constitution-enforcement.md`；**改機制不算修法**。
+`kb/wiki/architecture/constitution-enforcement.md`；**改機制不算修法**。
 
 ## Development Conventions
 
@@ -182,10 +182,10 @@ PostToolUse hook 會在每次編輯後自動跑，不用手動格式化。
 
 | 類型               | 路徑                        |
 | ------------------ | --------------------------- |
-| 架構法條與強制機制 | `kb/architecture/`          |
-| 功能規格           | `kb/specs/<角色>/<功能>.md` |
-| 流程圖             | `kb/flows/<功能>.md`        |
-| 業務規則           | `kb/rules/<功能>-rules.md`  |
+| 架構法條與強制機制 | `kb/wiki/architecture/`          |
+| 功能規格           | `kb/wiki/specs/<角色>/<功能>.md` |
+| 流程圖             | `kb/wiki/flows/<功能>.md`        |
+| 業務規則           | `kb/wiki/rules/<功能>-rules.md`  |
 
 ### `kb/` 就是知識庫
 
@@ -194,12 +194,12 @@ PostToolUse hook 會在每次編輯後自動跑，不用手動格式化。
 
 | 檔案                                                                 | 用途                                                                                                          |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| [`kb/schema.md`](kb/schema.md)                                       | **操作手冊** —— 收錄標準、frontmatter 欄位、status 生命週期、「我要寫的東西該放哪」決策表。任何文件操作前先讀 |
-| [`kb/index.md`](kb/index.md)                                         | 全部頁面的分類索引，自動生成。**查資料先看索引的 summary 挑頁面，不要一開始就 grep 全 `kb/`**                 |
-| [`kb/architecture/constitution.md`](kb/architecture/constitution.md) | 法條                                                                                                          |
+| [`kb/schema.md`](kb/schema.md)                                       | **操作手冊**（kb-wiki 規範）—— 目錄結構、頁面格式、status 生命週期、ingest / lint / map / verify 流程。任何 KB 操作前先讀 |
+| [`kb/wiki/index.md`](kb/wiki/index.md)                                         | 全部頁面的分類索引，自動生成。**查資料先看索引的 summary 挑頁面，不要一開始就 grep 全 `kb/`**                 |
+| [`kb/wiki/architecture/constitution.md`](kb/wiki/architecture/constitution.md) | 法條                                                                                                          |
 
 每一頁都必須有 `title` / `summary` / `category` / `status` / `updated` 五個 frontmatter 欄位，
-由 `npm run kb` 檢查、`npm run kb:write` 自動補齊（只補缺少的，**不覆寫既有值**）。
+由 kb-wiki skill 的 `lint` 檢查、`map` 重建索引。
 
 實作計畫與技術設計**不進 KB** —— 它們是過程產物，記錄的是「當時打算怎麼做」而非現況。
 知識沉澱到 `kb/wiki/lessons/`，需求真相沉澱到 `rules` / `flows` / `specs`。
@@ -209,7 +209,7 @@ PostToolUse hook 會在每次編輯後自動跑，不用手動格式化。
 - **交付一個功能或修跨檔案的 bug？走 `clessia-feature-slice` skill** —— 它強制
   「設計未經批准不得寫實作程式碼」的 STOP gate，並串起探索 → 釐清 → 設計 → worktree →
   test-first → gate → 同步文件 → PR 的完整迴圈
-- **開工前先讀 [`kb/roadmap.md`](kb/roadmap.md) 的結構現況表** —— 它會告訴你這個功能區
+- **開工前先讀 [`kb/wiki/roadmap.md`](kb/wiki/roadmap.md) 的結構現況表** —— 它會告訴你這個功能區
   目前是已接通、空殼、還是未開始
 - **先用 graph 再開檔**：本 repo 裝了 `code-review-graph`，探索程式碼優先用 MCP 工具而非大範圍掃檔
 - 薄垂直切片：實作 → 測試 → 驗證 → 擴張
@@ -263,3 +263,7 @@ Claude Code 另外透過 plugin 取得 `ui-ux-pro-max` 等 skill（見 `.claude/
 ## MCP servers
 
 `.mcp.json`（進版控、團隊共用）：`code-review-graph`（知識圖譜）、`codex`（委派 OpenAI codex-cli）。
+
+## Knowledge Base
+
+This project maintains a knowledge base under `kb/`. Conventions, page format, and workflows (ingest / query / lint / map / verify / capture / migrate) are defined in `kb/schema.md`. Read it before any KB operation.

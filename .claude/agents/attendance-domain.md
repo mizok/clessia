@@ -21,8 +21,8 @@ tools: Read, Grep, Glob, Bash, mcp__code-review-graph__query_graph_tool, mcp__co
 
 ## 真相在哪（讀它們，不要重述）
 
-- 法：`kb/architecture/constitution.md`；速查：`AGENTS.md` 的 Banned Approaches
-- 流程圖與業務規則：`kb/flows/`、`kb/rules/`
+- 法：`kb/wiki/architecture/constitution.md`；速查：`AGENTS.md` 的 Banned Approaches
+- 流程圖與業務規則：`kb/wiki/flows/`、`kb/wiki/rules/`
 - 概念邊界（到班 ≠ 出席、Session 不可刪只能停課）：`kb/overview.md` §2
 
 ## 已知陷阱（先驗證再引用）

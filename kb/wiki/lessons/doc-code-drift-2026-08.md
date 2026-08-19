@@ -4,6 +4,7 @@ summary: 建立 agent harness 時逐項驗證文件宣稱，找出五處與程�
 category: lesson
 status: active
 updated: 2026-08-11
+tags: [lessons, doc-code-drift-2026-08]
 ---
 
 # 2026-08 文件與程式碼漂移稽核
