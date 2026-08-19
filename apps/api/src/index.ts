@@ -26,6 +26,7 @@ import dailyCheckinsRoute from './routes/daily-checkins';
 import academyExamsRoute from './routes/academy-exams';
 import schoolExamsRoute from './routes/school-exams';
 import scoresRoute from './routes/scores';
+import announcementsRoute from './routes/announcements';
 
 // ============================================================
 // Types
@@ -277,6 +278,8 @@ mount('/api/daily-checkins', dailyCheckinsRoute, ADMIN_ONLY);
 mount('/api/academy-exams', academyExamsRoute, ADMIN_ONLY);
 mount('/api/school-exams', schoolExamsRoute, ADMIN_ONLY);
 mount('/api/scores', scoresRoute, ADMIN_ONLY);
+// 收件匣對 teacher/parent 開放；發布與管理端列表在 route 內另外要求 admin
+mount('/api/announcements', announcementsRoute, ANY_ROLE);
 
 // ============================================================
 // Error Handler
