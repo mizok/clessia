@@ -3,7 +3,7 @@ title: 老師授課紀錄的設計
 summary: M1 第一個畫面。選老師 + 期間，列出課堂並加總時數。不計算薪資，設計原則是可追溯——代課、停課、缺點名證據都看得見。
 category: architecture
 status: active
-updated: 2026-08-12
+updated: 2026-08-19
 tags: [architecture, teaching-log-view]
 ---
 
@@ -24,7 +24,7 @@ tags: [architecture, teaching-log-view]
 | 需要的資料                     | 來源                                                               | 狀態 |
 | ------------------------------ | ------------------------------------------------------------------ | ---- |
 | 每堂課的老師、日期、起訖、狀態 | `sessions`                                                         | ✅   |
-| 代課後誰實際上課               | `sessions.teacher_id` **會被改寫成代課老師**（`sessions.ts:1207`） | ✅   |
+| 代課後誰實際上課               | `sessions.teacher_id` **會被改寫成代課老師**（`sessions.ts`） | ✅   |
 | 原本排給誰                     | `schedule_changes.original_teacher_id` / `original_teacher_name`   | ✅   |
 | 課真的上了的證據               | `events.attendance_taken_at`（首次點名，immutable）                | ✅   |
 | 依老師 + 期間查詢              | `GET /api/sessions` 已支援 `teacherIds` / `from` / `to`            | ✅   |

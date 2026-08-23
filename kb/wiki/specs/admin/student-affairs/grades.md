@@ -41,7 +41,7 @@ tags: [specs, admin, student-affairs, grades]
 
 | 操作 | 資料表                                                    |
 | ---- | --------------------------------------------------------- |
-| 讀取 | `grades`, `assessments`, `students`, `classes`, `courses` |
+| 讀取 | `academy_scores`, `school_scores`, `academy_exams`, `school_exams`, `students`, `classes`, `courses` |
 
 ## PRD 參考
 

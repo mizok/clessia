@@ -54,7 +54,7 @@ tags: [specs, parent, schedule]
 
 | 操作 | 資料表                                                                                                             |
 | ---- | ------------------------------------------------------------------------------------------------------------------ |
-| 讀取 | `sessions`, `enrollments`, `classes`, `teachers`, `schedule_changes`, `attendances`, `teacher_logs`, `assessments` |
+| 讀取 | `sessions`, `enrollments`, `classes`, `staff`, `schedule_changes`, `attendance_records`, `teacher_logs`, `academy_exams`, `school_exams` |
 
 ## PRD 參考
 

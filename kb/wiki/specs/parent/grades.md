@@ -39,7 +39,7 @@ tags: [specs, parent, grades]
 
 | 操作 | 資料表                             |
 | ---- | ---------------------------------- |
-| 讀取 | `grades`, `assessments`, `courses` |
+| 讀取 | `academy_scores`, `school_scores`, `academy_exams`, `school_exams`, `courses` |
 
 ## PRD 參考
 

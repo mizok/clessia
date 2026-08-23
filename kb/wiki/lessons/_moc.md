@@ -36,6 +36,14 @@ Tags: `lessons`, `doc-code-drift-2026-08`
 
 Tags: `lessons`, `generated-tables-need-verifying`
 
+## [[lessons/line-number-citations-rot|行號引用會腐爛，符號不會]]
+
+第一次 drift 稽核發現 KB 裡 13 條 file:line 引用有 5 條指錯位置——不是內容錯，是每支 PR 都在推移行號。
+
+Tags: `lessons`, `kb`, `drift`, `citation`
+
+Links to: [[lessons/menu-entry-without-a-route]], [[lessons/rls-backstop-drift]]
+
 ## [[lessons/local-green-is-not-repo-green|本機綠不等於 repo 綠]]
 
 導入 CI 的過程連紅六次，每一次的根因都是「本機狀態 ≠ 版控狀態」。附上推送前該怎麼自我驗證。

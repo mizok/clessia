@@ -37,7 +37,7 @@ tags: [specs, teacher, students]
 
 | 操作 | 資料表                                                        |
 | ---- | ------------------------------------------------------------- |
-| 讀取 | `students`, `enrollments`, `classes`, `attendances`, `grades` |
+| 讀取 | `students`, `enrollments`, `classes`, `attendance_records`, `academy_scores`, `school_scores` |
 
 ## PRD 參考
 

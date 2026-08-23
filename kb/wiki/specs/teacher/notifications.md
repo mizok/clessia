@@ -29,8 +29,8 @@ tags: [specs, teacher, notifications]
 
 | 操作 | 資料表                          |
 | ---- | ------------------------------- |
-| 讀取 | `notifications`                 |
-| 寫入 | `notifications`（更新已讀狀態） |
+| 讀取 | `announcements`                 |
+| 寫入 | `announcements`（更新已讀狀態） |
 
 ## PRD 參考
 
