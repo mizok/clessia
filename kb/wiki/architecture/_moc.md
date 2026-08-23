@@ -1,8 +1,16 @@
 # Architecture — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-19
+> Auto-maintained by `kb:map`. Last updated: 2026-08-23
 
 ---
+
+## [[architecture/amending-the-constitution|修憲的機制]]
+
+憲法只能由人修改，agent 被三層 deny 規則擋住。`tools/amend-constitution.mjs` 是給人用的便利工具，不是護欄——護欄留在 harness 層。
+
+Tags: `architecture`, `constitution`, `guardrail`
+
+Links to: [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]]
 
 ## [[architecture/announcements|站內公告的設計]]
 

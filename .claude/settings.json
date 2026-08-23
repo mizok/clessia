@@ -118,7 +118,10 @@
       "Bash(npm run db:reset*)",
       "Bash(rtk npm run db:reset*)",
       "Edit(kb/wiki/architecture/constitution.md)",
-      "Edit(.worktrees/**/kb/wiki/architecture/constitution.md)"
+      "Edit(.worktrees/**/kb/wiki/architecture/constitution.md)",
+      "Bash(node tools/amend-constitution.mjs:*)",
+      "Bash(*amend-constitution*)",
+      "Edit(tools/amend-constitution.mjs)"
     ]
   }
 }

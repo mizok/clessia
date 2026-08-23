@@ -1,6 +1,6 @@
 # Clessia Wiki — Index
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-19
+> Auto-maintained by `kb:map`. Last updated: 2026-08-23
 
 ---
 
@@ -8,7 +8,8 @@
 - [[overview]] — 本文件整理 PRD 第 1-5 章，說明專案背景、系統目標、核心名詞與角色邊界，作為各流程與功能規格的共同語意基準。
 - [[roadmap]] — 功能區現況（自動生成、由 gate 盯著）與接下來的優先順序。取代先前手畫的 BACKLOG 依賴圖。
 
-## Architecture (10)
+## Architecture (11)
+- [[architecture/amending-the-constitution]] — 憲法只能由人修改，agent 被三層 deny 規則擋住。`tools/amend-constitution.mjs` 是給人用的便利工具，不是護欄——護欄留在 harness 層。
 - [[architecture/announcements]] — 管理員發布、老師收件匣、已讀狀態。取代 LINE 群組通知的第一步，不接外部服務。
 - [[architecture/change-log-view]] — M1 第二個畫面。填掉 admin/changes 空殼，把一直在寫卻沒人看得到的 schedule_changes 呈現出來。唯讀。
 - [[architecture/constitution]] — 具約束力的架構不變量。只陳述「什麼構成違反」，不含強制機制。
@@ -91,4 +92,4 @@
 - [[specs/teacher/students]] — 查看自己任課班級的學生名單。
 
 ---
-**Total: 74 pages**
+**Total: 75 pages**

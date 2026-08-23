@@ -1,6 +1,6 @@
 # Rules — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-19
+> Auto-maintained by `kb:map`. Last updated: 2026-08-23
 
 ---
 

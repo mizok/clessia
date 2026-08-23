@@ -62,6 +62,7 @@ PreToolUse guard  →   Stop verify gate    →    程式碼審查
 | A5   | pre-guard **與 doc-router** 引用的每個 clause id 都存在於憲法中                   |
 | A7   | `apps/api/src/index.ts` 每支 route 都用 `mount(path, route, roles)` 宣告角色（c1） |
 | A8   | 每張業務表都有 `ENABLE ROW LEVEL SECURITY`（c1 的 fail-closed 後盾）        |
+| A9   | `.claude/settings.json` 的 deny 規則指向的檔案真的存在（護欄不得靜默失效） |
 
 `npm run harness` 會接著跑 KB gate（下一節）。
 

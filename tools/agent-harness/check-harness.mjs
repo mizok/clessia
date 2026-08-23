@@ -280,6 +280,27 @@ if (existsSync(MIGRATIONS)) {
   }
 }
 
+// ── A9. deny 規則指向的檔案真的存在 ────────────────────────────────────────────────────
+// deny 規則是路徑字串比對。憲法從 kb/architecture/ 搬到 kb/wiki/architecture/ 時，
+// 如果忘了同步更新，護欄會**靜默失效** —— 沒有任何測試會發現，直到有人修了不該修的東西。
+// 這次是運氣好記得更新；下次不會。
+const settingsPath = join(ROOT, '.claude/settings.json');
+if (existsSync(settingsPath)) {
+  const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+  const denies = settings?.permissions?.deny ?? [];
+
+  for (const rule of denies) {
+    // 只驗看得出具體路徑的規則：Edit(<path>) 或 Bash(node <path>:*)
+    const m = /^(?:Edit|Read|Write)\(([^)*]+)\)$/.exec(rule) ?? /^Bash\(node ([^\s:)]+)/.exec(rule);
+    if (!m) continue;
+    const target = m[1];
+    if (target.includes('*')) continue; // glob 規則無法逐一驗證
+    if (!existsSync(join(ROOT, target))) {
+      fail(`deny 規則指向不存在的檔案：${rule} —— 檔案搬走時護欄會靜默失效`);
+    }
+  }
+}
+
 // kb/ 的內容健康度（frontmatter、索引新鮮度、斷鏈、孤兒頁）由 kb-wiki skill 的 lint 負責，
 // 不由 harness gate 管 —— 這跟 fvg 的配置一致：harness 守程式碼與流程，kb-wiki 守知識庫。
 
