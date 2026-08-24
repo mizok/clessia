@@ -6,7 +6,13 @@ import { allowedOrigins, resolveTrustedOrigins } from './lib/origins';
 
 type AuthBindings = Pick<
   Bindings,
-  'DATABASE_URL' | 'BETTER_AUTH_SECRET' | 'BETTER_AUTH_URL' | 'WEB_URL' | 'ALLOWED_ORIGINS'
+  | 'DATABASE_URL'
+  | 'BETTER_AUTH_SECRET'
+  | 'BETTER_AUTH_URL'
+  | 'WEB_URL'
+  | 'ALLOWED_ORIGINS'
+  | 'LINE_CLIENT_ID'
+  | 'LINE_CLIENT_SECRET'
 >;
 
 /**
@@ -36,6 +42,32 @@ export function crossSiteCookieAttributes(baseUrl: string) {
   return { sameSite: 'none', secure: true, partitioned: true } as const;
 }
 
+/**
+ * 從環境變數組出 social provider 設定。
+ *
+ * **刻意是一張 map，不是寫死的單一 provider。** Google 是延後不是排除
+ * （見 `kb/wiki/architecture/line-oauth-login.md` 決策二）—— 加它就是多一個 if，
+ * 不用回頭改形狀。
+ *
+ * 兩個變數缺一就整個不設定：半套的 OAuth 設定會在使用者按下按鈕之後才爆，
+ * 比完全沒有更難查。
+ */
+export function socialProvidersFromEnv(env: {
+  LINE_CLIENT_ID?: string;
+  LINE_CLIENT_SECRET?: string;
+}): Record<string, { clientId: string; clientSecret: string }> {
+  const providers: Record<string, { clientId: string; clientSecret: string }> = {};
+
+  if (env.LINE_CLIENT_ID && env.LINE_CLIENT_SECRET) {
+    providers['line'] = {
+      clientId: env.LINE_CLIENT_ID,
+      clientSecret: env.LINE_CLIENT_SECRET,
+    };
+  }
+
+  return providers;
+}
+
 export function createAuth(env: AuthBindings) {
   const pool = new Pool({ connectionString: env.DATABASE_URL });
 
@@ -56,6 +88,7 @@ export function createAuth(env: AuthBindings) {
     advanced: {
       defaultCookieAttributes: crossSiteCookieAttributes(env.BETTER_AUTH_URL),
     },
+    socialProviders: socialProvidersFromEnv(env),
     plugins: [username(), adminPlugin()],
     user: {
       modelName: 'ba_user',

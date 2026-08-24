@@ -49,6 +49,9 @@ async function main() {
     BETTER_AUTH_URL: required('BETTER_AUTH_URL'),
     WEB_URL: process.env['WEB_URL'] ?? '',
     ALLOWED_ORIGINS: process.env['ALLOWED_ORIGINS'] ?? '',
+    // 開站腳本不走 OAuth，留空即可 —— socialProvidersFromEnv 會回傳空 map
+    LINE_CLIENT_ID: process.env['LINE_CLIENT_ID'] ?? '',
+    LINE_CLIENT_SECRET: process.env['LINE_CLIENT_SECRET'] ?? '',
   };
 
   const pool = new Pool({ connectionString: env.DATABASE_URL });

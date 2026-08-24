@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createAuth, crossSiteCookieAttributes } from './auth';
+import { createAuth, crossSiteCookieAttributes, socialProvidersFromEnv } from './auth';
 
 // 第一次上線的事故：前端在 clessia.pages.dev、API 在 *.workers.dev，兩者是不同 site，
 // 預設 SameSite=Lax 的 session cookie 不會被帶到跨站請求上 —— 登入回 200，
@@ -34,6 +34,8 @@ describe('createAuth 的 cookie 接線', () => {
     BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters-long',
     WEB_URL: 'https://app.example.com',
     ALLOWED_ORIGINS: '',
+    LINE_CLIENT_ID: '',
+    LINE_CLIENT_SECRET: '',
   };
 
   it('正式站把跨站屬性接進 defaultCookieAttributes', () => {
@@ -50,5 +52,55 @@ describe('createAuth 的 cookie 接線', () => {
     const auth = createAuth({ ...baseEnv, BETTER_AUTH_URL: 'http://localhost:8787' });
 
     expect(auth.options.advanced?.defaultCookieAttributes).toBeUndefined();
+  });
+});
+
+// Google 延後但不排除（見 kb/wiki/architecture/line-oauth-login.md 決策二）：
+// provider 清單必須從 env 組出來，不能寫死成「只有 LINE」，否則加 Google 要回頭重做。
+describe('socialProvidersFromEnv', () => {
+  it('兩個變數都有才設定 line', () => {
+    expect(
+      socialProvidersFromEnv({ LINE_CLIENT_ID: 'cid', LINE_CLIENT_SECRET: 'secret' })
+    ).toEqual({ line: { clientId: 'cid', clientSecret: 'secret' } });
+  });
+
+  it('少一個就不設定 —— 半套設定比沒設定更難查', () => {
+    expect(socialProvidersFromEnv({ LINE_CLIENT_ID: 'cid', LINE_CLIENT_SECRET: '' })).toEqual({});
+    expect(socialProvidersFromEnv({ LINE_CLIENT_ID: '', LINE_CLIENT_SECRET: 'secret' })).toEqual({});
+    expect(socialProvidersFromEnv({})).toEqual({});
+  });
+
+  it('回傳的是可擴充的 map，不是寫死的單一 provider', () => {
+    const providers = socialProvidersFromEnv({
+      LINE_CLIENT_ID: 'cid',
+      LINE_CLIENT_SECRET: 'secret',
+    });
+    expect(Object.keys(providers)).toEqual(['line']);
+  });
+});
+
+describe('createAuth 的 social provider 接線', () => {
+  const baseEnv = {
+    DATABASE_URL: 'postgres://user:pass@localhost:5432/db',
+    BETTER_AUTH_SECRET: 'test-secret-at-least-32-characters-long',
+    BETTER_AUTH_URL: 'https://api.example.com',
+    WEB_URL: 'https://app.example.com',
+    ALLOWED_ORIGINS: '',
+  };
+
+  it('把 line 接進 betterAuth 的 socialProviders', () => {
+    const auth = createAuth({
+      ...baseEnv,
+      LINE_CLIENT_ID: 'cid',
+      LINE_CLIENT_SECRET: 'secret',
+    });
+
+    expect(auth.options.socialProviders?.['line']?.clientId).toBe('cid');
+  });
+
+  it('沒設定 LINE 時不掛任何 provider', () => {
+    const auth = createAuth({ ...baseEnv, LINE_CLIENT_ID: '', LINE_CLIENT_SECRET: '' });
+
+    expect(auth.options.socialProviders).toEqual({});
   });
 });

@@ -134,6 +134,33 @@ LINE 只會告訴系統「這是 LINE 使用者 U1234」，**不會告訴系統�
 
 如果報名、繳費、點名任何一環卡在「家長必須先綁定」，補習班第一天就會退回紙本。
 
+## 實作靠現成的東西，不自己刻
+
+2026-08-24 查證 Better Auth 1.5.5 的型別定義後（本專案有過假設 SDK 方法存在而繞遠路的
+紀錄，見 [[lessons/better-auth-session-delegation]]），原本估計要自建的東西**全部是內建的**：
+
+| 需求                   | 現成的機制                                                             |
+| ---------------------- | ---------------------------------------------------------------------- |
+| LINE OAuth             | `socialProviders.line`（`@better-auth/core` 內建，與 `google` 同一組） |
+| 一次性綁定連結         | `magic-link` plugin 的 `POST /api/auth/sign-in/magic-link`             |
+| 兌換連結、建立 session | `GET /api/auth/magic-link/verify`                                      |
+| 把 LINE 綁到既有帳號   | `POST /api/auth/link-social`                                           |
+| 破窗 CLI               | 同一支 magic-link                                                      |
+
+**關鍵在 `sendMagicLink` 這個 callback**：它收到 `{ email, url, token }`。一般用法是把 `url`
+寄出去，**我們不寄信 —— 直接把 `url` 攔下來**，變成畫面上的 QR、可複製的連結、或 CLI 的
+stdout。同一個機制服務三種送達方式。
+
+因此：
+
+- **不需要新的 migration** —— token 存在既有的 `ba_verification` 表
+- **不需要自寫兌換端點** —— `magic-link/verify` 已經處理過期、單次使用（`allowedAttempts`
+  預設 1）、以及 session 建立
+- `disableSignUp: true` 防止綁定連結被拿來建新帳號
+
+> ⚠️ **magic-link 需要一個 email 當識別碼。** 家長的佔位 email（`0912345678@phone.internal`）
+> 完全夠用 —— 那個 domain 不存在於公開網路，而我們本來就不寄信。
+
 ## 拒絕的替代方案
 
 | 方案                                   | 為什麼不                                                                                                                                                                                                                                                                              |

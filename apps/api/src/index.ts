@@ -43,6 +43,10 @@ export type Bindings = {
   PLACEHOLDER_EMAIL_DOMAIN: string;
   /** 逗號分隔的額外允許來源；WEB_URL 已隱含可信，不必重複列 */
   ALLOWED_ORIGINS: string;
+  /** LINE Login channel ID —— 非機密，部署時用 --var 傳 */
+  LINE_CLIENT_ID: string;
+  /** LINE Login channel secret —— 走 wrangler secret put */
+  LINE_CLIENT_SECRET: string;
 };
 
 export type Variables = {
