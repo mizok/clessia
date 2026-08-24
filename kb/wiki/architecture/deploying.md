@@ -50,11 +50,24 @@ npx wrangler secret put DATABASE_URL --env production
 
 ## 每個客戶自己的網域
 
-`ALLOWED_ORIGINS`（逗號分隔）取代了寫死的 `clessia.pages.dev`。每個客戶是自己的部署、
-自己的網域（c12），寫死等於只有一個客戶能用。
+允許的來源不寫死。每個客戶是自己的部署、自己的網域（c12），寫死等於只有一個客戶能用。
+三個來源合併（`apps/api/src/lib/origins.ts` 的 `allowedOrigins()`）：
 
-沒設定時是空的——**只有本機開發來源會被放行**，正式站會全部被 CORS 擋掉。這是刻意的
-fail-closed：忘記設定的症狀是「連不上」，不是「誰都連得上」。
+| 來源 | 說明 |
+| --- | --- |
+| `WEB_URL` | 這個部署的前端。**依定義可信，不必再列進 `ALLOWED_ORIGINS`** |
+| `ALLOWED_ORIGINS` | 逗號分隔的額外來源（自訂網域、第二個前端） |
+| localhost / 127.0.0.1 | 本機開發，任意 port |
+
+都沒設定時只剩本機來源，正式站會全部被 CORS 擋掉。這是刻意的 fail-closed：忘記設定的
+症狀是「連不上」，不是「誰都連得上」。
+
+> ⚠️ **允許清單一定要從 `c.env` 讀，不能在模組層級算好。** Cloudflare Workers 的環境變數
+> 在 request-scoped 的 `c.env` 上，不在 `process.env`（`compatibility_date` 早於 Cloudflare
+> 開始填 `process.env` 的版本）。2026-08 第一次上線時就是這樣：模組層級的常數在載入時
+> 讀 `process.env` 拿到空字串，正式站前端整個被 CORS 擋，而本機測試全綠 —— 因為測試呼叫
+> `app.request(url, init)` 時沒帶第三個參數 `env`，走的是同一條 localhost 路徑。
+> `process.env` 的退路只服務 Node 自架（`server.ts`）。
 
 ## SPA fallback
 
