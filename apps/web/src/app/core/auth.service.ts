@@ -30,7 +30,9 @@ export class AuthService {
   private readonly router = inject(Router);
   private readonly http = inject(HttpClient);
 
-  private readonly _user = signal<{ id: string; email?: string | null; name?: string } | null>(null);
+  private readonly _user = signal<{ id: string; email?: string | null; name?: string } | null>(
+    null,
+  );
   private readonly _profile = signal<Profile | null>(null);
   private readonly _roles = signal<UserRole[]>([]);
   private readonly _permissions = signal<string[]>([]);
@@ -84,7 +86,7 @@ export class AuthService {
   private async loadProfile(): Promise<boolean> {
     try {
       const me = await firstValueFrom(
-        this.http.get<MeResponse>(`${environment.apiUrl}/api/me`, { withCredentials: true })
+        this.http.get<MeResponse>(`${environment.apiUrl}/api/me`, { withCredentials: true }),
       );
 
       this._profile.set({
@@ -134,6 +136,25 @@ export class AuthService {
   /** 回傳有沒有讀到 —— 呼叫端要區分「讀不到」和「沒有角色」時會用到 */
   async refreshRoles(): Promise<boolean> {
     return this.loadProfile();
+  }
+
+  /**
+   * 把使用者交給 LINE。成功的話瀏覽器會被導走，這個 Promise 不會 resolve 到有意義的東西。
+   *
+   * 回傳非 null 表示**還沒離開這一頁就失敗了** —— 最常見的原因是 API 沒設定
+   * `LINE_CLIENT_ID` / `LINE_CLIENT_SECRET`，那時 provider 根本沒掛上。
+   */
+  async signInWithLine(): Promise<string | null> {
+    const { error } = await authClient.signIn.social({
+      provider: 'line',
+      callbackURL: `${window.location.origin}/select-role`,
+    });
+
+    if (error) {
+      return 'LINE 登入失敗，請稍後再試或聯繫補習班';
+    }
+
+    return null;
   }
 
   async signIn(
