@@ -40,7 +40,7 @@ Tags: `architecture`, `change-log-view`
 
 Tags: `architecture`, `constitution`
 
-Links to: [[architecture/constitution-enforcement|`constitution-enforcement`]]
+Links to: [[architecture/constitution-enforcement|`constitution-enforcement`]], [[architecture/vendor-relationship]]
 
 ## [[architecture/constitution-enforcement|憲法強制機制索引]]
 
@@ -89,4 +89,12 @@ M1 第一個畫面。選老師 + 期間，列出課堂並加總時數。不計�
 Tags: `architecture`, `teaching-log-view`
 
 Links to: [[architecture/teaching-history-not-payroll|`記錄授課歷程但不做薪資`]]
+
+## [[architecture/vendor-relationship|供應商關係與它推導出的架構約束]]
+
+賣一套系統、客戶自付基礎設施、收維護費。客戶必須隨時能帶著資料離開 —— 這條原則否決了多租戶，也否決了任何 vendor lock-in。
+
+Tags: `architecture`, `business-model`, `tenancy`, `vendor-lock-in`
+
+Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]]
 

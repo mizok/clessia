@@ -6,6 +6,38 @@
 
 ## [2026-08-24] lint | Health check: 0 errors, 0 warnings, 54 info
 - Mode: structural
+- Pages scanned: 87
+- Issues found: 54
+
+## [2026-08-24] map | Rebuilt index + 5 MOCs
+- Pages indexed: 77
+- Total links: 41
+- Orphan pages: 70
+
+## [2026-08-24] lint | Health check: 0 errors, 0 warnings, 54 info
+- Mode: structural
+
+
+- Pages scanned: 86
+- Issues found: 54
+
+## [2026-08-24] map | Rebuilt index + 5 MOCs
+- Pages indexed: 76
+- Total links: 39
+- Orphan pages: 69
+
+## [2026-08-24] lint | Health check: 0 errors, 0 warnings, 54 info
+- Mode: structural
+- Pages scanned: 86
+- Issues found: 54
+
+## [2026-08-24] map | Rebuilt index + 5 MOCs
+- Pages indexed: 76
+- Total links: 39
+- Orphan pages: 69
+
+## [2026-08-24] lint | Health check: 0 errors, 0 warnings, 54 info
+- Mode: structural
 - Pages scanned: 85
 - Issues found: 54
 
@@ -13,6 +45,21 @@
 - Pages indexed: 76
 - Total links: 37
 - Orphan pages: 70
+
+## [2026-08-23] lint | Health check: 0 errors, 2 warnings, 54 info
+- Mode: structural
+- Pages scanned: 84
+- Issues found: 56
+
+## [2026-08-23] lint | Health check: 0 errors, 2 warnings, 54 info
+- Mode: structural
+- Pages scanned: 84
+- Issues found: 56
+
+## [2026-08-23] map | Rebuilt index + 5 MOCs
+- Pages indexed: 75
+- Total links: 36
+- Orphan pages: 69
 
 ## [2026-08-23] lint | Health check: 0 errors, 0 warnings, 54 info
 - Mode: structural

@@ -1,8 +1,13 @@
 # Wiki Health Check Report
 
-Date: 2026-08-23T06:50:45.108Z
+Date: 2026-08-23T11:08:44.863Z
 
-**Summary: 0 errors, 0 warnings, 54 info**
+**Summary: 0 errors, 2 warnings, 54 info**
+
+## broken-link
+
+- [!] Broken link [[architecture/vendor-relationship]] — target does not exist (architecture/constitution.md)
+- [!] Broken link [[architecture/vendor-relationship]] — target does not exist (architecture/_moc.md)
 
 ## orphan
 
