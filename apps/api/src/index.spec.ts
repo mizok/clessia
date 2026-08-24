@@ -5,7 +5,7 @@ import app from './index';
 const testEnv = {
   ENVIRONMENT: 'test',
   SUPABASE_URL: 'http://127.0.0.1:54321',
-  SUPABASE_SERVICE_ROLE_KEY: 'test-service-role-key',
+  SUPABASE_SECRET_KEY: 'sb_secret_test',
   WEB_URL: 'http://localhost:4200',
   BETTER_AUTH_SECRET: 'test-secret',
   BETTER_AUTH_URL: 'http://localhost:8787',
