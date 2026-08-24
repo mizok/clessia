@@ -5,7 +5,7 @@ import { logger } from 'hono/logger';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { authMiddleware, requireRoles } from './middleware/auth';
 import { createAuth } from './auth';
-import { resolveCorsOrigin } from './lib/origins';
+import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
 import { createServiceClientFromEnv } from './lib/supabase';
 import campusesRoute from './routes/campuses';
 import schoolsRoute from './routes/schools';
@@ -41,6 +41,8 @@ export type Bindings = {
   BETTER_AUTH_URL: string;
   DATABASE_URL: string;
   PLACEHOLDER_EMAIL_DOMAIN: string;
+  /** 逗號分隔的額外允許來源；WEB_URL 已隱含可信，不必重複列 */
+  ALLOWED_ORIGINS: string;
 };
 
 export type Variables = {
@@ -77,7 +79,8 @@ app.use('*', logger());
 app.use(
   '*',
   cors({
-    origin: (origin) => resolveCorsOrigin(origin),
+    // env 一定要從 c 拿 —— Workers 的環境變數不在 process.env 上
+    origin: (origin, c) => resolveCorsOrigin(origin, allowedOrigins(c.env)),
     credentials: true,
   })
 );

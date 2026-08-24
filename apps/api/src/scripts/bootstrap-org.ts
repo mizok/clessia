@@ -48,6 +48,7 @@ async function main() {
     BETTER_AUTH_SECRET: required('BETTER_AUTH_SECRET'),
     BETTER_AUTH_URL: required('BETTER_AUTH_URL'),
     WEB_URL: process.env['WEB_URL'] ?? '',
+    ALLOWED_ORIGINS: process.env['ALLOWED_ORIGINS'] ?? '',
   };
 
   const pool = new Pool({ connectionString: env.DATABASE_URL });

@@ -2,11 +2,11 @@ import { Pool } from 'pg';
 import { betterAuth } from 'better-auth';
 import { admin as adminPlugin, username } from 'better-auth/plugins';
 import type { Bindings } from './index';
-import { resolveTrustedOrigins } from './lib/origins';
+import { allowedOrigins, resolveTrustedOrigins } from './lib/origins';
 
 type AuthBindings = Pick<
   Bindings,
-  'DATABASE_URL' | 'BETTER_AUTH_SECRET' | 'BETTER_AUTH_URL' | 'WEB_URL'
+  'DATABASE_URL' | 'BETTER_AUTH_SECRET' | 'BETTER_AUTH_URL' | 'WEB_URL' | 'ALLOWED_ORIGINS'
 >;
 
 export function createAuth(env: AuthBindings) {
@@ -20,7 +20,7 @@ export function createAuth(env: AuthBindings) {
     trustedOrigins: (request) =>
       resolveTrustedOrigins({
         requestOrigin: request?.headers.get('origin'),
-        webUrl: env.WEB_URL,
+        allowed: allowedOrigins(env),
       }),
     emailAndPassword: {
       enabled: true,
