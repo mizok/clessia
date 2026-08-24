@@ -73,7 +73,15 @@ export class AuthService {
     }
   }
 
-  private async loadProfile() {
+  /**
+   * 讀取 `/api/me`。**回傳「有沒有讀到」**，呼叫端要靠它區分兩件不同的事：
+   * 讀不到（連線失敗、session 失效）vs 讀到了但這個帳號真的沒有角色。
+   *
+   * 原本這裡把 `catch` 吞掉、一律把 roles 設成空陣列，於是跨站 cookie 沒送出去
+   * 造成的 401 被顯示成「此帳號尚未被指派角色」—— 排查方向一度指向 bootstrap
+   * 沒寫 user_roles。訊息說錯地方比沒有訊息更糟。
+   */
+  private async loadProfile(): Promise<boolean> {
     try {
       const me = await firstValueFrom(
         this.http.get<MeResponse>(`${environment.apiUrl}/api/me`, { withCredentials: true })
@@ -96,10 +104,13 @@ export class AuthService {
           this._activeRole.set(savedRole);
         }
       }
+
+      return true;
     } catch {
       this._profile.set(null);
       this._roles.set([]);
       this._permissions.set([]);
+      return false;
     }
   }
 
@@ -120,8 +131,9 @@ export class AuthService {
     this._showRolePicker.set(false);
   }
 
-  async refreshRoles(): Promise<void> {
-    await this.loadProfile();
+  /** 回傳有沒有讀到 —— 呼叫端要區分「讀不到」和「沒有角色」時會用到 */
+  async refreshRoles(): Promise<boolean> {
+    return this.loadProfile();
   }
 
   async signIn(
@@ -148,7 +160,12 @@ export class AuthService {
     // Session cookie is now set. Sync client state.
     const { data: session } = await authClient.getSession();
     this._user.set(session?.user ?? null);
-    await this.loadProfile();
+
+    // 密碼是對的（上面 /api/login 回 200），但拿不到 profile —— 別謊報成「沒有角色」
+    if (!(await this.loadProfile())) {
+      return '登入成功，但讀不到帳號資料。請重新整理再試一次；若持續發生請聯繫管理員。';
+    }
+
     return null;
   }
 
