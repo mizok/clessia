@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import { betterAuth } from 'better-auth';
-import { admin as adminPlugin, username } from 'better-auth/plugins';
+import { admin as adminPlugin, magicLink, username } from 'better-auth/plugins';
 import type { Bindings } from './index';
 import { allowedOrigins, resolveTrustedOrigins } from './lib/origins';
 
@@ -68,7 +68,38 @@ export function socialProvidersFromEnv(env: {
   return providers;
 }
 
-export function createAuth(env: AuthBindings) {
+
+/** `sendMagicLink` 拿到的東西。我們不寄信，直接把 `url` 攔下來。 */
+export interface MagicLinkPayload {
+  email: string;
+  url: string;
+  token: string;
+}
+
+/**
+ * magic-link 的設定。**綁定連結、破窗 CLI、重發連結三個用途共用這一套**
+ * （見 `kb/wiki/architecture/line-oauth-login.md`）。
+ *
+ * 一般用法是在 `sendMagicLink` 裡把 url 寄出去。**這個專案不寄信** —— 沒有任何寄信管道，
+ * 而且家長的 email 可能是佔位值（`0912345678@phone.internal`，那個 domain 不存在於公開網路）。
+ * 所以改成把 url 交給呼叫端：管理端變成畫面上的 QR、CLI 變成 stdout。
+ */
+export function magicLinkOptions(capture?: (payload: MagicLinkPayload) => void) {
+  return {
+    // 連結被拿去建新帳號 = 任何人都能自助註冊成使用者。只能用在既有帳號上。
+    disableSignUp: true,
+    // 櫃檯當場掃是主流程，但一定會有人說「我回家再用」。可重發，所以不必更長。
+    expiresIn: 60 * 60 * 24,
+    sendMagicLink: async (payload: MagicLinkPayload) => {
+      capture?.(payload);
+    },
+  };
+}
+
+export function createAuth(
+  env: AuthBindings,
+  captureMagicLink?: (payload: MagicLinkPayload) => void
+) {
   const pool = new Pool({ connectionString: env.DATABASE_URL });
 
   return betterAuth({
@@ -89,7 +120,7 @@ export function createAuth(env: AuthBindings) {
       defaultCookieAttributes: crossSiteCookieAttributes(env.BETTER_AUTH_URL),
     },
     socialProviders: socialProvidersFromEnv(env),
-    plugins: [username(), adminPlugin()],
+    plugins: [username(), adminPlugin(), magicLink(magicLinkOptions(captureMagicLink))],
     user: {
       modelName: 'ba_user',
       additionalFields: {
