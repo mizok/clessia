@@ -69,6 +69,42 @@ npx wrangler secret put DATABASE_URL --env production
 > `app.request(url, init)` 時沒帶第三個參數 `env`，走的是同一條 localhost 路徑。
 > `process.env` 的退路只服務 Node 自架（`server.ts`）。
 
+## 跨站 session cookie（目前是權宜之計）
+
+前端與 API 在**不同的 eTLD+1** 時 —— 例如 `clessia.pages.dev` 對 `*.workers.dev`，
+兩者都在 Public Suffix List 上 —— 瀏覽器不會把預設 `SameSite=Lax` 的 session cookie
+帶到跨站請求上。
+
+**症狀極具誤導性**：`POST /api/login` 回 200（登入其實成功了），但緊接著的 `/api/me`
+回 401，前端的 `catch` 把它當成「沒有角色」，畫面顯示**「此帳號尚未被指派角色」**。
+第一次上線時就是這樣，排查方向一度指向 bootstrap 沒寫 `user_roles`。
+
+`apps/api/src/auth.ts` 的 `crossSiteCookieAttributes()` 在 https 時改發
+`SameSite=None; Secure; Partitioned`。
+
+| 瀏覽器 | 可用 |
+| --- | --- |
+| Chrome / Edge / Firefox | ✅ |
+| Safari 18.4 以上（iOS 18.4+） | ✅ `Partitioned` 是 CHIPS，18.4 才支援 |
+| **Safari 18.3 以下** | ❌ 完全封鎖第三方 cookie，這個設定救不了 |
+
+硬體斷點是 2017 年的 iPhone X / 8（最高只能升到 iOS 16）。但**更大的風險是沒更新
+系統的人** —— 而且他們看到的錯誤訊息完全不會指向「請更新 iOS」。
+
+### 根治：同一個 eTLD+1
+
+把前端與 API 放到同一個註冊網域底下：
+
+```text
+app.example.com   → Cloudflare Pages
+api.example.com   → Cloudflare Worker
+```
+
+兩者的 eTLD+1 都是 `example.com`，瀏覽器視為同站，預設的 `SameSite=Lax` 就會被帶出去。
+**這時 `crossSiteCookieAttributes()` 整段可以刪掉**，而且所有瀏覽器都能用，包含舊 Safari。
+
+賣給客戶時本來就需要自己的網域（不會把 `pages.dev` 交出去），所以這不是額外成本。
+
 ## SPA fallback
 
 `apps/web/public/_redirects`：
