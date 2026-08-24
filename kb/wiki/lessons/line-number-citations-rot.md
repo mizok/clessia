@@ -13,13 +13,13 @@ updated: 2026-08-19
 
 第一次跑 `/kb-wiki verify` 時，抽查 KB 裡所有 `file.ts:NNN` 形式的引用：
 
-| 引用 | 實際位置 |
-| --- | --- |
-| `enrollments.ts:777`（衝堂 409） | 547 |
-| `enrollments.ts:1082`（batch-match 的學校比對） | 1118 |
-| `enrollments.ts:688`（退班寫 effective_to） | 708 |
-| `enrollments.ts:289`（請假同步） | 281 |
-| `attendance.ts:579`（課堂名單閘門） | 580 |
+| 引用                                            | 實際位置 |
+| ----------------------------------------------- | -------- |
+| `enrollments.ts:777`（衝堂 409）                | 547      |
+| `enrollments.ts:1082`（batch-match 的學校比對） | 1118     |
+| `enrollments.ts:688`（退班寫 effective_to）     | 708      |
+| `enrollments.ts:289`（請假同步）                | 281      |
+| `attendance.ts:579`（課堂名單閘門）             | 580      |
 
 **內容全部還在，位置全部跑掉。** 這些頁面是同一個工作階段寫的，而同一階段後續的
 PR（角色授權、公告、RLS）在同一批檔案上下插了行。
@@ -38,11 +38,11 @@ PR（角色授權、公告、RLS）在同一批檔案上下插了行。
 
 改引用**穩定的符號**：
 
-| 原本 | 改成 |
-| --- | --- |
-| `enrollments.ts:688` | `enrollments.ts` 的 `PATCH /:id/status` handler |
-| `validation.ts:128` | `checkEnrollmentPreconditions()` 的人數上限判斷 |
-| `enrollments.ts:289` | `syncLeaveAttendanceForEnrollment()` |
+| 原本                                                | 改成                                            |
+| --------------------------------------------------- | ----------------------------------------------- |
+| `enrollments.ts:688`                                | `enrollments.ts` 的 `PATCH /:id/status` handler |
+| `apps/api/src/routes/enrollments/validation.ts:128` | `checkEnrollmentPreconditions()` 的人數上限判斷 |
+| `enrollments.ts:289`                                | `syncLeaveAttendanceForEnrollment()`            |
 
 函式名與路由路徑會跟著改名一起被 grep 到，行號不會。
 

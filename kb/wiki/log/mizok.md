@@ -4,113 +4,158 @@
 
 ---
 
+## [2026-08-24] map | Rebuilt index + 5 MOCs
+- Pages indexed: 79
+- Total links: 48
+- Orphan pages: 70
+
+## [2026-08-24] verify | Drift 稽核：14 頁 code-verifiable，20+ 處漂移
+
+- Scope: architecture/ 的 code-verifiable 頁 + roadmap + lessons 的 file:line 引用
+  （跳過 specs/flows/rules —— 需求真相，無 in-repo 對照目標）
+- 四組並行稽核 + 一輪獨立重驗（重驗抓到第一輪修出 3 個新錯，已撤回）
+- Drifts fixed: [[architecture/constitution-enforcement]] —— 整節描述已退場的 kb-gate；
+  [[architecture/role-authorization]] —— 權限表漏 students/announcements 兩個對外開口；
+  [[roadmap]] —— M2「沒有入口」、M4「0 支 API」皆已交付；補 M1.5 老師端；
+  [[architecture/line-oauth-login]] —— ROOT_PASSWORD 不存在、ba_user.email 可為 NULL
+- 系統性發現：設計文件的「現況」段寫的是設計當下，處方實作後就變假 —— 已加日期標記
+- 刪掉 7 處手抄硬數字（c11 自我違反）
+- **未解**：root 破窗管道不存在於乾淨部署，需人裁決
+
+## [2026-08-24] map | Rebuilt index + 5 MOCs
+- Pages indexed: 79
+- Total links: 48
+- Orphan pages: 70
+
 ## [2026-08-24] lint | Health check: 0 errors, 0 warnings, 54 info
+
 - Mode: structural
 - Pages scanned: 88
 - Issues found: 54
 
 ## [2026-08-24] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 78
 - Total links: 44
 - Orphan pages: 70
 
 ## [2026-08-24] lint | Health check: 0 errors, 4 warnings, 55 info
+
 - Mode: structural
 - Pages scanned: 86
 - Issues found: 59
 
 ## [2026-08-24] lint | Health check: 0 errors, 4 warnings, 55 info
+
 - Mode: structural
 - Pages scanned: 85
 - Issues found: 59
 
 ## [2026-08-24] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 76
 - Total links: 38
 - Orphan pages: 70
 
 ## [2026-08-24] lint | Health check: 0 errors, 0 warnings, 54 info
+
 - Mode: structural
 - Pages scanned: 87
 - Issues found: 54
 
 ## [2026-08-24] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 77
 - Total links: 41
 - Orphan pages: 70
 
 ## [2026-08-24] lint | Health check: 0 errors, 0 warnings, 54 info
-- Mode: structural
 
+- Mode: structural
 
 - Pages scanned: 86
 - Issues found: 54
 
 ## [2026-08-24] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 76
 - Total links: 39
 - Orphan pages: 69
 
 ## [2026-08-24] lint | Health check: 0 errors, 0 warnings, 54 info
+
 - Mode: structural
 - Pages scanned: 86
 - Issues found: 54
 
 ## [2026-08-24] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 76
 - Total links: 39
 - Orphan pages: 69
 
 ## [2026-08-24] lint | Health check: 0 errors, 0 warnings, 54 info
+
 - Mode: structural
 - Pages scanned: 85
 - Issues found: 54
 
 ## [2026-08-24] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 76
 - Total links: 37
 - Orphan pages: 70
 
 ## [2026-08-23] lint | Health check: 0 errors, 2 warnings, 54 info
+
 - Mode: structural
 - Pages scanned: 84
 - Issues found: 56
 
 ## [2026-08-23] lint | Health check: 0 errors, 2 warnings, 54 info
+
 - Mode: structural
 - Pages scanned: 84
 - Issues found: 56
 
 ## [2026-08-23] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 75
 - Total links: 36
 - Orphan pages: 69
+
 ## [2026-08-23] lint | Health check: 0 errors, 0 warnings, 54 info
+
 - Mode: structural
 - Pages scanned: 84
 - Issues found: 54
 
 ## [2026-08-23] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 75
 - Total links: 35
 - Orphan pages: 69
 
 ## [2026-08-23] lint | Health check: 0 errors, 0 warnings, 56 info
+
 - Mode: structural
 - Pages scanned: 82
 - Issues found: 56
 
 ## [2026-08-23] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 74
 - Total links: 31
 - Orphan pages: 71
 
 ## [2026-08-19] lint | Health check: 0 errors, 0 warnings, 54 info
+
 - Mode: structural
 - Pages scanned: 82
 - Issues found: 54
 
 ## [2026-08-19] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 74
 - Total links: 33
 - Orphan pages: 69
@@ -128,41 +173,49 @@
 - 複驗：獨立重跑，假表名歸零；過程中抓到檢查器自身兩個誤判（正則沒含大寫、同名檔案挑錯）
 
 ## [2026-08-19] lint | Health check: 0 errors, 0 warnings, 57 info
+
 - Mode: structural
 - Pages scanned: 81
 - Issues found: 57
 
 ## [2026-08-19] lint | Health check: 0 errors, 0 warnings, 57 info
+
 - Mode: structural
 - Pages scanned: 81
 - Issues found: 57
 
 ## [2026-08-19] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 73
 - Total links: 29
 - Orphan pages: 72
 
 ## [2026-08-19] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 71
 - Total links: 28
 - Orphan pages: 70
 
 ## [2026-08-19] lint | Health check: 0 errors, 0 warnings, 55 info
+
 - Mode: structural
 - Pages scanned: 79
 - Issues found: 55
 
 ## [2026-08-19] lint | Health check: 0 errors, 71 warnings, 55 info
+
 - Mode: structural
 - Pages scanned: 78
 - Issues found: 126
 
 ## [2026-08-19] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 71
 - Total links: 28
 - Orphan pages: 70
 
 ## [2026-08-19] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 71
 - Total links: 0
 - Orphan pages: 70

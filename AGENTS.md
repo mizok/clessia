@@ -36,23 +36,24 @@
 | feature 之間互相 import                                     | c5     |
 | 把規則寫進 `CLAUDE.md`                                      | c10    |
 | 在文件裡手抄會腐化的清單                                    | c11    |
+| 讓客戶無法脫離架構自行 host（vendor lock-in、多租戶）       | c12    |
 
 ## Commands
 
-| 任務              | 指令                                                 |
-| ----------------- | ---------------------------------------------------- |
-| 開發（web + api） | `npm run dev`                                        |
-| 建置              | `npm run build`                                      |
-| 測試              | `npm test`                                           |
-| 型別檢查（api）   | `npx nx typecheck api`                               |
-| Harness + KB gate | `npm run harness`                                    |
-| 兩者重生成        | `npm run harness:write`                              |
-| Harness 自我測試  | `npm run harness:test`                               |
-| KB 檢查 / 重建索引 | kb-wiki skill：`/kb-wiki lint` / `/kb-wiki map`        |
-| 重錄測試基線      | `npm run test:baseline`                              |
-| Supabase 本機     | `npm run db:start` / `db:reset`                      |
-| 新增 migration    | `npx supabase migration new <description>`           |
-| 產生元件等        | `npx ng g c foo --type component`（一律帶 `--type`） |
+| 任務               | 指令                                                 |
+| ------------------ | ---------------------------------------------------- |
+| 開發（web + api）  | `npm run dev`                                        |
+| 建置               | `npm run build`                                      |
+| 測試               | `npm test`                                           |
+| 型別檢查（api）    | `npx nx typecheck api`                               |
+| Harness + KB gate  | `npm run harness`                                    |
+| 兩者重生成         | `npm run harness:write`                              |
+| Harness 自我測試   | `npm run harness:test`                               |
+| KB 檢查 / 重建索引 | kb-wiki skill：`/kb-wiki lint` / `/kb-wiki map`      |
+| 重錄測試基線       | `npm run test:baseline`                              |
+| Supabase 本機      | `npm run db:start` / `db:reset`                      |
+| 新增 migration     | `npx supabase migration new <description>`           |
+| 產生元件等         | `npx ng g c foo --type component`（一律帶 `--type`） |
 
 > `nx.json` 的 `defaultBase` 是 `dev`，但這個 branch 不存在 —— 跑 `nx affected` 一律自己帶
 > `--base=main`。
@@ -191,8 +192,8 @@ PostToolUse hook 會在每次編輯後自動跑，不用手動格式化。
 
 **所有文件放 `kb/`，禁止另起 `docs/` 或其他平行目錄**（c9，由 pre-write guard 與 harness gate 雙重把關）。
 
-| 類型               | 路徑                        |
-| ------------------ | --------------------------- |
+| 類型               | 路徑                             |
+| ------------------ | -------------------------------- |
 | 架構法條與強制機制 | `kb/wiki/architecture/`          |
 | 功能規格           | `kb/wiki/specs/<角色>/<功能>.md` |
 | 流程圖             | `kb/wiki/flows/<功能>.md`        |
@@ -203,11 +204,11 @@ PostToolUse hook 會在每次編輯後自動跑，不用手動格式化。
 `kb/` 是**唯一的文件樹**（c9）—— 產品規格、流程、業務規則、架構法條、工程知識全部住這裡，
 靠 `category` 分類而不是靠平行目錄分家。三份必讀：
 
-| 檔案                                                                 | 用途                                                                                                          |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| [`kb/schema.md`](kb/schema.md)                                       | **操作手冊**（kb-wiki 規範）—— 目錄結構、頁面格式、status 生命週期、ingest / lint / map / verify 流程。任何 KB 操作前先讀 |
-| [`kb/wiki/index.md`](kb/wiki/index.md)                                         | 全部頁面的分類索引，自動生成。**查資料先看索引的 summary 挑頁面，不要一開始就 grep 全 `kb/`**                 |
-| [`kb/wiki/architecture/constitution.md`](kb/wiki/architecture/constitution.md) | 法條                                                                                                          |
+| 檔案                                                                           | 用途                                                                                                                      |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| [`kb/schema.md`](kb/schema.md)                                                 | **操作手冊**（kb-wiki 規範）—— 目錄結構、頁面格式、status 生命週期、ingest / lint / map / verify 流程。任何 KB 操作前先讀 |
+| [`kb/wiki/index.md`](kb/wiki/index.md)                                         | 全部頁面的分類索引，自動生成。**查資料先看索引的 summary 挑頁面，不要一開始就 grep 全 `kb/`**                             |
+| [`kb/wiki/architecture/constitution.md`](kb/wiki/architecture/constitution.md) | 法條                                                                                                                      |
 
 每一頁都必須有 `title` / `summary` / `category` / `status` / `updated` 五個 frontmatter 欄位，
 由 kb-wiki skill 的 `lint` 檢查、`map` 重建索引。
@@ -254,17 +255,17 @@ PostToolUse hook 會在每次編輯後自動跑，不用手動格式化。
 
 <!-- SKILLS:START — auto-generated by tools/agent-harness/check-harness.mjs; do not hand-edit -->
 
-| Skill | 用途 |
-| --- | --- |
-| `angular` | >- |
-| `angular-best-practices` | Angular performance optimization and best practices guide. Use when writing, reviewing, or refactoring Angu… |
-| `angular-scss-bem-standards` | Use when writing, reviewing, or refactoring Angular component styles (SCSS/CSS). Triggers on BEM naming iss… |
-| `angular-state-management` | Master modern Angular state management with Signals, NgRx, and RxJS. Use when setting up global state, mana… |
-| `angular-ui-patterns` | Modern Angular UI patterns for loading states, error handling, and data display. Use when building UI compo… |
-| `clessia-feature-slice` | Use when delivering a Clessia feature or fixing a non-trivial bug end to end — from exploration through a G… |
-| `frontend-design` | Create distinctive, production-grade frontend interfaces with intentional aesthetics, high craft, and non-g… |
+| Skill                              | 用途                                                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `angular`                          | >-                                                                                                           |
+| `angular-best-practices`           | Angular performance optimization and best practices guide. Use when writing, reviewing, or refactoring Angu… |
+| `angular-scss-bem-standards`       | Use when writing, reviewing, or refactoring Angular component styles (SCSS/CSS). Triggers on BEM naming iss… |
+| `angular-state-management`         | Master modern Angular state management with Signals, NgRx, and RxJS. Use when setting up global state, mana… |
+| `angular-ui-patterns`              | Modern Angular UI patterns for loading states, error handling, and data display. Use when building UI compo… |
+| `clessia-feature-slice`            | Use when delivering a Clessia feature or fixing a non-trivial bug end to end — from exploration through a G… |
+| `frontend-design`                  | Create distinctive, production-grade frontend interfaces with intentional aesthetics, high craft, and non-g… |
 | `supabase-postgres-best-practices` | Postgres performance optimization and best practices from Supabase. Use this skill when writing, reviewing,… |
-| `ui-ux-pro-max` | UI/UX design intelligence. 50 styles, 21 palettes, 50 font pairings, 20 charts, 9 stacks. |
+| `ui-ux-pro-max`                    | UI/UX design intelligence. 50 styles, 21 palettes, 50 font pairings, 20 charts, 9 stacks.                    |
 
 <!-- SKILLS:END -->
 

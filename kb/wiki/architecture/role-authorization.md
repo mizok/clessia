@@ -9,13 +9,17 @@ tags: [architecture, role-authorization]
 
 # 角色授權的設計
 
-## 現況（已驗證）
+## 現況快照（2026-08-16，設計當下）
+
+> ⚠️ **這一節是設計當下的起點，不是今天的狀態。** 下面列的每一條都已經被本頁的處方修掉了
+> —— 保留它是為了讓人看得懂當初在解什麼問題。要看今天的樣子，讀「權限表」那節，
+> 或直接看 `apps/api/src/index.ts` 的 `mount()` 呼叫。
 
 ```js
 app.use('/api/*', authMiddleware); // 只驗 session + 過濾 org_id
 ```
 
-`authMiddleware` 設定 `userId` / `orgId` / `supabase`，**不看角色**。18 支掛載的 route 裡，
+`authMiddleware` 設定 `userId` / `orgId` / `supabase`，**不看角色**。當時掛載的 route 裡，
 只有 `enrollments.ts` 與 `parents.ts` 用了 `requireAdminMiddleware`。
 
 其餘對任何登入者開放：`students`、`scores`、`academy-exams`、`school-exams`、
@@ -78,18 +82,27 @@ DELETE 只給 admin）就在該 route 檔內再加一道，收斂但不放寬。
 
 **只開現在真的有頁面在用的**，不照規格預先開：
 
-| Route | admin | teacher | parent | 依據 |
-| --- | --- | --- | --- | --- |
-| `me` | ✅ | ✅ | ✅ | 每個人都要知道自己是誰 |
-| `attendance` | ✅ | ✅ | — | `teacher/schedule` 的課表與點名面板 |
-| `org` | ✅ | ✅ | — | 同上，判斷該不該讓老師點名、能不能補點 |
-| 其餘 15 支 | ✅ | — | — | 目前沒有任何 teacher/parent 頁面用得到 |
+| Route           | admin | teacher | parent | 依據                                            |
+| --------------- | ----- | ------- | ------ | ----------------------------------------------- |
+| `me`            | ✅    | ✅      | ✅     | 每個人都要知道自己是誰                          |
+| `attendance`    | ✅    | ✅      | —      | `teacher/schedule` 的課表與點名面板             |
+| `org`           | ✅    | ✅      | —      | 同上，判斷該不該讓老師點名、能不能補點          |
+| `students`      | ✅    | ✅      | —      | `teacher/students` 老師看自己任課班級的學生     |
+| `announcements` | ✅    | ✅      | ✅     | 站內公告；發布與管理端列表在 route 內另擋 admin |
+| 其餘            | ✅    | —       | —      | 目前沒有任何 teacher/parent 頁面用得到          |
 
-老師端規格提到要看自己班的學生與成績（`kb/wiki/specs/teacher/{students,assessments}.md`），
-但那兩個頁面現在是 18 行空殼。**做到那一頁時再開那一支**，並在同一個切片裡把範圍限制
-一起做完 —— 先開路、之後才補範圍的話，中間那段時間就是個洞。
+> 這張表是「哪個角色能呼叫哪支 API」的唯一速查，**漏一列等於少記一個對外開口**。
+> 真相在 `apps/api/src/index.ts` 的 `mount()` 呼叫，harness gate A7 會擋沒宣告 roles 的掛載，
+> 但**它不會擋這張表寫錯** —— 表要靠人維護。
 
-家長同理：11 個頁面全是空殼，所以只有 `me`。
+老師端規格提到要看自己班的學生與成績。**做到那一頁時再開那一支**，並在同一個切片裡把
+範圍限制一起做完 —— 先開路、之後才補範圍的話，中間那段時間就是個洞。
+
+`teacher/students` 已照這個順序交付（見 [[architecture/teacher-students-view]]）；
+`teacher/assessments` 的頁面還不存在，所以 `scores` / `academy-exams` 仍未對老師開放。
+
+家長端 11 個頁面仍是空殼，除了 `announcements`（家長端收件匣尚未實作，但 route 已對
+`parent` 開放）之外只有 `me`。
 
 ## 範圍：這次只做老師的課
 
@@ -124,6 +137,7 @@ c1 本來就涵蓋角色過濾，缺的是實作與強制。
 
 - **permissions（`user_roles.permissions`）的細部檢查** —— 那是 admin 內部的職責劃分
   （誰能看營收、誰能改人事），跟「哪個角色能呼叫哪支 API」是不同的問題。現在全部 admin
-  都是 `["*"]`，沒有實際需求
+  seed 建的 admin 是 `["*"]`（`staff.ts` 另外定義了細部 permission，透過 app 建立的
+  admin 可以只拿到子集），沒有實際需求
 - **家長的範圍限制** —— 家長現在一支 route 都碰不到，沒有可驗證的規則可寫
 - **前端選單依角色再過濾** —— 已經有了（`RoutesCatalog` 的 `role`），而且前端隱藏不構成授權（c1）

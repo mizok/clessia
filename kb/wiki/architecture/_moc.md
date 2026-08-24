@@ -64,6 +64,12 @@ M2。兩個互不依賴的切片：班級頁的 Excel 名單匯入精靈、獨�
 
 Tags: `architecture`, `enrollment-admin-view`
 
+## [[architecture/line-oauth-login|LINE 登入的設計]]
+
+密碼雜湊超過 Cloudflare Workers 免費方案的 10ms CPU 上限，登入間歇性 503。改用 OAuth 取代日常密碼登入（首發 LINE，Google 延後但架構預留），root 保留密碼作為破窗管道；OAuth 身分靠一次性綁定連結／QR 對應到既有的人員或家長記錄。
+
+Tags: `architecture`, `auth`, `oauth`, `line`, `cloudflare`
+
 ## [[architecture/no-division-scoping|刻意不設計「學部」這一層]]
 
 補習班有國小部／國中部（未來高中部），但系統不建立「部」的概念，也不依部隔離可見範圍。原因是實際的人力本來就跨部。
@@ -75,6 +81,8 @@ Tags: `architecture`, `no-division-scoping`
 18 支 route 只驗身分不看角色。改成掛載時強制宣告可用角色、沒宣告就拒絕，並用 harness gate 守住。分兩層：route 層准入、資料層範圍。
 
 Tags: `architecture`, `role-authorization`
+
+Links to: [[architecture/teacher-students-view]]
 
 ## [[architecture/teacher-students-view|老師端學生名單的設計]]
 
@@ -104,5 +112,5 @@ Links to: [[architecture/teaching-history-not-payroll|`記錄授課歷程但不�
 
 Tags: `architecture`, `business-model`, `tenancy`, `vendor-lock-in`
 
-Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]]
+Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]], [[architecture/bootstrapping-a-deployment]]
 
