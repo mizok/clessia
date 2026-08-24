@@ -66,13 +66,24 @@ describe('socialProvidersFromEnv', () => {
   it('兩個變數都有才設定 line', () => {
     expect(
       socialProvidersFromEnv({ LINE_CLIENT_ID: 'cid', LINE_CLIENT_SECRET: 'secret' })
-    ).toEqual({ line: { clientId: 'cid', clientSecret: 'secret' } });
+    ).toEqual({ line: { clientId: 'cid', clientSecret: 'secret', disableSignUp: true } });
   });
 
   it('少一個就不設定 —— 半套設定比沒設定更難查', () => {
     expect(socialProvidersFromEnv({ LINE_CLIENT_ID: 'cid', LINE_CLIENT_SECRET: '' })).toEqual({});
     expect(socialProvidersFromEnv({ LINE_CLIENT_ID: '', LINE_CLIENT_SECRET: 'secret' })).toEqual({});
     expect(socialProvidersFromEnv({})).toEqual({});
+  });
+
+  // 預設 disableSignUp 是 false —— 任何路人按下 LINE 登入就會被建一個沒有角色、
+  // 沒有 orgId 的孤兒帳號。這個系統的帳號一律由校方建立，OAuth 只負責「認人」。
+  it('禁止用 LINE 自助註冊', () => {
+    const providers = socialProvidersFromEnv({
+      LINE_CLIENT_ID: 'cid',
+      LINE_CLIENT_SECRET: 'secret',
+    });
+
+    expect(providers['line']?.disableSignUp).toBe(true);
   });
 
   it('回傳的是可擴充的 map，不是寫死的單一 provider', () => {

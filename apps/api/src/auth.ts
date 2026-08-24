@@ -55,13 +55,22 @@ export function crossSiteCookieAttributes(baseUrl: string) {
 export function socialProvidersFromEnv(env: {
   LINE_CLIENT_ID?: string;
   LINE_CLIENT_SECRET?: string;
-}): Record<string, { clientId: string; clientSecret: string }> {
-  const providers: Record<string, { clientId: string; clientSecret: string }> = {};
+}): Record<string, { clientId: string; clientSecret: string; disableSignUp: boolean }> {
+  const providers: Record<
+    string,
+    { clientId: string; clientSecret: string; disableSignUp: boolean }
+  > = {};
 
   if (env.LINE_CLIENT_ID && env.LINE_CLIENT_SECRET) {
     providers['line'] = {
       clientId: env.LINE_CLIENT_ID,
       clientSecret: env.LINE_CLIENT_SECRET,
+      // Better Auth 預設 false —— 任何路人按下「使用 LINE 登入」就會被建一個
+      // 沒有角色、沒有 orgId 的孤兒帳號。看到招生宣傳來的家長會製造一堆這種帳號。
+      //
+      // **帳號一律由校方建立**（臨櫃註冊、Excel 匯入），OAuth 只負責「認人」。
+      // 所以流程一定是：拿到一次性連結 → 登入 → 綁定 LINE → 之後才用 LINE 登入。
+      disableSignUp: true,
     };
   }
 
