@@ -1,6 +1,21 @@
 // 型別標成 readonly string[] 而不是 `as const`：`as const` 會把它縮成字面量 tuple，
 // 使得 `.includes(someString)` 在型別層被拒。仍然是唯讀，語意不變。
-const STATIC_ALLOWED_ORIGINS: readonly string[] = ['https://clessia.pages.dev'];
+/**
+ * 允許的正式站來源。**從環境變數讀，不寫死** —— 每個客戶是自己的部署、自己的網域
+ * （憲法 c12），寫死等於只有一個客戶能用。
+ *
+ * `ALLOWED_ORIGINS` 是逗號分隔，例如：
+ *   ALLOWED_ORIGINS=https://clessia.pages.dev,https://xiangshang.example.com
+ */
+export function staticAllowedOrigins(env?: { ALLOWED_ORIGINS?: string }): readonly string[] {
+  const raw = env?.ALLOWED_ORIGINS ?? globalThis.process?.env?.['ALLOWED_ORIGINS'] ?? '';
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+const STATIC_ALLOWED_ORIGINS: readonly string[] = staticAllowedOrigins();
 const LOCAL_DEV_HOSTS = new Set(['localhost', '127.0.0.1']);
 const LOCAL_DEV_PROTOCOLS = new Set(['http:', 'https:']);
 

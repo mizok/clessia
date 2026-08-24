@@ -3,11 +3,35 @@ main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
+# ⚠️ 這個檔案會進版控 —— **只放非機密設定**。
+#
+# 機密（SUPABASE_SERVICE_ROLE_KEY、BETTER_AUTH_SECRET、DATABASE_URL）一律走
+#   npx wrangler secret put <NAME> --env production
+# 本機開發放 apps/api/.dev.vars（已 gitignore）。
+#
+# 每個客戶是自己的部署、自己的網域（憲法 c12），所以正式站的值不寫在這裡，
+# 由部署時設定。見 kb/wiki/architecture/deploying.md
+
 [vars]
 ENVIRONMENT = "development"
 WEB_URL = "http://localhost:4200"
-SUPABASE_URL = "http://127.0.0.1:54321"
-SUPABASE_SERVICE_ROLE_KEY = ""
 BETTER_AUTH_URL = "http://localhost:8787"
-BETTER_AUTH_SECRET = "dev-secret-change-in-production"
-DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+ALLOWED_ORIGINS = ""
+SUPABASE_URL = "http://127.0.0.1:54321"
+PLACEHOLDER_EMAIL_DOMAIN = "phone.internal"
+
+# ── 正式環境 ──────────────────────────────────────────────────────────────
+# 部署：npx wrangler deploy --env production
+# 這裡只列非機密項；每個客戶部署時覆寫成自己的值。
+[env.production]
+name = "clessia-api-production"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+PLACEHOLDER_EMAIL_DOMAIN = "phone.internal"
+# WEB_URL / BETTER_AUTH_URL / ALLOWED_ORIGINS / SUPABASE_URL 由部署時設定：
+#   npx wrangler deploy --env production \
+#     --var WEB_URL:https://xxx.pages.dev \
+#     --var BETTER_AUTH_URL:https://clessia-api-production.xxx.workers.dev \
+#     --var ALLOWED_ORIGINS:https://xxx.pages.dev \
+#     --var SUPABASE_URL:https://<ref>.supabase.co

@@ -1,6 +1,6 @@
 # Architecture — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-23
+> Auto-maintained by `kb:map`. Last updated: 2026-08-24
 
 ---
 
@@ -41,6 +41,14 @@ Links to: [[architecture/constitution-enforcement|`constitution-enforcement`]]
 Tags: `architecture`, `constitution-enforcement`
 
 Links to: [[architecture/constitution|`constitution`]]
+
+## [[architecture/deploying|部署]]
+
+三個元件（Supabase / Workers / Pages）、哪些步驟只有人能做、以及為什麼 API 必須能在 Node 底下跑。
+
+Tags: `architecture`, `deployment`, `cloudflare`, `supabase`
+
+Links to: [[architecture/vendor-relationship]], [[architecture/constitution|c12]], [[architecture/bootstrapping-a-deployment]]
 
 ## [[architecture/enrollment-admin-view|報名管理端的設計]]
 
