@@ -21,13 +21,13 @@ tags: [architecture, teaching-log-view]
 
 ## 資料現況（已驗證）
 
-| 需要的資料                     | 來源                                                               | 狀態 |
-| ------------------------------ | ------------------------------------------------------------------ | ---- |
-| 每堂課的老師、日期、起訖、狀態 | `sessions`                                                         | ✅   |
-| 代課後誰實際上課               | `sessions.teacher_id` **會被改寫成代課老師**（`sessions.ts`） | ✅   |
-| 原本排給誰                     | `schedule_changes.original_teacher_id` / `original_teacher_name`   | ✅   |
-| 課真的上了的證據               | `events.attendance_taken_at`（首次點名，immutable）                | ✅   |
-| 依老師 + 期間查詢              | `GET /api/sessions` 已支援 `teacherIds` / `from` / `to`            | ✅   |
+| 需要的資料                     | 來源                                                             | 狀態 |
+| ------------------------------ | ---------------------------------------------------------------- | ---- |
+| 每堂課的老師、日期、起訖、狀態 | `sessions`                                                       | ✅   |
+| 代課後誰實際上課               | `sessions.teacher_id` **會被改寫成代課老師**（`sessions.ts`）    | ✅   |
+| 原本排給誰                     | `schedule_changes.original_teacher_id` / `original_teacher_name` | ✅   |
+| 課真的上了的證據               | `events.attendance_taken_at`（首次點名，immutable）              | ✅   |
+| 依老師 + 期間查詢              | `GET /api/sessions` 已支援 `teacherIds` / `from` / `to`          | ✅   |
 
 **`sessions` 是「誰實際上了這堂課」的真相，`schedule_changes` 是「原本是誰」的歷史。**
 兩者合起來完整可追溯，不需要新 schema。
@@ -77,15 +77,16 @@ tags: [architecture, teaching-log-view]
 
 ## 需要的改動
 
-| 層              | 改動                                                                      |
-| --------------- | ------------------------------------------------------------------------- |
-| API             | **無**。`GET /api/sessions` 已支援所需篩選與欄位                          |
-| API（被代課區） | 需要一支依 `original_teacher_id` 查 `schedule_changes` 的查詢 —— 目前沒有 |
-| Web service     | `sessions.service` 已有 `list()`，可直接用                                |
-| Web UI          | 新元件掛進 staff 詳情；時數加總與分組在前端做                             |
+> ⚠️ **這一節是設計當下（2026-08-12）的規劃，已全部交付。**
 
-唯一的後端新增是「被代課」那一區的查詢。若要縮小首版範圍，可以先不做那一區
-（其餘完全不需要動後端）。
+| 層              | 改動                                                                                                                                       |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| API             | `GET /api/sessions` 已支援所需篩選與欄位                                                                                                   |
+| API（被代課區） | 依 `original_teacher_id` 查 `schedule_changes` —— 後來新增了 `GET /api/sessions/substituted-away`（`routes/sessions/substituted-away.ts`） |
+| Web service     | `sessions.service` 的 `list()` 直接用；另加 `listSubstitutedAway()`                                                                        |
+| Web UI          | 新元件掛進 staff 詳情；時數加總與分組在前端做                                                                                              |
+
+當時判斷「被代課」那一區可以延後（其餘不需要動後端），實際上在同一個切片裡一起做完了。
 
 ## 刻意不做
 

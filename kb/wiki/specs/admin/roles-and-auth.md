@@ -33,7 +33,8 @@ tags: [specs, admin, roles-and-auth]
 ### 特性
 
 - `username = root`，無需 email 或手機
-- 密碼從環境變數讀取（`ROOT_PASSWORD`）
+- ⚠️ **密碼不是從環境變數讀的**（2026-08-24 稽核更正）。`ROOT_PASSWORD` 不存在於任何程式碼，
+  root 的密碼是 `supabase/seed.sql` 裡硬編的 scrypt hash。**`bootstrap-org.ts` 開的乾淨站不會有 root 帳號**
 - 擁有所有管理權限，且**不能被其他人修改或刪除**
 - 首次登入後應立即修改密碼
 

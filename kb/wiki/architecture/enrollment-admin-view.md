@@ -11,7 +11,10 @@ tags: [architecture, enrollment-admin-view]
 
 ## 現況先講清楚
 
-`kb/wiki/roadmap.md` 的現況表把「報名」標成 🔌 僅後端，那是因為磁碟上沒有
+> ⚠️ **這一節是設計當下（2026-08-18）的起點。** 兩個切片都已交付：
+> `admin/pages/enrollments/` 存在、`batch-match` 已被前端呼叫、現況表已改為 🟡 部分接上。
+
+當時 `kb/wiki/roadmap.md` 的現況表把「報名」標成 🔌 僅後端，那是因為磁碟上沒有
 `admin/pages/enrollments/` 目錄 —— 但**報名功能實際上已經有兩個入口**：
 
 | 既有入口   | 位置                   | 能做什麼                                                                                  |
@@ -21,8 +24,8 @@ tags: [architecture, enrollment-admin-view]
 
 所以 M2 不是「從零建報名功能」。真正缺的只有兩件，而且**它們互不依賴**：
 
-1. **Excel 名單比對匯入**（`POST /api/enrollments/batch-match`）—— 全專案唯一一支寫好了
-   卻沒有任何前端呼叫的 API。既有的學生挑選器要求學生已經在系統裡、而且要一個個勾。
+1. **Excel 名單比對匯入**（`POST /api/enrollments/batch-match`）—— 當時是全專案唯一一支
+   寫好了卻沒有任何前端呼叫的 API。既有的學生挑選器要求學生已經在系統裡、而且要一個個勾。
 2. **報名進出總覽** —— 「這個月進了幾個、退了幾個」目前沒有任何畫面回答得出來。
 
 先做匯入。roadmap 的原則是「每個 milestone 都必須讓某一件事完全脫離 Excel」——

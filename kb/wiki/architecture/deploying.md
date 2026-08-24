@@ -11,13 +11,13 @@ updated: 2026-08-24
 
 ## 三個元件
 
-| | 跑在哪 | 誰付錢 |
-| --- | --- | --- |
+|        | 跑在哪                                                 | 誰付錢                                              |
+| ------ | ------------------------------------------------------ | --------------------------------------------------- |
 | 資料庫 | Supabase（建議 `ap-northeast-1` 東京，對台灣延遲最低） | **客戶**（見 [[architecture/vendor-relationship]]） |
-| API | Cloudflare Workers | 供應商或客戶 |
-| Web | Cloudflare Pages | 同上 |
+| API    | Cloudflare Workers                                     | 供應商或客戶                                        |
+| Web    | Cloudflare Pages                                       | 同上                                                |
 
-`wrangler.toml` 與 CORS 白名單裡的 `clessia.pages.dev` 都指向 Cloudflare。
+部署目標寫在 `apps/api/wrangler.toml`。**允許的來源不寫死在任何檔案裡** —— 見下方「每個客戶自己的網域」。
 `AGENTS.md` 曾寫「Deploy: Vercel」，那是文件漂移，已修。
 
 ## API 必須能在 Node 底下跑
@@ -53,11 +53,11 @@ npx wrangler secret put DATABASE_URL --env production
 允許的來源不寫死。每個客戶是自己的部署、自己的網域（c12），寫死等於只有一個客戶能用。
 三個來源合併（`apps/api/src/lib/origins.ts` 的 `allowedOrigins()`）：
 
-| 來源 | 說明 |
-| --- | --- |
-| `WEB_URL` | 這個部署的前端。**依定義可信，不必再列進 `ALLOWED_ORIGINS`** |
-| `ALLOWED_ORIGINS` | 逗號分隔的額外來源（自訂網域、第二個前端） |
-| localhost / 127.0.0.1 | 本機開發，任意 port |
+| 來源                  | 說明                                                         |
+| --------------------- | ------------------------------------------------------------ |
+| `WEB_URL`             | 這個部署的前端。**依定義可信，不必再列進 `ALLOWED_ORIGINS`** |
+| `ALLOWED_ORIGINS`     | 逗號分隔的額外來源（自訂網域、第二個前端）                   |
+| localhost / 127.0.0.1 | 本機開發，任意 port                                          |
 
 都沒設定時只剩本機來源，正式站會全部被 CORS 擋掉。這是刻意的 fail-closed：忘記設定的
 症狀是「連不上」，不是「誰都連得上」。
@@ -82,11 +82,11 @@ npx wrangler secret put DATABASE_URL --env production
 `apps/api/src/auth.ts` 的 `crossSiteCookieAttributes()` 在 https 時改發
 `SameSite=None; Secure; Partitioned`。
 
-| 瀏覽器 | 可用 |
-| --- | --- |
-| Chrome / Edge / Firefox | ✅ |
-| Safari 18.4 以上（iOS 18.4+） | ✅ `Partitioned` 是 CHIPS，18.4 才支援 |
-| **Safari 18.3 以下** | ❌ 完全封鎖第三方 cookie，這個設定救不了 |
+| 瀏覽器                        | 可用                                     |
+| ----------------------------- | ---------------------------------------- |
+| Chrome / Edge / Firefox       | ✅                                       |
+| Safari 18.4 以上（iOS 18.4+） | ✅ `Partitioned` 是 CHIPS，18.4 才支援   |
+| **Safari 18.3 以下**          | ❌ 完全封鎖第三方 cookie，這個設定救不了 |
 
 硬體斷點是 2017 年的 iPhone X / 8（最高只能升到 iOS 16）。但**更大的風險是沒更新
 系統的人** —— 而且他們看到的錯誤訊息完全不會指向「請更新 iOS」。
@@ -126,6 +126,6 @@ api.example.com   → Cloudflare Worker
 
 ## 已知待處理
 
-- **initial bundle 754 kB**（預算 500 kB）。目前只是警告，但那是真的大。
+- **initial bundle 超出 500 kB 的預算**（`apps/web/project.json` 的 `maximumWarning`）。目前只是警告，但那是真的大。跑 `npx nx build web --configuration=production` 看現值 —— **不在這裡抄數字**（c11）。
   多數來自 PrimeNG 與 pdfmake / xlsx —— 值得檢查有沒有被不必要地打進 initial chunk
 - **Supabase 免費方案閒置 7 天會暫停**。天天用不會碰到；先開著給人看會踩到

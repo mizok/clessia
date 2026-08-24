@@ -1,6 +1,6 @@
 ---
 title: 修憲的機制
-summary: 憲法只能由人修改，agent 被三層 deny 規則擋住。`tools/amend-constitution.mjs` 是給人用的便利工具，不是護欄——護欄留在 harness 層。
+summary: 憲法只能由人修改，agent 被兩條 deny 規則擋住（含 worktree 路徑）。曾經有過的 `tools/amend-constitution.mjs` 因為過度建造已移除——護欄留在 harness 層（A9 斷言 deny 目標存在）。
 category: architecture
 tags: [architecture, constitution, guardrail]
 status: active
@@ -37,9 +37,9 @@ updated: 2026-08-23
 
 `.claude/settings.json`：
 
-| 規則 | 擋住什麼 |
-| --- | --- |
-| `Edit(kb/wiki/architecture/constitution.md)` | 直接編輯憲法 |
+| 規則                                                       | 擋住什麼      |
+| ---------------------------------------------------------- | ------------- |
+| `Edit(kb/wiki/architecture/constitution.md)`               | 直接編輯憲法  |
 | `Edit(.worktrees/**/kb/wiki/architecture/constitution.md)` | 繞道 worktree |
 
 **這兩條擋的是 `Edit` 工具，不是所有寫入途徑。** 一支用 Bash 執行的腳本繞得過去 ——
