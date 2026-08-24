@@ -17,7 +17,7 @@
 | UI        | PrimeNG 21 + PrimeIcons + `@primeuix/themes` Aura                         |
 | Backend   | Hono (apps/api) + Better Auth + Supabase (PostgreSQL, Storage)            |
 | Monorepo  | Nx（`apps/web`、`apps/api`；`packages/*` 是 TS path 別名，非 Nx project） |
-| Deploy    | Vercel                                                                    |
+| Deploy    | Cloudflare Workers（API）+ Cloudflare Pages（Web）+ Supabase（DB）        |
 | Utilities | date-fns, xlsx, pdfmake, angularx-qrcode, html5-qrcode, Toast UI Editor   |
 
 ### Banned Approaches

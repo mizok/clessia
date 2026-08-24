@@ -50,6 +50,14 @@ Tags: `architecture`, `constitution-enforcement`
 
 Links to: [[architecture/constitution|`constitution`]]
 
+## [[architecture/deploying|部署]]
+
+三個元件（Supabase / Workers / Pages）、哪些步驟只有人能做、以及為什麼 API 必須能在 Node 底下跑。
+
+Tags: `architecture`, `deployment`, `cloudflare`, `supabase`
+
+Links to: [[architecture/vendor-relationship]], [[architecture/constitution|c12]], [[architecture/bootstrapping-a-deployment]]
+
 ## [[architecture/enrollment-admin-view|報名管理端的設計]]
 
 M2。兩個互不依賴的切片：班級頁的 Excel 名單匯入精靈、獨立的報名進出總覽頁。既有的班級／學生兩個報名入口不動。

@@ -1,6 +1,6 @@
 # Wiki Health Check Report
 
-Date: 2026-08-24T02:09:17.206Z
+Date: 2026-08-24T03:53:53.443Z
 
 **Summary: 0 errors, 0 warnings, 54 info**
 
@@ -51,8 +51,8 @@ Date: 2026-08-24T02:09:17.206Z
 - [i] Orphan page — no other page links to it (specs/teacher/assessments.md)
 - [i] Orphan page — no other page links to it (specs/teacher/attendance.md)
 - [i] Orphan page — no other page links to it (architecture/amending-the-constitution.md)
-- [i] Orphan page — no other page links to it (architecture/bootstrapping-a-deployment.md)
 - [i] Orphan page — no other page links to it (architecture/announcements.md)
+- [i] Orphan page — no other page links to it (architecture/deploying.md)
 - [i] Orphan page — no other page links to it (roadmap.md)
 - [i] Orphan page — no other page links to it (lessons/backlog-legacy.md)
 - [i] Orphan page — no other page links to it (lessons/agent-workflow-guide.md)

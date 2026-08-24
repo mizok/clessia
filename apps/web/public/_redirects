@@ -1,0 +1,7 @@
+# Cloudflare Pages 的 SPA fallback。
+#
+# 沒有這一行，任何非根路徑重新整理都會 404 —— Angular 的路由在瀏覽器端，
+# 但 /admin/students 這種路徑在伺服器上沒有對應檔案。
+#
+# 200 是 rewrite（網址不變），不是 302 redirect。
+/*    /index.html   200

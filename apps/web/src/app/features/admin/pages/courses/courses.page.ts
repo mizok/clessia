@@ -35,6 +35,7 @@ import { PaginatorModule } from 'primeng/paginator';
 
 import { CourseFormDialogComponent } from './course-form-dialog.component';
 import { ClassFormDialogComponent } from './class-form-dialog/class-form-dialog.component';
+import { ClassRowComponent } from './class-row/class-row.component';
 import { GenerateSessionsDialogComponent } from './generate-sessions-dialog/generate-sessions-dialog.component';
 // SessionListDialogComponent removed — replaced by sessions list view
 import { DeactivateClassDialogComponent } from './deactivate-class-dialog/deactivate-class-dialog.component';
@@ -67,7 +68,7 @@ interface CourseGroup {
 @Component({
   selector: 'app-courses',
   standalone: true,
-  imports: [
+  imports: [ClassRowComponent, 
     CommonModule,
     FormsModule,
     ToastModule,
