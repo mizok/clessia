@@ -114,3 +114,26 @@ describe('POST /api/me/activate-parent', () => {
     expect(response.status).toBe(401);
   });
 });
+
+// 純函式對了不代表接上了 —— #19 的 CORS 事故就是「函式寫對但沒接上 c.env」。
+describe('magic-link 產生端點對外封鎖', () => {
+  it('POST /api/auth/sign-in/magic-link 回 404', async () => {
+    const response = await app.request(
+      'http://localhost/api/auth/sign-in/magic-link',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      testEnv
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it('兌換端點沒有被一起擋掉', async () => {
+    const response = await app.request(
+      'http://localhost/api/auth/magic-link/verify?token=whatever',
+      undefined,
+      testEnv
+    );
+
+    expect(response.status).not.toBe(404);
+  });
+});

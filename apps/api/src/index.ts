@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { authMiddleware, requireRoles } from './middleware/auth';
 import { createAuth } from './auth';
 import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
+import { isPubliclyBlockedAuthPath } from './lib/auth-paths';
 import { createServiceClientFromEnv } from './lib/supabase';
 import campusesRoute from './routes/campuses';
 import schoolsRoute from './routes/schools';
@@ -160,6 +161,16 @@ app.get('/docs', swaggerUI({ url: '/openapi.json' }));
 // ============================================================
 
 // Better Auth handler - must be BEFORE authMiddleware
+// magic-link 的產生端點只在伺服器端用（破窗 CLI、管理端 route）——
+// 對外開放等於多一個「拿到連結就是拿到帳號」的入口。見 lib/auth-paths.ts
+app.on(['POST', 'GET'], '/api/auth/*', async (c, next) => {
+  if (isPubliclyBlockedAuthPath(new URL(c.req.url).pathname)) {
+    return c.json({ error: 'Not found', code: 'NOT_FOUND' }, 404);
+  }
+  await next();
+  return undefined;
+});
+
 app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
   const auth = createAuth(c.env);
   return auth.handler(c.req.raw);
