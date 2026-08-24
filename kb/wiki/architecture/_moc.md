@@ -20,6 +20,14 @@ Tags: `architecture`, `announcements`
 
 Links to: [[architecture/role-authorization|角色授權設計]]
 
+## [[architecture/bootstrapping-a-deployment|開一個新站]]
+
+建立組織與第一個管理員的唯一路徑。零 demo 資料，走 Better Auth 建帳號，冪等。
+
+Tags: `architecture`, `deployment`, `bootstrap`, `onboarding`
+
+Links to: [[architecture/constitution|c12]], [[specs/public/login|忘記密碼的現況]]
+
 ## [[architecture/change-log-view|課務異動紀錄的設計]]
 
 M1 第二個畫面。填掉 admin/changes 空殼，把一直在寫卻沒人看得到的 schedule_changes 呈現出來。唯讀。
@@ -32,7 +40,7 @@ Tags: `architecture`, `change-log-view`
 
 Tags: `architecture`, `constitution`
 
-Links to: [[architecture/constitution-enforcement|`constitution-enforcement`]]
+Links to: [[architecture/constitution-enforcement|`constitution-enforcement`]], [[architecture/vendor-relationship]]
 
 ## [[architecture/constitution-enforcement|憲法強制機制索引]]
 
@@ -89,4 +97,12 @@ M1 第一個畫面。選老師 + 期間，列出課堂並加總時數。不計�
 Tags: `architecture`, `teaching-log-view`
 
 Links to: [[architecture/teaching-history-not-payroll|`記錄授課歷程但不做薪資`]]
+
+## [[architecture/vendor-relationship|供應商關係與它推導出的架構約束]]
+
+賣一套系統、客戶自付基礎設施、收維護費。客戶必須隨時能帶著資料離開 —— 這條原則否決了多租戶，也否決了任何 vendor lock-in。
+
+Tags: `architecture`, `business-model`, `tenancy`, `vendor-lock-in`
+
+Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]]
 

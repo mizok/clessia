@@ -116,6 +116,17 @@ admin / teacher / parent **沒有各自的 shell 元件**，三個角色走同�
 
 ## Architecture Constitution（binding）
 
+> **修憲只能由專案擁有者本人執行** —— 親自跑腳本，或親自手動編輯。
+> **agent 不得以任何方式寫入 `kb/wiki/architecture/constitution.md`，包含透過 Bash 腳本、
+> 產生檔案、或任何繞過 `Edit` deny 規則的途徑。** 使用者口頭同意條文內容**不等於**
+> 授權 agent 執行寫入 —— 這兩件事要分開。
+>
+> agent 可以做的：草擬條文、寫一支拋棄式腳本交給使用者執行、補強制機制表、寫理由頁。
+> **不能做的：按下那個按鈕。**
+>
+> 2026-08 有一次違反：使用者說「弄一隻拋棄式腳本就好，跑完就刪掉」，agent 讀成
+> 「自己跑完再刪」並執行了。**歧義應該往「先問」的方向解。**
+
 具約束力的架構不變量以**法條**形式存在 `kb/wiki/architecture/constitution.md`：每條有 clause ID、
 可決定性分類（Deterministic / Semantic）、以及理由指標。**動架構之前先讀它**——它不是 always-load，
 `UserPromptSubmit` 的 doc router 會在架構類 prompt 上提示。

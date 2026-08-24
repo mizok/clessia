@@ -1,15 +1,8 @@
 # Wiki Health Check Report
 
-Date: 2026-08-24T02:55:18.060Z
+Date: 2026-08-24T03:53:53.443Z
 
-**Summary: 0 errors, 4 warnings, 55 info**
-
-## broken-link
-
-- [!] Broken link [[architecture/vendor-relationship]] — target does not exist (architecture/_moc.md)
-- [!] Broken link [[architecture/bootstrapping-a-deployment]] — target does not exist (architecture/_moc.md)
-- [!] Broken link [[architecture/vendor-relationship]] — target does not exist (architecture/deploying.md)
-- [!] Broken link [[architecture/bootstrapping-a-deployment]] — target does not exist (architecture/deploying.md)
+**Summary: 0 errors, 0 warnings, 54 info**
 
 ## orphan
 
@@ -37,7 +30,6 @@ Date: 2026-08-24T02:55:18.060Z
 - [i] Orphan page — no other page links to it (specs/admin/finance/fee-templates.md)
 - [i] Orphan page — no other page links to it (specs/README.md)
 - [i] Orphan page — no other page links to it (specs/public/enrollment.md)
-- [i] Orphan page — no other page links to it (specs/public/login.md)
 - [i] Orphan page — no other page links to it (specs/public/trial.md)
 - [i] Orphan page — no other page links to it (specs/public/qr-checkin.md)
 - [i] Orphan page — no other page links to it (specs/parent/notifications.md)
