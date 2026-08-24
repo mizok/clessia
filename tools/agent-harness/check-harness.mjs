@@ -280,6 +280,36 @@ if (existsSync(MIGRATIONS)) {
   }
 }
 
+// ── A10. 不依賴雲端供應商的專屬服務（clause c12）─────────────────────────────────────────
+// c12：客戶必須能夠取走資料、在自己的基礎設施上運行整套系統。用了 Workers KV / R2 /
+// Durable Objects 之類的專屬服務，客戶的自架環境就得先有那個東西 —— 離開的權利就消失了。
+//
+// 限制的是**程式碼**，不是部署目標：部署到 Cloudflare 沒問題，讓程式碼只能跑在
+// Cloudflare 才有問題。理由見 kb/wiki/architecture/vendor-relationship.md
+const VENDOR_LOCKIN = [
+  ['KVNamespace', 'Workers KV'],
+  ['DurableObject', 'Durable Objects'],
+  ['R2Bucket', 'R2'],
+  ['AnalyticsEngineDataset', 'Analytics Engine'],
+  ['@cloudflare/ai', 'Workers AI'],
+];
+const apiSrc = join(ROOT, 'apps/api/src');
+if (existsSync(apiSrc)) {
+  const walk = (dir) =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') ? [join(dir, e.name)] : [],
+    );
+  for (const file of walk(apiSrc)) {
+    const text = readFileSync(file, 'utf8');
+    for (const [token, label] of VENDOR_LOCKIN) {
+      if (text.includes(token)) {
+        const rel = file.replace(ROOT + '/', '');
+        fail(`${rel} 依賴 ${label}（${token}）—— 客戶無法自架（c12）`);
+      }
+    }
+  }
+}
+
 // ── A9. deny 規則指向的檔案真的存在 ────────────────────────────────────────────────────
 // deny 規則是路徑字串比對。憲法從 kb/architecture/ 搬到 kb/wiki/architecture/ 時，
 // 如果忘了同步更新，護欄會**靜默失效** —— 沒有任何測試會發現，直到有人修了不該修的東西。

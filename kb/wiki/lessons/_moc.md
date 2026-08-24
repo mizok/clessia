@@ -1,6 +1,6 @@
 # Lessons — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-23
+> Auto-maintained by `kb:map`. Last updated: 2026-08-24
 
 ---
 

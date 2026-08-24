@@ -48,6 +48,7 @@ PreToolUse guard  →   Stop verify gate    →    程式碼審查
 | c9 `kb/` 唯一              | Deterministic | pre-guard（路徑 `^docs/`）+ harness gate A3                   | ✅ 雙重                                                                                                                     |
 | c10 `AGENTS.md` 單一真相   | Deterministic | harness gate A2（必須含 `@AGENTS.md`、行數上限 60）           | ✅ 已接                                                                                                                     |
 | c11 不手抄腐化清單         | Semantic      | harness gate A1 只涵蓋 skill 清單一項；其餘靠 review          | ⚠️ 部分                                                                                                                     |
+| c12 客戶可脫離自架     | Semantic      | harness gate A10（禁用雲端專屬服務 import）+ 人工 review | ⚠️ 部分：專屬服務已機器化，多租戶與 kill switch 靠 review          |
 
 ## Harness gate 檢查項
 
@@ -63,6 +64,7 @@ PreToolUse guard  →   Stop verify gate    →    程式碼審查
 | A7   | `apps/api/src/index.ts` 每支 route 都用 `mount(path, route, roles)` 宣告角色（c1） |
 | A8   | 每張業務表都有 `ENABLE ROW LEVEL SECURITY`（c1 的 fail-closed 後盾）        |
 | A9   | `.claude/settings.json` 的 deny 規則指向的檔案真的存在（護欄不得靜默失效） |
+| A10  | `apps/api/src` 不得 import 雲端供應商專屬服務（KV / R2 / Durable Objects，c12） |
 
 `npm run harness` 會接著跑 KB gate（下一節）。
 
