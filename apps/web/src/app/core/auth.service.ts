@@ -148,6 +148,9 @@ export class AuthService {
     const { error } = await authClient.signIn.social({
       provider: 'line',
       callbackURL: `${window.location.origin}/select-role`,
+      // 失敗時導回登入頁並帶 ?error= —— 不設的話會落在 Better Auth 的預設頁面，
+      // 使用者看到一個不屬於這個系統的畫面
+      errorCallbackURL: `${window.location.origin}/login`,
     });
 
     if (error) {

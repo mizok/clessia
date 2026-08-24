@@ -34,6 +34,15 @@
     opacity: 0.6;
   }
 
+  &__enroll-link {
+    display: block;
+    margin-top: var(--space-3);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--accent-600);
+    text-align: center;
+  }
+
   &__hint {
     margin-top: var(--space-4);
     font-size: var(--text-sm);

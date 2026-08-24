@@ -1,10 +1,32 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { AuthService } from '@core/auth.service';
 
 import { LoginComponent } from './login.component';
+
+function setupWithQueryError(errorCode: string) {
+  TestBed.configureTestingModule({
+    imports: [LoginComponent],
+    providers: [
+      provideRouter([]),
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      { provide: AuthService, useValue: { signInWithLine: vi.fn(() => Promise.resolve(null)) } },
+      {
+        provide: ActivatedRoute,
+        useValue: { snapshot: { queryParamMap: new Map([['error', errorCode]]) } },
+      },
+    ],
+  });
+
+  const fixture = TestBed.createComponent(LoginComponent);
+  return fixture.componentInstance as unknown as {
+    error: () => string | null;
+    showEnrollmentLink: () => boolean;
+  };
+}
 
 interface Harness {
   signInWithLine: () => Promise<string | null>;
@@ -73,5 +95,23 @@ describe('LoginComponent', () => {
 
     expect(c.submitting()).toBe(false);
     expect(c.error()).toBeTruthy();
+  });
+});
+
+// OAuth 失敗是被導回來時寫在網址上的。純函式對了不代表接上了 ——
+// #19 的 CORS 事故就是「函式寫對但沒接上」。
+describe('LoginComponent 讀網址上的 OAuth 錯誤', () => {
+  it('未登記的帳號會顯示訊息並露出報名入口', () => {
+    const c = setupWithQueryError('signup_disabled');
+
+    expect(c.error()).toContain('還沒有被登記');
+    expect(c.showEnrollmentLink()).toBe(true);
+  });
+
+  it('其他錯誤不露出報名入口', () => {
+    const c = setupWithQueryError('state_mismatch');
+
+    expect(c.error()).toBeTruthy();
+    expect(c.showEnrollmentLink()).toBe(false);
   });
 });

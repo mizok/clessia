@@ -1,19 +1,33 @@
 import { Component, inject, signal } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '@core/auth.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
+import { oauthErrorFor } from './oauth-error';
 
 @Component({
   selector: 'app-login',
-  imports: [InlineNoticeComponent],
+  imports: [InlineNoticeComponent, RouterLink],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
   host: { class: 'u-centered-flex' },
 })
 export class LoginComponent {
   private readonly auth = inject(AuthService);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly error = signal<string | null>(null);
   protected readonly submitting = signal(false);
+  /** 未登記的人需要報名入口，不是「再試一次」 */
+  protected readonly showEnrollmentLink = signal(false);
+
+  constructor() {
+    // OAuth 的失敗是被導回來時寫在網址上的，不是函式回傳值
+    const oauthError = oauthErrorFor(this.route.snapshot.queryParamMap.get('error'));
+    if (oauthError) {
+      this.error.set(oauthError.message);
+      this.showEnrollmentLink.set(oauthError.showEnrollmentLink);
+    }
+  }
 
   /**
    * 這個系統沒有密碼。原因見 `kb/wiki/architecture/line-oauth-login.md`：
@@ -24,6 +38,7 @@ export class LoginComponent {
    */
   protected async signInWithLine(): Promise<void> {
     this.error.set(null);
+    this.showEnrollmentLink.set(false);
     this.submitting.set(true);
 
     try {
