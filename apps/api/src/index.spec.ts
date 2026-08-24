@@ -137,3 +137,20 @@ describe('magic-link 產生端點對外封鎖', () => {
     expect(response.status).not.toBe(404);
   });
 });
+
+// 產生登入連結 = 產生一個能登入的憑證。掛載層必須是 ADMIN_ONLY。
+describe('POST /api/login-links 的准入', () => {
+  it('未登入回 401', async () => {
+    const response = await app.request(
+      'http://localhost/api/login-links',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'someone' }),
+      },
+      testEnv
+    );
+
+    expect(response.status).toBe(401);
+  });
+});

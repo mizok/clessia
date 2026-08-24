@@ -6,6 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { authMiddleware, requireRoles } from './middleware/auth';
 import { createAuth } from './auth';
 import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
+import loginLinksRoute from './routes/login-links';
 import { isPubliclyBlockedAuthPath } from './lib/auth-paths';
 import { createServiceClientFromEnv } from './lib/supabase';
 import campusesRoute from './routes/campuses';
@@ -298,6 +299,8 @@ mount('/api/school-exams', schoolExamsRoute, ADMIN_ONLY);
 mount('/api/scores', scoresRoute, ADMIN_ONLY);
 // 收件匣對 teacher/parent 開放；發布與管理端列表在 route 內另外要求 admin
 mount('/api/announcements', announcementsRoute, ANY_ROLE);
+// 產生登入連結 = 產生一個能登入的憑證。只有 admin，且只能對同組織的人
+mount('/api/login-links', loginLinksRoute, ADMIN_ONLY);
 
 // ============================================================
 // Error Handler
