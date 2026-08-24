@@ -1,6 +1,26 @@
+# 複製成 apps/api/.dev.vars（已 gitignore）後填值。
+# 這裡列的是 Bindings 型別要求的全部項目 —— 少一個 API 就起不來。
+
+ENVIRONMENT=development
+
+# Supabase（本機用 npm run db:start 起的那組）
 SUPABASE_URL=http://127.0.0.1:54321
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SUPABASE_ANON_KEY=your-anon-key
+# 2026-08 起 Supabase 用新版金鑰格式：sb_secret_ 取代舊的 service_role JWT。
+# dashboard 位置：Settings → API Keys → Secret keys
+SUPABASE_SECRET_KEY=sb_secret_xxx
+
+# 本機 Postgres（正式環境用 Supabase 的 transaction pooler，port 6543）
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+
+# Better Auth
+# 正式環境務必換掉，並且至少 32 字元：openssl rand -base64 32
+BETTER_AUTH_SECRET=dev-secret-change-in-production
+BETTER_AUTH_URL=http://localhost:8787
+WEB_URL=http://localhost:4200
+
+# 逗號分隔的正式站來源；本機留空即可（localhost 一律放行）
+ALLOWED_ORIGINS=
+
 # 僅有電話（無 email）的家長會用此 domain 產生虛擬 email（如 0912345678@phone.internal）
 # 這個 domain 不存在於公開網路，僅供系統內部識別用
 PLACEHOLDER_EMAIL_DOMAIN=phone.internal

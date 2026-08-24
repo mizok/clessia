@@ -35,7 +35,7 @@ import announcementsRoute from './routes/announcements';
 export type Bindings = {
   ENVIRONMENT: string;
   SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
+  SUPABASE_SECRET_KEY: string;
   WEB_URL: string;
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
