@@ -38,7 +38,7 @@ node --import tsx apps/api/src/server.ts
 `wrangler.toml` 會進版控，**只放非機密設定**。三個機密走 `wrangler secret`：
 
 ```bash
-npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --env production
+npx wrangler secret put SUPABASE_SECRET_KEY --env production
 npx wrangler secret put BETTER_AUTH_SECRET --env production
 npx wrangler secret put DATABASE_URL --env production
 ```

@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 # ⚠️ 這個檔案會進版控 —— **只放非機密設定**。
 #
-# 機密（SUPABASE_SERVICE_ROLE_KEY、BETTER_AUTH_SECRET、DATABASE_URL）一律走
+# 機密（SUPABASE_SECRET_KEY、BETTER_AUTH_SECRET、DATABASE_URL）一律走
 #   npx wrangler secret put <NAME> --env production
 # 本機開發放 apps/api/.dev.vars（已 gitignore）。
 #
