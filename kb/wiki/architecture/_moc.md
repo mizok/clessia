@@ -20,6 +20,14 @@ Tags: `architecture`, `announcements`
 
 Links to: [[architecture/role-authorization|角色授權設計]]
 
+## [[architecture/bootstrapping-a-deployment|開一個新站]]
+
+建立組織與第一個管理員的唯一路徑。零 demo 資料，走 Better Auth 建帳號，冪等。
+
+Tags: `architecture`, `deployment`, `bootstrap`, `onboarding`
+
+Links to: [[architecture/constitution|c12]], [[specs/public/login|忘記密碼的現況]]
+
 ## [[architecture/change-log-view|課務異動紀錄的設計]]
 
 M1 第二個畫面。填掉 admin/changes 空殼，把一直在寫卻沒人看得到的 schedule_changes 呈現出來。唯讀。

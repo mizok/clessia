@@ -1,6 +1,6 @@
 # Wiki Health Check Report
 
-Date: 2026-08-24T01:46:40.732Z
+Date: 2026-08-24T02:09:17.206Z
 
 **Summary: 0 errors, 0 warnings, 54 info**
 
@@ -30,7 +30,6 @@ Date: 2026-08-24T01:46:40.732Z
 - [i] Orphan page — no other page links to it (specs/admin/finance/fee-templates.md)
 - [i] Orphan page — no other page links to it (specs/README.md)
 - [i] Orphan page — no other page links to it (specs/public/enrollment.md)
-- [i] Orphan page — no other page links to it (specs/public/login.md)
 - [i] Orphan page — no other page links to it (specs/public/trial.md)
 - [i] Orphan page — no other page links to it (specs/public/qr-checkin.md)
 - [i] Orphan page — no other page links to it (specs/parent/notifications.md)
@@ -52,6 +51,7 @@ Date: 2026-08-24T01:46:40.732Z
 - [i] Orphan page — no other page links to it (specs/teacher/assessments.md)
 - [i] Orphan page — no other page links to it (specs/teacher/attendance.md)
 - [i] Orphan page — no other page links to it (architecture/amending-the-constitution.md)
+- [i] Orphan page — no other page links to it (architecture/bootstrapping-a-deployment.md)
 - [i] Orphan page — no other page links to it (architecture/announcements.md)
 - [i] Orphan page — no other page links to it (roadmap.md)
 - [i] Orphan page — no other page links to it (lessons/backlog-legacy.md)
