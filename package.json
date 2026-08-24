@@ -16,7 +16,8 @@
     "harness": "node tools/agent-harness/check-harness.mjs && node tools/agent-harness/feature-map.mjs",
     "harness:write": "node tools/agent-harness/check-harness.mjs --write && node tools/agent-harness/feature-map.mjs --write",
     "harness:test": "node --test 'tools/agent-harness/**/*.test.mjs'",
-    "test:baseline": "npx nx affected -t test --base=main 2>&1 | node tools/agent-harness/test-gate.mjs --write"
+    "test:baseline": "npx nx affected -t test --base=main 2>&1 | node tools/agent-harness/test-gate.mjs --write",
+    "bootstrap": "tsx apps/api/src/scripts/bootstrap-org.ts"
   },
   "prettier": {
     "printWidth": 100,
