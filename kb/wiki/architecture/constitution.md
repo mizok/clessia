@@ -3,7 +3,7 @@ title: Clessia 架構憲法
 summary: 具約束力的架構不變量。只陳述「什麼構成違反」，不含強制機制。
 category: architecture
 status: binding
-updated: 2026-08-11
+updated: 2026-08-23
 tags: [architecture, constitution]
 ---
 
@@ -133,6 +133,26 @@ scroll container 下行為不可靠。
 
 > 理由：本專案的 `AGENTS.md` 曾手抄 17 個 skill 的對照表，其中 13 個根本不存在 —— 76% 是假的，
 > 而且每個 session 都載入。這類清單沒有例外，一定腐化。
+
+### c12 客戶必須能夠脫離並自架 [Semantic]
+
+任何客戶都必須能夠取走自己的資料、在自己的基礎設施上運行整套系統，
+不需要供應商的同意或協助。
+
+推論：
+
+- 禁止多租戶共用資料庫 —— 資料混在一起就無法乾淨取出
+- 禁止依賴特定雲端供應商的專屬服務（Workers KV / R2 / Durable Objects 等）
+- 禁止 license key、遠端啟用檢查或任何 kill switch
+
+部署目標可以是 Cloudflare / Vercel / 任何地方 —— 限制的是**程式碼不得依賴
+它們專屬的能力**，不是不得部署上去。
+
+這條同時約束商業模式：維護費不能靠鎖住客戶來收。
+
+違反例：把 session 存進 Workers KV；把多個客戶的資料放進同一個 Postgres 實例。
+
+> 理由：[[architecture/vendor-relationship]]
 
 ---
 

@@ -14,7 +14,7 @@ updated: 2026-08-23
 三層真相是**憲法 ▸ 程式碼 ▸ 描述性文件**。agent 能改程式碼與文件，但改法會讓
 「約束」變成「建議」——被約束的一方能修改約束，那就不是約束。
 
-## 三層 deny
+## 兩條 deny
 
 `.claude/settings.json`：
 
@@ -22,21 +22,16 @@ updated: 2026-08-23
 | --- | --- |
 | `Edit(kb/wiki/architecture/constitution.md)` | 直接編輯憲法 |
 | `Edit(.worktrees/**/kb/wiki/architecture/constitution.md)` | 繞道 worktree |
-| `Bash(*amend-constitution*)` | 用腳本繞過 Edit |
-| `Edit(tools/amend-constitution.mjs)` | 改掉腳本自己的 TTY 檢查 |
 
-**第三、四條缺一不可。** 只擋 `Edit` 的話，任何一支寫檔腳本都能繞過去——腳本走 Bash 不走 Edit。
-只擋執行不擋編輯的話，agent 可以先把 TTY 檢查刪掉再請人執行。
+**這兩條擋的是 `Edit` 工具，不是所有寫入途徑。** 一支用 Bash 執行的腳本繞得過去 ——
+這是已知的、刻意接受的缺口：真正的界線是「人有沒有決定要修法」，而不是技術上封死每條路。
 
-## 那支腳本不是護欄
+曾經有一支互動式的修憲工具（`tools/amend-constitution.mjs`），連同為它而設的
+三條 deny 規則，在 2026-08 一起移除。**它是過度建造**：使用者要的是一支一次性腳本，
+我做成了帶護欄、gate 與文件的工具產品。修憲一年發生幾次，不值得一個常設工具；
+而那支工具的 deny 規則寬到連 `ls` 那個檔名都會被擋。
 
-`tools/amend-constitution.mjs` 有三個限制：只新增不改既有條文、要求 TTY、寫入後跑 harness。
-
-但**腳本無法分辨呼叫者是人還是 agent**。TTY 檢查只擋非互動執行，擋不住「改掉檢查再跑」。
-所以它的安全性完全來自上面那張表，不是來自它自己的邏輯。
-
-> **給未來的 agent（包括我）**：如果你發現自己在想「把這個檢查拿掉就能完成任務」，
-> 那就是這道護欄正在生效。停下來問人。
+需要修憲時：寫一支拋棄式腳本，跑完刪掉。
 
 ## deny 規則本身會腐爛
 
