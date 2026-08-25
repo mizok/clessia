@@ -32,7 +32,7 @@ export class ApiService {
    */
   getMe(): Observable<{ id: string; email: string; createdAt: string }> {
     return this.http.get<{ id: string; email: string; createdAt: string }>(
-      `${this.baseUrl}/api/me`
+      `${this.baseUrl}/api/me`,
     );
   }
 

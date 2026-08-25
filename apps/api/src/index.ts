@@ -88,7 +88,7 @@ app.use(
     // env 一定要從 c 拿 —— Workers 的環境變數不在 process.env 上
     origin: (origin, c) => resolveCorsOrigin(origin, allowedOrigins(c.env)),
     credentials: true,
-  })
+  }),
 );
 
 // ============================================================
@@ -133,9 +133,9 @@ app.openapi(
         epochMs: now.getTime(),
         iso: now.toISOString(),
       },
-      200
+      200,
     );
-  }
+  },
 );
 
 // ============================================================
@@ -180,80 +180,14 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
 // ── Unified login (before authMiddleware) ────────────────────────────────────
 // Accepts email or phone. Looks up ba_user, checks status, then delegates sign-in
 // to Better Auth for password verification + session creation.
-app.post('/api/login', async (c) => {
-  const body = await c.req.json<{ account?: string; password?: string; loginType?: string }>();
-  const account = body.account?.trim();
-  const password = body.password;
-  const loginType =
-    body.loginType === 'phone' ? 'phone' : body.loginType === 'username' ? 'username' : 'email';
-
-  if (!account || !password) {
-    return c.json({ error: 'account 與 password 為必填', code: 'MISSING_FIELDS' }, 400);
-  }
-
-  const supabase = createServiceClientFromEnv(c.env);
-
-  // 1. Look up ba_user by email, phone, or username (determined by loginType from frontend)
-  let baUserQuery;
-  if (loginType === 'username') {
-    baUserQuery = supabase.from('ba_user').select('id, email, phone, username').eq('username', account).maybeSingle();
-  } else if (loginType === 'phone') {
-    baUserQuery = supabase.from('ba_user').select('id, email, phone, username').eq('phone', account).maybeSingle();
-  } else {
-    baUserQuery = supabase.from('ba_user').select('id, email, phone, username').eq('email', account).maybeSingle();
-  }
-  const { data: baUser } = await baUserQuery;
-
-  if (!baUser) {
-    return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
-  }
-
-  // 2. Status check — query both staff and parents
-  const [{ data: staffRows }, { data: parentRows }] = await Promise.all([
-    supabase.from('staff').select('status').eq('user_id', baUser.id),
-    supabase.from('parents').select('status').eq('user_id', baUser.id),
-  ]);
-
-  const allRows = [...(staffRows ?? []), ...(parentRows ?? [])];
-
-  if (allRows.length > 0) {
-    const hasActive = allRows.some((r: { status: string }) => r.status === 'active');
-    if (!hasActive) {
-      return c.json({ error: '帳號已停用，請聯繫管理員', code: 'ACCOUNT_DISABLED' }, 401);
-    }
-  }
-  // If no rows in staff or parents → system account (e.g. root), proceed
-
-  // 3. Delegate sign-in to Better Auth (password verification + session creation)
-  const auth = createAuth(c.env);
-  try {
-    if (loginType === 'username' && baUser.username) {
-      // Username login (e.g. root) — status already checked above
-      const sessionRes = await (auth.api as any).signInUsername({
-        body: { username: baUser.username as string, password },
-        asResponse: true,
-      });
-      return sessionRes;
-    } else if (baUser.email) {
-      const sessionRes = await auth.api.signInEmail({
-        body: { email: baUser.email as string, password },
-        asResponse: true,
-      });
-      return sessionRes;
-    } else if (baUser.phone) {
-      // Phone-only account: phone is stored as username (set at createUser time)
-      const sessionRes = await (auth.api as any).signInUsername({
-        body: { username: baUser.phone as string, password },
-        asResponse: true,
-      });
-      return sessionRes;
-    } else {
-      return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
-    }
-  } catch {
-    return c.json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }, 401);
-  }
-});
+// 原本這裡有 POST /api/login（email / 手機 / username + 密碼）。
+//
+// 整支移除：密碼驗證用 scrypt，那是刻意設計成昂貴的演算法，而 Cloudflare Workers
+// 免費方案每個請求只有 10ms CPU —— 實測並發 1 也會 503。任何安全的密碼雜湊都會
+// 超過 10ms，那正是它們存在的意義，所以這無法靠改程式碼修好。
+//
+// 取而代之：LINE OAuth（日常）+ 一次性登入連結（首次綁定與破窗）。
+// 見 kb/wiki/architecture/line-oauth-login.md
 
 app.use('/api/*', authMiddleware);
 
@@ -313,7 +247,7 @@ app.onError((err, c) => {
       error: 'Internal Server Error',
       message: c.env.ENVIRONMENT === 'development' ? err.message : undefined,
     },
-    500
+    500,
   );
 });
 

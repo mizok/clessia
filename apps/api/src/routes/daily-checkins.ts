@@ -83,19 +83,17 @@ app.openapi(
 
     if (events && events.length > 0) {
       const eventIds = events.map((e: any) => e.id);
-      await supabase
-        .from('attendance_records')
-        .upsert(
-          eventIds.map((eventId: string) => ({
-            org_id: orgId,
-            student_id: body.studentId,
-            event_id: eventId,
-            status: 'present',
-            recorded_by: userId,
-            recorded_by_role: 'system',
-          })),
-          { onConflict: 'student_id,event_id', ignoreDuplicates: false },
-        );
+      await supabase.from('attendance_records').upsert(
+        eventIds.map((eventId: string) => ({
+          org_id: orgId,
+          student_id: body.studentId,
+          event_id: eventId,
+          status: 'present',
+          recorded_by: userId,
+          recorded_by_role: 'system',
+        })),
+        { onConflict: 'student_id,event_id', ignoreDuplicates: false },
+      );
     }
 
     return c.json(

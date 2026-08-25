@@ -12,11 +12,13 @@ import {
 // 但緊接著的 /api/me 一律 401，前端誤判成「此帳號尚未被指派角色」。
 describe('crossSiteCookieAttributes', () => {
   it('正式站（https）發跨站可用的 cookie', () => {
-    expect(crossSiteCookieAttributes('https://clessia-api-production.example.workers.dev')).toEqual({
-      sameSite: 'none',
-      secure: true,
-      partitioned: true,
-    });
+    expect(crossSiteCookieAttributes('https://clessia-api-production.example.workers.dev')).toEqual(
+      {
+        sameSite: 'none',
+        secure: true,
+        partitioned: true,
+      },
+    );
   });
 
   // Partitioned 是 Safari 18.4+ 接受第三方 cookie 的條件（CHIPS）
@@ -64,14 +66,16 @@ describe('createAuth 的 cookie 接線', () => {
 // provider 清單必須從 env 組出來，不能寫死成「只有 LINE」，否則加 Google 要回頭重做。
 describe('socialProvidersFromEnv', () => {
   it('兩個變數都有才設定 line', () => {
-    expect(
-      socialProvidersFromEnv({ LINE_CLIENT_ID: 'cid', LINE_CLIENT_SECRET: 'secret' })
-    ).toEqual({ line: { clientId: 'cid', clientSecret: 'secret', disableSignUp: true } });
+    expect(socialProvidersFromEnv({ LINE_CLIENT_ID: 'cid', LINE_CLIENT_SECRET: 'secret' })).toEqual(
+      { line: { clientId: 'cid', clientSecret: 'secret', disableSignUp: true } },
+    );
   });
 
   it('少一個就不設定 —— 半套設定比沒設定更難查', () => {
     expect(socialProvidersFromEnv({ LINE_CLIENT_ID: 'cid', LINE_CLIENT_SECRET: '' })).toEqual({});
-    expect(socialProvidersFromEnv({ LINE_CLIENT_ID: '', LINE_CLIENT_SECRET: 'secret' })).toEqual({});
+    expect(socialProvidersFromEnv({ LINE_CLIENT_ID: '', LINE_CLIENT_SECRET: 'secret' })).toEqual(
+      {},
+    );
     expect(socialProvidersFromEnv({})).toEqual({});
   });
 
@@ -136,7 +140,7 @@ describe('magicLinkOptions', () => {
   it('沒有 capture 時不炸 —— 大多數請求不需要連結', async () => {
     const opts = magicLinkOptions();
     await expect(
-      opts.sendMagicLink({ email: 'a@example.com', url: 'u', token: 't' })
+      opts.sendMagicLink({ email: 'a@example.com', url: 'u', token: 't' }),
     ).resolves.toBeUndefined();
   });
 
@@ -170,5 +174,4 @@ describe('createAuth 的 magic-link 接線', () => {
 
     expect(ids).toContain('magic-link');
   });
-
 });

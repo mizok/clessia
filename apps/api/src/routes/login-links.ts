@@ -1,7 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { createAuth, type MagicLinkPayload } from '../auth';
 import type { AppEnv } from '../index';
-import { loginLinkCallbackUrl } from '../scripts/login-link.util';
+import { mintLoginLink } from './login-links/mint';
 import { decideLoginLinkTarget } from './login-links/target';
 
 const app = new OpenAPIHono<AppEnv>();
@@ -74,15 +73,7 @@ app.openapi(createLinkRouteDef, async (c) => {
     return c.json({ error: '這個帳號沒有 email，無法產生連結', code: 'NO_EMAIL' }, 422);
   }
 
-  let url: string | undefined;
-  const auth = createAuth(c.env, (payload: MagicLinkPayload) => {
-    url = payload.url;
-  });
-
-  await auth.api.signInMagicLink({
-    body: { email, callbackURL: loginLinkCallbackUrl(c.env.WEB_URL) },
-    headers: new Headers(),
-  });
+  const url = await mintLoginLink(c.env, email);
 
   if (!url) {
     return c.json({ error: '產生連結失敗', code: 'LINK_FAILED' }, 422);

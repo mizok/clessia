@@ -178,65 +178,10 @@ export class AuthService {
     return null;
   }
 
-  async signIn(
-    account: string,
-    password: string,
-    _captchaToken?: string,
-    loginType: 'email' | 'phone' | 'username' = 'email',
-  ): Promise<string | null> {
-    const res = await fetch(`${environment.apiUrl}/api/login`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ account, password, loginType }),
-    });
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      if ((body as { code?: string }).code === 'ACCOUNT_DISABLED') {
-        return '帳號已停用，請聯繫管理員';
-      }
-      return '帳號或密碼錯誤';
-    }
-
-    // Session cookie is now set. Sync client state.
-    const { data: session } = await authClient.getSession();
-    this._user.set(session?.user ?? null);
-
-    // 密碼是對的（上面 /api/login 回 200），但拿不到 profile —— 別謊報成「沒有角色」
-    if (!(await this.loadProfile())) {
-      return '登入成功，但讀不到帳號資料。請重新整理再試一次；若持續發生請聯繫管理員。';
-    }
-
-    return null;
-  }
-
   navigateToRoleShell(role: UserRole) {
     this.setActiveRole(role);
     this.closeRolePicker();
     this.router.navigate([this.shellMap[role]]);
-  }
-
-  setRememberMe(_value: boolean): void {
-    // Better Auth uses cookies - remember me handled server-side session expiry
-  }
-
-  async sendPasswordReset(email: string, _captchaToken?: string): Promise<string | null> {
-    const { error } = await authClient.requestPasswordReset({
-      email,
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-
-    return error?.message ?? null;
-  }
-
-  async updatePassword(newPassword: string, token?: string): Promise<string | null> {
-    if (!token) {
-      return '目前僅支援透過重設連結更新密碼';
-    }
-
-    const { error } = await authClient.resetPassword({ newPassword, token });
-    return error?.message ?? null;
   }
 
   async signOut() {

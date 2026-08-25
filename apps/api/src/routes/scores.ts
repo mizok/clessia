@@ -172,8 +172,16 @@ const listRoute = createRoute({
 app.openapi(listRoute, async (c) => {
   const orgId = c.get('orgId');
   const supabase = c.get('supabase');
-  const { studentId, type, subjectId, dateFrom, dateTo, search, page = 1, pageSize = 20 } =
-    c.req.valid('query');
+  const {
+    studentId,
+    type,
+    subjectId,
+    dateFrom,
+    dateTo,
+    search,
+    page = 1,
+    pageSize = 20,
+  } = c.req.valid('query');
 
   const searchKeyword = search?.trim() ? `%${search.trim()}%` : null;
   const offset = (page - 1) * pageSize;
@@ -227,7 +235,11 @@ app.openapi(listRoute, async (c) => {
         const [studentResult, examResult] = await Promise.all([
           supabase.from('students').select('id').eq('org_id', orgId).ilike('name', searchKeyword),
           (() => {
-            let query = supabase.from('academy_exams').select('id').eq('org_id', orgId).ilike('name', searchKeyword);
+            let query = supabase
+              .from('academy_exams')
+              .select('id')
+              .eq('org_id', orgId)
+              .ilike('name', searchKeyword);
             if (subjectId) query = query.eq('subject_id', subjectId);
             if (dateFrom) query = query.gte('exam_date', dateFrom);
             if (dateTo) query = query.lte('exam_date', dateTo);
@@ -246,18 +258,22 @@ app.openapi(listRoute, async (c) => {
           const candidateQueries: any[] = [];
           if (matchedStudentIds.length > 0) {
             candidateQueries.push(
-              applyAcademyFilters(buildAcademyQuery()).in('student_id', matchedStudentIds).order('exam_date', {
-                referencedTable: 'academy_exams',
-                ascending: false,
-              }),
+              applyAcademyFilters(buildAcademyQuery())
+                .in('student_id', matchedStudentIds)
+                .order('exam_date', {
+                  referencedTable: 'academy_exams',
+                  ascending: false,
+                }),
             );
           }
           if (matchedExamIds.length > 0) {
             candidateQueries.push(
-              applyAcademyFilters(buildAcademyQuery()).in('exam_id', matchedExamIds).order('exam_date', {
-                referencedTable: 'academy_exams',
-                ascending: false,
-              }),
+              applyAcademyFilters(buildAcademyQuery())
+                .in('exam_id', matchedExamIds)
+                .order('exam_date', {
+                  referencedTable: 'academy_exams',
+                  ascending: false,
+                }),
             );
           }
 
@@ -275,8 +291,10 @@ app.openapi(listRoute, async (c) => {
           }
         }
       } else {
-        const { data, count, error } = await applyAcademyFilters(buildAcademyQuery())
-          .order('exam_date', { referencedTable: 'academy_exams', ascending: false });
+        const { data, count, error } = await applyAcademyFilters(buildAcademyQuery()).order(
+          'exam_date',
+          { referencedTable: 'academy_exams', ascending: false },
+        );
         if (error) {
           academyError = { message: error.message };
         } else {
@@ -353,7 +371,11 @@ app.openapi(listRoute, async (c) => {
       if (searchKeyword) {
         const [studentResult, examResult] = await Promise.all([
           supabase.from('students').select('id').eq('org_id', orgId).ilike('name', searchKeyword),
-          supabase.from('school_exams').select('id').eq('org_id', orgId).ilike('label', searchKeyword),
+          supabase
+            .from('school_exams')
+            .select('id')
+            .eq('org_id', orgId)
+            .ilike('label', searchKeyword),
         ]);
 
         if (studentResult.error || examResult.error) {
@@ -367,18 +389,22 @@ app.openapi(listRoute, async (c) => {
 
           if (matchedStudentIds.length > 0) {
             candidateQueries.push(
-              applySchoolFilters(buildSchoolQuery()).in('student_id', matchedStudentIds).order('created_at', {
-                referencedTable: 'school_exams',
-                ascending: false,
-              }),
+              applySchoolFilters(buildSchoolQuery())
+                .in('student_id', matchedStudentIds)
+                .order('created_at', {
+                  referencedTable: 'school_exams',
+                  ascending: false,
+                }),
             );
           }
           if (matchedExamIds.length > 0) {
             candidateQueries.push(
-              applySchoolFilters(buildSchoolQuery()).in('school_exam_id', matchedExamIds).order('created_at', {
-                referencedTable: 'school_exams',
-                ascending: false,
-              }),
+              applySchoolFilters(buildSchoolQuery())
+                .in('school_exam_id', matchedExamIds)
+                .order('created_at', {
+                  referencedTable: 'school_exams',
+                  ascending: false,
+                }),
             );
           }
 
@@ -396,10 +422,13 @@ app.openapi(listRoute, async (c) => {
           }
         }
       } else {
-        const { data, count, error } = await applySchoolFilters(buildSchoolQuery()).order('created_at', {
-          referencedTable: 'school_exams',
-          ascending: false,
-        });
+        const { data, count, error } = await applySchoolFilters(buildSchoolQuery()).order(
+          'created_at',
+          {
+            referencedTable: 'school_exams',
+            ascending: false,
+          },
+        );
         if (error) {
           schoolError = { message: error.message };
         } else {
@@ -546,7 +575,10 @@ app.openapi(studentSummaryRoute, async (c) => {
 
   if (academyResult.error || schoolResult.error) {
     return c.json(
-      { error: academyResult.error?.message ?? schoolResult.error?.message ?? 'DB_ERROR', code: 'DB_ERROR' },
+      {
+        error: academyResult.error?.message ?? schoolResult.error?.message ?? 'DB_ERROR',
+        code: 'DB_ERROR',
+      },
       400,
     );
   }
@@ -591,12 +623,22 @@ app.openapi(studentSummaryRoute, async (c) => {
 
   for (const row of schoolRows) {
     if (!summaryMap.has(row.subjectName)) {
-      summaryMap.set(row.subjectName, { subjectName: row.subjectName, academyScores: [], schoolScores: [], totalRecords: 0 });
+      summaryMap.set(row.subjectName, {
+        subjectName: row.subjectName,
+        academyScores: [],
+        schoolScores: [],
+        totalRecords: 0,
+      });
     }
     const bucket = summaryMap.get(row.subjectName)!;
     bucket.totalRecords += 1;
     const key = `${row.academicYear}-${row.semester}-${row.examDate ?? ''}`;
-    if (key === latestSchoolExamKey && row.status !== 'absent' && typeof row.score === 'number' && Number.isFinite(row.score)) {
+    if (
+      key === latestSchoolExamKey &&
+      row.status !== 'absent' &&
+      typeof row.score === 'number' &&
+      Number.isFinite(row.score)
+    ) {
       bucket.schoolScores.push(row.score);
     }
   }
@@ -606,14 +648,20 @@ app.openapi(studentSummaryRoute, async (c) => {
     const exam = Array.isArray(row.academy_exams) ? row.academy_exams[0] : row.academy_exams;
     const subject = exam?.subjects;
     const subjectName =
-      (Array.isArray(subject) ? subject[0]?.name : subject?.name) ?? `科目-${exam?.subject_id ?? 'unknown'}`;
+      (Array.isArray(subject) ? subject[0]?.name : subject?.name) ??
+      `科目-${exam?.subject_id ?? 'unknown'}`;
     const examDate = exam?.exam_date as string | null;
     // 只取最近段考之後的成績；無段考紀錄則全部計入
     if (cycleStartDate && (!examDate || examDate <= cycleStartDate)) {
       continue;
     }
     if (!summaryMap.has(subjectName)) {
-      summaryMap.set(subjectName, { subjectName, academyScores: [], schoolScores: [], totalRecords: 0 });
+      summaryMap.set(subjectName, {
+        subjectName,
+        academyScores: [],
+        schoolScores: [],
+        totalRecords: 0,
+      });
     }
     const bucket = summaryMap.get(subjectName)!;
     bucket.totalRecords += 1;
@@ -689,7 +737,12 @@ app.openapi(classExamStatsRoute, async (c) => {
 
   const [{ data: classRow, error: classError }, { data: examClassRow, error: examClassError }] =
     await Promise.all([
-      supabase.from('classes').select('id, name').eq('id', classId).eq('org_id', orgId).maybeSingle(),
+      supabase
+        .from('classes')
+        .select('id, name')
+        .eq('id', classId)
+        .eq('org_id', orgId)
+        .maybeSingle(),
       supabase
         .from('academy_exam_classes')
         .select('exam_id, academy_exams!inner(id, name, org_id)')
@@ -700,7 +753,10 @@ app.openapi(classExamStatsRoute, async (c) => {
     ]);
 
   if (classError || examClassError) {
-    return c.json({ error: classError?.message ?? examClassError?.message ?? 'DB_ERROR', code: 'DB_ERROR' }, 400);
+    return c.json(
+      { error: classError?.message ?? examClassError?.message ?? 'DB_ERROR', code: 'DB_ERROR' },
+      400,
+    );
   }
   if (!classRow) {
     return c.json({ error: '找不到班級', code: 'NOT_FOUND' }, 404);
@@ -709,7 +765,9 @@ app.openapi(classExamStatsRoute, async (c) => {
     return c.json({ error: '找不到該班級關聯考試', code: 'NOT_FOUND' }, 404);
   }
 
-  const exam = Array.isArray(examClassRow.academy_exams) ? examClassRow.academy_exams[0] : examClassRow.academy_exams;
+  const exam = Array.isArray(examClassRow.academy_exams)
+    ? examClassRow.academy_exams[0]
+    : examClassRow.academy_exams;
   if (!exam) {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
   }
@@ -738,7 +796,10 @@ app.openapi(classExamStatsRoute, async (c) => {
     return c.json({ error: scoreError.message, code: 'DB_ERROR' }, 400);
   }
 
-  const scoreMap = new Map<string, { score: number | null; status: 'scored' | 'absent' | 'makeup'; notes: string | null }>();
+  const scoreMap = new Map<
+    string,
+    { score: number | null; status: 'scored' | 'absent' | 'makeup'; notes: string | null }
+  >();
   for (const row of scoreRows ?? []) {
     scoreMap.set(row.student_id, {
       score: row.score,
@@ -761,7 +822,10 @@ app.openapi(classExamStatsRoute, async (c) => {
 
   const recordedRows = Array.from(scoreMap.values());
   const scoredValues = recordedRows
-    .filter((row) => row.status === 'scored' && typeof row.score === 'number' && Number.isFinite(row.score))
+    .filter(
+      (row) =>
+        row.status === 'scored' && typeof row.score === 'number' && Number.isFinite(row.score),
+    )
     .map((row) => row.score as number);
 
   const summary = {

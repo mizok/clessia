@@ -51,12 +51,3 @@ describe('toParentResponse', () => {
     expect(result.loginAccount).toBe('0987654321');
   });
 });
-
-describe('generateRandomPassword', () => {
-  it('產生 10 碼英數混合密碼', async () => {
-    const { generateRandomPassword } = await import('./parents');
-    const pwd = generateRandomPassword();
-    expect(pwd).toHaveLength(10);
-    expect(pwd).toMatch(/^[A-Za-z0-9]+$/);
-  });
-});

@@ -4,7 +4,11 @@ import { formatAuditClassResourceName, logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
 import { buildSessionGenerationPlan } from '../domain/session-assignment/session-generation-planner';
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
-import type { BatchAssignMode, BatchAssignPlanOutput, BatchAssignConflict } from '../domain/session-assignment/session-assignment.types';
+import type {
+  BatchAssignMode,
+  BatchAssignPlanOutput,
+  BatchAssignConflict,
+} from '../domain/session-assignment/session-assignment.types';
 import {
   normalizeTime,
   toMinutes,
@@ -82,8 +86,16 @@ const CreateClassSchema = z
     name: z.string().min(1).max(50),
     maxStudents: z.number().int().min(1).max(200).optional(),
     nextClassId: z.uuid().nullable().optional(),
-    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    startDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .optional(),
+    endDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .optional(),
   })
   .openapi('CreateClass');
 
@@ -93,8 +105,16 @@ const UpdateClassSchema = z
     maxStudents: z.number().int().min(1).max(200).optional(),
     nextClassId: z.uuid().nullable().optional(),
     isActive: z.boolean().optional(),
-    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    startDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .optional(),
+    endDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .optional(),
   })
   .openapi('UpdateClass');
 
@@ -232,8 +252,14 @@ const QueryParamsSchema = z.object({
   courseId: DbUuidSchema.optional(),
   isActive: z.string().optional(),
   includeHistorical: z.string().optional(), // 'true' | undefined
-  historicalFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  historicalTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  historicalFrom: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  historicalTo: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 // ============================================================
@@ -269,13 +295,11 @@ interface ClassExtras {
 }
 
 function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
-  const course = row['courses'] as
-    | {
-        name: string;
-        grade_levels: string[];
-        subjects?: { id: string; name: string | null } | null;
-      }
-    | null;
+  const course = row['courses'] as {
+    name: string;
+    grade_levels: string[];
+    subjects?: { id: string; name: string | null } | null;
+  } | null;
 
   return {
     id: row['id'] as string,
@@ -319,10 +343,9 @@ function classAuditResourceName(row: Record<string, unknown> | null | undefined)
   });
 }
 
-export function applyClassDetailScheduleScope<T extends { eq: (column: string, value: unknown) => T }>(
-  query: T,
-  classId: string,
-): T {
+export function applyClassDetailScheduleScope<
+  T extends { eq: (column: string, value: unknown) => T },
+>(query: T, classId: string): T {
   return query.eq('class_id', classId);
 }
 
@@ -340,7 +363,6 @@ interface BatchSessionConflictItem {
   readonly detail: string;
   readonly conflictingSessionId?: string;
 }
-
 
 // ============================================================
 // Routes
@@ -378,9 +400,12 @@ app.openapi(
 
     let dbQuery = supabase
       .from('classes')
-      .select('*, courses(name, grade_levels, subjects(id, name)), campuses(name), schedules(*, staff(display_name)), ba_user!updated_by(name)', {
-        count: 'exact',
-      });
+      .select(
+        '*, courses(name, grade_levels, subjects(id, name)), campuses(name), schedules(*, staff(display_name)), ba_user!updated_by(name)',
+        {
+          count: 'exact',
+        },
+      );
 
     if (query.search) dbQuery = dbQuery.ilike('name', `%${query.search}%`);
     if (query.campusId) dbQuery = dbQuery.eq('campus_id', query.campusId);
@@ -449,16 +474,14 @@ app.openapi(
       }
 
       const upcomingSessions =
-        (sessionsResult.data as
-          | Array<{
-              id: string;
-              class_id: string;
-              session_date: string;
-              start_time: string;
-              end_time: string;
-              teacher_id: string | null;
-            }>
-          | null) ?? [];
+        (sessionsResult.data as Array<{
+          id: string;
+          class_id: string;
+          session_date: string;
+          start_time: string;
+          end_time: string;
+          teacher_id: string | null;
+        }> | null) ?? [];
 
       const classDateBuckets = new Map<string, typeof upcomingSessions>();
       for (const session of upcomingSessions) {
@@ -858,7 +881,9 @@ app.openapi(
 
     const classQuery = supabase
       .from('classes')
-      .select('*, courses(name, grade_levels, subjects(id, name)), campuses(name), ba_user!updated_by(name)')
+      .select(
+        '*, courses(name, grade_levels, subjects(id, name)), campuses(name), ba_user!updated_by(name)',
+      )
       .eq('id', id)
       .eq('org_id', orgId)
       .single();
@@ -1150,7 +1175,10 @@ app.openapi(
       .limit(1);
 
     if (pastSessions && pastSessions.length > 0) {
-      return c.json({ error: '此班級已有歷史課堂記錄，無法刪除，請改為停用', code: 'HAS_PAST_SESSIONS' }, 409);
+      return c.json(
+        { error: '此班級已有歷史課堂記錄，無法刪除，請改為停用', code: 'HAS_PAST_SESSIONS' },
+        409,
+      );
     }
 
     // CASCADE DELETE: 刪除關聯資料
@@ -1176,7 +1204,9 @@ app.openapi(
         userId,
         resourceType: 'class',
         resourceId: id,
-        resourceName: classAuditResourceName(existing as Record<string, unknown> | null | undefined),
+        resourceName: classAuditResourceName(
+          existing as Record<string, unknown> | null | undefined,
+        ),
         action: 'delete',
       },
       c.executionCtx.waitUntil.bind(c.executionCtx),
@@ -2135,7 +2165,12 @@ app.openapi(
         (peer) =>
           peer.id !== target.id &&
           peer.session_date === target.session_date &&
-          isTimeOverlap(newStartTime, newEndTime, normalizeTime(peer.start_time), normalizeTime(peer.end_time)),
+          isTimeOverlap(
+            newStartTime,
+            newEndTime,
+            normalizeTime(peer.start_time),
+            normalizeTime(peer.end_time),
+          ),
       );
 
       if (classConflict) {
@@ -2155,7 +2190,12 @@ app.openapi(
             peer.id !== target.id &&
             peer.teacher_id === target.teacher_id &&
             peer.session_date === target.session_date &&
-            isTimeOverlap(newStartTime, newEndTime, normalizeTime(peer.start_time), normalizeTime(peer.end_time)),
+            isTimeOverlap(
+              newStartTime,
+              newEndTime,
+              normalizeTime(peer.start_time),
+              normalizeTime(peer.end_time),
+            ),
         );
 
         if (teacherConflict) {
@@ -2741,9 +2781,7 @@ app.openapi(
         created_by_name: profile?.display_name ?? null,
       }));
 
-      const { error: insertError } = await supabase
-        .from('schedule_changes')
-        .insert(changeRecords);
+      const { error: insertError } = await supabase.from('schedule_changes').insert(changeRecords);
 
       if (insertError) {
         return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);

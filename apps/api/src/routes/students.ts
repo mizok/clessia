@@ -83,7 +83,11 @@ const UpdateStudentSchema = z
     name: z.string().min(1).optional(),
     grade: GradeLevelSchema.optional(),
     schoolId: z.uuid().nullable().optional(),
-    birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD').nullable().optional(),
+    birthday: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD')
+      .nullable()
+      .optional(),
     gender: StudentGenderSchema.nullable().optional(),
     phone: z.string().nullable().optional(),
     email: z.string().email().nullable().optional(),
@@ -100,7 +104,11 @@ const CreateStudentSchema = z
     name: z.string().min(1),
     grade: GradeLevelSchema,
     schoolId: z.uuid().nullable().optional(),
-    birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD').nullable().optional(),
+    birthday: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD')
+      .nullable()
+      .optional(),
     gender: StudentGenderSchema.nullable().optional(),
     phone: z.string().nullable().optional(),
     email: z.string().email().nullable().optional(),
@@ -134,9 +142,7 @@ export function toStudentResponse(
   classNames: string[] = [],
 ) {
   const school = row['schools'] as
-    | { id: string; name: string; short_name: string | null }
-    | null
-    | undefined;
+    { id: string; name: string; short_name: string | null } | null | undefined;
 
   return {
     id: row['id'] as string,
@@ -297,10 +303,7 @@ app.openapi(
     if (taughtStudentIds !== null) {
       // 空陣列代表這位老師沒有任何任課班 —— 結果必須是空的，不是「不篩」
       if (taughtStudentIds.length === 0) {
-        return c.json(
-          { data: [], meta: { total: 0, page, pageSize, totalPages: 0 } },
-          200,
-        );
+        return c.json({ data: [], meta: { total: 0, page, pageSize, totalPages: 0 } }, 200);
       }
       query = query.in('id', taughtStudentIds);
     }
@@ -377,31 +380,31 @@ app.openapi(
       .eq('is_active', true);
 
     const students = rows.map((row) => {
-      const relations = (row['parent_student_relations'] as Array<{
-        is_primary: boolean;
-        relation: string | null;
-        parents: { id: string; name: string } | null;
-      }>) ?? [];
+      const relations =
+        (row['parent_student_relations'] as Array<{
+          is_primary: boolean;
+          relation: string | null;
+          parents: { id: string; name: string } | null;
+        }>) ?? [];
       const parentNames = relations
         .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0))
         .map((r) => r.parents?.name ?? '')
         .filter(Boolean);
-      const enrollmentRows = (row['enrollments'] as Array<{
-        id: string;
-        status?: string;
-        classes: {
+      const enrollmentRows =
+        (row['enrollments'] as Array<{
           id: string;
-          name: string;
-          campus_id: string | null;
-          campuses: { name: string } | null;
-        } | null;
-      }>) ?? [];
+          status?: string;
+          classes: {
+            id: string;
+            name: string;
+            campus_id: string | null;
+            campuses: { name: string } | null;
+          } | null;
+        }>) ?? [];
       const hasEnrollments = enrollmentRows.length > 0;
       const campusNames = Array.from(
         new Set(
-          enrollmentRows
-            .map((e) => e.classes?.campuses?.name)
-            .filter((n): n is string => !!n),
+          enrollmentRows.map((e) => e.classes?.campuses?.name).filter((n): n is string => !!n),
         ),
       );
       // 只算在籍的班 —— 退班的班名不該出現在老師的分組裡
@@ -545,12 +548,13 @@ app.openapi(
     }
 
     const row = data as Record<string, unknown>;
-    const relations = (row['parent_student_relations'] as Array<{
-      id: string;
-      is_primary: boolean;
-      relation: string | null;
-      parents: { id: string; name: string; user_id: string } | null;
-    }>) ?? [];
+    const relations =
+      (row['parent_student_relations'] as Array<{
+        id: string;
+        is_primary: boolean;
+        relation: string | null;
+        parents: { id: string; name: string; user_id: string } | null;
+      }>) ?? [];
 
     const validRelations = relations.filter((r) => r.parents);
     const userIds = validRelations.map((r) => r.parents!.user_id).filter(Boolean);
@@ -585,10 +589,7 @@ app.openapi(
       .sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0))
       .map((p) => p.name);
 
-    return c.json(
-      { data: { ...toStudentResponse(row, parentNames), parents } },
-      200,
-    );
+    return c.json({ data: { ...toStudentResponse(row, parentNames), parents } }, 200);
   },
 );
 
@@ -626,8 +627,10 @@ app.openapi(
     if (body.phone !== undefined) updatePayload['phone'] = body.phone;
     if (body.email !== undefined) updatePayload['email'] = body.email;
     if (body.address !== undefined) updatePayload['address'] = body.address;
-    if (body.emergencyContactName !== undefined) updatePayload['emergency_contact_name'] = body.emergencyContactName;
-    if (body.emergencyContactPhone !== undefined) updatePayload['emergency_contact_phone'] = body.emergencyContactPhone;
+    if (body.emergencyContactName !== undefined)
+      updatePayload['emergency_contact_name'] = body.emergencyContactName;
+    if (body.emergencyContactPhone !== undefined)
+      updatePayload['emergency_contact_phone'] = body.emergencyContactPhone;
     if (body.notes !== undefined) updatePayload['notes'] = body.notes;
     if (body.isActive !== undefined) updatePayload['is_active'] = body.isActive;
 

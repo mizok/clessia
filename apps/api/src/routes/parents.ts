@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { createAuth } from '../auth';
+import { mintLoginLink } from './login-links/mint';
 import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
@@ -88,12 +89,6 @@ const ErrorSchema = z
 // Helpers (exported for unit testing)
 // ============================================================
 
-export function generateRandomPassword(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  const randomValues = crypto.getRandomValues(new Uint32Array(10));
-  return Array.from(randomValues, (value) => chars[value % chars.length]).join('');
-}
-
 export function generatePlaceholderEmail(phone: string, domain: string | undefined): string {
   return `${phone}@${domain ?? 'phone.internal'}`;
 }
@@ -141,7 +136,9 @@ function isDuplicateUsernameError(message: string): boolean {
   const normalized = message.toLowerCase();
   return (
     (normalized.includes('username') &&
-      (normalized.includes('taken') || normalized.includes('already') || normalized.includes('unique'))) ||
+      (normalized.includes('taken') ||
+        normalized.includes('already') ||
+        normalized.includes('unique'))) ||
     normalized.includes('username_exists') ||
     normalized.includes('ba_user_username_key')
   );
@@ -198,10 +195,7 @@ app.openapi(
     const offset = (page - 1) * pageSize;
 
     // 取得 org 下所有 parent 的 id，用來查 student 關聯
-    const { data: allParentIds } = await supabase
-      .from('parents')
-      .select('id')
-      .eq('org_id', orgId);
+    const { data: allParentIds } = await supabase.from('parents').select('id').eq('org_id', orgId);
     const parentIdList = (allParentIds ?? []).map((p: { id: string }) => p.id);
 
     // 取得 student relations（含學生姓名）
@@ -212,7 +206,10 @@ app.openapi(
         .select('parent_id, students(id, name)')
         .in('parent_id', parentIdList);
       for (const rel of relRows ?? []) {
-        const r = rel as unknown as { parent_id: string; students: { id: string; name: string } | null };
+        const r = rel as unknown as {
+          parent_id: string;
+          students: { id: string; name: string } | null;
+        };
         if (!r.students) continue;
         const existing = studentRelMap.get(r.parent_id) ?? [];
         existing.push(r.students);
@@ -247,12 +244,15 @@ app.openapi(
           .from('parent_student_relations')
           .select('parent_id')
           .in('student_id', matchingStudentIds);
-        parentIdsFromStudents = [...new Set((relMatches ?? []).map((r: { parent_id: string }) => r.parent_id))];
+        parentIdsFromStudents = [
+          ...new Set((relMatches ?? []).map((r: { parent_id: string }) => r.parent_id)),
+        ];
       }
 
       const orParts: string[] = [`name.ilike.%${search}%`];
       if (matchingUserIds.length > 0) orParts.push(`user_id.in.(${matchingUserIds.join(',')})`);
-      if (parentIdsFromStudents.length > 0) orParts.push(`id.in.(${parentIdsFromStudents.join(',')})`);
+      if (parentIdsFromStudents.length > 0)
+        orParts.push(`id.in.(${parentIdsFromStudents.join(',')})`);
       query = query.or(orParts.join(','));
     }
     if (status) {
@@ -271,7 +271,10 @@ app.openapi(
     const userIds = rows.map((r) => r['user_id'] as string).filter(Boolean);
     const baUserMap = new Map<string, { email: string | null; phone: string | null }>();
     if (userIds.length > 0) {
-      const { data: baUsers } = await supabase.from('ba_user').select('id, email, phone').in('id', userIds);
+      const { data: baUsers } = await supabase
+        .from('ba_user')
+        .select('id, email, phone')
+        .in('id', userIds);
       const placeholderDomain = c.env.PLACEHOLDER_EMAIL_DOMAIN;
       for (const u of baUsers ?? []) {
         const rawEmail = (u.email as string | null) ?? null;
@@ -331,11 +334,14 @@ app.openapi(
         description: '建立成功',
         content: {
           'application/json': {
-            schema: z.object({ data: ParentSchema, initialPassword: z.string() }),
+            schema: z.object({ data: ParentSchema, loginUrl: z.string().nullable() }),
           },
         },
       },
-      400: { description: '資料驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+      400: {
+        description: '資料驗證錯誤',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       409: { description: '重複帳號', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -349,18 +355,19 @@ app.openapi(
     }
 
     const auth = createAuth(c.env);
-    const password = generateRandomPassword();
+    // **刻意不給 password**（Better Auth 的 createUser 明說不給就是「magic link 或
+    // social login only user」）。給了會做一次 scrypt —— 那正是撞爆 Workers 10ms CPU 的東西。
     let createdUserId: string | null = null;
 
     const isPhoneOnly = !body.email && !!body.phone;
-    const authEmail = body.email ?? generatePlaceholderEmail(body.phone!, c.env.PLACEHOLDER_EMAIL_DOMAIN);
+    const authEmail =
+      body.email ?? generatePlaceholderEmail(body.phone!, c.env.PLACEHOLDER_EMAIL_DOMAIN);
 
     try {
       const newUser = await (auth.api as any).createUser({
         body: {
           name: body.name,
           email: authEmail,
-          password,
           data: {
             ...(body.phone ? { phone: body.phone } : {}),
             ...(isPhoneOnly ? { username: body.phone } : {}),
@@ -426,9 +433,7 @@ app.openapi(
         is_primary: false,
         relation: null,
       }));
-      const { error: relError } = await supabase
-        .from('parent_student_relations')
-        .insert(relations);
+      const { error: relError } = await supabase.from('parent_student_relations').insert(relations);
       if (relError) {
         await supabase
           .from('parents')
@@ -455,7 +460,8 @@ app.openapi(
     return c.json(
       {
         data: toParentResponse(parentRow as Record<string, unknown>, 0),
-        initialPassword: password,
+        // 取代 initialPassword：櫃檯把它變成 QR 給家長當場掃
+        loginUrl: await mintLoginLink(c.env, authEmail),
       },
       201,
     );
@@ -513,14 +519,13 @@ app.openapi(
           phone: baUserData.phone as string | null,
         }
       : undefined;
-    const relations = (
-      row['parent_student_relations'] as Array<{
+    const relations =
+      (row['parent_student_relations'] as Array<{
         id: string;
         is_primary: boolean;
         relation: string | null;
         students: { id: string; name: string; grade: string } | null;
-      }>
-    ) ?? [];
+      }>) ?? [];
 
     const students = relations
       .filter((r) => r.students)
@@ -533,7 +538,17 @@ app.openapi(
       }));
 
     return c.json(
-      { data: { ...toParentResponse(row, students.length, baUser, students.map((s) => s.name)), students } },
+      {
+        data: {
+          ...toParentResponse(
+            row,
+            students.length,
+            baUser,
+            students.map((s) => s.name),
+          ),
+          students,
+        },
+      },
       200,
     );
   },
@@ -642,12 +657,10 @@ app.openapi(
       .from('parent_student_relations')
       .select('students(id, name)')
       .eq('parent_id', id);
-    const updatedStudents = (updatedRels ?? []).flatMap(
-      (r: unknown) => {
-        const students = (r as { students: Array<{ id: string; name: string }> }).students ?? [];
-        return students;
-      },
-    );
+    const updatedStudents = (updatedRels ?? []).flatMap((r: unknown) => {
+      const students = (r as { students: Array<{ id: string; name: string }> }).students ?? [];
+      return students;
+    });
 
     logAudit(
       supabase,
@@ -676,69 +689,9 @@ app.openapi(
   },
 );
 
-// POST /api/parents/:id/reset-password
-app.openapi(
-  createRoute({
-    method: 'post',
-    path: '/{id}/reset-password',
-    tags: ['Parents'],
-    summary: '重設家長密碼（管理員操作，回傳新密碼）',
-    request: { params: z.object({ id: z.uuid() }) },
-    responses: {
-      200: {
-        description: '重設成功',
-        content: { 'application/json': { schema: z.object({ password: z.string() }) } },
-      },
-      400: { description: '重設失敗', content: { 'application/json': { schema: ErrorSchema } } },
-      404: { description: '家長不存在', content: { 'application/json': { schema: ErrorSchema } } },
-    },
-  }),
-  async (c) => {
-    const supabase = c.get('supabase');
-    const orgId = c.get('orgId');
-    const { id } = c.req.valid('param');
-
-    const { data: parentRow, error } = await supabase
-      .from('parents')
-      .select('user_id, name')
-      .eq('id', id)
-      .eq('org_id', orgId)
-      .single();
-
-    if (error || !parentRow) {
-      return c.json({ error: '家長不存在', code: 'NOT_FOUND' }, 404);
-    }
-
-    const auth = createAuth(c.env);
-    const newPassword = generateRandomPassword();
-    const userId = (parentRow as Record<string, unknown>)['user_id'] as string;
-
-    try {
-      await (auth.api as any).setUserPassword({
-        body: { userId, newPassword },
-        asResponse: false,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return c.json({ error: msg || '重設密碼失敗', code: 'RESET_PASSWORD_FAILED' }, 400);
-    }
-
-    logAudit(
-      supabase,
-      {
-        orgId,
-        userId: c.get('userId'),
-        resourceType: 'parent',
-        resourceId: id,
-        resourceName: (parentRow as Record<string, unknown>)['name'] as string,
-        action: 'reset_password',
-      },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
-    );
-
-    return c.json({ password: newPassword }, 200);
-  },
-);
+// 原本這裡有 POST /{id}/reset-password（重設家長密碼、回傳新密碼）。
+// 這個系統沒有密碼了 —— 替代品是 POST /api/login-links，產生一次性登入連結。
+// 差別不只是換個做法：連結會過期、只能用一次，而密碼會被寫在便條紙上留著。
 
 // PATCH /api/parents/:id/activate
 app.openapi(
@@ -979,7 +932,10 @@ app.openapi(
         description: '預檢結果（warnings 為空代表無衝突）',
         content: { 'application/json': { schema: BatchCheckResponseSchema } },
       },
-      400: { description: '請求格式錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+      400: {
+        description: '請求格式錯誤',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
       500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
@@ -1023,10 +979,17 @@ app.openapi(
 
     // Step 3: 查詢每個 DB 家長的聯絡資訊
     const userIds = dbParents.map((p: { user_id: string }) => p.user_id);
-    const { data: baUsers } = await supabase.from('ba_user').select('id, phone, email').in('id', userIds);
+    const { data: baUsers } = await supabase
+      .from('ba_user')
+      .select('id, phone, email')
+      .in('id', userIds);
 
     const userContactMap = new Map<string, { phone: string | null; email: string | null }>();
-    for (const u of (baUsers ?? []) as Array<{ id: string; phone: string | null; email: string | null }>) {
+    for (const u of (baUsers ?? []) as Array<{
+      id: string;
+      phone: string | null;
+      email: string | null;
+    }>) {
       userContactMap.set(u.id, {
         phone: u.phone ?? null,
         email: isPlaceholderEmail(u.email, placeholderDomain) ? null : (u.email ?? null),
@@ -1076,13 +1039,21 @@ app.openapi(
     }
 
     // Step 4: 比對每個匯入行
-    const warnings: Array<{ rowIndex: number; type: 'same_name_exists' | 'student_already_exists' | 'merging_with_existing'; message: string }> = [];
-    const errors: Array<{ rowIndex: number; type: 'student_already_exists' | 'contact_belongs_to_another_parent'; message: string }> = [];
+    const warnings: Array<{
+      rowIndex: number;
+      type: 'same_name_exists' | 'student_already_exists' | 'merging_with_existing';
+      message: string;
+    }> = [];
+    const errors: Array<{
+      rowIndex: number;
+      type: 'student_already_exists' | 'contact_belongs_to_another_parent';
+      message: string;
+    }> = [];
 
     for (const [normalizedName, rowIndexes] of nameMap.entries()) {
-      const matchingDbParents = (dbParents as Array<{ id: string; name: string; user_id: string }>).filter(
-        (p) => normalizeParentName(p.name) === normalizedName,
-      );
+      const matchingDbParents = (
+        dbParents as Array<{ id: string; name: string; user_id: string }>
+      ).filter((p) => normalizeParentName(p.name) === normalizedName);
       if (matchingDbParents.length === 0) continue;
 
       for (const rowIndex of rowIndexes) {
@@ -1095,7 +1066,8 @@ app.openapi(
           const contact = userContactMap.get(p.user_id);
           if (!contact) return false;
           const phoneMatch = importPhone && contact.phone && importPhone === contact.phone;
-          const emailMatch = importEmail && contact.email && importEmail === contact.email.toLowerCase();
+          const emailMatch =
+            importEmail && contact.email && importEmail === contact.email.toLowerCase();
           return !!(phoneMatch || emailMatch);
         });
 
@@ -1284,7 +1256,10 @@ app.openapi(
         description: '批次匯入結果（部分失敗仍回傳 200）',
         content: { 'application/json': { schema: BatchImportResponseSchema } },
       },
-      400: { description: '請求格式錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+      400: {
+        description: '請求格式錯誤',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -1393,7 +1368,9 @@ app.openapi(
             const existingName = (parentMatch as { id: string; name: string }).name.trim();
             const importedName = representativeRow.parentName.trim();
             if (normalizeParentName(existingName) !== normalizeParentName(importedName)) {
-              throw new Error(`此電話／Email 已屬於另一位家長「${existingName}」，無法建立為「${importedName}」`);
+              throw new Error(
+                `此電話／Email 已屬於另一位家長「${existingName}」，無法建立為「${importedName}」`,
+              );
             }
             parentId = (parentMatch as { id: string }).id;
           }
@@ -1402,11 +1379,14 @@ app.openapi(
         // 2c. 若無既有家長 → 建立新帳號
         if (!parentId) {
           const auth = createAuth(c.env);
-          const password = generateRandomPassword();
+          // 同上：不給密碼。批次一次建 50 個帳號，50 次 scrypt 一定超過 CPU 上限
           const isPhoneOnlyRow = !representativeRow.parentEmail && !!representativeRow.parentPhone;
           const rowAuthEmail =
             representativeRow.parentEmail ??
-            generatePlaceholderEmail(representativeRow.parentPhone!, c.env.PLACEHOLDER_EMAIL_DOMAIN);
+            generatePlaceholderEmail(
+              representativeRow.parentPhone!,
+              c.env.PLACEHOLDER_EMAIL_DOMAIN,
+            );
 
           let createdUserId: string | null = null;
           try {
@@ -1414,9 +1394,10 @@ app.openapi(
               body: {
                 name: representativeRow.parentName,
                 email: rowAuthEmail,
-                password,
                 data: {
-                  ...(representativeRow.parentPhone ? { phone: representativeRow.parentPhone } : {}),
+                  ...(representativeRow.parentPhone
+                    ? { phone: representativeRow.parentPhone }
+                    : {}),
                   ...(isPhoneOnlyRow ? { username: representativeRow.parentPhone } : {}),
                 },
               },
@@ -1456,7 +1437,9 @@ app.openapi(
                     const existingName = (retryParent as { id: string; name: string }).name.trim();
                     const importedName = representativeRow.parentName.trim();
                     if (normalizeParentName(existingName) !== normalizeParentName(importedName)) {
-                      throw new Error(`此電話／Email 已屬於另一位家長「${existingName}」，無法建立為「${importedName}」`);
+                      throw new Error(
+                        `此電話／Email 已屬於另一位家長「${existingName}」，無法建立為「${importedName}」`,
+                      );
                     }
                     parentId = (retryParent as { id: string }).id;
                     groupKeyToParentId.set(groupKey, parentId);
@@ -1512,7 +1495,11 @@ app.openapi(
         groupKeyToParentId.set(groupKey, parentId);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        console.error(`[batch-import] Step2 failed for groupKey="${groupKey}" rowIndexes=${JSON.stringify(rowIndexes)}:`, errMsg, err);
+        console.error(
+          `[batch-import] Step2 failed for groupKey="${groupKey}" rowIndexes=${JSON.stringify(rowIndexes)}:`,
+          errMsg,
+          err,
+        );
         // 將這個 group 內的所有 rows 標記為失敗
         for (const rowIdx of rowIndexes) {
           // 若該 rowIdx 還未被處理過（沒有 email/phone 缺少的錯誤）
@@ -1568,7 +1555,9 @@ app.openapi(
       const parentId = groupKey ? groupKeyToParentId.get(groupKey) : undefined;
 
       if (!parentId) {
-        console.error(`[batch-import] Step3 row=${i}: parentId not found for groupKey="${groupKey}"`);
+        console.error(
+          `[batch-import] Step3 row=${i}: parentId not found for groupKey="${groupKey}"`,
+        );
         results.push({ rowIndex: i, status: 'failed', error: '無法取得家長 ID' });
         continue;
       }
@@ -1580,7 +1569,9 @@ app.openapi(
           .select('student_id')
           .eq('parent_id', parentId);
 
-        const existingStudentIds = (existingRelData ?? []).map((r: { student_id: string }) => r.student_id);
+        const existingStudentIds = (existingRelData ?? []).map(
+          (r: { student_id: string }) => r.student_id,
+        );
         if (existingStudentIds.length > 0) {
           const { data: existingStudentData } = await supabase
             .from('students')
@@ -1594,7 +1585,12 @@ app.openapi(
 
           if (duplicate) {
             // 已存在，略過學生建立，直接標記成功
-            results.push({ rowIndex: i, status: 'success', parentId, studentId: (duplicate as { id: string }).id });
+            results.push({
+              rowIndex: i,
+              status: 'success',
+              parentId,
+              studentId: (duplicate as { id: string }).id,
+            });
             continue;
           }
         }
@@ -1632,7 +1628,10 @@ app.openapi(
         });
 
         if (relError) {
-          console.error(`[batch-import] Step3 row=${i} INSERT parent_student_relations error:`, relError);
+          console.error(
+            `[batch-import] Step3 row=${i} INSERT parent_student_relations error:`,
+            relError,
+          );
           // 嘗試刪除剛建立的學生（best effort）
           await supabase.from('students').delete().eq('id', studentId);
           studentsCreated--;

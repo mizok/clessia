@@ -44,22 +44,6 @@ export const routes: Routes = [
             (m) => m.QrCheckinComponent,
           ),
       },
-      {
-        path: RoutesCatalog.PUBLIC_FORGOT_PASSWORD.relativePath,
-        loadComponent: () =>
-          import('@features/public/pages/forgot-password/forgot-password.component').then(
-            (m) => m.ForgotPasswordComponent,
-          ),
-        canActivate: [guestGuard],
-      },
-      {
-        path: RoutesCatalog.PUBLIC_RESET_PASSWORD.relativePath,
-        loadComponent: () =>
-          import('@features/public/pages/reset-password/reset-password.component').then(
-            (m) => m.ResetPasswordComponent,
-          ),
-        canActivate: [guestGuard],
-      },
       { path: '', redirectTo: 'login', pathMatch: 'full' },
     ],
   },

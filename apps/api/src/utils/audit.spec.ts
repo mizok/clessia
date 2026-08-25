@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  formatAuditClassResourceName,
-  formatAuditCourseResourceName,
-} from './audit';
+import { formatAuditClassResourceName, formatAuditCourseResourceName } from './audit';
 
 describe('formatAuditCourseResourceName', () => {
   it('joins course and campus names for course management logs', () => {

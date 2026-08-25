@@ -140,8 +140,12 @@ describe('attendance session filter helpers', () => {
             in() {
               return this;
             },
-            then(onfulfilled?: ((value: { data: typeof sessions; error: null }) => unknown) | null) {
-              return Promise.resolve({ data: sessions, error: null }).then(onfulfilled ?? undefined);
+            then(
+              onfulfilled?: ((value: { data: typeof sessions; error: null }) => unknown) | null,
+            ) {
+              return Promise.resolve({ data: sessions, error: null }).then(
+                onfulfilled ?? undefined,
+              );
             },
             update(payload: { event_id: string }) {
               return {
@@ -629,8 +633,7 @@ function createEventsQuery(data: MockSupabaseData) {
     single() {
       const filtered = data.events.filter((event) => {
         return (
-          event.org_id === state.orgId &&
-          (!state.campusId || event.campus_id === state.campusId)
+          event.org_id === state.orgId && (!state.campusId || event.campus_id === state.campusId)
         );
       });
 

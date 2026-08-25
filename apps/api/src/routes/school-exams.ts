@@ -416,7 +416,7 @@ app.openapi(listRoute, async (c) => {
     .select(
       'id, academic_year, semester, exam_type, subject_id, name, label, exam_date, status, school_id, schools(id, name), subjects(id, name), created_at, updated_at, school_scores(count)',
       {
-      count: 'exact',
+        count: 'exact',
       },
     )
     .eq('org_id', orgId);
@@ -449,7 +449,11 @@ app.openapi(listRoute, async (c) => {
   }
 
   if (todo) {
-    let todoIdQuery = supabase.from('school_exams').select('id').eq('org_id', orgId).eq('status', 'active');
+    let todoIdQuery = supabase
+      .from('school_exams')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('status', 'active');
 
     if (academicYear !== undefined) {
       todoIdQuery = todoIdQuery.eq('academic_year', academicYear);
@@ -795,7 +799,9 @@ app.openapi(getRoute, async (c) => {
     subjectName: item.subjectName,
     averageScore:
       item.scores.length > 0
-        ? Number((item.scores.reduce((sum, score) => sum + score, 0) / item.scores.length).toFixed(2))
+        ? Number(
+            (item.scores.reduce((sum, score) => sum + score, 0) / item.scores.length).toFixed(2),
+          )
         : null,
     recordedCount: item.rowCount,
   }));
@@ -1235,7 +1241,9 @@ app.openapi(listScoresRoute, async (c) => {
 
   let query = supabase
     .from('school_scores')
-    .select('student_id, subject_id, score, status, notes, updated_at, students(name, grade), subjects(id, name)')
+    .select(
+      'student_id, subject_id, score, status, notes, updated_at, students(name, grade), subjects(id, name)',
+    )
     .eq('school_exam_id', id);
 
   if (studentId) {
@@ -1328,12 +1336,11 @@ app.openapi(upsertScoresRoute, async (c) => {
   }
 
   if (schoolExam.subject_id !== null) {
-    const hasDisallowedSubject = body.scores.some((item) => item.subjectId !== schoolExam.subject_id);
+    const hasDisallowedSubject = body.scores.some(
+      (item) => item.subjectId !== schoolExam.subject_id,
+    );
     if (hasDisallowedSubject) {
-      return c.json(
-        { error: '此考試僅允許登錄指定科目的成績', code: 'SUBJECT_NOT_ALLOWED' },
-        400,
-      );
+      return c.json({ error: '此考試僅允許登錄指定科目的成績', code: 'SUBJECT_NOT_ALLOWED' }, 400);
     }
   }
 
@@ -1347,7 +1354,10 @@ app.openapi(upsertScoresRoute, async (c) => {
     ]);
 
   if (studentError || subjectError) {
-    return c.json({ error: studentError?.message ?? subjectError?.message ?? 'DB_ERROR', code: 'DB_ERROR' }, 400);
+    return c.json(
+      { error: studentError?.message ?? subjectError?.message ?? 'DB_ERROR', code: 'DB_ERROR' },
+      400,
+    );
   }
 
   if ((students ?? []).length !== studentIds.length) {
@@ -1608,7 +1618,13 @@ app.openapi(recentStudentsRoute, async (c) => {
 
   const aggregated = new Map<
     string,
-    { studentId: string; studentName: string; studentGrade: string | null; scoreCount: number; lastUpdatedAt: string }
+    {
+      studentId: string;
+      studentName: string;
+      studentGrade: string | null;
+      scoreCount: number;
+      lastUpdatedAt: string;
+    }
   >();
 
   for (const row of data ?? []) {
@@ -1692,14 +1708,7 @@ app.openapi(studentsRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
   const { id } = c.req.valid('param');
-  const {
-    campusId,
-    status = 'all',
-    search,
-    grade,
-    page = 1,
-    pageSize = 50,
-  } = c.req.valid('query');
+  const { campusId, status = 'all', search, grade, page = 1, pageSize = 50 } = c.req.valid('query');
 
   const schoolExam = await ensureSchoolExamOwnedByOrg(supabase, id, orgId);
   if (!schoolExam) {
@@ -1713,9 +1722,7 @@ app.openapi(studentsRoute, async (c) => {
 
   let studentsQuery = supabase
     .from('students')
-    .select(
-      'id, name, grade, is_active, enrollments(id, classes(campus_id, campuses(name)))',
-    )
+    .select('id, name, grade, is_active, enrollments(id, classes(campus_id, campuses(name)))')
     .eq('org_id', orgId)
     .eq('is_active', true)
     .eq('school_id', schoolExam.school_id)

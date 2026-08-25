@@ -40,7 +40,7 @@ describe('public system-time route CORS', () => {
     const response = await app.request(
       'http://localhost/system-time',
       { headers: { Origin: 'https://clessia.pages.dev' } },
-      prodEnv
+      prodEnv,
     );
 
     expect(response.headers.get('access-control-allow-origin')).toBe('https://clessia.pages.dev');
@@ -50,7 +50,7 @@ describe('public system-time route CORS', () => {
     const response = await app.request(
       'http://localhost/system-time',
       { headers: { Origin: 'https://custom.example.com' } },
-      prodEnv
+      prodEnv,
     );
 
     expect(response.headers.get('access-control-allow-origin')).toBe('https://custom.example.com');
@@ -60,21 +60,59 @@ describe('public system-time route CORS', () => {
     const response = await app.request(
       'http://localhost/system-time',
       { headers: { Origin: 'https://evil.example.com' } },
-      prodEnv
+      prodEnv,
     );
 
     expect(response.headers.get('access-control-allow-origin')).toBeNull();
   });
 });
 
-describe('/api/login', () => {
-  it('returns 400 when account is empty regardless of loginType', async () => {
-    const response = await app.request('http://localhost/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ account: '', password: 'anything', loginType: 'username' }),
-    });
-    expect(response.status).toBe(400);
+// 密碼登入整條路已移除（scrypt 超過 Workers 的 10ms CPU 上限）。
+// 這幾條守住「它真的沒了」—— 留著任何一條密碼路徑，CPU 問題就原封不動。
+describe('密碼登入的路徑都不存在', () => {
+  // 回 401 而不是 404：/api/* 的 authMiddleware 先接住它。
+  // 重點不是狀態碼，是「這條路不會給你 session」。
+  it('POST /api/login 不再登入任何人', async () => {
+    const response = await app.request(
+      'http://localhost/api/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account: 'a@b.co', password: 'x', loginType: 'email' }),
+      },
+      testEnv,
+    );
+
+    expect(response.status).not.toBe(200);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('Better Auth 的 /sign-in/email 不再接受請求', async () => {
+    const response = await app.request(
+      'http://localhost/api/auth/sign-in/email',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'a@b.co', password: 'x' }),
+      },
+      testEnv,
+    );
+
+    expect(response.status).not.toBe(200);
+  });
+
+  it('username plugin 的 /sign-in/username 也不在了', async () => {
+    const response = await app.request(
+      'http://localhost/api/auth/sign-in/username',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'root', password: 'x' }),
+      },
+      testEnv,
+    );
+
+    expect(response.status).not.toBe(200);
   });
 });
 
@@ -121,7 +159,7 @@ describe('magic-link 產生端點對外封鎖', () => {
     const response = await app.request(
       'http://localhost/api/auth/sign-in/magic-link',
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
-      testEnv
+      testEnv,
     );
 
     expect(response.status).toBe(404);
@@ -131,7 +169,7 @@ describe('magic-link 產生端點對外封鎖', () => {
     const response = await app.request(
       'http://localhost/api/auth/magic-link/verify?token=whatever',
       undefined,
-      testEnv
+      testEnv,
     );
 
     expect(response.status).not.toBe(404);
@@ -148,7 +186,7 @@ describe('POST /api/login-links 的准入', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: 'someone' }),
       },
-      testEnv
+      testEnv,
     );
 
     expect(response.status).toBe(401);

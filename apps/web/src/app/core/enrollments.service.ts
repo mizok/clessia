@@ -177,7 +177,11 @@ export class EnrollmentsService {
     return this.http.patch<{ data: Enrollment }>(`${this.base}/${id}`, input);
   }
 
-  updateStatus(id: string, status: EnrollmentStatus, notes?: string): Observable<{ data: Enrollment }> {
+  updateStatus(
+    id: string,
+    status: EnrollmentStatus,
+    notes?: string,
+  ): Observable<{ data: Enrollment }> {
     return this.http.patch<{ data: Enrollment }>(`${this.base}/${id}/status`, { status, notes });
   }
 

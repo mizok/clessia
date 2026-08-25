@@ -1,10 +1,10 @@
 import { Pool } from 'pg';
 import { betterAuth } from 'better-auth';
-import { admin as adminPlugin, magicLink, username } from 'better-auth/plugins';
+import { admin as adminPlugin, magicLink } from 'better-auth/plugins';
 import type { Bindings } from './index';
 import { allowedOrigins, resolveTrustedOrigins } from './lib/origins';
 
-type AuthBindings = Pick<
+export type AuthBindings = Pick<
   Bindings,
   | 'DATABASE_URL'
   | 'BETTER_AUTH_SECRET'
@@ -77,7 +77,6 @@ export function socialProvidersFromEnv(env: {
   return providers;
 }
 
-
 /** `sendMagicLink` 拿到的東西。我們不寄信，直接把 `url` 攔下來。 */
 export interface MagicLinkPayload {
   email: string;
@@ -107,7 +106,7 @@ export function magicLinkOptions(capture?: (payload: MagicLinkPayload) => void) 
 
 export function createAuth(
   env: AuthBindings,
-  captureMagicLink?: (payload: MagicLinkPayload) => void
+  captureMagicLink?: (payload: MagicLinkPayload) => void,
 ) {
   const pool = new Pool({ connectionString: env.DATABASE_URL });
 
@@ -121,15 +120,18 @@ export function createAuth(
         requestOrigin: request?.headers.get('origin'),
         allowed: allowedOrigins(env),
       }),
+    // **關掉密碼登入**。scrypt 超過 Workers 的 10ms CPU 上限，登入間歇性 503，
+    // 而且任何安全的密碼雜湊都會超過 —— 快到能塞進 10ms 的雜湊等於沒有保護。
+    // 見 kb/wiki/architecture/line-oauth-login.md
     emailAndPassword: {
-      enabled: true,
-      requireEmailVerification: false,
+      enabled: false,
     },
     advanced: {
       defaultCookieAttributes: crossSiteCookieAttributes(env.BETTER_AUTH_URL),
     },
     socialProviders: socialProvidersFromEnv(env),
-    plugins: [username(), adminPlugin(), magicLink(magicLinkOptions(captureMagicLink))],
+    // username plugin 拿掉：它提供的 /sign-in/username 也是密碼登入
+    plugins: [adminPlugin(), magicLink(magicLinkOptions(captureMagicLink))],
     user: {
       modelName: 'ba_user',
       additionalFields: {

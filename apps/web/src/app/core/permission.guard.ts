@@ -24,9 +24,9 @@ export function permissionGuard(permission: string): CanActivateFn {
     // For now, redirect to matching role shell or home
     const role = auth.activeRole();
     if (role) {
-       // If they are admin but don't have permission, maybe redirect to admin dashboard root
-       // preventing infinite loop if root also requires permission (unlikely for dashboard home)
-       return router.createUrlTree(['/' + role]);
+      // If they are admin but don't have permission, maybe redirect to admin dashboard root
+      // preventing infinite loop if root also requires permission (unlikely for dashboard home)
+      return router.createUrlTree(['/' + role]);
     }
 
     return router.createUrlTree(['/login']);

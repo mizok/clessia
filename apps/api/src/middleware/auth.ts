@@ -46,7 +46,10 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
 
   c.set('userId', session.user.id);
   c.set('orgId', orgId);
-  c.set('roles', (roleRows ?? []).map((row) => row.role as string));
+  c.set(
+    'roles',
+    (roleRows ?? []).map((row) => row.role as string),
+  );
   c.set('supabase', supabase);
 
   return next();

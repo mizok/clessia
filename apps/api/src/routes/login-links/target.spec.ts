@@ -7,9 +7,9 @@ const CALLER_ORG = 'org-a';
 // 登入連結等於帳號。誰能替誰產生，是這支端點唯一重要的問題。
 describe('decideLoginLinkTarget', () => {
   it('同一個組織、有角色 → 允許', () => {
-    expect(
-      decideLoginLinkTarget({ orgId: CALLER_ORG, roles: ['teacher'] }, CALLER_ORG)
-    ).toEqual({ ok: true });
+    expect(decideLoginLinkTarget({ orgId: CALLER_ORG, roles: ['teacher'] }, CALLER_ORG)).toEqual({
+      ok: true,
+    });
   });
 
   // 這是本端點最重要的不變量（憲法 c1：授權發生在 API 層，靠 org_id 過濾）
@@ -21,7 +21,7 @@ describe('decideLoginLinkTarget', () => {
 
   it('找不到人 → 與跨組織回傳完全一樣的結果', () => {
     expect(decideLoginLinkTarget(null, CALLER_ORG)).toEqual(
-      decideLoginLinkTarget({ orgId: 'org-b', roles: ['admin'] }, CALLER_ORG)
+      decideLoginLinkTarget({ orgId: 'org-b', roles: ['admin'] }, CALLER_ORG),
     );
   });
 

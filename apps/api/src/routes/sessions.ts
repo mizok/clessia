@@ -1,10 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
-import {
-  buildSubstitutedAwayEntries,
-  type SubstitutedAwayRow,
-} from './sessions/substituted-away';
+import { buildSubstitutedAwayEntries, type SubstitutedAwayRow } from './sessions/substituted-away';
 import { describeChange, type ChangeLogRow } from './sessions/change-log';
 import { logAudit, formatAuditSessionResourceName } from '../utils/audit';
 import {
@@ -399,7 +396,8 @@ export function mapSessionChange(row: Record<string, unknown>) {
 
   return {
     id: row['id'] as string,
-    changeType: row['change_type'] as 'creation' | 'reschedule' | 'substitute' | 'cancellation' | 'uncancel',
+    changeType: row['change_type'] as
+      'creation' | 'reschedule' | 'substitute' | 'cancellation' | 'uncancel',
     originalSessionDate: (row['original_session_date'] as string | null) ?? null,
     originalStartTime: toHHmm(row['original_start_time'] as string | null),
     originalEndTime: toHHmm(row['original_end_time'] as string | null),
@@ -411,9 +409,7 @@ export function mapSessionChange(row: Record<string, unknown>) {
     substituteTeacherId: (substituteTeacher?.['id'] as string | undefined) ?? null,
     substituteTeacherName: (substituteTeacher?.['display_name'] as string | undefined) ?? null,
     operationSource: ((row['operation_source'] as 'single' | 'batch' | null) ?? 'single') as
-      | 'single'
-      | 'batch'
-      | null,
+      'single' | 'batch' | null,
     reason: (row['reason'] as string | null) ?? null,
     createdByName: (row['created_by_name'] as string | null) ?? null,
     createdAt: row['created_at'] as string,
@@ -476,7 +472,8 @@ export function buildSingleSessionChangeInsert(input: SingleSessionChangeInsertI
     org_id: input.orgId,
     session_id: input.sessionId,
     change_type: input.changeType,
-    original_session_date: input.changeType === 'reschedule' ? input.sessionState.sessionDate : null,
+    original_session_date:
+      input.changeType === 'reschedule' ? input.sessionState.sessionDate : null,
     original_start_time: input.changeType === 'reschedule' ? input.sessionState.startTime : null,
     original_end_time: input.changeType === 'reschedule' ? input.sessionState.endTime : null,
     new_session_date: input.changeType === 'reschedule' ? (input.newSessionDate ?? null) : null,
@@ -640,9 +637,9 @@ app.openapi(listSessionsRoute, async (c) => {
     dbQuery = dbQuery.eq('class_id', classId);
   }
   if (statuses) {
-    const statusList = statuses
-      .split(',')
-      .filter(Boolean) as ('scheduled' | 'completed' | 'cancelled')[];
+    const statusList = statuses.split(',').filter(Boolean) as (
+      'scheduled' | 'completed' | 'cancelled'
+    )[];
     if (statusList.length > 0) dbQuery = dbQuery.in('status', statusList);
   }
   if (assignmentStatus) {
@@ -724,7 +721,10 @@ app.openapi(listSessionsRoute, async (c) => {
     .map((row) => row['event_id'] as string | null)
     .filter((id): id is string => Boolean(id));
 
-  const attendanceCountMap = new Map<string, { present: number; onLeave: number; absent: number }>();
+  const attendanceCountMap = new Map<
+    string,
+    { present: number; onLeave: number; absent: number }
+  >();
   if (eventIds.length > 0) {
     const { data: attendanceRecords } = await supabase
       .from('attendance_records')
@@ -762,12 +762,7 @@ app.openapi(listSessionsRoute, async (c) => {
   return c.json(
     {
       data: rows.map((row) =>
-        mapSession(
-          row,
-          changedIds.has(row['id'] as string),
-          attendanceCountMap,
-          enrolledCountMap,
-        ),
+        mapSession(row, changedIds.has(row['id'] as string), attendanceCountMap, enrolledCountMap),
       ),
       meta: {
         total: count ?? 0,
@@ -850,7 +845,6 @@ app.openapi(getSubstitutedAwayRoute, async (c) => {
     200,
   );
 });
-
 
 const ChangeLogQuerySchema = z.object({
   from: z.string().date(),
@@ -943,7 +937,6 @@ app.openapi(listChangeLogRoute, async (c) => {
     200,
   );
 });
-
 
 const getSessionChangesRoute = createRoute({
   method: 'get',
@@ -1098,7 +1091,10 @@ app.openapi(cancelSessionRoute, async (c) => {
     return c.json({ error: '課堂不存在', code: 'NOT_FOUND' }, 404);
   }
   if (sessionState.status !== 'scheduled') {
-    return c.json({ error: '僅可停課狀態為「scheduled」的課堂', code: 'STATUS_NOT_CANCELLABLE' }, 409);
+    return c.json(
+      { error: '僅可停課狀態為「scheduled」的課堂', code: 'STATUS_NOT_CANCELLABLE' },
+      409,
+    );
   }
 
   const { data: updatedSession, error: updateError } = await supabase
@@ -1253,14 +1249,8 @@ app.openapi(substituteSessionRoute, async (c) => {
       .eq('org_id', orgId)
       .eq('id', sessionState.classId)
       .maybeSingle(),
-    supabase
-      .from('staff_subjects')
-      .select('subject_id')
-      .eq('staff_id', body.substituteTeacherId),
-    supabase
-      .from('staff_campuses')
-      .select('campus_id')
-      .eq('staff_id', body.substituteTeacherId),
+    supabase.from('staff_subjects').select('subject_id').eq('staff_id', body.substituteTeacherId),
+    supabase.from('staff_campuses').select('campus_id').eq('staff_id', body.substituteTeacherId),
     supabase
       .from('staff')
       .select('id, user_id, status')
@@ -1516,10 +1506,7 @@ app.openapi(rescheduleSessionRoute, async (c) => {
     newStartTime === normalizedCurrentStart &&
     newEndTime === normalizedCurrentEnd
   ) {
-    return c.json(
-      { error: '調課日期與時間與現有課堂相同，無需調整', code: 'NO_CHANGE' },
-      400,
-    );
+    return c.json({ error: '調課日期與時間與現有課堂相同，無需調整', code: 'NO_CHANGE' }, 400);
   }
 
   if (toMinutes(newStartTime) >= toMinutes(newEndTime)) {
@@ -1703,7 +1690,9 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
 
   const { data: sessionRows, error: sessionRowsError } = await supabase
     .from('sessions')
-    .select('id, class_id, session_date, start_time, end_time, status, assignment_status, teacher_id')
+    .select(
+      'id, class_id, session_date, start_time, end_time, status, assignment_status, teacher_id',
+    )
     .eq('org_id', orgId)
     .in('id', uniqueSessionIds);
 
@@ -1741,28 +1730,21 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
     { data: teacherSubjectRows, error: teacherSubjectRowsError },
     { data: teacherCampusRows, error: teacherCampusRowsError },
     { data: teacherRow, error: teacherRowError },
-  ] =
-    await Promise.all([
-      supabase
-        .from('classes')
-        .select('id, course_id, campus_id')
-        .eq('org_id', orgId)
-        .in('id', targetClassIds),
-      supabase
-        .from('staff_subjects')
-        .select('subject_id')
-        .eq('staff_id', body.teacherId),
-      supabase
-        .from('staff_campuses')
-        .select('campus_id')
-        .eq('staff_id', body.teacherId),
-      supabase
-        .from('staff')
-        .select('id, user_id, status')
-        .eq('org_id', orgId)
-        .eq('id', body.teacherId)
-        .maybeSingle(),
-    ]);
+  ] = await Promise.all([
+    supabase
+      .from('classes')
+      .select('id, course_id, campus_id')
+      .eq('org_id', orgId)
+      .in('id', targetClassIds),
+    supabase.from('staff_subjects').select('subject_id').eq('staff_id', body.teacherId),
+    supabase.from('staff_campuses').select('campus_id').eq('staff_id', body.teacherId),
+    supabase
+      .from('staff')
+      .select('id, user_id, status')
+      .eq('org_id', orgId)
+      .eq('id', body.teacherId)
+      .maybeSingle(),
+  ]);
 
   if (classRowsError) {
     return c.json({ error: classRowsError.message, code: 'DB_ERROR' }, 400);
@@ -1941,7 +1923,12 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
     const courseId = classCourseMap.get(session.class_id);
     const subjectId = courseId ? courseSubjectMap.get(courseId) : undefined;
     const campusId = classCampusMap.get(session.class_id);
-    if (!subjectId || !teacherSubjectIds.has(subjectId) || !campusId || !teacherCampusIds.has(campusId)) {
+    if (
+      !subjectId ||
+      !teacherSubjectIds.has(subjectId) ||
+      !campusId ||
+      !teacherCampusIds.has(campusId)
+    ) {
       skippedNotEligible += 1;
       continue;
     }
@@ -2604,7 +2591,12 @@ app.openapi(batchUncancelRoute, async (c) => {
         peer.id !== target.id &&
         peer.class_id === target.class_id &&
         peer.session_date === target.session_date &&
-        isTimeOverlap(targetStart, targetEnd, normalizeTime(peer.start_time), normalizeTime(peer.end_time)),
+        isTimeOverlap(
+          targetStart,
+          targetEnd,
+          normalizeTime(peer.start_time),
+          normalizeTime(peer.end_time),
+        ),
     );
 
     if (classConflictWithExisting) {
@@ -2642,7 +2634,12 @@ app.openapi(batchUncancelRoute, async (c) => {
           peer.id !== target.id &&
           peer.teacher_id === target.teacher_id &&
           peer.session_date === target.session_date &&
-          isTimeOverlap(targetStart, targetEnd, normalizeTime(peer.start_time), normalizeTime(peer.end_time)),
+          isTimeOverlap(
+            targetStart,
+            targetEnd,
+            normalizeTime(peer.start_time),
+            normalizeTime(peer.end_time),
+          ),
       );
 
       if (teacherConflictWithExisting) {
@@ -2695,11 +2692,7 @@ app.openapi(batchUncancelRoute, async (c) => {
     // 驗證老師狀態：收集 processableIds 對應課堂中有 teacher_id 的老師
     const processableSessions = targetSessions.filter((s) => processableIds.includes(s.id));
     const teacherIdsToCheck = [
-      ...new Set(
-        processableSessions
-          .map((s) => s.teacher_id)
-          .filter((id): id is string => !!id),
-      ),
+      ...new Set(processableSessions.map((s) => s.teacher_id).filter((id): id is string => !!id)),
     ];
 
     // 批次查詢老師 status 狀態（若無老師則跳過）

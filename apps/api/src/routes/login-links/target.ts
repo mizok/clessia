@@ -5,8 +5,7 @@ export interface LoginLinkTarget {
 }
 
 export type LoginLinkDecision =
-  | { ok: true }
-  | { ok: false; code: 'NOT_FOUND' | 'NO_ROLES'; status: 404 | 422 };
+  { ok: true } | { ok: false; code: 'NOT_FOUND' | 'NO_ROLES'; status: 404 | 422 };
 
 /**
  * 誰可以替誰產生登入連結。**這支端點唯一重要的問題。**
@@ -20,7 +19,7 @@ export type LoginLinkDecision =
  */
 export function decideLoginLinkTarget(
   target: LoginLinkTarget | null,
-  callerOrgId: string
+  callerOrgId: string,
 ): LoginLinkDecision {
   const notFound = { ok: false, code: 'NOT_FOUND', status: 404 } as const;
 

@@ -5,10 +5,15 @@ describe('buildStudentSummary', () => {
   it('counts active students from rows', () => {
     const buildStudentSummary = (studentsRoute as Record<string, unknown>)[
       'buildStudentSummary'
-    ] as ((rows: Array<{ is_active: boolean }>, total: number) => {
-      total: number;
-      activeCount: number;
-    }) | undefined;
+    ] as
+      | ((
+          rows: Array<{ is_active: boolean }>,
+          total: number,
+        ) => {
+          total: number;
+          activeCount: number;
+        })
+      | undefined;
 
     expect(buildStudentSummary).toBeTypeOf('function');
 
@@ -23,9 +28,9 @@ describe('buildStudentSummary', () => {
 
 describe('toStudentResponse', () => {
   it('maps snake_case DB row to camelCase response', () => {
-    const toStudentResponse = (studentsRoute as Record<string, unknown>)[
-      'toStudentResponse'
-    ] as ((row: Record<string, unknown>, parentNames?: string[]) => Record<string, unknown>) | undefined;
+    const toStudentResponse = (studentsRoute as Record<string, unknown>)['toStudentResponse'] as
+      | ((row: Record<string, unknown>, parentNames?: string[]) => Record<string, unknown>)
+      | undefined;
 
     expect(toStudentResponse).toBeTypeOf('function');
 
@@ -73,15 +78,26 @@ describe('toStudentResponse', () => {
   });
 
   it('handles null optional fields', () => {
-    const toStudentResponse = (studentsRoute as Record<string, unknown>)[
-      'toStudentResponse'
-    ] as ((row: Record<string, unknown>, parentNames?: string[]) => Record<string, unknown>) | undefined;
+    const toStudentResponse = (studentsRoute as Record<string, unknown>)['toStudentResponse'] as
+      | ((row: Record<string, unknown>, parentNames?: string[]) => Record<string, unknown>)
+      | undefined;
 
     const row = {
-      id: 'abc-123', org_id: 'org-456', name: '林子璿', grade: 'J1',
-      schools: null, birthday: null, gender: null, phone: null,
-      address: null, emergency_contact_name: null, emergency_contact_phone: null,
-      notes: null, is_active: false, created_at: '2026-01-01', updated_at: '2026-01-01',
+      id: 'abc-123',
+      org_id: 'org-456',
+      name: '林子璿',
+      grade: 'J1',
+      schools: null,
+      birthday: null,
+      gender: null,
+      phone: null,
+      address: null,
+      emergency_contact_name: null,
+      emergency_contact_phone: null,
+      notes: null,
+      is_active: false,
+      created_at: '2026-01-01',
+      updated_at: '2026-01-01',
     };
 
     const result = toStudentResponse?.(row);
@@ -98,7 +114,8 @@ describe('buildStudentSearchClause', () => {
   it('uses student name only when search scope is student_name', () => {
     const buildStudentSearchClause = (studentsRoute as Record<string, unknown>)[
       'buildStudentSearchClause'
-    ] as ((search: string, matchedStudentIds: string[], searchScope?: string) => string) | undefined;
+    ] as
+      ((search: string, matchedStudentIds: string[], searchScope?: string) => string) | undefined;
 
     expect(buildStudentSearchClause).toBeTypeOf('function');
     expect(buildStudentSearchClause?.('劉', ['student-1'], 'student_name')).toBe('name.ilike.%劉%');
@@ -107,7 +124,8 @@ describe('buildStudentSearchClause', () => {
   it('includes parent matches in default scope', () => {
     const buildStudentSearchClause = (studentsRoute as Record<string, unknown>)[
       'buildStudentSearchClause'
-    ] as ((search: string, matchedStudentIds: string[], searchScope?: string) => string) | undefined;
+    ] as
+      ((search: string, matchedStudentIds: string[], searchScope?: string) => string) | undefined;
 
     expect(buildStudentSearchClause?.('劉', ['student-1'], 'default')).toBe(
       'name.ilike.%劉%,id.in.(student-1)',

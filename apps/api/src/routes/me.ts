@@ -58,19 +58,22 @@ app.openapi(
       supabase.from('ba_user').select('email, phone, username').eq('id', userId).single(),
     ]);
 
-    return c.json({
-      userId,
-      orgId,
-      displayName: (profileResult.data?.display_name ?? '') as string,
-      email: (baUserResult.data?.email as string | null) ?? null,
-      phone: (baUserResult.data?.phone as string | null) ?? null,
-      birthday: (staffResult.data?.birthday as string | null) ?? null,
-      roles: (rolesResult.data ?? []).map((r: { role: string }) => r.role),
-      permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
-        Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
-      ),
-      isRootUser: (baUserResult.data?.username as string | null) === 'root',
-    }, 200);
+    return c.json(
+      {
+        userId,
+        orgId,
+        displayName: (profileResult.data?.display_name ?? '') as string,
+        email: (baUserResult.data?.email as string | null) ?? null,
+        phone: (baUserResult.data?.phone as string | null) ?? null,
+        birthday: (staffResult.data?.birthday as string | null) ?? null,
+        roles: (rolesResult.data ?? []).map((r: { role: string }) => r.role),
+        permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
+          Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
+        ),
+        isRootUser: (baUserResult.data?.username as string | null) === 'root',
+      },
+      200,
+    );
   },
 );
 
@@ -105,10 +108,7 @@ app.openapi(
     const body = c.req.valid('json');
 
     if (body.displayName !== undefined) {
-      await supabase
-        .from('profiles')
-        .update({ display_name: body.displayName })
-        .eq('id', userId);
+      await supabase.from('profiles').update({ display_name: body.displayName }).eq('id', userId);
     }
 
     if (body.email !== undefined) {
@@ -125,7 +125,11 @@ app.openapi(
     }
 
     if (body.phone !== undefined) {
-      const { data: baUser } = await supabase.from('ba_user').select('email').eq('id', userId).single();
+      const { data: baUser } = await supabase
+        .from('ba_user')
+        .select('email')
+        .eq('id', userId)
+        .single();
 
       const updatePayload: Record<string, string | null> = { phone: body.phone };
       if ((baUser as Record<string, unknown> | null)?.['email'] == null) {
@@ -145,19 +149,22 @@ app.openapi(
       supabase.from('ba_user').select('email, phone, username').eq('id', userId).single(),
     ]);
 
-    return c.json({
-      userId,
-      orgId: c.get('orgId'),
-      displayName: (profileResult.data?.display_name ?? '') as string,
-      email: (baUserResult.data?.email as string | null) ?? null,
-      phone: (baUserResult.data?.phone as string | null) ?? null,
-      birthday: (staffResult.data?.birthday as string | null) ?? null,
-      roles: (rolesResult.data ?? []).map((r: { role: string }) => r.role),
-      permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
-        Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
-      ),
-      isRootUser: (baUserResult.data?.username as string | null) === 'root',
-    }, 200);
+    return c.json(
+      {
+        userId,
+        orgId: c.get('orgId'),
+        displayName: (profileResult.data?.display_name ?? '') as string,
+        email: (baUserResult.data?.email as string | null) ?? null,
+        phone: (baUserResult.data?.phone as string | null) ?? null,
+        birthday: (staffResult.data?.birthday as string | null) ?? null,
+        roles: (rolesResult.data ?? []).map((r: { role: string }) => r.role),
+        permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
+          Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
+        ),
+        isRootUser: (baUserResult.data?.username as string | null) === 'root',
+      },
+      200,
+    );
   },
 );
 
@@ -216,20 +223,28 @@ app.openapi(
     }
 
     // Step 2：新增 parent role
-    const { error: roleError } = await supabase.from('user_roles').upsert(
-      { user_id: userId, role: 'parent', permissions: [] },
-      { onConflict: 'user_id,role', ignoreDuplicates: true },
-    );
+    const { error: roleError } = await supabase
+      .from('user_roles')
+      .upsert(
+        { user_id: userId, role: 'parent', permissions: [] },
+        { onConflict: 'user_id,role', ignoreDuplicates: true },
+      );
 
     if (roleError) {
       return c.json({ error: '賦予角色失敗', code: 'GRANT_ROLE_FAILED' }, 500);
     }
 
-    const { data: rolesResult } = await supabase.from('user_roles').select('role').eq('user_id', userId);
+    const { data: rolesResult } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId);
 
-    return c.json({
-      roles: (rolesResult ?? []).map((r: { role: string }) => r.role),
-    }, 200);
+    return c.json(
+      {
+        roles: (rolesResult ?? []).map((r: { role: string }) => r.role),
+      },
+      200,
+    );
   },
 );
 

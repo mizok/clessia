@@ -186,7 +186,7 @@ export async function checkEnrollmentPreconditions(
   const conflicts: StudentScheduleConflict[] = [];
   const conflictKeys = new Set<string>();
 
-  for (const enrollment of ((existingEnrollments ?? []) as unknown as ExistingEnrollmentRow[])) {
+  for (const enrollment of (existingEnrollments ?? []) as unknown as ExistingEnrollmentRow[]) {
     const existingEffectiveTo = enrollment.effective_to ?? '9999-12-31';
     if (newEffectiveTo < enrollment.effective_from || existingEffectiveTo < effectiveFrom) {
       continue;

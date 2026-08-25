@@ -7,8 +7,21 @@ import scoresApp from './scores';
 interface ScoresState {
   students: Array<{ id: string; org_id: string; name: string }>;
   subjects: Array<{ id: string; name: string }>;
-  academy_exams: Array<{ id: string; org_id: string; name: string; exam_date: string; subject_id: string; total_score: number }>;
-  academy_scores: Array<{ id: string; exam_id: string; student_id: string; score: number | null; status: 'scored' | 'absent' | 'makeup' }>;
+  academy_exams: Array<{
+    id: string;
+    org_id: string;
+    name: string;
+    exam_date: string;
+    subject_id: string;
+    total_score: number;
+  }>;
+  academy_scores: Array<{
+    id: string;
+    exam_id: string;
+    student_id: string;
+    score: number | null;
+    status: 'scored' | 'absent' | 'makeup';
+  }>;
 }
 
 function createTestApp(state: ScoresState) {
@@ -54,7 +67,9 @@ function createStudentsQuery(state: ScoresState) {
           filters.every((f) => {
             if (f.type === 'eq') return (s as Record<string, unknown>)[f.col] === f.value;
             const keyword = String(f.value).replace(/%/g, '').toLowerCase();
-            return String((s as Record<string, unknown>)[f.col] ?? '').toLowerCase().includes(keyword);
+            return String((s as Record<string, unknown>)[f.col] ?? '')
+              .toLowerCase()
+              .includes(keyword);
           }),
         )
         .map((s) => ({ id: s.id, name: s.name }));
@@ -90,7 +105,9 @@ function createAcademyExamsQuery(state: ScoresState) {
           filters.every((f) => {
             if (f.type === 'eq') return (e as Record<string, unknown>)[f.col] === f.value;
             const keyword = String(f.value).replace(/%/g, '').toLowerCase();
-            return String((e as Record<string, unknown>)[f.col] ?? '').toLowerCase().includes(keyword);
+            return String((e as Record<string, unknown>)[f.col] ?? '')
+              .toLowerCase()
+              .includes(keyword);
           }),
         )
         .map((e) => ({ id: e.id }));
@@ -123,7 +140,9 @@ function createAcademyScoresQuery(state: ScoresState) {
     order() {
       return query;
     },
-    then(onfulfilled?: ((value: { data: unknown[]; error: null; count: number }) => unknown) | null) {
+    then(
+      onfulfilled?: ((value: { data: unknown[]; error: null; count: number }) => unknown) | null,
+    ) {
       const rows = state.academy_scores
         .filter((score) =>
           filters.every((f) => {
@@ -156,7 +175,9 @@ function createAcademyScoresQuery(state: ScoresState) {
             students: { name: student.name },
           };
         });
-      return Promise.resolve({ data: rows, error: null, count: rows.length }).then(onfulfilled ?? undefined);
+      return Promise.resolve({ data: rows, error: null, count: rows.length }).then(
+        onfulfilled ?? undefined,
+      );
     },
   };
   return query;
@@ -173,7 +194,9 @@ function createEmptySchoolScoresQuery() {
     order() {
       return this;
     },
-    then(onfulfilled?: ((value: { data: unknown[]; error: null; count: number }) => unknown) | null) {
+    then(
+      onfulfilled?: ((value: { data: unknown[]; error: null; count: number }) => unknown) | null,
+    ) {
       return Promise.resolve({ data: [], error: null, count: 0 }).then(onfulfilled ?? undefined);
     },
   };
@@ -185,9 +208,18 @@ describe('scores partial coverage', () => {
       students: [{ id: 's1', org_id: 'org-1', name: '王小明' }],
       subjects: [{ id: 'sub-1', name: '數學' }],
       academy_exams: [
-        { id: 'ae1', org_id: 'org-1', name: '期中衝刺考', exam_date: '2026-04-11', subject_id: 'sub-1', total_score: 100 },
+        {
+          id: 'ae1',
+          org_id: 'org-1',
+          name: '期中衝刺考',
+          exam_date: '2026-04-11',
+          subject_id: 'sub-1',
+          total_score: 100,
+        },
       ],
-      academy_scores: [{ id: 'as1', exam_id: 'ae1', student_id: 's1', score: 90, status: 'scored' }],
+      academy_scores: [
+        { id: 'as1', exam_id: 'ae1', student_id: 's1', score: 90, status: 'scored' },
+      ],
     });
 
     const res = await app.request('/api/scores?type=academy&search=衝刺考');

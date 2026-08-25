@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { allowedOrigins, isAllowedOrigin, resolveCorsOrigin, resolveTrustedOrigins } from './origins';
+import {
+  allowedOrigins,
+  isAllowedOrigin,
+  resolveCorsOrigin,
+  resolveTrustedOrigins,
+} from './origins';
 
 const PROD_ENV = {
   WEB_URL: 'https://clessia.pages.dev',
@@ -62,7 +67,7 @@ describe('isAllowedOrigin', () => {
 describe('resolveCorsOrigin', () => {
   it('回傳正規化後的來源給 CORS header', () => {
     expect(resolveCorsOrigin('https://clessia.pages.dev', allowedOrigins(PROD_ENV))).toBe(
-      'https://clessia.pages.dev'
+      'https://clessia.pages.dev',
     );
   });
 
@@ -77,7 +82,7 @@ describe('resolveTrustedOrigins', () => {
       resolveTrustedOrigins({
         requestOrigin: 'http://localhost:58871',
         allowed: allowedOrigins({ WEB_URL: 'http://localhost:4200' }),
-      })
+      }),
     ).toEqual(['http://localhost:4200', 'http://localhost:58871']);
   });
 
@@ -86,7 +91,7 @@ describe('resolveTrustedOrigins', () => {
       resolveTrustedOrigins({
         requestOrigin: 'https://evil.example.com',
         allowed: allowedOrigins(PROD_ENV),
-      })
+      }),
     ).toEqual(['https://clessia.pages.dev', 'https://a.example.com', 'https://b.example.com']);
   });
 });

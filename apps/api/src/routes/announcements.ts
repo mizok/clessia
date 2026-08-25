@@ -55,7 +55,8 @@ interface AnnouncementDbRow {
   creator?: { name: string } | null;
 }
 
-const SELECT = 'id, title, body, audience, campus_id, published_at, campuses(name), creator:ba_user!created_by(name)';
+const SELECT =
+  'id, title, body, audience, campus_id, published_at, campuses(name), creator:ba_user!created_by(name)';
 
 function toResponse(row: AnnouncementDbRow, readIds: ReadonlySet<string>) {
   return {
@@ -127,7 +128,10 @@ app.openapi(
     summary: '我的收件匣',
     responses: {
       200: { description: 'OK', content: { 'application/json': { schema: ListResponseSchema } } },
-      403: { description: '沒有收件角色', content: { 'application/json': { schema: ErrorSchema } } },
+      403: {
+        description: '沒有收件角色',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),

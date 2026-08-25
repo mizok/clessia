@@ -286,7 +286,8 @@ app.openapi(deleteRouteDef, async (c) => {
     .select('id', { count: 'exact', head: true })
     .eq('school_id', id);
 
-  if (schoolExamCountError) return c.json({ error: schoolExamCountError.message, code: 'DB_ERROR' }, 400);
+  if (schoolExamCountError)
+    return c.json({ error: schoolExamCountError.message, code: 'DB_ERROR' }, 400);
   if ((schoolExamCount ?? 0) > 0) {
     return c.json({ error: '此學校仍有學校考試事件，無法刪除', code: 'CONSTRAINT' }, 409);
   }

@@ -62,7 +62,8 @@ export interface SessionQueryParams {
 export interface ChangeLogEntry {
   id: string;
   sessionId: string;
-  changeType: 'reschedule' | 'substitute' | 'cancellation' | 'uncancel' | 'time_change' | 'creation';
+  changeType:
+    'reschedule' | 'substitute' | 'cancellation' | 'uncancel' | 'time_change' | 'creation';
   /** 後端組好的一句話，例如「代課：王小明 → 李老師」 */
   summary: string;
   sessionDate: string | null;
@@ -156,7 +157,14 @@ export class SessionsService {
 
   list(params: SessionQueryParams): Observable<{
     data: Session[];
-    meta: { total: number; page: number; pageSize: number; totalPages: number; monthUnassignedCount: number; todayPendingAttendanceCount: number };
+    meta: {
+      total: number;
+      page: number;
+      pageSize: number;
+      totalPages: number;
+      monthUnassignedCount: number;
+      todayPendingAttendanceCount: number;
+    };
   }> {
     const query: Record<string, string> = {};
 
@@ -175,14 +183,22 @@ export class SessionsService {
       query['classIds'] = params.classIds.join(',');
     }
     if (params.classId) query['classId'] = params.classId;
-    if (params.statuses && params.statuses.length > 0) query['statuses'] = params.statuses.join(',');
+    if (params.statuses && params.statuses.length > 0)
+      query['statuses'] = params.statuses.join(',');
     if (params.assignmentStatus) query['assignmentStatus'] = params.assignmentStatus;
     if (params.page) query['page'] = params.page.toString();
     if (params.pageSize) query['pageSize'] = params.pageSize.toString();
 
     return this.http.get<{
       data: Session[];
-      meta: { total: number; page: number; pageSize: number; totalPages: number; monthUnassignedCount: number; todayPendingAttendanceCount: number };
+      meta: {
+        total: number;
+        page: number;
+        pageSize: number;
+        totalPages: number;
+        monthUnassignedCount: number;
+        todayPendingAttendanceCount: number;
+      };
     }>(this.endpoint, { params: query });
   }
 
@@ -205,7 +221,10 @@ export class SessionsService {
   /** 跨課堂的課務異動紀錄。依 created_at 由新到舊 —— 這是 log，關心「最近發生什麼」。 */
   listChanges(
     params: ChangeLogParams,
-  ): Observable<{ data: ChangeLogEntry[]; meta: { total: number; page: number; pageSize: number } }> {
+  ): Observable<{
+    data: ChangeLogEntry[];
+    meta: { total: number; page: number; pageSize: number };
+  }> {
     const query: Record<string, string> = { from: params.from, to: params.to };
     if (params.changeType) query['changeType'] = params.changeType;
     if (params.campusId) query['campusId'] = params.campusId;

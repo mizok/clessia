@@ -211,7 +211,8 @@ function createClassesQuery(state: { classes: MockClassRow[] }) {
       const row =
         state.classes.find((item) =>
           filters.every(
-            (filter) => (item as unknown as Record<string, unknown>)[filter.column] === filter.value,
+            (filter) =>
+              (item as unknown as Record<string, unknown>)[filter.column] === filter.value,
           ),
         ) ?? null;
       return { data: row, error: null };

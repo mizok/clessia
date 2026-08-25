@@ -4,18 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '@env/environment';
 
 export type GradeLevel =
-  | 'P1'
-  | 'P2'
-  | 'P3'
-  | 'P4'
-  | 'P5'
-  | 'P6'
-  | 'J1'
-  | 'J2'
-  | 'J3'
-  | 'S1'
-  | 'S2'
-  | 'S3';
+  'P1' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'J1' | 'J2' | 'J3' | 'S1' | 'S2' | 'S3';
 
 export type StudentGender = 'male' | 'female' | 'prefer_not_to_say';
 
