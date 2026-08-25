@@ -17,6 +17,15 @@ export const routes: Routes = [
         canActivate: [guestGuard],
       },
       {
+        // 一次性連結兌換完落在這裡。要 authGuard —— 沒登入就沒有帳號可以綁
+        path: RoutesCatalog.PUBLIC_LINK_LINE.relativePath,
+        loadComponent: () =>
+          import('@features/public/pages/link-line/link-line.component').then(
+            (m) => m.LinkLineComponent,
+          ),
+        canActivate: [authGuard],
+      },
+      {
         path: RoutesCatalog.PUBLIC_TRIAL.relativePath,
         loadComponent: () =>
           import('@features/public/pages/trial/trial.component').then((m) => m.TrialComponent),
@@ -117,7 +126,9 @@ export const routes: Routes = [
           {
             path: RoutesCatalog.ADMIN_GRADES.relativePath,
             loadComponent: () =>
-              import('@features/admin/pages/grades/grades.component').then((m) => m.GradesComponent),
+              import('@features/admin/pages/grades/grades.component').then(
+                (m) => m.GradesComponent,
+              ),
             children: [
               {
                 path: '',
@@ -135,9 +146,9 @@ export const routes: Routes = [
               {
                 path: 'exams/:type/:id/scores',
                 loadComponent: () =>
-                  import(
-                    '@features/admin/pages/grades/exams/score-entry/score-entry.component'
-                  ).then((m) => m.ScoreEntryComponent),
+                  import('@features/admin/pages/grades/exams/score-entry/score-entry.component').then(
+                    (m) => m.ScoreEntryComponent,
+                  ),
                 data: { page: RoutesCatalog.ADMIN_GRADES_SCORE_ENTRY },
                 canDeactivate: [
                   (component: { canDeactivate: () => boolean }) => component.canDeactivate(),
@@ -157,17 +168,17 @@ export const routes: Routes = [
                   {
                     path: 'student',
                     loadComponent: () =>
-                      import(
-                        '@features/admin/pages/grades/overview/student-view/student-view.component'
-                      ).then((m) => m.StudentViewComponent),
+                      import('@features/admin/pages/grades/overview/student-view/student-view.component').then(
+                        (m) => m.StudentViewComponent,
+                      ),
                     data: { page: RoutesCatalog.ADMIN_GRADES_OVERVIEW_STUDENT },
                   },
                   {
                     path: 'class',
                     loadComponent: () =>
-                      import(
-                        '@features/admin/pages/grades/overview/class-view/class-view.component'
-                      ).then((m) => m.ClassViewComponent),
+                      import('@features/admin/pages/grades/overview/class-view/class-view.component').then(
+                        (m) => m.ClassViewComponent,
+                      ),
                     data: { page: RoutesCatalog.ADMIN_GRADES_OVERVIEW_CLASS },
                   },
                 ],
@@ -341,9 +352,7 @@ export const routes: Routes = [
           {
             path: RoutesCatalog.TEACHER_STUDENTS.relativePath,
             loadComponent: () =>
-              import('@features/teacher/pages/students/students.page').then(
-                (m) => m.StudentsPage,
-              ),
+              import('@features/teacher/pages/students/students.page').then((m) => m.StudentsPage),
             data: { page: RoutesCatalog.TEACHER_STUDENTS },
           },
           {
@@ -378,7 +387,9 @@ export const routes: Routes = [
           {
             path: RoutesCatalog.PARENT_DASHBOARD.relativePath,
             loadComponent: () =>
-              import('@features/parent/pages/dashboard/dashboard.component').then((m) => m.DashboardComponent),
+              import('@features/parent/pages/dashboard/dashboard.component').then(
+                (m) => m.DashboardComponent,
+              ),
             data: { page: RoutesCatalog.PARENT_DASHBOARD },
           },
           {
@@ -408,17 +419,13 @@ export const routes: Routes = [
           {
             path: RoutesCatalog.PARENT_MEALS.relativePath,
             loadComponent: () =>
-              import('@features/parent/pages/meals/meals.component').then(
-                (m) => m.MealsComponent,
-              ),
+              import('@features/parent/pages/meals/meals.component').then((m) => m.MealsComponent),
             data: { page: RoutesCatalog.PARENT_MEALS },
           },
           {
             path: RoutesCatalog.PARENT_TRIAL.relativePath,
             loadComponent: () =>
-              import('@features/parent/pages/trial/trial.component').then(
-                (m) => m.TrialComponent,
-              ),
+              import('@features/parent/pages/trial/trial.component').then((m) => m.TrialComponent),
             data: { page: RoutesCatalog.PARENT_TRIAL },
           },
           {

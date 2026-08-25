@@ -1,5 +1,8 @@
 /**
- * magic-link 兌換完成後要導去的位置。
+ * magic-link 兌換完成後要導去的位置：**綁定 LINE 的頁面**。
+ *
+ * 點連結進來的人下一步就是綁定 —— 直接落在那一頁，不要他自己去找。破窗用的人
+ * 不想綁的話那一頁有「稍後再說」。
  *
  * **一定要是前端**。導到 API 自己的網域的話，使用者兌換完會看到一坨 JSON 而不是
  * 登入後的畫面 —— 而且那個狀態下 session 其實已經建立了，症狀會很難懂。
@@ -18,5 +21,5 @@ export function loginLinkCallbackUrl(webUrl: string): string {
     throw new Error(`WEB_URL 不是合法網址：${trimmed}`);
   }
 
-  return `${origin}/select-role`;
+  return `${origin}/link-line`;
 }

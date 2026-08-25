@@ -45,6 +45,14 @@ export class RoutesCatalog {
     undefined,
     'pi-qrcode',
   );
+  public static readonly PUBLIC_LINK_LINE = this.register(
+    'link-line',
+    '/link-line',
+    '綁定 LINE',
+    undefined,
+    'pi-link',
+    false,
+  );
   public static readonly PUBLIC_FORGOT_PASSWORD = this.register(
     'forgot-password',
     '/forgot-password',

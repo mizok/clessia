@@ -56,7 +56,7 @@ async function main() {
          left join public.user_roles r on r.user_id = u.id
         where u.email = $1
         group by u.id, u.name`,
-      [email]
+      [email],
     );
 
     if (rows.length === 0) {
@@ -64,7 +64,7 @@ async function main() {
       const { rows: candidates } = await pool.query(
         `select u.email from public.ba_user u
            join public.user_roles r on r.user_id = u.id
-          where r.role = 'admin' order by u.email limit 10`
+          where r.role = 'admin' order by u.email limit 10`,
       );
       if (candidates.length > 0) {
         console.error('\n這個站上有 admin 角色的帳號：');

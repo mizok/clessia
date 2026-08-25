@@ -1,0 +1,25 @@
+<div class="link-line auth-content">
+  <header class="auth-content__header">
+    <p class="auth-content__badge">最後一步</p>
+    <h1 class="auth-content__title">綁定 LINE</h1>
+  </header>
+
+  <p class="link-line__lead">綁定之後，以後用 LINE 就能直接登入，不必再向補習班索取連結。</p>
+
+  @if (error()) {
+    <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
+  }
+
+  <button type="button" class="link-line__btn" [disabled]="submitting()" (click)="linkLine()">
+    @if (submitting()) {
+      <i class="pi pi-spinner pi-spin"></i>
+      前往 LINE...
+    } @else {
+      綁定 LINE 帳號
+    }
+  </button>
+
+  <button type="button" class="link-line__skip" [disabled]="submitting()" (click)="skip()">
+    稍後再說
+  </button>
+</div>

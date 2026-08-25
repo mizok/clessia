@@ -160,6 +160,24 @@ export class AuthService {
     return null;
   }
 
+  /**
+   * 把目前登入的帳號跟 LINE 綁在一起。之後這個人就能直接用 LINE 登入。
+   *
+   * 前提是**已經登入** —— 使用者是點一次性連結進來的。
+   */
+  async linkLine(): Promise<string | null> {
+    const { error } = await authClient.linkSocial({
+      provider: 'line',
+      callbackURL: `${window.location.origin}/select-role`,
+    });
+
+    if (error) {
+      return '綁定 LINE 失敗，請稍後再試';
+    }
+
+    return null;
+  }
+
   async signIn(
     account: string,
     password: string,

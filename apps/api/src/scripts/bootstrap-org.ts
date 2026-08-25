@@ -57,7 +57,9 @@ async function main() {
   const pool = new Pool({ connectionString: env.DATABASE_URL });
 
   try {
-    const existing = await pool.query('select id from public.organizations where slug = $1', [orgSlug]);
+    const existing = await pool.query('select id from public.organizations where slug = $1', [
+      orgSlug,
+    ]);
     if (existing.rowCount && existing.rowCount > 0) {
       console.error(`✖ slug「${orgSlug}」的組織已存在，未做任何變更。`);
       process.exit(1);
@@ -72,10 +74,17 @@ async function main() {
 
     // 走 Better Auth 建帳號 —— ba_* 不得由應用程式碼直接寫入（c2）
     const auth = createAuth(env);
-    const created = await (auth.api as unknown as {
-      createUser: (a: unknown) => Promise<{ user: { id: string } }>;
-    }).createUser({
-      body: { name: adminName, email: adminEmail, password: adminPassword, data: { display_name: adminName } },
+    const created = await (
+      auth.api as unknown as {
+        createUser: (a: unknown) => Promise<{ user: { id: string } }>;
+      }
+    ).createUser({
+      body: {
+        name: adminName,
+        email: adminEmail,
+        password: adminPassword,
+        data: { display_name: adminName },
+      },
       asResponse: false,
     });
     const userId = created.user.id;
