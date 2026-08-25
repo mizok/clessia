@@ -17,6 +17,7 @@
  */
 import { Pool } from 'pg';
 import { createAuth } from '../auth';
+import { mintLoginLink } from '../routes/login-links/mint';
 
 function required(name: string): string {
   const v = process.env[name];
@@ -41,13 +42,13 @@ async function main() {
   const orgSlug = validateSlug(required('ORG_SLUG'));
   const adminEmail = required('ADMIN_EMAIL');
   const adminName = required('ADMIN_NAME');
-  const adminPassword = process.env['ADMIN_PASSWORD'] ?? generatePassword();
 
   const env = {
     DATABASE_URL: required('DATABASE_URL'),
     BETTER_AUTH_SECRET: required('BETTER_AUTH_SECRET'),
     BETTER_AUTH_URL: required('BETTER_AUTH_URL'),
-    WEB_URL: process.env['WEB_URL'] ?? '',
+    // 現在是必填 —— 一次性登入連結要知道兌換完把人導去哪
+    WEB_URL: required('WEB_URL'),
     ALLOWED_ORIGINS: process.env['ALLOWED_ORIGINS'] ?? '',
     // 開站腳本不走 OAuth，留空即可 —— socialProvidersFromEnv 會回傳空 map
     LINE_CLIENT_ID: process.env['LINE_CLIENT_ID'] ?? '',
@@ -79,10 +80,11 @@ async function main() {
         createUser: (a: unknown) => Promise<{ user: { id: string } }>;
       }
     ).createUser({
+      // **刻意不給 password**（harness gate A11 守著）。Better Auth 明說不給就是
+      // 「magic link 或 social login only user」—— 這個系統沒有密碼登入。
       body: {
         name: adminName,
         email: adminEmail,
-        password: adminPassword,
         data: { display_name: adminName },
       },
       asResponse: false,
@@ -98,21 +100,23 @@ async function main() {
     );
 
     console.log(`✓ 管理員已建立：${adminName} <${adminEmail}>`);
-    console.log('\n' + '─'.repeat(52));
-    console.log(`  網址帳號：${adminEmail}`);
-    console.log(`  密碼：    ${adminPassword}`);
-    console.log('─'.repeat(52));
-    console.log('\n這組密碼只顯示這一次，沒有存在任何地方。請立刻交給對方並請他登入後修改。');
+
+    // 沒有密碼可以給 —— 給的是一次性登入連結。點開就登入，然後在畫面上綁定 LINE。
+    const loginUrl = await mintLoginLink(env, adminEmail);
+    if (!loginUrl) {
+      console.error('\n✖ 帳號建好了，但沒能產生登入連結。');
+      console.error('  跑這個補上：LOGIN_EMAIL=' + adminEmail + ' npm run login-link');
+      return;
+    }
+
+    console.log('\n' + '─'.repeat(60));
+    console.log(loginUrl);
+    console.log('─'.repeat(60));
+    console.log('\n一次有效、24 小時過期。點開就登入，接著在畫面上綁定 LINE。');
+    console.log('弄丟或過期就跑：LOGIN_EMAIL=' + adminEmail + ' npm run login-link');
   } finally {
     await pool.end();
   }
-}
-
-function generatePassword(): string {
-  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return Array.from(crypto.getRandomValues(new Uint32Array(12)))
-    .map((n) => chars[n % chars.length])
-    .join('');
 }
 
 main().catch((err) => {
