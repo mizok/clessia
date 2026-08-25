@@ -22,5 +22,9 @@
     }
   </button>
 
+  @if (showEnrollmentLink()) {
+    <a class="login__enroll-link" routerLink="/enrollment">還沒報名？前往報名</a>
+  }
+
   <p class="login__hint">第一次使用？請向補習班索取專屬連結，點開後即可綁定 LINE。</p>
 </div>

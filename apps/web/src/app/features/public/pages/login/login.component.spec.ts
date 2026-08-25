@@ -22,9 +22,17 @@ function setupWithQueryError(errorCode: string) {
   });
 
   const fixture = TestBed.createComponent(LoginComponent);
-  return fixture.componentInstance as unknown as {
-    error: () => string | null;
-    showEnrollmentLink: () => boolean;
+  fixture.detectChanges();
+
+  return {
+    c: fixture.componentInstance as unknown as {
+      error: () => string | null;
+      showEnrollmentLink: () => boolean;
+    },
+    // **看真的 DOM**：signal 對了不代表畫面上有東西。
+    // 這個測試原本只斷言 signal，結果 template 裡的 @if 區塊根本沒被加進去，
+    // 那條連結從來沒有渲染過，而測試一直是綠的。
+    enrollLink: () => (fixture.nativeElement as HTMLElement).querySelector('.login__enroll-link'),
   };
 }
 
@@ -101,17 +109,18 @@ describe('LoginComponent', () => {
 // OAuth 失敗是被導回來時寫在網址上的。純函式對了不代表接上了 ——
 // #19 的 CORS 事故就是「函式寫對但沒接上」。
 describe('LoginComponent 讀網址上的 OAuth 錯誤', () => {
-  it('未登記的帳號會顯示訊息並露出報名入口', () => {
-    const c = setupWithQueryError('signup_disabled');
+  it('未登記的帳號會顯示訊息，且畫面上真的出現報名連結', () => {
+    const { c, enrollLink } = setupWithQueryError('signup_disabled');
 
     expect(c.error()).toContain('還沒有被登記');
-    expect(c.showEnrollmentLink()).toBe(true);
+    expect(enrollLink()).not.toBeNull();
+    expect(enrollLink()?.getAttribute('href')).toBe('/enrollment');
   });
 
-  it('其他錯誤不露出報名入口', () => {
-    const c = setupWithQueryError('state_mismatch');
+  it('其他錯誤時畫面上沒有報名連結', () => {
+    const { c, enrollLink } = setupWithQueryError('state_mismatch');
 
     expect(c.error()).toBeTruthy();
-    expect(c.showEnrollmentLink()).toBe(false);
+    expect(enrollLink()).toBeNull();
   });
 });
