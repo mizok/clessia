@@ -8,7 +8,9 @@
           }
           <h2 class="session-attendance__title">{{ summary.className }}</h2>
           <p class="session-attendance__meta">
-            {{ summary.eventDate }} · {{ summary.startTime ?? '--:--' }}–{{ summary.endTime ?? '--:--' }}
+            {{ summary.eventDate }} · {{ summary.startTime ?? '--:--' }}–{{
+              summary.endTime ?? '--:--'
+            }}
             @if (summary.campusName) {
               · {{ summary.campusName }}
             }

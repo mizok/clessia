@@ -1,7 +1,9 @@
 <div class="form-dialog">
   <div class="dialog-header-inline">
     <div class="dialog-header-inline__content">
-      <span class="dialog-header-inline__title">{{ isCreateMode() ? '新增學生' : '編輯學生資料' }}</span>
+      <span class="dialog-header-inline__title">{{
+        isCreateMode() ? '新增學生' : '編輯學生資料'
+      }}</span>
     </div>
     <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
       <i class="pi pi-times"></i>
@@ -10,9 +12,7 @@
 
   <!-- 姓名 -->
   <div class="form-dialog__field">
-    <label class="form-dialog__label">
-      姓名<span class="form-dialog__required">*</span>
-    </label>
+    <label class="form-dialog__label"> 姓名<span class="form-dialog__required">*</span> </label>
     <input
       type="text"
       pInputText
@@ -27,9 +27,7 @@
   <!-- 年級 + 學校 -->
   <div class="form-dialog__row">
     <div class="form-dialog__field">
-      <label class="form-dialog__label">
-        年級<span class="form-dialog__required">*</span>
-      </label>
+      <label class="form-dialog__label"> 年級<span class="form-dialog__required">*</span> </label>
       <p-select
         [options]="gradeOptions"
         [ngModel]="formData().grade"

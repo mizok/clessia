@@ -68,7 +68,9 @@
         <h3 class="teaching-log__section-title">停課（不計入時數）</h3>
         <ul class="teaching-log__list">
           @for (row of summary().cancelled; track row.id) {
-            <li>{{ row.sessionDate }} {{ row.startTime }}–{{ row.endTime }} · {{ row.className }}</li>
+            <li>
+              {{ row.sessionDate }} {{ row.startTime }}–{{ row.endTime }} · {{ row.className }}
+            </li>
           }
         </ul>
       </section>
@@ -80,8 +82,8 @@
         <ul class="teaching-log__list">
           @for (row of substitutedAway(); track row.changeId) {
             <li>
-              {{ row.sessionDate }} {{ row.startTime }}–{{ row.endTime }} · {{ row.className }}
-              → 由 {{ row.substituteTeacherName ?? '未指定' }} 代課
+              {{ row.sessionDate }} {{ row.startTime }}–{{ row.endTime }} · {{ row.className }} → 由
+              {{ row.substituteTeacherName ?? '未指定' }} 代課
               @if (row.reason) {
                 <span class="teaching-log__reason">（{{ row.reason }}）</span>
               }

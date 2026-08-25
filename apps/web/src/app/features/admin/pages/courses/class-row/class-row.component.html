@@ -1,4 +1,8 @@
-<div class="class-row" [class.class-row--historical]="historical()" [class.class-row--selected]="selected()">
+<div
+  class="class-row"
+  [class.class-row--historical]="historical()"
+  [class.class-row--selected]="selected()"
+>
   <div class="class-row__summary" (click)="toggleSelection.emit($event)">
     <input
       type="checkbox"
@@ -64,9 +68,7 @@
               無時段
             </span>
           } @else if (
-            cls().isActive &&
-            !cls().hasUpcomingSessions &&
-            (cls().upcomingCancelledCount ?? 0) > 0
+            cls().isActive && !cls().hasUpcomingSessions && (cls().upcomingCancelledCount ?? 0) > 0
           ) {
             <span
               class="class-row__completeness-info"
@@ -98,18 +100,16 @@
           [rounded]="true"
           severity="secondary"
           size="small"
-          (onClick)="
-            openMenu.emit($event); $event.stopPropagation()
-          "
+          (onClick)="openMenu.emit($event); $event.stopPropagation()"
         />
       </div>
     }
   </div>
   @if (cls().startDate || cls().endDate) {
     <div class="class-row__date-row">
-      {{ cls().startDate ? (cls().startDate | slice:0:10) : '' }}
+      {{ cls().startDate ? (cls().startDate | slice: 0 : 10) : '' }}
       ～
-      {{ cls().endDate ? (cls().endDate | slice:0:10) : '' }}
+      {{ cls().endDate ? (cls().endDate | slice: 0 : 10) : '' }}
     </div>
   }
 </div>

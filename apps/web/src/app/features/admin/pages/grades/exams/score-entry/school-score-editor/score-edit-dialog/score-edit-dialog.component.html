@@ -22,7 +22,9 @@
     </div>
   } @else {
     @if (data?.examSubjectId) {
-      <div class="score-edit-dialog__hint">此考試只登錄「{{ data?.examSubjectName ?? '指定科目' }}」科。</div>
+      <div class="score-edit-dialog__hint">
+        此考試只登錄「{{ data?.examSubjectName ?? '指定科目' }}」科。
+      </div>
     }
 
     <div class="score-edit-dialog__table-wrap">
@@ -37,8 +39,13 @@
         </thead>
         <tbody>
           @for (row of rows(); track row.subjectId) {
-            <tr class="score-edit-dialog__tr" [class.score-edit-dialog__tr--dirty]="isRowDirty(row)">
-              <td class="score-edit-dialog__cell score-edit-dialog__cell--subject">{{ row.subjectName }}</td>
+            <tr
+              class="score-edit-dialog__tr"
+              [class.score-edit-dialog__tr--dirty]="isRowDirty(row)"
+            >
+              <td class="score-edit-dialog__cell score-edit-dialog__cell--subject">
+                {{ row.subjectName }}
+              </td>
               <td class="score-edit-dialog__cell score-edit-dialog__cell--score">
                 <p-inputnumber
                   [ngModel]="row.score"
@@ -101,8 +108,12 @@
           <span
             class="score-edit-dialog__mobile-subject-score"
             [class.score-edit-dialog__mobile-subject-score--absent]="isAbsent(row)"
-            [class.score-edit-dialog__mobile-subject-score--fail]="row.score !== null && row.score < 60"
-            [class.score-edit-dialog__mobile-subject-score--empty]="!isAbsent(row) && row.score === null"
+            [class.score-edit-dialog__mobile-subject-score--fail]="
+              row.score !== null && row.score < 60
+            "
+            [class.score-edit-dialog__mobile-subject-score--empty]="
+              !isAbsent(row) && row.score === null
+            "
           >
             @if (isAbsent(row)) {
               缺考

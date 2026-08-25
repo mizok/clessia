@@ -71,11 +71,7 @@
   } @else {
     <div class="school-score-editor__list">
       @for (s of students(); track s.studentId) {
-        <button
-          type="button"
-          class="school-score-editor__row"
-          (click)="openStudentDialog(s)"
-        >
+        <button type="button" class="school-score-editor__row" (click)="openStudentDialog(s)">
           <div class="school-score-editor__row-main">
             <span class="school-score-editor__row-name">{{ s.studentName }}</span>
             <span class="school-score-editor__row-grade">{{ formatGrade(s.studentGrade) }}</span>
@@ -101,5 +97,4 @@
       />
     }
   }
-
 </div>

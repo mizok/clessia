@@ -1,7 +1,6 @@
 <div class="copy-roster-dialog">
   @if (step() === 1) {
     <div class="copy-roster-dialog__body">
-
       <!-- 分校標注 -->
       @if (campusName) {
         <div class="copy-roster-dialog__campus-badge">
@@ -29,7 +28,11 @@
           <p-select
             [options]="gradeLevelOptions"
             [ngModel]="selectedGradeLevel()"
-            (ngModelChange)="selectedGradeLevel.set($event ?? ''); selectedCourseId.set(''); selectedClassId.set(null)"
+            (ngModelChange)="
+              selectedGradeLevel.set($event ?? '');
+              selectedCourseId.set('');
+              selectedClassId.set(null)
+            "
             optionLabel="label"
             optionValue="value"
             styleClass="w-full"
@@ -107,7 +110,9 @@
     <div class="copy-roster-dialog__body">
       <div class="copy-roster-dialog__source-banner">
         <i class="pi pi-copy"></i>
-        <span>複製自 <strong>{{ selectedClassName() }}</strong></span>
+        <span
+          >複製自 <strong>{{ selectedClassName() }}</strong></span
+        >
       </div>
 
       <div class="copy-roster-dialog__status-section">
@@ -138,7 +143,13 @@
     </div>
 
     <div class="copy-roster-dialog__footer">
-      <p-button label="上一步" [text]="true" severity="secondary" (onClick)="back()" [disabled]="submitting()" />
+      <p-button
+        label="上一步"
+        [text]="true"
+        severity="secondary"
+        (onClick)="back()"
+        [disabled]="submitting()"
+      />
       <p-button
         label="複製"
         icon="pi pi-copy"

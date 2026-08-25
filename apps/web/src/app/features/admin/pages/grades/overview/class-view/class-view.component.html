@@ -120,11 +120,7 @@
       載入課程列表...
     </div>
   } @else if (filteredGroups().length === 0) {
-    <app-empty-state
-      icon="pi pi-th-large"
-      title="無符合的課程"
-      description="請嘗試調整篩選條件"
-    />
+    <app-empty-state icon="pi pi-th-large" title="無符合的課程" description="請嘗試調整篩選條件" />
   } @else {
     <div class="class-view__groups">
       @for (group of filteredGroups(); track group.courseId) {
@@ -138,7 +134,11 @@
           </div>
           <div class="class-view__class-list">
             @for (cls of group.classes; track cls.classInfo.id) {
-              <button type="button" class="class-view__class-row" (click)="openClassScores(cls.classInfo)">
+              <button
+                type="button"
+                class="class-view__class-row"
+                (click)="openClassScores(cls.classInfo)"
+              >
                 <div class="class-view__class-info">
                   <span class="class-view__class-name">{{ cls.classInfo.name }}</span>
                   @if (cls.gradeLabels) {
@@ -157,7 +157,9 @@
                       待登錄 {{ getTodoExamCount(cls.classInfo.id) }}
                     </button>
                   }
-                  <span class="class-view__class-capacity">上限 {{ cls.classInfo.maxStudents }} 人</span>
+                  <span class="class-view__class-capacity"
+                    >上限 {{ cls.classInfo.maxStudents }} 人</span
+                  >
                   <i class="pi pi-chevron-right class-view__class-action" aria-hidden="true"></i>
                 </div>
               </button>

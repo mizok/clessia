@@ -1,6 +1,10 @@
 <form [formGroup]="form" (ngSubmit)="submit()" class="session-op-form">
   @if (submitError()) {
-    <app-inline-notice severity="error" [detail]="submitError()" (dismissed)="submitError.set(null)" />
+    <app-inline-notice
+      severity="error"
+      [detail]="submitError()"
+      (dismissed)="submitError.set(null)"
+    />
   }
   <div class="session-op-form__field">
     <label for="newSessionDate" class="session-op-form__label">
@@ -20,7 +24,9 @@
     } @else {
       @if (targetCampusSessions().length > 0) {
         <div class="session-op-form__target-sessions">
-          <p class="session-op-form__hint">同分校當日已排 {{ targetCampusSessions().length }} 堂課：</p>
+          <p class="session-op-form__hint">
+            同分校當日已排 {{ targetCampusSessions().length }} 堂課：
+          </p>
           @for (s of targetCampusSessions(); track s.className + s.startTime) {
             <div class="session-op-form__target-session-item">
               {{ s.startTime }}–{{ s.endTime }} {{ s.courseName }} · {{ s.className }}
@@ -30,7 +36,9 @@
       }
       @if (targetTeacherSessions().length > 0) {
         <div class="session-op-form__target-sessions">
-          <p class="session-op-form__hint">同老師當日另有 {{ targetTeacherSessions().length }} 堂課：</p>
+          <p class="session-op-form__hint">
+            同老師當日另有 {{ targetTeacherSessions().length }} 堂課：
+          </p>
           @for (s of targetTeacherSessions(); track s.className + s.startTime) {
             <div class="session-op-form__target-session-item">
               {{ s.startTime }}–{{ s.endTime }} {{ s.courseName }} · {{ s.className }}

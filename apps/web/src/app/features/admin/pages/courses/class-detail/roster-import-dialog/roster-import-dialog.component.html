@@ -8,7 +8,11 @@
           {{ maxRows }} 人。
         </p>
 
-        <a class="roster-import__template" href="/assets/templates/roster-import-template.xlsx" download>
+        <a
+          class="roster-import__template"
+          href="/assets/templates/roster-import-template.xlsx"
+          download
+        >
           <i class="pi pi-download"></i>
           下載範本
         </a>
@@ -27,7 +31,11 @@
         </label>
 
         @if (parseError()) {
-          <app-inline-notice severity="error" [detail]="parseError()" (dismissed)="parseError.set(null)" />
+          <app-inline-notice
+            severity="error"
+            [detail]="parseError()"
+            (dismissed)="parseError.set(null)"
+          />
         }
       </div>
     }
@@ -104,9 +112,13 @@
               "
               role="row"
             >
-              <span class="roster-import__cell roster-import__cell--index">{{ item.row.index }}</span>
+              <span class="roster-import__cell roster-import__cell--index">{{
+                item.row.index
+              }}</span>
               <span class="roster-import__cell roster-import__cell--name">{{ item.row.name }}</span>
-              <span class="roster-import__cell roster-import__cell--school">{{ item.row.school }}</span>
+              <span class="roster-import__cell roster-import__cell--school">{{
+                item.row.school
+              }}</span>
 
               @if (item.result?.status === 'ambiguous') {
                 <p-select
@@ -144,11 +156,15 @@
               [dismissible]="false"
             />
             <ul class="roster-import__conflict-list">
-              @for (conflict of conflicts(); track conflict.studentId + conflict.conflictingClassId) {
+              @for (
+                conflict of conflicts();
+                track conflict.studentId + conflict.conflictingClassId
+              ) {
                 <li class="roster-import__conflict-item">
                   {{ studentNameOf(conflict.studentId) }} —— 週{{ weekdayLabel(conflict.weekday) }}
-                  {{ conflict.startTime }}–{{ conflict.endTime }}
-                  與「{{ conflict.conflictingClassName }}」重疊
+                  {{ conflict.startTime }}–{{ conflict.endTime }} 與「{{
+                    conflict.conflictingClassName
+                  }}」重疊
                 </li>
               }
             </ul>
@@ -156,7 +172,11 @@
         }
 
         @if (submitError()) {
-          <app-inline-notice severity="error" [detail]="submitError()" (dismissed)="submitError.set(null)" />
+          <app-inline-notice
+            severity="error"
+            [detail]="submitError()"
+            (dismissed)="submitError.set(null)"
+          />
         }
       </div>
 
@@ -181,11 +201,11 @@
         <i class="pi pi-check-circle roster-import__result-icon"></i>
         <p class="roster-import__result-title">已匯入 {{ enrolledCount() }} 人</p>
         @if (skippedCount() > 0) {
-          <p class="roster-import__result-desc">{{ skippedCount() }} 人略過（已在班上或建立失敗）</p>
+          <p class="roster-import__result-desc">
+            {{ skippedCount() }} 人略過（已在班上或建立失敗）
+          </p>
         }
-        <p class="roster-import__result-desc">
-          生效日 {{ effectiveFrom() | date: 'yyyy-MM-dd' }}
-        </p>
+        <p class="roster-import__result-desc">生效日 {{ effectiveFrom() | date: 'yyyy-MM-dd' }}</p>
       </div>
 
       <div class="roster-import__footer">

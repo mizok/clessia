@@ -37,9 +37,7 @@
                 [value]="changeTypeLabel(c.changeType)"
                 [severity]="changeTypeSeverity(c.changeType)"
               />
-              <span class="session-detail__timestamp">{{
-                c.createdAt | date: 'MM/dd HH:mm'
-              }}</span>
+              <span class="session-detail__timestamp">{{ c.createdAt | date: 'MM/dd HH:mm' }}</span>
             </div>
             <p class="session-detail__timeline-summary">{{ changeSummary(c) }}</p>
             @if (changeReason(c); as reason) {

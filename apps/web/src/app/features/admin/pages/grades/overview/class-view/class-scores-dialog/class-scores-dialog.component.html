@@ -47,11 +47,17 @@
         } @else {
           <div class="class-scores-dialog__todo-list">
             @for (exam of exams(); track exam.id) {
-              <button type="button" class="class-scores-dialog__todo-row" (click)="goToScoreEntry(exam)">
+              <button
+                type="button"
+                class="class-scores-dialog__todo-row"
+                (click)="goToScoreEntry(exam)"
+              >
                 <div class="class-scores-dialog__todo-content">
                   <span class="class-scores-dialog__todo-name">{{ exam.name }}</span>
                   <div class="class-scores-dialog__todo-meta">
-                    <span class="class-scores-dialog__todo-date">{{ formatDate(exam.examDate) }}</span>
+                    <span class="class-scores-dialog__todo-date">{{
+                      formatDate(exam.examDate)
+                    }}</span>
                     <p-tag [value]="getExamTypeLabel(exam.examType)" severity="secondary" />
                   </div>
                   @if (exam.scopeNote) {
@@ -167,11 +173,15 @@
                 <tbody>
                   @for (row of sortedScores(); track row.studentId; let i = $index) {
                     <tr class="class-scores-dialog__row">
-                      <td class="class-scores-dialog__cell class-scores-dialog__cell--rank">{{ i + 1 }}</td>
+                      <td class="class-scores-dialog__cell class-scores-dialog__cell--rank">
+                        {{ i + 1 }}
+                      </td>
                       <td class="class-scores-dialog__cell">{{ row.studentName }}</td>
                       <td
                         class="class-scores-dialog__cell class-scores-dialog__cell--score"
-                        [class.class-scores-dialog__cell--fail]="row.score !== null && row.score < 60"
+                        [class.class-scores-dialog__cell--fail]="
+                          row.score !== null && row.score < 60
+                        "
                       >
                         @if (row.score !== null && row.score < 60) {
                           <i
@@ -182,9 +192,14 @@
                         {{ row.score !== null ? row.score : '—' }}
                       </td>
                       <td class="class-scores-dialog__cell">
-                        <p-tag [value]="getStatusLabel(row.status)" [severity]="getStatusSeverity(row.status)" />
+                        <p-tag
+                          [value]="getStatusLabel(row.status)"
+                          [severity]="getStatusSeverity(row.status)"
+                        />
                       </td>
-                      <td class="class-scores-dialog__cell class-scores-dialog__cell--notes">{{ row.notes ?? '—' }}</td>
+                      <td class="class-scores-dialog__cell class-scores-dialog__cell--notes">
+                        {{ row.notes ?? '—' }}
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -201,7 +216,10 @@
                     </div>
                     <div class="class-scores-dialog__mobile-identity">
                       <span class="class-scores-dialog__mobile-name">{{ row.studentName }}</span>
-                      <p-tag [value]="getStatusLabel(row.status)" [severity]="getStatusSeverity(row.status)" />
+                      <p-tag
+                        [value]="getStatusLabel(row.status)"
+                        [severity]="getStatusSeverity(row.status)"
+                      />
                     </div>
                   </div>
 
@@ -209,7 +227,9 @@
                     <span class="class-scores-dialog__mobile-label">分數</span>
                     <span
                       class="class-scores-dialog__mobile-score"
-                      [class.class-scores-dialog__mobile-score--fail]="row.score !== null && row.score < 60"
+                      [class.class-scores-dialog__mobile-score--fail]="
+                        row.score !== null && row.score < 60
+                      "
                     >
                       {{ row.score !== null ? row.score : '—' }}
                     </span>

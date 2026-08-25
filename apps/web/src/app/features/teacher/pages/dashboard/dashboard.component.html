@@ -7,9 +7,7 @@
   @if (loading()) {
     <p class="teacher-dashboard__state">載入中…</p>
   } @else if (loadError()) {
-    <p class="teacher-dashboard__state teacher-dashboard__state--error">
-      查詢失敗，請稍後再試。
-    </p>
+    <p class="teacher-dashboard__state teacher-dashboard__state--error">查詢失敗，請稍後再試。</p>
   } @else {
     <div class="teacher-dashboard__cards">
       <div class="teacher-dashboard__card">
