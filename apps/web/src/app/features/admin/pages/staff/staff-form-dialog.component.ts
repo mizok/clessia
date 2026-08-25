@@ -171,7 +171,8 @@ export class StaffFormDialogComponent {
             summary: '新增成功',
             detail: `「${form.displayName}」已建立`,
           });
-          this.ref.close(res.data);
+          // loginUrl 一定要往上傳 —— 這個系統沒有密碼，那條連結是對方唯一的進門方式
+          this.ref.close({ data: res.data, loginUrl: res.loginUrl });
         },
         error: (err) => {
           this.messageService.add({

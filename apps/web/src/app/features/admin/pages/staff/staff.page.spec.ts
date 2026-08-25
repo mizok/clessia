@@ -7,6 +7,10 @@ import { SubjectsService } from '@core/subjects.service';
 import type { Staff } from '@core/staff.service';
 import { vi } from 'vitest';
 
+import { MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
+import { LoginLinkDialogComponent } from '@shared/components/login-link-dialog/login-link-dialog.component';
+
 import { StaffPage } from './staff.page';
 
 describe('StaffPage', () => {
@@ -40,11 +44,15 @@ describe('StaffPage', () => {
   });
   const staffServiceMock = {
     list: vi.fn(() => of(buildStaffResponse())),
+    createLoginLink: vi.fn(() => of({ url: 'https://x/verify?token=t', expiresInSeconds: 86400 })),
   };
+  const dialogServiceMock = { open: vi.fn(() => ({ onClose: of(undefined) })) };
 
   beforeEach(async () => {
     staffServiceMock.list.mockReset();
     staffServiceMock.list.mockReturnValue(of(buildStaffResponse()));
+    staffServiceMock.createLoginLink.mockClear();
+    dialogServiceMock.open.mockClear();
 
     await TestBed.configureTestingModule({
       imports: [StaffPage],
@@ -66,13 +74,26 @@ describe('StaffPage', () => {
           },
         },
         {
+          provide: DialogService,
+          useValue: dialogServiceMock,
+        },
+        {
           provide: OverlayContainerService,
           useValue: {
             getContainer: () => null,
           },
         },
       ],
-    }).compileComponents();
+    })
+      // StaffPage 在 @Component 的 providers 裡自己給 DialogService，
+      // 元件層級的 provider 會蓋過 TestBed 的 —— 必須用 overrideComponent 才換得掉
+      .overrideComponent(StaffPage, {
+        // set 會整個取代 providers 陣列 —— MessageService 必須一起帶上，否則元件建不起來
+        set: {
+          providers: [MessageService, { provide: DialogService, useValue: dialogServiceMock }],
+        },
+      })
+      .compileComponents();
 
     fixture = TestBed.createComponent(StaffPage);
     component = fixture.componentInstance;
@@ -194,5 +215,33 @@ describe('StaffPage', () => {
     ).map((element) => element.textContent?.trim() ?? '');
 
     expect(statValues).toEqual(['128', '7', '121', '119']);
+  });
+
+  // 這個系統沒有密碼 —— 一次性登入連結是員工唯一的進門方式。
+  // PR #24 的後端回傳了 loginUrl，但前端型別把它丟掉、頁面也沒有任何入口，
+  // 新建的員工因此完全無法登入。
+  describe('StaffPage 的登入連結', () => {
+    const staff = { id: 's1', userId: 'u1', displayName: '王老師', status: 'active' } as Staff;
+    it('產生連結會開 LoginLinkDialog 並帶入網址', () => {
+      (component as unknown as { issueLoginLink: (s: Staff) => void }).issueLoginLink(staff);
+      expect(staffServiceMock.createLoginLink).toHaveBeenCalledWith('u1');
+      expect(dialogServiceMock.open).toHaveBeenCalled();
+      const lastCall = dialogServiceMock.open.mock.calls.at(-1) as unknown as [
+        unknown,
+        { data: { loginUrl: string; personName: string } },
+      ];
+      const [dialogComponent, config] = lastCall;
+      expect(dialogComponent).toBe(LoginLinkDialogComponent);
+      expect(config.data.loginUrl).toContain('token=t');
+      expect(config.data.personName).toBe('王老師');
+    });
+    // 還沒有登入帳號的人產生不出連結 —— 要說清楚，不要靜靜地什麼都沒發生
+    it('沒有 userId 時不呼叫 API', () => {
+      (component as unknown as { issueLoginLink: (s: Staff) => void }).issueLoginLink({
+        ...staff,
+        userId: '',
+      } as Staff);
+      expect(staffServiceMock.createLoginLink).not.toHaveBeenCalled();
+    });
   });
 });
