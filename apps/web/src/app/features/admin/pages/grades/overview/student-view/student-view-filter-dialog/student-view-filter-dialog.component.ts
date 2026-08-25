@@ -53,7 +53,9 @@ export class StudentViewFilterDialogComponent {
   protected readonly searchText = signal(this.config.data?.initial.searchText ?? '');
   protected readonly grade = signal<GradeLevel | ''>(this.config.data?.initial.grade ?? '');
   protected readonly schoolId = signal<string | null>(this.config.data?.initial.schoolId ?? null);
-  protected readonly status = signal<StudentActiveStatusFilter>(this.config.data?.initial.status ?? 'active');
+  protected readonly status = signal<StudentActiveStatusFilter>(
+    this.config.data?.initial.status ?? 'active',
+  );
 
   protected close(): void {
     this.ref.close();

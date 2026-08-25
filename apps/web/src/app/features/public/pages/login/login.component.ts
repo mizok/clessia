@@ -1,89 +1,57 @@
-import {
-  AfterViewInit,
-  Component,
-  ElementRef,
-  OnInit,
-  inject,
-  signal,
-  viewChild,
-} from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '@core/auth.service';
-import { CaptchaService } from '@core/captcha.service';
-import { environment } from '@env/environment';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
+import { oauthErrorFor } from './oauth-error';
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule, RouterLink, InlineNoticeComponent],
+  imports: [InlineNoticeComponent, RouterLink],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
   host: { class: 'u-centered-flex' },
 })
-export class LoginComponent implements OnInit, AfterViewInit {
-  private readonly turnstileContainer = viewChild.required<ElementRef>('turnstileContainer');
-  private readonly captchaToken = signal<string | null>(null);
+export class LoginComponent {
   private readonly auth = inject(AuthService);
-  private readonly captcha = inject(CaptchaService);
   private readonly route = inject(ActivatedRoute);
 
-  protected account = '';
-  protected password = '';
-  protected rememberMe = false;
-  protected readonly isRootMode = signal(false);
-  protected readonly loginMode = signal<'email' | 'phone' | 'username'>('email');
   protected readonly error = signal<string | null>(null);
   protected readonly submitting = signal(false);
-  protected readonly showPassword = signal(false);
+  /** 未登記的人需要報名入口，不是「再試一次」 */
+  protected readonly showEnrollmentLink = signal(false);
 
-  ngOnInit(): void {
-    if (this.route.snapshot.queryParamMap.get('role') === 'root') {
-      this.isRootMode.set(true);
-      this.loginMode.set('username');
-      this.account = 'root';
+  constructor() {
+    // OAuth 的失敗是被導回來時寫在網址上的，不是函式回傳值
+    const oauthError = oauthErrorFor(this.route.snapshot.queryParamMap.get('error'));
+    if (oauthError) {
+      this.error.set(oauthError.message);
+      this.showEnrollmentLink.set(oauthError.showEnrollmentLink);
     }
   }
 
-  ngAfterViewInit() {
-    this.captcha.render(
-      this.turnstileContainer().nativeElement,
-      environment.turnstileSiteKey,
-      (token) => this.captchaToken.set(token),
-      { appearance: 'always', size: 'invisible' },
-    );
-  }
-
-  protected setLoginMode(mode: 'email' | 'phone') {
-    this.loginMode.set(mode);
-    this.account = '';
+  /**
+   * 這個系統沒有密碼。原因見 `kb/wiki/architecture/line-oauth-login.md`：
+   * 密碼雜湊超過 Cloudflare Workers 的 CPU 上限，登入間歇性 503。
+   *
+   * 第一次進來的人沒有 LINE 可以按 —— 他們拿的是管理員產生的一次性連結，
+   * 點開就登入，然後在畫面上綁定 LINE。之後才走這顆按鈕。
+   */
+  protected async signInWithLine(): Promise<void> {
     this.error.set(null);
-  }
-
-  protected async onSubmit() {
-    this.error.set(null);
+    this.showEnrollmentLink.set(false);
     this.submitting.set(true);
 
-    this.auth.setRememberMe(this.rememberMe);
-    const errorMsg = await this.auth.signIn(
-      this.account,
-      this.password,
-      this.captchaToken() ?? undefined,
-      this.loginMode(),
-    );
-    this.submitting.set(false);
-
-    if (errorMsg) {
-      this.error.set(errorMsg);
-      return;
+    try {
+      const errorMsg = await this.auth.signInWithLine();
+      if (errorMsg) {
+        this.error.set(errorMsg);
+      }
+      // 成功的話瀏覽器已經被導去 LINE，這裡不會再執行到
+    } catch {
+      // 不接住的話按鈕會永遠卡在「登入中」
+      this.error.set('無法連線到 LINE，請稍後再試');
+    } finally {
+      this.submitting.set(false);
     }
-
-    const roles = this.auth.roles();
-    if (roles.length === 0) {
-      this.error.set('此帳號尚未被指派角色，請聯繫管理員');
-      return;
-    }
-
-    this.auth.navigateToRoleShell(roles[0]);
   }
 }

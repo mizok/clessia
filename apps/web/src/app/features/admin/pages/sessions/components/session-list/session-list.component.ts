@@ -53,9 +53,9 @@ export class SessionListComponent {
     const visibleCount = this.sessions().length;
     const total = this.total();
     if (visibleCount === 0 && total === 0) return '';
-    const cancelled = this.sessions().filter(s => s.status === 'cancelled').length;
+    const cancelled = this.sessions().filter((s) => s.status === 'cancelled').length;
     const unassigned = this.sessions().filter(
-      s => s.assignmentStatus === 'unassigned' && s.status === 'scheduled'
+      (s) => s.assignmentStatus === 'unassigned' && s.status === 'scheduled',
     ).length;
     const parts = [
       total > visibleCount ? `本頁 ${visibleCount} 堂，共 ${total} 堂` : `共 ${visibleCount} 堂`,
@@ -139,9 +139,7 @@ export class SessionListComponent {
       : '未點名';
   }
 
-  protected attendanceStatusSeverity(
-    session: Session,
-  ): 'success' | 'info' | 'secondary' | 'warn' {
+  protected attendanceStatusSeverity(session: Session): 'success' | 'info' | 'secondary' | 'warn' {
     if (session.status === 'cancelled') return 'secondary';
     if (this.isFutureSession(session)) return 'secondary';
     if (session.attendanceTakenAt) return 'success';
@@ -162,7 +160,9 @@ export class SessionListComponent {
     }
 
     const enrolledCount = session.attendanceEnrolledCount;
-    return typeof enrolledCount === 'number' && enrolledCount > 0 ? `${enrolledCount} 人待點名` : '';
+    return typeof enrolledCount === 'number' && enrolledCount > 0
+      ? `${enrolledCount} 人待點名`
+      : '';
   }
 
   private emitSelected(selected: ReadonlySet<string>): void {

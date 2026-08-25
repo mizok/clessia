@@ -209,11 +209,7 @@ export class AttendancePage implements OnInit {
     this.attendanceService
       .sessions({
         dateFrom: start ? format(start, 'yyyy-MM-dd') : undefined,
-        dateTo: end
-          ? format(end, 'yyyy-MM-dd')
-          : start
-            ? format(start, 'yyyy-MM-dd')
-            : undefined,
+        dateTo: end ? format(end, 'yyyy-MM-dd') : start ? format(start, 'yyyy-MM-dd') : undefined,
         campusId,
         courseIds:
           selectedClassIds.length === 0 && selectedCourseIds.length > 0

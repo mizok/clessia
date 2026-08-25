@@ -38,14 +38,22 @@ describe('summariseTeacherWeek', () => {
   });
 
   it('已開始又沒點名的算待辦', () => {
-    const stats = summariseTeacherWeek([session({ startTime: '09:00', takenAt: null })], TODAY, NOON);
+    const stats = summariseTeacherWeek(
+      [session({ startTime: '09:00', takenAt: null })],
+      TODAY,
+      NOON,
+    );
 
     expect(stats.todayPending).toBe(1);
   });
 
   // 還沒上的課當然沒點名，算進待辦只會讓數字整天都嚇人
   it('還沒開始的課不算待辦', () => {
-    const stats = summariseTeacherWeek([session({ startTime: '19:00', takenAt: null })], TODAY, NOON);
+    const stats = summariseTeacherWeek(
+      [session({ startTime: '19:00', takenAt: null })],
+      TODAY,
+      NOON,
+    );
 
     expect(stats.todayPending).toBe(0);
   });

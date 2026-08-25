@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAuth } from '../auth';
+import { mintLoginLink } from './login-links/mint';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 
@@ -376,11 +377,6 @@ async function validateSubjectIdsInOrg(
 function isDuplicateEmailError(message: string): boolean {
   const normalized = message.toLowerCase();
   return normalized.includes('already') && normalized.includes('registered');
-}
-
-function generateRandomPassword(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 
 async function loadStaffRelations(
@@ -807,7 +803,7 @@ const createRouteDef = createRoute({
       description: '成功新增人員',
       content: {
         'application/json': {
-          schema: z.object({ data: StaffSchema }),
+          schema: z.object({ data: StaffSchema, loginUrl: z.string().nullable() }),
         },
       },
     },
@@ -867,7 +863,8 @@ app.openapi(createRouteDef, async (c) => {
   }
 
   const auth = createAuth(c.env);
-  const password = generateRandomPassword();
+  // **刻意不給 password** —— Better Auth 的 createUser 明說不給就是「magic link 或
+  // social login only user」。給了會做一次 scrypt，那正是撞爆 Workers 10ms CPU 的東西。
   let createdUserId: string | null = null;
 
   try {
@@ -875,7 +872,6 @@ app.openapi(createRouteDef, async (c) => {
       body: {
         name: body.displayName,
         email: body.email,
-        password,
         data: {
           display_name: body.displayName,
           ...(body.phone ? { phone: body.phone } : {}),
@@ -1014,10 +1010,15 @@ app.openapi(createRouteDef, async (c) => {
   const { campusMap, subjectMap, roleInfoMap, baUserMap } = await loadStaffRelations(supabase, [
     freshStaffRow,
   ]);
+
+  // 建立完就產生連結 —— 櫃檯當場把它變成 QR 給對方掃
+  const loginUrl = await mintLoginLink(c.env, body.email);
+
   return c.json(
     {
       data: mapStaff(freshStaffRow, campusMap, subjectMap, roleInfoMap, baUserMap),
-      initialPassword: password,
+      // 取代原本的 initialPassword：把連結變成 QR 給對方當場掃，是綁定成功率最高的時刻
+      loginUrl,
     },
     201,
   );

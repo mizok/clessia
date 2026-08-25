@@ -17,7 +17,8 @@
     "harness:write": "node tools/agent-harness/check-harness.mjs --write && node tools/agent-harness/feature-map.mjs --write",
     "harness:test": "node --test 'tools/agent-harness/**/*.test.mjs'",
     "test:baseline": "npx nx affected -t test --base=main 2>&1 | node tools/agent-harness/test-gate.mjs --write",
-    "bootstrap": "tsx apps/api/src/scripts/bootstrap-org.ts"
+    "bootstrap": "tsx apps/api/src/scripts/bootstrap-org.ts",
+    "login-link": "tsx apps/api/src/scripts/login-link.ts"
   },
   "prettier": {
     "printWidth": 100,
@@ -48,12 +49,12 @@
     "@neondatabase/serverless": "^1.0.2",
     "@primeuix/themes": "^2.0.3",
     "@supabase/supabase-js": "^2.95.3",
+    "angularx-qrcode": "^21.0.5",
     "better-auth": "latest",
     "date-fns": "^4.1.0",
     "hamburgers": "^1.2.1",
     "hono": "^4.11.9",
     "jdenticon": "^3.3.0",
-    "pdfmake": "^0.3.6",
     "primeicons": "^7.0.0",
     "primeng": "^21.1.1",
     "rxjs": "~7.8.0",
@@ -71,7 +72,6 @@
     "@nx/angular": "22.5.0",
     "@nx/workspace": "22.5.0",
     "@schematics/angular": "^21.1.3",
-    "@types/pdfmake": "^0.3.2",
     "exceljs": "^4.4.0",
     "jsdom": "^27.1.0",
     "nx": "^22.5.0",

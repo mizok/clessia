@@ -136,16 +136,20 @@ export class ParentsService {
     return this.http.get<{ data: ParentDetail }>(`${this.endpoint}/${id}`);
   }
 
-  create(input: CreateParentInput): Observable<{ data: Parent; initialPassword: string }> {
-    return this.http.post<{ data: Parent; initialPassword: string }>(this.endpoint, input);
+  create(input: CreateParentInput): Observable<{ data: Parent; loginUrl: string | null }> {
+    return this.http.post<{ data: Parent; loginUrl: string | null }>(this.endpoint, input);
   }
 
   update(id: string, input: UpdateParentInput): Observable<{ data: Parent }> {
     return this.http.put<{ data: Parent }>(`${this.endpoint}/${id}`, input);
   }
 
-  resetPassword(id: string): Observable<{ password: string }> {
-    return this.http.post<{ password: string }>(`${this.endpoint}/${id}/reset-password`, {});
+  /** 產生一次性登入連結。取代原本的重設密碼 —— 這個系統沒有密碼了。 */
+  createLoginLink(userId: string): Observable<{ url: string; expiresInSeconds: number }> {
+    return this.http.post<{ url: string; expiresInSeconds: number }>(
+      `${environment.apiUrl}/api/login-links`,
+      { userId },
+    );
   }
 
   activate(id: string): Observable<{ success: boolean }> {

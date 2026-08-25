@@ -8,6 +8,4 @@ import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-n
   styleUrl: './enrollment.component.scss',
   host: { class: 'u-centered-flex' },
 })
-export class EnrollmentComponent {
-
-}
+export class EnrollmentComponent {}

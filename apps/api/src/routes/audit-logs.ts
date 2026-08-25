@@ -32,7 +32,10 @@ const AuditLogListResponseSchema = z
   .openapi('AuditLogListResponse');
 
 const QueryParamsSchema = z.object({
-  resourceTypes: z.string().optional().openapi({ description: '逗號分隔的資源類型，如 class,course' }),
+  resourceTypes: z
+    .string()
+    .optional()
+    .openapi({ description: '逗號分隔的資源類型，如 class,course' }),
   page: z.string().optional(),
   pageSize: z.string().optional(),
 });
@@ -75,7 +78,10 @@ app.openapi(
       .range(offset, offset + pageSize - 1);
 
     if (query.resourceTypes) {
-      const types = query.resourceTypes.split(',').map((t) => t.trim()).filter(Boolean);
+      const types = query.resourceTypes
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
       if (types.length > 0) {
         dbQuery = dbQuery.in('resource_type', types);
       }
@@ -109,7 +115,7 @@ app.openapi(
         totalPages: Math.ceil(total / pageSize),
       },
     });
-  }
+  },
 );
 
 export default app;

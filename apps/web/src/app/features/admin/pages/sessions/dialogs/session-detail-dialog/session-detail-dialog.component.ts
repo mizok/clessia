@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
@@ -44,7 +52,8 @@ export class SessionDetailDialogComponent implements OnInit {
   protected readonly contextLine = computed(() => {
     const s = this.session();
     if (!s) return '';
-    const teacherLabel = s.assignmentStatus === 'unassigned' ? '未指派' : (s.teacherName ?? '未指派');
+    const teacherLabel =
+      s.assignmentStatus === 'unassigned' ? '未指派' : (s.teacherName ?? '未指派');
     return `${s.sessionDate.slice(5).replace('-', '/')} ${s.startTime}–${s.endTime} ・ ${s.campusName} ・ ${teacherLabel}`;
   });
 
@@ -66,18 +75,17 @@ export class SessionDetailDialogComponent implements OnInit {
         .getChanges(s.id)
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
-        next: (res: { data: SessionHistoryEntry[] }) => {
-          this.historyEntries.set(res.data);
-          this.loadError.set(false);
-          this.loadingChanges.set(false);
-        },
-        error: () => {
-          this.loadError.set(true);
-          this.loadingChanges.set(false);
-        },
+          next: (res: { data: SessionHistoryEntry[] }) => {
+            this.historyEntries.set(res.data);
+            this.loadError.set(false);
+            this.loadingChanges.set(false);
+          },
+          error: () => {
+            this.loadError.set(true);
+            this.loadingChanges.set(false);
+          },
         });
     }
-
   }
 
   protected changeTypeLabel(type: string): string {

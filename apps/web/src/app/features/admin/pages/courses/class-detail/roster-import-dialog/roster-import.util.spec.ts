@@ -17,7 +17,12 @@ describe('parseRosterSheet', () => {
   });
 
   it('忽略整列空白，但保留列號的連續性', () => {
-    const result = parseRosterSheet([...HEADER, ['陳大同', '文山國中'], ['', ''], ['林小美', '景美國中']]);
+    const result = parseRosterSheet([
+      ...HEADER,
+      ['陳大同', '文山國中'],
+      ['', ''],
+      ['林小美', '景美國中'],
+    ]);
 
     expect(result.rows.map((row) => row.name)).toEqual(['陳大同', '林小美']);
     expect(result.rows.map((row) => row.index)).toEqual([1, 2]);
@@ -87,7 +92,10 @@ describe('matchSchoolNames', () => {
   });
 
   it('大小寫不影響比對', () => {
-    const [match] = matchSchoolNames(['taipei'], [{ id: 's9', name: 'Taipei American', shortName: null }]);
+    const [match] = matchSchoolNames(
+      ['taipei'],
+      [{ id: 's9', name: 'Taipei American', shortName: null }],
+    );
 
     expect(match.resolvedId).toBe('s9');
   });

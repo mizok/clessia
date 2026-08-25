@@ -1,13 +1,9 @@
 DO $$
 DECLARE
     root_id UUID := '00000000-0000-0000-0000-000000000000';
-    -- scrypt hash of 'Test123' (Better Auth format: hex-string salt, NFKC-normalized password)
-    root_password_hash TEXT := 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6:6ad04372a2a78a5adde77793f33e0a316de3077333eb0704947f8213c2adac9fdf3713001d762b95d0c259fa048006a2b79b994c79c7de0d380668f31695ce75';
     demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
     demo_admin_id UUID := '22222222-2222-2222-2222-222222222222';
     demo_admin_email TEXT := 'admin@demo.clessia.app';
-    -- scrypt hash of 'password123'
-    demo_admin_password_hash TEXT := 'b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7:1958d54718458252105100e0037ab899afecffc67710757a65e65056229dfdc74c3bac47993e2f02013da09680be2dff8e141a043f2049f6bb17aacd006154ca';
     subject_names TEXT[] := ARRAY['國文', '英文', '數學', '自然', '社會', '其他', '物理', '化學'];
     teacher_last_names TEXT[] := ARRAY['王', '李', '張', '劉', '陳', '楊', '黃', '吳', '林', '蔡', '許', '鄭', '謝', '郭', '洪', '邱', '曾', '廖', '賴', '徐', '周', '葉'];
     teacher_given_names TEXT[] := ARRAY['宥廷', '語涵', '品妍', '承恩', '靖雯', '柏睿', '佳穎', '哲宇', '鈺婷', '冠廷', '怡君', '昱辰', '詠晴', '家豪', '沛蓉', '博鈞', '心妤', '睿恩', '雅筑', '泓安', '子恩', '彥廷', '欣妍', '宇翔'];
@@ -43,7 +39,8 @@ DECLARE
     v_teacher_staff_id UUID;
 BEGIN
     -- 1. Insert users into Better Auth ba_user table
-    -- root: username-only account (no email, no phone) — login via /login?role=root
+    -- root: 保留這個使用者是為了本機開發方便（它有全部角色）。
+    -- 它**沒有密碼** —— 用 npm run login-link 產生連結登入。
     INSERT INTO public.ba_user (id, name, email, "emailVerified", username, "orgId", "createdAt", "updatedAt")
     VALUES
         (root_id::text, 'Super Admin', NULL, false, 'root', NULL, NOW(), NOW()),
@@ -55,16 +52,16 @@ BEGIN
         username = EXCLUDED.username,
         "updatedAt" = NOW();
 
-    -- 2. Insert credentials into ba_account (scrypt hash format: salt:key)
-    -- root accountId = 'root' (matches username for signInUsername to work)
-    INSERT INTO public.ba_account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
-    VALUES
-        ('credential-' || root_id::text, 'root', 'credential', root_id::text, root_password_hash, NOW(), NOW()),
-        ('credential-' || demo_admin_id::text, demo_admin_id::text, 'credential', demo_admin_id::text, demo_admin_password_hash, NOW(), NOW())
-    ON CONFLICT (id) DO UPDATE SET
-        "accountId" = EXCLUDED."accountId",
-        password = EXCLUDED.password,
-        "updatedAt" = NOW();
+    -- 2. 這裡原本插入 ba_account 的密碼憑證（scrypt hash）。已全部移除：
+    --
+    --    a) **這個系統沒有密碼登入了** —— scrypt 超過 Cloudflare Workers 的 10ms CPU
+    --       上限，見 kb/wiki/architecture/line-oauth-login.md
+    --    b) 更嚴重的是那兩個 hash 是**寫死在版控裡的**。每個從這支 seed 開的站，
+    --       root 密碼都一樣 —— 一間補習班的資料庫外洩，等於所有客戶的最高權限
+    --       一起外洩
+    --
+    -- 本機開發要登入：`LOGIN_EMAIL=... npm run login-link` 產生一次性連結。
+    -- 跟正式環境同一條路，不必為本機另外維護一套。
 
     -- 3. Insert demo organization
     INSERT INTO public.organizations (id, name, slug)
@@ -232,19 +229,7 @@ BEGIN
             "orgId" = EXCLUDED."orgId",
             "updatedAt" = NOW();
 
-        INSERT INTO public.ba_account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
-        VALUES (
-            'credential-' || admin_user_id,
-            admin_user_id,
-            'credential',
-            admin_user_id,
-            demo_admin_password_hash,
-            NOW(),
-            NOW()
-        )
-        ON CONFLICT (id) DO UPDATE SET
-            password = EXCLUDED.password,
-            "updatedAt" = NOW();
+        -- 不再插入密碼憑證（見檔案上方說明）。要登入就用 npm run login-link。
 
         INSERT INTO public.profiles (id, display_name, org_id)
         VALUES (admin_user_uuid, format('管理員%s', lpad(staff_index::text, 2, '0')), demo_org_id)
@@ -315,19 +300,7 @@ BEGIN
                 "orgId" = EXCLUDED."orgId",
                 "updatedAt" = NOW();
 
-            INSERT INTO public.ba_account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
-            VALUES (
-                'credential-' || teacher_user_id,
-                teacher_user_id,
-                'credential',
-                teacher_user_id,
-                demo_admin_password_hash,
-                NOW(),
-                NOW()
-            )
-            ON CONFLICT (id) DO UPDATE SET
-                password = EXCLUDED.password,
-                "updatedAt" = NOW();
+            -- 不再插入密碼憑證（見檔案上方說明）。要登入就用 npm run login-link。
 
             INSERT INTO public.profiles (id, display_name, org_id)
             VALUES (teacher_user_uuid, v_teacher_display_name, demo_org_id)
@@ -376,9 +349,6 @@ END $$;
 DO $$
 DECLARE
   demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
-  demo_parent_password_hash TEXT := '4e8ad8afc37c5a4e5bff1dc9e6829e07:a5d317f78db1d1e7064900c47e06baf4a0bcebdc8590d7a8a5d31279cee453ef37dce95e8ab264c7b0f7ddf399d63ff176250de82c2a74be400b134a5964bf61';
-  -- demo_parent_password_hash = scrypt hash of 'Demo1234!'
-  -- Better Auth uses hex string as salt (not bytes), NFKC-normalized password
   student_names TEXT[] := ARRAY[
     '林子璿', '陳宇翔', '張品妍', '王柏睿', '李語涵',
     '黃承恩', '劉靖雯', '吳宥廷', '鄭詠晴', '謝家豪',
@@ -455,19 +425,7 @@ BEGIN
       "orgId" = EXCLUDED."orgId",
       "updatedAt" = NOW();
 
-    INSERT INTO public.ba_account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
-    VALUES (
-      'credential-' || v_parent_user_id,
-      v_parent_user_id,
-      'credential',
-      v_parent_user_id,
-      demo_parent_password_hash,
-      NOW(),
-      NOW()
-    )
-    ON CONFLICT (id) DO UPDATE SET
-      password = EXCLUDED.password,
-      "updatedAt" = NOW();
+    -- 不再插入密碼憑證（見檔案上方說明）。要登入就用 npm run login-link。
 
     -- 建立家長資料
     INSERT INTO public.parents (org_id, user_id, name, status)

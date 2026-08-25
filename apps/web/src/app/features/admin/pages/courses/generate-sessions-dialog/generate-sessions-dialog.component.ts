@@ -51,7 +51,9 @@ export class GenerateSessionsDialogComponent {
   protected readonly generationResult = signal<GenerateSessionsResult | null>(null);
 
   protected readonly generateFrom = signal<Date | null>(
-    this.config.data?.cls?.startDate ? new Date(this.config.data.cls.startDate + 'T00:00:00') : null,
+    this.config.data?.cls?.startDate
+      ? new Date(this.config.data.cls.startDate + 'T00:00:00')
+      : null,
   );
   protected readonly generateTo = signal<Date | null>(
     this.config.data?.cls?.endDate ? new Date(this.config.data.cls.endDate + 'T00:00:00') : null,

@@ -52,26 +52,24 @@ export class SettingsPage implements OnInit {
 
   protected saveAttendanceMode(): void {
     this.saving.set(true);
-    this.orgSettingsService
-      .updateSettings({ attendanceMode: this.attendanceModeValue })
-      .subscribe({
-        next: (s) => {
-          this.settings.set(s);
-          this.saving.set(false);
-          this.messageService.add({
-            severity: 'success',
-            summary: '已儲存',
-            detail: '出勤模式已更新',
-          });
-        },
-        error: () => {
-          this.saving.set(false);
-          this.messageService.add({
-            severity: 'error',
-            summary: '錯誤',
-            detail: '儲存失敗，請稍後再試',
-          });
-        },
-      });
+    this.orgSettingsService.updateSettings({ attendanceMode: this.attendanceModeValue }).subscribe({
+      next: (s) => {
+        this.settings.set(s);
+        this.saving.set(false);
+        this.messageService.add({
+          severity: 'success',
+          summary: '已儲存',
+          detail: '出勤模式已更新',
+        });
+      },
+      error: () => {
+        this.saving.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: '錯誤',
+          detail: '儲存失敗，請稍後再試',
+        });
+      },
+    });
   }
 }

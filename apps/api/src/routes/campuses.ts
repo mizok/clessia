@@ -181,10 +181,7 @@ app.openapi(listRoute, async (c) => {
     console.error('DB Error:', summaryError);
   }
 
-  const summary = buildCampusSummary(
-    (summaryRows || []) as Array<{ is_active: boolean }>,
-    total,
-  );
+  const summary = buildCampusSummary((summaryRows || []) as Array<{ is_active: boolean }>, total);
 
   return c.json(
     {
@@ -197,7 +194,7 @@ app.openapi(listRoute, async (c) => {
         totalPages: unpaginated ? 1 : Math.ceil(total / pageSize),
       },
     },
-    200
+    200,
   );
 });
 
@@ -246,7 +243,7 @@ app.openapi(getRoute, async (c) => {
     {
       data: mapCampus(data as Record<string, unknown>),
     },
-    200
+    200,
   );
 });
 
@@ -319,14 +316,18 @@ app.openapi(createCampusRoute, async (c) => {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
 
-  logAudit(supabase, {
-    orgId,
-    userId,
-    resourceType: 'campus',
-    resourceId: data.id as string,
-    resourceName: data.name as string,
-    action: 'create',
-  }, c.executionCtx.waitUntil.bind(c.executionCtx));
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'campus',
+      resourceId: data.id as string,
+      resourceName: data.name as string,
+      action: 'create',
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
 
   return c.json({ data: mapCampus(data as Record<string, unknown>) }, 201);
 });
@@ -393,14 +394,18 @@ app.openapi(updateRoute, async (c) => {
     return c.json({ error: '分校不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  logAudit(supabase, {
-    orgId,
-    userId,
-    resourceType: 'campus',
-    resourceId: id,
-    resourceName: data.name as string,
-    action: 'update',
-  }, c.executionCtx.waitUntil.bind(c.executionCtx));
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'campus',
+      resourceId: id,
+      resourceName: data.name as string,
+      action: 'update',
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
 
   return c.json({ data: mapCampus(data as Record<string, unknown>) }, 200);
 });
@@ -458,10 +463,7 @@ app.openapi(deleteRoute, async (c) => {
     .eq('campus_id', id);
 
   if (count && count > 0) {
-    return c.json(
-      { error: `此分校有 ${count} 個課程，無法刪除`, code: 'HAS_COURSES' },
-      409
-    );
+    return c.json({ error: `此分校有 ${count} 個課程，無法刪除`, code: 'HAS_COURSES' }, 409);
   }
 
   const { data: existing } = await supabase.from('campuses').select('name').eq('id', id).single();
@@ -472,14 +474,18 @@ app.openapi(deleteRoute, async (c) => {
     return c.json({ error: '分校不存在', code: 'NOT_FOUND' }, 404);
   }
 
-  logAudit(supabase, {
-    orgId,
-    userId,
-    resourceType: 'campus',
-    resourceId: id,
-    resourceName: existing?.name ?? null,
-    action: 'delete',
-  }, c.executionCtx.waitUntil.bind(c.executionCtx));
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'campus',
+      resourceId: id,
+      resourceName: existing?.name ?? null,
+      action: 'delete',
+    },
+    c.executionCtx.waitUntil.bind(c.executionCtx),
+  );
 
   return c.json({ success: true }, 200);
 });

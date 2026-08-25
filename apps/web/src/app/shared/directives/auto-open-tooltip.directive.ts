@@ -8,7 +8,7 @@ import {
   numberAttribute,
   PLATFORM_ID,
   HostListener,
-  ElementRef
+  ElementRef,
 } from '@angular/core';
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { Tooltip } from 'primeng/tooltip';
@@ -30,8 +30,14 @@ export class AutoOpenTooltipDirective implements AfterViewInit, OnDestroy {
     alias: 'appAutoOpenTooltipInitialDelay',
     transform: numberAttribute,
   });
-  readonly leaveDelay = input(3000, { alias: 'appAutoOpenTooltipLeaveDelay', transform: numberAttribute });
-  readonly animate = input(true, { alias: 'appAutoOpenTooltipAnimate', transform: booleanAttribute });
+  readonly leaveDelay = input(3000, {
+    alias: 'appAutoOpenTooltipLeaveDelay',
+    transform: numberAttribute,
+  });
+  readonly animate = input(true, {
+    alias: 'appAutoOpenTooltipAnimate',
+    transform: booleanAttribute,
+  });
   readonly enterDelay = input(0, {
     alias: 'appAutoOpenTooltipEnterDelay',
     transform: numberAttribute,
@@ -65,15 +71,15 @@ export class AutoOpenTooltipDirective implements AfterViewInit, OnDestroy {
         // Force close immediately without animation
         this.clearAllTimers();
         this.clearLeaveTransitionCleanup();
-        
+
         const container = this.getTooltipContainer();
         if (container) {
           // Kill all transitions immediately by adding class
           container.classList.add('clessia-tooltip--kill-animations');
-          
+
           container.classList.remove('clessia-tooltip--leaving');
           container.classList.remove('clessia-tooltip--pre-enter');
-          
+
           // Reset styles variables
           container.style.removeProperty('--clessia-tooltip-enter-duration');
           container.style.removeProperty('--clessia-tooltip-leave-duration');
@@ -82,11 +88,11 @@ export class AutoOpenTooltipDirective implements AfterViewInit, OnDestroy {
           container.style.removeProperty('transition');
           container.style.removeProperty('opacity');
         }
-        
+
         this.tooltip.hide();
       }
     };
-    
+
     // Use capture phase to ensure we catch clicks even if propagation is stopped
     this.document.addEventListener('click', handler, true);
     this.documentClickListener = () => this.document.removeEventListener('click', handler, true);

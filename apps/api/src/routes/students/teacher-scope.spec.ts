@@ -19,9 +19,11 @@ describe('resolveStudentScope', () => {
   });
 
   it('老師沒有對應的 staff 列時拒絕，而不是放行', () => {
-    expect(resolveStudentScope({ roles: ['teacher'], taughtByMe: true, ownStaffId: null })).toEqual({
-      forbidden: true,
-    });
+    expect(resolveStudentScope({ roles: ['teacher'], taughtByMe: true, ownStaffId: null })).toEqual(
+      {
+        forbidden: true,
+      },
+    );
   });
 
   it('同時是管理員與老師時以管理員為準', () => {
@@ -31,8 +33,10 @@ describe('resolveStudentScope', () => {
   });
 
   it('既不是管理員也不是老師一律拒絕', () => {
-    expect(resolveStudentScope({ roles: ['parent'], taughtByMe: false, ownStaffId: null })).toEqual({
-      forbidden: true,
-    });
+    expect(resolveStudentScope({ roles: ['parent'], taughtByMe: false, ownStaffId: null })).toEqual(
+      {
+        forbidden: true,
+      },
+    );
   });
 });

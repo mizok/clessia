@@ -8,13 +8,19 @@ describe('ReportsPage', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ReportsPage]
-    })
-    .compileComponents();
+      imports: [ReportsPage],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(ReportsPage);
     component = fixture.componentInstance;
-    fixture.componentRef.setInput('page', { label: 'Test', relativePath: '', absolutePath: '', role: undefined, icon: '', showInMenu: true });
+    fixture.componentRef.setInput('page', {
+      label: 'Test',
+      relativePath: '',
+      absolutePath: '',
+      role: undefined,
+      icon: '',
+      showInMenu: true,
+    });
     await fixture.whenStable();
   });
 

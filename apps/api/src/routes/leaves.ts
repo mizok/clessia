@@ -38,8 +38,16 @@ const CreateLeaveSchema = z
     studentId: DbUuidSchema,
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    startTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
-    endTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
+    startTime: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .nullable()
+      .optional(),
+    endTime: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .nullable()
+      .optional(),
     reason: z.string().nullable().optional(),
   })
   .openapi('CreateLeave');
@@ -184,7 +192,14 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const { studentId, dateFrom, dateTo, coverDate, page = 1, pageSize = 20 } = c.req.valid('query');
+    const {
+      studentId,
+      dateFrom,
+      dateTo,
+      coverDate,
+      page = 1,
+      pageSize = 20,
+    } = c.req.valid('query');
 
     let query = supabase
       .from('leave_requests')
@@ -453,7 +468,10 @@ app.openapi(
           .update({ status: 'absent' })
           .eq('student_id', (leave as any).student_id)
           .eq('status', 'on_leave')
-          .in('event_id', events.map((e: any) => e.id));
+          .in(
+            'event_id',
+            events.map((e: any) => e.id),
+          );
       }
       return events?.length ?? 0;
     };

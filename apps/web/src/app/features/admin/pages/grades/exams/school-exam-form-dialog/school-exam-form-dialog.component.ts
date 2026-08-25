@@ -1,6 +1,12 @@
 import { Component, DestroyRef, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { AbstractControl, ReactiveFormsModule, ValidationErrors, Validators, FormBuilder } from '@angular/forms';
+import {
+  AbstractControl,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+  FormBuilder,
+} from '@angular/forms';
 import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { InputNumberModule } from 'primeng/inputnumber';
@@ -35,16 +41,14 @@ const SEMESTER_OPTIONS: Array<{ label: string; value: 1 | 2 }> = [
   { label: '第二學期', value: 2 },
 ];
 
-const SCHOOL_EXAM_TYPES: readonly SchoolExamType[] = [
-  'term_exam',
-  'mock_exam',
-  'other',
-];
+const SCHOOL_EXAM_TYPES: readonly SchoolExamType[] = ['term_exam', 'mock_exam', 'other'];
 
-const EXAM_TYPE_OPTIONS: Array<{ label: string; value: SchoolExamType }> = SCHOOL_EXAM_TYPES.map((value) => ({
-  label: schoolExamTypeLabel(value),
-  value,
-}));
+const EXAM_TYPE_OPTIONS: Array<{ label: string; value: SchoolExamType }> = SCHOOL_EXAM_TYPES.map(
+  (value) => ({
+    label: schoolExamTypeLabel(value),
+    value,
+  }),
+);
 
 function trimmedRequiredValidator(control: AbstractControl<string>): ValidationErrors | null {
   return control.value.trim() ? null : { requiredTrimmed: true };
@@ -87,7 +91,10 @@ export class SchoolExamFormDialogComponent implements OnInit {
   protected readonly subjects = computed(() => this.refData.subjects());
   protected readonly subjectOptions = computed(() => [
     { label: '全科', value: null as string | null },
-    ...this.subjects().map((subject) => ({ label: subject.name, value: subject.id as string | null })),
+    ...this.subjects().map((subject) => ({
+      label: subject.name,
+      value: subject.id as string | null,
+    })),
   ]);
 
   protected readonly form = this.formBuilder.group({
@@ -110,7 +117,9 @@ export class SchoolExamFormDialogComponent implements OnInit {
     examDate: this.formBuilder.control<Date | null>(null),
   });
 
-  private readonly formStatus = toSignal(this.form.statusChanges, { initialValue: this.form.status });
+  private readonly formStatus = toSignal(this.form.statusChanges, {
+    initialValue: this.form.status,
+  });
   private readonly examTypeValue = toSignal(this.form.controls.examType.valueChanges, {
     initialValue: this.form.controls.examType.value,
   });
@@ -133,14 +142,18 @@ export class SchoolExamFormDialogComponent implements OnInit {
     this.isOtherExamType() ? '請輸入學校考試名稱' : '例如：三月模擬考',
   );
 
-  protected readonly lockYear = computed(() => this.isEditing() || this.hasScores() || this.isClosed());
+  protected readonly lockYear = computed(
+    () => this.isEditing() || this.hasScores() || this.isClosed(),
+  );
   protected readonly lockSemester = computed(
     () => this.isEditing() || this.hasScores() || this.isClosed(),
   );
   protected readonly lockExamType = computed(
     () => this.isEditing() || this.hasScores() || this.isClosed(),
   );
-  protected readonly lockSchool = computed(() => this.isEditing() || this.hasScores() || this.isClosed());
+  protected readonly lockSchool = computed(
+    () => this.isEditing() || this.hasScores() || this.isClosed(),
+  );
   protected readonly lockSubject = computed(() => this.hasScores() || this.isClosed());
   protected readonly lockExamDate = computed(() => this.isClosed());
   protected readonly lockName = computed(() => this.isClosed());
@@ -341,13 +354,7 @@ export class SchoolExamFormDialogComponent implements OnInit {
 
   private setControlDisabled(
     controlName:
-      | 'academicYear'
-      | 'semester'
-      | 'examType'
-      | 'subjectId'
-      | 'schoolId'
-      | 'examDate'
-      | 'name',
+      'academicYear' | 'semester' | 'examType' | 'subjectId' | 'schoolId' | 'examDate' | 'name',
     disabled: boolean,
   ): void {
     const control = this.form.controls[controlName];

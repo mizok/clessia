@@ -8,13 +8,19 @@ describe('RenewalComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [RenewalComponent]
-    })
-    .compileComponents();
+      imports: [RenewalComponent],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(RenewalComponent);
     component = fixture.componentInstance;
-    fixture.componentRef.setInput('page', { label: 'Test', relativePath: '', absolutePath: '', role: undefined, icon: '', showInMenu: true });
+    fixture.componentRef.setInput('page', {
+      label: 'Test',
+      relativePath: '',
+      absolutePath: '',
+      role: undefined,
+      icon: '',
+      showInMenu: true,
+    });
     await fixture.whenStable();
   });
 

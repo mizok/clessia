@@ -6,12 +6,7 @@
  */
 
 export type ChangeType =
-  | 'reschedule'
-  | 'substitute'
-  | 'cancellation'
-  | 'uncancel'
-  | 'time_change'
-  | 'creation';
+  'reschedule' | 'substitute' | 'cancellation' | 'uncancel' | 'time_change' | 'creation';
 
 export interface ChangeLogRow {
   readonly id: string;
@@ -85,7 +80,11 @@ function summarise(row: ChangeLogRow): string {
       return `代課：${from} → ${to}`;
     }
     case 'reschedule': {
-      const before = moment(row.original_session_date, row.original_start_time, row.original_end_time);
+      const before = moment(
+        row.original_session_date,
+        row.original_start_time,
+        row.original_end_time,
+      );
       const after = moment(row.new_session_date, row.new_start_time, row.new_end_time);
       // 缺原值時只顯示新值 —— 輸出 'null → 08/15' 比資訊不全更糟
       if (!before) return after ? `調課：改為 ${after}` : '調課';

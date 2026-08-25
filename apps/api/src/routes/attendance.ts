@@ -856,7 +856,8 @@ app.openapi(
     sessionsQuery = sessionsQuery.in('status', statusList);
 
     const { data: sessions, error: sessionsError, count } = await sessionsQuery;
-    if (sessionsError) return c.json({ error: '查詢課堂失敗', message: sessionsError.message }, 500);
+    if (sessionsError)
+      return c.json({ error: '查詢課堂失敗', message: sessionsError.message }, 500);
 
     const results = await Promise.all(
       (sessions ?? []).map(async (session: any) => {

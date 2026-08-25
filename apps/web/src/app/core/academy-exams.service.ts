@@ -178,9 +178,7 @@ export class AcademyExamsService {
     });
   }
 
-  private toQueryParams(
-    params?: AcademyExamListParams,
-  ): Record<string, string | number | boolean> {
+  private toQueryParams(params?: AcademyExamListParams): Record<string, string | number | boolean> {
     if (!params) return {};
 
     const query: Record<string, string | number | boolean> = {};

@@ -154,12 +154,7 @@ describe('EnrollmentsPage', () => {
 
     component['openClass'](component['rows']()[0]);
 
-    expect(navigateMock).toHaveBeenCalledWith([
-      '/admin/courses',
-      'course-1',
-      'classes',
-      'class-1',
-    ]);
+    expect(navigateMock).toHaveBeenCalledWith(['/admin/courses', 'course-1', 'classes', 'class-1']);
   });
 
   it('查詢失敗顯示錯誤而不是空白', async () => {

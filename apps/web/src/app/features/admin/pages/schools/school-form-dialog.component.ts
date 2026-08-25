@@ -47,7 +47,9 @@ export class SchoolFormDialogComponent {
 
   protected readonly editing = computed(() => this.config.data?.editing ?? null);
   protected readonly mode = computed(() => (this.editing() ? 'update' : 'create'));
-  protected readonly canSubmit = computed(() => this.name().trim().length > 0 && !this.submitting());
+  protected readonly canSubmit = computed(
+    () => this.name().trim().length > 0 && !this.submitting(),
+  );
 
   constructor() {
     const school = this.editing();
@@ -100,7 +102,8 @@ export class SchoolFormDialogComponent {
   private handleError(error: unknown): void {
     this.submitting.set(false);
     const apiError = error as { error?: { code?: string; error?: string } };
-    const detail = apiError?.error?.code === 'DUPLICATE' ? '學校名稱已存在' : (apiError?.error?.error ?? '');
+    const detail =
+      apiError?.error?.code === 'DUPLICATE' ? '學校名稱已存在' : (apiError?.error?.error ?? '');
     this.messageService.add({ severity: 'error', summary: '儲存失敗', detail });
   }
 }

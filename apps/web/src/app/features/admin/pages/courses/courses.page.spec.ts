@@ -131,9 +131,9 @@ describe('CoursesPage', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
     } as Class;
 
-    (component as unknown as { navigateToSessionsList: (target: Class) => void }).navigateToSessionsList(
-      cls,
-    );
+    (
+      component as unknown as { navigateToSessionsList: (target: Class) => void }
+    ).navigateToSessionsList(cls);
 
     expect(sessionsServiceMock.list).toHaveBeenCalledWith({
       classId: 'class-1',
@@ -168,9 +168,9 @@ describe('CoursesPage', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
     } as Class;
 
-    (component as unknown as { navigateToSessionsList: (target: Class) => void }).navigateToSessionsList(
-      cls,
-    );
+    (
+      component as unknown as { navigateToSessionsList: (target: Class) => void }
+    ).navigateToSessionsList(cls);
 
     expect(navigateSpy).toHaveBeenCalledWith(['/admin/sessions'], {
       queryParams: {
@@ -290,9 +290,9 @@ describe('CoursesPage', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
     } as Class;
 
-    (
-      component as unknown as { confirmDeleteClass: (target: Class) => void }
-    ).confirmDeleteClass(cls);
+    (component as unknown as { confirmDeleteClass: (target: Class) => void }).confirmDeleteClass(
+      cls,
+    );
 
     expect(openSpy).toHaveBeenCalledWith(
       expect.anything(),

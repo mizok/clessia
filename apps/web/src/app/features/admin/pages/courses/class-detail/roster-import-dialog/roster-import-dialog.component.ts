@@ -172,7 +172,9 @@ export class RosterImportDialogComponent {
             ? XLSX.read(reader.result as string, { type: 'string' })
             : XLSX.read(reader.result as ArrayBuffer, { type: 'array' });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          resolve(sheet ? XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' }) : []);
+          resolve(
+            sheet ? XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' }) : [],
+          );
         } catch (error) {
           reject(error);
         }

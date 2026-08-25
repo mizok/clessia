@@ -11,7 +11,7 @@ import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 export class PublicShellComponent {
   protected readonly menuOpen = signal(false);
 
-  protected readonly publicRoutes = RoutesCatalog.values.filter(r => !r.role && r.showInMenu);
+  protected readonly publicRoutes = RoutesCatalog.values.filter((r) => !r.role && r.showInMenu);
 
   protected toggleMenu(): void {
     this.menuOpen.update((v) => !v);

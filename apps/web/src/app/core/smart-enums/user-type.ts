@@ -6,7 +6,7 @@ export class UserType {
   constructor(
     public readonly role: UserRole,
     public readonly label: string,
-    public readonly description?: string
+    public readonly description?: string,
   ) {
     UserType.values.push(this);
   }

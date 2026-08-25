@@ -13,7 +13,12 @@ describe('PublicShellComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [PublicShellComponent],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations()],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(PublicShellComponent);

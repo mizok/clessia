@@ -5,12 +5,10 @@ import type { Bindings } from '../index';
 export function createSupabaseClient(
   url: string,
   key: string,
-  accessToken?: string
+  accessToken?: string,
 ): SupabaseClient {
   return createClient(url, key, {
-    global: accessToken
-      ? { headers: { Authorization: `Bearer ${accessToken}` } }
-      : {},
+    global: accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : {},
   });
 }
 

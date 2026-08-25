@@ -45,20 +45,12 @@ export class RoutesCatalog {
     undefined,
     'pi-qrcode',
   );
-  public static readonly PUBLIC_FORGOT_PASSWORD = this.register(
-    'forgot-password',
-    '/forgot-password',
-    '忘記密碼',
+  public static readonly PUBLIC_LINK_LINE = this.register(
+    'link-line',
+    '/link-line',
+    '綁定 LINE',
     undefined,
-    'pi-key',
-    false,
-  );
-  public static readonly PUBLIC_RESET_PASSWORD = this.register(
-    'reset-password',
-    '/reset-password',
-    '重設密碼',
-    undefined,
-    'pi-key',
+    'pi-link',
     false,
   );
 

@@ -114,7 +114,8 @@ export class SessionOperationsLogDialogComponent {
     const details = log.details;
     if (!details || Object.keys(details).length === 0) return '';
     if (typeof details['updatedCount'] === 'number') {
-      const presentCount = typeof details['presentCount'] === 'number' ? details['presentCount'] : 0;
+      const presentCount =
+        typeof details['presentCount'] === 'number' ? details['presentCount'] : 0;
       const absentCount = typeof details['absentCount'] === 'number' ? details['absentCount'] : 0;
       return `更新 ${details['updatedCount']} 筆（出席 ${presentCount} / 缺席 ${absentCount}）`;
     }

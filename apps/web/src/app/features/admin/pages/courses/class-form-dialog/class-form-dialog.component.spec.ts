@@ -83,7 +83,7 @@ describe('ClassFormDialogComponent', () => {
 
     (component as any).save();
 
-    expect((classesServiceMock.create as any)).not.toHaveBeenCalled();
+    expect(classesServiceMock.create as any).not.toHaveBeenCalled();
     expect((component as any).formValidationMessage()).toContain('時段重疊');
   });
 

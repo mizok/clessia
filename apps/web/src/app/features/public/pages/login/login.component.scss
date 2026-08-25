@@ -1,1 +1,53 @@
 @use '../../shared/auth-form';
+
+.login {
+  // LINE 的品牌色。**刻意不進 design token** —— token 是這個產品的設計語言，
+  // 第三方品牌色不屬於它，而且 LINE 改色的時候我們得跟著改。
+  --line-brand: #06c755;
+  --line-brand-hover: #05b34c;
+
+  &__line-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    width: 100%;
+    height: 44px;
+    margin-top: var(--space-4);
+    padding: 0 var(--space-4);
+    font-size: var(--text-md);
+    font-weight: var(--font-semibold);
+    color: var(--color-white);
+    background: var(--line-brand);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+  }
+
+  &__line-btn:hover:not(:disabled) {
+    background: var(--line-brand-hover);
+  }
+
+  &__line-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  &__enroll-link {
+    display: block;
+    margin-top: var(--space-3);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--accent-600);
+    text-align: center;
+  }
+
+  &__hint {
+    margin-top: var(--space-4);
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+    color: var(--zinc-500);
+    text-align: center;
+  }
+}

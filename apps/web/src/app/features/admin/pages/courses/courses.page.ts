@@ -68,7 +68,8 @@ interface CourseGroup {
 @Component({
   selector: 'app-courses',
   standalone: true,
-  imports: [ClassRowComponent, 
+  imports: [
+    ClassRowComponent,
     CommonModule,
     FormsModule,
     ToastModule,

@@ -8,13 +8,19 @@ describe('TrialComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [TrialComponent]
-    })
-    .compileComponents();
+      imports: [TrialComponent],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(TrialComponent);
     component = fixture.componentInstance;
-    fixture.componentRef.setInput('page', { label: 'Test', relativePath: '', absolutePath: '', role: undefined, icon: '', showInMenu: true });
+    fixture.componentRef.setInput('page', {
+      label: 'Test',
+      relativePath: '',
+      absolutePath: '',
+      role: undefined,
+      icon: '',
+      showInMenu: true,
+    });
     await fixture.whenStable();
   });
 

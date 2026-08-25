@@ -170,7 +170,7 @@ const AREAS = [
   {
     name: '身分與稽核',
     pages: [],
-    routes: ['audit-logs'],
+    routes: ['audit-logs', 'login-links'],
     specs: ['admin/roles-and-auth.md', 'public/login.md'],
   },
 ];

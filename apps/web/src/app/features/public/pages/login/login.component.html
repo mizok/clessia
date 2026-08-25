@@ -4,108 +4,27 @@
     <h1 class="auth-content__title">登入</h1>
   </header>
 
-  <form class="form" (ngSubmit)="onSubmit()">
-    @if (error()) {
-      <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
-    }
+  @if (error()) {
+    <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
+  }
 
-    @if (!isRootMode()) {
-      <div class="form__tabs" [attr.data-mode]="loginMode()">
-        <div class="form__tabs-indicator"></div>
-        <button
-          type="button"
-          class="form__tab"
-          [class.form__tab--active]="loginMode() === 'email'"
-          (click)="setLoginMode('email')"
-        >
-          <i class="pi pi-envelope"></i>
-          Email
-        </button>
-        <button
-          type="button"
-          class="form__tab"
-          [class.form__tab--active]="loginMode() === 'phone'"
-          (click)="setLoginMode('phone')"
-        >
-          <i class="pi pi-phone"></i>
-          手機號碼
-        </button>
-      </div>
-    }
-
-    <div class="form__field">
-      @if (isRootMode()) {
-        <input
-          id="account"
-          type="text"
-          class="form__input"
-          name="account"
-          [value]="account"
-          readonly
-          required
-          autocomplete="username"
-          aria-label="帳號"
-        />
-      } @else {
-        <input
-          id="account"
-          [type]="loginMode() === 'email' ? 'email' : 'tel'"
-          class="form__input"
-          [placeholder]="loginMode() === 'email' ? 'Email' : '手機號碼（09xxxxxxxx）'"
-          [(ngModel)]="account"
-          name="account"
-          required
-          [attr.aria-label]="loginMode() === 'email' ? 'Email' : '手機號碼'"
-          [autocomplete]="loginMode() === 'email' ? 'email' : 'tel'"
-        />
-      }
-    </div>
-
-    <div class="form__field">
-      <label class="form__label" for="password">密碼</label>
-      <div class="form__input-wrapper">
-        <input
-          id="password"
-          [type]="showPassword() ? 'text' : 'password'"
-          class="form__input"
-          placeholder="輸入密碼"
-          [(ngModel)]="password"
-          name="password"
-          required
-          autocomplete="current-password"
-        />
-        <button
-          type="button"
-          class="form__reveal-btn"
-          (click)="showPassword.set(!showPassword())"
-          [attr.aria-label]="showPassword() ? '隱藏密碼' : '顯示密碼'"
-        >
-          <i [class]="showPassword() ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
-        </button>
-      </div>
-    </div>
-
-    @if (!isRootMode()) {
-      <div class="form__row">
-        <label class="form__checkbox">
-          <input type="checkbox" [(ngModel)]="rememberMe" name="rememberMe" />
-          <span>記住我</span>
-        </label>
-        <a class="form__link" routerLink="/forgot-password">忘記密碼？</a>
-      </div>
+  <button
+    type="button"
+    class="login__line-btn"
+    [disabled]="submitting()"
+    (click)="signInWithLine()"
+  >
+    @if (submitting()) {
+      <i class="pi pi-spinner pi-spin"></i>
+      前往 LINE...
     } @else {
-      <p class="auth-content__hint">若忘記密碼，請聯繫技術人員重設</p>
+      使用 LINE 登入
     }
+  </button>
 
-    <div #turnstileContainer></div>
+  @if (showEnrollmentLink()) {
+    <a class="login__enroll-link" routerLink="/enrollment">還沒報名？前往報名</a>
+  }
 
-    <button type="submit" class="form__submit" [disabled]="submitting() || !account || !password">
-      @if (submitting()) {
-        <i class="pi pi-spinner pi-spin"></i>
-        登入中...
-      } @else {
-        登入
-      }
-    </button>
-  </form>
+  <p class="login__hint">第一次使用？請向補習班索取專屬連結，點開後即可綁定 LINE。</p>
 </div>

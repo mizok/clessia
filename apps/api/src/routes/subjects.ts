@@ -17,7 +17,11 @@ const SubjectListResponseSchema = z
 
 const CreateSubjectSchema = z
   .object({
-    name: z.string().min(1, '請輸入科目名稱').max(50, '科目名稱不可超過 50 個字元').openapi({ example: '物理' }),
+    name: z
+      .string()
+      .min(1, '請輸入科目名稱')
+      .max(50, '科目名稱不可超過 50 個字元')
+      .openapi({ example: '物理' }),
   })
   .openapi('CreateSubject');
 

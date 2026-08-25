@@ -58,7 +58,9 @@ export class StudentFormDialogComponent {
     name: this.student()?.name ?? '',
     grade: (this.student()?.grade ?? '') as GradeLevel | '',
     schoolId: this.student()?.school?.id ?? null,
-    birthday: this.student()?.birthday ? new Date(this.student()!.birthday!) : (null as Date | null),
+    birthday: this.student()?.birthday
+      ? new Date(this.student()!.birthday!)
+      : (null as Date | null),
     gender: this.student()?.gender ?? (null as StudentGender | null),
     phone: this.student()?.phone ?? '',
     email: this.student()?.email ?? '',

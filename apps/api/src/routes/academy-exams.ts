@@ -3,9 +3,7 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 
-const AcademyExamStatusSchema = z
-  .enum(['active', 'closed'])
-  .openapi('AcademyExamStatus');
+const AcademyExamStatusSchema = z.enum(['active', 'closed']).openapi('AcademyExamStatus');
 
 const AcademyExamTypeSchema = z
   .enum(['quiz', 'mock_exam', 'placement_test'])
@@ -457,7 +455,11 @@ app.openapi(listRoute, async (c) => {
   }
 
   if (todo) {
-    let todoIdQuery = supabase.from('academy_exams').select('id').eq('org_id', orgId).eq('status', 'active');
+    let todoIdQuery = supabase
+      .from('academy_exams')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('status', 'active');
     if (search?.trim()) {
       todoIdQuery = todoIdQuery.ilike('name', `%${search.trim()}%`);
     }
@@ -712,7 +714,9 @@ app.openapi(getRoute, async (c) => {
 
   const averageScore =
     scoreNumbers.length > 0
-      ? Number((scoreNumbers.reduce((sum, score) => sum + score, 0) / scoreNumbers.length).toFixed(2))
+      ? Number(
+          (scoreNumbers.reduce((sum, score) => sum + score, 0) / scoreNumbers.length).toFixed(2),
+        )
       : null;
   const highestScore = scoreNumbers.length > 0 ? Math.max(...scoreNumbers) : null;
   const lowestScore = scoreNumbers.length > 0 ? Math.min(...scoreNumbers) : null;
@@ -720,7 +724,11 @@ app.openapi(getRoute, async (c) => {
 
   const subject = pickRelationFirst(examRow.subjects);
   const campus = pickRelationFirst(
-    (examRow as unknown as { campuses?: { name: string | null } | Array<{ name: string | null }> | null }).campuses,
+    (
+      examRow as unknown as {
+        campuses?: { name: string | null } | Array<{ name: string | null }> | null;
+      }
+    ).campuses,
   );
 
   return c.json(

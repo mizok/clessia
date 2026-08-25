@@ -132,7 +132,10 @@ export class SchoolScoreEditorComponent implements OnInit {
   );
 
   private readonly searchTerm$ = new Subject<string>();
-  private lastEmittedFilter: { campusId: string; grade: string | null } = { campusId: '', grade: null };
+  private lastEmittedFilter: { campusId: string; grade: string | null } = {
+    campusId: '',
+    grade: null,
+  };
 
   constructor() {
     effect(() => {

@@ -77,9 +77,7 @@ describe('TeachingLogDialogComponent', () => {
   it('同時查詢被代課的課堂', async () => {
     await setup();
 
-    expect(substitutedAwayMock).toHaveBeenCalledWith(
-      expect.objectContaining({ teacherId: 't1' }),
-    );
+    expect(substitutedAwayMock).toHaveBeenCalledWith(expect.objectContaining({ teacherId: 't1' }));
   });
 
   it('呈現時數摘要', async () => {

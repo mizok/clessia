@@ -38,7 +38,7 @@ function normalizeOrigin(origin: string): string | null {
 
 export function isAllowedOrigin(
   origin: string | null | undefined,
-  allowed: readonly string[] = []
+  allowed: readonly string[] = [],
 ): boolean {
   if (!origin) {
     return false;
@@ -61,7 +61,7 @@ export function isAllowedOrigin(
 
 export function resolveCorsOrigin(
   origin: string | undefined,
-  allowed: readonly string[] = []
+  allowed: readonly string[] = [],
 ): string | undefined {
   if (!isAllowedOrigin(origin, allowed)) {
     return undefined;

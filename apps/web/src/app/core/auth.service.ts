@@ -30,7 +30,9 @@ export class AuthService {
   private readonly router = inject(Router);
   private readonly http = inject(HttpClient);
 
-  private readonly _user = signal<{ id: string; email?: string | null; name?: string } | null>(null);
+  private readonly _user = signal<{ id: string; email?: string | null; name?: string } | null>(
+    null,
+  );
   private readonly _profile = signal<Profile | null>(null);
   private readonly _roles = signal<UserRole[]>([]);
   private readonly _permissions = signal<string[]>([]);
@@ -84,7 +86,7 @@ export class AuthService {
   private async loadProfile(): Promise<boolean> {
     try {
       const me = await firstValueFrom(
-        this.http.get<MeResponse>(`${environment.apiUrl}/api/me`, { withCredentials: true })
+        this.http.get<MeResponse>(`${environment.apiUrl}/api/me`, { withCredentials: true }),
       );
 
       this._profile.set({
@@ -136,34 +138,41 @@ export class AuthService {
     return this.loadProfile();
   }
 
-  async signIn(
-    account: string,
-    password: string,
-    _captchaToken?: string,
-    loginType: 'email' | 'phone' | 'username' = 'email',
-  ): Promise<string | null> {
-    const res = await fetch(`${environment.apiUrl}/api/login`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ account, password, loginType }),
+  /**
+   * 把使用者交給 LINE。成功的話瀏覽器會被導走，這個 Promise 不會 resolve 到有意義的東西。
+   *
+   * 回傳非 null 表示**還沒離開這一頁就失敗了** —— 最常見的原因是 API 沒設定
+   * `LINE_CLIENT_ID` / `LINE_CLIENT_SECRET`，那時 provider 根本沒掛上。
+   */
+  async signInWithLine(): Promise<string | null> {
+    const { error } = await authClient.signIn.social({
+      provider: 'line',
+      callbackURL: `${window.location.origin}/select-role`,
+      // 失敗時導回登入頁並帶 ?error= —— 不設的話會落在 Better Auth 的預設頁面，
+      // 使用者看到一個不屬於這個系統的畫面
+      errorCallbackURL: `${window.location.origin}/login`,
     });
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      if ((body as { code?: string }).code === 'ACCOUNT_DISABLED') {
-        return '帳號已停用，請聯繫管理員';
-      }
-      return '帳號或密碼錯誤';
+    if (error) {
+      return 'LINE 登入失敗，請稍後再試或聯繫補習班';
     }
 
-    // Session cookie is now set. Sync client state.
-    const { data: session } = await authClient.getSession();
-    this._user.set(session?.user ?? null);
+    return null;
+  }
 
-    // 密碼是對的（上面 /api/login 回 200），但拿不到 profile —— 別謊報成「沒有角色」
-    if (!(await this.loadProfile())) {
-      return '登入成功，但讀不到帳號資料。請重新整理再試一次；若持續發生請聯繫管理員。';
+  /**
+   * 把目前登入的帳號跟 LINE 綁在一起。之後這個人就能直接用 LINE 登入。
+   *
+   * 前提是**已經登入** —— 使用者是點一次性連結進來的。
+   */
+  async linkLine(): Promise<string | null> {
+    const { error } = await authClient.linkSocial({
+      provider: 'line',
+      callbackURL: `${window.location.origin}/select-role`,
+    });
+
+    if (error) {
+      return '綁定 LINE 失敗，請稍後再試';
     }
 
     return null;
@@ -173,28 +182,6 @@ export class AuthService {
     this.setActiveRole(role);
     this.closeRolePicker();
     this.router.navigate([this.shellMap[role]]);
-  }
-
-  setRememberMe(_value: boolean): void {
-    // Better Auth uses cookies - remember me handled server-side session expiry
-  }
-
-  async sendPasswordReset(email: string, _captchaToken?: string): Promise<string | null> {
-    const { error } = await authClient.requestPasswordReset({
-      email,
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-
-    return error?.message ?? null;
-  }
-
-  async updatePassword(newPassword: string, token?: string): Promise<string | null> {
-    if (!token) {
-      return '目前僅支援透過重設連結更新密碼';
-    }
-
-    const { error } = await authClient.resetPassword({ newPassword, token });
-    return error?.message ?? null;
   }
 
   async signOut() {

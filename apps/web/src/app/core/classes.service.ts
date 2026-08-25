@@ -64,9 +64,9 @@ export interface ClassQueryParams {
   campusId?: string;
   courseId?: string;
   isActive?: boolean;
-  includeHistorical?: boolean;   // 新增
-  historicalFrom?: string;        // 新增 'yyyy-MM-dd'
-  historicalTo?: string;          // 新增 'yyyy-MM-dd'
+  includeHistorical?: boolean; // 新增
+  historicalFrom?: string; // 新增 'yyyy-MM-dd'
+  historicalTo?: string; // 新增 'yyyy-MM-dd'
 }
 
 export interface CreateClassInput {

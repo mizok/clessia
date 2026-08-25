@@ -82,10 +82,7 @@ describe('StudentsPage（老師端）', () => {
   });
 
   it('姓名搜尋會過濾', async () => {
-    await setup([
-      student({ id: 'a', name: '王小明' }),
-      student({ id: 'b', name: '李大華' }),
-    ]);
+    await setup([student({ id: 'a', name: '王小明' }), student({ id: 'b', name: '李大華' })]);
 
     component['search'].set('王');
 

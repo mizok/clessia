@@ -462,9 +462,9 @@ export class ExamsComponent implements OnInit {
               examDate: exam.examDate,
               status: exam.status,
               scope: exam.schoolName
-                ? `${exam.schoolName} · ${exam.subjectId ? exam.subjectName ?? '指定科目' : '全科目'}`
+                ? `${exam.schoolName} · ${exam.subjectId ? (exam.subjectName ?? '指定科目') : '全科目'}`
                 : exam.subjectId
-                  ? exam.subjectName ?? '指定科目'
+                  ? (exam.subjectName ?? '指定科目')
                   : '全科目',
               scoreCount: exam.scoreCount,
               schoolId: exam.schoolId,
@@ -811,11 +811,7 @@ export class ExamsComponent implements OnInit {
     });
   }
 
-  private openConfirmDialog(
-    header: string,
-    data: ConfirmDialogData,
-    onAccept: () => void,
-  ): void {
+  private openConfirmDialog(header: string, data: ConfirmDialogData, onAccept: () => void): void {
     const ref = this.dialogService.open(ConfirmDialogComponent, {
       header,
       width: 'min(420px, 96vw)',

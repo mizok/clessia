@@ -266,7 +266,10 @@ describe('AcademyExamFormDialogComponent', () => {
       expect.objectContaining({ name: '已登錄考試', examDate: '2026-03-20' }),
     );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const payload = (academyExamsServiceMock.update as any).mock.lastCall![1] as Record<string, unknown>;
+    const payload = (academyExamsServiceMock.update as any).mock.lastCall![1] as Record<
+      string,
+      unknown
+    >;
     expect(payload['examType']).toBeUndefined();
     expect(payload['subjectId']).toBeUndefined();
     expect(payload['totalScore']).toBeUndefined();

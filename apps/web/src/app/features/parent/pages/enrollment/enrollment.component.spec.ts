@@ -8,13 +8,19 @@ describe('EnrollmentComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [EnrollmentComponent]
-    })
-    .compileComponents();
+      imports: [EnrollmentComponent],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(EnrollmentComponent);
     component = fixture.componentInstance;
-    fixture.componentRef.setInput('page', { label: 'Test', relativePath: '', absolutePath: '', role: undefined, icon: '', showInMenu: true });
+    fixture.componentRef.setInput('page', {
+      label: 'Test',
+      relativePath: '',
+      absolutePath: '',
+      role: undefined,
+      icon: '',
+      showInMenu: true,
+    });
     await fixture.whenStable();
   });
 

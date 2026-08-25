@@ -133,7 +133,6 @@ describe('SessionAdvancedFiltersDialogComponent', () => {
     expect(text).toContain('老師');
     expect(text).toContain('課堂狀態');
   });
-
 });
 
 function buildDialogData(

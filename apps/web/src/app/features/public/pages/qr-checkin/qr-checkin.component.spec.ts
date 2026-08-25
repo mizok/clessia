@@ -8,9 +8,8 @@ describe('QrCheckinComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [QrCheckinComponent]
-    })
-    .compileComponents();
+      imports: [QrCheckinComponent],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(QrCheckinComponent);
     component = fixture.componentInstance;

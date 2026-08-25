@@ -1,13 +1,9 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 
-const AttendanceModeSchema = z
-  .enum(['per_session', 'daily_checkin'])
-  .openapi('AttendanceMode');
+const AttendanceModeSchema = z.enum(['per_session', 'daily_checkin']).openapi('AttendanceMode');
 
-const AttendanceResponsibleSchema = z
-  .enum(['admin', 'teacher'])
-  .openapi('AttendanceResponsible');
+const AttendanceResponsibleSchema = z.enum(['admin', 'teacher']).openapi('AttendanceResponsible');
 
 const OrgSettingsSchema = z
   .object({
@@ -39,7 +35,8 @@ export function toOrgSettingsResponse(row: Record<string, unknown>) {
 
 const app = new OpenAPIHono<AppEnv>();
 
-const SELECT_FIELDS = 'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days';
+const SELECT_FIELDS =
+  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days';
 
 // GET /api/org/settings
 app.openapi(
@@ -99,8 +96,10 @@ app.openapi(
 
     const updates: Record<string, unknown> = {};
     if (body.attendanceMode !== undefined) updates['attendance_mode'] = body.attendanceMode;
-    if (body.attendanceResponsible !== undefined) updates['attendance_responsible'] = body.attendanceResponsible;
-    if (body.attendanceRetroactiveDays !== undefined) updates['attendance_retroactive_days'] = body.attendanceRetroactiveDays;
+    if (body.attendanceResponsible !== undefined)
+      updates['attendance_responsible'] = body.attendanceResponsible;
+    if (body.attendanceRetroactiveDays !== undefined)
+      updates['attendance_retroactive_days'] = body.attendanceRetroactiveDays;
 
     const { data, error } = await supabase
       .from('organizations')

@@ -23,10 +23,7 @@ import {
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { SchoolsService } from '@core/schools.service';
 import type { School } from '@core/schools.service';
-import {
-  SchoolFormDialogComponent,
-  type SchoolFormResult,
-} from './school-form-dialog.component';
+import { SchoolFormDialogComponent, type SchoolFormResult } from './school-form-dialog.component';
 
 @Component({
   selector: 'app-schools-page',
@@ -151,9 +148,11 @@ export class SchoolsPage implements OnInit {
       data: { editing },
     });
     if (!ref) return;
-    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result: SchoolFormResult | undefined) => {
-      if (!result) return;
-      this.onSaved(result);
-    });
+    ref.onClose
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result: SchoolFormResult | undefined) => {
+        if (!result) return;
+        this.onSaved(result);
+      });
   }
 }

@@ -11,7 +11,7 @@ import { RouteObj } from '@core/smart-enums/routes-catalog';
       <p class="text-zinc-500">Parent schedule view coming soon...</p>
     </div>
   `,
-  styles: ``
+  styles: ``,
 })
 export class ScheduleComponent {
   readonly page = input.required<RouteObj>();

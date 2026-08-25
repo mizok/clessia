@@ -48,7 +48,12 @@ describe('buildSubstitutedAwayEntries', () => {
     const [entry] = buildSubstitutedAwayEntries([
       row({
         sessions: [
-          { session_date: '2026-08-12', start_time: '19:00:00', end_time: '21:00:00', classes: [{ name: '國三英文' }] },
+          {
+            session_date: '2026-08-12',
+            start_time: '19:00:00',
+            end_time: '21:00:00',
+            classes: [{ name: '國三英文' }],
+          },
         ],
         staff: [{ id: 't2', display_name: '陳老師' }],
       }),
@@ -61,9 +66,36 @@ describe('buildSubstitutedAwayEntries', () => {
   it('依課堂日期由新到舊排序，而不是異動登記時間', () => {
     // 異動可能是同一天一次補登的，用 created_at 排會失去意義
     const entries = buildSubstitutedAwayEntries([
-      row({ id: 'a', created_at: '2026-08-10T01:00:00Z', sessions: { session_date: '2026-08-05', start_time: '19:00:00', end_time: '21:00:00', classes: { name: 'X' } } }),
-      row({ id: 'b', created_at: '2026-08-10T02:00:00Z', sessions: { session_date: '2026-08-20', start_time: '19:00:00', end_time: '21:00:00', classes: { name: 'X' } } }),
-      row({ id: 'c', created_at: '2026-08-10T03:00:00Z', sessions: { session_date: '2026-08-12', start_time: '19:00:00', end_time: '21:00:00', classes: { name: 'X' } } }),
+      row({
+        id: 'a',
+        created_at: '2026-08-10T01:00:00Z',
+        sessions: {
+          session_date: '2026-08-05',
+          start_time: '19:00:00',
+          end_time: '21:00:00',
+          classes: { name: 'X' },
+        },
+      }),
+      row({
+        id: 'b',
+        created_at: '2026-08-10T02:00:00Z',
+        sessions: {
+          session_date: '2026-08-20',
+          start_time: '19:00:00',
+          end_time: '21:00:00',
+          classes: { name: 'X' },
+        },
+      }),
+      row({
+        id: 'c',
+        created_at: '2026-08-10T03:00:00Z',
+        sessions: {
+          session_date: '2026-08-12',
+          start_time: '19:00:00',
+          end_time: '21:00:00',
+          classes: { name: 'X' },
+        },
+      }),
     ]);
 
     expect(entries.map((e) => e.changeId)).toEqual(['b', 'c', 'a']);
@@ -71,8 +103,24 @@ describe('buildSubstitutedAwayEntries', () => {
 
   it('同一天多堂時依開始時間由晚到早', () => {
     const entries = buildSubstitutedAwayEntries([
-      row({ id: 'morning', sessions: { session_date: '2026-08-12', start_time: '09:00:00', end_time: '11:00:00', classes: { name: 'X' } } }),
-      row({ id: 'evening', sessions: { session_date: '2026-08-12', start_time: '19:00:00', end_time: '21:00:00', classes: { name: 'X' } } }),
+      row({
+        id: 'morning',
+        sessions: {
+          session_date: '2026-08-12',
+          start_time: '09:00:00',
+          end_time: '11:00:00',
+          classes: { name: 'X' },
+        },
+      }),
+      row({
+        id: 'evening',
+        sessions: {
+          session_date: '2026-08-12',
+          start_time: '19:00:00',
+          end_time: '21:00:00',
+          classes: { name: 'X' },
+        },
+      }),
     ]);
 
     expect(entries.map((e) => e.changeId)).toEqual(['evening', 'morning']);

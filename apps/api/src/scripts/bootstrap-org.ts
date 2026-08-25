@@ -49,12 +49,17 @@ async function main() {
     BETTER_AUTH_URL: required('BETTER_AUTH_URL'),
     WEB_URL: process.env['WEB_URL'] ?? '',
     ALLOWED_ORIGINS: process.env['ALLOWED_ORIGINS'] ?? '',
+    // 開站腳本不走 OAuth，留空即可 —— socialProvidersFromEnv 會回傳空 map
+    LINE_CLIENT_ID: process.env['LINE_CLIENT_ID'] ?? '',
+    LINE_CLIENT_SECRET: process.env['LINE_CLIENT_SECRET'] ?? '',
   };
 
   const pool = new Pool({ connectionString: env.DATABASE_URL });
 
   try {
-    const existing = await pool.query('select id from public.organizations where slug = $1', [orgSlug]);
+    const existing = await pool.query('select id from public.organizations where slug = $1', [
+      orgSlug,
+    ]);
     if (existing.rowCount && existing.rowCount > 0) {
       console.error(`✖ slug「${orgSlug}」的組織已存在，未做任何變更。`);
       process.exit(1);
@@ -69,10 +74,17 @@ async function main() {
 
     // 走 Better Auth 建帳號 —— ba_* 不得由應用程式碼直接寫入（c2）
     const auth = createAuth(env);
-    const created = await (auth.api as unknown as {
-      createUser: (a: unknown) => Promise<{ user: { id: string } }>;
-    }).createUser({
-      body: { name: adminName, email: adminEmail, password: adminPassword, data: { display_name: adminName } },
+    const created = await (
+      auth.api as unknown as {
+        createUser: (a: unknown) => Promise<{ user: { id: string } }>;
+      }
+    ).createUser({
+      body: {
+        name: adminName,
+        email: adminEmail,
+        password: adminPassword,
+        data: { display_name: adminName },
+      },
       asResponse: false,
     });
     const userId = created.user.id;

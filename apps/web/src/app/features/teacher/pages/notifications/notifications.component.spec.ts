@@ -54,7 +54,10 @@ describe('NotificationsComponent（老師收件匣）', () => {
   }
 
   it('顯示未讀數', async () => {
-    await setup([announcement({ id: 'a', isRead: false }), announcement({ id: 'b', isRead: true })]);
+    await setup([
+      announcement({ id: 'a', isRead: false }),
+      announcement({ id: 'b', isRead: true }),
+    ]);
 
     expect(component['unread']()).toBe(1);
     expect(fixture.nativeElement.textContent).toContain('1 則未讀');

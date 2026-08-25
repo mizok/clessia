@@ -1,11 +1,18 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { AttendanceService, type AttendanceRoster, type RosterStudent } from '@core/attendance.service';
+import {
+  AttendanceService,
+  type AttendanceRoster,
+  type RosterStudent,
+} from '@core/attendance.service';
 import { ButtonModule } from 'primeng/button';
 import { TagModule } from 'primeng/tag';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
-import { InlineNoticeComponent, type InlineNoticeSeverity } from '@shared/components/inline-notice/inline-notice.component';
+import {
+  InlineNoticeComponent,
+  type InlineNoticeSeverity,
+} from '@shared/components/inline-notice/inline-notice.component';
 
 export interface RosterPanelSession {
   eventId: string;
@@ -31,7 +38,9 @@ export class AttendanceRosterPanelComponent implements OnInit {
   protected readonly saving = signal(false);
   protected readonly roster = signal<AttendanceRoster | null>(null);
   protected readonly localStatus = signal<Map<string, 'present' | 'absent'>>(new Map());
-  protected readonly notice = signal<{ severity: InlineNoticeSeverity; detail: string } | null>(null);
+  protected readonly notice = signal<{ severity: InlineNoticeSeverity; detail: string } | null>(
+    null,
+  );
 
   ngOnInit(): void {
     this.loadRoster();

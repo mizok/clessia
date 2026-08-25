@@ -7,7 +7,12 @@ import { TagModule } from 'primeng/tag';
 import { SkeletonModule } from 'primeng/skeleton';
 import { DialogService } from 'primeng/dynamicdialog';
 
-import { StudentsService, StudentDetail, GradeLevel, GRADE_LEVEL_LABELS } from '@core/students.service';
+import {
+  StudentsService,
+  StudentDetail,
+  GradeLevel,
+  GRADE_LEVEL_LABELS,
+} from '@core/students.service';
 import {
   EnrollmentsService,
   Enrollment,
@@ -17,7 +22,10 @@ import {
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { PageBreadcrumbComponent, type BreadcrumbItem } from '@shared/components/page-breadcrumb/page-breadcrumb.component';
+import {
+  PageBreadcrumbComponent,
+  type BreadcrumbItem,
+} from '@shared/components/page-breadcrumb/page-breadcrumb.component';
 import { ClassPickerDialogComponent } from '@shared/components/class-picker-dialog/class-picker-dialog.component';
 import {
   InlineNoticeComponent,

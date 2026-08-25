@@ -134,6 +134,33 @@ LINE 只會告訴系統「這是 LINE 使用者 U1234」，**不會告訴系統�
 
 如果報名、繳費、點名任何一環卡在「家長必須先綁定」，補習班第一天就會退回紙本。
 
+## 實作靠現成的東西，不自己刻
+
+2026-08-24 查證 Better Auth 1.5.5 的型別定義後（本專案有過假設 SDK 方法存在而繞遠路的
+紀錄，見 [[lessons/better-auth-session-delegation]]），原本估計要自建的東西**全部是內建的**：
+
+| 需求                   | 現成的機制                                                             |
+| ---------------------- | ---------------------------------------------------------------------- |
+| LINE OAuth             | `socialProviders.line`（`@better-auth/core` 內建，與 `google` 同一組） |
+| 一次性綁定連結         | `magic-link` plugin 的 `POST /api/auth/sign-in/magic-link`             |
+| 兌換連結、建立 session | `GET /api/auth/magic-link/verify`                                      |
+| 把 LINE 綁到既有帳號   | `POST /api/auth/link-social`                                           |
+| 破窗 CLI               | 同一支 magic-link                                                      |
+
+**關鍵在 `sendMagicLink` 這個 callback**：它收到 `{ email, url, token }`。一般用法是把 `url`
+寄出去，**我們不寄信 —— 直接把 `url` 攔下來**，變成畫面上的 QR、可複製的連結、或 CLI 的
+stdout。同一個機制服務三種送達方式。
+
+因此：
+
+- **不需要新的 migration** —— token 存在既有的 `ba_verification` 表
+- **不需要自寫兌換端點** —— `magic-link/verify` 已經處理過期、單次使用（`allowedAttempts`
+  預設 1）、以及 session 建立
+- `disableSignUp: true` 防止綁定連結被拿來建新帳號
+
+> ⚠️ **magic-link 需要一個 email 當識別碼。** 家長的佔位 email（`0912345678@phone.internal`）
+> 完全夠用 —— 那個 domain 不存在於公開網路，而我們本來就不寄信。
+
 ## 拒絕的替代方案
 
 | 方案                                   | 為什麼不                                                                                                                                                                                                                                                                              |
@@ -170,6 +197,23 @@ c12 要求客戶能自己脫離架構、自行 host。這次的設計在兩處�
 
 這**不違反** c12（沒有綁死在任何單一供應商的專屬服務上，LINE 是客戶自己的帳號），
 但**新增了一個上線步驟**，必須寫進 `bootstrapping-a-deployment.md`。
+
+## 實作時做的取捨
+
+| 決定                                        | 為什麼                                                                                                                                                                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `angularx-qrcode` 釘在 **21.x**             | 最新的 22.x 要 Angular 22，本專案是 21。**Angular 22 的升級刻意延後成獨立的 PR** —— Signal Forms 值得升，但把框架大版號混進認證重寫會讓 PR 沒人審得動、也沒辦法乾淨 revert。而且 PrimeNG 21→22 才是主要風險（幾乎每一頁都在用） |
+| 移除 `pdfmake`                              | 帳號資訊卡在有密碼的年代合理（一張可以帶走的紙）。登入連結太長，沒有人會用手打 —— 它只有配 QR 才有意義，而 QR 已經在畫面上。改用瀏覽器內建列印，順帶少一個 CommonJS 依賴                                                        |
+| `qrcode` 列入 `allowedCommonJsDependencies` | 它是 `angularx-qrcode` 的 transitive dep。不列的話每次建置都有警告，而長期存在的警告會讓人不再看警告                                                                                                                            |
+
+## 未解的問題
+
+- **公開報名端點不存在** —— `/enrollment`、`/trial` 前端頁面是空殼，後端只有 ADMIN_ONLY。
+  招生宣傳來的家長按下「還沒報名？前往報名」會落在空頁面。**招生漏斗的入口是斷的**
+- **`ba_user.orgId` 是 nullable** —— `decideLoginLinkTarget()` 因此不能用 `===` 比較。
+  根本問題是那個欄位允許 NULL，但改它要動 schema
+- **better-auth 版本歪斜** —— web 解析到 root 的 1.4.18，`apps/api` 是 1.5.5。
+  根因是 `apps/api/package.json` 把版本寫成 `"latest"`，那本身就不可重現
 
 ## 明確不做
 

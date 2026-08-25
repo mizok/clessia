@@ -1,0 +1,48 @@
+<p-toast position="top-center" [baseZIndex]="30000" />
+
+<div class="dialog-header-inline">
+  <div class="dialog-header-inline__content">
+    <span class="dialog-header-inline__title">帳號已建立</span>
+  </div>
+  <button type="button" class="dialog-header-inline__close" (click)="onHide()" aria-label="關閉">
+    <i class="pi pi-times"></i>
+  </button>
+</div>
+
+<div class="login-link">
+  <app-inline-notice
+    severity="info"
+    detail="請對方用自己的手機掃描下方 QR，登入後綁定 LINE。連結 24 小時內有效、只能使用一次。"
+    [dismissible]="false"
+  />
+
+  <div class="login-link__qr">
+    <qrcode [qrdata]="loginUrl()" [width]="220" errorCorrectionLevel="M" elementType="canvas" />
+  </div>
+
+  <p class="login-link__for">{{ personName() }}</p>
+
+  <div class="login-link__fallback">
+    <button
+      type="button"
+      class="login-link__copy-btn"
+      pTooltip="複製連結"
+      tooltipPosition="top"
+      (click)="copyToClipboard(loginUrl(), '登入連結')"
+    >
+      <i class="pi pi-copy"></i>
+      掃不到？複製連結用 LINE 傳給對方
+    </button>
+  </div>
+
+  <div class="login-link__actions">
+    <p-button
+      label="列印給對方帶走"
+      icon="pi pi-print"
+      severity="secondary"
+      [outlined]="true"
+      (onClick)="print()"
+    />
+    <p-button label="完成" (onClick)="onHide()" />
+  </div>
+</div>

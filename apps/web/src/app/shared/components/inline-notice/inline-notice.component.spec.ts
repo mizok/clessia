@@ -8,9 +8,8 @@ describe('InlineNoticeComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [InlineNoticeComponent]
-    })
-    .compileComponents();
+      imports: [InlineNoticeComponent],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(InlineNoticeComponent);
     component = fixture.componentInstance;
