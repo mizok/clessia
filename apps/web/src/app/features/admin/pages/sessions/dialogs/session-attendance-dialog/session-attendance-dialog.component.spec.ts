@@ -187,5 +187,4 @@ describe('SessionAttendanceDialogComponent', () => {
       onLeaveCount: 1,
     });
   });
-
 });

@@ -1,13 +1,17 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  inject,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
 import { DialogService, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { SkeletonModule } from 'primeng/skeleton';
 import { ParentsService, type ParentDetail, type ParentDetailStudent } from '@core/parents.service';
-import {
-  EnrollmentsService,
-  type ScheduleConflictWarning,
-} from '@core/enrollments.service';
+import { EnrollmentsService, type ScheduleConflictWarning } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import type { Class } from '@core/classes.service';
@@ -98,12 +102,12 @@ export class ParentDetailDialogComponent implements OnInit {
     });
 
     ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((cls: Class | undefined) => {
-        if (cls) {
-          this.enroll(student, cls);
-        } else {
-          this.enrollingStudentId.set(null);
-        }
-      });
+      if (cls) {
+        this.enroll(student, cls);
+      } else {
+        this.enrollingStudentId.set(null);
+      }
+    });
   }
 
   protected dismissNotice(): void {

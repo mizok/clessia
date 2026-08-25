@@ -98,8 +98,7 @@ describe('SessionRescheduleDialogComponent', () => {
       component as unknown as {
         form: { get: (name: string) => { setValue: (value: Date) => void } | null };
       }
-    )
-      .form
+    ).form
       .get('newSessionDate')
       ?.setValue(new Date('2026-03-23'));
 

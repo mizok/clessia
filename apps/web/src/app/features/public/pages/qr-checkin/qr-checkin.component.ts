@@ -8,6 +8,4 @@ import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-n
   styleUrl: './qr-checkin.component.scss',
   host: { class: 'u-centered-flex' },
 })
-export class QrCheckinComponent {
-
-}
+export class QrCheckinComponent {}

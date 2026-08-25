@@ -43,7 +43,10 @@ describe('DashboardComponent（老師端）', () => {
     studentsMock.mockReset();
     navigateMock.mockReset();
     sessionsMock.mockReturnValue(
-      of({ data: sessions, meta: { total: sessions.length, page: 1, pageSize: 100, totalPages: 1 } }),
+      of({
+        data: sessions,
+        meta: { total: sessions.length, page: 1, pageSize: 100, totalPages: 1 },
+      }),
     );
     studentsMock.mockReturnValue(of({ data: [], meta: { total: studentTotal } }));
 

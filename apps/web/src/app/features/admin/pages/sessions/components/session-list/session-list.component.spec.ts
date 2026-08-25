@@ -29,8 +29,9 @@ describe('SessionListComponent', () => {
   });
 
   afterEach(() => {
-    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver | undefined }).ResizeObserver =
-      originalResizeObserver;
+    (
+      globalThis as unknown as { ResizeObserver: typeof ResizeObserver | undefined }
+    ).ResizeObserver = originalResizeObserver;
   });
 
   it('should create', () => {
@@ -95,19 +96,12 @@ describe('SessionListComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    const headers = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('th'),
-    )
+    const headers = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('th'))
       .map((element) => element.textContent?.trim() ?? '')
       .filter(Boolean);
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
-    expect(headers).toEqual([
-      '班級 / 課程 / 分校',
-      '老師',
-      '出勤狀態',
-      '狀態',
-    ]);
+    expect(headers).toEqual(['班級 / 課程 / 分校', '老師', '出勤狀態', '狀態']);
     expect(text).toContain('已點名');
     expect(text).toContain('到 8');
     expect(text).toContain('請 1');
@@ -157,9 +151,9 @@ describe('SessionListComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    const headers = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll('th'),
-    ).map((element) => element.textContent?.trim() ?? '');
+    const headers = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('th')).map(
+      (element) => element.textContent?.trim() ?? '',
+    );
 
     expect(headers).not.toContain('異動');
   });

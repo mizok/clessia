@@ -78,10 +78,11 @@ describe('ExamsComponent', () => {
   };
 
   function flushInitialRequests(): void {
-    const academyListReq = http.expectOne((req) =>
-      req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
-      req.params.get('page') === '1' &&
-      req.params.get('pageSize') === '8',
+    const academyListReq = http.expectOne(
+      (req) =>
+        req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+        req.params.get('page') === '1' &&
+        req.params.get('pageSize') === '8',
     );
     academyListReq.flush({ data: mockAcademyExams, meta: { total: 2, page: 1, pageSize: 8 } });
 
@@ -91,11 +92,22 @@ describe('ExamsComponent', () => {
     const schoolTodoReq = http.expectOne(`${environment.apiUrl}/api/school-exams/todo-count`);
     schoolTodoReq.flush({ count: 1 });
 
-    const schoolsReq = http.expectOne((req) =>
-      req.url === `${environment.apiUrl}/api/schools` && req.params.get('isActive') === 'true',
+    const schoolsReq = http.expectOne(
+      (req) =>
+        req.url === `${environment.apiUrl}/api/schools` && req.params.get('isActive') === 'true',
     );
     schoolsReq.flush({
-      data: [{ id: 'sch-1', name: '測試國中', shortName: '測中', isActive: true, studentCount: 10, createdAt: '', updatedAt: '' }],
+      data: [
+        {
+          id: 'sch-1',
+          name: '測試國中',
+          shortName: '測中',
+          isActive: true,
+          studentCount: 10,
+          createdAt: '',
+          updatedAt: '',
+        },
+      ],
       meta: { total: 1 },
     });
 
@@ -139,10 +151,11 @@ describe('ExamsComponent', () => {
     component['onExamTypeChange']('school');
     fixture.detectChanges();
 
-    const schoolListReq = http.expectOne((req) =>
-      req.url.startsWith(`${environment.apiUrl}/api/school-exams`) &&
-      req.params.get('page') === '1' &&
-      req.params.get('pageSize') === '8',
+    const schoolListReq = http.expectOne(
+      (req) =>
+        req.url.startsWith(`${environment.apiUrl}/api/school-exams`) &&
+        req.params.get('page') === '1' &&
+        req.params.get('pageSize') === '8',
     );
     schoolListReq.flush({ data: mockSchoolExams, meta: { total: 1, page: 1, pageSize: 8 } });
 
@@ -155,8 +168,10 @@ describe('ExamsComponent', () => {
     component['onStatusChange']('todo');
     fixture.detectChanges();
 
-    const todoReq = http.expectOne((req) =>
-      req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && req.params.get('todo') === 'true',
+    const todoReq = http.expectOne(
+      (req) =>
+        req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+        req.params.get('todo') === 'true',
     );
     todoReq.flush({
       data: [mockAcademyExams[0]],
@@ -175,8 +190,10 @@ describe('ExamsComponent', () => {
     banner.click();
     fixture.detectChanges();
 
-    const todoReq = http.expectOne((req) =>
-      req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && req.params.get('todo') === 'true',
+    const todoReq = http.expectOne(
+      (req) =>
+        req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+        req.params.get('todo') === 'true',
     );
     todoReq.flush({ data: [mockAcademyExams[0]], meta: { total: 1, page: 1, pageSize: 8 } });
 
@@ -186,16 +203,19 @@ describe('ExamsComponent', () => {
   it('clearFilters resets todo back to all', () => {
     component['onStatusChange']('todo');
     fixture.detectChanges();
-    const todoReq = http.expectOne((req) =>
-      req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && req.params.get('todo') === 'true',
+    const todoReq = http.expectOne(
+      (req) =>
+        req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+        req.params.get('todo') === 'true',
     );
     todoReq.flush({ data: [mockAcademyExams[0]], meta: { total: 1, page: 1, pageSize: 8 } });
 
     component['clearFilters']();
     fixture.detectChanges();
 
-    const clearReq = http.expectOne((req) =>
-      req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && !req.params.has('todo'),
+    const clearReq = http.expectOne(
+      (req) =>
+        req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && !req.params.has('todo'),
     );
     clearReq.flush({ data: mockAcademyExams, meta: { total: 2, page: 1, pageSize: 8 } });
 

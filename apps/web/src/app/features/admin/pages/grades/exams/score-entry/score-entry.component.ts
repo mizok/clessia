@@ -30,10 +30,7 @@ import {
   type AcademyExamDetail,
   type AcademyExamDetailSummary,
 } from '@core/academy-exams.service';
-import {
-  SchoolExamsService,
-  type SchoolExamDetail,
-} from '@core/school-exams.service';
+import { SchoolExamsService, type SchoolExamDetail } from '@core/school-exams.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
@@ -140,8 +137,7 @@ export class ScoreEntryComponent implements OnInit {
 
     const dateLabel = exam.examDate ?? '日期未定';
     const schoolName = exam.schoolName || null;
-    const subjectLabel =
-      exam.subjectId && exam.subjectName ? `科目：${exam.subjectName}` : null;
+    const subjectLabel = exam.subjectId && exam.subjectName ? `科目：${exam.subjectName}` : null;
 
     const parts = [schoolName, subjectLabel, dateLabel, campusName, gradeLabel].filter(Boolean);
     return {

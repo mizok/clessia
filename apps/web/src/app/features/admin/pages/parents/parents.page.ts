@@ -45,7 +45,7 @@ import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
-import { PasswordRevealDialogComponent } from '@shared/components/password-reveal-dialog/password-reveal-dialog.component';
+import { LoginLinkDialogComponent } from '@shared/components/login-link-dialog/login-link-dialog.component';
 import { ParentFormDialogComponent } from '@shared/components/parent-form-dialog/parent-form-dialog.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import { StudentFormDialogComponent } from '@features/admin/pages/students/student-form-dialog.component';
@@ -145,10 +145,10 @@ export class ParentsPage implements OnInit {
         command: () => this.openEditDialog(parent),
       },
       {
-        label: '重設密碼',
-        icon: 'pi pi-key',
+        label: '產生登入連結',
+        icon: 'pi pi-qrcode',
         disabled: parent.status === 'archived',
-        command: () => this.confirmResetPassword(parent),
+        command: () => this.issueLoginLink(parent),
       },
       { separator: true },
     ];
@@ -272,11 +272,11 @@ export class ParentsPage implements OnInit {
     if (!ref) return;
     ref.onClose
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((result?: { type: string; data: Parent; password: string }) => {
+      .subscribe((result?: { type: string; data: Parent; loginUrl: string }) => {
         if (!result) return;
         if (result.type === 'created') {
           this.loadParents();
-          this.openPasswordRevealDialog(result.data, result.password);
+          this.openLoginLinkDialog(result.data, result.loginUrl);
         }
       });
   }
@@ -355,41 +355,35 @@ export class ParentsPage implements OnInit {
     });
   }
 
-  private openPasswordRevealDialog(parent: Parent, password: string): void {
-    this.dialogService.open(PasswordRevealDialogComponent, {
+  private openLoginLinkDialog(parent: Parent, loginUrl: string): void {
+    this.dialogService.open(LoginLinkDialogComponent, {
       width: '480px',
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
-      data: {
-        account: parent.loginAccount,
-        password,
-        parentName: parent.name,
-        orgName: '',
-      },
+      data: { loginUrl, personName: parent.name },
     });
   }
 
-  // ── Reset Password ─────────────────────────────────────────────────────────
+  // ── 登入連結 ───────────────────────────────────────────────────────────────
+  //
+  // 取代原本的「重設密碼」。這個系統沒有密碼了 —— 家長用一次性連結登入、綁定 LINE，
+  // 之後直接用 LINE。連結會過期、只能用一次；密碼會被寫在便條紙上留著。
 
-  protected confirmResetPassword(parent: Parent): void {
-    this.openConfirmDialog(
-      '重設密碼',
-      {
-        message: `確定要重設「${parent.name}」的登入密碼嗎？系統將產生新的隨機密碼。`,
-        acceptLabel: '重設密碼',
-        rejectLabel: '取消',
-        acceptSeverity: 'warn',
-      },
-      () => this.resetPassword(parent),
-    );
-  }
+  protected issueLoginLink(parent: Parent): void {
+    if (!parent.userId) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: '無法產生',
+        detail: '這位家長還沒有登入帳號',
+      });
+      return;
+    }
 
-  private resetPassword(parent: Parent): void {
-    this.parentsService.resetPassword(parent.id).subscribe({
-      next: (res) => this.openPasswordRevealDialog(parent, res.password),
+    this.parentsService.createLoginLink(parent.userId).subscribe({
+      next: (res) => this.openLoginLinkDialog(parent, res.url),
       error: () => {
-        this.messageService.add({ severity: 'error', summary: '重設失敗', detail: '請稍後再試' });
+        this.messageService.add({ severity: 'error', summary: '產生失敗', detail: '請稍後再試' });
       },
     });
   }

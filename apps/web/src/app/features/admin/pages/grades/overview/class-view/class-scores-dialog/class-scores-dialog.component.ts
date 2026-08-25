@@ -130,7 +130,9 @@ export class ClassScoresDialogComponent implements OnInit {
     if (validLevels.length === 0) return '';
     if (validLevels.length === 1) return GRADE_LEVEL_LABELS[validLevels[0]];
 
-    const sorted = [...validLevels].sort((a, b) => GRADE_LEVELS.indexOf(a) - GRADE_LEVELS.indexOf(b));
+    const sorted = [...validLevels].sort(
+      (a, b) => GRADE_LEVELS.indexOf(a) - GRADE_LEVELS.indexOf(b),
+    );
     const first = GRADE_LEVEL_LABELS[sorted[0]];
     const last = GRADE_LEVEL_LABELS[sorted[sorted.length - 1]];
     return first === last ? first : `${first}～${last}`;

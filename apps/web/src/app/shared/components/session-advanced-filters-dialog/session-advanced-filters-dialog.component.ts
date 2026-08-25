@@ -53,7 +53,10 @@ interface DialogClassDisplayOption extends SessionAdvancedFilterClassOption {
   readonly campusName: string | null;
 }
 
-type TeacherOption = Pick<Staff, 'id' | 'displayName' | 'campusIds' | 'subjectIds' | 'subjectNames'>;
+type TeacherOption = Pick<
+  Staff,
+  'id' | 'displayName' | 'campusIds' | 'subjectIds' | 'subjectNames'
+>;
 
 @Component({
   selector: 'app-session-advanced-filters-dialog',
@@ -267,9 +270,18 @@ export class SessionAdvancedFiltersDialogComponent {
 
   protected getStudentOptionMeta(student: Student): string | null {
     const gradeMap: Record<string, string> = {
-      P1: '小一', P2: '小二', P3: '小三', P4: '小四', P5: '小五', P6: '小六',
-      J1: '國一', J2: '國二', J3: '國三',
-      S1: '高一', S2: '高二', S3: '高三',
+      P1: '小一',
+      P2: '小二',
+      P3: '小三',
+      P4: '小四',
+      P5: '小五',
+      P6: '小六',
+      J1: '國一',
+      J2: '國二',
+      J3: '國三',
+      S1: '高一',
+      S2: '高二',
+      S3: '高三',
     };
     const parts = [student.school?.name, gradeMap[student.grade]].filter(Boolean);
     return parts.length > 0 ? parts.join(' · ') : null;

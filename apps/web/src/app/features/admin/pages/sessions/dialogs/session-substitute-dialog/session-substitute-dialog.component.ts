@@ -52,7 +52,10 @@ export class SessionSubstituteDialogComponent implements OnInit {
 
   private loadTeachers() {
     const s = this.session();
-    if (!s) { this.teacherOptions.set([]); return; }
+    if (!s) {
+      this.teacherOptions.set([]);
+      return;
+    }
 
     this.loadingTeachers.set(true);
     const weekStart = startOfWeek(new Date(`${s.sessionDate}T00:00:00`), { weekStartsOn: 1 });
@@ -70,18 +73,19 @@ export class SessionSubstituteDialogComponent implements OnInit {
       next: ({ teachersRes, courseRes, weekSessions }) => {
         const subjectId = courseRes.data.subjectId;
         const countMap = new Map<string, number>();
-        weekSessions.data.forEach(session => {
+        weekSessions.data.forEach((session) => {
           if (session.teacherId && session.status === 'scheduled') {
             countMap.set(session.teacherId, (countMap.get(session.teacherId) ?? 0) + 1);
           }
         });
         const available = teachersRes.data
-          .filter(t =>
-            t.id !== s.teacherId &&
-            t.campusIds.includes(s.campusId) &&
-            t.subjectIds.includes(subjectId),
+          .filter(
+            (t) =>
+              t.id !== s.teacherId &&
+              t.campusIds.includes(s.campusId) &&
+              t.subjectIds.includes(subjectId),
           )
-          .map(t => ({
+          .map((t) => ({
             id: t.id,
             displayName: t.displayName,
             weeklySessionCount: countMap.get(t.id) ?? 0,

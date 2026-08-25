@@ -5,15 +5,22 @@ import * as jdenticon from 'jdenticon';
   selector: 'app-jdenticon-avatar',
   standalone: true,
   template: `
-    <svg #svgIcon [attr.width]="size" [attr.height]="size" [attr.data-jdenticon-value]="value"></svg>
+    <svg
+      #svgIcon
+      [attr.width]="size"
+      [attr.height]="size"
+      [attr.data-jdenticon-value]="value"
+    ></svg>
   `,
-  styles: [`
-    :host {
-      display: inline-flex;
-      border-radius: 50%;
-      overflow: hidden;
-    }
-  `]
+  styles: [
+    `
+      :host {
+        display: inline-flex;
+        border-radius: 50%;
+        overflow: hidden;
+      }
+    `,
+  ],
 })
 export class JdenticonAvatarComponent {
   @Input() value = 'Clessia';
@@ -25,10 +32,10 @@ export class JdenticonAvatarComponent {
     afterNextRender(() => {
       this.updateAvatar();
     });
-    
+
     effect(() => {
       // Reactively update when inputs change (though here they are standard inputs)
-      // Since Inputs are not signals by default in this version (unless using input()), 
+      // Since Inputs are not signals by default in this version (unless using input()),
       // we rely on ngOnChanges or just recall update in a setter if needed.
       // But standard way with jdenticon is just letting it observe or manual update.
       // Let's use manual update for control.

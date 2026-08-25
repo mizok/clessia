@@ -12,8 +12,24 @@ import type { RosterRow } from './roster-import.util';
 const CLASS_ID = 'class-1';
 
 const SCHOOLS = [
-  { id: 's1', name: '台北市立文山國中', shortName: '文山', isActive: true, studentCount: 0, createdAt: '', updatedAt: '' },
-  { id: 's2', name: '新北市立景美國中', shortName: null, isActive: true, studentCount: 0, createdAt: '', updatedAt: '' },
+  {
+    id: 's1',
+    name: '台北市立文山國中',
+    shortName: '文山',
+    isActive: true,
+    studentCount: 0,
+    createdAt: '',
+    updatedAt: '',
+  },
+  {
+    id: 's2',
+    name: '新北市立景美國中',
+    shortName: null,
+    isActive: true,
+    studentCount: 0,
+    createdAt: '',
+    updatedAt: '',
+  },
 ];
 
 function row(index: number, name: string, school: string): RosterRow {
@@ -127,7 +143,9 @@ describe('RosterImportDialogComponent', () => {
 
   it('匯入時帶上生效日', async () => {
     await setup();
-    batchMatchMock.mockReturnValue(of({ results: [{ index: 0, status: 'matched', studentId: 'stu-1' }] }));
+    batchMatchMock.mockReturnValue(
+      of({ results: [{ index: 0, status: 'matched', studentId: 'stu-1' }] }),
+    );
     batchCreateMock.mockReturnValue(of({ results: [{ studentId: 'stu-1', status: 'enrolled' }] }));
 
     seedRows([row(1, '陳大同', '文山國中')]);
@@ -146,7 +164,9 @@ describe('RosterImportDialogComponent', () => {
 
   it('衝堂時不寫入，攤開衝突讓人決定', async () => {
     await setup();
-    batchMatchMock.mockReturnValue(of({ results: [{ index: 0, status: 'matched', studentId: 'stu-1' }] }));
+    batchMatchMock.mockReturnValue(
+      of({ results: [{ index: 0, status: 'matched', studentId: 'stu-1' }] }),
+    );
     batchCreateMock.mockReturnValue(
       throwError(() => ({
         error: {
@@ -175,7 +195,9 @@ describe('RosterImportDialogComponent', () => {
 
   it('確認後強制匯入會帶 skipConflictCheck', async () => {
     await setup();
-    batchMatchMock.mockReturnValue(of({ results: [{ index: 0, status: 'matched', studentId: 'stu-1' }] }));
+    batchMatchMock.mockReturnValue(
+      of({ results: [{ index: 0, status: 'matched', studentId: 'stu-1' }] }),
+    );
     batchCreateMock.mockReturnValue(of({ results: [{ studentId: 'stu-1', status: 'enrolled' }] }));
 
     seedRows([row(1, '陳大同', '文山國中')]);
@@ -186,7 +208,9 @@ describe('RosterImportDialogComponent', () => {
 
   it('人數上限的錯誤訊息要帶出數字', async () => {
     await setup();
-    batchMatchMock.mockReturnValue(of({ results: [{ index: 0, status: 'matched', studentId: 'stu-1' }] }));
+    batchMatchMock.mockReturnValue(
+      of({ results: [{ index: 0, status: 'matched', studentId: 'stu-1' }] }),
+    );
     batchCreateMock.mockReturnValue(
       throwError(() => ({
         error: { code: 'OVER_QUOTA', quota: 20, currentActive: 12, adding: 30 },
@@ -214,7 +238,9 @@ describe('RosterImportDialogComponent', () => {
 
   it('有匯入才通知呼叫端重新載入名單', async () => {
     await setup();
-    batchMatchMock.mockReturnValue(of({ results: [{ index: 0, status: 'matched', studentId: 'stu-1' }] }));
+    batchMatchMock.mockReturnValue(
+      of({ results: [{ index: 0, status: 'matched', studentId: 'stu-1' }] }),
+    );
     batchCreateMock.mockReturnValue(of({ results: [{ studentId: 'stu-1', status: 'enrolled' }] }));
 
     seedRows([row(1, '陳大同', '文山國中')]);

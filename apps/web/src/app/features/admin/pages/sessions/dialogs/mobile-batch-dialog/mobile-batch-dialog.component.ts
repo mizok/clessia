@@ -132,7 +132,12 @@ export class MobileBatchDialogComponent implements OnInit {
         const updated = 'updated' in result ? result.updated : 0;
         const skipped = this.skippedCount();
         const mode = this.batchMode() ?? 'cancel';
-        this.ref.close({ action: 'applied', updated, skipped, mode } satisfies MobileBatchDialogResult);
+        this.ref.close({
+          action: 'applied',
+          updated,
+          skipped,
+          mode,
+        } satisfies MobileBatchDialogResult);
       },
       error: (err: { error?: { error?: string } }) => {
         this.batchLoading.set(false);

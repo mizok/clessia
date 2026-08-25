@@ -2,11 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
-import {
-  SessionsService,
-  type Session,
-  type SessionHistoryEntry,
-} from '@core/sessions.service';
+import { SessionsService, type Session, type SessionHistoryEntry } from '@core/sessions.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 
 import { SessionDetailDialogComponent } from './session-detail-dialog.component';

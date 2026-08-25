@@ -9,11 +9,13 @@ import { CampusesPage } from './campuses.page';
 describe('CampusesPage', () => {
   let component: CampusesPage;
   let fixture: ComponentFixture<CampusesPage>;
-  const buildCampusResponse = (overrides?: Partial<{
-    data: Campus[];
-    meta: { total: number; page: number; pageSize: number; totalPages: number };
-    summary: { total: number; activeCount: number; inactiveCount: number };
-  }>) => ({
+  const buildCampusResponse = (
+    overrides?: Partial<{
+      data: Campus[];
+      meta: { total: number; page: number; pageSize: number; totalPages: number };
+      summary: { total: number; activeCount: number; inactiveCount: number };
+    }>,
+  ) => ({
     data: [],
     meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
     summary: { total: 0, activeCount: 0, inactiveCount: 0 },
@@ -72,7 +74,9 @@ describe('CampusesPage', () => {
     ] satisfies Campus[];
 
     (component as unknown as { loading: { set: (value: boolean) => void } }).loading.set(false);
-    (component as unknown as { campuses: { set: (value: Campus[]) => void } }).campuses.set(campuses);
+    (component as unknown as { campuses: { set: (value: Campus[]) => void } }).campuses.set(
+      campuses,
+    );
     (
       component as unknown as {
         summary: {

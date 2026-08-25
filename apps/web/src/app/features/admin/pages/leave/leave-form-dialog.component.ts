@@ -85,7 +85,9 @@ function isStudentSelection(value: unknown): value is Student {
 
       <div class="leave-form__range-grid">
         <div class="leave-form__range-group">
-          <label class="leave-form__label">開始日期時間 <span class="leave-form__required">*</span></label>
+          <label class="leave-form__label"
+            >開始日期時間 <span class="leave-form__required">*</span></label
+          >
           <div class="leave-form__date-time-row">
             <p-datepicker
               [(ngModel)]="startDate"
@@ -105,7 +107,9 @@ function isStudentSelection(value: unknown): value is Student {
           </div>
         </div>
         <div class="leave-form__range-group">
-          <label class="leave-form__label">結束日期時間 <span class="leave-form__required">*</span></label>
+          <label class="leave-form__label"
+            >結束日期時間 <span class="leave-form__required">*</span></label
+          >
           <div class="leave-form__date-time-row">
             <p-datepicker
               [(ngModel)]="endDate"
@@ -139,12 +143,7 @@ function isStudentSelection(value: unknown): value is Student {
       </div>
 
       <div class="leave-form__actions">
-        <p-button
-          label="取消"
-          severity="secondary"
-          (onClick)="cancel()"
-          [disabled]="saving()"
-        />
+        <p-button label="取消" severity="secondary" (onClick)="cancel()" [disabled]="saving()" />
         <p-button
           label="送出請假"
           icon="pi pi-check"

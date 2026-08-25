@@ -4,7 +4,10 @@
   "projectType": "application",
   "prefix": "app",
   "sourceRoot": "apps/web/src",
-  "tags": ["type:app", "scope:frontend"],
+  "tags": [
+    "type:app",
+    "scope:frontend"
+  ],
   "targets": {
     "build": {
       "executor": "@angular/build:application",
@@ -25,8 +28,13 @@
           "apps/web/src/styles.scss"
         ],
         "stylePreprocessorOptions": {
-          "includePaths": ["apps/web/src/app"]
-        }
+          "includePaths": [
+            "apps/web/src/app"
+          ]
+        },
+        "allowedCommonJsDependencies": [
+          "qrcode"
+        ]
       },
       "configurations": {
         "production": {

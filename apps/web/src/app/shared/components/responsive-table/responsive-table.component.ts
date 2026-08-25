@@ -43,8 +43,10 @@ import { RESPONSIVE_TABLE } from './responsive-table.token';
   encapsulation: ViewEncapsulation.None,
 })
 export class ResponsiveTableComponent {
-  private static readonly defaultCurrentPageReportTemplate = '顯示 {first} - {last}，共 {totalRecords} 筆';
-  private static readonly defaultMobileCurrentPageReportTemplate = '第 {currentPage} / {totalPages} 頁';
+  private static readonly defaultCurrentPageReportTemplate =
+    '顯示 {first} - {last}，共 {totalRecords} 筆';
+  private static readonly defaultMobileCurrentPageReportTemplate =
+    '第 {currentPage} / {totalPages} 頁';
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly renderer = inject(Renderer2);
@@ -100,13 +102,13 @@ export class ResponsiveTableComponent {
       rowsPerPageOptions: isCompactPaginator
         ? undefined
         : pagination.rowsPerPageOptions
-        ? [...pagination.rowsPerPageOptions]
-        : undefined,
+          ? [...pagination.rowsPerPageOptions]
+          : undefined,
       showCurrentPageReport: pagination.showCurrentPageReport ?? true,
       currentPageReportTemplate: isCompactPaginator
         ? ResponsiveTableComponent.defaultMobileCurrentPageReportTemplate
-        : pagination.currentPageReportTemplate ??
-          ResponsiveTableComponent.defaultCurrentPageReportTemplate,
+        : (pagination.currentPageReportTemplate ??
+          ResponsiveTableComponent.defaultCurrentPageReportTemplate),
       alwaysShow: pagination.alwaysShow ?? false,
     };
   });

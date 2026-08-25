@@ -111,7 +111,11 @@ describe('ParentDetailDialogComponent', () => {
 
     (
       fixture.componentInstance as unknown as {
-        enroll: (student: ParentDetail['students'][number], cls: { id: string; name: string }, force?: boolean) => void;
+        enroll: (
+          student: ParentDetail['students'][number],
+          cls: { id: string; name: string },
+          force?: boolean,
+        ) => void;
       }
     ).enroll(parentDetail.students[0], { id: 'class-1', name: '數學 B' });
 
@@ -138,7 +142,11 @@ describe('ParentDetailDialogComponent', () => {
 
     (
       fixture.componentInstance as unknown as {
-        enroll: (student: ParentDetail['students'][number], cls: { id: string; name: string }, force?: boolean) => void;
+        enroll: (
+          student: ParentDetail['students'][number],
+          cls: { id: string; name: string },
+          force?: boolean,
+        ) => void;
       }
     ).enroll(parentDetail.students[0], { id: 'class-1', name: '數學 B' });
 

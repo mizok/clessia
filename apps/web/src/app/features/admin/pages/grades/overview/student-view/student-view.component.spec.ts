@@ -1,9 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { DialogService } from 'primeng/dynamicdialog';
 import { MessageService } from 'primeng/api';
@@ -95,9 +92,11 @@ describe('StudentViewComponent', () => {
     const vm = component as any;
 
     fixture.detectChanges();
-    http.match(() => true).forEach((req) =>
-      req.flush({ data: [], meta: { total: 0, page: 1, pageSize: 100, totalPages: 1 } }),
-    );
+    http
+      .match(() => true)
+      .forEach((req) =>
+        req.flush({ data: [], meta: { total: 0, page: 1, pageSize: 100, totalPages: 1 } }),
+      );
 
     vm.loadingList.set(false);
     vm.rawStudents.set([

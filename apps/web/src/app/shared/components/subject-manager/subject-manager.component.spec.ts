@@ -49,7 +49,9 @@ describe('SubjectManagerComponent', () => {
       })),
     );
 
-    (component as unknown as { confirmDelete: (subject: Subject) => void }).confirmDelete(subjects[0]);
+    (component as unknown as { confirmDelete: (subject: Subject) => void }).confirmDelete(
+      subjects[0],
+    );
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('無法刪除');

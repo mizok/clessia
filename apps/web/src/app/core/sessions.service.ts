@@ -219,9 +219,7 @@ export class SessionsService {
   }
 
   /** 跨課堂的課務異動紀錄。依 created_at 由新到舊 —— 這是 log，關心「最近發生什麼」。 */
-  listChanges(
-    params: ChangeLogParams,
-  ): Observable<{
+  listChanges(params: ChangeLogParams): Observable<{
     data: ChangeLogEntry[];
     meta: { total: number; page: number; pageSize: number };
   }> {

@@ -20,7 +20,10 @@ import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { ClassesService, Class } from '@core/classes.service';
-import { PageBreadcrumbComponent, type BreadcrumbItem } from '@shared/components/page-breadcrumb/page-breadcrumb.component';
+import {
+  PageBreadcrumbComponent,
+  type BreadcrumbItem,
+} from '@shared/components/page-breadcrumb/page-breadcrumb.component';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
 import {
   EnrollmentsService,

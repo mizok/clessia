@@ -57,7 +57,9 @@ export class ExamsFilterDialogComponent {
 
   protected readonly options = this.config.data?.options;
 
-  protected readonly examType = signal<ExamTypeFilter>(this.config.data?.initial.examType ?? 'academy');
+  protected readonly examType = signal<ExamTypeFilter>(
+    this.config.data?.initial.examType ?? 'academy',
+  );
   protected readonly campusId = signal<string | null>(this.config.data?.initial.campusId ?? null);
   protected readonly schoolId = signal<string | null>(this.config.data?.initial.schoolId ?? null);
   protected readonly subjectId = signal<string | null>(this.config.data?.initial.subjectId ?? null);

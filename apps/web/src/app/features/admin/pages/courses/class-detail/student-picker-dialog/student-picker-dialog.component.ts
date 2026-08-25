@@ -94,8 +94,8 @@ export class StudentPickerDialogComponent implements OnInit {
   protected readonly selectedStudents = computed(() =>
     this.students().filter((s) => this.selectedIds().has(s.id)),
   );
-  protected readonly studentNameMap = computed(() =>
-    new Map(this.students().map((student) => [student.id, student.name])),
+  protected readonly studentNameMap = computed(
+    () => new Map(this.students().map((student) => [student.id, student.name])),
   );
 
   // 超額檢查（Step 2 用）

@@ -29,7 +29,9 @@ export class SessionsActionsService {
     return this.getBatchObservable(request, true);
   }
 
-  applyBatch(request: SessionsBatchRequest): Observable<BatchAssignResult | BatchActionResult> | null {
+  applyBatch(
+    request: SessionsBatchRequest,
+  ): Observable<BatchAssignResult | BatchActionResult> | null {
     return this.getBatchObservable(request, false);
   }
 

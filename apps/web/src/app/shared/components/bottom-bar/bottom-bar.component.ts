@@ -12,7 +12,7 @@ import { NavigationService } from '@core/navigation.service';
 export class BottomBarComponent {
   private readonly router = inject(Router);
   private readonly nav = inject(NavigationService);
-  
+
   readonly navItems = this.nav.navItems;
   readonly moreOpen = signal(false);
   readonly moreClosing = signal(false);

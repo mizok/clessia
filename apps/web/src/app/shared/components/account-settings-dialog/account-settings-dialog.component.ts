@@ -16,13 +16,7 @@ type FieldKey = 'displayName' | 'email' | 'phone' | 'birthday';
 @Component({
   selector: 'app-account-settings-dialog',
   standalone: true,
-  imports: [
-    FormsModule,
-    InputTextModule,
-    ButtonModule,
-    DatePickerModule,
-    ConfirmDialogModule,
-  ],
+  imports: [FormsModule, InputTextModule, ButtonModule, DatePickerModule, ConfirmDialogModule],
   providers: [ConfirmationService],
   templateUrl: './account-settings-dialog.component.html',
   styleUrl: './account-settings-dialog.component.scss',
@@ -42,9 +36,7 @@ export class AccountSettingsDialogComponent {
 
   protected readonly saving = computed(() => this.savingField() !== null);
 
-  protected readonly hasParentRole = computed(() =>
-    this.auth.roles().includes('parent'),
-  );
+  protected readonly hasParentRole = computed(() => this.auth.roles().includes('parent'));
 
   protected displayName = this.auth.profile()?.display_name ?? '';
   protected email = this.auth.user()?.email ?? '';
@@ -109,27 +101,25 @@ export class AccountSettingsDialogComponent {
   private patchMe(field: FieldKey, payload: Record<string, unknown>) {
     this.savingField.set(field);
     this.fieldError.set(null);
-    this.http
-      .patch(`${environment.apiUrl}/api/me`, payload, { withCredentials: true })
-      .subscribe({
-        next: () => {
-          this.savingField.set(null);
-          this.savedField.set(field);
-          void this.auth.refreshRoles();
-          setTimeout(() => {
-            if (this.savedField() === field) this.savedField.set(null);
-          }, 2000);
-        },
-        error: (err) => {
-          this.savingField.set(null);
-          const code = (err.error as { code?: string } | null)?.code;
-          const msg = code === 'EMAIL_ALREADY_IN_USE' ? '此 Email 已被使用' : '更新失敗，請稍後再試';
-          this.fieldError.set({ field, msg });
-          setTimeout(() => {
-            if (this.fieldError()?.field === field) this.fieldError.set(null);
-          }, 4000);
-        },
-      });
+    this.http.patch(`${environment.apiUrl}/api/me`, payload, { withCredentials: true }).subscribe({
+      next: () => {
+        this.savingField.set(null);
+        this.savedField.set(field);
+        void this.auth.refreshRoles();
+        setTimeout(() => {
+          if (this.savedField() === field) this.savedField.set(null);
+        }, 2000);
+      },
+      error: (err) => {
+        this.savingField.set(null);
+        const code = (err.error as { code?: string } | null)?.code;
+        const msg = code === 'EMAIL_ALREADY_IN_USE' ? '此 Email 已被使用' : '更新失敗，請稍後再試';
+        this.fieldError.set({ field, msg });
+        setTimeout(() => {
+          if (this.fieldError()?.field === field) this.fieldError.set(null);
+        }, 4000);
+      },
+    });
   }
 
   protected confirmActivateParent() {

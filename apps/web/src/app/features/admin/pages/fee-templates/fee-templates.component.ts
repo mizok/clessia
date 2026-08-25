@@ -10,7 +10,7 @@ import { RouteObj } from '@core/smart-enums/routes-catalog';
       <p class="text-zinc-500">Fee templates management coming soon...</p>
     </div>
   `,
-  styles: ``
+  styles: ``,
 })
 export class FeeTemplatesComponent {
   readonly page = input.required<RouteObj>();

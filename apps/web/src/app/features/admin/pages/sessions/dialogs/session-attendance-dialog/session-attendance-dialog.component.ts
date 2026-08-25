@@ -1,5 +1,12 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  inject,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { map, switchMap, throwError } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
@@ -39,7 +46,9 @@ export class SessionAttendanceDialogComponent implements OnInit {
   protected readonly localStatus = signal<Map<string, 'present' | 'absent'>>(new Map());
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
-  protected readonly notice = signal<{ severity: InlineNoticeSeverity; detail: string } | null>(null);
+  protected readonly notice = signal<{ severity: InlineNoticeSeverity; detail: string } | null>(
+    null,
+  );
 
   ngOnInit(): void {
     const session = this.config.data?.session as Session | undefined;
@@ -132,7 +141,9 @@ export class SessionAttendanceDialogComponent implements OnInit {
         next: (res) => {
           this.saving.set(false);
           this.notice.set(null);
-          const onLeaveCount = roster.students.filter((student) => student.status === 'on_leave').length;
+          const onLeaveCount = roster.students.filter(
+            (student) => student.status === 'on_leave',
+          ).length;
           const presentCount = updates.filter((update) => update.status === 'present').length;
           const absentCount = updates.filter((update) => update.status === 'absent').length;
           this.ref.close({

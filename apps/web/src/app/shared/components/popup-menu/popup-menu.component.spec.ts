@@ -108,11 +108,7 @@ describe('PopupMenuComponent', () => {
 
   it('separator 會渲染為 role="separator" 而非 button', () => {
     const fixture = TestBed.createComponent(HostComponent);
-    fixture.componentInstance.items = [
-      { label: 'A' },
-      { separator: true },
-      { label: 'B' },
-    ];
+    fixture.componentInstance.items = [{ label: 'A' }, { separator: true }, { label: 'B' }];
     fixture.detectChanges();
 
     (fixture.nativeElement.querySelector('button') as HTMLButtonElement).click();

@@ -14,7 +14,13 @@ describe('SessionsActionsService', () => {
           provide: SessionsService,
           useValue: {
             batchAssignTeacher: () =>
-              of({ updated: 0, skippedConflicts: 0, skippedNotEligible: 0, conflicts: [], dryRun: true }),
+              of({
+                updated: 0,
+                skippedConflicts: 0,
+                skippedNotEligible: 0,
+                conflicts: [],
+                dryRun: true,
+              }),
             batchUpdateTime: () =>
               of({ updated: 0, skipped: 0, processableIds: [], conflicts: [], dryRun: true }),
             batchCancel: () =>

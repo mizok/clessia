@@ -22,15 +22,15 @@ interface NavGroup {
 })
 export class SidebarComponent {
   private readonly nav = inject(NavigationService);
-  
+
   readonly groupedNav = computed<NavGroup[]>(() => {
     const items = this.nav.navItems();
-    
+
     if (items.length === 0) return [];
 
     // Sort: Ungrouped items first, then grouped items
-    const groupedItems = items.filter(item => !!item.group);
-    const ungroupedItems = items.filter(item => !item.group);
+    const groupedItems = items.filter((item) => !!item.group);
+    const ungroupedItems = items.filter((item) => !item.group);
     const sortedItems = [...ungroupedItems, ...groupedItems];
 
     let currentGroupLabel: NavigationGroup | undefined = sortedItems[0].group;
@@ -46,18 +46,18 @@ export class SidebarComponent {
         groups.push({
           label: currentGroupLabel,
 
-          items: currentGroupItems
+          items: currentGroupItems,
         });
         // Start new group
         currentGroupLabel = item.group;
         currentGroupItems = [item];
       }
     }
-    
+
     // Push last group
     groups.push({
       label: currentGroupLabel,
-      items: currentGroupItems
+      items: currentGroupItems,
     });
 
     return groups;

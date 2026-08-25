@@ -32,9 +32,7 @@ export class NotificationsComponent {
   /** 展開中的公告；展開即視為已讀 */
   protected readonly openId = signal<string | null>(null);
 
-  protected readonly unread = computed(
-    () => this.announcements().filter((a) => !a.isRead).length,
-  );
+  protected readonly unread = computed(() => this.announcements().filter((a) => !a.isRead).length);
 
   constructor() {
     this.load();
@@ -61,9 +59,7 @@ export class NotificationsComponent {
   }
 
   private setRead(id: string, isRead: boolean): void {
-    this.announcements.update((list) =>
-      list.map((a) => (a.id === id ? { ...a, isRead } : a)),
-    );
+    this.announcements.update((list) => list.map((a) => (a.id === id ? { ...a, isRead } : a)));
   }
 
   private load(): void {

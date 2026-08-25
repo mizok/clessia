@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, OnInit, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
@@ -11,7 +19,13 @@ import { format, parse } from 'date-fns';
 
 @Component({
   selector: 'app-session-reschedule-dialog',
-  imports: [ReactiveFormsModule, ButtonModule, TextareaModule, DatePickerModule, InlineNoticeComponent],
+  imports: [
+    ReactiveFormsModule,
+    ButtonModule,
+    TextareaModule,
+    DatePickerModule,
+    InlineNoticeComponent,
+  ],
   templateUrl: './session-reschedule-dialog.component.html',
   styleUrl: './session-reschedule-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -28,15 +42,17 @@ export class SessionRescheduleDialogComponent implements OnInit {
   readonly submitError = signal<string | null>(null);
   readonly minDate = new Date();
 
-  readonly targetDateSessions = signal<Array<{
-    courseName: string;
-    className: string;
-    campusName: string;
-    startTime: string;
-    endTime: string;
-    teacherId: string | null;
-    teacherName: string | null;
-  }>>([]);
+  readonly targetDateSessions = signal<
+    Array<{
+      courseName: string;
+      className: string;
+      campusName: string;
+      startTime: string;
+      endTime: string;
+      teacherId: string | null;
+      teacherName: string | null;
+    }>
+  >([]);
   readonly loadingTargetDate = signal(false);
   readonly targetCampusSessions = computed(() => {
     const session = this.session();
@@ -64,13 +80,21 @@ export class SessionRescheduleDialogComponent implements OnInit {
       const sessionDate = parse(s.sessionDate, 'yyyy-MM-dd', new Date());
       const startTime = parse(s.startTime.substring(0, 5), 'HH:mm', new Date());
       const endTime = parse(s.endTime.substring(0, 5), 'HH:mm', new Date());
-      this.form.patchValue({ newSessionDate: sessionDate, newStartTime: startTime, newEndTime: endTime });
+      this.form.patchValue({
+        newSessionDate: sessionDate,
+        newStartTime: startTime,
+        newEndTime: endTime,
+      });
     }
 
-    this.form.get('newSessionDate')!.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(date => {
-        if (!date) { this.targetDateSessions.set([]); return; }
+    this.form
+      .get('newSessionDate')!
+      .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((date) => {
+        if (!date) {
+          this.targetDateSessions.set([]);
+          return;
+        }
         this.loadTargetDateSessions(date);
       });
   }
@@ -80,26 +104,25 @@ export class SessionRescheduleDialogComponent implements OnInit {
     if (!s) return;
     const dateStr = format(date, 'yyyy-MM-dd');
     this.loadingTargetDate.set(true);
-    this.sessionsService.list({ from: dateStr, to: dateStr })
-      .subscribe({
-        next: res => {
-          this.targetDateSessions.set(
-            res.data
-              .filter(session => session.status === 'scheduled' && session.id !== s.id)
-              .map(session => ({
-                courseName: session.courseName,
-                className: session.className,
-                campusName: session.campusName,
-                startTime: session.startTime,
-                endTime: session.endTime,
-                teacherId: session.teacherId,
-                teacherName: session.teacherName,
-              }))
-          );
-          this.loadingTargetDate.set(false);
-        },
-        error: () => this.loadingTargetDate.set(false),
-      });
+    this.sessionsService.list({ from: dateStr, to: dateStr }).subscribe({
+      next: (res) => {
+        this.targetDateSessions.set(
+          res.data
+            .filter((session) => session.status === 'scheduled' && session.id !== s.id)
+            .map((session) => ({
+              courseName: session.courseName,
+              className: session.className,
+              campusName: session.campusName,
+              startTime: session.startTime,
+              endTime: session.endTime,
+              teacherId: session.teacherId,
+              teacherName: session.teacherName,
+            })),
+        );
+        this.loadingTargetDate.set(false);
+      },
+      error: () => this.loadingTargetDate.set(false),
+    });
   }
 
   protected closeDialog(): void {

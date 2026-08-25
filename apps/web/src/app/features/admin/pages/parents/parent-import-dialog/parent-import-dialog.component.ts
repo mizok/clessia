@@ -307,7 +307,8 @@ export class ParentImportDialogComponent {
     if (!this.toGradeCode(studentGrade)) errors.push('學生年級格式不正確');
     if (!studentSchool) errors.push('學生就讀學校不可空白');
     if (!parentEmail && !parentPhone) errors.push('家長電話與 Email 不可同時空白');
-    if (parentPhone && !/^09\d{8}$/.test(parentPhone)) errors.push('家長電話格式錯誤（需為 09 開頭 10 碼）');
+    if (parentPhone && !/^09\d{8}$/.test(parentPhone))
+      errors.push('家長電話格式錯誤（需為 09 開頭 10 碼）');
     if (parentEmail && !this.isValidEmail(parentEmail)) errors.push('家長 Email 格式錯誤');
     if (studentBirthday && !/^\d{4}-\d{2}-\d{2}$/.test(studentBirthday))
       errors.push('學生生日格式錯誤（需為 YYYY-MM-DD，如 2010-05-20）');

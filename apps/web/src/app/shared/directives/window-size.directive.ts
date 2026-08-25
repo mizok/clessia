@@ -27,7 +27,7 @@ export class WindowSizeDirective implements OnInit {
 
     const width = window.innerWidth;
     const height = window.innerHeight;
-    
+
     this.elementRef.nativeElement.style.setProperty(this.widthVar(), `${width}px`);
     this.elementRef.nativeElement.style.setProperty(this.heightVar(), `${height}px`);
   }

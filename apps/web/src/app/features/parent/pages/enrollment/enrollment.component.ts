@@ -11,7 +11,7 @@ import { RouteObj } from '@core/smart-enums/routes-catalog';
       <p class="text-zinc-500">Enrollment content coming soon...</p>
     </div>
   `,
-  styles: ``
+  styles: ``,
 })
 export class EnrollmentComponent {
   readonly page = input.required<RouteObj>();

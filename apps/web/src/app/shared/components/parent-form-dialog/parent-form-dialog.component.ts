@@ -79,7 +79,7 @@ export class ParentFormDialogComponent {
       };
 
       this.parentsService.create(input).subscribe({
-        next: (res) => this.ref.close({ type: 'created', data: res.data, password: res.initialPassword }),
+        next: (res) => this.ref.close({ type: 'created', data: res.data, loginUrl: res.loginUrl }),
         error: (err) => this.handleError(err),
       });
     }

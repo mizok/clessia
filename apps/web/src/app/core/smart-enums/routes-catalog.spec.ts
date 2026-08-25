@@ -37,7 +37,9 @@ describe('RoutesCatalog', () => {
   it('should register score entry as a non-menu sub-page under grades', () => {
     expect(RoutesCatalog.ADMIN_GRADES_SCORE_ENTRY.label).toBe('成績登錄');
     expect(RoutesCatalog.ADMIN_GRADES_SCORE_ENTRY.showInMenu).toBe(false);
-    expect(RoutesCatalog.ADMIN_GRADES_SCORE_ENTRY.relativePath).toBe('grades/exams/:type/:id/scores');
+    expect(RoutesCatalog.ADMIN_GRADES_SCORE_ENTRY.relativePath).toBe(
+      'grades/exams/:type/:id/scores',
+    );
   });
 
   it('should centralize navigation board labels in smart enums', () => {

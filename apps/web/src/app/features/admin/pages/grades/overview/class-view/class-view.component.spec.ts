@@ -1,9 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { DialogService } from 'primeng/dynamicdialog';
 import { MessageService } from 'primeng/api';
@@ -239,7 +236,9 @@ describe('ClassViewComponent', () => {
     ] as any);
     fixture.detectChanges();
 
-    const rowButton = fixture.nativeElement.querySelector('.class-view__class-row') as HTMLButtonElement;
+    const rowButton = fixture.nativeElement.querySelector(
+      '.class-view__class-row',
+    ) as HTMLButtonElement;
     rowButton.click();
 
     expect(openMock).toHaveBeenCalledTimes(1);
@@ -281,7 +280,9 @@ describe('ClassViewComponent', () => {
     component['todoExamCountMap'].set({ cl1: 2 });
     fixture.detectChanges();
 
-    const todoButton = fixture.nativeElement.querySelector('.class-view__class-todo') as HTMLButtonElement;
+    const todoButton = fixture.nativeElement.querySelector(
+      '.class-view__class-todo',
+    ) as HTMLButtonElement;
     todoButton.click();
 
     expect(openMock).toHaveBeenCalledTimes(1);

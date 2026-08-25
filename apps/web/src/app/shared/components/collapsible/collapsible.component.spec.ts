@@ -8,9 +8,8 @@ describe('CollapsibleComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [CollapsibleComponent]
-    })
-    .compileComponents();
+      imports: [CollapsibleComponent],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(CollapsibleComponent);
     component = fixture.componentInstance;

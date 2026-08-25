@@ -113,8 +113,8 @@ export class ClassViewComponent implements OnInit {
     })),
   );
 
-  protected readonly todoClassCount = computed(() =>
-    Object.values(this.todoExamCountMap()).filter((count) => count > 0).length,
+  protected readonly todoClassCount = computed(
+    () => Object.values(this.todoExamCountMap()).filter((count) => count > 0).length,
   );
 
   protected readonly mobileFilterCount = computed(() => {
@@ -212,17 +212,19 @@ export class ClassViewComponent implements OnInit {
 
     if (!ref) return;
 
-    ref.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result?: ClassViewFilterDialogResult) => {
-      if (!result) return;
-      if (result.cleared) {
-        this.searchText.set('');
-        this.selectedGrades.set([]);
-        this.subjectIdFilter.set(null);
-        return;
-      }
-      if (!result.snapshot) return;
-      this.applyMobileFilterSnapshot(result.snapshot);
-    });
+    ref.onClose
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result?: ClassViewFilterDialogResult) => {
+        if (!result) return;
+        if (result.cleared) {
+          this.searchText.set('');
+          this.selectedGrades.set([]);
+          this.subjectIdFilter.set(null);
+          return;
+        }
+        if (!result.snapshot) return;
+        this.applyMobileFilterSnapshot(result.snapshot);
+      });
   }
 
   protected getTodoExamCount(classId: string): number {
