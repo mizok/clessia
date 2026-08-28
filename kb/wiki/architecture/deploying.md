@@ -69,41 +69,41 @@ npx wrangler secret put DATABASE_URL --env production
 > `app.request(url, init)` 時沒帶第三個參數 `env`，走的是同一條 localhost 路徑。
 > `process.env` 的退路只服務 Node 自架（`server.ts`）。
 
-## 跨站 session cookie（目前是權宜之計）
+## 前端與 API 必須同源
 
-前端與 API 在**不同的 eTLD+1** 時 —— 例如 `clessia.pages.dev` 對 `*.workers.dev`，
-兩者都在 Public Suffix List 上 —— 瀏覽器不會把預設 `SameSite=Lax` 的 session cookie
-帶到跨站請求上。
-
-**症狀極具誤導性**：`POST /api/login` 回 200（登入其實成功了），但緊接著的 `/api/me`
-回 401，前端的 `catch` 把它當成「沒有角色」，畫面顯示**「此帳號尚未被指派角色」**。
-第一次上線時就是這樣，排查方向一度指向 bootstrap 沒寫 `user_roles`。
-
-`apps/api/src/auth.ts` 的 `crossSiteCookieAttributes()` 在 https 時改發
-`SameSite=None; Secure; Partitioned`。
-
-| 瀏覽器                        | 可用                                     |
-| ----------------------------- | ---------------------------------------- |
-| Chrome / Edge / Firefox       | ✅                                       |
-| Safari 18.4 以上（iOS 18.4+） | ✅ `Partitioned` 是 CHIPS，18.4 才支援   |
-| **Safari 18.3 以下**          | ❌ 完全封鎖第三方 cookie，這個設定救不了 |
-
-硬體斷點是 2017 年的 iPhone X / 8（最高只能升到 iOS 16）。但**更大的風險是沒更新
-系統的人** —— 而且他們看到的錯誤訊息完全不會指向「請更新 iOS」。
-
-### 根治：同一個 eTLD+1
-
-把前端與 API 放到同一個註冊網域底下：
+**部署方式是兩者掛在同一個 hostname 上**：
 
 ```text
-app.example.com   → Cloudflare Pages
-api.example.com   → Cloudflare Worker
+demo.clessia.cc/         → Cloudflare Pages（前端）
+demo.clessia.cc/api/*    → Cloudflare Worker（API，用 route 不是 custom domain）
 ```
 
-兩者的 eTLD+1 都是 `example.com`，瀏覽器視為同站，預設的 `SameSite=Lax` 就會被帶出去。
-**這時 `crossSiteCookieAttributes()` 整段可以刪掉**，而且所有瀏覽器都能用，包含舊 Safari。
+Worker route 的優先權高於 Pages，所以 `/api/*` 會被 Worker 接走，其餘走 SPA。
+⚠️ **一定要選 Route 不是 Custom domain** —— Custom domain 會接管整個 hostname，把前端也吃掉。
 
-賣給客戶時本來就需要自己的網域（不會把 `pages.dev` 交出去），所以這不是額外成本。
+`environment.production.ts` 的 `apiUrl` 因此是**空字串**（相對路徑）。
+
+### 為什麼不是子網域
+
+`app.example.com` + `api.example.com` 是**同站但不同源**，cookie 仍受 SameSite 規則管。
+同源則完全不適用那些規則，而且連 CORS 都不需要。
+
+### 這裡踩過的坑（別再回去）
+
+2026-08 曾經是跨站部署（`clessia.pages.dev` 對 `*.workers.dev`），為此加了
+`SameSite=None; Secure; Partitioned`。兩個後果：
+
+1. **iOS 18.3 以下的 Safari 完全登不進去** —— 它封鎖所有非分區的第三方 cookie，
+   而 `Partitioned`（CHIPS）要 Safari 18.4 才支援
+2. **`Partitioned` 打斷了 OAuth** —— state cookie 在「前端發的 XHR」時被設定
+   （分區鍵是前端），但 callback 是「LINE 導回來的頂層導航」（分區鍵不同），
+   cookie 送不出去，每次登入都 `state_mismatch`
+
+同源之後這兩個問題都消失，`crossSiteCookieAttributes()` 整段已刪除。
+
+> `.cc` 不在 HSTS 預載清單裡（`.app` / `.dev` 才有），所以強制 HTTPS 要在
+> Cloudflare 的 SSL/TLS → Edge Certificates → HSTS 手動開。**開之前先確認網站
+> 能正常用 HTTPS** —— HSTS 生效後瀏覽器會記住一段時間，設錯很難救。
 
 ## SPA fallback
 
