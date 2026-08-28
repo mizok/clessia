@@ -1,12 +1,12 @@
 # Architecture — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-24
+> Auto-maintained by `kb:map`. Last updated: 2026-08-28
 
 ---
 
 ## [[architecture/amending-the-constitution|修憲的機制]]
 
-憲法只能由人修改，agent 被三層 deny 規則擋住。`tools/amend-constitution.mjs` 是給人用的便利工具，不是護欄——護欄留在 harness 層。
+憲法只能由人修改，agent 被兩條 deny 規則擋住（含 worktree 路徑）。曾經有過的 `tools/amend-constitution.mjs` 因為過度建造已移除——護欄留在 harness 層（A9 斷言 deny 目標存在）。
 
 Tags: `architecture`, `constitution`, `guardrail`
 
@@ -26,7 +26,7 @@ Links to: [[architecture/role-authorization|角色授權設計]]
 
 Tags: `architecture`, `deployment`, `bootstrap`, `onboarding`
 
-Links to: [[architecture/constitution|c12]], [[specs/public/login|忘記密碼的現況]]
+Links to: [[architecture/constitution|c12]], [[architecture/line-oauth-login]], [[architecture/deploying]]
 
 ## [[architecture/change-log-view|課務異動紀錄的設計]]
 
@@ -66,9 +66,11 @@ Tags: `architecture`, `enrollment-admin-view`
 
 ## [[architecture/line-oauth-login|LINE 登入的設計]]
 
-密碼雜湊超過 Cloudflare Workers 免費方案的 10ms CPU 上限，登入間歇性 503。改用 OAuth 取代日常密碼登入（首發 LINE，Google 延後但架構預留），root 保留密碼作為破窗管道；OAuth 身分靠一次性綁定連結／QR 對應到既有的人員或家長記錄。
+密碼雜湊超過 Cloudflare Workers 免費方案的 10ms CPU 上限，登入間歇性 503。密碼登入完全移除、改用 OAuth（首發 LINE，Google 延後但架構預留）；破窗改成持有 DATABASE_URL 的人用 CLI 產生一次性登入連結，客戶換掉 DB 密碼就能切斷供應商存取。OAuth 身分靠一次性綁定連結／QR 對應到既有的人員或家長記錄。
 
 Tags: `architecture`, `auth`, `oauth`, `line`, `cloudflare`
+
+Links to: [[lessons/better-auth-session-delegation]], [[architecture/deploying]], [[specs/admin/roles-and-auth]]
 
 ## [[architecture/no-division-scoping|刻意不設計「學部」這一層]]
 
@@ -78,7 +80,7 @@ Tags: `architecture`, `no-division-scoping`
 
 ## [[architecture/role-authorization|角色授權的設計]]
 
-18 支 route 只驗身分不看角色。改成掛載時強制宣告可用角色、沒宣告就拒絕，並用 harness gate 守住。分兩層：route 層准入、資料層範圍。
+掛載的 route 曾經只驗身分不看角色。改成掛載時強制宣告可用角色、沒宣告就拒絕，並用 harness gate 守住。分兩層：route 層准入、資料層範圍。
 
 Tags: `architecture`, `role-authorization`
 
@@ -112,5 +114,5 @@ Links to: [[architecture/teaching-history-not-payroll|`記錄授課歷程但不�
 
 Tags: `architecture`, `business-model`, `tenancy`, `vendor-lock-in`
 
-Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]], [[architecture/bootstrapping-a-deployment]]
+Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]], [[architecture/line-oauth-login]], [[architecture/bootstrapping-a-deployment]], [[architecture/bootstrapping-a-deployment]]
 

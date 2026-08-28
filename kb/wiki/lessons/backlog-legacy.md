@@ -1,9 +1,9 @@
 ---
 title: Clessia 功能開發清單
-summary: ---
+summary: 2026-02～03 的功能開發清單與技術債紀錄。歷史文件 —— 其中「忘記密碼」整節已於 2026-08 作廢（系統改用 LINE OAuth）。
 category: guide
 status: active
-updated: 2026-03-19
+updated: 2026-08-28
 tags: [lessons, backlog-legacy]
 ---
 
@@ -73,17 +73,16 @@ tags: [lessons, backlog-legacy]
 
 ## 🔧 技術債（已知缺口，需獨立 branch 處理）
 
-### 忘記密碼完整實作
+### ~~忘記密碼完整實作~~ ❌ 已作廢（2026-08-28）
 
-**現況：** 前端流程已完成，但 email 實際上不會送出（無 SMTP 設定）。
-**需要一起做（不建議分批）：**
+**這個系統沒有密碼了。** 前端的 forgot-password / reset-password 兩頁、captcha.service、
+以及所有後端密碼路徑都在 PR #24 移除 —— scrypt 超過 Cloudflare Workers 的 10ms CPU
+上限，登入間歇性 503，而任何安全的雜湊都會超過。
 
-- Resend 串接（免費 100 封/天，300+ 人後升級 Pro $20/月）
-- per-email 冷卻時間（Cloudflare KV，15 分鐘只能發一封）
-- Turnstile 伺服器驗證（token 有收但未驗證）
-- Better Auth `sendResetPassword` hook
+取而代之：LINE OAuth（日常）+ 一次性登入連結（首次綁定與破窗）。
+見 [[architecture/line-oauth-login]]。
 
-**暫時替代方案：** 使用者忘記密碼時，聯絡管理者從後台重設。
+原本列的 Resend / KV 冷卻 / Turnstile 驗證全部不需要了。
 
 ### ~~手機號碼登入~~ ✅ (2026-03-18)
 
@@ -202,8 +201,8 @@ Phase 2-4 優先委派 Codex。
 
 ### Spec 檔案路徑對照
 
-| 功能     | Spec 路徑                                 |
-| -------- | ----------------------------------------- |
+| 功能     | Spec 路徑                                      |
+| -------- | ---------------------------------------------- |
 | 人員管理 | `kb/wiki/specs/admin/system/staff.md`          |
 | 課程管理 | `kb/wiki/specs/admin/academic/classes.md`      |
 | 學生管理 | `kb/wiki/specs/admin/academic/students.md`     |
@@ -259,10 +258,10 @@ Phase 2-4 優先委派 Codex。
 
 ## 更新紀錄
 
-| 日期       | 更新內容                                                                                                  |
-| ---------- | --------------------------------------------------------------------------------------------------------- |
-| 2026-02-15 | 初始建立，從 PRD.md 提取功能清單                                                                          |
-| 2026-02-22 | 標記人員管理已完成；新增技術債區段（忘記密碼、手機號碼登入）                                              |
-| 2026-03-16 | 標記 Phase 2 全部完成（班級、排課、課堂管理）；人員管理補三態 status（active/inactive/archived）          |
-| 2026-03-17 | 標記學生管理（#7）完成；文件重組（新增 kb/wiki/flows/, kb/wiki/rules/, kb/overview.md）；重寫 4 份關鍵 spec         |
-| 2026-03-18 | 標記家長管理（#8）完成；統一登入技術債解除（手機號碼登入已實作）；文件目錄整合（docs/ → kb/superpowers/） |
+| 日期       | 更新內容                                                                                                    |
+| ---------- | ----------------------------------------------------------------------------------------------------------- |
+| 2026-02-15 | 初始建立，從 PRD.md 提取功能清單                                                                            |
+| 2026-02-22 | 標記人員管理已完成；新增技術債區段（忘記密碼、手機號碼登入）                                                |
+| 2026-03-16 | 標記 Phase 2 全部完成（班級、排課、課堂管理）；人員管理補三態 status（active/inactive/archived）            |
+| 2026-03-17 | 標記學生管理（#7）完成；文件重組（新增 kb/wiki/flows/, kb/wiki/rules/, kb/overview.md）；重寫 4 份關鍵 spec |
+| 2026-03-18 | 標記家長管理（#8）完成；統一登入技術債解除（手機號碼登入已實作）；文件目錄整合（docs/ → kb/superpowers/）   |

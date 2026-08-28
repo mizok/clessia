@@ -1,16 +1,17 @@
 ---
 title: 角色與帳號管理規格
-summary: ---
+summary: 三個角色（admin / teacher / parent）存在 user_roles，細部權限存在 user_roles.permissions。密碼登入已於 2026-08 移除，改為 LINE OAuth + 一次性登入連結。
 category: spec
 status: active
-updated: 2026-03-24
+updated: 2026-08-28
 tags: [specs, admin, roles-and-auth]
 ---
 
 # 角色與帳號管理規格
 
 > 討論日期：2026-03-19
-> 狀態：部分實作（root 登入、帳號設定 dialog、家長身份啟用已完成）
+> 狀態：部分實作（帳號設定 dialog、家長身份啟用已完成）。
+> **root 登入與所有密碼路徑已於 2026-08 移除**，見下方「root 現在登不進去」。
 
 ---
 
@@ -32,26 +33,35 @@ tags: [specs, admin, roles-and-auth]
 
 ### 特性
 
-- `username = root`，無需 email 或手機
-- ⚠️ **密碼不是從環境變數讀的**（2026-08-24 稽核更正）。`ROOT_PASSWORD` 不存在於任何程式碼，
-  root 的密碼是 `supabase/seed.sql` 裡硬編的 scrypt hash。**`bootstrap-org.ts` 開的乾淨站不會有 root 帳號**
+- `username = root`，無需 email 或手機。**username 已不是登入憑證**（username plugin
+  已移除），但欄位仍在用：只有手機的家長把手機存進 `ba_user.username` 當唯一性鍵
+  （`parents.ts`），`me.ts` 也用 `username === 'root'` 判斷 `isRootUser`
 - 擁有所有管理權限，且**不能被其他人修改或刪除**
-- 首次登入後應立即修改密碼
+- **沒有密碼**（2026-08-28 更正）。`ROOT_PASSWORD` 從來不存在於任何程式碼；
+  `seed.sql` 裡曾經硬編一組 scrypt hash，但那對所有客戶是**同一組**，已於 PR #24 移除
 
-### Root 登入入口
+### root 現在登不進去
 
-一般登入頁不顯示 username 欄位，root 透過隱藏路由進入：
+`/login?role=root` 的隱藏入口已隨密碼登入一起移除，而 **`npm run login-link` 對它也無效**：
+`seed.sql` 建的 root 的 `email` 是 `NULL`（`ba_user` 允許），而 login-link 是用 email 查人
+（`login-link.ts` 的 `where u.email = $1`），管理端的 `POST /api/login-links` 也會直接回
+`NO_EMAIL`。
 
-```
-/login?role=root
-```
+**兩條路都產不出 root 的登入連結。**
 
-前端偵測到此 query param 時：
+這是個**已知且目前無害的缺口**：root 只存在於 `seed.sql`（本機開發），
+`bootstrap-org.ts` 開的站根本不會有它。本機要登入請用 seed 的其他帳號。
 
-- 隱藏 email / phone 切換 UI
-- 顯示 readonly 的 `root` 欄位
-- 只需輸入密碼
-- 登入走 `signInUsername({ username: 'root', password })`
+要修的話有兩條路，都還沒做：
+
+- 給 seed 的 root 一個佔位 email（例如 `root@seed.internal`），它就能走 login-link
+- 或讓 login-link 支援用 username 查
+
+### 破窗管道
+
+`root` **不是**破窗管道，而且 `bootstrap-org.ts` 開的乾淨站根本不會建 root。
+真正的破窗是 `npm run login-link`：持有 `DATABASE_URL` 的人才產得出連結，
+**客戶換掉 DB 密碼就能撤銷供應商的存取**。見 [[architecture/line-oauth-login]]。
 
 ---
 
@@ -110,7 +120,7 @@ tags: [specs, admin, roles-and-auth]
 放置於頂部 header 的使用者 dropdown，以 Dialog 形式開啟，包含：
 
 - 基本資料修改（姓名、生日、Email、電話）
-- 修改密碼（獨立 Dialog，透過 Better Auth `changePassword()` API）
+- ~~修改密碼~~ —— **已移除**（PR #24）。系統沒有密碼憑證，那顆按鈕點下去必然失敗
 - **啟用家長身份**（若尚未擁有 `parent` 角色）
 
 ---
@@ -139,9 +149,9 @@ tags: [specs, admin, roles-and-auth]
 ## 實作狀態
 
 - [x] seed 腳本建立 root 帳號
-- [x] 登入頁支援 `?role=root` param
+- [~] ~~登入頁支援 `?role=root` param~~ —— 已移除（PR #24）
 - [x] `username` 驗證放寬（允許非手機格式）
 - [x] `manage_roles` permission 項目
-- [x] 個人帳號設定頁（Dialog，含改密碼）
+- [x] 個人帳號設定頁（Dialog）—— 改密碼那部分已移除
 - [x] 家長身份自助啟用流程（簡化：無需填子女資料）
 - [ ] 公開報名頁帳號衝突偵測邏輯
