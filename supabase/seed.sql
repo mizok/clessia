@@ -40,7 +40,8 @@ DECLARE
 BEGIN
     -- 1. Insert users into Better Auth ba_user table
     -- root: 保留這個使用者是為了本機開發方便（它有全部角色）。
-    -- 它**沒有密碼** —— 用 npm run login-link 產生連結登入。
+    -- 它**沒有密碼，而且 email 是 NULL** —— 所以 `npm run login-link`（用 email 查人）
+    -- 對它無效。本機要登入請用下面的 demo admin。root 目前進不去，是已知缺口。
     INSERT INTO public.ba_user (id, name, email, "emailVerified", username, "orgId", "createdAt", "updatedAt")
     VALUES
         (root_id::text, 'Super Admin', NULL, false, 'root', NULL, NOW(), NOW()),
@@ -60,7 +61,8 @@ BEGIN
     --       root 密碼都一樣 —— 一間補習班的資料庫外洩，等於所有客戶的最高權限
     --       一起外洩
     --
-    -- 本機開發要登入：`LOGIN_EMAIL=... npm run login-link` 產生一次性連結。
+    -- 本機開發要登入：`LOGIN_EMAIL=admin@demo.clessia.app npm run login-link` 產生一次性連結。
+    -- （root 沒有 email，那條路對它無效）
     -- 跟正式環境同一條路，不必為本機另外維護一套。
 
     -- 3. Insert demo organization

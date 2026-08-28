@@ -70,3 +70,4 @@ Thumbs.db
 .claude/settings.local.json
 .claude/worktrees/
 .claude/tdd-guard/
+lint-report-*.md

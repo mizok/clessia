@@ -3,7 +3,7 @@ title: LINE 登入的設計
 summary: 密碼雜湊超過 Cloudflare Workers 免費方案的 10ms CPU 上限，登入間歇性 503。密碼登入完全移除、改用 OAuth（首發 LINE，Google 延後但架構預留）；破窗改成持有 DATABASE_URL 的人用 CLI 產生一次性登入連結，客戶換掉 DB 密碼就能切斷供應商存取。OAuth 身分靠一次性綁定連結／QR 對應到既有的人員或家長記錄。
 category: architecture
 status: active
-updated: 2026-08-24
+updated: 2026-08-28
 tags: [architecture, auth, oauth, line, cloudflare]
 ---
 
@@ -174,17 +174,21 @@ stdout。同一個機制服務三種送達方式。
 
 ## 影響哪些既有元件
 
+> ⚠️ **這張表是 2026-08 實作前的規劃紀錄，語氣是未來式。** 全部都做完了 ——
+> 要看現況請直接讀程式碼或 [[architecture/deploying]]。保留它是為了讓人看得懂
+> 當初盤點了哪些接觸面，而不是拿它當現況清單。
+
 | 元件                                              | 影響                                                                                                                                                                                                                                   |
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/api/src/auth.ts`                            | 加 LINE provider 設定。LINE 不保證提供 email，但 `ba_user.email` 自 `20260317000002` 起**可為 NULL**（仍 UNIQUE，PG 允許多個 NULL）—— 所以**未必需要合成佔位 email**，留 NULL 可能更乾淨。實作前先確認 Better Auth 接不接受 NULL email |
-| `apps/api/src/index.ts` 的 `/api/login`           | 目前先查 `ba_user` 再委派 Better Auth 驗密碼。一般使用者的這條路要移除                                                                                                                                                                 |
-| `apps/web/.../login.component.ts`                 | email / phone 切換 UI 移除，改成一顆 LINE 登入按鈕；`?role=root` 的隱藏入口保留                                                                                                                                                        |
-| `apps/api/src/scripts/bootstrap-org.ts`           | 目前產生密碼並印出。改成建帳號後印出**一次性登入連結**（與破窗 CLI 同一支）                                                                                                                                                            |
-| `supabase/seed.sql`                               | 硬編的 root scrypt hash 應移除 —— 它是跨客戶共用的秘密。seed 不是 migration，可以直接改（不受 c3 限制）                                                                                                                                |
+| `apps/api/src/index.ts` 的 `/api/login`           | ~~先查 `ba_user` 再委派 Better Auth 驗密碼~~ → **整支端點已刪除**                                                                                                                                                                      |
+| `apps/web/.../login.component.ts`                 | email / phone 切換 UI 移除，改成一顆 LINE 登入按鈕                                                                                                                                                                                     |
+| `apps/api/src/scripts/bootstrap-org.ts`           | ~~產生密碼並印出~~ → **已改成印一次性登入連結**（harness gate A11 守著 createUser 不帶 password）                                                                                                                                      |
+| `supabase/seed.sql`                               | 硬編的 root scrypt hash（跨客戶共用的秘密）**已移除**。副作用：seed 的 root 沒有 email，`login-link` 對它無效 —— 見 [[specs/admin/roles-and-auth]]                                                                                     |
 | `apps/web/.../login.component.ts` 的 `?role=root` | 隱藏入口整段移除 —— 沒有 username+密碼登入了                                                                                                                                                                                           |
 | `apps/api/src/routes/parents.ts`、`staff.ts`      | `createUser` 時不再需要密碼；改為建立待綁定的記錄                                                                                                                                                                                      |
 | `ba_account` 表                                   | **不需要 migration**——`providerId` + `accountId` 已經存在，Better Auth 直接可用                                                                                                                                                        |
-| 綁定 token                                        | 需要新的儲存位置與過期規則（新 migration，非修改既有——憲法 c3）                                                                                                                                                                        |
+| 綁定 token                                        | ~~需要新的儲存位置（新 migration）~~ → **不用**，magic-link plugin 直接用既有的 `ba_verification`                                                                                                                                      |
 
 ## 對憲法 c12 的影響
 

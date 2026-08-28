@@ -1,9 +1,9 @@
 ---
 title: 課程列表
-summary: ---
+summary: /admin/courses 的課程列表 —— 管理員瀏覽與維護課程，是開課班（classes）的上層分類。
 category: spec
 status: active
-updated: 2026-04-07
+updated: 2026-08-28
 tags: [specs, admin, academic, courses]
 ---
 

@@ -30,8 +30,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # kb-gate 在推導缺漏的 `updated` 欄位時會用 git log 查最後提交日；
-          # shallow clone 會讓它退回檔案 mtime（在 CI 上永遠是 checkout 當下的時間）。
+          # 完整歷史。原本的理由是 kb-gate 用 git log 推導 `updated` 欄位，
+          # 那支腳本在移植 kb-wiki 時就退掉了 —— **理由過期但設定保留**：
+          # 這個 workflow 目前用 run-many（見檔案開頭），不需要 base ref，
+          # 所以嚴格說 fetch-depth 可以拿掉。留著是因為之後若改用 affected 會需要，
+          # 而 shallow clone 造成的失敗很難查。
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
@@ -47,8 +50,10 @@ jobs:
       - run: npm ci
         working-directory: apps/api
 
-      # ── 文件與現實是否同步（skill 清單、入口檔行數、憲法條款引用、KB frontmatter 與索引）
-      - name: harness + KB gate
+      # ── 文件與現實是否同步（skill 清單、入口檔行數、憲法條款引用、route 角色宣告、
+      #    RLS、deny 規則目標、createUser 不帶密碼、功能區現況表）
+      #    **不含 kb/ 的內容健康度** —— 那由 kb-wiki skill 的 lint 負責，是人觸發的
+      - name: harness
         run: npm run harness
 
       # ── harness 自己的單元測試：規則引擎壞掉時，上面那層會安靜地放行
