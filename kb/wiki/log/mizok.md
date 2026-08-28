@@ -4,7 +4,35 @@
 
 ---
 
+## [2026-08-28] lint | Health check: 0 errors, 0 warnings, 52 info
+
+- Mode: structural
+- Pages scanned: 86
+- Issues found: 52
+
+## [2026-08-28] drift | root 移除後的文件收尾（PR #29）
+
+- 2026-08-24 記的「**未解**：root 破窗管道不存在於乾淨部署，需人裁決」**已裁決 —— 移除**
+- `specs/admin/roles-and-auth` 的「Root 帳號」整節改寫成「沒有超級帳號」：
+  留著一個登不進去、正式站也不存在的超級帳號，只會讓人以為有後門
+- 順帶記下 `ba_user.username` **沒有**跟著移除的理由（只有手機的家長拿它當唯一性鍵）
+- `architecture/line-oauth-login` 風險表修掉一句**錯的**：「root 是唯一的破窗管道」
+  —— 破窗從來是 `login-link`（要 `DATABASE_URL`），c12 要的就是這個可撤銷性
+- 驗證：lint 0 errors / 0 warnings、`npm test` 472 passed、typecheck 綠
+
+## [2026-08-28] roadmap | 改寫第 2 節：通往「可提案」的六個階段
+
+- 策略定案：**先做完再提案**（九成完備才去談），不是拿半成品請對方試用
+- 「九成完備」有了定義：21 個功能區在三個角色上該有的都 ✅
+- 缺口盤點：金流三區（從零）、家長端 11 頁（從零）、公開端 3 頁、聯絡簿
+- 六個階段 P1–P6，順序由**依賴**決定（後五個都依賴 P1 的資料模型）
+- 記下這個策略的代價：**沒有真實使用者回饋就蓋很多東西**。解藥是問內部人，
+  尤其金流的資料模型猜錯的話下游全部要重做
+- 三個待拍板的範圍決策：聯絡簿要不要做、要不要 LINE 推播、多分校做到什麼程度
+- 「刻意不做」補上多租戶的真正理由（**c12 直接否決**，不只是優先度低）與線上金流
+
 ## [2026-08-24] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 79
 - Total links: 48
 - Orphan pages: 70
@@ -23,6 +51,7 @@
 - **未解**：root 破窗管道不存在於乾淨部署，需人裁決
 
 ## [2026-08-24] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 79
 - Total links: 48
 - Orphan pages: 70

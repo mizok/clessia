@@ -62,10 +62,10 @@ tags: [specs, teacher, schedule]
 
 ## 資料依賴
 
-| 操作 | 資料表                                                                                                        |
-| ---- | ------------------------------------------------------------------------------------------------------------- |
+| 操作 | 資料表                                                                                                                                                          |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 讀取 | `sessions`, `classes`, `teacher_logs`, `academy_exams`, `school_exams`, `academy_scores`, `school_scores`, `schedule_changes`, `attendance_records`, `students` |
-| 寫入 | `attendance_records`（僅當天）, `teacher_logs`, `academy_exams`, `school_exams`                                                        |
+| 寫入 | `attendance_records`（僅當天）, `teacher_logs`, `academy_exams`, `school_exams`                                                                                 |
 
 ## PRD 參考
 

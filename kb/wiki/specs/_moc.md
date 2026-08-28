@@ -1,6 +1,6 @@
 # Specs — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-24
+> Auto-maintained by `kb:map`. Last updated: 2026-08-28
 
 ---
 
@@ -18,7 +18,7 @@ Tags: `specs`, `admin`, `academic`, `classes`
 
 ## [[specs/admin/academic/courses|課程列表]]
 
----
+/admin/courses 的課程列表 —— 管理員瀏覽與維護課程，是開課班（classes）的上層分類。
 
 Tags: `specs`, `admin`, `academic`, `courses`
 
@@ -100,9 +100,11 @@ Tags: `specs`, `admin`, `notifications`
 
 ## [[specs/admin/roles-and-auth|角色與帳號管理規格]]
 
----
+三個角色（admin / teacher / parent）存在 user_roles，細部權限存在 user_roles.permissions。密碼登入已於 2026-08 移除，改為 LINE OAuth + 一次性登入連結。
 
 Tags: `specs`, `admin`, `roles-and-auth`
+
+Links to: [[architecture/line-oauth-login]]
 
 ## [[specs/admin/student-affairs/attendance|出勤紀錄]]
 
@@ -132,7 +134,7 @@ Links to: [[rules/attendance-rules|出勤與請假規則]], [[flows/attendance|�
 
 Tags: `specs`, `admin`, `student-affairs`, `parents`
 
-Links to: [[flows/enrollment|報名申請流程]], [[rules/enrollment-rules|報名與繳費規則]]
+Links to: [[architecture/line-oauth-login]], [[architecture/line-oauth-login]], [[flows/enrollment|報名申請流程]], [[rules/enrollment-rules|報名與繳費規則]]
 
 ## [[specs/admin/student-affairs/students|學生資料]]
 
@@ -240,9 +242,11 @@ Tags: `specs`, `public`, `enrollment`
 
 ## [[specs/public/login|登入頁]]
 
-使用者輸入帳號密碼登入系統。
+一顆「使用 LINE 登入」按鈕。這個系統沒有密碼——首次進入靠管理員發出的一次性連結，綁定 LINE 之後才走這一頁。
 
-Tags: `specs`, `public`, `login`
+Tags: `specs`, `public`, `login`, `oauth`, `line`
+
+Links to: [[architecture/line-oauth-login]], [[architecture/line-oauth-login]], [[architecture/line-oauth-login]]
 
 ## [[specs/public/qr-checkin|QR 到班打卡]]
 
@@ -299,4 +303,3 @@ Tags: `specs`, `teacher`, `schedule`
 查看自己任課班級的學生名單。
 
 Tags: `specs`, `teacher`, `students`
-

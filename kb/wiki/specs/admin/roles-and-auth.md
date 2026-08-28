@@ -1,16 +1,17 @@
 ---
 title: 角色與帳號管理規格
-summary: ---
+summary: 三個角色（admin / teacher / parent）存在 user_roles，細部權限存在 user_roles.permissions。密碼登入已於 2026-08 移除，改為 LINE OAuth + 一次性登入連結。
 category: spec
 status: active
-updated: 2026-03-24
+updated: 2026-08-28
 tags: [specs, admin, roles-and-auth]
 ---
 
 # 角色與帳號管理規格
 
 > 討論日期：2026-03-19
-> 狀態：部分實作（root 登入、帳號設定 dialog、家長身份啟用已完成）
+> 狀態：部分實作（帳號設定 dialog、家長身份啟用已完成）。
+> **root 帳號與所有密碼路徑已於 2026-08 移除**，見下方「沒有超級帳號」。
 
 ---
 
@@ -26,32 +27,29 @@ tags: [specs, admin, roles-and-auth]
 
 ---
 
-## Root 帳號
+## 沒有超級帳號
 
-系統部署時由初始化腳本（seed）自動建立，不透過一般報名/人員管理流程。
+**這個系統沒有 root、沒有超級管理者、沒有任何「拿不掉的最高權限」。**
 
-### 特性
+曾經有一個 `root`（只存在於 `seed.sql`，本機開發用），已於 2026-08-28 移除。移除的
+理由不是它危險，而是**它早就沒有任何實例**：
 
-- `username = root`，無需 email 或手機
-- ⚠️ **密碼不是從環境變數讀的**（2026-08-24 稽核更正）。`ROOT_PASSWORD` 不存在於任何程式碼，
-  root 的密碼是 `supabase/seed.sql` 裡硬編的 scrypt hash。**`bootstrap-org.ts` 開的乾淨站不會有 root 帳號**
-- 擁有所有管理權限，且**不能被其他人修改或刪除**
-- 首次登入後應立即修改密碼
+- 它沒有密碼 —— 密碼登入整條路已刪（`seed.sql` 曾硬編一組 scrypt hash，但那對所有
+  客戶是**同一組**，已於 PR #24 移除）
+- 它的 `email` 是 NULL，所以 `npm run login-link`（用 email 查人）對它無效
+- `bootstrap-org.ts`（乾淨開站的唯一路徑）**從來不建它**
 
-### Root 登入入口
+留著一個登不進去、正式站也不存在的「超級帳號」，只會讓讀文件的人以為有後門。
+`me.ts` 的 `isRootUser` 與前端對應的判斷一併移除。
 
-一般登入頁不顯示 username 欄位，root 透過隱藏路由進入：
+> **`ba_user.username` 欄位沒有跟著移除。** username plugin 是走了、它也不再是登入
+> 憑證，但只有手機的家長仍把手機存進這個欄位當唯一性鍵（`parents.ts`）。
 
-```
-/login?role=root
-```
+### 破窗管道
 
-前端偵測到此 query param 時：
-
-- 隱藏 email / phone 切換 UI
-- 顯示 readonly 的 `root` 欄位
-- 只需輸入密碼
-- 登入走 `signInUsername({ username: 'root', password })`
+供應商要進客戶的站，用 `npm run login-link`：持有 `DATABASE_URL` 的人才產得出連結，
+**客戶換掉 DB 密碼就能撤銷供應商的存取**。這比永久 root 更符合憲法 c12 ——
+**後門不該是拿不掉的**。見 [[architecture/line-oauth-login]]。
 
 ---
 
@@ -61,7 +59,7 @@ tags: [specs, admin, roles-and-auth]
 
 | 情境           | 流程                                                                      |
 | -------------- | ------------------------------------------------------------------------- |
-| 第一個管理者   | 由 root 帳號或初始化腳本建立，預設擁有所有權限                            |
+| 第一個管理者   | 由 `bootstrap-org.ts` 建立並印出一次性登入連結，預設擁有所有權限          |
 | 後續管理者     | 由擁有「**角色管理**」permission 的管理者，在人員管理頁新增並勾選 `admin` |
 | 管理者兼任老師 | 由另一個擁有「**角色管理**」permission 的管理者幫他加上 `teacher` 角色    |
 
@@ -110,7 +108,7 @@ tags: [specs, admin, roles-and-auth]
 放置於頂部 header 的使用者 dropdown，以 Dialog 形式開啟，包含：
 
 - 基本資料修改（姓名、生日、Email、電話）
-- 修改密碼（獨立 Dialog，透過 Better Auth `changePassword()` API）
+- ~~修改密碼~~ —— **已移除**（PR #24）。系統沒有密碼憑證，那顆按鈕點下去必然失敗
 - **啟用家長身份**（若尚未擁有 `parent` 角色）
 
 ---
@@ -138,10 +136,10 @@ tags: [specs, admin, roles-and-auth]
 
 ## 實作狀態
 
-- [x] seed 腳本建立 root 帳號
-- [x] 登入頁支援 `?role=root` param
+- [~] ~~seed 腳本建立 root 帳號~~ —— 已移除（PR #29），這個概念沒有任何實例
+- [~] ~~登入頁支援 `?role=root` param~~ —— 已移除（PR #24）
 - [x] `username` 驗證放寬（允許非手機格式）
 - [x] `manage_roles` permission 項目
-- [x] 個人帳號設定頁（Dialog，含改密碼）
+- [x] 個人帳號設定頁（Dialog）—— 改密碼那部分已移除
 - [x] 家長身份自助啟用流程（簡化：無需填子女資料）
 - [ ] 公開報名頁帳號衝突偵測邏輯

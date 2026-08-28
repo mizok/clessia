@@ -1,9 +1,9 @@
 ---
 title: Better Auth 的 session 一律委派官方 API，不要手刻
-summary: adminCreateSession 不存在；手寫 ba_session + HMAC cookie 會耦合 BA 內部格式。最終做法是把密碼驗證與 session 建立都交給 signInEmail / signInUsername。
+summary: adminCreateSession 不存在；手寫 ba_session + HMAC cookie 會耦合 BA 內部格式。教訓是 session 一律委派官方 API —— 當時委派給 signInEmail / signInUsername，2026-08 密碼登入移除後改為委派 magic-link 與 social provider，原則不變。
 category: lesson
 status: active
-updated: 2026-08-11
+updated: 2026-08-28
 tags: [lessons, better-auth-session-delegation]
 ---
 
@@ -21,7 +21,13 @@ tags: [lessons, better-auth-session-delegation]
 2. **退而求其次的「手動建 session」更糟**：直接寫 `ba_session` 再自己用 HMAC-SHA256 簽 cookie，
    等於把應用程式綁死在 BA 的內部儲存格式與簽章細節上。BA 一次改版就會無聲壞掉。
 
-## 最終做法
+> ⚠️ **下面描述的 `/api/login` 已於 2026-08 移除**（PR #24）——
+> 密碼登入整條路不存在了。**教訓本身不變**：session 一律委派官方 API，別手刻。
+> 現在委派的對象是 magic-link 與 social provider，見 [[architecture/line-oauth-login]]。
+> 其中「檢查 staff / parents 狀態」那一條**搬到了 `authMiddleware`** —— 當初隨端點
+> 一起被刪掉，變成停用的帳號還能登入，PR #25 才補回來。
+
+## 當時的做法（2026-03）
 
 `/api/login` 只做兩件自己該做的事，其餘全部委派：
 

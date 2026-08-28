@@ -10,11 +10,12 @@ tags: [specs, admin, enrollment]
 # 學生報名
 
 **路徑**: 尚未建置。`/admin/enrollments` 存在但**不是這一頁** —— 那是唯讀的報名進出總覽
+
 > 漂移修正 2026-08-19：本頁描述的「直接報名精靈」（含繳費週期與繳費單）仍未建置，
 > 因為它依賴 `invoices` / `fee_templates` 兩張不存在的表。現有的報名入口在班級詳情頁與
 > 學生詳情頁，見 [[architecture/enrollment-admin-view]]。
-**角色**: Admin
-**分組**: 報名管理
+> **角色**: Admin
+> **分組**: 報名管理
 
 ## 核心目的
 

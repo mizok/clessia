@@ -1,68 +1,72 @@
 ---
 title: 登入頁
-summary: 使用者輸入帳號密碼登入系統。
+summary: 一顆「使用 LINE 登入」按鈕。這個系統沒有密碼——首次進入靠管理員發出的一次性連結，綁定 LINE 之後才走這一頁。
 category: spec
 status: active
-updated: 2026-08-24
-tags: [specs, public, login]
+updated: 2026-08-28
+tags: [specs, public, login, oauth, line]
 ---
 
 # 登入頁
 
-**路徑**: `/login`
-**角色**: 無需登入
+> 2026-08-28 重寫。先前這一頁規格化的是帳號密碼登入、忘記密碼、Turnstile ——
+> 那整套在 PR #24 被移除，**沒有一條還成立**。原因見
+> [[architecture/line-oauth-login]]：密碼雜湊超過 Cloudflare Workers 的 10ms CPU 上限，
+> 登入間歇性 503，而任何安全的雜湊都會超過。
 
 ## 核心目的
 
-使用者輸入帳號密碼登入系統。
+讓已經被登記在系統裡的人進來。**不負責讓人加入系統** —— 那是報名流程的事。
 
-## MVP 功能
+## 畫面
 
-- 登入方式切換：**Email** / **手機號碼** 兩個 Tab（滑動 pill 指示器動畫），切換後 input 類型與 placeholder 對應改變
-  - Email Tab：`type="email"`，placeholder「Email」
-  - 手機 Tab：`type="tel"`，placeholder「手機號碼（09xxxxxxxx）」
-- 密碼輸入與顯示/隱藏切換
-- 忘記密碼連結（⚠️ 尚未完整實作，見下方 Backlog）
-- 錯誤訊息提示。**三種**：「帳號或密碼錯誤」與「帳號已停用」——
-  帳號不存在與密碼錯誤刻意共用同一則訊息，**不洩漏某個 email／手機有沒有註冊**
-  （另有第三種：登入成功但讀不到帳號資料，見 `auth.service.ts` 的 `signIn`）
-- 登入成功後依角色導向對應首頁
+只有三個東西：
 
-## 登入端點
+1. 標題「登入」
+2. **一顆「使用 LINE 登入」按鈕**（進行中會鎖住並顯示「前往 LINE...」）
+3. 一句提示：「第一次使用？請向補習班索取專屬連結，點開後即可綁定 LINE。」
 
-統一登入端點：`POST /api/login`
+沒有輸入欄位、沒有密碼、沒有記住我、沒有忘記密碼、沒有 `?role=root` 隱藏入口。
 
-- `account`：Email 或手機號碼或 username
-- `loginType`：`'email' | 'phone' | 'username'` —— **由前端決定並送出**，
-  後端據此查對應欄位，**不做 `@` 判斷**
-- `password`：密碼
-- 後端查 `ba_user` 後，委派 Better Auth `signInEmail` / `signInUsername` 完成驗證與 session 建立
-- 停用/封存帳號回傳 `ACCOUNT_DISABLED`（HTTP 401）
+## 錯誤訊息
 
-## Backlog
+OAuth 的失敗**不是函式回傳值** —— 使用者被導去 LINE、再被導回來，錯誤寫在網址上
+（`?error=`）。`oauth-error.ts` 把它翻成三種：
 
-### 忘記密碼完整實作（獨立 branch）
+| `?error=`         | 顯示                                                                     | 額外                                     |
+| ----------------- | ------------------------------------------------------------------------ | ---------------------------------------- |
+| `signup_disabled` | 「這個 LINE 帳號還沒有被登記。如果你已經報名，請向補習班索取專屬連結。」 | **露出「還沒報名？前往報名」連結**       |
+| `access_denied`   | 「已取消 LINE 登入。」                                                   | 使用者自己在 LINE 按取消，語氣中性不嚇人 |
+| 其他              | 「LINE 登入沒有完成，請稍後再試。」                                      | —                                        |
 
-功能目前前端流程已完成，但 email 實際上不會送出。完整實作需要：
+第一種是**招生宣傳連過來的家長**會撞到的。他不是「稍後再試」就會成功 ——
+他根本還不是客戶，所以訊息要指向報名，不是重試。
 
-1. **Resend** 串接（寄信服務，免費方案 100 封/天，成長後升級 Pro $20/月）
-2. **per-email 冷卻時間**（Cloudflare KV，同一 email 15 分鐘內只能發一封）
-3. **Turnstile 完全未接**——widget 只在前端渲染，token **從未送到後端**
-   （`auth.service.ts` 的參數是 `_captchaToken`，底線即未使用），`/api/login` 的
-   request body 也沒有 captcha 欄位。落差比「有收但未驗證」大得多
-4. 以上三項需一起實作，不建議分批補
+## 進得來的人是怎麼進來的
+
+```text
+櫃檯／管理端建立帳號  →  畫面出現一次性登入連結的 QR
+   ↓
+對方掃碼  →  直接登入  →  落在 /link-line
+   ↓
+按「綁定 LINE 帳號」
+   ↓
+之後才走這一頁的按鈕
+```
+
+管理端隨時可以重發連結（人員頁與家長頁的「產生登入連結」）。
+供應商的破窗管道是 `npm run login-link`，見 [[architecture/line-oauth-login]]。
 
 ## 資料依賴
 
-| 操作 | 資料表                                                                                                    |
-| ---- | --------------------------------------------------------------------------------------------------------- |
-| 讀取 | `/api/login` 讀 `ba_user`, `staff`, `parents`；登入成功後的 `GET /api/me` 另外讀 `profiles`, `user_roles` |
+登入本身**不碰任何業務表** —— Better Auth 自己處理 `ba_user` / `ba_account` /
+`ba_session` / `ba_verification`。
 
-## PRD 參考
-
-- 7.1 公開頁面
+登入成功後前端呼叫 `GET /api/me`，那支讀 `profiles`、`user_roles`、`staff`、`ba_user`。
+`authMiddleware` 另外讀 `staff` / `parents` 的 `status` 判斷帳號有沒有被停用。
 
 ## 相關頁面
 
-- `/forgot-password` - 忘記密碼
-- `/reset-password` - 重設密碼
+- [[architecture/line-oauth-login]] —— 為什麼沒有密碼、破窗怎麼做
+- `/link-line` —— 綁定畫面（一次性連結兌換後的落點）
+- `/select-role` —— 多重角色時的分流

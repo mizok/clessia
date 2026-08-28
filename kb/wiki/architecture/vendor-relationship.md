@@ -4,7 +4,7 @@ summary: 賣一套系統、客戶自付基礎設施、收維護費。客戶必�
 category: architecture
 tags: [architecture, business-model, tenancy, vendor-lock-in]
 status: active
-updated: 2026-08-24
+updated: 2026-08-28
 ---
 
 # 供應商關係與它推導出的架構約束
@@ -64,6 +64,17 @@ License key、遠端啟用檢查、任何「停止付費就停止運作」的機
 
 這是比較健康的關係，但要有心理準備：**你隨時能被離開，所以你得一直有用。**
 
+## 推論四：第三方身分是客戶自己的帳號
+
+登入走 LINE OAuth（見 [[architecture/line-oauth-login]]）。憑證是**每個部署自己申請的**
+LINE Developers channel —— 不是共用一組、也不經過供應商。
+
+這**不構成 lock-in**：客戶自架時申請自己的 channel 就好，跟申請 Supabase 專案是同一
+性質的動作。代價是多一個上線步驟，已寫進 [[architecture/bootstrapping-a-deployment]]。
+
+反過來說，這也是為什麼**不能**共用一組 LINE channel：那會讓客戶的登入依賴供應商的
+帳號還活著，正好是這一頁在避免的東西。
+
 ## 這條原則的代價
 
 | 代價                 | 說明                                         |
@@ -80,5 +91,7 @@ License key、遠端啟用檢查、任何「停止付費就停止運作」的機
 - **gate A10** —— c12 可決定的部分：禁止 import 雲端專屬服務。目前 `constitution-enforcement.md`
   標記為「⚠️ 部分：可決定部分待接」
 - ~~**乾淨開站的路徑**~~ —— 已由 `apps/api/src/scripts/bootstrap-org.ts` 解決
-  （見 [[architecture/bootstrapping-a-deployment]]）。**剩下的缺口**：它不建 root
-  破窗帳號，所以走這條路開的站沒有「所有人都進不去時」的退路
+  （見 [[architecture/bootstrapping-a-deployment]]）
+- ~~**破窗管道**~~ —— 已由 `apps/api/src/scripts/login-link.ts` 解決，而且**比原本規劃的
+  永久 root 帳號更符合 c12**：它用 `DATABASE_URL` 換一次性 session，**客戶換掉 DB 密碼
+  就能撤銷供應商的存取**。拿不掉的後門才是問題

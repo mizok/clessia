@@ -1,6 +1,6 @@
 # Lessons — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-24
+> Auto-maintained by `kb:map`. Last updated: 2026-08-28
 
 ---
 
@@ -12,17 +12,19 @@ Tags: `lessons`, `agent-workflow-guide`
 
 ## [[lessons/backlog-legacy|Clessia 功能開發清單]]
 
----
+2026-02～03 的功能開發清單與技術債紀錄。歷史文件 —— 其中「忘記密碼」整節已於 2026-08 作廢（系統改用 LINE OAuth）。
 
 Tags: `lessons`, `backlog-legacy`
 
+Links to: [[architecture/line-oauth-login]]
+
 ## [[lessons/better-auth-session-delegation|Better Auth 的 session 一律委派官方 API，不要手刻]]
 
-adminCreateSession 不存在；手寫 ba_session + HMAC cookie 會耦合 BA 內部格式。最終做法是把密碼驗證與 session 建立都交給 signInEmail / signInUsername。
+adminCreateSession 不存在；手寫 ba_session + HMAC cookie 會耦合 BA 內部格式。教訓是 session 一律委派官方 API —— 當時委派給 signInEmail / signInUsername，2026-08 密碼登入移除後改為委派 magic-link 與 social provider，原則不變。
 
 Tags: `lessons`, `better-auth-session-delegation`
 
-Links to: [[architecture/constitution|`kb/wiki/architecture/constitution`]]
+Links to: [[architecture/line-oauth-login]], [[architecture/constitution|`kb/wiki/architecture/constitution`]]
 
 ## [[lessons/doc-code-drift-2026-08|2026-08 文件與程式碼漂移稽核]]
 
@@ -67,4 +69,3 @@ Tags: `lessons`, `rls-backstop-drift`
 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
 
 Tags: `lessons`, `status-table-blind-spot`
-

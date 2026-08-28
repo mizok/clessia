@@ -62,7 +62,7 @@ BEGIN
     --       root 密碼都一樣 —— 一間補習班的資料庫外洩，等於所有客戶的最高權限
     --       一起外洩
     --
-    -- 本機開發要登入：`LOGIN_EMAIL=... npm run login-link` 產生一次性連結。
+    -- 本機開發要登入：`LOGIN_EMAIL=admin@demo.clessia.app npm run login-link` 產生一次性連結。
     -- 跟正式環境同一條路，不必為本機另外維護一套。
 
     -- 3. Insert demo organization

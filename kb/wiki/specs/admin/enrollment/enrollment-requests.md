@@ -59,7 +59,7 @@ tags: [specs, admin, enrollment, enrollment-requests]
 | 操作 | 資料表                                                        |
 | ---- | ------------------------------------------------------------- |
 | 讀取 | `enrollment_requests`, `classes`, `students`, `fee_templates` |
-| 寫入 | `enrollment_requests`, `enrollments`, `invoices` |
+| 寫入 | `enrollment_requests`, `enrollments`, `invoices`              |
 
 ## PRD 參考
 
