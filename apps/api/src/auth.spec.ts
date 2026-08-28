@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createAuth, magicLinkOptions, socialProvidersFromEnv } from './auth';
+import { createAuth, lineProfileToUser, magicLinkOptions, socialProvidersFromEnv } from './auth';
 
 // 第一次上線的事故：前端在 clessia.pages.dev、API 在 *.workers.dev，兩者是不同 site，
 // 預設 SameSite=Lax 的 session cookie 不會被帶到跨站請求上 —— 登入回 200，
@@ -38,9 +38,14 @@ describe('createAuth 的 cookie 接線', () => {
 // provider 清單必須從 env 組出來，不能寫死成「只有 LINE」，否則加 Google 要回頭重做。
 describe('socialProvidersFromEnv', () => {
   it('兩個變數都有才設定 line', () => {
-    expect(socialProvidersFromEnv({ LINE_CLIENT_ID: 'cid', LINE_CLIENT_SECRET: 'secret' })).toEqual(
-      { line: { clientId: 'cid', clientSecret: 'secret', disableSignUp: true } },
-    );
+    const line = socialProvidersFromEnv({
+      LINE_CLIENT_ID: 'cid',
+      LINE_CLIENT_SECRET: 'secret',
+    })['line'];
+
+    expect(line).toMatchObject({ clientId: 'cid', clientSecret: 'secret', disableSignUp: true });
+    // LINE 不給 email，這個 mapper 是登入能不能成立的前提
+    expect(line?.['mapProfileToUser']).toBe(lineProfileToUser);
   });
 
   it('少一個就不設定 —— 半套設定比沒設定更難查', () => {
@@ -59,7 +64,7 @@ describe('socialProvidersFromEnv', () => {
       LINE_CLIENT_SECRET: 'secret',
     });
 
-    expect(providers['line']?.disableSignUp).toBe(true);
+    expect(providers['line']?.['disableSignUp']).toBe(true);
   });
 
   it('回傳的是可擴充的 map，不是寫死的單一 provider', () => {
@@ -87,7 +92,7 @@ describe('createAuth 的 social provider 接線', () => {
       LINE_CLIENT_SECRET: 'secret',
     });
 
-    expect(auth.options.socialProviders?.['line']?.clientId).toBe('cid');
+    expect(auth.options.socialProviders?.['line']?.['clientId']).toBe('cid');
   });
 
   it('沒設定 LINE 時不掛任何 provider', () => {
@@ -145,5 +150,40 @@ describe('createAuth 的 magic-link 接線', () => {
     const ids = (auth.options.plugins ?? []).map((p) => p.id);
 
     expect(ids).toContain('magic-link');
+  });
+});
+
+// LINE 預設**不回傳 email** —— 要另外向 LINE 送審 Email address permission 才有。
+// 而 better-auth 的 OAuth callback 在 `if (!userInfo.email)` 就直接 redirectOnError
+// ("email_not_found")，跟資料庫欄位能不能為 NULL 無關。正式站實測到。
+//
+// 所以要合成一個佔位 email。這跟專案既有的做法一致：只有手機的家長用
+// `0912345678@phone.internal`，那個 domain 不存在於公開網路。
+describe('lineProfileToUser', () => {
+  it('LINE 有給 email 就用真的', () => {
+    expect(lineProfileToUser({ sub: 'U123', email: 'real@example.com' })).toEqual({
+      email: 'real@example.com',
+    });
+  });
+
+  it('沒給 email 就用 LINE user id 合成', () => {
+    expect(lineProfileToUser({ sub: 'U123' })).toEqual({ email: 'U123@line.internal' });
+  });
+
+  // LINE 的欄位名在 id token 與 userinfo 端點之間不一致
+  it('sub 不在時退回 userId', () => {
+    expect(lineProfileToUser({ userId: 'U456' })).toEqual({ email: 'U456@line.internal' });
+  });
+
+  // 合成出 `undefined@line.internal` 的話，兩個不同的人會撞到同一個帳號 ——
+  // 而 ba_user.email 是 UNIQUE，症狀會是「第二個人登入變成第一個人」
+  it('連 id 都沒有時丟錯，不要合成出會相撞的 email', () => {
+    expect(() => lineProfileToUser({})).toThrow(/id/i);
+  });
+
+  it('空字串的 email 當成沒有', () => {
+    expect(lineProfileToUser({ sub: 'U789', email: '' })).toEqual({
+      email: 'U789@line.internal',
+    });
   });
 });

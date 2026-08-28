@@ -25,14 +25,42 @@ export type AuthBindings = Pick<
  * 兩個變數缺一就整個不設定：半套的 OAuth 設定會在使用者按下按鈕之後才爆，
  * 比完全沒有更難查。
  */
+/**
+ * LINE 的 profile → Better Auth 的 user 欄位。
+ *
+ * **LINE 預設不回傳 email。** 我們有要求 `email` scope，但那需要另外向 LINE 送審
+ * 「Email address permission」才會真的給。而 better-auth 的 OAuth callback 在
+ * `if (!userInfo.email)` 就直接 `redirectOnError("email_not_found")` —— 跟
+ * `ba_user.email` 欄位能不能為 NULL 無關。正式站實測到，登入從來沒成功過。
+ *
+ * 所以合成一個佔位 email。這跟專案既有的做法一致：只有手機的家長用
+ * `0912345678@phone.internal`，那個 domain 不存在於公開網路，我們也從不寄信。
+ *
+ * **合成的 email 不影響比對** —— `findOAuthUser(email, accountId, providerId)` 是
+ * 「email 或 (accountId, providerId)」，綁定過的人靠 account 就找得到。
+ */
+export function lineProfileToUser(profile: { sub?: string; userId?: string; email?: string }): {
+  email: string;
+} {
+  if (profile.email) {
+    return { email: profile.email };
+  }
+
+  const lineUserId = profile.sub ?? profile.userId;
+  if (!lineUserId) {
+    // 合成出 `undefined@line.internal` 的話兩個不同的人會撞到同一個帳號，
+    // 而 ba_user.email 是 UNIQUE —— 症狀會是「第二個人登入變成第一個人」
+    throw new Error('LINE profile 沒有 id（sub / userId），無法合成識別用的 email');
+  }
+
+  return { email: `${lineUserId}@line.internal` };
+}
+
 export function socialProvidersFromEnv(env: {
   LINE_CLIENT_ID?: string;
   LINE_CLIENT_SECRET?: string;
-}): Record<string, { clientId: string; clientSecret: string; disableSignUp: boolean }> {
-  const providers: Record<
-    string,
-    { clientId: string; clientSecret: string; disableSignUp: boolean }
-  > = {};
+}): Record<string, Record<string, unknown>> {
+  const providers: Record<string, Record<string, unknown>> = {};
 
   if (env.LINE_CLIENT_ID && env.LINE_CLIENT_SECRET) {
     providers['line'] = {
@@ -44,6 +72,8 @@ export function socialProvidersFromEnv(env: {
       // **帳號一律由校方建立**（臨櫃註冊、Excel 匯入），OAuth 只負責「認人」。
       // 所以流程一定是：拿到一次性連結 → 登入 → 綁定 LINE → 之後才用 LINE 登入。
       disableSignUp: true,
+      // LINE 不給 email，而 better-auth 的 callback 硬性要求它
+      mapProfileToUser: lineProfileToUser,
     };
   }
 
