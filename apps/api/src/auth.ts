@@ -25,14 +25,55 @@ export type AuthBindings = Pick<
  * 兩個變數缺一就整個不設定：半套的 OAuth 設定會在使用者按下按鈕之後才爆，
  * 比完全沒有更難查。
  */
+/**
+ * LINE 的 profile → Better Auth 的 user 欄位。
+ *
+ * **LINE 預設不回傳 email。** 我們有要求 `email` scope，但那需要另外向 LINE 送審
+ * 「Email address permission」才會真的給。而 better-auth 的 OAuth callback 在
+ * `if (!userInfo.email)` 就直接 `redirectOnError("email_not_found")` —— 跟
+ * `ba_user.email` 欄位能不能為 NULL 無關。正式站實測到，登入從來沒成功過。
+ *
+ * 所以合成一個佔位 email。這跟專案既有的做法一致：只有手機的家長用
+ * `0912345678@phone.internal`，那個 domain 不存在於公開網路，我們也從不寄信。
+ *
+ * **合成的 email 不影響比對** —— `findOAuthUser(email, accountId, providerId)` 是
+ * 「email 或 (accountId, providerId)」，綁定過的人靠 account 就找得到。
+ */
+export function lineProfileToUser(profile: { sub?: string; userId?: string; email?: string }): {
+  email: string;
+  emailVerified: boolean;
+} {
+  if (profile.email) {
+    // 真的 LINE email：我們無從得知 LINE 有沒有驗證過它，所以不宣稱已驗證。
+    // 代價是這種帳號的綁定會被擋 —— 但目前 LINE 根本不給 email，走不到這條。
+    return { email: profile.email, emailVerified: false };
+  }
+
+  const lineUserId = profile.sub ?? profile.userId;
+  if (!lineUserId) {
+    // 合成出 `undefined@line.internal` 的話兩個不同的人會撞到同一個帳號，
+    // 而 ba_user.email 是 UNIQUE —— 症狀會是「第二個人登入變成第一個人」
+    throw new Error('LINE profile 沒有 id（sub / userId），無法合成識別用的 email');
+  }
+
+  // **標成已驗證是必要的，也是誠實的。**
+  //
+  // 必要：better-auth 擋綁定的條件是 `!信任的provider && !emailVerified`
+  // （`oauth2/link-account.mjs`）。LINE provider 寫死 `emailVerified: false`，
+  // 而 `line` 不在 trustedProviders 裡 —— 兩個都成立就擋，link-social 回
+  // `unable_to_link_account`。正式站實測踩到。
+  //
+  // 誠實：這個 email 是從**OAuth 驗證過的** LINE user id 推導出來的，所有權由這條
+  // 流程本身證明。這比把整個 LINE 加進 trustedProviders 安全 —— 那等於信任它給的
+  // 任何 email，而 email 可以拿來對上既有帳號。
+  return { email: `${lineUserId}@line.internal`, emailVerified: true };
+}
+
 export function socialProvidersFromEnv(env: {
   LINE_CLIENT_ID?: string;
   LINE_CLIENT_SECRET?: string;
-}): Record<string, { clientId: string; clientSecret: string; disableSignUp: boolean }> {
-  const providers: Record<
-    string,
-    { clientId: string; clientSecret: string; disableSignUp: boolean }
-  > = {};
+}): Record<string, Record<string, unknown>> {
+  const providers: Record<string, Record<string, unknown>> = {};
 
   if (env.LINE_CLIENT_ID && env.LINE_CLIENT_SECRET) {
     providers['line'] = {
@@ -44,6 +85,8 @@ export function socialProvidersFromEnv(env: {
       // **帳號一律由校方建立**（臨櫃註冊、Excel 匯入），OAuth 只負責「認人」。
       // 所以流程一定是：拿到一次性連結 → 登入 → 綁定 LINE → 之後才用 LINE 登入。
       disableSignUp: true,
+      // LINE 不給 email，而 better-auth 的 callback 硬性要求它
+      mapProfileToUser: lineProfileToUser,
     };
   }
 
@@ -126,6 +169,21 @@ export function createAuth(
     },
     account: {
       modelName: 'ba_account',
+      accountLinking: {
+        // 綁定時 better-auth 比對「OAuth 回來的 email」與「目前 session 的 email」。
+        // 合成的 `<LINE sub>@line.internal` 永遠不等於使用者真正的 email，不放行的話
+        // link-social 一律回 `email_doesn't_match`。
+        //
+        // 型別註解警告這可能導致帳號被奪取。**在這個設定下不適用**：
+        // - 它只影響**明確綁定**（account.mjs:149 / callback.mjs:107），那條路要求
+        //   呼叫者已經登入；真正危險的自動綁定在 link-account.mjs，那裡不看這個選項
+        // - 合成的 email 有 `@line.internal` 命名空間，**不可能撞到真人的 email**
+        // - `disableSignUp: true` 讓登入不會建新帳號、也不會自動接上
+        //
+        // ⚠️ 哪天拿掉 email 的合成（例如 LINE 給了 email 權限、改用真的），
+        // 上面第二點就不成立，這個選項要跟著重新評估。
+        allowDifferentEmails: true,
+      },
     },
     verification: {
       modelName: 'ba_verification',

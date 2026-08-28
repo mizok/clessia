@@ -174,17 +174,17 @@ stdout。同一個機制服務三種送達方式。
 
 ## 影響哪些既有元件
 
-| 元件                                              | 影響                                                                                                                                                                                                                                   |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/api/src/auth.ts`                            | 加 LINE provider 設定。LINE 不保證提供 email，但 `ba_user.email` 自 `20260317000002` 起**可為 NULL**（仍 UNIQUE，PG 允許多個 NULL）—— 所以**未必需要合成佔位 email**，留 NULL 可能更乾淨。實作前先確認 Better Auth 接不接受 NULL email |
-| `apps/api/src/index.ts` 的 `/api/login`           | 目前先查 `ba_user` 再委派 Better Auth 驗密碼。一般使用者的這條路要移除                                                                                                                                                                 |
-| `apps/web/.../login.component.ts`                 | email / phone 切換 UI 移除，改成一顆 LINE 登入按鈕；`?role=root` 的隱藏入口保留                                                                                                                                                        |
-| `apps/api/src/scripts/bootstrap-org.ts`           | 目前產生密碼並印出。改成建帳號後印出**一次性登入連結**（與破窗 CLI 同一支）                                                                                                                                                            |
-| `supabase/seed.sql`                               | 硬編的 root scrypt hash 應移除 —— 它是跨客戶共用的秘密。seed 不是 migration，可以直接改（不受 c3 限制）                                                                                                                                |
-| `apps/web/.../login.component.ts` 的 `?role=root` | 隱藏入口整段移除 —— 沒有 username+密碼登入了                                                                                                                                                                                           |
-| `apps/api/src/routes/parents.ts`、`staff.ts`      | `createUser` 時不再需要密碼；改為建立待綁定的記錄                                                                                                                                                                                      |
-| `ba_account` 表                                   | **不需要 migration**——`providerId` + `accountId` 已經存在，Better Auth 直接可用                                                                                                                                                        |
-| 綁定 token                                        | 需要新的儲存位置與過期規則（新 migration，非修改既有——憲法 c3）                                                                                                                                                                        |
+| 元件                                              | 影響                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/src/auth.ts`                            | 加 LINE provider 設定。**LINE 預設不回傳 email**（要另外向 LINE 送審 Email address permission），而 better-auth 的 OAuth callback 在 `if (!userInfo.email)` 就直接 `redirectOnError("email_not_found")` —— **跟 `ba_user.email` 能不能為 NULL 完全無關**。所以**一定要**用 `mapProfileToUser` 合成佔位 email（`<LINE user id>@line.internal`） |
+| `apps/api/src/index.ts` 的 `/api/login`           | 目前先查 `ba_user` 再委派 Better Auth 驗密碼。一般使用者的這條路要移除                                                                                                                                                                                                                                                                         |
+| `apps/web/.../login.component.ts`                 | email / phone 切換 UI 移除，改成一顆 LINE 登入按鈕；`?role=root` 的隱藏入口保留                                                                                                                                                                                                                                                                |
+| `apps/api/src/scripts/bootstrap-org.ts`           | 目前產生密碼並印出。改成建帳號後印出**一次性登入連結**（與破窗 CLI 同一支）                                                                                                                                                                                                                                                                    |
+| `supabase/seed.sql`                               | 硬編的 root scrypt hash 應移除 —— 它是跨客戶共用的秘密。seed 不是 migration，可以直接改（不受 c3 限制）                                                                                                                                                                                                                                        |
+| `apps/web/.../login.component.ts` 的 `?role=root` | 隱藏入口整段移除 —— 沒有 username+密碼登入了                                                                                                                                                                                                                                                                                                   |
+| `apps/api/src/routes/parents.ts`、`staff.ts`      | `createUser` 時不再需要密碼；改為建立待綁定的記錄                                                                                                                                                                                                                                                                                              |
+| `ba_account` 表                                   | **不需要 migration**——`providerId` + `accountId` 已經存在，Better Auth 直接可用                                                                                                                                                                                                                                                                |
+| 綁定 token                                        | 需要新的儲存位置與過期規則（新 migration，非修改既有——憲法 c3）                                                                                                                                                                                                                                                                                |
 
 ## 對憲法 c12 的影響
 
@@ -205,6 +205,23 @@ c12 要求客戶能自己脫離架構、自行 host。這次的設計在兩處�
 | `angularx-qrcode` 釘在 **21.x**             | 最新的 22.x 要 Angular 22，本專案是 21。**Angular 22 的升級刻意延後成獨立的 PR** —— Signal Forms 值得升，但把框架大版號混進認證重寫會讓 PR 沒人審得動、也沒辦法乾淨 revert。而且 PrimeNG 21→22 才是主要風險（幾乎每一頁都在用） |
 | 移除 `pdfmake`                              | 帳號資訊卡在有密碼的年代合理（一張可以帶走的紙）。登入連結太長，沒有人會用手打 —— 它只有配 QR 才有意義，而 QR 已經在畫面上。改用瀏覽器內建列印，順帶少一個 CommonJS 依賴                                                        |
 | `qrcode` 列入 `allowedCommonJsDependencies` | 它是 `angularx-qrcode` 的 transitive dep。不列的話每次建置都有警告，而長期存在的警告會讓人不再看警告                                                                                                                            |
+
+## 一個「先確認」但沒確認的假設
+
+設計文件原本寫著：
+
+> `ba_user.email` 自 `20260317000002` 起可為 NULL —— 所以**未必需要**合成佔位 email。
+> **實作前先確認** Better Auth 接不接受 NULL email
+
+**那個確認沒有做。** 結果是 LINE 登入上線後從來沒成功過一次，正式站回
+`?error=email_not_found`。
+
+真相是：better-auth 在 OAuth callback 的第 137 行 `if (!userInfo.email)` 就直接
+`redirectOnError` —— 那是**應用層的硬性要求**，資料庫欄位能不能為 NULL 根本不在同一層。
+
+教訓不是「應該早點查」，而是：**「實作前先確認」寫進文件卻沒有任何機制盯著它**。
+它跟其他處方混在同一份文件裡，看起來像一句提醒，實際上是一個未解的前提。
+下次這種假設應該獨立成一條，或直接在實作的第一步驗掉。
 
 ## 未解的問題
 
