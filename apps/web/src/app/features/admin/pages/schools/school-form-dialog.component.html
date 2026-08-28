@@ -1,7 +1,9 @@
 <div class="form-dialog">
   <div class="dialog-header-inline">
     <div class="dialog-header-inline__content">
-      <span class="dialog-header-inline__title">{{ mode() === 'create' ? '新增學校' : '編輯學校' }}</span>
+      <span class="dialog-header-inline__title">{{
+        mode() === 'create' ? '新增學校' : '編輯學校'
+      }}</span>
     </div>
     <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="關閉">
       <i class="pi pi-times"></i>
@@ -40,7 +42,14 @@
     </label>
 
     <div class="form-dialog__footer">
-      <button pButton label="取消" severity="secondary" size="small" text (click)="close()"></button>
+      <button
+        pButton
+        label="取消"
+        severity="secondary"
+        size="small"
+        text
+        (click)="close()"
+      ></button>
       <button
         pButton
         label="儲存"

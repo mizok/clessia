@@ -257,19 +257,23 @@ if (existsSync(MIGRATIONS)) {
     .join('\n');
 
   // Better Auth 的表不歸我們管（c2）
-  const created = [...sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_]+)/gi)]
+  const created = [
+    ...sql.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_]+)/gi),
+  ]
     .map((m) => m[1])
     .filter((name) => !name.startsWith('ba_'));
 
   const rlsEnabled = new Set(
-    [...sql.matchAll(/alter\s+table\s+(?:public\.)?([a-z_]+)\s+enable\s+row\s+level\s+security/gi)].map(
-      (m) => m[1],
-    ),
+    [
+      ...sql.matchAll(/alter\s+table\s+(?:public\.)?([a-z_]+)\s+enable\s+row\s+level\s+security/gi),
+    ].map((m) => m[1]),
   );
 
   // 建了又刪的不算 —— school_exam_schedules 就是這樣被誤報的
   const dropped = new Set(
-    [...sql.matchAll(/drop\s+table\s+(?:if\s+exists\s+)?(?:public\.)?([a-z_]+)/gi)].map((m) => m[1]),
+    [...sql.matchAll(/drop\s+table\s+(?:if\s+exists\s+)?(?:public\.)?([a-z_]+)/gi)].map(
+      (m) => m[1],
+    ),
   );
 
   for (const table of new Set(created)) {
@@ -305,6 +309,41 @@ if (existsSync(apiSrc)) {
       if (text.includes(token)) {
         const rel = file.replace(ROOT + '/', '');
         fail(`${rel} 依賴 ${label}（${token}）—— 客戶無法自架（c12）`);
+      }
+    }
+  }
+}
+
+// ── A11. createUser 不得帶 password（clause c1 的 CPU 前提）─────────────────────────────
+// 密碼雜湊用 scrypt，那是刻意昂貴的演算法（防暴力破解），而 Cloudflare Workers 免費方案
+// 每個請求只有 10ms CPU。實測並發 1 也會 503 —— 無法靠改程式碼修好，因為任何安全的
+// 密碼雜湊都會超過 10ms。所以整個系統改用 OAuth + 一次性連結，密碼路徑全部移除。
+//
+// **這條 gate 存在是因為漏過一次**：改的時候記得了 parents.ts 與 staff.ts，
+// 漏掉 bootstrap-org.ts。結果是「scrypt 從系統消失」這個宣稱是假的，而且開新站的
+// 第一個管理員拿到一組在任何地方都無法輸入的密碼。
+//
+// Better Auth 的 createUser 明說：不給 password 就是「magic link 或 social login only
+// user」——那是官方支援的路。見 kb/wiki/architecture/line-oauth-login.md
+if (existsSync(apiSrc)) {
+  const walkTs = (dir) =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory()
+        ? walkTs(join(dir, e.name))
+        : e.name.endsWith('.ts')
+          ? [join(dir, e.name)]
+          : [],
+    );
+  for (const file of walkTs(apiSrc)) {
+    if (file.endsWith('.spec.ts')) continue;
+    const text = readFileSync(file, 'utf8');
+    // 抓 createUser({ ... }) 的 body，看裡面有沒有 password 這個 key
+    for (const m of text.matchAll(/createUser\(\{[\s\S]{0,600}?\}\s*\)/g)) {
+      if (/\bpassword\s*[,:]/.test(m[0])) {
+        const rel = file.replace(ROOT + '/', '');
+        fail(
+          `${rel} 的 createUser 帶了 password —— scrypt 會超過 Workers 的 10ms CPU 上限，而且那組密碼沒有任何地方能輸入`,
+        );
       }
     }
   }

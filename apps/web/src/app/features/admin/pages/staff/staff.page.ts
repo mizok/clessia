@@ -41,6 +41,7 @@ import { SubjectsService, Subject } from '@core/subjects.service';
 
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { LoginLinkDialogComponent } from '@shared/components/login-link-dialog/login-link-dialog.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -168,6 +169,12 @@ export class StaffPage implements OnInit {
         icon: 'pi pi-history',
         command: () => this.openTeachingLog(staff),
       },
+      {
+        label: '產生登入連結',
+        icon: 'pi pi-qrcode',
+        disabled: staff.status === 'archived',
+        command: () => this.issueLoginLink(staff),
+      },
       { separator: true },
     ];
     if (staff.status === 'inactive') {
@@ -192,6 +199,38 @@ export class StaffPage implements OnInit {
     }
     return items;
   });
+
+  private openLoginLinkDialog(staff: Staff, loginUrl: string): void {
+    this.dialogService.open(LoginLinkDialogComponent, {
+      width: '480px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { loginUrl, personName: staff.displayName },
+    });
+  }
+
+  /**
+   * 重發登入連結。取代原本「告知初始密碼」那條路 —— 這個系統沒有密碼了。
+   * 連結會過期、只能用一次；密碼會被寫在便條紙上留著。
+   */
+  protected issueLoginLink(staff: Staff): void {
+    if (!staff.userId) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: '無法產生',
+        detail: '這位人員還沒有登入帳號',
+      });
+      return;
+    }
+
+    this.staffService.createLoginLink(staff.userId).subscribe({
+      next: (res) => this.openLoginLinkDialog(staff, res.url),
+      error: () => {
+        this.messageService.add({ severity: 'error', summary: '產生失敗', detail: '請稍後再試' });
+      },
+    });
+  }
 
   protected openActionMenu(event: MouseEvent, staff: Staff): void {
     this.selectedStaff.set(staff);
@@ -303,11 +342,16 @@ export class StaffPage implements OnInit {
     });
 
     if (ref)
-      ref.onClose.subscribe((result) => {
+      ref.onClose.subscribe((result?: { data?: Staff; loginUrl?: string | null }) => {
         if (result) {
           this.refData.invalidate('teachers');
           this.currentPage.set(1);
           this.loadStaff();
+
+          // 建完立刻給連結：櫃檯把 QR 給對方掃，是綁定成功率最高的時刻
+          if (result.data && result.loginUrl) {
+            this.openLoginLinkDialog(result.data, result.loginUrl);
+          }
         }
       });
   }

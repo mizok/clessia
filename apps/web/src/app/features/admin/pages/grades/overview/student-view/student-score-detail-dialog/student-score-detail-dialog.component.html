@@ -15,7 +15,9 @@
 
     <div class="student-score-detail-dialog__body">
       @if (loadingSummary()) {
-        <div class="student-score-detail-dialog__loading student-score-detail-dialog__loading--inline">
+        <div
+          class="student-score-detail-dialog__loading student-score-detail-dialog__loading--inline"
+        >
           <i class="pi pi-spinner pi-spin"></i>
           載入科目摘要...
         </div>
@@ -23,7 +25,9 @@
         <div class="student-score-detail-dialog__summary">
           @for (subj of summary(); track subj.subjectName) {
             <div class="student-score-detail-dialog__summary-card">
-              <span class="student-score-detail-dialog__summary-subject">{{ subj.subjectName }}</span>
+              <span class="student-score-detail-dialog__summary-subject">{{
+                subj.subjectName
+              }}</span>
               <div class="student-score-detail-dialog__summary-scores">
                 <div class="student-score-detail-dialog__summary-item">
                   <span class="student-score-detail-dialog__summary-label">
@@ -55,7 +59,9 @@
                   </span>
                 </div>
               </div>
-              <span class="student-score-detail-dialog__summary-count">{{ subj.totalRecords }} 筆</span>
+              <span class="student-score-detail-dialog__summary-count"
+                >{{ subj.totalRecords }} 筆</span
+              >
             </div>
           }
         </div>
@@ -105,12 +111,18 @@
       }
 
       @if (loadingScores()) {
-        <div class="student-score-detail-dialog__loading student-score-detail-dialog__loading--inline">
+        <div
+          class="student-score-detail-dialog__loading student-score-detail-dialog__loading--inline"
+        >
           <i class="pi pi-spinner pi-spin"></i>
           載入成績中...
         </div>
       } @else if (filteredScores().length === 0) {
-        <app-empty-state icon="pi pi-chart-bar" title="尚無成績紀錄" description="此學生目前沒有符合篩選條件的成績" />
+        <app-empty-state
+          icon="pi pi-chart-bar"
+          title="尚無成績紀錄"
+          description="此學生目前沒有符合篩選條件的成績"
+        />
       } @else {
         <div class="student-score-detail-dialog__table-wrap">
           <table class="student-score-detail-dialog__table">
@@ -120,18 +132,25 @@
                 <th class="student-score-detail-dialog__th">考試名稱</th>
                 <th class="student-score-detail-dialog__th">類型</th>
                 <th class="student-score-detail-dialog__th">科目</th>
-                <th class="student-score-detail-dialog__th student-score-detail-dialog__th--score">分數</th>
+                <th class="student-score-detail-dialog__th student-score-detail-dialog__th--score">
+                  分數
+                </th>
               </tr>
             </thead>
             <tbody>
               @for (record of pagedScores(); track record.id) {
                 <tr class="student-score-detail-dialog__score-row">
-                  <td class="student-score-detail-dialog__cell student-score-detail-dialog__cell--date">
+                  <td
+                    class="student-score-detail-dialog__cell student-score-detail-dialog__cell--date"
+                  >
                     {{ record.examDate }}
                   </td>
                   <td class="student-score-detail-dialog__cell">{{ record.examName }}</td>
                   <td class="student-score-detail-dialog__cell">
-                    <p-tag [value]="getTypeLabel(record.type)" [severity]="getTypeSeverity(record.type)" />
+                    <p-tag
+                      [value]="getTypeLabel(record.type)"
+                      [severity]="getTypeSeverity(record.type)"
+                    />
                   </td>
                   <td class="student-score-detail-dialog__cell">{{ record.subjectName ?? '—' }}</td>
                   <td
@@ -141,7 +160,10 @@
                     "
                   >
                     @if (record.score !== null && record.score < 60) {
-                      <i class="pi pi-exclamation-triangle student-score-detail-dialog__fail-icon" aria-label="不及格"></i>
+                      <i
+                        class="pi pi-exclamation-triangle student-score-detail-dialog__fail-icon"
+                        aria-label="不及格"
+                      ></i>
                     }
                     {{ formatScore(record.score, record.totalScore) }}
                   </td>
@@ -156,15 +178,24 @@
             <article class="student-score-detail-dialog__record-card">
               <div class="student-score-detail-dialog__record-top">
                 <div class="student-score-detail-dialog__record-meta">
-                  <span class="student-score-detail-dialog__record-date">{{ record.examDate }}</span>
-                  <span class="student-score-detail-dialog__record-name">{{ record.examName }}</span>
+                  <span class="student-score-detail-dialog__record-date">{{
+                    record.examDate
+                  }}</span>
+                  <span class="student-score-detail-dialog__record-name">{{
+                    record.examName
+                  }}</span>
                 </div>
-                <p-tag [value]="getTypeLabel(record.type)" [severity]="getTypeSeverity(record.type)" />
+                <p-tag
+                  [value]="getTypeLabel(record.type)"
+                  [severity]="getTypeSeverity(record.type)"
+                />
               </div>
               <div class="student-score-detail-dialog__record-grid">
                 <div class="student-score-detail-dialog__record-field">
                   <span class="student-score-detail-dialog__record-label">科目</span>
-                  <span class="student-score-detail-dialog__record-value">{{ record.subjectName ?? '—' }}</span>
+                  <span class="student-score-detail-dialog__record-value">{{
+                    record.subjectName ?? '—'
+                  }}</span>
                 </div>
                 <div class="student-score-detail-dialog__record-field">
                   <span class="student-score-detail-dialog__record-label">分數</span>

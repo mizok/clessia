@@ -21,7 +21,6 @@ import { InheritSizeDirective } from '@shared/directives/inherit-size.directive'
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 import { AccountSettingsDialogComponent } from '@shared/components/account-settings-dialog/account-settings-dialog.component';
-import { ChangePasswordDialogComponent } from '@shared/components/change-password-dialog/change-password-dialog.component';
 
 @Component({
   selector: 'app-shell-layout',
@@ -68,16 +67,6 @@ export class ShellLayoutComponent {
   @HostListener('window:resize')
   onResize() {
     this.op?.hide();
-  }
-
-  changePassword() {
-    this.op.hide();
-    this.dialogService.open(ChangePasswordDialogComponent, {
-      width: '420px',
-      modal: true,
-      showHeader: false,
-      appendTo: this.overlayContainer ?? 'body',
-    });
   }
 
   openAccountSettings() {

@@ -14,7 +14,7 @@
       <div class="schedule-page__day" [class.schedule-page__day--today]="isToday(day.dateStr)">
         <div class="schedule-page__day-header">
           <span class="schedule-page__day-label">{{ day.label }}</span>
-          <span class="schedule-page__day-date">{{ day.date | date:'M/d' }}</span>
+          <span class="schedule-page__day-date">{{ day.date | date: 'M/d' }}</span>
         </div>
         <div class="schedule-page__day-body">
           @for (session of sessionsByDay().get(day.dateStr) ?? []; track session.eventId) {

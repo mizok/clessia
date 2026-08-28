@@ -104,8 +104,16 @@ export class StaffService {
     return this.http.get<{ data: Staff }>(`${this.endpoint}/${id}`);
   }
 
-  create(input: CreateStaffInput): Observable<{ data: Staff }> {
-    return this.http.post<{ data: Staff }>(this.endpoint, input);
+  create(input: CreateStaffInput): Observable<{ data: Staff; loginUrl: string | null }> {
+    return this.http.post<{ data: Staff; loginUrl: string | null }>(this.endpoint, input);
+  }
+
+  /** 產生一次性登入連結。這個系統沒有密碼，員工靠它第一次進來並綁定 LINE。 */
+  createLoginLink(userId: string): Observable<{ url: string; expiresInSeconds: number }> {
+    return this.http.post<{ url: string; expiresInSeconds: number }>(
+      `${environment.apiUrl}/api/login-links`,
+      { userId },
+    );
   }
 
   update(id: string, input: UpdateStaffInput): Observable<{ data: Staff }> {

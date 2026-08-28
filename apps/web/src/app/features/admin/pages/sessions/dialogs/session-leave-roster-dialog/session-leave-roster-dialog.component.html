@@ -62,7 +62,9 @@
             <div class="leave-roster__item-main">
               <div class="leave-roster__name-block">
                 <span class="leave-roster__name">{{ row.studentName }}</span>
-                <span class="leave-roster__student-sub">{{ gradeLabel(row.studentGrade) }} · {{ row.studentSchool }}</span>
+                <span class="leave-roster__student-sub"
+                  >{{ gradeLabel(row.studentGrade) }} · {{ row.studentSchool }}</span
+                >
               </div>
               @if (row.isOnLeave) {
                 <p-tag value="請假" severity="warn" />
@@ -72,7 +74,9 @@
               <p class="leave-roster__reason">
                 @if (row.leaveStartTime || row.leaveEndTime) {
                   {{ row.leaveStartTime ?? '--:--' }}–{{ row.leaveEndTime ?? '--:--' }}
-                  @if (row.leaveReason) { · {{ row.leaveReason }} }
+                  @if (row.leaveReason) {
+                    · {{ row.leaveReason }}
+                  }
                 } @else if (row.leaveReason) {
                   {{ row.leaveReason }}
                 }

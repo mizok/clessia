@@ -2,6 +2,7 @@ import { createMiddleware } from 'hono/factory';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAuth } from '../auth';
 import { createServiceClientFromEnv } from '../lib/supabase';
+import { isAccountUsable } from './account-status';
 import type { AppEnv } from '../index';
 
 export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
@@ -35,13 +36,30 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   //
   // Better Auth 的 session 是登入當下的快照 —— 管理員撤銷某人的 teacher 角色後，
   // 那個人的 session 還在，讀 session 的話他就還是 teacher，權限要等到重新登入才生效。
-  const { data: roleRows, error: rolesError } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', session.user.id);
+  //
+  // 帳號狀態也在這裡查。這個檢查原本住在 POST /api/login，那支端點隨密碼登入一起被
+  // 刪除時**檢查沒有搬家** —— 被停用的家長只要還握著 LINE 綁定就能繼續進系統。
+  // 放在這裡的代價是每個請求多一次查詢，但它跟角色查詢平行發，不多一次往返。
+  const [
+    { data: roleRows, error: rolesError },
+    { data: staffRows, error: staffError },
+    { data: parentRows, error: parentError },
+  ] = await Promise.all([
+    supabase.from('user_roles').select('role').eq('user_id', session.user.id),
+    supabase.from('staff').select('status').eq('user_id', session.user.id),
+    supabase.from('parents').select('status').eq('user_id', session.user.id),
+  ]);
 
-  if (rolesError) {
+  if (rolesError || staffError || parentError) {
     return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
+  }
+
+  const statuses = [...(staffRows ?? []), ...(parentRows ?? [])].map(
+    (row) => (row as { status: string }).status,
+  );
+
+  if (!isAccountUsable(statuses)) {
+    return c.json({ error: '帳號已停用，請聯繫管理員', code: 'ACCOUNT_DISABLED' }, 403);
   }
 
   c.set('userId', session.user.id);

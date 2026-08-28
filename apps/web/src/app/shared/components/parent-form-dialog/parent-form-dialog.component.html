@@ -12,9 +12,7 @@
 
   <!-- 姓名 -->
   <div class="form-dialog__field">
-    <label class="form-dialog__label">
-      姓名<span class="form-dialog__required">*</span>
-    </label>
+    <label class="form-dialog__label"> 姓名<span class="form-dialog__required">*</span> </label>
     <input
       type="text"
       pInputText
@@ -82,7 +80,7 @@
   @if (!isEditMode()) {
     <app-inline-notice
       severity="info"
-      detail="系統將自動產生初始密碼，建立後可下載帳號資訊卡"
+      detail="建立後會產生一次性登入連結（QR），請家長當場用手機掃描並綁定 LINE"
       [dismissible]="false"
     />
   }
@@ -98,7 +96,7 @@
     />
     <p-button
       [label]="isEditMode() ? '儲存' : '建立家長'"
-      [icon]="loading() ? 'pi pi-spinner pi-spin' : (isEditMode() ? 'pi pi-check' : 'pi pi-plus')"
+      [icon]="loading() ? 'pi pi-spinner pi-spin' : isEditMode() ? 'pi pi-check' : 'pi pi-plus'"
       [loading]="loading()"
       [disabled]="!isFormValid()"
       (onClick)="save()"

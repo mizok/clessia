@@ -79,8 +79,7 @@
             <span class="admin-notifications__item-title">{{ item.title }}</span>
             <span class="admin-notifications__meta">
               {{ item.publishedAt | date: 'yyyy/MM/dd HH:mm' }}
-              · {{ AUDIENCE_LABELS[item.audience] }}
-              · {{ item.campusName ?? '全部分校' }}
+              · {{ AUDIENCE_LABELS[item.audience] }} · {{ item.campusName ?? '全部分校' }}
             </span>
           </li>
         }

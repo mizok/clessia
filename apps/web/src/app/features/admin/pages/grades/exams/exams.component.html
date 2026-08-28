@@ -218,11 +218,15 @@
 
         <ng-template #headTpl>
           <tr>
-            <th appRtColDef="name" [appRtColDefMinWidth]="200" [appRtColDefPriority]="1">考試名稱</th>
+            <th appRtColDef="name" [appRtColDefMinWidth]="200" [appRtColDefPriority]="1">
+              考試名稱
+            </th>
             <th appRtColDef="kind" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">類型</th>
             <th appRtColDef="date" [appRtColDefMinWidth]="120" [appRtColDefPriority]="3">日期</th>
             <th appRtColDef="scope" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">範圍</th>
-            <th appRtColDef="score" [appRtColDefMinWidth]="100" [appRtColDefPriority]="5">已登錄</th>
+            <th appRtColDef="score" [appRtColDefMinWidth]="100" [appRtColDefPriority]="5">
+              已登錄
+            </th>
             <th appRtColDef="status" [appRtColDefMinWidth]="100" [appRtColDefPriority]="6">狀態</th>
             <th
               appRtColDef="actions"
@@ -236,18 +240,9 @@
 
         <ng-template #bodyTpl>
           @for (row of currentRows(); track row.kind + '-' + row.id) {
-            <tr
-              appRtRow
-              [appRtRow]="row"
-              [appRtRowId]="row.kind + '-' + row.id"
-              class="exams__row"
-            >
+            <tr appRtRow [appRtRow]="row" [appRtRowId]="row.kind + '-' + row.id" class="exams__row">
               <td appRtColCell="name">
-                <button
-                  type="button"
-                  class="exams__name-link"
-                  (click)="onRowNameClick(row)"
-                >
+                <button type="button" class="exams__name-link" (click)="onRowNameClick(row)">
                   {{ getSchoolDisplayName(row) }}
                 </button>
                 @if (row.kind === 'academy') {
@@ -263,10 +258,7 @@
                 }
               </td>
               <td appRtColCell="kind">
-                <p-tag
-                  [value]="getKindLabel(row.kind)"
-                  [severity]="getKindSeverity(row.kind)"
-                />
+                <p-tag [value]="getKindLabel(row.kind)" [severity]="getKindSeverity(row.kind)" />
               </td>
               <td appRtColCell="date">
                 <span class="exams__date">{{ formatDate(row.examDate) }}</span>
@@ -278,7 +270,8 @@
                 <span
                   class="exams__score"
                   [class.exams__score--zero]="row.scoreCount === 0 && row.status === 'active'"
-                >{{ row.scoreCount }}</span>
+                  >{{ row.scoreCount }}</span
+                >
               </td>
               <td appRtColCell="status">
                 <p-tag

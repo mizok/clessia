@@ -19,7 +19,10 @@
   } @else {
     <ul class="teacher-notifications__list">
       @for (item of announcements(); track item.id) {
-        <li class="teacher-notifications__item" [class.teacher-notifications__item--unread]="!item.isRead">
+        <li
+          class="teacher-notifications__item"
+          [class.teacher-notifications__item--unread]="!item.isRead"
+        >
           <button type="button" class="teacher-notifications__summary" (click)="toggle(item)">
             <span class="teacher-notifications__item-title">
               @if (!item.isRead) {

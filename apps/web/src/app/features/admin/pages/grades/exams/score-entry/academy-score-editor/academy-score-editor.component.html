@@ -97,19 +97,19 @@
       <!-- Mobile compact list -->
       <div class="academy-score-editor__mobile-list">
         @for (row of filteredRows(); track row.studentId) {
-          <button
-            type="button"
-            class="academy-score-editor__mobile-row"
-            (click)="openSheet(row)"
-          >
+          <button type="button" class="academy-score-editor__mobile-row" (click)="openSheet(row)">
             <div class="academy-score-editor__mobile-info">
               <span class="academy-score-editor__mobile-name">{{ row.studentName }}</span>
-              <span class="academy-score-editor__mobile-grade">{{ formatGrade(row.studentGrade) }}</span>
+              <span class="academy-score-editor__mobile-grade">{{
+                formatGrade(row.studentGrade)
+              }}</span>
             </div>
             <span
               class="academy-score-editor__mobile-score"
               [class.academy-score-editor__mobile-score--absent]="isAbsent(row)"
-              [class.academy-score-editor__mobile-score--fail]="row.score !== null && row.score < 60"
+              [class.academy-score-editor__mobile-score--fail]="
+                row.score !== null && row.score < 60
+              "
               [class.academy-score-editor__mobile-score--dirty]="isRowDirty(row)"
             >
               @if (isAbsent(row)) {
@@ -136,7 +136,9 @@
           <ng-template #header>
             <div class="academy-score-editor__sheet-header">
               <span class="academy-score-editor__sheet-name">{{ row.studentName }}</span>
-              <span class="academy-score-editor__sheet-grade">{{ formatGrade(row.studentGrade) }}</span>
+              <span class="academy-score-editor__sheet-grade">{{
+                formatGrade(row.studentGrade)
+              }}</span>
             </div>
           </ng-template>
 

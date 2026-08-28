@@ -28,10 +28,10 @@
             warning.startTime
         ) {
           <li>
-            {{ warning.conflictingCourseName }} · {{ warning.conflictingClassName }}
-            （週{{ weekdayLabel(warning.weekday) }} {{ warning.startTime.substring(0, 5) }}–{{
-              warning.endTime.substring(0, 5)
-            }}）
+            {{ warning.conflictingCourseName }} · {{ warning.conflictingClassName }} （週{{
+              weekdayLabel(warning.weekday)
+            }}
+            {{ warning.startTime.substring(0, 5) }}–{{ warning.endTime.substring(0, 5) }}）
           </li>
         }
       </ul>

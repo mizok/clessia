@@ -15,7 +15,9 @@
             class="public-shell__nav-link"
             [routerLink]="item.absolutePath"
             routerLinkActive="public-shell__nav-link--active"
-            [routerLinkActiveOptions]="item.absolutePath === '/login' ? { exact: true } : { exact: false }"
+            [routerLinkActiveOptions]="
+              item.absolutePath === '/login' ? { exact: true } : { exact: false }
+            "
           >
             <i class="pi {{ item.icon }}"></i>
             <span>{{ item.label }}</span>
@@ -40,7 +42,11 @@
   </aside>
 
   <!-- Mobile sidebar overlay -->
-  <div class="public-shell__overlay" [class.public-shell__overlay--open]="menuOpen()" (click)="toggleMenu()"></div>
+  <div
+    class="public-shell__overlay"
+    [class.public-shell__overlay--open]="menuOpen()"
+    (click)="toggleMenu()"
+  ></div>
 
   <!-- Mobile sidebar -->
   <nav class="public-shell__sidebar" [class.public-shell__sidebar--open]="menuOpen()">
@@ -59,7 +65,9 @@
         class="public-shell__sidebar-link"
         [routerLink]="item.absolutePath"
         routerLinkActive="public-shell__sidebar-link--active"
-        [routerLinkActiveOptions]="item.absolutePath === '/login' ? { exact: true } : { exact: false }"
+        [routerLinkActiveOptions]="
+          item.absolutePath === '/login' ? { exact: true } : { exact: false }
+        "
         (click)="toggleMenu()"
       >
         <i class="pi {{ item.icon }}"></i>

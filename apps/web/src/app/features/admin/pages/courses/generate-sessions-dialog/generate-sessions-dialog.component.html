@@ -23,14 +23,10 @@
             已建立 {{ result.createdAssigned + result.createdUnassigned }} 堂課
           </p>
           @if (result.createdUnassigned > 0) {
-            <p class="gen-result__detail">
-              其中 {{ result.createdUnassigned }} 堂待指派老師
-            </p>
+            <p class="gen-result__detail">其中 {{ result.createdUnassigned }} 堂待指派老師</p>
           }
           @if (result.skippedExisting > 0) {
-            <p class="gen-result__detail">
-              {{ result.skippedExisting }} 堂已存在，已略過
-            </p>
+            <p class="gen-result__detail">{{ result.skippedExisting }} 堂已存在，已略過</p>
           }
         </div>
       </div>
@@ -178,11 +174,15 @@
               >
                 <td appRtColCell="sessionDate">{{ s.sessionDate }}</td>
                 <td appRtColCell="weekday">{{ getWeekdayLabel(s.weekday) }}</td>
-                <td appRtColCell="time">{{ s.startTime.substring(0, 5) }}-{{ s.endTime.substring(0, 5) }}</td>
+                <td appRtColCell="time">
+                  {{ s.startTime.substring(0, 5) }}-{{ s.endTime.substring(0, 5) }}
+                </td>
                 <td appRtColCell="teacherName">{{ s.teacherName ?? '—' }}</td>
                 <td appRtColCell="status">
                   @if (s.exists) {
-                    <span class="generate-preview__badge generate-preview__badge--skip">已存在</span>
+                    <span class="generate-preview__badge generate-preview__badge--skip"
+                      >已存在</span
+                    >
                   } @else {
                     <span class="generate-preview__badge generate-preview__badge--new">將新增</span>
                   }

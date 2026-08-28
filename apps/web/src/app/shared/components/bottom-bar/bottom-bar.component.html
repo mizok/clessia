@@ -24,7 +24,11 @@
     </div>
 
     @if (moreOpen() || moreClosing()) {
-      <div class="bottom-bar__overlay" [class.bottom-bar__overlay--closing]="moreClosing()" (click)="closeMore()"></div>
+      <div
+        class="bottom-bar__overlay"
+        [class.bottom-bar__overlay--closing]="moreClosing()"
+        (click)="closeMore()"
+      ></div>
       <div class="bottom-bar__sheet" [class.bottom-bar__sheet--closing]="moreClosing()">
         <div class="bottom-bar__sheet-handle"></div>
         <div class="bottom-bar__sheet-grid">

@@ -8,11 +8,7 @@
       <div class="courses__title-row">
         <h1 class="courses__title">{{ page().label }}</h1>
         @if (interventionCount() > 0) {
-          <button
-            type="button"
-            class="courses__badge"
-            (click)="onFilterIntervention()"
-          >
+          <button type="button" class="courses__badge" (click)="onFilterIntervention()">
             @if (selectedCampusName(); as name) {
               {{ name }} · 需介入 {{ interventionCount() }} 個課程
             } @else {
@@ -98,7 +94,8 @@
             (onClick)="clearFilters()"
           />
         }
-      </div><!-- /toolbar-main -->
+      </div>
+      <!-- /toolbar-main -->
     </div>
 
     <!-- Content -->
@@ -148,7 +145,9 @@
                 [class.course-group__header--no-classes]="group.classes.length === 0"
                 [attr.role]="group.classes.length > 0 ? 'button' : null"
                 [attr.tabindex]="group.classes.length > 0 ? 0 : null"
-                [attr.aria-expanded]="group.classes.length > 0 ? !isCourseCollapsed(group.course.id) : null"
+                [attr.aria-expanded]="
+                  group.classes.length > 0 ? !isCourseCollapsed(group.course.id) : null
+                "
                 (click)="group.classes.length > 0 && toggleCourse(group.course.id)"
                 (keydown.enter)="group.classes.length > 0 && toggleCourse(group.course.id)"
                 (keydown.space)="onCourseHeaderSpace($event, group)"
@@ -373,7 +372,9 @@
             <div class="courses__teacher-option">
               <span class="courses__teacher-option-name">{{ option.label }}</span>
               @if (option.subjectNames?.length > 0) {
-                <span class="courses__teacher-option-subjects">{{ option.subjectNames.join('、') }}</span>
+                <span class="courses__teacher-option-subjects">{{
+                  option.subjectNames.join('、')
+                }}</span>
               }
             </div>
           </ng-template>

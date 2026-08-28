@@ -39,7 +39,7 @@
     <!-- Student List -->
     <div class="spd__list">
       @if (loading()) {
-        @for (i of [1,2,3,4,5]; track i) {
+        @for (i of [1, 2, 3, 4, 5]; track i) {
           <div class="spd__skeleton-row">
             <p-skeleton height="54px" borderRadius="0" />
           </div>
@@ -60,7 +60,9 @@
             <span class="spd__item-check">
               <i class="pi pi-check"></i>
             </span>
-            <span class="spd__item-avatar" [style.--h]="getStudentHue(student.id)">{{ student.name[0] }}</span>
+            <span class="spd__item-avatar" [style.--h]="getStudentHue(student.id)">{{
+              student.name[0]
+            }}</span>
             <span class="spd__item-body">
               <span class="spd__item-name">{{ student.name }}</span>
               <span class="spd__item-meta">
@@ -96,7 +98,15 @@
     @if (overQuotaCount() > 0) {
       <app-inline-notice
         severity="error"
-        [detail]="'班級剩餘 ' + remainingSlots + ' 個名額，已選 ' + selectedCount() + ' 人，請移除 ' + overQuotaCount() + ' 人'"
+        [detail]="
+          '班級剩餘 ' +
+          remainingSlots +
+          ' 個名額，已選 ' +
+          selectedCount() +
+          ' 人，請移除 ' +
+          overQuotaCount() +
+          ' 人'
+        "
         [dismissible]="false"
       />
     }
@@ -104,7 +114,9 @@
     <div class="spd__review-list">
       @for (student of selectedStudents(); track student.id) {
         <div class="spd__review-item">
-          <span class="spd__item-avatar" [style.--h]="getStudentHue(student.id)">{{ student.name[0] }}</span>
+          <span class="spd__item-avatar" [style.--h]="getStudentHue(student.id)">{{
+            student.name[0]
+          }}</span>
           <span class="spd__item-body">
             <span class="spd__item-name">{{ student.name }}</span>
             <span class="spd__item-meta">
@@ -147,11 +159,9 @@
               warning.startTime
           ) {
             <li>
-              {{ studentName(warning.studentId) }}：
-              {{ warning.conflictingCourseName }} · {{ warning.conflictingClassName }}
-              （週{{ weekdayLabel(warning.weekday) }} {{ warning.startTime.substring(0, 5) }}–{{
-                warning.endTime.substring(0, 5)
-              }}）
+              {{ studentName(warning.studentId) }}： {{ warning.conflictingCourseName }} ·
+              {{ warning.conflictingClassName }} （週{{ weekdayLabel(warning.weekday) }}
+              {{ warning.startTime.substring(0, 5) }}–{{ warning.endTime.substring(0, 5) }}）
             </li>
           }
         </ul>
