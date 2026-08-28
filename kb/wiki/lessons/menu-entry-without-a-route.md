@@ -34,11 +34,11 @@ apps/web/src/app/app.routes.ts:182:  path: RoutesCatalog.ADMIN_CHANGES.relativeP
 
 更根本的原因是這個缺陷不屬於任何一個既有的測試層：
 
-| 測試層 | 為什麼測不到 |
-| --- | --- |
-| 元件測試 | 直接 `TestBed.createComponent`，根本不經過路由 |
-| `routes-catalog.spec.ts` | 只斷言 label / group / showInMenu，不看路由表 |
-| 後端測試 | 跟前端路由無關 |
+| 測試層                   | 為什麼測不到                                   |
+| ------------------------ | ---------------------------------------------- |
+| 元件測試                 | 直接 `TestBed.createComponent`，根本不經過路由 |
+| `routes-catalog.spec.ts` | 只斷言 label / group / showInMenu，不看路由表  |
+| 後端測試                 | 跟前端路由無關                                 |
 
 它是**選單與路由表之間的縫**。兩邊各自都對，接起來是壞的。
 

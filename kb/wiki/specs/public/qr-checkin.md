@@ -25,10 +25,10 @@ tags: [specs, public, qr-checkin]
 
 ## 資料依賴
 
-| 操作 | 資料表                                |
-| ---- | ------------------------------------- |
-| 讀取 | `students`, `sessions`, `enrollments` |
-| 寫入 | `daily_checkins`, `attendance_records`            |
+| 操作 | 資料表                                 |
+| ---- | -------------------------------------- |
+| 讀取 | `students`, `sessions`, `enrollments`  |
+| 寫入 | `daily_checkins`, `attendance_records` |
 
 ## PRD 參考
 

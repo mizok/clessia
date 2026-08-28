@@ -10,10 +10,11 @@ tags: [specs, teacher, attendance]
 # 點名
 
 **路徑**: `/teacher/schedule`（課表點進課堂即點名）
+
 > 漂移修正 2026-08-19：`/teacher/attendance` 的頁面與路由已於 2026-08 刪除 ——
 > 它是選單上叫「點名」但內容是 coming soon 的空殼，而真正的點名早就在課表。
 > 見 [[architecture/teacher-students-view]]。
-**角色**: Teacher
+> **角色**: Teacher
 
 ## 核心目的
 
@@ -43,8 +44,8 @@ tags: [specs, teacher, attendance]
 
 ## 資料依賴
 
-| 操作 | 資料表                                               |
-| ---- | ---------------------------------------------------- |
+| 操作 | 資料表                                                      |
+| ---- | ----------------------------------------------------------- |
 | 讀取 | `sessions`, `students`, `enrollments`, `attendance_records` |
 | 寫入 | `attendance_records`（僅當天）                              |
 

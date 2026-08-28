@@ -15,4 +15,3 @@ Tags: `rules`, `attendance-rules`
 本文件整理 PRD 8.9，定義報名審核、繳費狀態、寬限期、直接報名與通知規範，供報名與財務流程實作統一依循。
 
 Tags: `rules`, `enrollment-rules`
-

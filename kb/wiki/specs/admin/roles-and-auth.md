@@ -11,7 +11,7 @@ tags: [specs, admin, roles-and-auth]
 
 > 討論日期：2026-03-19
 > 狀態：部分實作（帳號設定 dialog、家長身份啟用已完成）。
-> **root 登入與所有密碼路徑已於 2026-08 移除**，見下方「root 現在登不進去」。
+> **root 帳號與所有密碼路徑已於 2026-08 移除**，見下方「沒有超級帳號」。
 
 ---
 
@@ -27,41 +27,29 @@ tags: [specs, admin, roles-and-auth]
 
 ---
 
-## Root 帳號
+## 沒有超級帳號
 
-系統部署時由初始化腳本（seed）自動建立，不透過一般報名/人員管理流程。
+**這個系統沒有 root、沒有超級管理者、沒有任何「拿不掉的最高權限」。**
 
-### 特性
+曾經有一個 `root`（只存在於 `seed.sql`，本機開發用），已於 2026-08-28 移除。移除的
+理由不是它危險，而是**它早就沒有任何實例**：
 
-- `username = root`，無需 email 或手機。**username 已不是登入憑證**（username plugin
-  已移除），但欄位仍在用：只有手機的家長把手機存進 `ba_user.username` 當唯一性鍵
-  （`parents.ts`），`me.ts` 也用 `username === 'root'` 判斷 `isRootUser`
-- 擁有所有管理權限，且**不能被其他人修改或刪除**
-- **沒有密碼**（2026-08-28 更正）。`ROOT_PASSWORD` 從來不存在於任何程式碼；
-  `seed.sql` 裡曾經硬編一組 scrypt hash，但那對所有客戶是**同一組**，已於 PR #24 移除
+- 它沒有密碼 —— 密碼登入整條路已刪（`seed.sql` 曾硬編一組 scrypt hash，但那對所有
+  客戶是**同一組**，已於 PR #24 移除）
+- 它的 `email` 是 NULL，所以 `npm run login-link`（用 email 查人）對它無效
+- `bootstrap-org.ts`（乾淨開站的唯一路徑）**從來不建它**
 
-### root 現在登不進去
+留著一個登不進去、正式站也不存在的「超級帳號」，只會讓讀文件的人以為有後門。
+`me.ts` 的 `isRootUser` 與前端對應的判斷一併移除。
 
-`/login?role=root` 的隱藏入口已隨密碼登入一起移除，而 **`npm run login-link` 對它也無效**：
-`seed.sql` 建的 root 的 `email` 是 `NULL`（`ba_user` 允許），而 login-link 是用 email 查人
-（`login-link.ts` 的 `where u.email = $1`），管理端的 `POST /api/login-links` 也會直接回
-`NO_EMAIL`。
-
-**兩條路都產不出 root 的登入連結。**
-
-這是個**已知且目前無害的缺口**：root 只存在於 `seed.sql`（本機開發），
-`bootstrap-org.ts` 開的站根本不會有它。本機要登入請用 seed 的其他帳號。
-
-要修的話有兩條路，都還沒做：
-
-- 給 seed 的 root 一個佔位 email（例如 `root@seed.internal`），它就能走 login-link
-- 或讓 login-link 支援用 username 查
+> **`ba_user.username` 欄位沒有跟著移除。** username plugin 是走了、它也不再是登入
+> 憑證，但只有手機的家長仍把手機存進這個欄位當唯一性鍵（`parents.ts`）。
 
 ### 破窗管道
 
-`root` **不是**破窗管道，而且 `bootstrap-org.ts` 開的乾淨站根本不會建 root。
-真正的破窗是 `npm run login-link`：持有 `DATABASE_URL` 的人才產得出連結，
-**客戶換掉 DB 密碼就能撤銷供應商的存取**。見 [[architecture/line-oauth-login]]。
+供應商要進客戶的站，用 `npm run login-link`：持有 `DATABASE_URL` 的人才產得出連結，
+**客戶換掉 DB 密碼就能撤銷供應商的存取**。這比永久 root 更符合憲法 c12 ——
+**後門不該是拿不掉的**。見 [[architecture/line-oauth-login]]。
 
 ---
 
@@ -71,7 +59,7 @@ tags: [specs, admin, roles-and-auth]
 
 | 情境           | 流程                                                                      |
 | -------------- | ------------------------------------------------------------------------- |
-| 第一個管理者   | 由 root 帳號或初始化腳本建立，預設擁有所有權限                            |
+| 第一個管理者   | 由 `bootstrap-org.ts` 建立並印出一次性登入連結，預設擁有所有權限          |
 | 後續管理者     | 由擁有「**角色管理**」permission 的管理者，在人員管理頁新增並勾選 `admin` |
 | 管理者兼任老師 | 由另一個擁有「**角色管理**」permission 的管理者幫他加上 `teacher` 角色    |
 
@@ -148,7 +136,7 @@ tags: [specs, admin, roles-and-auth]
 
 ## 實作狀態
 
-- [x] seed 腳本建立 root 帳號
+- [~] ~~seed 腳本建立 root 帳號~~ —— 已移除（PR #29），這個概念沒有任何實例
 - [~] ~~登入頁支援 `?role=root` param~~ —— 已移除（PR #24）
 - [x] `username` 驗證放寬（允許非手機格式）
 - [x] `manage_roles` permission 項目

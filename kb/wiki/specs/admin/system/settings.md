@@ -70,8 +70,8 @@ tags: [specs, admin, system, settings]
 
 ## 資料依賴
 
-| 操作 | 資料表                               |
-| ---- | ------------------------------------ |
+| 操作 | 資料表                             |
+| ---- | ---------------------------------- |
 | 讀取 | `organizations`, `billing_periods` |
 | 寫入 | `organizations`, `billing_periods` |
 

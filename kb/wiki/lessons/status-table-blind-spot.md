@@ -24,11 +24,11 @@ const ADMIN_PAGES = join(ROOT, 'apps/web/src/app/features/admin/pages');
 Clessia 有三個角色（`admin` / `teacher` / `parent`），各自有 `pages/` 目錄。
 **teacher 與 parent 從來沒被掃過。** 修正後掃出來：
 
-| 角色 | 頁面 | 真的接了後端 |
-| --- | --- | --- |
-| admin | 19 | 多數 |
-| teacher | 5 | 1（只有課表） |
-| parent | 11 | **0** |
+| 角色    | 頁面 | 真的接了後端  |
+| ------- | ---- | ------------- |
+| admin   | 19   | 多數          |
+| teacher | 5    | 1（只有課表） |
+| parent  | 11   | **0**         |
 
 家長端整個角色不存在，只有 11 個 18 行的佔位元件。
 
