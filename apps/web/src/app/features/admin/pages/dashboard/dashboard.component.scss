@@ -23,9 +23,10 @@
     color: var(--p-zinc-500);
   }
 
+  // 卡片數量會隨模式與權限在 4 到 6 之間變動，所以不寫死欄數
   &__stats {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: var(--space-4);
   }
 
@@ -37,6 +38,8 @@
     border: 1px solid var(--p-zinc-200);
     border-radius: 12px;
     background: #fff;
+    color: inherit;
+    text-decoration: none;
     transition: box-shadow 150ms ease;
 
     &--clickable {
@@ -77,6 +80,21 @@
     font-weight: 700;
     line-height: 1;
     color: var(--p-zinc-900);
+
+    // 載入中與讀取失敗是文字不是數字，用小一號字避免它們看起來像個數值
+    &--muted,
+    &--error {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    &--muted {
+      color: var(--p-zinc-400);
+    }
+
+    &--error {
+      color: var(--p-red-600);
+    }
   }
 
   &__stat-label {
@@ -96,10 +114,6 @@
     border: 1px solid var(--p-zinc-200);
     border-radius: 12px;
     background: #fff;
-
-    &--overview {
-      background: var(--p-zinc-50);
-    }
   }
 
   &__section-header {
@@ -159,21 +173,8 @@
   }
 
   &__session-teacher,
-  &__session-room {
+  &__session-campus {
     color: var(--p-zinc-500);
-  }
-
-  &__pending {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-4);
-  }
-
-  &__pending-card {
-    padding: var(--space-4) var(--space-5);
-    border: 1px solid var(--p-zinc-200);
-    border-radius: 12px;
-    background: #fff;
   }
 
   &__pending-list {
@@ -210,36 +211,6 @@
     color: var(--p-zinc-400);
   }
 
-  &__charts {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-4);
-  }
-
-  &__chart-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    height: 160px;
-    border: 2px dashed var(--p-zinc-200);
-    border-radius: 10px;
-    color: var(--p-zinc-400);
-    font-size: 0.875rem;
-  }
-
-  &__chart-icon {
-    font-size: 1.5rem;
-    color: var(--p-zinc-300);
-  }
-
-  &__chart-note {
-    margin: 0;
-    font-size: 0.75rem;
-    color: var(--p-zinc-300);
-  }
-
   &__empty {
     display: flex;
     flex-direction: column;
@@ -257,22 +228,9 @@
   }
 }
 
-@media (width <= 1024px) {
-  .dashboard {
-    &__stats {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-}
-
 @media (width <= 768px) {
   .dashboard {
     padding: var(--space-4);
-
-    &__pending,
-    &__charts {
-      grid-template-columns: 1fr;
-    }
 
     &__session-item {
       grid-template-columns: 1fr;

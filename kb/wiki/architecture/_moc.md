@@ -4,6 +4,14 @@
 
 ---
 
+## [[architecture/admin-dashboard-v1|管理端儀表板 v1 的設計]]
+
+把四張死卡片接上真資料並補行政待辦卡：零後端改動（六種資料既有 API 全有）、未點名卡回溯 7 天且只在逐堂點名模式顯示、報名卡只取 meta.total 以免分頁截斷、經營區用 permission 蓋住、卡片是索引不是工作場。
+
+Tags: `architecture`, `dashboard`, `admin`
+
+Links to: [[architecture/teacher-students-view]]
+
 ## [[architecture/amending-the-constitution|修憲的機制]]
 
 憲法只能由人修改，agent 被兩條 deny 規則擋住（含 worktree 路徑）。曾經有過的 `tools/amend-constitution.mjs` 因為過度建造已移除——護欄留在 harness 層（A9 斷言 deny 目標存在）。
@@ -19,6 +27,14 @@ Links to: [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]]
 Tags: `architecture`, `announcements`
 
 Links to: [[architecture/role-authorization|角色授權設計]]
+
+## [[architecture/auth-pool-lifecycle|認證連線池的生命週期]]
+
+createAuth() 每請求開 1–2 個 pg Pool 且從不關閉（批次匯入的迴圈裡一次開 50 個）；Workers 凍結 timer 使 pg 的 idle 自救失效。修法：getAuth(c) 讓同請求共用單一池，收尾交給掛在最前面的 cleanup middleware 在 await next() 之後做。singleton 在 Workers 是錯的，而在 getAuth 裡 waitUntil(pool.end()) 也是錯的。
+
+Tags: `architecture`, `auth`, `workers`, `database`
+
+Links to: [[architecture/line-oauth-login]]
 
 ## [[architecture/bootstrapping-a-deployment|開一個新站]]
 

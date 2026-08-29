@@ -1,12 +1,12 @@
 import { createMiddleware } from 'hono/factory';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createAuth } from '../auth';
+import { getAuth } from '../lib/get-auth';
 import { createServiceClientFromEnv } from '../lib/supabase';
 import { isAccountUsable } from './account-status';
 import type { AppEnv } from '../index';
 
 export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
-  const auth = createAuth(c.env);
+  const auth = getAuth(c);
 
   // Get session from request (supports both cookie and Authorization header)
   const session = await auth.api.getSession({

@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
-import { mintLoginLink } from './login-links/mint';
+import { mintLoginLinkForRequest } from './login-links/mint';
 import { decideLoginLinkTarget } from './login-links/target';
 
 const app = new OpenAPIHono<AppEnv>();
@@ -73,7 +73,7 @@ app.openapi(createLinkRouteDef, async (c) => {
     return c.json({ error: '這個帳號沒有 email，無法產生連結', code: 'NO_EMAIL' }, 422);
   }
 
-  const url = await mintLoginLink(c.env, email);
+  const url = await mintLoginLinkForRequest(c, email);
 
   if (!url) {
     return c.json({ error: '產生連結失敗', code: 'LINK_FAILED' }, 422);
