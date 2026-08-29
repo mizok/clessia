@@ -167,10 +167,10 @@ const AREAS = [
     specs: ['admin/system/settings.md'],
   },
   {
-    // 個人聯絡簿（學生 × 日期，國小模式）。P1 做了 schema + API，前端是 P2/P3。
-    // 規則見 kb/wiki/rules/contact-book-rules.md。
+    // 個人聯絡簿（學生 × 日期，國小模式）。P1 做了 schema + API，管理端頁是 P2、
+    // 老師端的撰寫入口是 P3。規則見 kb/wiki/rules/contact-book-rules.md。
     name: '聯絡簿',
-    pages: [],
+    pages: ['admin/contact-book'],
     routes: ['contact-book'],
     specs: [],
   },

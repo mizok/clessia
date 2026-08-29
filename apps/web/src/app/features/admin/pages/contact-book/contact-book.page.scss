@@ -1,0 +1,105 @@
+// 聯絡簿（管理端）—— 監看列表 + 編輯 dialog
+.contact-book {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: 100%;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+
+  &__title-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    color: var(--zinc-900);
+    line-height: var(--leading-tight);
+  }
+
+  &__subtitle {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+  }
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  &__search {
+    flex: 1 1 240px;
+  }
+
+  &__summary {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--zinc-600);
+    background: var(--zinc-50);
+    border-radius: var(--radius-lg);
+  }
+
+  &__summary-unsigned {
+    color: var(--warning-600);
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__row {
+    cursor: pointer;
+  }
+
+  &__row:hover {
+    background: var(--zinc-50);
+  }
+
+  &__row:focus-visible {
+    outline: 2px solid var(--accent-500);
+    outline-offset: -2px;
+  }
+
+  &__date {
+    font-variant-numeric: tabular-nums;
+    color: var(--zinc-600);
+  }
+
+  &__student {
+    font-weight: var(--font-medium);
+    color: var(--zinc-900);
+  }
+
+  // 內容是自由文字，可能很長 —— 列表只給一行的預覽，全文在 dialog 裡
+  &__content-preview {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: var(--zinc-600);
+  }
+
+  &__editor {
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+  }
+}
