@@ -97,17 +97,4 @@
     flex-wrap: wrap;
   }
 
-  &__pager {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-3);
-    padding-top: var(--space-2);
-  }
-
-  &__pager-label {
-    font-size: var(--text-sm);
-    color: var(--zinc-500);
-    font-variant-numeric: tabular-nums;
-  }
 }
