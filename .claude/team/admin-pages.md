@@ -91,46 +91,50 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
 
 ## 進行中狀態（2026-08-29 —— 這節會過期，接手第一件事：重寫它）
 
-**交接自 session `clessia-8f`。** 這一輪交付了三個切片，兩個已合、一個待審。
+**交接自 session `clessia-8f`。** 這一輪交付三個 PR，**全部已合**：#56（finance specs 對齊
+訪談 rules）、#58（費用方案頁 + 報名計費設定 + per-route 權限）、#59（本 charter）。
 
-| 切片 | PR | 狀態 |
+### 起點：P2 不再被擋住（2026-08-29 當下 open PR 為零）
+
+我盤點時寫的「擋在 A2/A3 後面」**已經過期**。當天稍晚全部合完了，實際狀況：
+
+| 要做的頁 | 後端 | 可以開工嗎 |
 | --- | --- | --- |
-| finance specs 對齊 2026-08-29 訪談 rules（純 docs） | #56 | ✅ 已合（f4ac284） |
-| 費用方案管理頁 + 報名計費設定 + per-route 權限 | #58 | 🔶 **待審，使用者親手合** |
+| 繳費單 `/admin/payments` | ✅ `/api/invoices`（`routes/invoices.ts`，mount 帶 `manage_finance`） | **可以** |
+| 聯絡簿管理端 | ✅ `/api/contact-book` + `classes.usesContactBook` 已暴露 | **可以**（新頁，坑 #1 全額適用） |
+| 餐費 `/admin/meals` | ❌ `meal_records` 仍不存在（`supabase/migrations` 零命中） | 擋著 |
+| 營收報表 `/admin/reports` | ❌ 沒有聚合端點 —— `invoices` 是明細 API | 擋著 |
 
-**接手第一件事：看 #58 合了沒。** 合了就往下走，沒合就先處理 review 意見。
+`/api/invoices` 已驗於 main 的動詞（`grep "path: '"` 出來的）：
+`GET /`、`GET /{id}`（含明細與收款）、`POST /`（開立）、`POST /{id}/items`、
+`DELETE /{id}/items/{itemId}`、`POST /{id}/payments`（收款／退費）、
+`POST|GET /{id}/reminders`（催繳）。**形狀請自己再開檔確認**，我只驗到路由層。
 
-### #58 裡有一個要 reviewer 確認的偏離
+`.claude/team/admin-pages-p2-readiness.md` 第 5 節標的「⏳ 待 A2」現在多半有答案了 ——
+**用它當地圖，但每一項重新驗過再信**（那正是它自己第 0 節說的）。
 
-工單說「報名頁補計費欄位」，但那個前提不成立 —— `/admin/enrollments` 是唯讀列表沒有表單，
-而 `POST /api/enrollments/batch` 不吃計費欄位。我把計費設定做成**班級名單每一列的動作選單**
-（用既有的 `PUT /api/enrollments/{id}`）。計畫席若不同意這個位置，改的是 dialog 掛哪裡，
-dialog 本身可以整包搬。
+### 建議順序
 
-### 接下來（依序）
+1. **繳費單頁** —— API 最完整、spec 剛重寫過（`kb/wiki/specs/admin/finance/payments.md`）、
+   `manage_finance` 的權限模式 #58 已經鋪好，照抄 `/admin/fee-templates` 就有骨架
+2. **聯絡簿管理端頁** —— 要開新頁，記得 `app.routes.spec.ts` 是安全網
+3. 餐費與營收報表 —— 回報計畫席要 A3 與聚合端點，不要自己 mock
 
-1. **P2 剩下的三頁仍是空殼**：餐費、繳費單、營收報表。擋在 billing-api 席的
-   **PR #54（A2 帳單與收款）** 與 A3（`meal_records`）—— 三張表在 main 上還不存在。
-   合併後**先重驗 API 形狀再開工**，`.claude/team/admin-pages-p2-readiness.md` 第 5 節
-   標的都是「⏳ 待 A2」，一個字都沒猜
-2. **聯絡簿/教務日誌管理端頁**是真的要開新頁（坑 #1 全額適用）。API 已在 main，
-   但 `classes.uses_contact_book` 的 API 暴露是 **PR #55**，還沒合
-3. 規格真相看 `kb/wiki/specs/admin/finance/*.md`（我剛重寫過，對齊 rules 了），
-   業務真相看 `kb/wiki/rules/` 的 billing / meal / contact-book
+### 還沒閉環的一件事
 
-### 回報給計畫席、還沒閉環的兩件事
-
-- `POST /api/enrollments/batch` 不接受計費欄位 → 批次招生無法一併帶計費設定（billing-api 席）
-- `kb/wiki/rules/enrollment-rules.md` 與 `billing-rules.md` 衝突四處 → 計畫席已接走，
-  但注意它的 nuance：`void`「停止入班」可能指**行政手動作廢**，與規則 7 禁的
-  「欠繳自動停課」不衝突
+`POST /api/enrollments/batch` 不接受 `billingMode` / `feeTemplateId` / `agreedAmount`，
+批次招生無法一併帶計費設定（只能事後逐筆點名單列的「計費設定」）。
+計畫席說會併進 billing-api 席的 A3 工單 —— **開工前確認它做了沒**。
 
 ### 環境
 
-worktree 在 `.worktrees/admin-pages`（root 與 `apps/api` 都 `npm ci` 過）。
-herdr 的 workspace 歸屬要在**開 pane 時**決定 —— 光在磁碟上建 worktree 不會讓既有 session
+worktree 在 `.worktrees/admin-pages`，分支 `admin-pages-idle`（內容 = origin/main，
+待命用的空分支；開工時 `git fetch` 後從 `origin/main` 另開功能分支，不要在它上面做）。
+root 與 `apps/api` 都 `npm ci` 過。
+
+herdr 的 workspace 歸屬在**開 pane 時**決定 —— 光在磁碟上建 worktree 不會讓既有 session
 換 workspace，`herdr pane` / `herdr tab` 都沒有「搬到別的 workspace」的指令。
-新 session 用 `herdr worktree open .worktrees/admin-pages` 開，就會長出獨立的
-`clessia-admin-pages` workspace，和另外三席對稱。
+用 `herdr worktree open .worktrees/admin-pages` 開，會長出獨立的 `clessia-admin-pages`
+workspace，和另外三席對稱。
 
 開工前重新看一次 roadmap 第 0 節現況表 —— 它是自動生成的，比這份 charter 新。
