@@ -1,0 +1,80 @@
+<div class="billing-run">
+  <header class="billing-run__header">
+    <h2 class="billing-run__title">月結</h2>
+    <p class="billing-run__hint">把這個月「要收費且尚未結算」的餐費與學費加總成帳單。</p>
+  </header>
+
+  @if (result(); as done) {
+    <div class="billing-run__result">
+      <dl class="billing-run__stats">
+        <div class="billing-run__stat">
+          <dt>開立帳單</dt>
+          <dd>{{ done.invoicesCreated }}</dd>
+        </div>
+        <div class="billing-run__stat">
+          <dt>學費明細</dt>
+          <dd>{{ done.tuitionItems }}</dd>
+        </div>
+        <div class="billing-run__stat">
+          <dt>餐費明細</dt>
+          <dd>{{ done.mealItems }}</dd>
+        </div>
+        <div class="billing-run__stat">
+          <dt>結算餐記錄</dt>
+          <dd>{{ done.mealRecordsSettled }}</dd>
+        </div>
+      </dl>
+
+      @if (done.anomalies.length > 0) {
+        <div class="billing-run__anomalies">
+          <h3 class="billing-run__anomalies-title">
+            {{ done.anomalies.length }} 筆金額對不上，要人工核對
+          </h3>
+          <p class="billing-run__anomalies-hint">
+            帳單明細的金額與蓋章的餐記錄總額不一致。帳單已經開出去了 ——
+            請到繳費紀錄找到這幾筆核對，不要重跑月結（重跑不會修正已開的明細）。
+          </p>
+          <ul class="billing-run__anomaly-list">
+            @for (anomaly of done.anomalies; track anomaly.invoiceItemId) {
+              <li class="billing-run__anomaly">
+                <code class="billing-run__anomaly-id">{{ anomaly.invoiceItemId }}</code>
+                <span class="billing-run__anomaly-detail">
+                  明細 {{ anomaly.itemAmount }} 元 · 蓋章總額 {{ anomaly.stampedTotal }} 元 · 應為
+                  {{ anomaly.expectedAmount }} 元
+                </span>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+
+    <footer class="billing-run__footer">
+      <p-button label="關閉" (onClick)="close()" />
+    </footer>
+  } @else {
+    <div class="billing-run__field">
+      <label class="billing-run__label" for="br-month">結算月份</label>
+      <p-datepicker
+        inputId="br-month"
+        view="month"
+        dateFormat="yy-mm"
+        [showIcon]="true"
+        [readonlyInput]="true"
+        [ngModel]="month"
+        (ngModelChange)="month = $event"
+      />
+    </div>
+
+    <p class="billing-run__notice">
+      <strong>同一個月可以重複跑。</strong>
+      月結只撈「尚未結算」的記錄，處理完就蓋上結算標記 ——
+      所以跑第二次不會重複開帳單，之後補登的舊記錄下次會自動被撈進來。
+    </p>
+
+    <footer class="billing-run__footer">
+      <p-button label="取消" [text]="true" severity="secondary" (onClick)="close()" />
+      <p-button label="執行月結" icon="pi pi-play" [loading]="running()" (onClick)="run()" />
+    </footer>
+  }
+</div>

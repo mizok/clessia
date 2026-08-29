@@ -1,18 +1,217 @@
-import { Component, input } from '@angular/core';
-import { RouteObj } from '@core/smart-enums/routes-catalog';
+import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { format } from 'date-fns';
 
+import { ButtonModule } from 'primeng/button';
+import { CheckboxModule } from 'primeng/checkbox';
+import { DatePickerModule } from 'primeng/datepicker';
+import { InputNumberModule } from 'primeng/inputnumber';
+import { TagModule } from 'primeng/tag';
+import { ToastModule } from 'primeng/toast';
+import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { TooltipModule } from 'primeng/tooltip';
+import { MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
+
+import type { RouteObj } from '@core/smart-enums/routes-catalog';
+import { OverlayContainerService } from '@core/overlay-container.service';
+import { MealsService, MEAL_BATCH_MAX_ROWS } from '@core/meals.service';
+
+import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
+import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
+import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
+import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
+
+import { BillingRunDialogComponent } from './billing-run-dialog/billing-run-dialog.component';
+import { draftTotals, draftToBatchRows, rosterToDraft, type MealDraftRow } from './meals.util';
+
+/**
+ * 餐費管理 —— 見 kb/wiki/rules/meal-rules.md 與 kb/wiki/specs/admin/finance/meals.md。
+ *
+ * **每日名單勾選，不是逐筆記帳。** 課表產生候選名單（今天有課的學生），
+ * 學生的 `mealDefault` 決定誰預設勾起，行政確認後寫成 `meal_records`。
+ *
+ * **「收不收費」是人工開關不是規則**（規則 3）：「便當已經送到了才請假」那種狀況
+ * 是人工裁量 —— 這裡**沒有任何自動化的截止時間邏輯**，只有一個行政可以翻的開關。
+ *
+ * **已結算的列鎖住。** 結算後改收費會讓已開出的帳單金額對不上；要改得走帳單作廢
+ * （item 刪除 → FK SET NULL 自動解除標記）或下期 adjustment。後端也擋，
+ * 而且會回 `lockedStudentIds` —— 那個要顯示出來，行政才知道哪幾筆沒改到。
+ */
 @Component({
-  selector: 'app-meals',
+  selector: 'app-admin-meals',
   standalone: true,
-  imports: [],
-  template: `
-    <div class="p-4">
-      <h2 class="text-2xl font-bold mb-4">{{ page().label }}</h2>
-      <p class="text-zinc-500">Meals management content coming soon...</p>
-    </div>
-  `,
-  styles: ``,
+  imports: [
+    DecimalPipe,
+    FormsModule,
+    ButtonModule,
+    CheckboxModule,
+    DatePickerModule,
+    InputNumberModule,
+    TagModule,
+    ToastModule,
+    ToggleSwitchModule,
+    TooltipModule,
+    EmptyStateComponent,
+    ResponsiveTableComponent,
+    RtColDefDirective,
+    RtColCellDirective,
+    RtRowDirective,
+  ],
+  providers: [MessageService, DialogService],
+  templateUrl: './meals.component.html',
+  styleUrl: './meals.component.scss',
 })
-export class MealsComponent {
+export class MealsComponent implements OnInit {
   readonly page = input.required<RouteObj>();
+
+  private readonly service = inject(MealsService);
+  private readonly messageService = inject(MessageService);
+  private readonly dialogService = inject(DialogService);
+  private readonly overlayContainerService = inject(OverlayContainerService);
+
+  protected readonly MEAL_BATCH_MAX_ROWS = MEAL_BATCH_MAX_ROWS;
+
+  protected readonly rows = signal<MealDraftRow[]>([]);
+  protected readonly loading = signal(true);
+  protected readonly failed = signal(false);
+  protected readonly saving = signal(false);
+  protected readonly defaultUnitPrice = signal(0);
+
+  protected date: Date = new Date();
+
+  protected readonly totals = computed(() => draftTotals(this.rows()));
+  protected readonly settledCount = computed(() => this.rows().filter((r) => r.settled).length);
+  /** 超過後端上限就擋在送出之前 —— 靜靜截斷會讓一部分學生沒有記錄 */
+  protected readonly overBatchLimit = computed(
+    () => draftToBatchRows(this.rows()).length > MEAL_BATCH_MAX_ROWS,
+  );
+
+  ngOnInit(): void {
+    this.load();
+  }
+
+  private get overlayContainer(): HTMLElement | null {
+    return this.overlayContainerService.getContainer();
+  }
+
+  private get dateString(): string {
+    return format(this.date, 'yyyy-MM-dd');
+  }
+
+  protected load(): void {
+    this.loading.set(true);
+    this.failed.set(false);
+
+    this.service.roster(this.dateString).subscribe({
+      next: (res) => {
+        this.defaultUnitPrice.set(res.defaultUnitPrice);
+        this.rows.set(rosterToDraft(res.data, res.defaultUnitPrice));
+        this.loading.set(false);
+      },
+      error: () => {
+        this.rows.set([]);
+        this.failed.set(true);
+        this.loading.set(false);
+      },
+    });
+  }
+
+  protected onDateChange(value: Date | null): void {
+    if (!value) return;
+    this.date = value;
+    this.load();
+  }
+
+  protected updateRow<K extends keyof MealDraftRow>(
+    studentId: string,
+    field: K,
+    value: MealDraftRow[K],
+  ): void {
+    this.rows.update((list) =>
+      list.map((row) => (row.studentId === studentId ? { ...row, [field]: value } : row)),
+    );
+  }
+
+  /** 全部勾／全部不勾。已結算的不動 —— 它們鎖住了 */
+  protected setAllOrdered(ordered: boolean): void {
+    this.rows.update((list) => list.map((row) => (row.settled ? row : { ...row, ordered })));
+  }
+
+  protected save(): void {
+    const batchRows = draftToBatchRows(this.rows());
+
+    if (batchRows.length === 0) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: '沒有可以寫入的列',
+        detail: '這天的名單全部已結算，或候選名單是空的',
+      });
+      return;
+    }
+
+    if (batchRows.length > MEAL_BATCH_MAX_ROWS) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: '一次寫不了這麼多',
+        detail: `後端一次最多 ${MEAL_BATCH_MAX_ROWS} 筆，這天有 ${batchRows.length} 位。請回報，別讓它靜靜少寫`,
+      });
+      return;
+    }
+
+    this.saving.set(true);
+    this.service.batch(this.dateString, batchRows).subscribe({
+      next: (res) => {
+        this.saving.set(false);
+
+        // 被鎖住而沒寫進去的要講出來 —— 不然行政以為改成功了
+        if (res.lockedStudentIds.length > 0) {
+          const names = this.rows()
+            .filter((row) => res.lockedStudentIds.includes(row.studentId))
+            .map((row) => row.studentName)
+            .join('、');
+          this.messageService.add({
+            severity: 'warn',
+            summary: `已寫入 ${res.updated} 筆，${res.lockedStudentIds.length} 筆沒改到`,
+            detail: `${names} 已經結算，要改得走帳單作廢或下期調整`,
+            life: 8000,
+          });
+        } else {
+          this.messageService.add({
+            severity: 'success',
+            summary: '名單已確認',
+            detail: `${this.dateString} 寫入 ${res.updated} 筆`,
+          });
+        }
+
+        // 重新取數：settled 與 recordId 由後端決定，不要自己猜
+        this.load();
+      },
+      error: (err) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: '寫入失敗',
+          detail: err.error?.error || '請稍後再試',
+        });
+        this.saving.set(false);
+      },
+    });
+  }
+
+  protected openBillingRun(): void {
+    const ref = this.dialogService.open(BillingRunDialogComponent, {
+      header: '月結',
+      width: '520px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+    });
+
+    // 月結會把這天的餐記錄蓋上結算標記 —— 跑完重新取數才看得到鎖
+    ref?.onClose.subscribe((ran: boolean | undefined) => {
+      if (ran) this.load();
+    });
+  }
 }

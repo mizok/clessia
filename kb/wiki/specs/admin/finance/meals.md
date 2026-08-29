@@ -83,8 +83,20 @@ tags: [specs, admin, finance, meals]
 | 讀取 | `meal_records`、`students`、當日 sessions（候選名單） |
 | 寫入 | `meal_records`、月結時的 `invoice_items`              |
 
-> ⏳ **`meal_records` 尚未存在於 main**（2026-08-29 查證：`supabase/migrations` 零命中）。
-> 端點形狀待 billing-api 席的 P1 A3 定案，本頁的欄位描述是依 rules 推導的需求，不是已驗的 API。
+> ✅ **schema 與端點都已存在**（A3 已合）：`supabase/migrations/20260829130000_create_meal_records.sql`、
+> `apps/api/src/routes/meals.ts`（掛在 `/api/meals`，`manage_finance`）。
+> 管理端頁見 `apps/web/src/app/features/admin/pages/meals/`。
+>
+> **本頁與已交付的 API 之間還有三個缺口**（2026-08-30 實作時查證，已回報）：
+>
+> 1. **沒有日期區間查詢** —— `GET /api/meals` 只吃單日的 `date`，也沒有學生篩選、沒有 `meta`。
+>    上面「查詢與統計」那節（日期範圍、區間總金額與筆數、`meta.total`）目前**做不了**，
+>    頁面只有當日名單的合計。
+> 2. **沒有班級欄位** —— 上面說每一列要顯示班級，`MealRosterRow` 不回 `className`。
+> 3. **備註讀寫都不通** —— `meal_records` 有 `note` 欄位，但 `GET` 不回它、
+>    `POST /batch` 也不吃它，所以頁面沒有備註輸入框（做一個存不進去的欄位比沒有更糟）。
+>
+> 「匯出 CSV」沒有端點，但資料在手上、前端組得出來 —— 那是範圍問題不是缺口，等有人開口。
 
 ## 相關規則
 
