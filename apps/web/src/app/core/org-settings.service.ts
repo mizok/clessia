@@ -12,12 +12,15 @@ export interface OrgSettings {
   attendanceMode: AttendanceMode;
   attendanceResponsible: AttendanceResponsible;
   attendanceRetroactiveDays: number;
+  /** 開帳時 due_date 的預設天數（kb/wiki/rules/billing-rules.md 規則 7） */
+  invoiceDueDays: number;
 }
 
 export interface UpdateOrgSettingsInput {
   attendanceMode?: AttendanceMode;
   attendanceResponsible?: AttendanceResponsible;
   attendanceRetroactiveDays?: number;
+  invoiceDueDays?: number;
 }
 
 @Injectable({ providedIn: 'root' })

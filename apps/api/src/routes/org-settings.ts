@@ -12,6 +12,8 @@ const OrgSettingsSchema = z
     attendanceMode: AttendanceModeSchema,
     attendanceResponsible: AttendanceResponsibleSchema,
     attendanceRetroactiveDays: z.number().int().min(0),
+    /** 開帳時 due_date 的預設天數（規則 7：對齊發袋後兩三週的節奏） */
+    invoiceDueDays: z.number().int().min(0),
   })
   .openapi('OrgSettings');
 
@@ -20,6 +22,7 @@ const UpdateOrgSettingsSchema = z
     attendanceMode: AttendanceModeSchema.optional(),
     attendanceResponsible: AttendanceResponsibleSchema.optional(),
     attendanceRetroactiveDays: z.coerce.number().int().min(0).optional(),
+    invoiceDueDays: z.coerce.number().int().min(0).optional(),
   })
   .openapi('UpdateOrgSettings');
 
@@ -30,13 +33,14 @@ export function toOrgSettingsResponse(row: Record<string, unknown>) {
     attendanceMode: row['attendance_mode'] as 'per_session' | 'daily_checkin',
     attendanceResponsible: (row['attendance_responsible'] as 'admin' | 'teacher') ?? 'admin',
     attendanceRetroactiveDays: (row['attendance_retroactive_days'] as number) ?? 0,
+    invoiceDueDays: (row['invoice_due_days'] as number) ?? 14,
   };
 }
 
 const app = new OpenAPIHono<AppEnv>();
 
 const SELECT_FIELDS =
-  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days';
+  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days';
 
 // GET /api/org/settings
 app.openapi(
@@ -100,6 +104,7 @@ app.openapi(
       updates['attendance_responsible'] = body.attendanceResponsible;
     if (body.attendanceRetroactiveDays !== undefined)
       updates['attendance_retroactive_days'] = body.attendanceRetroactiveDays;
+    if (body.invoiceDueDays !== undefined) updates['invoice_due_days'] = body.invoiceDueDays;
 
     const { data, error } = await supabase
       .from('organizations')

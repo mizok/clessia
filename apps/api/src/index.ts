@@ -10,6 +10,8 @@ import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
 import loginLinksRoute from './routes/login-links';
 import billingPeriodsRoute from './routes/billing-periods';
 import feeTemplatesRoute from './routes/fee-templates';
+import invoicesRoute from './routes/invoices';
+import sessionPacksRoute from './routes/session-packs';
 import { isPubliclyBlockedAuthPath } from './lib/auth-paths';
 import { createServiceClientFromEnv } from './lib/supabase';
 import campusesRoute from './routes/campuses';
@@ -265,6 +267,8 @@ mount('/api/login-links', loginLinksRoute, ADMIN_ONLY);
 // 金流：admin 角色之外還要 manage_finance（見 kb/wiki/rules/billing-rules.md）
 mount('/api/billing-periods', billingPeriodsRoute, ADMIN_ONLY, 'manage_finance');
 mount('/api/fee-templates', feeTemplatesRoute, ADMIN_ONLY, 'manage_finance');
+mount('/api/invoices', invoicesRoute, ADMIN_ONLY, 'manage_finance');
+mount('/api/session-packs', sessionPacksRoute, ADMIN_ONLY, 'manage_finance');
 
 // ============================================================
 // Error Handler

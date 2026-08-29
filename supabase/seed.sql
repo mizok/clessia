@@ -689,6 +689,60 @@ BEGIN
          adjustment_note = '舊生續讀，老闆同意折 2000'
    WHERE e.class_id = english_class_id AND e.billing_mode IS NULL;
 
+  -- ===== 帳單與收款（P1 A2）=====
+  -- 一張部分繳的帳單：規則 6 的「定金」就長這樣 —— 報名時開全額，定金是第一筆部分收款，
+  -- 帳單自動變「部分繳」，系統不需要「定金」這個概念。
+  INSERT INTO public.invoices (id, org_id, student_id, issued_at, due_date, note)
+  SELECT
+    '71000000-0000-0000-0000-000000000001',
+    demo_org_id,
+    e.student_id,
+    CURRENT_DATE - 20,
+    CURRENT_DATE - 6,
+    '三月學費（示範：定金已收、尾款未繳）'
+  FROM public.enrollments e
+  WHERE e.class_id = math_class_id
+  ORDER BY e.created_at
+  LIMIT 1
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO public.invoice_items (invoice_id, type, enrollment_id, amount, period_month, note)
+  SELECT
+    '71000000-0000-0000-0000-000000000001',
+    'tuition'::public.invoice_item_type,
+    e.id,
+    4500,
+    date_trunc('month', CURRENT_DATE)::date,
+    NULL
+  FROM public.enrollments e
+  WHERE e.class_id = math_class_id
+  ORDER BY e.created_at
+  LIMIT 1
+  ON CONFLICT DO NOTHING;
+
+  -- receipt_no 由 trigger 指派，這裡不給
+  INSERT INTO public.payment_records (org_id, invoice_id, kind, amount, method, paid_at, note)
+  VALUES
+    (demo_org_id, '71000000-0000-0000-0000-000000000001', 'payment'::public.payment_kind,
+     1000, 'cash'::public.payment_method, CURRENT_DATE - 20, '定金'),
+    -- 退費記為 kind='refund'、金額恆正 —— 正負由 kind 決定不靠符號
+    (demo_org_id, '71000000-0000-0000-0000-000000000001', 'refund'::public.payment_kind,
+     200, 'transfer'::public.payment_method, CURRENT_DATE - 3, '多收，退回');
+
+  INSERT INTO public.payment_reminders (invoice_id, method, note)
+  VALUES ('71000000-0000-0000-0000-000000000001', 'line'::public.reminder_method, '已用 LINE 提醒一次');
+
+  -- 堂數制：自然班示範。請假扣堂打開，好讓 leave_deducts_session 兩種值都有 demo
+  UPDATE public.classes SET leave_deducts_session = true WHERE id = science_class_id;
+
+  INSERT INTO public.session_packs (org_id, enrollment_id, purchased_count, purchased_at, note)
+  SELECT demo_org_id, e.id, 10, CURRENT_DATE - 40, '示範：買 10 堂'
+  FROM public.enrollments e
+  WHERE e.class_id = science_class_id
+  ORDER BY e.created_at
+  LIMIT 1
+  ON CONFLICT DO NOTHING;
+
   INSERT INTO public.schedules (
     class_id,
     weekday,
