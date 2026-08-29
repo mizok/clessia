@@ -70,29 +70,35 @@ Links to: [[flows/trial|試聽申請流程]]
 
 ## [[specs/admin/finance/fee-templates|費用方案管理]]
 
-定義開課班的收費標準。
+價目表是 org 層的定價（三種計費模式、只給定價不給折扣、停用不刪除），與機構自訂的收費期間同頁管理。折扣引擎與班級層級生效期間已於 2026-08-29 訪談否定。
 
-Tags: `specs`, `admin`, `finance`, `fee-templates`
+Tags: `specs`, `admin`, `finance`, `fee-templates`, `billing-periods`
+
+Links to: [[rules/billing-rules]], [[rules/billing-rules]]
 
 ## [[specs/admin/finance/meals|餐費管理]]
 
-新增和查詢餐費紀錄。
+每日名單勾選：每生每日一筆餐記錄（單價在筆上、訂了沒、收不收費是人工開關），月底加總未結算的筆數開帳單。餐別維度與逐筆手動輸入金額已於 2026-08-29 訪談否定。
 
 Tags: `specs`, `admin`, `finance`, `meals`
 
+Links to: [[rules/meal-rules]], [[specs/admin/finance/payments|繳費紀錄]], [[rules/meal-rules]], [[rules/billing-rules]], [[rules/attendance-rules]]
+
 ## [[specs/admin/finance/payments|繳費紀錄]]
 
-管理繳費單、確認收款。
+帳單與收款一對多，狀態由累計實收推導（未繳/部分繳/繳清）＋逾期是衍生標記；收現金或轉帳（附憑證圖）、開收據、印收費袋、催繳只做可見性。折扣引擎、強制啟用、六種狀態、分期計畫已於 2026-08-29 訪談否定。
 
-Tags: `specs`, `admin`, `finance`, `payments`
+Tags: `specs`, `admin`, `finance`, `payments`, `invoices`
 
-Links to: [[rules/enrollment-rules|報名與繳費規則]], [[flows/enrollment|報名申請流程]]
+Links to: [[rules/billing-rules]], [[rules/billing-rules]], [[rules/meal-rules]], [[flows/enrollment]], [[rules/enrollment-rules]]
 
 ## [[specs/admin/finance/reports|營收報表]]
 
-查看營收統計報表。
+依日期/分校/課程看實收、應收未收、退款；數字一律來自後端聚合端點，不在前端加總分頁明細。
 
 Tags: `specs`, `admin`, `finance`, `reports`
+
+Links to: [[rules/billing-rules]], [[rules/billing-rules]]
 
 ## [[specs/admin/notifications|通知中心（管理員）]]
 

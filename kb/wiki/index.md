@@ -65,10 +65,10 @@
 - [[specs/admin/enrollment/enrollment-requests]] — 審核家長提交的報名申請。
 - [[specs/admin/enrollment/renewals]] — 查看續課狀態、處理異動申請。
 - [[specs/admin/enrollment/trials]] — 管理試聽申請、安排試聽、跟進結果。
-- [[specs/admin/finance/fee-templates]] — 定義開課班的收費標準。
-- [[specs/admin/finance/meals]] — 新增和查詢餐費紀錄。
-- [[specs/admin/finance/payments]] — 管理繳費單、確認收款。
-- [[specs/admin/finance/reports]] — 查看營收統計報表。
+- [[specs/admin/finance/fee-templates]] — 價目表是 org 層的定價（三種計費模式、只給定價不給折扣、停用不刪除），與機構自訂的收費期間同頁管理。折扣引擎與班級層級生效期間已於 2026-08-29 訪談否定。
+- [[specs/admin/finance/meals]] — 每日名單勾選：每生每日一筆餐記錄（單價在筆上、訂了沒、收不收費是人工開關），月底加總未結算的筆數開帳單。餐別維度與逐筆手動輸入金額已於 2026-08-29 訪談否定。
+- [[specs/admin/finance/payments]] — 帳單與收款一對多，狀態由累計實收推導（未繳/部分繳/繳清）＋逾期是衍生標記；收現金或轉帳（附憑證圖）、開收據、印收費袋、催繳只做可見性。折扣引擎、強制啟用、六種狀態、分期計畫已於 2026-08-29 訪談否定。
+- [[specs/admin/finance/reports]] — 依日期/分校/課程看實收、應收未收、退款；數字一律來自後端聚合端點，不在前端加總分頁明細。
 - [[specs/admin/notifications]] — 查看系統通知與課務異動通知。
 - [[specs/admin/roles-and-auth]] — 三個角色（admin / teacher / parent）存在 user_roles，細部權限存在 user_roles.permissions。密碼登入已於 2026-08 移除，改為 LINE OAuth + 一次性登入連結。
 - [[specs/admin/student-affairs/attendance]] — 查看和修正學生出勤狀態。管理員擁有不限時間、不限課堂的修改權限。
