@@ -470,7 +470,11 @@ DECLARE
     '新竹市立測試國中', '新竹市立測試國中', '台南市立測試高中', '高雄市立測試高中'
   ];
   student_index INTEGER;
-  student_id UUID;
+  -- **一律 v_ 前綴。** 裸名的 plpgsql 變數會跟同名欄位在 SQL 裡撞成 42702
+  -- （column reference is ambiguous），而且只在特定語句形狀發作 ——
+  -- ON CONFLICT 的目標欄位、裸 WHERE。這一個曾經叫 student_id，
+  -- 直到 meal_records 的 ON CONFLICT (student_id, meal_date) 把它撞出來。
+  v_student_id UUID;
 BEGIN
   SELECT id
   INTO demo_campus_id
@@ -525,11 +529,11 @@ BEGIN
   ON CONFLICT (org_id, name) DO NOTHING;
 
   FOR student_index IN 1..12 LOOP
-    student_id := format('61000000-0000-0000-0000-%s', lpad(student_index::text, 12, '0'))::uuid;
+    v_student_id := format('61000000-0000-0000-0000-%s', lpad(student_index::text, 12, '0'))::uuid;
 
     INSERT INTO public.students (id, org_id, name, grade, school_id, email, is_active)
     VALUES (
-      student_id,
+      v_student_id,
       demo_org_id,
       student_names[student_index],
       student_grades[student_index]::public.grade_level,
