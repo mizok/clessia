@@ -71,7 +71,7 @@ const StaffListResponseSchema = z
 const CreateStaffSchema = z
   .object({
     displayName: z.string().min(1).max(100).openapi({ description: '姓名' }),
-    email: z.email().openapi({ description: 'Email（登入帳號）' }),
+    email: z.email().openapi({ description: 'Email（產生一次性登入連結時的查人鍵）' }),
     phone: z.string().max(30).nullable().optional().openapi({ description: '電話' }),
     birthday: DateStringSchema.nullable().optional().openapi({ description: '生日（YYYY-MM-DD）' }),
     notes: z.string().max(2000).nullable().optional().openapi({ description: '備註' }),

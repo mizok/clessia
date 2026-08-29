@@ -19,7 +19,10 @@ const ParentSchema = z
     name: z.string(),
     phone: z.string().nullable(),
     email: z.string().nullable(),
-    loginAccount: z.string(), // email 優先，否則 phone
+    // **名字是密碼時代留下的，沒有人用它登入** —— 這個系統沒有帳號密碼登入。
+    // 它是列表上用來辨識「這是哪一位家長的帳號」的識別字串：email 優先，否則 phone。
+    // 改名要動 API + web + 型別，留待有其他理由動這支 API 時一起處理。
+    loginAccount: z.string(),
     status: ParentStatusSchema,
     studentCount: z.number(),
     studentNames: z.array(z.string()), // 關聯學生姓名列表

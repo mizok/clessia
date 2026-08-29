@@ -242,6 +242,8 @@ Tags: `specs`, `parent`, `trial`
 
 Tags: `specs`, `public`, `enrollment`
 
+Links to: [[architecture/line-oauth-login]]
+
 ## [[specs/public/login|登入頁]]
 
 一顆「使用 LINE 登入」按鈕。這個系統沒有密碼——首次進入靠管理員發出的一次性連結，綁定 LINE 之後才走這一頁。
@@ -261,6 +263,8 @@ Tags: `specs`, `public`, `qr-checkin`
 新家長為孩子申請課程試聽。
 
 Tags: `specs`, `public`, `trial`
+
+Links to: [[architecture/line-oauth-login]]
 
 ## [[specs/README|Clessia 頁面規格文件]]
 

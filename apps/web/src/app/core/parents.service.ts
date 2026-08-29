@@ -12,7 +12,11 @@ export interface Parent {
   name: string;
   phone: string | null;
   email: string | null;
-  loginAccount: string; // email 優先，否則 phone
+  /**
+   * 辨識用的識別字串（email 優先，否則 phone）。**名字是密碼時代留下的** ——
+   * 這個系統沒有帳號密碼登入，沒有人輸入它。改名要連 API 一起動，留待日後。
+   */
+  loginAccount: string;
   status: ParentStatus;
   studentCount: number;
   studentNames: string[]; // 關聯學生姓名列表

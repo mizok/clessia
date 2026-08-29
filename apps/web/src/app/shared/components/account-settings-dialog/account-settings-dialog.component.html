@@ -106,7 +106,7 @@
       @if (fieldError()?.field === 'email') {
         <p class="account-settings__error">{{ fieldError()!.msg }}</p>
       } @else {
-        <p class="account-settings__hint">修改後需用新 Email 登入</p>
+        <p class="account-settings__hint">補習班用這個 Email 幫你產生一次性登入連結</p>
       }
     </div>
 
@@ -131,15 +131,13 @@
               [outlined]="true"
               [loading]="savingField() === 'phone'"
               [disabled]="saving()"
-              (onClick)="confirmSavePhone()"
+              (onClick)="savePhone()"
             />
           }
         </span>
       </div>
       @if (fieldError()?.field === 'phone') {
         <p class="account-settings__error">{{ fieldError()!.msg }}</p>
-      } @else {
-        <p class="account-settings__hint">修改後需用新電話登入</p>
       }
     </div>
   </div>

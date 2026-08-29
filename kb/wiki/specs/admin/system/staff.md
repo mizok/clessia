@@ -3,7 +3,7 @@ title: 人員管理
 summary: 管理管理員、老師帳號。
 category: spec
 status: active
-updated: 2026-08-28
+updated: 2026-08-29
 tags: [specs, admin, system, staff]
 ---
 
@@ -34,7 +34,7 @@ tags: [specs, admin, system, staff]
 | 服務分校 | 多選     | 是       | 可選擇多個分校                |
 | 教學科目 | 多選     | 老師必填 | 國文/英文/數學/自然/社會/其他 |
 | 電話     | 文字     | 是       |                               |
-| Email    | 文字     | 是       | 作為登入帳號                  |
+| Email    | 文字     | 是       | 產生登入連結時的查人鍵        |
 | 生日     | 日期     | 否       |                               |
 | 備註     | 長文字   | 否       |                               |
 | 帳號狀態 | 開關     | 是       | 啟用/停用                     |
