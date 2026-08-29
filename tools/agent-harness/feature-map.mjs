@@ -145,9 +145,20 @@ const AREAS = [
     specs: ['admin/finance/meals.md', 'parent/meals.md'],
   },
   {
+    // 與「計費」共用 route，跟「課務異動」認領 `sessions` 同一個先例：認領的是
+    // **這區的頁面真的打得到的後端**，不是後端的歸屬。`admin/fee-templates` 走
+    // `@core/fee-templates.service`（`/api/fee-templates`）與 `@core/billing-periods.service`
+    // （`/api/billing-periods`），兩支都在「計費」底下 —— 不重複認領的話這區 `routes` 是空的，
+    // 而 `routes.length === 0` 會在 wired 判斷之前就短路成「🚧 空殼」，
+    // 於是一個已經接上後端的頁面被表宣告成空殼。
+    //
+    // **刻意不認領 `invoices`**：web 端沒有任何程式碼碰 `/api/invoices`（沒有對應的
+    // core service）。認領它會讓「已掛載 API」欄位宣稱一條不存在的連線 —— 這張表的
+    // 「已掛載 API」是「這區的頁面接得到幾支」，不是「這個主題有幾支 API」。
+    // 等 admin/payments 真的接上帳單再加。
     name: '繳費',
     pages: ['admin/payments', 'admin/fee-templates', 'parent/payments'],
-    routes: [],
+    routes: ['fee-templates', 'billing-periods'],
     specs: ['admin/finance/payments.md', 'admin/finance/fee-templates.md', 'parent/payments.md'],
   },
   { name: '報表', pages: ['admin/reports'], routes: [], specs: ['admin/finance/reports.md'] },
