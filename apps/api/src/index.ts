@@ -30,6 +30,8 @@ import academyExamsRoute from './routes/academy-exams';
 import schoolExamsRoute from './routes/school-exams';
 import scoresRoute from './routes/scores';
 import announcementsRoute from './routes/announcements';
+import contactBookRoute from './routes/contact-book';
+import classLogsRoute from './routes/class-logs';
 
 // ============================================================
 // Types
@@ -242,6 +244,10 @@ mount('/api/school-exams', schoolExamsRoute, ADMIN_ONLY);
 mount('/api/scores', scoresRoute, ADMIN_ONLY);
 // 收件匣對 teacher/parent 開放；發布與管理端列表在 route 內另外要求 admin
 mount('/api/announcements', announcementsRoute, ANY_ROLE);
+// 聯絡簿與教務日誌：admin 與 teacher 都寫得到，老師的範圍在 route 內縮限到
+// 自己固定任課的班（lib/teacher-scope）。家長端的簽收與已閱是 P4。
+mount('/api/contact-book', contactBookRoute, ['admin', 'teacher']);
+mount('/api/class-logs', classLogsRoute, ['admin', 'teacher']);
 // 產生登入連結 = 產生一個能登入的憑證。只有 admin，且只能對同組織的人
 mount('/api/login-links', loginLinksRoute, ADMIN_ONLY);
 
