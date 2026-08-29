@@ -76,8 +76,8 @@ tags: [specs, teacher, assessments]
 
 ## 資料依賴
 
-| 操作 | 資料表                                                                    |
-| ---- | ------------------------------------------------------------------------- |
+| 操作 | 資料表                                                                                                               |
+| ---- | -------------------------------------------------------------------------------------------------------------------- |
 | 讀取 | `academy_exams`, `school_exams`, `academy_scores`, `school_scores`, `sessions`, `classes`, `students`, `enrollments` |
 | 寫入 | `academy_exams`, `school_exams`, `academy_scores`, `school_scores`                                                   |
 

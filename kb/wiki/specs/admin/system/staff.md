@@ -3,7 +3,7 @@ title: 人員管理
 summary: 管理管理員、老師帳號。
 category: spec
 status: active
-updated: 2026-02-22
+updated: 2026-08-28
 tags: [specs, admin, system, staff]
 ---
 
@@ -41,8 +41,8 @@ tags: [specs, admin, system, staff]
 
 ### 建立帳號流程（Better Auth）
 
-- 透過 Better Auth admin API `createUser` 建立員工帳號，系統自動產生初始密碼
-- 初始密碼由管理者告知員工
+- 透過 Better Auth admin API `createUser` 建立員工帳號。**刻意不帶 password**（harness gate A11 守著），回傳一次性登入連結
+- 管理者把連結／QR 交給員工，員工點開後綁定 LINE
 
 ### 權限設定（管理員角色）
 
@@ -59,10 +59,10 @@ tags: [specs, admin, system, staff]
 
 ## 資料依賴
 
-| 操作 | 資料表                                   |
-| ---- | ---------------------------------------- |
-| 讀取 | `staff`, `admin_permissions`, `campuses` |
-| 寫入 | `staff`, `admin_permissions`, `ba_user`  |
+| 操作 | 資料表                                               |
+| ---- | ---------------------------------------------------- |
+| 讀取 | `staff`, `user_roles`, `campuses`, `ba_user`         |
+| 寫入 | `staff`, `user_roles`, `ba_user`（透過 Better Auth） |
 
 ## PRD 參考
 

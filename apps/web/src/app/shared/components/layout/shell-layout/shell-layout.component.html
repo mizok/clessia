@@ -60,12 +60,10 @@
           </div>
           <hr class="user-menu__divider" />
           <div class="user-menu__items">
-            @if (!auth.isRootUser()) {
-              <button class="user-menu__item" (click)="openAccountSettings()">
-                <i class="user-menu__item-icon pi pi-user-edit"></i>
-                帳號設定
-              </button>
-            }
+            <button class="user-menu__item" (click)="openAccountSettings()">
+              <i class="user-menu__item-icon pi pi-user-edit"></i>
+              帳號設定
+            </button>
             <button class="user-menu__item user-menu__item--danger" (click)="signOut()">
               <i class="user-menu__item-icon pi pi-sign-out"></i>
               登出

@@ -15,7 +15,6 @@ const ME = {
   birthday: null,
   roles: ['admin'],
   permissions: ['*'],
-  isRootUser: false,
 };
 
 describe('AuthService — 讀不到 profile vs 沒有角色', () => {

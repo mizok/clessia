@@ -4,7 +4,94 @@
 
 ---
 
+## [2026-08-29] map | Rebuilt index + 5 MOCs
+- Pages indexed: 84
+- Total links: 90
+- Orphan pages: 64
+
+## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 52 info
+- Mode: structural
+- Pages scanned: 92
+- Issues found: 52
+
+## [2026-08-29] map | Rebuilt index + 5 MOCs
+- Pages indexed: 83
+- Total links: 88
+- Orphan pages: 64
+
+## [2026-08-29] grilling | P1 資料模型 13 題定案 + 訪談補充更正
+
+- 走完 P1 設計決策樹（billing_periods org 層、新 billing_mode enum 換掉 payment_cycle、
+  org 價目表、談定價在報名上、帳單不綁週期+明細雙欄、退費恆正+kind、堂數推導不存計數器、
+  餐費結算標記、class_logs 班級×日期、催繳獨立表）—— 完整總表在 PR #30 comment
+- 內部人補充更正（part2 raw source）：聯絡簿是**兩個東西共用一個名字**
+  （國小=個人聯絡簿+簽名；國中=年級合寫的教務日誌，家長現實中完全看不到）、
+  作業廣播對象是小孩**私群**不是官方群組、新生定金+收費袋節奏
+- Pages updated: [[rules/billing-rules]]、[[rules/meal-rules]]、
+  [[rules/contact-book-rules]]、[[rules/teaching-log-rules]]
+- 盤點確認：新決策與既有功能無衝突；payment_cycle 只有 6 檔觸及；
+  announcements 粗粒度與班級廣播分工明確；堂數扣堂靠推導自癒
+
+## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 51 info
+
+- Mode: structural
+- Pages scanned: 91
+- Issues found: 51
+
+## [2026-08-29] ingest | 內部人訪談（20 題）→ 4 頁 rules
+
+- Sources: raw/sources/interview-insider-2026-08-29.md（本 KB 第一份 raw source）
+- Pages created: [[rules/billing-rules]]、[[rules/meal-rules]]、
+  [[rules/contact-book-rules]]、[[rules/teaching-log-rules]]、
+  [[summaries/interview-insider-2026-08-29]]
+- Pages updated: [[roadmap]]（訪談完成、P1 schema 清單補教務日誌）
+- Key findings: (1) 金流不需要規則引擎 —— 折扣是議價不是規則；
+  (2) 教務日誌是原本不在功能表上的痛點，年級粒度錯發作業，班級名冊就是解法；
+  (3) 多分校決定被雙重驗證（行政跨校支援 + 老闆要跨校彙總）
+
+## [2026-08-29] map | Rebuilt index + 5 MOCs
+
+- Pages indexed: 83
+- Total links: 87
+- Orphan pages: 64
+
+## [2026-08-29] roadmap | 三個範圍決策拍板，P1 解除封鎖
+
+- 聯絡簿：**做**（P1 schema 含它）；LINE 推播：**做**（Messaging API，另一個 channel，歸 P4）
+- 多分校 UI：**跨頁記憶的統一 filter**（`CampusFilterService` + 共用下拉元件），
+  不做全域切換器、**明確延後**分校權限隔離 —— 依據是盤點：資料層早就多分校、
+  9 頁各自為政的 filter、權限層完全沒有分校概念
+- [[roadmap]] 的「待拍板」改為「範圍決策（2026-08-29 拍板）」
+
+## [2026-08-28] lint | Health check: 0 errors, 0 warnings, 52 info
+
+- Mode: structural
+- Pages scanned: 86
+- Issues found: 52
+
+## [2026-08-28] drift | root 移除後的文件收尾（PR #29）
+
+- 2026-08-24 記的「**未解**：root 破窗管道不存在於乾淨部署，需人裁決」**已裁決 —— 移除**
+- `specs/admin/roles-and-auth` 的「Root 帳號」整節改寫成「沒有超級帳號」：
+  留著一個登不進去、正式站也不存在的超級帳號，只會讓人以為有後門
+- 順帶記下 `ba_user.username` **沒有**跟著移除的理由（只有手機的家長拿它當唯一性鍵）
+- `architecture/line-oauth-login` 風險表修掉一句**錯的**：「root 是唯一的破窗管道」
+  —— 破窗從來是 `login-link`（要 `DATABASE_URL`），c12 要的就是這個可撤銷性
+- 驗證：lint 0 errors / 0 warnings、`npm test` 472 passed、typecheck 綠
+
+## [2026-08-28] roadmap | 改寫第 2 節：通往「可提案」的六個階段
+
+- 策略定案：**先做完再提案**（九成完備才去談），不是拿半成品請對方試用
+- 「九成完備」有了定義：21 個功能區在三個角色上該有的都 ✅
+- 缺口盤點：金流三區（從零）、家長端 11 頁（從零）、公開端 3 頁、聯絡簿
+- 六個階段 P1–P6，順序由**依賴**決定（後五個都依賴 P1 的資料模型）
+- 記下這個策略的代價：**沒有真實使用者回饋就蓋很多東西**。解藥是問內部人，
+  尤其金流的資料模型猜錯的話下游全部要重做
+- 三個待拍板的範圍決策：聯絡簿要不要做、要不要 LINE 推播、多分校做到什麼程度
+- 「刻意不做」補上多租戶的真正理由（**c12 直接否決**，不只是優先度低）與線上金流
+
 ## [2026-08-24] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 79
 - Total links: 48
 - Orphan pages: 70
@@ -23,6 +110,7 @@
 - **未解**：root 破窗管道不存在於乾淨部署，需人裁決
 
 ## [2026-08-24] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 79
 - Total links: 48
 - Orphan pages: 70

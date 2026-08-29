@@ -70,8 +70,8 @@ tags: [specs, admin, student-affairs, leave]
 
 ## 資料依賴
 
-| 操作 | 資料表                                                         |
-| ---- | -------------------------------------------------------------- |
+| 操作 | 資料表                                                                        |
+| ---- | ----------------------------------------------------------------------------- |
 | 讀取 | `leave_requests`, `students`, `sessions`, `enrollments`, `attendance_records` |
 | 寫入 | `leave_requests`, `attendance_records`                                        |
 

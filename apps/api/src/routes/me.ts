@@ -11,7 +11,6 @@ const MeResponseSchema = z
     birthday: z.string().nullable(),
     roles: z.array(z.string()),
     permissions: z.array(z.string()),
-    isRootUser: z.boolean(),
   })
   .openapi('MeResponse');
 
@@ -70,7 +69,6 @@ app.openapi(
         permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
           Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
         ),
-        isRootUser: (baUserResult.data?.username as string | null) === 'root',
       },
       200,
     );
@@ -161,7 +159,6 @@ app.openapi(
         permissions: (rolesResult.data ?? []).flatMap((r: { permissions: unknown[] }) =>
           Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
         ),
-        isRootUser: (baUserResult.data?.username as string | null) === 'root',
       },
       200,
     );

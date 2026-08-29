@@ -55,7 +55,7 @@ tags: [specs, admin, enrollment, renewals]
 | 操作 | 資料表                                                                           |
 | ---- | -------------------------------------------------------------------------------- |
 | 讀取 | `enrollments`, `renewal_requests`, `classes`, `fee_templates`, `billing_periods` |
-| 寫入 | `enrollments`, `renewal_requests`, `invoices` |
+| 寫入 | `enrollments`, `renewal_requests`, `invoices`                                    |
 
 ## PRD 參考
 

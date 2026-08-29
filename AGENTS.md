@@ -11,14 +11,14 @@
 
 ## Tech Stack
 
-| Layer     | Technology                                                                |
-| --------- | ------------------------------------------------------------------------- |
-| Frontend  | Angular 21（Standalone Components + Signals）                             |
-| UI        | PrimeNG 21 + PrimeIcons + `@primeuix/themes` Aura                         |
-| Backend   | Hono (apps/api) + Better Auth + Supabase (PostgreSQL, Storage)            |
-| Monorepo  | Nx（`apps/web`、`apps/api`；`packages/*` 是 TS path 別名，非 Nx project） |
-| Deploy    | Cloudflare Workers（API）+ Cloudflare Pages（Web）+ Supabase（DB）        |
-| Utilities | date-fns, xlsx, pdfmake, angularx-qrcode, html5-qrcode, Toast UI Editor   |
+| Layer     | Technology                                                                              |
+| --------- | --------------------------------------------------------------------------------------- |
+| Frontend  | Angular 21（Standalone Components + Signals）                                           |
+| UI        | PrimeNG 21 + PrimeIcons + `@primeuix/themes` Aura                                       |
+| Backend   | Hono (apps/api) + Better Auth + Supabase (PostgreSQL, Storage)                          |
+| Monorepo  | Nx（`apps/web`、`apps/api`；`packages/*` 是 TS path 別名，非 Nx project）               |
+| Deploy    | Cloudflare Workers（API）+ Cloudflare Pages（Web）+ Supabase（DB）                      |
+| Utilities | date-fns, xlsx, angularx-qrcode …（**完整清單看 `package.json`** —— 手抄必然腐化，c11） |
 
 ### Banned Approaches
 
@@ -40,20 +40,20 @@
 
 ## Commands
 
-| 任務               | 指令                                                 |
-| ------------------ | ---------------------------------------------------- |
-| 開發（web + api）  | `npm run dev`                                        |
-| 建置               | `npm run build`                                      |
-| 測試               | `npm test`                                           |
-| 型別檢查（api）    | `npx nx typecheck api`                               |
-| Harness + KB gate  | `npm run harness`                                    |
-| 兩者重生成         | `npm run harness:write`                              |
-| Harness 自我測試   | `npm run harness:test`                               |
-| KB 檢查 / 重建索引 | kb-wiki skill：`/kb-wiki lint` / `/kb-wiki map`      |
-| 重錄測試基線       | `npm run test:baseline`                              |
-| Supabase 本機      | `npm run db:start` / `db:reset`                      |
-| 新增 migration     | `npx supabase migration new <description>`           |
-| 產生元件等         | `npx ng g c foo --type component`（一律帶 `--type`） |
+| 任務               | 指令                                                                                      |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| 開發（web + api）  | `npm run dev`                                                                             |
+| 建置               | `npm run build`                                                                           |
+| 測試               | `npm test`                                                                                |
+| 型別檢查（api）    | `npx nx typecheck api`                                                                    |
+| Harness gate       | `npm run harness`（守 roadmap 現況表；**kb/ 的內容健康度**由 kb-wiki skill 的 lint 負責） |
+| 兩者重生成         | `npm run harness:write`                                                                   |
+| Harness 自我測試   | `npm run harness:test`                                                                    |
+| KB 檢查 / 重建索引 | kb-wiki skill：`/kb-wiki lint` / `/kb-wiki map`                                           |
+| 重錄測試基線       | `npm run test:baseline`                                                                   |
+| Supabase 本機      | `npm run db:start` / `db:reset`                                                           |
+| 新增 migration     | `npx supabase migration new <description>`                                                |
+| 產生元件等         | `npx ng g c foo --type component`（一律帶 `--type`）                                      |
 
 > `nx.json` 的 `defaultBase` 是 `dev`，但這個 branch 不存在 —— 跑 `nx affected` 一律自己帶
 > `--base=main`。
@@ -243,7 +243,7 @@ PostToolUse hook 會在每次編輯後自動跑，不用手動格式化。
 
 - 行為符合驗收條件
 - `npm test` 沒有新增紅燈（Stop hook 用 `test-baseline.json` 做基線比對，只擋這輪弄壞的）
-- `npm run harness` 綠（含 KB gate）
+- `npm run harness` 綠
 - `npx nx affected -t typecheck` 綠
 - 沒有新增 Banned Approaches 表裡的任何一項
 - 非顯而易見的新 pattern 有寫進 `kb/`

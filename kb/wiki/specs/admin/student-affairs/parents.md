@@ -3,7 +3,7 @@ title: 家長資料
 summary: 管理家長帳號，關聯學生，處理帳號相關操作。
 category: spec
 status: active
-updated: 2026-03-19
+updated: 2026-08-28
 tags: [specs, admin, student-affairs, parents]
 ---
 
@@ -21,7 +21,7 @@ tags: [specs, admin, student-affairs, parents]
 
 - 家長帳號由管理員後台建立，不提供自助註冊
 - 登入方式以 Email 優先；無 Email 時使用手機號碼作為 username（存入 `ba_user.username`）
-- 帳號建立時系統自動產生初始密碼，不使用 SMS OTP
+- 帳號建立時系統產生一次性登入連結（畫面顯示 QR），不使用 SMS OTP
 - Email 和手機號碼在整個系統內必須唯一（建立/更新時需檢查）
 
 ## MVP 功能
@@ -48,7 +48,7 @@ tags: [specs, admin, student-affairs, parents]
 
 - Email 和手機至少填一個，可同時填
 - Email/手機唯一性：若已被其他帳號使用，顯示「此 Email/手機已被使用」
-- 新增時系統自動產生隨機初始密碼
+- 新增時系統產生一次性登入連結
 
 **帳號建立流程（新增時）**：
 
@@ -56,7 +56,7 @@ tags: [specs, admin, student-affairs, parents]
 2. 後端呼叫 `Better Auth admin.createUser()` 建立 `ba_user`
 3. 同步建立 `parents` 記錄，關聯 `ba_user.id`
 4. 若有關聯學生，建立 `parent_student_relations` 記錄
-5. 回傳初始密碼（僅此時顯示一次），管理員據此產生帳號資訊卡
+5. 回傳一次性登入連結，畫面顯示 QR 讓家長當場用自己的手機掃
 
 ### 帳號狀態
 
@@ -72,28 +72,28 @@ tags: [specs, admin, student-affairs, parents]
 
 - `active` ↔ `inactive`：可雙向切換
 - `active` / `inactive` → `archived`：單向，無法透過 API 解除封存
-- 登入狀態由 `/api/login` 查 `parents.status` 判斷，非 active 一律拒絕
+- 登入狀態由 `authMiddleware` **每個請求**查 `parents.status` 判斷，非 active 一律拒絕（`/api/login` 已隨密碼登入一起移除）
 - 封存前 UI 需顯示確認警告
 
 ### 帳號管理功能
 
-| 功能           | 說明                                        | 實作方式                                                                   |
-| -------------- | ------------------------------------------- | -------------------------------------------------------------------------- |
-| 重設密碼       | 產生新的隨機密碼                            | `Better Auth admin.setPassword()`                                          |
-| 更換登入帳號   | 修改 Email 或手機                           | 更新 `ba_user`（email 透過 BA `updateUser`，phone 直接寫 `ba_user.phone`） |
-| 產生帳號資訊卡 | 顯示目前帳號 + 最新密碼（PDF 或可列印格式） | 前端產生，含補習班名稱、帳號、密碼、說明                                   |
-| 停用帳號       | 暫停登入權限，資料保留，可恢復              | `PATCH /deactivate`，更新 `parents.status = 'inactive'`                    |
-| 啟用帳號       | 恢復登入權限（從停用恢復）                  | `PATCH /activate`，更新 `parents.status = 'active'`                        |
-| 封存帳號       | 孩子已離校，單向封存，從預設列表隱藏        | `PATCH /archive`，更新 `parents.status = 'archived'`；前端需顯示警告       |
+| 功能         | 說明                                 | 實作方式                                                                   |
+| ------------ | ------------------------------------ | -------------------------------------------------------------------------- |
+| 產生登入連結 | 一次性、24 小時過期、單次使用        | `POST /api/login-links`（見 [[architecture/line-oauth-login]]）            |
+| 更換登入帳號 | 修改 Email 或手機                    | 更新 `ba_user`（email 透過 BA `updateUser`，phone 直接寫 `ba_user.phone`） |
+| 顯示 QR      | 把連結變成 QR，可瀏覽器列印          | `LoginLinkDialogComponent`                                                 |
+| 停用帳號     | 暫停登入權限，資料保留，可恢復       | `PATCH /deactivate`，更新 `parents.status = 'inactive'`                    |
+| 啟用帳號     | 恢復登入權限（從停用恢復）           | `PATCH /activate`，更新 `parents.status = 'active'`                        |
+| 封存帳號     | 孩子已離校，單向封存，從預設列表隱藏 | `PATCH /archive`，更新 `parents.status = 'archived'`；前端需顯示警告       |
 
-**重設密碼後**：新密碼必須顯示給管理員（提示「請記下或立刻產生帳號資訊卡」），不發送 email 通知（因為不一定有 email）。
+**這個系統沒有密碼**（見 [[architecture/line-oauth-login]]）。家長點一次性連結登入、
+綁定 LINE，之後直接用 LINE。
 
-**忘記初始密碼**：管理員隨時可重設密碼，重設後再次顯示新密碼並提供帳號資訊卡入口。
+**連結弄丟或過期**：管理員在家長頁按「產生登入連結」重發。連結會過期、只能用一次；
+密碼會被寫在便條紙上留著。
 
-### 忘記密碼邏輯
-
-- 有 Email 的家長：管理員透過 Better Auth 發送重設連結（或直接後台重設）
-- 沒有 Email 的家長：只能由管理員後台手動重設密碼
+**沒有 email 的家長**：不影響。magic-link 用的是佔位 email
+（`0912345678@phone.internal`），那個 domain 不存在於公開網路，而且我們從不寄信。
 
 ## 資料依賴
 
@@ -107,11 +107,10 @@ tags: [specs, admin, student-affairs, parents]
 - `parents.user_id` 為 NOT NULL，每筆家長記錄必須對應一個 BA 帳號；建立流程失敗時需 rollback（呼叫 `auth.api.removeUser()`）
 - `parents.status` 為 enum（`active / inactive / archived`），取代原本的 `is_active` 布林欄位
 - Email/手機唯一性在後端 API 層驗證，回傳明確錯誤訊息
-- 所有帳號操作（建立、重設密碼、停用/啟用/封存）記錄於稽核紀錄
+- 所有帳號操作（建立、停用/啟用/封存）記錄於稽核紀錄。**產生登入連結目前沒有寫稽核 —— 那是個缺口**（發放登入憑證卻不留紀錄）
 - Email/手機統一儲存在 `ba_user`（`ba_user.email`、`ba_user.phone`），`parents` 表不含這兩個欄位
 - phone 直接寫 `ba_user.phone`；email 透過 Better Auth `admin.updateUser()` 更新（BA 負責唯一性驗證）
-- 登入狀態不使用 `ba_user.banned`，由 `/api/login` 查 `parents.status` 判斷
-- 初始密碼建議格式：8 碼英數混合，可用 `crypto.randomBytes` 產生
+- 登入狀態不使用 `ba_user.banned`，由 `authMiddleware` 查 `parents.status` 判斷 —— 停用是**立即生效**的，不必等 session 過期
 
 ## 相關規則與流程
 

@@ -11,38 +11,36 @@
   </div>
 
   <div class="account-settings__section">
-    @if (!isRootUser()) {
-      <div class="form-dialog__field">
-        <label class="form-dialog__label">顯示名稱</label>
-        <div class="account-settings__input-row">
-          <input pInputText [(ngModel)]="displayName" [disabled]="saving()" />
-          <span class="account-settings__save-btn">
-            @if (savedField() === 'displayName') {
-              <p-button
-                icon="pi pi-check"
-                size="small"
-                severity="success"
-                [outlined]="true"
-                [disabled]="true"
-              />
-            } @else {
-              <p-button
-                label="儲存"
-                size="small"
-                severity="secondary"
-                [outlined]="true"
-                [loading]="savingField() === 'displayName'"
-                [disabled]="saving()"
-                (onClick)="saveDisplayName()"
-              />
-            }
-          </span>
-        </div>
-        @if (fieldError()?.field === 'displayName') {
-          <p class="account-settings__error">{{ fieldError()!.msg }}</p>
-        }
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">顯示名稱</label>
+      <div class="account-settings__input-row">
+        <input pInputText [(ngModel)]="displayName" [disabled]="saving()" />
+        <span class="account-settings__save-btn">
+          @if (savedField() === 'displayName') {
+            <p-button
+              icon="pi pi-check"
+              size="small"
+              severity="success"
+              [outlined]="true"
+              [disabled]="true"
+            />
+          } @else {
+            <p-button
+              label="儲存"
+              size="small"
+              severity="secondary"
+              [outlined]="true"
+              [loading]="savingField() === 'displayName'"
+              [disabled]="saving()"
+              (onClick)="saveDisplayName()"
+            />
+          }
+        </span>
       </div>
-    }
+      @if (fieldError()?.field === 'displayName') {
+        <p class="account-settings__error">{{ fieldError()!.msg }}</p>
+      }
+    </div>
 
     <div class="form-dialog__field">
       <label class="form-dialog__label">生日</label>

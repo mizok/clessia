@@ -1,6 +1,5 @@
 DO $$
 DECLARE
-    root_id UUID := '00000000-0000-0000-0000-000000000000';
     demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
     demo_admin_id UUID := '22222222-2222-2222-2222-222222222222';
     demo_admin_email TEXT := 'admin@demo.clessia.app';
@@ -39,11 +38,14 @@ DECLARE
     v_teacher_staff_id UUID;
 BEGIN
     -- 1. Insert users into Better Auth ba_user table
-    -- root: 保留這個使用者是為了本機開發方便（它有全部角色）。
-    -- 它**沒有密碼** —— 用 npm run login-link 產生連結登入。
+    -- 曾經有一個 `root` 超級帳號。**已移除**（2026-08-28）：
+    --   * 它沒有密碼（密碼登入整條路已刪）
+    --   * email 是 NULL，所以 `npm run login-link`（用 email 查人）對它無效
+    --   * `bootstrap-org.ts` 從來不建它 —— 正式站根本沒有這一列
+    -- 「超級帳號」這個概念因此**沒有任何實例**。破窗改由 login-link 提供，
+    -- 而且那個設計更好：客戶換掉 DATABASE_URL 就能撤銷供應商的存取（c12）。
     INSERT INTO public.ba_user (id, name, email, "emailVerified", username, "orgId", "createdAt", "updatedAt")
     VALUES
-        (root_id::text, 'Super Admin', NULL, false, 'root', NULL, NOW(), NOW()),
         (demo_admin_id::text, 'Demo Admin', demo_admin_email, true, 'demo_admin', NULL, NOW(), NOW())
     ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
@@ -60,7 +62,7 @@ BEGIN
     --       root 密碼都一樣 —— 一間補習班的資料庫外洩，等於所有客戶的最高權限
     --       一起外洩
     --
-    -- 本機開發要登入：`LOGIN_EMAIL=... npm run login-link` 產生一次性連結。
+    -- 本機開發要登入：`LOGIN_EMAIL=admin@demo.clessia.app npm run login-link` 產生一次性連結。
     -- 跟正式環境同一條路，不必為本機另外維護一套。
 
     -- 3. Insert demo organization
@@ -74,23 +76,19 @@ BEGIN
     -- 4. Update Better Auth users orgId after organization is created
     UPDATE public.ba_user
     SET "orgId" = demo_org_id
-    WHERE id IN (root_id::text, demo_admin_id::text);
+    WHERE id = demo_admin_id::text;
 
     -- 5. Ensure profiles exist with org_id (must be before user_roles due to FK)
     INSERT INTO public.profiles (id, display_name, org_id)
     VALUES
-        (root_id, 'root', demo_org_id),
         (demo_admin_id, 'Demo Admin', demo_org_id)
     ON CONFLICT (id) DO UPDATE SET
         display_name = EXCLUDED.display_name,
         org_id = EXCLUDED.org_id;
 
-    -- 6. Insert root/demo user_roles
+    -- 6. Insert demo user_roles
     INSERT INTO public.user_roles (user_id, role, permissions)
     VALUES
-        (root_id::text, 'admin', '["*"]'::jsonb),
-        (root_id::text, 'teacher', '[]'::jsonb),
-        (root_id::text, 'parent', '[]'::jsonb),
         (demo_admin_id::text, 'admin', '["*"]'::jsonb)
     ON CONFLICT (user_id, role) DO UPDATE SET
         permissions = EXCLUDED.permissions;

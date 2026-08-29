@@ -4,7 +4,7 @@ summary: 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能
 category: architecture
 tags: [architecture, deployment, cloudflare, supabase]
 status: active
-updated: 2026-08-24
+updated: 2026-08-28
 ---
 
 # 部署
@@ -41,7 +41,23 @@ node --import tsx apps/api/src/server.ts
 npx wrangler secret put SUPABASE_SECRET_KEY --env production
 npx wrangler secret put BETTER_AUTH_SECRET --env production
 npx wrangler secret put DATABASE_URL --env production
+npx wrangler secret put LINE_CLIENT_SECRET --env production
 ```
+
+非機密的部署值用 `--var` 在部署時傳（不寫進 `wrangler.toml`，每個客戶不同）：
+
+```bash
+npx wrangler deploy --env production \
+  --var SUPABASE_URL:https://<ref>.supabase.co \
+  --var BETTER_AUTH_URL:https://<你的網域> \
+  --var WEB_URL:https://<你的網域> \
+  --var ALLOWED_ORIGINS: \
+  --var LINE_CLIENT_ID:<Channel ID>
+```
+
+> ⚠️ **忘記帶 `LINE_CLIENT_ID` 就沒有人能登入。** `socialProvidersFromEnv` 少一個變數
+> 就整個不設定 provider，登入頁的 LINE 按鈕會**靜默失效**，而且沒有任何錯誤指向設定缺失。
+> 唯一的退路是 `npm run login-link`。
 
 本機開發放 `apps/api/.dev.vars`（已 gitignore）。
 
@@ -120,12 +136,17 @@ Worker route 的優先權高於 Pages，所以 `/api/*` 會被 Worker 接走，�
 
 1. **建 Supabase 專案**、拿 service role key 與 connection string
 2. **`npx supabase link --project-ref <ref>`** 然後 `supabase db push` 套用 migration
-3. **`npx wrangler login`**、`wrangler secret put`（上面三個）
-4. **決定網域**與 Cloudflare 帳號歸屬
-5. **`npm run bootstrap`** 建組織與第一個管理員（見 [[architecture/bootstrapping-a-deployment]]）
+3. **`npx wrangler login`**、`wrangler secret put`（上面四個）
+4. **決定網域**與 Cloudflare 帳號歸屬。在 Dashboard 掛上：
+   Pages 的 custom domain（`<網域>`）與 Worker 的 **route**（`<網域>/api/*`，
+   **不是 custom domain** —— 那會接管整個 hostname 把前端吃掉）
+5. **申請 LINE Developers channel**，把 Callback URL 設成
+   `https://<網域>/api/auth/callback/line`
+6. **`npm run bootstrap`** 建組織與第一個管理員（見 [[architecture/bootstrapping-a-deployment]]）
+7. 用它印出的**一次性登入連結**登入，在畫面上綁定 LINE
 
 ## 已知待處理
 
 - **initial bundle 超出 500 kB 的預算**（`apps/web/project.json` 的 `maximumWarning`）。目前只是警告，但那是真的大。跑 `npx nx build web --configuration=production` 看現值 —— **不在這裡抄數字**（c11）。
-  多數來自 PrimeNG 與 pdfmake / xlsx —— 值得檢查有沒有被不必要地打進 initial chunk
+  多數來自 PrimeNG 與 xlsx —— 值得檢查有沒有被不必要地打進 initial chunk（`pdfmake` 已於 2026-08 移除）
 - **Supabase 免費方案閒置 7 天會暫停**。天天用不會碰到；先開著給人看會踩到

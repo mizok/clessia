@@ -76,8 +76,8 @@ tags: [specs, admin, student-affairs, attendance]
 
 ## 資料依賴
 
-| 操作 | 資料表                                                          |
-| ---- | --------------------------------------------------------------- |
+| 操作 | 資料表                                                                 |
+| ---- | ---------------------------------------------------------------------- |
 | 讀取 | `sessions`, `attendance_records`, `students`, `classes`, `enrollments` |
 | 寫入 | `attendance_records`                                                   |
 

@@ -1,9 +1,9 @@
 ---
 title: 角色授權的設計
-summary: 18 支 route 只驗身分不看角色。改成掛載時強制宣告可用角色、沒宣告就拒絕，並用 harness gate 守住。分兩層：route 層准入、資料層範圍。
+summary: 掛載的 route 曾經只驗身分不看角色。改成掛載時強制宣告可用角色、沒宣告就拒絕，並用 harness gate 守住。分兩層：route 層准入、資料層範圍。
 category: architecture
 status: active
-updated: 2026-08-16
+updated: 2026-08-28
 tags: [architecture, role-authorization]
 ---
 
@@ -82,14 +82,15 @@ DELETE 只給 admin）就在該 route 檔內再加一道，收斂但不放寬。
 
 **只開現在真的有頁面在用的**，不照規格預先開：
 
-| Route           | admin | teacher | parent | 依據                                            |
-| --------------- | ----- | ------- | ------ | ----------------------------------------------- |
-| `me`            | ✅    | ✅      | ✅     | 每個人都要知道自己是誰                          |
-| `attendance`    | ✅    | ✅      | —      | `teacher/schedule` 的課表與點名面板             |
-| `org`           | ✅    | ✅      | —      | 同上，判斷該不該讓老師點名、能不能補點          |
-| `students`      | ✅    | ✅      | —      | `teacher/students` 老師看自己任課班級的學生     |
-| `announcements` | ✅    | ✅      | ✅     | 站內公告；發布與管理端列表在 route 內另擋 admin |
-| 其餘            | ✅    | —       | —      | 目前沒有任何 teacher/parent 頁面用得到          |
+| Route           | admin | teacher | parent | 依據                                                                                               |
+| --------------- | ----- | ------- | ------ | -------------------------------------------------------------------------------------------------- |
+| `me`            | ✅    | ✅      | ✅     | 每個人都要知道自己是誰                                                                             |
+| `attendance`    | ✅    | ✅      | —      | `teacher/schedule` 的課表與點名面板                                                                |
+| `org`           | ✅    | ✅      | —      | 同上，判斷該不該讓老師點名、能不能補點                                                             |
+| `students`      | ✅    | ✅      | —      | `teacher/students` 老師看自己任課班級的學生                                                        |
+| `announcements` | ✅    | ✅      | ✅     | 站內公告；發布與管理端列表在 route 內另擋 admin                                                    |
+| `login-links`   | ✅    | —       | —      | **產生一次性登入連結**。這個系統沒有密碼，連結就是憑證 —— 跨組織的檢查在 `decideLoginLinkTarget()` |
+| 其餘            | ✅    | —       | —      | 目前沒有任何 teacher/parent 頁面用得到                                                             |
 
 > 這張表是「哪個角色能呼叫哪支 API」的唯一速查，**漏一列等於少記一個對外開口**。
 > 真相在 `apps/api/src/index.ts` 的 `mount()` 呼叫，harness gate A7 會擋沒宣告 roles 的掛載，

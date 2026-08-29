@@ -54,7 +54,7 @@ tags: [specs, admin, enrollment, trials]
 | 操作 | 資料表                                  |
 | ---- | --------------------------------------- |
 | 讀取 | `trial_requests`, `courses`, `sessions` |
-| 寫入 | `trial_requests` |
+| 寫入 | `trial_requests`                        |
 
 ## PRD 參考
 
