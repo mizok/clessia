@@ -84,15 +84,6 @@ CREATE TRIGGER fee_templates_updated_at
 ALTER TABLE public.billing_periods ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fee_templates ENABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- audit_logs 的 resource_type 清單加入兩種新資源
--- ============================================================
-ALTER TABLE public.audit_logs DROP CONSTRAINT audit_logs_resource_type_check;
-ALTER TABLE public.audit_logs ADD CONSTRAINT audit_logs_resource_type_check
-  CHECK (
-    resource_type IN (
-      'class','course','campus','staff','session','student','parent',
-      'enrollment','attendance','leave','academy_exam','school_exam','school',
-      'billing_period','fee_template'
-    )
-  );
+-- audit_logs 的 resource_type 清單**不在這支**動 —— 見
+-- 20260829110000_audit_logs_billing_resource_types.sql。理由寫在那支的檔頭：
+-- B 軌（聯絡簿／教務日誌）的 migration 時間戳比這支晚，會覆蓋這裡設的清單。

@@ -13,6 +13,8 @@ type ResourceType =
   | 'academy_exam'
   | 'school_exam'
   | 'school'
+  | 'contact_book_entry'
+  | 'class_log'
   | 'billing_period'
   | 'fee_template';
 

@@ -167,13 +167,21 @@ const AREAS = [
     specs: ['admin/system/settings.md'],
   },
   {
-    // MVP 明列但磁碟上完全不存在 —— 沒有頁面、route、schema，只在 5 份規格裡被順帶提到。
-    // 這種項目一定要手寫進藍圖，否則「規劃了但還沒開始」這個訊號在生成表裡永遠不會出現。
+    // 個人聯絡簿（學生 × 日期，國小模式）。P1 做了 schema + API，前端是 P2/P3。
+    // 規則見 kb/wiki/rules/contact-book-rules.md。
     name: '聯絡簿',
     pages: [],
-    routes: [],
+    routes: ['contact-book'],
     specs: [],
-    planned: true,
+  },
+  {
+    // 教務日誌（班級 × 日期，國中模式）——「聯絡簿」的同名異物，粒度完全不同，
+    // 所以是獨立功能區。規則見 kb/wiki/rules/teaching-log-rules.md。
+    // 家長端可見、LINE 推播與群組組稿都在 P4，這裡只到 published_at 為止。
+    name: '教務日誌',
+    pages: [],
+    routes: ['class-logs'],
+    specs: [],
   },
   {
     name: '身分與稽核',

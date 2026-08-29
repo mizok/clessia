@@ -1252,3 +1252,83 @@ BEGIN
 
   RAISE NOTICE 'Exam seed data inserted successfully';
 END $$;
+
+-- ===== 聯絡簿與教務日誌 seed =====
+-- 數學班 A 開聯絡簿（國小模式），英文班 B 不開（國中模式，只寫教務日誌）——
+-- 這樣 demo 環境裡兩種模式同時看得到。
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  demo_admin_id UUID := '22222222-2222-2222-2222-222222222222';
+  math_teacher_user_id TEXT := '40000000-0000-0000-0000-000000000003';
+  english_teacher_user_id TEXT := '40000000-0000-0000-0000-000000000002';
+  math_class_id UUID := '62000000-0000-0000-0000-000000000001';
+  english_class_id UUID := '62000000-0000-0000-0000-000000000002';
+  s_id UUID;
+  i INT;
+  published_log_id UUID;
+BEGIN
+  -- 只有數學班用個人聯絡簿
+  UPDATE public.classes
+  SET uses_contact_book = TRUE
+  WHERE id = math_class_id AND org_id = demo_org_id;
+
+  -- 聯絡簿：學生 1-3，昨天與今天各一則。第 1 位學生的昨天那則已被家長簽收，
+  -- 好讓老師端的「已簽收」欄位有東西可顯示。
+  FOR i IN 1..3 LOOP
+    s_id := format('61000000-0000-0000-0000-%s', lpad(i::text, 12, '0'))::uuid;
+
+    INSERT INTO public.contact_book_entries
+      (org_id, student_id, entry_date, content, last_edited_by, signed_by, signed_at)
+    VALUES
+      (
+        demo_org_id, s_id, CURRENT_DATE - 1,
+        format('今天上課專心，數學小考 %s 分。回家記得複習第三章。', 70 + i * 5),
+        math_teacher_user_id,
+        CASE WHEN i = 1 THEN demo_admin_id::text ELSE NULL END,
+        CASE WHEN i = 1 THEN NOW() - INTERVAL '6 hours' ELSE NULL END
+      ),
+      (
+        demo_org_id, s_id, CURRENT_DATE,
+        '上課狀況良好，作業都有完成。',
+        math_teacher_user_id, NULL, NULL
+      )
+    ON CONFLICT (student_id, entry_date) DO NOTHING;
+  END LOOP;
+
+  -- 教務日誌：數學班已發布（家長端看得到）、英文班還是草稿
+  INSERT INTO public.class_logs
+    (org_id, class_id, log_date, teaching_record, homework, last_edited_by, published_at)
+  VALUES
+    (
+      demo_org_id, math_class_id, CURRENT_DATE - 1,
+      '第三章 一元二次方程式：配方法與公式解。班上普遍卡在判別式。',
+      '習作 p.42-45，週四小考範圍到 3-2。',
+      math_teacher_user_id, NOW() - INTERVAL '1 day'
+    ),
+    (
+      demo_org_id, english_class_id, CURRENT_DATE,
+      '第五課單字與現在完成式。',
+      '單字表抄兩遍，課本 p.88 練習題。',
+      english_teacher_user_id, NULL
+    )
+  ON CONFLICT (class_id, log_date) DO NOTHING;
+
+  -- 已發布那篇的「已閱」：學生 1 的家長按過（org 開關預設關，
+  -- 但資料先有，開了就看得到）
+  SELECT id INTO published_log_id
+  FROM public.class_logs
+  WHERE org_id = demo_org_id AND class_id = math_class_id AND log_date = CURRENT_DATE - 1;
+
+  IF published_log_id IS NOT NULL THEN
+    INSERT INTO public.log_acknowledgements (class_log_id, student_id, acknowledged_by)
+    VALUES (
+      published_log_id,
+      '61000000-0000-0000-0000-000000000001'::uuid,
+      demo_admin_id::text
+    )
+    ON CONFLICT (class_log_id, student_id) DO NOTHING;
+  END IF;
+
+  RAISE NOTICE 'Contact book / class log seed data inserted successfully';
+END $$;
