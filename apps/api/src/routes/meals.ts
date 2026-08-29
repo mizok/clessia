@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
+import { summariseMealRecords, type MealAmountRow } from '../lib/meal-summary';
 
 /**
  * 餐務：每日名單。
@@ -19,6 +20,13 @@ const MealRosterRowSchema = z
   .object({
     studentId: z.uuid(),
     studentName: z.string(),
+    /**
+     * 班級脈絡。**是陣列不是單一字串** —— 一個學生同一天可能在兩個有課的班，
+     * 而餐記錄是 `UNIQUE (student_id, meal_date)`：一天一筆便當，不分班。
+     * 跟 `/api/contact-book/missing` 的 `classes` 同一個道理。
+     */
+    classNames: z.array(z.string()),
+    mealDate: z.string(),
     /** 這個學生預設訂不訂餐（opt-in） */
     mealDefault: z.boolean(),
     /** 已經有記錄的話帶出來，沒有就是 null（還沒處理） */
@@ -26,10 +34,21 @@ const MealRosterRowSchema = z
     ordered: z.boolean().nullable(),
     chargeable: z.boolean().nullable(),
     unitPrice: z.number().nullable(),
+    note: z.string().nullable(),
     /** 已結算的記錄鎖住，要改走帳單作廢或下期 adjustment（規則 2） */
     settled: z.boolean(),
   })
   .openapi('MealRosterRow');
+
+const MealSummarySchema = z
+  .object({
+    total: z.number(),
+    chargeableCount: z.number(),
+    /** 區間內要收費的金額加總。**後端算的** —— 不要抓單頁明細自己加 */
+    totalAmount: z.number(),
+    settledCount: z.number(),
+  })
+  .openapi('MealSummary');
 
 const ErrorSchema = z
   .object({ error: z.string(), code: z.string().optional() })
@@ -38,15 +57,38 @@ const ErrorSchema = z
 const app = new OpenAPIHono<AppEnv>();
 
 // ============================================================
-// GET /api/meals?date=YYYY-MM-DD —— 當日名單
+// ============================================================
+// GET /api/meals
+//
+// **兩種模式，回的是同一種列**：
+//   `date=`                    → 當日名單：課表候選 + 既有記錄（候選還沒處理的
+//                                recordId 是 null）
+//   `dateFrom=` / `dateTo=`    → 區間查詢：只回**實際存在的餐記錄**
+//
+// 區間模式沒有「候選」的概念 —— 要知道三個月前的某一天誰「應該」訂餐，得把當天的
+// 課表重新推導一次，那既昂貴又沒有用（過去的名單就是那些記錄）。這個不對稱是刻意的，
+// 列的形狀刻意保持一致，讓前端可以共用同一個 row 元件。
+//
+// `meta` 的金額與筆數是**整個區間**算的，不是當頁 —— spec 明說「總數取後端的
+// meta.total，不要抓單頁明細自己加，量大的月份會悄悄少算而且錯得沒有徵兆」。
+// 所以分頁用 DB 的 range，而 summary 另外撈整段（只取三個欄位）。
 // ============================================================
 app.openapi(
   createRoute({
     method: 'get',
     path: '/',
     tags: ['Meals'],
-    summary: '某一天的訂餐名單（課表候選 + 既有記錄）',
-    request: { query: z.object({ date: z.string().regex(DATE) }) },
+    summary: '訂餐名單（單日）或餐記錄查詢（區間）',
+    request: {
+      query: z.object({
+        date: z.string().regex(DATE).optional(),
+        dateFrom: z.string().regex(DATE).optional(),
+        dateTo: z.string().regex(DATE).optional(),
+        studentId: z.uuid().optional(),
+        page: z.string().optional(),
+        pageSize: z.string().optional(),
+      }),
+    },
     responses: {
       200: {
         description: '成功',
@@ -55,26 +97,105 @@ app.openapi(
             schema: z.object({
               data: z.array(MealRosterRowSchema),
               defaultUnitPrice: z.number(),
+              meta: MealSummarySchema.extend({ page: z.number(), pageSize: z.number() }),
             }),
           },
         },
       },
+      400: { description: '參數錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const { date } = c.req.valid('query');
+    const params = c.req.valid('query');
 
-    const [{ data: org }, { data: sessionRows }, { data: recordRows }] = await Promise.all([
-      supabase.from('organizations').select('meal_default_price').eq('id', orgId).maybeSingle(),
-      supabase.from('sessions').select('class_id').eq('org_id', orgId).eq('session_date', date),
-      supabase.from('meal_records').select('*').eq('org_id', orgId).eq('meal_date', date),
-    ]);
+    const rangeMode = Boolean(params.dateFrom || params.dateTo);
+    if (!params.date && !rangeMode) {
+      return c.json({ error: '需要 date 或 dateFrom/dateTo', code: 'MISSING_RANGE' }, 400);
+    }
 
+    const from = rangeMode ? (params.dateFrom ?? params.dateTo!) : params.date!;
+    const to = rangeMode ? (params.dateTo ?? params.dateFrom!) : params.date!;
+    const page = Math.max(1, Number(params.page ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(params.pageSize ?? 100)));
+
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('meal_default_price')
+      .eq('id', orgId)
+      .maybeSingle();
     const defaultUnitPrice = Number(
       (org as { meal_default_price?: number } | null)?.meal_default_price ?? 0,
     );
+
+    // 整段的統計：只取算得到金額的三個欄位，不撈明細
+    let summaryQuery = supabase
+      .from('meal_records')
+      .select('ordered, chargeable, unit_price, invoice_item_id')
+      .eq('org_id', orgId)
+      .gte('meal_date', from)
+      .lte('meal_date', to);
+    if (params.studentId) summaryQuery = summaryQuery.eq('student_id', params.studentId);
+
+    // 明細
+    let recordQuery = supabase
+      .from('meal_records')
+      .select('*, students(name)')
+      .eq('org_id', orgId)
+      .gte('meal_date', from)
+      .lte('meal_date', to);
+    if (params.studentId) recordQuery = recordQuery.eq('student_id', params.studentId);
+    if (rangeMode) recordQuery = recordQuery.range((page - 1) * pageSize, page * pageSize - 1);
+
+    const [{ data: summaryRows }, { data: recordRows }] = await Promise.all([
+      summaryQuery,
+      recordQuery.order('meal_date', { ascending: false }),
+    ]);
+
+    const summary = summariseMealRecords(
+      ((summaryRows ?? []) as unknown as Record<string, unknown>[]).map((row): MealAmountRow => ({
+        ordered: Boolean(row['ordered']),
+        chargeable: Boolean(row['chargeable']),
+        unitPrice: Number(row['unit_price']),
+        settled: Boolean(row['invoice_item_id']),
+      })),
+    );
+
+    const records = ((recordRows ?? []) as unknown as Record<string, unknown>[]).map((row) => ({
+      studentId: row['student_id'] as string,
+      studentName: (row['students'] as { name?: string } | null)?.name ?? '',
+      mealDate: row['meal_date'] as string,
+      recordId: row['id'] as string,
+      ordered: row['ordered'] as boolean,
+      chargeable: row['chargeable'] as boolean,
+      unitPrice: Number(row['unit_price']),
+      note: (row['note'] as string | null) ?? null,
+      settled: Boolean(row['invoice_item_id']),
+    }));
+
+    // ── 區間模式：只回實際記錄 ────────────────────────────────
+    if (rangeMode) {
+      return c.json(
+        {
+          data: records.map((record) => ({
+            ...record,
+            classNames: [],
+            mealDefault: false,
+          })),
+          defaultUnitPrice,
+          meta: { ...summary, page, pageSize },
+        },
+        200,
+      );
+    }
+
+    // ── 單日模式：課表候選 + 既有記錄 ─────────────────────────
+    const { data: sessionRows } = await supabase
+      .from('sessions')
+      .select('class_id')
+      .eq('org_id', orgId)
+      .eq('session_date', from);
 
     const classIds = Array.from(
       new Set(
@@ -82,55 +203,61 @@ app.openapi(
       ),
     );
 
-    // 候選名單 = 當天有課的班裡，還在讀的學生
-    let candidates: Array<{ studentId: string; studentName: string; mealDefault: boolean }> = [];
+    const candidates = new Map<
+      string,
+      { studentId: string; studentName: string; mealDefault: boolean; classNames: string[] }
+    >();
+
     if (classIds.length > 0) {
       const { data: enrollmentRows } = await supabase
         .from('enrollments')
-        .select('student_id, students(name, meal_default)')
+        .select('student_id, students(name, meal_default), classes(name)')
         .eq('org_id', orgId)
         .eq('status', 'active')
         .in('class_id', classIds);
 
-      const seen = new Set<string>();
-      for (const row of enrollmentRows ?? []) {
-        const record = row as Record<string, unknown>;
-        const studentId = record['student_id'] as string;
-        if (seen.has(studentId)) continue;
-        seen.add(studentId);
-        const student = record['students'] as { name?: string; meal_default?: boolean } | null;
-        candidates.push({
+      for (const row of (enrollmentRows ?? []) as unknown as Record<string, unknown>[]) {
+        const studentId = row['student_id'] as string;
+        const student = row['students'] as { name?: string; meal_default?: boolean } | null;
+        const className = (row['classes'] as { name?: string } | null)?.name ?? '';
+
+        const existing = candidates.get(studentId);
+        if (existing) {
+          // 一天可能在兩個有課的班，但便當只有一份 —— 併進同一列的班級脈絡
+          if (className && !existing.classNames.includes(className)) {
+            existing.classNames.push(className);
+          }
+          continue;
+        }
+
+        candidates.set(studentId, {
           studentId,
           studentName: student?.name ?? '',
           mealDefault: Boolean(student?.meal_default),
+          classNames: className ? [className] : [],
         });
       }
-      candidates = candidates.sort((a, b) => a.studentName.localeCompare(b.studentName, 'zh-Hant'));
     }
 
-    const byStudent = new Map<string, Record<string, unknown>>();
-    for (const row of recordRows ?? []) {
-      const record = row as Record<string, unknown>;
-      byStudent.set(record['student_id'] as string, record);
-    }
+    const byStudent = new Map(records.map((record) => [record.studentId, record]));
 
-    return c.json(
-      {
-        data: candidates.map((candidate) => {
-          const record = byStudent.get(candidate.studentId);
-          return {
-            ...candidate,
-            recordId: (record?.['id'] as string | undefined) ?? null,
-            ordered: record ? (record['ordered'] as boolean) : null,
-            chargeable: record ? (record['chargeable'] as boolean) : null,
-            unitPrice: record ? Number(record['unit_price']) : null,
-            settled: Boolean(record?.['invoice_item_id']),
-          };
-        }),
-        defaultUnitPrice,
-      },
-      200,
-    );
+    const roster = Array.from(candidates.values())
+      .sort((a, b) => a.studentName.localeCompare(b.studentName, 'zh-Hant'))
+      .map((candidate) => {
+        const record = byStudent.get(candidate.studentId);
+        return {
+          ...candidate,
+          mealDate: from,
+          recordId: record?.recordId ?? null,
+          ordered: record ? record.ordered : null,
+          chargeable: record ? record.chargeable : null,
+          unitPrice: record ? record.unitPrice : null,
+          note: record?.note ?? null,
+          settled: record?.settled ?? false,
+        };
+      });
+
+    return c.json({ data: roster, defaultUnitPrice, meta: { ...summary, page, pageSize } }, 200);
   },
 );
 
@@ -160,6 +287,7 @@ app.openapi(
                     ordered: z.boolean(),
                     chargeable: z.boolean().optional(),
                     unitPrice: z.number().int().min(0).optional(),
+                    note: z.string().nullable().optional(),
                   }),
                 )
                 .min(1)
@@ -223,6 +351,7 @@ app.openapi(
           ordered: row.ordered,
           chargeable: row.chargeable ?? true,
           unit_price: row.unitPrice ?? defaultPrice,
+          note: row.note ?? null,
           created_by: userId,
         })),
         { onConflict: 'student_id,meal_date' },
