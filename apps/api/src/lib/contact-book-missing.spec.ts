@@ -9,11 +9,18 @@ const candidate = (studentId: string, studentName: string, classId: string, clas
   className,
 });
 
+/** 當日排定的課。status 不是 cancelled 就算「今天有課」 */
+const session = (classId: string, status = 'scheduled') => ({ classId, status });
+
+/** 兩個班當天都有課 —— 多數案例的預設情境 */
+const bothHaveClass = [session('c1'), session('c2')];
+
 describe('missingContactBookStudents', () => {
   it('沒寫的學生會出現在缺漏名單', () => {
     const missing = missingContactBookStudents(
       [candidate('s1', '王小明', 'c1', '國小三年級 A 班')],
       new Set(),
+      bothHaveClass,
     );
 
     expect(missing).toHaveLength(1);
@@ -23,7 +30,11 @@ describe('missingContactBookStudents', () => {
 
   it('寫過的學生不會出現', () => {
     expect(
-      missingContactBookStudents([candidate('s1', '王小明', 'c1', 'A 班')], new Set(['s1'])),
+      missingContactBookStudents(
+        [candidate('s1', '王小明', 'c1', 'A 班')],
+        new Set(['s1']),
+        bothHaveClass,
+      ),
     ).toEqual([]);
   });
 
@@ -40,6 +51,7 @@ describe('missingContactBookStudents', () => {
     const missing = missingContactBookStudents(
       [candidate('s1', '王小明', 'c1', 'A 班'), candidate('s1', '王小明', 'c2', 'B 班')],
       new Set(),
+      bothHaveClass,
     );
 
     expect(missing).toHaveLength(1);
@@ -54,6 +66,7 @@ describe('missingContactBookStudents', () => {
       missingContactBookStudents(
         [candidate('s1', '王小明', 'c1', 'A 班'), candidate('s1', '王小明', 'c2', 'B 班')],
         new Set(['s1']),
+        bothHaveClass,
       ),
     ).toEqual([]);
   });
@@ -62,6 +75,7 @@ describe('missingContactBookStudents', () => {
     const missing = missingContactBookStudents(
       [candidate('s1', '王小明', 'c1', 'A 班'), candidate('s1', '王小明', 'c1', 'A 班')],
       new Set(),
+      bothHaveClass,
     );
 
     expect(missing[0]?.classes).toHaveLength(1);
@@ -72,12 +86,55 @@ describe('missingContactBookStudents', () => {
     const missing = missingContactBookStudents(
       [candidate('s2', '陳小華', 'c1', 'A 班'), candidate('s1', '王小明', 'c1', 'A 班')],
       new Set(),
+      bothHaveClass,
     );
 
     expect(missing.map((row) => row.studentName)).toEqual(['王小明', '陳小華']);
   });
 
   it('沒有候選人就是空名單', () => {
-    expect(missingContactBookStudents([], new Set())).toEqual([]);
+    expect(missingContactBookStudents([], new Set(), bothHaveClass)).toEqual([]);
+  });
+
+  /**
+   * **「今天該寫」綁的是「這個班今天有課」。**
+   *
+   * 聯絡簿跟著上課日走 —— 小孩有來才有當天那一則。不看課表的話，週末、寒暑假、
+   * 或單純那天沒課，缺漏名單會是滿的，而這個端點的消費場景就是行政的當日待辦，
+   * 滿名單等於整頁噪音。
+   */
+  it('當日沒課的班不產生缺漏', () => {
+    expect(
+      missingContactBookStudents([candidate('s1', '王小明', 'c1', 'A 班')], new Set(), []),
+    ).toEqual([]);
+  });
+
+  // 停課那天沒有人來上課，自然也沒有那一則要寫
+  it('停課不算有課', () => {
+    expect(
+      missingContactBookStudents([candidate('s1', '王小明', 'c1', 'A 班')], new Set(), [
+        session('c1', 'cancelled'),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('已上完的課算有課', () => {
+    expect(
+      missingContactBookStudents([candidate('s1', '王小明', 'c1', 'A 班')], new Set(), [
+        session('c1', 'completed'),
+      ]),
+    ).toHaveLength(1);
+  });
+
+  // 跨兩班、只有一班今天有課 —— 還是要寫那一則，但脈絡只列有課的那班
+  it('跨兩班時只列出當天有課的那一班', () => {
+    const missing = missingContactBookStudents(
+      [candidate('s1', '王小明', 'c1', 'A 班'), candidate('s1', '王小明', 'c2', 'B 班')],
+      new Set(),
+      [session('c2')],
+    );
+
+    expect(missing).toHaveLength(1);
+    expect(missing[0]?.classes).toEqual([{ classId: 'c2', className: 'B 班' }]);
   });
 });

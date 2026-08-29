@@ -8,6 +8,10 @@
  * 一則之後還會有一列賴著不走。
  *
  * 班級是**脈絡**不是分組鍵 —— 要知道去哪裡找這個小孩，所以收在同一列的 `classes` 裡。
+ *
+ * **「今天該寫」綁的是「這個班今天有課」。** 聯絡簿跟著上課日走（小孩有來才有當天
+ * 那一則），所以當日沒課、或那堂停課的班不列入。不這樣做的話週末與寒暑假的缺漏名單
+ * 會是滿的，而這個端點的消費場景就是行政的當日待辦。
  */
 
 export interface ContactBookCandidate {
@@ -23,14 +27,27 @@ export interface MissingContactBookStudent {
   classes: Array<{ classId: string; className: string }>;
 }
 
+export interface SessionOnDate {
+  classId: string;
+  /** `sessions.status`：scheduled / completed / cancelled */
+  status: string;
+}
+
 export function missingContactBookStudents(
   candidates: ContactBookCandidate[],
   writtenStudentIds: ReadonlySet<string>,
+  sessionsOnDate: ReadonlyArray<SessionOnDate>,
 ): MissingContactBookStudent[] {
+  // 停課那天沒有人來上課，自然也沒有那一則要寫 —— 其餘狀態（scheduled / completed）都算
+  const classesWithClass = new Set(
+    sessionsOnDate.filter((s) => s.status !== 'cancelled').map((s) => s.classId),
+  );
+
   const byStudent = new Map<string, MissingContactBookStudent>();
 
   for (const candidate of candidates) {
     if (writtenStudentIds.has(candidate.studentId)) continue;
+    if (!classesWithClass.has(candidate.classId)) continue;
 
     const existing = byStudent.get(candidate.studentId);
     if (!existing) {

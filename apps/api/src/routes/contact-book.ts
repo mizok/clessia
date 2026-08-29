@@ -315,6 +315,7 @@ app.openapi(
     const [
       { data: candidateRows, error: candidateError },
       { data: writtenRows, error: writtenError },
+      { data: sessionRows, error: sessionError },
     ] = await Promise.all([
       candidateQuery,
       supabase
@@ -322,9 +323,15 @@ app.openapi(
         .select('student_id')
         .eq('org_id', orgId)
         .eq('entry_date', date),
+      // 「今天該寫」綁的是「這個班今天有課」—— 停課與非上課日不列入
+      supabase
+        .from('sessions')
+        .select('class_id, status')
+        .eq('org_id', orgId)
+        .eq('session_date', date),
     ]);
 
-    if (candidateError || writtenError) {
+    if (candidateError || writtenError || sessionError) {
       return c.json({ error: '讀取聯絡簿缺漏名單失敗', code: 'DB_ERROR' }, 500);
     }
 
@@ -343,7 +350,11 @@ app.openapi(
       ),
     );
 
-    const missing = missingContactBookStudents(candidates, written);
+    const sessionsOnDate = ((sessionRows ?? []) as unknown as Record<string, unknown>[]).map(
+      (row) => ({ classId: row['class_id'] as string, status: row['status'] as string }),
+    );
+
+    const missing = missingContactBookStudents(candidates, written, sessionsOnDate);
 
     return c.json({ data: missing, meta: { total: missing.length } }, 200);
   },
