@@ -1,11 +1,25 @@
 // 不再 `@use '../../shared/auth-form'` —— 新版面用自己的卡片，
 // 而那份 partial 會被整份編進元件樣式（276 行），留著等於白背。
 
+// 這支元件的 host 會被 `.u-fill-route-child > *` 撐滿路由容器的高度
+// （父是 column flex），所以置中要由 host 自己做 —— `.login` 的 `margin: auto`
+// 在 block 佈局下垂直方向會被算成 0，那正是卡片曾經貼在上緣的原因。
+// 高度沿用父鏈的 100%（`public-shell__main` 已經用 `--window-height`），不碰 vh（c6）。
+:host {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+}
+
 .login {
   // LINE 的品牌色。**刻意不進 design token** —— token 是這個產品的設計語言，
   // 第三方品牌色不屬於它，而且 LINE 改色的時候我們得跟著改。
   --line-brand: #06c755;
   --line-brand-hover: #05b34c;
+  // hover 的淡綠底。同一個品牌綠，只是壓到 8% ——
+  // 使用者要的是白底綠框的輪廓感，hover 不該把它變回實心。
+  --line-brand-tint: rgb(6 199 85 / 8%);
 
   width: 100%;
   max-width: 420px;
@@ -84,37 +98,35 @@
     padding: 0 var(--space-4);
     font-size: var(--text-md);
     font-weight: var(--font-semibold);
-    color: var(--color-white);
-    background: var(--line-brand);
-    border: none;
+    color: var(--line-brand);
+    background: var(--color-white);
+    border: 1px solid var(--line-brand);
     border-radius: var(--radius-md);
     cursor: pointer;
     transition:
+      color var(--transition-fast),
       background var(--transition-fast),
+      border-color var(--transition-fast),
       transform var(--transition-fast);
   }
 
-  // app icon 本身是綠底白泡泡，直接壓在綠色按鈕上會糊成一團 ——
-  // 墊一層白底把它從按鈕上分離出來，logo 本身一個像素都不動。
-  &__line-badge {
-    display: flex;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    background: var(--color-white);
-    border-radius: var(--radius-sm);
-  }
-
+  // LINE 官方素材包的白色泡泡（`line_88.png`，透明底）。按鈕是白底，白 icon 會消失，
+  // 所以用 mask 把官方形狀染成 currentColor —— 形狀一個像素都沒動，顏色仍是 LINE
+  // 品牌綠，而且 hover 時會跟著按鈕的文字色一起變深，不必另外寫一條規則。
   &__line-logo {
     display: block;
+    flex-shrink: 0;
     width: 24px;
     height: 24px;
+    background-color: currentcolor;
+    -webkit-mask: url('/assets/brand/line-logo.png') center / contain no-repeat;
+    mask: url('/assets/brand/line-logo.png') center / contain no-repeat;
   }
 
   &__line-btn:hover:not(:disabled) {
-    background: var(--line-brand-hover);
+    color: var(--line-brand-hover);
+    background: var(--line-brand-tint);
+    border-color: var(--line-brand-hover);
   }
 
   &__line-btn:active:not(:disabled) {

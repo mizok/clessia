@@ -39,21 +39,37 @@ tags: [specs, public, login, oauth, line]
 
 ### LINE logo 的來源與用法
 
-按鈕上的是 **LINE Corporation 的官方 app icon**，未經修改，存在
-`apps/web/public/assets/brand/line-logo.png`（96×96、5.6 kB，由 1000×1000 原圖縮製）。
-來源是 Wikimedia Commons 的
-[LINE New App Icon (2020-12)](https://commons.wikimedia.org/wiki/File:LINE_New_App_Icon_(2020-12).png)，
-授權標示為 public domain（簡單幾何圖形不具著作權），但**商標權仍屬 LINE Corporation**。
+按鈕上的是 **LINE 官方按鈕素材包**（`Line_Login_Button_Image`，桌機版 2x/44dp 的
+`line_88.png`）裡的泡泡 icon，88×88、白色、透明底，存在
+`apps/web/public/assets/brand/line-logo.png`（1.5 kB）。
 
 用在「使用 LINE 登入」按鈕上屬於商標的指示性使用 —— 它指出的正是「用 LINE 帳號登入」
 這件事實，也是 LINE 要求開發者做的事。**不要拿它去做別的**（頁首、看板、行銷素材都不行）。
 
-app icon 是綠底白泡泡，直接壓在 `#06C755` 的按鈕上會糊掉，所以墊了一層白色圓角底把它
-分離出來，logo 本身一個像素都沒動。
+素材是白色的，而按鈕是白底，直接放會消失。所以用 CSS mask 把官方形狀染成
+`currentColor`：
 
-> 若要完全符合 LINE 官方的 *Login Button Design Guidelines*（綠底 + **白色單色 logo** +
-> 分隔線），需要 LINE Developers 提供的按鈕素材。把 app icon 自行塗白等於改造商標，
-> 所以沒有做。目前這個版本用的是未經修改的官方 icon，是更保守的選擇。
+```scss
+background-color: currentcolor;
+mask: url('/assets/brand/line-logo.png') center / contain no-repeat;
+```
+
+**形狀一個像素都沒動**，顏色仍是 LINE 品牌綠；而且 icon 會跟著按鈕的文字色一起
+hover 變深，不必為那個狀態多寫一條規則。素材包裡整顆的 `btn_login_*.png`
+（實心綠 + 英文字）沒有採用 —— 使用者要的是白底綠框的中文按鈕。
+
+### 按鈕樣式：白底綠框，不是官方的實心綠
+
+2026-08-29 使用者看過正式站之後的明確偏好：**白底 + 綠色外框 + 綠色文字**，
+hover 是 8% 的淡綠底、維持輪廓感而不變回實心。品牌綠 `#06C755` 本身沒有改，
+只是從填色改成框線與文字色。這**刻意蓋過** LINE 預設的實心綠按鈕樣式 ——
+要改回去之前先確認這個偏好還成立。
+
+> **對比是知情的取捨，不是疏忽。** `#06C755` 對白底約 2.8:1，低於 WCAG AA 對
+> 小字級要求的 4.5:1（按鈕文字 13px）。諷刺的是實心綠底白字那版是合格的，
+> 改成白底綠字才掉下來。2026-08-29 把這件事連同「文字改用更深的綠、框線維持品牌綠」
+> 這個折衷方案一起提給使用者，**使用者選擇維持純品牌綠、接受 2.8:1**。
+> 之後有人想「順手修對比」之前，請先回頭確認這個決定。
 
 ## 錯誤訊息
 
