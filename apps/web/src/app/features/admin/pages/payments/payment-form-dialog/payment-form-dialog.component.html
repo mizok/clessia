@@ -1,0 +1,97 @@
+<div class="payment-form">
+  <header class="payment-form__header">
+    <h2 class="payment-form__title">{{ isRefund() ? '記錄退費' : '記錄收款' }}</h2>
+    <p class="payment-form__hint">
+      {{ invoice().studentName ?? '未知學生' }} · 應繳 {{ invoice().total | number }} 元 · 已收
+      {{ invoice().netPaid | number }} 元
+      @if (outstandingAmount() > 0) {
+        · <span class="payment-form__outstanding">尚欠 {{ outstandingAmount() | number }} 元</span>
+      }
+    </p>
+  </header>
+
+  <div class="payment-form__body">
+    <div class="payment-form__field">
+      <label class="payment-form__label" for="pf-amount">
+        {{ isRefund() ? '退費金額 *' : '收款金額 *' }}
+      </label>
+      <p-inputnumber
+        inputId="pf-amount"
+        mode="currency"
+        currency="TWD"
+        locale="zh-TW"
+        [min]="0"
+        [maxFractionDigits]="0"
+        [ngModel]="form().amount"
+        (ngModelChange)="update('amount', $event)"
+      />
+      @if (!isRefund()) {
+        <span class="payment-form__hint">
+          可以少於應繳 —— 部分收款是常態，帳單會自動變成「部分繳」。
+        </span>
+      }
+    </div>
+
+    <div class="payment-form__field">
+      <label class="payment-form__label" for="pf-method">付款方式 *</label>
+      <p-select
+        inputId="pf-method"
+        optionLabel="label"
+        optionValue="value"
+        [options]="methodOptions"
+        [ngModel]="form().method"
+        (ngModelChange)="update('method', $event)"
+      />
+    </div>
+
+    <div class="payment-form__field">
+      <label class="payment-form__label" for="pf-paid-at">
+        {{ isRefund() ? '退費日期 *' : '收款日期 *' }}
+      </label>
+      <p-datepicker
+        inputId="pf-paid-at"
+        dateFormat="yy-mm-dd"
+        [showIcon]="true"
+        [ngModel]="form().paidAt"
+        (ngModelChange)="update('paidAt', $event)"
+      />
+    </div>
+
+    <div class="payment-form__field">
+      <label class="payment-form__label" for="pf-note">
+        備註{{ isRefund() ? '（退費原因，必填）' : '' }}
+      </label>
+      <input
+        id="pf-note"
+        type="text"
+        pInputText
+        maxlength="200"
+        [placeholder]="
+          isRefund()
+            ? '如：期中退班，剩餘 6 週按比例退'
+            : form().method === 'transfer'
+              ? '如：轉帳末五碼 12345'
+              : '如：定金'
+        "
+        [ngModel]="form().note"
+        (ngModelChange)="update('note', $event)"
+      />
+    </div>
+
+    @if (form().method === 'transfer') {
+      <p class="payment-form__notice">
+        憑證圖上傳尚未開放。目前請把帳號後五碼寫在備註裡，家長回傳的截圖先留在原本的地方。
+      </p>
+    }
+  </div>
+
+  <footer class="payment-form__footer">
+    <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+    <p-button
+      [label]="isRefund() ? '記錄退費' : '記錄收款'"
+      [severity]="isRefund() ? 'danger' : 'primary'"
+      [loading]="saving()"
+      (onClick)="save()"
+    />
+  </footer>
+</div>

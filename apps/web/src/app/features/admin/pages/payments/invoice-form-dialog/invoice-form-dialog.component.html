@@ -1,0 +1,123 @@
+<div class="invoice-form">
+  <header class="invoice-form__header">
+    <h2 class="invoice-form__title">手動開立帳單</h2>
+    <p class="invoice-form__hint">
+      月繳與期繳的批次開帳走自動排程，這裡處理它涵蓋不到的個案：補開、雜費、人工調整。
+    </p>
+  </header>
+
+  <div class="invoice-form__body">
+    <div class="invoice-form__field">
+      <label class="invoice-form__label">學生 *</label>
+      <app-student-autocomplete
+        [value]="student()"
+        (valueChange)="student.set($event)"
+        [suggestions]="studentSuggestions()"
+        (queryChange)="onStudentQuery($event)"
+      />
+    </div>
+
+    <div class="invoice-form__row">
+      <div class="invoice-form__field">
+        <label class="invoice-form__label" for="if-issued">開立日期 *</label>
+        <p-datepicker
+          inputId="if-issued"
+          dateFormat="yy-mm-dd"
+          [showIcon]="true"
+          [ngModel]="issuedAt()"
+          (ngModelChange)="issuedAt.set($event)"
+        />
+      </div>
+
+      <div class="invoice-form__field">
+        <label class="invoice-form__label" for="if-due">繳費期限</label>
+        <p-datepicker
+          inputId="if-due"
+          dateFormat="yy-mm-dd"
+          [showIcon]="true"
+          [showClear]="true"
+          placeholder="不填則用機構預設天數"
+          [ngModel]="dueDate()"
+          (ngModelChange)="dueDate.set($event)"
+        />
+      </div>
+    </div>
+
+    <!-- ── 明細 ─────────────────────────────────────────────────────── -->
+    <div class="invoice-form__field">
+      <label class="invoice-form__label">明細 *</label>
+
+      @for (item of items(); track $index) {
+        <div class="invoice-form__item">
+          <p-select
+            [options]="itemTypeOptions"
+            optionLabel="label"
+            optionValue="value"
+            [ngModel]="item.type"
+            (ngModelChange)="updateItem($index, 'type', $event)"
+            [ariaLabel]="'第 ' + ($index + 1) + ' 筆明細的類型'"
+          />
+          <p-inputnumber
+            mode="currency"
+            currency="TWD"
+            locale="zh-TW"
+            [maxFractionDigits]="0"
+            [ngModel]="item.amount"
+            (ngModelChange)="updateItem($index, 'amount', $event)"
+            [ariaLabel]="'第 ' + ($index + 1) + ' 筆明細的金額'"
+          />
+          <input
+            type="text"
+            pInputText
+            maxlength="200"
+            placeholder="說明（選填）"
+            [ngModel]="item.note"
+            (ngModelChange)="updateItem($index, 'note', $event)"
+            [attr.aria-label]="'第 ' + ($index + 1) + ' 筆明細的說明'"
+          />
+          <p-button
+            icon="pi pi-times"
+            [text]="true"
+            severity="secondary"
+            [disabled]="items().length === 1"
+            [ariaLabel]="'刪除第 ' + ($index + 1) + ' 筆明細'"
+            (onClick)="removeItem($index)"
+          />
+        </div>
+      }
+
+      <div class="invoice-form__item-actions">
+        <p-button
+          label="新增明細"
+          icon="pi pi-plus"
+          [text]="true"
+          size="small"
+          (onClick)="addItem()"
+        />
+        <span class="invoice-form__total">合計 {{ total() | number }} 元</span>
+      </div>
+
+      <span class="invoice-form__hint">
+        「調整」可以填負數 —— 折讓與補償走這一列，並在說明裡寫原因。
+      </span>
+    </div>
+
+    <div class="invoice-form__field">
+      <label class="invoice-form__label" for="if-note">帳單備註</label>
+      <input
+        id="if-note"
+        type="text"
+        pInputText
+        maxlength="200"
+        placeholder="如：9 月補開"
+        [ngModel]="note()"
+        (ngModelChange)="note.set($event)"
+      />
+    </div>
+  </div>
+
+  <footer class="invoice-form__footer">
+    <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+    <p-button label="開立帳單" [loading]="saving()" (onClick)="save()" />
+  </footer>
+</div>

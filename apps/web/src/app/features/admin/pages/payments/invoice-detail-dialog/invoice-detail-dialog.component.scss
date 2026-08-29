@@ -1,0 +1,197 @@
+.invoice-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  &__title-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-900);
+  }
+
+  &__tags {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  &__summary {
+    display: flex;
+    gap: var(--space-5);
+    flex-wrap: wrap;
+    margin: 0;
+    padding: var(--space-4);
+    background: var(--zinc-50);
+    border-radius: var(--radius-lg);
+  }
+
+  &__summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+
+    &--due {
+      color: var(--zinc-900);
+    }
+  }
+
+  &__summary-item dt {
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+  }
+
+  &__summary-item dd {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__summary-item--due dd {
+    color: var(--accent-600);
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+  }
+
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  &__section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  &__section-title {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-700);
+  }
+
+  &__section-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  &__hint {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+  }
+
+  &__empty {
+    margin: 0;
+    padding: var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+    background: var(--zinc-50);
+    border-radius: var(--radius-md);
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+
+  &__table th,
+  &__table td {
+    padding: var(--space-2);
+    text-align: left;
+    border-bottom: 1px solid var(--zinc-200);
+  }
+
+  &__table th {
+    font-weight: var(--font-medium);
+    color: var(--zinc-500);
+    font-size: var(--text-xs);
+  }
+
+  &__amount-col {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__row--refund {
+    color: var(--zinc-500);
+  }
+
+  &__reminder-form {
+    display: grid;
+    grid-template-columns: minmax(96px, auto) 1fr auto;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  &__reminder-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__reminder {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    font-size: var(--text-sm);
+  }
+
+  &__reminder-method {
+    font-weight: var(--font-medium);
+    color: var(--zinc-700);
+    flex: 0 0 auto;
+  }
+
+  &__reminder-note {
+    flex: 1 1 auto;
+    color: var(--zinc-600);
+  }
+
+  &__reminder-date {
+    flex: 0 0 auto;
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+}
+
+// 列印版面搬到獨立視窗才渲染（見元件註解），畫面上永遠不顯示
+.invoice-detail__print-source {
+  display: none;
+}
