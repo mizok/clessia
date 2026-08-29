@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { format } from 'date-fns';
 
 import { ButtonModule } from 'primeng/button';
+import { SelectModule } from 'primeng/select';
 import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
@@ -11,7 +12,12 @@ import { DialogService } from 'primeng/dynamicdialog';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { OverlayContainerService } from '@core/overlay-container.service';
-import { INVOICE_STATUS_LABELS, InvoicesService, type Invoice } from '@core/invoices.service';
+import {
+  INVOICE_STATUS_LABELS,
+  InvoicesService,
+  type Invoice,
+  type InvoiceStatus,
+} from '@core/invoices.service';
 import { StudentsService, type Student } from '@core/students.service';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -20,6 +26,10 @@ import { ResponsiveTableComponent } from '@shared/components/responsive-table/re
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
+import type {
+  ResponsiveTablePageEvent,
+  ResponsiveTablePaginationConfig,
+} from '@shared/components/responsive-table/responsive-table.models';
 
 import { InvoiceDetailDialogComponent } from './invoice-detail-dialog/invoice-detail-dialog.component';
 import { InvoiceFormDialogComponent } from './invoice-form-dialog/invoice-form-dialog.component';
@@ -31,15 +41,14 @@ const PAGE_SIZE = 20;
  * 繳費紀錄 —— 見 kb/wiki/specs/admin/finance/payments.md 與
  * kb/wiki/architecture/admin-payments-page.md。
  *
- * **篩選只有兩項，那是刻意的。** `GET /api/invoices` 的 query 只吃 `studentId`、
- * `overdue`、`page`、`pageSize`。狀態是推導值 DB 濾不掉，在前端自己篩只會篩到
- * 當頁那 20 筆 —— 使用者看到「未繳 3 筆」而真相是 47 筆。要完整的狀態篩選得先有
- * 後端的 `status` 參數（已回報）。狀態改用每列的 Tag 呈現，行政真正需要的
- * 追繳清單走 `overdue=true`。
+ * **篩選一律打後端，前端不自己篩。** `status` 是推導值 DB 濾不掉，所以後端在帶了
+ * `status` / `overdue` 時走「全撈 → 篩 → 自己切頁」那條路徑（`lib/derived-page.ts`）。
+ * 前端要是自己篩就只篩得到當頁那 20 筆 —— 使用者會看到「未繳 3 筆」而真相是 47 筆。
  *
- * **分頁不顯示總筆數。** 後端非 overdue 路徑的 `meta.total` 目前回的是當頁筆數
- * （`.range()` 之後才算 `rows.length`），拿它算總頁數會算出 1 頁。改用
- * 「當頁滿 pageSize 就還有下一頁」—— 少一個數字好過一個錯的數字。
+ * `status` 與 `overdue` **可以並用**：「部分繳 + 逾期」是常見組合，逾期是衍生標記
+ * 不是第四種狀態（billing-rules 規則 4）。
+ *
+ * **分頁用 `meta.total`**（PR #64 之後兩條路徑的 total 都是篩後全體筆數）。
  */
 @Component({
   selector: 'app-payments',
@@ -48,6 +57,7 @@ const PAGE_SIZE = 20;
     DecimalPipe,
     FormsModule,
     ButtonModule,
+    SelectModule,
     TagModule,
     ToastModule,
     EmptyStateComponent,
@@ -80,13 +90,27 @@ export class PaymentsPage implements OnInit {
   protected readonly student = signal<Student | string | null>(null);
   protected readonly studentSuggestions = signal<Student[]>([]);
   protected readonly pageIndex = signal(1);
+  protected readonly totalRecords = signal(0);
+  protected readonly statusFilter = signal<InvoiceStatus | null>(null);
 
   protected readonly today = format(new Date(), 'yyyy-MM-dd');
 
-  /** 沒有可信的總數，只能從「這頁是不是滿的」推有沒有下一頁 */
-  protected readonly hasNextPage = computed(() => this.invoices().length === PAGE_SIZE);
+  protected readonly statusOptions = [
+    { value: null, label: '全部狀態' },
+    ...(Object.keys(INVOICE_STATUS_LABELS) as InvoiceStatus[]).map((value) => ({
+      value,
+      label: INVOICE_STATUS_LABELS[value],
+    })),
+  ];
+
+  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
+    first: Math.max((this.pageIndex() - 1) * PAGE_SIZE, 0),
+    rows: PAGE_SIZE,
+    totalRecords: this.totalRecords(),
+  }));
+
   protected readonly hasFilters = computed(
-    () => this.overdueOnly() || this.selectedStudent() !== null,
+    () => this.overdueOnly() || this.statusFilter() !== null || this.selectedStudent() !== null,
   );
 
   protected readonly selectedStudent = computed(() => {
@@ -110,16 +134,19 @@ export class PaymentsPage implements OnInit {
       .list({
         studentId: this.selectedStudent()?.id,
         overdue: this.overdueOnly() || undefined,
+        status: this.statusFilter() ?? undefined,
         page: this.pageIndex(),
         pageSize: PAGE_SIZE,
       })
       .subscribe({
         next: (res) => {
           this.invoices.set(res.data);
+          this.totalRecords.set(res.meta.total);
           this.loading.set(false);
         },
         error: () => {
           this.invoices.set([]);
+          this.totalRecords.set(0);
           this.failed.set(true);
           this.loading.set(false);
         },
@@ -134,6 +161,12 @@ export class PaymentsPage implements OnInit {
 
   protected toggleOverdueOnly(): void {
     this.overdueOnly.update((v) => !v);
+    this.reload();
+  }
+
+  /** 狀態一律打後端 —— 它是推導值，前端篩只篩得到當頁 */
+  protected onStatusChange(value: InvoiceStatus | null): void {
+    this.statusFilter.set(value);
     this.reload();
   }
 
@@ -159,15 +192,14 @@ export class PaymentsPage implements OnInit {
 
   protected clearFilters(): void {
     this.overdueOnly.set(false);
+    this.statusFilter.set(null);
     this.student.set(null);
     this.studentSuggestions.set([]);
     this.reload();
   }
 
-  protected goToPage(delta: number): void {
-    const next = this.pageIndex() + delta;
-    if (next < 1) return;
-    this.pageIndex.set(next);
+  protected onPageChange(event: ResponsiveTablePageEvent): void {
+    this.pageIndex.set(Math.floor(event.first / PAGE_SIZE) + 1);
     this.load();
   }
 

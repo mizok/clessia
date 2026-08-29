@@ -104,16 +104,17 @@ export interface InvoiceQueryParams {
   studentId?: string;
   /** 過了 due_date 且還沒繳清。行政的追繳清單 */
   overdue?: boolean;
+  /** 推導出來的狀態（PR #64 加的）。**與 `overdue` 可並用** —— 「部分繳 + 逾期」是常見組合 */
+  status?: InvoiceStatus;
   page?: number;
   pageSize?: number;
 }
 
 export interface InvoiceListMeta {
   /**
-   * ⚠️ **非 overdue 路徑目前回的是當頁筆數不是總數**（後端在 `.range()` 切頁之後才
-   * 算 `rows.length`，見 `apps/api/src/routes/invoices.ts` 的列表 handler）。
-   * 已回報 billing-api 席。修好之前呼叫端**不要**拿它算總頁數 ——
-   * 分頁請用「當頁滿 pageSize 就還有下一頁」。
+   * **篩後全體的筆數**，兩條查詢路徑都是（PR #64 修正）：沒帶推導條件時是 DB 的
+   * `count: 'exact'`，帶了 `status` / `overdue` 時是後端全撈篩完之後、
+   * `sliceDerivedPage` 切頁**之前**的筆數。可以拿來算總頁數。
    */
   total: number;
   page: number;
@@ -204,6 +205,7 @@ function toQuery(params?: InvoiceQueryParams): Record<string, string> {
   const query: Record<string, string> = {};
   if (params.studentId) query['studentId'] = params.studentId;
   if (params.overdue) query['overdue'] = 'true';
+  if (params.status) query['status'] = params.status;
   if (params.page !== undefined) query['page'] = String(params.page);
   if (params.pageSize !== undefined) query['pageSize'] = String(params.pageSize);
   return query;

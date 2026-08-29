@@ -34,10 +34,13 @@ const student = (overrides?: Partial<Student>): Student =>
     ...overrides,
   }) as Student;
 
-/** 後端非 overdue 路徑的 meta.total 回的是當頁筆數 —— mock 照實模擬，不要餵一個假的總數 */
-const listResponse = (rows: Invoice[], page = 1) => ({
+/**
+ * `meta.total` 是**篩後全體**的筆數，不是當頁長度（PR #64 修正）——
+ * 所以 mock 要能分開表達「這一頁回幾筆」與「總共幾筆」。
+ */
+const listResponse = (rows: Invoice[], total = rows.length, page = 1) => ({
   data: rows,
-  meta: { total: rows.length, page, pageSize: 20 },
+  meta: { total, page, pageSize: 20 },
 });
 
 describe('PaymentsPage', () => {
@@ -86,9 +89,9 @@ describe('PaymentsPage', () => {
   });
 
   // 沒有篩選時不要送 overdue —— 送 overdue: false 會讓後端走完全不同的那條查詢路徑
-  it('預設不送 overdue 參數', () => {
+  it('預設不送 overdue 與 status 參數', () => {
     expect(invoices.list).toHaveBeenCalledWith(
-      expect.objectContaining({ overdue: undefined, studentId: undefined }),
+      expect.objectContaining({ overdue: undefined, status: undefined, studentId: undefined }),
     );
   });
 
@@ -119,7 +122,7 @@ describe('PaymentsPage', () => {
   });
 
   it('換篩選條件時回到第一頁', () => {
-    component['goToPage'](1);
+    component['onPageChange']({ first: 20, rows: 20, page: 1, pageCount: 3 });
     expect(component['pageIndex']()).toBe(2);
 
     component['toggleOverdueOnly']();
@@ -127,28 +130,67 @@ describe('PaymentsPage', () => {
     expect(component['pageIndex']()).toBe(1);
   });
 
-  it('翻頁不會翻到第 0 頁', () => {
-    component['goToPage'](-1);
-
-    expect(component['pageIndex']()).toBe(1);
-  });
-
-  // 後端的 meta.total 不可信，所以「有沒有下一頁」只能從當頁滿不滿判斷
-  it('當頁不滿一頁時沒有下一頁', async () => {
-    invoices.list.mockReturnValue(of(listResponse([invoice()])));
-    component['load']();
-    await fixture.whenStable();
-
-    expect(component['hasNextPage']()).toBe(false);
-  });
-
-  it('當頁剛好滿 20 筆時允許翻下一頁', async () => {
+  // total 是篩後全體，分頁器要拿它算總頁數 —— 拿當頁長度算會永遠只有一頁
+  it('分頁總數取 meta.total，不是當頁筆數', async () => {
     const rows = Array.from({ length: 20 }, (_, i) => invoice({ id: `inv-${i}` }));
-    invoices.list.mockReturnValue(of(listResponse(rows)));
+    invoices.list.mockReturnValue(of(listResponse(rows, 137)));
     component['load']();
     await fixture.whenStable();
 
-    expect(component['hasNextPage']()).toBe(true);
+    expect(component['pagination']().totalRecords).toBe(137);
+  });
+
+  it('翻頁會帶新的 page 重打 API', async () => {
+    invoices.list.mockClear().mockReturnValue(of(listResponse([invoice()], 137)));
+
+    component['onPageChange']({ first: 40, rows: 20, page: 2, pageCount: 7 });
+    await fixture.whenStable();
+
+    expect(component['pageIndex']()).toBe(3);
+    expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ page: 3 }));
+  });
+
+  // 狀態是推導值，前端篩只篩得到當頁 —— 一定要打後端
+  it('狀態篩選打後端，不在前端篩', () => {
+    invoices.list.mockClear();
+
+    component['onStatusChange']('partial');
+
+    expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ status: 'partial' }));
+  });
+
+  it('狀態清成全部時不送 status', () => {
+    component['onStatusChange']('paid');
+    invoices.list.mockClear();
+
+    component['onStatusChange'](null);
+
+    expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ status: undefined }));
+  });
+
+  // 逾期是衍生標記不是第四種狀態，兩個條件並用是常見組合（billing-rules 規則 4）
+  it('狀態與欠繳可以並用', () => {
+    component['onStatusChange']('partial');
+    invoices.list.mockClear();
+
+    component['toggleOverdueOnly']();
+
+    expect(invoices.list).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'partial', overdue: true }),
+    );
+  });
+
+  it('取數失敗時把總數歸零，不留上一次的數字', async () => {
+    invoices.list.mockReturnValue(of(listResponse([invoice()], 137)));
+    component['load']();
+    await fixture.whenStable();
+    expect(component['pagination']().totalRecords).toBe(137);
+
+    invoices.list.mockReturnValue(throwError(() => new Error('boom')));
+    component['load']();
+    await fixture.whenStable();
+
+    expect(component['pagination']().totalRecords).toBe(0);
   });
 
   // 整頁空白比一個錯誤訊息更難查 —— 失敗要看得見
@@ -174,17 +216,19 @@ describe('PaymentsPage', () => {
     expect(component['failed']()).toBe(false);
   });
 
-  it('清除篩選會同時清掉欠繳與學生', () => {
+  it('清除篩選會同時清掉欠繳、狀態與學生', () => {
     component['toggleOverdueOnly']();
+    component['onStatusChange']('unpaid');
     component['onStudentChange'](student());
     invoices.list.mockClear();
 
     component['clearFilters']();
 
     expect(component['overdueOnly']()).toBe(false);
+    expect(component['statusFilter']()).toBeNull();
     expect(component['selectedStudent']()).toBeNull();
     expect(invoices.list).toHaveBeenCalledWith(
-      expect.objectContaining({ overdue: undefined, studentId: undefined }),
+      expect.objectContaining({ overdue: undefined, status: undefined, studentId: undefined }),
     );
   });
 
