@@ -1,8 +1,16 @@
 # Architecture — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-28
+> Auto-maintained by `kb:map`. Last updated: 2026-08-29
 
 ---
+
+## [[architecture/admin-dashboard-v1|管理端儀表板 v1 的設計]]
+
+把四張死卡片接上真資料並補行政待辦卡：零後端改動（六種資料既有 API 全有）、未點名卡回溯 7 天且只在逐堂點名模式顯示、報名卡只取 meta.total 以免分頁截斷、經營區用 permission 蓋住、卡片是索引不是工作場。
+
+Tags: `architecture`, `dashboard`, `admin`
+
+Links to: [[architecture/teacher-students-view]]
 
 ## [[architecture/amending-the-constitution|修憲的機制]]
 
@@ -115,3 +123,4 @@ Links to: [[architecture/teaching-history-not-payroll|`記錄授課歷程但不�
 Tags: `architecture`, `business-model`, `tenancy`, `vendor-lock-in`
 
 Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]], [[architecture/line-oauth-login]], [[architecture/bootstrapping-a-deployment]], [[architecture/bootstrapping-a-deployment]]
+
