@@ -1,0 +1,293 @@
+<div class="invoice-detail">
+  <header class="invoice-detail__header">
+    <div class="invoice-detail__title-group">
+      <h2 class="invoice-detail__title">{{ invoice().studentName ?? '未知學生' }} 的帳單</h2>
+      <div class="invoice-detail__tags">
+        <p-tag [value]="INVOICE_STATUS_LABELS[invoice().status]" [severity]="statusSeverity()" />
+        @if (overdue()) {
+          <p-tag value="逾期" severity="danger" icon="pi pi-exclamation-triangle" />
+        }
+      </div>
+    </div>
+    <p-button
+      icon="pi pi-times"
+      [text]="true"
+      severity="secondary"
+      ariaLabel="關閉"
+      (onClick)="close()"
+    />
+  </header>
+
+  <dl class="invoice-detail__summary">
+    <div class="invoice-detail__summary-item">
+      <dt>應繳</dt>
+      <dd>{{ invoice().total | number }}</dd>
+    </div>
+    <div class="invoice-detail__summary-item">
+      <dt>已收</dt>
+      <dd>{{ invoice().netPaid | number }}</dd>
+    </div>
+    <div
+      class="invoice-detail__summary-item"
+      [class.invoice-detail__summary-item--due]="outstandingAmount() > 0"
+    >
+      <dt>{{ outstandingAmount() < 0 ? '溢繳' : '尚欠' }}</dt>
+      <dd>{{ (outstandingAmount() < 0 ? -outstandingAmount() : outstandingAmount()) | number }}</dd>
+    </div>
+    <div class="invoice-detail__summary-item">
+      <dt>繳費期限</dt>
+      <dd>{{ invoice().dueDate ?? '未設定' }}</dd>
+    </div>
+  </dl>
+
+  <div class="invoice-detail__body">
+    <!-- ── 明細 ─────────────────────────────────────────────────────── -->
+    <section class="invoice-detail__section">
+      <h3 class="invoice-detail__section-title">帳單明細</h3>
+      @if (invoice().items.length === 0) {
+        <p class="invoice-detail__empty">這張帳單還沒有明細，金額是 0。</p>
+      } @else {
+        <table class="invoice-detail__table">
+          <thead>
+            <tr>
+              <th scope="col">項目</th>
+              <th scope="col">說明</th>
+              <th scope="col" class="invoice-detail__amount-col">金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of invoice().items; track item.id) {
+              <tr>
+                <td>{{ INVOICE_ITEM_TYPE_LABELS[item.type] }}</td>
+                <td>{{ item.note ?? item.periodMonth ?? '—' }}</td>
+                <td class="invoice-detail__amount-col">{{ item.amount | number }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+
+    <!-- ── 收款記錄 ─────────────────────────────────────────────────── -->
+    <section class="invoice-detail__section">
+      <div class="invoice-detail__section-header">
+        <h3 class="invoice-detail__section-title">收款記錄</h3>
+        <div class="invoice-detail__section-actions">
+          <p-button
+            label="記錄收款"
+            icon="pi pi-plus"
+            size="small"
+            (onClick)="openPaymentDialog('payment')"
+          />
+          <p-button
+            label="記錄退費"
+            icon="pi pi-reply"
+            size="small"
+            severity="danger"
+            [outlined]="true"
+            [disabled]="invoice().payments.length === 0"
+            (onClick)="openPaymentDialog('refund')"
+          />
+        </div>
+      </div>
+
+      @if (invoice().payments.length === 0) {
+        <p class="invoice-detail__empty">還沒有任何收款。</p>
+      } @else {
+        <table class="invoice-detail__table">
+          <thead>
+            <tr>
+              <th scope="col">日期</th>
+              <th scope="col">方式</th>
+              <th scope="col">備註</th>
+              <th scope="col">收據</th>
+              <th scope="col" class="invoice-detail__amount-col">金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (payment of invoice().payments; track payment.id) {
+              <tr [class.invoice-detail__row--refund]="payment.kind === 'refund'">
+                <td>{{ payment.paidAt }}</td>
+                <td>{{ PAYMENT_METHOD_LABELS[payment.method] }}</td>
+                <td>{{ payment.note ?? '—' }}</td>
+                <td>{{ payment.receiptNo ?? '—' }}</td>
+                <td class="invoice-detail__amount-col">
+                  {{ payment.kind === 'refund' ? '−' : '' }}{{ payment.amount | number }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+
+    <!-- ── 催繳記錄 ─────────────────────────────────────────────────── -->
+    <section class="invoice-detail__section">
+      <h3 class="invoice-detail__section-title">催繳記錄</h3>
+      <p class="invoice-detail__hint">催繳只留紀錄，不會停課也不會擋住任何東西。</p>
+
+      <div class="invoice-detail__reminder-form">
+        <p-select
+          [options]="reminderMethodOptions"
+          optionLabel="label"
+          optionValue="value"
+          [ngModel]="reminderMethod()"
+          (ngModelChange)="reminderMethod.set($event)"
+          ariaLabel="催繳方式"
+        />
+        <input
+          type="text"
+          pInputText
+          maxlength="200"
+          placeholder="備註（選填）"
+          aria-label="催繳備註"
+          [ngModel]="reminderNote()"
+          (ngModelChange)="reminderNote.set($event)"
+        />
+        <p-button
+          label="記一次"
+          icon="pi pi-megaphone"
+          size="small"
+          [loading]="savingReminder()"
+          (onClick)="addReminder()"
+        />
+      </div>
+
+      @if (remindersLoading()) {
+        <p class="invoice-detail__empty">載入中…</p>
+      } @else if (reminders().length === 0) {
+        <p class="invoice-detail__empty">還沒有催繳過。</p>
+      } @else {
+        <ul class="invoice-detail__reminder-list">
+          @for (reminder of reminders(); track reminder.id) {
+            <li class="invoice-detail__reminder">
+              <span class="invoice-detail__reminder-method">
+                {{ REMINDER_METHOD_LABELS[reminder.method] }}
+              </span>
+              <span class="invoice-detail__reminder-note">{{ reminder.note ?? '—' }}</span>
+              <span class="invoice-detail__reminder-date">{{
+                reminder.createdAt | slice: 0 : 10
+              }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  </div>
+
+  <footer class="invoice-detail__footer">
+    <p-button label="列印收費單" icon="pi pi-print" [outlined]="true" (onClick)="printInvoice()" />
+    <p-button
+      label="列印收據"
+      icon="pi pi-receipt"
+      [outlined]="true"
+      [disabled]="receiptNo() === null"
+      [pTooltip]="receiptNo() === null ? '還沒有收款，沒有收據可印' : ''"
+      (onClick)="printReceipt()"
+    />
+    <p-button label="關閉" [text]="true" severity="secondary" (onClick)="close()" />
+  </footer>
+</div>
+
+<!--
+  列印用的版面。搬到獨立視窗印（見元件註解），所以這裡藏起來不影響畫面。
+  用 hidden 而不是 display:none 的 class —— importNode 搬過去之後屬性會被移除。
+-->
+<div class="invoice-detail__print-source" aria-hidden="true">
+  <div #invoicePrintArea class="print-doc">
+    <h1 class="print-doc__title">繳費通知單</h1>
+    <p class="print-doc__subtitle">請於期限前繳回，謝謝。</p>
+
+    <dl class="print-doc__meta">
+      <dt>學生</dt>
+      <dd>{{ invoice().studentName ?? '—' }}</dd>
+      <dt>開立日期</dt>
+      <dd>{{ invoice().issuedAt }}</dd>
+      <dt>繳費期限</dt>
+      <dd>{{ invoice().dueDate ?? '未設定' }}</dd>
+    </dl>
+
+    <table class="print-doc__table">
+      <thead>
+        <tr>
+          <th>項目</th>
+          <th>說明</th>
+          <th class="print-doc__amount">金額</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (item of invoice().items; track item.id) {
+          <tr>
+            <td>{{ INVOICE_ITEM_TYPE_LABELS[item.type] }}</td>
+            <td>{{ item.note ?? item.periodMonth ?? '' }}</td>
+            <td class="print-doc__amount">{{ item.amount | number }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <p class="print-doc__total">應繳合計 {{ invoice().total | number }} 元</p>
+    @if (invoice().netPaid !== 0) {
+      <p class="print-doc__total">
+        已收 {{ invoice().netPaid | number }} 元 · 尚欠 {{ outstandingAmount() | number }} 元
+      </p>
+    }
+
+    @if (invoice().note) {
+      <p class="print-doc__note">備註：{{ invoice().note }}</p>
+    }
+
+    <div class="print-doc__sign">
+      <span>家長簽名：＿＿＿＿＿＿＿＿＿</span>
+      <span>繳回日期：＿＿＿＿＿＿</span>
+    </div>
+  </div>
+
+  <div #receiptPrintArea class="print-doc">
+    <h1 class="print-doc__title">收據</h1>
+    <p class="print-doc__subtitle">收據編號 {{ receiptNo() ?? '—' }}</p>
+
+    <dl class="print-doc__meta">
+      <dt>學生</dt>
+      <dd>{{ invoice().studentName ?? '—' }}</dd>
+      <dt>開立日期</dt>
+      <dd>{{ invoice().issuedAt }}</dd>
+    </dl>
+
+    <table class="print-doc__table">
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>方式</th>
+          <th>備註</th>
+          <th class="print-doc__amount">金額</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (payment of invoice().payments; track payment.id) {
+          <tr>
+            <td>{{ payment.paidAt }}</td>
+            <td>
+              {{ PAYMENT_METHOD_LABELS[payment.method]
+              }}{{ payment.kind === 'refund' ? '（退費）' : '' }}
+            </td>
+            <td>{{ payment.note ?? '' }}</td>
+            <td class="print-doc__amount">
+              {{ payment.kind === 'refund' ? '−' : '' }}{{ payment.amount | number }}
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <p class="print-doc__total">實收合計 {{ invoice().netPaid | number }} 元</p>
+    @if (outstandingAmount() > 0) {
+      <p class="print-doc__note">本張帳單尚欠 {{ outstandingAmount() | number }} 元。</p>
+    }
+
+    <div class="print-doc__sign">
+      <span>經手人：＿＿＿＿＿＿＿＿＿</span>
+      <span>日期：{{ today }}</span>
+    </div>
+  </div>
+</div>

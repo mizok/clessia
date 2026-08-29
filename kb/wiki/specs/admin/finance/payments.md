@@ -139,10 +139,19 @@ UX 之後可以加「一筆金額分配到多張帳單」的輔助，schema 不�
 | 讀取 | `invoices`、`payment_records`、`payment_reminders`、`students`、`enrollments` |
 | 寫入 | `invoices`、`payment_records`、`payment_reminders`                            |
 
-> ⏳ **這三張表尚未存在於 main**（2026-08-29 查證：`supabase/migrations` 零命中）。
-> 端點形狀待 billing-api 席的 P1 A2 定案 —— 本頁描述的是依 rules 推導的需求，不是已驗的 API。
-> 已驗於 main 的只有上游的 `fee_templates` / `billing_periods`，以及
-> `enrollments` 的 `billingMode` / `feeTemplateId` / `agreedAmount`。
+> ✅ **三張表與端點都已存在**（A2 已合）：`apps/api/src/routes/invoices.ts`，掛載於
+> `/api/invoices`（`ADMIN_ONLY` + `manage_finance`）。狀態由後端推導後回傳
+> （`apps/api/src/lib/invoice-status.ts`），前端不重算。管理端頁見
+> [[architecture/admin-payments-page]]。
+>
+> **需求與已交付的 API 之間還有兩個缺口**（2026-08-29 實作時查證，已回報）：
+>
+> 1. `GET /api/invoices` 的 query 只吃 `studentId` / `overdue` / `page` / `pageSize` ——
+>    **沒有狀態、日期區間、分校篩選**。上面「帳單列表」那節列的篩選目前只實現了
+>    是否逾期與學生兩項；狀態改用每列的視覺標記呈現。
+> 2. 非 `overdue` 路徑的 `meta.total` 回的是**當頁筆數**不是總數（`.range()` 切頁之後
+>    才算 `rows.length`）。所以上面「總筆數取後端 `meta.total`」這條原則現在**還套用不了**，
+>    管理端頁暫時不顯示總筆數。
 
 ## 相關規則與流程
 
