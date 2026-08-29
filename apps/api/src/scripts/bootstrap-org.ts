@@ -18,6 +18,7 @@
 import { Pool } from 'pg';
 import { createAuth } from '../auth';
 import { mintLoginLink } from '../routes/login-links/mint';
+import { provisionOrg } from './bootstrap-org.util';
 
 function required(name: string): string {
   const v = process.env[name];
@@ -58,47 +59,30 @@ async function main() {
   const pool = new Pool({ connectionString: env.DATABASE_URL });
 
   try {
-    const existing = await pool.query('select id from public.organizations where slug = $1', [
-      orgSlug,
-    ]);
-    if (existing.rowCount && existing.rowCount > 0) {
-      console.error(`✖ slug「${orgSlug}」的組織已存在，未做任何變更。`);
-      process.exit(1);
-    }
-
-    const orgResult = await pool.query(
-      'insert into public.organizations (name, slug) values ($1, $2) returning id',
-      [orgName, orgSlug],
-    );
-    const orgId: string = orgResult.rows[0].id;
-    console.log(`✓ 組織已建立：${orgName}（${orgSlug}）`);
-
-    // 走 Better Auth 建帳號 —— ba_* 不得由應用程式碼直接寫入（c2）
     const auth = createAuth(env);
-    const created = await (
-      auth.api as unknown as {
-        createUser: (a: unknown) => Promise<{ user: { id: string } }>;
-      }
-    ).createUser({
-      // **刻意不給 password**（harness gate A11 守著）。Better Auth 明說不給就是
-      // 「magic link 或 social login only user」—— 這個系統沒有密碼登入。
-      body: {
-        name: adminName,
-        email: adminEmail,
-        data: { display_name: adminName },
+
+    await provisionOrg(
+      {
+        query: (text, values) => pool.query(text, values as unknown[]),
+        // 走 Better Auth 建帳號 —— ba_* 不得由應用程式碼直接寫入（c2）。
+        // **刻意不給 password**（harness gate A11 守著）：Better Auth 明說不給就是
+        // 「magic link 或 social login only user」，這個系統沒有密碼登入。
+        createAdminUser: async ({ name, email }) => {
+          const created = await (
+            auth.api as unknown as {
+              createUser: (a: unknown) => Promise<{ user: { id: string } }>;
+            }
+          ).createUser({
+            body: { name, email, data: { display_name: name } },
+            asResponse: false,
+          });
+          return created.user.id;
+        },
       },
-      asResponse: false,
-    });
-    const userId = created.user.id;
-
-    // orgId 是 Better Auth 的 additionalField，createUser 不吃，補上去
-    await pool.query('update public.ba_user set "orgId" = $1 where id = $2', [orgId, userId]);
-
-    await pool.query(
-      `insert into public.user_roles (user_id, role, permissions) values ($1, 'admin', '["*"]'::jsonb)`,
-      [userId],
+      { orgName, orgSlug, adminEmail, adminName },
     );
 
+    console.log(`✓ 組織已建立：${orgName}（${orgSlug}）`);
     console.log(`✓ 管理員已建立：${adminName} <${adminEmail}>`);
 
     // 沒有密碼可以給 —— 給的是一次性登入連結。點開就登入，然後在畫面上綁定 LINE。
