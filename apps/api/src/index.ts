@@ -3,11 +3,13 @@ import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { authMiddleware, requireRoles } from './middleware/auth';
+import { authMiddleware, requirePermission, requireRoles } from './middleware/auth';
 import type { Auth, MagicLinkPayload } from './auth';
 import { authPoolCleanup, getAuth } from './lib/get-auth';
 import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
 import loginLinksRoute from './routes/login-links';
+import billingPeriodsRoute from './routes/billing-periods';
+import feeTemplatesRoute from './routes/fee-templates';
 import { isPubliclyBlockedAuthPath } from './lib/auth-paths';
 import { createServiceClientFromEnv } from './lib/supabase';
 import campusesRoute from './routes/campuses';
@@ -57,6 +59,8 @@ export type Variables = {
   orgId: string;
   /** 每次請求從 user_roles 查出來的角色，不是 session 快照 */
   roles: string[];
+  /** 同上，`user_roles.permissions` 的聯集。`*` 代表全部（見 requirePermission） */
+  permissions: string[];
   supabase: SupabaseClient;
   /** 這個請求共用的 Better Auth 實例與連線池，由 `lib/get-auth.ts` 管理 */
   auth: Auth;
@@ -215,9 +219,16 @@ const ANY_ROLE = ['admin', 'teacher', 'parent'];
 const ADMIN_ONLY = ['admin'];
 
 // app.route 有多載，Parameters<> 取不到正確的那一個；掛載的 route 全是 OpenAPIHono
-function mount(path: string, route: OpenAPIHono<AppEnv>, roles: string[]) {
+function mount(path: string, route: OpenAPIHono<AppEnv>, roles: string[], permission?: string) {
   app.use(path, requireRoles(...roles));
   app.use(`${path}/*`, requireRoles(...roles));
+  // 細部權限是 optional 的第四個參數 —— 角色是准入的底線，權限是「這個管理員負責
+  // 這一塊嗎」。金流是第一個真的需要它的地方；沒有它的話「有 manage_finance 才能改
+  // 價目表」只存在於前端，直接打 API 就繞過去了。
+  if (permission) {
+    app.use(path, requirePermission(permission));
+    app.use(`${path}/*`, requirePermission(permission));
+  }
   app.route(path, route);
 }
 
@@ -244,6 +255,10 @@ mount('/api/scores', scoresRoute, ADMIN_ONLY);
 mount('/api/announcements', announcementsRoute, ANY_ROLE);
 // 產生登入連結 = 產生一個能登入的憑證。只有 admin，且只能對同組織的人
 mount('/api/login-links', loginLinksRoute, ADMIN_ONLY);
+
+// 金流：admin 角色之外還要 manage_finance（見 kb/wiki/rules/billing-rules.md）
+mount('/api/billing-periods', billingPeriodsRoute, ADMIN_ONLY, 'manage_finance');
+mount('/api/fee-templates', feeTemplatesRoute, ADMIN_ONLY, 'manage_finance');
 
 // ============================================================
 // Error Handler

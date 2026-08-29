@@ -113,6 +113,14 @@ const AREAS = [
     ],
   },
   {
+    // P1 金流地基。**目前沒有任何頁面** —— 價目表與收費期間的管理畫面是 P2，
+    // 現在只有 API 與 schema。現況表因此三個角色都會顯示未開始，那是正確的。
+    name: '計費',
+    pages: [],
+    routes: ['billing-periods', 'fee-templates'],
+    specs: [],
+  },
+  {
     name: '出勤與到班',
     pages: ['admin/attendance', 'teacher/attendance', 'parent/attendance'],
     routes: ['attendance', 'daily-checkins'],

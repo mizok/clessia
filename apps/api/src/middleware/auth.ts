@@ -45,7 +45,7 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     { data: staffRows, error: staffError },
     { data: parentRows, error: parentError },
   ] = await Promise.all([
-    supabase.from('user_roles').select('role').eq('user_id', session.user.id),
+    supabase.from('user_roles').select('role, permissions').eq('user_id', session.user.id),
     supabase.from('staff').select('status').eq('user_id', session.user.id),
     supabase.from('parents').select('status').eq('user_id', session.user.id),
   ]);
@@ -68,6 +68,16 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     'roles',
     (roleRows ?? []).map((row) => row.role as string),
   );
+  // 細部權限跟角色一樣**每個請求查表**，不從 session 讀 —— 撤銷權限要立刻生效。
+  // 一個人可以有多個角色，權限是它們的聯集。
+  c.set(
+    'permissions',
+    (roleRows ?? []).flatMap((row) =>
+      Array.isArray((row as { permissions?: unknown }).permissions)
+        ? ((row as { permissions: unknown[] }).permissions as string[])
+        : [],
+    ),
+  );
   c.set('supabase', supabase);
 
   return next();
@@ -88,6 +98,31 @@ export const requireRoles = (...allowed: string[]) =>
     }
 
     if (!roles.some((role) => allowed.includes(role))) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
+
+    return next();
+  });
+
+/**
+ * 這個帳號有沒有某個細部權限（`user_roles.permissions`）。
+ *
+ * **在金流之前 API 完全沒有這一層** —— `permissions` 只經由 `/api/me` 回給前端，
+ * 由 web 的 `permissionGuard` 擋。那是畫面控制不是授權：直接打 API 就繞過去了。
+ * 所以「有 manage_finance 才能改價目表」這件事必須在這裡成立，前端那層只是不要
+ * 讓人點到一個必然失敗的按鈕。
+ *
+ * `*` 通吃 —— bootstrap 建的第一個管理員拿的就是它。規則跟 web 的
+ * `auth.hasPermission()` 一致，兩邊不同步會變成「畫面看得到、API 打不進去」。
+ *
+ * **fail-closed**：context 沒有 permissions（例如有人在 authMiddleware 之外掛了它）、
+ * 清單是空的 —— 一律拒絕。
+ */
+export const requirePermission = (permission: string) =>
+  createMiddleware<AppEnv>(async (c, next) => {
+    const permissions = c.get('permissions');
+
+    if (!permissions || !permissions.some((p) => p === permission || p === '*')) {
       return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
     }
 

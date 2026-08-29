@@ -12,7 +12,9 @@ type ResourceType =
   | 'leave'
   | 'academy_exam'
   | 'school_exam'
-  | 'school';
+  | 'school'
+  | 'billing_period'
+  | 'fee_template';
 
 export interface AuditLogParams {
   orgId: string;
