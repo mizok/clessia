@@ -38,6 +38,15 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 `git commit --no-verify`、直接關掉 hook。所以**真正的把關在 CI**，
 本機那些的定位是「把回饋左移到編輯當下」。設計新檢查時照這個定位選層。
 
+**有一條檢查刻意不站在這個階梯上：現況表。** `feature-map.mjs` 的「表過期」在分支上只警告，
+只有 CI 的 main 紅燈，重生交給 `verify.yml` 的 `sync-feature-map` job。
+理由是這條檢查的輸入是**整個 repo 的磁碟狀態**而不是你改的檔案，所以並行分支必然互撞
+（2026-08-29 一天內 #66 / #68 / #71 三連撞，撞的都是一張可以重生的表）。
+
+> **設計新檢查時的判準**：這條檢查的輸入是「你改的東西」還是「整個 repo 的狀態」？
+> 前者放分支（越左越好），後者的強制點放 main，分支上只提醒。
+> 錯放的代價不是漏檢，是每個人都要為別人的改動重生一次產物。
+
 ### typecheck 與 test 為什麼分開跑
 
 typecheck 的輸出沒有 vitest 的 `FAIL <spec>` 行。混在一起，
@@ -83,10 +92,10 @@ npm ci  →  npm ci (apps/api)  →  harness  →  harness self-test
 
 ### 兩支腳本，都是 check/write 雙模式
 
-| 腳本                | 守什麼                                                 |
-| ------------------- | ------------------------------------------------------ |
-| `check-harness.mjs` | A1–A12（文件宣稱存在的東西是否真的存在）               |
-| `feature-map.mjs`   | `kb/wiki/roadmap.md` 功能區現況表自動生成且同步（c11） |
+| 腳本                | 守什麼                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `check-harness.mjs` | A1–A12（文件宣稱存在的東西是否真的存在）                                                                           |
+| `feature-map.mjs`   | `kb/wiki/roadmap.md` 功能區現況表自動生成且同步（c11）。**表過期只在 main 紅燈**；「有東西沒被功能區認領」則到處紅 |
 
 `npm run harness` = check（過期 exit 1）；`npm run harness:write` = 重生成。
 
@@ -175,6 +184,14 @@ harness 缺席時只印警告不紅燈。
 - **專案沒有 eslint。** PostToolUse hook 只跑 prettier，沒有任何 lint 層。
   想加的話那是這一席的事，但先問：多一層要有人維護。
 - **`nx affected` 一律自己帶 `--base=main`。**
+- **不要讓 worktree 停在別席的分支上。** 代解別人 PR 的衝突是可以的（infra 席常被指派，
+  因為衝突多半落在 `feature-map.mjs` / `roadmap.md`），但**推完立刻放開**：
+  `git checkout --detach origin/main`，並把本地那份分支刪掉。停著不放，對方就動不了。
+  動手之前先 `git rev-parse --abbrev-ref HEAD` 看自己在哪。
+- **合併進行中時 `HEAD` 還指在分支原本的 tip**，incoming 的檔案是 staged 狀態。
+  這個中間態很容易被誤讀成「停在舊 commit 卻帶著一堆來路不明的改動」——
+  2026-08-29 有人（包含我自己）這樣誤判過兩次。要比對遠端請用 `git rev-parse HEAD`，
+  **不是 `HEAD^1`**（合併中那是分支的上一個 commit，不是遠端）。
 
 ## 六、接工單的查證習慣
 

@@ -6,9 +6,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { isMainRef } from './feature-map.mjs';
 import { formatGenerated } from './lib/format.mjs';
 import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
@@ -222,6 +224,67 @@ test('使用者層級 skill 缺席只警告，exit code 仍是 0', () => {
 // 必須讓重生成照樣算成功 —— 否則一個格式化問題會偽裝成「現況表重生失敗」。
 test('formatGenerated 失敗只警告，不往上拋', () => {
   assert.doesNotThrow(() =>
-    formatGenerated(['this-file-does-not-exist-anywhere.md'], dirname(fileURLToPath(import.meta.url))),
+    formatGenerated(
+      ['this-file-does-not-exist-anywhere.md'],
+      dirname(fileURLToPath(import.meta.url)),
+    ),
   );
+});
+
+// ── 現況表的強制點在 main，不在分支 ────────────────────────────────────────────────────
+//
+// 為什麼要測：這條分流的價值全在「分支上不紅」。有人把它改回無條件 process.exit(1)，
+// 或把條件寫反，症狀都不是報錯而是**衝突稅默默回來** —— 沒有測試的話沒人會發現。
+
+test('isMainRef 只認 CI 的 main；本機一律不是 main 的合併點', () => {
+  assert.equal(isMainRef({ GITHUB_REF: 'refs/heads/main' }), true);
+  assert.equal(isMainRef({ GITHUB_REF: 'refs/heads/feat/x' }), false);
+  // 本機沒有 GITHUB_REF —— 就算人站在 main 分支上，手上那份也還沒經過 PR
+  assert.equal(isMainRef({}), false);
+});
+
+/** 把現況表弄過期，跑一次 feature-map，然後**一定**還原。 */
+function withStaleRoadmap(env) {
+  const roadmap = join(dirname(fileURLToPath(import.meta.url)), '../../kb/wiki/roadmap.md');
+  const original = readFileSync(roadmap, 'utf8');
+  const stale = original.replace(/^\| 請假 .*$/m, (row) => row.replace('| 1 ', '| 9 '));
+  assert.notEqual(stale, original, '沒有成功弄過期 —— 表格格式變了，這條測試要跟著改');
+  try {
+    writeFileSync(roadmap, stale);
+    return spawnSync(
+      process.execPath,
+      [join(dirname(fileURLToPath(import.meta.url)), 'feature-map.mjs')],
+      { env: { ...process.env, ...env }, encoding: 'utf8' },
+    );
+  } finally {
+    writeFileSync(roadmap, original);
+  }
+}
+
+test('分支上現況表過期只警告，exit code 是 0', () => {
+  const run = withStaleRoadmap({ GITHUB_REF: 'refs/heads/feat/whatever' });
+  assert.equal(run.status, 0, `分支上不該紅：\n${run.stderr}`);
+  assert.match(run.stderr, /現況表過期（分支上只提醒）/);
+});
+
+test('main 上現況表過期照樣紅', () => {
+  const run = withStaleRoadmap({ GITHUB_REF: 'refs/heads/main' });
+  assert.equal(run.status, 1, 'main 是強制點，過期必須紅');
+  assert.match(run.stderr, /✖ .*現況表過期/);
+});
+
+// 自動重生的 job 靠「零 diff 就不 commit」避免每次 main push 都疊一支 bot commit。
+// 那個判斷的前提是 --write 冪等 —— 不冪等的話 main 會被無限追加 commit。
+test('--write 冪等：第二次不再改動檔案', () => {
+  const roadmap = join(dirname(fileURLToPath(import.meta.url)), '../../kb/wiki/roadmap.md');
+  const original = readFileSync(roadmap, 'utf8');
+  const script = join(dirname(fileURLToPath(import.meta.url)), 'feature-map.mjs');
+  try {
+    spawnSync(process.execPath, [script, '--write'], { encoding: 'utf8' });
+    const first = readFileSync(roadmap, 'utf8');
+    spawnSync(process.execPath, [script, '--write'], { encoding: 'utf8' });
+    assert.equal(readFileSync(roadmap, 'utf8'), first, '--write 不冪等 → main 會被無限追加 commit');
+  } finally {
+    writeFileSync(roadmap, original);
+  }
 });

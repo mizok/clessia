@@ -43,29 +43,29 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 
 ## 條款 → 機制
 
-| Clause                     | 分類          | 機制                                                                                                          | 狀態                                                                                                                        |
-| -------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| c1 授權在 API 層           | Semantic      | harness gate A7（每支 route 掛載必須宣告角色）+ 人工 review                                                   | ⚠️ 部分：准入已機器化，資料範圍靠 review                                                                                    |
-| c2 `ba_*` 不得寫入         | Deterministic | pre-guard regex（只擋 insert/update/upsert/delete，讀取放行）                                                 | ✅ 已接                                                                                                                     |
-| c3 已提交 migration 不可改 | Deterministic | pre-guard + `whenTracked`（git 已追蹤才擋，新建不受影響）                                                     | ✅ 已接                                                                                                                     |
-| c4 migration 檔名          | Deterministic | 由 `supabase migration new` 保證                                                                              | 依賴工具，未另外 gate                                                                                                       |
-| c5 feature 不互相 import   | Semantic      | 人工 review                                                                                                   | ⚠️ 未機器化 —— 需要跨「路徑擷取的 feature 名」與「內容」的反向參照，目前的靜態 regex 引擎做不到。要接的話得寫一支獨立 check |
-| c6 禁 viewport 單位        | Deterministic | **雙層**：pre-guard regex（`.scss`，新違規、即時）+ harness gate A12（存量、CI，掃 `apps/web/src/**/*.scss`） | ✅ 雙重 —— 兩層共用 `pre-guard.rules.json` 的同一條規則，見下方邊界記錄                                                     |
-| c7 原生 control flow       | Deterministic | pre-guard regex（`.html`）                                                                                    | ✅ 已接                                                                                                                     |
-| c8 functional API          | Deterministic | pre-guard regex（`apps/web/**`，排除 `.spec.ts`）                                                             | ✅ 已接 —— 「等」字的範圍見下方邊界記錄                                                                                     |
-| c9 `kb/` 唯一              | Deterministic | pre-guard（路徑 `^docs?/`，`doc/` 與 `docs/` 都擋）+ harness gate A3                                          | ✅ 雙重                                                                                                                     |
-| c10 `AGENTS.md` 單一真相   | Deterministic | harness gate A2（必須含 `@AGENTS.md`、行數上限 60）                                                           | ✅ 已接                                                                                                                     |
-| c11 不手抄腐化清單         | Semantic      | A1（skill 清單）+ `feature-map.mjs`（roadmap 現況表）已機器化；其餘靠 review                                  | ⚠️ 部分                                                                                                                     |
-| c12 客戶可脫離自架         | Semantic      | harness gate A10（禁用雲端專屬服務 import）+ 人工 review                                                      | ⚠️ 部分：專屬服務已機器化，多租戶與 kill switch 靠 review                                                                   |
+| Clause                     | 分類          | 機制                                                                                                               | 狀態                                                                                                                        |
+| -------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| c1 授權在 API 層           | Semantic      | harness gate A7（每支 route 掛載必須宣告角色）+ 人工 review                                                        | ⚠️ 部分：准入已機器化，資料範圍靠 review                                                                                    |
+| c2 `ba_*` 不得寫入         | Deterministic | pre-guard regex（只擋 insert/update/upsert/delete，讀取放行）                                                      | ✅ 已接                                                                                                                     |
+| c3 已提交 migration 不可改 | Deterministic | pre-guard + `whenTracked`（git 已追蹤才擋，新建不受影響）                                                          | ✅ 已接                                                                                                                     |
+| c4 migration 檔名          | Deterministic | 由 `supabase migration new` 保證                                                                                   | 依賴工具，未另外 gate                                                                                                       |
+| c5 feature 不互相 import   | Semantic      | 人工 review                                                                                                        | ⚠️ 未機器化 —— 需要跨「路徑擷取的 feature 名」與「內容」的反向參照，目前的靜態 regex 引擎做不到。要接的話得寫一支獨立 check |
+| c6 禁 viewport 單位        | Deterministic | **雙層**：pre-guard regex（`.scss`，新違規、即時）+ harness gate A12（存量、CI，掃 `apps/web/src/**/*.scss`）      | ✅ 雙重 —— 兩層共用 `pre-guard.rules.json` 的同一條規則，見下方邊界記錄                                                     |
+| c7 原生 control flow       | Deterministic | pre-guard regex（`.html`）                                                                                         | ✅ 已接                                                                                                                     |
+| c8 functional API          | Deterministic | pre-guard regex（`apps/web/**`，排除 `.spec.ts`）                                                                  | ✅ 已接 —— 「等」字的範圍見下方邊界記錄                                                                                     |
+| c9 `kb/` 唯一              | Deterministic | pre-guard（路徑 `^docs?/`，`doc/` 與 `docs/` 都擋）+ harness gate A3                                               | ✅ 雙重                                                                                                                     |
+| c10 `AGENTS.md` 單一真相   | Deterministic | harness gate A2（必須含 `@AGENTS.md`、行數上限 60）                                                                | ✅ 已接                                                                                                                     |
+| c11 不手抄腐化清單         | Semantic      | A1（skill 清單）+ `feature-map.mjs`（roadmap 現況表，**分支警告 / main 紅燈的雙層**，見下）已機器化；其餘靠 review | ⚠️ 部分                                                                                                                     |
+| c12 客戶可脫離自架         | Semantic      | harness gate A10（禁用雲端專屬服務 import）+ 人工 review                                                           | ⚠️ 部分：專屬服務已機器化，多租戶與 kill switch 靠 review                                                                   |
 
 ## Harness gate 檢查項
 
 `npm run harness` 跑**兩支**腳本，兩支都是 `--check`（預設，過期 exit 1）／`--write`（重生成）雙模式：
 
-| 腳本                | 守什麼                                                       |
-| ------------------- | ------------------------------------------------------------ |
-| `check-harness.mjs` | 下表的 A1–A10                                                |
-| `feature-map.mjs`   | `kb/wiki/roadmap.md` 的**功能區現況表**自動生成且同步（c11） |
+| 腳本                | 守什麼                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| `check-harness.mjs` | 下表的 A1–A10                                                                         |
+| `feature-map.mjs`   | `kb/wiki/roadmap.md` 的**功能區現況表**自動生成且同步（c11）。**強制點在 main**，見下 |
 
 > A1 的真相來源其實是 `skills-lock.json`：磁碟現況用來重生 lock，A1b 再比對 `AGENTS.md` ↔ lock。
 
@@ -83,6 +83,32 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | A11  | `apps/api/src` 的 `createUser` 不得帶 `password`（scrypt 超過 Workers 的 10ms CPU 上限）                                                                  |
 | A12  | `apps/web/src/**/*.scss` 沒有拿 viewport 單位當值（c6 的**存量**那一半；規則與 pre-guard 共用）                                                           |
 
+### 現況表的強制點在 main，不在分支
+
+`feature-map.mjs` 的**現況表過期**檢查是全 repo 唯一一條**看環境分流**的：
+
+| 環境                      | 判斷                             | 行為            |
+| ------------------------- | -------------------------------- | --------------- |
+| 本機（沒有 `GITHUB_REF`） | 一律非 main                      | ⚠️ 警告，exit 0 |
+| CI 上的 feature branch    | `GITHUB_REF !== refs/heads/main` | ⚠️ 警告，exit 0 |
+| CI 上的 main              | `GITHUB_REF === refs/heads/main` | ✖ 紅燈          |
+
+main 合併後由 `verify.yml` 的 `sync-feature-map` job 跑 `harness:write` 並補一支
+`[skip ci]` 的 bot commit（零 diff 就跳過，絕大多數 push 走這條）。
+
+> **理由**：現況表是從**整個 repo 的磁碟狀態**推導的，所以任何兩支並行分支只要各自新增了
+> 頁面或 route，就會各自重生出不同的表，然後在 main 上撞成衝突 —— 2026-08-29 一天內
+> #66 / #68 / #71 三連撞。撞的不是任何人的實質改動，是一張**可以重新生成**的表。
+>
+> 本機不看 git branch 而是「沒有 `GITHUB_REF` 就當作不是 main」：本機的工作樹永遠不是
+> main 的合併點，就算人站在 main 分支上，手上那份也還沒經過 PR。
+
+**只有這一條被分流。** `feature-map.mjs` 的另一組檢查（磁碟上有頁面 / route / spec 沒被任何
+功能區認領）在哪裡都是紅燈 —— 那是藍圖不完整，不是一張重生就好的表。A1–A12 也完全不受影響。
+
+雙向都有 self-test（`harness.test.mjs`）：分支上過期不紅、main 上過期紅、以及 `--write`
+冪等（不冪等的話 main 會被無限追加 bot commit）。
+
 ## KB 的健康度：不是 gate，是 skill
 
 **`npm run harness` 不檢查 `kb/` 的內容。** 2026-08 曾經有一支自製的 `kb-gate.mjs`（`npm run kb`），
@@ -97,6 +123,11 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | `/kb-wiki verify` | **對照程式碼的漂移稽核** —— 頁面宣稱的路徑／符號／設定是否還成立   |
 
 規範本身在 [`kb/schema.md`](../../schema.md)。
+
+> **main 上的 `sync-feature-map` job 刻意不涵蓋 `kb/` 的索引。** 它只重生現況表與 skill 清單
+> —— `kb/wiki/index.md` 與各分類的 `_moc.md` 由 kb-wiki skill 生成，而 skill 住在使用者的
+> 家目錄、不在版控裡（CI 上根本沒有它）。分工是：**生成器在 repo 裡的 → CI 自動跑；
+> 生成器在人的機器上的 → 計畫席在部署窗口手動跑 `/kb-wiki map`。**
 
 > ⚠️ **這意味著 KB 沒有任何機器把關會在 commit 時擋你。** 這是刻意的取捨：KB 的內容
 > 正確性是語意判斷，確定性 gate 假裝做得到只會給人虛假的安全感。代價是**要靠人記得跑**

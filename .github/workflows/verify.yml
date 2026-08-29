@@ -73,3 +73,54 @@ jobs:
       #    放在最後：它是整條序列裡最慢的一步，前面便宜的檢查先紅先省時間。
       - name: build web
         run: npx nx build web --configuration=production
+
+  # ── main 上自動重生現況表 ──────────────────────────────────────────────────────────────
+  #
+  # 為什麼要有這個 job：`kb/wiki/roadmap.md` 的功能區現況表是**從整個 repo 的磁碟狀態**
+  # 推導的，所以任何兩支並行分支只要各自新增了頁面或 route，就會各自重生出不同的表，
+  # 然後在 main 上撞成衝突 —— 2026-08-29 一天內 #66 / #68 / #71 三連撞。
+  # 撞的不是任何人的實質改動，是一張**可以重新生成**的表，純粹的儀式成本。
+  #
+  # 所以強制點搬到這裡：分支上表過期只是警告（feature-map.mjs 看 GITHUB_REF 分流），
+  # main 合併後由這個 job 重生並補一支 commit。上面的 verify 綠了才跑 —— 不在紅燈的 main
+  # 上疊自動 commit。
+  #
+  # **不涵蓋 kb/wiki/index.md 與各分類的 _moc.md**：那些由 kb-wiki skill 生成，而 skill 住在
+  # 使用者的家目錄、不在版控裡（CI 上根本沒有），改由計畫席在部署窗口手動跑 `/kb-wiki map`。
+  sync-feature-map:
+    needs: verify
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: 重生現況表
+        run: npm run harness:write
+
+      # 零 diff 就什麼都不做 —— 絕大多數的 main push 會走這條。
+      # commit 訊息帶 [skip ci] 防循環（GITHUB_TOKEN 的 push 本來就不會再觸發 workflow，
+      # 但這件事是 GitHub 的行為不是我們的保證，寫上去比較便宜）。
+      - name: 有變化才 commit
+        run: |
+          git add kb/wiki/roadmap.md AGENTS.md tools/agent-harness/skills-lock.json
+          if git diff --cached --quiet; then
+            echo "現況表已同步，無需 commit"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore(harness): 自動重生功能區現況表 [skip ci]'
+          # main 在這幾秒內又前進的話 rebase 一次再推；再失敗就讓 job 紅，
+          # 下一次 main push 也會把表補上，不會靜默漏掉
+          git push || (git pull --rebase && git push)

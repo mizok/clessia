@@ -71,7 +71,12 @@ const AREAS = [
     specs: ['admin/student-affairs/parents.md'],
   },
   { name: '人員', pages: ['admin/staff'], routes: ['staff'], specs: ['admin/system/staff.md'] },
-  { name: '分校', pages: ['admin/campuses'], routes: ['campuses'], specs: ['admin/system/campuses.md'] },
+  {
+    name: '分校',
+    pages: ['admin/campuses'],
+    routes: ['campuses'],
+    specs: ['admin/system/campuses.md'],
+  },
   { name: '學校', pages: ['admin/schools'], routes: ['schools'], specs: [] },
   { name: '科目', pages: ['admin/subjects'], routes: ['subjects'], specs: [] },
   {
@@ -119,7 +124,14 @@ const AREAS = [
     // 現在只有 API 與 schema。現況表因此三個角色都會顯示未開始，那是正確的。
     name: '計費',
     pages: [],
-    routes: ['billing-periods', 'fee-templates', 'invoices', 'session-packs', 'meals', 'billing-runs'],
+    routes: [
+      'billing-periods',
+      'fee-templates',
+      'invoices',
+      'session-packs',
+      'meals',
+      'billing-runs',
+    ],
     specs: [],
   },
   {
@@ -133,7 +145,12 @@ const AREAS = [
       'public/qr-checkin.md',
     ],
   },
-  { name: '請假', pages: ['admin/leave'], routes: ['leaves'], specs: ['admin/student-affairs/leave.md'] },
+  {
+    name: '請假',
+    pages: ['admin/leave'],
+    routes: ['leaves'],
+    specs: ['admin/student-affairs/leave.md'],
+  },
   {
     name: '考試與成績',
     pages: ['admin/grades', 'parent/grades'],
@@ -320,9 +337,9 @@ function pageDomainServices(page) {
 // 掛載一律走 mount()（強制宣告角色，見 check-harness 的 A7）；app.route 是舊寫法，
 // 兩種都認才不會在轉換期間把「已掛載 API」全部算成 0
 const mountedRoutes = existsSync(API_INDEX)
-  ? [
-      ...readFileSync(API_INDEX, 'utf8').matchAll(/(?:app\.route|mount)\('\/api\/([a-z-]+)'/g),
-    ].map((m) => m[1])
+  ? [...readFileSync(API_INDEX, 'utf8').matchAll(/(?:app\.route|mount)\('\/api\/([a-z-]+)'/g)].map(
+      (m) => m[1],
+    )
   : [];
 
 const diskPages = ROLES.flatMap((role) =>
@@ -395,8 +412,7 @@ function render() {
   const roleCols = ROLES.map((r) => ROLE_LABELS[r]).join(' | ');
 
   /** 某個角色底下所有頁面都是空殼的功能區 */
-  const shellsFor = (role) =>
-    rows.filter((r) => r.byRole[role] === '🚧').map((r) => r.area);
+  const shellsFor = (role) => rows.filter((r) => r.byRole[role] === '🚧').map((r) => r.area);
 
   return [
     `| 功能區 | ${roleCols} | 已掛載 API | 規格 | 狀態 |`,
@@ -409,8 +425,7 @@ function render() {
     `**共 ${AREAS.length} 個功能區：${rows.filter((r) => r.status.includes('已接通')).length} 個已接通、${shells.length} 個空殼、${rows.filter((r) => r.status.includes('未開始')).length} 個未開始。**`,
     '',
     ...ROLES.map(
-      (role) =>
-        `${ROLE_LABELS[role]}空殼（有頁面沒後端）：${shellsFor(role).join('、') || '無'}`,
+      (role) => `${ROLE_LABELS[role]}空殼（有頁面沒後端）：${shellsFor(role).join('、') || '無'}`,
     ),
     `未開始（MVP 有列，磁碟上完全不存在）：${
       rows
@@ -436,6 +451,21 @@ const normalize = (t) =>
     )
     .filter(Boolean)
     .join('\n');
+
+/**
+ * 「這次執行是不是 main 的合併點」——決定現況表過期要紅燈還是只警告。
+ *
+ * 只認 CI 上的 `GITHUB_REF`。**本機一律回 false**，這不是偷懶：本機的工作樹永遠不是
+ * main 的合併點，就算你人在 main 分支上，你手上那份也還沒經過 PR。真正會被別人拉到的
+ * main 是 CI 上那個。
+ *
+ * 為什麼要分流（見 kb/wiki/architecture/constitution-enforcement.md 的 c11）：
+ * 現況表是**從整個 repo 的磁碟狀態**推導的，所以任何兩支並行分支只要各自新增了頁面或
+ * route，就會各自重生出不同的表，然後在 main 上撞成衝突 —— 2026-08-29 一天內 #66 / #68 /
+ * #71 三連撞。這個衝突稅是純粹的儀式：撞的不是任何人的實質改動，是一張**可以重新生成**
+ * 的表。所以分支上只提醒，重生交給 main。
+ */
+export const isMainRef = (env = process.env) => env.GITHUB_REF === 'refs/heads/main';
 
 // 測試要 import 這支檔案，所以主流程包起來 —— 跟 test-gate.mjs 同一個做法
 export { AREAS, ROLES, diskPages, failures, render };
@@ -472,8 +502,16 @@ async function main() {
     formatGenerated([ROADMAP], ROOT);
     console.log(`✓ 功能區現況表已重生（${AREAS.length} 個功能區）`);
   } else if (normalize(source.slice(from + START.length, to)) !== normalize(body)) {
-    console.error('✖ kb/wiki/roadmap.md 的功能區現況表過期。重生：npm run harness:write');
-    process.exit(1);
+    // **只有現況表過期這一條會被降級**。上面的 `failures`（磁碟上有東西沒被任何功能區認領）
+    // 在哪裡都是紅燈 —— 那是藍圖不完整，不是一張重生就好的表。
+    if (isMainRef()) {
+      console.error('✖ kb/wiki/roadmap.md 的功能區現況表過期。重生：npm run harness:write');
+      process.exit(1);
+    }
+    console.warn(
+      '⚠ kb/wiki/roadmap.md 的功能區現況表過期（分支上只提醒）—— main 的 verify workflow 會自動重生。',
+    );
+    console.warn('  想現在就對齊：npm run harness:write（但這會讓你跟其他並行分支撞在同一張表上）');
   } else {
     console.log(`✓ 功能區現況表同步（${AREAS.length} 個功能區）`);
   }
