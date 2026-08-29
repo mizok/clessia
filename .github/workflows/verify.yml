@@ -65,3 +65,11 @@ jobs:
 
       - name: test
         run: npx nx run-many -t test
+
+      # ── web 的 production build。**這是唯一會編譯 Angular 模板的一步** ——
+      #    web 沒有 typecheck target（`nx run-many -t typecheck` 只跑得到 api），
+      #    模板裡的型別錯誤（綁到不存在的 property、signal 忘了呼叫）只有 AOT build 抓得到，
+      #    上面那些 gate 全部會綠燈放行。
+      #    放在最後：它是整條序列裡最慢的一步，前面便宜的檢查先紅先省時間。
+      - name: build web
+        run: npx nx build web --configuration=production
