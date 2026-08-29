@@ -7,6 +7,7 @@ import {
   ContactBookService,
   type ContactBookEntry,
   type ContactBookQueryParams,
+  type MissingContactBookStudent,
 } from '@core/contact-book.service';
 import { StudentsService, type Student } from '@core/students.service';
 
@@ -39,6 +40,7 @@ describe('ContactBookPage', () => {
 
   const contactBook = {
     list: vi.fn((_params?: ContactBookQueryParams) => of(listResponse([]))),
+    missing: vi.fn((_date?: string) => of({ data: [] as MissingContactBookStudent[], meta: { total: 0 } })),
     upsert: vi.fn(),
   };
   const students = {
@@ -47,6 +49,7 @@ describe('ContactBookPage', () => {
 
   beforeEach(async () => {
     contactBook.list.mockReset().mockReturnValue(of(listResponse([])));
+    contactBook.missing.mockReset().mockReturnValue(of({ data: [], meta: { total: 0 } }));
     students.list.mockReset().mockReturnValue(of({ data: [student()], summary: {}, meta: {} }));
 
     await TestBed.configureTestingModule({
@@ -212,5 +215,81 @@ describe('ContactBookPage', () => {
     expect(contactBook.list).toHaveBeenCalledWith(
       expect.objectContaining({ studentId: undefined }),
     );
+  });
+
+  describe('當日待辦（還沒寫的）', () => {
+    const missingStudent = (
+      overrides?: Partial<MissingContactBookStudent>,
+    ): MissingContactBookStudent => ({
+      studentId: 'stu-1',
+      studentName: '陳小明',
+      classes: [{ classId: 'c1', className: '三年級數學' }],
+      ...overrides,
+    });
+
+    it('進頁就查缺漏名單', () => {
+      expect(contactBook.missing).toHaveBeenCalledWith(expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+    });
+
+    // 缺漏名單問的是「某一天」，列表問的是「一段區間」—— 綁在一起改一個會動到兩個
+    it('缺漏名單的日期跟列表的區間各自獨立', () => {
+      contactBook.list.mockClear();
+      contactBook.missing.mockClear();
+
+      component['onMissingDateChange'](new Date('2026-08-20T00:00:00'));
+
+      expect(contactBook.missing).toHaveBeenCalledWith('2026-08-20');
+      expect(contactBook.list).not.toHaveBeenCalled();
+    });
+
+    it('改列表區間不會重查缺漏名單', () => {
+      contactBook.missing.mockClear();
+
+      component['onDateRangeChange']([
+        new Date('2026-08-01T00:00:00'),
+        new Date('2026-08-10T00:00:00'),
+      ]);
+
+      expect(contactBook.missing).not.toHaveBeenCalled();
+    });
+
+    // 一份名單掛掉不該讓另一份也看不了
+    it('缺漏名單失敗時列表照常，只有它自己顯示失敗', async () => {
+      contactBook.missing.mockReturnValue(throwError(() => new Error('boom')));
+      component['loadMissing']();
+      await fixture.whenStable();
+
+      expect(component['missingFailed']()).toBe(true);
+      expect(component['failed']()).toBe(false);
+    });
+
+    // 同一個學生在兩個開了聯絡簿的班，要寫的仍然只有一則 —— 班名並列不是兩列
+    it('多班的學生班名並列在同一列', () => {
+      const target = missingStudent({
+        classes: [
+          { classId: 'c1', className: '三年級數學' },
+          { classId: 'c2', className: '三年級英文' },
+        ],
+      });
+
+      expect(component['classNamesOf'](target)).toBe('三年級數學、三年級英文');
+    });
+
+    it('補寫完的學生從待辦名單移掉', async () => {
+      contactBook.missing.mockReturnValue(
+        of({
+          data: [missingStudent({ studentId: 'stu-1' }), missingStudent({ studentId: 'stu-2' })],
+          meta: { total: 2 },
+        }),
+      );
+      component['loadMissing']();
+      await fixture.whenStable();
+      expect(component['missing']().length).toBe(2);
+
+      component['missing'].update((list) => list.filter((item) => item.studentId !== 'stu-1'));
+
+      expect(component['missing']().length).toBe(1);
+      expect(component['missing']()[0].studentId).toBe('stu-2');
+    });
   });
 });

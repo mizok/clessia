@@ -102,4 +102,77 @@
     font-size: var(--text-sm);
     color: var(--zinc-500);
   }
+
+  // 當日待辦。放在歷史列表上面 —— 它是要做的事，不是要查的東西
+  &__missing {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--zinc-50);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-lg);
+  }
+
+  &__missing-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  &__missing-title {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-700);
+  }
+
+  &__missing-note {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--zinc-600);
+
+    &--done {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      color: var(--success-600);
+    }
+  }
+
+  &__missing-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__missing-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--zinc-200);
+  }
+
+  &__missing-item:last-child {
+    border-bottom: none;
+  }
+
+  &__missing-student {
+    flex: 0 0 auto;
+    font-weight: var(--font-medium);
+    color: var(--zinc-900);
+  }
+
+  // 一個學生可能同時在兩個開了聯絡簿的班 —— 班名並列，但要寫的仍然只有一則
+  &__missing-classes {
+    flex: 1 1 auto;
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+  }
 }

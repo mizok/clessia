@@ -12,7 +12,11 @@ import { DialogService } from 'primeng/dynamicdialog';
 
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { OverlayContainerService } from '@core/overlay-container.service';
-import { ContactBookService, type ContactBookEntry } from '@core/contact-book.service';
+import {
+  ContactBookService,
+  type ContactBookEntry,
+  type MissingContactBookStudent,
+} from '@core/contact-book.service';
 import { StudentsService, type Student } from '@core/students.service';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -79,6 +83,16 @@ export class ContactBookPage implements OnInit {
   private readonly today = format(new Date(), 'yyyy-MM-dd');
 
   protected readonly entries = signal<ContactBookEntry[]>([]);
+
+  // ── 當日待辦：這天該寫但還沒寫的 ────────────────────────────────────────
+  //
+  // **跟下面的列表是兩個獨立的查詢，不共用日期。** 缺漏名單問的是「某一天」，
+  // 列表問的是「一段區間」—— 綁在一起的話改區間結束日會同時動到兩件事。
+  // 這個端點的消費場景是行政的當日待辦，所以它自己的預設就是今天。
+  protected readonly missing = signal<MissingContactBookStudent[]>([]);
+  protected readonly missingLoading = signal(true);
+  protected readonly missingFailed = signal(false);
+  protected missingDate: Date = new Date();
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
 
@@ -119,6 +133,7 @@ export class ContactBookPage implements OnInit {
 
   ngOnInit(): void {
     this.load();
+    this.loadMissing();
   }
 
   private get overlayContainer(): HTMLElement | null {
@@ -143,6 +158,63 @@ export class ContactBookPage implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  /** 缺漏名單自己失敗就好 —— 它掛掉不該讓下面的歷史列表也看不了 */
+  protected loadMissing(): void {
+    this.missingLoading.set(true);
+    this.missingFailed.set(false);
+
+    this.service.missing(format(this.missingDate, 'yyyy-MM-dd')).subscribe({
+      next: (res) => {
+        this.missing.set(res.data);
+        this.missingLoading.set(false);
+      },
+      error: () => {
+        this.missing.set([]);
+        this.missingFailed.set(true);
+        this.missingLoading.set(false);
+      },
+    });
+  }
+
+  protected onMissingDateChange(value: Date | null): void {
+    if (!value) return;
+    this.missingDate = value;
+    this.loadMissing();
+  }
+
+  /**
+   * 從缺漏名單補寫一則。學生與日期都是清單給的 —— 不需要選擇器，
+   * 所以這條路徑不違反「管理端不做挑學生開新一則」那個決定。
+   */
+  protected writeMissing(target: MissingContactBookStudent): void {
+    const ref = this.dialogService.open(ContactBookEntryDialogComponent, {
+      header: '補寫聯絡簿',
+      width: '560px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: {
+        draft: {
+          studentId: target.studentId,
+          studentName: target.studentName,
+          entryDate: format(this.missingDate, 'yyyy-MM-dd'),
+        },
+      },
+    });
+
+    ref?.onClose.subscribe((created: ContactBookEntry | undefined) => {
+      if (!created) return;
+      // 寫完就從待辦名單移掉，不重打整份名單
+      this.missing.update((list) => list.filter((item) => item.studentId !== created.studentId));
+      // 新寫的那則若落在列表的區間內就該出現 —— 這裡重打列表比自己插入可靠
+      this.load();
+    });
+  }
+
+  protected classNamesOf(target: MissingContactBookStudent): string {
+    return target.classes.map((c) => c.className).join('、');
   }
 
   protected onDateRangeChange(value: Date[] | null): void {
