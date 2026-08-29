@@ -13,6 +13,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { formatGenerated } from './lib/format.mjs';
 import { matchWriteRules } from './lib/rules.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
@@ -190,6 +191,7 @@ if (spliceBlock(agentsSource, inner) === null) {
   fail(`AGENTS.md 缺少 SKILLS:START / SKILLS:END marker，無法同步 skill 清單。`);
 } else if (mode === 'write') {
   writeFileSync(AGENTS_MD, spliceBlock(agentsSource, inner));
+  formatGenerated([AGENTS_MD], ROOT);
   console.log('✓ AGENTS.md skill 清單已重生');
 } else if (normalize(currentInner(agentsSource)) !== normalize(inner)) {
   fail('AGENTS.md 的 skill 清單與 skills-lock.json 不符。重生：npm run harness:write');

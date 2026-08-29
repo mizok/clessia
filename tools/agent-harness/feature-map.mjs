@@ -16,6 +16,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { formatGenerated } from './lib/format.mjs';
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const ROADMAP = join(ROOT, 'kb/wiki/roadmap.md');
 /**
@@ -467,6 +469,7 @@ async function main() {
       ROADMAP,
       `${source.slice(0, from + START.length)}\n\n${body}\n\n${source.slice(to)}`,
     );
+    formatGenerated([ROADMAP], ROOT);
     console.log(`✓ 功能區現況表已重生（${AREAS.length} 個功能區）`);
   } else if (normalize(source.slice(from + START.length, to)) !== normalize(body)) {
     console.error('✖ kb/wiki/roadmap.md 的功能區現況表過期。重生：npm run harness:write');
