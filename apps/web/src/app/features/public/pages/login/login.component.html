@@ -1,9 +1,10 @@
 <div class="login">
   <div class="login__card">
     <header class="login__brand">
-      <span class="login__logo" aria-hidden="true">C</span>
-      <h1 class="login__wordmark">Clessia</h1>
-      <p class="login__tagline">課表、出缺席、成績、繳費 —— 補習班日常的一個入口</p>
+      <!-- 句點是唯一的裝飾，aria-hidden 讓螢幕閱讀器只念品牌名 -->
+      <h1 class="login__wordmark">
+        Clessia<span class="login__wordmark-dot" aria-hidden="true">.</span>
+      </h1>
     </header>
 
     @if (error()) {
@@ -20,9 +21,11 @@
         <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
         前往 LINE...
       } @else {
-        <!-- LINE 官方按鈕素材包的 icon，形狀原樣、只換顏色（見 SCSS）。
-             純裝飾 —— 右邊的文字已經說了「LINE」，讓螢幕閱讀器再念一次反而吵。 -->
-        <span class="login__line-logo" aria-hidden="true"></span>
+        <!-- 綠底 chip + 官方白色 icon，重現 LINE app 圖示的長相 —— 那才是家長認得的。
+             純裝飾：右邊的文字已經說了「LINE」，讓螢幕閱讀器再念一次反而吵。 -->
+        <span class="login__line-chip" aria-hidden="true">
+          <img class="login__line-logo" src="assets/brand/line-logo.png" alt="" />
+        </span>
         使用 LINE 登入
       }
     </button>
