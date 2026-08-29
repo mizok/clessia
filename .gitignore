@@ -71,3 +71,6 @@ Thumbs.db
 .claude/worktrees/
 .claude/tdd-guard/
 lint-report-*.md
+
+# 設計方向探索的過程產物（mockup、工具輸入），不進版控
+.design-explorations/

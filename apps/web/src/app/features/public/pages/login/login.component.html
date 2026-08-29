@@ -1,11 +1,13 @@
 <div class="login">
-  <div class="login__card">
-    <header class="login__brand">
-      <!-- 句點是唯一的裝飾，aria-hidden 讓螢幕閱讀器只念品牌名 -->
-      <h1 class="login__wordmark">
-        Clessia<span class="login__wordmark-dot" aria-hidden="true">.</span>
-      </h1>
-    </header>
+  <div class="login__hero">
+    <app-flow-field [density]="0.9" [speed]="1.15" />
+    <h1 class="login__mark">Clessia</h1>
+    <p class="login__lede">補習班的一天是流動的。人進人出、課一堂接一堂，這裡把它接住。</p>
+  </div>
+
+  <div class="login__panel">
+    <h2 class="login__title">登入</h2>
+    <p class="login__sub">用 LINE 登入，不需要記密碼。</p>
 
     @if (error()) {
       <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />

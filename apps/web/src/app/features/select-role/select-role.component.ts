@@ -7,6 +7,7 @@ import {
 } from '@angular/core';
 
 import { AuthService, type UserRole } from '@core/auth.service';
+import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.component';
 
 /**
  * `/select-role` 的薄殼：路由是骨架，彈窗是長相。
@@ -22,7 +23,7 @@ import { AuthService, type UserRole } from '@core/auth.service';
  */
 @Component({
   selector: 'app-select-role',
-  imports: [],
+  imports: [FlowFieldComponent],
   templateUrl: './select-role.component.html',
   styleUrl: './select-role.component.scss',
 })

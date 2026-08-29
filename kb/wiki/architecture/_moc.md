@@ -4,6 +4,14 @@
 
 ---
 
+## [[architecture/admin-contact-book-page|聯絡簿管理端頁的設計]]
+
+管理端的聯絡簿是監看不是撰寫：日期區間列表＋未簽收篩選（API 無分頁且 count 是 exact，所以前端篩是誠實的），編輯已存在的一則走同一支 upsert，但不做「挑學生開新的一則」——那是老師端 P3 的工作流。「今天哪些該寫還沒寫」這輪不做，現有 API 做出來會漏班且是 N+1。
+
+Tags: `architecture`, `admin`, `contact-book`
+
+Links to: [[rules/contact-book-rules]], [[rules/contact-book-rules]]
+
 ## [[architecture/admin-dashboard-v1|管理端儀表板 v1 的設計]]
 
 把四張死卡片接上真資料並補行政待辦卡：零後端改動（六種資料既有 API 全有）、未點名卡回溯 7 天且只在逐堂點名模式顯示、報名卡只取 meta.total 以免分頁截斷、經營區用 permission 蓋住、卡片是索引不是工作場。
@@ -11,6 +19,14 @@
 Tags: `architecture`, `dashboard`, `admin`
 
 Links to: [[architecture/teacher-students-view]]
+
+## [[architecture/admin-payments-page|繳費紀錄頁的設計]]
+
+把 /admin/payments 空殼接上 /api/invoices：狀態由後端推導直接呈現、篩選只做 API 真的支援的兩項（欠繳與單一學生）而不在前端偽造狀態篩選、meta.total 在非 overdue 路徑不可信所以分頁改用「當頁滿即有下一頁」、詳情走 dialog、收款/退費/催繳/手動開帳共用同一個 dialog、列印用 @media print 切區塊。
+
+Tags: `architecture`, `admin`, `finance`, `payments`, `invoices`
+
+Links to: [[specs/admin/finance/payments]], [[rules/billing-rules]], [[architecture/teacher-students-view]]
 
 ## [[architecture/amending-the-constitution|修憲的機制]]
 
@@ -73,6 +89,14 @@ Links to: [[architecture/constitution|`constitution`]]
 Tags: `architecture`, `deployment`, `cloudflare`, `supabase`
 
 Links to: [[architecture/vendor-relationship]], [[architecture/constitution|c12]], [[architecture/bootstrapping-a-deployment]]
+
+## [[architecture/design-language|視覺語言（方向 D：暖橘流場）]]
+
+白底為基、大面積暖橘作為入口色面、會動的線條場只住在 hero；橘面上一律近黑字，因為亮橘配白字撐不到 4.5:1。token 用值替換而不是改名，既有頁面自動跟上。
+
+Tags: `architecture`, `design-system`, `tokens`, `animation`
+
+Links to: [[specs/public/login]], [[specs/public/login]], [[architecture/login-experience]]
 
 ## [[architecture/enrollment-admin-view|報名管理端的設計]]
 

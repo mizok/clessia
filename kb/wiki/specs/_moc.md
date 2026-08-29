@@ -90,7 +90,7 @@ Links to: [[rules/meal-rules]], [[specs/admin/finance/payments|繳費紀錄]], [
 
 Tags: `specs`, `admin`, `finance`, `payments`, `invoices`
 
-Links to: [[rules/billing-rules]], [[rules/billing-rules]], [[rules/meal-rules]], [[flows/enrollment]], [[rules/enrollment-rules]]
+Links to: [[rules/billing-rules]], [[architecture/admin-payments-page]], [[rules/billing-rules]], [[rules/meal-rules]], [[flows/enrollment]], [[rules/enrollment-rules]]
 
 ## [[specs/admin/finance/reports|營收報表]]
 
