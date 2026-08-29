@@ -72,22 +72,28 @@
 
   // 沒有圖形 logo —— 真 logo 是之後的品牌工作，與其擺一個佔位方塊不如不擺。
   // 字標的全部造型就是尺寸、字重與收緊的字距。
+  // 這個面的主角是品牌名，不是中文標題。
+  // 40px 沒有對應的全域 token，也不該為了單一字標往全域加一階。
   &__logo-text {
-    font-size: var(--text-2xl);
+    font-size: 40px;
     font-weight: var(--font-bold);
-    letter-spacing: -0.03em;
+    line-height: 1;
+    letter-spacing: -0.04em;
   }
 
+  // 中文標題退到說明的位置 —— 它原本是 28px bold，比品牌名還大，
+  // 於是這個面的視覺主角變成「學程管家」而不是 Clessia。
   &__tagline {
-    margin: 0 0 var(--space-2) 0;
-    font-size: var(--text-3xl);
-    font-weight: var(--font-bold);
+    margin: 0 0 var(--space-1) 0;
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
     line-height: var(--leading-tight);
+    opacity: 0.9;
   }
 
   &__slogan {
     margin: 0 0 var(--space-8) 0;
-    font-size: var(--text-lg);
+    font-size: var(--text-md);
     font-weight: var(--font-medium);
     // 橘面上不用灰階做次要層次（灰在橘上會髒），改用近黑降透明度
     color: var(--zinc-900);
