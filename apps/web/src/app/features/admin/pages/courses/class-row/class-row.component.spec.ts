@@ -9,6 +9,7 @@ function makeClass(overrides: Partial<Class> = {}): Class {
     id: 'c1',
     name: '國二數學 A',
     isActive: true,
+    usesContactBook: false,
     schedules: [],
     ...overrides,
   } as Class;

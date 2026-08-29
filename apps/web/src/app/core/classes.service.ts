@@ -28,6 +28,11 @@ export interface Class {
   gradeLevels: string[];
   nextClassId: string | null;
   isActive: boolean;
+  /**
+   * 國小／國中模式的開關（kb/wiki/rules/contact-book-rules.md 規則 2）。
+   * 開 = 這個班用個人聯絡簿；關 = 走 class_logs 教務日誌。
+   */
+  usesContactBook: boolean;
   scheduleCount?: number;
   scheduleTeacherIds?: string[];
   hasUpcomingSessions?: boolean;
@@ -75,6 +80,7 @@ export interface CreateClassInput {
   maxStudents?: number;
   gradeLevels?: string[];
   nextClassId?: string | null;
+  usesContactBook?: boolean;
   startDate?: string | null;
   endDate?: string | null;
 }
@@ -84,6 +90,7 @@ export interface UpdateClassInput {
   maxStudents?: number;
   gradeLevels?: string[];
   nextClassId?: string | null;
+  usesContactBook?: boolean;
   startDate?: string | null;
   endDate?: string | null;
   isActive?: boolean;
