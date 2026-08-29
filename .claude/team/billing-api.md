@@ -111,6 +111,16 @@ different request`）。方向永遠是 per-request 建、請求結束收。
 - 換欄位時**不留雙軌**：兩個欄位並存的代價是每個讀寫點都要決定「聽哪一個」，
   而那個決定會在不同檔案裡做出不同答案。
 
+### plpgsql 與 seed 的坑（2026-08-29 db:reset 事故後補）
+
+- **plpgsql 變數一律 `v_` 前綴。** 裸名變數會跟同名欄位在 SQL 裡撞成 42702
+  （column reference is ambiguous），而且**只在特定語句形狀發作** ——
+  `ON CONFLICT` 的目標欄位、裸 `WHERE`。所以它可以潛伏很久，
+  直到有人加了一句剛好那個形狀的 SQL。
+- **transaction + ROLLBACK 抽段法驗不到 plpgsql 的名稱解析。**
+  抽出來的版本裡沒有那些變數。**新程式碼落在 `DO $$ ... $$` 裡的話，
+  必須把整份 seed 原樣執行**（一樣可以包在 transaction 裡 ROLLBACK，非破壞性）。
+
 ### transaction + ROLLBACK 驗證法
 
 `npm run db:reset` 在這個席位的環境**被權限規則擋下**（會清空本機 DB）。替代做法：
