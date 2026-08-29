@@ -4,7 +4,31 @@
 
 ---
 
+## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 52 info
+- Mode: structural
+- Pages scanned: 92
+- Issues found: 52
+
+## [2026-08-29] map | Rebuilt index + 5 MOCs
+- Pages indexed: 83
+- Total links: 88
+- Orphan pages: 64
+
+## [2026-08-29] grilling | P1 資料模型 13 題定案 + 訪談補充更正
+
+- 走完 P1 設計決策樹（billing_periods org 層、新 billing_mode enum 換掉 payment_cycle、
+  org 價目表、談定價在報名上、帳單不綁週期+明細雙欄、退費恆正+kind、堂數推導不存計數器、
+  餐費結算標記、class_logs 班級×日期、催繳獨立表）—— 完整總表在 PR #30 comment
+- 內部人補充更正（part2 raw source）：聯絡簿是**兩個東西共用一個名字**
+  （國小=個人聯絡簿+簽名；國中=年級合寫的教務日誌，家長現實中完全看不到）、
+  作業廣播對象是小孩**私群**不是官方群組、新生定金+收費袋節奏
+- Pages updated: [[rules/billing-rules]]、[[rules/meal-rules]]、
+  [[rules/contact-book-rules]]、[[rules/teaching-log-rules]]
+- 盤點確認：新決策與既有功能無衝突；payment_cycle 只有 6 檔觸及；
+  announcements 粗粒度與班級廣播分工明確；堂數扣堂靠推導自癒
+
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 51 info
+
 - Mode: structural
 - Pages scanned: 91
 - Issues found: 51

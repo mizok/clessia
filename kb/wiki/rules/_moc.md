@@ -24,7 +24,7 @@ Links to: [[summaries/interview-insider-2026-08-29]], [[rules/meal-rules]], [[ru
 
 Tags: `rules`, `contact-book`, `parent`
 
-Links to: [[summaries/interview-insider-2026-08-29]], [[roadmap]], [[rules/teaching-log-rules]]
+Links to: [[summaries/interview-insider-2026-08-29]], [[roadmap]], [[rules/teaching-log-rules]], [[rules/teaching-log-rules]]
 
 ## [[rules/enrollment-rules|報名與繳費規則]]
 
@@ -47,3 +47,4 @@ Links to: [[summaries/interview-insider-2026-08-29]], [[rules/billing-rules]], [
 Tags: `rules`, `teaching-log`, `homework`, `notifications`
 
 Links to: [[summaries/interview-insider-2026-08-29]], [[rules/contact-book-rules]], [[rules/contact-book-rules]]
+
