@@ -1,6 +1,6 @@
 # Specs — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-28
+> Auto-maintained by `kb:map`. Last updated: 2026-08-29
 
 ---
 
@@ -303,3 +303,4 @@ Tags: `specs`, `teacher`, `schedule`
 查看自己任課班級的學生名單。
 
 Tags: `specs`, `teacher`, `students`
+

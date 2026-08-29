@@ -1,6 +1,6 @@
 # Architecture — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-28
+> Auto-maintained by `kb:map`. Last updated: 2026-08-29
 
 ---
 
@@ -19,6 +19,14 @@ Links to: [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]]
 Tags: `architecture`, `announcements`
 
 Links to: [[architecture/role-authorization|角色授權設計]]
+
+## [[architecture/auth-pool-lifecycle|認證連線池的生命週期]]
+
+createAuth() 每請求開 1–2 個 pg Pool 且從不關閉（批次匯入的迴圈裡一次開 50 個）；Workers 凍結 timer 使 pg 的 idle 自救失效。修法：getAuth(c) 讓同請求共用單一池，收尾交給掛在最前面的 cleanup middleware 在 await next() 之後做。singleton 在 Workers 是錯的，而在 getAuth 裡 waitUntil(pool.end()) 也是錯的。
+
+Tags: `architecture`, `auth`, `workers`, `database`
+
+Links to: [[architecture/line-oauth-login]]
 
 ## [[architecture/bootstrapping-a-deployment|開一個新站]]
 
@@ -115,3 +123,4 @@ Links to: [[architecture/teaching-history-not-payroll|`記錄授課歷程但不�
 Tags: `architecture`, `business-model`, `tenancy`, `vendor-lock-in`
 
 Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]], [[architecture/line-oauth-login]], [[architecture/bootstrapping-a-deployment]], [[architecture/bootstrapping-a-deployment]]
+

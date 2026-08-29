@@ -1,6 +1,6 @@
 # Flows — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-24
+> Auto-maintained by `kb:map`. Last updated: 2026-08-29
 
 ---
 
@@ -27,3 +27,4 @@ Tags: `flows`, `renewal`
 本文件整理 PRD 6.2，定義試聽申請從提交、安排、試聽到跟進的完整流程。此流程與報名申請流程獨立，但可在資料層建立來源關聯。
 
 Tags: `flows`, `trial`
+

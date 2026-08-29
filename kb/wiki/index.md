@@ -8,9 +8,10 @@
 - [[overview]] — 本文件整理 PRD 第 1-5 章，說明專案背景、系統目標、核心名詞與角色邊界，作為各流程與功能規格的共同語意基準。
 - [[roadmap]] — 功能區現況（自動生成、由 gate 盯著）與接下來的優先順序。取代先前手畫的 BACKLOG 依賴圖。
 
-## Architecture (15)
+## Architecture (16)
 - [[architecture/amending-the-constitution]] — 憲法只能由人修改，agent 被兩條 deny 規則擋住（含 worktree 路徑）。曾經有過的 `tools/amend-constitution.mjs` 因為過度建造已移除——護欄留在 harness 層（A9 斷言 deny 目標存在）。
 - [[architecture/announcements]] — 管理員發布、老師收件匣、已讀狀態。取代 LINE 群組通知的第一步，不接外部服務。
+- [[architecture/auth-pool-lifecycle]] — createAuth() 每請求開 1–2 個 pg Pool 且從不關閉（批次匯入的迴圈裡一次開 50 個）；Workers 凍結 timer 使 pg 的 idle 自救失效。修法：getAuth(c) 讓同請求共用單一池，收尾交給掛在最前面的 cleanup middleware 在 await next() 之後做。singleton 在 Workers 是錯的，而在 getAuth 裡 waitUntil(pool.end()) 也是錯的。
 - [[architecture/bootstrapping-a-deployment]] — 建立組織與第一個管理員的唯一路徑。零 demo 資料，走 Better Auth 建帳號，冪等。
 - [[architecture/change-log-view]] — M1 第二個畫面。填掉 admin/changes 空殼，把一直在寫卻沒人看得到的 schedule_changes 呈現出來。唯讀。
 - [[architecture/constitution]] — 具約束力的架構不變量。只陳述「什麼構成違反」，不含強制機制。
@@ -103,4 +104,4 @@
 - [[summaries/interview-insider-2026-08-29]] — 目標補習班內部員工的一手訪談（20 題，透過使用者當傳聲筒），P1 資料模型的主要輸入。
 
 ---
-**Total: 83 pages**
+**Total: 84 pages**

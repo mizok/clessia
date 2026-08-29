@@ -1,6 +1,6 @@
 # Lessons — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-28
+> Auto-maintained by `kb:map`. Last updated: 2026-08-29
 
 ---
 
@@ -69,3 +69,4 @@ Tags: `lessons`, `rls-backstop-drift`
 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
 
 Tags: `lessons`, `status-table-blind-spot`
+

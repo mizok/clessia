@@ -4,6 +4,11 @@
 
 ---
 
+## [2026-08-29] map | Rebuilt index + 5 MOCs
+- Pages indexed: 84
+- Total links: 89
+- Orphan pages: 65
+
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 52 info
 - Mode: structural
 - Pages scanned: 92

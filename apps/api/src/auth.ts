@@ -126,7 +126,7 @@ export function createAuth(
 ) {
   const pool = new Pool({ connectionString: env.DATABASE_URL });
 
-  return betterAuth({
+  const auth = betterAuth({
     database: pool,
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
@@ -189,6 +189,10 @@ export function createAuth(
       modelName: 'ba_verification',
     },
   });
+
+  // 把 pool 掛在回傳物件上，讓 `lib/get-auth.ts` 的收尾拿得到它。對外介面不變 ——
+  // 既有呼叫端（含 CLI script）照舊只用 `auth.api` / `auth.handler`。
+  return Object.assign(auth, { pool });
 }
 
 export type Auth = ReturnType<typeof createAuth>;

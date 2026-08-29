@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createAuth } from '../auth';
-import { mintLoginLink } from './login-links/mint';
+import { getAuth } from '../lib/get-auth';
+import { mintLoginLinkForRequest } from './login-links/mint';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 
@@ -862,7 +862,7 @@ app.openapi(createRouteDef, async (c) => {
     }
   }
 
-  const auth = createAuth(c.env);
+  const auth = getAuth(c);
   // **刻意不給 password** —— Better Auth 的 createUser 明說不給就是「magic link 或
   // social login only user」。給了會做一次 scrypt，那正是撞爆 Workers 10ms CPU 的東西。
   let createdUserId: string | null = null;
@@ -1012,7 +1012,7 @@ app.openapi(createRouteDef, async (c) => {
   ]);
 
   // 建立完就產生連結 —— 櫃檯當場把它變成 QR 給對方掃
-  const loginUrl = await mintLoginLink(c.env, body.email);
+  const loginUrl = await mintLoginLinkForRequest(c, body.email);
 
   return c.json(
     {
