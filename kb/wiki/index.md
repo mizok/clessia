@@ -1,6 +1,6 @@
 # Clessia Wiki — Index
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-24
+> Auto-maintained by `kb:map`. Last updated: 2026-08-29
 
 ---
 
@@ -8,7 +8,8 @@
 - [[overview]] — 本文件整理 PRD 第 1-5 章，說明專案背景、系統目標、核心名詞與角色邊界，作為各流程與功能規格的共同語意基準。
 - [[roadmap]] — 功能區現況（自動生成、由 gate 盯著）與接下來的優先順序。取代先前手畫的 BACKLOG 依賴圖。
 
-## Architecture (15)
+## Architecture (16)
+- [[architecture/admin-dashboard-v1]] — 把四張死卡片接上真資料並補行政待辦卡：零後端改動（六種資料既有 API 全有）、未點名卡回溯 7 天且只在逐堂點名模式顯示、報名卡只取 meta.total 以免分頁截斷、經營區用 permission 蓋住、卡片是索引不是工作場。
 - [[architecture/amending-the-constitution]] — 憲法只能由人修改，agent 被三層 deny 規則擋住。`tools/amend-constitution.mjs` 是給人用的便利工具，不是護欄——護欄留在 harness 層。
 - [[architecture/announcements]] — 管理員發布、老師收件匣、已讀狀態。取代 LINE 群組通知的第一步，不接外部服務。
 - [[architecture/bootstrapping-a-deployment]] — 建立組織與第一個管理員的唯一路徑。零 demo 資料，走 Better Auth 建帳號，冪等。
