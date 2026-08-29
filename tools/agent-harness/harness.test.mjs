@@ -5,7 +5,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { spawnSync } from 'node:child_process';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
+import { missingUserSkills } from './lib/user-skills.mjs';
 import { matchWriteRules, routeHints } from './lib/rules.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 import routerRules from './rules/doc-router.rules.json' with { type: 'json' };
@@ -145,4 +150,34 @@ test('產出的表格每個角色各一欄', () => {
   for (const label of ['管理端', '老師端', '家長端']) {
     assert.ok(body.includes(label), `表頭少了「${label}」欄`);
   }
+});
+
+// ── 使用者層級 skill 的可見度 ─────────────────────────────────────────────────
+// kb-wiki 裝在使用者的 home、不進版控，但 AGENTS.md 的指令表把它寫得像專案工具。
+// 換一台機器就撲空 —— 真的踩過。這裡守的是「看得見但不擋人」這個性質。
+
+test('使用者層級 skill：裝了不吭聲，沒裝才報', () => {
+  assert.deepEqual(
+    missingUserSkills('/home/nobody', () => true),
+    [],
+  );
+  assert.deepEqual(
+    missingUserSkills('/home/nobody', () => false).map((skill) => skill.name),
+    ['kb-wiki'],
+  );
+});
+
+// 這條刻意整支跑起來而不是測純函式：會回歸的不是偵測邏輯，是有人把它從 warnings
+// 挪進 failures，於是別人的機器（和 CI）第一次跑 harness 就紅。
+test('使用者層級 skill 缺席只警告，exit code 仍是 0', () => {
+  const script = join(dirname(fileURLToPath(import.meta.url)), 'check-harness.mjs');
+  const run = spawnSync(process.execPath, [script], {
+    // os.homedir() 在 POSIX 上優先讀 $HOME —— 指到一個不存在的家目錄就等於「沒裝」
+    env: { ...process.env, HOME: '/nonexistent-home-for-test' },
+    encoding: 'utf8',
+  });
+
+  assert.equal(run.status, 0, `缺 skill 不該讓 gate 紅：\n${run.stderr}`);
+  assert.match(run.stderr, /kb-wiki 是使用者層級 skill/);
+  assert.match(run.stdout, /harness gate 全綠/);
 });

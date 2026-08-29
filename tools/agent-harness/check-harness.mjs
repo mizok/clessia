@@ -13,6 +13,8 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { missingUserSkills } from './lib/user-skills.mjs';
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const AGENTS_MD = join(ROOT, 'AGENTS.md');
 const SKILLS_DIR = join(ROOT, '.agents/skills');
@@ -26,6 +28,8 @@ const END = '<!-- SKILLS:END -->';
 const mode = process.argv.includes('--write') ? 'write' : 'check';
 const failures = [];
 const fail = (message) => failures.push(message);
+/** 看得見但不擋人的缺口 —— 不影響 exit code。 */
+const warnings = [];
 
 /**
  * `skills-lock.json` 是 AGENTS.md skill 表的真相來源；磁碟用來重生 lock。
@@ -373,10 +377,25 @@ if (existsSync(settingsPath)) {
 // kb/ 的內容健康度（frontmatter、索引新鮮度、斷鏈、孤兒頁）由 kb-wiki skill 的 lint 負責，
 // 不由 harness gate 管 —— 這跟 fvg 的配置一致：harness 守程式碼與流程，kb-wiki 守知識庫。
 
+// ── W1. 使用者層級 skill 在這台機器上存在嗎（警告，不紅燈）────────────────────────────
+// 而那個 kb-wiki skill 不進版控（它是使用者跨專案共用的），所以「AGENTS.md 說得出口的
+// 指令」與「這台機器叫得動的指令」之間有一道無聲的縫。這條把縫顯示出來，但不擋 CI ——
+// CI 上本來就不會有使用者的 skill。
+for (const skill of missingUserSkills()) {
+  warnings.push(
+    `${skill.name} 是使用者層級 skill，這台機器上找不到 ~/${skill.probe} —— ${skill.why}`,
+  );
+}
+
 // ── report ───────────────────────────────────────────────────────────────────────────────
 // --write 一律 exit 0：它的工作是「修好能自動修的」，剩下的（例如 CLAUDE.md 被塞進規則）
 // 本來就得人改。若這裡跟著 exit 1，`harness:write` 的 `&&` 會短路，KB 的 --write 就整個
 // 不會跑 —— 踩過一次。真正的把關由隨後的 --check 負責。
+if (warnings.length > 0) {
+  console.warn(`⚠ harness 有 ${warnings.length} 項提醒（不擋，exit code 不受影響）：`);
+  for (const message of warnings) console.warn(`  - ${message}`);
+}
+
 if (failures.length > 0 && mode !== 'write') {
   console.error(`✖ harness gate 有 ${failures.length} 項不同步：`);
   for (const message of failures) console.error(`  - ${message}`);

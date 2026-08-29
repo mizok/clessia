@@ -49,7 +49,7 @@
 | Harness gate       | `npm run harness`（守 roadmap 現況表；**kb/ 的內容健康度**由 kb-wiki skill 的 lint 負責） |
 | 兩者重生成         | `npm run harness:write`                                                                   |
 | Harness 自我測試   | `npm run harness:test`                                                                    |
-| KB 檢查 / 重建索引 | kb-wiki skill：`/kb-wiki lint` / `/kb-wiki map`                                           |
+| KB 檢查 / 重建索引 | kb-wiki skill：`/kb-wiki lint` / `/kb-wiki map`（**使用者層級，不進版控** —— 見下）       |
 | 重錄測試基線       | `npm run test:baseline`                                                                   |
 | Supabase 本機      | `npm run db:start` / `db:reset`                                                           |
 | 新增 migration     | `npx supabase migration new <description>`                                                |
@@ -57,6 +57,13 @@
 
 > `nx.json` 的 `defaultBase` 是 `dev`，但這個 branch 不存在 —— 跑 `nx affected` 一律自己帶
 > `--base=main`。
+
+> **`kb-wiki` 是使用者層級的 skill，不在這個 repo 裡。** 它住在
+> `~/.claude/skills/kb-wiki`（跨專案共用的通用工具，收進版控只會多一份會漂掉的副本），
+> 所以**跟機器走**：換一台機器 clone 下來它可能不存在。沒有它的話 `kb/` 的索引
+> （`kb/wiki/index.md`）與各分類的 `_moc.md` 就沒有生成器，新增或刪除頁面之後只能手補，
+> `lint` 的健康檢查也叫不動。`npm run harness` 會在缺席時印警告（**不紅燈** —— 別人的
+> 機器裝不裝是他的事，CI 上本來就沒有）。
 
 ## Project Structure
 
