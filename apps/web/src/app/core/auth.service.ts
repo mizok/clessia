@@ -37,7 +37,6 @@ export class AuthService {
   private readonly _permissions = signal<string[]>([]);
   private readonly _activeRole = signal<UserRole | null>(null);
   private readonly _loading = signal(true);
-  private readonly _showRolePicker = signal(false);
 
   readonly user = this._user.asReadonly();
   readonly profile = this._profile.asReadonly();
@@ -46,7 +45,6 @@ export class AuthService {
   readonly activeRole = this._activeRole.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly isAuthenticated = computed(() => !!this._user());
-  readonly showRolePicker = this._showRolePicker.asReadonly();
 
   private readonly shellMap: Record<UserRole, string> = {
     admin: '/admin',
@@ -121,14 +119,6 @@ export class AuthService {
     return this.permissions().includes(permission) || this.permissions().includes('*');
   }
 
-  openRolePicker() {
-    this._showRolePicker.set(true);
-  }
-
-  closeRolePicker() {
-    this._showRolePicker.set(false);
-  }
-
   /** 回傳有沒有讀到 —— 呼叫端要區分「讀不到」和「沒有角色」時會用到 */
   async refreshRoles(): Promise<boolean> {
     return this.loadProfile();
@@ -176,12 +166,10 @@ export class AuthService {
 
   navigateToRoleShell(role: UserRole) {
     this.setActiveRole(role);
-    this.closeRolePicker();
     this.router.navigate([this.shellMap[role]]);
   }
 
   async signOut() {
-    this.closeRolePicker();
     await authClient.signOut({ fetchOptions: { credentials: 'include' } });
     this._user.set(null);
     this._profile.set(null);

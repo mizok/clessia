@@ -26,6 +26,14 @@ export const routes: Routes = [
         canActivate: [authGuard],
       },
       {
+        // 多重角色的人登入後落在這裡。要 authGuard —— 沒登入就沒有角色可選。
+        // guest.guard / role.guard / LINE callbackURL 都指向這條路由。
+        path: RoutesCatalog.PUBLIC_SELECT_ROLE.relativePath,
+        loadComponent: () =>
+          import('@features/select-role/select-role.component').then((m) => m.SelectRoleComponent),
+        canActivate: [authGuard],
+      },
+      {
         path: RoutesCatalog.PUBLIC_TRIAL.relativePath,
         loadComponent: () =>
           import('@features/public/pages/trial/trial.component').then((m) => m.TrialComponent),

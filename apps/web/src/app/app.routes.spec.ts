@@ -1,4 +1,10 @@
-import type { Route } from '@angular/router';
+import { signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { Router, provideRouter, type Route } from '@angular/router';
+
+import { AuthService, type UserRole } from '@core/auth.service';
 
 import { routes } from './app.routes';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
@@ -51,4 +57,44 @@ describe('app routes', () => {
       expect(reachable).toBe(true);
     },
   );
+});
+
+/**
+ * `/select-role` 是三個 guard 與 LINE 登入 callback 的共同去處
+ * （guest.guard、role.guard、auth.service 的 callbackURL）。
+ * 它一旦沒有註冊，就會被 `path: '**'` 收去 `/login`，而 guestGuard 又會把
+ * 已登入的多角色使用者送回 `/select-role` —— 兩邊互踢。
+ */
+describe('app.routes —— /select-role 的可達性', () => {
+  let router: Router;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter(routes),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        {
+          provide: AuthService,
+          useValue: {
+            loading: signal(false),
+            isAuthenticated: signal(true),
+            roles: signal<UserRole[]>(['admin', 'teacher']),
+            activeRole: signal<UserRole | null>(null),
+            profile: signal({ id: 'u1', display_name: '王主任', branch_id: null }),
+            user: signal({ id: 'u1', email: 'a@example.com' }),
+            navigateToRoleShell: vi.fn(),
+            signOut: vi.fn(),
+          },
+        },
+      ],
+    });
+    router = TestBed.inject(Router);
+  });
+
+  it('已登入時 /select-role 停得住，不會被 wildcard 導走', async () => {
+    await router.navigateByUrl('/select-role');
+
+    expect(router.url).toBe('/select-role');
+  });
 });

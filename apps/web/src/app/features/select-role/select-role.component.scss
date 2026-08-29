@@ -1,11 +1,27 @@
 :host {
   display: block;
+  height: 100%;
 }
 
 .select-role {
-  /* Layout handled by dialog */
+  // 從 DynamicDialog 改成路由頁之後，外框要自己長出來 —— 原本是 dialog 提供的。
+  // 高度用 100% 而不是 vh（憲法 c6）；父容器沒給高度時只是靠上顯示，不會壞版。
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--space-8) var(--space-4);
+
+  &__card {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 400px;
+    padding: var(--space-6);
+    background: var(--color-white);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-md);
+  }
 
   &__subtitle {
     margin-bottom: var(--space-3);

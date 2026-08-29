@@ -9,7 +9,7 @@ import {
   type ElementRef,
   afterNextRender,
 } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { RouterLink, RouterOutlet } from '@angular/router';
 import { Tooltip } from 'primeng/tooltip';
 import { Popover } from 'primeng/popover';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -27,6 +27,7 @@ import { AccountSettingsDialogComponent } from '@shared/components/account-setti
   standalone: true,
   imports: [
     RouterOutlet,
+    RouterLink,
     Tooltip,
     AutoOpenTooltipDirective,
     Popover,
