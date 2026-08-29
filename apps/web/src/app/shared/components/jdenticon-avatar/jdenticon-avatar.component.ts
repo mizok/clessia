@@ -1,5 +1,9 @@
-import { Component, Input, ElementRef, ViewChild, effect, afterNextRender } from '@angular/core';
-import * as jdenticon from 'jdenticon';
+import { Component, ElementRef, effect, input, viewChild } from '@angular/core';
+// 指名 browser 子路徑，不要讓解析條件決定拿到哪個 build。
+// 裸的 'jdenticon' 在 node 條件下會給出 jdenticon-node，而它的 update()
+// 直接拋 "not supported on Node.js" —— 測試環境就是這樣炸的。
+// 這支元件只可能在瀏覽器裡跑（它操作真的 SVG 元素），指名是誠實的。
+import * as jdenticon from 'jdenticon/browser';
 
 @Component({
   selector: 'app-jdenticon-avatar',
@@ -7,9 +11,9 @@ import * as jdenticon from 'jdenticon';
   template: `
     <svg
       #svgIcon
-      [attr.width]="size"
-      [attr.height]="size"
-      [attr.data-jdenticon-value]="value"
+      [attr.width]="size()"
+      [attr.height]="size()"
+      [attr.data-jdenticon-value]="value()"
     ></svg>
   `,
   styles: [
@@ -23,37 +27,21 @@ import * as jdenticon from 'jdenticon';
   ],
 })
 export class JdenticonAvatarComponent {
-  @Input() value = 'Clessia';
-  @Input() size = 40;
+  readonly value = input('Clessia');
+  readonly size = input(40);
 
-  @ViewChild('svgIcon') svgIcon!: ElementRef<SVGElement>;
+  // 非 required：view query 解析之前這個 signal 是 undefined，
+  // 解析完成時會再觸發下面的 effect —— 所以不需要 afterNextRender 補第一次。
+  private readonly svgIcon = viewChild<ElementRef<SVGElement>>('svgIcon');
 
   constructor() {
-    afterNextRender(() => {
-      this.updateAvatar();
-    });
-
+    // 改成 signal input 之前，這裡的 effect 沒有讀任何 signal，等於只跑一次；
+    // 真正在重繪的是 ngOnChanges。現在 effect 依賴 value 與 view query，
+    // 兩者任一改變都會重繪，ngOnChanges 與 afterNextRender 就都不需要了。
     effect(() => {
-      // Reactively update when inputs change (though here they are standard inputs)
-      // Since Inputs are not signals by default in this version (unless using input()),
-      // we rely on ngOnChanges or just recall update in a setter if needed.
-      // But standard way with jdenticon is just letting it observe or manual update.
-      // Let's use manual update for control.
-      if (this.svgIcon) {
-        this.updateAvatar();
-      }
+      const el = this.svgIcon()?.nativeElement;
+      const value = this.value();
+      if (el) jdenticon.update(el, value);
     });
-  }
-
-  ngOnChanges() {
-    if (this.svgIcon) {
-      this.updateAvatar();
-    }
-  }
-
-  private updateAvatar() {
-    if (this.svgIcon?.nativeElement) {
-      jdenticon.update(this.svgIcon.nativeElement, this.value);
-    }
   }
 }
