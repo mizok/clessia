@@ -90,10 +90,16 @@ different request`）。方向永遠是 per-request 建、請求結束收。
 - **先寫測試看它紅，再實作。** 紅的證據要留在回報裡。
 - 路由測試的慣例是**測 exported 的純函式**，不是打整支 handler
   （`schools.spec.ts` 是範本）。所以寫 route 時把值得測的邏輯抽成 export。
-- 假 supabase：物件字面量 + 呼叫端 `as never`（`enrollments.spec.ts`）。
+- 假 supabase：物件字面量 + 呼叫端 `as never`（`enrollments.spec.ts`）。要**打整支
+  handler** 時用可鏈式的版本 —— `select/eq/range` 各自回自己、`range()` 真的切、
+  `order()` 回 `{ data, count }`，外面包一層 Hono 把 `supabase` / `orgId` set 進 context
+  （`invoices.spec.ts` 是範本）。
 - **測「會回歸的東西」而不是「好測的東西」**。例：`requirePermission` 最重要那條是
   「context 裡根本沒有 permissions 時拒絕而不是全開」；harness 的 c6 gate 最重要那條是
   「規則被改名時 gate 不能靜默變成空掃」。
+- **驗證要打到出錯的那一層，不是最好測的那一層。** 帳單列表的 `meta.total` 從哪裡來，
+  純函式測不到 —— 它不知道 total 是 DB 的 count 還是當頁長度，那條得讓路由真的跑一遍。
+  跟 seed 的 42702 是同一個教訓的兩面（見上：抽段法驗不到 plpgsql 名稱解析）。
 
 ### migration
 
@@ -110,6 +116,16 @@ different request`）。方向永遠是 per-request 建、請求結束收。
 - 對應的 TS union 在 `utils/audit.ts`，**兩邊要一起改**否則 typecheck 紅。
 - 換欄位時**不留雙軌**：兩個欄位並存的代價是每個讀寫點都要決定「聽哪一個」，
   而那個決定會在不同檔案裡做出不同答案。
+
+### plpgsql 與 seed 的坑（2026-08-29 db:reset 事故後補）
+
+- **plpgsql 變數一律 `v_` 前綴。** 裸名變數會跟同名欄位在 SQL 裡撞成 42702
+  （column reference is ambiguous），而且**只在特定語句形狀發作** ——
+  `ON CONFLICT` 的目標欄位、裸 `WHERE`。所以它可以潛伏很久，
+  直到有人加了一句剛好那個形狀的 SQL。
+- **transaction + ROLLBACK 抽段法驗不到 plpgsql 的名稱解析。**
+  抽出來的版本裡沒有那些變數。**新程式碼落在 `DO $$ ... $$` 裡的話，
+  必須把整份 seed 原樣執行**（一樣可以包在 transaction 裡 ROLLBACK，非破壞性）。
 
 ### transaction + ROLLBACK 驗證法
 
