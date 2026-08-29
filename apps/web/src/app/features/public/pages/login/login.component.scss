@@ -110,11 +110,17 @@
       transform var(--transition-fast);
   }
 
+  // LINE 官方素材包的白色泡泡（`line_88.png`，透明底）。按鈕是白底，白 icon 會消失，
+  // 所以用 mask 把官方形狀染成 currentColor —— 形狀一個像素都沒動，顏色仍是 LINE
+  // 品牌綠，而且 hover 時會跟著按鈕的文字色一起變深，不必另外寫一條規則。
   &__line-logo {
     display: block;
     flex-shrink: 0;
     width: 24px;
     height: 24px;
+    background-color: currentcolor;
+    -webkit-mask: url('/assets/brand/line-logo.png') center / contain no-repeat;
+    mask: url('/assets/brand/line-logo.png') center / contain no-repeat;
   }
 
   &__line-btn:hover:not(:disabled) {
