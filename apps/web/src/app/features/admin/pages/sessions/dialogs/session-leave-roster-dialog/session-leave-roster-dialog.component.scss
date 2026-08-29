@@ -75,12 +75,12 @@
     }
 
     &--active {
-      color: var(--sky-700);
-      background: var(--sky-50);
-      border-color: var(--sky-200);
+      color: var(--accent-700);
+      background: var(--accent-50);
+      border-color: var(--accent-100);
 
       &:hover {
-        background: var(--sky-50);
+        background: var(--accent-50);
       }
     }
   }
@@ -91,7 +91,7 @@
     padding: 0 var(--space-1);
 
     &--warn {
-      color: var(--amber-600);
+      color: var(--warning-600);
       font-weight: var(--font-semibold);
     }
   }
@@ -112,8 +112,8 @@
     border: 1px solid var(--zinc-100);
 
     &--on-leave {
-      background: var(--amber-50);
-      border-color: var(--amber-200);
+      background: var(--warning-100);
+      border-color: var(--warning-100);
     }
   }
 

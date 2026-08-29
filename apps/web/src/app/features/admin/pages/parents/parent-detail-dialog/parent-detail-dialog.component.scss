@@ -6,14 +6,14 @@
 
   &__info {
     font-size: 0.875rem;
-    color: var(--p-zinc-500);
+    color: var(--zinc-500);
   }
 
   &__section-title {
     margin: 0 0 var(--space-3);
     font-size: 0.875rem;
     font-weight: 600;
-    color: var(--p-zinc-700);
+    color: var(--zinc-700);
   }
 
   &__student-list {
@@ -31,9 +31,9 @@
     justify-content: space-between;
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--p-zinc-200);
+    border: 1px solid var(--zinc-200);
     border-radius: 8px;
-    background: var(--p-zinc-50);
+    background: var(--zinc-50);
   }
 
   &__student-info {
@@ -46,18 +46,18 @@
   &__student-name {
     font-size: 0.9375rem;
     font-weight: 500;
-    color: var(--p-zinc-900);
+    color: var(--zinc-900);
   }
 
   &__student-grade {
     font-size: 0.75rem;
-    color: var(--p-zinc-500);
+    color: var(--zinc-500);
   }
 
   &__empty {
     padding: var(--space-6) 0;
     font-size: 0.875rem;
-    color: var(--p-zinc-400);
+    color: var(--zinc-400);
     text-align: center;
   }
 
@@ -79,7 +79,7 @@
     margin: 0;
     padding-left: var(--space-5);
     font-size: 0.8125rem;
-    color: var(--p-zinc-700);
+    color: var(--zinc-700);
     line-height: 1.6;
   }
 

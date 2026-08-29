@@ -35,8 +35,8 @@
     align-items: center;
     padding: 1px var(--space-2);
     border-radius: var(--radius-sm);
-    background: var(--sky-50, #f0f9ff);
-    color: var(--sky-700, #0369a1);
+    background: var(--accent-50);
+    color: var(--accent-700);
     font-size: var(--text-xs);
     font-weight: var(--font-semibold);
   }
@@ -100,7 +100,7 @@
     font-variant-numeric: tabular-nums;
 
     &--fail {
-      color: var(--red-600, #dc2626);
+      color: var(--error-600);
     }
   }
 
@@ -211,7 +211,7 @@
     }
 
     &--fail {
-      color: var(--red-600, #dc2626);
+      color: var(--error-600);
     }
   }
 
@@ -281,7 +281,7 @@
     }
 
     &--fail {
-      color: var(--red-600, #dc2626);
+      color: var(--error-600);
     }
   }
 

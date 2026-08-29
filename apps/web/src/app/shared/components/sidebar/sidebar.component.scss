@@ -3,7 +3,7 @@
 .sidebar {
   width: 240px;
   min-width: 240px;
-  background: #fff;
+  background: var(--color-white);
   border-right: 1px solid var(--zinc-200);
   display: flex;
   flex-direction: column;
@@ -81,14 +81,18 @@
       color: var(--zinc-900);
     }
 
+    // 選中態：淡橘底 + 深橘字（5.98:1）。字重一起上來，
+    // 不靠色塊深度做強調 —— Operate 模式的橘用在互動與強調，不做大色面。
     &--active {
       background: var(--accent-50);
       color: var(--accent-600);
+      font-weight: var(--font-semibold);
     }
   }
 
+  // icon 跟文字同色，選中態才是一個整體而不是兩個深淺
   &__item--active &__icon {
-    color: var(--accent-500);
+    color: var(--accent-600);
   }
 
   &__icon {
@@ -111,7 +115,7 @@
     padding: 0 5px;
     font-size: 10px;
     font-weight: var(--font-bold);
-    color: #fff;
+    color: var(--color-white);
     background: var(--accent-500);
     border-radius: var(--radius-full);
   }

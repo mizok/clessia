@@ -19,23 +19,12 @@
     gap: var(--space-3);
   }
 
-  &__logo-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    font-size: var(--text-md);
-    font-weight: var(--font-bold);
-    color: var(--zinc-900);
-    background: linear-gradient(135deg, var(--color-white) 0%, var(--zinc-200) 100%);
-    border-radius: var(--radius-md);
-  }
-
+  // 沒有圖形 logo —— 最後一處佔位符「C」在這裡退役。
+  // 真 logo 是之後的品牌工作，與其擺一個佔位方塊不如不擺。
   &__logo-text {
-    font-size: var(--text-lg);
+    font-size: var(--text-xl);
     font-weight: var(--font-bold);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
   }
 
   &__right {
@@ -53,17 +42,23 @@
     border-radius: var(--radius-full);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    transition: all var(--transition-fast);
-    border: 1px solid var(--zinc-400);
-    color: var(--zinc-400);
+    transition:
+      color var(--transition-fast),
+      border-color var(--transition-fast),
+      background var(--transition-fast);
+    // 深色 header 上唯一的橘 —— 角色是這裡最該被一眼認出的資訊。
+    // 用 400 而不是 500/600：深底上要的是亮階（7.48:1），深橘會糊掉。
+    border: 1px solid var(--accent-400);
+    color: var(--accent-400);
 
     &--interactive {
       cursor: pointer;
       padding-right: var(--space-2);
 
+      // 外框 badge 的 hover 不做位移，補一層低透明度底 ——
+      // header 是固定列，元素跳動比色變更容易被注意到。
       &:hover {
-        filter: brightness(0.95);
-        transform: translateY(-1px);
+        background: rgb(255 133 87 / 12%);
       }
     }
   }

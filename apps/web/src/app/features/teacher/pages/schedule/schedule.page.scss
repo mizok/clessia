@@ -44,7 +44,7 @@
     overflow: hidden;
 
     &--today {
-      border-color: var(--sky-400);
+      border-color: var(--accent-400);
     }
   }
 
@@ -57,7 +57,7 @@
     border-bottom: 1px solid var(--zinc-200);
 
     .schedule-page__day--today & {
-      background: var(--sky-50);
+      background: var(--accent-50);
     }
   }
 
@@ -113,9 +113,9 @@
     gap: var(--space-2);
     font-size: 0.75rem;
 
-    &--present { color: var(--green-600); }
-    &--leave { color: var(--yellow-600); }
-    &--absent { color: var(--red-600); }
+    &--present { color: var(--success-600); }
+    &--leave { color: var(--warning-600); }
+    &--absent { color: var(--error-600); }
   }
 
   &__no-class {

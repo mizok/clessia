@@ -414,6 +414,102 @@ for (const skill of missingUserSkills()) {
   );
 }
 
+// ── 幽靈 token ───────────────────────────────────────────────────────────────────────────
+/**
+ * `var(--foo)` 引用一個從來沒有定義過的 token。
+ *
+ * 沒有 fallback 的話**那條規則完全無效** —— 顏色不會套上去，而且不會有任何錯誤訊息；
+ * 有 fallback 的話值被寫死在 fallback 裡，換色系時換不到它。
+ *
+ * 2026-08 換色系時一次掃出 56 個，其中 25 個連 fallback 都沒有（`--text-muted` 一個就
+ * 26 處）。那些規則從寫下的那天起就沒有生效過，沒有人發現。所以做成提醒。
+ *
+ * 執行時由 JS 設定的 token 不算幽靈（directive 用 setProperty 寫進去，SCSS 裡當然找不到定義）。
+ */
+const RUNTIME_TOKENS = new Set([
+  '--window-height',
+  '--window-width',
+  '--shell-layout-body-height',
+  '--shell-layout-body-width',
+  '--clessia-tooltip-enter-duration',
+  '--clessia-tooltip-leave-duration',
+  '--h',
+  '--avatar-hue',
+  '--item-hue',
+]);
+
+function scanGhostTokens() {
+  const webSrc = join(ROOT, 'apps/web/src');
+  if (!existsSync(webSrc)) return;
+
+  const scssFiles = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.scss')) scssFiles.push(full);
+    }
+  };
+  walk(webSrc);
+
+  const defined = new Set();
+  const sources = [...scssFiles, join(webSrc, 'index.html')].filter((f) => existsSync(f));
+  for (const f of sources) {
+    for (const m of readFileSync(f, 'utf8').matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)) defined.add(m[1]);
+  }
+
+  // PrimeNG **原始調色盤**（--p-sky-600、--p-zinc-400 …）。這些是 PrimeNG 自己定義的，
+  // 所以永遠不算 ghost —— 但正因為「有定義、會生效」，它們是設計系統的旁路：
+  // 換掉 preset 也換不到它們，畫面上就留著一塊上一代的顏色。
+  // 2026-08 的實例：37 處 --p-zinc-* / --p-sky-* 撐過了整輪 token 替換，
+  // 儀表板的連結與警示卡直到跑起真站截圖才看見還是天藍的。
+  const PALETTE_BYPASS = /^--p-(sky|blue|indigo|violet|purple|fuchsia|cyan|teal|emerald|green|lime|red|orange|amber|yellow|pink|rose|slate|gray|zinc|neutral|stone)-\d{2,3}$/;
+
+  const ghosts = new Map();
+  const bypass = new Map();
+  for (const f of scssFiles) {
+    for (const m of readFileSync(f, 'utf8').matchAll(/var\(\s*(--[a-z0-9-]+)\s*(,)?/g)) {
+      const name = m[1];
+      if (PALETTE_BYPASS.test(name)) {
+        bypass.set(name, (bypass.get(name) ?? 0) + 1);
+        continue;
+      }
+      if (defined.has(name) || RUNTIME_TOKENS.has(name) || name.startsWith('--p-')) continue;
+      const hit = ghosts.get(name) ?? { count: 0, withoutFallback: 0 };
+      hit.count += 1;
+      if (!m[2]) hit.withoutFallback += 1;
+      ghosts.set(name, hit);
+    }
+  }
+
+  if (bypass.size > 0) {
+    const total = [...bypass.values()].reduce((n, c) => n + c, 0);
+    const top = [...bypass.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, c]) => `${name}（${c} 處）`)
+      .join('、');
+    warnings.push(
+      `${total} 處直接引用 PrimeNG 原始調色盤，繞過設計 token（換 preset 換不到）：${top}` +
+        (bypass.size > 5 ? ' …' : ''),
+    );
+  }
+
+  if (ghosts.size === 0) return;
+  const dead = [...ghosts.values()].reduce((n, g) => n + g.withoutFallback, 0);
+  const top = [...ghosts.entries()]
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 5)
+    .map(([name, g]) => `${name}（${g.count} 處）`)
+    .join('、');
+  warnings.push(
+    `${ghosts.size} 個 token 被 var() 引用但從未定義，其中 ${dead} 處沒有 fallback（那些規則不會生效）：${top}` +
+      (ghosts.size > 5 ? ' …' : ''),
+  );
+}
+
+scanGhostTokens();
+
 // ── report ───────────────────────────────────────────────────────────────────────────────
 // --write 一律 exit 0：它的工作是「修好能自動修的」，剩下的（例如 CLAUDE.md 被塞進規則）
 // 本來就得人改。若這裡跟著 exit 1，`harness:write` 的 `&&` 會短路，KB 的 --write 就整個
