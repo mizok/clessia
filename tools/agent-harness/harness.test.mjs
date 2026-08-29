@@ -288,3 +288,40 @@ test('--write 冪等：第二次不再改動檔案', () => {
     writeFileSync(roadmap, original);
   }
 });
+
+// ── hook-only clause 的存量那一半（A13–A16）──────────────────────────────────────────
+//
+// 這幾條 gate 與 PreToolUse hook **共用 pre-guard.rules.json 的同一條規則**。所以真正會
+// 回歸的不是 regex 本身（hook 的測試已經蓋住），而是「gate 有沒有把規則餵對」——
+// 尤其 c8 的路徑排除與 c2 的跨行比對，兩者都只有在整份檔案餵進去時才成立。
+
+test('c7 擋舊版結構指令，@if / @for 放行', () => {
+  assert.deepEqual(guard('apps/web/a.html', '<div *ngIf="x">'), ['c7']);
+  assert.deepEqual(guard('apps/web/a.html', '<div *ngFor="let x of xs">'), ['c7']);
+  assert.deepEqual(guard('apps/web/a.html', '@if (x) { <div></div> }'), []);
+});
+
+test('c8 擋裝飾器版 API，但 @HostListener 不在範圍內', () => {
+  assert.deepEqual(guard('apps/web/src/app/a.component.ts', '  @Input() value = 1;'), ['c8']);
+  assert.deepEqual(guard('apps/web/src/app/a.component.ts', "  @ViewChild('op') op!: X;"), ['c8']);
+  // 使用者 2026-08-29 釐清：沒有 functional 對應物，window-size.directive.ts 還在用
+  assert.deepEqual(guard('apps/web/src/app/a.directive.ts', "  @HostListener('resize')"), []);
+  assert.deepEqual(guard('apps/web/src/app/a.component.ts', '  readonly value = input(1);'), []);
+});
+
+// gate 掃 .ts 時是**整棵樹**餵進去的，路徑排除因此是 gate 正確性的一部分，
+// 不只是 hook 的細節：漏掉它會讓既有的 spec 檔（真的有 @ViewChild）變成假紅燈。
+test('c8 排除 .spec.ts —— 測試檔裡的裝飾器不算違規', () => {
+  assert.deepEqual(guard('apps/web/src/app/a.component.spec.ts', "  @ViewChild('t') t!: X;"), []);
+});
+
+// c2 的 regex 跨行（from 與 .update 之間容許 120 字元），所以 gate **必須整份檔案餵**。
+// 逐行掃的話這條會完全看不到東西 —— 而且是靜靜地看不到。
+test('c2 跨行也要抓得到；讀取放行', () => {
+  const multiline = "await supabase\n  .from('ba_user')\n  .update({ name })";
+  assert.deepEqual(guard('apps/api/src/routes/x.ts', multiline), ['c2']);
+  assert.deepEqual(
+    guard('apps/api/src/routes/x.ts', "await supabase.from('ba_user').select()"),
+    [],
+  );
+});

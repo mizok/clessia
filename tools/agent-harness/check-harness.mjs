@@ -9,6 +9,7 @@
  * What this gate does NOT prove: that any skill or doc is *good*, only that what the docs
  * claim exists actually exists. Semantic quality is a review/LLM job, not a gate's.
  */
+import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -377,27 +378,148 @@ if (existsSync(settingsPath)) {
   }
 }
 
-// ── A12. 既有 SCSS 裡的 viewport 單位（clause c6）───────────────────────────────────────
-// c6 原本只有 PreToolUse hook 守，而 hook 刻意只看**新寫進去的那段文字**
-// （`lib/hook-io.mjs` 的 `pendingWrites` 只取 new_string —— 不然修掉違規反而會被擋）。
-// 代價是**存量完全沒有覆蓋**：早於 hook 存在、之後沒人重寫過的違規永遠不會被送進判斷。
-// `styles.scss` 的 `min-height: 100vh` 就這樣待著，而 enforcement 表上 c6 寫的是「已接」。
+// ── A12 / A13 / A14 / A15. hook-only clause 的存量那一半 ────────────────────────────────
 //
-// 這條補上另一半：用**同一份規則、同一支 matcher** 掃全部既有 .scss。
-// 共用而不是另寫一條 regex 是刻意的 —— 兩份會漂掉，而漂掉的方向一定是 gate 比 hook 寬。
-const WEB_SRC = join(ROOT, 'apps/web/src');
-const c6Rules = guardRules.rules.filter((rule) => rule.id === 'c6');
+// PreToolUse hook 刻意只看**新寫進去的那段文字**（`lib/hook-io.mjs` 的 `pendingWrites`
+// 只取 new_string —— 不然修掉違規反而會被擋）。代價是**存量完全沒有覆蓋**：早於 hook 存在、
+// 之後沒人重寫過的違規永遠不會被送進判斷，而 enforcement 表上那幾條卻寫著「已接」。
+//
+// 這幾條補上另一半。**一律用同一份規則餵同一支 matcher**（`pre-guard.rules.json` +
+// `matchWriteRules`），不另寫第二份 regex —— 兩份會漂，而漂掉的方向一定是 gate 比 hook 寬。
+//
+// 整份檔案一次餵進去而不是逐行：c2 的 regex 跨行（`from('ba_user')` 與 `.update(` 中間
+// 可以隔 120 個字元），逐行掃會**完全看不到它**。行號只用於訊息，判斷權在 matcher。
 
-if (existsSync(WEB_SRC) && c6Rules.length > 0) {
-  for (const file of walk(WEB_SRC, '.scss')) {
+/**
+ * 掃一棵樹，回報某條 clause 的存量違規。
+ *
+ * `allowlist` 是 `{ 相對路徑: 已知違規數 }`。**比帳面多 → 紅燈**（新違規擋得住），
+ * **比帳面少 → 也紅燈**，訊息請人把數字改小或整筆刪掉 —— 這樣清乾淨的那天 allowlist
+ * 自然歸零，gate 自動變成全面覆蓋，不需要有人記得回來拆鷹架。
+ * 只用路徑不記數量的話，同一個檔案裡新增的違規會靜靜溜過去。
+ */
+function scanExisting({ clause, dir, ext, label, allowlist = {} }) {
+  const rules = guardRules.rules.filter((rule) => rule.id === clause);
+  if (!existsSync(dir) || rules.length === 0) return;
+
+  const forbid = rules[0].forbid ? new RegExp(rules[0].forbid, 'g') : null;
+  const seen = new Set();
+
+  for (const file of walk(dir, ext)) {
     const rel = file.replace(ROOT + '/', '');
-    readFileSync(file, 'utf8')
-      .split('\n')
-      .forEach((text, index) => {
-        if (matchWriteRules([{ filePath: rel, text }], c6Rules).length > 0) {
-          fail(`${rel}:${index + 1} 使用了 viewport 單位（c6）：${text.trim()}`);
-        }
-      });
+    const source = readFileSync(file, 'utf8');
+    // 判斷權在共用 matcher（它也負責 path 比對，例如 c8 的排除 .spec.ts）
+    if (matchWriteRules([{ filePath: rel, text: source }], rules).length === 0) continue;
+
+    // 行號純粹是為了讓訊息可點擊；matcher 說有、regex 卻定不出位置時仍然照報
+    const lines = forbid
+      ? [...source.matchAll(forbid)].map((m) => source.slice(0, m.index).split('\n').length)
+      : [];
+    const allowed = allowlist[rel] ?? 0;
+    seen.add(rel);
+
+    if (lines.length > allowed) {
+      const shown = lines.slice(allowed).join(', ') || '(位置未定)';
+      fail(
+        `${rel} ${label}（${clause}）—— 第 ${shown} 行；` +
+          (allowed > 0 ? `這個檔案的 allowlist 是 ${allowed} 筆，現在有 ${lines.length} 筆` : ''),
+      );
+    } else if (lines.length < allowed) {
+      fail(
+        `${rel} 的 ${clause} allowlist 過期：帳面 ${allowed} 筆、實際 ${lines.length} 筆。` +
+          `請把 check-harness.mjs 裡的數字改小；歸零就整筆刪掉（gate 隨即全面生效）`,
+      );
+    }
+  }
+
+  for (const rel of Object.keys(allowlist)) {
+    if (!seen.has(rel)) {
+      fail(
+        `${rel} 已無 ${clause} 違規（或檔案已不存在），請從 check-harness.mjs 的 allowlist 移除`,
+      );
+    }
+  }
+}
+
+const WEB_SRC = join(ROOT, 'apps/web/src');
+const API_SRC = join(ROOT, 'apps/api/src');
+
+// A12（c6）— 存量早就是 0 以外的東西了，維持零容忍
+scanExisting({ clause: 'c6', dir: WEB_SRC, ext: '.scss', label: '使用了 viewport 單位' });
+
+// A13（c7）— 存量本來就是 0（Angular 21 全面用新語法），gate 立起來防回歸
+scanExisting({ clause: 'c7', dir: WEB_SRC, ext: '.html', label: '使用了舊版結構指令' });
+
+// A14（c8）— 存量 4 筆，都在 shared 元件裡。
+// 轉成 functional API 會改到 component 的對外介面（`@Input() value` → `input()` 之後
+// template 要改成 `value()`），那是 design-web 席的活，不是這支 gate PR 的範圍。
+// 邊界：`@HostListener` **不在** c8 內（沒有 functional 對應物，使用者 2026-08-29 釐清）——
+// 這件事由 pre-guard 的 regex 本身保證，這裡不重述，共用規則就是為了不重述。
+scanExisting({
+  clause: 'c8',
+  dir: WEB_SRC,
+  ext: '.ts',
+  label: '使用了裝飾器版 API',
+  allowlist: {
+    // jdenticon-avatar.component.ts:26,27（@Input）、:29（@ViewChild）
+    'apps/web/src/app/shared/components/jdenticon-avatar/jdenticon-avatar.component.ts': 3,
+    // shell-layout.component.ts:42（@ViewChild('op')）
+    'apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.ts': 1,
+  },
+});
+
+// A15（c2）— 存量 9 筆，全是直寫 `ba_user`。
+// 這批是「ba_user 寫入路徑收斂」切片的待辦，不是這支 PR 要修的東西 —— 修它要動 Better Auth
+// 的使用者更新路徑，屬於 billing-api 席。allowlist 讓它們**可見且被計數**：
+// 同一個檔案再多一筆就紅燈，收斂完成時 allowlist 歸零、gate 自動變全面。
+scanExisting({
+  clause: 'c2',
+  dir: API_SRC,
+  ext: '.ts',
+  label: '直接寫入 ba_* 表',
+  allowlist: {
+    'apps/api/src/routes/me.ts': 2, // :124, :151
+    'apps/api/src/routes/parents.ts': 4, // :404, :621, :625, :1459
+    'apps/api/src/routes/staff.ts': 3, // :914, :945, :1133
+  },
+});
+
+// ── A16. 本分支有沒有改到已提交的 migration（clause c3）──────────────────────────────────
+// c3 的「存量」語意跟其他條不同：樹上不可能躺著一個「已經被改壞的 migration」——
+// 修改一定是**相對某個基準的差異**。所以這條比的是三點差異 `origin/main...HEAD`：
+// 本分支從分岔點以來，對 supabase/migrations/ 底下**既有檔案**做的任何 M / D / R。
+// 新增（A）當然放行，那正是 c3 要求的做法。
+//
+// 三點而不是兩點是刻意的：兩點會把「main 自己新增的 migration」也算成本分支的改動。
+//
+// 覆蓋範圍的誠實話：直接推 main 的話 `origin/main...HEAD` 兩端相同、這條看不到東西。
+// 本專案不在 main 上工作（AGENTS.md），而寫入當下那一層由 pre-guard 的 c3（whenTracked）擋，
+// 所以缺口是可接受的。拿不到 origin/main 時（淺 clone、離線）只警告不紅燈 ——
+// 環境問題不該偽裝成違憲。
+const migrationsChanged = spawnSync(
+  'git',
+  [
+    'diff',
+    '--name-status',
+    '--diff-filter=MDR',
+    'origin/main...HEAD',
+    '--',
+    'supabase/migrations/',
+  ],
+  { cwd: ROOT, encoding: 'utf8' },
+);
+
+if (migrationsChanged.status !== 0) {
+  warnings.push(
+    `拿不到 origin/main，跳過 c3 的存量檢查（A16）—— CI 上 actions/checkout 需要 fetch-depth: 0`,
+  );
+} else {
+  for (const line of migrationsChanged.stdout.split('\n').filter(Boolean)) {
+    const [status, ...paths] = line.split('\t');
+    fail(
+      `${paths.at(-1)} 是已提交的 migration，本分支卻${status.startsWith('D') ? '刪除' : status.startsWith('R') ? '改名' : '修改'}了它（c3）。` +
+        `schema 變更請新增一支 ALTER TABLE migration：npx supabase migration new <description>`,
+    );
   }
 }
 
