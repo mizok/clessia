@@ -11,12 +11,12 @@
 
 ## 席位表
 
-| Charter | Domain | 典型工作 | Herdr pane 名 |
-| --- | --- | --- | --- |
-| [billing-api.md](billing-api.md) | 金流/API/auth 核心 | schema、Hono 路由、Better Auth、Workers 執行環境 | `billing-api` |
-| [design-web.md](design-web.md) | 視覺/設計系統/web 效能 | tokens、SCSS、bundle、mockup、登入與公開頁 | `design-web` |
-| [admin-pages.md](admin-pages.md) | 管理端頁面 | admin feature 頁、dialog、表格、儀表板 | `admin-pages` |
-| [infra.md](infra.md) | CI/harness/依賴/工具債 | verify 序列、gate、憲法 enforcement、升版 | `infra` |
+| Charter                          | Domain                 | 典型工作                                         | Herdr pane 名 |
+| -------------------------------- | ---------------------- | ------------------------------------------------ | ------------- |
+| [billing-api.md](billing-api.md) | 金流/API/auth 核心     | schema、Hono 路由、Better Auth、Workers 執行環境 | `billing-api` |
+| [design-web.md](design-web.md)   | 視覺/設計系統/web 效能 | tokens、SCSS、bundle、mockup、登入與公開頁       | `design-web`  |
+| [admin-pages.md](admin-pages.md) | 管理端頁面             | admin feature 頁、dialog、表格、儀表板           | `admin-pages` |
+| [infra.md](infra.md)             | CI/harness/依賴/工具債 | verify 序列、gate、憲法 enforcement、升版        | `infra`       |
 
 > Herdr pane 名 = 席位名（`herdr agent rename` 可改）。SendMessage 位址是 session
 > 自動命名、session 輪替就會變 —— **不要寫死在任何文件**，用 ListAgents 查當班的是誰。
@@ -26,7 +26,10 @@
 ## 通用協定（每席都適用）
 
 - 工單來自計畫席（SendMessage），完成/卡住回報計畫席，不直接對使用者
-- 邏輯與 schema 改動的 PR 由使用者親手合；純視覺/文案微調經計畫席驗收後直接合
+- **合併授權（2026-08-29 使用者定案）**：計畫席驗收後可代合的只有三類 ——
+  純視覺微調（SCSS/文案）、`kb/` 文件、`.claude/team/` 設定。
+  **任何程式碼（含 seed、config、CI、migration）一律使用者親手合，急修也不例外**
+  （要代合須先取得使用者當次的明確同意）。代合的 docs PR 攢批處理，降低衝突稅
 - 開工前：`git fetch` 從最新 origin/main 開分支；worktree 內 root 與 apps/api 各 `npm ci`
 - 憲法（`kb/wiki/architecture/constitution.md`）與 AGENTS.md 永遠先讀
 - 設計裁決回計畫席，不自行擴範圍；「刻意的判斷」與「需要人工看的點」寫進 PR
