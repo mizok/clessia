@@ -1,0 +1,80 @@
+<div class="enrollment-billing">
+  <header class="enrollment-billing__header">
+    <h2 class="enrollment-billing__title">計費設定</h2>
+    <p class="enrollment-billing__hint">
+      {{ enrollment.studentName }} —— 計費模式是每位學生自己的選擇，同一班可以有月繳生也有期繳生。
+    </p>
+  </header>
+
+  <div class="enrollment-billing__body">
+    <div class="enrollment-billing__field">
+      <label class="enrollment-billing__label" for="eb-mode">計費模式</label>
+      <p-select
+        inputId="eb-mode"
+        optionLabel="label"
+        optionValue="value"
+        [options]="billingModeOptions"
+        [ngModel]="form().billingMode"
+        (ngModelChange)="update('billingMode', $event)"
+      />
+    </div>
+
+    <div class="enrollment-billing__field">
+      <label class="enrollment-billing__label" for="eb-template">價目表</label>
+      <p-select
+        inputId="eb-template"
+        optionLabel="label"
+        optionValue="value"
+        appendTo="body"
+        [options]="templateOptions()"
+        [ngModel]="form().feeTemplateId"
+        (ngModelChange)="update('feeTemplateId', $event)"
+      />
+    </div>
+
+    <div class="enrollment-billing__field">
+      <label class="enrollment-billing__label" for="eb-amount">議定金額</label>
+      <p-inputnumber
+        inputId="eb-amount"
+        mode="currency"
+        currency="TWD"
+        locale="zh-TW"
+        [min]="0"
+        [maxFractionDigits]="0"
+        [placeholder]="pricingHint() ?? '留空表示照定價'"
+        [ngModel]="form().agreedAmount"
+        (ngModelChange)="update('agreedAmount', $event)"
+      />
+      <span class="enrollment-billing__hint">
+        @if (pricingHint()) {
+          {{ pricingHint() }}。留空 = 照定價收，填了數字 = 這位學生就是這個價。
+        } @else {
+          留空表示照所選價目表的定價收費。
+        }
+      </span>
+    </div>
+
+    @if (isAdjusted()) {
+      <div class="enrollment-billing__field">
+        <label class="enrollment-billing__label" for="eb-note">調整原因 *</label>
+        <textarea
+          id="eb-note"
+          pTextarea
+          rows="2"
+          maxlength="500"
+          placeholder="如：老生續讀、兄弟同班、老闆特批"
+          [ngModel]="form().adjustmentNote"
+          (ngModelChange)="update('adjustmentNote', $event)"
+        ></textarea>
+        <span class="enrollment-billing__hint">
+          金額和定價不一樣就要留原因 —— 半年後沒有人記得為什麼收這個數字。
+        </span>
+      </div>
+    }
+  </div>
+
+  <footer class="enrollment-billing__footer">
+    <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+    <p-button label="儲存" [loading]="saving()" (onClick)="save()" />
+  </footer>
+</div>

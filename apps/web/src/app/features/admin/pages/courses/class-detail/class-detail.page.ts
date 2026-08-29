@@ -41,6 +41,7 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 import { StudentPickerDialogComponent } from './student-picker-dialog/student-picker-dialog.component';
 import { CopyRosterDialogComponent } from './copy-roster-dialog/copy-roster-dialog.component';
 import { RosterImportDialogComponent } from './roster-import-dialog/roster-import-dialog.component';
+import { EnrollmentBillingDialogComponent } from './enrollment-billing-dialog/enrollment-billing-dialog.component';
 
 @Component({
   selector: 'app-class-detail',
@@ -146,6 +147,13 @@ export class ClassDetailPage implements OnInit {
     }
 
     if (!['withdrawal', 'void'].includes(e.status)) {
+      // 計費模式是**報名層級**的選擇（billing-rules 規則 1），所以它的家在單筆名單上，
+      // 不在班級設定裡 —— 同一班可以同時有月繳生與期繳生
+      items.push({
+        label: '計費設定',
+        icon: 'pi pi-wallet',
+        command: () => this.openBillingDialog(e),
+      });
       items.push({ separator: true });
       if (e.attendanceCount === 0) {
         items.push({ label: '移除', icon: 'pi pi-trash', command: () => this.confirmRemove(e) });
@@ -217,6 +225,20 @@ export class ClassDetailPage implements OnInit {
   protected openActionMenu(event: MouseEvent, enrollment: Enrollment): void {
     this.selectedEnrollment.set(enrollment);
     this.actionMenu().toggle(event);
+  }
+
+  protected openBillingDialog(enrollment: Enrollment): void {
+    const ref = this.dialogService.open(EnrollmentBillingDialogComponent, {
+      header: '計費設定',
+      width: '460px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { enrollment },
+    });
+    ref?.onClose.subscribe((saved) => {
+      if (saved) this.loadEnrollments();
+    });
   }
 
   protected openStudentPicker(): void {
