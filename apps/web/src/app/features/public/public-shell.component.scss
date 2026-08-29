@@ -17,44 +17,46 @@
   height: var(--window-height, 100dvh);
   overflow: hidden;
 
+  // D 的大色面就在這裡：整支側欄是品牌面，流場住在上面。
+  // 舊版是深炭底加兩個 radial 光暈，而那兩個光暈的藍是**硬編碼**的舊 sky 值 ——
+  // token 換成暖橘之後它們不會跟著變，正式站因此出現「新皮卡片 + 舊皮側欄」。
   &__brand {
     position: sticky;
     top: 0;
+    isolation: isolate;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     height: var(--window-height, 100dvh);
     padding: var(--space-8);
-    background: linear-gradient(160deg, var(--zinc-900) 0%, var(--zinc-800) 100%);
-    color: #fff;
     overflow: hidden;
+    background: linear-gradient(150deg, var(--accent-vivid) 0%, var(--accent-vivid-2) 100%);
+    // 橘面上一律近黑字：亮橘配白只有 2.85:1，配近黑是 6.32:1
+    color: var(--zinc-900);
+  }
 
-    &::before,
-    &::after {
-      content: '';
-      position: absolute;
-      border-radius: 50%;
-      pointer-events: none;
-    }
-
-    &::before {
-      top: -100px;
-      right: -80px;
-      width: 300px;
-      height: 300px;
-      background: radial-gradient(circle, rgb(14 165 233 / 30%) 0%, transparent 70%);
-    }
-
-    &::after {
-      bottom: -50px;
-      left: -50px;
-      width: 200px;
-      height: 200px;
-      background: radial-gradient(circle, rgb(14 165 233 / 20%) 0%, transparent 70%);
-    }
+  // 內容那一側把流線壓下去，下半部讓它跑滿
+  &__brand::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      168deg,
+      rgb(255 106 61 / 90%) 0%,
+      rgb(255 106 61 / 62%) 34%,
+      rgb(255 106 61 / 10%) 68%,
+      rgb(255 106 61 / 0%) 88%
+    );
   }
 
   &__brand-content {
+    position: relative;
+    z-index: 1;
+  }
+
+  &__nav {
     position: relative;
     z-index: 1;
   }
@@ -68,24 +70,12 @@
     color: inherit;
   }
 
-  &__logo-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    font-size: var(--text-xl);
-    font-weight: var(--font-bold);
-    color: var(--zinc-900);
-    background: linear-gradient(135deg, #fff 0%, var(--zinc-200) 100%);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 4px 12px rgb(0 0 0 / 20%);
-  }
-
+  // 沒有圖形 logo —— 真 logo 是之後的品牌工作，與其擺一個佔位方塊不如不擺。
+  // 字標的全部造型就是尺寸、字重與收緊的字距。
   &__logo-text {
     font-size: var(--text-2xl);
     font-weight: var(--font-bold);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
   }
 
   &__tagline {
@@ -98,7 +88,10 @@
   &__slogan {
     margin: 0 0 var(--space-8) 0;
     font-size: var(--text-lg);
-    color: var(--zinc-400);
+    font-weight: var(--font-medium);
+    // 橘面上不用灰階做次要層次（灰在橘上會髒），改用近黑降透明度
+    color: var(--zinc-900);
+    opacity: 0.78;
   }
 
   &__features {
@@ -133,7 +126,8 @@
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
     font-size: var(--text-md);
-    color: var(--zinc-400);
+    font-weight: var(--font-medium);
+    color: var(--zinc-900);
     text-decoration: none;
     border-radius: var(--radius-md);
     animation: pub-nav-in 0.25s ease both;
@@ -161,13 +155,13 @@
     }
 
     &:hover {
-      color: #fff;
-      background: rgb(255 255 255 / 8%);
+      background: rgb(255 255 255 / 30%);
     }
 
+    // 目前這一頁：白色實底 + 近黑字，在橘面上是最清楚的「你在這裡」
     &--active {
-      color: #fff;
-      background: rgb(255 255 255 / 10%);
+      background: var(--color-white);
+      font-weight: var(--font-semibold);
     }
   }
 
@@ -175,7 +169,8 @@
     position: relative;
     z-index: 1;
     font-size: var(--text-sm);
-    color: var(--zinc-500);
+    color: var(--zinc-900);
+    opacity: 0.62;
   }
 
   // 從 `hamburgers` 套件移植過來的三線圖示。整包 21.8 kB 全域 CSS 提供 13 種動畫，
@@ -222,7 +217,7 @@
       position: absolute;
       width: 40px;
       height: 4px;
-      background-color: var(--zinc-400);
+      background-color: var(--zinc-900);
       border-radius: var(--radius-sm);
       transition-property: transform;
       transition-duration: 0.15s;
@@ -330,12 +325,6 @@
       margin-bottom: 0;
     }
 
-    &__logo-icon {
-      width: 28px;
-      height: 28px;
-      font-size: var(--text-sm);
-    }
-
     &__logo-text {
       font-size: var(--text-md);
     }
@@ -356,12 +345,13 @@
     }
 
     // 線條在深色側欄上要反白 —— 基礎色（zinc-400）由 block 層定義，這裡只翻轉。
+    // 橘面上的線條用近黑：白線對亮橘只有 2.85:1，低於圖形元素要求的 3:1
     &__hamburger:hover &__hamburger-inner,
     &__hamburger--active &__hamburger-inner {
       &,
       &::before,
       &::after {
-        background-color: var(--color-white);
+        background-color: var(--zinc-900);
       }
     }
 
@@ -391,8 +381,11 @@
       width: 280px;
       min-height: var(--window-height, 100dvh);
       padding: var(--space-4);
-      color: #fff;
-      background: var(--zinc-900);
+      // 抽屜浮在內容上，用白底而不是橘 —— 橘是「品牌面」的語言，
+      // 覆蓋式面板需要的是清楚，不是宣示。
+      color: var(--zinc-900);
+      background: var(--color-white);
+      box-shadow: 0 0 40px rgb(26 22 20 / 18%);
     }
 
     &__sidebar-header {
@@ -404,14 +397,8 @@
 
     // Contextual Override: Logo inside Sidebar Header
     &__sidebar-header &__logo {
-      color: #fff;
       margin-bottom: 0;
-    }
-
-    &__sidebar-header &__logo-icon {
-      width: 32px;
-      height: 32px;
-      font-size: var(--text-md);
+      color: var(--zinc-900);
     }
 
     &__sidebar-header &__logo-text {
@@ -424,16 +411,16 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--zinc-400);
+      color: var(--zinc-500);
       font-size: 18px;
       border-radius: var(--radius-md);
       transition:
-        color 0.2s,
-        background 0.2s;
+        color var(--transition-fast),
+        background var(--transition-fast);
 
       &:hover {
-        color: #fff;
-        background: rgb(255 255 255 / 10%);
+        color: var(--zinc-900);
+        background: var(--zinc-100);
       }
     }
 
@@ -443,13 +430,13 @@
       gap: var(--space-3);
       padding: var(--space-3) var(--space-4);
       font-size: var(--text-md);
-      color: var(--zinc-400);
+      color: var(--zinc-600);
       text-decoration: none;
       border-radius: var(--radius-md);
       margin-bottom: var(--space-1);
       transition:
-        color 0.2s,
-        background 0.2s;
+        color var(--transition-fast),
+        background var(--transition-fast);
 
       i {
         font-size: 18px;
@@ -458,13 +445,14 @@
       }
 
       &:hover {
-        color: #fff;
-        background: rgb(255 255 255 / 8%);
+        color: var(--zinc-900);
+        background: var(--zinc-100);
       }
 
       &--active {
-        color: #fff;
-        background: rgb(255 255 255 / 10%);
+        color: var(--accent-600);
+        background: var(--accent-50);
+        font-weight: var(--font-semibold);
       }
     }
   }

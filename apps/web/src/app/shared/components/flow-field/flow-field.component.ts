@@ -43,6 +43,7 @@ export class FlowFieldComponent {
   private t = 0;
   private reduced = false;
   private observer: IntersectionObserver | null = null;
+  private sizeObserver: ResizeObserver | null = null;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
@@ -52,8 +53,8 @@ export class FlowFieldComponent {
     this.destroyRef.onDestroy(() => {
       this.stop();
       this.observer?.disconnect();
+      this.sizeObserver?.disconnect();
       if (this.resizeTimer !== null) clearTimeout(this.resizeTimer);
-      window.removeEventListener('resize', this.onResize);
       document.removeEventListener('visibilitychange', this.onVisibility);
     });
   }
@@ -66,8 +67,16 @@ export class FlowFieldComponent {
     this.reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.init(0);
 
-    window.addEventListener('resize', this.onResize);
     document.addEventListener('visibilitychange', this.onVisibility);
+
+    // 監聽**容器自己**的尺寸，不是只聽 window resize。
+    // 這個面的高度取決於內容與字體載入 —— 字體載入完成後容器會變高，
+    // 但那不會觸發 window resize，於是 canvas 停在初始尺寸、粒子還擠在
+    // 一開始那一小塊裡。正式站看起來「線很稀、擠在角落」就是這個。
+    if ('ResizeObserver' in window) {
+      this.sizeObserver = new ResizeObserver(() => this.onResize());
+      this.sizeObserver.observe(el);
+    }
 
     // 只負責「捲出畫面就停、捲回來再跑」。初次啟動由 init() 負責 ——
     // 交給 observer 的話，第一次回調若在佈局未穩時判定為不可見，就再也不會啟動。
@@ -121,7 +130,7 @@ export class FlowFieldComponent {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const count = Math.round(
-      Math.min(290, Math.max(24, ((this.w * this.h) / 1650) * this.density())),
+      Math.min(290, Math.max(52, ((this.w * this.h) / 1150) * this.density())),
     );
     this.particles = Array.from({ length: count }, () => this.spawn());
     ctx.clearRect(0, 0, this.w, this.h);

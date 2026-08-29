@@ -36,7 +36,7 @@
     &:focus {
       outline: none;
       border-color: var(--accent-500);
-      box-shadow: 0 0 0 3px rgb(14 165 233 / 15%);
+      box-shadow: 0 0 0 3px rgb(201 63 20 / 18%);
     }
 
     &::placeholder {
@@ -246,7 +246,7 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--accent-600);
-    background: rgb(14 165 233 / 10%);
+    background: var(--accent-50);
     border-radius: var(--radius-full);
   }
 

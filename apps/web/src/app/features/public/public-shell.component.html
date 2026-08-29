@@ -1,9 +1,10 @@
 <section class="public-shell" [class.public-shell--menu-open]="menuOpen()">
   <!-- Brand Panel (Left Side) -->
   <aside class="public-shell__brand">
+    <app-flow-field [density]="0.8" [speed]="1" />
+
     <div class="public-shell__brand-content">
       <a class="public-shell__logo" routerLink="/login">
-        <span class="public-shell__logo-icon">C</span>
         <span class="public-shell__logo-text">Clessia</span>
       </a>
       <h2 class="public-shell__tagline">學程管家</h2>
@@ -53,7 +54,6 @@
   <nav class="public-shell__sidebar" [class.public-shell__sidebar--open]="menuOpen()">
     <div class="public-shell__sidebar-header">
       <a class="public-shell__logo" routerLink="/login" (click)="toggleMenu()">
-        <span class="public-shell__logo-icon">C</span>
         <span class="public-shell__logo-text">Clessia</span>
       </a>
       <button class="public-shell__sidebar-close" (click)="toggleMenu()">

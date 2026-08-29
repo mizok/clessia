@@ -3,43 +3,22 @@
   height: 100%;
 }
 
-// 這頁的內容其實在彈窗裡（動態 import）。底下留的是同一片會動的橘色場 ——
-// 跟登入頁是同一個視覺語言，而且彈窗背後不會是一片空白。
+// 這頁的內容其實在彈窗裡（動態 import）。底下留的只有字標 ——
+// 品牌面是 public-shell 的橘色側欄，這裡不再自己鋪一塊橘。
 .select-role {
-  position: relative;
-  isolation: isolate;
   display: flex;
   align-items: center;
   justify-content: center;
   // 高度用 100% 而不是 vh（憲法 c6）；父容器沒給高度時只是靠上顯示，不會壞版
   min-height: 100%;
   padding: var(--space-8) var(--space-4);
-  background: linear-gradient(150deg, var(--accent-vivid) 0%, var(--accent-vivid-2) 100%);
-}
-
-// 中央把流線壓下去，四周讓它跑滿 —— 彈窗浮在中間，那一塊要乾淨。
-.select-role::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background: radial-gradient(
-    ellipse 62% 54% at 50% 50%,
-    rgb(255 106 61 / 88%) 0%,
-    rgb(255 106 61 / 55%) 46%,
-    rgb(255 106 61 / 0%) 82%
-  );
 }
 
 .select-role__wordmark {
-  position: relative;
-  z-index: 1;
   margin: 0;
   font-size: var(--text-3xl);
   font-weight: var(--font-bold);
   letter-spacing: -0.04em;
-  // 彈窗才是主角，字標只是襯底 —— 用橘面上的近黑壓到半透明
-  color: var(--zinc-900);
-  opacity: 0.42;
+  // 彈窗才是主角，字標只是襯底
+  color: var(--zinc-300);
 }

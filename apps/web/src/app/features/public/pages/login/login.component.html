@@ -1,44 +1,36 @@
 <div class="login">
-  <div class="login__hero">
-    <app-flow-field [density]="0.9" [speed]="1.15" />
-    <h1 class="login__mark">Clessia</h1>
-    <p class="login__lede">補習班的一天是流動的。人進人出、課一堂接一堂，這裡把它接住。</p>
-  </div>
+  <h1 class="login__title">登入</h1>
+  <p class="login__sub">用 LINE 登入，不需要記密碼。</p>
 
-  <div class="login__panel">
-    <h2 class="login__title">登入</h2>
-    <p class="login__sub">用 LINE 登入，不需要記密碼。</p>
+  @if (error()) {
+    <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
+  }
 
-    @if (error()) {
-      <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
+  <button
+    type="button"
+    class="login__line-btn"
+    [disabled]="submitting()"
+    (click)="signInWithLine()"
+  >
+    @if (submitting()) {
+      <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+      前往 LINE...
+    } @else {
+      <!-- 綠底 chip + 官方白色 icon，重現 LINE app 圖示的長相 —— 那才是家長認得的。
+           純裝飾：右邊的文字已經說了「LINE」，讓螢幕閱讀器再念一次反而吵。 -->
+      <span class="login__line-chip" aria-hidden="true">
+        <img class="login__line-logo" src="assets/brand/line-logo.png" alt="" />
+      </span>
+      使用 LINE 登入
     }
+  </button>
 
-    <button
-      type="button"
-      class="login__line-btn"
-      [disabled]="submitting()"
-      (click)="signInWithLine()"
-    >
-      @if (submitting()) {
-        <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
-        前往 LINE...
-      } @else {
-        <!-- 綠底 chip + 官方白色 icon，重現 LINE app 圖示的長相 —— 那才是家長認得的。
-             純裝飾：右邊的文字已經說了「LINE」，讓螢幕閱讀器再念一次反而吵。 -->
-        <span class="login__line-chip" aria-hidden="true">
-          <img class="login__line-logo" src="assets/brand/line-logo.png" alt="" />
-        </span>
-        使用 LINE 登入
-      }
-    </button>
+  @if (showEnrollmentLink()) {
+    <a class="login__enroll-link" routerLink="/enrollment">還沒報名？前往報名</a>
+  }
 
-    @if (showEnrollmentLink()) {
-      <a class="login__enroll-link" routerLink="/enrollment">還沒報名？前往報名</a>
-    }
-
-    <div class="login__foot">
-      <p class="login__hint">第一次使用？請向補習班索取專屬連結，點開後即可綁定 LINE。</p>
-      <p class="login__contact">還沒有帳號？請聯絡櫃檯開通。</p>
-    </div>
+  <div class="login__foot">
+    <p class="login__hint">第一次使用？請向補習班索取專屬連結，點開後即可綁定 LINE。</p>
+    <p class="login__contact">還沒有帳號？請聯絡櫃檯開通。</p>
   </div>
 </div>

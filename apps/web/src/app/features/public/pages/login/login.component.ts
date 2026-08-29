@@ -2,12 +2,11 @@ import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '@core/auth.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
-import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.component';
 import { oauthErrorFor } from './oauth-error';
 
 @Component({
   selector: 'app-login',
-  imports: [InlineNoticeComponent, RouterLink, FlowFieldComponent],
+  imports: [InlineNoticeComponent, RouterLink],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
 })
