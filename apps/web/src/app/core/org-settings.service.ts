@@ -14,6 +14,10 @@ export interface OrgSettings {
   attendanceRetroactiveDays: number;
   /** 開帳時 due_date 的預設天數（kb/wiki/rules/billing-rules.md 規則 7） */
   invoiceDueDays: number;
+  /** 餐費預設單價（單價實際存在每一筆餐記錄上） */
+  mealDefaultPrice: number;
+  /** 插班／退班比例試算的基準，預設 days */
+  prorationBasis: 'days' | 'sessions';
 }
 
 export interface UpdateOrgSettingsInput {
@@ -21,6 +25,8 @@ export interface UpdateOrgSettingsInput {
   attendanceResponsible?: AttendanceResponsible;
   attendanceRetroactiveDays?: number;
   invoiceDueDays?: number;
+  mealDefaultPrice?: number;
+  prorationBasis?: 'days' | 'sessions';
 }
 
 @Injectable({ providedIn: 'root' })

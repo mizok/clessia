@@ -118,6 +118,11 @@ const BatchCreateEnrollmentSchema = z
     skipConflictCheck: z.boolean().optional(),
     // 不給就是今天。名單補灌時要往前調到開課日，否則過去的課堂名單會是空的
     effectiveFrom: z.string().date().optional(),
+    // 計費欄位跟單筆 create 對齊 —— 批次招生一次幾十筆，事後逐筆補計費設定是
+    // 純粹的重工。整批同一個計費方式是常態（同一班同一個價目表）
+    billingMode: BillingModeSchema.optional(),
+    feeTemplateId: z.uuid().optional(),
+    agreedAmount: z.number().int().min(0).optional(),
   })
   .openapi('BatchCreateEnrollment');
 
@@ -793,7 +798,15 @@ app.openapi(
     },
   }),
   async (c) => {
-    const { classId, studentIds, skipConflictCheck, effectiveFrom } = c.req.valid('json');
+    const {
+      classId,
+      studentIds,
+      skipConflictCheck,
+      effectiveFrom,
+      billingMode,
+      feeTemplateId,
+      agreedAmount,
+    } = c.req.valid('json');
     const orgId = c.get('orgId');
     const userId = c.get('userId');
     const supabase = c.get('supabase');
@@ -853,6 +866,9 @@ app.openapi(
           student_id: studentId,
           status: 'active',
           effective_from: startDate,
+          billing_mode: billingMode ?? null,
+          fee_template_id: feeTemplateId ?? null,
+          agreed_amount: agreedAmount ?? null,
           created_by: userId,
         })
         .select('id')

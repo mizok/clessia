@@ -19,7 +19,9 @@ type ResourceType =
   | 'fee_template'
   | 'invoice'
   | 'payment_record'
-  | 'session_pack';
+  | 'session_pack'
+  | 'meal_record'
+  | 'billing_run';
 
 export interface AuditLogParams {
   orgId: string;

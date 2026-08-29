@@ -5,6 +5,9 @@ const AttendanceModeSchema = z.enum(['per_session', 'daily_checkin']).openapi('A
 
 const AttendanceResponsibleSchema = z.enum(['admin', 'teacher']).openapi('AttendanceResponsible');
 
+/** 插班／退班比例試算的基準。預設 days —— 按天永遠算得出來，按堂依賴 sessions 已生成 */
+const ProrationBasisSchema = z.enum(['days', 'sessions']).openapi('ProrationBasis');
+
 const OrgSettingsSchema = z
   .object({
     id: z.string().uuid(),
@@ -14,6 +17,9 @@ const OrgSettingsSchema = z
     attendanceRetroactiveDays: z.number().int().min(0),
     /** 開帳時 due_date 的預設天數（規則 7：對齊發袋後兩三週的節奏） */
     invoiceDueDays: z.number().int().min(0),
+    /** 餐費的預設單價。單價存在每一筆餐記錄上，這只是開單時的起始值 */
+    mealDefaultPrice: z.number().int().min(0),
+    prorationBasis: ProrationBasisSchema,
   })
   .openapi('OrgSettings');
 
@@ -23,6 +29,8 @@ const UpdateOrgSettingsSchema = z
     attendanceResponsible: AttendanceResponsibleSchema.optional(),
     attendanceRetroactiveDays: z.coerce.number().int().min(0).optional(),
     invoiceDueDays: z.coerce.number().int().min(0).optional(),
+    mealDefaultPrice: z.coerce.number().int().min(0).optional(),
+    prorationBasis: ProrationBasisSchema.optional(),
   })
   .openapi('UpdateOrgSettings');
 
@@ -34,13 +42,15 @@ export function toOrgSettingsResponse(row: Record<string, unknown>) {
     attendanceResponsible: (row['attendance_responsible'] as 'admin' | 'teacher') ?? 'admin',
     attendanceRetroactiveDays: (row['attendance_retroactive_days'] as number) ?? 0,
     invoiceDueDays: (row['invoice_due_days'] as number) ?? 14,
+    mealDefaultPrice: Number(row['meal_default_price'] ?? 0),
+    prorationBasis: (row['proration_basis'] as 'days' | 'sessions') ?? 'days',
   };
 }
 
 const app = new OpenAPIHono<AppEnv>();
 
 const SELECT_FIELDS =
-  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days';
+  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, meal_default_price, proration_basis';
 
 // GET /api/org/settings
 app.openapi(
@@ -105,6 +115,8 @@ app.openapi(
     if (body.attendanceRetroactiveDays !== undefined)
       updates['attendance_retroactive_days'] = body.attendanceRetroactiveDays;
     if (body.invoiceDueDays !== undefined) updates['invoice_due_days'] = body.invoiceDueDays;
+    if (body.mealDefaultPrice !== undefined) updates['meal_default_price'] = body.mealDefaultPrice;
+    if (body.prorationBasis !== undefined) updates['proration_basis'] = body.prorationBasis;
 
     const { data, error } = await supabase
       .from('organizations')

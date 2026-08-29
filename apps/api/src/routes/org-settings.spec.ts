@@ -17,6 +17,8 @@ describe('toOrgSettingsResponse', () => {
       attendanceRetroactiveDays: 0,
       // 欄位不在的舊 org 用 14 —— 對齊 billing_rules 規則 7 的「發袋後兩三週」節奏
       invoiceDueDays: 14,
+      mealDefaultPrice: 0,
+      prorationBasis: 'days',
     });
   });
 

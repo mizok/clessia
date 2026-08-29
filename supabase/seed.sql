@@ -743,6 +743,32 @@ BEGIN
   LIMIT 1
   ON CONFLICT DO NOTHING;
 
+  -- ===== 餐務（P1 A3）=====
+  -- 餐費預設單價 + 一部分學生預設訂餐（opt-in，meal-rules 規則 1：有上課 ≠ 有訂餐）
+  UPDATE public.organizations SET meal_default_price = 65 WHERE id = demo_org_id;
+
+  UPDATE public.students SET meal_default = true
+   WHERE id IN (
+     SELECT format('61000000-0000-0000-0000-%s', lpad(student_no::text, 12, '0'))::uuid
+     FROM generate_series(1, 6) AS student_no
+   );
+
+  -- 上個月的餐記錄：大部分要收費，一筆刻意 chargeable = false
+  -- （規則 3：「便當已經送到了」那種狀況是人工裁量，不是自動規則）
+  INSERT INTO public.meal_records (org_id, student_id, meal_date, ordered, chargeable, unit_price)
+  SELECT
+    demo_org_id,
+    s.id,
+    d::date,
+    true,
+    -- 每個學生的第一天示範一筆「訂了但不收費」
+    NOT (d::date = (CURRENT_DATE - 10)),
+    65
+  FROM public.students s
+  CROSS JOIN generate_series(CURRENT_DATE - 10, CURRENT_DATE - 8, INTERVAL '1 day') AS d
+  WHERE s.meal_default
+  ON CONFLICT (student_id, meal_date) DO NOTHING;
+
   INSERT INTO public.schedules (
     class_id,
     weekday,
