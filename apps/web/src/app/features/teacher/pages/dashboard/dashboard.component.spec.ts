@@ -8,6 +8,7 @@ import { StudentsService } from '@core/students.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
 import { DashboardComponent } from './dashboard.component';
+import { format } from 'date-fns';
 
 function session(overrides: Partial<EventSessionSummary> = {}): EventSessionSummary {
   return {
@@ -18,7 +19,7 @@ function session(overrides: Partial<EventSessionSummary> = {}): EventSessionSumm
     teacherName: '王老師',
     campusId: null,
     campusName: null,
-    eventDate: new Date().toISOString().slice(0, 10),
+    eventDate: format(new Date(), 'yyyy-MM-dd'),
     startTime: '00:01',
     endTime: '23:59',
     enrolledCount: 8,
@@ -75,7 +76,8 @@ describe('DashboardComponent（老師端）', () => {
   });
 
   it('四個數字都算得出來', async () => {
-    const today = new Date().toISOString().slice(0, 10);
+    // 本地時區，跟元件一致（toISOString 是 UTC，凌晨會差一天）
+    const today = format(new Date(), 'yyyy-MM-dd');
     await setup(
       [
         session({ eventId: 'a', takenAt: null }),

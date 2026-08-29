@@ -484,14 +484,14 @@ select {
       }
     }
 
-    // Info - Sky blue tones (accent)
+    // Info —— 用 accent token 而不是硬編碼色值，換色系時才會跟著走
     &.p-toast-message-info {
-      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-      border-color: #bae6fd;
-      color: #0c4a6e;
+      background: linear-gradient(135deg, var(--accent-50) 0%, var(--accent-100) 100%);
+      border-color: var(--accent-400);
+      color: var(--accent-600);
 
       .p-toast-message-icon {
-        color: #0ea5e9;
+        color: var(--accent-500);
       }
     }
   }
@@ -507,7 +507,7 @@ select {
     }
 
     &:focus {
-      box-shadow: 0 0 0 2px #0ea5e9;
+      box-shadow: 0 0 0 2px var(--accent-500);
     }
   }
 

@@ -42,7 +42,7 @@ const ClessiaPreset = definePreset(Aura, {
     focusRing: {
       width: '2px',
       style: 'solid',
-      color: '#0ea5e9', // sky-500
+      color: '#c93f14', // accent-500
       offset: '2px',
     },
     // Color scheme specific tokens
@@ -65,7 +65,7 @@ const ClessiaPreset = definePreset(Aura, {
         formField: {
           borderColor: '#e4e4e7', // zinc-200
           hoverBorderColor: '#a1a1aa', // zinc-400
-          focusBorderColor: '#0ea5e9', // sky-500
+          focusBorderColor: '#c93f14', // accent-500
         },
       },
     },

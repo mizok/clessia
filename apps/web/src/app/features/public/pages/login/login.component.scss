@@ -20,78 +20,10 @@
   // hover 不該把它變回實心。
   --line-brand-tint: rgb(6 199 85 / 8%);
 
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
+  // 沒有卡片外觀。shell 的右半**就是**那面白，表單直接站在上面 ——
+  // 再包一層白底邊框陰影的話，構圖就從「兩個大面」退回「卡片浮在底色上」。
   width: 100%;
-  max-width: 900px;
-  overflow: hidden;
-  background: var(--color-white);
-  border-radius: var(--radius-xl);
-  box-shadow:
-    0 1px 2px rgb(26 22 20 / 5%),
-    0 8px 24px -12px rgb(26 22 20 / 18%);
-
-  // ── 左側：會動的橘色場 ────────────────────────────────────
-  &__hero {
-    position: relative;
-    isolation: isolate;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: var(--space-12) var(--space-10);
-    // 大面積色面用 vivid 階。這個面上的字一律是近黑（zinc-900）——
-    // 亮橘配白字只有 2.85:1，配近黑是 6.32:1。
-    background: linear-gradient(150deg, var(--accent-vivid) 0%, var(--accent-vivid-2) 100%);
-    color: var(--zinc-900);
-  }
-
-  // 文字那一側把流線壓下去，空的那一側讓它跑滿 ——
-  // 沒有這層的話線會從字上穿過去，好看但讀不了。
-  &__hero::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    background: linear-gradient(
-      104deg,
-      rgb(255 106 61 / 92%) 0%,
-      rgb(255 106 61 / 74%) 26%,
-      rgb(255 106 61 / 18%) 58%,
-      rgb(255 106 61 / 0%) 78%
-    );
-  }
-
-  &__mark,
-  &__lede {
-    position: relative;
-    z-index: 1;
-  }
-
-  &__mark {
-    margin: 0;
-    font-size: 52px;
-    font-weight: var(--font-bold);
-    line-height: 0.95;
-    letter-spacing: -0.045em;
-  }
-
-  &__lede {
-    margin: var(--space-5) 0 0;
-    max-width: 26ch;
-    font-size: var(--text-lg);
-    font-weight: var(--font-medium);
-    line-height: 1.75;
-  }
-
-  // ── 右側：白底登入 ────────────────────────────────────────
-  &__panel {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: var(--space-12) var(--space-10);
-    background: var(--color-white);
-  }
+  max-width: 380px;
 
   &__title {
     margin: 0;
@@ -198,20 +130,7 @@
 
 @media (max-width: 860px) {
   .login {
-    grid-template-columns: 1fr;
-    max-width: 460px;
-  }
-
-  .login__hero {
-    min-height: 200px;
-    padding: var(--space-8) var(--space-6);
-  }
-
-  .login__mark {
-    font-size: 40px;
-  }
-
-  .login__panel {
+    max-width: 100%;
     padding: var(--space-8) var(--space-6);
   }
 }

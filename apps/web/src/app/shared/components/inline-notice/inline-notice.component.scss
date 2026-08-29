@@ -26,10 +26,12 @@
     color: #92400e;
   }
 
+  // info 是 accent 語意，所以走 token —— 換色系時要跟著走。
+  // error / success / warning 維持各自的語意色（紅綠黃），那些不屬於 accent 語言。
   &--info {
-    border-color: #bae6fd;
-    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-    color: #075985;
+    border-color: var(--accent-400);
+    background: linear-gradient(135deg, var(--accent-50) 0%, var(--accent-100) 100%);
+    color: var(--accent-600);
   }
 
   &__copy {
