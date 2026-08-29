@@ -88,6 +88,14 @@ Tags: `architecture`, `auth`, `oauth`, `line`, `cloudflare`
 
 Links to: [[lessons/better-auth-session-delegation]], [[architecture/deploying]], [[specs/admin/roles-and-auth]]
 
+## [[architecture/login-experience|登入體驗與角色選擇的設計]]
+
+登入頁重設計（品牌卡片 + LINE 官方規範按鈕）與角色選擇回歸彈窗體感 —— /select-role 路由保留為唯一入口，薄殼自動開動態載入的彈窗，bundle 不回胖、無限重導向不回歸。
+
+Tags: `architecture`, `login`, `select-role`, `ux`
+
+Links to: [[specs/public/login]]
+
 ## [[architecture/no-division-scoping|刻意不設計「學部」這一層]]
 
 補習班有國小部／國中部（未來高中部），但系統不建立「部」的概念，也不依部隔離可見範圍。原因是實際的人力本來就跨部。

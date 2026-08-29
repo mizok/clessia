@@ -3,137 +3,41 @@
   height: 100%;
 }
 
+// 這頁的內容其實在彈窗裡（動態 import）。留在底下的只有品牌 ——
+// 讓彈窗背後不是一片空白，而且跟登入頁是同一個視覺語言。
 .select-role {
-  // 從 DynamicDialog 改成路由頁之後，外框要自己長出來 —— 原本是 dialog 提供的。
-  // 高度用 100% 而不是 vh（憲法 c6）；父容器沒給高度時只是靠上顯示，不會壞版。
   display: flex;
   align-items: center;
   justify-content: center;
+  // 高度用 100% 而不是 vh（憲法 c6）；父容器沒給高度時只是靠上顯示，不會壞版
   min-height: 100%;
   padding: var(--space-8) var(--space-4);
 
-  &__card {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    max-width: 400px;
-    padding: var(--space-6);
-    background: var(--color-white);
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-md);
+  &__brand {
+    text-align: center;
+    // 彈窗才是主角，底下的品牌只是背景
+    opacity: 0.55;
   }
 
-  &__subtitle {
+  &__logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
     margin-bottom: var(--space-3);
-    font-size: var(--text-sm);
-    color: var(--zinc-500);
-  }
-
-  &__header {
-    position: relative;
-    display: flex;
-    align-items: center;
-    margin-bottom: var(--space-2);
-  }
-
-  &__title {
-    font-size: var(--text-lg);
+    font-size: var(--text-xl);
     font-weight: var(--font-bold);
-    color: var(--zinc-900);
-    margin: 0;
-  }
-
-  &__close {
-    position: absolute;
-    right: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    font-size: var(--text-md);
-    color: var(--zinc-400);
-    background: transparent;
-    border: none;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-
-    &:hover {
-      color: var(--zinc-800);
-      background: var(--zinc-100);
-    }
-  }
-
-  &__list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-
-  &__option {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
-    text-align: left;
-    background: var(--zinc-50);
-    border: 2px solid var(--zinc-200);
+    color: var(--color-white);
+    background: linear-gradient(135deg, var(--accent-500), var(--accent-600));
     border-radius: var(--radius-lg);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-
-    &:hover {
-      background: var(--accent-50);
-      border-color: var(--accent-400);
-    }
-
-    &--active {
-      background: var(--accent-50);
-      border-color: var(--accent-500);
-    }
   }
 
-  &__option-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    font-size: var(--text-lg);
-    color: var(--zinc-500);
-    background: var(--zinc-100);
-    border-radius: var(--radius-md);
-    flex-shrink: 0;
-  }
-
-  &__option:hover &__option-icon,
-  &__option--active &__option-icon {
-    color: var(--accent-600);
-    background: var(--accent-100);
-  }
-
-  &__option-text {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-  }
-
-  &__option-label {
-    font-size: var(--text-md);
-    font-weight: var(--font-semibold);
-    color: var(--zinc-800);
-  }
-
-  &__option-desc {
-    font-size: var(--text-sm);
-    color: var(--zinc-500);
-  }
-
-  &__option-check {
-    flex-shrink: 0;
-    font-size: var(--text-md);
-    color: var(--accent-600);
+  &__wordmark {
+    margin: 0;
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    letter-spacing: -0.02em;
+    color: var(--zinc-400);
   }
 }

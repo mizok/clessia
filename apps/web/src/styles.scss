@@ -522,6 +522,13 @@ select {
   }
 }
 
+/* 角色選擇彈窗（`/select-role`）。它沒有 header、內容自己就是一張卡片，
+   所以要比一般 dialog 更寬鬆的內距。特異性刻意比上面的 `.p-dialog` 高一級，
+   否則會被那條 `!important` 蓋掉。 */
+.p-dialog.role-picker-dialog {
+  --p-dialog-content-padding: var(--space-6) !important;
+}
+
 // ---- Standard inline header with breadcrumb and close button ----
 .dialog-header-inline {
   display: flex;

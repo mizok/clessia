@@ -1,4 +1,5 @@
-@use '../../shared/auth-form';
+// 不再 `@use '../../shared/auth-form'` —— 新版面用自己的卡片，
+// 而那份 partial 會被整份編進元件樣式（276 行），留著等於白背。
 
 .login {
   // LINE 的品牌色。**刻意不進 design token** —— token 是這個產品的設計語言，
@@ -6,14 +7,80 @@
   --line-brand: #06c755;
   --line-brand-hover: #05b34c;
 
+  width: 100%;
+  max-width: 420px;
+  margin: auto;
+
+  &__card {
+    position: relative;
+    overflow: hidden;
+    padding: var(--space-8) var(--space-6) var(--space-6);
+    background: var(--color-white);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-xl);
+    // 記憶點：卡片浮在一層極淡的 sky 光暈上，不是預設的中性灰陰影
+    box-shadow:
+      0 1px 2px rgb(24 24 27 / 4%),
+      0 12px 32px -12px rgb(14 165 233 / 18%);
+    animation: login-rise 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  // 卡片上緣的 accent 細線 —— 把 logo 遮掉也認得出是同一個產品
+  &__card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent-400), var(--accent-600));
+  }
+
+  &__brand {
+    margin-bottom: var(--space-6);
+    text-align: center;
+  }
+
+  &__logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-bottom: var(--space-3);
+    font-size: var(--text-xl);
+    font-weight: var(--font-bold);
+    color: var(--color-white);
+    background: linear-gradient(135deg, var(--accent-500), var(--accent-600));
+    border-radius: var(--radius-lg);
+  }
+
+  &__wordmark {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-3xl);
+    font-weight: var(--font-bold);
+    line-height: var(--leading-tight);
+    // 字距收緊是這個字標唯一的「造型」—— 沒有額外字體，靠比例做記憶點
+    letter-spacing: -0.02em;
+    color: var(--zinc-900);
+  }
+
+  &__tagline {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+    color: var(--zinc-500);
+  }
+
   &__line-btn {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: var(--space-2);
     width: 100%;
+    // 44px 是觸控目標下限，不要再壓低
     height: 44px;
-    margin-top: var(--space-4);
+    margin-top: var(--space-5);
     padding: 0 var(--space-4);
     font-size: var(--text-md);
     font-weight: var(--font-semibold);
@@ -22,11 +89,17 @@
     border: none;
     border-radius: var(--radius-md);
     cursor: pointer;
-    transition: background var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      transform var(--transition-fast);
   }
 
   &__line-btn:hover:not(:disabled) {
     background: var(--line-brand-hover);
+  }
+
+  &__line-btn:active:not(:disabled) {
+    transform: translateY(1px);
   }
 
   &__line-btn:disabled {
@@ -43,11 +116,37 @@
     text-align: center;
   }
 
+  &__foot {
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--zinc-200);
+  }
+
   &__hint {
-    margin-top: var(--space-4);
+    margin: 0;
     font-size: var(--text-sm);
     line-height: var(--leading-relaxed);
     color: var(--zinc-500);
     text-align: center;
+  }
+
+  &__contact {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-xs);
+    color: var(--zinc-400);
+    text-align: center;
+  }
+}
+
+@keyframes login-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login__card {
+    animation: none;
   }
 }
