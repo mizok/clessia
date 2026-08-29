@@ -1,30 +1,47 @@
-<div class="login auth-content">
-  <header class="auth-content__header">
-    <p class="auth-content__badge">管理系統</p>
-    <h1 class="auth-content__title">登入</h1>
-  </header>
+<div class="login">
+  <div class="login__card">
+    <header class="login__brand">
+      <span class="login__logo" aria-hidden="true">C</span>
+      <h1 class="login__wordmark">Clessia</h1>
+      <p class="login__tagline">課表、出缺席、成績、繳費 —— 補習班日常的一個入口</p>
+    </header>
 
-  @if (error()) {
-    <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
-  }
-
-  <button
-    type="button"
-    class="login__line-btn"
-    [disabled]="submitting()"
-    (click)="signInWithLine()"
-  >
-    @if (submitting()) {
-      <i class="pi pi-spinner pi-spin"></i>
-      前往 LINE...
-    } @else {
-      使用 LINE 登入
+    @if (error()) {
+      <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
     }
-  </button>
 
-  @if (showEnrollmentLink()) {
-    <a class="login__enroll-link" routerLink="/enrollment">還沒報名？前往報名</a>
-  }
+    <button
+      type="button"
+      class="login__line-btn"
+      [disabled]="submitting()"
+      (click)="signInWithLine()"
+    >
+      @if (submitting()) {
+        <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+        前往 LINE...
+      } @else {
+        <!-- LINE Corporation 的官方 app icon，未經修改。alt 留空是因為右邊的文字
+             已經說了「LINE」，讓螢幕閱讀器念兩次反而吵。 -->
+        <span class="login__line-badge">
+          <img
+            class="login__line-logo"
+            src="assets/brand/line-logo.png"
+            alt=""
+            width="24"
+            height="24"
+          />
+        </span>
+        使用 LINE 登入
+      }
+    </button>
 
-  <p class="login__hint">第一次使用？請向補習班索取專屬連結，點開後即可綁定 LINE。</p>
+    @if (showEnrollmentLink()) {
+      <a class="login__enroll-link" routerLink="/enrollment">還沒報名？前往報名</a>
+    }
+
+    <div class="login__foot">
+      <p class="login__hint">第一次使用？請向補習班索取專屬連結，點開後即可綁定 LINE。</p>
+      <p class="login__contact">還沒有帳號？請聯絡櫃檯開通。</p>
+    </div>
+  </div>
 </div>

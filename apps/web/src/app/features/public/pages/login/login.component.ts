@@ -9,7 +9,6 @@ import { oauthErrorFor } from './oauth-error';
   imports: [InlineNoticeComponent, RouterLink],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
-  host: { class: 'u-centered-flex' },
 })
 export class LoginComponent {
   private readonly auth = inject(AuthService);

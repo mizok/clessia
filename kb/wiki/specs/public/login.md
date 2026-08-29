@@ -1,9 +1,9 @@
 ---
 title: 登入頁
-summary: 一顆「使用 LINE 登入」按鈕。這個系統沒有密碼——首次進入靠管理員發出的一次性連結，綁定 LINE 之後才走這一頁。
+summary: 品牌卡片加一顆「使用 LINE 登入」按鈕。這個系統沒有密碼——首次進入靠管理員發出的一次性連結，綁定 LINE 之後才走這一頁。
 category: spec
 status: active
-updated: 2026-08-28
+updated: 2026-08-29
 tags: [specs, public, login, oauth, line]
 ---
 
@@ -20,13 +20,40 @@ tags: [specs, public, login, oauth, line]
 
 ## 畫面
 
-只有三個東西：
+> 2026-08-29 重設計。先前是一顆孤零零的按鈕；家長與提案對象的第一眼需要品牌與信任感。
+> 設計理由見 [[architecture/login-experience]]。
 
-1. 標題「登入」
-2. **一顆「使用 LINE 登入」按鈕**（進行中會鎖住並顯示「前往 LINE...」）
-3. 一句提示：「第一次使用？請向補習班索取專屬連結，點開後即可綁定 LINE。」
+一張置中的品牌卡片，由上而下：
+
+1. **品牌區**：Clessia 字標與標誌，加一句場景 tagline
+   「課表、出缺席、成績、繳費 —— 補習班日常的一個入口」
+2. **一顆「使用 LINE 登入」按鈕**，LINE 官方綠 `#06C755`
+   （進行中會鎖住並顯示「前往 LINE...」）
+3. 錯誤時在按鈕上方顯示 inline notice；`signup_disabled` 另外露出報名連結（見下節）
+4. **頁尾**：「第一次使用？請向補習班索取專屬連結，點開後即可綁定 LINE。」
+   以及「還沒有帳號？請聯絡櫃檯開通。」
+
+卡片上緣有一條 sky accent 細線，是這個產品在公開頁的識別記號。
 
 沒有輸入欄位、沒有密碼、沒有記住我、沒有忘記密碼、沒有 `?role=root` 隱藏入口。
+
+### LINE logo 的來源與用法
+
+按鈕上的是 **LINE Corporation 的官方 app icon**，未經修改，存在
+`apps/web/public/assets/brand/line-logo.png`（96×96、5.6 kB，由 1000×1000 原圖縮製）。
+來源是 Wikimedia Commons 的
+[LINE New App Icon (2020-12)](https://commons.wikimedia.org/wiki/File:LINE_New_App_Icon_(2020-12).png)，
+授權標示為 public domain（簡單幾何圖形不具著作權），但**商標權仍屬 LINE Corporation**。
+
+用在「使用 LINE 登入」按鈕上屬於商標的指示性使用 —— 它指出的正是「用 LINE 帳號登入」
+這件事實，也是 LINE 要求開發者做的事。**不要拿它去做別的**（頁首、看板、行銷素材都不行）。
+
+app icon 是綠底白泡泡，直接壓在 `#06C755` 的按鈕上會糊掉，所以墊了一層白色圓角底把它
+分離出來，logo 本身一個像素都沒動。
+
+> 若要完全符合 LINE 官方的 *Login Button Design Guidelines*（綠底 + **白色單色 logo** +
+> 分隔線），需要 LINE Developers 提供的按鈕素材。把 app icon 自行塗白等於改造商標，
+> 所以沒有做。目前這個版本用的是未經修改的官方 icon，是更保守的選擇。
 
 ## 錯誤訊息
 
@@ -68,5 +95,6 @@ OAuth 的失敗**不是函式回傳值** —— 使用者被導去 LINE、再被
 ## 相關頁面
 
 - [[architecture/line-oauth-login]] —— 為什麼沒有密碼、破窗怎麼做
+- [[architecture/login-experience]] —— 這一頁的版面設計，以及登入後的角色選擇
 - `/link-line` —— 綁定畫面（一次性連結兌換後的落點）
 - `/select-role` —— 多重角色時的分流

@@ -103,7 +103,9 @@ kb/            所有文件的唯一去處（c9）
 - 角色存在 `user_roles` junction table，一個使用者可同時擁有多個角色。
 - **細部權限存在 `user_roles.permissions`（jsonb 陣列）**，例如 `["view_revenue", "manage_staff"]`；
   不是獨立的權限表。擁有 `manage_staff` 的管理員可以調整他人權限。
-- 多重角色 → 登入後進 `/select-role`；單一角色直接導向對應 shell。選定角色存在
+- 多重角色 → 登入後進 `/select-role`（彈窗式角色選擇的載體，見
+  [`kb/wiki/architecture/login-experience.md`](kb/wiki/architecture/login-experience.md)）；
+  單一角色直接導向對應 shell。選定角色存在
   `AuthService.activeRole` signal。
 
 ### Shell

@@ -1,32 +1,24 @@
-import { Component, computed, inject } from '@angular/core';
-import { Router } from '@angular/router';
+import {
+  Component,
+  DestroyRef,
+  EnvironmentInjector,
+  createEnvironmentInjector,
+  inject,
+} from '@angular/core';
+
 import { AuthService, type UserRole } from '@core/auth.service';
 
-interface RoleOption {
-  role: UserRole;
-  icon: string;
-  label: string;
-  description: string;
-}
-
-const ROLE_OPTIONS: RoleOption[] = [
-  {
-    role: 'admin',
-    icon: 'pi-shield',
-    label: '管理者',
-    description: '跨分校管理、系統設定、日常營運',
-  },
-  { role: 'teacher', icon: 'pi-book', label: '任課老師', description: '課表、點名、學生學習紀錄' },
-  { role: 'parent', icon: 'pi-users', label: '家長', description: '出缺席、學習進度、繳費' },
-];
-
 /**
- * `/select-role` 的頁面元件。
+ * `/select-role` 的薄殼：路由是骨架，彈窗是長相。
  *
- * 原本是掛在 root component 上的 DynamicDialog，代價是整個 PrimeNG dialog 依賴樹
- * （dialog / button / dom / motion / icons，約 140 kB）被釘在初始 bundle 裡，
- * 而多數使用者只有一個角色、永遠看不到這個畫面。改成 lazy route 之後它只在
- * 真的需要選角色時才下載。
+ * 為什麼不回到 root component 掛 DialogService（#34 之前的做法）——
+ * LINE OAuth 是整頁離開再整頁回來，登入後的第一眼**必然**是一次全新的頁面載入，
+ * 所以「原地彈窗」這個場景根本不存在，而那個做法要付 140 kB 的初始 bundle。
+ * 全文見 `kb/wiki/architecture/login-experience.md`。
+ *
+ * DialogService 與彈窗內容都是 `await import(...)` 進來的 —— 這是初始 bundle
+ * 維持在 575 kB 的唯一理由。**不要把 primeng/dynamicdialog 改成靜態 import**，
+ * 那會讓整棵 dialog 依賴樹回到初始 chunk。
  */
 @Component({
   selector: 'app-select-role',
@@ -35,32 +27,60 @@ const ROLE_OPTIONS: RoleOption[] = [
   styleUrl: './select-role.component.scss',
 })
 export class SelectRoleComponent {
-  protected readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly envInjector = inject(EnvironmentInjector);
+  private readonly destroyRef = inject(DestroyRef);
 
-  readonly displayName = computed(
-    () => this.auth.profile()?.display_name || this.auth.user()?.email || '',
-  );
-  readonly roleOptions = computed(() =>
-    ROLE_OPTIONS.filter((opt) => this.auth.roles().includes(opt.role)),
-  );
-  readonly activeRole = this.auth.activeRole;
+  private destroyed = false;
 
-  selectRole(role: UserRole) {
+  constructor() {
+    this.destroyRef.onDestroy(() => (this.destroyed = true));
+    void this.openPicker();
+  }
+
+  onRoleChosen(role: UserRole) {
     this.auth.navigateToRoleShell(role);
   }
 
-  /**
-   * 還沒選過角色的人是被 guard 趕來這裡的 —— 給他一個「關閉」卻不給去處，
-   * 等於把人鎖在一個沒有出口的畫面上，所以那種情況下離開就是登出。
-   */
-  leave() {
-    const role = this.auth.activeRole();
-    if (role) {
-      void this.router.navigate([`/${role}`]);
+  private async openPicker(): Promise<void> {
+    const [{ DialogService }, { RolePickerComponent }] = await Promise.all([
+      import('primeng/dynamicdialog'),
+      import('./role-picker/role-picker.component'),
+    ]);
+
+    // 選完角色會馬上導航離開，而 import 是非同步的 —— 元件已經死了就別再開窗，
+    // 否則會留下一個沒有主人的彈窗（NG0911）。
+    if (this.destroyed) {
       return;
     }
 
-    void this.auth.signOut();
+    // DialogService 一向是元件層級的 provider，而它現在才被載進來 —— 用一個以目前
+    // environment injector 為父的子 injector 現場建一個，並跟著元件一起銷毀。
+    const injector = createEnvironmentInjector([DialogService], this.envInjector);
+    this.destroyRef.onDestroy(() => injector.destroy());
+
+    const ref = injector.get(DialogService).open(RolePickerComponent, {
+      width: '400px',
+      // 沒選角色就沒有下一步 —— 這個彈窗刻意關不掉
+      closable: false,
+      closeOnEscape: false,
+      dismissableMask: false,
+      showHeader: false,
+      modal: true,
+      // 憲法 c6：不用 vw
+      breakpoints: { '640px': '90%' },
+      styleClass: 'role-picker-dialog',
+    });
+
+    // open() 在 SSR / 沒有 document 的環境回 null
+    ref?.onClose.subscribe((role?: UserRole) => {
+      if (role) {
+        this.onRoleChosen(role);
+      }
+    });
+
+    // 離開這條路由時彈窗要跟著消失。用 destroy() 而不是 close()——
+    // close() 會走 onClose，那條路是「使用者選了角色」的意思。
+    this.destroyRef.onDestroy(() => ref?.destroy());
   }
 }

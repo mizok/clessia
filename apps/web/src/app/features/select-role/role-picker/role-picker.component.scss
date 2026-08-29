@@ -1,0 +1,131 @@
+// 彈窗內容。外框（內距、圓角、陰影）由 PrimeNG 的 dialog 提供 ——
+// 內距走 `.p-dialog.role-picker-dialog` 的 `--p-dialog-content-padding`（styles.scss），
+// 因為 dialog 被 teleport 到 body，元件樣式碰不到它。
+// 視覺語言跟登入頁一致：accent 眼眉、卡片式選項。
+
+.role-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+
+  &__header {
+    text-align: center;
+  }
+
+  &__eyebrow {
+    display: inline-block;
+    margin: 0 0 var(--space-3);
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    letter-spacing: 0.08em;
+    color: var(--accent-600);
+    background: var(--accent-50);
+    border-radius: var(--radius-full);
+  }
+
+  &__title {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-xl);
+    font-weight: var(--font-bold);
+    line-height: var(--leading-tight);
+    letter-spacing: -0.01em;
+    color: var(--zinc-900);
+  }
+
+  &__subtitle {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+    color: var(--zinc-500);
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  &__option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    // 44px 觸控下限；padding 撐出來的高度已經超過，這裡只保底
+    min-height: 44px;
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    background: var(--color-white);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition:
+      border-color var(--transition-fast),
+      background var(--transition-fast),
+      transform var(--transition-fast);
+  }
+
+  &__option:hover {
+    background: var(--accent-50);
+    border-color: var(--accent-400);
+  }
+
+  &__option:active {
+    transform: translateY(1px);
+  }
+
+  &__option--active {
+    background: var(--accent-50);
+    border-color: var(--accent-500);
+  }
+
+  &__option-icon {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    font-size: var(--text-lg);
+    color: var(--zinc-500);
+    background: var(--zinc-100);
+    border-radius: var(--radius-md);
+    transition:
+      color var(--transition-fast),
+      background var(--transition-fast);
+  }
+
+  &__option:hover &__option-icon,
+  &__option--active &__option-icon {
+    color: var(--accent-600);
+    background: var(--accent-100);
+  }
+
+  &__option-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  &__option-label {
+    font-size: var(--text-md);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-800);
+  }
+
+  &__option-desc {
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+  }
+
+  &__option-chevron {
+    flex-shrink: 0;
+    font-size: var(--text-sm);
+    color: var(--zinc-300);
+    transition: color var(--transition-fast);
+  }
+
+  &__option:hover &__option-chevron {
+    color: var(--accent-500);
+  }
+}

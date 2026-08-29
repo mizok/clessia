@@ -1,0 +1,27 @@
+<div class="role-picker">
+  <div class="role-picker__header">
+    <p class="role-picker__eyebrow">選擇身分</p>
+    <h2 class="role-picker__title">{{ displayName() }}，你好</h2>
+    <p class="role-picker__subtitle">這個帳號有多個身分，請選擇要進入的介面</p>
+  </div>
+
+  <div class="role-picker__list">
+    @for (opt of roleOptions(); track opt.role) {
+      <button
+        class="role-picker__option"
+        type="button"
+        [class.role-picker__option--active]="activeRole() === opt.role"
+        (click)="selectRole(opt.role)"
+      >
+        <span class="role-picker__option-icon">
+          <i class="pi" [class]="'pi ' + opt.icon" aria-hidden="true"></i>
+        </span>
+        <span class="role-picker__option-text">
+          <span class="role-picker__option-label">{{ opt.label }}</span>
+          <span class="role-picker__option-desc">{{ opt.description }}</span>
+        </span>
+        <i class="role-picker__option-chevron pi pi-chevron-right" aria-hidden="true"></i>
+      </button>
+    }
+  </div>
+</div>

@@ -248,7 +248,7 @@ Tags: `specs`, `public`, `enrollment`
 
 Tags: `specs`, `public`, `login`, `oauth`, `line`
 
-Links to: [[architecture/line-oauth-login]], [[architecture/line-oauth-login]], [[architecture/line-oauth-login]]
+Links to: [[architecture/line-oauth-login]], [[architecture/login-experience]], [[architecture/line-oauth-login]], [[architecture/line-oauth-login]], [[architecture/login-experience]]
 
 ## [[specs/public/qr-checkin|QR 到班打卡]]
 
