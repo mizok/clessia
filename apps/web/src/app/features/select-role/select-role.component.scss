@@ -19,25 +19,17 @@
     opacity: 0.55;
   }
 
-  &__logo {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    margin-bottom: var(--space-3);
-    font-size: var(--text-xl);
-    font-weight: var(--font-bold);
-    color: var(--color-white);
-    background: linear-gradient(135deg, var(--accent-500), var(--accent-600));
-    border-radius: var(--radius-lg);
-  }
-
+  // 跟登入頁同一個字標語言：純文字 + 收緊字距 + 結尾一個 accent 句點。
+  // 尺寸與色階刻意比登入頁克制 —— 這裡的主角是彈窗，字標只是襯底。
   &__wordmark {
     margin: 0;
     font-size: var(--text-2xl);
     font-weight: var(--font-bold);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
     color: var(--zinc-400);
+  }
+
+  &__wordmark-dot {
+    color: var(--accent-500);
   }
 }
