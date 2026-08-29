@@ -4,7 +4,7 @@ summary: 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能
 category: architecture
 tags: [architecture, deployment, cloudflare, supabase]
 status: active
-updated: 2026-08-28
+updated: 2026-08-29
 ---
 
 # 部署
@@ -33,9 +33,15 @@ node --import tsx apps/api/src/server.ts
 
 已實測：根路徑回 200、未登入的 `/api/me` 回 401（middleware 有作用）。
 
-## 機密不進版控
+## 機密不進版控，但非機密**必須**進版控
 
-`wrangler.toml` 會進版控，**只放非機密設定**。三個機密走 `wrangler secret`：
+`wrangler.toml` 會進版控，**只放非機密設定** —— 而且非機密設定**只能放這裡**。
+用 `--var` 跟著部署指令給的值只活在那一次部署：下一個人裸跑 `wrangler deploy`
+就會把它們全部丟掉。2026-08-29 正式站的 LINE 登入就是這樣斷的
+（`PROVIDER_NOT_FOUND` —— LINE_CLIENT_ID 隨著一次乾淨的重新部署蒸發）。
+`[env.production.vars]` 必須列出全部非機密設定；secrets 有跨部署保留機制，不受影響。
+
+四個機密走 `wrangler secret`：
 
 ```bash
 npx wrangler secret put SUPABASE_SECRET_KEY --env production
