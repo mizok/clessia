@@ -178,9 +178,76 @@
     color: var(--zinc-500);
   }
 
-  /* Hamburger - hidden on desktop */
-  &__hamburger.hamburger {
+  // 從 `hamburgers` 套件移植過來的三線圖示。整包 21.8 kB 全域 CSS 提供 13 種動畫，
+  // 這裡只用得到 squeeze 一種，而且只有這一個使用點 —— 內聯之後它跟著這支
+  // lazy 元件走，不再壓在初始 bundle 上。幾何數值沿用套件原值（layer 40×4、間距 10），
+  // 曲線也照抄，視覺與先前一致。
+  &__hamburger {
     display: none;
+    padding: 15px;
+    margin: 0;
+    overflow: visible;
+    font: inherit;
+    color: inherit;
+    text-transform: none;
+    cursor: pointer;
+    background-color: transparent;
+    border: 0;
+    transition:
+      opacity 0.15s linear,
+      filter 0.15s linear;
+
+    &:hover {
+      opacity: 0.7;
+    }
+  }
+
+  &__hamburger-box {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 24px;
+  }
+
+  &__hamburger-inner {
+    top: 50%;
+    display: block;
+    margin-top: -2px;
+    transition-duration: 75ms;
+    transition-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+
+    &,
+    &::before,
+    &::after {
+      position: absolute;
+      width: 40px;
+      height: 4px;
+      background-color: var(--zinc-400);
+      border-radius: var(--radius-sm);
+      transition-property: transform;
+      transition-duration: 0.15s;
+      transition-timing-function: ease;
+    }
+
+    &::before,
+    &::after {
+      display: block;
+      content: '';
+    }
+
+    &::before {
+      top: -10px;
+      transition:
+        top 75ms ease 0.12s,
+        opacity 75ms ease;
+    }
+
+    &::after {
+      bottom: -10px;
+      transition:
+        bottom 75ms ease 0.12s,
+        transform 75ms cubic-bezier(0.55, 0.055, 0.675, 0.19);
+    }
   }
 
   /* Mobile sidebar + overlay - hidden on desktop */
@@ -281,32 +348,20 @@
       display: none;
     }
 
-    &__hamburger.hamburger {
+    &__hamburger {
       display: flex;
+      z-index: 12;
       padding: 0;
       transform: scale(0.5);
-      z-index: 12;
+    }
 
-      .hamburger-inner,
-      .hamburger-inner::before,
-      .hamburger-inner::after {
-        background-color: var(--zinc-400);
-      }
-
-      &:hover {
-        .hamburger-inner,
-        .hamburger-inner::before,
-        .hamburger-inner::after {
-          background-color: #fff;
-        }
-      }
-
-      &--active {
-        .hamburger-inner,
-        .hamburger-inner::before,
-        .hamburger-inner::after {
-          background-color: #fff;
-        }
+    // 線條在深色側欄上要反白 —— 基礎色（zinc-400）由 block 層定義，這裡只翻轉。
+    &__hamburger:hover &__hamburger-inner,
+    &__hamburger--active &__hamburger-inner {
+      &,
+      &::before,
+      &::after {
+        background-color: var(--color-white);
       }
     }
 

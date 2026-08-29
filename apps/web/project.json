@@ -24,7 +24,6 @@
         ],
         "styles": [
           "primeicons/primeicons.css",
-          "hamburgers/dist/hamburgers.min.css",
           "apps/web/src/styles.scss"
         ],
         "stylePreprocessorOptions": {
@@ -41,8 +40,8 @@
           "budgets": [
             {
               "type": "initial",
-              "maximumWarning": "500kB",
-              "maximumError": "1MB"
+              "maximumWarning": "620kB",
+              "maximumError": "800kB"
             },
             {
               "type": "anyComponentStyle",

@@ -30,13 +30,14 @@
 
     <!-- Mobile hamburger -->
     <button
-      class="hamburger hamburger--squeeze public-shell__hamburger"
-      [class.hamburger--active]="menuOpen()"
+      class="public-shell__hamburger"
+      [class.public-shell__hamburger--active]="menuOpen()"
       type="button"
+      aria-label="開啟選單"
       (click)="toggleMenu()"
     >
-      <span class="hamburger-box">
-        <span class="hamburger-inner"></span>
+      <span class="public-shell__hamburger-box">
+        <span class="public-shell__hamburger-inner"></span>
       </span>
     </button>
   </aside>

@@ -1,6 +1,6 @@
 # Architecture — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-28
+> Auto-maintained by `kb:map`. Last updated: 2026-08-29
 
 ---
 
@@ -115,3 +115,4 @@ Links to: [[architecture/teaching-history-not-payroll|`記錄授課歷程但不�
 Tags: `architecture`, `business-model`, `tenancy`, `vendor-lock-in`
 
 Links to: [[architecture/constitution|c12]], [[lessons/status-table-blind-spot]], [[lessons/rls-backstop-drift]], [[architecture/line-oauth-login]], [[architecture/bootstrapping-a-deployment]], [[architecture/bootstrapping-a-deployment]]
+

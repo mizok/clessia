@@ -1,6 +1,6 @@
 # Lessons — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-28
+> Auto-maintained by `kb:map`. Last updated: 2026-08-29
 
 ---
 
@@ -64,8 +64,17 @@ Tags: `lessons`, `menu-entry-without-a-route`
 
 Tags: `lessons`, `rls-backstop-drift`
 
+## [[lessons/root-component-pins-the-bundle|Root component 掛什麼，所有人就下載什麼]]
+
+一個只有多重角色使用者看得到的角色選擇 dialog，把 PrimeNG 整棵 dialog 依賴樹釘在初始 bundle 上，佔 756 kB 中的 140 kB。順帶記錄 angular.json 其實不生效這個會再踩一次的坑。
+
+Tags: `lessons`, `bundle-size`, `angular`, `primeng`, `nx`
+
+Links to: [[lessons/menu-entry-without-a-route]]
+
 ## [[lessons/status-table-blind-spot|現況表只掃了三分之一的系統]]
 
 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
 
 Tags: `lessons`, `status-table-blind-spot`
+
