@@ -2,7 +2,6 @@
   "name": "clessia",
   "version": "0.0.0",
   "scripts": {
-    "ng": "ng",
     "dev": "nx run-many -t serve -p web api",
     "dev:web": "nx serve web",
     "dev:api": "nx serve api",

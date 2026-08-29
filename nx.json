@@ -5,6 +5,11 @@
     "default": ["{projectRoot}/**/*", "sharedGlobals"],
     "sharedGlobals": []
   },
+  "generators": {
+    "@schematics/angular:component": {
+      "style": "scss"
+    }
+  },
   "targetDefaults": {
     "build": {
       "dependsOn": ["^build"],
