@@ -53,7 +53,7 @@
 - [[specs/admin/academic/classes]] — 管理開課班，設定上課時間，產生課堂。
 - [[specs/admin/academic/courses]] — ---
 - [[specs/admin/calendar]] — 以日曆視圖查看全校課堂，快速進入課堂詳情。
-- [[specs/admin/dashboard]] — 管理員首頁，快速掌握今日概況與待辦事項。
+- [[specs/admin/dashboard]] — 管理員首頁，六張卡各回答一個問題並跳到功能的家；經營區用 view_reports 蓋住。
 - [[specs/admin/enrollment/enrollment]] — 管理員直接將學生加入開課班（跳過申請流程），適用現場報名、老生加報、特殊例外。
 - [[specs/admin/enrollment/enrollment-requests]] — 審核家長提交的報名申請。
 - [[specs/admin/enrollment/renewals]] — 查看續課狀態、處理異動申請。
@@ -97,4 +97,4 @@
 - [[specs/teacher/students]] — 查看自己任課班級的學生名單。
 
 ---
-**Total: 79 pages**
+**Total: 80 pages**
