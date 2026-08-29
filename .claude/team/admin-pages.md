@@ -43,6 +43,20 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
   `Object.assign` 到回傳的 function 上，`app.routes.spec.ts` 才驗得到「選單過濾與路由守衛
   守的是同一個權限」。兩行程式碼換掉一整類「兩邊都有東西但守的不是同一件事」的錯。
   遇到 factory 產生的 guard / interceptor / resolver 都適用
+- **前端不承諾後端沒有兌現的東西。**（PR #66 / #68 建立，計畫席指定入 charter）
+  這條有兩個面孔，都是「畫面看起來能用、實際會騙人」的同一個病：
+  - **不要做只篩得到當頁的篩選。** `/api/invoices` 有分頁又沒有 `status` 參數，
+    前端自己篩狀態只篩得到當頁 20 筆 —— 使用者看到「未繳 3 筆」而真相是 47 筆。
+    繳費頁因此不做狀態下拉，改用每列的 Tag + API 真的支援的 `overdue=true`。
+  - **不要掛後端不檢查的 `permissionGuard`。** `/api/contact-book` 的 mount 只有角色
+    沒有 permission，前端硬掛一個只會得到「選單藏起來但直接打網址就進得去」，
+    而且沒有人會發現不一致。上面那條「填了就要兩邊都動」的前提是**後端真的守著它**。
+    推廣：交付前問一次「這個畫面承諾的事，後端做得到嗎」。做不到就少做一項並回報，
+    不要用前端補一個假的 —— 假的那個會被信。
+- **「前端能不能篩」看的是資料完不完整，不是「前端篩」這個做法本身。**
+  同一個動作在兩支 API 上一個騙人一個不騙：`/api/invoices` 有分頁（前端篩會漏），
+  `/api/contact-book` **沒有分頁**且 `meta.total` 是 `count: 'exact'`（前端篩與前端分頁
+  都誠實，因為手上就是全部）。**先確認那支 API 有沒有分頁，再決定篩選放哪一端。**
 
 ## 坑（都是實際踩過的）
 
@@ -76,7 +90,12 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
     單筆修改走班級名單的動作選單（`PUT /api/enrollments/{id}`，吃）。
     工單說「去報名頁加欄位」時先確認它指的是哪一個
 11. **不要對 `index.md` / `_moc.md` 跑 prettier** —— 它們是 generator 原始輸出，
-   prettier 會在每個 `## 標題` 後插空行製造反向雜訊。`roadmap.md` 相反，它是 prettier 對齊過的
+    prettier 會在每個 `## 標題` 後插空行製造反向雜訊。`roadmap.md` 相反，它是 prettier 對齊過的
+12. **交付新頁面要把它認領進 `tools/agent-harness/feature-map.mjs` 的 AREAS**，
+    否則 `npm run harness` 會紅（「頁面 未被任何功能區認領」），`harness:test` 也跟著 fail。
+    那是 infra 席的檔案，但**這一行是 gate 明確要求交付者補的**，不是主動動 infra ——
+    就像新增 skill 之後要跑 `harness:write`。改完 `harness:write` 重生再 prettier。
+    **區分**：紅燈擋住交付 → 自己補；只是顯示不準（route 歸錯功能區之類）→ 回報計畫席。
 
 ## 這一席的工作習慣
 
@@ -91,50 +110,68 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
 
 ## 進行中狀態（2026-08-29 —— 這節會過期，接手第一件事：重寫它）
 
-**交接自 session `clessia-8f`。** 這一輪交付三個 PR，**全部已合**：#56（finance specs 對齊
-訪談 rules）、#58（費用方案頁 + 報名計費設定 + per-route 權限）、#59（本 charter）。
+**交接自 session `admin-pages-1f`。** 這一輪交付兩個 PR：**#66**（繳費紀錄頁，已驗收、
+解過一次 roadmap 衝突、等使用者合）、**#68**（聯絡簿管理端頁）。P2 的兩張可開工的頁都做完了。
 
-### 起點：P2 不再被擋住（2026-08-29 當下 open PR 為零）
+### 這一輪學到、已經寫進上面的東西
 
-我盤點時寫的「擋在 A2/A3 後面」**已經過期**。當天稍晚全部合完了，實際狀況：
+先例多了兩條（**前端不承諾後端沒有兌現的東西**、**能不能前端篩看的是資料完不完整**），
+坑多了一條（**新頁面要認領進 feature-map**）。那三條是這輪的實質收穫，別只當歷史看。
 
-| 要做的頁 | 後端 | 可以開工嗎 |
-| --- | --- | --- |
-| 繳費單 `/admin/payments` | ✅ `/api/invoices`（`routes/invoices.ts`，mount 帶 `manage_finance`） | **可以** |
-| 聯絡簿管理端 | ✅ `/api/contact-book` + `classes.usesContactBook` 已暴露 | **可以**（新頁，坑 #1 全額適用） |
-| 餐費 `/admin/meals` | ❌ `meal_records` 仍不存在（`supabase/migrations` 零命中） | 擋著 |
-| 營收報表 `/admin/reports` | ❌ 沒有聚合端點 —— `invoices` 是明細 API | 擋著 |
+### 接手時的實際狀況
 
-`/api/invoices` 已驗於 main 的動詞（`grep "path: '"` 出來的）：
-`GET /`、`GET /{id}`（含明細與收款）、`POST /`（開立）、`POST /{id}/items`、
-`DELETE /{id}/items/{itemId}`、`POST /{id}/payments`（收款／退費）、
-`POST|GET /{id}/reminders`（催繳）。**形狀請自己再開檔確認**，我只驗到路由層。
+| 頁                           | 後端                     | 狀態        |
+| ---------------------------- | ------------------------ | ----------- |
+| 繳費單 `/admin/payments`     | `/api/invoices`          | ✅ #66 交付 |
+| 聯絡簿 `/admin/contact-book` | `/api/contact-book`      | ✅ #68 交付 |
+| 餐費 `/admin/meals`          | ❌ `meal_records` 不存在 | 擋著，要 A3 |
+| 營收報表 `/admin/reports`    | ❌ 沒有聚合端點          | 擋著        |
 
-`.claude/team/admin-pages-p2-readiness.md` 第 5 節標的「⏳ 待 A2」現在多半有答案了 ——
-**用它當地圖，但每一項重新驗過再信**（那正是它自己第 0 節說的）。
+### 欠著的三個「小追加」——後端做好了就接，不要重做整頁
 
-### 建議順序
+計畫席都已派工，做好之後這三件各是幾十行的事：
 
-1. **繳費單頁** —— API 最完整、spec 剛重寫過（`kb/wiki/specs/admin/finance/payments.md`）、
-   `manage_finance` 的權限模式 #58 已經鋪好，照抄 `/admin/fee-templates` 就有骨架
-2. **聯絡簿管理端頁** —— 要開新頁，記得 `app.routes.spec.ts` 是安全網
-3. 餐費與營收報表 —— 回報計畫席要 A3 與聚合端點，不要自己 mock
+1. **繳費頁的總筆數** —— billing-api 席的 PR #64 修了 `GET /api/invoices` 的 `meta.total`
+   （原本非 overdue 路徑回的是當頁筆數）。修好後 `payments.page.ts` 的
+   `hasNextPage`（現在靠「當頁滿 20」推）換成真的總數與頁碼。
+2. **繳費頁的狀態篩選下拉** —— 同 #64 加的 `status` query 參數。加上去之後才可以做
+   狀態篩選，**在那之前不要用前端補**（見上面的先例）。
+3. **聯絡簿的「今天哪些該寫還沒寫」** —— 等 billing-api 席的
+   `GET /api/contact-book/missing?date=`（server 端算 `uses_contact_book` 的班 × 在籍學生
+   × 當日 entries 的差集）。**不要用現有 API 自己組** ——`GET /api/classes` 沒有
+   `usesContactBook` 篩選而且列表分頁，撈全部班再前端挑會悄悄漏班（坑 #4），
+   而且要逐班打 enrollments，是 N+1。
 
-### 還沒閉環的一件事
+### 還有一筆待回報的顯示問題（不紅燈，所以我沒動）
 
-`POST /api/enrollments/batch` 不接受 `billingMode` / `feeTemplateId` / `agreedAmount`，
-批次招生無法一併帶計費設定（只能事後逐筆點名單列的「計費設定」）。
-計畫席說會併進 billing-api 席的 A3 工單 —— **開工前確認它做了沒**。
+`feature-map.mjs` 把 `invoices` route 歸給「計費」功能區，「繳費」的 `routes: []` ——
+所以現況表對繳費顯示「已掛載 API 0」。加一行 `'invoices'` 就對（「課務異動」認領
+`sessions` 是同檔案裡帶註解祝福的先例）。計畫席已派 infra 席，**確認做了沒**。
+
+### 兩個 domain 的形狀差異（下次動到時直接用）
+
+- **`/api/invoices`**：有分頁；`status`/`total`/`netPaid` 後端推導好；收款與退費同一支
+  端點差 `kind`；`receipt_no` 由 DB trigger 取號（退費沒有號）。
+- **`/api/contact-book`**：**沒有分頁**，`meta.total` 是 `count: 'exact'`（可信）；
+  只有 `GET /` 與 `PUT /`（upsert，鍵是 `student_id, entry_date`）；
+  **`PUT` 回裸的 entry 不是 `{ data }`**；mount 只有角色 `['admin','teacher']` 沒有 permission；
+  entry **沒有 classId**，所以「按班級看聯絡簿」在資料上做不到。
+
+### 列印的做法（`invoice-detail-dialog`）
+
+dialog 是 modal，`window.print()` 會連遮罩和背後的列表一起印。要壓掉得寫全域規則，
+而 `styles.scss` 不是這一席的邊界。所以改成 **`window.open` 開空白視窗 + `importNode`
+搬列印節點過去**，樣式 inline 在那個視窗裡。節點用 DOM 搬不拼 HTML 字串（姓名與備註
+是使用者輸入）。要再做列印功能照抄它，不要跟 `@media print` 打架。
 
 ### 環境
 
-worktree 在 `.worktrees/admin-pages`，分支 `admin-pages-idle`（內容 = origin/main，
-待命用的空分支；開工時 `git fetch` 後從 `origin/main` 另開功能分支，不要在它上面做）。
-root 與 `apps/api` 都 `npm ci` 過。
+worktree 在 `.worktrees/admin-pages`。**待命分支是 `admin-pages-idle`**；這一輪的兩個功能
+分支是 `feat/admin-payments-page` 與 `feat/admin-contact-book`。開工一律 `git fetch` 後從
+`origin/main` 另開，不要在 idle 上做。root 與 `apps/api` 都 `npm ci` 過。
 
-herdr 的 workspace 歸屬在**開 pane 時**決定 —— 光在磁碟上建 worktree 不會讓既有 session
-換 workspace，`herdr pane` / `herdr tab` 都沒有「搬到別的 workspace」的指令。
-用 `herdr worktree open .worktrees/admin-pages` 開，會長出獨立的 `clessia-admin-pages`
-workspace，和另外三席對稱。
+收工前照 `.github/workflows/verify.yml` 的序列在本機重放：`harness` → `harness:test` →
+`nx run-many -t typecheck` → `nx run-many -t test` → **`nx build web --configuration=production`**。
+最後那步是**唯一會編譯 Angular 模板的一步**（坑 #6），不要跳。
 
 開工前重新看一次 roadmap 第 0 節現況表 —— 它是自動生成的，比這份 charter 新。

@@ -1,0 +1,174 @@
+<p-toast appendTo="body" [baseZIndex]="25000" />
+
+<div class="contact-book">
+  <header class="contact-book__header">
+    <div class="contact-book__title-group">
+      <h1 class="contact-book__title">{{ page().label }}</h1>
+      <p class="contact-book__subtitle">
+        看老師寫了什麼、家長簽了沒。撰寫在老師端 —— 這裡可以修正已經寫好的內容。
+      </p>
+    </div>
+  </header>
+
+  <div class="contact-book__toolbar clessia-filter-bar">
+    <p-datepicker
+      selectionMode="range"
+      dateFormat="yy-mm-dd"
+      [showIcon]="true"
+      [readonlyInput]="true"
+      placeholder="日期區間"
+      [ngModel]="dateRange"
+      (ngModelChange)="onDateRangeChange($event)"
+      ariaLabel="日期區間"
+    />
+    <div class="contact-book__search clessia-filter-search">
+      <app-student-autocomplete
+        [value]="student()"
+        (valueChange)="onStudentChange($event)"
+        [suggestions]="studentSuggestions()"
+        (queryChange)="onStudentQuery($event)"
+        placeholder="輸入學生姓名篩選"
+      />
+    </div>
+    <p-button
+      [label]="unsignedOnly() ? '顯示全部' : '只看未簽收'"
+      [icon]="unsignedOnly() ? 'pi pi-list' : 'pi pi-inbox'"
+      [outlined]="!unsignedOnly()"
+      [severity]="unsignedOnly() ? 'warn' : 'secondary'"
+      size="small"
+      (onClick)="toggleUnsignedOnly()"
+    />
+    @if (hasFilters()) {
+      <p-button
+        label="清除篩選"
+        [text]="true"
+        size="small"
+        severity="secondary"
+        (onClick)="clearFilters()"
+      />
+    }
+  </div>
+
+  @if (!loading() && !failed() && summary().total > 0) {
+    <p class="contact-book__summary">
+      這段期間共 <strong>{{ summary().total }}</strong> 則，
+      <strong class="contact-book__summary-unsigned">{{ summary().unsigned }}</strong>
+      則家長還沒簽收。
+    </p>
+  }
+
+  <div class="contact-book__content">
+    @if (loading()) {
+      <div class="skeleton-list">
+        @for (i of [1, 2, 3, 4, 5]; track i) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
+    } @else if (failed()) {
+      <app-empty-state
+        icon="pi pi-exclamation-circle"
+        title="載入失敗"
+        description="沒有讀到聯絡簿資料，可能是連線問題"
+      >
+        <p-button label="重試" icon="pi pi-refresh" (onClick)="load()" />
+      </app-empty-state>
+    } @else if (visibleEntries().length === 0) {
+      @if (unsignedOnly()) {
+        <app-empty-state
+          icon="pi pi-check-circle"
+          title="都簽收了"
+          description="這段期間的聯絡簿家長都已經簽收"
+        >
+          <p-button
+            label="顯示全部"
+            [text]="true"
+            severity="secondary"
+            (onClick)="toggleUnsignedOnly()"
+          />
+        </app-empty-state>
+      } @else if (selectedStudent()) {
+        <app-empty-state
+          icon="pi pi-search"
+          title="這位學生沒有聯絡簿"
+          [description]="selectedStudent()!.name + ' 在這段期間沒有聯絡簿紀錄'"
+        >
+          <p-button
+            label="清除篩選"
+            [text]="true"
+            severity="secondary"
+            (onClick)="clearFilters()"
+          />
+        </app-empty-state>
+      } @else {
+        <app-empty-state
+          icon="pi pi-book"
+          title="這段期間沒有聯絡簿"
+          description="聯絡簿由帶班老師撰寫，只有開了「使用聯絡簿」的班級才會有"
+        />
+      }
+    } @else {
+      <app-responsive-table
+        [headTemplate]="entryHead"
+        [bodyTemplate]="entryBody"
+        [pagination]="pagination()"
+        (page)="onPageChange($event)"
+      />
+
+      <ng-template #entryHead>
+        <tr>
+          <th appRtColDef="date" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">日期</th>
+          <th appRtColDef="student" [appRtColDefMinWidth]="120" [appRtColDefPriority]="1">學生</th>
+          <th appRtColDef="content" [appRtColDefMinWidth]="240" [appRtColDefPriority]="2">內容</th>
+          <th appRtColDef="editor" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">
+            最後編輯
+          </th>
+          <th appRtColDef="signed" [appRtColDefMinWidth]="100" [appRtColDefPriority]="1">簽收</th>
+        </tr>
+      </ng-template>
+
+      <ng-template #entryBody>
+        @for (entry of pagedEntries(); track entry.id) {
+          <tr
+            appRtRow
+            [appRtRow]="entry"
+            [appRtRowId]="entry.id"
+            class="contact-book__row"
+            tabindex="0"
+            role="button"
+            [attr.aria-label]="
+              (entry.studentName ?? '未知學生') + ' ' + entry.entryDate + ' 的聯絡簿'
+            "
+            (click)="openEntry(entry)"
+            (keydown.enter)="openEntry(entry)"
+            (keydown.space)="openEntry(entry)"
+          >
+            <td appRtColCell="date">
+              <span class="contact-book__date">{{ entry.entryDate }}</span>
+            </td>
+            <td appRtColCell="student">
+              <span class="contact-book__student">{{ entry.studentName ?? '未知學生' }}</span>
+            </td>
+            <td appRtColCell="content">
+              <span class="contact-book__content-preview">{{ entry.content }}</span>
+            </td>
+            <td appRtColCell="editor">
+              <span class="contact-book__editor">{{ entry.lastEditedByName ?? '—' }}</span>
+            </td>
+            <td appRtColCell="signed">
+              @if (entry.isSigned) {
+                <p-tag
+                  value="已簽收"
+                  severity="success"
+                  [pTooltip]="entry.signedAt ?? ''"
+                  tooltipPosition="left"
+                />
+              } @else {
+                <p-tag value="未簽收" severity="warn" />
+              }
+            </td>
+          </tr>
+        }
+      </ng-template>
+    }
+  </div>
+</div>

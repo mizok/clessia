@@ -193,6 +193,18 @@ export class RoutesCatalog {
     true,
     NavigationGroup.ADMIN_STUDENT_AFFAIRS,
   );
+  // 沒有 permission：後端的 mount 是 `['admin', 'teacher']`，只有角色沒有 permission
+  // （`apps/api/src/index.ts`）。掛一個後端不檢查的 permissionGuard 只會得到
+  // 「選單藏起來但直接打網址就進得去」。見 kb/wiki/architecture/admin-contact-book-page.md
+  public static readonly ADMIN_CONTACT_BOOK = this.register(
+    'contact-book',
+    '/admin/contact-book',
+    '聯絡簿',
+    UserType.ADMIN,
+    'pi-book',
+    true,
+    NavigationGroup.ADMIN_STUDENT_AFFAIRS,
+  );
   // Group: 考務與成績
   public static readonly ADMIN_GRADES = this.register(
     'grades',

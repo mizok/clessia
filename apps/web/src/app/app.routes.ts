@@ -111,6 +111,14 @@ export const routes: Routes = [
             data: { page: RoutesCatalog.ADMIN_LEAVE },
           },
           {
+            path: RoutesCatalog.ADMIN_CONTACT_BOOK.relativePath,
+            loadComponent: () =>
+              import('@features/admin/pages/contact-book/contact-book.page').then(
+                (m) => m.ContactBookPage,
+              ),
+            data: { page: RoutesCatalog.ADMIN_CONTACT_BOOK },
+          },
+          {
             path: RoutesCatalog.ADMIN_MEALS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/meals/meals.component').then((m) => m.MealsComponent),
