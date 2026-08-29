@@ -3,7 +3,7 @@ title: 新生報名表單
 summary: 新家長為孩子提交報名申請。
 category: spec
 status: active
-updated: 2026-02-13
+updated: 2026-08-29
 tags: [specs, public, enrollment]
 ---
 
@@ -20,10 +20,16 @@ tags: [specs, public, enrollment]
 
 ### 表單內容
 
+> **Email 與手機是聯絡與識別資訊，不是登入憑證。** 這個系統沒有帳號密碼登入
+> （見 [[architecture/line-oauth-login]]）——「有沒有帳號」與「怎麼進得來」是報名之後的
+> 行政流程：管理者建立帳號、產生一次性登入連結（QR），對方點開登入並綁定 LINE。
+> 表單收 Email 的實際用途是**日後產生登入連結時的查人鍵**；手機純粹是聯絡方式
+> （沒有 Email 的家長，手機會另外存進 `ba_user.username` 當唯一性鍵，同樣沒有人拿它登入）。
+
 - **家長資訊區塊**
   - 姓名（必填）
-  - Email（選填，優先作為登入帳號）
-  - 手機號碼（選填，無 Email 時作為登入帳號）
+  - Email（選填）
+  - 手機號碼（選填）
   - Email 和手機至少填一個
   - 與學生關係：父親/母親/其他（必填）
 

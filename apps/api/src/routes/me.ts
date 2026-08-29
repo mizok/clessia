@@ -57,7 +57,7 @@ app.openapi(
         supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
         supabase.from('staff').select('display_name, birthday').eq('user_id', userId).maybeSingle(),
         supabase.from('parents').select('name').eq('user_id', userId).maybeSingle(),
-        supabase.from('ba_user').select('name, email, phone, username').eq('id', userId).single(),
+        supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
       ],
     );
 
@@ -140,6 +140,11 @@ app.openapi(
         .single();
 
       const updatePayload: Record<string, string | null> = { phone: body.phone };
+      // **這不是登入帳號的殘留，不要刪。** 沒有 email 的家長（只留電話那種）靠
+      // `ba_user.username` 當唯一性鍵 —— 家長匯入的重複偵測會拿它比對電話
+      // （`routes/parents.ts` 的 `buildPostgrestEq('username', phone)`）。
+      // 沒有人輸入它登入，系統根本沒有輸入帳號的畫面。
+      // 見 kb/wiki/specs/admin/roles-and-auth.md
       if ((baUser as Record<string, unknown> | null)?.['email'] == null) {
         updatePayload['username'] = body.phone;
       }
@@ -156,7 +161,7 @@ app.openapi(
         supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
         supabase.from('staff').select('display_name, birthday').eq('user_id', userId).maybeSingle(),
         supabase.from('parents').select('name').eq('user_id', userId).maybeSingle(),
-        supabase.from('ba_user').select('name, email, phone, username').eq('id', userId).single(),
+        supabase.from('ba_user').select('name, email, phone').eq('id', userId).single(),
       ],
     );
 

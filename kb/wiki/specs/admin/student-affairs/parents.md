@@ -3,7 +3,7 @@ title: 家長資料
 summary: 管理家長帳號，關聯學生，處理帳號相關操作。
 category: spec
 status: active
-updated: 2026-08-28
+updated: 2026-08-29
 tags: [specs, admin, student-affairs, parents]
 ---
 
@@ -29,18 +29,19 @@ tags: [specs, admin, student-affairs, parents]
 ### 家長列表
 
 - 篩選：姓名/手機/Email 搜尋、帳號狀態（預設只顯示 `active / inactive`，封存需手動切換顯示）
-- 每筆顯示：姓名、登入帳號（Email 或手機）、關聯學生數、帳號狀態
+- 每筆顯示：姓名、識別帳號（Email 或手機）、關聯學生數、帳號狀態
+  （API 與前端的欄位名還叫 `loginAccount`，那是密碼時代留下的命名，**沒有人用它登入**）
 - 點擊進入編輯或查看詳情
 
 ### 新增/編輯家長 Popup
 
-| 欄位     | 類型   | 必填   | 說明                                     |
-| -------- | ------ | ------ | ---------------------------------------- |
-| 姓名     | 文字   | 是     |                                          |
-| Email    | 文字   | 二擇一 | 優先作為登入帳號；需通過 email 格式驗證  |
-| 手機     | 文字   | 二擇一 | 無 Email 時作為登入帳號（存入 username） |
-| 關聯學生 | 多選   | 否     | 可搜尋並選擇學生，支援多個               |
-| 備註     | 長文字 | 否     |                                          |
+| 欄位     | 類型   | 必填   | 說明                                                      |
+| -------- | ------ | ------ | --------------------------------------------------------- |
+| 姓名     | 文字   | 是     |                                                           |
+| Email    | 文字   | 二擇一 | 產生登入連結時的查人鍵；需通過 email 格式驗證             |
+| 手機     | 文字   | 二擇一 | 聯絡方式；無 Email 時另存入 `ba_user.username` 當唯一性鍵 |
+| 關聯學生 | 多選   | 否     | 可搜尋並選擇學生，支援多個                                |
+| 備註     | 長文字 | 否     |                                                           |
 
 > 帳號狀態（active / inactive / archived）不在新增/編輯表單中設定，由列表頁的操作按鈕管理。
 
@@ -77,17 +78,23 @@ tags: [specs, admin, student-affairs, parents]
 
 ### 帳號管理功能
 
-| 功能         | 說明                                 | 實作方式                                                                   |
-| ------------ | ------------------------------------ | -------------------------------------------------------------------------- |
-| 產生登入連結 | 一次性、24 小時過期、單次使用        | `POST /api/login-links`（見 [[architecture/line-oauth-login]]）            |
-| 更換登入帳號 | 修改 Email 或手機                    | 更新 `ba_user`（email 透過 BA `updateUser`，phone 直接寫 `ba_user.phone`） |
-| 顯示 QR      | 把連結變成 QR，可瀏覽器列印          | `LoginLinkDialogComponent`                                                 |
-| 停用帳號     | 暫停登入權限，資料保留，可恢復       | `PATCH /deactivate`，更新 `parents.status = 'inactive'`                    |
-| 啟用帳號     | 恢復登入權限（從停用恢復）           | `PATCH /activate`，更新 `parents.status = 'active'`                        |
-| 封存帳號     | 孩子已離校，單向封存，從預設列表隱藏 | `PATCH /archive`，更新 `parents.status = 'archived'`；前端需顯示警告       |
+| 功能               | 說明                                 | 實作方式                                                                                         |
+| ------------------ | ------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| 產生登入連結       | 一次性、24 小時過期、單次使用        | `POST /api/login-links`（見 [[architecture/line-oauth-login]]）                                  |
+| 更換識別／聯絡資訊 | 修改 Email 或手機                    | 更新 `ba_user`（**實作偏離：目前 email 與 phone 都直寫 `ba_user`，未走 BA `updateUser`**，見下） |
+| 顯示 QR            | 把連結變成 QR，可瀏覽器列印          | `LoginLinkDialogComponent`                                                                       |
+| 停用帳號           | 暫停登入權限，資料保留，可恢復       | `PATCH /deactivate`，更新 `parents.status = 'inactive'`                                          |
+| 啟用帳號           | 恢復登入權限（從停用恢復）           | `PATCH /activate`，更新 `parents.status = 'active'`                                              |
+| 封存帳號           | 孩子已離校，單向封存，從預設列表隱藏 | `PATCH /archive`，更新 `parents.status = 'archived'`；前端需顯示警告                             |
 
 **這個系統沒有密碼**（見 [[architecture/line-oauth-login]]）。家長點一次性連結登入、
-綁定 LINE，之後直接用 LINE。
+綁定 LINE，之後直接用 LINE。**Email 與手機都不是登入憑證** —— Email 是產生連結時的
+查人鍵，手機是聯絡方式。
+
+> **已知偏離（不在文案清理的範圍）**：上表的「更換識別／聯絡資訊」寫的是 email 透過
+> Better Auth 的 `updateUser`，但 `routes/parents.ts` 實際是 `supabase.from('ba_user').update()`
+> 直寫 —— 也就是憲法 c2（`ba_*` 可讀不可寫）的存量違規。這不是有意識的取捨，是實作偏離了
+> 本規格。已列入「`ba_user` 寫入路徑收斂」的改善項目，另案處理。
 
 **連結弄丟或過期**：管理員在家長頁按「產生登入連結」重發。連結會過期、只能用一次；
 密碼會被寫在便條紙上留著。

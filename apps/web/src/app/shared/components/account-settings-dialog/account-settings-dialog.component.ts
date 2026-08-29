@@ -73,10 +73,16 @@ export class AccountSettingsDialogComponent {
     this.patchMe('birthday', { birthday: this.birthday ? this.formatDate(this.birthday) : null });
   }
 
+  /**
+   * Email 改動要二次確認，但**不是因為它是登入帳號** —— 這個系統沒有帳號密碼登入。
+   * 它是產生一次性登入連結時的查人鍵（`scripts/login-link.ts` 與
+   * `routes/login-links.ts` 都以 `ba_user.email` 找人），改錯了補習班就找不到你、
+   * 也就發不出連結。見 kb/wiki/architecture/line-oauth-login.md
+   */
   protected confirmSaveEmail() {
     this.confirmationService.confirm({
       key: 'account-settings-confirm',
-      message: `確定要將 Email 改為「${this.email}」嗎？\n儲存後需用新 Email 登入。`,
+      message: `確定要將 Email 改為「${this.email}」嗎？\n之後補習班要用新的 Email 才能幫你產生登入連結。`,
       header: '確認修改 Email',
       acceptLabel: '確定修改',
       rejectLabel: '取消',
@@ -84,15 +90,14 @@ export class AccountSettingsDialogComponent {
     });
   }
 
-  protected confirmSavePhone() {
-    this.confirmationService.confirm({
-      key: 'account-settings-confirm',
-      message: `確定要將電話改為「${this.phone}」嗎？\n儲存後需用新電話登入。`,
-      header: '確認修改電話',
-      acceptLabel: '確定修改',
-      rejectLabel: '取消',
-      accept: () => this.patchMe('phone', { phone: this.phone.trim() || null }),
-    });
+  /**
+   * 電話**沒有二次確認** —— 它純粹是聯絡資訊，跟登入無關。
+   *
+   * 原本這裡有一個確認框寫著「儲存後需用新電話登入」，那是密碼時代的殘留：
+   * 系統從來沒有、現在也沒有電話登入。憑空的警告會讓人不敢改自己的聯絡電話。
+   */
+  protected savePhone() {
+    this.patchMe('phone', { phone: this.phone.trim() || null });
   }
 
   private patchMe(field: FieldKey, payload: Record<string, unknown>) {

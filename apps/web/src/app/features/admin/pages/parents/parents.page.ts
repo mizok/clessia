@@ -375,7 +375,7 @@ export class ParentsPage implements OnInit {
       this.messageService.add({
         severity: 'warn',
         summary: '無法產生',
-        detail: '這位家長還沒有登入帳號',
+        detail: '這位家長還沒有帳號，無法產生連結',
       });
       return;
     }

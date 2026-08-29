@@ -30,7 +30,7 @@
         pInputText
         [ngModel]="formData().email"
         (ngModelChange)="updateForm('email', $event)"
-        placeholder="登入帳號用的 Email"
+        placeholder="用來產生登入連結的 Email"
         [disabled]="loading() || isEditing()"
         class="w-full"
       />
