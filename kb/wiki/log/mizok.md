@@ -4,127 +4,160 @@
 
 ---
 
+## [2026-08-29] milestone | P1 完成 —— 金流/聯絡簿/教務日誌的資料層與 API 全落地
+
+- 六支 PR（#48 #49 #54 #55 #61 #62）：13 張新表、billing_mode 三模式、
+  開帳→收款→催繳→月結→修補的完整閉環、requirePermission API 權限層
+- `db:reset` 從零全鏈驗證通過（途中抓到 seed 的 plpgsql 撞名 42702，
+  證明了從零重放的必要性 —— 增量驗證結構上抓不到它）
+- P2 已同步展開：fee-templates 頁 + 報名計費設定（#58）已上線，繳費單頁實作中
+
 ## [2026-08-29] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 87
 - Total links: 109
 - Orphan pages: 64
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 52 info
+
 - Mode: structural
 - Pages scanned: 96
 - Issues found: 52
 
 ## [2026-08-29] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 87
 - Total links: 109
 - Orphan pages: 64
 
 ## [2026-08-29] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 87
 - Total links: 115
 - Orphan pages: 64
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 52 info
+
 - Mode: structural
 - Pages scanned: 95
 - Issues found: 52
 
 ## [2026-08-29] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 87
 - Total links: 97
 - Orphan pages: 65
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 96
 - Issues found: 53
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 96
 - Issues found: 53
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 96
 - Issues found: 53
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 96
 - Issues found: 53
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 96
 - Issues found: 53
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 96
 - Issues found: 53
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 96
 - Issues found: 53
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 96
 - Issues found: 53
 
 ## [2026-08-29] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 87
 - Total links: 95
 - Orphan pages: 65
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 54 info
+
 - Mode: structural
 - Pages scanned: 95
 - Issues found: 54
 
 ## [2026-08-29] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 86
 - Total links: 92
 - Orphan pages: 66
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 93
 - Issues found: 53
 
 ## [2026-08-29] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 84
 - Total links: 89
 - Orphan pages: 65
 
 ## [2026-08-29] lint | Health check: 0 errors, 2 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 92
 - Issues found: 55
 
 ## [2026-08-29] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 85
 - Total links: 91
 - Orphan pages: 65
 
 ## [2026-08-29] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 84
 - Total links: 90
 - Orphan pages: 64
 
 ## [2026-08-29] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 84
 - Total links: 89
 - Orphan pages: 65
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 52 info
+
 - Mode: structural
 - Pages scanned: 92
 - Issues found: 52
 
 ## [2026-08-29] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 83
 - Total links: 88
 - Orphan pages: 64
