@@ -60,6 +60,34 @@ describe('app routes', () => {
 });
 
 /**
+ * 選單過濾與路由守衛必須守同一個權限。
+ *
+ * 這是坑 #1（選單與路由表之間的縫）的第二種形狀：`RouteObj.permission` 只影響選單顯示，
+ * 藏起入口卻沒掛 guard 的話，使用者直接打網址還是進得去；掛錯權限則是更安靜的版本 ——
+ * 兩邊都「有東西」，但守的不是同一件事。`permissionGuard` 會把權限名掛在回傳的 guard 上，
+ * 讓這件事斷言得到。
+ */
+describe('app routes —— 帶 permission 的路由必須掛對 guard', () => {
+  const permissioned = RoutesCatalog.values.filter((entry) => entry.permission);
+
+  it('有帶 permission 的路由存在（否則這組測試是空跑）', () => {
+    expect(permissioned.length).toBeGreaterThan(0);
+  });
+
+  it.each(permissioned.map((entry) => [entry.label, entry.absolutePath, entry.permission!] as const))(
+    '「%s」(%s) 掛了 permissionGuard(%s)',
+    (_label, absolutePath, permission) => {
+      const target = absolutePath.replace(/^\//, '');
+      const guards = allRoutes
+        .filter((r) => r.path === target)
+        .flatMap(({ route }) => route.canActivate ?? []);
+
+      expect(guards.map((g) => (g as { permission?: string }).permission)).toContain(permission);
+    },
+  );
+});
+
+/**
  * `/select-role` 是三個 guard 與 LINE 登入 callback 的共同去處
  * （guest.guard、role.guard、auth.service 的 callbackURL）。
  * 它一旦沒有註冊，就會被 `path: '**'` 收去 `/login`，而 guestGuard 又會把

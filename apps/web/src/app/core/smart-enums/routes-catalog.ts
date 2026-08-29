@@ -10,6 +10,19 @@ export class RouteObj {
     public readonly icon: string,
     public readonly showInMenu: boolean = true,
     public readonly group?: NavigationGroup,
+    /**
+     * 這個頁面額外需要的細部權限（`user_roles.permissions` 裡的值）。
+     *
+     * **每條路由自己的值**，不是一個全域的「財務」開關：金流頁填 `manage_finance`（會寫），
+     * 營收報表填 `view_reports`（唯讀）—— 老闆可能只給主任看報表而不給動錢。
+     *
+     * 填了它有兩個效果，兩個都必要：`NavigationService` 把選單項藏起來（不要讓人點到
+     * 必然失敗的按鈕），`app.routes.ts` 掛 `permissionGuard`（藏起入口擋不住直接打網址）。
+     * 兩者是否同步由 `app.routes.spec.ts` 斷言。
+     *
+     * 前端這層**不是安全邊界** —— 真正的把關在 Hono middleware 的 `requirePermission`。
+     */
+    public readonly permission?: string,
   ) {}
 }
 
@@ -245,6 +258,7 @@ export class RoutesCatalog {
     'pi-wallet',
     true,
     NavigationGroup.ADMIN_FINANCE,
+    'manage_finance',
   );
   public static readonly ADMIN_MEALS = this.register(
     'meals',
@@ -254,6 +268,7 @@ export class RoutesCatalog {
     'pi-dollar',
     true,
     NavigationGroup.ADMIN_FINANCE,
+    'manage_finance',
   );
   public static readonly ADMIN_PAYMENTS = this.register(
     'payments',
@@ -263,6 +278,7 @@ export class RoutesCatalog {
     'pi-credit-card',
     true,
     NavigationGroup.ADMIN_FINANCE,
+    'manage_finance',
   );
   public static readonly ADMIN_REPORTS = this.register(
     'reports',
@@ -272,6 +288,7 @@ export class RoutesCatalog {
     'pi-chart-bar',
     true,
     NavigationGroup.ADMIN_FINANCE,
+    'view_reports',
   );
 
   // Group: 人事管理
@@ -488,8 +505,18 @@ export class RoutesCatalog {
     icon: string,
     showInMenu: boolean = true,
     group?: NavigationGroup,
+    permission?: string,
   ): RouteObj {
-    const route = new RouteObj(relativePath, absolutePath, label, role, icon, showInMenu, group);
+    const route = new RouteObj(
+      relativePath,
+      absolutePath,
+      label,
+      role,
+      icon,
+      showInMenu,
+      group,
+      permission,
+    );
     this.values.push(route);
     return route;
   }

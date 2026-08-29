@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from '@core/auth.guard';
 import { roleGuard } from '@core/role.guard';
+import { permissionGuard } from '@core/permission.guard';
 import { guestGuard } from '@core/guest.guard';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
@@ -114,6 +115,7 @@ export const routes: Routes = [
             loadComponent: () =>
               import('@features/admin/pages/meals/meals.component').then((m) => m.MealsComponent),
             data: { page: RoutesCatalog.ADMIN_MEALS },
+            canActivate: [permissionGuard('manage_finance')],
           },
           {
             path: RoutesCatalog.ADMIN_GRADES.relativePath,
@@ -230,12 +232,14 @@ export const routes: Routes = [
             loadComponent: () =>
               import('@features/admin/pages/payments/payments.page').then((m) => m.PaymentsPage),
             data: { page: RoutesCatalog.ADMIN_PAYMENTS },
+            canActivate: [permissionGuard('manage_finance')],
           },
           {
             path: RoutesCatalog.ADMIN_REPORTS.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/reports/reports.page').then((m) => m.ReportsPage),
             data: { page: RoutesCatalog.ADMIN_REPORTS },
+            canActivate: [permissionGuard('view_reports')],
           },
           {
             path: RoutesCatalog.ADMIN_CAMPUSES.relativePath,
@@ -283,6 +287,7 @@ export const routes: Routes = [
                 (m) => m.FeeTemplatesComponent,
               ),
             data: { page: RoutesCatalog.ADMIN_FEE_TEMPLATES },
+            canActivate: [permissionGuard('manage_finance')],
           },
           {
             path: RoutesCatalog.ADMIN_STAFF.relativePath,
