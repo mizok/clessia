@@ -28,6 +28,14 @@ Tags: `architecture`, `announcements`
 
 Links to: [[architecture/role-authorization|角色授權設計]]
 
+## [[architecture/auth-pool-lifecycle|認證連線池的生命週期]]
+
+createAuth() 每請求開 1–2 個 pg Pool 且從不關閉（批次匯入的迴圈裡一次開 50 個）；Workers 凍結 timer 使 pg 的 idle 自救失效。修法：getAuth(c) 讓同請求共用單一池，收尾交給掛在最前面的 cleanup middleware 在 await next() 之後做。singleton 在 Workers 是錯的，而在 getAuth 裡 waitUntil(pool.end()) 也是錯的。
+
+Tags: `architecture`, `auth`, `workers`, `database`
+
+Links to: [[architecture/line-oauth-login]]
+
 ## [[architecture/bootstrapping-a-deployment|開一個新站]]
 
 建立組織與第一個管理員的唯一路徑。零 demo 資料，走 Better Auth 建帳號，冪等。

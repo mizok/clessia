@@ -4,7 +4,8 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { authMiddleware, requireRoles } from './middleware/auth';
-import { createAuth } from './auth';
+import type { Auth, MagicLinkPayload } from './auth';
+import { authPoolCleanup, getAuth } from './lib/get-auth';
 import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
 import loginLinksRoute from './routes/login-links';
 import { isPubliclyBlockedAuthPath } from './lib/auth-paths';
@@ -57,6 +58,10 @@ export type Variables = {
   /** 每次請求從 user_roles 查出來的角色，不是 session 快照 */
   roles: string[];
   supabase: SupabaseClient;
+  /** 這個請求共用的 Better Auth 實例與連線池，由 `lib/get-auth.ts` 管理 */
+  auth: Auth;
+  /** magic-link 的每請求攔截槽 —— `mintLoginLinkForRequest` 設好、用完即清 */
+  magicLinkCapture?: (payload: MagicLinkPayload) => void;
 };
 
 export type AppEnv = {
@@ -90,6 +95,11 @@ app.use(
     credentials: true,
   }),
 );
+
+// 連線池的收尾。**掛在所有會用到 auth 的東西之前** —— 它靠 `await next()` 之後才動手，
+// 掛得太後面的話 `/api/auth/*` 那條路開的池就收不到。見
+// kb/wiki/architecture/auth-pool-lifecycle.md
+app.use('*', authPoolCleanup);
 
 // ============================================================
 // Public Routes
@@ -173,8 +183,7 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c, next) => {
 });
 
 app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
-  const auth = createAuth(c.env);
-  return auth.handler(c.req.raw);
+  return getAuth(c).handler(c.req.raw);
 });
 
 // ── Unified login (before authMiddleware) ────────────────────────────────────
