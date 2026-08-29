@@ -1,0 +1,102 @@
+// 費用方案管理 —— 一頁兩個區塊（價目表 + 收費期間）
+.fee-templates {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: 100%;
+
+  &__title-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    color: var(--zinc-900);
+    line-height: var(--leading-tight);
+  }
+
+  &__subtitle {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+  }
+
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    background: #fff;
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-xl);
+  }
+
+  &__section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  &__section-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  &__section-title {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-900);
+  }
+
+  &__section-hint {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+  }
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  &__search {
+    flex: 1 1 240px;
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__name {
+    font-weight: var(--font-medium);
+    color: var(--zinc-900);
+
+    &--inactive {
+      color: var(--zinc-500);
+      text-decoration: line-through;
+    }
+  }
+
+  &__amount {
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--font-medium);
+  }
+
+  &__range {
+    font-variant-numeric: tabular-nums;
+    color: var(--zinc-500);
+  }
+}

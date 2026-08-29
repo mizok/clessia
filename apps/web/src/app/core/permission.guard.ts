@@ -3,7 +3,7 @@ import { Router, type CanActivateFn } from '@angular/router';
 import { AuthService } from './auth.service';
 
 export function permissionGuard(permission: string): CanActivateFn {
-  return async () => {
+  const guard: CanActivateFn = async () => {
     const auth = inject(AuthService);
     const router = inject(Router);
 
@@ -27,4 +27,8 @@ export function permissionGuard(permission: string): CanActivateFn {
 
     return router.createUrlTree(['/login']);
   };
+
+  // 守的是哪一個權限要看得見 —— 否則「路由掛了 guard」與「掛的是對的 guard」
+  // 在測試裡無法區分（見 app.routes.spec.ts）。
+  return Object.assign(guard, { permission });
 }
