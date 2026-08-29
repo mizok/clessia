@@ -1,0 +1,50 @@
+<div class="billing-period-form">
+  <header class="billing-period-form__header">
+    <h2 class="billing-period-form__title">{{ isEditing() ? '編輯收費期間' : '新增收費期間' }}</h2>
+    <p class="billing-period-form__hint">
+      一年兩期、一年一期、照學期制都可以 —— 期間由機構自己定義。
+    </p>
+  </header>
+
+  <div class="billing-period-form__body">
+    <div class="billing-period-form__field">
+      <label class="billing-period-form__label" for="bp-name">期間名稱 *</label>
+      <input
+        id="bp-name"
+        type="text"
+        pInputText
+        maxlength="100"
+        placeholder="如：2026 上學期 + 暑假"
+        [ngModel]="form().name"
+        (ngModelChange)="update('name', $event)"
+      />
+    </div>
+
+    <div class="billing-period-form__field">
+      <label class="billing-period-form__label" for="bp-start">起始日 *</label>
+      <p-datepicker
+        inputId="bp-start"
+        dateFormat="yy-mm-dd"
+        appendTo="body"
+        [ngModel]="form().startDate"
+        (ngModelChange)="update('startDate', $event)"
+      />
+    </div>
+
+    <div class="billing-period-form__field">
+      <label class="billing-period-form__label" for="bp-end">結束日 *</label>
+      <p-datepicker
+        inputId="bp-end"
+        dateFormat="yy-mm-dd"
+        appendTo="body"
+        [ngModel]="form().endDate"
+        (ngModelChange)="update('endDate', $event)"
+      />
+    </div>
+  </div>
+
+  <footer class="billing-period-form__footer">
+    <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+    <p-button label="儲存" [loading]="saving()" (onClick)="save()" />
+  </footer>
+</div>

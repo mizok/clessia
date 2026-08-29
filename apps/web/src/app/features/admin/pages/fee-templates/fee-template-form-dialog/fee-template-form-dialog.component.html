@@ -1,0 +1,62 @@
+<div class="fee-template-form">
+  <header class="fee-template-form__header">
+    <h2 class="fee-template-form__title">{{ isEditing() ? '編輯價目表' : '新增價目表' }}</h2>
+    <p class="fee-template-form__hint">這裡填的是定價。實際收多少在報名時可以另外議定。</p>
+  </header>
+
+  <div class="fee-template-form__body">
+    <div class="fee-template-form__field">
+      <label class="fee-template-form__label" for="ft-name">方案名稱 *</label>
+      <input
+        id="ft-name"
+        type="text"
+        pInputText
+        maxlength="100"
+        placeholder="如：國中主科月繳"
+        [ngModel]="form().name"
+        (ngModelChange)="update('name', $event)"
+      />
+    </div>
+
+    <div class="fee-template-form__field">
+      <label class="fee-template-form__label" for="ft-mode">計費模式 *</label>
+      <p-select
+        inputId="ft-mode"
+        optionLabel="label"
+        optionValue="value"
+        [options]="billingModeOptions"
+        [ngModel]="form().billingMode"
+        (ngModelChange)="update('billingMode', $event)"
+      />
+    </div>
+
+    <div class="fee-template-form__field">
+      <label class="fee-template-form__label" for="ft-amount">定價 *</label>
+      <p-inputnumber
+        inputId="ft-amount"
+        mode="currency"
+        currency="TWD"
+        locale="zh-TW"
+        [min]="0"
+        [maxFractionDigits]="0"
+        [ngModel]="form().amount"
+        (ngModelChange)="update('amount', $event)"
+      />
+    </div>
+
+    <div class="fee-template-form__field fee-template-form__field--inline">
+      <label class="fee-template-form__label" for="ft-active">啟用</label>
+      <p-toggleswitch
+        inputId="ft-active"
+        [ngModel]="form().isActive"
+        (ngModelChange)="update('isActive', $event)"
+      />
+      <span class="fee-template-form__hint">停用後不會出現在報名選單，歷史報名不受影響。</span>
+    </div>
+  </div>
+
+  <footer class="fee-template-form__footer">
+    <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+    <p-button label="儲存" [loading]="saving()" (onClick)="save()" />
+  </footer>
+</div>

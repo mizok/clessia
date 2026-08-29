@@ -1,0 +1,220 @@
+<p-toast appendTo="body" [baseZIndex]="25000" />
+
+<div class="fee-templates">
+  <header class="fee-templates__header">
+    <div class="fee-templates__title-group">
+      <h1 class="fee-templates__title">{{ page().label }}</h1>
+      <p class="fee-templates__subtitle">
+        定義收費標準供報名時挑選。這裡只給定價，實際談定的金額寫在每筆報名上。
+      </p>
+    </div>
+  </header>
+
+  <!-- ── 價目表 ───────────────────────────────────────────────────────── -->
+  <section class="fee-templates__section">
+    <div class="fee-templates__section-header">
+      <div class="fee-templates__section-title-group">
+        <h2 class="fee-templates__section-title">價目表</h2>
+        <p class="fee-templates__section-hint">
+          停用的方案不會出現在報名選單，但歷史報名仍看得懂它。
+        </p>
+      </div>
+      <p-button label="新增價目表" icon="pi pi-plus" (onClick)="openTemplateDialog()" />
+    </div>
+
+    <div class="fee-templates__toolbar clessia-filter-bar">
+      <div class="fee-templates__search clessia-filter-search">
+        <p-iconfield iconPosition="left">
+          <p-inputicon styleClass="pi pi-search" />
+          <input
+            type="text"
+            pInputText
+            placeholder="搜尋方案名稱..."
+            [ngModel]="searchQuery()"
+            (ngModelChange)="onSearchChange($event)"
+            class="clessia-filter-search-input"
+          />
+        </p-iconfield>
+      </div>
+      <p-button
+        [label]="showInactive() ? '隱藏停用方案' : '顯示停用方案'"
+        [icon]="showInactive() ? 'pi pi-eye-slash' : 'pi pi-eye'"
+        [text]="true"
+        size="small"
+        severity="secondary"
+        (onClick)="toggleShowInactive()"
+      />
+    </div>
+
+    <div class="fee-templates__content">
+      @if (templatesLoading()) {
+        <div class="skeleton-list">
+          @for (i of [1, 2, 3]; track i) {
+            <span class="skeleton-bar"></span>
+          }
+        </div>
+      } @else if (templates().length === 0) {
+        @if (searchQuery()) {
+          <app-empty-state
+            icon="pi pi-search"
+            title="找不到符合的方案"
+            [description]="'沒有找到符合「' + searchQuery() + '」的方案'"
+          >
+            <p-button
+              label="清除搜尋"
+              [text]="true"
+              severity="secondary"
+              (onClick)="onSearchChange('')"
+            />
+          </app-empty-state>
+        } @else {
+          <app-empty-state
+            icon="pi pi-wallet"
+            title="尚未建立價目表"
+            description="建立第一個收費方案，報名時就能挑選它"
+          >
+            <p-button label="新增價目表" icon="pi pi-plus" (onClick)="openTemplateDialog()" />
+          </app-empty-state>
+        }
+      } @else {
+        <app-popup-menu #actionMenu [model]="actionMenuItems()" />
+
+        <app-responsive-table [headTemplate]="templateHead" [bodyTemplate]="templateBody" />
+
+        <ng-template #templateHead>
+          <tr>
+            <th appRtColDef="name" [appRtColDefMinWidth]="180" [appRtColDefPriority]="1">
+              方案名稱
+            </th>
+            <th appRtColDef="mode" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
+              計費模式
+            </th>
+            <th appRtColDef="amount" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">定價</th>
+            <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="3">狀態</th>
+            <th
+              appRtColDef="actions"
+              [appRtColDefMinWidth]="56"
+              [appRtColDefPriority]="0"
+              [appRtColDefCollapsible]="false"
+              aria-hidden="true"
+            ></th>
+          </tr>
+        </ng-template>
+
+        <ng-template #templateBody>
+          @for (item of templates(); track item.id) {
+            <tr appRtRow [appRtRow]="item" [appRtRowId]="item.id">
+              <td appRtColCell="name">
+                <span
+                  class="fee-templates__name"
+                  [class.fee-templates__name--inactive]="!item.isActive"
+                >
+                  {{ item.name }}
+                </span>
+              </td>
+              <td appRtColCell="mode">{{ BILLING_MODE_LABELS[item.billingMode] }}</td>
+              <td appRtColCell="amount">
+                <span class="fee-templates__amount">{{ item.amount | number }}</span>
+              </td>
+              <td appRtColCell="status">
+                <p-tag
+                  [value]="item.isActive ? '啟用中' : '已停用'"
+                  [severity]="item.isActive ? 'success' : 'secondary'"
+                />
+              </td>
+              <td appRtColCell="actions">
+                <p-button
+                  icon="pi pi-ellipsis-v"
+                  [text]="true"
+                  severity="secondary"
+                  [ariaLabel]="item.name + ' 的操作'"
+                  (onClick)="openTemplateActionMenu($event, item)"
+                />
+              </td>
+            </tr>
+          }
+        </ng-template>
+      }
+    </div>
+  </section>
+
+  <!-- ── 收費期間 ─────────────────────────────────────────────────────── -->
+  <section class="fee-templates__section">
+    <div class="fee-templates__section-header">
+      <div class="fee-templates__section-title-group">
+        <h2 class="fee-templates__section-title">收費期間</h2>
+        <p class="fee-templates__section-hint">
+          期繳用的具名日期區間。期間之間可以重疊 —— 新舊制交接時本來就會。
+        </p>
+      </div>
+      <p-button
+        label="新增期間"
+        icon="pi pi-plus"
+        [outlined]="true"
+        (onClick)="openPeriodDialog()"
+      />
+    </div>
+
+    <div class="fee-templates__content">
+      @if (periodsLoading()) {
+        <div class="skeleton-list">
+          @for (i of [1, 2]; track i) {
+            <span class="skeleton-bar"></span>
+          }
+        </div>
+      } @else if (periods().length === 0) {
+        <app-empty-state
+          icon="pi pi-calendar"
+          title="尚未建立收費期間"
+          description="一年兩期或照學期制都可以 —— 期間由你自己定義"
+        >
+          <p-button label="新增期間" icon="pi pi-plus" (onClick)="openPeriodDialog()" />
+        </app-empty-state>
+      } @else {
+        <app-popup-menu #periodMenu [model]="periodMenuItems()" />
+
+        <app-responsive-table [headTemplate]="periodHead" [bodyTemplate]="periodBody" />
+
+        <ng-template #periodHead>
+          <tr>
+            <th appRtColDef="name" [appRtColDefMinWidth]="200" [appRtColDefPriority]="1">
+              期間名稱
+            </th>
+            <th appRtColDef="range" [appRtColDefMinWidth]="200" [appRtColDefPriority]="2">
+              起訖日期
+            </th>
+            <th
+              appRtColDef="actions"
+              [appRtColDefMinWidth]="56"
+              [appRtColDefPriority]="0"
+              [appRtColDefCollapsible]="false"
+              aria-hidden="true"
+            ></th>
+          </tr>
+        </ng-template>
+
+        <ng-template #periodBody>
+          @for (item of periods(); track item.id) {
+            <tr appRtRow [appRtRow]="item" [appRtRowId]="item.id">
+              <td appRtColCell="name">{{ item.name }}</td>
+              <td appRtColCell="range">
+                <span class="fee-templates__range">
+                  {{ item.startDate }} — {{ item.endDate }}
+                </span>
+              </td>
+              <td appRtColCell="actions">
+                <p-button
+                  icon="pi pi-ellipsis-v"
+                  [text]="true"
+                  severity="secondary"
+                  [ariaLabel]="item.name + ' 的操作'"
+                  (onClick)="openPeriodActionMenu($event, item)"
+                />
+              </td>
+            </tr>
+          }
+        </ng-template>
+      }
+    </div>
+  </section>
+</div>
