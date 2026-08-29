@@ -48,6 +48,9 @@ const ClassSchema = z
     gradeLevels: z.array(z.string()),
     nextClassId: z.uuid().nullable(),
     isActive: z.boolean(),
+    /** 國小／國中模式的開關（kb/wiki/rules/contact-book-rules.md 規則 2）。
+     *  開 = 用個人聯絡簿；關 = 走 class_logs 教務日誌 */
+    usesContactBook: z.boolean(),
     scheduleCount: z.number().optional(),
     scheduleTeacherIds: z.array(z.string()).optional(),
     hasUpcomingSessions: z.boolean().optional(),
@@ -86,6 +89,8 @@ const CreateClassSchema = z
     name: z.string().min(1).max(50),
     maxStudents: z.number().int().min(1).max(200).optional(),
     nextClassId: z.uuid().nullable().optional(),
+    // 不給就用 DB 的 default false（現況全是紙本）
+    usesContactBook: z.boolean().optional(),
     startDate: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -105,6 +110,7 @@ const UpdateClassSchema = z
     maxStudents: z.number().int().min(1).max(200).optional(),
     nextClassId: z.uuid().nullable().optional(),
     isActive: z.boolean().optional(),
+    usesContactBook: z.boolean().optional(),
     startDate: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -294,7 +300,7 @@ interface ClassExtras {
   updatedByName?: string | null;
 }
 
-function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
+export function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
   const course = row['courses'] as {
     name: string;
     grade_levels: string[];
@@ -315,6 +321,9 @@ function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     gradeLevels: course?.grade_levels ?? [],
     nextClassId: (row['next_class_id'] as string | null) ?? null,
     isActive: row['is_active'] as boolean,
+    // 欄位是 NOT NULL DEFAULT false，但舊的 select 可能沒撈到 —— 退回 false 而不是
+    // undefined，前端拿 undefined 去畫開關會變成不確定狀態
+    usesContactBook: (row['uses_contact_book'] as boolean | undefined) ?? false,
     scheduleCount: extras?.scheduleCount,
     scheduleTeacherIds: extras?.scheduleTeacherIds,
     hasUpcomingSessions: extras?.hasUpcomingSessions,
@@ -977,6 +986,7 @@ app.openapi(
         name: body.name,
         max_students: body.maxStudents ?? 20,
         next_class_id: body.nextClassId ?? null,
+        ...(body.usesContactBook === undefined ? {} : { uses_contact_book: body.usesContactBook }),
         start_date: body.startDate ?? null,
         end_date: body.endDate ?? null,
         updated_by: userId,
@@ -1041,6 +1051,7 @@ app.openapi(
     if (body.maxStudents !== undefined) updateData['max_students'] = body.maxStudents;
     if (body.nextClassId !== undefined) updateData['next_class_id'] = body.nextClassId;
     if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
+    if (body.usesContactBook !== undefined) updateData['uses_contact_book'] = body.usesContactBook;
     if (body.startDate !== undefined) updateData['start_date'] = body.startDate;
     if (body.endDate !== undefined) updateData['end_date'] = body.endDate;
 
