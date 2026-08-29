@@ -1,16 +1,110 @@
 <!doctype html>
 <html lang="zh-TW">
-<head>
-  <meta charset="utf-8">
-  <title>Clessia</title>
-  <base href="/">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
-</head>
-<body>
-  <app-root></app-root>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <title>Clessia</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!--
+    開站畫面。Angular bootstrap 之後會把 <app-root> 的內容整個換掉，所以這段只活到
+    第一次 render 為止 —— 刻意是純 HTML/CSS 零依賴，它要在任何 JS 下載完成之前就看得見。
+
+    色值是字面量而不是 var(--zinc-100) 之類：index.html 讀不到 styles.scss 的 token。
+    在這裡重新宣告一次同名變數，讓「跟 token 一致」這件事至少有個對照點 —— 值變了要兩邊都改。
+    底色必須跟 body 的 --zinc-100 一樣，否則 Angular 接手的那一刻會閃一下。
+
+    這裡只放第一屏會用到的東西。index.html 是每次載入都要下載的東西，塞大了就是拿
+    白畫面換閃爍。
+  -->
+    <style>
+      .app-splash {
+        --app-splash-surface: #f4f4f5; /* zinc-100，與 body 同底 */
+        --app-splash-ink: #18181b; /* zinc-900 */
+        --app-splash-accent: #0ea5e9; /* accent-500 */
+
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        background-color: var(--app-splash-surface);
+        font-family:
+          'Inter',
+          'Noto Sans TC',
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+      }
+
+      .app-splash__brand {
+        margin: 0;
+        color: var(--app-splash-ink);
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+      }
+
+      .app-splash__dots {
+        display: flex;
+        gap: 8px;
+      }
+
+      .app-splash__dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 9999px;
+        background-color: var(--app-splash-accent);
+        animation: app-splash-pulse 1.2s ease-in-out infinite;
+      }
+
+      .app-splash__dot:nth-child(2) {
+        animation-delay: 0.16s;
+      }
+
+      .app-splash__dot:nth-child(3) {
+        animation-delay: 0.32s;
+      }
+
+      @keyframes app-splash-pulse {
+        0%,
+        80%,
+        100% {
+          opacity: 0.25;
+        }
+        40% {
+          opacity: 1;
+        }
+      }
+
+      /* 動畫是唯一的「還在跑」訊號，所以不是關掉而是換成靜態的中間狀態 —— 三個點還在，
+       只是不動。 */
+      @media (prefers-reduced-motion: reduce) {
+        .app-splash__dot {
+          animation: none;
+          opacity: 0.55;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <app-root>
+      <div class="app-splash">
+        <p class="app-splash__brand">CLESSIA</p>
+        <div class="app-splash__dots" role="status" aria-label="載入中">
+          <span class="app-splash__dot"></span>
+          <span class="app-splash__dot"></span>
+          <span class="app-splash__dot"></span>
+        </div>
+      </div>
+    </app-root>
+  </body>
 </html>

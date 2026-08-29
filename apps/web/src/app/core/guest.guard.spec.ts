@@ -10,9 +10,11 @@ import { AuthService, type UserRole } from './auth.service';
 import { guestGuard } from './guest.guard';
 
 function stubAuth(over: { authed?: boolean; roles?: UserRole[]; activeRole?: UserRole | null }) {
+  const authed = over.authed ?? false;
   return {
-    loading: signal(false),
-    isAuthenticated: signal(over.authed ?? false),
+    // guard 只透過這支問結果 —— 它自己保證「等首次載入完成」
+    isAuthenticatedWhenReady: async () => authed,
+    isAuthenticated: signal(authed),
     roles: signal<UserRole[]>(over.roles ?? []),
     activeRole: signal<UserRole | null>(over.activeRole ?? null),
   };
