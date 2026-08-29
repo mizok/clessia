@@ -16,7 +16,10 @@ type ResourceType =
   | 'contact_book_entry'
   | 'class_log'
   | 'billing_period'
-  | 'fee_template';
+  | 'fee_template'
+  | 'invoice'
+  | 'payment_record'
+  | 'session_pack';
 
 export interface AuditLogParams {
   orgId: string;

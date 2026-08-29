@@ -117,7 +117,7 @@ const AREAS = [
     // 現在只有 API 與 schema。現況表因此三個角色都會顯示未開始，那是正確的。
     name: '計費',
     pages: [],
-    routes: ['billing-periods', 'fee-templates'],
+    routes: ['billing-periods', 'fee-templates', 'invoices', 'session-packs'],
     specs: [],
   },
   {
