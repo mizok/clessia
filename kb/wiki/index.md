@@ -1,6 +1,6 @@
 # Clessia Wiki — Index
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-28
+> Auto-maintained by `kb:map`. Last updated: 2026-08-29
 
 ---
 
@@ -47,10 +47,14 @@
 - [[lessons/rls-backstop-drift]] — 業務表該一律啟用 RLS 當 fail-closed 後盾，但 30 張裡有 16 張沒開——早期的都有、後期新增的都沒有，而沒有任何東西會提醒。
 - [[lessons/status-table-blind-spot]] — 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
 
-## Rules (2)
+## Rules (6)
 
 - [[rules/attendance-rules]] — 本文件整理 PRD 8.3-8.4，定義出勤模式、系統推算邏輯、人工修改權限與請假處理規則，作為到班/點名模組的核心行為準則。
+- [[rules/billing-rules]] — 內部人訪談定案的金流業務規則：三種計費模式（月繳/期繳/堂數制）、金額永遠可人工覆寫（不做折扣引擎）、插班退班共用比例試算、帳單與收款一對多、欠繳只做可見性不做強制。
+- [[rules/contact-book-rules]] — 內部人訪談定案：每生每日唯一一則自由文字（不分科目）、班級層級開關（低年級用、國中以上不用）、帶班老師撰寫可共編、家長按鈕簽收（記人與時間）且老師看得到已讀狀態。
 - [[rules/enrollment-rules]] — 本文件整理 PRD 8.9，定義報名審核、繳費狀態、寬限期、直接報名與通知規範，供報名與財務流程實作統一依循。
+- [[rules/meal-rules]] — 內部人訪談定案：訂餐與出席解耦（有上課不一定訂餐）、每生每日一筆餐記錄（單價在筆上、收不收費是人工開關）、月底加總開帳單；請假只提示不自動改餐記錄。
+- [[rules/teaching-log-rules]] — 訪談最大發現：各科老師的教務日誌（教學紀錄+作業安排）現靠紙本拍照進 LINE 相簿、行政再轉貼到年級群組，粒度錯誤導致沒修課的學生也收到作業；系統應以班級名冊為粒度，日誌發布即自動送達該班家長端＋推播。
 
 ## Specs (46)
 
@@ -101,6 +105,10 @@
 - [[specs/teacher/schedule]] — 查看自己任課的課堂，進入課堂詳情。
 - [[specs/teacher/students]] — 查看自己任課班級的學生名單。
 
+## Sources (1)
+
+- [[summaries/interview-insider-2026-08-29]] — 目標補習班內部員工的一手訪談（20 題，透過使用者當傳聲筒），P1 資料模型的主要輸入。
+
 ---
 
-**Total: 79 pages**
+**Total: 83 pages**

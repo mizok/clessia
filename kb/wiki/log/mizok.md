@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 51 info
+- Mode: structural
+- Pages scanned: 91
+- Issues found: 51
+
+## [2026-08-29] ingest | 內部人訪談（20 題）→ 4 頁 rules
+
+- Sources: raw/sources/interview-insider-2026-08-29.md（本 KB 第一份 raw source）
+- Pages created: [[rules/billing-rules]]、[[rules/meal-rules]]、
+  [[rules/contact-book-rules]]、[[rules/teaching-log-rules]]、
+  [[summaries/interview-insider-2026-08-29]]
+- Pages updated: [[roadmap]]（訪談完成、P1 schema 清單補教務日誌）
+- Key findings: (1) 金流不需要規則引擎 —— 折扣是議價不是規則；
+  (2) 教務日誌是原本不在功能表上的痛點，年級粒度錯發作業，班級名冊就是解法；
+  (3) 多分校決定被雙重驗證（行政跨校支援 + 老闆要跨校彙總）
+
+## [2026-08-29] map | Rebuilt index + 5 MOCs
+
+- Pages indexed: 83
+- Total links: 87
+- Orphan pages: 64
+
 ## [2026-08-29] roadmap | 三個範圍決策拍板，P1 解除封鎖
 
 - 聯絡簿：**做**（P1 schema 含它）；LINE 推播：**做**（Messaging API，另一個 channel，歸 P4）
