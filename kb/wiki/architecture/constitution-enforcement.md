@@ -3,7 +3,7 @@ title: 憲法強制機制索引
 summary: 每條 clause 用什麼機制守、在哪一層擋、目前接上了沒有。改機制不算修法。
 category: architecture
 status: active
-updated: 2026-08-11
+updated: 2026-08-29
 tags: [architecture, constitution-enforcement]
 ---
 
@@ -18,9 +18,9 @@ tags: [architecture, constitution-enforcement]
 由左到右，越右邊越權威、越難繞過：
 
 ```
-編輯當下              收工當下                 人工 review
-PreToolUse guard  →   Stop verify gate    →    程式碼審查
-（exit 2 擋寫入）      （exit 2 擋收工）         （Semantic 條款）
+編輯當下              收工當下              push 當下            人工 review
+PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼審查
+（exit 2 擋寫入）      （exit 2 擋收工）      （唯一繞不過的）      （Semantic 條款）
 ```
 
 - **PreToolUse guard**（`tools/agent-harness/hooks/pre-tool-use.mjs`）
@@ -34,6 +34,11 @@ PreToolUse guard  →   Stop verify gate    →    程式碼審查
   `stop_hook_active` 時直接放行（防 live-lock，代價是每條 stop chain 最多強制修一輪）。
   測試部分走**基線比對**（`test-gate.mjs` + `test-baseline.json`）：只擋這一輪新弄壞的 spec，
   既有紅燈只警告。基線是債務，清一支移除一支。
+- **CI verify**（`.github/workflows/verify.yml`）—— 掛在**所有分支的 push** 上，
+  跑 harness / harness self-test / typecheck / test / **web production build**。
+  本機那三層都繞得過（heredoc 寫檔不觸發 PreToolUse、`CLESSIA_STOP_GATE=0`、
+  `git commit --no-verify`、直接關掉 hook），這層繞不過 —— 它才是真正的把關。
+  刻意用 `run-many` 而不是 `affected`（`defaultBase` 是不存在的 `dev`）。
 - **Harness gate**（`npm run harness`）—— 文件與現實是否同步，見下方 A1–A10。
 
 ## 條款 → 機制
@@ -115,6 +120,8 @@ PreToolUse guard  →   Stop verify gate    →    程式碼審查
   當時累積的 19 個型別錯誤已全數清除。**typecheck 與 test 在 gate 裡分開跑** ——
   typecheck 的輸出沒有 vitest 的 `FAIL <spec>` 行，混在一起會讓基線比對把型別錯誤當成沒事放行。
 - `apps/web` 仍然沒有獨立的 typecheck target（型別檢查目前只在 build 時發生）。
+  **CI 已補上 `nx build web --configuration=production`**（放在序列最後，模板型別錯誤靠它抓），
+  但 Stop gate 沒有 —— 本機收工時模板錯誤照樣過得去，要到 push 才紅。
 - 專案沒有 eslint。PostToolUse hook 只跑 prettier；沒有任何 lint 層。
 - `nx.json` 的 `defaultBase` 是 `dev`，但該 branch 不存在 → 所有 `nx affected` 都得手動帶
   `--base=main`（Stop gate 已經這樣寫死）。
