@@ -28,7 +28,7 @@ Links to: [[summaries/interview-insider-2026-08-29]], [[roadmap]], [[rules/teach
 
 ## [[rules/enrollment-rules|報名與繳費規則]]
 
-本文件整理 PRD 8.9，定義報名審核、繳費狀態、寬限期、直接報名與通知規範，供報名與財務流程實作統一依循。
+報名審核、繳費關聯與直接報名規範。2026-08-29 依訪談定案的 billing-rules 對齊：繳費狀態由收款推導（三態）、單一 due_date 無寬限期機制、金額調整是議價不是折扣類型。
 
 Tags: `rules`, `enrollment-rules`
 
