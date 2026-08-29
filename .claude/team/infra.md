@@ -176,6 +176,26 @@ harness 缺席時只印警告不紅燈。
   想加的話那是這一席的事，但先問：多一層要有人維護。
 - **`nx affected` 一律自己帶 `--base=main`。**
 
+## 六、接工單的查證習慣
+
+**工單指名的目標本身也要查證，不是只查它描述的問題。** 派工的人看到的症狀通常是對的，
+但他歸因的那個具體目標可能不是。
+
+實例（2026-08-29，PR #68）：工單說「繳費功能區的 routes 缺 `invoices`」。症狀正確
+（繳費被誤判成 🚧 空殼），但 `invoices` 不是答案 —— web 端當時沒有任何程式碼碰
+`/api/invoices`，真正接上的是 `fee-templates` 與 `billing-periods`。
+照工單補會讓「已掛載 API」欄位宣稱一條不存在的連線。
+
+兩件從這裡長出來的事：
+
+- **認領表反映的是「連線」不是「主題」。** `feature-map.mjs` 的「已掛載 API」語意是
+  「**這區的頁面接得到幾支**」，不是「這個主題有幾支 API」。所以認領前要去看頁面實際
+  import 了哪些 `@core/<domain>.service`，不是看名字像不像。
+  這也是「課務異動認領 `sessions`」那條註解的原意。
+- **時間差要問清楚。** 你查的是 `main`，但別席可能有 in-flight PR 正要新增你判定「不存在」
+  的東西。上面那次就是：`core/invoices.service.ts` 在 admin-pages 席的待合 PR 裡。
+  查證結論要標明「以哪個 commit 的 main 為準」，並回報時直接問有沒有相關的待合 PR。
+
 ## 已知缺口（接手時的待辦池 —— 這節會過期，接手第一件事：重寫它）
 
 - `apps/web` 沒有獨立的 typecheck target。CI 已用 production build 補上，
@@ -185,3 +205,5 @@ harness 缺席時只印警告不紅燈。
 - hook-only clause 對存量零覆蓋：c2 / c3 / c7 / c8 只有 hook 沒有 gate（c6 的 A12 是範本）。
 - `nx.json` 的 `defaultBase` 指向不存在的 `dev`。
 - `test-baseline.json` 裡的既有紅燈是債務。
+- **等 admin-pages 席的繳費頁 PR 合併後，`feature-map.mjs` 的「繳費」要補一行 `'invoices'`**
+  —— 那支 PR 會新增 `core/invoices.service.ts`，屆時這條連線才真的存在（見第六節）。

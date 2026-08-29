@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { formatGenerated } from './lib/format.mjs';
 import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import { matchWriteRules, routeHints } from './lib/rules.mjs';
@@ -215,4 +216,12 @@ test('使用者層級 skill 缺席只警告，exit code 仍是 0', () => {
   assert.equal(run.status, 0, `缺 skill 不該讓 gate 紅：\n${run.stderr}`);
   assert.match(run.stderr, /kb-wiki 是使用者層級 skill/);
   assert.match(run.stdout, /harness gate 全綠/);
+});
+
+// 格式化是 --write 的收尾，不是它的目的。prettier 掛掉（沒裝、逾時、路徑不存在）時
+// 必須讓重生成照樣算成功 —— 否則一個格式化問題會偽裝成「現況表重生失敗」。
+test('formatGenerated 失敗只警告，不往上拋', () => {
+  assert.doesNotThrow(() =>
+    formatGenerated(['this-file-does-not-exist-anywhere.md'], dirname(fileURLToPath(import.meta.url))),
+  );
 });
