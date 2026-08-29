@@ -27,8 +27,17 @@ PLACEHOLDER_EMAIL_DOMAIN = "phone.internal"
 name = "clessia-api-production"
 
 [env.production.vars]
+# ⚠️ 這裡必須列出**全部**非機密設定 —— wrangler 的 env 不繼承頂層 vars，而用 `--var`
+# 跟著部署指令給的值**只活在那一次部署**：下一個人裸跑 `wrangler deploy` 就會把它們
+# 全部丟掉（2026-08-29 就這樣把正式站的 LINE 登入弄斷了 —— PROVIDER_NOT_FOUND）。
+# 機密（DATABASE_URL 等四個）走 `wrangler secret put`，跨部署保留，不在這裡。
 ENVIRONMENT = "production"
 PLACEHOLDER_EMAIL_DOMAIN = "phone.internal"
+WEB_URL = "https://demo.clessia.cc"
+BETTER_AUTH_URL = "https://demo.clessia.cc"
+ALLOWED_ORIGINS = ""
+SUPABASE_URL = "https://hjzfitxusqvpllpjtkkf.supabase.co"
+LINE_CLIENT_ID = "2011235423"
 # WEB_URL / BETTER_AUTH_URL / ALLOWED_ORIGINS / SUPABASE_URL 由部署時設定：
 #   npx wrangler deploy --env production \
 #     --var WEB_URL:https://xxx.pages.dev \
