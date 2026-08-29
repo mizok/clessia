@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
+import { resolveDisplayName, updateDisplayName } from '../lib/display-name';
 
 const MeResponseSchema = z
   .object({
@@ -50,18 +51,27 @@ app.openapi(
     const userId = c.get('userId');
     const orgId = c.get('orgId');
 
-    const [profileResult, rolesResult, staffResult, baUserResult] = await Promise.all([
-      supabase.from('profiles').select('display_name').eq('id', userId).single(),
-      supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
-      supabase.from('staff').select('birthday').eq('user_id', userId).maybeSingle(),
-      supabase.from('ba_user').select('email, phone, username').eq('id', userId).single(),
-    ]);
+    const [profileResult, rolesResult, staffResult, parentResult, baUserResult] = await Promise.all(
+      [
+        supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
+        supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
+        supabase.from('staff').select('display_name, birthday').eq('user_id', userId).maybeSingle(),
+        supabase.from('parents').select('name').eq('user_id', userId).maybeSingle(),
+        supabase.from('ba_user').select('name, email, phone, username').eq('id', userId).single(),
+      ],
+    );
 
     return c.json(
       {
         userId,
         orgId,
-        displayName: (profileResult.data?.display_name ?? '') as string,
+        // profiles 不是可靠的來源 —— 見 lib/display-name.ts
+        displayName: resolveDisplayName({
+          profile: profileResult.data,
+          staff: staffResult.data,
+          parent: parentResult.data,
+          baUser: baUserResult.data,
+        }),
         email: (baUserResult.data?.email as string | null) ?? null,
         phone: (baUserResult.data?.phone as string | null) ?? null,
         birthday: (staffResult.data?.birthday as string | null) ?? null,
@@ -106,7 +116,7 @@ app.openapi(
     const body = c.req.valid('json');
 
     if (body.displayName !== undefined) {
-      await supabase.from('profiles').update({ display_name: body.displayName }).eq('id', userId);
+      await updateDisplayName(supabase, userId, body.displayName);
     }
 
     if (body.email !== undefined) {
@@ -140,18 +150,26 @@ app.openapi(
       await supabase.from('staff').update({ birthday: body.birthday }).eq('user_id', userId);
     }
 
-    const [profileResult, rolesResult, staffResult, baUserResult] = await Promise.all([
-      supabase.from('profiles').select('display_name').eq('id', userId).single(),
-      supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
-      supabase.from('staff').select('birthday').eq('user_id', userId).maybeSingle(),
-      supabase.from('ba_user').select('email, phone, username').eq('id', userId).single(),
-    ]);
+    const [profileResult, rolesResult, staffResult, parentResult, baUserResult] = await Promise.all(
+      [
+        supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
+        supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
+        supabase.from('staff').select('display_name, birthday').eq('user_id', userId).maybeSingle(),
+        supabase.from('parents').select('name').eq('user_id', userId).maybeSingle(),
+        supabase.from('ba_user').select('name, email, phone, username').eq('id', userId).single(),
+      ],
+    );
 
     return c.json(
       {
         userId,
         orgId: c.get('orgId'),
-        displayName: (profileResult.data?.display_name ?? '') as string,
+        displayName: resolveDisplayName({
+          profile: profileResult.data,
+          staff: staffResult.data,
+          parent: parentResult.data,
+          baUser: baUserResult.data,
+        }),
         email: (baUserResult.data?.email as string | null) ?? null,
         phone: (baUserResult.data?.phone as string | null) ?? null,
         birthday: (staffResult.data?.birthday as string | null) ?? null,
