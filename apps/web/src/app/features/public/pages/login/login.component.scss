@@ -28,7 +28,6 @@
   margin: auto;
 
   &__card {
-    position: relative;
     overflow: hidden;
     padding: var(--space-8) var(--space-6) var(--space-6);
     background: var(--color-white);
@@ -39,17 +38,6 @@
       0 1px 2px rgb(24 24 27 / 4%),
       0 12px 32px -12px rgb(14 165 233 / 18%);
     animation: login-rise 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  }
-
-  // 卡片上緣的 accent 細線 —— 把 logo 遮掉也認得出是同一個產品
-  &__card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    left: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--accent-400), var(--accent-600));
   }
 
   &__brand {
@@ -68,7 +56,8 @@
     color: var(--zinc-900);
   }
 
-  // 唯一的裝飾。跟卡片頂端那條 accent 細線是同一個 accent 在垂直方向的兩次出現。
+  // 整張卡片唯一的一點顏色，其餘全是 Zinc。
+  // （卡片頂端本來還有一條 accent 細線，2026-08-29 使用者判定不需要，拿掉了。）
   &__wordmark-dot {
     color: var(--accent-500);
   }
