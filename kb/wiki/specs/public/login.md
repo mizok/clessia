@@ -25,8 +25,9 @@ tags: [specs, public, login, oauth, line]
 
 一張置中的品牌卡片，由上而下：
 
-1. **品牌區**：Clessia 字標與標誌，加一句場景 tagline
-   「課表、出缺席、成績、繳費 —— 補習班日常的一個入口」
+1. **品牌區**：只有 `Clessia` 這個純文字字標，結尾一個 accent 色的句點。
+   **刻意沒有圖形 logo** —— 真的 logo 是之後的品牌工作，與其擺一個佔位方塊不如不擺
+   （2026-08-29 拿掉了原本那個藍色圓角「C」）。也沒有 tagline，使用者判定不需要。
 2. **一顆「使用 LINE 登入」按鈕**，LINE 官方綠 `#06C755`
    （進行中會鎖住並顯示「前往 LINE...」）
 3. 錯誤時在按鈕上方顯示 inline notice；`signup_disabled` 另外露出報名連結（見下節）
@@ -46,17 +47,17 @@ tags: [specs, public, login, oauth, line]
 用在「使用 LINE 登入」按鈕上屬於商標的指示性使用 —— 它指出的正是「用 LINE 帳號登入」
 這件事實，也是 LINE 要求開發者做的事。**不要拿它去做別的**（頁首、看板、行銷素材都不行）。
 
-素材是白色的，而按鈕是白底，直接放會消失。所以用 CSS mask 把官方形狀染成
-`currentColor`：
+素材是白色的，而按鈕是白底，直接放會消失。做法是**綠底 chip（`#06C755`、26px、
+圓角）裡放白色官方 icon（18px）** —— 重現 LINE app 圖示的長相，那才是家長認得的形狀。
+chip 的綠固定不隨 hover 變，logo 的顏色不該跟著互動狀態跑。
 
-```scss
-background-color: currentcolor;
-mask: url('/assets/brand/line-logo.png') center / contain no-repeat;
-```
+> **一個被實證否決的做法**：先前試過用 CSS mask 把官方形狀染成品牌綠
+> （`mask: url(...)` + `background-color: currentcolor`），理由是使用者說過「icon 同綠」。
+> 部署後看實機截圖才發現：`line_88.png` 是白泡泡加**鏤空的字**，染成單色之後
+> 在 24px 下就是一團綠色圓角塊，認不出是 LINE。推理輸給截圖，2026-08-29 換回 chip 做法。
 
-**形狀一個像素都沒動**，顏色仍是 LINE 品牌綠；而且 icon 會跟著按鈕的文字色一起
-hover 變深，不必為那個狀態多寫一條規則。素材包裡整顆的 `btn_login_*.png`
-（實心綠 + 英文字）沒有採用 —— 使用者要的是白底綠框的中文按鈕。
+素材包裡整顆的 `btn_login_*.png`（實心綠 + 英文字）沒有採用 ——
+使用者要的是白底綠框的中文按鈕。
 
 ### 按鈕樣式：白底綠框，不是官方的實心綠
 
