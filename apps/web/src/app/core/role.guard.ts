@@ -7,11 +7,7 @@ export function roleGuard(...allowed: UserRole[]): CanActivateFn {
     const auth = inject(AuthService);
     const router = inject(Router);
 
-    while (auth.loading()) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-
-    if (!auth.isAuthenticated()) {
+    if (!(await auth.isAuthenticatedWhenReady())) {
       return router.createUrlTree(['/login']);
     }
 

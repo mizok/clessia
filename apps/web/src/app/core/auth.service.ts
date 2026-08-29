@@ -46,6 +46,14 @@ export class AuthService {
   readonly loading = this._loading.asReadonly();
   readonly isAuthenticated = computed(() => !!this._user());
 
+  /**
+   * 首次載入完成的訊號。**guard 靠它取代輪詢** —— 在這之前 `isAuthenticated()` 還是
+   * 初始值，誰讀誰得到錯的答案（已登入的人會被判定成沒登入、彈去 /login）。
+   *
+   * 一定會 resolve，連線失敗也一樣：卡住的話整個 app 就進不去了。
+   */
+  readonly ready: Promise<void>;
+
   private readonly shellMap: Record<UserRole, string> = {
     admin: '/admin',
     teacher: '/teacher',
@@ -53,21 +61,37 @@ export class AuthService {
   };
 
   constructor() {
-    void this.init();
+    this.ready = this.init();
   }
 
-  private async init() {
+  /**
+   * 開站只打**一趟** `/api/me`：200 就是已登入（身分、角色、權限一次拿齊），
+   * 401 就是未登入。
+   *
+   * 原本是先 `getSession()` 再 `await loadProfile()` 兩趟**序列**往返，而 guard 在
+   * 期間用 50ms 輪詢空轉、路由不放行 —— 每一趟都是 Worker → 東京 Postgres，
+   * 已登入的人開站看到一兩秒白畫面。`/api/me` 本來就會驗 session，多問一次沒有換到
+   * 任何資訊。
+   */
+  private async init(): Promise<void> {
     try {
-      const { data: session } = await authClient.getSession();
-      if (session?.user) {
-        this._user.set(session.user);
-        await this.loadProfile();
+      if (!(await this.loadProfile())) {
+        this._user.set(null);
       }
-    } catch {
-      // No session - user not logged in
     } finally {
       this._loading.set(false);
     }
+  }
+
+  /**
+   * guard 專用：等首次載入完成之後才回報登入狀態。
+   *
+   * 存在的理由是「先等再讀」這個順序很容易被寫掉 —— 兩個 guard 各自 `await` 再各自
+   * 讀 signal 的話，哪天有人少寫一行 await 也不會有人發現，症狀是偶發的登出彈跳。
+   */
+  async isAuthenticatedWhenReady(): Promise<boolean> {
+    await this.ready;
+    return this.isAuthenticated();
   }
 
   /**
@@ -84,6 +108,7 @@ export class AuthService {
         this.http.get<MeResponse>(`${environment.apiUrl}/api/me`, { withCredentials: true }),
       );
 
+      this._user.set({ id: me.userId, email: me.email, name: me.displayName });
       this._profile.set({
         id: me.userId,
         display_name: me.displayName,

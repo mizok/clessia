@@ -77,7 +77,8 @@ describe('app.routes —— /select-role 的可達性', () => {
         {
           provide: AuthService,
           useValue: {
-            loading: signal(false),
+            // guard 問的是這支（它自己保證等首次載入完成），不是 loading + isAuthenticated
+            isAuthenticatedWhenReady: async () => true,
             isAuthenticated: signal(true),
             roles: signal<UserRole[]>(['admin', 'teacher']),
             activeRole: signal<UserRole | null>(null),
