@@ -9,23 +9,24 @@
       </a>
       <h2 class="public-shell__tagline">學程管家</h2>
       <p class="public-shell__slogan">讓學習旅程更輕鬆</p>
-
-      <nav class="public-shell__nav">
-        @for (item of publicRoutes; track item.absolutePath) {
-          <a
-            class="public-shell__nav-link"
-            [routerLink]="item.absolutePath"
-            routerLinkActive="public-shell__nav-link--active"
-            [routerLinkActiveOptions]="
-              item.absolutePath === '/login' ? { exact: true } : { exact: false }
-            "
-          >
-            <i class="pi {{ item.icon }}"></i>
-            <span>{{ item.label }}</span>
-          </a>
-        }
-      </nav>
     </div>
+
+    <!-- 公開頁的入口是一排輕量連結，不是一份選單清單。
+         四個項目撐不起一個側邊選單，而選單的體積會把品牌面壓成導航面。 -->
+    <nav class="public-shell__links">
+      @for (item of publicRoutes; track item.absolutePath) {
+        <a
+          class="public-shell__link"
+          [routerLink]="item.absolutePath"
+          routerLinkActive="public-shell__link--active"
+          [routerLinkActiveOptions]="
+            item.absolutePath === '/login' ? { exact: true } : { exact: false }
+          "
+        >
+          {{ item.label }}
+        </a>
+      }
+    </nav>
 
     <p class="public-shell__copyright">&copy; 2025 Clessia Academy</p>
 

@@ -14,8 +14,11 @@ import { StudentsService } from '@core/students.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
 import { DashboardComponent } from './dashboard.component';
+import { format } from 'date-fns';
 
-const TODAY = new Date().toISOString().slice(0, 10);
+// 用本地時區算「今天」，跟元件的 date-fns format 一致 ——
+// toISOString() 是 UTC，在 UTC+8 的凌晨那幾小時會跟元件差一天，測試就假紅。
+const TODAY = format(new Date(), 'yyyy-MM-dd');
 /** 回溯窗裡「已經結束」的那一天 —— 今天的課還沒上完，不算漏點名 */
 const YESTERDAY = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 

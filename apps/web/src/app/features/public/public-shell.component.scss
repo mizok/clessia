@@ -13,7 +13,9 @@
 
 .public-shell {
   display: grid;
-  grid-template-columns: 420px 1fr;
+  // 比例制而不是固定 420px —— 固定寬在寬螢幕上只佔四分之一，
+  // 構圖就從「兩個大面」塌成「窄側欄 + 一片空白」。
+  grid-template-columns: minmax(340px, 40%) 1fr;
   height: var(--window-height, 100dvh);
   overflow: hidden;
 
@@ -26,7 +28,6 @@
     isolation: isolate;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
     height: var(--window-height, 100dvh);
     padding: var(--space-8);
     overflow: hidden;
@@ -56,10 +57,6 @@
     z-index: 1;
   }
 
-  &__nav {
-    position: relative;
-    z-index: 1;
-  }
 
   &__logo {
     display: flex;
@@ -84,7 +81,7 @@
   // 中文標題退到說明的位置 —— 它原本是 28px bold，比品牌名還大，
   // 於是這個面的視覺主角變成「學程管家」而不是 Clessia。
   &__tagline {
-    margin: 0 0 var(--space-1) 0;
+    margin: var(--space-4) 0 var(--space-1) 0;
     font-size: var(--text-lg);
     font-weight: var(--font-semibold);
     line-height: var(--leading-tight);
@@ -120,55 +117,42 @@
     }
   }
 
-  &__nav {
+  // 一排輕量連結，靠底部。品牌在上、入口在下，中間留給流場。
+  &__links {
+    position: relative;
+    z-index: 1;
     display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-5);
+    // 貼底：品牌在上、入口在下，中間整片留給流場
+    margin-top: auto;
+    margin-bottom: var(--space-5);
   }
 
-  &__nav-link {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
+  &__link {
+    position: relative;
+    padding-bottom: 2px;
     font-size: var(--text-md);
     font-weight: var(--font-medium);
     color: var(--zinc-900);
     text-decoration: none;
-    border-radius: var(--radius-md);
-    animation: pub-nav-in 0.25s ease both;
+    opacity: 0.72;
+    border-bottom: 1.5px solid transparent;
     transition:
-      color var(--transition-fast),
-      background var(--transition-fast);
+      opacity var(--transition-fast),
+      border-color var(--transition-fast);
+  }
 
-    &:nth-child(1) {
-      animation-delay: 0s;
-    }
-    &:nth-child(2) {
-      animation-delay: 0.07s;
-    }
-    &:nth-child(3) {
-      animation-delay: 0.14s;
-    }
-    &:nth-child(4) {
-      animation-delay: 0.21s;
-    }
+  &__link:hover {
+    opacity: 1;
+    border-bottom-color: rgb(26 22 20 / 40%);
+  }
 
-    i {
-      font-size: 18px;
-      width: 20px;
-      text-align: center;
-    }
-
-    &:hover {
-      background: rgb(255 255 255 / 30%);
-    }
-
-    // 目前這一頁：白色實底 + 近黑字，在橘面上是最清楚的「你在這裡」
-    &--active {
-      background: var(--color-white);
-      font-weight: var(--font-semibold);
-    }
+  // 目前這一頁：底線畫實、不透明。在橘面上這比色塊乾淨。
+  &__link--active {
+    opacity: 1;
+    font-weight: var(--font-semibold);
+    border-bottom-color: var(--zinc-900);
   }
 
   &__copyright {
@@ -262,8 +246,10 @@
     align-items: center; // Vertical centering
     justify-content: center;
     height: var(--window-height, 100dvh);
-    padding: var(--space-8);
-    background: var(--zinc-50);
+    padding: var(--space-10);
+    // 這一面**就是**白色半屏，不是「放卡片的地方」。原本是米白底，
+    // 於是每一頁都得自己長一張白卡浮在上面 —— 構圖因此散掉。
+    background: var(--color-white);
     overflow-y: auto;
 
     /* router-outlet 插入的 host element 不應影響佈局 */
@@ -338,7 +324,7 @@
     &__tagline,
     &__slogan,
     &__features,
-    &__nav,
+    &__links,
     &__copyright {
       display: none;
     }

@@ -20,17 +20,10 @@
   // hover 不該把它變回實心。
   --line-brand-tint: rgb(6 199 85 / 8%);
 
-  // 單欄白卡。品牌面的角色歸 public-shell 的橘色側欄 ——
-  // 卡片再放一塊橘的話，畫面上會有兩個互相打架的品牌宣示。
+  // 沒有卡片外觀。shell 的右半**就是**那面白，表單直接站在上面 ——
+  // 再包一層白底邊框陰影的話，構圖就從「兩個大面」退回「卡片浮在底色上」。
   width: 100%;
-  max-width: 440px;
-  padding: var(--space-10) var(--space-8);
-  background: var(--color-white);
-  border: 1px solid var(--zinc-200);
-  border-radius: var(--radius-xl);
-  box-shadow:
-    0 1px 2px rgb(26 22 20 / 5%),
-    0 8px 24px -12px rgb(26 22 20 / 18%);
+  max-width: 380px;
 
   &__title {
     margin: 0;
