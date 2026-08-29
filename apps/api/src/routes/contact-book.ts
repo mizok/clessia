@@ -1,7 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
-import { loadTeachingScope, taughtStudentIds } from '../lib/teacher-scope';
+import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
+import { missingContactBookStudents, type ContactBookCandidate } from '../lib/contact-book-missing';
 import { logAudit } from '../utils/audit';
 
 /**
@@ -143,7 +144,9 @@ app.openapi(
 
     return c.json(
       {
-        data: (data ?? []).map((row) => toContactBookEntryResponse(row as unknown as Record<string, unknown>)),
+        data: (data ?? []).map((row) =>
+          toContactBookEntryResponse(row as unknown as Record<string, unknown>),
+        ),
         meta: { total: count ?? 0 },
       },
       200,
@@ -229,6 +232,131 @@ app.openapi(
     );
 
     return c.json(response, 200);
+  },
+);
+
+// ============================================================
+// GET /api/contact-book/missing?date=YYYY-MM-DD
+//
+// 「這一天該寫但還沒寫的學生」。差集算在**伺服器端**，不是讓前端拿現有 API 自己拼 ——
+// 前端拼要自己處理「班級清單沒有 usesContactBook 篩選」與「分頁截斷」，兩個都會靜靜地
+// 漏掉班級，而漏掉的那一班不會有任何跡象。
+//
+// **每生一列，不是每班一列**（理由見 lib/contact-book-missing.ts）。
+// ============================================================
+
+const MissingResponseSchema = z
+  .object({
+    data: z.array(
+      z.object({
+        studentId: z.uuid(),
+        studentName: z.string(),
+        /** 脈絡：這個學生在哪些開了聯絡簿的班。要寫的仍然只有一則 */
+        classes: z.array(z.object({ classId: z.uuid(), className: z.string() })),
+      }),
+    ),
+    meta: z.object({ total: z.number() }),
+  })
+  .openapi('ContactBookMissingResponse');
+
+app.openapi(
+  createRoute({
+    method: 'get',
+    path: '/missing',
+    tags: ['ContactBook'],
+    summary: '某一天該寫但還沒寫聯絡簿的學生',
+    request: {
+      query: z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    },
+    responses: {
+      200: {
+        description: 'OK',
+        content: { 'application/json': { schema: MissingResponseSchema } },
+      },
+      403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const { date } = c.req.valid('query');
+
+    const scope = await loadTeachingScope(supabase, {
+      orgId,
+      userId: c.get('userId'),
+      roles: c.get('roles') ?? [],
+    });
+    if ('forbidden' in scope) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
+
+    // 老師只看自己固定任課的班。沒有任何班就回空 —— 不是回全部（c1：範圍限制在伺服器）
+    let taught: string[] | null = null;
+    if (scope.teacherStaffId) {
+      taught = await taughtClassIds(supabase, orgId, scope.teacherStaffId);
+      if (taught.length === 0) {
+        return c.json({ data: [], meta: { total: 0 } }, 200);
+      }
+    }
+
+    // `classes!inner` + 對嵌套欄位下條件 = 一趟就把「開了聯絡簿的班的在籍學生」撈齊
+    let candidateQuery = supabase
+      .from('enrollments')
+      .select('student_id, class_id, students(name), classes!inner(name, uses_contact_book)')
+      .eq('org_id', orgId)
+      .in('status', ['active', 'pending_payment'])
+      .eq('classes.uses_contact_book', true);
+
+    if (taught) candidateQuery = candidateQuery.in('class_id', taught);
+
+    const [
+      { data: candidateRows, error: candidateError },
+      { data: writtenRows, error: writtenError },
+      { data: sessionRows, error: sessionError },
+    ] = await Promise.all([
+      candidateQuery,
+      supabase
+        .from('contact_book_entries')
+        .select('student_id')
+        .eq('org_id', orgId)
+        .eq('entry_date', date),
+      // 「今天該寫」綁的是「這個班今天有課」—— 停課與非上課日不列入
+      supabase
+        .from('sessions')
+        .select('class_id, status')
+        .eq('org_id', orgId)
+        .eq('session_date', date),
+    ]);
+
+    if (candidateError || writtenError || sessionError) {
+      return c.json({ error: '讀取聯絡簿缺漏名單失敗', code: 'DB_ERROR' }, 500);
+    }
+
+    const candidates: ContactBookCandidate[] = (
+      (candidateRows ?? []) as unknown as Record<string, unknown>[]
+    ).map((row) => ({
+      studentId: row['student_id'] as string,
+      studentName: (row['students'] as { name?: string } | null)?.name ?? '',
+      classId: row['class_id'] as string,
+      className: (row['classes'] as { name?: string } | null)?.name ?? '',
+    }));
+
+    const written = new Set(
+      ((writtenRows ?? []) as unknown as Record<string, unknown>[]).map(
+        (row) => row['student_id'] as string,
+      ),
+    );
+
+    const sessionsOnDate = ((sessionRows ?? []) as unknown as Record<string, unknown>[]).map(
+      (row) => ({ classId: row['class_id'] as string, status: row['status'] as string }),
+    );
+
+    const missing = missingContactBookStudents(candidates, written, sessionsOnDate);
+
+    return c.json({ data: missing, meta: { total: missing.length } }, 200);
   },
 );
 

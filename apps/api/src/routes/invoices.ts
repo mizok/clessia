@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { deriveInvoiceStatus, invoiceTotals } from '../lib/invoice-status';
+import { sliceDerivedPage } from '../lib/derived-page';
 
 /**
  * 帳單、明細、收款、催繳。
@@ -134,11 +135,17 @@ const app = new OpenAPIHono<AppEnv>();
 // ============================================================
 // GET /api/invoices
 //
-// `overdue=true` 是**欠繳工作清單**：過了 due_date 且還沒繳清。「繳清了沒」是推導值，
-// DB 濾不掉，所以那條路徑會把符合日期條件的全部撈回來再篩、再自己切頁 —— 逾期未繳的
-// 帳單是行政要一張張處理的清單（數十筆的量級），不是無上限的歷史資料。
+// **分頁有兩條路徑，因為狀態是推導值。**
 //
-// 沒有帶推導條件時走一般的 DB 分頁，那條才是會長大的路徑。
+// `status`（未繳／部分繳／繳清）與 `overdue`（過了 due_date 且還沒繳清）都要先把
+// items 與 payments 加總出來才知道，DB 濾不掉。帶了任一個就走「全撈 → 篩 → 自己切頁」；
+// 那是行政要一張張處理的工作清單（數十筆的量級），不是無上限的歷史資料。
+//
+// 沒帶推導條件時走一般的 DB 分頁 —— 那條才是會長大的路徑，`total` 取 `count: 'exact'`。
+//
+// ⚠️ 兩條路徑的 `meta.total` 都必須是**篩後全體**的筆數。切頁之後才數是這裡踩過的坑：
+// 除了最後一頁以外 total 永遠等於 pageSize，前端算出來的總頁數就永遠是 1 或 2。
+// 推導那條的切頁固定在 `lib/derived-page.ts`，就是為了讓那個順序有地方被測。
 // ============================================================
 app.openapi(
   createRoute({
@@ -150,6 +157,10 @@ app.openapi(
       query: z.object({
         studentId: z.uuid().optional(),
         overdue: z.string().optional().openapi({ description: 'true = 只看過期未繳清' }),
+        status: z
+          .enum(['unpaid', 'partial', 'paid'])
+          .optional()
+          .openapi({ description: '推導出來的狀態，與 overdue 可並用' }),
         page: z.string().optional(),
         pageSize: z.string().optional(),
       }),
@@ -176,32 +187,39 @@ app.openapi(
     const page = Math.max(1, Number(params.page ?? 1));
     const pageSize = Math.min(200, Math.max(1, Number(params.pageSize ?? 20)));
     const overdue = params.overdue === 'true';
+    // 兩個都是推導條件 —— 帶了任一個就不能讓 DB 分頁，否則被篩掉的那些會在頁與頁之間留洞
+    const derivedFilter = overdue || Boolean(params.status);
 
-    let query = supabase.from('invoices').select(INVOICE_SELECT).eq('org_id', orgId);
+    let query = supabase
+      .from('invoices')
+      .select(INVOICE_SELECT, derivedFilter ? undefined : { count: 'exact' })
+      .eq('org_id', orgId);
     if (params.studentId) query = query.eq('student_id', params.studentId);
-    if (overdue) {
-      query = query.lt('due_date', new Date().toISOString().slice(0, 10));
-    } else {
-      query = query.range((page - 1) * pageSize, page * pageSize - 1);
-    }
+    if (overdue) query = query.lt('due_date', new Date().toISOString().slice(0, 10));
+    if (!derivedFilter) query = query.range((page - 1) * pageSize, page * pageSize - 1);
 
-    const { data, error } = await query.order('issued_at', { ascending: false });
+    const { data, error, count } = await query.order('issued_at', { ascending: false });
 
     if (error) {
       return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
     }
 
-    let rows = (data ?? []).map((row) =>
+    const mapped = (data ?? []).map((row) =>
       toInvoiceResponse(row as unknown as Record<string, unknown>),
     );
-    if (overdue) {
-      rows = rows.filter((invoice) => invoice.status !== 'paid');
+
+    if (!derivedFilter) {
+      // DB 已經切好頁了 —— total 要拿 DB 的總數，不是這一頁的長度
+      return c.json({ data: mapped, meta: { total: count ?? mapped.length, page, pageSize } }, 200);
     }
 
-    const total = rows.length;
-    const pageRows = overdue ? rows.slice((page - 1) * pageSize, page * pageSize) : rows;
+    let rows = mapped;
+    if (overdue) rows = rows.filter((invoice) => invoice.status !== 'paid');
+    if (params.status) rows = rows.filter((invoice) => invoice.status === params.status);
 
-    return c.json({ data: pageRows, meta: { total, page, pageSize } }, 200);
+    const paged = sliceDerivedPage(rows, page, pageSize);
+
+    return c.json({ data: paged.rows, meta: { total: paged.total, page, pageSize } }, 200);
   },
 );
 

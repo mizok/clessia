@@ -16,6 +16,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { formatGenerated } from './lib/format.mjs';
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const ROADMAP = join(ROOT, 'kb/wiki/roadmap.md');
 /**
@@ -145,9 +147,21 @@ const AREAS = [
     specs: ['admin/finance/meals.md', 'parent/meals.md'],
   },
   {
+    // 與「計費」共用這三支 route，跟「課務異動」認領 `sessions` 同一個先例：認領的是
+    // **這區的頁面真的打得到的後端**，不是後端的歸屬。不重複認領的話這區 `routes` 是空的，
+    // 而 `routes.length === 0` 會在 wired 判斷之前就短路成「🚧 空殼」，
+    // 於是一個已經接上後端的頁面被表宣告成空殼。
+    //
+    //   admin/fee-templates → @core/fee-templates.service、@core/billing-periods.service
+    //   admin/payments      → @core/invoices.service
+    //
+    // **`students` 刻意不認領**，雖然 admin/payments 也走 `@core/students.service`：
+    // 那是共用的查詢來源，全 repo 有 8 個功能區的頁面都 import 它，而只有「學生」認領
+    // `students`。共用查詢一律由擁有它的區認領一次，不由每個消費者重複認領 ——
+    // 否則「已掛載 API」會膨脹成「這頁碰過幾張表」，失去「這區接通了沒有」的意義。
     name: '繳費',
     pages: ['admin/payments', 'admin/fee-templates', 'parent/payments'],
-    routes: [],
+    routes: ['fee-templates', 'billing-periods', 'invoices'],
     specs: ['admin/finance/payments.md', 'admin/finance/fee-templates.md', 'parent/payments.md'],
   },
   { name: '報表', pages: ['admin/reports'], routes: [], specs: ['admin/finance/reports.md'] },
@@ -455,6 +469,7 @@ async function main() {
       ROADMAP,
       `${source.slice(0, from + START.length)}\n\n${body}\n\n${source.slice(to)}`,
     );
+    formatGenerated([ROADMAP], ROOT);
     console.log(`✓ 功能區現況表已重生（${AREAS.length} 個功能區）`);
   } else if (normalize(source.slice(from + START.length, to)) !== normalize(body)) {
     console.error('✖ kb/wiki/roadmap.md 的功能區現況表過期。重生：npm run harness:write');
