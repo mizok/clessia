@@ -9,23 +9,30 @@
   --color-black: #000;
 
   /* Zinc Gray Scale */
-  --zinc-50: #fafafa;
-  --zinc-100: #f4f4f5;
-  --zinc-200: #e4e4e7;
-  --zinc-300: #d4d4d8;
-  --zinc-400: #a1a1aa;
-  --zinc-500: #71717a;
-  --zinc-600: #52525b;
-  --zinc-700: #3f3f46;
-  --zinc-800: #27272a;
-  --zinc-900: #18181b;
+  --zinc-50: #faf9f8;
+  --zinc-100: #f5f3f1;
+  --zinc-200: #ebe7e4;
+  --zinc-300: #ddd8d4;
+  --zinc-400: #a89f99;
+  --zinc-500: #786f69;
+  --zinc-600: #57504b;
+  --zinc-700: #3d3733;
+  --zinc-800: #2a2523;
+  --zinc-900: #1a1614;
 
-  /* Accent (Sky Blue) */
-  --accent-50: #f0f9ff;
-  --accent-100: #e0f2fe;
-  --accent-400: #38bdf8;
-  --accent-500: #0ea5e9;
-  --accent-600: #0284c7;
+  /* Accent（暖橘）。階的值由**用途**決定而不是色票順序：
+     50 是 27 處淺背景、400 全是邊框、500 混用（文字 / 邊框 / 白字底色，
+     所以必須對白 >=4.5）、600 有 40 處純文字所以最深。 */
+  --accent-50: #fff0ea;
+  --accent-100: #ffdcce;
+  --accent-400: #ff8557;
+  --accent-500: #c93f14;
+  --accent-600: #a8340f;
+  /* 大面積色面專用。既有的 500/600 被文字對比綁在深色端，亮橘沒有位置，
+     所以新增一階 —— 新 token 不影響任何既有引用。
+     這個面上一律配 --zinc-900 近黑字：亮橘配白字只有 2.85:1，配近黑是 6.32:1。 */
+  --accent-vivid: #ff6a3d;
+  --accent-vivid-2: #ff8557;
 
   /* Semantic Colors */
   --success-100: #dcfce7;

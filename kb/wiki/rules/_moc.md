@@ -32,6 +32,8 @@ Links to: [[summaries/interview-insider-2026-08-29]], [[roadmap]], [[rules/teach
 
 Tags: `rules`, `enrollment-rules`
 
+Links to: [[rules/billing-rules]], [[rules/billing-rules]]
+
 ## [[rules/meal-rules|餐費規則]]
 
 內部人訪談定案：訂餐與出席解耦（有上課不一定訂餐）、每生每日一筆餐記錄（單價在筆上、收不收費是人工開關）、月底加總開帳單；請假只提示不自動改餐記錄。

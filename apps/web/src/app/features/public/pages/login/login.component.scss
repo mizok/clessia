@@ -1,9 +1,8 @@
-// 不再 `@use '../../shared/auth-form'` —— 新版面用自己的卡片，
+// 不再 `@use '../../shared/auth-form'` —— 這一版用自己的雙欄卡片，
 // 而那份 partial 會被整份編進元件樣式（276 行），留著等於白背。
 
 // 這支元件的 host 會被 `.u-fill-route-child > *` 撐滿路由容器的高度
-// （父是 column flex），所以置中要由 host 自己做 —— `.login` 的 `margin: auto`
-// 在 block 佈局下垂直方向會被算成 0，那正是卡片曾經貼在上緣的原因。
+// （父是 column flex），所以置中要由 host 自己做。
 // 高度沿用父鏈的 100%（`public-shell__main` 已經用 `--window-height`），不碰 vh（c6）。
 :host {
   display: flex;
@@ -17,49 +16,96 @@
   // 第三方品牌色不屬於它，而且 LINE 改色的時候我們得跟著改。
   --line-brand: #06c755;
   --line-brand-hover: #05b34c;
-  // hover 的淡綠底。同一個品牌綠，只是壓到 8% ——
-  // 使用者要的是白底綠框的輪廓感，hover 不該把它變回實心。
+  // hover 的淡綠底。同一個品牌綠壓到 8% —— 使用者要的是白底綠框的輪廓感，
+  // hover 不該把它變回實心。
   --line-brand-tint: rgb(6 199 85 / 8%);
-  // 比 --text-3xl(28px) 再大一階。沒有對應的全域 token，也不該為了單一字標新增一個。
-  --wordmark-size: 34px;
 
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
   width: 100%;
-  max-width: 420px;
-  margin: auto;
+  max-width: 900px;
+  overflow: hidden;
+  background: var(--color-white);
+  border-radius: var(--radius-xl);
+  box-shadow:
+    0 1px 2px rgb(26 22 20 / 5%),
+    0 8px 24px -12px rgb(26 22 20 / 18%);
 
-  &__card {
-    overflow: hidden;
-    padding: var(--space-8) var(--space-6) var(--space-6);
-    background: var(--color-white);
-    border: 1px solid var(--zinc-200);
-    border-radius: var(--radius-xl);
-    // 記憶點：卡片浮在一層極淡的 sky 光暈上，不是預設的中性灰陰影
-    box-shadow:
-      0 1px 2px rgb(24 24 27 / 4%),
-      0 12px 32px -12px rgb(14 165 233 / 18%);
-    animation: login-rise 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  }
-
-  &__brand {
-    margin-bottom: var(--space-5);
-    text-align: center;
-  }
-
-  // 沒有圖形 logo —— 真 logo 是之後的品牌工作，與其擺一個佔位方塊不如不擺。
-  // 字標的全部造型就是尺寸、字重與收緊的字距。
-  &__wordmark {
-    margin: 0;
-    font-size: var(--wordmark-size);
-    font-weight: var(--font-bold);
-    line-height: var(--leading-tight);
-    letter-spacing: -0.03em;
+  // ── 左側：會動的橘色場 ────────────────────────────────────
+  &__hero {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--space-12) var(--space-10);
+    // 大面積色面用 vivid 階。這個面上的字一律是近黑（zinc-900）——
+    // 亮橘配白字只有 2.85:1，配近黑是 6.32:1。
+    background: linear-gradient(150deg, var(--accent-vivid) 0%, var(--accent-vivid-2) 100%);
     color: var(--zinc-900);
   }
 
-  // 整張卡片唯一的一點顏色，其餘全是 Zinc。
-  // （卡片頂端本來還有一條 accent 細線，2026-08-29 使用者判定不需要，拿掉了。）
-  &__wordmark-dot {
-    color: var(--accent-500);
+  // 文字那一側把流線壓下去，空的那一側讓它跑滿 ——
+  // 沒有這層的話線會從字上穿過去，好看但讀不了。
+  &__hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      104deg,
+      rgb(255 106 61 / 92%) 0%,
+      rgb(255 106 61 / 74%) 26%,
+      rgb(255 106 61 / 18%) 58%,
+      rgb(255 106 61 / 0%) 78%
+    );
+  }
+
+  &__mark,
+  &__lede {
+    position: relative;
+    z-index: 1;
+  }
+
+  &__mark {
+    margin: 0;
+    font-size: 52px;
+    font-weight: var(--font-bold);
+    line-height: 0.95;
+    letter-spacing: -0.045em;
+  }
+
+  &__lede {
+    margin: var(--space-5) 0 0;
+    max-width: 26ch;
+    font-size: var(--text-lg);
+    font-weight: var(--font-medium);
+    line-height: 1.75;
+  }
+
+  // ── 右側：白底登入 ────────────────────────────────────────
+  &__panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--space-12) var(--space-10);
+    background: var(--color-white);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    letter-spacing: -0.02em;
+    color: var(--zinc-900);
+  }
+
+  &__sub {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-md);
+    line-height: 1.75;
+    color: var(--zinc-600);
   }
 
   &__line-btn {
@@ -69,15 +115,15 @@
     gap: var(--space-2);
     width: 100%;
     // 44px 是觸控目標下限，不要再壓低
-    height: 44px;
-    margin-top: var(--space-5);
+    height: 48px;
+    margin-top: var(--space-6);
     padding: 0 var(--space-4);
-    font-size: var(--text-md);
+    font-size: var(--text-base);
     font-weight: var(--font-semibold);
     color: var(--line-brand);
     background: var(--color-white);
     border: 1px solid var(--line-brand);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     cursor: pointer;
     transition:
       color var(--transition-fast),
@@ -86,9 +132,24 @@
       transform var(--transition-fast);
   }
 
-  // 綠底 chip 包白色官方 icon，重現 LINE app 圖示的長相。
-  // 先前試過用 mask 把官方形狀染成品牌綠，在 24px 下鏤空的字糊成一團綠塊，
-  // 沒人認得出是 LINE —— 這是看了實機截圖之後換掉的。
+  &__line-btn:hover:not(:disabled) {
+    color: var(--line-brand-hover);
+    background: var(--line-brand-tint);
+    border-color: var(--line-brand-hover);
+    transform: translateY(-1px);
+  }
+
+  &__line-btn:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &__line-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  // 官方素材是白色的、按鈕也是白底，所以放進綠底 chip ——
+  // 重現 LINE app 圖示的長相，那才是家長認得的形狀。
   &__line-chip {
     display: flex;
     flex-shrink: 0;
@@ -104,21 +165,6 @@
     display: block;
     width: 18px;
     height: 18px;
-  }
-
-  &__line-btn:hover:not(:disabled) {
-    color: var(--line-brand-hover);
-    background: var(--line-brand-tint);
-    border-color: var(--line-brand-hover);
-  }
-
-  &__line-btn:active:not(:disabled) {
-    transform: translateY(1px);
-  }
-
-  &__line-btn:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
   }
 
   &__enroll-link {
@@ -140,27 +186,38 @@
     margin: 0;
     font-size: var(--text-sm);
     line-height: var(--leading-relaxed);
-    color: var(--zinc-500);
-    text-align: center;
+    color: var(--zinc-600);
   }
 
   &__contact {
     margin: var(--space-2) 0 0;
     font-size: var(--text-xs);
-    color: var(--zinc-400);
-    text-align: center;
+    color: var(--zinc-500);
   }
 }
 
-@keyframes login-rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
+@media (max-width: 860px) {
+  .login {
+    grid-template-columns: 1fr;
+    max-width: 460px;
+  }
+
+  .login__hero {
+    min-height: 200px;
+    padding: var(--space-8) var(--space-6);
+  }
+
+  .login__mark {
+    font-size: 40px;
+  }
+
+  .login__panel {
+    padding: var(--space-8) var(--space-6);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .login__card {
-    animation: none;
+  .login__line-btn {
+    transition-duration: 0.01ms;
   }
 }

@@ -1,0 +1,15 @@
+// 這個元件只鋪滿它的容器並畫線，底色與遮罩由使用它的頁面決定 ——
+// 同一個流場放在登入 hero 與標頭列需要的遮罩方向不一樣。
+:host {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  display: block;
+}
+
+.flow-field__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
