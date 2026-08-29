@@ -5,6 +5,16 @@
 ---
 
 ## [2026-08-29] map | Rebuilt index + 5 MOCs
+- Pages indexed: 85
+- Total links: 91
+- Orphan pages: 65
+
+## [2026-08-29] map | Rebuilt index + 5 MOCs
+- Pages indexed: 84
+- Total links: 90
+- Orphan pages: 64
+
+## [2026-08-29] map | Rebuilt index + 5 MOCs
 - Pages indexed: 84
 - Total links: 89
 - Orphan pages: 65

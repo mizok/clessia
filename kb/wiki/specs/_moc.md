@@ -30,9 +30,11 @@ Tags: `specs`, `admin`, `calendar`
 
 ## [[specs/admin/dashboard|管理員儀表板]]
 
-管理員首頁，快速掌握今日概況與待辦事項。
+管理員首頁，六張卡各回答一個問題並跳到功能的家；經營區用 view_reports 蓋住。
 
 Tags: `specs`, `admin`, `dashboard`
+
+Links to: [[architecture/admin-dashboard-v1]]
 
 ## [[specs/admin/enrollment/enrollment|學生報名]]
 
