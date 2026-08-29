@@ -3,7 +3,7 @@ title: Clessia 路線圖
 summary: 功能區現況（自動生成、由 gate 盯著）與接下來的優先順序。取代先前手畫的 BACKLOG 依賴圖。
 category: guide
 status: active
-updated: 2026-08-28
+updated: 2026-08-29
 tags: [roadmap]
 ---
 
@@ -195,13 +195,34 @@ tags: [roadmap]
 | 可靠性        | 備份還原**實際演練過**、出錯時怎麼知道（目前零監控）               |
 | 開站流程      | 目前是一串手動步驟，見 [[architecture/bootstrapping-a-deployment]] |
 
-### 待拍板的範圍決策
+### 範圍決策（2026-08-29 拍板）
 
-這三題會改變上面的工作量，**動工前要有答案**：
+原本擋在動工前的三題都有答案了：
 
-1. **聯絡簿要做嗎？** MVP 清單裡有，但完全未開始，也是最像加分項的東西。要做的話 P1 就得含它的 schema。
-2. **要不要 LINE 推播通知？** 站內公告已經有了；「有新成績」這種推播需要 LINE Messaging API（跟登入的 channel 不同），是另一個外部依賴。
-3. **多分校要做到什麼程度？** 架構支援，但「切換分校」的 UI 體驗還沒設計過。
+1. **聯絡簿：做。** P1 的 schema 要含它。
+2. **LINE 推播：做。** 需要 LINE Messaging API（跟登入用的 LINE Login 是**不同的 channel**，
+   要另外申請），是新的外部依賴。實作歸 P4（家長端）—— 推播的價值在家長收得到。
+3. **多分校 UI：做「跨頁記憶的統一 filter」，不做全域切換器、不做分校權限隔離。**
+
+第三題的依據（盤點於 2026-08-29）：
+
+- **資料層早就是多分校的** —— classes / enrollments / staff 都帶 `campusId`，validator
+  強制選分校。不用動。
+- **UI 的既有慣例**：9 個 admin 頁面各自放一顆分校下拉 filter、各自打一次
+  `/api/campuses`，選擇不跨頁記憶。沒有全域切換器。
+- **權限層沒有分校概念** —— `user_roles` 是 `(user_id, role)`，permissions 全機構有效。
+
+決定的形狀：
+
+- 一個 `CampusFilterService`（signal + localStorage）記住使用者偏好的分校；各頁的
+  filter 從它初始化、改了寫回去。櫃檯行政整天坐同一個分校，不該每換一頁重選一次。
+- 順帶抽一個共用的分校下拉元件，終結每頁重複載 campuses 的 9 份拷貝。
+- P2 新建的頁面（金流等）直接跟這個慣例。
+- **不做** shell 全域切換器：要重接全部既有頁面的 filter，而「全部分校」彙總視圖
+  仍得保留 —— 統一 filter 用一半成本拿到九成效果。
+- **明確延後** 分校權限隔離（分校主任只看自己分校）：提案對象是一間補習班，老闆
+  什麼都要看；這是推測性需求，且要動 `user_roles` schema 與整條 authz middleware。
+  等真的有這種組織形態的客戶再做。
 
 ### 提案時會被問的，八成不是功能
 

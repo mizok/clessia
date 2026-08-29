@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-08-29] roadmap | 三個範圍決策拍板，P1 解除封鎖
+
+- 聯絡簿：**做**（P1 schema 含它）；LINE 推播：**做**（Messaging API，另一個 channel，歸 P4）
+- 多分校 UI：**跨頁記憶的統一 filter**（`CampusFilterService` + 共用下拉元件），
+  不做全域切換器、**明確延後**分校權限隔離 —— 依據是盤點：資料層早就多分校、
+  9 頁各自為政的 filter、權限層完全沒有分校概念
+- [[roadmap]] 的「待拍板」改為「範圍決策（2026-08-29 拍板）」
+
 ## [2026-08-28] lint | Health check: 0 errors, 0 warnings, 52 info
 
 - Mode: structural
