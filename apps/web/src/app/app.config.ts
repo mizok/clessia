@@ -1,7 +1,13 @@
 import { registerLocaleData } from '@angular/common';
 import localeZhTW from '@angular/common/locales/zh-Hant';
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideRouter, withComponentInputBinding, withViewTransitions } from '@angular/router';
+import {
+  PreloadAllModules,
+  provideRouter,
+  withComponentInputBinding,
+  withPreloading,
+  withViewTransitions,
+} from '@angular/router';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { providePrimeNG } from 'primeng/config';
@@ -11,7 +17,6 @@ import Aura from '@primeuix/themes/aura';
 import { routes } from './app.routes';
 import { authInterceptor } from '@core/auth.interceptor';
 import { provideSystemClock } from '@core/system-clock.providers';
-
 
 registerLocaleData(localeZhTW, 'zh-TW');
 
@@ -70,7 +75,15 @@ const ClessiaPreset = definePreset(Aura, {
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideRouter(routes, withComponentInputBinding(), withViewTransitions()),
+    provideRouter(
+      routes,
+      withComponentInputBinding(),
+      withViewTransitions(),
+      // 43 條路由全部 lazy 是為了初始 bundle 小，但沒有預載的話每頁第一次進入都要
+      // 現場下載 chunk —— 使用者的體感是「每次跳轉都有微小延遲」。首屏渲染完之後
+      // 讓瀏覽器閒時把其餘 chunk 拉完，初始 bundle 的大小不受影響。
+      withPreloading(PreloadAllModules),
+    ),
     provideHttpClient(withInterceptors([authInterceptor])),
     provideAnimationsAsync(),
     providePrimeNG({
