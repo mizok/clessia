@@ -2,7 +2,6 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { DialogService } from 'primeng/dynamicdialog';
 
 import { App } from './app.component';
 
@@ -14,7 +13,6 @@ describe('App', () => {
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
-        DialogService,
       ],
     }).compileComponents();
   });

@@ -12,7 +12,7 @@
               class="shell-header__role-badge shell-header__role-badge--{{
                 role
               }} shell-header__role-badge--interactive"
-              (click)="auth.openRolePicker()"
+              routerLink="/select-role"
             >
               {{ roleLabels[role] }}
               <i class="shell-header__role-badge-icon pi pi-chevron-down"></i>
@@ -22,7 +22,7 @@
               class="shell-header__role-badge shell-header__role-badge--{{
                 role
               }} shell-header__role-badge--interactive"
-              (click)="auth.openRolePicker()"
+              routerLink="/select-role"
               pTooltip="你擁有多個角色，點擊即可切換"
               tooltipPosition="bottom"
               tooltipStyleClass="clessia-tooltip clessia-tooltip--role-switch"

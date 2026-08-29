@@ -1,6 +1,6 @@
 import { Component, computed, inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { AuthService, type UserRole } from '@core/auth.service';
-import { DynamicDialogRef } from 'primeng/dynamicdialog';
 
 interface RoleOption {
   role: UserRole;
@@ -20,6 +20,14 @@ const ROLE_OPTIONS: RoleOption[] = [
   { role: 'parent', icon: 'pi-users', label: '家長', description: '出缺席、學習進度、繳費' },
 ];
 
+/**
+ * `/select-role` 的頁面元件。
+ *
+ * 原本是掛在 root component 上的 DynamicDialog，代價是整個 PrimeNG dialog 依賴樹
+ * （dialog / button / dom / motion / icons，約 140 kB）被釘在初始 bundle 裡，
+ * 而多數使用者只有一個角色、永遠看不到這個畫面。改成 lazy route 之後它只在
+ * 真的需要選角色時才下載。
+ */
 @Component({
   selector: 'app-select-role',
   imports: [],
@@ -28,7 +36,7 @@ const ROLE_OPTIONS: RoleOption[] = [
 })
 export class SelectRoleComponent {
   protected readonly auth = inject(AuthService);
-  private readonly ref = inject(DynamicDialogRef);
+  private readonly router = inject(Router);
 
   readonly displayName = computed(
     () => this.auth.profile()?.display_name || this.auth.user()?.email || '',
@@ -39,10 +47,20 @@ export class SelectRoleComponent {
   readonly activeRole = this.auth.activeRole;
 
   selectRole(role: UserRole) {
-    this.ref.close(role);
+    this.auth.navigateToRoleShell(role);
   }
 
-  close() {
-    this.ref.close();
+  /**
+   * 還沒選過角色的人是被 guard 趕來這裡的 —— 給他一個「關閉」卻不給去處，
+   * 等於把人鎖在一個沒有出口的畫面上，所以那種情況下離開就是登出。
+   */
+  leave() {
+    const role = this.auth.activeRole();
+    if (role) {
+      void this.router.navigate([`/${role}`]);
+      return;
+    }
+
+    void this.auth.signOut();
   }
 }

@@ -53,6 +53,14 @@ export class RoutesCatalog {
     'pi-link',
     false,
   );
+  public static readonly PUBLIC_SELECT_ROLE = this.register(
+    'select-role',
+    '/select-role',
+    '選擇角色',
+    undefined,
+    'pi-users',
+    false,
+  );
 
   // Admin
   public static readonly ADMIN_ROOT = this.register(

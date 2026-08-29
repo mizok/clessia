@@ -1,5 +1,4 @@
 import { createAuthClient } from 'better-auth/client';
-import { adminClient } from 'better-auth/client/plugins';
 import { environment } from '@env/environment';
 
 export const authClient = createAuthClient({
@@ -7,9 +6,9 @@ export const authClient = createAuthClient({
   // 所以退回目前的 origin —— 結果一樣，只是它自己組得出完整路徑。
   baseURL: environment.apiUrl || window.location.origin,
   basePath: '/api/auth',
-  // username plugin 已在後端移除（它提供的 /sign-in/username 是密碼登入），
-  // client 端留著只是死碼
-  plugins: [adminClient()],
+  // 不掛任何 plugin。adminClient 曾經掛在這裡，但 web 端只用 getSession /
+  // signIn.social / linkSocial / signOut —— 沒有一個走 admin API，
+  // 新增使用者是後端 admin.createUser() 的事（憲法 c2）。
 });
 
 export type BetterAuthSession = typeof authClient.$Infer.Session;

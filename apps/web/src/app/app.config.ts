@@ -12,7 +12,6 @@ import { routes } from './app.routes';
 import { authInterceptor } from '@core/auth.interceptor';
 import { provideSystemClock } from '@core/system-clock.providers';
 
-import { DialogService } from 'primeng/dynamicdialog';
 
 registerLocaleData(localeZhTW, 'zh-TW');
 
@@ -86,6 +85,5 @@ export const appConfig: ApplicationConfig = {
       ripple: true,
     }),
     provideSystemClock(),
-    DialogService,
   ],
 };
