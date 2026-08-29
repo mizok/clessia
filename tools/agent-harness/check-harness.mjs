@@ -13,7 +13,9 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { matchWriteRules } from './lib/rules.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
+import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const AGENTS_MD = join(ROOT, 'AGENTS.md');
@@ -73,6 +75,17 @@ function skillDescription(name) {
   const match = /^description:\s*(.+)$/m.exec(source.slice(0, 2000));
   const text = match ? match[1].trim().replace(/^["']|["']$/g, '') : '';
   return text.length > 110 ? `${text.slice(0, 107)}…` : text;
+}
+
+/** 遞迴列出副檔名相符的檔案。A10 / A11 / A12 共用 —— 原本各自帶一份一樣的閉包。 */
+function walk(dir, ext) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory()
+      ? walk(join(dir, entry.name), ext)
+      : entry.name.endsWith(ext)
+        ? [join(dir, entry.name)]
+        : [],
+  );
 }
 
 function readLock() {
@@ -303,11 +316,7 @@ const VENDOR_LOCKIN = [
 ];
 const apiSrc = join(ROOT, 'apps/api/src');
 if (existsSync(apiSrc)) {
-  const walk = (dir) =>
-    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-      e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') ? [join(dir, e.name)] : [],
-    );
-  for (const file of walk(apiSrc)) {
+  for (const file of walk(apiSrc, '.ts')) {
     const text = readFileSync(file, 'utf8');
     for (const [token, label] of VENDOR_LOCKIN) {
       if (text.includes(token)) {
@@ -330,15 +339,7 @@ if (existsSync(apiSrc)) {
 // Better Auth 的 createUser 明說：不給 password 就是「magic link 或 social login only
 // user」——那是官方支援的路。見 kb/wiki/architecture/line-oauth-login.md
 if (existsSync(apiSrc)) {
-  const walkTs = (dir) =>
-    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-      e.isDirectory()
-        ? walkTs(join(dir, e.name))
-        : e.name.endsWith('.ts')
-          ? [join(dir, e.name)]
-          : [],
-    );
-  for (const file of walkTs(apiSrc)) {
+  for (const file of walk(apiSrc, '.ts')) {
     if (file.endsWith('.spec.ts')) continue;
     const text = readFileSync(file, 'utf8');
     // 抓 createUser({ ... }) 的 body，看裡面有沒有 password 這個 key
@@ -371,6 +372,30 @@ if (existsSync(settingsPath)) {
     if (!existsSync(join(ROOT, target))) {
       fail(`deny 規則指向不存在的檔案：${rule} —— 檔案搬走時護欄會靜默失效`);
     }
+  }
+}
+
+// ── A12. 既有 SCSS 裡的 viewport 單位（clause c6）───────────────────────────────────────
+// c6 原本只有 PreToolUse hook 守，而 hook 刻意只看**新寫進去的那段文字**
+// （`lib/hook-io.mjs` 的 `pendingWrites` 只取 new_string —— 不然修掉違規反而會被擋）。
+// 代價是**存量完全沒有覆蓋**：早於 hook 存在、之後沒人重寫過的違規永遠不會被送進判斷。
+// `styles.scss` 的 `min-height: 100vh` 就這樣待著，而 enforcement 表上 c6 寫的是「已接」。
+//
+// 這條補上另一半：用**同一份規則、同一支 matcher** 掃全部既有 .scss。
+// 共用而不是另寫一條 regex 是刻意的 —— 兩份會漂掉，而漂掉的方向一定是 gate 比 hook 寬。
+const WEB_SRC = join(ROOT, 'apps/web/src');
+const c6Rules = guardRules.rules.filter((rule) => rule.id === 'c6');
+
+if (existsSync(WEB_SRC) && c6Rules.length > 0) {
+  for (const file of walk(WEB_SRC, '.scss')) {
+    const rel = file.replace(ROOT + '/', '');
+    readFileSync(file, 'utf8')
+      .split('\n')
+      .forEach((text, index) => {
+        if (matchWriteRules([{ filePath: rel, text }], c6Rules).length > 0) {
+          fail(`${rel}:${index + 1} 使用了 viewport 單位（c6）：${text.trim()}`);
+        }
+      });
   }
 }
 

@@ -38,20 +38,20 @@ PreToolUse guard  →   Stop verify gate    →    程式碼審查
 
 ## 條款 → 機制
 
-| Clause                     | 分類          | 機制                                                                         | 狀態                                                                                                                        |
-| -------------------------- | ------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| c1 授權在 API 層           | Semantic      | harness gate A7（每支 route 掛載必須宣告角色）+ 人工 review                  | ⚠️ 部分：准入已機器化，資料範圍靠 review                                                                                    |
-| c2 `ba_*` 不得寫入         | Deterministic | pre-guard regex（只擋 insert/update/upsert/delete，讀取放行）                | ✅ 已接                                                                                                                     |
-| c3 已提交 migration 不可改 | Deterministic | pre-guard + `whenTracked`（git 已追蹤才擋，新建不受影響）                    | ✅ 已接                                                                                                                     |
-| c4 migration 檔名          | Deterministic | 由 `supabase migration new` 保證                                             | 依賴工具，未另外 gate                                                                                                       |
-| c5 feature 不互相 import   | Semantic      | 人工 review                                                                  | ⚠️ 未機器化 —— 需要跨「路徑擷取的 feature 名」與「內容」的反向參照，目前的靜態 regex 引擎做不到。要接的話得寫一支獨立 check |
-| c6 禁 viewport 單位        | Deterministic | pre-guard regex（`.scss`）                                                   | ✅ 已接                                                                                                                     |
-| c7 原生 control flow       | Deterministic | pre-guard regex（`.html`）                                                   | ✅ 已接                                                                                                                     |
-| c8 functional API          | Deterministic | pre-guard regex（`apps/web/**`，排除 `.spec.ts`）                            | ✅ 已接                                                                                                                     |
-| c9 `kb/` 唯一              | Deterministic | pre-guard（路徑 `^docs?/`，`doc/` 與 `docs/` 都擋）+ harness gate A3         | ✅ 雙重                                                                                                                     |
-| c10 `AGENTS.md` 單一真相   | Deterministic | harness gate A2（必須含 `@AGENTS.md`、行數上限 60）                          | ✅ 已接                                                                                                                     |
-| c11 不手抄腐化清單         | Semantic      | A1（skill 清單）+ `feature-map.mjs`（roadmap 現況表）已機器化；其餘靠 review | ⚠️ 部分                                                                                                                     |
-| c12 客戶可脫離自架         | Semantic      | harness gate A10（禁用雲端專屬服務 import）+ 人工 review                     | ⚠️ 部分：專屬服務已機器化，多租戶與 kill switch 靠 review                                                                   |
+| Clause                     | 分類          | 機制                                                                                                          | 狀態                                                                                                                        |
+| -------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| c1 授權在 API 層           | Semantic      | harness gate A7（每支 route 掛載必須宣告角色）+ 人工 review                                                   | ⚠️ 部分：准入已機器化，資料範圍靠 review                                                                                    |
+| c2 `ba_*` 不得寫入         | Deterministic | pre-guard regex（只擋 insert/update/upsert/delete，讀取放行）                                                 | ✅ 已接                                                                                                                     |
+| c3 已提交 migration 不可改 | Deterministic | pre-guard + `whenTracked`（git 已追蹤才擋，新建不受影響）                                                     | ✅ 已接                                                                                                                     |
+| c4 migration 檔名          | Deterministic | 由 `supabase migration new` 保證                                                                              | 依賴工具，未另外 gate                                                                                                       |
+| c5 feature 不互相 import   | Semantic      | 人工 review                                                                                                   | ⚠️ 未機器化 —— 需要跨「路徑擷取的 feature 名」與「內容」的反向參照，目前的靜態 regex 引擎做不到。要接的話得寫一支獨立 check |
+| c6 禁 viewport 單位        | Deterministic | **雙層**：pre-guard regex（`.scss`，新違規、即時）+ harness gate A12（存量、CI，掃 `apps/web/src/**/*.scss`） | ✅ 雙重 —— 兩層共用 `pre-guard.rules.json` 的同一條規則，見下方邊界記錄                                                     |
+| c7 原生 control flow       | Deterministic | pre-guard regex（`.html`）                                                                                    | ✅ 已接                                                                                                                     |
+| c8 functional API          | Deterministic | pre-guard regex（`apps/web/**`，排除 `.spec.ts`）                                                             | ✅ 已接 —— 「等」字的範圍見下方邊界記錄                                                                                     |
+| c9 `kb/` 唯一              | Deterministic | pre-guard（路徑 `^docs?/`，`doc/` 與 `docs/` 都擋）+ harness gate A3                                          | ✅ 雙重                                                                                                                     |
+| c10 `AGENTS.md` 單一真相   | Deterministic | harness gate A2（必須含 `@AGENTS.md`、行數上限 60）                                                           | ✅ 已接                                                                                                                     |
+| c11 不手抄腐化清單         | Semantic      | A1（skill 清單）+ `feature-map.mjs`（roadmap 現況表）已機器化；其餘靠 review                                  | ⚠️ 部分                                                                                                                     |
+| c12 客戶可脫離自架         | Semantic      | harness gate A10（禁用雲端專屬服務 import）+ 人工 review                                                      | ⚠️ 部分：專屬服務已機器化，多租戶與 kill switch 靠 review                                                                   |
 
 ## Harness gate 檢查項
 
@@ -75,6 +75,8 @@ PreToolUse guard  →   Stop verify gate    →    程式碼審查
 | A8   | 每張業務表都有 `ENABLE ROW LEVEL SECURITY`（c1 的 fail-closed 後盾）                                                                                      |
 | A9   | `.claude/settings.json` 的 deny 規則指向的檔案真的存在（護欄不得靜默失效）                                                                                |
 | A10  | `apps/api/src` 不得 import 雲端供應商專屬服務（KV / R2 / Durable Objects，c12）                                                                           |
+| A11  | `apps/api/src` 的 `createUser` 不得帶 `password`（scrypt 超過 Workers 的 10ms CPU 上限）                                                                  |
+| A12  | `apps/web/src/**/*.scss` 沒有拿 viewport 單位當值（c6 的**存量**那一半；規則與 pre-guard 共用）                                                           |
 
 ## KB 的健康度：不是 gate，是 skill
 
@@ -118,3 +120,43 @@ PreToolUse guard  →   Stop verify gate    →    程式碼審查
   `--base=main`（Stop gate 已經這樣寫死）。
 - pre-guard 是**寫入時**的螢幕，繞得過去：直接用 Bash heredoc 寫檔就不會觸發 PreToolUse
   的 Edit/Write matcher。它的價值在於攔截順手的違規，不是防惡意。
+- ~~c6 只守新違規，存量沒有覆蓋~~ → 2026-08-29 補上 gate A12。**這個缺口的形狀值得記住**：
+  pre-guard 只看新寫進去的那段文字（`pendingWrites` 只取 `new_string`，不然修掉違規反而會被擋），
+  所以任何「只有 hook、沒有 gate」的 clause 對存量都是零覆蓋，而 enforcement 表上它看起來是
+  「✅ 已接」。目前 c2 / c3 / c7 / c8 都還是這個狀態。
+
+## 邊界記錄
+
+條文本身不動（修憲只有專案擁有者能做），這裡記的是**條文適用到具體寫法時的解釋**，
+免得每個 agent 各猜一次。
+
+### c6：`var()` 的 fallback 不算違規
+
+**拿 viewport 單位當值 → 違規；當 `var()` 的 fallback → 放行。**
+
+```scss
+min-height: 100vh; // ✗ 違規
+max-height: calc(var(--window-height, 100dvh) * 0.55); // ✓ 放行
+```
+
+理由：c6 的立論是「這些單位在 mobile Safari 位址列伸縮與巢狀 scroll container 下行為
+不可靠」，講的是 layout 值。而 `var()` 的 fallback 是「變數在這裡解不到」的那條分支 ——
+它有時候**就是真正生效的值**：`--window-height` 由 `appWindowSize` 寫在 app 根節點上，
+但 PrimeNG 的 dialog 走 `appendTo: overlayContainer ?? 'body'` 時會落在那個節點外面。
+那種情況下換成某個 px 數字，是把「不精確」變成「一定是錯的」。
+
+**註解不豁免** —— 註解裡出現 `100dvh` 這種字面值一樣紅燈。豁免邏輯（判斷這是不是註解）
+本身會腐化，成本高於「要求註解換個講法」。
+
+使用者 2026-08-29 裁決。強制機制：`pre-guard.rules.json` 的 c6 用 fallback-aware 的
+lookbehind（`(?<!var\([^()]*)`），gate A12 **餵同一條規則給同一支 matcher**，兩層不會漂
+—— 分開寫兩份 regex 的話，漂掉的方向一定是 gate 比 hook 寬。
+
+### c8：「等裝飾器 API」的範圍
+
+條文列的是 `@Input()` / `@Output()` / `@ViewChild()`。**「等」= 這三個 + 同類的
+query API**（`@ContentChild` / `@ViewChildren` / `@ContentChildren`）—— 也就是有
+functional 對應物（`input()` / `output()` / `viewChild()` / `contentChild()`）的那些。
+
+**`@HostListener` 不在內。** 它沒有 functional 對應物，`apps/web/src/app/shared/directives/window-size.directive.ts`
+目前在用，維持現狀。使用者 2026-08-29 釐清。

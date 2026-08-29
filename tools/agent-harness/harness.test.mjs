@@ -43,6 +43,41 @@ test('c6 擋新的 viewport 單位，不擋既有檔案的其他編輯', () => {
   assert.deepEqual(guard('apps/web/a.scss', 'height: calc(var(--window-height) * 1);'), []);
 });
 
+/**
+ * c6 的邊界：**拿 viewport 當值**是違規，**`var()` 的 fallback** 不是。
+ *
+ * 理由是 fallback 就是「變數解不到」的那條分支 —— 例如 dialog 被 appendTo 到 <body>，
+ * 落在寫入 `--window-height` 的節點外面，那時 fallback 就是真正生效的值，
+ * 換成某個 px 數字只會把「不精確」變成「一定是錯的」。使用者 2026-08-29 裁決。
+ *
+ * 同一份規則同時餵給 PreToolUse hook（新違規）與 harness gate A12（存量），
+ * 所以這四條也就是 gate 的驗收案例。
+ */
+test('c6 放過 var() 的 fallback，但註解裡的 viewport 單位照樣抓', () => {
+  // 直接當值 → 違規
+  assert.deepEqual(guard('apps/web/a.scss', 'min-height: 100vh;'), ['c6']);
+  assert.deepEqual(guard('apps/web/a.scss', '  max-height: 55vh;'), ['c6']);
+  // 註解不豁免 —— 豁免邏輯本身會腐化，寧可要求註解別寫那個字面值
+  assert.deepEqual(guard('apps/web/a.scss', '// flex col 100dvh 之後高度交給 flex'), ['c6']);
+  // var() 的 fallback → 放行
+  assert.deepEqual(guard('apps/web/a.scss', 'height: var(--window-height, 100dvh);'), []);
+  assert.deepEqual(
+    guard('apps/web/a.scss', 'width: calc(var(--window-width, 100vw) - 32px) !important;'),
+    [],
+  );
+  // 同一行先有 var() 收尾、後面才拿 viewport 當值 —— 不能被前面的 var( 蓋掉
+  assert.deepEqual(guard('apps/web/a.scss', 'margin: var(--space-2, 8px); height: 100vh;'), ['c6']);
+});
+
+// A12（存量 gate）靠 id 從 pre-guard.rules.json 撈 c6 出來掃全部 .scss。
+// 規則被改名或移除的話它會靜靜地什麼都不掃，而且**永遠是綠的** —— 這條守那個。
+test('c6 規則存在於 pre-guard.rules.json，A12 才撈得到', () => {
+  const c6 = guardRules.rules.filter((rule) => rule.id === 'c6');
+
+  assert.equal(c6.length, 1, 'A12 用 id === c6 撈規則，改名的話存量 gate 會靜默失效');
+  assert.match(c6[0].path, /scss/);
+});
+
 test('c7 擋舊版結構指令', () => {
   assert.deepEqual(guard('a.component.html', '<div *ngIf="x">'), ['c7']);
   assert.deepEqual(guard('a.component.html', '@if (x) { <div></div> }'), []);

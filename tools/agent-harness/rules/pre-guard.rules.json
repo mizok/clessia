@@ -16,8 +16,8 @@
     {
       "id": "c6",
       "path": "\\.scss$",
-      "forbid": "[0-9](vh|vw|dvh|svh|lvh)\\b",
-      "message": "禁止 viewport 單位。改用上層 directive 寫入的 CSS 變數，例如 calc(var(--window-width, 360px) * 0.9)"
+      "forbid": "(?<!var\\([^()]*)[0-9](vh|vw|dvh|svh|lvh)\\b",
+      "message": "禁止 viewport 單位。改用上層 directive 寫入的 CSS 變數，例如 calc(var(--window-width, 360px) * 0.9)。var() 的 fallback 可以用 viewport 單位（那是變數解不到時的分支，換成 px 只會從不精確變成一定是錯的）—— 禁的是直接拿它當值。"
     },
     {
       "id": "c7",

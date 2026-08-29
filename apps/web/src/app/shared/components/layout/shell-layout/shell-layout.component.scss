@@ -255,7 +255,7 @@
     }
   }
 
-  // With new structure (flex col 100dvh), mobile height calc is simplified or handled by flex
+  // 新結構是 flex column 撐滿 --window-height，手機的高度計算交給 flex，不再自己算
   // But if we need specific adjustments:
   .shell-content {
     padding: var(--space-3);
