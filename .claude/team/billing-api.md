@@ -90,10 +90,16 @@ different request`）。方向永遠是 per-request 建、請求結束收。
 - **先寫測試看它紅，再實作。** 紅的證據要留在回報裡。
 - 路由測試的慣例是**測 exported 的純函式**，不是打整支 handler
   （`schools.spec.ts` 是範本）。所以寫 route 時把值得測的邏輯抽成 export。
-- 假 supabase：物件字面量 + 呼叫端 `as never`（`enrollments.spec.ts`）。
+- 假 supabase：物件字面量 + 呼叫端 `as never`（`enrollments.spec.ts`）。要**打整支
+  handler** 時用可鏈式的版本 —— `select/eq/range` 各自回自己、`range()` 真的切、
+  `order()` 回 `{ data, count }`，外面包一層 Hono 把 `supabase` / `orgId` set 進 context
+  （`invoices.spec.ts` 是範本）。
 - **測「會回歸的東西」而不是「好測的東西」**。例：`requirePermission` 最重要那條是
   「context 裡根本沒有 permissions 時拒絕而不是全開」；harness 的 c6 gate 最重要那條是
   「規則被改名時 gate 不能靜默變成空掃」。
+- **驗證要打到出錯的那一層，不是最好測的那一層。** 帳單列表的 `meta.total` 從哪裡來，
+  純函式測不到 —— 它不知道 total 是 DB 的 count 還是當頁長度，那條得讓路由真的跑一遍。
+  跟 seed 的 42702 是同一個教訓的兩面（見上：抽段法驗不到 plpgsql 名稱解析）。
 
 ### migration
 
