@@ -94,6 +94,25 @@
       transform var(--transition-fast);
   }
 
+  // app icon 本身是綠底白泡泡，直接壓在綠色按鈕上會糊成一團 ——
+  // 墊一層白底把它從按鈕上分離出來，logo 本身一個像素都不動。
+  &__line-badge {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: var(--color-white);
+    border-radius: var(--radius-sm);
+  }
+
+  &__line-logo {
+    display: block;
+    width: 24px;
+    height: 24px;
+  }
+
   &__line-btn:hover:not(:disabled) {
     background: var(--line-brand-hover);
   }

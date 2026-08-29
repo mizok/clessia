@@ -20,7 +20,17 @@
         <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
         前往 LINE...
       } @else {
-        <i class="pi pi-comment" aria-hidden="true"></i>
+        <!-- LINE Corporation 的官方 app icon，未經修改。alt 留空是因為右邊的文字
+             已經說了「LINE」，讓螢幕閱讀器念兩次反而吵。 -->
+        <span class="login__line-badge">
+          <img
+            class="login__line-logo"
+            src="assets/brand/line-logo.png"
+            alt=""
+            width="24"
+            height="24"
+          />
+        </span>
         使用 LINE 登入
       }
     </button>

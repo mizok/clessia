@@ -37,9 +37,23 @@ tags: [specs, public, login, oauth, line]
 
 沒有輸入欄位、沒有密碼、沒有記住我、沒有忘記密碼、沒有 `?role=root` 隱藏入口。
 
-> LINE 按鈕目前用的是 primeicons 的對話泡泡圖示，**不是 LINE 官方 logo 素材** ——
-> 官方 logo 要用官方提供的檔案，憑印象重畫商標既不準確也不妥當。
-> 拿到素材後換掉圖示即可，按鈕的顏色與比例已經照官方規範做。
+### LINE logo 的來源與用法
+
+按鈕上的是 **LINE Corporation 的官方 app icon**，未經修改，存在
+`apps/web/public/assets/brand/line-logo.png`（96×96、5.6 kB，由 1000×1000 原圖縮製）。
+來源是 Wikimedia Commons 的
+[LINE New App Icon (2020-12)](https://commons.wikimedia.org/wiki/File:LINE_New_App_Icon_(2020-12).png)，
+授權標示為 public domain（簡單幾何圖形不具著作權），但**商標權仍屬 LINE Corporation**。
+
+用在「使用 LINE 登入」按鈕上屬於商標的指示性使用 —— 它指出的正是「用 LINE 帳號登入」
+這件事實，也是 LINE 要求開發者做的事。**不要拿它去做別的**（頁首、看板、行銷素材都不行）。
+
+app icon 是綠底白泡泡，直接壓在 `#06C755` 的按鈕上會糊掉，所以墊了一層白色圓角底把它
+分離出來，logo 本身一個像素都沒動。
+
+> 若要完全符合 LINE 官方的 *Login Button Design Guidelines*（綠底 + **白色單色 logo** +
+> 分隔線），需要 LINE Developers 提供的按鈕素材。把 app icon 自行塗白等於改造商標，
+> 所以沒有做。目前這個版本用的是未經修改的官方 icon，是更保守的選擇。
 
 ## 錯誤訊息
 
