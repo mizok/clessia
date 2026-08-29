@@ -4,7 +4,12 @@ import { Observable } from 'rxjs';
 import { environment } from '@env/environment';
 
 export type EnrollmentStatus = 'pending_payment' | 'active' | 'suspended' | 'withdrawal' | 'void';
-export type PaymentCycle = 'monthly' | 'semester';
+/**
+ * 計費模式。**掛在報名上不是班級上** —— 同一班可以同時有月繳生與期繳生
+ * （kb/wiki/rules/billing-rules.md 規則 1）。取代了舊的 `PaymentCycle`：
+ * 舊的 `semester` 對應到 `period`，差別是新制的「期」是機構自訂的日期區間。
+ */
+export type BillingMode = 'monthly' | 'period' | 'session_pack';
 
 export const ENROLLMENT_STATUS_LABELS: Record<EnrollmentStatus, string> = {
   pending_payment: '待付款',
@@ -28,7 +33,11 @@ export interface Enrollment {
   studentSchool: string;
   studentGrade: string;
   status: EnrollmentStatus;
-  paymentCycle: PaymentCycle | null;
+  billingMode: BillingMode | null;
+  feeTemplateId: string | null;
+  /** 談定的每月／每期金額，與價目表的定價分開（議價是常態） */
+  agreedAmount: number | null;
+  adjustmentNote: string | null;
   effectiveFrom: string;
   effectiveTo: string | null;
   notes: string | null;
@@ -53,7 +62,10 @@ export interface CreateEnrollmentInput {
   classId: string;
   studentId: string;
   status?: 'pending_payment' | 'active';
-  paymentCycle?: PaymentCycle;
+  billingMode?: BillingMode;
+  feeTemplateId?: string;
+  agreedAmount?: number;
+  adjustmentNote?: string;
   effectiveFrom?: string;
   effectiveTo?: string | null;
   notes?: string;
@@ -61,7 +73,10 @@ export interface CreateEnrollmentInput {
 }
 
 export interface UpdateEnrollmentInput {
-  paymentCycle?: PaymentCycle | null;
+  billingMode?: BillingMode | null;
+  feeTemplateId?: string | null;
+  agreedAmount?: number | null;
+  adjustmentNote?: string | null;
   effectiveFrom?: string;
   effectiveTo?: string | null;
   notes?: string | null;

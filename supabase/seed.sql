@@ -654,6 +654,41 @@ BEGIN
   ) AS science_students
   ON CONFLICT DO NOTHING;
 
+  -- ===== 計費地基（P1）=====
+  -- 「期」是機構自建的具名日期區間，不是 enum —— 見 kb/wiki/rules/billing-rules.md
+  INSERT INTO public.billing_periods (org_id, name, start_date, end_date)
+  VALUES
+    (demo_org_id, '2026 上學期 + 暑假', DATE '2026-02-01', DATE '2026-08-31'),
+    (demo_org_id, '2026 下學期 + 寒假', DATE '2026-09-01', DATE '2027-01-31')
+  ON CONFLICT (org_id, name) DO NOTHING;
+
+  -- 價目表只給定價。實際談定的金額在 enrollments.agreed_amount（議價是常態）
+  INSERT INTO public.fee_templates (org_id, name, billing_mode, amount)
+  VALUES
+    (demo_org_id, '國中主科月繳', 'monthly'::public.billing_mode, 4500),
+    (demo_org_id, '國中主科期繳', 'period'::public.billing_mode, 24000),
+    (demo_org_id, '才藝班 10 堂', 'session_pack'::public.billing_mode, 6000)
+  ON CONFLICT (org_id, name) DO NOTHING;
+
+  -- 讓 demo 報名帶上計費資料：數學班月繳、英文班期繳（同一批學生兩種模式並存，
+  -- 正是「計費模式掛在報名上而不是班級上」要示範的情境）。自然班刻意留白 ——
+  -- 「還沒決定計費方式」是真實狀態，nullable 不是偷懶。
+  UPDATE public.enrollments e
+     SET billing_mode = 'monthly'::public.billing_mode,
+         fee_template_id = (SELECT id FROM public.fee_templates
+                             WHERE org_id = demo_org_id AND name = '國中主科月繳'),
+         agreed_amount = 4500
+   WHERE e.class_id = math_class_id AND e.billing_mode IS NULL;
+
+  UPDATE public.enrollments e
+     SET billing_mode = 'period'::public.billing_mode,
+         fee_template_id = (SELECT id FROM public.fee_templates
+                             WHERE org_id = demo_org_id AND name = '國中主科期繳'),
+         -- 議價示範：定價 24000，這班談成 22000
+         agreed_amount = 22000,
+         adjustment_note = '舊生續讀，老闆同意折 2000'
+   WHERE e.class_id = english_class_id AND e.billing_mode IS NULL;
+
   INSERT INTO public.schedules (
     class_id,
     weekday,

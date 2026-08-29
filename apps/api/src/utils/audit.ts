@@ -14,7 +14,9 @@ type ResourceType =
   | 'school_exam'
   | 'school'
   | 'contact_book_entry'
-  | 'class_log';
+  | 'class_log'
+  | 'billing_period'
+  | 'fee_template';
 
 export interface AuditLogParams {
   orgId: string;

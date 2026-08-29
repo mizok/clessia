@@ -89,7 +89,10 @@ interface MockEnrollmentRow {
   class_id: string;
   student_id: string;
   status: string;
-  payment_cycle?: string | null;
+  billing_mode?: string | null;
+  fee_template_id?: string | null;
+  agreed_amount?: string | number | null;
+  adjustment_note?: string | null;
   effective_from: string;
   effective_to?: string | null;
   notes?: string | null;
@@ -309,7 +312,11 @@ function createEnrollmentsQueryForRoutes(state: {
           class_id: String(insertPayload['class_id']),
           student_id: String(insertPayload['student_id']),
           status: String(insertPayload['status']),
-          payment_cycle: (insertPayload['payment_cycle'] as string | null | undefined) ?? null,
+          billing_mode: (insertPayload['billing_mode'] as string | null | undefined) ?? null,
+          fee_template_id: (insertPayload['fee_template_id'] as string | null | undefined) ?? null,
+          agreed_amount:
+            (insertPayload['agreed_amount'] as string | number | null | undefined) ?? null,
+          adjustment_note: (insertPayload['adjustment_note'] as string | null | undefined) ?? null,
           effective_from: String(insertPayload['effective_from']),
           effective_to: (insertPayload['effective_to'] as string | null | undefined) ?? null,
           notes: (insertPayload['notes'] as string | null | undefined) ?? null,
@@ -455,7 +462,11 @@ describe('toEnrollmentResponse', () => {
     class_id: '00000000-0000-0000-0000-000000000003',
     student_id: '00000000-0000-0000-0000-000000000004',
     status: 'active',
-    payment_cycle: 'monthly',
+    billing_mode: 'monthly',
+    fee_template_id: '00000000-0000-0000-0000-0000000000ff',
+    // numeric 從 postgrest 回來是字串 —— mapper 要轉成 number，不然前端算不了
+    agreed_amount: '4500',
+    adjustment_note: '舊生續讀，老闆同意折 500',
     effective_from: '2026-01-01',
     effective_to: null,
     notes: null,
@@ -484,6 +495,36 @@ describe('toEnrollmentResponse', () => {
     const row = { ...baseRow, attendances: [] };
     const result = toEnrollmentResponse?.(row);
     expect(result?.['attendanceCount']).toBe(0);
+  });
+
+  /**
+   * 計費欄位（P1）。`agreed_amount` 是 numeric —— postgrest 回來是**字串**，
+   * 不轉的話前端拿到 "4500" 做加總會變成字串串接。
+   */
+  it('把計費欄位帶出來，金額轉成 number', () => {
+    const result = toEnrollmentResponse?.({ ...baseRow, attendances: [] });
+
+    expect(result?.['billingMode']).toBe('monthly');
+    expect(result?.['feeTemplateId']).toBe('00000000-0000-0000-0000-0000000000ff');
+    expect(result?.['agreedAmount']).toBe(4500);
+    expect(result?.['adjustmentNote']).toBe('舊生續讀，老闆同意折 500');
+  });
+
+  // 「還沒決定計費方式」是真實狀態 —— 四個欄位都可以是空的，不能因此炸掉或給預設值
+  it('沒有計費資料時四個欄位都是 null', () => {
+    const result = toEnrollmentResponse?.({
+      ...baseRow,
+      billing_mode: null,
+      fee_template_id: null,
+      agreed_amount: null,
+      adjustment_note: null,
+      attendances: [],
+    });
+
+    expect(result?.['billingMode']).toBeNull();
+    expect(result?.['feeTemplateId']).toBeNull();
+    expect(result?.['agreedAmount']).toBeNull();
+    expect(result?.['adjustmentNote']).toBeNull();
   });
 });
 

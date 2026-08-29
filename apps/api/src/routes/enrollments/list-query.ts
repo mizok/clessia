@@ -31,7 +31,7 @@ export function buildPeriodFilter(from?: string, to?: string): string | null {
 }
 
 const SELECT_COLUMNS =
-  'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at';
+  'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, created_by, created_at, updated_at';
 const SELECT_RELATIONS =
   '(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)';
 

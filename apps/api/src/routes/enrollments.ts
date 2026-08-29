@@ -13,7 +13,13 @@ const EnrollmentStatusSchema = z
   .enum(['pending_payment', 'active', 'suspended', 'withdrawal', 'void'])
   .openapi('EnrollmentStatus');
 
-const PaymentCycleSchema = z.enum(['monthly', 'semester']).openapi('PaymentCycle');
+/**
+ * 計費模式。**掛在報名上不是班級上** —— 同一班可以同時有月繳生與期繳生
+ * （kb/wiki/rules/billing-rules.md 規則 1）。取代了舊的 payment_cycle：
+ * 舊的 `semester` 對應到 `period`，差別是新制的「期」是機構自訂的日期區間，
+ * 不是寫死的學期。
+ */
+const BillingModeSchema = z.enum(['monthly', 'period', 'session_pack']).openapi('BillingMode');
 
 const EnrollmentSchema = z
   .object({
@@ -30,7 +36,11 @@ const EnrollmentSchema = z
     studentSchool: z.string(),
     studentGrade: z.string(),
     status: EnrollmentStatusSchema,
-    paymentCycle: PaymentCycleSchema.nullable(),
+    billingMode: BillingModeSchema.nullable(),
+    feeTemplateId: z.uuid().nullable(),
+    /** 談定的每月／每期金額。與價目表的定價分開 —— 議價是常態不是例外（規則 2） */
+    agreedAmount: z.number().nullable(),
+    adjustmentNote: z.string().nullable(),
     effectiveFrom: z.string(),
     effectiveTo: z.string().nullable(),
     notes: z.string().nullable(),
@@ -71,7 +81,10 @@ const CreateEnrollmentSchema = z
     classId: DbUuidSchema,
     studentId: DbUuidSchema,
     status: z.enum(['pending_payment', 'active']).default('active'),
-    paymentCycle: PaymentCycleSchema.optional(),
+    billingMode: BillingModeSchema.optional(),
+    feeTemplateId: z.uuid().optional(),
+    agreedAmount: z.number().int().min(0).optional(),
+    adjustmentNote: z.string().optional(),
     effectiveFrom: z.string().date().optional(),
     effectiveTo: z.string().date().nullable().optional(),
     notes: z.string().max(2000).optional(),
@@ -81,7 +94,10 @@ const CreateEnrollmentSchema = z
 
 const UpdateEnrollmentSchema = z
   .object({
-    paymentCycle: PaymentCycleSchema.nullable().optional(),
+    billingMode: BillingModeSchema.nullable().optional(),
+    feeTemplateId: z.uuid().nullable().optional(),
+    agreedAmount: z.number().int().min(0).nullable().optional(),
+    adjustmentNote: z.string().nullable().optional(),
     effectiveFrom: z.string().date().optional(),
     effectiveTo: z.string().date().nullable().optional(),
     notes: z.string().max(2000).nullable().optional(),
@@ -195,7 +211,11 @@ export function toEnrollmentResponse(row: any): z.infer<typeof EnrollmentSchema>
     studentSchool: row.students?.schools?.name ?? '',
     studentGrade: row.students?.grade ?? '',
     status: row.status,
-    paymentCycle: row.payment_cycle ?? null,
+    billingMode: row.billing_mode ?? null,
+    feeTemplateId: row.fee_template_id ?? null,
+    // numeric 從 postgrest 回來是字串
+    agreedAmount: row.agreed_amount == null ? null : Number(row.agreed_amount),
+    adjustmentNote: row.adjustment_note ?? null,
     effectiveFrom: row.effective_from,
     effectiveTo: row.effective_to ?? null,
     notes: row.notes ?? null,
@@ -560,14 +580,17 @@ app.openapi(
         class_id: body.classId,
         student_id: body.studentId,
         status: body.status ?? 'active',
-        payment_cycle: body.paymentCycle ?? null,
+        billing_mode: body.billingMode ?? null,
+        fee_template_id: body.feeTemplateId ?? null,
+        agreed_amount: body.agreedAmount ?? null,
+        adjustment_note: body.adjustmentNote ?? null,
         effective_from: effectiveFrom,
         effective_to: effectiveTo,
         notes: body.notes ?? null,
         created_by: userId,
       })
       .select(
-        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
+        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
       )
       .single();
 
@@ -619,7 +642,10 @@ app.openapi(
     const supabase = c.get('supabase');
 
     const updates: Record<string, unknown> = {};
-    if (body.paymentCycle !== undefined) updates['payment_cycle'] = body.paymentCycle;
+    if (body.billingMode !== undefined) updates['billing_mode'] = body.billingMode;
+    if (body.feeTemplateId !== undefined) updates['fee_template_id'] = body.feeTemplateId;
+    if (body.agreedAmount !== undefined) updates['agreed_amount'] = body.agreedAmount;
+    if (body.adjustmentNote !== undefined) updates['adjustment_note'] = body.adjustmentNote;
     if (body.effectiveFrom !== undefined) updates['effective_from'] = body.effectiveFrom;
     if (body.effectiveTo !== undefined) updates['effective_to'] = body.effectiveTo;
     if (body.notes !== undefined) updates['notes'] = body.notes;
@@ -630,7 +656,7 @@ app.openapi(
       .eq('id', id)
       .eq('org_id', orgId)
       .select(
-        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
+        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
       )
       .single();
 
@@ -714,7 +740,7 @@ app.openapi(
       .eq('id', id)
       .eq('org_id', orgId)
       .select(
-        'id, org_id, class_id, student_id, status, payment_cycle, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
+        'id, org_id, class_id, student_id, status, billing_mode, fee_template_id, agreed_amount, adjustment_note, effective_from, effective_to, notes, created_by, created_at, updated_at, classes(name, campus_id, campuses(name), courses(id, name)), students(name, grade, schools(id, name, short_name)), creator:ba_user!created_by(name)',
       )
       .single();
 
