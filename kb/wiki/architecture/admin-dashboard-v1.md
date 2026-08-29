@@ -1,6 +1,6 @@
 ---
 title: 管理端儀表板 v1 的設計
-summary: 把四張死卡片接上真資料並補行政待辦卡：零後端改動（六種資料既有 API 全有）、未點名卡回溯 7 天且只在逐堂點名模式顯示、經營區用 permission 蓋住、卡片是索引不是工作場。
+summary: 把四張死卡片接上真資料並補行政待辦卡：零後端改動（六種資料既有 API 全有）、未點名卡回溯 7 天且只在逐堂點名模式顯示、報名卡只取 meta.total 以免分頁截斷、經營區用 permission 蓋住、卡片是索引不是工作場。
 category: architecture
 status: active
 updated: 2026-08-29
@@ -30,12 +30,12 @@ tags: [architecture, dashboard, admin]
 | 今日請假       | 今天誰請假         | `GET /api/leaves?coverDate=今天`                                           | `/admin/leave`         |
 | 成績待登錄     | 哪些考試沒登完     | 兩支既有的 `todo-count`（校內考+段考）相加                                 | `/admin/grades/exams`  |
 | 在籍學生       | 現在有多少學生     | `GET /api/students` 的 `summary.activeCount`                               | `/admin/students`      |
-| 本月報名進出   | 這個月進幾個退幾個 | `GET /api/enrollments` 既有的 period filter（進出總覽頁蓋的）              | `/admin/enrollments`   |
+| 本月報名異動   | 這個月動了幾筆報名 | `GET /api/enrollments` 既有的 `from`/`to` filter，取 `meta.total`（`pageSize=1`） | `/admin/enrollments`   |
 
 前端用 `forkJoin` 併發取數（老師端儀表板的既有先例），部分失敗不擋整頁 ——
 每張卡自己顯示載入失敗。
 
-## 三個關鍵決策
+## 關鍵決策
 
 ### 1. 零後端：組合既有 API，不做 aggregate endpoint
 
@@ -53,11 +53,30 @@ request —— 在 Cloudflare Workers 的 per-request CPU 上限下反而集中�
   「未點名」。所以這張卡只在 org `attendance_mode = 'per_session'` 時渲染
   （設定從既有 org-settings API 取）。`daily_checkin` 模式的對應警示
   （「今天還沒打卡的學生」）留給之後，不硬塞進 v1。
+- **讀不到設定時同樣不渲染**（fail-closed）：org-settings 那支查詢失敗就無從判斷這個數字
+  有沒有意義，寧可少一張卡，也不要顯示一個可能整欄都是誤報的數。
 
 ### 3. 經營區 v1 只做兩張（在籍、本月進出）
 
 營收/欠繳/分校比較的資料要等 P1 金流 schema —— 版面留插槽，不做假卡片。
 寫死的 `'—'` 佔位卡就是這次要清掉的東西，不再製造新的。
+
+### 4. 報名卡顯示「異動筆數」，不顯示進出人次
+
+實作時才發現的落差：`GET /api/enrollments` 有期間 filter，但**不回傳任何進/出分項聚合**，
+回應只有明細加 `meta.total`；「進 N 退 M」是進出總覽頁自己用
+`enrollment-event.util.ts` 的 `toEnrollmentEvent` 在前端分類算的，而 `pageSize` 上限 100。
+
+抓單頁明細自己分類，會在異動破百的月份（開學月、續報月）**悄悄少算，而且錯得沒有徵兆**
+—— 儀表板會很有自信地顯示一個偏小的數。所以只取 `meta.total`，卡片講「本月報名異動 N 筆」。
+
+**單位是「筆」不是「人次」**：`meta.total` 數的是「期間內有異動的報名記錄數」，
+一筆當月插班又當月退班的報名在這裡是 1，在總覽頁的事件分類裡是 `joined` + `left` 兩筆。
+卡片數字和點進去的分項加總對不上是語意差異，不是 bug；卡片 sub 文字引導使用者過去看分項。
+
+**拒絕的替代方案**：前端翻頁抓完再分類 —— 一個月破百筆就要打好幾個請求，違反決策 1 的
+「六個併發請求各自便宜」。後端加聚合欄位 —— 破壞零後端前提；它屬於 P2 的營收報表切片，
+那時 enrollments 聚合會跟營收聚合一起設計，比現在塞一個孤兒欄位好。
 
 ## 明確不做（v1）
 
