@@ -9,20 +9,24 @@
         @if (auth.roles().length > 1) {
           @if (device.isTouchDevice()) {
             <button
+              #roleTrigger
+              type="button"
               class="shell-header__role-badge shell-header__role-badge--{{
                 role
               }} shell-header__role-badge--interactive"
-              routerLink="/select-role"
+              (click)="rolePop.toggle($event, roleTrigger)"
             >
               {{ roleLabels[role] }}
               <i class="shell-header__role-badge-icon pi pi-chevron-down"></i>
             </button>
           } @else {
             <button
+              #roleTrigger
+              type="button"
               class="shell-header__role-badge shell-header__role-badge--{{
                 role
               }} shell-header__role-badge--interactive"
-              routerLink="/select-role"
+              (click)="rolePop.toggle($event, roleTrigger)"
               pTooltip="你擁有多個角色，點擊即可切換"
               tooltipPosition="bottom"
               tooltipStyleClass="clessia-tooltip clessia-tooltip--role-switch"
@@ -41,6 +45,18 @@
           </span>
         }
       }
+
+      <p-popover #rolePop styleClass="role-switch-overlay">
+        <div class="role-switch">
+          <p class="role-switch__title">切換身分</p>
+          @for (r of otherRoles(); track r) {
+            <button class="role-switch__item" type="button" (click)="rolePop.hide(); switchRole(r)">
+              <i class="role-switch__item-icon pi" [class]="'pi ' + roleIcons[r]"></i>
+              {{ roleLabels[r] }}
+            </button>
+          }
+        </div>
+      </p-popover>
 
       <div class="shell-header__user" #userTrigger (click)="op.toggle($event, userTrigger)">
         <app-jdenticon-avatar class="shell-header__avatar" [size]="30" [value]="avatarSeed()" />

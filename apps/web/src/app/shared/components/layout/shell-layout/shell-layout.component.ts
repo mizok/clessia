@@ -9,7 +9,7 @@ import {
   type ElementRef,
   afterNextRender,
 } from '@angular/core';
-import { RouterLink, RouterOutlet } from '@angular/router';
+import { RouterOutlet } from '@angular/router';
 import { Tooltip } from 'primeng/tooltip';
 import { Popover } from 'primeng/popover';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -27,7 +27,6 @@ import { AccountSettingsDialogComponent } from '@shared/components/account-setti
   standalone: true,
   imports: [
     RouterOutlet,
-    RouterLink,
     Tooltip,
     AutoOpenTooltipDirective,
     Popover,
@@ -60,6 +59,30 @@ export class ShellLayoutComponent {
     teacher: '任課老師',
     parent: '家長',
   };
+  /** 跟 `/select-role` 的角色卡片用同一組圖示，兩個入口看起來是同一件事 */
+  protected readonly roleIcons: Record<UserRole, string> = {
+    admin: 'pi-shield',
+    teacher: 'pi-book',
+    parent: 'pi-users',
+  };
+
+  /**
+   * 徽章上點得到的選項 —— 目前這個角色不列，點自己沒有意義。
+   * 只有多重角色的人看得到徽章的互動樣式，所以這裡不會是空的。
+   */
+  protected readonly otherRoles = computed(() =>
+    this.auth.roles().filter((role) => role !== this.auth.activeRole()),
+  );
+
+  /**
+   * Header 的角色快速切換。#34 曾把徽章改成導向 `/select-role`，切個身分要走一整趟
+   * 頁面 —— 那是退步。這裡就地切換：零導航、零動態載入。
+   *
+   * `/select-role` 那條路仍然在，服務的是登入後的初選與 guard 的落點，是另一個場景。
+   */
+  protected switchRole(role: UserRole) {
+    this.auth.navigateToRoleShell(role);
+  }
 
   private readonly dialogService = inject(DialogService);
 
