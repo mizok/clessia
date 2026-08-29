@@ -12,6 +12,8 @@ import billingPeriodsRoute from './routes/billing-periods';
 import feeTemplatesRoute from './routes/fee-templates';
 import invoicesRoute from './routes/invoices';
 import sessionPacksRoute from './routes/session-packs';
+import mealsRoute from './routes/meals';
+import billingRunsRoute from './routes/billing-runs';
 import { isPubliclyBlockedAuthPath } from './lib/auth-paths';
 import { createServiceClientFromEnv } from './lib/supabase';
 import campusesRoute from './routes/campuses';
@@ -269,6 +271,8 @@ mount('/api/billing-periods', billingPeriodsRoute, ADMIN_ONLY, 'manage_finance')
 mount('/api/fee-templates', feeTemplatesRoute, ADMIN_ONLY, 'manage_finance');
 mount('/api/invoices', invoicesRoute, ADMIN_ONLY, 'manage_finance');
 mount('/api/session-packs', sessionPacksRoute, ADMIN_ONLY, 'manage_finance');
+mount('/api/meals', mealsRoute, ADMIN_ONLY, 'manage_finance');
+mount('/api/billing-runs', billingRunsRoute, ADMIN_ONLY, 'manage_finance');
 
 // ============================================================
 // Error Handler
