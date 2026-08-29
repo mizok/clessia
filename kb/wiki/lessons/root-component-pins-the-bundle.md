@@ -75,8 +75,15 @@ const componentRef = createComponent(DynamicDialog, {
 還是一樣 —— 因為那份設定根本沒被讀。兩份的內容當時已經漂移（`anyComponentStyle` 一份寫
 8 kB、另一份 6 kB；`allowedCommonJsDependencies: ["qrcode"]` 只有 project.json 有）。
 
-> **要改 web 的建置設定，改 `apps/web/project.json`。** 目前兩份已對齊，但這是重複設定，
-> 遲早再漂移一次，建議收斂成一份。
+> **要改 web 的建置設定，改 `apps/web/project.json`。**
+
+**結案（2026-08-29）**：`angular.json` 已刪除，重複設定不存在了。
+
+它殘留的兩樣東西各自搬家：`schematics` 的 `style: scss` 進 `nx.json` 的 `generators`，
+`prefix` / `sourceRoot` 本來就在 `project.json` 有一份。`package.json` 的 `"ng": "ng"`
+一併移除 —— 沒有 `angular.json` 的情況下 Angular CLI 不會報錯，它會**往上層目錄找到別的
+workspace**（在 worktree 底下就是母 repo 的 `angular.json`）然後把檔案寫到錯的地方。
+產生元件改用 `npx nx g @schematics/angular:component <name> --type component`。
 
 ## 五、還沒做的
 

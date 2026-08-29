@@ -1,59 +1,28 @@
-# ClessiaApp
+# Clessia
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.1.3.
+補習班管理系統：管理端優先，支援多分校（一個組織、多個校區）。
 
-## Development server
+Angular 21 + PrimeNG（`apps/web`）、Hono + Better Auth（`apps/api`）、Supabase（DB），
+用 Nx 串起來。
 
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## 常用指令
 
 ```bash
-ng generate component component-name
+npm ci                # 根目錄依賴
+npm ci --prefix apps/api   # apps/api 是獨立的 npm package，要分開裝
+npm run dev           # web + api 一起起
+npm run build         # nx run-many -t build
+npm test              # nx run-many -t test
+npm run harness       # 文件與現實同步的 gate
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+**建置設定的真相來源是 `apps/web/project.json` 與 `apps/api/project.json`。**
+本 repo 沒有 `angular.json` —— 不要用 `ng` 開頭的指令，Angular CLI 讀不到 Nx 的設定，
+會往上找到別的 workspace 然後把檔案寫錯地方。產生元件請用
+`npx nx g @schematics/angular:component <name> --type component`。
 
-```bash
-ng generate --help
-```
+## 更完整的指引
 
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- **[`AGENTS.md`](AGENTS.md)** —— 專案指引的單一真相（技術棧、慣例、目錄結構、Definition of Done）
+- **[`kb/wiki/architecture/constitution.md`](kb/wiki/architecture/constitution.md)** —— 具約束力的架構法條
+- **[`kb/wiki/index.md`](kb/wiki/index.md)** —— 知識庫索引（規格、流程、業務規則、教訓）

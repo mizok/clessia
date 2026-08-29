@@ -53,7 +53,7 @@
 | 重錄測試基線       | `npm run test:baseline`                                                                   |
 | Supabase 本機      | `npm run db:start` / `db:reset`                                                           |
 | 新增 migration     | `npx supabase migration new <description>`                                                |
-| 產生元件等         | `npx ng g c foo --type component`（一律帶 `--type`）                                      |
+| 產生元件等         | `npx nx g @schematics/angular:component foo --type component`（一律帶 `--type`）          |
 
 > `nx.json` 的 `defaultBase` 是 `dev`，但這個 branch 不存在 —— 跑 `nx affected` 一律自己帶
 > `--base=main`。
@@ -148,7 +148,8 @@ admin / teacher / parent **沒有各自的 shell 元件**，三個角色走同�
 
 ### Angular
 
-- 建立 component / directive / service / pipe / guard 一律用 `ng generate` 並帶 `--type`
+- 建立 component / directive / service / pipe / guard 一律用 `npx nx g @schematics/angular:*` 並帶 `--type`
+  （**不是 `ng`** —— 本 repo 沒有 `angular.json`，Angular CLI 會往上找到別的 workspace 然後寫錯地方）
 - **Standalone Components only** — 沒有 NgModule
 - **Signals** 管反應式狀態（`signal` / `computed` / `effect`）；HTTP 串流用 RxJS
 - 檔名保留 type suffix：`feature-name.component.ts` / `.service.ts` / `.guard.ts`
