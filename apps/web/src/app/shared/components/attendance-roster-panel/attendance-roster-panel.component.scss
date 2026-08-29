@@ -29,7 +29,11 @@
   }
 
   &__list {
-    max-height: 55vh;
+    // --window-height 由 app 根節點的 appWindowSize 寫入。這個面板是 dialog，
+    // appendTo 走到 'body' 那條路時會落在 <div class="app"> 外面、變數解不到 ——
+    // 所以 fallback 用的是視窗高度而不是某個 px 數字：那時它就是真正生效的值
+    // （c6 允許 var() 的 fallback 用 viewport 單位，禁的是直接拿它當值）
+    max-height: calc(var(--window-height, 100dvh) * 0.55);
     overflow-y: auto;
     padding: var(--space-2) 0;
   }
