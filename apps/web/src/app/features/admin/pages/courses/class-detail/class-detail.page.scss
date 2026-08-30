@@ -376,8 +376,8 @@
     }
   }
 
-  &__student-status[data-status='active'] &__status-dot { background: #22c55e; }
-  &__student-status[data-status='active'] &__status-label { color: #15803d; }
+  &__student-status[data-status='active'] &__status-dot { background: var(--success-600); }
+  &__student-status[data-status='active'] &__status-label { color: var(--success-600); }
   &__student-status[data-status='pending_payment'] &__status-dot { background: #fb923c; }
   &__student-status[data-status='pending_payment'] &__status-label { color: #c2410c; }
   &__student-status[data-status='suspended'] &__status-dot { background: var(--zinc-400); }
