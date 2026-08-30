@@ -48,8 +48,14 @@ tags: [specs, teacher, attendance]
 
 ### 補登窗（不是「僅限當天」）
 
-可修改的範圍由 `organizations.attendance_retroactive_days` 決定 —— 預設 0（只有當天），
-機構可以放寬。「昨天忘記點的今天要追得到，更久以前的漏點名是報表該查的異常」。
+可修改的範圍由 `organizations.attendance_retroactive_days` 決定。
+
+**`0` 代表無限制，不是「只有當天」**（欄位的 `COMMENT` 就是這樣寫的，
+`20260401000001_attendance_operations.sql:21`）。而且現行的前端規則還有第二個條件：
+**只有 `attendance_responsible = 'teacher'` 的機構才鎖**
+（`teacher/schedule.page.ts:122-127`）—— 行政負責點名的機構，老師本來就不該被這個窗擋。
+
+設計意圖是「昨天忘記點的今天要追得到，更久以前的漏點名是報表該查的異常」。
 
 **2026-08-30 裁決：這個窗由伺服器強制。** 在此之前它只在前端讀
 （`teacher/schedule.page.ts`），老師直接打 API 可以改任何日期的出勤 —— 前端隱藏不構成
