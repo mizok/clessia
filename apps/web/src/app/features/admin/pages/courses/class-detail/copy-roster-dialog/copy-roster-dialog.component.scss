@@ -205,7 +205,7 @@
   // ---- Step 3 result ----
   &__result-icon {
     .pi {
-      color: #22c55e;
+      color: var(--success-600);
       font-size: 3rem;
     }
   }

@@ -473,7 +473,7 @@ select {
       color: #166534;
 
       .p-toast-message-icon {
-        color: #16a34a;
+        color: var(--success-600);
       }
     }
 
@@ -495,7 +495,7 @@ select {
       color: #92400e;
 
       .p-toast-message-icon {
-        color: #d97706;
+        color: var(--warning-600);
       }
     }
 
@@ -1445,7 +1445,7 @@ textarea.p-textarea,
 
       .pi {
         font-size: 1.75rem;
-        color: #16a34a;
+        color: var(--success-600);
       }
     }
 
