@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { aggregateRevenue, type RevenueInvoice, type RevenuePayment } from '../lib/revenue-report';
+import { toCsv, type CsvValue } from '../lib/csv';
 
 /**
  * 營收報表的聚合端點。
@@ -198,6 +199,92 @@ app.openapi(
     }
 
     return c.json(aggregateRevenue({ payments, invoices, today }), 200);
+  },
+);
+
+// ============================================================
+// GET /api/reports/revenue.csv —— 明細匯出
+//
+// 欄位照 spec：日期、分校、課程、金額、類型（實收／退款）。
+//
+// **一列一筆收款，不是聚合** —— 聚合看 `/revenue`。兩支共用同一組歸屬邏輯
+// （`classContexts` / `groupKeyOf`），所以把 CSV 依分校加總會跟報表上的分校小計對得起來。
+// 不共用的話就會出現「報表說 12 萬、匯出加起來 11.8 萬」那種沒有人查得出來的差異。
+//
+// **沒有分頁，但有上限。** 匯出本來就是要整份；不過無上限地撈一段十年的區間會把
+// Worker 撐爆。超過上限**明確回錯誤請人縮小範圍**，不靜靜截斷 —— 截斷的檔案看起來
+// 完全正常，只是少了幾千筆。
+// ============================================================
+
+/** 一次匯出的筆數上限。超過就請人縮小日期範圍，不截斷 */
+const CSV_ROW_LIMIT = 20000;
+
+app.openapi(
+  createRoute({
+    method: 'get',
+    path: '/revenue.csv',
+    tags: ['Reports'],
+    summary: '營收明細 CSV 匯出',
+    request: {
+      query: z.object({
+        dateFrom: z.string().regex(DATE),
+        dateTo: z.string().regex(DATE),
+        campusId: z.uuid().optional(),
+        courseId: z.uuid().optional(),
+      }),
+    },
+    responses: {
+      200: { description: 'CSV', content: { 'text/csv': { schema: z.string() } } },
+      413: {
+        description: '筆數超過上限',
+        content: {
+          'application/json': { schema: z.object({ error: z.string(), code: z.string() }) },
+        },
+      },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const params = c.req.valid('query');
+
+    const { data: paymentRows } = await supabase
+      .from('payment_records')
+      .select(`kind, amount, paid_at, note, invoices!inner(${INVOICE_SELECT})`)
+      .eq('org_id', orgId)
+      .gte('paid_at', params.dateFrom)
+      .lte('paid_at', params.dateTo)
+      .order('paid_at', { ascending: true });
+
+    const rows: CsvValue[][] = [];
+    for (const row of (paymentRows ?? []) as unknown as Record<string, unknown>[]) {
+      const invoice = row['invoices'] as Record<string, unknown> | null;
+      const contexts = invoice ? classContexts(invoice) : [];
+      if (!matchesFilter(contexts, params.campusId, params.courseId)) continue;
+
+      rows.push([
+        row['paid_at'] as string,
+        groupKeyOf(contexts, 'campus', row['paid_at'] as string),
+        groupKeyOf(contexts, 'course', row['paid_at'] as string),
+        Number(row['amount']),
+        row['kind'] === 'refund' ? '退款' : '實收',
+        (row['note'] as string | null) ?? null,
+      ]);
+    }
+
+    if (rows.length > CSV_ROW_LIMIT) {
+      return c.json(
+        { error: `筆數超過 ${CSV_ROW_LIMIT} 筆，請縮小日期範圍`, code: 'TOO_MANY_ROWS' },
+        413,
+      );
+    }
+
+    const csv = toCsv(['日期', '分校', '課程', '金額', '類型', '備註'], rows);
+
+    return c.body(csv, 200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="revenue-${params.dateFrom}-${params.dateTo}.csv"`,
+    });
   },
 );
 
