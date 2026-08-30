@@ -67,6 +67,25 @@
     color: var(--zinc-900);
   }
 
+  &__date {
+    font-variant-numeric: tabular-nums;
+    color: var(--zinc-600);
+  }
+
+  // 一個學生同一天可能在兩個有課的班 —— 班名並列，但便當還是一份
+  &__classes {
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+  }
+
+  &__note-input {
+    width: 100%;
+  }
+
+  &__search {
+    flex: 1 1 220px;
+  }
+
   &__actions {
     display: flex;
     align-items: center;
