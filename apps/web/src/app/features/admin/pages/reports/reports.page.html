@@ -150,25 +150,30 @@
             -->
             <th
               appRtColDef="key"
-              [appRtColDefMinWidth]="120"
+              [appRtColDefMinWidth]="100"
               [appRtColDefPriority]="1"
               [appRtColDefCollapsible]="false"
             >
               {{ groupColumnLabel() }}
             </th>
-            <th appRtColDef="received" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">
+            <th appRtColDef="received" [appRtColDefMinWidth]="110" [appRtColDefPriority]="3">
               實收
             </th>
-            <th appRtColDef="refunded" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">
+            <th appRtColDef="refunded" [appRtColDefMinWidth]="100" [appRtColDefPriority]="6">
               退款
             </th>
-            <th appRtColDef="billed" [appRtColDefMinWidth]="110" [appRtColDefPriority]="2">
+            <th appRtColDef="billed" [appRtColDefMinWidth]="110" [appRtColDefPriority]="4">
               已開帳
             </th>
-            <th appRtColDef="outstanding" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">
+            <!--
+              手機上只留得下一個數字欄，那一個要是**可行動的**：還有多少沒收到。
+              原本它與「實收」同為 priority 1，誰留下來靠 DOM 順序決定 ——
+              那不是決定，是巧合。
+            -->
+            <th appRtColDef="outstanding" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
               應收未收
             </th>
-            <th appRtColDef="overdue" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
+            <th appRtColDef="overdue" [appRtColDefMinWidth]="100" [appRtColDefPriority]="5">
               其中逾期
             </th>
           </tr>
