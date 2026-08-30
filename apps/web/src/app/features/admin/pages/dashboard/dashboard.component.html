@@ -22,7 +22,11 @@
     } @else if (sessionsFailed()) {
       <p class="dashboard__band-line">今日課表讀取失敗。</p>
     } @else {
-      <p class="dashboard__band-line">載入中</p>
+      <!-- 骨架而不是「載入中」三個字：橘帶是整頁最顯眼的位置，
+           一行字在那個尺寸下讀起來像內容，骨架讀起來像「還沒到」 -->
+      <p class="dashboard__band-line dashboard__band-line--pending" aria-label="今日課表載入中">
+        <span class="dashboard__band-skeleton"></span>
+      </p>
     }
 
     <app-day-timeline [sessions]="todaySessionList()" [date]="todayKey" />
@@ -35,8 +39,16 @@
         @for (card of todoCards(); track card.label) {
           <li>
             <a class="dashboard__todo-row" [routerLink]="card.routerLink">
-              <span class="dashboard__todo-icon"><i class="pi {{ card.icon }}"></i></span>
-              <span class="dashboard__todo-value">
+              <span
+                class="dashboard__todo-icon"
+                [class.dashboard__todo-icon--zero]="card.value === 0"
+              >
+                <i class="pi {{ card.icon }}"></i>
+              </span>
+              <span
+                class="dashboard__todo-value"
+                [class.dashboard__todo-value--zero]="card.value === 0"
+              >
                 @if (card.value === null) {
                   載入中
                 } @else if (card.value === 'error') {
@@ -72,6 +84,12 @@
 
       @if (sessionsFailed()) {
         <p class="dashboard__empty">今日課表讀取失敗</p>
+      } @else if (sessionsLoading()) {
+        <div class="skeleton-list" aria-label="今日課表載入中">
+          @for (i of [1, 2, 3]; track i) {
+            <span class="skeleton-bar"></span>
+          }
+        </div>
       } @else if (todaySessionList().length === 0) {
         <p class="dashboard__empty">今日尚無排課</p>
       } @else {
@@ -132,6 +150,12 @@
 
         @if (leavesFailed()) {
           <p class="dashboard__empty">今日請假讀取失敗</p>
+        } @else if (leavesLoading()) {
+          <div class="skeleton-list" aria-label="今日請假載入中">
+            @for (i of [1, 2]; track i) {
+              <span class="skeleton-bar"></span>
+            }
+          </div>
         } @else if (todayLeaveList().length === 0) {
           <p class="dashboard__empty">今天沒有人請假</p>
         } @else {

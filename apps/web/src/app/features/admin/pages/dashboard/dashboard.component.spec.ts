@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AcademyExamsService } from '@core/academy-exams.service';
@@ -73,6 +73,8 @@ interface SetupOptions {
   mode?: AttendanceMode;
   permissions?: string[];
   fail?: 'sessions' | 'leaves' | 'grades' | 'students' | 'enrollments' | 'org';
+  /** 讓查詢永遠不回覆，用來驗「載入中」而不是「空」 */
+  pending?: boolean;
 }
 
 describe('DashboardComponent（管理端）', () => {
@@ -106,6 +108,7 @@ describe('DashboardComponent（管理端）', () => {
       mode = 'per_session',
       permissions = ['view_reports'],
       fail,
+      pending,
     } = options;
 
     const boom = throwError(() => new Error('boom'));
@@ -124,14 +127,21 @@ describe('DashboardComponent（管理端）', () => {
 
     // 卡 1 用 date=今天、卡 2 用 dateFrom=7 天前，是兩個不同的請求
     sessionsMock.mockImplementation((params: { date?: string }) =>
-      fail === 'sessions'
-        ? boom
-        : sessionList(params.date ? todaySessions : recentSessions),
+      pending
+        ? NEVER
+        : fail === 'sessions'
+          ? boom
+          : sessionList(params.date ? todaySessions : recentSessions),
     );
     leavesMock.mockReturnValue(
-      fail === 'leaves'
-        ? boom
-        : of({ data: leaves, meta: { total: leaves.length, page: 1, pageSize: 100, totalPages: 1 } }),
+      pending
+        ? NEVER
+        : fail === 'leaves'
+          ? boom
+          : of({
+              data: leaves,
+              meta: { total: leaves.length, page: 1, pageSize: 100, totalPages: 1 },
+            }),
     );
     academyTodoMock.mockReturnValue(fail === 'grades' ? boom : of({ count: academyTodo }));
     schoolTodoMock.mockReturnValue(of({ count: schoolTodo }));
@@ -280,6 +290,25 @@ describe('DashboardComponent（管理端）', () => {
     });
 
     expect(component['todaySessionList']().map((s) => s.eventId)).toEqual(['early', 'late']);
+  });
+
+  // 載入中回空陣列的話，畫面會立刻宣稱「今日尚無排課」—— 那是一個當下還不知道
+  // 的事實。空資料庫上這個謊會維持十幾秒（實機回饋），直到資料回來才更正。
+  it('載入中不得宣稱今日尚無排課', async () => {
+    await setup({ pending: true });
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).not.toContain('今日尚無排課');
+    expect(text).not.toContain('今天沒有人請假');
+    expect(fixture.nativeElement.querySelector('.skeleton-bar')).not.toBeNull();
+  });
+
+  it('載入中橘帶不得宣稱今天沒有排課', async () => {
+    await setup({ pending: true });
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).not.toContain('今天沒有排課');
+    expect(fixture.nativeElement.querySelector('.dashboard__band-skeleton')).not.toBeNull();
   });
 
   it('今天沒課時顯示空狀態', async () => {

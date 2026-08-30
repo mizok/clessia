@@ -39,6 +39,12 @@ export class DayTimelineComponent {
 
   protected readonly hasBlocks = computed(() => this.layout().lanes.length > 0);
 
+  /**
+   * 軌道高度隨 lane 數長高（設計：lane 不設上限）。
+   * 每條 lane 的節距與 SCSS 的方塊高度是一組，改一個要改另一個。
+   */
+  protected readonly trackHeight = computed(() => this.layout().lanes.length * 30 + 16);
+
   protected hour(h: number): string {
     return String(h).padStart(2, '0');
   }
