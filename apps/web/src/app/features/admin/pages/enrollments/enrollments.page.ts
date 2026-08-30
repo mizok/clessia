@@ -14,7 +14,6 @@ import { Router } from '@angular/router';
 import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
 import { PaginatorModule } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
-import { TagModule } from 'primeng/tag';
 
 import { CampusesService, type Campus } from '@core/campuses.service';
 import {
@@ -41,7 +40,7 @@ interface EnrollmentRow {
 
 @Component({
   selector: 'app-enrollments',
-  imports: [DataChipComponent, DatePipe, FormsModule, SelectModule, TagModule, PaginatorModule],
+  imports: [DataChipComponent, DatePipe, FormsModule, SelectModule, PaginatorModule],
   templateUrl: './enrollments.page.html',
   styleUrl: './enrollments.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

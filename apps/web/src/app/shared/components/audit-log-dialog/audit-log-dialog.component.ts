@@ -1,6 +1,5 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { TagModule } from 'primeng/tag';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { AuditLogsService, type AuditLog } from '@core/audit-logs.service';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
@@ -61,7 +60,6 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
   imports: [
     DataChipComponent,
     CommonModule,
-    TagModule,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,
