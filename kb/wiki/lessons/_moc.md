@@ -60,13 +60,21 @@ Links to: [[lessons/menu-entry-without-a-route]], [[lessons/rls-backstop-drift]]
 
 Tags: `lessons`, `local-green-is-not-repo-green`
 
-Links to: [[lessons/awakened-tests-bite]]
+Links to: [[lessons/awakened-tests-bite]], [[lessons/merged-does-not-mean-main]]
 
 ## [[lessons/menu-entry-without-a-route|選單開了、頁面寫了，路由還在 redirect]]
 
 M1 的課務異動畫面上線後完全打不開 —— 元件測試全綠，因為漏掉的東西不在元件裡，而在選單與路由表之間的縫。
 
 Tags: `lessons`, `menu-entry-without-a-route`
+
+## [[lessons/merged-does-not-mean-main|「MERGED」只說明它合進了某個東西，沒說是 main]]
+
+疊 PR 的下層先合併之後，上層的 base 不會自動轉回 main —— 它會靜靜地合進一條已經死掉的分支，GitHub 標成 MERGED、CI 照樣綠，而那份工作從此不在 main 上。
+
+Tags: `lessons`, `merged-does-not-mean-main`, `git`, `ci`
+
+Links to: [[lessons/local-green-is-not-repo-green]], [[lessons/awakened-tests-bite]]
 
 ## [[lessons/rls-backstop-drift|後盾在沒人看的時候悄悄少了一半]]
 
