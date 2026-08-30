@@ -15,9 +15,13 @@ import type { MealBatchRow, MealRosterRow } from '@core/meals.service';
 export interface MealDraftRow {
   studentId: string;
   studentName: string;
+  /** 班名並列成一行。**沒有班級時是破折號不是空字串** —— 區間模式後端刻意回空陣列 */
+  classLabel: string;
+  mealDate: string;
   ordered: boolean;
   chargeable: boolean;
   unitPrice: number;
+  note: string;
   /** null = 這天還沒有人處理過他。留著是為了區分「沒訂」與「沒處理」 */
   recordId: string | null;
   /** 已結算 —— 鎖住不給改（規則 2） */
@@ -33,10 +37,14 @@ export function rosterToDraft(rows: MealRosterRow[], defaultUnitPrice: number): 
   return rows.map((row) => ({
     studentId: row.studentId,
     studentName: row.studentName,
+    classLabel: row.classNames.length > 0 ? row.classNames.join('、') : '—',
+    mealDate: row.mealDate,
     // 還沒處理過的落在學生的 opt-in 上 —— 那正是候選名單的意義
     ordered: row.ordered ?? row.mealDefault,
     chargeable: row.chargeable ?? true,
     unitPrice: row.unitPrice ?? defaultUnitPrice,
+    // 空字串而不是 null —— textarea/input 綁 null 會變成字面上的 "null"
+    note: row.note ?? '',
     recordId: row.recordId,
     settled: row.settled,
   }));
@@ -79,5 +87,7 @@ export function draftToBatchRows(rows: MealDraftRow[]): MealBatchRow[] {
       ordered: row.ordered,
       chargeable: row.chargeable,
       unitPrice: row.unitPrice,
+      // **清空要送 null**：送 undefined 後端會當成「沒給」而保留原值，備註就清不掉
+      note: row.note.trim() || null,
     }));
 }
