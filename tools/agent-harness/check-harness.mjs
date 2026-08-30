@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
+import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { matchWriteRules } from './lib/rules.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
@@ -621,6 +622,18 @@ function scanGhostTokens() {
 }
 
 scanGhostTokens();
+
+// ── 橘帶的對比硬地板 ─────────────────────────────────────────────────────────────────────
+// 數學住在 lib/band-contrast.mjs（可單獨測），這裡只負責把違規接上 fail()。
+// 為什麼要 gate 而不是註解：近黑字降透明度掉出 AA 沒有任何編譯期訊號，
+// 畫面上看起來也只是「淡了一點」—— 兩席各自憑直覺寫過 0.32~0.72，全部不合格。
+function checkBandContrast() {
+  const file = join(ROOT, 'apps/web/src/styles.scss');
+  if (!existsSync(file)) return;
+  for (const violation of bandContrastViolations(readFileSync(file, 'utf8'))) fail(violation);
+}
+
+checkBandContrast();
 
 // ── report ───────────────────────────────────────────────────────────────────────────────
 // --write 一律 exit 0：它的工作是「修好能自動修的」，剩下的（例如 CLAUDE.md 被塞進規則）
