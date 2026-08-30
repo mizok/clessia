@@ -146,7 +146,13 @@
 
   &__main {
     display: flex;
-    align-items: center; // Vertical centering
+    // **不是 `center`。** 內容比容器高的時候 flex 置中會往上下**雙向**溢出，
+    // 而這一格只能往下捲 —— 溢到上緣外的那段就永遠拿不回來了。
+    // 實測（1280x780 塞一份 12 欄位的表單）：標題跑到 y=-182。
+    // `stretch` 讓子層拿到滿高，垂直置中改由頁面自己負責
+    // （`.login` 的 host 本來就是 `min-height: 100%` 加置中），
+    // 短內容看起來一模一樣，長內容則正常往下長。
+    align-items: stretch;
     justify-content: center;
     height: var(--window-height, 100dvh);
     padding: var(--space-10);
@@ -168,8 +174,17 @@
   flex: 1;
   display: flex !important;
   flex-direction: column;
-  align-items: center; // Standard centered logic
-  justify-content: center; // Standard centered logic
+  // 這是 column flex，所以 `align-items` 管的是**水平**：置中是對的（表單有 max-width）。
+  align-items: center;
+  // 但垂直方向**不能用 `justify-content: center`**。內容比容器高的時候它會往上下
+  // 雙向溢出，而外層只能往下捲 —— 溢到上緣外的那段就永遠拿不回來。
+  // 實測（1280x780 塞一份 12 欄位的表單）：標題跑到 y=-182。
+  //
+  // 改成 flex-start 不會失去登入頁的置中：子層拿到 `flex: 1 1 auto`
+  // （`.u-fill-route-child`），在 column 裡等於長滿高度，而頁面自己的 host
+  // （`.login` 是 `min-height: 100%` + 置中）負責把內容擺中間。
+  // 短內容看起來一模一樣，長內容則正常往下長。
+  justify-content: flex-start;
   width: 100%;
   min-height: 100%;
 }
@@ -187,8 +202,18 @@
   .public-shell {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
-    height: var(--window-height, 100dvh);
-    overflow: hidden;
+    // **捲動容器是這一層，不是內層的 main。** 這一條決定了報名／試聽那種
+    // 長表單頁能不能用：
+    //
+    //   內層 main 自捲 → 品牌帶永遠釘在畫面上佔掉 36%，表單被關在剩下的
+    //                    64% 裡捲，表單越長越難用
+    //   這一層自捲     → 往下捲時品牌帶跟著捲走，表單拿到整個螢幕高度；
+    //                    登入頁內容短、不觸發捲動，構圖完全不受影響
+    //
+    // 為什麼不乾脆讓文件捲：html / body 是 `height: 100%; overflow: hidden`
+    // 的固定視窗 shell 架構（admin 全站都靠它），改它的波及面遠超過這一刀。
+    // 在那個前提下，「最外層那個滿一屏的容器自己捲」就是等價的做法。
+    overflow-y: auto;
     background: var(--color-white);
 
     &__brand {
@@ -262,11 +287,15 @@
     &__main {
       // 桌機的 `height: var(--window-height)` 在二分構圖下是對的（兩欄各自滿高），
       // 直向堆疊時卻讓它整整溢出一個品牌帶的高度 —— 表單因此被推到摺線以下。
-      // 交給 grid 的 `1fr` 決定高度，`min-height: 0` 才讓它真的可以被壓縮。
+      // 高度交給 grid 的 `1fr`：內容短時填滿剩餘一屏，內容長時往下長。
       height: auto;
-      min-height: 0;
+      // **不要設 min-height: 0。** grid 的 `1fr` 軌道有一個「自動最小值」，
+      // 那正是它在內容變高時跟著長高的機制；設成 0 等於把它關掉，
+      // 於是軌道卡在一屏、長表單直接溢出。
       padding: var(--space-6) var(--space-5);
-      overflow-y: auto;
+      // 不自己捲 —— 捲動屬於外層的 .public-shell（見上面的註解）
+      overflow: visible;
     }
+
   }
 }
