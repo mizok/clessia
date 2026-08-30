@@ -124,6 +124,16 @@ export class DashboardComponent {
   protected readonly leavesFailed = computed(() => this.todayLeaves() === FAILED);
 
   /**
+   * **載入中不等於沒有。**
+   *
+   * 這兩個清單在載入中（`null`）時回空陣列，於是畫面會立刻宣稱「今日尚無排課」——
+   * 那是一個當下還不知道的事實。空資料庫上這個謊會維持十幾秒，直到資料回來才
+   * 更正。橘帶之所以看起來「最慢」，只是因為它是唯一誠實的那個。
+   */
+  protected readonly sessionsLoading = computed(() => this.todaySessions() === null);
+  protected readonly leavesLoading = computed(() => this.todayLeaves() === null);
+
+  /**
    * `'hidden'` 是整張卡不該存在：`daily-checkins` 建立 attendance_records 但從不蓋
    * `events.attendance_taken_at`，日到班模式下每一堂都會被算成漏點名。讀不到機構設定時
    * 同樣不顯示 —— 無從判斷這個數字有沒有意義，寧可少一張卡也不要給一個可能全錯的數。
