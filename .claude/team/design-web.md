@@ -21,17 +21,57 @@
 1. `kb/wiki/architecture/constitution.md` —— **c6 禁 viewport 單位**是這席最常撞的一條
 2. `kb/wiki/lessons/root-component-pins-the-bundle.md` —— bundle 的地板在哪、為什麼
 3. `kb/wiki/architecture/login-experience.md` —— 登入與角色選擇的設計決策與被拒絕的替代方案
-4. `kb/wiki/specs/public/login.md` —— 登入頁的規格，含 LINE 商標的使用界線與**兩個知情的取捨**（對比 2.8:1、白底綠框蓋過官方實心綠）
+4. `kb/wiki/specs/public/login.md` —— 登入頁的規格，含 LINE 商標的使用界線與知情的取捨（**內容以 spec 為準，這裡不複述**）
 
 ## 三、慣例
 
 **寫 SCSS 前一律 invoke `angular-scss-bem-standards`。** 不是形式，它會擋掉深層巢狀與非 token 硬編碼值。做視覺方向用 `impeccable`（流程型，取代 frontend-design），收尾用 `web-design-guidelines`。`ui-ux-pro-max` 可輔助但**它給過違反 c6 的建議**（`clamp(3rem 10vw 12rem)`）與衝突的色票字體，採原則、棄具體值。
 
-**語意色的 600 階，值由對比度決定，不是照色票排**（跟 accent 同一條規矩，#97 定案）。`--success-600` `#15803d` / `--warning-600` `#b45309` 是被「當文字色用、必須對所有實際底色 ≥4.5:1」倒推出來的。**驗對比要掃過每一處引用的祖先 `background`**，不能只算白底 —— 全站實際用到 7 種底色（白 / `--zinc-50` / `--zinc-100` / `--success-100` / `--warning-100` / `--accent-50` / `color-mix(--warning-100 70%, white)`）。**最緊的一格是 `--warning-100` 上的 4.51:1**，只多 0.01 —— 動 `--warning-100`（或任何 100 階底色）必須重算 600 階，否則會靜默掉出 AA。
+**對比不靠記憶，靠兩支 gate。**（別再手抄數字進這裡 —— 上一版 charter 抄了七種底色與
+`--warning-100` 上的 4.51，兩週後就有一半不準了。）
 
-**狀態色的硬編碼已全站歸零，之後一律用 token。** `#16a34a` / `#d97706` / `#22c55e` 在 #97 清完了。這件事的教訓是：**改 token 值修不到繞過 token 的地方** —— 當時只改 `--success-600` / `--warning-600` 的值，全站還有 4 處 icon + 2 處狀態圓點直接寫死同色系，對比 2.13～3.00:1 全都沒過。**任何「改 token 修對比」的工單，最後一定要 grep 舊的 hex 值確認歸零**，不然修了一半還以為修完了。非文字元件（圓點、icon、border）的門檻是 3:1 不是 4.5:1，但也要過。
+| gate | 守什麼 | 判例 |
+| --- | --- | --- |
+| `tools/agent-harness/lib/band-contrast.mjs` | 橘帶 token **自己的值** | 近黑字降透明度掉出 AA（0.72 只有 4.00） |
+| `tools/agent-harness/lib/scss-contrast.mjs` | **配對** —— 每個 token 都合格、配在一起卻不合格 | 琥珀 chip hover 換到 200 底剩 4.03，而那個區塊只寫了 background |
 
-**已知還沒過線、刻意留著的**：`class-detail.page.scss:381` 的 `pending_payment` 圓點 `#fb923c` 對白 2.13:1。沒收是因為它**沒有對應的既有 token**，收它等於在設計系統新增一階（`--warning-600` 是深橘，拿來當圓點跟 active 的深綠一樣偏暗，語意也不同）。計畫席已收進改善待辦 —— **不要順手改掉，那是設計決定不是漏網之魚。**
+兩支的門檻都**從 `styles.scss` 現值算**，不寫死；改了 `--accent-vivid` 或任何 100 階底色
+會自動重算。`scss-contrast` 有 baseline（既有 29 處，只擋新增），跑 `npm run harness:write` 重生。
+
+**gate 寫完一定要塞一個陷阱進去看它會不會紅。** 綠燈有兩種：真的沒問題，和檢查提早
+return 了 —— 這兩種從輸出上看一模一樣。band-contrast 我弄壞過三種情況、scss-contrast
+塞過琥珀 chip 陷阱，都確認會紅才敢說它有效。
+
+**gate 抓不到的那一半仍然要自己算**：`scss-contrast` 只看同一個規則區塊或它的祖先，
+底色來自跨檔案 DOM 祖先的它看不到（那需要真的算 CSS 串接，成本高一個量級且會誤判）。
+所以動語意色階之前，還是要掃過每一處引用的祖先 `background`。
+
+**改 token 值修不到繞過 token 的地方。** #97 只改了 `--success-600` / `--warning-600`
+的值，全站還有 4 處 icon + 2 顆狀態圓點直接寫死同色系，對比 2.13～3.00 全沒過。
+**任何「改 token 修對比」的工單，收尾一定要 grep 舊的 hex 確認歸零。**
+非文字元件（圓點、icon、border）門檻是 3:1 不是 4.5:1，但也要過。
+
+**色相只編碼嚴重度。** 身分、數值、編輯狀態一律不准碰色相 —— 這是狀態編碼系統的法則
+（工單 3，設計稿見 PR #108）。形狀編碼「是否還在等」，位置與字重編碼編輯狀態。
+`--accent-*` 是品牌色，它從來就不是嚴重度（#100）。
+
+**規則寫進元件，比寫進文件便宜。** `app-page-band` 的流場 `frozen` **刻意不做成 input**
+—— D 明令「資料表格後面永遠不放持續動態」，開放成參數等於留一個口子給下一個人違反。
+同理 `app-data-chip` **刻意沒有 severity 參數**：沒有那個參數，就沒有人會拿它表達狀態。
+兩條都有測試釘住。
+
+**這席的共用元件與詞彙**（實作在 `shared/components/`，不要在 feature 裡各寫一份 —— c5）：
+
+| 詞 | 指的是 | 元件 |
+| --- | --- | --- |
+| **橘帶**（band） | 內部頁的入口色面，一頁一條 | `app-page-band` |
+| **錨點**（anchor） | 帶上那個放大的關鍵數字，**最可行動的那個、不一定是總數** | `app-band-anchor` |
+| **咬合**（seam） | 白工作面往上壓進橘帶的深度，`--band-seam` | — |
+| **身分 chip** | 類別／種類／所屬，中性、無嚴重度 | `app-data-chip` |
+| **狀態點＋字** | 形狀 × 色相兩個軸 | `app-status-dot` |
+
+命名跟 design-web 第一席（session 名 `bundle-analysis-*`）對齊過：**band 是帶、anchor 是
+帶上的數字**，不要拿 anchor 指帶本身。
 
 **bundle 驗收線的量法**（不要抄數字，數字會腐化，抄方法）：
 
@@ -56,6 +96,8 @@
 
 5. **推理贏不過截圖**。我用 CSS mask 把 LINE 官方白色 icon 染成品牌綠，理由是使用者說過「icon 同綠」——結果那素材是白泡泡加**鏤空的字**，染成單色後 24px 下就是一團綠塊，認不出是 LINE。**視覺假設要等實機截圖再定案**，尤其是小尺寸下的形狀辨識。
 
+   **mockup 也要放進瀏覽器看，不要只在腦裡跑。** 光是這一輪就靠實際開來看抓到四個推不出來的問題：橘帶縱向堆疊高達 360px（來看表格的人要先滑過一大片）、用 emoji 當 icon 在暖橘色盤裡是彩色異物、「已停用」的灰實心＋描邊在 8px 下跟中空環分不出來、未儲存的近黑左緣放在靠右對齊的分數欄會變成浮在表格中間的線。**四個都是我寫的時候覺得沒問題的。** 本機開檔要記得補 `<meta charset="utf-8">`，否則中文全變亂碼。
+
 6. **prettier 會在 Write 之後重排檔案**（PostToolUse hook）。之後所有針對「單行 CSS」的字串替換都會 miss。**每個 replace 都加 assert**，否則靜默失敗，你會以為改好了。
 
 7. **`.claude/skills/*` 是指向 `.agents/skills/` 的 symlink**。impeccable 的 `concept-seed.mjs` 有 `argv[1] === import.meta.url` 自我檢查，在 symlink 下不成立 → **靜默 exit 0、零輸出、零錯誤訊息**。用 realpath 呼叫（`~/.agents/skills/impeccable/scripts/...`）。同理它的 `detect.mjs`。
@@ -66,8 +108,14 @@
 
 ## 五、進行中的狀態
 
-- **三套視覺方向等使用者挑**：`.design-explorations/direction-{a-timetable,b-star-atlas,c-roll-book}.html`。A 是骰子指派（時刻表印刷、密度勇氣），B 是唯一守住 product clarity 的 challenger（星圖、階層靠點徑），C 是我自己的第一名也是最保守的（點名簿、雙筆跡）。每份開頭的 HTML 註解裡有完整的 direction contract（THESIS / OWN-WORLD / STORY / FIRST VIEWPORT / FORM）。
-- **挑完的第二階段**：把中選那套鑄成新 `styles.scss` tokens，然後**漸進套用**（不要一次改全站）。impeccable 的規矩是這時才寫 DESIGN.md，從建好的世界回頭寫，不是先寫規則再去符合它。
-- **佔位符「C」只剩一處**：`shell-layout.component.html:4` 的 `.shell-header__logo-icon`。登入頁與 select-role 的都已清掉（#42、#45）。真 logo 是品牌工作，**與其把一個佔位符換成另一個，不如先空著**。
-- **兩個知情的取捨不要「順手修掉」**：LINE 按鈕對白底 2.8:1 低於 WCAG AA（使用者選擇品牌綠優先）、白底綠框蓋過 LINE 官方實心綠樣式。兩者都記在 `specs/public/login`，改之前先確認偏好還成立。
-- **待辦但沒排程**：Aura preset 全量匯入（約 43 kB 死重，但要先有一條比對 `from 'primeng/x'` 與 preset 清單的 gate，否則忘了補 preset 只會樣式壞掉且沒有編譯期錯誤）、primeicons 子集化、收斂 `angular.json`/`project.json`。
+> 這一節最容易腐化。**寫進來之前先問「這是狀態還是知識」** —— 狀態放這裡並且要定期重驗，
+> 知識放 §三 / §四。2026-08 這一節整段過期過一次：D 已經選定上線好幾週，它還寫著
+> 「三套視覺方向等使用者挑」；同一版還宣稱 `#fb923c` 圓點「刻意留著」，而它早被別席修掉了。
+> **charter 會腐化，接手時先驗一遍再信它。**
+
+- **方向 D 已定案並上線**，真相在 [`kb/wiki/architecture/design-language.md`](../../kb/wiki/architecture/design-language.md)（三條規則、token 映射、流場的數學）。探索期的四個方向留在 `.design-explorations/`，不進版控 —— 換機器就沒了，那是刻意的。
+- **內部頁 D 化進行中**：橘帶 token 與 gate（#101）、列表＋詳情代表頁（#104）、儀表板與報表（#105，第一席）都已進 main。狀態編碼系統走工單 3 的四刀，刀 1（兩支元件 + 掃使用處的 gate）是 #108。
+- **工單 3 剩下的三刀**：刀 2 純身分標籤 + 等第 badge（`grades/` 底下 13 處 `--accent-700`）／刀 3 狀態，**要跟 admin-pages 席共做**（哪些狀態有「逾期」概念是它的領域知識）／刀 4 分數編輯器的未儲存，動它之前先確認 `academy-score-editor` 沒有別席在改。
+- **對比 baseline 待清的兩筆**（`tools/agent-harness/scss-contrast-baseline.json`）：`--error-600` 疊 `--error-100` 只有 3.95（3 處）、`--accent-400` 疊 `--accent-50` 只有 2.16（2 處）。不是舊債，是這次掃出來才發現的。
+- **LINE 按鈕的取捨**以 [`kb/wiki/specs/public/login.md`](../../kb/wiki/specs/public/login.md) 為準，**不要在這裡複述** —— 上一版 charter 抄了「對比 2.8:1、白底綠框蓋過官方實心綠」，而 spec 早就改成用官方按鈕素材了。
+- **待辦但沒排程**：Aura preset 全量匯入（約 43 kB 死重，但要先有一條比對 `from 'primeng/x'` 與 preset 清單的 gate，否則忘了補 preset 只會樣式壞掉且沒有編譯期錯誤）、primeicons 子集化、收斂 `angular.json`/`project.json`、`--zinc-400` 那筆全站 2.6:1 的舊債。
