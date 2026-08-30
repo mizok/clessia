@@ -460,21 +460,6 @@ const normalize = (t) =>
     .filter(Boolean)
     .join('\n');
 
-/**
- * 「這次執行是不是 main 的合併點」——決定現況表過期要紅燈還是只警告。
- *
- * 只認 CI 上的 `GITHUB_REF`。**本機一律回 false**，這不是偷懶：本機的工作樹永遠不是
- * main 的合併點，就算你人在 main 分支上，你手上那份也還沒經過 PR。真正會被別人拉到的
- * main 是 CI 上那個。
- *
- * 為什麼要分流（見 kb/wiki/architecture/constitution-enforcement.md 的 c11）：
- * 現況表是**從整個 repo 的磁碟狀態**推導的，所以任何兩支並行分支只要各自新增了頁面或
- * route，就會各自重生出不同的表，然後在 main 上撞成衝突 —— 2026-08-29 一天內 #66 / #68 /
- * #71 三連撞。這個衝突稅是純粹的儀式：撞的不是任何人的實質改動，是一張**可以重新生成**
- * 的表。所以分支上只提醒，重生交給 main。
- */
-export const isMainRef = (env = process.env) => env.GITHUB_REF === 'refs/heads/main';
-
 // 測試要 import 這支檔案，所以主流程包起來 —— 跟 test-gate.mjs 同一個做法
 export { AREAS, ROLES, diskPages, failures, render };
 
@@ -510,15 +495,19 @@ async function main() {
     formatGenerated([ROADMAP], ROOT);
     console.log(`✓ 功能區現況表已重生（${AREAS.length} 個功能區）`);
   } else if (normalize(source.slice(from + START.length, to)) !== normalize(body)) {
-    // **只有現況表過期這一條會被降級**。上面的 `failures`（磁碟上有東西沒被任何功能區認領）
-    // 在哪裡都是紅燈 —— 那是藍圖不完整，不是一張重生就好的表。
-    if (isMainRef()) {
-      console.error('✖ kb/wiki/roadmap.md 的功能區現況表過期。重生：npm run harness:write');
-      process.exit(1);
-    }
-    console.warn(
-      '⚠ kb/wiki/roadmap.md 的功能區現況表過期（分支上只提醒）—— main 的 verify workflow 會自動重生。',
-    );
+    // **表過期在哪裡都只是警告，main 也不例外。**
+    //
+    // 一度是「分支警告、main 紅燈」的雙層。那道紅燈原意是雙保險，實際上是個死結：
+    // `verify.yml` 的 `sync-feature-map`（會重生並補 commit 的那個 job）掛著 `needs: verify`，
+    // 而讓 verify 紅的正是這一行 —— **能修表的 job 只在表沒壞時才跑**，main 於是自己好不了。
+    // 2026-08-30 #82 接上餐費頁之後真的發生了，要人工代打 2 行才解堵（5be7927）。
+    //
+    // 現在強制點只有一個：那個 job。它重生失敗（push 撞車之類）會讓自己紅，
+    // 所以覆蓋沒有變薄 —— 少的只是那道搶在自動修復前面把它擋掉的紅燈。
+    //
+    // 上面的 `failures`（磁碟上有東西沒被任何功能區認領）**維持到處紅**：
+    // 那個 job 修不了，必須有人去改 AREAS。
+    console.warn('⚠ kb/wiki/roadmap.md 的功能區現況表過期 —— main 的 verify workflow 會自動重生。');
     console.warn('  想現在就對齊：npm run harness:write（但這會讓你跟其他並行分支撞在同一張表上）');
   } else {
     console.log(`✓ 功能區現況表同步（${AREAS.length} 個功能區）`);

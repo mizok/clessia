@@ -10,7 +10,6 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { isMainRef } from './feature-map.mjs';
 import { formatGenerated } from './lib/format.mjs';
 import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
@@ -236,15 +235,10 @@ test('formatGenerated 失敗只警告，不往上拋', () => {
 // 為什麼要測：這條分流的價值全在「分支上不紅」。有人把它改回無條件 process.exit(1)，
 // 或把條件寫反，症狀都不是報錯而是**衝突稅默默回來** —— 沒有測試的話沒人會發現。
 
-test('isMainRef 只認 CI 的 main；本機一律不是 main 的合併點', () => {
-  assert.equal(isMainRef({ GITHUB_REF: 'refs/heads/main' }), true);
-  assert.equal(isMainRef({ GITHUB_REF: 'refs/heads/feat/x' }), false);
-  // 本機沒有 GITHUB_REF —— 就算人站在 main 分支上，手上那份也還沒經過 PR
-  assert.equal(isMainRef({}), false);
-});
+const FEATURE_MAP = join(dirname(fileURLToPath(import.meta.url)), 'feature-map.mjs');
 
 /** 把現況表弄過期，跑一次 feature-map，然後**一定**還原。 */
-function withStaleRoadmap(env) {
+function withStaleRoadmap(env = {}) {
   const roadmap = join(dirname(fileURLToPath(import.meta.url)), '../../kb/wiki/roadmap.md');
   const original = readFileSync(roadmap, 'utf8');
   const stale = original.replace(/^\| 請假 .*$/m, (row) => row.replace('| 1 ', '| 9 '));
@@ -261,16 +255,26 @@ function withStaleRoadmap(env) {
   }
 }
 
-test('分支上現況表過期只警告，exit code 是 0', () => {
-  const run = withStaleRoadmap({ GITHUB_REF: 'refs/heads/feat/whatever' });
-  assert.equal(run.status, 0, `分支上不該紅：\n${run.stderr}`);
-  assert.match(run.stderr, /現況表過期（分支上只提醒）/);
+// **這條守的是一個死結不要復活。** 一度是「分支警告、main 紅燈」，而讓 main 紅的正是這一行；
+// 但會重生表的 `sync-feature-map` job 掛著 `needs: verify`，於是能修的人只在沒壞時才來
+// —— main 自己好不了，2026-08-30 真的卡住過（5be7927 人工代打解堵）。
+// 有人把 main 的紅燈加回來 = 把死結加回來，症狀是 main 卡紅而不是報錯，所以要測。
+test('現況表過期在哪個環境都只警告，main 也不例外', () => {
+  for (const ref of ['refs/heads/feat/whatever', 'refs/heads/main', undefined]) {
+    const run = withStaleRoadmap(ref ? { GITHUB_REF: ref } : {});
+    assert.equal(run.status, 0, `${ref ?? '(本機)'} 不該紅：\n${run.stderr}`);
+    assert.match(run.stderr, /現況表過期/);
+  }
 });
 
-test('main 上現況表過期照樣紅', () => {
-  const run = withStaleRoadmap({ GITHUB_REF: 'refs/heads/main' });
-  assert.equal(run.status, 1, 'main 是強制點，過期必須紅');
-  assert.match(run.stderr, /✖ .*現況表過期/);
+// 對照組：同一支腳本的另一組檢查沒有被降級。降錯範圍的話藍圖破洞會靜靜溜過去。
+test('「有東西沒被功能區認領」維持紅燈 —— 那個 job 修不了', () => {
+  const source = readFileSync(FEATURE_MAP, 'utf8');
+  assert.match(
+    source,
+    /failures\.length > 0 && mode !== 'write'[\s\S]{0,200}process\.exit\(1\)/,
+    'orphan 檢查必須無條件 exit 1',
+  );
 });
 
 // 自動重生的 job 靠「零 diff 就不 commit」避免每次 main push 都疊一支 bot commit。
