@@ -88,7 +88,7 @@ Links to: [[architecture/constitution|`constitution`]]
 
 Tags: `architecture`, `day-timeline`, `dashboard`, `direction-d`
 
-Links to: [[architecture/design-language]]
+Links to: [[architecture/design-language]], [[lessons/awakened-tests-bite]]
 
 ## [[architecture/deploying|部署]]
 

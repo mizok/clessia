@@ -21,9 +21,12 @@ const prodEnv = {
   ALLOWED_ORIGINS: 'https://custom.example.com',
 };
 
+// `/api/system-time` **必須維持公開** —— 它註冊在 `app.use('/api/*', authMiddleware)`
+// 之前。搬到 /api 前綴是因為正式站只有 `/api/*` 會進 Worker（先前掛在 `/system-time`
+// 的版本在正式站回的是 SPA 的 index.html）。
 describe('public system-time route CORS', () => {
   it('allows localhost development origins beyond port 4200', async () => {
-    const response = await app.request('http://localhost/system-time', {
+    const response = await app.request('http://localhost/api/system-time', {
       headers: {
         Origin: 'http://localhost:4201',
       },
@@ -38,7 +41,7 @@ describe('public system-time route CORS', () => {
   // 這幾條一定要**帶 env 呼叫**，否則測不到那段接線。
   it('放行部署設定的 WEB_URL 來源', async () => {
     const response = await app.request(
-      'http://localhost/system-time',
+      'http://localhost/api/system-time',
       { headers: { Origin: 'https://clessia.pages.dev' } },
       prodEnv,
     );
@@ -48,7 +51,7 @@ describe('public system-time route CORS', () => {
 
   it('放行 ALLOWED_ORIGINS 列出的額外來源', async () => {
     const response = await app.request(
-      'http://localhost/system-time',
+      'http://localhost/api/system-time',
       { headers: { Origin: 'https://custom.example.com' } },
       prodEnv,
     );
@@ -58,7 +61,7 @@ describe('public system-time route CORS', () => {
 
   it('不發 allow-origin 給不在清單上的來源', async () => {
     const response = await app.request(
-      'http://localhost/system-time',
+      'http://localhost/api/system-time',
       { headers: { Origin: 'https://evil.example.com' } },
       prodEnv,
     );

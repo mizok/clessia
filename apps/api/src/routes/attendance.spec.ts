@@ -818,6 +818,8 @@ function createAttendanceRecordsQuery(data: MockSupabaseData) {
   const state = {
     eventId: '',
     orgId: '',
+    // 課堂列表改成批次查詢之後走這條：一次撈多個 event 的出勤，回傳帶 event_id 的列
+    eventIds: null as string[] | null,
   };
 
   const query = {
@@ -829,6 +831,10 @@ function createAttendanceRecordsQuery(data: MockSupabaseData) {
       if (column === 'org_id') state.orgId = String(value);
       return query;
     },
+    in(column: string, values: readonly string[]) {
+      if (column === 'event_id') state.eventIds = [...values];
+      return query;
+    },
     then<TResult1 = unknown, TResult2 = never>(
       onfulfilled?:
         | ((value: {
@@ -838,8 +844,15 @@ function createAttendanceRecordsQuery(data: MockSupabaseData) {
         | null,
       onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
     ) {
+      const byEvent = data.attendanceRecordsByEventId ?? {};
       const rows =
-        state.orgId === 'org-1' ? (data.attendanceRecordsByEventId?.[state.eventId] ?? []) : [];
+        state.orgId !== 'org-1'
+          ? []
+          : state.eventIds !== null
+            ? state.eventIds.flatMap((eventId) =>
+                (byEvent[eventId] ?? []).map((row) => ({ ...row, event_id: eventId })),
+              )
+            : (byEvent[state.eventId] ?? []);
 
       return Promise.resolve({
         data: rows,
@@ -854,6 +867,7 @@ function createAttendanceRecordsQuery(data: MockSupabaseData) {
 function createEnrollmentsQuery(data: MockSupabaseData) {
   const state = {
     classId: '',
+    classIds: null as string[] | null,
   };
 
   const query = {
@@ -864,6 +878,10 @@ function createEnrollmentsQuery(data: MockSupabaseData) {
       if (column === 'class_id') state.classId = String(value);
       return query;
     },
+    in(column: string, values: readonly string[]) {
+      if (column === 'class_id') state.classIds = [...values];
+      return query;
+    },
     lte() {
       return query;
     },
@@ -872,12 +890,35 @@ function createEnrollmentsQuery(data: MockSupabaseData) {
     },
     then<TResult1 = unknown, TResult2 = never>(
       onfulfilled?:
-        | ((value: { count: number; data: null; error: null }) => TResult1 | PromiseLike<TResult1>)
+        | ((value: {
+            count: number | null;
+            data: Array<Record<string, unknown>> | null;
+            error: null;
+          }) => TResult1 | PromiseLike<TResult1>)
         | null,
       onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
     ) {
+      const counts = data.enrollmentCountsByClassId ?? {};
+
+      // 批次版：課堂列表現在撈的是**生效區間的列**再在記憶體裡數，不是每班一次 count。
+      // fixture 仍然只給「某班有幾人」，所以這裡把它展開成 n 筆不設區間的列 ——
+      // 區間本身的邏輯由 lib/session-roster.spec.ts 守
+      if (state.classIds !== null) {
+        const rows = state.classIds.flatMap((classId) =>
+          Array.from({ length: counts[classId] ?? 0 }, () => ({
+            class_id: classId,
+            effective_from: '1970-01-01',
+            effective_to: null,
+          })),
+        );
+        return Promise.resolve({ count: rows.length, data: rows, error: null }).then(
+          onfulfilled,
+          onrejected,
+        );
+      }
+
       return Promise.resolve({
-        count: data.enrollmentCountsByClassId?.[state.classId] ?? 0,
+        count: counts[state.classId] ?? 0,
         data: null,
         error: null,
       }).then(onfulfilled, onrejected);

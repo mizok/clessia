@@ -133,9 +133,15 @@ app.get('/health', (c) => {
 app.openapi(
   createRoute({
     method: 'get',
-    path: '/system-time',
+    // **`/api/` 前綴是必要的，不是慣例。** 正式站的 Cloudflare 路由只有 `/api/*`
+    // 進 Worker，其餘走 Pages —— 掛在 `/system-time` 的話請求根本到不了這裡，
+    // 回的是 SPA 的 index.html（485 KB）。`system-clock.service.ts` 會 JSON parse
+    // 失敗然後靜靜退回用瀏覽器時間，錯得沒有徵兆。
+    //
+    // 這一行註冊在 `app.use('/api/*', authMiddleware)` **之前**，所以它仍然是公開的。
+    path: '/api/system-time',
     tags: ['System'],
-    summary: '取得伺服器時間',
+    summary: '取得伺服器時間（公開）',
     responses: {
       200: {
         description: '成功取得伺服器時間',
