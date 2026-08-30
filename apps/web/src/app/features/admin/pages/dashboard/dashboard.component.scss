@@ -43,6 +43,20 @@
   color: var(--band-ink-muted);
 }
 
+// 骨架佔的高度要跟真的那句話一樣，資料到了才不會整頁跳一下
+.dashboard__band-line--pending {
+  display: flex;
+  align-items: center;
+}
+
+.dashboard__band-skeleton {
+  width: min(100%, 18ch);
+  height: 1em;
+  background: var(--band-rule);
+  border-radius: var(--radius-sm);
+  opacity: 0.45;
+}
+
 .dashboard__band-line {
   max-width: 22ch;
   margin: var(--space-2) 0 var(--space-6);
@@ -116,6 +130,17 @@
     border-color: var(--accent-200);
     box-shadow: 0 2px 10px -4px rgb(26 22 20 / 14%);
   }
+}
+
+// 待辦是 0 的時候它就不是待辦了 —— 「未點名 0」是好消息，不該配警示圖示。
+// 這是五個裝置裡「零值再降一階」那條，第一版只落地在現況欄、漏了這裡。
+.dashboard__todo-icon--zero {
+  color: var(--zinc-400);
+  background: var(--zinc-100);
+}
+
+.dashboard__todo-value--zero {
+  color: var(--zinc-400);
 }
 
 .dashboard__todo-icon {
