@@ -82,6 +82,14 @@ Tags: `architecture`, `constitution-enforcement`
 
 Links to: [[architecture/constitution|`constitution`]]
 
+## [[architecture/day-timeline|一日時間軸元件（day-timeline）]]
+
+內部頁橘帶裡那條「今天」的資訊圖 —— 為什麼把排課畫成時間軸而不是再列一張表、佈局數學為什麼放在 pure util、以及 startTime/endTime 可為 null 這件事怎麼處理。
+
+Tags: `architecture`, `day-timeline`, `dashboard`, `direction-d`
+
+Links to: [[architecture/design-language]]
+
 ## [[architecture/deploying|部署]]
 
 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能做、以及為什麼 API 必須能在 Node 底下跑。
@@ -96,7 +104,7 @@ Links to: [[architecture/vendor-relationship]], [[architecture/constitution|c12]
 
 Tags: `architecture`, `design-system`, `tokens`, `animation`
 
-Links to: [[specs/public/login]], [[specs/public/login]], [[architecture/login-experience]]
+Links to: [[specs/public/login]], [[specs/public/login]], [[architecture/login-experience]], [[architecture/day-timeline]]
 
 ## [[architecture/enrollment-admin-view|報名管理端的設計]]
 

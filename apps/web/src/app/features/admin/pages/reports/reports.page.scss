@@ -1,0 +1,142 @@
+// 營收報表 —— 摘要卡 + 分組統計。所有數字來自後端聚合
+.reports {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: 100%;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+
+  &__title-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    color: var(--zinc-900);
+    line-height: var(--leading-tight);
+  }
+
+  &__subtitle {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+  }
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  &__summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--space-4);
+    margin: 0;
+  }
+
+  &__card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-4);
+    background: var(--color-white);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-xl);
+  }
+
+  &__card-label {
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+  }
+
+  &__card-value {
+    margin: 0;
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    font-variant-numeric: tabular-nums;
+    color: var(--zinc-900);
+  }
+
+  &__card-hint {
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+  }
+
+  // 退款與應收未收各自有顏色 —— 它們是不同性質的數字，不該跟實收長得一樣
+  &__card--refund &__card-value {
+    color: var(--warning-600);
+  }
+
+  // accent 現在是品牌色，不再拿來強調數值 —— 它跟 --warning-600（退款卡）的
+  // RGB 距離只有 34，兩個語意相反的數字會撞成同一色。中性的期望值用 zinc；
+  // 負面訊號由「其中逾期」的 --error-600 管
+  &__card--outstanding &__card-value {
+    color: var(--zinc-900);
+  }
+
+  &__groups {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    background: var(--color-white);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-xl);
+  }
+
+  &__groups-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+
+  &__groups-title {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-900);
+  }
+
+  &__group-key {
+    font-weight: var(--font-medium);
+    color: var(--zinc-900);
+  }
+
+  // 模糊桶的說明圖示 —— 要看得見，不是藏起來
+  &__group-info {
+    margin-left: var(--space-2);
+    color: var(--zinc-400);
+    cursor: help;
+  }
+
+  &__amount {
+    font-variant-numeric: tabular-nums;
+
+    &--refund {
+      color: var(--warning-600);
+    }
+
+    &--overdue {
+      color: var(--error-600);
+      font-weight: var(--font-medium);
+    }
+  }
+}

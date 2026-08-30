@@ -10,11 +10,11 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { isMainRef } from './feature-map.mjs';
 import { formatGenerated } from './lib/format.mjs';
 import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import { matchWriteRules, routeHints } from './lib/rules.mjs';
+import { bandContrastViolations } from './lib/band-contrast.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 import routerRules from './rules/doc-router.rules.json' with { type: 'json' };
 import { compareToBaseline, failingSpecs } from './test-gate.mjs';
@@ -236,15 +236,10 @@ test('formatGenerated 失敗只警告，不往上拋', () => {
 // 為什麼要測：這條分流的價值全在「分支上不紅」。有人把它改回無條件 process.exit(1)，
 // 或把條件寫反，症狀都不是報錯而是**衝突稅默默回來** —— 沒有測試的話沒人會發現。
 
-test('isMainRef 只認 CI 的 main；本機一律不是 main 的合併點', () => {
-  assert.equal(isMainRef({ GITHUB_REF: 'refs/heads/main' }), true);
-  assert.equal(isMainRef({ GITHUB_REF: 'refs/heads/feat/x' }), false);
-  // 本機沒有 GITHUB_REF —— 就算人站在 main 分支上，手上那份也還沒經過 PR
-  assert.equal(isMainRef({}), false);
-});
+const FEATURE_MAP = join(dirname(fileURLToPath(import.meta.url)), 'feature-map.mjs');
 
 /** 把現況表弄過期，跑一次 feature-map，然後**一定**還原。 */
-function withStaleRoadmap(env) {
+function withStaleRoadmap(env = {}) {
   const roadmap = join(dirname(fileURLToPath(import.meta.url)), '../../kb/wiki/roadmap.md');
   const original = readFileSync(roadmap, 'utf8');
   const stale = original.replace(/^\| 請假 .*$/m, (row) => row.replace('| 1 ', '| 9 '));
@@ -261,16 +256,26 @@ function withStaleRoadmap(env) {
   }
 }
 
-test('分支上現況表過期只警告，exit code 是 0', () => {
-  const run = withStaleRoadmap({ GITHUB_REF: 'refs/heads/feat/whatever' });
-  assert.equal(run.status, 0, `分支上不該紅：\n${run.stderr}`);
-  assert.match(run.stderr, /現況表過期（分支上只提醒）/);
+// **這條守的是一個死結不要復活。** 一度是「分支警告、main 紅燈」，而讓 main 紅的正是這一行；
+// 但會重生表的 `sync-feature-map` job 掛著 `needs: verify`，於是能修的人只在沒壞時才來
+// —— main 自己好不了，2026-08-30 真的卡住過（5be7927 人工代打解堵）。
+// 有人把 main 的紅燈加回來 = 把死結加回來，症狀是 main 卡紅而不是報錯，所以要測。
+test('現況表過期在哪個環境都只警告，main 也不例外', () => {
+  for (const ref of ['refs/heads/feat/whatever', 'refs/heads/main', undefined]) {
+    const run = withStaleRoadmap(ref ? { GITHUB_REF: ref } : {});
+    assert.equal(run.status, 0, `${ref ?? '(本機)'} 不該紅：\n${run.stderr}`);
+    assert.match(run.stderr, /現況表過期/);
+  }
 });
 
-test('main 上現況表過期照樣紅', () => {
-  const run = withStaleRoadmap({ GITHUB_REF: 'refs/heads/main' });
-  assert.equal(run.status, 1, 'main 是強制點，過期必須紅');
-  assert.match(run.stderr, /✖ .*現況表過期/);
+// 對照組：同一支腳本的另一組檢查沒有被降級。降錯範圍的話藍圖破洞會靜靜溜過去。
+test('「有東西沒被功能區認領」維持紅燈 —— 那個 job 修不了', () => {
+  const source = readFileSync(FEATURE_MAP, 'utf8');
+  assert.match(
+    source,
+    /failures\.length > 0 && mode !== 'write'[\s\S]{0,200}process\.exit\(1\)/,
+    'orphan 檢查必須無條件 exit 1',
+  );
 });
 
 // 自動重生的 job 靠「零 diff 就不 commit」避免每次 main push 都疊一支 bot commit。
@@ -324,4 +329,55 @@ test('c2 跨行也要抓得到；讀取放行', () => {
     guard('apps/api/src/routes/x.ts', "await supabase.from('ba_user').select()"),
     [],
   );
+});
+
+// ── 橘帶對比地板 ─────────────────────────────────────────────────────────────────────────
+const bandCss = ({ ink = 'rgb(26 22 20 / 80%)', rule = 'rgb(26 22 20 / 60%)' } = {}) => `
+:root {
+  --zinc-900: #1a1614;
+  --accent-vivid: #ff6a3d;
+  --accent-vivid-2: #ff8557;
+  --band-ink-muted: ${ink};
+  --band-rule: ${rule};
+}
+`;
+
+test('橘帶地板：現行值（次要字 0.80、描邊 0.60）全部合格', () => {
+  assert.deepEqual(bandContrastViolations(bandCss()), []);
+});
+
+test('橘帶地板：次要字 0.72 掉出 AA，深端與亮端都要報', () => {
+  const found = bandContrastViolations(bandCss({ ink: 'rgb(26 22 20 / 72%)' }));
+  assert.equal(found.length, 2, '兩個漸層端各一則');
+  assert.ok(
+    found.every((m) => m.includes('--band-ink-muted') && m.includes('4.5:1')),
+    '訊息要指出是哪個 token、門檻是多少',
+  );
+  // 反直覺但實測如此：近黑降透明度壓在**深端**對比更低，不是亮端
+  assert.ok(found.some((m) => m.includes('--accent-vivid 上只有 4.00:1')));
+  assert.ok(found.some((m) => m.includes('--accent-vivid-2 上只有 4.43:1')));
+});
+
+test('橘帶地板：0.78 是文字的臨界點，剛好過', () => {
+  assert.deepEqual(bandContrastViolations(bandCss({ ink: 'rgb(26 22 20 / 78%)' })), []);
+  assert.equal(bandContrastViolations(bandCss({ ink: 'rgb(26 22 20 / 77%)' })).length, 1);
+});
+
+test('橘帶地板：描邊走 3:1 不是 4.5:1，所以 0.60 過而 0.34 不過', () => {
+  assert.deepEqual(bandContrastViolations(bandCss({ rule: 'rgb(26 22 20 / 60%)' })), []);
+  const found = bandContrastViolations(bandCss({ rule: 'rgb(26 22 20 / 34%)' }));
+  assert.equal(found.length, 2);
+  assert.ok(found.every((m) => m.includes('--band-rule') && m.includes('3:1')));
+});
+
+test('橘帶地板：近黑字跟 --zinc-900 脫鉤要擋（#97 的教訓）', () => {
+  const found = bandContrastViolations(bandCss({ ink: 'rgb(24 24 27 / 80%)' }));
+  assert.ok(
+    found.some((m) => m.includes('--band-ink-muted') && m.includes('--zinc-900')),
+    '硬編碼的三元組漂掉會讓橘帶留在上一代色系',
+  );
+});
+
+test('橘帶地板：token 還沒鑄進去的分支不該報錯', () => {
+  assert.deepEqual(bandContrastViolations(':root { --zinc-900: #1a1614; }'), []);
 });

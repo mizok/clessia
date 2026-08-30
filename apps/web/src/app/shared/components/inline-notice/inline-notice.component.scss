@@ -21,9 +21,9 @@
   }
 
   &--warning {
-    border-color: #fde68a;
-    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-    color: #92400e;
+    border-color: var(--warning-200);
+    background: linear-gradient(135deg, var(--warning-50) 0%, var(--warning-100) 100%);
+    color: var(--warning-800);
   }
 
   // info 是 accent 語意，所以走 token —— 換色系時要跟著走。

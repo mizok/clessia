@@ -37,14 +37,71 @@
   --accent-200: #ffc9b3;
   --accent-700: #8c2a0b;
 
-  /* Semantic Colors */
+  /* Semantic Colors。600 這一階跟 accent 一樣是**用途決定值**：它幾乎只被當文字色用
+     （success 8 處、warning 20 處），而原本的 #16a34a / #d97706 對白底只有 3.30:1 / 3.19:1，
+     連在自家的 100 底色上也只有 3.00:1 / 2.86:1 —— 全數低於 WCAG AA 的 4.5:1。
+     各往下一階後：success 對白 5.02、對 --success-100 4.57；warning 對白 5.02、
+     對 --warning-100 4.51。少數非文字的引用（outline / border / 小色點）只是變深。 */
   --success-100: #dcfce7;
-  --success-600: #16a34a;
+  --success-600: #15803d;
+  /* 警示色是琥珀 —— 橘現在專屬品牌（accent），警示不再借用它（#89/#95）。
+     階數不能憑順序挑，要看對比實測：
+
+       600 #b45309  白底 5.02:1、自家 100 底 4.51:1 —— 這是「文字安全」的那一階
+       800 #92400e  chip 內文字。chip 的 hover 底會換到 200，
+                    600 壓在 200 上只有 4.03:1 會掛，800 有 5.69:1
+
+     **600 的值來自 #97**：它原本是 #d97706（白底 3.19:1，拿來寫字不合格），
+     #97 把它整階往下改成 #b45309 修掉那 20 處文字。#95 原本走的是另一條路
+     —— 保留 600 的舊值、另加一階 700 當文字色。兩條路解的是同一件事，
+     所以這裡採 #97 的作法（600 就是文字階），原本的 700 併回 600，不留重複的階。 */
+  --warning-50: #fffbeb;
   --warning-100: #fef3c7;
-  --warning-600: #d97706;
+  --warning-200: #fde68a;
+  --warning-600: #b45309;
+  --warning-800: #92400e;
   --error-100: #fee2e2;
+  --error-200: #fecaca;
   --error-600: #dc2626;
   --error-700: #b91c1c;
+
+  /* ── 橘帶（band）—— 內部頁的入口面 ────────────────────────────────────────────
+     D 說橘是「一整個色面、只出現在入口」，並且預告了「之後的儀表板標頭」。
+     內部頁的入口面就是標頭：一頁一條橘帶，橫線以下維持白底與既有密度。
+     列表／詳情（design-web-2）與儀表板／報表（bundle-analysis）共用這一組詞彙。
+
+     **三段式而不是登入頁的兩段式。** 大面積平塗會把亮橘拉淡，中間不加停點的話
+     整條帶會偏鮭魚色 —— 這是實測出來的，不是配色偏好。登入頁的品牌面是直立窄長
+     的 150deg 兩段式，幾何不同所以刻意不併過來（要不要統一是另一個決定）。
+
+     ── 三條硬地板（算過的，不是估的；由 harness 的 checkBandContrast 把關）──
+
+       1. 近黑字實色      對 #ff6a3d 6.32:1、對 #ff8557 7.48:1 —— 寬裕
+       2. 次要文字        **透明度不得低於 0.78**。0.72 只有 4.00:1（不合 AA），
+                          0.78 是 4.53:1、0.80 是 4.66:1。這裡取 0.80 留餘裕。
+                          反直覺的地方：近黑降透明度壓在**深端** #ff6a3d 對比更低，
+                          不是亮端 —— 兩席各自實測，結論一致。
+       3. 非文字描邊      chip、pill、底線這些是 UI 元件邊界，門檻 3:1 不是 4.5:1。
+                          0.60 是 3.13:1；憑直覺寫的 0.32–0.38 只有 1.8–2.0，全不合格。
+
+     所以**橘帶上不能用透明度做層次**（0.80 就是地板），層次交給字級、字重、字距。
+     語意色（success / warning）疊在暖橘上一律讀不出來 —— 語意色只活在白工作面。
+
+     `--band-ink-muted` / `--band-rule` 直接給成色而不是給 opacity，是為了讓地板
+     不可繞過：用 token 就自動合格。它們的 rgb 三元組必須跟 `--zinc-900` 一致，
+     gate 會比對 —— 這是 #97 的教訓（改 token 值修不到繞過 token 的地方）。 */
+  --band-surface: linear-gradient(
+    140deg,
+    var(--accent-vivid) 0%,
+    var(--accent-vivid) 46%,
+    var(--accent-vivid-2) 100%
+  );
+  --band-ink: #1a1614; /* = zinc-900，橘面一律近黑字 */
+  --band-ink-muted: rgb(26 22 20 / 80%); /* 次要字。地板 0.78，這裡 0.80 */
+  --band-rule: rgb(26 22 20 / 60%); /* 非文字描邊。地板 0.58，這裡 0.60 */
+  /* 白工作面往上壓進橘帶的深度。兩個矩形上下對齊會讀成「兩塊東西」，
+     交扣才會讀成「一個構圖」—— 桌機手機同值，縮掉構圖就散了。 */
+  --band-seam: 28px;
 
   /* 語意層。這幾個名字全站有 40 幾處引用、而且**大多沒有 fallback** ——
      也就是那些規則一直沒有生效。它們指向中性階，換色系時自動跟著走。 */
@@ -469,7 +526,7 @@ select {
       color: #166534;
 
       .p-toast-message-icon {
-        color: #16a34a;
+        color: var(--success-600);
       }
     }
 
@@ -486,12 +543,12 @@ select {
 
     // Warning - Amber tones
     &.p-toast-message-warn {
-      background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-      border-color: #fde68a;
-      color: #92400e;
+      background: linear-gradient(135deg, var(--warning-50) 0%, var(--warning-100) 100%);
+      border-color: var(--warning-200);
+      color: var(--warning-800);
 
       .p-toast-message-icon {
-        color: #d97706;
+        color: var(--warning-600);
       }
     }
 
@@ -1162,7 +1219,7 @@ textarea.p-textarea,
 
   &__unassigned {
     font-weight: var(--font-semibold);
-    color: var(--p-orange-500);
+    color: var(--warning-600);
   }
 
   &__by {
@@ -1199,9 +1256,9 @@ textarea.p-textarea,
     padding: var(--space-3) var(--space-4);
     background: var(--warning-100);
     border-radius: var(--radius-md);
-    border: 1px solid #fde68a;
+    border: 1px solid var(--warning-200);
     font-size: var(--text-sm);
-    color: #92400e;
+    color: var(--warning-800);
     line-height: var(--leading-relaxed);
 
     i {
@@ -1441,7 +1498,7 @@ textarea.p-textarea,
 
       .pi {
         font-size: 1.75rem;
-        color: #16a34a;
+        color: var(--success-600);
       }
     }
 

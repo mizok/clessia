@@ -31,6 +31,14 @@ export class FlowFieldComponent {
   readonly density = input(0.9);
   /** 流速倍率 */
   readonly speed = input(1);
+  /**
+   * 凍結：跑完暖機幀數就停在那張成形的場，不啟動 rAF。
+   *
+   * 內部頁的橘帶用這個模式 —— D 明令**資料表格後面永遠不放持續動態**，
+   * 但「入口的殘影」仍然屬於同一個世界。它跟 `prefers-reduced-motion` 走的是
+   * 同一條路徑：那條路徑本來就會產生一張靜態成形圖，這裡只是讓呼叫端也能要求它。
+   */
+  readonly frozen = input(false);
 
   private readonly canvasRef = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private readonly destroyRef = inject(DestroyRef);
@@ -80,7 +88,7 @@ export class FlowFieldComponent {
 
     // 只負責「捲出畫面就停、捲回來再跑」。初次啟動由 init() 負責 ——
     // 交給 observer 的話，第一次回調若在佈局未穩時判定為不可見，就再也不會啟動。
-    if (!this.reduced && 'IntersectionObserver' in window) {
+    if (!this.isStatic() && 'IntersectionObserver' in window) {
       this.observer = new IntersectionObserver(
         (entries) => {
           for (const e of entries) {
@@ -104,9 +112,8 @@ export class FlowFieldComponent {
       return;
     }
 
-    if (this.reduced) {
-      // 靜態版：跑一段再停，留下一張成形的場
-      this.warm(320);
+    if (this.isStatic()) {
+      this.warm(STATIC_WARM);
       return;
     }
 
@@ -203,7 +210,7 @@ export class FlowFieldComponent {
   }
 
   private start(): void {
-    if (this.raf !== null || this.reduced) return;
+    if (this.raf !== null || this.isStatic()) return;
     const loop = () => {
       this.drawFrame();
       this.raf = requestAnimationFrame(loop);
@@ -219,11 +226,22 @@ export class FlowFieldComponent {
 
   private readonly onResize = (): void => {
     if (this.resizeTimer !== null) clearTimeout(this.resizeTimer);
-    this.resizeTimer = setTimeout(() => this.resize(), 150);
+    this.resizeTimer = setTimeout(() => {
+      if (!this.resize()) return;
+      // 靜態模式沒有 rAF 會把畫面補回來，而 resize() 已經 clearRect 並重生粒子 ——
+      // 不在這裡重跑暖機的話，改視窗大小之後那張場就永遠是空白的。
+      // 這個 bug 在 frozen 出現之前就存在了（reduced-motion 的使用者一縮視窗就沒圖）。
+      if (this.isStatic()) this.warm(STATIC_WARM);
+    }, 150);
   };
 
+  /** 不跑 rAF 的兩種情況：使用者要求減少動態，或呼叫端指定凍結 */
+  private isStatic(): boolean {
+    return this.reduced || this.frozen();
+  }
+
   private readonly onVisibility = (): void => {
-    if (this.reduced) return;
+    if (this.isStatic()) return;
     if (document.hidden) this.stop();
     else this.start();
   };
@@ -239,6 +257,9 @@ interface Particle {
 
 /** 一條流線保留幾個點 */
 const TRAIL = 34;
+
+/** 靜態版跑幾幀才算「成形」。低於這個數線太短，看起來像壞掉而不是像場 */
+const STATIC_WARM = 320;
 
 // 流函數的三項係數
 const FA_AMP = 1.7;

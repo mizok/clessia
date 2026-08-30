@@ -58,6 +58,19 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
   但**行政不知道這件事就不敢按第二次**，而「這個月到底跑過沒」正是他們會猶豫的地方。
   所以 UI 上直接寫「同一個月可以重複跑」。**危險操作的按鈕不是只要能按，還要按得下去** ——
   把工程性質翻譯成一句人話，比任何確認對話框都有用
+- **後端刻意暴露出來的東西，前端不要蓋回去。**（#90 建立）
+  營收報表的分組有 `（跨分校）` / `（跨課程）` / `（未分類）` 三個桶：一張帳單可以跨班
+  也可以完全沒有班，後端**刻意**不做比例拆分（拆出來的數字沒人能跟收據對得起來）也
+  不重複計入多個組（那會讓小計大於總計），而是多給一列把模糊**明著標出來**。
+  前端把它藏起來、合併掉或改名，等於把那個設計蓋回去，而且會變成「小計加不回總計」
+  的無聲錯誤。**照實顯示，再加一句說明它為什麼存在。**
+  通則：後端註解裡寫「刻意」「不做 X 因為 Y」的地方，那是設計不是缺陷。
+- **後端的形狀決定 UI 能給什麼能力 —— 判斷順序是先看後端吃什麼，再決定畫面給不給那個動作。**
+  （#87 建立）餐費的區間模式是**唯讀**的：`GET /api/meals` 區間只回實際記錄、沒有
+  「候選」概念（`classNames` 空、`mealDefault` false），而 `POST /batch` 吃的是
+  **單一 `date`** —— 跨天的修改沒有對應端點。所以欄位全部 `disabled`、沒有確認按鈕，
+  **而不是讓人改了卻存不進去**。這是「前端不承諾後端沒有兌現的東西」在**動作**層的版本
+  （上一條是在**資料**層）
 - **「前端能不能篩」看的是資料完不完整，不是「前端篩」這個做法本身。**
   同一個動作在兩支 API 上一個騙人一個不騙：`/api/invoices` 有分頁（前端篩會漏），
   `/api/contact-book` **沒有分頁**且 `meta.total` 是 `count: 'exact'`（前端篩與前端分頁
@@ -101,7 +114,14 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
     工單說「去報名頁加欄位」時先確認它指的是哪一個
 11. **不要對 `index.md` / `_moc.md` 跑 prettier** —— 它們是 generator 原始輸出，
     prettier 會在每個 `## 標題` 後插空行製造反向雜訊。`roadmap.md` 相反，它是 prettier 對齊過的
-12. **交付新頁面要把它認領進 `tools/agent-harness/feature-map.mjs` 的 AREAS**，
+12. **送出時「清空一個欄位」要送 `null` 不是 `undefined`。** 後端把 `undefined` 當成
+    「沒給」而保留原值 —— 餐費的備註因此清不掉。`note: row.note.trim() || null` 而不是
+    `|| undefined`。這類 null 語意值得一個測試，因為它**只在「把有值的欄位清空」那條
+    路徑上錯**，新增與修改都是對的。
+13. **渲染大量列的 PrimeNG 輸入元件會 `Maximum call stack size exceeded`。**
+    餐費頁的「超過 300 筆擋住」測試原本走 `fixture.whenStable()`，301 列直接爆掉。
+    **驗邏輯的測試直接設 signal 不要走渲染** —— 它要驗的是擋不擋得住，不是畫不畫得出來。
+14. **交付新頁面要把它認領進 `tools/agent-harness/feature-map.mjs` 的 AREAS**，
     否則 `npm run harness` 會紅（「頁面 未被任何功能區認領」），`harness:test` 也跟著 fail。
     那是 infra 席的檔案，但**這一行是 gate 明確要求交付者補的**，不是主動動 infra ——
     就像新增 skill 之後要跑 `harness:write`。**只補那一行、不要順手重生 roadmap**（坑 #7）；
@@ -126,61 +146,68 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
 
 ## 進行中狀態（2026-08-30 —— 這節會過期，接手第一件事：重寫它）
 
-**交接自 session `admin-pages-1f`。** P2 的管理端頁**四張全部交付完畢**：
+**交接自 session `admin-pages-1f`。P2 管理端四個功能區全部收官**，六支 PR：
 
-| PR  | 內容                                     | 狀態               |
-| --- | ---------------------------------------- | ------------------ |
-| #66 | 繳費紀錄頁                               | 已合               |
-| #71 | 聯絡簿管理端頁                           | 已合               |
-| #72 | 繳費頁的 status 篩選 + 可信 `meta.total` | 已合               |
-| #79 | 聯絡簿「這天還沒寫」的當日待辦           | 驗收過，使用者佇列 |
-| #82 | 餐費管理頁                               | 驗收過，使用者佇列 |
+| PR        | 頁                                        | 狀態               |
+| --------- | ----------------------------------------- | ------------------ |
+| #66 / #72 | 繳費紀錄 + status 篩選與可信 `meta.total` | 已合               |
+| #71 / #79 | 聯絡簿 + 「這天還沒寫」當日待辦           | 已合               |
+| #82 / #87 | 餐費 + note／班級／區間檢視               | #82 已合、#87 佇列 |
+| #90       | 營收報表                                  | 佇列               |
 
-營收報表 `/admin/reports` 仍是空殼 —— **沒有聚合端點**（`invoices` 是明細 API），
-這是 P2 唯一還擋著的管理端頁。
+**接手時第一件事：確認 #87 與 #90 合了沒**，合了的話管理端那欄應該全綠。
 
-### 你接手時欠著一個追加
+### 還欠的兩件
 
-**餐費頁的三個缺口已轉派 billing-api 席**（2026-08-30），做好之後接顯示端：
+1. **視覺回歸確認** —— design-web 席的警示色收斂到琥珀（#89）合併後，要看過這四頁。
+   我這幾頁只用既有 token 沒自創樣式，理論上會自動跟上，但**「理論上」不等於看過**。
+2. **報表的 CSV 匯出** —— spec 要的是**明細層**欄位（日期、分校、課程、金額、類型），
+   而 `/api/reports/revenue` 只回摘要與分組小計。**不要用聚合資料湊一個欄位對不上
+   spec 的 CSV** —— 已回報，明細端點排在 billing-api 席佇列。
 
-1. `meal_records.note` 的**讀寫都不通** —— 欄位在 DB 裡，`GET /api/meals` 不回、
-   `POST /batch` 不吃。通了之後餐費頁加一個備註欄（現在刻意沒做：存不進去的欄位比沒有更糟）
-2. `MealRosterRow` **不回 `className`** —— spec 說每列要顯示班級
-3. `GET /api/meals` **只吃單日**，沒有區間、沒有學生篩選、沒有 `meta` ——
-   spec 的「查詢與統計」整節因此做不了
+### 這一輪的節奏（下一輪大概也一樣）
 
-**這是這一席的常態節奏**：後端先行，前端接顯示端小追加。前一輪也欠過三個
-（繳費的 total、status 下拉、聯絡簿的 missing 清單），都在 #72 / #79 清掉了。
-**接手時第一件事是確認這三個做了沒**，做了就接，那通常是幾十行的事。
+**後端先行，前端接顯示端小追加。** 這一席交付了三輪追加（繳費的 total + status 下拉、
+聯絡簿的 missing 清單、餐費的 note/班級/區間），每次都是幾十行。
+**開工前先確認欠著的那些做了沒** —— 做了就接。
 
-### 三個 domain 的 API 形狀差異（下次動到直接用，不用重讀）
+### 四個 domain 的 API 形狀（下次動到直接用，不用重讀 route 檔）
 
 - **`/api/invoices`**：有分頁；`status`/`total`/`netPaid` 後端推導好；`status` 與 `overdue`
-  可並用且都走「全撈→篩→`sliceDerivedPage` 切頁」那條路徑（所以 `meta.total` 是**篩後全體**）；
+  可並用且都走「全撈→篩→`sliceDerivedPage` 切頁」（所以 `meta.total` 是**篩後全體**）；
   收款與退費同一支端點差 `kind`；`receipt_no` 由 DB trigger 取號（退費沒有號）
-- **`/api/contact-book`**：**沒有分頁**，`meta.total` 是 `count: 'exact'`（可信）；
-  `GET /`（區間）、`PUT /`（upsert，鍵是 `student_id, entry_date`，**回裸 entry 不是 `{ data }`**）、
-  `GET /missing?date=`（**每生一列不是每班一列**，且「該寫」綁的是「這個班那天有課」）；
+- **`/api/contact-book`**：**沒有分頁**，`meta.total` 是 `count: 'exact'`；
+  `PUT /` **回裸 entry 不是 `{ data }`**（鍵是 `student_id, entry_date`）；
+  `GET /missing?date=` **每生一列不是每班一列**，且「該寫」綁的是「這個班那天有課」；
   mount 只有角色沒有 permission；entry **沒有 classId**
-- **`/api/meals`**：**只吃單日**；`GET` 回 `{ data, defaultUnitPrice }`（沒有 meta）；
-  `POST /batch` 上限 **300 筆**、已結算的擋下來回 `lockedStudentIds`（要顯示出來，
-  後端刻意不靜靜跳過）。`recordId === null` = **這天還沒人處理**，不是「沒訂」
+- **`/api/meals`**：**兩種模式回同一種列** —— `date=` 是候選+記錄（可編輯），
+  `dateFrom/dateTo` 只回實際記錄（`classNames` 空、`mealDefault` false，**唯讀**）。
+  `POST /batch` 上限 300、已結算的擋下來回 `lockedStudentIds`（要顯示出來）。
+  `recordId === null` = **這天還沒人處理**，不是「沒訂」。
+  `meta.totalAmount` 是「這段期間吃了多少錢」（已結算的照樣算），不是「還有多少沒收」
+- **`/api/reports/revenue`**：聚合端點，`view_reports` 權限。回 `{ summary, groups }`。
+  **前端一個數字都不加總。** 篩選是「這張帳單有沒有沾到」，分組是「一張帳單只進一個組」，
+  兩者語意不同。三個模糊桶見上面的先例
 
-### 兩個做法值得照抄
+### 三個做法值得照抄
 
-- **列印**（`invoice-detail-dialog`）：dialog 是 modal，`window.print()` 會連遮罩和背後列表
-  一起印。改成 `window.open` 開空白視窗 + `importNode` 搬節點，樣式 inline 在那個視窗。
-  節點用 DOM 搬不拼 HTML 字串（姓名與備註是使用者輸入）。**不要跟 `@media print` 打架**
-- **後端上限就在前端擋住**（`meals.component.ts`）：`POST /batch` 上限 300，超過就擋並提示回報。
+- **列印**（`invoice-detail-dialog`）：`window.open` 開空白視窗 + `importNode` 搬節點，
+  樣式 inline 在那個視窗。**不要跟 `@media print` 打架** —— dialog 是 modal，
+  `window.print()` 會連遮罩和背後列表一起印，要壓掉得動 `styles.scss`（不是這席的邊界）
+- **後端上限就在前端擋住**（`meals.component.ts`）：`POST /batch` 上限 300，超過就擋並提示。
   靜靜截斷會讓後面的學生沒有記錄**而且沒有徵兆**
+- **危險操作把工程性質翻譯成人話**（`billing-run-dialog`）：月結是冪等的，UI 就直接寫
+  「同一個月可以重複跑」。不講的話行政不敢按第二次
 
 ### 環境
 
 worktree 在 `.worktrees/admin-pages`，待命分支 `admin-pages-idle`。開工一律 `git fetch`
 後從 `origin/main` 另開分支。root 與 `apps/api` 都 `npm ci` 過。
 
-**內部視覺正在被 design-web 席大改（PrimeNG 主題層）** —— 只用既有 token 與元件慣例寫，
-別自創樣式，他們那刀合了你的頁會自動跟上。
+**別人的紅燈不要自己補。** 這一輪 main 有一段時間是紅的（`c8` allowlist 過期，
+design-web 改完沒清），那**不適用**坑 #14 的「紅燈擋交付→自己補」—— 那條講的是
+**自己的交付造成的**紅燈。補別人的會把不相關的改動混進自己的分支。
+**但要回報**，否則下一個開分支的人會以為是自己弄壞的（我就花了一次來回確認）。
 
 收工前照 `.github/workflows/verify.yml` 的序列在本機重放：`harness` → `harness:test` →
 `nx run-many -t typecheck` → `nx run-many -t test` → **`nx build web --configuration=production`**。

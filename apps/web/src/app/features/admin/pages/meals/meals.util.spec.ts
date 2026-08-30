@@ -5,7 +5,10 @@ function row(overrides: Partial<MealRosterRow> = {}): MealRosterRow {
   return {
     studentId: 's1',
     studentName: '陳小明',
+    classNames: [],
+    mealDate: '2026-08-30',
     mealDefault: false,
+    note: null,
     recordId: null,
     ordered: null,
     chargeable: null,
@@ -140,7 +143,7 @@ describe('draftToBatchRows', () => {
     const draft = rosterToDraft([row({ mealDefault: true })], 60);
 
     expect(draftToBatchRows(draft)).toEqual([
-      { studentId: 's1', ordered: true, chargeable: true, unitPrice: 60 },
+      { studentId: 's1', ordered: true, chargeable: true, unitPrice: 60, note: null },
     ]);
   });
 
@@ -162,7 +165,51 @@ describe('draftToBatchRows', () => {
     const draft = rosterToDraft([row({ mealDefault: false })], 60);
 
     expect(draftToBatchRows(draft)).toEqual([
-      { studentId: 's1', ordered: false, chargeable: true, unitPrice: 60 },
+      { studentId: 's1', ordered: false, chargeable: true, unitPrice: 60, note: null },
     ]);
+  });
+});
+
+describe('rosterToDraft —— 備註與班級', () => {
+  it('沒有記錄時備註是空字串，不是 null', () => {
+    const [draft] = rosterToDraft([row()], 60);
+
+    expect(draft.note).toBe('');
+  });
+
+  it('有記錄時帶出既有備註', () => {
+    const [draft] = rosterToDraft([row({ recordId: 'r1', ordered: true, note: '素食' })], 60);
+
+    expect(draft.note).toBe('素食');
+  });
+
+  // 一天一筆便當不分班，班名只是脈絡 —— 跟聯絡簿的多班並列同一個道理
+  it('多個班的班名並列', () => {
+    const [draft] = rosterToDraft([row({ classNames: ['三年級數學', '三年級英文'] })], 60);
+
+    expect(draft.classLabel).toBe('三年級數學、三年級英文');
+  });
+
+  // 區間模式後端刻意回空陣列（沒有「候選」的概念）—— 不要顯示成空白格
+  it('沒有班級時給一個破折號，不是空字串', () => {
+    const [draft] = rosterToDraft([row({ classNames: [] })], 60);
+
+    expect(draft.classLabel).toBe('—');
+  });
+});
+
+describe('draftToBatchRows —— 備註', () => {
+  it('有備註就送出', () => {
+    const draft = rosterToDraft([row({ recordId: 'r1', ordered: true, note: '素食' })], 60);
+
+    expect(draftToBatchRows(draft)[0].note).toBe('素食');
+  });
+
+  // 清空備註要送 null 才清得掉；送 undefined 後端會當成「沒給」而保留原值
+  it('清空的備註送 null 不是 undefined', () => {
+    const draft = rosterToDraft([row({ recordId: 'r1', ordered: true, note: '素食' })], 60);
+    draft[0].note = '   ';
+
+    expect(draftToBatchRows(draft)[0].note).toBeNull();
   });
 });

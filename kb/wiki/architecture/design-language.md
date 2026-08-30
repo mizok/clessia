@@ -109,3 +109,5 @@ tags: [architecture, design-system, tokens, animation]
 
 - [[specs/public/login]] — 登入頁規格
 - [[architecture/login-experience]] — 登入與角色選擇的結構決策
+- [[architecture/day-timeline]] — 內部頁橘帶裡那條「今天」的資訊圖（含橘面上
+  次要文字的透明度下限 0.78 的實測依據）
