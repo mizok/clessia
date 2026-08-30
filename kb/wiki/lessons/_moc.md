@@ -1,6 +1,6 @@
 # Lessons — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-29
+> Auto-maintained by `kb:map`. Last updated: 2026-08-30
 
 ---
 
@@ -9,6 +9,14 @@
 本文件定義 Claude 與 Codex 協作開發時應遵循的工作流程。 目標：減少 token 消耗、提升成品品質、確保可追蹤性。
 
 Tags: `lessons`, `agent-workflow-guide`
+
+## [[lessons/awakened-tests-bite|修寫法時被喚醒的舊測試，比新測試更會咬人]]
+
+把 @Input/@ViewChild 換成 functional API 這種「機械」重構，讓一段從來沒真正執行過的程式碼第一次跑起來，連帶暴露六支靠「那行沒跑到」才綠的 spec 與一顆 node 解析條件的地雷。
+
+Tags: `lessons`, `awakened-tests-bite`, `angular`, `testing`
+
+Links to: [[lessons/local-green-is-not-repo-green]], [[lessons/generated-tables-need-verifying]]
 
 ## [[lessons/backlog-legacy|Clessia 功能開發清單]]
 
@@ -51,6 +59,8 @@ Links to: [[lessons/menu-entry-without-a-route]], [[lessons/rls-backstop-drift]]
 導入 CI 的過程連紅六次，每一次的根因都是「本機狀態 ≠ 版控狀態」。附上推送前該怎麼自我驗證。
 
 Tags: `lessons`, `local-green-is-not-repo-green`
+
+Links to: [[lessons/awakened-tests-bite]]
 
 ## [[lessons/menu-entry-without-a-route|選單開了、頁面寫了，路由還在 redirect]]
 

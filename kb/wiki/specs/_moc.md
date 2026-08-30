@@ -1,6 +1,6 @@
 # Specs — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-29
+> Auto-maintained by `kb:map`. Last updated: 2026-08-30
 
 ---
 

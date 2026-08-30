@@ -4,6 +4,36 @@
 
 ---
 
+## [2026-08-30] lint | Health check: 0 errors, 0 warnings, 53 info
+- Mode: structural
+- Pages scanned: 101
+- Issues found: 53
+
+## [2026-08-30] map | Rebuilt index + 5 MOCs
+- Pages indexed: 91
+- Total links: 123
+- Orphan pages: 63
+
+## [2026-08-30] lint | Health check: 0 errors, 2 warnings, 54 info
+- Mode: structural
+- Pages scanned: 101
+- Issues found: 56
+
+## [2026-08-30] lint | Health check: 0 errors, 4 warnings, 55 info
+- Mode: structural
+- Pages scanned: 101
+- Issues found: 59
+
+## [2026-08-30] lint | Health check: 0 errors, 4 warnings, 55 info
+- Mode: structural
+- Pages scanned: 100
+- Issues found: 59
+
+## [2026-08-30] map | Rebuilt index + 5 MOCs
+- Pages indexed: 91
+- Total links: 122
+- Orphan pages: 66
+
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 54 info
 - Mode: structural
 - Pages scanned: 99

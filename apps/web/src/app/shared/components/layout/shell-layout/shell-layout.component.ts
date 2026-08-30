@@ -1,6 +1,5 @@
 import {
   Component,
-  ViewChild,
   HostListener,
   inject,
   computed,
@@ -39,7 +38,9 @@ import { AccountSettingsDialogComponent } from '@shared/components/account-setti
   styleUrl: './shell-layout.component.scss',
 })
 export class ShellLayoutComponent {
-  @ViewChild('op') op!: Popover;
+  // template 裡的 `op.toggle()` 用的是 template reference variable，
+  // 跟這個 query 無關 —— 這裡只服務 TS 側的兩處 hide()。
+  private readonly op = viewChild<Popover>('op');
 
   private readonly shellBody = viewChild<ElementRef<HTMLElement>>('shellBody');
   private readonly overlayContainerService = inject(OverlayContainerService);
@@ -90,11 +91,11 @@ export class ShellLayoutComponent {
 
   @HostListener('window:resize')
   onResize() {
-    this.op?.hide();
+    this.op()?.hide();
   }
 
   openAccountSettings() {
-    this.op.hide();
+    this.op()?.hide();
     this.dialogService.open(AccountSettingsDialogComponent, {
       width: '480px',
       modal: true,
