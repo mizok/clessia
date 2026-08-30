@@ -16,11 +16,13 @@ import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
+import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
 import { matchWriteRules } from './lib/rules.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
+const CONTRAST_BASELINE = join(ROOT, 'tools/agent-harness/scss-contrast-baseline.json');
 const AGENTS_MD = join(ROOT, 'AGENTS.md');
 const SKILLS_DIR = join(ROOT, '.agents/skills');
 const THIN_ENTRYPOINTS = ['CLAUDE.md'];
@@ -634,6 +636,76 @@ function checkBandContrast() {
 }
 
 checkBandContrast();
+
+// ── 使用處的文字對比 ───────────────────────────────────────────────────────────────────────
+// band-contrast 守的是 token 自己的值；這一支守的是**配對**：每個 token 都合格、
+// 配在一起卻不合格。判例是琥珀 chip —— `--warning-600` 對白 5.02 ✓、對 100 底 4.51 ✓，
+// 但 hover 換到 200 底只剩 4.03 ✗，而那個 hover 區塊只寫 background、文字色是繼承的。
+//
+// 既有的違規進 baseline（跟 test-baseline.json 同一套想法）：**只擋新增的**。
+// baseline 的數量會印成警告持續曝光，不然它會變成一個沒人記得要縮小的清單。
+function checkUsageContrast() {
+  const stylesPath = join(ROOT, 'apps/web/src/styles.scss');
+  const webSrc = join(ROOT, 'apps/web/src');
+  if (!existsSync(stylesPath) || !existsSync(webSrc)) return;
+
+  const palette = readTokenPalette(readFileSync(stylesPath, 'utf8'));
+  const scssFiles = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.scss')) scssFiles.push(full);
+    }
+  };
+  walk(webSrc);
+
+  const current = new Map();
+  for (const file of scssFiles) {
+    const rel = file.slice(ROOT.length + 1);
+    for (const v of usageContrastViolations(readFileSync(file, 'utf8'), palette)) {
+      current.set(`${rel}|${v.fg}|${v.bg}`, v);
+    }
+  }
+
+  const keys = [...current.keys()].sort();
+
+  if (mode === 'write') {
+    writeFileSync(CONTRAST_BASELINE, `${JSON.stringify(keys, null, 2)}\n`);
+    return;
+  }
+
+  const baseline = new Set(
+    existsSync(CONTRAST_BASELINE) ? JSON.parse(readFileSync(CONTRAST_BASELINE, 'utf8')) : [],
+  );
+
+  const fresh = keys.filter((k) => !baseline.has(k));
+  for (const key of fresh) {
+    const [file, fg, bg] = key.split('|');
+    const v = current.get(key);
+    fail(
+      `${file}:${v.line} 的 ${fg} 疊在 ${bg} 上只有 ${v.ratio.toFixed(2)}:1，` +
+        `低於文字的 AA 門檻 4.5:1`,
+    );
+  }
+
+  const stale = [...baseline].filter((k) => !current.has(k));
+  if (stale.length > 0) {
+    warnings.push(
+      `對比 baseline 有 ${stale.length} 筆已經修好了 —— 跑 npm run harness:write 把它們移出清單`,
+    );
+  }
+
+  const remaining = keys.filter((k) => baseline.has(k)).length;
+  if (remaining > 0) {
+    warnings.push(
+      `${remaining} 處既有的文字對比不合格（在 baseline 裡、不擋）—— ` +
+        `多數是 --zinc-400 那筆全站舊債`,
+    );
+  }
+}
+
+checkUsageContrast();
 
 // ── report ───────────────────────────────────────────────────────────────────────────────
 // --write 一律 exit 0：它的工作是「修好能自動修的」，剩下的（例如 CLAUDE.md 被塞進規則）

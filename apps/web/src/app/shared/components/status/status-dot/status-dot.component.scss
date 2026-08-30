@@ -1,0 +1,74 @@
+:host {
+  display: inline-flex;
+}
+
+// 形狀 = 是否還在等（實心 / 中空），色相 = 嚴重度。兩個軸各自獨立。
+// 每個色值對白底都算過：success 5.02、warning 5.02、error 4.83、zinc-500 4.91。
+// **不要用 --zinc-400**（對白 2.60，連非文字的 3:1 都不到）——
+// 既有的 class-detail 狀態點就是踩在這裡。
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  line-height: 1.5;
+  white-space: nowrap;
+
+  &__mark {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+  }
+
+  // ── 已定案且成功 ──
+  &--done {
+    color: var(--success-600);
+  }
+
+  &--done &__mark {
+    background: var(--success-600);
+  }
+
+  // ── 還在等：唯一的中空。中性色，因為正常的未完成不該叫任何人焦慮 ──
+  &--pending {
+    color: var(--zinc-500);
+    font-weight: var(--font-medium);
+  }
+
+  &--pending &__mark {
+    background: transparent;
+    border: 1.5px solid var(--zinc-500);
+  }
+
+  // ── 已積欠：跟 pending 形狀與色相**同時**不同，所以不會被讀成同類 ──
+  &--overdue {
+    color: var(--warning-600);
+  }
+
+  &--overdue &__mark {
+    background: var(--warning-600);
+  }
+
+  // ── 失敗 ──
+  &--failed {
+    color: var(--error-600);
+  }
+
+  &--failed &__mark {
+    background: var(--error-600);
+  }
+
+  // ── 不在等任何事了（停用、退班）。實心中性 ——
+  //    第一版畫成「灰實心 + 描邊」想跟 pending 的中空環區分，
+  //    但 8px 下環裡填不填色根本看不出來，所以改純實心。 ──
+  &--inactive {
+    color: var(--zinc-500);
+    font-weight: var(--font-medium);
+  }
+
+  &--inactive &__mark {
+    background: var(--zinc-500);
+  }
+}
