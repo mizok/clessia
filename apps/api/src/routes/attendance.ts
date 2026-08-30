@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { resolveTeacherScope } from './attendance/teacher-scope';
 import type { AppEnv } from '../index';
 import { isAttendanceEditable } from '../lib/attendance-window';
+import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 
 const AttendanceStatusSchema = z
@@ -931,65 +932,98 @@ app.openapi(
     if (sessionsError)
       return c.json({ error: '查詢課堂失敗', message: sessionsError.message }, 500);
 
-    const results = await Promise.all(
-      (sessions ?? []).map(async (session: any) => {
-        const classRow = session.classes;
-        const courseRow = Array.isArray(classRow?.courses)
-          ? classRow.courses[0]
-          : classRow?.courses;
-        const classCampusRow = Array.isArray(classRow?.campuses)
-          ? classRow.campuses[0]
-          : classRow?.campuses;
-        const eventRow = Array.isArray(session.events) ? session.events[0] : session.events;
-        const classId = session.class_id ?? null;
-        const eventId = session.event_id ?? eventRow?.id ?? null;
-        const sessionDate = eventRow?.event_date ?? session.session_date ?? null;
-
-        let presentCount = 0,
-          onLeaveCount = 0,
-          absentCount = 0;
-
-        if (eventId) {
-          const { data: records } = await supabase
-            .from('attendance_records')
-            .select('status')
-            .eq('event_id', eventId)
-            .eq('org_id', orgId);
-
-          for (const r of records ?? []) {
-            if (r.status === 'present') presentCount++;
-            else if (r.status === 'on_leave') onLeaveCount++;
-            else if (r.status === 'absent') absentCount++;
-          }
-        }
-
-        const { count: enrolledCount } = await supabase
-          .from('enrollments')
-          .select('id', { count: 'exact', head: true })
-          .eq('class_id', classId)
-          .eq('status', 'active')
-          .lte('effective_from', sessionDate)
-          .or(`effective_to.is.null,effective_to.gte.${sessionDate}`);
-
-        return {
-          eventId: eventId ?? '',
-          classId: classId ?? '',
-          className: classRow?.name ?? '',
-          courseName: courseRow?.name ?? null,
-          teacherName: null,
-          campusId: eventRow?.campus_id ?? classRow?.campus_id ?? null,
-          campusName: eventRow?.campuses?.name ?? classCampusRow?.name ?? null,
-          eventDate: sessionDate ?? '',
-          startTime: (eventRow?.start_time ?? session.start_time)?.slice(0, 5) ?? null,
-          endTime: (eventRow?.end_time ?? session.end_time)?.slice(0, 5) ?? null,
-          enrolledCount: enrolledCount ?? 0,
-          presentCount,
-          onLeaveCount,
-          absentCount,
-          takenAt: eventRow?.attendance_taken_at ?? null,
-        };
-      }),
+    // ── 兩支批次查詢取代每堂各兩支 ─────────────────────────────
+    //
+    // 原本是 `sessions.map(async ...)` 裡各發一支 attendance_records 與一支
+    // enrollments count —— 100 堂課就是 200 次往返，而儀表板一次要兩份列表。
+    // 空 DB 感覺不到，有資料之後它隨課堂數線性成長。
+    const sessionRows = (sessions ?? []) as any[];
+    const eventIds = Array.from(
+      new Set(
+        sessionRows
+          .map((session) => {
+            const eventRow = Array.isArray(session.events) ? session.events[0] : session.events;
+            return session.event_id ?? eventRow?.id ?? null;
+          })
+          .filter((id: string | null): id is string => Boolean(id)),
+      ),
     );
+    const rosterClassIds = Array.from(
+      new Set(
+        sessionRows
+          .map((session) => session.class_id as string | null)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+
+    const [{ data: attendanceRows }, { data: enrollmentRows }] = await Promise.all([
+      eventIds.length > 0
+        ? supabase
+            .from('attendance_records')
+            .select('event_id, status')
+            .eq('org_id', orgId)
+            .in('event_id', eventIds)
+        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+      rosterClassIds.length > 0
+        ? supabase
+            .from('enrollments')
+            .select('class_id, effective_from, effective_to')
+            .eq('org_id', orgId)
+            .eq('status', 'active')
+            .in('class_id', rosterClassIds)
+        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+    ]);
+
+    const tally = tallyAttendance(
+      ((attendanceRows ?? []) as Array<Record<string, unknown>>).map((row) => ({
+        eventId: row['event_id'] as string,
+        status: row['status'] as string,
+      })),
+    );
+    const enrollmentRanges: EnrollmentRange[] = (
+      (enrollmentRows ?? []) as Array<Record<string, unknown>>
+    ).map((row) => ({
+      classId: row['class_id'] as string,
+      effectiveFrom: row['effective_from'] as string,
+      effectiveTo: (row['effective_to'] as string | null) ?? null,
+    }));
+
+    const results = sessionRows.map((session: any) => {
+      const classRow = session.classes;
+      const courseRow = Array.isArray(classRow?.courses) ? classRow.courses[0] : classRow?.courses;
+      const classCampusRow = Array.isArray(classRow?.campuses)
+        ? classRow.campuses[0]
+        : classRow?.campuses;
+      const eventRow = Array.isArray(session.events) ? session.events[0] : session.events;
+      const classId = session.class_id ?? null;
+      const eventId = session.event_id ?? eventRow?.id ?? null;
+      const sessionDate = eventRow?.event_date ?? session.session_date ?? null;
+
+      // 沒有出勤記錄的課堂不會出現在 tally 裡 —— 那是「還沒點名」，不是「全缺席」
+      const counts = (eventId ? tally.get(eventId) : undefined) ?? {
+        presentCount: 0,
+        onLeaveCount: 0,
+        absentCount: 0,
+      };
+
+      return {
+        eventId: eventId ?? '',
+        classId: classId ?? '',
+        className: classRow?.name ?? '',
+        courseName: courseRow?.name ?? null,
+        teacherName: null,
+        campusId: eventRow?.campus_id ?? classRow?.campus_id ?? null,
+        campusName: eventRow?.campuses?.name ?? classCampusRow?.name ?? null,
+        eventDate: sessionDate ?? '',
+        startTime: (eventRow?.start_time ?? session.start_time)?.slice(0, 5) ?? null,
+        endTime: (eventRow?.end_time ?? session.end_time)?.slice(0, 5) ?? null,
+        enrolledCount: classId ? countEnrolledOn(enrollmentRanges, classId, sessionDate) : 0,
+        presentCount: counts.presentCount,
+        onLeaveCount: counts.onLeaveCount,
+        absentCount: counts.absentCount,
+        takenAt: eventRow?.attendance_taken_at ?? null,
+      };
+    });
 
     return c.json(
       {

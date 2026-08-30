@@ -27,7 +27,7 @@ describe('SystemClockService', () => {
 
   it('syncs from server when initialize is called', async () => {
     const initializePromise = service.initialize();
-    const request = httpTestingController.expectOne('http://localhost:8787/system-time');
+    const request = httpTestingController.expectOne('http://localhost:8787/api/system-time');
     request.flush({ epochMs: 1700000000000, iso: '2023-11-14T22:13:20.000Z' });
     await initializePromise;
 
@@ -39,7 +39,7 @@ describe('SystemClockService', () => {
   it('stores sync error when server sync fails', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const syncPromise = service.syncWithServer();
-    const request = httpTestingController.expectOne('http://localhost:8787/system-time');
+    const request = httpTestingController.expectOne('http://localhost:8787/api/system-time');
     request.flush({ error: 'failed' }, { status: 500, statusText: 'Server Error' });
     await syncPromise;
 

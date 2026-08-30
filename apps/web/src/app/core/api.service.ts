@@ -40,6 +40,6 @@ export class ApiService {
    * 取得伺服器時間（公開 API）
    */
   getSystemTime(): Observable<SystemTimeResponse> {
-    return this.http.get<SystemTimeResponse>(`${this.baseUrl}/system-time`);
+    return this.http.get<SystemTimeResponse>(`${this.baseUrl}/api/system-time`);
   }
 }
