@@ -53,6 +53,11 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
     而且沒有人會發現不一致。上面那條「填了就要兩邊都動」的前提是**後端真的守著它**。
     推廣：交付前問一次「這個畫面承諾的事，後端做得到嗎」。做不到就少做一項並回報，
     不要用前端補一個假的 —— 假的那個會被信。
+- **冪等做在後端，信心做在文案。** 月結（`POST /api/billing-runs`）是冪等的 ——
+  它只撈沒蓋章的、處理完就蓋上 `invoice_item_id`，所以同一個月跑第二次不會重複開帳單。
+  但**行政不知道這件事就不敢按第二次**，而「這個月到底跑過沒」正是他們會猶豫的地方。
+  所以 UI 上直接寫「同一個月可以重複跑」。**危險操作的按鈕不是只要能按，還要按得下去** ——
+  把工程性質翻譯成一句人話，比任何確認對話框都有用
 - **「前端能不能篩」看的是資料完不完整，不是「前端篩」這個做法本身。**
   同一個動作在兩支 API 上一個騙人一個不騙：`/api/invoices` 有分頁（前端篩會漏），
   `/api/contact-book` **沒有分頁**且 `meta.total` 是 `count: 'exact'`（前端篩與前端分頁
@@ -77,8 +82,13 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
    要嘛跑全套，要嘛核對測試數有沒有增加
 6. **web 沒有 `typecheck` target。** `nx affected -t typecheck` 對 web 回 no tasks，
    web 的型別是 angular compiler 在 test 階段檢查的。「affected typecheck 綠」對 web 不構成保證
-7. **生成檔解衝突一律重生，不手併**：`kb/wiki/index.md`、各 `_moc.md`、
-   `roadmap.md` 的 `FEATURE-MAP` 區塊。前兩者用 kb-wiki 的 `map`，後者用 `npm run harness:write`
+7. **生成檔在分支上不要重生，撞到了才重生、絕不手併。**（2026-08-30 更新）
+   `roadmap.md` 的 `FEATURE-MAP` 區塊自 PR #70 起：分支上過期只是**提醒不紅燈**，
+   main 的 verify workflow 會自動重生 —— harness 自己會叫你別跑，因為
+   「這會讓你跟其他並行分支撞在同一張表上」。**照它說的做，別手癢跑 `harness:write`**，
+   這比原本「一律重生」省掉一整類衝突。真的撞了才重生（`harness:write` 自 #70 起
+   自帶 prettier，不用再手動跑一次）。`kb/wiki/index.md` 與各 `_moc.md` 仍用
+   kb-wiki 的 `map` 重生。**任何情況都不手併生成區塊。**
 8. **`map` 會保留既有的 curated summary**，frontmatter 的 `summary` 只對索引裡還沒有的新頁生效。
    改了既有頁的 summary，`index.md` 與該分類 `_moc.md` 那兩行要手動同步，或跑 `map --regen-summaries`
 9. **`kb/` 的 design token 不是 `--color-*`。** 實際存在的是 `--zinc-*` / `--accent-*` /
@@ -94,7 +104,8 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
 12. **交付新頁面要把它認領進 `tools/agent-harness/feature-map.mjs` 的 AREAS**，
     否則 `npm run harness` 會紅（「頁面 未被任何功能區認領」），`harness:test` 也跟著 fail。
     那是 infra 席的檔案，但**這一行是 gate 明確要求交付者補的**，不是主動動 infra ——
-    就像新增 skill 之後要跑 `harness:write`。改完 `harness:write` 重生再 prettier。
+    就像新增 skill 之後要跑 `harness:write`。**只補那一行、不要順手重生 roadmap**（坑 #7）；
+    PostToolUse 的 prettier 若順手重排了檔案裡其他地方，把那些還原 —— 那是別人的檔案。
     **區分**：紅燈擋住交付 → 自己補；只是顯示不準（route 歸錯功能區之類）→ 回報計畫席。
 
 ## 這一席的工作習慣
@@ -106,69 +117,70 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
   逐項確認 API 存不存在、回傳什麼形狀，比事後改便宜
 - **從空結果推否定結論之前先確認工具沒洞。** 我用 `find -type d` 找一個 symlink 目標，
   回空就斷言「不存在」並寫進 PR —— 是錯的
+- **既批 spec 涵蓋的頁面不用補設計文件。** `clessia-feature-slice` 的設計文件是為了
+  **取得批准**；工單說「STOP gate 由既批 spec 覆蓋」時，決策記在 commit message 與 PR 即可。
+  事後補一份沒人會讀的存檔違反「實作計畫不進 KB」的精神（2026-08-30 計畫席裁定）。
+  **但別在 spec 裡引用一份你沒寫的設計文件** —— 我一度寫了 `[[architecture/admin-meals-page]]`
+  才發現那頁不存在
 - 收工前照 `.github/workflows/verify.yml` 的序列在本機重放一次，不要只跑 affected
 
-## 進行中狀態（2026-08-29 —— 這節會過期，接手第一件事：重寫它）
+## 進行中狀態（2026-08-30 —— 這節會過期，接手第一件事：重寫它）
 
-**交接自 session `admin-pages-1f`。** 這一輪交付兩個 PR：**#66**（繳費紀錄頁，已驗收、
-解過一次 roadmap 衝突、等使用者合）、**#68**（聯絡簿管理端頁）。P2 的兩張可開工的頁都做完了。
+**交接自 session `admin-pages-1f`。** P2 的管理端頁**四張全部交付完畢**：
 
-### 這一輪學到、已經寫進上面的東西
+| PR  | 內容                                     | 狀態               |
+| --- | ---------------------------------------- | ------------------ |
+| #66 | 繳費紀錄頁                               | 已合               |
+| #71 | 聯絡簿管理端頁                           | 已合               |
+| #72 | 繳費頁的 status 篩選 + 可信 `meta.total` | 已合               |
+| #79 | 聯絡簿「這天還沒寫」的當日待辦           | 驗收過，使用者佇列 |
+| #82 | 餐費管理頁                               | 驗收過，使用者佇列 |
 
-先例多了兩條（**前端不承諾後端沒有兌現的東西**、**能不能前端篩看的是資料完不完整**），
-坑多了一條（**新頁面要認領進 feature-map**）。那三條是這輪的實質收穫，別只當歷史看。
+營收報表 `/admin/reports` 仍是空殼 —— **沒有聚合端點**（`invoices` 是明細 API），
+這是 P2 唯一還擋著的管理端頁。
 
-### 接手時的實際狀況
+### 你接手時欠著一個追加
 
-| 頁                           | 後端                     | 狀態        |
-| ---------------------------- | ------------------------ | ----------- |
-| 繳費單 `/admin/payments`     | `/api/invoices`          | ✅ #66 交付 |
-| 聯絡簿 `/admin/contact-book` | `/api/contact-book`      | ✅ #68 交付 |
-| 餐費 `/admin/meals`          | ❌ `meal_records` 不存在 | 擋著，要 A3 |
-| 營收報表 `/admin/reports`    | ❌ 沒有聚合端點          | 擋著        |
+**餐費頁的三個缺口已轉派 billing-api 席**（2026-08-30），做好之後接顯示端：
 
-### 欠著的三個「小追加」——後端做好了就接，不要重做整頁
+1. `meal_records.note` 的**讀寫都不通** —— 欄位在 DB 裡，`GET /api/meals` 不回、
+   `POST /batch` 不吃。通了之後餐費頁加一個備註欄（現在刻意沒做：存不進去的欄位比沒有更糟）
+2. `MealRosterRow` **不回 `className`** —— spec 說每列要顯示班級
+3. `GET /api/meals` **只吃單日**，沒有區間、沒有學生篩選、沒有 `meta` ——
+   spec 的「查詢與統計」整節因此做不了
 
-計畫席都已派工，做好之後這三件各是幾十行的事：
+**這是這一席的常態節奏**：後端先行，前端接顯示端小追加。前一輪也欠過三個
+（繳費的 total、status 下拉、聯絡簿的 missing 清單），都在 #72 / #79 清掉了。
+**接手時第一件事是確認這三個做了沒**，做了就接，那通常是幾十行的事。
 
-1. **繳費頁的總筆數** —— billing-api 席的 PR #64 修了 `GET /api/invoices` 的 `meta.total`
-   （原本非 overdue 路徑回的是當頁筆數）。修好後 `payments.page.ts` 的
-   `hasNextPage`（現在靠「當頁滿 20」推）換成真的總數與頁碼。
-2. **繳費頁的狀態篩選下拉** —— 同 #64 加的 `status` query 參數。加上去之後才可以做
-   狀態篩選，**在那之前不要用前端補**（見上面的先例）。
-3. **聯絡簿的「今天哪些該寫還沒寫」** —— 等 billing-api 席的
-   `GET /api/contact-book/missing?date=`（server 端算 `uses_contact_book` 的班 × 在籍學生
-   × 當日 entries 的差集）。**不要用現有 API 自己組** ——`GET /api/classes` 沒有
-   `usesContactBook` 篩選而且列表分頁，撈全部班再前端挑會悄悄漏班（坑 #4），
-   而且要逐班打 enrollments，是 N+1。
+### 三個 domain 的 API 形狀差異（下次動到直接用，不用重讀）
 
-### 還有一筆待回報的顯示問題（不紅燈，所以我沒動）
-
-`feature-map.mjs` 把 `invoices` route 歸給「計費」功能區，「繳費」的 `routes: []` ——
-所以現況表對繳費顯示「已掛載 API 0」。加一行 `'invoices'` 就對（「課務異動」認領
-`sessions` 是同檔案裡帶註解祝福的先例）。計畫席已派 infra 席，**確認做了沒**。
-
-### 兩個 domain 的形狀差異（下次動到時直接用）
-
-- **`/api/invoices`**：有分頁；`status`/`total`/`netPaid` 後端推導好；收款與退費同一支
-  端點差 `kind`；`receipt_no` 由 DB trigger 取號（退費沒有號）。
+- **`/api/invoices`**：有分頁；`status`/`total`/`netPaid` 後端推導好；`status` 與 `overdue`
+  可並用且都走「全撈→篩→`sliceDerivedPage` 切頁」那條路徑（所以 `meta.total` 是**篩後全體**）；
+  收款與退費同一支端點差 `kind`；`receipt_no` 由 DB trigger 取號（退費沒有號）
 - **`/api/contact-book`**：**沒有分頁**，`meta.total` 是 `count: 'exact'`（可信）；
-  只有 `GET /` 與 `PUT /`（upsert，鍵是 `student_id, entry_date`）；
-  **`PUT` 回裸的 entry 不是 `{ data }`**；mount 只有角色 `['admin','teacher']` 沒有 permission；
-  entry **沒有 classId**，所以「按班級看聯絡簿」在資料上做不到。
+  `GET /`（區間）、`PUT /`（upsert，鍵是 `student_id, entry_date`，**回裸 entry 不是 `{ data }`**）、
+  `GET /missing?date=`（**每生一列不是每班一列**，且「該寫」綁的是「這個班那天有課」）；
+  mount 只有角色沒有 permission；entry **沒有 classId**
+- **`/api/meals`**：**只吃單日**；`GET` 回 `{ data, defaultUnitPrice }`（沒有 meta）；
+  `POST /batch` 上限 **300 筆**、已結算的擋下來回 `lockedStudentIds`（要顯示出來，
+  後端刻意不靜靜跳過）。`recordId === null` = **這天還沒人處理**，不是「沒訂」
 
-### 列印的做法（`invoice-detail-dialog`）
+### 兩個做法值得照抄
 
-dialog 是 modal，`window.print()` 會連遮罩和背後的列表一起印。要壓掉得寫全域規則，
-而 `styles.scss` 不是這一席的邊界。所以改成 **`window.open` 開空白視窗 + `importNode`
-搬列印節點過去**，樣式 inline 在那個視窗裡。節點用 DOM 搬不拼 HTML 字串（姓名與備註
-是使用者輸入）。要再做列印功能照抄它，不要跟 `@media print` 打架。
+- **列印**（`invoice-detail-dialog`）：dialog 是 modal，`window.print()` 會連遮罩和背後列表
+  一起印。改成 `window.open` 開空白視窗 + `importNode` 搬節點，樣式 inline 在那個視窗。
+  節點用 DOM 搬不拼 HTML 字串（姓名與備註是使用者輸入）。**不要跟 `@media print` 打架**
+- **後端上限就在前端擋住**（`meals.component.ts`）：`POST /batch` 上限 300，超過就擋並提示回報。
+  靜靜截斷會讓後面的學生沒有記錄**而且沒有徵兆**
 
 ### 環境
 
-worktree 在 `.worktrees/admin-pages`。**待命分支是 `admin-pages-idle`**；這一輪的兩個功能
-分支是 `feat/admin-payments-page` 與 `feat/admin-contact-book`。開工一律 `git fetch` 後從
-`origin/main` 另開，不要在 idle 上做。root 與 `apps/api` 都 `npm ci` 過。
+worktree 在 `.worktrees/admin-pages`，待命分支 `admin-pages-idle`。開工一律 `git fetch`
+後從 `origin/main` 另開分支。root 與 `apps/api` 都 `npm ci` 過。
+
+**內部視覺正在被 design-web 席大改（PrimeNG 主題層）** —— 只用既有 token 與元件慣例寫，
+別自創樣式，他們那刀合了你的頁會自動跟上。
 
 收工前照 `.github/workflows/verify.yml` 的序列在本機重放：`harness` → `harness:test` →
 `nx run-many -t typecheck` → `nx run-many -t test` → **`nx build web --configuration=production`**。
