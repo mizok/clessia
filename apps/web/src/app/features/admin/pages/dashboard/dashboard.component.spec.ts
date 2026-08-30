@@ -75,6 +75,8 @@ interface SetupOptions {
   fail?: 'sessions' | 'leaves' | 'grades' | 'students' | 'enrollments' | 'org';
   /** 讓查詢永遠不回覆，用來驗「載入中」而不是「空」 */
   pending?: boolean;
+  /** 只讓「今日課表」回覆，其餘永遠不回 —— 用來驗漸進渲染 */
+  onlySessions?: boolean;
 }
 
 describe('DashboardComponent（管理端）', () => {
@@ -109,7 +111,14 @@ describe('DashboardComponent（管理端）', () => {
       permissions = ['view_reports'],
       fail,
       pending,
+      onlySessions,
     } = options;
+
+    /**
+     * 漸進渲染測試用：只讓「今日課表」那一支回覆，其餘永遠不回。
+     * 用單一 forkJoin 的話畫面會完全空白 —— 那正是這一刀要修掉的。
+     */
+    const stalled = onlySessions === true;
 
     const boom = throwError(() => new Error('boom'));
 
@@ -127,14 +136,14 @@ describe('DashboardComponent（管理端）', () => {
 
     // 卡 1 用 date=今天、卡 2 用 dateFrom=7 天前，是兩個不同的請求
     sessionsMock.mockImplementation((params: { date?: string }) =>
-      pending
+      pending || (stalled && !params.date)
         ? NEVER
         : fail === 'sessions'
           ? boom
           : sessionList(params.date ? todaySessions : recentSessions),
     );
     leavesMock.mockReturnValue(
-      pending
+      pending || stalled
         ? NEVER
         : fail === 'leaves'
           ? boom
@@ -143,20 +152,26 @@ describe('DashboardComponent（管理端）', () => {
               meta: { total: leaves.length, page: 1, pageSize: 100, totalPages: 1 },
             }),
     );
-    academyTodoMock.mockReturnValue(fail === 'grades' ? boom : of({ count: academyTodo }));
-    schoolTodoMock.mockReturnValue(of({ count: schoolTodo }));
+    academyTodoMock.mockReturnValue(
+      stalled ? NEVER : fail === 'grades' ? boom : of({ count: academyTodo }),
+    );
+    schoolTodoMock.mockReturnValue(stalled ? NEVER : of({ count: schoolTodo }));
     studentsMock.mockReturnValue(
-      fail === 'students'
+      stalled
+        ? NEVER
+        : fail === 'students'
         ? boom
         : of({ data: [], meta: { total: activeCount }, summary: { total: activeCount, activeCount } }),
     );
     enrollmentsMock.mockReturnValue(
-      fail === 'enrollments'
+      stalled
+        ? NEVER
+        : fail === 'enrollments'
         ? boom
         : of({ data: [], meta: { total: enrollmentTotal, page: 1, pageSize: 1, totalPages: 1 } }),
     );
     orgSettingsMock.mockReturnValue(
-      fail === 'org' ? boom : of({ id: 'o1', name: '補習班', attendanceMode: mode }),
+      stalled ? NEVER : fail === 'org' ? boom : of({ id: 'o1', name: '補習班', attendanceMode: mode }),
     );
 
     await TestBed.configureTestingModule({
@@ -289,11 +304,24 @@ describe('DashboardComponent（管理端）', () => {
       ],
     });
 
-    expect(component['todaySessionList']().map((s) => s.eventId)).toEqual(['early', 'late']);
+    expect(component['todaySessionList']()?.map((s) => s.eventId)).toEqual(['early', 'late']);
   });
 
   // 載入中回空陣列的話，畫面會立刻宣稱「今日尚無排課」—— 那是一個當下還不知道
   // 的事實。空資料庫上這個謊會維持十幾秒（實機回饋），直到資料回來才更正。
+  // 拆 forkJoin 的驗收條件：**其他請求還在飛的時候，橘帶已經填好**。
+  // 這比量時間可靠 —— 時間隨網路變，而「會不會等最慢的那一支」是結構性的。
+  // 用單一 forkJoin 的話這條必然失敗：它要全部完成才 emit。
+  it('橘帶不等其他請求 —— 今日課表一到就先渲染', async () => {
+    await setup({ onlySessions: true, todaySessions: [session(), session({ eventId: 'e2' })] });
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('今天 2 堂課');
+    expect(fixture.nativeElement.querySelector('.dashboard__band-skeleton')).toBeNull();
+    // 而現況欄還在等
+    expect(text).toContain('載入中');
+  });
+
   it('載入中不得宣稱今日尚無排課', async () => {
     await setup({ pending: true });
 

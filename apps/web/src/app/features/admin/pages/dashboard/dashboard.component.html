@@ -29,7 +29,9 @@
       </p>
     }
 
-    <app-day-timeline [sessions]="todaySessionList()" [date]="todayKey" />
+    @if (todaySessionList(); as sessions) {
+      <app-day-timeline [sessions]="sessions" [date]="todayKey" />
+    }
   </section>
 
   @if (todoCards().length > 0) {
@@ -84,33 +86,39 @@
 
       @if (sessionsFailed()) {
         <p class="dashboard__empty">今日課表讀取失敗</p>
-      } @else if (sessionsLoading()) {
+      } @else if (todaySessionList(); as sessions) {
+        @if (sessions.length === 0) {
+          <p class="dashboard__empty">今日尚無排課</p>
+        } @else {
+          <ul class="dashboard__spine">
+            @for (session of sessions; track session.eventId) {
+              <li
+                class="dashboard__spine-row"
+                [class.dashboard__spine-row--todo]="!session.takenAt"
+              >
+                <span class="dashboard__spine-time">{{ session.startTime }}</span>
+                <span class="dashboard__spine-body">
+                  <span class="dashboard__spine-name">{{ session.className }}</span>
+                  <span class="dashboard__spine-meta">
+                    {{ session.courseName }} · {{ session.teacherName }}
+                  </span>
+                </span>
+                @if (session.takenAt) {
+                  <p-tag value="已點名" severity="success" />
+                } @else {
+                  <p-tag value="未點名" severity="warn" />
+                }
+              </li>
+            }
+          </ul>
+        }
+      } @else {
+        <!-- null = 還不知道。載入中不得宣稱「今日尚無排課」 -->
         <div class="skeleton-list" aria-label="今日課表載入中">
           @for (i of [1, 2, 3]; track i) {
             <span class="skeleton-bar"></span>
           }
         </div>
-      } @else if (todaySessionList().length === 0) {
-        <p class="dashboard__empty">今日尚無排課</p>
-      } @else {
-        <ul class="dashboard__spine">
-          @for (session of todaySessionList(); track session.eventId) {
-            <li class="dashboard__spine-row" [class.dashboard__spine-row--todo]="!session.takenAt">
-              <span class="dashboard__spine-time">{{ session.startTime }}</span>
-              <span class="dashboard__spine-body">
-                <span class="dashboard__spine-name">{{ session.className }}</span>
-                <span class="dashboard__spine-meta">
-                  {{ session.courseName }} · {{ session.teacherName }}
-                </span>
-              </span>
-              @if (session.takenAt) {
-                <p-tag value="已點名" severity="success" />
-              } @else {
-                <p-tag value="未點名" severity="warn" />
-              }
-            </li>
-          }
-        </ul>
       }
     </section>
 
@@ -150,25 +158,27 @@
 
         @if (leavesFailed()) {
           <p class="dashboard__empty">今日請假讀取失敗</p>
-        } @else if (leavesLoading()) {
+        } @else if (todayLeaveList(); as leaves) {
+          @if (leaves.length === 0) {
+            <p class="dashboard__empty">今天沒有人請假</p>
+          } @else {
+            <ul class="dashboard__leaves">
+              @for (leave of leaves; track leave.id) {
+                <li class="dashboard__leave">
+                  <span>{{ leave.studentName }}</span>
+                  @if (leave.reason) {
+                    <span class="dashboard__leave-reason">{{ leave.reason }}</span>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        } @else {
           <div class="skeleton-list" aria-label="今日請假載入中">
             @for (i of [1, 2]; track i) {
               <span class="skeleton-bar"></span>
             }
           </div>
-        } @else if (todayLeaveList().length === 0) {
-          <p class="dashboard__empty">今天沒有人請假</p>
-        } @else {
-          <ul class="dashboard__leaves">
-            @for (leave of todayLeaveList(); track leave.id) {
-              <li class="dashboard__leave">
-                <span>{{ leave.studentName }}</span>
-                @if (leave.reason) {
-                  <span class="dashboard__leave-reason">{{ leave.reason }}</span>
-                }
-              </li>
-            }
-          </ul>
         }
       </section>
     </aside>

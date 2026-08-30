@@ -108,30 +108,31 @@ export class DashboardComponent {
   /** `null` 代表讀不到機構設定 */
   private readonly attendanceMode = signal<AttendanceMode | null>(null);
 
-  protected readonly todaySessionList = computed(() => {
+  /**
+   * **`null` 是「還不知道」，不是「沒有」。**
+   *
+   * 這裡原本在載入中回空陣列，於是模板會宣稱「今日尚無排課」—— 一個當下還
+   * 不知道的事實。#110 在模板層擋住了這張卡，但型別不擋的話下一張卡照樣會
+   * 重蹈覆轍。回傳 `T[] | null` 之後，模板不先分辨載入中就過不了型別檢查。
+   */
+  protected readonly todaySessionList = computed<EventSessionSummary[] | null>(() => {
     const sessions = this.todaySessions();
-    if (sessions === null || sessions === FAILED) return [];
+    if (sessions === null) return null;
+    if (sessions === FAILED) return [];
 
     return [...sessions].sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? ''));
   });
 
-  protected readonly todayLeaveList = computed(() => {
+  /** 同上：`null` 是還不知道 */
+  protected readonly todayLeaveList = computed<LeaveRequest[] | null>(() => {
     const leaves = this.todayLeaves();
-    return leaves === null || leaves === FAILED ? [] : leaves;
+    if (leaves === null) return null;
+    return leaves === FAILED ? [] : leaves;
   });
 
   protected readonly sessionsFailed = computed(() => this.todaySessions() === FAILED);
   protected readonly leavesFailed = computed(() => this.todayLeaves() === FAILED);
 
-  /**
-   * **載入中不等於沒有。**
-   *
-   * 這兩個清單在載入中（`null`）時回空陣列，於是畫面會立刻宣稱「今日尚無排課」——
-   * 那是一個當下還不知道的事實。空資料庫上這個謊會維持十幾秒，直到資料回來才
-   * 更正。橘帶之所以看起來「最慢」，只是因為它是唯一誠實的那個。
-   */
-  protected readonly sessionsLoading = computed(() => this.todaySessions() === null);
-  protected readonly leavesLoading = computed(() => this.todayLeaves() === null);
 
   /**
    * `'hidden'` 是整張卡不該存在：`daily-checkins` 建立 attendance_records 但從不蓋
@@ -235,51 +236,67 @@ export class DashboardComponent {
   constructor() {
     const lookbackFrom = format(subDays(this.now, UNTAKEN_LOOKBACK_DAYS), 'yyyy-MM-dd');
 
-    forkJoin({
-      // `date` 會蓋掉 dateFrom/dateTo，所以今日與回溯窗本來就是兩個請求 ——
-      // 也剛好讓兩張卡各自失敗，不會一起死
-      todaySessions: failSoft(
-        this.attendanceService.sessions({ date: this.todayIso, pageSize: 100 }),
-      ),
-      recentSessions: failSoft(
-        this.attendanceService.sessions({
-          dateFrom: lookbackFrom,
-          dateTo: this.todayIso,
-          pageSize: 100,
-        }),
-      ),
-      leaves: failSoft(this.leaveService.list({ coverDate: this.todayIso, pageSize: 100 })),
-      grades: failSoft(
-        forkJoin([
-          this.academyExamsService.getTodoCount(),
-          this.schoolExamsService.getTodoCount(),
-        ]),
-      ),
-      students: failSoft(this.studentsService.list({ pageSize: 1 })),
-      // 只要 meta.total：pageSize 上限是 100，抓明細自己分類會在異動破百的月份
-      // 悄悄少算，而且錯得沒有徵兆
-      enrollments: failSoft(
-        this.enrollmentsService.list({
-          from: format(startOfMonth(this.now), 'yyyy-MM-dd'),
-          to: format(endOfMonth(this.now), 'yyyy-MM-dd'),
-          pageSize: 1,
-        }),
-      ),
-      org: failSoft(this.orgSettingsService.getSettings()),
-    })
+    // **逐支訂閱，不用單一 forkJoin。** forkJoin 要全部完成才 emit，於是整頁
+    // 等最慢的那一支 —— 橘帶那句話可能是最早回來的，卻要等最後一支。
+    //
+    // 次序照**畫面由上而下**，不照快慢。照快慢排的話畫面會跳來跳去
+    // （design-web-2 的提醒）：橘帶 → 待處理 → 現況欄。
+    //
+    // ⚠️ 這是**體感的改善，不是延遲的改善**。billing-api 量到那 8 支即使
+    // 完全不碰資料庫，並行仍比序列慢 2.4 倍（fan-out 本身的成本），而且
+    // guard 的 `await auth.ready` 是序列跳板，總時間 ≈ TTFB(/api/me) + max(8 支)。
+    // 真正的延遲那條在 pooler 設定，不在這裡。見
+    // kb/wiki/lessons/workers-fanout-costs-before-the-db.md
+    // `takeUntilDestroyed` 的泛型是在呼叫點推導的 —— 存成 const 會把 T 定死成
+    // `unknown`，後面每個 subscribe 的 res 都變 unknown。所以逐一 inline 呼叫。
+
+    // ① 橘帶：整頁最顯眼的位置，第一個發也第一個填
+    failSoft(this.attendanceService.sessions({ date: this.todayIso, pageSize: 100 }))
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) => {
-        this.todaySessions.set(res.todaySessions === FAILED ? FAILED : res.todaySessions.data);
-        this.recentSessions.set(res.recentSessions === FAILED ? FAILED : res.recentSessions.data);
-        this.todayLeaves.set(res.leaves === FAILED ? FAILED : res.leaves.data);
-        this.gradesTodo.set(
-          res.grades === FAILED ? FAILED : res.grades[0].count + res.grades[1].count,
-        );
-        this.activeStudents.set(
-          res.students === FAILED ? FAILED : res.students.summary.activeCount,
-        );
-        this.enrollmentChanges.set(res.enrollments === FAILED ? FAILED : res.enrollments.meta.total);
-        this.attendanceMode.set(res.org === FAILED ? null : res.org.attendanceMode);
-      });
+      .subscribe((res) => this.todaySessions.set(res === FAILED ? FAILED : res.data));
+
+    // ② 待處理：未點名要先知道機構的點名模式才決定渲不渲染
+    failSoft(this.orgSettingsService.getSettings())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((res) => this.attendanceMode.set(res === FAILED ? null : res.attendanceMode));
+
+    failSoft(
+      this.attendanceService.sessions({
+        dateFrom: lookbackFrom,
+        dateTo: this.todayIso,
+        pageSize: 100,
+      }),
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((res) => this.recentSessions.set(res === FAILED ? FAILED : res.data));
+
+    failSoft(
+      forkJoin([this.academyExamsService.getTodoCount(), this.schoolExamsService.getTodoCount()]),
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((res) => this.gradesTodo.set(res === FAILED ? FAILED : res[0].count + res[1].count));
+
+    // ③ 現況欄：背景脈絡，最後填也不影響使用者在做的事
+    failSoft(this.leaveService.list({ coverDate: this.todayIso, pageSize: 100 }))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((res) => this.todayLeaves.set(res === FAILED ? FAILED : res.data));
+
+    failSoft(this.studentsService.list({ pageSize: 1 }))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((res) =>
+        this.activeStudents.set(res === FAILED ? FAILED : res.summary.activeCount),
+      );
+
+    // 只要 meta.total：pageSize 上限是 100，抓明細自己分類會在異動破百的月份
+    // 悄悄少算，而且錯得沒有徵兆
+    failSoft(
+      this.enrollmentsService.list({
+        from: format(startOfMonth(this.now), 'yyyy-MM-dd'),
+        to: format(endOfMonth(this.now), 'yyyy-MM-dd'),
+        pageSize: 1,
+      }),
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((res) => this.enrollmentChanges.set(res === FAILED ? FAILED : res.meta.total));
   }
 }
