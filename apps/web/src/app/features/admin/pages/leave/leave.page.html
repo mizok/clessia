@@ -109,10 +109,7 @@
           <td appRtColCell="days">{{ calcDays(record.startDate, record.endDate) }} 天</td>
           <td appRtColCell="reason">{{ record.reason ?? '—' }}</td>
           <td appRtColCell="submittedByRole">
-            <p-tag
-              [value]="submittedByRoleLabel(record.submittedByRole)"
-              [severity]="submittedByRoleSeverity(record.submittedByRole)"
-            />
+            <app-data-chip>{{ submittedByRoleLabel(record.submittedByRole) }}</app-data-chip>
           </td>
           <td appRtColCell="actions">
             <p-button

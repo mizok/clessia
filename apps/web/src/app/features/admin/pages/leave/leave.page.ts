@@ -23,11 +23,13 @@ import type {
 } from '@shared/components/responsive-table/responsive-table.models';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { LeaveFormDialogComponent } from './leave-form-dialog.component';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 
 @Component({
   selector: 'app-leave',
   standalone: true,
   imports: [
+    DataChipComponent,
     FormsModule,
     ButtonModule,
     SelectModule,
@@ -91,10 +93,6 @@ export class LeavePage implements OnInit {
 
   protected submittedByRoleLabel(role: 'parent' | 'admin'): string {
     return role === 'parent' ? '家長' : '管理員';
-  }
-
-  protected submittedByRoleSeverity(role: 'parent' | 'admin'): 'info' | 'secondary' {
-    return role === 'parent' ? 'info' : 'secondary';
   }
 
   ngOnInit(): void {
