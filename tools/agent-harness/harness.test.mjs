@@ -15,6 +15,7 @@ import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import { matchWriteRules, routeHints } from './lib/rules.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
+import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 import routerRules from './rules/doc-router.rules.json' with { type: 'json' };
 import { compareToBaseline, failingSpecs } from './test-gate.mjs';
@@ -380,4 +381,120 @@ test('橘帶地板：近黑字跟 --zinc-900 脫鉤要擋（#97 的教訓）', (
 
 test('橘帶地板：token 還沒鑄進去的分支不該報錯', () => {
   assert.deepEqual(bandContrastViolations(':root { --zinc-900: #1a1614; }'), []);
+});
+
+// ── 使用處的文字對比 ─────────────────────────────────────────────────────────────────────
+const palette = readTokenPalette(`
+:root {
+  --zinc-50: #faf9f8;
+  --zinc-600: #57504b;
+  --warning-100: #fef3c7;
+  --warning-200: #fde68a;
+  --warning-600: #b45309;
+  --warning-800: #92400e;
+  --accent-500: #c93f14;
+  --color-white: #fff;
+}
+`);
+const scan = (scss) => usageContrastViolations(scss, palette);
+
+test('對比掃描：hover 換底 + 繼承的文字色（琥珀 chip 陷阱）', () => {
+  const found = scan(`
+.chip {
+  background: var(--warning-100);
+  color: var(--warning-600);
+
+  &:hover {
+    background: var(--warning-200);
+  }
+}
+`);
+  // 靜止態 4.51 過關，hover 態 4.03 不過 —— 只該報 hover 那一個
+  assert.equal(found.length, 1);
+  assert.equal(found[0].fg, 'var(--warning-600)');
+  assert.equal(found[0].bg, 'var(--warning-200)');
+  assert.ok(found[0].ratio > 4.0 && found[0].ratio < 4.1, `ratio=${found[0].ratio}`);
+});
+
+test('對比掃描：hover 改用 --warning-800 就過', () => {
+  assert.deepEqual(
+    scan(`
+.chip {
+  background: var(--warning-100);
+  color: var(--warning-800);
+
+  &:hover {
+    background: var(--warning-200);
+  }
+}
+`),
+    [],
+  );
+});
+
+test('對比掃描：宣告順序不影響判斷（收合時才判，不是看到就判）', () => {
+  // color 在 background 前面。看到 color 就判斷的話會拿祖先的白底去比，誤報白字白底
+  assert.deepEqual(
+    scan(`
+.card {
+  background: var(--color-white);
+
+  &__badge {
+    color: var(--color-white);
+    background: var(--accent-500);
+  }
+}
+`),
+    [],
+  );
+});
+
+test('對比掃描：background: transparent 會遮蔽祖先的底，不是被略過', () => {
+  // --zinc-600 疊在 --accent-500 上只有 1.58，但 transparent 之後真正的底
+  // 是這支檔案不知道的東西 —— 不知道就不要報
+  assert.deepEqual(
+    scan(`
+.pill {
+  background: var(--accent-500);
+
+  &--off {
+    background: transparent;
+    color: var(--zinc-600);
+  }
+}
+`),
+    [],
+  );
+});
+
+test('對比掃描：::before 的裝飾方塊不算文字的底', () => {
+  assert.deepEqual(
+    scan(`
+.item {
+  color: var(--zinc-600);
+
+  &::before {
+    content: '';
+    background: var(--accent-500);
+  }
+}
+`),
+    [],
+  );
+});
+
+test('對比掃描：算不出來的值一律跳過，不猜', () => {
+  assert.deepEqual(
+    scan(`
+.x {
+  background: linear-gradient(140deg, var(--warning-100), var(--warning-200));
+  color: var(--warning-600);
+}
+.y {
+  background: color-mix(in srgb, var(--warning-100) 70%, white);
+  color: var(--warning-600);
+}
+`),
+    [],
+  );
 });

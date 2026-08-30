@@ -1,0 +1,18 @@
+:host {
+  display: inline-flex;
+}
+
+// zinc-700 對 zinc-100 是 10.58:1，對 hover 的 zinc-200 是 9.53:1 —— 兩種底都很寬裕。
+// 這裡刻意不用 --zinc-500（對 zinc-100 只有 4.44:1，不合格）。
+.data-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  line-height: 1.5;
+  white-space: nowrap;
+  background: var(--zinc-100);
+  color: var(--zinc-700);
+}
