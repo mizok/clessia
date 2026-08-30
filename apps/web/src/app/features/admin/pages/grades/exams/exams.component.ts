@@ -69,6 +69,7 @@ import { SchoolsService, type School } from '@core/schools.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 
 type ExamKind = 'academy' | 'school';
 type ExamTypeFilter = ExamKind;
@@ -136,6 +137,7 @@ const PAGE_SIZE = 8;
   selector: 'app-exams',
   standalone: true,
   imports: [
+    DataChipComponent,
     FormsModule,
     RouterModule,
     ButtonModule,
@@ -604,10 +606,6 @@ export class ExamsComponent implements OnInit {
   // ── Row helpers ───────────────────────────────────────────────────────
   protected getKindLabel(kind: ExamKind): string {
     return kind === 'academy' ? '補習班考試' : '學校考試';
-  }
-
-  protected getKindSeverity(kind: ExamKind): 'info' | 'contrast' {
-    return kind === 'academy' ? 'info' : 'contrast';
   }
 
   protected getAcademyTypeLabel(type: AcademyExamType): string {

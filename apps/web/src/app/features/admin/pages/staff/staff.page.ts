@@ -48,6 +48,7 @@ import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confir
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { ReferenceDataService } from '@core/reference-data.service';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 
 const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] = [
   { value: 'basic_operations', label: '日常行政', description: '查詢與處理報名、出勤、請假' },
@@ -81,6 +82,7 @@ const ROLE_OPTIONS: RoleOption[] = [
   selector: 'app-staff',
   standalone: true,
   imports: [
+    DataChipComponent,
     CommonModule,
     FormsModule,
     ButtonModule,
@@ -555,10 +557,6 @@ export class StaffPage implements OnInit {
 
   getRoleLabel(role: StaffRole): string {
     return role === 'admin' ? '管理員' : '老師';
-  }
-
-  getRoleSeverity(role: StaffRole): 'info' | 'success' {
-    return role === 'admin' ? 'info' : 'success';
   }
 
   private formatDate(date: Date): string {

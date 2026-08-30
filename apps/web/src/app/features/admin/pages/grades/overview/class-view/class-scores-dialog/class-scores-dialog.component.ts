@@ -27,6 +27,7 @@ import {
   type ScoreRecordStatus,
 } from '@core/scores.service';
 import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/students.service';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 
 type ScoreStatusFilter = 'all' | ScoreRecordStatus;
 type ExamScopeFilter = 'todo' | 'all';
@@ -68,7 +69,14 @@ const EXAM_TYPE_LABELS: Record<AcademyExam['examType'], string> = {
 @Component({
   selector: 'app-class-scores-dialog',
   standalone: true,
-  imports: [FormsModule, EmptyStateComponent, SelectModule, SelectButtonModule, TagModule],
+  imports: [
+    DataChipComponent,
+    FormsModule,
+    EmptyStateComponent,
+    SelectModule,
+    SelectButtonModule,
+    TagModule,
+  ],
   templateUrl: './class-scores-dialog.component.html',
   styleUrl: './class-scores-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

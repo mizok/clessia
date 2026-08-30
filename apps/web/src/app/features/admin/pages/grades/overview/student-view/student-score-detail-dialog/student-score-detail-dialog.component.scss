@@ -35,8 +35,11 @@
     align-items: center;
     padding: 1px var(--space-2);
     border-radius: var(--radius-sm);
-    background: var(--accent-50);
-    color: var(--accent-700);
+    // 等第是**數值的另一種寫法**，不是嚴重度 —— accent 已退出數值強調（#100），
+    // 而色相只編碼嚴重度（工單 3 的法則）。所以它跟 data-chip 用同一組中性值。
+    // 不及格才拿語意色，那才是真的嚴重度。
+    background: var(--zinc-100);
+    color: var(--zinc-700);
     font-size: var(--text-xs);
     font-weight: var(--font-semibold);
   }
