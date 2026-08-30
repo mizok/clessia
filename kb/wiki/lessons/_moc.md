@@ -40,6 +40,12 @@ Links to: [[architecture/line-oauth-login]], [[architecture/constitution|`kb/wik
 
 Tags: `lessons`, `doc-code-drift-2026-08`
 
+## [[lessons/empty-array-hides-loading|空陣列把「還沒載入」講成「真的沒有」]]
+
+signal 初始 [] 或 computed 把 null 壓成 [] 之後，畫面就無法區分「還不知道」與「確定沒有」—— 而失敗態通常有人想到，載入態沒有。含一個已知但暫不修的實例（ReferenceDataService → 批次面板的老師名單）。
+
+Tags: `lessons`, `loading-state`, `signals`, `known-issue`
+
 ## [[lessons/generated-tables-need-verifying|生成的表不會因為它是生成的就正確]]
 
 功能區現況表的判定邏輯改了四版。第三版看起來完全合理，卻差點導致刪掉一個會動的功能——只有人工逐一驗證才發現。
