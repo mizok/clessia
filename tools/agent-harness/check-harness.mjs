@@ -450,23 +450,13 @@ scanExisting({ clause: 'c6', dir: WEB_SRC, ext: '.scss', label: '使用了 viewp
 // A13（c7）— 存量本來就是 0（Angular 21 全面用新語法），gate 立起來防回歸
 scanExisting({ clause: 'c7', dir: WEB_SRC, ext: '.html', label: '使用了舊版結構指令' });
 
-// A14（c8）— 存量 4 筆，都在 shared 元件裡。
-// 轉成 functional API 會改到 component 的對外介面（`@Input() value` → `input()` 之後
-// template 要改成 `value()`），那是 design-web 席的活，不是這支 gate PR 的範圍。
+// A14（c8）— **存量已清零**（PR #81），allowlist 空著就是它該有的樣子。
+// 原本列的 4 筆（jdenticon-avatar 的 2 @Input + 1 @ViewChild、shell-layout 的
+// 1 @ViewChild）在 #81 全部轉成 functional API，那支 PR 比這支 gate 早合，
+// 所以兩邊各自綠、合起來紅 —— allowlist 是「已知存量」的快照，快照會過期。
 // 邊界：`@HostListener` **不在** c8 內（沒有 functional 對應物，使用者 2026-08-29 釐清）——
 // 這件事由 pre-guard 的 regex 本身保證，這裡不重述，共用規則就是為了不重述。
-scanExisting({
-  clause: 'c8',
-  dir: WEB_SRC,
-  ext: '.ts',
-  label: '使用了裝飾器版 API',
-  allowlist: {
-    // jdenticon-avatar.component.ts:26,27（@Input）、:29（@ViewChild）
-    'apps/web/src/app/shared/components/jdenticon-avatar/jdenticon-avatar.component.ts': 3,
-    // shell-layout.component.ts:42（@ViewChild('op')）
-    'apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.ts': 1,
-  },
-});
+scanExisting({ clause: 'c8', dir: WEB_SRC, ext: '.ts', label: '使用了裝飾器版 API' });
 
 // A15（c2）— 存量 9 筆，全是直寫 `ba_user`。
 // 這批是「ba_user 寫入路徑收斂」切片的待辦，不是這支 PR 要修的東西 —— 修它要動 Better Auth
