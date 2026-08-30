@@ -10,12 +10,12 @@ import { forkJoin } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { SkeletonModule } from 'primeng/skeleton';
-import { TagModule } from 'primeng/tag';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { type Session } from '@core/sessions.service';
 import { EnrollmentsService } from '@core/enrollments.service';
 import { LeaveService } from '@core/leave.service';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 
 type LeaveFilterValue = 'all' | 'on_leave' | 'present';
 
@@ -33,7 +33,7 @@ interface RosterRow {
 @Component({
   selector: 'app-session-leave-roster-dialog',
   standalone: true,
-  imports: [ButtonModule, InputTextModule, SkeletonModule, TagModule],
+  imports: [DataChipComponent, ButtonModule, InputTextModule, SkeletonModule],
   templateUrl: './session-leave-roster-dialog.component.html',
   styleUrl: './session-leave-roster-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

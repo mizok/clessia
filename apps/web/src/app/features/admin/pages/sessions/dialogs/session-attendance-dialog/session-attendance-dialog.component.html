@@ -80,7 +80,7 @@
             </span>
           </div>
           @if (isOnLeave(student)) {
-            <p-tag value="請假中" severity="warn" />
+            <app-data-chip>請假中</app-data-chip>
           } @else {
             <div class="session-attendance__toggle">
               <p-button
