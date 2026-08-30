@@ -6,7 +6,7 @@
 
   &__item {
     font-size: 0.875rem;
-    color: var(--p-zinc-500);
+    color: var(--zinc-500);
     white-space: nowrap;
 
     &--link {
@@ -14,18 +14,18 @@
       text-decoration: none;
 
       &:hover {
-        color: var(--p-zinc-800);
+        color: var(--zinc-800);
       }
     }
 
     &--current {
-      color: var(--p-zinc-800);
+      color: var(--zinc-800);
       font-weight: 500;
     }
   }
 
   &__separator {
     font-size: 0.75rem;
-    color: var(--p-zinc-400);
+    color: var(--zinc-400);
   }
 }

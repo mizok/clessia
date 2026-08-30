@@ -89,13 +89,13 @@
     transition: all 150ms ease-out;
 
     &:hover {
-      border-color: var(--sky-300, #7dd3fc);
-      color: var(--sky-700, #0369a1);
-      background: var(--sky-50, #f0f9ff);
+      border-color: var(--accent-400);
+      color: var(--accent-700);
+      background: var(--accent-50);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--sky-500);
+      outline: 2px solid var(--accent-500);
       outline-offset: 2px;
     }
   }
@@ -129,20 +129,20 @@
     transition: all 150ms ease-out;
 
     &:hover {
-      border-color: var(--sky-300, #7dd3fc);
-      color: var(--sky-700, #0369a1);
-      background: var(--sky-50, #f0f9ff);
+      border-color: var(--accent-400);
+      color: var(--accent-700);
+      background: var(--accent-50);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--sky-500);
+      outline: 2px solid var(--accent-500);
       outline-offset: 2px;
     }
 
     &--active {
-      border-color: var(--sky-400, #38bdf8);
-      background: var(--sky-50, #f0f9ff);
-      color: var(--sky-700, #0369a1);
+      border-color: var(--accent-400);
+      background: var(--accent-50);
+      color: var(--accent-700);
     }
   }
 
@@ -181,13 +181,13 @@
     align-items: baseline;
     gap: var(--space-2);
     padding: var(--space-2) var(--space-4);
-    border-bottom: 2px solid var(--sky-100, #e0f2fe);
+    border-bottom: 2px solid var(--accent-100);
   }
 
   &__course-name {
     font-weight: var(--font-semibold);
     font-size: var(--text-md);
-    color: var(--sky-700, #0369a1);
+    color: var(--accent-700);
   }
 
   &__course-subject {
@@ -225,12 +225,12 @@
     transition: all 150ms ease-out;
 
     &:hover {
-      border-color: var(--sky-300, #7dd3fc);
-      background: var(--sky-50, #f0f9ff);
+      border-color: var(--accent-400);
+      background: var(--accent-50);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--sky-500);
+      outline: 2px solid var(--accent-500);
       outline-offset: 2px;
     }
   }
@@ -266,8 +266,8 @@
     border: 0;
     padding: 2px var(--space-2);
     border-radius: var(--radius-full, 999px);
-    background: var(--amber-100, #fef3c7);
-    color: var(--amber-700, #b45309);
+    background: var(--warning-100);
+    color: var(--warning-600);
     font-size: var(--text-xs);
     font-weight: var(--font-semibold);
     white-space: nowrap;
@@ -287,20 +287,20 @@
     }
 
     &:hover {
-      background: var(--amber-200, #fde68a);
+      background: var(--warning-100);
 
       &::after {
-        border-color: var(--amber-400, #fbbf24);
+        border-color: var(--warning-600);
       }
     }
 
     &:active {
-      background: var(--amber-300, #fcd34d);
+      background: var(--warning-100);
       transform: scale(0.96);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--amber-500, #f59e0b);
+      outline: 2px solid var(--warning-600);
       outline-offset: 2px;
     }
   }

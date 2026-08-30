@@ -1,6 +1,6 @@
 .session-op-form {
   &__warning {
-    border-left: 3px solid var(--warning-500);
+    border-left: 3px solid var(--warning-600);
     border-radius: 0 var(--radius-md) var(--radius-md) 0;
     background: linear-gradient(135deg, color-mix(in srgb, var(--warning-100) 70%, #fff), #fff);
   }

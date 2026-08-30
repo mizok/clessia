@@ -26,7 +26,7 @@
     color: var(--text-muted);
 
     &--error {
-      color: var(--red-500);
+      color: var(--error-600);
     }
   }
 
@@ -53,7 +53,7 @@
 
     &:hover,
     &:focus-visible {
-      background: var(--surface-hover);
+      background: var(--zinc-100);
     }
   }
 

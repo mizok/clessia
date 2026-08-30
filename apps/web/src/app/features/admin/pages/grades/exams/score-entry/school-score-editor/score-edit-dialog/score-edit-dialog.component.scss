@@ -36,14 +36,14 @@
     gap: var(--space-1);
     padding: 1px var(--space-2);
     border-radius: var(--radius-sm);
-    background: var(--amber-50, #fffbeb);
-    color: var(--amber-700, #b45309);
+    background: var(--warning-100);
+    color: var(--warning-600);
     font-size: var(--text-xs);
     font-weight: var(--font-semibold);
 
     i {
       font-size: 6px;
-      color: var(--amber-500, #f59e0b);
+      color: var(--warning-600);
     }
   }
 
@@ -121,10 +121,10 @@
     }
 
     &--dirty {
-      background: var(--sky-50, #f0f9ff);
+      background: var(--accent-50);
 
       &:hover {
-        background: var(--sky-100, #e0f2fe);
+        background: var(--accent-100);
       }
     }
   }
@@ -189,7 +189,7 @@
     }
 
     &--dirty {
-      background: var(--sky-50, #f0f9ff);
+      background: var(--accent-50);
     }
   }
 
@@ -211,11 +211,11 @@
     gap: var(--space-1);
     font-size: var(--text-xs);
     font-weight: var(--font-semibold);
-    color: var(--amber-600, #d97706);
+    color: var(--warning-600);
 
     i {
       font-size: 6px;
-      color: var(--amber-500, #f59e0b);
+      color: var(--warning-600);
     }
   }
 
@@ -233,14 +233,14 @@
     font-variant-numeric: tabular-nums;
 
     &--absent {
-      background: var(--amber-100, #fef3c7);
-      color: var(--amber-700, #b45309);
+      background: var(--warning-100);
+      color: var(--warning-600);
       font-size: var(--text-sm);
     }
 
     &--fail {
-      background: var(--red-100, #fee2e2);
-      color: var(--red-700, #b91c1c);
+      background: var(--error-100);
+      color: var(--error-700);
     }
 
     &--empty {

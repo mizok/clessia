@@ -49,20 +49,20 @@
     transition: all 150ms ease-out;
 
     &:hover {
-      border-color: var(--sky-300, #7dd3fc);
-      background: var(--sky-50, #f0f9ff);
+      border-color: var(--accent-400);
+      background: var(--accent-50);
       box-shadow: var(--shadow-md);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--sky-500);
+      outline: 2px solid var(--accent-500);
       outline-offset: 2px;
     }
   }
 
   &__portal-icon {
     font-size: var(--text-3xl);
-    color: var(--sky-600, #0284c7);
+    color: var(--accent-600);
   }
 
   &__portal-title {

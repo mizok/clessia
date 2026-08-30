@@ -83,7 +83,7 @@
     }
 
     &--dirty {
-      background: var(--sky-50, #f0f9ff);
+      background: var(--accent-50);
     }
   }
 
@@ -167,15 +167,15 @@
     color: var(--zinc-400);
 
     &--absent {
-      color: var(--amber-500, #f59e0b);
+      color: var(--warning-600);
     }
 
     &--fail {
-      color: var(--red-600, #dc2626);
+      color: var(--error-600);
     }
 
     &--dirty {
-      color: var(--sky-700, #0369a1);
+      color: var(--accent-700);
     }
   }
 

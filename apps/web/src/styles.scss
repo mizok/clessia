@@ -33,6 +33,9 @@
      這個面上一律配 --zinc-900 近黑字：亮橘配白字只有 2.85:1，配近黑是 6.32:1。 */
   --accent-vivid: #ff6a3d;
   --accent-vivid-2: #ff8557;
+  /* 這兩階原本被引用但從來沒定義過，所以那些規則一直是無效的 */
+  --accent-200: #ffc9b3;
+  --accent-700: #8c2a0b;
 
   /* Semantic Colors */
   --success-100: #dcfce7;
@@ -41,6 +44,14 @@
   --warning-600: #d97706;
   --error-100: #fee2e2;
   --error-600: #dc2626;
+  --error-700: #b91c1c;
+
+  /* 語意層。這幾個名字全站有 40 幾處引用、而且**大多沒有 fallback** ——
+     也就是那些規則一直沒有生效。它們指向中性階，換色系時自動跟著走。 */
+  --text-muted: #786f69; /* = zinc-500 */
+  --surface-border: #ebe7e4; /* = zinc-200 */
+  --surface-card: #ffffff;
+  --font-normal: 400;
 
   /* Spacing (4px base) */
   --space-1: 4px;
@@ -896,29 +907,33 @@ textarea.p-textarea,
 /* =============================================================================
    Button Global Styles
    ============================================================================= */
-// Primary button - zinc-900 theme
+// 主要按鈕。**這裡曾經硬寫成 zinc-900**，是 accent 還是天藍時的決定 ——
+// 那個藍撐不起一顆實心按鈕，所以退回黑色。橘撐得起：`--accent-500` 這一階
+// 就是為了「白字壓在上面」而定的（5.31:1），主按鈕是它唯一的理由。
+// 覆寫留著而不是刪掉，是因為 PrimeNG 的 primary 還要服務 focus ring、
+// 連結、選單等更淡的用途，兩者不共用同一階。
 .p-button:not(.p-button-text):not(.p-button-outlined):not(.p-button-secondary):not(
     .p-button-success
   ):not(.p-button-info):not(.p-button-warn):not(.p-button-danger):not(.p-button-help):not(
     .p-button-contrast
   ) {
-  background: var(--zinc-900);
-  border-color: var(--zinc-900);
+  background: var(--accent-500);
+  border-color: var(--accent-500);
 
   &:not(:disabled):hover {
-    background: var(--zinc-800);
-    border-color: var(--zinc-800);
+    background: var(--accent-600);
+    border-color: var(--accent-600);
   }
 
   &:not(:disabled):focus {
     box-shadow:
-      0 0 0 2px #fff,
+      0 0 0 2px var(--color-white),
       0 0 0 4px var(--accent-500);
   }
 
   &:not(:disabled):active {
-    background: var(--zinc-700);
-    border-color: var(--zinc-700);
+    background: var(--accent-700);
+    border-color: var(--accent-700);
   }
 }
 
@@ -1336,7 +1351,7 @@ textarea.p-textarea,
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--zinc-200);
     border-radius: var(--radius-md);
-    background: #fff;
+    background: var(--color-white);
     transition: all var(--transition-fast);
 
     .pi {

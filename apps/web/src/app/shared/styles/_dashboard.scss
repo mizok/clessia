@@ -147,34 +147,6 @@
       color: var(--zinc-900);
     }
 
-    &--blue {
-    }
-    &--green {
-    }
-    &--purple {
-    }
-    &--orange {
-    }
-
-    &--blue &__icon {
-      background: #eff6ff;
-      color: #3b82f6;
-    }
-
-    &--green &__icon {
-      background: #f0fdf4;
-      color: #22c55e;
-    }
-
-    &--purple &__icon {
-      background: #faf5ff;
-      color: #a855f7;
-    }
-
-    &--orange &__icon {
-      background: #fff7ed;
-      color: #f97316;
-    }
   }
 
   .quick-link {

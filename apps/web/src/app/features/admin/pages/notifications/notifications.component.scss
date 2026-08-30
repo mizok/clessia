@@ -70,7 +70,7 @@
 
   &__error {
     margin: 0;
-    color: var(--red-500);
+    color: var(--error-600);
   }
 
   &__state {
@@ -78,7 +78,7 @@
     color: var(--text-muted);
 
     &--error {
-      color: var(--red-500);
+      color: var(--error-600);
     }
   }
 

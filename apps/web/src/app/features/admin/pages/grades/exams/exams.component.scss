@@ -56,7 +56,7 @@
   &__todo-list {
     display: flex;
     flex-direction: column;
-    border-bottom: 1px solid var(--amber-200, #fde68a);
+    border-bottom: 1px solid var(--warning-100);
   }
 
   &__todo {
@@ -65,8 +65,8 @@
     gap: var(--space-3);
     width: 100%;
     padding: var(--space-3) var(--space-6);
-    background: var(--amber-50, #fef3c7);
-    color: var(--amber-800, #92400e);
+    background: var(--warning-100);
+    color: var(--warning-600);
     border: 0;
     font-size: var(--text-sm);
     text-align: left;
@@ -75,20 +75,20 @@
     font-family: inherit;
 
     & + & {
-      border-top: 1px solid var(--amber-200, #fde68a);
+      border-top: 1px solid var(--warning-100);
     }
 
     &:hover {
-      background: var(--amber-100, #fde68a);
+      background: var(--warning-100);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--amber-500, #f59e0b);
+      outline: 2px solid var(--warning-600);
       outline-offset: -2px;
     }
 
     &--active {
-      background: var(--amber-100, #fde68a);
+      background: var(--warning-100);
     }
   }
 
@@ -183,7 +183,7 @@
     gap: var(--space-1);
     background: none;
     border: none;
-    color: var(--sky-600);
+    color: var(--accent-600);
     font-size: var(--text-sm);
     cursor: pointer;
     padding: var(--space-1) var(--space-2);
@@ -191,12 +191,12 @@
     transition: all 150ms ease-out;
 
     &:hover {
-      background: var(--sky-50, #f0f9ff);
-      color: var(--sky-700);
+      background: var(--accent-50);
+      color: var(--accent-700);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--sky-500);
+      outline: 2px solid var(--accent-500);
       outline-offset: 2px;
       border-radius: var(--radius-sm);
     }
@@ -218,7 +218,7 @@
     background: none;
     border: none;
     padding: 0;
-    color: var(--sky-600);
+    color: var(--accent-600);
     font-weight: var(--font-semibold);
     font-size: var(--text-md);
     cursor: pointer;
@@ -226,12 +226,12 @@
     transition: color 150ms ease-out;
 
     &:hover {
-      color: var(--sky-700);
+      color: var(--accent-700);
       text-decoration: underline;
     }
 
     &:focus-visible {
-      outline: 2px solid var(--sky-500);
+      outline: 2px solid var(--accent-500);
       outline-offset: 2px;
       border-radius: var(--radius-sm);
     }
@@ -259,7 +259,7 @@
     font-variant-numeric: tabular-nums;
 
     &--zero {
-      color: var(--red-600, #dc2626);
+      color: var(--error-600);
       font-weight: 600;
     }
   }

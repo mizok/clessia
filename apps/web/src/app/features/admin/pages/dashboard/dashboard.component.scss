@@ -14,13 +14,13 @@
     margin: 0 0 var(--space-1);
     font-size: 1.5rem;
     font-weight: 700;
-    color: var(--p-zinc-900);
+    color: var(--zinc-900);
   }
 
   &__date {
     margin: 0;
     font-size: 0.875rem;
-    color: var(--p-zinc-500);
+    color: var(--zinc-500);
   }
 
   // 卡片數量會隨模式與權限在 4 到 6 之間變動，所以不寫死欄數
@@ -35,7 +35,7 @@
     align-items: flex-start;
     gap: var(--space-3);
     padding: var(--space-4) var(--space-5);
-    border: 1px solid var(--p-zinc-200);
+    border: 1px solid var(--zinc-200);
     border-radius: 12px;
     background: #fff;
     color: inherit;
@@ -51,8 +51,8 @@
     }
 
     &--accent {
-      border-color: var(--p-sky-200);
-      background: var(--p-sky-50);
+      border-color: var(--accent-200);
+      background: var(--accent-50);
     }
   }
 
@@ -64,8 +64,8 @@
     height: 40px;
     flex-shrink: 0;
     border-radius: 10px;
-    background: var(--p-zinc-100);
-    color: var(--p-zinc-600);
+    background: var(--zinc-100);
+    color: var(--zinc-600);
     font-size: 1rem;
   }
 
@@ -79,7 +79,7 @@
     font-size: 1.5rem;
     font-weight: 700;
     line-height: 1;
-    color: var(--p-zinc-900);
+    color: var(--zinc-900);
 
     // 載入中與讀取失敗是文字不是數字，用小一號字避免它們看起來像個數值
     &--muted,
@@ -89,7 +89,7 @@
     }
 
     &--muted {
-      color: var(--p-zinc-400);
+      color: var(--zinc-400);
     }
 
     &--error {
@@ -100,18 +100,18 @@
   &__stat-label {
     margin: 0;
     font-size: 0.8125rem;
-    color: var(--p-zinc-600);
+    color: var(--zinc-600);
   }
 
   &__stat-sub {
     margin: var(--space-1) 0 0;
     font-size: 0.75rem;
-    color: var(--p-zinc-400);
+    color: var(--zinc-400);
   }
 
   &__section {
     padding: var(--space-4) var(--space-5);
-    border: 1px solid var(--p-zinc-200);
+    border: 1px solid var(--zinc-200);
     border-radius: 12px;
     background: #fff;
   }
@@ -128,12 +128,12 @@
     margin: 0;
     font-size: 0.9375rem;
     font-weight: 600;
-    color: var(--p-zinc-800);
+    color: var(--zinc-800);
   }
 
   &__section-link {
     font-size: 0.8125rem;
-    color: var(--p-sky-600);
+    color: var(--accent-600);
     text-decoration: none;
 
     &:hover {
@@ -157,24 +157,24 @@
     align-items: center;
     padding: var(--space-3) var(--space-4);
     border-radius: 8px;
-    background: var(--p-zinc-50);
+    background: var(--zinc-50);
     font-size: 0.875rem;
   }
 
   &__session-time {
     font-weight: 600;
-    color: var(--p-zinc-700);
+    color: var(--zinc-700);
     font-variant-numeric: tabular-nums;
   }
 
   &__session-class {
     font-weight: 500;
-    color: var(--p-zinc-800);
+    color: var(--zinc-800);
   }
 
   &__session-teacher,
   &__session-campus {
-    color: var(--p-zinc-500);
+    color: var(--zinc-500);
   }
 
   &__pending-list {
@@ -192,7 +192,7 @@
     justify-content: space-between;
     gap: var(--space-3);
     padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--p-zinc-100);
+    border-bottom: 1px solid var(--zinc-100);
     font-size: 0.875rem;
 
     &:last-child {
@@ -202,13 +202,13 @@
 
   &__pending-class {
     font-size: 0.8125rem;
-    color: var(--p-zinc-400);
+    color: var(--zinc-400);
   }
 
   &__pending-empty {
     padding: var(--space-3) 0;
     font-size: 0.875rem;
-    color: var(--p-zinc-400);
+    color: var(--zinc-400);
   }
 
   &__empty {
@@ -218,13 +218,13 @@
     justify-content: center;
     gap: var(--space-2);
     padding: var(--space-6) 0;
-    color: var(--p-zinc-400);
+    color: var(--zinc-400);
     font-size: 0.875rem;
   }
 
   &__empty-icon {
     font-size: 1.5rem;
-    color: var(--p-zinc-300);
+    color: var(--zinc-300);
   }
 }
 
