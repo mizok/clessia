@@ -29,26 +29,24 @@
     padding: var(--space-1) var(--space-2);
     border: none;
     border-radius: var(--radius-full);
-    background: var(--p-orange-100);
-    color: var(--p-orange-700);
+    background: var(--warning-100);
+    // 800 而不是 700：hover 會把底換成 200，700 在那上面只有 4.03:1
+    color: var(--warning-800);
     font-size: var(--text-sm);
     font-weight: var(--font-semibold);
     cursor: pointer;
     transition: background var(--transition-fast);
 
     &:hover {
-      background: var(--p-orange-200);
+      background: var(--warning-200);
     }
   }
 
-  &__badge--attendance {
-    background: var(--p-amber-100);
-    color: var(--p-amber-800);
-
-    &:hover {
-      background: var(--p-amber-200);
-    }
-  }
+  // `&__badge--attendance` **刻意沒有樣式規則**。
+  // 兩顆 badge 原本一橘一琥珀，但警示色收斂到琥珀之後兩者視覺相同 ——
+  // 而它們的文字本來就完全區分（「本月未指派 N 堂」/「今日未點名 N 堂」），
+  // 色差不承載資訊。class 留著是因為它是語意標記（也是 spec 的選取點），
+  // 不是因為它有樣式。要區分它們請用文字或形狀，不要再引入第二個色相。
 
   &__title {
     margin: 0;

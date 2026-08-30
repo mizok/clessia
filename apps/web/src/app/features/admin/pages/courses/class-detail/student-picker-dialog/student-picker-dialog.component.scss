@@ -236,9 +236,9 @@
     flex-direction: column;
     gap: var(--space-3);
     padding: var(--space-3);
-    border: 1px solid var(--p-warning-200, #fde68a);
+    border: 1px solid var(--warning-200);
     border-radius: var(--radius-lg);
-    background: var(--p-warning-50, #fffbeb);
+    background: var(--warning-50);
   }
 
   &__conflict-list {
