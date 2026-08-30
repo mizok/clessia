@@ -29,6 +29,10 @@ function createTestApp(state: ScoresState) {
   app.use('/api/scores/*', async (c, next) => {
     (c as any).set('supabase', createSupabase(state));
     (c as any).set('orgId', 'org-1');
+    // 這一組測的是搜尋比對，用管理員身分跑 —— 老師身分會走 teacher-scope 的
+    // staff 查詢，那不是這條測試的主題（範圍限制另有 exam-scope 的測試守）
+    (c as any).set('roles', ['admin']);
+    (c as any).set('userId', 'u1');
     await next();
   });
   app.route('/api/scores', scoresApp);
