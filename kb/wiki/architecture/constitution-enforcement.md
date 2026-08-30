@@ -39,24 +39,24 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
   本機那三層都繞得過（heredoc 寫檔不觸發 PreToolUse、`CLESSIA_STOP_GATE=0`、
   `git commit --no-verify`、直接關掉 hook），這層繞不過 —— 它才是真正的把關。
   刻意用 `run-many` 而不是 `affected`（`defaultBase` 是不存在的 `dev`）。
-- **Harness gate**（`npm run harness`）—— 文件與現實是否同步，見下方 A1–A10。
+- **Harness gate**（`npm run harness`）—— 文件與現實是否同步，見下方 A1–A16。
 
 ## 條款 → 機制
 
-| Clause                     | 分類          | 機制                                                                                                               | 狀態                                                                                                                        |
-| -------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| c1 授權在 API 層           | Semantic      | harness gate A7（每支 route 掛載必須宣告角色）+ 人工 review                                                        | ⚠️ 部分：准入已機器化，資料範圍靠 review                                                                                    |
-| c2 `ba_*` 不得寫入         | Deterministic | pre-guard regex（只擋 insert/update/upsert/delete，讀取放行）                                                      | ✅ 已接                                                                                                                     |
-| c3 已提交 migration 不可改 | Deterministic | pre-guard + `whenTracked`（git 已追蹤才擋，新建不受影響）                                                          | ✅ 已接                                                                                                                     |
-| c4 migration 檔名          | Deterministic | 由 `supabase migration new` 保證                                                                                   | 依賴工具，未另外 gate                                                                                                       |
-| c5 feature 不互相 import   | Semantic      | 人工 review                                                                                                        | ⚠️ 未機器化 —— 需要跨「路徑擷取的 feature 名」與「內容」的反向參照，目前的靜態 regex 引擎做不到。要接的話得寫一支獨立 check |
-| c6 禁 viewport 單位        | Deterministic | **雙層**：pre-guard regex（`.scss`，新違規、即時）+ harness gate A12（存量、CI，掃 `apps/web/src/**/*.scss`）      | ✅ 雙重 —— 兩層共用 `pre-guard.rules.json` 的同一條規則，見下方邊界記錄                                                     |
-| c7 原生 control flow       | Deterministic | pre-guard regex（`.html`）                                                                                         | ✅ 已接                                                                                                                     |
-| c8 functional API          | Deterministic | pre-guard regex（`apps/web/**`，排除 `.spec.ts`）                                                                  | ✅ 已接 —— 「等」字的範圍見下方邊界記錄                                                                                     |
-| c9 `kb/` 唯一              | Deterministic | pre-guard（路徑 `^docs?/`，`doc/` 與 `docs/` 都擋）+ harness gate A3                                               | ✅ 雙重                                                                                                                     |
-| c10 `AGENTS.md` 單一真相   | Deterministic | harness gate A2（必須含 `@AGENTS.md`、行數上限 60）                                                                | ✅ 已接                                                                                                                     |
-| c11 不手抄腐化清單         | Semantic      | A1（skill 清單）+ `feature-map.mjs`（roadmap 現況表，**分支警告 / main 紅燈的雙層**，見下）已機器化；其餘靠 review | ⚠️ 部分                                                                                                                     |
-| c12 客戶可脫離自架         | Semantic      | harness gate A10（禁用雲端專屬服務 import）+ 人工 review                                                           | ⚠️ 部分：專屬服務已機器化，多租戶與 kill switch 靠 review                                                                   |
+| Clause                     | 分類          | 機制                                                                                                                  | 狀態                                                                                                                        |
+| -------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| c1 授權在 API 層           | Semantic      | harness gate A7（每支 route 掛載必須宣告角色）+ 人工 review                                                           | ⚠️ 部分：准入已機器化，資料範圍靠 review                                                                                    |
+| c2 `ba_*` 不得寫入         | Deterministic | **雙層**：pre-guard regex（只擋 insert/update/upsert/delete，讀取放行）+ harness gate A15（存量，**allowlist 9 筆**） | ⚠️ 雙重但有 allowlist —— 9 筆已知存量待「ba_user 寫入路徑收斂」清掉，見下方 allowlist 一節                                  |
+| c3 已提交 migration 不可改 | Deterministic | **雙層**：pre-guard + `whenTracked`（寫入當下）+ harness gate A16（分支對照 `origin/main...HEAD` 的 M/D/R）           | ✅ 雙重 —— A16 看不到「直接推 main」的情形，理由見下                                                                        |
+| c4 migration 檔名          | Deterministic | 由 `supabase migration new` 保證                                                                                      | 依賴工具，未另外 gate                                                                                                       |
+| c5 feature 不互相 import   | Semantic      | 人工 review                                                                                                           | ⚠️ 未機器化 —— 需要跨「路徑擷取的 feature 名」與「內容」的反向參照，目前的靜態 regex 引擎做不到。要接的話得寫一支獨立 check |
+| c6 禁 viewport 單位        | Deterministic | **雙層**：pre-guard regex（`.scss`，新違規、即時）+ harness gate A12（存量、CI，掃 `apps/web/src/**/*.scss`）         | ✅ 雙重 —— 兩層共用 `pre-guard.rules.json` 的同一條規則，見下方邊界記錄                                                     |
+| c7 原生 control flow       | Deterministic | **雙層**：pre-guard regex（`.html`）+ harness gate A13（存量，掃 `apps/web/src/**/*.html`）                           | ✅ 雙重 —— 存量 0，gate 是防回歸                                                                                            |
+| c8 functional API          | Deterministic | **雙層**：pre-guard regex（`apps/web/**`，排除 `.spec.ts`）+ harness gate A14（存量，**allowlist 4 筆**）             | ⚠️ 雙重但有 allowlist —— 「等」字的範圍見下方邊界記錄                                                                       |
+| c9 `kb/` 唯一              | Deterministic | pre-guard（路徑 `^docs?/`，`doc/` 與 `docs/` 都擋）+ harness gate A3                                                  | ✅ 雙重                                                                                                                     |
+| c10 `AGENTS.md` 單一真相   | Deterministic | harness gate A2（必須含 `@AGENTS.md`、行數上限 60）                                                                   | ✅ 已接                                                                                                                     |
+| c11 不手抄腐化清單         | Semantic      | A1（skill 清單）+ `feature-map.mjs`（roadmap 現況表，**分支警告 / main 紅燈的雙層**，見下）已機器化；其餘靠 review    | ⚠️ 部分                                                                                                                     |
+| c12 客戶可脫離自架         | Semantic      | harness gate A10（禁用雲端專屬服務 import）+ 人工 review                                                              | ⚠️ 部分：專屬服務已機器化，多租戶與 kill switch 靠 review                                                                   |
 
 ## Harness gate 檢查項
 
@@ -64,7 +64,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 
 | 腳本                | 守什麼                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------- |
-| `check-harness.mjs` | 下表的 A1–A10                                                                         |
+| `check-harness.mjs` | 下表的 A1–A16                                                                         |
 | `feature-map.mjs`   | `kb/wiki/roadmap.md` 的**功能區現況表**自動生成且同步（c11）。**強制點在 main**，見下 |
 
 > A1 的真相來源其實是 `skills-lock.json`：磁碟現況用來重生 lock，A1b 再比對 `AGENTS.md` ↔ lock。
@@ -82,6 +82,49 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | A10  | `apps/api/src` 不得 import 雲端供應商專屬服務（KV / R2 / Durable Objects，c12）                                                                           |
 | A11  | `apps/api/src` 的 `createUser` 不得帶 `password`（scrypt 超過 Workers 的 10ms CPU 上限）                                                                  |
 | A12  | `apps/web/src/**/*.scss` 沒有拿 viewport 單位當值（c6 的**存量**那一半；規則與 pre-guard 共用）                                                           |
+| A13  | `apps/web/src/**/*.html` 沒有 `*ngIf` / `*ngFor` / `*ngSwitch`（c7 的存量；目前 0 筆，防回歸）                                                            |
+| A14  | `apps/web/src/**/*.ts` 沒有裝飾器版 API（c8 的存量；**allowlist 4 筆**）                                                                                  |
+| A15  | `apps/api/src/**/*.ts` 沒有直寫 `ba_*`（c2 的存量；**allowlist 9 筆**）                                                                                   |
+| A16  | 本分支沒有修改／刪除／改名已提交的 migration（c3；比 `origin/main...HEAD`）                                                                               |
+
+### 存量 allowlist：讓債務可見且會自己收斂
+
+A14（c8）與 A15（c2）掃到的存量不是零，而修掉它們不屬於「補 gate」這件事的範圍
+（c8 那 4 筆要改 shared 元件的對外介面、c2 那 9 筆要動 Better Auth 的使用者更新路徑）。
+所以兩條 gate 帶 allowlist，**鍵是檔案路徑、值是已知違規數**：
+
+| 情形                               | 行為                                              |
+| ---------------------------------- | ------------------------------------------------- |
+| 某檔違規數 **> 帳面**              | ✖ 紅燈 —— 新違規擋得住，這是 allowlist 存在的前提 |
+| 某檔違規數 **< 帳面**              | ✖ 紅燈，訊息請人把數字改小；歸零就整筆刪掉        |
+| allowlist 上的檔案已無違規／不存在 | ✖ 紅燈，請人移除該筆                              |
+
+**只記路徑不記數量是不夠的** —— 那樣同一個檔案裡新增的違規會靜靜溜過去，
+allowlist 就從「已知債務的帳本」退化成「這個檔案免死」。
+
+記數量的另一個效果是**不需要有人記得回來拆鷹架**：清乾淨的那天 allowlist 自然歸零，
+gate 隨即變成全面覆蓋。清到一半也會被逼著更新帳面，帳本因此不會腐化。
+
+目前的帳：
+
+- **c8（A14）**：`jdenticon-avatar.component.ts` 3 筆、`shell-layout.component.ts` 1 筆
+  —— 屬 design-web 席
+- **c2（A15）**：`routes/me.ts` 2 筆、`routes/parents.ts` 4 筆、`routes/staff.ts` 3 筆
+  —— 「ba_user 寫入路徑收斂」切片的待辦，屬 billing-api 席
+
+### A16（c3）為什麼比三點差異
+
+其他條的「存量」是躺在樹上的違規；c3 不是 —— **樹上不可能躺著一個「已經被改壞的
+migration」**，修改一定是相對某個基準的差異。所以 A16 比的是 `origin/main...HEAD`：
+本分支從分岔點以來，對 `supabase/migrations/` 底下既有檔案做的 M / D / R。新增（A）放行，
+那正是 c3 要求的做法。
+
+三點而不是兩點是刻意的：兩點會把 main 自己新增的 migration 也算成本分支的改動。
+
+**誠實的覆蓋範圍**：直接推 main 時兩端相同，這條看不到東西。本專案不在 main 上工作
+（AGENTS.md），而寫入當下那一層由 pre-guard 的 c3（`whenTracked`）擋著，所以缺口可接受。
+拿不到 `origin/main` 時（淺 clone、離線）只警告不紅燈 —— 環境問題不該偽裝成違憲。
+CI 的 `actions/checkout` 已經是 `fetch-depth: 0`。
 
 ### 現況表的強制點在 main，不在分支
 
@@ -104,7 +147,7 @@ main 合併後由 `verify.yml` 的 `sync-feature-map` job 跑 `harness:write` �
 > main 的合併點，就算人站在 main 分支上，手上那份也還沒經過 PR。
 
 **只有這一條被分流。** `feature-map.mjs` 的另一組檢查（磁碟上有頁面 / route / spec 沒被任何
-功能區認領）在哪裡都是紅燈 —— 那是藍圖不完整，不是一張重生就好的表。A1–A12 也完全不受影響。
+功能區認領）在哪裡都是紅燈 —— 那是藍圖不完整，不是一張重生就好的表。A1–A16 也完全不受影響。
 
 雙向都有 self-test（`harness.test.mjs`）：分支上過期不紅、main 上過期紅、以及 `--write`
 冪等（不冪等的話 main 會被無限追加 bot commit）。

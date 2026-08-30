@@ -94,7 +94,7 @@ npm ci  →  npm ci (apps/api)  →  harness  →  harness self-test
 
 | 腳本                | 守什麼                                                                                                             |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `check-harness.mjs` | A1–A12（文件宣稱存在的東西是否真的存在）                                                                           |
+| `check-harness.mjs` | A1–A16（文件宣稱存在的東西是否真的存在；A12–A16 是 hook-only clause 的存量那一半）                                 |
 | `feature-map.mjs`   | `kb/wiki/roadmap.md` 功能區現況表自動生成且同步（c11）。**表過期只在 main 紅燈**；「有東西沒被功能區認領」則到處紅 |
 
 `npm run harness` = check（過期 exit 1）；`npm run harness:write` = 重生成。
@@ -219,7 +219,10 @@ harness 缺席時只印警告不紅燈。
   **但 Stop gate 沒有** —— 本機收工時模板錯誤照樣過得去，要到 push 才紅。
 - c5（feature 不互相 import）未機器化。需要跨「路徑擷取的 feature 名」與「內容」的反向參照，
   現在的靜態 regex 引擎做不到，要接得寫一支獨立 check。
-- hook-only clause 對存量零覆蓋：c2 / c3 / c7 / c8 只有 hook 沒有 gate（c6 的 A12 是範本）。
+- ~~hook-only clause 對存量零覆蓋~~ → 2026-08-30 補上 A13（c7）/ A14（c8）/ A15（c2）/ A16（c3）。
+  **剩下的是 allowlist 上的債**：c8 四筆（design-web 席）、c2 九筆（billing-api 席，
+  「ba_user 寫入路徑收斂」切片）。allowlist 記的是**數量**不只是路徑，所以清到零那天
+  gate 自動變全面，沒有鷹架要拆。
 - `nx.json` 的 `defaultBase` 指向不存在的 `dev`。
 - `test-baseline.json` 裡的既有紅燈是債務。
 - **等 admin-pages 席的繳費頁 PR 合併後，`feature-map.mjs` 的「繳費」要補一行 `'invoices'`**
