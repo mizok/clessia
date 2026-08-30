@@ -16,8 +16,10 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
 1. `kb/wiki/roadmap.md` 第 0 節現況表 —— 這個功能區是空殼、部分接上、還是已接通？決定工作性質
 2. `kb/wiki/specs/admin/<功能>.md` —— 需求真相
 3. `kb/wiki/lessons/menu-entry-without-a-route.md` —— **這一席的招牌坑，見下**
-4. `kb/wiki/architecture/admin-dashboard-v1.md` —— 卡片/索引模式與失敗態
-5. `kb/wiki/architecture/teacher-students-view.md` —— 「一個功能一個家」
+4. `kb/wiki/lessons/empty-array-hides-loading.md` —— 空陣列把「還沒載入」講成「真的沒有」，
+   含盤點方法與一個 known issue
+5. `kb/wiki/architecture/admin-dashboard-v1.md` —— 卡片/索引模式與失敗態
+6. `kb/wiki/architecture/teacher-students-view.md` —— 「一個功能一個家」
 
 ## 先例（照抄，不要重新發明）
 
@@ -71,6 +73,13 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
   **單一 `date`** —— 跨天的修改沒有對應端點。所以欄位全部 `disabled`、沒有確認按鈕，
   **而不是讓人改了卻存不進去**。這是「前端不承諾後端沒有兌現的東西」在**動作**層的版本
   （上一條是在**資料**層）
+- **改一個 design token 的語意時，要掃它的「用途」而不只是找它的名字。**（#100 建立）
+  `--accent-*` 從天藍換成品牌橘之後，所有拿 accent 強調**數值**的地方一夜之間跟警示色
+  撞在一起（`--accent-600` 與 `--warning-600` 的 RGB 距離只有 34），營收報表的「退款」
+  與「應收未收」變成同一個顏色 —— **換色的 PR 全綠，因為沒有任何測試在看顏色的語意**。
+  掃的方法：找 `color: var(--token-` 的每一處，用 selector 名稱（value/amount/count/
+  total/score…）篩出資料強調用途，再**逐一開檔看上下文**分成「數據」與「互動／狀態」。
+  批次套規則會誤傷 —— 「已選 N 個」是選中態不是數值，`--dirty` 是狀態語意組的一員。
 - **「前端能不能篩」看的是資料完不完整，不是「前端篩」這個做法本身。**
   同一個動作在兩支 API 上一個騙人一個不騙：`/api/invoices` 有分頁（前端篩會漏），
   `/api/contact-book` **沒有分頁**且 `meta.total` 是 `count: 'exact'`（前端篩與前端分頁
@@ -121,12 +130,23 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
 13. **渲染大量列的 PrimeNG 輸入元件會 `Maximum call stack size exceeded`。**
     餐費頁的「超過 300 筆擋住」測試原本走 `fixture.whenStable()`，301 列直接爆掉。
     **驗邏輯的測試直接設 signal 不要走渲染** —— 它要驗的是擋不擋得住，不是畫不畫得出來。
-14. **交付新頁面要把它認領進 `tools/agent-harness/feature-map.mjs` 的 AREAS**，
+14. **自己 grep 出來的推論，比別人給的前提更危險。** 盤點載入態時我看到某個檔案的
+    grep 結果裡有 `subscribe`，就推論「這份資料是非同步載入的」並把它列進真陽性清單 ——
+    實際上那是批次操作的 subscribe，資料是 `config.data` 同步傳入的，照那個診斷去修會
+    做出一個永遠是 false 的假 loading signal。**工單的前提我會驗，自己掃出來的結論
+    反而不驗** —— 因為它披著「我親自掃過」的外衣。陽性結論跟否定結論一樣要開檔確認
+    （工作習慣那節「從空結果推否定結論之前先確認工具沒洞」的正面版：**否定與肯定的
+    結論一樣要驗**）。
+15. **交付新頁面要把它認領進 `tools/agent-harness/feature-map.mjs` 的 AREAS**，
     否則 `npm run harness` 會紅（「頁面 未被任何功能區認領」），`harness:test` 也跟著 fail。
     那是 infra 席的檔案，但**這一行是 gate 明確要求交付者補的**，不是主動動 infra ——
     就像新增 skill 之後要跑 `harness:write`。**只補那一行、不要順手重生 roadmap**（坑 #7）；
     PostToolUse 的 prettier 若順手重排了檔案裡其他地方，把那些還原 —— 那是別人的檔案。
     **區分**：紅燈擋住交付 → 自己補；只是顯示不準（route 歸錯功能區之類）→ 回報計畫席。
+16. **別人造成的紅燈不要自己補，但一定要回報。** 坑 #15 的「自己補」只適用**自己的交付
+    造成的**紅燈。這一輪 main 紅過一段時間（`c8` allowlist 過期，別席改完沒清），
+    補它會把不相關的改動混進自己的分支；但不回報的話，**下一個開分支的人會以為是自己
+    弄壞的** —— 我就花了一次來回切到乾淨的 `origin/main` 重跑才確認不是我。
 
 ## 這一席的工作習慣
 
@@ -142,34 +162,41 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
   事後補一份沒人會讀的存檔違反「實作計畫不進 KB」的精神（2026-08-30 計畫席裁定）。
   **但別在 spec 裡引用一份你沒寫的設計文件** —— 我一度寫了 `[[architecture/admin-meals-page]]`
   才發現那頁不存在
+- **視覺改動可以在部署前用「模擬法」預覽**：在已部署的頁面上用 JS 把那個元素的
+  computed style 改成新值 → 截圖 → **改完還原**。比跑本機 dev + seed 便宜得多，
+  而且能給出視覺證據。**兩個前提缺一不可**：回報時明講「這是模擬不是部署實況」，
+  以及做完把頁面還原（留一個被改過的頁面給別人看比沒截圖更糟）。
 - 收工前照 `.github/workflows/verify.yml` 的序列在本機重放一次，不要只跑 affected
 
 ## 進行中狀態（2026-08-30 —— 這節會過期，接手第一件事：重寫它）
 
-**交接自 session `admin-pages-1f`。P2 管理端四個功能區全部收官**，六支 PR：
+**交接自 session `admin-pages-1f`。P2 管理端四個功能區已收官並全部合進 main。**
 
-| PR        | 頁                                        | 狀態               |
-| --------- | ----------------------------------------- | ------------------ |
-| #66 / #72 | 繳費紀錄 + status 篩選與可信 `meta.total` | 已合               |
-| #71 / #79 | 聯絡簿 + 「這天還沒寫」當日待辦           | 已合               |
-| #82 / #87 | 餐費 + note／班級／區間檢視               | #82 已合、#87 佇列 |
-| #90       | 營收報表                                  | 佇列               |
+之後又交付了四件小的：#100（accent 退出數值強調）、#103（漏點名可見性）、
+#112（載入態的 kb lesson）、以及一次全站載入態盤點。
 
-**接手時第一件事：確認 #87 與 #90 合了沒**，合了的話管理端那欄應該全綠。
+### 你接手時掛著的三件
 
-### 還欠的兩件
-
-1. **視覺回歸確認** —— design-web 席的警示色收斂到琥珀（#89）合併後，要看過這四頁。
-   我這幾頁只用既有 token 沒自創樣式，理論上會自動跟上，但**「理論上」不等於看過**。
-2. **報表的 CSV 匯出** —— spec 要的是**明細層**欄位（日期、分校、課程、金額、類型），
-   而 `/api/reports/revenue` 只回摘要與分組小計。**不要用聚合資料湊一個欄位對不上
-   spec 的 CSV** —— 已回報，明細端點排在 billing-api 席佇列。
+1. **#110 合併後要驗一件事** —— design-web 獨立發現了儀表板「載入中被講成空狀態」
+   並修了（skeleton + 載入態測試）。**它進 main 後確認它是修在模板層還是 computed 層**：
+   如果只修模板，那個「computed 回 `T[] | null` 讓忘記處理載入中變成編譯錯誤」的
+   follow-up 值得開（理由是型別擋比人記便宜）。細節在
+   `kb/wiki/lessons/empty-array-hides-loading.md`。
+2. **視覺回歸的覆蓋補完** —— 等 demo 的種子資料。**目前沒驗到的**：狀態 Tag 的層次、
+   toast、表格 badge、以及「我的 `--warning-*` token 與 PrimeNG `severity="warn"`
+   會不會出現兩種黃」。**那題現在沒有答案，不要當成通過。**
+3. **報表的 CSV 匯出** —— spec 要**明細層**欄位，`/api/reports/revenue` 只回聚合。
+   **不要用聚合資料湊一個欄位對不上 spec 的 CSV**；明細端點在 billing-api 佇列。
 
 ### 這一輪的節奏（下一輪大概也一樣）
 
-**後端先行，前端接顯示端小追加。** 這一席交付了三輪追加（繳費的 total + status 下拉、
-聯絡簿的 missing 清單、餐費的 note/班級/區間），每次都是幾十行。
-**開工前先確認欠著的那些做了沒** —— 做了就接。
+**後端先行，前端接顯示端小追加。** 交付過三輪追加（繳費的 total + status 下拉、
+聯絡簿的 missing 清單、餐費的 note/班級/區間），每次幾十行。
+**開工前先確認欠著的那些做了沒。**
+
+另一個穩定的節奏是**跨席的視覺／token 改動會回頭波及已交付的頁**（#95 換 accent
+語意 → #100）。design-web 的刀合併後，回去看一眼自己的頁，不要假設「只用既有 token
+就一定沒事」。
 
 ### 四個 domain 的 API 形狀（下次動到直接用，不用重讀 route 檔）
 
@@ -182,32 +209,34 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
   mount 只有角色沒有 permission；entry **沒有 classId**
 - **`/api/meals`**：**兩種模式回同一種列** —— `date=` 是候選+記錄（可編輯），
   `dateFrom/dateTo` 只回實際記錄（`classNames` 空、`mealDefault` false，**唯讀**）。
-  `POST /batch` 上限 300、已結算的擋下來回 `lockedStudentIds`（要顯示出來）。
+  `POST /batch` 上限 **300 筆**、已結算的擋下來回 `lockedStudentIds`（要顯示出來）。
   `recordId === null` = **這天還沒人處理**，不是「沒訂」。
-  `meta.totalAmount` 是「這段期間吃了多少錢」（已結算的照樣算），不是「還有多少沒收」
+  `meta.totalAmount` 是「這段期間吃了多少錢」（已結算的照樣算）
 - **`/api/reports/revenue`**：聚合端點，`view_reports` 權限。回 `{ summary, groups }`。
-  **前端一個數字都不加總。** 篩選是「這張帳單有沒有沾到」，分組是「一張帳單只進一個組」，
-  兩者語意不同。三個模糊桶見上面的先例
+  **前端一個數字都不加總。** 篩選是「這張帳單有沒有沾到」，分組是「一張帳單只進一個組」；
+  `（跨分校）`/`（未分類）` 是**刻意暴露的模糊桶**，照實顯示（見先例）
 
-### 三個做法值得照抄
+### 四個做法值得照抄
 
 - **列印**（`invoice-detail-dialog`）：`window.open` 開空白視窗 + `importNode` 搬節點，
   樣式 inline 在那個視窗。**不要跟 `@media print` 打架** —— dialog 是 modal，
-  `window.print()` 會連遮罩和背後列表一起印，要壓掉得動 `styles.scss`（不是這席的邊界）
+  `window.print()` 會連遮罩和背後列表一起印
 - **後端上限就在前端擋住**（`meals.component.ts`）：`POST /batch` 上限 300，超過就擋並提示。
   靜靜截斷會讓後面的學生沒有記錄**而且沒有徵兆**
 - **危險操作把工程性質翻譯成人話**（`billing-run-dialog`）：月結是冪等的，UI 就直接寫
   「同一個月可以重複跑」。不講的話行政不敢按第二次
+- **跨頁共用的判斷抽成 `shared/utils/*.util.ts`**（`session-time.util.ts`）：
+  「這堂課上完了沒」原本儀表板與課堂管理各寫一份，兩個畫面會對同一件事說不一樣的話。
+  吃**最小結構介面**而不是 domain 型別（兩邊欄位名不同），呼叫端各自適配一行
 
 ### 環境
 
 worktree 在 `.worktrees/admin-pages`，待命分支 `admin-pages-idle`。開工一律 `git fetch`
-後從 `origin/main` 另開分支。root 與 `apps/api` 都 `npm ci` 過。
+後 **`git checkout -b <new> origin/main`** —— 注意是 `-b` 不是 `-B`：`-B` 會移動既有的
+分支指標，而多 worktree 共用同一組 ref，主 checkout 的 HEAD 會被拖著跳、index 脫鉤
+（2026-08-30 全隊查過一次的幽靈回退變更就是這樣來的，規則已進 README）。
 
-**別人的紅燈不要自己補。** 這一輪 main 有一段時間是紅的（`c8` allowlist 過期，
-design-web 改完沒清），那**不適用**坑 #14 的「紅燈擋交付→自己補」—— 那條講的是
-**自己的交付造成的**紅燈。補別人的會把不相關的改動混進自己的分支。
-**但要回報**，否則下一個開分支的人會以為是自己弄壞的（我就花了一次來回確認）。
+root 與 `apps/api` 都 `npm ci` 過。
 
 收工前照 `.github/workflows/verify.yml` 的序列在本機重放：`harness` → `harness:test` →
 `nx run-many -t typecheck` → `nx run-many -t test` → **`nx build web --configuration=production`**。
