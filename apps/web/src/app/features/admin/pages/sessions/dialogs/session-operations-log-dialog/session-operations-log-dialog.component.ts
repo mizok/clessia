@@ -2,7 +2,6 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { TabsModule } from 'primeng/tabs';
-import { TagModule } from 'primeng/tag';
 import { AuditLogsService, type AuditLog } from '@core/audit-logs.service';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
 import type {
@@ -12,29 +11,29 @@ import type {
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 
 interface ActionConfig {
   label: string;
-  severity: 'success' | 'info' | 'warn' | 'danger' | 'secondary' | 'contrast';
 }
 
 type LogTab = 'session' | 'attendance';
 
 const ACTION_MAP: Record<string, ActionConfig> = {
-  create: { label: '新增', severity: 'success' },
-  update: { label: '編輯', severity: 'info' },
-  delete: { label: '刪除', severity: 'danger' },
-  batch_update_attendance: { label: '批次點名', severity: 'info' },
-  sync_leave_to_attendance: { label: '套用請假', severity: 'warn' },
-  revert_leave_attendance: { label: '恢復出勤', severity: 'success' },
-  truncate_leave: { label: '取消剩餘假期', severity: 'warn' },
-  batch_assign_teacher: { label: '批次指派老師', severity: 'info' },
-  batch_update_session_time: { label: '批次調整時間', severity: 'info' },
-  batch_cancel_session: { label: '批次停課', severity: 'warn' },
-  batch_uncancel_session: { label: '批次恢復課堂', severity: 'success' },
-  cancel_session: { label: '停課', severity: 'warn' },
-  substitute_teacher: { label: '代課', severity: 'info' },
-  reschedule_session: { label: '調課', severity: 'info' },
+  create: { label: '新增' },
+  update: { label: '編輯' },
+  delete: { label: '刪除' },
+  batch_update_attendance: { label: '批次點名' },
+  sync_leave_to_attendance: { label: '套用請假' },
+  revert_leave_attendance: { label: '恢復出勤' },
+  truncate_leave: { label: '取消剩餘假期' },
+  batch_assign_teacher: { label: '批次指派老師' },
+  batch_update_session_time: { label: '批次調整時間' },
+  batch_cancel_session: { label: '批次停課' },
+  batch_uncancel_session: { label: '批次恢復課堂' },
+  cancel_session: { label: '停課' },
+  substitute_teacher: { label: '代課' },
+  reschedule_session: { label: '調課' },
 };
 
 const RESOURCE_TYPE_LABEL: Record<string, string> = {
@@ -46,9 +45,9 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
   selector: 'app-session-operations-log-dialog',
   standalone: true,
   imports: [
+    DataChipComponent,
     CommonModule,
     TabsModule,
-    TagModule,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,
@@ -103,7 +102,7 @@ export class SessionOperationsLogDialogComponent {
   }
 
   protected getActionConfig(action: string): ActionConfig {
-    return ACTION_MAP[action] ?? { label: action, severity: 'secondary' };
+    return ACTION_MAP[action] ?? { label: action };
   }
 
   protected getResourceTypeLabel(type: string): string {

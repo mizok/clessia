@@ -1,6 +1,5 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { TagModule } from 'primeng/tag';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { AuditLogsService, type AuditLog } from '@core/audit-logs.service';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
@@ -11,38 +10,38 @@ import type {
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 
 interface ActionConfig {
   label: string;
-  severity: 'success' | 'info' | 'warn' | 'danger' | 'secondary' | 'contrast';
 }
 
 const ACTION_MAP: Record<string, ActionConfig> = {
-  create: { label: '新增', severity: 'success' },
-  update: { label: '編輯', severity: 'info' },
-  delete: { label: '刪除', severity: 'danger' },
-  batch_update_attendance: { label: '批次點名', severity: 'info' },
-  sync_leave_to_attendance: { label: '套用請假', severity: 'warn' },
-  revert_leave_attendance: { label: '恢復出勤', severity: 'success' },
-  truncate_leave: { label: '取消剩餘假期', severity: 'warn' },
-  archive: { label: '封存', severity: 'danger' },
-  deactivate: { label: '停用', severity: 'warn' },
-  activate: { label: '啟用', severity: 'success' },
-  toggle_active: { label: '切換狀態', severity: 'secondary' },
-  batch_activate: { label: '批次啟用', severity: 'success' },
-  batch_deactivate: { label: '批次停用', severity: 'secondary' },
-  batch_delete: { label: '批次刪除', severity: 'danger' },
-  batch_assign_teacher: { label: '批次指派老師', severity: 'info' },
-  batch_update_session_time: { label: '批次調整時間', severity: 'info' },
-  batch_cancel_session: { label: '批次停課', severity: 'warn' },
-  batch_uncancel_session: { label: '批次恢復課堂', severity: 'success' },
-  generate_sessions: { label: '建立課堂', severity: 'success' },
-  add_schedule: { label: '新增時段', severity: 'success' },
-  update_schedule: { label: '編輯時段', severity: 'info' },
-  delete_schedule: { label: '刪除時段', severity: 'danger' },
-  cancel_session: { label: '停課', severity: 'warn' },
-  substitute_teacher: { label: '代課', severity: 'info' },
-  reschedule_session: { label: '調課', severity: 'info' },
+  create: { label: '新增' },
+  update: { label: '編輯' },
+  delete: { label: '刪除' },
+  batch_update_attendance: { label: '批次點名' },
+  sync_leave_to_attendance: { label: '套用請假' },
+  revert_leave_attendance: { label: '恢復出勤' },
+  truncate_leave: { label: '取消剩餘假期' },
+  archive: { label: '封存' },
+  deactivate: { label: '停用' },
+  activate: { label: '啟用' },
+  toggle_active: { label: '切換狀態' },
+  batch_activate: { label: '批次啟用' },
+  batch_deactivate: { label: '批次停用' },
+  batch_delete: { label: '批次刪除' },
+  batch_assign_teacher: { label: '批次指派老師' },
+  batch_update_session_time: { label: '批次調整時間' },
+  batch_cancel_session: { label: '批次停課' },
+  batch_uncancel_session: { label: '批次恢復課堂' },
+  generate_sessions: { label: '建立課堂' },
+  add_schedule: { label: '新增時段' },
+  update_schedule: { label: '編輯時段' },
+  delete_schedule: { label: '刪除時段' },
+  cancel_session: { label: '停課' },
+  substitute_teacher: { label: '代課' },
+  reschedule_session: { label: '調課' },
 };
 
 const RESOURCE_TYPE_LABEL: Record<string, string> = {
@@ -59,8 +58,8 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
   selector: 'app-audit-log-dialog',
   standalone: true,
   imports: [
+    DataChipComponent,
     CommonModule,
-    TagModule,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,
@@ -91,7 +90,7 @@ export class AuditLogDialogComponent {
   }));
 
   protected getActionConfig(action: string): ActionConfig {
-    return ACTION_MAP[action] ?? { label: action, severity: 'secondary' };
+    return ACTION_MAP[action] ?? { label: action };
   }
 
   protected getResourceTypeLabel(type: string): string {
