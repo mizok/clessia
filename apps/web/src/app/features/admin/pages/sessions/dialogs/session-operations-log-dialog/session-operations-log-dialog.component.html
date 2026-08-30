@@ -78,10 +78,7 @@
           }}</span>
         </td>
         <td appRtColCell="action">
-          <p-tag
-            [value]="getActionConfig(log.action).label"
-            [severity]="getActionConfig(log.action).severity"
-          />
+          <app-data-chip>{{ getActionConfig(log.action).label }}</app-data-chip>
           @if (getDetailsSummary(log)) {
             <div class="session-operations-log-dialog__detail-summary">
               {{ getDetailsSummary(log) }}

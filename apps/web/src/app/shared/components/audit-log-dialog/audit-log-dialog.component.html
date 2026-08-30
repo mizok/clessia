@@ -62,10 +62,7 @@
               <span class="audit-log-dialog__resource-name">{{ log.resourceName ?? '—' }}</span>
             </td>
             <td appRtColCell="action">
-              <p-tag
-                [value]="getActionConfig(log.action).label"
-                [severity]="getActionConfig(log.action).severity"
-              />
+              <app-data-chip>{{ getActionConfig(log.action).label }}</app-data-chip>
               @if (getDetailsSummary(log)) {
                 <div class="audit-log__detail-summary">{{ getDetailsSummary(log) }}</div>
               }

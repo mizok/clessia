@@ -14,10 +14,11 @@ import { SkeletonModule } from 'primeng/skeleton';
 import { TagModule } from 'primeng/tag';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { type Session, type SessionHistoryEntry, SessionsService } from '@core/sessions.service';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 
 @Component({
   selector: 'app-session-detail-dialog',
-  imports: [DatePipe, ButtonModule, SkeletonModule, TagModule],
+  imports: [DataChipComponent, DatePipe, ButtonModule, SkeletonModule, TagModule],
   templateUrl: './session-detail-dialog.component.html',
   styleUrl: './session-detail-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -135,19 +136,6 @@ export class SessionDetailDialogComponent implements OnInit {
   protected changeSourceLabel(change: SessionHistoryEntry): string | null {
     if (change.changeType === 'creation') return null;
     return change.operationSource === 'batch' ? '批次操作' : '單堂操作';
-  }
-
-  protected changeTypeSeverity(
-    type: string,
-  ): 'success' | 'secondary' | 'info' | 'warn' | 'danger' | 'contrast' {
-    const map: Record<string, 'success' | 'secondary' | 'info' | 'warn' | 'danger' | 'contrast'> = {
-      creation: 'secondary',
-      cancellation: 'danger',
-      substitute: 'warn',
-      reschedule: 'info',
-      uncancel: 'success',
-    };
-    return map[type] || 'info';
   }
 
   private formatScheduleSlot(

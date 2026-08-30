@@ -33,10 +33,7 @@
         @for (c of historyEntries(); track c.id) {
           <div class="session-detail__timeline-item">
             <div class="session-detail__timeline-header">
-              <p-tag
-                [value]="changeTypeLabel(c.changeType)"
-                [severity]="changeTypeSeverity(c.changeType)"
-              />
+              <app-data-chip>{{ changeTypeLabel(c.changeType) }}</app-data-chip>
               <span class="session-detail__timestamp">{{ c.createdAt | date: 'MM/dd HH:mm' }}</span>
             </div>
             <p class="session-detail__timeline-summary">{{ changeSummary(c) }}</p>

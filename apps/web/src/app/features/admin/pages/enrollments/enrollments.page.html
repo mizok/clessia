@@ -69,10 +69,7 @@
             (keydown.enter)="openClass(row)"
           >
             <td>
-              <p-tag
-                [value]="EVENT_LABELS[row.event.kind]"
-                [severity]="row.event.kind === 'joined' ? 'success' : 'secondary'"
-              />
+              <app-data-chip>{{ EVENT_LABELS[row.event.kind] }}</app-data-chip>
             </td>
             <td>{{ row.event.date | date: 'MM/dd' }}</td>
             <td>
