@@ -3,7 +3,7 @@ title: 家長儀表板
 summary: 家長首頁，快速掌握孩子今日狀況。
 category: spec
 status: active
-updated: 2026-02-13
+updated: 2026-08-30
 tags: [specs, parent, dashboard]
 ---
 
@@ -80,9 +80,9 @@ tags: [specs, parent, dashboard]
 
 ## 資料依賴
 
-| 操作 | 資料表                                                                                                                                                             |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 讀取 | `students`, `daily_checkins`, `sessions`, `teacher_logs`, `academy_exams`, `school_exams`, `academy_scores`, `school_scores`, `invoices`, `classes`, `enrollments` |
+| 操作 | 資料表                                                                                                                                                           |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 讀取 | `students`, `daily_checkins`, `sessions`, `class_logs`, `academy_exams`, `school_exams`, `academy_scores`, `school_scores`, `invoices`, `classes`, `enrollments` |
 
 ## PRD 參考
 

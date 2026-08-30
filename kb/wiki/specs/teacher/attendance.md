@@ -1,9 +1,9 @@
 ---
 title: 點名
-summary: 查看和修改當天課堂的出勤狀態。
+summary: 課表點進課堂即點名。狀態只有出席/缺席/請假三種（「遲到」從來不存在），可修改範圍是 org 設定的補登窗、由伺服器強制。
 category: spec
 status: active
-updated: 2026-08-19
+updated: 2026-08-30
 tags: [specs, teacher, attendance]
 ---
 
@@ -14,11 +14,15 @@ tags: [specs, teacher, attendance]
 > 漂移修正 2026-08-19：`/teacher/attendance` 的頁面與路由已於 2026-08 刪除 ——
 > 它是選單上叫「點名」但內容是 coming soon 的空殼，而真正的點名早就在課表。
 > 見 [[architecture/teacher-students-view]]。
-> **角色**: Teacher
+>
+> **漂移修正 2026-08-30：出勤狀態機與「僅限當天」兩處都是錯的**，見下。
+> 錯誤的狀態機已經擴散過一次（P1 A2 的工單也寫「present/late」），這一頁就是源頭。
+
+**角色**: Teacher
 
 ## 核心目的
 
-查看和修改當天課堂的出勤狀態。
+查看和修改課堂的出勤狀態（可修改的範圍見「補登窗」）。
 
 ## MVP 功能
 
@@ -34,20 +38,39 @@ tags: [specs, teacher, attendance]
 
 ### 修改出勤
 
-- 僅限當天課堂
-- 點擊學生可切換狀態：出席 → 遲到 → 請假 → 缺席
+- 點擊學生可切換狀態：**出席 → 缺席 → 請假**
+- 可修改的範圍是**補登窗**（見下），不是「僅限當天」
+
+> **狀態只有三種。** `attendance_status` enum 是
+> `('present', 'absent', 'on_leave')`（`20260330000003_create_attendance_records.sql:4`）——
+> ~~遲到~~ **從來不存在**。原版 spec 寫的四段式狀態機是虛構的，而它已經擴散過一次：
+> P1 A2 的工單照抄成「扣堂 = attendance present/late」，實作時才被查出來。
+
+### 補登窗（不是「僅限當天」）
+
+可修改的範圍由 `organizations.attendance_retroactive_days` 決定。
+
+**`0` 代表無限制，不是「只有當天」**（欄位的 `COMMENT` 就是這樣寫的，
+`20260401000001_attendance_operations.sql:21`）。而且現行的前端規則還有第二個條件：
+**只有 `attendance_responsible = 'teacher'` 的機構才鎖**
+（`teacher/schedule.page.ts:122-127`）—— 行政負責點名的機構，老師本來就不該被這個窗擋。
+
+設計意圖是「昨天忘記點的今天要追得到，更久以前的漏點名是報表該查的異常」。
+
+**2026-08-30 裁決：這個窗由伺服器強制。** 在此之前它只在前端讀
+（`teacher/schedule.page.ts`），老師直接打 API 可以改任何日期的出勤 —— 前端隱藏不構成
+限制，跟 c1 的道理一樣。
 
 ### 快速標記
 
 - 全部出席：一鍵將所有學生標記為出席
-- 批次遲到：選擇多位學生後批次標記為遲到
 
 ## 資料依賴
 
 | 操作 | 資料表                                                      |
 | ---- | ----------------------------------------------------------- |
 | 讀取 | `sessions`, `students`, `enrollments`, `attendance_records` |
-| 寫入 | `attendance_records`（僅當天）                              |
+| 寫入 | `attendance_records`（補登窗內）                            |
 
 ## PRD 參考
 
@@ -57,5 +80,5 @@ tags: [specs, teacher, attendance]
 
 ## 實作註記
 
-- 非當天課堂僅可查看，不可修改
-- 修改過期出勤需找管理員
+- 補登窗外的課堂僅可查看，不可修改（伺服器強制）
+- 更早的出勤要改，找管理員
