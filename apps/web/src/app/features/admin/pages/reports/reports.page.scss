@@ -83,8 +83,11 @@
     color: var(--warning-600);
   }
 
+  // accent 現在是品牌色，不再拿來強調數值 —— 它跟 --warning-600（退款卡）的
+  // RGB 距離只有 34，兩個語意相反的數字會撞成同一色。中性的期望值用 zinc；
+  // 負面訊號由「其中逾期」的 --error-600 管
   &__card--outstanding &__card-value {
-    color: var(--accent-600);
+    color: var(--zinc-900);
   }
 
   &__groups {

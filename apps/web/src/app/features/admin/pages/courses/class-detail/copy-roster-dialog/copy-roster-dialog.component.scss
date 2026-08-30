@@ -181,10 +181,11 @@
     border: 1px solid var(--zinc-100);
   }
 
+  // 筆數是資料不是互動 —— accent 現在是品牌色，退出數值強調用途
   &__preview-count {
     font-size: 1.5rem;
     font-weight: var(--font-bold);
-    color: var(--accent-600);
+    color: var(--zinc-900);
     line-height: 1;
   }
 
