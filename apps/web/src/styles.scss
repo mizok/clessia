@@ -37,11 +37,15 @@
   --accent-200: #ffc9b3;
   --accent-700: #8c2a0b;
 
-  /* Semantic Colors */
+  /* Semantic Colors。600 這一階跟 accent 一樣是**用途決定值**：它幾乎只被當文字色用
+     （success 8 處、warning 20 處），而原本的 #16a34a / #d97706 對白底只有 3.30:1 / 3.19:1，
+     連在自家的 100 底色上也只有 3.00:1 / 2.86:1 —— 全數低於 WCAG AA 的 4.5:1。
+     各往下一階後：success 對白 5.02、對 --success-100 4.57；warning 對白 5.02、
+     對 --warning-100 4.51。少數非文字的引用（outline / border / 小色點）只是變深。 */
   --success-100: #dcfce7;
-  --success-600: #16a34a;
+  --success-600: #15803d;
   --warning-100: #fef3c7;
-  --warning-600: #d97706;
+  --warning-600: #b45309;
   --error-100: #fee2e2;
   --error-600: #dc2626;
   --error-700: #b91c1c;
