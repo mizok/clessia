@@ -16,71 +16,50 @@
 
   @if (loading()) {
     <div class="class-detail__loading">
-      <div class="class-detail__hero class-detail__hero--skeleton">
-        <p-skeleton shape="circle" size="64px" />
-        <div class="class-detail__hero-info">
-          <p-skeleton width="160px" height="28px" styleClass="mb-2" />
-          <p-skeleton width="240px" height="16px" styleClass="mb-3" />
-          <p-skeleton width="200px" height="14px" />
-        </div>
-      </div>
+      <p-skeleton width="100%" height="176px" borderRadius="10px" />
     </div>
   } @else if (cls()) {
-    <!-- Hero Header -->
-    <div class="class-detail__hero">
-      <div class="class-detail__hero-avatar" [style.--avatar-hue]="avatarHue()">
-        {{ cls()!.name[0] }}
+    <!-- 橘帶：班的身分在左，錨點（收了幾人 / 上限）在右。
+         這裡不放頭像圓球 —— 帶本身就是那個色塊，再放一顆是同一件事做兩次。
+         也不放警示色：橘面上讀不出來，缺資料的提醒往下走到工作面（課表 tab 的空狀態）。 -->
+    <app-page-band>
+      <div class="class-detail__band-name-row">
+        <h1 class="class-detail__band-name">{{ cls()!.name }}</h1>
+        <span
+          class="class-detail__band-pill"
+          [class.class-detail__band-pill--off]="!cls()!.isActive"
+        >
+          {{ cls()!.isActive ? '開班中' : '已停班' }}
+        </span>
       </div>
-      <div class="class-detail__hero-info">
-        <div class="class-detail__hero-name-row">
-          <h1 class="class-detail__hero-name">{{ cls()!.name }}</h1>
-          <p-tag
-            [value]="cls()!.isActive ? '開班中' : '已停班'"
-            [severity]="cls()!.isActive ? 'success' : 'secondary'"
-          />
+      @if (cls()!.courseName) {
+        <p class="class-detail__band-course">{{ cls()!.courseName }}</p>
+      }
+      @if (cls()!.gradeLevels.length) {
+        <div class="class-detail__band-grades">
+          <span class="class-detail__band-grades-label">適合年級</span>
+          @for (grade of cls()!.gradeLevels!; track grade) {
+            <span class="class-detail__band-grade">{{ getGradeLabel(grade) }}</span>
+          }
         </div>
-        @if (cls()!.courseName) {
-          <p class="class-detail__hero-course">{{ cls()!.courseName }}</p>
-        }
-        @if (cls()!.gradeLevels.length) {
-          <div class="class-detail__hero-grade-row">
-            <span class="class-detail__hero-grade-label">適合年級</span>
-            <div class="class-detail__hero-grade-chips">
-              @for (grade of cls()!.gradeLevels!; track grade) {
-                <span class="class-detail__hero-grade-chip">{{ getGradeLabel(grade) }}</span>
-              }
-            </div>
-          </div>
-        }
-        <div class="class-detail__hero-stats">
-          <span class="class-detail__stat">
-            <i class="pi pi-users"></i>
-            <span>{{ enrollments().length }} / {{ cls()!.maxStudents }} 人</span>
-          </span>
+      }
+
+      <div bandAside>
+        <app-band-anchor
+          [value]="enrollments().length"
+          [unit]="'/ ' + cls()!.maxStudents + ' 人'"
+        >
           @if (cls()!.schedules?.length) {
-            <span class="class-detail__stat">
-              <i class="pi pi-calendar"></i>
-              <span>{{ cls()!.schedules!.length }} 個時段</span>
-            </span>
+            <b>{{ cls()!.schedules!.length }}</b> 個時段
           } @else {
-            <span class="class-detail__stat class-detail__stat--warn">
-              <i class="pi pi-exclamation-triangle"></i>
-              <span>尚未設定課表</span>
-            </span>
+            尚未設定課表
           }
           @if (cls()!.startDate || cls()!.endDate) {
-            <span class="class-detail__stat">
-              <i class="pi pi-calendar-range"></i>
-              <span>
-                {{ cls()!.startDate ?? '不限' }}
-                ～
-                {{ cls()!.endDate ?? '不限' }}
-              </span>
-            </span>
+            ・ {{ cls()!.startDate ?? '不限' }} ～ {{ cls()!.endDate ?? '不限' }}
           }
-        </div>
+        </app-band-anchor>
       </div>
-    </div>
+    </app-page-band>
 
     <div class="class-detail__card">
       <div class="class-detail__tabs-wrapper">

@@ -38,6 +38,8 @@ import {
   type ConfirmDialogData,
 } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
+import { PageBandComponent } from '@shared/components/page-band/page-band.component';
+import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { StudentPickerDialogComponent } from './student-picker-dialog/student-picker-dialog.component';
 import { CopyRosterDialogComponent } from './copy-roster-dialog/copy-roster-dialog.component';
 import { RosterImportDialogComponent } from './roster-import-dialog/roster-import-dialog.component';
@@ -47,6 +49,8 @@ import { EnrollmentBillingDialogComponent } from './enrollment-billing-dialog/en
   selector: 'app-class-detail',
   standalone: true,
   imports: [
+    PageBandComponent,
+    BandAnchorComponent,
     ButtonModule,
     TagModule,
     ToastModule,
@@ -108,18 +112,6 @@ export class ClassDetailPage implements OnInit {
       },
     },
   };
-
-  /** 用 courseId + classId 決定性地 hash 出一個色相值（0–359） */
-  protected readonly avatarHue = computed(() => {
-    const seed = this.resolvedCourseId() + this.resolvedClassId();
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      hash = (hash * 31 + seed.charCodeAt(i)) & 0xfffffff;
-    }
-    // 跳過偏黃區間（45–65°），那個範圍白字對比太差
-    const raw = hash % 320;
-    return raw < 45 ? raw : raw + 20;
-  });
 
   protected readonly actionMenu = viewChild.required<PopupMenuComponent>('actionMenu');
   protected readonly selectedEnrollment = signal<Enrollment | null>(null);

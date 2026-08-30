@@ -1,0 +1,55 @@
+@use 'shared/breakpoints' as bp;
+
+.band-anchor {
+  &__figure {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    margin: 0;
+  }
+
+  // 沿用字標的做法：夠大、字距收緊。這是內部頁的「字標」
+  &__value {
+    font-size: 64px;
+    font-weight: var(--font-bold);
+    letter-spacing: -0.045em;
+    line-height: 0.86;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__unit {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    padding-bottom: 5px;
+  }
+
+  // 次要行走 --band-ink-muted 而不是自己調 opacity —— 用 token 就自動守住
+  // 0.78 那條地板（harness 的 checkBandContrast 盯著它）。
+  &__sub {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-base);
+    color: var(--band-ink-muted);
+
+    b {
+      font-weight: var(--font-bold);
+      color: var(--band-ink);
+    }
+  }
+
+  &__sub:empty {
+    display: none;
+  }
+}
+
+@include bp.respond-to('tablet-portrait') {
+  .band-anchor {
+    &__figure {
+      justify-content: flex-start;
+    }
+
+    &__value {
+      font-size: var(--text-3xl);
+    }
+  }
+}
