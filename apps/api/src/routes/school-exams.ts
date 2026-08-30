@@ -1,5 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
+import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
+import { canManageOrgExam } from '../lib/exam-scope';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 
@@ -383,6 +385,10 @@ const listRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '查詢失敗',
       content: {
@@ -575,6 +581,10 @@ const todoCountRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '查詢失敗',
       content: {
@@ -642,6 +652,10 @@ const getRoute = createRoute({
           schema: z.object({ data: SchoolExamDetailSchema }),
         },
       },
+    },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
     },
     400: {
       description: '查詢失敗',
@@ -856,6 +870,10 @@ const createRouteDef = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '建立失敗',
       content: {
@@ -876,6 +894,12 @@ const createRouteDef = createRoute({
 });
 
 app.openapi(createRouteDef, async (c) => {
+  // `school_exams` 是**學校段考的機構層目錄**（學年 × 學期 × 類型），不是老師辦的考試 ——
+  // 沒有 created_by、沒有班級關聯。兩個老師各自建一筆「第一次段考」只會製造重複資料。
+  // 成績是另一回事：段考成績照樣由老師登錄（見 upsertScores 的範圍檢查）。
+  if (!canManageOrgExam(c.get('roles') ?? [])) {
+    return c.json({ error: '段考目錄只有管理員能維護', code: 'ORG_EXAM_ADMIN_ONLY' }, 403);
+  }
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
   const userId = c.get('userId');
@@ -979,6 +1003,10 @@ const updateRouteDef = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '更新失敗',
       content: {
@@ -999,6 +1027,12 @@ const updateRouteDef = createRoute({
 });
 
 app.openapi(updateRouteDef, async (c) => {
+  // `school_exams` 是**學校段考的機構層目錄**（學年 × 學期 × 類型），不是老師辦的考試 ——
+  // 沒有 created_by、沒有班級關聯。兩個老師各自建一筆「第一次段考」只會製造重複資料。
+  // 成績是另一回事：段考成績照樣由老師登錄（見 upsertScores 的範圍檢查）。
+  if (!canManageOrgExam(c.get('roles') ?? [])) {
+    return c.json({ error: '段考目錄只有管理員能維護', code: 'ORG_EXAM_ADMIN_ONLY' }, 403);
+  }
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
   const userId = c.get('userId');
@@ -1124,6 +1158,10 @@ const deleteRouteDef = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '已有成績，無法刪除',
       content: {
@@ -1144,6 +1182,12 @@ const deleteRouteDef = createRoute({
 });
 
 app.openapi(deleteRouteDef, async (c) => {
+  // `school_exams` 是**學校段考的機構層目錄**（學年 × 學期 × 類型），不是老師辦的考試 ——
+  // 沒有 created_by、沒有班級關聯。兩個老師各自建一筆「第一次段考」只會製造重複資料。
+  // 成績是另一回事：段考成績照樣由老師登錄（見 upsertScores 的範圍檢查）。
+  if (!canManageOrgExam(c.get('roles') ?? [])) {
+    return c.json({ error: '段考目錄只有管理員能維護', code: 'ORG_EXAM_ADMIN_ONLY' }, 403);
+  }
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
   const userId = c.get('userId');
@@ -1208,6 +1252,10 @@ const listScoresRoute = createRoute({
           schema: SchoolScoreListResponseSchema,
         },
       },
+    },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
     },
     400: {
       description: '查詢失敗',
@@ -1300,6 +1348,10 @@ const upsertScoresRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '資料錯誤',
       content: {
@@ -1333,6 +1385,37 @@ app.openapi(upsertScoresRoute, async (c) => {
 
   if (schoolExam.status === 'closed') {
     return c.json({ error: '學校考試已結束，無法登錄成績', code: 'EXAM_CLOSED' }, 400);
+  }
+
+  // **段考的目錄是管理員的，成績還是老師的。** 老師只能登錄自己固定任課班的學生 ——
+  // 「看得到這份段考」不等於「可以登錄全校的成績」
+  const roles = c.get('roles') ?? [];
+  if (!roles.includes('admin')) {
+    const scope = await loadTeachingScope(supabase, { orgId, userId, roles });
+    if ('forbidden' in scope || !scope.teacherStaffId) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
+
+    const taught = await taughtClassIds(supabase, orgId, scope.teacherStaffId);
+    const requestedStudentIds = Array.from(new Set(body.scores.map((item) => item.studentId)));
+
+    if (taught.length === 0) {
+      return c.json({ error: '沒有任課班級', code: 'NO_TAUGHT_CLASS' }, 403);
+    }
+
+    const { data: allowedRows } = await supabase
+      .from('enrollments')
+      .select('student_id')
+      .eq('org_id', orgId)
+      .in('class_id', taught)
+      .in('student_id', requestedStudentIds);
+    const allowed = new Set(
+      (allowedRows ?? []).map((row: { student_id: string }) => row.student_id),
+    );
+
+    if (requestedStudentIds.some((studentId) => !allowed.has(studentId))) {
+      return c.json({ error: '包含非自己任課班的學生', code: 'STUDENT_OUT_OF_SCOPE' }, 403);
+    }
   }
 
   if (schoolExam.subject_id !== null) {
@@ -1422,6 +1505,10 @@ const closeRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '狀態錯誤',
       content: {
@@ -1442,6 +1529,12 @@ const closeRoute = createRoute({
 });
 
 app.openapi(closeRoute, async (c) => {
+  // `school_exams` 是**學校段考的機構層目錄**（學年 × 學期 × 類型），不是老師辦的考試 ——
+  // 沒有 created_by、沒有班級關聯。兩個老師各自建一筆「第一次段考」只會製造重複資料。
+  // 成績是另一回事：段考成績照樣由老師登錄（見 upsertScores 的範圍檢查）。
+  if (!canManageOrgExam(c.get('roles') ?? [])) {
+    return c.json({ error: '段考目錄只有管理員能維護', code: 'ORG_EXAM_ADMIN_ONLY' }, 403);
+  }
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
   const userId = c.get('userId');
@@ -1499,6 +1592,10 @@ const reopenRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '狀態錯誤',
       content: {
@@ -1519,6 +1616,12 @@ const reopenRoute = createRoute({
 });
 
 app.openapi(reopenRoute, async (c) => {
+  // `school_exams` 是**學校段考的機構層目錄**（學年 × 學期 × 類型），不是老師辦的考試 ——
+  // 沒有 created_by、沒有班級關聯。兩個老師各自建一筆「第一次段考」只會製造重複資料。
+  // 成績是另一回事：段考成績照樣由老師登錄（見 upsertScores 的範圍檢查）。
+  if (!canManageOrgExam(c.get('roles') ?? [])) {
+    return c.json({ error: '段考目錄只有管理員能維護', code: 'ORG_EXAM_ADMIN_ONLY' }, 403);
+  }
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
   const userId = c.get('userId');
@@ -1577,6 +1680,10 @@ const recentStudentsRoute = createRoute({
           }),
         },
       },
+    },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
     },
     400: {
       description: '查詢失敗',
@@ -1684,6 +1791,10 @@ const studentsRoute = createRoute({
           schema: SchoolExamStudentListResponseSchema,
         },
       },
+    },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
     },
     400: {
       description: '查詢失敗',
@@ -1906,6 +2017,10 @@ const byStudentRoute = createRoute({
           schema: z.object({ data: z.array(StudentSchoolScoreSchema) }),
         },
       },
+    },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
     },
     400: {
       description: '查詢失敗',

@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
+import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
 import { DbUuidSchema } from '../lib/validation';
 
 const ScoreTypeSchema = z.enum(['academy', 'school']).openapi('ScoreType');
@@ -158,6 +159,10 @@ const listRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '查詢失敗',
       content: {
@@ -168,6 +173,24 @@ const listRoute = createRoute({
     },
   },
 });
+
+/**
+ * 老師只讀得到自己固定任課班的學生成績。回 `null` 代表不受限（管理員）。
+ *
+ * 空陣列跟 `null` 是**不同的意思**：空陣列＝這位老師沒有任何班，該回空結果；
+ * `null`＝不必縮限。混在一起的話「沒有班的老師」會看到全校成績。
+ */
+async function readableStudentIds(
+  supabase: AppEnv['Variables']['supabase'],
+  params: { orgId: string; userId: string; roles: readonly string[] },
+): Promise<string[] | null | 'forbidden'> {
+  if (params.roles.includes('admin')) return null;
+
+  const scope = await loadTeachingScope(supabase, params);
+  if ('forbidden' in scope || !scope.teacherStaffId) return 'forbidden';
+
+  return taughtStudentIds(supabase, params.orgId, scope.teacherStaffId);
+}
 
 app.openapi(listRoute, async (c) => {
   const orgId = c.get('orgId');
@@ -185,6 +208,20 @@ app.openapi(listRoute, async (c) => {
 
   const searchKeyword = search?.trim() ? `%${search.trim()}%` : null;
   const offset = (page - 1) * pageSize;
+
+  // 老師只讀得到自己任課班的學生成績
+  const readable = await readableStudentIds(supabase, {
+    orgId,
+    userId: c.get('userId'),
+    roles: c.get('roles') ?? [],
+  });
+  if (readable === 'forbidden') {
+    return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+  }
+  // 空陣列 = 這位老師沒有任何班。回空結果而不是不縮限 —— 「沒有班」不是通行證
+  if (readable !== null && readable.length === 0) {
+    return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+  }
 
   try {
     const results: ScoreRecord[] = [];
@@ -212,6 +249,9 @@ app.openapi(listRoute, async (c) => {
 
       const applyAcademyFilters = (query: ReturnType<typeof buildAcademyQuery>) => {
         let next = query;
+        if (readable !== null) {
+          next = next.in('student_id', readable);
+        }
         if (studentId) {
           next = next.eq('student_id', studentId);
         }
@@ -355,6 +395,9 @@ app.openapi(listRoute, async (c) => {
 
       const applySchoolFilters = (query: ReturnType<typeof buildSchoolQuery>) => {
         let next = query;
+        if (readable !== null) {
+          next = next.in('student_id', readable);
+        }
         if (studentId) {
           next = next.eq('student_id', studentId);
         }
@@ -512,6 +555,10 @@ const studentSummaryRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '查詢失敗',
       content: {
@@ -535,6 +582,18 @@ app.openapi(studentSummaryRoute, async (c) => {
   const orgId = c.get('orgId');
   const supabase = c.get('supabase');
   const { studentId } = c.req.valid('param');
+
+  const readable = await readableStudentIds(supabase, {
+    orgId,
+    userId: c.get('userId'),
+    roles: c.get('roles') ?? [],
+  });
+  if (readable === 'forbidden') {
+    return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+  }
+  if (readable !== null && !readable.includes(studentId)) {
+    return c.json({ error: '這位學生不在你的任課班級', code: 'STUDENT_OUT_OF_SCOPE' }, 403);
+  }
 
   const { data: student, error: studentError } = await supabase
     .from('students')
@@ -711,6 +770,10 @@ const classExamStatsRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '查詢失敗',
       content: {
@@ -734,6 +797,22 @@ app.openapi(classExamStatsRoute, async (c) => {
   const orgId = c.get('orgId');
   const supabase = c.get('supabase');
   const { classId, examId } = c.req.valid('param');
+
+  const roles = c.get('roles') ?? [];
+  if (!roles.includes('admin')) {
+    const scope = await loadTeachingScope(supabase, {
+      orgId,
+      userId: c.get('userId'),
+      roles,
+    });
+    if ('forbidden' in scope || !scope.teacherStaffId) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
+    const taught = await taughtClassIds(supabase, orgId, scope.teacherStaffId);
+    if (!taught.includes(classId)) {
+      return c.json({ error: '這個班不在你的任課範圍', code: 'CLASS_OUT_OF_SCOPE' }, 403);
+    }
+  }
 
   const [{ data: classRow, error: classError }, { data: examClassRow, error: examClassError }] =
     await Promise.all([

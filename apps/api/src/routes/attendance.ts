@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { resolveTeacherScope } from './attendance/teacher-scope';
 import type { AppEnv } from '../index';
+import { isAttendanceEditable } from '../lib/attendance-window';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 
 const AttendanceStatusSchema = z
@@ -471,6 +472,29 @@ app.openapi(
       return c.json({ error: '未來課堂尚未開放點名', message: undefined }, 500);
     }
 
+    const window = await assertAttendanceWindow(supabase, {
+      orgId,
+      roles: c.get('roles') ?? [],
+      eventDate: (ev as any).event_date as string,
+    });
+    if (!window.ok) {
+      return c.json({ error: '已超過補登期限，請聯繫管理員', message: undefined }, 500);
+    }
+    if (window.outOfWindowByAdmin) {
+      logAudit(
+        supabase,
+        {
+          orgId,
+          userId,
+          resourceType: 'attendance',
+          resourceId: body.eventId,
+          action: 'retroactive_edit',
+          details: { eventDate: (ev as any).event_date as string },
+        },
+        c.executionCtx.waitUntil.bind(c.executionCtx),
+      );
+    }
+
     const { data, error } = await supabase
       .from('attendance_records')
       .insert({
@@ -572,6 +596,29 @@ app.openapi(
       return c.json({ error: '未來課堂尚未開放點名' }, 400);
     }
 
+    const window = await assertAttendanceWindow(supabase, {
+      orgId,
+      roles: c.get('roles') ?? [],
+      eventDate: eventDate,
+    });
+    if (!window.ok) {
+      return c.json({ error: '已超過補登期限，請聯繫管理員' }, 403);
+    }
+    if (window.outOfWindowByAdmin) {
+      logAudit(
+        supabase,
+        {
+          orgId,
+          userId,
+          resourceType: 'attendance',
+          resourceId: eventId,
+          action: 'retroactive_edit',
+          details: { eventDate: eventDate },
+        },
+        c.executionCtx.waitUntil.bind(c.executionCtx),
+      );
+    }
+
     const { data: validEnrollments } = await supabase
       .from('enrollments')
       .select('student_id')
@@ -670,6 +717,31 @@ app.openapi(
     const existingEventDate = (existing as any).events?.event_date as string | null;
     if (existingEventDate && existingEventDate > getCurrentTaipeiDateString()) {
       return c.json({ error: '未來課堂尚未開放點名', message: undefined }, 500);
+    }
+
+    if (existingEventDate) {
+      const window = await assertAttendanceWindow(supabase, {
+        orgId,
+        roles: c.get('roles') ?? [],
+        eventDate: existingEventDate,
+      });
+      if (!window.ok) {
+        return c.json({ error: '已超過補登期限，請聯繫管理員', message: undefined }, 500);
+      }
+      if (window.outOfWindowByAdmin) {
+        logAudit(
+          supabase,
+          {
+            orgId,
+            userId,
+            resourceType: 'attendance',
+            resourceId: id,
+            action: 'retroactive_edit',
+            details: { eventDate: existingEventDate },
+          },
+          c.executionCtx.waitUntil.bind(c.executionCtx),
+        );
+      }
     }
 
     const updates: Record<string, unknown> = { recorded_by: userId, recorded_by_role: 'admin' };
@@ -1004,6 +1076,60 @@ app.openapi(
     );
   },
 );
+
+/**
+ * 補登窗的伺服器端檢查。**在 2026-08-30 之前這個窗只在前端讀**
+ * （`teacher/schedule.page.ts:122-127`），老師直接打 API 可以改任何日期的出勤 ——
+ * 前端隱藏不構成限制，跟 c1 的道理一樣。
+ *
+ * 這裡照抄前端的兩個條件（見 `lib/attendance-window.ts`）：這個切片是**把規則搬到
+ * 伺服器，不是改變規則**。管理員豁免，但窗外的修改會留下 audit log。
+ */
+async function assertAttendanceWindow(
+  supabase: AppEnv['Variables']['supabase'],
+  params: { orgId: string; roles: readonly string[]; eventDate: string },
+): Promise<{ ok: true; outOfWindowByAdmin: boolean } | { ok: false }> {
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('attendance_responsible, attendance_retroactive_days')
+    .eq('id', params.orgId)
+    .maybeSingle();
+
+  const responsible =
+    ((org as { attendance_responsible?: string } | null)?.attendance_responsible as
+      'admin' | 'teacher') ?? 'admin';
+  const retroactiveDays = Number(
+    (org as { attendance_retroactive_days?: number } | null)?.attendance_retroactive_days ?? 0,
+  );
+  const isAdmin = params.roles.includes('admin');
+  const today = getCurrentTaipeiDateString();
+
+  if (
+    !isAttendanceEditable({
+      isAdmin,
+      responsible,
+      retroactiveDays,
+      eventDate: params.eventDate,
+      today,
+    })
+  ) {
+    return { ok: false };
+  }
+
+  // 管理員在窗外動手是低頻但高風險的動作 —— 記一筆，不然「誰把三個月前的出勤改掉了」
+  // 沒有人查得出來
+  const outOfWindowByAdmin =
+    isAdmin &&
+    !isAttendanceEditable({
+      isAdmin: false,
+      responsible,
+      retroactiveDays,
+      eventDate: params.eventDate,
+      today,
+    });
+
+  return { ok: true, outOfWindowByAdmin };
+}
 
 function getCurrentTaipeiDateString(): string {
   const parts = new Intl.DateTimeFormat('en-US', {

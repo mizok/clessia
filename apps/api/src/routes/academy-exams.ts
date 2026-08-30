@@ -1,6 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
+import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
+import { canManageAcademyExam, resolveExamClassIds } from '../lib/exam-scope';
 import { logAudit } from '../utils/audit';
 
 const AcademyExamStatusSchema = z.enum(['active', 'closed']).openapi('AcademyExamStatus');
@@ -292,10 +294,15 @@ async function ensureExamOwnedByOrg(
   supabase: AppEnv['Variables']['supabase'],
   examId: string,
   orgId: string,
-): Promise<{ id: string; name: string; status: 'active' | 'closed' } | null> {
+): Promise<{
+  id: string;
+  name: string;
+  status: 'active' | 'closed';
+  created_by: string | null;
+} | null> {
   const { data, error } = await supabase
     .from('academy_exams')
-    .select('id, name, status')
+    .select('id, name, status, created_by')
     .eq('id', examId)
     .eq('org_id', orgId)
     .maybeSingle();
@@ -308,7 +315,62 @@ async function ensureExamOwnedByOrg(
     id: data.id,
     name: data.name,
     status: data.status,
+    created_by: (data as { created_by?: string | null }).created_by ?? null,
   };
+}
+
+/**
+ * 這個請求的考試範圍。**管理員不受限，老師只碰自己固定任課的班**
+ * （`schedules.teacher_id`，不含代課 —— 跟聯絡簿／教務日誌共用 `lib/teacher-scope.ts`）。
+ *
+ * `taught` 只有老師會用到；管理員拿到空陣列但 `isAdmin` 是 true，兩者要一起看。
+ */
+async function loadExamScope(
+  supabase: AppEnv['Variables']['supabase'],
+  params: { orgId: string; userId: string; roles: readonly string[] },
+): Promise<{ isAdmin: boolean; taught: string[] } | { forbidden: true }> {
+  const scope = await loadTeachingScope(supabase, {
+    orgId: params.orgId,
+    userId: params.userId,
+    roles: params.roles,
+  });
+  if ('forbidden' in scope) return { forbidden: true };
+
+  return {
+    isAdmin: params.roles.includes('admin'),
+    taught: scope.teacherStaffId
+      ? await taughtClassIds(supabase, params.orgId, scope.teacherStaffId)
+      : [],
+  };
+}
+
+/**
+ * 這位老師看不看得到這場考試 —— **參加班級裡有沒有自己任課的班**，不看誰建的。
+ * 登錄成績本來就是老師的工作，別人建的考試只要含自己的班就要看得到。
+ */
+async function examInScope(
+  supabase: AppEnv['Variables']['supabase'],
+  examId: string,
+  scope: { isAdmin: boolean; taught: string[] },
+): Promise<boolean> {
+  if (scope.isAdmin) return true;
+  if (scope.taught.length === 0) return false;
+
+  const classIds = await examClassIds(supabase, examId);
+  return classIds.some((classId) => scope.taught.includes(classId));
+}
+
+/** 某場考試目前的參加班級 */
+async function examClassIds(
+  supabase: AppEnv['Variables']['supabase'],
+  examId: string,
+): Promise<string[]> {
+  const { data } = await supabase
+    .from('academy_exam_classes')
+    .select('class_id')
+    .eq('exam_id', examId);
+
+  return (data ?? []).map((row: { class_id: string }) => row.class_id);
 }
 
 async function ensureClassesInOrg(
@@ -363,6 +425,10 @@ const listRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '查詢失敗',
       content: {
@@ -392,7 +458,34 @@ app.openapi(listRoute, async (c) => {
   } = c.req.valid('query');
   const isDateAsc = order === 'date_asc';
 
+  const scope = await loadExamScope(supabase, {
+    orgId,
+    userId: c.get('userId'),
+    roles: c.get('roles') ?? [],
+  });
+  if ('forbidden' in scope) {
+    return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+  }
+
   let classFilteredExamIds: string[] | null = null;
+
+  // 老師只看得到「參加班級裡有自己任課的班」的考試。沒有任何班就回空 —— 不是回全部
+  if (!scope.isAdmin) {
+    if (scope.taught.length === 0) {
+      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+    }
+    const { data: taughtExamRows } = await supabase
+      .from('academy_exam_classes')
+      .select('exam_id')
+      .in('class_id', scope.taught);
+    classFilteredExamIds = Array.from(
+      new Set((taughtExamRows ?? []).map((row: { exam_id: string }) => row.exam_id)),
+    );
+    if (classFilteredExamIds.length === 0) {
+      return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
+    }
+  }
+
   if (classId) {
     const { data: classExamRows, error: classExamError } = await supabase
       .from('academy_exam_classes')
@@ -401,7 +494,11 @@ app.openapi(listRoute, async (c) => {
     if (classExamError) {
       return c.json({ error: classExamError.message, code: 'DB_ERROR' }, 400);
     }
-    classFilteredExamIds = (classExamRows ?? []).map((row: { exam_id: string }) => row.exam_id);
+    const byClass = (classExamRows ?? []).map((row: { exam_id: string }) => row.exam_id);
+    // 老師已經有一份範圍清單時取**交集**，不是覆蓋 —— 覆蓋等於用 class_id 參數繞過範圍
+    classFilteredExamIds = classFilteredExamIds
+      ? classFilteredExamIds.filter((id) => byClass.includes(id))
+      : byClass;
     if (classFilteredExamIds.length === 0) {
       return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
     }
@@ -568,6 +665,10 @@ const todoCountRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '查詢失敗',
       content: {
@@ -632,6 +733,10 @@ const getRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '查詢失敗',
       content: {
@@ -655,6 +760,18 @@ app.openapi(getRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
   const { id } = c.req.valid('param');
+
+  const scope = await loadExamScope(supabase, {
+    orgId,
+    userId: c.get('userId'),
+    roles: c.get('roles') ?? [],
+  });
+  if ('forbidden' in scope) {
+    return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+  }
+  if (!(await examInScope(supabase, id, scope))) {
+    return c.json({ error: '沒有這場考試的權限', code: 'EXAM_OUT_OF_SCOPE' }, 403);
+  }
 
   const { data: examRow, error: examError } = await supabase
     .from('academy_exams')
@@ -785,6 +902,10 @@ const createRouteDef = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '建立失敗',
       content: {
@@ -802,7 +923,29 @@ app.openapi(createRouteDef, async (c) => {
   const userId = c.get('userId');
   const body = c.req.valid('json');
 
-  const classIds = Array.from(new Set(body.classIds));
+  const scope = await loadExamScope(supabase, {
+    orgId,
+    userId: c.get('userId'),
+    roles: c.get('roles') ?? [],
+  });
+  if ('forbidden' in scope) {
+    return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+  }
+
+  const requested = Array.from(new Set(body.classIds));
+  // 老師建考試時參加班級只能是自己任課的班 —— 沒有這條，「可以建考試」就變成
+  // 「可以把任何班拉進自己的考試」，而那看起來完全像正常操作
+  const resolved = resolveExamClassIds({
+    isAdmin: scope.isAdmin,
+    current: [],
+    requested,
+    taught: scope.taught,
+  });
+  if ('error' in resolved) {
+    return c.json({ error: '只能選自己任課的班', code: resolved.error }, 403);
+  }
+  const classIds = resolved.classIds;
+
   const isClassValid = await ensureClassesInOrg(supabase, orgId, classIds);
   if (!isClassValid) {
     return c.json({ error: '包含不合法的 classIds', code: 'INVALID_CLASS_IDS' }, 400);
@@ -890,6 +1033,10 @@ const updateRouteDef = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '更新失敗',
       content: {
@@ -921,8 +1068,41 @@ app.openapi(updateRouteDef, async (c) => {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
   }
 
+  const scope = await loadExamScope(supabase, {
+    orgId,
+    userId,
+    roles: c.get('roles') ?? [],
+  });
+  if ('forbidden' in scope) {
+    return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+  }
+
+  // A3：老師只能動**自己建的**考試。別人建的只能登錄成績 ——
+  // 一場考試可以跨班，刪除會 CASCADE 掉其他班的成績，而老師看不到那些班
+  if (
+    !canManageAcademyExam({
+      roles: c.get('roles') ?? [],
+      userId,
+      createdBy: existing.created_by,
+    })
+  ) {
+    return c.json({ error: '只能修改自己建立的考試', code: 'NOT_EXAM_OWNER' }, 403);
+  }
+
   if (body.classIds) {
-    const isClassValid = await ensureClassesInOrg(supabase, orgId, body.classIds);
+    // 老師可以加自己任課的班，但**不能移除自己沒任課的班** ——
+    // 管理員事後把別班加進來，老師把它踢掉會刪掉別班的成績
+    const resolved = resolveExamClassIds({
+      isAdmin: scope.isAdmin,
+      current: await examClassIds(supabase, id),
+      requested: body.classIds,
+      taught: scope.taught,
+    });
+    if ('error' in resolved) {
+      return c.json({ error: '參加班級超出可管理範圍', code: resolved.error }, 403);
+    }
+
+    const isClassValid = await ensureClassesInOrg(supabase, orgId, resolved.classIds);
     if (!isClassValid) {
       return c.json({ error: '包含不合法的 classIds', code: 'INVALID_CLASS_IDS' }, 400);
     }
@@ -1012,6 +1192,10 @@ const deleteRouteDef = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '不可刪除有成績的考試',
       content: {
@@ -1040,6 +1224,17 @@ app.openapi(deleteRouteDef, async (c) => {
   const existing = await ensureExamOwnedByOrg(supabase, id, orgId);
   if (!existing) {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
+  }
+
+  // A3：只能動自己建的考試（管理員不受限）
+  if (
+    !canManageAcademyExam({
+      roles: c.get('roles') ?? [],
+      userId,
+      createdBy: existing.created_by,
+    })
+  ) {
+    return c.json({ error: '只能修改自己建立的考試', code: 'NOT_EXAM_OWNER' }, 403);
   }
 
   const { count: scoreCount, error: scoreCountError } = await supabase
@@ -1101,6 +1296,10 @@ const listScoresRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '查詢失敗',
       content: {
@@ -1124,6 +1323,18 @@ app.openapi(listScoresRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
   const { id } = c.req.valid('param');
+
+  const scope = await loadExamScope(supabase, {
+    orgId,
+    userId: c.get('userId'),
+    roles: c.get('roles') ?? [],
+  });
+  if ('forbidden' in scope) {
+    return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+  }
+  if (!(await examInScope(supabase, id, scope))) {
+    return c.json({ error: '沒有這場考試的權限', code: 'EXAM_OUT_OF_SCOPE' }, 403);
+  }
 
   const exam = await ensureExamOwnedByOrg(supabase, id, orgId);
   if (!exam) {
@@ -1193,6 +1404,10 @@ const upsertScoresRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '資料錯誤',
       content: {
@@ -1219,6 +1434,18 @@ app.openapi(upsertScoresRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
 
+  const scope = await loadExamScope(supabase, {
+    orgId,
+    userId,
+    roles: c.get('roles') ?? [],
+  });
+  if ('forbidden' in scope) {
+    return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+  }
+  if (!(await examInScope(supabase, id, scope))) {
+    return c.json({ error: '沒有這場考試的權限', code: 'EXAM_OUT_OF_SCOPE' }, 403);
+  }
+
   const exam = await ensureExamOwnedByOrg(supabase, id, orgId);
   if (!exam) {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
@@ -1229,6 +1456,25 @@ app.openapi(upsertScoresRoute, async (c) => {
   }
 
   const studentIds = Array.from(new Set(body.scores.map((item) => item.studentId)));
+
+  // 老師只能登錄自己任課班的學生。這場考試可能跨班，其中有他不任課的班 ——
+  // 「看得到這場考試」不等於「可以碰這場考試的每一個學生」
+  if (!scope.isAdmin) {
+    const { data: allowedRows } = await supabase
+      .from('enrollments')
+      .select('student_id')
+      .eq('org_id', orgId)
+      .in('class_id', scope.taught)
+      .in('student_id', studentIds);
+    const allowed = new Set(
+      (allowedRows ?? []).map((row: { student_id: string }) => row.student_id),
+    );
+    const outOfScope = studentIds.filter((studentId) => !allowed.has(studentId));
+    if (outOfScope.length > 0) {
+      return c.json({ error: '包含非自己任課班的學生', code: 'STUDENT_OUT_OF_SCOPE' }, 403);
+    }
+  }
+
   const { data: students, error: studentsError } = await supabase
     .from('students')
     .select('id')
@@ -1296,6 +1542,10 @@ const closeRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '狀態錯誤',
       content: {
@@ -1324,6 +1574,17 @@ app.openapi(closeRoute, async (c) => {
   const existing = await ensureExamOwnedByOrg(supabase, id, orgId);
   if (!existing) {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
+  }
+
+  // A3：只能動自己建的考試（管理員不受限）
+  if (
+    !canManageAcademyExam({
+      roles: c.get('roles') ?? [],
+      userId,
+      createdBy: existing.created_by,
+    })
+  ) {
+    return c.json({ error: '只能修改自己建立的考試', code: 'NOT_EXAM_OWNER' }, 403);
   }
 
   if (existing.status !== 'active') {
@@ -1373,6 +1634,10 @@ const reopenRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '權限不足',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '狀態錯誤',
       content: {
@@ -1401,6 +1666,17 @@ app.openapi(reopenRoute, async (c) => {
   const existing = await ensureExamOwnedByOrg(supabase, id, orgId);
   if (!existing) {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
+  }
+
+  // A3：只能動自己建的考試（管理員不受限）
+  if (
+    !canManageAcademyExam({
+      roles: c.get('roles') ?? [],
+      userId,
+      createdBy: existing.created_by,
+    })
+  ) {
+    return c.json({ error: '只能修改自己建立的考試', code: 'NOT_EXAM_OWNER' }, 403);
   }
 
   if (existing.status !== 'closed') {

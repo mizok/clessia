@@ -255,9 +255,12 @@ mount('/api/org', orgSettingsRoute, ['admin', 'teacher']);
 mount('/api/attendance', attendanceRoute, ['admin', 'teacher']);
 mount('/api/leaves', leavesRoute, ADMIN_ONLY);
 mount('/api/daily-checkins', dailyCheckinsRoute, ADMIN_ONLY);
-mount('/api/academy-exams', academyExamsRoute, ADMIN_ONLY);
-mount('/api/school-exams', schoolExamsRoute, ADMIN_ONLY);
-mount('/api/scores', scoresRoute, ADMIN_ONLY);
+// 成績三支開給老師，但**範圍限制在路由層**（`lib/exam-scope.ts` / `lib/teacher-scope.ts`）：
+// 老師只碰自己固定任課的班。單純把角色加上去是不安全的 —— 那會讓任何老師讀寫全校的
+// 考試與成績。見 .claude/team/billing-api-p3-grades-scope-design.md
+mount('/api/academy-exams', academyExamsRoute, ['admin', 'teacher']);
+mount('/api/school-exams', schoolExamsRoute, ['admin', 'teacher']);
+mount('/api/scores', scoresRoute, ['admin', 'teacher']);
 // 收件匣對 teacher/parent 開放；發布與管理端列表在 route 內另外要求 admin
 mount('/api/announcements', announcementsRoute, ANY_ROLE);
 // 聯絡簿與教務日誌：admin 與 teacher 都寫得到，老師的範圍在 route 內縮限到
