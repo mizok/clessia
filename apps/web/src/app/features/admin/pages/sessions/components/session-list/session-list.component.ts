@@ -14,6 +14,7 @@ import type {
   ResponsiveTablePaginationConfig,
 } from '@shared/components/responsive-table/responsive-table.models';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
+import { hasSessionEnded } from '@shared/utils/session-time.util';
 
 export interface SessionListMenuRequest {
   readonly event: MouseEvent;
@@ -139,12 +140,29 @@ export class SessionListComponent {
       : '未點名';
   }
 
-  protected attendanceStatusSeverity(session: Session): 'success' | 'info' | 'secondary' | 'warn' {
+  /**
+   * 點名狀態的顏色。**只有「上完了卻沒點名」是警示**。
+   *
+   * 舊版有兩個問題，都讓漏點名變得看不見：
+   *
+   * 1. `status === 'completed'` 那條是**死碼** —— 全 repo 沒有任何一行把 `status`
+   *    寫成 `'completed'`（`core/classes.service.ts` 還留著「待老師點名功能完成後」
+   *    的 TODO）。所有漏點名的課都掉到最後的 `info`，而藍色不是警示：它跟
+   *    「今天稍晚要上的課」長得一樣，掃表格時該跳出來的沒有跳出來。
+   * 2. `isFutureSession` 只比日期不比時間，所以**今天晚上七點的課，早上八點就被
+   *    歸進「該點名而沒點」**。
+   *
+   * 現在用跟儀表板同一個 `hasSessionEnded` —— 兩個畫面對「漏點名」的定義必須一致，
+   * 否則儀表板說 6 堂、這裡標 8 堂。
+   *
+   * 文字（`attendanceStatusLabel`）維持說事實「未點名 N 人」，顏色說判斷：
+   * 還沒上完是中性，上完了沒點才是警示。
+   */
+  protected attendanceStatusSeverity(session: Session): 'success' | 'secondary' | 'warn' {
     if (session.status === 'cancelled') return 'secondary';
-    if (this.isFutureSession(session)) return 'secondary';
     if (session.attendanceTakenAt) return 'success';
-    if (session.status === 'completed') return 'warn';
-    return 'info';
+    if (!hasSessionEnded(toSessionTime(session), new Date())) return 'secondary';
+    return 'warn';
   }
 
   protected attendanceStatusSummary(session: Session): string {
@@ -168,4 +186,13 @@ export class SessionListComponent {
   private emitSelected(selected: ReadonlySet<string>): void {
     this.selectedIdsChange.emit([...selected]);
   }
+}
+
+/** `Session` 用 `sessionDate`，共用的 `hasSessionEnded` 吃的是 `date` */
+function toSessionTime(session: Session) {
+  return {
+    date: session.sessionDate,
+    startTime: session.startTime ?? null,
+    endTime: session.endTime ?? null,
+  };
 }

@@ -157,4 +157,69 @@ describe('SessionListComponent', () => {
 
     expect(headers).not.toContain('異動');
   });
+
+  // 漏點名以前是沉默的：status === 'completed' 那條是死碼（沒有任何程式碼寫這個值），
+  // 所有過去未點名的課都掉到 info —— 而藍色跟「今天稍晚要上的課」長得一樣
+  describe('點名狀態的顏色', () => {
+    const base: Session = {
+      id: '00000000-0000-0000-0000-0000000000aa',
+      sessionDate: '2026-03-09',
+      startTime: '09:00',
+      endTime: '11:00',
+      status: 'scheduled',
+      assignmentStatus: 'assigned',
+      classId: '00000000-0000-0000-0000-000000000011',
+      className: 'A 班',
+      courseId: '00000000-0000-0000-0000-000000000021',
+      courseName: '國中數學',
+      campusId: '00000000-0000-0000-0000-000000000031',
+      campusName: '台北校',
+      teacherId: '00000000-0000-0000-0000-000000000041',
+      teacherName: '王老師',
+      hasChanges: false,
+    };
+    const severity = (overrides: Partial<Session>) =>
+      component['attendanceStatusSeverity']({ ...base, ...overrides });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+    it('上完了卻沒點名是警示 —— 這是這次修的東西', () => {
+      expect(severity({ sessionDate: yesterday, attendanceTakenAt: null })).toBe('warn');
+    });
+
+    it('點過名就是成功，不管多久以前', () => {
+      expect(
+        severity({ sessionDate: yesterday, attendanceTakenAt: '2026-03-09T11:05:00Z' }),
+      ).toBe('success');
+    });
+
+    it('停課的課不催點名', () => {
+      expect(severity({ sessionDate: yesterday, status: 'cancelled' })).toBe('secondary');
+    });
+
+    it('明天的課是中性的', () => {
+      expect(severity({ sessionDate: tomorrow, attendanceTakenAt: null })).toBe('secondary');
+    });
+
+    // 舊版只比日期，今天晚上七點的課早上八點就被標成該點名而沒點
+    it('今天稍晚才上的課是中性的，不是警示', () => {
+      expect(
+        severity({
+          sessionDate: today,
+          startTime: '23:30',
+          endTime: '23:59',
+          attendanceTakenAt: null,
+        }),
+      ).toBe('secondary');
+    });
+
+    // status 從來沒有被寫成 'completed'，所以它不該再影響顏色
+    it('不再依賴 status === completed（那是死碼）', () => {
+      expect(severity({ sessionDate: yesterday, status: 'completed', attendanceTakenAt: null })).toBe(
+        severity({ sessionDate: yesterday, status: 'scheduled', attendanceTakenAt: null }),
+      );
+    });
+  });
 });
