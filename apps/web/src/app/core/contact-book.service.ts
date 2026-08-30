@@ -41,6 +41,19 @@ export interface ContactBookListResponse {
   meta: { total: number };
 }
 
+/**
+ * 「這一天該寫但還沒寫」的一位學生。
+ *
+ * **每生一列，不是每班一列** —— `contact_book_entries` 是 `UNIQUE (student_id, entry_date)`，
+ * 一則聯絡簿屬於學生那一天不屬於某一班。同一個學生同時在兩個開了聯絡簿的班，
+ * 要寫的還是**一則**；`classes` 是脈絡（去哪裡找這個小孩），不是分組鍵。
+ */
+export interface MissingContactBookStudent {
+  studentId: string;
+  studentName: string;
+  classes: Array<{ classId: string; className: string }>;
+}
+
 export interface UpsertContactBookEntryInput {
   studentId: string;
   entryDate: string;
@@ -54,6 +67,23 @@ export class ContactBookService {
 
   list(params?: ContactBookQueryParams): Observable<ContactBookListResponse> {
     return this.http.get<ContactBookListResponse>(this.endpoint, { params: toQuery(params) });
+  }
+
+  /**
+   * 某一天該寫但還沒寫聯絡簿的學生（行政的當日待辦）。
+   *
+   * 差集算在**伺服器端**（`apps/api/src/lib/contact-book-missing.ts`）——
+   * 前端拿現有 API 自己拼要處理「班級清單沒有 usesContactBook 篩選」與「分頁截斷」，
+   * 兩個都會靜靜地漏掉班級。
+   *
+   * **「該寫」綁的是「這個班那天有課」**：當日沒課或停課的班不列入，
+   * 否則週末與寒暑假的名單會是滿的。
+   */
+  missing(date: string): Observable<{ data: MissingContactBookStudent[]; meta: { total: number } }> {
+    return this.http.get<{ data: MissingContactBookStudent[]; meta: { total: number } }>(
+      `${this.endpoint}/missing`,
+      { params: { date } },
+    );
   }
 
   /**

@@ -10,6 +10,55 @@
     </div>
   </header>
 
+  <!-- ── 當日待辦：這天該寫但還沒寫 ─────────────────────────────────── -->
+  <section class="contact-book__missing">
+    <div class="contact-book__missing-header">
+      <h2 class="contact-book__missing-title">還沒寫的</h2>
+      <p-datepicker
+        dateFormat="yy-mm-dd"
+        [showIcon]="true"
+        [ngModel]="missingDate"
+        (ngModelChange)="onMissingDateChange($event)"
+        ariaLabel="缺漏名單的日期"
+      />
+    </div>
+
+    @if (missingLoading()) {
+      <p class="contact-book__missing-note">載入中…</p>
+    } @else if (missingFailed()) {
+      <p class="contact-book__missing-note">
+        缺漏名單讀不到。
+        <p-button label="重試" [text]="true" size="small" (onClick)="loadMissing()" />
+      </p>
+    } @else if (missing().length === 0) {
+      <p class="contact-book__missing-note contact-book__missing-note--done">
+        <i class="pi pi-check-circle"></i>
+        這天該寫的都寫了。
+      </p>
+    } @else {
+      <p class="contact-book__missing-note">
+        <strong>{{ missing().length }}</strong> 位學生這天還沒有聯絡簿。
+        只有「有課的班」才算 —— 當天沒課或停課的班不列入。
+      </p>
+      <ul class="contact-book__missing-list">
+        @for (target of missing(); track target.studentId) {
+          <li class="contact-book__missing-item">
+            <span class="contact-book__missing-student">{{ target.studentName }}</span>
+            <span class="contact-book__missing-classes">{{ classNamesOf(target) }}</span>
+            <p-button
+              label="補寫"
+              icon="pi pi-pencil"
+              [text]="true"
+              size="small"
+              [ariaLabel]="'補寫 ' + target.studentName + ' 的聯絡簿'"
+              (onClick)="writeMissing(target)"
+            />
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
   <div class="contact-book__toolbar clessia-filter-bar">
     <p-datepicker
       selectionMode="range"

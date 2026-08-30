@@ -1,24 +1,36 @@
 <div class="entry-dialog">
   <header class="entry-dialog__header">
     <div class="entry-dialog__title-group">
-      <h2 class="entry-dialog__title">{{ entry().studentName ?? '未知學生' }}</h2>
+      <h2 class="entry-dialog__title">{{ studentName() }}</h2>
       <p class="entry-dialog__meta">
-        {{ entry().entryDate }}
-        @if (entry().lastEditedByName) {
-          · 最後由 {{ entry().lastEditedByName }} 編輯
+        {{ entryDate() }}
+        @if (entry(); as existing) {
+          @if (existing.lastEditedByName) {
+            · 最後由 {{ existing.lastEditedByName }} 編輯
+          }
         }
       </p>
     </div>
-    @if (entry().isSigned) {
-      <p-tag value="已簽收" severity="success" icon="pi pi-check" />
+    @if (entry(); as existing) {
+      @if (existing.isSigned) {
+        <p-tag value="已簽收" severity="success" icon="pi pi-check" />
+      } @else {
+        <p-tag value="未簽收" severity="warn" />
+      }
     } @else {
-      <p-tag value="未簽收" severity="warn" />
+      <p-tag value="尚未撰寫" severity="secondary" />
     }
   </header>
 
-  @if (entry().isSigned && entry().signedAt) {
+  @if (entry(); as existing) {
+    @if (existing.isSigned && existing.signedAt) {
+      <p class="entry-dialog__signed-note">
+        家長已於 {{ existing.signedAt }} 簽收。改內容不會取消簽收 —— 家長看到的是最新版本。
+      </p>
+    }
+  } @else {
     <p class="entry-dialog__signed-note">
-      家長已於 {{ entry().signedAt }} 簽收。改內容不會取消簽收 —— 家長看到的是最新版本。
+      這一則還沒有人寫。撰寫者本來是帶班老師 —— 這裡是行政的補寫入口。
     </p>
   }
 
@@ -41,6 +53,11 @@
 
   <footer class="entry-dialog__footer">
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
-    <p-button label="儲存" [disabled]="!dirty()" [loading]="saving()" (onClick)="save()" />
+    <p-button
+      [label]="isNew() ? '寫入' : '儲存'"
+      [disabled]="!dirty()"
+      [loading]="saving()"
+      (onClick)="save()"
+    />
   </footer>
 </div>
