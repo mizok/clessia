@@ -37,7 +37,7 @@
 - [[flows/renewal]] — 本文件整理 PRD 6.10，定義預告制自動續課（Pre-Notification Auto-Renewal）的時間軸、角色動作與例外處理。
 - [[flows/trial]] — 本文件整理 PRD 6.2，定義試聽申請從提交、安排、試聽到跟進的完整流程。此流程與報名申請流程獨立，但可在資料層建立來源關聯。
 
-## Lessons (12)
+## Lessons (13)
 - [[lessons/agent-workflow-guide]] — 本文件定義 Claude 與 Codex 協作開發時應遵循的工作流程。 目標：減少 token 消耗、提升成品品質、確保可追蹤性。
 - [[lessons/awakened-tests-bite]] — 把 @Input/@ViewChild 換成 functional API 這種「機械」重構，讓一段從來沒真正執行過的程式碼第一次跑起來，連帶暴露六支靠「那行沒跑到」才綠的 spec 與一顆 node 解析條件的地雷。
 - [[lessons/backlog-legacy]] — 2026-02～03 的功能開發清單與技術債紀錄。歷史文件 —— 其中「忘記密碼」整節已於 2026-08 作廢（系統改用 LINE OAuth）。
@@ -47,6 +47,7 @@
 - [[lessons/line-number-citations-rot]] — 第一次 drift 稽核發現 KB 裡 13 條 file:line 引用有 5 條指錯位置——不是內容錯，是每支 PR 都在推移行號。
 - [[lessons/local-green-is-not-repo-green]] — 導入 CI 的過程連紅六次，每一次的根因都是「本機狀態 ≠ 版控狀態」。附上推送前該怎麼自我驗證。
 - [[lessons/menu-entry-without-a-route]] — M1 的課務異動畫面上線後完全打不開 —— 元件測試全綠，因為漏掉的東西不在元件裡，而在選單與路由表之間的縫。
+- [[lessons/merged-does-not-mean-main]] — 疊 PR 的下層先合併之後，上層的 base 不會自動轉回 main —— 它會靜靜地合進一條已經死掉的分支，GitHub 標成 MERGED、CI 照樣綠，而那份工作從此不在 main 上。
 - [[lessons/rls-backstop-drift]] — 業務表該一律啟用 RLS 當 fail-closed 後盾，但 30 張裡有 16 張沒開——早期的都有、後期新增的都沒有，而沒有任何東西會提醒。
 - [[lessons/root-component-pins-the-bundle]] — 一個只有多重角色使用者看得到的角色選擇 dialog，把 PrimeNG 整棵 dialog 依賴樹釘在初始 bundle 上，佔 756 kB 中的 140 kB。順帶記錄 angular.json 其實不生效這個會再踩一次的坑。
 - [[lessons/status-table-blind-spot]] — 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
@@ -111,4 +112,4 @@
 - [[summaries/interview-insider-2026-08-29]] — 目標補習班內部員工的一手訪談（20 題，透過使用者當傳聲筒），P1 資料模型的主要輸入。
 
 ---
-**Total: 91 pages**
+**Total: 92 pages**
