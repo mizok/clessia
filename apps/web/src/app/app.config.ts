@@ -34,6 +34,27 @@ const ClessiaPreset = definePreset(Aura, {
   // 換成暖中性而不是換成另一個彩色：`info` 在這裡的語意是「正常」，
   // 正常狀態不該喊話 —— 讓真的有事的 warn / danger / success 站出來。
   primitive: {
+    // Aura 的 `warn` severity 吃 `{orange.100}` / `{orange.700}`。方向 D 之後
+    // 橘專屬品牌（accent），警示一律琥珀 —— 所以連 PrimeNG 的 orange 一起換掉，
+    // 否則 Tag / Message / Button 的 warn 會用品牌色喊「這裡有問題」。
+    //
+    // 值就是琥珀階（與 styles.scss 的 `--warning-*` 同一組），對比實測：
+    // 700 壓在 100 上 4.51:1、壓在 200（hover）上 4.03:1 ——
+    // 所以 chip 內文字在我們自己的 SCSS 裡用 800；PrimeNG 的 Tag 沒有 hover，
+    // 維持它預設的 700 即可。
+    orange: {
+      50: '#fffbeb',
+      100: '#fef3c7',
+      200: '#fde68a',
+      300: '#fcd34d',
+      400: '#fbbf24',
+      500: '#f59e0b',
+      600: '#d97706',
+      700: '#b45309',
+      800: '#92400e',
+      900: '#78350f',
+      950: '#451a03',
+    },
     sky: {
       50: '#faf9f8',
       100: '#f2efed',

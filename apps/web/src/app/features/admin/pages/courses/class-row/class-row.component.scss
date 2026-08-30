@@ -193,9 +193,9 @@
   }
 
   &__completeness-warn {
-    background: var(--p-yellow-50);
-    color: var(--p-yellow-700);
-    border: 1px solid var(--p-yellow-200);
+    background: var(--warning-50);
+    color: var(--warning-800);
+    border: 1px solid var(--warning-200);
   }
 
   &__completeness-info {
@@ -213,9 +213,9 @@
     font-size: var(--text-xs);
     font-weight: var(--font-medium);
     white-space: nowrap;
-    background: var(--p-orange-50);
-    color: var(--p-orange-700);
-    border: 1px solid var(--p-orange-200);
+    background: var(--warning-50);
+    color: var(--warning-800);
+    border: 1px solid var(--warning-200);
     text-decoration: none;
     cursor: pointer;
     transition: background 0.15s ease;
@@ -225,7 +225,7 @@
     }
 
     &:hover {
-      background: var(--p-orange-100);
+      background: var(--warning-100);
     }
   }
 }
