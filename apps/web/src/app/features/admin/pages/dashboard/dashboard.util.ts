@@ -1,5 +1,6 @@
 import type { EventSessionSummary } from '@core/attendance.service';
 import type { AttendanceMode } from '@core/org-settings.service';
+import { hasSessionEnded } from '@shared/utils/session-time.util';
 
 /**
  * 回溯窗內漏點名的課堂數；`null` 代表這張卡整張不該渲染。
@@ -17,24 +18,16 @@ export function countUntakenSessions(
 ): number | null {
   if (mode !== 'per_session') return null;
 
-  return sessions.filter((s) => !s.takenAt && hasEnded(s, now)).length;
+  // 「上完了沒」的定義共用給課堂管理與 day-timeline —— 各寫一份的話，
+  // 儀表板說「6 堂沒點名」而課堂頁標 8 堂，兩個畫面對同一件事說不一樣的話
+  return sessions.filter((s) => !s.takenAt && hasSessionEnded(toSessionTime(s), now)).length;
 }
 
-function hasEnded(session: EventSessionSummary, now: Date): boolean {
-  const end = new Date(`${session.eventDate}T00:00:00`);
-
-  // 沒有結束時間就無從判斷今天那堂上完了沒，等這一天過完再算
-  if (!session.endTime) {
-    end.setDate(end.getDate() + 1);
-    return end.getTime() <= now.getTime();
-  }
-
-  const [h, m] = session.endTime.split(':').map(Number);
-  end.setHours(h ?? 0, m ?? 0, 0, 0);
-  // 跨午夜的課結束在隔天
-  if (session.startTime && session.endTime < session.startTime) {
-    end.setDate(end.getDate() + 1);
-  }
-
-  return end.getTime() <= now.getTime();
+/** `EventSessionSummary` 用 `eventDate`，共用函式吃的是 `date` */
+function toSessionTime(session: EventSessionSummary) {
+  return {
+    date: session.eventDate,
+    startTime: session.startTime ?? null,
+    endTime: session.endTime ?? null,
+  };
 }
