@@ -7,6 +7,7 @@ import { MealsService, type MealBatchRow, type MealRosterRow } from '@core/meals
 import { BillingRunsService } from '@core/billing-runs.service';
 
 import { MealsComponent } from './meals.component';
+import { rosterToDraft } from './meals.util';
 
 const row = (overrides?: Partial<MealRosterRow>): MealRosterRow => ({
   studentId: 's1',
@@ -177,11 +178,13 @@ describe('MealsComponent', () => {
   });
 
   // 靜靜截斷會讓後面的學生沒有記錄而且沒有徵兆
-  it('超過後端一次的上限就擋住不送', async () => {
+  it('超過後端一次的上限就擋住不送', () => {
     const many = Array.from({ length: 301 }, (_, i) => row({ studentId: `s${i}` }));
-    meals.roster.mockReturnValue(of(roster(many)));
-    component['load']();
-    await fixture.whenStable();
+    // 直接灌 signal，不走 load() + whenStable() —— 那會把 301 列 PrimeNG 輸入元件真的渲染出來，
+    // 本機 2.3~6s、CI 的 4 核 runner 超過 vitest 預設的 5000ms 逾時（實測 #92 的 CI）。
+    // 這條測的是 overBatchLimit 這個 computed 與 save() 的擋人邏輯，兩者都只讀 rows()，
+    // 渲染與斷言無關。
+    component['rows'].set(rosterToDraft(many, 50));
     meals.batch.mockClear();
 
     expect(component['overBatchLimit']()).toBe(true);
