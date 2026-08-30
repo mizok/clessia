@@ -17,12 +17,13 @@
 | [design-web.md](design-web.md)   | 視覺/設計系統/web 效能 | tokens、SCSS、bundle、mockup、登入與公開頁       | `design-web`  |
 | （共用 design-web.md）           | 視覺/設計系統/web 效能 | design-web 的第二席，同 charter，分工由計畫席派  | `design-web-2` |
 | [admin-pages.md](admin-pages.md) | 管理端頁面             | admin feature 頁、dialog、表格、儀表板           | `admin-pages` |
+| [teacher-pages.md](teacher-pages.md) | 老師端頁面（行動優先） | teacher feature 頁、手機課表、點名、成績登錄    | `teacher-pages` |
 | [infra.md](infra.md)             | CI/harness/依賴/工具債 | verify 序列、gate、憲法 enforcement、升版        | `infra`       |
 
 > Herdr pane 名 = 席位名（`herdr agent rename` 可改）。SendMessage 位址是 session
 > 自動命名、session 輪替就會變 —— **不要寫死在任何文件**，用 ListAgents 查當班的是誰。
 
-尚未開席（P3/P4 時增開）：老師端頁面、家長端頁面。
+尚未開席（P4 時增開）：家長端頁面。
 
 ## 通用協定（每席都適用）
 
