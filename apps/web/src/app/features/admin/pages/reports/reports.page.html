@@ -1,1 +1,188 @@
-<p>reports works!</p>
+<p-toast appendTo="body" [baseZIndex]="25000" />
+
+<div class="reports">
+  <header class="reports__header">
+    <div class="reports__title-group">
+      <h1 class="reports__title">{{ page().label }}</h1>
+      <p class="reports__subtitle">
+        錢進來多少、還有多少沒收到。所有數字都由後端聚合 —— 不是抓明細加總出來的。
+      </p>
+    </div>
+  </header>
+
+  <div class="reports__toolbar clessia-filter-bar">
+    <p-datepicker
+      selectionMode="range"
+      dateFormat="yy-mm-dd"
+      [showIcon]="true"
+      [readonlyInput]="true"
+      placeholder="日期區間"
+      [ngModel]="dateRange"
+      (ngModelChange)="onRangeChange($event)"
+      ariaLabel="日期區間"
+    />
+    <p-select
+      [options]="campusOptions()"
+      optionLabel="label"
+      optionValue="value"
+      [ngModel]="campusId()"
+      (ngModelChange)="onCampusChange($event)"
+      ariaLabel="分校"
+    />
+    <p-select
+      [options]="courseOptions()"
+      optionLabel="label"
+      optionValue="value"
+      [filter]="true"
+      filterBy="label"
+      [ngModel]="courseId()"
+      (ngModelChange)="onCourseChange($event)"
+      ariaLabel="課程"
+    />
+    @if (hasFilters()) {
+      <p-button
+        label="清除篩選"
+        [text]="true"
+        size="small"
+        severity="secondary"
+        (onClick)="clearFilters()"
+      />
+    }
+  </div>
+
+  @if (loading()) {
+    <div class="skeleton-list">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
+  } @else if (failed()) {
+    <app-empty-state
+      icon="pi pi-exclamation-circle"
+      title="載入失敗"
+      description="沒有讀到營收資料，可能是連線問題"
+    >
+      <p-button label="重試" icon="pi pi-refresh" (onClick)="load()" />
+    </app-empty-state>
+  } @else {
+    <!--
+      退款單獨一張卡，不跟實收淨額混算 ——「收了 10 萬、退了 3 萬」與「收了 7 萬」
+      是兩個不同的經營訊號。
+    -->
+    <dl class="reports__summary">
+      <div class="reports__card">
+        <dt class="reports__card-label">實收</dt>
+        <dd class="reports__card-value">{{ summary()?.received ?? 0 | number }}</dd>
+        <span class="reports__card-hint">收款日落在區間內</span>
+      </div>
+      <div class="reports__card reports__card--refund">
+        <dt class="reports__card-label">退款</dt>
+        <dd class="reports__card-value">{{ summary()?.refunded ?? 0 | number }}</dd>
+        <span class="reports__card-hint">單獨列，未從實收扣除</span>
+      </div>
+      <div class="reports__card">
+        <dt class="reports__card-label">已開帳</dt>
+        <dd class="reports__card-value">{{ summary()?.billed ?? 0 | number }}</dd>
+        <span class="reports__card-hint">開帳日落在區間內</span>
+      </div>
+      <div class="reports__card reports__card--outstanding">
+        <dt class="reports__card-label">應收未收</dt>
+        <dd class="reports__card-value">{{ summary()?.outstanding ?? 0 | number }}</dd>
+        <span class="reports__card-hint">
+          其中逾期 {{ summary()?.overdueOutstanding ?? 0 | number }}
+        </span>
+      </div>
+    </dl>
+
+    <section class="reports__groups">
+      <div class="reports__groups-header">
+        <h2 class="reports__groups-title">分組統計</h2>
+        <p-selectbutton
+          [options]="groupByOptions"
+          optionLabel="label"
+          optionValue="value"
+          [allowEmpty]="false"
+          [ngModel]="groupBy()"
+          (ngModelChange)="onGroupByChange($event)"
+          ariaLabel="分組方式"
+        />
+      </div>
+
+      @if (groups().length === 0) {
+        <app-empty-state
+          icon="pi pi-chart-bar"
+          title="這段期間沒有資料"
+          description="換一個日期區間，或放寬分校與課程的篩選"
+        />
+      } @else {
+        <app-responsive-table [headTemplate]="groupHead" [bodyTemplate]="groupBody" />
+
+        <ng-template #groupHead>
+          <tr>
+            <th appRtColDef="key" [appRtColDefMinWidth]="140" [appRtColDefPriority]="1">
+              {{ groupColumnLabel() }}
+            </th>
+            <th appRtColDef="received" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">
+              實收
+            </th>
+            <th appRtColDef="refunded" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">
+              退款
+            </th>
+            <th appRtColDef="billed" [appRtColDefMinWidth]="110" [appRtColDefPriority]="2">
+              已開帳
+            </th>
+            <th appRtColDef="outstanding" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">
+              應收未收
+            </th>
+            <th appRtColDef="overdue" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
+              其中逾期
+            </th>
+          </tr>
+        </ng-template>
+
+        <ng-template #groupBody>
+          @for (group of groups(); track group.key) {
+            <tr appRtRow [appRtRow]="group" [appRtRowId]="group.key">
+              <td appRtColCell="key">
+                <span class="reports__group-key">{{ labelOf(group) }}</span>
+                @if (isAmbiguous(group)) {
+                  <!--
+                    模糊桶照實顯示。跨兩個分校的帳單只進這一組（不比例拆分、
+                    也不重複計入）—— 代價是多一列，換來小計永遠加得回總計。
+                  -->
+                  <i
+                    class="pi pi-info-circle reports__group-info"
+                    pTooltip="這一組是刻意的：跨多個分校/課程的帳單不做比例拆分也不重複計入，所以自成一組。沒有班的帳單（例如純餐費）歸「未分類」。這樣小計加起來才等於總計。"
+                    tooltipPosition="right"
+                  ></i>
+                }
+              </td>
+              <td appRtColCell="received">
+                <span class="reports__amount">{{ group.received | number }}</span>
+              </td>
+              <td appRtColCell="refunded">
+                <span class="reports__amount reports__amount--refund">
+                  {{ group.refunded | number }}
+                </span>
+              </td>
+              <td appRtColCell="billed">
+                <span class="reports__amount">{{ group.billed | number }}</span>
+              </td>
+              <td appRtColCell="outstanding">
+                <span class="reports__amount">{{ group.outstanding | number }}</span>
+              </td>
+              <td appRtColCell="overdue">
+                <span
+                  class="reports__amount"
+                  [class.reports__amount--overdue]="group.overdueOutstanding > 0"
+                >
+                  {{ group.overdueOutstanding | number }}
+                </span>
+              </td>
+            </tr>
+          }
+        </ng-template>
+      }
+    </section>
+  }
+</div>
