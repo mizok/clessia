@@ -7,11 +7,15 @@ import { MealsService, type MealBatchRow, type MealRosterRow } from '@core/meals
 import { BillingRunsService } from '@core/billing-runs.service';
 
 import { MealsComponent } from './meals.component';
+import { rosterToDraft } from './meals.util';
 
 const row = (overrides?: Partial<MealRosterRow>): MealRosterRow => ({
   studentId: 's1',
   studentName: '陳小明',
+  classNames: ['三年級數學'],
+  mealDate: '2026-08-30',
   mealDefault: true,
+  note: null,
   recordId: null,
   ordered: null,
   chargeable: null,
@@ -23,6 +27,14 @@ const row = (overrides?: Partial<MealRosterRow>): MealRosterRow => ({
 const roster = (rows: MealRosterRow[], defaultUnitPrice = 60) => ({
   data: rows,
   defaultUnitPrice,
+  meta: {
+    total: rows.length,
+    chargeableCount: 0,
+    totalAmount: 0,
+    settledCount: 0,
+    page: 1,
+    pageSize: 100,
+  },
 });
 
 describe('MealsComponent', () => {
@@ -31,6 +43,7 @@ describe('MealsComponent', () => {
 
   const meals = {
     roster: vi.fn((_date?: string) => of(roster([]))),
+    range: vi.fn((_params?: unknown) => of(roster([]))),
     batch: vi.fn((_date?: string, _rows?: MealBatchRow[]) =>
       of({ updated: 0, lockedStudentIds: [] as string[] }),
     ),
@@ -40,6 +53,7 @@ describe('MealsComponent', () => {
   beforeEach(async () => {
     meals.roster.mockReset().mockReturnValue(of(roster([])));
     meals.batch.mockReset().mockReturnValue(of({ updated: 0, lockedStudentIds: [] }));
+    meals.range.mockReset().mockReturnValue(of(roster([])));
 
     await TestBed.configureTestingModule({
       imports: [MealsComponent],
@@ -176,12 +190,14 @@ describe('MealsComponent', () => {
     });
   });
 
-  // 靜靜截斷會讓後面的學生沒有記錄而且沒有徵兆
-  it('超過後端一次的上限就擋住不送', async () => {
-    const many = Array.from({ length: 301 }, (_, i) => row({ studentId: `s${i}` }));
-    meals.roster.mockReturnValue(of(roster(many)));
-    component['load']();
-    await fixture.whenStable();
+  // 靜靜截斷會讓後面的學生沒有記錄而且沒有徵兆。
+  // **不經過 fixture.whenStable()**：渲染 301 列的 PrimeNG 輸入元件會爆堆疊，
+  // 而這裡要驗的是擋不擋得住，不是畫得出來。
+  it('超過後端一次的上限就擋住不送', () => {
+    const many = Array.from({ length: 301 }, (_, i) =>
+      row({ studentId: `s${i}`, studentName: `學生${i}` }),
+    );
+    component['rows'].set(rosterToDraft(many, 60));
     meals.batch.mockClear();
 
     expect(component['overBatchLimit']()).toBe(true);
@@ -226,6 +242,111 @@ describe('MealsComponent', () => {
       await fixture.whenStable();
 
       expect(component['totals']()).toEqual({ ordered: 2, chargeable: 1, amount: 60 });
+    });
+  });
+
+  describe('區間查詢', () => {
+    it('預設是當日模式，走 roster 不走 range', () => {
+      expect(meals.roster).toHaveBeenCalled();
+      expect(meals.range).not.toHaveBeenCalled();
+    });
+
+    it('切到區間模式改打 range', () => {
+      meals.roster.mockClear();
+
+      component['switchMode']('range');
+
+      expect(meals.range).toHaveBeenCalled();
+      expect(meals.roster).not.toHaveBeenCalled();
+    });
+
+    // 不帶區間後端會回 400
+    it('切到區間時自動給一個預設區間', () => {
+      component['switchMode']('range');
+
+      const params = meals.range.mock.calls[0][0] as { dateFrom: string; dateTo: string };
+      expect(params.dateFrom).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(params.dateTo).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
+    it('切回當日模式改打 roster', () => {
+      component['switchMode']('range');
+      meals.range.mockClear();
+
+      component['switchMode']('day');
+
+      expect(meals.roster).toHaveBeenCalled();
+      expect(meals.range).not.toHaveBeenCalled();
+    });
+
+    it('同一個模式再切一次不重打', () => {
+      meals.roster.mockClear();
+
+      component['switchMode']('day');
+
+      expect(meals.roster).not.toHaveBeenCalled();
+    });
+
+    // range 模式選第一個日期時 end 還是 null
+    it('區間只選了一半時不查', () => {
+      component['switchMode']('range');
+      meals.range.mockClear();
+
+      component['onRangeChange']([new Date('2026-08-01T00:00:00'), null as unknown as Date]);
+
+      expect(meals.range).not.toHaveBeenCalled();
+    });
+
+    // 區間的數字要取後端的 meta —— 前端手上只有當頁
+    it('分頁總數取後端的 meta.total 不是當頁長度', async () => {
+      meals.range.mockReturnValue(
+        of({
+          data: [row({ recordId: 'r1', ordered: true })],
+          defaultUnitPrice: 60,
+          meta: {
+            total: 412,
+            chargeableCount: 380,
+            totalAmount: 22800,
+            settledCount: 300,
+            page: 1,
+            pageSize: 50,
+          },
+        }),
+      );
+      component['switchMode']('range');
+      await fixture.whenStable();
+
+      expect(component['pagination']().totalRecords).toBe(412);
+      expect(component['summary']()?.totalAmount).toBe(22800);
+    });
+
+    it('取數失敗時把統計清掉，不留上一次的數字', async () => {
+      meals.range.mockReturnValue(throwError(() => new Error('boom')));
+      component['switchMode']('range');
+      await fixture.whenStable();
+
+      expect(component['summary']()).toBeNull();
+      expect(component['failed']()).toBe(true);
+    });
+  });
+
+  describe('備註', () => {
+    it('沒有備註時是空字串，不是字面上的 null', async () => {
+      meals.roster.mockReturnValue(of(roster([row({ recordId: 'r1', ordered: true, note: null })])));
+      component['load']();
+      await fixture.whenStable();
+
+      expect(component['rows']()[0].note).toBe('');
+    });
+
+    it('備註跟著送出', async () => {
+      meals.roster.mockReturnValue(of(roster([row({ recordId: 'r1', ordered: true, note: '素食' })])));
+      component['load']();
+      await fixture.whenStable();
+
+      component['save']();
+
+      expect(meals.batch.mock.calls[0][1]![0].note).toBe('素食');
     });
   });
 });

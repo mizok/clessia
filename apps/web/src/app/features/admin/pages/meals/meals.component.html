@@ -12,42 +12,89 @@
   </header>
 
   <div class="meals__toolbar clessia-filter-bar">
-    <p-datepicker
-      dateFormat="yy-mm-dd"
-      [showIcon]="true"
-      [ngModel]="date"
-      (ngModelChange)="onDateChange($event)"
-      ariaLabel="名單日期"
+    <p-selectbutton
+      [options]="modeOptions"
+      optionLabel="label"
+      optionValue="value"
+      [allowEmpty]="false"
+      [ngModel]="mode()"
+      (ngModelChange)="switchMode($event)"
+      ariaLabel="檢視模式"
     />
-    @if (!loading() && !failed() && rows().length > 0) {
-      <p-button
-        label="全部訂"
-        icon="pi pi-check-square"
-        [text]="true"
-        size="small"
-        severity="secondary"
-        (onClick)="setAllOrdered(true)"
+
+    @if (isRange()) {
+      <p-datepicker
+        selectionMode="range"
+        dateFormat="yy-mm-dd"
+        [showIcon]="true"
+        [readonlyInput]="true"
+        placeholder="日期區間"
+        [ngModel]="dateRange"
+        (ngModelChange)="onRangeChange($event)"
+        ariaLabel="日期區間"
       />
-      <p-button
-        label="全部不訂"
-        icon="pi pi-stop"
-        [text]="true"
-        size="small"
-        severity="secondary"
-        (onClick)="setAllOrdered(false)"
+      <div class="meals__search clessia-filter-search">
+        <app-student-autocomplete
+          [value]="student()"
+          (valueChange)="onStudentChange($event)"
+          [suggestions]="studentSuggestions()"
+          (queryChange)="onStudentQuery($event)"
+          placeholder="輸入學生姓名篩選"
+        />
+      </div>
+    } @else {
+      <p-datepicker
+        dateFormat="yy-mm-dd"
+        [showIcon]="true"
+        [ngModel]="date"
+        (ngModelChange)="onDateChange($event)"
+        ariaLabel="名單日期"
       />
+      @if (!loading() && !failed() && rows().length > 0) {
+        <p-button
+          label="全部訂"
+          icon="pi pi-check-square"
+          [text]="true"
+          size="small"
+          severity="secondary"
+          (onClick)="setAllOrdered(true)"
+        />
+        <p-button
+          label="全部不訂"
+          icon="pi pi-stop"
+          [text]="true"
+          size="small"
+          severity="secondary"
+          (onClick)="setAllOrdered(false)"
+        />
+      }
     }
   </div>
 
   @if (!loading() && !failed() && rows().length > 0) {
-    <p class="meals__summary">
-      訂 <strong>{{ totals().ordered }}</strong> 份，其中
-      <strong>{{ totals().chargeable }}</strong> 份要收費，合計
-      <strong>{{ totals().amount | number }}</strong> 元。
-      @if (settledCount() > 0) {
-        <span class="meals__summary-locked"> （{{ settledCount() }} 筆已結算，鎖住不能改） </span>
-      }
-    </p>
+    @if (isRange()) {
+      <!--
+        區間的數字**一律取後端的 meta** —— 它算的是整個區間，前端手上只有當頁。
+        totalAmount 問的是「這段期間吃了多少錢」，所以已結算的照樣算進去。
+      -->
+      <p class="meals__summary">
+        這段期間 <strong>{{ summary()?.total ?? 0 }}</strong> 筆餐記錄，其中
+        <strong>{{ summary()?.chargeableCount ?? 0 }}</strong> 筆要收費，合計
+        <strong>{{ summary()?.totalAmount ?? 0 | number }}</strong> 元
+        （含已結算的 {{ summary()?.settledCount ?? 0 }} 筆）。
+      </p>
+    } @else {
+      <p class="meals__summary">
+        訂 <strong>{{ totals().ordered }}</strong> 份，其中
+        <strong>{{ totals().chargeable }}</strong> 份要收費，合計
+        <strong>{{ totals().amount | number }}</strong> 元。
+        @if (settledCount() > 0) {
+          <span class="meals__summary-locked">
+            （{{ settledCount() }} 筆已結算，鎖住不能改）
+          </span>
+        }
+      </p>
+    }
   }
 
   <div class="meals__content">
@@ -72,16 +119,28 @@
         description="候選名單來自當天有課的班級 —— 這天可能沒有排課"
       />
     } @else {
-      <app-responsive-table [headTemplate]="mealHead" [bodyTemplate]="mealBody" />
+      <app-responsive-table
+        [headTemplate]="mealHead"
+        [bodyTemplate]="mealBody"
+        [pagination]="isRange() ? pagination() : null"
+        (page)="onPageChange($event)"
+      />
 
       <ng-template #mealHead>
         <tr>
+          @if (isRange()) {
+            <th appRtColDef="date" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">日期</th>
+          }
           <th appRtColDef="student" [appRtColDefMinWidth]="140" [appRtColDefPriority]="1">學生</th>
+          @if (!isRange()) {
+            <th appRtColDef="classes" [appRtColDefMinWidth]="140" [appRtColDefPriority]="4">班級</th>
+          }
           <th appRtColDef="ordered" [appRtColDefMinWidth]="80" [appRtColDefPriority]="1">訂餐</th>
           <th appRtColDef="price" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">單價</th>
           <th appRtColDef="chargeable" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
             收費
           </th>
+          <th appRtColDef="note" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">備註</th>
           <th appRtColDef="state" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">狀態</th>
         </tr>
       </ng-template>
@@ -89,13 +148,23 @@
       <ng-template #mealBody>
         @for (row of rows(); track row.studentId) {
           <tr appRtRow [appRtRow]="row" [appRtRowId]="row.studentId">
+            @if (isRange()) {
+              <td appRtColCell="date">
+                <span class="meals__date">{{ row.mealDate }}</span>
+              </td>
+            }
             <td appRtColCell="student">
               <span class="meals__student">{{ row.studentName }}</span>
             </td>
+            @if (!isRange()) {
+              <td appRtColCell="classes">
+                <span class="meals__classes">{{ row.classLabel }}</span>
+              </td>
+            }
             <td appRtColCell="ordered">
               <p-checkbox
                 [binary]="true"
-                [disabled]="row.settled"
+                [disabled]="row.settled || isRange()"
                 [ngModel]="row.ordered"
                 (ngModelChange)="updateRow(row.studentId, 'ordered', $event)"
                 [ariaLabel]="row.studentName + ' 訂餐'"
@@ -108,7 +177,7 @@
                 locale="zh-TW"
                 [min]="0"
                 [maxFractionDigits]="0"
-                [disabled]="row.settled || !row.ordered"
+                [disabled]="row.settled || !row.ordered || isRange()"
                 [ngModel]="row.unitPrice"
                 (ngModelChange)="updateRow(row.studentId, 'unitPrice', $event)"
                 [ariaLabel]="row.studentName + ' 的單價'"
@@ -116,10 +185,23 @@
             </td>
             <td appRtColCell="chargeable">
               <p-toggleswitch
-                [disabled]="row.settled || !row.ordered"
+                [disabled]="row.settled || !row.ordered || isRange()"
                 [ngModel]="row.chargeable"
                 (ngModelChange)="updateRow(row.studentId, 'chargeable', $event)"
                 [ariaLabel]="row.studentName + ' 收不收費'"
+              />
+            </td>
+            <td appRtColCell="note">
+              <input
+                type="text"
+                pInputText
+                maxlength="200"
+                placeholder="如：素食"
+                class="meals__note-input"
+                [disabled]="row.settled || isRange()"
+                [ngModel]="row.note"
+                (ngModelChange)="updateRow(row.studentId, 'note', $event)"
+                [attr.aria-label]="row.studentName + ' 的備註'"
               />
             </td>
             <td appRtColCell="state">
@@ -141,6 +223,7 @@
         }
       </ng-template>
 
+      @if (!isRange()) {
       <div class="meals__actions">
         <span class="meals__hint">
           「收不收費」是人工判斷 —— 便當送到了才請假要不要收，由你決定，系統不自動判斷。
@@ -154,7 +237,9 @@
         />
       </div>
 
-      @if (overBatchLimit()) {
+      }
+
+      @if (!isRange() && overBatchLimit()) {
         <p class="meals__notice">
           這天的候選名單超過後端一次能寫入的 {{ MEAL_BATCH_MAX_ROWS }} 筆上限。 請回報 ——
           這裡刻意擋住而不是只送前面幾筆，否則後面的學生會沒有記錄而且沒有徵兆。
