@@ -8,19 +8,7 @@
   margin: 0 auto;
   min-height: 100%;
 
-  &__header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: var(--space-4);
-    flex-wrap: wrap;
-  }
 
-  &__title-group {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
 
   &__title {
     margin: 0;
@@ -30,11 +18,6 @@
     line-height: var(--leading-tight);
   }
 
-  &__subtitle {
-    margin: 0;
-    font-size: var(--text-sm);
-    color: var(--zinc-500);
-  }
 
   &__toolbar {
     display: flex;
@@ -43,52 +26,16 @@
     flex-wrap: wrap;
   }
 
-  &__summary {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: var(--space-4);
-    margin: 0;
-  }
 
-  &__card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    padding: var(--space-4);
-    background: var(--color-white);
-    border: 1px solid var(--zinc-200);
-    border-radius: var(--radius-xl);
-  }
 
-  &__card-label {
-    font-size: var(--text-sm);
-    color: var(--zinc-500);
-  }
 
-  &__card-value {
-    margin: 0;
-    font-size: var(--text-2xl);
-    font-weight: var(--font-bold);
-    font-variant-numeric: tabular-nums;
-    color: var(--zinc-900);
-  }
 
-  &__card-hint {
-    font-size: var(--text-xs);
-    color: var(--zinc-500);
-  }
 
   // 退款與應收未收各自有顏色 —— 它們是不同性質的數字，不該跟實收長得一樣
-  &__card--refund &__card-value {
-    color: var(--warning-600);
-  }
 
   // accent 現在是品牌色，不再拿來強調數值 —— 它跟 --warning-600（退款卡）的
   // RGB 距離只有 34，兩個語意相反的數字會撞成同一色。中性的期望值用 zinc；
   // 負面訊號由「其中逾期」的 --error-600 管
-  &__card--outstanding &__card-value {
-    color: var(--zinc-900);
-  }
 
   &__groups {
     display: flex;
@@ -138,5 +85,188 @@
       color: var(--error-600);
       font-weight: var(--font-medium);
     }
+  }
+}
+
+/* =============================================================================
+   方向 D 的內部構圖：橘帶（錢的流向）+ 白工作面（分組明細）
+   ============================================================================= */
+
+.reports__lede {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-md);
+  color: var(--text-muted);
+  max-width: 64ch;
+}
+
+// 數字一律等寬，欄位才對得齊
+.reports__num {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-bold);
+}
+
+// ── 橘帶 ─────────────────────────────────────────────────────────────────────
+// 顏色吃 `--band-*`（#101 的共同 token），地板由 harness 的 band-contrast gate 把關。
+// **語意色不能疊在橘帶上** —— success / warning 在暖橘上讀不出來，它們只活在白面。
+.reports__band {
+  margin-top: var(--space-5);
+  padding: var(--space-6) var(--space-8) calc(var(--space-8) + var(--band-seam));
+  color: var(--band-ink);
+  background: var(--band-surface);
+  border-radius: var(--radius-xl);
+}
+
+.reports__band-cap {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  color: var(--band-ink-muted);
+}
+
+.reports__band-total {
+  margin: var(--space-1) 0 var(--space-5);
+  font-size: 44px;
+  font-weight: var(--font-bold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+
+// 用近黑外框定範圍、填色表狀態 —— 跟儀表板時間軸方塊同一個裝置。
+// 靠一層低透明度暗底當「還沒收到」的話，對橘帶只有 1.3:1，看不出這條在哪裡結束
+// （而那正是「應收未收」的長度）。
+.reports__flow {
+  position: relative;
+  height: 34px;
+  overflow: hidden;
+  background: rgb(255 240 234 / 55%);
+  border: 2px solid var(--band-ink);
+  border-radius: var(--radius-md);
+}
+
+.reports__flow-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--band-ink);
+}
+
+.reports__flow-overdue {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--band-ink) 0 5px,
+    transparent 5px 10px
+  );
+}
+
+.reports__flow-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  color: var(--band-ink-muted);
+  list-style: none;
+}
+
+.reports__flow-key {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.reports__flow-sw {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--band-ink);
+  border-radius: 3px;
+}
+
+.reports__flow-sw--fill {
+  background: var(--band-ink);
+}
+
+.reports__flow-sw--overdue {
+  background: repeating-linear-gradient(-45deg, var(--band-ink) 0 3px, transparent 3px 6px);
+}
+
+// 現金進出：一行註記，不是第五張卡。白工作面往上交扣進橘帶。
+.reports__cash {
+  position: relative;
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  margin: calc(var(--band-seam) * -1) 0 0;
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  color: var(--zinc-600);
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+}
+
+.reports__cash b {
+  color: var(--zinc-900);
+}
+
+.reports__cash-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--zinc-400);
+}
+
+// 每一列自帶收款比例 —— 表格因此有形狀，不必另外配圖表
+.reports__mini {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 140px;
+  height: 5px;
+  margin-top: 5px;
+  overflow: hidden;
+  background: var(--zinc-200);
+  border-radius: var(--radius-full);
+}
+
+.reports__mini-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  // 中性深色，不用 accent（#100：accent 是品牌色，退出數值強調）。
+  // 對軌道 zinc-200 是 9.5:1，遠高於圖形元素的 3:1。
+  background: var(--zinc-700);
+  border-radius: var(--radius-full);
+}
+
+// ── 手機：跟桌機一起設計，不是之後補 ─────────────────────────────────────────
+@media (max-width: 640px) {
+  .reports__band {
+    padding: var(--space-5) var(--space-4) calc(var(--space-5) + var(--band-seam));
+  }
+
+  .reports__band-total {
+    font-size: 32px;
+  }
+
+  .reports__flow {
+    height: 26px;
+  }
+
+  .reports__flow-keys {
+    gap: var(--space-1) var(--space-4);
+    font-size: var(--text-sm);
+  }
+
+  .reports__cash {
+    padding: var(--space-4);
+    font-size: var(--text-sm);
+  }
+
+  .reports__mini {
+    max-width: none;
   }
 }

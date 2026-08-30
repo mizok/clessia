@@ -29,7 +29,9 @@ import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-c
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 
-import { defaultRange, groupKeyLabel, isAmbiguousKey } from './reports.util';
+import { defaultRange, groupKeyLabel, isAmbiguousKey,
+  splitBilled,
+} from './reports.util';
 
 /**
  * 營收報表 —— 見 kb/wiki/specs/admin/finance/reports.md。
@@ -111,6 +113,21 @@ export class ReportsPage implements OnInit {
 
   /** 分組是不是切在「月份」—— 月份那欄的標題與格式不一樣 */
   protected readonly groupColumnLabel = computed(() => REVENUE_GROUP_BY_LABELS[this.groupBy()]);
+
+  /**
+   * 橘帶上那條流向的長度。用 `billed` / `outstanding` 這一組 ——
+   * `received` 看的是收款日、`billed` 看的是開帳日，兩者是**不同的集合**，
+   * 拿 `received / billed` 當收款率是在比不同母體（見 `splitBilled` 的說明）。
+   */
+  protected readonly billedSplit = computed(() => {
+    const s = this.summary();
+    return s ? splitBilled(s) : null;
+  });
+
+  /** 一列自己的收款比例。同樣只用 billed / outstanding 這一組。 */
+  protected collectedPctOf(group: RevenueGroup): number {
+    return splitBilled(group).collectedPct;
+  }
 
   protected readonly hasFilters = computed(
     () => this.campusId() !== null || this.courseId() !== null,

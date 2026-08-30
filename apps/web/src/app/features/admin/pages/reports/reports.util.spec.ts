@@ -1,4 +1,10 @@
-import { AMBIGUOUS_GROUP_KEYS, isAmbiguousKey, defaultRange, groupKeyLabel } from './reports.util';
+import {
+  AMBIGUOUS_GROUP_KEYS,
+  isAmbiguousKey,
+  defaultRange,
+  groupKeyLabel,
+  splitBilled,
+} from './reports.util';
 
 describe('isAmbiguousKey', () => {
   // 這三個字串是跟後端的契約（routes/reports.ts 的常數），寫在一個地方才改得動
@@ -65,5 +71,40 @@ describe('defaultRange', () => {
 
   it('跨年的一月也對', () => {
     expect(defaultRange('2027-01-15')).toEqual({ from: '2027-01-01', to: '2027-01-15' });
+  });
+});
+
+describe('splitBilled', () => {
+  it('已收回 + 未收 = 開帳', () => {
+    const s = splitBilled({ billed: 1000, outstanding: 250, overdueOutstanding: 100 });
+    expect(s.collected).toBe(750);
+    expect(s.collectedPct).toBe(75);
+    expect(s.overduePct).toBe(10);
+  });
+
+  it('沒有開帳時不畫任何段', () => {
+    expect(splitBilled({ billed: 0, outstanding: 0, overdueOutstanding: 0 })).toEqual({
+      collectedPct: 0,
+      overduePct: 0,
+      collected: 0,
+    });
+  });
+
+  // 溢繳會讓 outstanding 變負數，夾住才不會畫出超過 100% 的條
+  it('溢繳（outstanding 為負）時已收回不超過 100%', () => {
+    const s = splitBilled({ billed: 1000, outstanding: -200, overdueOutstanding: 0 });
+    expect(s.collectedPct).toBe(100);
+    expect(s.collected).toBe(1000);
+  });
+
+  it('逾期不會超過未收的部分', () => {
+    const s = splitBilled({ billed: 1000, outstanding: 100, overdueOutstanding: 400 });
+    expect(s.overduePct).toBe(10);
+  });
+
+  it('全部未收時已收回是 0', () => {
+    const s = splitBilled({ billed: 500, outstanding: 500, overdueOutstanding: 500 });
+    expect(s.collectedPct).toBe(0);
+    expect(s.overduePct).toBe(100);
   });
 });
