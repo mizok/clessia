@@ -47,3 +47,18 @@ worktree 裡開新分支**一律** `git fetch -p origin && git checkout -b feat/
 **絕對不要** `git checkout -B main` / `git reset --hard` 動本地 `main` —— `main` 是主 checkout
 擁有的共用 ref，從 worktree 移動它會讓主 checkout 的 HEAD 與 index 脫鉤，顯示成一批
 「回退已合併工作」的幽靈變更（已發生兩次，診斷見 reflog 2026-08-30）。
+
+## 疊 PR / squash 倉庫的兩條鐵律
+
+1. **「MERGED」只說明它合進了某個東西，沒說是 main**（#89 事故）。疊 PR 的下層合併後，
+   上層 base 立刻人工轉 main、下層分支即刪；合併後才推上去的 commit 會在已合併分支上擱淺，
+   永遠不會自己變成 PR（#105 事故 —— 手機版兩筆 commit 擱淺，#110 撿回）。
+2. **squash merge 之後，「commit 在不在 main」只能用內容判斷**（grep 關鍵字串），
+   `git merge-base --is-ancestor` 對原始 SHA 永遠回「不在」—— 它在 squash 倉庫裡
+   對這個問題永遠給錯的答案。
+
+## 全席通則（自 #108/#109 提煉）
+
+- **gate 寫完一定要塞陷阱看它會不會紅** —— 綠燈有兩種，輸出上一模一樣。
+- **規則寫進元件/測試比寫進文件便宜** —— 能用測試釘住的約定就不要只寫在 charter。
+- **charter 會腐化，接手時先驗一遍再信它**；寫進 charter 前先問「這是狀態還是知識」。
