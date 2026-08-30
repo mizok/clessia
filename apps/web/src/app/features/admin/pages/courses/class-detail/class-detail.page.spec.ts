@@ -95,7 +95,8 @@ describe('ClassDetailPage', () => {
   });
 
   it('shows grade chips in the hero summary block', () => {
-    const gradeChip = fixture.nativeElement.querySelector('.class-detail__hero-grade-chip');
+    // hero 併進橘帶之後 chip 改叫 __band-grade（同一個東西、同一個位置）
+    const gradeChip = fixture.nativeElement.querySelector('.class-detail__band-grade');
 
     expect(gradeChip?.textContent).toContain('國二');
   });

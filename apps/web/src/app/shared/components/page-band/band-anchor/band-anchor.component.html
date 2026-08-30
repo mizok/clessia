@@ -1,0 +1,9 @@
+<div class="band-anchor">
+  <p class="band-anchor__figure">
+    <span class="band-anchor__value">{{ value() }}</span>
+    @if (unit()) {
+      <span class="band-anchor__unit">{{ unit() }}</span>
+    }
+  </p>
+  <p class="band-anchor__sub"><ng-content /></p>
+</div>

@@ -1,0 +1,9 @@
+<div class="page-band">
+  @if (fieldDensity() > 0) {
+    <app-flow-field class="page-band__field" [frozen]="true" [density]="fieldDensity()" />
+  }
+  <div class="page-band__inner">
+    <div class="page-band__id"><ng-content /></div>
+    <div class="page-band__aside"><ng-content select="[bandAside]" /></div>
+  </div>
+</div>

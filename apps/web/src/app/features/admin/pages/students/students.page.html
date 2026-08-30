@@ -1,13 +1,25 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
 <div class="students">
-  <!-- Page Header -->
-  <header class="students__header">
-    <div class="students__title-group">
-      <h1 class="students__title">{{ page().label }}</h1>
-      <p class="students__subtitle">管理學生基本資料、家長關聯與學習紀錄</p>
+  <!-- 橘帶：這一頁的入口面。身分在左，錨點數字在右 -->
+  <app-page-band>
+    @if (page().group; as group) {
+      <p class="students__band-eyebrow">{{ group.label }}</p>
+    }
+    <h1 class="students__band-title">{{ page().label }}</h1>
+    <p class="students__band-sub">管理學生基本資料、家長關聯與學習紀錄</p>
+
+    <div bandAside>
+      @if (!loading() && students().length > 0) {
+        <app-band-anchor [value]="summary().total" unit="名學生">
+          在籍 <b>{{ activeStudentCount() }}</b>
+          @if (inactiveStudentCount() > 0) {
+            ・ 停用 <b>{{ inactiveStudentCount() }}</b>
+          }
+        </app-band-anchor>
+      }
     </div>
-  </header>
+  </app-page-band>
 
   <!-- Main Card -->
   <div class="students__card">
@@ -54,26 +66,6 @@
         />
       </div>
     </div>
-
-    <!-- Stats Summary -->
-    @if (!loading() && students().length > 0) {
-      <div class="students__stats">
-        <div class="students__stat">
-          <span class="students__stat-value">{{ summary().total }}</span>
-          <span class="students__stat-label">名學生</span>
-        </div>
-        <div class="students__stat">
-          <span class="students__stat-value">{{ activeStudentCount() }}</span>
-          <span class="students__stat-label">在籍中</span>
-        </div>
-        @if (inactiveStudentCount() > 0) {
-          <div class="students__stat">
-            <span class="students__stat-value">{{ inactiveStudentCount() }}</span>
-            <span class="students__stat-label">已停用</span>
-          </div>
-        }
-      </div>
-    }
 
     <!-- Content Area -->
     <div class="students__content">

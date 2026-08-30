@@ -41,6 +41,8 @@ import { RouteObj, RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { PageBandComponent } from '@shared/components/page-band/page-band.component';
+import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
@@ -52,6 +54,8 @@ import { StudentFormDialogComponent } from './student-form-dialog.component';
   selector: 'app-students',
   standalone: true,
   imports: [
+    PageBandComponent,
+    BandAnchorComponent,
     CommonModule,
     FormsModule,
     ButtonModule,
