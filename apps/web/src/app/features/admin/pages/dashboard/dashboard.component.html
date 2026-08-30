@@ -1,94 +1,152 @@
 <div class="dashboard">
-  <header class="dashboard__header">
-    <div>
-      <h1 class="dashboard__title">{{ page().label }}</h1>
-      <p class="dashboard__date">{{ today | date: 'yyyy/MM/dd' }}</p>
-    </div>
-  </header>
+  <h1 class="dashboard__title">{{ page().label }}</h1>
+  <p class="dashboard__lede">今天要處理什麼、今天會發生什麼。數字只是背景。</p>
 
-  <div class="dashboard__stats">
-    @for (card of cards(); track card.label) {
-      <a
-        class="dashboard__stat-card dashboard__stat-card--clickable"
-        [class.dashboard__stat-card--accent]="card.accent"
-        [routerLink]="card.routerLink"
-      >
-        <div class="dashboard__stat-icon">
-          <i class="pi {{ card.icon }}"></i>
-        </div>
-        <div class="dashboard__stat-body">
-          @if (card.value === null) {
-            <p class="dashboard__stat-value dashboard__stat-value--muted">載入中</p>
-          } @else if (card.value === 'error') {
-            <p class="dashboard__stat-value dashboard__stat-value--error">讀取失敗</p>
-          } @else {
-            <p class="dashboard__stat-value">{{ card.value }}</p>
-          }
-          <p class="dashboard__stat-label">{{ card.label }}</p>
-          @if (card.sub) {
-            <p class="dashboard__stat-sub">{{ card.sub }}</p>
-          }
-        </div>
-      </a>
+  <!--
+    橘帶：一句話 + 一張資訊圖，不是放大的數字卡。
+    白工作面靠 --band-seam 往上壓進帶裡，兩塊才會讀成一個構圖。
+  -->
+  <section class="dashboard__band">
+    <p class="dashboard__band-meta">{{ todayLabel }}</p>
+
+    @if (todayHeadline(); as head) {
+      @if (head.total === 0) {
+        <p class="dashboard__band-line">今天沒有排課。</p>
+      } @else if (head.untaken === 0) {
+        <p class="dashboard__band-line">今天 {{ head.total }} 堂課，全部點完了。</p>
+      } @else {
+        <p class="dashboard__band-line">
+          今天 {{ head.total }} 堂課，其中 {{ head.untaken }} 堂還沒點名。
+        </p>
+      }
+    } @else if (sessionsFailed()) {
+      <p class="dashboard__band-line">今日課表讀取失敗。</p>
+    } @else {
+      <p class="dashboard__band-line">載入中</p>
     }
+
+    <app-day-timeline [sessions]="todaySessionList()" [date]="todayKey" />
+  </section>
+
+  @if (todoCards().length > 0) {
+    <section class="dashboard__todo">
+      <h2 class="dashboard__h2 dashboard__h2--sr">待處理</h2>
+      <ul class="dashboard__todo-list">
+        @for (card of todoCards(); track card.label) {
+          <li>
+            <a class="dashboard__todo-row" [routerLink]="card.routerLink">
+              <span class="dashboard__todo-icon"><i class="pi {{ card.icon }}"></i></span>
+              <span class="dashboard__todo-value">
+                @if (card.value === null) {
+                  載入中
+                } @else if (card.value === 'error') {
+                  讀取失敗
+                } @else {
+                  {{ card.value }}
+                }
+              </span>
+              <span class="dashboard__todo-text">
+                <span class="dashboard__todo-label">{{ card.label }}</span>
+                @if (card.sub) {
+                  <span class="dashboard__todo-sub">{{ card.sub }}</span>
+                }
+              </span>
+              <span class="dashboard__todo-go">
+                前往 <i class="pi pi-arrow-right"></i>
+              </span>
+            </a>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  <div class="dashboard__cols">
+    <section class="dashboard__panel">
+      <div class="dashboard__panel-head">
+        <h2 class="dashboard__h2">今日課表</h2>
+        <a class="dashboard__panel-link" [routerLink]="['/admin/sessions']">
+          查看全部 <i class="pi pi-arrow-right"></i>
+        </a>
+      </div>
+
+      @if (sessionsFailed()) {
+        <p class="dashboard__empty">今日課表讀取失敗</p>
+      } @else if (todaySessionList().length === 0) {
+        <p class="dashboard__empty">今日尚無排課</p>
+      } @else {
+        <ul class="dashboard__spine">
+          @for (session of todaySessionList(); track session.eventId) {
+            <li class="dashboard__spine-row" [class.dashboard__spine-row--todo]="!session.takenAt">
+              <span class="dashboard__spine-time">{{ session.startTime }}</span>
+              <span class="dashboard__spine-body">
+                <span class="dashboard__spine-name">{{ session.className }}</span>
+                <span class="dashboard__spine-meta">
+                  {{ session.courseName }} · {{ session.teacherName }}
+                </span>
+              </span>
+              @if (session.takenAt) {
+                <p-tag value="已點名" severity="success" />
+              } @else {
+                <p-tag value="未點名" severity="warn" />
+              }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <aside class="dashboard__aside">
+      <section class="dashboard__panel">
+        <div class="dashboard__panel-head"><h2 class="dashboard__h2">現況</h2></div>
+        <ul class="dashboard__facts">
+          @for (card of factCards(); track card.label) {
+            <li>
+              <a class="dashboard__fact" [routerLink]="card.routerLink">
+                <span class="dashboard__fact-label">{{ card.label }}</span>
+                <span
+                  class="dashboard__fact-value"
+                  [class.dashboard__fact-value--zero]="card.value === 0"
+                >
+                  @if (card.value === null) {
+                    載入中
+                  } @else if (card.value === 'error') {
+                    讀取失敗
+                  } @else {
+                    {{ card.value }}
+                  }
+                </span>
+              </a>
+            </li>
+          }
+        </ul>
+      </section>
+
+      <section class="dashboard__panel">
+        <div class="dashboard__panel-head">
+          <h2 class="dashboard__h2">今日請假</h2>
+          <a class="dashboard__panel-link" [routerLink]="['/admin/leave']">
+            前往管理 <i class="pi pi-arrow-right"></i>
+          </a>
+        </div>
+
+        @if (leavesFailed()) {
+          <p class="dashboard__empty">今日請假讀取失敗</p>
+        } @else if (todayLeaveList().length === 0) {
+          <p class="dashboard__empty">今天沒有人請假</p>
+        } @else {
+          <ul class="dashboard__leaves">
+            @for (leave of todayLeaveList(); track leave.id) {
+              <li class="dashboard__leave">
+                <span>{{ leave.studentName }}</span>
+                @if (leave.reason) {
+                  <span class="dashboard__leave-reason">{{ leave.reason }}</span>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    </aside>
   </div>
-
-  <section class="dashboard__section">
-    <div class="dashboard__section-header">
-      <h2 class="dashboard__section-title">今日課表</h2>
-      <a class="dashboard__section-link" [routerLink]="['/admin/sessions']">查看全部 →</a>
-    </div>
-
-    @if (sessionsFailed()) {
-      <div class="dashboard__empty">
-        <i class="pi pi-exclamation-triangle dashboard__empty-icon"></i>
-        <p>今日課表讀取失敗</p>
-      </div>
-    } @else if (todaySessionList().length === 0) {
-      <div class="dashboard__empty">
-        <i class="pi pi-calendar dashboard__empty-icon"></i>
-        <p>今日尚無排課</p>
-      </div>
-    } @else {
-      <ul class="dashboard__session-list">
-        @for (session of todaySessionList(); track session.eventId) {
-          <li class="dashboard__session-item">
-            <span class="dashboard__session-time">{{ session.startTime }}</span>
-            <span class="dashboard__session-class">{{ session.className }}</span>
-            <span class="dashboard__session-teacher">{{ session.teacherName }}</span>
-            <span class="dashboard__session-campus">{{ session.campusName }}</span>
-            @if (session.takenAt) {
-              <p-tag value="已點名" severity="success" />
-            } @else {
-              <p-tag value="未點名" severity="warn" />
-            }
-          </li>
-        }
-      </ul>
-    }
-  </section>
-
-  <section class="dashboard__section">
-    <div class="dashboard__section-header">
-      <h2 class="dashboard__section-title">今日請假</h2>
-      <a class="dashboard__section-link" [routerLink]="['/admin/leave']">前往管理 →</a>
-    </div>
-
-    @if (leavesFailed()) {
-      <p class="dashboard__pending-empty">今日請假讀取失敗</p>
-    } @else if (todayLeaveList().length === 0) {
-      <p class="dashboard__pending-empty">今天沒有人請假</p>
-    } @else {
-      <ul class="dashboard__pending-list">
-        @for (leave of todayLeaveList(); track leave.id) {
-          <li class="dashboard__pending-item">
-            <span>{{ leave.studentName }}</span>
-            @if (leave.reason) {
-              <span class="dashboard__pending-class">{{ leave.reason }}</span>
-            }
-          </li>
-        }
-      </ul>
-    }
-  </section>
 </div>

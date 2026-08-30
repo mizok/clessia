@@ -1,0 +1,59 @@
+@if (hasBlocks()) {
+  <div class="day-timeline">
+    <div
+      class="day-timeline__track"
+      [style.height.px]="layout().lanes.length * 30 + 16"
+    >
+      <div class="day-timeline__rule"></div>
+
+      @if (nowPct(); as pct) {
+        <!-- 參考線而已，它的資訊（現在幾點）在別處都有 -->
+        <div class="day-timeline__now" [style.left.%]="pct" aria-hidden="true">
+          <span class="day-timeline__now-label">現在</span>
+        </div>
+      }
+
+      @for (lane of layout().lanes; track $index; let laneIndex = $index) {
+        @for (placed of lane; track placed.session.eventId) {
+          <span
+            class="day-timeline__block"
+            [class.day-timeline__block--taken]="isTaken(placed)"
+            [class.day-timeline__block--point]="placed.isPoint"
+            [style.left.%]="placed.leftPct"
+            [style.width.%]="placed.widthPct"
+            [style.top.px]="laneIndex * 30 + 6"
+            role="img"
+            [attr.aria-label]="describe(placed)"
+            [title]="describe(placed)"
+          ></span>
+        }
+      }
+    </div>
+
+    <ul class="day-timeline__ticks" aria-hidden="true">
+      @for (t of ticks(); track t) {
+        <li>{{ hour(t) }}</li>
+      }
+    </ul>
+
+    <p class="day-timeline__legend">
+      <span class="day-timeline__legend-item">
+        <i class="day-timeline__swatch day-timeline__swatch--taken"></i>
+        已點名 {{ summaryOf().taken }}
+      </span>
+      <span class="day-timeline__legend-item">
+        <i class="day-timeline__swatch"></i>
+        未點名 {{ summaryOf().untaken }}
+      </span>
+      @if (layout().unplaced.length > 0) {
+        <!--
+          畫不出來的要說出來，不是默默對齊 —— 上面那句話算的是總數，
+          軸上畫的只是有時間的那部分。兩個數字不一致時使用者要知道為什麼。
+        -->
+        <span class="day-timeline__legend-item">
+          另有 {{ layout().unplaced.length }} 堂未排定時間
+        </span>
+      }
+    </p>
+  </div>
+}

@@ -1,0 +1,100 @@
+// 這支元件住在橘帶上，所以顏色一律吃 `--band-*` —— 那組 token 的地板
+// （文字 0.78 / 非文字 0.58）由 harness 的 band-contrast gate 把關。
+// **不要在這裡用語意色**：success / warning 疊在暖橘上讀不出來，它們只活在白工作面。
+
+.day-timeline {
+  position: relative;
+}
+
+.day-timeline__track {
+  position: relative;
+}
+
+// 軸的基準線。用 --band-rule 而不是自己調一個低透明度 ——
+// 樣張階段這裡曾是 22% 的近黑，對橘帶只有 1.46:1，遠低於非文字的 3:1。
+.day-timeline__rule {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--band-rule);
+}
+
+.day-timeline__now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--band-ink);
+}
+
+.day-timeline__now-label {
+  position: absolute;
+  bottom: -18px;
+  left: 50%;
+  font-size: 10px;
+  font-weight: var(--font-bold);
+  color: var(--band-ink);
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+// 已點名是實心、未點名是中空。**識別靠外框（近黑實色），狀態靠內部深淺** ——
+// 內部那層淡色對橘帶只有 2.2:1，但它不需要獨立達標：方塊的存在由外框宣告，
+// 兩種狀態之間的對比則很高。
+.day-timeline__block {
+  position: absolute;
+  height: 22px;
+  border: 2px solid var(--band-ink);
+  border-radius: var(--radius-sm);
+  background: rgb(255 240 234 / 42%);
+}
+
+.day-timeline__block--taken {
+  background: var(--band-ink);
+}
+
+// 沒有結束時間的課：一個點，不是一段。給它預設時長等於憑空宣稱我們沒有的資訊。
+.day-timeline__block--point {
+  border-radius: var(--radius-full);
+}
+
+.day-timeline__ticks {
+  display: flex;
+  justify-content: space-between;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  font-size: 10px;
+  font-weight: var(--font-semibold);
+  // 時刻是文字不是裝飾 —— 用 muted token 而不是自己壓透明度
+  color: var(--band-ink-muted);
+  list-style: none;
+}
+
+.day-timeline__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--band-ink-muted);
+}
+
+.day-timeline__legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.day-timeline__swatch {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--band-ink);
+  border-radius: 3px;
+}
+
+.day-timeline__swatch--taken {
+  background: var(--band-ink);
+}
