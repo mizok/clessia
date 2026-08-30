@@ -135,10 +135,10 @@
     }
 
     &--warn {
-      color: var(--p-orange-600);
+      color: var(--warning-700);
 
       .pi {
-        color: var(--p-orange-500);
+        color: var(--warning-600);
       }
     }
   }
