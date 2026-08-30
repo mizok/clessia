@@ -2,7 +2,7 @@
 title: 一日時間軸元件（day-timeline）
 summary: 內部頁橘帶裡那條「今天」的資訊圖 —— 為什麼把排課畫成時間軸而不是再列一張表、佈局數學為什麼放在 pure util、以及 startTime/endTime 可為 null 這件事怎麼處理。
 category: architecture
-status: seedling
+status: active
 updated: 2026-08-30
 tags: [architecture, day-timeline, dashboard, direction-d]
 ---
@@ -12,8 +12,8 @@ tags: [architecture, day-timeline, dashboard, direction-d]
 方向 D 內部頁重構的共同裝置之一。橘帶（anchor）裡放的是「一句話 + 一張資訊圖」，
 儀表板那張圖就是這條時間軸。樣張見 scratchpad 的 `d-internal-mockups/interior-d.html`。
 
-> 這是**設計**，不是實作紀錄。待計畫席／使用者批准，且 design-web-2 的共同 token
-> PR 落地之後才寫產品碼。
+> 設計於 2026-08-30 批准（PR #99），共同 token 隨 #101 落地後實作。
+> 下面標「實作時修正」的段落是實作揭露的、與原設計不同的地方。
 
 ## 它取代什麼、回答什麼
 
@@ -54,9 +54,15 @@ tags: [architecture, day-timeline, dashboard, direction-d]
 兩個函式：
 
 ```
-deriveWindow(sessions, date) → { startHour, endHour }
-assignLanes(sessions)        → { lanes: PlacedSession[][], unplaced: EventSessionSummary[] }
+deriveWindow(sessions) → { startHour, endHour }
+layoutDay(sessions)    → { window, lanes: PlacedSession[][], unplaced: EventSessionSummary[] }
+nowMarkerPct(window, date, now) → number | null
+axisTicks(window)      → number[]
 ```
+
+> **實作時修正**：lane 分配沒有獨立成 `assignLanes`。視窗與位置換算是同一組數學
+> （lane 要知道百分比、百分比要知道視窗），拆成兩支會讓呼叫端自己串 —— 併成
+> `layoutDay` 一次回全部。`deriveWindow` 仍然單獨導出，因為它自己就有測試價值。
 
 ### `deriveWindow` —— 視窗要跟著資料長，但不會縮
 
@@ -67,7 +73,7 @@ assignLanes(sessions)        → { lanes: PlacedSession[][], unplaced: EventSess
 - 只有一堂晚上七點的課時，軸仍然是完整的一天 —— 不會變成「19:00–21:00」
   那種看起來排滿了的假象
 
-### `assignLanes` —— 同時段的課要並排，不能疊在一起
+### lane 分配 —— 同時段的課要並排，不能疊在一起
 
 補習班同一時段會有多間教室在上課。用貪婪區間分割：把課依開始時間排序，
 每一堂放進「最後一堂已經結束」的第一條 lane，沒有就開新的 lane。
@@ -107,9 +113,14 @@ assignLanes(sessions)        → { lanes: PlacedSession[][], unplaced: EventSess
 
 這是資料圖形，不是裝飾：
 
-- 每個方塊是連到該堂課的連結，accessible name 是
-  「09:00–11:00 自然班 C · 劉承恩 · 未點名」—— 滑鼠使用者看到的 tooltip 與
-  螢幕閱讀器聽到的是同一句
+- 每個方塊是**資料圖形而不是連結**（`role="img"` + `aria-label`），accessible name 是
+  「09:00–11:00 自然班 C · 劉承恩 · 未點名」—— 滑鼠看到的 tooltip 與螢幕閱讀器
+  聽到的是同一句。
+
+  > **實作時修正的設計**：這一段原本寫「每個方塊連到該堂課」。實作時確認點名是
+  > 從課堂清單開的 dialog、**沒有單堂路由**，連到清單頁會是個假的 affordance
+  > （看起來能點進那一堂，其實只到清單）。所以改成不可互動。
+
 - 「現在」標記是 `aria-hidden`（它的資訊已經在別處）
 - 整條軸上方的那句話（「今天 8 堂課，其中 6 堂還沒點名」）就是這張圖的文字替代，
   它本來就在，不需要另外寫 `aria-label` 重複一次
@@ -129,7 +140,15 @@ assignLanes(sessions)        → { lanes: PlacedSession[][], unplaced: EventSess
 - **不負責橘帶本身**（背景、內距、圓角是橘帶的事，由 design-web-2 的共同 token 提供）
 - **不做動畫**。內部是 Operate 模式，使用者在做事，不該等畫面演完
 
-## 待批准
+## 現況
 
-實作要等兩件事：計畫席／使用者對這份設計點頭，以及 design-web-2 的共同 token PR
-落地（橘帶的背景與間距要吃它的 token，不能我這邊自己再定一套）。
+已實作並接上管理端儀表板。`day-timeline.util.spec.ts` 28 條、
+`day-timeline.component.spec.ts` 9 條。
+
+util 的測試做過突變驗證（把 lane 分配退化成「只跟前一堂比」、讓視窗會縮、
+讓沒有開始時間的課默默消失），三種都被抓到 —— 第一次寫就全綠的測試不值得信，
+要先看它失敗過（見 [[lessons/awakened-tests-bite]]）。
+
+**第二個使用點還沒出現。** 這個抽象是為了「橘帶推到整個內部」而放在 `shared/`，
+但只有一個使用者的抽象還沒被驗證過。課堂管理接上去的時候才會知道
+`sessions` + `date` 這組介面夠不夠。

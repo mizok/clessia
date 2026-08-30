@@ -1,4 +1,3 @@
-import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -16,6 +15,7 @@ import { catchError, forkJoin, of, type Observable } from 'rxjs';
 
 import { AcademyExamsService } from '@core/academy-exams.service';
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
+import { DayTimelineComponent } from '@shared/components/day-timeline/day-timeline.component';
 import { AuthService } from '@core/auth.service';
 import { EnrollmentsService } from '@core/enrollments.service';
 import { LeaveService, type LeaveRequest } from '@core/leave.service';
@@ -36,7 +36,17 @@ interface StatCard {
   readonly icon: string;
   readonly routerLink: string;
   readonly accent?: boolean;
+  /**
+   * 這張卡是「今天要動作的事」還是「背景脈絡」。
+   *
+   * 舊版六張卡等權排成一列，所以「未點名 6」跟「在籍學生 27」長得一樣大 ——
+   * 但一個要動作、一個只是背景。分類讓構圖能把它們放到不同的地方：
+   * `todo` 進待處理區、其餘退到右側安靜的現況欄。
+   */
+  readonly kind: 'todo' | 'fact';
 }
+
+const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'] as const;
 
 const FAILED = 'error' as const;
 
@@ -54,7 +64,7 @@ const UNTAKEN_LOOKBACK_DAYS = 7;
 
 @Component({
   selector: 'app-dashboard',
-  imports: [DatePipe, RouterLink, TagModule],
+  imports: [RouterLink, TagModule, DayTimelineComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -76,6 +86,18 @@ export class DashboardComponent {
   private readonly todayIso = format(this.now, 'yyyy-MM-dd');
 
   protected readonly today = this.now;
+  /** 時間軸要的是本地日期字串。用 date-fns 的 format 而不是 toISOString ——
+      補習班的「今天」是本地的今天，UTC+8 的凌晨會差一天（既有 spec 踩過）。 */
+  protected readonly todayKey = format(this.now, 'yyyy-MM-dd');
+
+  /**
+   * 橘帶上的日期。**在這裡算而不是用 DatePipe 帶 locale** ——
+   * `registerLocaleData(localeZhTW)` 是在 `app.config.ts` 跑的，TestBed 不載它，
+   * 所以 `date: … : 'zh-TW'` 在測試環境會炸「Missing locale data」。
+   * 星期用自己的陣列，不依賴任何 locale 註冊。
+   */
+  protected readonly todayLabel =
+    `${format(this.now, 'yyyy 年 M 月 d 日')} · ${WEEKDAYS[this.now.getDay()]}`;
 
   private readonly todaySessions = signal<EventSessionSummary[] | 'error' | null>(null);
   private readonly recentSessions = signal<EventSessionSummary[] | 'error' | null>(null);
@@ -119,6 +141,7 @@ export class DashboardComponent {
   protected readonly cards = computed<StatCard[]>(() => {
     const cards: StatCard[] = [
       {
+        kind: 'fact',
         label: '今日課堂',
         value: countOf(this.todaySessions()),
         icon: 'pi-calendar',
@@ -129,6 +152,7 @@ export class DashboardComponent {
     const untaken = this.untaken();
     if (untaken !== 'hidden') {
       cards.push({
+        kind: 'todo',
         label: '未點名課堂',
         value: untaken,
         sub: `近 ${UNTAKEN_LOOKBACK_DAYS} 天`,
@@ -140,12 +164,14 @@ export class DashboardComponent {
 
     cards.push(
       {
+        kind: 'fact',
         label: '今日請假',
         value: countOf(this.todayLeaves()),
         icon: 'pi-file',
         routerLink: RoutesCatalog.ADMIN_LEAVE.absolutePath,
       },
       {
+        kind: 'todo',
         label: '成績待登錄',
         value: this.gradesTodo(),
         sub: '校內考 + 段考',
@@ -157,13 +183,15 @@ export class DashboardComponent {
     if (this.auth.hasPermission('view_reports')) {
       cards.push(
         {
-          label: '在籍學生',
+          kind: 'fact',
+        label: '在籍學生',
           value: this.activeStudents(),
           icon: 'pi-users',
           routerLink: RoutesCatalog.ADMIN_STUDENTS.absolutePath,
         },
         {
-          label: '本月報名異動',
+          kind: 'fact',
+        label: '本月報名異動',
           value: this.enrollmentChanges(),
           // meta.total 數的是「期間內有異動的報名記錄」，一筆當月插班又退班的報名在這裡是 1，
           // 在總覽頁的事件分類裡會是 joined + left 兩筆 —— 所以單位是「筆」，分項去那邊看
@@ -175,6 +203,23 @@ export class DashboardComponent {
     }
 
     return cards;
+  });
+
+  /** 待處理：只有真的要動作的才進來 */
+  protected readonly todoCards = computed(() => this.cards().filter((c) => c.kind === 'todo'));
+
+  /** 現況：背景脈絡，放右側安靜的窄欄 */
+  protected readonly factCards = computed(() => this.cards().filter((c) => c.kind === 'fact'));
+
+  /**
+   * 橘帶上那句話。**它算的是總數**，而時間軸只畫得出有時間的那部分 ——
+   * 兩者不一致時由時間軸自己說出來（「另有 N 堂未排定時間」），不在這裡對齊。
+   */
+  protected readonly todayHeadline = computed(() => {
+    const sessions = this.todaySessions();
+    if (sessions === null || sessions === FAILED) return null;
+    const untaken = sessions.filter((s) => s.takenAt === null).length;
+    return { total: sessions.length, untaken };
   });
 
   constructor() {

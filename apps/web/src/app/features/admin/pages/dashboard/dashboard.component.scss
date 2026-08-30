@@ -1,240 +1,353 @@
+@use 'shared/breakpoints' as bp;
+
+// 儀表板的脊椎是**時間**：橘帶說今天的形狀，待處理說今天要動什麼，
+// 課表脊椎說逐堂的細節，現況欄是背景。舊版六張等權的卡片沒有這條脊椎，
+// 所以「未點名 6」跟「在籍學生 27」長得一樣大。
+
 .dashboard {
+  padding: var(--space-6) var(--space-8) var(--space-10);
+}
+
+.dashboard__title {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.02em;
+  color: var(--zinc-900);
+}
+
+.dashboard__lede {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-md);
+  color: var(--text-muted);
+}
+
+// ─── 橘帶 ────────────────────────────────────────────────────────────────────
+// 顏色與間距全部吃 `--band-*`（design-web-2 在 #101 鑄的共同 token）。
+// 地板由 harness 的 band-contrast gate 把關，這裡不自己調透明度。
+.dashboard__band {
+  // 橘帶是構圖裡的固定錨，不是高度會跟著內容縮的區塊。沒有排課的日子
+  // （週末、連假）沒有時間軸，不給下限的話整條帶會塌成一條色帶。
+  min-height: 168px;
+  margin-top: var(--space-5);
+  padding: var(--space-6) var(--space-8) calc(var(--space-8) + var(--band-seam));
+  color: var(--band-ink);
+  background: var(--band-surface);
+  border-radius: var(--radius-xl);
+}
+
+.dashboard__band-meta {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  color: var(--band-ink-muted);
+}
+
+.dashboard__band-line {
+  max-width: 22ch;
+  margin: var(--space-2) 0 var(--space-6);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  line-height: 1.22;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+// ─── 待處理 ──────────────────────────────────────────────────────────────────
+// 白工作面往上壓進橘帶 `--band-seam` 的深度 —— 兩個矩形上下對齊會讀成
+// 「兩塊東西」，交扣才會讀成「一個構圖」。
+//
+// **往上壓的必須是真的白面**。第一版把整個 section（含標題）拉上去，
+// 而標題本身沒有底色，結果是黑字直接壓在橘帶上。所以拉的是卡片列表，
+// 標題改成只給輔助技術讀。
+.dashboard__todo {
+  position: relative;
+  margin-top: calc(var(--band-seam) * -1);
+}
+
+// 卡片自己會說話（圖示 + 數字 + 前往），視覺上不需要再一個「待處理」標籤；
+// 但地標語意要留給輔助技術。
+.dashboard__h2--sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.dashboard__h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.01em;
+  color: var(--zinc-900);
+}
+
+.dashboard__todo-list,
+.dashboard__spine,
+.dashboard__facts,
+.dashboard__leaves {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard__todo-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
-  padding: var(--space-5) var(--space-6);
+  gap: var(--space-2);
+}
 
-  &__header {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-  }
+.dashboard__todo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  text-decoration: none;
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 
-  &__title {
-    margin: 0 0 var(--space-1);
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--zinc-900);
-  }
-
-  &__date {
-    margin: 0;
-    font-size: 0.875rem;
-    color: var(--zinc-500);
-  }
-
-  // 卡片數量會隨模式與權限在 4 到 6 之間變動，所以不寫死欄數
-  &__stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: var(--space-4);
-  }
-
-  &__stat-card {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-3);
-    padding: var(--space-4) var(--space-5);
-    border: 1px solid var(--zinc-200);
-    border-radius: 12px;
-    background: #fff;
-    color: inherit;
-    text-decoration: none;
-    transition: box-shadow 150ms ease;
-
-    &--clickable {
-      cursor: pointer;
-
-      &:hover {
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-      }
-    }
-
-    &--accent {
-      border-color: var(--accent-200);
-      background: var(--accent-50);
-    }
-  }
-
-  &__stat-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-    border-radius: 10px;
-    background: var(--zinc-100);
-    color: var(--zinc-600);
-    font-size: 1rem;
-  }
-
-  &__stat-body {
-    flex: 1;
-    min-width: 0;
-  }
-
-  &__stat-value {
-    margin: 0 0 var(--space-1);
-    font-size: 1.5rem;
-    font-weight: 700;
-    line-height: 1;
-    color: var(--zinc-900);
-
-    // 載入中與讀取失敗是文字不是數字，用小一號字避免它們看起來像個數值
-    &--muted,
-    &--error {
-      font-size: 1rem;
-      font-weight: 600;
-    }
-
-    &--muted {
-      color: var(--zinc-400);
-    }
-
-    &--error {
-      color: var(--error-600);
-    }
-  }
-
-  &__stat-label {
-    margin: 0;
-    font-size: 0.8125rem;
-    color: var(--zinc-600);
-  }
-
-  &__stat-sub {
-    margin: var(--space-1) 0 0;
-    font-size: 0.75rem;
-    color: var(--zinc-400);
-  }
-
-  &__section {
-    padding: var(--space-4) var(--space-5);
-    border: 1px solid var(--zinc-200);
-    border-radius: 12px;
-    background: #fff;
-  }
-
-  &__section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    margin-bottom: var(--space-4);
-  }
-
-  &__section-title {
-    margin: 0;
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--zinc-800);
-  }
-
-  &__section-link {
-    font-size: 0.8125rem;
-    color: var(--accent-600);
-    text-decoration: none;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  }
-
-  &__session-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  &__session-item {
-    display: grid;
-    grid-template-columns: 80px 1fr 1fr 1fr auto;
-    gap: var(--space-3);
-    align-items: center;
-    padding: var(--space-3) var(--space-4);
-    border-radius: 8px;
-    background: var(--zinc-50);
-    font-size: 0.875rem;
-  }
-
-  &__session-time {
-    font-weight: 600;
-    color: var(--zinc-700);
-    font-variant-numeric: tabular-nums;
-  }
-
-  &__session-class {
-    font-weight: 500;
-    color: var(--zinc-800);
-  }
-
-  &__session-teacher,
-  &__session-campus {
-    color: var(--zinc-500);
-  }
-
-  &__pending-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  &__pending-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--zinc-100);
-    font-size: 0.875rem;
-
-    &:last-child {
-      border-bottom: none;
-    }
-  }
-
-  &__pending-class {
-    font-size: 0.8125rem;
-    color: var(--zinc-400);
-  }
-
-  &__pending-empty {
-    padding: var(--space-3) 0;
-    font-size: 0.875rem;
-    color: var(--zinc-400);
-  }
-
-  &__empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    padding: var(--space-6) 0;
-    color: var(--zinc-400);
-    font-size: 0.875rem;
-  }
-
-  &__empty-icon {
-    font-size: 1.5rem;
-    color: var(--zinc-300);
+  &:hover {
+    border-color: var(--accent-200);
+    box-shadow: 0 2px 10px -4px rgb(26 22 20 / 14%);
   }
 }
 
-@media (width <= 768px) {
-  .dashboard {
-    padding: var(--space-4);
+.dashboard__todo-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--accent-600);
+  background: var(--accent-50);
+  border-radius: var(--radius-md);
+}
 
-    &__session-item {
-      grid-template-columns: 1fr;
-      justify-items: start;
-    }
+// 待辦的數字是**要動作的量**，用中性深色。accent 是品牌色，不當數值強調（#100）。
+.dashboard__todo-value {
+  min-width: 1.5ch;
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--zinc-900);
+}
+
+.dashboard__todo-label {
+  display: block;
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--zinc-900);
+}
+
+.dashboard__todo-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.dashboard__todo-go {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-left: auto;
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  white-space: nowrap;
+  color: var(--accent-600);
+}
+
+// ─── 下半：課表脊椎 + 安靜的現況欄 ───────────────────────────────────────────
+.dashboard__cols {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: var(--space-5);
+  align-items: start;
+  margin-top: var(--space-6);
+}
+
+.dashboard__aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.dashboard__panel {
+  overflow: hidden;
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+}
+
+.dashboard__panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.dashboard__panel-link {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  font-size: var(--text-md);
+  font-weight: var(--font-semibold);
+  color: var(--accent-600);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+// 課表是有時間點的脊椎，不是又一張表格
+.dashboard__spine {
+  padding: var(--space-1) var(--space-5) var(--space-3);
+}
+
+.dashboard__spine-row {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-3) 0;
+
+  & + & {
+    border-top: 1px solid var(--zinc-100);
+  }
+}
+
+.dashboard__spine-time {
+  position: relative;
+  font-size: var(--text-md);
+  font-weight: var(--font-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--zinc-900);
+
+  // 時間點：未點名的是實心橘。這是**狀態**不是數值，accent 用在這裡是對的
+  &::after {
+    position: absolute;
+    top: 50%;
+    right: -8px;
+    width: 7px;
+    height: 7px;
+    content: '';
+    background: var(--surface-card);
+    border: 2px solid var(--zinc-300);
+    border-radius: var(--radius-full);
+    transform: translateY(-50%);
+  }
+}
+
+.dashboard__spine-row--todo .dashboard__spine-time::after {
+  background: var(--accent-500);
+  border-color: var(--accent-500);
+}
+
+.dashboard__spine-name {
+  display: block;
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  color: var(--zinc-900);
+}
+
+.dashboard__spine-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+// 現況：刻意安靜。它們不是今天要處理的事，是背景。
+.dashboard__facts {
+  padding: var(--space-1) var(--space-5) var(--space-3);
+}
+
+.dashboard__fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--space-3) 0;
+  text-decoration: none;
+
+  &:hover .dashboard__fact-label {
+    color: var(--zinc-900);
+  }
+}
+
+.dashboard__facts li + li .dashboard__fact {
+  border-top: 1px solid var(--zinc-100);
+}
+
+.dashboard__fact-label {
+  font-size: var(--text-md);
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+
+.dashboard__fact-value {
+  font-size: var(--text-xl);
+  font-weight: var(--font-bold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--zinc-900);
+}
+
+// 零不是壞消息也不是好消息，它只是沒有 —— 再降一階
+.dashboard__fact-value--zero {
+  font-weight: var(--font-semibold);
+  color: var(--zinc-400);
+}
+
+.dashboard__empty {
+  padding: var(--space-6) var(--space-5);
+  font-size: var(--text-md);
+  color: var(--zinc-400);
+  text-align: center;
+}
+
+.dashboard__leaves {
+  padding: var(--space-1) var(--space-5) var(--space-3);
+}
+
+.dashboard__leave {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: var(--space-3) 0;
+  font-size: var(--text-md);
+  color: var(--zinc-800);
+
+  & + & {
+    border-top: 1px solid var(--zinc-100);
+  }
+}
+
+.dashboard__leave-reason {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+@include bp.respond-to('tablet-landscape') {
+  .dashboard {
+    padding: var(--space-5) var(--space-4) var(--space-8);
+  }
+
+  .dashboard__cols {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard__band-line {
+    max-width: none;
+    font-size: var(--text-2xl);
   }
 }
