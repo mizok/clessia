@@ -1,0 +1,141 @@
+.billing-run {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+
+  &__header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-900);
+  }
+
+  &__hint {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  &__label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--zinc-600);
+  }
+
+  &__notice {
+    margin: 0;
+    padding: var(--space-3);
+    font-size: var(--text-xs);
+    line-height: var(--leading-relaxed);
+    color: var(--zinc-600);
+    background: var(--zinc-50);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-md);
+  }
+
+  &__result {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  &__stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5);
+    margin: 0;
+    padding: var(--space-4);
+    background: var(--zinc-50);
+    border-radius: var(--radius-lg);
+  }
+
+  &__stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  &__stat dt {
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+  }
+
+  &__stat dd {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    font-variant-numeric: tabular-nums;
+    color: var(--zinc-900);
+  }
+
+  // 對不上的金額是要人看的東西，用警示色而不是藏在灰色區塊裡
+  &__anomalies {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    background: var(--warning-100);
+    border-radius: var(--radius-lg);
+  }
+
+  &__anomalies-title {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--warning-600);
+  }
+
+  &__anomalies-hint {
+    margin: 0;
+    font-size: var(--text-xs);
+    line-height: var(--leading-relaxed);
+    color: var(--zinc-700);
+  }
+
+  &__anomaly-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__anomaly {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--text-xs);
+  }
+
+  &__anomaly-id {
+    // styles.scss 沒有 --font-mono，不要引用一個不存在的 token（坑 #9）
+    font-family: monospace;
+    color: var(--zinc-700);
+    word-break: break-all;
+  }
+
+  &__anomaly-detail {
+    color: var(--zinc-600);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+}

@@ -1,1 +1,165 @@
-<p>meals works!</p>
+<p-toast appendTo="body" [baseZIndex]="25000" />
+
+<div class="meals">
+  <header class="meals__header">
+    <div class="meals__title-group">
+      <h1 class="meals__title">{{ page().label }}</h1>
+      <p class="meals__subtitle">
+        每日勾選誰要訂餐，月底一次結算成帳單。有上課不一定訂餐 —— 課表只給候選名單。
+      </p>
+    </div>
+    <p-button label="月結" icon="pi pi-calculator" [outlined]="true" (onClick)="openBillingRun()" />
+  </header>
+
+  <div class="meals__toolbar clessia-filter-bar">
+    <p-datepicker
+      dateFormat="yy-mm-dd"
+      [showIcon]="true"
+      [ngModel]="date"
+      (ngModelChange)="onDateChange($event)"
+      ariaLabel="名單日期"
+    />
+    @if (!loading() && !failed() && rows().length > 0) {
+      <p-button
+        label="全部訂"
+        icon="pi pi-check-square"
+        [text]="true"
+        size="small"
+        severity="secondary"
+        (onClick)="setAllOrdered(true)"
+      />
+      <p-button
+        label="全部不訂"
+        icon="pi pi-stop"
+        [text]="true"
+        size="small"
+        severity="secondary"
+        (onClick)="setAllOrdered(false)"
+      />
+    }
+  </div>
+
+  @if (!loading() && !failed() && rows().length > 0) {
+    <p class="meals__summary">
+      訂 <strong>{{ totals().ordered }}</strong> 份，其中
+      <strong>{{ totals().chargeable }}</strong> 份要收費，合計
+      <strong>{{ totals().amount | number }}</strong> 元。
+      @if (settledCount() > 0) {
+        <span class="meals__summary-locked"> （{{ settledCount() }} 筆已結算，鎖住不能改） </span>
+      }
+    </p>
+  }
+
+  <div class="meals__content">
+    @if (loading()) {
+      <div class="skeleton-list">
+        @for (i of [1, 2, 3, 4, 5]; track i) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
+    } @else if (failed()) {
+      <app-empty-state
+        icon="pi pi-exclamation-circle"
+        title="載入失敗"
+        description="沒有讀到當天的名單，可能是連線問題"
+      >
+        <p-button label="重試" icon="pi pi-refresh" (onClick)="load()" />
+      </app-empty-state>
+    } @else if (rows().length === 0) {
+      <app-empty-state
+        icon="pi pi-calendar-times"
+        title="這天沒有候選名單"
+        description="候選名單來自當天有課的班級 —— 這天可能沒有排課"
+      />
+    } @else {
+      <app-responsive-table [headTemplate]="mealHead" [bodyTemplate]="mealBody" />
+
+      <ng-template #mealHead>
+        <tr>
+          <th appRtColDef="student" [appRtColDefMinWidth]="140" [appRtColDefPriority]="1">學生</th>
+          <th appRtColDef="ordered" [appRtColDefMinWidth]="80" [appRtColDefPriority]="1">訂餐</th>
+          <th appRtColDef="price" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">單價</th>
+          <th appRtColDef="chargeable" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
+            收費
+          </th>
+          <th appRtColDef="state" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">狀態</th>
+        </tr>
+      </ng-template>
+
+      <ng-template #mealBody>
+        @for (row of rows(); track row.studentId) {
+          <tr appRtRow [appRtRow]="row" [appRtRowId]="row.studentId">
+            <td appRtColCell="student">
+              <span class="meals__student">{{ row.studentName }}</span>
+            </td>
+            <td appRtColCell="ordered">
+              <p-checkbox
+                [binary]="true"
+                [disabled]="row.settled"
+                [ngModel]="row.ordered"
+                (ngModelChange)="updateRow(row.studentId, 'ordered', $event)"
+                [ariaLabel]="row.studentName + ' 訂餐'"
+              />
+            </td>
+            <td appRtColCell="price">
+              <p-inputnumber
+                mode="currency"
+                currency="TWD"
+                locale="zh-TW"
+                [min]="0"
+                [maxFractionDigits]="0"
+                [disabled]="row.settled || !row.ordered"
+                [ngModel]="row.unitPrice"
+                (ngModelChange)="updateRow(row.studentId, 'unitPrice', $event)"
+                [ariaLabel]="row.studentName + ' 的單價'"
+              />
+            </td>
+            <td appRtColCell="chargeable">
+              <p-toggleswitch
+                [disabled]="row.settled || !row.ordered"
+                [ngModel]="row.chargeable"
+                (ngModelChange)="updateRow(row.studentId, 'chargeable', $event)"
+                [ariaLabel]="row.studentName + ' 收不收費'"
+              />
+            </td>
+            <td appRtColCell="state">
+              @if (row.settled) {
+                <p-tag
+                  value="已結算"
+                  severity="secondary"
+                  icon="pi pi-lock"
+                  pTooltip="已經開進帳單。要改得走帳單作廢或下期調整"
+                  tooltipPosition="left"
+                />
+              } @else if (row.recordId === null) {
+                <p-tag value="未處理" severity="warn" />
+              } @else {
+                <p-tag value="已確認" severity="success" />
+              }
+            </td>
+          </tr>
+        }
+      </ng-template>
+
+      <div class="meals__actions">
+        <span class="meals__hint">
+          「收不收費」是人工判斷 —— 便當送到了才請假要不要收，由你決定，系統不自動判斷。
+        </span>
+        <p-button
+          label="確認名單"
+          icon="pi pi-save"
+          [loading]="saving()"
+          [disabled]="overBatchLimit()"
+          (onClick)="save()"
+        />
+      </div>
+
+      @if (overBatchLimit()) {
+        <p class="meals__notice">
+          這天的候選名單超過後端一次能寫入的 {{ MEAL_BATCH_MAX_ROWS }} 筆上限。 請回報 ——
+          這裡刻意擋住而不是只送前面幾筆，否則後面的學生會沒有記錄而且沒有徵兆。
+        </p>
+      }
+    }
+  </div>
+</div>
