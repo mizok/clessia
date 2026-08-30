@@ -46,6 +46,7 @@ import {
   type StudentActiveStatusFilter,
   type StudentViewFilterSnapshot,
 } from './student-view-filter-dialog/student-view-filter-dialog.component';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 
 const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel }> = GRADE_LEVELS.map((grade) => ({
   label: GRADE_LEVEL_LABELS[grade],
@@ -64,6 +65,7 @@ const PAGE_SIZE = 8;
   selector: 'app-student-view',
   standalone: true,
   imports: [
+    DataChipComponent,
     FormsModule,
     SelectModule,
     TagModule,

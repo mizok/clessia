@@ -58,7 +58,7 @@
                     <span class="class-scores-dialog__todo-date">{{
                       formatDate(exam.examDate)
                     }}</span>
-                    <p-tag [value]="getExamTypeLabel(exam.examType)" severity="secondary" />
+                    <app-data-chip>{{ getExamTypeLabel(exam.examType) }}</app-data-chip>
                   </div>
                   @if (exam.scopeNote) {
                     <p class="class-scores-dialog__todo-scope">{{ exam.scopeNote }}</p>

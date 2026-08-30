@@ -99,7 +99,7 @@
                 </span>
               }
               @for (cn of s.campusNames; track cn) {
-                <p-tag [value]="cn" severity="info" styleClass="student-view__row-campus" />
+                <app-data-chip>{{ cn }}</app-data-chip>
               }
             </div>
           </div>

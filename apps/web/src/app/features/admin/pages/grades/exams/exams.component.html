@@ -258,7 +258,7 @@
                 }
               </td>
               <td appRtColCell="kind">
-                <p-tag [value]="getKindLabel(row.kind)" [severity]="getKindSeverity(row.kind)" />
+                <app-data-chip>{{ getKindLabel(row.kind) }}</app-data-chip>
               </td>
               <td appRtColCell="date">
                 <span class="exams__date">{{ formatDate(row.examDate) }}</span>

@@ -18,6 +18,7 @@ import { TagModule } from 'primeng/tag';
 import { CampusesService, type Campus } from '@core/campuses.service';
 import { SessionsService, type ChangeLogEntry } from '@core/sessions.service';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 
 const PAGE_SIZE = 20;
 const MONTHS_BACK = 12;
@@ -33,7 +34,7 @@ const CHANGE_TYPE_LABELS: Record<string, string> = {
 
 @Component({
   selector: 'app-changes',
-  imports: [DatePipe, FormsModule, SelectModule, TagModule, PaginatorModule],
+  imports: [DataChipComponent, DatePipe, FormsModule, SelectModule, TagModule, PaginatorModule],
   templateUrl: './changes.component.html',
   styleUrl: './changes.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

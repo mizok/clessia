@@ -55,9 +55,9 @@
           <tr>
             <td>{{ row.createdAt | date: 'MM/dd HH:mm' }}</td>
             <td>
-              <p-tag [value]="typeLabel(row.changeType)" severity="secondary" />
+              <app-data-chip>{{ typeLabel(row.changeType) }}</app-data-chip>
               @if (row.isBatch) {
-                <p-tag value="批次" severity="info" styleClass="changes__batch" />
+                <app-data-chip>批次</app-data-chip>
               }
             </td>
             <td>

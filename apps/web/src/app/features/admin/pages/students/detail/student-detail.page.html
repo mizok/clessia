@@ -198,7 +198,7 @@
                 <div class="student-detail__parent-name-row">
                   <span class="student-detail__parent-name">{{ parent.name }}</span>
                   @if (parent.isPrimary) {
-                    <p-tag value="主要聯絡人" severity="info" />
+                    <app-data-chip>主要聯絡人</app-data-chip>
                   }
                   @if (parent.relation) {
                     <span class="student-detail__parent-relation">{{ parent.relation }}</span>
@@ -258,7 +258,7 @@
                 <div class="student-detail__enrollment-name-row">
                   <span class="student-detail__enrollment-class">{{ enrollment.className }}</span>
                   @if (enrollment.campusName) {
-                    <p-tag [value]="enrollment.campusName" severity="secondary" />
+                    <app-data-chip>{{ enrollment.campusName }}</app-data-chip>
                   }
                 </div>
                 <span class="student-detail__enrollment-course">{{ enrollment.courseName }}</span>

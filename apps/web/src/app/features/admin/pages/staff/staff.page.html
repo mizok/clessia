@@ -197,7 +197,7 @@
               <td appRtColCell="role">
                 <div class="staff-table__roles">
                   @for (role of staff.roles; track role) {
-                    <p-tag [value]="getRoleLabel(role)" [severity]="getRoleSeverity(role)" />
+                    <app-data-chip>{{ getRoleLabel(role) }}</app-data-chip>
                   }
                 </div>
               </td>
