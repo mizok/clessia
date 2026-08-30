@@ -14,6 +14,7 @@ import { formatGenerated } from './lib/format.mjs';
 import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import { matchWriteRules, routeHints } from './lib/rules.mjs';
+import { bandContrastViolations } from './lib/band-contrast.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 import routerRules from './rules/doc-router.rules.json' with { type: 'json' };
 import { compareToBaseline, failingSpecs } from './test-gate.mjs';
@@ -328,4 +329,55 @@ test('c2 跨行也要抓得到；讀取放行', () => {
     guard('apps/api/src/routes/x.ts', "await supabase.from('ba_user').select()"),
     [],
   );
+});
+
+// ── 橘帶對比地板 ─────────────────────────────────────────────────────────────────────────
+const bandCss = ({ ink = 'rgb(26 22 20 / 80%)', rule = 'rgb(26 22 20 / 60%)' } = {}) => `
+:root {
+  --zinc-900: #1a1614;
+  --accent-vivid: #ff6a3d;
+  --accent-vivid-2: #ff8557;
+  --band-ink-muted: ${ink};
+  --band-rule: ${rule};
+}
+`;
+
+test('橘帶地板：現行值（次要字 0.80、描邊 0.60）全部合格', () => {
+  assert.deepEqual(bandContrastViolations(bandCss()), []);
+});
+
+test('橘帶地板：次要字 0.72 掉出 AA，深端與亮端都要報', () => {
+  const found = bandContrastViolations(bandCss({ ink: 'rgb(26 22 20 / 72%)' }));
+  assert.equal(found.length, 2, '兩個漸層端各一則');
+  assert.ok(
+    found.every((m) => m.includes('--band-ink-muted') && m.includes('4.5:1')),
+    '訊息要指出是哪個 token、門檻是多少',
+  );
+  // 反直覺但實測如此：近黑降透明度壓在**深端**對比更低，不是亮端
+  assert.ok(found.some((m) => m.includes('--accent-vivid 上只有 4.00:1')));
+  assert.ok(found.some((m) => m.includes('--accent-vivid-2 上只有 4.43:1')));
+});
+
+test('橘帶地板：0.78 是文字的臨界點，剛好過', () => {
+  assert.deepEqual(bandContrastViolations(bandCss({ ink: 'rgb(26 22 20 / 78%)' })), []);
+  assert.equal(bandContrastViolations(bandCss({ ink: 'rgb(26 22 20 / 77%)' })).length, 1);
+});
+
+test('橘帶地板：描邊走 3:1 不是 4.5:1，所以 0.60 過而 0.34 不過', () => {
+  assert.deepEqual(bandContrastViolations(bandCss({ rule: 'rgb(26 22 20 / 60%)' })), []);
+  const found = bandContrastViolations(bandCss({ rule: 'rgb(26 22 20 / 34%)' }));
+  assert.equal(found.length, 2);
+  assert.ok(found.every((m) => m.includes('--band-rule') && m.includes('3:1')));
+});
+
+test('橘帶地板：近黑字跟 --zinc-900 脫鉤要擋（#97 的教訓）', () => {
+  const found = bandContrastViolations(bandCss({ ink: 'rgb(24 24 27 / 80%)' }));
+  assert.ok(
+    found.some((m) => m.includes('--band-ink-muted') && m.includes('--zinc-900')),
+    '硬編碼的三元組漂掉會讓橘帶留在上一代色系',
+  );
+});
+
+test('橘帶地板：token 還沒鑄進去的分支不該報錯', () => {
+  assert.deepEqual(bandContrastViolations(':root { --zinc-900: #1a1614; }'), []);
 });
