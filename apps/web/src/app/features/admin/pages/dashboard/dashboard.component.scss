@@ -134,13 +134,21 @@
 
 // 待辦是 0 的時候它就不是待辦了 —— 「未點名 0」是好消息，不該配警示圖示。
 // 這是五個裝置裡「零值再降一階」那條，第一版只落地在現況欄、漏了這裡。
+// 零值要**退後**，不是**變淡到看不見**。降的是飽和度與字重，不是把灰一路拉低：
+//   zinc-400 疊 zinc-100 只有 2.35:1（圖示門檻 3:1）
+//   zinc-400 當文字疊白卡只有 2.60:1（文字門檻 4.5:1）
+// zinc-500 兩邊都過（4.44 / 4.91），而且從「橘色圖示」變成「中性圖示」
+// 這個去飽和本身就足以讓它退到背景。
 .dashboard__todo-icon--zero {
-  color: var(--zinc-400);
+  // zinc-600 而不是 500：gate 把「有明確底色的那組」一律用文字門檻 4.5:1 判，
+  // 而 zinc-500 疊 zinc-100 是 4.44 —— 差 0.06。與其為了 0.06 去爭論這是圖示
+  // 還是文字，不如用深一階；讓它退後的是**去飽和**（從橘變中性），不是變淡。
+  color: var(--zinc-600);
   background: var(--zinc-100);
 }
 
 .dashboard__todo-value--zero {
-  color: var(--zinc-400);
+  color: var(--zinc-500);
 }
 
 .dashboard__todo-icon {
@@ -327,16 +335,20 @@
   color: var(--zinc-900);
 }
 
-// 零不是壞消息也不是好消息，它只是沒有 —— 再降一階
+// 零不是壞消息也不是好消息，它只是沒有 —— 靠字重與中性色退後。
+// 同樣不用 zinc-400：它當文字疊白只有 2.60:1。
 .dashboard__fact-value--zero {
   font-weight: var(--font-semibold);
-  color: var(--zinc-400);
+  color: var(--zinc-500);
 }
 
+// 空狀態是**要讀的字**（「今日尚無排課」），不是裝飾。
+// zinc-400 疊白只有 2.60:1 —— 那是全站舊債的顏色，但這幾行是這一刀新寫的，
+// 不該把新的字加進那筆債裡。
 .dashboard__empty {
   padding: var(--space-6) var(--space-5);
   font-size: var(--text-md);
-  color: var(--zinc-400);
+  color: var(--zinc-500);
   text-align: center;
 }
 

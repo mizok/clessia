@@ -76,12 +76,34 @@ different request`）。方向永遠是 per-request 建、請求結束收。
   授權的洞幾乎都長在「不確定的時候放行」上。
 - `*` 通吃，規則必須與 web 的 `auth.hasPermission()` 一致，否則會出現
   「畫面看得到、API 打不進去」。
+- **開放一個角色之前先問「這張表是誰的資料」，不要把同一套 scope 套上去。**
+  P3 開放成績給老師時，三支路由要三種處理：`academy_exams` 有 `created_by`（老師自建
+  的自己管）、`school_exams` 沒有 `created_by` 也沒有班級關聯（它是機構層目錄，老師
+  唯讀，但**成績照樣是老師登錄的**）、`scores` 依學生範圍。當時的設計文件寫「school-exams
+  唯讀」，實作時才發現那會把段考成績登錄整個擋掉 —— **STOP gate 通過不等於停止思考**。
+- **查詢參數可以繞過範圍。** 範圍算出一份 id 清單之後，使用者傳來的 `class_id` 之類的
+  篩選要跟它取**交集**，不能覆蓋 —— 覆蓋等於給了一個用參數跳出範圍的入口，而它看起來
+  完全像正常的篩選。
+- **加上 fail-closed 之後既有測試變紅，那是證據不是災難。** 紅的通常是「沒有宣告身分
+  的測試 context」，正確的修法是補上身分並註明那組測試的主題，不是放寬檢查。
 
 ### 資料細節
 
 - **postgrest 的 `numeric` 回來是字串。** mapper 一定要 `Number()`，不然前端加總會變
   字串串接。`agreedAmount` / `fee_templates.amount` 都是。
 - 金額用 `numeric(10,0)` —— 台幣沒有小數，整數存避免 `1000.00 vs 1000.0`。
+
+### 效能
+
+- **看到「空資料庫也慢」就別再找慢查詢。** 資料量無關的症狀要配資料量無關的原因：
+  冷啟動、連線建立、每請求的固定成本、CPU 競爭。
+- **fan-out 本身有成本，發生在任何 DB 工作之前。** 實測完全不碰 DB 的請求，並行 8 條時
+  TTFB 從 0.46s 惡化到 ~1.1s（2.4 倍）。完整量測見
+  [[lessons/workers-fanout-costs-before-the-db]]。
+- 量到能**分開兩件事**為止：「重用連線 vs 新連線」分出網路／TLS，「並行 vs 序列」分出
+  併發劣化。兩組對照就不用猜了。
+- **N+1 在空資料庫上是隱形的。** 課堂列表原本每堂各發兩支查詢，空 DB 時是 0 次額外
+  往返 —— 它不會出現在任何「空站很慢」的量測裡，但它隨資料線性成長。
 
 ## 慣例與模式
 
@@ -116,6 +138,15 @@ different request`）。方向永遠是 per-request 建、請求結束收。
 - 對應的 TS union 在 `utils/audit.ts`，**兩邊要一起改**否則 typecheck 紅。
 - 換欄位時**不留雙軌**：兩個欄位並存的代價是每個讀寫點都要決定「聽哪一個」，
   而那個決定會在不同檔案裡做出不同答案。
+
+### 「兩支各自綠、合起來紅」是一整類問題
+
+`audit_logs` 的 constraint（**先合併的不一定先執行** —— 判斷依據是時間戳）踩過一次；
+c8 的 allowlist 又踩了一次（清掉違規的 PR 對著較舊的 base 是綠的，合進 main 才不同步）。
+
+共同形狀：**gate 的結果同時取決於 main 的狀態與這支 PR 的改動**。這類 gate 至少有
+`audit_logs` constraint、`feature-map` 的 route 認領、c8/c6 的 allowlist。
+碰到它們的時候，「我的分支 CI 綠」不代表「合進去之後還綠」。
 
 ### plpgsql 與 seed 的坑（2026-08-29 db:reset 事故後補）
 
@@ -161,18 +192,29 @@ different request`）。方向永遠是 per-request 建、請求結束收。
   不要整個停下來等。
 - 回報用 SendMessage。**誠實回報驗證缺口**比宣稱全綠重要。
 
-## 現在的狀態（2026-08-29 —— 這節會過期，接手第一件事：重寫它）
+## 現在的狀態（2026-08-30 —— 這節會過期，接手第一件事：重寫它）
 
-- **#49（A1 計費地基）CI 綠、待合**。合併順序：使用者先合 #48（B 軌）→ 本席把 main
-  merge 進來、`audit_logs` 清單併入 `contact_book_entry` 與 `class_log` → 再合 #49。
-- **A2 / A3 待派**（金流軌後兩段）。
-- 改善清單（都不在 A1 範圍）：
-  1. `requirePermission` 鋪到既有路由（需先定映射表）
-  2. `ba_user` 寫入路徑收斂（c2 存量 + phone-only 家長改電話後合成 email 不同步、
-     管理員改與家長自己改兩條路徑對 `username` 處理不一致）
-  3. **hook-only clause 對存量零覆蓋** —— c2 / c3 / c7 / c8 目前都是「有 hook 沒有
-     gate」，enforcement 表上看起來卻是「✅ 已接」。c6 已於 #41 補上 gate A12，
-     那支可以當範本
-  4. web 的 CI 驗證面收斂（build 進 verify 序列或補 typecheck target）
-- **#46 合併後有一段手動 SQL** 要在 Supabase dashboard 跑（幫既有 bootstrap 管理員
-  補 staff 列）—— 使用者後來選擇整站重開（reset + 修正版 bootstrap），此項已無需執行。
+**金流後端整條已完成並合併**：A1 計費地基 → A2 帳單收款 → A3 餐務與月結 → 營收報表
+聚合 → CSV 匯出。P2 的後端到此全齊。
+
+**P3 進行中**：teacher specs 已重寫（`late` 幽靈與 `teacher_logs` 幽靈都斬掉了）；
+成績的 teacher-scope 與出勤補登窗的伺服器強制已完成（#106，已合）。老師端頁面由
+teacher-pages 席接。
+
+等使用者合：#107（CSV 匯出）、#111（課堂列表 N+1 批次化 + `/system-time` 路由）。
+
+改善清單（依價值排序）：
+
+1. **`DATABASE_URL` 用的是哪個 pooler** —— per-request 建池的模型下 transaction
+   pooler（6543）才合適。這是**部署設定不是程式碼**，但可能是儀表板慢的最大一塊。
+   使用者確認中
+2. **`ba_user` 寫入路徑收斂** —— c2 存量違規，加上 phone-only 家長改電話後合成 email
+   不同步、管理員改與家長自己改兩條路徑對 `username` 處理不一致
+3. **hook-only clause 對存量零覆蓋** —— c2 / c3 / c7 / c8 都是「有 hook 沒有 gate」，
+   enforcement 表上卻寫「✅ 已接」。c6 已於 #41 補上 gate A12，那支可以當範本
+4. **`requirePermission` 鋪到既有路由** —— 目前只有金流與報表掛了它，其餘 API 仍只有
+   角色層。需要先跟使用者定映射表
+5. `attendance` 的課堂列表在查詢**之前**會跑 `ensureAttendanceSessionEvents`，也就是
+   一個 GET 端點在讀之前做寫入。沒展開查過；pooler 換完仍慢的話這是下一個該看的
+6. 出勤補登窗的預設值（目前所有機構都是 `0` ＝ 無限制）要不要改成 7 天 —— 產品決定
+7. web 的 CI 驗證面收斂（build 進 verify 序列或補 typecheck target）
