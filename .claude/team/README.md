@@ -40,3 +40,10 @@
 開新席一律用 `herdr worktree open --workspace w2 --path <worktree> --label <席名>` ——
 它會在 clessia-plan 底下開成 worktree 連結的子 space。**不要用 `tab create` 硬湊**
 （已犯兩次：admin-pages、design-web-2 初開時）。然後 `herdr agent start <席名> --kind claude --pane <root_pane>`。
+
+## 開分支規範（2026-08-30 事故後新增）
+
+worktree 裡開新分支**一律** `git fetch -p origin && git checkout -b feat/x origin/main`，
+**絕對不要** `git checkout -B main` / `git reset --hard` 動本地 `main` —— `main` 是主 checkout
+擁有的共用 ref，從 worktree 移動它會讓主 checkout 的 HEAD 與 index 脫鉤，顯示成一批
+「回退已合併工作」的幽靈變更（已發生兩次，診斷見 reflog 2026-08-30）。
