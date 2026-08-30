@@ -31,6 +31,7 @@ import {
   type SubjectAverage,
 } from '@core/scores.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel, type Student } from '@core/students.service';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 
 type TypeFilter = 'all' | ScoreRecordType;
 type TimeRange = 'all' | '1m' | '3m' | '6m';
@@ -61,6 +62,7 @@ const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
   selector: 'app-student-score-detail-dialog',
   standalone: true,
   imports: [
+    DataChipComponent,
     FormsModule,
     EmptyStateComponent,
     InputTextModule,
@@ -185,10 +187,6 @@ export class StudentScoreDetailDialogComponent implements OnInit {
 
   protected getTypeLabel(type: ScoreRecordType): string {
     return type === 'academy' ? '補習班' : '學校考試';
-  }
-
-  protected getTypeSeverity(type: ScoreRecordType): 'info' | 'contrast' {
-    return type === 'academy' ? 'info' : 'contrast';
   }
 
   protected formatScore(score: number | null, totalScore: number | null): string {

@@ -147,10 +147,7 @@
                   </td>
                   <td class="student-score-detail-dialog__cell">{{ record.examName }}</td>
                   <td class="student-score-detail-dialog__cell">
-                    <p-tag
-                      [value]="getTypeLabel(record.type)"
-                      [severity]="getTypeSeverity(record.type)"
-                    />
+                    <app-data-chip>{{ getTypeLabel(record.type) }}</app-data-chip>
                   </td>
                   <td class="student-score-detail-dialog__cell">{{ record.subjectName ?? '—' }}</td>
                   <td
@@ -185,10 +182,7 @@
                     record.examName
                   }}</span>
                 </div>
-                <p-tag
-                  [value]="getTypeLabel(record.type)"
-                  [severity]="getTypeSeverity(record.type)"
-                />
+                <app-data-chip>{{ getTypeLabel(record.type) }}</app-data-chip>
               </div>
               <div class="student-score-detail-dialog__record-grid">
                 <div class="student-score-detail-dialog__record-field">
