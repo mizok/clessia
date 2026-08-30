@@ -181,7 +181,15 @@ const AREAS = [
     routes: ['fee-templates', 'billing-periods', 'invoices'],
     specs: ['admin/finance/payments.md', 'admin/finance/fee-templates.md', 'parent/payments.md'],
   },
-  { name: '報表', pages: ['admin/reports'], routes: [], specs: ['admin/finance/reports.md'] },
+  {
+    // `routes` 有值但頁面還沒接上 —— 狀態不會因此變好看：`wired` 是看頁面有沒有
+    // import domain service（:380），`admin/reports` 目前沒有，所以照樣是 🚧 空殼。
+    // 認領它只是讓「這支 API 屬於哪一區」有答案，不是宣稱連線存在。
+    name: '報表',
+    pages: ['admin/reports'],
+    routes: ['reports'],
+    specs: ['admin/finance/reports.md'],
+  },
   {
     name: '通知',
     pages: ['admin/notifications', 'teacher/notifications', 'parent/notifications'],
