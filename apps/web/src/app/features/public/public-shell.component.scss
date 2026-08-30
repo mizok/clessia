@@ -97,25 +97,6 @@
     opacity: 0.78;
   }
 
-  &__features {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-    list-style: none;
-  }
-
-  &__feature {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    font-size: var(--text-md);
-    color: var(--zinc-300);
-
-    i {
-      color: var(--accent-400);
-      font-size: 18px;
-    }
-  }
 
   // 一排輕量連結，靠底部。品牌在上、入口在下，中間留給流場。
   &__links {
@@ -163,87 +144,15 @@
     opacity: 0.62;
   }
 
-  // 從 `hamburgers` 套件移植過來的三線圖示。整包 21.8 kB 全域 CSS 提供 13 種動畫，
-  // 這裡只用得到 squeeze 一種，而且只有這一個使用點 —— 內聯之後它跟著這支
-  // lazy 元件走，不再壓在初始 bundle 上。幾何數值沿用套件原值（layer 40×4、間距 10），
-  // 曲線也照抄，視覺與先前一致。
-  &__hamburger {
-    display: none;
-    padding: 15px;
-    margin: 0;
-    overflow: visible;
-    font: inherit;
-    color: inherit;
-    text-transform: none;
-    cursor: pointer;
-    background-color: transparent;
-    border: 0;
-    transition:
-      opacity 0.15s linear,
-      filter 0.15s linear;
-
-    &:hover {
-      opacity: 0.7;
-    }
-  }
-
-  &__hamburger-box {
-    position: relative;
-    display: inline-block;
-    width: 40px;
-    height: 24px;
-  }
-
-  &__hamburger-inner {
-    top: 50%;
-    display: block;
-    margin-top: -2px;
-    transition-duration: 75ms;
-    transition-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
-
-    &,
-    &::before,
-    &::after {
-      position: absolute;
-      width: 40px;
-      height: 4px;
-      background-color: var(--zinc-900);
-      border-radius: var(--radius-sm);
-      transition-property: transform;
-      transition-duration: 0.15s;
-      transition-timing-function: ease;
-    }
-
-    &::before,
-    &::after {
-      display: block;
-      content: '';
-    }
-
-    &::before {
-      top: -10px;
-      transition:
-        top 75ms ease 0.12s,
-        opacity 75ms ease;
-    }
-
-    &::after {
-      bottom: -10px;
-      transition:
-        bottom 75ms ease 0.12s,
-        transform 75ms cubic-bezier(0.55, 0.055, 0.675, 0.19);
-    }
-  }
-
-  /* Mobile sidebar + overlay - hidden on desktop */
-  &__overlay,
-  &__sidebar {
-    display: none;
-  }
-
   &__main {
     display: flex;
-    align-items: center; // Vertical centering
+    // **不是 `center`。** 內容比容器高的時候 flex 置中會往上下**雙向**溢出，
+    // 而這一格只能往下捲 —— 溢到上緣外的那段就永遠拿不回來了。
+    // 實測（1280x780 塞一份 12 欄位的表單）：標題跑到 y=-182。
+    // `stretch` 讓子層拿到滿高，垂直置中改由頁面自己負責
+    // （`.login` 的 host 本來就是 `min-height: 100%` 加置中），
+    // 短內容看起來一模一樣，長內容則正常往下長。
+    align-items: stretch;
     justify-content: center;
     height: var(--window-height, 100dvh);
     padding: var(--space-10);
@@ -265,8 +174,17 @@
   flex: 1;
   display: flex !important;
   flex-direction: column;
-  align-items: center; // Standard centered logic
-  justify-content: center; // Standard centered logic
+  // 這是 column flex，所以 `align-items` 管的是**水平**：置中是對的（表單有 max-width）。
+  align-items: center;
+  // 但垂直方向**不能用 `justify-content: center`**。內容比容器高的時候它會往上下
+  // 雙向溢出，而外層只能往下捲 —— 溢到上緣外的那段就永遠拿不回來。
+  // 實測（1280x780 塞一份 12 欄位的表單）：標題跑到 y=-182。
+  //
+  // 改成 flex-start 不會失去登入頁的置中：子層拿到 `flex: 1 1 auto`
+  // （`.u-fill-route-child`），在 column 裡等於長滿高度，而頁面自己的 host
+  // （`.login` 是 `min-height: 100%` + 置中）負責把內容擺中間。
+  // 短內容看起來一模一樣，長內容則正常往下長。
+  justify-content: flex-start;
   width: 100%;
   min-height: 100%;
 }
@@ -275,42 +193,45 @@
      Responsive
      ============================================================================= */
 @include bp.respond-to('tablet-landscape') {
+  // 手機不是「把二分構圖壓扁」，而是**同一個構圖契約的直向版**：
+  // 品牌面在上（字標在頂、入口連結貼底、中間留給流場）、白面在下承載表單。
+  //
+  // 之前這裡是把品牌面壓成 40px 的黏頂細條 —— 那讓流場變成一條 390×40 的
+  // 碎線（4.7% 視窗高，讀起來像壞掉而不是像場），字標只剩 13px，
+  // 而表單在剩下的整個視窗裡置中，於是帶與標題之間空出 302px 的純空白。
   .public-shell {
     grid-template-columns: 1fr;
-    height: auto;
-    min-height: var(--window-height, 100dvh);
-    overflow: visible;
-
-    /* Push-content: entire page shifts right when menu opens */
-    position: relative;
-    background: var(--zinc-50);
-    transition: transform 0.3s ease;
-
-    &--menu-open {
-      transform: translateX(280px);
-    }
+    grid-template-rows: auto 1fr;
+    // **捲動容器是這一層，不是內層的 main。** 這一條決定了報名／試聽那種
+    // 長表單頁能不能用：
+    //
+    //   內層 main 自捲 → 品牌帶永遠釘在畫面上佔掉 36%，表單被關在剩下的
+    //                    64% 裡捲，表單越長越難用
+    //   這一層自捲     → 往下捲時品牌帶跟著捲走，表單拿到整個螢幕高度；
+    //                    登入頁內容短、不觸發捲動，構圖完全不受影響
+    //
+    // 為什麼不乾脆讓文件捲：html / body 是 `height: 100%; overflow: hidden`
+    // 的固定視窗 shell 架構（admin 全站都靠它），改它的波及面遠超過這一刀。
+    // 在那個前提下，「最外層那個滿一屏的容器自己捲」就是等價的做法。
+    overflow-y: auto;
+    background: var(--color-white);
 
     &__brand {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      height: auto;
-      padding: var(--space-2) var(--space-4);
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-      overflow: visible;
-
-      &::before,
-      &::after {
-        display: none;
-      }
+      // 不再黏頂 —— 它是構圖的一半，不是導航列
+      position: static;
+      // 比例制：固定值在 iPhone SE（667）上會吃掉表單，
+      // 在大螢幕手機上又撐不出流場需要的面積
+      height: calc(var(--window-height, 720px) * 0.36);
+      min-height: 232px;
+      max-height: 330px;
+      padding: var(--space-6) var(--space-5) var(--space-5);
+      overflow: hidden;
     }
 
-    &__brand-content {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
+    // 那層由上往下的遮罩是為了讓桌機「內容側」的流線壓下去。
+    // 直向構圖沒有內容側，遮掉只會讓本來就不大的品牌面更空。
+    &__brand::after {
+      display: none;
     }
 
     &__logo {
@@ -318,134 +239,63 @@
     }
 
     &__logo-text {
+      font-size: 32px;
+    }
+
+    &__tagline {
+      margin: var(--space-3) 0 0;
       font-size: var(--text-md);
     }
 
-    &__tagline,
-    &__slogan,
-    &__features,
-    &__links,
+    // 帶高有限，標語讓位給流場 —— 品牌名與入口是必要的，標語不是
+    &__slogan {
+      display: none;
+    }
+
+    // 入口連結留在品牌面底部，跟桌機同一個位置關係。
+    // 4 個連結藏進漢堡抽屜要多一次點擊、多一層狀態、多一份重複的字標，
+    // 而它們攤開來只佔一行半。
+    &__links {
+      margin-bottom: 0;
+      gap: var(--space-2) var(--space-4);
+    }
+
     &__copyright {
       display: none;
     }
 
-    &__hamburger {
-      display: flex;
-      z-index: 12;
-      padding: 0;
-      transform: scale(0.5);
-    }
+    // 手機橫放（844x390 之類的矮視窗）也會落進這個斷點：36% 算出來只有 140px，
+    // 被 min-height 撐回 232px 就吃掉六成畫面，表單只剩 158px 的捲動框。
+    // 矮視窗改成內容高的品牌列 —— 流場還在，但不再喧賓奪主。
+    @media (max-height: 560px) {
+      &__brand {
+        height: auto;
+        min-height: 0;
+        padding: var(--space-4) var(--space-5);
+      }
 
-    // 線條在深色側欄上要反白 —— 基礎色（zinc-400）由 block 層定義，這裡只翻轉。
-    // 橘面上的線條用近黑：白線對亮橘只有 2.85:1，低於圖形元素要求的 3:1
-    &__hamburger:hover &__hamburger-inner,
-    &__hamburger--active &__hamburger-inner {
-      &,
-      &::before,
-      &::after {
-        background-color: var(--zinc-900);
+      &__logo-text {
+        font-size: var(--text-xl);
+      }
+
+      // 橫放時每一列都珍貴，標語先讓位
+      &__tagline {
+        display: none;
       }
     }
 
-    /* Overlay on shifted content */
-    &__overlay {
-      display: block;
-      position: fixed;
-      inset: 0;
-      z-index: 20;
-      background: rgb(0 0 0 / 0%);
-      pointer-events: none;
-      transition: background 0.3s ease;
-
-      &--open {
-        pointer-events: auto;
-        background: rgb(0 0 0 / 30%);
-      }
+    &__main {
+      // 桌機的 `height: var(--window-height)` 在二分構圖下是對的（兩欄各自滿高），
+      // 直向堆疊時卻讓它整整溢出一個品牌帶的高度 —— 表單因此被推到摺線以下。
+      // 高度交給 grid 的 `1fr`：內容短時填滿剩餘一屏，內容長時往下長。
+      height: auto;
+      // **不要設 min-height: 0。** grid 的 `1fr` 軌道有一個「自動最小值」，
+      // 那正是它在內容變高時跟著長高的機制；設成 0 等於把它關掉，
+      // 於是軌道卡在一屏、長表單直接溢出。
+      padding: var(--space-6) var(--space-5);
+      // 不自己捲 —— 捲動屬於外層的 .public-shell（見上面的註解）
+      overflow: visible;
     }
 
-    /* Sidebar */
-    &__sidebar {
-      display: flex;
-      flex-direction: column;
-      position: absolute;
-      top: 0;
-      left: -280px;
-      width: 280px;
-      min-height: var(--window-height, 100dvh);
-      padding: var(--space-4);
-      // 抽屜浮在內容上，用白底而不是橘 —— 橘是「品牌面」的語言，
-      // 覆蓋式面板需要的是清楚，不是宣示。
-      color: var(--zinc-900);
-      background: var(--color-white);
-      box-shadow: 0 0 40px rgb(26 22 20 / 18%);
-    }
-
-    &__sidebar-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: var(--space-6);
-    }
-
-    // Contextual Override: Logo inside Sidebar Header
-    &__sidebar-header &__logo {
-      margin-bottom: 0;
-      color: var(--zinc-900);
-    }
-
-    &__sidebar-header &__logo-text {
-      font-size: var(--text-lg);
-    }
-
-    &__sidebar-close {
-      width: 32px;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--zinc-500);
-      font-size: 18px;
-      border-radius: var(--radius-md);
-      transition:
-        color var(--transition-fast),
-        background var(--transition-fast);
-
-      &:hover {
-        color: var(--zinc-900);
-        background: var(--zinc-100);
-      }
-    }
-
-    &__sidebar-link {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      padding: var(--space-3) var(--space-4);
-      font-size: var(--text-md);
-      color: var(--zinc-600);
-      text-decoration: none;
-      border-radius: var(--radius-md);
-      margin-bottom: var(--space-1);
-      transition:
-        color var(--transition-fast),
-        background var(--transition-fast);
-
-      i {
-        font-size: 18px;
-        width: 20px;
-        text-align: center;
-      }
-
-      &:hover {
-        color: var(--zinc-900);
-        background: var(--zinc-100);
-      }
-
-      &--active {
-        color: var(--accent-600);
-        background: var(--accent-50);
-        font-weight: var(--font-semibold);
-      }
-    }
   }
 }

@@ -1,5 +1,5 @@
-<section class="public-shell" [class.public-shell--menu-open]="menuOpen()">
-  <!-- Brand Panel (Left Side) -->
+<section class="public-shell">
+  <!-- 品牌面：桌機在左，手機在上。字標在頂、入口貼底、中間留給流場 -->
   <aside class="public-shell__brand">
     <app-flow-field [density]="0.8" [speed]="1" />
 
@@ -30,55 +30,9 @@
 
     <p class="public-shell__copyright">&copy; 2025 Clessia Academy</p>
 
-    <!-- Mobile hamburger -->
-    <button
-      class="public-shell__hamburger"
-      [class.public-shell__hamburger--active]="menuOpen()"
-      type="button"
-      aria-label="開啟選單"
-      (click)="toggleMenu()"
-    >
-      <span class="public-shell__hamburger-box">
-        <span class="public-shell__hamburger-inner"></span>
-      </span>
-    </button>
   </aside>
 
-  <!-- Mobile sidebar overlay -->
-  <div
-    class="public-shell__overlay"
-    [class.public-shell__overlay--open]="menuOpen()"
-    (click)="toggleMenu()"
-  ></div>
-
-  <!-- Mobile sidebar -->
-  <nav class="public-shell__sidebar" [class.public-shell__sidebar--open]="menuOpen()">
-    <div class="public-shell__sidebar-header">
-      <a class="public-shell__logo" routerLink="/login" (click)="toggleMenu()">
-        <span class="public-shell__logo-text">Clessia</span>
-      </a>
-      <button class="public-shell__sidebar-close" (click)="toggleMenu()">
-        <i class="pi pi-times"></i>
-      </button>
-    </div>
-
-    @for (item of publicRoutes; track item.absolutePath) {
-      <a
-        class="public-shell__sidebar-link"
-        [routerLink]="item.absolutePath"
-        routerLinkActive="public-shell__sidebar-link--active"
-        [routerLinkActiveOptions]="
-          item.absolutePath === '/login' ? { exact: true } : { exact: false }
-        "
-        (click)="toggleMenu()"
-      >
-        <i class="pi {{ item.icon }}"></i>
-        <span>{{ item.label }}</span>
-      </a>
-    }
-  </nav>
-
-  <!-- Content Panel (Right Side) -->
+  <!-- 白面：承載表單 -->
   <main class="public-shell__main">
     <div class="shell-route-wrapper u-fill-route-child">
       <router-outlet />

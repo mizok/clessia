@@ -65,3 +65,6 @@ npx nx run-many -t typecheck && npx nx run-many -t test
 
 同一個家族的另一種假綠：[[lessons/awakened-tests-bite]] —— 那裡的測試不是「在別的
 環境會紅」，而是**根本沒跑到那行**，所以綠得毫無意義，直到一次機械重構把它接上電。
+
+還有一種更安靜的假綠：[[lessons/merged-does-not-mean-main]] —— PR 頁面顯示
+MERGED、CI 全綠，但那份工作合進的是一條死分支，`main` 上根本沒有它。

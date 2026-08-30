@@ -15,6 +15,7 @@
 | -------------------------------- | ---------------------- | ------------------------------------------------ | ------------- |
 | [billing-api.md](billing-api.md) | 金流/API/auth 核心     | schema、Hono 路由、Better Auth、Workers 執行環境 | `billing-api` |
 | [design-web.md](design-web.md)   | 視覺/設計系統/web 效能 | tokens、SCSS、bundle、mockup、登入與公開頁       | `design-web`  |
+| （共用 design-web.md）           | 視覺/設計系統/web 效能 | design-web 的第二席，同 charter，分工由計畫席派  | `design-web-2` |
 | [admin-pages.md](admin-pages.md) | 管理端頁面             | admin feature 頁、dialog、表格、儀表板           | `admin-pages` |
 | [infra.md](infra.md)             | CI/harness/依賴/工具債 | verify 序列、gate、憲法 enforcement、升版        | `infra`       |
 
@@ -33,3 +34,9 @@
 - 開工前：`git fetch` 從最新 origin/main 開分支；worktree 內 root 與 apps/api 各 `npm ci`
 - 憲法（`kb/wiki/architecture/constitution.md`）與 AGENTS.md 永遠先讀
 - 設計裁決回計畫席，不自行擴範圍；「刻意的判斷」與「需要人工看的點」寫進 PR
+
+## 開席操作（herdr）
+
+開新席一律用 `herdr worktree open --workspace w2 --path <worktree> --label <席名>` ——
+它會在 clessia-plan 底下開成 worktree 連結的子 space。**不要用 `tab create` 硬湊**
+（已犯兩次：admin-pages、design-web-2 初開時）。然後 `herdr agent start <席名> --kind claude --pane <root_pane>`。
