@@ -3,7 +3,7 @@ title: 課表（我的課表）
 summary: 查看自己任課的課堂，進入課堂詳情。
 category: spec
 status: active
-updated: 2026-02-13
+updated: 2026-08-30
 tags: [specs, teacher, schedule]
 ---
 
@@ -21,7 +21,17 @@ tags: [specs, teacher, schedule]
 ### 視圖設計
 
 - **桌面版**：左側小型月曆 + 右側課堂列表
-- **手機版**：頂部月曆選擇器（可收合）+ 課堂列表
+- **手機版（2026-08-30 裁決）：單日檢視 + 左右滑動換日**
+
+> **老師端幾乎只在手機上用**（roadmap），所以手機版不是降級版而是主要形態。
+>
+> **現況是壞的**：實作成了 `grid-template-columns: repeat(7, 1fr)` 配
+> `min-width: 120px`（`schedule.page.scss`）—— 7 欄 × 120px = **至少 840px**，
+> 375px 的螢幕上老師的主畫面必須橫向捲動才看得完一週。`overflow-x: auto` 讓它
+> 不爆版，但那是「不壞掉」不是「好用」。
+>
+> 老師端四頁的 SCSS **目前沒有任何一個 media query**，而全 app 有 39 個檔案在用
+> `respond-to`（admin 佔 30）—— 慣例是成熟的，只是這裡從來沒採用。
 
 ### 月曆區塊
 
@@ -45,7 +55,7 @@ tags: [specs, teacher, schedule]
 
 ### 圖例說明
 
-- ● 待處理：聯絡簿未填或成績未登錄
+- ● 待處理：聯絡簿未填或成績未登錄（聯絡簿那半用 `GET /api/contact-book/missing`）
 - [有小考] 該課堂有安排考試
 - [代課] 代課課堂
 - 灰底 = 已停課
@@ -64,8 +74,8 @@ tags: [specs, teacher, schedule]
 
 | 操作 | 資料表                                                                                                                                                          |
 | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 讀取 | `sessions`, `classes`, `teacher_logs`, `academy_exams`, `school_exams`, `academy_scores`, `school_scores`, `schedule_changes`, `attendance_records`, `students` |
-| 寫入 | `attendance_records`（僅當天）, `teacher_logs`, `academy_exams`, `school_exams`                                                                                 |
+| 讀取 | `sessions`, `classes`, `class_logs`, `academy_exams`, `school_exams`, `academy_scores`, `school_scores`, `schedule_changes`, `attendance_records`, `students` |
+| 寫入 | `attendance_records`（僅當天）, `class_logs`, `academy_exams`, `school_exams`                                                                                 |
 
 ## PRD 參考
 

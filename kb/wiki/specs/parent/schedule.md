@@ -3,7 +3,7 @@ title: 課表查看
 summary: 查看孩子的課表和課堂詳情。
 category: spec
 status: active
-updated: 2026-02-13
+updated: 2026-08-30
 tags: [specs, parent, schedule]
 ---
 
@@ -54,7 +54,7 @@ tags: [specs, parent, schedule]
 
 | 操作 | 資料表                                                                                                                                   |
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| 讀取 | `sessions`, `enrollments`, `classes`, `staff`, `schedule_changes`, `attendance_records`, `teacher_logs`, `academy_exams`, `school_exams` |
+| 讀取 | `sessions`, `enrollments`, `classes`, `staff`, `schedule_changes`, `attendance_records`, `class_logs`, `academy_exams`, `school_exams` |
 
 ## PRD 參考
 

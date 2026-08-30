@@ -3,7 +3,7 @@ title: 通知中心（老師）
 summary: 查看課務異動通知。
 category: spec
 status: active
-updated: 2026-02-13
+updated: 2026-08-30
 tags: [specs, teacher, notifications]
 ---
 

@@ -3,7 +3,7 @@ title: 課程日曆
 summary: 以日曆視圖查看全校課堂，快速進入課堂詳情。
 category: spec
 status: active
-updated: 2026-08-19
+updated: 2026-08-30
 tags: [specs, admin, calendar]
 ---
 
@@ -55,10 +55,10 @@ tags: [specs, admin, calendar]
 
 ## 資料依賴
 
-| 操作 | 資料表                                                                                   |
-| ---- | ---------------------------------------------------------------------------------------- |
-| 讀取 | `sessions`, `classes`, `staff`, `schedule_changes`, `attendance_records`, `teacher_logs` |
-| 寫入 | `attendance_records`, `leave_requests`, `schedule_changes`                               |
+| 操作 | 資料表                                                                                 |
+| ---- | -------------------------------------------------------------------------------------- |
+| 讀取 | `sessions`, `classes`, `staff`, `schedule_changes`, `attendance_records`, `class_logs` |
+| 寫入 | `attendance_records`, `leave_requests`, `schedule_changes`                             |
 
 ## PRD 參考
 

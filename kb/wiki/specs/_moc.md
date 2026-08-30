@@ -298,6 +298,8 @@ Links to: [[architecture/teacher-students-view]]
 
 Tags: `specs`, `teacher`, `dashboard`
 
+Links to: [[specs/teacher/assessments]]
+
 ## [[specs/teacher/notifications|通知中心（老師）]]
 
 查看課務異動通知。
@@ -315,4 +317,6 @@ Tags: `specs`, `teacher`, `schedule`
 查看自己任課班級的學生名單。
 
 Tags: `specs`, `teacher`, `students`
+
+Links to: [[specs/teacher/attendance]]
 
