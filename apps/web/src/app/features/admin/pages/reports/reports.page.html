@@ -1,14 +1,10 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
 <div class="reports">
-  <header class="reports__header">
-    <div class="reports__title-group">
-      <h1 class="reports__title">{{ page().label }}</h1>
-      <p class="reports__subtitle">
-        錢進來多少、還有多少沒收到。所有數字都由後端聚合 —— 不是抓明細加總出來的。
-      </p>
-    </div>
-  </header>
+  <h1 class="reports__title">{{ page().label }}</h1>
+  <p class="reports__lede">
+    錢進來多少、還有多少沒收到。所有數字都由後端聚合，不是抓明細加總出來的。
+  </p>
 
   <div class="reports__toolbar clessia-filter-bar">
     <p-datepicker
@@ -69,30 +65,58 @@
       退款單獨一張卡，不跟實收淨額混算 ——「收了 10 萬、退了 3 萬」與「收了 7 萬」
       是兩個不同的經營訊號。
     -->
-    <dl class="reports__summary">
-      <div class="reports__card">
-        <dt class="reports__card-label">實收</dt>
-        <dd class="reports__card-value">{{ summary()?.received ?? 0 | number }}</dd>
-        <span class="reports__card-hint">收款日落在區間內</span>
-      </div>
-      <div class="reports__card reports__card--refund">
-        <dt class="reports__card-label">退款</dt>
-        <dd class="reports__card-value">{{ summary()?.refunded ?? 0 | number }}</dd>
-        <span class="reports__card-hint">單獨列，未從實收扣除</span>
-      </div>
-      <div class="reports__card">
-        <dt class="reports__card-label">已開帳</dt>
-        <dd class="reports__card-value">{{ summary()?.billed ?? 0 | number }}</dd>
-        <span class="reports__card-hint">開帳日落在區間內</span>
-      </div>
-      <div class="reports__card reports__card--outstanding">
-        <dt class="reports__card-label">應收未收</dt>
-        <dd class="reports__card-value">{{ summary()?.outstanding ?? 0 | number }}</dd>
-        <span class="reports__card-hint">
-          其中逾期 {{ summary()?.overdueOutstanding ?? 0 | number }}
-        </span>
-      </div>
-    </dl>
+    <!--
+      橘帶：開帳這筆錢的組成。四個金額原本是四張一樣的卡，看不出它們是同一筆錢
+      的不同狀態；畫成一條之後「還有多少沒收到」是長度，不用心算。
+
+      只用 billed / outstanding 這一組 —— received 看收款日、billed 看開帳日，
+      是不同的集合，放進同一條會在比不同母體。
+    -->
+    <section class="reports__band">
+      <p class="reports__band-cap">這段期間開帳</p>
+      <p class="reports__band-total">{{ summary()?.billed ?? 0 | number }}</p>
+
+      @if (billedSplit(); as split) {
+        <div class="reports__flow">
+          <span class="reports__flow-fill" [style.width.%]="split.collectedPct"></span>
+          <span
+            class="reports__flow-overdue"
+            [style.left.%]="split.collectedPct"
+            [style.width.%]="split.overduePct"
+          ></span>
+        </div>
+
+        <ul class="reports__flow-keys">
+          <li class="reports__flow-key">
+            <i class="reports__flow-sw reports__flow-sw--fill"></i>
+            已收回 <b class="reports__num">{{ split.collected | number }}</b>
+          </li>
+          <li class="reports__flow-key">
+            <i class="reports__flow-sw reports__flow-sw--rest"></i>
+            應收未收 <b class="reports__num">{{ summary()?.outstanding ?? 0 | number }}</b>
+          </li>
+          <li class="reports__flow-key">
+            <i class="reports__flow-sw reports__flow-sw--overdue"></i>
+            其中逾期
+            <b class="reports__num">{{ summary()?.overdueOutstanding ?? 0 | number }}</b>
+          </li>
+        </ul>
+      }
+    </section>
+
+    <!--
+      實收與退款是**現金的進出**，看的是收款日 —— 跟上面那條開帳的區間是不同的
+      集合，所以它們不進那條流向，也不是第五張卡。退款單獨列、不從實收扣除：
+      「收了 100 萬、退了 3.6 萬」與「收了 96.4 萬」是兩個不同的經營訊號。
+    -->
+    <p class="reports__cash">
+      <i class="pi pi-info-circle reports__cash-icon"></i>
+      <span>
+        這段期間實收 <b class="reports__num">{{ summary()?.received ?? 0 | number }}</b>、
+        退款 <b class="reports__num">{{ summary()?.refunded ?? 0 | number }}</b>（單獨列，未從實收扣除）。
+        收款看收款日，與上面的開帳區間是不同的集合。
+      </span>
+    </p>
 
     <section class="reports__groups">
       <div class="reports__groups-header">
@@ -119,22 +143,37 @@
 
         <ng-template #groupHead>
           <tr>
-            <th appRtColDef="key" [appRtColDefMinWidth]="140" [appRtColDefPriority]="1">
+            <!--
+              這一欄是每一列的**身分**，不可摺疊。窄螢幕上它原本會因為 minWidth
+              最大而被優先丟掉，結果是一張沒有標籤的數字表 —— 看不出哪一列是
+              哪個分校。priority 只排順序，不保證留下來，要的是 collapsible。
+            -->
+            <th
+              appRtColDef="key"
+              [appRtColDefMinWidth]="100"
+              [appRtColDefPriority]="1"
+              [appRtColDefCollapsible]="false"
+            >
               {{ groupColumnLabel() }}
             </th>
-            <th appRtColDef="received" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">
+            <th appRtColDef="received" [appRtColDefMinWidth]="110" [appRtColDefPriority]="3">
               實收
             </th>
-            <th appRtColDef="refunded" [appRtColDefMinWidth]="100" [appRtColDefPriority]="3">
+            <th appRtColDef="refunded" [appRtColDefMinWidth]="100" [appRtColDefPriority]="6">
               退款
             </th>
-            <th appRtColDef="billed" [appRtColDefMinWidth]="110" [appRtColDefPriority]="2">
+            <th appRtColDef="billed" [appRtColDefMinWidth]="110" [appRtColDefPriority]="4">
               已開帳
             </th>
-            <th appRtColDef="outstanding" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">
+            <!--
+              手機上只留得下一個數字欄，那一個要是**可行動的**：還有多少沒收到。
+              原本它與「實收」同為 priority 1，誰留下來靠 DOM 順序決定 ——
+              那不是決定，是巧合。
+            -->
+            <th appRtColDef="outstanding" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
               應收未收
             </th>
-            <th appRtColDef="overdue" [appRtColDefMinWidth]="100" [appRtColDefPriority]="2">
+            <th appRtColDef="overdue" [appRtColDefMinWidth]="100" [appRtColDefPriority]="5">
               其中逾期
             </th>
           </tr>
@@ -145,6 +184,16 @@
             <tr appRtRow [appRtRow]="group" [appRtRowId]="group.key">
               <td appRtColCell="key">
                 <span class="reports__group-key">{{ labelOf(group) }}</span>
+                @if (group.billed > 0) {
+                  <!-- 比例條填色是中性深色，不用 accent —— accent 是品牌色，
+                       已退出數值強調用途（#100 的視覺回歸） -->
+                  <span class="reports__mini" [attr.aria-hidden]="true">
+                    <span
+                      class="reports__mini-fill"
+                      [style.width.%]="collectedPctOf(group)"
+                    ></span>
+                  </span>
+                }
                 @if (isAmbiguous(group)) {
                   <!--
                     模糊桶照實顯示。跨兩個分校的帳單只進這一組（不比例拆分、

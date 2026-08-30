@@ -11,6 +11,8 @@ import { ReferenceDataService } from '@core/reference-data.service';
 import { CoursesService } from '@core/courses.service';
 
 import { ReportsPage } from './reports.page';
+import { By } from '@angular/platform-browser';
+import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 
 const figures = (overrides: Partial<RevenueResponse['summary']> = {}) => ({
   received: 0,
@@ -147,6 +149,31 @@ describe('ReportsPage', () => {
   });
 
   describe('數字全部來自後端', () => {
+    // 窄螢幕上 responsive-table 只留得下一兩欄。留哪些不能靠 DOM 順序碰運氣：
+    // 身分欄（哪一個分校）不可摺疊，而留下來的那個數字要是可行動的那個。
+    it('分校欄不可摺疊，應收未收比實收優先留下', async () => {
+      // 表頭在 ng-template 裡，沒有分組資料時整張表不渲染 —— 要先餵資料
+      reports.revenue.mockReturnValue(
+        of(response({ groups: [{ key: '示範分校01', ...figures({ billed: 1000 }) }] })),
+      );
+      component['load']();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      // 讀 directive 實例而不是 ng-reflect 屬性 —— 後者只有 dev 模式才有
+      const cols = fixture.debugElement
+        .queryAll(By.directive(RtColDefDirective))
+        .map((el) => el.injector.get(RtColDefDirective));
+      const col = (key: string) => cols.find((c) => c.key() === key);
+
+      expect(col('key')?.collapsible()).toBe(false);
+
+      const priority = (key: string) => col(key)?.priority() ?? Number.NaN;
+      expect(priority('outstanding')).toBeLessThan(priority('received'));
+      expect(priority('outstanding')).toBeLessThan(priority('billed'));
+      expect(priority('outstanding')).toBeLessThan(priority('refunded'));
+    });
+
     it('摘要照後端給的呈現，前端不重算', async () => {
       reports.revenue.mockReturnValue(
         of(

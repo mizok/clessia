@@ -46,3 +46,47 @@ export function groupKeyLabel(key: string, groupBy: RevenueGroupBy): string {
 export function defaultRange(today: string): { from: string; to: string } {
   return { from: `${today.slice(0, 7)}-01`, to: today };
 }
+
+/**
+ * 開帳這筆錢的組成，用來畫橘帶上那條流向。
+ *
+ * **只用 `billed` 與 `outstanding` 這一組**，不把 `received` 拉進來 ——
+ * 收款看收款日、帳單看開帳日（見 `RevenueFigures` 的欄位說明），**兩者是不同
+ * 的集合**。拿 `received / billed` 當「收款率」是在比不同的母體，數字看起來
+ * 合理但沒有意義。
+ *
+ * 成立的部分／全體只有這一組：
+ *
+ *   billed = 已收回（billed − outstanding） + outstanding
+ *   overdueOutstanding ⊆ outstanding
+ *
+ * 這是**顯示用的比例**，不是加總 —— 三個值都由後端給，這裡只是換算成長度。
+ */
+export interface BilledSplit {
+  /** 已收回佔 billed 的百分比 */
+  readonly collectedPct: number;
+  /** 其中逾期佔 billed 的百分比（畫在未收段的起點） */
+  readonly overduePct: number;
+  /** 已收回的金額 */
+  readonly collected: number;
+}
+
+export function splitBilled(figures: {
+  billed: number;
+  outstanding: number;
+  overdueOutstanding: number;
+}): BilledSplit {
+  const { billed, outstanding, overdueOutstanding } = figures;
+  if (billed <= 0) return { collectedPct: 0, overduePct: 0, collected: 0 };
+
+  // 溢繳會讓 outstanding 變負數，夾住才不會畫出超過 100% 的條
+  const owed = Math.min(Math.max(outstanding, 0), billed);
+  const collected = billed - owed;
+  const overdue = Math.min(Math.max(overdueOutstanding, 0), owed);
+
+  return {
+    collectedPct: (collected / billed) * 100,
+    overduePct: (overdue / billed) * 100,
+    collected,
+  };
+}
