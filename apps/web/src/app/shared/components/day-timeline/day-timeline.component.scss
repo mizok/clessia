@@ -29,9 +29,11 @@
   background: var(--band-ink);
 }
 
+// 標籤放在標記**上方**。放下方會跟時刻文字擠在同一列
+// （實測窄螢幕上會出現「12現在14」這種重疊）。
 .day-timeline__now-label {
   position: absolute;
-  bottom: -18px;
+  top: -15px;
   left: 50%;
   font-size: 10px;
   font-weight: var(--font-bold);
@@ -46,6 +48,9 @@
 .day-timeline__block {
   position: absolute;
   height: 22px;
+  // 窄螢幕上一堂 30 分鐘的課只有幾個 px 寬。給下限讓它仍然看得見 ——
+  // 寧可位置稍微不準，也不要一堂課從圖上消失。
+  min-width: 8px;
   border: 2px solid var(--band-ink);
   border-radius: var(--radius-sm);
   background: rgb(255 240 234 / 42%);
@@ -97,4 +102,22 @@
 
 .day-timeline__swatch--taken {
   background: var(--band-ink);
+}
+
+// 手機：軸的資訊量不變，只是每個元素更省空間。
+// **不減少刻度數** —— 刻度是靠 space-between 均分對齊到時間位置的，
+// 抽掉其中幾個會讓剩下的重新均分，位置就跟時間對不上了。
+@media (max-width: 640px) {
+  .day-timeline__ticks {
+    font-size: 9px;
+  }
+
+  .day-timeline__block {
+    height: 18px;
+  }
+
+  .day-timeline__legend {
+    gap: var(--space-1) var(--space-3);
+    font-size: var(--text-xs);
+  }
 }
