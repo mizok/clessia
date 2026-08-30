@@ -460,12 +460,7 @@ scanExisting({
   dir: WEB_SRC,
   ext: '.ts',
   label: '使用了裝飾器版 API',
-  allowlist: {
-    // jdenticon-avatar.component.ts:26,27（@Input）、:29（@ViewChild）
-    'apps/web/src/app/shared/components/jdenticon-avatar/jdenticon-avatar.component.ts': 3,
-    // shell-layout.component.ts:42（@ViewChild('op')）
-    'apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.ts': 1,
-  },
+  allowlist: {},
 });
 
 // A15（c2）— 存量 9 筆，全是直寫 `ba_user`。
@@ -585,7 +580,8 @@ function scanGhostTokens() {
   // 換掉 preset 也換不到它們，畫面上就留著一塊上一代的顏色。
   // 2026-08 的實例：37 處 --p-zinc-* / --p-sky-* 撐過了整輪 token 替換，
   // 儀表板的連結與警示卡直到跑起真站截圖才看見還是天藍的。
-  const PALETTE_BYPASS = /^--p-(sky|blue|indigo|violet|purple|fuchsia|cyan|teal|emerald|green|lime|red|orange|amber|yellow|pink|rose|slate|gray|zinc|neutral|stone)-\d{2,3}$/;
+  const PALETTE_BYPASS =
+    /^--p-(sky|blue|indigo|violet|purple|fuchsia|cyan|teal|emerald|green|lime|red|orange|amber|yellow|pink|rose|slate|gray|zinc|neutral|stone)-\d{2,3}$/;
 
   const ghosts = new Map();
   const bypass = new Map();
