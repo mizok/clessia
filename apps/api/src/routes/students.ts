@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { resolveStudentScope } from './students/teacher-scope';
+import { taughtClassIds } from '../lib/teacher-scope';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
@@ -260,18 +261,10 @@ app.openapi(
     // 老師只看得到自己固定任課的班（schedules，不是 sessions —— 代課不算「我的學生」）
     let taughtStudentIds: string[] | null = null;
     if (scope.teacherStaffId) {
-      const { data: scheduleRows, error: scheduleError } = await supabase
-        .from('schedules')
-        .select('class_id')
-        .eq('org_id', orgId)
-        .eq('teacher_id', scope.teacherStaffId);
-      if (scheduleError) {
-        return c.json({ error: '讀取任課班級失敗', message: scheduleError.message }, 500);
-      }
-
-      const classIds = Array.from(
-        new Set((scheduleRows ?? []).map((r) => r['class_id'] as string)),
-      );
+      // 這裡原本自己組同一支查詢，而且同樣對 `schedules` 下了 `org_id` ——
+      // **那張表沒有這個欄位**（42703）。改成共用 `lib/teacher-scope` 的那一份，
+      // 兩處各修一次的話，下一次只會修好一處。
+      const classIds = await taughtClassIds(supabase, orgId, scope.teacherStaffId);
 
       if (classIds.length === 0) {
         taughtStudentIds = [];
