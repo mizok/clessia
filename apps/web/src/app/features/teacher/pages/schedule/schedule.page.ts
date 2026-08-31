@@ -1,4 +1,14 @@
-import { Component, OnInit, inject, signal, computed, input } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  OnInit,
+  afterNextRender,
+  computed,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import {
   startOfWeek,
@@ -7,28 +17,47 @@ import {
   subWeeks,
   format,
   isToday,
-  isPast,
   parseISO,
   differenceInDays,
 } from 'date-fns';
 import { ButtonModule } from 'primeng/button';
-import { TagModule } from 'primeng/tag';
 import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
 import { OrgSettingsService } from '@core/org-settings.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { PageBandComponent } from '@shared/components/page-band/page-band.component';
+import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
+import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import {
   AttendanceRosterPanelComponent,
   type RosterPanelSession,
 } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 
+import { attendanceTone, weekAnchor } from './schedule.util';
+
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
+/**
+ * 老師的課表。**手機是主要形態**，桌機是撐寬的次要情境 ——
+ * 設計與取捨見 `kb/wiki/architecture/teacher-schedule-mobile-day.md`。
+ *
+ * 換日是原生的水平 scroll-snap，**這裡沒有任何手勢或捲動監聽程式碼**。
+ * 唯一碰 scroll 的是進頁時把軌道對到今天那一屏（一次性，不是監聽器）。
+ */
 @Component({
   selector: 'app-schedule',
   standalone: true,
-  imports: [DatePipe, ButtonModule, DynamicDialogModule, TagModule],
+  imports: [
+    DatePipe,
+    ButtonModule,
+    DynamicDialogModule,
+    PageBandComponent,
+    BandAnchorComponent,
+    StatusDotComponent,
+    DataChipComponent,
+  ],
   providers: [DialogService],
   templateUrl: './schedule.page.html',
   styleUrl: './schedule.page.scss',
@@ -41,9 +70,19 @@ export class SchedulePage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
 
+  private readonly track = viewChild<ElementRef<HTMLElement>>('track');
+
   protected readonly currentWeekStart = signal<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   protected readonly sessions = signal<EventSessionSummary[]>([]);
   protected readonly loading = signal(false);
+
+  /**
+   * 「現在」只在建構時取一次。頁面開著跨過某堂課的結束時間，標記不會自己翻成漏點名 ——
+   * 跟 day-timeline 一樣的知情取捨：為了一個標記掛計時器，代價高於它的價值。
+   * 換週會重新取數，那時標記就會更新。
+   */
+  private readonly now = new Date();
+  private readonly todayStr = format(this.now, 'yyyy-MM-dd');
 
   protected readonly weekLabel = computed(() => {
     const start = this.currentWeekStart();
@@ -74,8 +113,16 @@ export class SchedulePage implements OnInit {
     return map;
   });
 
+  /** 橘帶的錨點：整週的數字，不是當日的（面板不追捲動位置，理由見設計文件） */
+  protected readonly anchor = computed(() => weekAnchor(this.sessions(), this.now));
+
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
+  }
+
+  constructor() {
+    // 進頁停在今天那一屏。一次性，之後不再過問捲動位置。
+    afterNextRender(() => this.snapToToday());
   }
 
   ngOnInit(): void {
@@ -88,11 +135,39 @@ export class SchedulePage implements OnInit {
   protected prevWeek(): void {
     this.currentWeekStart.update((d) => subWeeks(d, 1));
     this.loadSessions();
+    this.snapToToday();
   }
 
   protected nextWeek(): void {
     this.currentWeekStart.update((d) => addWeeks(d, 1));
     this.loadSessions();
+    this.snapToToday();
+  }
+
+  /**
+   * 把軌道對到今天那一屏；這一週沒有今天就回到週一。
+   *
+   * 換週時可以同步呼叫 —— 七個面板的幾何在換週時不變（只有面板裡的卡片會換），
+   * 所以現有的 `offsetLeft` 已經是對的，不必等下一次 render。
+   * 桌機是 grid、沒有水平捲動，這裡設 `scrollLeft` 是無害的 no-op。
+   */
+  private snapToToday(): void {
+    const el = this.track()?.nativeElement;
+    if (!el) return;
+    const index = this.weekDays().findIndex((d) => d.dateStr === this.todayStr);
+    if (index <= 0) {
+      el.scrollLeft = 0;
+      return;
+    }
+
+    // 位置問面板自己，不要用 index × clientWidth 去算 —— 那漏掉欄間距，
+    // 一天差一個 gap，週日會差到 6 個。scroll-snap 目前會把誤差吸回去，
+    // 但那是運氣：間距一改就不成立了。
+    const first = el.firstElementChild as HTMLElement | null;
+    const target = el.children[index] as HTMLElement | undefined;
+    if (!first || !target) return;
+    // scrollLeft 而不是 scrollTo()：不需要 smooth，而且 jsdom 沒有實作 scrollTo
+    el.scrollLeft = target.offsetLeft - first.offsetLeft;
   }
 
   protected loadSessions(): void {
@@ -126,8 +201,30 @@ export class SchedulePage implements OnInit {
     return differenceInDays(new Date(), parseISO(session.eventDate)) > days;
   }
 
-  protected isFuture(session: EventSessionSummary): boolean {
-    return !isPast(parseISO(session.eventDate));
+  /**
+   * 課還沒到那一天 —— 這才是「能不能點名」該問的問題。
+   *
+   * **刻意不是 `hasSessionEnded`。** 老師是在課堂開始時點名，不是等下課才點；
+   * 用「上完了沒」當按鈕的門檻，晚上七點的課要到九點才點得了。
+   * `hasSessionEnded` 回答的是另一個問題（該點而沒點嗎），它在 `attendanceTone` 裡。
+   */
+  protected isUpcoming(session: EventSessionSummary): boolean {
+    return session.eventDate > this.todayStr;
+  }
+
+  protected toneOf(session: EventSessionSummary) {
+    return attendanceTone(session, this.now);
+  }
+
+  protected toneLabel(session: EventSessionSummary): string {
+    switch (this.toneOf(session)) {
+      case 'done':
+        return '已點名';
+      case 'overdue':
+        return '漏點名';
+      default:
+        return '還沒上';
+    }
   }
 
   protected isToday(dateStr: string): boolean {

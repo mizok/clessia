@@ -1,46 +1,80 @@
+/*
+ * 老師端課表 —— 行動優先。單日檢視是預設，七欄是桌機才進場的加寬。
+ * 設計與取捨見 kb/wiki/architecture/teacher-schedule-mobile-day.md
+ */
 .schedule-page {
-  padding: var(--space-6);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 
-  &__header {
-    display: flex;
-    align-items: center;
+  &__band-eyebrow {
+    margin: 0;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.7;
   }
 
-  &__title {
+  &__band-title {
+    margin: 0;
     font-size: 1.5rem;
     font-weight: 700;
-    color: var(--zinc-900);
+  }
+
+  &__band-sub {
     margin: 0;
+    font-size: 0.9rem;
+    opacity: 0.8;
   }
 
   &__week-nav {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    gap: var(--space-1);
   }
 
-  &__week-label {
-    font-size: 0.95rem;
-    font-weight: 500;
-    color: var(--zinc-700);
-    min-width: 200px;
+  &__state {
+    margin: 0;
+    padding: var(--space-4);
     text-align: center;
+    color: var(--zinc-500);
   }
 
-  &__grid {
+  /*
+   * 手機：一日一屏。`grid-auto-columns: 100%` 是「軌道容器的寬度」而不是視窗寬，
+   * 所以它自動吃掉 shell 的 padding，也不必碰 --window-width（更不必碰 vw，c6）。
+   */
+  &__track {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: var(--space-2);
+    grid-auto-flow: column;
+    grid-auto-columns: 100%;
+    gap: var(--space-3);
     overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* 鍵盤可以捲這條軌道，所以它要看得出來自己被聚焦了 */
+    &:focus-visible {
+      outline: 2px solid var(--accent-400);
+      outline-offset: 2px;
+    }
   }
 
   &__day {
-    min-width: 120px;
+    scroll-snap-align: start;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
     border: 1px solid var(--zinc-200);
     border-radius: 8px;
+    background: #fff;
+    /* header 有底色而面板有圓角 —— 少了這行，header 的方角會戳出圓角 */
     overflow: hidden;
 
     &--today {
@@ -50,78 +84,161 @@
 
   &__day-header {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: var(--space-2);
-    background: var(--zinc-50);
+    align-items: baseline;
+    gap: var(--space-2);
+    margin: 0;
+    padding: var(--space-3);
     border-bottom: 1px solid var(--zinc-200);
-
-    .schedule-page__day--today & {
-      background: var(--accent-50);
-    }
+    background: var(--zinc-50);
   }
 
-  &__day-label {
-    font-size: 0.75rem;
-    color: var(--zinc-500);
+  &__day--today &__day-header {
+    background: var(--accent-50);
   }
 
   &__day-date {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--zinc-800);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--zinc-900);
+  }
+
+  &__day-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--zinc-500);
   }
 
   &__day-body {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    padding: var(--space-2);
-    min-height: 60px;
+    padding: var(--space-3);
   }
 
-  &__session-card {
-    padding: var(--space-2);
-    background: #fff;
-    border: 1px solid var(--zinc-200);
-    border-radius: 6px;
+  &__session {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    border: 1px solid var(--zinc-200);
+    border-radius: 6px;
+  }
+
+  &__session-time {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--zinc-500);
+    font-variant-numeric: tabular-nums;
   }
 
   &__session-name {
-    font-size: 0.8rem;
+    margin: 0;
+    font-size: 0.95rem;
     font-weight: 600;
-    color: var(--zinc-800);
+    color: var(--zinc-900);
   }
 
-  &__session-time,
+  &__session-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+  }
+
   &__session-count {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     color: var(--zinc-500);
   }
 
-  &__locked,
-  &__untaken {
-    font-size: 0.7rem;
-    color: var(--zinc-400);
+  &__session-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
   }
 
   &__summary {
     display: flex;
     gap: var(--space-2);
     font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
 
-    &--present { color: var(--success-600); }
-    &--leave { color: var(--warning-600); }
-    &--absent { color: var(--error-600); }
+  &__summary-item {
+    &--present {
+      color: var(--success-600);
+    }
+
+    &--leave {
+      color: var(--warning-600);
+    }
+
+    &--absent {
+      color: var(--error-600);
+    }
   }
 
   &__no-class {
+    margin: 0;
+    padding: var(--space-4) 0;
     text-align: center;
-    color: var(--zinc-300);
-    font-size: 0.8rem;
-    padding: var(--space-2);
+    font-size: 0.85rem;
+    color: var(--zinc-400);
+  }
+}
+
+/*
+ * 桌機：七欄攤平。
+ *
+ * **量的是內容區不是視窗**，因為 shell 的 sidebar 在 >=768px 就展開、吃掉 240px，
+ * 七欄分到的從來不是視窗寬。實測（2026-08-31）：
+ *
+ *   viewport 768  → shell-content 528  →  59px/欄   ← 班名一個字一行、chip 被裁掉
+ *   viewport 1140 → shell-content 900  → 113px/欄   ← 密度剛好撐得住
+ *   viewport 1280 → shell-content 1040 → 133px/欄
+ *
+ * 所以門檻掛在 `shell-content` 這個具名容器上，不是任何視窗斷點。容器是
+ * `shell-layout.component.scss` 定義的，admin sessions 系列頁已經在用同一個。
+ * 好處是 sidebar 收合時七欄會自己受益，不必再猜視窗寬。
+ *
+ * 820px 是從「每欄至少 110px」反推的：7 × 110 + 6 × 8px 間距 ≈ 818。
+ * **注意 @container 量的是容器的 content box**（不含 padding）—— 一開始拿 border-box
+ * 的 900px 當門檻，結果在該翻的寬度上沒翻，因為那時 content box 只有 836。
+ *
+ * 它是量出來的值，不是裝置斷點，所以刻意不取 bp map 的 token —— 那些是視窗尺度的值，
+ * 混用會讓下一個人以為這個門檻跟裝置寬有關。
+ * 用原生 @container 而非 shared/breakpoints 的 respond-to-container 是因為後者只產 max-width。
+ */
+@container shell-content (min-width: 820px) {
+  .schedule-page {
+    &__track {
+      grid-auto-flow: row;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: var(--space-2);
+      overflow-x: visible;
+      scroll-snap-type: none;
+    }
+
+    &__day-header {
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      padding: var(--space-2);
+    }
+
+    &__day-date {
+      font-size: 0.9rem;
+    }
+
+    &__day-body {
+      padding: var(--space-2);
+    }
+
+    &__session {
+      padding: var(--space-2);
+    }
   }
 }
