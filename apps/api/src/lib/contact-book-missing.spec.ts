@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { missingContactBookStudents } from './contact-book-missing';
+import {
+  datesInRange,
+  missingContactBookByDate,
+  missingContactBookStudents,
+  type ContactBookCandidate,
+} from './contact-book-missing';
 
 const candidate = (studentId: string, studentName: string, classId: string, className: string) => ({
   studentId,
@@ -136,5 +141,71 @@ describe('missingContactBookStudents', () => {
 
     expect(missing).toHaveLength(1);
     expect(missing[0]?.classes).toEqual([{ classId: 'c2', className: 'B 班' }]);
+  });
+});
+
+describe('datesInRange', () => {
+  it('includes both ends', () => {
+    expect(datesInRange('2026-04-06', '2026-04-08')).toEqual([
+      '2026-04-06',
+      '2026-04-07',
+      '2026-04-08',
+    ]);
+  });
+
+  it('crosses a month boundary', () => {
+    expect(datesInRange('2026-04-29', '2026-05-01')).toEqual([
+      '2026-04-29',
+      '2026-04-30',
+      '2026-05-01',
+    ]);
+  });
+
+  it('returns nothing when the range is backwards', () => {
+    expect(datesInRange('2026-04-08', '2026-04-06')).toEqual([]);
+  });
+});
+
+describe('missingContactBookByDate', () => {
+  const candidates: ContactBookCandidate[] = [
+    { studentId: 'stu-1', studentName: '王小明', classId: 'class-1', className: '數學 A' },
+    { studentId: 'stu-2', studentName: '李小華', classId: 'class-1', className: '數學 A' },
+  ];
+
+  it('counts per day and keeps the days with nothing pending', () => {
+    const days = missingContactBookByDate(
+      candidates,
+      new Map([['2026-04-07', new Set(['stu-1'])]]),
+      new Map([
+        ['2026-04-06', [{ classId: 'class-1', status: 'scheduled' }]],
+        ['2026-04-07', [{ classId: 'class-1', status: 'scheduled' }]],
+        // 04-08 沒課 —— 沒課的日子不該有待辦
+      ]),
+      ['2026-04-06', '2026-04-07', '2026-04-08'],
+    );
+
+    expect(days).toEqual([
+      { date: '2026-04-06', missingCount: 2 },
+      // stu-1 那天寫了
+      { date: '2026-04-07', missingCount: 1 },
+      { date: '2026-04-08', missingCount: 0 },
+    ]);
+  });
+
+  it('does not let one day\u2019s entries clear another day', () => {
+    const days = missingContactBookByDate(
+      candidates,
+      new Map([['2026-04-06', new Set(['stu-1', 'stu-2'])]]),
+      new Map([
+        ['2026-04-06', [{ classId: 'class-1', status: 'scheduled' }]],
+        ['2026-04-07', [{ classId: 'class-1', status: 'scheduled' }]],
+      ]),
+      ['2026-04-06', '2026-04-07'],
+    );
+
+    expect(days).toEqual([
+      { date: '2026-04-06', missingCount: 0 },
+      { date: '2026-04-07', missingCount: 2 },
+    ]);
   });
 });
