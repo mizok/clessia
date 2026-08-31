@@ -53,6 +53,7 @@ export class FlowFieldComponent {
   private observer: IntersectionObserver | null = null;
   private sizeObserver: ResizeObserver | null = null;
   private resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private fadeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     // canvas 要等實際佈局才量得到尺寸，所以掛在 afterNextRender 而不是建構子
@@ -63,6 +64,7 @@ export class FlowFieldComponent {
       this.observer?.disconnect();
       this.sizeObserver?.disconnect();
       if (this.resizeTimer !== null) clearTimeout(this.resizeTimer);
+      if (this.fadeTimer !== null) clearTimeout(this.fadeTimer);
       document.removeEventListener('visibilitychange', this.onVisibility);
     });
   }
@@ -226,14 +228,48 @@ export class FlowFieldComponent {
 
   private readonly onResize = (): void => {
     if (this.resizeTimer !== null) clearTimeout(this.resizeTimer);
-    this.resizeTimer = setTimeout(() => {
-      if (!this.resize()) return;
-      // 靜態模式沒有 rAF 會把畫面補回來，而 resize() 已經 clearRect 並重生粒子 ——
-      // 不在這裡重跑暖機的話，改視窗大小之後那張場就永遠是空白的。
-      // 這個 bug 在 frozen 出現之前就存在了（reduced-motion 的使用者一縮視窗就沒圖）。
-      if (this.isStatic()) this.warm(STATIC_WARM);
-    }, 150);
+    this.resizeTimer = setTimeout(() => this.redrawAfterResize(), RESIZE_DEBOUNCE);
   };
+
+  /**
+   * resize 安定之後怎麼重畫，三種模式三種答案：
+   *
+   * - **動態**：rAF 每幀都在重畫，`resize()` 完就好，不必也不該插手
+   * - **凍結**：靜態場是「清畫布 → 重跑成形」，不處理的話新舊圖會**瞬間切換**
+   *   （使用者回報的「突變」）。所以淡出 → 重算 → 淡入
+   * - **reduced-motion**：淡入淡出本身也是動態，所以不做，直接重算
+   */
+  private redrawAfterResize(): void {
+    if (!this.isStatic()) {
+      this.resize();
+      return;
+    }
+
+    if (this.reduced) {
+      this.recomputeStaticField();
+      return;
+    }
+
+    const el = this.canvasRef().nativeElement;
+    if (this.fadeTimer !== null) clearTimeout(this.fadeTimer);
+    el.style.opacity = '0';
+    this.fadeTimer = setTimeout(() => {
+      this.fadeTimer = null;
+      this.recomputeStaticField();
+      el.style.opacity = '1';
+    }, FADE_MS);
+  }
+
+  /**
+   * 靜態模式沒有 rAF 會把畫面補回來，而 `resize()` 會 clearRect 並重生粒子 ——
+   * 不在這裡重跑暖機的話，改視窗大小之後那張場就永遠是空白的（#101 修掉的 bug）。
+   *
+   * `resize()` 回 false 時（佈局未穩）它**還沒清畫布**，所以什麼都不做是安全的：
+   * 淡回來看到的是舊圖而不是空白。**這是那條 bug 的防線，不要改成無條件清畫布。**
+   */
+  private recomputeStaticField(): void {
+    if (this.resize()) this.warm(STATIC_WARM);
+  }
 
   /** 不跑 rAF 的兩種情況：使用者要求減少動態，或呼叫端指定凍結 */
   private isStatic(): boolean {
@@ -260,6 +296,12 @@ const TRAIL = 34;
 
 /** 靜態版跑幾幀才算「成形」。低於這個數線太短，看起來像壞掉而不是像場 */
 const STATIC_WARM = 320;
+
+/** resize 安定多久才重算。拖放視窗邊緣的過程中不要一直重跑 320 幀 */
+const RESIZE_DEBOUNCE = 240;
+
+/** 淡出／淡入各自的長度。要跟 flow-field.component.scss 的 transition 對齊 */
+const FADE_MS = 180;
 
 // 流函數的三項係數
 const FA_AMP = 1.7;
