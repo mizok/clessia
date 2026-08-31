@@ -3,6 +3,7 @@ import { resolveTeacherScope } from './attendance/teacher-scope';
 import type { AppEnv } from '../index';
 import { isAttendanceEditable } from '../lib/attendance-window';
 import { isSubstituteSession } from '../lib/session-substitute';
+import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
 import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 
@@ -57,6 +58,12 @@ const EventSessionSummarySchema = z
     status: z.enum(['scheduled', 'completed', 'cancelled']),
     /** 實際上這堂課的老師跟課表排定的不一致 */
     isSubstitute: z.boolean(),
+    /**
+     * 這個班在這一天排了幾場校內考（`academy_exams`）。0 就是沒有。
+     * **刻意只回數量**，不回考試內容 —— 課表格子要的是一個記號，
+     * 塞整包考試資料進列表只會把每頁的體積放大而沒人用得到。
+     */
+    examCount: z.number().int().nonnegative(),
     classId: z.uuid(),
     className: z.string(),
     courseName: z.string().nullable(),
@@ -978,23 +985,52 @@ app.openapi(
       ),
     );
 
-    const [{ data: attendanceRows }, { data: enrollmentRows }] = await Promise.all([
-      eventIds.length > 0
-        ? supabase
-            .from('attendance_records')
-            .select('event_id, status')
-            .eq('org_id', orgId)
-            .in('event_id', eventIds)
-        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-      rosterClassIds.length > 0
-        ? supabase
-            .from('enrollments')
-            .select('class_id, effective_from, effective_to')
-            .eq('org_id', orgId)
-            .eq('status', 'active')
-            .in('class_id', rosterClassIds)
-        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-    ]);
+    // 考試掛在 (班級, 日期) 上，不是掛在 session 上 —— 所以用這一頁實際出現的班級與
+    // 日期區間去撈，跟出勤/在籍一樣是一支批次查詢，不隨課堂數成長。
+    const sessionDates = sessionRows
+      .map((session) => session.session_date as string | null)
+      .filter((date): date is string => Boolean(date))
+      .sort();
+
+    const [{ data: attendanceRows }, { data: enrollmentRows }, { data: examRows }] =
+      await Promise.all([
+        eventIds.length > 0
+          ? supabase
+              .from('attendance_records')
+              .select('event_id, status')
+              .eq('org_id', orgId)
+              .in('event_id', eventIds)
+          : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+        rosterClassIds.length > 0
+          ? supabase
+              .from('enrollments')
+              .select('class_id, effective_from, effective_to')
+              .eq('org_id', orgId)
+              .eq('status', 'active')
+              .in('class_id', rosterClassIds)
+          : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+        rosterClassIds.length > 0 && sessionDates.length > 0
+          ? supabase
+              .from('academy_exam_classes')
+              .select('class_id, academy_exams!inner(exam_date, org_id)')
+              .eq('academy_exams.org_id', orgId)
+              .in('class_id', rosterClassIds)
+              .gte('academy_exams.exam_date', sessionDates[0])
+              .lte('academy_exams.exam_date', sessionDates[sessionDates.length - 1])
+          : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+      ]);
+
+    const examCounts = countExamsBySession(
+      ((examRows ?? []) as Array<Record<string, unknown>>).map((row) => {
+        const exam = Array.isArray(row['academy_exams'])
+          ? row['academy_exams'][0]
+          : (row['academy_exams'] as { exam_date?: string } | null);
+        return {
+          class_id: (row['class_id'] as string) ?? '',
+          exam_date: exam?.exam_date ?? '',
+        };
+      }),
+    );
 
     const tally = tallyAttendance(
       ((attendanceRows ?? []) as Array<Record<string, unknown>>).map((row) => ({
@@ -1039,6 +1075,9 @@ app.openapi(
         // 讓前端關掉點名入口，而不是給一個空字串讓它以為點得下去
         eventId: eventId ?? null,
         status: (session.status ?? 'scheduled') as 'scheduled' | 'completed' | 'cancelled',
+        examCount:
+          examCounts.get(sessionExamKey(classId ?? '', (session.session_date as string) ?? '')) ??
+          0,
         isSubstitute: isSubstituteSession({
           sessionTeacherId: (session.teacher_id as string | null) ?? null,
           scheduleTeacherId: (scheduleRow?.teacher_id as string | null) ?? null,

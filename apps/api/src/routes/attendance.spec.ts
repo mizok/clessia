@@ -291,6 +291,49 @@ describe('GET /api/attendance/sessions', () => {
     ]);
   });
 
+  it('marks how many exams each class has that day', async () => {
+    const app = createAttendanceTestApp(
+      createMockSupabase({
+        events: [
+          buildEvent({
+            id: 'event-1',
+            classId: 'class-1',
+            className: '數學 A',
+            courseId: 'course-1',
+            courseName: '數學',
+            sessionStatus: 'scheduled',
+            eventDate: '2026-04-01',
+          }),
+          buildEvent({
+            id: 'event-2',
+            classId: 'class-2',
+            className: '英文 B',
+            courseId: 'course-2',
+            courseName: '英文',
+            sessionStatus: 'scheduled',
+            eventDate: '2026-04-02',
+          }),
+        ],
+        examsByClassId: {
+          // 同一天兩場（不同科）要數成 2；同一班在區間內**別天**的那場不能算進來
+          'class-1': ['2026-04-01', '2026-04-01', '2026-04-02'],
+          // 區間外的考試不該漏到這一頁的任何一格上
+          'class-2': ['2026-04-09'],
+        },
+      }),
+    );
+
+    const response = await app.request('/api/attendance/sessions?page=1&pageSize=20');
+    const payload = (await response.json()) as {
+      data: Array<{ classId: string; examCount: number }>;
+    };
+
+    expect(payload.data).toEqual([
+      expect.objectContaining({ classId: 'class-1', examCount: 2 }),
+      expect.objectContaining({ classId: 'class-2', examCount: 0 }),
+    ]);
+  });
+
   it('flags substitute teachers and returns who actually teaches', async () => {
     const app = createAttendanceTestApp(
       createMockSupabase({
@@ -641,6 +684,8 @@ interface MockSupabaseData {
     Array<{ readonly status: 'present' | 'absent' | 'on_leave' }>
   >;
   readonly enrollmentCountsByClassId?: Record<string, number>;
+  /** `academy_exam_classes` join `academy_exams` 回來的樣子 */
+  readonly examsByClassId?: Record<string, string[]>;
 }
 
 function createAttendanceTestApp(supabase: ReturnType<typeof createMockSupabase>) {
@@ -677,6 +722,10 @@ function createMockSupabase(data: MockSupabaseData) {
 
       if (table === 'enrollments') {
         return createEnrollmentsQuery(data);
+      }
+
+      if (table === 'academy_exam_classes') {
+        return createExamClassesQuery(data);
       }
 
       throw new Error(`Unsupported table: ${table}`);
@@ -1031,6 +1080,64 @@ function createEnrollmentsQuery(data: MockSupabaseData) {
         data: null,
         error: null,
       }).then(onfulfilled, onrejected);
+    },
+  };
+
+  return query;
+}
+
+/**
+ * `academy_exam_classes` 的假查詢。日期區間的過濾在真實世界由 PostgREST 做，
+ * 這裡照做一次 —— 不做的話「用這一頁的日期區間去撈」這件事就沒被驗到。
+ */
+function createExamClassesQuery(data: MockSupabaseData) {
+  const state = {
+    classIds: [] as string[],
+    dateFrom: null as string | null,
+    dateTo: null as string | null,
+  };
+
+  const query = {
+    select() {
+      return query;
+    },
+    eq() {
+      return query;
+    },
+    in(column: string, values: string[]) {
+      if (column === 'class_id') state.classIds = values;
+      return query;
+    },
+    gte(_column: string, value: string) {
+      state.dateFrom = value;
+      return query;
+    },
+    lte(_column: string, value: string) {
+      state.dateTo = value;
+      return query;
+    },
+    then<TResult1 = unknown, TResult2 = never>(
+      onfulfilled?:
+        | ((value: {
+            data: Array<{ class_id: string; academy_exams: { exam_date: string } }>;
+            error: null;
+          }) => TResult1 | PromiseLike<TResult1>)
+        | null,
+      onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+    ) {
+      const rows = Object.entries(data.examsByClassId ?? {})
+        .filter(([classId]) => state.classIds.includes(classId))
+        .flatMap(([classId, dates]) =>
+          dates
+            .filter(
+              (date) =>
+                (!state.dateFrom || date >= state.dateFrom) &&
+                (!state.dateTo || date <= state.dateTo),
+            )
+            .map((date) => ({ class_id: classId, academy_exams: { exam_date: date } })),
+        );
+
+      return Promise.resolve({ data: rows, error: null }).then(onfulfilled, onrejected);
     },
   };
 
