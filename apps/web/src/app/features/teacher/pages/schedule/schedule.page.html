@@ -1,63 +1,111 @@
 <div class="schedule-page">
-  <div class="schedule-page__header">
-    <h2 class="schedule-page__title">{{ page().label }}</h2>
-  </div>
+  <!-- 橘帶：這一頁的入口面。錨點放最可行動的數字 —— 漏點名，不是總堂數 -->
+  <app-page-band>
+    @if (page().group; as group) {
+      <p class="schedule-page__band-eyebrow">{{ group.label }}</p>
+    }
+    <h1 class="schedule-page__band-title">{{ page().label }}</h1>
+    <p class="schedule-page__band-sub">{{ weekLabel() }}</p>
 
-  <div class="schedule-page__week-nav">
-    <p-button icon="pi pi-chevron-left" [text]="true" (onClick)="prevWeek()" />
-    <span class="schedule-page__week-label">{{ weekLabel() }}</span>
-    <p-button icon="pi pi-chevron-right" [text]="true" (onClick)="nextWeek()" />
-  </div>
+    <div bandAside>
+      <div class="schedule-page__week-nav">
+        <p-button
+          icon="pi pi-chevron-left"
+          [text]="true"
+          ariaLabel="上一週"
+          (onClick)="prevWeek()"
+        />
+        <p-button
+          icon="pi pi-chevron-right"
+          [text]="true"
+          ariaLabel="下一週"
+          (onClick)="nextWeek()"
+        />
+      </div>
+      @if (!loading()) {
+        <app-band-anchor [value]="anchor().overdue" unit="堂待點名">
+          本週 <b>{{ anchor().total }}</b> 堂
+        </app-band-anchor>
+      }
+    </div>
+  </app-page-band>
 
-  <div class="schedule-page__grid">
+  @if (loading()) {
+    <p class="schedule-page__state">載入中…</p>
+  }
+
+  <!--
+    手機：一日一屏的水平軌道，靠原生 scroll-snap 換日（沒有手勢 JS）。
+    桌機（>=768px）：同一個 grid 攤成七欄，不捲動。
+    日期標題在每一屏裡面，所以沒有任何東西需要知道現在停在哪一天。
+  -->
+  <div
+    #track
+    class="schedule-page__track"
+    role="group"
+    aria-label="本週課表，左右捲動換日"
+    tabindex="0"
+  >
     @for (day of weekDays(); track day.dateStr) {
-      <div class="schedule-page__day" [class.schedule-page__day--today]="isToday(day.dateStr)">
-        <div class="schedule-page__day-header">
-          <span class="schedule-page__day-label">{{ day.label }}</span>
+      <section class="schedule-page__day" [class.schedule-page__day--today]="isToday(day.dateStr)">
+        <h2 class="schedule-page__day-header">
           <span class="schedule-page__day-date">{{ day.date | date: 'M/d' }}</span>
-        </div>
+          <span class="schedule-page__day-label">{{ day.label }}</span>
+        </h2>
+
         <div class="schedule-page__day-body">
           @for (session of sessionsByDay().get(day.dateStr) ?? []; track session.eventId) {
-            <div class="schedule-page__session-card">
-              <div class="schedule-page__session-name">{{ session.className }}</div>
-              <div class="schedule-page__session-time">
+            <article class="schedule-page__session">
+              <p class="schedule-page__session-time">
                 {{ session.startTime ?? '--:--' }}–{{ session.endTime ?? '--:--' }}
-              </div>
-              <div class="schedule-page__session-count">{{ session.enrolledCount }} 人</div>
+              </p>
+              <p class="schedule-page__session-name">{{ session.className }}</p>
 
-              @if (isTeacherLed()) {
-                @if (isFuture(session)) {
-                  <!-- 未來課堂，不顯示點名 -->
-                } @else if (isRetroactiveLocked(session)) {
-                  <span class="schedule-page__locked">點名已截止</span>
-                } @else if (session.takenAt) {
-                  <p-button
-                    label="已點名"
-                    size="small"
-                    [outlined]="true"
-                    severity="secondary"
-                    (onClick)="openPanel(session)"
-                  />
+              <p class="schedule-page__session-meta">
+                @if (session.campusName) {
+                  <app-data-chip>{{ session.campusName }}</app-data-chip>
+                }
+                <span class="schedule-page__session-count">{{ session.enrolledCount }} 人</span>
+              </p>
+
+              <div class="schedule-page__session-status">
+                @if (isRetroactiveLocked(session)) {
+                  <app-status-dot tone="inactive">點名已截止</app-status-dot>
                 } @else {
-                  <p-button label="開始點名" size="small" (onClick)="openPanel(session)" />
+                  <app-status-dot [tone]="toneOf(session)">{{ toneLabel(session) }}</app-status-dot>
                 }
-              } @else {
+
                 @if (session.takenAt) {
-                  <div class="schedule-page__summary">
-                    <span class="schedule-page__summary--present">✓{{ session.presentCount }}</span>
-                    <span class="schedule-page__summary--leave">🏳{{ session.onLeaveCount }}</span>
-                    <span class="schedule-page__summary--absent">✗{{ session.absentCount }}</span>
-                  </div>
-                } @else if (!isFuture(session)) {
-                  <span class="schedule-page__untaken">未點名</span>
+                  <span class="schedule-page__summary">
+                    <span class="schedule-page__summary-item schedule-page__summary-item--present">
+                      到 {{ session.presentCount }}
+                    </span>
+                    <span class="schedule-page__summary-item schedule-page__summary-item--leave">
+                      假 {{ session.onLeaveCount }}
+                    </span>
+                    <span class="schedule-page__summary-item schedule-page__summary-item--absent">
+                      缺 {{ session.absentCount }}
+                    </span>
+                  </span>
                 }
+              </div>
+
+              @if (isTeacherLed() && !isUpcoming(session) && !isRetroactiveLocked(session)) {
+                <p-button
+                  styleClass="schedule-page__action"
+                  [label]="session.takenAt ? '修改點名' : '開始點名'"
+                  size="small"
+                  [outlined]="!!session.takenAt"
+                  [severity]="session.takenAt ? 'secondary' : 'primary'"
+                  (onClick)="openPanel(session)"
+                />
               }
-            </div>
+            </article>
           } @empty {
-            <div class="schedule-page__no-class">—</div>
+            <p class="schedule-page__no-class">沒有課</p>
           }
         </div>
-      </div>
+      </section>
     }
   </div>
 </div>
