@@ -300,8 +300,14 @@ const STATIC_WARM = 320;
 /** resize 安定多久才重算。拖放視窗邊緣的過程中不要一直重跑 320 幀 */
 const RESIZE_DEBOUNCE = 240;
 
-/** 淡出／淡入各自的長度。要跟 flow-field.component.scss 的 transition 對齊 */
-const FADE_MS = 180;
+/**
+ * 淡出／淡入**各自**的長度。要跟 flow-field.component.scss 的 transition 對齊。
+ *
+ * 一秒是使用者指定的：舊圖停在那裡慢慢淡掉、完全消失之後才重算、
+ * 新圖再從全透明慢慢浮出來。快到看不出「這是兩張圖」的話，
+ * 它就退回原本那個瞬間切換的突變感 —— 這個效果的重點就是**慢**。
+ */
+const FADE_MS = 1000;
 
 // 流函數的三項係數
 const FA_AMP = 1.7;

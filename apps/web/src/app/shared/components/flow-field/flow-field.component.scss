@@ -13,8 +13,9 @@
   width: 100%;
   height: 100%;
   // 凍結模式在 resize 之後是「清畫布 → 重跑成形」，不淡的話新舊圖會瞬間切換。
-  // 長度要跟元件裡的 FADE_MS 對齊。
-  transition: opacity 180ms ease;
+  // **長度要跟元件裡的 FADE_MS 對齊**（兩邊都是 1s）—— 改一邊沒改另一邊的話，
+  // JS 會在動畫還沒跑完就重算（CSS 較長）或乾等（CSS 較短）。
+  transition: opacity 1s ease;
 }
 
 // 淡入淡出本身也是動態。元件那邊已經走不淡的路徑了，這裡是第二道 ——

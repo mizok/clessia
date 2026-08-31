@@ -28,6 +28,12 @@ class ResizeObserverStub {
   }
 }
 
+/** 跟元件裡的 RESIZE_DEBOUNCE / FADE_MS 對齊 */
+const DEBOUNCE_MS = 240;
+const FADE_MS = 1000;
+/** 剛好跨過某個時點就好，不要剛好等於它 */
+const JUST_AFTER = 20;
+
 describe('FlowFieldComponent', () => {
   let fixture: ComponentFixture<FlowFieldComponent>;
   let stub: StubContext;
@@ -86,7 +92,7 @@ describe('FlowFieldComponent', () => {
     const before = stub.strokeCount;
 
     ResizeObserverStub.last!.fire();
-    vi.advanceTimersByTime(1000); // 過 debounce 也過淡出
+    vi.advanceTimersByTime(DEBOUNCE_MS + FADE_MS + JUST_AFTER);
 
     expect(stub.strokeCount).toBeGreaterThan(before);
   });
@@ -96,11 +102,16 @@ describe('FlowFieldComponent', () => {
     await setup({ frozen: true });
 
     ResizeObserverStub.last!.fire();
-    vi.advanceTimersByTime(250); // 過了 debounce，淡出開始、還沒重算
+    vi.advanceTimersByTime(DEBOUNCE_MS + JUST_AFTER); // 淡出開始
 
     expect(canvas.style.opacity).toBe('0');
 
-    vi.advanceTimersByTime(250); // 過了淡出
+    // 淡出還在進行中（一秒是使用者指定的長度）—— 這時候不該有任何動靜
+    vi.advanceTimersByTime(FADE_MS / 2);
+
+    expect(canvas.style.opacity).toBe('0');
+
+    vi.advanceTimersByTime(FADE_MS / 2 + JUST_AFTER); // 淡出走完
 
     expect(canvas.style.opacity).toBe('1');
   });
@@ -110,12 +121,13 @@ describe('FlowFieldComponent', () => {
     const before = stub.strokeCount;
 
     ResizeObserverStub.last!.fire();
-    vi.advanceTimersByTime(250); // 只過 debounce
+    vi.advanceTimersByTime(DEBOUNCE_MS + FADE_MS - JUST_AFTER); // 淡出差一點走完
 
-    // 此時應該還沒重畫 —— 不然使用者會在畫面淡掉之前就看到新圖冒出來
+    // 舊圖還在淡出的整段期間都不該重畫 —— 不然使用者會在畫面淡掉之前
+    // 就看到新圖冒出來，那正是要修掉的「突變」
     expect(stub.strokeCount).toBe(before);
 
-    vi.advanceTimersByTime(250);
+    vi.advanceTimersByTime(JUST_AFTER * 2); // 淡出走完的那一刻
 
     expect(stub.strokeCount).toBeGreaterThan(before);
   });
@@ -125,7 +137,7 @@ describe('FlowFieldComponent', () => {
     await setup({ frozen: false });
 
     ResizeObserverStub.last!.fire();
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(DEBOUNCE_MS + FADE_MS + JUST_AFTER);
 
     expect(canvas.style.opacity).toBe('');
   });
@@ -136,9 +148,9 @@ describe('FlowFieldComponent', () => {
     const before = stub.strokeCount;
 
     ResizeObserverStub.last!.fire();
-    vi.advanceTimersByTime(250); // 只過 debounce
+    vi.advanceTimersByTime(DEBOUNCE_MS + JUST_AFTER); // 只過 debounce，還沒到淡出的長度
 
     expect(canvas.style.opacity).toBe(''); // 沒有被設過
-    expect(stub.strokeCount).toBeGreaterThan(before); // 但已經重算了
+    expect(stub.strokeCount).toBeGreaterThan(before); // 但已經重算了 —— 不等淡出
   });
 });
