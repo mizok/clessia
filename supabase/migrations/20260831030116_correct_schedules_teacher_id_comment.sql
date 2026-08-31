@@ -1,0 +1,21 @@
+-- ============================================================
+-- schedules.teacher_id 的 COMMENT 除鏽
+--
+-- 20260304000001 把這個欄位標成
+--   'DEPRECATED: 老師指派改由 batch-assign 處理'
+-- 但那句話從來沒有成真：
+--
+--   * 排課的 POST / PATCH（`routes/classes.ts`）到今天仍然在寫它
+--   * `lib/teacher-scope.ts` 用它決定「這位老師固定任課哪些班」——
+--     老師端的聯絡簿、教務日誌、成績、校內考、段考全部靠這條
+--   * `lib/session-substitute.ts` 用它判代課
+--
+-- batch-assign 動的是 **`sessions.teacher_id`**（單堂實際上課的人），
+-- 跟這個欄位是兩件事，不是取代關係。
+--
+-- 留著那個註解的代價是下一個人照著它把欄位當死的處理 —— 跟 `late` 幽靈同一款：
+-- 說明與實際跑的東西不一致，而說明比程式碼更容易被信。
+-- c3 不擋新增 migration，所以用新的一支改寫，不動已提交的那支。
+-- ============================================================
+
+COMMENT ON COLUMN public.schedules.teacher_id IS '固定任課老師（課表上排定的人）。單堂實際上課的人在 sessions.teacher_id，由 batch-assign 寫入；兩者不一致即為代課，見 apps/api/src/lib/session-substitute.ts。';
