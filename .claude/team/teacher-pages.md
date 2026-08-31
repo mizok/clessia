@@ -67,3 +67,50 @@ iframe 的 viewport 求值,所以這是真的 390px 渲染,不是模擬。sessio
 
 推論**一定要用實測數字收尾**:#125 原本被裁成 768px 視窗斷點,理由是「約 109px/欄」,
 量了才發現實際 59px,裁決因此被推翻。**前提是算出來的就去量它。**
+
+## 狀態列舉的文案（#132 提煉）
+
+這一席大量用 `app-status-dot`,而 `StatusTone` 是**會長出新成員的列舉**
+(`done` / `pending` / `overdue` / `inactive` / `failed`,以後還會再加)。
+
+### 帶 `default` 的 `switch` 在這種地方一律出事
+
+#132 的實際災情:狀態文案原本寫成
+
+```ts
+switch (tone) {
+  case 'done': return '已點名';
+  case 'overdue': return '漏點名';
+  default: return '還沒上';        // ← inactive 掉進這裡
+}
+```
+
+停課的 tone 是 `inactive`,掉進 `default` 顯示成**「還沒上」**——
+一堂停掉的課在畫面上看起來像老師還沒去上。**型別完全沒擋住**,
+測試也沒抓到(當時沒有停課的案例),是在 390px 實測時用眼睛看到的。
+
+`default` 的意思是「其他情況都這樣」,但列舉長出新成員時,
+「其他情況」會**靜靜地**多出一個成員,而它需要的是不一樣的話。
+
+### 改法:`Record<Tone, string>`
+
+```ts
+export const ATTENDANCE_TONE_LABELS: Record<StatusTone, string> = {
+  done: '已點名',
+  pending: '還沒上',
+  overdue: '漏點名',
+  inactive: '已停課',
+  failed: '點名異常',
+};
+```
+
+少一個 case 是**編譯錯誤**,不是一句錯的話。而且新增 tone 的那個人會被編譯器
+直接帶到每一個需要補文案的地方,不必仰賴他記得全域搜尋。
+
+同樣的做法在 `core/attendance.service.ts` 已有前例
+(`ATTENDANCE_STATUS_LABELS` / `ATTENDANCE_STATUS_SEVERITIES`)—— 跟著那個寫。
+
+### 推論到整席
+
+**任何「列舉 → 使用者看得到的字」的對應,一律用 `Record`,不要用 `switch`。**
+狀態、角色、繳費狀態、考試類型都適用。`switch` 留給真的有行為分支的地方。
