@@ -20,7 +20,9 @@ import { format } from 'date-fns';
 // toISOString() 是 UTC，在 UTC+8 的凌晨那幾小時會跟元件差一天，測試就假紅。
 const TODAY = format(new Date(), 'yyyy-MM-dd');
 /** 回溯窗裡「已經結束」的那一天 —— 今天的課還沒上完，不算漏點名 */
-const YESTERDAY = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+// 跟上面的 TODAY 同一個理由用 format 而不是 toISOString —— 這一行原本漏了，
+// 於是同一個檔案裡一個修對、一個每天紅 8 小時
+const YESTERDAY = format(new Date(Date.now() - 86_400_000), 'yyyy-MM-dd');
 
 function session(overrides: Partial<EventSessionSummary> = {}): EventSessionSummary {
   return {

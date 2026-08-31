@@ -1,4 +1,4 @@
-import { hasSessionEnded, type SessionTimeLike } from './session-time.util';
+import { hasSessionEnded, todayLocal, type SessionTimeLike } from './session-time.util';
 
 function session(overrides: Partial<SessionTimeLike> = {}): SessionTimeLike {
   return { date: '2026-08-30', startTime: '09:00', endTime: '11:00', ...overrides };
@@ -79,5 +79,45 @@ describe('hasSessionEnded', () => {
     const fromSessions = { date: '2026-08-30', startTime: '09:00', endTime: '11:00' };
 
     expect(hasSessionEnded(fromAttendance, NOON)).toBe(hasSessionEnded(fromSessions, NOON));
+  });
+});
+
+describe('todayLocal', () => {
+  // `new Date(y, m, d, …)` 建的是**本地**時間，所以這條斷言與機器時區無關
+  it('回傳本地日期，不是 UTC 日期', () => {
+    // 本地 2026-08-31 00:30 —— 在 UTC+8 這一刻的 UTC 日期是 08-30
+    expect(todayLocal(new Date(2026, 7, 31, 0, 30))).toBe('2026-08-31');
+  });
+
+  it('月與日補零', () => {
+    expect(todayLocal(new Date(2026, 0, 5, 12, 0))).toBe('2026-01-05');
+  });
+
+  it('一天的最後一刻仍是同一天', () => {
+    expect(todayLocal(new Date(2026, 7, 31, 23, 59, 59))).toBe('2026-08-31');
+  });
+
+  it('跨年', () => {
+    expect(todayLocal(new Date(2027, 0, 1, 0, 0))).toBe('2027-01-01');
+  });
+
+  /**
+   * 這一條是**防止改回 `toISOString()`** 的主要防線。
+   *
+   * 它在 UTC 機器上抓不到迴歸（那裡本地就是 UTC），但在任何有偏移的時區都會紅 ——
+   * 而開發與 CI 都不在 UTC。真正的防線其實是這個函式的名字：
+   * 有 `todayLocal` 可用時，沒有人會刻意去寫 `toISOString().slice(0, 10)`。
+   */
+  it('與 toISOString 在跨 UTC 邊界的時刻不同（只在有時區偏移時有意義）', () => {
+    const localMidnightish = new Date(2026, 7, 31, 0, 30);
+    const utcDate = localMidnightish.toISOString().slice(0, 10);
+
+    if (localMidnightish.getTimezoneOffset() < 0) {
+      // 東半球（UTC+N）：UTC 日期會落後一天
+      expect(utcDate).not.toBe(todayLocal(localMidnightish));
+    } else {
+      // UTC 或西半球：這一刻兩者可能相同，這條就沒有鑑別力
+      expect(todayLocal(localMidnightish)).toBe('2026-08-31');
+    }
   });
 });

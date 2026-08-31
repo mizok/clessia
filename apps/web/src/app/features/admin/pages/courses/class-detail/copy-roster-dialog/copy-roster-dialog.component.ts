@@ -18,6 +18,7 @@ import {
   type EnrollmentStatus,
 } from '@core/enrollments.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
+import { todayLocal } from '@shared/utils/session-time.util';
 
 interface ClassOption {
   label: string;
@@ -142,7 +143,7 @@ export class CopyRosterDialogComponent implements OnInit {
     this.classesLoading.set(true);
     this.copyError.set(null);
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayLocal();
     const params = this.campusId
       ? { pageSize: 200, includeHistorical: true, campusId: this.campusId }
       : { pageSize: 200, includeHistorical: true };

@@ -48,3 +48,28 @@ export function hasSessionEnded(session: SessionTimeLike, now: Date): boolean {
 
   return end.getTime() <= now.getTime();
 }
+
+/**
+ * 今天的本地日期（`YYYY-MM-DD`）。
+ *
+ * **不要用 `new Date().toISOString().slice(0, 10)`** —— 那給的是 **UTC** 日期。
+ * 在 UTC+8，每天 00:00–08:00 它會回傳**前一天**：
+ *
+ * ```
+ * 本地 2026-08-31 00:30  →  toISOString() = "2026-08-30T16:30:00Z"  →  "2026-08-30" ✗
+ * ```
+ *
+ * 後果是真實的：`session-list` 的「這堂課是未來的嗎」在半夜會把**今天**的課judged
+ * 成未來，標籤顯示「未開放點名」；`sessions.page` 的「管理出勤」選項會被 disable。
+ * 測試踩到同一個坑時更難查 —— 它每天只紅 8 小時，白天重跑就綠了。
+ *
+ * 這個函式與 `hasSessionEnded` 用同一個基準（本地時間），兩者必須一致：
+ * 一個判「今天是哪天」、一個判「這堂課上完了沒」，基準不同就會互相矛盾。
+ */
+export function todayLocal(now: Date = new Date()): string {
+  const year = now.getFullYear();
+  const month = `${now.getMonth() + 1}`.padStart(2, '0');
+  const day = `${now.getDate()}`.padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}

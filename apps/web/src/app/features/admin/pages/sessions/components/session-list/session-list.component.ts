@@ -14,7 +14,7 @@ import type {
   ResponsiveTablePaginationConfig,
 } from '@shared/components/responsive-table/responsive-table.models';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
-import { hasSessionEnded } from '@shared/utils/session-time.util';
+import { hasSessionEnded, todayLocal } from '@shared/utils/session-time.util';
 
 export interface SessionListMenuRequest {
   readonly event: MouseEvent;
@@ -125,8 +125,9 @@ export class SessionListComponent {
     return 'info';
   }
 
+  /** `todayLocal` 而不是 `toISOString()` —— 後者是 UTC 日期，半夜會把今天的課判成未來 */
   private isFutureSession(session: Session): boolean {
-    return session.sessionDate > new Date().toISOString().slice(0, 10);
+    return session.sessionDate > todayLocal();
   }
 
   protected attendanceStatusLabel(session: Session): string {
@@ -157,11 +158,17 @@ export class SessionListComponent {
    *
    * 文字（`attendanceStatusLabel`）維持說事實「未點名 N 人」，顏色說判斷：
    * 還沒上完是中性，上完了沒點才是警示。
+   *
+   * `now` 可注入**只為了測試** —— 模板呼叫時用預設值。沒有它的話這條判斷就綁在
+   * 牆鐘上，測試得自己算「今天」，而那正是 UTC 日期坑的入口。
    */
-  protected attendanceStatusSeverity(session: Session): 'success' | 'secondary' | 'warn' {
+  protected attendanceStatusSeverity(
+    session: Session,
+    now: Date = new Date(),
+  ): 'success' | 'secondary' | 'warn' {
     if (session.status === 'cancelled') return 'secondary';
     if (session.attendanceTakenAt) return 'success';
-    if (!hasSessionEnded(toSessionTime(session), new Date())) return 'secondary';
+    if (!hasSessionEnded(toSessionTime(session), now)) return 'secondary';
     return 'warn';
   }
 

@@ -178,12 +178,23 @@ describe('SessionListComponent', () => {
       teacherName: '王老師',
       hasChanges: false,
     };
-    const severity = (overrides: Partial<Session>) =>
-      component['attendanceStatusSeverity']({ ...base, ...overrides });
+    /**
+     * **固定的「現在」，不依賴牆鐘。**
+     *
+     * 原本這組日期是用 `new Date().toISOString().slice(0, 10)` 算的，那是 **UTC**
+     * 日期 —— 在 UTC+8 每天 00:00–08:00 會比本地日期少一天，於是「今天 23:30 的課」
+     * 其實變成「昨天 23:30 的課」（已結束）→ 這支測試每天紅 8 小時。
+     *
+     * 諷刺的是它測的正是時間邊界，自己卻踩到另一個時間邊界。現在把「現在」注入進去，
+     * 幾點跑都一樣。
+     */
+    const NOW = new Date(2026, 7, 31, 12, 0); // 本地 2026-08-31 中午
+    const today = '2026-08-31';
+    const tomorrow = '2026-09-01';
+    const yesterday = '2026-08-30';
 
-    const today = new Date().toISOString().slice(0, 10);
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const severity = (overrides: Partial<Session>) =>
+      component['attendanceStatusSeverity']({ ...base, ...overrides }, NOW);
 
     it('上完了卻沒點名是警示 —— 這是這次修的東西', () => {
       expect(severity({ sessionDate: yesterday, attendanceTakenAt: null })).toBe('warn');
