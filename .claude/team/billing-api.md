@@ -119,9 +119,18 @@ different request`）。方向永遠是 per-request 建、請求結束收。
 - **測「會回歸的東西」而不是「好測的東西」**。例：`requirePermission` 最重要那條是
   「context 裡根本沒有 permissions 時拒絕而不是全開」；harness 的 c6 gate 最重要那條是
   「規則被改名時 gate 不能靜默變成空掃」。
-- **驗證要打到出錯的那一層，不是最好測的那一層。** 帳單列表的 `meta.total` 從哪裡來，
-  純函式測不到 —— 它不知道 total 是 DB 的 count 還是當頁長度，那條得讓路由真的跑一遍。
-  跟 seed 的 42702 是同一個教訓的兩面（見上：抽段法驗不到 plpgsql 名稱解析）。
+- **驗證要打到出錯的那一層，不是最好測的那一層。三次了，這是模式不是巧合：**
+
+  | 事故                  | 錯在哪一層                     | 純函式測試為什麼看不到     |
+  | --------------------- | ------------------------------ | -------------------------- |
+  | seed 42702            | plpgsql 的名稱解析             | 抽出來的段落裡沒有那些變數 |
+  | 帳單列表 `meta.total` | total 取自 `.range()` 之後     | 它不知道 total 從哪裡來    |
+  | 聯絡簿週彙總（#129）  | 用錯欄位分組（`session_date`） | 它拿到的是已經分好組的 Map |
+
+  共同形狀：**bug 在「資料怎麼餵進純函式」那一層，而純函式測試從定義上就在那一層之後。**
+  所以動手寫測試之前先問一句：**這條規則是誰決定的？** 答案若是查詢、分組、參數解析、
+  或執行環境，那測試就得跨到那裡去，抽再乾淨的純函式都補不上。
+  代價通常只是一個假 supabase —— 比事故便宜得多。
 
 ### migration
 
@@ -174,14 +183,31 @@ c8 的 allowlist 又踩了一次（清掉違規的 PR 對著較舊的 base 是�
 
 ### 其他工具面的坑
 
+- **`wrangler deploy --dry-run` 不驗證 binding 的 id 存不存在。** 實測填
+  `<HYPERDRIVE_ID>` 照樣過 dry-run，只有真正的 deploy 才炸。所以凡是「要先 create
+  才拿得到 id」的 binding（Hyperdrive、D1、KV…），**配置一律留成註解 + 啟用步驟**，
+  不要填佔位值 —— 那等於在正式部署路徑上埋一顆下次有人裸跑 `wrangler deploy` 才引爆的雷
+  （跟 2026-08-29 的 `--var` 事故同一類：只活一次的設定看起來像永久設定）。
 - **`nx affected` 一律自己帶 `--base=main`**（`defaultBase` 指向不存在的 `dev`）。
 - **web 沒有獨立 typecheck target** —— 模板改動（改個方法名）只有 `nx build web`
   抓得到，測試與 typecheck 都不會發現。動到 web 就跑 build。
-- **root 的 `package-lock.json` 無法從零重建**（`@cloudflare/workers-types@^4` 對上
-  `wrangler` 的 `peerOptional ^5`）。改 root 依賴用
-  `npm install --package-lock-only --force`，**絕不用 `--legacy-peer-deps`**
-  （會砍掉 67 個 peer 帶進來的套件，含整包 eslint）。
+- **root 依賴的升版流程在 [`infra.md`](infra.md) 第四節**，不在這裡抄一份（c11）。
+  這裡只留一條跨席通用的：**絕不用 `--legacy-peer-deps`**（它會砍掉 67 個 peer
+  帶進來的套件，含整包 eslint）。
+  ⚠️ 這條原本寫著「root lock 無法從零重建、要用 `--force`」——**那個 ERESOLVE 已於
+  #51 修掉**（workers-types 與 wrangler 一起升）。腐化的原因就是把別席的細節抄過來。
 - `apps/api` 是獨立 package，要另外 `cd apps/api && npm ci`。
+
+### 加欄位給消費端時的兩條預設
+
+- **不要替既有欄位發明過濾規則。** #129 的課堂列表要標「這天有考試」，很容易順手把
+  `status = 'draft'` 的濾掉 —— 但專案其他地方（`academy-exams` 列表）並沒有把 draft
+  當隱藏。**同一個欄位在專案裡已有的處理方式就是預設值**；要偏離得有產品指示。
+  自己加的過濾會製造「明明排了卻沒顯示」這種沒人查得出來的怪事，而且症狀離原因很遠。
+  做法：照既有語意做，**把這個選擇寫進 PR 並附上「要改是一行」**，讓決定權回到產品。
+- **形狀不同就另開端點，不要給舊端點加參數。** #129 的聯絡簿週彙總（每天一列）與既有的
+  `/missing`（每生一列）是兩種形狀。同一個端點回兩種形狀，消費端就得先判斷自己拿到哪一種
+  —— 那個判斷會在不同的呼叫點寫出不同答案。**加參數只在「同一種形狀、換一組資料」時才對。**
 
 ### 交付
 
@@ -192,7 +218,7 @@ c8 的 allowlist 又踩了一次（清掉違規的 PR 對著較舊的 base 是�
   不要整個停下來等。
 - 回報用 SendMessage。**誠實回報驗證缺口**比宣稱全綠重要。
 
-## 現在的狀態（2026-08-30 —— 這節會過期，接手第一件事：重寫它）
+## 現在的狀態（2026-08-31 —— 這節會過期，接手第一件事：重寫它）
 
 **金流後端整條已完成並合併**：A1 計費地基 → A2 帳單收款 → A3 餐務與月結 → 營收報表
 聚合 → CSV 匯出。P2 的後端到此全齊。
@@ -201,13 +227,24 @@ c8 的 allowlist 又踩了一次（清掉違規的 PR 對著較舊的 base 是�
 成績的 teacher-scope 與出勤補登窗的伺服器強制已完成（#106，已合）。老師端頁面由
 teacher-pages 席接。
 
-等使用者合：#107（CSV 匯出）、#111（課堂列表 N+1 批次化 + `/system-time` 路由）。
+#107（CSV 匯出）與 #111（課堂列表 N+1 批次化 + `/system-time` 路由）已合併。
+
+**在飛的（都等使用者親手合）**：
+
+- **#123** 課堂列表回停課與代課資訊（`status` / `isSubstitute` / `teacherName` /
+  `sessionId`，`eventId` 轉 nullable）
+- **#128** 資料庫連線接上 Hyperdrive。**卡在使用者跑 `wrangler hyperdrive create`** ——
+  連線字串是機密，agent 不經手。wrangler.toml 的 binding 刻意留註解（理由見上）
+- **#129** 課堂列表 `examCount` + 聯絡簿 `/missing/summary` 週彙總。
+  **這支疊在 #123 上**，#123 合併後要 `gh pr edit 129 --base main`（計畫席的驗收清單裡）
 
 改善清單（依價值排序）：
 
-1. **`DATABASE_URL` 用的是哪個 pooler** —— per-request 建池的模型下 transaction
-   pooler（6543）才合適。這是**部署設定不是程式碼**，但可能是儀表板慢的最大一塊。
-   使用者確認中
+1. **量 Hyperdrive 上線前後的差**（#128 合併後）。注意 **Hyperdrive 只加速走 `pg` 的
+   那條路** —— 也就是 Better Auth 的 session 查詢，每個受保護請求都會跑到。業務路由走
+   supabase-js 的 HTTP（PostgREST），**不經過它**。所以預期是「每個請求少一次握手」，
+   不是「慢查詢變快」。若量完 PostgREST 仍是大頭，下一步是把它拆成
+   **HTTP 往返 vs 查詢執行**兩段再決定要不要改走 `pg`；沒拆之前不要立案
 2. **`ba_user` 寫入路徑收斂** —— c2 存量違規，加上 phone-only 家長改電話後合成 email
    不同步、管理員改與家長自己改兩條路徑對 `username` 處理不一致
 3. **hook-only clause 對存量零覆蓋** —— c2 / c3 / c7 / c8 都是「有 hook 沒有 gate」，
