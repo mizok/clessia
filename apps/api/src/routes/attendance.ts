@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { resolveTeacherScope } from './attendance/teacher-scope';
 import type { AppEnv } from '../index';
 import { isAttendanceEditable } from '../lib/attendance-window';
+import { isSubstituteSession } from '../lib/session-substitute';
 import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 
@@ -44,7 +45,18 @@ const AttendanceListResponseSchema = z
 
 const EventSessionSummarySchema = z
   .object({
-    eventId: z.uuid(),
+    /** 課堂本身的 id。**這才是穩定的鍵** —— eventId 可能是 null（見下） */
+    sessionId: z.uuid(),
+    /**
+     * 出勤事件的 id。**停課的課堂可能沒有** —— 出勤事件是列表時才補建的，
+     * 而停課的課堂刻意不補（不會發生的課不該在行事曆上長出一筆）。
+     * 沒有 eventId 就不能點名，前端要據此關掉點名入口。
+     */
+    eventId: z.uuid().nullable(),
+    /** `scheduled` / `completed` / `cancelled` —— 停課要顯示成灰底 */
+    status: z.enum(['scheduled', 'completed', 'cancelled']),
+    /** 實際上這堂課的老師跟課表排定的不一致 */
+    isSubstitute: z.boolean(),
     classId: z.uuid(),
     className: z.string(),
     courseName: z.string().nullable(),
@@ -871,32 +883,42 @@ app.openapi(
     const fromIndex = (page - 1) * pageSize;
     const toIndex = fromIndex + pageSize - 1;
 
-    const ensureEventsResult = await ensureAttendanceSessionEvents({
-      supabase,
-      orgId,
-      campusId,
-      courseIdList,
-      classIdList,
-      statusList,
-      dateFromValue,
-      dateToValue,
-    });
-    if (ensureEventsResult.error) {
-      return c.json({ error: '補齊課堂事件失敗', message: ensureEventsResult.error }, 500);
+    // **停課的課堂不補建出勤事件。** 出勤事件是「這堂課要點名」的載體，而停課的課
+    // 不會發生 —— 補建的話行事曆與出勤相關的視圖會多出一筆不存在的課。
+    // 代價是這些課堂的 `eventId` 是 null，回應 schema 明著標成 nullable。
+    const ensureStatusList = statusList.filter((status) => status !== 'cancelled');
+    if (ensureStatusList.length > 0) {
+      const ensureEventsResult = await ensureAttendanceSessionEvents({
+        supabase,
+        orgId,
+        campusId,
+        courseIdList,
+        classIdList,
+        statusList: ensureStatusList,
+        dateFromValue,
+        dateToValue,
+      });
+      if (ensureEventsResult.error) {
+        return c.json({ error: '補齊課堂事件失敗', message: ensureEventsResult.error }, 500);
+      }
     }
 
     let sessionsQuery = supabase
       .from('sessions')
       .select(
         `
+        id,
         event_id,
         session_date,
         start_time,
         end_time,
         status,
         class_id,
+        teacher_id,
+        teacher:staff!teacher_id(display_name),
+        schedules!schedule_id(teacher_id),
         classes!inner(name, course_id, campus_id, campuses(name), courses(name)),
-        events!event_id!inner(
+        events!event_id(
           id,
           event_date,
           start_time,
@@ -1006,12 +1028,26 @@ app.openapi(
         absentCount: 0,
       };
 
+      const scheduleRow = Array.isArray(session.schedules)
+        ? session.schedules[0]
+        : session.schedules;
+      const teacherRow = Array.isArray(session.teacher) ? session.teacher[0] : session.teacher;
+
       return {
-        eventId: eventId ?? '',
+        sessionId: session.id as string,
+        // 停課的課堂沒有出勤事件（ensure 刻意跳過）—— 這裡誠實回 null，
+        // 讓前端關掉點名入口，而不是給一個空字串讓它以為點得下去
+        eventId: eventId ?? null,
+        status: (session.status ?? 'scheduled') as 'scheduled' | 'completed' | 'cancelled',
+        isSubstitute: isSubstituteSession({
+          sessionTeacherId: (session.teacher_id as string | null) ?? null,
+          scheduleTeacherId: (scheduleRow?.teacher_id as string | null) ?? null,
+        }),
         classId: classId ?? '',
         className: classRow?.name ?? '',
         courseName: courseRow?.name ?? null,
-        teacherName: null,
+        // 實際上這堂課的老師（代課時就是代課老師）—— 原本寫死 null
+        teacherName: (teacherRow?.display_name as string | null) ?? null,
         campusId: eventRow?.campus_id ?? classRow?.campus_id ?? null,
         campusName: eventRow?.campuses?.name ?? classCampusRow?.name ?? null,
         eventDate: sessionDate ?? '',

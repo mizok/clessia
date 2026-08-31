@@ -249,6 +249,99 @@ describe('GET /api/attendance/sessions', () => {
     });
   });
 
+  it('hides cancelled sessions by default and returns them when asked', async () => {
+    const events = [
+      buildEvent({
+        id: 'event-1',
+        classId: 'class-1',
+        className: '數學 A',
+        courseId: 'course-1',
+        courseName: '數學',
+        sessionStatus: 'scheduled',
+        eventDate: '2026-04-01',
+      }),
+      buildEvent({
+        id: 'event-2',
+        classId: 'class-2',
+        className: '英文 B',
+        courseId: 'course-2',
+        courseName: '英文',
+        sessionStatus: 'cancelled',
+        eventDate: '2026-04-02',
+        // 停課的課堂刻意不補建出勤事件 —— 所以它沒有 eventId
+        hasEvent: false,
+      }),
+    ];
+    const request = async (query: string) => {
+      const app = createAttendanceTestApp(createMockSupabase({ events }));
+      const response = await app.request(`/api/attendance/sessions?${query}`);
+      return (await response.json()) as {
+        data: Array<{ classId: string; status: string; eventId: string | null }>;
+      };
+    };
+
+    const byDefault = await request('page=1&pageSize=20');
+    expect(byDefault.data.map((item) => item.classId)).toEqual(['class-1']);
+
+    const withCancelled = await request('page=1&pageSize=20&statuses=scheduled,cancelled');
+    expect(withCancelled.data).toEqual([
+      expect.objectContaining({ classId: 'class-1', status: 'scheduled', eventId: 'event-1' }),
+      // 沒有 eventId 就點不了名，前端要據此關掉入口 —— 不能給空字串蒙混
+      expect.objectContaining({ classId: 'class-2', status: 'cancelled', eventId: null }),
+    ]);
+  });
+
+  it('flags substitute teachers and returns who actually teaches', async () => {
+    const app = createAttendanceTestApp(
+      createMockSupabase({
+        events: [
+          buildEvent({
+            id: 'event-1',
+            classId: 'class-1',
+            className: '數學 A',
+            courseId: 'course-1',
+            courseName: '數學',
+            sessionStatus: 'scheduled',
+            eventDate: '2026-04-01',
+            teacherId: 'teacher-sub',
+            teacherName: '代課老師',
+            scheduleTeacherId: 'teacher-main',
+          }),
+          buildEvent({
+            id: 'event-2',
+            classId: 'class-2',
+            className: '英文 B',
+            courseId: 'course-2',
+            courseName: '英文',
+            sessionStatus: 'scheduled',
+            eventDate: '2026-04-02',
+            teacherId: 'teacher-main',
+            teacherName: '正課老師',
+            scheduleTeacherId: 'teacher-main',
+          }),
+        ],
+      }),
+    );
+
+    const response = await app.request('/api/attendance/sessions?page=1&pageSize=20');
+    const payload = (await response.json()) as {
+      data: Array<{ classId: string; isSubstitute: boolean; teacherName: string | null }>;
+    };
+
+    expect(payload.data).toEqual([
+      expect.objectContaining({
+        classId: 'class-1',
+        isSubstitute: true,
+        teacherName: '代課老師',
+      }),
+      expect.objectContaining({
+        classId: 'class-2',
+        isSubstitute: false,
+        teacherName: '正課老師',
+      }),
+    ]);
+  });
+
   it('returns paginated data/meta and excludes cancelled sessions by default', async () => {
     const app = createAttendanceTestApp(
       createMockSupabase({
@@ -524,6 +617,13 @@ interface MockAttendanceEvent {
   readonly sessions: Array<{
     readonly class_id: string;
     readonly status: 'scheduled' | 'completed' | 'cancelled';
+    /** 實際上這堂課的老師；null 代表沒指定 */
+    readonly teacher_id?: string | null;
+    readonly teacher?: { readonly display_name: string } | null;
+    /** 課表排定的老師；與 teacher_id 不一致就是代課 */
+    readonly schedules?: { readonly teacher_id: string | null } | null;
+    /** false 代表這堂課還沒補建出勤事件（停課的課堂就不補） */
+    readonly hasEvent?: boolean;
     readonly classes: {
       readonly name: string;
       readonly course_id: string;
@@ -739,7 +839,10 @@ function createSessionsQuery(data: MockSupabaseData) {
         | ((value: {
             data: Array<{
               id: string;
-              event_id: string;
+              event_id: string | null;
+              teacher_id: string | null;
+              teacher: { readonly display_name: string } | null;
+              schedules: { readonly teacher_id: string | null } | null;
               session_date: string;
               start_time: string | null;
               end_time: string | null;
@@ -754,7 +857,7 @@ function createSessionsQuery(data: MockSupabaseData) {
                 attendance_taken_at: string | null;
                 campus_id: string | null;
                 campuses: { readonly name: string } | null;
-              };
+              } | null;
             }>;
             error: null;
             count: number;
@@ -766,22 +869,28 @@ function createSessionsQuery(data: MockSupabaseData) {
         .flatMap((event) =>
           event.sessions.map((session, index) => ({
             id: `${event.id}-session-${index}`,
-            event_id: event.id,
+            event_id: session.hasEvent === false ? null : event.id,
+            teacher_id: session.teacher_id ?? null,
+            teacher: session.teacher ?? null,
+            schedules: session.schedules ?? null,
             session_date: event.event_date,
             start_time: event.start_time,
             end_time: event.end_time,
             status: session.status,
             class_id: session.class_id,
             classes: session.classes,
-            events: {
-              id: event.id,
-              event_date: event.event_date,
-              start_time: event.start_time,
-              end_time: event.end_time,
-              attendance_taken_at: event.attendance_taken_at,
-              campus_id: event.campus_id,
-              campuses: event.campuses,
-            },
+            events:
+              session.hasEvent === false
+                ? null
+                : {
+                    id: event.id,
+                    event_date: event.event_date,
+                    start_time: event.start_time,
+                    end_time: event.end_time,
+                    attendance_taken_at: event.attendance_taken_at,
+                    campus_id: event.campus_id,
+                    campuses: event.campuses,
+                  },
             org_id: event.org_id,
           })),
         )
@@ -937,6 +1046,10 @@ function buildEvent(input: {
   sessionStatus: 'scheduled' | 'completed' | 'cancelled';
   /** 呼叫端本來就在傳這個欄位，但先前的簽章沒有它，於是被靜默忽略、日期永遠是同一天。 */
   eventDate?: string;
+  teacherId?: string | null;
+  teacherName?: string | null;
+  scheduleTeacherId?: string | null;
+  hasEvent?: boolean;
 }): MockAttendanceEvent {
   const eventDate = input.eventDate ?? '2026-04-02';
   return {
@@ -952,6 +1065,11 @@ function buildEvent(input: {
       {
         class_id: input.classId,
         status: input.sessionStatus,
+        teacher_id: input.teacherId ?? null,
+        teacher: input.teacherName ? { display_name: input.teacherName } : null,
+        schedules:
+          input.scheduleTeacherId === undefined ? null : { teacher_id: input.scheduleTeacherId },
+        hasEvent: input.hasEvent,
         classes: {
           name: input.className,
           course_id: input.courseId,
