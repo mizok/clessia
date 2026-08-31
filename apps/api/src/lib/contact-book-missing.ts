@@ -70,3 +70,53 @@ export function missingContactBookStudents(
     a.studentName.localeCompare(b.studentName, 'zh-Hant'),
   );
 }
+
+/**
+ * 區間內的每一天（含頭尾）。`from` 晚於 `to` 就是空陣列。
+ *
+ * 手寫是因為 `apps/api` 沒有裝 date-fns，而這件事六行就夠 —— 為了它多一個相依
+ * 不划算。用 UTC 走日曆是刻意的：日期在這裡是字串上的 `YYYY-MM-DD`，
+ * 拿本地時區推進會在夏令時或跨時區部署時少一天或多一天。
+ */
+export function datesInRange(from: string, to: string): string[] {
+  const dates: string[] = [];
+
+  for (const cursor = new Date(`${from}T00:00:00Z`); ; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    const date = cursor.toISOString().slice(0, 10);
+    if (date > to) break;
+    dates.push(date);
+  }
+
+  return dates;
+}
+
+export interface MissingContactBookDay {
+  date: string;
+  missingCount: number;
+}
+
+/**
+ * 一整週（或任何區間）**每天各有幾個學生還沒寫**。
+ *
+ * 老師端的週檢視要在有待辦的那幾天點一個 ●，一天一支 `/missing` 就是七趟往返，
+ * 而每趟都要重撈同一份在籍名單。所以這裡把候選名單撈一次，逐日只換「已寫」與
+ * 「當天有課」兩個集合。
+ *
+ * **回傳區間內的每一天，包含 0 的那些。** 前端畫的是一列格子，缺哪天就要自己補洞，
+ * 補洞的邏輯散在前端遲早會跟後端對不齊。
+ */
+export function missingContactBookByDate(
+  candidates: ContactBookCandidate[],
+  writtenByDate: ReadonlyMap<string, ReadonlySet<string>>,
+  sessionsByDate: ReadonlyMap<string, ReadonlyArray<SessionOnDate>>,
+  dates: ReadonlyArray<string>,
+): MissingContactBookDay[] {
+  return dates.map((date) => ({
+    date,
+    missingCount: missingContactBookStudents(
+      candidates,
+      writtenByDate.get(date) ?? new Set<string>(),
+      sessionsByDate.get(date) ?? [],
+    ).length,
+  }));
+}

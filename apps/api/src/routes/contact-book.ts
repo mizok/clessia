@@ -2,7 +2,13 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
-import { missingContactBookStudents, type ContactBookCandidate } from '../lib/contact-book-missing';
+import {
+  datesInRange,
+  missingContactBookByDate,
+  missingContactBookStudents,
+  type ContactBookCandidate,
+  type SessionOnDate,
+} from '../lib/contact-book-missing';
 import { logAudit } from '../utils/audit';
 
 /**
@@ -357,6 +363,161 @@ app.openapi(
     const missing = missingContactBookStudents(candidates, written, sessionsOnDate);
 
     return c.json({ data: missing, meta: { total: missing.length } }, 200);
+  },
+);
+
+// ============================================================
+// GET /api/contact-book/missing/summary?dateFrom=&dateTo=
+//
+// 同一件事的**週形狀**：區間內每天各有幾個學生還沒寫。老師端的週檢視要在有待辦的
+// 那幾天點一個 ●，一天打一支 `/missing` 就是七趟往返，而七趟各自重撈同一份在籍名單。
+//
+// **另開端點而不是給 `/missing` 加參數**：回傳的形狀不一樣（每天一列 vs 每生一列），
+// 同一個端點回兩種形狀，消費端就得先判斷自己拿到的是哪一種。逐生的那支保留不動。
+// ============================================================
+
+/** 一次最多問幾天。週檢視要 7 天，留到 31 天讓月檢視也能用；再長就是有人拿它當報表用了 */
+const MISSING_SUMMARY_MAX_DAYS = 31;
+
+const MissingSummaryResponseSchema = z
+  .object({
+    /** 區間內的**每一天**，包含 0 的那些 —— 前端不必自己補洞 */
+    data: z.array(
+      z.object({
+        date: z.string(),
+        missingCount: z.number().int().nonnegative(),
+      }),
+    ),
+    /** 整個區間的總數，可以直接當週徽章 */
+    meta: z.object({ total: z.number() }),
+  })
+  .openapi('ContactBookMissingSummaryResponse');
+
+app.openapi(
+  createRoute({
+    method: 'get',
+    path: '/missing/summary',
+    tags: ['ContactBook'],
+    summary: '一段期間內每天該寫但還沒寫聯絡簿的人數',
+    request: {
+      query: z.object({
+        dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    },
+    responses: {
+      200: {
+        description: 'OK',
+        content: { 'application/json': { schema: MissingSummaryResponseSchema } },
+      },
+      400: { description: '區間不合法', content: { 'application/json': { schema: ErrorSchema } } },
+      403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
+      500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const { dateFrom, dateTo } = c.req.valid('query');
+
+    const dates = datesInRange(dateFrom, dateTo);
+    if (dates.length === 0) {
+      return c.json({ error: 'dateFrom 不能晚於 dateTo', code: 'INVALID_RANGE' }, 400);
+    }
+    if (dates.length > MISSING_SUMMARY_MAX_DAYS) {
+      return c.json(
+        { error: `一次最多查詢 ${MISSING_SUMMARY_MAX_DAYS} 天`, code: 'RANGE_TOO_LONG' },
+        400,
+      );
+    }
+
+    const scope = await loadTeachingScope(supabase, {
+      orgId,
+      userId: c.get('userId'),
+      roles: c.get('roles') ?? [],
+    });
+    if ('forbidden' in scope) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
+
+    // 老師只看自己固定任課的班（c1：範圍限制在伺服器）。一班都沒有就是整個區間都 0，
+    // **不是空陣列** —— 前端畫的還是同一列格子
+    let taught: string[] | null = null;
+    if (scope.teacherStaffId) {
+      taught = await taughtClassIds(supabase, orgId, scope.teacherStaffId);
+      if (taught.length === 0) {
+        return c.json(
+          { data: dates.map((date) => ({ date, missingCount: 0 })), meta: { total: 0 } },
+          200,
+        );
+      }
+    }
+
+    let candidateQuery = supabase
+      .from('enrollments')
+      .select('student_id, class_id, students(name), classes!inner(name, uses_contact_book)')
+      .eq('org_id', orgId)
+      .in('status', ['active', 'pending_payment'])
+      .eq('classes.uses_contact_book', true);
+
+    if (taught) candidateQuery = candidateQuery.in('class_id', taught);
+
+    const [
+      { data: candidateRows, error: candidateError },
+      { data: writtenRows, error: writtenError },
+      { data: sessionRows, error: sessionError },
+    ] = await Promise.all([
+      candidateQuery,
+      // 逐日只換這兩份 —— 在籍名單整個區間共用一份，這正是這支端點存在的理由
+      supabase
+        .from('contact_book_entries')
+        .select('student_id, entry_date')
+        .eq('org_id', orgId)
+        .gte('entry_date', dateFrom)
+        .lte('entry_date', dateTo),
+      supabase
+        .from('sessions')
+        .select('class_id, status, session_date')
+        .eq('org_id', orgId)
+        .gte('session_date', dateFrom)
+        .lte('session_date', dateTo),
+    ]);
+
+    if (candidateError || writtenError || sessionError) {
+      return c.json({ error: '讀取聯絡簿缺漏名單失敗', code: 'DB_ERROR' }, 500);
+    }
+
+    const candidates: ContactBookCandidate[] = (
+      (candidateRows ?? []) as unknown as Record<string, unknown>[]
+    ).map((row) => ({
+      studentId: row['student_id'] as string,
+      studentName: (row['students'] as { name?: string } | null)?.name ?? '',
+      classId: row['class_id'] as string,
+      className: (row['classes'] as { name?: string } | null)?.name ?? '',
+    }));
+
+    const writtenByDate = new Map<string, Set<string>>();
+    for (const row of (writtenRows ?? []) as unknown as Record<string, unknown>[]) {
+      const date = row['entry_date'] as string;
+      const bucket = writtenByDate.get(date) ?? new Set<string>();
+      bucket.add(row['student_id'] as string);
+      writtenByDate.set(date, bucket);
+    }
+
+    const sessionsByDate = new Map<string, SessionOnDate[]>();
+    for (const row of (sessionRows ?? []) as unknown as Record<string, unknown>[]) {
+      const date = row['session_date'] as string;
+      const bucket = sessionsByDate.get(date) ?? [];
+      bucket.push({ classId: row['class_id'] as string, status: row['status'] as string });
+      sessionsByDate.set(date, bucket);
+    }
+
+    const days = missingContactBookByDate(candidates, writtenByDate, sessionsByDate, dates);
+
+    return c.json(
+      { data: days, meta: { total: days.reduce((sum, day) => sum + day.missingCount, 0) } },
+      200,
+    );
   },
 );
 
