@@ -14,6 +14,10 @@ import {
 function session(startTime: string | null, endTime: string | null, id = startTime ?? 'x') {
   return {
     eventId: id,
+    sessionId: id,
+    status: 'scheduled',
+    isSubstitute: false,
+    examCount: 0,
     classId: 'c',
     className: '班',
     courseName: null,

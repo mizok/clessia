@@ -245,7 +245,8 @@ export class AttendancePage implements OnInit {
   }
 
   protected openPanel(session: EventSessionSummary): void {
-    if (this.isFuture(session)) {
+    // 停課的課堂沒有出勤事件（後端刻意不補建）—— 沒有 eventId 就沒有名可點
+    if (this.isFuture(session) || session.eventId === null) {
       return;
     }
 

@@ -60,8 +60,9 @@ export class DayTimelineComponent {
     return placed.session.takenAt !== null;
   }
 
+  /** 用 sessionId 不是 eventId —— 停課的課堂沒有 eventId，拿它當 key 會整批撞在 null */
   protected trackId(_: number, placed: PlacedSession): string {
-    return placed.session.eventId;
+    return placed.session.sessionId;
   }
 
   protected readonly summaryOf = computed(() => {

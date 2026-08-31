@@ -24,6 +24,7 @@ import { ButtonModule } from 'primeng/button';
 import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
+import { ContactBookService } from '@core/contact-book.service';
 import { OrgSettingsService } from '@core/org-settings.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { PageBandComponent } from '@shared/components/page-band/page-band.component';
@@ -35,7 +36,12 @@ import {
   type RosterPanelSession,
 } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 
-import { attendanceTone, weekAnchor } from './schedule.util';
+import {
+  ATTENDANCE_TONE_LABELS,
+  attendanceTone,
+  canTakeAttendance,
+  weekAnchor,
+} from './schedule.util';
 
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -69,6 +75,7 @@ export class SchedulePage implements OnInit {
   private readonly orgSettingsService = inject(OrgSettingsService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
+  private readonly contactBookService = inject(ContactBookService);
 
   private readonly track = viewChild<ElementRef<HTMLElement>>('track');
 
@@ -112,6 +119,12 @@ export class SchedulePage implements OnInit {
     }
     return map;
   });
+
+  /**
+   * 每天有幾個學生的聯絡簿還沒寫。空 Map 代表還沒取到或取數失敗 ——
+   * 徽章不出現，而不是顯示 0（「查不到」跟「沒有待辦」是兩件事）。
+   */
+  protected readonly missingByDate = signal<ReadonlyMap<string, number>>(new Map());
 
   /** 橘帶的錨點：整週的數字，不是當日的（面板不追捲動位置，理由見設計文件） */
   protected readonly anchor = computed(() => weekAnchor(this.sessions(), this.now));
@@ -176,10 +189,21 @@ export class SchedulePage implements OnInit {
     const end = endOfWeek(start, { weekStartsOn: 1 });
     // 不必傳 teacherId：後端看角色強制套用老師自己的 id（attendance/teacher-scope.ts）。
     // 由前端傳的話，直接打 API 的人就能指定別人 —— 前端隱藏不構成授權（c1）。
+    const dateFrom = format(start, 'yyyy-MM-dd');
+    const dateTo = format(end, 'yyyy-MM-dd');
+
+    // 聯絡簿待辦是獨立的一支，失敗不該讓課表整個空掉 —— 所以各自訂閱，不 forkJoin
+    this.contactBookService.missingSummary(dateFrom, dateTo).subscribe({
+      next: (res) => this.missingByDate.set(new Map(res.data.map((d) => [d.date, d.missingCount]))),
+      error: () => this.missingByDate.set(new Map()),
+    });
+
     this.attendanceService
       .sessions({
-        dateFrom: format(start, 'yyyy-MM-dd'),
-        dateTo: format(end, 'yyyy-MM-dd'),
+        dateFrom,
+        dateTo,
+        // 預設不含 cancelled —— 要畫停課就得明式要它
+        statuses: ['scheduled', 'completed', 'cancelled'],
       })
       .subscribe({
         next: (response) => {
@@ -217,21 +241,26 @@ export class SchedulePage implements OnInit {
   }
 
   protected toneLabel(session: EventSessionSummary): string {
-    switch (this.toneOf(session)) {
-      case 'done':
-        return '已點名';
-      case 'overdue':
-        return '漏點名';
-      default:
-        return '還沒上';
-    }
+    return ATTENDANCE_TONE_LABELS[this.toneOf(session)];
   }
 
   protected isToday(dateStr: string): boolean {
     return isToday(parseISO(dateStr));
   }
 
+  protected canTakeAttendance(session: EventSessionSummary): boolean {
+    return canTakeAttendance(session);
+  }
+
+  /** 這一天有幾個學生的聯絡簿還沒寫；0 或未知都不顯示徽章 */
+  protected missingOn(dateStr: string): number {
+    return this.missingByDate().get(dateStr) ?? 0;
+  }
+
   protected openPanel(session: EventSessionSummary): void {
+    // 停課沒有出勤事件 —— 模板已經藏掉入口，這裡是型別上的第二道
+    if (session.eventId === null || !canTakeAttendance(session)) return;
+
     const data: RosterPanelSession = {
       eventId: session.eventId,
       className: session.className,

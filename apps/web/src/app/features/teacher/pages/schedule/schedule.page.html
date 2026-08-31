@@ -51,17 +51,40 @@
         <h2 class="schedule-page__day-header">
           <span class="schedule-page__day-date">{{ day.date | date: 'M/d' }}</span>
           <span class="schedule-page__day-label">{{ day.label }}</span>
+          @if (missingOn(day.dateStr); as missing) {
+            <span
+              class="schedule-page__pending"
+              [attr.aria-label]="missing + ' 位學生的聯絡簿還沒寫'"
+            >
+              <span class="schedule-page__pending-dot" aria-hidden="true"></span>
+              {{ missing }}
+            </span>
+          }
         </h2>
 
         <div class="schedule-page__day-body">
-          @for (session of sessionsByDay().get(day.dateStr) ?? []; track session.eventId) {
-            <article class="schedule-page__session">
+          @for (session of sessionsByDay().get(day.dateStr) ?? []; track session.sessionId) {
+            <article
+              class="schedule-page__session"
+              [class.schedule-page__session--cancelled]="session.status === 'cancelled'"
+            >
               <p class="schedule-page__session-time">
                 {{ session.startTime ?? '--:--' }}–{{ session.endTime ?? '--:--' }}
               </p>
               <p class="schedule-page__session-name">{{ session.className }}</p>
 
               <p class="schedule-page__session-meta">
+                @if (session.status === 'cancelled') {
+                  <app-data-chip>停課</app-data-chip>
+                }
+                @if (session.isSubstitute) {
+                  <app-data-chip>代課</app-data-chip>
+                }
+                @if (session.examCount > 0) {
+                  <app-data-chip>
+                    小考{{ session.examCount > 1 ? ' ×' + session.examCount : '' }}
+                  </app-data-chip>
+                }
                 @if (session.campusName) {
                   <app-data-chip>{{ session.campusName }}</app-data-chip>
                 }
@@ -90,7 +113,12 @@
                 }
               </div>
 
-              @if (isTeacherLed() && !isUpcoming(session) && !isRetroactiveLocked(session)) {
+              @if (
+                isTeacherLed() &&
+                canTakeAttendance(session) &&
+                !isUpcoming(session) &&
+                !isRetroactiveLocked(session)
+              ) {
                 <p-button
                   styleClass="schedule-page__action"
                   [label]="session.takenAt ? '修改點名' : '開始點名'"

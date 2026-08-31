@@ -14,7 +14,7 @@
       }
 
       @for (lane of layout().lanes; track $index; let laneIndex = $index) {
-        @for (placed of lane; track placed.session.eventId) {
+        @for (placed of lane; track placed.session.sessionId) {
           <span
             class="day-timeline__block"
             [class.day-timeline__block--taken]="isTaken(placed)"

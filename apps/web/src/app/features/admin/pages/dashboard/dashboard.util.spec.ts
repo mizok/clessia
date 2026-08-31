@@ -4,6 +4,10 @@ import type { EventSessionSummary } from '@core/attendance.service';
 function session(overrides: Partial<EventSessionSummary> = {}): EventSessionSummary {
   return {
     eventId: 'e1',
+    sessionId: 's1',
+    status: 'scheduled',
+    isSubstitute: false,
+    examCount: 0,
     classId: 'c1',
     className: '數學班 A',
     courseName: '數學',

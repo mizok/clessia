@@ -74,7 +74,7 @@
     } @else if (filteredSessions().length === 0) {
       <div class="attendance-page__empty">沒有符合條件的課堂</div>
     } @else {
-      @for (session of filteredSessions(); track session.eventId) {
+      @for (session of filteredSessions(); track session.sessionId) {
         <div class="attendance-page__card">
           <div class="attendance-page__card-info">
             <div class="attendance-page__card-top">

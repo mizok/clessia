@@ -27,6 +27,10 @@ const YESTERDAY = format(new Date(Date.now() - 86_400_000), 'yyyy-MM-dd');
 function session(overrides: Partial<EventSessionSummary> = {}): EventSessionSummary {
   return {
     eventId: 'e1',
+    sessionId: 's1',
+    status: 'scheduled',
+    isSubstitute: false,
+    examCount: 0,
     classId: 'c1',
     className: '數學班 A',
     courseName: '數學',

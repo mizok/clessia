@@ -1005,6 +1005,10 @@ describe('SessionsPage', () => {
         data: [
           {
             eventId: 'event-1',
+            sessionId: 'session-1',
+            status: 'scheduled',
+            isSubstitute: false,
+            examCount: 0,
             classId: 'class-1',
             className: 'A班',
             courseName: '數學',

@@ -62,7 +62,23 @@ export interface UpdateAttendanceInput {
 }
 
 export interface EventSessionSummary {
-  eventId: string;
+  /**
+   * 課堂本身的 id。**這才是穩定的鍵** —— `eventId` 可能是 null，
+   * 拿它當 `@for` 的 track key 會讓停課的課堂互相撞 key。
+   */
+  sessionId: string;
+  /**
+   * 出勤事件的 id。**停課的課堂沒有** —— 出勤事件是列表時才補建的，
+   * 而停課的課堂刻意不補（不會發生的課不該在行事曆上長出一筆）。
+   * `null` 就是點不了名，呼叫端要據此關掉點名入口，不要當成空字串硬送。
+   */
+  eventId: string | null;
+  /** 停課要顯示成灰底；預設查詢不含 `cancelled`，要它得明式傳 `statuses` */
+  status: AttendanceSessionStatus;
+  /** 實際上課的老師跟課表排定的不一致。後端算好的，前端不要自己比對 */
+  isSubstitute: boolean;
+  /** 這個班在這一天排了幾場校內考。0 就是沒有 */
+  examCount: number;
   classId: string;
   className: string;
   courseName: string | null;

@@ -14,6 +14,10 @@ import { hasSessionEnded } from '@shared/utils/session-time.util';
  * 中間不需要再有一層對照表可以寫錯。
  */
 export function attendanceTone(session: EventSessionSummary, now: Date): StatusTone {
+  // 停課的課堂永遠不會被點名。**這一條必須排在 hasSessionEnded 之前** ——
+  // 不然一堂已過去的停課會被算成「上完了卻沒點」，那是誣賴老師漏了一堂根本沒發生的課。
+  if (session.status === 'cancelled') return 'inactive';
+
   // 全班缺席的課 presentCount 也是 0，所以判定看 takenAt 不看人數
   if (session.takenAt) return 'done';
 
@@ -24,6 +28,35 @@ export function attendanceTone(session: EventSessionSummary, now: Date): StatusT
 
   // 還沒上完 → 還在等（中空）；上完了卻沒點 → 積欠（實心 + warning）
   return ended ? 'overdue' : 'pending';
+}
+
+/**
+ * 狀態點旁邊的字。
+ *
+ * **刻意是 `Record` 不是 `switch`** —— 原本寫成帶 `default` 的 switch，
+ * 結果 `inactive`（停課）掉進 default 顯示成「還沒上」，一堂停掉的課在畫面上
+ * 看起來像老師還沒去上。`Record<StatusTone, string>` 會強制窮舉，
+ * 少一個 case 是編譯錯誤而不是一句錯的話。
+ */
+export const ATTENDANCE_TONE_LABELS: Record<StatusTone, string> = {
+  done: '已點名',
+  pending: '還沒上',
+  overdue: '漏點名',
+  inactive: '已停課',
+  failed: '點名異常',
+};
+
+/**
+ * 這堂課現在點得了名嗎 —— 只回答「有沒有可寫入的出勤事件」，不管時間。
+ *
+ * 停課的課堂後端**刻意不補建出勤事件**（不會發生的課不該在行事曆上長出一筆），
+ * 所以 `eventId` 是 null。誠實關掉入口，比送一個 null 進去讓它在 API 層炸掉好。
+ *
+ * 兩個條件都查是刻意的：`status` 才是語意上的來源，`eventId` 是它的後果。
+ * 只查 eventId 的話，後端哪天改成「停課也補建事件」就會靜靜地放行。
+ */
+export function canTakeAttendance(session: EventSessionSummary): boolean {
+  return session.status !== 'cancelled' && session.eventId !== null;
 }
 
 export interface WeekAnchor {
