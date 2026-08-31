@@ -37,7 +37,7 @@
         <p class="teacher-dashboard__state">今天沒有課。</p>
       } @else {
         <ul class="teacher-dashboard__list">
-          @for (session of todaySessions(); track session.eventId) {
+          @for (session of todaySessions(); track session.sessionId) {
             <li class="teacher-dashboard__item">
               <span class="teacher-dashboard__time">
                 {{ session.startTime ?? '—' }}–{{ session.endTime ?? '—' }}

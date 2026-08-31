@@ -79,11 +79,32 @@ export class ContactBookService {
    * **「該寫」綁的是「這個班那天有課」**：當日沒課或停課的班不列入，
    * 否則週末與寒暑假的名單會是滿的。
    */
-  missing(date: string): Observable<{ data: MissingContactBookStudent[]; meta: { total: number } }> {
+  missing(
+    date: string,
+  ): Observable<{ data: MissingContactBookStudent[]; meta: { total: number } }> {
     return this.http.get<{ data: MissingContactBookStudent[]; meta: { total: number } }>(
       `${this.endpoint}/missing`,
       { params: { date } },
     );
+  }
+
+  /**
+   * 同一件事的**週形狀**：區間內每天各有幾個學生還沒寫。
+   *
+   * **不要用 `missing()` 跑七次湊出來** —— 那是七趟往返，而且每趟各自重撈同一份在籍名單。
+   * 後端另開這支就是為了這件事（`routes/contact-book.ts` 的 `/missing/summary`）。
+   *
+   * 回傳含**區間內每一天**，包含 0 的那些，所以呼叫端不必自己補洞。
+   * 一次最多 31 天，超過後端回 400。
+   */
+  missingSummary(
+    dateFrom: string,
+    dateTo: string,
+  ): Observable<{ data: { date: string; missingCount: number }[]; meta: { total: number } }> {
+    return this.http.get<{
+      data: { date: string; missingCount: number }[];
+      meta: { total: number };
+    }>(`${this.endpoint}/missing/summary`, { params: { dateFrom, dateTo } });
   }
 
   /**

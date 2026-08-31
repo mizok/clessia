@@ -91,7 +91,7 @@
           <p class="dashboard__empty">今日尚無排課</p>
         } @else {
           <ul class="dashboard__spine">
-            @for (session of sessions; track session.eventId) {
+            @for (session of sessions; track session.sessionId) {
               <li
                 class="dashboard__spine-row"
                 [class.dashboard__spine-row--todo]="!session.takenAt"

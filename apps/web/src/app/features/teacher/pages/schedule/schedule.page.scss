@@ -108,6 +108,29 @@
     color: var(--zinc-500);
   }
 
+  /*
+   * 待處理徽章：這一天有幾個學生的聯絡簿還沒寫。
+   * 點只負責掃視，數字負責語意 —— 不靠顏色單獨傳達（WCAG 1.4.1），
+   * 而且它有 aria-label 講完整句子。
+   */
+  &__pending {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--accent-600);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__pending-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-500);
+  }
+
   &__day-body {
     display: flex;
     flex-direction: column;
@@ -122,6 +145,17 @@
     padding: var(--space-3);
     border: 1px solid var(--zinc-200);
     border-radius: 6px;
+  }
+
+  /* 停課＝灰底。它不是「還沒做的事」，是不會發生的事，所以整張卡退到背景去 */
+  &__session--cancelled {
+    background: var(--zinc-50);
+    border-style: dashed;
+  }
+
+  &__session--cancelled &__session-name {
+    color: var(--zinc-500);
+    text-decoration: line-through;
   }
 
   &__session-time {

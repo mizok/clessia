@@ -133,3 +133,43 @@ repo 目前 **零** `touchstart` / `swipe` / `pointerdown` 程式碼。這條債
 | 月曆的有課圓點 | 端點是分頁列表，要整月的日期集合得另開或濫用 `pageSize`                                                                                            |
 
 這五項開需求單給計畫席，由 billing-api 席做。**不在前端湊。**
+
+前四項已由 #123 / #131 交付並接上（見下節）；月曆那項仍未做，因為月曆本身還沒做。
+
+## 接線（#123 / #131 之後）
+
+### 停課必須排在「上完了沒」之前
+
+`attendanceTone` 的第一個判斷是 `status === 'cancelled'`，**順序不能動**。
+排在 `hasSessionEnded` 後面的話，一堂已過去的停課會被算成「上完了卻沒點」——
+那是誣賴老師漏了一堂**根本沒發生**的課。同理它也不計入橘帶錨點的待點名數。
+
+### 狀態文案用 `Record` 不用 `switch`
+
+原本是帶 `default` 的 switch，結果 `inactive`（停課）掉進 default 顯示成「還沒上」，
+一堂停掉的課在畫面上看起來像老師還沒去上。**實測時才發現，型別沒擋住。**
+
+改成 `Record<StatusTone, string>`：少一個 case 是編譯錯誤，不是一句錯的話。
+帶 `default` 的 switch 在「列舉之後會長出新成員」的地方一律是這個下場。
+
+### 點名閘門查兩個條件
+
+`canTakeAttendance` 同時查 `status !== 'cancelled'` 與 `eventId !== null`。
+`status` 是語意上的來源，`eventId` 是它的後果（後端刻意不替停課補建出勤事件）。
+只查 `eventId` 的話，後端哪天改成「停課也補建事件」就會靜靜地放行。
+
+### `statuses` 要明式傳
+
+後端預設 `['scheduled','completed']`，**少傳就永遠看不到停課**，而畫面上只會顯示成
+「那天沒課」—— 沒有任何錯誤訊息。這條有測試釘著（`schedule.page.spec.ts`）。
+
+### 聯絡簿待辦另外訂閱，不 forkJoin
+
+待辦徽章走 `/api/contact-book/missing/summary`（一次一週，不是 `missing` 打七次）。
+它跟課表是兩件事，所以各自訂閱：**它掛掉不該讓課表整個空掉**。
+取數失敗時 Map 清空 → 徽章不出現，而不是顯示 0（「查不到」跟「沒有待辦」是兩件事）。
+
+> ⚠️ **待辦徽章目前在老師身上一定是 0**，因為 `apps/api/src/lib/teacher-scope.ts`
+> 的 `taughtClassIds` 對沒有 `org_id` 欄位的 `schedules` 表下 `.eq('org_id', ...)`，
+> PostgREST 回 `42703`，而 `data ?? []` 把錯誤吞成空陣列。前端接線是好的
+> （端點回 200、形狀正確、有測試釘住對應邏輯），這是 API 側的缺陷，已開單。

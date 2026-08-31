@@ -83,7 +83,8 @@ export class SessionAttendanceDialogComponent implements OnInit {
               item.endTime === session.endTime,
           );
 
-          if (!matchedSession) {
+          // eventId 是 null 代表停課、後端沒補建事件 —— 對呼叫端來說跟「找不到」同一種結果
+          if (!matchedSession || matchedSession.eventId === null) {
             return throwError(() => new Error('EVENT_NOT_FOUND'));
           }
 
@@ -130,7 +131,8 @@ export class SessionAttendanceDialogComponent implements OnInit {
   protected save(): void {
     const summary = this.sessionSummary();
     const roster = this.roster();
-    if (!summary || !roster) {
+    // eventId 是 null 就沒有可寫入的出勤事件；載入時已擋掉，這裡是型別上的第二道
+    if (!summary || !roster || summary.eventId === null) {
       return;
     }
 
