@@ -5,7 +5,6 @@ import {
   type RosterStudent,
 } from '@core/attendance.service';
 import { ButtonModule } from 'primeng/button';
-import { TagModule } from 'primeng/tag';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
@@ -13,6 +12,7 @@ import {
   InlineNoticeComponent,
   type InlineNoticeSeverity,
 } from '@shared/components/inline-notice/inline-notice.component';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 
 export interface RosterPanelSession {
   eventId: string;
@@ -23,7 +23,7 @@ export interface RosterPanelSession {
 @Component({
   selector: 'app-attendance-roster-panel',
   standalone: true,
-  imports: [ButtonModule, TagModule, ProgressSpinnerModule, InlineNoticeComponent],
+  imports: [DataChipComponent, ButtonModule, ProgressSpinnerModule, InlineNoticeComponent],
   templateUrl: './attendance-roster-panel.component.html',
   styleUrl: './attendance-roster-panel.component.scss',
 })

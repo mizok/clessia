@@ -25,11 +25,19 @@ import {
   InlineNoticeComponent,
   type InlineNoticeSeverity,
 } from '@shared/components/inline-notice/inline-notice.component';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 
 @Component({
   selector: 'app-session-attendance-dialog',
   standalone: true,
-  imports: [DatePipe, ButtonModule, ProgressSpinnerModule, TagModule, InlineNoticeComponent],
+  imports: [
+    DataChipComponent,
+    DatePipe,
+    ButtonModule,
+    ProgressSpinnerModule,
+    TagModule,
+    InlineNoticeComponent,
+  ],
   templateUrl: './session-attendance-dialog.component.html',
   styleUrl: './session-attendance-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
