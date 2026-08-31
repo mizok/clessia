@@ -18,5 +18,52 @@
 ## 工作方式
 
 - 讀 README 通用協定與開分支規範;寫 SCSS 前 invoke `angular-scss-bem-standards`
-- 行動優先的驗證:每支 PR 用 390px 寬實測過再交
+- 行動優先的驗證:每支 PR 用 390px 寬實測過再交(**怎麼做見下一節** —— 直接縮視窗做不到)
 - 缺 API 不自己在前端湊 —— 開需求單回計畫席,由 billing-api 席做
+
+## 行動優先的量測（#125 提煉）
+
+這一席每支 PR 都要做 390px 實測,以下四條是那件事的操作知識。
+個案的數字歸 kb（課表那組見 [`kb/wiki/architecture/teacher-schedule-mobile-day.md`](../../kb/wiki/architecture/teacher-schedule-mobile-day.md)),
+這裡只放方法。
+
+### 1. 390px 要用同源 iframe 取,不是縮視窗
+
+**Chrome 把視窗寬夾在 598px**,`resize_window` 回報成功但 `innerWidth` 還是 598 ——
+照著它的回報寫「已在 390px 驗過」會是假的。
+
+作法:在 `localhost:4200` 開一個同源 iframe,`width:390px`,`src` 指向要測的頁,
+從 `iframe.contentWindow` / `contentDocument` 量。media query 與 container query 都對
+iframe 的 viewport 求值,所以這是真的 390px 渲染,不是模擬。session cookie 同源共用,不必重登。
+
+兩個坑:iframe 給 `border` 會被 `box-sizing: border-box` 從寬度裡扣掉(要框線用 `outline`);
+量完把 iframe 移除,不然它會留在頁面上影響後續截圖。
+
+### 2. 視窗斷點在內部頁不可信 —— shell sidebar 會偷走 240px
+
+`ShellLayoutComponent` 的 sidebar 在 >=768px 展開並吃掉 240px,所以**內容區寬度不是視窗寬度**。
+拿視窗斷點決定「內容排得下幾欄」必然算錯:課表七欄在 viewport 768 只有 59px/欄,
+不是照 viewport 除出來的 109px。
+
+內部頁的版面門檻一律掛在 `shell-content` 這個具名容器上
+(`shell-layout.component.scss` 已定義,admin sessions 系列頁在用)。
+好處是 sidebar 收合時版面會自動受益,不必再猜視窗寬。
+
+### 3. `@container` 量的是 content box,不是 border box
+
+用 `getBoundingClientRect()` 量出來的數字直接拿去當 `@container (min-width: X)` 的門檻會**偏大**,
+結果是「該翻的寬度沒翻」。差的就是容器的 padding(課表那次是 64px)。
+
+要嘛量 `clientWidth` 系的內距值,要嘛照下一條反推,不要用 border-box 的數字。
+
+### 4. 門檻從「每欄最低可用寬」反推,不要挑裝置斷點
+
+課表的 820px 是這樣來的:先定「每欄至少 110px 才塞得下時間+班名+chip+狀態點」,
+然後 `7 × 110 + 6 × 8px 間距 ≈ 818` → 取 820。
+
+這樣得到的門檻**跟裝置無關**,它回答的是「內容排得下嗎」,那才是真正的問題。
+所以這種值刻意**不取 `shared/_breakpoints.scss` 的 token** —— 那些是視窗尺度的值,
+混用會讓下一個人以為門檻跟裝置寬有關。
+
+推論**一定要用實測數字收尾**:#125 原本被裁成 768px 視窗斷點,理由是「約 109px/欄」,
+量了才發現實際 59px,裁決因此被推翻。**前提是算出來的就去量它。**
