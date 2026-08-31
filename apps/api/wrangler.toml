@@ -44,3 +44,32 @@ LINE_CLIENT_ID = "2011235423"
 #     --var BETTER_AUTH_URL:https://clessia-api-production.xxx.workers.dev \
 #     --var ALLOWED_ORIGINS:https://xxx.pages.dev \
 #     --var SUPABASE_URL:https://<ref>.supabase.co
+
+# ── Hyperdrive（正式環境的資料庫連線加速）────────────────────────────────────
+# Workers 不能跨請求重用連線，所以每個受保護的請求都要對 Supabase 重做一次
+# TCP + TLS + 認證握手 —— 對新加坡實測是 1.7–2.9 秒裡的主要成分。Hyperdrive 在邊緣
+# 幫我們維持到 origin 的長連線，Worker 連的是它，握手成本近乎歸零。
+#
+# **id 拿到之前這段必須維持註解。** 填了不存在的 id，`wrangler deploy` 會直接失敗；
+# 註解著的話程式碼自動退回 DATABASE_URL（見 src/lib/database-url.ts），正式站照常運作。
+#
+# 啟用順序（連線字串是機密，由部署的人自己跑，不經手第三方）：
+#   1. npx wrangler hyperdrive create clessia-production \
+#        --connection-string="<Supabase 的 Direct connection 字串>"
+#      → 用 **Direct connection**（port 5432），不要用 pooled 的那條：Hyperdrive
+#        本身就是連線池，疊在 Supavisor 上面沒有意義。
+#      → Supabase 專案若沒有 IPv4 add-on，direct 主機可能只有 AAAA 記錄而 Hyperdrive
+#        連不到（錯誤碼 2008/2010）。那種情況退而求其次用 Supavisor 的
+#        **session mode（port 5432）**，**絕對不要用 transaction mode（6543）**。
+#   2. 把回傳的 id 填進下面，取消註解
+#   3. npx wrangler deploy --env production
+#
+# 本機 `wrangler dev` 不需要這個：沒有 binding 就走 .dev.vars 的 DATABASE_URL。
+# 真要在本機測 Hyperdrive 這條路，加 localConnectionString 或設環境變數
+# CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE。
+#
+# 免費方案可用（每日 10 萬次查詢；快取與未快取都計數）。
+#
+# [[env.production.hyperdrive]]
+# binding = "HYPERDRIVE"
+# id = "<wrangler hyperdrive create 回傳的 id>"

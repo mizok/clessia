@@ -4,7 +4,7 @@ summary: 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能
 category: architecture
 tags: [architecture, deployment, cloudflare, supabase]
 status: active
-updated: 2026-08-29
+updated: 2026-08-31
 ---
 
 # 部署
@@ -138,11 +138,40 @@ Worker route 的優先權高於 Pages，所以 `/api/*` 會被 Worker 接走，�
 沒有它，任何非根路徑重新整理都會 404——Angular 的路由在瀏覽器端，
 `/admin/students` 在伺服器上沒有對應檔案。`200` 是 rewrite 不是 302。
 
+## Hyperdrive（正式環境的資料庫連線）
+
+Workers **不能跨請求重用 I/O 物件**，所以每個受保護的請求都自己開一個連線池
+（見 [[architecture/auth-pool-lifecycle]]）。代價是每次都要對 Supabase 重做一次
+TCP + TLS + 認證握手，而 Worker 跑在使用者附近、資料庫在新加坡 —— 這段握手是實測
+延遲裡的主要成分，不是慢查詢。
+
+Hyperdrive 在 Cloudflare 邊緣維持到 origin 的長連線，Worker 連的是本地的它。程式碼
+不必改連線邏輯，只是連線字串換來源：`src/lib/database-url.ts` 優先讀 binding 的
+`connectionString`，**沒有 binding 就退回 `DATABASE_URL`**。那條退路是 c12 的一部分 ——
+`server.ts` 的 Node 自架路徑根本沒有 Cloudflare。
+
+啟用順序（`wrangler.toml` 裡的那段預設是註解掉的，因為填了不存在的 id 會讓部署直接失敗）：
+
+1. `npx wrangler hyperdrive create clessia-production --connection-string="<連線字串>"`
+2. 把回傳的 id 填進 `apps/api/wrangler.toml` 的 `[[env.production.hyperdrive]]`，取消註解
+3. `npx wrangler deploy --env production`
+
+**用 Supabase 的 Direct connection（port 5432），不要用 pooled 的那條。** Hyperdrive
+自己就是連線池，疊在 Supavisor 上面沒有意義。例外：專案沒有 IPv4 add-on 時 direct 主機
+可能只有 AAAA 記錄、Hyperdrive 連不到（錯誤碼 2008 / 2010），那就退而求其次用 Supavisor
+的 **session mode（port 5432）**；**transaction mode（6543）不行** —— 它不保證同一個
+連線，pg 的 prepared statement 會錯亂。
+
+免費方案可用（每日 10 萬次查詢，快取與未快取都計數）。Hyperdrive **只加速走 `pg` 的那條路**
+（Better Auth 的 session 查詢，也就是每一個受保護的請求）；業務路由走 supabase-js 的 HTTP
+介面，不經過它。
+
 ## 只有人能做的步驟
 
 1. **建 Supabase 專案**、拿 service role key 與 connection string
 2. **`npx supabase link --project-ref <ref>`** 然後 `supabase db push` 套用 migration
 3. **`npx wrangler login`**、`wrangler secret put`（上面四個）
+   、以及 **`wrangler hyperdrive create`**（見上一節；連線字串是機密，只有部署的人碰得到）
 4. **決定網域**與 Cloudflare 帳號歸屬。在 Dashboard 掛上：
    Pages 的 custom domain（`<網域>`）與 Worker 的 **route**（`<網域>/api/*`，
    **不是 custom domain** —— 那會接管整個 hostname 把前端吃掉）

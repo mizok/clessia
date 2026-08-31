@@ -3,10 +3,12 @@ import { betterAuth } from 'better-auth';
 import { admin as adminPlugin, magicLink } from 'better-auth/plugins';
 import type { Bindings } from './index';
 import { allowedOrigins, resolveTrustedOrigins } from './lib/origins';
+import { resolveDatabaseUrl } from './lib/database-url';
 
 export type AuthBindings = Pick<
   Bindings,
   | 'DATABASE_URL'
+  | 'HYPERDRIVE'
   | 'BETTER_AUTH_SECRET'
   | 'BETTER_AUTH_URL'
   | 'WEB_URL'
@@ -124,7 +126,7 @@ export function createAuth(
   env: AuthBindings,
   captureMagicLink?: (payload: MagicLinkPayload) => void,
 ) {
-  const pool = new Pool({ connectionString: env.DATABASE_URL });
+  const pool = new Pool({ connectionString: resolveDatabaseUrl(env) });
 
   const auth = betterAuth({
     database: pool,

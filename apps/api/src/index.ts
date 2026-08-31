@@ -52,6 +52,13 @@ export type Bindings = {
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
   DATABASE_URL: string;
+  /**
+   * Hyperdrive binding（`wrangler.toml` 的 `[[env.production.hyperdrive]]`）。
+   *
+   * **可選**：本機 `wrangler dev` 與 `server.ts` 的 Node 自架路徑都沒有它，
+   * 那些情境退回 `DATABASE_URL`（見 `lib/database-url.ts`）。
+   */
+  HYPERDRIVE?: Hyperdrive;
   PLACEHOLDER_EMAIL_DOMAIN: string;
   /** 逗號分隔的額外允許來源；WEB_URL 已隱含可信，不必重複列 */
   ALLOWED_ORIGINS: string;
