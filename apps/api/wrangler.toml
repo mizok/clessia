@@ -70,6 +70,6 @@ LINE_CLIENT_ID = "2011235423"
 #
 # 免費方案可用（每日 10 萬次查詢；快取與未快取都計數）。
 #
-# [[env.production.hyperdrive]]
-# binding = "HYPERDRIVE"
-# id = "<wrangler hyperdrive create 回傳的 id>"
+[[env.production.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "3ed039ca0967497e81e9262cb4a367a4"
