@@ -61,6 +61,7 @@ import {
   type SessionsBodyContextMenuEvent,
 } from './components/sessions-body/sessions-body.component';
 import { SessionsActionsService } from './services/sessions-actions.service';
+import { todayLocal } from '@shared/utils/session-time.util';
 
 interface AttendanceDialogCloseResult {
   readonly eventId: string;
@@ -266,7 +267,8 @@ export class SessionsPage implements OnInit {
       {
         label: '管理出勤狀況',
         icon: 'pi pi-id-card',
-        disabled: s.sessionDate > new Date().toISOString().slice(0, 10),
+        // UTC 日期會讓半夜的「今天」被當成未來，選項會被錯誤 disable
+        disabled: s.sessionDate > todayLocal(),
         command: () => this.openAttendance(s),
       },
     ];
