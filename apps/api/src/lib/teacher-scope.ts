@@ -33,6 +33,26 @@ export function resolveTeachingScope(input: TeachingScopeInput): TeachingScope {
 }
 
 /**
+ * 查詢失敗一律往上丟，**不吞成空結果**。
+ *
+ * 這個檔案原本三支查詢都寫 `const { data } = await ...` 然後 `data ?? []` ——
+ * 於是 `taughtClassIds` 對沒有 `org_id` 欄位的 `schedules` 下條件時，PostgREST 回的
+ * 42703 被安靜地變成「這位老師沒有任何班」，老師端的聯絡簿、教務日誌、成績、校內考、
+ * 段考**全部回空**而沒有任何跡象。失敗方向是安全的（回空不是回全），但**無聲的失敗
+ * 比錯誤更貴**：它看起來就像「本來就沒有資料」。
+ *
+ * 丟出去之後由 `index.ts` 的 `onError` 變成 500。老師看到錯誤總比看到空白好 ——
+ * 空白他會以為是自己沒被排課。
+ */
+function unwrap<T>(
+  result: { data: T[] | null; error: { message: string } | null },
+  what: string,
+): T[] {
+  if (result.error) throw new Error(`${what}失敗：${result.error.message}`);
+  return result.data ?? [];
+}
+
+/**
  * 從請求脈絡解析範圍：管理員不查 staff（不受限所以不必查），老師才查。
  */
 export async function loadTeachingScope(
@@ -43,12 +63,16 @@ export async function loadTeachingScope(
     return resolveTeachingScope({ roles: params.roles, ownStaffId: null });
   }
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('staff')
     .select('id')
     .eq('user_id', params.userId)
     .eq('org_id', params.orgId)
     .maybeSingle();
+
+  // 查不到 staff 列與「查詢本身壞了」是兩件事：前者是 403（他不是老師），
+  // 後者吞掉的話老師會被當成沒有身分而看到 403，然後沒有人知道為什麼
+  if (error) throw new Error(`查詢教職員身分失敗：${error.message}`);
 
   return resolveTeachingScope({
     roles: params.roles,
@@ -62,14 +86,19 @@ export async function taughtClassIds(
   orgId: string,
   teacherStaffId: string,
 ): Promise<string[]> {
-  const { data } = await supabase
+  // **`schedules` 沒有 `org_id` 欄位**（`20260223000001_create_classes.sql`）——
+  // 對它下 `.eq('org_id', ...)` 是 42703（本機 PostgREST 實測：
+  // `column schedules.org_id does not exist`）。org 的界線走 `classes`。
+  const result = await supabase
     .from('schedules')
-    .select('class_id')
-    .eq('org_id', orgId)
+    .select('class_id, classes!inner(org_id)')
+    .eq('classes.org_id', orgId)
     .eq('teacher_id', teacherStaffId);
 
   return Array.from(
-    new Set((data ?? []).map((r: Record<string, unknown>) => r['class_id'] as string)),
+    new Set(
+      unwrap<Record<string, unknown>>(result, '查詢任課班級').map((r) => r['class_id'] as string),
+    ),
   );
 }
 
@@ -82,13 +111,15 @@ export async function taughtStudentIds(
   const classIds = await taughtClassIds(supabase, orgId, teacherStaffId);
   if (classIds.length === 0) return [];
 
-  const { data } = await supabase
+  const result = await supabase
     .from('enrollments')
     .select('student_id')
     .eq('org_id', orgId)
     .in('class_id', classIds);
 
   return Array.from(
-    new Set((data ?? []).map((r: Record<string, unknown>) => r['student_id'] as string)),
+    new Set(
+      unwrap<Record<string, unknown>>(result, '查詢任課學生').map((r) => r['student_id'] as string),
+    ),
   );
 }
