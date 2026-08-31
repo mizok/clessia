@@ -51,8 +51,10 @@ worktree 裡開新分支**一律** `git fetch -p origin && git checkout -b feat/
 
 ## 疊 PR / squash 倉庫的兩條鐵律
 
-1. **「MERGED」只說明它合進了某個東西，沒說是 main**（#89 事故）。疊 PR 的下層合併後，
-   上層 base 立刻人工轉 main、下層分支即刪；合併後才推上去的 commit 會在已合併分支上擱淺，
+1. **「MERGED」只說明它合進了某個東西，沒說是 main**（#89 事故；#129 重演 —— 使用者
+   在下層合併後 51 秒就合了上層，人工轉 base 根本搶不到那個空檔）。因此**疊 PR 開出來
+   就標 draft，等 base 轉成 main 才轉 ready** —— 讓「還不能合」變成 GitHub 擋得住的狀態，
+   不是靠人搶時間差。下層合併後上層 base 立刻人工轉 main、下層分支即刪；合併後才推上去的 commit 會在已合併分支上擱淺，
    永遠不會自己變成 PR（#105 事故 —— 手機版兩筆 commit 擱淺，#110 撿回）。
 2. **squash merge 之後，「commit 在不在 main」只能用內容判斷**（grep 關鍵字串），
    `git merge-base --is-ancestor` 對原始 SHA 永遠回「不在」—— 它在 squash 倉庫裡
