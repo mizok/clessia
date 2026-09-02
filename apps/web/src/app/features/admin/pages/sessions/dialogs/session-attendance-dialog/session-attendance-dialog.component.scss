@@ -184,3 +184,10 @@
     }
   }
 }
+
+// 「還有 N 位未點」—— 中性色，它是進度不是警告
+.session-attendance__pending {
+  margin-right: auto;
+  font-size: var(--text-sm);
+  color: var(--zinc-500);
+}
