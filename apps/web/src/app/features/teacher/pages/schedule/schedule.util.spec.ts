@@ -6,6 +6,7 @@ import {
   attendanceDisplay,
   attendanceTone,
   canTakeAttendance,
+  daySummary,
   weekAnchor,
 } from './schedule.util';
 
@@ -218,5 +219,75 @@ describe('attendanceDisplay（帶責任歸屬）', () => {
     const future = session({ eventDate: '2026-09-05' });
     expect(attendanceDisplay(future, now, true).label).toBe('還沒上');
     expect(attendanceDisplay(future, now, false).label).toBe('還沒上');
+  });
+});
+
+/**
+ * 桌機的週條：每天一格，顯示堂數與一顆狀態點。
+ * （2026-09-02 使用者推翻七欄 —— 格子太小。桌機改成「週條 + 放大的單日」，
+ * 跟手機同構。）
+ *
+ * 點的規則是**取最需要老師動作的那一個**，不是取多數 ——
+ * 一天有三堂、其中一堂漏點名，老師要看到的是那一堂。
+ */
+describe('daySummary（週條每日彙總）', () => {
+  const now = new Date('2026-09-01T08:00:00');
+
+  it('沒有課 → 沒有點，堂數 0', () => {
+    expect(daySummary([], now, true)).toEqual({ count: 0, tone: null });
+  });
+
+  it('一堂漏點名 → overdue', () => {
+    expect(daySummary([session({ eventDate: '2026-08-31' })], now, true)).toEqual({
+      count: 1,
+      tone: 'overdue',
+    });
+  });
+
+  /** 取最需要動作的那個，不是取多數 */
+  it('兩堂已點名 + 一堂漏點名 → overdue', () => {
+    const taken = { eventDate: '2026-08-31', takenAt: '2026-08-31T12:00:00Z' };
+    expect(
+      daySummary(
+        [
+          session({ ...taken, sessionId: 'a' }),
+          session({ ...taken, sessionId: 'b' }),
+          session({ eventDate: '2026-08-31', sessionId: 'c' }),
+        ],
+        now,
+        true,
+      ),
+    ).toEqual({ count: 3, tone: 'overdue' });
+  });
+
+  it('全部已點名 → done', () => {
+    expect(
+      daySummary(
+        [session({ eventDate: '2026-08-31', takenAt: '2026-08-31T12:00:00Z' })],
+        now,
+        true,
+      ),
+    ).toEqual({ count: 1, tone: 'done' });
+  });
+
+  it('還沒上的課 → pending', () => {
+    expect(daySummary([session({ eventDate: '2026-09-05' })], now, true)).toEqual({
+      count: 1,
+      tone: 'pending',
+    });
+  });
+
+  it('只有停課 → inactive，但堂數照算（它還在你的課表上）', () => {
+    expect(
+      daySummary([session({ eventDate: '2026-08-31', status: 'cancelled' })], now, true),
+    ).toEqual({ count: 1, tone: 'inactive' });
+  });
+
+  /** 責任歸屬要一路傳到週條，不然行政負責時週條又在問責老師 */
+  it('行政負責點名時，漏點名那天降成 pending', () => {
+    expect(daySummary([session({ eventDate: '2026-08-31' })], now, false)).toEqual({
+      count: 1,
+      tone: 'pending',
+    });
   });
 });

@@ -225,54 +225,102 @@
 }
 
 /*
- * 桌機：七欄攤平。
+ * 桌機：**不是七欄**。2026-09-02 使用者實際看過之後推翻了七欄 —— 格子太小
+ * （容器 900px 時每欄 113px，塞得下但讀起來累）。改成「週條 + 放大的單日」，
+ * 跟手機同構：桌機 = 手機版 + 一條週導航 + 更寬的卡片。
  *
- * **量的是內容區不是視窗**，因為 shell 的 sidebar 在 >=768px 就展開、吃掉 240px，
- * 七欄分到的從來不是視窗寬。實測（2026-08-31）：
+ * 所以這裡**沒有 grid 分支** —— 主面板在所有寬度都是同一個水平 scroll-snap 軌道。
+ * 差別只有兩件事：週條顯不顯示、一屏多寬。
  *
- *   viewport 768  → shell-content 528  →  59px/欄   ← 班名一個字一行、chip 被裁掉
- *   viewport 1140 → shell-content 900  → 113px/欄   ← 密度剛好撐得住
- *   viewport 1280 → shell-content 1040 → 133px/欄
- *
- * 所以門檻掛在 `shell-content` 這個具名容器上，不是任何視窗斷點。容器是
- * `shell-layout.component.scss` 定義的，admin sessions 系列頁已經在用同一個。
- * 好處是 sidebar 收合時七欄會自己受益，不必再猜視窗寬。
- *
- * 820px 是從「每欄至少 110px」反推的：7 × 110 + 6 × 8px 間距 ≈ 818。
- * **注意 @container 量的是容器的 content box**（不含 padding）—— 一開始拿 border-box
- * 的 900px 當門檻，結果在該翻的寬度上沒翻，因為那時 content box 只有 836。
- *
- * 它是量出來的值，不是裝置斷點，所以刻意不取 bp map 的 token —— 那些是視窗尺度的值，
- * 混用會讓下一個人以為這個門檻跟裝置寬有關。
- * 用原生 @container 而非 shared/breakpoints 的 respond-to-container 是因為後者只產 max-width。
+ * 門檻用 `shell-content` 容器而不是視窗斷點，理由跟先前一樣：
+ * shell 的 sidebar 在 >=768px 吃掉 240px，內容區寬 ≠ 視窗寬。
  */
-@container shell-content (min-width: 820px) {
+.schedule-page {
+  &__weekbar {
+    display: none;
+  }
+}
+
+@container shell-content (min-width: 640px) {
   .schedule-page {
-    &__track {
-      grid-auto-flow: row;
-      grid-template-columns: repeat(7, minmax(0, 1fr));
-      gap: var(--space-2);
-      overflow-x: visible;
-      scroll-snap-type: none;
-    }
-
-    &__day-header {
-      flex-direction: column;
+    &__weekbar {
+      display: flex;
       align-items: center;
-      gap: 0;
-      padding: var(--space-2);
+      gap: var(--space-2);
     }
 
-    &__day-date {
-      font-size: 0.9rem;
-    }
-
+    /*
+     * 一屏仍然是整個容器寬 —— **桌機也是一次看一天**。
+     * 一度把 grid-auto-columns 縮成 560px，結果 1050px 的容器一次露出 1.9 天，
+     * 那就不是「單日」了，而且看不出自己停在哪一天。
+     *
+     * 「更寬的卡片」是指卡片本身，不是面板：面板滿版、卡片設可讀上限，剩下留白。
+     */
     &__day-body {
-      padding: var(--space-2);
+      padding: var(--space-4);
     }
 
     &__session {
-      padding: var(--space-2);
+      /* 944px 寬的一列在別的老師端頁面已經被指出難讀，這裡不重蹈 */
+      max-width: 560px;
+      padding: var(--space-4);
+    }
+
+    &__day-header {
+      padding: var(--space-3) var(--space-4);
     }
   }
 }
+
+.schedule-page {
+  &__weekbar-days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--space-1);
+    flex: 1;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__weekbar-day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    width: 100%;
+    padding: var(--space-2) var(--space-1);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: none;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--zinc-50);
+    }
+
+    &--today {
+      border-color: var(--accent-400);
+      background: var(--accent-50);
+    }
+  }
+
+  &__weekbar-label {
+    font-size: 0.7rem;
+    color: var(--zinc-500);
+  }
+
+  &__weekbar-date {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--zinc-900);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 沒有課的那天：佔住同樣的高度，不然週條會忽高忽低 */
+  &__weekbar-empty {
+    font-size: 0.75rem;
+    color: var(--zinc-300);
+  }
+}
+

@@ -173,4 +173,30 @@ describe('SchedulePage', () => {
       expect(text).toContain('堂待點名');
     });
   });
+
+  /**
+   * 桌機的週條（2026-09-02 使用者推翻七欄之後的新結構）。
+   * 它讀的是已經載入的那一週，**不該產生額外請求** —— 課表本來就一次抓七天。
+   */
+  describe('週條', () => {
+    it('七天都在，且不多打一支 API', async () => {
+      await setup();
+      const days = fixture.nativeElement.querySelectorAll('.schedule-page__weekbar-day');
+      expect(days.length).toBe(7);
+      expect(sessionsSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('今天那一格標成 aria-current', async () => {
+      await setup();
+      const current = fixture.nativeElement.querySelectorAll('[aria-current="date"]');
+      expect(current.length).toBe(1);
+    });
+
+    it('沒有課的那天不畫狀態點', async () => {
+      await setup();
+      // 預設 sessions 是空的 → 七天都沒課
+      expect(fixture.nativeElement.querySelectorAll('.status-dot').length).toBe(0);
+      expect(fixture.nativeElement.querySelectorAll('.schedule-page__weekbar-empty').length).toBe(7);
+    });
+  });
 });

@@ -36,7 +36,7 @@ import {
   type RosterPanelSession,
 } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 
-import { attendanceDisplay, canTakeAttendance, weekAnchor } from './schedule.util';
+import { attendanceDisplay, canTakeAttendance, daySummary, weekAnchor } from './schedule.util';
 
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -124,6 +124,22 @@ export class SchedulePage implements OnInit {
   /** 橘帶的錨點：整週的數字，不是當日的（面板不追捲動位置，理由見設計文件） */
   protected readonly anchor = computed(() => weekAnchor(this.sessions(), this.now));
 
+  /**
+   * 桌機週條的七格。手機不顯示它 —— 手機換日靠滑，多一條導航是重複的。
+   *
+   * 它讀的是**已經載入的那一週**，沒有額外請求：課表本來就一次抓七天。
+   */
+  protected readonly weekBar = computed(() => {
+    const byDay = this.sessionsByDay();
+    const teacherLed = this.isTeacherLed();
+    return this.weekDays().map((day, index) => ({
+      ...day,
+      index,
+      isToday: day.dateStr === this.todayStr,
+      ...daySummary(byDay.get(day.dateStr) ?? [], this.now, teacherLed),
+    }));
+  });
+
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
   }
@@ -160,9 +176,13 @@ export class SchedulePage implements OnInit {
    * 桌機是 grid、沒有水平捲動，這裡設 `scrollLeft` 是無害的 no-op。
    */
   private snapToToday(): void {
+    this.snapToDay(this.weekDays().findIndex((d) => d.dateStr === this.todayStr));
+  }
+
+  /** 週條點某一天就捲到那一屏。桌機沒有水平捲動時是無害的 no-op */
+  protected snapToDay(index: number): void {
     const el = this.track()?.nativeElement;
     if (!el) return;
-    const index = this.weekDays().findIndex((d) => d.dateStr === this.todayStr);
     if (index <= 0) {
       el.scrollLeft = 0;
       return;
