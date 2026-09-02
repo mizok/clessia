@@ -2,7 +2,7 @@
 title: 授權範圍 —— 分校、職務、細部權限
 summary: 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
 category: architecture
-status: seedling
+status: active
 updated: 2026-09-02
 tags: [architecture, authorization, campus, teacher-scope, permissions, security]
 ---
@@ -14,8 +14,9 @@ tags: [architecture, authorization, campus, teacher-scope, permissions, security
 > 有開課的課堂無關的資訊」、「目前的管理者帳號建立的時候其實有權限隔離的限制，
 > 但這部分其實仍然是雛形，我希望你趁這個機會做完這部分」。
 >
-> **這是設計，還沒實作。** 授權是 fail-closed 的東西，改錯的後果是靜默放行或
-> 全站空白，所以走 STOP gate。
+> **狀態（2026-09-03）**：洞 1、2、3、4 已修，洞 5 的地基已完成、預設過濾還有
+> 14 支路由待接（harness 每次會列出來）。下面標「已實作」的段落是現況，
+> 其餘是尚未落地的設計。
 
 ## 現況一句話：**建立帳號時全都收了，執行時多數沒有用**
 
@@ -88,6 +89,33 @@ school-exams、contact-book、class-logs，以及 `/api/attendance/sessions` 的
 ### 洞 5 — 分校完全沒有隔離
 
 見上表。分校主任看得到、也改得動別校的收入、名單、出勤。
+
+## 現況（2026-09-03）
+
+| 洞                   | 狀態         | 落地的東西                                                                                                 |
+| -------------------- | ------------ | ---------------------------------------------------------------------------------------------------------- |
+| 1 老師改得動組織設定 | **已修**     | `writeRequiresAdmin('manage_org_settings')` 掛在 `/settings`                                               |
+| 2 五個權限只擋前端   | **已修**     | `mount()` 的 `{ all } / { write }`，harness A7b 防退化                                                     |
+| 3 提權與自我提權     | **已修**     | `lib/role-assignment.ts`，接在 staff 的建立與更新                                                          |
+| 4 老師只擋讀不擋寫   | **已修**     | `lib/attendance-write-scope.ts`，接在三支寫入端點                                                          |
+| 5 分校零隔離         | **地基完成** | `campusScope` 掛 middleware、`all_campuses` 權限、migration、全域 `campusRequestGuard`（指名別的分校 403） |
+
+**洞 5 剩下的**：「不指定分校時只回自己的分校」要逐路由過濾，還有 14 支
+（`academy-exams`、`announcements`、`attendance`、`campuses`、`classes`、`courses`、
+`daily-checkins`、`enrollments`、`leaves`、`reports`、`school-exams`、`sessions`、
+`staff`、`students`）。harness 的 A7c 每次會把還沒接的列出來 —— **這筆欠債是看得見的，
+不是隱形的**，那正是這一頁一開始反對「在單一功能裡自己做一半」的理由。
+
+### 實作時修正的設計：權限只擋寫，不擋讀
+
+原本的對照表把權限掛在整支路由前綴上（讀寫都擋）。實作時查到
+`ClassesService` 被出勤頁與成績頁讀、`CoursesService` 被報表與課表讀、
+`CampusesService` 被報名、異動、通知、人員頁讀 —— **整包擋掉的話，一個只有
+`basic_operations` 的管理員連出勤頁都打不開**，於是實務上大家只好把權限全開，
+權限系統就失去意義。
+
+所以 `mount()` 有兩種形狀：`{ all }`（讀也要擋，金流與報表維持原狀，不放鬆）
+與 `{ write }`（只擋寫，新加的四個權限都是這一種）。
 
 ## 設計
 
