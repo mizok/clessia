@@ -5,6 +5,7 @@ import { mintLoginLinkForRequest } from './login-links/mint';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { PERMISSIONS } from '../lib/permissions';
+import { checkRoleAssignment } from '../lib/role-assignment';
 
 // ============================================================
 // Schemas
@@ -838,6 +839,18 @@ app.openapi(createRouteDef, async (c) => {
     return c.json({ error: '僅管理員可新增人員', code: 'FORBIDDEN' }, 403);
   }
 
+  // 建立帳號一定會指定角色，所以一定要 `manage_roles` —— 否則「能建人」就等於
+  // 「能給自己開一個權限全開的帳號」。mount 那層的 `manage_staff` 只管到人事資料。
+  const assignment = checkRoleAssignment({
+    permissions: c.get('permissions') ?? [],
+    requesterUserId,
+    targetUserId: null,
+    touchesRoleAssignment: true,
+  });
+  if (!assignment.ok) {
+    return c.json({ error: assignment.message, code: 'FORBIDDEN' }, 403);
+  }
+
   const hasTeacherRole = body.roles.includes('teacher');
   if (hasTeacherRole && (!body.subjectIds || body.subjectIds.length === 0)) {
     return c.json({ error: '老師必須至少有一個教學科目', code: 'SUBJECTS_REQUIRED' }, 400);
@@ -1088,6 +1101,18 @@ app.openapi(updateRoute, async (c) => {
   }
 
   const userId = staffRow['user_id'] as string;
+
+  // 改人事資料是 `manage_staff`（mount 擋過了）；**指定角色與權限是 `manage_roles`**，
+  // 而且不論有什麼權限都不能改自己 —— 提權的路要經過另一個人。
+  const assignment = checkRoleAssignment({
+    permissions: c.get('permissions') ?? [],
+    requesterUserId,
+    targetUserId: userId,
+    touchesRoleAssignment: body.roles !== undefined || body.permissions !== undefined,
+  });
+  if (!assignment.ok) {
+    return c.json({ error: assignment.message, code: 'FORBIDDEN' }, 403);
+  }
 
   if (body.campusIds !== undefined) {
     const orgId = staffRow['org_id'] as string;
