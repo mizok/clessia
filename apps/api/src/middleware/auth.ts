@@ -50,7 +50,27 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     supabase.from('parents').select('status').eq('user_id', session.user.id),
   ]);
 
-  if (rolesError || staffError || parentError) {
+  // **失敗的原因要留下來。** 這三個 error 物件原本讀完就丟 —— 於是這條路只會在正式站
+  // 產生一個沒有線索的 500：不知道是哪一支查詢、也不知道錯在什麼。
+  // 而它是**每個受保護請求都會跑**的路徑，所以任何一次連線層的抖動都長這個樣子。
+  //
+  // 回應本身刻意維持原狀（不把 DB 錯誤吐給前端），細節只進 `console.error` ——
+  // 那是 `wrangler tail` 看得到的地方。
+  const identityFailures = (
+    [
+      ['user_roles', rolesError],
+      ['staff', staffError],
+      ['parents', parentError],
+    ] as const
+  ).filter(([, error]) => error);
+
+  if (identityFailures.length > 0) {
+    console.error(
+      '[auth] 身分查詢失敗：' +
+        identityFailures
+          .map(([table, error]) => `${table}=${(error as { message?: string })?.message ?? error}`)
+          .join('; '),
+    );
     return c.json({ error: '伺服器錯誤', code: 'SERVER_ERROR' }, 500);
   }
 
