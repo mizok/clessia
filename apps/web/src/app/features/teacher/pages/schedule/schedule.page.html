@@ -23,9 +23,14 @@
         />
       </div>
       @if (!loading()) {
-        <app-band-anchor [value]="anchor().overdue" unit="堂待點名">
-          本週 <b>{{ anchor().total }}</b> 堂
-        </app-band-anchor>
+        @if (isTeacherLed()) {
+          <app-band-anchor [value]="anchor().overdue" unit="堂待點名">
+            本週 <b>{{ anchor().total }}</b> 堂
+          </app-band-anchor>
+        } @else {
+          <!-- 行政負責點名：老師沒有點名入口，把「待點名」當錨點是在問責他做不到的事 -->
+          <app-band-anchor [value]="anchor().total" unit="堂課">本週</app-band-anchor>
+        }
       }
     </div>
   </app-page-band>
@@ -94,8 +99,8 @@
               <div class="schedule-page__session-status">
                 @if (isRetroactiveLocked(session)) {
                   <app-status-dot tone="inactive">點名已截止</app-status-dot>
-                } @else {
-                  <app-status-dot [tone]="toneOf(session)">{{ toneLabel(session) }}</app-status-dot>
+                } @else if (display(session); as d) {
+                  <app-status-dot [tone]="d.tone">{{ d.label }}</app-status-dot>
                 }
 
                 @if (session.takenAt) {

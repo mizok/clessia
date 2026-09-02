@@ -62,6 +62,7 @@ import {
 } from './components/sessions-body/sessions-body.component';
 import { SessionsActionsService } from './services/sessions-actions.service';
 import { todayLocal } from '@shared/utils/session-time.util';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 interface AttendanceDialogCloseResult {
   readonly eventId: string;
@@ -139,7 +140,7 @@ export class SessionsPage implements OnInit {
   protected readonly selectedStatuses = signal<string[]>([...DEFAULT_STATUSES]);
   protected readonly currentPage = signal(1);
   protected readonly totalSessions = signal(0);
-  protected readonly PAGE_SIZE = 8;
+  protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
   protected readonly students = signal<Student[]>([]);
   protected readonly studentEnrolledClassIds = signal<Set<string>>(new Set());
   protected readonly studentFilteredEnrollments = signal<Enrollment[]>([]);

@@ -52,6 +52,7 @@ import {
   StatusDotComponent,
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] = [
   { value: 'basic_operations', label: '日常行政', description: '查詢與處理報名、出勤、請假' },
@@ -148,7 +149,7 @@ export class StaffPage implements OnInit {
     inactiveCount: 0,
     archivedCount: 0,
   });
-  protected readonly PAGE_SIZE = 8;
+  protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
 
   // Computed
   readonly adminCount = computed(() => this.summary().adminCount);

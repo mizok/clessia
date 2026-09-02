@@ -1188,3 +1188,113 @@ function buildEvent(input: {
     ],
   };
 }
+
+/**
+ * `recorded_by_role` 原本三處人工寫入點一律寫死 `'admin'`，即使按下按鈕的是老師。
+ *
+ * **這條只能在路由層守。** `resolveRecordedByRole` 的單元測試證明它會回 `'teacher'`，
+ * 但證不出「路由真的把 roles 傳給它」—— 寫死 `'admin'` 的那個版本一樣通過所有
+ * 純函式測試。錯在接線那一層，測試就得跨到那一層。
+ */
+describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
+  function createBatchApp(roles: string[]) {
+    const upserted: Array<Record<string, unknown>> = [];
+    // 補登窗是按台北日期算的，所以測試也要用台北的今天
+    // （`getCurrentTaipeiDateString` 在 attendance.ts 裡是私有的，這裡照抄一次）
+    const eventDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(
+      new Date(),
+    );
+
+    const supabase = {
+      from(table: string) {
+        const query: Record<string, unknown> = {
+          select: () => query,
+          eq: () => query,
+          in: () => query,
+          lte: () => query,
+          gte: () => query,
+          is: () => query,
+          order: () => query,
+          or: () => query,
+          not: () => query,
+          limit: () => query,
+          update: () => query,
+          maybeSingle: () =>
+            Promise.resolve({
+              // 老師負責點名、當天可改 —— 讓流程走得到 upsert
+              data: { attendance_responsible: 'teacher', attendance_retroactive_days: 0 },
+              error: null,
+            }),
+          single: () =>
+            Promise.resolve({
+              data: {
+                id: 'event-1',
+                attendance_taken_at: null,
+                event_date: eventDate,
+                start_time: '09:00',
+                sessions: [{ class_id: 'class-1', classes: { name: 'Ｇ', courses: null } }],
+              },
+              error: null,
+            }),
+          upsert: (rows: Array<Record<string, unknown>>) => {
+            if (table === 'attendance_records') upserted.push(...rows);
+            return Promise.resolve({ error: null });
+          },
+          insert: () => Promise.resolve({ error: null }),
+          then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) =>
+            Promise.resolve({
+              data: table === 'enrollments' ? [{ student_id: 'stu-1' }] : [],
+            }).then(onfulfilled ?? undefined),
+        };
+        return query;
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      context.set('roles', roles);
+      await next();
+    });
+    app.route('/api/attendance', attendanceApp);
+
+    return { app, upserted };
+  }
+
+  async function save(roles: string[]) {
+    const { app, upserted } = createBatchApp(roles);
+    const response = await app.request(
+      '/api/attendance/batch',
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          eventId: '00000000-0000-4000-8000-000000000001',
+          updates: [{ studentId: 'stu-1', status: 'present' }],
+        }),
+      },
+      undefined,
+      // 這支端點的稽核紀錄用 c.executionCtx.waitUntil，沒有它會丟例外。
+      // Workers 上一定有；測試要自己給一個
+      { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
+    );
+    return { status: response.status, upserted };
+  }
+
+  it('老師點的名記成 teacher，不是 admin', async () => {
+    const { status, upserted } = await save(['teacher']);
+
+    expect(status).toBe(200);
+    expect(upserted).toHaveLength(1);
+    expect(upserted[0]?.['recorded_by_role']).toBe('teacher');
+  });
+
+  it('管理員點的名記成 admin', async () => {
+    const { upserted } = await save(['admin']);
+
+    expect(upserted[0]?.['recorded_by_role']).toBe('admin');
+  });
+});

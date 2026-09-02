@@ -54,6 +54,7 @@ import {
   StatusDotComponent,
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 @Component({
   selector: 'app-parents',
@@ -92,7 +93,7 @@ export class ParentsPage implements OnInit {
     return this.overlayContainerService.getContainer();
   }
 
-  protected static readonly PAGE_SIZE = 8;
+  protected static readonly PAGE_SIZE = LIST_PAGE_SIZE;
   protected readonly PAGE_SIZE = ParentsPage.PAGE_SIZE;
   protected readonly statusLabels = PARENT_STATUS_LABELS;
 

@@ -5,6 +5,7 @@ import { CampusesService, type Campus } from '@core/campuses.service';
 import { vi } from 'vitest';
 
 import { CampusesPage } from './campuses.page';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 describe('CampusesPage', () => {
   let component: CampusesPage;
@@ -55,8 +56,8 @@ describe('CampusesPage', () => {
     expect(component).toBeTruthy();
   });
 
-  it('uses 8 records per page', () => {
-    expect((component as unknown as { PAGE_SIZE: number }).PAGE_SIZE).toBe(8);
+  it('用共用的整頁列表頁大小，不自己訂一個', () => {
+    expect((component as unknown as { PAGE_SIZE: number }).PAGE_SIZE).toBe(LIST_PAGE_SIZE);
   });
 
   it('shows summary counts returned by the API', () => {

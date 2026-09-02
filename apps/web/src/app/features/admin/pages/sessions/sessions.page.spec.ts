@@ -18,6 +18,7 @@ import { SessionAttendanceDialogComponent } from './dialogs/session-attendance-d
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
 import { SessionOperationsLogDialogComponent } from './dialogs/session-operations-log-dialog/session-operations-log-dialog.component';
 import { SessionAdvancedFiltersDialogComponent } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 describe('SessionsPage', () => {
   let component: SessionsPage;
@@ -504,7 +505,7 @@ describe('SessionsPage', () => {
         to: '2026-03-16',
         statuses: undefined,
         page: 1,
-        pageSize: 8,
+        pageSize: LIST_PAGE_SIZE,
       }),
     );
   });
@@ -557,7 +558,7 @@ describe('SessionsPage', () => {
       classIds: ['class-1', 'class-2'],
       statuses: undefined,
       page: 1,
-      pageSize: 8,
+      pageSize: LIST_PAGE_SIZE,
     });
   });
 
@@ -965,7 +966,7 @@ describe('SessionsPage', () => {
     (component as unknown as { onPageChange: (page: number) => void }).onPageChange(2);
 
     expect(sessionsServiceMock.list).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 2, pageSize: 8 }),
+      expect.objectContaining({ page: 2, pageSize: LIST_PAGE_SIZE }),
     );
   });
 

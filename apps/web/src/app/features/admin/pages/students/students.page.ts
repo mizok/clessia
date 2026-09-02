@@ -49,6 +49,7 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 // Local
 import { StudentFormDialogComponent } from './student-form-dialog.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 @Component({
   selector: 'app-students',
@@ -99,7 +100,7 @@ export class StudentsPage implements OnInit {
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
   protected readonly statusFilter = signal<boolean | null>(null);
-  protected readonly PAGE_SIZE = 8;
+  protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
 
   // Grade options for dropdown
   protected readonly gradeOptions = [
