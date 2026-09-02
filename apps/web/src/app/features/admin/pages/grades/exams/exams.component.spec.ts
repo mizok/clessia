@@ -7,6 +7,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ExamsComponent } from './exams.component';
 import { environment } from '@env/environment';
 import { ReferenceDataService } from '@core/reference-data.service';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 describe('ExamsComponent', () => {
   let component: ExamsComponent;
@@ -82,9 +83,12 @@ describe('ExamsComponent', () => {
       (req) =>
         req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
         req.params.get('page') === '1' &&
-        req.params.get('pageSize') === '8',
+        req.params.get('pageSize') === String(LIST_PAGE_SIZE),
     );
-    academyListReq.flush({ data: mockAcademyExams, meta: { total: 2, page: 1, pageSize: 8 } });
+    academyListReq.flush({
+      data: mockAcademyExams,
+      meta: { total: 2, page: 1, pageSize: LIST_PAGE_SIZE },
+    });
 
     const academyTodoReq = http.expectOne(`${environment.apiUrl}/api/academy-exams/todo-count`);
     academyTodoReq.flush({ count: 2 });
@@ -155,9 +159,12 @@ describe('ExamsComponent', () => {
       (req) =>
         req.url.startsWith(`${environment.apiUrl}/api/school-exams`) &&
         req.params.get('page') === '1' &&
-        req.params.get('pageSize') === '8',
+        req.params.get('pageSize') === String(LIST_PAGE_SIZE),
     );
-    schoolListReq.flush({ data: mockSchoolExams, meta: { total: 1, page: 1, pageSize: 8 } });
+    schoolListReq.flush({
+      data: mockSchoolExams,
+      meta: { total: 1, page: 1, pageSize: LIST_PAGE_SIZE },
+    });
 
     fixture.detectChanges();
     expect(component['currentRows']().length).toBe(1);
@@ -175,7 +182,7 @@ describe('ExamsComponent', () => {
     );
     todoReq.flush({
       data: [mockAcademyExams[0]],
-      meta: { total: 1, page: 1, pageSize: 8 },
+      meta: { total: 1, page: 1, pageSize: LIST_PAGE_SIZE },
     });
 
     fixture.detectChanges();
@@ -195,7 +202,10 @@ describe('ExamsComponent', () => {
         req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
         req.params.get('todo') === 'true',
     );
-    todoReq.flush({ data: [mockAcademyExams[0]], meta: { total: 1, page: 1, pageSize: 8 } });
+    todoReq.flush({
+      data: [mockAcademyExams[0]],
+      meta: { total: 1, page: 1, pageSize: LIST_PAGE_SIZE },
+    });
 
     expect(component['statusFilter']()).toBe('todo');
   });
@@ -208,7 +218,10 @@ describe('ExamsComponent', () => {
         req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
         req.params.get('todo') === 'true',
     );
-    todoReq.flush({ data: [mockAcademyExams[0]], meta: { total: 1, page: 1, pageSize: 8 } });
+    todoReq.flush({
+      data: [mockAcademyExams[0]],
+      meta: { total: 1, page: 1, pageSize: LIST_PAGE_SIZE },
+    });
 
     component['clearFilters']();
     fixture.detectChanges();
@@ -217,7 +230,10 @@ describe('ExamsComponent', () => {
       (req) =>
         req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && !req.params.has('todo'),
     );
-    clearReq.flush({ data: mockAcademyExams, meta: { total: 2, page: 1, pageSize: 8 } });
+    clearReq.flush({
+      data: mockAcademyExams,
+      meta: { total: 2, page: 1, pageSize: LIST_PAGE_SIZE },
+    });
 
     expect(component['statusFilter']()).toBe('all');
   });

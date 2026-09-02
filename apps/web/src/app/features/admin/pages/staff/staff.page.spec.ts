@@ -12,6 +12,7 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { LoginLinkDialogComponent } from '@shared/components/login-link-dialog/login-link-dialog.component';
 
 import { StaffPage } from './staff.page';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 describe('StaffPage', () => {
   let component: StaffPage;
@@ -104,8 +105,8 @@ describe('StaffPage', () => {
     expect(component).toBeTruthy();
   });
 
-  it('uses 8 records per page', () => {
-    expect((component as unknown as { PAGE_SIZE: number }).PAGE_SIZE).toBe(8);
+  it('用共用的整頁列表頁大小，不自己訂一個', () => {
+    expect((component as unknown as { PAGE_SIZE: number }).PAGE_SIZE).toBe(LIST_PAGE_SIZE);
   });
 
   it('shows the total staff count in the summary card', () => {

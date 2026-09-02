@@ -46,6 +46,35 @@ export const ATTENDANCE_TONE_LABELS: Record<StatusTone, string> = {
   failed: '點名異常',
 };
 
+export interface AttendanceDisplay {
+  readonly tone: StatusTone;
+  readonly label: string;
+}
+
+/**
+ * 狀態點要顯示什麼 —— **把責任歸屬算進去之後**的版本。
+ *
+ * `attendanceTone` 只回答「這堂課點了沒」。但 `attendance_responsible = 'admin'` 的機構，
+ * 老師的課表沒有任何點名入口，這時把一堂沒點的課標成「漏點名」，
+ * 是在對老師問責一件他做不到的事。
+ *
+ * 所以行政負責時，`overdue` 降成中性的「未點名」—— 陳述事實，不歸咎。
+ * 其餘狀態（已點名／停課／還沒上）與責任無關，兩種模式一致。
+ */
+export function attendanceDisplay(
+  session: EventSessionSummary,
+  now: Date,
+  teacherLed: boolean,
+): AttendanceDisplay {
+  const tone = attendanceTone(session, now);
+
+  if (tone === 'overdue' && !teacherLed) {
+    return { tone: 'pending', label: '未點名' };
+  }
+
+  return { tone, label: ATTENDANCE_TONE_LABELS[tone] };
+}
+
 /**
  * 這堂課現在點得了名嗎 —— 只回答「有沒有可寫入的出勤事件」，不管時間。
  *

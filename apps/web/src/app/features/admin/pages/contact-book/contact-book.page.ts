@@ -32,9 +32,10 @@ import type {
 import { ContactBookEntryDialogComponent } from './contact-book-entry-dialog/contact-book-entry-dialog.component';
 import { dateRangeOf, signedSummary } from './contact-book.util';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const DEFAULT_RANGE_DAYS = 7;
-const PAGE_SIZE = 15;
+const PAGE_SIZE = LIST_PAGE_SIZE;
 
 /**
  * 聯絡簿（管理端）—— 見 kb/wiki/rules/contact-book-rules.md 與

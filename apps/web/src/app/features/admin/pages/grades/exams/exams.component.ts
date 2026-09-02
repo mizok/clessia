@@ -73,6 +73,7 @@ import {
   StatusDotComponent,
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 type ExamKind = 'academy' | 'school';
 type ExamTypeFilter = ExamKind;
@@ -134,7 +135,7 @@ const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
   { label: '全部', value: 'all' },
 ];
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = LIST_PAGE_SIZE;
 
 @Component({
   selector: 'app-exams',

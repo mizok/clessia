@@ -1,0 +1,22 @@
+-- ============================================================
+-- 拔掉 attendance_records.status 的預設值 'absent'
+--
+-- 「沒給 status」與「這個人缺席」是兩件完全不同的事，而預設值把前者靜默變成後者。
+-- 出勤是會影響扣課、通知家長、月結的資料 —— 靜默寫出一筆假的缺席，
+-- 症狀會出現在離原因很遠的地方（家長收到通知才發現）。
+--
+-- **拔掉不改變現行為。** 全部五條寫入路徑都明著給 status，逐一查過：
+--   apps/api/src/routes/attendance.ts:520      單筆補登 → status: body.status
+--   apps/api/src/routes/attendance.ts:667      整班點名 → status: u.status
+--   apps/api/src/routes/daily-checkins.ts:86   到班掃碼 → status: 'present'
+--   apps/api/src/routes/leaves.ts:118          請假連動 → status: 'on_leave'
+--   apps/api/src/routes/enrollments.ts:282     報名連動 → status: 'on_leave'
+--   supabase/seed.sql:993                      欄位清單裡明著列了 status
+--
+-- 拔掉之後，將來忘了給 status 的 INSERT 會**直接失敗**（NOT NULL 違反），
+-- 而不是安靜地寫一筆假缺席 —— 讓錯的寫法失敗，而不是讓它有預設可以躲。
+--
+-- 欄位仍然是 NOT NULL，既有資料不受影響（DROP DEFAULT 不回填、不改任何一列）。
+-- ============================================================
+
+ALTER TABLE public.attendance_records ALTER COLUMN status DROP DEFAULT;
