@@ -328,6 +328,36 @@ describe('DashboardComponent（管理端）', () => {
     expect(text).toContain('載入中');
   });
 
+  describe('時間軸收合', () => {
+    // 這三條釘住的是「量出來的 N=3」這個決定：4 條 lane 時橘帶吃掉 48% 視窗、
+    // 課表脊椎掉到摺線下。門檻改動要有人重新量過，不是憑感覺調。
+    function overlappingSessions(count: number) {
+      // 全部同時段 → 每一堂各自一條 lane
+      return Array.from({ length: count }, (_, i) =>
+        session({ eventId: `s${i}`, startTime: '09:00', endTime: '12:00' }),
+      );
+    }
+
+    afterEach(() => localStorage.removeItem('clessia.dashboard.timeline-collapsed'));
+
+    it('lane 不超過 3 條時預設展開', async () => {
+      await setup({ todaySessions: overlappingSessions(3) });
+      expect(component['timelineCollapsed']()).toBe(false);
+    });
+
+    it('lane 超過 3 條時預設收合', async () => {
+      await setup({ todaySessions: overlappingSessions(4) });
+      expect(component['timelineCollapsed']()).toBe(true);
+    });
+
+    // 使用者按過之後就照他的意思，不再自動判斷 —— 否則他每天回來都要再按一次
+    it('使用者的選擇勝過自動判斷', async () => {
+      localStorage.setItem('clessia.dashboard.timeline-collapsed', '0');
+      await setup({ todaySessions: overlappingSessions(6) });
+      expect(component['timelineCollapsed']()).toBe(false);
+    });
+  });
+
   it('載入中不得宣稱今日尚無排課', async () => {
     await setup({ pending: true });
 

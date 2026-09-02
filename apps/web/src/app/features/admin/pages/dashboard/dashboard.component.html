@@ -7,7 +7,21 @@
     白工作面靠 --band-seam 往上壓進帶裡，兩塊才會讀成一個構圖。
   -->
   <section class="dashboard__band">
-    <p class="dashboard__band-meta">{{ todayLabel }}</p>
+    <div class="dashboard__band-head">
+      <p class="dashboard__band-meta">{{ todayLabel }}</p>
+
+      @if (laneCount() > 0) {
+        <button
+          type="button"
+          class="dashboard__band-toggle"
+          [attr.aria-expanded]="!timelineCollapsed()"
+          aria-controls="dashboard-timeline"
+          (click)="toggleTimeline()"
+        >
+          {{ timelineCollapsed() ? '展開時間軸' : '收合時間軸' }}
+        </button>
+      }
+    </div>
 
     @if (todayHeadline(); as head) {
       @if (head.total === 0) {
@@ -30,7 +44,14 @@
     }
 
     @if (todaySessionList(); as sessions) {
-      <app-day-timeline [sessions]="sessions" [date]="todayKey" />
+      <!--
+        收的是時間軸不是整條帶 —— 帶上那句話是這一頁的錨點。
+        課多的時候（lane > 3）預設收起來：實測 4 條 lane 就讓橘帶吃掉 48% 的視窗，
+        課表脊椎整段掉到摺線下。使用者按過之後就照他的意思，不再自動判斷。
+      -->
+      <app-collapsible id="dashboard-timeline" [collapsed]="timelineCollapsed()">
+        <app-day-timeline [sessions]="sessions" [date]="todayKey" />
+      </app-collapsible>
     }
   </section>
 

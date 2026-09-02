@@ -23,6 +23,9 @@ import { SchoolExamsService } from '@core/school-exams.service';
 import { StudentsService } from '@core/students.service';
 import { RoutesCatalog, type RouteObj } from '@core/smart-enums/routes-catalog';
 
+import { CollapsibleComponent } from '@shared/components/collapsible/collapsible.component';
+import { layoutDay } from '@shared/components/day-timeline/day-timeline.util';
+
 import { countUntakenSessions } from './dashboard.util';
 import {
   StatusDotComponent,
@@ -50,6 +53,21 @@ interface StatCard {
   readonly kind: 'todo' | 'fact';
 }
 
+/**
+ * 超過這個 lane 數，時間軸預設收起來。
+ *
+ * **這個數字是量出來的，不是猜的**：1568×784 的桌機上，橘帶在 1 堂課時是 226px
+ * （30% 視窗），到 4 條 lane 時漲到 359px（48%），整頁 1.76 個螢幕、課表脊椎整段
+ * 掉到摺線下。每多一條 lane +30px，而 lane 依設計不設上限。
+ *
+ * 所以 3 是「時間軸還在幫忙」與「時間軸開始擋路」的分界。設計頁原本寫 8，那是
+ * 沒有密集日資料時的估計 —— 實測把它改成 3。
+ */
+const TIMELINE_COLLAPSE_LANE_THRESHOLD = 3;
+
+/** 使用者自己按過收合／展開之後，記住他的選擇 */
+const TIMELINE_COLLAPSED_KEY = 'clessia.dashboard.timeline-collapsed';
+
 const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'] as const;
 
 const FAILED = 'error' as const;
@@ -57,6 +75,15 @@ const FAILED = 'error' as const;
 /** 一張卡的查詢掛掉不該讓整頁空白，所以每支查詢各自把錯誤吞成 `'error'` */
 function failSoft<T>(source: Observable<T>): Observable<T | typeof FAILED> {
   return source.pipe(catchError(() => of(FAILED)));
+}
+
+function readStoredCollapsed(): boolean | null {
+  try {
+    const v = localStorage.getItem('clessia.dashboard.timeline-collapsed');
+    return v === null ? null : v === '1';
+  } catch {
+    return null;
+  }
 }
 
 function countOf(items: readonly unknown[] | 'error' | null): CardValue {
@@ -68,7 +95,7 @@ const UNTAKEN_LOOKBACK_DAYS = 7;
 
 @Component({
   selector: 'app-dashboard',
-  imports: [StatusDotComponent, RouterLink, DayTimelineComponent],
+  imports: [StatusDotComponent, RouterLink, DayTimelineComponent, CollapsibleComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -93,6 +120,37 @@ export class DashboardComponent {
   /** 時間軸要的是本地日期字串。用 date-fns 的 format 而不是 toISOString ——
       補習班的「今天」是本地的今天，UTC+8 的凌晨會差一天（既有 spec 踩過）。 */
   protected readonly todayKey = format(this.now, 'yyyy-MM-dd');
+
+  /**
+   * 時間軸收合狀態。
+   *
+   * 收的是**時間軸**不是整條帶 —— 帶上那句話（「今天 9 堂課，其中 6 堂還沒點名」）
+   * 是這一頁的錨點，收掉它等於收掉重點。隨密度長大的是時間軸（359px 裡的 136px）。
+   *
+   * `null` = 使用者還沒表態，這時候看 lane 數決定；一旦他按過就永遠照他的意思。
+   */
+  private readonly storedCollapsed = signal<boolean | null>(readStoredCollapsed());
+
+  protected readonly laneCount = computed(() => {
+    const sessions = this.todaySessionList();
+    return sessions ? layoutDay(sessions).lanes.length : 0;
+  });
+
+  protected readonly timelineCollapsed = computed(() => {
+    const stored = this.storedCollapsed();
+    if (stored !== null) return stored;
+    return this.laneCount() > TIMELINE_COLLAPSE_LANE_THRESHOLD;
+  });
+
+  protected toggleTimeline(): void {
+    const next = !this.timelineCollapsed();
+    this.storedCollapsed.set(next);
+    try {
+      localStorage.setItem(TIMELINE_COLLAPSED_KEY, next ? '1' : '0');
+    } catch {
+      // 無痕視窗之類的環境沒有 localStorage —— 記不住不是錯誤，這一次仍然生效
+    }
+  }
 
   /**
    * 橘帶上的日期。**在這裡算而不是用 DatePipe 帶 locale** ——
