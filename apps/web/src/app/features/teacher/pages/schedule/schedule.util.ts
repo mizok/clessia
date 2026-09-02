@@ -88,6 +88,37 @@ export function canTakeAttendance(session: EventSessionSummary): boolean {
   return session.status !== 'cancelled' && session.eventId !== null;
 }
 
+export interface DaySummary {
+  readonly count: number;
+  /** `null` = 這天沒有課，不畫點 */
+  readonly tone: StatusTone | null;
+}
+
+/**
+ * 週條上一天的彙總：幾堂課，以及一顆代表整天的狀態點。
+ *
+ * **取最需要老師動作的那一個，不是取多數。** 一天三堂、其中一堂漏點名，
+ * 老師要看到的是那一堂 —— 週條的用途是「今天以外還有哪天需要我」，
+ * 用多數決會把唯一的待辦藏在兩堂已完成後面。
+ *
+ * 責任歸屬一路傳進來（`teacherLed`），不然行政負責點名時週條又在問責老師 ——
+ * 那是 `attendanceDisplay` 已經處理過的問題，這裡不該再破一次。
+ */
+const DAY_TONE_PRIORITY: readonly StatusTone[] = ['overdue', 'pending', 'done', 'inactive'];
+
+export function daySummary(
+  sessions: readonly EventSessionSummary[],
+  now: Date,
+  teacherLed: boolean,
+): DaySummary {
+  if (sessions.length === 0) return { count: 0, tone: null };
+
+  const tones = new Set(sessions.map((s) => attendanceDisplay(s, now, teacherLed).tone));
+  const tone = DAY_TONE_PRIORITY.find((t) => tones.has(t)) ?? null;
+
+  return { count: sessions.length, tone };
+}
+
 export interface WeekAnchor {
   readonly total: number;
   /** 上完了卻還沒點名的堂數 */

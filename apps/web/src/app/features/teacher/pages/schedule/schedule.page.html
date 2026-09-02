@@ -40,8 +40,55 @@
   }
 
   <!--
-    手機：一日一屏的水平軌道，靠原生 scroll-snap 換日（沒有手勢 JS）。
-    桌機（>=768px）：同一個 grid 攤成七欄，不捲動。
+    桌機的週條。手機不顯示 —— 手機換日靠滑，多一條導航是重複的。
+    每天只給老師掃視需要的四件事：星期、日期、幾堂、一顆狀態點。
+  -->
+  @if (!loading()) {
+    <nav class="schedule-page__weekbar" aria-label="本週各日">
+      <p-button
+        icon="pi pi-chevron-left"
+        [text]="true"
+        ariaLabel="上一週"
+        (onClick)="prevWeek()"
+      />
+      <ul class="schedule-page__weekbar-days">
+        @for (day of weekBar(); track day.dateStr) {
+          <li>
+            <button
+              type="button"
+              class="schedule-page__weekbar-day"
+              [class.schedule-page__weekbar-day--today]="day.isToday"
+              [attr.aria-current]="day.isToday ? 'date' : null"
+              (click)="snapToDay(day.index)"
+            >
+              <span class="schedule-page__weekbar-label">{{ day.label }}</span>
+              <!--
+                用 M/d 不用裸的 d：裸數字會跟下面的堂數黏成「31 1 堂」，
+                月初更糟（「1 1 堂」）。M/d 也跟每一屏的標題一致。
+              -->
+              <span class="schedule-page__weekbar-date">{{ day.date | date: 'M/d' }}</span>
+              @if (day.tone; as tone) {
+                <app-status-dot [tone]="tone">{{ day.count }} 堂</app-status-dot>
+              } @else {
+                <span class="schedule-page__weekbar-empty">—</span>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+      <p-button
+        icon="pi pi-chevron-right"
+        [text]="true"
+        ariaLabel="下一週"
+        (onClick)="nextWeek()"
+      />
+    </nav>
+  }
+
+  <!--
+    一日一屏的水平軌道，靠原生 scroll-snap 換日（沒有手勢 JS）。
+    **桌機用同一個結構**，只是卡片更寬、外加上面那條週條 —— 2026-09-02 使用者
+    推翻了原本的七欄（格子太小），桌機改成「週條 + 放大的單日」跟手機同構。
     日期標題在每一屏裡面，所以沒有任何東西需要知道現在停在哪一天。
   -->
   <div
