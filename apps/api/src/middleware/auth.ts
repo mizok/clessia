@@ -170,6 +170,35 @@ export const requireAdminPermission = (permission: string) =>
   });
 
 /**
+ * 寫入只有管理員能做、而且要有這個權限；讀取不受限制。
+ *
+ * 跟 `mount()` 那層的 write 權限**刻意不同**：那一層碰到老師會放行（老師的範圍
+ * 由 teacher-scope 把關），這一支碰到老師直接拒絕。用在「這件事本來就不是老師的事，
+ * 但他讀得到」的路由上 —— 目前是組織設定：老師要讀點名時窗與模式，但不該改得動
+ * 自己的補登天數。
+ *
+ * 見 kb/wiki/architecture/authorization-scope.md 洞 1。
+ */
+export const writeRequiresAdmin = (permission: string) =>
+  createMiddleware<AppEnv>(async (c, next) => {
+    if (c.req.method === 'GET' || c.req.method === 'HEAD' || c.req.method === 'OPTIONS') {
+      return next();
+    }
+
+    const roles = c.get('roles');
+    if (!roles || !roles.includes('admin')) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
+
+    const permissions = c.get('permissions');
+    if (!permissions || !hasPermission(permissions, permission)) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
+
+    return next();
+  });
+
+/**
  * 舊的別名。角色已經在 authMiddleware 查好放進 context，這裡不再各自查一次 ——
  * 同一個請求原本會查兩次 user_roles，現在一次。
  */

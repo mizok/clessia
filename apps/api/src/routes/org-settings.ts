@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
+import { writeRequiresAdmin } from '../middleware/auth';
 
 const AttendanceModeSchema = z.enum(['per_session', 'daily_checkin']).openapi('AttendanceMode');
 
@@ -48,6 +49,11 @@ export function toOrgSettingsResponse(row: Record<string, unknown>) {
 }
 
 const app = new OpenAPIHono<AppEnv>();
+
+// 讀是全域的（老師要知道自己的點名時窗、儀表板要知道 attendanceMode），
+// 但**改組織設定只有管理員、而且要有 manage_org_settings**。
+// 這一行原本不存在 —— 見 kb/wiki/architecture/authorization-scope.md 洞 1。
+app.use('/settings', writeRequiresAdmin('manage_org_settings'));
 
 const SELECT_FIELDS =
   'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, meal_default_price, proration_basis';
