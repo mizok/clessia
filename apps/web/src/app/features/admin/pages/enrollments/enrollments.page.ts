@@ -26,8 +26,9 @@ import { RouteObj } from '@core/smart-enums/routes-catalog';
 
 import { EVENT_LABELS, toEnrollmentEvent, type EnrollmentEvent } from './enrollment-event.util';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = LIST_PAGE_SIZE;
 const MONTHS_BACK = 12;
 
 /** 期間選項的「全部」—— 清空期間就退化成全部在籍的瀏覽 */

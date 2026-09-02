@@ -59,6 +59,7 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { CoursesFilterStateService } from './courses-filter-state.service';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 interface CourseGroup {
   course: Course;
@@ -137,7 +138,7 @@ export class CoursesPage implements OnInit {
   protected readonly selectedClassIds = signal<Set<string>>(new Set());
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
-  protected readonly PAGE_SIZE = 8;
+  protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
 
   protected readonly selectedActiveCount = computed(
     () =>
