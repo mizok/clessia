@@ -87,10 +87,9 @@
         <div class="student-detail__profile-info">
           <div class="student-detail__name-row">
             <h1 class="student-detail__name">{{ student()!.name }}</h1>
-            <p-tag
-              [value]="student()!.isActive ? '在籍' : '停用'"
-              [severity]="student()!.isActive ? 'success' : 'secondary'"
-            />
+            <app-status-dot [tone]="student()!.isActive ? 'done' : 'inactive'">{{
+              student()!.isActive ? '在籍' : '停用'
+            }}</app-status-dot>
           </div>
           <div class="student-detail__meta-row">
             <span class="student-detail__grade">{{ getGradeLabel(student()!.grade) }}</span>

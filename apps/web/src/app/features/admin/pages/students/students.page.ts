@@ -11,7 +11,6 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { ToastModule } from 'primeng/toast';
-import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
@@ -49,12 +48,14 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 
 // Local
 import { StudentFormDialogComponent } from './student-form-dialog.component';
+import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 @Component({
   selector: 'app-students',
   standalone: true,
   imports: [
+    StatusDotComponent,
     PageBandComponent,
     BandAnchorComponent,
     CommonModule,
@@ -63,7 +64,6 @@ import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
     InputIconModule,
     IconFieldModule,
     ToastModule,
-    TagModule,
     TooltipModule,
     SkeletonModule,
     InputTextModule,

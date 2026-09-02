@@ -117,10 +117,9 @@
                 <span class="fee-templates__amount">{{ item.amount | number }}</span>
               </td>
               <td appRtColCell="status">
-                <p-tag
-                  [value]="item.isActive ? '啟用中' : '已停用'"
-                  [severity]="item.isActive ? 'success' : 'secondary'"
-                />
+                <app-status-dot [tone]="item.isActive ? 'done' : 'inactive'">{{
+                  item.isActive ? '啟用中' : '已停用'
+                }}</app-status-dot>
               </td>
               <td appRtColCell="actions">
                 <p-button

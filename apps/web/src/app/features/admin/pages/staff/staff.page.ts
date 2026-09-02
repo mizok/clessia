@@ -5,7 +5,6 @@ import { FormsModule } from '@angular/forms';
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
-import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { IconFieldModule } from 'primeng/iconfield';
@@ -49,6 +48,10 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import {
+  StatusDotComponent,
+  type StatusTone,
+} from '@shared/components/status/status-dot/status-dot.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] = [
@@ -83,12 +86,12 @@ const ROLE_OPTIONS: RoleOption[] = [
   selector: 'app-staff',
   standalone: true,
   imports: [
+    StatusDotComponent,
     DataChipComponent,
     CommonModule,
     FormsModule,
     ButtonModule,
     SelectModule,
-    TagModule,
     ToastModule,
     TooltipModule,
     IconFieldModule,
@@ -530,10 +533,15 @@ export class StaffPage implements OnInit {
     return '封存';
   }
 
-  protected getStaffStatusSeverity(status: StaffStatus): 'success' | 'warn' | 'secondary' {
-    if (status === 'active') return 'success';
-    if (status === 'inactive') return 'warn';
-    return 'secondary';
+  /**
+   * 只有兩種：還在用（done）與不在等任何事了（inactive）。
+   *
+   * 原本 `inactive` 回 `warn` —— **停用是行政主動做的決定，不是出了狀況**。
+   * 用警示色等於每次看員工列表都被提醒「這裡有問題」，而其實沒有。
+   * 停用與封存都是 inactive。
+   */
+  protected staffStatusTone(status: StaffStatus): StatusTone {
+    return status === 'active' ? 'done' : 'inactive';
   }
 
   protected getStaffStatusText(status: StaffStatus): string {

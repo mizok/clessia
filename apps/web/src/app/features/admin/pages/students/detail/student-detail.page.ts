@@ -34,6 +34,7 @@ import {
 import { StudentFormDialogComponent } from '../student-form-dialog.component';
 import type { Class } from '@core/classes.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 
 interface InlineNoticeState {
   readonly severity: InlineNoticeSeverity;
@@ -50,6 +51,7 @@ interface ConflictPrompt {
   selector: 'app-student-detail',
   standalone: true,
   imports: [
+    StatusDotComponent,
     DataChipComponent,
     CommonModule,
     ButtonModule,

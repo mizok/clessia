@@ -238,10 +238,9 @@
               </td>
               <td appRtColCell="status">
                 <div class="staff-table__status">
-                  <p-tag
-                    [value]="getStaffStatusLabel(staff.status)"
-                    [severity]="getStaffStatusSeverity(staff.status)"
-                  />
+                  <app-status-dot [tone]="staffStatusTone(staff.status)">{{
+                    getStaffStatusLabel(staff.status)
+                  }}</app-status-dot>
                 </div>
               </td>
               <td class="responsive-table__cell" style="text-align: center">

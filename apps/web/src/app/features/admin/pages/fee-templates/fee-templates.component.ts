@@ -6,7 +6,6 @@ import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
-import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
@@ -32,6 +31,7 @@ import { RtRowDirective } from '@shared/components/responsive-table/rt-row.direc
 
 import { FeeTemplateFormDialogComponent } from './fee-template-form-dialog/fee-template-form-dialog.component';
 import { BillingPeriodFormDialogComponent } from './billing-period-form-dialog/billing-period-form-dialog.component';
+import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 
 /**
  * 費用方案管理 —— 見 kb/wiki/specs/admin/finance/fee-templates.md。
@@ -46,13 +46,13 @@ import { BillingPeriodFormDialogComponent } from './billing-period-form-dialog/b
   selector: 'app-admin-fee-templates',
   standalone: true,
   imports: [
+    StatusDotComponent,
     DecimalPipe,
     FormsModule,
     ButtonModule,
     IconFieldModule,
     InputIconModule,
     InputTextModule,
-    TagModule,
     ToastModule,
     EmptyStateComponent,
     PopupMenuComponent,
