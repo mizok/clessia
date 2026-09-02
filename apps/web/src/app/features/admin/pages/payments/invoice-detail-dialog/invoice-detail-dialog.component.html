@@ -49,6 +49,7 @@
       @if (invoice().items.length === 0) {
         <p class="invoice-detail__empty">這張帳單還沒有明細，金額是 0。</p>
       } @else {
+        <div class="invoice-detail__table-scroll">
         <table class="invoice-detail__table">
           <thead>
             <tr>
@@ -67,6 +68,7 @@
             }
           </tbody>
         </table>
+        </div>
       }
     </section>
 
@@ -96,6 +98,7 @@
       @if (invoice().payments.length === 0) {
         <p class="invoice-detail__empty">還沒有任何收款。</p>
       } @else {
+        <div class="invoice-detail__table-scroll">
         <table class="invoice-detail__table">
           <thead>
             <tr>
@@ -120,6 +123,7 @@
             }
           </tbody>
         </table>
+        </div>
       }
     </section>
 

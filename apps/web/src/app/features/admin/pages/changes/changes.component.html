@@ -39,7 +39,8 @@
   } @else if (entries().length === 0) {
     <p class="changes__state">這個月沒有課務異動。</p>
   } @else {
-    <table class="changes__table">
+    <div class="changes__table-scroll">
+        <table class="changes__table">
       <thead>
         <tr>
           <th>異動時間</th>
@@ -71,6 +72,7 @@
         }
       </tbody>
     </table>
+      </div>
 
     <p-paginator
       [first]="first()"

@@ -48,7 +48,8 @@
       <strong>{{ leftCount() }}</strong> 筆，共 {{ total() }} 筆
     </p>
 
-    <table class="enrollments__table">
+    <div class="enrollments__table-scroll">
+        <table class="enrollments__table">
       <thead>
         <tr>
           <th>事件</th>
@@ -84,6 +85,7 @@
         }
       </tbody>
     </table>
+      </div>
 
     <p-paginator
       [first]="first()"

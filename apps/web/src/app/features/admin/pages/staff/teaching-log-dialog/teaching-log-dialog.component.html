@@ -33,7 +33,8 @@
     </section>
 
     @if (summary().counted.length > 0) {
-      <table class="teaching-log__table">
+      <div class="teaching-log__table-scroll">
+        <table class="teaching-log__table">
         <thead>
           <tr>
             <th>日期</th>
@@ -62,6 +63,7 @@
           }
         </tbody>
       </table>
+      </div>
     } @else {
       <p class="teaching-log__state">這個月沒有課堂紀錄。</p>
     }

@@ -115,6 +115,13 @@
     border-radius: var(--radius-md);
   }
 
+  // 手機上表格會比視窗寬。**沒有這層，整個 body 會長出橫向捲軸** ——
+  // 那是版面壞掉，不是「表格比較寬」。包一層讓捲動關在表格自己身上。
+  &__table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   &__table {
     width: 100%;
     border-collapse: collapse;
