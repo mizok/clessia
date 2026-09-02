@@ -39,7 +39,7 @@
 
   &__empty-text {
     font-size: var(--text-sm);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
   }
 
   &__filters {
@@ -87,7 +87,7 @@
 
   &__summary {
     font-size: var(--text-sm);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     padding: 0 var(--space-1);
 
     &--warn {
@@ -139,7 +139,7 @@
 
   &__student-sub {
     font-size: var(--text-xs);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

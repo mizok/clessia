@@ -396,7 +396,7 @@
   &__count {
     margin-left: auto;
     font-size: var(--text-sm);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     white-space: nowrap;
   }
 
@@ -426,7 +426,7 @@
   &__empty {
     padding: var(--space-4) var(--space-6) var(--space-4) calc(var(--space-6) + 24px);
     font-size: var(--text-sm);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     font-style: italic;
   }
 }

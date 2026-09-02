@@ -75,6 +75,9 @@
     margin-left: var(--space-4); // Replaces sibling selector margin
     padding: var(--space-1) var(--space-3) var(--space-1) var(--space-2);
     font-size: var(--text-sm);
+    // 這裡**不要**改成 zinc-500：`.shell-header` 的底是 zinc-900，
+    // zinc-400 在上面是 6.92:1，本來就過 AA；換 zinc-500 反而掉到 3.5 以下。
+    // scss-contrast gate 看不到跨檔的祖先底色（它自己的註解有寫），所以這行只能靠這條註解防守。
     color: var(--zinc-400);
     border-radius: var(--radius-md);
     cursor: pointer;

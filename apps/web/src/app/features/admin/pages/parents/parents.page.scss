@@ -93,7 +93,7 @@
 
     &-label {
       font-size: var(--text-xs);
-      color: var(--zinc-400);
+      color: var(--zinc-500);
       font-weight: var(--font-medium);
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -181,7 +181,7 @@
   }
 
   &__empty {
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     font-size: var(--text-sm);
     font-style: italic;
   }

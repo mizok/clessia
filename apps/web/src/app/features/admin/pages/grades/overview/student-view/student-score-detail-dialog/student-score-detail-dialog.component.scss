@@ -87,7 +87,7 @@
 
   &__summary-info {
     font-size: 0.85em;
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     cursor: help;
     transition: color 150ms ease-out;
 
@@ -109,7 +109,7 @@
 
   &__summary-count {
     font-size: var(--text-xs);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
   }
 
   &__filters {
