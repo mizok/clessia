@@ -1,4 +1,7 @@
-<div class="p-4">
-  <h2 class="text-2xl font-bold mb-4">{{ page().label }}</h2>
-  <p class="text-zinc-500">Dashboard content coming soon...</p>
-</div>
+<!-- 佔位頁。用 `app-empty-state` 而不是自己排版：這一頁之後會整頁重做，
+     現在寫的任何樣式都是白工，而家長**現在就看得到這一頁**。 -->
+<app-empty-state
+  icon="pi pi-home"
+  [title]="page().label"
+  description="這個功能還在準備中，完成後就會出現在這裡。"
+/>
