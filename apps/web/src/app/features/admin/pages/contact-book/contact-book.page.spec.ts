@@ -12,6 +12,7 @@ import {
 import { StudentsService, type Student } from '@core/students.service';
 
 import { ContactBookPage } from './contact-book.page';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const entry = (overrides?: Partial<ContactBookEntry>): ContactBookEntry => ({
   id: 'e1',
@@ -40,7 +41,9 @@ describe('ContactBookPage', () => {
 
   const contactBook = {
     list: vi.fn((_params?: ContactBookQueryParams) => of(listResponse([]))),
-    missing: vi.fn((_date?: string) => of({ data: [] as MissingContactBookStudent[], meta: { total: 0 } })),
+    missing: vi.fn((_date?: string) =>
+      of({ data: [] as MissingContactBookStudent[], meta: { total: 0 } }),
+    ),
     upsert: vi.fn(),
   };
   const students = {
@@ -163,29 +166,40 @@ describe('ContactBookPage', () => {
 
   describe('分頁', () => {
     beforeEach(async () => {
-      const rows = Array.from({ length: 20 }, (_, i) => entry({ id: `e${i}` }));
+      // 比一頁多 5 筆，這樣分頁才真的被測到（頁大小改動時這裡要跟著動）
+      const rows = Array.from({ length: LIST_PAGE_SIZE + 5 }, (_, i) => entry({ id: `e${i}` }));
       contactBook.list.mockReturnValue(of(listResponse(rows)));
       component['load']();
       await fixture.whenStable();
     });
 
-    it('第一頁只顯示 15 筆', () => {
-      expect(component['pagedEntries']().length).toBe(15);
+    it('第一頁只顯示一頁的量', () => {
+      expect(component['pagedEntries']().length).toBe(LIST_PAGE_SIZE);
     });
 
     it('第二頁顯示剩下的 5 筆', () => {
-      component['onPageChange']({ first: 15, rows: 15, page: 1, pageCount: 2 });
+      component['onPageChange']({
+        first: LIST_PAGE_SIZE,
+        rows: LIST_PAGE_SIZE,
+        page: 1,
+        pageCount: 2,
+      });
 
       expect(component['pagedEntries']().length).toBe(5);
     });
 
     it('分頁總數是篩選後的筆數', () => {
-      expect(component['pagination']().totalRecords).toBe(20);
+      expect(component['pagination']().totalRecords).toBe(LIST_PAGE_SIZE + 5);
     });
 
     // 停在第 2 頁換篩選會看到空白 —— 篩完要回第一頁
     it('切換未簽收會回到第一頁', () => {
-      component['onPageChange']({ first: 15, rows: 15, page: 1, pageCount: 2 });
+      component['onPageChange']({
+        first: LIST_PAGE_SIZE,
+        rows: LIST_PAGE_SIZE,
+        page: 1,
+        pageCount: 2,
+      });
       expect(component['currentPage']()).toBe(2);
 
       component['toggleUnsignedOnly']();
@@ -228,7 +242,9 @@ describe('ContactBookPage', () => {
     });
 
     it('進頁就查缺漏名單', () => {
-      expect(contactBook.missing).toHaveBeenCalledWith(expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+      expect(contactBook.missing).toHaveBeenCalledWith(
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      );
     });
 
     // 缺漏名單問的是「某一天」，列表問的是「一段區間」—— 綁在一起改一個會動到兩個

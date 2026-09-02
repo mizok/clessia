@@ -32,11 +32,12 @@ import type {
 
 import { ContactBookEntryDialogComponent } from './contact-book-entry-dialog/contact-book-entry-dialog.component';
 import { dateRangeOf, signedSummary } from './contact-book.util';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const DEFAULT_RANGE_DAYS = 7;
 /** 待辦區塊預設顯示幾位 —— 超過就摺起來，首屏要留給下面的歷史列表 */
 const MISSING_PREVIEW_COUNT = 5;
-const PAGE_SIZE = 15;
+const PAGE_SIZE = LIST_PAGE_SIZE;
 
 /**
  * 聯絡簿（管理端）—— 見 kb/wiki/rules/contact-book-rules.md 與

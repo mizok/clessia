@@ -34,8 +34,9 @@ import type {
 import { InvoiceDetailDialogComponent } from './invoice-detail-dialog/invoice-detail-dialog.component';
 import { InvoiceFormDialogComponent } from './invoice-form-dialog/invoice-form-dialog.component';
 import { isOverdue, outstanding } from './payments.util';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = LIST_PAGE_SIZE;
 
 /**
  * 繳費紀錄 —— 見 kb/wiki/specs/admin/finance/payments.md 與

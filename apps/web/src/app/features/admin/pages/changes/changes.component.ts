@@ -19,8 +19,9 @@ import { CampusesService, type Campus } from '@core/campuses.service';
 import { SessionsService, type ChangeLogEntry } from '@core/sessions.service';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = LIST_PAGE_SIZE;
 const MONTHS_BACK = 12;
 
 const CHANGE_TYPE_LABELS: Record<string, string> = {

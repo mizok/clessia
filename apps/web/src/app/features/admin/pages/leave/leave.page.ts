@@ -24,6 +24,7 @@ import type {
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { LeaveFormDialogComponent } from './leave-form-dialog.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 @Component({
   selector: 'app-leave',
@@ -61,7 +62,7 @@ export class LeavePage implements OnInit {
   protected readonly records = signal<LeaveRequest[]>([]);
   protected readonly totalRecords = signal(0);
   protected readonly currentPage = signal(1);
-  protected readonly PAGE_SIZE = 8;
+  protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
 
   protected filterCampusId: string | null = null;
   protected filterDateRange: Date[] | null = null;

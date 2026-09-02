@@ -47,6 +47,7 @@ import {
   type StudentViewFilterSnapshot,
 } from './student-view-filter-dialog/student-view-filter-dialog.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel }> = GRADE_LEVELS.map((grade) => ({
   label: GRADE_LEVEL_LABELS[grade],
@@ -59,7 +60,7 @@ const STATUS_OPTIONS: Array<FilterOption<StudentActiveStatusFilter>> = [
   { label: '停用', value: 'inactive' },
 ];
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = LIST_PAGE_SIZE;
 
 @Component({
   selector: 'app-student-view',

@@ -36,12 +36,7 @@ import {
   type RosterPanelSession,
 } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 
-import {
-  ATTENDANCE_TONE_LABELS,
-  attendanceTone,
-  canTakeAttendance,
-  weekAnchor,
-} from './schedule.util';
+import { attendanceDisplay, canTakeAttendance, weekAnchor } from './schedule.util';
 
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -236,12 +231,9 @@ export class SchedulePage implements OnInit {
     return session.eventDate > this.todayStr;
   }
 
-  protected toneOf(session: EventSessionSummary) {
-    return attendanceTone(session, this.now);
-  }
-
-  protected toneLabel(session: EventSessionSummary): string {
-    return ATTENDANCE_TONE_LABELS[this.toneOf(session)];
+  /** 狀態點的 tone 與文案。行政負責點名時「漏點名」會降成中性的「未點名」 */
+  protected display(session: EventSessionSummary) {
+    return attendanceDisplay(session, this.now, this.isTeacherLed());
   }
 
   protected isToday(dateStr: string): boolean {
