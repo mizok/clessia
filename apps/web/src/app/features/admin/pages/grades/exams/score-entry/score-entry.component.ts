@@ -278,7 +278,38 @@ export class ScoreEntryComponent implements OnInit {
 
   protected onSaved(): void {
     this.dirty.set(false);
-    this.refreshSchoolSummary();
+    // 兩種考試都要重抓統計。原本只叫了 `refreshSchoolSummary()`，
+    // **academy 那條路從來沒接上** —— 函式名就寫著 School，但 onSaved 是兩種共用的。
+    // 症狀是存檔成功、列表頁的「已登錄」也對了，只有這一頁的統計列停在 0 / — / — / —。
+    if (this.type() === 'academy') {
+      this.refreshAcademySummary();
+    } else {
+      this.refreshSchoolSummary();
+    }
+  }
+
+  /**
+   * 存檔後重抓考試統計。**刻意不重用初始載入那段**：它會 `loading.set(true)`
+   * 把整個編輯器換成骨架屏（使用者剛打完的畫面會閃掉），失敗時還會導回列表頁。
+   * 存檔後的重抓失敗只是統計沒更新，不該把人踢走。
+   */
+  private refreshAcademySummary(): void {
+    if (this.type() !== 'academy') return;
+    this.academyExamsService
+      .get(this.examId())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ data }) => {
+          this.academyExam.set(data);
+        },
+        error: () => {
+          this.messageService.add({
+            severity: 'error',
+            summary: '載入失敗',
+            detail: '無法更新考試統計',
+          });
+        },
+      });
   }
 
   protected onSchoolFilterChange(filter: { campusId: string; grade: string | null }): void {
