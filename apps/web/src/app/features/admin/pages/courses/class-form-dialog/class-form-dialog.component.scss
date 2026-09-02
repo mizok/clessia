@@ -135,3 +135,11 @@
     }
   }
 }
+
+// 日期是選填的，但留空要付的代價在另一個對話框才會顯現 —— 在這裡先講
+.class-date-hint {
+  margin: calc(var(--space-2) * -1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--zinc-500);
+  line-height: var(--leading-normal);
+}

@@ -76,4 +76,94 @@ describe('ClassRowComponent', () => {
 
     expect(spy).toHaveBeenCalled();
   });
+
+  // 名稱看起來就像連結（hover 變色、旁邊一個 ›），點下去卻是勾選 —— 期待與行為不一致
+  describe('班級名稱點擊', () => {
+    it('點名稱進詳情', async () => {
+      await setup();
+      const spy = vi.fn();
+      fixture.componentInstance.navigate.subscribe(spy);
+
+      fixture.nativeElement.querySelector('.class-row__name').click();
+
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('點名稱不會順便把班級勾起來', async () => {
+      await setup();
+      const spy = vi.fn();
+      fixture.componentInstance.toggleSelection.subscribe(spy);
+
+      fixture.nativeElement.querySelector('.class-row__name').click();
+
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    // 批次選取仍然靠整列 —— 這次只把名稱讓出去，不是把整列的點擊拿掉
+    it('點名稱以外的地方仍然是勾選', async () => {
+      await setup();
+      const spy = vi.fn();
+      fixture.componentInstance.toggleSelection.subscribe(spy);
+
+      fixture.nativeElement.querySelector('.class-row__schedules').click();
+
+      expect(spy).toHaveBeenCalled();
+    });
+  });
+
+  // 提示要連到修法。同一列的「N 堂未指派」早就是可點的，這顆是唯一的死路
+  describe('無未來排程的入口', () => {
+    const noUpcoming = makeClass({
+      isActive: true,
+      scheduleCount: 2,
+      hasUpcomingSessions: false,
+      upcomingCancelledCount: 0,
+    });
+
+    it('點了就發出產生課堂的請求', async () => {
+      await setup(noUpcoming);
+      const spy = vi.fn();
+      fixture.componentInstance.generateSessions.subscribe(spy);
+
+      fixture.nativeElement.querySelector('.class-row__completeness-info--action').click();
+
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('點它不會順便把班級勾起來', async () => {
+      await setup(noUpcoming);
+      const spy = vi.fn();
+      fixture.componentInstance.toggleSelection.subscribe(spy);
+
+      fixture.nativeElement.querySelector('.class-row__completeness-info--action').click();
+
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    // 沒有時間表就沒東西可產生 —— 那顆是「無時段」，修法在編輯班級不在這裡
+    it('無時段的班不給產生課堂的入口', async () => {
+      await setup(makeClass({ isActive: true, scheduleCount: 0 }));
+
+      expect(
+        fixture.nativeElement.querySelector('.class-row__completeness-info--action'),
+      ).toBeNull();
+    });
+
+    // 課堂是有的，只是都停課了 —— 再產生一次不會讓它們復原
+    it('未來皆停課維持不可點', async () => {
+      await setup(
+        makeClass({
+          isActive: true,
+          scheduleCount: 2,
+          hasUpcomingSessions: false,
+          upcomingCancelledCount: 3,
+        }),
+      );
+
+      expect(fixture.nativeElement.textContent).toContain('未來皆停課');
+      expect(
+        fixture.nativeElement.querySelector('.class-row__completeness-info--action'),
+      ).toBeNull();
+    });
+  });
 });

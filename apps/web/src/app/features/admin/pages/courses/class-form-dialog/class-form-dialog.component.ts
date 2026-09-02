@@ -72,6 +72,16 @@ export class ClassFormDialogComponent {
     nextClassId: this.cls()?.nextClassId ?? null,
     isActive: this.cls()?.isActive ?? true,
   });
+  /**
+   * 日期是**選填的，而且要保持選填**。
+   *
+   * 留空不是「還沒填」，是「不限期」—— API 靠 `end_date IS NULL` 判斷這個班還在
+   * （`routes/classes.ts` 的班級列表過濾），頁面靠它判斷是不是歷史班
+   * （`courses.page.ts` 的 `isHistorical`）。改成必填會消滅這個狀態。
+   *
+   * 代價是留空的班每次產生課堂都要另外指定範圍 —— 那句話寫在欄位下面，
+   * 讓「不限」是選的不是預設踩到的。
+   */
   protected readonly startDate = signal<Date | null>(
     this.cls()?.startDate ? new Date(this.cls()!.startDate + 'T00:00:00') : null,
   );

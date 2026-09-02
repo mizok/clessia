@@ -32,5 +32,6 @@ export class ClassRowComponent {
   readonly toggleSelection = output<MouseEvent>();
   readonly navigate = output<void>();
   readonly navigateUnassigned = output<void>();
+  readonly generateSessions = output<void>();
   readonly openMenu = output<MouseEvent>();
 }
