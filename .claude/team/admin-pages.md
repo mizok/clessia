@@ -228,10 +228,13 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
 2. **UX 稽核的結構性提案在計畫席的彙整池**（A6 / B1–B4）。頭條是 B3「報名＝開帳是同一件事」——
    金流家族目前**結構上是斷的**：七個頁面裡只有 `enrollments` 有跨頁導覽，其餘六頁
    連一個 `routerLink` 都沒有。等計畫席裁示，不要自己開工
-3. **`attendance_records.status DEFAULT 'absent'` 的移除**在 billing-api 席（要 migration）。
-   前端已經不靠它了（#135），但 DB 預設值還在
 
 ### 已經結案、不要再擔心的
+
+**`attendance_records.status` 的 `DEFAULT 'absent'` 已經拔掉**（billing-api 席，
+`20260902020758`）。#135 修的是前端不再把 `null` 講成缺席，這支把 DB 那層也堵上：
+**現在忘了給 `status` 的 INSERT 會直接失敗，而不是安靜寫一筆假缺席。**
+如果哪天前端漏送 `status`，你會收到 500 —— 那是設計，不是後端壞了。
 
 **「我的 `--warning-*` 與 PrimeNG `severity="warn"` 會不會出現兩種黃」** —— 實測沒有，
 兩者是同一組色（`#fef3c7` / `#b45309`，就是 `--warning-100` / `--warning-600`）。
