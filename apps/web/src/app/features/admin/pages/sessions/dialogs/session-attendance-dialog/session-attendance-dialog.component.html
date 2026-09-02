@@ -17,9 +17,11 @@
           </p>
         </div>
         @if (summary.takenAt) {
-          <p-tag value="已點名" severity="success" />
+          <app-status-dot tone="done">已點名</app-status-dot>
         } @else {
-          <p-tag [value]="'未點名 ' + summary.enrolledCount + ' 人'" severity="secondary" />
+          <!-- **永遠 pending，不會變 overdue。** 這是使用者「正在點名」時打開的面板 ——
+               他人就在這裡做這件事，不該對他喊「你逾期了」。逾期的提醒屬於列表，不屬於工作台。 -->
+          <app-status-dot tone="pending">未點名 {{ summary.enrolledCount }} 人</app-status-dot>
         }
       </div>
 

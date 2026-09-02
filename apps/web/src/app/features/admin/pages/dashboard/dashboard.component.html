@@ -65,9 +65,7 @@
                   <span class="dashboard__todo-sub">{{ card.sub }}</span>
                 }
               </span>
-              <span class="dashboard__todo-go">
-                前往 <i class="pi pi-arrow-right"></i>
-              </span>
+              <span class="dashboard__todo-go"> 前往 <i class="pi pi-arrow-right"></i> </span>
             </a>
           </li>
         }
@@ -103,11 +101,9 @@
                     {{ session.courseName }} · {{ session.teacherName }}
                   </span>
                 </span>
-                @if (session.takenAt) {
-                  <p-tag value="已點名" severity="success" />
-                } @else {
-                  <p-tag value="未點名" severity="warn" />
-                }
+                <app-status-dot [tone]="attendanceTone(session)">{{
+                  session.takenAt ? '已點名' : '未點名'
+                }}</app-status-dot>
               </li>
             }
           </ul>

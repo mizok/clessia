@@ -73,27 +73,25 @@
           </td>
           <td appRtColCell="teacher">
             @if (session.assignmentStatus === 'unassigned') {
-              <p-tag severity="warn" value="未指派" />
+              <app-status-dot [tone]="unassignedTone(session)">未指派</app-status-dot>
             } @else {
               {{ session.teacherName }}
             }
           </td>
           <td appRtColCell="attendance">
             <div class="session-list__attendance">
-              <p-tag
-                [severity]="attendanceStatusSeverity(session)"
-                [value]="attendanceStatusLabel(session)"
-              />
+              <app-status-dot [tone]="attendanceStatusTone(session)">{{
+                attendanceStatusLabel(session)
+              }}</app-status-dot>
               @if (attendanceStatusSummary(session); as summary) {
                 <span class="session-list__attendance-summary">{{ summary }}</span>
               }
             </div>
           </td>
           <td appRtColCell="status">
-            <p-tag
-              [severity]="sessionStatusSeverity(session)"
-              [value]="sessionStatusLabel(session)"
-            />
+            <app-status-dot [tone]="sessionStatusTone(session)">{{
+              sessionStatusLabel(session)
+            }}</app-status-dot>
           </td>
           <td class="responsive-table__cell" style="text-align: center">
             <button

@@ -16,6 +16,7 @@ import { DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { SessionsService, type Session, type SubstitutedAwayEntry } from '@core/sessions.service';
 
 import { summariseTeachingLog, type TeachingLogSummary } from './teaching-log.util';
+import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 
 export interface TeachingLogDialogData {
   readonly staffId: string;
@@ -26,7 +27,7 @@ const MONTHS_BACK = 12;
 
 @Component({
   selector: 'app-teaching-log-dialog',
-  imports: [FormsModule, SelectModule, TagModule],
+  imports: [StatusDotComponent, FormsModule, SelectModule, TagModule],
   templateUrl: './teaching-log-dialog.component.html',
   styleUrl: './teaching-log-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

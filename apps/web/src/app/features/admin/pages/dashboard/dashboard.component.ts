@@ -10,7 +10,6 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { endOfMonth, format, startOfMonth, subDays } from 'date-fns';
-import { TagModule } from 'primeng/tag';
 import { catchError, forkJoin, of, type Observable } from 'rxjs';
 
 import { AcademyExamsService } from '@core/academy-exams.service';
@@ -25,6 +24,11 @@ import { StudentsService } from '@core/students.service';
 import { RoutesCatalog, type RouteObj } from '@core/smart-enums/routes-catalog';
 
 import { countUntakenSessions } from './dashboard.util';
+import {
+  StatusDotComponent,
+  type StatusTone,
+} from '@shared/components/status/status-dot/status-dot.component';
+import { attendanceTone as toAttendanceTone } from '@shared/utils/attendance-tone.util';
 
 /** `null` 是還在載入，`'error'` 是這張卡自己的查詢掛了 */
 type CardValue = number | 'error' | null;
@@ -64,7 +68,7 @@ const UNTAKEN_LOOKBACK_DAYS = 7;
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, TagModule, DayTimelineComponent],
+  imports: [StatusDotComponent, RouterLink, DayTimelineComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -96,8 +100,7 @@ export class DashboardComponent {
    * 所以 `date: … : 'zh-TW'` 在測試環境會炸「Missing locale data」。
    * 星期用自己的陣列，不依賴任何 locale 註冊。
    */
-  protected readonly todayLabel =
-    `${format(this.now, 'yyyy 年 M 月 d 日')} · ${WEEKDAYS[this.now.getDay()]}`;
+  protected readonly todayLabel = `${format(this.now, 'yyyy 年 M 月 d 日')} · ${WEEKDAYS[this.now.getDay()]}`;
 
   private readonly todaySessions = signal<EventSessionSummary[] | 'error' | null>(null);
   private readonly recentSessions = signal<EventSessionSummary[] | 'error' | null>(null);
@@ -132,7 +135,6 @@ export class DashboardComponent {
 
   protected readonly sessionsFailed = computed(() => this.todaySessions() === FAILED);
   protected readonly leavesFailed = computed(() => this.todayLeaves() === FAILED);
-
 
   /**
    * `'hidden'` 是整張卡不該存在：`daily-checkins` 建立 attendance_records 但從不蓋
@@ -195,14 +197,14 @@ export class DashboardComponent {
       cards.push(
         {
           kind: 'fact',
-        label: '在籍學生',
+          label: '在籍學生',
           value: this.activeStudents(),
           icon: 'pi-users',
           routerLink: RoutesCatalog.ADMIN_STUDENTS.absolutePath,
         },
         {
           kind: 'fact',
-        label: '本月報名異動',
+          label: '本月報名異動',
           value: this.enrollmentChanges(),
           // meta.total 數的是「期間內有異動的報名記錄」，一筆當月插班又退班的報名在這裡是 1，
           // 在總覽頁的事件分類裡會是 joined + left 兩筆 —— 所以單位是「筆」，分項去那邊看
@@ -274,7 +276,9 @@ export class DashboardComponent {
       forkJoin([this.academyExamsService.getTodoCount(), this.schoolExamsService.getTodoCount()]),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) => this.gradesTodo.set(res === FAILED ? FAILED : res[0].count + res[1].count));
+      .subscribe((res) =>
+        this.gradesTodo.set(res === FAILED ? FAILED : res[0].count + res[1].count),
+      );
 
     // ③ 現況欄：背景脈絡，最後填也不影響使用者在做的事
     failSoft(this.leaveService.list({ coverDate: this.todayIso, pageSize: 100 }))
@@ -298,5 +302,16 @@ export class DashboardComponent {
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((res) => this.enrollmentChanges.set(res === FAILED ? FAILED : res.meta.total));
+  }
+  /** 跟課堂管理用同一支推導 —— 兩個畫面對「漏點名」必須說一樣的話 */
+  protected attendanceTone(session: EventSessionSummary): StatusTone {
+    return toAttendanceTone(
+      {
+        time: { date: session.eventDate, startTime: session.startTime, endTime: session.endTime },
+        cancelled: false,
+        taken: session.takenAt !== null && session.takenAt !== undefined,
+      },
+      new Date(),
+    );
   }
 }

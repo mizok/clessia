@@ -9,7 +9,6 @@ import { DatePickerModule } from 'primeng/datepicker';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectButtonModule } from 'primeng/selectbutton';
-import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TooltipModule } from 'primeng/tooltip';
@@ -34,6 +33,11 @@ import type {
 
 import { BillingRunDialogComponent } from './billing-run-dialog/billing-run-dialog.component';
 import { draftTotals, draftToBatchRows, rosterToDraft, type MealDraftRow } from './meals.util';
+import {
+  StatusDotComponent,
+  type StatusTone,
+} from '@shared/components/status/status-dot/status-dot.component';
+import { todayLocal } from '@shared/utils/session-time.util';
 
 /** 區間模式的每頁筆數。後端 pageSize 上限 100 */
 const RANGE_PAGE_SIZE = 50;
@@ -61,6 +65,7 @@ const RANGE_PAGE_SIZE = 50;
   selector: 'app-admin-meals',
   standalone: true,
   imports: [
+    StatusDotComponent,
     DecimalPipe,
     FormsModule,
     ButtonModule,
@@ -69,7 +74,6 @@ const RANGE_PAGE_SIZE = 50;
     InputNumberModule,
     InputTextModule,
     SelectButtonModule,
-    TagModule,
     ToastModule,
     ToggleSwitchModule,
     TooltipModule,
@@ -318,6 +322,19 @@ export class MealsComponent implements OnInit {
     ref?.onClose.subscribe((ran: boolean | undefined) => {
       if (ran) this.load();
     });
+  }
+  /**
+   * 「未處理」= 這天還沒有人決定要不要收費（`recordId === null`）。
+   *
+   * **有時間維度**：那天還沒過就只是還沒輪到（pending），過完了還沒處理才是名單漏了
+   * （overdue）。時點是**那一天結束**。
+   *
+   * ⚠️ **這跟「收不收費」的開關是兩件事，不要混。** `meal-rules` 規則 3 明文
+   * 「不要自動化 N 點截止邏輯 —— 那是人工裁量」，所以那顆開關**永遠不能有 overdue**。
+   * 這裡判斷的是「行政有沒有處理過這一列」，不是「這一餐該不該收錢」。
+   */
+  protected unhandledTone(now: Date = new Date()): StatusTone {
+    return this.dateString < todayLocal(now) ? 'overdue' : 'pending';
   }
 }
 
