@@ -1,7 +1,18 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { requirePermission, requireRoles } from './auth';
+import { authMiddleware, requirePermission, requireRoles } from './auth';
+
+const getSession = vi.fn();
+const fromMock = vi.fn();
+
+vi.mock('../lib/get-auth', () => ({
+  getAuth: () => ({ api: { getSession: (...args: unknown[]) => getSession(...args) } }),
+}));
+
+vi.mock('../lib/supabase', () => ({
+  createServiceClientFromEnv: () => ({ from: (table: string) => fromMock(table) }),
+}));
 
 /**
  * 這組測試守的是「忘記宣告時該拒絕」。
@@ -101,5 +112,78 @@ describe('requirePermission', () => {
   // 這條最重要：middleware 忘了把 permissions 放進 context 時，不能變成全開
   it('context 裡根本沒有 permissions 時拒絕，而不是當成全開', async () => {
     expect((await appWithPermissions(undefined, 'manage_finance').request('/')).status).toBe(403);
+  });
+});
+
+/**
+ * `authMiddleware` 的三支身分查詢任何一支失敗就回 500。
+ *
+ * **那個 500 原本不留任何線索** —— 三個 error 物件讀完就丟。而這是每個受保護請求都會
+ * 跑的路徑，所以連線層抖一下就長成一個查不出來的 500（正式站實際發生過：
+ * 新增課程第一次 500、第二次 201，而課程沒有重複，證明炸在 handler 之前）。
+ *
+ * 這組測試守的是「失敗的原因有被印出來」，而且**印得出是哪一支查詢** ——
+ * 只印「查詢失敗」的話，下一個人還是只能猜。
+ */
+describe('authMiddleware 的身分查詢失敗', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getSession.mockReset();
+    fromMock.mockReset();
+  });
+
+  function appWithQueryResults(results: Record<string, { data: unknown; error: unknown }>) {
+    getSession.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1' } });
+    fromMock.mockImplementation((table: string) => ({
+      select: () => ({
+        eq: () => Promise.resolve(results[table] ?? { data: [], error: null }),
+      }),
+    }));
+
+    const app = new Hono();
+    app.use('*', authMiddleware);
+    app.get('/', (c) => c.json({ ok: true }));
+    return app;
+  }
+
+  it('查詢成功時照常放行', async () => {
+    const app = appWithQueryResults({
+      user_roles: { data: [{ role: 'admin', permissions: [] }], error: null },
+    });
+
+    const res = await app.request('/');
+
+    expect(res.status).toBe(200);
+  });
+
+  it('查詢失敗時回 500，並印出是哪一支、錯在什麼', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const app = appWithQueryResults({
+      staff: { data: null, error: { message: 'connection terminated unexpectedly' } },
+    });
+
+    const res = await app.request('/');
+
+    expect(res.status).toBe(500);
+    await expect(res.json()).resolves.toMatchObject({ code: 'SERVER_ERROR' });
+
+    const logged = consoleError.mock.calls.map((call) => String(call[0])).join('\n');
+    // 「哪一支」與「錯在什麼」都要在 —— 少一個就還是得猜
+    expect(logged).toContain('staff');
+    expect(logged).toContain('connection terminated unexpectedly');
+  });
+
+  it('多支同時失敗時每一支都印出來', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const app = appWithQueryResults({
+      user_roles: { data: null, error: { message: 'roles boom' } },
+      parents: { data: null, error: { message: 'parents boom' } },
+    });
+
+    await app.request('/');
+
+    const logged = consoleError.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(logged).toContain('user_roles');
+    expect(logged).toContain('parents');
   });
 });
