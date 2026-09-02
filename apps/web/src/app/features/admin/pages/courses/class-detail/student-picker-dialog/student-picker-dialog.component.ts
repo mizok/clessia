@@ -19,6 +19,7 @@ import {
 } from '@core/students.service';
 import { EnrollmentsService, type ScheduleConflictWarning } from '@core/enrollments.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
+import { personHue } from '@shared/utils/person-hue.util';
 
 @Component({
   selector: 'app-student-picker-dialog',
@@ -235,12 +236,8 @@ export class StudentPickerDialogComponent implements OnInit {
     this.ref.close();
   }
 
+  /** 見 `personHue` —— 契約是「同一個人到哪一頁都同色」，所以只能有一份實作 */
   protected getStudentHue(studentId: string): number {
-    let hash = 0;
-    for (let i = 0; i < studentId.length; i++) {
-      hash = (hash * 31 + studentId.charCodeAt(i)) & 0xfffffff;
-    }
-    const raw = hash % 320;
-    return raw < 45 ? raw + 160 : raw;
+    return personHue(studentId);
   }
 }

@@ -38,6 +38,7 @@ import {
   StatusDotComponent,
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
+import { personHue } from '@shared/utils/person-hue.util';
 
 interface InlineNoticeState {
   readonly severity: InlineNoticeSeverity;
@@ -118,13 +119,9 @@ export class StudentDetailPage implements OnInit {
     return GRADE_LEVEL_LABELS[grade] ?? grade;
   }
 
+  /** 見 `personHue` —— 契約是「同一個人到哪一頁都同色」，所以只能有一份實作 */
   protected getPersonHue(id: string): number {
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-      hash = (hash * 31 + id.charCodeAt(i)) & 0xfffffff;
-    }
-    const raw = hash % 320;
-    return raw < 45 ? raw + 160 : raw;
+    return personHue(id);
   }
 
   protected getGenderLabel(gender: string | null): string {
