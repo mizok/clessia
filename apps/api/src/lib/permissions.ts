@@ -18,6 +18,9 @@ export const PERMISSIONS = [
   'manage_roles',
   'manage_org_settings',
   'view_reports',
+  // 跨分校。**沒有它的管理員只看得到 `staff_campuses` 指派給他的分校** ——
+  // 用明確的權限宣告，而不是「沒有指派列就看得到全部」那種 fail-open 的讀法。
+  'all_campuses',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

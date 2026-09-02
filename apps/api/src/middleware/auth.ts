@@ -4,6 +4,7 @@ import { getAuth } from '../lib/get-auth';
 import { createServiceClientFromEnv } from '../lib/supabase';
 import { isAccountUsable } from './account-status';
 import { hasPermission } from '../lib/permissions';
+import { resolveCampusScope } from '../lib/campus-scope';
 import type { AppEnv } from '../index';
 
 export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
@@ -47,7 +48,12 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     { data: parentRows, error: parentError },
   ] = await Promise.all([
     supabase.from('user_roles').select('role, permissions').eq('user_id', session.user.id),
-    supabase.from('staff').select('status').eq('user_id', session.user.id),
+    // 分校指派跟著 staff 一起查 —— 授權要在 middleware 層成立（c1），
+    // 各路由自己去查的話總有一支會忘記，而忘記的方式是安靜的。
+    supabase
+      .from('staff')
+      .select('status, staff_campuses(campus_id)')
+      .eq('user_id', session.user.id),
     supabase.from('parents').select('status').eq('user_id', session.user.id),
   ]);
 
@@ -85,21 +91,31 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
 
   c.set('userId', session.user.id);
   c.set('orgId', orgId);
-  c.set(
-    'roles',
-    (roleRows ?? []).map((row) => row.role as string),
-  );
+  const roles = (roleRows ?? []).map((row) => row.role as string);
+  c.set('roles', roles);
   // 細部權限跟角色一樣**每個請求查表**，不從 session 讀 —— 撤銷權限要立刻生效。
   // 一個人可以有多個角色，權限是它們的聯集。
-  c.set(
-    'permissions',
-    (roleRows ?? []).flatMap((row) =>
-      Array.isArray((row as { permissions?: unknown }).permissions)
-        ? ((row as { permissions: unknown[] }).permissions as string[])
-        : [],
-    ),
+  const permissions = (roleRows ?? []).flatMap((row) =>
+    Array.isArray((row as { permissions?: unknown }).permissions)
+      ? ((row as { permissions: unknown[] }).permissions as string[])
+      : [],
   );
+  c.set('permissions', permissions);
   c.set('supabase', supabase);
+
+  // 看得到哪些分校。`null` = 不受分校限制（跨分校的管理員，或由更窄的範圍
+  // 限制把關的老師與家長）；空陣列 = 一個分校都沒被指派，什麼都看不到。
+  c.set(
+    'campusScope',
+    resolveCampusScope({
+      roles: roles,
+      permissions: permissions,
+      assignedCampusIds: (staffRows ?? []).flatMap((row) => {
+        const links = (row as { staff_campuses?: { campus_id: string }[] | null }).staff_campuses;
+        return Array.isArray(links) ? links.map((link) => link.campus_id) : [];
+      }),
+    }),
+  );
 
   return next();
 });

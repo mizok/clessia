@@ -31,6 +31,11 @@ const PERMISSION_OPTIONS: { value: Permission; label: string; description: strin
   { value: 'manage_staff', label: '帳號管理', description: '系統帳號與權限管理' },
   { value: 'manage_roles', label: '角色管理', description: '指派或變更帳號角色與權限' },
   { value: 'view_reports', label: '報表查看', description: '查看營收與統計報表' },
+  {
+    value: 'all_campuses',
+    label: '跨分校',
+    description: '不受指派分校限制，看得到全機構的資料',
+  },
 ];
 
 const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [

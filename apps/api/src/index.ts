@@ -6,6 +6,7 @@ import { logger } from 'hono/logger';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { authMiddleware, requireAdminPermission, requireRoles } from './middleware/auth';
 import type { Permission } from './lib/permissions';
+import type { CampusScope } from './lib/campus-scope';
 import type { Auth, MagicLinkPayload } from './auth';
 import { authPoolCleanup, getAuth } from './lib/get-auth';
 import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
@@ -77,6 +78,12 @@ export type Variables = {
   roles: string[];
   /** 同上，`user_roles.permissions` 的聯集。`*` 代表全部（見 requireAdminPermission） */
   permissions: string[];
+  /**
+   * 這個請求看得到哪些分校。`null` = 不受分校限制（跨分校的管理員，或由更窄的
+   * 範圍限制把關的老師與家長）；空陣列 = 一個分校都沒被指派。
+   * 見 `lib/campus-scope.ts` 與 kb/wiki/architecture/authorization-scope.md 洞 5。
+   */
+  campusScope: CampusScope;
   supabase: SupabaseClient;
   /** 這個請求共用的 Better Auth 實例與連線池，由 `lib/get-auth.ts` 管理 */
   auth: Auth;
