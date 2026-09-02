@@ -40,6 +40,7 @@
     }
 
     &::placeholder {
+      // 同 styles.scss 的 ::placeholder：刻意留 zinc-400，理由見那邊。
       color: var(--zinc-400);
     }
   }
@@ -80,7 +81,7 @@
     height: 36px;
     font-size: var(--text-sm);
     font-weight: var(--font-medium);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     background: transparent;
     border: none;
     border-radius: calc(var(--radius-md) - 2px);
@@ -117,7 +118,7 @@
     background: none;
     border: none;
     cursor: pointer;
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     transition: color var(--transition-fast);
 
     &:hover {
@@ -270,7 +271,7 @@
     padding-top: var(--space-4);
     font-size: var(--text-sm);
     line-height: var(--leading-relaxed);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     border-top: 1px solid var(--zinc-200);
   }
 }

@@ -73,3 +73,31 @@ export function todayLocal(now: Date = new Date()): string {
 
   return `${year}-${month}-${day}`;
 }
+
+/**
+ * 這堂課在 `now` 之前開始了嗎。
+ *
+ * 給「該做卻還沒做」這類判斷用的：課都開始了還沒指派老師，那是積欠；
+ * 還沒開始的話它只是還沒輪到。
+ *
+ * **沒有開始時間 → 回 false（還沒開始）。** 這跟 `hasSessionEnded` 是同一個保守
+ * 方向：寧可漏標也不要誤標，因為假警示會讓人不再相信這個標記。
+ *
+ * ⚠️ **`features/teacher/pages/dashboard/dashboard.util.ts` 有一支同名概念的私有
+ * 函式，但它的 null 行為是相反的**（`!startTime` 回 `true`）。那不是 bug ——
+ * 它問的是「這堂算不算進行中」，寧可算進去才不會漏掉老師的待辦。
+ * **這是兩個函式，不是重複。** 要合併的話得先統一 null 語意，在那之前不要合。
+ *
+ * 也**不要**因為「呼叫端的型別保證 `startTime` 必有值」就把這個分支拿掉 ——
+ * 型別是唯一一種會被別人的改動悄悄放寬的防線（放寬看起來很安全，沒人會想到
+ * 要檢查下游），而那時這裡會開始靜默誤標。
+ */
+export function hasSessionStarted(session: SessionTimeLike, now: Date): boolean {
+  if (!session.startTime) return false;
+
+  const start = new Date(`${session.date}T00:00:00`);
+  const [hour, minute] = session.startTime.split(':').map(Number);
+  start.setHours(hour ?? 0, minute ?? 0, 0, 0);
+
+  return start.getTime() <= now.getTime();
+}

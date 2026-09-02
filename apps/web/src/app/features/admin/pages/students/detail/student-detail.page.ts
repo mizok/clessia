@@ -3,7 +3,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
-import { TagModule } from 'primeng/tag';
 import { SkeletonModule } from 'primeng/skeleton';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -18,6 +17,7 @@ import {
   Enrollment,
   ENROLLMENT_STATUS_LABELS,
   ScheduleConflictWarning,
+  type EnrollmentStatus,
 } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
@@ -34,7 +34,10 @@ import {
 import { StudentFormDialogComponent } from '../student-form-dialog.component';
 import type { Class } from '@core/classes.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
-import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
+import {
+  StatusDotComponent,
+  type StatusTone,
+} from '@shared/components/status/status-dot/status-dot.component';
 
 interface InlineNoticeState {
   readonly severity: InlineNoticeSeverity;
@@ -55,7 +58,6 @@ interface ConflictPrompt {
     DataChipComponent,
     CommonModule,
     ButtonModule,
-    TagModule,
     SkeletonModule,
     EmptyStateComponent,
     PageBreadcrumbComponent,
@@ -300,5 +302,17 @@ export class StudentDetailPage implements OnInit {
         },
         error: () => this.enrollmentsLoading.set(false),
       });
+  }
+  /**
+   * 在籍 = 還在用；退班 / 失效 = 不在等任何事了；待付款 / 暫停 = 還在等某件事發生。
+   *
+   * **待付款沒有 overdue**：這一頁拿不到帳單的 `due_date`，而「逾期」的定義是
+   * 過了 due_date 未繳清（billing-rules 規則 7）。沒有那個日期就沒有依據判逾期 ——
+   * 金流頁才是講欠繳的地方。
+   */
+  protected enrollmentTone(status: EnrollmentStatus): StatusTone {
+    if (status === 'active') return 'done';
+    if (status === 'withdrawal' || status === 'void') return 'inactive';
+    return 'pending';
   }
 }

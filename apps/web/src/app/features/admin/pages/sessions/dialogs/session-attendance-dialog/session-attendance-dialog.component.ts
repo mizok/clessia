@@ -12,7 +12,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { map, switchMap, throwError } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
-import { TagModule } from 'primeng/tag';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import {
   AttendanceService,
@@ -27,16 +26,17 @@ import {
   type InlineNoticeSeverity,
 } from '@shared/components/inline-notice/inline-notice.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 
 @Component({
   selector: 'app-session-attendance-dialog',
   standalone: true,
   imports: [
+    StatusDotComponent,
     DataChipComponent,
     DatePipe,
     ButtonModule,
     ProgressSpinnerModule,
-    TagModule,
     InlineNoticeComponent,
   ],
   templateUrl: './session-attendance-dialog.component.html',

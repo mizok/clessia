@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { CheckboxModule } from 'primeng/checkbox';
 import { SkeletonModule } from 'primeng/skeleton';
-import { TagModule } from 'primeng/tag';
 import { type Session } from '@core/sessions.service';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
@@ -14,7 +13,12 @@ import type {
   ResponsiveTablePaginationConfig,
 } from '@shared/components/responsive-table/responsive-table.models';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
-import { hasSessionEnded, todayLocal } from '@shared/utils/session-time.util';
+import { hasSessionStarted, todayLocal } from '@shared/utils/session-time.util';
+import { attendanceTone } from '@shared/utils/attendance-tone.util';
+import {
+  StatusDotComponent,
+  type StatusTone,
+} from '@shared/components/status/status-dot/status-dot.component';
 
 export interface SessionListMenuRequest {
   readonly event: MouseEvent;
@@ -24,12 +28,12 @@ export interface SessionListMenuRequest {
 @Component({
   selector: 'app-session-list',
   imports: [
+    StatusDotComponent,
     DatePipe,
     FormsModule,
     ButtonModule,
     CheckboxModule,
     SkeletonModule,
-    TagModule,
     ResponsiveTableComponent,
     RtColCellDirective,
     RtColDefDirective,
@@ -119,10 +123,21 @@ export class SessionListComponent {
     return '正常';
   }
 
-  protected sessionStatusSeverity(session: Session): 'info' | 'secondary' | 'success' {
-    if (session.status === 'cancelled') return 'secondary';
-    if (session.status === 'completed') return 'success';
-    return 'info';
+  /** 停課 = 不在等了；已完成 = 已定案；其餘（正常）= 還在等 */
+  protected sessionStatusTone(session: Session): StatusTone {
+    if (session.status === 'cancelled') return 'inactive';
+    if (session.status === 'completed') return 'done';
+    return 'pending';
+  }
+
+  /**
+   * 未指派：課還沒開始只是還沒輪到（pending），**課都開始了還沒指派才是積欠**（overdue）。
+   *
+   * 原本無條件 warn —— 於是一個下週才上、還沒排老師的課，今天看起來就像出事了。
+   * 那是 #103 學到的同一件事：只看值不看時間，警示就會失去意義。
+   */
+  protected unassignedTone(session: Session, now: Date = new Date()): StatusTone {
+    return hasSessionStarted(toSessionTime(session), now) ? 'overdue' : 'pending';
   }
 
   /** `todayLocal` 而不是 `toISOString()` —— 後者是 UTC 日期，半夜會把今天的課判成未來 */
@@ -162,14 +177,15 @@ export class SessionListComponent {
    * `now` 可注入**只為了測試** —— 模板呼叫時用預設值。沒有它的話這條判斷就綁在
    * 牆鐘上，測試得自己算「今天」，而那正是 UTC 日期坑的入口。
    */
-  protected attendanceStatusSeverity(
-    session: Session,
-    now: Date = new Date(),
-  ): 'success' | 'secondary' | 'warn' {
-    if (session.status === 'cancelled') return 'secondary';
-    if (session.attendanceTakenAt) return 'success';
-    if (!hasSessionEnded(toSessionTime(session), now)) return 'secondary';
-    return 'warn';
+  protected attendanceStatusTone(session: Session, now: Date = new Date()): StatusTone {
+    return attendanceTone(
+      {
+        time: toSessionTime(session),
+        cancelled: session.status === 'cancelled',
+        taken: session.attendanceTakenAt !== null && session.attendanceTakenAt !== undefined,
+      },
+      now,
+    );
   }
 
   protected attendanceStatusSummary(session: Session): string {

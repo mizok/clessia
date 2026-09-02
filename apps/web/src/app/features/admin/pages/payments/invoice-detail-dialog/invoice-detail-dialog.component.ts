@@ -6,7 +6,6 @@ import { format } from 'date-fns';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
-import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -26,6 +25,10 @@ import {
 
 import { PaymentFormDialogComponent } from '../payment-form-dialog/payment-form-dialog.component';
 import { isOverdue, outstanding, receiptNoOf } from '../payments.util';
+import {
+  StatusDotComponent,
+  type StatusTone,
+} from '@shared/components/status/status-dot/status-dot.component';
 
 /**
  * 帳單詳情：明細、收款記錄、催繳記錄，以及兩種列印。
@@ -44,13 +47,13 @@ import { isOverdue, outstanding, receiptNoOf } from '../payments.util';
   selector: 'app-invoice-detail-dialog',
   standalone: true,
   imports: [
+    StatusDotComponent,
     DecimalPipe,
     SlicePipe,
     FormsModule,
     ButtonModule,
     InputTextModule,
     SelectModule,
-    TagModule,
     TooltipModule,
   ],
   templateUrl: './invoice-detail-dialog.component.html',
@@ -79,16 +82,16 @@ export class InvoiceDetailDialogComponent {
   protected readonly outstandingAmount = computed(() => outstanding(this.invoice()));
   protected readonly receiptNo = computed(() => receiptNoOf(this.invoice()));
 
-  protected readonly statusSeverity = computed(() => {
-    switch (this.invoice().status) {
-      case 'paid':
-        return 'success' as const;
-      case 'partial':
-        return 'warn' as const;
-      default:
-        return 'danger' as const;
-    }
-  });
+  /**
+   * **逾期不是第四種狀態**（billing-rules 規則 7）—— 它是 `due_date` 的衍生標記，
+   * 所以這裡只看 status，逾期由旁邊那顆獨立的標記承擔。
+   *
+   * 這樣「部分繳 + 逾期」才表達得出來：狀態說「部分繳」（還在等），
+   * 旁邊的「逾期」說該處理了。把兩者塞進一個 tone 會少掉一半資訊。
+   */
+  protected readonly statusTone = computed<StatusTone>(() =>
+    this.invoice().status === 'paid' ? 'done' : 'pending',
+  );
 
   // ── 催繳 ──────────────────────────────────────────────────────────────
   protected readonly reminders = signal<PaymentReminder[]>([]);

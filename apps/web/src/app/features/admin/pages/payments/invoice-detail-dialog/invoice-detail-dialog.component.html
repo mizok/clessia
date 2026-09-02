@@ -3,9 +3,11 @@
     <div class="invoice-detail__title-group">
       <h2 class="invoice-detail__title">{{ invoice().studentName ?? '未知學生' }} 的帳單</h2>
       <div class="invoice-detail__tags">
-        <p-tag [value]="INVOICE_STATUS_LABELS[invoice().status]" [severity]="statusSeverity()" />
+        <app-status-dot [tone]="statusTone()">{{
+          INVOICE_STATUS_LABELS[invoice().status]
+        }}</app-status-dot>
         @if (overdue()) {
-          <p-tag value="逾期" severity="danger" icon="pi pi-exclamation-triangle" />
+          <app-status-dot tone="overdue">逾期</app-status-dot>
         }
       </div>
     </div>

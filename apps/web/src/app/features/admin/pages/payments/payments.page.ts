@@ -5,7 +5,6 @@ import { format } from 'date-fns';
 
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
-import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -35,6 +34,10 @@ import { InvoiceDetailDialogComponent } from './invoice-detail-dialog/invoice-de
 import { InvoiceFormDialogComponent } from './invoice-form-dialog/invoice-form-dialog.component';
 import { isOverdue, outstanding } from './payments.util';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
+import {
+  StatusDotComponent,
+  type StatusTone,
+} from '@shared/components/status/status-dot/status-dot.component';
 
 const PAGE_SIZE = LIST_PAGE_SIZE;
 
@@ -55,11 +58,11 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
   selector: 'app-payments',
   standalone: true,
   imports: [
+    StatusDotComponent,
     DecimalPipe,
     FormsModule,
     ButtonModule,
     SelectModule,
-    TagModule,
     ToastModule,
     EmptyStateComponent,
     StudentAutocompleteComponent,
@@ -212,15 +215,15 @@ export class PaymentsPage implements OnInit {
     return outstanding(invoice);
   }
 
-  protected statusSeverity(invoice: Invoice): 'success' | 'warn' | 'danger' {
-    switch (invoice.status) {
-      case 'paid':
-        return 'success';
-      case 'partial':
-        return 'warn';
-      default:
-        return 'danger';
-    }
+  /**
+   * **逾期不是第四種狀態**（billing-rules 規則 7）—— 它是 `due_date` 的衍生標記，
+   * 所以這裡只看 status，逾期由旁邊那顆獨立的標記承擔。
+   *
+   * 這樣「部分繳 + 逾期」才表達得出來：狀態說「部分繳」（還在等），
+   * 旁邊的「逾期」說該處理了。把兩者塞進一個 tone 會少掉一半資訊。
+   */
+  protected statusTone(invoice: Invoice): StatusTone {
+    return invoice.status === 'paid' ? 'done' : 'pending';
   }
 
   protected openDetail(invoice: Invoice): void {

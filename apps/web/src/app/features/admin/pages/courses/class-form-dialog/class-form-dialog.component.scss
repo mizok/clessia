@@ -90,6 +90,7 @@
 
     &:disabled {
       background: var(--zinc-50);
+      // disabled 控制項，WCAG 1.4.3 明文豁免對比要求 —— 提高對比反而讓它看起來可以按。
       color: var(--zinc-400);
       cursor: not-allowed;
     }

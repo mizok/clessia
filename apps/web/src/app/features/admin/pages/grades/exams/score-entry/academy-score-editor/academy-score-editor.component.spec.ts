@@ -162,4 +162,11 @@ describe('AcademyScoreEditorComponent', () => {
     expect(firstRow.textContent).toContain('王小明');
     expect(firstRow.textContent).toContain('國一');
   });
+
+  // ── 未儲存移出色彩通道（刀 4）─────────────────────────────────────────────
+  it('dirtyCount 數的是還沒存的筆數 —— 急迫性屬於整批不屬於單一格', () => {
+    expect(component['dirtyCount']()).toBe(
+      component['rows']().filter((r) => component['isRowDirty'](r)).length,
+    );
+  });
 });

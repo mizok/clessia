@@ -49,10 +49,13 @@
               <td>{{ row.startTime }}–{{ row.endTime }}</td>
               <td>{{ row.className }}</td>
               <td>
+                <!-- **這裡不判斷時間，是刻意的。** 這個 dialog 是回顧一段已經過去的
+                     期間，裡面的課全都上完了 —— 情境本身已經滿足「該點名的時候到了」，
+                     不需要也不該再跑一次 hasSessionEnded。不要「補」一個時間判斷進來。 -->
                 @if (missingAttendanceIds().has(row.id)) {
-                  <p-tag severity="warn" value="未點名" />
+                  <app-status-dot tone="overdue">未點名</app-status-dot>
                 } @else {
-                  <p-tag severity="success" value="已點名" />
+                  <app-status-dot tone="done">已點名</app-status-dot>
                 }
               </td>
             </tr>

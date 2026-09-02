@@ -17,7 +17,7 @@
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-12);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     font-size: var(--text-sm);
 
     i {
@@ -72,7 +72,20 @@
 
   &__total {
     font-weight: var(--font-normal);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
+  }
+
+  // 中性 —— 未儲存不是警示，只是還沒送出。它的存在感由「有幾筆」提供，不由顏色。
+  &__unsaved {
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-md);
+    color: var(--zinc-600);
+
+    strong {
+      font-weight: var(--font-bold);
+      color: var(--zinc-900);
+      font-variant-numeric: tabular-nums;
+    }
   }
 
   &__row {
@@ -82,8 +95,19 @@
       background: var(--zinc-50);
     }
 
+    // **未儲存不吃色彩通道。** 它不是嚴重度，是暫時的編輯狀態 —— 按下儲存就消失。
+    // 給它色相等於在嚴重度軸上插一個不屬於那裡的值，而且它會跟同一欄的
+    // 缺考（warning）、不及格（error）擠在一起：三者色相只差 11 度、ΔE 20.6，
+    // 在小字級上會被讀成「同一件事的輕重」而不是「不同的事」。
+    //
+    // 改走三個非彩通道：中性底、列首的近黑邊、以及工具列的聚合計數。
+    // 附帶好處是它現在**跟任何嚴重度正交** —— 一格可以同時是不及格且未儲存。
     &--dirty {
-      background: var(--accent-50);
+      background: var(--zinc-50);
+    }
+
+    &--dirty td:first-child {
+      box-shadow: inset 2px 0 0 var(--zinc-900);
     }
   }
 
@@ -157,14 +181,14 @@
 
   &__mobile-grade {
     font-size: var(--text-xs);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
   }
 
   &__mobile-score {
     font-size: var(--text-sm);
     font-weight: var(--font-semibold);
     font-variant-numeric: tabular-nums;
-    color: var(--zinc-400);
+    color: var(--zinc-500);
 
     &--absent {
       color: var(--warning-600);
@@ -174,8 +198,9 @@
       color: var(--error-600);
     }
 
+    // 未儲存改用字重，不用色相（理由同 &__row--dirty）
     &--dirty {
-      color: var(--accent-700);
+      font-weight: var(--font-bold);
     }
   }
 
