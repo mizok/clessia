@@ -17,7 +17,7 @@
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-12);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     font-size: var(--text-sm);
 
     i {
@@ -72,7 +72,7 @@
 
   &__total {
     font-weight: var(--font-normal);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
   }
 
   // 中性 —— 未儲存不是警示，只是還沒送出。它的存在感由「有幾筆」提供，不由顏色。
@@ -181,14 +181,14 @@
 
   &__mobile-grade {
     font-size: var(--text-xs);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
   }
 
   &__mobile-score {
     font-size: var(--text-sm);
     font-weight: var(--font-semibold);
     font-variant-numeric: tabular-nums;
-    color: var(--zinc-400);
+    color: var(--zinc-500);
 
     &--absent {
       color: var(--warning-600);

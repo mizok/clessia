@@ -106,7 +106,7 @@
 
   &__campuses {
     font-size: var(--text-xs);
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -155,7 +155,7 @@
   }
 
   &__empty {
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     font-size: var(--text-sm);
     font-style: italic;
   }
