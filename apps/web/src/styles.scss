@@ -853,13 +853,27 @@ select {
     }
   }
 
+  // 動作列**必須釘在捲動容器底部**。這些 dialog 用 `showHeader: false`，
+  // 自己在內容裡畫動作列 —— 也就是說按鈕是**捲動內容的一部分**，不是固定的 chrome。
+  // 內容一長（新增班級加一個時段就夠），「建立」就被推到視窗外：
+  // 2026-09-02 實走實測，1504×695 下按鈕底部落在 723px，視窗只有 695。
+  //
+  // 注意這不是 max-height 沒生效 —— `.p-dialog` 的 615px 上限與 `.p-dialog-content`
+  // 的 `overflow-y: auto` 都正常運作。壞的只是動作列跟著內容一起捲走。
+  //
+  // `margin-top` 換成 padding：margin 的區域不會被背景繪製，內容捲到下面時
+  // 會從那道 8px 的縫裡透出來，看起來像破圖。
   &__footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
     display: flex;
     justify-content: flex-end;
     gap: var(--space-3);
-    padding-top: var(--space-4);
+    padding-top: calc(var(--space-4) + var(--space-2));
+    padding-bottom: var(--space-4);
     border-top: 1px solid var(--zinc-100);
-    margin-top: var(--space-2);
+    background: var(--color-white);
 
     &--column {
       flex-direction: column;
