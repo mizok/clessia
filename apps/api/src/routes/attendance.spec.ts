@@ -1197,7 +1197,7 @@ function buildEvent(input: {
  * 純函式測試。錯在接線那一層，測試就得跨到那一層。
  */
 describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
-  function createBatchApp(roles: string[]) {
+  function createBatchApp(roles: string[], teachesThisClass = true) {
     const upserted: Array<Record<string, unknown>> = [];
     // 補登窗是按台北日期算的，所以測試也要用台北的今天
     // （`getCurrentTaipeiDateString` 在 attendance.ts 裡是私有的，這裡照抄一次）
@@ -1221,8 +1221,13 @@ describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
           update: () => query,
           maybeSingle: () =>
             Promise.resolve({
-              // 老師負責點名、當天可改 —— 讓流程走得到 upsert
-              data: { attendance_responsible: 'teacher', attendance_retroactive_days: 0 },
+              // `staff` 是範圍檢查用的（assertTeacherCanWriteAttendance 要拿呼叫者的
+              // staff.id）；其餘是組織的點名設定：老師負責點名、當天可改，
+              // 讓流程走得到 upsert
+              data:
+                table === 'staff'
+                  ? { id: 'staff-1' }
+                  : { attendance_responsible: 'teacher', attendance_retroactive_days: 0 },
               error: null,
             }),
           single: () =>
@@ -1243,7 +1248,19 @@ describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
           insert: () => Promise.resolve({ error: null }),
           then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) =>
             Promise.resolve({
-              data: table === 'enrollments' ? [{ student_id: 'stu-1' }] : [],
+              data:
+                table === 'enrollments'
+                  ? [{ student_id: 'stu-1' }]
+                  : table === 'sessions'
+                    ? // 這堂課的授課老師。`teachesThisClass` false 時換成別人，
+                      // 用來驗「不是自己的課就不能寫」
+                      [
+                        {
+                          teacher_id: teachesThisClass ? 'staff-1' : 'someone-else',
+                          schedules: { teacher_id: teachesThisClass ? 'staff-1' : 'someone-else' },
+                        },
+                      ]
+                    : [],
             }).then(onfulfilled ?? undefined),
         };
         return query;
@@ -1264,8 +1281,8 @@ describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
     return { app, upserted };
   }
 
-  async function save(roles: string[]) {
-    const { app, upserted } = createBatchApp(roles);
+  async function save(roles: string[], teachesThisClass = true) {
+    const { app, upserted } = createBatchApp(roles, teachesThisClass);
     const response = await app.request(
       '/api/attendance/batch',
       {
@@ -1290,6 +1307,22 @@ describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
     expect(status).toBe(200);
     expect(upserted).toHaveLength(1);
     expect(upserted[0]?.['recorded_by_role']).toBe('teacher');
+  });
+
+  /**
+   * 範圍限制原本只擋讀不擋寫：清單會縮到自己的課，但這支寫入端點只檢查時窗。
+   * 老師在畫面上看不到別班，可是清單本來就回傳 `eventId`，換一個值就改得動。
+   * 見 kb/wiki/architecture/authorization-scope.md 洞 4。
+   */
+  it('老師不能點別班的名，即使拿得到 eventId', async () => {
+    const { status, upserted } = await save(['teacher'], false);
+
+    expect(status).toBe(403);
+    expect(upserted).toHaveLength(0);
+  });
+
+  it('管理員不受這個範圍限制', async () => {
+    expect((await save(['admin'], false)).status).toBe(200);
   });
 
   it('管理員點的名記成 admin', async () => {
