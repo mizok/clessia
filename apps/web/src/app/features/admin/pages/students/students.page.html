@@ -161,10 +161,9 @@
                 }
               </td>
               <td appRtColCell="status">
-                <p-tag
-                  [value]="student.isActive ? '在籍' : '停用'"
-                  [severity]="student.isActive ? 'success' : 'secondary'"
-                />
+                <app-status-dot [tone]="student.isActive ? 'done' : 'inactive'">{{
+                  student.isActive ? '在籍' : '停用'
+                }}</app-status-dot>
               </td>
               <td class="responsive-table__cell" style="text-align: center">
                 <p-button

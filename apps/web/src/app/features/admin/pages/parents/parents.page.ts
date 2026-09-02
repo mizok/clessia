@@ -20,7 +20,6 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { ToastModule } from 'primeng/toast';
-import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
@@ -51,17 +50,21 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 import { StudentFormDialogComponent } from '@features/admin/pages/students/student-form-dialog.component';
 import { ParentImportDialogComponent } from './parent-import-dialog/parent-import-dialog.component';
 import { ParentDetailDialogComponent } from './parent-detail-dialog/parent-detail-dialog.component';
+import {
+  StatusDotComponent,
+  type StatusTone,
+} from '@shared/components/status/status-dot/status-dot.component';
 
 @Component({
   selector: 'app-parents',
   standalone: true,
   imports: [
+    StatusDotComponent,
     FormsModule,
     ButtonModule,
     InputIconModule,
     IconFieldModule,
     ToastModule,
-    TagModule,
     TooltipModule,
     SkeletonModule,
     InputTextModule,
@@ -243,10 +246,14 @@ export class ParentsPage implements OnInit {
     return PARENT_STATUS_LABELS[status] ?? status;
   }
 
-  protected getStatusSeverity(status: ParentStatus): 'success' | 'secondary' | 'danger' {
-    if (status === 'active') return 'success';
-    if (status === 'inactive') return 'secondary';
-    return 'danger';
+  /**
+   * 只有兩種：還在用（done）與不在等任何事了（inactive）。
+   *
+   * 原本 `archived` 回 `danger` —— **封存一個家長帳號不是壞消息**，
+   * 那是行政主動做的決定。停用與封存都是「不在等了」，同一個 tone。
+   */
+  protected statusTone(status: ParentStatus): StatusTone {
+    return status === 'active' ? 'done' : 'inactive';
   }
 
   protected getPersonHue(id: string): number {

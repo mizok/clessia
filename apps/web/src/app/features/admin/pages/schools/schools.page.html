@@ -36,10 +36,9 @@
           <td>{{ school.shortName ?? '—' }}</td>
           <td>{{ school.studentCount }}</td>
           <td>
-            <p-tag
-              [value]="school.isActive ? '啟用' : '停用'"
-              [severity]="school.isActive ? 'success' : 'secondary'"
-            />
+            <app-status-dot [tone]="school.isActive ? 'done' : 'inactive'">{{
+              school.isActive ? '啟用' : '停用'
+            }}</app-status-dot>
           </td>
           <td>
             <button

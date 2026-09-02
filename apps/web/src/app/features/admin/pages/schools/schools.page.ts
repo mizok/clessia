@@ -14,7 +14,6 @@ import { InputTextModule } from 'primeng/inputtext';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { TableModule } from 'primeng/table';
-import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import {
   PageBreadcrumbComponent,
@@ -24,16 +23,17 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { SchoolsService } from '@core/schools.service';
 import type { School } from '@core/schools.service';
 import { SchoolFormDialogComponent, type SchoolFormResult } from './school-form-dialog.component';
+import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 
 @Component({
   selector: 'app-schools-page',
   standalone: true,
   imports: [
+    StatusDotComponent,
     FormsModule,
     TableModule,
     ButtonModule,
     InputTextModule,
-    TagModule,
     ToastModule,
     ConfirmDialogModule,
     PageBreadcrumbComponent,

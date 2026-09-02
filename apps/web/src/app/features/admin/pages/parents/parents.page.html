@@ -168,10 +168,9 @@
                 }
               </td>
               <td appRtColCell="status">
-                <p-tag
-                  [value]="getStatusLabel(parent.status)"
-                  [severity]="getStatusSeverity(parent.status)"
-                />
+                <app-status-dot [tone]="statusTone(parent.status)">{{
+                  getStatusLabel(parent.status)
+                }}</app-status-dot>
               </td>
               <td class="responsive-table__cell" style="text-align: center">
                 <p-button
