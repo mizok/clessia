@@ -21,7 +21,6 @@ import { InputIconModule } from 'primeng/inputicon';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { ButtonModule } from 'primeng/button';
-import { TagModule } from 'primeng/tag';
 import { PaginatorModule } from 'primeng/paginator';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -39,6 +38,10 @@ import {
   ScoreEditDialogComponent,
   type ScoreEditDialogResult,
 } from './score-edit-dialog/score-edit-dialog.component';
+import {
+  StatusDotComponent,
+  type StatusTone,
+} from '@shared/components/status/status-dot/status-dot.component';
 
 const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel }> = [
   { label: '小一', value: 'P1' },
@@ -67,6 +70,7 @@ const STUDENT_STATUS_OPTIONS: Array<{ label: string; value: SchoolExamStudentSta
   selector: 'app-school-score-editor',
   standalone: true,
   imports: [
+    StatusDotComponent,
     FormsModule,
     InputTextModule,
     IconFieldModule,
@@ -74,7 +78,6 @@ const STUDENT_STATUS_OPTIONS: Array<{ label: string; value: SchoolExamStudentSta
     SelectModule,
     SelectButtonModule,
     ButtonModule,
-    TagModule,
     PaginatorModule,
   ],
   providers: [DialogService, MessageService],
@@ -191,12 +194,17 @@ export class SchoolScoreEditorComponent implements OnInit {
     return `${student.scoreCount}/${student.subjectCount}`;
   }
 
-  protected getProgressSeverity(
-    student: SchoolExamStudent,
-  ): 'success' | 'warn' | 'danger' | 'info' | 'secondary' | 'contrast' | undefined {
-    if (student.scoreCount === 0) return 'warn';
-    if (student.subjectCount > 0 && student.scoreCount >= student.subjectCount) return 'success';
-    return 'info';
+  /**
+   * 進度三態：未開始 / 進行中 / 完成。**未開始與進行中都是 `pending`** ——
+   * 區分由標籤自己扛著（「待登錄」／「3/5」／「已完成」），不需要色相。
+   *
+   * **沒有 `overdue`**：查不到段考成績登錄的期限（schema 沒有 deadline 欄位、
+   * rules 也沒規定），所以沒有依據可以說它「積欠」。原本「一科都沒登」回 warn
+   * 是在催人而沒有依據可催。
+   */
+  protected progressTone(student: SchoolExamStudent): StatusTone {
+    const done = student.subjectCount > 0 && student.scoreCount >= student.subjectCount;
+    return done ? 'done' : 'pending';
   }
 
   protected openStudentDialog(student: SchoolExamStudent): void {

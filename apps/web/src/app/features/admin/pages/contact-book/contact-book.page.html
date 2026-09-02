@@ -37,8 +37,8 @@
       </p>
     } @else {
       <p class="contact-book__missing-note">
-        <strong>{{ missing().length }}</strong> 位學生這天還沒有聯絡簿。
-        只有「有課的班」才算 —— 當天沒課或停課的班不列入。
+        <strong>{{ missing().length }}</strong> 位學生這天還沒有聯絡簿。 只有「有課的班」才算 ——
+        當天沒課或停課的班不列入。
       </p>
       <ul class="contact-book__missing-list">
         @for (target of visibleMissing(); track target.studentId) {
@@ -216,14 +216,11 @@
             </td>
             <td appRtColCell="signed">
               @if (entry.isSigned) {
-                <p-tag
-                  value="已簽收"
-                  severity="success"
-                  [pTooltip]="entry.signedAt ?? ''"
-                  tooltipPosition="left"
-                />
+                <app-status-dot tone="done" [pTooltip]="entry.signedAt ?? ''" tooltipPosition="left"
+                  >已簽收</app-status-dot
+                >
               } @else {
-                <p-tag value="未簽收" severity="warn" />
+                <app-status-dot tone="pending">未簽收</app-status-dot>
               }
             </td>
           </tr>

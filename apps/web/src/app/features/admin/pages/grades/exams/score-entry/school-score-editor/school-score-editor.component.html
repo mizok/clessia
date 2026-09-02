@@ -77,11 +77,7 @@
             <span class="school-score-editor__row-grade">{{ formatGrade(s.studentGrade) }}</span>
           </div>
           <div class="school-score-editor__row-end">
-            <p-tag
-              [value]="getProgressText(s)"
-              [severity]="getProgressSeverity(s)"
-              [rounded]="true"
-            />
+            <app-status-dot [tone]="progressTone(s)">{{ getProgressText(s) }}</app-status-dot>
             <i class="pi pi-chevron-right school-score-editor__row-chevron"></i>
           </div>
         </button>

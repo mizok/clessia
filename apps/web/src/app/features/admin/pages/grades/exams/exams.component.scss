@@ -258,10 +258,10 @@
     font-weight: var(--font-semibold);
     font-variant-numeric: tabular-nums;
 
-    &--zero {
-      color: var(--error-600);
-      font-weight: 600;
-    }
+    // 這裡原本有 &--zero：scoreCount === 0 && status === 'active' 就塗成 --error-600。
+    // 拿掉是因為那個條件**沒有任何時間判斷** —— 一場今天剛建好、還沒開始考的考試，
+    // 「已登錄 0」立刻是紅的。紅色在這套系統裡的意思是「已發生的壞結果」，
+    // 但那裡只是「還沒開始」。數量由數字自己表達，不需要色相。
   }
 
   &__actions-cell {
@@ -277,7 +277,6 @@
     gap: var(--space-3);
     align-items: center;
   }
-
 }
 
 @include respond-to('tablet-portrait') {

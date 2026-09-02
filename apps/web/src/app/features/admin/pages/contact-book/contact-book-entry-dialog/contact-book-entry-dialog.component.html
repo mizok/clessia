@@ -13,12 +13,12 @@
     </div>
     @if (entry(); as existing) {
       @if (existing.isSigned) {
-        <p-tag value="已簽收" severity="success" icon="pi pi-check" />
+        <app-status-dot tone="done">已簽收</app-status-dot>
       } @else {
-        <p-tag value="未簽收" severity="warn" />
+        <app-status-dot tone="pending">未簽收</app-status-dot>
       }
     } @else {
-      <p-tag value="尚未撰寫" severity="secondary" />
+      <app-status-dot tone="pending">尚未撰寫</app-status-dot>
     }
   </header>
 

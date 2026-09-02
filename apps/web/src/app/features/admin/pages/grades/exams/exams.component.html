@@ -267,17 +267,12 @@
                 <span class="exams__scope">{{ row.scope }}</span>
               </td>
               <td appRtColCell="score">
-                <span
-                  class="exams__score"
-                  [class.exams__score--zero]="row.scoreCount === 0 && row.status === 'active'"
-                  >{{ row.scoreCount }}</span
-                >
+                <span class="exams__score">{{ row.scoreCount }}</span>
               </td>
               <td appRtColCell="status">
-                <p-tag
-                  [value]="getStatusLabel(row.status)"
-                  [severity]="getStatusSeverity(row.status)"
-                />
+                <app-status-dot [tone]="statusTone(row.status)">{{
+                  getStatusLabel(row.status)
+                }}</app-status-dot>
               </td>
               <td class="responsive-table__cell exams__actions-cell">
                 <p-button

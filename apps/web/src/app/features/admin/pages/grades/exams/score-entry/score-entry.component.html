@@ -15,11 +15,9 @@
       <div class="score-entry__header">
         <div class="score-entry__title-row">
           <h1 class="score-entry__title">{{ info.name }}</h1>
-          <p-tag
-            class="score-entry__status-tag"
-            [value]="getStatusLabel(info.status)"
-            [severity]="getStatusSeverity(info.status)"
-          />
+          <app-status-dot class="score-entry__status-tag" [tone]="statusTone(info.status)">{{
+            getStatusLabel(info.status)
+          }}</app-status-dot>
         </div>
         <p class="score-entry__meta">{{ info.metaLine }}</p>
       </div>

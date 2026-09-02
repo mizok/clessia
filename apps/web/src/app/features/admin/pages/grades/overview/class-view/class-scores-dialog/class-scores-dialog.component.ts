@@ -14,7 +14,6 @@ import { Router } from '@angular/router';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { SelectModule } from 'primeng/select';
-import { TagModule } from 'primeng/tag';
 import { MessageService } from 'primeng/api';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -28,6 +27,7 @@ import {
 } from '@core/scores.service';
 import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/students.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 
 type ScoreStatusFilter = 'all' | ScoreRecordStatus;
 type ExamScopeFilter = 'todo' | 'all';
@@ -70,12 +70,12 @@ const EXAM_TYPE_LABELS: Record<AcademyExam['examType'], string> = {
   selector: 'app-class-scores-dialog',
   standalone: true,
   imports: [
+    StatusDotComponent,
     DataChipComponent,
     FormsModule,
     EmptyStateComponent,
     SelectModule,
     SelectButtonModule,
-    TagModule,
   ],
   templateUrl: './class-scores-dialog.component.html',
   styleUrl: './class-scores-dialog.component.scss',
@@ -200,19 +200,6 @@ export class ClassScoresDialogComponent implements OnInit {
         return '補考';
       default:
         return status;
-    }
-  }
-
-  protected getStatusSeverity(status: string): 'success' | 'danger' | 'warn' | 'info' {
-    switch (status) {
-      case 'scored':
-        return 'success';
-      case 'absent':
-        return 'danger';
-      case 'makeup':
-        return 'warn';
-      default:
-        return 'info';
     }
   }
 

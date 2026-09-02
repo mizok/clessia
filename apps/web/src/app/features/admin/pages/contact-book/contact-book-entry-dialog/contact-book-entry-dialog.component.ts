@@ -2,12 +2,12 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { ButtonModule } from 'primeng/button';
-import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { ContactBookService, type ContactBookEntry } from '@core/contact-book.service';
+import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 
 /** 補寫一則時需要的最小資料 —— 學生與日期由缺漏清單給，不讓使用者挑 */
 export interface EntryDraft {
@@ -37,7 +37,7 @@ const MAX_CONTENT = 5000;
 @Component({
   selector: 'app-contact-book-entry-dialog',
   standalone: true,
-  imports: [FormsModule, ButtonModule, TagModule, TextareaModule],
+  imports: [StatusDotComponent, FormsModule, ButtonModule, TextareaModule],
   templateUrl: './contact-book-entry-dialog.component.html',
   styleUrl: './contact-book-entry-dialog.component.scss',
 })
