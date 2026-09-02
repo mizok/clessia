@@ -88,6 +88,8 @@
                 size="small"
                 [outlined]="getStatus(student.studentId) !== 'present'"
                 severity="success"
+                [attr.aria-pressed]="getStatus(student.studentId) === 'present'"
+                [attr.aria-label]="student.studentName + ' 出席'"
                 (onClick)="setStatus(student.studentId, 'present')"
               />
               <p-button
@@ -95,6 +97,8 @@
                 size="small"
                 [outlined]="getStatus(student.studentId) !== 'absent'"
                 severity="danger"
+                [attr.aria-pressed]="getStatus(student.studentId) === 'absent'"
+                [attr.aria-label]="student.studentName + ' 缺席'"
                 (onClick)="setStatus(student.studentId, 'absent')"
               />
             </div>
@@ -105,12 +109,27 @@
   }
 
   <div class="session-attendance__actions">
+    <!--
+      「全部出席」是**主動宣告**不是預設值。常見情況是全到，一鍵之後只改少數幾個 ——
+      比逐一點快，而且不會像預選那樣替使用者做他沒做過的決定。
+    -->
+    @if (!loading() && roster() && pendingCount() > 0) {
+      <p-button
+        label="全部出席"
+        icon="pi pi-check-square"
+        severity="success"
+        [outlined]="true"
+        size="small"
+        (onClick)="markAllPresent()"
+      />
+      <span class="session-attendance__pending">還有 {{ pendingCount() }} 位未點</span>
+    }
     <p-button label="關閉" severity="secondary" [text]="true" size="small" (onClick)="close()" />
     <p-button
       label="儲存點名"
       icon="pi pi-check"
       [loading]="saving()"
-      [disabled]="loading() || !roster()"
+      [disabled]="loading() || !roster() || pendingCount() > 0"
       (onClick)="save()"
     />
   </div>
