@@ -169,4 +169,88 @@ describe('AcademyScoreEditorComponent', () => {
       component['rows']().filter((r) => component['isRowDirty'](r)).length,
     );
   });
+
+  // ── 存檔後計數要歸零 ──────────────────────────────────────────────────────
+  // 實走 demo 抓到的：存檔成功、dirty 邊框清掉了、儲存鈕也消失了，
+  // 但標題還掛著「3 筆未儲存」。原因是 `original` 是**原地改**的，
+  // `rows` signal 的參照沒變，computed 就不重算。
+  it('存檔成功之後 dirtyCount 歸零（原地改 original 不會讓 computed 重算）', () => {
+    component['onScoreChange'](component['rows']()[1], 72);
+    expect(component['dirtyCount']()).toBe(1);
+
+    component['save']();
+
+    expect(component['dirtyCount']()).toBe(0);
+    expect(component['isDirty']()).toBe(false);
+  });
+
+  // ── 鍵盤：↑↓/Enter 是換列，不是改值（charter 坑 11）─────────────────────
+  describe('分數欄的鍵盤動線', () => {
+    /** 取第 i 列分數欄實際的 <input> */
+    const fieldAt = (i: number) =>
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+        `[data-score-row="${i}"] input`,
+      );
+
+    const press = (key: string, index: number) => {
+      const event = new KeyboardEvent('keydown', { key, cancelable: true, bubbles: true });
+      component['onScoreKeydown'](event, index);
+      return event;
+    };
+
+    it('↓ 把焦點移到下一列，而且**不會**改掉目前這格的分數', () => {
+      const before = component['rows']()[0].score;
+
+      const event = press('ArrowDown', 0);
+
+      // preventDefault 是關鍵：不擋的話 PrimeNG 會把 85 變成 84
+      expect(event.defaultPrevented).toBe(true);
+      expect(component['rows']()[0].score).toBe(before);
+      expect(document.activeElement).toBe(fieldAt(1));
+    });
+
+    it('Enter 也是換列 —— 試算表的心智模型', () => {
+      press('Enter', 0);
+      expect(document.activeElement).toBe(fieldAt(1));
+    });
+
+    it('↑ 往回一列', () => {
+      press('ArrowUp', 1);
+      expect(document.activeElement).toBe(fieldAt(0));
+    });
+
+    // **這支測試需要三列才有鑑別力。** 第一版只用了 mock 的兩列（0 正常、1 缺考），
+    // 結果拿掉「跳過 disabled」的邏輯它照樣綠 —— 因為 `focus()` 打在 disabled 元素上
+    // 本來就是無效操作，焦點留在原地，跟「找不到可去的地方」長得一模一樣。
+    // 要中間夾一列鎖住的、後面還有一列活的，才分得出「跳過去了」跟「卡住了」。
+    it('跳過缺考那列，落在再下一列 —— 不是卡在原地', async () => {
+      const rows = component['rows']();
+      component['rows'].set([
+        rows[0],
+        { ...rows[1], status: 'absent' as const, score: null },
+        {
+          ...rows[0],
+          studentId: 'stu-3',
+          studentName: '陳小美',
+          original: { score: null, status: 'scored' as const, notes: '' },
+          score: null,
+        },
+      ]);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fieldAt(1)?.disabled).toBe(true);
+      expect(fieldAt(2)?.disabled).toBe(false);
+
+      press('ArrowDown', 0);
+
+      expect(document.activeElement).toBe(fieldAt(2));
+    });
+
+    it('其他按鍵不攔截 —— 打字要能正常進去', () => {
+      const event = press('5', 0);
+      expect(event.defaultPrevented).toBe(false);
+    });
+  });
 });

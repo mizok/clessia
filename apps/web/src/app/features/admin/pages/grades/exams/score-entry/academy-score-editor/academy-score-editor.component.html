@@ -51,7 +51,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (row of filteredRows(); track row.studentId) {
+            @for (row of filteredRows(); track row.studentId; let i = $index) {
               <tr
                 class="academy-score-editor__row"
                 [class.academy-score-editor__row--dirty]="isRowDirty(row)"
@@ -64,6 +64,8 @@
                 </td>
                 <td class="academy-score-editor__cell academy-score-editor__cell--score">
                   <p-inputnumber
+                    [attr.data-score-row]="i"
+                    (keydown)="onScoreKeydown($event, i)"
                     [ngModel]="row.score"
                     (ngModelChange)="onScoreChange(row, $event)"
                     [min]="0"

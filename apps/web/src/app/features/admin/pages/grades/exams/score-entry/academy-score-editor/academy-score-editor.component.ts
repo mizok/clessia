@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   OnInit,
   computed,
   inject,
@@ -92,6 +93,7 @@ export class AcademyScoreEditorComponent implements OnInit {
   private readonly academyExamsService = inject(AcademyExamsService);
   private readonly messageService = inject(MessageService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly host = inject(ElementRef<HTMLElement>);
 
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly loading = signal(true);
@@ -175,6 +177,44 @@ export class AcademyScoreEditorComponent implements OnInit {
     this.notifyRowsChanged();
   }
 
+  /**
+   * 這張表長得像試算表，使用者也會這樣用它 —— 所以 `↑` `↓` `Enter` **一律是換列**。
+   *
+   * PrimeNG 的 `p-inputnumber` 預設拿 `↑` `↓` 加減數值。實走 demo 時我按 `↓` 想跳到
+   * 下一列，它把分數從 90 改成 89，**沒有任何提示** —— 使用者以為自己在導覽，
+   * 實際在編輯（charter 坑 11）。要加減有右側的 spinner 鈕，那是明確的手勢。
+   *
+   * 順帶解掉的：原本要按 **3 次 Tab**（分數 → 狀態 → 備註 → 下一列分數）才換一列，
+   * 20 人的班就是 60 次。現在 1 次。
+   */
+  protected onScoreKeydown(event: KeyboardEvent, index: number): void {
+    const step = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' || event.key === 'Enter' ? 1 : 0;
+    if (step === 0) return;
+    // 一定要 preventDefault：不擋的話 PrimeNG 會在我們換完焦點之後**還是**改掉原本那格
+    event.preventDefault();
+    this.focusScoreFrom(index + step, step);
+  }
+
+  /**
+   * 從 `start` 往 `step` 的方向找第一個可輸入的分數欄。
+   * **會跳過 disabled 的格子**（缺考的學生分數欄是鎖住的）—— 不跳過的話
+   * `focus()` 在 disabled 元素上是無效操作，游標會卡在原地，看起來像鍵盤壞了。
+   */
+  private focusScoreFrom(start: number, step: number): void {
+    const total = this.filteredRows().length;
+    for (let i = start; i >= 0 && i < total; i += step) {
+      const field = (this.host.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+        `[data-score-row="${i}"] input`,
+      );
+      if (field && !field.disabled) {
+        field.focus();
+        field.select();
+        return;
+      }
+    }
+    // 走到頭就留在原地 —— 不要回捲，那會讓人以為自己按錯了
+  }
+
   protected onStatusChange(row: ScoreRow, value: AcademyScoreStatus): void {
     row.status = value;
     if (value === 'absent') {
@@ -232,10 +272,15 @@ export class AcademyScoreEditorComponent implements OnInit {
             summary: '儲存成功',
             detail: `已更新 ${affected} 筆成績`,
           });
-          // 更新 original 快照
+          // 更新 original 快照。**改完一定要 set 一個新陣列** ——
+          // `dirtyCount()` 是 computed，只認 signal 的參照；原地改 `r.original`
+          // 不會讓它重算，結果就是存檔成功後「N 筆未儲存」還掛在標題上，
+          // 而列首的 dirty 邊框（template 裡的方法呼叫，每輪 CD 都跑）卻清掉了 ——
+          // 兩個訊號互相矛盾。實走 demo 抓到的。
           for (const r of this.rows()) {
             r.original = { score: r.score, status: r.status, notes: r.notes };
           }
+          this.rows.set([...this.rows()]);
           this.savingChange.emit(false);
           this.emitDirty();
           this.saved.emit();
