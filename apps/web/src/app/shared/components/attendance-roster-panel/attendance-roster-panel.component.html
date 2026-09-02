@@ -38,6 +38,7 @@
                 size="small"
                 [outlined]="getStatus(student.studentId) !== 'present'"
                 severity="success"
+                [ariaPressed]="getStatus(student.studentId) === 'present'"
                 (onClick)="setStatus(student.studentId, 'present')"
               />
               <p-button
@@ -45,6 +46,7 @@
                 size="small"
                 [outlined]="getStatus(student.studentId) !== 'absent'"
                 severity="danger"
+                [ariaPressed]="getStatus(student.studentId) === 'absent'"
                 (onClick)="setStatus(student.studentId, 'absent')"
               />
             </div>
@@ -54,7 +56,20 @@
     </div>
 
     <div class="roster-panel__footer">
-      <p-button label="儲存點名" icon="pi pi-check" [loading]="saving()" (onClick)="save()" />
+      <p-button
+        label="全部出席"
+        icon="pi pi-users"
+        severity="secondary"
+        [outlined]="true"
+        (onClick)="markAllPresent()"
+      />
+      <p-button
+        label="儲存點名"
+        icon="pi pi-check"
+        [loading]="saving()"
+        [disabled]="markedCount() === 0"
+        (onClick)="save()"
+      />
     </div>
   }
 </div>

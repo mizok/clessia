@@ -3,6 +3,7 @@ import type { EventSessionSummary } from '@core/attendance.service';
 
 import {
   ATTENDANCE_TONE_LABELS,
+  attendanceDisplay,
   attendanceTone,
   canTakeAttendance,
   weekAnchor,
@@ -173,5 +174,49 @@ describe('ATTENDANCE_TONE_LABELS', () => {
     for (const tone of ['done', 'pending', 'overdue', 'inactive', 'failed'] as const) {
       expect(ATTENDANCE_TONE_LABELS[tone]).toBeTruthy();
     }
+  });
+});
+
+/**
+ * 2026-09-02 UX 審查（阻斷級 A3）：`attendance_responsible = 'admin'` 時，
+ * 老師的課表**完全沒有點名入口**，但狀態點照樣寫「漏點名」——
+ * 頁面在對老師問責一件他做不到的事。
+ *
+ * 「這堂課點了沒」與「這是不是老師的責任」是兩個問題：
+ * `attendanceTone` 只答前者，責任歸屬在 `attendanceDisplay`。
+ */
+describe('attendanceDisplay（帶責任歸屬）', () => {
+  const now = new Date('2026-09-01T08:00:00');
+  const pastUntaken = session({ eventDate: '2026-08-31' });
+
+  it('老師負責點名時，過去沒點的是「漏點名」', () => {
+    expect(attendanceDisplay(pastUntaken, now, true)).toEqual({
+      tone: 'overdue',
+      label: '漏點名',
+    });
+  });
+
+  it('行政負責點名時，同一堂課變成中性的「未點名」，不是漏點名', () => {
+    expect(attendanceDisplay(pastUntaken, now, false)).toEqual({
+      tone: 'pending',
+      label: '未點名',
+    });
+  });
+
+  it('已點名兩種模式都一樣 —— 責任只影響「還沒做」的說法', () => {
+    const taken = session({ eventDate: '2026-08-31', takenAt: '2026-08-31T12:00:00Z' });
+    expect(attendanceDisplay(taken, now, true)).toEqual(attendanceDisplay(taken, now, false));
+  });
+
+  it('停課兩種模式都一樣', () => {
+    const cancelled = session({ status: 'cancelled', eventDate: '2026-08-31' });
+    expect(attendanceDisplay(cancelled, now, true)).toEqual({ tone: 'inactive', label: '已停課' });
+    expect(attendanceDisplay(cancelled, now, false)).toEqual({ tone: 'inactive', label: '已停課' });
+  });
+
+  it('還沒上的課兩種模式都是「還沒上」', () => {
+    const future = session({ eventDate: '2026-09-05' });
+    expect(attendanceDisplay(future, now, true).label).toBe('還沒上');
+    expect(attendanceDisplay(future, now, false).label).toBe('還沒上');
   });
 });
