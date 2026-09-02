@@ -475,6 +475,11 @@ DECLARE
   -- ON CONFLICT 的目標欄位、裸 WHERE。這一個曾經叫 student_id，
   -- 直到 meal_records 的 ON CONFLICT (student_id, meal_date) 把它撞出來。
   v_student_id UUID;
+  -- 這批出勤測試學生的家長（見下方迴圈內的說明）
+  v_parent_id UUID;
+  v_parent_user_id TEXT;
+  parent_last_names TEXT[] := ARRAY['林', '陳', '張', '王', '李', '黃', '劉', '吳'];
+  parent_given_names TEXT[] := ARRAY['志明', '淑芬', '建國', '美玲', '宗翰', '雅雯', '俊賢', '秀蘭'];
 BEGIN
   SELECT id
   INTO demo_campus_id
@@ -545,6 +550,54 @@ BEGIN
       TRUE
     )
     ON CONFLICT DO NOTHING;
+
+    -- 家長帳號與親子關聯
+    --
+    -- **這批學生原本一個家長都沒有。** 上面那個 block 建的 15 位學生各有一位家長，
+    -- 但**在籍到三個示範班的是這裡的 12 位**，而他們沒有 —— 結果是整條家長端流程
+    -- （家長登入、看孩子的出缺席、請假）對示範班的學生完全跑不動，
+    -- 而症狀只是「查不到資料」，看起來像功能沒做。
+    --
+    -- UUID 前綴用 `51000000-`，跟上面那批（`50000000-`）分開，兩邊的清理互不干擾。
+    v_parent_user_id := format('51000000-0000-0000-%s-%s',
+      lpad(student_index::text, 4, '0'),
+      lpad(student_index::text, 12, '0')
+    );
+
+    INSERT INTO public.ba_user (id, name, email, "emailVerified", username, "orgId", "createdAt", "updatedAt")
+    VALUES (
+      v_parent_user_id,
+      parent_last_names[((student_index - 1) % 8) + 1] || parent_given_names[((student_index - 1) % 8) + 1],
+      format('attendance-parent-%s@demo.clessia.app', lpad(student_index::text, 2, '0')),
+      true,
+      -- 電話當帳號；乘一個跟上面那批不同的係數，避免撞號（username 是 UNIQUE）
+      '09' || LPAD((student_index * 87654321 % 100000000)::TEXT, 8, '0'),
+      demo_org_id,
+      NOW(),
+      NOW()
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      name = EXCLUDED.name,
+      email = EXCLUDED.email,
+      "orgId" = EXCLUDED."orgId",
+      "updatedAt" = NOW();
+
+    -- `parents` 沒有唯一鍵，只能自己比 user_id
+    SELECT id INTO v_parent_id FROM public.parents WHERE user_id = v_parent_user_id;
+    IF v_parent_id IS NULL THEN
+      INSERT INTO public.parents (org_id, user_id, name, status)
+      VALUES (
+        demo_org_id,
+        v_parent_user_id,
+        parent_last_names[((student_index - 1) % 8) + 1] || parent_given_names[((student_index - 1) % 8) + 1],
+        'active'
+      )
+      RETURNING id INTO v_parent_id;
+    END IF;
+
+    INSERT INTO public.parent_student_relations (parent_id, student_id, relation, is_primary)
+    VALUES (v_parent_id, v_student_id, 'parent', TRUE)
+    ON CONFLICT (parent_id, student_id) DO NOTHING;
   END LOOP;
 
   INSERT INTO public.classes (
