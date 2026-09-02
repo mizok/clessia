@@ -101,7 +101,19 @@ export interface RosterStudent {
   grade: string | null;
   school: string | null;
   recordId: string | null;
+  /** 紀錄上寫了什麼。`null` = 這堂課還沒有這個學生的出勤紀錄 */
   status: 'present' | 'absent' | 'on_leave' | null;
+  /**
+   * 今天有一張蓋到這堂課的請假單。**跟 `status === 'on_leave'` 是兩件事**：
+   * `status` 是紀錄上寫了什麼（事實），這個是有沒有請假這件事（脈絡）。
+   *
+   * 後端讀取時推導，不看紀錄 —— 因為請假連動只寫得到「建立請假當下已存在」的 event，
+   * 而出勤事件是懶生成的：先請假、之後才生成的課堂，紀錄上什麼都沒有。
+   *
+   * **不要用它來鎖住那一列。** 鎖住的條件只有 `status === 'on_leave'`，
+   * 理由見 `attendance-roster-panel.component.ts` 的 `isLocked`。
+   */
+  hasLeaveRequest: boolean;
 }
 
 export interface AttendanceRoster {

@@ -75,8 +75,39 @@ export class AttendanceRosterPanelComponent implements OnInit {
     });
   }
 
-  protected isOnLeave(student: RosterStudent): boolean {
+  /**
+   * 紀錄上就是請假 —— **鎖住的條件只有這一個**。
+   *
+   * 刻意**不含** `hasLeaveRequest`，雖然工單原本寫的是兩者取 `||` 全鎖：
+   *
+   * 1. 矛盾態（標了缺席 + 有請假單）本身就滿足 `||`，全鎖會讓老師看到一個他**動不了**
+   *    的問題。把注意力引到無法處理的事情上，比不引還糟。
+   * 2. `hasLeaveRequest` 是 join 出來的推導值，時間重疊判斷有邊界；誤判一次就鎖死一格，
+   *    而銷假出口（老師把請假的人改成出席）目前還不存在。
+   * 3. 後端刻意把「紀錄寫了什麼」與「有沒有請假這件事」分成兩欄，
+   *    前端用一個 `||` 合回去等於把那個區別又抹掉。
+   */
+  protected isLocked(student: RosterStudent): boolean {
     return student.status === 'on_leave';
+  }
+
+  /** 這個學生今天請假了 —— 不管紀錄套用了沒。用來顯示 chip，不用來鎖 */
+  protected hasLeave(student: RosterStudent): boolean {
+    return student.status === 'on_leave' || student.hasLeaveRequest;
+  }
+
+  /**
+   * 請假的人被標成缺席 —— 說的是**誤操作**（點了不該點的人），不是資料矛盾。
+   *
+   * 標成出席不算：請假的孩子還是來了，那是正常的事，不該報警。
+   *
+   * ⚠️ **這是 A1 未完成期間的權宜。** 老師目前沒有「標成請假」可以點
+   * （`batch` 的 enum 只收 present/absent），所以請假沒來的學生，
+   * 老師的正解是「不要標」，而這個旗標就是在抓他標了的情況。
+   * A1 落地之後老師有正確的動作可做，這個旗標的必要性要回來重新評估。
+   */
+  protected isMismarked(student: RosterStudent): boolean {
+    return student.hasLeaveRequest && this.getStatus(student.studentId) === 'absent';
   }
 
   /** `null` = 還沒標。呼叫端要能分辨「沒標」與「標了缺席」 */
@@ -95,7 +126,8 @@ export class AttendanceRosterPanelComponent implements OnInit {
     if (!roster) return;
     const map = new Map(this.localStatus());
     for (const s of roster.students) {
-      if (!this.isOnLeave(s)) map.set(s.studentId, 'present');
+      // 有請假的一律跳過（含紀錄還沒套用的）—— 一鍵到課不該覆蓋掉請假
+      if (!this.hasLeave(s)) map.set(s.studentId, 'present');
     }
     this.localStatus.set(map);
   }
@@ -123,7 +155,7 @@ export class AttendanceRosterPanelComponent implements OnInit {
 
     // 只送標過的人。未標記的不寫入 —— 「還沒點到他」不該變成一筆缺席紀錄
     const updates = roster.students
-      .filter((s) => !this.isOnLeave(s))
+      .filter((s) => !this.isLocked(s))
       .map((s) => ({ studentId: s.studentId, status: this.getStatus(s.studentId) }))
       .filter(
         (u): u is { studentId: string; status: 'present' | 'absent' } => u.status !== null,
