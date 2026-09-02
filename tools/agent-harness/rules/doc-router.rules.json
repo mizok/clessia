@@ -52,6 +52,15 @@
         "kb/wiki/architecture/constitution.md（binding law — 動架構前必讀）",
         "kb/wiki/architecture/constitution-enforcement.md（每條 clause 用什麼機制守）"
       ]
+    },
+    {
+      "match": "磁碟|disk|空間不足|no space|(清|清理|清掉|prune).*(docker|cache|快取)|(docker|cache|快取).*(滿|爆|清理|prune)",
+      "hints": [
+        "kb/wiki/lessons/docker-disk-exhaustion.md（處置流程 —— **先量再動手**：直覺會說清 build cache，實測過它可能是 0 B）",
+        "**量**：建議 `puremac analyze <path> --json`；沒裝的話 `mo analyze -json <path>`（mole，功能等價）；都沒有就用內建 `du -xh -d 1 <path> | sort -rh`",
+        "**清 Docker 內部**只能用 docker/dagger 自己的指令 —— 通用清理工具碰得到的只有 Docker 的日誌（46 MB 等級），不是那 100 GB",
+        "主機與 VM 兩側要分開量：engine 在 VM 裡看到的可用空間是假的，自動 GC 永遠不會觸發"
+      ]
     }
   ]
 }
