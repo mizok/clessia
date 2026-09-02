@@ -148,6 +148,10 @@ campus），**沒有任何 enrollment 過濾**。接著對「該學生 × 每一
 清單顯示：學生 · 年級 · 今天第一堂課的時間與班級。點一列進到班看板並鎖定該分校。
 超過一定筆數收尾成「還有 N 位 → 看板」，儀表板不是名冊。
 
+**分組這個選擇在分校隔離落地前後都成立**：現在管理者看到全部分校各自的缺口；
+有隔離之後他只會拿到自己那組，同一段 UI 不用改。「先選分校再看」則兩邊都要改。
+見 [[architecture/campus-isolation]]。
+
 ### 決策 6：時窗政策沿用既有的，不另立一套
 
 `attendance.ts:1257+` 的 `assertAttendanceWindow` 已經有一套規則：
@@ -195,6 +199,19 @@ events 上有沒有這個學生的 attendance_records」擋掉刪除／改班。
 現在靠 `attendance_records.status = 'on_leave'`，而那些記錄不會再存在。
 `leaves.ts:314` 已經有「只更新該學生實際有報名的 attendance_records」的邏輯，
 日到班要改成從 `leave_requests` 直接推導。**列為需求單的一項，不在這一刀裡解。**
+
+## 分校隔離：這一刀**不做**，但也不擋路
+
+使用者指出分校的資料隔離必須要設計權限。查證結果是**目前完全沒有**：
+`staff_campuses` 這張表存在，但 `authMiddleware` 不讀它（context 只有 `orgId` /
+`roles` / `permissions`），所以任何管理員都看得到所有分校的資料。
+
+**這比一支看板大，而且在單一功能裡解會更糟** —— 會得到一個守得住的畫面
+和其餘全部守不住的畫面，使用者無從分辨。隔離要跟 c1 的 `org_id` 一樣沒有例外
+才可信。現況、形狀與待裁決的部分記在 [[architecture/campus-isolation]]。
+
+這一刀的責任只有兩條：**端點照收 `campusId`**（等 middleware 長出來時它自然被
+驗證）、**畫面依分校分組而不是先選再看**（見決策 7）。
 
 ## 介面分流：哪些地方要隨 `attendanceMode` 改變
 
