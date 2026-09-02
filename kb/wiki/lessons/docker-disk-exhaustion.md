@@ -47,13 +47,21 @@ puremac clean --dry-run --json        # 預覽，不刪除
 **連 `analyze` 都不會碰**。這讓 supabase volume、別席的 worktree 這類護欄
 **變成工具本身的設定**，而不是靠操作者每次記得。
 
-##### 安裝：`brew install` 目前會被擋，但不是真的裝不起來
+##### 安裝
+
+```bash
+brew install momenbasel/tap/puremac-cli
+```
+
+**正常情況下就是這一條**（2026-09-02 實測成功，裝到 `/opt/homebrew/bin/puremac`）。
+
+###### 如果它報「CLT does not support macOS 26」
 
 ```
 Error: Your Command Line Tools (CLT) does not support macOS 26.
 ```
 
-**這個錯誤具有誤導性。** 看 formula 就知道它**不編譯任何東西**：
+**這個錯誤具有誤導性，而且跟 PureMac 無關。** 看 formula 就知道它**不編譯任何東西**：
 
 ```ruby
 def install
@@ -61,10 +69,32 @@ def install
 end
 ```
 
-那是 Homebrew 安裝前的**通用環境檢查**，跟這支 formula 需不需要編譯無關。
-（本頁初版因為只讀了錯誤訊息、沒讀 formula，一度誤判成「裝不起來」。）
+那是 Homebrew 安裝前的**通用環境檢查**，會擋下所有安裝，不分該 formula 需不需要編譯。
+（本頁初版因為只讀了錯誤訊息、沒讀 formula，一度誤判成「PureMac 裝不起來 / 不支援 Tahoe」。
+**兩個結論都是錯的** —— 那支 binary 是 universal binary，在 Tahoe 上跑得好好的。）
 
-CLT 修好之前可以直接取用發佈的預編譯 binary，**並自己驗雜湊**：
+真正的問題是**這台機器的 CLT 過期**，診斷方式：
+
+```bash
+xcrun --show-sdk-version                          # 遠低於 OS 版本就是它
+ls /Library/Developer/CommandLineTools/SDKs/      # 沒有對應 OS 版本的 SDK
+pkgutil --pkg-info=com.apple.pkg.CLTools_Executables   # 查不到 = Homebrew 說的 "modified"
+```
+
+2026-09-02 那次：OS 是 26.2，但 SDK 只到 **15.5**、`pkgutil` 查不到安裝紀錄。
+修法要在**真的終端機**裡跑（sudo 需要 TTY，agent session 給不了）：
+
+```bash
+sudo rm -rf /Library/Developer/CommandLineTools
+sudo xcode-select --install
+```
+
+修完 SDK 從 15.5 → 26.5、clang 17 → 21，`brew install` 隨即正常。
+**這是機器層級的操作，影響所有需要編譯的 formula，該由機器擁有者執行。**
+
+###### 真的不能修 CLT 時的備援
+
+直接取用發佈的預編譯 binary，**並自己驗雜湊**：
 
 ```bash
 curl -sSL -o puremac-cli.tar.gz \
@@ -73,8 +103,8 @@ shasum -a 256 puremac-cli.tar.gz   # 必須等於 formula 裡宣告的 sha256
 tar -xzf puremac-cli.tar.gz        # 得到 universal binary `puremac`
 ```
 
-**雜湊一定要比對**，這正是換掉前一個工具的理由（供應鏈）——
-繞過 Homebrew 就等於繞過它的完整性檢查，那一步要自己補回來。
+**雜湊一定要比對** —— 繞過 Homebrew 就等於繞過它的完整性檢查，那一步要自己補回來。
+這正是換掉前一個工具的理由（供應鏈），不該在繞行時放掉。
 
 #### Fallback：內建指令（無依賴）
 
