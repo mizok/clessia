@@ -261,6 +261,25 @@ describe('AttendanceRosterPanelComponent', () => {
    * 老師會看到一個他動不了的問題。而銷假出口（A1）目前還是關的，鎖越多死區越大。
    */
   describe('請假感知（#153 hasLeaveRequest）', () => {
+    const UNMARKED_FOR_PROGRESS = [
+      {
+        studentId: 's1',
+        studentName: '甲',
+        grade: 'J1',
+        school: '測',
+        recordId: null,
+        status: null,
+      },
+      {
+        studentId: 's2',
+        studentName: '乙',
+        grade: 'J1',
+        school: '測',
+        recordId: null,
+        status: null,
+      },
+    ];
+
     const LEAVE_NOT_SYNCED = [
       {
         studentId: 'not-synced',
@@ -317,6 +336,27 @@ describe('AttendanceRosterPanelComponent', () => {
       expect(c.notice()?.severity).toBe('info');
       // 中性的說法 —— 全班請假時老師沒有東西可標，不該讀成「你漏做了」
       expect(c.notice()?.detail).toContain('都在請假中');
+    });
+
+    // 標完最後一人時這一格如果消失，footer 縮 25px、儲存鈕往上跳 —— 正好是手指要按的時候
+    it('全部標完之後進度不會消失，改說完成', async () => {
+      await render(UNMARKED_FOR_PROGRESS);
+      const c = component as never as { setStatus(id: string, s: 'present' | 'absent'): void };
+      c.setStatus('s1', 'present');
+      c.setStatus('s2', 'present');
+      fixture.detectChanges();
+
+      const progress = fixture.nativeElement.querySelector('.roster-panel__progress');
+      expect(progress).not.toBeNull();
+      expect(progress.textContent.trim()).toBe('全部標記完成');
+    });
+
+    // 全班請假時一個都沒標，那不是「完成」—— 他根本沒東西可標
+    it('全班請假不說成「全部標記完成」', async () => {
+      await render(LEAVE_NOT_SYNCED);
+
+      const progress = fixture.nativeElement.querySelector('.roster-panel__progress');
+      expect(progress.textContent.trim()).toContain('請假');
     });
 
     it('請假的人算進「不需標記」的計數裡', async () => {

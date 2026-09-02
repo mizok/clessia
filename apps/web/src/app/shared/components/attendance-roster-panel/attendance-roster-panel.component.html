@@ -78,17 +78,23 @@
     </div>
 
     <div class="roster-panel__footer">
-      <!-- 進度講在按鈕旁邊：還差幾個、以及有幾個本來就不用標。
-           沒話講的時候整個不渲染 —— 留一個空的 flex item 會白佔一整格 -->
-      @if (pendingCount() > 0 || exemptCount() > 0) {
-        <span class="roster-panel__progress">
-          @if (pendingCount() > 0) {
-            還有 {{ pendingCount() }} 人未標記
-          } @else {
-            {{ exemptCount() }} 人請假，不需標記
-          }
-        </span>
-      }
+      <!--
+        進度講在按鈕旁邊。**三種狀態都有話講，所以這一格永遠在** ——
+        標完最後一人的瞬間如果它消失，footer 會縮 25px、儲存鈕往上跳，
+        而那正是手指要按下去的那一刻（teacher-pages 在 390px 實測到）。
+
+        三句話長度刻意接近（都 ≤ 9 字），不然換行本身又是一次位移。
+      -->
+      <span class="roster-panel__progress">
+        @if (pendingCount() > 0) {
+          還有 {{ pendingCount() }} 人未標記
+        } @else if (markedCount() === 0 && exemptCount() > 0) {
+          <!-- 全班都請假：一個都沒標不是「完成」，他根本沒東西可標 -->
+          {{ exemptCount() }} 人請假，不需標記
+        } @else {
+          全部標記完成
+        }
+      </span>
       <div class="roster-panel__actions">
         <p-button
           label="全部出席"
