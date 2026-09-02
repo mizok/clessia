@@ -15,6 +15,26 @@
 - 「上完了沒」一律用 `shared/utils/session-time.util.ts` 的 `hasSessionEnded`,不要自己判斷
 - 老師/管理/家長共用 `ShellLayoutComponent`,選單由角色+permissions 生成 —— 不要建自己的 shell
 
+## ⚠️ 點名面板是共用的（#138 / #159 各踩一次）
+
+**老師端最核心的互動不住在 `features/teacher/`。** 點名走
+`shared/components/attendance-roster-panel`,而 **admin 出勤頁用的是同一支**
+(`features/admin/pages/attendance/attendance.page.ts` 開的就是它)。
+
+所以改它的**行為**時,改的是兩個角色的畫面:
+- #138 的「零預選」(不再預設全班缺席) —— admin 出勤頁同步生效
+- #159 的「請假標註不鎖」—— 同樣兩邊生效
+
+兩次我都是自己想起來才去查誰在用,charter 沒寫。**動它之前先 grep 誰 import 它**,
+並在 PR 裡明寫「這支共用,請 admin-pages 掃一眼」。方向對兩邊都對不代表可以不講 ——
+那是別席的畫面。
+
+（admin 另外有一支 `session-attendance-dialog`,那是**不同的元件**,不要搞混:
+它跟這支同時在修「預選缺席」時是兩支獨立 PR,#135 與 #138。）
+
+判準跟 design-web-2 給的同源:**只影響自己這一頁的自己決定;動到 `shared/` 的,
+PR 要標出來給對應席。**
+
 ## 工作方式
 
 - 讀 README 通用協定與開分支規範;寫 SCSS 前 invoke `angular-scss-bem-standards`
