@@ -696,11 +696,20 @@ function checkUsageContrast() {
     );
   }
 
-  const remaining = keys.filter((k) => baseline.has(k)).length;
-  if (remaining > 0) {
+  // 最大宗的那個配對**算出來**，不要寫死 —— 上一版硬寫「多數是 --zinc-400 那筆全站舊債」，
+  // 那筆清掉之後這句就變成假的，而且沒有任何東西會提醒你（c11）。
+  const stillInBaseline = keys.filter((k) => baseline.has(k));
+  if (stillInBaseline.length > 0) {
+    const byPair = new Map();
+    for (const k of stillInBaseline) {
+      const [, fg, bg] = k.split('|');
+      const pair = `${fg} 疊 ${bg}`;
+      byPair.set(pair, (byPair.get(pair) ?? 0) + 1);
+    }
+    const [pair, n] = [...byPair].sort((a, b) => b[1] - a[1])[0];
     warnings.push(
-      `${remaining} 處既有的文字對比不合格（在 baseline 裡、不擋）—— ` +
-        `多數是 --zinc-400 那筆全站舊債`,
+      `${stillInBaseline.length} 處既有的文字對比不合格（在 baseline 裡、不擋）—— ` +
+        `最大宗是 ${pair}，佔 ${n} 筆`,
     );
   }
 
