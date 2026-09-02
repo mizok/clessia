@@ -195,10 +195,33 @@ events 上有沒有這個學生的 attendance_records」擋掉刪除／改班。
 只是不再把中間那批假記錄落地。`checkEnrollmentAttendance` 同理：問的變成
 「這個班的上課日裡有沒有他的打卡」。
 
-**請假折抵**（`leave_deducts_session`）在日到班怎麼算是**未解的一小塊**：
-現在靠 `attendance_records.status = 'on_leave'`，而那些記錄不會再存在。
-`leaves.ts:314` 已經有「只更新該學生實際有報名的 attendance_records」的邏輯，
-日到班要改成從 `leave_requests` 直接推導。**列為需求單的一項，不在這一刀裡解。**
+### 請假折抵 —— 我一度把它估大了，其實同一刀就能解
+
+`leave_deducts_session`（請假那堂扣不扣）是**堂數制唯一的結構化決定**
+（billing rules 規則 8，各家補習班做法不同）。而請假之所以能進到扣課這條帳裡，
+是因為 `POST /api/leaves`（`leaves.ts:314-362`）會把該學生**有報名**的那些 event 的
+`attendance_records` 寫成 `on_leave` —— **請假是透過 `attendance_records` 進帳的。**
+
+裁決 5 拿掉的正是那條通道。所以設 `leave_deducts_session = true` 的班，
+在日到班機構會變成**請假永遠不扣**：設定還在畫面上，但不再影響任何數字。
+
+**有一半不受影響，值得講清楚**：缺席今天本來就不扣。`session-pack.ts` 的註解已經
+承認了這個邊界 —— 沒打卡就沒有記錄，「少記就少扣（少收不多收，錯的方向是安全
+的那邊）」。裁決 5 沒有讓它變差。
+
+公式跟 present 那一半同形：
+
+```
+日到班的應扣堂數
+  = |打卡日 ∩ 該班上課日|
+  + (leave_deducts_session ? |請假蓋到的上課日 ∩ 該班上課日| : 0)
+  （兩者去重）
+```
+
+第二項**已經有現成的推導函式**：`lib/leave-covers-session.ts` 的 `leaveCoversSession`
+（處理整天假、單日帶時段的重疊、跨日帶時段一律當整天）。它存在的理由正好就是
+「不要靠 `attendance_records` 裡的 `on_leave`」—— 出勤事件是懶生成的，
+家長提前請假時那些 event 還不存在，連動一筆都寫不到。
 
 ## 分校隔離：這一刀**不做**，但也不擋路
 
@@ -260,7 +283,6 @@ events 上有沒有這個學生的 attendance_records」擋掉刪除／改班。
   看板不依賴它；它做好之後兩者寫進同一張表，自然相容。
 - **不做家長端到班紀錄。** 那頁是鷹架殘骸，屬於家長端工單。
 - **不處理離開時間。** `daily_checkins` 只有 `checked_in_at`。加欄位是 schema 變更。
-- **不解請假折抵在日到班的算法**（需求單 6）。
 - **不做「批次全部到班」。** 晨間的價值在於逐一確認誰還沒來；一鍵全到會讓這張看板
   變成橡皮圖章，而它要防的正是「沒有人真的看過」。
 - **不回填既有資料。** 現況沒有任何路徑產生 `daily_checkins`，衍生的
