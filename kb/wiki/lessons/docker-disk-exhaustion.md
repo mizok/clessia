@@ -1,6 +1,6 @@
 ---
 title: 磁碟爆了怎麼查 —— Docker 佔滿主機的處置流程
-summary: 主機從 2.9 GB 掉到 206 MB 的一次救援，最終回收 126 GB（Docker.raw 163 G → 37 G）。記錄 docker system df 卡死時的替代量法、「兩個世界各看到假數字」為什麼讓自動 GC 永遠不觸發、以及 buildctl 是 shim、prune 兩參數、exit 0 不等於做了事這三個會讓人以為清完了的坑。
+summary: 主機從 2.9 GB 掉到 206 MB 的一次救援，最終回收 126 GB（Docker.raw 163 G → 37 G）。含磁碟量測工具的選用（mole 已棄用、PureMac 未驗證、內建 du 為已實測 fallback）。記錄 docker system df 卡死時的替代量法、「兩個世界各看到假數字」為什麼讓自動 GC 永遠不觸發、以及 buildctl 是 shim、prune 兩參數、exit 0 不等於做了事這三個會讓人以為清完了的坑。
 category: lesson
 status: active
 updated: 2026-09-02
@@ -21,17 +21,52 @@ du -sh ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw
 
 `Docker.raw` 是**稀疏檔**：`ls -lh` 會顯示它的上限（例如 460G），**要看 `du` 才是實際佔用**。
 
-### 先跑 `mo analyze`，不要用 `du` 亂猜
+### 先量主機這一側，不要憑印象
 
-機器上裝了 [mole](https://github.com/tw93/mole)（`brew install mole`）。**它有非互動的 JSON 模式**，
-是找「主機這一側到底是誰在佔」最快的方式 —— 比一層層 `du -sh` 快，而且不會漏：
+**⚠️ 工具已更換（2026-09-02）：不要用 `mole`。**
+這台機器上還裝著它（`/opt/homebrew/bin/mo`），本頁初版也是用它寫的 ——
+但**使用者基於供應鏈考量已棄用**，指定改用 [PureMac](https://github.com/momenbasel/PureMac)（MIT、明示零遙測）。
+留這段話是為了讓下一個人**看到機器上裝著 mole 時不會把它寫回來**。
+
+底下兩條擇一，**優先用第二條**（它是我實際跑過的）。
+
+#### 首選（指定工具，但在這台機器上尚未驗證）
 
 ```bash
-mo analyze -json            # 全機概覽
-mo analyze -json ~/Library  # 往下鑽，逐層縮小
+brew install momenbasel/tap/puremac-cli
+puremac analyze <path>          # 依大小列出誰在佔
+puremac clean dev --dry-run     # 預覽，--json 會印機器可讀且絕不刪除
+puremac ignore add <path>       # 把路徑排除在所有掃描外
 ```
 
-2026-09-02 那次我們**盯著 Docker 看了整場**，直到用它才發現主機這一側的真相：
+**誠實聲明：以上能力來自它的文件，我沒能實測。**
+`puremac-cli` 在這台機器**裝不起來** —— formula 沒有預編譯 bottle、必須從原始碼編譯，
+而 Homebrew 判定 Command Line Tools「不支援 macOS 26」（機器是 26.2）。
+修它需要 `sudo rm -rf /Library/Developer/CommandLineTools` 重裝，
+那是機器層級的破壞性操作，不該為了跑一個分析工具而做。
+**所以 `analyze` 是否真的支援 `--json`、輸出長什麼樣，都還沒有人在這台機器上確認過。**
+
+> `puremac ignore` 若真的可用會是它勝過 mole 的地方 —— 可以把 supabase volume
+> 之類的護欄**變成工具本身的設定**，而不是靠操作者記得。這點值得在 CLT 修好後補驗。
+
+#### Fallback：內建指令（**已實測**）
+
+沒有任何額外依賴，逐層下鑽：
+
+```bash
+du -xh -d 1 ~ | sort -rh | head -12      # 換路徑重複，一層一層縮小
+```
+
+2026-09-02 實測：在 `~` 上 **69 秒**跑完，頂層分布與 mole 給的一致。
+`-x` 限制在同一個檔案系統（不會跑進掛載點）。
+
+**限制要知道**：`du` 不論 `-d` 給多少都會**走訪全部檔案**，`-d` 只限制輸出層數。
+所以每下鑽一層就是一次完整走訪，很大的目錄（例如 100 GB 級的 volume）會跑很久 ——
+上面第 1 節那條唯讀掛載量 volume 的指令就曾經跑超過 5 分鐘被逾時砍掉。
+
+#### 為什麼這一節重要
+
+2026-09-02 那次我們**盯著 Docker 看了整場**，直到量了主機這一側才發現真相：
 
 ```
 ~/Desktop            126.9 GB
@@ -41,11 +76,7 @@ mo analyze -json ~/Library  # 往下鑽，逐層縮小
 ```
 
 **單一個 `.angular` 快取目錄 84.3 GB，比清理後的整個 Docker（37 G）還大。**
-如果一開始就跑這條，整場的優先順序會完全不同。
-
-那次的數字：主機 `414Gi/460Gi`、可用 **2.9 GB**、`Docker.raw` 實佔 **163 GB**。
-
-> **主機吃緊 ≠ Docker 內部吃緊。** 這兩件事要分開量，見第 2 節 —— 混為一談會讓你清錯地方。
+如果一開始就量，整場的優先順序會完全不同。
 
 ## 1. `docker system df` 卡死時的替代量法
 
@@ -128,13 +159,17 @@ du -sh ~/.npm                                    # 那次 3.0 GB
 du -sch <repo>/.worktrees/*/node_modules         # 那次 13 個 worktree 共 8.1 GB
 ```
 
-**`mo purge` 的預設掃描路徑不可靠。** 那次 `mo purge --dry-run` 只找到 **55 MB**，
-完全沒看到上面那 84.3 GB —— 因為 `~/Desktop/Repository` 不在它的預設掃描目錄裡
-（用 `mo purge --paths` 設定）。**先用 `mo analyze` 確認大頭在哪，再決定要不要靠 purge。**
+**清理工具的預設掃描路徑不可靠。** 那次 `mo purge --dry-run` 只找到 **55 MB**，
+完全沒看到上面那 84.3 GB —— 因為 `~/Desktop/Repository` 不在它的預設掃描目錄裡。
+**這個教訓與工具無關**：任何「自動找可清理項目」的工具都有一份預設路徑清單，
+而你的專案很可能不在上面。**先量出大頭在哪，再決定要不要靠工具的自動掃描。**
 
-`mo clean --dry-run` 那次估算可回收約 10.5 GB（瀏覽器與系統快取）。它有 21 條內建白名單、
-不會碰 Docker 資料（只把它列為「大型檔案」提示），但它**不知道我們的護欄** ——
-跑之前一定先 dry-run 看清單，`~/.config/mole/clean-list.txt` 有完整明細。
+同一次 `mo clean --dry-run` 估算可回收約 10.5 GB（瀏覽器與系統快取）。
+它有內建白名單、不會碰 Docker 資料，但**它不知道我們的護欄**（supabase volume、
+別席的工作狀態）。**任何清理工具跑之前一定先 dry-run 看完整清單。**
+
+> 上面兩段的數字來自已棄用的 mole（見第 0 節）。保留是因為**教訓本身是工具中立的**，
+> 換成 PureMac 之後同樣適用：預設路徑會漏、白名單不認識你的護欄。
 
 `npm cache clean --force` 是**可自行處置**的（定義上就是快取、零資料損失）。
 worktree 的 `node_modules` 是**別人正在用的工作狀態**，要清得先協調。
@@ -254,7 +289,7 @@ du -sh ~/Library/.../Docker.raw                  # 實際佔用
 ### 最大的單一消費者不在 Docker 裡
 
 **這次事故只解決了 Docker 那一半。** 整場回收的 126 GB 全部來自 Docker，
-而主機上**最大的單一項目從頭到尾沒被碰過** —— 直到最後跑 `mo analyze` 才看見它：
+而主機上**最大的單一項目從頭到尾沒被碰過** —— 直到最後量了主機這一側才看見它：
 
 |                                                     | 大小                     |
 | --------------------------------------------------- | ------------------------ |
@@ -266,7 +301,7 @@ du -sh ~/Library/.../Docker.raw                  # 實際佔用
 但「Docker 佔 163 GB」與「Docker 是最大的問題」是兩件事 ——
 **沒有人先量過主機這一側**，這個盲區持續了整場。
 
-> **下次先跑第 0 節的 `mo analyze -json`，再決定要不要相信工單的框架。**
+> **下次先做第 0 節的「量主機這一側」，再決定要不要相信工單的框架。**
 
 **結局**（2026-09-02 當天）：通知 bkw 席之後由他們自己確認並刪除
 （不是我刪的 —— 別人的專案，只提供數字），主機可用 **118 GB → 196 GB**、
