@@ -51,6 +51,7 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 import { StudentFormDialogComponent } from '@features/admin/pages/students/student-form-dialog.component';
 import { ParentImportDialogComponent } from './parent-import-dialog/parent-import-dialog.component';
 import { ParentDetailDialogComponent } from './parent-detail-dialog/parent-detail-dialog.component';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 @Component({
   selector: 'app-parents',
@@ -89,7 +90,7 @@ export class ParentsPage implements OnInit {
     return this.overlayContainerService.getContainer();
   }
 
-  protected static readonly PAGE_SIZE = 8;
+  protected static readonly PAGE_SIZE = LIST_PAGE_SIZE;
   protected readonly PAGE_SIZE = ParentsPage.PAGE_SIZE;
   protected readonly statusLabels = PARENT_STATUS_LABELS;
 

@@ -70,6 +70,7 @@ import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 type ExamKind = 'academy' | 'school';
 type ExamTypeFilter = ExamKind;
@@ -131,7 +132,7 @@ const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
   { label: '全部', value: 'all' },
 ];
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = LIST_PAGE_SIZE;
 
 @Component({
   selector: 'app-exams',

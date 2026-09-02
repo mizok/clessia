@@ -40,6 +40,8 @@ export class ClassPickerDialogComponent implements OnInit {
   protected readonly classes = signal<Class[]>([]);
   protected readonly total = signal(0);
   protected readonly currentPage = signal(1);
+  // **刻意不用 LIST_PAGE_SIZE。** 這是對話框裡的挑選器，清單區被 max-height 綁在
+  // 340–380px（約 7–8 列），受限的是強制高度不是視窗高度 —— 跟整頁列表是不同的情境。
   protected readonly PAGE_SIZE = 8;
   protected readonly searchQuery = signal('');
   protected readonly gradeFilter = signal<GradeLevel | null>(
