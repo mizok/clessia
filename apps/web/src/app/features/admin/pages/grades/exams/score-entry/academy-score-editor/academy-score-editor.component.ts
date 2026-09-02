@@ -123,6 +123,11 @@ export class AcademyScoreEditorComponent implements OnInit {
     return this.rows().some((r) => this.isRowDirty(r));
   });
 
+  /** 有幾筆還沒存。急迫性屬於整批，不屬於單一格 */
+  protected readonly dirtyCount = computed(
+    () => this.rows().filter((r) => this.isRowDirty(r)).length,
+  );
+
   ngOnInit(): void {
     this.loadScores();
   }
