@@ -21,6 +21,28 @@ du -sh ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw
 
 `Docker.raw` 是**稀疏檔**：`ls -lh` 會顯示它的上限（例如 460G），**要看 `du` 才是實際佔用**。
 
+### 先跑 `mo analyze`，不要用 `du` 亂猜
+
+機器上裝了 [mole](https://github.com/tw93/mole)（`brew install mole`）。**它有非互動的 JSON 模式**，
+是找「主機這一側到底是誰在佔」最快的方式 —— 比一層層 `du -sh` 快，而且不會漏：
+
+```bash
+mo analyze -json            # 全機概覽
+mo analyze -json ~/Library  # 往下鑽，逐層縮小
+```
+
+2026-09-02 那次我們**盯著 Docker 看了整場**，直到用它才發現主機這一側的真相：
+
+```
+~/Desktop            126.9 GB
+  └ Repository       102.8 GB
+      └ bkw           94.8 GB
+          └ .angular  84.3 GB   ← 純建置快取，可拋棄
+```
+
+**單一個 `.angular` 快取目錄 84.3 GB，比清理後的整個 Docker（37 G）還大。**
+如果一開始就跑這條，整場的優先順序會完全不同。
+
 那次的數字：主機 `414Gi/460Gi`、可用 **2.9 GB**、`Docker.raw` 實佔 **163 GB**。
 
 > **主機吃緊 ≠ Docker 內部吃緊。** 這兩件事要分開量，見第 2 節 —— 混為一談會讓你清錯地方。
@@ -105,6 +127,14 @@ docker run --rm --entrypoint df -v <任一volume>:/v:ro docker:latest -h /v
 du -sh ~/.npm                                    # 那次 3.0 GB
 du -sch <repo>/.worktrees/*/node_modules         # 那次 13 個 worktree 共 8.1 GB
 ```
+
+**`mo purge` 的預設掃描路徑不可靠。** 那次 `mo purge --dry-run` 只找到 **55 MB**，
+完全沒看到上面那 84.3 GB —— 因為 `~/Desktop/Repository` 不在它的預設掃描目錄裡
+（用 `mo purge --paths` 設定）。**先用 `mo analyze` 確認大頭在哪，再決定要不要靠 purge。**
+
+`mo clean --dry-run` 那次估算可回收約 10.5 GB（瀏覽器與系統快取）。它有 21 條內建白名單、
+不會碰 Docker 資料（只把它列為「大型檔案」提示），但它**不知道我們的護欄** ——
+跑之前一定先 dry-run 看清單，`~/.config/mole/clean-list.txt` 有完整明細。
 
 `npm cache clean --force` 是**可自行處置**的（定義上就是快取、零資料損失）。
 worktree 的 `node_modules` 是**別人正在用的工作狀態**，要清得先協調。
