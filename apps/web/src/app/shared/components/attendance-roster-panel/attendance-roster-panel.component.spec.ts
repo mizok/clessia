@@ -304,17 +304,19 @@ describe('AttendanceRosterPanelComponent', () => {
     });
 
     // 全班都是請假的極端：沒有人要標，也就沒有東西可送 —— 那時候擋的是「空批次」不是「未標記」
-    it('全班都請假時儲存 —— 擋在空批次，不是擋在未標記', async () => {
+    it('全班都請假時儲存 —— 擋在空批次，而且不說成「你還沒標」', async () => {
       await render(LEAVE_NOT_SYNCED);
       const c = component as never as {
         save(): void;
-        notice(): { detail: string } | null;
+        notice(): { severity: string; detail: string } | null;
       };
 
       c.save();
 
       expect(attendanceServiceMock.batchUpdate).not.toHaveBeenCalled();
-      expect(c.notice()?.detail).toContain('還沒標記任何學生');
+      expect(c.notice()?.severity).toBe('info');
+      // 中性的說法 —— 全班請假時老師沒有東西可標，不該讀成「你漏做了」
+      expect(c.notice()?.detail).toContain('都在請假中');
     });
 
     it('請假的人算進「不需標記」的計數裡', async () => {

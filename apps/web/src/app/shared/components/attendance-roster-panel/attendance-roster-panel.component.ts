@@ -210,9 +210,14 @@ export class AttendanceRosterPanelComponent implements OnInit {
       .map((s) => ({ studentId: s.studentId, status: this.getStatus(s.studentId) }))
       .filter((u): u is { studentId: string; status: 'present' | 'absent' } => u.status !== null);
 
+    // 走到這裡 pendingCount 已經是 0，所以「沒東西可送」只剩一種可能：全班都在請假。
+    // 說「還沒標記任何學生」會變成指責老師漏做 —— 他沒有東西可標。
     if (updates.length === 0) {
       this.saving.set(false);
-      this.notice.set({ severity: 'warning', detail: '還沒標記任何學生' });
+      this.notice.set({
+        severity: 'info',
+        detail: '這堂課的學生都在請假中，沒有出缺席需要記錄。',
+      });
       return;
     }
 
