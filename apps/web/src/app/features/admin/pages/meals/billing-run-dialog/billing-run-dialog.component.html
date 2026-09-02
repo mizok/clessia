@@ -50,6 +50,16 @@
     </div>
 
     <footer class="billing-run__footer">
+      @if (done.invoicesCreated > 0) {
+        <!-- 產生了東西就要能走到它 —— 不然使用者得自己從側邊選單找回繳費紀錄 -->
+        <p-button
+          label="查看這批帳單"
+          icon="pi pi-arrow-right"
+          iconPos="right"
+          [outlined]="true"
+          (onClick)="goToInvoices()"
+        />
+      }
       <p-button label="關閉" (onClick)="close()" />
     </footer>
   } @else {

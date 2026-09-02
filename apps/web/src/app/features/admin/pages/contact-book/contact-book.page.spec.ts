@@ -308,4 +308,43 @@ describe('ContactBookPage', () => {
       expect(component['missing']()[0].studentId).toBe('stu-2');
     });
   });
+
+  describe('待辦名單的摺疊', () => {
+    const many = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        studentId: `stu-${i}`,
+        studentName: `學生${i}`,
+        classes: [{ classId: 'c1', className: '三年級數學' }],
+      }));
+
+    // 它是待辦不是清單 —— 沒有上限的話一天 30 位沒寫就佔滿首屏（實測 8 位已滿版）
+    it('超過 5 位時預設只顯示前 5 位', async () => {
+      contactBook.missing.mockReturnValue(of({ data: many(12), meta: { total: 12 } }));
+      component['loadMissing']();
+      await fixture.whenStable();
+
+      expect(component['visibleMissing']().length).toBe(5);
+      expect(component['hiddenMissingCount']()).toBe(7);
+    });
+
+    it('展開之後全部顯示', async () => {
+      contactBook.missing.mockReturnValue(of({ data: many(12), meta: { total: 12 } }));
+      component['loadMissing']();
+      await fixture.whenStable();
+
+      component['toggleMissingExpanded']();
+
+      expect(component['visibleMissing']().length).toBe(12);
+      expect(component['hiddenMissingCount']()).toBe(0);
+    });
+
+    it('不足 5 位時不摺疊也沒有隱藏數', async () => {
+      contactBook.missing.mockReturnValue(of({ data: many(3), meta: { total: 3 } }));
+      component['loadMissing']();
+      await fixture.whenStable();
+
+      expect(component['visibleMissing']().length).toBe(3);
+      expect(component['hiddenMissingCount']()).toBe(0);
+    });
+  });
 });

@@ -245,4 +245,23 @@ describe('PaymentsPage', () => {
       expect(component['statusSeverity'](invoice({ status: 'unpaid' }))).toBe('danger');
     });
   });
+
+  // 開完帳最常見的下一步就是收錢（新生報名當場繳定金）
+  it('開帳成功後直接打開那張帳單的詳情', () => {
+    const opened: unknown[] = [];
+    const dialogService = (component as unknown as { dialogService: { open: unknown } })
+      .dialogService as { open: (c: unknown, cfg: { data?: unknown }) => unknown };
+    const originalOpen = dialogService.open.bind(dialogService);
+    dialogService.open = (c: unknown, cfg: { data?: unknown }) => {
+      opened.push(cfg?.data);
+      return { onClose: of(undefined) };
+    };
+
+    const created = invoice({ id: 'inv-new' });
+    (component as unknown as { openDetail: (i: Invoice) => void }).openDetail(created);
+
+    expect(opened).toHaveLength(1);
+    expect((opened[0] as { invoice: Invoice }).invoice.id).toBe('inv-new');
+    dialogService.open = originalOpen;
+  });
 });

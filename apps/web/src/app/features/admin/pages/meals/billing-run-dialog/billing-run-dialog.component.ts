@@ -7,7 +7,10 @@ import { DatePickerModule } from 'primeng/datepicker';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef } from 'primeng/dynamicdialog';
 
+import { Router } from '@angular/router';
+
 import { BillingRunsService, type BillingRunResult } from '@core/billing-runs.service';
+import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
 /**
  * 月結：把這個月「要收費且尚未結算」的餐費與學費加總成帳單。
@@ -31,6 +34,7 @@ export class BillingRunDialogComponent {
   private readonly service = inject(BillingRunsService);
   private readonly messageService = inject(MessageService);
   private readonly ref = inject(DynamicDialogRef);
+  private readonly router = inject(Router);
 
   /** 預設上個月 —— 月結通常在月初補跑上一個月 */
   protected month: Date = previousMonth();
@@ -74,6 +78,15 @@ export class BillingRunDialogComponent {
   /** 跑過就回 true，讓名單重新取數看得到新的結算鎖 */
   protected close(): void {
     this.ref.close(this.result() !== null);
+  }
+
+  /**
+   * 月結開出來的帳單要去哪看 —— 原本這個 dialog 說「開立 N 張帳單」就結束了，
+   * 使用者得自己從側邊選單找到繳費紀錄。**產生了東西就要能走到它。**
+   */
+  protected goToInvoices(): void {
+    this.ref.close(true);
+    void this.router.navigate([RoutesCatalog.ADMIN_PAYMENTS.absolutePath]);
   }
 }
 

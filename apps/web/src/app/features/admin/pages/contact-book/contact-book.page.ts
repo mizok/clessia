@@ -35,6 +35,8 @@ import { dateRangeOf, signedSummary } from './contact-book.util';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const DEFAULT_RANGE_DAYS = 7;
+/** 待辦區塊預設顯示幾位 —— 超過就摺起來，首屏要留給下面的歷史列表 */
+const MISSING_PREVIEW_COUNT = 5;
 const PAGE_SIZE = LIST_PAGE_SIZE;
 
 /**
@@ -91,6 +93,11 @@ export class ContactBookPage implements OnInit {
   // 列表問的是「一段區間」—— 綁在一起的話改區間結束日會同時動到兩件事。
   // 這個端點的消費場景是行政的當日待辦，所以它自己的預設就是今天。
   protected readonly missing = signal<MissingContactBookStudent[]>([]);
+  /**
+   * 待辦名單預設只顯示前幾位。**它是待辦不是清單** —— 沒有上限的話，一天有 30 位
+   * 沒寫就佔滿整個首屏，下面的歷史列表被推到看不見（實測 8 位就已經滿版）。
+   */
+  protected readonly missingExpanded = signal(false);
   protected readonly missingLoading = signal(true);
   protected readonly missingFailed = signal(false);
   protected missingDate: Date = new Date();
@@ -127,6 +134,13 @@ export class ContactBookPage implements OnInit {
     rows: PAGE_SIZE,
     totalRecords: this.visibleEntries().length,
   }));
+
+  protected readonly visibleMissing = computed(() =>
+    this.missingExpanded() ? this.missing() : this.missing().slice(0, MISSING_PREVIEW_COUNT),
+  );
+  protected readonly hiddenMissingCount = computed(() =>
+    Math.max(0, this.missing().length - this.visibleMissing().length),
+  );
 
   protected readonly hasFilters = computed(
     () => this.unsignedOnly() || this.selectedStudent() !== null,
@@ -212,6 +226,10 @@ export class ContactBookPage implements OnInit {
       // 新寫的那則若落在列表的區間內就該出現 —— 這裡重打列表比自己插入可靠
       this.load();
     });
+  }
+
+  protected toggleMissingExpanded(): void {
+    this.missingExpanded.update((v) => !v);
   }
 
   protected classNamesOf(target: MissingContactBookStudent): string {
