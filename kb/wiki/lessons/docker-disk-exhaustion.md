@@ -24,9 +24,12 @@ du -sh ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw
 ### 先量主機這一側，不要憑印象
 
 **⚠️ 工具已更換（2026-09-02）：不要用 `mole`。**
-這台機器上還裝著它（`/opt/homebrew/bin/mo`），本頁初版也是用它寫的 ——
-但**使用者基於供應鏈考量已棄用**，指定改用 [PureMac](https://github.com/momenbasel/PureMac)（MIT、明示零遙測）。
-留這段話是為了讓下一個人**看到機器上裝著 mole 時不會把它寫回來**。
+本頁初版是用它寫的，但**使用者基於供應鏈考量已棄用**，指定改用
+[PureMac](https://github.com/momenbasel/PureMac)（MIT、明示零遙測）。
+**mole 已於 2026-09-02 `brew uninstall`**（設定 `~/.config/mole/` 尚未清）。
+
+留這段話是為了讓下一個人**不會因為在舊文件或搜尋結果裡看到 `mo` 就把它裝回來** ——
+它不是壞掉，是被換掉的，換的理由是供應鏈不是功能。
 
 兩條都**實測過**，擇一即可。
 
