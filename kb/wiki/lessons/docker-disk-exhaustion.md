@@ -1,6 +1,6 @@
 ---
 title: 磁碟爆了怎麼查 —— Docker 佔滿主機的處置流程
-summary: 主機從 2.9 GB 掉到 206 MB 的一次救援，最終回收 126 GB（Docker.raw 163 G → 37 G）。含磁碟量測工具的選用（mole 已棄用、PureMac 未驗證、內建 du 為已實測 fallback）。記錄 docker system df 卡死時的替代量法、「兩個世界各看到假數字」為什麼讓自動 GC 永遠不觸發、以及 buildctl 是 shim、prune 兩參數、exit 0 不等於做了事這三個會讓人以為清完了的坑。
+summary: 主機從 2.9 GB 掉到 206 MB 的一次救援，最終回收 126 GB（Docker.raw 163 G → 37 G）。含磁碟量測工具的選用（mole 已棄用，改用 PureMac；含它被 Homebrew CLT 檢查誤擋時的取用方式）。記錄 docker system df 卡死時的替代量法、「兩個世界各看到假數字」為什麼讓自動 GC 永遠不觸發、以及 buildctl 是 shim、prune 兩參數、exit 0 不等於做了事這三個會讓人以為清完了的坑。
 category: lesson
 status: active
 updated: 2026-09-02
@@ -28,41 +28,66 @@ du -sh ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw
 但**使用者基於供應鏈考量已棄用**，指定改用 [PureMac](https://github.com/momenbasel/PureMac)（MIT、明示零遙測）。
 留這段話是為了讓下一個人**看到機器上裝著 mole 時不會把它寫回來**。
 
-底下兩條擇一，**優先用第二條**（它是我實際跑過的）。
+兩條都**實測過**，擇一即可。
 
-#### 首選（指定工具，但在這台機器上尚未驗證）
+#### 首選：PureMac CLI
 
 ```bash
-brew install momenbasel/tap/puremac-cli
-puremac analyze <path>          # 依大小列出誰在佔
-puremac clean dev --dry-run     # 預覽，--json 會印機器可讀且絕不刪除
-puremac ignore add <path>       # 把路徑排除在所有掃描外
+puremac analyze ~ --json              # 依大小排序，機器可讀
+puremac analyze ~/Library --depth 2   # 往下鑽
+puremac ignore add <path>             # 保護路徑，clean/purge/analyze 都不碰
+puremac clean --dry-run --json        # 預覽，不刪除
 ```
 
-**誠實聲明：以上能力來自它的文件，我沒能實測。**
-`puremac-cli` 在這台機器**裝不起來** —— formula 沒有預編譯 bottle、必須從原始碼編譯，
-而 Homebrew 判定 Command Line Tools「不支援 macOS 26」（機器是 26.2）。
-修它需要 `sudo rm -rf /Library/Developer/CommandLineTools` 重裝，
-那是機器層級的破壞性操作，不該為了跑一個分析工具而做。
-**所以 `analyze` 是否真的支援 `--json`、輸出長什麼樣，都還沒有人在這台機器上確認過。**
+2026-09-02 實測（v1.0.0）：`analyze ~ --json` **106 秒**跑完，輸出是
+`[{"bytes": …, "path": …}]` 的陣列、依大小排序，排名與 `du` 一致。
+`clean --dry-run --json` 確認**不會刪除任何東西**（跑前跑後磁碟數字不變）。
 
-> `puremac ignore` 若真的可用會是它勝過 mole 的地方 —— 可以把 supabase volume
-> 之類的護欄**變成工具本身的設定**，而不是靠操作者記得。這點值得在 CLT 修好後補驗。
+**`ignore` 是它勝過其他工具的地方**：`puremac ignore add <path>` 保護的路徑
+**連 `analyze` 都不會碰**。這讓 supabase volume、別席的 worktree 這類護欄
+**變成工具本身的設定**，而不是靠操作者每次記得。
 
-#### Fallback：內建指令（**已實測**）
+##### 安裝：`brew install` 目前會被擋，但不是真的裝不起來
 
-沒有任何額外依賴，逐層下鑽：
+```
+Error: Your Command Line Tools (CLT) does not support macOS 26.
+```
+
+**這個錯誤具有誤導性。** 看 formula 就知道它**不編譯任何東西**：
+
+```ruby
+def install
+  bin.install "puremac"     # 只是把預編譯好的 binary 放進去
+end
+```
+
+那是 Homebrew 安裝前的**通用環境檢查**，跟這支 formula 需不需要編譯無關。
+（本頁初版因為只讀了錯誤訊息、沒讀 formula，一度誤判成「裝不起來」。）
+
+CLT 修好之前可以直接取用發佈的預編譯 binary，**並自己驗雜湊**：
+
+```bash
+curl -sSL -o puremac-cli.tar.gz \
+  https://github.com/momenbasel/PureMac/releases/download/cli-v1.0.0/puremac-cli-1.0.0.tar.gz
+shasum -a 256 puremac-cli.tar.gz   # 必須等於 formula 裡宣告的 sha256
+tar -xzf puremac-cli.tar.gz        # 得到 universal binary `puremac`
+```
+
+**雜湊一定要比對**，這正是換掉前一個工具的理由（供應鏈）——
+繞過 Homebrew 就等於繞過它的完整性檢查，那一步要自己補回來。
+
+#### Fallback：內建指令（無依賴）
 
 ```bash
 du -xh -d 1 ~ | sort -rh | head -12      # 換路徑重複，一層一層縮小
 ```
 
-2026-09-02 實測：在 `~` 上 **69 秒**跑完，頂層分布與 mole 給的一致。
-`-x` 限制在同一個檔案系統（不會跑進掛載點）。
+2026-09-02 實測：`~` 上 **69 秒**（比 PureMac 快，但只有人類可讀的概數、沒有 JSON）。
+`-x` 限制在同一個檔案系統。
 
-**限制要知道**：`du` 不論 `-d` 給多少都會**走訪全部檔案**，`-d` 只限制輸出層數。
-所以每下鑽一層就是一次完整走訪，很大的目錄（例如 100 GB 級的 volume）會跑很久 ——
-上面第 1 節那條唯讀掛載量 volume 的指令就曾經跑超過 5 分鐘被逾時砍掉。
+**限制**：`du` 不論 `-d` 給多少都會**走訪全部檔案**，`-d` 只限制輸出層數。
+很大的目錄（100 GB 級的 volume）會跑很久 —— 第 1 節那條量 volume 的指令
+就曾經跑超過 5 分鐘被逾時砍掉。
 
 #### 為什麼這一節重要
 
