@@ -60,6 +60,11 @@ Tags: `lessons`, `kb`, `drift`, `citation`
 
 Links to: [[lessons/menu-entry-without-a-route]], [[lessons/rls-backstop-drift]]
 
+## [[lessons/herdr-team-orchestration|Herdr 多席調度]]
+
+計畫席調度 domain 席的實戰手法:herdr 管生命週期、SendMessage 管內容;
+送達要驗證、席名要對位、帳面漂移靠內容 grep 校正;廣度掃描按 domain 擁有權切。
+
 ## [[lessons/local-green-is-not-repo-green|本機綠不等於 repo 綠]]
 
 導入 CI 的過程連紅六次，每一次的根因都是「本機狀態 ≠ 版控狀態」。附上推送前該怎麼自我驗證。
