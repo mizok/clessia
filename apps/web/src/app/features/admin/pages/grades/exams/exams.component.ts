@@ -20,7 +20,6 @@ import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
-import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -70,6 +69,10 @@ import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import {
+  StatusDotComponent,
+  type StatusTone,
+} from '@shared/components/status/status-dot/status-dot.component';
 
 type ExamKind = 'academy' | 'school';
 type ExamTypeFilter = ExamKind;
@@ -137,6 +140,7 @@ const PAGE_SIZE = 8;
   selector: 'app-exams',
   standalone: true,
   imports: [
+    StatusDotComponent,
     DataChipComponent,
     FormsModule,
     RouterModule,
@@ -144,7 +148,6 @@ const PAGE_SIZE = 8;
     InputTextModule,
     SelectModule,
     SelectButtonModule,
-    TagModule,
     ToastModule,
     ResponsiveTableComponent,
     RtColDefDirective,
@@ -623,10 +626,17 @@ export class ExamsComponent implements OnInit {
     return status === 'active' ? '進行中' : '已結束';
   }
 
-  protected getStatusSeverity(
-    status: AcademyExamStatus | SchoolExamStatus,
-  ): 'success' | 'secondary' {
-    return status === 'active' ? 'success' : 'secondary';
+  /**
+   * `active` 是**「進行中」**不是「啟用」—— 它正是「還在等成績登完」，所以是 `pending`
+   * （中空、無色相）。原本塗成 success 綠等於說「這件事很好」，但這一頁自己的橫幅
+   * 就在說「有 N 場**進行中**的考試尚未登錄成績」。
+   *
+   * `closed` 是 `inactive` 而不是 `done`：結束考試的確認訊息寫著「**結束後將無法再
+   * 登錄分數**」—— 它是行政主動關閉，**不保證成績登完了**，可以沒登完就關。
+   * 那是「不在等任何事了」，不是「已定案且是好結果」。
+   */
+  protected statusTone(status: AcademyExamStatus | SchoolExamStatus): StatusTone {
+    return status === 'active' ? 'pending' : 'inactive';
   }
 
   protected getCampusName(row: ExamRow): string | null {

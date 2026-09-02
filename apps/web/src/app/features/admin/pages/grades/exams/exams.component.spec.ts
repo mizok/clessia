@@ -221,4 +221,23 @@ describe('ExamsComponent', () => {
 
     expect(component['statusFilter']()).toBe('all');
   });
+
+  // ── 領域結論寫成測試 ──────────────────────────────────────────────────────
+  // 這幾條不是在測程式碼，是在**釘住業務語意**。常數會沉默，測試不會 ——
+  // 誰把「進行中」改回綠色的 done，這裡會紅。
+  describe('考試狀態的 tone', () => {
+    it('進行中是 pending 不是 done —— 它還在等成績登完', () => {
+      const tone = (component as unknown as { statusTone: (s: string) => string }).statusTone;
+
+      expect(tone.call(component, 'active')).toBe('pending');
+    });
+
+    it('已結束是 inactive 不是 done —— 關閉不保證成績登完了', () => {
+      // 「結束考試」的確認訊息：「結束後將無法再登錄分數」——
+      // 它是行政主動關閉，可以沒登完就關
+      const tone = (component as unknown as { statusTone: (s: string) => string }).statusTone;
+
+      expect(tone.call(component, 'closed')).toBe('inactive');
+    });
+  });
 });

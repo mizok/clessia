@@ -9,7 +9,7 @@
         <p class="session-detail__subtitle">{{ contextLine() }}</p>
       </div>
       <div class="session-detail__status-group">
-        <p-tag [value]="statusLabel()" [severity]="statusSeverity()" />
+        <app-status-dot [tone]="statusTone()">{{ statusLabel() }}</app-status-dot>
       </div>
     </div>
   </section>

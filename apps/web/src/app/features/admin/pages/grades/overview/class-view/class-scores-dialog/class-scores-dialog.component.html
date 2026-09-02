@@ -192,10 +192,13 @@
                         {{ row.score !== null ? row.score : '—' }}
                       </td>
                       <td class="class-scores-dialog__cell">
-                        <p-tag
-                          [value]="getStatusLabel(row.status)"
-                          [severity]="getStatusSeverity(row.status)"
-                        />
+                        @if (row.status === 'scored') {
+                          <app-status-dot tone="done">{{
+                            getStatusLabel(row.status)
+                          }}</app-status-dot>
+                        } @else {
+                          <app-data-chip>{{ getStatusLabel(row.status) }}</app-data-chip>
+                        }
                       </td>
                       <td class="class-scores-dialog__cell class-scores-dialog__cell--notes">
                         {{ row.notes ?? '—' }}
@@ -216,10 +219,13 @@
                     </div>
                     <div class="class-scores-dialog__mobile-identity">
                       <span class="class-scores-dialog__mobile-name">{{ row.studentName }}</span>
-                      <p-tag
-                        [value]="getStatusLabel(row.status)"
-                        [severity]="getStatusSeverity(row.status)"
-                      />
+                      @if (row.status === 'scored') {
+                        <app-status-dot tone="done">{{
+                          getStatusLabel(row.status)
+                        }}</app-status-dot>
+                      } @else {
+                        <app-data-chip>{{ getStatusLabel(row.status) }}</app-data-chip>
+                      }
                     </div>
                   </div>
 

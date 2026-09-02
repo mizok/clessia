@@ -119,4 +119,32 @@ describe('SchoolScoreEditorComponent', () => {
     expect(rows.length).toBe(1);
     expect(rows[0].textContent).toContain('王小明');
   });
+
+  // ── 領域結論寫成測試 ──────────────────────────────────────────────────────
+  describe('登錄進度的 tone', () => {
+    const student = (scoreCount: number, subjectCount: number) =>
+      ({ scoreCount, subjectCount }) as never;
+
+    it('全部登完是 done', () => {
+      const tone = (component as unknown as { progressTone: (s: never) => string }).progressTone;
+
+      expect(tone.call(component, student(5, 5))).toBe('done');
+    });
+
+    it('一科都沒登跟登到一半都是 pending —— 區分靠數字不靠色相', () => {
+      const tone = (component as unknown as { progressTone: (s: never) => string }).progressTone;
+
+      expect(tone.call(component, student(0, 5))).toBe('pending');
+      expect(tone.call(component, student(3, 5))).toBe('pending');
+    });
+
+    it('沒有 overdue —— 查不到段考成績登錄的期限，沒有依據可以催', () => {
+      const tone = (component as unknown as { progressTone: (s: never) => string }).progressTone;
+      const tones = [student(0, 5), student(3, 5), student(5, 5)].map((s) =>
+        tone.call(component, s),
+      );
+
+      expect(tones).not.toContain('overdue');
+    });
+  });
 });

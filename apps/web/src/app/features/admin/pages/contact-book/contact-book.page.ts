@@ -4,7 +4,6 @@ import { format } from 'date-fns';
 
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
-import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
@@ -32,6 +31,7 @@ import type {
 
 import { ContactBookEntryDialogComponent } from './contact-book-entry-dialog/contact-book-entry-dialog.component';
 import { dateRangeOf, signedSummary } from './contact-book.util';
+import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 
 const DEFAULT_RANGE_DAYS = 7;
 const PAGE_SIZE = 15;
@@ -54,10 +54,10 @@ const PAGE_SIZE = 15;
   selector: 'app-admin-contact-book',
   standalone: true,
   imports: [
+    StatusDotComponent,
     FormsModule,
     ButtonModule,
     DatePickerModule,
-    TagModule,
     ToastModule,
     TooltipModule,
     EmptyStateComponent,

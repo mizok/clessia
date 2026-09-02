@@ -14,7 +14,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { ButtonModule } from 'primeng/button';
 import { ToastModule } from 'primeng/toast';
-import { TagModule } from 'primeng/tag';
 import { MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 
@@ -34,6 +33,10 @@ import { SchoolExamsService, type SchoolExamDetail } from '@core/school-exams.se
 import { ReferenceDataService } from '@core/reference-data.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
+import {
+  StatusDotComponent,
+  type StatusTone,
+} from '@shared/components/status/status-dot/status-dot.component';
 
 type ScoreEntryType = 'academy' | 'school';
 
@@ -54,9 +57,9 @@ interface SummaryStats {
   selector: 'app-score-entry',
   standalone: true,
   imports: [
+    StatusDotComponent,
     ButtonModule,
     ToastModule,
-    TagModule,
     ConfirmDialogModule,
     PageBreadcrumbComponent,
     AcademyScoreEditorComponent,
@@ -312,8 +315,17 @@ export class ScoreEntryComponent implements OnInit {
     return status === 'active' ? '進行中' : '已結束';
   }
 
-  protected getStatusSeverity(status: 'active' | 'closed'): 'success' | 'secondary' {
-    return status === 'active' ? 'success' : 'secondary';
+  /**
+   * `active` 是**「進行中」**不是「啟用」—— 它正是「還在等成績登完」，所以是 `pending`
+   * （中空、無色相）。原本塗成 success 綠等於說「這件事很好」，但這一頁自己的橫幅
+   * 就在說「有 N 場**進行中**的考試尚未登錄成績」。
+   *
+   * `closed` 是 `inactive` 而不是 `done`：結束考試的確認訊息寫著「**結束後將無法再
+   * 登錄分數**」—— 它是行政主動關閉，**不保證成績登完了**，可以沒登完就關。
+   * 那是「不在等任何事了」，不是「已定案且是好結果」。
+   */
+  protected statusTone(status: 'active' | 'closed'): StatusTone {
+    return status === 'active' ? 'pending' : 'inactive';
   }
 
   private getAcademyTypeLabel(type: string): string {

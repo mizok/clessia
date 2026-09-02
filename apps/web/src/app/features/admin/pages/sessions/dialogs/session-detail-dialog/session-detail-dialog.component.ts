@@ -11,14 +11,17 @@ import { DatePipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
 import { SkeletonModule } from 'primeng/skeleton';
-import { TagModule } from 'primeng/tag';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { type Session, type SessionHistoryEntry, SessionsService } from '@core/sessions.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import {
+  StatusDotComponent,
+  type StatusTone,
+} from '@shared/components/status/status-dot/status-dot.component';
 
 @Component({
   selector: 'app-session-detail-dialog',
-  imports: [DataChipComponent, DatePipe, ButtonModule, SkeletonModule, TagModule],
+  imports: [StatusDotComponent, DataChipComponent, DatePipe, ButtonModule, SkeletonModule],
   templateUrl: './session-detail-dialog.component.html',
   styleUrl: './session-detail-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,12 +45,13 @@ export class SessionDetailDialogComponent implements OnInit {
     return '正常';
   });
 
-  protected readonly statusSeverity = computed(() => {
+  /** 停課 = 不在等了；已完成 = 已定案；其餘（未來的課）= 還在等 */
+  protected readonly statusTone = computed<StatusTone>(() => {
     const s = this.session();
-    if (!s) return 'info';
-    if (s.status === 'cancelled') return 'secondary';
-    if (s.status === 'completed') return 'success';
-    return 'info';
+    if (!s) return 'pending';
+    if (s.status === 'cancelled') return 'inactive';
+    if (s.status === 'completed') return 'done';
+    return 'pending';
   });
 
   protected readonly contextLine = computed(() => {
