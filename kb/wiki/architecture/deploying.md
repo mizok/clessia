@@ -153,7 +153,7 @@ Hyperdrive 在 Cloudflare 邊緣維持到 origin 的長連線，Worker 連的是
 啟用順序（`wrangler.toml` 裡的那段預設是註解掉的，因為填了不存在的 id 會讓部署直接失敗）：
 
 1. `npx wrangler hyperdrive create clessia-production --connection-string="<連線字串>"`
-2. 把回傳的 id 填進 `apps/api/wrangler.toml` 的 `[[env.production.hyperdrive]]`，取消註解
+2. 把回傳的 id 填進 `apps/api/wrangler.toml` 的 `env.production.hyperdrive` 區段(TOML 陣列表頭,寫作雙中括號)，取消註解
 3. `npx wrangler deploy --env production`
 
 **用 Supabase 的 Direct connection（port 5432），不要用 pooled 的那條。** Hyperdrive
