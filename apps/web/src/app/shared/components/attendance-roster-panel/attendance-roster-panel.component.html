@@ -78,23 +78,28 @@
     </div>
 
     <div class="roster-panel__footer">
-      <!-- 進度講在按鈕旁邊：還差幾個、以及有幾個本來就不用標 -->
-      <span class="roster-panel__progress">
-        @if (pendingCount() > 0) {
-          還有 {{ pendingCount() }} 人未標記
-        } @else if (exemptCount() > 0) {
-          {{ exemptCount() }} 人請假，不需標記
-        }
-      </span>
-      <p-button
-        label="全部出席"
-        icon="pi pi-users"
-        severity="secondary"
-        [outlined]="true"
-        (onClick)="markAllPresent()"
-      />
-      <!-- 刻意不 disable：按不下去的按鈕不會解釋原因，按得下去的才會（save() 裡說明） -->
-      <p-button label="儲存點名" icon="pi pi-check" [loading]="saving()" (onClick)="save()" />
+      <!-- 進度講在按鈕旁邊：還差幾個、以及有幾個本來就不用標。
+           沒話講的時候整個不渲染 —— 留一個空的 flex item 會白佔一整格 -->
+      @if (pendingCount() > 0 || exemptCount() > 0) {
+        <span class="roster-panel__progress">
+          @if (pendingCount() > 0) {
+            還有 {{ pendingCount() }} 人未標記
+          } @else {
+            {{ exemptCount() }} 人請假，不需標記
+          }
+        </span>
+      }
+      <div class="roster-panel__actions">
+        <p-button
+          label="全部出席"
+          icon="pi pi-users"
+          severity="secondary"
+          [outlined]="true"
+          (onClick)="markAllPresent()"
+        />
+        <!-- 刻意不 disable：按不下去的按鈕不會解釋原因，按得下去的才會（save() 裡說明） -->
+        <p-button label="儲存點名" icon="pi pi-check" [loading]="saving()" (onClick)="save()" />
+      </div>
     </div>
   }
 </div>

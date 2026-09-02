@@ -133,16 +133,32 @@
 
   &__footer {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-4);
     border-top: 1px solid var(--zinc-200);
   }
 
-  // 進度是常態資訊，不是警示 —— 沒有色相（charter 先例「顏色是有預算的」）
+  /**
+   * 進度是常態資訊，不是警示 —— 沒有色相（charter 先例「顏色是有預算的」）。
+   *
+   * `flex-basis` 決定它什麼時候自己換行：跟兩顆按鈕擠不下同一行（390px 手機）時
+   * 整條掉到下一行，寬螢幕維持單行。**用 wrap 而不是 media query** ——
+   * 斷點該由內容決定，按鈕標籤長度變了門檻會自己跟著動。
+   */
   &__progress {
-    margin-right: auto;
+    flex: 1 1 10rem;
+    min-width: 0;
     font-size: var(--text-xs);
     color: var(--zinc-500);
+  }
+
+  &__actions {
+    display: flex;
+    gap: var(--space-2);
+    // 不讓按鈕被壓縮 —— 標籤擠成兩行的話按鈕會長到 64px 高
+    flex-shrink: 0;
+    margin-left: auto;
   }
 }
