@@ -86,13 +86,23 @@
     flex: 1 1 220px;
   }
 
+  // **黏在底部** —— 名單有幾十列時，「確認名單」原本會被推到捲軸最下面，
+  // 而那是這一頁唯一的主要動作。黏著它就不必為了存檔先捲到底。
   &__actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-4);
     flex-wrap: wrap;
-    padding-top: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    margin-top: var(--space-2);
+    background: var(--color-white);
+    border-top: 1px solid var(--zinc-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
   }
 
   &__hint {

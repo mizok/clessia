@@ -41,7 +41,7 @@
         只有「有課的班」才算 —— 當天沒課或停課的班不列入。
       </p>
       <ul class="contact-book__missing-list">
-        @for (target of missing(); track target.studentId) {
+        @for (target of visibleMissing(); track target.studentId) {
           <li class="contact-book__missing-item">
             <span class="contact-book__missing-student">{{ target.studentName }}</span>
             <span class="contact-book__missing-classes">{{ classNamesOf(target) }}</span>
@@ -56,6 +56,17 @@
           </li>
         }
       </ul>
+
+      @if (hiddenMissingCount() > 0 || missingExpanded()) {
+        <p-button
+          [label]="missingExpanded() ? '收合' : '還有 ' + hiddenMissingCount() + ' 位，全部展開'"
+          [icon]="missingExpanded() ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
+          [text]="true"
+          size="small"
+          severity="secondary"
+          (onClick)="toggleMissingExpanded()"
+        />
+      }
     }
   </section>
 

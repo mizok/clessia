@@ -248,7 +248,11 @@ export class PaymentsPage implements OnInit {
     });
 
     ref?.onClose.subscribe((created: Invoice | undefined) => {
-      if (created) this.reload();
+      if (!created) return;
+      this.reload();
+      // 開完帳最常見的下一步就是收錢（新生報名當場繳定金）。原本要關掉這個 dialog、
+      // 回列表、再把剛開的那張找出來點進去 —— 三個動作換一件本來就連著的事。
+      this.openDetail(created);
     });
   }
 }
