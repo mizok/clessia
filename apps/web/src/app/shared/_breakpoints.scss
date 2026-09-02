@@ -48,6 +48,42 @@ $breakpoints: (
   }
 }
 
+/**
+ * **手機優先的斷點。** 跟上面的 `respond-to` 相反：以手機為基準，往大螢幕加強。
+ *
+ * 2026-09 使用者裁定全站改成手機優先。既有的 41 支 SCSS 用的是 `respond-to`
+ * （桌機為基準往下覆寫）—— **那些不是錯的，只是方向舊**，兩者刻意並存，
+ * 讓遷移可以逐頁進行而不必一次改完。新寫的、重做的一律用這一支。
+ *
+ * `+ 0.02px` 不是講究，是**避免重疊**：`respond-to('mobile')` 是 `max-width: 640px`，
+ * 若這裡寫 `min-width: 640px`，在正好 640px 的裝置上兩個區塊會同時生效，
+ * 而哪一個贏取決於原始碼順序 —— 那是會在真機上才發現的 bug。
+ * 加 0.02 讓兩者互斥，且不動既有 `respond-to` 的任何行為。
+ */
+@mixin respond-from($breakpoint) {
+  $breakpoint-value: get-breakpoint-value($breakpoint);
+
+  @if $breakpoint-value == null {
+    @include warn-invalid-breakpoint($breakpoint);
+  } @else {
+    @media (min-width: $breakpoint-value + 0.02px) {
+      @content;
+    }
+  }
+}
+
+@mixin respond-from-container($container-name, $breakpoint) {
+  $breakpoint-value: get-breakpoint-value($breakpoint);
+
+  @if $breakpoint-value == null {
+    @include warn-invalid-breakpoint($breakpoint);
+  } @else {
+    @container #{$container-name} (min-width: #{$breakpoint-value + 0.02px}) {
+      @content;
+    }
+  }
+}
+
 @mixin respond-to-container($container-name, $breakpoint) {
   $breakpoint-value: get-breakpoint-value($breakpoint);
 
