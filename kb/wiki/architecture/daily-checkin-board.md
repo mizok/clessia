@@ -150,7 +150,7 @@ campus），**沒有任何 enrollment 過濾**。接著對「該學生 × 每一
 
 **分組這個選擇在分校隔離落地前後都成立**：現在管理者看到全部分校各自的缺口；
 有隔離之後他只會拿到自己那組，同一段 UI 不用改。「先選分校再看」則兩邊都要改。
-見 [[architecture/campus-isolation]]。
+見 [[architecture/authorization-scope]]。
 
 ### 決策 6：時窗政策沿用既有的，不另立一套
 
@@ -208,7 +208,7 @@ events 上有沒有這個學生的 attendance_records」擋掉刪除／改班。
 
 **這比一支看板大，而且在單一功能裡解會更糟** —— 會得到一個守得住的畫面
 和其餘全部守不住的畫面，使用者無從分辨。隔離要跟 c1 的 `org_id` 一樣沒有例外
-才可信。現況、形狀與待裁決的部分記在 [[architecture/campus-isolation]]。
+才可信。現況、形狀與待裁決的部分記在 [[architecture/authorization-scope]]。
 
 這一刀的責任只有兩條：**端點照收 `campusId`**（等 middleware 長出來時它自然被
 驗證）、**畫面依分校分組而不是先選再看**（見決策 7）。
