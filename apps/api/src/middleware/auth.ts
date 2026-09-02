@@ -4,7 +4,7 @@ import { getAuth } from '../lib/get-auth';
 import { createServiceClientFromEnv } from '../lib/supabase';
 import { isAccountUsable } from './account-status';
 import { hasPermission } from '../lib/permissions';
-import { resolveCampusScope } from '../lib/campus-scope';
+import { isCampusAllowed, resolveCampusScope } from '../lib/campus-scope';
 import type { AppEnv } from '../index';
 
 export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
@@ -140,6 +140,39 @@ export const requireRoles = (...allowed: string[]) =>
 
     return next();
   });
+
+/**
+ * 請求指名分校時，它在不在這個人的範圍內。
+ *
+ * **掛在全域，不是各路由自己檢查。** `org_id` 之所以可信是因為它沒有例外（c1）；
+ * 分校要的是同一種待遇。14 支路由收 `campusId`，靠每一支自己記得檢查的話，
+ * 總有一支會忘記 —— 而忘記的方式是安靜的。
+ *
+ * **越權指名回 403 不是空清單。** 默默回空會讓越權嘗試看起來像「那個分校那天
+ * 沒有人」：越權的人不知道自己被擋，被越權的機構也不會發現有人在試。
+ *
+ * 這一支只看 query string。**寫入時 body 帶的分校由各路由自己驗**
+ * （middleware 讀 body 會跟 zod-openapi 的驗證器搶同一個 stream）。
+ */
+export const campusRequestGuard = createMiddleware<AppEnv>(async (c, next) => {
+  const scope = c.get('campusScope');
+  if (scope === null) return next();
+
+  const url = new URL(c.req.url);
+  const requested = [
+    ...url.searchParams.getAll('campusId'),
+    // 複數版是逗號分隔的清單
+    ...url.searchParams.getAll('campusIds').flatMap((value) => value.split(',')),
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (requested.some((campusId) => !isCampusAllowed(scope, campusId))) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
+
+  return next();
+});
 
 /**
  * 這個**管理員**有沒有某個細部權限（`user_roles.permissions`）。

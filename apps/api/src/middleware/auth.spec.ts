@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { authMiddleware, requireAdminPermission, requireRoles } from './auth';
+import { authMiddleware, campusRequestGuard, requireAdminPermission, requireRoles } from './auth';
 
 const getSession = vi.fn();
 const fromMock = vi.fn();
@@ -226,5 +226,55 @@ describe('authMiddleware 的身分查詢失敗', () => {
     const logged = consoleError.mock.calls.map((call) => String(call[0])).join('\n');
     expect(logged).toContain('user_roles');
     expect(logged).toContain('parents');
+  });
+});
+
+/**
+ * 分校範圍的「指名」這一半。**回 403 不是空清單** —— 默默回空會讓越權嘗試
+ * 看起來像「那個分校那天沒有人」，越權的人不知道自己被擋，被越權的機構
+ * 也不會發現有人在試。
+ */
+function appWithCampusScope(scope: readonly string[] | null) {
+  const app = new Hono();
+  app.use('*', async (c, next) => {
+    (c as unknown as { set: (k: string, v: unknown) => void }).set('campusScope', scope);
+    await next();
+  });
+  app.use('*', campusRequestGuard);
+  app.get('/x', (c) => c.json({ ok: true }));
+  return app;
+}
+
+describe('campusRequestGuard', () => {
+  it('不受分校限制的人指定哪個都行', async () => {
+    expect((await appWithCampusScope(null).request('/x?campusId=z')).status).toBe(200);
+  });
+
+  it('沒有指定分校時放行', async () => {
+    expect((await appWithCampusScope(['a']).request('/x')).status).toBe(200);
+  });
+
+  it('指定範圍內的分校放行', async () => {
+    expect((await appWithCampusScope(['a', 'b']).request('/x?campusId=b')).status).toBe(200);
+  });
+
+  it('指定範圍外的分校回 403', async () => {
+    const res = await appWithCampusScope(['a']).request('/x?campusId=b');
+
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code: string }).code).toBe('FORBIDDEN');
+  });
+
+  // 複數版是逗號分隔 —— 夾帶一個範圍外的就整支擋掉，不是過濾掉那一個
+  it('campusIds 清單裡夾帶範圍外的分校也擋', async () => {
+    expect((await appWithCampusScope(['a']).request('/x?campusIds=a,b')).status).toBe(403);
+  });
+
+  it('campusIds 全部在範圍內就放行', async () => {
+    expect((await appWithCampusScope(['a', 'b']).request('/x?campusIds=a,b')).status).toBe(200);
+  });
+
+  it('一個分校都沒被指派時，指名任何分校都擋', async () => {
+    expect((await appWithCampusScope([]).request('/x?campusId=a')).status).toBe(403);
   });
 });

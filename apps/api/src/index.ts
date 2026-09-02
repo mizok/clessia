@@ -4,7 +4,12 @@ import { cors } from 'hono/cors';
 import { createMiddleware } from 'hono/factory';
 import { logger } from 'hono/logger';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { authMiddleware, requireAdminPermission, requireRoles } from './middleware/auth';
+import {
+  authMiddleware,
+  campusRequestGuard,
+  requireAdminPermission,
+  requireRoles,
+} from './middleware/auth';
 import type { Permission } from './lib/permissions';
 import type { CampusScope } from './lib/campus-scope';
 import type { Auth, MagicLinkPayload } from './auth';
@@ -232,6 +237,10 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
 // 見 kb/wiki/architecture/line-oauth-login.md
 
 app.use('/api/*', authMiddleware);
+
+// 分校範圍：請求指名了不屬於自己的分校就 403。掛全域而不是各路由自己檢查 ——
+// 見 kb/wiki/architecture/authorization-scope.md 洞 5。
+app.use('/api/*', campusRequestGuard);
 
 // ============================================================
 // Mount routes
