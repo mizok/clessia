@@ -1,13 +1,12 @@
-import { Component, computed, signal, input } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { Component, input } from '@angular/core';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
+import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [],
+  imports: [EmptyStateComponent],
   templateUrl: './dashboard.component.html',
-  styleUrl: './dashboard.component.scss',
 })
 export class DashboardComponent {
   readonly page = input.required<RouteObj>();
