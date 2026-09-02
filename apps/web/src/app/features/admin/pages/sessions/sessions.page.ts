@@ -33,7 +33,7 @@ import {
 } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
 
 import { SessionCancelDialogComponent } from './dialogs/session-cancel-dialog/session-cancel-dialog.component';
-import { SessionAttendanceDialogComponent } from './dialogs/session-attendance-dialog/session-attendance-dialog.component';
+import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
 import { SessionOperationsLogDialogComponent } from './dialogs/session-operations-log-dialog/session-operations-log-dialog.component';
 import { SessionRescheduleDialogComponent } from './dialogs/session-reschedule-dialog/session-reschedule-dialog.component';
@@ -63,6 +63,19 @@ import {
 import { SessionsActionsService } from './services/sessions-actions.service';
 import { todayLocal } from '@shared/utils/session-time.util';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
+
+/**
+ * 列表用的課堂 —— 比 `Session` 多一個 `eventId`。
+ *
+ * 三態，**不要壓成兩態**：
+ * - `string` —— 出勤事件在，點得了名
+ * - `null` —— 停課，後端刻意不補建事件（`EventSessionSummary.eventId` 的註解），點不了
+ * - `undefined` —— **還不知道**（出勤摘要那支 API 掛了，`loadAttendanceSummaries` 吞掉錯誤回空陣列）
+ *
+ * 把 `undefined` 當成 `null` 會讓摘要 API 一掛掉、整頁的點名入口就全部灰掉 ——
+ * 那是把「沒問到」講成「不能點」（`kb/wiki/lessons/empty-array-hides-loading.md`）。
+ */
+type SessionRow = Session & { readonly eventId?: string | null };
 
 interface AttendanceDialogCloseResult {
   readonly eventId: string;
@@ -109,7 +122,7 @@ export class SessionsPage implements OnInit {
 
   // ── View state ─────────────────────────────────────────────────────────
   protected readonly loading = signal(false);
-  protected readonly sessions = signal<Session[]>([]);
+  protected readonly sessions = signal<SessionRow[]>([]);
 
   // Filter options — campuses & teachers come from shared cache
   protected readonly campuses = computed(() => this.refData.campuses());
@@ -259,7 +272,7 @@ export class SessionsPage implements OnInit {
   });
 
   // ── Context menu ───────────────────────────────────────────────────────
-  protected readonly contextSession = signal<Session | null>(null);
+  protected readonly contextSession = signal<SessionRow | null>(null);
   protected readonly contextMenuItems = computed<MenuItem[]>(() => {
     const s = this.contextSession();
     if (!s) return [];
@@ -269,7 +282,8 @@ export class SessionsPage implements OnInit {
         label: '管理出勤狀況',
         icon: 'pi pi-id-card',
         // UTC 日期會讓半夜的「今天」被當成未來，選項會被錯誤 disable
-        disabled: s.sessionDate > todayLocal(),
+        // `eventId === null` 是停課（沒有出勤事件可點）；`undefined` 是還不知道，不擋
+        disabled: s.sessionDate > todayLocal() || s.eventId === null,
         command: () => this.openAttendance(s),
       },
     ];
@@ -634,12 +648,28 @@ export class SessionsPage implements OnInit {
     });
   }
 
-  protected openAttendance(session: Session): void {
-    const ref = this.dialogService.open(SessionAttendanceDialogComponent, {
+  protected openAttendance(session: SessionRow): void {
+    // `undefined` = 出勤摘要那支 API 沒回來。原本的對話框會自己反查一次，但反查打的是
+    // **同一支 API**，所以那時候它也是壞的 —— 差別只在壞在對話框裡還是壞在入口。
+    if (!session.eventId) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: '無法開啟點名',
+        detail: '出勤資料尚未載入完成，請重新整理後再試。',
+      });
+      return;
+    }
+
+    const ref = this.dialogService.open(AttendanceRosterPanelComponent, {
       header: '管理出勤狀況',
       width: '480px',
       closable: true,
-      data: { session },
+      data: {
+        eventId: session.eventId,
+        className: session.className,
+        eventDate: session.sessionDate,
+        timeRange: `${session.startTime}–${session.endTime}`,
+      },
       styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
     });
@@ -862,7 +892,7 @@ export class SessionsPage implements OnInit {
   private mergeAttendanceSummaries(
     sessions: readonly Session[],
     summaries: readonly EventSessionSummary[],
-  ): Session[] {
+  ): SessionRow[] {
     const summaryMap = new Map(
       summaries.map((summary) => [this.getAttendanceSummaryKey(summary), summary]),
     );
@@ -875,6 +905,9 @@ export class SessionsPage implements OnInit {
 
       return {
         ...session,
+        // 這裡本來就配對到 summary 了，eventId 一起帶走 —— 不帶的話點開對話框時
+        // 會用同一組 key 再打一次同一支 API 做一模一樣的配對
+        eventId: summary.eventId,
         attendanceTakenAt: summary.takenAt,
         attendanceEnrolledCount: summary.enrolledCount,
         attendancePresentCount: summary.presentCount,

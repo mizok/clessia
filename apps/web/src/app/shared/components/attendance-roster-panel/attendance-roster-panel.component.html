@@ -2,7 +2,12 @@
   <div class="roster-panel__header">
     <div>
       <div class="roster-panel__title">{{ session.className }}</div>
-      <div class="roster-panel__subtitle">{{ session.eventDate }}</div>
+      <div class="roster-panel__subtitle">
+        {{ session.eventDate }}
+        @if (session.timeRange) {
+          · {{ session.timeRange }}
+        }
+      </div>
     </div>
     <p-button icon="pi pi-times" [text]="true" severity="secondary" (onClick)="close()" />
   </div>
@@ -73,6 +78,14 @@
     </div>
 
     <div class="roster-panel__footer">
+      <!-- 進度講在按鈕旁邊：還差幾個、以及有幾個本來就不用標 -->
+      <span class="roster-panel__progress">
+        @if (pendingCount() > 0) {
+          還有 {{ pendingCount() }} 人未標記
+        } @else if (exemptCount() > 0) {
+          {{ exemptCount() }} 人請假，不需標記
+        }
+      </span>
       <p-button
         label="全部出席"
         icon="pi pi-users"
@@ -80,13 +93,8 @@
         [outlined]="true"
         (onClick)="markAllPresent()"
       />
-      <p-button
-        label="儲存點名"
-        icon="pi pi-check"
-        [loading]="saving()"
-        [disabled]="markedCount() === 0"
-        (onClick)="save()"
-      />
+      <!-- 刻意不 disable：按不下去的按鈕不會解釋原因，按得下去的才會（save() 裡說明） -->
+      <p-button label="儲存點名" icon="pi pi-check" [loading]="saving()" (onClick)="save()" />
     </div>
   }
 </div>
