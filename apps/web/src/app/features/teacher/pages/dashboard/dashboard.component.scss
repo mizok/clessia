@@ -1,8 +1,16 @@
+@use 'shared/breakpoints' as bp;
+
+/* 老師端儀表板。**手機優先**：基準樣式就是手機，往大螢幕才加強。
+   老師站在教室裡、下課十分鐘內用它，主要裝置是手機（2026-09 使用者裁定）。 */
 .teacher-dashboard {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   padding: var(--space-4);
+
+  @include bp.respond-from('tablet-portrait') {
+    padding: var(--space-6);
+  }
 
   &__title {
     margin: 0;
@@ -24,6 +32,8 @@
     }
   }
 
+  // `auto-fit` 本身就是手機優先的：窄的時候自己掉成兩欄，寬的時候排四欄。
+  // 390px 扣掉左右內距剩約 358px，兩欄各約 173px —— 夠放兩位數字加標籤。
   &__cards {
     display: grid;
     gap: var(--space-3);
@@ -68,17 +78,51 @@
     list-style: none;
   }
 
+  // **手機是兩列，桌機才是四欄。**
+  // 原本一律 `auto 1fr auto auto`：390px 下時間佔約 90px、人數與狀態各佔一截，
+  // 班名只剩約 150px —— 而班名正是老師用來認出「這是哪一堂」的東西。
+  //
+  //   手機：  09:00–11:00        未點名
+  //          八年級重點進階班     20 人
+  //
+  //   桌機：  09:00–11:00  八年級重點進階班  20 人  未點名
   &__item {
     display: grid;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2);
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3) var(--space-2);
     border-bottom: 1px solid var(--surface-border);
-    grid-template-columns: auto 1fr auto auto;
+    grid-template-areas:
+      'time status'
+      'class count';
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+
+    @include bp.respond-from('tablet-portrait') {
+      padding: var(--space-2);
+      grid-template-areas: 'time class count status';
+      grid-template-columns: auto 1fr auto auto;
+      align-items: center;
+    }
   }
 
   &__time {
+    grid-area: time;
     font-variant-numeric: tabular-nums;
+  }
+
+  // 班名在手機上獨佔一整列 —— 它是辨識這一堂課的主要線索，不該被擠成三個字加省略號
+  &__class {
+    grid-area: class;
+    font-weight: var(--font-medium);
+    min-width: 0;
+  }
+
+  &__count {
+    grid-area: count;
+  }
+
+  &__taken {
+    grid-area: status;
   }
 
   &__count,
@@ -91,22 +135,52 @@
     color: var(--success-600);
   }
 
+  // 手機上直向堆疊、各自佔滿一列；`respond-from` 之後才並排。
   &__actions {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
+    flex-direction: column;
+    gap: var(--space-2);
+
+    @include bp.respond-from('mobile') {
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+    }
   }
 
+  // **這兩顆是整頁僅有的行動，原本卻是 20px 高的裸文字。**
+  // 2026-09 在 390px 實測到 100×20 與 72×20 —— 高度差 44px 門檻整整一半。
+  //
+  // 改成有邊框的實體目標。桌機也套用（一顆看得見的按鈕在桌機上不會比較差），
+  // 觸控下再抬到 44px —— 那一段由 `styles.scss` 的 `pointer: coarse` 區塊負責，
+  // 這裡只保證非觸控下也有合理的下限。
   &__link {
-    padding: 0;
-    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
     background: none;
     color: var(--accent-600);
     cursor: pointer;
     font-size: 0.875rem;
+    font-weight: var(--font-medium);
 
     &:hover {
-      text-decoration: underline;
+      background: var(--zinc-50);
     }
+  }
+
+  &__link:focus-visible {
+    outline: 2px solid var(--accent-600);
+    outline-offset: 2px;
+  }
+}
+
+@media (pointer: coarse) {
+  .teacher-dashboard__link {
+    min-height: 44px;
   }
 }

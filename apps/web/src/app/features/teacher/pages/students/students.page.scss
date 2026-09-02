@@ -1,3 +1,7 @@
+@use 'shared/breakpoints' as bp;
+
+/* 老師的學生名單。**手機優先** —— 清單本身在窄螢幕天生就對，
+   要處理的是篩選列與觸控目標。 */
 .teacher-students {
   display: flex;
   flex-direction: column;
@@ -15,16 +19,37 @@
     color: var(--text-muted);
   }
 
+  // 手機上直向堆疊各佔滿寬 —— 390px 塞不下「搜尋框 + 班級下拉」並排，
+  // 硬排的結果是兩個都太窄，而搜尋框需要看得到自己打了什麼。
   &__filters {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: var(--space-2);
+
+    @include bp.respond-from('mobile') {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+    }
   }
 
+  // **這是原生 `<input>` 不是 PrimeNG**，所以 styles.scss 那組
+  // `pointer: coarse` 的 `--p-inputtext-*` token 涵蓋不到它 ——
+  // 2026-09 在 390px 實測到 42px 高，差門檻 2px。這裡自己補。
   &__search {
+    width: 100%;
+    // 非觸控下也要有下限。第一版只給了 padding，量出來 34px ——
+    // **比改之前的 42px 還矮**，那是桌機退步，不是手機優先。
+    min-height: 40px;
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-md);
+    font-size: var(--text-md);
+
+    @include bp.respond-from('mobile') {
+      width: auto;
+      min-width: 220px;
+    }
   }
 
   &__state {
@@ -76,5 +101,11 @@
   &__grade {
     color: var(--text-muted);
     font-size: 0.875rem;
+  }
+}
+
+@media (pointer: coarse) {
+  .teacher-students__search {
+    min-height: 44px;
   }
 }
