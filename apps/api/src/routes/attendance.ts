@@ -5,6 +5,7 @@ import { isAttendanceEditable } from '../lib/attendance-window';
 import { isSubstituteSession } from '../lib/session-substitute';
 import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
 import { resolveRecordedByRole } from '../lib/recorded-by-role';
+import { leaveCoversSession } from '../lib/leave-covers-session';
 import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 
@@ -102,6 +103,19 @@ const RosterStudentSchema = z
     school: z.string().nullable(),
     recordId: z.uuid().nullable(),
     status: AttendanceStatusSchema.nullable(),
+    /**
+     * 這個學生今天有一張蓋到這堂課的請假單。
+     *
+     * **跟 `status === 'on_leave'` 是兩件事**：`status` 是「紀錄上寫了什麼」，
+     * 這個是「有沒有請假這件事」。請假連動只寫得到**建立請假當下已經存在的** event，
+     * 而出勤事件是懶生成的 —— 先請假、之後才生成的課堂，紀錄上什麼都沒有。
+     * 所以這一欄是**讀取時推導**的，不看紀錄。
+     *
+     * 前端要鎖住的條件是 `status === 'on_leave' || hasLeaveRequest`。
+     * 兩欄都給，是因為「老師明確標了缺席、但這人其實有請假」也要看得出來 ——
+     * 用推導的值覆蓋掉 `status` 會把那個資訊蓋掉。
+     */
+    hasLeaveRequest: z.boolean(),
   })
   .openapi('RosterStudent');
 
@@ -1139,7 +1153,7 @@ app.openapi(
 
     const { data: ev, error: evError } = await supabase
       .from('events')
-      .select('id, event_date, attendance_taken_at, sessions(class_id)')
+      .select('id, event_date, start_time, end_time, attendance_taken_at, sessions(class_id)')
       .eq('id', eventId)
       .eq('org_id', orgId)
       .single();
@@ -1167,6 +1181,41 @@ app.openapi(
       (records ?? []).map((r: any) => [r.student_id, { id: r.id, status: r.status }]),
     );
 
+    // 這一天蓋到這堂課的請假單。**推導不查紀錄** —— 理由見 RosterStudentSchema
+    // 的 `hasLeaveRequest`：請假連動寫不到「請假之後才生成」的 event。
+    const rosterStudentIds = (enrollments ?? []).map((e: any) => e.student_id as string);
+    const { data: leaves } =
+      rosterStudentIds.length === 0
+        ? { data: [] as Array<Record<string, unknown>> }
+        : await supabase
+            .from('leave_requests')
+            .select('student_id, start_date, end_date, start_time, end_time')
+            .eq('org_id', orgId)
+            .in('student_id', rosterStudentIds)
+            .lte('start_date', eventDate)
+            .gte('end_date', eventDate);
+
+    const sessionWindow = {
+      date: eventDate,
+      startTime: ((ev as any).start_time as string | null) ?? null,
+      endTime: ((ev as any).end_time as string | null) ?? null,
+    };
+    const onLeaveStudentIds = new Set(
+      ((leaves ?? []) as Array<Record<string, unknown>>)
+        .filter((row) =>
+          leaveCoversSession(
+            {
+              startDate: row['start_date'] as string,
+              endDate: row['end_date'] as string,
+              startTime: (row['start_time'] as string | null) ?? null,
+              endTime: (row['end_time'] as string | null) ?? null,
+            },
+            sessionWindow,
+          ),
+        )
+        .map((row) => row['student_id'] as string),
+    );
+
     const students = (enrollments ?? []).map((e: any) => {
       const rec = recordMap.get(e.student_id);
       return {
@@ -1176,6 +1225,7 @@ app.openapi(
         school: e.students?.schools?.short_name ?? e.students?.schools?.name ?? null,
         recordId: rec?.id ?? null,
         status: rec?.status ?? null,
+        hasLeaveRequest: onLeaveStudentIds.has(e.student_id),
       };
     });
 

@@ -1298,3 +1298,116 @@ describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
     expect(upserted[0]?.['recorded_by_role']).toBe('admin');
   });
 });
+
+/**
+ * roster 的請假推導。
+ *
+ * **這條只能在路由層守**：`leaveCoversSession` 的單元測試證明日期/時間的重疊算對了，
+ * 但證不出「roster 真的去查了 leave_requests」—— 完全不查的版本一樣通過那些測試。
+ * 而這張單要修的洞正是「沒有人去查」（請假連動只寫得到當下已存在的 event，
+ * 而出勤事件是懶生成的）。
+ */
+describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
+  function createRosterApp(leaveRows: Array<Record<string, unknown>>) {
+    const queriedTables: string[] = [];
+
+    const supabase = {
+      from(table: string) {
+        queriedTables.push(table);
+        const query: Record<string, unknown> = {
+          select: () => query,
+          eq: () => query,
+          in: () => query,
+          lte: () => query,
+          gte: () => query,
+          or: () => query,
+          single: () =>
+            Promise.resolve({
+              data: {
+                id: 'event-1',
+                event_date: '2026-04-06',
+                start_time: '09:00',
+                end_time: '11:00',
+                attendance_taken_at: null,
+                sessions: [{ class_id: 'class-1' }],
+              },
+              error: null,
+            }),
+          then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
+            const data =
+              table === 'enrollments'
+                ? [{ student_id: 'stu-1', students: { name: '王小明', grade: 'J1' } }]
+                : table === 'leave_requests'
+                  ? leaveRows
+                  : [];
+            return Promise.resolve({ data }).then(onfulfilled ?? undefined);
+          },
+        };
+        return query;
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      context.set('roles', ['admin']);
+      await next();
+    });
+    app.route('/api/attendance', attendanceApp);
+
+    return { app, queriedTables };
+  }
+
+  async function roster(leaveRows: Array<Record<string, unknown>>) {
+    const { app, queriedTables } = createRosterApp(leaveRows);
+    const response = await app.request('/api/attendance/roster/event-1');
+    const payload = (await response.json()) as {
+      students: Array<{ studentId: string; status: string | null; hasLeaveRequest: boolean }>;
+    };
+    return { payload, queriedTables };
+  }
+
+  it('沒有點名紀錄、但當天有假 —— 仍然標得出來', async () => {
+    // 這就是原本的洞：請假在課堂 event 生成之前建立，連動一筆都沒寫到
+    const { payload, queriedTables } = await roster([
+      {
+        student_id: 'stu-1',
+        start_date: '2026-04-06',
+        end_date: '2026-04-06',
+        start_time: null,
+        end_time: null,
+      },
+    ]);
+
+    expect(queriedTables).toContain('leave_requests');
+    expect(payload.students[0]).toMatchObject({
+      studentId: 'stu-1',
+      // 紀錄上什麼都沒有 —— 這正是「未點名」
+      status: null,
+      hasLeaveRequest: true,
+    });
+  });
+
+  it('假沒蓋到這堂課的時段就不標', async () => {
+    const { payload } = await roster([
+      {
+        student_id: 'stu-1',
+        start_date: '2026-04-06',
+        end_date: '2026-04-06',
+        start_time: '13:00',
+        end_time: '17:00',
+      },
+    ]);
+
+    expect(payload.students[0]?.hasLeaveRequest).toBe(false);
+  });
+
+  it('沒有假就是 false，不是 undefined', async () => {
+    const { payload } = await roster([]);
+
+    expect(payload.students[0]?.hasLeaveRequest).toBe(false);
+  });
+});
