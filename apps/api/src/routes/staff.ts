@@ -4,6 +4,7 @@ import { getAuth } from '../lib/get-auth';
 import { mintLoginLinkForRequest } from './login-links/mint';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
+import { PERMISSIONS } from '../lib/permissions';
 
 // ============================================================
 // Schemas
@@ -11,17 +12,9 @@ import { logAudit } from '../utils/audit';
 
 const StaffRoleSchema = z.enum(['admin', 'teacher']).openapi('StaffRole');
 
-const PermissionSchema = z
-  .enum([
-    'basic_operations',
-    'manage_courses',
-    'manage_students',
-    'manage_finance',
-    'manage_staff',
-    'manage_roles',
-    'view_reports',
-  ])
-  .openapi('Permission');
+// 詞彙表的家在 lib/permissions.ts —— 那裡有 harness gate 守著「每個權限都要有
+// mount 真的用到」。這裡只是把它變成 zod。
+const PermissionSchema = z.enum(PERMISSIONS).openapi('Permission');
 
 const StaffStatusSchema = z.enum(['active', 'inactive', 'archived']).openapi('StaffStatus');
 

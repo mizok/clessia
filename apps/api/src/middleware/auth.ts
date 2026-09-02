@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAuth } from '../lib/get-auth';
 import { createServiceClientFromEnv } from '../lib/supabase';
 import { isAccountUsable } from './account-status';
+import { hasPermission } from '../lib/permissions';
 import type { AppEnv } from '../index';
 
 export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
@@ -125,7 +126,7 @@ export const requireRoles = (...allowed: string[]) =>
   });
 
 /**
- * 這個帳號有沒有某個細部權限（`user_roles.permissions`）。
+ * 這個**管理員**有沒有某個細部權限（`user_roles.permissions`）。
  *
  * **在金流之前 API 完全沒有這一層** —— `permissions` 只經由 `/api/me` 回給前端，
  * 由 web 的 `permissionGuard` 擋。那是畫面控制不是授權：直接打 API 就繞過去了。
@@ -137,12 +138,31 @@ export const requireRoles = (...allowed: string[]) =>
  *
  * **fail-closed**：context 沒有 permissions（例如有人在 authMiddleware 之外掛了它）、
  * 清單是空的 —— 一律拒絕。
+ *
+ * **ponytail: 同時擁有 admin 與 teacher 的人，缺權限時一律拒絕，不會降級成老師身分。**
+ * 真的出現「會教課的分校主任被自己的管理員權限擋在點名外面」再拆 —— 正確的解通常是
+ * 補上 `basic_operations`，而不是讓授權在角色之間偷偷降級。
  */
-export const requirePermission = (permission: string) =>
+export const requireAdminPermission = (permission: string) =>
   createMiddleware<AppEnv>(async (c, next) => {
+    const roles = c.get('roles');
+
+    // 沒有角色的一律拒絕，理由同 requireRoles。
+    if (!roles || roles.length === 0) {
+      return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+    }
+
+    // **不是管理員就不看權限。** 老師的 `permissions` 一律是空陣列
+    // （`staff.ts` 的 normalizeAdminPermissions 只對 admin 回非空），所以純粹的
+    // permission 檢查會把 `['admin','teacher']` 那些 mount 上的老師全部鎖在門外。
+    // 老師的範圍由角色層 + 各路由的 teacher-scope 把關，那是另一套尺。
+    if (!roles.includes('admin')) {
+      return next();
+    }
+
     const permissions = c.get('permissions');
 
-    if (!permissions || !permissions.some((p) => p === permission || p === '*')) {
+    if (!permissions || !hasPermission(permissions, permission)) {
       return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
     }
 

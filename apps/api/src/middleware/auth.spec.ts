@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { authMiddleware, requirePermission, requireRoles } from './auth';
+import { authMiddleware, requireAdminPermission, requireRoles } from './auth';
 
 const getSession = vi.fn();
 const fromMock = vi.fn();
@@ -73,18 +73,24 @@ describe('requireRoles', () => {
  *
  * 一律 fail-closed，理由同 requireRoles：授權的洞幾乎都長在「不確定的時候放行」上。
  */
-function appWithPermissions(permissions: string[] | undefined, required: string) {
+function appWithPermissions(
+  permissions: string[] | undefined,
+  required: string,
+  roles: string[] | undefined = ['admin'],
+) {
   const app = new Hono();
   app.use('*', async (c, next) => {
-    (c as unknown as { set: (k: string, v: unknown) => void }).set('permissions', permissions);
+    const set = (c as unknown as { set: (k: string, v: unknown) => void }).set;
+    set('roles', roles);
+    set('permissions', permissions);
     await next();
   });
-  app.use('*', requirePermission(required));
+  app.use('*', requireAdminPermission(required));
   app.get('/', (c) => c.json({ ok: true }));
   return app;
 }
 
-describe('requirePermission', () => {
+describe('requireAdminPermission', () => {
   it('有這個權限就放行', async () => {
     expect(
       (await appWithPermissions(['manage_finance'], 'manage_finance').request('/')).status,
@@ -112,6 +118,41 @@ describe('requirePermission', () => {
   // 這條最重要：middleware 忘了把 permissions 放進 context 時，不能變成全開
   it('context 裡根本沒有 permissions 時拒絕，而不是當成全開', async () => {
     expect((await appWithPermissions(undefined, 'manage_finance').request('/')).status).toBe(403);
+  });
+
+  // 老師的 permissions 永遠是空陣列（normalizeAdminPermissions 只對 admin 回非空）。
+  // 純粹的 permission 檢查會把 `['admin','teacher']` 那些 mount 上的老師全部鎖在門外 ——
+  // 這正是把細部權限推廣到金流以外時最容易踩的坑。
+  it('老師不受細部權限約束，交給角色層與 teacher-scope', async () => {
+    expect((await appWithPermissions([], 'manage_students', ['teacher']).request('/')).status).toBe(
+      200,
+    );
+  });
+
+  // ponytail 的已知天花板：同時是管理員又是老師的人，缺權限時一律拒絕，
+  // 不會偷偷降級成老師身分。修法是補權限，不是讓授權在角色之間漂移。
+  it('同時有 admin 與 teacher 時，缺權限仍然拒絕', async () => {
+    expect(
+      (await appWithPermissions([], 'manage_students', ['admin', 'teacher']).request('/')).status,
+    ).toBe(403);
+  });
+
+  it('沒有任何角色時拒絕', async () => {
+    expect((await appWithPermissions(['*'], 'manage_finance', []).request('/')).status).toBe(403);
+  });
+
+  // context 完全沒有 roles（有人在 authMiddleware 之外掛了它）也不能變成全開。
+  // 不用上面那支 helper —— 它的預設參數會把顯式傳入的 undefined 換成 ['admin']。
+  it('context 裡根本沒有 roles 時拒絕', async () => {
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      (c as unknown as { set: (k: string, v: unknown) => void }).set('permissions', ['*']);
+      await next();
+    });
+    app.use('*', requireAdminPermission('manage_finance'));
+    app.get('/', (c) => c.json({ ok: true }));
+
+    expect((await app.request('/')).status).toBe(403);
   });
 });
 
