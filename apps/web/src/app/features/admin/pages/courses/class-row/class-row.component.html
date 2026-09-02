@@ -12,7 +12,13 @@
       (click)="$event.stopPropagation()"
     />
     <span class="class-row__name-group">
-      <span class="class-row__name">{{ cls().name }}</span>
+      <button
+        type="button"
+        class="class-row__name"
+        (click)="navigate.emit(); $event.stopPropagation()"
+      >
+        {{ cls().name }}
+      </button>
       <button
         type="button"
         class="class-row__nav-btn"
@@ -79,14 +85,17 @@
               {{ mobile() ? '皆停課' : '未來皆停課' }}
             </span>
           } @else if (cls().isActive && !cls().hasUpcomingSessions) {
-            <span
-              class="class-row__completeness-info"
-              pTooltip="目前無未來排程（含今天）"
+            <button
+              type="button"
+              class="class-row__completeness-info class-row__completeness-info--action"
+              (click)="generateSessions.emit(); $event.stopPropagation()"
+              pTooltip="目前無未來排程（含今天），點擊產生課堂"
               tooltipPosition="top"
             >
               <i class="pi pi-calendar-plus"></i>
               {{ mobile() ? '無排程' : '無未來排程' }}
-            </span>
+              <i class="pi pi-arrow-right"></i>
+            </button>
           }
         }
       </div>

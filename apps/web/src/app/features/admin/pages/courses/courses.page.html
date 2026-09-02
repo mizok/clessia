@@ -237,6 +237,7 @@
                       (toggleSelection)="toggleClassSelection(cls.id, $event)"
                       (navigate)="navigateToClass(group.course.id, cls.id)"
                       (navigateUnassigned)="navigateToUnassignedSessions(cls)"
+                      (generateSessions)="openGenerateDialog(cls)"
                       (openMenu)="openActionMenu($event, cls, actionMenu)"
                     />
                   } @empty {
