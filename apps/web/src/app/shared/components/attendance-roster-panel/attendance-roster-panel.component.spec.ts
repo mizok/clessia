@@ -28,24 +28,24 @@ describe('AttendanceRosterPanelComponent', () => {
   };
 
   const DEFAULT_STUDENTS = [
-          {
-            studentId: 'student-present',
-            studentName: '王小明',
-            grade: 'J1',
-            school: '測試國中',
-            recordId: 'record-1',
-            status: 'present' as const,
-            hasLeaveRequest: false,
-          },
-          {
-            studentId: 'student-leave',
-            studentName: '李小華',
-            grade: 'J1',
-            school: '測試國中',
-            recordId: 'record-2',
-            status: 'on_leave' as const,
-            hasLeaveRequest: true,
-          },
+    {
+      studentId: 'student-present',
+      studentName: '王小明',
+      grade: 'J1',
+      school: '測試國中',
+      recordId: 'record-1',
+      status: 'present' as const,
+      hasLeaveRequest: false,
+    },
+    {
+      studentId: 'student-leave',
+      studentName: '李小華',
+      grade: 'J1',
+      school: '測試國中',
+      recordId: 'record-2',
+      status: 'on_leave' as const,
+      hasLeaveRequest: true,
+    },
   ];
 
   const dialogRefMock = {
@@ -121,7 +121,6 @@ describe('AttendanceRosterPanelComponent', () => {
     });
   });
 
-
   /**
    * 2026-09-02 UX 審查（阻斷級 A2）：面板原本把沒有紀錄的學生預設成 `absent`，
    * 而「缺席」是**實心（選中態）**、「出席」是外框 —— 老師點開面板，
@@ -190,17 +189,43 @@ describe('AttendanceRosterPanelComponent', () => {
       expect(dialogRefMock.close).not.toHaveBeenCalled();
     });
 
-    it('只標了一個就儲存 —— 只送那一個，未標記的不寫入', async () => {
+    // 這個測試原本斷言的是「只送標過的那一個」—— #138 的修法。
+    // 那個方向對（不再預設全班缺席），但把**錯的資料換成了缺的資料**：後端收到任何一次
+    // 批次就蓋 attendance_taken_at，那堂課從此算已點名，沒標到的人不會有紀錄、
+    // 也不會再出現在漏點名清單裡。所以現在半途存檔是**擋下來**，不是照送。
+    it('標了一半就儲存 —— 擋下來，而且說出為什麼', async () => {
+      await render(UNMARKED);
+      const c = component as never as {
+        setStatus(id: string, s: 'present' | 'absent'): void;
+        save(): void;
+        notice(): { severity: string; detail: string } | null;
+      };
+      c.setStatus('s2', 'present');
+      c.save();
+
+      expect(attendanceServiceMock.batchUpdate).not.toHaveBeenCalled();
+      expect(c.notice()?.severity).toBe('warning');
+      // 說的是後果不是規則 —— 「還有 1 人」加上「會發生什麼事」
+      expect(c.notice()?.detail).toContain('1 人');
+      expect(c.notice()?.detail).toContain('漏點名');
+    });
+
+    it('全部標完才送得出去', async () => {
       await render(UNMARKED);
       const c = component as never as {
         setStatus(id: string, s: 'present' | 'absent'): void;
         save(): void;
       };
-      c.setStatus('s2', 'present');
+      c.setStatus('s1', 'present');
+      c.setStatus('s2', 'absent');
       c.save();
+
       expect(attendanceServiceMock.batchUpdate).toHaveBeenCalledWith({
         eventId: 'event-1',
-        updates: [{ studentId: 's2', status: 'present' }],
+        updates: [
+          { studentId: 's1', status: 'present' },
+          { studentId: 's2', status: 'absent' },
+        ],
       });
     });
   });
@@ -236,6 +261,25 @@ describe('AttendanceRosterPanelComponent', () => {
    * 老師會看到一個他動不了的問題。而銷假出口（A1）目前還是關的，鎖越多死區越大。
    */
   describe('請假感知（#153 hasLeaveRequest）', () => {
+    const UNMARKED_FOR_PROGRESS = [
+      {
+        studentId: 's1',
+        studentName: '甲',
+        grade: 'J1',
+        school: '測',
+        recordId: null,
+        status: null,
+      },
+      {
+        studentId: 's2',
+        studentName: '乙',
+        grade: 'J1',
+        school: '測',
+        recordId: null,
+        status: null,
+      },
+    ];
+
     const LEAVE_NOT_SYNCED = [
       {
         studentId: 'not-synced',
@@ -261,6 +305,65 @@ describe('AttendanceRosterPanelComponent', () => {
       const row = fixture.nativeElement.querySelector('.roster-panel__row');
       expect(row.textContent).toContain('請假');
       expect(row.querySelector('.roster-panel__toggle')).not.toBeNull();
+    });
+
+    /**
+     * 守衛的豁免用**寬的** `hasLeave()`，鎖定用**窄的** `isLocked()`。
+     * 這個寬窄之分是 `markAllPresent` 早就在做的事（「這個人別碰」用寬的、
+     * 「這一格 disable 不」用窄的），守衛屬於前者。
+     *
+     * 只豁免 `on_leave` 的話，這種學生會被鎖進死循環：沒有「標成請假」可點 →
+     * 算未標記 → 存不了 → 被迫標缺席 → 觸發誤標旗標 → 只好標出席（說謊）才存得了檔。
+     */
+    it('只有請假單的人不算未標記 —— 否則他會被鎖進死循環', async () => {
+      await render(LEAVE_NOT_SYNCED);
+      const c = component as never as { pendingCount(): number; save(): void };
+
+      expect(c.pendingCount()).toBe(0);
+    });
+
+    // 全班都是請假的極端：沒有人要標，也就沒有東西可送 —— 那時候擋的是「空批次」不是「未標記」
+    it('全班都請假時儲存 —— 擋在空批次，而且不說成「你還沒標」', async () => {
+      await render(LEAVE_NOT_SYNCED);
+      const c = component as never as {
+        save(): void;
+        notice(): { severity: string; detail: string } | null;
+      };
+
+      c.save();
+
+      expect(attendanceServiceMock.batchUpdate).not.toHaveBeenCalled();
+      expect(c.notice()?.severity).toBe('info');
+      // 中性的說法 —— 全班請假時老師沒有東西可標，不該讀成「你漏做了」
+      expect(c.notice()?.detail).toContain('都在請假中');
+    });
+
+    // 標完最後一人時這一格如果消失，footer 縮 25px、儲存鈕往上跳 —— 正好是手指要按的時候
+    it('全部標完之後進度不會消失，改說完成', async () => {
+      await render(UNMARKED_FOR_PROGRESS);
+      const c = component as never as { setStatus(id: string, s: 'present' | 'absent'): void };
+      c.setStatus('s1', 'present');
+      c.setStatus('s2', 'present');
+      fixture.detectChanges();
+
+      const progress = fixture.nativeElement.querySelector('.roster-panel__progress');
+      expect(progress).not.toBeNull();
+      expect(progress.textContent.trim()).toBe('全部標記完成');
+    });
+
+    // 全班請假時一個都沒標，那不是「完成」—— 他根本沒東西可標
+    it('全班請假不說成「全部標記完成」', async () => {
+      await render(LEAVE_NOT_SYNCED);
+
+      const progress = fixture.nativeElement.querySelector('.roster-panel__progress');
+      expect(progress.textContent.trim()).toContain('請假');
+    });
+
+    it('請假的人算進「不需標記」的計數裡', async () => {
+      await render(LEAVE_NOT_SYNCED);
+      const c = component as never as { exemptCount(): number };
+
+      expect(c.exemptCount()).toBe(1);
     });
 
     it('兩種請假的 chip 文案一樣 —— 差別不是老師該學的實作細節', async () => {

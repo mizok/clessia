@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import {
   AttendanceService,
   type AttendanceRoster,
@@ -18,6 +18,14 @@ export interface RosterPanelSession {
   eventId: string;
   className: string;
   eventDate: string;
+  /**
+   * 選填的時間區間（`19:00–21:00`）。同一個班同一天可能有兩堂課，只有日期分不出是哪一堂。
+   *
+   * 刻意**不收**出勤統計與課程／分校名：呼叫端的列表上就有那些（`session-list` 的
+   * 「到 N ・ 請 N ・ 缺 N」），而且開啟時抓的統計在編輯過程中不會更新 ——
+   * 一個不同步的數字擺在正在編輯的畫面上，比沒有更糟。
+   */
+  timeRange?: string;
 }
 
 @Component({
@@ -137,6 +145,39 @@ export class AttendanceRosterPanelComponent implements OnInit {
     return this.localStatus().size;
   }
 
+  /**
+   * 還沒標記的人數。**請假的兩種都不算** —— 見下。
+   *
+   * 這道守衛從 `session-attendance-dialog` 帶過來（#135），理由是後端的行為：
+   * `PATCH /api/attendance/batch` 只要收到任何一次批次就會蓋上 `attendance_taken_at`
+   * （`apps/api/src/routes/attendance.ts:696`，`if (!ev.attendance_taken_at)`，**不看筆數**）。
+   * 半途存下去的話那堂課從此算「已點名」，沒點到的人不會有紀錄、
+   * **也不會再出現在漏點名清單裡** —— 比預選缺席更難發現的沉默。
+   *
+   * **豁免用寬的 `hasLeave()`（兩種請假），鎖定用窄的 `isLocked()`（只有 `on_leave`）。**
+   * 這個寬窄之分不是這裡發明的，`markAllPresent` 早就這樣做了：
+   * 「這個人別碰」用寬的，「這一格要不要 disable」用窄的。守衛屬於前者。
+   *
+   * 只豁免 `on_leave` 的話，「只有請假單、紀錄還沒套用」的學生會被鎖進死循環：
+   * 沒有「標成請假」可點 → 算 pending → 存不了 → 被迫標缺席 → 觸發誤標旗標 →
+   * 只好標出席（說謊）才存得了檔。
+   *
+   * 代價是 `hasLeaveRequest` 誤判時會漏掉一個人。**接受這個代價的理由是可見性**：
+   * 誤判長成「一個明明來上課的學生掛著請假 chip」，就在老師眼前那一列；
+   * 而被迫填的那筆假出席寫進 DB 之後跟真的一模一樣，沒有任何地方看得出來。
+   */
+  protected readonly pendingCount = computed(() => {
+    const roster = this.roster();
+    if (!roster) return 0;
+    const marked = this.localStatus();
+    return roster.students.filter((s) => !this.hasLeave(s) && !marked.has(s.studentId)).length;
+  });
+
+  /** 因為請假而不需要標記的人數 —— 講出來，讓豁免的結果在按鈕旁邊而不是只躺在列表裡 */
+  protected readonly exemptCount = computed(
+    () => this.roster()?.students.filter((s) => this.hasLeave(s)).length ?? 0,
+  );
+
   protected setStatus(studentId: string, status: 'present' | 'absent'): void {
     const map = new Map(this.localStatus());
     map.set(studentId, status);
@@ -151,19 +192,32 @@ export class AttendanceRosterPanelComponent implements OnInit {
   protected save(): void {
     const roster = this.roster();
     if (!roster) return;
+
+    const pending = this.pendingCount();
+    if (pending > 0) {
+      this.notice.set({
+        severity: 'warning',
+        detail: `還有 ${pending} 人沒有標記。存檔會讓這堂課算成已點名，沒標到的人不會有紀錄，也不會再出現在漏點名清單裡。`,
+      });
+      return;
+    }
+
     this.saving.set(true);
 
     // 只送標過的人。未標記的不寫入 —— 「還沒點到他」不該變成一筆缺席紀錄
     const updates = roster.students
       .filter((s) => !this.isLocked(s))
       .map((s) => ({ studentId: s.studentId, status: this.getStatus(s.studentId) }))
-      .filter(
-        (u): u is { studentId: string; status: 'present' | 'absent' } => u.status !== null,
-      );
+      .filter((u): u is { studentId: string; status: 'present' | 'absent' } => u.status !== null);
 
+    // 走到這裡 pendingCount 已經是 0，所以「沒東西可送」只剩一種可能：全班都在請假。
+    // 說「還沒標記任何學生」會變成指責老師漏做 —— 他沒有東西可標。
     if (updates.length === 0) {
       this.saving.set(false);
-      this.notice.set({ severity: 'warning', detail: '還沒標記任何學生' });
+      this.notice.set({
+        severity: 'info',
+        detail: '這堂課的學生都在請假中，沒有出缺席需要記錄。',
+      });
       return;
     }
 

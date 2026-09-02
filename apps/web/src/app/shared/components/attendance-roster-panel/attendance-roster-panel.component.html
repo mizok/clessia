@@ -2,7 +2,12 @@
   <div class="roster-panel__header">
     <div>
       <div class="roster-panel__title">{{ session.className }}</div>
-      <div class="roster-panel__subtitle">{{ session.eventDate }}</div>
+      <div class="roster-panel__subtitle">
+        {{ session.eventDate }}
+        @if (session.timeRange) {
+          · {{ session.timeRange }}
+        }
+      </div>
     </div>
     <p-button icon="pi pi-times" [text]="true" severity="secondary" (onClick)="close()" />
   </div>
@@ -73,20 +78,34 @@
     </div>
 
     <div class="roster-panel__footer">
-      <p-button
-        label="全部出席"
-        icon="pi pi-users"
-        severity="secondary"
-        [outlined]="true"
-        (onClick)="markAllPresent()"
-      />
-      <p-button
-        label="儲存點名"
-        icon="pi pi-check"
-        [loading]="saving()"
-        [disabled]="markedCount() === 0"
-        (onClick)="save()"
-      />
+      <!--
+        進度講在按鈕旁邊。**三種狀態都有話講，所以這一格永遠在** ——
+        標完最後一人的瞬間如果它消失，footer 會縮 25px、儲存鈕往上跳，
+        而那正是手指要按下去的那一刻（teacher-pages 在 390px 實測到）。
+
+        三句話長度刻意接近（都 ≤ 9 字），不然換行本身又是一次位移。
+      -->
+      <span class="roster-panel__progress">
+        @if (pendingCount() > 0) {
+          還有 {{ pendingCount() }} 人未標記
+        } @else if (markedCount() === 0 && exemptCount() > 0) {
+          <!-- 全班都請假：一個都沒標不是「完成」，他根本沒東西可標 -->
+          {{ exemptCount() }} 人請假，不需標記
+        } @else {
+          全部標記完成
+        }
+      </span>
+      <div class="roster-panel__actions">
+        <p-button
+          label="全部出席"
+          icon="pi pi-users"
+          severity="secondary"
+          [outlined]="true"
+          (onClick)="markAllPresent()"
+        />
+        <!-- 刻意不 disable：按不下去的按鈕不會解釋原因，按得下去的才會（save() 裡說明） -->
+        <p-button label="儲存點名" icon="pi pi-check" [loading]="saving()" (onClick)="save()" />
+      </div>
     </div>
   }
 </div>

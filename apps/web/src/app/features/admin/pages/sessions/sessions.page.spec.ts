@@ -14,7 +14,7 @@ import { StudentsService } from '@core/students.service';
 
 import { SessionsPage } from './sessions.page';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
-import { SessionAttendanceDialogComponent } from './dialogs/session-attendance-dialog/session-attendance-dialog.component';
+import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
 import { SessionOperationsLogDialogComponent } from './dialogs/session-operations-log-dialog/session-operations-log-dialog.component';
 import { SessionAdvancedFiltersDialogComponent } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
@@ -723,7 +723,8 @@ describe('SessionsPage', () => {
       status: 'scheduled',
       assignmentStatus: 'assigned',
       hasChanges: false,
-    } as Session;
+      eventId: 'event-1',
+    } as Session & { eventId: string };
 
     (
       component as unknown as {
@@ -750,13 +751,78 @@ describe('SessionsPage', () => {
     attendanceItem?.command?.();
 
     expect(dialogOpenSpy).toHaveBeenCalledWith(
-      SessionAttendanceDialogComponent,
+      AttendanceRosterPanelComponent,
       expect.objectContaining({
         header: '管理出勤狀況',
         closable: true,
-        data: expect.objectContaining({ session }),
+        // 直接給 eventId —— 列表 merge 時就配對到了，不必讓對話框再打一次同一支 API
+        data: expect.objectContaining({
+          eventId: 'event-1',
+          className: '數學 B',
+          eventDate: '2026-03-18',
+          timeRange: '14:00–16:00',
+        }),
       }),
     );
+  });
+
+  // 停課的課堂後端刻意不補建出勤事件 —— 入口就該關掉，而不是開了才說載入失敗
+  it('停課的課堂不給點名入口', () => {
+    const cancelled = {
+      id: '00000000-0000-0000-0000-000000000041',
+      classId: '00000000-0000-0000-0000-000000000032',
+      className: '數學 B',
+      sessionDate: '2026-03-18',
+      startTime: '14:00',
+      endTime: '16:00',
+      status: 'cancelled',
+      assignmentStatus: 'assigned',
+      hasChanges: false,
+      eventId: null,
+    } as unknown as Session;
+
+    (
+      component as unknown as { contextSession: { set: (value: Session) => void } }
+    ).contextSession.set(cancelled);
+
+    const item = (
+      component as unknown as {
+        contextMenuItems: () => Array<{ label?: string; disabled?: boolean }>;
+      }
+    )
+      .contextMenuItems()
+      .find((i) => i.label === '管理出勤狀況');
+
+    expect(item?.disabled).toBe(true);
+  });
+
+  // eventId 是 undefined 代表出勤摘要那支 API 沒回來 —— 那是「還不知道」不是「不能點」
+  it('出勤摘要還沒到的課堂不會被誤鎖', () => {
+    const unknown_ = {
+      id: '00000000-0000-0000-0000-000000000042',
+      classId: '00000000-0000-0000-0000-000000000032',
+      className: '數學 B',
+      sessionDate: '2026-03-18',
+      startTime: '14:00',
+      endTime: '16:00',
+      status: 'scheduled',
+      assignmentStatus: 'assigned',
+      hasChanges: false,
+    } as Session;
+
+    (
+      component as unknown as { contextSession: { set: (value: Session) => void } }
+    ).contextSession.set(unknown_);
+
+    const item = (
+      component as unknown as {
+        contextMenuItems: () => Array<{ label?: string; disabled?: boolean }>;
+      }
+    )
+      .contextMenuItems()
+      .find((i) => i.label === '管理出勤狀況');
+
+    expect(item?.disabled).toBe(false);
   });
 
   it('syncs session list attendance summary after attendance dialog saves', () => {
@@ -781,7 +847,8 @@ describe('SessionsPage', () => {
       attendancePresentCount: 0,
       attendanceOnLeaveCount: 0,
       attendanceAbsentCount: 0,
-    } as Session;
+      eventId: 'event-1',
+    } as Session & { eventId: string };
 
     (
       component as unknown as {
