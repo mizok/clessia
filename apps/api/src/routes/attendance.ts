@@ -111,9 +111,15 @@ const RosterStudentSchema = z
      * 而出勤事件是懶生成的 —— 先請假、之後才生成的課堂，紀錄上什麼都沒有。
      * 所以這一欄是**讀取時推導**的，不看紀錄。
      *
-     * 前端要鎖住的條件是 `status === 'on_leave' || hasLeaveRequest`。
      * 兩欄都給，是因為「老師明確標了缺席、但這人其實有請假」也要看得出來 ——
      * 用推導的值覆蓋掉 `status` 會把那個資訊蓋掉。
+     *
+     * ⚠️ **不要拿這一欄去鎖住那一列**（本註解原本寫的是
+     * `status === 'on_leave' || hasLeaveRequest` 全鎖，2026-09-02 裁決推翻）：
+     * 矛盾態本身就滿足那個 `||`，全鎖會讓老師看到一個他動不了的問題；
+     * 而這一欄是推導的，誤判一次就鎖死一格，而銷假出口目前還不存在。
+     * 鎖住的條件只有 `status === 'on_leave'`，理由見
+     * `attendance-roster-panel.component.ts` 的 `isLocked`。
      */
     hasLeaveRequest: z.boolean(),
   })

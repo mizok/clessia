@@ -65,9 +65,33 @@
     //
     // 另外 opacity 會同時壓低前景與背景，把裡面 chip 的對比從 10.58 吃到 4.39
     // （原本的 warn tag 更慘，只有 3.37）—— 但那是拿掉它的**附帶好處**，不是理由。
+    // 2026-09-02 檢查：#153 之後多了第二種「有請假」的列（只有請假單、紀錄還沒套用），
+    // 它**不掛這個 class**，因為它可以操作、不該被讀成「這列不用管」。
+    // 上面那個觸發條件（給請假列加按鈕 → tint 要加深）**沒有被觸發**：
+    // 掛 --on-leave 的仍然是沒有按鈕的那種。新的那種靠「請假」chip 表明身分。
     &--on-leave {
       background: var(--zinc-50);
     }
+  }
+
+  /*
+   * 「已請假卻被標成缺席」的旗標。
+   *
+   * 刻意不是 `app-status-dot` 的 tone：五個 tone 回答「這件事現在怎麼樣」（狀態），
+   * 這一句回答「你得看一眼」（對這一列的旗標）。不同的問題用不同的載體 ——
+   * 硬塞成第六個 tone 會跟 `pending` 只差色相，灰階下分不出來，
+   * 而那正是 status-dot 自己保證要避免的（見該元件註解）。
+   *
+   * 不靠顏色單獨傳達（WCAG 1.4.1）：icon 只是引導視線，話由文字說完。
+   */
+  &__mismark {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--warning-600);
   }
 
   &__student {
@@ -75,6 +99,19 @@
     flex-direction: column;
     gap: 2px;
     min-width: 0;
+  }
+
+  /*
+   * 姓名與「請假」chip 同一行。**chip 刻意放在姓名區塊裡而不是跟按鈕並排** ——
+   * 並排時它在「有按鈕」與「沒按鈕」兩種列裡會落在不同位置，同一個標籤看起來像兩種東西；
+   * 而且 390px 下它會跟按鈕搶寬度，把下面的警告文字擠到剩一個字換行。
+   */
+  &__identity {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    flex-wrap: wrap;
   }
 
   &__name {

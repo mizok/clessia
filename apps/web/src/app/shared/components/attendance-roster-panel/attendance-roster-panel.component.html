@@ -22,15 +22,32 @@
   } @else if (roster()) {
     <div class="roster-panel__list">
       @for (student of roster()!.students; track student.studentId) {
-        <div class="roster-panel__row" [class.roster-panel__row--on-leave]="isOnLeave(student)">
+        <div class="roster-panel__row" [class.roster-panel__row--on-leave]="isLocked(student)">
           <div class="roster-panel__student">
-            <span class="roster-panel__name">{{ student.studentName }}</span>
+            <span class="roster-panel__identity">
+              <span class="roster-panel__name">{{ student.studentName }}</span>
+              @if (hasLeave(student)) {
+                <app-data-chip>請假</app-data-chip>
+              }
+            </span>
             <span class="roster-panel__sub">
               {{ gradeLabel(student.grade) }}{{ student.school ? ' · ' + student.school : '' }}
             </span>
+            @if (isMismarked(student)) {
+              <!--
+                刻意不是 app-status-dot 的 tone：五個 tone 回答「這件事現在怎麼樣」（狀態），
+                這一句回答「你得看一眼」（對這一列的旗標）。不同的問題用不同的載體。
+                2026-09-02 與 design-web-2 的結論；第二個使用者出現時再升上 shared。
+              -->
+              <span class="roster-panel__mismark">
+                <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                這位學生已請假，不需點名
+              </span>
+            }
           </div>
-          @if (isOnLeave(student)) {
-            <app-data-chip>請假中</app-data-chip>
+
+          @if (isLocked(student)) {
+            <!-- 紀錄上就是請假，沒有可改的東西 -->
           } @else {
             <div class="roster-panel__toggle">
               <p-button

@@ -35,6 +35,7 @@ describe('AttendanceRosterPanelComponent', () => {
             school: '測試國中',
             recordId: 'record-1',
             status: 'present' as const,
+            hasLeaveRequest: false,
           },
           {
             studentId: 'student-leave',
@@ -43,6 +44,7 @@ describe('AttendanceRosterPanelComponent', () => {
             school: '測試國中',
             recordId: 'record-2',
             status: 'on_leave' as const,
+            hasLeaveRequest: true,
           },
   ];
 
@@ -95,7 +97,7 @@ describe('AttendanceRosterPanelComponent', () => {
 
     expect(attendanceServiceMock.roster).toHaveBeenCalledWith('event-1');
     expect(text).toContain('李小華');
-    expect(text).toContain('請假中');
+    expect(text).toContain('請假');
     expect(text).toContain('王小明');
 
     const leaveRow = fixture.nativeElement.querySelector('.roster-panel__row--on-leave');
@@ -222,6 +224,129 @@ describe('AttendanceRosterPanelComponent', () => {
       expect(
         (component as never as { getStatus(id: string): unknown }).getStatus('student-leave'),
       ).toBeNull();
+    });
+  });
+
+  /**
+   * #153 之後：請假用讀取時推導的 `hasLeaveRequest`，**不覆蓋 `status`**。
+   *
+   * 鎖住的條件**只有 `status === 'on_leave'`**，不含推導值 —— 工單原本寫的是
+   * `status === 'on_leave' || hasLeaveRequest` 全鎖，但那會跟「顯示矛盾態」互相抵消：
+   * 矛盾態的定義（標了缺席 + 有請假單）本身就滿足全鎖條件，
+   * 老師會看到一個他動不了的問題。而銷假出口（A1）目前還是關的，鎖越多死區越大。
+   */
+  describe('請假感知（#153 hasLeaveRequest）', () => {
+    const LEAVE_NOT_SYNCED = [
+      {
+        studentId: 'not-synced',
+        studentName: '丙',
+        grade: 'J1',
+        school: '測試國中',
+        recordId: null,
+        status: null,
+        // 請假單蓋到這堂課，但紀錄還沒被套用（先請假、後生成 event）
+        hasLeaveRequest: true,
+      },
+    ];
+
+    it('紀錄already是 on_leave → 鎖住，沒有按鈕', async () => {
+      await render();
+      const leaveRow = fixture.nativeElement.querySelector('.roster-panel__row--on-leave');
+      expect(leaveRow?.querySelector('.roster-panel__toggle')).toBeNull();
+    });
+
+    /** 這是與工單不同的地方：推導值只標註，不鎖 */
+    it('只有請假單（紀錄還沒套用）→ 標註但**不鎖**，按鈕留著', async () => {
+      await render(LEAVE_NOT_SYNCED);
+      const row = fixture.nativeElement.querySelector('.roster-panel__row');
+      expect(row.textContent).toContain('請假');
+      expect(row.querySelector('.roster-panel__toggle')).not.toBeNull();
+    });
+
+    it('兩種請假的 chip 文案一樣 —— 差別不是老師該學的實作細節', async () => {
+      await render(LEAVE_NOT_SYNCED);
+      const notSynced = fixture.nativeElement.querySelector('.data-chip')?.textContent.trim();
+      await render();
+      const synced = fixture.nativeElement
+        .querySelector('.roster-panel__row--on-leave .data-chip')
+        ?.textContent.trim();
+      expect(notSynced).toBe(synced);
+    });
+
+    it('「全部出席」跳過有請假單的人，不只跳過 on_leave', async () => {
+      await render(LEAVE_NOT_SYNCED);
+      (component as never as { markAllPresent(): void }).markAllPresent();
+      expect(
+        (component as never as { getStatus(id: string): unknown }).getStatus('not-synced'),
+      ).toBeNull();
+    });
+  });
+
+  /**
+   * 矛盾態：老師標了缺席，但這人其實有請假單。
+   * 它說的是**誤操作**（點了不該點的人），不是資料矛盾 —— 所以文案要讓老師知道該怎麼辦。
+   */
+  describe('請假但標缺席的旗標', () => {
+    const NO_LEAVE = [
+      {
+        studentId: 's1',
+        studentName: '甲',
+        grade: 'J1',
+        school: '測試國中',
+        recordId: null,
+        status: null,
+        hasLeaveRequest: false,
+      },
+    ];
+
+    const HAS_LEAVE = [
+      {
+        studentId: 'x1',
+        studentName: '丁',
+        grade: 'J1',
+        school: '測試國中',
+        recordId: null,
+        status: null,
+        hasLeaveRequest: true,
+      },
+    ];
+
+    it('沒標之前不出現旗標', async () => {
+      await render(HAS_LEAVE);
+      expect(fixture.nativeElement.querySelector('.roster-panel__mismark')).toBeNull();
+    });
+
+    it('標了缺席才出現，且說出該怎麼辦', async () => {
+      await render(HAS_LEAVE);
+      (component as never as { setStatus(id: string, s: 'present' | 'absent'): void }).setStatus(
+        'x1',
+        'absent',
+      );
+      fixture.detectChanges();
+      const flag = fixture.nativeElement.querySelector('.roster-panel__mismark');
+      expect(flag).not.toBeNull();
+      expect(flag.textContent).toContain('不需點名');
+    });
+
+    /** 標成出席不算矛盾 —— 請假的人來了是正常的事，不該報警 */
+    it('標出席不出現旗標', async () => {
+      await render(HAS_LEAVE);
+      (component as never as { setStatus(id: string, s: 'present' | 'absent'): void }).setStatus(
+        'x1',
+        'present',
+      );
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.roster-panel__mismark')).toBeNull();
+    });
+
+    it('沒有請假單的人標缺席不出現旗標', async () => {
+      await render(NO_LEAVE);
+      (component as never as { setStatus(id: string, s: 'present' | 'absent'): void }).setStatus(
+        's1',
+        'absent',
+      );
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.roster-panel__mismark')).toBeNull();
     });
   });
 });
