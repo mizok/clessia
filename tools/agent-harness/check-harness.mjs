@@ -17,12 +17,14 @@ import { fileURLToPath } from 'node:url';
 import { formatGenerated } from './lib/format.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
+import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
 import { matchWriteRules } from './lib/rules.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const CONTRAST_BASELINE = join(ROOT, 'tools/agent-harness/scss-contrast-baseline.json');
+const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');
 const AGENTS_MD = join(ROOT, 'AGENTS.md');
 const SKILLS_DIR = join(ROOT, '.agents/skills');
 const THIN_ENTRYPOINTS = ['CLAUDE.md'];
@@ -696,7 +698,9 @@ function checkUsageContrast() {
     );
   }
 
-  // 最大宗的那個配對**算出來**，不要寫死 —— 上一版硬寫「多數是 --zinc-400 那筆全站舊債」，
+  
+
+// 最大宗的那個配對**算出來**，不要寫死 —— 上一版硬寫「多數是 --zinc-400 那筆全站舊債」，
   // 那筆清掉之後這句就變成假的，而且沒有任何東西會提醒你（c11）。
   const stillInBaseline = keys.filter((k) => baseline.has(k));
   if (stillInBaseline.length > 0) {
@@ -730,6 +734,64 @@ function checkUsageContrast() {
 }
 
 checkUsageContrast();
+
+// ── 手機優先遷移的 ratchet ─────────────────────────────────────────────────────────────
+// 邏輯住在 lib/mobile-first.mjs（可單獨測）。守的是「桌機優先的寫法只准變少」。
+// 沒有這道 ratchet，遷移會停在「大家都同意要做」然後永遠不動 ——
+// 因為每一次「就這一次先照舊寫」都是局部理性的。
+function checkMobileFirst() {
+  const webSrc = join(ROOT, 'apps/web/src');
+  if (!existsSync(webSrc)) return;
+
+  const files = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.scss')) {
+        files.push({ path: full.slice(ROOT.length + 1), source: readFileSync(full, 'utf8') });
+      }
+    }
+  };
+  walk(webSrc);
+
+  const current = desktopFirstFiles(files);
+
+  if (mode === 'write') {
+    writeFileSync(MOBILE_FIRST_BASELINE, `${JSON.stringify(current, null, 2)}\n`);
+    return;
+  }
+
+  const baseline = new Set(
+    existsSync(MOBILE_FIRST_BASELINE) ? JSON.parse(readFileSync(MOBILE_FIRST_BASELINE, 'utf8')) : [],
+  );
+
+  for (const path of current.filter((p) => !baseline.has(p))) {
+    fail(
+      `${path} 用了 respond-to（max-width，桌機優先）。全站已改為手機優先 —— ` +
+        `請改用 respond-from（min-width）。既有檔案在 mobile-first-baseline.json 裡，新增的會擋。`,
+    );
+  }
+
+  const migrated = [...baseline].filter((p) => !current.includes(p));
+  if (migrated.length > 0) {
+    warnings.push(
+      `手機優先基線有 ${migrated.length} 支已經遷移完了 —— 跑 npm run harness:write 把成果記下來`,
+    );
+  }
+
+  if (current.length > 0) {
+    const total = files
+      .filter((f) => current.includes(f.path))
+      .reduce((n, f) => n + countDesktopFirst(f.source), 0);
+    warnings.push(
+      `手機優先遷移進度：還有 ${current.length} 支 SCSS 用桌機優先寫法（共 ${total} 處 respond-to）`,
+    );
+  }
+}
+
+checkMobileFirst();
+
 
 // ── report ───────────────────────────────────────────────────────────────────────────────
 // --write 一律 exit 0：它的工作是「修好能自動修的」，剩下的（例如 CLAUDE.md 被塞進規則）

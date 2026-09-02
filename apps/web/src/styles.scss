@@ -157,6 +157,42 @@
   --transition-fast: 0.12s ease;
 }
 
+/* =============================================================================
+   觸控目標尺寸（手機優先的第一塊地基）
+
+   2026-09 使用者裁定全站改成手機優先。PrimeNG Aura 的預設值是給滑鼠用的：
+   小按鈕實測 **34px** 高、icon-only 小按鈕 **36×36**、一般按鈕 41px ——
+   全部低於 44px 的觸控門檻（WCAG 2.5.5 / Apple HIG）。
+
+   **用 `pointer: coarse` 而不是視窗寬度**，因為要問的是「這東西被什麼操作」，
+   不是「視窗多寬」。桌機開一個窄視窗不需要 44px；平板再寬也需要。
+
+   **這樣桌機完全不受影響** —— 手機優先不等於桌機劣化。
+
+   每一個變數都在活的頁面上用 `getComputedStyle` 確認存在過（2026-09-02）。
+   `--p-togglebutton-padding-y` 與 `--p-checkbox-*` **不存在**，所以沒寫 ——
+   幽靈 token 不會有任何錯誤訊號，只會靜靜地什麼都不做。
+   ============================================================================= */
+@media (pointer: coarse) {
+  :root {
+    /* 34px → 44px：11 + 11 + 20（14px 字的行高）+ 2（框） */
+    --p-button-sm-padding-y: 0.6875rem;
+    /* 41px → 45px */
+    --p-button-padding-y: 0.625rem;
+    --p-button-sm-icon-only-width: 2.75rem;
+    --p-button-icon-only-width: 2.75rem;
+
+    /* 表單控制項也是手指要點的東西，同一個門檻 */
+    --p-select-sm-padding-y: 0.6875rem;
+    --p-select-padding-y: 0.625rem;
+    --p-inputtext-sm-padding-y: 0.6875rem;
+    --p-inputtext-padding-y: 0.625rem;
+    --p-multiselect-sm-padding-y: 0.6875rem;
+    --p-multiselect-padding-y: 0.625rem;
+    --p-datepicker-dropdown-width: 2.75rem;
+  }
+}
+
 *,
 *::before,
 *::after {
@@ -240,6 +276,16 @@ select {
 .clessia-filter-bar .p-button {
   min-height: 38px;
   font-size: var(--text-md);
+}
+
+/* 這條 38px 的硬底會蓋過上面的 token 覆寫，所以觸控下要一起抬 */
+@media (pointer: coarse) {
+  .clessia-filter-bar .p-select,
+  .clessia-filter-bar .p-multiselect,
+  .clessia-filter-bar .p-datepicker .p-inputtext,
+  .clessia-filter-bar .p-button {
+    min-height: 44px;
+  }
 }
 
 .clessia-filter-bar .p-select-label,

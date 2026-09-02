@@ -16,6 +16,7 @@ import { missingUserSkills } from './lib/user-skills.mjs';
 import { matchWriteRules, routeHints } from './lib/rules.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
+import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 import routerRules from './rules/doc-router.rules.json' with { type: 'json' };
 import { compareToBaseline, failingSpecs } from './test-gate.mjs';
@@ -497,4 +498,52 @@ test('對比掃描：算不出來的值一律跳過，不猜', () => {
 `),
     [],
   );
+});
+
+
+// ── 手機優先的 ratchet ───────────────────────────────────────────────────────
+// 守的是「桌機優先的寫法只准變少」。這支 gate 的紅綠判定單位是**檔案**不是次數，
+// 因為遷移的單位是檔案 —— 一支檔案改到一半沒有意義。
+
+test('手機優先：抓得到 respond-to，放過 respond-from', () => {
+  assert.deepEqual(
+    desktopFirstFiles([
+      { path: 'a.scss', source: "@include bp.respond-to('mobile') { color: red; }" },
+      { path: 'b.scss', source: "@include bp.respond-from('mobile') { color: red; }" },
+      { path: 'c.scss', source: '.x { color: red; }' },
+    ]),
+    ['a.scss'],
+  );
+});
+
+test('手機優先：respond-to-container 也算桌機優先', () => {
+  assert.deepEqual(
+    desktopFirstFiles([
+      { path: 'a.scss', source: "@include bp.respond-to-container(main, 'mobile') { color: red; }" },
+    ]),
+    ['a.scss'],
+  );
+});
+
+// 這條是給正則的 `g` flag 留的防線：`g` 的 lastIndex 有狀態，
+// 沿用同一個實例跑第二個檔案會從上一次的位置繼續找 —— 症狀是**間歇性漏報**，
+// 而漏報的 gate 看起來跟通過的 gate 一模一樣。
+test('手機優先：連續多檔不會因為正則的 lastIndex 而漏報', () => {
+  const many = Array.from({ length: 5 }, (_, i) => ({
+    path: `f${i}.scss`,
+    source: "@include bp.respond-to('mobile') { color: red; }",
+  }));
+  assert.equal(desktopFirstFiles(many).length, 5);
+});
+
+test('手機優先：沒有斷點的檔案不算違規（它是另一個問題）', () => {
+  assert.deepEqual(desktopFirstFiles([{ path: 'a.scss', source: '.x { display: flex; }' }]), []);
+});
+
+test('手機優先：countDesktopFirst 數的是次數，給人看規模用', () => {
+  assert.equal(
+    countDesktopFirst("@include bp.respond-to('mobile'){} @include bp.respond-to('desktop'){}"),
+    2,
+  );
+  assert.equal(countDesktopFirst("@include bp.respond-from('mobile'){}"), 0);
 });
