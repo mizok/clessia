@@ -22,6 +22,15 @@
       </div>
     }
 
+    <!-- 未儲存的**急迫性放在這裡**，不是放在每一格上。
+         每一格只需要說「這一格是我剛改的」（列首的近黑邊），
+         「你還有幾筆沒存」是整批的事。 -->
+    @if (dirtyCount() > 0) {
+      <p class="academy-score-editor__unsaved">
+        <strong>{{ dirtyCount() }}</strong> 筆未儲存
+      </p>
+    }
+
     @if (filteredRows().length === 0) {
       <div class="academy-score-editor__empty">
         <i class="pi pi-users"></i>
