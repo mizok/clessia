@@ -92,7 +92,10 @@ app.openapi(
           recorded_by: userId,
           recorded_by_role: 'system',
         })),
-        { onConflict: 'student_id,event_id', ignoreDuplicates: false },
+        // **只補沒有的，不動已經存在的。** 掃碼是機器讀到一張卡，不該推翻老師的判斷 ——
+        // 老師改成缺席、學生事後補掃，原本會被改回 present 而且不留痕跡。
+        // 掃碼寫的永遠是 `present`，所以「跳過已存在的」不會漏掉任何資訊。
+        { onConflict: 'student_id,event_id', ignoreDuplicates: true },
       );
     }
 

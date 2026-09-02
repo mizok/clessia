@@ -4,6 +4,7 @@ import type { AppEnv } from '../index';
 import { isAttendanceEditable } from '../lib/attendance-window';
 import { isSubstituteSession } from '../lib/session-substitute';
 import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
+import { resolveRecordedByRole } from '../lib/recorded-by-role';
 import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 
@@ -524,7 +525,7 @@ app.openapi(
         status: body.status,
         note: body.note ?? null,
         recorded_by: userId,
-        recorded_by_role: 'admin',
+        recorded_by_role: resolveRecordedByRole(c.get('roles') ?? []),
       })
       .select(
         '*, students(name), events(event_date, start_time, end_time, campus_id, campuses(name), sessions(classes(name, courses(name))))',
@@ -659,7 +660,7 @@ app.openapi(
       student_id: u.studentId,
       status: u.status,
       recorded_by: userId,
-      recorded_by_role: 'admin',
+      recorded_by_role: resolveRecordedByRole(c.get('roles') ?? []),
     }));
 
     const { error: upsertError } = await supabase
@@ -764,7 +765,10 @@ app.openapi(
       }
     }
 
-    const updates: Record<string, unknown> = { recorded_by: userId, recorded_by_role: 'admin' };
+    const updates: Record<string, unknown> = {
+      recorded_by: userId,
+      recorded_by_role: resolveRecordedByRole(c.get('roles') ?? []),
+    };
     if (body.status !== undefined) updates['status'] = body.status;
     if (body.note !== undefined) updates['note'] = body.note;
 
