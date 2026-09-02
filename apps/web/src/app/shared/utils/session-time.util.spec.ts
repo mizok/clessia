@@ -1,4 +1,9 @@
-import { hasSessionEnded, todayLocal, type SessionTimeLike } from './session-time.util';
+import {
+  hasSessionEnded,
+  hasSessionStarted,
+  todayLocal,
+  type SessionTimeLike,
+} from './session-time.util';
 
 function session(overrides: Partial<SessionTimeLike> = {}): SessionTimeLike {
   return { date: '2026-08-30', startTime: '09:00', endTime: '11:00', ...overrides };
@@ -119,5 +124,43 @@ describe('todayLocal', () => {
       // UTC 或西半球：這一刻兩者可能相同，這條就沒有鑑別力
       expect(todayLocal(localMidnightish)).toBe('2026-08-31');
     }
+  });
+});
+
+describe('hasSessionStarted', () => {
+  const NOW = new Date(2026, 7, 31, 12, 0); // 本地 2026-08-31 中午
+
+  it('今天稍早開始的課算已開始', () => {
+    expect(
+      hasSessionStarted({ date: '2026-08-31', startTime: '09:00', endTime: '11:00' }, NOW),
+    ).toBe(true);
+  });
+
+  it('今天稍晚才開始的課還沒開始', () => {
+    expect(
+      hasSessionStarted({ date: '2026-08-31', startTime: '19:00', endTime: '21:00' }, NOW),
+    ).toBe(false);
+  });
+
+  it('明天的課還沒開始', () => {
+    expect(
+      hasSessionStarted({ date: '2026-09-01', startTime: '09:00', endTime: '11:00' }, NOW),
+    ).toBe(false);
+  });
+
+  // 這一條是刻意的保守方向，不要因為「呼叫端型別保證有值」就拿掉 ——
+  // 型別是唯一一種會被別人的改動悄悄放寬的防線
+  it('沒有開始時間就當成還沒開始 —— 寧可漏標也不要誤標', () => {
+    expect(hasSessionStarted({ date: '2026-08-30', startTime: null, endTime: null }, NOW)).toBe(
+      false,
+    );
+  });
+
+  it('跟 teacher dashboard 那支同名概念的 null 行為相反，那是兩個函式不是重複', () => {
+    // teacher 的 hasStarted：!startTime → true（「算不算進行中」寧可算進去）
+    // 這一支：!startTime → false（「該做卻沒做」寧可漏標）
+    expect(hasSessionStarted({ date: '2026-08-30', startTime: null, endTime: null }, NOW)).toBe(
+      false,
+    );
   });
 });

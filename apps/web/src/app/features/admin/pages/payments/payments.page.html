@@ -96,7 +96,12 @@
           title="沒有這個狀態的帳單"
           description="換一個狀態，或清除篩選看全部"
         >
-          <p-button label="清除篩選" [text]="true" severity="secondary" (onClick)="clearFilters()" />
+          <p-button
+            label="清除篩選"
+            [text]="true"
+            severity="secondary"
+            (onClick)="clearFilters()"
+          />
         </app-empty-state>
       } @else {
         <app-empty-state
@@ -170,19 +175,17 @@
             </td>
             <td appRtColCell="status">
               <div class="payments__status">
-                <p-tag
-                  [value]="INVOICE_STATUS_LABELS[invoice.status]"
-                  [severity]="statusSeverity(invoice)"
-                />
+                <app-status-dot [tone]="statusTone(invoice)">{{
+                  INVOICE_STATUS_LABELS[invoice.status]
+                }}</app-status-dot>
                 @if (isOverdue(invoice)) {
-                  <p-tag value="逾期" severity="danger" [rounded]="true" />
+                  <app-status-dot tone="overdue">逾期</app-status-dot>
                 }
               </div>
             </td>
           </tr>
         }
       </ng-template>
-
     }
   </div>
 </div>

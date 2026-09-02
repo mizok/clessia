@@ -193,43 +193,62 @@ describe('SessionListComponent', () => {
     const tomorrow = '2026-09-01';
     const yesterday = '2026-08-30';
 
-    const severity = (overrides: Partial<Session>) =>
-      component['attendanceStatusSeverity']({ ...base, ...overrides }, NOW);
+    const tone = (overrides: Partial<Session>) =>
+      component['attendanceStatusTone']({ ...base, ...overrides }, NOW);
 
-    it('上完了卻沒點名是警示 —— 這是這次修的東西', () => {
-      expect(severity({ sessionDate: yesterday, attendanceTakenAt: null })).toBe('warn');
+    it('上完了卻沒點名是積欠 —— 這是這次修的東西', () => {
+      expect(tone({ sessionDate: yesterday, attendanceTakenAt: null })).toBe('overdue');
     });
 
     it('點過名就是成功，不管多久以前', () => {
-      expect(
-        severity({ sessionDate: yesterday, attendanceTakenAt: '2026-03-09T11:05:00Z' }),
-      ).toBe('success');
+      expect(tone({ sessionDate: yesterday, attendanceTakenAt: '2026-03-09T11:05:00Z' })).toBe(
+        'done',
+      );
     });
 
     it('停課的課不催點名', () => {
-      expect(severity({ sessionDate: yesterday, status: 'cancelled' })).toBe('secondary');
+      expect(tone({ sessionDate: yesterday, status: 'cancelled' })).toBe('inactive');
     });
 
-    it('明天的課是中性的', () => {
-      expect(severity({ sessionDate: tomorrow, attendanceTakenAt: null })).toBe('secondary');
+    it('明天的課是中性的 —— 還在等，不該有色相', () => {
+      expect(tone({ sessionDate: tomorrow, attendanceTakenAt: null })).toBe('pending');
     });
 
     // 舊版只比日期，今天晚上七點的課早上八點就被標成該點名而沒點
     it('今天稍晚才上的課是中性的，不是警示', () => {
       expect(
-        severity({
+        tone({
           sessionDate: today,
           startTime: '23:30',
           endTime: '23:59',
           attendanceTakenAt: null,
         }),
-      ).toBe('secondary');
+      ).toBe('pending');
+    });
+
+    // ── 未指派：這一刀新加的時間維度 ──────────────────────────────────
+    it('未指派 —— 課還沒開始只是還沒輪到', () => {
+      const t = component['unassignedTone'](
+        { ...base, sessionDate: tomorrow, startTime: '09:00', endTime: '11:00' },
+        NOW,
+      );
+
+      expect(t).toBe('pending');
+    });
+
+    it('未指派 —— 課都開始了還沒指派才是積欠', () => {
+      const t = component['unassignedTone'](
+        { ...base, sessionDate: yesterday, startTime: '09:00', endTime: '11:00' },
+        NOW,
+      );
+
+      expect(t).toBe('overdue');
     });
 
     // status 從來沒有被寫成 'completed'，所以它不該再影響顏色
     it('不再依賴 status === completed（那是死碼）', () => {
-      expect(severity({ sessionDate: yesterday, status: 'completed', attendanceTakenAt: null })).toBe(
-        severity({ sessionDate: yesterday, status: 'scheduled', attendanceTakenAt: null }),
+      expect(tone({ sessionDate: yesterday, status: 'completed', attendanceTakenAt: null })).toBe(
+        tone({ sessionDate: yesterday, status: 'scheduled', attendanceTakenAt: null }),
       );
     });
   });

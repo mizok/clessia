@@ -234,15 +234,16 @@ describe('PaymentsPage', () => {
 
   describe('狀態顏色', () => {
     it('繳清是綠的', () => {
-      expect(component['statusSeverity'](invoice({ status: 'paid' }))).toBe('success');
+      expect(component['statusTone'](invoice({ status: 'paid' }))).toBe('done');
     });
 
     it('部分繳是黃的', () => {
-      expect(component['statusSeverity'](invoice({ status: 'partial' }))).toBe('warn');
+      // 部分繳仍然是「還在等」—— 逾期與否由旁邊那顆獨立標記說，不塞進這裡
+      expect(component['statusTone'](invoice({ status: 'partial' }))).toBe('pending');
     });
 
     it('未繳是紅的', () => {
-      expect(component['statusSeverity'](invoice({ status: 'unpaid' }))).toBe('danger');
+      expect(component['statusTone'](invoice({ status: 'unpaid' }))).toBe('pending');
     });
   });
 

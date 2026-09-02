@@ -266,10 +266,9 @@
                 >
               </div>
               <div class="student-detail__enrollment-right">
-                <p-tag
-                  [value]="ENROLLMENT_STATUS_LABELS[enrollment.status]"
-                  [severity]="enrollment.status === 'active' ? 'success' : 'warn'"
-                />
+                <app-status-dot [tone]="enrollmentTone(enrollment.status)">{{
+                  ENROLLMENT_STATUS_LABELS[enrollment.status]
+                }}</app-status-dot>
                 <i class="pi pi-chevron-right student-detail__enrollment-arrow"></i>
               </div>
             </div>

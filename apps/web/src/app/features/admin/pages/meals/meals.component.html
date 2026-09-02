@@ -80,8 +80,8 @@
       <p class="meals__summary">
         這段期間 <strong>{{ summary()?.total ?? 0 }}</strong> 筆餐記錄，其中
         <strong>{{ summary()?.chargeableCount ?? 0 }}</strong> 筆要收費，合計
-        <strong>{{ summary()?.totalAmount ?? 0 | number }}</strong> 元
-        （含已結算的 {{ summary()?.settledCount ?? 0 }} 筆）。
+        <strong>{{ summary()?.totalAmount ?? 0 | number }}</strong> 元 （含已結算的
+        {{ summary()?.settledCount ?? 0 }} 筆）。
       </p>
     } @else {
       <p class="meals__summary">
@@ -89,9 +89,7 @@
         <strong>{{ totals().chargeable }}</strong> 份要收費，合計
         <strong>{{ totals().amount | number }}</strong> 元。
         @if (settledCount() > 0) {
-          <span class="meals__summary-locked">
-            （{{ settledCount() }} 筆已結算，鎖住不能改）
-          </span>
+          <span class="meals__summary-locked"> （{{ settledCount() }} 筆已結算，鎖住不能改） </span>
         }
       </p>
     }
@@ -133,7 +131,9 @@
           }
           <th appRtColDef="student" [appRtColDefMinWidth]="140" [appRtColDefPriority]="1">學生</th>
           @if (!isRange()) {
-            <th appRtColDef="classes" [appRtColDefMinWidth]="140" [appRtColDefPriority]="4">班級</th>
+            <th appRtColDef="classes" [appRtColDefMinWidth]="140" [appRtColDefPriority]="4">
+              班級
+            </th>
           }
           <th appRtColDef="ordered" [appRtColDefMinWidth]="80" [appRtColDefPriority]="1">訂餐</th>
           <th appRtColDef="price" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">單價</th>
@@ -206,17 +206,16 @@
             </td>
             <td appRtColCell="state">
               @if (row.settled) {
-                <p-tag
-                  value="已結算"
-                  severity="secondary"
-                  icon="pi pi-lock"
+                <app-status-dot
+                  tone="done"
                   pTooltip="已經開進帳單。要改得走帳單作廢或下期調整"
                   tooltipPosition="left"
-                />
+                  >已結算</app-status-dot
+                >
               } @else if (row.recordId === null) {
-                <p-tag value="未處理" severity="warn" />
+                <app-status-dot [tone]="unhandledTone()">未處理</app-status-dot>
               } @else {
-                <p-tag value="已確認" severity="success" />
+                <app-status-dot tone="done">已確認</app-status-dot>
               }
             </td>
           </tr>
@@ -224,19 +223,18 @@
       </ng-template>
 
       @if (!isRange()) {
-      <div class="meals__actions">
-        <span class="meals__hint">
-          「收不收費」是人工判斷 —— 便當送到了才請假要不要收，由你決定，系統不自動判斷。
-        </span>
-        <p-button
-          label="確認名單"
-          icon="pi pi-save"
-          [loading]="saving()"
-          [disabled]="overBatchLimit()"
-          (onClick)="save()"
-        />
-      </div>
-
+        <div class="meals__actions">
+          <span class="meals__hint">
+            「收不收費」是人工判斷 —— 便當送到了才請假要不要收，由你決定，系統不自動判斷。
+          </span>
+          <p-button
+            label="確認名單"
+            icon="pi pi-save"
+            [loading]="saving()"
+            [disabled]="overBatchLimit()"
+            (onClick)="save()"
+          />
+        </div>
       }
 
       @if (!isRange() && overBatchLimit()) {
