@@ -196,7 +196,9 @@ describe('SchoolExamFormDialogComponent', () => {
 
     component['goToSchools']();
     expect(dialogRefMock.close).toHaveBeenCalled();
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/admin/schools']);
+    // 路徑從 RoutesCatalog 來，不是字面值 —— 學校頁搬進 /admin/settings 之後
+    // 字面值那版只會被 redirect 接住（繞一圈），而且沒有任何 gate 會提醒
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/admin/settings/schools']);
   });
 
   it('edit mode locks metadata and only updates examDate/name', async () => {

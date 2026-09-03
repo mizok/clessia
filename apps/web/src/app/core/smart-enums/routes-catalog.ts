@@ -315,33 +315,10 @@ export class RoutesCatalog {
   );
 
   // Group: 系統設定
-  public static readonly ADMIN_CAMPUSES = this.register(
-    'campuses',
-    '/admin/campuses',
-    '分校設定',
-    UserType.ADMIN,
-    'pi-building',
-    true,
-    NavigationGroup.ADMIN_SETTINGS,
-  );
-  public static readonly ADMIN_SCHOOLS = this.register(
-    'schools',
-    '/admin/schools',
-    '學校管理',
-    UserType.ADMIN,
-    'pi-building-columns',
-    true,
-    NavigationGroup.ADMIN_SETTINGS,
-  );
-  public static readonly ADMIN_SUBJECTS = this.register(
-    'subjects',
-    '/admin/subjects',
-    '科目管理',
-    UserType.ADMIN,
-    'pi-tag',
-    true,
-    NavigationGroup.ADMIN_SETTINGS,
-  );
+  //
+  // 分校 / 學校 / 科目 / 一般收在 `/admin/settings` 底下當四個 tab，側欄只留一項。
+  // 四個子項 `showInMenu = false` —— 它們仍然是有效路由（tab 切換、直接打網址、
+  // 書籤都到得了），只是不各自佔一格選單。舊網址在 `app.routes.ts` 有 redirect。
   public static readonly ADMIN_SETTINGS = this.register(
     'settings',
     '/admin/settings',
@@ -349,6 +326,42 @@ export class RoutesCatalog {
     UserType.ADMIN,
     'pi-cog',
     true,
+    NavigationGroup.ADMIN_SETTINGS,
+  );
+  public static readonly ADMIN_CAMPUSES = this.register(
+    'campuses',
+    '/admin/settings/campuses',
+    '分校設定',
+    UserType.ADMIN,
+    'pi-building',
+    false,
+    NavigationGroup.ADMIN_SETTINGS,
+  );
+  public static readonly ADMIN_SCHOOLS = this.register(
+    'schools',
+    '/admin/settings/schools',
+    '學校管理',
+    UserType.ADMIN,
+    'pi-building-columns',
+    false,
+    NavigationGroup.ADMIN_SETTINGS,
+  );
+  public static readonly ADMIN_SUBJECTS = this.register(
+    'subjects',
+    '/admin/settings/subjects',
+    '科目管理',
+    UserType.ADMIN,
+    'pi-tag',
+    false,
+    NavigationGroup.ADMIN_SETTINGS,
+  );
+  public static readonly ADMIN_SETTINGS_GENERAL = this.register(
+    'general',
+    '/admin/settings/general',
+    '一般設定',
+    UserType.ADMIN,
+    'pi-cog',
+    false,
     NavigationGroup.ADMIN_SETTINGS,
   );
 
