@@ -297,8 +297,22 @@ describe('StudentPickerDialogComponent', () => {
       );
     });
 
-    it('全都開成功就關閉，並回報開了幾張', () => {
-      pickWithBilling('student-1')['confirm']();
+    // 原本開完就關閉，只留一個 toast 摘要 —— 誰已在班、誰失敗一個字都看不到
+    it('開完停在結果頁，不自己關閉', () => {
+      const c = pickWithBilling('student-1');
+
+      c['confirm']();
+
+      expect(c['step']()).toBe('result');
+      expect(c['invoicesCreated']()).toBe(1);
+      expect(dialogRefMock.close).not.toHaveBeenCalled();
+    });
+
+    it('按完成才關閉，並把開了幾張一起回報', () => {
+      const c = pickWithBilling('student-1');
+      c['confirm']();
+
+      c['closeWithResult']();
 
       expect(dialogRefMock.close).toHaveBeenCalledWith(
         expect.objectContaining({ invoicesCreated: 1 }),
@@ -371,11 +385,96 @@ describe('StudentPickerDialogComponent', () => {
       const c = pickWithBilling('student-1');
       c['confirm']();
 
-      c['closeWithPartialResult']();
+      c['closeWithResult']();
 
       expect(dialogRefMock.close).toHaveBeenCalledWith(
         expect.objectContaining({ results: expect.any(Array) }),
       );
+    });
+  });
+
+  // 沒勾立即開帳的批次，原本就這樣走掉了 —— 要開帳得切到繳費頁把那 30 個人再找一次
+  describe('結果頁的補開帳入口', () => {
+    function pickManyNoInvoice() {
+      const c = pick('student-1', 'student-2');
+      c['updateBilling']('feeTemplateId', 'ft-1');
+      c['onIssueInvoiceChange'](false);
+      enrollmentsServiceMock.batchCreate.mockReturnValue(
+        of({
+          results: [
+            { studentId: 'student-1', status: 'enrolled', enrollmentId: 'e1' },
+            { studentId: 'student-2', status: 'already_exists', enrollmentId: undefined },
+          ],
+        }) as never,
+      );
+      return c;
+    }
+
+    it('沒勾開帳也停在結果頁，不直接關掉', () => {
+      const c = pickManyNoInvoice();
+
+      c['confirm']();
+
+      expect(c['step']()).toBe('result');
+      expect(invoicesServiceMock.create).not.toHaveBeenCalled();
+      expect(dialogRefMock.close).not.toHaveBeenCalled();
+    });
+
+    // 已在班的那個不算 —— 他本來就有報名，不該被這批開帳
+    it('待開帳的數量只算這批真的加進去的人', () => {
+      const c = pickManyNoInvoice();
+      c['confirm']();
+
+      expect(c['uninvoicedCount']()).toBe(1);
+      expect(c['alreadyExistsCount']()).toBe(1);
+    });
+
+    it('按「為這 N 筆開帳」就地補開', () => {
+      const c = pickManyNoInvoice();
+      c['confirm']();
+
+      c['issueRemaining']();
+
+      expect(invoicesServiceMock.create).toHaveBeenCalledTimes(1);
+      expect(invoicesServiceMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({ studentId: 'student-1' }),
+      );
+      expect(c['uninvoicedCount']()).toBe(0);
+    });
+
+    it('開過的人不會被開第二張', () => {
+      const c = pickManyNoInvoice();
+      c['confirm']();
+      c['issueRemaining']();
+      invoicesServiceMock.create.mockClear();
+
+      c['issueRemaining']();
+
+      expect(invoicesServiceMock.create).not.toHaveBeenCalled();
+    });
+
+    // 沒有價目表也沒有議定金額時，開帳的金額會是猜的
+    it('沒有金額可用時不開帳，說出為什麼', () => {
+      const c = pick('student-1');
+      c['onIssueInvoiceChange'](false);
+      c['confirm']();
+
+      c['issueRemaining']();
+
+      expect(invoicesServiceMock.create).not.toHaveBeenCalled();
+      expect(c['notice']()).toContain('價目表');
+    });
+
+    it('逐列說出這個人怎麼了', () => {
+      const c = pickManyNoInvoice();
+      c['confirm']();
+
+      expect(c['resultLabel']('student-1')).toBe('已加入');
+      expect(c['resultLabel']('student-2')).toBe('已在班上，略過');
+
+      c['issueRemaining']();
+
+      expect(c['resultLabel']('student-1')).toBe('已加入 · 帳單已開');
     });
   });
 });

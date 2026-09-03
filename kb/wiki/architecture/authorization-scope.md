@@ -119,11 +119,22 @@ school-exams、contact-book、class-logs，以及 `/api/attendance/sessions` 的
 | 4 老師只擋讀不擋寫   | **已修**     | `lib/attendance-write-scope.ts`，接在三支寫入端點                                                          |
 | 5 分校零隔離         | **地基完成** | `campusScope` 掛 middleware、`all_campuses` 權限、migration、全域 `campusRequestGuard`（指名別的分校 403） |
 
-**洞 5 剩下的**：「不指定分校時只回自己的分校」要逐路由過濾，還有 14 支
-（`academy-exams`、`announcements`、`attendance`、`campuses`、`classes`、`courses`、
-`daily-checkins`、`enrollments`、`leaves`、`reports`、`school-exams`、`sessions`、
-`staff`、`students`）。harness 的 A7c 每次會把還沒接的列出來 —— **這筆欠債是看得見的，
-不是隱形的**，那正是這一頁一開始反對「在單一功能裡自己做一半」的理由。
+**洞 5 已完成**：14 支路由全部接上「不指定分校時只回自己的分校」，
+harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一個洞就不會是「還沒做完」
+而是「新路由忘了接」，而那種洞是靜默的（查詢正常回應，只是回了不該看的資料）。
+
+接線時順帶修掉／發現的三件：
+
+1. **`leaves.ts` 收 `campusId` 但從來沒用它過濾** —— 連解構都沒有。前端傳了沒有效果，
+   也沒有任何錯誤，是靜默無效的參數
+2. **`daily-checkins.ts` 的分校在 body 裡**，全域的 `campusRequestGuard` 讀不到
+   （它只看 query string）。少了那一段，只管 A 校的人可以替 B 校的學生打卡
+3. **`ensureAttendanceSessionEvents` 會寫入**（補建出勤事件），所以範圍不能只靠讀取端
+   過濾 —— 少了它，A 校的管理員查詢時會替 B 校的課堂建立 event
+
+**`reports.ts` 的判準與其他不同**：篩選是「沾到就算」（跨班帳單沾到這個分校就進來），
+**範圍是「沾到就不能看」** —— 一張帳單只要有任何一筆明細在範圍外，受限的管理員就
+看不到它。否則跨校帳單會變成看見別校金額的側管道。
 
 ### 實作時修正的設計：權限只擋寫，不擋讀
 
