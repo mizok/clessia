@@ -62,15 +62,17 @@ c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因�
 2. test-baseline.json 3 個既有紅燈分診(清一支移一支,先報告)
 3. (billing-api) roster 補 leaveStartDate 聚合值 —— 讓銷假事前警告從「可能」變「將」(#213 的需求單)
 
-## 下週期補貨(斷點前落檔 2026-09-03 14:0x)
+## 下週期補貨(2026-09-03 斷點落檔)—— **全數完成,清單見 git history**
 
-- (teacher-pages) 公開 shell 頁尾四連結 23px → 44px(一個元件全解,未登入使用者唯一導覽)
-- (teacher-pages) select-role 單角色文案矛盾(「多個身分」但只有一項)
-- (infra) 44px gate 邊界:納入公開 shell / 排除 1×1 focus sentinel / qr-checkin 標「空殼假綠,實作後重量」
-- (design-web) 作業台第二刀:換 GET /api/workbench/today + 日到班形狀(骨架 PR 已出)
-- (billing-api) #215 解衝突(#209 合後)
-- (admin-pages) B3 第三片:待開帳清單(hasInvoice=false API 已備)
-- (admin-pages) 期繳試算:收費週期選單(子元件已抽好)
-- (admin-pages) charter 蒸餾:git add -A 在切過分支的工作區不安全 / 測行為不測實作
-- (design-web) #235 解衝突(dashboard.component.ts 撞 #226/#224)後由 steward 合
-- (design-web-2) #230(殼與導覽手機優先批)CI 紅修復 + #220 rebase
+## 現行補貨(2026-09-04 凌晨)
+
+- (infra) Docker/supabase 回復(`npm run db:start`)—— teacher-pages 等它補實機驗證 [已派]
+- (infra) admin 剩餘 17 筆 44px 觸控債分診:base 44 vs 兩層寫法(#250 已解鎖),清單交計畫席 [已派]
+- (infra) **雙軌表格 ratchet gate**:掃「斷點內 display:none 掉 __table-wrap」結構訊號,
+  現有 4 支(成績區)進 baseline,擋新增的手刻手機版 —— 讓未來表格自然走 responsive-table
+- (design-web-2) 對比債 10 筆殲滅戰:歸零或轉永久豁免+why [已派]
+- (design-web-2) admin 17 筆觸控債實作(等 infra 分診單)
+- (admin-pages) academy-score-editor 輸入格標不及格形狀訊號(icon+aria,低於門檻才現;
+  design-web 的 a11y 修復刀刻意留下的獨立小刀)
+- (teacher-pages) 前端接 read-all bulk API + 驗銷假警告「將」(見 teacher-pages 欄)
+- (design-web) 成績區 a11y 漂移修復 PR(手機卡片補形狀訊號)+ #257 報告第三次修正
