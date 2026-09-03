@@ -8,8 +8,6 @@ import { SelectModule } from 'primeng/select';
 import { SkeletonModule } from 'primeng/skeleton';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
-import { InputNumberModule } from 'primeng/inputnumber';
-import { TextareaModule } from 'primeng/textarea';
 import { CheckboxModule } from 'primeng/checkbox';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import {
@@ -22,21 +20,21 @@ import {
 import {
   EnrollmentsService,
   type BatchCreateResult,
+  type ProrationPreview,
   type ScheduleConflictWarning,
 } from '@core/enrollments.service';
 import { FeeTemplatesService, type FeeTemplate } from '@core/fee-templates.service';
 import { InvoicesService } from '@core/invoices.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import { personHue } from '@shared/utils/person-hue.util';
+import { EnrollmentBillingFieldsComponent } from '../enrollment-billing-fields/enrollment-billing-fields.component';
+import { todayLocal } from '@shared/utils/session-time.util';
 
 import {
-  billingModeOptions,
   emptyBillingDraft,
-  feeTemplateOptions,
   findTemplate,
   isAdjusted,
   payableAmount,
-  pricingHint,
   type BillingDraft,
 } from '../enrollment-billing.util';
 
@@ -51,10 +49,9 @@ import {
     SkeletonModule,
     IconFieldModule,
     InputIconModule,
-    InputNumberModule,
-    TextareaModule,
     CheckboxModule,
     InlineNoticeComponent,
+    EnrollmentBillingFieldsComponent,
   ],
   templateUrl: './student-picker-dialog.component.html',
   styleUrl: './student-picker-dialog.component.scss',
@@ -89,20 +86,68 @@ export class StudentPickerDialogComponent implements OnInit {
 
   protected readonly templates = signal<FeeTemplate[]>([]);
   protected readonly billing = signal<BillingDraft>(emptyBillingDraft());
-  protected readonly billingModeOptions = billingModeOptions();
-  protected readonly templateOptions = computed(() => feeTemplateOptions(this.templates()));
-
   private readonly selectedTemplate = computed(() =>
     findTemplate(this.templates(), this.billing().feeTemplateId),
   );
 
-  protected readonly pricingHint = computed(() => pricingHint(this.selectedTemplate()));
-
+  /** 送出前的驗證要用 —— 顯示由 `app-enrollment-billing-fields` 自己判斷 */
   protected readonly isAdjusted = computed(() =>
     isAdjusted(this.billing().agreedAmount, this.selectedTemplate()),
   );
 
   protected readonly payable = computed(() => payableAmount(this.billing(), this.templates()));
+
+  /**
+   * 期中插班的比例試算。**只在月繳模式自動算** —— 期繳要指定是哪一段收費週期
+   * （`billing_periods` 是期繳專用的表），那是一個額外的選單，留給下一片；
+   * 堂數制按堂不按天，本來就沒有比例可言。
+   *
+   * 算法跟月結批次共用後端的 `prorateByDays`，所以這裡看到的數字跟隔天真的開出來的
+   * 帳單對得起來 —— 兩邊各算一次的話，哪天不一樣沒有人會知道。
+   */
+  protected readonly proration = signal<ProrationPreview | null>(null);
+  protected readonly prorating = signal(false);
+
+  private refreshProration(): void {
+    const draft = this.billing();
+    const canPreview =
+      draft.billingMode === 'monthly' &&
+      (draft.feeTemplateId !== null || draft.agreedAmount !== null);
+
+    if (!canPreview) {
+      this.proration.set(null);
+      return;
+    }
+
+    this.prorating.set(true);
+    this.enrollmentsService
+      .prorationPreview({
+        periodMonth: todayLocal().slice(0, 7),
+        effectiveFrom: todayLocal(),
+        feeTemplateId: draft.feeTemplateId ?? undefined,
+        agreedAmount: draft.agreedAmount ?? undefined,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.prorating.set(false);
+          // 整期都在讀時 note 是 null —— 那時候沒有東西要解釋，也就不必顯示
+          this.proration.set(res.note ? res : null);
+        },
+        // 試算失敗不擋報名 —— 它是建議值不是前提
+        error: () => {
+          this.prorating.set(false);
+          this.proration.set(null);
+        },
+      });
+  }
+
+  /** 把試算金額填進議定金額 —— 規則 5.2：試算是**建議值**，填進去之後照樣可以改 */
+  protected applyProration(): void {
+    const amount = this.proration()?.amount;
+    if (amount === undefined) return;
+    this.updateBilling('agreedAmount', amount);
+  }
 
   /**
    * 立即開帳的預設值 **看選了幾個人**。
@@ -247,6 +292,15 @@ export class StudentPickerDialogComponent implements OnInit {
 
   protected updateBilling<K extends keyof BillingDraft>(field: K, value: BillingDraft[K]): void {
     this.billing.update((draft) => ({ ...draft, [field]: value }));
+  }
+
+  protected onBillingChange(next: BillingDraft): void {
+    const prev = this.billing();
+    this.billing.set(next);
+    // 金額與原因不重算 —— 前者會變成「填了試算值 → 觸發試算 → 又填」的迴圈
+    if (next.billingMode !== prev.billingMode || next.feeTemplateId !== prev.feeTemplateId) {
+      this.refreshProration();
+    }
   }
 
   protected goBack(): void {

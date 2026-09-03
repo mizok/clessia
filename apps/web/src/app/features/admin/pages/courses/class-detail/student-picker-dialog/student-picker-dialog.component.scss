@@ -338,37 +338,6 @@
     background: var(--zinc-50);
   }
 
-  &__billing-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-  }
-
-  // 直接子項而不是 `&__billing-row &__billing-field` —— 這支 SCSS 貼著 6 kB 預算，
-  // 而後者編出來的選擇器長一倍。row 裡面只會放 field
-  &__billing-row > * {
-    flex: 1 1 12rem;
-  }
-
-  &__billing-field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-
-  // label 與 hint 都是 span，inline 本來就同行且 baseline 對齊 —— 不需要 flex
-  &__billing-label {
-    font-size: var(--text-xs);
-    font-weight: var(--font-medium);
-    color: var(--zinc-600);
-  }
-
-  // 定價是參考值，不是使用者填的東西 —— 比標籤淡一階
-  &__billing-hint {
-    font-size: var(--text-xxs);
-    color: var(--zinc-500);
-  }
-
   &__issue {
     // 整個 label 都是點擊區（不只那顆 checkbox），所以它要有觸控下限。
     // 實際高度早就超過 44px（checkbox + 標題 + 副標），這行是把它**講出來** ——

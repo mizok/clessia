@@ -1,0 +1,79 @@
+<div class="billing-fields">
+  <div class="billing-fields__row">
+    <label class="billing-fields__field">
+      <span class="billing-fields__label">計費模式</span>
+      <p-select
+        [options]="billingModeOptions"
+        [ngModel]="draft().billingMode"
+        (ngModelChange)="update('billingMode', $event)"
+        optionLabel="label"
+        optionValue="value"
+        appendTo="body"
+        styleClass="w-full"
+      />
+    </label>
+    <label class="billing-fields__field">
+      <span class="billing-fields__label">價目表</span>
+      <p-select
+        [options]="templateOptions()"
+        [ngModel]="draft().feeTemplateId"
+        (ngModelChange)="update('feeTemplateId', $event)"
+        optionLabel="label"
+        optionValue="value"
+        appendTo="body"
+        styleClass="w-full"
+      />
+    </label>
+  </div>
+
+  <label class="billing-fields__field">
+    <span class="billing-fields__label">
+      議定金額
+      @if (pricingHint()) {
+        <span class="billing-fields__hint">{{ pricingHint() }}</span>
+      }
+    </span>
+    <p-inputnumber
+      [ngModel]="draft().agreedAmount"
+      (ngModelChange)="update('agreedAmount', $event)"
+      mode="currency"
+      currency="TWD"
+      locale="zh-TW"
+      [min]="0"
+      placeholder="留空 = 照價目表定價"
+      styleClass="w-full"
+    />
+  </label>
+
+  @if (proration(); as p) {
+    <!-- 試算的**理由**跟數字一樣重要：只給一個數字沒有人敢改它，
+         而規則 5.2 說試算是建議值、行政本來就可以調 -->
+    <div class="billing-fields__proration">
+      <span class="billing-fields__proration-text">
+        本期試算 <strong>${{ p.amount.toLocaleString() }}</strong>
+        <span class="billing-fields__proration-note">{{ p.note }}</span>
+      </span>
+      <p-button
+        label="套用"
+        size="small"
+        [text]="true"
+        [disabled]="draft().agreedAmount === p.amount"
+        (onClick)="prorationApplied.emit()"
+      />
+    </div>
+  }
+
+  @if (isAdjusted()) {
+    <!-- 折數看老闆當下心情，所以系統不猜原因，只要求寫下來（規則 5.3） -->
+    <label class="billing-fields__field">
+      <span class="billing-fields__label">調整原因（必填）</span>
+      <textarea
+        pTextarea
+        rows="2"
+        [ngModel]="draft().adjustmentNote"
+        (ngModelChange)="update('adjustmentNote', $event)"
+        placeholder="例如：舊生續報九折、兄弟姊妹同期"
+      ></textarea>
+    </label>
+  }
+</div>
