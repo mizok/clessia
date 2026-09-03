@@ -60,7 +60,8 @@ worktree 裡開新分支**一律** `git fetch -p origin && git checkout -b feat/
    就標 draft，等 base 轉成 main 才轉 ready** —— 讓「還不能合」變成 GitHub 擋得住的狀態，
    不是靠人搶時間差。下層合併後上層 base 立刻人工轉 main、下層分支即刪；合併後才推上去的 commit 會在已合併分支上擱淺，
    永遠不會自己變成 PR（#105 事故 —— 手機版兩筆 commit 擱淺，#110 撿回）。
-2. **squash merge 之後，「commit 在不在 main」只能用內容判斷**（grep 關鍵字串），
+2. **squash merge 之後，「commit 在不在 main」只能用內容判斷**（grep 關鍵字串,
+   且**要挑只有那支 PR 會產生的字串** —— 命中別支也會提到的關鍵字,驗證本身就是假的），
    `git merge-base --is-ancestor` 對原始 SHA 永遠回「不在」—— 它在 squash 倉庫裡
    對這個問題永遠給錯的答案。
 
