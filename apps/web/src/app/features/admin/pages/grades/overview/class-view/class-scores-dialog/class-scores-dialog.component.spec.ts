@@ -101,6 +101,43 @@ describe('ClassScoresDialogComponent', () => {
     }).compileComponents();
   });
 
+  /**
+   * **顏色不能是唯一的區分**（WCAG 1.4.1）。
+   *
+   * 這一頁有兩份渲染：桌機表格與手機卡片。桌機那份的不及格一直有
+   * `pi-exclamation-triangle` + `aria-label="不及格"`，而**手機那份只有顏色** ——
+   * 兩份手刻的實作改到後來不一樣了，而且沒有任何錯誤。
+   *
+   * 這條測試釘住的是「兩軌都要有形狀訊號」。修好卻不釘住，它會再漂一次。
+   */
+  it('不及格在桌機與手機兩軌都有形狀訊號，不只顏色', async () => {
+    listMock.mockReturnValue(of({ data: [exam], meta: { total: 1 } }));
+    getClassExamStatsMock.mockReturnValue(
+      of({
+        data: {
+          ...stats,
+          scores: [
+            { studentId: 'stu-1', studentName: '王小明', score: 42, status: 'scored', notes: null },
+          ],
+        },
+      }),
+    );
+
+    fixture = TestBed.createComponent(ClassScoresDialogComponent);
+    component = fixture.componentInstance;
+    component['examScope'].set('all');
+    component['selectedExamId'].set('exam-1');
+    await fixture.whenStable();
+
+    const icons = fixture.nativeElement.querySelectorAll('.class-scores-dialog__fail-icon');
+
+    // 兩軌各一個 —— 表格那一格與卡片那一格
+    expect(icons.length).toBe(2);
+    for (const icon of icons) {
+      expect(icon.getAttribute('aria-label')).toBe('不及格');
+    }
+  });
+
   it('todoOnly: true 時，應以 todo 參數載入考試列表', () => {
     listMock.mockReturnValue(
       of({
