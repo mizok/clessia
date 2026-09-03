@@ -39,9 +39,23 @@ interface EnrollmentRow {
   readonly event: EnrollmentEvent;
 }
 
+import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
+import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
+import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
+import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 @Component({
   selector: 'app-enrollments',
-  imports: [DataChipComponent, DatePipe, FormsModule, SelectModule, PaginatorModule],
+  imports: [
+    ResponsiveTableComponent,
+    RtColDefDirective,
+    RtColCellDirective,
+    RtRowDirective,
+    DataChipComponent,
+    DatePipe,
+    FormsModule,
+    SelectModule,
+    PaginatorModule,
+  ],
   templateUrl: './enrollments.page.html',
   styleUrl: './enrollments.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -106,6 +120,13 @@ export class EnrollmentsPage {
   );
 
   protected readonly first = computed(() => (this.currentPage() - 1) * PAGE_SIZE);
+
+  /** 分頁交給 app-responsive-table 內建的 paginator —— 表格與它的分頁不該被拆開 */
+  protected readonly pagination = computed(() => ({
+    first: this.first(),
+    rows: PAGE_SIZE,
+    totalRecords: this.total(),
+  }));
   protected readonly hasPeriod = computed(() => this.month() !== ALL_MONTHS);
 
   constructor() {

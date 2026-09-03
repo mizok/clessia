@@ -39,46 +39,59 @@
   } @else if (entries().length === 0) {
     <p class="changes__state">這個月沒有課務異動。</p>
   } @else {
-    <div class="changes__table-scroll">
-        <table class="changes__table">
-      <thead>
-        <tr>
-          <th>異動時間</th>
-          <th>類型</th>
-          <th>課堂</th>
-          <th>變更內容</th>
-          <th>操作者</th>
-          <th>原因</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (row of entries(); track row.id) {
-          <tr>
-            <td>{{ row.createdAt | date: 'MM/dd HH:mm' }}</td>
-            <td>
-              <app-data-chip>{{ typeLabel(row.changeType) }}</app-data-chip>
-              @if (row.isBatch) {
-                <app-data-chip>批次</app-data-chip>
-              }
-            </td>
-            <td>
-              <span class="changes__session-date">{{ row.sessionDate }}</span>
-              <span class="changes__class-name">{{ row.className }}</span>
-            </td>
-            <td>{{ row.summary }}</td>
-            <td>{{ row.createdByName ?? '—' }}</td>
-            <td class="changes__reason">{{ row.reason ?? '—' }}</td>
-          </tr>
-        }
-      </tbody>
-    </table>
-      </div>
-
-    <p-paginator
-      [first]="first()"
-      [rows]="pageSize"
-      [totalRecords]="total()"
-      (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
+    <app-responsive-table
+      [headTemplate]="changeHead"
+      [bodyTemplate]="changeBody"
+      [pagination]="pagination()"
+      (page)="onPageChange($event.page + 1)"
     />
+
+    <ng-template #changeHead>
+      <tr>
+        <!--
+          課堂是這一列的身分（哪一堂被動了）。收掉它就剩一排無主的異動 ——
+          知道「有人改了時間」但不知道改的是哪一堂，等於什麼都沒說。
+        -->
+        <th
+          appRtColDef="session"
+          [appRtColDefMinWidth]="140"
+          [appRtColDefPriority]="1"
+          [appRtColDefCollapsible]="false"
+        >
+          課堂
+        </th>
+        <!-- 手機上留得下的第二欄要是**內容**：這頁存在的理由就是「改了什麼」 -->
+        <th appRtColDef="summary" [appRtColDefMinWidth]="180" [appRtColDefPriority]="2">
+          變更內容
+        </th>
+        <th appRtColDef="type" [appRtColDefMinWidth]="120" [appRtColDefPriority]="3">類型</th>
+        <th appRtColDef="createdAt" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">
+          異動時間
+        </th>
+        <th appRtColDef="operator" [appRtColDefMinWidth]="110" [appRtColDefPriority]="5">操作者</th>
+        <th appRtColDef="reason" [appRtColDefMinWidth]="160" [appRtColDefPriority]="6">原因</th>
+      </tr>
+    </ng-template>
+
+    <ng-template #changeBody>
+      @for (row of entries(); track row.id) {
+        <tr appRtRow [appRtRow]="row" [appRtRowId]="row.id">
+          <td appRtColCell="session">
+            <span class="changes__session-date">{{ row.sessionDate }}</span>
+            <span class="changes__class-name">{{ row.className }}</span>
+          </td>
+          <td appRtColCell="summary">{{ row.summary }}</td>
+          <td appRtColCell="type">
+            <app-data-chip>{{ typeLabel(row.changeType) }}</app-data-chip>
+            @if (row.isBatch) {
+              <app-data-chip>批次</app-data-chip>
+            }
+          </td>
+          <td appRtColCell="createdAt">{{ row.createdAt | date: 'MM/dd HH:mm' }}</td>
+          <td appRtColCell="operator">{{ row.createdByName ?? '—' }}</td>
+          <td appRtColCell="reason" class="changes__reason">{{ row.reason ?? '—' }}</td>
+        </tr>
+      }
+    </ng-template>
   }
 </div>

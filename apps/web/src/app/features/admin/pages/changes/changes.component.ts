@@ -33,9 +33,24 @@ const CHANGE_TYPE_LABELS: Record<string, string> = {
   creation: '建立課堂',
 };
 
+import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
+import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
+import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
+import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 @Component({
   selector: 'app-changes',
-  imports: [DataChipComponent, DatePipe, FormsModule, SelectModule, TagModule, PaginatorModule],
+  imports: [
+    ResponsiveTableComponent,
+    RtColDefDirective,
+    RtColCellDirective,
+    RtRowDirective,
+    DataChipComponent,
+    DatePipe,
+    FormsModule,
+    SelectModule,
+    TagModule,
+    PaginatorModule,
+  ],
   templateUrl: './changes.component.html',
   styleUrl: './changes.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -77,6 +92,13 @@ export class ChangesComponent {
 
   protected readonly first = computed(() => (this.currentPage() - 1) * PAGE_SIZE);
   protected readonly pageSize = PAGE_SIZE;
+
+  /** 分頁交給 app-responsive-table 內建的 paginator —— 表格與它的分頁不該被拆開 */
+  protected readonly pagination = computed(() => ({
+    first: this.first(),
+    rows: PAGE_SIZE,
+    totalRecords: this.total(),
+  }));
 
   constructor() {
     this.campusesService

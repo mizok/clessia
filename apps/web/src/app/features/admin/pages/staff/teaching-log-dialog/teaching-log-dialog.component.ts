@@ -25,9 +25,22 @@ export interface TeachingLogDialogData {
 
 const MONTHS_BACK = 12;
 
+import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
+import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
+import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
+import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 @Component({
   selector: 'app-teaching-log-dialog',
-  imports: [StatusDotComponent, FormsModule, SelectModule, TagModule],
+  imports: [
+    ResponsiveTableComponent,
+    RtColDefDirective,
+    RtColCellDirective,
+    RtRowDirective,
+    StatusDotComponent,
+    FormsModule,
+    SelectModule,
+    TagModule,
+  ],
   templateUrl: './teaching-log-dialog.component.html',
   styleUrl: './teaching-log-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -29,6 +29,10 @@ import {
   StatusDotComponent,
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
+import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
+import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
+import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
+import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 
 /**
  * 帳單詳情：明細、收款記錄、催繳記錄，以及兩種列印。
@@ -47,6 +51,10 @@ import {
   selector: 'app-invoice-detail-dialog',
   standalone: true,
   imports: [
+    ResponsiveTableComponent,
+    RtColDefDirective,
+    RtColCellDirective,
+    RtRowDirective,
     StatusDotComponent,
     DecimalPipe,
     SlicePipe,
