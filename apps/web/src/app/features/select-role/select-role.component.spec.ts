@@ -28,6 +28,26 @@ function stubAuth(roles: UserRole[]) {
   };
 }
 
+/** 不等彈窗 —— 用在「不該開窗」的情況（等它出現會固定等到 timeout） */
+async function setupNoPicker(roles: UserRole[]) {
+  const auth = stubAuth(roles);
+  TestBed.configureTestingModule({
+    imports: [SelectRoleComponent],
+    providers: [
+      provideRouter([]),
+      provideAnimationsAsync(),
+      providePrimeNG({}),
+      { provide: AuthService, useValue: auth },
+    ],
+  });
+  const fixture = TestBed.createComponent(SelectRoleComponent);
+  fixture.detectChanges();
+  // 給動態 import 足夠時間 —— 如果它會開窗，這段時間內就會開
+  await new Promise((r) => setTimeout(r, 300));
+  fixture.detectChanges();
+  return { fixture, auth };
+}
+
 async function setup(roles: UserRole[] = ['admin', 'teacher']) {
   const auth = stubAuth(roles);
   TestBed.configureTestingModule({
@@ -97,5 +117,55 @@ describe('SelectRoleComponent（薄殼 + 動態載入的彈窗）', () => {
     fixture.componentInstance.onRoleChosen('teacher');
 
     expect(auth.navigateToRoleShell).toHaveBeenCalledWith('teacher');
+  });
+
+  /**
+   * 2026-09 實測發現的矛盾：單一角色的帳號直接打 `/select-role`，
+   * 會看到「這個帳號有**多個**身分，請選擇要進入的介面」但**只有一個選項**，
+   * 而彈窗刻意關不掉 —— 一個沒有選擇的選擇畫面。
+   *
+   * 修法不是改文案而是**讓這個畫面對他不存在**：一個角色就直接進去。
+   * 這也是 AGENTS.md 早就寫的規則（單一角色直接導向對應 shell），
+   * 只是 `/select-role` 這條直接進來的路徑沒有實作它。
+   */
+  it('只有一個角色 → 不開窗，直接導向那個 shell', async () => {
+    const { auth } = await setupNoPicker(['teacher']);
+
+    expect(pickerEl()).toBeNull();
+    expect(auth.navigateToRoleShell).toHaveBeenCalledWith('teacher');
+  });
+
+  it('兩個角色才開窗（文案說「多個」時就真的是多個）', async () => {
+    const { auth } = await setup(['admin', 'teacher']);
+
+    expect(pickerEl()).toBeTruthy();
+    expect(auth.navigateToRoleShell).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 零角色是更糟的死路：空的、關不掉的彈窗。不開它 ——
+   * 也不能亂導向（沒有 shell 可去），所以留在這一頁，由頁面自己說明。
+   */
+  it('零角色 → 不開空彈窗，也不亂導向', async () => {
+    const { auth } = await setupNoPicker([]);
+
+    expect(pickerEl()).toBeNull();
+    expect(auth.navigateToRoleShell).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 不開彈窗之後這一頁只剩字標 —— 那跟「卡在載入中」長得一模一樣。
+   * 死路要說出自己是死路。
+   */
+  it('零角色時頁面自己講清楚，不是空白', async () => {
+    const { fixture } = await setupNoPicker([]);
+
+    expect(fixture.nativeElement.textContent).toContain('沒有可用的身分');
+  });
+
+  it('有身分時不顯示那句話', async () => {
+    const { fixture } = await setup(['admin', 'teacher']);
+
+    expect(fixture.nativeElement.textContent).not.toContain('沒有可用的身分');
   });
 });

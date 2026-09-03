@@ -7,8 +7,10 @@
 // 品牌面是 public-shell 的橘色側欄，這裡不再自己鋪一塊橘。
 .select-role {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-4);
   // 高度用 100% 而不是 vh（憲法 c6）；父容器沒給高度時只是靠上顯示，不會壞版
   min-height: 100%;
   padding: var(--space-8) var(--space-4);
@@ -21,4 +23,12 @@
   letter-spacing: -0.04em;
   // 彈窗才是主角，字標只是襯底
   color: var(--zinc-300);
+}
+
+.select-role__no-roles {
+  margin: 0;
+  max-width: 32ch;
+  text-align: center;
+  color: var(--text-muted);
+  line-height: 1.7;
 }
