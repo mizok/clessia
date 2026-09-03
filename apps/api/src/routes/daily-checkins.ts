@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
+import { enrolledEventIds } from '../lib/enrolled-events';
 
 const DailyCheckinSchema = z
   .object({
@@ -68,10 +69,16 @@ app.openapi(
       return c.json({ error: '打卡失敗', message: error?.message }, 500);
     }
 
-    // 2. 找出該學生當天在此分校的所有 events → 批次建立 attendance_records（present）
+    // 2. 替該學生當天**實際有報名**的課堂建立 attendance_records（present）
+    //
+    // **原本是「當天這個分校的所有課堂」** —— 包含他根本沒報名的班，於是出勤紀錄裡
+    // 會冒出他從來沒上過的課，而那些紀錄會流進扣課與月結（使用者 2026-09-03 裁定）。
+    //
+    // 到班紀錄（步驟 1）與課堂出勤是**兩層**：人到了就是到了，即使他今天一堂課都沒有。
+    // 所以這一段一筆都寫不出來是正常結果，不是失敗。
     let eventsQuery = supabase
       .from('events')
-      .select('id')
+      .select('id, sessions(class_id)')
       .eq('org_id', orgId)
       .eq('event_date', body.checkinDate);
 
@@ -79,10 +86,32 @@ app.openapi(
       eventsQuery = eventsQuery.eq('campus_id', body.campusId);
     }
 
-    const { data: events } = await eventsQuery;
+    const [{ data: events }, { data: enrollments }] = await Promise.all([
+      eventsQuery,
+      // 在籍條件照抄 roster（`status = 'active'` + 生效區間）—— 掃碼寫得出來的紀錄，
+      // 必須是那堂課點名時看得到的人，否則會出現「有出勤紀錄但名單上沒這個人」的鬼影
+      supabase
+        .from('enrollments')
+        .select('class_id, effective_from, effective_to')
+        .eq('org_id', orgId)
+        .eq('student_id', body.studentId)
+        .eq('status', 'active'),
+    ]);
 
-    if (events && events.length > 0) {
-      const eventIds = events.map((e: any) => e.id);
+    const eventIds = enrolledEventIds(
+      (events ?? []) as Array<{
+        id: string;
+        sessions?: { class_id?: string | null } | Array<{ class_id?: string | null }> | null;
+      }>,
+      (enrollments ?? []) as Array<{
+        class_id: string;
+        effective_from: string;
+        effective_to: string | null;
+      }>,
+      body.checkinDate,
+    );
+
+    if (eventIds.length > 0) {
       await supabase.from('attendance_records').upsert(
         eventIds.map((eventId: string) => ({
           org_id: orgId,
