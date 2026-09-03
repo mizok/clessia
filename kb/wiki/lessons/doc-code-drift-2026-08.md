@@ -50,7 +50,7 @@ tags: [lessons, doc-code-drift-2026-08]
 - **`apps/api` 有 12 支 `.spec.ts`，但 `project.json` 沒有 `test` target** → 這些測試從來沒有被
   執行過。任何跑 `nx affected -t test` 的閘門對 API 改動都是瞎的。
 - **`nx.json` 的 `defaultBase` 是 `dev`，但這個 branch 不存在** → 所有 `nx affected` 都得手動帶
-  `--base=main`，否則行為未定義。
+  `--base=main`，否則行為未定義。**（2026-09-03 已修成 `main`。）**
 
 兩者都不會報錯，只會安靜地不做事。
 

@@ -273,7 +273,7 @@ schema，以及對應的 API 與角色宣告。業務規則已由訪談定案 �
 | `packages/shared-types` 是死的                              | 沒有任何 app import，型別已與現實不符                |
 | `apps/web` 沒有 typecheck target                            | 型別只在 build 時檢查                                |
 | 一批檔案不合 prettier（跑 `npx prettier --check .` 看現況） | `--check` 尚未進 CI                                  |
-| `nx.json` 的 `defaultBase` 是不存在的 `dev`                 | 所有 `nx affected` 都得手動帶 `--base=main`          |
+| ~~`nx.json` 的 `defaultBase` 是不存在的 `dev`~~ 已修        | 2026-09-03 改成 `main`，`nx affected` 直接跑         |
 
 ## 3. 這張表不證明什麼
 

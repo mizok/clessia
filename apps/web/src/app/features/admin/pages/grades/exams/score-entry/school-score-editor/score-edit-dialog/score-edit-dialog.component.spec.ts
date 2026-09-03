@@ -57,4 +57,37 @@ describe('ScoreEditDialogComponent', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  // 這張表跟 academy-score-editor 是同一種東西，手感必須一樣（#161 只修了那一份）
+  describe('鍵盤動線', () => {
+    function keydown(key: string) {
+      const event = new KeyboardEvent('keydown', { key, cancelable: true });
+      (component as never as { onScoreKeydown(e: KeyboardEvent, i: number): void }).onScoreKeydown(
+        event,
+        0,
+      );
+      return event;
+    }
+
+    it('↓ 被攔下來換列，不會讓 p-inputnumber 把分數減 1', () => {
+      expect(keydown('ArrowDown').defaultPrevented).toBe(true);
+    });
+
+    it('Enter 也是換列', () => {
+      expect(keydown('Enter').defaultPrevented).toBe(true);
+    });
+
+    it('↑ 是往上一列', () => {
+      expect(keydown('ArrowUp').defaultPrevented).toBe(true);
+    });
+
+    // 攔錯的話連數字都打不進去
+    it('數字鍵原樣放行', () => {
+      expect(keydown('5').defaultPrevented).toBe(false);
+    });
+
+    it('Tab 不攔 —— 那是欄位之間的移動，不是換列', () => {
+      expect(keydown('Tab').defaultPrevented).toBe(false);
+    });
+  });
 });

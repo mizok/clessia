@@ -4,7 +4,6 @@ import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
-import { TagModule } from 'primeng/tag';
 import { SkeletonModule } from 'primeng/skeleton';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
@@ -20,7 +19,6 @@ import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/student
     FormsModule,
     ButtonModule,
     InputTextModule,
-    TagModule,
     SkeletonModule,
     IconFieldModule,
     InputIconModule,

@@ -38,8 +38,9 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
   跑 harness / harness self-test / typecheck / test / **web production build**。
   本機那三層都繞得過（heredoc 寫檔不觸發 PreToolUse、`CLESSIA_STOP_GATE=0`、
   `git commit --no-verify`、直接關掉 hook），這層繞不過 —— 它才是真正的把關。
-  刻意用 `run-many` 而不是 `affected`（`defaultBase` 是不存在的 `dev`）。
-- **Harness gate**（`npm run harness`）—— 文件與現實是否同步，見下方 A1–A16。
+  刻意用 `run-many` 而不是 `affected`：整套跑完很快，而 `affected` 在 CI 上要正確的 base ref
+  才不會安靜失準（`defaultBase` 已於 2026-09-03 修成 `main`，但 CI 的取捨不因此改變）。
+- **Harness gate**（`npm run harness`）—— 文件與現實是否同步，見下方 A1–A17。
 
 ## 條款 → 機制
 
@@ -64,7 +65,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 
 | 腳本                | 守什麼                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------- |
-| `check-harness.mjs` | 下表的 A1–A16                                                                         |
+| `check-harness.mjs` | 下表的 A1–A17                                                                         |
 | `feature-map.mjs`   | `kb/wiki/roadmap.md` 的**功能區現況表**自動生成且同步（c11）。**強制點在 main**，見下 |
 
 > A1 的真相來源其實是 `skills-lock.json`：磁碟現況用來重生 lock，A1b 再比對 `AGENTS.md` ↔ lock。
@@ -86,6 +87,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | A14  | `apps/web/src/**/*.ts` 沒有裝飾器版 API（c8 的存量；**allowlist 4 筆**）                                                                                  |
 | A15  | `apps/api/src/**/*.ts` 沒有直寫 `ba_*`（c2 的存量；**allowlist 9 筆**）                                                                                   |
 | A16  | 本分支沒有修改／刪除／改名已提交的 migration（c3；比 `origin/main...HEAD`）                                                                               |
+| A17  | 掃描範圍內自己刻的可點元素有尺寸下限（44px 觸控門檻；ratchet，既有的進 baseline）                                                                         |
 
 ### 存量 allowlist：讓債務可見且會自己收斂
 
@@ -237,8 +239,8 @@ self-test 守兩件事：過期在三種環境（分支 / main / 本機）**都�
   **CI 已補上 `nx build web --configuration=production`**（放在序列最後，模板型別錯誤靠它抓），
   但 Stop gate 沒有 —— 本機收工時模板錯誤照樣過得去，要到 push 才紅。
 - 專案沒有 eslint。PostToolUse hook 只跑 prettier；沒有任何 lint 層。
-- `nx.json` 的 `defaultBase` 是 `dev`，但該 branch 不存在 → 所有 `nx affected` 都得手動帶
-  `--base=main`（Stop gate 已經這樣寫死）。
+- ~~`nx.json` 的 `defaultBase` 指向不存在的 `dev`~~ → 2026-09-03 改成 `main`。
+  Stop gate 仍然明寫 `--base=main`：**gate 的行為不該因為有人改 nx.json 而變**。
 - pre-guard 是**寫入時**的螢幕，繞得過去：直接用 Bash heredoc 寫檔就不會觸發 PreToolUse
   的 Edit/Write matcher。它的價值在於攔截順手的違規，不是防惡意。
 - ~~c6 只守新違規，存量沒有覆蓋~~ → 2026-08-29 補上 gate A12。**這個缺口的形狀值得記住**：

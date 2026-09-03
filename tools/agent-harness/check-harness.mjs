@@ -18,8 +18,10 @@ import { formatGenerated } from './lib/format.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
+import { orphanModuleImports } from './lib/orphan-imports.mjs';
 import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
 import { matchWriteRules } from './lib/rules.mjs';
+import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 
@@ -27,6 +29,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const CONTRAST_BASELINE = join(ROOT, 'tools/agent-harness/scss-contrast-baseline.json');
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');
 const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-baseline.json');
+const TOUCH_TARGET_BASELINE = join(ROOT, 'tools/agent-harness/touch-target-baseline.json');
 const AGENTS_MD = join(ROOT, 'AGENTS.md');
 const SKILLS_DIR = join(ROOT, '.agents/skills');
 const THIN_ENTRYPOINTS = ['CLAUDE.md'];
@@ -616,6 +619,89 @@ if (migrationsChanged.status !== 0) {
 // kb/ 的內容健康度（frontmatter、索引新鮮度、斷鏈、孤兒頁）由 kb-wiki skill 的 lint 負責，
 // 不由 harness gate 管 —— 這跟 fvg 的配置一致：harness 守程式碼與流程，kb-wiki 守知識庫。
 
+// ── A17. 自己刻的可點元素有沒有尺寸下限（44px 觸控門檻）──────────────────────────────────
+// 規則是**反過來**寫的：不是「宣告了小數字就報」，而是「宣告了 cursor: pointer 卻沒有
+// 任何尺寸下限就報」。理由見 lib/touch-target.mjs —— 最嚴重的實際案例（老師端 dashboard
+// 那兩顆 20px 連結）SCSS 裡根本沒有尺寸宣告，找小數字的掃描一無所獲。
+//
+// 範圍**自己算**不要手寫：老師端全部 + admin 裡**已經遷成手機優先**的（也就是不在
+// mobile-first baseline 裡的）。這樣一頁遷完就自動納入觸控檢查，不需要有人記得回來加。
+function checkTouchTargets() {
+  const teacherDir = join(ROOT, 'apps/web/src/app/features/teacher');
+  const adminDir = join(ROOT, 'apps/web/src/app/features/admin');
+  if (!existsSync(teacherDir) || !existsSync(adminDir)) return;
+
+  const desktopFirst = new Set(
+    existsSync(MOBILE_FIRST_BASELINE)
+      ? JSON.parse(readFileSync(MOBILE_FIRST_BASELINE, 'utf8'))
+      : [],
+  );
+
+  const scoped = [
+    ...walk(teacherDir, '.scss'),
+    ...walk(adminDir, '.scss').filter((f) => !desktopFirst.has(f.slice(ROOT.length + 1))),
+  ];
+
+  const current = new Map();
+  for (const file of scoped) {
+    const rel = file.slice(ROOT.length + 1);
+    for (const v of touchTargetViolations([{ path: rel, source: readFileSync(file, 'utf8') }])) {
+      current.set(`${rel}|${v.selector}`, v);
+    }
+  }
+
+  const keys = [...current.keys()].sort();
+
+  if (mode === 'write') {
+    writeFileSync(TOUCH_TARGET_BASELINE, `${JSON.stringify(keys, null, 2)}\n`);
+    return;
+  }
+
+  const baseline = new Set(
+    existsSync(TOUCH_TARGET_BASELINE)
+      ? JSON.parse(readFileSync(TOUCH_TARGET_BASELINE, 'utf8'))
+      : [],
+  );
+
+  for (const key of keys.filter((k) => !baseline.has(k))) {
+    const v = current.get(key);
+    fail(
+      v.kind === 'no-floor'
+        ? `${v.file}:${v.line} 的 ${v.selector} 有 cursor: pointer 卻沒有任何尺寸下限` +
+            `（${TOUCH_MIN_PX}px 觸控門檻）—— 加 min-height，觸控下再由 pointer: coarse 抬到 ${TOUCH_MIN_PX}`
+        : `${v.file}:${v.line} 的 ${v.selector} 下限只有 ${v.px}px，低於 ${TOUCH_MIN_PX}px 觸控門檻`,
+    );
+  }
+
+  const stale = [...baseline].filter((k) => !current.has(k));
+  if (stale.length > 0) {
+    warnings.push(
+      `觸控尺寸 baseline 有 ${stale.length} 筆已經修好了 —— 跑 npm run harness:write 把它們移出清單`,
+    );
+  }
+
+  const remaining = keys.filter((k) => baseline.has(k));
+  if (remaining.length > 0) {
+    // 最大宗的目錄**算出來**不要寫死（c11）
+    const byArea = new Map();
+    for (const k of remaining) {
+      const area = k.split('/').slice(4, 6).join('/');
+      byArea.set(area, (byArea.get(area) ?? 0) + 1);
+    }
+    const [area, n] = [...byArea].sort((a, b) => b[1] - a[1])[0];
+    warnings.push(
+      `${remaining.length} 處可點元素沒有尺寸下限（在 baseline 裡、不擋）—— 最多的是 ${area}，佔 ${n} 筆`,
+    );
+  }
+
+  // **能力邊界要明寫。** 綠燈的意思是「掃描範圍內、自己刻的可點元素都有下限」，
+  // 不是「觸控目標都合格」：尺寸由 padding 與行高撐出來的看不到（那要在裝置上量），
+  // PrimeNG 元件不在範圍（由 styles.scss 的 pointer: coarse token 統一負責），
+  // 而 parent / public 兩區**沒有人量過也不在掃描範圍**。
+}
+
+checkTouchTargets();
+
 // ── W1. 使用者層級 skill 在這台機器上存在嗎（警告，不紅燈）────────────────────────────
 // 而那個 kb-wiki skill 不進版控（它是使用者跨專案共用的），所以「AGENTS.md 說得出口的
 // 指令」與「這台機器叫得動的指令」之間有一道無聲的縫。這條把縫顯示出來，但不擋 CI ——
@@ -888,6 +974,44 @@ function checkMobileFirst() {
 
 checkMobileFirst();
 
+// ── PrimeNG 模組的孤兒 import ──────────────────────────────────────────────
+// Angular 的 NG8113 只對 standalone 元件發診斷，**不涵蓋 NgModule** ——
+// `imports: [TagModule]` 在模板早就不用 <p-tag> 之後，編譯器一句話都不會說。
+// 這個坑在這個 repo 長出來過兩次（#119 三支、3b-3 收尾十支，而同一次 build 的
+// NG8113 計數是 0）。兩次都靠人記得對帳。**第三次不要再靠人。**
+function checkOrphanImports() {
+  const webSrc = join(ROOT, 'apps/web/src');
+  if (!existsSync(webSrc)) return;
+
+  const components = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) {
+        const ts = readFileSync(full, 'utf8');
+        if (!ts.includes('@Component')) continue;
+        const html = full.replace(/\.ts$/, '.html');
+        components.push({
+          path: full.slice(ROOT.length + 1),
+          ts,
+          template: existsSync(html) ? readFileSync(html, 'utf8') : '',
+        });
+      }
+    }
+  };
+  walk(webSrc);
+
+  for (const { path, module } of orphanModuleImports(components)) {
+    fail(
+      `${path} 的 imports 有 ${module}，但模板沒有用到它提供的任何選擇器。` +
+        `**Angular 的 NG8113 不涵蓋 NgModule**，所以編譯器不會說話 —— 請自己刪掉。`,
+    );
+  }
+}
+
+checkOrphanImports();
+
 // ── 拇指區的兩條規則 ────────────────────────────────────────────────────────
 // 邏輯住在 lib/page-actions.mjs（可單獨測）。
 // 沒有 gate 的話這個決定會慢慢被磨掉：下一個人加新頁面時最順手的寫法仍然是
@@ -948,7 +1072,6 @@ function checkPageActions() {
 }
 
 checkPageActions();
-
 
 // ── report ───────────────────────────────────────────────────────────────────────────────
 // --write 一律 exit 0：它的工作是「修好能自動修的」，剩下的（例如 CLAUDE.md 被塞進規則）

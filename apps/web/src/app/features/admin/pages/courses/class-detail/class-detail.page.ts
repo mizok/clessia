@@ -11,7 +11,6 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
-import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { TabsModule } from 'primeng/tabs';
 import type { TabListPassThrough } from 'primeng/types/tabs';
@@ -53,7 +52,6 @@ import { personHue } from '@shared/utils/person-hue.util';
     PageBandComponent,
     BandAnchorComponent,
     ButtonModule,
-    TagModule,
     ToastModule,
     TabsModule,
     SkeletonModule,

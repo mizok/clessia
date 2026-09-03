@@ -178,6 +178,14 @@ export class AttendanceRosterPanelComponent implements OnInit {
     return roster.students.filter((s) => !this.hasLeave(s) && !marked.has(s.studentId)).length;
   });
 
+  /**
+   * 名單是空的（班上一個學生都沒有）。
+   *
+   * **「零人」跟「零個待標記」是兩件事** —— 不分開的話，空名單會落進「全部標記完成」
+   * 跟「都在請假中」這兩句，而兩句都是空話：他沒有標完任何東西，也沒有人請假。
+   */
+  protected readonly rosterEmpty = computed(() => (this.roster()?.students.length ?? 0) === 0);
+
   /** 因為請假而不需要標記的人數 —— 講出來，讓豁免的結果在按鈕旁邊而不是只躺在列表裡 */
   protected readonly exemptCount = computed(
     () => this.roster()?.students.filter((s) => this.hasLeave(s)).length ?? 0,
@@ -247,6 +255,14 @@ export class AttendanceRosterPanelComponent implements OnInit {
   protected save(): void {
     const roster = this.roster();
     if (!roster) return;
+
+    if (this.rosterEmpty()) {
+      this.notice.set({
+        severity: 'info',
+        detail: '這堂課沒有學生，沒有出缺席可以記錄。',
+      });
+      return;
+    }
 
     const pending = this.pendingCount();
     if (pending > 0) {

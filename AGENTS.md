@@ -55,8 +55,8 @@
 | 新增 migration     | `npx supabase migration new <description>`                                                |
 | 產生元件等         | `npx nx g @schematics/angular:component foo --type component`（一律帶 `--type`）          |
 
-> `nx.json` 的 `defaultBase` 是 `dev`，但這個 branch 不存在 —— 跑 `nx affected` 一律自己帶
-> `--base=main`。
+> `nx.json` 的 `defaultBase` 是 `main`（2026-09-03 前是不存在的 `dev`，害每個人都得手動帶
+> `--base=main`）。現在 `nx affected` 直接跑就對。
 
 > **`kb-wiki` 是使用者層級的 skill，不在這個 repo 裡。** 它住在
 > `~/.claude/skills/kb-wiki`（跨專案共用的通用工具，收進版控只會多一份會漂掉的副本），
