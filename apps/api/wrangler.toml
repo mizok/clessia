@@ -12,6 +12,28 @@ compatibility_flags = ["nodejs_compat"]
 # 每個客戶是自己的部署、自己的網域（憲法 c12），所以正式站的值不寫在這裡，
 # 由部署時設定。見 kb/wiki/architecture/deploying.md
 
+# ── Workers Logs（可回頭查的日誌）────────────────────────────────────────────
+#
+# **沒有這一段，`console.error` 只存在於當下** —— 只有正在跑 `wrangler tail` 的人
+# 看得到，事後查不到。官方文件：「你必須把這段設定加進 Wrangler 檔案才會寫入日誌」。
+#
+# 為什麼需要它：#163 在 `middleware/auth.ts` 加了一行
+#   `[auth] 身分查詢失敗：<表>=<訊息>`
+# 專門用來查那批「新增課程第一次 500、第二次 201」的偶發問題。但那個問題**偶發**，
+# 不會在有人盯著 tail 的那幾分鐘裡剛好發生 —— 於是「這幾天有沒有再發」這個問題
+# **在資料上無法回答**，不是因為沒發生，是因為沒有被記下來。
+#
+# `head_sampling_rate = 1` 是全部記錄。保留期：付費 7 天、免費 3 天。
+# 量大之後可以調低，但**偶發問題正是不能抽樣的那種** —— 抽掉一半就是把發生率
+# 砍一半，而我們在找的東西本來就少。
+#
+# 放在頂層就夠：`observability` 是**可繼承**的鍵，正式環境會吃到它。
+# （對照 `vars` —— 那個**不可繼承**，所以下面 [env.production.vars] 必須整份重列。
+# 這個 repo 2026-08-29 就是在那裡被咬過一次。）
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 [vars]
 ENVIRONMENT = "development"
 WEB_URL = "http://localhost:4200"
