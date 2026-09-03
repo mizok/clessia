@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
+import { campusFilterIds } from '../lib/campus-scope';
 
 const LeaveRequestSchema = z
   .object({
@@ -196,6 +197,8 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const {
+      // `campusId` 在 schema 裡宣告了，但**連解構都沒有** —— 它從來沒被用過
+      campusId,
       studentId,
       dateFrom,
       dateTo,
@@ -215,6 +218,32 @@ app.openapi(
     // coverDate: 找出請假範圍包含指定日期的紀錄（start_date <= date AND end_date >= date）
     if (coverDate) {
       query = query.lte('start_date', coverDate).gte('end_date', coverDate);
+    }
+
+    // **這支端點本來就收 `campusId`，但從來沒有拿它過濾** —— 前端傳了也沒有效果，
+    // 而且沒有任何錯誤，是靜默無效的參數。接分校範圍時一併修掉。
+    const campusIds = campusFilterIds(c.get('campusScope'), campusId);
+    if (campusIds) {
+      const { data: campusEnrollments } = await supabase
+        .from('enrollments')
+        .select('student_id, classes!inner(campus_id)')
+        .eq('org_id', orgId)
+        .in('classes.campus_id', [...campusIds]);
+
+      const campusStudentIds = Array.from(
+        new Set(
+          ((campusEnrollments ?? []) as Array<{ student_id: string | null }>)
+            .map((row) => row.student_id)
+            .filter((id): id is string => !!id),
+        ),
+      );
+
+      // 這些分校一個學生都沒有 → 回空，不是不加條件（不加就變成看到全部）
+      if (campusStudentIds.length === 0) {
+        return c.json({ data: [], meta: { total: 0, page, pageSize, totalPages: 0 } }, 200);
+      }
+
+      query = query.in('student_id', campusStudentIds);
     }
 
     const from = (page - 1) * pageSize;
