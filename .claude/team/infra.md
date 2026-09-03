@@ -276,7 +276,10 @@ gh pr view <n> --json state -q .state      # 必須是 OPEN
   generator 的 `style: scss` 預設在 `nx.json` 的 `generators`。
 - **worktree 的 git stash 是共用的。** 別用裸 `git stash` / `pop`，會 pop 到別的 session 的東西。
   要暫存改用臨時 WIP commit。
-- **專案沒有 eslint。** PostToolUse hook 只跑 prettier，沒有任何 lint 層。
+- **專案沒有在用 eslint。** 精確講：`eslint@9` 有裝（`@nx/angular` → `@nx/eslint` 的
+  transitive 依賴），但**全庫沒有任何 eslint 設定檔**，等於沒有 lint 層。
+  這個差別對決策有影響 —— 走 eslint 路線不用裝東西，但要新增設定 + 接進流程 +
+  從此多一層要維護的規則系統。PostToolUse hook 目前只跑 prettier。
   想加的話那是這一席的事，但先問：多一層要有人維護。
 - **`nx affected` 一律自己帶 `--base=main`。**
 - **不要讓 worktree 停在別席的分支上。** 代解別人 PR 的衝突是可以的（infra 席常被指派，
@@ -320,8 +323,10 @@ gh pr view <n> --json state -q .state      # 必須是 OPEN
 - ~~`apps/web` 沒有獨立的 typecheck target~~ → 2026-09-03 補上（`ngc --noEmit`，6 秒）。
   **Stop gate 不用改就接上了** —— 它跑的是 `nx affected -t typecheck`，加 target 即涵蓋。
   本機收工現在就會擋模板錯誤，不必等 push。
-- **c5（feature 不互相 import）未機器化。** 需要跨「路徑擷取的 feature 名」與「內容」的
-  反向參照，現在的靜態 regex 引擎做不到，要接得寫一支獨立 check。
+- ~~c5 未機器化~~ → 2026-09-03 補上 A18（**立法時零違規，所以沒有 baseline** ——
+  那是最便宜的立法時機）。我原本寫「靜態 regex 引擎做不到」是對的，但結論下錯了：
+  **規則引擎做不到 ≠ 做不到**，寫成專用函式就行（A15 / A17 早就是這個形狀）。
+  仍未覆蓋的是**經由 `core/` / `shared/` 的間接耦合**，那一半靠 review。
 - **c2 還有 4 筆真債**（驗：`npm run harness` 的 A15 帳目）——
   `me.ts:124`、`parents.ts:621` 的 email 與 `parents.ts:625`、`staff.ts:1150` 的 phone。
   卡點不是難改，是**全 repo 零前例**：沒有任何一處用 `auth.api.updateUser` 更新過使用者。

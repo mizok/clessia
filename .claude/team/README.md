@@ -134,3 +134,6 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
 - **stash apply 之後、commit 之前,`git diff origin/main --stat` 看一遍檔案清單** ——
   出現自己沒碰過的檔案就是警報(共用 stash 的 apply 循環會把舊快照拖著走,曾差點
   把別人已合併的工作還原掉;是 gate 紅在陌生檔案才攔下)。
+- **PR 送驗收/合併前,先 rebase 到最新 origin/main 再看一次燈** —— 合併速率高的日子,
+  「出 PR 當下綠」與「輪到合併時綠」是兩件事;紅在別席剛合進去的 gate 上時,
+  純 rebase 即綠,不要對著不是自己的檔案發呆(#217/#221 案例)。
