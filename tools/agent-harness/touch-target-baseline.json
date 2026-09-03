@@ -15,7 +15,5 @@
   "apps/web/src/app/features/admin/pages/payments/payments.page.scss|.payments__row",
   "apps/web/src/app/features/admin/pages/sessions/dialogs/mobile-batch-dialog/mobile-batch-dialog.component.scss|.mobile-batch-dialog__menu-item",
   "apps/web/src/app/features/admin/pages/sessions/dialogs/session-leave-roster-dialog/session-leave-roster-dialog.component.scss|.leave-roster__filter-tab",
-  "apps/web/src/app/features/admin/pages/sessions/dialogs/session-overflow-dialog/session-overflow-dialog.component.scss|.overflow-dialog__item",
-  "apps/web/src/app/features/teacher/pages/notifications/notifications.component.scss|.teacher-notifications__summary",
-  "apps/web/src/app/features/teacher/pages/schedule/schedule.page.scss|.schedule-page__weekbar-day"
+  "apps/web/src/app/features/admin/pages/sessions/dialogs/session-overflow-dialog/session-overflow-dialog.component.scss|.overflow-dialog__item"
 ]

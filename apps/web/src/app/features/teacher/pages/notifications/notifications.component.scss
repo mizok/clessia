@@ -78,6 +78,7 @@
   &__summary {
     display: flex;
     width: 100%;
+    min-height: 44px;
     flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
