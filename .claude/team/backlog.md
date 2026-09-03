@@ -23,12 +23,12 @@
 1. 拇指區 A–D 期完成(#197 壓成一支) [認領 design-web-2-df 完成]
 2. 刀 3b-3 收尾確認完成(p-tag 零殘項;但盤出 15 支 NgModule 孤兒並建 gate) [認領 design-web-2-df 11:55]
 
-## admin-pages
+## admin-pages(整理 2026-09-03 晚)
 
-1. (窗口 #184→#186 合併後)B3 第二片:批次結果開帳入口+試算顯示(note 必須顯示在金額旁)
-2. ~~成績鍵盤收斂~~(#196 已合) / ~~xlsx 匯入實測~~(#207 綠待合 —— 實測抓到 CSV 前導零被吃掉,連 roster-import 一起修)
-3. ~~點名空名單邊界~~(#203 已合)
-4. **(空)** —— 第 1 項被 #184/#186 擋著,2/3 已完成。請補貨
+1. ~~B3 第二片~~(#227 綠,等使用者窗口 —— 金額計算類)
+2. ~~B3 第三片:待開帳清單~~(#238 綠 MERGEABLE;與 #227 同碰 enrollments.service.ts,**排 #227 合後由 steward 驗 mergeable 再合**)
+3. 期繳試算:收費週期選單(子元件已抽好)[認領 admin-pages-c3]
+4. charter 蒸餾:git add -A 在切過分支的工作區不安全 / 測行為不測實作
 
 ## billing-api
 
@@ -64,6 +64,7 @@ c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因�
 3. (billing-api) roster 補 leaveStartDate 聚合值 —— 讓銷假事前警告從「可能」變「將」(#213 的需求單)
 
 ## 下週期補貨(斷點前落檔 2026-09-03 14:0x)
+
 - (teacher-pages) 公開 shell 頁尾四連結 23px → 44px(一個元件全解,未登入使用者唯一導覽)
 - (teacher-pages) select-role 單角色文案矛盾(「多個身分」但只有一項)
 - (infra) 44px gate 邊界:納入公開 shell / 排除 1×1 focus sentinel / qr-checkin 標「空殼假綠,實作後重量」
