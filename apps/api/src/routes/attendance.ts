@@ -134,10 +134,18 @@ const RosterStudentSchema = z
      * 前端要在老師按下去**之前**就能說「這一按會連帶取消到 X 日」——
      * 事前確認跟事後告知是兩件事，後者已經來不及了。
      *
-     * **只回結束日，不回起訖區間**：同一天可能被兩張假蓋到（區間不同），
-     * 回一組起訖等於謊稱它們是同一張。老師需要知道的是「最遠會取消到哪」，
-     * 那就是所有蓋到今天的假裡面最晚的結束日。
+     * 起日則是所有蓋到今天的假裡**最早的**開始日。
+     *
+     * ⚠️ **#185 當時我寫「只回結束日，回起訖等於謊稱它們是同一張」—— 那個顧慮不成立，
+     * 現在補上起日。** 理由：這裡的每一張假**都涵蓋今天**，所以它們的聯集必然是
+     * 連續的，而且剛好等於 `[min(start), max(end)]` —— 中間不可能有洞。
+     * 而且這一組數字要回答的問題不是「這是哪一張假」，是**「按下去會影響哪個區間」**，
+     * 那個區間確實就是這一組。
+     *
+     * 有了起日，前端的事前警告才能從「會取消到 X 日」變成
+     * 「會取消 X 到 Y 的請假」—— 老師看得到自己按下去會動到什麼。
      */
+    leaveStartDate: z.string().nullable(),
     leaveEndDate: z.string().nullable(),
   })
   .openapi('RosterStudent');
@@ -1104,8 +1112,10 @@ app.openapi(
       startTime: ((ev as any).start_time as string | null) ?? null,
       endTime: ((ev as any).end_time as string | null) ?? null,
     };
-    // 每個學生記「最遠的結束日」—— 同一天可能被兩張假蓋到，銷假會把兩張都動到，
-    // 所以要警告的是其中最晚的那一天
+    // 每個學生記「被影響的區間」—— 同一天可能被兩張假蓋到，銷假會把兩張都動到，
+    // 所以警告要涵蓋最早的起日到最晚的迄日。
+    // **每一張都涵蓋今天，所以聯集必然連續**，這一組數字是精確的不是包絡。
+    const leaveStartByStudent = new Map<string, string>();
     const leaveEndByStudent = new Map<string, string>();
     for (const row of (leaves ?? []) as Array<Record<string, unknown>>) {
       const covers = leaveCoversSession(
@@ -1120,9 +1130,16 @@ app.openapi(
       if (!covers) continue;
 
       const studentKey = row['student_id'] as string;
+      const startDate = row['start_date'] as string;
       const endDate = row['end_date'] as string;
-      const existing = leaveEndByStudent.get(studentKey);
-      if (!existing || endDate > existing) leaveEndByStudent.set(studentKey, endDate);
+
+      const existingStart = leaveStartByStudent.get(studentKey);
+      if (!existingStart || startDate < existingStart) {
+        leaveStartByStudent.set(studentKey, startDate);
+      }
+
+      const existingEnd = leaveEndByStudent.get(studentKey);
+      if (!existingEnd || endDate > existingEnd) leaveEndByStudent.set(studentKey, endDate);
     }
 
     const students = (enrollments ?? []).map((e: any) => {
@@ -1135,6 +1152,7 @@ app.openapi(
         recordId: rec?.id ?? null,
         status: rec?.status ?? null,
         hasLeaveRequest: leaveEndByStudent.has(e.student_id),
+        leaveStartDate: leaveStartByStudent.get(e.student_id) ?? null,
         leaveEndDate: leaveEndByStudent.get(e.student_id) ?? null,
       };
     });
