@@ -1,7 +1,8 @@
 @use 'shared/breakpoints' as bp;
 
+/* **手機優先**：基準是窄螢幕，往大螢幕才加強。 */
 .students {
-  padding: var(--space-6);
+  padding: var(--space-4) 0;
   display: flex;
   flex-direction: column;
   // 不是 space-6：橘帶與工作面靠 --band-seam **交扣**，中間不能再有間距，
@@ -29,10 +30,11 @@
     color: var(--band-ink-muted);
   }
 
-  // 40px 是入口頁字標的做法（尺寸 + 緊字距），內部頁的頁名就是它的字標
+  // 40px 是入口頁字標的做法（尺寸 + 緊字距），內部頁的頁名就是它的字標；
+  // 480px 以下收到 text-3xl，40px 在那個寬度會撞到邊
   &__band-title {
     margin: 0;
-    font-size: 40px;
+    font-size: var(--text-3xl);
     font-weight: var(--font-bold);
     letter-spacing: -0.04em;
     line-height: 1.02;
@@ -40,7 +42,7 @@
 
   &__band-sub {
     margin: var(--space-2) 0 0;
-    font-size: var(--text-base);
+    font-size: var(--text-sm);
     color: var(--band-ink-muted);
   }
 
@@ -58,12 +60,12 @@
     container-name: students-card;
   }
 
+  // 窄螢幕上工具列直向堆疊；`gap` 由 `.clessia-filter-bar` 供應，兩邊同值所以不重述
   &__toolbar {
-    padding: var(--space-4) var(--space-6);
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--space-4);
     border-bottom: 1px solid var(--zinc-100);
-  }
-
-  &__search {
   }
 
   &__search-input {
@@ -74,7 +76,6 @@
 
   &__filter-select {
   }
-
 
   &__content {
     padding: var(--space-4);
@@ -116,11 +117,7 @@
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: linear-gradient(
-      135deg,
-      hsl(var(--h, 210) 31% 36%),
-      hsl(var(--h, 210) 36% 30%)
-    );
+    background: linear-gradient(135deg, hsl(var(--h, 210) 31% 36%), hsl(var(--h, 210) 36% 30%));
     box-shadow: 0 2px 5px -1px hsl(var(--h, 210) 31% 36% / 0.22);
     color: #fff;
     font-size: 13px;
@@ -176,38 +173,28 @@
 }
 
 // Responsive
-@include bp.respond-to('tablet-portrait') {
-  .students {
-    padding: var(--space-4) 0;
-    gap: 0;
-
-    &__toolbar {
-      flex-direction: column;
-      align-items: stretch;
-      padding: var(--space-4);
-      gap: var(--space-3);
-    }
-
-    &__search {
-      max-width: 100%;
-    }
-
-    &__grade-filter,
-    &__campus-filter {
-      width: 100%;
-    }
-
-  }
-}
-
-@include bp.respond-to(480px) {
+// 由窄往寬長。480 那一段必須排在 tablet-portrait 之前。
+@include bp.respond-from(480px) {
   .students {
     &__band-title {
-      font-size: var(--text-3xl);
+      font-size: 40px;
     }
 
     &__band-sub {
-      font-size: var(--text-sm);
+      font-size: var(--text-base);
+    }
+  }
+}
+
+@include bp.respond-from('tablet-portrait') {
+  .students {
+    padding: var(--space-6);
+
+    // `flex-direction` / `align-items` 的值跟 `.clessia-filter-bar` 自己的一致
+    &__toolbar {
+      flex-direction: row;
+      align-items: center;
+      padding: var(--space-4) var(--space-6);
     }
   }
 }
