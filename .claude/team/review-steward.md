@@ -77,6 +77,28 @@ Pages 的 `deployment list` 也能對 source commit,Worker 用 `wrangler deploym
 判準:問「我查的這個東西,是**定義上**等於我要知道的事,還是**通常**等於?」
 是「通常」就要再找一個直接證據。
 
+### 對 bundle 做內容驗證要用 ASCII 識別字,中文永遠 MISS
+esbuild 預設把非 ASCII 轉成 `\uXXXX`,所以 **`grep "管理出勤狀況" dist/**/*.js` 永遠 0 命中**
+—— 而 0 命中看起來跟「這支 PR 沒進去」一模一樣。**本席實測確認**:同一個 chunk 裡
+中文字串 grep MISS、ASCII 識別字(`openAttendance`)命中。
+所以驗證字串挑**函式名 / class 名 / 屬性名**這類 ASCII 識別字;非得用中文文案時,
+把線上內容 `unicode_escape` 解碼後再比,不要直接 grep。
+(計畫席 2026-09-03 曾拿「空==空」當過 MATCH —— 兩邊都是 MISS 也會相等。)
+
+### 部署前確認 dist 是這次 build 出來的,不要 ls 到一個 index.html 就當是它
+本 repo 出現過兩個 dist:`dist/clessia`(陳年輸出)與 `dist/apps/web`(nx `outputPath` 的真輸出)。
+計畫席曾把陳年的那份部署上線約 10 分鐘。**查 `apps/web/project.json` 的 `outputPath`,
+或看 `index.html` 的 mtime 是不是剛剛** —— 產物存在不等於產物是新的。
+本席的正確路徑是 `dist/apps/web/`**`browser`**`/`(多一層 browser)。
+
+### 回報狀態前重抓,不要引用自己上一則訊息裡的數字
+曾在同一封訊息裡同時寫「#237 已在 main」(現查 `origin/main` grep 到的)與
+「main = 59eec60」(引用自己前一封的快照)—— 兩個時間點的事實混在一起,而 SHA 看起來
+夠具體就不會觸發「這要重查嗎」的念頭。**自己上一則訊息裡的數字是快取,不是事實。**
+與「代理指標」那族不同源:那族是查錯東西,這條是查對了但沒重查。
+另:部署基準線記描述(「與某次收官部署相比新增的全是 `.claude/team/` 文件」)比記 SHA 穩,
+SHA 會過期,描述不會。
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
