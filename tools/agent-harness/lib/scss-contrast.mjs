@@ -23,6 +23,23 @@ const UNKNOWN = Symbol('unknown');
 /** 文字的 WCAG AA 門檻 */
 const TEXT_AA = 4.5;
 
+/**
+ * 非文字元素的門檻（WCAG 1.4.11）。**圖示不是文字。**
+ *
+ * 這道 gate 原本一律用 4.5 判，結果把一整批 icon 容器算成違規 ——
+ * 2026-09 的分診裡 14 筆 baseline 有 **8 筆是 icon**，其中一半本來就合格。
+ * 那不是債，是門檻用錯。
+ *
+ * 判斷「這是不是圖示」只看**宿主選擇器**：`.pi`（primeicons）、
+ * 裸 `i`、`svg`、或名字裡有 `icon` 的 element。這是**保守的形狀判斷**，
+ * 不試圖理解語意 —— 一個叫 `__label` 的東西裡面塞圖示，這裡認不出來。
+ */
+const NON_TEXT_AA = 3;
+
+/** 宿主選擇器看起來是圖示嗎 */
+const looksLikeIcon = (selector) =>
+  /(^|[\s>+~])(\.pi\b|i|svg)([\s.:{]|$)/.test(selector) || /icon/i.test(selector);
+
 const luminance = (rgb) => {
   const [r, g, b] = rgb
     .map((c) => c / 255)
@@ -106,7 +123,10 @@ export function usageContrastViolations(scss, palette) {
     const bg = nearest('bg');
     if (!fg || !bg) return;
     const ratio = contrast(fg.rgb, bg.rgb);
-    if (ratio >= TEXT_AA) return;
+    // **圖示走 3:1，不是 4.5。** 見 NON_TEXT_AA 的註解 ——
+    // 用錯門檻製造出來的違規不是債，它會讓 baseline 看起來比實際糟。
+    const threshold = frame.icon ? NON_TEXT_AA : TEXT_AA;
+    if (ratio >= threshold) return;
     // 同一組配對在同一支檔案裡只報一次，不然一個 chip 會刷出十列
     const key = `${fg.src}|${bg.src}`;
     if (seen.has(key)) return;
@@ -132,7 +152,14 @@ export function usageContrastViolations(scss, palette) {
     }
 
     for (const ch of line) {
-      if (ch === '{') stack.push({ line: lineNo, pseudo: /::(before|after)/.test(line) });
+      if (ch === '{')
+        stack.push({
+          line: lineNo,
+          pseudo: /::(before|after)/.test(line),
+          // 圖示的判定沿著祖先繼承：`.x { .pi { … } }` 裡面那層是圖示，
+          // 而 `.x__icon { … }` 自己就是。任一層命中就算。
+          icon: looksLikeIcon(line) || (stack[stack.length - 1]?.icon ?? false),
+        });
       else if (ch === '}' && stack.length > 1) {
         evaluate(stack[stack.length - 1]);
         stack.pop();

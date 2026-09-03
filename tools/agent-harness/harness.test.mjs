@@ -783,3 +783,72 @@ test('c5 的別名清單與 tsconfig 對得上', () => {
     `能走到 features 的別名變了（現有：${paths.join(', ')}）—— check-harness 的 aliases 要跟著改`,
   );
 });
+
+// icon 是非文字元素，WCAG 1.4.11 的門檻是 3:1 不是 4.5:1。
+// warning-600 疊 warning-200 = 4.03，正好落在兩個門檻之間，四種情況一次分得開。
+const ICON_BG = 'var(--warning-200)';
+const ICON_FG = 'var(--warning-600)';
+
+test('對比掃描：4.03 是文字就要抓', () => {
+  // fixture 一律寫多行 —— 掃描是逐行的，而 PostToolUse 的 Prettier 保證 repo 裡
+  // 不存在單行規則，所以這不是漏洞，但測試也不能寫成單行否則等於什麼都沒測
+  assert.equal(
+    scan(`
+.x {
+  background: ${ICON_BG};
+  color: ${ICON_FG};
+}
+`).length,
+    1,
+  );
+});
+
+test('對比掃描：同樣的 4.03 落在 .pi 裡走 3:1，放行', () => {
+  assert.deepEqual(
+    scan(`
+.x {
+  background: ${ICON_BG};
+
+  .pi {
+    color: ${ICON_FG};
+  }
+}
+`),
+    [],
+  );
+});
+
+test('對比掃描：class 名字帶 icon 也算非文字', () => {
+  assert.deepEqual(
+    scan(`
+.x__icon {
+  background: ${ICON_BG};
+  color: ${ICON_FG};
+}
+`),
+    [],
+  );
+});
+
+test('對比掃描：icon 的 3:1 不是免死金牌 —— 2.35 連 3:1 都不過，照抓', () => {
+  const dim = readTokenPalette(`
+:root {
+  --zinc-100: #f4f4f5;
+  --zinc-400: #a1a1aa;
+}
+`);
+  const found = usageContrastViolations(
+    `
+.y {
+  background: var(--zinc-100);
+
+  .pi {
+    color: var(--zinc-400);
+  }
+}
+`,
+    dim,
+  );
+  assert.equal(found.length, 1, 'zinc-400 疊 zinc-100 只有 2.35，是 icon 也救不了');
+  assert.ok(found[0].ratio < 3, `ratio=${found[0].ratio}`);
+});

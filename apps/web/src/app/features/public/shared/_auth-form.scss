@@ -216,7 +216,9 @@
 
   &--error {
     background: var(--error-100);
-    color: var(--error-600);
+    // error-600 疊 error-100 只有 3.95。error-700 是 5.30 ——
+    // 而這是**登入頁的錯誤訊息**，看不清楚的代價是使用者不知道自己哪裡錯了。
+    color: var(--error-700);
   }
 
   &--info {
