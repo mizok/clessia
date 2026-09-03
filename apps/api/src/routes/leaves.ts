@@ -94,8 +94,11 @@ export function buildLeaveAuditResourceName(input: LeaveAuditResourceNameInput):
   return `${input.studentName?.trim() || '請假紀錄'} / ${input.startDate} ~ ${input.endDate}`;
 }
 
-export function buildLeaveAttendanceAuditDetails(affectedEventCount: number) {
-  return { affectedEventCount };
+export function buildLeaveAttendanceAuditDetails(removedRecordCount: number) {
+  // 欄位名維持 `affectedEventCount` —— 既有的 audit_logs 資料用的是這個鍵，
+  // 改名會讓舊紀錄跟新紀錄對不起來。**值的意思變了**：現在是真的刪掉幾筆紀錄，
+  // 而不是「區間裡有幾個 event」（後者跟這個學生根本無關）。
+  return { affectedEventCount: removedRecordCount };
 }
 
 export function getLeaveValidationError(input: LeaveValidationInput): string | null {
@@ -421,7 +424,7 @@ app.openapi(
     method: 'delete',
     path: '/:id',
     tags: ['Leaves'],
-    summary: '刪除請假（attendance 恢復為 absent）',
+    summary: '刪除請假（未點名的日子回到無紀錄，已點名的維持不動）',
     request: {
       params: z.object({ id: DbUuidSchema }),
       query: z.object({
@@ -454,26 +457,42 @@ app.openapi(
     const startDate = (leave as any).start_date as string;
     const endDate = (leave as any).end_date as string;
 
-    // 內部工具：將指定日期區間的 on_leave attendance 改回 absent
+    /**
+     * 把區間內因為這張假而寫下的 `on_leave` 紀錄**刪掉**，讓那幾天回到「還沒點名」。
+     *
+     * **原本是改成 `absent`，那是錯的**：管理員刪掉一張假，那幾天的學生就全被記成缺席，
+     * 而根本沒有人點過那些名。「沒有紀錄」與「缺席」是兩件事（見 #145、#169）——
+     * 系統不該替沒發生過的判斷寫一個答案。刪掉之後那幾天回到可標記狀態。
+     *
+     * **已經點過名的日子維持不動**（`attendance_taken_at` 不是 null）：
+     * 那天有人真的看過名單、做過判斷，`on_leave` 是那個判斷的一部分。
+     * 假被刪掉不代表可以回頭改寫別人已經做完的事。
+     */
     const revertAttendance = async (from: string, to: string) => {
       const { data: events } = await supabase
         .from('events')
         .select('id')
         .eq('org_id', orgId)
+        .is('attendance_taken_at', null)
         .gte('event_date', from)
         .lte('event_date', to);
-      if (events && events.length > 0) {
-        await supabase
-          .from('attendance_records')
-          .update({ status: 'absent' })
-          .eq('student_id', (leave as any).student_id)
-          .eq('status', 'on_leave')
-          .in(
-            'event_id',
-            events.map((e: any) => e.id),
-          );
-      }
-      return events?.length ?? 0;
+
+      if (!events || events.length === 0) return 0;
+
+      const { data: removed } = await supabase
+        .from('attendance_records')
+        .delete()
+        .eq('student_id', (leave as any).student_id)
+        .eq('status', 'on_leave')
+        .in(
+          'event_id',
+          events.map((e: any) => e.id),
+        )
+        .select('id');
+
+      // 回傳**真的刪掉幾筆**，不是「區間裡有幾個 event」——
+      // 後者本來就跟這個學生無關，寫進稽核只會誤導
+      return ((removed ?? []) as unknown[]).length;
     };
 
     const isActive = startDate <= today && endDate >= today;
