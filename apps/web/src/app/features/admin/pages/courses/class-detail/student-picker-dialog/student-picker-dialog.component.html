@@ -85,7 +85,7 @@
         (onClick)="goToReview()"
       />
     </div>
-  } @else {
+  } @else if (step() === 'reviewing') {
     <!-- Step 2: Review -->
     <div class="spd__step-header">
       <button type="button" class="spd__back-btn" (click)="goBack()">
@@ -134,6 +134,52 @@
         </div>
       }
     </div>
+
+    <!-- 計費：整批同一組（同一班同一個價目表是常態）。
+         填在這裡而不是事後逐筆補 —— 事後補是純粹的重工，而且沒有人會回來補 -->
+    <div class="spd__billing">
+      <app-enrollment-billing-fields
+        [draft]="billing()"
+        [templates]="templates()"
+        [proration]="proration()"
+        (draftChange)="onBillingChange($event)"
+        (prorationApplied)="applyProration()"
+      />
+
+      <label class="spd__issue">
+        <p-checkbox
+          [ngModel]="issueInvoice()"
+          (ngModelChange)="onIssueInvoiceChange($event)"
+          [binary]="true"
+          inputId="spd-issue-invoice"
+        />
+        <span class="spd__issue-text">
+          <span class="spd__issue-title">同時開立第一張帳單</span>
+          <span class="spd__issue-sub">
+            @if (payable() !== null) {
+              每人 ${{ payable()!.toLocaleString() }}，共 {{ selectedCount() }} 張
+            } @else {
+              先選價目表或填議定金額才開得了
+            }
+          </span>
+        </span>
+      </label>
+    </div>
+
+    @if (invoiceFailures().length > 0) {
+      <!-- 報名成立、帳單沒開成。兩件事分開講，因為它們真的是兩件事 -->
+      <app-inline-notice
+        severity="warning"
+        summary="已報名，但有帳單沒開成"
+        [detail]="
+          invoicesCreated() +
+          ' 張開好了，' +
+          invoiceFailures().length +
+          ' 張沒開成。報名都已經成立，這幾筆可以現在重試，或稍後從繳費頁補開。'
+        "
+        [dismissible]="false"
+      />
+    }
 
     @if (confirmError()) {
       <app-inline-notice severity="error" [detail]="confirmError()!" [dismissible]="false" />
@@ -194,11 +240,87 @@
         (onClick)="goBack()"
       />
       <p-button
-        [label]="confirming() ? '' : '確認加入 ' + selectedCount() + ' 人'"
+        [label]="
+          confirming()
+            ? ''
+            : (issueInvoice() ? '加入並開帳 ' : '確認加入 ') + selectedCount() + ' 人'
+        "
         [loading]="confirming()"
         [disabled]="selectedCount() === 0 || overQuotaCount() > 0 || confirming()"
         (onClick)="confirm()"
       />
+    </div>
+  } @else {
+    <!-- Step 3: Result —— 原本這裡直接關閉，只留一個 toast 摘要 -->
+    <div class="spd__step-header">
+      <span class="spd__step-title">加入結果</span>
+    </div>
+
+    <div class="spd__result-summary">
+      <span
+        >已加入 <strong>{{ enrolledTargets().length }}</strong> 人</span
+      >
+      @if (alreadyExistsCount() > 0) {
+        <span>{{ alreadyExistsCount() }} 人已在班（略過）</span>
+      }
+      @if (enrollErrorCount() > 0) {
+        <span>{{ enrollErrorCount() }} 人失敗</span>
+      }
+      @if (invoicesCreated() > 0) {
+        <span
+          >開了 <strong>{{ invoicesCreated() }}</strong> 張帳單</span
+        >
+      }
+    </div>
+
+    @if (invoiceFailures().length > 0) {
+      <app-inline-notice
+        severity="warning"
+        summary="有帳單沒開成"
+        [detail]="
+          invoiceFailures().length +
+          ' 張沒開成。報名都已經成立，這幾筆可以現在重試，或稍後從繳費頁補開。'
+        "
+        [dismissible]="false"
+      />
+    }
+
+    @if (notice()) {
+      <app-inline-notice severity="info" [detail]="notice()!" [dismissible]="false" />
+    }
+
+    <div class="spd__review-list">
+      @for (student of selectedStudents(); track student.id) {
+        <div class="spd__review-item">
+          <span class="spd__item-avatar" [style.--h]="getStudentHue(student.id)">{{
+            student.name[0]
+          }}</span>
+          <span class="spd__item-body">
+            <span class="spd__item-name">{{ student.name }}</span>
+            <span class="spd__item-meta">{{ resultLabel(student.id) }}</span>
+          </span>
+        </div>
+      }
+    </div>
+
+    <div class="spd__footer">
+      <p-button
+        label="完成"
+        [text]="true"
+        severity="secondary"
+        [disabled]="issuing()"
+        (onClick)="closeWithResult()"
+      />
+      @if (uninvoicedCount() > 0) {
+        <p-button
+          [label]="
+            (invoiceFailures().length > 0 ? '重試 ' : '為這 ') + uninvoicedCount() + ' 筆開帳'
+          "
+          [icon]="invoiceFailures().length > 0 ? 'pi pi-refresh' : 'pi pi-file-edit'"
+          [loading]="issuing()"
+          (onClick)="issueRemaining()"
+        />
+      }
     </div>
   }
 </div>

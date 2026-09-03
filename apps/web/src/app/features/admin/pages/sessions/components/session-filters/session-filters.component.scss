@@ -6,21 +6,42 @@
 }
 
 .session-filters {
+  /* **手機優先**：窄螢幕的篩選列是一條**橫捲的帶**（不換行、可左右滑），
+     寬了才變成會換行的一般列。
+     捲軸隱藏那幾行在寬版**不需要解除** —— 一旦 `overflow-x: visible` 且內容
+     會換行，就沒有捲軸可藏，它們自然失效。 */
   &__row {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
-    flex-wrap: wrap;
+    gap: var(--space-2);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: var(--space-1);
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  // 窄螢幕上這一列被上面的 __mobile 精簡列取代
+  &__row--list {
+    display: none;
   }
 
   &__control {
+    flex: 0 0 auto;
+    width: 140px;
+
     &--date-range {
       min-width: 220px;
     }
   }
 
+  // 手機專用的精簡列（日期 + 一顆展開更多篩選的鈕）
   &__mobile {
-    display: none;
+    display: flex;
     align-items: center;
     gap: var(--space-2);
   }
@@ -43,7 +64,10 @@
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
-    height: 38px;
+    // `min-height` 而不是 `height`：38px 是為了跟旁邊那顆 sm 日期輸入框對齊，
+    // 但 `styles.scss` 的 `pointer: coarse` 已經把 PrimeNG 的 sm 輸入框加高了 ——
+    // 寫死 38 在觸控下反而變成錯位。改成下限就能跟著長。
+    min-height: 38px;
 
     &:active {
       background: var(--zinc-100);
@@ -133,45 +157,56 @@
   }
 }
 
-@include bp.respond-to-container('shell-content', 'tablet-portrait') {
+// 由窄往寬長；`mobile` 這段必須排在 `tablet-portrait` 之前。
+@include bp.respond-from-container('shell-content', 'mobile') {
   .session-filters {
+    // 回到一般的會換行的列
     &__row {
-      gap: var(--space-2);
+      flex-wrap: wrap;
+      overflow-x: visible;
+      padding-bottom: 0;
+    }
+
+    &__row--list {
+      display: flex;
     }
 
     &__control {
       min-width: 0;
       flex: 1 1 120px;
+      width: auto;
+    }
+
+    &__mobile {
+      display: none;
     }
   }
 }
 
-@include bp.respond-to-container('shell-content', 'mobile') {
+@include bp.respond-from-container('shell-content', 'tablet-portrait') {
   .session-filters {
-    &__mobile {
-      display: flex;
-    }
-
-    &__row--list {
-      display: none;
-    }
-
     &__row {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-      padding-bottom: var(--space-1);
-      gap: var(--space-2);
-
-      &::-webkit-scrollbar {
-        display: none;
-      }
+      gap: var(--space-3);
     }
 
+    // 解回 CSS 的初始值（不是某個主題的預設值，所以寫死是安全的）
     &__control {
-      flex: 0 0 auto;
-      width: 140px;
+      min-width: auto;
+      flex: 0 1 auto;
     }
+
+    // 上面那條排在基準的 `--date-range` 後面，會把它的 220px 蓋掉，
+    // 所以要在同一個區塊裡再講一次
+    &__control--date-range {
+      min-width: 220px;
+    }
+  }
+}
+
+// 觸控下抬到 44px（AAA 2.5.5）。**只加 coarse 這一段就夠** —— gate 取
+// `max(基準, coarse)`，而滑鼠下 38px 本來就夠用，桌機不必動。
+@media (pointer: coarse) {
+  .session-filters__mobile-toggle {
+    min-height: 44px;
   }
 }

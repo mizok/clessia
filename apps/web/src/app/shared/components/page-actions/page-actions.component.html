@@ -1,0 +1,32 @@
+<!-- 標頭：**手機也保留**。次要行動（操作紀錄、匯入）投影在這裡，
+     它們在手機上仍然要按得到 —— 主要行動搬走不代表其他行動跟著消失。 -->
+<div class="page-actions__header">
+  <ng-content />
+  @if (primary(); as action) {
+    <!-- 主要行動在標頭裡的那一份**只在桌機出現**；手機由下方的停靠列承擔 -->
+    <div class="page-actions__header-primary">
+      <p-button
+        [label]="action.label"
+        [icon]="action.icon ?? ''"
+        [disabled]="!!action.disabled"
+        (onClick)="onPrimary($event)"
+      />
+    </div>
+  }
+</div>
+
+@if (primary(); as action) {
+  <!-- 手機：停靠在 bottom-bar 正上方。
+       **底部留白不在這裡** —— 這個元件宣告在頁面標頭，佔位塊放這裡等於保留了
+       標頭下方的空間，而停靠列蓋住的是清單最後一列。留白由 `.shell-content`
+       用 `:has()` 自己處理，見 styles.scss。 -->
+  <div class="page-actions__dock">
+    <p-button
+      styleClass="page-actions__cta"
+      [label]="action.label"
+      [icon]="action.icon ?? ''"
+      [disabled]="!!action.disabled"
+      (onClick)="onPrimary($event)"
+    />
+  </div>
+}

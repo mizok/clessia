@@ -1,7 +1,8 @@
 import type { EventSessionSummary } from '@core/attendance.service';
 
 /**
- * 一日時間軸的佈局數學。設計見 `kb/wiki/architecture/day-timeline.md`。
+ * 一日時間軸的佈局數學。設計見 `kb/wiki/architecture/timeline-density.md`
+ * （前身是 lane 式佈局，見 `day-timeline.md`）。
  *
  * **這裡沒有 Angular。** 佈局是這個元件最需要被測的部分（下面每一條邊界都是純函式的
  * 輸入輸出），拆成純函式就不必為了測一條 lane 分配去啟一個 TestBed。慣例同
@@ -12,34 +13,35 @@ import type { EventSessionSummary } from '@core/attendance.service';
 export const DEFAULT_START_HOUR = 8;
 export const DEFAULT_END_HOUR = 22;
 
-/** 沒有結束時間的課畫成一個「點」，這是它在軸上佔的寬度（百分比）。 */
-export const POINT_WIDTH_PCT = 1.4;
+/** 每一根代表的分鐘數。半小時是「看得出忙在哪一段」與「根數不至於太細」的折衷。 */
+export const BIN_MINUTES = 30;
 
 export interface TimeWindow {
   readonly startHour: number;
   readonly endHour: number;
 }
 
-export interface PlacedSession {
-  readonly session: EventSessionSummary;
-  /** 左緣，0–100 */
-  readonly leftPct: number;
-  /** 寬度，0–100。沒有結束時間時是 `POINT_WIDTH_PCT` */
-  readonly widthPct: number;
-  /** 沒有結束時間 —— 畫成點而不是有長度的方塊 */
-  readonly isPoint: boolean;
+/** 一根柱：那半小時同時有幾堂課，其中幾堂還沒點名。 */
+export interface DensityBin {
+  /** 這一根的起點（小時，含 .5） */
+  readonly startHour: number;
+  readonly total: number;
+  readonly untaken: number;
 }
 
-export interface TimelineLayout {
+export interface DensityLayout {
   readonly window: TimeWindow;
-  /** 每一條 lane 是一組互不重疊的課 */
-  readonly lanes: readonly (readonly PlacedSession[])[];
+  readonly bins: readonly DensityBin[];
   /**
-   * 沒有開始時間、因此畫不出來的課。
+   * 當日最大同時堂數。**柱高按它正規化，而且要把它顯示出來**（「最忙 N 堂」）——
+   * 固定尺度加截斷會說謊：8 堂同時的日子會畫得跟 5 堂一樣高，而那正是最該被看見的日子。
+   */
+  readonly maxTotal: number;
+  /**
+   * 沒有開始時間、因此落不進任何一根的課。
    *
-   * **呼叫端要把它說出來**（「另有 N 堂未排定時間」）。沒有時間就沒有位置，
-   * 但畫不出來不等於不存在 —— 句子裡的總數與軸上的數量不一致時要講，
-   * 不是默默對齊。
+   * **呼叫端要把它說出來**（「另有 N 堂未排定時間」）。句子裡的總數與圖上的總數
+   * 不一致時要講，不是默默對齊。
    */
   readonly unplaced: readonly EventSessionSummary[];
 }
@@ -77,21 +79,31 @@ export function deriveWindow(sessions: readonly EventSessionSummary[]): TimeWind
 }
 
 /**
- * 同時段的課並排成多條 lane（貪婪區間分割）：依開始時間排序，每一堂放進
- * 「最後一堂已經結束」的第一條 lane，沒有就開新的。
+ * 每半小時一根，柱高是那半小時**同時**有幾堂課。
  *
- * **lane 數不設上限。** 真實的並行數是教室數，通常 2–5 條，帶的高度吸收得了。
- * 設上限反而要決定「放不下的那幾堂去哪」，而任何一種塞法（疊在最後一條、丟掉、
- * 加省略號）都會讓這張圖說謊。真的出現 8 條以上時該換一種畫法（例如每半小時
- * 一根、以濃度表示同時上課的堂數），不是加上限 —— 那時再說。
+ * **為什麼不是「濃度」**：橘帶上近黑的透明度地板是 0.78（0.72 只有 4.00:1，不合 AA），
+ * 而 0.78→1.00 兩端互相只有 1.40:1 —— 圖形元素相鄰要 3:1，所以連兩階濃度都放不下。
+ * 編碼只能是長度。（長度本來就比明度準，無障礙的地板剛好把設計推向更好的那一邊。）
+ *
+ * 三個計數規則，每一個都有對應的測試：
+ *
+ * - **涵蓋，不是開始**：09:00–10:30 的課在 09:00 / 09:30 / 10:00 三根各 +1。
+ *   用「開始」計數的話，一整天的長課只會出現在一根，圖就變成「開課時刻分佈」
+ *   而不是「忙碌程度」。
+ * - **半開區間**：09:00–10:00 的課不計入 10:00 那一根 —— 接續不是重疊。
+ * - **有起無迄只算起始那一根**：給它一個預設時長等於憑空宣稱一段我們沒有的資訊。
  */
-export function layoutDay(sessions: readonly EventSessionSummary[]): TimelineLayout {
+export function binDay(sessions: readonly EventSessionSummary[]): DensityLayout {
   const win = deriveWindow(sessions);
-  const span = win.endHour - win.startHour;
-  const toPct = (hour: number) => ((hour - win.startHour) / span) * 100;
+  // **整數分鐘算，不用小時的浮點數。** `10.5 - Number.EPSILON` 在浮點上仍然等於
+  // `10.5`（EPSILON 是相對 1.0 的精度），半開區間就會多算一根。
+  const winStartMin = Math.round(win.startHour * 60);
+  const winEndMin = Math.round(win.endHour * 60);
+  const binCount = Math.round((winEndMin - winStartMin) / BIN_MINUTES);
 
+  const totals = new Array<number>(binCount).fill(0);
+  const untakens = new Array<number>(binCount).fill(0);
   const unplaced: EventSessionSummary[] = [];
-  const placeable: { session: EventSessionSummary; from: number; to: number | null }[] = [];
 
   for (const s of sessions) {
     const from = parseTimeToHours(s.startTime);
@@ -99,41 +111,30 @@ export function layoutDay(sessions: readonly EventSessionSummary[]): TimelineLay
       unplaced.push(s);
       continue;
     }
+
     const parsedTo = parseTimeToHours(s.endTime);
-    placeable.push({
-      session: s,
-      from,
-      to: parsedTo !== null && parsedTo > from ? parsedTo : null,
-    });
-  }
+    const startMin = Math.round(from * 60);
+    const endMin = parsedTo !== null && parsedTo > from ? Math.round(parsedTo * 60) : startMin + 1;
 
-  placeable.sort((a, b) => a.from - b.from);
+    const first = Math.floor((startMin - winStartMin) / BIN_MINUTES);
+    // 半開區間 [start, end)：結束時刻剛好落在格線上時，那一根不算。
+    // `endMin - 1` 就是「最後一個仍屬於這堂課的分鐘」。
+    const last = Math.floor((endMin - 1 - winStartMin) / BIN_MINUTES);
 
-  const lanes: PlacedSession[][] = [];
-  // 每條 lane 目前的結束時間。點（沒有結束時間）也要佔一點寬度才不會疊在一起，
-  // 所以它在排程上等同一個極短的區間。
-  const laneEnds: number[] = [];
-
-  for (const item of placeable) {
-    const widthPct = item.to === null ? POINT_WIDTH_PCT : toPct(item.to) - toPct(item.from);
-    const occupiesUntil = item.to ?? item.from + (POINT_WIDTH_PCT / 100) * span;
-
-    let lane = laneEnds.findIndex((end) => end <= item.from);
-    if (lane === -1) {
-      lane = lanes.length;
-      lanes.push([]);
-      laneEnds.push(0);
+    const untaken = s.takenAt === null;
+    for (let i = Math.max(0, first); i <= Math.min(binCount - 1, last); i++) {
+      totals[i] += 1;
+      if (untaken) untakens[i] += 1;
     }
-    lanes[lane].push({
-      session: item.session,
-      leftPct: toPct(item.from),
-      widthPct,
-      isPoint: item.to === null,
-    });
-    laneEnds[lane] = occupiesUntil;
   }
 
-  return { window: win, lanes, unplaced };
+  const bins: DensityBin[] = totals.map((total, i) => ({
+    startHour: (winStartMin + i * BIN_MINUTES) / 60,
+    total,
+    untaken: untakens[i],
+  }));
+
+  return { window: win, bins, maxTotal: Math.max(0, ...totals), unplaced };
 }
 
 /**

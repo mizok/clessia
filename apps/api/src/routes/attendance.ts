@@ -1,7 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import { resolveTeacherScope } from './attendance/teacher-scope';
 import type { AppEnv } from '../index';
 import { isAttendanceEditable } from '../lib/attendance-window';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { assertAttendanceWindow } from '../lib/attendance-window-check';
+import { SESSION_SUMMARY_SELECT, summariseSessions } from '../lib/session-summary';
 import { isSubstituteSession } from '../lib/session-substitute';
 import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
 import { resolveRecordedByRole } from '../lib/recorded-by-role';
@@ -10,7 +14,7 @@ import { cancelLeaveForDate } from '../lib/cancel-leave-for-date';
 import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
-import { waitUntilFrom } from '../lib/wait-until';
+import { applyCampusFilter, type CampusScope } from '../lib/campus-scope';
 
 const AttendanceStatusSchema = z
   .enum(['present', 'absent', 'on_leave'])
@@ -132,10 +136,18 @@ const RosterStudentSchema = z
      * 前端要在老師按下去**之前**就能說「這一按會連帶取消到 X 日」——
      * 事前確認跟事後告知是兩件事，後者已經來不及了。
      *
-     * **只回結束日，不回起訖區間**：同一天可能被兩張假蓋到（區間不同），
-     * 回一組起訖等於謊稱它們是同一張。老師需要知道的是「最遠會取消到哪」，
-     * 那就是所有蓋到今天的假裡面最晚的結束日。
+     * 起日則是所有蓋到今天的假裡**最早的**開始日。
+     *
+     * ⚠️ **#185 當時我寫「只回結束日，回起訖等於謊稱它們是同一張」—— 那個顧慮不成立，
+     * 現在補上起日。** 理由：這裡的每一張假**都涵蓋今天**，所以它們的聯集必然是
+     * 連續的，而且剛好等於 `[min(start), max(end)]` —— 中間不可能有洞。
+     * 而且這一組數字要回答的問題不是「這是哪一張假」，是**「按下去會影響哪個區間」**，
+     * 那個區間確實就是這一組。
+     *
+     * 有了起日，前端的事前警告才能從「會取消到 X 日」變成
+     * 「會取消 X 到 Y 的請假」—— 老師看得到自己按下去會動到什麼。
      */
+    leaveStartDate: z.string().nullable(),
     leaveEndDate: z.string().nullable(),
   })
   .openapi('RosterStudent');
@@ -249,6 +261,11 @@ export function normalizeAttendanceFilterIds(filterIds: string | undefined): str
 export async function ensureAttendanceSessionEvents(input: {
   readonly supabase: AppEnv['Variables']['supabase'];
   readonly orgId: string;
+  /**
+   * 呼叫者看得到的分校。**這支會「補建」出勤事件（寫入），所以範圍不能只靠讀取端過濾**
+   * —— 少了它，A 校的管理員查詢時會替 B 校的課堂建立 event。
+   */
+  readonly campusScope: CampusScope;
   readonly campusId?: string;
   readonly courseIdList: readonly string[];
   readonly classIdList: readonly string[];
@@ -259,6 +276,7 @@ export async function ensureAttendanceSessionEvents(input: {
   const {
     supabase,
     orgId,
+    campusScope,
     campusId,
     courseIdList,
     classIdList,
@@ -290,9 +308,12 @@ export async function ensureAttendanceSessionEvents(input: {
     missingSessionsQuery = missingSessionsQuery.lte('session_date', dateToValue ?? dateFromValue);
   }
 
-  if (campusId) {
-    missingSessionsQuery = missingSessionsQuery.eq('classes.campus_id', campusId);
-  }
+  missingSessionsQuery = applyCampusFilter(
+    missingSessionsQuery,
+    'classes.campus_id',
+    campusScope,
+    campusId,
+  );
   if (courseIdList.length > 0) {
     missingSessionsQuery = missingSessionsQuery.in('classes.course_id', [...courseIdList]);
   }
@@ -451,7 +472,7 @@ app.openapi(
     if (status) query = query.eq('status', status);
     if (dateFrom) query = query.gte('events.event_date', dateFrom);
     if (dateTo) query = query.lte('events.event_date', dateTo);
-    if (campusId) query = query.eq('events.campus_id', campusId);
+    query = applyCampusFilter(query, 'events.campus_id', c.get('campusScope'), campusId);
 
     const from = (page - 1) * pageSize;
     query = query.range(from, from + pageSize - 1).order('created_at', { ascending: false });
@@ -979,6 +1000,7 @@ app.openapi(
       const ensureEventsResult = await ensureAttendanceSessionEvents({
         supabase,
         orgId,
+        campusScope: c.get('campusScope'),
         campusId,
         courseIdList,
         classIdList,
@@ -993,31 +1015,7 @@ app.openapi(
 
     let sessionsQuery = supabase
       .from('sessions')
-      .select(
-        `
-        id,
-        event_id,
-        session_date,
-        start_time,
-        end_time,
-        status,
-        class_id,
-        teacher_id,
-        teacher:staff!teacher_id(display_name),
-        schedules!schedule_id(teacher_id),
-        classes!inner(name, course_id, campus_id, campuses(name), courses(name)),
-        events!event_id(
-          id,
-          event_date,
-          start_time,
-          end_time,
-          attendance_taken_at,
-          campus_id,
-          campuses(name)
-        )
-      `,
-        { count: 'exact' },
-      )
+      .select(SESSION_SUMMARY_SELECT, { count: 'exact' })
       .eq('org_id', orgId)
       .order('session_date', { ascending: true })
       .order('start_time', { ascending: true })
@@ -1028,7 +1026,12 @@ app.openapi(
       sessionsQuery = sessionsQuery.lte('session_date', dateToValue ?? dateFromValue);
     }
 
-    if (campusId) sessionsQuery = sessionsQuery.eq('classes.campus_id', campusId);
+    sessionsQuery = applyCampusFilter(
+      sessionsQuery,
+      'classes.campus_id',
+      c.get('campusScope'),
+      campusId,
+    );
     if (courseIdList.length > 0) {
       sessionsQuery = sessionsQuery.in('classes.course_id', courseIdList);
     }
@@ -1042,144 +1045,7 @@ app.openapi(
     if (sessionsError)
       return c.json({ error: '查詢課堂失敗', message: sessionsError.message }, 500);
 
-    // ── 兩支批次查詢取代每堂各兩支 ─────────────────────────────
-    //
-    // 原本是 `sessions.map(async ...)` 裡各發一支 attendance_records 與一支
-    // enrollments count —— 100 堂課就是 200 次往返，而儀表板一次要兩份列表。
-    // 空 DB 感覺不到，有資料之後它隨課堂數線性成長。
-    const sessionRows = (sessions ?? []) as any[];
-    const eventIds = Array.from(
-      new Set(
-        sessionRows
-          .map((session) => {
-            const eventRow = Array.isArray(session.events) ? session.events[0] : session.events;
-            return session.event_id ?? eventRow?.id ?? null;
-          })
-          .filter((id: string | null): id is string => Boolean(id)),
-      ),
-    );
-    const rosterClassIds = Array.from(
-      new Set(
-        sessionRows
-          .map((session) => session.class_id as string | null)
-          .filter((id): id is string => Boolean(id)),
-      ),
-    );
-
-    // 考試掛在 (班級, 日期) 上，不是掛在 session 上 —— 所以用這一頁實際出現的班級與
-    // 日期區間去撈，跟出勤/在籍一樣是一支批次查詢，不隨課堂數成長。
-    const sessionDates = sessionRows
-      .map((session) => session.session_date as string | null)
-      .filter((date): date is string => Boolean(date))
-      .sort();
-
-    const [{ data: attendanceRows }, { data: enrollmentRows }, { data: examRows }] =
-      await Promise.all([
-        eventIds.length > 0
-          ? supabase
-              .from('attendance_records')
-              .select('event_id, status')
-              .eq('org_id', orgId)
-              .in('event_id', eventIds)
-          : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-        rosterClassIds.length > 0
-          ? supabase
-              .from('enrollments')
-              .select('class_id, effective_from, effective_to')
-              .eq('org_id', orgId)
-              .eq('status', 'active')
-              .in('class_id', rosterClassIds)
-          : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-        rosterClassIds.length > 0 && sessionDates.length > 0
-          ? supabase
-              .from('academy_exam_classes')
-              .select('class_id, academy_exams!inner(exam_date, org_id)')
-              .eq('academy_exams.org_id', orgId)
-              .in('class_id', rosterClassIds)
-              .gte('academy_exams.exam_date', sessionDates[0])
-              .lte('academy_exams.exam_date', sessionDates[sessionDates.length - 1])
-          : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
-      ]);
-
-    const examCounts = countExamsBySession(
-      ((examRows ?? []) as Array<Record<string, unknown>>).map((row) => {
-        const exam = Array.isArray(row['academy_exams'])
-          ? row['academy_exams'][0]
-          : (row['academy_exams'] as { exam_date?: string } | null);
-        return {
-          class_id: (row['class_id'] as string) ?? '',
-          exam_date: exam?.exam_date ?? '',
-        };
-      }),
-    );
-
-    const tally = tallyAttendance(
-      ((attendanceRows ?? []) as Array<Record<string, unknown>>).map((row) => ({
-        eventId: row['event_id'] as string,
-        status: row['status'] as string,
-      })),
-    );
-    const enrollmentRanges: EnrollmentRange[] = (
-      (enrollmentRows ?? []) as Array<Record<string, unknown>>
-    ).map((row) => ({
-      classId: row['class_id'] as string,
-      effectiveFrom: row['effective_from'] as string,
-      effectiveTo: (row['effective_to'] as string | null) ?? null,
-    }));
-
-    const results = sessionRows.map((session: any) => {
-      const classRow = session.classes;
-      const courseRow = Array.isArray(classRow?.courses) ? classRow.courses[0] : classRow?.courses;
-      const classCampusRow = Array.isArray(classRow?.campuses)
-        ? classRow.campuses[0]
-        : classRow?.campuses;
-      const eventRow = Array.isArray(session.events) ? session.events[0] : session.events;
-      const classId = session.class_id ?? null;
-      const eventId = session.event_id ?? eventRow?.id ?? null;
-      const sessionDate = eventRow?.event_date ?? session.session_date ?? null;
-
-      // 沒有出勤記錄的課堂不會出現在 tally 裡 —— 那是「還沒點名」，不是「全缺席」
-      const counts = (eventId ? tally.get(eventId) : undefined) ?? {
-        presentCount: 0,
-        onLeaveCount: 0,
-        absentCount: 0,
-      };
-
-      const scheduleRow = Array.isArray(session.schedules)
-        ? session.schedules[0]
-        : session.schedules;
-      const teacherRow = Array.isArray(session.teacher) ? session.teacher[0] : session.teacher;
-
-      return {
-        sessionId: session.id as string,
-        // 停課的課堂沒有出勤事件（ensure 刻意跳過）—— 這裡誠實回 null，
-        // 讓前端關掉點名入口，而不是給一個空字串讓它以為點得下去
-        eventId: eventId ?? null,
-        status: (session.status ?? 'scheduled') as 'scheduled' | 'completed' | 'cancelled',
-        examCount:
-          examCounts.get(sessionExamKey(classId ?? '', (session.session_date as string) ?? '')) ??
-          0,
-        isSubstitute: isSubstituteSession({
-          sessionTeacherId: (session.teacher_id as string | null) ?? null,
-          scheduleTeacherId: (scheduleRow?.teacher_id as string | null) ?? null,
-        }),
-        classId: classId ?? '',
-        className: classRow?.name ?? '',
-        courseName: courseRow?.name ?? null,
-        // 實際上這堂課的老師（代課時就是代課老師）—— 原本寫死 null
-        teacherName: (teacherRow?.display_name as string | null) ?? null,
-        campusId: eventRow?.campus_id ?? classRow?.campus_id ?? null,
-        campusName: eventRow?.campuses?.name ?? classCampusRow?.name ?? null,
-        eventDate: sessionDate ?? '',
-        startTime: (eventRow?.start_time ?? session.start_time)?.slice(0, 5) ?? null,
-        endTime: (eventRow?.end_time ?? session.end_time)?.slice(0, 5) ?? null,
-        enrolledCount: classId ? countEnrolledOn(enrollmentRanges, classId, sessionDate) : 0,
-        presentCount: counts.presentCount,
-        onLeaveCount: counts.onLeaveCount,
-        absentCount: counts.absentCount,
-        takenAt: eventRow?.attendance_taken_at ?? null,
-      };
-    });
+    const results = await summariseSessions(supabase, orgId, sessions);
 
     return c.json(
       {
@@ -1263,8 +1129,10 @@ app.openapi(
       startTime: ((ev as any).start_time as string | null) ?? null,
       endTime: ((ev as any).end_time as string | null) ?? null,
     };
-    // 每個學生記「最遠的結束日」—— 同一天可能被兩張假蓋到，銷假會把兩張都動到，
-    // 所以要警告的是其中最晚的那一天
+    // 每個學生記「被影響的區間」—— 同一天可能被兩張假蓋到，銷假會把兩張都動到，
+    // 所以警告要涵蓋最早的起日到最晚的迄日。
+    // **每一張都涵蓋今天，所以聯集必然連續**，這一組數字是精確的不是包絡。
+    const leaveStartByStudent = new Map<string, string>();
     const leaveEndByStudent = new Map<string, string>();
     for (const row of (leaves ?? []) as Array<Record<string, unknown>>) {
       const covers = leaveCoversSession(
@@ -1279,9 +1147,16 @@ app.openapi(
       if (!covers) continue;
 
       const studentKey = row['student_id'] as string;
+      const startDate = row['start_date'] as string;
       const endDate = row['end_date'] as string;
-      const existing = leaveEndByStudent.get(studentKey);
-      if (!existing || endDate > existing) leaveEndByStudent.set(studentKey, endDate);
+
+      const existingStart = leaveStartByStudent.get(studentKey);
+      if (!existingStart || startDate < existingStart) {
+        leaveStartByStudent.set(studentKey, startDate);
+      }
+
+      const existingEnd = leaveEndByStudent.get(studentKey);
+      if (!existingEnd || endDate > existingEnd) leaveEndByStudent.set(studentKey, endDate);
     }
 
     const students = (enrollments ?? []).map((e: any) => {
@@ -1294,6 +1169,7 @@ app.openapi(
         recordId: rec?.id ?? null,
         status: rec?.status ?? null,
         hasLeaveRequest: leaveEndByStudent.has(e.student_id),
+        leaveStartDate: leaveStartByStudent.get(e.student_id) ?? null,
         leaveEndDate: leaveEndByStudent.get(e.student_id) ?? null,
       };
     });
@@ -1484,74 +1360,5 @@ app.openapi(
     return c.json({ leavesDeleted, leavesTruncated, attendanceRecordsRemoved, droppedAfter }, 200);
   },
 );
-
-/**
- * 補登窗的伺服器端檢查。**在 2026-08-30 之前這個窗只在前端讀**
- * （`teacher/schedule.page.ts:122-127`），老師直接打 API 可以改任何日期的出勤 ——
- * 前端隱藏不構成限制，跟 c1 的道理一樣。
- *
- * 這裡照抄前端的兩個條件（見 `lib/attendance-window.ts`）：這個切片是**把規則搬到
- * 伺服器，不是改變規則**。管理員豁免，但窗外的修改會留下 audit log。
- */
-async function assertAttendanceWindow(
-  supabase: AppEnv['Variables']['supabase'],
-  params: { orgId: string; roles: readonly string[]; eventDate: string },
-): Promise<{ ok: true; outOfWindowByAdmin: boolean } | { ok: false }> {
-  const { data: org } = await supabase
-    .from('organizations')
-    .select('attendance_responsible, attendance_retroactive_days')
-    .eq('id', params.orgId)
-    .maybeSingle();
-
-  const responsible =
-    ((org as { attendance_responsible?: string } | null)?.attendance_responsible as
-      'admin' | 'teacher') ?? 'admin';
-  const retroactiveDays = Number(
-    (org as { attendance_retroactive_days?: number } | null)?.attendance_retroactive_days ?? 0,
-  );
-  const isAdmin = params.roles.includes('admin');
-  const today = getCurrentTaipeiDateString();
-
-  if (
-    !isAttendanceEditable({
-      isAdmin,
-      responsible,
-      retroactiveDays,
-      eventDate: params.eventDate,
-      today,
-    })
-  ) {
-    return { ok: false };
-  }
-
-  // 管理員在窗外動手是低頻但高風險的動作 —— 記一筆，不然「誰把三個月前的出勤改掉了」
-  // 沒有人查得出來
-  const outOfWindowByAdmin =
-    isAdmin &&
-    !isAttendanceEditable({
-      isAdmin: false,
-      responsible,
-      retroactiveDays,
-      eventDate: params.eventDate,
-      today,
-    });
-
-  return { ok: true, outOfWindowByAdmin };
-}
-
-function getCurrentTaipeiDateString(): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Taipei',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-
-  const year = parts.find((part) => part.type === 'year')?.value ?? '0000';
-  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
-  const day = parts.find((part) => part.type === 'day')?.value ?? '01';
-
-  return `${year}-${month}-${day}`;
-}
 
 export default app;

@@ -80,8 +80,14 @@ function blocks(rawSource) {
       const raw = buf.trim();
       const isAt = raw.startsWith('@');
       const parent = [...stack].reverse().find((f) => f.sel)?.sel ?? '';
+      // **at-rule 要繼承外層的 selector，不能變成空字串。**
+      // `&__skip { @media (pointer: coarse) { min-height: 44px; } }` 是 SCSS 最慣用的
+      // 兩層寫法 —— 把 at-rule 的 selector 清成空的話，那個 44px 就掛不到任何 selector 上，
+      // 於是「已經被 coarse 抬高」這件事看不見，已修好的程式碼被誤報成違規。
+      // （2026-09-04 teacher-pages 首次外用時回報。我的 self-test 只測了
+      // 「@media 在頂層、選擇器已展開」那一種 —— 剛好是 dashboard 用的那種。）
       const sel = isAt
-        ? ''
+        ? parent
         : raw.startsWith('&')
           ? parent + raw.slice(1)
           : parent
@@ -123,8 +129,40 @@ function blocks(rawSource) {
 /** PrimeNG 的東西由全域 token 管，掃它只會誤報 */
 const PRIMENG = /(^|[\s>+~.:[])p-[a-z]|::ng-deep|--p-/;
 
-/** 去掉 `:hover` / `:focus-visible` 之類，讓「同一個元素的不同狀態」對得起來 */
-const baseKey = (sel) => sel.replace(/::?[a-z-]+(\([^)]*\))?/g, '').trim();
+/**
+ * **焦點哨兵不是觸控目標。**
+ *
+ * 鍵盤陷阱（dialog / drawer）會放一個 1×1 的元素當 focus 的落點：它是給 Tab 走的，
+ * 使用者永遠不會用手指點它，把它撐成 44px 反而會在版面上戳出一個看不見的洞。
+ *
+ * 判準刻意很窄：**兩軸都明寫且都 ≤ 2px**。真正的觸控目標不會長這樣，
+ * 而放寬到「很小就算哨兵」會把 32px 的小按鈕一起放掉 —— 那正是要抓的東西。
+ *
+ * 目前 repo 裡沒有這種元素（2026-09-04 掃過，0 個），這是預防性的：
+ * 加 dialog 的鍵盤陷阱時很可能就會出現，而那時它會長得像一筆違規。
+ */
+function isFocusSentinel(sizes) {
+  const w = sizes.filter((s) => /width$/.test(s.prop)).map((s) => s.px);
+  const h = sizes.filter((s) => /height$/.test(s.prop)).map((s) => s.px);
+  if (w.length === 0 || h.length === 0) return false;
+  return Math.max(...w) <= 2 && Math.max(...h) <= 2;
+}
+
+/**
+ * 把 selector 收斂成「它講的是哪個元素」：
+ *
+ * - 去掉 `:hover` / `:focus-visible` 之類 —— 同一個元素的不同狀態要對得起來
+ * - **只取最後一段**：`.d .d__skip` 與 `.d__skip` 在 CSS 上都作用在同一個元素身上，
+ *   而 SCSS 巢狀常常兩種都寫得出來（`@media` 區塊裡寫展開的 selector 就會變成前者）。
+ *   不收斂的話，同一個元素的 base 與 coarse 宣告會被當成兩個不同的東西。
+ */
+const baseKey = (sel) =>
+  sel
+    .replace(/::?[a-z-]+(\([^)]*\))?/g, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .pop() ?? '';
 
 function sizeDecls(decls) {
   const out = [];
@@ -169,6 +207,8 @@ export function touchTargetViolations(files) {
       const key = baseKey(b.selector);
       const f = floor.get(key) ?? { base: null, coarse: null };
       const effective = Math.max(f.coarse ?? 0, f.base ?? 0);
+
+      if (isFocusSentinel(sizeDecls(b.decls))) continue;
 
       if (f.base === null && f.coarse === null) {
         found.push({ file: path, line: b.line, selector: b.selector, kind: 'no-floor' });

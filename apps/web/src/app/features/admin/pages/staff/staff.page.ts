@@ -54,6 +54,10 @@ import {
 } from '@shared/components/status/status-dot/status-dot.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { personHue } from '@shared/utils/person-hue.util';
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
 
 const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] = [
   { value: 'basic_operations', label: '日常行政', description: '查詢與處理報名、出勤、請假' },
@@ -87,6 +91,7 @@ const ROLE_OPTIONS: RoleOption[] = [
   selector: 'app-staff',
   standalone: true,
   imports: [
+    PageActionsComponent,
     StatusDotComponent,
     DataChipComponent,
     CommonModule,
@@ -110,6 +115,10 @@ const ROLE_OPTIONS: RoleOption[] = [
   styleUrl: './staff.page.scss',
 })
 export class StaffPage implements OnInit {
+  /** 這一頁的主要行動。**寫成 readonly property 不是模板裡的物件字面量** ——
+   *  字面量每輪變更偵測都會產生新物件，讓 signal input 每次都判定為「變了」。 */
+  protected readonly primaryAction: PageAction = { label: '新增人員', icon: 'pi pi-plus' };
+
   private readonly dialogService = inject(DialogService);
   private readonly staffService = inject(StaffService);
   private readonly campusesService = inject(CampusesService);

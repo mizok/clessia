@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAuth } from '../lib/get-auth';
 import { mintLoginLinkForRequest } from './login-links/mint';
@@ -6,7 +7,7 @@ import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { PERMISSIONS } from '../lib/permissions';
 import { checkRoleAssignment } from '../lib/role-assignment';
-import { waitUntilFrom } from '../lib/wait-until';
+import { campusFilterIds } from '../lib/campus-scope';
 
 // ============================================================
 // Schemas
@@ -485,6 +486,7 @@ app.openapi(listRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
   const query = c.req.valid('query');
+  const campusScope = c.get('campusScope');
 
   const page = Math.max(parseInt(query.page || '1', 10), 1);
   const rawPageSize = query.pageSize !== undefined ? parseInt(query.pageSize, 10) : 20;
@@ -496,11 +498,14 @@ app.openapi(listRoute, async (c) => {
   let filteredStaffIdsBySubject: string[] | null = null;
   let filteredUserIdsByRole: string[] | null = null;
 
-  if (query.campusId) {
+  // 沒指定分校時也要縮到自己管的那幾間。**人員清單尤其重要** ——
+  // 只管 A 校的主任不該看得到 B 校的員工名單與聯絡方式。
+  const campusIds = campusFilterIds(campusScope, query.campusId);
+  if (campusIds) {
     const { data: campusLinks } = await supabase
       .from('staff_campuses')
       .select('staff_id, campuses!inner(id)')
-      .eq('campus_id', query.campusId);
+      .in('campus_id', [...campusIds]);
     filteredStaffIdsByCampus = (campusLinks || []).map((row) => row.staff_id);
   }
 
@@ -559,7 +564,9 @@ app.openapi(listRoute, async (c) => {
     filteredStaffIdsBySubject = (subjectLinks || []).map((row) => row.staff_id);
   }
 
-  if (query.campusId && filteredStaffIdsByCampus && filteredStaffIdsByCampus.length === 0) {
+  // 條件是 `campusIds` 不是 `query.campusId` —— 受分校限制的管理員即使沒指定分校，
+  // 查不到人也要回空，不能落下去變成「看到全部」
+  if (campusIds && filteredStaffIdsByCampus && filteredStaffIdsByCampus.length === 0) {
     return c.json(
       {
         data: [],

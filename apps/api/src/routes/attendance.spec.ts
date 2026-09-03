@@ -176,6 +176,9 @@ describe('attendance session filter helpers', () => {
     const result = await ensureAttendanceSessionEvents({
       supabase: fakeSupabase as never,
       orgId: 'org-1',
+      // 不受分校限制的呼叫者（有 all_campuses 的管理員）—— 這組測試驗的是補建邏輯，
+      // 範圍限制另有 campus-scope.spec.ts
+      campusScope: null,
       campusId: '11111111-1111-4111-8111-111111111111',
       courseIdList: [],
       classIdList: ['class-1'],
@@ -1402,6 +1405,7 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
         studentId: string;
         status: string | null;
         hasLeaveRequest: boolean;
+        leaveStartDate: string | null;
         leaveEndDate: string | null;
       }>;
     };
@@ -1446,6 +1450,48 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
     });
   });
 
+  it('回請假的起日 —— 警告才能說「會取消 X 到 Y」而不只是「取消到 Y」', async () => {
+    const { payload } = await roster([
+      {
+        student_id: 'stu-1',
+        start_date: '2026-04-04',
+        end_date: '2026-04-08',
+        start_time: null,
+        end_time: null,
+      },
+    ]);
+
+    expect(payload.students[0]).toMatchObject({
+      leaveStartDate: '2026-04-04',
+      leaveEndDate: '2026-04-08',
+    });
+  });
+
+  it('兩張假蓋到同一天時，區間是「最早起日～最晚迄日」', async () => {
+    // 每一張都涵蓋今天（04-06），所以聯集必然連續 —— 這一組數字是精確的，不是包絡
+    const { payload } = await roster([
+      {
+        student_id: 'stu-1',
+        start_date: '2026-04-06',
+        end_date: '2026-04-07',
+        start_time: null,
+        end_time: null,
+      },
+      {
+        student_id: 'stu-1',
+        start_date: '2026-04-03',
+        end_date: '2026-04-06',
+        start_time: null,
+        end_time: null,
+      },
+    ]);
+
+    expect(payload.students[0]).toMatchObject({
+      leaveStartDate: '2026-04-03',
+      leaveEndDate: '2026-04-07',
+    });
+  });
+
   it('同一天被兩張假蓋到時，回最晚的那個結束日', async () => {
     // 銷假會把兩張都動到 —— 警告要說出「最遠會取消到哪」，不是隨便挑一張
     const { payload } = await roster([
@@ -1471,7 +1517,11 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
   it('沒有假時 leaveEndDate 是 null', async () => {
     const { payload } = await roster([]);
 
-    expect(payload.students[0]).toMatchObject({ hasLeaveRequest: false, leaveEndDate: null });
+    expect(payload.students[0]).toMatchObject({
+      hasLeaveRequest: false,
+      leaveStartDate: null,
+      leaveEndDate: null,
+    });
   });
 
   it('假沒蓋到這堂課的時段就不標', async () => {

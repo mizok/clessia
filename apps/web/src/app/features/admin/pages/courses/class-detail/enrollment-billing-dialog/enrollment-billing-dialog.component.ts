@@ -16,6 +16,14 @@ import {
   type FeeTemplate,
 } from '@core/fee-templates.service';
 
+import {
+  billingModeOptions,
+  feeTemplateOptions,
+  findTemplate,
+  isAdjusted,
+  pricingHint,
+} from '../enrollment-billing.util';
+
 /**
  * 單筆報名的計費設定 —— 見 kb/wiki/rules/billing-rules.md 規則 1 與 2。
  *
@@ -51,41 +59,21 @@ export class EnrollmentBillingDialogComponent {
     adjustmentNote: this.enrollment.adjustmentNote ?? '',
   });
 
-  protected readonly billingModeOptions = [
-    { label: '未設定', value: null as BillingMode | null },
-    ...(Object.keys(BILLING_MODE_LABELS) as BillingMode[]).map((value) => ({
-      label: BILLING_MODE_LABELS[value],
-      value: value as BillingMode | null,
-    })),
-  ];
+  // 這五個判斷跟 student-picker 的計費區塊共用同一份 —— 兩邊的畫面不一樣，
+  // 但「什麼算調整」「該收多少」必須是同一個答案（見 enrollment-billing.util）
+  protected readonly billingModeOptions = billingModeOptions();
 
-  /** 停用的價目表不該還能被挑到（但已經挑過的歷史報名照樣看得懂它） */
-  protected readonly templateOptions = computed(() => [
-    { label: '未指定', value: null as string | null },
-    ...this.templates().map((t) => ({
-      label: `${t.name}（${BILLING_MODE_LABELS[t.billingMode]} $${t.amount.toLocaleString()}）`,
-      value: t.id as string | null,
-    })),
-  ]);
+  protected readonly templateOptions = computed(() => feeTemplateOptions(this.templates()));
 
   private readonly selectedTemplate = computed(() =>
-    this.templates().find((t) => t.id === this.form().feeTemplateId),
+    findTemplate(this.templates(), this.form().feeTemplateId),
   );
 
-  /** 定價當參考值顯示 —— 行政要知道自己議的價偏離定價多少 */
-  protected readonly pricingHint = computed(() => {
-    const template = this.selectedTemplate();
-    if (!template) return null;
-    return `定價 $${template.amount.toLocaleString()}`;
-  });
+  protected readonly pricingHint = computed(() => pricingHint(this.selectedTemplate()));
 
-  /** 有議定金額且與定價不同 = 這是一次調整，規則 2 要求留原因 */
-  protected readonly isAdjusted = computed(() => {
-    const { agreedAmount } = this.form();
-    if (agreedAmount === null || agreedAmount === undefined) return false;
-    const template = this.selectedTemplate();
-    return !template || agreedAmount !== template.amount;
-  });
+  protected readonly isAdjusted = computed(() =>
+    isAdjusted(this.form().agreedAmount, this.selectedTemplate()),
+  );
 
   constructor() {
     this.feeTemplatesService.list({ isActive: true }).subscribe({

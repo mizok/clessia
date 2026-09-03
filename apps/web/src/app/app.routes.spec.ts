@@ -103,6 +103,33 @@ describe('app routes', () => {
  * 兩邊都「有東西」，但守的不是同一件事。`permissionGuard` 會把權限名掛在回傳的 guard 上，
  * 讓這件事斷言得到。
  */
+// 老師儀表板在 2026-09 的「今日流」收斂裡刪掉了 —— 它獨有的只有四個數字與兩個連結，
+// 而「今日課表」清單跟課表今天那一屏完全重複。跟設定四頁同一個處理：頁面沒了、網址還在。
+describe('老師儀表板刪除之後', () => {
+  it('/teacher/dashboard 是 redirect，不是 404 —— 老師可能存了書籤', () => {
+    const entry = allRoutes.find((r) => r.path === 'teacher/dashboard');
+
+    expect(entry).toBeDefined();
+    expect(entry?.route.redirectTo).toBe('schedule');
+    expect(entry?.route.loadComponent ?? entry?.route.component).toBeUndefined();
+  });
+
+  it('不再出現在選單裡', () => {
+    expect(menuEntries.map((e) => e.absolutePath)).not.toContain('/teacher/dashboard');
+  });
+
+  /** 刪一頁之後底部導覽從 4 個變 3 個；超過 4 個才會出現「更多」，所以不該有 */
+  it('老師選單剩三項', () => {
+    const teacherItems = menuEntries.filter((e) => e.absolutePath.startsWith('/teacher/'));
+
+    expect(teacherItems.map((e) => e.absolutePath).sort()).toEqual([
+      '/teacher/notifications',
+      '/teacher/schedule',
+      '/teacher/students',
+    ]);
+  });
+});
+
 describe('app routes —— 帶 permission 的路由必須掛對 guard', () => {
   const permissioned = RoutesCatalog.values.filter((entry) => entry.permission);
 

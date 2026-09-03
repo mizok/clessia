@@ -1,26 +1,20 @@
 @use 'shared/breakpoints' as bp;
 
-// Host element must participate in shell-content flex layout to establish
-// a definite height, enabling the internal flex chain to work correctly.
+/* **手機優先**：三層由窄往寬長。`respond-from('mobile')` 一定要排在
+   `tablet-portrait` 前面 —— 兩者同時成立時要讓寬的那個蓋過窄的。 */
 :host {
   display: flex;
   flex: 1 1 0;
-  min-height: 0;
+  min-height: 100%;
   overflow: hidden;
   position: relative;
 }
 
-@include bp.respond-to-container('shell-content', 'mobile') {
-  :host {
-    min-height: 100%;
-  }
-}
-
 .cal {
-  padding: var(--space-6);
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-2);
   flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
@@ -28,54 +22,60 @@
   &__controls {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-2);
+    padding: var(--space-2) 0 0;
     flex-shrink: 0;
   }
 
+  // 窄螢幕上標題與操作鈕上下堆疊、都靠左緣；寬了才並排
   &__header {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-4);
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
   }
 
   &__header-actions {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: flex-start;
     flex-shrink: 0;
   }
 }
 
-@include bp.respond-to-container('shell-content', 'tablet-portrait') {
+@include bp.respond-from-container('shell-content', 'mobile') {
+  :host {
+    min-height: 0;
+  }
+
   .cal {
     padding: var(--space-4) var(--space-3);
     gap: var(--space-3);
 
     &__controls {
-      gap: var(--space-2);
-    }
-
-    &__header {
-      flex-direction: column;
-      align-items: stretch;
-      gap: var(--space-2);
-    }
-
-    &__header-actions {
-      justify-content: flex-start;
+      padding: 0;
     }
   }
 }
 
-@include bp.respond-to-container('shell-content', 'mobile') {
+@include bp.respond-from-container('shell-content', 'tablet-portrait') {
   .cal {
-    padding: 0;
-    gap: var(--space-2);
+    padding: var(--space-6);
+    gap: var(--space-5);
 
     &__controls {
-      padding: var(--space-2) 0 0;
-      gap: var(--space-2);
+      gap: var(--space-3);
+    }
+
+    &__header {
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-4);
+    }
+
+    &__header-actions {
+      justify-content: flex-end;
     }
   }
 }

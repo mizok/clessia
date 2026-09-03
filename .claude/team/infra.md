@@ -80,10 +80,12 @@ npm ci  →  npm ci (apps/api)  →  harness  →  harness self-test
    本機看不出來是因為 `apps/api/node_modules` 早就存在。**開新 worktree 兩邊都要 `npm ci`。**
 2. **順序 = 由快到慢**。前面便宜的檢查先紅先省 CI 時間。
    `build web` 排最後（本機冷跑 ~11s，CI 整個 run 約 1m36s）。
-3. **`build web` 是唯一會編譯 Angular 模板的一步。** `web` 沒有 `typecheck` target，
-   `nx run-many -t typecheck` 實際只跑得到 `api`。
-   模板型別錯誤（綁到不存在的 property、signal 忘了呼叫）**只有 AOT build 抓得到**。
-   這個缺口在 2026-08-29 之前 CI 是全綠放行的。
+3. **模板型別檢查靠 `typecheck` 而不是 `build`（2026-09-03 起）。**
+   `web` 的 typecheck target 跑 `ngc -p tsconfig.app.json --noEmit` —— **`ngc` 檢查模板，
+   `tsc` 不檢查**，這是關鍵：實測種一個 `{{ 不存在的屬性 }}`，`ngc` 報 TS2339、
+   `tsc` 回報 0 個錯誤。
+   `build web` 留在序列裡是因為它還檢查別的：bundle budgets、fileReplacements、
+   實際打包得起來。（2026-08-29 之前兩者都沒有，模板壞掉 CI 全綠放行。）
 
 **刻意用 `run-many` 不用 `affected`**：整套跑完很快，而 `affected` 在 CI 上要有正確的 base ref
 才不會安靜失準。為了省幾秒換一個會安靜失準的東西不划算。
@@ -132,6 +134,32 @@ PostToolUse 的 prettier 擁有這些檔案。用原始字串比對會變成
 
 **加新的 pre-guard 規則 → 一定配一條 self-test，而且要含反例**
 （什麼不該被擋）。誤判的 guard 比沒有 guard 更糟：它會讓人去關掉整個 hook。
+
+### 設計偵測邏輯時，先問「這個訊號會不會誤傷對的東西」
+
+兩條都是實際誤報之後才學到的，而**誤報的代價比漏報高**：漏報只是少擋一次，
+誤報會讓人去關掉整個 gate（`CLESSIA_STOP_GATE=0` 就在那裡）。
+
+**一、「沒有 X」不等於「沒做 X」。**
+
+A17 的空殼偵測第一版判準是「SCSS 沒有實質內容 → 這頁是空殼、從來沒被量過」。
+結果把 `campus-form-dialog` 標了進去 —— 而它 **html 69 行、ts 113 行**，
+是**已完成**的元件，樣式繼承自全域 `.form-dialog`。
+
+「檔案是空的」有兩種完全相反的解釋：**還沒做**，或**做完了但不需要**。
+單一訊號分不出來，要**第二個訊號**（那次是模板大小，分界很乾淨：真空殼 9 行、已實作 69 行）。
+
+> 同族的還有 c2 的 `orgId`：「沒走 API」有兩種解釋 —— 偷懶，或**API 明確拒收**。
+> 前者該修，後者該豁免，而程式碼看起來一模一樣。
+
+**二、錯誤的警告比沒有警告更糟。**
+
+一個做完的元件被標成「從來沒被量過」，讀的人有兩條路：去量一次（浪費），
+或發現這個警告不準（從此不信任所有警告）。**第二條路是真正的損失** ——
+gate 的價值建立在「它說有問題就真的有問題」上，那個信任一旦破了很難修回來。
+
+所以新增任何**會產生訊息**的檢查時，除了測「該報的有沒有報」，
+一定要測「**不該報的有沒有安靜**」—— self-test 的反例不是加分項。
 
 ### KB 的健康度不在 gate 裡
 
@@ -210,6 +238,30 @@ harness 缺席時只印警告不紅燈。
 > 拋棄式診斷分支是好工具（`on: push` 涵蓋所有分支，推上去就有 CI），
 > 但**查完立刻刪掉遠端與本地** —— 它裡面的 workflow 改動絕不能留在 repo 裡。
 
+### 反過來也一樣：有訊息不等於是**這個**死因
+
+上一條講「沒有錯誤訊息不代表沒有死因」。這一條是它的另一面，**而且更難自覺**：
+
+> **一行真實存在的錯誤訊息，不代表它就是你眼前這個失敗的原因。**
+
+2026-09-04 的實例：`api:test` 有一支 spec 逾時失敗，我在同一次執行的輸出裡看到
+`supabase.from(...).…gte is not a function`，就報成「假 supabase 缺 `.gte`」。
+**那行錯誤是真的**，但它來自**同一次執行的別支 spec** —— 真根因是那支測試根本沒有替身、
+直接走了真的 DB 連線。
+
+為什麼比上一條難自覺：
+
+- **沒有訊息**時你知道自己在猜，會保持懷疑
+- **有訊息**時它自帶可信度 —— 它是真的、格式正確、看起來就是答案，
+  而「歸因」這一步是在腦子裡默默完成的，不會留下痕跡
+
+**錯誤的結論還會傳染**：我送出去之後，計畫席轉述時帶著它、billing-api 收到時也帶著它，
+一路上沒有人有理由去質疑一行「真實存在的錯誤訊息」。
+
+**操作上**：回報紅燈時附**FAIL 行**與**它跟你改動的關聯**，不附診斷標籤。
+要下結論就先證明關聯（單獨跑那一支、或把嫌疑的輸入拿掉看它會不會消失），
+證不了就只報觀察。
+
 ## 六、動手之前的兩個判斷習慣
 
 這兩條是 2026-08~09 幾次驗收裡被點名的判斷，不是流程規定 —— 是「什麼時候該停下來」。
@@ -274,7 +326,10 @@ gh pr view <n> --json state -q .state      # 必須是 OPEN
   generator 的 `style: scss` 預設在 `nx.json` 的 `generators`。
 - **worktree 的 git stash 是共用的。** 別用裸 `git stash` / `pop`，會 pop 到別的 session 的東西。
   要暫存改用臨時 WIP commit。
-- **專案沒有 eslint。** PostToolUse hook 只跑 prettier，沒有任何 lint 層。
+- **專案沒有在用 eslint。** 精確講：`eslint@9` 有裝（`@nx/angular` → `@nx/eslint` 的
+  transitive 依賴），但**全庫沒有任何 eslint 設定檔**，等於沒有 lint 層。
+  這個差別對決策有影響 —— 走 eslint 路線不用裝東西，但要新增設定 + 接進流程 +
+  從此多一層要維護的規則系統。PostToolUse hook 目前只跑 prettier。
   想加的話那是這一席的事，但先問：多一層要有人維護。
 - **`nx affected` 一律自己帶 `--base=main`。**
 - **不要讓 worktree 停在別席的分支上。** 代解別人 PR 的衝突是可以的（infra 席常被指派，
@@ -315,11 +370,13 @@ gh pr view <n> --json state -q .state      # 必須是 OPEN
 
 ### 還在的
 
-- **`apps/web` 沒有獨立的 typecheck target**（驗：`npx nx show project web --json`）。
-  CI 已用 production build 補上模板檢查，**但 Stop gate 沒有** ——
-  本機收工時模板型別錯誤照樣過得去，要到 push 才紅。
-- **c5（feature 不互相 import）未機器化。** 需要跨「路徑擷取的 feature 名」與「內容」的
-  反向參照，現在的靜態 regex 引擎做不到，要接得寫一支獨立 check。
+- ~~`apps/web` 沒有獨立的 typecheck target~~ → 2026-09-03 補上（`ngc --noEmit`，6 秒）。
+  **Stop gate 不用改就接上了** —— 它跑的是 `nx affected -t typecheck`，加 target 即涵蓋。
+  本機收工現在就會擋模板錯誤，不必等 push。
+- ~~c5 未機器化~~ → 2026-09-03 補上 A18（**立法時零違規，所以沒有 baseline** ——
+  那是最便宜的立法時機）。我原本寫「靜態 regex 引擎做不到」是對的，但結論下錯了：
+  **規則引擎做不到 ≠ 做不到**，寫成專用函式就行（A15 / A17 早就是這個形狀）。
+  仍未覆蓋的是**經由 `core/` / `shared/` 的間接耦合**，那一半靠 review。
 - **c2 還有 4 筆真債**（驗：`npm run harness` 的 A15 帳目）——
   `me.ts:124`、`parents.ts:621` 的 email 與 `parents.ts:625`、`staff.ts:1150` 的 phone。
   卡點不是難改，是**全 repo 零前例**：沒有任何一處用 `auth.api.updateUser` 更新過使用者。
@@ -328,7 +385,11 @@ gh pr view <n> --json state -q .state      # 必須是 OPEN
 - ~~`nx.json` 的 `defaultBase` 指向不存在的 `dev`~~ → 2026-09-03 修成 `main`，
   `nx affected` 可以直接跑。Stop gate 仍明寫 `--base=main`：**gate 的行為不該因為
   有人改 nx.json 而變**。
-- **`test-baseline.json` 裡有 3 個既有紅燈**（驗：讀那個檔）。基線是債，清一支移除一支。
+- ~~`test-baseline.json` 裡有 3 個既有紅燈~~ → **那筆債不存在，是我自己量錯的**（2026-09-03 分診）。
+  `knownFailing` 是 `[]`，gate 早就在「非全綠不可」的全強度。當初我用
+  `Object.keys(b).length` 去數，數到的是 `note` / `recorded` / `knownFailing` **三個
+  metadata 鍵**，不是失敗的 spec。**數錯的欄位長得跟對的一樣合理**，而那個數字後來被
+  當成工單派了出去 —— 記在這裡當範例：**盤點缺口時，量測本身也要驗一次**。
 - **dagger 的建置快取沒有 GC 政策，磁碟會反覆爆。**
   fvg 的 engine `/etc/dagger/engine.toml` 是空的，而它在 VM 裡看到的可用空間是假的
   → 自動 GC 永遠不觸發。2026-09-02 清掉 126 GB，**不到一天長回 136 G**。

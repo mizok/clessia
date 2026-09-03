@@ -42,8 +42,19 @@ const SELECT_RELATIONS =
  * 報名不會被排除，只會把 classes 關聯變成 null 留在結果裡。那看起來像「篩選壞掉」，
  * 而且班級欄位會整排空白。
  */
-export function buildSelect(campusId?: string): string {
-  return `${SELECT_COLUMNS}, ${campusId ? 'classes!inner' : 'classes'}${SELECT_RELATIONS}`;
+export function buildSelect(campusId?: string, hasInvoice?: boolean): string {
+  const invoiceJoin =
+    hasInvoice === undefined
+      ? ''
+      : // `true` 要 inner join（只留下有帳單項目的），`false` 要 left join 再配
+        // `invoice_items=is.null` 的過濾（沒有任何帳單項目的）。
+        // **兩種都跟 `count: 'exact'` 相容** —— 本機 PostgREST 實測：
+        // 全部 24、有帳單 1、沒帳單 23，加起來對得上。
+        hasInvoice
+        ? ', invoice_items!inner(id)'
+        : ', invoice_items(id)';
+
+  return `${SELECT_COLUMNS}, ${campusId ? 'classes!inner' : 'classes'}${SELECT_RELATIONS}${invoiceJoin}`;
 }
 
 export type EnrollmentSort = 'createdAt' | 'updatedAt';

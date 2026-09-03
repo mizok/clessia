@@ -13,8 +13,9 @@
   flex-direction: column;
   background: var(--color-white);
   border: 1px solid var(--zinc-200);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
+  // **手機優先**：窄螢幕的卡片邊角小一階、不打陰影（小畫面上陰影只會糊掉邊界）
+  border-radius: var(--radius-lg);
+  box-shadow: none;
   overflow: hidden;
   position: relative;
 
@@ -30,10 +31,10 @@
   }
 
   &__skeleton {
-    padding: var(--space-4) var(--space-6);
+    padding: var(--space-3);
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-2);
   }
 
   &--list {
@@ -43,30 +44,31 @@
   }
 }
 
-@include bp.respond-to-container('shell-content', 'tablet-portrait') {
+// 由窄往寬長。`mobile` 這一段必須排在 `tablet-portrait` 前面 ——
+// 兩者同時成立時要讓寬的那個蓋過窄的。
+@include bp.respond-from-container('shell-content', 'mobile') {
   .sessions-body {
     &__skeleton {
       padding: var(--space-4) var(--space-3);
+      gap: var(--space-3);
     }
   }
 }
 
-@include bp.respond-to-container('shell-content', 'mobile') {
+@include bp.respond-from-container('shell-content', 'tablet-portrait') {
   .sessions-body {
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--zinc-200);
-    box-shadow: none;
-    background: var(--color-white);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
 
+    // 這個 media 區塊排在基準的 `&--list` 後面，所以要把 `--list` 的
+    // 「不打陰影」再講一次，否則清單型態在寬螢幕會長出陰影。
+    // （原本的 mobile 區塊也重述過同一組，就是為了這件事。）
     &--list {
-      border: none;
-      background: transparent;
       box-shadow: none;
     }
 
     &__skeleton {
-      padding: var(--space-3);
-      gap: var(--space-2);
+      padding: var(--space-4) var(--space-6);
     }
   }
 }

@@ -78,7 +78,9 @@
     align-items: center;
     justify-content: center;
     gap: var(--space-2);
-    height: 36px;
+    // 原本固定 36px，低於觸控門檻。改 min-height 讓它還能長 ——
+    // `__tabs-indicator` 是 `height: calc(100% - 6px)`，會自己跟上容器高度
+    min-height: 44px;
     font-size: var(--text-sm);
     font-weight: var(--font-medium);
     color: var(--zinc-500);
@@ -160,10 +162,16 @@
     justify-content: space-between;
   }
 
+  /*
+   * label 包 checkbox：**可點目標是 label 不是那個小方塊**。
+   * 所以下限給 label（#216 的判例：不要為了讓 gate 閉嘴而移掉 cursor，
+   * 點 label 切換 checkbox 是 HTML 原生行為，移掉只會讓它看起來不能點但其實能點）。
+   */
   &__checkbox {
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    min-height: 44px;
     font-size: var(--text-sm);
     color: var(--zinc-600);
     cursor: pointer;
@@ -172,7 +180,10 @@
       width: 16px;
       height: 16px;
       accent-color: var(--zinc-800);
-      cursor: pointer;
+      // 這裡原本也宣告 cursor: pointer —— 那是**多餘的**（cursor 是繼承屬性，
+      // label 已經給了）。而它讓 gate 把 16px 的方塊本身當成可點目標，
+      // 要求它 44px；那會做出一個荒謬的巨大 checkbox。
+      // 真正的目標是 label，上面已經給了下限。
     }
   }
 
@@ -216,7 +227,9 @@
 
   &--error {
     background: var(--error-100);
-    color: var(--error-600);
+    // error-600 疊 error-100 只有 3.95。error-700 是 5.30 ——
+    // 而這是**登入頁的錯誤訊息**，看不清楚的代價是使用者不知道自己哪裡錯了。
+    color: var(--error-700);
   }
 
   &--info {

@@ -1,26 +1,21 @@
 @use 'shared/breakpoints' as bp;
 
+/* **手機優先**：基準是窄螢幕，往大螢幕才加強。 */
 .parents {
-  padding: var(--space-6);
+  padding: var(--space-4) 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-4);
   max-width: 1200px;
   margin: 0 auto;
   min-height: 100%;
 
   &__header {
     display: flex;
+    flex-direction: column;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: stretch;
     gap: var(--space-4);
-  }
-
-  &__header-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-shrink: 0;
   }
 
   &__title-group {
@@ -54,14 +49,14 @@
   }
 
   &__toolbar {
-    padding: var(--space-4) var(--space-6);
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--space-4);
     border-bottom: 1px solid var(--zinc-100);
   }
 
-  &__search {
-  }
-
   &__status-filter {
+    width: 100%;
   }
 
   &__status-filter &__status-select {
@@ -69,7 +64,8 @@
 
   &__stats {
     display: flex;
-    padding: var(--space-3) var(--space-6);
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
     background: var(--zinc-50);
     border-bottom: 1px solid var(--zinc-100);
   }
@@ -80,8 +76,12 @@
     gap: 2px;
     padding: var(--space-2) var(--space-5);
 
-    &:first-child { padding-left: 0; }
-    & + & { border-left: 1px solid var(--zinc-200); }
+    &:first-child {
+      padding-left: 0;
+    }
+    & + & {
+      border-left: 1px solid var(--zinc-200);
+    }
 
     &-value {
       font-size: 1.375rem;
@@ -110,7 +110,9 @@
   &__row {
     cursor: default;
     border-left: 3px solid transparent;
-    transition: background var(--transition-fast), border-left-color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      border-left-color var(--transition-fast);
 
     &:hover {
       background: var(--zinc-50);
@@ -132,11 +134,7 @@
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: linear-gradient(
-      135deg,
-      hsl(var(--h, 210) 31% 36%),
-      hsl(var(--h, 210) 36% 30%)
-    );
+    background: linear-gradient(135deg, hsl(var(--h, 210) 31% 36%), hsl(var(--h, 210) 36% 30%));
     box-shadow: 0 2px 5px -1px hsl(var(--h, 210) 31% 36% / 0.22);
     color: #fff;
     font-size: 13px;
@@ -202,34 +200,30 @@
 }
 
 // Responsive
-@include bp.respond-to('tablet-portrait') {
+@include bp.respond-from('tablet-portrait') {
   .parents {
-    padding: var(--space-4) 0;
-    gap: var(--space-4);
+    padding: var(--space-6);
+    gap: var(--space-6);
 
     &__header {
-      flex-direction: column;
-      align-items: stretch;
+      flex-direction: row;
+      align-items: flex-start;
     }
 
     &__toolbar {
-      flex-direction: column;
-      align-items: stretch;
-      padding: var(--space-4);
-      gap: var(--space-3);
-    }
-
-    &__search {
-      max-width: 100%;
+      flex-direction: row;
+      align-items: center;
+      padding: var(--space-4) var(--space-6);
     }
 
     &__status-filter {
-      width: 100%;
+      width: auto;
     }
 
+    // 原本寬版沒有宣告 gap，flex 的 `normal` 就等於 0
     &__stats {
-      padding: var(--space-3) var(--space-4);
-      gap: var(--space-4);
+      gap: 0;
+      padding: var(--space-3) var(--space-6);
     }
   }
 }

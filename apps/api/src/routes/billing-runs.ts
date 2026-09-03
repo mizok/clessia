@@ -1,8 +1,9 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
-import { waitUntilFrom } from '../lib/wait-until';
+import { monthRange } from '../lib/proration';
 import {
   detectMealItemAnomalies,
   groupByStudent,
@@ -41,13 +42,6 @@ const AnomalySchema = z
 const ErrorSchema = z
   .object({ error: z.string(), code: z.string().optional() })
   .openapi('BillingRunError');
-
-function monthRange(periodMonth: string): { start: string; end: string } {
-  const start = `${periodMonth.slice(0, 7)}-01`;
-  const startDate = new Date(`${start}T00:00:00Z`);
-  const endDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 0));
-  return { start, end: endDate.toISOString().slice(0, 10) };
-}
 
 /**
  * 掃出「item 金額對不上已蓋章餐記錄總額」的明細。

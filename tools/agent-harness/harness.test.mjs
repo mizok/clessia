@@ -6,11 +6,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
+import { crossFeatureImports } from './lib/feature-boundaries.mjs';
 import { touchTargetViolations } from './lib/touch-target.mjs';
 import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
@@ -19,6 +21,7 @@ import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
 import { orphanModuleImports } from './lib/orphan-imports.mjs';
+import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 import routerRules from './rules/doc-router.rules.json' with { type: 'json' };
 import { compareToBaseline, failingSpecs } from './test-gate.mjs';
@@ -625,7 +628,6 @@ test('頂層 @use 不能污染後續 selector 的父層解析', () => {
   );
 });
 
-
 // ── PrimeNG 模組的孤兒 import ────────────────────────────────────────────────
 // Angular 的 NG8113 不涵蓋 NgModule，所以這個坑在 repo 裡長出來過兩次。
 
@@ -666,4 +668,242 @@ test('孤兒 import：不認識的模組不掃', () => {
     orphanModuleImports([{ path: 'a.ts', ts: 'imports: [SomeUnknownModule],', template: '' }]),
     [],
   );
+});
+
+// ── 拇指區的兩條規則 ─────────────────────────────────────────────────────────
+
+test('拇指區：抓得到標頭裡直接放的 p-button', () => {
+  assert.deepEqual(
+    headerActionButtons([
+      { path: 'a.html', source: '<div class="x__header-actions"><p-button label="新增" /></div>' },
+      {
+        path: 'b.html',
+        source: '<app-page-actions [primary]="p"><p-button label="匯入" /></app-page-actions>',
+      },
+      { path: 'c.html', source: '<div class="x__header-actions"></div>' },
+    ]),
+    ['a.html'],
+  );
+});
+
+// 投影進 app-page-actions 的次要行動**不算違規** —— 它們本來就該在標頭。
+// 這條防的是 gate 誤報，而誤報的 gate 會被關掉，那比沒有 gate 更糟。
+test('拇指區：投影進 app-page-actions 的按鈕不算違規', () => {
+  assert.deepEqual(
+    headerActionButtons([
+      {
+        path: 'a.html',
+        source:
+          '<app-page-actions [primary]="p">\n  <p-button label="操作紀錄" />\n</app-page-actions>',
+      },
+    ]),
+    [],
+  );
+});
+
+test('拇指區：破壞性動詞當主要行動會被抓到', () => {
+  const hits = destructivePrimaryActions([
+    { path: 'a.ts', source: "readonly primaryAction: PageAction = { label: '刪除課程' };" },
+    { path: 'b.ts', source: "readonly primaryAction: PageAction = { label: '新增課程' };" },
+  ]);
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].path, 'a.ts');
+  assert.equal(hits[0].word, '刪除');
+});
+
+test('拇指區：破壞性清單涵蓋停用與結束，不只刪除', () => {
+  const hits = destructivePrimaryActions([
+    { path: 'a.ts', source: "PageAction = { label: '停用班級' };" },
+    { path: 'b.ts', source: "PageAction = { label: '結束考試' };" },
+  ]);
+  assert.equal(hits.length, 2);
+});
+
+// ── A18：feature 之間不得互相 import（c5）────────────────────────────────────────────
+//
+// 這支跑真的檔案系統（它的工作就是解析相對路徑），所以用 mkdtemp 建一棵小樹，
+// 而不是餵字串 —— 餵字串會把「路徑解析」這個唯一的重點測掉。
+test('c5 只擋跨 feature，同 feature 與 features 外都放行', () => {
+  const root = mkdtempSync(join(tmpdir(), 'c5-'));
+  const features = join(root, 'features');
+  const mk = (rel, body) => {
+    mkdirSync(dirname(join(features, rel)), { recursive: true });
+    writeFileSync(join(features, rel), body);
+  };
+
+  mk('admin/pages/a.ts', "import { x } from '../../teacher/pages/b';");
+  mk('admin/pages/same.ts', "import { y } from '../other/c';");
+  mk('admin/pages/out.ts', "import { z } from '../../../core/svc';");
+  mk('teacher/pages/b.ts', 'export const x = 1;');
+
+  const hits = crossFeatureImports(features, root);
+  assert.equal(hits.length, 1, `只該有一筆跨 feature：${JSON.stringify(hits)}`);
+  assert.equal(hits[0].from, 'admin');
+  assert.equal(hits[0].to, 'teacher');
+});
+
+// **第一版漏掉別名。** 我掃了實際 import 用法、看到零次 `@features/`，就下了
+// 「沒有這個別名」的結論 —— 但 tsconfig 裡它一直都在。**「沒有人用」不等於「不能用」**：
+// 別名擺在那，任何人明天就能寫出一個只擋相對路徑的 gate 看不見的跨 feature import。
+// 這條測試同時釘住兩件事：別名要抓得到、而且 tsconfig 真的有定義它們。
+test('c5 也要抓別名寫法（@features/ 與 @app/features/）', () => {
+  const root = mkdtempSync(join(tmpdir(), 'c5a-'));
+  const app = join(root, 'app');
+  const features = join(app, 'features');
+  const mk = (rel, body) => {
+    mkdirSync(dirname(join(features, rel)), { recursive: true });
+    writeFileSync(join(features, rel), body);
+  };
+  const aliases = { '@features/': features, '@app/': app };
+
+  mk('admin/a.ts', "import { x } from '@features/teacher/b';");
+  mk('admin/b.ts', "import { y } from '@app/features/teacher/b';");
+  mk('admin/c.ts', "import { z } from '@core/svc';"); // 不在 features 底下 → 放行
+  mk('admin/d.ts', "import { w } from '@features/admin/other';"); // 同 feature → 放行
+  mk('teacher/b.ts', 'export const x = 1;');
+
+  const hits = crossFeatureImports(features, root, aliases);
+  assert.equal(hits.length, 2, `兩種別名寫法都該抓到：${JSON.stringify(hits)}`);
+  assert.ok(hits.every((h) => h.from === 'admin' && h.to === 'teacher'));
+});
+
+// tsconfig 真的定義了那些別名 —— 前提變了（例如有人加 @pages/*）這條會提醒去擴充 gate
+test('c5 的別名清單與 tsconfig 對得上', () => {
+  const raw = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../apps/web/tsconfig.json'),
+    'utf8',
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  const paths = Object.keys(JSON.parse(raw).compilerOptions?.paths ?? {});
+  const reachFeatures = paths.filter((p) => p === '@features/*' || p === '@app/*');
+  assert.deepEqual(
+    reachFeatures.sort(),
+    ['@app/*', '@features/*'],
+    `能走到 features 的別名變了（現有：${paths.join(', ')}）—— check-harness 的 aliases 要跟著改`,
+  );
+});
+
+// icon 是非文字元素，WCAG 1.4.11 的門檻是 3:1 不是 4.5:1。
+// warning-600 疊 warning-200 = 4.03，正好落在兩個門檻之間，四種情況一次分得開。
+const ICON_BG = 'var(--warning-200)';
+const ICON_FG = 'var(--warning-600)';
+
+test('對比掃描：4.03 是文字就要抓', () => {
+  // fixture 一律寫多行 —— 掃描是逐行的，而 PostToolUse 的 Prettier 保證 repo 裡
+  // 不存在單行規則，所以這不是漏洞，但測試也不能寫成單行否則等於什麼都沒測
+  assert.equal(
+    scan(`
+.x {
+  background: ${ICON_BG};
+  color: ${ICON_FG};
+}
+`).length,
+    1,
+  );
+});
+
+test('對比掃描：同樣的 4.03 落在 .pi 裡走 3:1，放行', () => {
+  assert.deepEqual(
+    scan(`
+.x {
+  background: ${ICON_BG};
+
+  .pi {
+    color: ${ICON_FG};
+  }
+}
+`),
+    [],
+  );
+});
+
+test('對比掃描：class 名字帶 icon 也算非文字', () => {
+  assert.deepEqual(
+    scan(`
+.x__icon {
+  background: ${ICON_BG};
+  color: ${ICON_FG};
+}
+`),
+    [],
+  );
+});
+
+test('對比掃描：icon 的 3:1 不是免死金牌 —— 2.35 連 3:1 都不過，照抓', () => {
+  const dim = readTokenPalette(`
+:root {
+  --zinc-100: #f4f4f5;
+  --zinc-400: #a1a1aa;
+}
+`);
+  const found = usageContrastViolations(
+    `
+.y {
+  background: var(--zinc-100);
+
+  .pi {
+    color: var(--zinc-400);
+  }
+}
+`,
+    dim,
+  );
+  assert.equal(found.length, 1, 'zinc-400 疊 zinc-100 只有 2.35，是 icon 也救不了');
+  assert.ok(found[0].ratio < 3, `ratio=${found[0].ratio}`);
+});
+
+// ── A17 的三項邊界（2026-09-04）────────────────────────────────────────────────────
+//
+// 焦點哨兵：鍵盤陷阱用的 1×1 元素是給 Tab 走的，使用者永遠不會用手指點它。
+// 判準必須窄 —— 放寬到「很小就算哨兵」會把 32px 的小按鈕一起放掉，而那正是要抓的。
+// **兩層寫法有三種等價的 SCSS 形式，三種都要認。**
+//
+// 2026-09-04 teacher-pages 首次外用時回報：他照交接文件寫兩層，gate 一筆都沒認。
+// 原因是我的 self-test **只測了「@media 在頂層、選擇器已展開」那一種** ——
+// 剛好是 dashboard 用的那種，也就是我唯一看過的那種。
+// 巢狀 @media（SCSS 最慣用的寫法）的 44px 掛不到任何 selector 上，於是看不見。
+//
+// 這條測試存在的意義不是「測兩層寫法」，是**測三種形式的等價性** ——
+// 只測其中一種，就是把「我看過的案例」誤當成「案例的全集」。
+test('A17 認得兩層寫法的三種 SCSS 形式', () => {
+  const t = (src) => touchTargetViolations([{ path: 'a.scss', source: src }]).map((v) => v.kind);
+
+  // A：@media 在頂層、選擇器已展開
+  assert.deepEqual(
+    t(`.d { &__skip { min-height: 40px; cursor: pointer; } }
+       @media (pointer: coarse) { .d__skip { min-height: 44px; } }`),
+    [],
+  );
+  // B：@media 巢狀在規則裡面（最慣用）
+  assert.deepEqual(
+    t(`.d { &__skip { min-height: 40px; cursor: pointer;
+           @media (pointer: coarse) { min-height: 44px; } } }`),
+    [],
+  );
+  // C：@media 在父層區塊裡、內含展開的選擇器
+  assert.deepEqual(
+    t(`.d { &__skip { min-height: 40px; cursor: pointer; }
+           @media (pointer: coarse) { .d__skip { min-height: 44px; } } }`),
+    [],
+  );
+
+  // **反例**：放寬到三種形式之後，這些仍然要擋
+  assert.deepEqual(t('.d { &__skip { min-height: 40px; cursor: pointer; } }'), ['below-threshold']);
+  assert.deepEqual(t('.d { &__skip { padding: 0; cursor: pointer; } }'), ['no-floor']);
+  assert.deepEqual(
+    t(`.d { &__skip { cursor: pointer;
+           @media (pointer: coarse) { min-height: 32px; } } }`),
+    ['below-threshold'],
+  );
+});
+
+test('A17 放行 1×1 焦點哨兵，但不放行小按鈕', () => {
+  const t = (src) => touchTargetViolations([{ path: 'a.scss', source: src }]).map((v) => v.kind);
+  assert.deepEqual(t('.sentinel { width: 1px; height: 1px; cursor: pointer; }'), []);
+  assert.deepEqual(t('.s2 { width: 2px; height: 2px; cursor: pointer; }'), []);
+  // **反例**：32px 的小按鈕仍然要擋
+  assert.deepEqual(t('.btn { width: 32px; height: 32px; cursor: pointer; }'), ['below-threshold']);
+  // 只有一軸很小 → 不是哨兵（可能是一條可點的細長條）
+  assert.deepEqual(t('.bar { height: 1px; cursor: pointer; }'), ['below-threshold']);
 });

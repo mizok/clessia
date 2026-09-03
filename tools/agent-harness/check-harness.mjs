@@ -19,7 +19,9 @@ import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
 import { orphanModuleImports } from './lib/orphan-imports.mjs';
+import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
 import { matchWriteRules } from './lib/rules.mjs';
+import { crossFeatureImports } from './lib/feature-boundaries.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
@@ -27,6 +29,7 @@ import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const CONTRAST_BASELINE = join(ROOT, 'tools/agent-harness/scss-contrast-baseline.json');
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');
+const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-baseline.json');
 const TOUCH_TARGET_BASELINE = join(ROOT, 'tools/agent-harness/touch-target-baseline.json');
 const AGENTS_MD = join(ROOT, 'AGENTS.md');
 const SKILLS_DIR = join(ROOT, '.agents/skills');
@@ -313,11 +316,13 @@ if (existsSync(apiIndex) && existsSync(permissionsFile)) {
   }
 }
 
-// ── A7c. 分校範圍的覆蓋率要看得見（clause c1）────────────────────────────────────────────
-// 「指名別的分校」由全域的 campusRequestGuard 擋住了，但「沒指定時只回自己的分校」
-// 要各路由自己過濾。**沒做的那些不能是隱形的** —— 在單一功能裡自己做一層分校過濾，
-// 會得到一個守得住的畫面和其餘全部守不住的畫面，而使用者無從分辨哪些是哪些。
-// 這條 gate 不擋（覆蓋是漸進的），但每次都把還沒接上的列出來。
+// ── A7c. 每一支碰 campus_id 的路由都要接上分校預設過濾（clause c1）──────────────────────
+// 「指名別的分校」由全域的 campusRequestGuard 擋住，但「沒指定時只回自己的分校」
+// 要各路由自己過濾。**14 支已全部接上，所以這條從提醒升級成擋。**
+//
+// 升級的理由：覆蓋率一旦完整，下一個洞就不會是「還沒做完」而是「新路由忘了接」——
+// 而那種洞是靜默的（查詢正常回應，只是回了不該看的資料）。漸進期用提醒是對的，
+// 完成之後還留在提醒就等於把門開著。
 {
   const routesDir = join(ROOT, 'apps/api/src/routes');
   const pending = [];
@@ -328,10 +333,12 @@ if (existsSync(apiIndex) && existsSync(permissionsFile)) {
     if (/campusFilterIds|campusScope/.test(source)) continue;
     pending.push(name);
   }
-  if (pending.length > 0) {
-    warnings.push(
-      `分校範圍：${pending.length} 支路由碰 campus_id 但還沒接上預設過濾` +
-        `（指名別的分校已由 campusRequestGuard 全域擋住）—— ${pending.join('、')}`,
+  for (const name of pending) {
+    fail(
+      `routes/${name} 碰 campus_id 但沒有接分校預設過濾 —— ` +
+        `用 lib/campus-scope.ts 的 applyCampusFilter / campusFilterIds。` +
+        `沒指定分校時要縮到呼叫者的 campusScope，不是回全部` +
+        `（見 kb/wiki/architecture/authorization-scope.md 洞 5）`,
     );
   }
 }
@@ -540,7 +547,7 @@ scanExisting({ clause: 'c7', dir: WEB_SRC, ext: '.html', label: '使用了舊版
 // 這件事由 pre-guard 的 regex 本身保證，這裡不重述，共用規則就是為了不重述。
 scanExisting({ clause: 'c8', dir: WEB_SRC, ext: '.ts', label: '使用了裝飾器版 API' });
 
-// A15（c2）— 2026-09-03 盤點後收斂到「真債 4 筆 + 永久豁免 1 筆」。
+// A15（c2）— 2026-09-03 兩輪驗證後收斂到「**真債 0 筆** + 永久豁免 5 筆」。
 //
 // 原本 9 筆，處理如下：
 //   -3  只寫 `orgId` 的三處改由 **pre-guard 規則本身**豁免（不是靠這裡的清單）——
@@ -549,28 +556,59 @@ scanExisting({ clause: 'c8', dir: WEB_SRC, ext: '.ts', label: '使用了裝飾�
 //   -1  staff.ts 那筆是**冗餘**：同一個 handler 的 createUser 已在 `data` 帶了 phone，已刪除。
 //   =5  剩下 4 筆真債 + 1 筆永久豁免。
 //
-// 真債要走 Better Auth 的 API，但**全 repo 目前零前例** —— 每一處都是直寫。所以要先由
-// billing-api 席做一處 `auth.api.updateUser` 的驗證（能不能寫 additionalFields、
-// email 重複時的錯誤形狀），驗完再推廣。那是它的佇列，不是這裡一次清得掉的。
+// **2026-09-03 的可行性驗證（billing-api 席）之後再減一：me.ts 的 email 從債改成豁免。**
+// 驗證結論（報告見該席 scratchpad `c2-updateuser-feasibility.md`）：
+//   - `updateUser` **明確拒絕** email（`api/routes/update-user.mjs:54` 丟
+//     `BAD_REQUEST` / `EMAIL_CAN_NOT_BE_UPDATED`）
+//   - 合法路徑 `changeEmail` 的三個前置**這個專案一個都不成立**（見 exempt 的 why）
+// 剩下的 3 筆全是「管理員改別人的資料」，而**那條路也走不通**（第二輪驗證）：
+//   - `updateUser` 掛 `sessionMiddleware`，要的是**被改的那個人**的 session ——
+//     管理員手上沒有
+//   - admin plugin 的 `adminUpdateUser` 看的是 **`ba_user.role`**
+//     （`has-permission.mjs`：`role: ctx.context.session.user.role` + `user: ['update']`），
+//     而這個專案**每一個 ba_user 的 role 都是 `'user'`** —— 管理員身分住在我們自己的
+//     `user_roles` 表。所以每一次呼叫都會是 403 `YOU_ARE_NOT_ALLOWED_TO_UPDATE_USERS`。
+//     要讓它通過只有兩條路，兩條都比直寫糟：把管理員寫進 `ba_user.role`
+//     （本身就是 c2 寫入，而且會一併授予 impersonate / ban / setRole），
+//     或在設定裡寫死 `adminUserIds` 清單（把角色真相複製到設定檔）。
+//
+// 唯一走得通的是「**本人改自己**」：`me.ts` 的 phone 已於本輪改走
+// `auth.api.updateUser`（session headers 拿得到，`phone` 是宣告過的 additionalField）。
 scanExisting({
   clause: 'c2',
   dir: API_SRC,
   ext: '.ts',
   label: '直接寫入 ba_* 表',
-  allowlist: {
-    'apps/api/src/routes/me.ts': 1, // :124 email
-    'apps/api/src/routes/parents.ts': 2, // :621 email, :625 phone
-    'apps/api/src/routes/staff.ts': 1, // :1150 phone
-  },
+  // 真債歸零 —— 剩下的每一筆都驗證過「沒有合規路徑」，所以是豁免不是待辦。
+  // **這正是把債與豁免分開記的意義**：allowlist 空了才代表沒有欠著沒做的事。
+  allowlist: {},
   exempt: {
     // me.ts:151 在同一個 update 裡寫 `phone` 與 `username`。phone 本身可以走 API，
     // 但 `username` 沒有 API —— username plugin 已被刻意移除（auth.ts:148，它提供的
     // /sign-in/username 也是密碼登入），而那個欄位**還在被當唯一性鍵使用**：
     // parents.ts 有 4 處 `buildPostgrestEq('username', phone)` 靠它做家長匯入的重複偵測。
     // 拆成「一次 API 呼叫 + 一次直寫」只會更難懂，所以整處永久豁免。
-    'apps/api/src/routes/me.ts': {
+    //
+    // me.ts:124 的 `email` 也沒有路徑（2026-09-03 驗證）：`updateUser` 在
+    // `update-user.mjs:54` 明著擋掉 email；合法路徑 `changeEmail` 的三個前置
+    // **這個專案一個都不成立** —— 兩個要寄信管道（本專案沒有任何寄信管道，
+    // 見 auth.ts 的 magic-link 註解），第三個 `updateEmailWithoutVerification`
+    // 要求 `emailVerified !== true`，但 LINE 登入的使用者我們**刻意**標成
+    // `emailVerified: true`（`lineProfileToUser`，為了讓 link-account 通過）。
+    // parents.ts / staff.ts 都是「管理員改別人的資料」——
+    // `updateUser` 要被改者的 session（拿不到），`adminUpdateUser` 看 `ba_user.role`
+    // （全都是 `'user'`）必 403。詳見上方註解。
+    'apps/api/src/routes/parents.ts': {
+      count: 2,
+      why: '管理員改別人的 email/phone：updateUser 要被改者的 session、adminUpdateUser 看 ba_user.role（本專案全是 user）必 403',
+    },
+    'apps/api/src/routes/staff.ts': {
       count: 1,
-      why: 'username 無 API 路徑（plugin 已移除）且仍是家長匯入的唯一性鍵',
+      why: '同上（管理員改別人的 phone）',
+    },
+    'apps/api/src/routes/me.ts': {
+      count: 2,
+      why: 'username 無 API 路徑（plugin 已移除）且仍是家長匯入的唯一性鍵；email 被 updateUser 明著拒絕，而 changeEmail 的前置需要寄信管道（本專案沒有）',
     },
   },
 });
@@ -627,6 +665,9 @@ if (migrationsChanged.status !== 0) {
 function checkTouchTargets() {
   const teacherDir = join(ROOT, 'apps/web/src/app/features/teacher');
   const adminDir = join(ROOT, 'apps/web/src/app/features/admin');
+  // 公開頁全數納入（2026-09-04）：它們是**未登入的人唯一會碰到的畫面**，
+  // 而且不像 admin 有「已遷手機優先」這個天然的分批依據 —— 公開頁本來就少。
+  const publicDir = join(ROOT, 'apps/web/src/app/features/public');
   if (!existsSync(teacherDir) || !existsSync(adminDir)) return;
 
   const desktopFirst = new Set(
@@ -637,6 +678,7 @@ function checkTouchTargets() {
 
   const scoped = [
     ...walk(teacherDir, '.scss'),
+    ...(existsSync(publicDir) ? walk(publicDir, '.scss') : []),
     ...walk(adminDir, '.scss').filter((f) => !desktopFirst.has(f.slice(ROOT.length + 1))),
   ];
 
@@ -692,6 +734,40 @@ function checkTouchTargets() {
     );
   }
 
+  // **空殼頁的綠燈沒有意義，要講出來。** 一個還沒實作的頁面必然零違規 ——
+  // 不是因為它合格，是因為它裡面什麼都沒有。不標記的話，等它實作完成時
+  // 沒有任何東西會提醒「這頁從來沒有被真的量過」。
+  //
+  // 判準是**檔案內容**不是人工清單 —— 寫死頁面名稱的話，那份清單會在頁面實作完成後
+  // 靜靜地過期（c11）。
+  //
+  // **要看模板不能只看 SCSS。** 第一版只判斷「SCSS 沒有實質內容」，結果把
+  // `campus-form-dialog`（html 69 行、ts 113 行，樣式繼承自全域 `.form-dialog`）
+  // 也標成空殼 —— 那是**已完成**的元件，說它「從來沒被量過」是錯的訊息。
+  // 實測分界很乾淨：真空殼的模板 9 行以內，已實作的 69 行。
+  for (const file of scoped) {
+    const rel = file.slice(ROOT.length + 1);
+    const hasStyle = readFileSync(file, 'utf8')
+      .split('\n')
+      .some((l) => {
+        const t = l.trim();
+        return t && !t.startsWith('//') && !t.startsWith('@use');
+      });
+    if (hasStyle) continue;
+
+    const template = file.replace(/\.scss$/, '.html');
+    if (!existsSync(template)) continue;
+    const templateLines = readFileSync(template, 'utf8')
+      .split('\n')
+      .filter((l) => l.trim()).length;
+    if (templateLines > 12) continue; // 有實質模板 = 已實作，只是樣式在別處
+
+    warnings.push(
+      `${rel} 目前是空殼（樣式與模板都幾乎是空的）—— 這頁的觸控尺寸**從來沒有被量過**，` +
+        `gate 綠燈只代表沒有東西可檢查。實作完成後要重新量一次`,
+    );
+  }
+
   // **能力邊界要明寫。** 綠燈的意思是「掃描範圍內、自己刻的可點元素都有下限」，
   // 不是「觸控目標都合格」：尺寸由 padding 與行高撐出來的看不到（那要在裝置上量），
   // PrimeNG 元件不在範圍（由 styles.scss 的 pointer: coarse token 統一負責），
@@ -699,6 +775,29 @@ function checkTouchTargets() {
 }
 
 checkTouchTargets();
+
+// ── A18. feature 之間不得互相 import（clause c5）─────────────────────────────────────────
+// **沒有 baseline，因為立法時是零違規的。** 那是最便宜的立法時機 —— 不必分診舊債，
+// 也不會有「這筆算不算」的爭議。之後任何一筆都是新的。
+//
+// 為什麼是專用函式不是 pre-guard 規則、以及它看不到什麼，見 lib/feature-boundaries.mjs。
+// 摘要：c5 是 Semantic 條款，這支只機器化「路徑層面的直接 import」那一半，
+// **經由 core/ 或 shared/ 的間接耦合看不到**，那一半仍然靠 review。
+const FEATURES_DIR = join(ROOT, 'apps/web/src/app/features');
+if (existsSync(FEATURES_DIR)) {
+  // 別名也要認：`@features/teacher/…` 與 `@app/features/teacher/…` 都到得了別的 feature。
+  // 目前沒有人這樣寫，但 tsconfig 定義了它們 —— 只擋相對路徑等於留一個看不見的洞。
+  const aliases = {
+    '@features/': FEATURES_DIR,
+    '@app/': join(ROOT, 'apps/web/src/app'),
+  };
+  for (const v of crossFeatureImports(FEATURES_DIR, ROOT, aliases)) {
+    fail(
+      `${v.file}:${v.line} 從 ${v.from} import 了 ${v.to} 的東西（c5）：${v.spec} —— ` +
+        `要共用就往 shared/ 提（元件）或 core/ 提（狀態），不要橫向拉`,
+    );
+  }
+}
 
 // ── W1. 使用者層級 skill 在這台機器上存在嗎（警告，不紅燈）────────────────────────────
 // 而那個 kb-wiki skill 不進版控（它是使用者跨專案共用的），所以「AGENTS.md 說得出口的
@@ -1009,6 +1108,69 @@ function checkOrphanImports() {
 }
 
 checkOrphanImports();
+
+// ── 拇指區的兩條規則 ────────────────────────────────────────────────────────
+// 邏輯住在 lib/page-actions.mjs（可單獨測）。
+// 沒有 gate 的話這個決定會慢慢被磨掉：下一個人加新頁面時最順手的寫法仍然是
+// 「在標頭放一顆 p-button」，而那在桌機上看起來完全正常 ——
+// **手機上按不到這件事，寫的人不會在自己的螢幕上發現。**
+function checkPageActions() {
+  const webSrc = join(ROOT, 'apps/web/src');
+  if (!existsSync(webSrc)) return;
+
+  const html = [];
+  const ts = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.html')) {
+        html.push({ path: full.slice(ROOT.length + 1), source: readFileSync(full, 'utf8') });
+      } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) {
+        ts.push({ path: full.slice(ROOT.length + 1), source: readFileSync(full, 'utf8') });
+      }
+    }
+  };
+  walk(webSrc);
+
+  // ── 規則一：標頭裡不得直接放按鈕（既有的進 baseline，只擋新增）──
+  const current = headerActionButtons(html);
+
+  if (mode === 'write') {
+    writeFileSync(PAGE_ACTIONS_BASELINE, `${JSON.stringify(current, null, 2)}\n`);
+  } else {
+    const baseline = new Set(
+      existsSync(PAGE_ACTIONS_BASELINE)
+        ? JSON.parse(readFileSync(PAGE_ACTIONS_BASELINE, 'utf8'))
+        : [],
+    );
+    for (const path of current.filter((p) => !baseline.has(p))) {
+      fail(
+        `${path} 在 __header-actions 裡直接放了 p-button —— 主要行動請改用 ` +
+          `app-page-actions（桌機標頭 / 手機停靠列，一次宣告兩處渲染）。` +
+          `既有的在 page-actions-baseline.json 裡，新增的會擋。`,
+      );
+    }
+    const migrated = [...baseline].filter((p) => !current.includes(p));
+    if (migrated.length > 0) {
+      warnings.push(
+        `拇指區基線有 ${migrated.length} 支已經遷移完了 —— 跑 npm run harness:write 把成果記下來`,
+      );
+    }
+  }
+
+  // ── 規則二：破壞性行動永不進停靠列（**沒有 baseline，一律擋**）──
+  // 這條不給豁免：拇指範圍最容易誤觸，而誤觸刪除是資料沒了。
+  for (const hit of destructivePrimaryActions(ts)) {
+    fail(
+      `${hit.path} 把「${hit.label}」設成主要行動，但它含有破壞性動詞「${hit.word}」。` +
+        `**破壞性行動永不進停靠列** —— 拇指範圍最容易誤觸，誤觸「新增」是多一筆草稿，` +
+        `誤觸「刪除」是資料沒了。請留在選單裡並加確認。`,
+    );
+  }
+}
+
+checkPageActions();
 
 // ── report ───────────────────────────────────────────────────────────────────────────────
 // --write 一律 exit 0：它的工作是「修好能自動修的」，剩下的（例如 CLAUDE.md 被塞進規則）

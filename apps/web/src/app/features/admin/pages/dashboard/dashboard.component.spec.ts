@@ -166,18 +166,26 @@ describe('DashboardComponent（管理端）', () => {
       stalled
         ? NEVER
         : fail === 'students'
-        ? boom
-        : of({ data: [], meta: { total: activeCount }, summary: { total: activeCount, activeCount } }),
+          ? boom
+          : of({
+              data: [],
+              meta: { total: activeCount },
+              summary: { total: activeCount, activeCount },
+            }),
     );
     enrollmentsMock.mockReturnValue(
       stalled
         ? NEVER
         : fail === 'enrollments'
-        ? boom
-        : of({ data: [], meta: { total: enrollmentTotal, page: 1, pageSize: 1, totalPages: 1 } }),
+          ? boom
+          : of({ data: [], meta: { total: enrollmentTotal, page: 1, pageSize: 1, totalPages: 1 } }),
     );
     orgSettingsMock.mockReturnValue(
-      stalled ? NEVER : fail === 'org' ? boom : of({ id: 'o1', name: '補習班', attendanceMode: mode }),
+      stalled
+        ? NEVER
+        : fail === 'org'
+          ? boom
+          : of({ id: 'o1', name: '補習班', attendanceMode: mode }),
     );
 
     await TestBed.configureTestingModule({
@@ -340,21 +348,70 @@ describe('DashboardComponent（管理端）', () => {
 
     afterEach(() => localStorage.removeItem('clessia.dashboard.timeline-collapsed'));
 
-    it('lane 不超過 3 條時預設展開', async () => {
-      await setup({ todaySessions: overlappingSessions(3) });
-      expect(component['timelineCollapsed']()).toBe(false);
-    });
-
-    it('lane 超過 3 條時預設收合', async () => {
-      await setup({ todaySessions: overlappingSessions(4) });
-      expect(component['timelineCollapsed']()).toBe(true);
-    });
-
-    // 使用者按過之後就照他的意思，不再自動判斷 —— 否則他每天回來都要再按一次
-    it('使用者的選擇勝過自動判斷', async () => {
-      localStorage.setItem('clessia.dashboard.timeline-collapsed', '0');
+    /**
+     * **自動收合退役了。** 它的依據是「課多時圖會長到把課表推到摺線下」，
+     * 而時間軸改成密度圖之後高度與課量脫鉤 —— 那個依據不存在了，
+     * 再自動收就只是把資訊藏起來。
+     */
+    it('課再多也預設展開', async () => {
       await setup({ todaySessions: overlappingSessions(6) });
       expect(component['timelineCollapsed']()).toBe(false);
+    });
+
+    // 手動收合保留（可收合帶是已裁的方向），使用者按過就照他的意思
+    it('使用者收起來的選擇會被記住', async () => {
+      localStorage.setItem('clessia.dashboard.timeline-collapsed', '1');
+      await setup({ todaySessions: overlappingSessions(1) });
+      expect(component['timelineCollapsed']()).toBe(true);
+    });
+  });
+
+  /**
+   * 就地點名是作業台的核心：原本要走「儀表板 → 課堂管理 → 找到那一堂 → 開 dialog」
+   * 四步，而那四步每天重複五次。
+   */
+  describe('就地點名', () => {
+    function rows(): HTMLElement[] {
+      return [...fixture.nativeElement.querySelectorAll('.dashboard__spine-row')];
+    }
+
+    it('逐堂點名模式下，有 eventId 的課堂整列是按鈕', async () => {
+      await setup({ mode: 'per_session' });
+
+      const actionable = rows().filter((r) => r.tagName === 'BUTTON');
+      expect(actionable.length).toBeGreaterThan(0);
+    });
+
+    // 日到班模式沒有逐堂出勤這回事，做成可按會是個假 affordance
+    it('日到班模式下沒有任何一列可按', async () => {
+      await setup({ mode: 'daily_checkin' });
+
+      expect(rows().every((r) => r.tagName !== 'BUTTON')).toBe(true);
+    });
+
+    /**
+     * `DialogService` 與面板都是 `await import(...)`（不讓整棵 dialog 依賴樹進儀表板
+     * 的 chunk），而 import 是非同步的 —— 使用者可能在那中間就離開了。
+     *
+     * 沒有守衛的話會在已銷毀的 injector 上開窗，留下一個沒有主人的彈窗（NG0911）。
+     * **突變測試抓到過**：拿掉 `if (this.destroyed) return` 時，原本整組測試仍然全綠。
+     */
+    it('import 完成前元件就被銷毀時，安靜地不開窗', async () => {
+      await setup({ mode: 'per_session' });
+
+      const opening = component['openAttendance'](session());
+      fixture.destroy();
+
+      await expect(opening).resolves.toBeUndefined();
+    });
+
+    it('停課（沒有 eventId）的課堂不可按', async () => {
+      await setup({
+        mode: 'per_session',
+        todaySessions: [{ ...session(), sessionId: 'no-event', eventId: null }],
+      });
+
+      expect(rows().every((r) => r.tagName !== 'BUTTON')).toBe(true);
     });
   });
 

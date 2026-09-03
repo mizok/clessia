@@ -64,3 +64,24 @@ export function campusFilterIds(
 
   return scope;
 }
+
+/**
+ * 把分校範圍套到一個查詢上。**各路由的呼叫端只有一行，因為漏掉一行就是一個洞。**
+ *
+ * `column` 各路由不同（`campus_id` / `classes.campus_id` / `events.campus_id`），
+ * 所以由呼叫端給 —— 那是這支 helper 唯一需要判斷的地方，其餘（要不要加條件、
+ * 加哪些 id）一律在這裡決定。
+ *
+ * 呼叫端**不必先驗 `requested` 合不合法** —— 全域的 `campusRequestGuard` 已經擋掉
+ * 範圍外的指名（403）。這裡拿到的 `requested` 一定是允許的。
+ */
+export function applyCampusFilter<T extends { in(column: string, values: string[]): T }>(
+  query: T,
+  column: string,
+  scope: CampusScope,
+  requested?: string | null,
+): T {
+  const ids = campusFilterIds(scope, requested);
+
+  return ids ? query.in(column, [...ids]) : query;
+}

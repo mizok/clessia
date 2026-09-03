@@ -1,10 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
 import { canManageOrgExam } from '../lib/exam-scope';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
-import { waitUntilFrom } from '../lib/wait-until';
+import { campusFilterIds } from '../lib/campus-scope';
 
 const SchoolExamTypeSchema = z.enum(['term_exam', 'mock_exam', 'other']).openapi('SchoolExamType');
 const SchoolExamStatusSchema = z.enum(['active', 'closed']).openapi('SchoolExamStatus');
@@ -718,11 +719,12 @@ app.openapi(getRoute, async (c) => {
       studentQuery = studentQuery.eq('grade', grade);
     }
 
-    if (campusId) {
+    const campusIds = campusFilterIds(c.get('campusScope'), campusId);
+    if (campusIds) {
       const { data: enrollmentRows } = await supabase
         .from('enrollments')
         .select('student_id, classes!inner(campus_id)')
-        .eq('classes.campus_id', campusId);
+        .in('classes.campus_id', [...campusIds]);
 
       const campusStudentIds = Array.from(
         new Set(
@@ -1847,11 +1849,12 @@ app.openapi(studentsRoute, async (c) => {
     studentsQuery = studentsQuery.ilike('name', `%${search}%`);
   }
 
-  if (campusId) {
+  const campusIds = campusFilterIds(c.get('campusScope'), campusId);
+  if (campusIds) {
     const { data: enrollmentRows, error: enrollmentError } = await supabase
       .from('enrollments')
       .select('student_id, classes!inner(campus_id)')
-      .eq('classes.campus_id', campusId);
+      .in('classes.campus_id', [...campusIds]);
 
     if (enrollmentError) {
       return c.json({ error: enrollmentError.message, code: 'DB_ERROR' }, 400);

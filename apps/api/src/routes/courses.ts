@@ -1,7 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { formatAuditCourseResourceName, logAudit } from '../utils/audit';
-import { waitUntilFrom } from '../lib/wait-until';
+import { applyCampusFilter } from '../lib/campus-scope';
 
 // ============================================================
 // Schemas (with OpenAPI metadata)
@@ -150,9 +151,7 @@ app.openapi(listRoute, async (c) => {
   if (query.search) {
     dbQuery = dbQuery.ilike('name', `%${query.search}%`);
   }
-  if (query.campusId) {
-    dbQuery = dbQuery.eq('campus_id', query.campusId);
-  }
+  dbQuery = applyCampusFilter(dbQuery, 'campus_id', c.get('campusScope'), query.campusId);
   if (query.subjectId) {
     dbQuery = dbQuery.eq('subject_id', query.subjectId);
   }

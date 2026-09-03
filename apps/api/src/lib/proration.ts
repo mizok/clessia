@@ -22,6 +22,24 @@ export interface ActiveRange {
   to: string | null;
 }
 
+/**
+ * 某個月的第一天到最後一天。`'2026-03'` 與 `'2026-03-01'` 都收。
+ *
+ * 原本是 `routes/billing-runs.ts` 的私有函式。第二個消費者出現時搬過來
+ * （報名的比例試算也要吃月份）—— **兩邊各留一份的話，「二月有幾天」這種事
+ * 遲早會在其中一份算錯，而且是錢**。
+ *
+ * 用 UTC 走日曆：日期在這裡是字串上的 `YYYY-MM-DD`，拿本地時區推進會在
+ * 夏令時或跨時區部署時差一天。
+ */
+export function monthRange(periodMonth: string): DateRange {
+  const start = `${periodMonth.slice(0, 7)}-01`;
+  const startDate = new Date(`${start}T00:00:00Z`);
+  // 下個月的第 0 天 = 這個月的最後一天，閏年與大小月都不用自己判斷
+  const endDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 0));
+  return { start, end: endDate.toISOString().slice(0, 10) };
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function days(from: string, to: string): number {

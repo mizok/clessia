@@ -1,7 +1,8 @@
 @use 'shared/breakpoints' as bp;
 
+/* **手機優先**：基準是窄螢幕，往大螢幕才加強。 */
 .student-detail {
-  padding: var(--space-6);
+  padding: var(--space-4) 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -64,11 +65,7 @@
     width: 64px;
     height: 64px;
     border-radius: 50%;
-    background: linear-gradient(
-      135deg,
-      hsl(var(--h, 210) 31% 36%),
-      hsl(var(--h, 210) 36% 30%)
-    );
+    background: linear-gradient(135deg, hsl(var(--h, 210) 31% 36%), hsl(var(--h, 210) 36% 30%));
     box-shadow: 0 4px 12px -2px hsl(var(--h, 210) 31% 36% / 0.25);
     color: #fff;
     font-size: 26px;
@@ -165,7 +162,7 @@
 
   &__deferred-badge {
     font-size: var(--text-xs);
-    color: var(--zinc-500);
+    color: var(--zinc-700);
     background: var(--zinc-100);
     border-radius: var(--radius-full);
     padding: 2px var(--space-2);
@@ -175,7 +172,7 @@
   // Info Grid
   &__info-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: var(--space-4);
   }
 
@@ -258,11 +255,7 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(
-      135deg,
-      hsl(var(--h, 210) 31% 36%),
-      hsl(var(--h, 210) 36% 30%)
-    );
+    background: linear-gradient(135deg, hsl(var(--h, 210) 31% 36%), hsl(var(--h, 210) 36% 30%));
     box-shadow: 0 2px 5px -1px hsl(var(--h, 210) 31% 36% / 0.22);
     color: #fff;
     font-size: 13px;
@@ -298,7 +291,8 @@
 
   &__parent-relation {
     font-size: var(--text-xs);
-    color: var(--zinc-500);
+    // 藥丸 chip（radius-full + zinc-100 底）→ 跟 app-data-chip 一致用 zinc-700
+    color: var(--zinc-700);
     background: var(--zinc-100);
     border-radius: var(--radius-full);
     padding: 2px var(--space-2);
@@ -328,7 +322,9 @@
     background: #fff;
     cursor: pointer;
     user-select: none;
-    transition: border-color var(--transition-fast), border-left-color var(--transition-fast),
+    transition:
+      border-color var(--transition-fast),
+      border-left-color var(--transition-fast),
       box-shadow var(--transition-fast);
 
     &:hover {
@@ -357,7 +353,9 @@
   &__enrollment-arrow {
     font-size: 11px;
     color: var(--zinc-300);
-    transition: color var(--transition-fast), transform var(--transition-fast);
+    transition:
+      color var(--transition-fast),
+      transform var(--transition-fast);
   }
 
   &__enrollment-info {
@@ -412,29 +410,35 @@
 }
 
 // Responsive
-@include bp.respond-to('tablet-portrait') {
+@include bp.respond-from('tablet-portrait') {
   .student-detail {
-    padding: var(--space-4) 0;
+    padding: var(--space-6);
 
     &__profile-header {
-      flex-direction: column;
+      flex-direction: row;
     }
 
     &__profile-actions {
-      width: 100%;
+      width: auto;
     }
 
+    // 解回 CSS 的初始值（不是某個主題的預設值，所以寫死是安全的）
     &__profile-actions &__edit-button {
-      width: 100%;
-      justify-content: center;
+      width: auto;
+      justify-content: normal;
     }
 
     &__info-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr 1fr;
     }
+  }
+}
 
-    &__info-item--full {
-      grid-column: 1;
-    }
+// 報名卡列是可點的（點進去看該筆報名）。內距已經讓它接近 44px，但**沒有宣告
+// 下限** —— 那正是這道 gate 要抓的形狀：內容一變短它就縮到門檻以下，而沒有
+// 任何數字可以讓人在 review 時看出來。滑鼠下維持原樣，觸控下明寫 44px。
+@media (pointer: coarse) {
+  .student-detail__enrollment-item {
+    min-height: 44px;
   }
 }

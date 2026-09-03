@@ -6,7 +6,12 @@
   align-items: center;
   justify-content: space-between;
   height: 56px;
-  padding: 0 var(--space-6);
+  // **手機優先**：基準是手機的內距，夠寬了才放寬
+  padding: 0 var(--space-3);
+
+  @include bp.respond-from('mobile') {
+    padding: 0 var(--space-6);
+  }
   background: var(--zinc-900);
   color: var(--color-white);
   z-index: 100;
@@ -102,8 +107,18 @@
     transition: border-color var(--transition-fast);
   }
 
+  // 手機的標頭橫向空間有限，名字截斷並退到次要層級；桌機有空間就完整顯示
   &__user-name {
-    // Mobile style default
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.8;
+
+    @include bp.respond-from('mobile') {
+      max-width: none;
+      opacity: 1;
+    }
   }
 }
 
@@ -189,7 +204,10 @@
 
       &:hover {
         background: var(--error-100);
-        color: var(--error-600);
+        // error-600 疊 error-100 只有 3.95；error-700 是 5.30。
+        // 底色不動 —— 動的是文字，因為 hover 的意義是「這是危險操作」，
+        // 更深的紅正好強化那個意思。
+        color: var(--error-700);
       }
     }
   }
@@ -225,7 +243,14 @@
 // ─── Main Content ──────────────────────────────────────────────────────────────
 .shell-content {
   flex: 1;
-  padding: var(--space-8);
+  // **手機優先**：基準是手機的內距。底欄是文件流內的 flex 兄弟（不是 fixed），
+  // 所以不必為它留 padding；safe-area 才需要。
+  padding: var(--space-3);
+  padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+
+  @include bp.respond-from('mobile') {
+    padding: var(--space-8);
+  }
   background: var(--zinc-50);
   display: flex;
   flex-direction: column;
@@ -236,28 +261,5 @@
   &--centered {
     align-items: center;
     justify-content: center;
-  }
-}
-
-// ─── Mobile Styles (< 640px) ───────────────────────────────────────────────────
-@include bp.respond-to('mobile') {
-  .shell-header {
-    padding: 0 var(--space-3);
-
-    &__user-name {
-      max-width: 100px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      opacity: 0.8;
-    }
-  }
-
-  // 新結構是 flex column 撐滿 --window-height，手機的高度計算交給 flex，不再自己算
-  // But if we need specific adjustments:
-  .shell-content {
-    padding: var(--space-3);
-    // Ensure bottom padding for bottom bar interaction if needed
-    padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
   }
 }

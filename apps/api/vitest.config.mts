@@ -6,5 +6,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.spec.ts'],
+    // 把 logAudit 的靜默失敗變成紅燈 —— 見 src/test-setup.ts
+    setupFiles: ['src/test-setup.ts'],
   },
 });

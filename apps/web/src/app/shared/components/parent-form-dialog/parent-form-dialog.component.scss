@@ -3,13 +3,15 @@
 // Styles inherited from global .form-dialog in src/styles.scss
 
 .form-dialog {
+  // **手機優先**：一列一個欄位是基準。兩欄並排是螢幕夠寬時的加強，
+  // 不是要在窄螢幕上退掉的東西。
   &__row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: var(--space-4);
 
-    @include bp.respond-to('mobile') {
-      grid-template-columns: 1fr;
+    @include bp.respond-from('mobile') {
+      grid-template-columns: 1fr 1fr;
     }
   }
 

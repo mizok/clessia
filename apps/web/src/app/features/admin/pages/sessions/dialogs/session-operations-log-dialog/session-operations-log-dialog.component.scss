@@ -43,6 +43,10 @@
     color: var(--zinc-500);
   }
 
+  // **這一處刻意沒翻成手機優先。** 它不是「寬版被窄版覆蓋」，而是窄螢幕才
+  // 把 PrimeNG 的 tabpanel 內距歸零。翻面就得在寬版把它解回 PrimeNG 的預設值 ——
+  // 而那個 token 是執行期注入的（production 產物的 CSS 裡搜不到），
+  // 我沒辦法確認解回去之後長什麼樣。猜一個值寫死會變成看不見的視覺回歸。
   @include bp.respond-to('mobile') {
     --p-tabs-tabpanel-padding: 0px;
   }

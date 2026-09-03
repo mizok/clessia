@@ -64,3 +64,31 @@ describe('sortColumn', () => {
     expect(sortColumn('updatedAt')).toBe('updated_at');
   });
 });
+
+/**
+ * `hasInvoice` 的兩個方向用**不同的 join** —— 這是這條篩選唯一容易寫錯的地方：
+ * `true` 用 `!inner`（只留下有帳單項目的），`false` 用 left join 再配
+ * `invoice_items=is.null`。少了 `!inner`，`true` 會把所有報名都留下來，
+ * 只是關聯欄位變成空陣列 —— 看起來像「篩選壞掉」但不會報錯。
+ */
+describe('buildSelect 的 hasInvoice', () => {
+  it('不指定就完全不碰帳單關聯', () => {
+    expect(buildSelect()).not.toContain('invoice_items');
+  });
+
+  it('要「有帳單」時用 inner join', () => {
+    expect(buildSelect(undefined, true)).toContain('invoice_items!inner(id)');
+  });
+
+  it('要「沒帳單」時用 left join（過濾靠 is.null，不是 join）', () => {
+    const select = buildSelect(undefined, false);
+    expect(select).toContain('invoice_items(id)');
+    expect(select).not.toContain('invoice_items!inner');
+  });
+
+  it('跟 campusId 的 inner join 並存', () => {
+    const select = buildSelect('campus-1', true);
+    expect(select).toContain('classes!inner');
+    expect(select).toContain('invoice_items!inner');
+  });
+});

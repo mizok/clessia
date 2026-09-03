@@ -41,6 +41,7 @@ import orgSettingsRoute from './routes/org-settings';
 import attendanceRoute from './routes/attendance';
 import leavesRoute from './routes/leaves';
 import dailyCheckinsRoute from './routes/daily-checkins';
+import workbenchRoute from './routes/workbench';
 import academyExamsRoute from './routes/academy-exams';
 import schoolExamsRoute from './routes/school-exams';
 import scoresRoute from './routes/scores';
@@ -316,6 +317,10 @@ mount('/api/org', orgSettingsRoute, ['admin', 'teacher']);
 mount('/api/attendance', attendanceRoute, ['admin', 'teacher'], { write: 'basic_operations' });
 mount('/api/leaves', leavesRoute, ADMIN_ONLY, { write: 'basic_operations' });
 mount('/api/daily-checkins', dailyCheckinsRoute, ADMIN_ONLY, { write: 'basic_operations' });
+// 作業台是管理端的。老師端的「今天」走 teacher-today-flow 自己的取數 ——
+// 不預開，等它真的需要再說（計畫席 2026-09-03 裁定）。
+// 它只讀不寫，所以沒有 write 權限
+mount('/api/workbench', workbenchRoute, ADMIN_ONLY);
 // 成績三支開給老師，但**範圍限制在路由層**（`lib/exam-scope.ts` / `lib/teacher-scope.ts`）：
 // 老師只碰自己固定任課的班。單純把角色加上去是不安全的 —— 那會讓任何老師讀寫全校的
 // 考試與成績。見 .claude/team/billing-api-p3-grades-scope-design.md

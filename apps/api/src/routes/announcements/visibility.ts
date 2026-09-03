@@ -31,3 +31,16 @@ export function canSee(row: AnnouncementRow, viewer: ViewerContext): boolean {
   // 全分校公告人人看得到；指定分校的只有該分校的人看得到
   return row.campus_id === null || viewer.campusIds.includes(row.campus_id);
 }
+
+/**
+ * 收件匣的分校過濾條件（PostgREST 的 `.or()` 字串）。
+ *
+ * **收件匣與「全部標為已讀」必須用同一份條件** —— 兩邊各長一份的話，
+ * 「全部已讀」會標到看不見的公告（多標），或漏掉看得見的（少標，而使用者按完
+ * 還是紅點）。兩種都不會報錯，都要等使用者抱怨才發現。
+ */
+export function campusOrFilter(campusIds: readonly string[]): string {
+  return campusIds.length > 0
+    ? `campus_id.is.null,campus_id.in.(${campusIds.join(',')})`
+    : 'campus_id.is.null';
+}

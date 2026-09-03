@@ -105,7 +105,9 @@
     cursor: pointer;
     text-align: left;
     width: 100%;
-    transition: background 0.12s, border-left-color 0.12s;
+    transition:
+      background 0.12s,
+      border-left-color 0.12s;
 
     & + & {
       border-top: 1px solid var(--zinc-100);
@@ -150,14 +152,18 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    transition: background 0.12s, border-color 0.12s;
+    transition:
+      background 0.12s,
+      border-color 0.12s;
 
     .pi {
       font-size: 10px;
       color: #fff;
       opacity: 0;
       transform: scale(0.4);
-      transition: opacity 0.1s, transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transition:
+        opacity 0.1s,
+        transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
   }
 
@@ -166,11 +172,7 @@
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: linear-gradient(
-      135deg,
-      hsl(var(--h, 210) 31% 36%),
-      hsl(var(--h, 210) 36% 30%)
-    );
+    background: linear-gradient(135deg, hsl(var(--h, 210) 31% 36%), hsl(var(--h, 210) 36% 30%));
     box-shadow: 0 2px 6px -1px hsl(var(--h, 210) 31% 36% / 0.25);
     color: #fff;
     font-size: 13px;
@@ -264,14 +266,17 @@
     border-radius: var(--radius-sm);
     flex-shrink: 0;
     margin-left: auto;
-    transition: color 0.12s, background 0.12s;
+    transition:
+      color 0.12s,
+      background 0.12s;
 
     .pi {
       font-size: 11px;
     }
 
     &:hover {
-      color: var(--error-600);
+      // error-600 疊 #fef2f2 是 4.41，差 0.09；error-700 是 5.91
+      color: var(--error-700);
       background: #fef2f2;
     }
   }
@@ -318,5 +323,57 @@
     padding-top: var(--space-3);
     border-top: 1px solid var(--zinc-100);
     flex-shrink: 0;
+  }
+}
+
+// ── 計費與開帳（B3 第一片）
+.spd {
+  &__billing {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    margin-top: var(--space-3);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-md);
+    background: var(--zinc-50);
+  }
+
+  // 結果摘要：一列講完這批發生了什麼，逐筆細節在下面的清單裡
+  &__result-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--zinc-600);
+  }
+
+  &__issue {
+    // 整個 label 都是點擊區（不只那顆 checkbox），所以它要有觸控下限。
+    // 實際高度早就超過 44px（checkbox + 標題 + 副標），這行是把它**講出來** ——
+    // 內容撐出來的高度會隨文案變，宣告的不會
+    min-height: 44px;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--zinc-200);
+    cursor: pointer;
+  }
+
+  &__issue-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__issue-title {
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+  }
+
+  &__issue-sub {
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
   }
 }

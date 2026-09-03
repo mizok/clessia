@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { buildSubstitutedAwayEntries, type SubstitutedAwayRow } from './sessions/substituted-away';
@@ -11,7 +12,7 @@ import {
   SessionUnassignedError,
 } from '../domain/session-assignment/session-operation-guard';
 import { planBatchUpdateTime } from '../domain/session-assignment/batch-update-time-planner';
-import { waitUntilFrom } from '../lib/wait-until';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 // ============================================================
 // Schemas
@@ -581,6 +582,7 @@ app.openapi(listSessionsRoute, async (c) => {
     statuses,
     assignmentStatus,
   } = c.req.valid('query');
+  const campusScope = c.get('campusScope');
 
   let dbQuery = supabase
     .from('sessions')
@@ -609,11 +611,17 @@ app.openapi(listSessionsRoute, async (c) => {
     dbQuery = dbQuery.lte('session_date', to);
   }
 
-  if (campusIds) {
-    const ids = campusIds.split(',').filter(Boolean);
-    if (ids.length > 0) dbQuery = dbQuery.in('classes.campus_id', ids);
-  } else if (campusId) {
-    dbQuery = dbQuery.eq('classes.campus_id', campusId);
+  // 請求指定了就用指定的（合法性由全域 campusRequestGuard 擋過），沒指定就用他的範圍。
+  // **不能只在「有指定」時才加條件** —— 那樣受限的管理員不指定就看得到全部。
+  const requestedCampusIds = campusIds
+    ? campusIds.split(',').filter(Boolean)
+    : campusId
+      ? [campusId]
+      : [];
+  const effectiveCampusFilter =
+    requestedCampusIds.length > 0 ? requestedCampusIds : campusScope ? [...campusScope] : null;
+  if (effectiveCampusFilter) {
+    dbQuery = dbQuery.in('classes.campus_id', effectiveCampusFilter);
   }
   if (courseIds) {
     const ids = courseIds.split(',').filter(Boolean);
@@ -659,14 +667,8 @@ app.openapi(listSessionsRoute, async (c) => {
   }
 
   // 本月未指派 / 今日未點名 — 受 campus filter 影響，但不受其他 filter 影響
-  const effectiveCampusIds = (() => {
-    if (campusIds) {
-      const ids = campusIds.split(',').filter(Boolean);
-      if (ids.length > 0) return ids;
-    }
-    if (campusId) return [campusId];
-    return null;
-  })();
+  // 沒指定分校時退回呼叫者的範圍 —— 跟主查詢用同一個結果，兩邊不能各算一次
+  const effectiveCampusIds = effectiveCampusFilter;
 
   const { monthStart, monthEnd } = getCurrentTaipeiMonthRange();
   let monthUnassignedQuery = supabase
@@ -2811,21 +2813,6 @@ app.openapi(batchUncancelRoute, async (c) => {
     200,
   );
 });
-
-function getCurrentTaipeiDateString(): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Taipei',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-
-  const year = parts.find((part) => part.type === 'year')?.value ?? '0000';
-  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
-  const day = parts.find((part) => part.type === 'day')?.value ?? '01';
-
-  return `${year}-${month}-${day}`;
-}
 
 function getCurrentTaipeiMonthRange(): { monthStart: string; monthEnd: string } {
   const today = getCurrentTaipeiDateString();

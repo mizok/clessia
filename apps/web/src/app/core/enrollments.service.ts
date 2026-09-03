@@ -114,6 +114,21 @@ export interface BatchCreateInput {
   skipConflictCheck?: boolean;
   /** 不給就是今天。名單補灌時往前調到開課日，過去的課堂名單才有人 */
   effectiveFrom?: string;
+  /**
+   * 計費設定 —— 整批同一組（同一班同一個價目表是常態）。
+   *
+   * API 從一開始就吃這三個欄位，理由寫在 `routes/enrollments.ts`：
+   * 「批次招生一次幾十筆，事後逐筆補計費設定是純粹的重工」。
+   * 但這裡的型別漏了，於是呼叫端也就沒人送 —— schema 有欄位不等於有人在用。
+   *
+   * `adjustmentNote` 由 PR #184 補齊（原本單筆吃、批次不吃）——
+   * **這支的合併必須排在 #184 之後**，否則改了價的原因會被後端 strip 掉，
+   * 而畫面上使用者剛填過它。
+   */
+  billingMode?: BillingMode;
+  feeTemplateId?: string;
+  agreedAmount?: number;
+  adjustmentNote?: string;
 }
 
 export interface BatchCreateResult {
@@ -124,6 +139,31 @@ export interface BatchCreateResult {
 export interface CreateEnrollmentResponse {
   data: Enrollment;
   warnings?: ScheduleConflictWarning[];
+}
+
+export interface ProrationPreviewInput {
+  /** 月繳給 `2026-03`；期繳給 `billingPeriodId`。**二擇一** */
+  periodMonth?: string;
+  billingPeriodId?: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  /** 兩者擇一，`agreedAmount` 優先（議價是常態，價目表只是定價） */
+  feeTemplateId?: string;
+  agreedAmount?: number;
+}
+
+export interface ProrationPreview {
+  /** 未按比例的原價 —— 讓行政看得出來折了多少 */
+  fullAmount: number;
+  amount: number;
+  /**
+   * 算式的說明（「期間 31 天，實際 12 天…」）。**跟金額一樣重要** ——
+   * 只給一個數字的話沒有人知道它怎麼來的，也就沒有人敢改它，
+   * 而規則 2 說金額永遠可以人工覆寫。整期都在讀時是 `null`（沒有東西要解釋）。
+   */
+  note: string | null;
+  periodStart: string;
+  periodEnd: string;
 }
 
 export interface CopyFromClassInput {
@@ -210,5 +250,13 @@ export class EnrollmentsService {
 
   copyFromClass(input: CopyFromClassInput): Observable<CopyFromClassResult> {
     return this.http.post<CopyFromClassResult>(`${this.base}/copy-from-class`, input);
+  }
+
+  /**
+   * 期中插班的比例試算（不寫入）。**算法跟月結批次共用同一份**，
+   * 所以畫面上的預覽跟隔天出來的帳單對得起來。
+   */
+  prorationPreview(input: ProrationPreviewInput): Observable<ProrationPreview> {
+    return this.http.post<ProrationPreview>(`${this.base}/proration-preview`, input);
   }
 }

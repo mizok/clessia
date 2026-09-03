@@ -313,7 +313,15 @@ select {
 .clessia-filter-search {
   flex: 1;
   min-width: 200px;
-  max-width: 320px;
+  /* **手機優先**：窄螢幕上搜尋框填滿整列，寬螢幕才收到 320px。
+     這條原本是各頁在自己的 `respond-to` 裡寫 `max-width: 100%` ——
+     九頁共用同一個 block，那個決定就該住在 block 裡，320 也只該有一份（c11）。
+     已經自己蓋掉 max-width 的頁（courses 的 280px）不受影響。 */
+  max-width: 100%;
+
+  @include bp.respond-from('tablet-portrait') {
+    max-width: 320px;
+  }
 }
 
 .clessia-filter-search .p-inputtext,
@@ -1148,6 +1156,21 @@ textarea.p-textarea,
   view-transition-name: route-content;
 }
 
+/* 頁面有停靠式主要行動時，內容容器自己保留底部空間。
+   停靠列是 `position: fixed`，不保留的話它會蓋住清單最後一列 ——
+   而使用者不會說「被蓋住了」，只會說「**最後一個按不到**」。
+
+   **為什麼是 `:has()` 而不是元件自己放一塊留白**：`app-page-actions` 宣告在頁面
+   **標頭**，它放的佔位塊會保留標頭下方的空間，而要保留的是**頁尾**。
+   讓容器自己反應「我裡面有一個停靠列」才是對的位置，而且沒有 JS 副作用。
+   （這是本專案第一次用 `:has()`。現代瀏覽器全面支援，且它取代的替代方案
+   ——元件在 init 時對外層 DOM 加 class——是一個表現層元件不該有的副作用。） */
+@include bp.respond-to('mobile') {
+  .shell-content:has(.page-actions__dock) {
+    padding-bottom: calc(64px + var(--space-3) * 2 + 44px);
+  }
+}
+
 /* =============================================================================
    Utilities
    ============================================================================= */
@@ -1174,6 +1197,35 @@ textarea.p-textarea,
 
 .u-scrollable {
   overflow: auto;
+}
+
+/* =============================================================================
+   Roster Sheet —— 老師端的點名面板
+   -----------------------------------------------------------------------------
+   手機上從下方升起（bottom sheet），桌機維持置中彈窗。
+
+   為什麼不是置中：老師站在教室裡單手拿手機點名，置中的面板把「儲存點名」
+   推到螢幕中央偏上，拇指構不到；貼著底部升起則整個動作區都在拇指弧內。
+
+   **只有老師端這樣開** —— admin 出勤頁用同一支元件（#169 收斂），
+   但那邊是坐著用滑鼠，置中才對。差異在呼叫端的 styleClass，不在元件裡。
+   ============================================================================= */
+/* `.p-dialog` 複合選擇器：PrimeNG 自己的 `.p-dialog` 規則在 cascade 裡排在後面，
+   單獨用 `.roster-sheet` 的 border-radius 會被它蓋掉（實測仍是 12px 四角圓）。 */
+.p-dialog.roster-sheet {
+  max-height: calc(var(--window-height, 800px) * 0.85);
+
+  @include bp.respond-to('mobile') {
+    position: fixed;
+    inset: auto 0 0;
+    margin: 0;
+    // 貼著螢幕底緣，所以下面兩角不能是圓的
+    border-radius: 16px 16px 0 0;
+    // PrimeNG 把 width 寫成 inline style（開啟時傳的 '480px'），
+    // 這是少數 !important 站得住腳的場合：覆蓋行內樣式沒有別的辦法
+    width: 100% !important;
+    max-width: none !important;
+  }
 }
 
 /* =============================================================================
