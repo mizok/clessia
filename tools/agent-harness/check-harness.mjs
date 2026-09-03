@@ -661,6 +661,9 @@ if (migrationsChanged.status !== 0) {
 function checkTouchTargets() {
   const teacherDir = join(ROOT, 'apps/web/src/app/features/teacher');
   const adminDir = join(ROOT, 'apps/web/src/app/features/admin');
+  // 公開頁全數納入（2026-09-04）：它們是**未登入的人唯一會碰到的畫面**，
+  // 而且不像 admin 有「已遷手機優先」這個天然的分批依據 —— 公開頁本來就少。
+  const publicDir = join(ROOT, 'apps/web/src/app/features/public');
   if (!existsSync(teacherDir) || !existsSync(adminDir)) return;
 
   const desktopFirst = new Set(
@@ -671,6 +674,7 @@ function checkTouchTargets() {
 
   const scoped = [
     ...walk(teacherDir, '.scss'),
+    ...(existsSync(publicDir) ? walk(publicDir, '.scss') : []),
     ...walk(adminDir, '.scss').filter((f) => !desktopFirst.has(f.slice(ROOT.length + 1))),
   ];
 
@@ -723,6 +727,40 @@ function checkTouchTargets() {
     const [area, n] = [...byArea].sort((a, b) => b[1] - a[1])[0];
     warnings.push(
       `${remaining.length} 處可點元素沒有尺寸下限（在 baseline 裡、不擋）—— 最多的是 ${area}，佔 ${n} 筆`,
+    );
+  }
+
+  // **空殼頁的綠燈沒有意義，要講出來。** 一個還沒實作的頁面必然零違規 ——
+  // 不是因為它合格，是因為它裡面什麼都沒有。不標記的話，等它實作完成時
+  // 沒有任何東西會提醒「這頁從來沒有被真的量過」。
+  //
+  // 判準是**檔案內容**不是人工清單 —— 寫死頁面名稱的話，那份清單會在頁面實作完成後
+  // 靜靜地過期（c11）。
+  //
+  // **要看模板不能只看 SCSS。** 第一版只判斷「SCSS 沒有實質內容」，結果把
+  // `campus-form-dialog`（html 69 行、ts 113 行，樣式繼承自全域 `.form-dialog`）
+  // 也標成空殼 —— 那是**已完成**的元件，說它「從來沒被量過」是錯的訊息。
+  // 實測分界很乾淨：真空殼的模板 9 行以內，已實作的 69 行。
+  for (const file of scoped) {
+    const rel = file.slice(ROOT.length + 1);
+    const hasStyle = readFileSync(file, 'utf8')
+      .split('\n')
+      .some((l) => {
+        const t = l.trim();
+        return t && !t.startsWith('//') && !t.startsWith('@use');
+      });
+    if (hasStyle) continue;
+
+    const template = file.replace(/\.scss$/, '.html');
+    if (!existsSync(template)) continue;
+    const templateLines = readFileSync(template, 'utf8')
+      .split('\n')
+      .filter((l) => l.trim()).length;
+    if (templateLines > 12) continue; // 有實質模板 = 已實作，只是樣式在別處
+
+    warnings.push(
+      `${rel} 目前是空殼（樣式與模板都幾乎是空的）—— 這頁的觸控尺寸**從來沒有被量過**，` +
+        `gate 綠燈只代表沒有東西可檢查。實作完成後要重新量一次`,
     );
   }
 

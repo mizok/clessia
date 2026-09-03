@@ -1,4 +1,28 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+/**
+ * **這支 spec 不准碰資料庫。** `vitest.config.mts` 的註解早就寫了這條不變量
+ *（「apps/api 的 spec 全部用假的 Supabase builder，不需要 Workers runtime
+ * 也不需要資料庫」），但「兌換端點沒有被一起擋掉」那一條**違反了它** ——
+ * `/api/auth/*` 會走進 `getAuth(c).handler()`，也就是 Better Auth 的真 `pg` 連線。
+ *
+ * 症狀是 **timeout 而不是連線失敗**：連不到的 DB 會讓它掛著等，5 秒後 vitest 才放棄。
+ * 於是這條測試在有本機 DB 的機器上綠、在沒有的機器上紅，**而紅的樣子跟改動無關**。
+ *
+ * 換掉 `getAuth` 之後它測的東西沒有變少：這條測的是**路由有沒有被 404 擋掉**
+ *（`isPubliclyBlockedAuthPath` 的接線），不是 Better Auth 兌換 token 的邏輯。
+ * 那個 pure function 自己有測試。
+ */
+vi.mock('./lib/get-auth', () => ({
+  getAuth: () => ({
+    // 回什麼都行，只要不是 404 —— 這條斷言的是 `not.toBe(404)`
+    handler: async () => new Response(null, { status: 302 }),
+    // authMiddleware 用它；沒有 cookie 就是沒有 session，維持 401 的行為
+    api: { getSession: async () => null },
+    pool: { end: async () => undefined },
+  }),
+  authPoolCleanup: async (_c: unknown, next: () => Promise<void>) => next(),
+}));
 
 import app from './index';
 
