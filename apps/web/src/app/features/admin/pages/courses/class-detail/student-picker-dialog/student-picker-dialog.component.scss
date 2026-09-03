@@ -370,6 +370,10 @@
   }
 
   &__issue {
+    // 整個 label 都是點擊區（不只那顆 checkbox），所以它要有觸控下限。
+    // 實際高度早就超過 44px（checkbox + 標題 + 副標），這行是把它**講出來** ——
+    // 內容撐出來的高度會隨文案變，宣告的不會
+    min-height: 44px;
     display: flex;
     align-items: flex-start;
     gap: var(--space-3);
