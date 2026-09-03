@@ -4,6 +4,7 @@ import { DbUuidSchema } from '../lib/validation';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
 import { canManageAcademyExam, resolveExamClassIds } from '../lib/exam-scope';
 import { logAudit } from '../utils/audit';
+import { waitUntilFrom } from '../lib/wait-until';
 
 const AcademyExamStatusSchema = z.enum(['active', 'closed']).openapi('AcademyExamStatus');
 
@@ -1003,7 +1004,7 @@ app.openapi(createRouteDef, async (c) => {
         classCount: classIds.length,
       },
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ data: { id: exam.id } }, 201);
@@ -1169,7 +1170,7 @@ app.openapi(updateRouteDef, async (c) => {
         classIdsReplaced: body.classIds !== undefined,
       },
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);
@@ -1273,7 +1274,7 @@ app.openapi(deleteRouteDef, async (c) => {
         status: existing.status,
       },
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);
@@ -1519,7 +1520,7 @@ app.openapi(upsertScoresRoute, async (c) => {
         affected: payload.length,
       },
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true, affected: payload.length }, 200);
@@ -1611,7 +1612,7 @@ app.openapi(closeRoute, async (c) => {
       resourceName: existing.name,
       action: 'academy_exam.close',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);
@@ -1703,7 +1704,7 @@ app.openapi(reopenRoute, async (c) => {
       resourceName: existing.name,
       action: 'academy_exam.reopen',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);

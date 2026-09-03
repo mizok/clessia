@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
+import { waitUntilFrom } from '../lib/wait-until';
 
 /**
  * 收費期間：機構自訂的具名日期區間（「2026 上學期 + 暑假」）。
@@ -170,7 +171,7 @@ app.openapi(
         resourceName: data['name'] as string,
         action: 'create',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: mapBillingPeriod(data) }, 201);
@@ -255,7 +256,7 @@ app.openapi(
         resourceName: data['name'] as string,
         action: 'update',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: mapBillingPeriod(data) }, 200);
@@ -322,7 +323,7 @@ app.openapi(
         resourceName: existing['name'] as string,
         action: 'delete',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ success: true }, 200);

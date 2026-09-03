@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
+import { waitUntilFrom } from '../lib/wait-until';
 import {
   countDeductedSessions,
   remainingSessions,
@@ -267,7 +268,7 @@ app.openapi(
         resourceId: data['id'] as string,
         action: 'create',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: toSessionPack(data as Record<string, unknown>) }, 201);
@@ -314,7 +315,7 @@ app.openapi(
     logAudit(
       supabase,
       { orgId, userId, resourceType: 'session_pack', resourceId: id, action: 'delete' },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ success: true }, 200);

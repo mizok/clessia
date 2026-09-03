@@ -6,6 +6,7 @@ import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { PERMISSIONS } from '../lib/permissions';
 import { checkRoleAssignment } from '../lib/role-assignment';
+import { waitUntilFrom } from '../lib/wait-until';
 
 // ============================================================
 // Schemas
@@ -1009,7 +1010,7 @@ app.openapi(createRouteDef, async (c) => {
       resourceName: body.displayName,
       action: 'create',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   const { campusMap, subjectMap, roleInfoMap, baUserMap } = await loadStaffRelations(supabase, [
@@ -1293,7 +1294,7 @@ app.openapi(updateRoute, async (c) => {
       resourceName: freshStaffRow['display_name'] as string,
       action: 'update',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   const { campusMap, subjectMap, roleInfoMap, baUserMap } = await loadStaffRelations(supabase, [
@@ -1402,7 +1403,7 @@ app.openapi(archiveRoute, async (c) => {
       action: 'archive',
       details: { archived: true, unassignedSessions: unassigned?.length ?? 0 },
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true, unassignedSessions: unassigned?.length ?? 0 }, 200);
@@ -1472,7 +1473,7 @@ app.openapi(deactivateRoute, async (c) => {
       action: 'deactivate',
       details: { inactive: true },
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);
@@ -1541,7 +1542,7 @@ app.openapi(activateRoute, async (c) => {
       resourceName: staffRow['display_name'] as string,
       action: 'activate',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);
@@ -1636,7 +1637,7 @@ app.openapi(deleteRoute, async (c) => {
       resourceName: staffRow['display_name'] as string,
       action: 'delete',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);

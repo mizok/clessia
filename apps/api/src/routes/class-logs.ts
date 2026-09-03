@@ -3,6 +3,7 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
 import { logAudit } from '../utils/audit';
+import { waitUntilFrom } from '../lib/wait-until';
 
 /**
  * 教務日誌（國中模式）：班級 × 日期，一班一天一篇 —— 教學紀錄 + 作業安排。
@@ -223,7 +224,7 @@ app.openapi(
         resourceName: `${response.className ?? response.classId} / ${logDate}`,
         action: 'upsert',
       },
-      c.executionCtx?.waitUntil?.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json(response, 200);
@@ -306,7 +307,7 @@ app.openapi(
         resourceName: `${response.className ?? response.classId} / ${response.logDate}`,
         action: 'publish',
       },
-      c.executionCtx?.waitUntil?.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json(response, 200);

@@ -10,6 +10,7 @@ import { cancelLeaveForDate } from '../lib/cancel-leave-for-date';
 import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
+import { waitUntilFrom } from '../lib/wait-until';
 
 const AttendanceStatusSchema = z
   .enum(['present', 'absent', 'on_leave'])
@@ -562,7 +563,7 @@ app.openapi(
           action: 'retroactive_edit',
           details: { eventDate: (ev as any).event_date as string },
         },
-        c.executionCtx.waitUntil.bind(c.executionCtx),
+        waitUntilFrom(c),
       );
     }
 
@@ -613,7 +614,7 @@ app.openapi(
           note: body.note ?? null,
         },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json(toAttendanceResponse(row), 201);
@@ -696,7 +697,7 @@ app.openapi(
           action: 'retroactive_edit',
           details: { eventDate: eventDate },
         },
-        c.executionCtx.waitUntil.bind(c.executionCtx),
+        waitUntilFrom(c),
       );
     }
 
@@ -754,7 +755,7 @@ app.openapi(
         action: 'batch_update_attendance',
         details: buildAttendanceAuditBatchDetails(updates),
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ updated: updates.length, takenAt }, 200);
@@ -836,7 +837,7 @@ app.openapi(
             action: 'retroactive_edit',
             details: { eventDate: existingEventDate },
           },
-          c.executionCtx.waitUntil.bind(c.executionCtx),
+          waitUntilFrom(c),
         );
       }
     }
@@ -889,7 +890,7 @@ app.openapi(
           note: row.note,
         },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json(toAttendanceResponse(row), 200);
@@ -1477,7 +1478,7 @@ app.openapi(
           removedLeaves: leaveRows,
         },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ leavesDeleted, leavesTruncated, attendanceRecordsRemoved, droppedAfter }, 200);

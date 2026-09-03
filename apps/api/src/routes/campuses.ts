@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
+import { waitUntilFrom } from '../lib/wait-until';
 
 // ============================================================
 // Schemas (with OpenAPI metadata)
@@ -326,7 +327,7 @@ app.openapi(createCampusRoute, async (c) => {
       resourceName: data.name as string,
       action: 'create',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ data: mapCampus(data as Record<string, unknown>) }, 201);
@@ -404,7 +405,7 @@ app.openapi(updateRoute, async (c) => {
       resourceName: data.name as string,
       action: 'update',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ data: mapCampus(data as Record<string, unknown>) }, 200);
@@ -484,7 +485,7 @@ app.openapi(deleteRoute, async (c) => {
       resourceName: existing?.name ?? null,
       action: 'delete',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);

@@ -4,6 +4,7 @@ import { taughtClassIds } from '../lib/teacher-scope';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
+import { waitUntilFrom } from '../lib/wait-until';
 
 // ============================================================
 // Schemas
@@ -655,7 +656,7 @@ app.openapi(
         action: 'update',
         details: { newValue: updated },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: updated }, 200);
@@ -715,7 +716,7 @@ app.openapi(
         resourceId: id,
         action: 'delete',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ success: true }, 200);

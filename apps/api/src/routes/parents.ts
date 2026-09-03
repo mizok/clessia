@@ -4,6 +4,7 @@ import { mintLoginLinkForRequest } from './login-links/mint';
 import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
+import { waitUntilFrom } from '../lib/wait-until';
 
 // ============================================================
 // Schemas
@@ -457,7 +458,7 @@ app.openapi(
         resourceName: body.name,
         action: 'create',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json(
@@ -675,7 +676,7 @@ app.openapi(
         resourceName: (updatedRow as Record<string, unknown>)['name'] as string,
         action: 'update',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json(
@@ -748,7 +749,7 @@ app.openapi(
         resourceName: (parentRow as Record<string, unknown>)['name'] as string,
         action: 'activate',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ success: true }, 200);
@@ -807,7 +808,7 @@ app.openapi(
         resourceName: (parentRow as Record<string, unknown>)['name'] as string,
         action: 'deactivate',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ success: true }, 200);
@@ -871,7 +872,7 @@ app.openapi(
         resourceName: (parentRow as Record<string, unknown>)['name'] as string,
         action: 'archive',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ success: true }, 200);
