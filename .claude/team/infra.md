@@ -85,9 +85,9 @@ npm ci  →  npm ci (apps/api)  →  harness  →  harness self-test
    模板型別錯誤（綁到不存在的 property、signal 忘了呼叫）**只有 AOT build 抓得到**。
    這個缺口在 2026-08-29 之前 CI 是全綠放行的。
 
-**刻意用 `run-many` 不用 `affected`**：`nx.json` 的 `defaultBase` 是 `dev`，
-而這個 branch **不存在**。任何 `nx affected` 都得自己帶 `--base=main`。
-為了省幾秒換一個會安靜失準的東西不划算。
+**刻意用 `run-many` 不用 `affected`**：整套跑完很快，而 `affected` 在 CI 上要有正確的 base ref
+才不會安靜失準。為了省幾秒換一個會安靜失準的東西不划算。
+（`defaultBase` 曾經指向不存在的 `dev`，2026-09-03 修成 `main` —— 但 CI 的取捨不因此改變。）
 
 **觸發條件是 `on: push`（所有分支），沒掛 `pull_request`**：
 這個專案實際上在長期 feature branch 直接推、PR 開得晚。只掛 main + PR 的話開發全程零回饋。
@@ -325,8 +325,9 @@ gh pr view <n> --json state -q .state      # 必須是 OPEN
   卡點不是難改，是**全 repo 零前例**：沒有任何一處用 `auth.api.updateUser` 更新過使用者。
   要先由 billing-api 席驗一處（能不能寫 additionalFields、email 重複時的錯誤形狀）再推廣。
   另有 1 筆**永久豁免**（`me.ts:151`，username 無 API 路徑且仍是唯一性鍵）。
-- **`nx.json` 的 `defaultBase` 指向不存在的 `dev`**（驗：`node -p "require('./nx.json').defaultBase"`）。
-  所有 `nx affected` 都得自己帶 `--base=main`。
+- ~~`nx.json` 的 `defaultBase` 指向不存在的 `dev`~~ → 2026-09-03 修成 `main`，
+  `nx affected` 可以直接跑。Stop gate 仍明寫 `--base=main`：**gate 的行為不該因為
+  有人改 nx.json 而變**。
 - **`test-baseline.json` 裡有 3 個既有紅燈**（驗：讀那個檔）。基線是債，清一支移除一支。
 - **dagger 的建置快取沒有 GC 政策，磁碟會反覆爆。**
   fvg 的 engine `/etc/dagger/engine.toml` 是空的，而它在 VM 裡看到的可用空間是假的
