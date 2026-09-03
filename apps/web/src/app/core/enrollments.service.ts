@@ -97,6 +97,13 @@ export interface EnrollmentQueryParams {
   to?: string;
   /** 預設 createdAt；進出總覽用 updatedAt，見 list-query.ts */
   sort?: 'createdAt' | 'updatedAt';
+  /**
+   * `false` = 從來沒開過任何帳單的報名（待開帳清單）；`true` = 開過的。
+   *
+   * 兩個方向在後端走**不同的 join**（`true` 用 `invoice_items!inner`，
+   * `false` 用 left join 加 `is.null`）—— 這裡只要傳 boolean，別自己組 filter。
+   */
+  hasInvoice?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -190,6 +197,9 @@ export class EnrollmentsService {
     if (params.from) query.set('from', params.from);
     if (params.to) query.set('to', params.to);
     if (params.sort) query.set('sort', params.sort);
+    // **`!== undefined` 不是 truthy 檢查** —— 待開帳清單要的正是 `false`，
+    // 寫成 `if (params.hasInvoice)` 會把它靜靜地漏掉，然後撈回全部報名
+    if (params.hasInvoice !== undefined) query.set('hasInvoice', String(params.hasInvoice));
     if (params.page) query.set('page', String(params.page));
     if (params.pageSize) query.set('pageSize', String(params.pageSize));
     return this.http.get<EnrollmentListResponse>(`${this.base}?${query}`);
