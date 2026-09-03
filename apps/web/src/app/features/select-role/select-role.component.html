@@ -1,3 +1,11 @@
 <div class="select-role">
   <p class="select-role__wordmark">Clessia</p>
+
+  <!-- 有身分時內容在彈窗裡（動態 import）；沒有身分時彈窗不開，
+       所以這裡要自己說明，不然使用者看到的是跟「卡在載入中」一樣的空白頁 -->
+  @if (noRoles()) {
+    <p class="select-role__no-roles">
+      這個帳號目前沒有可用的身分，請聯絡補習班櫃檯開通。
+    </p>
+  }
 </div>

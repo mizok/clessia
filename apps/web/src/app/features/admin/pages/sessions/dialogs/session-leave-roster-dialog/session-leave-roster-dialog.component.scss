@@ -68,7 +68,10 @@
     border: 1px solid var(--zinc-200);
     border-radius: var(--radius-md);
     cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    transition:
+      background 0.15s,
+      color 0.15s,
+      border-color 0.15s;
 
     &:hover {
       background: var(--zinc-200);

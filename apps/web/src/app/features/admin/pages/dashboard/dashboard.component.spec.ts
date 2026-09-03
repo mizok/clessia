@@ -366,6 +366,55 @@ describe('DashboardComponent（管理端）', () => {
     });
   });
 
+  /**
+   * 就地點名是作業台的核心：原本要走「儀表板 → 課堂管理 → 找到那一堂 → 開 dialog」
+   * 四步，而那四步每天重複五次。
+   */
+  describe('就地點名', () => {
+    function rows(): HTMLElement[] {
+      return [...fixture.nativeElement.querySelectorAll('.dashboard__spine-row')];
+    }
+
+    it('逐堂點名模式下，有 eventId 的課堂整列是按鈕', async () => {
+      await setup({ mode: 'per_session' });
+
+      const actionable = rows().filter((r) => r.tagName === 'BUTTON');
+      expect(actionable.length).toBeGreaterThan(0);
+    });
+
+    // 日到班模式沒有逐堂出勤這回事，做成可按會是個假 affordance
+    it('日到班模式下沒有任何一列可按', async () => {
+      await setup({ mode: 'daily_checkin' });
+
+      expect(rows().every((r) => r.tagName !== 'BUTTON')).toBe(true);
+    });
+
+    /**
+     * `DialogService` 與面板都是 `await import(...)`（不讓整棵 dialog 依賴樹進儀表板
+     * 的 chunk），而 import 是非同步的 —— 使用者可能在那中間就離開了。
+     *
+     * 沒有守衛的話會在已銷毀的 injector 上開窗，留下一個沒有主人的彈窗（NG0911）。
+     * **突變測試抓到過**：拿掉 `if (this.destroyed) return` 時，原本整組測試仍然全綠。
+     */
+    it('import 完成前元件就被銷毀時，安靜地不開窗', async () => {
+      await setup({ mode: 'per_session' });
+
+      const opening = component['openAttendance'](session());
+      fixture.destroy();
+
+      await expect(opening).resolves.toBeUndefined();
+    });
+
+    it('停課（沒有 eventId）的課堂不可按', async () => {
+      await setup({
+        mode: 'per_session',
+        todaySessions: [{ ...session(), sessionId: 'no-event', eventId: null }],
+      });
+
+      expect(rows().every((r) => r.tagName !== 'BUTTON')).toBe(true);
+    });
+  });
+
   it('載入中不得宣稱今日尚無排課', async () => {
     await setup({ pending: true });
 

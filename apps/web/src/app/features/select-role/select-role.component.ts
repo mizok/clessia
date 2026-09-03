@@ -2,6 +2,7 @@ import {
   Component,
   DestroyRef,
   EnvironmentInjector,
+  computed,
   createEnvironmentInjector,
   inject,
 } from '@angular/core';
@@ -33,6 +34,13 @@ export class SelectRoleComponent {
 
   private destroyed = false;
 
+  /**
+   * 這個帳號沒有任何身分。**不開空彈窗、也不亂導向**（沒有 shell 可去），
+   * 所以留在這一頁講清楚 —— 否則使用者看到的是只剩字標的空白頁，
+   * 那跟「載入中卡住」長得一模一樣。
+   */
+  protected readonly noRoles = computed(() => this.auth.roles().length === 0);
+
   constructor() {
     this.destroyRef.onDestroy(() => (this.destroyed = true));
     void this.openPicker();
@@ -43,6 +51,27 @@ export class SelectRoleComponent {
   }
 
   private async openPicker(): Promise<void> {
+    // 一個角色就沒有選擇可做 —— **直接進去，不要問**。
+    //
+    // 這條路徑原本只在登入流程實作，`/select-role` 被直接打開時沒有。
+    // 後果是單一角色的帳號看到「這個帳號有**多個**身分，請選擇要進入的介面」
+    // 卻只有一個選項，而彈窗刻意關不掉 —— 一個沒有選擇的選擇畫面。
+    //
+    // 修法不是把文案改成條件式，而是**讓這個畫面對他不存在**：
+    // 文案在真的有多個身分時是對的，錯的是他不該來到這裡。
+    // AGENTS.md 早就寫了「單一角色直接導向對應 shell」，這裡只是補上遺漏的入口。
+    const roles = this.auth.roles();
+    if (roles.length === 1) {
+      this.onRoleChosen(roles[0]);
+      return;
+    }
+
+    // 零角色是更糟的死路：空的、關不掉的彈窗。不開它 —— 也不能亂導向
+    // （沒有 shell 可去），所以留在這一頁由頁面自己說明。
+    if (roles.length === 0) {
+      return;
+    }
+
     const [{ DialogService }, { RolePickerComponent }] = await Promise.all([
       import('primeng/dynamicdialog'),
       import('./role-picker/role-picker.component'),

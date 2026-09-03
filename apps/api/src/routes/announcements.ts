@@ -3,6 +3,7 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { requireRoles } from '../middleware/auth';
 import { audienceFor, campusOrFilter } from './announcements/visibility';
+import { campusFilterIds } from '../lib/campus-scope';
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -103,7 +104,13 @@ app.openapi(
       .order('published_at', { ascending: false });
 
     if (audience) query = query.eq('audience', audience);
-    if (campusId) query = query.eq('campus_id', campusId);
+    // **公告不能用 `.in()` 過濾分校** —— `campus_id` 為 null 代表「全分校公告」，
+    // `.in()` 會把它們一起排除掉，受限的管理員就看不到全機構公告了。
+    // 用跟收件匣同一支 `campusOrFilter`（`campus_id is null OR campus_id in (…)`）。
+    const campusIds = campusFilterIds(c.get('campusScope'), campusId);
+    if (campusIds) {
+      query = query.or(campusOrFilter(campusIds));
+    }
 
     const { data, count, error } = await query;
     if (error) return c.json({ error: error.message }, 500);

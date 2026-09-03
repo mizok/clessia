@@ -6,6 +6,8 @@ import {
   inject,
   input,
   signal,
+  EnvironmentInjector,
+  createEnvironmentInjector,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
@@ -138,6 +140,79 @@ export class DashboardComponent {
 
   /** 有課才顯示收合鈕 —— 沒課的日子那條軸本來就不畫，給一顆收合鈕是空的動作 */
   protected readonly hasTimeline = computed(() => (this.todaySessionList()?.length ?? 0) > 0);
+
+  /**
+   * 就地點名：從這裡直接開點名 dialog，不用「儀表板 → 課堂管理 → 找到那一堂」。
+   *
+   * **`DialogService` 與面板都是 `await import(...)`。** 靜態 import 會把整棵
+   * PrimeNG dialog 依賴樹拉進儀表板的 chunk —— 而儀表板是進站第一頁。
+   * 見 `kb/wiki/lessons/root-component-pins-the-bundle.md` 與
+   * `lessons/lazy-chunk-is-not-lazy-if-statically-required.md`。
+   */
+  private readonly envInjector = inject(EnvironmentInjector);
+  private destroyed = false;
+
+  /**
+   * 這堂課現在點得了名嗎。
+   *
+   * - **日到班模式一律不行** —— 那個模式沒有逐堂出勤這回事（到班看板是另一刀）
+   * - 停課的課堂沒有 `eventId`，沒有可點名的載體
+   */
+  protected canTakeAttendance(session: EventSessionSummary): boolean {
+    return this.attendanceMode() === 'per_session' && session.eventId !== null;
+  }
+
+  protected async openAttendance(session: EventSessionSummary): Promise<void> {
+    if (!this.canTakeAttendance(session) || session.eventId === null) return;
+
+    const [{ DialogService }, { AttendanceRosterPanelComponent }] = await Promise.all([
+      import('primeng/dynamicdialog'),
+      import('@shared/components/attendance-roster-panel/attendance-roster-panel.component'),
+    ]);
+
+    // import 是非同步的，這中間使用者可能已經離開這一頁 —— 元件死了就別再開窗，
+    // 否則會留下一個沒有主人的彈窗（NG0911）。
+    if (this.destroyed) return;
+
+    const injector = createEnvironmentInjector([DialogService], this.envInjector);
+    this.destroyRef.onDestroy(() => injector.destroy());
+
+    const ref = injector.get(DialogService).open(AttendanceRosterPanelComponent, {
+      header: '管理出勤狀況',
+      width: '480px',
+      closable: true,
+      // 憲法 c6：不用 vw
+      breakpoints: { '640px': '92%' },
+      data: {
+        eventId: session.eventId,
+        className: session.className,
+        eventDate: session.eventDate,
+        timeRange:
+          session.startTime && session.endTime
+            ? `${session.startTime}–${session.endTime}`
+            : undefined,
+      },
+      styleClass: 'session-dialog',
+    });
+
+    // open() 在沒有 document 的環境回 null
+    ref?.onClose.subscribe((result?: { takenAt: string }) => {
+      if (!result) return;
+      // **就地更新，不重打 API。** 這一列的狀態剛剛才由 dialog 寫進去，
+      // 再查一次只是把同一件事問兩遍，而且會讓那一列閃一下。
+      this.todaySessions.update((sessions) =>
+        sessions === null || sessions === FAILED
+          ? sessions
+          : sessions.map((item) =>
+              item.sessionId === session.sessionId ? { ...item, takenAt: result.takenAt } : item,
+            ),
+      );
+    });
+
+    // 離開這條路由時彈窗要跟著消失。用 destroy() 不是 close() ——
+    // close() 會走 onClose，那條路的意思是「使用者存了檔」。
+    this.destroyRef.onDestroy(() => ref?.destroy());
+  }
 
   protected toggleTimeline(): void {
     const next = !this.timelineCollapsed();
@@ -291,6 +366,7 @@ export class DashboardComponent {
   });
 
   constructor() {
+    this.destroyRef.onDestroy(() => (this.destroyed = true));
     const lookbackFrom = format(subDays(this.now, UNTAKEN_LOOKBACK_DAYS), 'yyyy-MM-dd');
 
     // **逐支訂閱，不用單一 forkJoin。** forkJoin 要全部完成才 emit，於是整頁

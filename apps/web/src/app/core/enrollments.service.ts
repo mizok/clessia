@@ -148,6 +148,31 @@ export interface CreateEnrollmentResponse {
   warnings?: ScheduleConflictWarning[];
 }
 
+export interface ProrationPreviewInput {
+  /** 月繳給 `2026-03`；期繳給 `billingPeriodId`。**二擇一** */
+  periodMonth?: string;
+  billingPeriodId?: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  /** 兩者擇一，`agreedAmount` 優先（議價是常態，價目表只是定價） */
+  feeTemplateId?: string;
+  agreedAmount?: number;
+}
+
+export interface ProrationPreview {
+  /** 未按比例的原價 —— 讓行政看得出來折了多少 */
+  fullAmount: number;
+  amount: number;
+  /**
+   * 算式的說明（「期間 31 天，實際 12 天…」）。**跟金額一樣重要** ——
+   * 只給一個數字的話沒有人知道它怎麼來的，也就沒有人敢改它，
+   * 而規則 2 說金額永遠可以人工覆寫。整期都在讀時是 `null`（沒有東西要解釋）。
+   */
+  note: string | null;
+  periodStart: string;
+  periodEnd: string;
+}
+
 export interface CopyFromClassInput {
   targetClassId: string;
   sourceClassId: string;
@@ -235,5 +260,13 @@ export class EnrollmentsService {
 
   copyFromClass(input: CopyFromClassInput): Observable<CopyFromClassResult> {
     return this.http.post<CopyFromClassResult>(`${this.base}/copy-from-class`, input);
+  }
+
+  /**
+   * 期中插班的比例試算（不寫入）。**算法跟月結批次共用同一份**，
+   * 所以畫面上的預覽跟隔天出來的帳單對得起來。
+   */
+  prorationPreview(input: ProrationPreviewInput): Observable<ProrationPreview> {
+    return this.http.post<ProrationPreview>(`${this.base}/proration-preview`, input);
   }
 }

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { campusFilterIds, isCampusAllowed, resolveCampusScope } from './campus-scope';
+import {
+  applyCampusFilter,
+  campusFilterIds,
+  isCampusAllowed,
+  resolveCampusScope,
+} from './campus-scope';
 
 describe('resolveCampusScope', () => {
   it('有 all_campuses 的管理員不受限', () => {
@@ -81,5 +86,44 @@ describe('campusFilterIds', () => {
 
   it('沒有任何分校 → 空清單，查詢會回空而不是全部', () => {
     expect(campusFilterIds([], undefined)).toEqual([]);
+  });
+});
+
+describe('applyCampusFilter', () => {
+  function fakeQuery() {
+    const calls: Array<{ column: string; values: string[] }> = [];
+    const query = {
+      calls,
+      in(column: string, values: string[]) {
+        calls.push({ column, values });
+        return query;
+      },
+    };
+    return query;
+  }
+
+  it('不受限又沒指定 → 不加條件', () => {
+    const q = fakeQuery();
+    applyCampusFilter(q, 'campus_id', null, undefined);
+    expect(q.calls).toEqual([]);
+  });
+
+  it('有範圍就加 in 條件', () => {
+    const q = fakeQuery();
+    applyCampusFilter(q, 'classes.campus_id', ['a', 'b'], undefined);
+    expect(q.calls).toEqual([{ column: 'classes.campus_id', values: ['a', 'b'] }]);
+  });
+
+  it('指定了就只用那一個（合法性由 campusRequestGuard 擋，這裡不重驗）', () => {
+    const q = fakeQuery();
+    applyCampusFilter(q, 'campus_id', ['a', 'b'], 'b');
+    expect(q.calls).toEqual([{ column: 'campus_id', values: ['b'] }]);
+  });
+
+  // 一個分校都沒被指派 → 空清單，查詢回空而不是全部
+  it('空範圍會加一個空的 in，不是不加條件', () => {
+    const q = fakeQuery();
+    applyCampusFilter(q, 'campus_id', [], undefined);
+    expect(q.calls).toEqual([{ column: 'campus_id', values: [] }]);
   });
 });

@@ -1,139 +1,139 @@
 @use 'shared/breakpoints' as bp;
 
-// 桌面版隱藏
+/* **手機優先**：底欄導覽就是基準樣式，桌機才把它收起來換成側欄。
+   原本整支 120 行的手機導覽住在 `respond-to('mobile')` 裡、桌機側欄反而是無條件基準 ——
+   跟「手機是操作主體」的裁定（2026-09）相反。順序調正之後語意才對得上：
+   預設是手機，往大螢幕才加東西。 */
 .bottom-bar {
-  display: none;
+  display: flex;
+  flex-direction: column; // 讓 sheet 疊在 tabs 上方
+  justify-content: flex-end;
+  z-index: 120;
+  // 容器本身不吃點擊：上半部是空的，要讓下面的內容還能按
+  pointer-events: none;
 
-  &__overlay {
-    display: none;
+  &__tabs {
+    display: flex;
+    width: 100%;
+    height: 64px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: #fff;
+    border-top: 1px solid var(--zinc-200);
+    position: relative;
+    z-index: 110; // Higher than sheet (105)
+    pointer-events: auto; // Re-enable clicks
   }
 
+  &__tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    color: var(--zinc-500);
+    text-decoration: none;
+    font-size: 10px;
+    font-weight: var(--font-medium);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: color var(--transition-fast);
+    padding: 0;
+
+    i {
+      font-size: 22px;
+    }
+
+    &--active {
+      color: var(--accent-500);
+    }
+  }
+
+  // ─ More Overlay ─
+  &__overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    bottom: 64px;
+    background: rgb(0 0 0 / 40%);
+    z-index: 100;
+    animation: fade-in 0.25s ease-out;
+    pointer-events: auto;
+
+    &--closing {
+      animation: fade-out 0.2s ease-in forwards;
+    }
+  }
+
+  // ─ More Sheet ─
   &__sheet {
-    display: none;
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 64px;
+    background: #fff;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    z-index: 105;
+    padding: var(--space-2) var(--space-4) var(--space-4);
+    animation: sheet-up 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: auto;
+
+    &--closing {
+      animation: sheet-down 0.35s ease-out forwards;
+    }
+  }
+
+  &__sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--zinc-200);
+    border-radius: var(--radius-full);
+    margin: var(--space-2) auto var(--space-4);
+  }
+
+  &__sheet-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-2);
+  }
+
+  &__sheet-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-2);
+    border-radius: var(--radius-lg);
+    color: var(--zinc-600);
+    text-decoration: none;
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    transition: all var(--transition-fast);
+    text-align: center;
+
+    i {
+      font-size: 24px;
+    }
+
+    &:hover,
+    &--active {
+      background: var(--accent-50);
+      color: var(--accent-600);
+    }
   }
 }
 
-// 行動版顯示
-@include bp.respond-to('mobile') {
+// 桌機換成側欄，底欄整組收掉
+@include bp.respond-from('mobile') {
   .bottom-bar {
-    display: flex;
-    flex-direction: column; // Change to column to allow stacking if needed, though mostly for the container
-    justify-content: flex-end; // Align tabs to bottom
-    z-index: 120;
-    // Remove height/padding/bg from container so it doesn't block clicks in upper space (though overlay handles that)
-    pointer-events: none; // Allow clicks to pass through empty space (e.g. above tabs)
+    display: none;
 
-    &__tabs {
-      display: flex;
-      width: 100%;
-      height: 64px;
-      padding-bottom: env(safe-area-inset-bottom, 0px);
-      background: #fff;
-      border-top: 1px solid var(--zinc-200);
-      position: relative;
-      z-index: 110; // Higher than sheet (105)
-      pointer-events: auto; // Re-enable clicks
-    }
-
-    &__tab {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 3px;
-      color: var(--zinc-500);
-      text-decoration: none;
-      font-size: 10px;
-      font-weight: var(--font-medium);
-      border: none;
-      background: transparent;
-      cursor: pointer;
-      transition: color var(--transition-fast);
-      padding: 0;
-
-      i {
-        font-size: 22px;
-      }
-
-      &--active {
-        color: var(--accent-500);
-      }
-    }
-
-    // ─ More Overlay ─
-    &__overlay {
-      display: block;
-      position: fixed;
-      inset: 0;
-      bottom: 64px;
-      background: rgb(0 0 0 / 40%);
-      z-index: 100;
-      animation: fade-in 0.25s ease-out;
-      pointer-events: auto;
-
-      &--closing {
-        animation: fade-out 0.2s ease-in forwards;
-      }
-    }
-
-    // ─ More Sheet ─
+    &__overlay,
     &__sheet {
-      display: block;
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 64px;
-      background: #fff;
-      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-      z-index: 105;
-      padding: var(--space-2) var(--space-4) var(--space-4);
-      animation: sheet-up 0.32s cubic-bezier(0.4, 0, 0.2, 1);
-      pointer-events: auto;
-
-      &--closing {
-        animation: sheet-down 0.35s ease-out forwards;
-      }
-    }
-
-    &__sheet-handle {
-      width: 36px;
-      height: 4px;
-      background: var(--zinc-200);
-      border-radius: var(--radius-full);
-      margin: var(--space-2) auto var(--space-4);
-    }
-
-    &__sheet-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: var(--space-2);
-    }
-
-    &__sheet-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-2);
-      padding: var(--space-3) var(--space-2);
-      border-radius: var(--radius-lg);
-      color: var(--zinc-600);
-      text-decoration: none;
-      font-size: var(--text-xs);
-      font-weight: var(--font-medium);
-      transition: all var(--transition-fast);
-      text-align: center;
-
-      i {
-        font-size: 24px;
-      }
-
-      &:hover,
-      &--active {
-        background: var(--accent-50);
-        color: var(--accent-600);
-      }
+      display: none;
     }
   }
 }

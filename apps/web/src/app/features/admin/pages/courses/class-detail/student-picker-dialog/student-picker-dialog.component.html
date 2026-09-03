@@ -85,7 +85,7 @@
         (onClick)="goToReview()"
       />
     </div>
-  } @else {
+  } @else if (step() === 'reviewing') {
     <!-- Step 2: Review -->
     <div class="spd__step-header">
       <button type="button" class="spd__back-btn" (click)="goBack()">
@@ -138,65 +138,13 @@
     <!-- 計費：整批同一組（同一班同一個價目表是常態）。
          填在這裡而不是事後逐筆補 —— 事後補是純粹的重工，而且沒有人會回來補 -->
     <div class="spd__billing">
-      <div class="spd__billing-row">
-        <label class="spd__billing-field">
-          <span class="spd__billing-label">計費模式</span>
-          <p-select
-            [options]="billingModeOptions"
-            [ngModel]="billing().billingMode"
-            (ngModelChange)="updateBilling('billingMode', $event)"
-            optionLabel="label"
-            optionValue="value"
-            appendTo="body"
-            styleClass="w-full"
-          />
-        </label>
-        <label class="spd__billing-field">
-          <span class="spd__billing-label">價目表</span>
-          <p-select
-            [options]="templateOptions()"
-            [ngModel]="billing().feeTemplateId"
-            (ngModelChange)="updateBilling('feeTemplateId', $event)"
-            optionLabel="label"
-            optionValue="value"
-            appendTo="body"
-            styleClass="w-full"
-          />
-        </label>
-      </div>
-
-      <label class="spd__billing-field">
-        <span class="spd__billing-label">
-          議定金額
-          @if (pricingHint()) {
-            <span class="spd__billing-hint">{{ pricingHint() }}</span>
-          }
-        </span>
-        <p-inputnumber
-          [ngModel]="billing().agreedAmount"
-          (ngModelChange)="updateBilling('agreedAmount', $event)"
-          mode="currency"
-          currency="TWD"
-          locale="zh-TW"
-          [min]="0"
-          placeholder="留空 = 照價目表定價"
-          styleClass="w-full"
-        />
-      </label>
-
-      @if (isAdjusted()) {
-        <!-- 折數看老闆當下心情，所以系統不猜原因，只要求寫下來（規則 5.3） -->
-        <label class="spd__billing-field">
-          <span class="spd__billing-label">調整原因（必填）</span>
-          <textarea
-            pTextarea
-            rows="2"
-            [ngModel]="billing().adjustmentNote"
-            (ngModelChange)="updateBilling('adjustmentNote', $event)"
-            placeholder="例如：舊生續報九折、兄弟姊妹同期"
-          ></textarea>
-        </label>
-      }
+      <app-enrollment-billing-fields
+        [draft]="billing()"
+        [templates]="templates()"
+        [proration]="proration()"
+        (draftChange)="onBillingChange($event)"
+        (prorationApplied)="applyProration()"
+      />
 
       <label class="spd__issue">
         <p-checkbox
@@ -283,38 +231,94 @@
     }
 
     <div class="spd__footer">
-      @if (invoiceFailures().length > 0) {
-        <p-button
-          label="先這樣，稍後補開"
-          [text]="true"
-          severity="secondary"
-          [disabled]="issuing()"
-          (onClick)="closeWithPartialResult()"
-        />
-        <p-button
-          [label]="'重試 ' + invoiceFailures().length + ' 張'"
-          icon="pi pi-refresh"
-          [loading]="issuing()"
-          (onClick)="retryInvoices()"
-        />
-      } @else {
-        <p-button
-          label="上一步"
-          [text]="true"
-          severity="secondary"
-          icon="pi pi-arrow-left"
-          [disabled]="confirming() || issuing()"
-          (onClick)="goBack()"
-        />
+      <p-button
+        label="上一步"
+        [text]="true"
+        severity="secondary"
+        icon="pi pi-arrow-left"
+        [disabled]="confirming()"
+        (onClick)="goBack()"
+      />
+      <p-button
+        [label]="
+          confirming()
+            ? ''
+            : (issueInvoice() ? '加入並開帳 ' : '確認加入 ') + selectedCount() + ' 人'
+        "
+        [loading]="confirming()"
+        [disabled]="selectedCount() === 0 || overQuotaCount() > 0 || confirming()"
+        (onClick)="confirm()"
+      />
+    </div>
+  } @else {
+    <!-- Step 3: Result —— 原本這裡直接關閉，只留一個 toast 摘要 -->
+    <div class="spd__step-header">
+      <span class="spd__step-title">加入結果</span>
+    </div>
+
+    <div class="spd__result-summary">
+      <span
+        >已加入 <strong>{{ enrolledTargets().length }}</strong> 人</span
+      >
+      @if (alreadyExistsCount() > 0) {
+        <span>{{ alreadyExistsCount() }} 人已在班（略過）</span>
+      }
+      @if (enrollErrorCount() > 0) {
+        <span>{{ enrollErrorCount() }} 人失敗</span>
+      }
+      @if (invoicesCreated() > 0) {
+        <span
+          >開了 <strong>{{ invoicesCreated() }}</strong> 張帳單</span
+        >
+      }
+    </div>
+
+    @if (invoiceFailures().length > 0) {
+      <app-inline-notice
+        severity="warning"
+        summary="有帳單沒開成"
+        [detail]="
+          invoiceFailures().length +
+          ' 張沒開成。報名都已經成立，這幾筆可以現在重試，或稍後從繳費頁補開。'
+        "
+        [dismissible]="false"
+      />
+    }
+
+    @if (notice()) {
+      <app-inline-notice severity="info" [detail]="notice()!" [dismissible]="false" />
+    }
+
+    <div class="spd__review-list">
+      @for (student of selectedStudents(); track student.id) {
+        <div class="spd__review-item">
+          <span class="spd__item-avatar" [style.--h]="getStudentHue(student.id)">{{
+            student.name[0]
+          }}</span>
+          <span class="spd__item-body">
+            <span class="spd__item-name">{{ student.name }}</span>
+            <span class="spd__item-meta">{{ resultLabel(student.id) }}</span>
+          </span>
+        </div>
+      }
+    </div>
+
+    <div class="spd__footer">
+      <p-button
+        label="完成"
+        [text]="true"
+        severity="secondary"
+        [disabled]="issuing()"
+        (onClick)="closeWithResult()"
+      />
+      @if (uninvoicedCount() > 0) {
         <p-button
           [label]="
-            confirming() || issuing()
-              ? ''
-              : (issueInvoice() ? '加入並開帳 ' : '確認加入 ') + selectedCount() + ' 人'
+            (invoiceFailures().length > 0 ? '重試 ' : '為這 ') + uninvoicedCount() + ' 筆開帳'
           "
-          [loading]="confirming() || issuing()"
-          [disabled]="selectedCount() === 0 || overQuotaCount() > 0 || confirming() || issuing()"
-          (onClick)="confirm()"
+          [icon]="invoiceFailures().length > 0 ? 'pi pi-refresh' : 'pi pi-file-edit'"
+          [loading]="issuing()"
+          (onClick)="issueRemaining()"
         />
       }
     </div>

@@ -111,20 +111,50 @@
         } @else {
           <ul class="dashboard__spine">
             @for (session of sessions; track session.sessionId) {
-              <li
-                class="dashboard__spine-row"
-                [class.dashboard__spine-row--todo]="!session.takenAt"
-              >
-                <span class="dashboard__spine-time">{{ session.startTime }}</span>
-                <span class="dashboard__spine-body">
-                  <span class="dashboard__spine-name">{{ session.className }}</span>
-                  <span class="dashboard__spine-meta">
-                    {{ session.courseName }} · {{ session.teacherName }}
+              <li>
+                <!--
+                  **點得了名的那幾堂整列可按，直接開點名 dialog。** 這是作業台的核心：
+                  原本要走「儀表板 → 課堂管理 → 找到那一堂 → 開 dialog」四步，
+                  而那四步每天重複五次。
+
+                  點不了的（日到班模式、或停課沒有 eventId）維持成一列靜態文字 ——
+                  不做成看起來能按卻沒反應的假 affordance。
+                -->
+                @if (canTakeAttendance(session)) {
+                  <button
+                    type="button"
+                    class="dashboard__spine-row dashboard__spine-row--action"
+                    [class.dashboard__spine-row--todo]="!session.takenAt"
+                    (click)="openAttendance(session)"
+                  >
+                    <span class="dashboard__spine-time">{{ session.startTime }}</span>
+                    <span class="dashboard__spine-body">
+                      <span class="dashboard__spine-name">{{ session.className }}</span>
+                      <span class="dashboard__spine-meta">
+                        {{ session.courseName }} · {{ session.teacherName }}
+                      </span>
+                    </span>
+                    <app-status-dot [tone]="attendanceTone(session)">{{
+                      session.takenAt ? '已點名' : '未點名'
+                    }}</app-status-dot>
+                  </button>
+                } @else {
+                  <span
+                    class="dashboard__spine-row"
+                    [class.dashboard__spine-row--todo]="!session.takenAt"
+                  >
+                    <span class="dashboard__spine-time">{{ session.startTime }}</span>
+                    <span class="dashboard__spine-body">
+                      <span class="dashboard__spine-name">{{ session.className }}</span>
+                      <span class="dashboard__spine-meta">
+                        {{ session.courseName }} · {{ session.teacherName }}
+                      </span>
+                    </span>
+                    <app-status-dot [tone]="attendanceTone(session)">{{
+                      session.takenAt ? '已點名' : '未點名'
+                    }}</app-status-dot>
                   </span>
-                </span>
-                <app-status-dot [tone]="attendanceTone(session)">{{
-                  session.takenAt ? '已點名' : '未點名'
-                }}</app-status-dot>
+                }
               </li>
             }
           </ul>

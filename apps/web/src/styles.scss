@@ -313,7 +313,15 @@ select {
 .clessia-filter-search {
   flex: 1;
   min-width: 200px;
-  max-width: 320px;
+  /* **手機優先**：窄螢幕上搜尋框填滿整列，寬螢幕才收到 320px。
+     這條原本是各頁在自己的 `respond-to` 裡寫 `max-width: 100%` ——
+     九頁共用同一個 block，那個決定就該住在 block 裡，320 也只該有一份（c11）。
+     已經自己蓋掉 max-width 的頁（courses 的 280px）不受影響。 */
+  max-width: 100%;
+
+  @include bp.respond-from('tablet-portrait') {
+    max-width: 320px;
+  }
 }
 
 .clessia-filter-search .p-inputtext,
