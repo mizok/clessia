@@ -4,6 +4,7 @@ import { taughtClassIds } from '../lib/teacher-scope';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
+import { campusFilterIds } from '../lib/campus-scope';
 
 // ============================================================
 // Schemas
@@ -328,11 +329,13 @@ app.openapi(
     if (grade) {
       query = query.eq('grade', grade);
     }
-    if (campusId) {
+    // 沒指定分校時也要縮到自己管的那幾間 —— `campusFilterIds` 回 null 才是「不限」
+    const campusIds = campusFilterIds(c.get('campusScope'), campusId);
+    if (campusIds) {
       const { data: enrollmentRows } = await supabase
         .from('enrollments')
         .select('student_id, classes!inner(campus_id)')
-        .eq('classes.campus_id', campusId);
+        .in('classes.campus_id', [...campusIds]);
 
       const campusStudentIds = Array.from(
         new Set(
