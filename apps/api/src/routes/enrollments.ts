@@ -4,7 +4,7 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
 import { buildPeriodFilter, buildSelect, sortColumn } from './enrollments/list-query';
-import { prorateByDays } from '../lib/proration';
+import { monthRange, prorateByDays } from '../lib/proration';
 
 // ============================================================
 // Schemas
@@ -800,13 +800,25 @@ app.openapi(
 // 用不同實作的話，畫面上的預覽跟隔天出來的帳單會對不起來。
 const ProrationPreviewSchema = z
   .object({
-    billingPeriodId: DbUuidSchema,
+    /**
+     * 月繳：`2026-03` 或 `2026-03-01` 都收。**跟 `billingPeriodId` 二擇一。**
+     *
+     * 第一版只吃 `billingPeriodId`，於是**月繳生根本叫不動這支** —— 而月繳是最常見、
+     * 也最需要期中試算的族群（`billing_periods` 是期繳專用的表）。
+     * 二擇一的形狀跟 `POST /api/billing-runs` 對齊：同一個概念在兩支端點上
+     * 長不一樣的話，呼叫端遲早會把其中一支用錯。
+     */
+    periodMonth: z.string().optional(),
+    billingPeriodId: DbUuidSchema.optional(),
     effectiveFrom: z.string().date(),
     effectiveTo: z.string().date().nullable().optional(),
     // 兩者擇一；**agreedAmount 優先**，跟月結批次同一個優先序
     //（議價是常態，價目表只是定價 —— billing-rules 規則 2）
     feeTemplateId: z.uuid().optional(),
     agreedAmount: z.number().int().min(0).optional(),
+  })
+  .refine((v) => Boolean(v.periodMonth) !== Boolean(v.billingPeriodId), {
+    message: 'periodMonth 與 billingPeriodId 二擇一',
   })
   .openapi('ProrationPreview');
 
@@ -854,14 +866,28 @@ app.openapi(
       return c.json({ error: '要有 agreedAmount 或 feeTemplateId 才算得出來' }, 400);
     }
 
-    const { data: period } = await supabase
-      .from('billing_periods')
-      .select('start_date, end_date')
-      .eq('id', body.billingPeriodId)
-      .eq('org_id', orgId)
-      .maybeSingle();
+    // 期間的來源二選一 —— 月繳走 monthRange（跟月結批次同一支，
+    // 兩邊各留一份的話「二月有幾天」遲早會在其中一份算錯，而且是錢）
+    let periodStart: string;
+    let periodEnd: string;
 
-    if (!period) return c.json({ error: '找不到計費期間' }, 404);
+    if (body.periodMonth) {
+      const range = monthRange(body.periodMonth);
+      periodStart = range.start;
+      periodEnd = range.end;
+    } else {
+      const { data: period } = await supabase
+        .from('billing_periods')
+        .select('start_date, end_date')
+        .eq('id', body.billingPeriodId as string)
+        .eq('org_id', orgId)
+        .maybeSingle();
+
+      if (!period) return c.json({ error: '找不到計費期間' }, 404);
+
+      periodStart = (period as { start_date: string }).start_date;
+      periodEnd = (period as { end_date: string }).end_date;
+    }
 
     let fullAmount = body.agreedAmount ?? 0;
     if (body.agreedAmount === undefined && body.feeTemplateId) {
@@ -875,9 +901,6 @@ app.openapi(
       if (!template) return c.json({ error: '找不到價目表' }, 404);
       fullAmount = Number((template as { amount?: number }).amount ?? 0);
     }
-
-    const periodStart = (period as { start_date: string }).start_date;
-    const periodEnd = (period as { end_date: string }).end_date;
 
     const { amount, note } = prorateByDays(
       fullAmount,

@@ -1498,6 +1498,50 @@ describe('B3 —— 報名的計費 API', () => {
       expect(body).toMatchObject({ fullAmount: 3000 });
     });
 
+    it('月繳用 periodMonth —— 不必先有 billing_periods 那一列', async () => {
+      // 第一版只吃 billingPeriodId，於是月繳生（最常見、最需要試算的族群）
+      // 根本叫不動這支 —— billing_periods 是期繳專用的表
+      const { app } = createApp();
+
+      const { status, body } = await preview(app, {
+        periodMonth: '2026-02',
+        effectiveFrom: '2026-02-15',
+        agreedAmount: 2800,
+      });
+
+      expect(status).toBe(200);
+      // 平年二月 28 天，2/15–2/28 含頭含尾是 14 天 → 剛好一半
+      expect(body).toMatchObject({
+        periodStart: '2026-02-01',
+        periodEnd: '2026-02-28',
+        amount: 1400,
+      });
+    });
+
+    it('兩個期間來源都給 → 400，不要猜他想用哪一個', async () => {
+      const { app } = createApp();
+
+      const { status } = await preview(app, {
+        periodMonth: '2026-02',
+        billingPeriodId: '11111111-1111-4111-8111-111111111111',
+        effectiveFrom: '2026-02-15',
+        agreedAmount: 2800,
+      });
+
+      expect(status).toBe(400);
+    });
+
+    it('兩個期間來源都沒給 → 400', async () => {
+      const { app } = createApp();
+
+      const { status } = await preview(app, {
+        effectiveFrom: '2026-02-15',
+        agreedAmount: 2800,
+      });
+
+      expect(status).toBe(400);
+    });
+
     it('兩個都沒給就算不出來 → 400，不要回一個 0 讓人以為是免費', async () => {
       const { app } = createApp();
 
