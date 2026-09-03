@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
-import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { DatePickerModule } from 'primeng/datepicker';
 import { TextareaModule } from 'primeng/textarea';
@@ -51,7 +50,6 @@ const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
     FormsModule,
     ButtonModule,
     InputTextModule,
-    SelectModule,
     MultiSelectModule,
     DatePickerModule,
     TextareaModule,

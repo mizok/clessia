@@ -588,4 +588,30 @@ describe('AttendanceRosterPanelComponent', () => {
       expect(fixture.nativeElement.textContent).toContain('他來了');
     });
   });
+
+  // 「零人」跟「零個待標記」是兩件事 —— 空名單落進「全部標記完成」是空話
+  describe('空名單', () => {
+    it('進度說沒有學生，不是「全部標記完成」', async () => {
+      await render([]);
+
+      const progress = fixture.nativeElement.querySelector('.roster-panel__progress');
+      expect(progress.textContent.trim()).toBe('這堂課沒有學生');
+    });
+
+    it('存檔說沒有學生，不是「都在請假中」', async () => {
+      await render([]);
+      const c = component as never as { save(): void; notice(): { detail: string } | null };
+
+      c.save();
+
+      expect(attendanceServiceMock.batchUpdate).not.toHaveBeenCalled();
+      expect(c.notice()?.detail).toContain('沒有學生');
+    });
+
+    it('列表區說明該去哪裡加人', async () => {
+      await render([]);
+
+      expect(fixture.nativeElement.querySelector('.roster-panel__empty')).not.toBeNull();
+    });
+  });
 });

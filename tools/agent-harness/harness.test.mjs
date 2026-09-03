@@ -18,6 +18,7 @@ import { matchWriteRules, routeHints } from './lib/rules.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
+import { orphanModuleImports } from './lib/orphan-imports.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 import routerRules from './rules/doc-router.rules.json' with { type: 'json' };
 import { compareToBaseline, failingSpecs } from './test-gate.mjs';
@@ -620,6 +621,49 @@ test('頂層 @use 不能污染後續 selector 的父層解析', () => {
       &__link { min-height: 40px; cursor: pointer; }
     }
     @media (pointer: coarse) { .d__link { min-height: 44px; } }`),
+    [],
+  );
+});
+
+
+// ── PrimeNG 模組的孤兒 import ────────────────────────────────────────────────
+// Angular 的 NG8113 不涵蓋 NgModule，所以這個坑在 repo 裡長出來過兩次。
+
+test('孤兒 import：模板沒用到就抓出來', () => {
+  assert.deepEqual(
+    orphanModuleImports([
+      { path: 'a.ts', ts: 'imports: [TagModule],', template: '<div></div>' },
+      { path: 'b.ts', ts: 'imports: [TagModule],', template: '<p-tag value="x" />' },
+    ]),
+    [{ path: 'a.ts', module: 'TagModule' }],
+  );
+});
+
+// **這條防的是誤報，而誤報的 gate 會被關掉。**
+// 第一版的對映表只列了元件選擇器 `<p-button`，結果 7 支用 `<button pButton>`
+// 指令的檔案全部被誤判成孤兒。一個模組常常同時提供元件與指令，兩種都要列。
+test('孤兒 import：pButton 指令算有用到 ButtonModule，不是孤兒', () => {
+  assert.deepEqual(
+    orphanModuleImports([
+      { path: 'a.ts', ts: 'imports: [ButtonModule],', template: '<button pButton>送出</button>' },
+    ]),
+    [],
+  );
+});
+
+test('孤兒 import：inline template 也算', () => {
+  assert.deepEqual(
+    orphanModuleImports([
+      { path: 'a.ts', ts: 'imports: [TagModule], template: `<p-tag value="x" />`', template: '' },
+    ]),
+    [],
+  );
+});
+
+// 對映表上沒有的模組不掃 —— 寧可漏報不要誤報
+test('孤兒 import：不認識的模組不掃', () => {
+  assert.deepEqual(
+    orphanModuleImports([{ path: 'a.ts', ts: 'imports: [SomeUnknownModule],', template: '' }]),
     [],
   );
 });

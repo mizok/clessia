@@ -7,7 +7,6 @@ import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
-import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
@@ -62,7 +61,6 @@ import { defaultRange, groupKeyLabel, isAmbiguousKey,
     DatePickerModule,
     SelectModule,
     SelectButtonModule,
-    TagModule,
     ToastModule,
     TooltipModule,
     EmptyStateComponent,

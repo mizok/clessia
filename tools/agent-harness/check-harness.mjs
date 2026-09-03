@@ -18,6 +18,7 @@ import { formatGenerated } from './lib/format.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
+import { orphanModuleImports } from './lib/orphan-imports.mjs';
 import { matchWriteRules } from './lib/rules.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
@@ -970,6 +971,44 @@ function checkMobileFirst() {
 }
 
 checkMobileFirst();
+
+// ── PrimeNG 模組的孤兒 import ──────────────────────────────────────────────
+// Angular 的 NG8113 只對 standalone 元件發診斷，**不涵蓋 NgModule** ——
+// `imports: [TagModule]` 在模板早就不用 <p-tag> 之後，編譯器一句話都不會說。
+// 這個坑在這個 repo 長出來過兩次（#119 三支、3b-3 收尾十支，而同一次 build 的
+// NG8113 計數是 0）。兩次都靠人記得對帳。**第三次不要再靠人。**
+function checkOrphanImports() {
+  const webSrc = join(ROOT, 'apps/web/src');
+  if (!existsSync(webSrc)) return;
+
+  const components = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) {
+        const ts = readFileSync(full, 'utf8');
+        if (!ts.includes('@Component')) continue;
+        const html = full.replace(/\.ts$/, '.html');
+        components.push({
+          path: full.slice(ROOT.length + 1),
+          ts,
+          template: existsSync(html) ? readFileSync(html, 'utf8') : '',
+        });
+      }
+    }
+  };
+  walk(webSrc);
+
+  for (const { path, module } of orphanModuleImports(components)) {
+    fail(
+      `${path} 的 imports 有 ${module}，但模板沒有用到它提供的任何選擇器。` +
+        `**Angular 的 NG8113 不涵蓋 NgModule**，所以編譯器不會說話 —— 請自己刪掉。`,
+    );
+  }
+}
+
+checkOrphanImports();
 
 // ── report ───────────────────────────────────────────────────────────────────────────────
 // --write 一律 exit 0：它的工作是「修好能自動修的」，剩下的（例如 CLAUDE.md 被塞進規則）

@@ -7,7 +7,6 @@ import { CheckboxModule } from 'primeng/checkbox';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { SelectModule } from 'primeng/select';
 import { SkeletonModule } from 'primeng/skeleton';
-import { TagModule } from 'primeng/tag';
 import { ClassesService, type Class } from '@core/classes.service';
 import { GRADE_LEVELS, GRADE_LEVEL_LABELS } from '@core/students.service';
 import {
@@ -49,7 +48,6 @@ interface GradeLevelOption {
     ButtonModule,
     SelectModule,
     CheckboxModule,
-    TagModule,
     SkeletonModule,
     InlineNoticeComponent,
   ],
