@@ -13,6 +13,7 @@ import { cancelLeaveForDate } from '../lib/cancel-leave-for-date';
 import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
+import { applyCampusFilter, type CampusScope } from '../lib/campus-scope';
 
 const AttendanceStatusSchema = z
   .enum(['present', 'absent', 'on_leave'])
@@ -259,6 +260,11 @@ export function normalizeAttendanceFilterIds(filterIds: string | undefined): str
 export async function ensureAttendanceSessionEvents(input: {
   readonly supabase: AppEnv['Variables']['supabase'];
   readonly orgId: string;
+  /**
+   * 呼叫者看得到的分校。**這支會「補建」出勤事件（寫入），所以範圍不能只靠讀取端過濾**
+   * —— 少了它，A 校的管理員查詢時會替 B 校的課堂建立 event。
+   */
+  readonly campusScope: CampusScope;
   readonly campusId?: string;
   readonly courseIdList: readonly string[];
   readonly classIdList: readonly string[];
@@ -269,6 +275,7 @@ export async function ensureAttendanceSessionEvents(input: {
   const {
     supabase,
     orgId,
+    campusScope,
     campusId,
     courseIdList,
     classIdList,
@@ -300,9 +307,12 @@ export async function ensureAttendanceSessionEvents(input: {
     missingSessionsQuery = missingSessionsQuery.lte('session_date', dateToValue ?? dateFromValue);
   }
 
-  if (campusId) {
-    missingSessionsQuery = missingSessionsQuery.eq('classes.campus_id', campusId);
-  }
+  missingSessionsQuery = applyCampusFilter(
+    missingSessionsQuery,
+    'classes.campus_id',
+    campusScope,
+    campusId,
+  );
   if (courseIdList.length > 0) {
     missingSessionsQuery = missingSessionsQuery.in('classes.course_id', [...courseIdList]);
   }
@@ -461,7 +471,7 @@ app.openapi(
     if (status) query = query.eq('status', status);
     if (dateFrom) query = query.gte('events.event_date', dateFrom);
     if (dateTo) query = query.lte('events.event_date', dateTo);
-    if (campusId) query = query.eq('events.campus_id', campusId);
+    query = applyCampusFilter(query, 'events.campus_id', c.get('campusScope'), campusId);
 
     const from = (page - 1) * pageSize;
     query = query.range(from, from + pageSize - 1).order('created_at', { ascending: false });
@@ -989,6 +999,7 @@ app.openapi(
       const ensureEventsResult = await ensureAttendanceSessionEvents({
         supabase,
         orgId,
+        campusScope: c.get('campusScope'),
         campusId,
         courseIdList,
         classIdList,
@@ -1014,7 +1025,12 @@ app.openapi(
       sessionsQuery = sessionsQuery.lte('session_date', dateToValue ?? dateFromValue);
     }
 
-    if (campusId) sessionsQuery = sessionsQuery.eq('classes.campus_id', campusId);
+    sessionsQuery = applyCampusFilter(
+      sessionsQuery,
+      'classes.campus_id',
+      c.get('campusScope'),
+      campusId,
+    );
     if (courseIdList.length > 0) {
       sessionsQuery = sessionsQuery.in('classes.course_id', courseIdList);
     }

@@ -8,8 +8,6 @@ import { SelectModule } from 'primeng/select';
 import { SkeletonModule } from 'primeng/skeleton';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
-import { InputNumberModule } from 'primeng/inputnumber';
-import { TextareaModule } from 'primeng/textarea';
 import { CheckboxModule } from 'primeng/checkbox';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import {
@@ -22,21 +20,21 @@ import {
 import {
   EnrollmentsService,
   type BatchCreateResult,
+  type ProrationPreview,
   type ScheduleConflictWarning,
 } from '@core/enrollments.service';
 import { FeeTemplatesService, type FeeTemplate } from '@core/fee-templates.service';
 import { InvoicesService } from '@core/invoices.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import { personHue } from '@shared/utils/person-hue.util';
+import { EnrollmentBillingFieldsComponent } from '../enrollment-billing-fields/enrollment-billing-fields.component';
+import { todayLocal } from '@shared/utils/session-time.util';
 
 import {
-  billingModeOptions,
   emptyBillingDraft,
-  feeTemplateOptions,
   findTemplate,
   isAdjusted,
   payableAmount,
-  pricingHint,
   type BillingDraft,
 } from '../enrollment-billing.util';
 
@@ -51,10 +49,9 @@ import {
     SkeletonModule,
     IconFieldModule,
     InputIconModule,
-    InputNumberModule,
-    TextareaModule,
     CheckboxModule,
     InlineNoticeComponent,
+    EnrollmentBillingFieldsComponent,
   ],
   templateUrl: './student-picker-dialog.component.html',
   styleUrl: './student-picker-dialog.component.scss',
@@ -89,20 +86,68 @@ export class StudentPickerDialogComponent implements OnInit {
 
   protected readonly templates = signal<FeeTemplate[]>([]);
   protected readonly billing = signal<BillingDraft>(emptyBillingDraft());
-  protected readonly billingModeOptions = billingModeOptions();
-  protected readonly templateOptions = computed(() => feeTemplateOptions(this.templates()));
-
   private readonly selectedTemplate = computed(() =>
     findTemplate(this.templates(), this.billing().feeTemplateId),
   );
 
-  protected readonly pricingHint = computed(() => pricingHint(this.selectedTemplate()));
-
+  /** 送出前的驗證要用 —— 顯示由 `app-enrollment-billing-fields` 自己判斷 */
   protected readonly isAdjusted = computed(() =>
     isAdjusted(this.billing().agreedAmount, this.selectedTemplate()),
   );
 
   protected readonly payable = computed(() => payableAmount(this.billing(), this.templates()));
+
+  /**
+   * 期中插班的比例試算。**只在月繳模式自動算** —— 期繳要指定是哪一段收費週期
+   * （`billing_periods` 是期繳專用的表），那是一個額外的選單，留給下一片；
+   * 堂數制按堂不按天，本來就沒有比例可言。
+   *
+   * 算法跟月結批次共用後端的 `prorateByDays`，所以這裡看到的數字跟隔天真的開出來的
+   * 帳單對得起來 —— 兩邊各算一次的話，哪天不一樣沒有人會知道。
+   */
+  protected readonly proration = signal<ProrationPreview | null>(null);
+  protected readonly prorating = signal(false);
+
+  private refreshProration(): void {
+    const draft = this.billing();
+    const canPreview =
+      draft.billingMode === 'monthly' &&
+      (draft.feeTemplateId !== null || draft.agreedAmount !== null);
+
+    if (!canPreview) {
+      this.proration.set(null);
+      return;
+    }
+
+    this.prorating.set(true);
+    this.enrollmentsService
+      .prorationPreview({
+        periodMonth: todayLocal().slice(0, 7),
+        effectiveFrom: todayLocal(),
+        feeTemplateId: draft.feeTemplateId ?? undefined,
+        agreedAmount: draft.agreedAmount ?? undefined,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.prorating.set(false);
+          // 整期都在讀時 note 是 null —— 那時候沒有東西要解釋，也就不必顯示
+          this.proration.set(res.note ? res : null);
+        },
+        // 試算失敗不擋報名 —— 它是建議值不是前提
+        error: () => {
+          this.prorating.set(false);
+          this.proration.set(null);
+        },
+      });
+  }
+
+  /** 把試算金額填進議定金額 —— 規則 5.2：試算是**建議值**，填進去之後照樣可以改 */
+  protected applyProration(): void {
+    const amount = this.proration()?.amount;
+    if (amount === undefined) return;
+    this.updateBilling('agreedAmount', amount);
+  }
 
   /**
    * 立即開帳的預設值 **看選了幾個人**。
@@ -115,17 +160,50 @@ export class StudentPickerDialogComponent implements OnInit {
   protected readonly issueInvoice = signal(false);
 
   /** 已報名但帳單沒開成的 —— 決定 4 的殘留，當場看得到也重試得了 */
+  /** 這批真的加進去的人（已存在與失敗的不算） */
+  protected readonly enrolledTargets = computed(() =>
+    (this.enrolledResult()?.results ?? [])
+      .filter((r) => r.status === 'enrolled' && r.enrollmentId)
+      .map((r) => ({ studentId: r.studentId, enrollmentId: r.enrollmentId! })),
+  );
+
+  /** 還沒開帳的人數 —— 結果頁那顆按鈕靠它決定要不要出現、以及寫幾張 */
+  protected readonly uninvoicedCount = computed(
+    () => this.enrolledTargets().filter((t) => !this.invoicedStudentIds().has(t.studentId)).length,
+  );
+
+  protected readonly alreadyExistsCount = computed(
+    () =>
+      (this.enrolledResult()?.results ?? []).filter((r) => r.status === 'already_exists').length,
+  );
+
+  protected readonly enrollErrorCount = computed(
+    () => (this.enrolledResult()?.results ?? []).filter((r) => r.status === 'error').length,
+  );
+
   protected readonly invoiceFailures = signal<
     readonly { studentId: string; enrollmentId: string }[]
   >([]);
   protected readonly issuing = signal(false);
+  /** 結果頁的提示（例如「沒有金額不能開帳」）—— 跟 confirmError 分開，那是送出前的 */
+  protected readonly notice = signal<string | null>(null);
   protected readonly invoicesCreated = signal(0);
   private readonly enrolledResult = signal<BatchCreateResult | null>(null);
   protected selectedGrade: GradeLevel | null = null;
   protected selectedGender: string | null = null;
 
   // 兩步 wizard 狀態
-  protected readonly step = signal<'selecting' | 'reviewing'>('selecting');
+  /**
+   * `result` 這一步是 B3 第二片加的。原本批次送出就直接關閉，只留一個 toast 摘要
+   * （「成功加入 30 人」）—— **誰已經在班上、誰失敗了，一個字都看不到**。
+   *
+   * 停在結果頁同時解掉兩件事：逐筆結果看得見，以及**開帳的入口就在這裡**
+   * （不用切到繳費頁把那 30 個人再找一次）。
+   */
+  protected readonly step = signal<'selecting' | 'reviewing' | 'result'>('selecting');
+
+  /** 已經開過帳的學生 —— 重試與補開都不該對同一個人開第二張 */
+  private readonly invoicedStudentIds = signal<ReadonlySet<string>>(new Set<string>());
 
   // 多選狀態：選中的 studentId set
   protected readonly selectedIds = signal<Set<string>>(new Set());
@@ -249,6 +327,15 @@ export class StudentPickerDialogComponent implements OnInit {
     this.billing.update((draft) => ({ ...draft, [field]: value }));
   }
 
+  protected onBillingChange(next: BillingDraft): void {
+    const prev = this.billing();
+    this.billing.set(next);
+    // 金額與原因不重算 —— 前者會變成「填了試算值 → 觸發試算 → 又填」的迴圈
+    if (next.billingMode !== prev.billingMode || next.feeTemplateId !== prev.feeTemplateId) {
+      this.refreshProration();
+    }
+  }
+
   protected goBack(): void {
     this.step.set('selecting');
   }
@@ -296,11 +383,9 @@ export class StudentPickerDialogComponent implements OnInit {
       .subscribe({
         next: (res) => {
           this.confirming.set(false);
-          if (!this.issueInvoice()) {
-            this.ref.close(res);
-            return;
-          }
-          this.issueInvoices(res);
+          this.enrolledResult.set(res);
+          this.step.set('result');
+          if (this.issueInvoice()) this.issueInvoices(res);
         },
         error: (err) => {
           this.confirming.set(false);
@@ -336,14 +421,10 @@ export class StudentPickerDialogComponent implements OnInit {
    * 而且重試得了）；綁一起的殘留看不見（什麼都沒發生，而櫃檯前的人以為報好了）。
    */
   private issueInvoices(res: BatchCreateResult): void {
-    const targets = res.results
-      .filter((r) => r.status === 'enrolled' && r.enrollmentId)
-      .map((r) => ({ studentId: r.studentId, enrollmentId: r.enrollmentId! }));
-
-    if (targets.length === 0) {
-      this.ref.close(res);
-      return;
-    }
+    const targets = this.enrolledTargets().filter(
+      (t) => !this.invoicedStudentIds().has(t.studentId),
+    );
+    if (targets.length === 0) return;
 
     this.issuing.set(true);
     this.invoiceFailures.set([]);
@@ -372,43 +453,45 @@ export class StudentPickerDialogComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((outcomes) => {
         this.issuing.set(false);
-        const failed = outcomes.filter((o) => !o.ok).map((o) => o.target);
-        this.invoicesCreated.set(outcomes.length - failed.length);
-
-        if (failed.length === 0) {
-          this.ref.close({ ...res, invoicesCreated: outcomes.length });
-          return;
-        }
-
-        // **不關閉。** 報名已經成立，關掉的話那幾筆缺帳單就只剩下一支還沒做的查詢找得到
-        this.invoiceFailures.set(failed);
-        this.enrolledResult.set(res);
+        const ok = outcomes.filter((o) => o.ok).map((o) => o.target.studentId);
+        this.invoicedStudentIds.update((set) => new Set([...set, ...ok]));
+        this.invoicesCreated.update((n) => n + ok.length);
+        this.invoiceFailures.set(outcomes.filter((o) => !o.ok).map((o) => o.target));
       });
   }
 
-  /** 只對沒開成的重試 —— 報名不能重報，成功的帳單也不該開第二張 */
-  protected retryInvoices(): void {
-    const failed = this.invoiceFailures();
+  /** 結果頁的「為這 N 筆開帳」—— 沒勾立即開帳的批次事後在這裡補 */
+  protected issueRemaining(): void {
     const res = this.enrolledResult();
-    if (failed.length === 0 || !res) return;
-
-    this.issueInvoices({
-      ...res,
-      results: failed.map((f) => ({
-        studentId: f.studentId,
-        enrollmentId: f.enrollmentId,
-        status: 'enrolled' as const,
-      })),
-    });
+    if (!res || this.payable() === null) {
+      this.notice.set('要開帳的話，回上一步選價目表或填議定金額。');
+      return;
+    }
+    this.issueInvoices(res);
   }
 
-  /** 帳單沒開成也要能離開 —— 報名是成立的，硬留在對話框裡沒有意義 */
-  protected closeWithPartialResult(): void {
-    this.ref.close(this.enrolledResult() ?? undefined);
+  /** 只對沒開成的重試 —— `issueInvoices` 自己會濾掉已經開過的，所以走同一條路 */
+  protected retryInvoices(): void {
+    this.issueRemaining();
+  }
+
+  /** 結果頁的「完成」—— 報名已經成立，帳單開了幾張一起回報給呼叫端 */
+  protected closeWithResult(): void {
+    const res = this.enrolledResult();
+    this.ref.close(res ? { ...res, invoicesCreated: this.invoicesCreated() } : undefined);
   }
 
   protected clearConflicts(): void {
     this.conflictWarnings.set([]);
+  }
+
+  /** 結果頁每一列的狀態 —— 誰進去了、誰本來就在、誰失敗了、誰已經有帳單 */
+  protected resultLabel(studentId: string): string {
+    const row = this.enrolledResult()?.results.find((r) => r.studentId === studentId);
+    if (!row) return '';
+    if (row.status === 'already_exists') return '已在班上，略過';
+    if (row.status === 'error') return row.message ?? '加入失敗';
+    return this.invoicedStudentIds().has(studentId) ? '已加入 · 帳單已開' : '已加入';
   }
 
   protected studentName(studentId: string): string {

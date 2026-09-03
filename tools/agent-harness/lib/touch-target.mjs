@@ -80,8 +80,14 @@ function blocks(rawSource) {
       const raw = buf.trim();
       const isAt = raw.startsWith('@');
       const parent = [...stack].reverse().find((f) => f.sel)?.sel ?? '';
+      // **at-rule 要繼承外層的 selector，不能變成空字串。**
+      // `&__skip { @media (pointer: coarse) { min-height: 44px; } }` 是 SCSS 最慣用的
+      // 兩層寫法 —— 把 at-rule 的 selector 清成空的話，那個 44px 就掛不到任何 selector 上，
+      // 於是「已經被 coarse 抬高」這件事看不見，已修好的程式碼被誤報成違規。
+      // （2026-09-04 teacher-pages 首次外用時回報。我的 self-test 只測了
+      // 「@media 在頂層、選擇器已展開」那一種 —— 剛好是 dashboard 用的那種。）
       const sel = isAt
-        ? ''
+        ? parent
         : raw.startsWith('&')
           ? parent + raw.slice(1)
           : parent
@@ -142,8 +148,21 @@ function isFocusSentinel(sizes) {
   return Math.max(...w) <= 2 && Math.max(...h) <= 2;
 }
 
-/** 去掉 `:hover` / `:focus-visible` 之類，讓「同一個元素的不同狀態」對得起來 */
-const baseKey = (sel) => sel.replace(/::?[a-z-]+(\([^)]*\))?/g, '').trim();
+/**
+ * 把 selector 收斂成「它講的是哪個元素」：
+ *
+ * - 去掉 `:hover` / `:focus-visible` 之類 —— 同一個元素的不同狀態要對得起來
+ * - **只取最後一段**：`.d .d__skip` 與 `.d__skip` 在 CSS 上都作用在同一個元素身上，
+ *   而 SCSS 巢狀常常兩種都寫得出來（`@media` 區塊裡寫展開的 selector 就會變成前者）。
+ *   不收斂的話，同一個元素的 base 與 coarse 宣告會被當成兩個不同的東西。
+ */
+const baseKey = (sel) =>
+  sel
+    .replace(/::?[a-z-]+(\([^)]*\))?/g, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .pop() ?? '';
 
 function sizeDecls(decls) {
   const out = [];

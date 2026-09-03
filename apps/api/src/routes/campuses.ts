@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
+import { applyCampusFilter } from '../lib/campus-scope';
 
 // ============================================================
 // Schemas (with OpenAPI metadata)
@@ -137,6 +138,7 @@ const listRoute = createRoute({
 app.openapi(listRoute, async (c) => {
   const supabase = c.get('supabase');
   const query = c.req.valid('query');
+  const campusScope = c.get('campusScope');
 
   const page = Math.max(parseInt(query.page || '1'), 1);
   const rawPageSize = query.pageSize !== undefined ? parseInt(query.pageSize) : 20;
@@ -146,6 +148,10 @@ app.openapi(listRoute, async (c) => {
 
   // Build query
   let dbQuery = supabase.from('campuses').select('*', { count: 'exact' });
+
+  // **分校清單自己也要縮。** 只管 A 校的人不該在下拉選單裡看到 B 校 ——
+  // 這裡用 `id` 而不是 `campus_id`，因為這張表的每一列就是一個分校。
+  dbQuery = applyCampusFilter(dbQuery, 'id', campusScope);
 
   // Apply filters
   if (query.search) {
@@ -170,6 +176,9 @@ app.openapi(listRoute, async (c) => {
 
   // summary 不套用 isActive filter，永遠反映全機構的真實總數
   let summaryQuery = supabase.from('campuses').select('is_active');
+
+  // 統計要跟清單同範圍，否則「共 5 間」配上 2 列
+  summaryQuery = applyCampusFilter(summaryQuery, 'id', campusScope);
 
   if (query.search) {
     summaryQuery = summaryQuery.ilike('name', `%${query.search}%`);

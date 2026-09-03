@@ -316,11 +316,13 @@ if (existsSync(apiIndex) && existsSync(permissionsFile)) {
   }
 }
 
-// ── A7c. 分校範圍的覆蓋率要看得見（clause c1）────────────────────────────────────────────
-// 「指名別的分校」由全域的 campusRequestGuard 擋住了，但「沒指定時只回自己的分校」
-// 要各路由自己過濾。**沒做的那些不能是隱形的** —— 在單一功能裡自己做一層分校過濾，
-// 會得到一個守得住的畫面和其餘全部守不住的畫面，而使用者無從分辨哪些是哪些。
-// 這條 gate 不擋（覆蓋是漸進的），但每次都把還沒接上的列出來。
+// ── A7c. 每一支碰 campus_id 的路由都要接上分校預設過濾（clause c1）──────────────────────
+// 「指名別的分校」由全域的 campusRequestGuard 擋住，但「沒指定時只回自己的分校」
+// 要各路由自己過濾。**14 支已全部接上，所以這條從提醒升級成擋。**
+//
+// 升級的理由：覆蓋率一旦完整，下一個洞就不會是「還沒做完」而是「新路由忘了接」——
+// 而那種洞是靜默的（查詢正常回應，只是回了不該看的資料）。漸進期用提醒是對的，
+// 完成之後還留在提醒就等於把門開著。
 {
   const routesDir = join(ROOT, 'apps/api/src/routes');
   const pending = [];
@@ -331,10 +333,12 @@ if (existsSync(apiIndex) && existsSync(permissionsFile)) {
     if (/campusFilterIds|campusScope/.test(source)) continue;
     pending.push(name);
   }
-  if (pending.length > 0) {
-    warnings.push(
-      `分校範圍：${pending.length} 支路由碰 campus_id 但還沒接上預設過濾` +
-        `（指名別的分校已由 campusRequestGuard 全域擋住）—— ${pending.join('、')}`,
+  for (const name of pending) {
+    fail(
+      `routes/${name} 碰 campus_id 但沒有接分校預設過濾 —— ` +
+        `用 lib/campus-scope.ts 的 applyCampusFilter / campusFilterIds。` +
+        `沒指定分校時要縮到呼叫者的 campusScope，不是回全部` +
+        `（見 kb/wiki/architecture/authorization-scope.md 洞 5）`,
     );
   }
 }
