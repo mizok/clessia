@@ -852,3 +852,17 @@ test('對比掃描：icon 的 3:1 不是免死金牌 —— 2.35 連 3:1 都不�
   assert.equal(found.length, 1, 'zinc-400 疊 zinc-100 只有 2.35，是 icon 也救不了');
   assert.ok(found[0].ratio < 3, `ratio=${found[0].ratio}`);
 });
+
+// ── A17 的三項邊界（2026-09-04）────────────────────────────────────────────────────
+//
+// 焦點哨兵：鍵盤陷阱用的 1×1 元素是給 Tab 走的，使用者永遠不會用手指點它。
+// 判準必須窄 —— 放寬到「很小就算哨兵」會把 32px 的小按鈕一起放掉，而那正是要抓的。
+test('A17 放行 1×1 焦點哨兵，但不放行小按鈕', () => {
+  const t = (src) => touchTargetViolations([{ path: 'a.scss', source: src }]).map((v) => v.kind);
+  assert.deepEqual(t('.sentinel { width: 1px; height: 1px; cursor: pointer; }'), []);
+  assert.deepEqual(t('.s2 { width: 2px; height: 2px; cursor: pointer; }'), []);
+  // **反例**：32px 的小按鈕仍然要擋
+  assert.deepEqual(t('.btn { width: 32px; height: 32px; cursor: pointer; }'), ['below-threshold']);
+  // 只有一軸很小 → 不是哨兵（可能是一條可點的細長條）
+  assert.deepEqual(t('.bar { height: 1px; cursor: pointer; }'), ['below-threshold']);
+});

@@ -16,6 +16,10 @@
   "apps/web/src/app/features/admin/pages/sessions/dialogs/mobile-batch-dialog/mobile-batch-dialog.component.scss|.mobile-batch-dialog__menu-item",
   "apps/web/src/app/features/admin/pages/sessions/dialogs/session-leave-roster-dialog/session-leave-roster-dialog.component.scss|.leave-roster__filter-tab",
   "apps/web/src/app/features/admin/pages/sessions/dialogs/session-overflow-dialog/session-overflow-dialog.component.scss|.overflow-dialog__item",
+  "apps/web/src/app/features/public/pages/link-line/link-line.component.scss|.link-line__skip",
+  "apps/web/src/app/features/public/shared/_auth-form.scss|.form__checkbox",
+  "apps/web/src/app/features/public/shared/_auth-form.scss|.form__checkbox input[type='checkbox']",
+  "apps/web/src/app/features/public/shared/_auth-form.scss|.form__tab",
   "apps/web/src/app/features/teacher/pages/notifications/notifications.component.scss|.teacher-notifications__summary",
   "apps/web/src/app/features/teacher/pages/schedule/schedule.page.scss|.schedule-page__weekbar-day"
 ]
