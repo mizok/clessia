@@ -1,9 +1,8 @@
 # 常備工作佇列(零 idle 制)
 
-> 計畫席維護,各席**做完手上的事、15 分鐘內沒有新工單或回覆時,從自己席的佇列
-> 頂端認領下一項**:在本檔該項後面標 `[認領 <session名> <HH:MM>]`,commit+push,
-> 照送達協定通知計畫席,然後直接開工(不等批准 —— 佇列裡的都是預先批准的)。
-> 設計類產出照舊過 STOP gate。計畫席每輪 tick 保證每席佇列 ≥2 項。
+> 計畫席維護。各席**交付即繼續**:送出交付訊息後直接認領自己佇列的下一項開工
+> (認領=SendMessage 向計畫席宣告,由計畫席落標記 —— worktree 推不動 main)。
+> 佇列項都是預先批准的;設計類產出照舊過 STOP gate。計畫席保證每席佇列 ≥2 項。
 
 ## teacher-pages
 
@@ -33,7 +32,7 @@
 ## billing-api
 
 1. 聚合端點 GET /api/workbench/today(進行中,交接單在 team/)
-2. c2 乙類驗證:挑 me.ts:124 做一處 auth.api.updateUser 的可行性驗證,回報錯誤形狀
+2. c2 乙類驗證 [認領 pin-better-auth-3c 13:25]:挑 me.ts:124 做一處 auth.api.updateUser 的可行性驗證,回報錯誤形狀
 3. executionCtx waitUntil 兩處不一致統一(attendance.ts vs get-auth.ts)
 4. POST /api/announcements/read-all(bulk 已讀;前端逐一版已出,這支是效率+原子性升級)
 
@@ -50,3 +49,7 @@
 「已知缺口」節,目前剩:apps/web 無獨立 typecheck target(Stop gate 盲區)、
 c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因在 fvg)。
 磁碟 watch 持續掛著(20GB 警戒 / 10GB 自動 prune)。
+
+## infra(補貨 13:25)
+1. apps/web 獨立 typecheck target 接進 Stop gate(本機/CI 覆蓋不對稱,你的建議 1,准)
+2. test-baseline.json 3 個既有紅燈分診(清一支移一支,先報告)
