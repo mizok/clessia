@@ -11,6 +11,7 @@ import {
   SessionUnassignedError,
 } from '../domain/session-assignment/session-operation-guard';
 import { planBatchUpdateTime } from '../domain/session-assignment/batch-update-time-planner';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 // ============================================================
 // Schemas
@@ -2810,21 +2811,6 @@ app.openapi(batchUncancelRoute, async (c) => {
     200,
   );
 });
-
-function getCurrentTaipeiDateString(): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Taipei',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-
-  const year = parts.find((part) => part.type === 'year')?.value ?? '0000';
-  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
-  const day = parts.find((part) => part.type === 'day')?.value ?? '01';
-
-  return `${year}-${month}-${day}`;
-}
 
 function getCurrentTaipeiMonthRange(): { monthStart: string; monthEnd: string } {
   const today = getCurrentTaipeiDateString();
