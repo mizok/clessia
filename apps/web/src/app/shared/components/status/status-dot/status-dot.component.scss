@@ -51,15 +51,6 @@
     background: var(--warning-600);
   }
 
-  // ── 失敗 ──
-  &--failed {
-    color: var(--error-600);
-  }
-
-  &--failed &__mark {
-    background: var(--error-600);
-  }
-
   // ── 不在等任何事了（停用、退班）。實心中性 ——
   //    第一版畫成「灰實心 + 描邊」想跟 pending 的中空環區分，
   //    但 8px 下環裡填不填色根本看不出來，所以改純實心。 ──

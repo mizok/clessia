@@ -43,7 +43,6 @@ export const ATTENDANCE_TONE_LABELS: Record<StatusTone, string> = {
   pending: '還沒上',
   overdue: '漏點名',
   inactive: '已停課',
-  failed: '點名異常',
 };
 
 export interface AttendanceDisplay {
