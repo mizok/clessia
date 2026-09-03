@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { requireRoles } from '../middleware/auth';
-import { audienceFor } from './announcements/visibility';
+import { audienceFor, campusOrFilter } from './announcements/visibility';
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -162,11 +162,9 @@ app.openapi(
       campusIds = (campusRows ?? []).map((r) => r['campus_id'] as string);
     }
 
-    // 全分校公告（campus_id is null）加上自己分校的
-    const campusFilter =
-      campusIds.length > 0
-        ? `campus_id.is.null,campus_id.in.(${campusIds.join(',')})`
-        : 'campus_id.is.null';
+    // 全分校公告（campus_id is null）加上自己分校的。**跟「全部標為已讀」共用同一份** ——
+    // 兩邊各長一份的話，全部已讀會標到看不見的、或漏掉看得見的，而兩種都不會報錯
+    const campusFilter = campusOrFilter(campusIds);
 
     const { data, count, error } = await supabase
       .from('announcements')
@@ -268,6 +266,92 @@ app.openapi(
     if (error) return c.json({ error: error.message }, 500);
 
     return c.body(null, 204);
+  },
+);
+
+// ── POST /api/announcements/read-all —— 全部標為已讀 ────────────────────────
+//
+// 前端已經有「逐一呼叫 `/{id}/read`」的版本。這支是**效率與原子性的升級**：
+// 30 則公告從 30 次往返變成 1 次，而且要嘛全標要嘛都沒標 ——
+// 逐一版在中途失敗時會留下一半已讀，而使用者看到的是「按了但紅點還在」。
+//
+// **可見範圍與收件匣同源**（`campusOrFilter` + `audienceFor`）。兩邊各算一次的話，
+// 這支會標到使用者看不見的公告（多標，之後那些公告永遠不會再出現在他的未讀裡），
+// 或漏掉看得見的（少標，按完紅點還在）—— **兩種都不報錯**。
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/read-all',
+    tags: ['Announcements'],
+    summary: '把收件匣裡的公告全部標為已讀',
+    responses: {
+      200: {
+        description: '已標記',
+        content: {
+          'application/json': {
+            schema: z.object({ marked: z.number().int().nonnegative() }),
+          },
+        },
+      },
+      403: {
+        description: '沒有收件角色',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
+
+    const audience = audienceFor(c.get('roles') ?? []);
+    if (!audience) {
+      return c.json({ error: '沒有收件匣', code: 'NO_INBOX' }, 403);
+    }
+
+    const { data: staffRow } = await supabase
+      .from('staff')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('org_id', orgId)
+      .maybeSingle();
+
+    let campusIds: string[] = [];
+    if (staffRow?.id) {
+      const { data: campusRows } = await supabase
+        .from('staff_campuses')
+        .select('campus_id')
+        .eq('staff_id', staffRow.id as string);
+      campusIds = (campusRows ?? []).map((r) => r['campus_id'] as string);
+    }
+
+    const { data: visible, error: visibleError } = await supabase
+      .from('announcements')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('audience', audience)
+      .or(campusOrFilter(campusIds));
+
+    if (visibleError) return c.json({ error: visibleError.message }, 500);
+
+    const ids = ((visible ?? []) as Array<{ id: string }>).map((row) => row.id);
+    // 收件匣是空的就沒有東西可標 —— 回 0 而不是打一支空的 upsert
+    if (ids.length === 0) return c.json({ marked: 0 }, 200);
+
+    // 一次 upsert，**一個語句就是一個 transaction** —— 這是「原子性升級」的實質。
+    // 重複標記是正常操作（重新整理、多分頁），複合主鍵讓它天然冪等。
+    const { error } = await supabase.from('announcement_reads').upsert(
+      ids.map((announcementId) => ({ announcement_id: announcementId, user_id: userId })),
+      { onConflict: 'announcement_id,user_id' },
+    );
+
+    if (error) return c.json({ error: error.message }, 500);
+
+    // 回「這次涵蓋了幾則」而不是「新標了幾則」：upsert 不區分新增與既有，
+    // 硬要區分得先查一次已讀，那就多一次往返 —— 而前端要的是「按完之後未讀是 0」，
+    // 不是「這次新標了幾則」
+    return c.json({ marked: ids.length }, 200);
   },
 );
 
