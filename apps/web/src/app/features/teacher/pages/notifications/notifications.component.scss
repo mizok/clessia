@@ -13,6 +13,26 @@
     font-weight: 600;
   }
 
+  /*
+   * 「全部標為已讀」。**高度給滿 44px** —— 這一席的 UX 審查量到 dashboard 的導覽連結
+   * 只有 20px 高，那是站著單手用的老師最容易點不中的東西。新加的入口不要再欠一次。
+   */
+  &__mark-all {
+    align-self: flex-start;
+    min-height: 44px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--zinc-300);
+    border-radius: 8px;
+    background: none;
+    color: var(--zinc-700);
+    font-size: 0.85rem;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--zinc-50);
+    }
+  }
+
   &__badge {
     padding: var(--space-1) var(--space-2);
     border-radius: var(--radius-full);

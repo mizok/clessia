@@ -26,6 +26,9 @@
     </div>
   } @else if (roster()) {
     <div class="roster-panel__list">
+      @if (rosterEmpty()) {
+        <p class="roster-panel__empty">這個班還沒有學生，先到班級名單加人。</p>
+      }
       @for (student of roster()!.students; track student.studentId) {
         <div class="roster-panel__row" [class.roster-panel__row--on-leave]="isLocked(student)">
           <div class="roster-panel__student">
@@ -99,7 +102,9 @@
         三句話長度刻意接近（都 ≤ 9 字），不然換行本身又是一次位移。
       -->
       <span class="roster-panel__progress">
-        @if (pendingCount() > 0) {
+        @if (rosterEmpty()) {
+          這堂課沒有學生
+        } @else if (pendingCount() > 0) {
           還有 {{ pendingCount() }} 人未標記
         } @else if (markedCount() === 0 && exemptCount() > 0) {
           <!-- 全班都請假：一個都沒標不是「完成」，他根本沒東西可標 -->

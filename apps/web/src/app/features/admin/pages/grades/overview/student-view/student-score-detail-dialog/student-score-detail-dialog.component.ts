@@ -14,12 +14,10 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { subMonths } from 'date-fns';
 
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { InputTextModule } from 'primeng/inputtext';
 import { MessageService } from 'primeng/api';
 import { PaginatorModule } from 'primeng/paginator';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { SelectModule } from 'primeng/select';
-import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -65,12 +63,10 @@ const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
     DataChipComponent,
     FormsModule,
     EmptyStateComponent,
-    InputTextModule,
     JdenticonAvatarComponent,
     PaginatorModule,
     SelectButtonModule,
     SelectModule,
-    TagModule,
     TooltipModule,
   ],
   templateUrl: './student-score-detail-dialog.component.html',

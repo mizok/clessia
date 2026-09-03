@@ -13,7 +13,6 @@ import { FormsModule } from '@angular/forms';
 import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
 import { PaginatorModule } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
-import { TagModule } from 'primeng/tag';
 
 import { CampusesService, type Campus } from '@core/campuses.service';
 import { SessionsService, type ChangeLogEntry } from '@core/sessions.service';
@@ -48,7 +47,6 @@ import { RtRowDirective } from '@shared/components/responsive-table/rt-row.direc
     DatePipe,
     FormsModule,
     SelectModule,
-    TagModule,
     PaginatorModule,
   ],
   templateUrl: './changes.component.html',

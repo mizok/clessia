@@ -20,7 +20,6 @@ import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
-import { ButtonModule } from 'primeng/button';
 import { PaginatorModule } from 'primeng/paginator';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -77,7 +76,6 @@ const STUDENT_STATUS_OPTIONS: Array<{ label: string; value: SchoolExamStudentSta
     InputIconModule,
     SelectModule,
     SelectButtonModule,
-    ButtonModule,
     PaginatorModule,
   ],
   providers: [DialogService, MessageService],

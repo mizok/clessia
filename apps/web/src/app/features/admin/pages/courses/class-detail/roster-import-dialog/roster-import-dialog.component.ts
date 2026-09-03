@@ -8,7 +8,12 @@ import { DatePickerModule } from 'primeng/datepicker';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { SelectModule } from 'primeng/select';
 import { TagModule } from 'primeng/tag';
-import * as XLSX from 'xlsx';
+/**
+ * **`xlsx` 只在真的要解析檔案時才載入。** 靜態 import 的話，`class-detail.page.ts`
+ * 靜態引用這個 dialog → 打開任何一個班級詳情就會下載 SheetJS 的 **337 kB
+ * （傳輸 96 kB）**，而多數人進來只是看名單。
+ */
+type XLSXModule = typeof import('xlsx');
 
 import {
   EnrollmentsService,
@@ -160,10 +165,12 @@ export class RosterImportDialogComponent {
     }
   }
 
-  private parseWorkbook(file: File): Promise<unknown[][]> {
+  private async parseWorkbook(file: File): Promise<unknown[][]> {
     const isCsv = file.name.toLowerCase().endsWith('.csv');
+    // 使用者已經選了檔案才走到這裡 —— 這時候載入是安全的，也是唯一需要它的時刻
+    const XLSX: XLSXModule = await import('xlsx');
 
-    return new Promise((resolve, reject) => {
+    return new Promise<unknown[][]>((resolve, reject) => {
       const reader = new FileReader();
       reader.onerror = () => reject(new Error('read failed'));
       reader.onload = () => {
