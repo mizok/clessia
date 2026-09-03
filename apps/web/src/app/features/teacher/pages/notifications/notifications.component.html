@@ -6,6 +6,13 @@
         <span class="teacher-notifications__badge">{{ unread() }} 則未讀</span>
       }
     </h1>
+
+    <!-- 沒有未讀就沒有可做的事 —— 不放一顆按了不會發生任何事的按鈕 -->
+    @if (unread() > 0) {
+      <button type="button" class="teacher-notifications__mark-all" (click)="markAllRead()">
+        全部標為已讀
+      </button>
+    }
   </header>
 
   @if (loading()) {
