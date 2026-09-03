@@ -7,15 +7,14 @@
       <h1 class="parents__title">{{ page().label }}</h1>
       <p class="parents__subtitle">管理家長帳號、關聯學生及帳號狀態</p>
     </div>
-    <div class="parents__header-actions">
+    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
       <p-button
         label="匯入"
         icon="pi pi-upload"
         severity="secondary"
         (onClick)="openImportDialog()"
       />
-      <p-button label="新增家長" icon="pi pi-plus" (onClick)="openCreateDialog()" />
-    </div>
+    </app-page-actions>
   </header>
 
   <!-- Main Card -->

@@ -25,11 +25,16 @@ import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/aud
 import { LeaveFormDialogComponent } from './leave-form-dialog.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
 
 @Component({
   selector: 'app-leave',
   standalone: true,
   imports: [
+    PageActionsComponent,
     DataChipComponent,
     FormsModule,
     ButtonModule,
@@ -50,6 +55,10 @@ import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
   styleUrl: './leave.page.scss',
 })
 export class LeavePage implements OnInit {
+  /** 主要行動。**寫成 readonly property 不是模板裡的物件字面量** ——
+   *  字面量每輪變更偵測都會產生新物件，讓 signal input 每次都判定為「變了」。 */
+  protected readonly primaryAction: PageAction = { label: '新增請假', icon: 'pi pi-plus' };
+
   readonly page = input.required<RouteObj>();
 
   private readonly leaveService = inject(LeaveService);

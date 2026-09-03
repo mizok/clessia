@@ -6,7 +6,7 @@
 > 設計類產出照舊過 STOP gate。計畫席每輪 tick 保證每席佇列 ≥2 項。
 
 ## teacher-pages
-1. notifications 規格落差小刀:「全部標為已讀」+ 類型圖示(調課/代課/停課)—— spec 有、實作零
+1. notifications 規格落差小刀 [認領 teacher-pages-5b 11:42]:全部已讀(前端逐一版)+修 spec(收件匣=公告);類型圖示裁不做(無資料),課務異動推播歸 P4 通知線
 2. students/notifications 兩頁補斷點(0 media query,1280 下一列 944px;dashboard 不補 —— 今日流會刪它)
 3. (窗口批准後)今日流主刀
 
@@ -16,7 +16,7 @@
 3. (窗口批准後)作業台實作
 
 ## design-web-2
-1. 拇指區 C 期(進行中)→ D 期 gate(頁面層級 p-button 不得直寫 __header-actions)
+1. 拇指區 A–D 期完成(壓成一支 PR) [認領 design-web-2-df 11:43]
 2. 刀 3b-3 的收尾確認(53 顆膠囊遷移的殘項盤點,若已零殘項就結案記錄)
 
 ## admin-pages
@@ -28,6 +28,7 @@
 1. 聚合端點 GET /api/workbench/today(進行中,交接單在 team/)
 2. c2 乙類驗證:挑 me.ts:124 做一處 auth.api.updateUser 的可行性驗證,回報錯誤形狀
 3. executionCtx waitUntil 兩處不一致統一(attendance.ts vs get-auth.ts)
+4. POST /api/announcements/read-all(bulk 已讀;前端逐一版已出,這支是效率+原子性升級)
 
 ## infra
 1. 44px 觸控 ratchet gate(進行中)

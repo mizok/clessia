@@ -7,7 +7,7 @@
       <h1 class="staff__title">人員管理</h1>
       <p class="staff__subtitle">管理管理員、老師帳號</p>
     </div>
-    <div class="staff__header-actions">
+    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
       <p-button
         label="操作紀錄"
         icon="pi pi-history"
@@ -15,8 +15,7 @@
         severity="secondary"
         (onClick)="openAuditLog()"
       />
-      <p-button label="新增人員" icon="pi pi-plus" (onClick)="openCreateDialog()" />
-    </div>
+    </app-page-actions>
   </header>
 
   <!-- Main Card -->

@@ -1,0 +1,60 @@
+@use 'shared/breakpoints' as bp;
+
+/* `bottom-bar` 的 tabs 高 64px，底下再加安全區。停靠列坐在它正上方。
+   這個值跟 bottom-bar 的實作綁在一起 —— 那邊改高度，這裡要跟著改。 */
+$bottom-bar-height: 64px;
+
+/* **手機優先**：基準樣式就是手機（停靠列出現、標頭那組不出現），
+   `respond-from` 之後才換成桌機的標頭右上。
+
+   第一版我寫成桌機優先（base 是標頭、`respond-to` 覆寫成停靠列），
+   然後被 #171 自己建的 ratchet 擋下來 —— 那道 gate 存在的理由就是這個，
+   而它抓到的第一個違規是我。 */
+.page-actions {
+  // ── 手機（基準）──
+  // 標頭**保留** —— 次要行動投影在這裡，它們在手機上仍然要按得到。
+  // 第一版把整個標頭隱藏，結果是「操作紀錄」「匯入」在手機上完全消失，
+  // 而那是**無法觸及**不是「換位置」。
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  // 主要行動在標頭裡的那一份只在桌機出現；手機由停靠列承擔
+  &__header-primary {
+    display: none;
+  }
+
+  &__dock {
+    position: fixed;
+    right: 0;
+    bottom: calc(#{$bottom-bar-height} + env(safe-area-inset-bottom, 0px));
+    left: 0;
+    padding: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--zinc-200);
+    background: var(--color-white);
+    // 低於 bottom-bar 的 120 —— **導覽永遠不該被行動蓋住**。
+    // 幾何上兩者本來就不重疊；這個值是把「誰在上面」寫死，
+    // 免得之後有人改了 bottom-bar 的高度而它們開始互相覆蓋。
+    z-index: 100;
+  }
+
+  // ── 桌機（加強）──
+  @include bp.respond-from('mobile') {
+    &__header-primary {
+      display: block;
+    }
+
+    &__dock {
+      display: none;
+    }
+  }
+}
+
+// p-button 預設是行內寬度；停靠列要它撐滿，否則會變成一顆偏左的小按鈕。
+// 用全域選擇器是因為 styleClass 進的是 PrimeNG 內部的元素。
+.page-actions__cta {
+  width: 100%;
+  justify-content: center;
+}

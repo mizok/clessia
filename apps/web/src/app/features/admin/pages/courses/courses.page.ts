@@ -60,6 +60,10 @@ import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confir
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { CoursesFilterStateService } from './courses-filter-state.service';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
 
 interface CourseGroup {
   course: Course;
@@ -70,6 +74,7 @@ interface CourseGroup {
   selector: 'app-courses',
   standalone: true,
   imports: [
+    PageActionsComponent,
     ClassRowComponent,
     CommonModule,
     FormsModule,
@@ -97,6 +102,10 @@ interface CourseGroup {
   styleUrl: './courses.page.scss',
 })
 export class CoursesPage implements OnInit {
+  /** 這一頁的主要行動。**寫成 readonly property 不是模板裡的物件字面量** ——
+   *  字面量每輪變更偵測都會產生新物件，讓 signal input 每次都判定為「變了」。 */
+  protected readonly primaryAction: PageAction = { label: '新增課程', icon: 'pi pi-plus' };
+
   readonly page = input.required<RouteObj>();
 
   private readonly dialogService = inject(DialogService);
