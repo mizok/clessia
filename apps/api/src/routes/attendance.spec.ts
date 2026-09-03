@@ -1398,7 +1398,12 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
     const { app, queriedTables } = createRosterApp(leaveRows);
     const response = await app.request('/api/attendance/roster/event-1');
     const payload = (await response.json()) as {
-      students: Array<{ studentId: string; status: string | null; hasLeaveRequest: boolean }>;
+      students: Array<{
+        studentId: string;
+        status: string | null;
+        hasLeaveRequest: boolean;
+        leaveEndDate: string | null;
+      }>;
     };
     return { payload, queriedTables };
   }
@@ -1422,6 +1427,51 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
       status: null,
       hasLeaveRequest: true,
     });
+  });
+
+  it('回請假的結束日 —— 讓前端能在按下銷假之前警告會取消到哪一天', async () => {
+    const { payload } = await roster([
+      {
+        student_id: 'stu-1',
+        start_date: '2026-04-04',
+        end_date: '2026-04-08',
+        start_time: null,
+        end_time: null,
+      },
+    ]);
+
+    expect(payload.students[0]).toMatchObject({
+      hasLeaveRequest: true,
+      leaveEndDate: '2026-04-08',
+    });
+  });
+
+  it('同一天被兩張假蓋到時，回最晚的那個結束日', async () => {
+    // 銷假會把兩張都動到 —— 警告要說出「最遠會取消到哪」，不是隨便挑一張
+    const { payload } = await roster([
+      {
+        student_id: 'stu-1',
+        start_date: '2026-04-06',
+        end_date: '2026-04-06',
+        start_time: null,
+        end_time: null,
+      },
+      {
+        student_id: 'stu-1',
+        start_date: '2026-04-05',
+        end_date: '2026-04-10',
+        start_time: null,
+        end_time: null,
+      },
+    ]);
+
+    expect(payload.students[0]?.leaveEndDate).toBe('2026-04-10');
+  });
+
+  it('沒有假時 leaveEndDate 是 null', async () => {
+    const { payload } = await roster([]);
+
+    expect(payload.students[0]).toMatchObject({ hasLeaveRequest: false, leaveEndDate: null });
   });
 
   it('假沒蓋到這堂課的時段就不標', async () => {
