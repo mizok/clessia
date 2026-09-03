@@ -52,7 +52,20 @@
           </div>
 
           @if (isLocked(student)) {
-            <!-- 紀錄上就是請假，沒有可改的東西 -->
+            <!--
+              A1：請假的學生今天出現了。在這顆按鈕之前，這一列是死的 ——
+              學生本人站在教室裡，系統沒有任何方式記錄他來了。
+            -->
+            @if (canCancelLeave()) {
+              <p-button
+                label="他來了"
+                icon="pi pi-user-plus"
+                size="small"
+                [outlined]="true"
+                [loading]="cancelling() === student.studentId"
+                (onClick)="cancelLeave(student.studentId)"
+              />
+            }
           } @else {
             <div class="roster-panel__toggle">
               <p-button

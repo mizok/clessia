@@ -8,6 +8,8 @@ import { ButtonModule } from 'primeng/button';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
+import { AuthService } from '@core/auth.service';
+import { todayLocal } from '@shared/utils/session-time.util';
 import {
   InlineNoticeComponent,
   type InlineNoticeSeverity,
@@ -37,6 +39,7 @@ export interface RosterPanelSession {
 })
 export class AttendanceRosterPanelComponent implements OnInit {
   private readonly attendanceService = inject(AttendanceService);
+  private readonly auth = inject(AuthService);
   private readonly config = inject(DynamicDialogConfig);
   private readonly ref = inject(DynamicDialogRef);
 
@@ -44,6 +47,8 @@ export class AttendanceRosterPanelComponent implements OnInit {
 
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
+  /** 正在銷假的學生 id —— 逐列 loading，不是整個面板 */
+  protected readonly cancelling = signal<string | null>(null);
   protected readonly roster = signal<AttendanceRoster | null>(null);
   /**
    * 只放**老師實際標過**的人。沒有出現在這個 Map 裡就是「還沒標」。
@@ -187,6 +192,56 @@ export class AttendanceRosterPanelComponent implements OnInit {
   protected gradeLabel(grade: string | null): string {
     if (!grade) return '';
     return GRADE_LEVEL_LABELS[grade as keyof typeof GRADE_LEVEL_LABELS] ?? grade;
+  }
+
+  /**
+   * 這一列現在銷得了假嗎。
+   *
+   * API 對老師有「**只能銷當天的假**」的限制（403）—— 銷假的依據是「他人就在我面前」，
+   * 那只有當天成立；管理員不受限，因為他在處理事後的更正
+   * （`routes/attendance.ts` 的 `只能銷當天的假`）。
+   *
+   * **前端隱藏不構成授權**（c1）—— API 仍然強制。這裡藏掉的是一個
+   * 按下去必然失敗的入口：過去的課堂上，老師點「他來了」只會拿到 403。
+   * 這是端到端實測才發現的：service 被 mock 的單元測試看不到這條規則。
+   */
+  protected canCancelLeave(): boolean {
+    return this.auth.activeRole() === 'admin' || this.session.eventDate === todayLocal();
+  }
+
+  /**
+   * 銷假：這個請假的學生今天到了。
+   *
+   * 成功後**重抓 roster 而不是自己改本地狀態** —— 後端銷假會連帶刪掉 `on_leave`
+   * 的出勤紀錄，那位學生會回到 `status: null + hasLeaveRequest: false`
+   * 的可標記狀態。自己猜的話，猜錯了要到存檔才發現。
+   */
+  protected cancelLeave(studentId: string): void {
+    this.cancelling.set(studentId);
+    this.attendanceService.cancelLeave(this.session.eventId, studentId).subscribe({
+      next: (res) => {
+        this.cancelling.set(null);
+        // 連坐取消不能默默吃掉 —— 老師以為自己只銷了今天
+        this.notice.set(
+          res.droppedAfter
+            ? {
+                severity: 'warning',
+                detail: `已銷假。${res.droppedAfter} 前的後續日期的請假也一併取消，如需請假請重新申請。`,
+              }
+            : { severity: 'success', detail: '已銷假，可以標記出席了' },
+        );
+        this.loadRoster();
+      },
+      error: (err: { error?: { error?: string } }) => {
+        this.cancelling.set(null);
+        // 後端的話比「請稍後再試」有用 —— 403 不是暫時性的，重試一百次也一樣
+        const detail = err?.error?.error;
+        this.notice.set({
+          severity: 'error',
+          detail: detail ? `銷假失敗：${detail}` : '銷假失敗，請稍後再試',
+        });
+      },
+    });
   }
 
   protected save(): void {

@@ -127,6 +127,18 @@ export interface AttendanceSessionListResponse {
   meta: { total: number; page: number; pageSize: number; totalPages: number };
 }
 
+export interface CancelLeaveResult {
+  leavesDeleted: number;
+  /** 跨日的假只拿掉這一天 —— 縮短範圍而不是整張刪掉 */
+  leavesTruncated: number;
+  attendanceRecordsRemoved: number;
+  /**
+   * 今天卡在請假區間中間時，後段被連坐取消到哪一天。`null` = 沒有連坐。
+   * 非 null 時前端**必須**告訴老師，那是「截斷而不是切成兩張」的代價。
+   */
+  droppedAfter: string | null;
+}
+
 export interface BatchAttendanceUpdate {
   eventId: string;
   updates: { studentId: string; status: 'present' | 'absent' }[];
@@ -184,6 +196,22 @@ export class AttendanceService {
 
   roster(eventId: string): Observable<AttendanceRoster> {
     return this.http.get<AttendanceRoster>(`${this.baseUrl}/roster/${eventId}`);
+  }
+
+  /**
+   * 銷假：請假的學生今天出現了。
+   *
+   * **走 `/api/attendance` 而不是 `/api/leaves`** —— 後者掛 ADMIN_ONLY，
+   * 而且它的 DELETE 帶著 `mode=truncate|full` 的語意，老師站在點名面板前面
+   * 不該去理解那個。這支用 eventId 進去，班級（範圍檢查）、日期、學生一次到齊。
+   *
+   * `droppedAfter` 非 null 代表今天卡在請假區間中間、後段被連坐取消 ——
+   * **呼叫端必須把這件事講出來**，不能默默吃掉。
+   */
+  cancelLeave(eventId: string, studentId: string): Observable<CancelLeaveResult> {
+    return this.http.post<CancelLeaveResult>(`${this.baseUrl}/roster/${eventId}/cancel-leave`, {
+      studentId,
+    });
   }
 
   batchUpdate(input: BatchAttendanceUpdate): Observable<{ updated: number; takenAt: string }> {

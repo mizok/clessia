@@ -3,7 +3,10 @@ import { of } from 'rxjs';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { AttendanceRosterPanelComponent } from './attendance-roster-panel.component';
+import { todayLocal } from '@shared/utils/session-time.util';
 import { AttendanceService } from '@core/attendance.service';
+import { AuthService } from '@core/auth.service';
+import { signal } from '@angular/core';
 
 describe('AttendanceRosterPanelComponent', () => {
   let fixture: ComponentFixture<AttendanceRosterPanelComponent>;
@@ -25,6 +28,14 @@ describe('AttendanceRosterPanelComponent', () => {
         takenAt: '2026-04-02T09:00:00Z',
       }),
     ),
+    cancelLeave: vi.fn(() => of(cancelLeaveResponse)),
+  };
+
+  let cancelLeaveResponse: {
+    leavesDeleted: number;
+    leavesTruncated: number;
+    attendanceRecordsRemoved: number;
+    droppedAfter: string | null;
   };
 
   const DEFAULT_STUDENTS = [
@@ -52,6 +63,9 @@ describe('AttendanceRosterPanelComponent', () => {
     close: vi.fn(),
   };
 
+  let activeRole: ReturnType<typeof signal<'teacher' | 'admin'>>;
+  let panelDate: string;
+
   async function render(students: unknown[] = DEFAULT_STUDENTS) {
     rosterStudents = students;
     fixture = TestBed.createComponent(AttendanceRosterPanelComponent);
@@ -62,7 +76,16 @@ describe('AttendanceRosterPanelComponent', () => {
   }
 
   beforeEach(async () => {
+    activeRole = signal<'teacher' | 'admin'>('teacher');
+    panelDate = todayLocal();
     rosterStudents = DEFAULT_STUDENTS;
+    cancelLeaveResponse = {
+      leavesDeleted: 1,
+      leavesTruncated: 0,
+      attendanceRecordsRemoved: 1,
+      droppedAfter: null,
+    };
+    attendanceServiceMock.cancelLeave.mockClear();
     attendanceServiceMock.roster.mockClear();
     attendanceServiceMock.batchUpdate.mockClear();
     dialogRefMock.close.mockClear();
@@ -71,13 +94,14 @@ describe('AttendanceRosterPanelComponent', () => {
       imports: [AttendanceRosterPanelComponent],
       providers: [
         { provide: AttendanceService, useValue: attendanceServiceMock },
+        { provide: AuthService, useValue: { activeRole: activeRole } },
         {
           provide: DynamicDialogConfig,
+          // data 用 getter 延遲讀 —— 寫成字面值的話，測試在 body 裡改 panelDate
+          // 已經來不及，config 在 configureTestingModule 當下就定死了
           useValue: {
-            data: {
-              eventId: 'event-1',
-              className: '數學班 A',
-              eventDate: '2026/04/02',
+            get data() {
+              return { eventId: 'event-1', className: '數學班 A', eventDate: panelDate };
             },
           },
         },
@@ -450,6 +474,118 @@ describe('AttendanceRosterPanelComponent', () => {
       );
       fixture.detectChanges();
       expect(fixture.nativeElement.querySelector('.roster-panel__mismark')).toBeNull();
+    });
+  });
+
+  /**
+   * A1：請假的學生今天出現了。在 #177 之前這一列**沒有任何可操作元素** ——
+   * 學生本人站在教室裡，系統沒有方式記錄他來了，老師只能打電話找行政。
+   */
+  describe('銷假（請假學生今天到了）', () => {
+    const ON_LEAVE = [
+      {
+        studentId: 'l1',
+        studentName: '請假生',
+        grade: 'J1',
+        school: '測試國中',
+        recordId: 'r1',
+        status: 'on_leave' as const,
+        hasLeaveRequest: true,
+      },
+    ];
+
+    it('請假列有「他來了」可以按 —— A1 之前這一列是死的', async () => {
+      await render(ON_LEAVE);
+      const row = fixture.nativeElement.querySelector('.roster-panel__row--on-leave');
+      expect(row.textContent).toContain('他來了');
+    });
+
+    it('按下去用 eventId + studentId 呼叫銷假', async () => {
+      await render(ON_LEAVE);
+      (component as never as { cancelLeave(id: string): void }).cancelLeave('l1');
+      expect(attendanceServiceMock.cancelLeave).toHaveBeenCalledWith('event-1', 'l1');
+    });
+
+    /** #169 閉環：成功後學生要回到可標記狀態，靠重抓 roster 而不是自己改本地狀態 */
+    it('成功後重抓 roster，不自己猜新狀態', async () => {
+      await render(ON_LEAVE);
+      attendanceServiceMock.roster.mockClear();
+      (component as never as { cancelLeave(id: string): void }).cancelLeave('l1');
+      expect(attendanceServiceMock.roster).toHaveBeenCalledWith('event-1');
+    });
+
+    /**
+     * `droppedAfter` 非 null = 今天卡在請假區間中間，後段被連坐取消。
+     * **這件事不能默默吃掉** —— 老師以為只銷了今天。
+     */
+    it('連坐取消後續日期時一定要講出來', async () => {
+      cancelLeaveResponse = {
+        leavesDeleted: 0,
+        leavesTruncated: 1,
+        attendanceRecordsRemoved: 1,
+        droppedAfter: '2026-04-05',
+      };
+      await render(ON_LEAVE);
+      (component as never as { cancelLeave(id: string): void }).cancelLeave('l1');
+      fixture.detectChanges();
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('後續日期的請假也一併取消');
+    });
+
+    it('沒有連坐就不要嚇人', async () => {
+      await render(ON_LEAVE);
+      (component as never as { cancelLeave(id: string): void }).cancelLeave('l1');
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).not.toContain('後續日期的請假也一併取消');
+    });
+
+    it('只有請假單、紀錄還沒套用的那種不顯示「他來了」—— 那一列本來就能標', async () => {
+      await render([{ ...ON_LEAVE[0], status: null }]);
+      const row = fixture.nativeElement.querySelector('.roster-panel__row');
+      expect(row.textContent).not.toContain('他來了');
+      expect(row.querySelector('.roster-panel__toggle')).not.toBeNull();
+    });
+  });
+
+  /**
+   * 端到端實測抓到的（單元測試看不到，因為 service 是 mock 的）：
+   * API 對老師有 **「只能銷當天的假」** 的限制（403）——
+   * 銷假的依據是「他人就在我面前」，那只有當天成立。管理員不受限（處理事後更正）。
+   *
+   * 所以按鈕不能無條件出現：過去的課堂上，老師按下去必然失敗。
+   * 前端隱藏**不構成授權**（c1，API 仍然強制），這裡藏的是一個必然失敗的入口。
+   */
+  describe('只能銷當天的假', () => {
+    const ON_LEAVE = [
+      {
+        studentId: 'l1',
+        studentName: '請假生',
+        grade: 'J1',
+        school: '測試國中',
+        recordId: 'r1',
+        status: 'on_leave' as const,
+        hasLeaveRequest: true,
+      },
+    ];
+
+    it('老師 + 今天的課 → 有「他來了」', async () => {
+      panelDate = todayLocal();
+      await render(ON_LEAVE);
+      expect(fixture.nativeElement.textContent).toContain('他來了');
+    });
+
+    it('老師 + 過去的課 → 不顯示（按了必然 403）', async () => {
+      panelDate = '2020-01-01';
+      await render(ON_LEAVE);
+      expect(fixture.nativeElement.textContent).not.toContain('他來了');
+    });
+
+    /** 管理員在 API 上不受限，前端不該替他關掉 */
+    it('管理員 + 過去的課 → 仍然顯示', async () => {
+      panelDate = '2020-01-01';
+      activeRole.set('admin');
+      await render(ON_LEAVE);
+      expect(fixture.nativeElement.textContent).toContain('他來了');
     });
   });
 });
