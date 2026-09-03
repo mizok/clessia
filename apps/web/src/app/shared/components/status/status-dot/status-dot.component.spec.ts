@@ -32,8 +32,8 @@ describe('StatusDotComponent', () => {
     expect(root().querySelector('.status-dot__label').textContent.trim()).toBe('已點名');
   });
 
-  it('五個 tone 都對應到自己的 modifier', async () => {
-    const tones: StatusTone[] = ['done', 'pending', 'overdue', 'failed', 'inactive'];
+  it('四個 tone 都對應到自己的 modifier', async () => {
+    const tones: StatusTone[] = ['done', 'pending', 'overdue', 'inactive'];
 
     for (const tone of tones) {
       fixture.componentInstance.tone.set(tone);

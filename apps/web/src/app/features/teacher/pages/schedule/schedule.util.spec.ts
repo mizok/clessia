@@ -166,13 +166,13 @@ describe('ATTENDANCE_TONE_LABELS', () => {
    * 停課（inactive）掉進 default 顯示成「還沒上」—— 一堂停掉的課看起來像老師還沒去上。
    */
   it('停課說「已停課」，不是「還沒上」', () => {
-    expect(ATTENDANCE_TONE_LABELS[attendanceTone(session({ status: 'cancelled' }), new Date())]).toBe(
-      '已停課',
-    );
+    expect(
+      ATTENDANCE_TONE_LABELS[attendanceTone(session({ status: 'cancelled' }), new Date())],
+    ).toBe('已停課');
   });
 
   it('每個 tone 都有字 —— 沒有 default 可以吞掉漏掉的那個', () => {
-    for (const tone of ['done', 'pending', 'overdue', 'inactive', 'failed'] as const) {
+    for (const tone of ['done', 'pending', 'overdue', 'inactive'] as const) {
       expect(ATTENDANCE_TONE_LABELS[tone]).toBeTruthy();
     }
   });
