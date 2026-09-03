@@ -6,7 +6,14 @@ import { DynamicDialogRef } from 'primeng/dynamicdialog';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
-import * as XLSX from 'xlsx';
+/**
+ * **`xlsx` 只在真的要解析檔案時才載入。**
+ *
+ * 靜態 import 的話，`parents.page.ts` 靜態引用這個 dialog → 打開「家長管理」就會下載
+ * SheetJS 的 **337 kB（傳輸 96 kB）**，而多數人進這一頁只是看名單，從來不匯入。
+ * 見 `kb/wiki/lessons/root-component-pins-the-bundle.md`：靜態可達就是會下載。
+ */
+type XLSXModule = typeof import('xlsx');
 import {
   ParentsService,
   type BatchImportResponse,
@@ -67,6 +74,9 @@ interface ParsedRow {
   styleUrl: './parent-import-dialog.component.scss',
 })
 export class ParentImportDialogComponent {
+  /** `parseExcelFile` 動態載入後存下來，供 `toBirthdayString` 讀 Excel 的日期序列值 */
+  private xlsx: XLSXModule | null = null;
+
   private readonly ref = inject(DynamicDialogRef);
   private readonly parentsService = inject(ParentsService);
 
@@ -223,8 +233,13 @@ export class ParentImportDialogComponent {
     this.ref.close('imported');
   }
 
-  private parseExcelFile(file: File): Promise<unknown[][]> {
+  private async parseExcelFile(file: File): Promise<unknown[][]> {
     const isCsv = file.name.toLowerCase().endsWith('.csv');
+    // 使用者已經選了檔案才走到這裡 —— 這時候載入是安全的，也是唯一需要它的時刻
+    const XLSX: XLSXModule = await import('xlsx');
+    // `toBirthdayString` 在對應每一列時要用 `SSF`，而它在解析之後才會跑到。
+    // 存起來而不是再 import 一次 —— 動態 import 有快取，但語意上這是同一次解析。
+    this.xlsx = XLSX;
 
     return new Promise<unknown[][]>((resolve, reject) => {
       const reader = new FileReader();
@@ -232,7 +247,7 @@ export class ParentImportDialogComponent {
       reader.onload = () => {
         try {
           const result = reader.result;
-          let workbook: XLSX.WorkBook;
+          let workbook: ReturnType<XLSXModule['read']>;
 
           if (isCsv) {
             if (typeof result !== 'string') {
@@ -487,8 +502,8 @@ export class ParentImportDialogComponent {
   }
 
   private toBirthdayString(value: unknown): string {
-    if (typeof value === 'number') {
-      const parsed = XLSX.SSF.parse_date_code(value);
+    if (typeof value === 'number' && this.xlsx) {
+      const parsed = this.xlsx.SSF.parse_date_code(value);
       if (parsed) {
         const year = String(parsed.y).padStart(4, '0');
         const month = String(parsed.m).padStart(2, '0');
