@@ -59,6 +59,11 @@
               A1：請假的學生今天出現了。在這顆按鈕之前，這一列是死的 ——
               學生本人站在教室裡，系統沒有任何方式記錄他來了。
             -->
+            @if (leaveExtendsBeyond(student); as endDate) {
+              <p class="roster-panel__leave-span">
+                此假到 {{ endDate }}（不只今天）—— 銷假可能一併取消後續日期
+              </p>
+            }
             @if (canCancelLeave()) {
               <p-button
                 label="他來了"

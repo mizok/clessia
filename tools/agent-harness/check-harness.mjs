@@ -542,7 +542,7 @@ scanExisting({ clause: 'c7', dir: WEB_SRC, ext: '.html', label: '使用了舊版
 // 這件事由 pre-guard 的 regex 本身保證，這裡不重述，共用規則就是為了不重述。
 scanExisting({ clause: 'c8', dir: WEB_SRC, ext: '.ts', label: '使用了裝飾器版 API' });
 
-// A15（c2）— 2026-09-03 盤點後收斂到「真債 4 筆 + 永久豁免 1 筆」。
+// A15（c2）— 2026-09-03 盤點後收斂到「真債 3 筆 + 永久豁免 2 筆」。
 //
 // 原本 9 筆，處理如下：
 //   -3  只寫 `orgId` 的三處改由 **pre-guard 規則本身**豁免（不是靠這裡的清單）——
@@ -551,16 +551,19 @@ scanExisting({ clause: 'c8', dir: WEB_SRC, ext: '.ts', label: '使用了裝飾�
 //   -1  staff.ts 那筆是**冗餘**：同一個 handler 的 createUser 已在 `data` 帶了 phone，已刪除。
 //   =5  剩下 4 筆真債 + 1 筆永久豁免。
 //
-// 真債要走 Better Auth 的 API，但**全 repo 目前零前例** —— 每一處都是直寫。所以要先由
-// billing-api 席做一處 `auth.api.updateUser` 的驗證（能不能寫 additionalFields、
-// email 重複時的錯誤形狀），驗完再推廣。那是它的佇列，不是這裡一次清得掉的。
+// **2026-09-03 的可行性驗證（billing-api 席）之後再減一：me.ts 的 email 從債改成豁免。**
+// 驗證結論（報告見該席 scratchpad `c2-updateuser-feasibility.md`）：
+//   - `updateUser` **明確拒絕** email（`api/routes/update-user.mjs:54` 丟
+//     `BAD_REQUEST` / `EMAIL_CAN_NOT_BE_UPDATED`）
+//   - 合法路徑 `changeEmail` 的三個前置**這個專案一個都不成立**（見 exempt 的 why）
+// 所以剩 3 筆真債（parents.ts ×2、staff.ts ×1），全是 `phone`，而 `phone` 是宣告過的
+// additionalField（`input: true`）—— 那三筆走得通，是真的債。
 scanExisting({
   clause: 'c2',
   dir: API_SRC,
   ext: '.ts',
   label: '直接寫入 ba_* 表',
   allowlist: {
-    'apps/api/src/routes/me.ts': 1, // :124 email
     'apps/api/src/routes/parents.ts': 2, // :621 email, :625 phone
     'apps/api/src/routes/staff.ts': 1, // :1150 phone
   },
@@ -570,9 +573,16 @@ scanExisting({
     // /sign-in/username 也是密碼登入），而那個欄位**還在被當唯一性鍵使用**：
     // parents.ts 有 4 處 `buildPostgrestEq('username', phone)` 靠它做家長匯入的重複偵測。
     // 拆成「一次 API 呼叫 + 一次直寫」只會更難懂，所以整處永久豁免。
+    //
+    // me.ts:124 的 `email` 也沒有路徑（2026-09-03 驗證）：`updateUser` 在
+    // `update-user.mjs:54` 明著擋掉 email；合法路徑 `changeEmail` 的三個前置
+    // **這個專案一個都不成立** —— 兩個要寄信管道（本專案沒有任何寄信管道，
+    // 見 auth.ts 的 magic-link 註解），第三個 `updateEmailWithoutVerification`
+    // 要求 `emailVerified !== true`，但 LINE 登入的使用者我們**刻意**標成
+    // `emailVerified: true`（`lineProfileToUser`，為了讓 link-account 通過）。
     'apps/api/src/routes/me.ts': {
-      count: 1,
-      why: 'username 無 API 路徑（plugin 已移除）且仍是家長匯入的唯一性鍵',
+      count: 2,
+      why: 'username 無 API 路徑（plugin 已移除）且仍是家長匯入的唯一性鍵；email 被 updateUser 明著拒絕，而 changeEmail 的前置需要寄信管道（本專案沒有）',
     },
   },
 });

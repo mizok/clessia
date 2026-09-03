@@ -91,6 +91,13 @@
    *
    * 不靠顏色單獨傳達（WCAG 1.4.1）：icon 只是引導視線，話由文字說完。
    */
+  /* 事前警告：老師按「他來了」之前就該看到這張假不只今天 */
+  &__leave-span {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--warning-600);
+  }
+
   &__mismark {
     display: inline-flex;
     align-items: center;
