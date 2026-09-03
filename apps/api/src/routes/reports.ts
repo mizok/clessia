@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { aggregateRevenue, type RevenueInvoice, type RevenuePayment } from '../lib/revenue-report';
 import { toCsv, type CsvValue } from '../lib/csv';
+import type { CampusScope } from '../lib/campus-scope';
 
 /**
  * 營收報表的聚合端點。
@@ -94,10 +95,17 @@ function matchesFilter(
   contexts: ClassContext[],
   campusId: string | undefined,
   courseId: string | undefined,
+  campusScope: CampusScope = null,
 ): boolean {
   // 篩選是「沾到就算」—— 一張跨班的帳單只要有一筆明細在這個分校就進來
   if (campusId && !contexts.some((ctx) => ctx.campusId === campusId)) return false;
   if (courseId && !contexts.some((ctx) => ctx.courseId === courseId)) return false;
+  // **範圍不是篩選，判準相反：篩選是「沾到就算」，範圍是「沾到就不能看」。**
+  // 一張帳單只要有任何一筆明細在範圍外，受限的管理員就看不到它 ——
+  // 否則跨校帳單會變成看見別校金額的側管道。
+  if (campusScope && contexts.some((ctx) => !ctx.campusId || !campusScope.includes(ctx.campusId))) {
+    return false;
+  }
   return true;
 }
 
@@ -142,6 +150,7 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const params = c.req.valid('query');
+    const campusScope = c.get('campusScope');
     const groupBy = params.groupBy ?? 'campus';
     const today = new Date().toISOString().slice(0, 10);
 
@@ -167,7 +176,7 @@ app.openapi(
     for (const row of (paymentRows ?? []) as unknown as Record<string, unknown>[]) {
       const invoice = row['invoices'] as Record<string, unknown> | null;
       const contexts = invoice ? classContexts(invoice) : [];
-      if (!matchesFilter(contexts, params.campusId, params.courseId)) continue;
+      if (!matchesFilter(contexts, params.campusId, params.courseId, campusScope)) continue;
 
       payments.push({
         kind: (row['kind'] as 'payment' | 'refund') ?? 'payment',
@@ -179,7 +188,7 @@ app.openapi(
     const invoices: RevenueInvoice[] = [];
     for (const row of (invoiceRows ?? []) as unknown as Record<string, unknown>[]) {
       const contexts = classContexts(row);
-      if (!matchesFilter(contexts, params.campusId, params.courseId)) continue;
+      if (!matchesFilter(contexts, params.campusId, params.courseId, campusScope)) continue;
 
       const items = (row['invoice_items'] as Record<string, unknown>[] | null) ?? [];
       const records = (row['payment_records'] as Record<string, unknown>[] | null) ?? [];
@@ -247,6 +256,7 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const params = c.req.valid('query');
+    const campusScope = c.get('campusScope');
 
     const { data: paymentRows } = await supabase
       .from('payment_records')
@@ -260,7 +270,7 @@ app.openapi(
     for (const row of (paymentRows ?? []) as unknown as Record<string, unknown>[]) {
       const invoice = row['invoices'] as Record<string, unknown> | null;
       const contexts = invoice ? classContexts(invoice) : [];
-      if (!matchesFilter(contexts, params.campusId, params.courseId)) continue;
+      if (!matchesFilter(contexts, params.campusId, params.courseId, campusScope)) continue;
 
       rows.push([
         row['paid_at'] as string,

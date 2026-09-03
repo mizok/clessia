@@ -4,6 +4,7 @@ import { DbUuidSchema } from '../lib/validation';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
 import { canManageAcademyExam, resolveExamClassIds } from '../lib/exam-scope';
 import { logAudit } from '../utils/audit';
+import { applyCampusFilter } from '../lib/campus-scope';
 
 const AcademyExamStatusSchema = z.enum(['active', 'closed']).openapi('AcademyExamStatus');
 
@@ -535,9 +536,7 @@ app.openapi(listRoute, async (c) => {
   } else if (status) {
     query = query.eq('status', status);
   }
-  if (campusId) {
-    query = query.eq('campus_id', campusId);
-  }
+  query = applyCampusFilter(query, 'campus_id', c.get('campusScope'), campusId);
   if (subjectId) {
     query = query.eq('subject_id', subjectId);
   }

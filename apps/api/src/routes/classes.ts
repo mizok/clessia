@@ -4,6 +4,7 @@ import { formatAuditClassResourceName, logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
 import { buildSessionGenerationPlan } from '../domain/session-assignment/session-generation-planner';
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
+import { applyCampusFilter } from '../lib/campus-scope';
 import type {
   BatchAssignMode,
   BatchAssignPlanOutput,
@@ -417,7 +418,7 @@ app.openapi(
       );
 
     if (query.search) dbQuery = dbQuery.ilike('name', `%${query.search}%`);
-    if (query.campusId) dbQuery = dbQuery.eq('campus_id', query.campusId);
+    dbQuery = applyCampusFilter(dbQuery, 'campus_id', c.get('campusScope'), query.campusId);
     if (query.courseId) dbQuery = dbQuery.eq('course_id', query.courseId);
     if (query.isActive !== undefined) dbQuery = dbQuery.eq('is_active', query.isActive === 'true');
 

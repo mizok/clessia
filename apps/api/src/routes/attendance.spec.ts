@@ -176,6 +176,9 @@ describe('attendance session filter helpers', () => {
     const result = await ensureAttendanceSessionEvents({
       supabase: fakeSupabase as never,
       orgId: 'org-1',
+      // 不受分校限制的呼叫者（有 all_campuses 的管理員）—— 這組測試驗的是補建邏輯，
+      // 範圍限制另有 campus-scope.spec.ts
+      campusScope: null,
       campusId: '11111111-1111-4111-8111-111111111111',
       courseIdList: [],
       classIdList: ['class-1'],
