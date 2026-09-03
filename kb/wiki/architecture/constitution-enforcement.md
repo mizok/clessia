@@ -111,8 +111,9 @@ gate 隨即變成全面覆蓋。清到一半也會被逼著更新帳面，帳本
 
 - **c8（A14）**：`jdenticon-avatar.component.ts` 3 筆、`shell-layout.component.ts` 1 筆
   —— 屬 design-web 席
-- **c2（A15）**：`routes/me.ts` 2 筆、`routes/parents.ts` 4 筆、`routes/staff.ts` 3 筆
-  —— 「ba_user 寫入路徑收斂」切片的待辦，屬 billing-api 席
+- **c2（A15）**：`routes/parents.ts` 2 筆、`routes/staff.ts` 1 筆 —— **全部是 `phone`**，
+  而 `phone` 是宣告過的 additionalField（`input: true`），走得通，是真的債。
+  屬 billing-api 席。（`routes/me.ts` 的 2 筆已於 2026-09-03 轉為永久豁免，見下。）
 
 ### 債與永久豁免要分開記
 
@@ -146,6 +147,42 @@ orgId: { type: 'string', required: false, input: false }
 
 > 為什麼放在規則層而不是 allowlist：allowlist 的語意是「會還清的債」，而這三處**永遠不會被修**。
 > 放進去會讓帳本永遠有 3 筆假債，也讓「歸零」永遠達不到。
+
+### c2 的 `me.ts` 永久豁免（2026-09-03，可行性驗證後）
+
+`routes/me.ts` 的兩處直寫從**債**改成**永久豁免** —— 因為驗證後確認它們沒有合規路徑可走，
+而不是還沒排到。（驗證方法：逐行讀 better-auth `1.5.5` 的原始碼，不是猜的。）
+
+| 欄位                                        | 走 `auth.api.updateUser` 的結果                                                                                                                            |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `email`（:124）                             | **明確拒絕**：`api/routes/update-user.mjs:54` 丟 `BAD_REQUEST` / `EMAIL_CAN_NOT_BE_UPDATED`                                                                |
+| `username`（:151，只有無 email 的家長會寫） | **靜默丟棄**：`db/schema.mjs:35` 的 `parseInputData` 迭代的是**宣告過的 schema**（`for (const key in fields)`），未宣告的 key 連看都不看 —— 不報錯、不寫入 |
+
+#### `email` 的合法路徑是 `changeEmail`，但三個前置這個專案一個都不成立
+
+`update-user.mjs:432` 要求下列至少中一個：
+
+| 前置                                      | 這個專案                                                                                                                                      |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sendChangeEmailConfirmation`             | ❌ **沒有任何寄信管道**（見 `auth.ts` 的 magic-link 註解：「這個專案不寄信」）                                                                |
+| `emailVerification.sendVerificationEmail` | ❌ 同上                                                                                                                                       |
+| `updateEmailWithoutVerification`          | ⚠️ 要求 `emailVerified !== true`，但 LINE 登入的使用者我們**刻意**標成 `emailVerified: true`（`lineProfileToUser`，為了讓 link-account 通過） |
+
+**前置條件記在這裡而不是掛在待辦上**：要讓 email 走合法路徑，得先有寄信管道 ——
+那是產品層的決定，不是這一席排得掉的工。**掛著假裝會被修掉，比誠實記成例外糟**：
+前者會讓「allowlist 歸零」這個終點永遠達不到，而沒有人知道差的那一筆是為什麼。
+
+> 哪天真的有了寄信管道，這一筆要重新評估 —— 那時 `changeEmail` 的第一或第二個前置
+> 就成立了。
+
+#### 這次驗證留下的通則
+
+> **合法的 API 不是「做同樣的事」，是「做它允許的事，其餘的靜默忽略」。**
+
+所以 c2 的遷移不能一處一處換掉直寫，要先把每一處的欄位分成三堆：
+**可以走**（宣告過的 additionalField）、**會被拒**（`email`、`input: false` 的欄位）、
+**會被靜默丟棄**（未宣告的欄位）。第三堆是唯一沒有錯誤訊號的，
+也是唯一會在遷移之後靜靜壞掉的 —— `username` 就在那一堆。
 
 ### A16（c3）為什麼比三點差異
 
