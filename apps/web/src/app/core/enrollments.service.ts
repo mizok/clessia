@@ -114,6 +114,21 @@ export interface BatchCreateInput {
   skipConflictCheck?: boolean;
   /** 不給就是今天。名單補灌時往前調到開課日，過去的課堂名單才有人 */
   effectiveFrom?: string;
+  /**
+   * 計費設定 —— 整批同一組（同一班同一個價目表是常態）。
+   *
+   * API 從一開始就吃這三個欄位，理由寫在 `routes/enrollments.ts`：
+   * 「批次招生一次幾十筆，事後逐筆補計費設定是純粹的重工」。
+   * 但這裡的型別漏了，於是呼叫端也就沒人送 —— schema 有欄位不等於有人在用。
+   *
+   * `adjustmentNote` 由 PR #184 補齊（原本單筆吃、批次不吃）——
+   * **這支的合併必須排在 #184 之後**，否則改了價的原因會被後端 strip 掉，
+   * 而畫面上使用者剛填過它。
+   */
+  billingMode?: BillingMode;
+  feeTemplateId?: string;
+  agreedAmount?: number;
+  adjustmentNote?: string;
 }
 
 export interface BatchCreateResult {
