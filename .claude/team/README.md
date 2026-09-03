@@ -105,3 +105,17 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
   必含自己的 worktree 路徑 —— 裸 `pkill -f "workerd serve"` 會殺掉所有席的 API
   (已發生:teacher-pages 誤殺 bundle-analysis 的 8787)。「不 kill 別人的 port」的
   原則同樣適用於 pattern 匹配的入口。
+
+## 交付送達協定(2026-09-03,兩次沉默失敗後制定)
+
+訊息的病:寫在自己 pane 上的字**別人看不到**;打進輸入框沒按 Enter 的字**誰都看不到**。
+「我覺得我送了」不算送了 —— msg_id 才算。
+
+1. **交付/請示的最後一個動作必須是 SendMessage 工具呼叫**,並確認回傳 `success:true`
+   ＋ msg_id;把 msg_id 寫進自己回合的收尾文字(自證:沒有 msg_id = 沒送)。
+2. **15 分鐘無回音 → 重送一次**(訊息開頭標 `RESEND`);再 15 分鐘 → 改用
+   `herdr agent prompt` 直接敲計畫席 pane(第二通道)。
+3. **等待回覆期間不許沉默 idle**:回合收尾明寫一行
+   `WAITING-ON: 計畫席 <等什麼> since <HH:MM> msg_id=<id>`。
+4. **計畫席巡檢對帳**:每輪 tick 對 idle/done 的席讀 pane 尾部,見 WAITING-ON 或
+   「等你/等批准」字樣就跟自己的收件記錄對帳 —— 對不上即為送達失敗,主動補救。
