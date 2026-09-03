@@ -32,7 +32,8 @@ if ! out=$(node tools/agent-harness/check-harness.mjs 2>&1); then
 $out"
 fi
 
-# nx.json defaultBase is `dev`, which does not exist in this repo — pass --base explicitly.
+# --base is passed explicitly even though nx.json's defaultBase is now `main`: a gate should not
+# change behaviour because someone edits nx.json. Belt and braces, not a workaround.
 #
 # typecheck 必須跟 test 分開跑：它的輸出沒有 vitest 的 `FAIL <spec>` 行，若混進同一條管線交給
 # test-gate 判定，基線比對會找不到任何失敗的 spec，於是把型別錯誤當成「沒事」放行。

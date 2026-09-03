@@ -12,7 +12,6 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { ButtonModule } from 'primeng/button';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
@@ -58,7 +57,6 @@ interface SummaryStats {
   standalone: true,
   imports: [
     StatusDotComponent,
-    ButtonModule,
     ToastModule,
     ConfirmDialogModule,
     PageBreadcrumbComponent,

@@ -17,6 +17,8 @@
 | [design-web.md](design-web.md)   | 視覺/設計系統/web 效能 | tokens、SCSS、bundle、mockup、登入與公開頁       | `design-web`  |
 | （共用 design-web.md）           | 視覺/設計系統/web 效能 | design-web 的第二席，同 charter，分工由計畫席派  | `design-web-2` |
 | [admin-pages.md](admin-pages.md) | 管理端頁面             | admin feature 頁、dialog、表格、儀表板           | `admin-pages` |
+| [review-steward.md](review-steward.md) | 審核/合併/部署機械工(可 idle) | CI 巡檢、v2 代合、部署、內容驗證 | `review-steward` |
+| [ops-warden.md](ops-warden.md) | 席位巡檢監工(可 idle) | 存活檢查、通訊救援、帳面抽查 | `ops-warden` |
 | [teacher-pages.md](teacher-pages.md) | 老師端頁面（行動優先） | teacher feature 頁、手機課表、點名、成績登錄    | `teacher-pages` |
 | [infra.md](infra.md)             | CI/harness/依賴/工具債 | verify 序列、gate、憲法 enforcement、升版        | `infra`       |
 
@@ -70,8 +72,8 @@ worktree 裡開新分支**一律** `git fetch -p origin && git checkout -b feat/
 
 ## 零 idle 制(2026-09-03)
 
-席位不等餵:交付後 **15 分鐘內無新工單或回覆 → 從 [backlog.md](backlog.md) 自己席的
-佇列頂端認領下一項**(檔內標認領、commit push、通知計畫席、直接開工)。佇列裡的項目
+席位不等餵:**交付即繼續**:送出交付訊息後不等待,直接從 [backlog.md](backlog.md) 自己席的
+佇列頂端認領下一項開工;回覆到了再切回處理(15 分鐘規則只留給「追訊息」用)(檔內標認領、commit push、通知計畫席、直接開工)。佇列裡的項目
 都是計畫席預先批准的;設計類產出照舊過 STOP gate。idle 的定義是「沒有在推進任何事」,
 等待回覆時要嘛並行做佇列項,要嘛照送達協定追訊息 —— 兩者都不做才叫 idle。
 
@@ -126,3 +128,5 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
    `WAITING-ON: 計畫席 <等什麼> since <HH:MM> msg_id=<id>`。
 4. **計畫席巡檢對帳**:每輪 tick 對 idle/done 的席讀 pane 尾部,見 WAITING-ON 或
    「等你/等批准」字樣就跟自己的收件記錄對帳 —— 對不上即為送達失敗,主動補救。
+- **解 `backlog.md` 衝突一律以 main 為基底、只改自己那一行**,解完 diff 對照確認沒動到
+  別席的認領(「取我方」曾抹掉別席的認領記錄)。

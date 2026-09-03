@@ -29,7 +29,6 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { PopoverModule } from 'primeng/popover';
 import { DrawerModule } from 'primeng/drawer';
 import type { Popover } from 'primeng/popover';
-import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { PaginatorModule } from 'primeng/paginator';
 
@@ -87,7 +86,6 @@ interface CourseGroup {
     PopoverModule,
     DrawerModule,
     PaginatorModule,
-    TagModule,
     TooltipModule,
     RouterModule,
     EmptyStateComponent,

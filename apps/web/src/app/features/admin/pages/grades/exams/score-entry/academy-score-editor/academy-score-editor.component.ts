@@ -16,9 +16,9 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
-import { ButtonModule } from 'primeng/button';
 import { DrawerModule } from 'primeng/drawer';
 import { MessageService } from 'primeng/api';
+import { focusScoreRow, scoreKeyStep } from '../score-keyboard.util';
 
 import {
   AcademyExamsService,
@@ -59,7 +59,6 @@ const STATUS_OPTIONS: Array<{ label: string; value: AcademyScoreStatus }> = [
     InputNumberModule,
     InputTextModule,
     SelectModule,
-    ButtonModule,
     DrawerModule,
   ],
   templateUrl: './academy-score-editor.component.html',
@@ -188,31 +187,16 @@ export class AcademyScoreEditorComponent implements OnInit {
    * 20 人的班就是 60 次。現在 1 次。
    */
   protected onScoreKeydown(event: KeyboardEvent, index: number): void {
-    const step = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' || event.key === 'Enter' ? 1 : 0;
+    const step = scoreKeyStep(event);
     if (step === 0) return;
     // 一定要 preventDefault：不擋的話 PrimeNG 會在我們換完焦點之後**還是**改掉原本那格
     event.preventDefault();
-    this.focusScoreFrom(index + step, step);
-  }
-
-  /**
-   * 從 `start` 往 `step` 的方向找第一個可輸入的分數欄。
-   * **會跳過 disabled 的格子**（缺考的學生分數欄是鎖住的）—— 不跳過的話
-   * `focus()` 在 disabled 元素上是無效操作，游標會卡在原地，看起來像鍵盤壞了。
-   */
-  private focusScoreFrom(start: number, step: number): void {
-    const total = this.filteredRows().length;
-    for (let i = start; i >= 0 && i < total; i += step) {
-      const field = (this.host.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
-        `[data-score-row="${i}"] input`,
-      );
-      if (field && !field.disabled) {
-        field.focus();
-        field.select();
-        return;
-      }
-    }
-    // 走到頭就留在原地 —— 不要回捲，那會讓人以為自己按錯了
+    focusScoreRow(
+      this.host.nativeElement as HTMLElement,
+      index + step,
+      step,
+      this.filteredRows().length,
+    );
   }
 
   protected onStatusChange(row: ScoreRow, value: AcademyScoreStatus): void {

@@ -5,7 +5,6 @@ import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
-import { TagModule } from 'primeng/tag';
 import { SkeletonModule } from 'primeng/skeleton';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
@@ -29,7 +28,6 @@ import { personHue } from '@shared/utils/person-hue.util';
     ButtonModule,
     InputTextModule,
     SelectModule,
-    TagModule,
     SkeletonModule,
     IconFieldModule,
     InputIconModule,

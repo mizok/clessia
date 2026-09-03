@@ -38,10 +38,11 @@
           </tr>
         </thead>
         <tbody>
-          @for (row of rows(); track row.subjectId) {
+          @for (row of rows(); track row.subjectId; let i = $index) {
             <tr
               class="score-edit-dialog__tr"
               [class.score-edit-dialog__tr--dirty]="isRowDirty(row)"
+              [attr.data-score-row]="i"
             >
               <td class="score-edit-dialog__cell score-edit-dialog__cell--subject">
                 {{ row.subjectName }}
@@ -50,6 +51,7 @@
                 <p-inputnumber
                   [ngModel]="row.score"
                   (ngModelChange)="onScoreChange(row, $event)"
+                  (keydown)="onScoreKeydown($event, i)"
                   [min]="0"
                   [max]="100"
                   [disabled]="!!data?.disabled || isAbsent(row)"
