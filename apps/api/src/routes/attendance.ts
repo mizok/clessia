@@ -6,6 +6,7 @@ import { isSubstituteSession } from '../lib/session-substitute';
 import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
 import { resolveRecordedByRole } from '../lib/recorded-by-role';
 import { leaveCoversSession } from '../lib/leave-covers-session';
+import { cancelLeaveForDate } from '../lib/cancel-leave-for-date';
 import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
@@ -1286,6 +1287,182 @@ app.openapi(
       },
       200,
     );
+  },
+);
+
+// POST /api/attendance/roster/:eventId/cancel-leave
+//
+// **銷假：請假的學生今天出現了。**
+//
+// 業務決定（2026-09-03 使用者定案）：**銷假就是刪掉請假單，不留痕作廢** ——
+// 沒有「已取消」狀態。稽核紀錄是我們的底線，被刪掉的內容進 audit log 的 details，
+// 那不算「留痕作廢」（使用者看不到，是我們查事情用的）。
+//
+// **放在 /api/attendance 底下而不是 /api/leaves**：後者掛 ADMIN_ONLY，而且那支
+// DELETE 帶著 `mode=truncate|full` 的語意 —— 老師站在點名 dialog 前面不該去理解它。
+// 用 eventId 進來，班級（範圍檢查）、日期、學生一次到齊。
+const CancelLeaveResponseSchema = z
+  .object({
+    /** 整張刪掉的請假單數 */
+    leavesDeleted: z.number().int().nonnegative(),
+    /** 縮短範圍（而不是刪掉）的請假單數 —— 跨日的假只拿掉這一天 */
+    leavesTruncated: z.number().int().nonnegative(),
+    /** 一併清掉的 on_leave 出勤紀錄數 */
+    attendanceRecordsRemoved: z.number().int().nonnegative(),
+    /**
+     * 今天卡在請假區間中間時，後段被連坐取消到哪一天。
+     * **前端要把這件事告訴老師**（「後續日期的請假也一併取消，如需請假請重新申請」）——
+     * 這是「截斷而不是切成兩張」這個選擇的代價，不能默默吃掉。
+     */
+    droppedAfter: z.string().nullable(),
+  })
+  .openapi('CancelLeaveResponse');
+
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/roster/{eventId}/cancel-leave',
+    tags: ['Attendance'],
+    summary: '銷假（請假的學生今天出現了）',
+    request: {
+      params: z.object({ eventId: z.string() }),
+      body: { content: { 'application/json': { schema: z.object({ studentId: z.string() }) } } },
+    },
+    responses: {
+      200: {
+        description: '已銷假',
+        content: { 'application/json': { schema: CancelLeaveResponseSchema } },
+      },
+      403: { description: '無權限' },
+      404: { description: '找不到課堂，或這個學生當天沒有假' },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const { eventId } = c.req.valid('param');
+    const { studentId } = c.req.valid('json');
+
+    // 範圍：跟點名同一條規則（含代課 —— 代課老師當天就是要點那堂課的名）
+    const allowed = await assertTeacherCanWriteAttendance(supabase, {
+      orgId,
+      userId: c.get('userId'),
+      roles: c.get('roles') ?? [],
+      eventId,
+    });
+    if (!allowed) return c.json({ error: '無權限操作此課堂' }, 403);
+
+    const { data: ev } = await supabase
+      .from('events')
+      .select('id, event_date')
+      .eq('id', eventId)
+      .eq('org_id', orgId)
+      .single();
+
+    if (!ev) return c.json({ error: '找不到課堂' }, 404);
+
+    const eventDate = (ev as { event_date: string }).event_date;
+
+    // 老師只能銷「今天」的假 —— 銷假的依據是「他人就在我面前」，那只有當天成立。
+    // 管理員不受限（他在處理事後的更正）。
+    const isAdmin = (c.get('roles') ?? []).includes('admin');
+    if (!isAdmin && eventDate !== getCurrentTaipeiDateString()) {
+      return c.json({ error: '只能銷當天的假' }, 403);
+    }
+
+    const { data: leaves } = await supabase
+      .from('leave_requests')
+      .select('id, start_date, end_date, start_time, end_time, reason, submitted_by_role')
+      .eq('org_id', orgId)
+      .eq('student_id', studentId)
+      .lte('start_date', eventDate)
+      .gte('end_date', eventDate);
+
+    const leaveRows = (leaves ?? []) as Array<Record<string, unknown>>;
+    if (leaveRows.length === 0) {
+      return c.json({ error: '這個學生當天沒有請假' }, 404);
+    }
+
+    let leavesDeleted = 0;
+    let leavesTruncated = 0;
+    let droppedAfter: string | null = null;
+
+    for (const row of leaveRows) {
+      const action = cancelLeaveForDate(
+        { startDate: row['start_date'] as string, endDate: row['end_date'] as string },
+        eventDate,
+      );
+
+      if (action.kind === 'delete') {
+        await supabase
+          .from('leave_requests')
+          .delete()
+          .eq('id', row['id'] as string);
+        leavesDeleted += 1;
+      } else if (action.kind === 'shrink') {
+        await supabase
+          .from('leave_requests')
+          .update({ start_date: action.startDate, end_date: action.endDate })
+          .eq('id', row['id'] as string);
+        leavesTruncated += 1;
+        if (action.droppedAfter) droppedAfter = action.droppedAfter;
+      }
+    }
+
+    // **當天所有課堂的 on_leave 紀錄一起清掉，而且是刪除不是改成 absent。**
+    //
+    // 刪除：老師銷假是因為學生就站在他面前，寫 absent 等於系統替他寫一個相反的謊。
+    // 「回到可標記狀態」的意思就是**沒有紀錄**（沒有紀錄 ≠ 缺席）。
+    //
+    // 當天全部：假已經不蓋到今天了，其他課堂還留著 on_leave 會變成
+    // 「有紀錄說請假、但沒有假」的矛盾態。
+    const { data: dayEvents } = await supabase
+      .from('events')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('event_date', eventDate);
+
+    const dayEventIds = ((dayEvents ?? []) as Array<{ id: string }>).map((row) => row.id);
+
+    let attendanceRecordsRemoved = 0;
+    if (dayEventIds.length > 0) {
+      const { data: removed } = await supabase
+        .from('attendance_records')
+        .delete()
+        .eq('org_id', orgId)
+        .eq('student_id', studentId)
+        .eq('status', 'on_leave')
+        .in('event_id', dayEventIds)
+        .select('id');
+
+      attendanceRecordsRemoved = ((removed ?? []) as unknown[]).length;
+    }
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId: c.get('userId'),
+        resourceType: 'leave',
+        resourceId: eventId,
+        resourceName: null,
+        action: 'cancel_leave',
+        details: {
+          studentId,
+          eventDate,
+          leavesDeleted,
+          leavesTruncated,
+          droppedAfter,
+          attendanceRecordsRemoved,
+          // **被刪掉的內容留在這裡。** 使用者選了「不留痕作廢」，但稽核是我們的底線 ——
+          // 沒有這一段，事後沒有任何辦法知道那張假原本是什麼。
+          removedLeaves: leaveRows,
+        },
+      },
+      c.executionCtx.waitUntil.bind(c.executionCtx),
+    );
+
+    return c.json({ leavesDeleted, leavesTruncated, attendanceRecordsRemoved, droppedAfter }, 200);
   },
 );
 
