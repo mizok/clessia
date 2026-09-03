@@ -1444,3 +1444,169 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
     expect(payload.students[0]?.hasLeaveRequest).toBe(false);
   });
 });
+
+/**
+ * 銷假端點的接線。
+ *
+ * 純函式（`cancel-leave-for-date.spec.ts`）守的是「哪一天要怎麼縮」，
+ * 這裡守的是**它有沒有被正確地接上**：授權、只銷當天、以及
+ * **on_leave 紀錄是被刪掉而不是改成 absent**（後者是「系統替老師寫一個相反的謊」，
+ * 而純函式完全看不到這件事）。
+ */
+describe('POST /api/attendance/roster/{eventId}/cancel-leave', () => {
+  function createCancelApp(options: {
+    roles: string[];
+    eventDate: string;
+    leaves: Array<Record<string, unknown>>;
+    ownStaffId?: string | null;
+  }) {
+    const calls: Array<{ table: string; op: string; payload?: unknown }> = [];
+
+    const supabase = {
+      from(table: string) {
+        const query: Record<string, unknown> = {
+          select: () => query,
+          eq: () => query,
+          in: () => query,
+          lte: () => query,
+          gte: () => query,
+          maybeSingle: () =>
+            Promise.resolve({ data: options.ownStaffId ? { id: options.ownStaffId } : null }),
+          single: () =>
+            Promise.resolve({
+              data: { id: 'event-1', event_date: options.eventDate },
+              error: null,
+            }),
+          update: (payload: unknown) => {
+            calls.push({ table, op: 'update', payload });
+            return query;
+          },
+          delete: () => {
+            calls.push({ table, op: 'delete' });
+            return query;
+          },
+          insert: () => Promise.resolve({ error: null }),
+          then: (onfulfilled?: ((value: { data: unknown[]; error: null }) => unknown) | null) => {
+            const data =
+              table === 'leave_requests'
+                ? options.leaves
+                : table === 'events'
+                  ? [{ id: 'event-1' }]
+                  : table === 'sessions'
+                    ? [{ teacher_id: options.ownStaffId ?? null, schedules: null }]
+                    : table === 'attendance_records'
+                      ? [{ id: 'rec-1' }]
+                      : [];
+            return Promise.resolve({ data, error: null }).then(onfulfilled ?? undefined);
+          },
+        };
+        return query;
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      context.set('roles', options.roles);
+      await next();
+    });
+    app.route('/api/attendance', attendanceApp);
+
+    return { app, calls };
+  }
+
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+
+  async function cancel(options: Parameters<typeof createCancelApp>[0]) {
+    const { app, calls } = createCancelApp(options);
+    const response = await app.request(
+      '/api/attendance/roster/event-1/cancel-leave',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ studentId: 'stu-1' }),
+      },
+      undefined,
+      { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
+    );
+    return { status: response.status, body: await response.json().catch(() => null), calls };
+  }
+
+  it('單日的假整張刪掉，並把 on_leave 紀錄刪除（不是改成 absent）', async () => {
+    const { status, body, calls } = await cancel({
+      roles: ['admin'],
+      eventDate: today,
+      leaves: [{ id: 'leave-1', start_date: today, end_date: today }],
+    });
+
+    expect(status).toBe(200);
+    expect(body).toMatchObject({
+      leavesDeleted: 1,
+      leavesTruncated: 0,
+      attendanceRecordsRemoved: 1,
+      droppedAfter: null,
+    });
+
+    // 紀錄要被**刪掉**：寫 absent 等於系統替老師寫一個相反的謊
+    expect(calls).toContainEqual({ table: 'attendance_records', op: 'delete' });
+    expect(
+      calls.filter((call) => call.table === 'attendance_records' && call.op === 'update'),
+    ).toHaveLength(0);
+  });
+
+  it('今天卡在跨日假的中間 —— 截到昨天並回報被連坐的後段', async () => {
+    const { body, calls } = await cancel({
+      roles: ['admin'],
+      eventDate: '2026-04-06',
+      leaves: [{ id: 'leave-1', start_date: '2026-04-04', end_date: '2026-04-08' }],
+    });
+
+    expect(body).toMatchObject({
+      leavesDeleted: 0,
+      leavesTruncated: 1,
+      droppedAfter: '2026-04-08',
+    });
+    expect(calls).toContainEqual({
+      table: 'leave_requests',
+      op: 'update',
+      payload: { start_date: '2026-04-04', end_date: '2026-04-05' },
+    });
+  });
+
+  it('沒有假可以銷 → 404，不會去動任何紀錄', async () => {
+    const { status, calls } = await cancel({
+      roles: ['admin'],
+      eventDate: today,
+      leaves: [],
+    });
+
+    expect(status).toBe(404);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('老師不能銷別班的假', async () => {
+    const { status } = await cancel({
+      roles: ['teacher'],
+      eventDate: today,
+      leaves: [{ id: 'leave-1', start_date: today, end_date: today }],
+      // 這堂課的老師是別人（sessions 回的 teacher_id 是 null）
+      ownStaffId: null,
+    });
+
+    expect(status).toBe(403);
+  });
+
+  it('老師不能銷別天的假 —— 依據是「他人就在我面前」', async () => {
+    const { status } = await cancel({
+      roles: ['teacher'],
+      eventDate: '2026-04-06',
+      leaves: [{ id: 'leave-1', start_date: '2026-04-06', end_date: '2026-04-06' }],
+      ownStaffId: 'staff-1',
+    });
+
+    expect(status).toBe(403);
+  });
+});
