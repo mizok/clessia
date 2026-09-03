@@ -111,9 +111,8 @@ gate 隨即變成全面覆蓋。清到一半也會被逼著更新帳面，帳本
 
 - **c8（A14）**：`jdenticon-avatar.component.ts` 3 筆、`shell-layout.component.ts` 1 筆
   —— 屬 design-web 席
-- **c2（A15）**：`routes/parents.ts` 2 筆、`routes/staff.ts` 1 筆 —— **全部是 `phone`**，
-  而 `phone` 是宣告過的 additionalField（`input: true`），走得通，是真的債。
-  屬 billing-api 席。（`routes/me.ts` 的 2 筆已於 2026-09-03 轉為永久豁免，見下。）
+- **c2（A15）**：**真債 0 筆**（2026-09-03 兩輪驗證後）。剩下的 5 筆全部是永久豁免，
+  每一筆都驗證過「沒有合規路徑」而不是「還沒排到」—— 見下方兩節。
 
 ### 債與永久豁免要分開記
 
@@ -174,6 +173,33 @@ orgId: { type: 'string', required: false, input: false }
 
 > 哪天真的有了寄信管道，這一筆要重新評估 —— 那時 `changeEmail` 的第一或第二個前置
 > 就成立了。
+
+### c2 的 `parents.ts` / `staff.ts` 永久豁免（2026-09-03 第二輪）
+
+這三筆（`parents.ts` 的 email 與 phone、`staff.ts` 的 phone）全部是「**管理員改別人的資料**」。
+兩條合規路徑都走不通：
+
+| 路徑                                       | 為什麼不行                                                                                                                                                                                                                                                                       |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.api.updateUser`                      | 掛 `sessionMiddleware`，要的是**被改的那個人**的 session —— 管理員手上只有自己的                                                                                                                                                                                                 |
+| admin plugin 的 `auth.api.adminUpdateUser` | 權限看的是 **`ba_user.role`**（`has-permission.mjs`：`role: ctx.context.session.user.role`，要求 `user: ['update']`），而**這個專案每一個 `ba_user.role` 都是 `'user'`** —— 管理員身分住在我們自己的 `user_roles` 表。每一次呼叫都會是 403 `YOU_ARE_NOT_ALLOWED_TO_UPDATE_USERS` |
+
+**要讓 `adminUpdateUser` 通過只有兩條路，兩條都比直寫糟：**
+
+1. 把管理員寫進 `ba_user.role` —— **那本身就是 c2 寫入**，而且會一併授予 Better Auth 的
+   impersonate / ban / setRole 能力。為了守一條規則而開一個更大的權限面，不划算。
+2. 在設定裡寫死 `adminUserIds` 清單 —— 把「誰是管理員」複製到設定檔，
+   而它在 `user_roles` 是**執行期會變的**。兩份真相遲早不一致。
+
+### 唯一走得通的是「本人改自己」
+
+`me.ts` 的 `phone` 已改走 `auth.api.updateUser`（session headers 拿得到，
+`phone` 是宣告過的 additionalField 且 `input: true`）。
+
+> **這條分界值得記住：Better Auth 的使用者更新 API 是給「本人」用的。**
+> 「管理員代改」在它的模型裡屬於 admin plugin，而 admin plugin 要求角色真相住在
+> `ba_user.role` —— 那跟這個專案「角色住在 `user_roles`、一人可多角色、
+> 權限存 jsonb」的設計是兩套東西。
 
 #### 這次驗證留下的通則
 
