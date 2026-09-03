@@ -1,0 +1,82 @@
+<div class="uninvoiced">
+  <div class="uninvoiced__header">
+    <div>
+      <div class="uninvoiced__title">待開帳的報名</div>
+      <div class="uninvoiced__subtitle">已經生效、但還沒開過任何帳單</div>
+    </div>
+    <p-button icon="pi pi-times" [text]="true" severity="secondary" (onClick)="close()" />
+  </div>
+
+  @if (loading()) {
+    <div class="uninvoiced__center"><p-progressSpinner strokeWidth="4" /></div>
+  } @else if (failed()) {
+    <app-inline-notice
+      severity="error"
+      detail="待開帳清單載入失敗，請稍後再試。"
+      [dismissible]="false"
+    />
+  } @else if (rows().length === 0) {
+    <p class="uninvoiced__center">每一筆生效中的報名都開過帳了。</p>
+  } @else {
+    @if (needsBillingCount() > 0) {
+      <!-- 指出來就好 —— 計費設定在班級名單那邊，這裡不做那件事 -->
+      <app-inline-notice
+        severity="info"
+        [detail]="
+          needsBillingCount() +
+          ' 筆還沒有計費設定（沒有議定金額也沒有價目表），要先回班級名單設定才開得了帳。'
+        "
+        [dismissible]="false"
+      />
+    }
+
+    <div class="uninvoiced__list">
+      @for (row of rows(); track row.id) {
+        <div class="uninvoiced__row" [class.uninvoiced__row--done]="isIssued(row)">
+          <span class="uninvoiced__who">
+            <span class="uninvoiced__name">{{ row.studentName }}</span>
+            <span class="uninvoiced__meta">{{ row.className }} · {{ row.effectiveFrom }}</span>
+          </span>
+
+          <span class="uninvoiced__amount">
+            @if (amountOf(row) !== null) {
+              ${{ amountOf(row) | number }}
+            } @else {
+              <span class="uninvoiced__no-amount">未設定計費</span>
+            }
+          </span>
+
+          @if (isIssued(row)) {
+            <span class="uninvoiced__done-mark">已開帳</span>
+          } @else if (amountOf(row) !== null) {
+            <p-button
+              [label]="isFailed(row) ? '重試' : '開帳'"
+              size="small"
+              [text]="true"
+              [disabled]="issuing()"
+              (onClick)="issueOne(row)"
+            />
+          }
+        </div>
+      }
+    </div>
+
+    <div class="uninvoiced__footer">
+      <span class="uninvoiced__count">
+        共 {{ total() }} 筆待開帳
+        @if (issuedIds().size > 0) {
+          · 這次開了 {{ issuedIds().size }} 張
+        }
+      </span>
+      <p-button label="關閉" [text]="true" severity="secondary" (onClick)="close()" />
+      @if (issuableRows().length > 0) {
+        <p-button
+          [label]="'全部開帳（' + issuableRows().length + '）'"
+          icon="pi pi-file-edit"
+          [loading]="issuing()"
+          (onClick)="issueAll()"
+        />
+      }
+    </div>
+  }
+</div>

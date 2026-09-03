@@ -18,6 +18,7 @@ import {
   type InvoiceStatus,
 } from '@core/invoices.service';
 import { StudentsService, type Student } from '@core/students.service';
+import { EnrollmentsService } from '@core/enrollments.service';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
@@ -32,6 +33,7 @@ import type {
 
 import { InvoiceDetailDialogComponent } from './invoice-detail-dialog/invoice-detail-dialog.component';
 import { InvoiceFormDialogComponent } from './invoice-form-dialog/invoice-form-dialog.component';
+import { UninvoicedDialogComponent } from './uninvoiced-dialog/uninvoiced-dialog.component';
 import { isOverdue, outstanding } from './payments.util';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import {
@@ -80,6 +82,7 @@ export class PaymentsPage implements OnInit {
 
   private readonly service = inject(InvoicesService);
   private readonly studentsService = inject(StudentsService);
+  private readonly enrollmentsService = inject(EnrollmentsService);
   private readonly messageService = inject(MessageService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
@@ -98,6 +101,18 @@ export class PaymentsPage implements OnInit {
   protected readonly statusFilter = signal<InvoiceStatus | null>(null);
 
   protected readonly today = format(new Date(), 'yyyy-MM-dd');
+
+  /**
+   * 已經生效、但從來沒開過帳單的報名數。
+   *
+   * **這是 B3「決定 4」（報名與帳單不同事務）的可見性那一半** —— 開帳失敗時報名保留，
+   * 而那個決定成立的前提是殘留看得見。沒有這個數字，「報名在、帳單不在」
+   * 就只是一個沒人查得到的狀態。
+   *
+   * 取的是 `meta.total`（篩後全體）不是 `data.length`（當頁）—— charter 坑 #4。
+   * 載入失敗就當 0，**不擋主列表**：它是提醒不是前提。
+   */
+  protected readonly uninvoicedCount = signal(0);
 
   protected readonly statusOptions = [
     { value: null, label: '全部狀態' },
@@ -124,6 +139,36 @@ export class PaymentsPage implements OnInit {
 
   ngOnInit(): void {
     this.load();
+    this.loadUninvoicedCount();
+  }
+
+  private loadUninvoicedCount(): void {
+    this.enrollmentsService.list({ hasInvoice: false, status: 'active', pageSize: 1 }).subscribe({
+      next: (res) => this.uninvoicedCount.set(res.meta.total),
+      error: () => this.uninvoicedCount.set(0),
+    });
+  }
+
+  protected openUninvoiced(): void {
+    const ref = this.dialogService.open(UninvoicedDialogComponent, {
+      header: '待開帳的報名',
+      width: '640px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+    });
+
+    ref?.onClose.subscribe((result: { issued: number } | undefined) => {
+      if (!result) return;
+      // 開了帳單 → 帳單列表與待開帳數字都變了
+      this.load();
+      this.loadUninvoicedCount();
+      this.messageService.add({
+        severity: 'success',
+        summary: '已開帳',
+        detail: `開了 ${result.issued} 張帳單`,
+      });
+    });
   }
 
   private get overlayContainer(): HTMLElement | null {
