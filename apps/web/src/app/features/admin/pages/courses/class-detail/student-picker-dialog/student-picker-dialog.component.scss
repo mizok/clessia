@@ -338,6 +338,15 @@
     background: var(--zinc-50);
   }
 
+  // 結果摘要：一列講完這批發生了什麼，逐筆細節在下面的清單裡
+  &__result-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--zinc-600);
+  }
+
   &__issue {
     // 整個 label 都是點擊區（不只那顆 checkbox），所以它要有觸控下限。
     // 實際高度早就超過 44px（checkbox + 標題 + 副標），這行是把它**講出來** ——
