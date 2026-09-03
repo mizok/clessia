@@ -128,8 +128,12 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
 5. **`nx test web --filter=...` 會騙人。** 它是 vitest 的 regex 且比對的不是檔案路徑；
    我試過的寫法讓 0 個測試跑到，卻印 `Successfully ran`。**全部 skip 也是綠的。**
    要嘛跑全套，要嘛核對測試數有沒有增加
-6. **web 沒有 `typecheck` target。** `nx affected -t typecheck` 對 web 回 no tasks，
-   web 的型別是 angular compiler 在 test 階段檢查的。「affected typecheck 綠」對 web 不構成保證
+6. **模板型別錯誤在 `typecheck` 那步就會紅**（#211 起，2026-09-03 訂正 —— 這條原本寫
+   「web 沒有 typecheck target」）。web 的 typecheck 跑的是 `ngc -p tsconfig.app.json
+--noEmit` 而**不是 `tsc`**：後者看不到模板，`{{ 不存在的屬性 }}` 它一個都不報。
+   **Stop hook 跑 `nx affected -t typecheck`，所以本機收工就會擋** —— 以前要 push 才紅。
+   `build web` 仍然不能跳，但它守的是別的東西：bundle budgets、fileReplacements、
+   以及實際打包得起來。
 7. **生成檔在分支上不要重生，撞到了才重生、絕不手併。** `roadmap.md` 的 `FEATURE-MAP`
    在分支上過期只是**提醒不紅燈**（PR #70 起），main 的 verify workflow 會自動重生 ——
    harness 自己會叫你別跑，照它說的做。真的撞了才 `harness:write`（自帶 prettier）；
@@ -332,6 +336,8 @@ root 與 `apps/api` 都 `npm ci` 過。
 
 收工前照 `.github/workflows/verify.yml` 的序列在本機重放：`harness` → `harness:test` →
 `nx run-many -t typecheck` → `nx run-many -t test` → **`nx build web --configuration=production`**。
-最後那步是**唯一會編譯 Angular 模板的一步**（坑 #6），不要跳。
+
+**模板錯誤現在在 `typecheck` 那步就爆**（坑 #6，2026-09-03 起），不用等跑到最後 ——
+回饋快得多。最後那步仍然不要跳，但它守的是 bundle budgets 與實際打包得起來。
 
 開工前重新看一次 roadmap 第 0 節現況表 —— 它是自動生成的，比這份 charter 新。
