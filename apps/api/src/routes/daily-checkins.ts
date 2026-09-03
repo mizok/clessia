@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { enrolledEventIds } from '../lib/enrolled-events';
 import { assertAttendanceWindow } from '../lib/attendance-window-check';
@@ -257,7 +258,7 @@ app.openapi(
           outOfWindowByAdmin: window.outOfWindowByAdmin,
         },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ attendanceRecordsRemoved }, 200);

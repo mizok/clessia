@@ -3,6 +3,7 @@ import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { deriveInvoiceStatus, invoiceTotals } from '../lib/invoice-status';
 import { sliceDerivedPage } from '../lib/derived-page';
+import { waitUntilFrom } from '../lib/wait-until';
 
 /**
  * 帳單、明細、收款、催繳。
@@ -372,7 +373,7 @@ app.openapi(
     logAudit(
       supabase,
       { orgId, userId, resourceType: 'invoice', resourceId: invoiceId, action: 'create' },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: toInvoiceResponse(data as unknown as Record<string, unknown>) }, 201);
@@ -451,7 +452,7 @@ app.openapi(
     logAudit(
       supabase,
       { orgId, userId, resourceType: 'invoice', resourceId: id, action: 'add_item' },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: toInvoiceResponse(data as unknown as Record<string, unknown>) }, 201);
@@ -497,7 +498,7 @@ app.openapi(
     logAudit(
       supabase,
       { orgId, userId, resourceType: 'invoice', resourceId: id, action: 'remove_item' },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: toInvoiceResponse(data as unknown as Record<string, unknown>) }, 200);
@@ -588,7 +589,7 @@ app.openapi(
         resourceId: id,
         action: body.kind === 'refund' ? 'refund' : 'payment',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: toInvoiceResponse(data as unknown as Record<string, unknown>) }, 201);

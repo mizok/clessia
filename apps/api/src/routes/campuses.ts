@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { applyCampusFilter } from '../lib/campus-scope';
@@ -335,7 +336,7 @@ app.openapi(createCampusRoute, async (c) => {
       resourceName: data.name as string,
       action: 'create',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ data: mapCampus(data as Record<string, unknown>) }, 201);
@@ -413,7 +414,7 @@ app.openapi(updateRoute, async (c) => {
       resourceName: data.name as string,
       action: 'update',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ data: mapCampus(data as Record<string, unknown>) }, 200);
@@ -493,7 +494,7 @@ app.openapi(deleteRoute, async (c) => {
       resourceName: existing?.name ?? null,
       action: 'delete',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);

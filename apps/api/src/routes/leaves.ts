@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
@@ -410,7 +411,7 @@ app.openapi(
             action: 'sync_leave_to_attendance',
             details: buildLeaveAttendanceAuditDetails(attendanceUpserts.length),
           },
-          c.executionCtx.waitUntil.bind(c.executionCtx),
+          waitUntilFrom(c),
         );
       }
     }
@@ -440,7 +441,7 @@ app.openapi(
           reason: body.reason ?? null,
         },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json(toLeaveResponse(row), 201);
@@ -551,7 +552,7 @@ app.openapi(
           action: 'truncate_leave',
           details: { truncatedFrom: today, truncatedTo: yesterday },
         },
-        c.executionCtx.waitUntil.bind(c.executionCtx),
+        waitUntilFrom(c),
       );
 
       if (revertedCount > 0) {
@@ -570,7 +571,7 @@ app.openapi(
             action: 'revert_leave_attendance',
             details: buildLeaveAttendanceAuditDetails(revertedCount),
           },
-          c.executionCtx.waitUntil.bind(c.executionCtx),
+          waitUntilFrom(c),
         );
       }
 
@@ -595,7 +596,7 @@ app.openapi(
         }),
         action: 'delete',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     if (revertedCount > 0) {
@@ -614,7 +615,7 @@ app.openapi(
           action: 'revert_leave_attendance',
           details: buildLeaveAttendanceAuditDetails(revertedCount),
         },
-        c.executionCtx.waitUntil.bind(c.executionCtx),
+        waitUntilFrom(c),
       );
     }
 

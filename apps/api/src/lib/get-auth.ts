@@ -2,6 +2,7 @@ import { createMiddleware } from 'hono/factory';
 import type { Context } from 'hono';
 
 import { createAuth, type Auth } from '../auth';
+import { waitUntilFrom } from './wait-until';
 import type { AppEnv } from '../index';
 
 /**
@@ -44,10 +45,7 @@ export const authPoolCleanup = createMiddleware<AppEnv>(async (c, next) => {
   const closing = auth.pool.end().catch(() => undefined);
 
   // `c.executionCtx` 在沒有 ExecutionContext 時會丟例外（測試的 app.request()、
-  // 部分本機情境）。那些環境沒有 isolate 凍結的問題，關掉就夠了，不必也不能 waitUntil。
-  try {
-    c.executionCtx.waitUntil(closing);
-  } catch {
-    // 沒有 executionCtx —— 上面那行 end() 已經開始跑了，這裡什麼都不用做。
-  }
+  // 部分本機情境）。那些環境沒有 isolate 凍結的問題，`end()` 上面已經開始跑了，
+  // 不必也不能 waitUntil。這一支原本是全 repo 唯一處理對的地方，現在收斂成共用的。
+  waitUntilFrom(c)?.(closing);
 });

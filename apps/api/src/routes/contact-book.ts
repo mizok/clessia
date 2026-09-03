@@ -10,6 +10,7 @@ import {
   type SessionOnDate,
 } from '../lib/contact-book-missing';
 import { logAudit } from '../utils/audit';
+import { waitUntilFrom } from '../lib/wait-until';
 
 /**
  * 個人聯絡簿（國小模式）：學生 × 日期，每生每日唯一一則自由文字。
@@ -234,7 +235,7 @@ app.openapi(
         resourceName: `${response.studentName ?? response.studentId} / ${entryDate}`,
         action: 'upsert',
       },
-      c.executionCtx?.waitUntil?.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json(response, 200);

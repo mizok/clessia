@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { formatAuditCourseResourceName, logAudit } from '../utils/audit';
 import { applyCampusFilter } from '../lib/campus-scope';
@@ -329,7 +330,7 @@ app.openapi(createCourseRoute, async (c) => {
       }),
       action: 'create',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ data: mapCourse(data as Record<string, unknown>) }, 201);
@@ -518,7 +519,7 @@ app.openapi(updateRoute, async (c) => {
         cancelledFutureSessions,
       },
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json(
@@ -612,7 +613,7 @@ app.openapi(deleteRoute, async (c) => {
       }),
       action: 'delete',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);

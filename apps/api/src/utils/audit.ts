@@ -76,7 +76,7 @@ export function formatAuditSessionResourceName(params: {
  * 確保 response 送出後 Promise 仍能繼續執行。
  *
  * 用法：
- *   logAudit(supabase, params, c.executionCtx.waitUntil.bind(c.executionCtx));
+ *   logAudit(supabase, params, waitUntilFrom(c));
  */
 export function logAudit(
   supabase: SupabaseClient,

@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
 import { canManageOrgExam } from '../lib/exam-scope';
@@ -975,7 +976,7 @@ app.openapi(createRouteDef, async (c) => {
         schoolId: body.schoolId,
       },
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ data: { id: data.id, label: data.label } }, 201);
@@ -1137,7 +1138,7 @@ app.openapi(updateRouteDef, async (c) => {
         schoolId: nextSchoolId,
       },
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true, label: nextLabel }, 200);
@@ -1229,7 +1230,7 @@ app.openapi(deleteRouteDef, async (c) => {
       resourceName: existing.label,
       action: 'school_exam.delete',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);
@@ -1484,7 +1485,7 @@ app.openapi(upsertScoresRoute, async (c) => {
         affected: payload.length,
       },
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true, affected: payload.length }, 200);
@@ -1571,7 +1572,7 @@ app.openapi(closeRoute, async (c) => {
       resourceName: existing.label,
       action: 'school_exam.close',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);
@@ -1658,7 +1659,7 @@ app.openapi(reopenRoute, async (c) => {
       resourceName: existing.label,
       action: 'school_exam.reopen',
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);

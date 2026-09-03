@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
@@ -349,7 +350,7 @@ app.openapi(
         action: 'run',
         details: { invoicesCreated, tuitionItems, mealItems, anomalies: anomalies.length },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ invoicesCreated, tuitionItems, mealItems, mealRecordsSettled, anomalies }, 200);
@@ -424,7 +425,7 @@ app.openapi(
           action: 'repair',
           details: { repaired: anomalies.length },
         },
-        c.executionCtx.waitUntil.bind(c.executionCtx),
+        waitUntilFrom(c),
       );
     }
 

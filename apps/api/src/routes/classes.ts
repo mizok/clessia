@@ -10,6 +10,7 @@ import type {
   BatchAssignPlanOutput,
   BatchAssignConflict,
 } from '../domain/session-assignment/session-assignment.types';
+import { waitUntilFrom } from '../lib/wait-until';
 import {
   normalizeTime,
   toMinutes,
@@ -786,7 +787,7 @@ app.openapi(
         action: isActive ? 'batch_activate' : 'batch_deactivate',
         details: { count: ids.length },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ updated: data?.length ?? 0 }, 200);
@@ -858,7 +859,7 @@ app.openapi(
         action: 'batch_delete',
         details: { count: toDeleteIds.length },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ deleted: toDeleteIds.length, deletedIds: toDeleteIds, skipped }, 200);
@@ -1012,7 +1013,7 @@ app.openapi(
         resourceName: classAuditResourceName(data as Record<string, unknown>),
         action: 'create',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: mapClass(data as Record<string, unknown>, {}) }, 201);
@@ -1077,7 +1078,7 @@ app.openapi(
         resourceName: classAuditResourceName(data as Record<string, unknown>),
         action: 'update',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: mapClass(data as Record<string, unknown>, {}) }, 200);
@@ -1140,7 +1141,7 @@ app.openapi(
         action: 'toggle_active',
         details: { isActive: !current.is_active },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: mapClass(data as Record<string, unknown>, {}) }, 200);
@@ -1221,7 +1222,7 @@ app.openapi(
         ),
         action: 'delete',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ success: true }, 200);
@@ -1298,7 +1299,7 @@ app.openapi(
         action: 'add_schedule',
         details: { weekday: body.weekday, startTime: body.startTime, endTime: body.endTime },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: mapSchedule(data as Record<string, unknown>) }, 201);
@@ -1402,7 +1403,7 @@ app.openapi(
         resourceName: classAuditResourceName(cls as Record<string, unknown> | null | undefined),
         action: 'delete_schedule',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ success: true }, 200);
@@ -1701,7 +1702,7 @@ app.openapi(
           }),
           details: { from, to, created: 0 },
         },
-        c.executionCtx.waitUntil.bind(c.executionCtx),
+        waitUntilFrom(c),
       );
 
       return c.json(plan.summary, 200);
@@ -1743,7 +1744,7 @@ app.openapi(
         }),
         details: { from, to, createdAssigned, createdUnassigned },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json(
@@ -2006,7 +2007,7 @@ app.openapi(
             skippedNotEligible: plan.skippedNotEligible,
           },
         },
-        c.executionCtx.waitUntil.bind(c.executionCtx),
+        waitUntilFrom(c),
       );
     }
 
@@ -2285,7 +2286,7 @@ app.openapi(
             endTime: newEndTime,
           },
         },
-        c.executionCtx.waitUntil.bind(c.executionCtx),
+        waitUntilFrom(c),
       );
     }
 
@@ -2446,7 +2447,7 @@ app.openapi(
             skipped,
           },
         },
-        c.executionCtx.waitUntil.bind(c.executionCtx),
+        waitUntilFrom(c),
       );
     }
 
@@ -2692,7 +2693,7 @@ app.openapi(
             skipped,
           },
         },
-        c.executionCtx.waitUntil.bind(c.executionCtx),
+        waitUntilFrom(c),
       );
     }
 

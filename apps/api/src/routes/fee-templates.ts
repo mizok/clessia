@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
+import { waitUntilFrom } from '../lib/wait-until';
 
 /**
  * 價目表：org 層的定價，報名時挑選。
@@ -195,7 +196,7 @@ app.openapi(
         resourceName: data['name'] as string,
         action: 'create',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: mapFeeTemplate(data) }, 201);
@@ -267,7 +268,7 @@ app.openapi(
         resourceName: data['name'] as string,
         action: 'update',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ data: mapFeeTemplate(data) }, 200);
@@ -335,7 +336,7 @@ app.openapi(
         resourceName: existing['name'] as string,
         action: 'delete',
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ success: true }, 200);

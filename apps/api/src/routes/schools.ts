@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
+import { waitUntilFrom } from '../lib/wait-until';
 
 export function buildSchoolListQuery(params: { search?: string; isActive?: boolean }): {
   searchFilter: string | null;
@@ -164,7 +165,7 @@ app.openapi(createRouteDef, async (c) => {
       action: 'school.create',
       details: {},
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json(
@@ -242,7 +243,7 @@ app.openapi(updateRouteDef, async (c) => {
       action: 'school.update',
       details: payload,
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);
@@ -317,7 +318,7 @@ app.openapi(deleteRouteDef, async (c) => {
       action: 'school.delete',
       details: {},
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);

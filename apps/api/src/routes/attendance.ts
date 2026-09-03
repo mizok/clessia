@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import { resolveTeacherScope } from './attendance/teacher-scope';
 import type { AppEnv } from '../index';
 import { isAttendanceEditable } from '../lib/attendance-window';
@@ -583,7 +584,7 @@ app.openapi(
           action: 'retroactive_edit',
           details: { eventDate: (ev as any).event_date as string },
         },
-        c.executionCtx.waitUntil.bind(c.executionCtx),
+        waitUntilFrom(c),
       );
     }
 
@@ -634,7 +635,7 @@ app.openapi(
           note: body.note ?? null,
         },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json(toAttendanceResponse(row), 201);
@@ -717,7 +718,7 @@ app.openapi(
           action: 'retroactive_edit',
           details: { eventDate: eventDate },
         },
-        c.executionCtx.waitUntil.bind(c.executionCtx),
+        waitUntilFrom(c),
       );
     }
 
@@ -775,7 +776,7 @@ app.openapi(
         action: 'batch_update_attendance',
         details: buildAttendanceAuditBatchDetails(updates),
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ updated: updates.length, takenAt }, 200);
@@ -857,7 +858,7 @@ app.openapi(
             action: 'retroactive_edit',
             details: { eventDate: existingEventDate },
           },
-          c.executionCtx.waitUntil.bind(c.executionCtx),
+          waitUntilFrom(c),
         );
       }
     }
@@ -910,7 +911,7 @@ app.openapi(
           note: row.note,
         },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json(toAttendanceResponse(row), 200);
@@ -1353,7 +1354,7 @@ app.openapi(
           removedLeaves: leaveRows,
         },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
 
     return c.json({ leavesDeleted, leavesTruncated, attendanceRecordsRemoved, droppedAfter }, 200);

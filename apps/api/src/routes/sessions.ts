@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { buildSubstitutedAwayEntries, type SubstitutedAwayRow } from './sessions/substituted-away';
@@ -1155,7 +1156,7 @@ app.openapi(cancelSessionRoute, async (c) => {
       action: 'cancel_session',
       details: { reason: body.reason ?? null },
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);
@@ -1423,7 +1424,7 @@ app.openapi(substituteSessionRoute, async (c) => {
       action: 'substitute_teacher',
       details: { newTeacherId: body.substituteTeacherId },
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);
@@ -1641,7 +1642,7 @@ app.openapi(rescheduleSessionRoute, async (c) => {
         newEndTime: body.newEndTime,
       },
     },
-    c.executionCtx.waitUntil.bind(c.executionCtx),
+    waitUntilFrom(c),
   );
 
   return c.json({ success: true }, 200);
@@ -1994,7 +1995,7 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
           teacherId: body.teacherId,
         },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
   }
 
@@ -2241,7 +2242,7 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
           endTime: newEndTime,
         },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
   }
 
@@ -2415,7 +2416,7 @@ app.openapi(batchCancelRoute, async (c) => {
           skipped,
         },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
   }
 
@@ -2797,7 +2798,7 @@ app.openapi(batchUncancelRoute, async (c) => {
           skipped,
         },
       },
-      c.executionCtx.waitUntil.bind(c.executionCtx),
+      waitUntilFrom(c),
     );
   }
 
