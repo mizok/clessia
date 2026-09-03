@@ -1,6 +1,6 @@
 # Architecture — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-30
+> Auto-maintained by `kb:map`. Last updated: 2026-09-04
 
 ---
 
@@ -44,12 +44,6 @@ Tags: `architecture`, `announcements`
 
 Links to: [[architecture/role-authorization|角色授權設計]]
 
-## [[architecture/better-auth-self-vs-admin|Better Auth 的本人模型與我們的多角色授權]]
-
-使用者更新 API 只服務「本人改自己」（需要本人的 session headers）；未宣告的欄位會被**靜默丟棄**而不是報錯。「管理員代改」屬 admin plugin，而它的權限檢查看 `ba_user.role` —— 本專案全部是 `'user'`，角色真相住在 `user_roles`。把管理員寫進 `ba_user.role` 會一併授予 impersonate/ban/setRole，代價遠大於它守護的東西。所以管理員代改的直寫是**永久豁免**，不是債。
-
-Tags: `architecture`, `auth`, `better-auth`, `authorization`
-
 ## [[architecture/auth-pool-lifecycle|認證連線池的生命週期]]
 
 createAuth() 每請求開 1–2 個 pg Pool 且從不關閉（批次匯入的迴圈裡一次開 50 個）；Workers 凍結 timer 使 pg 的 idle 自救失效。修法：getAuth(c) 讓同請求共用單一池，收尾交給掛在最前面的 cleanup middleware 在 await next() 之後做。singleton 在 Workers 是錯的，而在 getAuth 裡 waitUntil(pool.end()) 也是錯的。
@@ -57,6 +51,20 @@ createAuth() 每請求開 1–2 個 pg Pool 且從不關閉（批次匯入的迴
 Tags: `architecture`, `auth`, `workers`, `database`
 
 Links to: [[architecture/line-oauth-login]]
+
+## [[architecture/authorization-scope|授權範圍 —— 分校、職務、細部權限]]
+
+三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
+
+Tags: `architecture`, `authorization`, `campus`, `teacher-scope`, `permissions`, `security`
+
+## [[architecture/better-auth-self-vs-admin|Better Auth 的「本人模型」與我們的多角色授權是兩套東西]]
+
+使用者更新 API 只服務「本人改自己」；「管理員代改」屬 admin plugin，而它要求角色真相住在 ba_user.role——跟本專案「角色住 user_roles、一人多角色、權限存 jsonb」不相容。想接 admin plugin 之前先讀這頁。
+
+Tags: `architecture`, `auth`, `better-auth`, `authorization`
+
+Links to: [[architecture/constitution-enforcement]], [[architecture/constitution-enforcement]], [[architecture/constitution-enforcement]], [[architecture/line-oauth-login]], [[architecture/role-authorization]]
 
 ## [[architecture/bootstrapping-a-deployment|開一個新站]]
 
@@ -86,7 +94,7 @@ Links to: [[architecture/constitution-enforcement|`constitution-enforcement`]], 
 
 Tags: `architecture`, `constitution-enforcement`
 
-Links to: [[architecture/constitution|`constitution`]]
+Links to: [[architecture/constitution|`constitution`]], [[architecture/gate-map|`gate-map`]]
 
 ## [[architecture/day-timeline|一日時間軸元件（day-timeline）]]
 
@@ -102,7 +110,7 @@ Links to: [[architecture/design-language]], [[lessons/awakened-tests-bite]]
 
 Tags: `architecture`, `deployment`, `cloudflare`, `supabase`
 
-Links to: [[architecture/vendor-relationship]], [[architecture/constitution|c12]], [[architecture/bootstrapping-a-deployment]]
+Links to: [[architecture/vendor-relationship]], [[architecture/constitution|c12]], [[architecture/auth-pool-lifecycle]], [[architecture/bootstrapping-a-deployment]]
 
 ## [[architecture/design-language|視覺語言（方向 D：暖橘流場）]]
 
@@ -117,6 +125,14 @@ Links to: [[specs/public/login]], [[specs/public/login]], [[architecture/login-e
 M2。兩個互不依賴的切片：班級頁的 Excel 名單匯入精靈、獨立的報名進出總覽頁。既有的班級／學生兩個報名入口不動。
 
 Tags: `architecture`, `enrollment-admin-view`
+
+## [[architecture/gate-map|Gate 網地圖]]
+
+這個 repo 有哪些自動檢查、各自守什麼、各自看不到什麼，以及要新增一道之前該先問的四個問題。按 gate 組織，與按 clause 組織的 constitution-enforcement 互補。
+
+Tags: `architecture`, `harness`, `gate`, `ci`
+
+Links to: [[architecture/constitution-enforcement|`constitution-enforcement`]]
 
 ## [[architecture/line-oauth-login|LINE 登入的設計]]
 
@@ -148,6 +164,14 @@ Tags: `architecture`, `role-authorization`
 
 Links to: [[architecture/teacher-students-view]]
 
+## [[architecture/teacher-schedule-mobile-day|老師端課表 —— 行動優先單日檢視]]
+
+手機一日一屏、水平 scroll-snap 換日；桌機保留七欄。為什麼不寫手勢 JS、為什麼日期標題放在面板裡。
+
+Tags: `architecture`, `teacher`, `schedule`, `mobile`
+
+Links to: [[specs/teacher/schedule]]
+
 ## [[architecture/teacher-students-view|老師端學生名單的設計]]
 
 老師看自己任課班級的學生。同時處理 teacher/attendance 空殼——點名的家是課表，不是另一個選單項目。
@@ -155,6 +179,14 @@ Links to: [[architecture/teacher-students-view]]
 Tags: `architecture`, `teacher-students-view`
 
 Links to: [[architecture/role-authorization|`角色授權的設計`]]
+
+## [[architecture/teacher-today-flow|老師端今日流]]
+
+老師端四個介面收成三個，儀表板刪除而非搬移。核心判準是「站在教室門口的老師此刻要做什麼」——凡是不回答這件事的東西都不進來，包含月曆。
+
+Tags: `architecture`, `teacher`, `ux`, `mobile-first`
+
+Links to: [[specs/teacher/dashboard]], [[specs/teacher/schedule]], [[specs/teacher/attendance]], [[specs/teacher/dashboard]], [[specs/teacher/attendance]], [[architecture/teacher-schedule-mobile-day]], [[architecture/teacher-schedule-mobile-day]], [[specs/teacher/schedule]], [[specs/teacher/attendance]], [[specs/teacher/dashboard]]
 
 ## [[architecture/teaching-history-not-payroll|記錄授課歷程，但不做薪資計算]]
 
@@ -169,6 +201,14 @@ M1 第一個畫面。選老師 + 期間，列出課堂並加總時數。不計�
 Tags: `architecture`, `teaching-log-view`
 
 Links to: [[architecture/teaching-history-not-payroll|`記錄授課歷程但不做薪資`]]
+
+## [[architecture/timeline-density|時間軸換畫法 —— 每半小時一根，柱高是同時堂數]]
+
+lane 式時間軸的高度隨並行數長，密集日會把主入口推到摺線下。換成固定高度的密度圖；但「濃度」不能用透明度做——橘帶上整個可用透明度區間只有 1.40:1，編碼必須是柱高。
+
+Tags: `architecture`, `day-timeline`, `dashboard`, `accessibility`, `direction-d`
+
+Links to: [[architecture/day-timeline]], [[architecture/design-language]], [[architecture/day-timeline]], [[lessons/awakened-tests-bite]]
 
 ## [[architecture/vendor-relationship|供應商關係與它推導出的架構約束]]
 
