@@ -39,7 +39,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
   本機那三層都繞得過（heredoc 寫檔不觸發 PreToolUse、`CLESSIA_STOP_GATE=0`、
   `git commit --no-verify`、直接關掉 hook），這層繞不過 —— 它才是真正的把關。
   刻意用 `run-many` 而不是 `affected`（`defaultBase` 是不存在的 `dev`）。
-- **Harness gate**（`npm run harness`）—— 文件與現實是否同步，見下方 A1–A16。
+- **Harness gate**（`npm run harness`）—— 文件與現實是否同步，見下方 A1–A17。
 
 ## 條款 → 機制
 
@@ -64,7 +64,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 
 | 腳本                | 守什麼                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------- |
-| `check-harness.mjs` | 下表的 A1–A16                                                                         |
+| `check-harness.mjs` | 下表的 A1–A17                                                                         |
 | `feature-map.mjs`   | `kb/wiki/roadmap.md` 的**功能區現況表**自動生成且同步（c11）。**強制點在 main**，見下 |
 
 > A1 的真相來源其實是 `skills-lock.json`：磁碟現況用來重生 lock，A1b 再比對 `AGENTS.md` ↔ lock。
@@ -86,6 +86,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | A14  | `apps/web/src/**/*.ts` 沒有裝飾器版 API（c8 的存量；**allowlist 4 筆**）                                                                                  |
 | A15  | `apps/api/src/**/*.ts` 沒有直寫 `ba_*`（c2 的存量；**allowlist 9 筆**）                                                                                   |
 | A16  | 本分支沒有修改／刪除／改名已提交的 migration（c3；比 `origin/main...HEAD`）                                                                               |
+| A17  | 掃描範圍內自己刻的可點元素有尺寸下限（44px 觸控門檻；ratchet，既有的進 baseline）                                                                         |
 
 ### 存量 allowlist：讓債務可見且會自己收斂
 

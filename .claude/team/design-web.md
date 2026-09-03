@@ -4,15 +4,15 @@
 
 ## 一、這席的路徑
 
-| 範圍 | 路徑 |
-| --- | --- |
-| 全域 design tokens 與 overlay 樣式 | `apps/web/src/styles.scss` |
-| 公開頁（登入、報名、試聽、QR 打卡、綁定 LINE） | `apps/web/src/app/features/public/` |
-| 角色選擇（薄殼 + 動態載入的彈窗） | `apps/web/src/app/features/select-role/` |
-| 三角色共用外框、header、角色快切 | `apps/web/src/app/shared/components/layout/shell-layout/` |
-| **實際生效的建置設定**（budget、styles、assets） | `apps/web/project.json` |
-| 品牌素材 | `apps/web/public/assets/brand/` |
-| 設計方向探索的過程產物（不 commit） | `.design-explorations/` |
+| 範圍                                             | 路徑                                                      |
+| ------------------------------------------------ | --------------------------------------------------------- |
+| 全域 design tokens 與 overlay 樣式               | `apps/web/src/styles.scss`                                |
+| 公開頁（登入、報名、試聽、QR 打卡、綁定 LINE）   | `apps/web/src/app/features/public/`                       |
+| 角色選擇（薄殼 + 動態載入的彈窗）                | `apps/web/src/app/features/select-role/`                  |
+| 三角色共用外框、header、角色快切                 | `apps/web/src/app/shared/components/layout/shell-layout/` |
+| **實際生效的建置設定**（budget、styles、assets） | `apps/web/project.json`                                   |
+| 品牌素材                                         | `apps/web/public/assets/brand/`                           |
+| 設計方向探索的過程產物（不 commit）              | `.design-explorations/`                                   |
 
 **不管**：業務 feature 的頁面邏輯、API、schema。碰到那些請轉相應席位。
 
@@ -30,9 +30,9 @@
 **對比不靠記憶，靠兩支 gate。**（別再手抄數字進這裡 —— 上一版 charter 抄了七種底色與
 `--warning-100` 上的 4.51，兩週後就有一半不準了。）
 
-| gate | 守什麼 | 判例 |
-| --- | --- | --- |
-| `tools/agent-harness/lib/band-contrast.mjs` | 橘帶 token **自己的值** | 近黑字降透明度掉出 AA（0.72 只有 4.00） |
+| gate                                        | 守什麼                                          | 判例                                                            |
+| ------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------- |
+| `tools/agent-harness/lib/band-contrast.mjs` | 橘帶 token **自己的值**                         | 近黑字降透明度掉出 AA（0.72 只有 4.00）                         |
 | `tools/agent-harness/lib/scss-contrast.mjs` | **配對** —— 每個 token 都合格、配在一起卻不合格 | 琥珀 chip hover 換到 200 底剩 4.03，而那個區塊只寫了 background |
 
 兩支的門檻都**從 `styles.scss` 現值算**，不寫死；改了 `--accent-vivid` 或任何 100 階底色
@@ -132,13 +132,13 @@ admin-pages 用那顆確認彈窗的「結束後將無法再登錄分數」證�
 
 **這席的共用元件與詞彙**（實作在 `shared/components/`，不要在 feature 裡各寫一份 —— c5）：
 
-| 詞 | 指的是 | 元件 |
-| --- | --- | --- |
-| **橘帶**（band） | 內部頁的入口色面，一頁一條 | `app-page-band` |
+| 詞                 | 指的是                                                   | 元件              |
+| ------------------ | -------------------------------------------------------- | ----------------- |
+| **橘帶**（band）   | 內部頁的入口色面，一頁一條                               | `app-page-band`   |
 | **錨點**（anchor） | 帶上那個放大的關鍵數字，**最可行動的那個、不一定是總數** | `app-band-anchor` |
-| **咬合**（seam） | 白工作面往上壓進橘帶的深度，`--band-seam` | — |
-| **身分 chip** | 類別／種類／所屬，中性、無嚴重度 | `app-data-chip` |
-| **狀態點＋字** | 形狀 × 色相兩個軸 | `app-status-dot` |
+| **咬合**（seam）   | 白工作面往上壓進橘帶的深度，`--band-seam`                | —                 |
+| **身分 chip**      | 類別／種類／所屬，中性、無嚴重度                         | `app-data-chip`   |
+| **狀態點＋字**     | 形狀 × 色相兩個軸                                        | `app-status-dot`  |
 
 命名跟 design-web 第一席（session 名 `bundle-analysis-*`）對齊過：**band 是帶、anchor 是
 帶上的數字**，不要拿 anchor 指帶本身。
@@ -217,6 +217,43 @@ admin-pages 用那顆確認彈窗的「結束後將無法再登錄分數」證�
 
     ⚠️ `localhost:4200` 會被其他席的專案佔用。有一次 dev server 沒起來但 API 起了，
     瀏覽器打開看到的是**別人的 app**（幸好長相完全不同）。
+
+14. **跨席送訊息要驗證收件人 —— 送錯人比沒送更難發現。** 2026-09-03 我把整晚的跨席
+    回報（PR 完成、副作用通知、設計初審請求）全部投進了錯的信箱，而且**兩邊都以為
+    自己在正常運作**：我以為送出了，計畫席以為我在 idle。
+
+    三件事同時錯：
+
+    - **有兩套傳輸層，別混用。** `mcp__claude-peers__send_message` 吃 **peer id**，
+      `SendMessage` 吃 **名稱**。我用前者，而它的 `list_peers` 清單是**過期的**
+      （停在前一天，而且根本沒有列出計畫席的 PID）。**用 `ListAgents` + `SendMessage`。**
+    - **席名 ≠ session 名。** billing-api 席的當班 session 叫 `pin-better-auth-3c`，
+      design-web 席可能叫 `bundle-analysis-*`。**派工前 `ListAgents` 對一次**，
+      對不出來就問計畫席，**不要從 CWD 猜**（我就是看到某個 session 的 CWD 是 repo
+      根目錄，就假設那是計畫席）。
+    - **交付之後要確認回音，不是等。** 沒有回音超過 15 分鐘就再敲一次 —— 但那治的是
+      症狀，根因是沒驗收件人。
+
+    **結構性的解：重要的跨席交接走檔案，不走訊息。** `.claude/team/<席>-<主題>.md`
+    是既有慣例（見 `billing-api-p3-*.md`）。**session 會死、席位會換、訊息會投錯，
+    檔案不會。** 訊息只用來通知「單子在哪」。
+
+15. **branch ref 是整個 repo 共用的，別的 worktree 會移動你腳下的分支。**
+    2026-09-03 我在這個 worktree 上 commit 完，切分支時發現本地的
+    `fix/table-overflow-mobile` 指標已經被移到另一個 commit —— **我的 HEAD reflog
+    完全沒有那次移動**，因為動它的是別的 worktree。
+
+    症狀是 `git status` 突然冒出幾十個你沒動過的暫存變更（那是「工作區 vs 新指標」
+    的差異，不是誰的工作）。**先驗證再修**：`git diff --cached <你自己的 commit>`
+    是空的就代表工作區還是你的東西，切走不會掉。
+
+    **不要反射性地把指標改回去** —— 對方可能是刻意移的。確認自己的 commit 在
+    `origin` 上，然後換一條分支走。
+
+    附帶一條：**收到跨席工單時先確認那個 PR / 分支的擁有者。** 同一晚我照做了一張
+    誤派給我的工單（#174），因為它的 commit 系譜看起來像這席的線 ——
+    **相似不等於同一個席位**。做完才被告知派錯。所幸是疊加不是 force-push，
+    沒有人掉東西。
 
 ## 五、進行中的狀態
 
