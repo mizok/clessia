@@ -45,6 +45,20 @@ force push 清掉)。急件最容易發生。**改動範圍可疑時看 `git dif
 PR 進來的速度會超過「build + 部署」的耗時,等「全部合完」永遠等不到。
 **選一個 SHA 當截線、部署它、把 SHA 寫進回報**,之後合的算下一輪 —— 誰都看得出來什麼還沒上線。
 
+### 驗別人的 gate 要驗行為,不要驗形狀
+用 `grep -oE "check[A-Za-z]+\(\);"` 列呼叫來確認一道 gate 有沒有接上,會漏掉**不用那個
+命名慣例的寫法** —— #229 的 c5 gate 是頂層 inline 區塊(import + for 迴圈 `fail()`),
+grep 不到,第一眼結論是「gate 檔進來了但沒被呼叫」,差點去跟作者說他的 gate 沒生效。
+**grep 到的是命名慣例,不是「這道檢查有沒有跑」**;兩者平常重合,不重合的那次沒有警告。
+charter 早有「gate 寫完塞陷阱看它會不會紅」,那條同樣適用於**驗別人的 gate**。
+
+### 部署驗證的終點是線上送的 hash,不是部署指令的回傳值
+`wrangler ... deploy` 印成功只說明上傳沒出錯。真正的驗證是
+`curl -s https://demo.clessia.cc/ | grep -oE "(main|styles)-[A-Z0-9]{8}\.(js|css)"`
+拿線上實際送的檔名,跟本機 `dist/apps/web/browser/` 的比對 —— 一致才叫上線了。
+Pages 的 `deployment list` 也能對 source commit,Worker 用 `wrangler deployments list --env production`
+對 version id 與時間。**這是 MERGED≠main 在部署端的同一件事。**
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
