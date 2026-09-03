@@ -1,0 +1,27 @@
+<!-- 桌機：標頭右上。次要行動只在這裡出現。 -->
+<div class="page-actions__header">
+  <ng-content />
+  @if (primary(); as action) {
+    <p-button
+      [label]="action.label"
+      [icon]="action.icon ?? ''"
+      [disabled]="!!action.disabled"
+      (onClick)="onPrimary()"
+    />
+  }
+</div>
+
+@if (primary(); as action) {
+  <!-- 手機：停靠在 bottom-bar 正上方。
+       `__spacer` 是留白佔位 —— 停靠列是 fixed，不留這塊的話它會蓋住清單最後一列。 -->
+  <div class="page-actions__spacer" aria-hidden="true"></div>
+  <div class="page-actions__dock">
+    <p-button
+      styleClass="page-actions__cta"
+      [label]="action.label"
+      [icon]="action.icon ?? ''"
+      [disabled]="!!action.disabled"
+      (onClick)="onPrimary()"
+    />
+  </div>
+}
