@@ -275,7 +275,8 @@
     }
 
     &:hover {
-      color: var(--error-600);
+      // error-600 疊 #fef2f2 是 4.41，差 0.09；error-700 是 5.91
+      color: var(--error-700);
       background: #fef2f2;
     }
   }

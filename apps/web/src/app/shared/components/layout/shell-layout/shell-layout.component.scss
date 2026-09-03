@@ -189,7 +189,10 @@
 
       &:hover {
         background: var(--error-100);
-        color: var(--error-600);
+        // error-600 疊 error-100 只有 3.95；error-700 是 5.30。
+        // 底色不動 —— 動的是文字，因為 hover 的意義是「這是危險操作」，
+        // 更深的紅正好強化那個意思。
+        color: var(--error-700);
       }
     }
   }
