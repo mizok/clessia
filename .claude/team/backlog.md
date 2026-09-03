@@ -21,7 +21,7 @@
 
 ## admin-pages
 1. (窗口 #184→#186 合併後)B3 第二片:批次結果開帳入口+試算顯示(note 必須顯示在金額旁)
-2. 成績鍵盤邏輯收斂:school-score-editor 補鍵盤動線,抽共用(你自己提的半天量)
+2. 成績鍵盤邏輯收斂:school-score-editor 補鍵盤動線,抽共用(你自己提的半天量) [認領 admin-pages 11:35]
 3. 點名空名單邊界(students=[] 時「全部標記完成」是空話)
 
 ## billing-api
