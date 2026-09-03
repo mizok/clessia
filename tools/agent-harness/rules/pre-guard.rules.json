@@ -4,8 +4,8 @@
     {
       "id": "c2",
       "path": "^apps/api/src/.*\\.ts$",
-      "forbid": "from\\('ba_[a-z_]+'\\)[\\s\\S]{0,120}?\\.(insert|update|upsert|delete)\\(",
-      "message": "ba_* 是 Better Auth 管的表，不得直接寫入。新增使用者走 admin.createUser()（讀取不受限）"
+      "forbid": "from\\('ba_[a-z_]+'\\)[\\s\\S]{0,120}?\\.(insert|update|upsert|delete)\\((?!\\s*\\{\\s*orgId\\s*(?::\\s*[A-Za-z_$][\\w$]*\\s*)?\\}\\s*\\))",
+      "message": "ba_* 是 Better Auth 管的表，不得直接寫入。新增使用者走 admin.createUser()（讀取不受限）。例外：`orgId` 在 auth.ts 是 `input: false`，Better Auth 的 API 明確拒收它，所以 `.update({ orgId })` 這種「只寫 orgId」的呼叫已豁免 —— 夾帶其他欄位仍然會被擋。"
     },
     {
       "id": "c3",

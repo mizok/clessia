@@ -308,15 +308,37 @@ gh pr view <n> --json state -q .state      # 必須是 OPEN
 
 ## 已知缺口（接手時的待辦池 —— 這節會過期，接手第一件事：重寫它）
 
-- `apps/web` 沒有獨立的 typecheck target。CI 已用 production build 補上，
-  **但 Stop gate 沒有** —— 本機收工時模板錯誤照樣過得去，要到 push 才紅。
-- c5（feature 不互相 import）未機器化。需要跨「路徑擷取的 feature 名」與「內容」的反向參照，
-  現在的靜態 regex 引擎做不到，要接得寫一支獨立 check。
+> 上次除鏽 **2026-09-03**，每條都當場查證過而不是照抄。
+> 除鏽的方法：**逐條跑指令驗一次**（下面每條都附怎麼驗），已解的劃掉並寫解法，
+> 不確定的就去量 —— 這節最大的風險不是漏記，是**留著已經解掉的條目**，
+> 讓接手的人把力氣花在不存在的問題上。
+
+### 還在的
+
+- **`apps/web` 沒有獨立的 typecheck target**（驗：`npx nx show project web --json`）。
+  CI 已用 production build 補上模板檢查，**但 Stop gate 沒有** ——
+  本機收工時模板型別錯誤照樣過得去，要到 push 才紅。
+- **c5（feature 不互相 import）未機器化。** 需要跨「路徑擷取的 feature 名」與「內容」的
+  反向參照，現在的靜態 regex 引擎做不到，要接得寫一支獨立 check。
+- **c2 還有 4 筆真債**（驗：`npm run harness` 的 A15 帳目）——
+  `me.ts:124`、`parents.ts:621` 的 email 與 `parents.ts:625`、`staff.ts:1150` 的 phone。
+  卡點不是難改，是**全 repo 零前例**：沒有任何一處用 `auth.api.updateUser` 更新過使用者。
+  要先由 billing-api 席驗一處（能不能寫 additionalFields、email 重複時的錯誤形狀）再推廣。
+  另有 1 筆**永久豁免**（`me.ts:151`，username 無 API 路徑且仍是唯一性鍵）。
+- **`nx.json` 的 `defaultBase` 指向不存在的 `dev`**（驗：`node -p "require('./nx.json').defaultBase"`）。
+  所有 `nx affected` 都得自己帶 `--base=main`。
+- **`test-baseline.json` 裡有 3 個既有紅燈**（驗：讀那個檔）。基線是債，清一支移除一支。
+- **dagger 的建置快取沒有 GC 政策，磁碟會反覆爆。**
+  fvg 的 engine `/etc/dagger/engine.toml` 是空的，而它在 VM 裡看到的可用空間是假的
+  → 自動 GC 永遠不觸發。2026-09-02 清掉 126 GB，**不到一天長回 136 G**。
+  已同步 fvg 席並建議設常設上限，**但那是他們的引擎設定**。
+  本席掛了 watch（20 GB 警戒 / 10 GB 自動 prune），但那是止血不是解法 ——
+  真正的問題「這台機器要不要繼續當 CI runner」不是本席能裁的。
+
+### 這輪解掉的（保留一行，讓下一個人知道不用再查）
+
 - ~~hook-only clause 對存量零覆蓋~~ → 2026-08-30 補上 A13（c7）/ A14（c8）/ A15（c2）/ A16（c3）。
-  **剩下的是 allowlist 上的債**：c8 四筆（design-web 席）、c2 九筆（billing-api 席，
-  「ba_user 寫入路徑收斂」切片）。allowlist 記的是**數量**不只是路徑，所以清到零那天
-  gate 自動變全面，沒有鷹架要拆。
-- `nx.json` 的 `defaultBase` 指向不存在的 `dev`。
-- `test-baseline.json` 裡的既有紅燈是債務。
-- **等 admin-pages 席的繳費頁 PR 合併後，`feature-map.mjs` 的「繳費」要補一行 `'invoices'`**
-  —— 那支 PR 會新增 `core/invoices.service.ts`，屆時這條連線才真的存在（見第六節）。
+- ~~c8 的 4 筆裝飾器債~~ → design-web 席已清零，allowlist 整筆移除，**gate 現在是全面覆蓋**。
+- ~~c2 的 9 筆~~ → 2026-09-03 盤點收斂：3 筆 `orgId` 改**規則層豁免**（API 明確拒收，沒有合規路徑）、
+  1 筆冗餘直接刪除、1 筆永久豁免，剩 4 筆真債（見上）。
+- ~~等繳費頁 PR 合併後補 `'invoices'`~~ → 已補，`feature-map.mjs` 的「繳費」已認領。
