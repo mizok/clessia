@@ -43,16 +43,38 @@ describe('DayTimelineComponent', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  function blocks(el: HTMLElement) {
-    return [...el.querySelectorAll<HTMLElement>('.day-timeline__block')];
+  function bars(el: HTMLElement) {
+    return [...el.querySelectorAll<HTMLElement>('.day-timeline__bar')];
   }
 
-  it('每一堂有時間的課都畫一個方塊', async () => {
-    const el = await render([
-      session({ eventId: 'a' }),
-      session({ eventId: 'b', startTime: '14:00', endTime: '16:00' }),
+  function heights(el: HTMLElement, modifier: 'taken' | 'untaken') {
+    return [...el.querySelectorAll<HTMLElement>(`.day-timeline__seg--${modifier}`)].map(
+      (seg) => parseFloat(seg.style.height) || 0,
+    );
+  }
+
+  it('預設視窗畫 28 根（08–22，每半小時）', async () => {
+    const el = await render([session()]);
+    expect(bars(el)).toHaveLength(28);
+  });
+
+  /**
+   * **這一條是換畫法的全部理由。** lane 式佈局每多一條就高 30px，實測 4 條時橘帶
+   * 佔 48% 視窗、課表整段掉到摺線下。柱狀圖的高度必須與課量無關。
+   */
+  it('軌道高度不隨課量改變', async () => {
+    const one = await render([session({ eventId: 'a' })]);
+    const many = await render([
+      session({ eventId: 'a', startTime: '09:00', endTime: '12:00' }),
+      session({ eventId: 'b', startTime: '09:30', endTime: '12:00' }),
+      session({ eventId: 'c', startTime: '10:00', endTime: '12:00' }),
+      session({ eventId: 'd', startTime: '10:30', endTime: '12:00' }),
     ]);
-    expect(blocks(el)).toHaveLength(2);
+    const heightOf = (el: HTMLElement) =>
+      el.querySelector<HTMLElement>('.day-timeline__track')!.style.height;
+
+    // 兩邊都不該用 inline height —— 高度由 SCSS 固定
+    expect(heightOf(one)).toBe(heightOf(many));
   });
 
   it('沒有課時整條軸不渲染', async () => {
@@ -60,48 +82,61 @@ describe('DayTimelineComponent', () => {
     expect(el.querySelector('.day-timeline')).toBeNull();
   });
 
-  it('已點名是實心、未點名不是', async () => {
+  it('沒有任何一堂畫得出來時也不渲染', async () => {
+    const el = await render([session({ startTime: null })]);
+    expect(el.querySelector('.day-timeline')).toBeNull();
+  });
+
+  it('已點名與未點名分成兩段，各自有高度', async () => {
     const el = await render([
       session({ eventId: 'done', takenAt: '2026-08-30T02:00:00Z' }),
-      session({ eventId: 'todo', startTime: '14:00', endTime: '16:00' }),
+      session({ eventId: 'todo' }),
     ]);
-    const taken = blocks(el).filter((b) => b.classList.contains('day-timeline__block--taken'));
-    expect(taken).toHaveLength(1);
-    expect(taken[0].getAttribute('aria-label')).toContain('已點名');
+
+    // 兩堂課時間完全重疊 → 那幾根各有一半實心一半中空
+    expect(heights(el, 'taken').some((h) => h > 0)).toBe(true);
+    expect(heights(el, 'untaken').some((h) => h > 0)).toBe(true);
   });
 
   // 滑鼠看到的 tooltip 與螢幕閱讀器聽到的要是同一句
-  it('方塊的 aria-label 與 title 一致且完整', async () => {
+  it('柱的 aria-label 講的是時段統計，與 title 一致', async () => {
     const el = await render([session()]);
-    const b = blocks(el)[0];
-    const label = b.getAttribute('aria-label');
-    expect(label).toBe('09:00–11:00 數學班 A · 張品妍 · 未點名');
-    expect(b.getAttribute('title')).toBe(label);
+    const nine = bars(el)[2]; // 08:00 起算的第 3 根 = 09:00
+    const label = nine.getAttribute('aria-label');
+
+    expect(label).toBe('09:00–09:30，1 堂課，其中 1 堂未點名');
+    expect(nine.getAttribute('title')).toBe(label);
   });
 
-  // 沒有單堂路由，連到清單頁會是假的 affordance —— 方塊刻意不可互動
-  it('方塊不是連結也不是按鈕', async () => {
+  it('沒有課的時段也講得出來', async () => {
     const el = await render([session()]);
-    expect(el.querySelector('.day-timeline__block a, a .day-timeline__block')).toBeNull();
-    expect(blocks(el)[0].tagName).toBe('SPAN');
+    expect(bars(el)[0].getAttribute('aria-label')).toBe('08:00–08:30，沒有課');
   });
 
-  it('同時段的課分成不同 lane，軌道跟著長高', async () => {
-    const one = await render([session({ eventId: 'a' })]);
-    const oneHeight = one.querySelector<HTMLElement>('.day-timeline__track')!.style.height;
-    const two = await render([
-      session({ eventId: 'a' }),
-      session({ eventId: 'b', startTime: '10:00', endTime: '12:00' }),
+  // 沒有單堂路由，連到清單頁會是假的 affordance —— 柱刻意不可互動
+  it('柱不是連結也不是按鈕', async () => {
+    const el = await render([session()]);
+    expect(el.querySelector('.day-timeline__bar a, a .day-timeline__bar')).toBeNull();
+    expect(bars(el)[0].tagName).toBe('SPAN');
+  });
+
+  // 尺度要說出來，否則只剩形狀、失去量級
+  it('圖例講出當日最忙幾堂', async () => {
+    const el = await render([
+      session({ eventId: 'a', startTime: '09:00', endTime: '12:00' }),
+      session({ eventId: 'b', startTime: '09:30', endTime: '12:00' }),
     ]);
-    const twoHeight = two.querySelector<HTMLElement>('.day-timeline__track')!.style.height;
-    expect(parseInt(twoHeight, 10)).toBeGreaterThan(parseInt(oneHeight, 10));
+    expect(el.textContent).toContain('最忙 2 堂');
   });
 
   // 畫不出來的要說出來，不是默默對齊
-  it('沒有開始時間的課不畫，但在圖例裡講出來', async () => {
-    const el = await render([session({ eventId: 'a' }), session({ eventId: 'ghost', startTime: null })]);
-    expect(blocks(el)).toHaveLength(1);
+  it('沒有開始時間的課不落任何一根，但在圖例裡講出來', async () => {
+    const el = await render([
+      session({ eventId: 'a' }),
+      session({ eventId: 'ghost', startTime: null }),
+    ]);
     expect(el.textContent).toContain('另有 1 堂未排定時間');
+    expect(el.textContent).toContain('最忙 1 堂');
   });
 
   it('全部都有時間時不會出現那句提醒', async () => {

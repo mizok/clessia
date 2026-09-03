@@ -166,18 +166,26 @@ describe('DashboardComponent（管理端）', () => {
       stalled
         ? NEVER
         : fail === 'students'
-        ? boom
-        : of({ data: [], meta: { total: activeCount }, summary: { total: activeCount, activeCount } }),
+          ? boom
+          : of({
+              data: [],
+              meta: { total: activeCount },
+              summary: { total: activeCount, activeCount },
+            }),
     );
     enrollmentsMock.mockReturnValue(
       stalled
         ? NEVER
         : fail === 'enrollments'
-        ? boom
-        : of({ data: [], meta: { total: enrollmentTotal, page: 1, pageSize: 1, totalPages: 1 } }),
+          ? boom
+          : of({ data: [], meta: { total: enrollmentTotal, page: 1, pageSize: 1, totalPages: 1 } }),
     );
     orgSettingsMock.mockReturnValue(
-      stalled ? NEVER : fail === 'org' ? boom : of({ id: 'o1', name: '補習班', attendanceMode: mode }),
+      stalled
+        ? NEVER
+        : fail === 'org'
+          ? boom
+          : of({ id: 'o1', name: '補習班', attendanceMode: mode }),
     );
 
     await TestBed.configureTestingModule({
@@ -340,21 +348,21 @@ describe('DashboardComponent（管理端）', () => {
 
     afterEach(() => localStorage.removeItem('clessia.dashboard.timeline-collapsed'));
 
-    it('lane 不超過 3 條時預設展開', async () => {
-      await setup({ todaySessions: overlappingSessions(3) });
-      expect(component['timelineCollapsed']()).toBe(false);
-    });
-
-    it('lane 超過 3 條時預設收合', async () => {
-      await setup({ todaySessions: overlappingSessions(4) });
-      expect(component['timelineCollapsed']()).toBe(true);
-    });
-
-    // 使用者按過之後就照他的意思，不再自動判斷 —— 否則他每天回來都要再按一次
-    it('使用者的選擇勝過自動判斷', async () => {
-      localStorage.setItem('clessia.dashboard.timeline-collapsed', '0');
+    /**
+     * **自動收合退役了。** 它的依據是「課多時圖會長到把課表推到摺線下」，
+     * 而時間軸改成密度圖之後高度與課量脫鉤 —— 那個依據不存在了，
+     * 再自動收就只是把資訊藏起來。
+     */
+    it('課再多也預設展開', async () => {
       await setup({ todaySessions: overlappingSessions(6) });
       expect(component['timelineCollapsed']()).toBe(false);
+    });
+
+    // 手動收合保留（可收合帶是已裁的方向），使用者按過就照他的意思
+    it('使用者收起來的選擇會被記住', async () => {
+      localStorage.setItem('clessia.dashboard.timeline-collapsed', '1');
+      await setup({ todaySessions: overlappingSessions(1) });
+      expect(component['timelineCollapsed']()).toBe(true);
     });
   });
 
