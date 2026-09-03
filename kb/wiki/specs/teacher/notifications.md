@@ -3,7 +3,7 @@ title: 通知中心（老師）
 summary: 查看課務異動通知。
 category: spec
 status: active
-updated: 2026-09-03
+updated: 2026-09-04
 tags: [specs, teacher, notifications]
 ---
 
@@ -42,11 +42,14 @@ published_at / created_by / created_at / updated_at —— **沒有任何型別�
 
 ## 實作註記
 
-**「全部標為已讀」目前是前端對未讀逐一呼叫 `POST /{id}/read`** ——
-後端沒有批次端點。語意跟批次一致（同樣的紀錄、同樣的結果），
-差別是 N 次往返且非原子（失敗的那幾則各自翻回未讀）。
-`POST /api/announcements/read-all` 已進 billing-api 的 backlog，
-落地後前端換成一次呼叫即可，樂觀更新的部分不用動。
+**「全部標為已讀」打 `POST /api/announcements/read-all`**（API #219、前端接上）。
+
+一次呼叫，而且**原子** —— 要嘛全標要嘛都沒標。可見範圍由後端算，跟收件匣同源
+（`campusOrFilter` + `audienceFor`），所以前端不對帳 `marked`：兩邊各算一次才是會漂的做法。
+
+樂觀更新照舊，但**失敗時翻回的是整批**，不是失敗的那幾則 —— 原子端點沒有「部分失敗」。
+在此之前是對未讀逐一呼叫 `POST /{id}/read`（N 次往返、非原子，中途失敗會留下一半已讀，
+而使用者看到的是「按了但紅點還在」）。
 
 ## 資料依賴
 

@@ -59,20 +59,32 @@ export class NotificationsComponent {
   }
 
   /**
-   * 全部標為已讀。
+   * 全部標為已讀 —— 一次呼叫 `POST /api/announcements/read-all`（#219）。
    *
-   * ⚠️ **後端沒有批次端點** —— 只有 `POST /{id}/read`，所以這裡是對未讀逐一呼叫。
-   * 語意跟批次端點一模一樣（同樣的紀錄、同樣的結果），差別是 N 次往返、而且**非原子**：
-   * 一部分失敗會留下混合狀態，所以失敗的那幾則各自翻回未讀（跟單則樂觀更新同一個理由）。
+   * **這裡曾經是對未讀逐一呼叫**，因為當時後端只有 `POST /{id}/read`。
+   * 換成批次端點拿回兩件事：30 則從 30 次往返變成 1 次，以及**原子性** ——
+   * 逐一版中途失敗會留下一半已讀，而使用者看到的是「按了但紅點還在」。
    *
-   * 天花板：收件匣大到幾十則時這會很吵。升級路徑是後端加
-   * `POST /api/announcements/read-all`（或收 id 陣列），已開需求單；
-   * 到時候這裡換成一次呼叫，樂觀更新的部分不用動。
+   * 樂觀更新照舊，但翻回的範圍變了：原子端點沒有「部分失敗」，
+   * 所以失敗時**翻回這次標的全部**，不是翻回失敗的那幾則。
+   * 記下 `ids` 而不是重掃一次未讀 —— 送出後畫面上已經沒有未讀了。
    */
   protected markAllRead(): void {
-    for (const announcement of this.announcements().filter((a) => !a.isRead)) {
-      this.markRead(announcement);
-    }
+    const ids = this.announcements()
+      .filter((a) => !a.isRead)
+      .map((a) => a.id);
+    if (ids.length === 0) return;
+
+    for (const id of ids) this.setRead(id, true);
+
+    this.announcementsService
+      .markAllRead()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        error: () => {
+          for (const id of ids) this.setRead(id, false);
+        },
+      });
   }
 
   private setRead(id: string, isRead: boolean): void {

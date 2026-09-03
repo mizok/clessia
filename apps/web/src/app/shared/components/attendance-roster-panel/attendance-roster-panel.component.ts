@@ -218,22 +218,45 @@ export class AttendanceRosterPanelComponent implements OnInit {
   }
 
   /**
-   * 這張假延伸到這堂課之後的哪一天 —— 沒有就回 `null`。
+   * 銷假會不會連坐取消後續日期 —— 有風險就回最後一天，沒有就回 `null`。
    *
-   * 用途是**事前**警告：銷假只把今天從假裡拿掉，但跨日的假會被截斷、後段一併取消。
-   * `droppedAfter` 是事後才知道，那時已經來不及。
+   * 用途是**事前**警告：`droppedAfter` 是事後才知道，那時已經來不及。
    *
-   * ⚠️ **這個判斷是保守的、會過度警告。** 後端的連坐條件是
-   * 「更早開始 **且** 之後才結束」——「今天才開始」的假會縮到明天起、**不損失**。
-   * 但 roster 只回結束日不回起始日（同一天可能被兩張假蓋到，回一組起訖等於謊稱是同一張），
-   * 所以前端分不出這兩種。文案因此只能說「**可能**」——
-   * 說死「將一併取消」在「今天才開始」那種情況是假的，而假警告會讓人學會忽略警告。
+   * ### 為什麼「今天才開始」不再警告（#222 之後）
    *
-   * 要精確就需要 roster 再回一個起始日，已開需求單。
+   * 後端逐張假處理（`lib/cancel-leave-for-date.ts`）：
+   *
+   * | 這張假 | 下場 | 損失 |
+   * | --- | --- | --- |
+   * | 今天開始、之後才結束 | 縮到明天起 | **無** |
+   * | 更早開始、今天結束 | 截到昨天 | **無** |
+   * | 更早開始、之後才結束 | 截到昨天 | **有**（明天到迄日全沒了） |
+   *
+   * `leaveStartDate` 是所有假裡**最早**的起始日。所以它等於這堂課的日期時，
+   * 就代表**沒有任何一張假更早開始** —— 每一張都只會縮到明天或被刪掉，
+   * 零損失。這一整類過去都在喊「可能一併取消」，那是假警告。
+   *
+   * ### 為什麼還是說「可能」而不是「將」
+   *
+   * 反過來就不成立了。兩張假接力蓋到今天時（`[4/4~4/6]` + `[4/6~4/8]`，今天 4/6），
+   * 前端看到的聚合值是 `start=4/4, end=4/8`，看起來像「更早開始且之後才結束」，
+   * **但實際損失是零** —— 4/4 那張今天結束（截到昨天，不損失），4/8 那張今天才開始
+   * （縮到明天，不損失）。min/max 分不出「一張長假」與「兩張接力」。
+   *
+   * 要說死「將」需要後端回一個真正的預測值（等同 dry-run 的 `droppedAfter`）。
+   * 在那之前**寧可保守**：說「可能」而有一種情況其實不會損失，
+   * 好過說「將」而有一種情況根本沒事 —— 說死了卻沒發生，下次就沒人信這句話。
    */
-  protected leaveExtendsBeyond(student: RosterStudent): string | null {
+  protected leaveCollateralRisk(student: RosterStudent): string | null {
     const end = student.leaveEndDate;
-    return end && end > this.session.eventDate ? end : null;
+    if (!end || end <= this.session.eventDate) return null;
+
+    // `>=` 不是 `===`：假必然蓋到這堂課，起始日不可能晚於它，但比對寫寬一點
+    // 不會錯，而 `null`（舊資料或後端沒回）要**落到警告那一邊** —— 保守。
+    const start = student.leaveStartDate;
+    if (start && start >= this.session.eventDate) return null;
+
+    return end;
   }
 
   /**
