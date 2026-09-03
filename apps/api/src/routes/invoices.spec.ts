@@ -57,6 +57,11 @@ function fakeSupabase(rows: ReturnType<typeof invoiceRow>[]) {
       return chain();
     },
     order: () => Promise.resolve({ data: sliced, count: rows.length, error: null }),
+    // `logAudit` 走的是 profiles.maybeSingle → audit_logs.insert。
+    // 少了它們，稽核會在 logAudit 自己的 try/catch 裡靜默失敗
+    //（只印 `[audit] log failed`），測試看不到、CI 也不會紅。
+    maybeSingle: () => Promise.resolve({ data: null, error: null }),
+    insert: () => Promise.resolve({ error: null }),
   });
 
   return { calls, client: { from: () => builder } };
