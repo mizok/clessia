@@ -14,3 +14,41 @@
 ## 判斷邊界
 你只判斷「機械條件是否滿足」(CI 綠?驗收紀錄在?屬保留三類?),
 內容好壞的判斷永遠是計畫席的。拿不準就問,問不到就不合。
+
+## 這一席自己踩過的坑(2026-09-03 首日,十六支代合)
+
+### 刪分支前必須先確認 merge 真的成功
+`gh pr merge` 失敗(衝突)時**不會**讓後續指令停下來 —— 把 merge / 驗證 / 刪分支串成一串
+就會在沒合成的 PR 上執行刪除,分支沒了、PR 被 GitHub 自動關閉(#215 已發生,復原方式:
+`git push origin <headRefOid>:refs/heads/<branch>` 再 `gh pr reopen`,commit 不會消失)。
+**正確作法**:刪除前查 `gh pr view <n> --json state -q .state` 等於 `MERGED` 才刪。
+成因是「讓前一步成功變成預設」,跟 `git add -A` 收進別支的改動、grep 漏掉 `✖`(U+2716)
+是同一族:**檢查有盲區時,紅的看起來會像綠的**。
+
+### 新 gate 落地後,已開著的 PR 要先重跑 CI 才能合
+ratchet 型 gate 的結果**同時取決於 main 的狀態與這支的改動**,所以比 gate 早開的分支
+自己 CI 綠、合進去卻讓 main 紅(#186×#195:#186 分支開得比 #195 早,它綠的時候 A17 還不存在)。
+**合併前先 `gh pr update-branch`**,別信那個早於 gate 的綠燈。
+這是 `MERGED≠main` 家族的第三條:**PR 綠不蘊含 main 綠**。
+
+### 內容驗證只證明「說的有做」,不證明「做的只有說的」
+grep 關鍵字驗證擋不住「PR 說明只講 SCSS、實際夾帶 12 行別的檔案」(#216 一度如此,作者自己
+force push 清掉)。急件最容易發生。**改動範圍可疑時看 `git diff --stat origin/main...FETCH_HEAD`**,
+一支宣稱單點修復的 PR 應該只有一個檔。
+
+### worktree checkout 在誰身上 ≠ 那支是誰寫的
+全隊共用同一個 GitHub 帳號,`gh pr list --author @me` 與 `merged_by` 都分辨不出席位,
+所以 worktree 是唯一線索 —— 但別席為了**驗證**別人的 PR 也會 checkout 過去(#200 已誤判)。
+要找作者就問計畫席,或看 PR 內文提到的工單歸屬。
+
+### 合併速度比部署快時要自己畫截線
+PR 進來的速度會超過「build + 部署」的耗時,等「全部合完」永遠等不到。
+**選一個 SHA 當截線、部署它、把 SHA 寫進回報**,之後合的算下一輪 —— 誰都看得出來什麼還沒上線。
+
+## 部署備忘(實測)
+- Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
+  production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
+- web 產物在 `dist/apps/web/**browser**/`(不是 `dist/apps/web/`)
+- 元件級 SCSS 會編進 **JS chunk**,不在 `styles-*.css` —— 驗 dist 內容要 grep `*.js`
+- api 部署前先 `npx wrangler deploy --env production --dry-run --outdir <tmp>` 驗 binding
+- worktree 是乾淨的,部署前 root 與 `apps/api` 各要 `npm ci`

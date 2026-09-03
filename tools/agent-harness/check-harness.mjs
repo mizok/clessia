@@ -542,7 +542,7 @@ scanExisting({ clause: 'c7', dir: WEB_SRC, ext: '.html', label: '使用了舊版
 // 這件事由 pre-guard 的 regex 本身保證，這裡不重述，共用規則就是為了不重述。
 scanExisting({ clause: 'c8', dir: WEB_SRC, ext: '.ts', label: '使用了裝飾器版 API' });
 
-// A15（c2）— 2026-09-03 盤點後收斂到「真債 3 筆 + 永久豁免 2 筆」。
+// A15（c2）— 2026-09-03 兩輪驗證後收斂到「**真債 0 筆** + 永久豁免 5 筆」。
 //
 // 原本 9 筆，處理如下：
 //   -3  只寫 `orgId` 的三處改由 **pre-guard 規則本身**豁免（不是靠這裡的清單）——
@@ -556,17 +556,27 @@ scanExisting({ clause: 'c8', dir: WEB_SRC, ext: '.ts', label: '使用了裝飾�
 //   - `updateUser` **明確拒絕** email（`api/routes/update-user.mjs:54` 丟
 //     `BAD_REQUEST` / `EMAIL_CAN_NOT_BE_UPDATED`）
 //   - 合法路徑 `changeEmail` 的三個前置**這個專案一個都不成立**（見 exempt 的 why）
-// 所以剩 3 筆真債（parents.ts ×2、staff.ts ×1），全是 `phone`，而 `phone` 是宣告過的
-// additionalField（`input: true`）—— 那三筆走得通，是真的債。
+// 剩下的 3 筆全是「管理員改別人的資料」，而**那條路也走不通**（第二輪驗證）：
+//   - `updateUser` 掛 `sessionMiddleware`，要的是**被改的那個人**的 session ——
+//     管理員手上沒有
+//   - admin plugin 的 `adminUpdateUser` 看的是 **`ba_user.role`**
+//     （`has-permission.mjs`：`role: ctx.context.session.user.role` + `user: ['update']`），
+//     而這個專案**每一個 ba_user 的 role 都是 `'user'`** —— 管理員身分住在我們自己的
+//     `user_roles` 表。所以每一次呼叫都會是 403 `YOU_ARE_NOT_ALLOWED_TO_UPDATE_USERS`。
+//     要讓它通過只有兩條路，兩條都比直寫糟：把管理員寫進 `ba_user.role`
+//     （本身就是 c2 寫入，而且會一併授予 impersonate / ban / setRole），
+//     或在設定裡寫死 `adminUserIds` 清單（把角色真相複製到設定檔）。
+//
+// 唯一走得通的是「**本人改自己**」：`me.ts` 的 phone 已於本輪改走
+// `auth.api.updateUser`（session headers 拿得到，`phone` 是宣告過的 additionalField）。
 scanExisting({
   clause: 'c2',
   dir: API_SRC,
   ext: '.ts',
   label: '直接寫入 ba_* 表',
-  allowlist: {
-    'apps/api/src/routes/parents.ts': 2, // :621 email, :625 phone
-    'apps/api/src/routes/staff.ts': 1, // :1150 phone
-  },
+  // 真債歸零 —— 剩下的每一筆都驗證過「沒有合規路徑」，所以是豁免不是待辦。
+  // **這正是把債與豁免分開記的意義**：allowlist 空了才代表沒有欠著沒做的事。
+  allowlist: {},
   exempt: {
     // me.ts:151 在同一個 update 裡寫 `phone` 與 `username`。phone 本身可以走 API，
     // 但 `username` 沒有 API —— username plugin 已被刻意移除（auth.ts:148，它提供的
@@ -580,6 +590,17 @@ scanExisting({
     // 見 auth.ts 的 magic-link 註解），第三個 `updateEmailWithoutVerification`
     // 要求 `emailVerified !== true`，但 LINE 登入的使用者我們**刻意**標成
     // `emailVerified: true`（`lineProfileToUser`，為了讓 link-account 通過）。
+    // parents.ts / staff.ts 都是「管理員改別人的資料」——
+    // `updateUser` 要被改者的 session（拿不到），`adminUpdateUser` 看 `ba_user.role`
+    // （全都是 `'user'`）必 403。詳見上方註解。
+    'apps/api/src/routes/parents.ts': {
+      count: 2,
+      why: '管理員改別人的 email/phone：updateUser 要被改者的 session、adminUpdateUser 看 ba_user.role（本專案全是 user）必 403',
+    },
+    'apps/api/src/routes/staff.ts': {
+      count: 1,
+      why: '同上（管理員改別人的 phone）',
+    },
     'apps/api/src/routes/me.ts': {
       count: 2,
       why: 'username 無 API 路徑（plugin 已移除）且仍是家長匯入的唯一性鍵；email 被 updateUser 明著拒絕，而 changeEmail 的前置需要寄信管道（本專案沒有）',
