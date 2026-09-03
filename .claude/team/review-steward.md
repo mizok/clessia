@@ -59,6 +59,24 @@ charter 早有「gate 寫完塞陷阱看它會不會紅」,那條同樣適用於
 Pages 的 `deployment list` 也能對 source commit,Worker 用 `wrangler deployments list --env production`
 對 version id 與時間。**這是 MERGED≠main 在部署端的同一件事。**
 
+### ListAgents 的名字是 session 名,不是席名 —— 查無此名 ≠ 席位不在
+`ListAgents` 列的是 session 自動命名,**session 輪替就會換一個名字**(README 早有此條:
+「不要寫死在任何文件」)。我從「列表裡沒有一個叫 design-web 的」推出「design-web 席已停」,
+然後據此建議計畫席重開席位 —— 實際上那一席活著,只是換了 session 名。
+**要確認某一席在不在,問計畫席,不要自己用名字比對。**
+
+### 這四條是同一族:代理指標平常重合,不重合時沒有警告
+| 我用的代理 | 我以為它代表 | 反例 |
+| --- | --- | --- |
+| worktree checkout 在哪支分支 | 那支 PR 是誰寫的 | 別席為了**驗證**也會 checkout 過去(#200) |
+| `grep "check[A-Za-z]+\(\);"` | 這道 gate 有沒有跑 | inline 寫法的 gate 抓不到(#229) |
+| 部署指令回傳成功 | 線上跑的是這個 commit | 要 curl 線上的 bundle hash 才算 |
+| ListAgents 有沒有這個名字 | 這一席在不在 | session 名 ≠ 席名 |
+
+**共同形狀:代理指標平常跟真實狀態重合,所以用起來很順;不重合的那次不會有任何訊號。**
+判準:問「我查的這個東西,是**定義上**等於我要知道的事,還是**通常**等於?」
+是「通常」就要再找一個直接證據。
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
