@@ -4,7 +4,7 @@
 <div class="leave-page">
   <div class="leave-page__header">
     <h2 class="leave-page__title">{{ page().label }}</h2>
-    <div class="leave-page__header-actions">
+    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
       <p-button
         label="操作紀錄"
         icon="pi pi-history"
@@ -12,8 +12,7 @@
         severity="secondary"
         (onClick)="openAuditLog()"
       />
-      <p-button label="新增請假" icon="pi pi-plus" (onClick)="openCreateDialog()" />
-    </div>
+    </app-page-actions>
   </div>
 
   <div class="leave-page__filters clessia-filter-bar">

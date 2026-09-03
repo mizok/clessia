@@ -7,10 +7,9 @@
       <h1 class="exams__title">{{ page()?.label ?? '考試管理' }}</h1>
       <p class="exams__subtitle">管理補習班考試與學校考試，統一查看狀態、進入成績登錄</p>
     </div>
-    <div class="exams__header-actions">
+    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateMenu($event)">
       <app-popup-menu #createExamMenu [model]="createMenuItems" />
-      <p-button label="新增考試" icon="pi pi-plus" (onClick)="openCreateMenu($event)" />
-    </div>
+    </app-page-actions>
   </header>
 
   <!-- Main Card -->

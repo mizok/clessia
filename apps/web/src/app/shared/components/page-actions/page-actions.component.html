@@ -1,13 +1,17 @@
-<!-- 桌機：標頭右上。次要行動只在這裡出現。 -->
+<!-- 標頭：**手機也保留**。次要行動（操作紀錄、匯入）投影在這裡，
+     它們在手機上仍然要按得到 —— 主要行動搬走不代表其他行動跟著消失。 -->
 <div class="page-actions__header">
   <ng-content />
   @if (primary(); as action) {
-    <p-button
-      [label]="action.label"
-      [icon]="action.icon ?? ''"
-      [disabled]="!!action.disabled"
-      (onClick)="onPrimary()"
-    />
+    <!-- 主要行動在標頭裡的那一份**只在桌機出現**；手機由下方的停靠列承擔 -->
+    <div class="page-actions__header-primary">
+      <p-button
+        [label]="action.label"
+        [icon]="action.icon ?? ''"
+        [disabled]="!!action.disabled"
+        (onClick)="onPrimary($event)"
+      />
+    </div>
   }
 </div>
 
@@ -22,7 +26,7 @@
       [label]="action.label"
       [icon]="action.icon ?? ''"
       [disabled]="!!action.disabled"
-      (onClick)="onPrimary()"
+      (onClick)="onPrimary($event)"
     />
   </div>
 }

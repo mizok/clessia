@@ -12,7 +12,17 @@ $bottom-bar-height: 64px;
    而它抓到的第一個違規是我。 */
 .page-actions {
   // ── 手機（基準）──
+  // 標頭**保留** —— 次要行動投影在這裡，它們在手機上仍然要按得到。
+  // 第一版把整個標頭隱藏，結果是「操作紀錄」「匯入」在手機上完全消失，
+  // 而那是**無法觸及**不是「換位置」。
   &__header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  // 主要行動在標頭裡的那一份只在桌機出現；手機由停靠列承擔
+  &__header-primary {
     display: none;
   }
 
@@ -32,10 +42,8 @@ $bottom-bar-height: 64px;
 
   // ── 桌機（加強）──
   @include bp.respond-from('mobile') {
-    &__header {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
+    &__header-primary {
+      display: block;
     }
 
     &__dock {

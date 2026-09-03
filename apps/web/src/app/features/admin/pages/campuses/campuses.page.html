@@ -7,7 +7,7 @@
       <h1 class="campuses__title">分校管理</h1>
       <p class="campuses__subtitle">管理您的補習班分校資訊</p>
     </div>
-    <div class="campuses__header-actions">
+    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
       <p-button
         label="操作紀錄"
         icon="pi pi-history"
@@ -15,8 +15,7 @@
         severity="secondary"
         (onClick)="openAuditLog()"
       />
-      <p-button label="新增分校" icon="pi pi-plus" (onClick)="openCreateDialog()" />
-    </div>
+    </app-page-actions>
   </header>
 
   <!-- Main Card -->

@@ -49,10 +49,17 @@ export class PageActionsComponent {
   /** 這一頁的主要行動。不給就只渲染次要行動（桌機），手機上完全不佔空間。 */
   readonly primary = input<PageAction | null>(null);
 
-  readonly primaryClick = output<void>();
+  /**
+   * 帶著原始的 `MouseEvent` —— 有些主要行動要**錨定一個彈出選單**在按鈕上
+   * （例如「新增考試」要先選補習班考試還是學校考試），那需要事件的 target。
+   *
+   * 附帶的好處：手機上事件來自停靠列那顆按鈕，所以選單會錨在畫面下方 ——
+   * 正好是拇指旁邊，不用另外處理。
+   */
+  readonly primaryClick = output<MouseEvent>();
 
-  protected onPrimary(): void {
+  protected onPrimary(event: MouseEvent): void {
     if (this.primary()?.disabled) return;
-    this.primaryClick.emit();
+    this.primaryClick.emit(event);
   }
 }

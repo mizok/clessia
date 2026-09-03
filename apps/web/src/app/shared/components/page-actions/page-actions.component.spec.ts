@@ -62,6 +62,25 @@ describe('PageActionsComponent', () => {
     expect(host.querySelector('.page-actions__dock')).not.toBeNull();
   });
 
+  // ── 次要行動在手機上不能消失 ────────────────────────────────────────────
+  // 第一版把整個 `__header` 在手機隱藏，而次要行動（操作紀錄、匯入）投影在裡面 ——
+  // 結果是它們在手機上**完全按不到**。那是無法觸及，不是「換了位置」。
+  //
+  // 現在只藏 `__header-primary`（主要行動在標頭裡的那一份），標頭本身保留。
+  // 這條測試釘的是那個結構，不是 CSS 的可見性（jsdom 不跑 media query）。
+  it('主要行動在標頭裡的那一份是獨立容器 —— 藏它時不會連累投影的次要行動', async () => {
+    await setup({ label: '新增分校' });
+
+    const header = host.querySelector('.page-actions__header');
+    const headerPrimary = host.querySelector('.page-actions__header-primary');
+
+    expect(header).not.toBeNull();
+    expect(headerPrimary).not.toBeNull();
+    // 主要行動必須被包在自己的容器裡，而那個容器是 __header 的子節點 ——
+    // 這樣手機隱藏它才不會把兄弟節點（投影的次要行動）一起帶走
+    expect(headerPrimary!.parentElement).toBe(header);
+  });
+
   // ── 只收一顆 ──────────────────────────────────────────────────────────────
   // `primary` 是單數，型別上就放不進第二顆。這條測試釘的是「停靠列裡只有一顆按鈕」，
   // 因為投影內容（次要行動）不該漏進停靠列。
@@ -78,7 +97,9 @@ describe('PageActionsComponent', () => {
 
     let fired = 0;
     fixture.componentInstance.primaryClick.subscribe(() => fired++);
-    (fixture.componentInstance as unknown as { onPrimary: () => void }).onPrimary();
+    (fixture.componentInstance as unknown as { onPrimary: (e: MouseEvent) => void }).onPrimary(
+      new MouseEvent('click'),
+    );
 
     expect(fired).toBe(0);
   });
@@ -88,7 +109,9 @@ describe('PageActionsComponent', () => {
 
     let fired = 0;
     fixture.componentInstance.primaryClick.subscribe(() => fired++);
-    (fixture.componentInstance as unknown as { onPrimary: () => void }).onPrimary();
+    (fixture.componentInstance as unknown as { onPrimary: (e: MouseEvent) => void }).onPrimary(
+      new MouseEvent('click'),
+    );
 
     expect(fired).toBe(1);
   });

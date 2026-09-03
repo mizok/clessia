@@ -74,6 +74,10 @@ import {
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
 
 type ExamKind = 'academy' | 'school';
 type ExamTypeFilter = ExamKind;
@@ -141,6 +145,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
   selector: 'app-exams',
   standalone: true,
   imports: [
+    PageActionsComponent,
     StatusDotComponent,
     DataChipComponent,
     FormsModule,
@@ -163,6 +168,10 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExamsComponent implements OnInit {
+  /** 主要行動。**寫成 readonly property 不是模板裡的物件字面量** ——
+   *  字面量每輪變更偵測都會產生新物件，讓 signal input 每次都判定為「變了」。 */
+  protected readonly primaryAction: PageAction = { label: '新增考試', icon: 'pi pi-plus' };
+
   readonly page = input<RouteObj>();
 
   private readonly academyExamsService = inject(AcademyExamsService);
