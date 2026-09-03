@@ -58,30 +58,6 @@
     line-height: var(--leading-tight);
   }
 
-  &__subtitle {
-    display: inline-flex;
-    gap: var(--space-1);
-    margin: 0;
-    padding: 0;
-    border: none;
-    border-radius: var(--radius-sm);
-    background: none;
-    font-size: var(--text-md);
-    color: var(--zinc-500);
-    cursor: pointer;
-    transition: color var(--transition-fast);
-    flex-basis: 100%;
-
-    &:hover {
-      color: var(--zinc-700);
-    }
-  }
-
-  &__subtitle-caret {
-    font-size: var(--text-xs);
-    opacity: 0.6;
-  }
-
   &__datepicker-popup {
     position: absolute;
     top: calc(100% + var(--space-1));
@@ -136,5 +112,14 @@
     &__nav {
       align-self: auto;
     }
+  }
+}
+
+// 兩顆 badge 是 `<button>`（點下去會篩出未指派／未點名的課堂），滑鼠下 ~26px
+// 夠用，觸控下要 44px（AAA 2.5.5）。只加 coarse 這一段 —— gate 取
+// `max(基準, coarse)`，桌機的緊湊外觀不動。
+@media (pointer: coarse) {
+  .sessions-header__badge {
+    min-height: 44px;
   }
 }

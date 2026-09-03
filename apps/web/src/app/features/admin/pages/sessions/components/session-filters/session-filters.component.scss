@@ -64,7 +64,10 @@
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
-    height: 38px;
+    // `min-height` 而不是 `height`：38px 是為了跟旁邊那顆 sm 日期輸入框對齊，
+    // 但 `styles.scss` 的 `pointer: coarse` 已經把 PrimeNG 的 sm 輸入框加高了 ——
+    // 寫死 38 在觸控下反而變成錯位。改成下限就能跟著長。
+    min-height: 38px;
 
     &:active {
       background: var(--zinc-100);
@@ -197,5 +200,13 @@
     &__control--date-range {
       min-width: 220px;
     }
+  }
+}
+
+// 觸控下抬到 44px（AAA 2.5.5）。**只加 coarse 這一段就夠** —— gate 取
+// `max(基準, coarse)`，而滑鼠下 38px 本來就夠用，桌機不必動。
+@media (pointer: coarse) {
+  .session-filters__mobile-toggle {
+    min-height: 44px;
   }
 }
