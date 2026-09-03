@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-describe('toParentResponse', () => {
-  it('maps snake_case DB row to camelCase, email 優先作為 loginAccount', async () => {
-    const { toParentResponse } = await import('./parents');
+// **靜態 import，不要在 test body 裡動態 import。**
+// 原本兩個測試各寫 `await import('./parents')`，於是**模組轉譯的時間被算進
+// 5 秒的 test timeout**。這支路由檔很大，轉譯本身就要好幾秒 —— 本機連跑三次
+// 分別是 2.5s 過、3.0s 過、5.0s **失敗**。
+// 隨機紅在跟改動無關的地方，比慢更貴：它會讓所有人開始不信任 CI。
+import { toParentResponse } from './parents';
 
+describe('toParentResponse', () => {
+  it('maps snake_case DB row to camelCase, email 優先作為 loginAccount', () => {
     const row = {
       id: 'parent-uuid',
       user_id: 'ba-user-id',
@@ -31,9 +36,7 @@ describe('toParentResponse', () => {
     });
   });
 
-  it('無 email 時 loginAccount 使用 phone', async () => {
-    const { toParentResponse } = await import('./parents');
-
+  it('無 email 時 loginAccount 使用 phone', () => {
     const row = {
       id: 'parent-uuid',
       user_id: 'ba-user-id',
