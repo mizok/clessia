@@ -44,6 +44,42 @@ describe('app routes', () => {
     },
   );
 
+  // 分校/學校/科目 從側欄收進 /admin/settings 的四個 tab（PR #G）。
+  // 它們不再 showInMenu，所以上面兩個 it.each 管不到 —— 但別人存的書籤還在。
+  describe('設定四頁：收進 tab 之後的可達性', () => {
+    it.each([
+      [RoutesCatalog.ADMIN_CAMPUSES],
+      [RoutesCatalog.ADMIN_SCHOOLS],
+      [RoutesCatalog.ADMIN_SUBJECTS],
+      [RoutesCatalog.ADMIN_SETTINGS_GENERAL],
+    ])('$absolutePath 載入得到頁面', (entry) => {
+      const target = entry.absolutePath.replace(/^\//, '');
+      const matches = allRoutes.filter((r) => r.path === target);
+
+      expect(
+        matches.some(({ route }) => !route.redirectTo && (route.loadComponent ?? route.component)),
+      ).toBe(true);
+    });
+
+    // 舊網址 404 的話，別人存的書籤與外部連結會直接死掉
+    it.each([['campuses'], ['schools'], ['subjects']])(
+      '舊網址 /admin/%s 是 redirect，不是 404',
+      (segment) => {
+        const old = allRoutes.find((r) => r.path === `admin/${segment}`);
+
+        expect(old?.route.redirectTo).toBe(`settings/${segment}`);
+      },
+    );
+
+    it('側欄只留一項「系統設定」', () => {
+      const settingsMenuItems = menuEntries.filter((e) =>
+        e.absolutePath.startsWith('/admin/settings'),
+      );
+
+      expect(settingsMenuItems.map((e) => e.label)).toEqual(['系統設定']);
+    });
+  });
+
   it.each(menuEntries.map((entry) => [entry.label, entry.absolutePath] as const))(
     '「%s」(%s) 載入的是頁面，不是 redirect',
     (_label, absolutePath) => {
@@ -74,17 +110,16 @@ describe('app routes —— 帶 permission 的路由必須掛對 guard', () => {
     expect(permissioned.length).toBeGreaterThan(0);
   });
 
-  it.each(permissioned.map((entry) => [entry.label, entry.absolutePath, entry.permission!] as const))(
-    '「%s」(%s) 掛了 permissionGuard(%s)',
-    (_label, absolutePath, permission) => {
-      const target = absolutePath.replace(/^\//, '');
-      const guards = allRoutes
-        .filter((r) => r.path === target)
-        .flatMap(({ route }) => route.canActivate ?? []);
+  it.each(
+    permissioned.map((entry) => [entry.label, entry.absolutePath, entry.permission!] as const),
+  )('「%s」(%s) 掛了 permissionGuard(%s)', (_label, absolutePath, permission) => {
+    const target = absolutePath.replace(/^\//, '');
+    const guards = allRoutes
+      .filter((r) => r.path === target)
+      .flatMap(({ route }) => route.canActivate ?? []);
 
-      expect(guards.map((g) => (g as { permission?: string }).permission)).toContain(permission);
-    },
-  );
+    expect(guards.map((g) => (g as { permission?: string }).permission)).toContain(permission);
+  });
 });
 
 /**

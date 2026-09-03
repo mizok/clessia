@@ -1,0 +1,10 @@
+.settings-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+
+  &__body {
+    padding-top: var(--space-4);
+    min-height: 0;
+  }
+}

@@ -1,0 +1,13 @@
+<div class="settings-shell">
+  <p-tabs [value]="activeTab()" (valueChange)="onTabChange($event)">
+    <p-tablist>
+      @for (tab of tabs; track tab.value) {
+        <p-tab [value]="tab.value">{{ tab.label }}</p-tab>
+      }
+    </p-tablist>
+  </p-tabs>
+
+  <div class="settings-shell__body">
+    <router-outlet />
+  </div>
+</div>

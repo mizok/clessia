@@ -26,6 +26,7 @@ import {
 } from '@core/school-exams.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { SchoolsService, type School } from '@core/schools.service';
+import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
 export interface SchoolExamFormDialogData {
   readonly mode: 'create' | 'edit';
@@ -245,7 +246,7 @@ export class SchoolExamFormDialogComponent implements OnInit {
 
   protected goToSchools(): void {
     this.ref.close();
-    this.router.navigate(['/admin/schools']);
+    this.router.navigate([RoutesCatalog.ADMIN_SCHOOLS.absolutePath]);
   }
 
   protected save(): void {

@@ -250,29 +250,55 @@ export const routes: Routes = [
             canActivate: [permissionGuard('view_reports')],
           },
           {
-            path: RoutesCatalog.ADMIN_CAMPUSES.relativePath,
-            loadComponent: () =>
-              import('@features/admin/pages/campuses/campuses.page').then((m) => m.CampusesPage),
-            data: { page: RoutesCatalog.ADMIN_CAMPUSES },
-          },
-          {
-            path: RoutesCatalog.ADMIN_SCHOOLS.relativePath,
-            loadComponent: () =>
-              import('@features/admin/pages/schools/schools.page').then((m) => m.SchoolsPage),
-            data: { page: RoutesCatalog.ADMIN_SCHOOLS },
-          },
-          {
-            path: RoutesCatalog.ADMIN_SUBJECTS.relativePath,
-            loadComponent: () =>
-              import('@features/admin/pages/subjects/subjects.page').then((m) => m.SubjectsPage),
-            data: { page: RoutesCatalog.ADMIN_SUBJECTS },
-          },
-          {
             path: RoutesCatalog.ADMIN_SETTINGS.relativePath,
             loadComponent: () =>
-              import('@features/admin/pages/settings/settings.page').then((m) => m.SettingsPage),
+              import('@features/admin/pages/settings/settings-shell/settings-shell.page').then(
+                (m) => m.SettingsShellPage,
+              ),
             data: { page: RoutesCatalog.ADMIN_SETTINGS },
+            children: [
+              {
+                path: '',
+                pathMatch: 'full',
+                redirectTo: RoutesCatalog.ADMIN_CAMPUSES.relativePath,
+              },
+              {
+                path: RoutesCatalog.ADMIN_CAMPUSES.relativePath,
+                loadComponent: () =>
+                  import('@features/admin/pages/campuses/campuses.page').then(
+                    (m) => m.CampusesPage,
+                  ),
+                data: { page: RoutesCatalog.ADMIN_CAMPUSES },
+              },
+              {
+                path: RoutesCatalog.ADMIN_SCHOOLS.relativePath,
+                loadComponent: () =>
+                  import('@features/admin/pages/schools/schools.page').then((m) => m.SchoolsPage),
+                data: { page: RoutesCatalog.ADMIN_SCHOOLS },
+              },
+              {
+                path: RoutesCatalog.ADMIN_SUBJECTS.relativePath,
+                loadComponent: () =>
+                  import('@features/admin/pages/subjects/subjects.page').then(
+                    (m) => m.SubjectsPage,
+                  ),
+                data: { page: RoutesCatalog.ADMIN_SUBJECTS },
+              },
+              {
+                path: RoutesCatalog.ADMIN_SETTINGS_GENERAL.relativePath,
+                loadComponent: () =>
+                  import('@features/admin/pages/settings/settings.page').then(
+                    (m) => m.SettingsPage,
+                  ),
+                data: { page: RoutesCatalog.ADMIN_SETTINGS_GENERAL },
+              },
+            ],
           },
+          // 舊網址：四頁收進 /admin/settings 之前的位置。別人存的書籤與外部連結
+          // 不該 404 —— 留著 redirect，不設期限（成本是三行，拿掉的收益是零）。
+          { path: 'campuses', redirectTo: 'settings/campuses' },
+          { path: 'schools', redirectTo: 'settings/schools' },
+          { path: 'subjects', redirectTo: 'settings/subjects' },
           {
             path: RoutesCatalog.ADMIN_COURSES.relativePath,
             loadComponent: () =>
