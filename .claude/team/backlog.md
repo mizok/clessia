@@ -10,12 +10,12 @@
 2. students/notifications 兩頁補斷點(0 media query,1280 下一列 944px;dashboard 不補 —— 今日流會刪它)
 3. (窗口批准後)今日流主刀
 
-## design-web
+## design-web(整理 2026-09-04 凌晨)
 
-0. 分校預設過濾 14 支路由接線(A7c 後續,無需批准)[認領 bundle-analysis-4f 11:56]
-1. 時間軸濃度圖設計稿 [認領 bundle-analysis-4f 11:37 · 完成待窗口](N=3 的真解:每半小時一根、濃度=同時堂數 —— 換畫法,day-timeline.util 重做的設計不動工)
-2. bundle lazy chunk 內部拆分(你封存的舊分析的後續,撿回來評估哪些值得)
-3. (窗口批准後)作業台實作
+0. ~~分校預設過濾 14 支路由~~(#209 綠,等使用者窗口)
+1. ~~濃度圖~~(#224 已合)/ ~~lazy chunk~~(#200 已合+lesson,結案不排二輪)/ ~~作業台一刀~~(#235 已合)
+2. 作業台二刀(#249 CI 中,綠後計畫席收)
+3. charter §五過期整修 [認領 bundle-analysis-4f](TIMELINE_COLLAPSE_LANE_THRESHOLD 已隨 #224 退役等)
 
 ## design-web-2
 

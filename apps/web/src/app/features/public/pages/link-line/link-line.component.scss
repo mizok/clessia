@@ -42,6 +42,10 @@
 
   &__skip {
     width: 100%;
+    // 「稍後再說」是這一頁的兩個出口之一（另一個是綁定）—— 只靠 padding 的話
+    // 量出來只有 34px。**base 直接給 44**：這一頁幾乎只在手機上出現
+    // （LINE 綁定是從手機點連結進來的），沒有「桌機用較小目標」的情境
+    min-height: 44px;
     margin-top: var(--space-3);
     padding: var(--space-2);
     font-size: var(--text-sm);
