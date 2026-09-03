@@ -1,9 +1,17 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { swaggerUI } from '@hono/swagger-ui';
 import { cors } from 'hono/cors';
+import { createMiddleware } from 'hono/factory';
 import { logger } from 'hono/logger';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { authMiddleware, requirePermission, requireRoles } from './middleware/auth';
+import {
+  authMiddleware,
+  campusRequestGuard,
+  requireAdminPermission,
+  requireRoles,
+} from './middleware/auth';
+import type { Permission } from './lib/permissions';
+import type { CampusScope } from './lib/campus-scope';
 import type { Auth, MagicLinkPayload } from './auth';
 import { authPoolCleanup, getAuth } from './lib/get-auth';
 import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
@@ -73,8 +81,14 @@ export type Variables = {
   orgId: string;
   /** 每次請求從 user_roles 查出來的角色，不是 session 快照 */
   roles: string[];
-  /** 同上，`user_roles.permissions` 的聯集。`*` 代表全部（見 requirePermission） */
+  /** 同上，`user_roles.permissions` 的聯集。`*` 代表全部（見 requireAdminPermission） */
   permissions: string[];
+  /**
+   * 這個請求看得到哪些分校。`null` = 不受分校限制（跨分校的管理員，或由更窄的
+   * 範圍限制把關的老師與家長）；空陣列 = 一個分校都沒被指派。
+   * 見 `lib/campus-scope.ts` 與 kb/wiki/architecture/authorization-scope.md 洞 5。
+   */
+  campusScope: CampusScope;
   supabase: SupabaseClient;
   /** 這個請求共用的 Better Auth 實例與連線池，由 `lib/get-auth.ts` 管理 */
   auth: Auth;
@@ -224,6 +238,10 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
 
 app.use('/api/*', authMiddleware);
 
+// 分校範圍：請求指名了不屬於自己的分校就 403。掛全域而不是各路由自己檢查 ——
+// 見 kb/wiki/architecture/authorization-scope.md 洞 5。
+app.use('/api/*', campusRequestGuard);
+
 // ============================================================
 // Mount routes
 //
@@ -238,36 +256,66 @@ app.use('/api/*', authMiddleware);
 const ANY_ROLE = ['admin', 'teacher', 'parent'];
 const ADMIN_ONLY = ['admin'];
 
+/**
+ * 細部權限要擋到什麼程度 —— 兩種形狀，因為真的有兩種。
+ *
+ * - `all`：**讀也要擋**。資料本身就是機密（金流、營收報表），看得到就是問題。
+ * - `write`：**只擋寫**。這些資料被別的頁面當基礎資料讀 —— 出勤頁要班級與課程、
+ *   報名頁要分校、課表的指派對話框要人員。整包擋掉的話，一個只有 `basic_operations`
+ *   的管理員連出勤頁都打不開，於是實務上大家只好把權限全開，權限系統就失去意義。
+ *
+ * 讀寫用同一個權限是最容易寫、也最容易讓人放棄使用權限的做法。
+ */
+type MountPermission = { all: Permission } | { write: Permission };
+
+/** 只對會改資料的方法套權限。GET / HEAD / OPTIONS 交給角色層。 */
+const requireAdminPermissionOnWrite = (permission: string) =>
+  createMiddleware<AppEnv>(async (c, next) => {
+    if (c.req.method === 'GET' || c.req.method === 'HEAD' || c.req.method === 'OPTIONS') {
+      return next();
+    }
+    return requireAdminPermission(permission)(c, next);
+  });
+
 // app.route 有多載，Parameters<> 取不到正確的那一個；掛載的 route 全是 OpenAPIHono
-function mount(path: string, route: OpenAPIHono<AppEnv>, roles: string[], permission?: string) {
+function mount(
+  path: string,
+  route: OpenAPIHono<AppEnv>,
+  roles: string[],
+  permission?: MountPermission,
+) {
   app.use(path, requireRoles(...roles));
   app.use(`${path}/*`, requireRoles(...roles));
   // 細部權限是 optional 的第四個參數 —— 角色是准入的底線，權限是「這個管理員負責
   // 這一塊嗎」。金流是第一個真的需要它的地方；沒有它的話「有 manage_finance 才能改
   // 價目表」只存在於前端，直接打 API 就繞過去了。
   if (permission) {
-    app.use(path, requirePermission(permission));
-    app.use(`${path}/*`, requirePermission(permission));
+    const guard =
+      'all' in permission
+        ? requireAdminPermission(permission.all)
+        : requireAdminPermissionOnWrite(permission.write);
+    app.use(path, guard);
+    app.use(`${path}/*`, guard);
   }
   app.route(path, route);
 }
 
 mount('/api/me', meRoute, ANY_ROLE);
-mount('/api/courses', coursesRoute, ADMIN_ONLY);
+mount('/api/courses', coursesRoute, ADMIN_ONLY, { write: 'manage_courses' });
 mount('/api/campuses', campusesRoute, ADMIN_ONLY);
-mount('/api/schools', schoolsRoute, ADMIN_ONLY);
-mount('/api/staff', staffRoute, ADMIN_ONLY);
-mount('/api/subjects', subjectsRoute, ADMIN_ONLY);
-mount('/api/classes', classesRoute, ADMIN_ONLY);
+mount('/api/schools', schoolsRoute, ADMIN_ONLY, { write: 'manage_courses' });
+mount('/api/staff', staffRoute, ADMIN_ONLY, { write: 'manage_staff' });
+mount('/api/subjects', subjectsRoute, ADMIN_ONLY, { write: 'manage_courses' });
+mount('/api/classes', classesRoute, ADMIN_ONLY, { write: 'manage_courses' });
 mount('/api/audit-logs', auditLogsRoute, ADMIN_ONLY);
-mount('/api/sessions', sessionsRoute, ADMIN_ONLY);
-mount('/api/students', studentsRoute, ['admin', 'teacher']);
-mount('/api/parents', parentsRoute, ADMIN_ONLY);
-mount('/api/enrollments', enrollmentsRoute, ADMIN_ONLY);
+mount('/api/sessions', sessionsRoute, ADMIN_ONLY, { write: 'manage_courses' });
+mount('/api/students', studentsRoute, ['admin', 'teacher'], { write: 'manage_students' });
+mount('/api/parents', parentsRoute, ADMIN_ONLY, { write: 'manage_students' });
+mount('/api/enrollments', enrollmentsRoute, ADMIN_ONLY, { write: 'manage_students' });
 mount('/api/org', orgSettingsRoute, ['admin', 'teacher']);
-mount('/api/attendance', attendanceRoute, ['admin', 'teacher']);
-mount('/api/leaves', leavesRoute, ADMIN_ONLY);
-mount('/api/daily-checkins', dailyCheckinsRoute, ADMIN_ONLY);
+mount('/api/attendance', attendanceRoute, ['admin', 'teacher'], { write: 'basic_operations' });
+mount('/api/leaves', leavesRoute, ADMIN_ONLY, { write: 'basic_operations' });
+mount('/api/daily-checkins', dailyCheckinsRoute, ADMIN_ONLY, { write: 'basic_operations' });
 // 成績三支開給老師，但**範圍限制在路由層**（`lib/exam-scope.ts` / `lib/teacher-scope.ts`）：
 // 老師只碰自己固定任課的班。單純把角色加上去是不安全的 —— 那會讓任何老師讀寫全校的
 // 考試與成績。見 .claude/team/billing-api-p3-grades-scope-design.md
@@ -278,22 +326,22 @@ mount('/api/scores', scoresRoute, ['admin', 'teacher']);
 mount('/api/announcements', announcementsRoute, ANY_ROLE);
 // 聯絡簿與教務日誌：admin 與 teacher 都寫得到，老師的範圍在 route 內縮限到
 // 自己固定任課的班（lib/teacher-scope）。家長端的簽收與已閱是 P4。
-mount('/api/contact-book', contactBookRoute, ['admin', 'teacher']);
-mount('/api/class-logs', classLogsRoute, ['admin', 'teacher']);
+mount('/api/contact-book', contactBookRoute, ['admin', 'teacher'], { write: 'basic_operations' });
+mount('/api/class-logs', classLogsRoute, ['admin', 'teacher'], { write: 'basic_operations' });
 // 產生登入連結 = 產生一個能登入的憑證。只有 admin，且只能對同組織的人
 mount('/api/login-links', loginLinksRoute, ADMIN_ONLY);
 
 // 金流：admin 角色之外還要 manage_finance（見 kb/wiki/rules/billing-rules.md）
-mount('/api/billing-periods', billingPeriodsRoute, ADMIN_ONLY, 'manage_finance');
-mount('/api/fee-templates', feeTemplatesRoute, ADMIN_ONLY, 'manage_finance');
-mount('/api/invoices', invoicesRoute, ADMIN_ONLY, 'manage_finance');
-mount('/api/session-packs', sessionPacksRoute, ADMIN_ONLY, 'manage_finance');
-mount('/api/meals', mealsRoute, ADMIN_ONLY, 'manage_finance');
-mount('/api/billing-runs', billingRunsRoute, ADMIN_ONLY, 'manage_finance');
+mount('/api/billing-periods', billingPeriodsRoute, ADMIN_ONLY, { all: 'manage_finance' });
+mount('/api/fee-templates', feeTemplatesRoute, ADMIN_ONLY, { all: 'manage_finance' });
+mount('/api/invoices', invoicesRoute, ADMIN_ONLY, { all: 'manage_finance' });
+mount('/api/session-packs', sessionPacksRoute, ADMIN_ONLY, { all: 'manage_finance' });
+mount('/api/meals', mealsRoute, ADMIN_ONLY, { all: 'manage_finance' });
+mount('/api/billing-runs', billingRunsRoute, ADMIN_ONLY, { all: 'manage_finance' });
 
 // 報表是**唯讀**，用 view_reports 不是 manage_finance —— 老闆可能只給主任看營收
 // 而不給動錢（見 kb/wiki/specs/admin/finance/reports.md）
-mount('/api/reports', reportsRoute, ADMIN_ONLY, 'view_reports');
+mount('/api/reports', reportsRoute, ADMIN_ONLY, { all: 'view_reports' });
 
 // ============================================================
 // Error Handler

@@ -8,6 +8,7 @@ import { resolveRecordedByRole } from '../lib/recorded-by-role';
 import { leaveCoversSession } from '../lib/leave-covers-session';
 import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
+import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
 
 const AttendanceStatusSchema = z
   .enum(['present', 'absent', 'on_leave'])
@@ -501,6 +502,8 @@ app.openapi(
     const userId = c.get('userId');
     const body = c.req.valid('json');
 
+    const roles = c.get('roles') ?? [];
+
     const { data: ev } = await supabase
       .from('events')
       .select('event_date')
@@ -509,13 +512,27 @@ app.openapi(
       .single();
 
     if (!ev) return c.json({ error: '找不到課堂或無權限', message: undefined }, 500);
+
+    // **範圍：這堂課是不是他的。** 時窗管「什麼時候還能改」，範圍管「能改誰的」，
+    // 兩個都要過。清單本來就回傳 eventId，少了這一段，老師換一個值就改得動別班。
+    if (
+      !(await assertTeacherCanWriteAttendance(supabase, {
+        orgId,
+        userId,
+        roles,
+        eventId: body.eventId,
+      }))
+    ) {
+      return c.json({ error: '這不是你的課堂', code: 'FORBIDDEN' }, 403);
+    }
+
     if ((ev as any).event_date > getCurrentTaipeiDateString()) {
       return c.json({ error: '未來課堂尚未開放點名', message: undefined }, 500);
     }
 
     const window = await assertAttendanceWindow(supabase, {
       orgId,
-      roles: c.get('roles') ?? [],
+      roles,
       eventDate: (ev as any).event_date as string,
     });
     if (!window.ok) {
@@ -630,6 +647,16 @@ app.openapi(
 
     if (!ev) return c.json({ error: '找不到課堂或無權限' }, 403);
 
+    const roles = c.get('roles') ?? [];
+
+    // **範圍：這堂課是不是他的。** 時窗管「什麼時候還能改」，範圍管「能改誰的」，
+    // 兩個都要過。清單本來就回傳 eventId，少了這一段，老師換一個值就改得動別班。
+    if (
+      !(await assertTeacherCanWriteAttendance(supabase, { orgId, userId, roles, eventId: eventId }))
+    ) {
+      return c.json({ error: '這不是你的課堂', code: 'FORBIDDEN' }, 403);
+    }
+
     const classId = (ev as any).sessions?.[0]?.class_id;
     const eventDate = (ev as any).event_date as string;
 
@@ -639,7 +666,7 @@ app.openapi(
 
     const window = await assertAttendanceWindow(supabase, {
       orgId,
-      roles: c.get('roles') ?? [],
+      roles,
       eventDate: eventDate,
     });
     if (!window.ok) {
@@ -747,14 +774,30 @@ app.openapi(
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
 
+    const roles = c.get('roles') ?? [];
+
     const { data: existing } = await supabase
       .from('attendance_records')
-      .select('events(event_date)')
+      .select('event_id, events(event_date)')
       .eq('id', id)
       .eq('org_id', orgId)
       .single();
 
     if (!existing) return c.json({ error: '找不到出勤紀錄或無權限', message: undefined }, 500);
+
+    // **範圍：這堂課是不是他的。** 時窗管「什麼時候還能改」，範圍管「能改誰的」，
+    // 兩個都要過。清單本來就回傳 eventId，少了這一段，老師換一個值就改得動別班。
+    if (
+      !(await assertTeacherCanWriteAttendance(supabase, {
+        orgId,
+        userId,
+        roles,
+        eventId: (existing as any).event_id as string,
+      }))
+    ) {
+      return c.json({ error: '這不是你的課堂', code: 'FORBIDDEN' }, 403);
+    }
+
     const existingEventDate = (existing as any).events?.event_date as string | null;
     if (existingEventDate && existingEventDate > getCurrentTaipeiDateString()) {
       return c.json({ error: '未來課堂尚未開放點名', message: undefined }, 500);
@@ -763,7 +806,7 @@ app.openapi(
     if (existingEventDate) {
       const window = await assertAttendanceWindow(supabase, {
         orgId,
-        roles: c.get('roles') ?? [],
+        roles,
         eventDate: existingEventDate,
       });
       if (!window.ok) {

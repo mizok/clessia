@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { authMiddleware, requirePermission, requireRoles } from './auth';
+import { authMiddleware, campusRequestGuard, requireAdminPermission, requireRoles } from './auth';
 
 const getSession = vi.fn();
 const fromMock = vi.fn();
@@ -73,18 +73,24 @@ describe('requireRoles', () => {
  *
  * 一律 fail-closed，理由同 requireRoles：授權的洞幾乎都長在「不確定的時候放行」上。
  */
-function appWithPermissions(permissions: string[] | undefined, required: string) {
+function appWithPermissions(
+  permissions: string[] | undefined,
+  required: string,
+  roles: string[] | undefined = ['admin'],
+) {
   const app = new Hono();
   app.use('*', async (c, next) => {
-    (c as unknown as { set: (k: string, v: unknown) => void }).set('permissions', permissions);
+    const set = (c as unknown as { set: (k: string, v: unknown) => void }).set;
+    set('roles', roles);
+    set('permissions', permissions);
     await next();
   });
-  app.use('*', requirePermission(required));
+  app.use('*', requireAdminPermission(required));
   app.get('/', (c) => c.json({ ok: true }));
   return app;
 }
 
-describe('requirePermission', () => {
+describe('requireAdminPermission', () => {
   it('有這個權限就放行', async () => {
     expect(
       (await appWithPermissions(['manage_finance'], 'manage_finance').request('/')).status,
@@ -112,6 +118,41 @@ describe('requirePermission', () => {
   // 這條最重要：middleware 忘了把 permissions 放進 context 時，不能變成全開
   it('context 裡根本沒有 permissions 時拒絕，而不是當成全開', async () => {
     expect((await appWithPermissions(undefined, 'manage_finance').request('/')).status).toBe(403);
+  });
+
+  // 老師的 permissions 永遠是空陣列（normalizeAdminPermissions 只對 admin 回非空）。
+  // 純粹的 permission 檢查會把 `['admin','teacher']` 那些 mount 上的老師全部鎖在門外 ——
+  // 這正是把細部權限推廣到金流以外時最容易踩的坑。
+  it('老師不受細部權限約束，交給角色層與 teacher-scope', async () => {
+    expect((await appWithPermissions([], 'manage_students', ['teacher']).request('/')).status).toBe(
+      200,
+    );
+  });
+
+  // ponytail 的已知天花板：同時是管理員又是老師的人，缺權限時一律拒絕，
+  // 不會偷偷降級成老師身分。修法是補權限，不是讓授權在角色之間漂移。
+  it('同時有 admin 與 teacher 時，缺權限仍然拒絕', async () => {
+    expect(
+      (await appWithPermissions([], 'manage_students', ['admin', 'teacher']).request('/')).status,
+    ).toBe(403);
+  });
+
+  it('沒有任何角色時拒絕', async () => {
+    expect((await appWithPermissions(['*'], 'manage_finance', []).request('/')).status).toBe(403);
+  });
+
+  // context 完全沒有 roles（有人在 authMiddleware 之外掛了它）也不能變成全開。
+  // 不用上面那支 helper —— 它的預設參數會把顯式傳入的 undefined 換成 ['admin']。
+  it('context 裡根本沒有 roles 時拒絕', async () => {
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      (c as unknown as { set: (k: string, v: unknown) => void }).set('permissions', ['*']);
+      await next();
+    });
+    app.use('*', requireAdminPermission('manage_finance'));
+    app.get('/', (c) => c.json({ ok: true }));
+
+    expect((await app.request('/')).status).toBe(403);
   });
 });
 
@@ -185,5 +226,55 @@ describe('authMiddleware 的身分查詢失敗', () => {
     const logged = consoleError.mock.calls.map((call) => String(call[0])).join('\n');
     expect(logged).toContain('user_roles');
     expect(logged).toContain('parents');
+  });
+});
+
+/**
+ * 分校範圍的「指名」這一半。**回 403 不是空清單** —— 默默回空會讓越權嘗試
+ * 看起來像「那個分校那天沒有人」，越權的人不知道自己被擋，被越權的機構
+ * 也不會發現有人在試。
+ */
+function appWithCampusScope(scope: readonly string[] | null) {
+  const app = new Hono();
+  app.use('*', async (c, next) => {
+    (c as unknown as { set: (k: string, v: unknown) => void }).set('campusScope', scope);
+    await next();
+  });
+  app.use('*', campusRequestGuard);
+  app.get('/x', (c) => c.json({ ok: true }));
+  return app;
+}
+
+describe('campusRequestGuard', () => {
+  it('不受分校限制的人指定哪個都行', async () => {
+    expect((await appWithCampusScope(null).request('/x?campusId=z')).status).toBe(200);
+  });
+
+  it('沒有指定分校時放行', async () => {
+    expect((await appWithCampusScope(['a']).request('/x')).status).toBe(200);
+  });
+
+  it('指定範圍內的分校放行', async () => {
+    expect((await appWithCampusScope(['a', 'b']).request('/x?campusId=b')).status).toBe(200);
+  });
+
+  it('指定範圍外的分校回 403', async () => {
+    const res = await appWithCampusScope(['a']).request('/x?campusId=b');
+
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code: string }).code).toBe('FORBIDDEN');
+  });
+
+  // 複數版是逗號分隔 —— 夾帶一個範圍外的就整支擋掉，不是過濾掉那一個
+  it('campusIds 清單裡夾帶範圍外的分校也擋', async () => {
+    expect((await appWithCampusScope(['a']).request('/x?campusIds=a,b')).status).toBe(403);
+  });
+
+  it('campusIds 全部在範圍內就放行', async () => {
+    expect((await appWithCampusScope(['a', 'b']).request('/x?campusIds=a,b')).status).toBe(200);
+  });
+
+  it('一個分校都沒被指派時，指名任何分校都擋', async () => {
+    expect((await appWithCampusScope([]).request('/x?campusId=a')).status).toBe(403);
   });
 });

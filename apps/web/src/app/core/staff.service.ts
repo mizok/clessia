@@ -13,7 +13,8 @@ export type Permission =
   | 'manage_finance'
   | 'manage_staff'
   | 'manage_roles'
-  | 'view_reports';
+  | 'view_reports'
+  | 'all_campuses';
 
 export interface Staff {
   id: string;

@@ -270,6 +270,69 @@ if (existsSync(apiIndex)) {
   }
 }
 
+// ── A7b. 細部權限的詞彙表每一個值都要有 mount 真的用到（clause c1）─────────────────────
+// 七個權限裡只有 manage_finance 與 view_reports 在 API 有效力，其餘五個只擋前端 ——
+// 直接打 API 就繞過去。middleware/auth.ts 的註解自己寫著「那是畫面控制不是授權」，
+// 金流補了、其餘沒有。見 kb/wiki/architecture/authorization-scope.md 洞 2。
+const permissionsFile = join(ROOT, 'apps/api/src/lib/permissions.ts');
+if (existsSync(apiIndex) && existsSync(permissionsFile)) {
+  const vocabulary = [
+    ...readFileSync(permissionsFile, 'utf8')
+      .slice(readFileSync(permissionsFile, 'utf8').indexOf('export const PERMISSIONS'))
+      .matchAll(/'([a-z_]+)'/g),
+  ].map(([, value]) => value);
+  const source = readFileSync(apiIndex, 'utf8');
+  const enforced = new Set(
+    [...source.matchAll(/\{\s*(?:all|write):\s*'([a-z_]+)'\s*\}/g)].map(([, value]) => value),
+  );
+  // 不是靠 mount 而是靠路由自己掛的（例如組織設定的 writeRequiresAdmin）也算數
+  for (const [, value] of readdirSync(join(ROOT, 'apps/api/src/routes'))
+    .filter((name) => name.endsWith('.ts') && !name.endsWith('.spec.ts'))
+    .flatMap((name) =>
+      [...readFileSync(join(ROOT, 'apps/api/src/routes', name), 'utf8').matchAll(
+        /writeRequiresAdmin\('([a-z_]+)'\)/g,
+      )],
+    )) {
+    enforced.add(value);
+  }
+  // 這一個不是 mount 擋的，是 lib/campus-scope.ts 在 middleware 裡讀的
+  enforced.add('all_campuses');
+  // 這一個比 mount 細，在 staff.ts 的 handler 裡依 body 判斷
+  enforced.add('manage_roles');
+
+  for (const permission of vocabulary) {
+    if (!enforced.has(permission)) {
+      fail(
+        `權限 ${permission} 沒有任何 API 在強制 —— 它只擋得住前端選單，` +
+          `直接打 API 就繞過去了（見 kb/wiki/architecture/authorization-scope.md 洞 2）`,
+      );
+    }
+  }
+}
+
+// ── A7c. 分校範圍的覆蓋率要看得見（clause c1）────────────────────────────────────────────
+// 「指名別的分校」由全域的 campusRequestGuard 擋住了，但「沒指定時只回自己的分校」
+// 要各路由自己過濾。**沒做的那些不能是隱形的** —— 在單一功能裡自己做一層分校過濾，
+// 會得到一個守得住的畫面和其餘全部守不住的畫面，而使用者無從分辨哪些是哪些。
+// 這條 gate 不擋（覆蓋是漸進的），但每次都把還沒接上的列出來。
+{
+  const routesDir = join(ROOT, 'apps/api/src/routes');
+  const pending = [];
+  for (const name of readdirSync(routesDir)) {
+    if (!name.endsWith('.ts') || name.endsWith('.spec.ts')) continue;
+    const source = readFileSync(join(routesDir, name), 'utf8');
+    if (!/campus_id|campusId/.test(source)) continue;
+    if (/campusFilterIds|campusScope/.test(source)) continue;
+    pending.push(name);
+  }
+  if (pending.length > 0) {
+    warnings.push(
+      `分校範圍：${pending.length} 支路由碰 campus_id 但還沒接上預設過濾` +
+        `（指名別的分校已由 campusRequestGuard 全域擋住）—— ${pending.join('、')}`,
+    );
+  }
+}
+
 // ── A8. 每張業務表都啟用了 RLS（clause c1 的 fail-closed 後盾）─────────────────────────
 // 這是靜態掃 migration 而不是查 DB：gate 在 CI 上跑，那裡沒有資料庫。
 // 漂移是這樣發生的：早期的表都有開，後來新增的忘了，而沒有任何東西會提醒。
