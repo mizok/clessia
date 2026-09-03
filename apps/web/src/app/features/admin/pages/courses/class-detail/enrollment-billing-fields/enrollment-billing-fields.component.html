@@ -26,6 +26,25 @@
     </label>
   </div>
 
+  @if (isPeriodMode()) {
+    <!-- 期繳才問 —— 月繳的期間是月份，堂數制沒有期間 -->
+    <label class="billing-fields__field">
+      <span class="billing-fields__label">
+        收費期間
+        <span class="billing-fields__hint">用來試算期中插班的金額</span>
+      </span>
+      <p-select
+        [options]="periodOptions()"
+        [ngModel]="selectedPeriodId()"
+        (ngModelChange)="selectedPeriodIdChange.emit($event)"
+        optionLabel="label"
+        optionValue="value"
+        appendTo="body"
+        styleClass="w-full"
+      />
+    </label>
+  }
+
   <label class="billing-fields__field">
     <span class="billing-fields__label">
       議定金額

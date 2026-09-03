@@ -5,6 +5,7 @@ import { InputNumberModule } from 'primeng/inputnumber';
 import { SelectModule } from 'primeng/select';
 import { TextareaModule } from 'primeng/textarea';
 
+import type { BillingPeriod } from '@core/billing-periods.service';
 import type { FeeTemplate } from '@core/fee-templates.service';
 import type { ProrationPreview } from '@core/enrollments.service';
 
@@ -39,14 +40,36 @@ import {
 export class EnrollmentBillingFieldsComponent {
   readonly draft = input.required<BillingDraft>();
   readonly templates = input.required<readonly FeeTemplate[]>();
-  /** 沒有比例可算（整期都在讀、或不是月繳）時傳 `null` —— 那時候沒有東西要解釋 */
+  /** 沒有比例可算（整期都在讀）時傳 `null` —— 那時候沒有東西要解釋 */
   readonly proration = input<ProrationPreview | null>(null);
+
+  /**
+   * 收費期間，**期繳專用**。月繳的期間是月份（後端自己用 `periodMonth` 算），
+   * 堂數制按堂不按天沒有期間可言 —— 所以這個選單只在期繳時出現。
+   *
+   * 它**不存在報名上**（`POST /enrollments` 沒有這個欄位），只用來問後端
+   * 「這一段期間、從今天算起，該收多少」。所以它不是 `BillingDraft` 的一部分。
+   */
+  readonly periods = input<readonly BillingPeriod[]>([]);
+  readonly selectedPeriodId = input<string | null>(null);
+  readonly selectedPeriodIdChange = output<string | null>();
 
   readonly draftChange = output<BillingDraft>();
   readonly prorationApplied = output<void>();
 
   protected readonly billingModeOptions = billingModeOptions();
   protected readonly templateOptions = computed(() => feeTemplateOptions(this.templates()));
+
+  protected readonly isPeriodMode = computed(() => this.draft().billingMode === 'period');
+
+  /** 期間帶上日期 —— 「2026 上學期」這個名字看不出它涵蓋哪幾個月 */
+  protected readonly periodOptions = computed(() => [
+    { label: '未選擇', value: null as string | null },
+    ...this.periods().map((p) => ({
+      label: `${p.name}（${p.startDate} ~ ${p.endDate}）`,
+      value: p.id as string | null,
+    })),
+  ]);
 
   private readonly selectedTemplate = computed(() =>
     findTemplate(this.templates(), this.draft().feeTemplateId),

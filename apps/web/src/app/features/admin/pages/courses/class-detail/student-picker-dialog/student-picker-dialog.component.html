@@ -141,8 +141,11 @@
       <app-enrollment-billing-fields
         [draft]="billing()"
         [templates]="templates()"
+        [periods]="periods()"
+        [selectedPeriodId]="selectedPeriodId()"
         [proration]="proration()"
         (draftChange)="onBillingChange($event)"
+        (selectedPeriodIdChange)="onPeriodChange($event)"
         (prorationApplied)="applyProration()"
       />
 

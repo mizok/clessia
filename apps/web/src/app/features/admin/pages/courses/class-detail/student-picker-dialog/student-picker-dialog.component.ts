@@ -23,6 +23,7 @@ import {
   type ProrationPreview,
   type ScheduleConflictWarning,
 } from '@core/enrollments.service';
+import { BillingPeriodsService, type BillingPeriod } from '@core/billing-periods.service';
 import { FeeTemplatesService, type FeeTemplate } from '@core/fee-templates.service';
 import { InvoicesService } from '@core/invoices.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
@@ -60,6 +61,7 @@ export class StudentPickerDialogComponent implements OnInit {
   private readonly studentsService = inject(StudentsService);
   private readonly enrollmentsService = inject(EnrollmentsService);
   private readonly feeTemplatesService = inject(FeeTemplatesService);
+  private readonly billingPeriodsService = inject(BillingPeriodsService);
   private readonly invoicesService = inject(InvoicesService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig);
@@ -85,6 +87,9 @@ export class StudentPickerDialogComponent implements OnInit {
   // 再去繳費頁開帳，中間兩次要重打同一組數字。這裡把三段收成一次。
 
   protected readonly templates = signal<FeeTemplate[]>([]);
+  protected readonly periods = signal<BillingPeriod[]>([]);
+  /** 期繳的試算要指定是哪一段期間。**不存進報名** —— 它只是試算的參數 */
+  protected readonly selectedPeriodId = signal<string | null>(null);
   protected readonly billing = signal<BillingDraft>(emptyBillingDraft());
   private readonly selectedTemplate = computed(() =>
     findTemplate(this.templates(), this.billing().feeTemplateId),
@@ -110,11 +115,18 @@ export class StudentPickerDialogComponent implements OnInit {
 
   private refreshProration(): void {
     const draft = this.billing();
-    const canPreview =
-      draft.billingMode === 'monthly' &&
-      (draft.feeTemplateId !== null || draft.agreedAmount !== null);
+    const hasPrice = draft.feeTemplateId !== null || draft.agreedAmount !== null;
 
-    if (!canPreview) {
+    // **月繳給 periodMonth、期繳給 billingPeriodId，二擇一**（後端的 refine 會擋）。
+    // 堂數制按堂不按天，沒有比例可言。
+    const period =
+      draft.billingMode === 'monthly'
+        ? { periodMonth: todayLocal().slice(0, 7) }
+        : draft.billingMode === 'period' && this.selectedPeriodId()
+          ? { billingPeriodId: this.selectedPeriodId()! }
+          : null;
+
+    if (!hasPrice || !period) {
       this.proration.set(null);
       return;
     }
@@ -122,7 +134,7 @@ export class StudentPickerDialogComponent implements OnInit {
     this.prorating.set(true);
     this.enrollmentsService
       .prorationPreview({
-        periodMonth: todayLocal().slice(0, 7),
+        ...period,
         effectiveFrom: todayLocal(),
         feeTemplateId: draft.feeTemplateId ?? undefined,
         agreedAmount: draft.agreedAmount ?? undefined,
@@ -140,6 +152,11 @@ export class StudentPickerDialogComponent implements OnInit {
           this.proration.set(null);
         },
       });
+  }
+
+  protected onPeriodChange(id: string | null): void {
+    this.selectedPeriodId.set(id);
+    this.refreshProration();
   }
 
   /** 把試算金額填進議定金額 —— 規則 5.2：試算是**建議值**，填進去之後照樣可以改 */
@@ -264,6 +281,15 @@ export class StudentPickerDialogComponent implements OnInit {
       .subscribe({
         next: (res) => this.templates.set(res.data),
         error: () => this.templates.set([]),
+      });
+
+    // 收費期間沒有分頁，一次撈完。載入失敗只會讓期繳的試算叫不動，不擋報名
+    this.billingPeriodsService
+      .list()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.periods.set(res.data),
+        error: () => this.periods.set([]),
       });
   }
 
