@@ -176,7 +176,10 @@ export class RosterImportDialogComponent {
       reader.onload = () => {
         try {
           const workbook = isCsv
-            ? XLSX.read(reader.result as string, { type: 'string' })
+            ? // `raw: true` 跟家長匯入一致 —— CSV 沒有型別，不擋的話 xlsx 會替你推斷。
+              // 目前這裡只讀姓名與學校（都是文字）所以還沒踩到，但同一個形狀
+              // 在家長匯入是真的壞過（電話的前導零）
+              XLSX.read(reader.result as string, { type: 'string', raw: true })
             : XLSX.read(reader.result as ArrayBuffer, { type: 'array' });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           resolve(

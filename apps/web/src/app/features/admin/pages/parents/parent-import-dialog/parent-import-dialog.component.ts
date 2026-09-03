@@ -254,7 +254,11 @@ export class ParentImportDialogComponent {
               reject(new Error('CSV 內容讀取失敗'));
               return;
             }
-            workbook = XLSX.read(result, { type: 'string' });
+            // **`raw: true` 不能拿掉。** CSV 沒有型別，xlsx 預設會替你推斷 ——
+            // `0987654321` 會變成數字 `987654321`，前導零消失，然後電話驗證
+            // report「需為 09 開頭 10 碼」。行政看著自己檔案裡明明正確的號碼，
+            // 而錯誤訊息指著一個他沒寫過的值。
+            workbook = XLSX.read(result, { type: 'string', raw: true });
           } else {
             if (!(result instanceof ArrayBuffer)) {
               reject(new Error('Excel 內容讀取失敗'));
