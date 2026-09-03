@@ -375,12 +375,17 @@ export class RoutesCatalog {
     false,
   );
   // Ungrouped
+  /**
+   * 已刪除的頁面，**只留著讓舊書籤 redirect 到課表**（今日流）。
+   * `showInMenu: false` —— 選單不再出現它。
+   */
   public static readonly TEACHER_DASHBOARD = this.register(
     'dashboard',
     '/teacher/dashboard',
     '儀表板',
     UserType.TEACHER,
     'pi-home',
+    false,
   );
   public static readonly TEACHER_NOTIFICATIONS = this.register(
     'notifications',
