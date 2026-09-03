@@ -324,6 +324,30 @@ test('c8 排除 .spec.ts —— 測試檔裡的裝飾器不算違規', () => {
 
 // c2 的 regex 跨行（from 與 .update 之間容許 120 字元），所以 gate **必須整份檔案餵**。
 // 逐行掃的話這條會完全看不到東西 —— 而且是靜靜地看不到。
+// orgId 的機制豁免：Better Auth 的 API 明確拒收它（auth.ts 宣告 input: false），
+// 直寫是唯一路徑。但豁免必須**只放行「payload 就只有 orgId」** —— 夾帶其他欄位就是
+// 把整條 c2 開了個洞，而那種洞不會有人發現（它長得跟合法呼叫一樣）。
+test('c2 只豁免「單寫 orgId」，夾帶其他欄位照樣擋', () => {
+  assert.deepEqual(
+    guard('apps/api/src/routes/x.ts', "supabase.from('ba_user').update({ orgId })"),
+    [],
+  );
+  assert.deepEqual(
+    guard('apps/api/src/routes/x.ts', "supabase.from('ba_user').update({ orgId: orgId })"),
+    [],
+  );
+  // 換行寫法（三處實際程式碼都是這種）
+  assert.deepEqual(
+    guard('apps/api/src/routes/x.ts', "supabase\n  .from('ba_user')\n  .update({ orgId })"),
+    [],
+  );
+  // **反例**：夾帶就不再是「沒有 API 路徑」的情境
+  assert.deepEqual(
+    guard('apps/api/src/routes/x.ts', "supabase.from('ba_user').update({ orgId, email })"),
+    ['c2'],
+  );
+});
+
 test('c2 跨行也要抓得到；讀取放行', () => {
   const multiline = "await supabase\n  .from('ba_user')\n  .update({ name })";
   assert.deepEqual(guard('apps/api/src/routes/x.ts', multiline), ['c2']);
@@ -500,7 +524,6 @@ test('對比掃描：算不出來的值一律跳過，不猜', () => {
   );
 });
 
-
 // ── 手機優先的 ratchet ───────────────────────────────────────────────────────
 // 守的是「桌機優先的寫法只准變少」。這支 gate 的紅綠判定單位是**檔案**不是次數，
 // 因為遷移的單位是檔案 —— 一支檔案改到一半沒有意義。
@@ -519,7 +542,10 @@ test('手機優先：抓得到 respond-to，放過 respond-from', () => {
 test('手機優先：respond-to-container 也算桌機優先', () => {
   assert.deepEqual(
     desktopFirstFiles([
-      { path: 'a.scss', source: "@include bp.respond-to-container(main, 'mobile') { color: red; }" },
+      {
+        path: 'a.scss',
+        source: "@include bp.respond-to-container(main, 'mobile') { color: red; }",
+      },
     ]),
     ['a.scss'],
   );

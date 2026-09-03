@@ -947,9 +947,8 @@ app.openapi(createRouteDef, async (c) => {
     );
   }
 
-  if (body.phone) {
-    await supabase.from('ba_user').update({ phone: body.phone }).eq('id', createdUserId);
-  }
+  // phone 不在這裡寫：上面的 createUser 已經把它帶在 `data` 裡（`phone` 在 auth.ts 的
+  // additionalFields 是 `input: true`）。這裡原本有一次重複的直寫 ba_user，2026-09-03 移除。
 
   // Insert multiple roles
   const roleRows = body.roles.map((role) => ({

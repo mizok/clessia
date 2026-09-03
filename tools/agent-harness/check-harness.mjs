@@ -288,11 +288,11 @@ if (existsSync(apiIndex) && existsSync(permissionsFile)) {
   // 不是靠 mount 而是靠路由自己掛的（例如組織設定的 writeRequiresAdmin）也算數
   for (const [, value] of readdirSync(join(ROOT, 'apps/api/src/routes'))
     .filter((name) => name.endsWith('.ts') && !name.endsWith('.spec.ts'))
-    .flatMap((name) =>
-      [...readFileSync(join(ROOT, 'apps/api/src/routes', name), 'utf8').matchAll(
+    .flatMap((name) => [
+      ...readFileSync(join(ROOT, 'apps/api/src/routes', name), 'utf8').matchAll(
         /writeRequiresAdmin\('([a-z_]+)'\)/g,
-      )],
-    )) {
+      ),
+    ])) {
     enforced.add(value);
   }
   // 這一個不是 mount 擋的，是 lib/campus-scope.ts 在 middleware 裡讀的
@@ -461,12 +461,20 @@ if (existsSync(settingsPath)) {
 /**
  * 掃一棵樹，回報某條 clause 的存量違規。
  *
- * `allowlist` 是 `{ 相對路徑: 已知違規數 }`。**比帳面多 → 紅燈**（新違規擋得住），
- * **比帳面少 → 也紅燈**，訊息請人把數字改小或整筆刪掉 —— 這樣清乾淨的那天 allowlist
- * 自然歸零，gate 自動變成全面覆蓋，不需要有人記得回來拆鷹架。
- * 只用路徑不記數量的話，同一個檔案裡新增的違規會靜靜溜過去。
+ * 兩份清單，**語意不同不要混**：
+ *
+ * - `allowlist`（`{ 路徑: 數量 }`）是**債** —— 該修但還沒排到。目標是歸零，歸零那天整筆刪掉，
+ *   gate 自動變成全面覆蓋，不需要有人記得回來拆鷹架。
+ * - `exempt`（`{ 路徑: { count, why } }`）是**永久豁免** —— 沒有合規路徑可走，
+ *   修不了也不該修。它不會歸零，所以必須寫 `why`，否則下一個人只會看到一個沒人敢動的數字。
+ *
+ * 分開記的理由：混在一起的話「清到零」這個機制永遠跑不完 ——
+ * 帳面上永遠有幾筆，而沒有人知道那幾筆是還沒修還是不用修。
+ *
+ * 兩者都是**比容許量多 → 紅燈**（新違規擋得住）、**比容許量少 → 也紅燈**（逼帳本跟上）。
+ * 只記路徑不記數量的話，同一個檔案裡新增的違規會靜靜溜過去。
  */
-function scanExisting({ clause, dir, ext, label, allowlist = {} }) {
+function scanExisting({ clause, dir, ext, label, allowlist = {}, exempt = {} }) {
   const rules = guardRules.rules.filter((rule) => rule.id === clause);
   if (!existsSync(dir) || rules.length === 0) return;
 
@@ -483,28 +491,31 @@ function scanExisting({ clause, dir, ext, label, allowlist = {} }) {
     const lines = forbid
       ? [...source.matchAll(forbid)].map((m) => source.slice(0, m.index).split('\n').length)
       : [];
-    const allowed = allowlist[rel] ?? 0;
+    const debt = allowlist[rel] ?? 0;
+    const permanent = exempt[rel]?.count ?? 0;
+    const tolerated = debt + permanent;
     seen.add(rel);
 
-    if (lines.length > allowed) {
-      const shown = lines.slice(allowed).join(', ') || '(位置未定)';
+    if (lines.length > tolerated) {
+      const shown = lines.slice(tolerated).join(', ') || '(位置未定)';
       fail(
         `${rel} ${label}（${clause}）—— 第 ${shown} 行；` +
-          (allowed > 0 ? `這個檔案的 allowlist 是 ${allowed} 筆，現在有 ${lines.length} 筆` : ''),
+          (tolerated > 0
+            ? `這個檔案容許 ${tolerated} 筆（債 ${debt} + 永久豁免 ${permanent}），現在有 ${lines.length} 筆`
+            : ''),
       );
-    } else if (lines.length < allowed) {
+    } else if (lines.length < tolerated) {
       fail(
-        `${rel} 的 ${clause} allowlist 過期：帳面 ${allowed} 筆、實際 ${lines.length} 筆。` +
-          `請把 check-harness.mjs 裡的數字改小；歸零就整筆刪掉（gate 隨即全面生效）`,
+        `${rel} 的 ${clause} 帳面過期：容許 ${tolerated} 筆（債 ${debt} + 永久豁免 ${permanent}）、` +
+          `實際 ${lines.length} 筆。清掉的是債就把 allowlist 數字改小（歸零整筆刪掉）；` +
+          `若連豁免的那處也沒了，才動 exempt`,
       );
     }
   }
 
-  for (const rel of Object.keys(allowlist)) {
+  for (const rel of [...Object.keys(allowlist), ...Object.keys(exempt)]) {
     if (!seen.has(rel)) {
-      fail(
-        `${rel} 已無 ${clause} 違規（或檔案已不存在），請從 check-harness.mjs 的 allowlist 移除`,
-      );
+      fail(`${rel} 已無 ${clause} 違規（或檔案已不存在），請從 check-harness.mjs 的清單移除`);
     }
   }
 }
@@ -526,19 +537,38 @@ scanExisting({ clause: 'c7', dir: WEB_SRC, ext: '.html', label: '使用了舊版
 // 這件事由 pre-guard 的 regex 本身保證，這裡不重述，共用規則就是為了不重述。
 scanExisting({ clause: 'c8', dir: WEB_SRC, ext: '.ts', label: '使用了裝飾器版 API' });
 
-// A15（c2）— 存量 9 筆，全是直寫 `ba_user`。
-// 這批是「ba_user 寫入路徑收斂」切片的待辦，不是這支 PR 要修的東西 —— 修它要動 Better Auth
-// 的使用者更新路徑，屬於 billing-api 席。allowlist 讓它們**可見且被計數**：
-// 同一個檔案再多一筆就紅燈，收斂完成時 allowlist 歸零、gate 自動變全面。
+// A15（c2）— 2026-09-03 盤點後收斂到「真債 4 筆 + 永久豁免 1 筆」。
+//
+// 原本 9 筆，處理如下：
+//   -3  只寫 `orgId` 的三處改由 **pre-guard 規則本身**豁免（不是靠這裡的清單）——
+//       `orgId` 在 auth.ts 是 `input: false`，Better Auth 的 API 明確拒收，直寫是唯一路徑。
+//       規則只放行「payload 就只有 orgId」，夾帶其他欄位照樣擋。
+//   -1  staff.ts 那筆是**冗餘**：同一個 handler 的 createUser 已在 `data` 帶了 phone，已刪除。
+//   =5  剩下 4 筆真債 + 1 筆永久豁免。
+//
+// 真債要走 Better Auth 的 API，但**全 repo 目前零前例** —— 每一處都是直寫。所以要先由
+// billing-api 席做一處 `auth.api.updateUser` 的驗證（能不能寫 additionalFields、
+// email 重複時的錯誤形狀），驗完再推廣。那是它的佇列，不是這裡一次清得掉的。
 scanExisting({
   clause: 'c2',
   dir: API_SRC,
   ext: '.ts',
   label: '直接寫入 ba_* 表',
   allowlist: {
-    'apps/api/src/routes/me.ts': 2, // :124, :151
-    'apps/api/src/routes/parents.ts': 4, // :404, :621, :625, :1459
-    'apps/api/src/routes/staff.ts': 3, // :914, :945, :1133
+    'apps/api/src/routes/me.ts': 1, // :124 email
+    'apps/api/src/routes/parents.ts': 2, // :621 email, :625 phone
+    'apps/api/src/routes/staff.ts': 1, // :1150 phone
+  },
+  exempt: {
+    // me.ts:151 在同一個 update 裡寫 `phone` 與 `username`。phone 本身可以走 API，
+    // 但 `username` 沒有 API —— username plugin 已被刻意移除（auth.ts:148，它提供的
+    // /sign-in/username 也是密碼登入），而那個欄位**還在被當唯一性鍵使用**：
+    // parents.ts 有 4 處 `buildPostgrestEq('username', phone)` 靠它做家長匯入的重複偵測。
+    // 拆成「一次 API 呼叫 + 一次直寫」只會更難懂，所以整處永久豁免。
+    'apps/api/src/routes/me.ts': {
+      count: 1,
+      why: 'username 無 API 路徑（plugin 已移除）且仍是家長匯入的唯一性鍵',
+    },
   },
 });
 
@@ -643,7 +673,8 @@ function scanGhostTokens() {
   // 換掉 preset 也換不到它們，畫面上就留著一塊上一代的顏色。
   // 2026-08 的實例：37 處 --p-zinc-* / --p-sky-* 撐過了整輪 token 替換，
   // 儀表板的連結與警示卡直到跑起真站截圖才看見還是天藍的。
-  const PALETTE_BYPASS = /^--p-(sky|blue|indigo|violet|purple|fuchsia|cyan|teal|emerald|green|lime|red|orange|amber|yellow|pink|rose|slate|gray|zinc|neutral|stone)-\d{2,3}$/;
+  const PALETTE_BYPASS =
+    /^--p-(sky|blue|indigo|violet|purple|fuchsia|cyan|teal|emerald|green|lime|red|orange|amber|yellow|pink|rose|slate|gray|zinc|neutral|stone)-\d{2,3}$/;
 
   const ghosts = new Map();
   const bypass = new Map();
@@ -761,9 +792,7 @@ function checkUsageContrast() {
     );
   }
 
-  
-
-// 最大宗的那個配對**算出來**，不要寫死 —— 上一版硬寫「多數是 --zinc-400 那筆全站舊債」，
+  // 最大宗的那個配對**算出來**，不要寫死 —— 上一版硬寫「多數是 --zinc-400 那筆全站舊債」，
   // 那筆清掉之後這句就變成假的，而且沒有任何東西會提醒你（c11）。
   const stillInBaseline = keys.filter((k) => baseline.has(k));
   if (stillInBaseline.length > 0) {
@@ -826,7 +855,9 @@ function checkMobileFirst() {
   }
 
   const baseline = new Set(
-    existsSync(MOBILE_FIRST_BASELINE) ? JSON.parse(readFileSync(MOBILE_FIRST_BASELINE, 'utf8')) : [],
+    existsSync(MOBILE_FIRST_BASELINE)
+      ? JSON.parse(readFileSync(MOBILE_FIRST_BASELINE, 'utf8'))
+      : [],
   );
 
   for (const path of current.filter((p) => !baseline.has(p))) {
@@ -854,7 +885,6 @@ function checkMobileFirst() {
 }
 
 checkMobileFirst();
-
 
 // ── report ───────────────────────────────────────────────────────────────────────────────
 // --write 一律 exit 0：它的工作是「修好能自動修的」，剩下的（例如 CLAUDE.md 被塞進規則）
