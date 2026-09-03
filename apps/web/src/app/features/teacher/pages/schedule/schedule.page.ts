@@ -284,6 +284,10 @@ export class SchedulePage implements OnInit {
       modal: true,
       showHeader: false,
       closable: false,
+      // 手機從下方升起（bottom sheet）而不是置中彈窗 —— 老師是站著單手用，
+      // 置中的面板把主要動作推到螢幕中間、拇指構不到。桌機維持置中。
+      // 只有老師端這樣開；admin 出勤頁用同一支元件但保持原本的置中對話框。
+      styleClass: 'roster-sheet',
       appendTo: this.overlayContainer ?? 'body',
       data,
     });
