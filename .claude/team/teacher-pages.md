@@ -134,3 +134,54 @@ export const ATTENDANCE_TONE_LABELS: Record<StatusTone, string> = {
 
 **任何「列舉 → 使用者看得到的字」的對應,一律用 `Record`,不要用 `switch`。**
 狀態、角色、繳費狀態、考試類型都適用。`switch` 留給真的有行為分支的地方。
+
+## 尺寸下限要「明寫」,不是靠內容撐出來(#248 / #253 提煉)
+
+A17 baseline 裡屬於這一席的兩筆(`schedule-page__weekbar-day`、
+`teacher-notifications__summary`),量起來**本來就超過 44px** ——
+週條那顆是「週次＋M/d＋狀態列」三行疊出來的,通知那顆是標題加時間。
+
+所以「已經夠大了」跟「保證夠大」是兩件事:
+
+- **內容撐出來的 44px 是副作用。** 下一個人把狀態列拿掉、把標題縮成一行,
+  它會**靜靜掉到 44px 以下**,沒有任何東西會叫
+- **宣告出來的才是保證。** `min-height: 44px` 加上去視覺零變化,
+  但它把「這是可點目標」這件事寫進了樣式,而不是留在某個人的記憶裡
+
+`weekbar-day` 那筆特別值得記:上一輪我自己在 PR 裡寫「做完才想到、沒量過、
+估計 55~60px」—— gate 抓到的正是那句「沒量過」。**估計值需要有東西盯著。**
+
+### 觸控尺寸不是「所有元素都 44px」
+
+#248 第四筆的正解是**刪掉 `input[type='checkbox']` 上多餘的 `cursor: pointer`**,
+不是把 checkbox 撐成 44px 的巨大方塊。真正的可點目標是 label,44px 是給
+**互動目標**的,不是給所有元素的。把裝飾性元素撐大只會做出醜的東西。
+
+### 兩層寫法(base 40 + `pointer: coarse` 44)什麼時候才值得
+
+它的價值在「桌機不必浪費 44px」。**這一席的頁面幾乎只從手機進**
+(課表週條、通知列表),沒有桌機密度成本要省,所以 base 44 就是要的值。
+不是為了繞 gate —— gate 修好之後(infra #250)也沒有回頭改的理由。
+
+## 「上線的碼是對的」≠「點下去會導對」(#247 提煉)
+
+Docker 停機時仍然可以驗 production bundle 的**實際邏輯**(解碼方法在部署
+charter,#251 —— 中文是 `\uXXXX` 逃逸,直接 grep 中文會得到假陰性)。
+
+但要說清楚它證明了什麼:**bundle 驗證證明部署出去的分支是對的,不證明點下去會導對。**
+剩餘風險落在被呼叫的共用碼(此例是 `navigateToRoleShell`)。報驗證結果時要把這條線劃出來,
+不要讓「我驗過了」聽起來像走過一遍流程。
+
+### 順帶收穫:守衛擺在 `import()` 之前會省掉 chunk 下載
+
+`select-role` 的單角色早退寫在動態 import 之前:
+
+```ts
+if (roles.length === 1) { this.onRoleChosen(roles[0]); return }
+if (roles.length === 0) { return }
+const [{ DialogService }, { RolePickerComponent }] = await Promise.all([...]);
+```
+
+所以**單角色使用者連 dialog 那兩支 chunk 都不會下載**。這不是設計出來的,
+是早退位置的副作用 —— 但它是個可以刻意重複的模式:
+**lazy 元件的前置條件檢查放在 `import()` 前面,不合條件的人連載入成本都不用付。**
