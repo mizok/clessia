@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { prorateByDays } from './proration';
+import { prorateByDays, monthRange } from './proration';
 
 const march = { start: '2026-03-01', end: '2026-03-31' };
 
@@ -46,5 +46,36 @@ describe('prorateByDays', () => {
     expect(
       Number.isInteger(prorateByDays(4500, march, { from: '2026-03-08', to: null }).amount),
     ).toBe(true);
+  });
+});
+
+/**
+ * `monthRange` 原本是 `routes/billing-runs.ts` 的私有函式、**沒有任何測試**。
+ * 搬成共用（月結批次與報名試算都吃它）之後補上 —— 它算錯的話錯的是錢，
+ * 而「二月有幾天」正是那種每個人都以為自己記得的東西。
+ */
+describe('monthRange', () => {
+  it('大月', () => {
+    expect(monthRange('2026-03')).toEqual({ start: '2026-03-01', end: '2026-03-31' });
+  });
+
+  it('小月', () => {
+    expect(monthRange('2026-04')).toEqual({ start: '2026-04-01', end: '2026-04-30' });
+  });
+
+  it('平年的二月', () => {
+    expect(monthRange('2026-02')).toEqual({ start: '2026-02-01', end: '2026-02-28' });
+  });
+
+  it('閏年的二月', () => {
+    expect(monthRange('2028-02')).toEqual({ start: '2028-02-01', end: '2028-02-29' });
+  });
+
+  it('十二月 —— 跨年不能算到下一年的第 0 天去', () => {
+    expect(monthRange('2026-12')).toEqual({ start: '2026-12-01', end: '2026-12-31' });
+  });
+
+  it('帶完整日期時取那個月，不是從那天算起', () => {
+    expect(monthRange('2026-03-17')).toEqual({ start: '2026-03-01', end: '2026-03-31' });
   });
 });
