@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   OnInit,
   computed,
   inject,
@@ -26,6 +27,7 @@ import {
   type SaveSchoolScoresInput,
 } from '@core/school-exams.service';
 import { ReferenceDataService } from '@core/reference-data.service';
+import { focusScoreRow, scoreKeyStep } from '../../score-keyboard.util';
 
 export interface SchoolScoreRow {
   readonly subjectId: string;
@@ -90,6 +92,7 @@ const SCORE_STATUS_OPTIONS: Array<{ label: string; value: SchoolScoreStatus }> =
 })
 export class ScoreEditDialogComponent implements OnInit {
   private readonly schoolExamsService = inject(SchoolExamsService);
+  private readonly host = inject(ElementRef);
   private readonly refData = inject(ReferenceDataService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
@@ -128,6 +131,19 @@ export class ScoreEditDialogComponent implements OnInit {
   protected formatGrade(grade: string | null): string {
     if (!grade) return '—';
     return GRADE_LABELS[grade] ?? grade;
+  }
+
+  /**
+   * 這張表跟 `academy-score-editor` 是同一種東西（一列一個要打的分數），
+   * 所以手感共用同一份（`score-keyboard.util`）。#161 只修了 academy 那份，
+   * 這裡原封不動 —— 一列三欄，要按 3 次 Tab 才換一列，而 `↓` 會把分數減 1。
+   */
+  protected onScoreKeydown(event: KeyboardEvent, index: number): void {
+    const step = scoreKeyStep(event);
+    if (step === 0) return;
+    // 不擋的話 PrimeNG 會在換完焦點之後**還是**改掉原本那格
+    event.preventDefault();
+    focusScoreRow(this.host.nativeElement as HTMLElement, index + step, step, this.rows().length);
   }
 
   protected onScoreChange(row: SchoolScoreRow, value: number | null): void {
