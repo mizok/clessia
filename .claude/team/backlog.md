@@ -46,12 +46,19 @@
 3. ~~nx defaultBase 指向不存在的 dev~~ 完成(#204 已合;自行認領自 charter 已知缺口,
    一行設定 + 7 處會變成假話的敘述同步)
 
+4. ~~web 獨立 typecheck 接 Stop gate~~ 完成(#211 已合;關鍵是用 ngc 不是 tsc ——
+   實測 tsc 對模板錯誤回報 0 個錯誤。Stop gate 一行沒改就接上,成本 +7 秒)
+5. ~~test-baseline 3 紅分診~~ 完成:**那筆債不存在**。`knownFailing` 是 `[]`、
+   測試 198 檔 1492 條全綠、gate 早就在全強度。「3」是我當初用 `Object.keys()` 數到
+   metadata 鍵的量測錯誤,已在 charter 記為範例。
+
 **佇列已空,待計畫席補項。** 本席自行認領時的來源是 `.claude/team/infra.md` 的
 「已知缺口」節,目前剩:apps/web 無獨立 typecheck target(Stop gate 盲區)、
 c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因在 fvg)。
 磁碟 watch 持續掛著(20GB 警戒 / 10GB 自動 prune)。
 
 ## infra(補貨 13:25)
+
 1. apps/web 獨立 typecheck target 接進 Stop gate(本機/CI 覆蓋不對稱,你的建議 1,准)
 2. test-baseline.json 3 個既有紅燈分診(清一支移一支,先報告)
-5. (billing-api) roster 補 leaveStartDate 聚合值 —— 讓銷假事前警告從「可能」變「將」(#213 的需求單)
+3. (billing-api) roster 補 leaveStartDate 聚合值 —— 讓銷假事前警告從「可能」變「將」(#213 的需求單)
