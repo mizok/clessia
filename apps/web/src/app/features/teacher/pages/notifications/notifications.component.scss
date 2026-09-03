@@ -51,9 +51,21 @@
     }
   }
 
+  /*
+   * 寬螢幕的兩個問題，同一個上限解掉：
+   *
+   * 1. `__summary` 是 `space-between`，1280 下標題與時間被推到 976px 的兩端，
+   *    眼睛要橫掃才對得起來（跟 students 那頁同一個病）
+   * 2. `__text` 是公告內文 —— 976px 一行放得下 60 幾個中文字，
+   *    讀到行尾再回到行首會找不到位置
+   *
+   * **不需要斷點**：390px 下本來就小於它，上限只在寬螢幕生效。
+   * 560px 沿用 #167 的課堂卡與 #201 的學生名單 —— 老師端一個數字走到底。
+   */
   &__list {
     display: flex;
     flex-direction: column;
+    max-width: 560px;
     margin: 0;
     padding: 0;
     list-style: none;
