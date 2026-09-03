@@ -34,8 +34,8 @@
 
 1. 聚合端點 GET /api/workbench/today(進行中,交接單在 team/)
 2. c2 乙類驗證 [認領 pin-better-auth-3c 13:25]:挑 me.ts:124 做一處 auth.api.updateUser 的可行性驗證,回報錯誤形狀
-3. executionCtx waitUntil 兩處不一致統一(attendance.ts vs get-auth.ts)
-4. POST /api/announcements/read-all(bulk 已讀;前端逐一版已出,這支是效率+原子性升級)
+3. ~~executionCtx 統一~~(#215 完成 —— 實際 86 處三種寫法,可選鏈假防護已修)
+4. POST /api/announcements/read-all [認領 pin-better-auth-3c 14:0x](bulk 已讀;前端逐一版已出,這支是效率+原子性升級)
 
 ## infra
 
@@ -54,3 +54,4 @@ c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因�
 ## infra(補貨 13:25)
 1. apps/web 獨立 typecheck target 接進 Stop gate(本機/CI 覆蓋不對稱,你的建議 1,准)
 2. test-baseline.json 3 個既有紅燈分診(清一支移一支,先報告)
+5. (billing-api) roster 補 leaveStartDate 聚合值 —— 讓銷假事前警告從「可能」變「將」(#213 的需求單)
