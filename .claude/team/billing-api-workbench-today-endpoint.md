@@ -33,21 +33,65 @@
 GET /api/workbench/today?date=YYYY-MM-DD&campusId=<uuid>
 ```
 
-`date` 省略時是台北的今天。`campusId` 省略時吃呼叫者的 `campusScope`
-（`#175` 已落地，`campusRequestGuard` 會擋越權指名，這支不用自己驗）。
+### 五個介面決定（billing-api 席 2026-09-03 問，這裡是答案）
+
+1. **`date` 是參數，不是 `CURRENT_DATE`。** 作業台要看得了昨天（補登就是昨天的事）。
+   省略時的預設值由伺服器算，用**台北時區** —— `attendance.ts` 已經有
+   `getCurrentTaipeiDateString()`，照抄它，不要用 UTC。
+   （`day-timeline` 踩過這個坑：`toISOString()` 讓 UTC+8 的凌晨差一天。）
+
+2. **`mode` 由伺服器從 `organizations.attendance_mode` 讀，不收呼叫端傳的。**
+   你的理由跟我的一樣、而且講得更好：讓呼叫端傳等於同一個機構可能拿到兩種形狀，
+   **而那個不一致沒有人會發現**。
+
+3. **`campusId` 非必填。** 不帶時吃呼叫者的 `campusScope`（`#175`）——
+   管多校的管理員不帶就是「我管的全部」。帶了由 `campusRequestGuard` 驗，這支不用自己擋。
+   **但 `expected` 的每一列要帶 `campusId` / `campusName`** —— 前端要靠它做分校分組
+   （使用者裁定：分組而不是先選分校再看）。
+
+4. **不適用的欄位回空陣列，不是缺欄位。** 採用你的版本，我原本寫成 optional 是錯的：
+   缺欄位會讓前端到處寫 `?.` 防禦，之後補上也不會有人發現。
+   **`rosters` / `expected` / `arrived` / `onLeave` 一律存在**，`mode` 決定哪些有內容。
+
+5. **請求數的基準線是 8 支**（見下）。
+
+### 基準線：管理端儀表板現在打 8 支
+
+數自 `dashboard.component.ts:314-357`（`origin/main`）：
+
+| #   | 呼叫                                          | 用途                        |
+| --- | --------------------------------------------- | --------------------------- |
+| 1   | `attendanceService.sessions({ date: today })` | 今日課表                    |
+| 2   | `orgSettingsService.getSettings()`            | `attendanceMode`            |
+| 3   | `attendanceService.sessions({ … })`           | 逾期未點名                  |
+| 4   | `academyExamsService.getTodoCount()`          | 成績待登錄（forkJoin 其一） |
+| 5   | `schoolExamsService.getTodoCount()`           | 同上                        |
+| 6   | `leaveService.list({ coverDate: today })`     | 今日請假                    |
+| 7   | `studentsService.list({ pageSize: 1 })`       | 在學人數                    |
+| 8   | `enrollmentsService.list({ … })`              | 報名異動                    |
+
+**這支端點至少要吃掉 1、2、3、6**（作業台的主體 + `mode`），剩下 4、5、7、8 是右欄的
+脈絡數字，可以維持獨立、也可以一起收 —— 你決定，但**總數必須少於 8**。
+
+> **8 這個數字剛好就是 `lessons/workers-fanout-costs-before-the-db` 量到「每支慢
+> 2.4 倍」的那個並行數。** 不是巧合 —— 那份 lesson 量的就是這一頁。
+
+> **billing-api 席 2026-09-03 的延遲拆段**：查詢執行只佔 **1 毫秒**，延遲幾乎全是
+> 「每次請求的固定成本 × 請求次數」。**所以聚合的方向本身就是對的，比讓每一支變快
+> 有效得多** —— 這條量測比我原本引用的 lesson 更直接，請寫進 PR。
 
 ```ts
 {
   mode: 'per_session' | 'daily_checkin',   // 直接回，前端不用另外打 /api/org/settings
   sessions: EventSessionSummary[],          // 兩種模式都回
-  rosters?: {                               // 只在 per_session 回
+  rosters: {                                // per_session 有內容，daily_checkin 是 []
     eventId: string;
     enrolledCount: number;
     presentCount: number;
     onLeaveCount: number;
     takenAt: string | null;
   }[],
-  expected?: {                              // 只在 daily_checkin 回
+  expected: {                               // daily_checkin 有內容，per_session 是 []
     studentId: string;
     studentName: string;
     grade: string | null;
@@ -55,14 +99,14 @@ GET /api/workbench/today?date=YYYY-MM-DD&campusId=<uuid>
     campusName: string | null;
     firstSession: { startTime: string | null; className: string } | null;
   }[],
-  arrived?: { studentId: string; checkedInAt: string; checkinId: string }[],
-  onLeave?: { studentId: string; studentName: string; startDate: string; endDate: string;
-              submittedByRole: string }[],
+  arrived: { studentId: string; checkedInAt: string; checkinId: string }[],
+  onLeave: { studentId: string; studentName: string; startDate: string; endDate: string;
+             submittedByRole: string }[],
 }
 ```
 
-**由 API 決定形狀**（`mode` 決定哪些欄位有值），不是回全部讓前端挑。理由同上：
-形狀的判斷只該有一份。
+**由 API 決定形狀**（`mode` 決定哪些陣列有內容），不是回全部讓前端挑。理由同上：
+形狀的判斷只該有一份。**欄位一律存在、不適用時是空陣列** —— 見上面的決定 4。
 
 ### `expected` 的定義
 
@@ -115,4 +159,5 @@ DELETE /api/daily-checkins/:id     （或帶旗標的 POST，你決定）
 
 作業台的前端**等這支端點**。設計文件已過初審、等使用者批准；批准後我會先做
 `per_session` 那一半（它不依賴 `expected` / `arrived`），所以**如果要分批出，
-先給 `sessions` + `rosters`**，`daily_checkin` 那三個欄位可以晚一批。
+先給 `sessions` + `rosters`**，`expected` / `arrived` / `onLeave` 先回空陣列
+（不是先不給那三個 key —— 見決定 4）。
