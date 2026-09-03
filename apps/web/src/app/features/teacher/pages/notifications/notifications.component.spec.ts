@@ -131,4 +131,65 @@ describe('NotificationsComponent（老師收件匣）', () => {
 
     expect(f.componentInstance['loadError']()).toBe(true);
   });
+
+  /**
+   * spec 要求「全部標為已讀」按鈕，實作零。三則未讀時老師要點三次才清乾淨。
+   *
+   * ⚠️ 後端**沒有批次端點** —— 只有 `POST /{id}/read`。所以這裡是對未讀逐一呼叫。
+   * 語意跟批次端點一模一樣（同樣的紀錄、同樣的結果），差別只有 N 次往返與非原子。
+   */
+  describe('全部標為已讀', () => {
+    it('有未讀才出現按鈕', async () => {
+      await setup([announcement({ id: 'a1', isRead: false })]);
+      expect(fixture.nativeElement.textContent).toContain('全部標為已讀');
+    });
+
+    it('全部已讀就不顯示 —— 沒有可做的事就不要放按鈕', async () => {
+      await setup([announcement({ id: 'a1', isRead: true })]);
+      expect(fixture.nativeElement.textContent).not.toContain('全部標為已讀');
+    });
+
+    it('只對未讀的送出，已讀的不重複打', async () => {
+      await setup([
+        announcement({ id: 'a1', isRead: false }),
+        announcement({ id: 'a2', isRead: true }),
+        announcement({ id: 'a3', isRead: false }),
+      ]);
+      (component as never as { markAllRead(): void }).markAllRead();
+
+      expect(markReadMock).toHaveBeenCalledTimes(2);
+      expect(markReadMock).toHaveBeenCalledWith('a1');
+      expect(markReadMock).toHaveBeenCalledWith('a3');
+      expect(markReadMock).not.toHaveBeenCalledWith('a2');
+    });
+
+    it('成功後未讀數歸零', async () => {
+      await setup([
+        announcement({ id: 'a1', isRead: false }),
+        announcement({ id: 'a2', isRead: false }),
+      ]);
+      (component as never as { markAllRead(): void; unread(): number }).markAllRead();
+      expect((component as never as { unread(): number }).unread()).toBe(0);
+    });
+
+    /**
+     * 逐一呼叫是非原子的：一部分成功、一部分失敗會留下混合狀態。
+     * **失敗的那幾則要翻回未讀** —— 顯示成已讀但沒存到，下次進來又冒出來更糟
+     * （跟既有的單則樂觀更新同一個理由）。
+     */
+    it('部分失敗時，只有失敗的那則翻回未讀', async () => {
+      await setup([
+        announcement({ id: 'ok', isRead: false }),
+        announcement({ id: 'bad', isRead: false }),
+      ]);
+      markReadMock.mockImplementation((id: string) =>
+        id === 'bad' ? throwError(() => new Error('boom')) : of(undefined),
+      );
+      (component as never as { markAllRead(): void }).markAllRead();
+
+      const list = (component as never as { announcements(): Announcement[] }).announcements();
+      expect(list.find((a) => a.id === 'ok')?.isRead).toBe(true);
+      expect(list.find((a) => a.id === 'bad')?.isRead).toBe(false);
+    });
+  });
 });
