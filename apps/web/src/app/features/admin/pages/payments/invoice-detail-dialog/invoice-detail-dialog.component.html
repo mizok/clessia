@@ -49,24 +49,52 @@
       @if (invoice().items.length === 0) {
         <p class="invoice-detail__empty">這張帳單還沒有明細，金額是 0。</p>
       } @else {
-        <table class="invoice-detail__table">
-          <thead>
-            <tr>
-              <th scope="col">項目</th>
-              <th scope="col">說明</th>
-              <th scope="col" class="invoice-detail__amount-col">金額</th>
+        <app-responsive-table [headTemplate]="itemHead" [bodyTemplate]="itemBody" />
+
+        <ng-template #itemHead>
+          <tr>
+            <!-- 項目是這一列的身分：收掉它就剩一排無名金額 -->
+            <th
+              scope="col"
+              appRtColDef="type"
+              [appRtColDefMinWidth]="96"
+              [appRtColDefPriority]="1"
+              [appRtColDefCollapsible]="false"
+            >
+              項目
+            </th>
+            <!-- 金額比說明先留 —— 看帳單明細就是在看錢，說明是補充 -->
+            <th
+              scope="col"
+              class="invoice-detail__amount-col"
+              appRtColDef="amount"
+              [appRtColDefMinWidth]="96"
+              [appRtColDefPriority]="2"
+            >
+              金額
+            </th>
+            <th
+              scope="col"
+              appRtColDef="note"
+              [appRtColDefMinWidth]="160"
+              [appRtColDefPriority]="3"
+            >
+              說明
+            </th>
+          </tr>
+        </ng-template>
+
+        <ng-template #itemBody>
+          @for (item of invoice().items; track item.id) {
+            <tr appRtRow [appRtRow]="item" [appRtRowId]="item.id">
+              <td appRtColCell="type">{{ INVOICE_ITEM_TYPE_LABELS[item.type] }}</td>
+              <td appRtColCell="amount" class="invoice-detail__amount-col">
+                {{ item.amount | number }}
+              </td>
+              <td appRtColCell="note">{{ item.note ?? item.periodMonth ?? '—' }}</td>
             </tr>
-          </thead>
-          <tbody>
-            @for (item of invoice().items; track item.id) {
-              <tr>
-                <td>{{ INVOICE_ITEM_TYPE_LABELS[item.type] }}</td>
-                <td>{{ item.note ?? item.periodMonth ?? '—' }}</td>
-                <td class="invoice-detail__amount-col">{{ item.amount | number }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
+          }
+        </ng-template>
       }
     </section>
 
@@ -96,30 +124,78 @@
       @if (invoice().payments.length === 0) {
         <p class="invoice-detail__empty">還沒有任何收款。</p>
       } @else {
-        <table class="invoice-detail__table">
-          <thead>
-            <tr>
-              <th scope="col">日期</th>
-              <th scope="col">方式</th>
-              <th scope="col">備註</th>
-              <th scope="col">收據</th>
-              <th scope="col" class="invoice-detail__amount-col">金額</th>
+        <app-responsive-table [headTemplate]="paymentHead" [bodyTemplate]="paymentBody" />
+
+        <ng-template #paymentHead>
+          <tr>
+            <!-- 日期是這一列的身分：收款記錄就是按時間在對帳的 -->
+            <th
+              scope="col"
+              appRtColDef="paidAt"
+              [appRtColDefMinWidth]="104"
+              [appRtColDefPriority]="1"
+              [appRtColDefCollapsible]="false"
+            >
+              日期
+            </th>
+            <!--
+              金額緊跟著日期：退款是負數，而「這筆是收還是退」只看得到金額才分得出來
+              （`invoice-detail__row--refund` 的底色在手機上仍在，但顏色不是唯一的區分）。
+            -->
+            <th
+              scope="col"
+              class="invoice-detail__amount-col"
+              appRtColDef="amount"
+              [appRtColDefMinWidth]="96"
+              [appRtColDefPriority]="2"
+            >
+              金額
+            </th>
+            <th
+              scope="col"
+              appRtColDef="method"
+              [appRtColDefMinWidth]="96"
+              [appRtColDefPriority]="3"
+            >
+              方式
+            </th>
+            <th
+              scope="col"
+              appRtColDef="receiptNo"
+              [appRtColDefMinWidth]="110"
+              [appRtColDefPriority]="4"
+            >
+              收據
+            </th>
+            <th
+              scope="col"
+              appRtColDef="note"
+              [appRtColDefMinWidth]="140"
+              [appRtColDefPriority]="5"
+            >
+              備註
+            </th>
+          </tr>
+        </ng-template>
+
+        <ng-template #paymentBody>
+          @for (payment of invoice().payments; track payment.id) {
+            <tr
+              appRtRow
+              [appRtRow]="payment"
+              [appRtRowId]="payment.id"
+              [class.invoice-detail__row--refund]="payment.kind === 'refund'"
+            >
+              <td appRtColCell="paidAt">{{ payment.paidAt }}</td>
+              <td appRtColCell="amount" class="invoice-detail__amount-col">
+                {{ payment.kind === 'refund' ? '−' : '' }}{{ payment.amount | number }}
+              </td>
+              <td appRtColCell="method">{{ PAYMENT_METHOD_LABELS[payment.method] }}</td>
+              <td appRtColCell="receiptNo">{{ payment.receiptNo ?? '—' }}</td>
+              <td appRtColCell="note">{{ payment.note ?? '—' }}</td>
             </tr>
-          </thead>
-          <tbody>
-            @for (payment of invoice().payments; track payment.id) {
-              <tr [class.invoice-detail__row--refund]="payment.kind === 'refund'">
-                <td>{{ payment.paidAt }}</td>
-                <td>{{ PAYMENT_METHOD_LABELS[payment.method] }}</td>
-                <td>{{ payment.note ?? '—' }}</td>
-                <td>{{ payment.receiptNo ?? '—' }}</td>
-                <td class="invoice-detail__amount-col">
-                  {{ payment.kind === 'refund' ? '−' : '' }}{{ payment.amount | number }}
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
+          }
+        </ng-template>
       }
     </section>
 

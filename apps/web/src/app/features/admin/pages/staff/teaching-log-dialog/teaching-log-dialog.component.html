@@ -33,35 +33,48 @@
     </section>
 
     @if (summary().counted.length > 0) {
-      <table class="teaching-log__table">
-        <thead>
-          <tr>
-            <th>日期</th>
-            <th>時間</th>
-            <th>班級</th>
-            <th>狀態</th>
+      <app-responsive-table [headTemplate]="logHead" [bodyTemplate]="logBody" />
+
+      <ng-template #logHead>
+        <tr>
+          <!-- 日期是這一列的身分：這份日誌就是按天在看的 -->
+          <th
+            appRtColDef="date"
+            [appRtColDefMinWidth]="96"
+            [appRtColDefPriority]="1"
+            [appRtColDefCollapsible]="false"
+          >
+            日期
+          </th>
+          <!--
+            狀態排在班級之前：手機上只留得下一欄時，要留**可行動的**那一個。
+            「未點名」是老師要去處理的事，班級名稱只是說明。
+          -->
+          <th appRtColDef="status" [appRtColDefMinWidth]="96" [appRtColDefPriority]="2">狀態</th>
+          <th appRtColDef="class" [appRtColDefMinWidth]="140" [appRtColDefPriority]="3">班級</th>
+          <th appRtColDef="time" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">時間</th>
+        </tr>
+      </ng-template>
+
+      <ng-template #logBody>
+        @for (row of summary().counted; track row.id) {
+          <tr appRtRow [appRtRow]="row" [appRtRowId]="row.id">
+            <td appRtColCell="date">{{ row.sessionDate }}</td>
+            <td appRtColCell="status">
+              <!-- **這裡不判斷時間，是刻意的。** 這個 dialog 是回顧一段已經過去的
+                   期間，裡面的課全都上完了 —— 情境本身已經滿足「該點名的時候到了」，
+                   不需要也不該再跑一次 hasSessionEnded。不要「補」一個時間判斷進來。 -->
+              @if (missingAttendanceIds().has(row.id)) {
+                <app-status-dot tone="overdue">未點名</app-status-dot>
+              } @else {
+                <app-status-dot tone="done">已點名</app-status-dot>
+              }
+            </td>
+            <td appRtColCell="class">{{ row.className }}</td>
+            <td appRtColCell="time">{{ row.startTime }}–{{ row.endTime }}</td>
           </tr>
-        </thead>
-        <tbody>
-          @for (row of summary().counted; track row.id) {
-            <tr>
-              <td>{{ row.sessionDate }}</td>
-              <td>{{ row.startTime }}–{{ row.endTime }}</td>
-              <td>{{ row.className }}</td>
-              <td>
-                <!-- **這裡不判斷時間，是刻意的。** 這個 dialog 是回顧一段已經過去的
-                     期間，裡面的課全都上完了 —— 情境本身已經滿足「該點名的時候到了」，
-                     不需要也不該再跑一次 hasSessionEnded。不要「補」一個時間判斷進來。 -->
-                @if (missingAttendanceIds().has(row.id)) {
-                  <app-status-dot tone="overdue">未點名</app-status-dot>
-                } @else {
-                  <app-status-dot tone="done">已點名</app-status-dot>
-                }
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
+        }
+      </ng-template>
     } @else {
       <p class="teaching-log__state">這個月沒有課堂紀錄。</p>
     }

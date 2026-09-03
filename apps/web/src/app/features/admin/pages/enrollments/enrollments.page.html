@@ -48,48 +48,71 @@
       <strong>{{ leftCount() }}</strong> 筆，共 {{ total() }} 筆
     </p>
 
-    <table class="enrollments__table">
-      <thead>
-        <tr>
-          <th>事件</th>
-          <th>日期</th>
-          <th>學生</th>
-          <th>班級</th>
-          <th>分校</th>
-          <th>狀態</th>
-          <th>最後異動</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (row of rows(); track row.enrollment.id) {
-          <tr
-            class="enrollments__row"
-            tabindex="0"
-            (click)="openClass(row)"
-            (keydown.enter)="openClass(row)"
-          >
-            <td>
-              <app-data-chip>{{ EVENT_LABELS[row.event.kind] }}</app-data-chip>
-            </td>
-            <td>{{ row.event.date | date: 'MM/dd' }}</td>
-            <td>
-              {{ row.enrollment.studentName }}
-              <span class="enrollments__grade">{{ row.enrollment.studentGrade }}</span>
-            </td>
-            <td>{{ row.enrollment.className }}</td>
-            <td>{{ row.enrollment.campusName ?? '—' }}</td>
-            <td>{{ STATUS_LABELS[row.enrollment.status] }}</td>
-            <td>{{ row.enrollment.updatedAt | date: 'MM/dd HH:mm' }}</td>
-          </tr>
-        }
-      </tbody>
-    </table>
-
-    <p-paginator
-      [first]="first()"
-      [rows]="pageSize"
-      [totalRecords]="total()"
-      (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
+    <app-responsive-table
+      [headTemplate]="enrollmentHead"
+      [bodyTemplate]="enrollmentBody"
+      [pagination]="pagination()"
+      (page)="onPageChange($event.page + 1)"
     />
+
+    <ng-template #enrollmentHead>
+      <tr>
+        <!--
+          學生是這一列的身分。收掉它，手機上就變成一排「插班 / 09/12 / 在學」——
+          知道發生了什麼事，但不知道發生在誰身上。
+        -->
+        <th
+          appRtColDef="student"
+          [appRtColDefMinWidth]="140"
+          [appRtColDefPriority]="1"
+          [appRtColDefCollapsible]="false"
+        >
+          學生
+        </th>
+        <!--
+          班級排在事件之前：點一列就是開那個班，所以班級是這張表**可行動的**那一欄。
+          事件與日期是描述，班級是去處。
+        -->
+        <th appRtColDef="class" [appRtColDefMinWidth]="140" [appRtColDefPriority]="2">班級</th>
+        <th appRtColDef="event" [appRtColDefMinWidth]="96" [appRtColDefPriority]="3">事件</th>
+        <th appRtColDef="date" [appRtColDefMinWidth]="80" [appRtColDefPriority]="4">日期</th>
+        <th appRtColDef="status" [appRtColDefMinWidth]="90" [appRtColDefPriority]="5">狀態</th>
+        <th appRtColDef="campus" [appRtColDefMinWidth]="110" [appRtColDefPriority]="6">分校</th>
+        <th appRtColDef="updatedAt" [appRtColDefMinWidth]="120" [appRtColDefPriority]="7">
+          最後異動
+        </th>
+      </tr>
+    </ng-template>
+
+    <ng-template #enrollmentBody>
+      @for (row of rows(); track row.enrollment.id) {
+        <!--
+          整列可點（開班級詳情）。展開鈕自己有 stopPropagation（rt-row.directive），
+          所以在手機上點開明細不會順便把班級也開走。
+        -->
+        <tr
+          appRtRow
+          [appRtRow]="row"
+          [appRtRowId]="row.enrollment.id"
+          class="enrollments__row"
+          tabindex="0"
+          (click)="openClass(row)"
+          (keydown.enter)="openClass(row)"
+        >
+          <td appRtColCell="student">
+            {{ row.enrollment.studentName }}
+            <span class="enrollments__grade">{{ row.enrollment.studentGrade }}</span>
+          </td>
+          <td appRtColCell="class">{{ row.enrollment.className }}</td>
+          <td appRtColCell="event">
+            <app-data-chip>{{ EVENT_LABELS[row.event.kind] }}</app-data-chip>
+          </td>
+          <td appRtColCell="date">{{ row.event.date | date: 'MM/dd' }}</td>
+          <td appRtColCell="status">{{ STATUS_LABELS[row.enrollment.status] }}</td>
+          <td appRtColCell="campus">{{ row.enrollment.campusName ?? '—' }}</td>
+          <td appRtColCell="updatedAt">{{ row.enrollment.updatedAt | date: 'MM/dd HH:mm' }}</td>
+        </tr>
+      }
+    </ng-template>
   }
 </div>
