@@ -19,6 +19,7 @@ import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
 import { orphanModuleImports } from './lib/orphan-imports.mjs';
+import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 import routerRules from './rules/doc-router.rules.json' with { type: 'json' };
 import { compareToBaseline, failingSpecs } from './test-gate.mjs';
@@ -666,4 +667,49 @@ test('孤兒 import：不認識的模組不掃', () => {
     orphanModuleImports([{ path: 'a.ts', ts: 'imports: [SomeUnknownModule],', template: '' }]),
     [],
   );
+});
+
+// ── 拇指區的兩條規則 ─────────────────────────────────────────────────────────
+
+test('拇指區：抓得到標頭裡直接放的 p-button', () => {
+  assert.deepEqual(
+    headerActionButtons([
+      { path: 'a.html', source: '<div class="x__header-actions"><p-button label="新增" /></div>' },
+      { path: 'b.html', source: '<app-page-actions [primary]="p"><p-button label="匯入" /></app-page-actions>' },
+      { path: 'c.html', source: '<div class="x__header-actions"></div>' },
+    ]),
+    ['a.html'],
+  );
+});
+
+// 投影進 app-page-actions 的次要行動**不算違規** —— 它們本來就該在標頭。
+// 這條防的是 gate 誤報，而誤報的 gate 會被關掉，那比沒有 gate 更糟。
+test('拇指區：投影進 app-page-actions 的按鈕不算違規', () => {
+  assert.deepEqual(
+    headerActionButtons([
+      {
+        path: 'a.html',
+        source: '<app-page-actions [primary]="p">\n  <p-button label="操作紀錄" />\n</app-page-actions>',
+      },
+    ]),
+    [],
+  );
+});
+
+test('拇指區：破壞性動詞當主要行動會被抓到', () => {
+  const hits = destructivePrimaryActions([
+    { path: 'a.ts', source: "readonly primaryAction: PageAction = { label: '刪除課程' };" },
+    { path: 'b.ts', source: "readonly primaryAction: PageAction = { label: '新增課程' };" },
+  ]);
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].path, 'a.ts');
+  assert.equal(hits[0].word, '刪除');
+});
+
+test('拇指區：破壞性清單涵蓋停用與結束，不只刪除', () => {
+  const hits = destructivePrimaryActions([
+    { path: 'a.ts', source: "PageAction = { label: '停用班級' };" },
+    { path: 'b.ts', source: "PageAction = { label: '結束考試' };" },
+  ]);
+  assert.equal(hits.length, 2);
 });

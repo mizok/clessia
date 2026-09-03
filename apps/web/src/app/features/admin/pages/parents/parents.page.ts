@@ -56,11 +56,16 @@ import {
 } from '@shared/components/status/status-dot/status-dot.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { personHue } from '@shared/utils/person-hue.util';
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
 
 @Component({
   selector: 'app-parents',
   standalone: true,
   imports: [
+    PageActionsComponent,
     StatusDotComponent,
     FormsModule,
     ButtonModule,
@@ -83,6 +88,10 @@ import { personHue } from '@shared/utils/person-hue.util';
   styleUrl: './parents.page.scss',
 })
 export class ParentsPage implements OnInit {
+  /** 主要行動。**寫成 readonly property 不是模板裡的物件字面量** ——
+   *  字面量每輪變更偵測都會產生新物件，讓 signal input 每次都判定為「變了」。 */
+  protected readonly primaryAction: PageAction = { label: '新增家長', icon: 'pi pi-plus' };
+
   private readonly parentsService = inject(ParentsService);
   private readonly messageService = inject(MessageService);
   private readonly dialogService = inject(DialogService);

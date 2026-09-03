@@ -19,6 +19,7 @@ import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
 import { orphanModuleImports } from './lib/orphan-imports.mjs';
+import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
 import { matchWriteRules } from './lib/rules.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
@@ -27,6 +28,7 @@ import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const CONTRAST_BASELINE = join(ROOT, 'tools/agent-harness/scss-contrast-baseline.json');
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');
+const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-baseline.json');
 const TOUCH_TARGET_BASELINE = join(ROOT, 'tools/agent-harness/touch-target-baseline.json');
 const AGENTS_MD = join(ROOT, 'AGENTS.md');
 const SKILLS_DIR = join(ROOT, '.agents/skills');
@@ -1009,6 +1011,67 @@ function checkOrphanImports() {
 }
 
 checkOrphanImports();
+
+// ── 拇指區的兩條規則 ────────────────────────────────────────────────────────
+// 邏輯住在 lib/page-actions.mjs（可單獨測）。
+// 沒有 gate 的話這個決定會慢慢被磨掉：下一個人加新頁面時最順手的寫法仍然是
+// 「在標頭放一顆 p-button」，而那在桌機上看起來完全正常 ——
+// **手機上按不到這件事，寫的人不會在自己的螢幕上發現。**
+function checkPageActions() {
+  const webSrc = join(ROOT, 'apps/web/src');
+  if (!existsSync(webSrc)) return;
+
+  const html = [];
+  const ts = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.html')) {
+        html.push({ path: full.slice(ROOT.length + 1), source: readFileSync(full, 'utf8') });
+      } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) {
+        ts.push({ path: full.slice(ROOT.length + 1), source: readFileSync(full, 'utf8') });
+      }
+    }
+  };
+  walk(webSrc);
+
+  // ── 規則一：標頭裡不得直接放按鈕（既有的進 baseline，只擋新增）──
+  const current = headerActionButtons(html);
+
+  if (mode === 'write') {
+    writeFileSync(PAGE_ACTIONS_BASELINE, `${JSON.stringify(current, null, 2)}\n`);
+  } else {
+    const baseline = new Set(
+      existsSync(PAGE_ACTIONS_BASELINE) ? JSON.parse(readFileSync(PAGE_ACTIONS_BASELINE, 'utf8')) : [],
+    );
+    for (const path of current.filter((p) => !baseline.has(p))) {
+      fail(
+        `${path} 在 __header-actions 裡直接放了 p-button —— 主要行動請改用 ` +
+          `app-page-actions（桌機標頭 / 手機停靠列，一次宣告兩處渲染）。` +
+          `既有的在 page-actions-baseline.json 裡，新增的會擋。`,
+      );
+    }
+    const migrated = [...baseline].filter((p) => !current.includes(p));
+    if (migrated.length > 0) {
+      warnings.push(
+        `拇指區基線有 ${migrated.length} 支已經遷移完了 —— 跑 npm run harness:write 把成果記下來`,
+      );
+    }
+  }
+
+  // ── 規則二：破壞性行動永不進停靠列（**沒有 baseline，一律擋**）──
+  // 這條不給豁免：拇指範圍最容易誤觸，而誤觸刪除是資料沒了。
+  for (const hit of destructivePrimaryActions(ts)) {
+    fail(
+      `${hit.path} 把「${hit.label}」設成主要行動，但它含有破壞性動詞「${hit.word}」。` +
+        `**破壞性行動永不進停靠列** —— 拇指範圍最容易誤觸，誤觸「新增」是多一筆草稿，` +
+        `誤觸「刪除」是資料沒了。請留在選單裡並加確認。`,
+    );
+  }
+}
+
+checkPageActions();
 
 // ── report ───────────────────────────────────────────────────────────────────────────────
 // --write 一律 exit 0：它的工作是「修好能自動修的」，剩下的（例如 CLAUDE.md 被塞進規則）
