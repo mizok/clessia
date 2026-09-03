@@ -28,21 +28,24 @@ describe('NotificationsComponent（老師收件匣）', () => {
 
   const inboxMock = vi.fn();
   const markReadMock = vi.fn();
+  const markAllReadMock = vi.fn();
 
   async function setup(data: Announcement[] = [announcement()]) {
     inboxMock.mockReset();
     markReadMock.mockReset();
+    markAllReadMock.mockReset();
     inboxMock.mockReturnValue(
       of({ data, meta: { total: data.length, unread: data.filter((a) => !a.isRead).length } }),
     );
     markReadMock.mockReturnValue(of(undefined));
+    markAllReadMock.mockReturnValue(of({ marked: 0 }));
 
     await TestBed.configureTestingModule({
       imports: [NotificationsComponent],
       providers: [
         {
           provide: AnnouncementsService,
-          useValue: { inbox: inboxMock, markRead: markReadMock },
+          useValue: { inbox: inboxMock, markRead: markReadMock, markAllRead: markAllReadMock },
         },
       ],
     }).compileComponents();
@@ -121,7 +124,10 @@ describe('NotificationsComponent（老師收件匣）', () => {
     await TestBed.configureTestingModule({
       imports: [NotificationsComponent],
       providers: [
-        { provide: AnnouncementsService, useValue: { inbox: inboxMock, markRead: markReadMock } },
+        {
+          provide: AnnouncementsService,
+          useValue: { inbox: inboxMock, markRead: markReadMock, markAllRead: markAllReadMock },
+        },
       ],
     }).compileComponents();
 
@@ -149,7 +155,11 @@ describe('NotificationsComponent（老師收件匣）', () => {
       expect(fixture.nativeElement.textContent).not.toContain('全部標為已讀');
     });
 
-    it('只對未讀的送出，已讀的不重複打', async () => {
+    /**
+     * 逐一版的「只對未讀的送出」在這裡沒有對應物 —— 批次端點不收 id，
+     * 可見範圍由後端算。這裡改測**它只打一次**，那才是換掉逐一版買到的東西。
+     */
+    it('不管幾則未讀都只打一次，而且不再逐一呼叫 markRead', async () => {
       await setup([
         announcement({ id: 'a1', isRead: false }),
         announcement({ id: 'a2', isRead: true }),
@@ -157,10 +167,15 @@ describe('NotificationsComponent（老師收件匣）', () => {
       ]);
       (component as never as { markAllRead(): void }).markAllRead();
 
-      expect(markReadMock).toHaveBeenCalledTimes(2);
-      expect(markReadMock).toHaveBeenCalledWith('a1');
-      expect(markReadMock).toHaveBeenCalledWith('a3');
-      expect(markReadMock).not.toHaveBeenCalledWith('a2');
+      expect(markAllReadMock).toHaveBeenCalledTimes(1);
+      expect(markReadMock).not.toHaveBeenCalled();
+    });
+
+    it('沒有未讀就不打 —— 不送一個什麼都不會標的請求', async () => {
+      await setup([announcement({ id: 'a1', isRead: true })]);
+      (component as never as { markAllRead(): void }).markAllRead();
+
+      expect(markAllReadMock).not.toHaveBeenCalled();
     });
 
     it('成功後未讀數歸零', async () => {
@@ -173,23 +188,25 @@ describe('NotificationsComponent（老師收件匣）', () => {
     });
 
     /**
-     * 逐一呼叫是非原子的：一部分成功、一部分失敗會留下混合狀態。
-     * **失敗的那幾則要翻回未讀** —— 顯示成已讀但沒存到，下次進來又冒出來更糟
-     * （跟既有的單則樂觀更新同一個理由）。
+     * **原子端點沒有「部分失敗」** —— 逐一版時這裡測的是「只有失敗的那則翻回未讀」，
+     * 那測的是逐一呼叫的限制，不是需求。換成 `read-all` 之後那個狀態不可能出現，
+     * 所以這條改測「失敗就整批翻回」。
+     *
+     * 翻回的是**送出前記下的那批 id**，不是重掃未讀 —— 樂觀更新之後畫面上已經沒有未讀了。
      */
-    it('部分失敗時，只有失敗的那則翻回未讀', async () => {
+    it('失敗時整批翻回未讀，已讀的不受影響', async () => {
       await setup([
-        announcement({ id: 'ok', isRead: false }),
-        announcement({ id: 'bad', isRead: false }),
+        announcement({ id: 'a1', isRead: false }),
+        announcement({ id: 'a2', isRead: false }),
+        announcement({ id: 'old', isRead: true }),
       ]);
-      markReadMock.mockImplementation((id: string) =>
-        id === 'bad' ? throwError(() => new Error('boom')) : of(undefined),
-      );
+      markAllReadMock.mockReturnValue(throwError(() => new Error('boom')));
       (component as never as { markAllRead(): void }).markAllRead();
 
       const list = (component as never as { announcements(): Announcement[] }).announcements();
-      expect(list.find((a) => a.id === 'ok')?.isRead).toBe(true);
-      expect(list.find((a) => a.id === 'bad')?.isRead).toBe(false);
+      expect(list.find((a) => a.id === 'a1')?.isRead).toBe(false);
+      expect(list.find((a) => a.id === 'a2')?.isRead).toBe(false);
+      expect(list.find((a) => a.id === 'old')?.isRead).toBe(true);
     });
   });
 });

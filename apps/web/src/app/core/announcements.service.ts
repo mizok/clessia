@@ -61,4 +61,14 @@ export class AnnouncementsService {
   markRead(id: string): Observable<void> {
     return this.http.post<void>(`${this.base}/${id}/read`, {});
   }
+
+  /**
+   * 收件匣全部標為已讀。**原子** —— 要嘛全標要嘛都沒標，沒有「一半已讀」這種狀態。
+   *
+   * 可見範圍由後端算，跟 `inbox()` 同源（`campusOrFilter` + `audienceFor`），
+   * 所以 `marked` 不需要跟前端的未讀數對帳 —— 兩邊各算一次才是會漂的做法。
+   */
+  markAllRead(): Observable<{ marked: number }> {
+    return this.http.post<{ marked: number }>(`${this.base}/read-all`, {});
+  }
 }

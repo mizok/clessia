@@ -621,17 +621,16 @@ describe('AttendanceRosterPanelComponent', () => {
   });
 
   /**
-   * 事前警告（#185 讓 roster 回 `leaveEndDate` 之後）。
+   * 事前警告（#185 給 `leaveEndDate`，#222 再給 `leaveStartDate`）。
    *
    * 銷假只把「今天」從假裡拿掉，但**跨日的假會被截斷、後段一併取消** ——
    * 事後用 `droppedAfter` 告知已經來不及，老師按下去時不知道會波及三天。
    *
-   * ⚠️ **文案只能說「可能」**：後端的連坐條件是「更早開始 **且** 之後才結束」，
-   * 而 roster 只回結束日、不回起始日。今天才開始的假會縮到明天起、不損失，
-   * 但前端分不出來 —— 說死「將一併取消」在那種情況是假的。
+   * 有了起始日之後，「今天才開始」那一整類假警告可以拿掉（見下）。
+   * 但**文案仍然是「可能」不是「將」** —— 理由在最後兩條測試裡。
    */
   describe('跨日假的事前警告', () => {
-    function leaveRow(leaveEndDate: string | null) {
+    function leaveRow(leaveEndDate: string | null, leaveStartDate: string | null = null) {
       return [
         {
           studentId: 'l1',
@@ -641,6 +640,7 @@ describe('AttendanceRosterPanelComponent', () => {
           recordId: 'r1',
           status: 'on_leave' as const,
           hasLeaveRequest: true,
+          leaveStartDate,
           leaveEndDate,
         },
       ];
@@ -664,6 +664,45 @@ describe('AttendanceRosterPanelComponent', () => {
       panelDate = todayLocal();
       await render(leaveRow(null));
       expect(fixture.nativeElement.textContent).not.toContain('可能一併取消');
+    });
+
+    /**
+     * #222 拿掉的那一整類假警告。
+     *
+     * 起始日就是今天 ⟹ **沒有任何一張假更早開始**（它是聯集的最小值）⟹
+     * 每一張都只會縮到明天或被刪掉，`droppedAfter` 必然是 null。零損失。
+     * 在此之前這種情況照樣喊「可能一併取消」，而它永遠不會發生。
+     */
+    it('今天才開始的跨日假 → 不警告（縮到明天起，證明零損失）', async () => {
+      panelDate = todayLocal();
+      await render(leaveRow('2026-12-25', todayLocal()));
+      expect(fixture.nativeElement.textContent).not.toContain('可能一併取消');
+    });
+
+    it('更早開始且之後才結束 → 照樣警告', async () => {
+      panelDate = todayLocal();
+      await render(leaveRow('2026-12-25', '2020-01-01'));
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('2026-12-25');
+      expect(text).toContain('可能');
+    });
+
+    /**
+     * **為什麼還是「可能」不是「將」。**
+     *
+     * 兩張假接力蓋到今天（`[4/4~4/6]` + `[4/6~4/8]`，今天 4/6），前端拿到的聚合值
+     * 是 `start=4/4, end=4/8` —— 跟一張真正的長假**長得一模一樣**，但實際損失是零：
+     * 4/4 那張今天結束（截到昨天），4/8 那張今天才開始（縮到明天）。
+     *
+     * 這個 case 不是在測「警告不該出現」（min/max 分不出來，出現是對的、保守的），
+     * 是在**釘住文案**：只要還分不出來，就不准把「可能」改成「將」。
+     */
+    it('兩張假接力時仍然只說「可能」—— 聚合值分不出它其實零損失', async () => {
+      panelDate = todayLocal();
+      await render(leaveRow('2026-12-25', '2020-01-01'));
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('可能');
+      expect(text).not.toContain('將一併取消');
     });
   });
 });
