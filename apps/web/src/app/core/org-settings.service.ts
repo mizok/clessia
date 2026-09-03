@@ -12,12 +12,15 @@ export interface OrgSettings {
   attendanceMode: AttendanceMode;
   attendanceResponsible: AttendanceResponsible;
   attendanceRetroactiveDays: number;
+  // 下面三個是**財務設定，只有帶 `manage_finance` 的請求拿得到** ——
+  // 沒有那個權限時 API 回的物件裡根本沒有這幾個 key（不是 0，也不是 null）。
+  // 所以型別上是 optional，不要在 UI 裡假設它們一定在。
   /** 開帳時 due_date 的預設天數（kb/wiki/rules/billing-rules.md 規則 7） */
-  invoiceDueDays: number;
+  invoiceDueDays?: number;
   /** 餐費預設單價（單價實際存在每一筆餐記錄上） */
-  mealDefaultPrice: number;
+  mealDefaultPrice?: number;
   /** 插班／退班比例試算的基準，預設 days */
-  prorationBasis: 'days' | 'sessions';
+  prorationBasis?: 'days' | 'sessions';
 }
 
 export interface UpdateOrgSettingsInput {
