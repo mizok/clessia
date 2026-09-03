@@ -65,3 +65,5 @@ c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因�
 - (admin-pages) B3 第三片:待開帳清單(hasInvoice=false API 已備)
 - (admin-pages) 期繳試算:收費週期選單(子元件已抽好)
 - (admin-pages) charter 蒸餾:git add -A 在切過分支的工作區不安全 / 測行為不測實作
+- (design-web) #235 解衝突(dashboard.component.ts 撞 #226/#224)後由 steward 合
+- (design-web-2) #230(殼與導覽手機優先批)CI 紅修復 + #220 rebase
