@@ -11,6 +11,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
+import { touchTargetViolations } from './lib/touch-target.mjs';
 import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import { matchWriteRules, routeHints } from './lib/rules.mjs';
@@ -572,4 +573,53 @@ test('手機優先：countDesktopFirst 數的是次數，給人看規模用', ()
     2,
   );
   assert.equal(countDesktopFirst("@include bp.respond-from('mobile'){}"), 0);
+});
+
+// ── A17：可點元素的尺寸下限 ──────────────────────────────────────────────────────────
+//
+// 這支的規則是**反過來**的，而「反過來」正是最容易在重構時被改回直覺版的地方。
+// 改回去的症狀不是報錯，是**最嚴重的那類違規再也抓不到**（它們沒有數字可抓）。
+
+const tt = (source) => touchTargetViolations([{ path: 'a.scss', source }]).map((v) => v.kind);
+
+test('沒有尺寸下限的可點元素要抓到 —— 那是實際踩過的形狀', () => {
+  // 老師端 dashboard 改動前的原樣：整頁僅有的兩個導覽動作，實測 100×20
+  assert.deepEqual(
+    tt(`.d {
+      &__link { padding: 0; border: none; cursor: pointer; font-size: 0.875rem; }
+    }`),
+    ['no-floor'],
+  );
+});
+
+test('40px + pointer:coarse 抬到 44 是合規形狀，不可誤報', () => {
+  // 誤報這個形狀會逼人把桌機也做成 44px —— design-web 席實測過那會讓桌機退步
+  assert.deepEqual(
+    tt(`.d {
+      &__link { min-height: 40px; cursor: pointer; }
+    }
+    @media (pointer: coarse) { .d__link { min-height: 44px; } }`),
+    [],
+  );
+});
+
+test('明寫的過小尺寸也要抓，但裝飾性元素不算', () => {
+  assert.deepEqual(tt('.b { cursor: pointer; min-height: 32px; }'), ['below-threshold']);
+  // 狀態圓點：沒有 cursor: pointer 就不是點擊目標
+  assert.deepEqual(tt('.dot { width: 6px; height: 6px; border-radius: 50%; }'), []);
+});
+
+// 頂層 `@use ...;` 不清 buffer 的話會跟下一個 selector 黏成一體，而它以 `@` 開頭
+// → 整個區塊被當 at-rule、selector 變空字串，所有 `&__x` 的父層解析全毀。
+// 症狀是安靜的：不報錯，只是合規比對對不上 —— 第一版就是這樣把已修好的程式碼誤報成違規。
+test('頂層 @use 不能污染後續 selector 的父層解析', () => {
+  assert.deepEqual(
+    tt(`@use 'shared/breakpoints' as bp;
+
+    .d {
+      &__link { min-height: 40px; cursor: pointer; }
+    }
+    @media (pointer: coarse) { .d__link { min-height: 44px; } }`),
+    [],
+  );
 });

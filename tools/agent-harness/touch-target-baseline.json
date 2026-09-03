@@ -1,0 +1,21 @@
+[
+  "apps/web/src/app/features/admin/pages/contact-book/contact-book.page.scss|.contact-book__row",
+  "apps/web/src/app/features/admin/pages/courses/class-detail/copy-roster-dialog/copy-roster-dialog.component.scss|.copy-roster-dialog__checkbox-row",
+  "apps/web/src/app/features/admin/pages/courses/class-detail/roster-import-dialog/roster-import-dialog.component.scss|.roster-import__dropzone",
+  "apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.scss|.spd__back-btn",
+  "apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.scss|.spd__item",
+  "apps/web/src/app/features/admin/pages/courses/class-detail/student-picker-dialog/student-picker-dialog.component.scss|.spd__remove-btn",
+  "apps/web/src/app/features/admin/pages/courses/class-row/class-row.component.scss|.batch-checkbox",
+  "apps/web/src/app/features/admin/pages/courses/class-row/class-row.component.scss|.class-row__completeness-info--action",
+  "apps/web/src/app/features/admin/pages/courses/class-row/class-row.component.scss|.class-row__intervention-link",
+  "apps/web/src/app/features/admin/pages/courses/class-row/class-row.component.scss|.class-row__name",
+  "apps/web/src/app/features/admin/pages/courses/class-row/class-row.component.scss|.class-row__nav-btn",
+  "apps/web/src/app/features/admin/pages/courses/class-row/class-row.component.scss|.class-row__summary",
+  "apps/web/src/app/features/admin/pages/enrollments/enrollments.page.scss|.enrollments__row",
+  "apps/web/src/app/features/admin/pages/payments/payments.page.scss|.payments__row",
+  "apps/web/src/app/features/admin/pages/sessions/dialogs/mobile-batch-dialog/mobile-batch-dialog.component.scss|.mobile-batch-dialog__menu-item",
+  "apps/web/src/app/features/admin/pages/sessions/dialogs/session-leave-roster-dialog/session-leave-roster-dialog.component.scss|.leave-roster__filter-tab",
+  "apps/web/src/app/features/admin/pages/sessions/dialogs/session-overflow-dialog/session-overflow-dialog.component.scss|.overflow-dialog__item",
+  "apps/web/src/app/features/teacher/pages/notifications/notifications.component.scss|.teacher-notifications__summary",
+  "apps/web/src/app/features/teacher/pages/schedule/schedule.page.scss|.schedule-page__weekbar-day"
+]
