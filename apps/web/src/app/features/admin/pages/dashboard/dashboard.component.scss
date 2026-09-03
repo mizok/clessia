@@ -286,6 +286,23 @@
   & + & {
     border-top: 1px solid var(--zinc-100);
   }
+
+  // 可點的那幾列：整列是按鈕。**觸控下限 44px** —— 這一頁在手機上是主場景。
+  .dashboard__spine-row--action {
+    width: 100%;
+    min-height: 44px;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .dashboard__spine-row--action:hover,
+  .dashboard__spine-row--action:focus-visible {
+    background: var(--zinc-50);
+  }
 }
 
 .dashboard__spine-time {
