@@ -177,8 +177,17 @@ describe('authMiddleware 的身分查詢失敗', () => {
     getSession.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1' } });
     fromMock.mockImplementation((table: string) => ({
       select: () => ({
-        eq: () => Promise.resolve(results[table] ?? { data: [], error: null }),
+        eq: () => {
+          const result = results[table] ?? { data: [], error: null };
+          // 這個替身同時要服務兩種呼叫形狀：`.eq()` 直接 await（角色/身分查詢），
+          // 以及 `.eq().maybeSingle()`（`logAudit` 查 profiles）。
+          // 少了 maybeSingle，稽核會在它自己的 try/catch 裡靜默失敗
+          return Object.assign(Promise.resolve(result), {
+            maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          });
+        },
       }),
+      insert: () => Promise.resolve({ error: null }),
     }));
 
     const app = new Hono();

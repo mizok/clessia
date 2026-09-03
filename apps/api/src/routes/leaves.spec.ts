@@ -174,6 +174,10 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
   function createDeleteApp() {
     const calls: Array<{ table: string; op: string; payload?: unknown }> = [];
     const filters: Array<[string, unknown]> = [];
+    // 稽核寫入的內容 —— **替身缺 `maybeSingle` 的時候，`logAudit` 會在它自己的
+    // try/catch 裡靜默失敗**（只印一行 `[audit] log failed`），於是「有沒有寫稽核」
+    // 在測試裡永遠是不可觀察的。補齊方法之後它才變成可以斷言的東西。
+    const auditRows: Array<Record<string, unknown>> = [];
 
     const supabase = {
       from(table: string) {
@@ -198,7 +202,13 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
             calls.push({ table, op: 'delete' });
             return query;
           },
-          insert: () => Promise.resolve({ error: null }),
+          // `logAudit` 會先查 profiles 拿 display_name —— 少了這個方法，
+          // 整支稽核就在 catch 裡消失
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          insert: (payload: Record<string, unknown>) => {
+            if (table === 'audit_logs') auditRows.push(payload);
+            return Promise.resolve({ error: null });
+          },
           single: () =>
             Promise.resolve({
               data: {
@@ -236,7 +246,7 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
     });
     app.route('/api/leaves', leavesApp);
 
-    return { app, calls, filters };
+    return { app, calls, filters, auditRows };
   }
 
   it('把 on_leave 紀錄刪掉，而不是改寫成 absent', async () => {
@@ -255,6 +265,21 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
     expect(
       calls.filter((call) => call.table === 'attendance_records' && call.op === 'update'),
     ).toHaveLength(0);
+  });
+
+  it('稽核有被寫進去 —— 而不是在 logAudit 的 catch 裡消失', async () => {
+    const { app, auditRows } = createDeleteApp();
+
+    await app.request(
+      '/api/leaves/00000000-0000-4000-8000-000000000001?mode=full',
+      { method: 'DELETE' },
+      undefined,
+      { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
+    );
+
+    // 刪除請假是「使用者選了不留痕作廢」的動作，稽核是我們唯一的底線 ——
+    // 它靜默失敗的話，事後沒有任何辦法知道那張假原本是什麼
+    expect(auditRows.some((row) => row['action'] === 'delete')).toBe(true);
   });
 
   it('只碰還沒點名的課堂 —— 已點過名的日子維持不動', async () => {
