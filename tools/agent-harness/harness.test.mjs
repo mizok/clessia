@@ -857,6 +857,47 @@ test('對比掃描：icon 的 3:1 不是免死金牌 —— 2.35 連 3:1 都不�
 //
 // 焦點哨兵：鍵盤陷阱用的 1×1 元素是給 Tab 走的，使用者永遠不會用手指點它。
 // 判準必須窄 —— 放寬到「很小就算哨兵」會把 32px 的小按鈕一起放掉，而那正是要抓的。
+// **兩層寫法有三種等價的 SCSS 形式，三種都要認。**
+//
+// 2026-09-04 teacher-pages 首次外用時回報：他照交接文件寫兩層，gate 一筆都沒認。
+// 原因是我的 self-test **只測了「@media 在頂層、選擇器已展開」那一種** ——
+// 剛好是 dashboard 用的那種，也就是我唯一看過的那種。
+// 巢狀 @media（SCSS 最慣用的寫法）的 44px 掛不到任何 selector 上，於是看不見。
+//
+// 這條測試存在的意義不是「測兩層寫法」，是**測三種形式的等價性** ——
+// 只測其中一種，就是把「我看過的案例」誤當成「案例的全集」。
+test('A17 認得兩層寫法的三種 SCSS 形式', () => {
+  const t = (src) => touchTargetViolations([{ path: 'a.scss', source: src }]).map((v) => v.kind);
+
+  // A：@media 在頂層、選擇器已展開
+  assert.deepEqual(
+    t(`.d { &__skip { min-height: 40px; cursor: pointer; } }
+       @media (pointer: coarse) { .d__skip { min-height: 44px; } }`),
+    [],
+  );
+  // B：@media 巢狀在規則裡面（最慣用）
+  assert.deepEqual(
+    t(`.d { &__skip { min-height: 40px; cursor: pointer;
+           @media (pointer: coarse) { min-height: 44px; } } }`),
+    [],
+  );
+  // C：@media 在父層區塊裡、內含展開的選擇器
+  assert.deepEqual(
+    t(`.d { &__skip { min-height: 40px; cursor: pointer; }
+           @media (pointer: coarse) { .d__skip { min-height: 44px; } } }`),
+    [],
+  );
+
+  // **反例**：放寬到三種形式之後，這些仍然要擋
+  assert.deepEqual(t('.d { &__skip { min-height: 40px; cursor: pointer; } }'), ['below-threshold']);
+  assert.deepEqual(t('.d { &__skip { padding: 0; cursor: pointer; } }'), ['no-floor']);
+  assert.deepEqual(
+    t(`.d { &__skip { cursor: pointer;
+           @media (pointer: coarse) { min-height: 32px; } } }`),
+    ['below-threshold'],
+  );
+});
+
 test('A17 放行 1×1 焦點哨兵，但不放行小按鈕', () => {
   const t = (src) => touchTargetViolations([{ path: 'a.scss', source: src }]).map((v) => v.kind);
   assert.deepEqual(t('.sentinel { width: 1px; height: 1px; cursor: pointer; }'), []);
