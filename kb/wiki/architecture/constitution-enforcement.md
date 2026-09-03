@@ -10,6 +10,10 @@ tags: [architecture, constitution-enforcement]
 # 憲法強制機制索引
 
 > [[architecture/constitution|`constitution.md`]] 說**什麼構成違反**；本檔說**違反會在哪裡被擋下來**。
+>
+> 本檔按**條款**組織。要看「這個 repo 到底有哪些自動檢查」（含**不對應任何 clause** 的那幾道：
+> 對比、mobile-first、觸控尺寸、拇指區、孤兒 import），或要判斷「我該不該再造一道 gate」，
+> 看 [[architecture/gate-map|`gate-map.md`]]。**兩份刻意不同軸，不要把清單複製過去。**
 > 兩者刻意分家：調一條 regex、換一個 gate、把 Semantic 條款接上 LLM 稽核，
 > **都不需要修法**。
 
