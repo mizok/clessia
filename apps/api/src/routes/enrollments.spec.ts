@@ -1318,3 +1318,195 @@ describe('checkEnrollmentAttendance', () => {
     expect(result.status).toBe('check-failed');
   });
 });
+
+/**
+ * B3「報名＝開帳」的三件 API 面。每一條的風險都在**接線**，不在計算：
+ * 篩選有沒有真的下到查詢上、批次有沒有真的把欄位寫進去、試算有沒有真的用
+ * 跟月結同一支算法。純函式測試看不到這三件事的任何一件。
+ */
+describe('B3 —— 報名的計費 API', () => {
+  function createApp(
+    fixture: {
+      period?: { start_date: string; end_date: string } | null;
+      template?: { amount: number } | null;
+    } = {},
+  ) {
+    const filters: Array<[string, unknown]> = [];
+    const inserted: Array<Record<string, unknown>> = [];
+    const selects: string[] = [];
+
+    const supabase = {
+      from(table: string) {
+        const query: Record<string, unknown> = {
+          select: (columns?: string) => {
+            if (typeof columns === 'string') selects.push(columns);
+            return query;
+          },
+          eq: (column: string, value: unknown) => {
+            filters.push([`${table}.${column}`, value]);
+            return query;
+          },
+          is: (column: string, value: unknown) => {
+            filters.push([`${table}.is.${column}`, value]);
+            return query;
+          },
+          in: () => query,
+          or: () => query,
+          order: () => query,
+          range: () => query,
+          insert: (payload: Record<string, unknown>) => {
+            if (table === 'enrollments') inserted.push(payload);
+            return query;
+          },
+          maybeSingle: () =>
+            Promise.resolve({
+              data:
+                table === 'billing_periods'
+                  ? (fixture.period ?? { start_date: '2026-04-01', end_date: '2026-04-30' })
+                  : table === 'fee_templates'
+                    ? (fixture.template ?? { amount: 3000 })
+                    : table === 'classes'
+                      ? { id: 'class-1', max_students: null }
+                      : null,
+              error: null,
+            }),
+          single: () => Promise.resolve({ data: { id: 'new-enrollment' }, error: null }),
+          then: (
+            onfulfilled?:
+              ((value: { data: unknown[]; count: number; error: null }) => unknown) | null,
+          ) => {
+            const data =
+              table === 'classes' ? [{ id: 'class-1', org_id: 'org-1', max_students: null }] : [];
+            return Promise.resolve({ data, count: 0, error: null }).then(onfulfilled ?? undefined);
+          },
+        };
+        return query;
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      await next();
+    });
+    app.route('/api/enrollments', enrollmentsRoute.default);
+
+    return { app, filters, inserted, selects };
+  }
+
+  describe('GET /api/enrollments?hasInvoice', () => {
+    it('要「沒開過帳」時，過濾條件真的下到查詢上', async () => {
+      const { app, filters, selects } = createApp();
+
+      await app.request('/api/enrollments?hasInvoice=false');
+
+      // left join + is.null —— 少了 is.null 就會把所有報名都撈回來
+      expect(selects.some((select) => select.includes('invoice_items(id)'))).toBe(true);
+      expect(filters).toContainEqual(['enrollments.is.invoice_items', null]);
+    });
+
+    it('要「開過帳」時走 inner join，不下 is.null', async () => {
+      const { app, filters, selects } = createApp();
+
+      await app.request('/api/enrollments?hasInvoice=true');
+
+      expect(selects.some((select) => select.includes('invoice_items!inner(id)'))).toBe(true);
+      expect(filters).not.toContainEqual(['enrollments.is.invoice_items', null]);
+    });
+
+    it('不帶這個參數時完全不碰帳單關聯', async () => {
+      const { app, selects } = createApp();
+
+      await app.request('/api/enrollments');
+
+      expect(selects.some((select) => select.includes('invoice_items'))).toBe(false);
+    });
+  });
+
+  describe('POST /api/enrollments/batch 的 adjustmentNote', () => {
+    it('批次議價的理由要真的寫進去', async () => {
+      const { app, inserted } = createApp();
+
+      await app.request('/api/enrollments/batch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          classId: '66666666-6666-4666-8666-666666666666',
+          studentIds: ['88888888-8888-4888-8888-888888888888'],
+          skipConflictCheck: true,
+          agreedAmount: 2500,
+          adjustmentNote: '兄弟檔優惠',
+        }),
+      });
+
+      // 沒有這一欄的話，整批議價的報名全部沒有理由可查（billing-rules 規則 2）
+      expect(inserted[0]).toMatchObject({ agreed_amount: 2500, adjustment_note: '兄弟檔優惠' });
+    });
+  });
+
+  describe('POST /api/enrollments/proration-preview', () => {
+    async function preview(app: ReturnType<typeof createApp>['app'], body: unknown) {
+      const response = await app.request('/api/enrollments/proration-preview', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { status: response.status, body: await response.json().catch(() => null) };
+    }
+
+    it('期中插班算出剩餘比例，並回算式說明', async () => {
+      const { app } = createApp({ period: { start_date: '2026-04-01', end_date: '2026-04-30' } });
+
+      const { status, body } = await preview(app, {
+        billingPeriodId: '11111111-1111-4111-8111-111111111111',
+        effectiveFrom: '2026-04-16',
+        agreedAmount: 3000,
+      });
+
+      expect(status).toBe(200);
+      // 4/16–4/30 含頭含尾是 15 天，整期 30 天 → 一半
+      expect(body).toMatchObject({ fullAmount: 3000, amount: 1500 });
+      // 只給數字沒有人敢改它 —— 而規則 2 說金額永遠可以人工覆寫
+      expect((body as { note: string }).note).toContain('15/30');
+    });
+
+    it('整期都在讀就是原價，沒有算式要解釋', async () => {
+      const { app } = createApp();
+
+      const { body } = await preview(app, {
+        billingPeriodId: '11111111-1111-4111-8111-111111111111',
+        effectiveFrom: '2026-03-01',
+        agreedAmount: 3000,
+      });
+
+      expect(body).toMatchObject({ amount: 3000, note: null });
+    });
+
+    it('agreedAmount 蓋過價目表 —— 議價是常態', async () => {
+      const { app } = createApp({ template: { amount: 9999 } });
+
+      const { body } = await preview(app, {
+        billingPeriodId: '11111111-1111-4111-8111-111111111111',
+        effectiveFrom: '2026-03-01',
+        feeTemplateId: '22222222-2222-4222-8222-222222222222',
+        agreedAmount: 3000,
+      });
+
+      expect(body).toMatchObject({ fullAmount: 3000 });
+    });
+
+    it('兩個都沒給就算不出來 → 400，不要回一個 0 讓人以為是免費', async () => {
+      const { app } = createApp();
+
+      const { status } = await preview(app, {
+        billingPeriodId: '11111111-1111-4111-8111-111111111111',
+        effectiveFrom: '2026-04-16',
+      });
+
+      expect(status).toBe(400);
+    });
+  });
+});

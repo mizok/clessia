@@ -4,6 +4,7 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
 import { buildPeriodFilter, buildSelect, sortColumn } from './enrollments/list-query';
+import { prorateByDays } from '../lib/proration';
 
 // ============================================================
 // Schemas
@@ -123,6 +124,9 @@ const BatchCreateEnrollmentSchema = z
     billingMode: BillingModeSchema.optional(),
     feeTemplateId: z.uuid().optional(),
     agreedAmount: z.number().int().min(0).optional(),
+    // billing-rules 規則 2：金額永遠可人工覆寫，而覆寫要留**調整原因**。
+    // 單筆 create 一直收這個欄位，批次卻沒有 —— 於是整批議價的報名全部沒有理由可查。
+    adjustmentNote: z.string().optional(),
   })
   .openapi('BatchCreateEnrollment');
 
@@ -436,6 +440,17 @@ app.openapi(
         from: z.string().date().optional(),
         to: z.string().date().optional(),
         sort: z.enum(['createdAt', 'updatedAt']).optional(),
+        /**
+         * 有沒有開過帳單（`invoice_items.enrollment_id` 有沒有對到這筆報名）。
+         *
+         * 「報名＝開帳」的流程要找的是 **`false`** 那一邊：哪些報名還沒開過帳。
+         * 這個判斷放在伺服器是因為前端算的話得先把所有帳單項目撈回去比對，
+         * 而分頁一介入就必然算錯（撈回來的只有這一頁）。
+         */
+        hasInvoice: z
+          .enum(['true', 'false'])
+          .optional()
+          .transform((value) => (value === undefined ? undefined : value === 'true')),
         page: z.coerce.number().int().min(1).default(1).optional(),
         pageSize: z.coerce.number().int().min(1).max(100).default(20).optional(),
       }),
@@ -460,6 +475,7 @@ app.openapi(
       from,
       to,
       sort,
+      hasInvoice,
       page = 1,
       pageSize = 20,
     } = c.req.valid('query');
@@ -468,7 +484,7 @@ app.openapi(
 
     let query = supabase
       .from('enrollments')
-      .select(buildSelect(campusId), { count: 'exact' })
+      .select(buildSelect(campusId, hasInvoice), { count: 'exact' })
       .eq('org_id', orgId)
       .order(sortColumn(sort), { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
@@ -477,6 +493,10 @@ app.openapi(
     if (studentId) query = query.eq('student_id', studentId);
     if (campusId) query = query.eq('classes.campus_id', campusId);
     if (status) query = query.eq('status', status);
+
+    // `true` 的過濾由 select 裡的 `!inner` 完成；`false` 要再下這一條
+
+    if (hasInvoice === false) query = query.is('invoice_items', null);
 
     const periodFilter = buildPeriodFilter(from, to);
     if (periodFilter) query = query.or(periodFilter);
@@ -767,6 +787,108 @@ app.openapi(
   },
 );
 
+// POST /api/enrollments/proration-preview
+//
+// 期中插班／退班的比例試算。**金額一律由伺服器算**（計畫席 2026-09-03 裁定）——
+// 前端各算一次的話，哪一天兩邊不一樣沒有人會知道，而不一樣的是錢。
+// 跟營收報表同一條鐵律：**數字只有一個來源**。
+//
+// 這支**不寫任何東西**，也不要求報名已經存在 —— 行政在建立報名的當下就要看到
+// 「這個月只讀半個月，第一張帳單是多少」。
+//
+// 算法本身跟月結批次共用 `lib/proration.ts` 的 `prorateByDays`：試算跟真的開帳
+// 用不同實作的話，畫面上的預覽跟隔天出來的帳單會對不起來。
+const ProrationPreviewSchema = z
+  .object({
+    billingPeriodId: DbUuidSchema,
+    effectiveFrom: z.string().date(),
+    effectiveTo: z.string().date().nullable().optional(),
+    // 兩者擇一；**agreedAmount 優先**，跟月結批次同一個優先序
+    //（議價是常態，價目表只是定價 —— billing-rules 規則 2）
+    feeTemplateId: z.uuid().optional(),
+    agreedAmount: z.number().int().min(0).optional(),
+  })
+  .openapi('ProrationPreview');
+
+const ProrationPreviewResultSchema = z
+  .object({
+    /** 未按比例的原價 —— 讓行政看得出來折了多少 */
+    fullAmount: z.number().int(),
+    amount: z.number().int(),
+    /**
+     * 算式的說明（「期間 31 天，實際 12 天…」）。**跟金額一樣重要**：
+     * 只給一個數字的話沒有人知道它怎麼來的，也就沒有人敢改它 ——
+     * 而規則 2 說金額永遠可以人工覆寫。整期都在讀時是 null（沒有東西要解釋）。
+     */
+    note: z.string().nullable(),
+    periodStart: z.string(),
+    periodEnd: z.string(),
+  })
+  .openapi('ProrationPreviewResult');
+
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/proration-preview',
+    tags: ['Enrollments'],
+    summary: '期中插班／退班的比例試算（不寫入）',
+    request: { body: { content: { 'application/json': { schema: ProrationPreviewSchema } } } },
+    responses: {
+      200: {
+        content: { 'application/json': { schema: ProrationPreviewResultSchema } },
+        description: 'OK',
+      },
+      400: { content: { 'application/json': { schema: ErrorSchema } }, description: '參數錯誤' },
+      404: {
+        content: { 'application/json': { schema: ErrorSchema } },
+        description: '找不到計費期間或價目表',
+      },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const body = c.req.valid('json');
+
+    if (body.agreedAmount === undefined && !body.feeTemplateId) {
+      return c.json({ error: '要有 agreedAmount 或 feeTemplateId 才算得出來' }, 400);
+    }
+
+    const { data: period } = await supabase
+      .from('billing_periods')
+      .select('start_date, end_date')
+      .eq('id', body.billingPeriodId)
+      .eq('org_id', orgId)
+      .maybeSingle();
+
+    if (!period) return c.json({ error: '找不到計費期間' }, 404);
+
+    let fullAmount = body.agreedAmount ?? 0;
+    if (body.agreedAmount === undefined && body.feeTemplateId) {
+      const { data: template } = await supabase
+        .from('fee_templates')
+        .select('amount')
+        .eq('id', body.feeTemplateId)
+        .eq('org_id', orgId)
+        .maybeSingle();
+
+      if (!template) return c.json({ error: '找不到價目表' }, 404);
+      fullAmount = Number((template as { amount?: number }).amount ?? 0);
+    }
+
+    const periodStart = (period as { start_date: string }).start_date;
+    const periodEnd = (period as { end_date: string }).end_date;
+
+    const { amount, note } = prorateByDays(
+      fullAmount,
+      { start: periodStart, end: periodEnd },
+      { from: body.effectiveFrom, to: body.effectiveTo ?? null },
+    );
+
+    return c.json({ fullAmount, amount, note, periodStart, periodEnd }, 200);
+  },
+);
+
 // POST /api/enrollments/batch
 app.openapi(
   createRoute({
@@ -806,6 +928,7 @@ app.openapi(
       billingMode,
       feeTemplateId,
       agreedAmount,
+      adjustmentNote,
     } = c.req.valid('json');
     const orgId = c.get('orgId');
     const userId = c.get('userId');
@@ -869,6 +992,7 @@ app.openapi(
           billing_mode: billingMode ?? null,
           fee_template_id: feeTemplateId ?? null,
           agreed_amount: agreedAmount ?? null,
+          adjustment_note: adjustmentNote ?? null,
           created_by: userId,
         })
         .select('id')
