@@ -91,7 +91,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | A14  | `apps/web/src/**/*.ts` 沒有裝飾器版 API（c8 的存量；**allowlist 4 筆**）                                                                                  |
 | A15  | `apps/api/src/**/*.ts` 沒有直寫 `ba_*`（c2 的存量；**allowlist 9 筆**）                                                                                   |
 | A16  | 本分支沒有修改／刪除／改名已提交的 migration（c3；比 `origin/main...HEAD`）                                                                               |
-| A17  | 掃描範圍內自己刻的可點元素有尺寸下限（44px 觸控門檻；ratchet，既有的進 baseline）                                                                         |
+| A17  | 掃描範圍內自己刻的可點元素有尺寸下限（44px；ratchet。範圍＝老師端 + **公開頁** + admin 已遷手機優先者；1×1 焦點哨兵除外；空殼頁另發警告）                 |
 | A18  | `features/<a>` 不得 import `features/<b>`（c5 可判定的那一半；**無 baseline，立法時零違規**）                                                             |
 
 ### 存量 allowlist：讓債務可見且會自己收斂
