@@ -48,6 +48,25 @@ tags: [architecture, authorization, campus, teacher-scope, permissions, security
 
 **這是五個洞裡最該先補的。**
 
+#### 修法有兩層，第二層是使用者指出來的
+
+1. `writeRequiresAdmin('manage_org_settings')` —— 寫入只有管理員、且要有這個權限
+2. **財務欄位另外要 `manage_finance`，讀寫都收** —— 「餐費只能給有權限的管理者去
+   存取」（使用者，2026-09-03）。只擋寫不夠：`invoiceDueDays` /
+   `mealDefaultPrice` / `prorationBasis` 原本會**回給每一個老師**
+
+第二層還有一個查證出來的理由：那三個欄位在這支端點是**零消費者**。沒有任何畫面
+讀或編輯它們，而真正需要的 `meals.ts` / `invoices.ts` / `billing-runs.ts` /
+`lib/proration.ts` 是**直接讀 `organizations` 那張表**。發給老師換不到任何東西。
+
+**沒有權限時，回應裡是 key 不存在，不是 0** —— 「餐費單價是 0」跟「你不該知道餐費
+單價」是兩件不同的事，回 0 會讓讀到的人以為機構真的沒設定。前端型別跟著改成
+optional。
+
+> 這一層也修正了我原本的分類：**餐費不是「組織設定」，是財務。**
+> 同一份 `manage_finance` 守著 `/api/invoices`，卻在組織設定這支被繞過去。
+> 判斷用 `!== undefined` 而不是 falsy —— 把單價設成 0 也算動到財務。
+
 ### 洞 2 — 五個權限只存在於前端
 
 | 權限               | 前端用到 | API 強制         |
@@ -94,7 +113,7 @@ school-exams、contact-book、class-logs，以及 `/api/attendance/sessions` 的
 
 | 洞                   | 狀態         | 落地的東西                                                                                                 |
 | -------------------- | ------------ | ---------------------------------------------------------------------------------------------------------- |
-| 1 老師改得動組織設定 | **已修**     | `writeRequiresAdmin('manage_org_settings')` 掛在 `/settings`                                               |
+| 1 老師改得動組織設定 | **已修**     | `writeRequiresAdmin('manage_org_settings')`；財務欄位另外要 `manage_finance`，讀寫都收                     |
 | 2 五個權限只擋前端   | **已修**     | `mount()` 的 `{ all } / { write }`，harness A7b 防退化                                                     |
 | 3 提權與自我提權     | **已修**     | `lib/role-assignment.ts`，接在 staff 的建立與更新                                                          |
 | 4 老師只擋讀不擋寫   | **已修**     | `lib/attendance-write-scope.ts`，接在三支寫入端點                                                          |
@@ -228,12 +247,14 @@ fail-closed 的授權一旦打開，**沒有資料的人看到的是空白不是
 授權的測試要**證明拒絕**，不只證明放行：
 
 1. 老師的 token 打 `PATCH /api/org/settings` → 403（洞 1）
-2. 只有 `basic_operations` 的管理員打 `POST /api/staff` → 403（洞 2、3）
-3. 有 `manage_staff` 但沒有 `manage_roles` 的管理員：建人員可以，**帶 `permissions`
+2. 老師 `GET /api/org/settings` → 回應裡**沒有** `mealDefaultPrice` 這個 key；
+   有 `manage_org_settings` 但沒有 `manage_finance` 的管理員改餐費單價 → 403
+3. 只有 `basic_operations` 的管理員打 `POST /api/staff` → 403（洞 2、3）
+4. 有 `manage_staff` 但沒有 `manage_roles` 的管理員：建人員可以，**帶 `permissions`
    就 403**（D3）
-4. 任何人改自己的 `roles` / `permissions` → 403（D3）
-5. 老師拿別班的 `eventId` 打點名 → 403（洞 4）；拿**自己代課**那堂的 → 200（D5）
-6. 只屬於 A 校的管理員查 B 校的 `campusId` → 403；不帶 `campusId` 的清單**只回 A 校**
+5. 任何人改自己的 `roles` / `permissions` → 403（D3）
+6. 老師拿別班的 `eventId` 打點名 → 403（洞 4）；拿**自己代課**那堂的 → 200（D5）
+7. 只屬於 A 校的管理員查 B 校的 `campusId` → 403；不帶 `campusId` 的清單**只回 A 校**
    （D4）
-7. `all_campuses` 的管理員兩校都看得到
-8. **前後端對照表不同步 → harness 紅燈**（D2 的 gate，寫完要塞一個錯進去看它會不會紅）
+8. `all_campuses` 的管理員兩校都看得到
+9. **前後端對照表不同步 → harness 紅燈**（D2 的 gate，寫完要塞一個錯進去看它會不會紅）
