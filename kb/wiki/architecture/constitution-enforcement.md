@@ -235,7 +235,9 @@ self-test 守兩件事：過期在三種環境（分支 / main / 本機）**都�
 - ~~`apps/api` 從未型別檢查~~ → 2026-08-11 補上 `typecheck` target 並接進 Stop gate；
   當時累積的 19 個型別錯誤已全數清除。**typecheck 與 test 在 gate 裡分開跑** ——
   typecheck 的輸出沒有 vitest 的 `FAIL <spec>` 行，混在一起會讓基線比對把型別錯誤當成沒事放行。
-- `apps/web` 仍然沒有獨立的 typecheck target（型別檢查目前只在 build 時發生）。
+- ~~`apps/web` 沒有獨立的 typecheck target~~ → 2026-09-03 補上（`ngc -p tsconfig.app.json
+--noEmit`，**含模板檢查**，6 秒）。Stop gate 跑的是 `nx affected -t typecheck`，
+  所以加了 target 就自動涵蓋，hook 一行沒改。
   **CI 已補上 `nx build web --configuration=production`**（放在序列最後，模板型別錯誤靠它抓），
   但 Stop gate 沒有 —— 本機收工時模板錯誤照樣過得去，要到 push 才紅。
 - 專案沒有 eslint。PostToolUse hook 只跑 prettier；沒有任何 lint 層。

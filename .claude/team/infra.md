@@ -80,10 +80,12 @@ npm ci  →  npm ci (apps/api)  →  harness  →  harness self-test
    本機看不出來是因為 `apps/api/node_modules` 早就存在。**開新 worktree 兩邊都要 `npm ci`。**
 2. **順序 = 由快到慢**。前面便宜的檢查先紅先省 CI 時間。
    `build web` 排最後（本機冷跑 ~11s，CI 整個 run 約 1m36s）。
-3. **`build web` 是唯一會編譯 Angular 模板的一步。** `web` 沒有 `typecheck` target，
-   `nx run-many -t typecheck` 實際只跑得到 `api`。
-   模板型別錯誤（綁到不存在的 property、signal 忘了呼叫）**只有 AOT build 抓得到**。
-   這個缺口在 2026-08-29 之前 CI 是全綠放行的。
+3. **模板型別檢查靠 `typecheck` 而不是 `build`（2026-09-03 起）。**
+   `web` 的 typecheck target 跑 `ngc -p tsconfig.app.json --noEmit` —— **`ngc` 檢查模板，
+   `tsc` 不檢查**，這是關鍵：實測種一個 `{{ 不存在的屬性 }}`，`ngc` 報 TS2339、
+   `tsc` 回報 0 個錯誤。
+   `build web` 留在序列裡是因為它還檢查別的：bundle budgets、fileReplacements、
+   實際打包得起來。（2026-08-29 之前兩者都沒有，模板壞掉 CI 全綠放行。）
 
 **刻意用 `run-many` 不用 `affected`**：整套跑完很快，而 `affected` 在 CI 上要有正確的 base ref
 才不會安靜失準。為了省幾秒換一個會安靜失準的東西不划算。
@@ -315,9 +317,9 @@ gh pr view <n> --json state -q .state      # 必須是 OPEN
 
 ### 還在的
 
-- **`apps/web` 沒有獨立的 typecheck target**（驗：`npx nx show project web --json`）。
-  CI 已用 production build 補上模板檢查，**但 Stop gate 沒有** ——
-  本機收工時模板型別錯誤照樣過得去，要到 push 才紅。
+- ~~`apps/web` 沒有獨立的 typecheck target~~ → 2026-09-03 補上（`ngc --noEmit`，6 秒）。
+  **Stop gate 不用改就接上了** —— 它跑的是 `nx affected -t typecheck`，加 target 即涵蓋。
+  本機收工現在就會擋模板錯誤，不必等 push。
 - **c5（feature 不互相 import）未機器化。** 需要跨「路徑擷取的 feature 名」與「內容」的
   反向參照，現在的靜態 regex 引擎做不到，要接得寫一支獨立 check。
 - **c2 還有 4 筆真債**（驗：`npm run harness` 的 A15 帳目）——

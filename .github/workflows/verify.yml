@@ -66,9 +66,10 @@ jobs:
       - name: test
         run: npx nx run-many -t test
 
-      # ── web 的 production build。**這是唯一會編譯 Angular 模板的一步** ——
-      #    web 沒有 typecheck target（`nx run-many -t typecheck` 只跑得到 api），
-      #    模板裡的型別錯誤（綁到不存在的 property、signal 忘了呼叫）只有 AOT build 抓得到，
+      # ── web 的 production build。
+      #    **模板型別檢查已經不靠這一步了** —— 2026-09-03 給 web 加了 typecheck target
+      #    （`ngc --noEmit`，含模板），上面那步的 run-many 已經涵蓋 web。
+      #    留著這步是因為它還檢查別的東西：bundle budgets、fileReplacements、實際打包得起來。
       #    上面那些 gate 全部會綠燈放行。
       #    放在最後：它是整條序列裡最慢的一步，前面便宜的檢查先紅先省時間。
       - name: build web
