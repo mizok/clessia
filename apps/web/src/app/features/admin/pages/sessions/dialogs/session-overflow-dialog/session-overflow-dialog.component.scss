@@ -13,7 +13,9 @@
     border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
     background: #fff;
     cursor: pointer;
-    transition: background var(--transition-fast), border-left-color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      border-left-color var(--transition-fast);
 
     &:hover {
       background: var(--zinc-50);

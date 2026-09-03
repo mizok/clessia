@@ -21,7 +21,9 @@
     font-size: var(--text-md);
     color: var(--zinc-700);
     cursor: pointer;
-    transition: background var(--transition-fast), border-left-color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      border-left-color var(--transition-fast);
 
     &:hover {
       background: var(--zinc-50);

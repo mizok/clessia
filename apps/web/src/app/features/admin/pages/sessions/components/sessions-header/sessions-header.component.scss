@@ -5,11 +5,13 @@
   flex-shrink: 0;
 }
 
+/* **手機優先**：窄的時候標題與導覽上下堆疊；寬到 tablet-portrait 才並排。 */
 .sessions-header {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3);
 
   &__title-group {
     display: flex;
@@ -50,7 +52,7 @@
 
   &__title {
     margin: 0;
-    font-size: var(--text-2xl);
+    font-size: var(--text-lg);
     font-weight: var(--font-bold);
     color: var(--zinc-900);
     line-height: var(--leading-tight);
@@ -104,6 +106,7 @@
     align-items: center;
     gap: var(--space-2);
     flex-shrink: 0;
+    align-self: flex-start;
   }
 
   &__view-toggle {
@@ -113,25 +116,25 @@
   }
 }
 
-@include bp.respond-to-container('shell-content', 'tablet-portrait') {
+@include bp.respond-from-container('shell-content', 'mobile') {
   .sessions-header {
-    flex-direction: column;
-    gap: var(--space-3);
-
     &__title {
       font-size: var(--text-xl);
-    }
-
-    &__nav {
-      align-self: flex-start;
     }
   }
 }
 
-@include bp.respond-to-container('shell-content', 'mobile') {
+@include bp.respond-from-container('shell-content', 'tablet-portrait') {
   .sessions-header {
+    flex-direction: row;
+    gap: var(--space-4);
+
     &__title {
-      font-size: var(--text-lg);
+      font-size: var(--text-2xl);
+    }
+
+    &__nav {
+      align-self: auto;
     }
   }
 }
