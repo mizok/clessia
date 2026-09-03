@@ -56,6 +56,10 @@
 - [[lessons/status-table-blind-spot]] — 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
 - [[lessons/workers-fanout-costs-before-the-db]] — 儀表板一次打 8 支 API，量測發現「完全不碰 DB」的請求在並行 8 條時 TTFB 從 0.46s 惡化到 1.1s（2.4 倍）。Workers 的 per-request 建池模型下，fan-out 的成本在 DB 工作之前就發生了；先量再猜，別一開始就假設是查詢慢。
 
+## Patterns (1)
+
+- [[patterns/tables-use-responsive-table]] — 表格破版的正解是 responsive-table(欄位收合),不是 overflow 捲動;列印版面與臨時止血除外。
+
 ## Rules (6)
 - [[rules/attendance-rules]] — 本文件整理 PRD 8.3-8.4，定義出勤模式、系統推算邏輯、人工修改權限與請假處理規則，作為到班/點名模組的核心行為準則。
 - [[rules/billing-rules]] — 內部人訪談定案的金流業務規則：三種計費模式（月繳/期繳/堂數制）、金額永遠可人工覆寫（不做折扣引擎）、插班退班共用比例試算、帳單與收款一對多、欠繳只做可見性不做強制。
