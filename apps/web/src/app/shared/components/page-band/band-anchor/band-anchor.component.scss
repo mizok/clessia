@@ -1,17 +1,19 @@
 @use 'shared/breakpoints' as bp;
 
 .band-anchor {
+  // **手機優先**：窄的時候數字靠左（跟上方標題對齊同一條左緣），
+  // 寬到並排成兩欄時才靠右去貼住帶的右緣
   &__figure {
     display: flex;
     align-items: flex-end;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: var(--space-3);
     margin: 0;
   }
 
   // 沿用字標的做法：夠大、字距收緊。這是內部頁的「字標」
   &__value {
-    font-size: 64px;
+    font-size: var(--text-3xl);
     font-weight: var(--font-bold);
     letter-spacing: -0.045em;
     line-height: 0.86;
@@ -42,14 +44,14 @@
   }
 }
 
-@include bp.respond-to('tablet-portrait') {
+@include bp.respond-from('tablet-portrait') {
   .band-anchor {
     &__figure {
-      justify-content: flex-start;
+      justify-content: flex-end;
     }
 
     &__value {
-      font-size: var(--text-3xl);
+      font-size: 64px;
     }
   }
 }

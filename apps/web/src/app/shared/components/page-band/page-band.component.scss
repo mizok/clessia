@@ -9,7 +9,8 @@
   isolation: isolate;
   overflow: hidden;
   // 下緣多留一個 --band-seam 的厚度，讓工作面往上壓進來時不會蓋到內容
-  padding: var(--space-8) var(--space-8) calc(var(--space-8) + var(--band-seam));
+  // **手機優先**：基準是窄螢幕的內距，寬了才放大
+  padding: var(--space-5) var(--space-5) calc(var(--space-5) + var(--band-seam));
   background: var(--band-surface);
   // 橘面一律近黑字（D 規則 2）
   color: var(--band-ink);
@@ -33,12 +34,14 @@
     );
   }
 
+  // 窄螢幕直向堆疊：身分在上、數字在下。並排是寬螢幕才有的加強。
   &__inner {
     position: relative;
     z-index: 1;
     display: flex;
+    flex-direction: column;
     align-items: stretch;
-    gap: var(--space-8);
+    gap: var(--space-4);
   }
 
   &__id {
@@ -47,15 +50,16 @@
 
   // 右欄：動作在上、錨點數字在下。沒有內容時寬度是 0、不留空隙 ——
   // 所以這裡用 margin-left: auto 推開而不是靠 inner 的 gap。
+  // 直向堆疊時 aside 就是下面那一段，跟上面的內容共用同一條左緣
   &__aside {
-    margin-left: auto;
+    margin-left: 0;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    align-items: flex-end;
+    align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-6);
-    text-align: right;
+    text-align: left;
   }
 
   // 只有錨點、沒有動作的頁面（學生管理、班詳情）把它壓到底
@@ -64,19 +68,19 @@
   }
 }
 
-@include bp.respond-to('tablet-portrait') {
+@include bp.respond-from('tablet-portrait') {
   .page-band {
-    padding: var(--space-5) var(--space-5) calc(var(--space-5) + var(--band-seam));
+    padding: var(--space-8) var(--space-8) calc(var(--space-8) + var(--band-seam));
 
     &__inner {
-      flex-direction: column;
-      gap: var(--space-4);
+      flex-direction: row;
+      gap: var(--space-8);
     }
 
     &__aside {
-      margin-left: 0;
-      align-items: flex-start;
-      text-align: left;
+      margin-left: auto;
+      align-items: flex-end;
+      text-align: right;
     }
   }
 }

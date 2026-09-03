@@ -31,12 +31,6 @@
   "apps/web/src/app/features/admin/pages/students/student-form-dialog.component.scss",
   "apps/web/src/app/features/admin/pages/students/students.page.scss",
   "apps/web/src/app/features/public/public-shell.component.scss",
-  "apps/web/src/app/shared/components/bottom-bar/bottom-bar.component.scss",
-  "apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.scss",
-  "apps/web/src/app/shared/components/page-band/band-anchor/band-anchor.component.scss",
-  "apps/web/src/app/shared/components/page-band/page-band.component.scss",
-  "apps/web/src/app/shared/components/parent-form-dialog/parent-form-dialog.component.scss",
   "apps/web/src/app/shared/components/responsive-table/responsive-table.component.scss",
-  "apps/web/src/app/shared/components/sidebar/sidebar.component.scss",
   "apps/web/src/styles.scss"
 ]

@@ -1,11 +1,14 @@
 @use 'shared/breakpoints' as bp;
 
+/* **手機優先**：側欄預設不存在，手機的導覽是 `app-bottom-bar`；
+   夠寬了才換成側欄。寬度等宣告留在基準裡是無害的（`display: none` 之下不生效），
+   放這裡讓一個 block 的樣式不必分成兩處看。 */
 .sidebar {
   width: 240px;
   min-width: 240px;
   background: var(--color-white);
   border-right: 1px solid var(--zinc-200);
-  display: flex;
+  display: none;
   flex-direction: column;
   overflow: auto;
 
@@ -121,9 +124,10 @@
   }
 }
 
-// 行動版隱藏
-@include bp.respond-to('mobile') {
+// 夠寬才長出側欄 —— 跟 `bottom-bar` 的 `respond-from('mobile')` 是同一個切換點，
+// 兩支必須一起改，否則會出現「兩個導覽都在」或「一個都沒有」
+@include bp.respond-from('mobile') {
   .sidebar {
-    display: none;
+    display: flex;
   }
 }
