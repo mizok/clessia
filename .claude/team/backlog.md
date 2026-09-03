@@ -34,7 +34,7 @@
 
 1. 聚合端點 GET /api/workbench/today(進行中,交接單在 team/)
 2. c2 乙類驗證 [認領 pin-better-auth-3c 13:25]:挑 me.ts:124 做一處 auth.api.updateUser 的可行性驗證,回報錯誤形狀
-3. ~~executionCtx 統一~~(#215 完成 —— 實際 86 處三種寫法,可選鏈假防護已修)
+3. ~~executionCtx 統一~~(#215 完成待合,排 #209 之後 rebase —— 實際 86 處三種寫法,可選鏈假防護已修)
 4. POST /api/announcements/read-all [認領 pin-better-auth-3c 14:0x](bulk 已讀;前端逐一版已出,這支是效率+原子性升級)
 
 ## infra
