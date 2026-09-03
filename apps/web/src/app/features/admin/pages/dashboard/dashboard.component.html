@@ -10,7 +10,7 @@
     <div class="dashboard__band-head">
       <p class="dashboard__band-meta">{{ todayLabel }}</p>
 
-      @if (laneCount() > 0) {
+      @if (hasTimeline()) {
         <button
           type="button"
           class="dashboard__band-toggle"

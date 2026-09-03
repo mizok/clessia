@@ -1,11 +1,6 @@
-@if (hasBlocks()) {
+@if (hasBars()) {
   <div class="day-timeline">
-    <div
-      class="day-timeline__track"
-      [style.height.px]="trackHeight()"
-    >
-      <div class="day-timeline__rule"></div>
-
+    <div class="day-timeline__track">
       @if (nowPct(); as pct) {
         <!-- 參考線而已，它的資訊（現在幾點）在別處都有 -->
         <div class="day-timeline__now" [style.left.%]="pct" aria-hidden="true">
@@ -13,21 +8,31 @@
         </div>
       }
 
-      @for (lane of layout().lanes; track $index; let laneIndex = $index) {
-        @for (placed of lane; track placed.session.sessionId) {
+      <div class="day-timeline__bars">
+        @for (bin of layout().bins; track bin.startHour) {
+          <!--
+            一根柱分兩段：下段已點名（實心）、上段未點名（中空）。堆疊而不並排 ——
+            柱高仍然是「同時幾堂」這個唯一的量，狀態是它的內部組成。
+          -->
           <span
-            class="day-timeline__block"
-            [class.day-timeline__block--taken]="isTaken(placed)"
-            [class.day-timeline__block--point]="placed.isPoint"
-            [style.left.%]="placed.leftPct"
-            [style.width.%]="placed.widthPct"
-            [style.top.px]="laneIndex * 30 + 6"
+            class="day-timeline__bar"
             role="img"
-            [attr.aria-label]="describe(placed)"
-            [title]="describe(placed)"
-          ></span>
+            [attr.aria-label]="describe(bin)"
+            [title]="describe(bin)"
+          >
+            <span
+              class="day-timeline__seg day-timeline__seg--untaken"
+              [style.height.%]="heightPct(bin.untaken)"
+            ></span>
+            <span
+              class="day-timeline__seg day-timeline__seg--taken"
+              [style.height.%]="heightPct(bin.total - bin.untaken)"
+            ></span>
+          </span>
         }
-      }
+      </div>
+
+      <div class="day-timeline__rule"></div>
     </div>
 
     <ul class="day-timeline__ticks" aria-hidden="true">
@@ -45,6 +50,8 @@
         <i class="day-timeline__swatch"></i>
         未點名 {{ summaryOf().untaken }}
       </span>
+      <!-- 尺度要說出來，否則只剩形狀、失去量級 -->
+      <span class="day-timeline__legend-item">最忙 {{ layout().maxTotal }} 堂</span>
       @if (layout().unplaced.length > 0) {
         <!--
           畫不出來的要說出來，不是默默對齊 —— 上面那句話算的是總數，
