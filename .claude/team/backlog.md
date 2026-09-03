@@ -6,7 +6,7 @@
 > 設計類產出照舊過 STOP gate。計畫席每輪 tick 保證每席佇列 ≥2 項。
 
 ## teacher-pages
-1. notifications 規格落差小刀:「全部標為已讀」+ 類型圖示(調課/代課/停課)—— spec 有、實作零
+1. notifications 規格落差小刀:「全部標為已讀」+ 類型圖示(調課/代課/停課)—— spec 有、實作零 [認領 teacher-pages-5b 11:38]
 2. students/notifications 兩頁補斷點(0 media query,1280 下一列 944px;dashboard 不補 —— 今日流會刪它)
 3. (窗口批准後)今日流主刀
 
