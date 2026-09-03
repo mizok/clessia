@@ -55,3 +55,10 @@ c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因�
 1. apps/web 獨立 typecheck target 接進 Stop gate(本機/CI 覆蓋不對稱,你的建議 1,准)
 2. test-baseline.json 3 個既有紅燈分診(清一支移一支,先報告)
 5. (billing-api) roster 補 leaveStartDate 聚合值 —— 讓銷假事前警告從「可能」變「將」(#213 的需求單)
+
+## 下週期補貨(斷點前落檔 2026-09-03 14:0x)
+- (teacher-pages) 公開 shell 頁尾四連結 23px → 44px(一個元件全解,未登入使用者唯一導覽)
+- (teacher-pages) select-role 單角色文案矛盾(「多個身分」但只有一項)
+- (infra) 44px gate 邊界:納入公開 shell / 排除 1×1 focus sentinel / qr-checkin 標「空殼假綠,實作後重量」
+- (design-web) 作業台第二刀:換 GET /api/workbench/today + 日到班形狀(骨架 PR 已出)
+- (billing-api) #215 解衝突(#209 合後)
