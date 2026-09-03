@@ -26,12 +26,20 @@ const preview = (overrides: Partial<ProrationPreview> = {}): ProrationPreview =>
   ...overrides,
 });
 
+const period = {
+  id: 'bp-1',
+  name: '2026 上學期',
+  startDate: '2026-02-01',
+  endDate: '2026-08-31',
+};
+
 describe('EnrollmentBillingFieldsComponent', () => {
   let fixture: ComponentFixture<EnrollmentBillingFieldsComponent>;
 
   async function setup(
     draft: Partial<BillingDraft> = {},
     proration: ProrationPreview | null = null,
+    periods: unknown[] = [period],
   ) {
     await TestBed.configureTestingModule({
       imports: [EnrollmentBillingFieldsComponent],
@@ -41,6 +49,7 @@ describe('EnrollmentBillingFieldsComponent', () => {
     fixture.componentRef.setInput('draft', { ...emptyBillingDraft(), ...draft });
     fixture.componentRef.setInput('templates', [template()]);
     fixture.componentRef.setInput('proration', proration);
+    fixture.componentRef.setInput('periods', periods);
     fixture.detectChanges();
     return fixture;
   }
@@ -110,5 +119,44 @@ describe('EnrollmentBillingFieldsComponent', () => {
         adjustmentNote: '舊生',
       }),
     );
+  });
+
+  // 期間是期繳專用的：月繳的期間是月份（後端自己算），堂數制按堂不按天
+  describe('收費期間的選單', () => {
+    it('月繳不問期間', async () => {
+      await setup({ billingMode: 'monthly' });
+
+      expect(fixture.nativeElement.textContent).not.toContain('收費期間');
+    });
+
+    it('期繳才問', async () => {
+      await setup({ billingMode: 'period' });
+
+      expect(fixture.nativeElement.textContent).toContain('收費期間');
+    });
+
+    it('堂數制不問', async () => {
+      await setup({ billingMode: 'session_pack' });
+
+      expect(fixture.nativeElement.textContent).not.toContain('收費期間');
+    });
+
+    // 「2026 上學期」這個名字看不出它涵蓋哪幾個月
+    it('選項帶出日期範圍，不只名字', async () => {
+      await setup({ billingMode: 'period' });
+
+      const labels = fixture.componentInstance['periodOptions']().map((o) => o.label);
+      expect(labels[1]).toContain('2026-02-01');
+      expect(labels[1]).toContain('2026-08-31');
+    });
+
+    it('第一個選項是「未選擇」—— 不預設挑一段期間替人決定', async () => {
+      await setup({ billingMode: 'period' });
+
+      expect(fixture.componentInstance['periodOptions']()[0]).toEqual({
+        label: '未選擇',
+        value: null,
+      });
+    });
   });
 });
