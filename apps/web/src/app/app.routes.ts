@@ -359,12 +359,12 @@ export const routes: Routes = [
             outlet: 'bottom-bar',
           },
           {
+            // 老師儀表板已刪除（今日流）—— 它獨有的只有四個數字與兩個連結，
+            // 而「今日課表」清單跟課表今天那一屏完全重複。
+            // **route 留著當 redirect**：老師可能加了書籤，讓它壞掉沒有任何好處。
             path: RoutesCatalog.TEACHER_DASHBOARD.relativePath,
-            loadComponent: () =>
-              import('@features/teacher/pages/dashboard/dashboard.component').then(
-                (m) => m.DashboardComponent,
-              ),
-            data: { page: RoutesCatalog.TEACHER_DASHBOARD },
+            redirectTo: RoutesCatalog.TEACHER_SCHEDULE.relativePath,
+            pathMatch: 'full',
           },
           {
             path: RoutesCatalog.TEACHER_NOTIFICATIONS.relativePath,

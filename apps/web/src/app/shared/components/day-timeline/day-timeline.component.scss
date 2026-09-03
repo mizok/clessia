@@ -8,6 +8,10 @@
 
 .day-timeline__track {
   position: relative;
+  // **固定高度，不隨課量長。** 這是換畫法的全部理由：lane 式佈局每多一條 +30px，
+  // 4 條時橘帶佔 48% 視窗、課表整段掉到摺線下 —— 課越多圖越擋路，而課多正是
+  // 最需要往下看的日子。
+  height: 64px;
 }
 
 // 軸的基準線。用 --band-rule 而不是自己調一個低透明度 ——
@@ -19,6 +23,50 @@
   left: 0;
   height: 2px;
   background: var(--band-rule);
+}
+
+// ── 柱 ────────────────────────────────────────────────────────────────
+// 每半小時一根。柱高＝同時堂數（對當日最大值正規化，最大值另外用文字說出來）。
+//
+// **不用透明度做濃度**：橘帶上近黑的地板是 0.78，而 0.78→1.00 兩端互相只有 1.40:1，
+// 圖形元素相鄰要 3:1 —— 連兩階都放不下。所以編碼是長度不是明度。
+.day-timeline__bars {
+  position: absolute;
+  right: 0;
+  bottom: 2px;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.day-timeline__bar {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+  // 窄螢幕上 28 根擠在一起。給下限讓有課的時段不會細到看不見。
+  min-width: 3px;
+}
+
+// 一根分兩段，堆疊不並排：柱高仍然是「同時幾堂」這個唯一的量，狀態是它的內部組成。
+// 未點名在上（靠近視線與「該處理」的方向），已點名沉在下面。
+.day-timeline__seg {
+  display: block;
+  width: 100%;
+}
+
+.day-timeline__seg--taken {
+  background: var(--band-ink);
+}
+
+// 中空 = 近黑外框、內部透出橘帶本身。**形狀差異不是顏色差異** ——
+// 白對亮橘只有 2.85:1，語意色疊在暖橘上讀不出來，兩者都不能用。
+.day-timeline__seg--untaken {
+  border: 2px solid var(--band-ink);
+  border-bottom: 0;
 }
 
 .day-timeline__now {
@@ -40,29 +88,6 @@
   color: var(--band-ink);
   white-space: nowrap;
   transform: translateX(-50%);
-}
-
-// 已點名是實心、未點名是中空。**識別靠外框（近黑實色），狀態靠內部深淺** ——
-// 內部那層淡色對橘帶只有 2.2:1，但它不需要獨立達標：方塊的存在由外框宣告，
-// 兩種狀態之間的對比則很高。
-.day-timeline__block {
-  position: absolute;
-  height: 22px;
-  // 窄螢幕上一堂 30 分鐘的課只有幾個 px 寬。給下限讓它仍然看得見 ——
-  // 寧可位置稍微不準，也不要一堂課從圖上消失。
-  min-width: 8px;
-  border: 2px solid var(--band-ink);
-  border-radius: var(--radius-sm);
-  background: rgb(255 240 234 / 42%);
-}
-
-.day-timeline__block--taken {
-  background: var(--band-ink);
-}
-
-// 沒有結束時間的課：一個點，不是一段。給它預設時長等於憑空宣稱我們沒有的資訊。
-.day-timeline__block--point {
-  border-radius: var(--radius-full);
 }
 
 .day-timeline__ticks {
@@ -104,16 +129,21 @@
   background: var(--band-ink);
 }
 
-// 手機：軸的資訊量不變，只是每個元素更省空間。
-// **不減少刻度數** —— 刻度是靠 space-between 均分對齊到時間位置的，
-// 抽掉其中幾個會讓剩下的重新均分，位置就跟時間對不上了。
+// 手機：資訊量不變，只是每個元素更省空間。
+//
+// **柱數不能減。** 減根數就是改 bin 大小，圖的形狀會變 —— 同一天在手機與桌機長成
+// 兩張不同的圖，那不是響應式是兩張圖。28 根在 390px 下每根約 12px，夠。
+//
+// **刻度數也不能減**（跟 lane 版同一個理由，不是相反）：刻度靠 `space-between`
+// 均分來對齊時間位置，抽掉其中幾個會讓剩下的重新均分、位置就跟時間對不上。
+// 要能抽稀就得改成絕對定位對齊到柱，那是另一件事，這一刀不做。
 @media (max-width: 640px) {
   .day-timeline__ticks {
     font-size: 9px;
   }
 
-  .day-timeline__block {
-    height: 18px;
+  .day-timeline__bars {
+    gap: 1px;
   }
 
   .day-timeline__legend {

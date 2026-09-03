@@ -44,6 +44,12 @@ Tags: `architecture`, `announcements`
 
 Links to: [[architecture/role-authorization|角色授權設計]]
 
+## [[architecture/better-auth-self-vs-admin|Better Auth 的本人模型與我們的多角色授權]]
+
+使用者更新 API 只服務「本人改自己」（需要本人的 session headers）；未宣告的欄位會被**靜默丟棄**而不是報錯。「管理員代改」屬 admin plugin，而它的權限檢查看 `ba_user.role` —— 本專案全部是 `'user'`，角色真相住在 `user_roles`。把管理員寫進 `ba_user.role` 會一併授予 impersonate/ban/setRole，代價遠大於它守護的東西。所以管理員代改的直寫是**永久豁免**，不是債。
+
+Tags: `architecture`, `auth`, `better-auth`, `authorization`
+
 ## [[architecture/auth-pool-lifecycle|認證連線池的生命週期]]
 
 createAuth() 每請求開 1–2 個 pg Pool 且從不關閉（批次匯入的迴圈裡一次開 50 個）；Workers 凍結 timer 使 pg 的 idle 自救失效。修法：getAuth(c) 讓同請求共用單一池，收尾交給掛在最前面的 cleanup middleware 在 await next() 之後做。singleton 在 Workers 是錯的，而在 getAuth 裡 waitUntil(pool.end()) 也是錯的。

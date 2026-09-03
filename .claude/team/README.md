@@ -60,7 +60,8 @@ worktree 裡開新分支**一律** `git fetch -p origin && git checkout -b feat/
    就標 draft，等 base 轉成 main 才轉 ready** —— 讓「還不能合」變成 GitHub 擋得住的狀態，
    不是靠人搶時間差。下層合併後上層 base 立刻人工轉 main、下層分支即刪；合併後才推上去的 commit 會在已合併分支上擱淺，
    永遠不會自己變成 PR（#105 事故 —— 手機版兩筆 commit 擱淺，#110 撿回）。
-2. **squash merge 之後，「commit 在不在 main」只能用內容判斷**（grep 關鍵字串），
+2. **squash merge 之後，「commit 在不在 main」只能用內容判斷**（grep 關鍵字串,
+   且**要挑只有那支 PR 會產生的字串** —— 命中別支也會提到的關鍵字,驗證本身就是假的），
    `git merge-base --is-ancestor` 對原始 SHA 永遠回「不在」—— 它在 squash 倉庫裡
    對這個問題永遠給錯的答案。
 
@@ -130,3 +131,6 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
    「等你/等批准」字樣就跟自己的收件記錄對帳 —— 對不上即為送達失敗,主動補救。
 - **解 `backlog.md` 衝突一律以 main 為基底、只改自己那一行**,解完 diff 對照確認沒動到
   別席的認領(「取我方」曾抹掉別席的認領記錄)。
+- **stash apply 之後、commit 之前,`git diff origin/main --stat` 看一遍檔案清單** ——
+  出現自己沒碰過的檔案就是警報(共用 stash 的 apply 循環會把舊快照拖著走,曾差點
+  把別人已合併的工作還原掉;是 gate 紅在陌生檔案才攔下)。

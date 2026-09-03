@@ -1,17 +1,22 @@
 import type { EventSessionSummary } from '@core/attendance.service';
 import {
+  BIN_MINUTES,
   DEFAULT_END_HOUR,
   DEFAULT_START_HOUR,
-  POINT_WIDTH_PCT,
   axisTicks,
+  binDay,
   deriveWindow,
-  layoutDay,
   nowMarkerPct,
   parseTimeToHours,
 } from './day-timeline.util';
 
 /** 只填時間相關欄位，其餘用不到的補上最小值 */
-function session(startTime: string | null, endTime: string | null, id = startTime ?? 'x') {
+function session(
+  startTime: string | null,
+  endTime: string | null,
+  id = startTime ?? 'x',
+  takenAt: string | null = null,
+) {
   return {
     eventId: id,
     sessionId: id,
@@ -31,7 +36,7 @@ function session(startTime: string | null, endTime: string | null, id = startTim
     presentCount: 0,
     onLeaveCount: 0,
     absentCount: 0,
-    takenAt: null,
+    takenAt,
   } satisfies EventSessionSummary;
 }
 
@@ -86,103 +91,111 @@ describe('deriveWindow —— 只擴不縮', () => {
   });
 });
 
-describe('layoutDay —— lane 分配', () => {
-  it('不重疊的課全部在同一條 lane', () => {
-    const { lanes } = layoutDay([
-      session('09:00', '10:00'),
-      session('10:00', '11:00'),
-      session('14:00', '16:00'),
-    ]);
-    expect(lanes).toHaveLength(1);
-    expect(lanes[0]).toHaveLength(3);
+/**
+ * bin 計數取代了原本的 lane 分配。
+ *
+ * **改畫法的理由是高度**：lane 式佈局每多一條就高 30px，密集日把主入口推到摺線下 ——
+ * 課越多這張圖越擋路，而課多正是最需要往下看的日子。密度圖的高度與課量脫鉤。
+ * 見 kb/wiki/architecture/timeline-density.md。
+ */
+describe('binDay —— 每半小時一根', () => {
+  it('預設視窗切成 28 根（08–22，每半小時）', () => {
+    const { bins } = binDay([]);
+
+    expect(BIN_MINUTES).toBe(30);
+    expect(bins).toHaveLength((DEFAULT_END_HOUR - DEFAULT_START_HOUR) * 2);
+    expect(bins[0].startHour).toBe(DEFAULT_START_HOUR);
+    expect(bins[1].startHour).toBe(DEFAULT_START_HOUR + 0.5);
   });
 
-  it('兩堂重疊會分成兩條 lane', () => {
-    const { lanes } = layoutDay([session('09:00', '11:00'), session('10:00', '12:00')]);
-    expect(lanes).toHaveLength(2);
+  it('沒有課時每一根都是 0，最大值也是 0', () => {
+    const { bins, maxTotal } = binDay([]);
+
+    expect(bins.every((bin) => bin.total === 0)).toBe(true);
+    expect(maxTotal).toBe(0);
   });
 
-  // 樸素的「跟前一堂比」在三堂以上會塌掉 —— 這一條就是為了盯住它
-  it('三堂同時開課會分成三條 lane', () => {
-    const { lanes } = layoutDay([
+  // 這一條是「涵蓋」與「開始」的分界：用開始計數的話，一整天的長課只會出現在一根，
+  // 圖就變成「開課時刻分佈」而不是「忙碌程度」
+  it('90 分鐘的課跨三根，每一根都算到它', () => {
+    const { bins } = binDay([session('09:00', '10:30')]);
+    const at = (hour: number) => bins.find((bin) => bin.startHour === hour)!.total;
+
+    expect(at(9)).toBe(1);
+    expect(at(9.5)).toBe(1);
+    expect(at(10)).toBe(1);
+    expect(at(10.5)).toBe(0);
+  });
+
+  // 半開區間：接續不是重疊
+  it('09:00–10:00 的課不算進 10:00 那一根', () => {
+    const { bins } = binDay([session('09:00', '10:00')]);
+
+    expect(bins.find((bin) => bin.startHour === 9.5)!.total).toBe(1);
+    expect(bins.find((bin) => bin.startHour === 10)!.total).toBe(0);
+  });
+
+  it('同時段的課疊加成一根的高度', () => {
+    const { bins, maxTotal } = binDay([
       session('09:00', '12:00', 'a'),
       session('09:30', '12:00', 'b'),
       session('10:00', '12:00', 'c'),
     ]);
-    expect(lanes).toHaveLength(3);
-    expect(lanes.flat()).toHaveLength(3);
+
+    expect(bins.find((bin) => bin.startHour === 9)!.total).toBe(1);
+    expect(bins.find((bin) => bin.startHour === 9.5)!.total).toBe(2);
+    expect(bins.find((bin) => bin.startHour === 10)!.total).toBe(3);
+    expect(maxTotal).toBe(3);
   });
 
-  it('lane 會被重複使用 —— 前一堂結束後的課回到第一條', () => {
-    const { lanes } = layoutDay([
-      session('09:00', '11:00', 'a'),
-      session('09:30', '10:30', 'b'),
-      session('11:00', '12:00', 'c'),
+  it('未點名分開計，總數不變', () => {
+    const { bins } = binDay([
+      session('09:00', '10:00', 'a', '2026-09-03T01:00:00Z'),
+      session('09:00', '10:00', 'b'),
     ]);
-    expect(lanes).toHaveLength(2);
-    expect(lanes[0].map((p) => p.session.eventId)).toEqual(['a', 'c']);
-    expect(lanes[1].map((p) => p.session.eventId)).toEqual(['b']);
+    const nine = bins.find((bin) => bin.startHour === 9)!;
+
+    expect(nine.total).toBe(2);
+    expect(nine.untaken).toBe(1);
   });
 
-  it('輸入沒有排序也能正確分配', () => {
-    const { lanes } = layoutDay([
-      session('14:00', '15:00', 'late'),
-      session('09:00', '10:00', 'early'),
-    ]);
-    expect(lanes).toHaveLength(1);
-    expect(lanes[0].map((p) => p.session.eventId)).toEqual(['early', 'late']);
+  // 給它一個預設時長等於憑空宣稱一段我們沒有的資訊
+  it('有起無迄只算起始那一根', () => {
+    const { bins } = binDay([session('09:00', null)]);
+
+    expect(bins.find((bin) => bin.startHour === 9)!.total).toBe(1);
+    expect(bins.find((bin) => bin.startHour === 9.5)!.total).toBe(0);
   });
 
-  it('剛好接續（前一堂結束＝後一堂開始）不算重疊', () => {
-    const { lanes } = layoutDay([session('09:00', '10:00'), session('10:00', '11:00')]);
-    expect(lanes).toHaveLength(1);
-  });
-});
+  it('結束早於開始（壞資料）也只算起始那一根', () => {
+    const { bins } = binDay([session('09:00', '08:00')]);
 
-describe('layoutDay —— 位置與缺時間的處理', () => {
-  it('位置是相對視窗的百分比', () => {
-    const { lanes } = layoutDay([session('08:00', '22:00')]);
-    expect(lanes[0][0].leftPct).toBe(0);
-    expect(lanes[0][0].widthPct).toBe(100);
+    expect(bins.find((bin) => bin.startHour === 9)!.total).toBe(1);
+    expect(bins.filter((bin) => bin.total > 0)).toHaveLength(1);
   });
 
-  it('中午的課落在軸的中間', () => {
-    const { lanes } = layoutDay([session('15:00', '15:00')]);
-    // 視窗 08–22，15:00 是第 7 小時 / 共 14 小時
-    expect(lanes[0][0].leftPct).toBeCloseTo(50, 5);
-  });
+  it('沒有開始時間的課不落任何 bin，但要出現在 unplaced 裡', () => {
+    const { bins, unplaced } = binDay([session(null, null, 'ghost'), session('09:00', '10:00')]);
 
-  // 給沒有結束時間的課一個預設時長，等於憑空宣稱一段我們沒有的資訊
-  it('有起無迄畫成點，不是有長度的方塊', () => {
-    const { lanes } = layoutDay([session('09:00', null)]);
-    expect(lanes[0][0].isPoint).toBe(true);
-    expect(lanes[0][0].widthPct).toBe(POINT_WIDTH_PCT);
-  });
-
-  it('兩個相鄰的點不會疊在同一條 lane 的同一個位置', () => {
-    const { lanes } = layoutDay([session('09:00', null, 'a'), session('09:00', null, 'b')]);
-    expect(lanes).toHaveLength(2);
-  });
-
-  it('沒有開始時間的課不畫，但要出現在 unplaced 裡', () => {
-    const { lanes, unplaced } = layoutDay([
-      session(null, null, 'ghost'),
-      session('09:00', '10:00'),
-    ]);
-    expect(lanes.flat()).toHaveLength(1);
     expect(unplaced.map((s) => s.eventId)).toEqual(['ghost']);
+    expect(bins.reduce((sum, bin) => sum + bin.total, 0)).toBe(2);
   });
 
-  it('全部都沒有時間時，沒有 lane 但全部進 unplaced', () => {
-    const { lanes, unplaced } = layoutDay([session(null, null, 'a'), session(null, null, 'b')]);
-    expect(lanes).toHaveLength(0);
-    expect(unplaced).toHaveLength(2);
+  it('視窗被晚課撐大時 bin 跟著增加', () => {
+    const { bins, window } = binDay([session('19:00', '23:30')]);
+
+    expect(window.endHour).toBe(24);
+    expect(bins).toHaveLength((24 - DEFAULT_START_HOUR) * 2);
   });
 
-  it('沒有課時不會炸', () => {
-    const layout = layoutDay([]);
-    expect(layout.lanes).toHaveLength(0);
-    expect(layout.unplaced).toHaveLength(0);
+  // 不是 30 分鐘整數倍的時間：照「涵蓋」規則，沾到的每一根都算。
+  // 09:15–09:45 沾到 09:00 那一根的後半、也沾到 09:30 那一根的前半。
+  it('09:15–09:45 的課涵蓋兩根', () => {
+    const { bins } = binDay([session('09:15', '09:45')]);
+
+    expect(bins.find((bin) => bin.startHour === 9)!.total).toBe(1);
+    expect(bins.find((bin) => bin.startHour === 9.5)!.total).toBe(1);
+    expect(bins.find((bin) => bin.startHour === 10)!.total).toBe(0);
   });
 });
 

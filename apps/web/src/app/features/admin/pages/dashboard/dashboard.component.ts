@@ -24,7 +24,6 @@ import { StudentsService } from '@core/students.service';
 import { RoutesCatalog, type RouteObj } from '@core/smart-enums/routes-catalog';
 
 import { CollapsibleComponent } from '@shared/components/collapsible/collapsible.component';
-import { layoutDay } from '@shared/components/day-timeline/day-timeline.util';
 
 import { countUntakenSessions } from './dashboard.util';
 import {
@@ -54,18 +53,15 @@ interface StatCard {
 }
 
 /**
- * 超過這個 lane 數，時間軸預設收起來。
+ * 使用者手動收合橘帶時間軸的偏好。
  *
- * **這個數字是量出來的，不是猜的**：1568×784 的桌機上，橘帶在 1 堂課時是 226px
- * （30% 視窗），到 4 條 lane 時漲到 359px（48%），整頁 1.76 個螢幕、課表脊椎整段
- * 掉到摺線下。每多一條 lane +30px，而 lane 依設計不設上限。
+ * **原本還有一條自動收合**（lane 超過 3 條就預設收起來），依據是實測：橘帶在
+ * 1 堂課時 226px、4 條 lane 時 359px（48% 視窗），整頁 1.76 螢幕、課表整段掉到
+ * 摺線下。那是 lane 式畫法的止血。
  *
- * 所以 3 是「時間軸還在幫忙」與「時間軸開始擋路」的分界。設計頁原本寫 8，那是
- * 沒有密集日資料時的估計 —— 實測把它改成 3。
+ * 時間軸換成密度圖之後**高度與課量脫鉤**，那個依據不存在了，所以自動收合退役 ——
+ * 留著只是把資訊藏起來。這個鍵保留，因為使用者按過的選擇要繼續生效。
  */
-const TIMELINE_COLLAPSE_LANE_THRESHOLD = 3;
-
-/** 使用者自己按過收合／展開之後，記住他的選擇 */
 const TIMELINE_COLLAPSED_KEY = 'clessia.dashboard.timeline-collapsed';
 
 const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'] as const;
@@ -131,16 +127,17 @@ export class DashboardComponent {
    */
   private readonly storedCollapsed = signal<boolean | null>(readStoredCollapsed());
 
-  protected readonly laneCount = computed(() => {
-    const sessions = this.todaySessionList();
-    return sessions ? layoutDay(sessions).lanes.length : 0;
-  });
+  /**
+   * **自動收合退役了。** 它的依據是「lane 超過 3 條時圖會長到把課表推到摺線下」，
+   * 而時間軸改成密度圖之後**高度與課量脫鉤** —— 那個依據不存在了，
+   * 再自動收就只是把資訊藏起來。
+   *
+   * 手動收合保留（可收合帶是已裁的方向），使用者按過就照他的意思。
+   */
+  protected readonly timelineCollapsed = computed(() => this.storedCollapsed() ?? false);
 
-  protected readonly timelineCollapsed = computed(() => {
-    const stored = this.storedCollapsed();
-    if (stored !== null) return stored;
-    return this.laneCount() > TIMELINE_COLLAPSE_LANE_THRESHOLD;
-  });
+  /** 有課才顯示收合鈕 —— 沒課的日子那條軸本來就不畫，給一顆收合鈕是空的動作 */
+  protected readonly hasTimeline = computed(() => (this.todaySessionList()?.length ?? 0) > 0);
 
   protected toggleTimeline(): void {
     const next = !this.timelineCollapsed();

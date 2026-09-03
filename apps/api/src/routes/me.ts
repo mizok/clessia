@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { resolveDisplayName, updateDisplayName } from '../lib/display-name';
+import { getAuth } from '../lib/get-auth';
 
 const MeResponseSchema = z
   .object({
@@ -139,16 +140,29 @@ app.openapi(
         .eq('id', userId)
         .single();
 
-      const updatePayload: Record<string, string | null> = { phone: body.phone };
-      // **這不是登入帳號的殘留，不要刪。** 沒有 email 的家長（只留電話那種）靠
-      // `ba_user.username` 當唯一性鍵 —— 家長匯入的重複偵測會拿它比對電話
-      // （`routes/parents.ts` 的 `buildPostgrestEq('username', phone)`）。
-      // 沒有人輸入它登入，系統根本沒有輸入帳號的畫面。
+      // **phone 走 Better Auth 的 API（c2 的合規路徑）。**
+      // `phone` 是 `auth.ts` 宣告的 additionalField 且 `input: true`，所以
+      // `updateUser` 收得下它。這支是「本人改自己」，session headers 拿得到 ——
+      // 而 `updateUser` 掛 `sessionMiddleware`，沒有 headers 就走不通
+      //（管理員改別人的那兩處因此無法比照，見 constitution-enforcement.md）。
+      await getAuth(c).api.updateUser({
+        body: { phone: body.phone },
+        headers: c.req.raw.headers,
+      });
+
+      // **這不是登入帳號的殘留，不要刪 —— 而且它只能直寫。** 沒有 email 的家長
+      //（只留電話那種）靠 `ba_user.username` 當唯一性鍵，家長匯入的重複偵測會拿它
+      // 比對電話（`routes/parents.ts` 的 `buildPostgrestEq('username', phone)`）。
+      //
+      // **`username` 沒有 API 路徑**：username plugin 已被刻意移除（`auth.ts`，
+      // 它提供的 `/sign-in/username` 也是密碼登入），所以它不是宣告過的
+      // additionalField —— 傳給 `updateUser` 會被**靜默丟棄**（`parseInputData`
+      // 迭代的是宣告過的 schema，未宣告的 key 連看都不看）。
+      // 也就是說「一起塞進上面那個呼叫」不會報錯，只會不寫入。c2 永久豁免。
       // 見 kb/wiki/specs/admin/roles-and-auth.md
       if ((baUser as Record<string, unknown> | null)?.['email'] == null) {
-        updatePayload['username'] = body.phone;
+        await supabase.from('ba_user').update({ username: body.phone }).eq('id', userId);
       }
-      await supabase.from('ba_user').update(updatePayload).eq('id', userId);
     }
 
     if (body.birthday !== undefined) {

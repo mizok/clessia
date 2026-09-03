@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { audienceFor, canSee } from './visibility';
+import { audienceFor, canSee, campusOrFilter } from './visibility';
 
 const TEACHER = { roles: ['teacher'], campusIds: ['campus-1'] };
 
@@ -52,5 +52,15 @@ describe('canSee', () => {
     const viewer = { roles: ['admin'], campusIds: ['campus-1'] };
 
     expect(canSee({ campus_id: null, audience: 'all_teachers' }, viewer)).toBe(false);
+  });
+});
+
+describe('campusOrFilter', () => {
+  it('沒有分校歸屬時只看得到全分校公告', () => {
+    expect(campusOrFilter([])).toBe('campus_id.is.null');
+  });
+
+  it('有分校歸屬時是「全分校 ∪ 自己的分校」', () => {
+    expect(campusOrFilter(['a', 'b'])).toBe('campus_id.is.null,campus_id.in.(a,b)');
   });
 });
