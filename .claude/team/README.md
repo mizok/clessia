@@ -101,3 +101,7 @@ DB 驗證)。計畫席決定關不關或轉問還在用的席。
 「/low-priority to continue」橫幅或 Session 0% —— 有則等額度回流後 `ctrl+u` 清殘字、
 nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自己死了的話,
 下一次成功的 wakeup 會執行全面點名復活;最壞情況 12:00/17:00 使用者任何輸入都會喚醒計畫席。
+- **清理自己的 process 用精準 kill**:先 `lsof -ti:<自己的port>` 拿 PID,或 pkill pattern
+  必含自己的 worktree 路徑 —— 裸 `pkill -f "workerd serve"` 會殺掉所有席的 API
+  (已發生:teacher-pages 誤殺 bundle-analysis 的 8787)。「不 kill 別人的 port」的
+  原則同樣適用於 pattern 匹配的入口。
