@@ -335,7 +335,11 @@ gh pr view <n> --json state -q .state      # 必須是 OPEN
 - ~~`nx.json` 的 `defaultBase` 指向不存在的 `dev`~~ → 2026-09-03 修成 `main`，
   `nx affected` 可以直接跑。Stop gate 仍明寫 `--base=main`：**gate 的行為不該因為
   有人改 nx.json 而變**。
-- **`test-baseline.json` 裡有 3 個既有紅燈**（驗：讀那個檔）。基線是債，清一支移除一支。
+- ~~`test-baseline.json` 裡有 3 個既有紅燈~~ → **那筆債不存在，是我自己量錯的**（2026-09-03 分診）。
+  `knownFailing` 是 `[]`，gate 早就在「非全綠不可」的全強度。當初我用
+  `Object.keys(b).length` 去數，數到的是 `note` / `recorded` / `knownFailing` **三個
+  metadata 鍵**，不是失敗的 spec。**數錯的欄位長得跟對的一樣合理**，而那個數字後來被
+  當成工單派了出去 —— 記在這裡當範例：**盤點缺口時，量測本身也要驗一次**。
 - **dagger 的建置快取沒有 GC 政策，磁碟會反覆爆。**
   fvg 的 engine `/etc/dagger/engine.toml` 是空的，而它在 VM 裡看到的可用空間是假的
   → 自動 GC 永遠不觸發。2026-09-02 清掉 126 GB，**不到一天長回 136 G**。
