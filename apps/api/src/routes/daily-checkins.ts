@@ -1,6 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { enrolledEventIds } from '../lib/enrolled-events';
+import { assertAttendanceWindow } from '../lib/attendance-window-check';
+import { logAudit } from '../utils/audit';
 
 const DailyCheckinSchema = z
   .object({
@@ -140,6 +142,117 @@ app.openapi(
       },
       201,
     );
+  },
+);
+
+// DELETE /api/daily-checkins/:id —— 取消打卡
+//
+// **走既有的 `assertAttendanceWindow`**：另寫一套的話，同一間補習班對
+// 「昨天的紀錄還能不能改」會有兩個答案，而那兩個答案會出現在不同的畫面上。
+//
+// 衍生的出勤紀錄**刪掉，不改成 `absent`** —— `attendance-rules.md` 第 6 節：
+// 沒有紀錄 ≠ 缺席，而假的缺席會流進扣課與月結。取消打卡之後那幾堂回到
+// 「還沒點名」，也就是可標記狀態。
+app.openapi(
+  createRoute({
+    method: 'delete',
+    path: '/{id}',
+    tags: ['DailyCheckins'],
+    summary: '取消打卡（連同它寫出來的出勤紀錄一起刪）',
+    request: { params: z.object({ id: z.uuid() }) },
+    responses: {
+      200: {
+        description: '已取消',
+        content: {
+          'application/json': {
+            schema: z.object({ attendanceRecordsRemoved: z.number().int().nonnegative() }),
+          },
+        },
+      },
+      403: { description: '已超過補登期限' },
+      404: { description: '找不到打卡紀錄' },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const { id } = c.req.valid('param');
+
+    const { data: checkin } = await supabase
+      .from('daily_checkins')
+      .select('id, student_id, checkin_date, campus_id')
+      .eq('id', id)
+      .eq('org_id', orgId)
+      .maybeSingle();
+
+    if (!checkin) return c.json({ error: '找不到打卡紀錄' }, 404);
+
+    const row = checkin as Record<string, unknown>;
+    const checkinDate = row['checkin_date'] as string;
+    const studentId = row['student_id'] as string;
+
+    const window = await assertAttendanceWindow(supabase, {
+      orgId,
+      roles: c.get('roles') ?? [],
+      eventDate: checkinDate,
+    });
+    if (!window.ok) {
+      return c.json({ error: '已超過補登期限，請聯繫管理員' }, 403);
+    }
+
+    // 打卡當天在這個分校的事件 —— 跟寫入時同一組條件（#178），
+    // 否則會刪不乾淨或刪到別人的
+    let eventsQuery = supabase
+      .from('events')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('event_date', checkinDate);
+
+    const campusId = (row['campus_id'] as string | null) ?? null;
+    if (campusId) eventsQuery = eventsQuery.eq('campus_id', campusId);
+
+    const { data: events } = await eventsQuery;
+    const eventIds = ((events ?? []) as Array<{ id: string }>).map((event) => event.id);
+
+    let attendanceRecordsRemoved = 0;
+    if (eventIds.length > 0) {
+      // **只刪掉打卡寫出來的那些**（`recorded_by_role = 'system'` + `present`）——
+      // 老師事後手動改過的不能被一次取消打卡抹掉
+      const { data: removed } = await supabase
+        .from('attendance_records')
+        .delete()
+        .eq('org_id', orgId)
+        .eq('student_id', studentId)
+        .eq('status', 'present')
+        .eq('recorded_by_role', 'system')
+        .in('event_id', eventIds)
+        .select('id');
+
+      attendanceRecordsRemoved = ((removed ?? []) as unknown[]).length;
+    }
+
+    await supabase.from('daily_checkins').delete().eq('id', id).eq('org_id', orgId);
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId: c.get('userId'),
+        resourceType: 'attendance',
+        resourceId: id,
+        resourceName: null,
+        action: 'cancel_checkin',
+        details: {
+          studentId,
+          checkinDate,
+          attendanceRecordsRemoved,
+          outOfWindowByAdmin: window.outOfWindowByAdmin,
+        },
+      },
+      c.executionCtx.waitUntil.bind(c.executionCtx),
+    );
+
+    return c.json({ attendanceRecordsRemoved }, 200);
   },
 );
 

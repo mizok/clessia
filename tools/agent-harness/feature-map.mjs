@@ -137,7 +137,9 @@ const AREAS = [
   {
     name: '出勤與到班',
     pages: ['admin/attendance', 'teacher/attendance', 'parent/attendance'],
-    routes: ['attendance', 'daily-checkins'],
+    // workbench 是作業台的聚合端點：今天的課、名單、到班、請假 ——
+    // 它服務的就是這個功能區，不另立一區
+    routes: ['attendance', 'daily-checkins', 'workbench'],
     specs: [
       'admin/student-affairs/attendance.md',
       'teacher/attendance.md',

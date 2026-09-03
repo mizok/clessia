@@ -185,3 +185,135 @@ describe('POST /api/daily-checkins —— 只寫有報名的課堂', () => {
     expect(eventIds).toEqual([]);
   });
 });
+
+/**
+ * 取消打卡。**兩件事只在路由層看得到**：走的是既有的補登窗（不是另一套），
+ * 以及衍生紀錄是**刪掉而不是改成 absent**。
+ */
+describe('DELETE /api/daily-checkins/:id', () => {
+  function createCancelApp(options: {
+    eventDate: string;
+    responsible?: string;
+    retroDays?: number;
+  }) {
+    const calls: Array<{ table: string; op: string; filters: Array<[string, unknown]> }> = [];
+    const queriedTables: string[] = [];
+
+    const supabase = {
+      from(table: string) {
+        queriedTables.push(table);
+        const filters: Array<[string, unknown]> = [];
+        const query: Record<string, unknown> = {
+          select: () => query,
+          eq: (column: string, value: unknown) => {
+            filters.push([column, value]);
+            return query;
+          },
+          in: () => query,
+          maybeSingle: () =>
+            Promise.resolve({
+              data:
+                table === 'daily_checkins'
+                  ? {
+                      id: 'checkin-1',
+                      student_id: 'stu-1',
+                      checkin_date: options.eventDate,
+                      campus_id: null,
+                    }
+                  : table === 'organizations'
+                    ? {
+                        attendance_responsible: options.responsible ?? 'admin',
+                        attendance_retroactive_days: options.retroDays ?? 0,
+                      }
+                    : null,
+              error: null,
+            }),
+          delete: () => {
+            calls.push({ table, op: 'delete', filters });
+            return query;
+          },
+          update: () => {
+            calls.push({ table, op: 'update', filters });
+            return query;
+          },
+          insert: () => Promise.resolve({ error: null }),
+          then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
+            const data =
+              table === 'events'
+                ? [{ id: 'ev-1' }]
+                : table === 'attendance_records'
+                  ? [{ id: 'rec-1' }]
+                  : [];
+            return Promise.resolve({ data }).then(onfulfilled ?? undefined);
+          },
+        };
+        return query;
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      context.set('roles', ['admin']);
+      await next();
+    });
+    app.route('/api/daily-checkins', dailyCheckinsApp);
+
+    return { app, calls, queriedTables };
+  }
+
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+
+  async function cancel(options: Parameters<typeof createCancelApp>[0]) {
+    const { app, calls, queriedTables } = createCancelApp(options);
+    const response = await app.request(
+      '/api/daily-checkins/00000000-0000-4000-8000-000000000001',
+      { method: 'DELETE' },
+      undefined,
+      { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
+    );
+    return {
+      status: response.status,
+      body: await response.json().catch(() => null),
+      calls,
+      queriedTables,
+    };
+  }
+
+  it('刪掉打卡與它寫出來的出勤紀錄 —— 不是改成 absent', async () => {
+    const { status, body, calls } = await cancel({ eventDate: today });
+
+    expect(status).toBe(200);
+    expect(body).toMatchObject({ attendanceRecordsRemoved: 1 });
+    expect(calls.some((call) => call.table === 'attendance_records' && call.op === 'delete')).toBe(
+      true,
+    );
+    // 改成 absent 就是替沒發生過的判斷寫一個答案
+    expect(calls.some((call) => call.table === 'attendance_records' && call.op === 'update')).toBe(
+      false,
+    );
+    expect(calls.some((call) => call.table === 'daily_checkins' && call.op === 'delete')).toBe(
+      true,
+    );
+  });
+
+  it('只刪掃碼寫的那些 —— 老師手動改過的不能被一次取消打卡抹掉', async () => {
+    const { calls } = await cancel({ eventDate: today });
+
+    const del = calls.find((call) => call.table === 'attendance_records' && call.op === 'delete');
+    expect(del?.filters).toContainEqual(['recorded_by_role', 'system']);
+    expect(del?.filters).toContainEqual(['status', 'present']);
+  });
+
+  it('走既有的補登窗 —— 而不是另寫一份判斷', async () => {
+    const { queriedTables } = await cancel({ eventDate: '2020-01-01' });
+
+    // `assertAttendanceWindow` 讀 organizations 的 attendance_responsible /
+    // attendance_retroactive_days。沒有這一步就代表這支端點自己判斷了時窗 ——
+    // 那樣同一間補習班對「昨天還能不能改」會有兩個答案。
+    expect(queriedTables).toContain('organizations');
+  });
+});
