@@ -19,7 +19,7 @@
 
 ## design-web-2
 
-0. 對比債修復包:6 筆 zinc-500→600(zinc-100 上 4.44)+#19 error-600→700;丙類 4 筆 hover 逐處開檔追祖先(infra 分診報告);gate 升級:宿主 .pi/i/svg 用 3:1 門檻(9 筆 icon 退出 baseline)
+0. ~~對比債修復包~~ 完成(PR #220;baseline 23→10。實際分流跟工單預設不同:6 筆依**形狀**分流而非一律 600 —— 藥丸 chip 走 zinc-700 對齊 app-data-chip,非 chip 才走 600;role-picker__option-icon 是 icon 容器刻意不動。丙類其中一筆 error-700 疊 error-200 仍只有 4.47,改補 inset 描邊而非再調字色。icon 門檻退出 8 筆不是 9 筆) [認領 design-web-2-df 完成]
 1. 拇指區 A–D 期完成(#197 壓成一支) [認領 design-web-2-df 完成]
 2. 刀 3b-3 收尾確認完成(p-tag 零殘項;但盤出 15 支 NgModule 孤兒並建 gate) [認領 design-web-2-df 11:55]
 

@@ -165,7 +165,7 @@
 
   &__deferred-badge {
     font-size: var(--text-xs);
-    color: var(--zinc-500);
+    color: var(--zinc-700);
     background: var(--zinc-100);
     border-radius: var(--radius-full);
     padding: 2px var(--space-2);
@@ -298,7 +298,8 @@
 
   &__parent-relation {
     font-size: var(--text-xs);
-    color: var(--zinc-500);
+    // 藥丸 chip（radius-full + zinc-100 底）→ 跟 app-data-chip 一致用 zinc-700
+    color: var(--zinc-700);
     background: var(--zinc-100);
     border-radius: var(--radius-full);
     padding: 2px var(--space-2);
