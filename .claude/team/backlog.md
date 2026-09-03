@@ -62,3 +62,6 @@ c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因�
 - (infra) 44px gate 邊界:納入公開 shell / 排除 1×1 focus sentinel / qr-checkin 標「空殼假綠,實作後重量」
 - (design-web) 作業台第二刀:換 GET /api/workbench/today + 日到班形狀(骨架 PR 已出)
 - (billing-api) #215 解衝突(#209 合後)
+- (admin-pages) B3 第三片:待開帳清單(hasInvoice=false API 已備)
+- (admin-pages) 期繳試算:收費週期選單(子元件已抽好)
+- (admin-pages) charter 蒸餾:git add -A 在切過分支的工作區不安全 / 測行為不測實作
