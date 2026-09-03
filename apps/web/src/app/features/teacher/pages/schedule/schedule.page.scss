@@ -289,6 +289,9 @@
     align-items: center;
     gap: 2px;
     width: 100%;
+    // 內容（週次＋M/d＋狀態）本來就把它撐到 55px 上下，但那是內容的副作用。
+    // 明寫下限，之後有人把狀態列拿掉才不會靜靜掉到 44px 以下。
+    min-height: 44px;
     padding: var(--space-2) var(--space-1);
     border: 1px solid transparent;
     border-radius: 8px;
