@@ -21,6 +21,7 @@ import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
 import { orphanModuleImports } from './lib/orphan-imports.mjs';
 import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
 import { matchWriteRules } from './lib/rules.mjs';
+import { crossFeatureImports } from './lib/feature-boundaries.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
@@ -712,6 +713,29 @@ function checkTouchTargets() {
 
 checkTouchTargets();
 
+// ── A18. feature 之間不得互相 import（clause c5）─────────────────────────────────────────
+// **沒有 baseline，因為立法時是零違規的。** 那是最便宜的立法時機 —— 不必分診舊債，
+// 也不會有「這筆算不算」的爭議。之後任何一筆都是新的。
+//
+// 為什麼是專用函式不是 pre-guard 規則、以及它看不到什麼，見 lib/feature-boundaries.mjs。
+// 摘要：c5 是 Semantic 條款，這支只機器化「路徑層面的直接 import」那一半，
+// **經由 core/ 或 shared/ 的間接耦合看不到**，那一半仍然靠 review。
+const FEATURES_DIR = join(ROOT, 'apps/web/src/app/features');
+if (existsSync(FEATURES_DIR)) {
+  // 別名也要認：`@features/teacher/…` 與 `@app/features/teacher/…` 都到得了別的 feature。
+  // 目前沒有人這樣寫，但 tsconfig 定義了它們 —— 只擋相對路徑等於留一個看不見的洞。
+  const aliases = {
+    '@features/': FEATURES_DIR,
+    '@app/': join(ROOT, 'apps/web/src/app'),
+  };
+  for (const v of crossFeatureImports(FEATURES_DIR, ROOT, aliases)) {
+    fail(
+      `${v.file}:${v.line} 從 ${v.from} import 了 ${v.to} 的東西（c5）：${v.spec} —— ` +
+        `要共用就往 shared/ 提（元件）或 core/ 提（狀態），不要橫向拉`,
+    );
+  }
+}
+
 // ── W1. 使用者層級 skill 在這台機器上存在嗎（警告，不紅燈）────────────────────────────
 // 而那個 kb-wiki skill 不進版控（它是使用者跨專案共用的），所以「AGENTS.md 說得出口的
 // 指令」與「這台機器叫得動的指令」之間有一道無聲的縫。這條把縫顯示出來，但不擋 CI ——
@@ -1053,7 +1077,9 @@ function checkPageActions() {
     writeFileSync(PAGE_ACTIONS_BASELINE, `${JSON.stringify(current, null, 2)}\n`);
   } else {
     const baseline = new Set(
-      existsSync(PAGE_ACTIONS_BASELINE) ? JSON.parse(readFileSync(PAGE_ACTIONS_BASELINE, 'utf8')) : [],
+      existsSync(PAGE_ACTIONS_BASELINE)
+        ? JSON.parse(readFileSync(PAGE_ACTIONS_BASELINE, 'utf8'))
+        : [],
     );
     for (const path of current.filter((p) => !baseline.has(p))) {
       fail(
