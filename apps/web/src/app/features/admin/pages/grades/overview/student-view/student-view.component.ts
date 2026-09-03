@@ -13,7 +13,6 @@ import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { SelectModule } from 'primeng/select';
-import { TagModule } from 'primeng/tag';
 import { InputTextModule } from 'primeng/inputtext';
 import { PaginatorModule } from 'primeng/paginator';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -69,7 +68,6 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     DataChipComponent,
     FormsModule,
     SelectModule,
-    TagModule,
     InputTextModule,
     PaginatorModule,
     ButtonModule,

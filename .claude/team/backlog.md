@@ -19,7 +19,7 @@
 ## design-web-2
 0. 對比債修復包:6 筆 zinc-500→600(zinc-100 上 4.44)+#19 error-600→700;丙類 4 筆 hover 逐處開檔追祖先(infra 分診報告);gate 升級:宿主 .pi/i/svg 用 3:1 門檻(9 筆 icon 退出 baseline)
 1. 拇指區 C 期(進行中)→ D 期 gate(頁面層級 p-button 不得直寫 __header-actions)
-2. 刀 3b-3 的收尾確認(53 顆膠囊遷移的殘項盤點,若已零殘項就結案記錄)
+2. 刀 3b-3 收尾確認完成(p-tag 零殘項;但盤出 15 支 NgModule 孤兒並建 gate) [認領 design-web-2-df 11:55]
 
 ## admin-pages
 1. (窗口 #184→#186 合併後)B3 第二片:批次結果開帳入口+試算顯示(note 必須顯示在金額旁)

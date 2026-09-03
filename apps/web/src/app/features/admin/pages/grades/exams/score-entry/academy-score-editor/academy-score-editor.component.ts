@@ -16,7 +16,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
-import { ButtonModule } from 'primeng/button';
 import { DrawerModule } from 'primeng/drawer';
 import { MessageService } from 'primeng/api';
 
@@ -59,7 +58,6 @@ const STATUS_OPTIONS: Array<{ label: string; value: AcademyScoreStatus }> = [
     InputNumberModule,
     InputTextModule,
     SelectModule,
-    ButtonModule,
     DrawerModule,
   ],
   templateUrl: './academy-score-editor.component.html',

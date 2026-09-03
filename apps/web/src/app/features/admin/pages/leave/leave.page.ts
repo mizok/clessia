@@ -3,7 +3,6 @@ import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { DatePickerModule } from 'primeng/datepicker';
-import { TagModule } from 'primeng/tag';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
@@ -35,7 +34,6 @@ import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
     ButtonModule,
     SelectModule,
     DatePickerModule,
-    TagModule,
     ToastModule,
     TooltipModule,
     ConfirmDialogModule,
