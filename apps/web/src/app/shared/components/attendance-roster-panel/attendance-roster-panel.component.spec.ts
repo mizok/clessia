@@ -314,6 +314,7 @@ describe('AttendanceRosterPanelComponent', () => {
         status: null,
         // 請假單蓋到這堂課，但紀錄還沒被套用（先請假、後生成 event）
         hasLeaveRequest: true,
+        leaveEndDate: null,
       },
     ];
 
@@ -423,6 +424,7 @@ describe('AttendanceRosterPanelComponent', () => {
         recordId: null,
         status: null,
         hasLeaveRequest: false,
+        leaveEndDate: null,
       },
     ];
 
@@ -435,6 +437,7 @@ describe('AttendanceRosterPanelComponent', () => {
         recordId: null,
         status: null,
         hasLeaveRequest: true,
+        leaveEndDate: null,
       },
     ];
 
@@ -491,6 +494,7 @@ describe('AttendanceRosterPanelComponent', () => {
         recordId: 'r1',
         status: 'on_leave' as const,
         hasLeaveRequest: true,
+        leaveEndDate: null,
       },
     ];
 
@@ -565,6 +569,7 @@ describe('AttendanceRosterPanelComponent', () => {
         recordId: 'r1',
         status: 'on_leave' as const,
         hasLeaveRequest: true,
+        leaveEndDate: null,
       },
     ];
 
@@ -612,6 +617,53 @@ describe('AttendanceRosterPanelComponent', () => {
       await render([]);
 
       expect(fixture.nativeElement.querySelector('.roster-panel__empty')).not.toBeNull();
+    });
+  });
+
+  /**
+   * 事前警告（#185 讓 roster 回 `leaveEndDate` 之後）。
+   *
+   * 銷假只把「今天」從假裡拿掉，但**跨日的假會被截斷、後段一併取消** ——
+   * 事後用 `droppedAfter` 告知已經來不及，老師按下去時不知道會波及三天。
+   *
+   * ⚠️ **文案只能說「可能」**：後端的連坐條件是「更早開始 **且** 之後才結束」，
+   * 而 roster 只回結束日、不回起始日。今天才開始的假會縮到明天起、不損失，
+   * 但前端分不出來 —— 說死「將一併取消」在那種情況是假的。
+   */
+  describe('跨日假的事前警告', () => {
+    function leaveRow(leaveEndDate: string | null) {
+      return [
+        {
+          studentId: 'l1',
+          studentName: '請假生',
+          grade: 'J1',
+          school: '測試國中',
+          recordId: 'r1',
+          status: 'on_leave' as const,
+          hasLeaveRequest: true,
+          leaveEndDate,
+        },
+      ];
+    }
+
+    it('假期超過這堂課那天 → 事前就講出來', async () => {
+      panelDate = todayLocal();
+      await render(leaveRow('2026-12-25'));
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('2026-12-25');
+      expect(text).toContain('可能');
+    });
+
+    it('假期就是這一天 → 不警告（銷假不會損失任何東西）', async () => {
+      panelDate = todayLocal();
+      await render(leaveRow(todayLocal()));
+      expect(fixture.nativeElement.textContent).not.toContain('可能一併取消');
+    });
+
+    it('沒有結束日資訊 → 不警告，不要憑空嚇人', async () => {
+      panelDate = todayLocal();
+      await render(leaveRow(null));
+      expect(fixture.nativeElement.textContent).not.toContain('可能一併取消');
     });
   });
 });
