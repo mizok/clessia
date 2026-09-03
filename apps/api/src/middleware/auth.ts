@@ -2,6 +2,7 @@ import { createMiddleware } from 'hono/factory';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAuth } from '../lib/get-auth';
 import { createServiceClientFromEnv } from '../lib/supabase';
+import { createLatencyProbe } from '../lib/supabase-latency-probe';
 import { isAccountUsable } from './account-status';
 import { hasPermission } from '../lib/permissions';
 import { isCampusAllowed, resolveCampusScope } from '../lib/campus-scope';
@@ -20,7 +21,11 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   }
 
   // Create service role client (no RLS - auth is handled at middleware level)
-  const supabase: SupabaseClient = createServiceClientFromEnv(c.env);
+  // ⚠️ **臨時**的延遲探針（2026-09-03 立案，跑一天拿掉）——
+  // 統計這個請求打了幾支 supabase 查詢、合計多久、最慢是哪一支。
+  // 要回答的是「業務路由要不要改走 pg」，而那個數字從外部量不到。
+  const probe = createLatencyProbe();
+  const supabase: SupabaseClient = createServiceClientFromEnv(c.env, probe);
 
   // org 的唯一真相是 `ba_user.orgId`（Better Auth additionalField），不是 `profiles.org_id`。
   //
@@ -117,7 +122,15 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     }),
   );
 
-  return next();
+  await next();
+
+  // ⚠️ 臨時：**在這裡印，不是讓探針自己猜「平行查詢跑完了沒」** ——
+  // 猜的版本會在第一支結束時就印出 `count: 1`。跟 `lib/get-auth.ts` 的池收尾
+  // 同一個形狀：收尾要等 response 成形。
+  const probeLine = probe.format(`${c.req.method} ${new URL(c.req.url).pathname}`);
+  if (probeLine) console.error(probeLine);
+
+  return;
 });
 
 /**
