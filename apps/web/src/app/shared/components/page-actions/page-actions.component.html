@@ -13,8 +13,9 @@
 
 @if (primary(); as action) {
   <!-- 手機：停靠在 bottom-bar 正上方。
-       `__spacer` 是留白佔位 —— 停靠列是 fixed，不留這塊的話它會蓋住清單最後一列。 -->
-  <div class="page-actions__spacer" aria-hidden="true"></div>
+       **底部留白不在這裡** —— 這個元件宣告在頁面標頭，佔位塊放這裡等於保留了
+       標頭下方的空間，而停靠列蓋住的是清單最後一列。留白由 `.shell-content`
+       用 `:has()` 自己處理，見 styles.scss。 -->
   <div class="page-actions__dock">
     <p-button
       styleClass="page-actions__cta"

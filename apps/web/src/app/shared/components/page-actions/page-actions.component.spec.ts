@@ -44,14 +44,22 @@ describe('PageActionsComponent', () => {
     expect(host.querySelector('.page-actions__spacer')).toBeNull();
   });
 
-  // ── 佔位塊 ────────────────────────────────────────────────────────────────
-  // 停靠列是 fixed，沒有這塊留白它會蓋住清單最後一列。這是「fixed 元素」
-  // 最常見的漏做，而且症狀是「最後一筆資料點不到」——
-  // 使用者不會說「被蓋住了」，只會說「最後一個按不到」。
-  it('有主要行動時一定有佔位塊 —— 否則停靠列會蓋住最後一列', async () => {
+  // ── 底部留白不歸這個元件管 ────────────────────────────────────────────────
+  // 停靠列是 fixed，一定要有人替它保留底部空間 —— 沒有的話它會蓋住清單最後一列，
+  // 而使用者不會說「被蓋住了」，只會說「**最後一個按不到**」。
+  //
+  // 第一版我把佔位塊放在這個元件裡。**那是錯的**：元件宣告在頁面**標頭**，
+  // 佔位塊放這裡保留的是標頭下方的空間，而要保留的是**頁尾**。
+  // 改由 `.shell-content:has(.page-actions__dock)` 在 styles.scss 處理。
+  //
+  // 這條測試釘的是「元件不要自作聰明再長回一塊」——
+  // 它在錯的位置，加回來只會多出一段沒有作用的留白。
+  it('元件本身不放佔位塊 —— 底部留白由 shell-content 負責', async () => {
     await setup({ label: '新增人員' });
 
-    expect(host.querySelector('.page-actions__spacer')).not.toBeNull();
+    expect(host.querySelector('.page-actions__spacer')).toBeNull();
+    // 但停靠列本身要在，才有東西讓 shell-content 的 :has() 選到
+    expect(host.querySelector('.page-actions__dock')).not.toBeNull();
   });
 
   // ── 只收一顆 ──────────────────────────────────────────────────────────────

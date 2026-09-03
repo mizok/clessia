@@ -16,13 +16,6 @@ $bottom-bar-height: 64px;
     display: none;
   }
 
-  // 停靠列是 fixed，這塊留白替它在文件流裡佔位。
-  // 沒有它的話停靠列會蓋住清單最後一列 —— 而使用者不會說「被蓋住了」，
-  // 只會說「最後一個按不到」。
-  &__spacer {
-    height: calc(#{$bottom-bar-height} + var(--space-3) * 2 + 44px);
-  }
-
   &__dock {
     position: fixed;
     right: 0;
@@ -45,7 +38,6 @@ $bottom-bar-height: 64px;
       gap: var(--space-2);
     }
 
-    &__spacer,
     &__dock {
       display: none;
     }

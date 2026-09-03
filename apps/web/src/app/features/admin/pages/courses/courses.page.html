@@ -19,7 +19,7 @@
       </div>
       <p class="courses__subtitle">層級管理課程與班級，設定上課時間</p>
     </div>
-    <div class="courses__header-actions">
+    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateCourseDialog()">
       <p-button
         label="操作紀錄"
         icon="pi pi-history"
@@ -27,8 +27,7 @@
         severity="secondary"
         (onClick)="openAuditLog()"
       />
-      <p-button label="新增課程" icon="pi pi-plus" (onClick)="openCreateCourseDialog()" />
-    </div>
+    </app-page-actions>
   </header>
 
   <!-- Filter Bar -->
