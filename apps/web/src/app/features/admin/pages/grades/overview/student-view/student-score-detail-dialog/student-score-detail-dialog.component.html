@@ -199,6 +199,17 @@
                       record.score !== null && record.score < 60
                     "
                   >
+                    <!--
+                      **形狀訊號要跟桌機一致。** 上面那張表的不及格有 icon +
+                      aria-label，這張卡片原本只有顏色 —— 而顏色不能是唯一的區分
+                      （WCAG 1.4.1）。雙軌實作漂移的實例。
+                    -->
+                    @if (record.score !== null && record.score < 60) {
+                      <i
+                        class="pi pi-exclamation-triangle student-score-detail-dialog__fail-icon"
+                        aria-label="不及格"
+                      ></i>
+                    }
                     {{ formatScore(record.score, record.totalScore) }}
                   </span>
                 </div>
