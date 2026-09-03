@@ -123,6 +123,25 @@ function blocks(rawSource) {
 /** PrimeNG 的東西由全域 token 管，掃它只會誤報 */
 const PRIMENG = /(^|[\s>+~.:[])p-[a-z]|::ng-deep|--p-/;
 
+/**
+ * **焦點哨兵不是觸控目標。**
+ *
+ * 鍵盤陷阱（dialog / drawer）會放一個 1×1 的元素當 focus 的落點：它是給 Tab 走的，
+ * 使用者永遠不會用手指點它，把它撐成 44px 反而會在版面上戳出一個看不見的洞。
+ *
+ * 判準刻意很窄：**兩軸都明寫且都 ≤ 2px**。真正的觸控目標不會長這樣，
+ * 而放寬到「很小就算哨兵」會把 32px 的小按鈕一起放掉 —— 那正是要抓的東西。
+ *
+ * 目前 repo 裡沒有這種元素（2026-09-04 掃過，0 個），這是預防性的：
+ * 加 dialog 的鍵盤陷阱時很可能就會出現，而那時它會長得像一筆違規。
+ */
+function isFocusSentinel(sizes) {
+  const w = sizes.filter((s) => /width$/.test(s.prop)).map((s) => s.px);
+  const h = sizes.filter((s) => /height$/.test(s.prop)).map((s) => s.px);
+  if (w.length === 0 || h.length === 0) return false;
+  return Math.max(...w) <= 2 && Math.max(...h) <= 2;
+}
+
 /** 去掉 `:hover` / `:focus-visible` 之類，讓「同一個元素的不同狀態」對得起來 */
 const baseKey = (sel) => sel.replace(/::?[a-z-]+(\([^)]*\))?/g, '').trim();
 
@@ -169,6 +188,8 @@ export function touchTargetViolations(files) {
       const key = baseKey(b.selector);
       const f = floor.get(key) ?? { base: null, coarse: null };
       const effective = Math.max(f.coarse ?? 0, f.base ?? 0);
+
+      if (isFocusSentinel(sizeDecls(b.decls))) continue;
 
       if (f.base === null && f.coarse === null) {
         found.push({ file: path, line: b.line, selector: b.selector, kind: 'no-floor' });

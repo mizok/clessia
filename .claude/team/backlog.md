@@ -30,12 +30,11 @@
 3. 期繳試算:收費週期選單(子元件已抽好)[認領 admin-pages-c3]
 4. charter 蒸餾:git add -A 在切過分支的工作區不安全 / 測行為不測實作
 
-## billing-api
+## billing-api(整理 2026-09-03 晚)
 
-1. 聚合端點 GET /api/workbench/today(進行中,交接單在 team/)
-2. c2 乙類驗證 [認領 pin-better-auth-3c 13:25]:挑 me.ts:124 做一處 auth.api.updateUser 的可行性驗證,回報錯誤形狀
-3. ~~executionCtx 統一~~(#215 完成待合,排 #209 之後 rebase —— 實際 86 處三種寫法,可選鏈假防護已修)
-4. POST /api/announcements/read-all [認領 pin-better-auth-3c 14:0x](bulk 已讀;前端逐一版已出,這支是效率+原子性升級)
+1. ~~聚合端點~~(#205 已合)/ ~~c2 乙類~~(#225 已合)/ ~~bulk 已讀~~(#219 已合)/ ~~main 紅修~~(#243 已合)/ ~~蒸餾~~(#244 綠待 steward)
+2. #215 解衝突(#209 合後 —— 唯一擋點是使用者窗口)
+3. 500 案回查:用 #163 加的 observability 查散發 500 有沒有再發;無再發就正式結案寫 lessons,有就帶 log 升級
 
 ## infra
 
