@@ -4,11 +4,11 @@
 > (認領=SendMessage 向計畫席宣告,由計畫席落標記 —— worktree 推不動 main)。
 > 佇列項都是預先批准的;設計類產出照舊過 STOP gate。計畫席保證每席佇列 ≥2 項。
 
-## teacher-pages
+## teacher-pages(整理 2026-09-04 凌晨)
 
-1. notifications 規格落差小刀 [認領 teacher-pages-5b 11:42]:全部已讀(前端逐一版)+修 spec(收件匣=公告);類型圖示裁不做(無資料),課務異動推播歸 P4 通知線
-2. students/notifications 兩頁補斷點(0 media query,1280 下一列 944px;dashboard 不補 —— 今日流會刪它)
-3. (窗口批准後)今日流主刀
+1. ~~notifications 規格落差~~ 完成 / ~~兩頁斷點~~(#201/#208 用 max-width 上限吸收,工單問錯方向)/ ~~今日流~~(#226 已合)/ ~~#247/#248/#253~~ 已合
+2. 前端接 `POST /api/announcements/read-all`(API 是 #219,**已在 main**)—— 把「全部已讀」從 N 個 request 換成一發;先查有沒有人接過
+3. 驗銷假警告是否已用 leaveStartDate 說「將」(API 是 #222,**已在 main**)—— 已接就回報結案,沒接就接上
 
 ## design-web(整理 2026-09-04 凌晨)
 
