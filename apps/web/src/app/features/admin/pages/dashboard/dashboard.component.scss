@@ -434,3 +434,81 @@
     font-size: var(--text-2xl);
   }
 }
+
+// ── 日到班看板 ────────────────────────────────────────────────────────
+// 晨間的主場景很可能是拿著手機在門口勾，所以動作的觸控目標是硬要求。
+
+.dashboard__board-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.dashboard__board-group {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--zinc-600);
+}
+
+.dashboard__board {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard__board-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--zinc-100);
+}
+
+.dashboard__board-row:last-child {
+  border-bottom: 0;
+}
+
+.dashboard__board-who {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+// 主要動作。**44px 是下限不是目標** —— 這一頁在手機上是主場景。
+.dashboard__board-action {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--zinc-300);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--zinc-800);
+  cursor: pointer;
+}
+
+.dashboard__board-action:hover:not(:disabled),
+.dashboard__board-action:focus-visible {
+  border-color: var(--zinc-400);
+  background: var(--zinc-50);
+}
+
+.dashboard__board-action:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+// 窄螢幕：姓名與年級／課程各一行，**不砍掉姓名以外的欄位** ——
+// 行政要靠「今天上什麼課」確認是不是找錯人。
+@include bp.respond-to('mobile') {
+  .dashboard__board-action {
+    padding: 0 var(--space-3);
+  }
+}

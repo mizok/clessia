@@ -20,7 +20,7 @@ import { DayTimelineComponent } from '@shared/components/day-timeline/day-timeli
 import { AuthService } from '@core/auth.service';
 import { EnrollmentsService } from '@core/enrollments.service';
 import { LeaveService, type LeaveRequest } from '@core/leave.service';
-import { OrgSettingsService, type AttendanceMode } from '@core/org-settings.service';
+import type { AttendanceMode } from '@core/org-settings.service';
 import { SchoolExamsService } from '@core/school-exams.service';
 import { StudentsService } from '@core/students.service';
 import { RoutesCatalog, type RouteObj } from '@core/smart-enums/routes-catalog';
@@ -91,6 +91,12 @@ function countOf(items: readonly unknown[] | 'error' | null): CardValue {
 /** 回溯窗：昨天忘記點的今天要追得到，更久以前的漏點名是報表該查的異常 */
 const UNTAKEN_LOOKBACK_DAYS = 7;
 
+import {
+  WorkbenchService,
+  type WorkbenchExpectedStudent,
+  type WorkbenchToday,
+} from '@core/workbench.service';
+import { DailyCheckinsService } from '@core/daily-checkins.service';
 @Component({
   selector: 'app-dashboard',
   imports: [StatusDotComponent, RouterLink, DayTimelineComponent, CollapsibleComponent],
@@ -107,7 +113,8 @@ export class DashboardComponent {
   private readonly schoolExamsService = inject(SchoolExamsService);
   private readonly studentsService = inject(StudentsService);
   private readonly enrollmentsService = inject(EnrollmentsService);
-  private readonly orgSettingsService = inject(OrgSettingsService);
+  private readonly workbenchService = inject(WorkbenchService);
+  private readonly dailyCheckinsService = inject(DailyCheckinsService);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -214,6 +221,152 @@ export class DashboardComponent {
     this.destroyRef.onDestroy(() => ref?.destroy());
   }
 
+  // ── 日到班看板 ────────────────────────────────────────────────────────
+  //
+  // **晨間視角是「誰還沒到」，不是「誰到了」。** 一張列出全部學生的表，行政要自己
+  // 掃描找出缺口；而晨間真正的工作是**追還沒到的人**（打電話問家長、確認是不是請假）。
+  //
+  // 三段的順序就是它們的重要性：還沒到（工作）→ 已請假（別打那通電話）→ 已到（確認）。
+
+  protected readonly isDailyCheckin = computed(() => this.attendanceMode() === 'daily_checkin');
+
+  private readonly arrivedById = computed(
+    () => new Map((this.workbench()?.arrived ?? []).map((a) => [a.studentId, a])),
+  );
+
+  /**
+   * 已請假的學生。**這是第三種狀態，不是「還沒到」的一種** ——
+   * 混在一起行政會去打一通不必要的電話。
+   */
+  protected readonly leaveList = computed(() => this.workbench()?.onLeave ?? []);
+
+  private readonly onLeaveIds = computed(
+    () => new Set(this.leaveList().map((leave) => leave.studentId)),
+  );
+
+  /**
+   * 還沒到 = 應到 − 已到 − 已請假，**依分校分組**。
+   *
+   * 分組而不是「先選分校再看」（使用者裁定）：分組在分校隔離落地前後都成立 ——
+   * 現在管理者看到全部分校各自的缺口，有隔離之後他只會拿到自己那組，同一段 UI
+   * 不用改。單一分校的機構不顯示分組標題。
+   */
+  protected readonly notArrivedGroups = computed(() => {
+    const arrived = this.arrivedById();
+    const onLeave = this.onLeaveIds();
+    const pending = (this.workbench()?.expected ?? []).filter(
+      (student) => !arrived.has(student.studentId) && !onLeave.has(student.studentId),
+    );
+
+    const groups = new Map<string, { campusName: string; students: typeof pending }>();
+    for (const student of pending) {
+      const key = student.campusId ?? '';
+      const group = groups.get(key) ?? {
+        campusName: student.campusName ?? '未指定分校',
+        students: [],
+      };
+      group.students.push(student);
+      groups.set(key, group);
+    }
+
+    return [...groups.values()];
+  });
+
+  protected readonly notArrivedCount = computed(() =>
+    this.notArrivedGroups().reduce((sum, group) => sum + group.students.length, 0),
+  );
+
+  /** 已到：把打卡時間接回名字。應到名單是唯一有名字的來源。 */
+  protected readonly arrivedList = computed(() => {
+    const names = new Map(
+      (this.workbench()?.expected ?? []).map((s) => [s.studentId, s.studentName]),
+    );
+    return (this.workbench()?.arrived ?? []).map((arrival) => ({
+      ...arrival,
+      studentName: names.get(arrival.studentId) ?? '（不在今天的名單上）',
+    }));
+  });
+
+  protected readonly boardBusy = signal<string | null>(null);
+
+  /** 「已到」預設收合 —— 它是確認不是工作。這裡不記 localStorage：跨天沒有意義。 */
+  protected readonly arrivedCollapsed = signal(true);
+
+  protected toggleArrived(): void {
+    this.arrivedCollapsed.update((collapsed) => !collapsed);
+  }
+
+  /** `HH:mm`。打卡時間是 ISO 字串，而行政要看的是「幾點到的」。 */
+  protected arrivalClock(isoTime: string): string {
+    const at = new Date(isoTime);
+    return Number.isNaN(at.getTime())
+      ? '—'
+      : `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+  }
+
+  /**
+   * 勾到班。
+   *
+   * **勾完只顯示「已到班 09:12」，不顯示「已為 N 堂課記錄出席」** —— 後者取決於
+   * API 那邊的散播規則（`#178`：只寫他有報名的課），是機器的推論而不是觀察到的
+   * 事實。把推論寫成事實，之後規則一改那句話就變成謊。
+   */
+  protected checkIn(student: WorkbenchExpectedStudent): void {
+    if (this.boardBusy() !== null) return;
+    this.boardBusy.set(student.studentId);
+
+    this.dailyCheckinsService
+      .checkIn({
+        studentId: student.studentId,
+        checkinDate: this.todayIso,
+        campusId: student.campusId ?? undefined,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (checkin) => {
+          // 用回應而不是樂觀更新 —— 到班時間是伺服器給的，猜一個會跟事實差幾秒
+          this.workbench.update((current) =>
+            current === null
+              ? current
+              : {
+                  ...current,
+                  arrived: [
+                    ...current.arrived,
+                    {
+                      studentId: checkin.studentId,
+                      checkedInAt: checkin.checkedInAt,
+                      checkinId: checkin.id,
+                    },
+                  ],
+                },
+          );
+          this.boardBusy.set(null);
+        },
+        error: () => this.boardBusy.set(null),
+      });
+  }
+
+  /** 勾錯了。取消會連同它寫出來的出勤紀錄一起刪（不是改成缺席）。 */
+  protected cancelArrival(checkinId: string): void {
+    if (this.boardBusy() !== null) return;
+    this.boardBusy.set(checkinId);
+
+    this.dailyCheckinsService
+      .cancel(checkinId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.workbench.update((current) =>
+            current === null
+              ? current
+              : { ...current, arrived: current.arrived.filter((a) => a.checkinId !== checkinId) },
+          );
+          this.boardBusy.set(null);
+        },
+        error: () => this.boardBusy.set(null),
+      });
+  }
+
   protected toggleTimeline(): void {
     const next = !this.timelineCollapsed();
     this.storedCollapsed.set(next);
@@ -240,6 +393,8 @@ export class DashboardComponent {
   private readonly enrollmentChanges = signal<CardValue>(null);
   /** `null` 代表讀不到機構設定 */
   private readonly attendanceMode = signal<AttendanceMode | null>(null);
+  /** 日到班看板要用的那三段（應到／已到／請假）。逐堂模式下它們是空陣列。 */
+  private readonly workbench = signal<WorkbenchToday | null>(null);
 
   /**
    * **`null` 是「還不知道」，不是「沒有」。**
@@ -383,15 +538,24 @@ export class DashboardComponent {
     // `takeUntilDestroyed` 的泛型是在呼叫點推導的 —— 存成 const 會把 T 定死成
     // `unknown`，後面每個 subscribe 的 res 都變 unknown。所以逐一 inline 呼叫。
 
-    // ① 橘帶：整頁最顯眼的位置，第一個發也第一個填
-    failSoft(this.attendanceService.sessions({ date: this.todayIso, pageSize: 100 }))
+    // ① 橘帶＋作業台主體：**一支取代兩支**（今日課表 + 點名模式）。
+    //
+    // 原本這兩件事分兩支發，於是「今天幾堂課」與「這個機構怎麼點名」會在不同時間
+    // 抵達，畫面先用 per_session 的語言渲一次再改口。合成一支之後兩者同時到 ——
+    // 而**形狀的判斷本來就該只有一份，在伺服器**。
+    //
+    // 日到班模式下這一支還順便帶回應到／已到／請假，前端不必再打三支。
+    failSoft(this.workbenchService.today())
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) => this.todaySessions.set(res === FAILED ? FAILED : res.data));
-
-    // ② 待處理：未點名要先知道機構的點名模式才決定渲不渲染
-    failSoft(this.orgSettingsService.getSettings())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) => this.attendanceMode.set(res === FAILED ? null : res.attendanceMode));
+      .subscribe((res) => {
+        if (res === FAILED) {
+          this.todaySessions.set(FAILED);
+          return;
+        }
+        this.todaySessions.set(res.sessions);
+        this.attendanceMode.set(res.mode);
+        this.workbench.set(res);
+      });
 
     failSoft(
       this.attendanceService.sessions({
