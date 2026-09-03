@@ -21,7 +21,7 @@ import {
   type BatchCheckRow,
   type BatchCheckError,
   type BatchCheckResponse,
-} from '../../../../../core/parents.service';
+} from '@core/parents.service';
 
 // 年級對照表
 const GRADE_MAP: Record<string, string> = {

@@ -6,11 +6,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
+import { crossFeatureImports } from './lib/feature-boundaries.mjs';
 import { touchTargetViolations } from './lib/touch-target.mjs';
 import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
@@ -626,7 +628,6 @@ test('頂層 @use 不能污染後續 selector 的父層解析', () => {
   );
 });
 
-
 // ── PrimeNG 模組的孤兒 import ────────────────────────────────────────────────
 // Angular 的 NG8113 不涵蓋 NgModule，所以這個坑在 repo 裡長出來過兩次。
 
@@ -675,7 +676,10 @@ test('拇指區：抓得到標頭裡直接放的 p-button', () => {
   assert.deepEqual(
     headerActionButtons([
       { path: 'a.html', source: '<div class="x__header-actions"><p-button label="新增" /></div>' },
-      { path: 'b.html', source: '<app-page-actions [primary]="p"><p-button label="匯入" /></app-page-actions>' },
+      {
+        path: 'b.html',
+        source: '<app-page-actions [primary]="p"><p-button label="匯入" /></app-page-actions>',
+      },
       { path: 'c.html', source: '<div class="x__header-actions"></div>' },
     ]),
     ['a.html'],
@@ -689,7 +693,8 @@ test('拇指區：投影進 app-page-actions 的按鈕不算違規', () => {
     headerActionButtons([
       {
         path: 'a.html',
-        source: '<app-page-actions [primary]="p">\n  <p-button label="操作紀錄" />\n</app-page-actions>',
+        source:
+          '<app-page-actions [primary]="p">\n  <p-button label="操作紀錄" />\n</app-page-actions>',
       },
     ]),
     [],
@@ -712,4 +717,69 @@ test('拇指區：破壞性清單涵蓋停用與結束，不只刪除', () => {
     { path: 'b.ts', source: "PageAction = { label: '結束考試' };" },
   ]);
   assert.equal(hits.length, 2);
+});
+
+// ── A18：feature 之間不得互相 import（c5）────────────────────────────────────────────
+//
+// 這支跑真的檔案系統（它的工作就是解析相對路徑），所以用 mkdtemp 建一棵小樹，
+// 而不是餵字串 —— 餵字串會把「路徑解析」這個唯一的重點測掉。
+test('c5 只擋跨 feature，同 feature 與 features 外都放行', () => {
+  const root = mkdtempSync(join(tmpdir(), 'c5-'));
+  const features = join(root, 'features');
+  const mk = (rel, body) => {
+    mkdirSync(dirname(join(features, rel)), { recursive: true });
+    writeFileSync(join(features, rel), body);
+  };
+
+  mk('admin/pages/a.ts', "import { x } from '../../teacher/pages/b';");
+  mk('admin/pages/same.ts', "import { y } from '../other/c';");
+  mk('admin/pages/out.ts', "import { z } from '../../../core/svc';");
+  mk('teacher/pages/b.ts', 'export const x = 1;');
+
+  const hits = crossFeatureImports(features, root);
+  assert.equal(hits.length, 1, `只該有一筆跨 feature：${JSON.stringify(hits)}`);
+  assert.equal(hits[0].from, 'admin');
+  assert.equal(hits[0].to, 'teacher');
+});
+
+// **第一版漏掉別名。** 我掃了實際 import 用法、看到零次 `@features/`，就下了
+// 「沒有這個別名」的結論 —— 但 tsconfig 裡它一直都在。**「沒有人用」不等於「不能用」**：
+// 別名擺在那，任何人明天就能寫出一個只擋相對路徑的 gate 看不見的跨 feature import。
+// 這條測試同時釘住兩件事：別名要抓得到、而且 tsconfig 真的有定義它們。
+test('c5 也要抓別名寫法（@features/ 與 @app/features/）', () => {
+  const root = mkdtempSync(join(tmpdir(), 'c5a-'));
+  const app = join(root, 'app');
+  const features = join(app, 'features');
+  const mk = (rel, body) => {
+    mkdirSync(dirname(join(features, rel)), { recursive: true });
+    writeFileSync(join(features, rel), body);
+  };
+  const aliases = { '@features/': features, '@app/': app };
+
+  mk('admin/a.ts', "import { x } from '@features/teacher/b';");
+  mk('admin/b.ts', "import { y } from '@app/features/teacher/b';");
+  mk('admin/c.ts', "import { z } from '@core/svc';"); // 不在 features 底下 → 放行
+  mk('admin/d.ts', "import { w } from '@features/admin/other';"); // 同 feature → 放行
+  mk('teacher/b.ts', 'export const x = 1;');
+
+  const hits = crossFeatureImports(features, root, aliases);
+  assert.equal(hits.length, 2, `兩種別名寫法都該抓到：${JSON.stringify(hits)}`);
+  assert.ok(hits.every((h) => h.from === 'admin' && h.to === 'teacher'));
+});
+
+// tsconfig 真的定義了那些別名 —— 前提變了（例如有人加 @pages/*）這條會提醒去擴充 gate
+test('c5 的別名清單與 tsconfig 對得上', () => {
+  const raw = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../apps/web/tsconfig.json'),
+    'utf8',
+  )
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  const paths = Object.keys(JSON.parse(raw).compilerOptions?.paths ?? {});
+  const reachFeatures = paths.filter((p) => p === '@features/*' || p === '@app/*');
+  assert.deepEqual(
+    reachFeatures.sort(),
+    ['@app/*', '@features/*'],
+    `能走到 features 的別名變了（現有：${paths.join(', ')}）—— check-harness 的 aliases 要跟著改`,
+  );
 });
