@@ -17,6 +17,8 @@
 | [design-web.md](design-web.md)   | 視覺/設計系統/web 效能 | tokens、SCSS、bundle、mockup、登入與公開頁       | `design-web`  |
 | （共用 design-web.md）           | 視覺/設計系統/web 效能 | design-web 的第二席，同 charter，分工由計畫席派  | `design-web-2` |
 | [admin-pages.md](admin-pages.md) | 管理端頁面             | admin feature 頁、dialog、表格、儀表板           | `admin-pages` |
+| [review-steward.md](review-steward.md) | 審核/合併/部署機械工(可 idle) | CI 巡檢、v2 代合、部署、內容驗證 | `review-steward` |
+| [ops-warden.md](ops-warden.md) | 席位巡檢監工(可 idle) | 存活檢查、通訊救援、帳面抽查 | `ops-warden` |
 | [teacher-pages.md](teacher-pages.md) | 老師端頁面（行動優先） | teacher feature 頁、手機課表、點名、成績登錄    | `teacher-pages` |
 | [infra.md](infra.md)             | CI/harness/依賴/工具債 | verify 序列、gate、憲法 enforcement、升版        | `infra`       |
 
