@@ -218,6 +218,25 @@ export class AttendanceRosterPanelComponent implements OnInit {
   }
 
   /**
+   * 這張假延伸到這堂課之後的哪一天 —— 沒有就回 `null`。
+   *
+   * 用途是**事前**警告：銷假只把今天從假裡拿掉，但跨日的假會被截斷、後段一併取消。
+   * `droppedAfter` 是事後才知道，那時已經來不及。
+   *
+   * ⚠️ **這個判斷是保守的、會過度警告。** 後端的連坐條件是
+   * 「更早開始 **且** 之後才結束」——「今天才開始」的假會縮到明天起、**不損失**。
+   * 但 roster 只回結束日不回起始日（同一天可能被兩張假蓋到，回一組起訖等於謊稱是同一張），
+   * 所以前端分不出這兩種。文案因此只能說「**可能**」——
+   * 說死「將一併取消」在「今天才開始」那種情況是假的，而假警告會讓人學會忽略警告。
+   *
+   * 要精確就需要 roster 再回一個起始日，已開需求單。
+   */
+  protected leaveExtendsBeyond(student: RosterStudent): string | null {
+    const end = student.leaveEndDate;
+    return end && end > this.session.eventDate ? end : null;
+  }
+
+  /**
    * 銷假：這個請假的學生今天到了。
    *
    * 成功後**重抓 roster 而不是自己改本地狀態** —— 後端銷假會連帶刪掉 `on_leave`
