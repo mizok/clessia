@@ -11,16 +11,16 @@
 
 ## 席位表
 
-| Charter                          | Domain                 | 典型工作                                         | Herdr pane 名 |
-| -------------------------------- | ---------------------- | ------------------------------------------------ | ------------- |
-| [billing-api.md](billing-api.md) | 金流/API/auth 核心     | schema、Hono 路由、Better Auth、Workers 執行環境 | `billing-api` |
-| [design-web.md](design-web.md)   | 視覺/設計系統/web 效能 | tokens、SCSS、bundle、mockup、登入與公開頁       | `design-web`  |
-| （共用 design-web.md）           | 視覺/設計系統/web 效能 | design-web 的第二席，同 charter，分工由計畫席派  | `design-web-2` |
-| [admin-pages.md](admin-pages.md) | 管理端頁面             | admin feature 頁、dialog、表格、儀表板           | `admin-pages` |
-| [review-steward.md](review-steward.md) | 審核/合併/部署機械工(可 idle) | CI 巡檢、v2 代合、部署、內容驗證 | `review-steward` |
-| [ops-warden.md](ops-warden.md) | 席位巡檢監工(可 idle) | 存活檢查、通訊救援、帳面抽查 | `ops-warden` |
-| [teacher-pages.md](teacher-pages.md) | 老師端頁面（行動優先） | teacher feature 頁、手機課表、點名、成績登錄    | `teacher-pages` |
-| [infra.md](infra.md)             | CI/harness/依賴/工具債 | verify 序列、gate、憲法 enforcement、升版        | `infra`       |
+| Charter                                | Domain                        | 典型工作                                         | Herdr pane 名    |
+| -------------------------------------- | ----------------------------- | ------------------------------------------------ | ---------------- |
+| [billing-api.md](billing-api.md)       | 金流/API/auth 核心            | schema、Hono 路由、Better Auth、Workers 執行環境 | `billing-api`    |
+| [design-web.md](design-web.md)         | 視覺/設計系統/web 效能        | tokens、SCSS、bundle、mockup、登入與公開頁       | `design-web`     |
+| （共用 design-web.md）                 | 視覺/設計系統/web 效能        | design-web 的第二席，同 charter，分工由計畫席派  | `design-web-2`   |
+| [admin-pages.md](admin-pages.md)       | 管理端頁面                    | admin feature 頁、dialog、表格、儀表板           | `admin-pages`    |
+| [review-steward.md](review-steward.md) | 審核/合併/部署機械工(可 idle) | CI 巡檢、v2 代合、部署、內容驗證                 | `review-steward` |
+| [ops-warden.md](ops-warden.md)         | 席位巡檢監工(可 idle)         | 存活檢查、通訊救援、帳面抽查                     | `ops-warden`     |
+| [teacher-pages.md](teacher-pages.md)   | 老師端頁面（行動優先）        | teacher feature 頁、手機課表、點名、成績登錄     | `teacher-pages`  |
+| [infra.md](infra.md)                   | CI/harness/依賴/工具債        | verify 序列、gate、憲法 enforcement、升版        | `infra`          |
 
 > Herdr pane 名 = 席位名（`herdr agent rename` 可改）。SendMessage 位址是 session
 > 自動命名、session 輪替就會變 —— **不要寫死在任何文件**，用 ListAgents 查當班的是誰。
@@ -104,6 +104,11 @@ DB 驗證)。計畫席決定關不關或轉問還在用的席。
   (#169 的請假誤判取捨,出處 admin-pages)。
 - **「放行」不等於「沒人在做」** —— 放行的人不一定知道另一條線的進度;動工前先問計畫席
   有沒有人已經在同一個檔案上(兩線平行做了同一道守衛的重工事故)。
+- **大衝突的驗收要兩道方向相反的證明** —— 一道證明「我的都進去了」(自己的識別字齊),
+  一道證明「別人的沒被壓掉」(對方的識別字計數與 main 一致)。第一道不涵蓋第二道
+  (#215 的 10 檔衝突解法,出處 billing-api)。
+- **完成與認領走同一條落檔路** —— 席位訊息宣告完成後,計畫席必須更新 backlog,否則假待辦
+  會變成重工派單(design-web 被重派已結案項的事故)。訊息 ≠ 紀錄。
 
 ## 席位復活程序(額度耗盡時)
 
@@ -111,6 +116,7 @@ DB 驗證)。計畫席決定關不關或轉問還在用的席。
 「/low-priority to continue」橫幅或 Session 0% —— 有則等額度回流後 `ctrl+u` 清殘字、
 nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自己死了的話,
 下一次成功的 wakeup 會執行全面點名復活;最壞情況 12:00/17:00 使用者任何輸入都會喚醒計畫席。
+
 - **清理自己的 process 用精準 kill**:先 `lsof -ti:<自己的port>` 拿 PID,或 pkill pattern
   必含自己的 worktree 路徑 —— 裸 `pkill -f "workerd serve"` 會殺掉所有席的 API
   (已發生:teacher-pages 誤殺 bundle-analysis 的 8787)。「不 kill 別人的 port」的
@@ -129,6 +135,7 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
    `WAITING-ON: 計畫席 <等什麼> since <HH:MM> msg_id=<id>`。
 4. **計畫席巡檢對帳**:每輪 tick 對 idle/done 的席讀 pane 尾部,見 WAITING-ON 或
    「等你/等批准」字樣就跟自己的收件記錄對帳 —— 對不上即為送達失敗,主動補救。
+
 - **解 `backlog.md` 衝突一律以 main 為基底、只改自己那一行**,解完 diff 對照確認沒動到
   別席的認領(「取我方」曾抹掉別席的認領記錄)。
 - **stash apply 之後、commit 之前,`git diff origin/main --stat` 看一遍檔案清單** ——
