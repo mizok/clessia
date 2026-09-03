@@ -13,6 +13,8 @@ import { SchoolExamsService } from '@core/school-exams.service';
 import { StudentsService } from '@core/students.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
+import { WorkbenchService } from '@core/workbench.service';
+import { DailyCheckinsService } from '@core/daily-checkins.service';
 import { DashboardComponent } from './dashboard.component';
 import { format } from 'date-fns';
 
@@ -69,6 +71,23 @@ function leave(overrides: Partial<LeaveRequest> = {}): LeaveRequest {
 }
 
 interface SetupOptions {
+  /** 日到班看板的三段。逐堂模式的測試不必給。 */
+  workbenchExpected?: {
+    studentId: string;
+    studentName: string;
+    grade: string | null;
+    campusId: string | null;
+    campusName: string | null;
+    firstSession: { startTime: string | null; className: string } | null;
+  }[];
+  workbenchArrived?: { studentId: string; checkedInAt: string; checkinId: string }[];
+  workbenchOnLeave?: {
+    studentId: string;
+    studentName: string;
+    startDate: string;
+    endDate: string;
+    submittedByRole: string;
+  }[];
   todaySessions?: EventSessionSummary[];
   recentSessions?: EventSessionSummary[];
   leaves?: LeaveRequest[];
@@ -96,6 +115,9 @@ describe('DashboardComponent（管理端）', () => {
   const studentsMock = vi.fn();
   const enrollmentsMock = vi.fn();
   const orgSettingsMock = vi.fn();
+  const workbenchMock = vi.fn();
+  const checkInMock = vi.fn();
+  const cancelMock = vi.fn();
 
   function sessionList(data: EventSessionSummary[]) {
     return of({
@@ -118,6 +140,9 @@ describe('DashboardComponent（管理端）', () => {
       fail,
       pending,
       onlySessions,
+      workbenchExpected = [],
+      workbenchArrived = [],
+      workbenchOnLeave = [],
     } = options;
 
     /**
@@ -136,6 +161,9 @@ describe('DashboardComponent（管理端）', () => {
       studentsMock,
       enrollmentsMock,
       orgSettingsMock,
+      workbenchMock,
+      checkInMock,
+      cancelMock,
     ]) {
       mock.mockReset();
     }
@@ -187,12 +215,34 @@ describe('DashboardComponent（管理端）', () => {
           ? boom
           : of({ id: 'o1', name: '補習班', attendanceMode: mode }),
     );
+    // 作業台的聚合端點：**一支帶回今日課表 + 點名模式 + 日到班的三段**。
+    // 原本前兩者是兩支，於是畫面會先用 per_session 的語言渲一次再改口。
+    workbenchMock.mockReturnValue(
+      pending
+        ? NEVER
+        : fail === 'sessions' || fail === 'org'
+          ? boom
+          : of({
+              date: '2026-08-30',
+              mode,
+              sessions: todaySessions,
+              rosters: [],
+              expected: workbenchExpected,
+              arrived: workbenchArrived,
+              onLeave: workbenchOnLeave,
+            }),
+    );
 
     await TestBed.configureTestingModule({
       imports: [DashboardComponent],
       providers: [
         provideRouter([]),
         { provide: AttendanceService, useValue: { sessions: sessionsMock } },
+        { provide: WorkbenchService, useValue: { today: workbenchMock } },
+        {
+          provide: DailyCheckinsService,
+          useValue: { checkIn: checkInMock, cancel: cancelMock },
+        },
         { provide: LeaveService, useValue: { list: leavesMock } },
         { provide: AcademyExamsService, useValue: { getTodoCount: academyTodoMock } },
         { provide: SchoolExamsService, useValue: { getTodoCount: schoolTodoMock } },
@@ -253,13 +303,23 @@ describe('DashboardComponent（管理端）', () => {
     expect(card('本月報名異動')?.routerLink).toBe(RoutesCatalog.ADMIN_ENROLLMENTS.absolutePath);
   });
 
-  it('今日課堂查今天，未點名查回溯 7 天', async () => {
+  /**
+   * **今日課表改由聚合端點供給，不再自己打 `/api/attendance/sessions`。**
+   *
+   * 那一支現在只剩「逾期未點名」的回溯查詢。聚合端點不帶 `date` —— 伺服器用台北
+   * 時區的今天，前端不必自己算（而且算錯的方式很安靜：UTC 的凌晨會差一天）。
+   */
+  it('今日課表走聚合端點，回溯 7 天仍走 sessions', async () => {
     await setup();
 
-    const [todayArgs, recentArgs] = sessionsMock.mock.calls.map((c) => c[0]);
-    expect(todayArgs.date).toBe(TODAY);
-    expect(recentArgs.dateFrom < TODAY).toBe(true);
-    expect(recentArgs.dateTo).toBe(TODAY);
+    expect(workbenchMock).toHaveBeenCalledTimes(1);
+    expect(workbenchMock.mock.calls[0][0]).toBeUndefined();
+
+    const sessionCalls = sessionsMock.mock.calls.map((c) => c[0]);
+    expect(sessionCalls).toHaveLength(1);
+    expect(sessionCalls[0].dateFrom < TODAY).toBe(true);
+    expect(sessionCalls[0].dateTo).toBe(TODAY);
+
     expect(leavesMock.mock.calls[0][0]).toMatchObject({ coverDate: TODAY });
   });
 
@@ -326,7 +386,7 @@ describe('DashboardComponent（管理端）', () => {
   // 拆 forkJoin 的驗收條件：**其他請求還在飛的時候，橘帶已經填好**。
   // 這比量時間可靠 —— 時間隨網路變，而「會不會等最慢的那一支」是結構性的。
   // 用單一 forkJoin 的話這條必然失敗：它要全部完成才 emit。
-  it('橘帶不等其他請求 —— 今日課表一到就先渲染', async () => {
+  it('橘帶不等其他請求 —— 聚合端點一到就先渲染', async () => {
     await setup({ onlySessions: true, todaySessions: [session(), session({ eventId: 'e2' })] });
 
     const text = fixture.nativeElement.textContent as string;
@@ -412,6 +472,132 @@ describe('DashboardComponent（管理端）', () => {
       });
 
       expect(rows().every((r) => r.tagName !== 'BUTTON')).toBe(true);
+    });
+  });
+
+  /**
+   * 日到班看板。**晨間視角是「誰還沒到」，不是「誰到了」** ——
+   * 一張列出全部學生的表，行政要自己掃描找出缺口；而晨間真正的工作是追還沒到的人。
+   */
+  describe('日到班看板', () => {
+    const student = (
+      over: Partial<{
+        studentId: string;
+        studentName: string;
+        campusId: string | null;
+        campusName: string | null;
+      }> = {},
+    ) => ({
+      studentId: 'stu-1',
+      studentName: '林小明',
+      grade: '七年級',
+      campusId: 'campus-a',
+      campusName: '本館',
+      firstSession: { startTime: '09:00', className: '數學班 A' },
+      ...over,
+    });
+
+    async function board(options: Parameters<typeof setup>[0] = {}) {
+      await setup({ mode: 'daily_checkin', ...options });
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('還沒到 = 應到 − 已到 − 已請假', async () => {
+      const el = await board({
+        workbenchExpected: [
+          student({ studentId: 'a', studentName: '甲' }),
+          student({ studentId: 'b', studentName: '乙' }),
+          student({ studentId: 'c', studentName: '丙' }),
+        ],
+        workbenchArrived: [
+          { studentId: 'b', checkedInAt: '2026-08-30T01:12:00Z', checkinId: 'k1' },
+        ],
+        workbenchOnLeave: [
+          {
+            studentId: 'c',
+            studentName: '丙',
+            startDate: TODAY,
+            endDate: TODAY,
+            submittedByRole: 'parent',
+          },
+        ],
+      });
+
+      expect(el.textContent).toContain('還沒到（1）');
+      expect(component['notArrivedGroups']()[0].students.map((s) => s.studentId)).toEqual(['a']);
+    });
+
+    // 混在一起行政會去打一通不必要的電話
+    it('已請假的學生單獨列，不在「還沒到」裡', async () => {
+      const el = await board({
+        workbenchExpected: [student({ studentId: 'c', studentName: '丙' })],
+        workbenchOnLeave: [
+          {
+            studentId: 'c',
+            studentName: '丙',
+            startDate: TODAY,
+            endDate: TODAY,
+            submittedByRole: 'parent',
+          },
+        ],
+      });
+
+      expect(el.textContent).toContain('已請假（1）');
+      expect(component['notArrivedCount']()).toBe(0);
+    });
+
+    // 分組在分校隔離落地前後都成立；「先選分校再看」則兩邊都要改
+    it('多分校時依分校分組', async () => {
+      const el = await board({
+        workbenchExpected: [
+          student({ studentId: 'a', campusId: 'x', campusName: '本館' }),
+          student({ studentId: 'b', campusId: 'y', campusName: '二館' }),
+        ],
+      });
+
+      expect(el.textContent).toContain('本館');
+      expect(el.textContent).toContain('二館');
+    });
+
+    // 單一分校顯示分組標題是一句沒有資訊的話。
+    // **一個 it 只能 setup 一次** —— TestBed 不能在同一條測試裡建兩次。
+    it('單一分校不顯示分組標題', async () => {
+      const el = await board({ workbenchExpected: [student({ studentId: 'a' })] });
+
+      expect(el.querySelectorAll('.dashboard__board-group').length).toBe(0);
+    });
+
+    /**
+     * 勾完只顯示「已到班 09:12」，**不顯示「已為 N 堂課記錄出席」** ——
+     * 後者取決於 API 的散播規則，是機器的推論不是觀察到的事實。
+     */
+    it('勾到班之後只講到班時間，不宣稱替幾堂課記了出席', async () => {
+      const el = await board({
+        workbenchExpected: [student({ studentId: 'a', studentName: '甲' })],
+      });
+      // **在 setup 之後才設回傳值** —— setup 會 mockReset 所有 mock，
+      // 在它之前設會被清掉（第一次寫就踩了這個）
+      checkInMock.mockReturnValue(
+        of({
+          id: 'k9',
+          studentId: 'a',
+          campusId: 'campus-a',
+          checkinDate: TODAY,
+          checkedInAt: '2026-08-30T01:12:00Z',
+        }),
+      );
+
+      el.querySelector<HTMLButtonElement>('.dashboard__board-action')!.click();
+      await fixture.whenStable();
+
+      expect(component['notArrivedCount']()).toBe(0);
+      expect(component['arrivedList']()).toHaveLength(1);
+      expect(el.textContent).not.toContain('記錄出席');
+    });
+
+    it('逐堂點名模式不渲染看板', async () => {
+      const el = await board({ mode: 'per_session' });
+      expect(el.textContent).not.toContain('還沒到');
     });
   });
 

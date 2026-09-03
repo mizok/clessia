@@ -95,24 +95,139 @@
   }
 
   <div class="dashboard__cols">
-    <section class="dashboard__panel">
-      <div class="dashboard__panel-head">
-        <h2 class="dashboard__h2">今日課表</h2>
-        <a class="dashboard__panel-link" [routerLink]="['/admin/sessions']">
-          查看全部 <i class="pi pi-arrow-right"></i>
-        </a>
-      </div>
+    @if (isDailyCheckin()) {
+      <!--
+        **日到班的機構，左欄是到班看板而不是課表。**
 
-      @if (sessionsFailed()) {
-        <p class="dashboard__empty">今日課表讀取失敗</p>
-      } @else if (todaySessionList(); as sessions) {
-        @if (sessions.length === 0) {
-          <p class="dashboard__empty">今日尚無排課</p>
+        晨間視角是「誰還沒到」不是「誰到了」：一張列出全部學生的表，行政要自己掃描
+        找出缺口，而晨間真正的工作是追還沒到的人。三段的順序就是它們的重要性。
+
+        設計見 kb/wiki/architecture/today-workbench.md。
+      -->
+      <section class="dashboard__panel">
+        <div class="dashboard__panel-head">
+          <h2 class="dashboard__h2">還沒到（{{ notArrivedCount() }}）</h2>
+          <a class="dashboard__panel-link" [routerLink]="['/admin/sessions']">
+            今日課表 <i class="pi pi-arrow-right"></i>
+          </a>
+        </div>
+
+        @if (notArrivedCount() === 0) {
+          <p class="dashboard__empty">今天該到的都到了。</p>
         } @else {
-          <ul class="dashboard__spine">
-            @for (session of sessions; track session.sessionId) {
-              <li>
-                <!--
+          @for (group of notArrivedGroups(); track group.campusName) {
+            <!-- 單一分校的機構不顯示分組標題 —— 那是一句沒有資訊的話 -->
+            @if (notArrivedGroups().length > 1) {
+              <h3 class="dashboard__board-group">{{ group.campusName }}</h3>
+            }
+            <ul class="dashboard__board">
+              @for (student of group.students; track student.studentId) {
+                <li class="dashboard__board-row">
+                  <span class="dashboard__board-who">
+                    <span class="dashboard__spine-name">{{ student.studentName }}</span>
+                    <span class="dashboard__spine-meta">
+                      {{ student.grade ?? '—' }}
+                      @if (student.firstSession) {
+                        · {{ student.firstSession.startTime }} {{ student.firstSession.className }}
+                      }
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    class="dashboard__board-action"
+                    [disabled]="boardBusy() !== null"
+                    (click)="checkIn(student)"
+                  >
+                    勾到班
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        }
+
+        @if (leaveList().length > 0) {
+          <!--
+            **已請假是第三種狀態，不是「還沒到」的一種。**
+            混在一起行政會去打一通不必要的電話。
+          -->
+          <h3 class="dashboard__board-group">已請假（{{ leaveList().length }}）</h3>
+          <ul class="dashboard__board">
+            @for (leave of leaveList(); track leave.studentId) {
+              <li class="dashboard__board-row">
+                <span class="dashboard__board-who">
+                  <span class="dashboard__spine-name">{{ leave.studentName }}</span>
+                  <span class="dashboard__spine-meta">
+                    {{ leave.startDate }}–{{ leave.endDate }} · {{ leave.submittedByRole }}
+                  </span>
+                </span>
+              </li>
+            }
+          </ul>
+        }
+
+        @if (arrivedList().length > 0) {
+          <!-- 已到是「確認」不是「工作」，所以預設收合、排在最後 -->
+          <div class="dashboard__board-head">
+            <h3 class="dashboard__board-group">已到（{{ arrivedList().length }}）</h3>
+            <button
+              type="button"
+              class="dashboard__band-toggle"
+              [attr.aria-expanded]="!arrivedCollapsed()"
+              aria-controls="dashboard-arrived"
+              (click)="toggleArrived()"
+            >
+              {{ arrivedCollapsed() ? '展開' : '收合' }}
+            </button>
+          </div>
+
+          <app-collapsible id="dashboard-arrived" [collapsed]="arrivedCollapsed()">
+            <ul class="dashboard__board">
+              @for (arrival of arrivedList(); track arrival.checkinId) {
+                <li class="dashboard__board-row">
+                  <span class="dashboard__board-who">
+                    <span class="dashboard__spine-name">{{ arrival.studentName }}</span>
+                    <!--
+                      **只講觀察到的事實。** 不寫「已為 N 堂課記錄出席」——
+                      那個數字取決於 API 的散播規則，是機器的推論不是事實。
+                    -->
+                    <span class="dashboard__spine-meta">
+                      已到班 {{ arrivalClock(arrival.checkedInAt) }}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    class="dashboard__board-action"
+                    [disabled]="boardBusy() !== null"
+                    (click)="cancelArrival(arrival.checkinId)"
+                  >
+                    取消
+                  </button>
+                </li>
+              }
+            </ul>
+          </app-collapsible>
+        }
+      </section>
+    } @else {
+      <section class="dashboard__panel">
+        <div class="dashboard__panel-head">
+          <h2 class="dashboard__h2">今日課表</h2>
+          <a class="dashboard__panel-link" [routerLink]="['/admin/sessions']">
+            查看全部 <i class="pi pi-arrow-right"></i>
+          </a>
+        </div>
+
+        @if (sessionsFailed()) {
+          <p class="dashboard__empty">今日課表讀取失敗</p>
+        } @else if (todaySessionList(); as sessions) {
+          @if (sessions.length === 0) {
+            <p class="dashboard__empty">今日尚無排課</p>
+          } @else {
+            <ul class="dashboard__spine">
+              @for (session of sessions; track session.sessionId) {
+                <li>
+                  <!--
                   **點得了名的那幾堂整列可按，直接開點名 dialog。** 這是作業台的核心：
                   原本要走「儀表板 → 課堂管理 → 找到那一堂 → 開 dialog」四步，
                   而那四步每天重複五次。
@@ -120,54 +235,55 @@
                   點不了的（日到班模式、或停課沒有 eventId）維持成一列靜態文字 ——
                   不做成看起來能按卻沒反應的假 affordance。
                 -->
-                @if (canTakeAttendance(session)) {
-                  <button
-                    type="button"
-                    class="dashboard__spine-row dashboard__spine-row--action"
-                    [class.dashboard__spine-row--todo]="!session.takenAt"
-                    (click)="openAttendance(session)"
-                  >
-                    <span class="dashboard__spine-time">{{ session.startTime }}</span>
-                    <span class="dashboard__spine-body">
-                      <span class="dashboard__spine-name">{{ session.className }}</span>
-                      <span class="dashboard__spine-meta">
-                        {{ session.courseName }} · {{ session.teacherName }}
+                  @if (canTakeAttendance(session)) {
+                    <button
+                      type="button"
+                      class="dashboard__spine-row dashboard__spine-row--action"
+                      [class.dashboard__spine-row--todo]="!session.takenAt"
+                      (click)="openAttendance(session)"
+                    >
+                      <span class="dashboard__spine-time">{{ session.startTime }}</span>
+                      <span class="dashboard__spine-body">
+                        <span class="dashboard__spine-name">{{ session.className }}</span>
+                        <span class="dashboard__spine-meta">
+                          {{ session.courseName }} · {{ session.teacherName }}
+                        </span>
                       </span>
-                    </span>
-                    <app-status-dot [tone]="attendanceTone(session)">{{
-                      session.takenAt ? '已點名' : '未點名'
-                    }}</app-status-dot>
-                  </button>
-                } @else {
-                  <span
-                    class="dashboard__spine-row"
-                    [class.dashboard__spine-row--todo]="!session.takenAt"
-                  >
-                    <span class="dashboard__spine-time">{{ session.startTime }}</span>
-                    <span class="dashboard__spine-body">
-                      <span class="dashboard__spine-name">{{ session.className }}</span>
-                      <span class="dashboard__spine-meta">
-                        {{ session.courseName }} · {{ session.teacherName }}
+                      <app-status-dot [tone]="attendanceTone(session)">{{
+                        session.takenAt ? '已點名' : '未點名'
+                      }}</app-status-dot>
+                    </button>
+                  } @else {
+                    <span
+                      class="dashboard__spine-row"
+                      [class.dashboard__spine-row--todo]="!session.takenAt"
+                    >
+                      <span class="dashboard__spine-time">{{ session.startTime }}</span>
+                      <span class="dashboard__spine-body">
+                        <span class="dashboard__spine-name">{{ session.className }}</span>
+                        <span class="dashboard__spine-meta">
+                          {{ session.courseName }} · {{ session.teacherName }}
+                        </span>
                       </span>
+                      <app-status-dot [tone]="attendanceTone(session)">{{
+                        session.takenAt ? '已點名' : '未點名'
+                      }}</app-status-dot>
                     </span>
-                    <app-status-dot [tone]="attendanceTone(session)">{{
-                      session.takenAt ? '已點名' : '未點名'
-                    }}</app-status-dot>
-                  </span>
-                }
-              </li>
-            }
-          </ul>
-        }
-      } @else {
-        <!-- null = 還不知道。載入中不得宣稱「今日尚無排課」 -->
-        <div class="skeleton-list" aria-label="今日課表載入中">
-          @for (i of [1, 2, 3]; track i) {
-            <span class="skeleton-bar"></span>
+                  }
+                </li>
+              }
+            </ul>
           }
-        </div>
-      }
-    </section>
+        } @else {
+          <!-- null = 還不知道。載入中不得宣稱「今日尚無排課」 -->
+          <div class="skeleton-list" aria-label="今日課表載入中">
+            @for (i of [1, 2, 3]; track i) {
+              <span class="skeleton-bar"></span>
+            }
+          </div>
+        }
+      </section>
+    }
 
     <aside class="dashboard__aside">
       <section class="dashboard__panel">
