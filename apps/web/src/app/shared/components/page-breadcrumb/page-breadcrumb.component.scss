@@ -9,7 +9,9 @@
     color: var(--zinc-500);
     white-space: nowrap;
 
+    // 觸控命中區見檔尾。`position: relative` 是那個 `::after` 覆蓋層的定位基準。
     &--link {
+      position: relative;
       cursor: pointer;
       text-decoration: none;
 
@@ -27,5 +29,28 @@
   &__separator {
     font-size: 0.75rem;
     color: var(--zinc-400);
+  }
+}
+
+// 麵包屑連結沒有任何尺寸宣告（≈20px 的裸文字），是反向判準抓出來的形狀 ——
+// 「有 cursor: pointer 卻沒有下限」，從零寫。
+//
+// **不能撐高**：麵包屑是每一頁內容上方的一條窄帶，把它抬到 44px 會讓**全站每一頁**
+// 的內容都往下推一截。那不是這一刀該付的代價。
+//
+// 所以擴大的是**命中區**：`::after` 覆蓋層，元素與版面完全不動。
+// （`padding` + 負 `margin` 不行 —— 實測 gate 只看 width / height / min-*，
+// 命中區真的變大了但帳面照樣紅。）
+//
+// 覆蓋層只有各自連結那麼寬（`width: 100%`），而項目之間隔著 `gap: var(--space-2)`
+// 與分隔符，所以相鄰兩個不會互相重疊。
+@media (pointer: coarse) {
+  .breadcrumb__item--link::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: 100%;
+    height: 44px;
+    transform: translate(-50%, -50%);
   }
 }
