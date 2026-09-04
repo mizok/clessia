@@ -99,6 +99,44 @@ esbuild 預設把非 ASCII 轉成 `\uXXXX`,所以 **`grep "管理出勤狀況" d
 另:部署基準線記描述(「與某次收官部署相比新增的全是 `.claude/team/` 文件」)比記 SHA 穩,
 SHA 會過期,描述不會。
 
+### 合併一律帶 `--match-head-commit <你驗過的 SHA>`
+```
+gh pr merge <n> -R <repo> --squash --match-head-commit "$head"
+```
+分支在你驗證之後又被推,合併會**直接拒絕**,不會合到你沒看過的東西。
+(flag 存在,`gh pr merge --help` 可驗:「Commit SHA that the pull request head must match to allow merge」。)
+
+**為什麼比「查燈號是否對應 head」強**:查證與合併之間有空窗,高速合併日那個空窗塞得下一次
+force push。這條把「合併後又推」整類**消滅在合併瞬間**,而不是靠人搶時間差 ——
+跟 README 疊 PR 鐵律 1 的「讓還不能合變成 GitHub 擋得住的狀態」同一個思路。
+(來源:design-web 稽核 #257 擱淺事故,計畫席 2026-09-04 定為全席程序。)
+
+### `mergeStateStatus` / `mergeable` 的 `UNKNOWN` 有三種,意思完全不同
+**GitHub 對已關閉或已合併的 PR 不再計算 mergeable,那欄位永遠回 `UNKNOWN`。**
+所以同一個值在不同 `state` 下是不同的東西:
+
+| 情境 | `UNKNOWN` 的意思 | 該怎麼做 |
+| --- | --- | --- |
+| 剛開 PR / 剛推 commit | 還在算 | **等** —— 實測 30~40 秒,比 CI 還慢 |
+| 已 MERGED / CLOSED | **不會再算了** | 看 `state`,別看這欄 |
+| API 抖動 | 還在算 | 重問 |
+
+**判 PR 有沒有處理完一律查 `state`(OPEN/MERGED/CLOSED)**;
+`mergeStateStatus` / `mergeable` 只在 `state == OPEN` 時有意義。
+
+三種讀錯各有代價,都發生過:當成「還沒算完」→ 白等;當成「乾淨」→ 在 merge 失敗後
+照樣刪分支(本席上任第一天,刪掉 #215 的分支);當成「待處理」→ 去推一個早就結案的東西
+(ops-warden 2026-09-04 巡檢,兩項都點在已合併的 PR 上,即 README 說的「假待辦變成重工派單」)。
+
+### 驗證字串一律從 diff 或 PR 說明取,不要自己造
+本席兩次用「自己想像的字串」驗別人的改動,兩次都得到**假訊號**:
+- #249 猜 `workbench/today` —— 不存在 → 假 MISS(看起來像「這支沒進去」)
+- #254 猜 tone 是 `success/warn/danger` —— 實際是 `'done'|'pending'|'overdue'|'inactive'` → 假紅燈
+
+**假紅燈比假綠燈更陰:它會訓練人忽略這道檢查。**
+正確做法:`git show <squash-commit>` 看實際 diff,或用作者在 PR 說明裡備好的識別字;
+挑 ASCII 識別字(函式名 / class 名 / 屬性名),不要挑中文文案(見上方 esbuild 那條)。
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
