@@ -33,7 +33,10 @@
     }
   }
 
+  // ≈45px —— **只多 1px，所以最該明寫**。任何一次內距或字級微調都可能讓它掉下去，
+  // 而掉下去的時候沒有任何東西會說話。
   &__summary {
+    min-height: 44px;
     display: flex;
     align-items: center;
     gap: var(--space-3);
@@ -61,7 +64,11 @@
     min-width: 0;
   }
 
+  // `padding: 0` 的裸文字按鈕（≈21px）。它的動作是 `navigate`，**跟整列的
+  // `toggleSelection` 不同**，所以真的需要自己的目標，不能靠列。
+  // 但硬下 `min-height: 44px` 會把列撐成兩倍高 —— 用 `::after` 擴大命中區。
   &__name {
+    position: relative;
     padding: 0;
     border: 0;
     background: none;
@@ -214,7 +221,9 @@
     border: 1px solid var(--accent-100);
   }
 
+  // 小藥丸（≈21px）。撐高會讓整排藥丸變成厚塊、把列擠開，所以同樣用覆蓋層。
   &__completeness-info--action {
+    position: relative;
     font-family: inherit;
     cursor: pointer;
     transition: background var(--transition-fast);
@@ -224,7 +233,9 @@
     }
   }
 
+  // 同上：小藥丸，用覆蓋層而不是撐高。
   &__intervention-link {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -256,4 +267,52 @@
   accent-color: var(--zinc-500);
   cursor: pointer;
   flex-shrink: 0;
+}
+
+// ── 觸控命中區 ───────────────────────────────────────────────────────────────
+// 這一列上有**兩種不同的動作**：整列 `toggleSelection`、而列內的文字連結是
+// `navigate` 或開啟面板。所以列內那幾個不能靠列的 44px 交差，各自需要目標。
+//
+// 但它們是**列內的行內文字**，硬下 `min-height: 44px` 會把單列撐成兩倍高。
+// 所以擴大的是**命中區**（`::after` 覆蓋層）而不是元素本身 —— 版面完全不動。
+//
+// **`padding` + 負 `margin` 的做法這裡不適用**：實測 gate 不認（它只看
+// width / height / min-*），會變成「修了但 gate 照樣紅」。
+@media (pointer: coarse) {
+  // **一條一個選擇器，不要用逗號群組** —— 實測 gate 只認得群組裡的最後一個，
+  // 前面幾個會被當成「還是沒有下限」。那會讓檔案看起來修好了而 gate 照樣紅。
+  .class-row__name::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: 100%;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+
+  .class-row__completeness-info--action::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: 100%;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+
+  .class-row__intervention-link::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: 100%;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+
+  // 圓形圖示鈕相反：**讓看得見的按鈕自己長大**。它的動作（navigate）跟整列的
+  // 選取不同，一個懸出圓圈之外的隱形命中區會讓人以為在選取、實際跳頁。
+  // `__summary` 已經 min-height: 44px，塞得下 44×44。
+  .class-row__nav-btn {
+    width: 44px;
+    height: 44px;
+  }
 }

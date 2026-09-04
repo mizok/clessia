@@ -40,7 +40,10 @@
   }
 
   // ---- 拖放區 ----
+  // 內距 40+40 已經讓它 ≥100px —— 明寫下限不是為了改畫面，是**把副作用變保證**：
+  // 現在的高度是內距的副產物，內距一改它就沒有任何東西守著。
   &__dropzone {
+    min-height: 44px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -51,7 +54,9 @@
     border-radius: var(--radius-lg);
     background: var(--zinc-50);
     cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
+    transition:
+      border-color 0.15s,
+      background 0.15s;
 
     &--dragging {
       border-color: var(--accent-500);

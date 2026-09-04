@@ -33,6 +33,39 @@ const CONTRAST_BASELINE = join(ROOT, 'tools/agent-harness/scss-contrast-baseline
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');
 const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-baseline.json');
 const TOUCH_TARGET_BASELINE = join(ROOT, 'tools/agent-harness/touch-target-baseline.json');
+
+/**
+ * 觸控尺寸的**永久豁免**。語意跟 `touch-target-baseline.json` 不同，
+ * 跟 `CONTRAST_EXEMPT` 同一個形狀（連「為什麼寫在程式碼裡」的理由都一樣）：
+ *
+ * - baseline JSON 是**債** —— 該修但還沒排到，目標歸零。
+ * - 這張表是**豁免** —— 沒有合規路徑或修了反而更糟，不會歸零，所以必須寫理由。
+ *
+ * 豁免寫在這裡而不是 JSON，因為 baseline 由 `npm run harness:write` 重生，
+ * 理由欄位會被靜默沖掉 —— 沒有理由的豁免只是一個沒人敢動的數字。
+ *
+ * 鍵的格式跟 baseline 一樣：`檔案|選擇器`。
+ * **豁免對不上任何實際違規時 gate 會紅** —— 指向已經不存在的地方的豁免是謊。
+ */
+const TOUCH_TARGET_EXEMPT = {
+  // ─ 三筆 `<tr>`：真正的修復在 responsive-table，不在這三個檔 ─
+  // `min-height` 對 `display: table-row` **不生效**，所以在這裡加任何下限都是
+  // 看起來修好、實際沒有的假修復。唯一能抬高列的是儲存格的內距，而那住在共用的
+  // `responsive-table`（`@media (pointer: coarse)` 的 `__cell { padding-block }`，
+  // 已經加了，一行同時解決三個頁面與未來每一張表）。
+  //
+  // 尺寸跨檔案來自共用元件，是這個 gate 已知的盲區 —— 它只看得到單一檔案。
+  'apps/web/src/app/features/admin/pages/contact-book/contact-book.page.scss|.contact-book__row':
+    '<tr>，列高由 responsive-table 的 __cell padding-block 決定（coarse 下已抬到 ≈44.5px）；min-height 在 table-row 上不生效',
+  'apps/web/src/app/features/admin/pages/enrollments/enrollments.page.scss|.enrollments__row':
+    '同上：<tr>，真正的修復在 responsive-table 的共用 coarse 區塊',
+  'apps/web/src/app/features/admin/pages/payments/payments.page.scss|.payments__row':
+    '同上：<tr>，真正的修復在 responsive-table 的共用 coarse 區塊',
+
+  // ─ 原生 checkbox：撐大它會讓方框本身變巨大 ─
+  'apps/web/src/app/features/admin/pages/courses/class-row/class-row.component.scss|.batch-checkbox':
+    '15×15 原生 checkbox，坐在 min-height 44px 的 class-row__summary 裡，而且它的 (change) 與外層 (click) 發同一個 toggleSelection —— 同一個動作已經有 44px 的目標。原生 checkbox 的 width/height 直接改視覺尺寸不是內距，撐大只會讓方框變巨大',
+};
 const DUAL_TRACK_BASELINE = join(ROOT, 'tools/agent-harness/dual-track-baseline.json');
 const AGENTS_MD = join(ROOT, 'AGENTS.md');
 const SKILLS_DIR = join(ROOT, '.agents/skills');
@@ -697,11 +730,45 @@ function checkTouchTargets() {
     }
   }
 
-  const keys = [...current.keys()].sort();
+  // 豁免不是債 —— 它不進 baseline，`harness:write` 也不會把它寫成債。
+  const exemptKeys = Object.keys(TOUCH_TARGET_EXEMPT);
+  const keys = [...current.keys()].filter((k) => !(k in TOUCH_TARGET_EXEMPT)).sort();
 
   if (mode === 'write') {
     writeFileSync(TOUCH_TARGET_BASELINE, `${JSON.stringify(keys, null, 2)}\n`);
     return;
+  }
+
+  // 那三筆 `<tr>` 的豁免理由指向**另一個檔案裡的一行**（responsive-table 的
+  // `__cell padding-block`）。如果有人把那一行拿掉，豁免就變成謊而沒有任何東西
+  // 會說話 —— 三個頁面的列高會靜靜掉回 36.5px。所以在這裡驗證那個機制還在。
+  //
+  // 這不是手抄清單（c11）：它斷言的是**豁免理由所依賴的那個機制**，
+  // 豁免刪掉的那天這段也一起刪。
+  const rtPath = join(
+    ROOT,
+    'apps/web/src/app/shared/components/responsive-table/responsive-table.component.scss',
+  );
+  if (existsSync(rtPath)) {
+    const rt = readFileSync(rtPath, 'utf8');
+    const coarse = rt.slice(rt.lastIndexOf('@media (pointer: coarse)'));
+    if (!/__cell\s*\{[^}]*padding-block/.test(coarse)) {
+      fail(
+        'responsive-table 的 pointer: coarse 區塊少了 `__cell { padding-block }` —— ' +
+          '三筆 <tr> 的觸控豁免正是靠它才成立（少了它列高掉回 36.5px）。' +
+          '要拿掉的話，TOUCH_TARGET_EXEMPT 裡那三筆也要一起重新評估',
+      );
+    }
+  }
+
+  // 豁免必須是可否證的：對不上任何實際違規時就是謊，不是保險。
+  // 這條 write 模式修不掉（豁免寫在程式碼裡），只能人刪 —— 刻意的。
+  for (const key of exemptKeys.filter((k) => !current.has(k))) {
+    const [file, sel] = key.split('|');
+    fail(
+      `觸控豁免過期：${file} 的 ${sel} 已經不違規了 —— ` +
+        `把 TOUCH_TARGET_EXEMPT 裡那一筆刪掉（豁免歸零不是改數字，是整筆移除）`,
+    );
   }
 
   const baseline = new Set(
