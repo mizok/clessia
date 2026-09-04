@@ -386,7 +386,8 @@ export class DashboardComponent {
   protected readonly todayLabel = `${format(this.now, 'yyyy 年 M 月 d 日')} · ${WEEKDAYS[this.now.getDay()]}`;
 
   private readonly todaySessions = signal<EventSessionSummary[] | 'error' | null>(null);
-  private readonly recentSessions = signal<EventSessionSummary[] | 'error' | null>(null);
+  /** 昨天以前的未點名堂數（伺服器算）。今天的部分另外從 workbench 的明細數 */
+  private readonly untakenBeforeToday = signal<CardValue>(null);
   private readonly todayLeaves = signal<LeaveRequest[] | 'error' | null>(null);
   private readonly gradesTodo = signal<CardValue>(null);
   private readonly activeStudents = signal<CardValue>(null);
@@ -430,10 +431,14 @@ export class DashboardComponent {
     const mode = this.attendanceMode();
     if (mode !== 'per_session') return 'hidden';
 
-    const sessions = this.recentSessions();
-    if (sessions === null || sessions === FAILED) return sessions;
+    const before = this.untakenBeforeToday();
+    if (before === null || before === FAILED) return before;
 
-    return countUntakenSessions(sessions, mode, this.now) ?? 'hidden';
+    // 今天的那批在 workbench 的明細裡 —— 還沒上完的不算逾期
+    const today = this.todaySessionList();
+    if (today === null) return null;
+
+    return before + (countUntakenSessions(today, mode, this.now) ?? 0);
   });
 
   protected readonly cards = computed<StatCard[]>(() => {
@@ -557,15 +562,29 @@ export class DashboardComponent {
         this.workbench.set(res);
       });
 
+    /**
+     * 未點名課堂 **拆成兩段查**，因為「逾期未點名」有兩個條件而 API 只給得起一個：
+     * `attendanceTaken=false` 是「沒點名」，卡片要的是「沒點名**而且已經上完了**」。
+     *
+     * - **昨天以前**：那些課早就結束了，所以「沒點名」就等於「逾期未點名」——
+     *   用 `pageSize: 1` 取 `meta.total`，**數字由伺服器算**
+     * - **今天**：`workbench/today` 已經把今天全部的課帶回來了（幾十堂，不會破 100），
+     *   在那份明細上用 `hasSessionEnded` 濾掉還沒上完的
+     *
+     * 這支原本是 `dateFrom=7天前, dateTo=今天, pageSize=100` 撈明細自己數 ——
+     * 一天 15 堂的補習班回看 7 天就 105 堂，**破 100 之後悄悄少算而且錯得沒有徵兆**。
+     * 諷刺的是同一個函式往下 25 行就寫著這個教訓（本月報名異動那支），只是沒回頭看這支。
+     */
     failSoft(
       this.attendanceService.sessions({
         dateFrom: lookbackFrom,
-        dateTo: this.todayIso,
-        pageSize: 100,
+        dateTo: format(subDays(this.now, 1), 'yyyy-MM-dd'),
+        attendanceTaken: false,
+        pageSize: 1,
       }),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) => this.recentSessions.set(res === FAILED ? FAILED : res.data));
+      .subscribe((res) => this.untakenBeforeToday.set(res === FAILED ? FAILED : res.meta.total));
 
     failSoft(
       forkJoin([this.academyExamsService.getTodoCount(), this.schoolExamsService.getTodoCount()]),
