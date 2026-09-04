@@ -25,6 +25,7 @@ import { crossFeatureImports } from './lib/feature-boundaries.mjs';
 import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { blankComments } from './lib/comments.mjs';
 import { inlineCarriers, inlineStyles, inlineTemplate } from './lib/inline-carriers.mjs';
+import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
@@ -104,6 +105,7 @@ const TOUCH_TARGET_EXEMPT = {
     '15×15 原生 checkbox，坐在 min-height 44px 的 class-row__summary 裡，而且它的 (change) 與外層 (click) 發同一個 toggleSelection —— 同一個動作已經有 44px 的目標。原生 checkbox 的 width/height 直接改視覺尺寸不是內距，撐大只會讓方框變巨大',
 };
 const DUAL_TRACK_BASELINE = join(ROOT, 'tools/agent-harness/dual-track-baseline.json');
+const SCAN_SCOPE = join(ROOT, 'tools/agent-harness/scan-scope.json');
 const AGENTS_MD = join(ROOT, 'AGENTS.md');
 const SKILLS_DIR = join(ROOT, '.agents/skills');
 const THIN_ENTRYPOINTS = ['CLAUDE.md'];
@@ -569,6 +571,8 @@ function scanExisting({ clause, dir, ext, label, allowlist = {}, exempt = {} }) 
   };
   const seen = new Set();
 
+  recordScope(clause, { roots: [dir.replace(ROOT + '/', '')], exts: [ext] });
+
   for (const file of walk(dir, ext)) {
     const rel = file.replace(ROOT + '/', '');
     const source = readFileSync(file, 'utf8');
@@ -818,6 +822,13 @@ function checkTouchTargets() {
     ...walk(adminDir, '.scss').filter((f) => !desktopFirst.has(f.slice(ROOT.length + 1))),
   ];
 
+  recordScope('touch-target', {
+    roots: [teacherDir, publicDir, sharedDir, selectRoleDir, adminDir]
+      .filter((d) => existsSync(d))
+      .map((d) => d.slice(ROOT.length + 1)),
+    exts: ['.scss'],
+  });
+
   const current = new Map();
   for (const file of scoped) {
     const rel = file.slice(ROOT.length + 1);
@@ -1017,9 +1028,13 @@ function checkDualTrackTables() {
       template: readFileSync(f, 'utf8'),
       scss: readFileSync(f.replace(/\.html$/, '.scss'), 'utf8'),
     }));
-  const current = new Map(
-    dualTrackTables([...components, ...inlineComponents]).map((v) => [v.file, v]),
-  );
+  const judged = [...components, ...inlineComponents];
+  recordScope('dual-track-table', {
+    roots: [webSrc.slice(ROOT.length + 1)],
+    exts: ['.html', '.ts'],
+  });
+
+  const current = new Map(dualTrackTables(judged).map((v) => [v.file, v]));
   const keys = [...current.keys()].sort();
 
   if (mode === 'write') {
@@ -1120,6 +1135,10 @@ function scanGhostTokens() {
   if (!existsSync(webSrc)) return;
 
   const carriers = styleCarriers(webSrc);
+  recordScope('ghost-token', {
+    roots: [webSrc.slice(ROOT.length + 1)],
+    exts: ['.scss', '.ts', '.html'],
+  });
 
   const defined = new Set();
   const indexHtml = join(webSrc, 'index.html');
@@ -1209,6 +1228,7 @@ function checkUsageContrast() {
 
   const palette = readTokenPalette(readFileSync(stylesPath, 'utf8'));
   const carriers = styleCarriers(webSrc);
+  recordScope('usage-contrast', { roots: [webSrc.slice(ROOT.length + 1)], exts: ['.scss', '.ts'] });
 
   const current = new Map();
   for (const { path: rel, source } of carriers) {
@@ -1324,6 +1344,8 @@ function checkMobileFirst() {
   };
   walk(webSrc);
 
+  recordScope('mobile-first', { roots: [webSrc.slice(ROOT.length + 1)], exts: ['.scss'] });
+
   const current = desktopFirstFiles(files);
 
   if (mode === 'write') {
@@ -1389,6 +1411,8 @@ function checkOrphanImports() {
   };
   walk(webSrc);
 
+  recordScope('orphan-imports', { roots: [webSrc.slice(ROOT.length + 1)], exts: ['.ts', '.html'] });
+
   for (const { path, module } of orphanModuleImports(components)) {
     fail(
       `${path} 的 imports 有 ${module}，但模板沒有用到它提供的任何選擇器。` +
@@ -1426,7 +1450,10 @@ function checkPageActions() {
   // ── 規則一：標頭裡不得直接放按鈕（既有的進 baseline，只擋新增）──
   // 規則一吃的是**模板**，而 15 支元件的模板住在 `.ts` 的 `template:` 字串裡。
   // 這個函式本來就已經收了 `ts` 陣列（給規則二用），只是規則一沒吃到。
-  const current = headerActionButtons([...html, ...inlineCarriers(ts).templates]);
+  const judged = [...html, ...inlineCarriers(ts).templates];
+  recordScope('page-actions', { roots: [webSrc.slice(ROOT.length + 1)], exts: ['.html', '.ts'] });
+
+  const current = headerActionButtons(judged);
 
   if (mode === 'write') {
     writeFileSync(PAGE_ACTIONS_BASELINE, `${JSON.stringify(current, null, 2)}\n`);
@@ -1464,10 +1491,70 @@ function checkPageActions() {
 
 checkPageActions();
 
+// ── 掃描範圍的 ratchet ──────────────────────────────────────────────────────────────────
+// **不是「印出範圍」，是把範圍釘住。** 理由與已知邊界見 lib/scan-scope.mjs。
+// 摘要一句：一樣就一個字都不印（12 道每次刷一片會稀釋訊號），
+// 不一樣就紅燈 —— 而且**範圍縮小**跟新增違規一樣是紅的，那是這支主要要抓的。
+//
+// A17 少掃 shared/ 不知道多久而一直是綠的，就是因為沒有東西看著範圍本身。
+function checkScanScope() {
+  const current = collectedScopes();
+
+  if (mode === 'write') {
+    writeFileSync(SCAN_SCOPE, `${JSON.stringify(current, null, 2)}\n`);
+    return;
+  }
+
+  if (!existsSync(SCAN_SCOPE)) {
+    warnings.push('還沒有 scan-scope.json —— 跑 npm run harness:write 建立掃描範圍的基準');
+    return;
+  }
+
+  for (const line of diffScopes(current, JSON.parse(readFileSync(SCAN_SCOPE, 'utf8')))) {
+    fail(
+      `掃描範圍變了 —— ${line}。` +
+        `**縮小**通常是意外（多了一個 filter、一個提早 return），先確認不是；` +
+        `確定是刻意的就跑 npm run harness:write`,
+    );
+  }
+}
+
+checkScanScope();
+
 // ── report ───────────────────────────────────────────────────────────────────────────────
 // --write 一律 exit 0：它的工作是「修好能自動修的」，剩下的（例如 CLAUDE.md 被塞進規則）
 // 本來就得人改。若這裡跟著 exit 1，`harness:write` 的 `&&` 會短路，KB 的 --write 就整個
 // 不會跑 —— 踩過一次。真正的把關由隨後的 --check 負責。
+// `--scope [路徑…]` —— 查詢用，不進常規輸出。
+// 帶路徑時做**反查**：這些檔會被哪幾道 gate 看到。review 別人的 PR 時最常要的是這個
+// （steward 2026-09-04 提的使用情境），而不是 12 道的完整範圍。
+if (process.argv.includes('--scope')) {
+  const scopes = collectedScopes();
+  const paths = process.argv
+    .slice(process.argv.indexOf('--scope') + 1)
+    .filter((a) => !a.startsWith('--'));
+
+  if (paths.length === 0) {
+    for (const [gate, { roots, exts }] of Object.entries(scopes)) {
+      console.log(`${gate}\n  目錄：${roots.join('、')}\n  副檔名：${exts.join('、')}`);
+    }
+  } else {
+    for (const rel of paths) {
+      const seen = Object.entries(scopes)
+        .filter(
+          ([, { roots, exts }]) =>
+            roots.some((r) => rel.startsWith(`${r}/`)) && exts.some((e) => rel.endsWith(e)),
+        )
+        .map(([gate]) => gate);
+      // **「沒有任何 gate 看它」本身就是答案** —— 那正是載體盲區的形狀
+      console.log(
+        `${rel}\n  → ${seen.length > 0 ? seen.join('、') : '**沒有任何 gate 看這個檔**'}`,
+      );
+    }
+  }
+  process.exit(0);
+}
+
 if (warnings.length > 0) {
   console.warn(`⚠ harness 有 ${warnings.length} 項提醒（不擋，exit code 不受影響）：`);
   for (const message of warnings) console.warn(`  - ${message}`);

@@ -20,6 +20,7 @@ import { missingUserSkills } from './lib/user-skills.mjs';
 import { matchWriteRules, routeHints } from './lib/rules.mjs';
 import { blankComments } from './lib/comments.mjs';
 import { inlineCarriers } from './lib/inline-carriers.mjs';
+import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
@@ -269,6 +270,57 @@ test('c6 的 HTML 載體：inline style 綁定與 index.html 的 <style>', () =>
   assert.deepEqual(html('<div [style.height]="\'var(--window-height, 100dvh)\'"></div>'), []);
   // HTML 註解裡的不算
   assert.deepEqual(html('<!-- 這裡不能用 90vw -->'), []);
+});
+
+/**
+ * 掃描範圍的 ratchet（2026-09-04）。
+ *
+ * A17 少掃 `shared/` 不知道多久，而**它一直是綠的** —— 因為沒有東西看著範圍本身。
+ * review-steward 講得最準：「gate 說 0 筆，但它沒說『我只看了這些地方』」。
+ *
+ * 所以這支要抓的**主要**不是範圍擴大（那通常是刻意的），是**範圍靜靜縮小**。
+ */
+test('掃描範圍：縮小與擴大分開講，縮小才是主戲', () => {
+  const was = { a: { roots: ['x', 'y'], exts: ['.scss'] } };
+
+  // 縮小 —— 訊息要點名「不再掃什麼」，不然收到紅燈的人得自己比對兩份 JSON
+  const shrunk = diffScopes({ a: { roots: ['x'], exts: ['.scss'] } }, was);
+  assert.equal(shrunk.length, 1);
+  assert.match(shrunk[0], /縮小/);
+  assert.match(shrunk[0], /y/);
+
+  // 擴大 —— 也要報（不然新 gate 的範圍永遠不會被記下來），但用字不同
+  const grown = diffScopes({ a: { roots: ['x', 'y', 'z'], exts: ['.scss'] } }, was);
+  assert.equal(grown.length, 1);
+  assert.match(grown[0], /擴大/);
+
+  // 整道 gate 消失 —— 最嚴重的一種，不能只當成「roots 空了」
+  const gone = diffScopes({}, was);
+  assert.match(gone[0], /整道 gate 不見了/);
+
+  // 副檔名跟目錄要分開講：只掃 .scss 改成只掃 .ts 是「換了載體」不是「換了地方」
+  const ext = diffScopes({ a: { roots: ['x', 'y'], exts: ['.ts'] } }, was);
+  assert.equal(ext.length, 2, '一縮一擴要各報一筆');
+
+  // **沒有變動就一個字都不印** —— 12 道每次刷一片會稀釋訊號
+  assert.deepEqual(diffScopes({ a: { roots: ['x', 'y'], exts: ['.scss'] } }, was), []);
+});
+
+/**
+ * 範圍收的是 walk 的**參數**，不是走出來的檔案路徑。
+ *
+ * 第一版從檔案路徑推導根目錄：零漂移，但**噪音太大** —— 新增一個
+ * `apps/api/src/routes/<新功能>/` 子目錄就會讓 gate 變紅，而那跟範圍無關。
+ * **每次都紅的 gate，人的反應是把它關掉。**
+ */
+test('掃描範圍：同一道 gate 記多次會累加，不會互相覆蓋', () => {
+  // c2 掃兩處（apps/api 的 .ts 與 supabase 的 .sql），靠兩次 recordScope 疊起來
+  recordScope('t', { roots: ['apps/api/src'], exts: ['.ts'] });
+  recordScope('t', { roots: ['supabase'], exts: ['.sql'] });
+
+  const { t } = collectedScopes();
+  assert.deepEqual(t.roots, ['apps/api/src', 'supabase']);
+  assert.deepEqual(t.exts, ['.sql', '.ts']);
 });
 
 test('c7 擋舊版結構指令', () => {
