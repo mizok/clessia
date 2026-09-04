@@ -98,4 +98,21 @@ describe('countUntakenSessions', () => {
   it('沒有課堂時是 0', () => {
     expect(countUntakenSessions([], 'per_session', NOON)).toBe(0);
   });
+
+  // 停課不算「忘了點名」—— 而昨天以前那段走 API（`attendanceTaken=false` 用 inner join，
+  // 沒有出勤事件的課堂本來就撈不到），今天這段如果不排除就是同一張卡兩套規則
+  it('停課的課堂不算未點名', () => {
+    const cancelled = session({ status: 'cancelled', takenAt: null });
+
+    expect(countUntakenSessions([cancelled], 'per_session', NOON)).toBe(0);
+  });
+
+  it('停課與正常課混在一起時只數正常的', () => {
+    const rows = [
+      session({ eventId: 'a', status: 'cancelled', takenAt: null }),
+      session({ eventId: 'b', status: 'scheduled', takenAt: null }),
+    ];
+
+    expect(countUntakenSessions(rows, 'per_session', NOON)).toBe(1);
+  });
 });

@@ -20,7 +20,15 @@ export function countUntakenSessions(
 
   // 「上完了沒」的定義共用給課堂管理與 day-timeline —— 各寫一份的話，
   // 儀表板說「6 堂沒點名」而課堂頁標 8 堂，兩個畫面對同一件事說不一樣的話
-  return sessions.filter((s) => !s.takenAt && hasSessionEnded(toSessionTime(s), now)).length;
+  //
+  // **停課不算「忘了點名」。** 這一段跟卡片的另一段必須用同一套規則：
+  // 昨天以前走 `attendanceTaken=false`，那支帶了參數就改用 inner join，
+  // 沒有出勤事件的課堂（停課刻意不補建，#123）本來就撈不到。今天這段吃的是
+  // `workbench/today` 的明細，而**那支回全部課堂含停課**（課表要顯示灰底的），
+  // 不自己濾的話同一張卡會有兩套規則。
+  return sessions.filter(
+    (s) => s.status !== 'cancelled' && !s.takenAt && hasSessionEnded(toSessionTime(s), now),
+  ).length;
 }
 
 /** `EventSessionSummary` 用 `eventDate`，共用函式吃的是 `date` */
