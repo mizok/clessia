@@ -1,6 +1,6 @@
 # Specs — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-30
+> Auto-maintained by `kb:map`. Last updated: 2026-09-04
 
 ---
 
@@ -298,7 +298,7 @@ Links to: [[architecture/teacher-students-view]]
 
 Tags: `specs`, `teacher`, `dashboard`
 
-Links to: [[specs/teacher/assessments]]
+Links to: [[specs/teacher/schedule]], [[architecture/teacher-today-flow]], [[specs/teacher/assessments]]
 
 ## [[specs/teacher/notifications|通知中心（老師）]]
 
@@ -311,6 +311,8 @@ Tags: `specs`, `teacher`, `notifications`
 查看自己任課的課堂，進入課堂詳情。
 
 Tags: `specs`, `teacher`, `schedule`
+
+Links to: [[architecture/teacher-schedule-mobile-day]], [[architecture/teacher-today-flow]], [[architecture/teacher-today-flow]]
 
 ## [[specs/teacher/students|學生]]
 

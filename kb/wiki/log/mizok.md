@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-09-04] lint | Health check: 0 errors, 0 warnings, 56 info
+- Mode: structural
+- Pages scanned: 116
+- Issues found: 56
+
+## [2026-09-04] map | Rebuilt index + 6 MOCs
+- Pages indexed: 106
+- Total links: 168
+- Orphan pages: 65
+
+## [2026-09-04] lint | Health check: 0 errors, 3 warnings, 57 info
+- Mode: structural
+- Pages scanned: 114
+- Issues found: 60
+
 ## [2026-09-02] lint | Health check: 0 errors, 1 warnings, 53 info
 - Mode: structural
 - Pages scanned: 109

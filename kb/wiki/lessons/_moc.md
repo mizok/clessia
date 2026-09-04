@@ -1,6 +1,6 @@
 # Lessons — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-08-30
+> Auto-maintained by `kb:map`. Last updated: 2026-09-04
 
 ---
 
@@ -40,17 +40,41 @@ Links to: [[architecture/line-oauth-login]], [[architecture/constitution|`kb/wik
 
 Tags: `lessons`, `doc-code-drift-2026-08`
 
+## [[lessons/docker-disk-exhaustion|磁碟爆了怎麼查 —— Docker 佔滿主機的處置流程]]
+
+主機從 2.9 GB 掉到 206 MB 的一次救援，最終回收 126 GB（Docker.raw 163 G → 37 G）。含磁碟量測工具的選用（mole 已棄用，改用 PureMac；含它被 Homebrew CLT 檢查誤擋時的取用方式）。記錄 docker system df 卡死時的替代量法、「兩個世界各看到假數字」為什麼讓自動 GC 永遠不觸發、以及 buildctl 是 shim、prune 兩參數、exit 0 不等於做了事這三個會讓人以為清完了的坑。
+
+Tags: `lessons`, `docker`, `disk`, `dagger`, `ci`, `runbook`
+
+Links to: [[lessons/local-green-is-not-repo-green]]
+
 ## [[lessons/empty-array-hides-loading|空陣列把「還沒載入」講成「真的沒有」]]
 
 signal 初始 [] 或 computed 把 null 壓成 [] 之後，畫面就無法區分「還不知道」與「確定沒有」—— 而失敗態通常有人想到，載入態沒有。含一個已知但暫不修的實例（ReferenceDataService → 批次面板的老師名單）。
 
 Tags: `lessons`, `loading-state`, `signals`, `known-issue`
 
+Links to: [[lessons/status-table-blind-spot]]
+
 ## [[lessons/generated-tables-need-verifying|生成的表不會因為它是生成的就正確]]
 
 功能區現況表的判定邏輯改了四版。第三版看起來完全合理，卻差點導致刪掉一個會動的功能——只有人工逐一驗證才發現。
 
 Tags: `lessons`, `generated-tables-need-verifying`
+
+## [[lessons/herdr-team-orchestration|Herdr 多席調度]]
+
+計畫席用 herdr+SendMessage 調度 domain 席:開席序列、送達驗證、席名對位、廣度掃描分派形狀、帳面漂移的校正。
+
+Tags: `lessons`, `herdr`, `orchestration`, `agent-team`
+
+## [[lessons/lazy-chunk-is-not-lazy-if-statically-required|拆成 lazy chunk 不等於延後下載]]
+
+xlsx 早就是獨立的 lazy chunk，但被兩個頁面靜態 import，所以打開那兩頁一定會抓它的 96 kB。真正的分界不是「有沒有拆成 chunk」，是「有沒有人靜態指到它」。
+
+Tags: `lessons`, `bundle-size`, `angular`, `code-splitting`
+
+Links to: [[lessons/root-component-pins-the-bundle]]
 
 ## [[lessons/line-number-citations-rot|行號引用會腐爛，符號不會]]
 
@@ -59,11 +83,6 @@ Tags: `lessons`, `generated-tables-need-verifying`
 Tags: `lessons`, `kb`, `drift`, `citation`
 
 Links to: [[lessons/menu-entry-without-a-route]], [[lessons/rls-backstop-drift]]
-
-## [[lessons/herdr-team-orchestration|Herdr 多席調度]]
-
-計畫席調度 domain 席的實戰手法:herdr 管生命週期、SendMessage 管內容;
-送達要驗證、席名要對位、帳面漂移靠內容 grep 校正;廣度掃描按 domain 擁有權切。
 
 ## [[lessons/local-green-is-not-repo-green|本機綠不等於 repo 綠]]
 
@@ -86,6 +105,14 @@ Tags: `lessons`, `menu-entry-without-a-route`
 Tags: `lessons`, `merged-does-not-mean-main`, `git`, `ci`
 
 Links to: [[lessons/local-green-is-not-repo-green]], [[lessons/awakened-tests-bite]]
+
+## [[lessons/new-field-branches-are-born-untested|加了新欄位的分支，天生就沒被測到]]
+
+接上 API 新回的欄位、加一個判斷分支之後，989 支測試裡有 986 支照樣全綠 —— 因為舊 fixture 沒有那個欄位，全部走 null 落進舊路徑。全綠在這種改動裡是警訊，不是好消息。
+
+Tags: `lessons`, `testing`, `fixtures`, `mutation-testing`
+
+Links to: [[lessons/awakened-tests-bite]], [[lessons/local-green-is-not-repo-green]]
 
 ## [[lessons/rls-backstop-drift|後盾在沒人看的時候悄悄少了一半]]
 
