@@ -167,6 +167,24 @@ while true; do p=0; for n in ...; do [ ... ] && p=1; done; [ $p -eq 0 ] && break
 還沒註冊時是**空陣列**,`join("")` 出空字串,grep 不到就被判成「跑完了」。
 **要檢查「有沒有 conclusion」,不是「有沒有進行中字樣」** ——「空值不等於終態」。
 
+### 刪分支前先查有沒有 PR 以它為 base
+**GitHub 會把 base 分支消失的 PR 自動關閉。** 合完下層就反射性刪分支,疊在上面的 PR
+連同它的討論與驗收紀錄一起被關掉(2026-09-04 合 #268 後刪 `feat/dual-track-table-gate`,
+把 #276 關掉了)。README 疊 PR 鐵律寫的是**「下層合併後上層 base 立刻人工轉 main、
+下層分支即刪」—— 順序是先轉 base 再刪**,我做反了。
+
+刪之前查:`gh pr list -R <repo> --state open --base <要刪的分支>`,非空就先轉 base。
+
+**救回的方法**(兩個 API 互相卡死:不能改已關閉 PR 的 base,也不能 reopen 到不存在的 base):
+```bash
+git push origin "<下層 head SHA>:refs/heads/<被刪的 base 分支>"   # 重建 base
+gh pr reopen <n>
+gh pr edit <n> --base main
+git push origin --delete <被刪的 base 分支>                      # 再刪掉
+```
+zsh 下 refspec 一定要**用變數包起來加引號** —— 裸寫 `$sha:refs/heads/x` 的 `:r`
+會被 zsh 當 modifier 吃掉,錯誤訊息是 `src refspec ...efs/heads/x does not match any`。
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
