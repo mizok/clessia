@@ -25,15 +25,19 @@
     }
   }
 
+  // **手機優先**：基準是窄螢幕。班級選單滿寬、成績用下面的 `__mobile-list`
+  // 逐列呈現而不是把表格塞進去橫捲。
   &__toolbar {
-    padding: var(--space-4) var(--space-4) 0;
+    padding: var(--space-4);
   }
 
   &__class-select {
-    min-width: 200px;
+    width: 100%;
+    min-width: 0;
   }
 
   &__table-wrap {
+    display: none;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -147,7 +151,8 @@
 
   // Mobile compact list
   &__mobile-list {
-    display: none;
+    display: flex;
+    flex-direction: column;
   }
 
   &__mobile-row {
@@ -254,24 +259,30 @@
   }
 }
 
-@include respond-to('tablet-portrait') {
+@include respond-from('tablet-portrait') {
   .academy-score-editor {
     &__toolbar {
-      padding: var(--space-4);
+      padding: var(--space-4) var(--space-4) 0;
     }
 
     &__class-select {
-      width: 100%;
-      min-width: 0;
+      width: auto;
+      min-width: 200px;
     }
 
     &__table-wrap {
-      display: none;
+      display: block;
     }
 
     &__mobile-list {
-      display: flex;
-      flex-direction: column;
+      display: none;
     }
+  }
+}
+
+// 手機列表的每一列都是可點的（點進去改成績），觸控下明寫 44px 下限
+@media (pointer: coarse) {
+  .academy-score-editor__mobile-row {
+    min-height: 44px;
   }
 }

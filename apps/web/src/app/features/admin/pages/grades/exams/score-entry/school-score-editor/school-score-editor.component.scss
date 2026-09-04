@@ -1,40 +1,46 @@
 @use 'shared/breakpoints' as *;
 
+/* **手機優先**：基準是窄螢幕，往大螢幕才加強。 */
 .school-score-editor {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  padding: var(--space-6);
+  gap: var(--space-4);
+  padding: var(--space-4);
 
   &__toolbar {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-    padding: var(--space-4);
+    padding: var(--space-3);
     background: #fff;
     border: 1px solid var(--zinc-200);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
   }
 
+  // 窄螢幕上篩選條件一列一個；寬了才並排
   &__toolbar-row {
     display: flex;
+    flex-direction: column;
     flex-wrap: wrap;
     gap: var(--space-3);
-    align-items: center;
+    align-items: stretch;
   }
 
   &__campus-select {
-    min-width: 140px;
+    width: 100%;
+    min-width: 0;
   }
 
   &__grade-select {
-    min-width: 120px;
+    width: 100%;
+    min-width: 0;
   }
 
   &__search {
-    min-width: 180px;
-    max-width: 360px;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
 
     :host ::ng-deep & .p-iconfield {
       display: block;
@@ -152,26 +158,34 @@
   }
 }
 
-@include respond-to('tablet-portrait') {
+@include respond-from('tablet-portrait') {
   .school-score-editor {
-    padding: var(--space-4);
-    gap: var(--space-4);
+    padding: var(--space-6);
+    gap: var(--space-5);
 
     &__toolbar {
-      padding: var(--space-3);
+      padding: var(--space-4);
     }
 
     &__toolbar-row {
-      flex-direction: column;
-      align-items: stretch;
+      flex-direction: row;
+      align-items: center;
     }
 
-    &__search,
-    &__campus-select,
+    &__search {
+      width: auto;
+      min-width: 180px;
+      max-width: 360px;
+    }
+
+    &__campus-select {
+      width: auto;
+      min-width: 140px;
+    }
+
     &__grade-select {
-      width: 100%;
-      max-width: none;
-      min-width: 0;
+      width: auto;
+      min-width: 120px;
     }
   }
 }

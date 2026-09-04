@@ -12,6 +12,7 @@
   "apps/web/src/app/features/admin/pages/courses/class-row/class-row.component.scss|.class-row__nav-btn",
   "apps/web/src/app/features/admin/pages/courses/class-row/class-row.component.scss|.class-row__summary",
   "apps/web/src/app/features/admin/pages/enrollments/enrollments.page.scss|.enrollments__row",
+  "apps/web/src/app/features/admin/pages/grades/exams/exams.component.scss|.exams__name-link",
   "apps/web/src/app/features/admin/pages/payments/payments.page.scss|.payments__row",
   "apps/web/src/app/features/admin/pages/sessions/dialogs/mobile-batch-dialog/mobile-batch-dialog.component.scss|.mobile-batch-dialog__menu-item",
   "apps/web/src/app/features/admin/pages/sessions/dialogs/session-leave-roster-dialog/session-leave-roster-dialog.component.scss|.leave-roster__filter-tab",

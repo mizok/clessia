@@ -774,6 +774,14 @@ function checkTouchTargets() {
   // 而 parent / public 兩區**沒有人量過也不在掃描範圍**。
 }
 
+// **`checkMobileFirst()` 必須排在 `checkTouchTargets()` 之前。**
+// 觸控檢查的範圍是從 mobile-first baseline 推導的（見 checkTouchTargets 的註解），
+// 所以 write 模式下如果先跑觸控、它讀到的會是**還沒更新的**那份 —— 這一輪剛遷完的
+// 檔案不會進範圍，於是 `npm run harness:write` 跑一次到不了不動點，得跑兩次才收斂。
+//
+// 實際踩到：一次遷完 9 支 grades 之後 write 一次，check 立刻報 12 筆新違規；
+// 再 write 一次那 12 筆才進 baseline。「write 完還是紅」會讓人以為 gate 壞了。
+checkMobileFirst();
 checkTouchTargets();
 
 // ── A18. feature 之間不得互相 import（clause c5）─────────────────────────────────────────
@@ -1068,8 +1076,6 @@ function checkMobileFirst() {
     );
   }
 }
-
-checkMobileFirst();
 
 // ── PrimeNG 模組的孤兒 import ──────────────────────────────────────────────
 // Angular 的 NG8113 只對 standalone 元件發診斷，**不涵蓋 NgModule** ——
