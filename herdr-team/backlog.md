@@ -4,11 +4,14 @@
 > (認領=SendMessage 向計畫席宣告,由計畫席落標記 —— worktree 推不動 main)。
 > 佇列項都是預先批准的;設計類產出照舊過 STOP gate。計畫席保證每席佇列 ≥2 項。
 
+## review-steward
+
+1. ~~合併腳本 tools/steward-merge.sh~~(#284,計畫席已驗收,自收)
+
 ## teacher-pages(整理 2026-09-04 凌晨)
 
 1. ~~notifications 規格落差~~ 完成 / ~~兩頁斷點~~(#201/#208 用 max-width 上限吸收,工單問錯方向)/ ~~今日流~~(#226 已合)/ ~~#247/#248/#253~~ 已合
-2. 前端接 `POST /api/announcements/read-all`(API 是 #219,**已在 main**)—— 把「全部已讀」從 N 個 request 換成一發;先查有沒有人接過
-3. 驗銷假警告是否已用 leaveStartDate 說「將」(API 是 #222,**已在 main**)—— 已接就回報結案,沒接就接上
+2. ~~read-all 接線 / 銷假警告~~(#258/#279 已合,實機驗證在 #280 charter)
 
 ## design-web(整理 2026-09-04 凌晨)
 
@@ -87,7 +90,6 @@ c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因�
 
 ## 現行補貨(2026-09-04 凌晨)
 
-- (infra) Docker/supabase 回復(`npm run db:start`)—— teacher-pages 等它補實機驗證 [已派]
 - (infra) admin 剩餘 17 筆 44px 觸控債分診:base 44 vs 兩層寫法(#250 已解鎖),清單交計畫席 [已派]
 - (infra) **雙軌表格 ratchet gate**:掃「斷點內 display:none 掉 __table-wrap」結構訊號,
   現有 4 支(成績區)進 baseline,擋新增的手刻手機版 —— 讓未來表格自然走 responsive-table
