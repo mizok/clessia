@@ -30,6 +30,10 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    // 實際高度是 64px —— 但那是 `&__tabs` 的 `height` 加上 `flex: 1` 撐出來的**副作用**。
+    // 明寫下限才是保證：有人哪天把那個 64px 拿掉、或改成 `align-items: center`，
+    // 這排 tab 會靜靜掉到 40px（icon 22 + gap 3 + 10px 標籤），而底欄是手機的主要導覽。
+    min-height: 44px;
     gap: 3px;
     color: var(--zinc-500);
     text-decoration: none;

@@ -796,6 +796,12 @@ function checkTouchTargets() {
   // 公開頁全數納入（2026-09-04）：它們是**未登入的人唯一會碰到的畫面**，
   // 而且不像 admin 有「已遷手機優先」這個天然的分批依據 —— 公開頁本來就少。
   const publicDir = join(ROOT, 'apps/web/src/app/features/public');
+  // **shared/ 是影響面最大的一塊**（2026-09-04 的載體盲區掃描順帶量到）：
+  // responsive-table、shell-layout、共用 dialog 全住這裡，**每個角色的每一頁都在用**，
+  // 而它先前完全不在範圍內 —— 9 筆報出、8 筆是真債（26–43px），
+  // 包含一顆連尺寸宣告都沒有的麵包屑連結（正是這道 gate 反向判準要抓的形狀）。
+  const sharedDir = join(ROOT, 'apps/web/src/app/shared');
+  const selectRoleDir = join(ROOT, 'apps/web/src/app/features/select-role');
   if (!existsSync(teacherDir) || !existsSync(adminDir)) return;
 
   const desktopFirst = new Set(
@@ -807,6 +813,8 @@ function checkTouchTargets() {
   const scoped = [
     ...walk(teacherDir, '.scss'),
     ...(existsSync(publicDir) ? walk(publicDir, '.scss') : []),
+    ...(existsSync(sharedDir) ? walk(sharedDir, '.scss') : []),
+    ...(existsSync(selectRoleDir) ? walk(selectRoleDir, '.scss') : []),
     ...walk(adminDir, '.scss').filter((f) => !desktopFirst.has(f.slice(ROOT.length + 1))),
   ];
 

@@ -1,1 +1,10 @@
-[]
+[
+  "apps/web/src/app/shared/components/class-picker-dialog/class-picker-dialog.component.scss|.class-picker__item",
+  "apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.scss|.shell-header__role-badge--interactive",
+  "apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.scss|.shell-header__user",
+  "apps/web/src/app/shared/components/layout/shell-layout/shell-layout.component.scss|.user-menu__item",
+  "apps/web/src/app/shared/components/login-link-dialog/login-link-dialog.component.scss|.login-link__copy-btn",
+  "apps/web/src/app/shared/components/page-breadcrumb/page-breadcrumb.component.scss|.breadcrumb__item--link",
+  "apps/web/src/app/shared/components/popup-menu/popup-menu.component.scss|.popup-menu__item",
+  "apps/web/src/app/shared/components/sidebar/sidebar.component.scss|.sidebar__group-header"
+]
