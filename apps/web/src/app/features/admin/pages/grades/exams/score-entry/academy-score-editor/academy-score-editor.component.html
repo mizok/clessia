@@ -75,6 +75,12 @@
                     styleClass="academy-score-editor__score-input"
                     [inputStyleClass]="'academy-score-editor__score-field'"
                   />
+                  @if (isFailing(row.score)) {
+                    <i
+                      class="pi pi-exclamation-triangle academy-score-editor__fail-icon"
+                      aria-label="不及格"
+                    ></i>
+                  }
                 </td>
                 <td class="academy-score-editor__cell academy-score-editor__cell--status">
                   <p-select
@@ -118,14 +124,18 @@
             <span
               class="academy-score-editor__mobile-score"
               [class.academy-score-editor__mobile-score--absent]="isAbsent(row)"
-              [class.academy-score-editor__mobile-score--fail]="
-                row.score !== null && row.score < 60
-              "
+              [class.academy-score-editor__mobile-score--fail]="isFailing(row.score)"
               [class.academy-score-editor__mobile-score--dirty]="isRowDirty(row)"
             >
               @if (isAbsent(row)) {
                 缺考
               } @else if (row.score !== null) {
+                @if (isFailing(row.score)) {
+                  <i
+                    class="pi pi-exclamation-triangle academy-score-editor__fail-icon"
+                    aria-label="不及格"
+                  ></i>
+                }
                 {{ row.score }}
               } @else {
                 未登錄
