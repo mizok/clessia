@@ -1407,6 +1407,7 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
         hasLeaveRequest: boolean;
         leaveStartDate: string | null;
         leaveEndDate: string | null;
+        cancelDropsLeaveUntil: string | null;
       }>;
     };
     return { payload, queriedTables };
@@ -1514,6 +1515,65 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
     expect(payload.students[0]?.leaveEndDate).toBe('2026-04-10');
   });
 
+  it('一張長假跨過今天 —— 預測會連坐取消到最後一天', async () => {
+    const { payload } = await roster([
+      {
+        student_id: 'stu-1',
+        start_date: '2026-04-04',
+        end_date: '2026-04-08',
+        start_time: null,
+        end_time: null,
+      },
+    ]);
+
+    expect(payload.students[0]?.cancelDropsLeaveUntil).toBe('2026-04-08');
+  });
+
+  it('⚠️ 兩張接力假 —— 聚合值同形，但實際零損失', async () => {
+    // [4/4~4/6] + [4/6~4/8]，今天 4/6。
+    // min/max 聚合起來是 4/4~4/8，跟上面那張長假**完全同形** ——
+    // 前端拿聚合值算 `start < today && end > today` 會誤報。
+    // 但實際銷假是：前一張縮到 4/5、後一張改成 4/7 起，**兩張都不損失**。
+    const { payload } = await roster([
+      {
+        student_id: 'stu-1',
+        start_date: '2026-04-04',
+        end_date: '2026-04-06',
+        start_time: null,
+        end_time: null,
+      },
+      {
+        student_id: 'stu-1',
+        start_date: '2026-04-06',
+        end_date: '2026-04-08',
+        start_time: null,
+        end_time: null,
+      },
+    ]);
+
+    // 聚合值跟長假那筆一模一樣
+    expect(payload.students[0]).toMatchObject({
+      leaveStartDate: '2026-04-04',
+      leaveEndDate: '2026-04-08',
+    });
+    // 但預測值分得出來 —— 這就是這一欄存在的理由
+    expect(payload.students[0]?.cancelDropsLeaveUntil).toBeNull();
+  });
+
+  it('今天才開始的假 —— 縮到明天起，零損失', async () => {
+    const { payload } = await roster([
+      {
+        student_id: 'stu-1',
+        start_date: '2026-04-06',
+        end_date: '2026-04-09',
+        start_time: null,
+        end_time: null,
+      },
+    ]);
+
+    expect(payload.students[0]?.cancelDropsLeaveUntil).toBeNull();
+  });
+
   it('沒有假時 leaveEndDate 是 null', async () => {
     const { payload } = await roster([]);
 
@@ -1521,6 +1581,7 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
       hasLeaveRequest: false,
       leaveStartDate: null,
       leaveEndDate: null,
+      cancelDropsLeaveUntil: null,
     });
   });
 
