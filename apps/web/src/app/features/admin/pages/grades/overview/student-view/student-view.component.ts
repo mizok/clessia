@@ -190,7 +190,8 @@ export class StudentViewComponent implements OnInit {
 
   protected openMobileFilterDialog(): void {
     this.dialogService.open(StudentViewFilterDialogComponent, {
-      width: 'min(420px, 95vw)',
+      width: '420px',
+      breakpoints: { '640px': '95%' },
       modal: true,
       showHeader: false,
       appendTo: 'body',
@@ -218,7 +219,8 @@ export class StudentViewComponent implements OnInit {
 
   protected selectStudent(student: Student): void {
     this.dialogService.open(StudentScoreDetailDialogComponent, {
-      width: 'min(720px, 95vw)',
+      width: '720px',
+      breakpoints: { '640px': '95%' },
       modal: true,
       showHeader: false,
       appendTo: 'body',

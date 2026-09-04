@@ -560,7 +560,8 @@ export class ExamsComponent implements OnInit {
   protected openFilterDialog(): void {
     const ref = this.dialogService.open(ExamsFilterDialogComponent, {
       header: '篩選條件',
-      width: 'min(400px, 96vw)',
+      width: '400px',
+      breakpoints: { '640px': '96%' },
       modal: true,
       appendTo: this.overlayContainer || 'body',
       data: {
@@ -702,7 +703,8 @@ export class ExamsComponent implements OnInit {
   private openAcademyDialog(mode: 'create' | 'edit', examId?: string): void {
     const ref = this.dialogService.open(AcademyExamFormDialogComponent, {
       header: mode === 'create' ? '新增補習班考試' : '編輯補習班考試',
-      width: 'min(520px, 96vw)',
+      width: '520px',
+      breakpoints: { '640px': '96%' },
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
@@ -719,7 +721,8 @@ export class ExamsComponent implements OnInit {
   private openSchoolDialog(mode: 'create' | 'edit', examId?: string): void {
     const ref = this.dialogService.open(SchoolExamFormDialogComponent, {
       header: mode === 'create' ? '新增學校考試' : '編輯學校考試',
-      width: 'min(480px, 96vw)',
+      width: '480px',
+      breakpoints: { '640px': '96%' },
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
@@ -832,7 +835,8 @@ export class ExamsComponent implements OnInit {
   private openConfirmDialog(header: string, data: ConfirmDialogData, onAccept: () => void): void {
     const ref = this.dialogService.open(ConfirmDialogComponent, {
       header,
-      width: 'min(420px, 96vw)',
+      width: '420px',
+      breakpoints: { '640px': '96%' },
       modal: true,
       showHeader: true,
       appendTo: this.overlayContainer || 'body',

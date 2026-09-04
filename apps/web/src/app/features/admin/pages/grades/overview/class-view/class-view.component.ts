@@ -191,7 +191,8 @@ export class ClassViewComponent implements OnInit {
 
   protected openMobileFilterDialog(): void {
     const ref = this.dialogService.open(ClassViewFilterDialogComponent, {
-      width: 'min(420px, 95vw)',
+      width: '420px',
+      breakpoints: { '640px': '95%' },
       modal: true,
       showHeader: false,
       appendTo: 'body',
@@ -233,7 +234,8 @@ export class ClassViewComponent implements OnInit {
 
   protected openClassScores(cls: Class, todoOnly = false): void {
     this.dialogService.open(ClassScoresDialogComponent, {
-      width: 'min(900px, 95vw)',
+      width: '900px',
+      breakpoints: { '640px': '95%' },
       modal: true,
       showHeader: false,
       appendTo: 'body',
