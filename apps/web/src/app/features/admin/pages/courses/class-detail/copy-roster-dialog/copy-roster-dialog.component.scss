@@ -34,7 +34,9 @@
     }
 
     .pi {
-      color: var(--accent-400);
+      // 400 只有 2.16 —— 13px 的圖示在那個對比下等於看不見，那不是「次要」是「雜訊」。
+      // 600 過非文字門檻 3:1，又比旁邊的 accent-700 文字淡一階，層級不變。
+      color: var(--accent-600);
       flex-shrink: 0;
       font-size: 13px;
     }
@@ -140,7 +142,8 @@
     }
 
     .pi {
-      color: var(--zinc-400);
+      // 同上：400 只有 2.47。500 過 3:1，且比旁邊的 zinc-600 文字淡一階。
+      color: var(--zinc-500);
       font-size: 13px;
       flex-shrink: 0;
     }

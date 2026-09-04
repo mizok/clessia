@@ -27,7 +27,9 @@
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: var(--zinc-400);
+    // 白色圖示疊 zinc-400 只有 2.60，過不了非文字的 3:1。zinc-500 過關，
+    // 而 hover 的 zinc-600 仍比它深一階，回饋差異保留。
+    background: var(--zinc-500);
     color: #fff;
     border: none;
     cursor: pointer;
@@ -104,8 +106,13 @@
     width: 140px;
   }
 
+  // 兩個日期輸入框之間的 `—`。它是**文字字元**不是裝飾，走 4.5:1；
+  // zinc-400 只有 2.47，zinc-500 過關。
+  //
+  // 這一筆是去重改成「宣告位置」之後才浮出來的 —— 它跟同一支檔案裡的
+  // `&:disabled` 是同一組 zinc-400/zinc-50，舊的去重鍵用顏色值，所以它被吞掉了。
   &__dash {
-    color: var(--zinc-400);
+    color: var(--zinc-500);
     font-size: var(--text-sm);
   }
 

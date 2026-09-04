@@ -127,11 +127,26 @@ export function usageContrastViolations(scss, palette) {
     // 用錯門檻製造出來的違規不是債，它會讓 baseline 看起來比實際糟。
     const threshold = frame.icon ? NON_TEXT_AA : TEXT_AA;
     if (ratio >= threshold) return;
-    // 同一組配對在同一支檔案裡只報一次，不然一個 chip 會刷出十列
-    const key = `${fg.src}|${bg.src}`;
+    // 去重的鍵是**這一對宣告的位置**，不是顏色值。
+    //
+    // 原本用 `fg.src|bg.src`（同一支檔案裡同一組配色只報一次），本意是控制噪音：
+    // 好幾個後代 frame 從同一個祖先繼承同一組 color/background，每個都會算出
+    // 一樣的失敗。用宣告位置當鍵一樣能收掉那些（它們的 fg/bg 來自同兩行）。
+    //
+    // **但顏色值當鍵會吞掉真的新違規** —— 同一支檔案裡另一個地方湊出同樣的
+    // zinc-400 疊 zinc-100，第一筆報掉之後第二筆就靜靜消失。第一筆若還被
+    // baseline 或豁免蓋住，那個新違規等於完全不存在。實測過：在 empty-state
+    // 加一個新的 zinc-400/zinc-100 區塊，gate 完全沒反應。
+    const key = `${fg.line}|${bg.line}`;
     if (seen.has(key)) return;
     seen.add(key);
-    found.push({ line: frame.declLine ?? frame.line, ratio, fg: fg.src, bg: bg.src });
+    found.push({
+      line: frame.declLine ?? frame.line,
+      ratio,
+      fg: fg.src,
+      bg: bg.src,
+      selector: frame.selector ?? '?',
+    });
   };
 
   lines.forEach((raw, idx) => {
@@ -144,7 +159,7 @@ export function usageContrastViolations(scss, palette) {
       const slot = decl[1] === 'color' ? 'color' : 'bg';
       const rgb = resolveColor(decl[2], palette);
       if (rgb) {
-        top[slot] = { rgb, src: decl[2].trim() };
+        top[slot] = { rgb, src: decl[2].trim(), line: lineNo };
         top.declLine = top.declLine ?? lineNo;
       } else if (slot === 'bg') {
         top.bg = UNKNOWN;
@@ -155,6 +170,9 @@ export function usageContrastViolations(scss, palette) {
       if (ch === '{')
         stack.push({
           line: lineNo,
+          // 選擇器要進 baseline / 豁免的鍵 —— 只用 `檔案|前景|背景` 的話，
+          // 一筆豁免會把同一支檔案裡所有同色配對的違規一起蓋掉。
+          selector: line.slice(0, line.indexOf('{')).trim() || '?',
           pseudo: /::(before|after)/.test(line),
           // 圖示的判定沿著祖先繼承：`.x { .pi { … } }` 裡面那層是圖示，
           // 而 `.x__icon { … }` 自己就是。任一層命中就算。

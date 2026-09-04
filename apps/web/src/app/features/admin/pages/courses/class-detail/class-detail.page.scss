@@ -192,7 +192,9 @@
     cursor: pointer;
     user-select: none;
     border-left: 3px solid transparent;
-    transition: background var(--transition-fast), border-color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      border-color var(--transition-fast);
 
     // 行間分隔線（不用 gap 製造浮牌感）
     & + & {
@@ -313,12 +315,24 @@
     }
   }
 
-  &__student-status[data-status='active'] &__status-dot { background: var(--success-600); }
-  &__student-status[data-status='active'] &__status-label { color: var(--success-600); }
-  &__student-status[data-status='pending_payment'] &__status-dot { background: #fb923c; }
-  &__student-status[data-status='pending_payment'] &__status-label { color: #c2410c; }
-  &__student-status[data-status='suspended'] &__status-dot { background: var(--zinc-400); }
-  &__student-status[data-status='suspended'] &__status-label { color: var(--zinc-500); }
+  &__student-status[data-status='active'] &__status-dot {
+    background: var(--success-600);
+  }
+  &__student-status[data-status='active'] &__status-label {
+    color: var(--success-600);
+  }
+  &__student-status[data-status='pending_payment'] &__status-dot {
+    background: #fb923c;
+  }
+  &__student-status[data-status='pending_payment'] &__status-label {
+    color: #c2410c;
+  }
+  &__student-status[data-status='suspended'] &__status-dot {
+    background: var(--zinc-400);
+  }
+  &__student-status[data-status='suspended'] &__status-label {
+    color: var(--zinc-500);
+  }
   &__student-status[data-status='withdrawal'] &__status-dot,
   &__student-status[data-status='void'] &__status-dot {
     background: var(--zinc-300);
@@ -349,7 +363,10 @@
     border-radius: var(--radius-sm);
     color: var(--zinc-400);
     opacity: 0;
-    transition: background var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      color var(--transition-fast),
+      opacity var(--transition-fast);
     flex-shrink: 0;
 
     @media (hover: none) {
@@ -401,7 +418,6 @@
     padding: 2px var(--space-2);
     border-radius: var(--radius-full);
   }
-
 }
 
 @include bp.respond-to('tablet-portrait') {

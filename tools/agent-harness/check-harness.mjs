@@ -30,6 +30,42 @@ import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const CONTRAST_BASELINE = join(ROOT, 'tools/agent-harness/scss-contrast-baseline.json');
+
+/**
+ * 對比檢查的**永久豁免**，語意跟 `scss-contrast-baseline.json` 完全不同：
+ *
+ * - baseline JSON 是**債** —— 該修但還沒排到，目標是歸零。
+ * - 這張表是**豁免** —— 有明文依據或設計上不該修，不會歸零，所以每一筆都要寫理由。
+ *
+ * **為什麼豁免寫在程式碼裡而不是 JSON**：baseline 那支 JSON 由
+ * `npm run harness:write` 重生，理由欄位會被靜默沖掉。一個沒有理由的豁免
+ * 就只是一個沒人敢動的數字 —— 那正是帳本規則要防的東西。
+ *
+ * 鍵的格式跟 baseline 一樣：`檔案|選擇器|前景|背景`。
+ * **選擇器一定要在鍵裡** —— 只用 `檔案|前景|背景` 的話，一筆豁免會把同一支檔案裡
+ * 所有同色配對的違規一起蓋掉（實測過，而且真的吞掉過一筆 `&__dash`）。
+ * **豁免對不上任何實際違規時 gate 會紅** —— 一筆指向已經不存在的地方的豁免是謊，
+ * 不是保險；改完就要把它刪掉。
+ */
+const CONTRAST_EXEMPT = {
+  // ─ 空狀態的大圖示：WCAG 1.4.11 明文豁免「純裝飾」 ─
+  // 三處都是同一個形狀：一個 24–40px 的灰圖示，旁邊必定有標題與說明文字，
+  // 圖示不承載任何文字沒講的資訊。提高對比會讓它從「氣氛」變成「重點」。
+  'apps/web/src/app/features/admin/pages/courses/class-detail/class-detail.page.scss|.pi|var(--zinc-400)|var(--zinc-100)':
+    '空狀態圖示（.pi 24px，圓底 zinc-100），旁邊有 __empty-title 承載全部資訊 —— 1.4.11 純裝飾豁免',
+  'apps/web/src/app/features/admin/pages/grades/exams/score-entry/school-score-editor/school-score-editor.component.scss|i|var(--zinc-300)|var(--zinc-50)':
+    '空狀態圖示（i 40px），同一個容器裡的 zinc-500 說明文字承載資訊 —— 1.4.11 純裝飾豁免',
+  'apps/web/src/app/shared/components/empty-state/empty-state.component.scss|i|var(--zinc-400)|var(--zinc-100)':
+    '共用空狀態元件的圖示（i 28px，圓底 zinc-100），__title 與說明文字承載資訊 —— 1.4.11 純裝飾豁免',
+
+  // ─ disabled 控制項：WCAG 1.4.3 明文豁免 ─
+  'apps/web/src/app/features/admin/pages/courses/class-form-dialog/class-form-dialog.component.scss|&:disabled|var(--zinc-400)|var(--zinc-50)':
+    'disabled 輸入框 —— 1.4.3 明文豁免；提高對比反而讓它看起來可以按（理由也寫在該處）',
+
+  // ─ placeholder：既有設計裁決，不是遺漏 ─
+  'apps/web/src/app/features/public/shared/_auth-form.scss|&::placeholder|var(--zinc-400)|#fff':
+    'placeholder。styles.scss 已裁決刻意留 zinc-400：「還沒填」該比「已填」淡，提到 zinc-500 會讓它讀起來像已經有值。要不要動是獨立的設計題，不是對比債',
+};
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');
 const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-baseline.json');
 const TOUCH_TARGET_BASELINE = join(ROOT, 'tools/agent-harness/touch-target-baseline.json');
@@ -1084,15 +1120,29 @@ function checkUsageContrast() {
   for (const file of scssFiles) {
     const rel = file.slice(ROOT.length + 1);
     for (const v of usageContrastViolations(readFileSync(file, 'utf8'), palette)) {
-      current.set(`${rel}|${v.fg}|${v.bg}`, v);
+      current.set(`${rel}|${v.selector}|${v.fg}|${v.bg}`, v);
     }
   }
 
-  const keys = [...current.keys()].sort();
+  // 豁免不是債 —— 它不進 baseline，所以 `harness:write` 也不會把它寫成債。
+  const exemptKeys = Object.keys(CONTRAST_EXEMPT);
+  const keys = [...current.keys()].filter((k) => !(k in CONTRAST_EXEMPT)).sort();
 
   if (mode === 'write') {
     writeFileSync(CONTRAST_BASELINE, `${JSON.stringify(keys, null, 2)}\n`);
     return;
+  }
+
+  // **豁免必須是可否證的。** 一筆對不上任何實際違規的豁免是謊不是保險：
+  // 它讀起來像「這裡有個已知的例外」，實際上那個地方早就改掉了。
+  // 這一條是 write 模式修不掉的（豁免寫在程式碼裡），只能由人刪，這是刻意的。
+  const orphanExempt = exemptKeys.filter((k) => !current.has(k));
+  for (const key of orphanExempt) {
+    const [file, sel, fg, bg] = key.split('|');
+    fail(
+      `對比豁免過期：${file} 的 ${sel} 用 ${fg} 疊 ${bg} 已經不違規了 —— ` +
+        `把 CONTRAST_EXEMPT 裡那一筆刪掉（豁免歸零不是把數字改小，是整筆移除）`,
+    );
   }
 
   const baseline = new Set(
@@ -1101,10 +1151,10 @@ function checkUsageContrast() {
 
   const fresh = keys.filter((k) => !baseline.has(k));
   for (const key of fresh) {
-    const [file, fg, bg] = key.split('|');
+    const [file, sel, fg, bg] = key.split('|');
     const v = current.get(key);
     fail(
-      `${file}:${v.line} 的 ${fg} 疊在 ${bg} 上只有 ${v.ratio.toFixed(2)}:1，` +
+      `${file}:${v.line} 的 ${sel} 用 ${fg} 疊在 ${bg} 上只有 ${v.ratio.toFixed(2)}:1，` +
         `低於文字的 AA 門檻 4.5:1`,
     );
   }
@@ -1118,11 +1168,21 @@ function checkUsageContrast() {
 
   // 最大宗的那個配對**算出來**，不要寫死 —— 上一版硬寫「多數是 --zinc-400 那筆全站舊債」，
   // 那筆清掉之後這句就變成假的，而且沒有任何東西會提醒你（c11）。
+  // **豁免要跟債分開講。** 債歸零之後上面那段統計就不觸發了，而如果這裡什麼都不說，
+  // 「零債」會被讀成「零例外」—— 那不是真的，只是例外搬到另一本帳上。
+  if (exemptKeys.length > 0) {
+    warnings.push(
+      `對比債 ${keys.filter((k) => baseline.has(k)).length} 筆、永久豁免 ${exemptKeys.length} 筆` +
+        `（豁免有明文理由，看 check-harness.mjs 的 CONTRAST_EXEMPT；` +
+        `豁免對不上實際違規時 gate 會紅）`,
+    );
+  }
+
   const stillInBaseline = keys.filter((k) => baseline.has(k));
   if (stillInBaseline.length > 0) {
     const byPair = new Map();
     for (const k of stillInBaseline) {
-      const [, fg, bg] = k.split('|');
+      const [, , fg, bg] = k.split('|');
       const pair = `${fg} 疊 ${bg}`;
       byPair.set(pair, (byPair.get(pair) ?? 0) + 1);
     }
