@@ -209,7 +209,10 @@
     }
   }
 
+  // 觸控命中區見檔尾的 `pointer: coarse` 區塊。
+  // `position: relative` 是那個 `::after` 覆蓋層的定位基準。
   &__name-link {
+    position: relative;
     background: none;
     border: none;
     padding: 0;
@@ -301,5 +304,33 @@
 
   .exams__clear-filters {
     min-height: 44px;
+  }
+}
+
+// 觸控債的最後一筆。它是 `<td>` 裡的行內文字按鈕（`padding: 0`，≈21px）。
+//
+// **不能下 `min-height: 44px`** —— 儲存格的內容高度只有 19.5px，把按鈕撐到 44
+// 會讓整列變成 44+24≈68px，等於把表格撐成兩倍高。
+//
+// **也不能用 `padding` + 負 `margin`** —— 實測對比／觸控 gate 都不認那種寫法
+// （它只看 width / height / min-*），會變成「命中區真的變大了、gate 照樣紅」。
+//
+// 所以擴大的是**命中區**：`::after` 覆蓋層，元素本身與版面完全不動。
+//
+// 這裡用滿版覆蓋層是安全的，因為**這一列沒有競爭動作** —— `exams__row` 只有
+// hover 樣式沒有 click，展開走的是獨立的 44×44 展開鈕。
+// （`class-row__name` 那邊就不同：列本身會 toggleSelection，所以那裡要留意重疊。）
+//
+// 高度剛好裝得下：`responsive-table__cell` 在 coarse 下的列高已經是 ≈44.5px。
+//
+// **一條一個選擇器** —— gate 認不得逗號群組（只認最後一個）。
+@media (pointer: coarse) {
+  .exams__name-link::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: 100%;
+    height: 44px;
+    transform: translate(-50%, -50%);
   }
 }
