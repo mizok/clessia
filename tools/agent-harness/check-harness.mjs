@@ -22,6 +22,7 @@ import { orphanModuleImports } from './lib/orphan-imports.mjs';
 import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
 import { matchWriteRules } from './lib/rules.mjs';
 import { crossFeatureImports } from './lib/feature-boundaries.mjs';
+import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
@@ -31,6 +32,7 @@ const CONTRAST_BASELINE = join(ROOT, 'tools/agent-harness/scss-contrast-baseline
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');
 const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-baseline.json');
 const TOUCH_TARGET_BASELINE = join(ROOT, 'tools/agent-harness/touch-target-baseline.json');
+const DUAL_TRACK_BASELINE = join(ROOT, 'tools/agent-harness/dual-track-baseline.json');
 const AGENTS_MD = join(ROOT, 'AGENTS.md');
 const SKILLS_DIR = join(ROOT, '.agents/skills');
 const THIN_ENTRYPOINTS = ['CLAUDE.md'];
@@ -806,6 +808,63 @@ if (existsSync(FEATURES_DIR)) {
     );
   }
 }
+
+// ── 雙軌表格：不要再手刻第二份手機版 ────────────────────────────────────────────────────
+// 同一份資料在元件裡宣告兩次（`<table>` + 一組平行的手機標記），靠斷點互相切換。
+// 改欄位時要記得改兩處，而**忘記的那一次不會有任何錯誤** —— 跟 page-actions 同源。
+// 既有 4 支進 baseline（成績區），只擋新增的；正解是走 responsive-table 共用元件。
+//
+// 偵測訊號與能力邊界見 lib/dual-track-table.mjs。摘要：認的是 SCSS 裡**互補的
+// display 開關**（基準藏 A、條件顯 A 且藏 B），不是命名 —— 第一版認 `__mobile*`
+// 漏掉了手機版叫 `__record-cards` 的那一支，而且漏得很安靜。
+function checkDualTrackTables() {
+  const webSrc = join(ROOT, 'apps/web/src');
+  if (!existsSync(webSrc)) return;
+
+  // 要模板與 SCSS 成對：訊號一半在模板（有沒有 <table>）、一半在 SCSS（有沒有翻面）
+  const components = walk(webSrc, '.html')
+    .filter((f) => existsSync(f.replace(/\.html$/, '.scss')))
+    .map((f) => ({
+      path: f.slice(ROOT.length + 1),
+      template: readFileSync(f, 'utf8'),
+      scss: readFileSync(f.replace(/\.html$/, '.scss'), 'utf8'),
+    }));
+  const current = new Map(dualTrackTables(components).map((v) => [v.file, v]));
+  const keys = [...current.keys()].sort();
+
+  if (mode === 'write') {
+    writeFileSync(DUAL_TRACK_BASELINE, `${JSON.stringify(keys, null, 2)}\n`);
+    return;
+  }
+
+  const baseline = new Set(
+    existsSync(DUAL_TRACK_BASELINE) ? JSON.parse(readFileSync(DUAL_TRACK_BASELINE, 'utf8')) : [],
+  );
+
+  for (const key of keys.filter((k) => !baseline.has(k))) {
+    fail(
+      `${key} 是雙軌表格：斷點把 ${current.get(key).hidden} 藏起來、換成 ` +
+        `${current.get(key).shown}。同一份資料宣告兩次，改欄位時漏掉一邊不會有任何錯誤 —— ` +
+        `改用 responsive-table 共用元件`,
+    );
+  }
+
+  const stale = [...baseline].filter((k) => !current.has(k));
+  if (stale.length > 0) {
+    warnings.push(
+      `雙軌表格 baseline 有 ${stale.length} 筆已經遷移了 —— 跑 npm run harness:write 把它們移出清單`,
+    );
+  }
+
+  const remaining = keys.filter((k) => baseline.has(k));
+  if (remaining.length > 0) {
+    warnings.push(
+      `${remaining.length} 支表格是雙軌實作（在 baseline 裡、不擋）—— 遷到 responsive-table 之後跑 harness:write`,
+    );
+  }
+}
+
+checkDualTrackTables();
 
 // ── W1. 使用者層級 skill 在這台機器上存在嗎（警告，不紅燈）────────────────────────────
 // 而那個 kb-wiki skill 不進版控（它是使用者跨專案共用的），所以「AGENTS.md 說得出口的

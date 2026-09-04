@@ -44,6 +44,7 @@ tags: [architecture, harness, gate, ci]
 | `checkTouchTargets`（A17） | 自己刻的可點元素有尺寸下限            | 見下方「反向規則」                                                               |
 | `checkPageActions`         | 主要行動要進拇指區                    | **手機上按不到這件事，寫的人不會在自己的螢幕上發現**                             |
 | `checkOrphanImports`       | 沒用到的 PrimeNG NgModule             | Angular 的 NG8113 只涵蓋 standalone，**NgModule 完全不報**                       |
+| `checkDualTrackTables`     | 不要再手刻第二份手機版表格            | 同一份資料宣告兩次，**改欄位時漏掉一邊不會有任何錯誤**                           |
 | `W1`                       | 使用者層級 skill 在不在（**只警告**） | 別人的機器裝不裝是他的事                                                         |
 
 > **共同的形狀**：這些全部是「錯了不會壞、只會安靜地變差」的東西。
