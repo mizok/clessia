@@ -3,45 +3,89 @@
  *
  * ## 問題形狀
  *
- * 同一份資料在模板裡宣告兩次：一個 `<table>` 給桌機、一組 `__mobile-*` 標記給手機，
- * 靠斷點 `display: none` 互相切換。**改欄位時要記得改兩處，而忘記的那一次不會有任何錯誤** ——
- * 跟 `page-actions` 那一刀的理由同源（專案已有三個「同一件事宣告兩次就會分岔」的實例）。
+ * 同一份資料在元件裡宣告兩次：一個 `<table>` 給桌機、一組平行標記給手機，
+ * 靠斷點 `display` 互相切換。**改欄位時要記得改兩處，而忘記的那一次不會有任何錯誤** ——
+ * 跟 `page-actions` 那一刀的理由同源。正解是走 `responsive-table` 共用元件：
+ * 宣告一次，由元件決定桌機表格還是手機卡片。
  *
- * 正解是走 `responsive-table` 共用元件：宣告一次，由元件決定桌機表格還是手機卡片。
+ * ## 偵測訊號：**互補的 display 開關**，不是命名
  *
- * ## 偵測訊號：**模板**同時有 `<table>` 與平行的手機標記
+ * ```scss
+ * .b { &__cards { display: none; } }                 // 桌機：藏手機版
+ * @include respond-to('tablet-portrait') {
+ *   .b {
+ *     &__table-wrap { display: none; }               // 手機：藏表格
+ *     &__cards      { display: grid; }               // 手機：放出手機版
+ *   }
+ * }
+ * ```
  *
- * 為什麼看模板不看 SCSS：SCSS 那一側有**兩種互補的寫法**，而且四支檔案不一致 ——
- * 有的是 `&__mobile-list { display: none }`（桌機藏手機版），
- * 有的是斷點裡 `&__table-wrap { display: none }`（手機藏表格）。
- * 只掃其中一種會漏掉另一種；而模板裡「兩份平行標記同時存在」是這件事的**定義**，
- * 不是它的其中一種表現。
+ * 判準要三個條件同時成立：模板有 `<table>`、某個 selector 被「基準藏 / 條件顯」
+ * 翻面、另一個不同的 selector 在條件裡被藏掉。**那組翻面就是「兩條軌道」本身。**
+ *
+ * ### 為什麼不用命名（這裡踩過一次）
+ *
+ * 第一版認 `__mobile*`，理由是「repo 現存三支都這樣寫」。
+ * **它漏掉第四支** —— `student-score-detail-dialog` 的手機版叫 `__record-cards`，
+ * 名字裡沒有 mobile。更糟的是漏得很安靜：那支被判成「有表格、沒手機版」的**破版**，
+ * 於是連帶推出一個「表格無手機路徑」的新 gate 提案 —— 一個**建立在誤判上的需求**。
+ *
+ * 教訓不是「該多列幾個名字」，是**命名慣例不能當結構訊號**：
+ * 慣例只描述已經寫出來的那幾支，而 gate 要擋的是還沒寫出來的下一支。
  *
  * ## 這支看不到什麼
  *
- * - **命名慣例以外的手刻手機版**。訊號認的是 `__mobile*`，那是本 repo 目前三支的寫法。
- *   有人改叫 `__phone-list` 或 `__card-view` 就抓不到 —— 這是**已知且刻意**的邊界：
- *   與其猜一堆可能的名字，不如認一個真實存在的慣例，並把限制寫在這裡。
- * - **手機版做得好不好**。它只知道有兩份，不知道哪份對。
- * - **只有表格、完全沒有手機版**的頁面 —— 那是**另一種缺陷**（破版），不是雙軌。
- *   `student-score-detail-dialog` 就是那一種：有 `<table>`、零個 `__mobile`。
- *   兩者的修法與驗收方式都不同，混在一起會讓報告失焦。
+ * - **不用 `display` 切換的雙軌**（`visibility`、`@if` 條件渲染、TS 端判斷寬度）。
+ * - **手機版做得好不好**。它只知道有兩條軌道，不知道哪條對。
+ * - **跨檔案繼承的 display**（父層 SCSS 或全域 token 藏起來的）。
+ * - 反過來，**基準藏 A、條件藏 B 但兩者無關**（例如列印用的隱藏節點碰上某個
+ *   媒體查詢）理論上會誤報。「條件裡把 A 放出來」這一條就是為了擋這種：
+ *   `invoice-detail-dialog` 有 `<table>` 也有基準 `display:none`（列印節點），
+ *   因為沒有翻面而正確放行。
+ *
+ * `responsive-table` 自己**零個 `display:none`** —— 它是一張表加展開列，單軌。
+ * 正解不會踩到這個訊號，這是它是對的訊號的旁證。
  */
+
+import { blocks } from './scss-blocks.mjs';
 
 const TABLE = /<table[\s>]/;
-const MOBILE_MARKUP = /__mobile[a-z-]*/;
+const DISPLAY = /(^|[;{\s])display\s*:\s*([a-z-]+)/;
+
+/** 這個區塊宣告的 display 值（沒宣告回 null） */
+function displayOf(decls) {
+  const m = DISPLAY.exec(decls);
+  return m ? m[2] : null;
+}
 
 /**
- * @param {Array<{path: string, source: string}>} templates `.html` 檔（path 用 repo 相對路徑）
- * @returns {Array<{file: string, mobileMarks: number}>} 雙軌實作，已排序
+ * @param {Array<{path: string, template: string, scss: string}>} components
+ *   `path` 用 repo 相對路徑（回報用），`template` / `scss` 是兩個檔的內容
+ * @returns {Array<{file: string, shown: string, hidden: string}>} 雙軌實作，已排序
  */
-export function dualTrackTables(templates) {
+export function dualTrackTables(components) {
   const found = [];
-  for (const { path, source } of templates) {
-    if (!TABLE.test(source)) continue;
-    if (!MOBILE_MARKUP.test(source)) continue;
-    const mobileMarks = new Set([...source.matchAll(/__mobile[a-z-]*/g)].map((m) => m[0])).size;
-    found.push({ file: path, mobileMarks });
+  for (const { path, template, scss } of components) {
+    if (!TABLE.test(template)) continue;
+
+    const hiddenAtBase = new Set();
+    const shownInCond = new Set();
+    const hiddenInCond = new Set();
+    for (const b of blocks(scss)) {
+      const d = displayOf(b.decls);
+      if (!d) continue;
+      if (b.cond) (d === 'none' ? hiddenInCond : shownInCond).add(b.selector);
+      else if (d === 'none') hiddenAtBase.add(b.selector);
+    }
+
+    // 基準藏起來、條件裡放出來 —— 這是手機軌道
+    const shown = [...hiddenAtBase].find((s) => shownInCond.has(s));
+    if (!shown) continue;
+    // 條件裡被藏掉的**另一個** selector —— 這是桌機軌道
+    const hidden = [...hiddenInCond].find((s) => s !== shown);
+    if (!hidden) continue;
+
+    found.push({ file: path, shown, hidden });
   }
   return found.sort((a, b) => a.file.localeCompare(b.file));
 }

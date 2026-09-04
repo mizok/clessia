@@ -802,21 +802,26 @@ if (existsSync(FEATURES_DIR)) {
 }
 
 // ── 雙軌表格：不要再手刻第二份手機版 ────────────────────────────────────────────────────
-// 同一份資料在模板裡宣告兩次（`<table>` + `__mobile-*`），靠斷點互相切換。
+// 同一份資料在元件裡宣告兩次（`<table>` + 一組平行的手機標記），靠斷點互相切換。
 // 改欄位時要記得改兩處，而**忘記的那一次不會有任何錯誤** —— 跟 page-actions 同源。
-// 既有 3 支進 baseline（成績區），只擋新增的；正解是走 responsive-table 共用元件。
+// 既有 4 支進 baseline（成績區），只擋新增的；正解是走 responsive-table 共用元件。
 //
-// 偵測訊號與能力邊界見 lib/dual-track-table.mjs。摘要：看**模板**不看 SCSS
-// （SCSS 那側有兩種互補寫法，只掃一種會漏），而且只認 `__mobile*` 這個現存慣例。
+// 偵測訊號與能力邊界見 lib/dual-track-table.mjs。摘要：認的是 SCSS 裡**互補的
+// display 開關**（基準藏 A、條件顯 A 且藏 B），不是命名 —— 第一版認 `__mobile*`
+// 漏掉了手機版叫 `__record-cards` 的那一支，而且漏得很安靜。
 function checkDualTrackTables() {
   const webSrc = join(ROOT, 'apps/web/src');
   if (!existsSync(webSrc)) return;
 
-  const templates = walk(webSrc, '.html').map((f) => ({
-    path: f.slice(ROOT.length + 1),
-    source: readFileSync(f, 'utf8'),
-  }));
-  const current = new Map(dualTrackTables(templates).map((v) => [v.file, v]));
+  // 要模板與 SCSS 成對：訊號一半在模板（有沒有 <table>）、一半在 SCSS（有沒有翻面）
+  const components = walk(webSrc, '.html')
+    .filter((f) => existsSync(f.replace(/\.html$/, '.scss')))
+    .map((f) => ({
+      path: f.slice(ROOT.length + 1),
+      template: readFileSync(f, 'utf8'),
+      scss: readFileSync(f.replace(/\.html$/, '.scss'), 'utf8'),
+    }));
+  const current = new Map(dualTrackTables(components).map((v) => [v.file, v]));
   const keys = [...current.keys()].sort();
 
   if (mode === 'write') {
@@ -830,8 +835,9 @@ function checkDualTrackTables() {
 
   for (const key of keys.filter((k) => !baseline.has(k))) {
     fail(
-      `${key} 同時有 <table> 與 ${current.get(key).mobileMarks} 個 __mobile 標記（雙軌實作）—— ` +
-        `同一份資料宣告兩次，改欄位時漏掉一邊不會有任何錯誤。改用 responsive-table 共用元件`,
+      `${key} 是雙軌表格：斷點把 ${current.get(key).hidden} 藏起來、換成 ` +
+        `${current.get(key).shown}。同一份資料宣告兩次，改欄位時漏掉一邊不會有任何錯誤 —— ` +
+        `改用 responsive-table 共用元件`,
     );
   }
 
