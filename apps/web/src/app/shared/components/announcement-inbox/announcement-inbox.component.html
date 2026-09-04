@@ -1,0 +1,58 @@
+<div class="announcement-inbox">
+  <header class="announcement-inbox__header">
+    <h1 class="announcement-inbox__title">
+      {{ heading() }}
+      @if (unread() > 0) {
+        <span class="announcement-inbox__badge">{{ unread() }} 則未讀</span>
+      }
+    </h1>
+
+    <!-- 沒有未讀就沒有可做的事 —— 不放一顆按了不會發生任何事的按鈕 -->
+    @if (unread() > 0) {
+      <button type="button" class="announcement-inbox__mark-all" (click)="markAllRead()">
+        全部標為已讀
+      </button>
+    }
+  </header>
+
+  @if (loading()) {
+    <p class="announcement-inbox__state">載入中…</p>
+  } @else if (loadError()) {
+    <p class="announcement-inbox__state announcement-inbox__state--error">查詢失敗，請稍後再試。</p>
+  } @else if (announcements().length === 0) {
+    <p class="announcement-inbox__state">目前沒有公告。</p>
+  } @else {
+    <ul class="announcement-inbox__list">
+      @for (item of announcements(); track item.id) {
+        <li
+          class="announcement-inbox__item"
+          [class.announcement-inbox__item--unread]="!item.isRead"
+        >
+          <button type="button" class="announcement-inbox__summary" (click)="toggle(item)">
+            <span class="announcement-inbox__item-title">
+              @if (!item.isRead) {
+                <span class="announcement-inbox__dot" aria-label="未讀"></span>
+              }
+              {{ item.title }}
+            </span>
+            <span class="announcement-inbox__meta">
+              {{ item.publishedAt | date: 'MM/dd HH:mm' }}
+              @if (item.campusName) {
+                · {{ item.campusName }}
+              }
+            </span>
+          </button>
+
+          @if (openId() === item.id) {
+            <div class="announcement-inbox__body">
+              <p class="announcement-inbox__text">{{ item.body }}</p>
+              @if (item.createdByName) {
+                <p class="announcement-inbox__author">—— {{ item.createdByName }}</p>
+              }
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  }
+</div>
