@@ -29,9 +29,14 @@
   }
 
   &__list {
-    // --window-height 由 app 根節點的 appWindowSize 寫入。這個面板是 dialog，
-    // appendTo 走到 'body' 那條路時會落在 <div class="app"> 外面、變數解不到 ——
-    // 所以 fallback 用的是視窗高度而不是某個 px 數字：那時它就是真正生效的值
+    // --window-height 由 appWindowSize 寫入 **document.documentElement**（#282 之後）。
+    //
+    // 在那之前它寫在 host（`.app`）上，而這個面板是 `appendTo: 'body'` 的 dialog ——
+    // 落在 `.app` 外面就解不到變數，**fallback 才是實際生效的值**。現在寫在 `<html>`
+    // 上，body 底下的東西一律繼承得到，所以這裡拿到的是真實視窗高度。
+    //
+    // fallback 仍然留著,而且仍然用視窗單位:它現在只在 directive 還沒跑完的那一瞬間
+    // 生效,那時「視窗高度」正是我們想要的值,寫死 px 只會在那一幀跳一下。
     // （c6 允許 var() 的 fallback 用 viewport 單位，禁的是直接拿它當值）
     max-height: calc(var(--window-height, 100dvh) * 0.55);
     overflow-y: auto;
