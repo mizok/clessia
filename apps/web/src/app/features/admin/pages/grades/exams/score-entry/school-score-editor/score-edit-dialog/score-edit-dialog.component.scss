@@ -76,11 +76,23 @@
     gap: var(--space-3);
   }
 
-  &__table-wrap {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
+  // `&__table-wrap` 沒有自己的樣式 —— 它只是**斷點用來隱藏表格的把手**
+  // （見檔尾的 `respond-to('tablet-portrait')`）。
+  //
+  // **這裡曾經有 `overflow-x: auto`，實測證明它永遠不會啟動，2026-09-04 拿掉。**
+  // 兩個原因疊在一起讓它成為死碼：
+  //
+  // 1. **≤768px 這張表根本不渲染** —— 手機看到的是 `__mobile-subjects`
+  // 2. **>768px 時表格是 `table-layout: fixed` + `width: 100%`** —— 表格寬度結構上
+  //    等於容器，內容撐不開它；dialog 本身又有 640px 的寬度上限
+  //    （開啟參數在 `school-score-editor.component.ts`）
+  //
+  // 實測（640px 容器 = 592px 內容區）：`scrollWidth === clientWidth === 592`，
+  // 欄寬 100+120+150+222 剛好填滿。連「60 字元不可斷行英數字塞進 100px 欄」
+  // 這種病態輸入也不溢出。
+  //
+  // **留著一個永遠不啟動的 overflow 容器不是無害的** —— 它是個訊號，會讓下一個人
+  // 以為這張表有寬度問題要小心，或以為橫向捲動是這裡的既定解法。
   &__table {
     width: 100%;
     border-collapse: collapse;
@@ -217,6 +229,13 @@
       font-size: 6px;
       color: var(--warning-600);
     }
+  }
+
+  // 形狀訊號：不及格才出現，跟著文字色（--error-600）
+  &__fail-icon {
+    font-size: var(--text-xs);
+    margin-right: var(--space-1);
+    color: var(--error-600);
   }
 
   &__mobile-subject-score {

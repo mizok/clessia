@@ -30,6 +30,7 @@ import {
 } from '@core/scores.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel, type Student } from '@core/students.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { isFailingScore } from '../../../score-threshold.util';
 
 type TypeFilter = 'all' | ScoreRecordType;
 type TimeRange = 'all' | '1m' | '3m' | '6m';
@@ -151,6 +152,23 @@ export class StudentScoreDetailDialogComponent implements OnInit {
 
     this.loadScores(this.student.id);
     this.loadSummary(this.student.id);
+  }
+
+  /**
+   * 單次考試的分數 —— 門檻是**該場總分的 60%**。
+   */
+  protected isFailing(score: number | null, totalScore: number | null): boolean {
+    return isFailingScore(score, totalScore);
+  }
+
+  /**
+   * 科目平均 —— **刻意不傳總分**。`academyAvg` / `schoolAvg` 是跨考試的原始分數
+   * 算術平均（`routes/scores.ts` 的 `averageOrNull`，沒有百分比化），所以它根本
+   * 沒有共同的總分。這裡退回 60 不是「還沒傳」，是那個數字本身在總分不一致時
+   * 就沒有意義 —— 那是另一個問題。
+   */
+  protected isFailingAverage(avg: number | null): boolean {
+    return isFailingScore(avg);
   }
 
   protected close(): void {

@@ -41,7 +41,7 @@
                   <span
                     class="student-score-detail-dialog__summary-value"
                     [class.student-score-detail-dialog__summary-value--fail]="
-                      subj.academyAvg !== null && subj.academyAvg < 60
+                      isFailingAverage(subj.academyAvg)
                     "
                   >
                     {{ formatAvg(subj.academyAvg) }}
@@ -52,7 +52,7 @@
                   <span
                     class="student-score-detail-dialog__summary-value"
                     [class.student-score-detail-dialog__summary-value--fail]="
-                      subj.schoolAvg !== null && subj.schoolAvg < 60
+                      isFailingAverage(subj.schoolAvg)
                     "
                   >
                     {{ formatAvg(subj.schoolAvg) }}
@@ -153,10 +153,10 @@
                   <td
                     class="student-score-detail-dialog__cell student-score-detail-dialog__cell--score"
                     [class.student-score-detail-dialog__cell--fail]="
-                      record.score !== null && record.score < 60
+                      isFailing(record.score, record.totalScore)
                     "
                   >
-                    @if (record.score !== null && record.score < 60) {
+                    @if (isFailing(record.score, record.totalScore)) {
                       <i
                         class="pi pi-exclamation-triangle student-score-detail-dialog__fail-icon"
                         aria-label="不及格"
@@ -196,7 +196,7 @@
                   <span
                     class="student-score-detail-dialog__record-value student-score-detail-dialog__record-value--score"
                     [class.student-score-detail-dialog__record-value--fail]="
-                      record.score !== null && record.score < 60
+                      isFailing(record.score, record.totalScore)
                     "
                   >
                     <!--
@@ -204,7 +204,7 @@
                       aria-label，這張卡片原本只有顏色 —— 而顏色不能是唯一的區分
                       （WCAG 1.4.1）。雙軌實作漂移的實例。
                     -->
-                    @if (record.score !== null && record.score < 60) {
+                    @if (isFailing(record.score, record.totalScore)) {
                       <i
                         class="pi pi-exclamation-triangle student-score-detail-dialog__fail-icon"
                         aria-label="不及格"

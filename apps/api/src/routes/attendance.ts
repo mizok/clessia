@@ -149,6 +149,25 @@ const RosterStudentSchema = z
      */
     leaveStartDate: z.string().nullable(),
     leaveEndDate: z.string().nullable(),
+    /**
+     * 按下銷假**會連坐取消到哪一天**；`null` 代表不會損失任何後續日期。
+     *
+     * **這是預測值，不是聚合值。** `leaveStartDate` / `leaveEndDate` 是跨多張假的
+     * min/max，而 min/max **分不出「一張長假」與「兩張接力假」**：
+     * `[4/4~4/6] + [4/6~4/8]`（今天 4/6）聚合起來跟 `[4/4~4/8]` 完全同形，
+     * 但前者銷假的結果是**兩張各縮一天、零損失**，後者是**後段整段被取消**。
+     * 前端拿 min/max 算 `start < today && end > today` 會對接力假誤報
+     *（teacher-pages 用測試釘住了這個限制，文案因此只能說「可能」）。
+     *
+     * 所以這一欄在**伺服器端逐張假算**，而且**直接用銷假自己那支
+     * `cancelLeaveForDate`** —— 預測與實際動作共用同一份實作，
+     * 不會出現「預覽說會、按下去卻不會」。
+     *
+     * 為什麼不開一支 dry-run 端點：那會在每次銷假前多一次往返，
+     * 而延遲 ≈ 每請求固定成本 × 請求次數（查詢執行只佔 1 毫秒）。
+     * 這一欄是既有 roster 回應多一個欄位，**零往返**。
+     */
+    cancelDropsLeaveUntil: z.string().nullable(),
   })
   .openapi('RosterStudent');
 
@@ -1134,6 +1153,8 @@ app.openapi(
     // **每一張都涵蓋今天，所以聯集必然連續**，這一組數字是精確的不是包絡。
     const leaveStartByStudent = new Map<string, string>();
     const leaveEndByStudent = new Map<string, string>();
+    // 銷假的連坐預測 —— 逐張假算，不是從 min/max 推（見 schema 的說明）
+    const cancelDropsByStudent = new Map<string, string>();
     for (const row of (leaves ?? []) as Array<Record<string, unknown>>) {
       const covers = leaveCoversSession(
         {
@@ -1157,6 +1178,16 @@ app.openapi(
 
       const existingEnd = leaveEndByStudent.get(studentKey);
       if (!existingEnd || endDate > existingEnd) leaveEndByStudent.set(studentKey, endDate);
+
+      // **用銷假自己那支算**：預測與動作共用一份實作，才不會「預覽說會、按下去卻不會」
+      const action = cancelLeaveForDate({ startDate, endDate }, eventDate);
+      if (action.kind === 'shrink' && action.droppedAfter) {
+        const existingDrop = cancelDropsByStudent.get(studentKey);
+        // 多張都連坐時取最遠的那一天 —— 警告要說出最壞的情況
+        if (!existingDrop || action.droppedAfter > existingDrop) {
+          cancelDropsByStudent.set(studentKey, action.droppedAfter);
+        }
+      }
     }
 
     const students = (enrollments ?? []).map((e: any) => {
@@ -1171,6 +1202,7 @@ app.openapi(
         hasLeaveRequest: leaveEndByStudent.has(e.student_id),
         leaveStartDate: leaveStartByStudent.get(e.student_id) ?? null,
         leaveEndDate: leaveEndByStudent.get(e.student_id) ?? null,
+        cancelDropsLeaveUntil: cancelDropsByStudent.get(e.student_id) ?? null,
       };
     });
 
@@ -1300,7 +1332,12 @@ app.openapi(
           .update({ start_date: action.startDate, end_date: action.endDate })
           .eq('id', row['id'] as string);
         leavesTruncated += 1;
-        if (action.droppedAfter) droppedAfter = action.droppedAfter;
+        // **取最遠的，不是最後一個** —— 多張假都連坐時，「最後處理到的那張」
+        // 取決於查詢回傳順序，那不是一個有意義的答案。
+        // roster 的 `cancelDropsLeaveUntil` 用同一條規則，兩邊才對得起來。
+        if (action.droppedAfter && (!droppedAfter || action.droppedAfter > droppedAfter)) {
+          droppedAfter = action.droppedAfter;
+        }
       }
     }
 

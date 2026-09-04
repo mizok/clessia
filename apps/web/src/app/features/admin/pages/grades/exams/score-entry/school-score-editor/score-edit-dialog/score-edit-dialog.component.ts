@@ -28,6 +28,7 @@ import {
 } from '@core/school-exams.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { focusScoreRow, scoreKeyStep } from '../../score-keyboard.util';
+import { isFailingScore } from '../../../../score-threshold.util';
 
 export interface SchoolScoreRow {
   readonly subjectId: string;
@@ -138,6 +139,11 @@ export class ScoreEditDialogComponent implements OnInit {
    * 所以手感共用同一份（`score-keyboard.util`）。#161 只修了 academy 那份，
    * 這裡原封不動 —— 一列三欄，要按 3 次 Tab 才換一列，而 `↓` 會把分數減 1。
    */
+  /** 不及格 —— 形狀訊號不只顏色。跟 academy 那份共用同一個門檻判斷 */
+  protected isFailing(score: number | null): boolean {
+    return isFailingScore(score);
+  }
+
   protected onScoreKeydown(event: KeyboardEvent, index: number): void {
     const step = scoreKeyStep(event);
     if (step === 0) return;

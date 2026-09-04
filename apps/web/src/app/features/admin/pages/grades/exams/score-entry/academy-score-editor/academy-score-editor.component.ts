@@ -19,6 +19,7 @@ import { SelectModule } from 'primeng/select';
 import { DrawerModule } from 'primeng/drawer';
 import { MessageService } from 'primeng/api';
 import { focusScoreRow, scoreKeyStep } from '../score-keyboard.util';
+import { isFailingScore } from '../../../score-threshold.util';
 
 import {
   AcademyExamsService,
@@ -54,13 +55,7 @@ const STATUS_OPTIONS: Array<{ label: string; value: AcademyScoreStatus }> = [
 @Component({
   selector: 'app-academy-score-editor',
   standalone: true,
-  imports: [
-    FormsModule,
-    InputNumberModule,
-    InputTextModule,
-    SelectModule,
-    DrawerModule,
-  ],
+  imports: [FormsModule, InputNumberModule, InputTextModule, SelectModule, DrawerModule],
   templateUrl: './academy-score-editor.component.html',
   styleUrl: './academy-score-editor.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -186,6 +181,15 @@ export class AcademyScoreEditorComponent implements OnInit {
    * 順帶解掉的：原本要按 **3 次 Tab**（分數 → 狀態 → 備註 → 下一列分數）才換一列，
    * 20 人的班就是 60 次。現在 1 次。
    */
+  /**
+   * 不及格 —— **形狀訊號，不只顏色**。色覺障礙的人看不出 `--error-600` 跟一般文字的差別，
+   * 而這一欄的紅色是唯一的訊息。門檻的問題見 `score-threshold.util`。
+   */
+  protected isFailing(score: number | null): boolean {
+    // 這場考試的總分 —— 門檻是它的 60%，不是寫死的 60 分
+    return isFailingScore(score, this.exam().totalScore);
+  }
+
   protected onScoreKeydown(event: KeyboardEvent, index: number): void {
     const step = scoreKeyStep(event);
     if (step === 0) return;
