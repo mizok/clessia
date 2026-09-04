@@ -108,13 +108,52 @@ test('c6 不打註解裡的 viewport 單位 —— 解釋「為何不用」的�
   assert.deepEqual(guard('apps/web/a.html', '<div *ngIf="x"></div>'), ['c7']);
 });
 
-// A12（存量 gate）靠 id 從 pre-guard.rules.json 撈 c6 出來掃全部 .scss。
+// A12（存量 gate）靠 id 從 pre-guard.rules.json 撈 c6 出來掃。
 // 規則被改名或移除的話它會靜靜地什麼都不掃，而且**永遠是綠的** —— 這條守那個。
-test('c6 規則存在於 pre-guard.rules.json，A12 才撈得到', () => {
+//
+// c6 有**兩條**規則（.scss 與 .ts），因為兩種檔的**出路不一樣**：
+// SCSS 改用 --window-* 變數，TS（PrimeNG dialog 寬度）改用 breakpoints 選項。
+// 同一段訊息餵給兩邊，其中一邊拿到的建議會是行不通的。
+test('c6 的兩條規則都在，A12 的兩次掃描才撈得到', () => {
   const c6 = guardRules.rules.filter((rule) => rule.id === 'c6');
 
-  assert.equal(c6.length, 1, 'A12 用 id === c6 撈規則，改名的話存量 gate 會靜默失效');
-  assert.match(c6[0].path, /scss/);
+  assert.equal(c6.length, 2, 'A12 用 id === c6 撈規則，少一條的話那個檔型會靜默失效');
+  assert.ok(
+    c6.some((r) => /scss/.test(r.path)),
+    'SCSS 側不見了',
+  );
+  assert.ok(
+    c6.some((r) => /ts/.test(r.path)),
+    'TS 側不見了',
+  );
+  // 兩條的訊息要不一樣 —— 一樣就代表有人複製貼上，其中一邊的出路會指錯
+  assert.notEqual(c6[0].message, c6[1].message);
+});
+
+/**
+ * c6 的 TS 側（2026-09-04 上線，**零 baseline**）。
+ *
+ * 存量是 #273 清成 0 的：14 處 PrimeNG dialog 的寬度從 min(400px, 96vw)
+ * 換成 width: '400px' 配 breakpoints: { '640px': '96%' }。
+ *
+ * **為什麼 TS 這側不能叫人改用 var(--window-*)**：dialog 都掛在 body 上
+ * （appendTo: 'body'），而變數是 WindowSizeDirective 寫在 .app 元素上的 ——
+ * overlay 在它外面，變數解不到，那條路走不通。PrimeNG 自己的 breakpoints 才是出路。
+ * 所以兩條規則的訊息不能共用：給 TS 的人一句「改用 CSS 變數」等於叫他繞遠路撞牆。
+ */
+test('c6 TS 側：dialog 寬度不准用 vw，breakpoints 放行', () => {
+  assert.deepEqual(guard('apps/web/src/app/a.component.ts', "width: 'min(400px, 96vw)',"), ['c6']);
+  // 正解 —— 不能連它一起擋，不然這道 gate 就是死路
+  assert.deepEqual(
+    guard('apps/web/src/app/a.component.ts', "breakpoints: { '640px': '96%' },"),
+    [],
+  );
+  // spec 排除：測試可以合法斷言含 vw 的字串
+  assert.deepEqual(guard('apps/web/src/app/a.component.spec.ts', "width: '96vw'"), []);
+  // 掃描範圍是 web，不是 api
+  assert.deepEqual(guard('apps/api/src/routes/a.ts', "const x = '96vw';"), []);
+  // 註解豁免同樣適用（靠 blankComments）—— #273 之後最可能被寫的正是這種註解
+  assert.deepEqual(guard('apps/web/src/app/a.component.ts', '// 別用 96vw，改 breakpoints'), []);
 });
 
 test('c7 擋舊版結構指令', () => {
