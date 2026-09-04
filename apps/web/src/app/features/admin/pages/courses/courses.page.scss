@@ -120,7 +120,6 @@
     font-size: 14px;
   }
 
-
   &__teacher-option {
     display: flex;
     flex-direction: column;
@@ -214,7 +213,6 @@
     letter-spacing: 0.05em;
     color: var(--zinc-500);
   }
-
 
   &__filter-historical-row {
     display: flex;
@@ -432,8 +430,6 @@
 // Class Row
 // ============================================================
 
-
-
 // ============================================================
 // Responsive
 // ============================================================
@@ -499,7 +495,6 @@
       gap: var(--space-1);
     }
   }
-
 }
 
 @include bp.respond-to(480px) {

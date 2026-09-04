@@ -22,7 +22,9 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
 
-    i { font-size: 11px; }
+    i {
+      font-size: 11px;
+    }
   }
 
   &__dates {
@@ -43,9 +45,11 @@
     letter-spacing: 0.01em;
   }
 
+  // 這是兩個日期之間的 `pi-arrow-right`，它承載「從 → 到」的方向，不是純裝飾。
+  // accent-400 只有 2.16 —— 一個看不見的方向箭頭等於沒有。600 過 3:1。
   &__sep {
     font-size: 11px;
-    color: var(--accent-400);
+    color: var(--accent-600);
   }
 }
 

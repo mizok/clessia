@@ -983,3 +983,54 @@ test('雙軌表格認互補 display 開關，不認命名', () => {
   // 反例四：responsive-table 的形狀 —— 單軌，零個 display:none
   assert.equal(t(TABLE, "@include respond-to('x') { .b { &__cell { padding: 4px; } } }").length, 0);
 });
+
+// 去重的鍵是「這一對宣告的位置」，不是顏色值。這組測試守的是一個真的踩過的洞：
+// 舊版用 `fg.src|bg.src`，於是同一支檔案裡第二個湊出同樣配色的地方會靜靜消失 ——
+// 第一筆若被 baseline 或豁免蓋住，那個新違規等於完全不存在。
+// 實際吞掉過 class-form-dialog 的 `&__dash`。
+test('對比掃描：同一支檔案裡兩個不同的地方湊出同樣配色，兩筆都要報', () => {
+  const found = scan(`
+.a {
+  background: ${ICON_BG};
+  color: ${ICON_FG};
+}
+
+.b {
+  background: ${ICON_BG};
+  color: ${ICON_FG};
+}
+`);
+  assert.equal(found.length, 2, '兩個獨立的宣告位置就是兩筆違規，不能只報第一筆');
+  assert.deepEqual(
+    found.map((v) => v.selector),
+    ['.a', '.b'],
+  );
+});
+
+test('對比掃描：後代從同一個祖先繼承同一組配色，只報一次（噪音仍然要收）', () => {
+  const found = scan(`
+.card {
+  background: ${ICON_BG};
+  color: ${ICON_FG};
+
+  .one {
+    font-weight: 600;
+  }
+
+  .two {
+    font-weight: 400;
+  }
+}
+`);
+  assert.equal(found.length, 1, 'fg / bg 來自同兩行，是同一個問題');
+});
+
+test('對比掃描：違規要帶著選擇器回報（baseline 與豁免的鍵靠它才夠精確）', () => {
+  const found = scan(`
+.x__thing {
+  background: ${ICON_BG};
+  color: ${ICON_FG};
+}
+`);
+  assert.equal(found[0].selector, '.x__thing');
+});
