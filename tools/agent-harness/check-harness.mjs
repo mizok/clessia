@@ -26,6 +26,12 @@ import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { blankComments } from './lib/comments.mjs';
 import { inlineCarriers, inlineStyles, inlineTemplate } from './lib/inline-carriers.mjs';
 import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
+import {
+  collectApiParams,
+  findMissing,
+  findOrphanEndpoints,
+  loadServices,
+} from './lib/api-param-coverage.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
@@ -71,6 +77,7 @@ const CONTRAST_EXEMPT = {
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');
 const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-baseline.json');
 const TOUCH_TARGET_BASELINE = join(ROOT, 'tools/agent-harness/touch-target-baseline.json');
+const API_PARAM_BASELINE = join(ROOT, 'tools/agent-harness/api-param-baseline.json');
 
 /**
  * 觸控尺寸的**永久豁免**。語意跟 `touch-target-baseline.json` 不同，
@@ -1490,6 +1497,54 @@ function checkPageActions() {
 }
 
 checkPageActions();
+
+// ── API query 參數的前端覆蓋率 ───────────────────────────────────────────────────────────
+// **抓「schema 有這個參數，前端 service 沒有」。** 這一族發生過三次
+//（`billingMode` #186、`hasInvoice` #238、`attendanceTaken` #298），每次的症狀都一樣：
+// API 從一開始就吃那個參數，但前端的參數型別漏了它，**於是呼叫端不知道那個能力存在**。
+// #186 那次的代價是整批報名的計費設定全部沒送出。
+//
+// 判準、四種形狀的偵測、與能力邊界見 `api-param-coverage.mjs` 的檔頭。
+// 一句話的邊界：**它只比對名字有沒有被當成 query key 送出，不驗型別正確性。**
+function checkApiParamCoverage() {
+  if (!existsSync(join(ROOT, 'apps/api/src/index.ts'))) return;
+
+  let apiParams;
+  try {
+    apiParams = collectApiParams(ROOT, recordScope);
+  } catch {
+    // 產不出文件就沒有東西可比 —— **說出來，不要靜靜跳過**（那會是一個沒有範圍的 0）
+    warnings.push('API 文件產生失敗，本輪跳過 query 參數覆蓋率檢查（`getOpenAPIDocument` 叫不動）');
+    return;
+  }
+
+  const services = loadServices(ROOT, recordScope);
+  const missing = findMissing(apiParams, services);
+  const baseline = new Set(
+    existsSync(API_PARAM_BASELINE) ? JSON.parse(readFileSync(API_PARAM_BASELINE, 'utf8')) : [],
+  );
+
+  for (const hit of missing) {
+    const key = `${hit.path}|${hit.name}`;
+    if (baseline.has(key)) continue;
+    fail(
+      `${hit.file} 沒有把 \`${hit.name}\` 當成 query 參數送出，但 \`${hit.path}\` 收它。` +
+        `**前端不知道這個能力存在** —— 不是型別寫錯，是那個參數從來沒被傳過。` +
+        `刻意不支援的話請加進 api-param-coverage.mjs 的 EXEMPT（要寫 why）。`,
+    );
+  }
+
+  // 對應不上的端點要可見 —— 跳過等於「gate 說沒問題，但它根本沒去看那裡」
+  const orphans = findOrphanEndpoints(apiParams, services);
+  if (orphans.length > 0) {
+    warnings.push(
+      `${orphans.length} 個帶 query 參數的端點沒有任何 service 認領（${orphans.join('、')}）—— ` +
+        `它們不在這道 gate 的守備範圍內。`,
+    );
+  }
+}
+
+checkApiParamCoverage();
 
 // ── 掃描範圍的 ratchet ──────────────────────────────────────────────────────────────────
 // **不是「印出範圍」，是把範圍釘住。** 理由與已知邊界見 lib/scan-scope.mjs。

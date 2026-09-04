@@ -1,39 +1,95 @@
 {
+  "api-query-params": {
+    "roots": [
+      "apps/api/src/routes",
+      "apps/web/src/app/core"
+    ],
+    "exts": [
+      ".service.ts",
+      ".ts"
+    ]
+  },
   "c2": {
-    "roots": ["apps/api/src", "supabase"],
-    "exts": [".sql", ".ts"]
+    "roots": [
+      "apps/api/src",
+      "supabase"
+    ],
+    "exts": [
+      ".sql",
+      ".ts"
+    ]
   },
   "c6": {
-    "roots": ["apps/web/src"],
-    "exts": [".html", ".scss", ".ts"]
+    "roots": [
+      "apps/web/src"
+    ],
+    "exts": [
+      ".html",
+      ".scss",
+      ".ts"
+    ]
   },
   "c7": {
-    "roots": ["apps/web/src"],
-    "exts": [".html", ".ts"]
+    "roots": [
+      "apps/web/src"
+    ],
+    "exts": [
+      ".html",
+      ".ts"
+    ]
   },
   "c8": {
-    "roots": ["apps/web/src"],
-    "exts": [".ts"]
+    "roots": [
+      "apps/web/src"
+    ],
+    "exts": [
+      ".ts"
+    ]
   },
   "dual-track-table": {
-    "roots": ["apps/web/src"],
-    "exts": [".html", ".ts"]
+    "roots": [
+      "apps/web/src"
+    ],
+    "exts": [
+      ".html",
+      ".ts"
+    ]
   },
   "ghost-token": {
-    "roots": ["apps/web/src"],
-    "exts": [".html", ".scss", ".ts"]
+    "roots": [
+      "apps/web/src"
+    ],
+    "exts": [
+      ".html",
+      ".scss",
+      ".ts"
+    ]
   },
   "mobile-first": {
-    "roots": ["apps/web/src"],
-    "exts": [".scss"]
+    "roots": [
+      "apps/web/src"
+    ],
+    "exts": [
+      ".scss"
+    ]
   },
   "orphan-imports": {
-    "roots": ["apps/web/src"],
-    "exts": [".html", ".ts"]
+    "roots": [
+      "apps/web/src"
+    ],
+    "exts": [
+      ".html",
+      ".ts"
+    ]
   },
   "page-actions": {
-    "roots": ["apps/web/src"],
-    "exts": [".html", ".ts"]
+    "roots": [
+      "apps/web/src"
+    ],
+    "exts": [
+      ".html",
+      ".ts"
+    ]
   },
   "touch-target": {
     "roots": [
@@ -43,10 +99,17 @@
       "apps/web/src/app/features/teacher",
       "apps/web/src/app/shared"
     ],
-    "exts": [".scss"]
+    "exts": [
+      ".scss"
+    ]
   },
   "usage-contrast": {
-    "roots": ["apps/web/src"],
-    "exts": [".scss", ".ts"]
+    "roots": [
+      "apps/web/src"
+    ],
+    "exts": [
+      ".scss",
+      ".ts"
+    ]
   }
 }

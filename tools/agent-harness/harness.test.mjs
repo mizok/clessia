@@ -21,6 +21,13 @@ import { matchWriteRules, routeHints } from './lib/rules.mjs';
 import { blankComments } from './lib/comments.mjs';
 import { inlineCarriers } from './lib/inline-carriers.mjs';
 import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
+import {
+  findOrphanEndpoints,
+  matchesPrefix,
+  sendsParam,
+  servicePrefixes,
+  stripComments,
+} from './lib/api-param-coverage.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
@@ -1239,4 +1246,52 @@ test('對比掃描：違規要帶著選擇器回報（baseline 與豁免的鍵�
 }
 `);
   assert.equal(found[0].selector, '.x__thing');
+});
+
+// ── API query 參數覆蓋率 ─────────────────────────────────────────────────────────────
+// **反例優先。** 這道 gate 的第一版有兩個洞，都是「用訊號看得到的案例去驗證訊號」
+// 造成的：整檔 grep 對普通名字全盲（`status` 因為註解提到就算數）、
+// 只認引號害物件簡寫 `{ params: { date } }` 被誤報成缺漏。
+// 所以這裡兩個方向都測：**該紅的要紅，該安靜的要安靜。**
+
+test('sendsParam 認得四種組 query 的寫法', () => {
+  assert.equal(sendsParam(`p = p.set('dateFrom', x);`, 'dateFrom'), true, 'HttpParams .set()');
+  assert.equal(sendsParam(`query['status'] = params.status;`, 'status'), true, 'Record 賦值');
+  assert.equal(sendsParam(`this.http.get(url, { params: { date } });`, 'date'), true, '物件簡寫');
+  assert.equal(
+    sendsParam(`const query: Record<string, string> = { dateFrom: a, dateTo: b };`, 'dateFrom'),
+    true,
+    '先組物件再傳',
+  );
+});
+
+// 誤報方向：名字出現在註解裡不算「有支援」。
+// invoices.service.ts 的檔頭寫著「`status` / `total` 全由後端推導」，
+// 第一版因此認為它支援 status —— 即使組 query 那一行被刪掉也不會紅。
+test('sendsParam 不把註解裡的名字當成有支援', () => {
+  const source = ` * **狀態不是欄位** —— \`status\` 由後端推導\n  return this.http.get(url);`;
+  assert.equal(sendsParam(stripComments(source), 'status'), false);
+});
+
+test('sendsParam 對純粹出現在別處的名字保持否定', () => {
+  assert.equal(sendsParam(`interface Q { status?: InvoiceStatus }`, 'status'), false);
+});
+
+test('servicePrefixes 不綁前面的變數名，也剔除註解', () => {
+  const source = [
+    '  private readonly endpoint = `${this.baseUrl}/api/classes`;',
+    '  // 見 /api/leaves 的說明',
+  ].join('\n');
+  assert.deepEqual(servicePrefixes(source), ['/api/classes'], 'baseUrl 也要抓到、註解裡的不算');
+});
+
+test('matchesPrefix 有邊界，不會讓 /api/classes 命中 /api/classes-archive', () => {
+  assert.equal(matchesPrefix('/api/classes/{id}/sessions', '/api/classes'), true);
+  assert.equal(matchesPrefix('/api/classes-archive', '/api/classes'), false);
+});
+
+test('findOrphanEndpoints 把沒人認領的端點列出來，不靜靜跳過', () => {
+  const apiParams = { '/api/meals': ['date'], '/api/session-packs': ['studentId'] };
+  const services = [{ file: 'meals.service.ts', source: '`${environment.apiUrl}/api/meals`' }];
+  assert.deepEqual(findOrphanEndpoints(apiParams, services), ['/api/session-packs']);
 });
