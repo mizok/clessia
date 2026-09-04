@@ -39,6 +39,17 @@ echo "mergeable      = $mss/$mrg"
 [ "$mss" != "UNKNOWN" ] || die "GitHub 還在算 mergeable —— 等 30~40 秒再試"
 [ "$mss" = "CLEAN" ] && [ "$mrg" = "MERGEABLE" ] || die "狀態非 CLEAN/MERGEABLE"
 
+# ── 3.5 backlog.md 不該出現在任何 PR 的 diff 裡 ─────────────────────────
+# 它只由計畫席在 main 上直接改。PR 的 diff 裡出現它 = 分支底較舊,合併會把
+# 已刪的完成項還原成活項 —— 而 backlog 是刪除制,還原等於憑空製造假待辦,
+# 假待辦會變成重工派單。2026-09-04 發生兩次,兩次都是靠人工 diff 對照抓到的。
+files=$(gh pr view "$PR" -R "$REPO" --json files -q '.files[].path')
+if echo "$files" | grep -q '^herdr-team/backlog\.md$'; then
+  die "這支的 diff 含 herdr-team/backlog.md —— 請作者跑
+     git checkout origin/main -- herdr-team/backlog.md
+   再推。(它只由計畫席在 main 上改,PR 帶到它就是舊底被拖上來了)"
+fi
+
 # ── 4. 鎖住驗過的 SHA ───────────────────────────────────────────────────
 # 查證與合併之間的空窗塞得下一次 force push,交給平台原子化。
 head=$(q headRefOid); branch=$(q headRefName)
