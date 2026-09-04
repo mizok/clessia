@@ -137,6 +137,54 @@ force push。這條把「合併後又推」整類**消滅在合併瞬間**,而�
 正確做法:`git show <squash-commit>` 看實際 diff,或用作者在 PR 說明裡備好的識別字;
 挑 ASCII 識別字(函式名 / class 名 / 屬性名),不要挑中文文案(見上方 esbuild 那條)。
 
+### 驗「進了 main」與驗「上了線」要用**不同**的字串
+ASCII 只解決「會不會被 esbuild 轉義」,沒解決「會不會被 minify 改名」。
+**純內部 util 的 export 名在 production build 裡會被 mangle 掉**,實測:
+
+| 字串 | 原始碼 | 產物 |
+| --- | --- | --- |
+| `isFailingScore`(util export,只在 TS 內部呼叫) | 6 檔 | **0 檔** |
+| `PASSING_RATIO`(同上) | 2 檔 | **0 檔** |
+| `dialog__fail` / `editor__fail`(CSS class) | — | ✓ |
+
+| 場景 | 挑什麼 |
+| --- | --- |
+| **驗有沒有進 main**(`git grep origin/main`) | 任何 ASCII 識別字都行 |
+| **驗有沒有上線**(grep `dist/` 或 curl 線上) | **只挑 minify 不能改名的**:CSS class 名、Angular 模板綁定的成員(改名模板就壞)、被序列化的 API 欄位名 |
+
+之前僥倖成功的例子回頭看都有理由活著:`openAttendance` / `markAllRead` 是模板綁定成員、
+`hasInvoice` 是 API payload 欄位、`dialog__fail` 是 CSS class。**當時我以為是「ASCII 就行」,
+其實是碰巧全挑到不可改名的那類。**
+
+### 等待迴圈:用旗標,不要在 `until`/`while` 的複合命令裡 `exit`
+```bash
+# 壞：exit 1 會終止整個腳本，不是回到迴圈
+until { for n in ...; do [ ... ] && exit 1; done; }; do sleep 25; done
+# 好
+while true; do p=0; for n in ...; do [ ... ] && p=1; done; [ $p -eq 0 ] && break; sleep 25; done
+```
+另一個壞掉過的寫法:用 `grep RUNNING` 判斷「跑完沒」—— `statusCheckRollup` 在 check
+還沒註冊時是**空陣列**,`join("")` 出空字串,grep 不到就被判成「跑完了」。
+**要檢查「有沒有 conclusion」,不是「有沒有進行中字樣」** ——「空值不等於終態」。
+
+### 刪分支前先查有沒有 PR 以它為 base
+**GitHub 會把 base 分支消失的 PR 自動關閉。** 合完下層就反射性刪分支,疊在上面的 PR
+連同它的討論與驗收紀錄一起被關掉(2026-09-04 合 #268 後刪 `feat/dual-track-table-gate`,
+把 #276 關掉了)。README 疊 PR 鐵律寫的是**「下層合併後上層 base 立刻人工轉 main、
+下層分支即刪」—— 順序是先轉 base 再刪**,我做反了。
+
+刪之前查:`gh pr list -R <repo> --state open --base <要刪的分支>`,非空就先轉 base。
+
+**救回的方法**(兩個 API 互相卡死:不能改已關閉 PR 的 base,也不能 reopen 到不存在的 base):
+```bash
+git push origin "<下層 head SHA>:refs/heads/<被刪的 base 分支>"   # 重建 base
+gh pr reopen <n>
+gh pr edit <n> --base main
+git push origin --delete <被刪的 base 分支>                      # 再刪掉
+```
+zsh 下 refspec 一定要**用變數包起來加引號** —— 裸寫 `$sha:refs/heads/x` 的 `:r`
+會被 zsh 當 modifier 吃掉,錯誤訊息是 `src refspec ...efs/heads/x does not match any`。
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
