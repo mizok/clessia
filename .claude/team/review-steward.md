@@ -185,6 +185,18 @@ git push origin --delete <被刪的 base 分支>                      # 再刪�
 zsh 下 refspec 一定要**用變數包起來加引號** —— 裸寫 `$sha:refs/heads/x` 的 `:r`
 會被 zsh 當 modifier 吃掉,錯誤訊息是 `src refspec ...efs/heads/x does not match any`。
 
+### 部署只走一條線;插隊者必須通報當前線上 hash
+**約定(2026-09-04,計畫席與本席):部署預設只走 review-steward。** 計畫席若因使用者
+即時需求插隊部署(例:使用者當下要看某段文案),**必須立刻通報插隊後的線上 hash**。
+
+背景:2026-09-04 上午出現過一次未通報的插隊 —— 我以為線上是自己上次部的 `2DG7TXD3`,
+實際已是別人部的 `OWSR3WZ5`。**沒出事是因為驗證方法本來就不信記憶**:
+
+> **部署驗證一律三方比對:部署前線上 → 部署後線上 → 本機 build**,
+> 不要拿「我上次部的 hash」當基準。前者對插隊免疫,後者不是。
+
+三方比對兜住了這次,但**不該靠它兜** —— 通報是第一道,三方比對是第二道。
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
