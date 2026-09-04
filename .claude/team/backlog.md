@@ -67,6 +67,25 @@ c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因�
 
 ## 下週期補貨(2026-09-03 斷點落檔)—— **全數完成,清單見 git history**
 
+## 收手快照(2026-09-04 收手令,保 token 給 fvg)
+
+在飛 PR(steward 持續收到板空為止;收不完掛到下週期,無損失):
+
+- #264(對比債 10→0,**交付報告始終沒到計畫席,下週期先補報告再收**)
+- #275(成績整叢手機優先 ratchet 24→1?,**未驗收,先補報告**)
+- #276(c6 剝註解,已驗收,疊 #268 —— #268 已合,轉 ready 即收)
+- #279(銷假「將」,已驗收預授權)/ #280(charter 實機四條,未驗收)/ #281(admin 觸控債清零,未驗收,
+  含 responsive-table 中央一行+4 筆豁免落帳)/ #282(directive→documentElement,已驗收預授權)
+
+下週期開工單:
+
+- (計畫席)心跳暫停旗標刪除:`rm ~/.local/share/clessia-heartbeat.pause`
+- (infra)c6 gate ①(掃 TS,零 baseline)—— #273 已合,等 #282/#281 落地後上
+- (teacher-pages/使用者)iOS Safari 實機:#282 的抽屜不被工具列蓋住(裁決核心的人工確認)
+- (使用者窗口)及格線欄位 migration / 科目平均百分比化 / 640px 視覺 / iOS 抽屜確認
+- 誰先 db:reset 誰驗 seed 雙身分帳號(#279 帶進的)
+- 500 案回查 09-07 後(計畫席持 CF 憑證查,billing-api 分析)
+
 ## 現行補貨(2026-09-04 凌晨)
 
 - (infra) Docker/supabase 回復(`npm run db:start`)—— teacher-pages 等它補實機驗證 [已派]
