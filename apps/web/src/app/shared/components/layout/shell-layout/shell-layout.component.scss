@@ -179,7 +179,10 @@
     padding: var(--space-1);
   }
 
+  // 12+12 內距 ＋ 約 20px 行高 ≈ 44px —— 明寫下限是把副作用變保證：
+  // 現在的高度是內距的副產物，內距一改就沒有任何東西守著。
   &__item {
+    min-height: 44px;
     display: flex;
     align-items: center;
     gap: var(--space-3);
@@ -261,5 +264,22 @@
   &--centered {
     align-items: center;
     justify-content: center;
+  }
+}
+
+// ── 觸控命中區 ─────────────────────────────────────────────────────────────
+// header 這兩顆實測 ≈26 / 27px。**兩層而不是基準 44** ——
+// 滑鼠下 26px 夠用，而 header 是 56px 高的固定列：把一顆藥丸抬到 44 等於讓它
+// 佔掉整列的四分之三，桌機上那是視覺噪音而不是可用性改善。
+// 觸控下 56px 的 header **裝得下 44**（上下各剩 6px），所以不必動 header 本身。
+//
+// **一條一個選擇器** —— gate 認不得逗號群組（只認最後一個）。
+@media (pointer: coarse) {
+  .shell-header__role-badge--interactive {
+    min-height: 44px;
+  }
+
+  .shell-header__user {
+    min-height: 44px;
   }
 }
