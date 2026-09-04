@@ -3,7 +3,7 @@ title: 通知中心（家長）
 summary: 查看課務異動通知。
 category: spec
 status: active
-updated: 2026-02-13
+updated: 2026-09-04
 tags: [specs, parent, notifications]
 ---
 
@@ -22,7 +22,9 @@ tags: [specs, parent, notifications]
 
 - 以時間軸列表呈現，最新在上
 - 每則通知顯示：
-  - 通知類型圖示（調課/代課/停課用不同圖示）
+  - ~~通知類型圖示（調課/代課/停課用不同圖示）~~ —— **待 `announcements` 加 `type` 欄位**：
+    現行資料模型只有 `title / body / audience / campus_id / published_at / created_by`，
+    沒有可以分辨類型的欄位（2026-09-04 計畫席裁定 v1 不做）
   - 標題（例如：「國一數學 A 班 調課通知」）
   - 摘要內容（例如：「1/30 的課堂已調整至 2/2」）
   - 發送時間（相對時間）
