@@ -131,3 +131,14 @@
     display: flex;
   }
 }
+
+// 分組標題實測 ≈36px。**兩層** —— 側欄是縱向密集清單，桌機上每一列多 8px
+// 會讓一屏少放一到兩組，那個密度是有價值的。
+//
+// 側欄在窄螢幕根本不顯示（基準 `display: none`，`respond-from('mobile')` 才長出來），
+// 所以這條實際生效的場景是**平板**：夠寬看得到側欄、而且用手指點。
+@media (pointer: coarse) {
+  .sidebar__group-header {
+    min-height: 44px;
+  }
+}

@@ -26,7 +26,9 @@
     justify-content: center;
   }
 
+  // 對話框裡置中的單顆複製鈕，沒有密度要省，直接下基準 44。
   &__copy-btn {
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
