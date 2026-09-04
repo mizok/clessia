@@ -117,6 +117,18 @@ npm ci  →  npm ci (apps/api)  →  harness  →  harness self-test
   然後**同步更新 `constitution-enforcement.md` 的兩張表**（條款→機制、A 檢查項）。
   A5 會反過來驗你引用的 clause id 真的存在於憲法裡。
 - 不擋人但看得見的問題進 `warnings`（不影響 exit code），不要進 `failures`。
+- **新 gate 一定要 `recordScope`**（`lib/scan-scope.mjs`）—— 一行，放在
+  「已經知道要掃哪些目錄、還沒開始判斷」那裡：
+
+  ```js
+  recordScope('my-gate', { roots: ['apps/web/src'], exts: ['.scss'] });
+  ```
+
+  收的是**傳給 walk 的那幾個目錄**（同一個變數，不是另一份清單）。
+  沒登記的 gate，`scan-scope.json` 不可能知道它存在 —— 而**這正是這道機制
+  唯一沒守住的洞**，所以它寫在這裡：讓它出現在**新 gate 誕生的地方**，
+  不只死在 lib 的檔頭。（結構解是「不註冊就跑不了判斷」，但那要動 12 道簽章，
+  跟目前的風險不成比例 —— 真的漏過一次再升級。）
 
 ### 生成區塊是正規化後比對
 

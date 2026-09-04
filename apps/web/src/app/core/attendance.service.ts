@@ -185,6 +185,13 @@ export class AttendanceService {
     courseIds?: string[];
     classIds?: string[];
     statuses?: AttendanceSessionStatus[];
+    /**
+     * 出勤點了沒 —— **跟 `statuses`（課堂狀態）是兩件事**。
+     *
+     * `false` 搭 `pageSize: 1` 取 `meta.total`，數字由伺服器算。
+     * 前端撈明細自己數會在破 100 筆的區間悄悄少算，而且錯得沒有徵兆。
+     */
+    attendanceTaken?: boolean;
     page?: number;
     pageSize?: number;
   }): Observable<AttendanceSessionListResponse> {
@@ -192,6 +199,9 @@ export class AttendanceService {
     if (params.date) p = p.set('date', params.date);
     if (params.dateFrom) p = p.set('dateFrom', params.dateFrom);
     if (params.dateTo) p = p.set('dateTo', params.dateTo);
+    // `!== undefined` 不是 truthy —— 這張卡要的正是 `false`
+    if (params.attendanceTaken !== undefined)
+      p = p.set('attendanceTaken', String(params.attendanceTaken));
     if (params.campusId) p = p.set('campusId', params.campusId);
     if (params.courseIds && params.courseIds.length > 0) {
       p = p.set('courseIds', params.courseIds.join(','));
