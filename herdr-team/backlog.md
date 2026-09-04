@@ -26,14 +26,10 @@
 
 1. **家長端 v1 探索**(主刀):家長 shell 各頁實況盤點(不假設空殼)、三件事(出缺席/
    學習進度/繳費)的資料面、v1 薄切範圍提案 —— 只探索與提案,不設計不動工
-2. 儀表板未點名卡修復(等 billing-api 的 attendanceTaken 參數):卡片改 pageSize=1 取
-   meta.total,回看 7 天定義
 3. (窗口項)及格線成為考試欄位 —— 需 migration,保留類等使用者
 
 ## billing-api
 
-1. `GET /api/attendance/sessions` 加 `attendanceTaken` 篩選(未點名卡的正解;
-   陷阱自標:events left join、meta.total×過濾的 #64 舊案)
 2. seed 雙身分帳號靜態驗證(讀 seed.sql,不 reset)
 3. 500 案回查:**09-07 後**,計畫席持 CF 憑證查 log、你分析(條件:POST /api/courses、
    body 含 SERVER_ERROR、不用 --status error)
