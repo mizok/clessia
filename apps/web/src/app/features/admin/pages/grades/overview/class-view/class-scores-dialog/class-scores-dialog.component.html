@@ -179,11 +179,9 @@
                       <td class="class-scores-dialog__cell">{{ row.studentName }}</td>
                       <td
                         class="class-scores-dialog__cell class-scores-dialog__cell--score"
-                        [class.class-scores-dialog__cell--fail]="
-                          row.score !== null && row.score < 60
-                        "
+                        [class.class-scores-dialog__cell--fail]="isFailing(row.score)"
                       >
-                        @if (row.score !== null && row.score < 60) {
+                        @if (isFailing(row.score)) {
                           <i
                             class="pi pi-exclamation-triangle class-scores-dialog__fail-icon"
                             aria-label="不及格"
@@ -233,9 +231,7 @@
                     <span class="class-scores-dialog__mobile-label">分數</span>
                     <span
                       class="class-scores-dialog__mobile-score"
-                      [class.class-scores-dialog__mobile-score--fail]="
-                        row.score !== null && row.score < 60
-                      "
+                      [class.class-scores-dialog__mobile-score--fail]="isFailing(row.score)"
                     >
                       <!--
                         **形狀訊號要跟桌機一致。** 上面那張表的不及格有 icon +
@@ -243,7 +239,7 @@
                         （WCAG 1.4.1）。這是雙軌實作漂移的實例：兩份渲染改到後來
                         不一樣了，而且沒有任何錯誤。
                       -->
-                      @if (row.score !== null && row.score < 60) {
+                      @if (isFailing(row.score)) {
                         <i
                           class="pi pi-exclamation-triangle class-scores-dialog__fail-icon"
                           aria-label="不及格"
