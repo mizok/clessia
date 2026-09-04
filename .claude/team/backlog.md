@@ -76,5 +76,5 @@ c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因�
 - (design-web-2) admin 17 筆觸控債實作(等 infra 分診單)
 - (admin-pages) academy-score-editor 輸入格標不及格形狀訊號(icon+aria,低於門檻才現;
   design-web 的 a11y 修復刀刻意留下的獨立小刀)
-- (teacher-pages) 前端接 read-all bulk API + 驗銷假警告「將」(見 teacher-pages 欄)
-- (design-web) 成績區 a11y 漂移修復 PR(手機卡片補形狀訊號)+ #257 報告第三次修正
+- ~~(teacher-pages) read-all 接線+銷假警告~~(#258 已合)→ 剩:等 Docker 補 #247/#258 實機驗證
+- ~~(design-web) a11y 修復~~(#259 已合)/ ~~#257 修正~~(已合)/ ~~lesson 增補~~(#260 已合)→ 剩:刀 B(等 Docker)
