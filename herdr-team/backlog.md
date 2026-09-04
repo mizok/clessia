@@ -20,9 +20,7 @@
 
 ## design-web-2
 
-1. `.exams__name-link` 觸控債終筆:先 `git show origin/main:` 現查 selector 存不存在
-   (兩席證據相反),在→擴大命中區修;不在→harness:write 收帳,baseline 1→0
-2. 待命
+1. 待命(#287 收掉後觸控債線歸零)
 
 ## admin-pages
 
@@ -49,7 +47,7 @@
 
 ## review-steward
 
-1. ~~無活項~~ —— 工具債有落點了:之後自己的工具/流程改動先落這裡再做
+(無活項 —— 工具/流程改動先落這裡再做)
 
 ## 使用者窗口積壓
 
