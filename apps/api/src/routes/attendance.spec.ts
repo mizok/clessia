@@ -1771,3 +1771,93 @@ describe('POST /api/attendance/roster/{eventId}/cancel-leave', () => {
     expect(status).toBe(403);
   });
 });
+
+/**
+ * `attendanceTaken` 篩選。
+ *
+ * **這條規則整個活在「送出去的查詢長什麼樣」裡** —— select 用不用 inner join、
+ * 條件下在哪一欄。假 supabase 的回傳值分不出對錯，所以測試斷言的是查詢本身。
+ */
+describe('GET /api/attendance/sessions?attendanceTaken', () => {
+  function createApp() {
+    const selects: string[] = [];
+    const filters: Array<[string, unknown, unknown]> = [];
+
+    const supabase = {
+      from(table: string) {
+        const query: Record<string, unknown> = {
+          select: (columns: string) => {
+            if (table === 'sessions') selects.push(columns);
+            return query;
+          },
+          eq: () => query,
+          in: () => query,
+          lte: () => query,
+          gte: () => query,
+          is: (column: string, value: unknown) => {
+            filters.push(['is', column, value]);
+            return query;
+          },
+          not: (column: string, op: unknown, value: unknown) => {
+            filters.push([`not.${op}`, column, value]);
+            return query;
+          },
+          or: () => query,
+          order: () => query,
+          range: () => query,
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          insert: () => Promise.resolve({ error: null }),
+          update: () => query,
+          then: (
+            onfulfilled?:
+              ((value: { data: unknown[]; count: number; error: null }) => unknown) | null,
+          ) => Promise.resolve({ data: [], count: 0, error: null }).then(onfulfilled ?? undefined),
+        };
+        return query;
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      context.set('roles', ['admin']);
+      await next();
+    });
+    app.route('/api/attendance', attendanceApp);
+
+    return { app, selects, filters };
+  }
+
+  async function list(query: string) {
+    const { app, selects, filters } = createApp();
+    await app.request(`/api/attendance/sessions?${query}`);
+    return { selects, filters };
+  }
+
+  it('要「未點名」時：inner join + attendance_taken_at is null', async () => {
+    const { selects, filters } = await list('attendanceTaken=false&pageSize=1');
+
+    // ⚠️ 少了 !inner，這個條件會靜靜地什麼都不篩（本機 PostgREST 實測 19 → 19）
+    expect(selects.some((select) => select.includes('events!event_id!inner('))).toBe(true);
+    expect(filters).toContainEqual(['is', 'events.attendance_taken_at', null]);
+  });
+
+  it('要「已點名」時：inner join + not is null', async () => {
+    const { selects, filters } = await list('attendanceTaken=true&pageSize=1');
+
+    expect(selects.some((select) => select.includes('events!event_id!inner('))).toBe(true);
+    expect(filters).toContainEqual(['not.is', 'events.attendance_taken_at', null]);
+  });
+
+  it('不帶這個參數時維持 left join —— 停課的課堂不能被 inner join 吃掉', async () => {
+    // #123：停課的課堂刻意沒有出勤事件，left join 才留得住它們
+    const { selects, filters } = await list('pageSize=1');
+
+    expect(selects.some((select) => select.includes('events!event_id!inner('))).toBe(false);
+    expect(selects.some((select) => select.includes('events!event_id('))).toBe(true);
+    expect(filters.some(([, column]) => column === 'events.attendance_taken_at')).toBe(false);
+  });
+});

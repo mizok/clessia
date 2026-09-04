@@ -5,7 +5,7 @@ import type { AppEnv } from '../index';
 import { isAttendanceEditable } from '../lib/attendance-window';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { assertAttendanceWindow } from '../lib/attendance-window-check';
-import { SESSION_SUMMARY_SELECT, summariseSessions } from '../lib/session-summary';
+import { sessionSummarySelect, summariseSessions } from '../lib/session-summary';
 import { isSubstituteSession } from '../lib/session-substitute';
 import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
 import { resolveRecordedByRole } from '../lib/recorded-by-role';
@@ -953,6 +953,18 @@ app.openapi(
         courseIds: z.string().optional(),
         classIds: z.string().optional(),
         statuses: z.string().optional(),
+        /**
+         * 有沒有點名過。**跟 `statuses` 不是同一件事** —— 後者是課堂狀態
+         *（scheduled / completed / cancelled），這個是「出勤點了沒」。
+         *
+         * `false` 是儀表板「未點名課堂」那張卡要的：搭 `pageSize=1` 取 `meta.total`，
+         * 數字由伺服器算。**在此之前前端是撈前 100 筆自己數**，一天 15 堂的補習班
+         * 回看 7 天就 105 堂 —— 破 100 之後悄悄少算，而且錯得沒有徵兆。
+         */
+        attendanceTaken: z
+          .enum(['true', 'false'])
+          .optional()
+          .transform((value) => (value === undefined ? undefined : value === 'true')),
         // 只有管理員說了算：老師一律被蓋成自己（見 attendance/teacher-scope.ts）
         teacherId: z.uuid().optional(),
         page: z.coerce.number().min(1).default(1).optional(),
@@ -978,6 +990,7 @@ app.openapi(
       courseIds,
       classIds,
       statuses,
+      attendanceTaken,
       teacherId,
       page = 1,
       pageSize = 20,
@@ -1034,7 +1047,11 @@ app.openapi(
 
     let sessionsQuery = supabase
       .from('sessions')
-      .select(SESSION_SUMMARY_SELECT, { count: 'exact' })
+      // 「有沒有點名」的條件下在 embed 的欄位上，**必須配 inner join**，
+      // 否則它會靜靜地什麼都不篩（實測見 lib/session-summary.ts 的表）
+      .select(sessionSummarySelect({ requireEvent: attendanceTaken !== undefined }), {
+        count: 'exact',
+      })
       .eq('org_id', orgId)
       .order('session_date', { ascending: true })
       .order('start_time', { ascending: true })
@@ -1059,6 +1076,12 @@ app.openapi(
     }
     if (scope.teacherId) sessionsQuery = sessionsQuery.eq('teacher_id', scope.teacherId);
     sessionsQuery = sessionsQuery.in('status', statusList);
+
+    if (attendanceTaken === false) {
+      sessionsQuery = sessionsQuery.is('events.attendance_taken_at', null);
+    } else if (attendanceTaken === true) {
+      sessionsQuery = sessionsQuery.not('events.attendance_taken_at', 'is', null);
+    }
 
     const { data: sessions, error: sessionsError, count } = await sessionsQuery;
     if (sessionsError)

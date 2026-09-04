@@ -12,6 +12,30 @@ import { isSubstituteSession } from './session-substitute';
  * 加欄位時會有一邊被忘記，而那一邊不會報錯、只會少一個欄位。
  * 這正是作業台需求單第二個理由要防的事（「兩套取數會各長一份，然後其中一份會忘記更新」）。
  */
+/**
+ * 需要**只留下有出勤事件的課堂**時用這一份（`events!event_id!inner`）。
+ *
+ * ⚠️ **對 embed 的欄位下條件，在 left join 上不會篩掉父列。** 本機 PostgREST 實測：
+ *
+ * | 查詢 | 回傳筆數 |
+ * | --- | --- |
+ * | 全部課堂 | 19 |
+ * | `events!event_id(...)` + `events.attendance_taken_at=is.null` | **19（沒篩到）** |
+ * | `events!event_id!inner(...)` + 同一個條件 | **18** |
+ *
+ * 也就是說少了 `!inner`，「未點名」的篩選會靜靜地什麼都不做 —— 而回傳的筆數
+ * 看起來很正常。所以「有沒有點名」這條篩選必須配 inner join。
+ *
+ * **沒有 event 的課堂（停課）因此被排除，那是對的**：
+ * `ensureAttendanceSessionEvents` 會在查詢前替 scheduled / completed 補建 event，
+ * 只有停課的刻意不補（#123）—— 而停課本來就不算「忘了點名」。
+ */
+export function sessionSummarySelect(options: { requireEvent?: boolean } = {}): string {
+  return options.requireEvent
+    ? SESSION_SUMMARY_SELECT.replace('events!event_id(', 'events!event_id!inner(')
+    : SESSION_SUMMARY_SELECT;
+}
+
 export const SESSION_SUMMARY_SELECT = `
         id,
         event_id,
