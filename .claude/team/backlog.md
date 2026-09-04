@@ -23,12 +23,12 @@
 1. 拇指區 A–D 期完成(#197 壓成一支) [認領 design-web-2-df 完成]
 2. 刀 3b-3 收尾確認完成(p-tag 零殘項;但盤出 15 支 NgModule 孤兒並建 gate) [認領 design-web-2-df 11:55]
 
-## admin-pages(整理 2026-09-03 晚)
+## admin-pages(整理 2026-09-04 上午)
 
-1. ~~B3 第二片~~(#227 綠,等使用者窗口 —— 金額計算類)
-2. ~~B3 第三片:待開帳清單~~(#238 綠 MERGEABLE;與 #227 同碰 enrollments.service.ts,**排 #227 合後由 steward 驗 mergeable 再合**)
-3. 期繳試算:收費週期選單(子元件已抽好)[認領 admin-pages-c3]
-4. charter 蒸餾:git add -A 在切過分支的工作區不安全 / 測行為不測實作
+1. ~~B3 全線~~(#227/#238/#240 已合)/ ~~charter 蒸餾~~(#242 已合)/ ~~不及格形狀訊號~~(#267 綠待收)
+2. 及格線過渡小刀:`score-threshold.util` 改 `score < totalScore * 0.6`(total=100 行為不變,
+   修掉總分≠100 時滿分被標不及格;註解指向 spec 與待開欄位)[已派 #267 後接]
+3. (窗口項)`及格線` 成為考試欄位 —— spec 已明寫「依該考試設定的及格線」,需 migration,保留類等使用者
 
 ## billing-api(整理 2026-09-03 晚)
 
