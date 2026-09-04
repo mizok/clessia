@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
 import { crossFeatureImports } from './lib/feature-boundaries.mjs';
+import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { touchTargetViolations } from './lib/touch-target.mjs';
 import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
@@ -906,4 +907,51 @@ test('A17 放行 1×1 焦點哨兵，但不放行小按鈕', () => {
   assert.deepEqual(t('.btn { width: 32px; height: 32px; cursor: pointer; }'), ['below-threshold']);
   // 只有一軸很小 → 不是哨兵（可能是一條可點的細長條）
   assert.deepEqual(t('.bar { height: 1px; cursor: pointer; }'), ['below-threshold']);
+});
+
+// ── 雙軌表格 ────────────────────────────────────────────────────────────────────────
+//
+// 訊號是 SCSS 裡**互補的 display 開關**：基準藏 A、條件顯 A、條件藏 B。
+// 反例比正例重要，因為第一版（認 \`__mobile*\` 命名）就是被反例的反面咬到的 ——
+// 它漏掉手機版叫 \`__record-cards\` 的那一支，還把它誤判成「破版」推出了一個假需求。
+const SCSS_PAIR = `
+  .b {
+    &__cards { display: none; }
+  }
+  @include respond-to('tablet-portrait') {
+    .b {
+      &__table-wrap { display: none; }
+      &__cards { display: grid; }
+    }
+  }
+`;
+
+test('雙軌表格認互補 display 開關，不認命名', () => {
+  const t = (template, scss) => dualTrackTables([{ path: 'a.html', template, scss }]);
+  const TABLE = '<table><tr><td>x</td></tr></table>';
+
+  const hit = t(TABLE, SCSS_PAIR);
+  assert.equal(hit.length, 1);
+  // 報告要說出是哪一組在翻面，不然收到紅燈的人得自己再找一次
+  assert.equal(hit[0].shown, '.b__cards');
+  assert.equal(hit[0].hidden, '.b__table-wrap');
+
+  // 命名完全無關 —— 這是第一版漏掉第四支的原因
+  assert.equal(t(TABLE, SCSS_PAIR.replaceAll('cards', 'zzz')).length, 1);
+
+  // 反例一：沒有 <table> —— 非表格元件的手機變體，不歸這支管
+  assert.equal(t('<div>no table</div>', SCSS_PAIR).length, 0);
+
+  // 反例二：有表格、有基準 display:none，但**沒有翻面** ——
+  // invoice-detail-dialog 的列印節點就長這樣，它不是雙軌
+  assert.equal(t(TABLE, '.b { &__print-source { display: none; } }').length, 0);
+
+  // 反例三：條件裡只藏東西、沒有任何軌道被放出來
+  assert.equal(
+    t(TABLE, "@include respond-to('x') { .b { &__table-wrap { display: none; } } }").length,
+    0,
+  );
+
+  // 反例四：responsive-table 的形狀 —— 單軌，零個 display:none
+  assert.equal(t(TABLE, "@include respond-to('x') { .b { &__cell { padding: 4px; } } }").length, 0);
 });

@@ -1,0 +1,6 @@
+[
+  "apps/web/src/app/features/admin/pages/grades/exams/score-entry/academy-score-editor/academy-score-editor.component.html",
+  "apps/web/src/app/features/admin/pages/grades/exams/score-entry/school-score-editor/score-edit-dialog/score-edit-dialog.component.html",
+  "apps/web/src/app/features/admin/pages/grades/overview/class-view/class-scores-dialog/class-scores-dialog.component.html",
+  "apps/web/src/app/features/admin/pages/grades/overview/student-view/student-score-detail-dialog/student-score-detail-dialog.component.html"
+]

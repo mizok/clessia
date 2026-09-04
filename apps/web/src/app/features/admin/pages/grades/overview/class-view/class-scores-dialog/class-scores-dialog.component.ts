@@ -28,6 +28,7 @@ import {
 import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/students.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
+import { isFailingScore } from '../../../score-threshold.util';
 
 type ScoreStatusFilter = 'all' | ScoreRecordStatus;
 type ExamScopeFilter = 'todo' | 'all';
@@ -153,6 +154,14 @@ export class ClassScoresDialogComponent implements OnInit {
     }
 
     this.loadExamsForClass(this.classData.id);
+  }
+
+  /**
+   * 不及格 —— **總分還沒傳進來**（這一列上沒有那個欄位），所以退回 60。
+   * 拿得到之後傳第二個參數就自動修好，見 `score-threshold.util`。
+   */
+  protected isFailing(score: number | null): boolean {
+    return isFailingScore(score);
   }
 
   protected close(): void {
