@@ -115,21 +115,16 @@ export interface RosterStudent {
    */
   hasLeaveRequest: boolean;
   /**
-   * 蓋到這堂課的假裡面**最晚的結束日**；沒有假就是 `null`。
+   * 銷假會不會連坐取消後續日期 —— 會的話是**最後被取消的那一天**，不會就是 `null`（#265）。
    *
-   * **只有結束日，沒有起始日** —— 同一天可能被兩張假蓋到，回一組起訖等於謊稱它們是同一張。
-   * 跟 `leaveStartDate` 一起用才能判斷銷假會不會損失後續日期，見
-   * `attendance-roster-panel.component.ts` 的 `leaveCollateralRisk`。
-   */
-  leaveEndDate: string | null;
-
-  /**
-   * 蓋到這堂課的假裡**最早的起始日**（#222 之後才有）。
+   * **伺服器端逐張假算，而且直接用銷假自己那支 `cancelLeaveForDate`** ——
+   * 預測與實際動作共用同一份實作，不會出現「預覽說會、按下去卻不會」。
    *
-   * 同一天可能被兩張假蓋到，這裡是聯集的起點 —— **每一張都涵蓋這堂課，
-   * 所以聯集必然連續**，`[leaveStartDate, leaveEndDate]` 是精確區間不是包絡。
+   * 在此之前前端拿的是 `leaveStartDate` / `leaveEndDate`（聚合的最早起日與最晚迄日），
+   * 用它們推導連坐會在「兩張假接力」時同形而無法分辨，文案因此只能說「可能」。
+   * 那兩個欄位 API 仍然回，但**前端沒有任何地方讀它們了**，所以不列在這個介面裡。
    */
-  leaveStartDate: string | null;
+  cancelDropsLeaveUntil: string | null;
 }
 
 export interface AttendanceRoster {
