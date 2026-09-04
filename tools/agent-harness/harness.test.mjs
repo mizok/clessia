@@ -18,6 +18,7 @@ import { touchTargetViolations } from './lib/touch-target.mjs';
 import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import { matchWriteRules, routeHints } from './lib/rules.mjs';
+import { blankComments } from './lib/comments.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
@@ -64,12 +65,10 @@ test('c6 擋新的 viewport 單位，不擋既有檔案的其他編輯', () => {
  * 同一份規則同時餵給 PreToolUse hook（新違規）與 harness gate A12（存量），
  * 所以這四條也就是 gate 的驗收案例。
  */
-test('c6 放過 var() 的 fallback，但註解裡的 viewport 單位照樣抓', () => {
+test('c6 放過 var() 的 fallback 與註解，直接當值才擋', () => {
   // 直接當值 → 違規
   assert.deepEqual(guard('apps/web/a.scss', 'min-height: 100vh;'), ['c6']);
   assert.deepEqual(guard('apps/web/a.scss', '  max-height: 55vh;'), ['c6']);
-  // 註解不豁免 —— 豁免邏輯本身會腐化，寧可要求註解別寫那個字面值
-  assert.deepEqual(guard('apps/web/a.scss', '// flex col 100dvh 之後高度交給 flex'), ['c6']);
   // var() 的 fallback → 放行
   assert.deepEqual(guard('apps/web/a.scss', 'height: var(--window-height, 100dvh);'), []);
   assert.deepEqual(
@@ -78,6 +77,35 @@ test('c6 放過 var() 的 fallback，但註解裡的 viewport 單位照樣抓', 
   );
   // 同一行先有 var() 收尾、後面才拿 viewport 當值 —— 不能被前面的 var( 蓋掉
   assert.deepEqual(guard('apps/web/a.scss', 'margin: var(--space-2, 8px); height: 100vh;'), ['c6']);
+});
+
+/**
+ * **這一條反轉了先前的決定。** 舊版明文斷言「註解不豁免」，理由是
+ * 「豁免邏輯本身會腐化，寧可要求註解別寫那個字面值」。
+ *
+ * 推翻它的兩個理由：
+ *
+ * 一、那個負擔的實際形狀是「**你不能寫下「不要用 90vw」這句話**」——
+ * 而那正是最該留在檔案裡的註解（解釋為什麼不這樣做的那種）。
+ * design-web 席 2026-09-04 實際中招。
+ *
+ * 二、原理由擔心的是**逐案豁免清單**會腐化，那個擔心是對的。但抹白註解不是清單，
+ * 是**詞法規則** —— 它沒有要維護的條目，不會過期。
+ *
+ * 判斷權在共用 matcher，所以修這裡等於 gate 與 pre-write hook 同時修好。
+ */
+test('c6 不打註解裡的 viewport 單位 —— 解釋「為何不用」的那種註解最該留著', () => {
+  assert.deepEqual(guard('apps/web/a.scss', '// flex col 100dvh 之後高度交給 flex'), []);
+  assert.deepEqual(guard('apps/web/a.scss', '/* 這裡不能用 90vw，容器不是視窗寬 */'), []);
+  // 程式碼與註解同時存在時，**程式碼那筆照樣擋**
+  assert.deepEqual(guard('apps/web/a.scss', '// 別用 90vw\n.a { width: 90vw; }'), ['c6']);
+  // 抹白保長度 —— 行號與位移不變，gate 報的第幾行才點得到
+  assert.equal(blankComments('// 90vw\n.a{}', 'x.scss').length, '// 90vw\n.a{}'.length);
+  // `https://` 不是註解，別把它後面的東西洗掉
+  assert.equal(blankComments("const u = 'https://x/a';", 'x.ts'), "const u = 'https://x/a';");
+  // c7：註解掉的舊寫法是死程式碼，不是違規
+  assert.deepEqual(guard('apps/web/a.html', '<!-- 舊版是 *ngIf，已改 @if -->'), []);
+  assert.deepEqual(guard('apps/web/a.html', '<div *ngIf="x"></div>'), ['c7']);
 });
 
 // A12（存量 gate）靠 id 從 pre-guard.rules.json 撈 c6 出來掃全部 .scss。

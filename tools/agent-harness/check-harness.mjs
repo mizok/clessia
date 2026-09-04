@@ -23,6 +23,7 @@ import { destructivePrimaryActions, headerActionButtons } from './lib/page-actio
 import { matchWriteRules } from './lib/rules.mjs';
 import { crossFeatureImports } from './lib/feature-boundaries.mjs';
 import { dualTrackTables } from './lib/dual-track-table.mjs';
+import { blankComments } from './lib/comments.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
@@ -499,9 +500,13 @@ function scanExisting({ clause, dir, ext, label, allowlist = {}, exempt = {} }) 
     // 判斷權在共用 matcher（它也負責 path 比對，例如 c8 的排除 .spec.ts）
     if (matchWriteRules([{ filePath: rel, text: source }], rules).length === 0) continue;
 
-    // 行號純粹是為了讓訊息可點擊；matcher 說有、regex 卻定不出位置時仍然照報
+    // 行號純粹是為了讓訊息可點擊；matcher 說有、regex 卻定不出位置時仍然照報。
+    // **要跟 matcher 看同一份文字**（註解已抹白），否則會數到 matcher 根本沒看到的
+    // 註解裡那幾筆，於是「有幾筆」跟 allowlist 的帳對不起來。blankComments 保長度，
+    // 所以位移與行號仍然對得回原始檔。
+    const code = blankComments(source, rel);
     const lines = forbid
-      ? [...source.matchAll(forbid)].map((m) => source.slice(0, m.index).split('\n').length)
+      ? [...code.matchAll(forbid)].map((m) => code.slice(0, m.index).split('\n').length)
       : [];
     const debt = allowlist[rel] ?? 0;
     const permanent = exempt[rel]?.count ?? 0;

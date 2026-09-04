@@ -5,13 +5,7 @@
  * 「不報錯、只是結果悄悄變成錯的」那種。多一份副本＝多一次踩同樣的坑。
  */
 
-/**
- * 註解裡常有 `44px`、`{`、`}`（本 repo 的註解特別長），不剝掉會把整段註解當成
- * selector，然後合規判定跟著失效 —— touch-target 第一版就是這樣誤報的。
- */
-export function stripComments(source) {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
-}
+import { blankComments } from './comments.mjs';
 
 /**
  * 把 SCSS 切成「解析後的 selector → 該區塊自己的宣告」。
@@ -22,7 +16,9 @@ export function stripComments(source) {
  *   （`@media` / `@container` / `@include respond-to(...)`），也就是「某個條件才生效」。
  */
 export function blocks(rawSource) {
-  const source = stripComments(rawSource);
+  // 註解裡常有 `44px`、`{`、`}`（本 repo 的註解特別長），不抹掉會把整段註解當成
+  // selector，然後合規判定跟著失效 —— touch-target 第一版就是這樣誤報的。
+  const source = blankComments(rawSource, 'x.scss');
   const out = [];
   const stack = [];
   let buf = '';
