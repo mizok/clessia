@@ -169,12 +169,20 @@ describe('DashboardComponent（管理端）', () => {
     }
 
     // 卡 1 用 date=今天、卡 2 用 dateFrom=7 天前，是兩個不同的請求
-    sessionsMock.mockImplementation((params: { date?: string }) =>
+    sessionsMock.mockImplementation((params: { date?: string; attendanceTaken?: boolean }) =>
       pending || (stalled && !params.date)
         ? NEVER
         : fail === 'sessions'
           ? boom
-          : sessionList(params.date ? todaySessions : recentSessions),
+          : // 回溯那支現在帶 `attendanceTaken: false`，篩選是**伺服器做的** ——
+            // mock 要照著做，否則測試會對著一個真實環境不存在的回應斷言
+            sessionList(
+              params.date
+                ? todaySessions
+                : params.attendanceTaken === false
+                  ? recentSessions.filter((session) => !session.takenAt)
+                  : recentSessions,
+            ),
     );
     leavesMock.mockReturnValue(
       pending || stalled
@@ -270,6 +278,25 @@ describe('DashboardComponent（管理端）', () => {
     return component['cards']().find((c) => c.label === label);
   }
 
+  // 破 100 筆的區間原本會悄悄少算 —— 現在數字由伺服器算，前端只加上今天那批
+  it('未點名數是「伺服器算的昨天以前」加「今天已經上完的」', async () => {
+    await setup({
+      // 今天兩堂：一堂已經上完沒點名（算），一堂還沒上完（不算）
+      todaySessions: [
+        session({ eventId: 't1', startTime: '00:01', endTime: '00:02', takenAt: null }),
+        session({ eventId: 't2', startTime: '23:58', endTime: '23:59', takenAt: null }),
+      ],
+      recentSessions: [
+        session({ eventId: 'r1', eventDate: YESTERDAY, takenAt: null }),
+        session({ eventId: 'r2', eventDate: YESTERDAY, takenAt: null }),
+        session({ eventId: 'r3', eventDate: YESTERDAY, takenAt: `${YESTERDAY}T12:00:00Z` }),
+      ],
+    });
+
+    // 昨天以前 2（伺服器篩掉點過的 r3）+ 今天已上完 1
+    expect(card('未點名課堂')?.value).toBe(3);
+  });
+
   it('六張卡都拿到真實數字', async () => {
     await setup({
       todaySessions: [session(), session({ eventId: 'e2' })],
@@ -318,7 +345,11 @@ describe('DashboardComponent（管理端）', () => {
     const sessionCalls = sessionsMock.mock.calls.map((c) => c[0]);
     expect(sessionCalls).toHaveLength(1);
     expect(sessionCalls[0].dateFrom < TODAY).toBe(true);
-    expect(sessionCalls[0].dateTo).toBe(TODAY);
+    // 回溯那支只查到**昨天** —— 今天的那批在 workbench 的明細裡，
+    // 因為「逾期未點名」要 `!takenAt && 已經上完了`，而 API 只篩得了前半
+    expect(sessionCalls[0].dateTo < TODAY).toBe(true);
+    expect(sessionCalls[0].attendanceTaken).toBe(false);
+    expect(sessionCalls[0].pageSize).toBe(1);
 
     expect(leavesMock.mock.calls[0][0]).toMatchObject({ coverDate: TODAY });
   });
