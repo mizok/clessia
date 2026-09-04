@@ -254,6 +254,27 @@ gate 擴大掃描範圍時,若那批債**已經被清掉**,不要把它們收進
 雖然設計時想的是「SHA 被換掉」)。
 但那是防線兜住,不是流程對:**開等待前查一次自己有沒有已經在等**。
 
+### 加號比減號難懷疑 —— 減號讓人停下來,加號不會
+review diff 時,**刪除行會觸發「等等,這個為什麼要拿掉」,新增行不會** ——
+新增看起來永遠像有人做了事。所以**還原類事故在刪除制的檔案上特別危險**:
+把已刪的項目撿回來,在 diff 裡長成一堆 `+`,看起來像有人補了待辦。
+
+實例(#301,2026-09-04 第二次):我的 charter PR 帶著較舊的 `backlog.md`,
+合併會把計畫席已刪的兩筆完成項還原成活項:
+```
++2. 儀表板未點名卡修復(等 billing-api 的 attendanceTaken 參數)…
++1. `GET /api/attendance/sessions` 加 `attendanceTaken` 篩選…
+```
+**兩筆都是 `+`,看起來像有人加了工作**,實際上是我把已完成的東西撿回來變成假待辦。
+第一次(#278)發生在刪除制之前,還原的是「已完成」標記 —— 醜但看得出來;
+刪除制之後同一個機制的產物**變得像正常的貢獻**。
+
+適用範圍不只 backlog:**任何 append-only 或刪除制的檔**(待辦、變更日誌、
+allowlist、baseline)都有這個性質。看到一批 `+` 時要多問一句:
+**這些是新寫的,還是被撿回來的?**
+
+機械解已上線:`tools/steward-merge.sh` 擋掉任何 diff 含 `herdr-team/backlog.md` 的 PR。
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
