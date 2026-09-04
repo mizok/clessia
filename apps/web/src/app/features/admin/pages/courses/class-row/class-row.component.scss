@@ -17,8 +17,12 @@
 
   &:hover &__nav-btn {
     background: var(--accent-100);
-    color: var(--accent-600);
     transform: translateX(2px);
+  }
+
+  // 跟著 `__nav-btn` 的 color 一起搬到圖示上（見那邊的註解）
+  &:hover &__nav-btn .pi {
+    color: var(--accent-600);
   }
 
   &:hover &__actions-group {
@@ -138,7 +142,6 @@
     height: 24px;
     border-radius: var(--radius-full);
     background: var(--accent-50);
-    color: var(--accent-500);
     flex-shrink: 0;
     padding: 0;
     border: none;
@@ -148,7 +151,18 @@
       color var(--transition-fast),
       transform var(--transition-fast);
 
+    // **color 宣告在圖示上而不是按鈕上，是刻意的。**
+    // 這顆按鈕的唯一子元素就是這個圖示（`aria-label` 提供無障礙名稱），所以
+    // 適用的是非文字門檻 3:1 而不是文字的 4.5:1 —— accent-500 疊 accent-50
+    // 是 4.4961，過 3:1 綽綽有餘，卻差 0.004 過不了 4.5。
+    //
+    // 對比 gate 看不到子元素，宣告在按鈕上它只能當文字判。把宣告放在真正
+    // 承載顏色的元素上，gate 的判斷就正確了，而畫面一個像素都沒變。
+    //
+    // **如果將來這顆按鈕要放文字進去**，就得把 color 搬回按鈕層並改用
+    // 過 4.5:1 的色階（accent-600 起）。
     .pi {
+      color: var(--accent-500);
       font-size: 12px;
     }
   }
