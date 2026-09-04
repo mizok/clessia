@@ -8,6 +8,12 @@
       "message": "ba_* 是 Better Auth 管的表，不得直接寫入。新增使用者走 admin.createUser()（讀取不受限）。例外：`orgId` 在 auth.ts 是 `input: false`，Better Auth 的 API 明確拒收它，所以 `.update({ orgId })` 這種「只寫 orgId」的呼叫已豁免 —— 夾帶其他欄位仍然會被擋。"
     },
     {
+      "id": "c2",
+      "path": "^supabase/.*\\.sql$",
+      "forbid": "(INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+(public\\.)?ba_[a-z_]+",
+      "message": "ba_* 是 Better Auth 管的表，SQL 也不例外。schema 層的 REFERENCES / ALTER 不在此限（那是關聯與約束，不是資料）—— 擋的是 INSERT / UPDATE / DELETE。seed.sql 的既有寫入已永久豁免（SQL 裡叫不到 admin.createUser()，而且只跑本機），新增的不行。"
+    },
+    {
       "id": "c3",
       "path": "^supabase/migrations/.*\\.sql$",
       "whenTracked": true,

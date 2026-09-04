@@ -698,6 +698,40 @@ scanExisting({
   },
 });
 
+// c2 的 **SQL 載體**。2026-09-04 的載體盲區掃描挖出來的：gate 在 TS 那側精確記著
+// 5 筆永久豁免、每筆都有查證過的 why，程式碼還寫著「真債歸零」—— 而 `seed.sql` 裡
+// 有 **9 條**直接寫 ba_* 的語句，**完全在掃描範圍外**。
+// 「真債歸零」當時的真實含義是「在我們碰巧會掃的那個載體裡歸零」。
+//
+// seed 本身是正當的（SQL 裡叫不到 `admin.createUser()`，而且只跑本機），
+// **但它該是宣告過的豁免，不是看不見的洞** —— 差別在於：現在沒有任何東西
+// 阻止有人把那個寫法複製進正式程式碼，也沒有東西擋 seed 再長出第 10 條。
+scanExisting({
+  clause: 'c2',
+  dir: join(ROOT, 'supabase'),
+  ext: '.sql',
+  label: '直接寫入 ba_* 表',
+  allowlist: {},
+  exempt: {
+    'supabase/seed.sql': {
+      count: 9,
+      why: '本機示範資料：SQL 裡叫不到 admin.createUser()，而 seed 只跑在本機 db:reset。INSERT ba_user ×5 / DELETE ba_user ×2 / UPDATE ba_user ×1 / DELETE ba_account ×1',
+    },
+    // **這一筆跑在正式環境**，跟 seed 不同層級。它是 pg_cron 每週清掉已過期的
+    // ba_session —— Better Auth 自己不清，不清的話那張表會無限長大。
+    // 刪的是 `"expiresAt" < NOW()` 的列，**不是動身分資料**，而且 Better Auth
+    // 沒有提供清理 API。加上它是已提交的 migration（c3），本來也只能豁免不能改。
+    //
+    // 它是這道 SQL 側 gate 上線第一次執行就抓到的 —— 而我自己那份載體掃描報告
+    // 寫的是「migrations 沒有任何 DML」。**錯在 grep 被 `| head` 截斷**：
+    // `REFERENCES ... ON DELETE SET NULL` 也含 "delete"，噪音把訊號擠出了前 10 行。
+    'supabase/migrations/20260222000002_session_cleanup_cron.sql': {
+      count: 1,
+      why: 'pg_cron 每週刪除已過期的 ba_session（expiresAt < NOW()）—— Better Auth 不自動清且無清理 API，不清則該表無限長大；刪的是過期列不是身分資料。且為已提交 migration（c3）',
+    },
+  },
+});
+
 // ── A16. 本分支有沒有改到已提交的 migration（clause c3）──────────────────────────────────
 // c3 的「存量」語意跟其他條不同：樹上不可能躺著一個「已經被改壞的 migration」——
 // 修改一定是**相對某個基準的差異**。所以這條比的是三點差異 `origin/main...HEAD`：

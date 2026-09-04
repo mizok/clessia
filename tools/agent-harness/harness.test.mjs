@@ -156,6 +156,53 @@ test('c6 TS 側：dialog 寬度不准用 vw，breakpoints 放行', () => {
   assert.deepEqual(guard('apps/web/src/app/a.component.ts', '// 別用 96vw，改 breakpoints'), []);
 });
 
+/**
+ * c2 的 SQL 側（2026-09-04 上線，載體盲區掃描的產物）。
+ *
+ * gate 原本只掃 `apps/api/**\/*.ts`。它在那一側精確追蹤 5 筆永久豁免、每筆都有查證過的
+ * `why`，程式碼裡還寫著「真債歸零」—— 而 `seed.sql` 有 9 條直接寫 ba_* 的語句，
+ * `session_cleanup_cron` migration 還有 1 條 DELETE，**全都在掃描範圍外**。
+ *
+ * 「真債歸零」當時的真實含義是「**在我們碰巧會掃的那個載體裡**歸零」。
+ *
+ * ## 判準：擋 DML，不擋 schema
+ *
+ * `REFERENCES public.ba_user(id) ON DELETE SET NULL` 與 `ALTER TABLE public.ba_user`
+ * 都**不是**違規 —— 那是關聯與約束，不是動資料。migrations 裡這兩種形狀有十幾處，
+ * 全部要放行，不然這道 gate 第一天就會被關掉。
+ *
+ * `ON DELETE` 特別容易誤傷：它含 "DELETE" 但不是 `DELETE FROM`。
+ */
+test('c2 SQL 側：擋 DML，放行 schema 宣告', () => {
+  // 用 seed.sql 當載體：`supabase/migrations/*` 這個路徑**同時**會命中 c3
+  // （已提交的 migration 不可修改），那是正確行為但會讓 deepEqual 對不上。
+  // migrations 路徑另外用最後一條斷言蓋。
+  const sql = (text) => guard('supabase/seed.sql', text);
+
+  assert.deepEqual(sql('DELETE FROM public.ba_session WHERE "expiresAt" < NOW();'), ['c2']);
+  assert.deepEqual(sql('INSERT INTO public.ba_user (id) VALUES (1);'), ['c2']);
+  assert.deepEqual(sql('UPDATE public.ba_user SET name = 1;'), ['c2']);
+  // 沒有 public. 前綴也要抓
+  assert.deepEqual(sql('DELETE FROM ba_account;'), ['c2']);
+
+  // ── 放行：schema 宣告不是寫資料 ──
+  // 這行同時含 "ba_user" 與 "DELETE"，是最容易誤傷的形狀
+  assert.deepEqual(sql('user_id text REFERENCES public.ba_user(id) ON DELETE SET NULL,'), []);
+  assert.deepEqual(
+    sql('ALTER TABLE public.ba_user ADD CONSTRAINT ba_user_phone_key UNIQUE (phone);'),
+    [],
+  );
+  // 別的表的 DML 不歸 c2 管
+  assert.deepEqual(sql('DELETE FROM public.students;'), []);
+
+  // 註解豁免：migrations 裡真的有「使用 ba_user(id) 而非 profiles(id)」這種說明
+  assert.deepEqual(sql('-- 舊版是 DELETE FROM public.ba_user，已改走 API'), []);
+
+  // migrations 路徑：c2 照樣抓，而且會**多帶一條 c3** —— 已提交的 migration
+  // 不可修改。兩條都對：這種寫入既違反 c2，也不該用改舊檔的方式進來。
+  assert.deepEqual(guard('supabase/migrations/x.sql', 'DELETE FROM public.ba_user;'), ['c2', 'c3']);
+});
+
 test('c7 擋舊版結構指令', () => {
   assert.deepEqual(guard('a.component.html', '<div *ngIf="x">'), ['c7']);
   assert.deepEqual(guard('a.component.html', '@if (x) { <div></div> }'), []);
