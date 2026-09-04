@@ -5,10 +5,13 @@
   flex-direction: column;
   gap: var(--space-4);
 
+  // **手機優先**：基準是窄螢幕。成績用下面的 `__mobile-list` 逐列呈現，
+  // 不是把表格塞進去橫捲。
   &__header-content {
     display: flex;
     flex-direction: row;
-    align-items: center;
+    flex-wrap: wrap;
+    align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-3);
     width: 100%;
@@ -78,7 +81,7 @@
   }
 
   &__exam-select {
-    min-width: 240px;
+    min-width: 0;
     width: 100%;
   }
 
@@ -98,7 +101,7 @@
 
   &__summary {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    grid-template-columns: 1fr;
     gap: var(--space-3);
   }
 
@@ -200,7 +203,9 @@
     background: #fff;
     text-align: left;
     cursor: pointer;
-    transition: background-color 150ms ease-out, border-color 150ms ease-out;
+    transition:
+      background-color 150ms ease-out,
+      border-color 150ms ease-out;
     appearance: none;
 
     &:hover {
@@ -257,7 +262,7 @@
   }
 
   &__mobile-list {
-    display: none;
+    display: grid;
     gap: var(--space-3);
   }
 
@@ -351,6 +356,7 @@
   }
 
   &__table-wrap {
+    display: none;
     overflow-x: auto;
     background: #fff;
     border: 1px solid var(--zinc-200);
@@ -421,27 +427,33 @@
   }
 }
 
-@include respond-to('tablet-portrait') {
+@include respond-from('tablet-portrait') {
   .class-scores-dialog {
     &__header-content {
-      flex-wrap: wrap;
-      align-items: flex-start;
+      flex-wrap: nowrap;
+      align-items: center;
     }
 
     &__summary {
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     }
 
     &__exam-select {
-      min-width: 0;
+      min-width: 240px;
     }
 
     &__table-wrap {
-      display: none;
+      display: block;
     }
 
     &__mobile-list {
-      display: grid;
+      display: none;
     }
+  }
+}
+
+@media (pointer: coarse) {
+  .class-scores-dialog__todo-row {
+    min-height: 44px;
   }
 }

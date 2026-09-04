@@ -36,7 +36,6 @@
     margin: 0;
   }
 
-
   &__card {
     background: #fff;
     border-radius: var(--radius-xl);
@@ -107,10 +106,12 @@
     opacity: 0.6;
   }
 
+  // **手機優先**：桌機的完整工具列預設不出現，`__mobile-toolbar` 才是基準。
+  // 這一對原本反過來寫（手機版藏在 media query 裡），語意上是「預設是桌機」。
   &__toolbar {
+    display: none;
     padding: var(--space-4) var(--space-6);
     border-bottom: 1px solid var(--zinc-100);
-    display: flex;
     flex-direction: column;
     gap: var(--space-3);
   }
@@ -265,7 +266,7 @@
 
   // Mobile toolbar
   &__mobile-toolbar {
-    display: none;
+    display: flex;
     padding: var(--space-4) var(--space-6);
     border-bottom: 1px solid var(--zinc-100);
     gap: var(--space-3);
@@ -273,14 +274,32 @@
   }
 }
 
-@include respond-to('tablet-portrait') {
+// 夠寬才換成完整工具列。兩者是同一個切換點，必須一起改，
+// 否則會出現「兩個工具列都在」或「一個都沒有」。
+@include respond-from('tablet-portrait') {
   .exams {
     &__mobile-toolbar {
-      display: flex;
+      display: none;
     }
 
     &__toolbar {
-      display: none;
+      display: flex;
     }
+  }
+}
+
+// 遷成手機優先把這幾處拉進觸控檢查範圍（範圍由 mobile-first baseline 推導）。
+// 都是**有內距但沒宣告下限**的形狀 —— 內容一變短就掉到門檻以下，而 review 時
+// 沒有任何數字看得出來。滑鼠下維持原樣，觸控下明寫 44px。
+//
+// **選擇器寫完整類名、一條一個**：gate 讀的是原始 SCSS 文字、不解析巢狀，
+// `.exams { &__todo { … } }` 它認不出來是 `.exams__todo`。
+@media (pointer: coarse) {
+  .exams__todo {
+    min-height: 44px;
+  }
+
+  .exams__clear-filters {
+    min-height: 44px;
   }
 }
