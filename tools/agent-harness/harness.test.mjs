@@ -19,6 +19,7 @@ import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import { matchWriteRules, routeHints } from './lib/rules.mjs';
 import { blankComments } from './lib/comments.mjs';
+import { inlineCarriers } from './lib/inline-carriers.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
 import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
@@ -114,20 +115,21 @@ test('c6 不打註解裡的 viewport 單位 —— 解釋「為何不用」的�
 // c6 有**兩條**規則（.scss 與 .ts），因為兩種檔的**出路不一樣**：
 // SCSS 改用 --window-* 變數，TS（PrimeNG dialog 寬度）改用 breakpoints 選項。
 // 同一段訊息餵給兩邊，其中一邊拿到的建議會是行不通的。
-test('c6 的兩條規則都在，A12 的兩次掃描才撈得到', () => {
+test('c6 三個載體的規則都在，A12 的三次掃描才撈得到', () => {
   const c6 = guardRules.rules.filter((rule) => rule.id === 'c6');
 
-  assert.equal(c6.length, 2, 'A12 用 id === c6 撈規則，少一條的話那個檔型會靜默失效');
-  assert.ok(
-    c6.some((r) => /scss/.test(r.path)),
-    'SCSS 側不見了',
-  );
-  assert.ok(
-    c6.some((r) => /ts/.test(r.path)),
-    'TS 側不見了',
-  );
-  // 兩條的訊息要不一樣 —— 一樣就代表有人複製貼上，其中一邊的出路會指錯
-  assert.notEqual(c6[0].message, c6[1].message);
+  // **斷言涵蓋的載體，不是規則數量。** 數量是會一直要維護的脆判準
+  // （加第三個載體時這條就紅了，而紅得沒有意義）；
+  // 「`.scss` / `.ts` / `.html` 三種都有人守」才是真正的不變量。
+  const covered = (ext) => c6.some((r) => new RegExp(r.path).test(`apps/web/src/app/a.${ext}`));
+  for (const ext of ['scss', 'ts', 'html']) {
+    assert.ok(covered(ext), `c6 的 .${ext} 載體沒人守 —— 那個檔型會靜默失效`);
+  }
+
+  // 每個載體的出路不一樣，訊息就不能共用：
+  // SCSS 用 --window-* 變數、TS 用 PrimeNG breakpoints、HTML 是 [style.] 綁定與 index.html。
+  // 訊息重複代表有人複製貼上，其中一邊拿到的建議會是行不通的。
+  assert.equal(new Set(c6.map((r) => r.message)).size, c6.length, 'c6 各載體的訊息不該重複');
 });
 
 /**
@@ -154,6 +156,119 @@ test('c6 TS 側：dialog 寬度不准用 vw，breakpoints 放行', () => {
   assert.deepEqual(guard('apps/api/src/routes/a.ts', "const x = '96vw';"), []);
   // 註解豁免同樣適用（靠 blankComments）—— #273 之後最可能被寫的正是這種註解
   assert.deepEqual(guard('apps/web/src/app/a.component.ts', '// 別用 96vw，改 breakpoints'), []);
+});
+
+/**
+ * c2 的 SQL 側（2026-09-04 上線，載體盲區掃描的產物）。
+ *
+ * gate 原本只掃 `apps/api/**\/*.ts`。它在那一側精確追蹤 5 筆永久豁免、每筆都有查證過的
+ * `why`，程式碼裡還寫著「真債歸零」—— 而 `seed.sql` 有 9 條直接寫 ba_* 的語句，
+ * `session_cleanup_cron` migration 還有 1 條 DELETE，**全都在掃描範圍外**。
+ *
+ * 「真債歸零」當時的真實含義是「**在我們碰巧會掃的那個載體裡**歸零」。
+ *
+ * ## 判準：擋 DML，不擋 schema
+ *
+ * `REFERENCES public.ba_user(id) ON DELETE SET NULL` 與 `ALTER TABLE public.ba_user`
+ * 都**不是**違規 —— 那是關聯與約束，不是動資料。migrations 裡這兩種形狀有十幾處，
+ * 全部要放行，不然這道 gate 第一天就會被關掉。
+ *
+ * `ON DELETE` 特別容易誤傷：它含 "DELETE" 但不是 `DELETE FROM`。
+ */
+test('c2 SQL 側：擋 DML，放行 schema 宣告', () => {
+  // 用 seed.sql 當載體：`supabase/migrations/*` 這個路徑**同時**會命中 c3
+  // （已提交的 migration 不可修改），那是正確行為但會讓 deepEqual 對不上。
+  // migrations 路徑另外用最後一條斷言蓋。
+  const sql = (text) => guard('supabase/seed.sql', text);
+
+  assert.deepEqual(sql('DELETE FROM public.ba_session WHERE "expiresAt" < NOW();'), ['c2']);
+  assert.deepEqual(sql('INSERT INTO public.ba_user (id) VALUES (1);'), ['c2']);
+  assert.deepEqual(sql('UPDATE public.ba_user SET name = 1;'), ['c2']);
+  // 沒有 public. 前綴也要抓
+  assert.deepEqual(sql('DELETE FROM ba_account;'), ['c2']);
+
+  // ── 放行：schema 宣告不是寫資料 ──
+  // 這行同時含 "ba_user" 與 "DELETE"，是最容易誤傷的形狀
+  assert.deepEqual(sql('user_id text REFERENCES public.ba_user(id) ON DELETE SET NULL,'), []);
+  assert.deepEqual(
+    sql('ALTER TABLE public.ba_user ADD CONSTRAINT ba_user_phone_key UNIQUE (phone);'),
+    [],
+  );
+  // 別的表的 DML 不歸 c2 管
+  assert.deepEqual(sql('DELETE FROM public.students;'), []);
+
+  // 註解豁免：migrations 裡真的有「使用 ba_user(id) 而非 profiles(id)」這種說明
+  assert.deepEqual(sql('-- 舊版是 DELETE FROM public.ba_user，已改走 API'), []);
+
+  // migrations 路徑：c2 照樣抓，而且會**多帶一條 c3** —— 已提交的 migration
+  // 不可修改。兩條都對：這種寫入既違反 c2，也不該用改舊檔的方式進來。
+  assert.deepEqual(guard('supabase/migrations/x.sql', 'DELETE FROM public.ba_user;'), ['c2', 'c3']);
+});
+
+/**
+ * inline 載體抽取（2026-09-04，gate 載體盲區掃描的產物）。
+ *
+ * **在 Angular 裡，`.ts` 檔同時也是模板、也是樣式表。** repo 有 15 支 inline template、
+ * 2 支 inline styles，其中 `leave-form-dialog` 兩者皆是（沒有 `.html` 也沒有 `.scss`），
+ * 於是它同時對 c7、雙軌表格、對比、ghost-token、page-actions 五道 gate 隱形。
+ */
+test('inline 載體：抽得出模板與樣式，抽不到的安靜跳過', () => {
+  const comp = (body) => [{ path: 'a.component.ts', source: `@Component({${body}})` }];
+
+  const both = inlineCarriers(
+    comp('template: `<div *ngIf="x"></div>`, styles: [`.a { color: red; }`]'),
+  );
+  assert.equal(both.templates.length, 1);
+  assert.equal(both.styles.length, 1);
+  assert.match(both.templates[0].source, /\*ngIf/);
+  assert.match(both.styles[0].source, /color: red/);
+
+  // `styles: ``` 是空的樣板字串 —— repo 真的有一支（sessions.component.ts）。
+  // 抽出空字串要當成「沒有樣式載體」，不然下游會拿到一堆空殼。
+  assert.equal(inlineCarriers(comp('template: `<p>x</p>`, styles: ``')).styles.length, 0);
+
+  // 用 templateUrl / styleUrl 的元件：沒有 inline 載體，兩邊都不該出現
+  const external = inlineCarriers(comp("templateUrl: './a.html', styleUrl: './a.scss'"));
+  assert.equal(external.templates.length, 0);
+  assert.equal(external.styles.length, 0);
+
+  // 不是元件的 .ts（service、guard…）不該被當成載體
+  assert.equal(
+    inlineCarriers([{ path: 'a.service.ts', source: 'const template = `<p>x</p>`;' }]).templates
+      .length,
+    0,
+  );
+});
+
+/**
+ * c7 的 inline template 載體。**立法時零違規**（repo 15 支 inline template
+ * 一個 `*ngIf` 都沒有），所以零 baseline —— 那是最便宜的立法時機。
+ */
+test('c7 的 inline template 載體：.ts 裡的舊指令照擋', () => {
+  assert.deepEqual(guard('apps/web/src/app/a.component.ts', 'template: `<div *ngIf="x">`'), ['c7']);
+  assert.deepEqual(guard('apps/web/src/app/a.component.ts', 'template: `@if (x) { <div> }`'), []);
+  // 註解掉的舊寫法是死程式碼，不是違規
+  assert.deepEqual(guard('apps/web/src/app/a.component.ts', '// 舊版是 *ngIf，已改 @if'), []);
+  assert.deepEqual(
+    guard('apps/web/src/app/a.component.spec.ts', 'template: `<div *ngIf="x">`'),
+    [],
+  );
+});
+
+/**
+ * c6 的 HTML 載體：`[style.height]` / `[ngStyle]` 綁定，以及 index.html 的
+ * `<style>` 區塊 —— 那是全螢幕啟動畫面，**最容易伸手拿 100vh 的地方**，
+ * 而它先前只被 c7 掃過（.html），c6 看不到。
+ */
+test('c6 的 HTML 載體：inline style 綁定與 index.html 的 <style>', () => {
+  const html = (t) => guard('apps/web/src/app/a.component.html', t);
+
+  assert.deepEqual(html('<div [style.height]="\'100vh\'"></div>'), ['c6']);
+  assert.deepEqual(html('<div style="width: 90vw"></div>'), ['c6']);
+  // var() 的 fallback 在這個載體一樣放行 —— 判準跨載體要一致
+  assert.deepEqual(html('<div [style.height]="\'var(--window-height, 100dvh)\'"></div>'), []);
+  // HTML 註解裡的不算
+  assert.deepEqual(html('<!-- 這裡不能用 90vw -->'), []);
 });
 
 test('c7 擋舊版結構指令', () => {
