@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
 import { crossFeatureImports } from './lib/feature-boundaries.mjs';
+import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { touchTargetViolations } from './lib/touch-target.mjs';
 import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
@@ -906,4 +907,20 @@ test('A17 放行 1×1 焦點哨兵，但不放行小按鈕', () => {
   assert.deepEqual(t('.btn { width: 32px; height: 32px; cursor: pointer; }'), ['below-threshold']);
   // 只有一軸很小 → 不是哨兵（可能是一條可點的細長條）
   assert.deepEqual(t('.bar { height: 1px; cursor: pointer; }'), ['below-threshold']);
+});
+
+// ── 雙軌表格 ────────────────────────────────────────────────────────────────────────
+//
+// 訊號是**兩份平行標記同時存在**，不是其中任何一份。這兩個反例比正例重要：
+// 只有表格 = 破版（另一種缺陷、另一種修法）；只有手機標記 = 根本不是表格
+// （`session-filters` 就有 5 個 __mobile 但零個 <table>，掃 __mobile 會誤報它）。
+test('雙軌表格只認「table + 平行手機標記」同時存在', () => {
+  const t = (source) => dualTrackTables([{ path: 'a.html', source }]).length;
+
+  assert.equal(t('<table><tr><td>x</td></tr></table><div class="a__mobile-list"></div>'), 1);
+  // 反例一：只有表格 —— 那是「沒有手機版」，是另一種缺陷
+  assert.equal(t('<table><tr><td>x</td></tr></table>'), 0);
+  // 反例二：只有手機標記 —— 非表格元件的手機變體，不歸這支管
+  assert.equal(t('<div class="a__mobile-list"></div><div class="a__mobile-row"></div>'), 0);
+  assert.equal(t('<div>沒有任何一邊</div>'), 0);
 });
