@@ -621,16 +621,15 @@ describe('AttendanceRosterPanelComponent', () => {
   });
 
   /**
-   * 事前警告（#185 給 `leaveEndDate`，#222 再給 `leaveStartDate`）。
+   * 事前警告。#185 給 `leaveEndDate`、#222 再給 `leaveStartDate`，
+   * 但那兩個都是**聚合值**，前端得自己推導連坐 —— 而推導在「兩張假接力」時
+   * 跟一張真長假同形，所以文案只能說「可能」。
    *
-   * 銷假只把「今天」從假裡拿掉，但**跨日的假會被截斷、後段一併取消** ——
-   * 事後用 `droppedAfter` 告知已經來不及，老師按下去時不知道會波及三天。
-   *
-   * 有了起始日之後，「今天才開始」那一整類假警告可以拿掉（見下）。
-   * 但**文案仍然是「可能」不是「將」** —— 理由在最後兩條測試裡。
+   * #265 之後後端逐張假算好 `cancelDropsLeaveUntil`（用的是銷假自己那支
+   * `cancelLeaveForDate`），前端只是顯示它。**文案因此升級成「將」。**
    */
   describe('跨日假的事前警告', () => {
-    function leaveRow(leaveEndDate: string | null, leaveStartDate: string | null = null) {
+    function leaveRow(cancelDropsLeaveUntil: string | null) {
       return [
         {
           studentId: 'l1',
@@ -640,69 +639,39 @@ describe('AttendanceRosterPanelComponent', () => {
           recordId: 'r1',
           status: 'on_leave' as const,
           hasLeaveRequest: true,
-          leaveStartDate,
-          leaveEndDate,
+          cancelDropsLeaveUntil,
         },
       ];
     }
 
-    it('假期超過這堂課那天 → 事前就講出來', async () => {
+    it('後端說會連坐 → 說死「將」，並講出取消到哪一天', async () => {
       panelDate = todayLocal();
       await render(leaveRow('2026-12-25'));
       const text = fixture.nativeElement.textContent as string;
       expect(text).toContain('2026-12-25');
-      expect(text).toContain('可能');
+      expect(text).toContain('將一併取消');
     });
 
-    it('假期就是這一天 → 不警告（銷假不會損失任何東西）', async () => {
-      panelDate = todayLocal();
-      await render(leaveRow(todayLocal()));
-      expect(fixture.nativeElement.textContent).not.toContain('可能一併取消');
-    });
-
-    it('沒有結束日資訊 → 不警告，不要憑空嚇人', async () => {
+    /**
+     * **這條是從「釘住『可能』」改寫來的，不是新加的。**
+     *
+     * 原本它釘的是：只要前端還分不出「一張長假」與「兩張接力」，就不准說「將」。
+     * #265 之後那個限制不存在 —— 後端逐張假算，接力假各自算出零連坐、回 `null`。
+     *
+     * **接力假在這一層就是 `null`**，元件根本看不到「接力」這件事，
+     * 所以不另外寫一條「接力假」的測試 —— 那會是同一個輸入換一個名字，
+     * 看起來多守了一個 case，實際上一行程式碼都沒多守到。
+     * 「接力假預測為 null」歸 API 那層測（`cancelLeaveForDate` 與 roster 的 spec）。
+     *
+     * 這一條守的東西沒變：**畫面說的話要跟實際行為一致。**
+     * 只是這次一致的方向是「不要警告一件不會發生的事」。
+     */
+    it('後端說不會連坐 → 什麼都不顯示，也不留「可能」那種模糊字眼', async () => {
       panelDate = todayLocal();
       await render(leaveRow(null));
-      expect(fixture.nativeElement.textContent).not.toContain('可能一併取消');
-    });
-
-    /**
-     * #222 拿掉的那一整類假警告。
-     *
-     * 起始日就是今天 ⟹ **沒有任何一張假更早開始**（它是聯集的最小值）⟹
-     * 每一張都只會縮到明天或被刪掉，`droppedAfter` 必然是 null。零損失。
-     * 在此之前這種情況照樣喊「可能一併取消」，而它永遠不會發生。
-     */
-    it('今天才開始的跨日假 → 不警告（縮到明天起，證明零損失）', async () => {
-      panelDate = todayLocal();
-      await render(leaveRow('2026-12-25', todayLocal()));
-      expect(fixture.nativeElement.textContent).not.toContain('可能一併取消');
-    });
-
-    it('更早開始且之後才結束 → 照樣警告', async () => {
-      panelDate = todayLocal();
-      await render(leaveRow('2026-12-25', '2020-01-01'));
       const text = fixture.nativeElement.textContent as string;
-      expect(text).toContain('2026-12-25');
-      expect(text).toContain('可能');
-    });
-
-    /**
-     * **為什麼還是「可能」不是「將」。**
-     *
-     * 兩張假接力蓋到今天（`[4/4~4/6]` + `[4/6~4/8]`，今天 4/6），前端拿到的聚合值
-     * 是 `start=4/4, end=4/8` —— 跟一張真正的長假**長得一模一樣**，但實際損失是零：
-     * 4/4 那張今天結束（截到昨天），4/8 那張今天才開始（縮到明天）。
-     *
-     * 這個 case 不是在測「警告不該出現」（min/max 分不出來，出現是對的、保守的），
-     * 是在**釘住文案**：只要還分不出來，就不准把「可能」改成「將」。
-     */
-    it('兩張假接力時仍然只說「可能」—— 聚合值分不出它其實零損失', async () => {
-      panelDate = todayLocal();
-      await render(leaveRow('2026-12-25', '2020-01-01'));
-      const text = fixture.nativeElement.textContent as string;
-      expect(text).toContain('可能');
-      expect(text).not.toContain('將一併取消');
+      expect(text).not.toContain('一併取消');
+      expect(text).not.toContain('可能');
     });
   });
 });

@@ -218,45 +218,17 @@ export class AttendanceRosterPanelComponent implements OnInit {
   }
 
   /**
-   * 銷假會不會連坐取消後續日期 —— 有風險就回最後一天，沒有就回 `null`。
+   * 銷假會連坐取消到哪一天 —— 不會連坐就回 `null`（#265 之後直接讀後端算好的預測）。
    *
    * 用途是**事前**警告：`droppedAfter` 是事後才知道，那時已經來不及。
    *
-   * ### 為什麼「今天才開始」不再警告（#222 之後）
-   *
-   * 後端逐張假處理（`lib/cancel-leave-for-date.ts`）：
-   *
-   * | 這張假 | 下場 | 損失 |
-   * | --- | --- | --- |
-   * | 今天開始、之後才結束 | 縮到明天起 | **無** |
-   * | 更早開始、今天結束 | 截到昨天 | **無** |
-   * | 更早開始、之後才結束 | 截到昨天 | **有**（明天到迄日全沒了） |
-   *
-   * `leaveStartDate` 是所有假裡**最早**的起始日。所以它等於這堂課的日期時，
-   * 就代表**沒有任何一張假更早開始** —— 每一張都只會縮到明天或被刪掉，
-   * 零損失。這一整類過去都在喊「可能一併取消」，那是假警告。
-   *
-   * ### 為什麼還是說「可能」而不是「將」
-   *
-   * 反過來就不成立了。兩張假接力蓋到今天時（`[4/4~4/6]` + `[4/6~4/8]`，今天 4/6），
-   * 前端看到的聚合值是 `start=4/4, end=4/8`，看起來像「更早開始且之後才結束」，
-   * **但實際損失是零** —— 4/4 那張今天結束（截到昨天，不損失），4/8 那張今天才開始
-   * （縮到明天，不損失）。min/max 分不出「一張長假」與「兩張接力」。
-   *
-   * 要說死「將」需要後端回一個真正的預測值（等同 dry-run 的 `droppedAfter`）。
-   * 在那之前**寧可保守**：說「可能」而有一種情況其實不會損失，
-   * 好過說「將」而有一種情況根本沒事 —— 說死了卻沒發生，下次就沒人信這句話。
+   * **這裡不做任何推導。** 後端逐張假跑 `cancelLeaveForDate`，跟銷假動作是同一份實作 ——
+   * 前端再算一次只會多出一個對不起來的機會。在此之前這裡用
+   * `leaveStartDate` / `leaveEndDate` 推，而那組聚合值在「兩張假接力」時
+   * 跟一張真長假同形，所以文案只能說「可能」；現在可以說死。
    */
-  protected leaveCollateralRisk(student: RosterStudent): string | null {
-    const end = student.leaveEndDate;
-    if (!end || end <= this.session.eventDate) return null;
-
-    // `>=` 不是 `===`：假必然蓋到這堂課，起始日不可能晚於它，但比對寫寬一點
-    // 不會錯，而 `null`（舊資料或後端沒回）要**落到警告那一邊** —— 保守。
-    const start = student.leaveStartDate;
-    if (start && start >= this.session.eventDate) return null;
-
-    return end;
+  protected cancelDropsUntil(student: RosterStudent): string | null {
+    return student.cancelDropsLeaveUntil;
   }
 
   /**

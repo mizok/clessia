@@ -340,6 +340,20 @@ BEGIN
             ON CONFLICT DO NOTHING;
         END LOOP;
     END LOOP;
+
+    -- teacher0001 兼一個 admin 身分 —— **這是刻意的，不是資料髒掉**。
+    --
+    -- 在此之前 seed 裡**沒有任何多重角色帳號**，於是 `/select-role` 的正常路徑
+    -- （真的有兩個身分要選）在本機一次都跑不到。後果不是抽象的：那一頁對單角色
+    -- 使用者說「這個帳號有多個身分，請選擇要進入的介面」卻只列出一個選項，
+    -- 這個矛盾活到 2026-09 才被發現（#247）—— 因為**沒有人能在本機看到它正確的樣子**。
+    --
+    -- 補習班本來就有「兼行政的任課老師」（分校主任），所以這不是為了測試捏造的形狀。
+    -- permissions 給空陣列：有 admin 角色但沒有任何細部權限，符合「老師兼行政」的最小樣子。
+    INSERT INTO public.user_roles (user_id, role, permissions)
+    VALUES ('40000000-0000-0000-0000-000000000001', 'admin', '[]'::jsonb)
+    ON CONFLICT (user_id, role) DO UPDATE SET
+        permissions = EXCLUDED.permissions;
 END $$;
 
 
