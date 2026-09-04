@@ -253,4 +253,39 @@ describe('AcademyScoreEditorComponent', () => {
       expect(event.defaultPrevented).toBe(false);
     });
   });
+
+  // 這一欄的紅色原本是唯一的訊息 —— 色覺障礙的人看不出它跟一般文字的差別
+  describe('不及格的形狀訊號', () => {
+    /** mockScores 第一筆是 85 分、第二筆是 null，改第一筆就能造出各種分數 */
+    function setScore(score: number | null) {
+      component['onScoreChange'](component['rows']()[0], score);
+      fixture.detectChanges();
+      return fixture.nativeElement.querySelectorAll('.academy-score-editor__fail-icon');
+    }
+
+    it('低於門檻時有 icon，而且螢幕閱讀器讀得到', () => {
+      const icons = setScore(45);
+
+      expect(icons.length).toBeGreaterThan(0);
+      expect(icons[0].getAttribute('aria-label')).toBe('不及格');
+    });
+
+    it('及格就不出現 —— 形狀訊號只在需要時現身', () => {
+      expect(setScore(85).length).toBe(0);
+    });
+
+    // 還沒登錄不是考差了（跟「還沒點名不是缺席」同一族）
+    it('沒有分數時不出現', () => {
+      expect(setScore(null).length).toBe(0);
+    });
+
+    it('0 分會出現 —— 那是一個真的分數', () => {
+      expect(setScore(0).length).toBeGreaterThan(0);
+    });
+
+    it('判斷走共用的門檻函式，不是模板裡的字面值', () => {
+      expect(component['isFailing'](59)).toBe(true);
+      expect(component['isFailing'](60)).toBe(false);
+    });
+  });
 });

@@ -59,6 +59,12 @@
                   styleClass="score-edit-dialog__score-input"
                   [inputStyleClass]="'score-edit-dialog__score-field'"
                 />
+                @if (isFailing(row.score)) {
+                  <i
+                    class="pi pi-exclamation-triangle score-edit-dialog__fail-icon"
+                    aria-label="不及格"
+                  ></i>
+                }
               </td>
               <td class="score-edit-dialog__cell score-edit-dialog__cell--status">
                 <p-select
@@ -110,9 +116,7 @@
           <span
             class="score-edit-dialog__mobile-subject-score"
             [class.score-edit-dialog__mobile-subject-score--absent]="isAbsent(row)"
-            [class.score-edit-dialog__mobile-subject-score--fail]="
-              row.score !== null && row.score < 60
-            "
+            [class.score-edit-dialog__mobile-subject-score--fail]="isFailing(row.score)"
             [class.score-edit-dialog__mobile-subject-score--empty]="
               !isAbsent(row) && row.score === null
             "
@@ -120,6 +124,12 @@
             @if (isAbsent(row)) {
               缺考
             } @else if (row.score !== null) {
+              @if (isFailing(row.score)) {
+                <i
+                  class="pi pi-exclamation-triangle score-edit-dialog__fail-icon"
+                  aria-label="不及格"
+                ></i>
+              }
               {{ row.score }}
             } @else {
               未登錄

@@ -184,6 +184,13 @@
     color: var(--zinc-500);
   }
 
+  // 形狀訊號：不及格才出現，跟著文字色（--error-600）
+  &__fail-icon {
+    font-size: var(--text-xs);
+    margin-right: var(--space-1);
+    color: var(--error-600);
+  }
+
   &__mobile-score {
     font-size: var(--text-sm);
     font-weight: var(--font-semibold);

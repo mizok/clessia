@@ -219,6 +219,13 @@
     }
   }
 
+  // 形狀訊號：不及格才出現，跟著文字色（--error-600）
+  &__fail-icon {
+    font-size: var(--text-xs);
+    margin-right: var(--space-1);
+    color: var(--error-600);
+  }
+
   &__mobile-subject-score {
     display: inline-flex;
     align-items: center;
