@@ -1576,6 +1576,24 @@ function checkScanScope() {
 
 checkScanScope();
 
+// ── 生成出來的 baseline 也要過 prettier ────────────────────────────────────────────────
+// **不加這段的話，排版取決於作者有沒有順手跑 prettier。** 我自己 #300 手動跑過，
+// 所以 scan-scope.json 進 main 時是壓縮形式；下一個人走 harness:write 產出的是
+// JSON.stringify 的展開形式，於是整個檔在他的 diff 裡重排 —— 看起來像他改了一大片。
+// （2026-09-04 admin-pages 的 #304 就是這樣，那是我引進的噪音不是他的。）
+//
+// gate 本身對排版免疫（比對的是 JSON.parse 之後的物件），所以這不會造成紅燈乒乓，
+// 純粹是 diff 噪音 —— 但 diff 噪音會讓 review 的人略過真正的變動。
+//
+// 用整個目錄而不是逐一列舉：**下一個 baseline 自動被涵蓋**。列舉的話，
+// 忘記加的那一支會安靜地帶著不同排版進來 —— 那正是這段要修的病本身。
+if (mode === 'write') {
+  // **只吃 .json**：整個目錄的話 prettier 會連 .mjs 一起重排 —— harness:write
+  // 不該去動原始碼（實測會改到 lib/orphan-imports.mjs，那不是它的事）。
+  // prettier 自己會展開這個 glob，不需要 shell。
+  formatGenerated(['tools/agent-harness/*.json'], ROOT);
+}
+
 // ── report ───────────────────────────────────────────────────────────────────────────────
 // --write 一律 exit 0：它的工作是「修好能自動修的」，剩下的（例如 CLAUDE.md 被塞進規則）
 // 本來就得人改。若這裡跟著 exit 1，`harness:write` 的 `&&` 會短路，KB 的 --write 就整個
