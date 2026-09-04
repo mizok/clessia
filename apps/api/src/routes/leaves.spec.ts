@@ -171,7 +171,7 @@ describe('leave audit helpers', () => {
  * 刪除而不是改寫、以及**已經點過名的日子不動**。
  */
 describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
-  function createDeleteApp() {
+  function createDeleteApp(leaveDates?: { start: string; end: string }) {
     const calls: Array<{ table: string; op: string; payload?: unknown }> = [];
     const filters: Array<[string, unknown]> = [];
     // 稽核寫入的內容 —— **替身缺 `maybeSingle` 的時候，`logAudit` 會在它自己的
@@ -215,8 +215,8 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
                 id: 'leave-1',
                 student_id: 'stu-1',
                 // 已經結束的假 → 走「完整刪除」那條，不是 truncate
-                start_date: '2026-04-01',
-                end_date: '2026-04-02',
+                start_date: leaveDates?.start ?? '2026-04-01',
+                end_date: leaveDates?.end ?? '2026-04-02',
                 students: { name: '王小明' },
               },
               error: null,
@@ -267,6 +267,29 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
     ).toHaveLength(0);
   });
 
+  it('進行中的假只截短、不放寬 —— 縮短造不出新的重疊', async () => {
+    // 「請假不得重疊」沒有 DB 約束，只靠 POST 的檢查。截短是唯一會改動既有區間的路徑，
+    // 所以它必須只會讓區間變窄 —— 放寬的話就繞過了那個檢查。
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+    const yesterday = new Date(`${today}T00:00:00Z`);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    const yesterdayText = yesterday.toISOString().slice(0, 10);
+
+    const { app, calls } = createDeleteApp({ start: '2020-01-01', end: '2099-12-31' });
+
+    await app.request(
+      '/api/leaves/00000000-0000-4000-8000-000000000001?mode=truncate',
+      { method: 'DELETE' },
+      undefined,
+      { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
+    );
+
+    const update = calls.find((call) => call.table === 'leave_requests' && call.op === 'update');
+    // 寫回去的迄日是昨天 —— 嚴格早於原本的 2099-12-31，也早於今天
+    expect(update?.payload).toEqual({ end_date: yesterdayText });
+    expect(yesterdayText < '2099-12-31').toBe(true);
+  });
+
   it('稽核有被寫進去 —— 而不是在 logAudit 的 catch 裡消失', async () => {
     const { app, auditRows } = createDeleteApp();
 
@@ -294,5 +317,181 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
 
     // 那天有人真的看過名單、做過判斷；假被刪掉不代表可以回頭改寫別人做完的事
     expect(filters).toContainEqual(['events.is.attendance_taken_at', null]);
+  });
+});
+
+/**
+ * **請假不得重疊，是一條只活在一段路由碼裡的不變量。**
+ *
+ * 沒有 DB 排他約束（那要 migration，保留類），也沒有任何測試守著它 ——
+ * 而**別的功能的正確性論證正靠著它**：#265 的連坐預測之所以在正式資料上單純，
+ * 是因為「兩張接力假」根本建不出來（共用端點日會被 409 擋掉）。
+ *
+ * 最容易被「優化」掉的是**共用單日端點那條**：把 `lte/gte` 改成 `lt/gt` 看起來
+ * 只是修掉一個「多餘的」邊界，實際上是打開接力假 —— 而打開之後，
+ * roster 的聚合值就會開始騙人（`[4/4~4/6] + [4/6~4/8]` 跟一張 `[4/4~4/8]` 同形）。
+ * 所以這裡守的是**過濾條件本身**，不只是回應碼。
+ */
+describe('POST /api/leaves —— 重疊檢查', () => {
+  function createApp(existing: Array<{ start_date: string; end_date: string }>) {
+    const filters: Array<[string, unknown]> = [];
+    const inserted: Array<Record<string, unknown>> = [];
+
+    const supabase = {
+      from(table: string) {
+        const predicates: Array<(row: { start_date: string; end_date: string }) => boolean> = [];
+        const query: Record<string, unknown> = {
+          select: () => query,
+          eq: (column: string, value: unknown) => {
+            filters.push([`${table}.eq.${column}`, value]);
+            return query;
+          },
+          // **替身要照路由實際用的運算子過濾，不能無條件回全部。**
+          // 無條件回全部的話「沒有重疊」那條會因為錯的理由而 409，
+          // 而「共用端點日」那條會因為錯的理由而通過 —— 兩條都不再檢驗邊界。
+          // 照著記下來的運算子套用，路由把 lte 改成 lt 時替身的行為就跟著變。
+          lte: (column: string, value: unknown) => {
+            filters.push([`${table}.lte.${column}`, value]);
+            predicates.push((row) => String(row[column as 'start_date']) <= String(value));
+            return query;
+          },
+          lt: (column: string, value: unknown) => {
+            filters.push([`${table}.lt.${column}`, value]);
+            predicates.push((row) => String(row[column as 'start_date']) < String(value));
+            return query;
+          },
+          gte: (column: string, value: unknown) => {
+            filters.push([`${table}.gte.${column}`, value]);
+            predicates.push((row) => String(row[column as 'end_date']) >= String(value));
+            return query;
+          },
+          gt: (column: string, value: unknown) => {
+            filters.push([`${table}.gt.${column}`, value]);
+            predicates.push((row) => String(row[column as 'end_date']) > String(value));
+            return query;
+          },
+          in: () => query,
+          or: () => query,
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          single: () =>
+            Promise.resolve({
+              data: {
+                id: 'leave-new',
+                org_id: 'org-1',
+                student_id: 'stu-1',
+                start_date: '2026-04-06',
+                end_date: '2026-04-08',
+                start_time: null,
+                end_time: null,
+                reason: null,
+                submitted_by: 'user-1',
+                submitted_by_role: 'admin',
+                created_at: '2026-04-01T00:00:00Z',
+                updated_at: '2026-04-01T00:00:00Z',
+                students: { name: '王小明' },
+              },
+              error: null,
+            }),
+          insert: (payload: Record<string, unknown>) => {
+            if (table === 'leave_requests') inserted.push(payload);
+            return query;
+          },
+          upsert: () => Promise.resolve({ error: null }),
+          then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
+            const data =
+              table === 'leave_requests'
+                ? existing.filter((row) => predicates.every((match) => match(row)))
+                : [];
+            return Promise.resolve({ data }).then(onfulfilled ?? undefined);
+          },
+        };
+        return query;
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      context.set('roles', ['admin']);
+      await next();
+    });
+    app.route('/api/leaves', leavesApp);
+
+    return { app, filters, inserted };
+  }
+
+  async function create(
+    existing: Array<{ start_date: string; end_date: string }>,
+    body: { startDate: string; endDate: string },
+  ) {
+    const { app, filters, inserted } = createApp(existing);
+    const response = await app.request(
+      '/api/leaves',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          studentId: '00000000-0000-4000-8000-0000000000b1',
+          ...body,
+        }),
+      },
+      undefined,
+      { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
+    );
+    return { status: response.status, filters, inserted };
+  }
+
+  it('完全重疊 → 409，而且不會寫進去', async () => {
+    const { status, inserted } = await create(
+      [{ start_date: '2026-04-04', end_date: '2026-04-08' }],
+      {
+        startDate: '2026-04-05',
+        endDate: '2026-04-07',
+      },
+    );
+
+    expect(status).toBe(409);
+    expect(inserted).toEqual([]);
+  });
+
+  it('⚠️ 共用單日端點也要 409 —— 這是最容易被「優化」掉的邊界', async () => {
+    // 既有 4/4~4/6，新的 4/6~4/8：只重疊 4/6 那一天。
+    // 放行的話就造出「兩張接力假」，而那正是 roster 的 min/max 聚合分不出來的形狀
+    const { status, inserted } = await create(
+      [{ start_date: '2026-04-04', end_date: '2026-04-06' }],
+      {
+        startDate: '2026-04-06',
+        endDate: '2026-04-08',
+      },
+    );
+
+    expect(status).toBe(409);
+    expect(inserted).toEqual([]);
+  });
+
+  it('守的是過濾條件本身：`lte(start, 新的迄)` + `gte(end, 新的起)`', async () => {
+    // 端點日算不算重疊，全看這兩個條件是 lte/gte 還是 lt/gt。
+    // 只斷言回應碼的話，改成 lt/gt 之後這組測試資料仍然會 409（因為還有別的天重疊），
+    // 邊界就悄悄鬆掉了 —— 所以直接釘住條件
+    const { filters } = await create([], { startDate: '2026-04-06', endDate: '2026-04-08' });
+
+    expect(filters).toContainEqual(['leave_requests.lte.start_date', '2026-04-08']);
+    expect(filters).toContainEqual(['leave_requests.gte.end_date', '2026-04-06']);
+  });
+
+  it('完全沒碰到的日期 → 建立成功', async () => {
+    const { status, inserted } = await create(
+      [{ start_date: '2026-04-01', end_date: '2026-04-03' }],
+      {
+        startDate: '2026-04-06',
+        endDate: '2026-04-08',
+      },
+    );
+
+    expect(status).toBe(201);
+    expect(inserted).toHaveLength(1);
   });
 });
