@@ -77,6 +77,8 @@ c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因�
 下週期開工單:
 
 - (計畫席)心跳暫停旗標刪除:`rm ~/.local/share/clessia-heartbeat.pause`
+- (計畫席,復工第一刀)`.claude/team/` 改名 `herdr-team/`(避免與原生 agent teams
+  功能混淆;`git mv` + 8 處引用更新,已 grep 過波及面;復活令裡明寫新路徑)
 - (infra)c6 gate ①(掃 TS,零 baseline)—— #273 已合,等 #282/#281 落地後上
 - (teacher-pages/使用者)iOS Safari 實機:#282 的抽屜不被工具列蓋住(裁決核心的人工確認)
 - (使用者窗口)及格線欄位 migration / 科目平均百分比化 / 640px 視覺 / iOS 抽屜確認
