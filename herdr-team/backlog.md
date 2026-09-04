@@ -54,7 +54,7 @@
    測試 198 檔 1492 條全綠、gate 早就在全強度。「3」是我當初用 `Object.keys()` 數到
    metadata 鍵的量測錯誤,已在 charter 記為範例。
 
-**佇列已空,待計畫席補項。** 本席自行認領時的來源是 `.claude/team/infra.md` 的
+**佇列已空,待計畫席補項。** 本席自行認領時的來源是 `herdr-team/infra.md` 的
 「已知缺口」節,目前剩:apps/web 無獨立 typecheck target(Stop gate 盲區)、
 c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因在 fvg)。
 磁碟 watch 持續掛著(20GB 警戒 / 10GB 自動 prune)。
@@ -77,7 +77,7 @@ c5 未機器化、test-baseline 3 個紅燈、dagger 快取無 GC 政策(根因�
 下週期開工單:
 
 - (計畫席)心跳暫停旗標刪除:`rm ~/.local/share/clessia-heartbeat.pause`
-- (計畫席,復工第一刀)`.claude/team/` 改名 `herdr-team/`(避免與原生 agent teams
+- (計畫席,復工第一刀)`herdr-team/` 改名 `herdr-team/`(避免與原生 agent teams
   功能混淆;`git mv` + 8 處引用更新,已 grep 過波及面;復活令裡明寫新路徑)
 - (infra)c6 gate ①(掃 TS,零 baseline)—— #273 已合,等 #282/#281 落地後上
 - (teacher-pages/使用者)iOS Safari 實機:#282 的抽屜不被工具列蓋住(裁決核心的人工確認)

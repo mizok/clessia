@@ -1,7 +1,7 @@
 /**
  * 老師能動哪些考試。
  *
- * 2026-08-30 裁決（設計文件：`.claude/team/billing-api-p3-grades-scope-design.md`）：
+ * 2026-08-30 裁決（設計文件：`herdr-team/billing-api-p3-grades-scope-design.md`）：
  *
  * | | 老師的權限 |
  * | --- | --- |

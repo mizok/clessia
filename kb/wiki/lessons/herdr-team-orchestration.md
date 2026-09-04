@@ -9,7 +9,7 @@ updated: 2026-09-04
 
 # Herdr 多席調度
 
-> 操作性的細節(開席指令、席位表)在 [`.claude/team/README.md`](../../../.claude/team/README.md);
+> 操作性的細節(開席指令、席位表)在 [`herdr-team/README.md`](../../../herdr-team/README.md);
 > 這頁收的是**可遷移的調度手法與踩過的坑** —— 2026-09-02 已整套傳授給 fvg 專案的指揮台。
 
 ## 分工:herdr 管生命週期,SendMessage 管內容

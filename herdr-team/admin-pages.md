@@ -323,7 +323,7 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
 跨席的視覺／token 改動會回頭波及已交付的頁（#95 → #100）。
 **合併授權 v2 之後多數 PR 由計畫席與 review-steward 代合**，所以有順序依賴要自己講
 （見工作習慣），疊 PR 要轉 Draft。
-**零 idle 制**：交付後 15 分鐘沒有新工單就從 `.claude/team/backlog.md` 認領下一項。
+**零 idle 制**：交付後 15 分鐘沒有新工單就從 `herdr-team/backlog.md` 認領下一項。
 
 ### 四個 domain 的 API 形狀（下次動到直接用，不用重讀 route 檔）
 

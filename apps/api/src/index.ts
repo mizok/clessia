@@ -323,7 +323,7 @@ mount('/api/daily-checkins', dailyCheckinsRoute, ADMIN_ONLY, { write: 'basic_ope
 mount('/api/workbench', workbenchRoute, ADMIN_ONLY);
 // 成績三支開給老師，但**範圍限制在路由層**（`lib/exam-scope.ts` / `lib/teacher-scope.ts`）：
 // 老師只碰自己固定任課的班。單純把角色加上去是不安全的 —— 那會讓任何老師讀寫全校的
-// 考試與成績。見 .claude/team/billing-api-p3-grades-scope-design.md
+// 考試與成績。見 herdr-team/billing-api-p3-grades-scope-design.md
 mount('/api/academy-exams', academyExamsRoute, ['admin', 'teacher']);
 mount('/api/school-exams', schoolExamsRoute, ['admin', 'teacher']);
 mount('/api/scores', scoresRoute, ['admin', 'teacher']);
