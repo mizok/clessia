@@ -203,7 +203,10 @@ function isStudentSelection(value: unknown): value is Student {
           color: var(--zinc-700);
         }
         &__required {
-          color: var(--red-500);
+          // --error-600，不是 --red-500 —— 後者從來沒被定義過（專案的紅是 --error-*），
+          // 而沒有 fallback 的 var() 解不到就整條宣告作廢，所以這顆星號一直是繼承色。
+          // 這是 inline styles 寫在 .ts 裡才活得下來的 bug：token gate 只掃 .scss。
+          color: var(--error-600);
         }
         &__actions {
           display: flex;
@@ -212,7 +215,8 @@ function isStudentSelection(value: unknown): value is Student {
           padding-top: 0.5rem;
         }
         &__error {
-          color: var(--red-500);
+          // 同上：--red-500 未定義。--error-600 疊白對比 4.83，過 AA。
+          color: var(--error-600);
           font-size: 0.875rem;
           text-align: right;
           margin-top: -0.5rem;
