@@ -24,6 +24,7 @@ import { matchWriteRules } from './lib/rules.mjs';
 import { crossFeatureImports } from './lib/feature-boundaries.mjs';
 import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { blankComments } from './lib/comments.mjs';
+import { inlineCarriers, inlineStyles, inlineTemplate } from './lib/inline-carriers.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
@@ -620,9 +621,17 @@ scanExisting({ clause: 'c6', dir: WEB_SRC, ext: '.scss', label: '使用了 viewp
 // 同一條 clause 的 TS 側。**零 baseline 上線**（#273 把 14 處清成 0）——
 // baseline 只該給「接受的現況」，不該給「排隊中的修復」。
 scanExisting({ clause: 'c6', dir: WEB_SRC, ext: '.ts', label: '使用了 viewport 單位' });
+// c6 的 **HTML 載體**：`[style.height]` / `[ngStyle]` 綁定（16 處），
+// 以及 index.html 的 <style> 區塊 —— 那是全螢幕啟動畫面，**最容易伸手拿 100vh 的地方**，
+// 而它先前只被 c7 掃過（.html），c6 看不到。同樣零違規、零 baseline。
+scanExisting({ clause: 'c6', dir: WEB_SRC, ext: '.html', label: '使用了 viewport 單位' });
 
 // A13（c7）— 存量本來就是 0（Angular 21 全面用新語法），gate 立起來防回歸
 scanExisting({ clause: 'c7', dir: WEB_SRC, ext: '.html', label: '使用了舊版結構指令' });
+// c7 的 **inline template 載體**。repo 有 15 支元件把模板寫在 `template:` 字串裡，
+// 只掃 .html 的話那 15 支完全隱形。**立法時零違規**，所以零 baseline ——
+// 那是最便宜的立法時機（A18 當初也是）。
+scanExisting({ clause: 'c7', dir: WEB_SRC, ext: '.ts', label: '使用了舊版結構指令' });
 
 // A14（c8）— **存量已清零**（PR #81），allowlist 空著就是它該有的樣子。
 // 原本列的 4 筆（jdenticon-avatar 的 2 @Input + 1 @ViewChild、shell-layout 的
@@ -972,6 +981,26 @@ function checkDualTrackTables() {
   const webSrc = join(ROOT, 'apps/web/src');
   if (!existsSync(webSrc)) return;
 
+  // **inline 的元件也是元件。** 模板寫在 `template:`、樣式寫在 `styles:` 的話，
+  // 「有 .html 也有同名 .scss」這個條件永遠不成立，於是整支對這道 gate 隱形。
+  const inlineComponents = [];
+  const walkTs = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walkTs(full);
+      else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) {
+        const src = readFileSync(full, 'utf8');
+        if (!src.includes('@Component')) continue;
+        const template = inlineTemplate(src);
+        const scss = inlineStyles(src);
+        if (template.trim() && scss.trim()) {
+          inlineComponents.push({ path: full.slice(ROOT.length + 1), template, scss });
+        }
+      }
+    }
+  };
+  walkTs(webSrc);
+
   // 要模板與 SCSS 成對：訊號一半在模板（有沒有 <table>）、一半在 SCSS（有沒有翻面）
   const components = walk(webSrc, '.html')
     .filter((f) => existsSync(f.replace(/\.html$/, '.scss')))
@@ -980,7 +1009,9 @@ function checkDualTrackTables() {
       template: readFileSync(f, 'utf8'),
       scss: readFileSync(f.replace(/\.html$/, '.scss'), 'utf8'),
     }));
-  const current = new Map(dualTrackTables(components).map((v) => [v.file, v]));
+  const current = new Map(
+    dualTrackTables([...components, ...inlineComponents]).map((v) => [v.file, v]),
+  );
   const keys = [...current.keys()].sort();
 
   if (mode === 'write') {
@@ -1051,24 +1082,44 @@ const RUNTIME_TOKENS = new Set([
   '--item-hue',
 ]);
 
-function scanGhostTokens() {
-  const webSrc = join(ROOT, 'apps/web/src');
-  if (!existsSync(webSrc)) return;
-
-  const scssFiles = [];
+// ── 樣式載體 ────────────────────────────────────────────────────────────────
+// **在 Angular 裡，`.ts` 檔同時也是樣式表。** 只掃 `.scss` 的 gate 對
+// `leave-form-dialog` 這種全 inline 的元件完全隱形 —— 它就是這樣藏著一個
+// `var(--red-500)`（未定義、無 fallback，所以必填星號根本不是紅的），
+// 而抓這種的 gate 當天還在報別的 token。載體錯，規則再對也沒用。
+function styleCarriers(webSrc) {
+  const out = [];
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (entry.name.endsWith('.scss')) scssFiles.push(full);
+      else if (entry.name.endsWith('.scss')) {
+        out.push({ path: full.slice(ROOT.length + 1), source: readFileSync(full, 'utf8') });
+      } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) {
+        const ts = readFileSync(full, 'utf8');
+        if (!ts.includes('@Component')) continue;
+        const css = inlineStyles(ts);
+        if (css.trim()) out.push({ path: full.slice(ROOT.length + 1), source: css });
+      }
     }
   };
   walk(webSrc);
+  return out;
+}
+
+function scanGhostTokens() {
+  const webSrc = join(ROOT, 'apps/web/src');
+  if (!existsSync(webSrc)) return;
+
+  const carriers = styleCarriers(webSrc);
 
   const defined = new Set();
-  const sources = [...scssFiles, join(webSrc, 'index.html')].filter((f) => existsSync(f));
-  for (const f of sources) {
-    for (const m of readFileSync(f, 'utf8').matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)) defined.add(m[1]);
+  const indexHtml = join(webSrc, 'index.html');
+  const sources = existsSync(indexHtml)
+    ? [...carriers, { path: 'index.html', source: readFileSync(indexHtml, 'utf8') }]
+    : carriers;
+  for (const { source } of sources) {
+    for (const m of source.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)) defined.add(m[1]);
   }
 
   // PrimeNG **原始調色盤**（--p-sky-600、--p-zinc-400 …）。這些是 PrimeNG 自己定義的，
@@ -1081,8 +1132,8 @@ function scanGhostTokens() {
 
   const ghosts = new Map();
   const bypass = new Map();
-  for (const f of scssFiles) {
-    for (const m of readFileSync(f, 'utf8').matchAll(/var\(\s*(--[a-z0-9-]+)\s*(,)?/g)) {
+  for (const { source } of carriers) {
+    for (const m of source.matchAll(/var\(\s*(--[a-z0-9-]+)\s*(,)?/g)) {
       const name = m[1];
       if (PALETTE_BYPASS.test(name)) {
         bypass.set(name, (bypass.get(name) ?? 0) + 1);
@@ -1149,20 +1200,11 @@ function checkUsageContrast() {
   if (!existsSync(stylesPath) || !existsSync(webSrc)) return;
 
   const palette = readTokenPalette(readFileSync(stylesPath, 'utf8'));
-  const scssFiles = [];
-  const walk = (dir) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else if (entry.name.endsWith('.scss')) scssFiles.push(full);
-    }
-  };
-  walk(webSrc);
+  const carriers = styleCarriers(webSrc);
 
   const current = new Map();
-  for (const file of scssFiles) {
-    const rel = file.slice(ROOT.length + 1);
-    for (const v of usageContrastViolations(readFileSync(file, 'utf8'), palette)) {
+  for (const { path: rel, source } of carriers) {
+    for (const v of usageContrastViolations(source, palette)) {
       current.set(`${rel}|${v.selector}|${v.fg}|${v.bg}`, v);
     }
   }
@@ -1374,7 +1416,9 @@ function checkPageActions() {
   walk(webSrc);
 
   // ── 規則一：標頭裡不得直接放按鈕（既有的進 baseline，只擋新增）──
-  const current = headerActionButtons(html);
+  // 規則一吃的是**模板**，而 15 支元件的模板住在 `.ts` 的 `template:` 字串裡。
+  // 這個函式本來就已經收了 `ts` 陣列（給規則二用），只是規則一沒吃到。
+  const current = headerActionButtons([...html, ...inlineCarriers(ts).templates]);
 
   if (mode === 'write') {
     writeFileSync(PAGE_ACTIONS_BASELINE, `${JSON.stringify(current, null, 2)}\n`);

@@ -32,10 +32,22 @@
       "message": "禁止 viewport 單位。TS 裡最常見的是 PrimeNG dialog 的 width —— 改用它自己的 breakpoints 選項：width: '400px', breakpoints: { '640px': '96%' }。dialog 掛在 body 上、看不到 --window-* 變數，所以那條路在這裡走不通（#273 清零時驗過）。"
     },
     {
+      "id": "c6",
+      "path": "^apps/web/src/.*\\.html$",
+      "forbid": "(?<!var\\([^()]*)[0-9](vh|vw|dvh|svh|lvh)\\b",
+      "message": "禁止 viewport 單位。HTML 這側有兩種載體：`[style.height]` / `[ngStyle]` 綁定，以及 index.html 的 <style> 區塊（全螢幕啟動畫面最容易伸手拿 100vh）。改用上層 directive 寫入的 CSS 變數，例如 calc(var(--window-height, 100dvh) * 0.9)。"
+    },
+    {
       "id": "c7",
       "path": "\\.html$",
       "forbid": "\\*ngIf|\\*ngFor|\\*ngSwitch",
       "message": "禁止舊版結構指令。改用原生 control flow：@if / @for / @switch"
+    },
+    {
+      "id": "c7",
+      "path": "^apps/web/src/.*(?<!\\.spec)\\.ts$",
+      "forbid": "\\*ngIf|\\*ngFor|\\*ngSwitch",
+      "message": "禁止舊版結構指令。這裡是 inline template（`template:` 字串）—— 規則跟 .html 一樣，只是載體不同。改用原生 control flow：@if / @for / @switch"
     },
     {
       "id": "c8",
