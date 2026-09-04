@@ -207,7 +207,8 @@ export class SchoolScoreEditorComponent implements OnInit {
 
   protected openStudentDialog(student: SchoolExamStudent): void {
     const ref = this.dialogService.open(ScoreEditDialogComponent, {
-      width: 'min(640px, 95vw)',
+      width: '640px',
+      breakpoints: { '640px': '95%' },
       modal: true,
       showHeader: false,
       appendTo: 'body',
