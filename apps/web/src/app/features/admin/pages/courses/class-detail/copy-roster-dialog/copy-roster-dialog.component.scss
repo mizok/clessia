@@ -161,7 +161,11 @@
     gap: var(--space-2) var(--space-4);
   }
 
+  // ≈22px。它是 `<label>` 包著 `p-checkbox` —— **label 本來就比方框寬**
+  // （文字也算命中區），所以把整條撐高是最便宜的真勝利：原生方框的尺寸不動、
+  // 可點範圍變成整條。這跟撐大 checkbox 本身完全不同（那會讓方框變巨大）。
   &__checkbox-row {
+    min-height: 44px;
     display: flex;
     align-items: center;
     gap: var(--space-2);

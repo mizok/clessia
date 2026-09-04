@@ -93,7 +93,9 @@
   }
 
   // ---- Student Item ----
+  // 內距 12+12 ＋ 34px 的 grid 列 ≥58px。明寫下限把副作用變保證。
   &__item {
+    min-height: 44px;
     display: grid;
     grid-template-columns: 22px 34px 1fr;
     align-items: center;
@@ -257,6 +259,10 @@
     gap: var(--space-2);
   }
 
+  // ≈24px。**刻意不用 `::after` 覆蓋層** —— 它坐在可點的 `__item` 裡面，而
+  // 「移除」跟「選取」是不同動作；一個懸出按鈕之外的隱形命中區會讓人以為在選取、
+  // 實際按到移除。讓按鈕自己長大（`__item` 已經 ≥58px，塞得下），
+  // 目標邊界就跟看得見的邊界一致。
   &__remove-btn {
     background: none;
     border: none;
@@ -291,7 +297,11 @@
     flex-shrink: 0;
   }
 
+  // `padding: 0` 的裸文字按鈕（≈18px）。硬下 `min-height: 44px` 會把它所在的
+  // 標頭撐高一倍，所以用 `::after` 擴大**命中區**而不是元素本身。
+  // 它獨佔標頭左側、上下沒有其他可點的東西，覆蓋層不會搶到別的動作。
   &__back-btn {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--space-1);
@@ -375,5 +385,24 @@
   &__issue-sub {
     font-size: var(--text-xs);
     color: var(--zinc-500);
+  }
+}
+
+@media (pointer: coarse) {
+  // 命中區擴大到 44px 高，元素本身的高度與版面完全不動
+  .spd__back-btn::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: 100%;
+    min-width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+
+  // 移除鈕相反：讓看得見的按鈕自己長大，理由見它的註解
+  .spd__remove-btn {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
