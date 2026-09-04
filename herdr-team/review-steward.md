@@ -168,6 +168,11 @@ while true; do p=0; for n in ...; do [ ... ] && p=1; done; [ $p -eq 0 ] && break
 **要檢查「有沒有 conclusion」,不是「有沒有進行中字樣」** ——「空值不等於終態」。
 
 ### 合併一律用 `tools/steward-merge.sh <PR 編號>`
+**連續收多支時,它不是偶爾觸發的保險,是每一支都會用到的東西** —— 2026-09-04 實測:
+一輪收七支,腳本攔了六次,其中五次是同一個機制:**前一支合進 main 之後,GitHub 就把
+下一支的 mergeable 作廢重算**,而那個空窗剛好落在「我剛剛才看過它是 CLEAN」之後。
+靠肉眼記憶會每一支都踩進去。腳本不記得剛才,每次都重問。
+
 這支把整套檢查原子化成一個指令 —— **不是讓你記得跑這些檢查,是讓你不跑就做不到合併**:
 state 是 OPEN → CI 有 conclusion 且 SUCCESS → mergeable 已算完且 CLEAN → 鎖 SHA 合併 →
 確認 `state == MERGED` → **沒有 PR 疊在這分支上才刪**。任何一步不符就 exit 1。
