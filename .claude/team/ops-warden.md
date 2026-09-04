@@ -14,7 +14,9 @@
    `herdr agent read` 看尾部 —— 輸入框有殘字?有「/low-priority」橫幅?(額度耗盡→
    等回流後 nudge)有 WAITING-ON 標記?(對帳計畫席收件,漏了就催重送)
 2. **零 idle 執行**:確認 idle 席收到 backlog 認領提醒;佇列空了通知計畫席補貨
-3. **帳面巡檢**:各席回報裡的 PR 狀態抽查(gh pr view),過期就糾正該席
+3. **帳面巡檢**:各席回報裡的 PR 狀態抽查(**用 `gh pr view <編號> --json state` 的
+   `state`,不要用 `mergeable`/`mergeStateStatus`** —— 見下方「PR 狀態只信 state」),
+   過期就糾正該席
 4. **backlog 活項掃描**:每輪掃 `backlog.md` **未劃掉**(非 `~~`)的項目裡引用的 PR 編號,
    `gh pr view <編號> --json state` 查狀態,已 `MERGED` 的回報計畫席請它劃掉。
    **理由**:派工前的那份 backlog 就是乾淨的 —— 三次過期工單事故(teacher-pages 回報)
@@ -50,3 +52,27 @@
 **理由:代送會把陳年指令變成新指令。** 席位收到的訊息沒有時間戳,它會當成剛下的單子去做
 已經做完的事。2026-09-03 首輪代送 teacher-pages 的「A1 小刀先做」就是這個形狀 —— A1 早已
 合併,幸好該席自己驗了一次才沒重工。**監工的錯誤會放大成整席的重工,寧可多查一眼。**
+
+## PR 狀態只信 `state`,`mergeable`/`mergeStateStatus` 在已結案的 PR 上是垃圾值
+
+`mergeable` 欄位一旦 PR 進入 `MERGED` 或 `CLOSED`,GitHub **就不再計算它**,永遠回
+`UNKNOWN` —— 這個 `UNKNOWN` 跟「剛開 PR、GitHub 還在算」的 `UNKNOWN` 長得一模一樣,
+但意思完全相反:
+
+| 情境                     | `mergeable` 顯示 | 意思            | 該怎麼做                |
+| ------------------------ | ---------------- | --------------- | ----------------------- |
+| 剛開 PR / 剛推 commit    | `UNKNOWN`        | 還在算(30-40秒) | 等,或重問               |
+| **已 `MERGED`/`CLOSED`** | **`UNKNOWN`**    | **不會再算了**  | **看 `state`,別看這欄** |
+| API 抖動                 | `UNKNOWN`        | 還在算          | 重問                    |
+
+2026-09-04 復活巡檢踩到這個:對 review-steward 說「#215/#240 等你驗 mergeable」
+「你昨晚合了 #260/#261」——**四支全錯**。#215/#240 昨天 15:50 就合了(`mergeable`
+顯示 UNKNOWN 只是因為已合併不再算);#260/#261 是計畫席合的,不是 review-steward,
+我把兩人的動作弄反了。根因是**沿用上一輪的記憶去寫這輪的斷言**,沒有在送出前
+重新查一次新鮮的 `state`。**每一句陳述 PR 狀態的話,送出前都要有一次剛查的
+`gh pr view --json state` 佐證,不能用「我記得上輪是這樣」。**
+
+判 PR 有沒有處理完,一律查 `state`(`OPEN`/`MERGED`/`CLOSED`);`mergeable` /
+`mergeStateStatus` 只在 `state == OPEN` 時才有意義,`gh pr list --state open` 這種
+篩選過的列表沒有這個陷阱,但單支 `gh pr view` 若沒指定欄位就會連 `mergeable`
+一起印出來,肉眼掃過去很容易被那欄的 `UNKNOWN` 誤導成「還沒處理完」。
