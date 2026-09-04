@@ -99,6 +99,18 @@ esbuild 預設把非 ASCII 轉成 `\uXXXX`,所以 **`grep "管理出勤狀況" d
 另:部署基準線記描述(「與某次收官部署相比新增的全是 `.claude/team/` 文件」)比記 SHA 穩,
 SHA 會過期,描述不會。
 
+### 合併一律帶 `--match-head-commit <你驗過的 SHA>`
+```
+gh pr merge <n> -R <repo> --squash --match-head-commit "$head"
+```
+分支在你驗證之後又被推,合併會**直接拒絕**,不會合到你沒看過的東西。
+(flag 存在,`gh pr merge --help` 可驗:「Commit SHA that the pull request head must match to allow merge」。)
+
+**為什麼比「查燈號是否對應 head」強**:查證與合併之間有空窗,高速合併日那個空窗塞得下一次
+force push。這條把「合併後又推」整類**消滅在合併瞬間**,而不是靠人搶時間差 ——
+跟 README 疊 PR 鐵律 1 的「讓還不能合變成 GitHub 擋得住的狀態」同一個思路。
+(來源:design-web 稽核 #257 擱淺事故,計畫席 2026-09-04 定為全席程序。)
+
 ### `mergeStateStatus` / `mergeable` 的 `UNKNOWN` 有三種,意思完全不同
 **GitHub 對已關閉或已合併的 PR 不再計算 mergeable,那欄位永遠回 `UNKNOWN`。**
 所以同一個值在不同 `state` 下是不同的東西:
