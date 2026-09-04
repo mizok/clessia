@@ -10,6 +10,9 @@
 
 ## teacher-pages
 
+0. `/api/class-logs` 查證(低優):有 query 參數但零 service 認領(#304 gate 標的守備外實例)——
+   查它是誰在用/該不該有前端面/還是死端點,回報結論即可
+
 1. (窗口後)iOS Safari 實機協助:#282 抽屜不被工具列蓋住 —— 需使用者真機,你備步驟
 2. 待命:家長端 v1 探索(admin-pages 主盤)出來後,老師↔家長交集面(出缺席呈現)由你對口
 
@@ -30,6 +33,7 @@
 
 ## billing-api
 
+1.5 `/api/session-packs` 查證(低優):同 class-logs,#304 標的另一個未認領端點
 2. (窗口後)家長授權模型 #295 定案後,`childScoped` helper 與 middleware 注入的 API 側實作主刀歸你
 3. 500 案回查:**09-07 後**,計畫席持 CF 憑證查 log、你分析(條件:POST /api/courses、
    body 含 SERVER_ERROR、不用 --status error)
