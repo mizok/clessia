@@ -35,6 +35,8 @@ const BLOCK = /\/\*[\s\S]*?\*\//g;
 // 前面那個 `[^:]` 是為了不打到 `https://` 這種；它被吃進 match 裡，要原樣還回去
 const LINE = /(^|[^:])\/\/[^\n]*/g;
 const HTML = /<!--[\s\S]*?-->/g;
+// SQL 的行註解是 `--`。這裡沒有 `https://` 那種誤傷風險，所以不用前置守衛。
+const SQL_LINE = /--[^\n]*/g;
 
 /**
  * @param {string} text 原始檔內容
@@ -43,6 +45,9 @@ const HTML = /<!--[\s\S]*?-->/g;
  */
 export function blankComments(text, filePath) {
   if (/\.html$/.test(filePath)) return text.replace(HTML, blank);
+  // SQL：`ba_user` 這種表名幾乎一定會在註解裡被提到（migrations 就有好幾處
+  // 「使用 ba_user(id) 而非 profiles(id)」的說明），不抹白會把說明判成違規。
+  if (/\.sql$/.test(filePath)) return text.replace(BLOCK, blank).replace(SQL_LINE, blank);
   if (/\.(scss|css|ts|js|mjs)$/.test(filePath)) {
     return text
       .replace(BLOCK, blank)

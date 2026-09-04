@@ -19,7 +19,9 @@
     display: block;
   }
 
+  // 彈出選單沒有密度要省（它一次只顯示幾項），直接下基準 44。
   &__item {
+    min-height: 44px;
     display: flex;
     align-items: center;
     gap: 0.5rem;

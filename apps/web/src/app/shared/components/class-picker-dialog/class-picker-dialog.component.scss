@@ -51,7 +51,9 @@
     }
   }
 
+  // 12+12 內距 ＋ 內容 ＋ 上下框線 ≈ 46px，明寫下限不改畫面。
   &__item {
+    min-height: 44px;
     display: flex;
     align-items: center;
     gap: var(--space-3);
@@ -63,7 +65,9 @@
     cursor: pointer;
     text-align: left;
     width: 100%;
-    transition: background var(--transition-fast), border-left-color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      border-left-color var(--transition-fast);
 
     &:hover {
       background: var(--zinc-50);
@@ -136,7 +140,9 @@
   &__item-arrow {
     font-size: 11px;
     color: var(--zinc-300);
-    transition: color var(--transition-fast), transform var(--transition-fast);
+    transition:
+      color var(--transition-fast),
+      transform var(--transition-fast);
   }
 
   &__total {
