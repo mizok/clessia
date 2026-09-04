@@ -20,6 +20,12 @@
       "message": "禁止 viewport 單位。改用上層 directive 寫入的 CSS 變數，例如 calc(var(--window-width, 360px) * 0.9)。var() 的 fallback 可以用 viewport 單位（那是變數解不到時的分支，換成 px 只會從不精確變成一定是錯的）—— 禁的是直接拿它當值。"
     },
     {
+      "id": "c6",
+      "path": "^apps/web/src/.*(?<!\\.spec)\\.ts$",
+      "forbid": "(?<!var\\([^()]*)[0-9](vh|vw|dvh|svh|lvh)\\b",
+      "message": "禁止 viewport 單位。TS 裡最常見的是 PrimeNG dialog 的 width —— 改用它自己的 breakpoints 選項：width: '400px', breakpoints: { '640px': '96%' }。dialog 掛在 body 上、看不到 --window-* 變數，所以那條路在這裡走不通（#273 清零時驗過）。"
+    },
+    {
       "id": "c7",
       "path": "\\.html$",
       "forbid": "\\*ngIf|\\*ngFor|\\*ngSwitch",
