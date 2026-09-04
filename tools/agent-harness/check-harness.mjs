@@ -560,7 +560,12 @@ function scanExisting({ clause, dir, ext, label, allowlist = {}, exempt = {} }) 
   const rules = guardRules.rules.filter((rule) => rule.id === clause);
   if (!existsSync(dir) || rules.length === 0) return;
 
-  const forbid = rules[0].forbid ? new RegExp(rules[0].forbid, 'g') : null;
+  // **不能寫死 rules[0]** —— 同一條 clause 可以有多條規則（c6 就有 .scss 與 .ts 兩條）。
+  // 取第一條會拿到別的檔型的 regex；兩條剛好相同時它「安靜地對」，分岔那天才靜靜指錯行。
+  const forbidOf = (rel) => {
+    const rule = rules.find((r) => new RegExp(r.path).test(rel));
+    return rule?.forbid ? new RegExp(rule.forbid, 'g') : null;
+  };
   const seen = new Set();
 
   for (const file of walk(dir, ext)) {
@@ -574,6 +579,7 @@ function scanExisting({ clause, dir, ext, label, allowlist = {}, exempt = {} }) 
     // 註解裡那幾筆，於是「有幾筆」跟 allowlist 的帳對不起來。blankComments 保長度，
     // 所以位移與行號仍然對得回原始檔。
     const code = blankComments(source, rel);
+    const forbid = forbidOf(rel);
     const lines = forbid
       ? [...code.matchAll(forbid)].map((m) => code.slice(0, m.index).split('\n').length)
       : [];
@@ -611,6 +617,9 @@ const API_SRC = join(ROOT, 'apps/api/src');
 
 // A12（c6）— 存量早就是 0 以外的東西了，維持零容忍
 scanExisting({ clause: 'c6', dir: WEB_SRC, ext: '.scss', label: '使用了 viewport 單位' });
+// 同一條 clause 的 TS 側。**零 baseline 上線**（#273 把 14 處清成 0）——
+// baseline 只該給「接受的現況」，不該給「排隊中的修復」。
+scanExisting({ clause: 'c6', dir: WEB_SRC, ext: '.ts', label: '使用了 viewport 單位' });
 
 // A13（c7）— 存量本來就是 0（Angular 21 全面用新語法），gate 立起來防回歸
 scanExisting({ clause: 'c7', dir: WEB_SRC, ext: '.html', label: '使用了舊版結構指令' });
