@@ -1,0 +1,52 @@
+{
+  "c2": {
+    "roots": ["apps/api/src", "supabase"],
+    "exts": [".sql", ".ts"]
+  },
+  "c6": {
+    "roots": ["apps/web/src"],
+    "exts": [".html", ".scss", ".ts"]
+  },
+  "c7": {
+    "roots": ["apps/web/src"],
+    "exts": [".html", ".ts"]
+  },
+  "c8": {
+    "roots": ["apps/web/src"],
+    "exts": [".ts"]
+  },
+  "dual-track-table": {
+    "roots": ["apps/web/src"],
+    "exts": [".html", ".ts"]
+  },
+  "ghost-token": {
+    "roots": ["apps/web/src"],
+    "exts": [".html", ".scss", ".ts"]
+  },
+  "mobile-first": {
+    "roots": ["apps/web/src"],
+    "exts": [".scss"]
+  },
+  "orphan-imports": {
+    "roots": ["apps/web/src"],
+    "exts": [".html", ".ts"]
+  },
+  "page-actions": {
+    "roots": ["apps/web/src"],
+    "exts": [".html", ".ts"]
+  },
+  "touch-target": {
+    "roots": [
+      "apps/web/src/app/features/admin",
+      "apps/web/src/app/features/public",
+      "apps/web/src/app/features/select-role",
+      "apps/web/src/app/features/teacher",
+      "apps/web/src/app/shared"
+    ],
+    "exts": [".scss"]
+  },
+  "usage-contrast": {
+    "roots": ["apps/web/src"],
+    "exts": [".scss", ".ts"]
+  }
+}
