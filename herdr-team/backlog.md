@@ -30,7 +30,7 @@
 
 ## billing-api
 
-2. seed 雙身分帳號靜態驗證(讀 seed.sql,不 reset)
+2. (窗口後)家長授權模型 #295 定案後,`childScoped` helper 與 middleware 注入的 API 側實作主刀歸你
 3. 500 案回查:**09-07 後**,計畫席持 CF 憑證查 log、你分析(條件:POST /api/courses、
    body 含 SERVER_ERROR、不用 --status error)
 
