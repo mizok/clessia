@@ -64,6 +64,12 @@
     white-space: nowrap;
   }
 
+  // 「狀態」欄正常態的安靜文字——刻意不用 app-status-dot，理由見 template
+  &__status-plain {
+    color: var(--zinc-600);
+    font-size: var(--text-sm);
+  }
+
   // Table row hover — left-border accent consistent with other list pages
   &__row {
     border-left: 3px solid transparent;

@@ -158,6 +158,59 @@ describe('SessionListComponent', () => {
     expect(headers).not.toContain('異動');
   });
 
+  // M2：「出勤狀態」與「狀態」緊鄰，兩欄都用 app-status-dot，常態下 tone 都是
+  // pending（中空點）——並排是同一顆點只差文字。「狀態」欄正常態改成安靜文字，
+  // 不正常（已停課）才畫點，兩欄天然分得開，不用讀懂哪個點是哪個意思
+  describe('「狀態」欄的視覺——正常不畫點，只有不正常時畫', () => {
+    const base: Session = {
+      id: '00000000-0000-0000-0000-0000000000bb',
+      sessionDate: '2026-03-09',
+      startTime: '09:00',
+      endTime: '11:00',
+      status: 'scheduled',
+      assignmentStatus: 'assigned',
+      classId: '00000000-0000-0000-0000-000000000014',
+      className: 'C 班',
+      courseId: '00000000-0000-0000-0000-000000000024',
+      courseName: '國中理化',
+      campusId: '00000000-0000-0000-0000-000000000034',
+      campusName: '新竹校',
+      teacherId: '00000000-0000-0000-0000-000000000044',
+      teacherName: '陳老師',
+      hasChanges: false,
+    };
+
+    function statusCell(): HTMLElement {
+      return (fixture.nativeElement as HTMLElement).querySelector(
+        'td[appRtColCell="status"]',
+      ) as HTMLElement;
+    }
+
+    it('正常（pending）：純文字，不渲染 app-status-dot', async () => {
+      fixture.componentRef.setInput('sessions', [base]);
+      fixture.componentRef.setInput('loading', false);
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      const cell = statusCell();
+      expect(cell.querySelector('app-status-dot')).toBeNull();
+      expect(cell.textContent?.trim()).toBe('正常');
+      expect(cell.querySelector('.session-list__status-plain')).not.toBeNull();
+    });
+
+    it('已停課（inactive）：照舊畫 app-status-dot，不是安靜文字', async () => {
+      fixture.componentRef.setInput('sessions', [{ ...base, status: 'cancelled' }]);
+      fixture.componentRef.setInput('loading', false);
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      const cell = statusCell();
+      expect(cell.querySelector('app-status-dot')).not.toBeNull();
+      expect(cell.querySelector('.session-list__status-plain')).toBeNull();
+      expect(cell.textContent?.trim()).toBe('已停課');
+    });
+  });
+
   // 漏點名以前是沉默的：status === 'completed' 那條是死碼（沒有任何程式碼寫這個值），
   // 所有過去未點名的課都掉到 info —— 而藍色跟「今天稍晚要上的課」長得一樣
   describe('點名狀態的顏色', () => {
