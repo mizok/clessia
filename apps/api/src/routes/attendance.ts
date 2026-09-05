@@ -15,6 +15,11 @@ import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/s
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
 import { applyCampusFilter, type CampusScope } from '../lib/campus-scope';
+import {
+  applyAttendanceTakenFilter,
+  ensureAttendanceSessionEvents,
+  type AttendanceSessionStatus,
+} from '../lib/attendance-session-events';
 
 const AttendanceStatusSchema = z
   .enum(['present', 'absent', 'on_leave'])
@@ -211,8 +216,6 @@ const CreateAttendanceSchema = z
   })
   .openapi('CreateAttendance');
 
-type AttendanceSessionStatus = 'scheduled' | 'completed' | 'cancelled';
-
 interface AttendanceAuditResourceNameInput {
   readonly courseName?: string | null;
   readonly className?: string | null;
@@ -277,115 +280,6 @@ export function normalizeAttendanceFilterIds(filterIds: string | undefined): str
         .filter(Boolean),
     ),
   );
-}
-
-export async function ensureAttendanceSessionEvents(input: {
-  readonly supabase: AppEnv['Variables']['supabase'];
-  readonly orgId: string;
-  /**
-   * 呼叫者看得到的分校。**這支會「補建」出勤事件（寫入），所以範圍不能只靠讀取端過濾**
-   * —— 少了它，A 校的管理員查詢時會替 B 校的課堂建立 event。
-   */
-  readonly campusScope: CampusScope;
-  readonly campusId?: string;
-  readonly courseIdList: readonly string[];
-  readonly classIdList: readonly string[];
-  readonly statusList: readonly AttendanceSessionStatus[];
-  readonly dateFromValue?: string;
-  readonly dateToValue?: string;
-}): Promise<{ readonly created: number; readonly error: string | null }> {
-  const {
-    supabase,
-    orgId,
-    campusScope,
-    campusId,
-    courseIdList,
-    classIdList,
-    statusList,
-    dateFromValue,
-    dateToValue,
-  } = input;
-
-  let missingSessionsQuery = supabase
-    .from('sessions')
-    .select(
-      `
-      id,
-      event_id,
-      session_date,
-      start_time,
-      end_time,
-      status,
-      class_id,
-      classes!inner(name, course_id, campus_id, courses(name))
-    `,
-    )
-    .eq('org_id', orgId)
-    .is('event_id', null)
-    .in('status', [...statusList]);
-
-  if (dateFromValue) {
-    missingSessionsQuery = missingSessionsQuery.gte('session_date', dateFromValue);
-    missingSessionsQuery = missingSessionsQuery.lte('session_date', dateToValue ?? dateFromValue);
-  }
-
-  missingSessionsQuery = applyCampusFilter(
-    missingSessionsQuery,
-    'classes.campus_id',
-    campusScope,
-    campusId,
-  );
-  if (courseIdList.length > 0) {
-    missingSessionsQuery = missingSessionsQuery.in('classes.course_id', [...courseIdList]);
-  }
-  if (classIdList.length > 0) {
-    missingSessionsQuery = missingSessionsQuery.in('class_id', [...classIdList]);
-  }
-
-  const { data: missingSessions, error: missingSessionsError } = await missingSessionsQuery;
-  if (missingSessionsError) {
-    return { created: 0, error: missingSessionsError.message };
-  }
-
-  if (!missingSessions || missingSessions.length === 0) {
-    return { created: 0, error: null };
-  }
-
-  const eventsToInsert = missingSessions.map((session: any) => {
-    const classRow = Array.isArray(session.classes) ? session.classes[0] : session.classes;
-
-    return {
-      id: crypto.randomUUID(),
-      org_id: orgId,
-      event_type: 'session' as const,
-      title: classRow?.name ?? '課堂',
-      campus_id: classRow?.campus_id ?? null,
-      event_date: session.session_date,
-      start_time: session.start_time,
-      end_time: session.end_time,
-    };
-  });
-
-  const { error: insertEventsError } = await supabase.from('events').insert(eventsToInsert);
-  if (insertEventsError) {
-    return { created: 0, error: insertEventsError.message };
-  }
-
-  const sessionUpdateResults = await Promise.all(
-    missingSessions.map((session: any, index) =>
-      supabase
-        .from('sessions')
-        .update({ event_id: eventsToInsert[index]?.id ?? null })
-        .eq('id', session.id),
-    ),
-  );
-
-  const updateError = sessionUpdateResults.find((result) => result.error)?.error;
-  if (updateError) {
-    return { created: 0, error: updateError.message };
-  }
-
-  return { created: missingSessions.length, error: null };
 }
 
 export function buildAttendanceSessionListMeta(total: number, page: number, pageSize: number) {
@@ -1079,11 +973,7 @@ app.openapi(
     if (scope.teacherId) sessionsQuery = sessionsQuery.eq('teacher_id', scope.teacherId);
     sessionsQuery = sessionsQuery.in('status', statusList);
 
-    if (attendanceTaken === false) {
-      sessionsQuery = sessionsQuery.is('events.attendance_taken_at', null);
-    } else if (attendanceTaken === true) {
-      sessionsQuery = sessionsQuery.not('events.attendance_taken_at', 'is', null);
-    }
+    sessionsQuery = applyAttendanceTakenFilter(sessionsQuery, attendanceTaken);
 
     const { data: sessions, error: sessionsError, count } = await sessionsQuery;
     if (sessionsError)
