@@ -5,6 +5,7 @@ import {
   PreloadAllModules,
   provideRouter,
   withComponentInputBinding,
+  withNavigationErrorHandler,
   withPreloading,
   withViewTransitions,
 } from '@angular/router';
@@ -17,6 +18,10 @@ import Aura from '@primeuix/themes/aura';
 import { routes } from './app.routes';
 import { authInterceptor } from '@core/auth.interceptor';
 import { provideSystemClock } from '@core/system-clock.providers';
+import {
+  handleChunkNavigationError,
+  provideChunkRecovery,
+} from '@core/chunk-recovery.providers';
 
 registerLocaleData(localeZhTW, 'zh-TW');
 
@@ -135,6 +140,11 @@ export const appConfig: ApplicationConfig = {
       // 現場下載 chunk —— 使用者的體感是「每次跳轉都有微小延遲」。首屏渲染完之後
       // 讓瀏覽器閒時把其餘 chunk 拉完，初始 bundle 的大小不受影響。
       withPreloading(PreloadAllModules),
+      // 部署後舊分頁要不到新 chunk 時，導覽會失敗而 router 把網址復原 ——
+      // 畫面就停在空白。這裡攔下來自動重載一次。
+      // 預載失敗走的是另一條路（全域 ErrorHandler → 提示條），
+      // 理由見 kb/wiki/architecture/chunk-load-recovery.md。
+      withNavigationErrorHandler(handleChunkNavigationError),
     ),
     provideHttpClient(withInterceptors([authInterceptor])),
     provideAnimationsAsync(),
@@ -150,5 +160,6 @@ export const appConfig: ApplicationConfig = {
       ripple: true,
     }),
     provideSystemClock(),
+    ...provideChunkRecovery(),
   ],
 };

@@ -1,6 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { WindowSizeDirective } from '@shared/directives/window-size.directive';
+import { AppVersionService } from '@core/app-version.service';
 
 /**
  * 這裡刻意只有 router-outlet。
@@ -16,4 +17,8 @@ import { WindowSizeDirective } from '@shared/directives/window-size.directive';
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
 })
-export class App {}
+export class App {
+  // 版本提示條是**唯一**掛在 root 的 UI。它沒有帶進任何依賴 ——
+  // 純標記 + 一個 signal，見 app.component.html 的註解。
+  protected readonly version = inject(AppVersionService);
+}

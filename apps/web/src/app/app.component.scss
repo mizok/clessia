@@ -1,4 +1,57 @@
-.app{
-    width: var(--window-width);
-    height: var(--window-height);   
+.app {
+  width: var(--window-width);
+  height: var(--window-height);
+
+  // 版本提示條。**用覆蓋層而不是進文件流** —— `.app` 的高度就是視窗高度，
+  // 在裡面塞一條會把 shell 撐出捲軸、破壞既有的高度計算。
+  //
+  // z-index 130：shell header 是 100、bottom-bar 是 120。這條要蓋過它們 ——
+  // 它講的是「你手上這份 app 已經過期」，那比任何一頁的內容都優先。
+  // 但仍低於 PrimeNG 的 overlay（25000），對話框開著時不該被它擋住。
+  &__version-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 130;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    background: var(--warning-100);
+    // 800 而不是 600：warning-600 疊 warning-100 只有 4.03:1
+    color: var(--warning-800);
+    font-size: var(--text-sm);
+    box-shadow: var(--shadow-sm);
+  }
+
+  &__version-text {
+    min-width: 0;
+  }
+
+  &__version-action {
+    flex-shrink: 0;
+    min-height: 32px;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--warning-800);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: var(--font-medium);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--warning-200);
+    }
+  }
+}
+
+// 觸控下抬到 44px。桌機的 32px 是刻意的 —— 這條是暫時性的通知，
+// 不該在滑鼠下佔掉比內容還多的高度。
+@media (pointer: coarse) {
+  .app__version-action {
+    min-height: 44px;
+  }
 }
