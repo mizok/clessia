@@ -20,8 +20,8 @@ const app = new OpenAPIHono<AppEnv>();
 
 const ClassLogSchema = z
   .object({
-    id: z.uuid(),
-    classId: z.uuid(),
+    id: DbUuidSchema,
+    classId: DbUuidSchema,
     className: z.string().nullable(),
     logDate: z.string(),
     teachingRecord: z.string(),

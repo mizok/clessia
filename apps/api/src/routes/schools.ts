@@ -19,7 +19,7 @@ const app = new OpenAPIHono<AppEnv>();
 
 const SchoolSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     name: z.string(),
     shortName: z.string().nullable(),
     isActive: z.boolean(),

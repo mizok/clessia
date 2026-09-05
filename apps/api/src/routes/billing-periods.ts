@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
+import { DbUuidSchema } from '../lib/validation';
 
 /**
  * 收費期間：機構自訂的具名日期區間（「2026 上學期 + 暑假」）。
@@ -19,8 +20,8 @@ import { waitUntilFrom } from '../lib/wait-until';
 
 const BillingPeriodSchema = z
   .object({
-    id: z.uuid(),
-    orgId: z.uuid(),
+    id: DbUuidSchema,
+    orgId: DbUuidSchema,
     name: z.string(),
     startDate: z.string(),
     endDate: z.string(),
@@ -188,7 +189,7 @@ app.openapi(
     tags: ['BillingPeriods'],
     summary: '更新收費期間',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: { content: { 'application/json': { schema: UpdateBillingPeriodSchema } } },
     },
     responses: {
@@ -272,7 +273,7 @@ app.openapi(
     path: '/{id}',
     tags: ['BillingPeriods'],
     summary: '刪除收費期間',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '成功',

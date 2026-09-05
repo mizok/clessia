@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { summariseMealRecords, type MealAmountRow } from '../lib/meal-summary';
+import { DbUuidSchema } from '../lib/validation';
 
 /**
  * 餐務：每日名單。
@@ -18,7 +19,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 const MealRosterRowSchema = z
   .object({
-    studentId: z.uuid(),
+    studentId: DbUuidSchema,
     studentName: z.string(),
     /**
      * 班級脈絡。**是陣列不是單一字串** —— 一個學生同一天可能在兩個有課的班，
@@ -30,7 +31,7 @@ const MealRosterRowSchema = z
     /** 這個學生預設訂不訂餐（opt-in） */
     mealDefault: z.boolean(),
     /** 已經有記錄的話帶出來，沒有就是 null（還沒處理） */
-    recordId: z.uuid().nullable(),
+    recordId: DbUuidSchema.nullable(),
     ordered: z.boolean().nullable(),
     chargeable: z.boolean().nullable(),
     unitPrice: z.number().nullable(),
@@ -84,7 +85,7 @@ app.openapi(
         date: z.string().regex(DATE).optional(),
         dateFrom: z.string().regex(DATE).optional(),
         dateTo: z.string().regex(DATE).optional(),
-        studentId: z.uuid().optional(),
+        studentId: DbUuidSchema.optional(),
         page: z.string().optional(),
         pageSize: z.string().optional(),
       }),
@@ -283,7 +284,7 @@ app.openapi(
               rows: z
                 .array(
                   z.object({
-                    studentId: z.uuid(),
+                    studentId: DbUuidSchema,
                     ordered: z.boolean(),
                     chargeable: z.boolean().optional(),
                     unitPrice: z.number().int().min(0).optional(),
@@ -305,7 +306,7 @@ app.openapi(
             schema: z.object({
               updated: z.number(),
               /** 已結算、因此沒有被改動的學生 */
-              lockedStudentIds: z.array(z.uuid()),
+              lockedStudentIds: z.array(DbUuidSchema),
             }),
           },
         },

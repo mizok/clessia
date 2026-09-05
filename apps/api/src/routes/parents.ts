@@ -5,6 +5,7 @@ import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
+import { DbUuidSchema } from '../lib/validation';
 
 // ============================================================
 // Schemas
@@ -14,9 +15,9 @@ const ParentStatusSchema = z.enum(['active', 'inactive', 'archived']).openapi('P
 
 const ParentSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     userId: z.string(), // ba_user.id is text, not uuid
-    orgId: z.uuid(),
+    orgId: DbUuidSchema,
     name: z.string(),
     phone: z.string().nullable(),
     email: z.string().nullable(),
@@ -35,7 +36,7 @@ const ParentSchema = z
 
 const ParentDetailStudentSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     name: z.string(),
     grade: z.string(),
     relation: z.string().nullable(),
@@ -70,7 +71,7 @@ const CreateParentSchema = z
     name: z.string().min(1).max(100),
     email: z.email().optional(),
     phone: z.string().max(20).optional(),
-    studentIds: z.array(z.uuid()).optional(),
+    studentIds: z.array(DbUuidSchema).optional(),
     notes: z.string().max(2000).nullable().optional(),
   })
   .openapi('CreateParent');
@@ -80,7 +81,7 @@ const UpdateParentSchema = z
     name: z.string().min(1).max(100).optional(),
     email: z.email().nullable().optional(),
     phone: z.string().max(20).nullable().optional(),
-    studentIds: z.array(z.uuid()).optional(), // 全量替換；[] 表示解除所有關聯
+    studentIds: z.array(DbUuidSchema).optional(), // 全量替換；[] 表示解除所有關聯
     notes: z.string().max(2000).nullable().optional(),
   })
   .openapi('UpdateParent');
@@ -480,7 +481,7 @@ app.openapi(
     path: '/{id}',
     tags: ['Parents'],
     summary: '取得家長詳情（含關聯學生）',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '家長詳情',
@@ -567,7 +568,7 @@ app.openapi(
     tags: ['Parents'],
     summary: '更新家長基本資料 + 關聯學生',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: { content: { 'application/json': { schema: UpdateParentSchema } } },
     },
     responses: {
@@ -705,7 +706,7 @@ app.openapi(
     path: '/{id}/activate',
     tags: ['Parents'],
     summary: '啟用家長帳號（inactive → active）',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '啟用成功',
@@ -764,7 +765,7 @@ app.openapi(
     path: '/{id}/deactivate',
     tags: ['Parents'],
     summary: '停用家長帳號（active → inactive）',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '停用成功',
@@ -823,7 +824,7 @@ app.openapi(
     path: '/{id}/archive',
     tags: ['Parents'],
     summary: '封存家長帳號（單向，無法透過 API 解除）',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '封存成功',

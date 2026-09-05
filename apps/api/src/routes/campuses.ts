@@ -3,6 +3,7 @@ import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { applyCampusFilter } from '../lib/campus-scope';
+import { DbUuidSchema } from '../lib/validation';
 
 // ============================================================
 // Schemas (with OpenAPI metadata)
@@ -10,8 +11,8 @@ import { applyCampusFilter } from '../lib/campus-scope';
 
 const CampusSchema = z
   .object({
-    id: z.uuid(),
-    orgId: z.uuid(),
+    id: DbUuidSchema,
+    orgId: DbUuidSchema,
     name: z.string(),
     address: z.string().nullable(),
     phone: z.string().nullable(),
@@ -216,7 +217,7 @@ const getRoute = createRoute({
   summary: '取得單一分校',
   request: {
     params: z.object({
-      id: z.uuid().openapi({ description: '分校 ID' }),
+      id: DbUuidSchema.openapi({ description: '分校 ID' }),
     }),
   },
   responses: {
@@ -350,7 +351,7 @@ const updateRoute = createRoute({
   summary: '更新分校',
   request: {
     params: z.object({
-      id: z.uuid(),
+      id: DbUuidSchema,
     }),
     body: {
       content: {
@@ -429,7 +430,7 @@ const deleteRoute = createRoute({
   description: '刪除分校（僅限無課程的分校）',
   request: {
     params: z.object({
-      id: z.uuid(),
+      id: DbUuidSchema,
     }),
   },
   responses: {

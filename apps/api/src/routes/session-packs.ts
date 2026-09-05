@@ -8,6 +8,7 @@ import {
   remainingSessions,
   type AttendanceStatus,
 } from '../lib/session-pack';
+import { DbUuidSchema } from '../lib/validation';
 
 /**
  * 堂數包：買 N 堂慢慢上完。
@@ -20,12 +21,12 @@ import {
 
 const SessionPackSchema = z
   .object({
-    id: z.uuid(),
-    enrollmentId: z.uuid(),
+    id: DbUuidSchema,
+    enrollmentId: DbUuidSchema,
     purchasedCount: z.number(),
     purchasedAt: z.string(),
     expiresAt: z.string().nullable(),
-    invoiceItemId: z.uuid().nullable(),
+    invoiceItemId: DbUuidSchema.nullable(),
     note: z.string().nullable(),
     createdAt: z.string(),
   })
@@ -140,7 +141,7 @@ app.openapi(
     path: '/',
     tags: ['SessionPacks'],
     summary: '某個報名的堂數帳（含推導出的剩餘堂數）',
-    request: { query: z.object({ enrollmentId: z.uuid() }) },
+    request: { query: z.object({ enrollmentId: DbUuidSchema }) },
     responses: {
       200: {
         description: '成功',
@@ -202,12 +203,12 @@ app.openapi(
         content: {
           'application/json': {
             schema: z.object({
-              enrollmentId: z.uuid(),
+              enrollmentId: DbUuidSchema,
               purchasedCount: z.number().int().positive(),
               purchasedAt: z.string().regex(DATE).optional(),
               // 受訪公司不設效期，通用設計留空間（規則 1）
               expiresAt: z.string().regex(DATE).nullable().optional(),
-              invoiceItemId: z.uuid().optional(),
+              invoiceItemId: DbUuidSchema.optional(),
               note: z.string().optional(),
             }),
           },
@@ -284,7 +285,7 @@ app.openapi(
     path: '/{id}',
     tags: ['SessionPacks'],
     summary: '刪除一筆堂數購買',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '成功',
