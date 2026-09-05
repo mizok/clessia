@@ -47,7 +47,7 @@ export const SESSION_SUMMARY_SELECT = `
         teacher_id,
         teacher:staff!teacher_id(display_name),
         schedules!schedule_id(teacher_id),
-        classes!inner(name, course_id, campus_id, campuses(name), courses(name)),
+        classes!inner(name, course_id, campus_id, uses_contact_book, campuses(name), courses(name)),
         events!event_id(
           id,
           event_date,
@@ -67,6 +67,12 @@ export interface SessionSummary {
   isSubstitute: boolean;
   classId: string;
   className: string;
+  /**
+   * 這個班用聯絡簿（國小模式）還是教務日誌。老師端要用它分入口 —— `/api/classes`
+   * 是 ADMIN_ONLY，老師拿不到，所以跟課堂摘要一起帶。見
+   * `classes.uses_contact_book`（`20260829100000_create_contact_book_and_class_logs.sql`）。
+   */
+  usesContactBook: boolean;
   courseName: string | null;
   teacherName: string | null;
   campusId: string | null;
@@ -212,6 +218,7 @@ export async function summariseSessions(
       }),
       classId: classId ?? '',
       className: classRow?.name ?? '',
+      usesContactBook: classRow?.uses_contact_book ?? false,
       courseName: courseRow?.name ?? null,
       // 實際上這堂課的老師（代課時就是代課老師）—— 原本寫死 null
       teacherName: (teacherRow?.display_name as string | null) ?? null,
