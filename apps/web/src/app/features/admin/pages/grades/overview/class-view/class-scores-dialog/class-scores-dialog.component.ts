@@ -112,6 +112,11 @@ export class ClassScoresDialogComponent implements OnInit {
     })),
   );
 
+  /** 目前選的這場考試——`exams` 列表項本來就有 totalScore/passScore，不用另外打 API */
+  protected readonly selectedExam = computed(
+    () => this.exams().find((exam) => exam.id === this.selectedExamId()) ?? null,
+  );
+
   protected readonly sortedScores = computed<ClassExamScore[]>(() => {
     const currentStats = this.stats();
     if (!currentStats) return [];
@@ -157,11 +162,12 @@ export class ClassScoresDialogComponent implements OnInit {
   }
 
   /**
-   * 不及格 —— **總分還沒傳進來**（這一列上沒有那個欄位），所以退回 60。
-   * 拿得到之後傳第二個參數就自動修好，見 `score-threshold.util`。
+   * 不及格 —— 有設定及格線就用它，沒有才退回這場考試總分的 60%
+   * （`exams` 列表項本來就帶 totalScore/passScore，這裡不用再猜）。
    */
   protected isFailing(score: number | null): boolean {
-    return isFailingScore(score);
+    const exam = this.selectedExam();
+    return isFailingScore(score, { passScore: exam?.passScore, totalScore: exam?.totalScore });
   }
 
   protected close(): void {

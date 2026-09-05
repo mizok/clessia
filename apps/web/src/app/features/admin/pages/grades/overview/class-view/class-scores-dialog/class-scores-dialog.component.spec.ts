@@ -139,6 +139,53 @@ describe('ClassScoresDialogComponent', () => {
     }
   });
 
+  it('不及格門檻改用該場考試的總分比例，不再是跟裸 60 比大小', async () => {
+    const smallTotalExam: AcademyExam = { ...exam, id: 'exam-2', totalScore: 50, passScore: null };
+    listMock.mockReturnValue(of({ data: [smallTotalExam], meta: { total: 1 } }));
+    getClassExamStatsMock.mockReturnValue(
+      of({
+        data: {
+          ...stats,
+          examId: 'exam-2',
+          scores: [
+            { studentId: 'stu-1', studentName: '王小明', score: 40, status: 'scored', notes: null },
+          ],
+        },
+      }),
+    );
+
+    fixture = TestBed.createComponent(ClassScoresDialogComponent);
+    component = fixture.componentInstance;
+    component['examScope'].set('all');
+    component['selectedExamId'].set('exam-2');
+    await fixture.whenStable();
+
+    // 總分 50 的六成是 30，40 分及格——跟裸 60 比大小的舊邏輯會誤判成不及格
+    expect(component['isFailing'](40)).toBe(false);
+    expect(fixture.nativeElement.querySelectorAll('.class-scores-dialog__fail-icon').length).toBe(
+      0,
+    );
+  });
+
+  it('有設定及格線時優先用它，而不是總分的六成', () => {
+    const examWithPassScore: AcademyExam = {
+      ...exam,
+      id: 'exam-3',
+      totalScore: 100,
+      passScore: 70,
+    };
+    listMock.mockReturnValue(of({ data: [examWithPassScore], meta: { total: 1 } }));
+    getClassExamStatsMock.mockReturnValue(of({ data: stats }));
+
+    fixture = TestBed.createComponent(ClassScoresDialogComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    component['selectedExamId'].set('exam-3');
+
+    expect(component['isFailing'](65)).toBe(true);
+    expect(component['isFailing'](70)).toBe(false);
+  });
+
   it('todoOnly: true 時，應以 todo 參數載入考試列表', () => {
     listMock.mockReturnValue(
       of({
