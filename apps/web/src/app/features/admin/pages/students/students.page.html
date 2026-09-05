@@ -10,6 +10,7 @@
     <p class="students__band-sub">管理學生基本資料、家長關聯與學習紀錄</p>
 
     <div bandAside>
+      <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()" />
       @if (!loading() && students().length > 0) {
         <app-band-anchor [value]="summary().total" unit="名學生">
           在籍 <b>{{ activeStudentCount() }}</b>
@@ -93,8 +94,10 @@
           <app-empty-state
             icon="pi pi-users"
             title="尚未有學生資料"
-            description="學生資料由報名流程自動建立"
-          />
+            description="學生資料可能由報名流程自動建立，也可以直接在這裡手動新增"
+          >
+            <p-button label="新增學生" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+          </app-empty-state>
         }
       } @else {
         <app-popup-menu #actionMenu [model]="actionMenuItems()" />
