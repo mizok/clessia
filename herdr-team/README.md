@@ -196,3 +196,18 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
   (`documentElement.style.setProperty` → `n.style.setProperty`)。
   **共同形狀:你要找的東西,在你搜尋的那個載體裡不以你以為的形式存在。**
   這是「grep 回空先懷疑 pattern」的具體化 —— pattern 沒錯,是載體會改寫它。
+- **識別字在兩個載體之間對不上 —— 2026-09-05 一天內五次,每次穿法不同**:
+  ①計畫席 `grep courses__badge` 回零筆(BEM `&__x` 讓字串在 SCSS 原始碼裡不存在)
+  ②infra 掃描器定義側只讀 `.scss`(漏 inline styles / `index.html` `<style>` / TS 字串注入)
+  ③infra 的孤兒清單本身(模板有 class、SCSS 沒定義)
+  ④design-web 挖到反方向:`session-filters.component.scss` 的 `&--date-range` 編成
+  `.session-filters__control--date-range`,但模板掛的是 `.clessia-filter-control--date-range`
+  —— **一條保護斷點的規則因為選錯 class 家族從沒生效**
+  ⑤design-web 自己的掃描器第一輪沒遞迴進 `@container` 區塊,所以沒挖到 ④
+  **每一個人的工具都在同一個地方瞎過一次,而每一次的穿法都不一樣。**
+  **反方向(定義有、使用沒有)比正方向更安靜**:正方向元素至少長得不對,
+  反方向畫面在多數情況正常,**只在那條規則本來要保護的邊界條件下才出錯** ——
+  它壞掉的地方正好是最少人會看到的地方。而它不是殘留,是**失效的意圖**。
+- **權宜措施在根因解掉之後要拿掉,不要「以防萬一」留著** ——
+  design-web 為繞過一個未解謎團加了三處 inline `min-width`,謎團解開後全部移除。
+  留著的話那三行寫死的尺寸會變成下一個人追同類問題時的**假線索**(出處 design-web #370)。
