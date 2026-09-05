@@ -1,5 +1,6 @@
 import { inject } from '@angular/core';
 import { Router, type CanActivateFn } from '@angular/router';
+import { unauthenticatedRedirect } from './auth.guard';
 import { AuthService } from './auth.service';
 
 export function permissionGuard(permission: string): CanActivateFn {
@@ -8,7 +9,7 @@ export function permissionGuard(permission: string): CanActivateFn {
     const router = inject(Router);
 
     if (!(await auth.isAuthenticatedWhenReady())) {
-      return router.createUrlTree(['/login']);
+      return unauthenticatedRedirect(auth, router);
     }
 
     // Check if user has the required permission
