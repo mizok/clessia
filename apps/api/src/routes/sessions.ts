@@ -13,6 +13,11 @@ import {
 } from '../domain/session-assignment/session-operation-guard';
 import { planBatchUpdateTime } from '../domain/session-assignment/batch-update-time-planner';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import {
+  applyAttendanceTakenFilter,
+  ensureAttendanceSessionEvents,
+  eventsJoinModifier,
+} from '../lib/attendance-session-events';
 
 // ============================================================
 // Schemas
@@ -62,6 +67,17 @@ const SessionListQuerySchema = z
       .enum(['assigned', 'unassigned'])
       .optional()
       .openapi({ description: '指派狀態' }),
+    /**
+     * 有沒有點名過。**跟 `/api/attendance/sessions` 的同名參數是同一個概念**——
+     * 語意刻意對齊那支（`attendance.ts` 的 `attendanceTaken`），不是各自定義一次：
+     * 儀表板「未點名課堂」的數字來自那支，本頁的深連結與「今日未點名」pill
+     * 要接同一個答案，不然兩處的數字會漂移。
+     */
+    attendanceTaken: z
+      .enum(['true', 'false'])
+      .optional()
+      .transform((value) => (value === undefined ? undefined : value === 'true'))
+      .openapi({ description: '有沒有點名過' }),
   })
   .openapi('SessionListQuery');
 
@@ -581,8 +597,55 @@ app.openapi(listSessionsRoute, async (c) => {
     pageSize,
     statuses,
     assignmentStatus,
+    attendanceTaken,
   } = c.req.valid('query');
   const campusScope = c.get('campusScope');
+
+  // 請求指定了就用指定的（合法性由全域 campusRequestGuard 擋過），沒指定就用他的範圍。
+  // **不能只在「有指定」時才加條件** —— 那樣受限的管理員不指定就看得到全部。
+  const requestedCampusIds = campusIds
+    ? campusIds.split(',').filter(Boolean)
+    : campusId
+      ? [campusId]
+      : [];
+  const effectiveCampusFilter =
+    requestedCampusIds.length > 0 ? requestedCampusIds : campusScope ? [...campusScope] : null;
+
+  const courseIdList = courseIds
+    ? courseIds.split(',').filter(Boolean)
+    : courseId
+      ? [courseId]
+      : [];
+  const classIdList = classIds ? classIds.split(',').filter(Boolean) : classId ? [classId] : [];
+  const statusList = statuses
+    ? (statuses.split(',').filter(Boolean) as ('scheduled' | 'completed' | 'cancelled')[])
+    : [];
+
+  // 「有沒有點名」的條件下在 embed 的 `events` 欄位上，跟 `/api/attendance/sessions`
+  // 同一個坑：不配 `!inner` join 會靜靜地什麼都不篩（見 lib/session-summary.ts 的表）。
+  // 配了 `!inner` 之後，還沒被懶生成補建 event 的 scheduled/completed 課堂會被
+  // inner join 誤判成「不存在」而不是「未點名」——所以要先呼叫 ensure 補齊。
+  if (attendanceTaken !== undefined) {
+    const ensureStatusList = (
+      statusList.length > 0 ? statusList : (['scheduled', 'completed'] as const)
+    ).filter((status) => status !== 'cancelled');
+    if (ensureStatusList.length > 0) {
+      const ensureResult = await ensureAttendanceSessionEvents({
+        supabase,
+        orgId,
+        campusScope,
+        campusId,
+        courseIdList,
+        classIdList,
+        statusList: ensureStatusList,
+        dateFromValue: from,
+        dateToValue: to,
+      });
+      if (ensureResult.error) {
+        return c.json({ error: '補齊課堂事件失敗', code: 'DB_ERROR' }, 400);
+      }
+    }
+  }
 
   let dbQuery = supabase
     .from('sessions')
@@ -596,7 +659,7 @@ app.openapi(listSessionsRoute, async (c) => {
         campuses!inner ( id, name )
       ),
       staff ( display_name ),
-      events!event_id ( attendance_taken_at )
+      events${eventsJoinModifier(attendanceTaken !== undefined)} ( attendance_taken_at )
     `,
       { count: 'exact' },
     )
@@ -611,23 +674,11 @@ app.openapi(listSessionsRoute, async (c) => {
     dbQuery = dbQuery.lte('session_date', to);
   }
 
-  // 請求指定了就用指定的（合法性由全域 campusRequestGuard 擋過），沒指定就用他的範圍。
-  // **不能只在「有指定」時才加條件** —— 那樣受限的管理員不指定就看得到全部。
-  const requestedCampusIds = campusIds
-    ? campusIds.split(',').filter(Boolean)
-    : campusId
-      ? [campusId]
-      : [];
-  const effectiveCampusFilter =
-    requestedCampusIds.length > 0 ? requestedCampusIds : campusScope ? [...campusScope] : null;
   if (effectiveCampusFilter) {
     dbQuery = dbQuery.in('classes.campus_id', effectiveCampusFilter);
   }
-  if (courseIds) {
-    const ids = courseIds.split(',').filter(Boolean);
-    if (ids.length > 0) dbQuery = dbQuery.in('classes.course_id', ids);
-  } else if (courseId) {
-    dbQuery = dbQuery.eq('classes.course_id', courseId);
+  if (courseIdList.length > 0) {
+    dbQuery = dbQuery.in('classes.course_id', courseIdList);
   }
   if (teacherIds) {
     const ids = teacherIds.split(',').filter(Boolean);
@@ -637,23 +688,16 @@ app.openapi(listSessionsRoute, async (c) => {
   } else if (teacherId) {
     dbQuery = dbQuery.eq('teacher_id', teacherId);
   }
-  if (classIds) {
-    const ids = classIds.split(',').filter(Boolean);
-    if (ids.length > 0) {
-      dbQuery = dbQuery.in('class_id', ids);
-    }
-  } else if (classId) {
-    dbQuery = dbQuery.eq('class_id', classId);
+  if (classIdList.length > 0) {
+    dbQuery = dbQuery.in('class_id', classIdList);
   }
-  if (statuses) {
-    const statusList = statuses.split(',').filter(Boolean) as (
-      'scheduled' | 'completed' | 'cancelled'
-    )[];
-    if (statusList.length > 0) dbQuery = dbQuery.in('status', statusList);
+  if (statusList.length > 0) {
+    dbQuery = dbQuery.in('status', statusList);
   }
   if (assignmentStatus) {
     dbQuery = dbQuery.eq('assignment_status', assignmentStatus);
   }
+  dbQuery = applyAttendanceTakenFilter(dbQuery, attendanceTaken);
 
   // Pagination
   const resolvedPage = page ?? 1;
@@ -700,7 +744,7 @@ app.openapi(listSessionsRoute, async (c) => {
   }
   const { count: todayPendingAttendanceCount } = await todayPendingQuery;
 
-  const rows = (data ?? []) as Record<string, unknown>[];
+  const rows = (data ?? []) as unknown as Record<string, unknown>[];
   const sessionIds = rows.map((row) => row['id'] as string);
 
   const changedIds = new Set<string>();
