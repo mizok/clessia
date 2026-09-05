@@ -116,3 +116,58 @@ describe('countUntakenSessions', () => {
     expect(countUntakenSessions(rows, 'per_session', NOON)).toBe(1);
   });
 });
+
+/**
+ * 未點名卡的**兩段並排**。
+ *
+ * 那張卡的數字來自兩個地方，而它們用不同的機制判斷「這堂算不算逾期未點名」：
+ *
+ * | 條件 | 昨天以前（API `attendanceTaken=false`） | 今天（前端 `countUntakenSessions`） |
+ * | --- | --- | --- |
+ * | 沒點名 | `events.attendance_taken_at IS NULL` | `!takenAt` |
+ * | 排除停課 | 帶參數時改 **inner join**，停課沒有 event 撈不到（#123） | `status !== 'cancelled'` |
+ * | **已經上完** | **沒有這個條件** | `hasSessionEnded(...)` |
+ *
+ * **最後一列是這組測試存在的理由。** API 側沒有「已結束」的概念，它之所以不會把
+ * 還沒上的課算進去，**完全是靠呼叫端只查到昨天**（昨天的課今天都結束了）。
+ * 那是一個藏在參數裡的前提 —— 有人把 `dateTo` 改回今天，這張卡就會在每天早上
+ * 把整批還沒上的課報成未點名，而**兩段各自看都沒有錯**。
+ *
+ * #310 修的是同一族的另一個：停課在昨天以前被排除、在今天被算進去，
+ * 兩段規則不一致而測試全綠 —— 因為沒有人把它們並排看過。
+ */
+describe('未點名卡：兩段的分類必須一致', () => {
+  const cases = [
+    { what: '沒點名且已上完', row: session({ takenAt: null }), expected: true },
+    { what: '已經點過名', row: session({ takenAt: '2026-08-25T11:30:00Z' }), expected: false },
+    { what: '停課', row: session({ status: 'cancelled', takenAt: null }), expected: false },
+  ];
+
+  for (const { what, row, expected } of cases) {
+    it(`${what} → 前端算 ${expected ? '' : '不'}算未點名（API 側同答案）`, () => {
+      assertSameClassification(row, expected);
+    });
+  }
+
+  /**
+   * 前端的分類。API 側對同一堂課的答案寫在上面的對照表裡 ——
+   * **這個 helper 存在是為了讓下一個改任一側的人看到那張表。**
+   */
+  function assertSameClassification(row: EventSessionSummary, expected: boolean) {
+    expect(countUntakenSessions([row], 'per_session', NOON)).toBe(expected ? 1 : 0);
+  }
+
+  // 這一條守的是那個藏在參數裡的前提。它跟 dashboard.component.spec 的
+  // 「回溯那支只查到昨天」是同一件事的兩端：那邊驗參數，這邊說明為什麼那個參數重要。
+  it('還沒上完的課前端不算 —— 而 API 側沒有這個條件，它靠「只查到昨天」', () => {
+    // NOON 是 08-29 中午，所以這堂是「今天稍晚」的課
+    const notYetEnded = session({
+      eventDate: '2026-08-29',
+      startTime: '14:00',
+      endTime: '16:00',
+      takenAt: null,
+    });
+
+    expect(countUntakenSessions([notYetEnded], 'per_session', NOON)).toBe(0);
+  });
+});
