@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { authMiddleware, campusRequestGuard, requireAdminPermission, requireRoles } from './auth';
+import type { AppEnv } from '../index';
 
 const getSession = vi.fn();
 const fromMock = vi.fn();
@@ -235,6 +236,74 @@ describe('authMiddleware 的身分查詢失敗', () => {
     const logged = consoleError.mock.calls.map((call) => String(call[0])).join('\n');
     expect(logged).toContain('user_roles');
     expect(logged).toContain('parents');
+  });
+});
+
+/**
+ * `studentScope` 的 null vs 空陣列 —— 設計文件點名「這層最容易寫錯的地方」：
+ * 不是家長 → `null`（不受限）；是家長但沒綁小孩 → `[]`（什麼都看不到）。
+ * 把 `[]` 當成 `null` 處理，等於讓沒綁小孩的家長看到全部。
+ * 見 kb/wiki/architecture/parent-data-scope.md。
+ */
+describe('authMiddleware 的 studentScope', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    getSession.mockReset();
+    fromMock.mockReset();
+  });
+
+  function appReturningScope(results: Record<string, { data: unknown; error: unknown }>) {
+    getSession.mockResolvedValue({ user: { id: 'user-1', orgId: 'org-1' } });
+    fromMock.mockImplementation((table: string) => ({
+      select: () => ({
+        eq: () => {
+          const result = results[table] ?? { data: [], error: null };
+          return Object.assign(Promise.resolve(result), {
+            maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          });
+        },
+      }),
+      insert: () => Promise.resolve({ error: null }),
+    }));
+
+    const app = new Hono<AppEnv>();
+    app.use('*', authMiddleware);
+    app.get('/', (c) => c.json({ studentScope: c.get('studentScope') }));
+    return app;
+  }
+
+  it('不是家長身分時 studentScope 是 null（不受限）', async () => {
+    const app = appReturningScope({
+      user_roles: { data: [{ role: 'teacher', permissions: [] }], error: null },
+    });
+
+    expect(await (await app.request('/')).json()).toEqual({ studentScope: null });
+  });
+
+  it('是家長但沒有任何 parent_student_relations 時 studentScope 是空陣列，不是 null', async () => {
+    const app = appReturningScope({
+      user_roles: { data: [{ role: 'parent', permissions: [] }], error: null },
+      parents: { data: [{ status: 'active', parent_student_relations: [] }], error: null },
+    });
+
+    expect(await (await app.request('/')).json()).toEqual({ studentScope: [] });
+  });
+
+  it('是家長且有關聯學生時 studentScope 是那些 student id', async () => {
+    const app = appReturningScope({
+      user_roles: { data: [{ role: 'parent', permissions: [] }], error: null },
+      parents: {
+        data: [
+          {
+            status: 'active',
+            parent_student_relations: [{ student_id: 's1' }, { student_id: 's2' }],
+          },
+        ],
+        error: null,
+      },
+    });
+
+    expect(await (await app.request('/')).json()).toEqual({ studentScope: ['s1', 's2'] });
   });
 });
 

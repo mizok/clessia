@@ -21,6 +21,20 @@ describe('audienceFor', () => {
   it('同時是管理員與老師時仍有老師收件匣', () => {
     expect(audienceFor(['admin', 'teacher'])).toBe('all_teachers');
   });
+
+  // #291：老師兼家長切到家長身分時，activeRole 要贏過角色陣列的優先序（teacher 排前面）
+  it('activeRole 找得到就用它，即使跟角色陣列的優先序不同', () => {
+    expect(audienceFor(['teacher', 'parent'], 'parent')).toBe('all_parents');
+    expect(audienceFor(['teacher', 'parent'], 'teacher')).toBe('all_teachers');
+  });
+
+  it('activeRole 是 admin（發布者身分）時沒有收件匣，即使角色陣列裡也有 teacher', () => {
+    expect(audienceFor(['admin', 'teacher'], 'admin')).toBeNull();
+  });
+
+  it('沒有 activeRole 時退回角色陣列的優先序（相容舊呼叫點）', () => {
+    expect(audienceFor(['teacher', 'parent'])).toBe('all_teachers');
+  });
 });
 
 describe('canSee', () => {

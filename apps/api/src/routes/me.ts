@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { resolveDisplayName, updateDisplayName } from '../lib/display-name';
 import { getAuth } from '../lib/get-auth';
+import childrenRoute from './parent/children';
 
 const MeResponseSchema = z
   .object({
@@ -281,5 +282,7 @@ app.openapi(
     );
   },
 );
+
+app.route('/children', childrenRoute);
 
 export default app;
