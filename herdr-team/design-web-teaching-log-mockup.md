@@ -1,5 +1,12 @@
 # 教務日誌 v1 前置構圖提案 —— 老師撰寫表單 / 日誌列表 / 發布狀態
 
+> ⚠️ **已收斂，本頁不是最終版**（2026-09-05，teacher-pages 回饋）。權威版本在
+> `kb/wiki/architecture/teacher-class-log.md`。三處被推翻：**v1a 不放發布按鈕**
+> （`publish` 只設時間戳、零推播邏輯，rules 描述的是意圖不是現況——我把兩者搞混了）；
+> 狀態點是**未寫/已寫**（pending/done）不是草稿/已發布；聯絡簿撰寫端獨立成 v1c、
+> 不併入這一刀。入口長在既有 schedule 卡片這一點兩邊獨立收斂到同一個答案，保留。
+> **實作前請讀 teacher-class-log.md，不要照這頁做。**
+>
 > 2026-09-05，design-web 席。**提案，不是規格**——給 teacher-pages 的 P3 feature-slice
 > 探索當設計輸入，做完後這席做輕量二審（同 #334 的配對形狀，計畫席指派）。
 > 依據：`kb/wiki/rules/teaching-log-rules.md`、`kb/wiki/rules/contact-book-rules.md`、
