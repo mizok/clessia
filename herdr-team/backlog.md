@@ -25,6 +25,15 @@
 
 1. 待命(#287 收掉後觸控債線歸零)
 
+## 窗口裁決落地(2026-09-05 11:15,使用者六項全裁)
+
+1. #295 **批准動工**+附帶:activeRole 進 API context=要 / 遮蔽=排名+內部備註 / is_primary=不影響
+2. #295 補「孩子帳號」擴充節:使用者提議納入 —— v1 **不做帳號**,但模型天然相容
+   (學生帳號=scope 只含自己的 student_id),寫成擴充節供未來
+3. 及格線欄位:**准開** —— migration+API+UI 一條線動工,migration PR 照保留類**由使用者合**
+4. 科目平均:**改「幾分之幾」** —— 不做百分比化;平均列顯示 總得分/總滿分(如 130/150),
+   API 回 sum 與 totalSum,消滅無意義平均的同時保留原始分數感
+
 ## admin-pages
 
 1. **家長端 v1 探索**(主刀):家長 shell 各頁實況盤點(不假設空殼)、三件事(出缺席/
@@ -36,7 +45,7 @@
 ## billing-api
 
 1.5 `/api/session-packs` 查證(低優):同 class-logs,#304 標的另一個未認領端點
-2. (窗口後)家長授權模型 #295 定案後,`childScoped` helper 與 middleware 注入的 API 側實作主刀歸你
+2. **#295 已定案,API 側主刀**:middleware 注入 studentScope+`childDb` 入口(乙案)+activeRole 進 context+GET /api/me/children(02 片的 API 半)。⚠️ 開工前先做 session 輪替(context 99%):蒸餾+落檔+重啟
 3. 500 案回查:**09-07 後**,計畫席持 CF 憑證查 log、你分析(條件:POST /api/courses、
    body 含 SERVER_ERROR、不用 --status error)
 
