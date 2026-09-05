@@ -93,3 +93,38 @@
     gap: var(--space-2);
   }
 }
+
+/* 已發布的狀態說明 —— 說的是「家長看得到什麼」，不是「這裡有個旗標」 */
+.class-log-sheet__published {
+  margin: 0;
+  color: var(--zinc-600);
+  font-size: 0.8rem;
+}
+
+/*
+ * 發布的二次確認。跟 footer 分開一塊，視覺權重刻意比「存檔」重 ——
+ * 兩個動作的後果差很多（存檔只有自己看得到，發布家長就看到了）。
+ */
+.class-log-sheet__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--warning-200);
+  border-radius: var(--radius-md);
+  background: var(--warning-50);
+}
+
+.class-log-sheet__confirm-text {
+  margin: 0;
+  // warning-800 疊 warning-50 = 6.84，這顆是說明文字不是裝飾
+  color: var(--warning-800);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.class-log-sheet__confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

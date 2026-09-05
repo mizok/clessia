@@ -47,6 +47,14 @@ describe('ClassLogsService', () => {
     req.flush({ data: [], meta: { total: 0 } });
   });
 
+  it('發布打 POST /{id}/publish，body 是空的', () => {
+    service.publish('log-1').subscribe();
+    const req = http.expectOne((r) => r.url.endsWith('/class-logs/log-1/publish'));
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
+    req.flush({ data: {} });
+  });
+
   it('存檔用 PUT（upsert，不是 POST 新增）', () => {
     service
       .upsert({ classId: 'c1', logDate: '2026-09-05', teachingRecord: '第三章', homework: 'p.42' })
