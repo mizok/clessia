@@ -35,8 +35,18 @@
     line-height: 1.6;
   }
 
+  // 原本 selectbutton(2 個選項)跟「儲存」擠在同一排、只靠 margin 隔開，
+  // 讀起來像三個平行選項（Tester #16）。獨立的分隔線元素讓「儲存」明確是
+  // 一個動作，不是第三個選項——不疊在按鈕自己的樣式上，避免看起來像按鈕的一部分。
   &__control {
     display: flex;
     align-items: center;
+    gap: var(--space-4);
+  }
+
+  &__divider {
+    width: 1px;
+    height: 24px;
+    background: var(--zinc-200);
   }
 }
