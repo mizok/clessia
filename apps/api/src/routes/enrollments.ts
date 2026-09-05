@@ -7,6 +7,7 @@ import { buildPeriodFilter, buildSelect, sortColumn } from './enrollments/list-q
 import { monthRange, prorateByDays } from '../lib/proration';
 import { applyCampusFilter } from '../lib/campus-scope';
 import { checkEnrollmentSessionPacks } from '../lib/enrollment-session-pack-guard';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 // ============================================================
 // Schemas
@@ -556,7 +557,10 @@ app.openapi(
     const orgId = c.get('orgId');
     const userId = c.get('userId');
     const supabase = c.get('supabase');
-    const effectiveFrom = body.effectiveFrom ?? new Date().toISOString().slice(0, 10);
+    // 台北時間，不是 UTC —— 這個值會直接寫進 enrollments.effective_from，
+    // countEnrolledOn 靠它判斷在籍範圍（parent-class-logs-read.md 用它擋轉班過度
+    // 曝光）。算錯一天不只是欄位差一天，是授權範圍差一天。見 lib/taipei-date.ts。
+    const effectiveFrom = body.effectiveFrom ?? getCurrentTaipeiDateString();
     const effectiveTo = body.effectiveTo ?? null;
     const skipConflictCheck = body.skipConflictCheck === true;
 
@@ -758,7 +762,9 @@ app.openapi(
     const updates: Record<string, unknown> = { status };
     if (notes) updates['notes'] = notes;
     if (['withdrawal', 'void'].includes(status)) {
-      updates['effective_to'] = new Date().toISOString().slice(0, 10);
+      // 台北時間，不是 UTC —— 同一個理由：effective_to 也是 countEnrolledOn
+      // 判斷在籍範圍的邊界，算錯一天會讓退班日跟實際操作日期對不上。
+      updates['effective_to'] = getCurrentTaipeiDateString();
     }
 
     const { data, error } = await supabase
@@ -960,7 +966,8 @@ app.openapi(
     const supabase = c.get('supabase');
     const uniqueStudentIds = Array.from(new Set(studentIds));
 
-    const startDate = effectiveFrom ?? new Date().toISOString().slice(0, 10);
+    // 台北時間，不是 UTC —— 同一個理由：見上面單筆建立那處的說明
+    const startDate = effectiveFrom ?? getCurrentTaipeiDateString();
     const preconditions = await checkEnrollmentPreconditions({
       supabase,
       orgId,
@@ -1227,7 +1234,8 @@ app.openapi(
       return c.json({ error: '人數已達上限', code: 'OVER_QUOTA' }, 400);
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    // 台北時間，不是 UTC —— 同一個理由：見上面單筆建立那處的說明
+    const today = getCurrentTaipeiDateString();
     const rows = toInsertStudentIds.map((studentId) => ({
       org_id: orgId,
       class_id: targetClassId,

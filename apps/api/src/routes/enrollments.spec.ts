@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as enrollmentsRoute from './enrollments';
 import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { countEnrolledOn } from '../lib/session-roster';
 
 interface FakeSupabaseDataSet {
   readonly classes?: unknown[];
@@ -1059,7 +1061,83 @@ describe('POST /api/enrollments/batch route integration', () => {
     const listed = await app.request(`/api/enrollments?classId=${classId}`);
     const payload = (await listed.json()) as { data: Array<{ effectiveFrom: string }> };
 
-    expect(payload.data[0].effectiveFrom).toBe(new Date().toISOString().slice(0, 10));
+    // 斷言用 getCurrentTaipeiDateString()，不是 new Date().toISOString().slice(0,10)
+    // ——用同一個 UTC 算法當測試的裁判，只會讓兩邊一起錯而測試永遠綠燈。
+    // 這正是這條測試在時區第二批之前的樣子（見 PR 說明）。
+    expect(payload.data[0].effectiveFrom).toBe(getCurrentTaipeiDateString());
+  });
+
+  /**
+   * 時區第二批（#402 同一族）：`effectiveFrom` 的預設值原本用
+   * `new Date().toISOString().slice(0, 10)`（UTC）算「今天」，在台北時間
+   * 00:00–08:00 之間會算成前一天。
+   *
+   * **這一處的嚴重度比「欄位差一天」更高**：`effective_from` 是
+   * `countEnrolledOn` 判斷在籍範圍的邊界（`parent-class-logs-read.md` 用它
+   * 擋轉班過度曝光——孩子看不到他加入之前那個班寫的日誌）。算錯一天不是
+   * 欄位差一天，是**授權範圍差一天**：如果 `effectiveFrom` 被錯算成前一天，
+   * `countEnrolledOn` 會判定孩子在他實際加入之前那一天就已經在籍，讓他看到
+   * 加入前一天的教務日誌。
+   *
+   * 這裡直接把系統時間設在「UTC 還是前一天、台北已經跨到隔天凌晨」的那個
+   * 瞬間（照 taipei-date.spec.ts 與 #368 的形狀），驗證兩件事：
+   * 1. 寫進去的 `effective_from` 是台北的今天，不是 UTC 的前一天
+   * 2. 用錯的（UTC）日期算 `countEnrolledOn` 確實會產生過度曝光——證明這不是
+   *    假設，是真的會發生的授權後果
+   */
+  describe('台北凌晨那個窗 —— effectiveFrom 算錯一天會變成授權範圍差一天', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('寫進去的 effectiveFrom 是台北的今天，不是 UTC 的前一天', async () => {
+      // 台北 2026-09-06T01:00:00+08:00 = UTC 2026-09-05T17:00:00Z，#402 出事的那個窗
+      vi.setSystemTime(new Date('2026-09-05T17:00:00Z'));
+
+      const app = createEnrollmentsTestApp({
+        classes: [{ id: classId, org_id: 'org-1', max_students: null }],
+      });
+
+      await app.request('/api/enrollments/batch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ classId, studentIds: [studentId] }),
+      });
+
+      const listed = await app.request(`/api/enrollments?classId=${classId}`);
+      const payload = (await listed.json()) as { data: Array<{ effectiveFrom: string }> };
+
+      expect(payload.data[0].effectiveFrom).toBe('2026-09-06');
+      // 對照組：naive 的 UTC 算法在這個時刻會算成前一天，這正是根因形狀
+      expect(new Date().toISOString().slice(0, 10)).toBe('2026-09-05');
+    });
+
+    it('證明後果：用錯算的 effectiveFrom 餵給 countEnrolledOn，孩子會被判定加入前一天就在籍', () => {
+      // 這裡不打路由，直接用 countEnrolledOn（跟 parent/class-logs.ts 擋轉班
+      // 過度曝光同一支）驗證後果本身，不是猜測
+      const wrongEffectiveFrom = '2026-09-05'; // UTC 算出來的（錯）
+      const correctEffectiveFrom = '2026-09-06'; // 台北算出來的（對）—— 孩子實際加入的那天
+
+      const dayBeforeJoining = '2026-09-05';
+
+      const enrollmentWithWrongDate = [
+        { classId: 'class-1', effectiveFrom: wrongEffectiveFrom, effectiveTo: null },
+      ];
+      const enrollmentWithCorrectDate = [
+        { classId: 'class-1', effectiveFrom: correctEffectiveFrom, effectiveTo: null },
+      ];
+
+      // 錯的日期會讓孩子「看起來」在他加入前一天就已經在籍 —— 過度曝光
+      expect(countEnrolledOn(enrollmentWithWrongDate, 'class-1', dayBeforeJoining)).toBeGreaterThan(
+        0,
+      );
+      // 對的日期正確地把加入前一天排除在在籍範圍之外
+      expect(countEnrolledOn(enrollmentWithCorrectDate, 'class-1', dayBeforeJoining)).toBe(0);
+    });
   });
 });
 
