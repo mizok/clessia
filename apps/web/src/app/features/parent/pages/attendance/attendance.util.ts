@@ -42,3 +42,36 @@ export function groupByDate(records: readonly ParentAttendanceRecord[]): Attenda
     .sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0))
     .map(([date, dayRecords]) => ({ date, records: dayRecords }));
 }
+
+/** `YYYY-MM-DD` 位移 N 天——用 `T00:00:00` 不用裸日期字串，避免 `toISOString` 那類 UTC 陷阱 */
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, '0');
+  const day = `${d.getDate()}`.padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * 補回沒有紀錄的日期——只在近10天這種短區間用。長區間（近30天/整月）不補，
+ * 那會炸出大量空白列（多數孩子不是天天有課）。
+ *
+ * **為什麼短區間要補**：範圍層級已經把「載入失敗」跟「這段期間沒有紀錄」分開
+ * 顯示，但日期層級沒有——家長看到 9/5、9/3、9/2 有紀錄而 9/4 不見，
+ * 「那天沒課」跟「那天資料沒進來」長得一模一樣。補一行「今日無課」把這個歧義解掉。
+ */
+export function fillMissingDays(
+  groups: readonly AttendanceDayGroup[],
+  dateFrom: string,
+  dateTo: string,
+): AttendanceDayGroup[] {
+  const byDate = new Map(groups.map((g) => [g.date, g.records] as const));
+  const result: AttendanceDayGroup[] = [];
+  let cursor = dateTo;
+  while (cursor >= dateFrom) {
+    result.push({ date: cursor, records: byDate.get(cursor) ?? [] });
+    cursor = addDays(cursor, -1);
+  }
+  return result;
+}

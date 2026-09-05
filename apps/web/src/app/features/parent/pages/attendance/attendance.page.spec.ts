@@ -75,6 +75,9 @@ describe('AttendancePage', () => {
     fixture = TestBed.createComponent(AttendancePage);
     fixture.componentRef.setInput('page', PAGE);
     fixture.detectChanges();
+    return fixture.componentInstance as unknown as {
+      onRangeChange: (mode: 'recent10' | 'recent30' | 'month' | null) => void;
+    };
   }
 
   it('進頁呼叫 childScope.load()', () => {
@@ -111,14 +114,15 @@ describe('AttendancePage', () => {
     expect(listMock).toHaveBeenCalledWith(expect.objectContaining({ childId: 'child-2' }));
   });
 
-  it('依日期分組顯示，日期新到舊', () => {
-    createComponent({
+  it('依日期分組顯示，日期新到舊（近30天，不觸發補空避免干擾排序斷言）', () => {
+    const comp = createComponent({
       data: [
         record({ id: 'r1', eventDate: '2026-09-01' }),
         record({ id: 'r2', eventDate: '2026-08-30', status: 'absent', className: '英文班' }),
       ],
       meta: { total: 2, page: 1, pageSize: 50, monthlyAbsentCount: 1 },
     });
+    comp.onRangeChange('recent30');
     activeChildId.set('child-1');
     fixture.detectChanges();
 
@@ -126,6 +130,22 @@ describe('AttendancePage', () => {
     expect(Array.from(dates).map((el: unknown) => (el as HTMLElement).textContent?.trim())).toEqual(
       ['2026-09-01', '2026-08-30'],
     );
+  });
+
+  it('近10天（預設模式）補回沒有紀錄的日期，顯示「今日無課」——避免跟載入失敗混淆', () => {
+    const today = new Date();
+    const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    createComponent({
+      data: [record({ id: 'r1', eventDate: todayIso })],
+      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0 },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    // 近10天有11天（含今天），只有1天有紀錄，其餘10天都該顯示「今日無課」
+    const noClass = fixture.nativeElement.querySelectorAll('.attendance__no-class');
+    expect(noClass.length).toBe(10);
   });
 
   it('點課堂列內展開，再點一次收合', () => {

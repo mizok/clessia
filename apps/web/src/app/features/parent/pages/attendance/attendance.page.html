@@ -42,6 +42,9 @@
       @for (group of groups(); track group.date) {
         <div class="attendance__day">
           <p class="attendance__day-date">{{ group.date }}</p>
+          @if (group.records.length === 0) {
+            <p class="attendance__no-class">今日無課</p>
+          }
           @for (record of group.records; track record.id) {
             <button
               type="button"

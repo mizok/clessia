@@ -23,8 +23,14 @@ import {
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageBandComponent } from '@shared/components/page-band/page-band.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
+import { todayLocal } from '@shared/utils/session-time.util';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
-import { ATTENDANCE_STATUS_LABELS, ATTENDANCE_STATUS_TONE, groupByDate } from './attendance.util';
+import {
+  ATTENDANCE_STATUS_LABELS,
+  ATTENDANCE_STATUS_TONE,
+  fillMissingDays,
+  groupByDate,
+} from './attendance.util';
 
 type RangeMode = 'recent10' | 'recent30' | 'month';
 
@@ -68,7 +74,17 @@ export class AttendancePage implements OnInit {
   protected readonly failed = signal(false);
   protected readonly expandedId = signal<string | null>(null);
 
-  protected readonly groups = computed(() => groupByDate(this.records()));
+  /**
+   * 近10天補回沒有紀錄的日期（「今日無課」）——短區間裡缺一天會被誤讀成
+   * 「那天資料沒進來」，跟長區間不同。近30天/整月不補，那會炸出大量空白列。
+   */
+  protected readonly groups = computed(() => {
+    const raw = groupByDate(this.records());
+    if (this.rangeMode() !== 'recent10') return raw;
+    const { dateFrom } = this.dateRange();
+    if (!dateFrom) return raw;
+    return fillMissingDays(raw, dateFrom, todayLocal());
+  });
   protected readonly hasMore = computed(() => this.records().length < this.total());
   protected readonly statusLabels = ATTENDANCE_STATUS_LABELS;
   protected readonly statusTone = ATTENDANCE_STATUS_TONE;

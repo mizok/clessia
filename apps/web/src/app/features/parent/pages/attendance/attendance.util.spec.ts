@@ -1,5 +1,5 @@
 import type { ParentAttendanceRecord } from '@core/parent-attendance.service';
-import { ATTENDANCE_STATUS_TONE, groupByDate } from './attendance.util';
+import { ATTENDANCE_STATUS_TONE, fillMissingDays, groupByDate } from './attendance.util';
 
 const record = (overrides: Partial<ParentAttendanceRecord> = {}): ParentAttendanceRecord => ({
   id: 'r1',
@@ -38,6 +38,39 @@ describe('attendance.util', () => {
 
     it('空陣列回空陣列', () => {
       expect(groupByDate([])).toEqual([]);
+    });
+  });
+
+  describe('fillMissingDays', () => {
+    it('補回沒有紀錄的日期，新到舊', () => {
+      const groups = fillMissingDays(
+        [{ date: '2026-09-05', records: [record({ id: 'r1' })] }],
+        '2026-09-03',
+        '2026-09-05',
+      );
+
+      expect(groups.map((g) => g.date)).toEqual(['2026-09-05', '2026-09-04', '2026-09-03']);
+      expect(groups[1].records).toEqual([]);
+    });
+
+    it('有紀錄的日期不動', () => {
+      const groups = fillMissingDays(
+        [
+          { date: '2026-09-05', records: [record({ id: 'r1' })] },
+          { date: '2026-09-04', records: [record({ id: 'r2' })] },
+        ],
+        '2026-09-04',
+        '2026-09-05',
+      );
+
+      expect(groups.every((g) => g.records.length === 1)).toBe(true);
+    });
+
+    it('全部都沒有紀錄時每天都是空的（不是漏掉整段區間）', () => {
+      const groups = fillMissingDays([], '2026-09-03', '2026-09-05');
+
+      expect(groups).toHaveLength(3);
+      expect(groups.every((g) => g.records.length === 0)).toBe(true);
     });
   });
 
