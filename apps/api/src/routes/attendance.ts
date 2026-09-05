@@ -15,6 +15,8 @@ import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/s
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
 import { applyCampusFilter, type CampusScope } from '../lib/campus-scope';
+import { hasSessionEndedByNow } from '../lib/session-end-time';
+import { sliceDerivedPage } from '../lib/derived-page';
 
 const AttendanceStatusSchema = z
   .enum(['present', 'absent', 'on_leave'])
@@ -939,6 +941,14 @@ app.openapi(
   },
 );
 
+/**
+ * `endedOnly` 撈候選集合時的上限（見下方 route 的說明）。單一 org、一段查詢
+ * 區間下，這個數字留了遠超「未點名課堂」卡片實際量級（近 7 天、一天數十堂）
+ * 的餘裕。**真的頂到這個上限時，該做的是把呼叫端的日期區間縮小，不是調高它**
+ * ——調高只會把同一個問題往後推，縮小區間才是治本。
+ */
+const ENDED_ONLY_CANDIDATE_LIMIT = 1000;
+
 // GET /api/attendance/sessions
 app.openapi(
   createRoute({
@@ -967,6 +977,21 @@ app.openapi(
           .enum(['true', 'false'])
           .optional()
           .transform((value) => (value === undefined ? undefined : value === 'true')),
+        /**
+         * 只回「已經上完」的課堂——`hasSessionEndedByNow()` 的語意搬到這裡，
+         * 是儀表板「未點名課堂」卡片原本被迫拆成兩段查的補齊（`dateFrom=7天前 ~
+         * dateTo=今天` + `attendanceTaken=false` + `endedOnly=true` 一次查完，
+         * 不必再讓前端對 `workbench/today` 的明細逐筆濾）。
+         *
+         * 配這個參數時**不走 DB 分頁**——「上完了沒」是推導值，DB 濾不掉，
+         * 跟 `invoices.ts` 的 `overdue`/`status` 同一個形狀：撈候選集合、
+         * 應用層過濾、`sliceDerivedPage` 切頁。候選集合有 `.limit()` 上限，
+         * 見下方實作。
+         */
+        endedOnly: z
+          .enum(['true'])
+          .optional()
+          .transform((value) => value === 'true'),
         // 只有管理員說了算：老師一律被蓋成自己（見 attendance/teacher-scope.ts）
         teacherId: z.uuid().optional(),
         page: z.coerce.number().min(1).default(1).optional(),
@@ -993,6 +1018,7 @@ app.openapi(
       classIds,
       statuses,
       attendanceTaken,
+      endedOnly,
       teacherId,
       page = 1,
       pageSize = 20,
@@ -1056,8 +1082,16 @@ app.openapi(
       })
       .eq('org_id', orgId)
       .order('session_date', { ascending: true })
-      .order('start_time', { ascending: true })
-      .range(fromIndex, toIndex);
+      .order('start_time', { ascending: true });
+
+    // `endedOnly` 是推導條件（「上完了沒」DB 濾不掉），跟 invoices.ts 的
+    // `overdue`/`status` 同一個形狀：不走 DB `.range()`，改撈一個候選集合、
+    // 應用層過濾、`sliceDerivedPage` 切頁。候選集合設一個上限而不是無界撈——
+    // 這支端點的呼叫情境是「單一 org、一段查詢區間」，`ENDED_ONLY_CANDIDATE_LIMIT`
+    // 留了遠超實際量級的餘裕；真的頂到上限時該做的是縮小查詢區間，不是調高上限。
+    sessionsQuery = endedOnly
+      ? sessionsQuery.limit(ENDED_ONLY_CANDIDATE_LIMIT)
+      : sessionsQuery.range(fromIndex, toIndex);
 
     if (dateFromValue) {
       sessionsQuery = sessionsQuery.gte('session_date', dateFromValue);
@@ -1090,6 +1124,21 @@ app.openapi(
       return c.json({ error: '查詢課堂失敗', message: sessionsError.message }, 500);
 
     const results = await summariseSessions(supabase, orgId, sessions);
+
+    if (endedOnly) {
+      const ended = results.filter((session) =>
+        hasSessionEndedByNow({
+          date: session.eventDate,
+          startTime: session.startTime,
+          endTime: session.endTime,
+        }),
+      );
+      const { rows, total } = sliceDerivedPage(ended, page, pageSize);
+      return c.json(
+        { data: rows, meta: buildAttendanceSessionListMeta(total, page, pageSize) },
+        200,
+      );
+    }
 
     return c.json(
       {
