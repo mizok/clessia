@@ -3,6 +3,7 @@ import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
+import { parseISO } from 'date-fns';
 import { AttendanceService, type AttendanceSessionListResponse } from '@core/attendance.service';
 import { ClassesService } from '@core/classes.service';
 import { CoursesService } from '@core/courses.service';
@@ -348,6 +349,76 @@ describe('SessionsPage', () => {
     expect(hasActiveFilters).toBe(false);
   });
 
+  // P1-6：從儀表板未點名卡連過來時，這頁要真的套用那組篩選，不是安靜地
+  // 顯示預設的整月資料。用 TestBed.resetTestingModule 重建一次是因為
+  // ActivatedRoute 的 query params 只在元件建立那一刻讀一次（`ngOnInit`），
+  // 頂層 `beforeEach` 已經用空的 `routeQueryParams` 建過元件了
+  it('帶著儀表板的 queryParams 進來時，套用日期區間、attendanceTaken 與 endedOnly 篩選', async () => {
+    TestBed.resetTestingModule();
+    routeQueryParams = {
+      dateFrom: '2026-04-01',
+      dateTo: '2026-04-15',
+      attendanceTaken: 'false',
+      endedOnly: 'true',
+    };
+    sessionsServiceMock.list.mockClear();
+
+    await TestBed.configureTestingModule({
+      imports: [SessionsPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            get snapshot() {
+              return { queryParams: routeQueryParams };
+            },
+          },
+        },
+        { provide: ReferenceDataService, useValue: refDataMock },
+        { provide: CoursesService, useValue: { list: () => of({ data: [] }) } },
+        { provide: ClassesService, useValue: { list: () => of({ data: [] }) } },
+        { provide: SessionsService, useValue: sessionsServiceMock },
+        { provide: AttendanceService, useValue: attendanceServiceMock },
+        { provide: StudentsService, useValue: studentsServiceMock },
+        { provide: EnrollmentsService, useValue: enrollmentsServiceMock },
+      ],
+    }).compileComponents();
+
+    const localFixture = TestBed.createComponent(SessionsPage);
+    localFixture.componentRef.setInput('page', {
+      label: 'Test',
+      relativePath: '',
+      absolutePath: '',
+      role: undefined,
+      icon: '',
+      showInMenu: true,
+    });
+    await localFixture.whenStable();
+
+    const localComponent = localFixture.componentInstance as unknown as {
+      listDateRange: () => Date[];
+      attendanceTakenFilter: () => boolean | undefined;
+      endedOnlyFilter: () => boolean;
+      onStatusesChange: (statuses: string[] | null) => void;
+    };
+
+    expect(localComponent.listDateRange()[0]).toEqual(parseISO('2026-04-01'));
+    expect(localComponent.listDateRange()[1]).toEqual(parseISO('2026-04-15'));
+    expect(localComponent.attendanceTakenFilter()).toBe(false);
+    expect(localComponent.endedOnlyFilter()).toBe(true);
+
+    // 落地頁真的把這個篩選送進 API 請求，不是只停在畫面狀態上沒送出去——
+    // `firstCampus$`（ngOnInit 自然觸發 loadSessions 的路徑）在這個測試檔的
+    // mock 裡從來不會 emit（`refDataMock.campuses` 全檔都是空陣列），所以
+    // 借另一個會觸發 loadSessions 的既有方法來驗證，不改動已經斷言過的篩選狀態
+    localComponent.onStatusesChange(null);
+
+    expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ attendanceTaken: false, endedOnly: true }),
+    );
+  });
+
   it('clearFilters only resets advanced filters and keeps campus/date scope', () => {
     (
       component as unknown as {
@@ -556,6 +627,7 @@ describe('SessionsPage', () => {
       teacherIds: ['teacher-1'],
       assignmentStatus: 'unassigned',
       classIds: ['class-1', 'class-2'],
+      endedOnly: false,
       statuses: undefined,
       page: 1,
       pageSize: LIST_PAGE_SIZE,

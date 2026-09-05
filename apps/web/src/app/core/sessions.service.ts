@@ -55,6 +55,18 @@ export interface SessionQueryParams {
   classId?: string;
   statuses?: string[];
   assignmentStatus?: 'assigned' | 'unassigned';
+  /**
+   * 有沒有點名過。語意對齊 `attendanceService.sessions()` 的同名參數
+   * （`apps/api/src/routes/sessions.ts`、`apps/api/src/routes/attendance.ts`
+   * 共用同一份判定）。
+   */
+  attendanceTaken?: boolean;
+  /**
+   * 只回「已經上完」的課堂——跟 `attendanceTaken=false` 一起用，一次表達
+   * 「沒點名而且已經上完」，儀表板未點名卡連過來的篩選才不會含進今天還在
+   * 進行中、還沒到點名時間的課。
+   */
+  endedOnly?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -186,6 +198,14 @@ export class SessionsService {
     if (params.statuses && params.statuses.length > 0)
       query['statuses'] = params.statuses.join(',');
     if (params.assignmentStatus) query['assignmentStatus'] = params.assignmentStatus;
+    // `!== undefined` 不是 truthy —— `false` 是有意義的值（要篩「沒點名」）
+    if (params.attendanceTaken !== undefined) {
+      query['attendanceTaken'] = String(params.attendanceTaken);
+    }
+    // `endedOnly` 的 schema 只吃字面值 `'true'`（`z.enum(['true'])`）——
+    // 沒有 false 分支，false 就是不帶這個參數，不能像 attendanceTaken 那樣
+    // 一律轉字串送出去
+    if (params.endedOnly) query['endedOnly'] = 'true';
     if (params.page) query['page'] = params.page.toString();
     if (params.pageSize) query['pageSize'] = params.pageSize.toString();
 

@@ -8,7 +8,8 @@ import {
   viewChild,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { endOfMonth, format, startOfMonth } from 'date-fns';
+import { ActivatedRoute } from '@angular/router';
+import { endOfMonth, format, parseISO, startOfMonth } from 'date-fns';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { catchError, filter, forkJoin, map, of, switchMap, take } from 'rxjs';
 import { MessageService, type MenuItem } from 'primeng/api';
@@ -33,6 +34,7 @@ import {
 } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
 
 import { SessionCancelDialogComponent } from './dialogs/session-cancel-dialog/session-cancel-dialog.component';
+import { parseAttendanceQueryParams } from './sessions.util';
 import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
 import { SessionOperationsLogDialogComponent } from './dialogs/session-operations-log-dialog/session-operations-log-dialog.component';
@@ -115,6 +117,7 @@ export class SessionsPage implements OnInit {
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly dialogService = inject(DialogService);
   private readonly studentsService = inject(StudentsService);
+  private readonly route = inject(ActivatedRoute);
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
@@ -164,6 +167,20 @@ export class SessionsPage implements OnInit {
     endOfMonth(new Date()),
   ]);
   protected readonly listDateRangeModified = signal(false);
+
+  /**
+   * 有沒有點名過——從別頁（目前是儀表板的未點名卡）連過來時帶的篩選。
+   * `undefined` 是「沒有這個篩選」，不是「false」。
+   */
+  protected readonly attendanceTakenFilter = signal<boolean | undefined>(undefined);
+
+  /**
+   * 只篩「已經上完」的課堂——配 `attendanceTakenFilter() === false` 一次表達
+   * 「沒點名而且已經上完」，落地頁看到的堂數才對得上儀表板卡片的數字（不含
+   * 今天還在進行中、還沒到點名時間的課）。沒有「undefined vs false」的區分
+   * ——API 這個參數只吃 `true` 或不帶，false 就是不篩，跟預設狀態相同。
+   */
+  protected readonly endedOnlyFilter = signal(false);
 
   // ── Computed ───────────────────────────────────────────────────────────
   protected readonly activeTeachers = computed(() =>
@@ -315,6 +332,7 @@ export class SessionsPage implements OnInit {
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
   ngOnInit(): void {
+    this.applyIncomingAttendanceFilter();
     this.loadFilters();
     this.loadStudents();
     this.firstCampus$.subscribe((campuses) => {
@@ -609,6 +627,8 @@ export class SessionsPage implements OnInit {
     this.selectedStudentIds.set([]);
     this.selectedStatuses.set(['scheduled']);
     this.selectedTeacherIds.set(['__unassigned__']);
+    this.attendanceTakenFilter.set(undefined);
+    this.endedOnlyFilter.set(false);
     this.loadSessions();
   }
 
@@ -622,7 +642,24 @@ export class SessionsPage implements OnInit {
     this.selectedStudentIds.set([]);
     this.selectedTeacherIds.set([]);
     this.selectedStatuses.set(['scheduled', 'completed']);
+    // 現在真的篩得到了（#363）——badge 數字跟這裡套用的篩選同一個條件。
+    this.attendanceTakenFilter.set(false);
     this.loadSessions();
+  }
+
+  /**
+   * 從儀表板未點名卡連過來時套用的篩選（見 `sessions.util.ts` 的
+   * `parseAttendanceQueryParams`）。查不到完整的三個欄位就什麼都不做——
+   * 一般從選單點進這頁不會帶這些 query params，維持原本的預設篩選。
+   */
+  private applyIncomingAttendanceFilter(): void {
+    const incoming = parseAttendanceQueryParams(this.route.snapshot.queryParams);
+    if (!incoming) return;
+
+    this.listDateRange.set([incoming.dateFrom, incoming.dateTo]);
+    this.listDateRangeModified.set(true);
+    this.attendanceTakenFilter.set(incoming.attendanceTaken);
+    this.endedOnlyFilter.set(incoming.endedOnly);
   }
 
   protected clearFilters(): void {
@@ -634,6 +671,8 @@ export class SessionsPage implements OnInit {
     this.studentEnrolledClassIds.set(new Set());
     this.studentFilteredEnrollments.set([]);
     this.selectedStatuses.set([...DEFAULT_STATUSES]);
+    this.attendanceTakenFilter.set(undefined);
+    this.endedOnlyFilter.set(false);
     this.loadSessions();
   }
 
@@ -831,6 +870,8 @@ export class SessionsPage implements OnInit {
         teacherIds: realTeacherIds.length > 0 ? realTeacherIds : undefined,
         classIds: effectiveClassIds,
         assignmentStatus: hasUnassigned ? 'unassigned' : undefined,
+        attendanceTaken: this.attendanceTakenFilter(),
+        endedOnly: this.endedOnlyFilter(),
         statuses: this.selectedStatuses().length > 0 ? this.selectedStatuses() : undefined,
         page: this.currentPage(),
         pageSize: this.PAGE_SIZE,
