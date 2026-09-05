@@ -303,10 +303,16 @@ export class MealsComponent implements OnInit {
         this.load();
       },
       error: (err) => {
+        // 後端偶爾回的 error 欄位不是字串（例如驗證錯誤是物件）——直接塞進 detail
+        // 會被 Angular 用 toString() 轉成 "[object Object]"，比沒有訊息更誤導。
+        const apiError = err?.error?.error;
+        const detail = typeof apiError === 'string' ? apiError : '請稍後再試，或聯絡系統管理員';
         this.messageService.add({
           severity: 'error',
-          summary: '寫入失敗',
-          detail: err.error?.error || '請稍後再試',
+          summary: '名單沒有確認',
+          detail,
+          // 失敗訊息不能幾秒後自己消失——使用者要有時間看到並決定要不要重試
+          sticky: true,
         });
         this.saving.set(false);
       },
