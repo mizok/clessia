@@ -1,6 +1,6 @@
 ---
 title: 管理端待辦告警系統一（設計草案，待計畫席 STOP gate 批准）
-summary: 把管理端六頁的告警拉齊成「一句話+必定帶篩選的入口+落地篩選對得上告警數字」。核心決定：同頁情境延用既有的「單一資料源 computed」模式（多數頁已經是），跨頁情境（儀表板→課堂管理）改用「共用 query 組裝函式」+ 契約測試釘住；新增共用元件 app-todo-banner 統一視覺；GET /api/sessions 補 attendanceTaken 參數。
+summary: 把管理端六頁的告警拉齊成「一句話+必定帶篩選的入口+落地篩選對得上告警數字」。核心決定：同頁情境延用既有的「單一資料源 computed」模式（多數頁已經是），跨頁情境（儀表板→課堂管理）改用「共用 query 組裝函式」+ 契約測試釘住；新增共用元件 app-todo-banner 統一視覺（順帶解掉 courses 徽章的 affordance 問題——藥丸+hover-only 可點暗示讓它讀成狀態標籤）；GET /api/sessions 補 attendanceTaken 參數。
 category: architecture
 status: draft
 updated: 2026-09-05
@@ -16,15 +16,37 @@ tags: [architecture, admin, alerts, dashboard]
 > **STOP。這份文件在等計畫席批准，批准前不寫任何實作程式碼。**
 > 批准的對象是這份文件；範圍變更要回到這裡重新批准。
 
-## 先訂正兩處 tester 報告與程式碼證據不符的地方
+## 先訂正：課程管理 badge 的診斷本身錯了一次（記錄過程，不是覆蓋掉重寫）
 
-**不要照 tester 報告的字面描述動工**——查過程式碼後，六頁裡有兩頁的判讀需要修正：
+**這一節被計畫席退回重驗過一次，錯的是第一版診斷，不是 tester。** 第一版寫著
+「`.courses__badge` 全庫零筆 CSS」——那是對字面字串 `courses__badge` 下的 grep，
+在這個 codebase 幾乎對所有 BEM class 都會回零筆，因為 SCSS 原始碼寫的是巢狀的
+`&__badge`（`courses.page.scss:36`），字串 `courses__badge` **本來就不會出現在原始碼裡**。
+grep 沒有壞，是問法問錯了——這跟坑 #12「grep 只用來產生候選，結論要開檔確認」是同一個坑，
+這次兩個人（我跟計畫席）在同一個問題上各摔了一次。
+
+**打開 `courses.page.scss:36-56` 看到的是完整定義**：藥丸外形、`padding`、
+`border-radius: var(--radius-full)`、`background: var(--error-100)`、
+`color: var(--error-700)`、`cursor: pointer`，hover 態是內縮環（`box-shadow: inset`）。
+**不是沒有樣式，是樣式把它畫成一個嚴重度標籤，不是按鈕**——`error-100` 底色的藥丸形狀，
+視覺語彙上跟這個系統其他地方的「狀態 chip」完全一樣（呼應這席 charter 對「身分/狀態
+chip 一律不可點」的既有默契：使用者看到藥丸形狀會預期它不能點）。**唯一的可點暗示是
+`cursor: pointer`，而它只在 `:hover` 時才顯現**——桌機滑鼠移過去才看得到，
+**觸控裝置完全沒有 hover，這個暗示對手機使用者從頭到尾不存在**。
+
+**修法因此是相反的方向**：不是「補 CSS」（會補出第二份重複樣式，真正的傷害），
+是**改掉現有樣式的可視語意**——加一個靜態就看得見的可點暗示（箭頭圖示、按鈕外形、
+底線），讓它在不 hover 的情況下也讀得出「這是可以按的」，同時要跟「狀態標籤」的
+既有視覺語彙脫鉤，不然使用者會反直覺地去點看起來像 chip 的東西。
+
+## 六頁現況訂正（含上面那次重驗）
 
 1. **課程管理「需介入」pill 其實可以點**（`courses.page.html:11` 的
    `(click)="onFilterIntervention()"`，`courses.page.ts:586-587` 接住並套用**同一份**
-   `hasCourseNeedsIntervention` 過濾邏輯到列表）。tester 判成「不可點」的真正原因是
-   **`.courses__badge` 全庫零筆 CSS**，吃的是全域 `button` reset（`styles.scss:227-232`），
-   看起來就是一段純文字。**這題的修法是補視覺，不是重接邏輯。**
+   `hasCourseNeedsIntervention` 過濾邏輯到列表）——**邏輯本來就是對的**，
+   tester 判成「不可點」的真正原因是上面那節講的 affordance 問題：藥丸+error 底色讀成
+   狀態標籤、可點暗示只在 hover 才出現。**這題的修法是改可視語意，不是重接邏輯，
+   也不是單純補一份 CSS。**
 2. **課堂管理「本月未指派」pill 已經完全正確**——badge 數字與點擊後的篩選條件用的是
    同一組 server 端 count 邏輯（`sessions.ts:669-701` 註解明講「跟主查詢用同一個結果，
    兩邊不能各算一次」），CSS 也齊全（`sessions-header.component.scss:28-51`）。
@@ -137,10 +159,15 @@ export class TodoBannerComponent {
 色相走中性到 warning 之間的既有 tone（不新增色階）——**這輪不重新設計視覺語言**，
 只是把既有五處的呈現收斂成一份實作。
 
-**這輪只換皮不換邏輯**：五個呼叫端各自的資料查詢與篩選套用邏輯完全不動（除了 courses
-補 CSS、sessions 補 API 參數這兩處本來就要改的），只是把 HTML/SCSS 換成呼叫這個共用
-元件——降低這次改動的風險，視覺統一跟邏輯修正是兩件事，不要混在一次 diff 裡讓 review
-分不清哪裡是真的行為變更。
+**這輪只換皮不換邏輯**：五個呼叫端各自的資料查詢與篩選套用邏輯完全不動（除了 sessions
+補 API 參數這一處本來就要改的），只是把 HTML/SCSS 換成呼叫這個共用元件——降低這次改動的
+風險，視覺統一跟邏輯修正是兩件事，不要混在一次 diff 裡讓 review 分不清哪裡是真的行為變更。
+
+**courses 的 affordance 問題順著這個換皮自然解掉，不需要另外補 CSS**：現有的
+`.courses__badge` 是小顆藥丸（讀成狀態標籤），換成 `app-todo-banner` 之後是整條可點的
+橫幅（帶 icon、非 hover 態就看得出可點）——**視覺語彙從「像 chip」換成「像可點的東西」
+是這次換皮本身帶來的效果，不是要額外設計一次**。分工表那一行原本寫「courses badge
+補 CSS」，訂正成「套用新元件」。
 
 ## 明確排除範圍（這輪不做，理由要寫出來）
 
@@ -151,13 +178,20 @@ export class TodoBannerComponent {
 - **課堂管理「本月未指派」pill**——證據顯示已經正確，這輪不動（見前段訂正）。
 - **課程管理視覺樣式的其餘部分**（M2 狀態欄同值、M6 同圖示兩種行為等）——tester 報告
   的其他模式跟這份文件的主題（告警路由）無關，各自需要獨立的設計文件。
+- **「可點性只靠 hover 態表達」的系統性掃描**——courses badge 這次踩到的問題（`cursor:
+pointer` 只在 `:hover` 生效，觸控裝置上不存在）值不值得往外推成全站問題，粗查過
+  `apps/web/src/app/features/admin` 底下有 **28 個 SCSS 檔案含 `cursor: pointer`**，
+  但這個數字**沒有篩掉「本來就是 `<button>` 元素、hover 只是錦上添花」的正常情況**，
+  不能直接當成違規數。**這輪不展開全面稽核**，只把數字記下來當範圍信號——
+  如果計畫席認為值得查，需要另一輪逐一開檔確認（跟這次 courses badge 一樣，
+  純 grep 篩不出真正的問題，要看每個選取器區塊本身有沒有非 hover 的靜態可點暗示）。
 
 ## 分工建議
 
-| 誰                                                           | 做什麼                                                                                                                                                                                                               |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| design-web（這席）                                           | `app-todo-banner` 元件；courses badge 補 CSS/tooltip；`pendingAttendanceQuery` 共用函式 + 契約測試；dashboard `StatCard.queryParams` + sessions.page.ts 讀取 `ActivatedRoute` 並套用篩選；五處現有告警換皮接上新元件 |
-| billing-api（或負責 `apps/api/src/routes/sessions.ts` 的席） | `GET /api/sessions` 補 `attendanceTaken` 參數（schema + handler，仿 `assignmentStatus` 寫法）                                                                                                                        |
+| 誰                                                           | 做什麼                                                                                                                                                                                               |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| design-web（這席）                                           | `app-todo-banner` 元件；`pendingAttendanceQuery` 共用函式 + 契約測試；dashboard `StatCard.queryParams` + sessions.page.ts 讀取 `ActivatedRoute` 並套用篩選；五處現有告警（含 courses）換皮接上新元件 |
+| billing-api（或負責 `apps/api/src/routes/sessions.ts` 的席） | `GET /api/sessions` 補 `attendanceTaken` 參數（schema + handler，仿 `assignmentStatus` 寫法）                                                                                                        |
 
 design-web 這邊的前端接線**依賴** API 那半先落地（`sessions.page.ts` 套用篩選那段需要
 新參數才能真的過濾），順序上 API 先行或至少同批次進，不然前端那段接了線也沒有效果。
