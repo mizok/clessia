@@ -1,11 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { SubjectsService } from '@core/subjects.service';
 import type { Subject } from '@core/subjects.service';
 import { SubjectManagerComponent } from './subject-manager.component';
+import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 
 describe('SubjectManagerComponent', () => {
   let fixture: ComponentFixture<SubjectManagerComponent>;
@@ -40,7 +41,46 @@ describe('SubjectManagerComponent', () => {
     fixture.detectChanges();
   });
 
+  function stubConfirmDialog(confirmed: boolean) {
+    const dialogService = fixture.debugElement.injector.get(DialogService);
+    return vi
+      .spyOn(dialogService, 'open')
+      .mockReturnValue({ onClose: of(confirmed) } as ReturnType<DialogService['open']>);
+  }
+
+  // `confirmDelete` 曾經名不副實——名字說要確認，實際上直接呼叫刪除 API，
+  // 一次點擊沒有反悔機會。這條釘住「一定要先走過確認對話框」。
+  it('點刪除會先跳確認對話框，取消就不呼叫刪除 API', () => {
+    const openSpy = stubConfirmDialog(false);
+
+    (component as unknown as { confirmDelete: (subject: Subject) => void }).confirmDelete(
+      subjects[0],
+    );
+
+    expect(openSpy).toHaveBeenCalledWith(
+      ConfirmDialogComponent,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          message: expect.stringContaining('可能影響已使用此科目的課程與考試'),
+        }),
+      }),
+    );
+    expect(subjectsServiceMock.delete).not.toHaveBeenCalled();
+  });
+
+  it('確認後才呼叫刪除 API', () => {
+    stubConfirmDialog(true);
+    subjectsServiceMock.delete.mockReturnValue(of(undefined));
+
+    (component as unknown as { confirmDelete: (subject: Subject) => void }).confirmDelete(
+      subjects[0],
+    );
+
+    expect(subjectsServiceMock.delete).toHaveBeenCalledWith('subject-1');
+  });
+
   it('renders an inline error notice when delete fails', () => {
+    stubConfirmDialog(true);
     subjectsServiceMock.delete.mockReturnValue(
       throwError(() => ({
         error: {

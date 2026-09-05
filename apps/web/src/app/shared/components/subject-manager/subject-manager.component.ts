@@ -4,7 +4,7 @@ import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TooltipModule } from 'primeng/tooltip';
-import { DynamicDialogRef } from 'primeng/dynamicdialog';
+import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { SubjectsService } from '@core/subjects.service';
 import type { Subject } from '@core/subjects.service';
 import { ReferenceDataService } from '@core/reference-data.service';
@@ -12,6 +12,10 @@ import {
   InlineNoticeComponent,
   type InlineNoticeSeverity,
 } from '@shared/components/inline-notice/inline-notice.component';
+import {
+  ConfirmDialogComponent,
+  type ConfirmDialogData,
+} from '@shared/components/confirm-dialog/confirm-dialog.component';
 
 interface SubjectManagerNotice {
   readonly severity: InlineNoticeSeverity;
@@ -30,11 +34,13 @@ interface SubjectManagerNotice {
     TooltipModule,
     InlineNoticeComponent,
   ],
+  providers: [DialogService],
   templateUrl: './subject-manager.component.html',
   styleUrl: './subject-manager.component.scss',
 })
 export class SubjectManagerComponent implements OnInit, OnDestroy {
   private readonly subjectsService = inject(SubjectsService);
+  private readonly dialogService = inject(DialogService);
   private readonly ref = inject(DynamicDialogRef, { optional: true });
   private readonly refData = inject(ReferenceDataService);
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -115,25 +121,48 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * 這裡沒有用量欄位可以事先判斷會不會刪壞東西（`Subject` 只有
+   * `id/name/sortOrder`），所以文案只能誠實寫「可能影響」，不能寫成
+   * 「已檢查無影響」——那是後端做不到的保證，UI 不該幫它打包票。
+   */
   protected confirmDelete(subject: Subject): void {
-    this.subjectsService.delete(subject.id).subscribe({
-      next: () => {
-        this.subjects.update((list) => list.filter((s) => s.id !== subject.id));
-        this.showNotice({
-          severity: 'success',
-          summary: '已刪除',
-          detail: `「${subject.name}」已刪除`,
-        });
-        this.refData.invalidate('subjects');
-        this.changed.emit(this.subjects());
-      },
-      error: (err) => {
-        this.showNotice({
-          severity: 'error',
-          summary: '無法刪除',
-          detail: err.error?.error || '刪除失敗',
-        });
-      },
+    const dialogRef = this.dialogService.open(ConfirmDialogComponent, {
+      header: '確認刪除科目',
+      width: '420px',
+      modal: true,
+      showHeader: true,
+      appendTo: 'body',
+      data: {
+        message: `確定要刪除「${subject.name}」嗎？可能影響已使用此科目的課程與考試，此操作無法復原。`,
+        acceptLabel: '刪除',
+        rejectLabel: '取消',
+        acceptSeverity: 'danger',
+      } satisfies ConfirmDialogData,
+    });
+
+    if (!dialogRef) return;
+    dialogRef.onClose.subscribe((confirmed) => {
+      if (!confirmed) return;
+      this.subjectsService.delete(subject.id).subscribe({
+        next: () => {
+          this.subjects.update((list) => list.filter((s) => s.id !== subject.id));
+          this.showNotice({
+            severity: 'success',
+            summary: '已刪除',
+            detail: `「${subject.name}」已刪除`,
+          });
+          this.refData.invalidate('subjects');
+          this.changed.emit(this.subjects());
+        },
+        error: (err) => {
+          this.showNotice({
+            severity: 'error',
+            summary: '無法刪除',
+            detail: err.error?.error || '刪除失敗',
+          });
+        },
+      });
     });
   }
 
