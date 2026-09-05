@@ -4,11 +4,11 @@ import {
   buildAttendanceSessionListMeta,
   buildAttendanceAuditBatchDetails,
   buildAttendanceAuditResourceName,
-  ensureAttendanceSessionEvents,
   normalizeAttendanceFilterIds,
   normalizeAttendanceSessionStatuses,
 } from './attendance';
 import { toAttendanceResponse } from '../lib/attendance-query';
+import { ensureAttendanceSessionEvents } from '../lib/attendance-session-events';
 import attendanceApp from './attendance';
 
 describe('toAttendanceResponse', () => {
