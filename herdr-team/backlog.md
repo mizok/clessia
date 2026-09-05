@@ -41,9 +41,16 @@
    (`sessions.page.ts` 把 query params 映射成 `GET /api/sessions` 參數,那是唯一
    會出錯的地方),並**塞陷阱驗它會紅**(日期邊界差一天/漏掉 attendanceTaken)。
    一支永遠綠的契約測試會讓這個病**更難發現**,不是更容易。
-   **已訂正 tester 兩處**(驗過):courses「需介入」pill **其實可點**,
-   `.courses__badge` 全庫零 CSS 吃全域 button reset 才看起來像純文字 ——
-   正確診斷是「**可點但看不出來可點**」,比不可點更糟(它讓使用者相信這裡沒有路);
+   **courses「需介入」pill:可點,但診斷已二度更正 —— 退回重驗中。**
+   計畫席寫的「`.courses__badge` 全庫零 CSS」**是錯的**:`courses.page.scss:36` 的
+   `&__badge` 有完整樣式(藥丸/`error-100` 底/`cursor:pointer`,commit `d3b6d98`)。
+   `grep courses__badge` 回零筆是因為 BEM 寫成 `&__badge`,**那個字串在 SCSS 裡
+   根本不存在** —— 天真字面 grep 在本 repo 對幾乎所有 BEM class 都回零筆(infra 攔下)。
+   **正確成因:有樣式,而且被畫成徽章** —— 藥丸+error 底色讀起來是狀態標籤;
+   唯一可點暗示 `cursor:pointer` **只在 hover 出現,觸控裝置沒有 hover**。
+   **是 affordance 問題,修法是加靜態可見的可點暗示(箭頭/按鈕外形/底線),
+   不是補 CSS**(補了會產生第二份重複樣式)。
+   順帶查:全站有多少可點元素的可點性只靠 hover 態表達(tester 這輪只測桌機)。
    sessions「本月未指派」已完全正確,不動。P1-2 指派老師 UI 另開工單。
    前端半依賴 billing-api 的 `attendanceTaken`(已派)。原始工單描述:
    六個頁面各自長了一個告警,三種形態 —— 不可點 pill(課程管理「需介入 1 個課程」、
@@ -154,11 +161,17 @@
 1. **gate 載體盲區掃描**:c6 剛證明「規則對、載體錯」(掃 SCSS 漏 TS 字串)——
    對現有 12 道 gate 逐一問「這條規則的違規還能活在哪些載體?」(模板/TS/JSON/註解…),
    產出盲區清單與建議,先報告後動工
-1.5 **零 CSS class 偵測(載體盲區的活實例,先報告後動工)**:template 用了 class、
-   全庫沒有任何 SCSS 定義它 —— `courses.page.html:11` 的 `.courses__badge` 就是,
-   編譯過/測試過/review 過/畫面看起來也「正常」,**完全沉默的失效**。
-   **先看命中數量再決定值不值得做成 gate**(PrimeNG class、全域 utility、動態組出的
-   class 名都會誤報);**結論是「不值得」也是好交付,但要寫理由**。
+1.5 **孤兒 class 掃描 —— 報告已交,計畫席已裁,執行中**(立案理由是計畫席的壞 grep,
+   但掃描結果本身有效)。用到 1810 個 class / SCSS 定義 1900 個(已解析 `&` 巢狀),
+   孤兒 131:外部 `p-*`/`pi*` 50(正當)、自家 81(死修飾詞 10 無視覺後果 + 基底沒定義 71)。
+   - **窄 gate:做** —— 「可互動元素(`<button>`/`<a>`/有 `(click)`)的 class **全部**沒定義」,
+     **現況 0 筆**,四則陷阱驗過(含多行標籤 —— 天真單行 regex 會漏掉幾乎所有真實
+     Angular 模板,那樣得到的 0 跟真的 0 一模一樣)。**零 baseline 是最便宜的立法時機**
+   - **廣義 81 筆:不做 ratchet,整理成一次性清單交 design-web**。理由不是誤報是
+     **嚴重度差太多** —— 81 筆大多無害的 baseline 沒人會清,**清不完的 ratchet 等於裝飾**
+     (一個沒人清的 baseline 和一個清乾淨的,CI 輸出上都是綠的)。
+     交付要**標出 `conflict-modal` 那一族 6 筆**(唯一可能有實際視覺後果的),
+     其餘標低優 —— 否則 81 筆會被整包擱置
 2. 磁碟 watch 照掛(PID 現查,勿信舊值);dagger GC 根因在鄰專案,watch 兜底
 
 ## review-steward
