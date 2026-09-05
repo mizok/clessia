@@ -1,0 +1,19 @@
+/* **手機優先**：基準是窄螢幕，往大螢幕才加強。這一頁其餘部分會整頁重做，
+   這裡只排橘帶本身（見 dashboard.component.html 的白工說明）。 */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  // 不是 space-6：橘帶與下方內容靠 --band-seam 交扣，中間不能再有間距
+  gap: 0;
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: 100%;
+
+  &__band-title {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-3xl);
+    font-weight: var(--font-bold);
+    letter-spacing: -0.04em;
+    line-height: 1.02;
+  }
+}

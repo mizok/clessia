@@ -1,7 +1,15 @@
-<!-- 佔位頁。用 `app-empty-state` 而不是自己排版：這一頁之後會整頁重做，
-     現在寫的任何樣式都是白工，而家長**現在就看得到這一頁**。 -->
-<app-empty-state
-  icon="pi pi-home"
-  [title]="page().label"
-  description="這個功能還在準備中，完成後就會出現在這裡。"
-/>
+<div class="dashboard">
+  <app-page-band>
+    <app-child-switcher />
+    <h1 class="dashboard__band-title">{{ page().label }}</h1>
+  </app-page-band>
+
+  <!-- 佔位內容。用 `app-empty-state` 而不是自己排版：這一頁的其餘部分之後會整頁重做，
+       現在寫的任何樣式都是白工，而家長**現在就看得到這一頁**。孩子切換器不算白工——
+       它是家長端授權模型的第一個消費端，03 片直接複用。 -->
+  <app-empty-state
+    icon="pi pi-home"
+    title="更多內容還在準備中"
+    description="這個功能還在準備中，完成後就會出現在這裡。"
+  />
+</div>
