@@ -44,6 +44,37 @@ describe('countEnrolledOn', () => {
   it('沒有日期時只依班級算，不套區間', () => {
     expect(countEnrolledOn(rows, 'c1', null)).toBe(3);
   });
+
+  /**
+   * 家長端讀教務日誌（`class_logs`）的授權要靠這支函式擋過度曝光：只用
+   * 「曾經在籍的班級清單」查會讓孩子看到**轉出後**的舊班日誌與**轉入前**的
+   * 新班日誌——兩則都不是真的洩漏「別人的資料」，但都是他不該看到的東西，
+   * 而且畫面上看起來完全正常（就是一則日誌）。
+   *
+   * 見 kb/wiki/architecture/parent-class-logs-read.md 第三節。
+   */
+  describe('轉班情境（家長端教務日誌授權要靠這條擋過度曝光）', () => {
+    // 3 月中從 A 班轉到 B 班
+    const transferRows = [
+      enrollment('classA', '2026-01-01', '2026-03-15'),
+      enrollment('classB', '2026-03-16', null),
+    ];
+
+    it('轉出後的舊班日誌看不到', () => {
+      // A 班 4 月的日誌 —— 孩子已經不在 A 班了
+      expect(countEnrolledOn(transferRows, 'classA', '2026-04-01')).toBe(0);
+    });
+
+    it('轉入前的新班日誌看不到', () => {
+      // B 班 2 月的日誌 —— 孩子那時候還沒加入 B 班
+      expect(countEnrolledOn(transferRows, 'classB', '2026-02-01')).toBe(0);
+    });
+
+    it('轉班期間內、對的班，看得到', () => {
+      expect(countEnrolledOn(transferRows, 'classA', '2026-02-01')).toBe(1);
+      expect(countEnrolledOn(transferRows, 'classB', '2026-04-01')).toBe(1);
+    });
+  });
 });
 
 describe('tallyAttendance', () => {

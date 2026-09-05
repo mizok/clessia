@@ -101,7 +101,7 @@
         >
           <td appRtColCell="student">
             {{ row.enrollment.studentName }}
-            <span class="enrollments__grade">{{ row.enrollment.studentGrade }}</span>
+            <span class="enrollments__grade">{{ getGradeLabel(row.enrollment.studentGrade) }}</span>
           </td>
           <td appRtColCell="class">{{ row.enrollment.className }}</td>
           <td appRtColCell="event">

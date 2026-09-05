@@ -53,6 +53,34 @@
       <p class="class-log-sheet__state class-log-sheet__state--error">{{ message }}</p>
     }
 
+    @if (published()) {
+      <p class="class-log-sheet__published">已發布，家長看得到「作業安排」這一欄</p>
+    }
+
+    @if (confirmingPublish()) {
+      <!--
+        發布的後果比存檔重很多，所以兩個動作的視覺權重不同、而且發布要二次確認 ——
+        避免「以為只是存檔，其實家長全看到了」。
+        文案**只說現在為真的事**：不提 LINE 推播（規則排在 P4，而 repo 至今沒有實作）。
+      -->
+      <div class="class-log-sheet__confirm">
+        <p class="class-log-sheet__confirm-text">
+          發布之後，<strong>家長就會看到「作業安排」這一欄</strong>，而且<strong>收不回</strong>。
+          教學紀錄不會給家長看。
+        </p>
+        <div class="class-log-sheet__confirm-actions">
+          <p-button label="再想想" [text]="true" size="small" (onClick)="cancelPublish()" />
+          <p-button
+            label="確定發布"
+            size="small"
+            severity="warn"
+            [loading]="saving()"
+            (onClick)="confirmPublish()"
+          />
+        </div>
+      </div>
+    }
+
     <footer class="class-log-sheet__footer">
       <!--
         v1a 只有存檔。**沒有發布按鈕，也不是 disabled** —— 發布不可逆，
@@ -67,6 +95,20 @@
         [disabled]="nothingToSave()"
         (onClick)="save()"
       />
+      <!--
+        發布**只在有東西可發時才出現**，不是灰著 —— 灰著的按鈕仍然在承諾功能存在。
+        已發布之後也不再出現（後端重複呼叫會保留第一次的時間，再按沒有意義）。
+      -->
+      @if (canPublish() && !confirmingPublish()) {
+        <p-button
+          label="發布"
+          icon="pi pi-send"
+          size="small"
+          [outlined]="true"
+          severity="warn"
+          (onClick)="askPublish()"
+        />
+      }
     </footer>
   }
 </div>

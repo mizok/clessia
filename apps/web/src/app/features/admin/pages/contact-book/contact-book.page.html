@@ -72,6 +72,7 @@
 
   <div class="contact-book__toolbar clessia-filter-bar">
     <p-datepicker
+      class="clessia-filter-control clessia-filter-control--date-range"
       selectionMode="range"
       dateFormat="yy-mm-dd"
       [showIcon]="true"
@@ -90,14 +91,13 @@
         placeholder="輸入學生姓名篩選"
       />
     </div>
-    <p-button
-      [label]="unsignedOnly() ? '顯示全部' : '只看未簽收'"
-      [icon]="unsignedOnly() ? 'pi pi-list' : 'pi pi-inbox'"
-      [outlined]="!unsignedOnly()"
-      [severity]="unsignedOnly() ? 'warn' : 'secondary'"
-      size="small"
-      (onClick)="toggleUnsignedOnly()"
-    />
+    <app-filter-chip
+      [active]="unsignedOnly()"
+      [icon]="unsignedOnly() ? 'pi-list' : 'pi-inbox'"
+      (toggle)="toggleUnsignedOnly()"
+    >
+      {{ unsignedOnly() ? '顯示全部' : '只看未簽收' }}
+    </app-filter-chip>
     @if (hasFilters()) {
       <p-button
         label="清除篩選"

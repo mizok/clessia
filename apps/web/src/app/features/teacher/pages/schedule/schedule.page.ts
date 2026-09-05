@@ -37,10 +37,12 @@ import {
 } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 
 import { ClassLogSheetComponent } from './class-log-sheet/class-log-sheet.component';
+import { ContactBookRosterComponent } from './contact-book-roster/contact-book-roster.component';
 import {
   attendanceDisplay,
   canTakeAttendance,
   canWriteClassLog,
+  canWriteContactBook,
   daySummary,
   weekAnchor,
 } from './schedule.util';
@@ -328,6 +330,7 @@ export class SchedulePage implements OnInit {
 
   /** 判準在 util（跟 `canTakeAttendance` 同一個家），這裡只是模板的入口 */
   protected readonly canWriteClassLog = canWriteClassLog;
+  protected readonly canWriteContactBook = canWriteContactBook;
 
   /**
    * 開日誌面板。**判準不含 `eventId`** —— 日誌掛班×日期，不掛出勤事件，
@@ -351,6 +354,32 @@ export class SchedulePage implements OnInit {
 
     ref?.onClose.subscribe((saved?: boolean) => {
       if (saved) this.loadSessions();
+    });
+  }
+
+  /**
+   * 開聯絡簿名單（「今天這堂課還有誰沒寫」）。
+   *
+   * 跟 `openClassLog` 是同一個位置的兩型 —— 兩型是兩條資料模型
+   * （`studentId+entryDate` vs `classId+logDate`），**刻意不做成一支元件的 if/else**。
+   */
+  protected openContactBook(session: EventSessionSummary): void {
+    const ref = this.dialogService.open(ContactBookRosterComponent, {
+      width: '480px',
+      modal: true,
+      showHeader: false,
+      closable: false,
+      styleClass: 'roster-sheet',
+      appendTo: this.overlayContainer ?? 'body',
+      data: {
+        classId: session.classId,
+        className: session.className,
+        entryDate: session.eventDate,
+      },
+    });
+
+    ref?.onClose.subscribe((wrote?: boolean) => {
+      if (wrote) this.loadSessions();
     });
   }
 }

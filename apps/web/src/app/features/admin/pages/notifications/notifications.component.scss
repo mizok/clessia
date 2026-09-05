@@ -24,7 +24,9 @@
   &__composer {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    // 原本是 flex-start——cross-axis 不拉伸，__field 依內容縮寬，公告標題通常比
+    // 縮出來的寬度長（Tester #8）。改 stretch 讓 __field 的 flex:1 真的生效。
+    align-items: stretch;
     gap: var(--space-3);
     padding: var(--space-4);
     border: 1px solid var(--surface-border);
@@ -44,8 +46,18 @@
     font-size: 0.875rem;
   }
 
+  // 「發送對象」目前刻意寫死（家長端還沒接上，見 notifications.component.ts 的
+  // audience 註解）——這裡不是補一個能改的欄位，是讓純文字看起來像「有意如此」
+  // 而不是「旁邊的下拉忘記做」（Tester #9：視覺權重跟旁邊的分校範圍下拉相反）。
   &__static {
-    padding: var(--space-2) 0;
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: var(--space-2) var(--space-3);
+    color: var(--zinc-500);
+    background: var(--zinc-50);
+    border: 1px solid var(--zinc-200);
+    border-radius: var(--radius-md);
   }
 
   &__input,

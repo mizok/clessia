@@ -29,6 +29,17 @@ const ParentScoreRecordSchema = z
     score: z.number().nullable(),
     totalScore: z.number().nullable(),
     status: z.enum(['scored', 'absent', 'makeup']),
+    /** 這筆成績的登錄時間 —— 逐筆 NEW 標籤要靠它，`recentCount` 這個聚合數字指不出是哪幾筆 */
+    createdAt: z.string(),
+    /**
+     * 及格線，只有校內考（academy）有值，段考一律 `null`。
+     *
+     * **不是錦上添花，是修一個矛盾**：admin-pages 的 `isFailingScore` 共用函式
+     * 沒拿到這個欄位時會退化成比例算（`score < totalScore * 0.6`），跟行政端
+     * 用真正及格線判斷的結果可能相反——同一筆資料家長端顯示及格、行政端顯示
+     * 不及格，而家長看到的正是比較寬鬆的那個。見 #377 的討論。
+     */
+    passScore: z.number().nullable(),
   })
   .openapi('ParentScoreRecord');
 

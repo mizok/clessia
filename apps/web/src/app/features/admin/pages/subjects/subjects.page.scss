@@ -3,7 +3,10 @@
   flex-direction: column;
   gap: var(--space-4);
   padding: var(--space-6);
-  max-width: 560px;
+  // 跟分校頁(1200px)同屬系統設定的相鄰分頁，切換分頁時寬度跳動太劇烈（Tester #33）。
+  // 不直接抄 1200px——這頁的內容只是一份簡單清單，撐到那個寬度會留一大片空白，
+  // 那是另一種問題。800px 是縮小落差的折衷值，不是「兩邊本來就該一樣寬」。
+  max-width: 800px;
 
   &__header {
     display: flex;

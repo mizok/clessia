@@ -131,11 +131,15 @@ export class CampusesPage implements OnInit {
         command: () => this.confirmActivate(campus),
       });
     }
-    items.push({
-      label: '刪除分校',
-      icon: 'pi pi-trash',
-      command: () => this.confirmDelete(campus),
-    });
+    items.push(
+      { separator: true },
+      {
+        label: '刪除分校',
+        icon: 'pi pi-trash',
+        itemClass: 'text-red-500',
+        command: () => this.confirmDelete(campus),
+      },
+    );
     return items;
   });
 

@@ -28,7 +28,7 @@ import {
 import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/students.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
-import { isFailingScore } from '../../../score-threshold.util';
+import { isFailingScore } from '@shared/utils/score-threshold.util';
 
 type ScoreStatusFilter = 'all' | ScoreRecordStatus;
 type ExamScopeFilter = 'todo' | 'all';

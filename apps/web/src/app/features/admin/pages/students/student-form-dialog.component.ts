@@ -7,10 +7,12 @@ import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { TextareaModule } from 'primeng/textarea';
 import { DatePickerModule } from 'primeng/datepicker';
+import { AutoCompleteModule, type AutoCompleteCompleteEvent } from 'primeng/autocomplete';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { TooltipModule } from 'primeng/tooltip';
 import { SchoolsService, type School } from '@core/schools.service';
+import { ParentsService, type Parent } from '@core/parents.service';
 import {
   StudentsService,
   type CreateStudentInput,
@@ -33,6 +35,7 @@ import {
     SelectModule,
     TextareaModule,
     DatePickerModule,
+    AutoCompleteModule,
     TooltipModule,
   ],
   providers: [MessageService],
@@ -43,6 +46,7 @@ export class StudentFormDialogComponent {
   private readonly studentsService = inject(StudentsService);
   private readonly messageService = inject(MessageService);
   private readonly schoolsService = inject(SchoolsService);
+  private readonly parentsService = inject(ParentsService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig);
   private readonly destroyRef = inject(DestroyRef);
@@ -53,6 +57,16 @@ export class StudentFormDialogComponent {
   protected readonly schools = signal<School[]>([]);
   protected readonly creatingSchool = signal(false);
   protected readonly newSchoolName = signal('');
+
+  /**
+   * 從家長頁的 ⋮ 選單開啟時，`config.data.parentId` 已經預填了要關聯的家長；
+   * 從學生頁的「新增學生」開啟時沒有這個值 —— 那條路徑才需要picker，
+   * 讓兩個入口的能力對齊（#364 後續：同名不同能力）。
+   */
+  private readonly presetParentId: string | null = this.config.data?.parentId ?? null;
+  protected readonly showParentPicker = computed(() => this.isCreateMode() && !this.presetParentId);
+  protected readonly selectedParent = signal<Parent | string | null>(null);
+  protected readonly parentSuggestions = signal<Parent[]>([]);
 
   protected readonly formData = signal({
     name: this.student()?.name ?? '',
@@ -138,9 +152,10 @@ export class StudentFormDialogComponent {
     };
 
     if (this.isCreateMode()) {
+      const picked = this.selectedParent();
       const input: CreateStudentInput = {
         ...commonFields,
-        parentId: this.config.data?.parentId ?? undefined,
+        parentId: this.presetParentId ?? (typeof picked === 'string' ? undefined : picked?.id),
       };
       this.studentsService.create(input).subscribe({
         next: (res) => this.ref.close(res.data),
@@ -171,6 +186,24 @@ export class StudentFormDialogComponent {
 
   protected cancel(): void {
     this.ref.close();
+  }
+
+  protected onParentChange(value: Parent | string | null): void {
+    this.selectedParent.set(value);
+  }
+
+  protected searchParents(event: AutoCompleteCompleteEvent): void {
+    this.parentsService
+      .list({ search: event.query, pageSize: 10 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.parentSuggestions.set(res.data),
+        error: () => this.parentSuggestions.set([]),
+      });
+  }
+
+  protected formatParentMeta(parent: Parent): string {
+    return parent.phone ?? parent.email ?? '';
   }
 
   protected quickCreateSchool(): void {

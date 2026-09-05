@@ -28,7 +28,7 @@ import {
 } from '@core/school-exams.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { focusScoreRow, scoreKeyStep } from '../../score-keyboard.util';
-import { isFailingScore } from '../../../../score-threshold.util';
+import { isFailingScore } from '@shared/utils/score-threshold.util';
 
 export interface SchoolScoreRow {
   readonly subjectId: string;

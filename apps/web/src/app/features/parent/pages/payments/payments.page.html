@@ -1,0 +1,134 @@
+<div class="payments">
+  <app-page-band>
+    <app-child-switcher />
+    <h1 class="payments__band-title">{{ page().label }}</h1>
+    <div bandAside>
+      @if (!loading() && invoices().length > 0) {
+        <app-band-anchor [value]="totalDue()" unit="元待繳">
+          {{ groups().pending.length }} 張待付款
+        </app-band-anchor>
+      }
+    </div>
+  </app-page-band>
+
+  <div class="payments__content">
+    @if (loading() && invoices().length === 0) {
+      <div class="skeleton-list">
+        @for (i of [1, 2, 3]; track i) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
+    } @else if (failed()) {
+      <app-empty-state
+        icon="pi pi-exclamation-circle"
+        title="載入失敗"
+        description="沒有讀到繳費紀錄，可能是連線問題"
+      />
+    } @else if (invoices().length === 0) {
+      <app-empty-state icon="pi pi-wallet" title="目前沒有帳單紀錄" description="" />
+    } @else {
+      @if (groups().pending.length > 0) {
+        <section class="payments__section">
+          <h2 class="payments__section-title">待付款</h2>
+          @for (invoice of groups().pending; track invoice.id) {
+            <button type="button" class="payments__row" (click)="openDetail(invoice)">
+              <span class="payments__row-id">#{{ invoice.id.slice(0, 8) }}</span>
+              <span class="payments__row-amount"
+                >{{ invoice.total - invoice.netPaid | number }} 元</span
+              >
+              @if (invoice.dueDate) {
+                <span class="payments__row-hint">期限 {{ invoice.dueDate }}</span>
+              }
+              <span class="payments__row-status payments__row-status--pending">{{
+                statusLabels[invoice.status]
+              }}</span>
+            </button>
+          }
+        </section>
+      }
+
+      @if (groups().paid.length > 0) {
+        <section class="payments__section">
+          <h2 class="payments__section-title">已付款</h2>
+          @for (invoice of groups().paid; track invoice.id) {
+            <button type="button" class="payments__row" (click)="openDetail(invoice)">
+              <span class="payments__row-id">#{{ invoice.id.slice(0, 8) }}</span>
+              <span class="payments__row-amount">{{ invoice.total | number }} 元</span>
+              @if (latestPaymentDate(invoice); as paidAt) {
+                <span class="payments__row-hint">{{ paidAt }}</span>
+              }
+              <span class="payments__row-status payments__row-status--paid">已付款</span>
+            </button>
+          }
+        </section>
+      }
+
+      @if (hasMore()) {
+        <button
+          type="button"
+          class="payments__load-more"
+          [disabled]="loading()"
+          (click)="loadMore()"
+        >
+          @if (loading()) {
+            載入中...
+          } @else {
+            載入更多
+          }
+        </button>
+      }
+    }
+  </div>
+
+  <p-drawer
+    [visible]="drawerVisible()"
+    (visibleChange)="onDrawerVisibleChange($event)"
+    position="bottom"
+    [modal]="true"
+    [appendTo]="'body'"
+    styleClass="payments__detail-sheet drawer-auto"
+  >
+    @if (selectedInvoice(); as invoice) {
+      <div class="payments__detail">
+        <h3 class="payments__detail-title">帳單 #{{ invoice.id.slice(0, 8) }}</h3>
+        <p class="payments__detail-status">{{ statusLabels[invoice.status] }}</p>
+
+        <div class="payments__detail-items">
+          @for (item of invoice.items; track item.id) {
+            <div class="payments__detail-item">
+              <span
+                >{{ itemTypeLabels[item.type]
+                }}{{ item.periodMonth ? '（' + item.periodMonth + '）' : '' }}</span
+              >
+              <span>{{ item.amount | number }} 元</span>
+            </div>
+          }
+        </div>
+
+        <p class="payments__detail-total">應繳 {{ invoice.total | number }} 元</p>
+        @if (invoice.dueDate) {
+          <p class="payments__detail-due">繳費期限 {{ invoice.dueDate }}</p>
+        }
+
+        @if (invoice.status !== 'paid') {
+          <div class="payments__detail-notice">
+            <p>付款方式：現金或轉帳，帳戶資訊請洽補習班行政人員。</p>
+            <p>完成付款後請通知補習班確認。</p>
+          </div>
+        } @else {
+          <div class="payments__detail-payments">
+            @for (payment of invoice.payments; track payment.id) {
+              <div class="payments__detail-payment">
+                <span>{{ payment.paidAt }}</span>
+                <span>{{ paymentMethodLabels[payment.method] }}</span>
+                <span>{{ payment.amount | number }} 元</span>
+              </div>
+            }
+          </div>
+        }
+
+        <button type="button" class="payments__detail-close" (click)="closeDetail()">關閉</button>
+      </div>
+    }
+  </p-drawer>
+</div>

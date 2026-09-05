@@ -8,8 +8,9 @@ import { environment } from '../../environments/environment';
  * 教務日誌：**一班一天一篇**（`class_logs` 的唯一鍵是 `(class_id, log_date)`）。
  *
  * 設計與 v1a/v1b 邊界見 `kb/wiki/architecture/teacher-class-log.md`。
- * 這一版**沒有 publish** —— 後端有那支端點，但發布不可逆而下游（家長端可見、
- * LINE 推播）都還不存在，所以前端刻意不提供入口。
+ * **v1b 起有 publish** —— v1a 刻意不提供入口，因為那時發布不可逆而下游不存在。
+ * `#381`（`GET /api/me/class-logs`）之後家長真的看得到已發布的日誌，
+ * 條件滿足了才放那顆按鈕。
  */
 export interface ClassLog {
   readonly id: string;
@@ -53,6 +54,17 @@ export class ClassLogsService {
     if (params.from) httpParams = httpParams.set('from', params.from);
     if (params.to) httpParams = httpParams.set('to', params.to);
     return this.http.get<ClassLogListResponse>(this.base, { params: httpParams });
+  }
+
+  /**
+   * 發布。**不可逆** —— 後端沒有 unpublish，`published_at` 設下去拿不掉
+   * （重複呼叫會保留第一次的時間，不會重設）。
+   *
+   * 發布之後家長端 `GET /api/me/class-logs` 就查得到這一篇的 `homework`
+   * （`teachingRecord` 一律不回，那是內部的）。
+   */
+  publish(id: string): Observable<{ data: ClassLog }> {
+    return this.http.post<{ data: ClassLog }>(`${this.base}/${id}/publish`, {});
   }
 
   /** `PUT` 是 upsert（`onConflict: class_id,log_date`）—— 同一天存第二次是編輯不是新增 */
