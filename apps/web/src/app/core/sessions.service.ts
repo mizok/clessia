@@ -55,6 +55,14 @@ export interface SessionQueryParams {
   classId?: string;
   statuses?: string[];
   assignmentStatus?: 'assigned' | 'unassigned';
+  /**
+   * 有沒有點名過。語意對齊 `attendanceService.sessions()` 的同名參數
+   * （`apps/api/src/routes/sessions.ts`、`apps/api/src/routes/attendance.ts`
+   * 共用同一份判定）。**這支端點目前沒有 `endedOnly`**——儀表板未點名卡
+   * 連過來的篩選只有這半有效，「已結束」那半還接不住，見
+   * kb/wiki/architecture/admin-todo-alerts.md。
+   */
+  attendanceTaken?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -186,6 +194,10 @@ export class SessionsService {
     if (params.statuses && params.statuses.length > 0)
       query['statuses'] = params.statuses.join(',');
     if (params.assignmentStatus) query['assignmentStatus'] = params.assignmentStatus;
+    // `!== undefined` 不是 truthy —— `false` 是有意義的值（要篩「沒點名」）
+    if (params.attendanceTaken !== undefined) {
+      query['attendanceTaken'] = String(params.attendanceTaken);
+    }
     if (params.page) query['page'] = params.page.toString();
     if (params.pageSize) query['pageSize'] = params.pageSize.toString();
 

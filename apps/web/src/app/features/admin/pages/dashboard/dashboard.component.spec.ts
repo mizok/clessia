@@ -169,20 +169,18 @@ describe('DashboardComponent（管理端）', () => {
       mock.mockReset();
     }
 
-    // 卡 1 用 date=今天、卡 2 用 dateFrom=7 天前，是兩個不同的請求
-    sessionsMock.mockImplementation((params: { date?: string; attendanceTaken?: boolean }) =>
-      pending || (stalled && !params.date)
+    // 未點名課堂現在**只有一支請求**（`endedOnly` 到位後不再拆兩段）——
+    // 「已經上完」的判斷是伺服器做的（#368），mock 不重算一次，直接信 `recentSessions`
+    // 已經是「篩過的候選集合」，照 `attendanceTaken` 決定要不要濾 `takenAt`。
+    sessionsMock.mockImplementation((params: { attendanceTaken?: boolean; endedOnly?: boolean }) =>
+      pending || stalled
         ? NEVER
         : fail === 'sessions'
           ? boom
-          : // 回溯那支現在帶 `attendanceTaken: false`，篩選是**伺服器做的** ——
-            // mock 要照著做，否則測試會對著一個真實環境不存在的回應斷言
-            sessionList(
-              params.date
-                ? todaySessions
-                : params.attendanceTaken === false
-                  ? recentSessions.filter((session) => !session.takenAt)
-                  : recentSessions,
+          : sessionList(
+              params.attendanceTaken === false
+                ? recentSessions.filter((session) => !session.takenAt)
+                : recentSessions,
             ),
     );
     leavesMock.mockReturnValue(
@@ -279,14 +277,10 @@ describe('DashboardComponent（管理端）', () => {
     return component['cards']().find((c) => c.label === label);
   }
 
-  // 破 100 筆的區間原本會悄悄少算 —— 現在數字由伺服器算，前端只加上今天那批
-  it('未點名數是「伺服器算的昨天以前」加「今天已經上完的」', async () => {
+  // 「已經上完」現在整個是伺服器算的（`endedOnly`）——前端只讀 meta.total，
+  // 不再自己合併兩段查詢的結果
+  it('未點名數整個來自伺服器的 meta.total，前端不重算', async () => {
     await setup({
-      // 今天兩堂：一堂已經上完沒點名（算），一堂還沒上完（不算）
-      todaySessions: [
-        session({ eventId: 't1', startTime: '00:01', endTime: '00:02', takenAt: null }),
-        session({ eventId: 't2', startTime: '23:58', endTime: '23:59', takenAt: null }),
-      ],
       recentSessions: [
         session({ eventId: 'r1', eventDate: YESTERDAY, takenAt: null }),
         session({ eventId: 'r2', eventDate: YESTERDAY, takenAt: null }),
@@ -294,8 +288,9 @@ describe('DashboardComponent（管理端）', () => {
       ],
     });
 
-    // 昨天以前 2（伺服器篩掉點過的 r3）+ 今天已上完 1
-    expect(card('未點名課堂')?.value).toBe(3);
+    // mock 濾掉點過名的 r3，剩 2 —— 這個數字完全來自 mock 回的 meta.total，
+    // 元件沒有對這份資料做任何進一步計算
+    expect(card('未點名課堂')?.value).toBe(2);
   });
 
   it('六張卡都拿到真實數字', async () => {
@@ -331,13 +326,29 @@ describe('DashboardComponent（管理端）', () => {
     expect(card('本月報名異動')?.routerLink).toBe(RoutesCatalog.ADMIN_ENROLLMENTS.absolutePath);
   });
 
+  // P1-6：卡片說 15、落地頁顯示別的數字。這條釘住卡片帶去的 queryParams
+  // 跟它自己算數字用的參數是**同一個查詢**（pendingAttendanceQuery），不是兩份
+  it('未點名課堂卡帶的 queryParams 跟它自己查詢用的參數一致', async () => {
+    await setup();
+
+    const sent = sessionsMock.mock.calls[0][0];
+    const queryParams = card('未點名課堂')?.queryParams;
+
+    expect(queryParams).toEqual({
+      dateFrom: sent.dateFrom,
+      dateTo: sent.dateTo,
+      attendanceTaken: String(sent.attendanceTaken),
+      endedOnly: String(sent.endedOnly),
+    });
+  });
+
   /**
    * **今日課表改由聚合端點供給，不再自己打 `/api/attendance/sessions`。**
    *
    * 那一支現在只剩「逾期未點名」的回溯查詢。聚合端點不帶 `date` —— 伺服器用台北
    * 時區的今天，前端不必自己算（而且算錯的方式很安靜：UTC 的凌晨會差一天）。
    */
-  it('今日課表走聚合端點，回溯 7 天仍走 sessions', async () => {
+  it('今日課表走聚合端點，未點名那支帶 endedOnly 一次查完（含今天）', async () => {
     await setup();
 
     expect(workbenchMock).toHaveBeenCalledTimes(1);
@@ -346,10 +357,11 @@ describe('DashboardComponent（管理端）', () => {
     const sessionCalls = sessionsMock.mock.calls.map((c) => c[0]);
     expect(sessionCalls).toHaveLength(1);
     expect(sessionCalls[0].dateFrom < TODAY).toBe(true);
-    // 回溯那支只查到**昨天** —— 今天的那批在 workbench 的明細裡，
-    // 因為「逾期未點名」要 `!takenAt && 已經上完了`，而 API 只篩得了前半
-    expect(sessionCalls[0].dateTo < TODAY).toBe(true);
+    // `dateTo` 含**今天**——`endedOnly` 已經在伺服器排除今天還沒上完的課，
+    // 不需要前端再挖掉今天（這是 pendingAttendanceQuery 的陷阱測試盯住的同一個值）
+    expect(sessionCalls[0].dateTo).toBe(TODAY);
     expect(sessionCalls[0].attendanceTaken).toBe(false);
+    expect(sessionCalls[0].endedOnly).toBe(true);
     expect(sessionCalls[0].pageSize).toBe(1);
 
     expect(leavesMock.mock.calls[0][0]).toMatchObject({ coverDate: TODAY });
