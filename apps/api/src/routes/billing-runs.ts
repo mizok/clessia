@@ -12,6 +12,7 @@ import {
   type TuitionCandidate,
 } from '../lib/billing-run';
 import { DbUuidSchema } from '../lib/validation';
+import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 /**
  * 每月／每期帳務作業。
@@ -249,12 +250,12 @@ app.openapi(
       .maybeSingle();
     const dueDays = Number((org as { invoice_due_days?: number } | null)?.invoice_due_days ?? 14);
 
-    const issuedAt = new Date().toISOString().slice(0, 10);
+    // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭
+    const issuedAt = getCurrentTaipeiDateString();
     let dueDate = body.dueDate ?? null;
     if (!dueDate) {
-      const due = new Date(`${issuedAt}T00:00:00Z`);
-      due.setUTCDate(due.getUTCDate() + dueDays);
-      dueDate = due.toISOString().slice(0, 10);
+      // 純日曆字串運算，跟 addDaysToDateString 同一支邏輯，不要各自重寫一份
+      dueDate = addDaysToDateString(issuedAt, dueDays);
     }
 
     for (const studentId of studentIds) {
