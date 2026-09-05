@@ -299,8 +299,24 @@ select {
   min-width: 160px;
 }
 
+/*
+ * 220px 曾經不夠：實機量過三頁（課堂管理、聯絡簿、營收報表）渲染出來的完整
+ * 區間文字（例如「2026/09/01 - 2026/09/30」），最寬需要 238px，220px 窄了
+ * 幾 px，於是結束日被截斷成一個看起來合法、實際被切掉的日期（例如
+ * `2026/09/3`）——這是外觀上跟合法日期一模一樣的截斷，比明顯亂碼更陰險。
+ * 這裡留一點餘裕到 250px。
+ *
+ * ⚠️ **這條 class 規則本身不保證生效**：課堂管理頁的桌機版 datepicker 有這個
+ * class，量出來 `getComputedStyle().minWidth` 卻是 `auto`——追過 cascade
+ * 沒找到明確衝突的規則（`.session-filters__control` 的 scoped 樣式只設
+ * `width`，沒有 `min-width`），懷疑跟 `cssLayer: false` 下 PrimeNG 執行期
+ * 注入 `<style>` 的順序有關，但沒有查到確鑿證據，記錄成未解之謎而不是硬拗
+ * 一個沒驗證過的解釋。三處呼叫端都額外補了 inline `style="min-width: 250px"`
+ * 當保底（inline 永遠贏，不管這個謎團的真正成因是什麼）——這條 class 留著
+ * 當語意標記與其他頁面可能複用的基準值，不是唯一的強制機制。
+ */
 .clessia-filter-control--date-range {
-  min-width: 220px;
+  min-width: 250px;
 }
 
 .clessia-filter-group {
