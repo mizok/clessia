@@ -62,7 +62,7 @@
 - [[lessons/backlog-legacy]] — 2026-02～03 的功能開發清單與技術債紀錄。歷史文件 —— 其中「忘記密碼」整節已於 2026-08 作廢（系統改用 LINE OAuth）。
 - [[lessons/better-auth-session-delegation]] — adminCreateSession 不存在；手寫 ba_session + HMAC cookie 會耦合 BA 內部格式。教訓是 session 一律委派官方 API —— 當時委派給 signInEmail / signInUsername，2026-08 密碼登入移除後改為委派 magic-link 與 social provider，原則不變。
 - [[lessons/bottom-sheet-meets-mobile-viewport]] — 兩個獨立的缺口都打在同一個位置——釘底面板最下面那排按鈕。一個是 --window-height 用 innerHeight 且只聽 window:resize（iOS 工具列收合發的是 visualViewport.resize），一個是全 repo 沒有任何 env(safe-area-inset-*)。兩者都未經真機確認。
-- [[lessons/broken-looks-identical-to-normal]] — 2026-09-05 一天挖出同一族缺陷的 14 個實例（M8 稽核 13 個 + teacher-pages 補 1 個，另附兩則查證方法本身的盲點）——程式碼的語意或邏輯是對的，但渲染結果、觸發條件或視覺回饋錯了，而且錯的方式讓它看起來像對的。判準：「它壞了我們會知道嗎？」
+- [[lessons/broken-looks-identical-to-normal]] — 2026-09-05～06 挖出同一族缺陷的 16 個實例（M8 稽核 13 個 + teacher-pages 補 1 個 + 兩個時區/驗證同族案例，另附兩則查證方法本身的盲點）——程式碼的語意或邏輯是對的，但渲染結果、觸發條件或視覺回饋錯了，而且錯的方式讓它看起來像對的。判準：「它壞了我們會知道嗎？」
 - [[lessons/doc-code-drift-2026-08]] — 建立 agent harness 時逐項驗證文件宣稱，找出五處與程式碼不符之處。含一個活的 bug（查詢不存在的資料表）與兩個沉默失效的設定。
 - [[lessons/docker-disk-exhaustion]] — 主機從 2.9 GB 掉到 206 MB 的一次救援，最終回收 126 GB（Docker.raw 163 G → 37 G）。含磁碟量測工具的選用（mole 已棄用，改用 PureMac；含它被 Homebrew CLT 檢查誤擋時的取用方式）。記錄 docker system df 卡死時的替代量法、「兩個世界各看到假數字」為什麼讓自動 GC 永遠不觸發、以及 buildctl 是 shim、prune 兩參數、exit 0 不等於做了事這三個會讓人以為清完了的坑。
 - [[lessons/empty-array-hides-loading]] — signal 初始 [] 或 computed 把 null 壓成 [] 之後，畫面就無法區分「還不知道」與「確定沒有」—— 而失敗態通常有人想到，載入態沒有。含一個已知但暫不修的實例（ReferenceDataService → 批次面板的老師名單）。
