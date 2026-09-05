@@ -201,6 +201,12 @@ export class AttendanceService {
      * 前端撈明細自己數會在破 100 筆的區間悄悄少算，而且錯得沒有徵兆。
      */
     attendanceTaken?: boolean;
+    /**
+     * 只回「已經上完」的課堂——`hasSessionEndedByNow()` 的語意搬到後端。
+     * 配 `attendanceTaken: false` 一次查出「沒點名而且已經上完」，不必再對
+     * `workbench/today` 的明細逐筆用 `hasSessionEnded` 濾一次。
+     */
+    endedOnly?: boolean;
     page?: number;
     pageSize?: number;
   }): Observable<AttendanceSessionListResponse> {
@@ -211,6 +217,7 @@ export class AttendanceService {
     // `!== undefined` 不是 truthy —— 這張卡要的正是 `false`
     if (params.attendanceTaken !== undefined)
       p = p.set('attendanceTaken', String(params.attendanceTaken));
+    if (params.endedOnly) p = p.set('endedOnly', 'true');
     if (params.campusId) p = p.set('campusId', params.campusId);
     if (params.courseIds && params.courseIds.length > 0) {
       p = p.set('courseIds', params.courseIds.join(','));
