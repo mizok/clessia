@@ -201,7 +201,14 @@ const BatchAttendanceUpdateSchema = z
       .array(
         z.object({
           studentId: z.string(),
-          status: z.enum(['present', 'absent']),
+          /**
+           * **`on_leave` 是這裡才開放的** —— 舊版只收 present/absent，老師端沒有
+           * 「標成請假」可以點，請假的學生只能被跳過，落進「沒有紀錄」這個洞
+           * （P0-2：全班點完名，請假的學生完全不在到／請／缺任何一欄）。
+           * 允許送 on_leave 之後，老師端才有辦法明確記下「這個人請假」而不是
+           * 讓那一格永遠是 pending。
+           */
+          status: z.enum(['present', 'absent', 'on_leave']),
         }),
       )
       .min(1),
@@ -233,7 +240,7 @@ interface AttendanceAuditResourceNameInput {
 
 interface AttendanceBatchAuditUpdate {
   readonly studentId: string;
-  readonly status: 'present' | 'absent';
+  readonly status: 'present' | 'absent' | 'on_leave';
 }
 
 export function buildAttendanceAuditResourceName(
@@ -254,6 +261,9 @@ export function buildAttendanceAuditBatchDetails(
     updatedCount: updates.length,
     presentCount: updates.filter((update) => update.status === 'present').length,
     absentCount: updates.filter((update) => update.status === 'absent').length,
+    // 少了這一欄，on_leave 的更新會讓 presentCount + absentCount < updatedCount
+    // ——正是 P0-2 那個「1+0+1=2 但這班有 3 人」的病灶，這裡不能重演同一個坑。
+    onLeaveCount: updates.filter((update) => update.status === 'on_leave').length,
   };
 }
 
@@ -552,7 +562,7 @@ app.openapi(
     const { data: ev } = await supabase
       .from('events')
       .select(
-        'id, attendance_taken_at, event_date, start_time, sessions(class_id, classes(name, courses(name)))',
+        'id, attendance_taken_at, event_date, start_time, end_time, sessions(class_id, classes(name, courses(name)))',
       )
       .eq('id', eventId)
       .eq('org_id', orgId)
@@ -614,14 +624,86 @@ app.openapi(
       return c.json({ error: '部分學生不在此課堂修課名單中' }, 400);
     }
 
-    const records = updates.map((u) => ({
-      org_id: orgId,
-      event_id: eventId,
-      student_id: u.studentId,
-      status: u.status,
-      recorded_by: userId,
-      recorded_by_role: resolveRecordedByRole(c.get('roles') ?? []),
-    }));
+    /**
+     * 未被標記、但有生效請假蓋到這堂課的學生 —— **後端補寫 `on_leave`，不是前端算好再送**。
+     *
+     * P0-2：全班點完名，請假的學生完全不在到／請／缺任何一欄，因為請假連動只寫得到
+     * 「建立請假當下已經存在」的 event（懶生成的出勤事件常常還沒生出來），紀錄從此
+     * 缺席。裁決是補起這個縫，而不是在前端加一顆「標成請假」硬要老師表態——
+     * 判定邏輯留在後端（跟 roster GET 用同一支 `leaveCoversSession`），前端只送
+     * 它明確標記過的那些人，這裡補上其餘有請假覆蓋的人。
+     *
+     * 已知取捨：這樣做之後，「請假的學生其實來了」在點名畫面上**沒有覆寫入口**
+     * （`attendance-roster-panel.component.ts` 的 `isLocked` 原本只鎖紀錄，是為了
+     * 讓連動有縫時那一列還能標；縫補起來之後鎖是真的鎖住了）。這是刻意的：
+     * 學生請假卻出現是例外，例外走既有的銷假流程，比讓每一堂課的點名畫面都多一個
+     * 覆寫入口便宜。如果之後真的踩到（老師回報「他來了改不了」），那是回頭談的
+     * 正當理由，不是這裡漏想。
+     */
+    const markedIds = new Set(updates.map((u) => u.studentId));
+    const unmarkedIds = [...validIds].filter((id) => !markedIds.has(id));
+
+    let inferredLeaveRecords: Array<{
+      org_id: string;
+      event_id: string;
+      student_id: string;
+      status: 'on_leave';
+      recorded_by: string;
+      recorded_by_role: 'system';
+    }> = [];
+
+    if (unmarkedIds.length > 0) {
+      const { data: leaves } = await supabase
+        .from('leave_requests')
+        .select('student_id, start_date, end_date, start_time, end_time')
+        .eq('org_id', orgId)
+        .in('student_id', unmarkedIds)
+        .lte('start_date', eventDate)
+        .gte('end_date', eventDate);
+
+      const sessionWindow = {
+        date: eventDate,
+        startTime: (ev as any).start_time ?? null,
+        endTime: (ev as any).end_time ?? null,
+      };
+
+      const coveredStudentIds = new Set<string>();
+      for (const leave of (leaves ?? []) as Array<Record<string, unknown>>) {
+        const studentId = leave['student_id'] as string;
+        if (coveredStudentIds.has(studentId)) continue; // 一個學生只要有一張蓋到就夠了
+        const covers = leaveCoversSession(
+          {
+            startDate: leave['start_date'] as string,
+            endDate: leave['end_date'] as string,
+            startTime: (leave['start_time'] as string | null) ?? null,
+            endTime: (leave['end_time'] as string | null) ?? null,
+          },
+          sessionWindow,
+        );
+        if (covers) coveredStudentIds.add(studentId);
+      }
+
+      inferredLeaveRecords = [...coveredStudentIds].map((studentId) => ({
+        org_id: orgId,
+        event_id: eventId,
+        student_id: studentId,
+        status: 'on_leave' as const,
+        recorded_by: userId,
+        recorded_by_role: 'system' as const,
+      }));
+    }
+
+    const records = [
+      ...updates.map((u) => ({
+        org_id: orgId,
+        event_id: eventId,
+        student_id: u.studentId,
+        status: u.status,
+        recorded_by: userId,
+        recorded_by_role: resolveRecordedByRole(c.get('roles') ?? []),
+      })),
+      ...inferredLeaveRecords,
+    ];
 
     const { error: upsertError } = await supabase
       .from('attendance_records')
@@ -652,12 +734,19 @@ app.openapi(
         resourceId: eventId,
         resourceName: buildAttendanceAuditResourceName(auditContext),
         action: 'batch_update_attendance',
-        details: buildAttendanceAuditBatchDetails(updates),
+        // 教師明確標記的算一組，後端依請假單補寫的另外記一個數字 ——
+        // 兩者混在一起會讓稽核看不出「這堂課有幾個人是系統推的，不是他標的」
+        details: {
+          ...buildAttendanceAuditBatchDetails(updates),
+          inferredLeaveCount: inferredLeaveRecords.length,
+        },
       },
       waitUntilFrom(c),
     );
 
-    return c.json({ updated: updates.length, takenAt }, 200);
+    // `records.length` 不是 `updates.length` —— 補寫的請假紀錄也是真的寫進去的筆數，
+    // 少算等於告訴老師「存了 2 筆」但資料庫其實動了 3 筆。
+    return c.json({ updated: records.length, takenAt }, 200);
   },
 );
 
