@@ -20,6 +20,10 @@ import { OverlayContainerService } from '@core/overlay-container.service';
 import { MealsService, MEAL_BATCH_MAX_ROWS, type MealSummary } from '@core/meals.service';
 import { StudentsService, type Student } from '@core/students.service';
 
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
@@ -77,6 +81,7 @@ const RANGE_PAGE_SIZE = 50;
     ToastModule,
     ToggleSwitchModule,
     TooltipModule,
+    PageActionsComponent,
     EmptyStateComponent,
     StudentAutocompleteComponent,
     ResponsiveTableComponent,
@@ -98,6 +103,7 @@ export class MealsComponent implements OnInit {
   private readonly overlayContainerService = inject(OverlayContainerService);
 
   protected readonly MEAL_BATCH_MAX_ROWS = MEAL_BATCH_MAX_ROWS;
+  protected readonly primaryAction: PageAction = { label: '月結', icon: 'pi pi-calculator' };
 
   protected readonly modeOptions = [
     { value: 'day' as const, label: '當日名單' },
