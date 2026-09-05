@@ -156,6 +156,37 @@ describe('MealsComponent', () => {
     });
 
     /**
+     * P0-1（Tester 抓到）：確認名單 100% 失敗，toast 顯示 `[object Object]`。
+     * 後端某些錯誤的 `error` 欄位不是字串（例如驗證錯誤是物件），直接塞進
+     * toast 的 detail 會被轉成 "[object Object]"，比沒有訊息更誤導。
+     */
+    it('後端回的 error 不是字串時，不顯示 [object Object]', async () => {
+      meals.batch.mockReturnValue(
+        throwError(() => ({ error: { error: { issues: ['unitPrice required'] } } })),
+      );
+      const addSpy = vi.spyOn(component['messageService'], 'add');
+
+      component['save']();
+      await fixture.whenStable();
+
+      const call = addSpy.mock.calls.find((c) => c[0].severity === 'error');
+      expect(call?.[0].detail).not.toContain('[object Object]');
+      expect(typeof call?.[0].detail).toBe('string');
+    });
+
+    // 失敗訊息不能幾秒後自己消失——使用者要有時間看到、決定要不要重試
+    it('失敗訊息不會自動消失', async () => {
+      meals.batch.mockReturnValue(throwError(() => ({ error: { error: '寫入失敗' } })));
+      const addSpy = vi.spyOn(component['messageService'], 'add');
+
+      component['save']();
+      await fixture.whenStable();
+
+      const call = addSpy.mock.calls.find((c) => c[0].severity === 'error');
+      expect(call?.[0].sticky).toBe(true);
+    });
+
+    /**
      * P1-7（Tester 抓到）：黏在底部的確認鈕跟表格同一片白，行政會把它讀成
      * 「表格的最後一列」，以為看到按鈕就是名單到底，漏勾沒捲到的學生直接訂錯份數。
      * 明寫總數是第二層防線——就算視覺分不開，文字也要講出邊界在哪。
