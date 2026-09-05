@@ -6,8 +6,12 @@ import {
 } from '@core/attendance.service';
 import { ButtonModule } from 'primeng/button';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
-import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { GRADE_LEVEL_LABELS } from '@core/students.service';
+import {
+  ConfirmDialogComponent,
+  type ConfirmDialogData,
+} from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { AuthService } from '@core/auth.service';
 import { todayLocal } from '@shared/utils/session-time.util';
 import {
@@ -36,12 +40,16 @@ export interface RosterPanelSession {
   imports: [DataChipComponent, ButtonModule, ProgressSpinnerModule, InlineNoticeComponent],
   templateUrl: './attendance-roster-panel.component.html',
   styleUrl: './attendance-roster-panel.component.scss',
+  providers: [DialogService],
 })
 export class AttendanceRosterPanelComponent implements OnInit {
   private readonly attendanceService = inject(AttendanceService);
   private readonly auth = inject(AuthService);
   private readonly config = inject(DynamicDialogConfig);
   private readonly ref = inject(DynamicDialogRef);
+  private readonly dialogService = inject(DialogService);
+  /** 開啟時載入的初始狀態快照，用來判斷有沒有還沒存檔的改動 */
+  private initialStatus = new Map<string, 'present' | 'absent'>();
 
   protected readonly session = this.config.data as RosterPanelSession;
 
@@ -79,6 +87,7 @@ export class AttendanceRosterPanelComponent implements OnInit {
           }
         }
         this.localStatus.set(map);
+        this.initialStatus = new Map(map);
         this.loading.set(false);
       },
       error: () => {
@@ -327,7 +336,41 @@ export class AttendanceRosterPanelComponent implements OnInit {
     });
   }
 
+  /**
+   * 有沒有還沒存檔的點名改動。**跟載入時的快照比，不是跟「有沒有標過」比**——
+   * 已經存過的紀錄本來就會出現在 `localStatus` 裡，不能把它們也算成「未儲存」。
+   */
+  protected isDirty(): boolean {
+    const current = this.localStatus();
+    if (current.size !== this.initialStatus.size) return true;
+    for (const [studentId, status] of current) {
+      if (this.initialStatus.get(studentId) !== status) return true;
+    }
+    return false;
+  }
+
   protected close(): void {
-    this.ref.close();
+    if (!this.isDirty()) {
+      this.ref.close();
+      return;
+    }
+
+    const dialogRef = this.dialogService.open(ConfirmDialogComponent, {
+      header: '有未儲存的點名紀錄',
+      width: '380px',
+      modal: true,
+      showHeader: true,
+      appendTo: 'body',
+      data: {
+        message: '關閉後這些改動不會存檔，確定要離開嗎？',
+        acceptLabel: '離開，不儲存',
+        rejectLabel: '返回',
+        acceptSeverity: 'danger',
+      } satisfies ConfirmDialogData,
+    });
+
+    dialogRef?.onClose.subscribe((confirmed) => {
+      if (confirmed) this.ref.close();
+    });
   }
 }
