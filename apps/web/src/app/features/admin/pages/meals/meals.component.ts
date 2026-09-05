@@ -41,6 +41,7 @@ import {
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
 import { todayLocal } from '@shared/utils/session-time.util';
+import { extractErrorMessage } from '@shared/utils/api-error.util';
 
 /** 區間模式的每頁筆數。後端 pageSize 上限 100 */
 const RANGE_PAGE_SIZE = 50;
@@ -306,7 +307,7 @@ export class MealsComponent implements OnInit {
         this.messageService.add({
           severity: 'error',
           summary: '寫入失敗',
-          detail: err.error?.error || '請稍後再試',
+          detail: extractErrorMessage(err, '請稍後再試'),
         });
         this.saving.set(false);
       },
