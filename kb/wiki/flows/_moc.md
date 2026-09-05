@@ -1,6 +1,6 @@
 # Flows — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-09-05
+> Auto-maintained by `kb:map`. Last updated: 2026-09-06
 
 ---
 
