@@ -34,6 +34,7 @@ import {
 } from './lib/api-param-coverage.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
+import { usesRawSupabase } from './lib/parent-route-scan.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -1007,13 +1008,12 @@ if (existsSync(FEATURES_DIR)) {
 {
   const parentRoutesDir = join(ROOT, 'apps/api/src/routes/parent');
   if (existsSync(parentRoutesDir)) {
+    recordScope('A19', { roots: ['apps/api/src/routes/parent'], exts: ['.ts'] });
     for (const name of readdirSync(parentRoutesDir)) {
       if (!name.endsWith('.ts') || name.endsWith('.spec.ts')) continue;
       const rel = `apps/api/src/routes/parent/${name}`;
-      // 註解要先抹白 —— 這支檔案自己的說明文字就寫了 `c.get('supabase')` 這個字面值
-      // （解釋「不要這樣寫」），沒抹白的話 gate 會抓到自己的註解。
-      const source = blankComments(readFileSync(join(parentRoutesDir, name), 'utf8'), rel);
-      if (/c\.get\(\s*['"]supabase['"]\s*\)/.test(source)) {
+      const source = readFileSync(join(parentRoutesDir, name), 'utf8');
+      if (usesRawSupabase(source, rel)) {
         fail(
           `routes/parent/${name} 出現 c.get('supabase') —— 家長端檔案只能用 ` +
             `c.get('childDb')，見 kb/wiki/architecture/parent-data-scope.md 第二節`,
