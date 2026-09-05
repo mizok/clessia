@@ -153,3 +153,15 @@ export function canWriteClassLog(
 ): boolean {
   return session.status !== 'cancelled' && !session.usesContactBook;
 }
+
+/**
+ * 課堂卡要不要顯示「寫聯絡簿」入口。
+ *
+ * 跟 `canWriteClassLog` **互斥** —— 同一個位置依班級設定二選一，
+ * 老師不需要知道自己在用哪一型（那是班級設定的事實，不是每次操作的選擇）。
+ */
+export function canWriteContactBook(
+  session: Pick<EventSessionSummary, 'status' | 'usesContactBook'>,
+): boolean {
+  return session.status !== 'cancelled' && session.usesContactBook;
+}
