@@ -158,7 +158,7 @@ export class StudentScoreDetailDialogComponent implements OnInit {
    * 單次考試的分數 —— 門檻是**該場總分的 60%**。
    */
   protected isFailing(score: number | null, totalScore: number | null): boolean {
-    return isFailingScore(score, totalScore);
+    return isFailingScore(score, { totalScore });
   }
 
   /**
