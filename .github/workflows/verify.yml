@@ -63,8 +63,22 @@ jobs:
       - name: typecheck
         run: npx nx run-many -t typecheck
 
+      # `--output-style=stream` 不是為了好看，是**為了讓 web 的測試結果存在**。
+      #
+      # nx 在多專案時會**捕捉**每個任務的輸出、最後分組重播。而重播出來的
+      # `web:test` 群組只有 build 與 bundle 表格 —— **139 個測試檔、1096 條測試的
+      # 結果一行都沒有**。api 的看得到只是因為它的輸出剛好是串流的。
+      #
+      # 決定性的對照是：**綠燈那次的同一個群組，輸出形狀一模一樣**
+      # （`Building` → 表格 → `endgroup`，同樣沒有測試結果），差別只有 ✅ 與 ❌。
+      #
+      # 所以 web:test 紅的時候，CI log 裡沒有任何可讀的東西 ——
+      # **真紅跟假紅長得一樣，是因為兩者都沒有內容**。每個人撞到都得
+      # 「查 log → 發現沒有斷言失敗 → 猜是瞬斷 → rerun」，一輪來回。
+      #
+      # 代價：串流之後兩個專案的輸出會交錯。**那比乾淨但空白的輸出有用得多。**
       - name: test
-        run: npx nx run-many -t test
+        run: npx nx run-many -t test --output-style=stream
 
       # ── web 的 production build。
       #    **模板型別檢查已經不靠這一步了** —— 2026-09-03 給 web 加了 typecheck target
