@@ -99,6 +99,28 @@
     height: 18px;
   }
 
+  // 次要動作：連線異常時的重試，跟主要的 LINE 登入按鈕刻意不同量級 ——
+  // outline + 中性色，不用品牌綠，避免搶走「使用 LINE 登入」的視覺優先權。
+  &__retry-btn {
+    display: block;
+    width: 100%;
+    // 44px 是觸控目標下限，不要再壓低（同 &__line-btn）
+    min-height: 44px;
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--zinc-300);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--zinc-700);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--zinc-50);
+    }
+  }
+
   &__enroll-link {
     display: block;
     margin-top: var(--space-3);

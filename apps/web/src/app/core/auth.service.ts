@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -43,6 +43,7 @@ export class AuthService {
   private readonly _permissions = signal<string[]>([]);
   private readonly _activeRole = signal<UserRole | null>(null);
   private readonly _loading = signal(true);
+  private readonly _connectionError = signal(false);
 
   readonly user = this._user.asReadonly();
   readonly profile = this._profile.asReadonly();
@@ -51,6 +52,13 @@ export class AuthService {
   readonly activeRole = this._activeRole.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly isAuthenticated = computed(() => !!this._user());
+
+  /**
+   * `/api/me` 失敗，但不是 401/403 —— 5xx、逾時、連線中斷。**不代表沒登入**，
+   * 只是不知道。guard 靠這個訊號決定要不要把人彈去 /login：401/403 才彈，
+   * 這個是 true 的話要留在原地顯示「連線異常，請重試」（見 auth.guard.ts）。
+   */
+  readonly connectionError = this._connectionError.asReadonly();
 
   /**
    * 首次載入完成的訊號。**guard 靠它取代輪詢** —— 在這之前 `isAuthenticated()` 還是
@@ -107,6 +115,13 @@ export class AuthService {
    * 原本這裡把 `catch` 吞掉、一律把 roles 設成空陣列，於是跨站 cookie 沒送出去
    * 造成的 401 被顯示成「此帳號尚未被指派角色」—— 排查方向一度指向 bootstrap
    * 沒寫 user_roles。訊息說錯地方比沒有訊息更糟。
+   *
+   * **500 不等於未登入。** 原本 catch 不分青紅皂白一律清空 profile/roles，
+   * 於是後端偶發 5xx 會讓行政人員被彈去 /login，以為自己被登出。現在只有
+   * 401/403 才當成「確定沒登入」清空狀態；其他失敗（5xx、逾時、斷線）只設
+   * `connectionError`，保留現有 profile/roles —— `refreshRoles()` 是在已登入
+   * 狀態下被叫的（見 account-settings-dialog），一次暫時性的 500 不該把
+   * 正在編輯的人踢出畫面。
    */
   private async loadProfile(): Promise<boolean> {
     try {
@@ -114,6 +129,7 @@ export class AuthService {
         this.http.get<MeResponse>(`${environment.apiUrl}/api/me`, { withCredentials: true }),
       );
 
+      this._connectionError.set(false);
       this._user.set({ id: me.userId, email: me.email, name: me.displayName });
       this._profile.set({
         id: me.userId,
@@ -133,10 +149,18 @@ export class AuthService {
       }
 
       return true;
-    } catch {
-      this._profile.set(null);
-      this._roles.set([]);
-      this._permissions.set([]);
+    } catch (err) {
+      const status = err instanceof HttpErrorResponse ? err.status : 0;
+      const confirmedUnauthenticated = status === 401 || status === 403;
+
+      this._connectionError.set(!confirmedUnauthenticated);
+
+      if (confirmedUnauthenticated) {
+        this._profile.set(null);
+        this._roles.set([]);
+        this._permissions.set([]);
+      }
+
       return false;
     }
   }

@@ -136,3 +136,72 @@ describe('AuthService — 讀不到 profile vs 沒有角色', () => {
     http.verify();
   });
 });
+
+// ── 500 不等於未登入 ──────────────────────────────────────────────────────────
+// 原本 catch 不分青紅皂白一律清空 profile/roles，於是後端偶發 5xx 會讓行政人員
+// 被彈去 /login，以為自己被登出（見 auth.guard.ts 的 unauthenticatedRedirect）。
+
+describe('AuthService — 500 vs 401', () => {
+  it('開站時 5xx：connectionError 為 true，不是「確定沒登入」', async () => {
+    const { service, http } = setup();
+
+    http.expectOne(ME_URL).flush(null, { status: 500, statusText: 'Internal Server Error' });
+    await service.ready;
+
+    expect(service.isAuthenticated()).toBe(false);
+    expect(service.connectionError()).toBe(true);
+    http.verify();
+  });
+
+  it('開站時 401：connectionError 維持 false（是確定沒登入，不是暫時性錯誤）', async () => {
+    const { service, http } = setup();
+
+    http.expectOne(ME_URL).flush(null, { status: 401, statusText: 'Unauthorized' });
+    await service.ready;
+
+    expect(service.connectionError()).toBe(false);
+    http.verify();
+  });
+
+  it('網路中斷（status 0）也算暫時性錯誤，不是確定沒登入', async () => {
+    const { service, http } = setup();
+
+    http.expectOne(ME_URL).error(new ProgressEvent('network error'));
+    await service.ready;
+
+    expect(service.connectionError()).toBe(true);
+    http.verify();
+  });
+
+  // 核心情境：已登入的人在使用中，refreshRoles() 撞到一次暫時性 500，
+  // 不能把他手上正在編輯的畫面直接判定成登出
+  it('已登入時 refreshRoles() 撞到 5xx：不清空現有 profile/roles', async () => {
+    const { service, http } = setup();
+    http.expectOne(ME_URL).flush(ME);
+    await service.ready;
+    expect(service.isAuthenticated()).toBe(true);
+
+    const result = service.refreshRoles();
+    http.expectOne(ME_URL).flush(null, { status: 500, statusText: 'Internal Server Error' });
+
+    expect(await result).toBe(false);
+    expect(service.connectionError()).toBe(true);
+    expect(service.roles()).toEqual(['admin']); // 沒被清空
+    expect(service.profile()?.display_name).toBe('王主任');
+    http.verify();
+  });
+
+  it('成功讀到之後 connectionError 會被清掉', async () => {
+    const { service, http } = setup();
+    http.expectOne(ME_URL).flush(null, { status: 500, statusText: 'Internal Server Error' });
+    await service.ready;
+    expect(service.connectionError()).toBe(true);
+
+    const result = service.refreshRoles();
+    http.expectOne(ME_URL).flush(ME);
+
+    expect(await result).toBe(true);
+    expect(service.connectionError()).toBe(false);
+    http.verify();
+  });
+});

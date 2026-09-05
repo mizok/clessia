@@ -18,6 +18,12 @@ export class LoginComponent {
   protected readonly submitting = signal(false);
   /** 未登記的人需要報名入口，不是「再試一次」 */
   protected readonly showEnrollmentLink = signal(false);
+  /**
+   * guard 判斷 `/api/me` 是暫時性錯誤（5xx、斷線）而不是真的未登入時，
+   * 會帶 `?reason=connection-error` 把人導來這裡（見 auth.guard.ts）。
+   * 這種情況不是「登入失敗」，是「不知道」——訊息跟一般未登入不同，且要給重試。
+   */
+  protected readonly showRetry = signal(false);
 
   constructor() {
     // OAuth 的失敗是被導回來時寫在網址上的，不是函式回傳值
@@ -26,6 +32,16 @@ export class LoginComponent {
       this.error.set(oauthError.message);
       this.showEnrollmentLink.set(oauthError.showEnrollmentLink);
     }
+
+    if (this.route.snapshot.queryParamMap.get('reason') === 'connection-error') {
+      this.error.set('連線異常，請重試。若持續發生請聯繫補習班。');
+      this.showRetry.set(true);
+    }
+  }
+
+  /** 重新整理讓 AuthService 重跑一次 /api/me —— 通常是後端偶發性的 5xx，重試就好 */
+  protected retry(): void {
+    window.location.reload();
   }
 
   /**
