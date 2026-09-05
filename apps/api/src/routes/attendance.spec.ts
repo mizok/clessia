@@ -62,6 +62,24 @@ describe('attendance audit helpers', () => {
       updatedCount: 3,
       presentCount: 2,
       absentCount: 1,
+      onLeaveCount: 0,
+    });
+  });
+
+  // P0-2：少了 onLeaveCount 的話，一筆 on_leave 更新會讓 presentCount + absentCount
+  // < updatedCount，正是「1+0+1=2 但這班有 3 人」那個病灶在稽核紀錄裡重演一次。
+  it('on_leave 的更新要算進 onLeaveCount，不能讓三個計數加起來對不上 updatedCount', () => {
+    expect(
+      buildAttendanceAuditBatchDetails([
+        { studentId: 'student-1', status: 'present' },
+        { studentId: 'student-2', status: 'absent' },
+        { studentId: 'student-3', status: 'on_leave' },
+      ]),
+    ).toEqual({
+      updatedCount: 3,
+      presentCount: 1,
+      absentCount: 1,
+      onLeaveCount: 1,
     });
   });
 });
@@ -1332,6 +1350,183 @@ describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
     const { upserted } = await save(['admin']);
 
     expect(upserted[0]?.['recorded_by_role']).toBe('admin');
+  });
+});
+
+/**
+ * P0-2：全班點完名，請假的學生完全不在到／請／缺任何一欄（Tester 實測：
+ * 3 位學生，1 位有請假標籤，畫面顯示「已點名 到1・請0・缺1」——1+0+1=2，
+ * 那位學生憑空消失，而且「請 0」明明他有請假紀錄）。
+ *
+ * 根因：請假連動只寫得到建立請假當下已經存在的 event（懶生成），而畫面上
+ * 請假的學生沒有「標成請假」可以點，只能被跳過，落進「沒有紀錄」的洞。
+ *
+ * 裁決：後端在 PATCH /batch 時查未標記學生是否有生效請假蓋到這堂課，
+ * 有就補寫 on_leave —— 判定留在後端（跟 roster GET 用同一支
+ * `leaveCoversSession`），前端不用算好再送，兩邊不會漂移。
+ */
+describe('PATCH /api/attendance/batch —— 未標記且有生效請假的學生要補寫 on_leave', () => {
+  function createBatchAppWithRoster(input: {
+    enrolledStudentIds: string[];
+    leaveRows: Array<Record<string, unknown>>;
+  }) {
+    const upserted: Array<Record<string, unknown>> = [];
+    const eventDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(
+      new Date(),
+    );
+
+    const supabase = {
+      from(table: string) {
+        const query: Record<string, unknown> = {
+          select: () => query,
+          eq: () => query,
+          in: () => query,
+          lte: () => query,
+          gte: () => query,
+          is: () => query,
+          order: () => query,
+          or: () => query,
+          not: () => query,
+          limit: () => query,
+          update: () => query,
+          maybeSingle: () =>
+            Promise.resolve({
+              data:
+                table === 'staff'
+                  ? { id: 'staff-1' }
+                  : { attendance_responsible: 'teacher', attendance_retroactive_days: 0 },
+              error: null,
+            }),
+          single: () =>
+            Promise.resolve({
+              data: {
+                id: 'event-1',
+                attendance_taken_at: null,
+                event_date: eventDate,
+                start_time: '09:00',
+                end_time: '10:00',
+                sessions: [{ class_id: 'class-1', classes: { name: 'Ｇ', courses: null } }],
+              },
+              error: null,
+            }),
+          upsert: (rows: Array<Record<string, unknown>>) => {
+            if (table === 'attendance_records') upserted.push(...rows);
+            return Promise.resolve({ error: null });
+          },
+          insert: () => Promise.resolve({ error: null }),
+          then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
+            const data =
+              table === 'enrollments'
+                ? input.enrolledStudentIds.map((studentId) => ({ student_id: studentId }))
+                : table === 'leave_requests'
+                  ? input.leaveRows
+                  : table === 'sessions'
+                    ? [{ teacher_id: 'staff-1', schedules: { teacher_id: 'staff-1' } }]
+                    : [];
+            return Promise.resolve({ data }).then(onfulfilled ?? undefined);
+          },
+        };
+        return query;
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      context.set('roles', ['teacher']);
+      await next();
+    });
+    app.route('/api/attendance', attendanceApp);
+
+    return { app, upserted };
+  }
+
+  async function save(input: {
+    enrolledStudentIds: string[];
+    leaveRows: Array<Record<string, unknown>>;
+    updates: Array<{ studentId: string; status: 'present' | 'absent' }>;
+  }) {
+    const { app, upserted } = createBatchAppWithRoster(input);
+    const response = await app.request(
+      '/api/attendance/batch',
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          eventId: '00000000-0000-4000-8000-000000000001',
+          updates: input.updates,
+        }),
+      },
+      undefined,
+      { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
+    );
+    return { status: response.status, upserted };
+  }
+
+  it('一班 3 人、1 人有生效請假未套用，老師只標了另外兩人 —— 三筆紀錄都要在，第三筆是 on_leave', async () => {
+    const eventDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(
+      new Date(),
+    );
+    const { status, upserted } = await save({
+      enrolledStudentIds: ['stu-1', 'stu-2', 'stu-3'],
+      leaveRows: [
+        {
+          student_id: 'stu-3',
+          start_date: eventDate,
+          end_date: eventDate,
+          start_time: null,
+          end_time: null,
+        },
+      ],
+      updates: [
+        { studentId: 'stu-1', status: 'present' },
+        { studentId: 'stu-2', status: 'absent' },
+      ],
+    });
+
+    expect(status).toBe(200);
+    // 到 1、缺 1、請 1 —— 不能是「1+0+1=2 而班上有 3 人」
+    expect(upserted).toHaveLength(3);
+    expect(upserted.map((row) => row['student_id']).sort()).toEqual(['stu-1', 'stu-2', 'stu-3']);
+
+    const inferred = upserted.find((row) => row['student_id'] === 'stu-3');
+    expect(inferred).toMatchObject({
+      status: 'on_leave',
+      recorded_by_role: 'system',
+    });
+  });
+
+  it('未標記的學生沒有生效請假 —— 不補寫任何東西，維持「沒有紀錄」', async () => {
+    const { upserted } = await save({
+      enrolledStudentIds: ['stu-1', 'stu-2', 'stu-3'],
+      leaveRows: [],
+      updates: [{ studentId: 'stu-1', status: 'present' }],
+    });
+
+    expect(upserted).toHaveLength(1);
+    expect(upserted[0]?.['student_id']).toBe('stu-1');
+  });
+
+  it('請假區間不蓋到這堂課（已經結束）—— 不誤標成 on_leave', async () => {
+    const { upserted } = await save({
+      enrolledStudentIds: ['stu-1', 'stu-2'],
+      leaveRows: [
+        {
+          student_id: 'stu-2',
+          start_date: '2020-01-01',
+          end_date: '2020-01-02',
+          start_time: null,
+          end_time: null,
+        },
+      ],
+      updates: [{ studentId: 'stu-1', status: 'present' }],
+    });
+
+    expect(upserted).toHaveLength(1);
+    expect(upserted[0]?.['student_id']).toBe('stu-1');
   });
 });
 
