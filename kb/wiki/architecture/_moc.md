@@ -1,6 +1,6 @@
 # Architecture — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-09-04
+> Auto-maintained by `kb:map`. Last updated: 2026-09-05
 
 ---
 
@@ -155,6 +155,12 @@ Links to: [[specs/public/login]]
 補習班有國小部／國中部（未來高中部），但系統不建立「部」的概念，也不依部隔離可見範圍。原因是實際的人力本來就跨部。
 
 Tags: `architecture`, `no-division-scoping`
+
+## [[architecture/parent-data-scope|家長端的資料範圍模型]]
+
+家長端引入第三個授權維度（org → 分校 → 學生）。範圍在 middleware 注入、家長端 route 拿不到原始 supabase、只拿得到已綁 scope 的 childDb（預審時修正，原本的「必填參數」推論守不住「根本沒呼叫」）；越權指名回 403 不回空；多重角色的身分判定改看 activeRole。拒絕每支 route 自己 join、RLS、前端過濾三種替代。
+
+Tags: `architecture`, `parent`, `authorization`, `security`
 
 ## [[architecture/role-authorization|角色授權的設計]]
 
