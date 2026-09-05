@@ -213,7 +213,10 @@
                     [text]="true"
                     severity="danger"
                     size="small"
-                    pTooltip="刪除課程"
+                    [disabled]="group.classes.length > 0"
+                    [pTooltip]="
+                      group.classes.length > 0 ? '此課程底下還有班級，無法刪除' : '刪除課程'
+                    "
                     tooltipPosition="top"
                     (onClick)="confirmDeleteCourse(group.course)"
                   />
