@@ -122,10 +122,18 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 這裡沒有用量欄位可以事先判斷會不會刪壞東西（`Subject` 只有
-   * `id/name/sortOrder`），所以文案只能誠實寫「可能影響」，不能寫成
-   * 「已檢查無影響」——那是後端做不到的保證，UI 不該幫它打包票。
+   * `courseCount`/`academyExamCount`（PR #392）到位後，用量在事先就查得到，
+   * 不用再等 409 才知道——跟 `Student.hasEnrollments` 同一個範本。這裡只算
+   * 文字，實際擋點擊的 `[disabled]` 在 template。
    */
+  protected deleteBlockReason(subject: Subject): string | null {
+    const parts: string[] = [];
+    if (subject.courseCount > 0) parts.push(`${subject.courseCount} 個課程`);
+    if (subject.academyExamCount > 0) parts.push(`${subject.academyExamCount} 場校內考`);
+    if (parts.length === 0) return null;
+    return `已被${parts.join('、')}使用中，無法刪除`;
+  }
+
   protected confirmDelete(subject: Subject): void {
     const dialogRef = this.dialogService.open(ConfirmDialogComponent, {
       header: '確認刪除科目',
@@ -134,7 +142,7 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
       showHeader: true,
       appendTo: 'body',
       data: {
-        message: `確定要刪除「${subject.name}」嗎？可能影響已使用此科目的課程與考試，此操作無法復原。`,
+        message: `確定要刪除「${subject.name}」嗎？此操作無法復原。`,
         acceptLabel: '刪除',
         rejectLabel: '取消',
         acceptSeverity: 'danger',

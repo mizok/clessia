@@ -24,10 +24,22 @@
     }
   }
 
-  &__name {
+  &__name-stack {
+    display: flex;
     flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  &__name {
     font-size: var(--text-md);
     color: var(--zinc-800);
+  }
+
+  &__usage-hint {
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
   }
 
   &__input {

@@ -63,11 +63,47 @@ describe('SubjectManagerComponent', () => {
       ConfirmDialogComponent,
       expect.objectContaining({
         data: expect.objectContaining({
-          message: expect.stringContaining('可能影響已使用此科目的課程與考試'),
+          message: expect.stringContaining('此操作無法復原'),
         }),
       }),
     );
     expect(subjectsServiceMock.delete).not.toHaveBeenCalled();
+  });
+
+  // #392 補了 courseCount/academyExamCount 之後，用量在事先就查得到——不用再
+  // 等 409 才知道，文案也能從「可能影響」升級成確定的說法
+  describe('deleteBlockReason —— 用量欄位到位後的事先判斷', () => {
+    function reason(subject: Subject): string | null {
+      return (
+        component as unknown as { deleteBlockReason: (s: Subject) => string | null }
+      ).deleteBlockReason(subject);
+    }
+
+    it('課程數與校內考數都是 0 時不擋', () => {
+      expect(
+        reason({ id: 's', name: '國文', sortOrder: 0, courseCount: 0, academyExamCount: 0 }),
+      ).toBeNull();
+    });
+
+    it('只有課程在用時，只提課程', () => {
+      expect(
+        reason({ id: 's', name: '國文', sortOrder: 0, courseCount: 2, academyExamCount: 0 }),
+      ).toBe('已被2 個課程使用中，無法刪除');
+    });
+
+    // 這正是 M8 那個洞本身——舊版 API 只查 courses，courseCount 為 0 但
+    // academyExamCount > 0 的組合會被放行。兩個數字都要顯示，缺一個就漏掉這個情境。
+    it('只有校內考在用時，也要擋（不能只看課程數）', () => {
+      expect(
+        reason({ id: 's', name: '國文', sortOrder: 0, courseCount: 0, academyExamCount: 1 }),
+      ).toBe('已被1 場校內考使用中，無法刪除');
+    });
+
+    it('兩者都在用時，兩個數字都要列出來', () => {
+      expect(
+        reason({ id: 's', name: '國文', sortOrder: 0, courseCount: 2, academyExamCount: 1 }),
+      ).toBe('已被2 個課程、1 場校內考使用中，無法刪除');
+    });
   });
 
   it('確認後才呼叫刪除 API', () => {
