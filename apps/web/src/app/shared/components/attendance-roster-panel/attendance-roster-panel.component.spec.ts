@@ -384,6 +384,25 @@ describe('AttendanceRosterPanelComponent', () => {
       expect(progress.textContent.trim()).toContain('請假');
     });
 
+    /**
+     * P0-2（Tester 抓到，計畫席找到確切成因）：原本的條件是
+     * `markedCount() === 0 && exemptCount() > 0`，只涵蓋「全班都請假」。
+     * 標了一部分、又有人請假豁免時（pendingCount 仍是 0）會落進 else，
+     * 顯示「全部標記完成」——但班上明明有人根本沒被標記過，只是被豁免。
+     * 這句話宣稱了一個沒發生的事實。
+     */
+    it('標了一部分、又有人請假時，不能說成「全部標記完成」', async () => {
+      await render([...UNMARKED_FOR_PROGRESS, ...LEAVE_NOT_SYNCED]);
+      const c = component as never as { setStatus(id: string, s: 'present' | 'absent'): void };
+      c.setStatus('s1', 'present');
+      c.setStatus('s2', 'absent');
+      fixture.detectChanges();
+
+      const progress = fixture.nativeElement.querySelector('.roster-panel__progress');
+      expect(progress.textContent.trim()).not.toBe('全部標記完成');
+      expect(progress.textContent.trim()).toBe('已標記 2 人・1 人請假');
+    });
+
     it('請假的人算進「不需標記」的計數裡', async () => {
       await render(LEAVE_NOT_SYNCED);
       const c = component as never as { exemptCount(): number };
