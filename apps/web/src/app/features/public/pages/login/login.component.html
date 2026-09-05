@@ -4,6 +4,9 @@
 
   @if (error()) {
     <app-inline-notice severity="error" [detail]="error()" (dismissed)="error.set(null)" />
+    @if (showRetry()) {
+      <button type="button" class="login__retry-btn" (click)="retry()">重試</button>
+    }
   }
 
   <button

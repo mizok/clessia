@@ -6,7 +6,7 @@ import { AuthService } from '@core/auth.service';
 
 import { LoginComponent } from './login.component';
 
-function setupWithQueryError(errorCode: string) {
+function setupWithQueryParams(params: [string, string][]) {
   TestBed.configureTestingModule({
     imports: [LoginComponent],
     providers: [
@@ -16,7 +16,7 @@ function setupWithQueryError(errorCode: string) {
       { provide: AuthService, useValue: { signInWithLine: vi.fn(() => Promise.resolve(null)) } },
       {
         provide: ActivatedRoute,
-        useValue: { snapshot: { queryParamMap: new Map([['error', errorCode]]) } },
+        useValue: { snapshot: { queryParamMap: new Map(params) } },
       },
     ],
   });
@@ -28,12 +28,18 @@ function setupWithQueryError(errorCode: string) {
     c: fixture.componentInstance as unknown as {
       error: () => string | null;
       showEnrollmentLink: () => boolean;
+      showRetry: () => boolean;
     },
     // **看真的 DOM**：signal 對了不代表畫面上有東西。
     // 這個測試原本只斷言 signal，結果 template 裡的 @if 區塊根本沒被加進去，
     // 那條連結從來沒有渲染過，而測試一直是綠的。
     enrollLink: () => (fixture.nativeElement as HTMLElement).querySelector('.login__enroll-link'),
+    retryBtn: () => (fixture.nativeElement as HTMLElement).querySelector('.login__retry-btn'),
   };
+}
+
+function setupWithQueryError(errorCode: string) {
+  return setupWithQueryParams([['error', errorCode]]);
 }
 
 interface Harness {
@@ -122,5 +128,26 @@ describe('LoginComponent 讀網址上的 OAuth 錯誤', () => {
 
     expect(c.error()).toBeTruthy();
     expect(enrollLink()).toBeNull();
+  });
+});
+
+// guard 判斷 /api/me 是暫時性錯誤（5xx、斷線）而非真的未登入時，帶
+// ?reason=connection-error 導來這裡（見 auth.guard.ts）。這不是「登入失敗」，
+// 訊息跟一般未登入不同，且要給重試按鈕 —— 這是本次事故裡「登入頁沒有任何
+// 說明」最傷的部分。
+describe('LoginComponent 讀網址上的連線異常標記', () => {
+  it('顯示連線異常訊息，且畫面上真的出現重試按鈕', () => {
+    const { c, retryBtn } = setupWithQueryParams([['reason', 'connection-error']]);
+
+    expect(c.error()).toContain('連線異常');
+    expect(c.showRetry()).toBe(true);
+    expect(retryBtn()).not.toBeNull();
+  });
+
+  it('一般進站（沒有任何 query）不顯示重試按鈕', () => {
+    const { c, retryBtn } = setupWithQueryParams([]);
+
+    expect(c.showRetry()).toBe(false);
+    expect(retryBtn()).toBeNull();
   });
 });
