@@ -1,8 +1,16 @@
 # Lessons — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-09-04
+> Auto-maintained by `kb:map`. Last updated: 2026-09-05
 
 ---
+
+## [[lessons/a-field-is-a-snapshot-not-a-path|欄位是狀態的快照，不是路徑的證明]]
+
+看到 published_at 有值就推論「發布流程走過」——實際上那筆是 seed 用 SQL 直接塞的，而發布端點連通知邏輯都還沒寫。同一個形狀在三個席上各出現過一次。
+
+Tags: `lessons`, `verification`, `inference`
+
+Links to: [[lessons/new-field-branches-are-born-untested]]
 
 ## [[lessons/agent-workflow-guide|Agent 開發流程指南]]
 
