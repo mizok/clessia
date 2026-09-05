@@ -184,7 +184,8 @@
               />
             </td>
             <td appRtColCell="chargeable">
-              <p-toggleswitch
+              <p-checkbox
+                [binary]="true"
                 [disabled]="row.settled || !row.ordered || isRange()"
                 [ngModel]="row.chargeable"
                 (ngModelChange)="updateRow(row.studentId, 'chargeable', $event)"

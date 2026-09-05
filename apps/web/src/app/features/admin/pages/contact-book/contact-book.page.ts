@@ -32,6 +32,7 @@ import type {
 import { ContactBookEntryDialogComponent } from './contact-book-entry-dialog/contact-book-entry-dialog.component';
 import { dateRangeOf, signedSummary } from './contact-book.util';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
+import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const DEFAULT_RANGE_DAYS = 7;
@@ -69,6 +70,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     RtColDefDirective,
     RtColCellDirective,
     RtRowDirective,
+    FilterChipComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './contact-book.page.html',
