@@ -42,6 +42,14 @@ Tags: `lessons`, `better-auth-session-delegation`
 
 Links to: [[architecture/line-oauth-login]], [[architecture/constitution|`kb/wiki/architecture/constitution`]]
 
+## [[lessons/broken-looks-identical-to-normal|壞掉的樣子跟正常的樣子一模一樣]]
+
+2026-09-05 一天的 M8 稽核挖出同一族缺陷的 13 個實例——程式碼的語意或邏輯是對的，但渲染結果、觸發條件或視覺回饋錯了，而且錯的方式讓它看起來像對的。判準：「它壞了我們會知道嗎？」
+
+Tags: `lessons`, `silent-failure`, `visual-parity`, `m8-audit`
+
+Links to: [[lessons/empty-array-hides-loading]], [[lessons/status-table-blind-spot]], [[lessons/new-field-branches-are-born-untested]], [[lessons/rls-backstop-drift]], [[lessons/menu-entry-without-a-route]]
+
 ## [[lessons/doc-code-drift-2026-08|2026-08 文件與程式碼漂移稽核]]
 
 建立 agent harness 時逐項驗證文件宣稱，找出五處與程式碼不符之處。含一個活的 bug（查詢不存在的資料表）與兩個沉默失效的設定。

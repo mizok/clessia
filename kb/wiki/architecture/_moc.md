@@ -80,6 +80,10 @@ M1 第二個畫面。填掉 admin/changes 空殼，把一直在寫卻沒人看�
 
 Tags: `architecture`, `change-log-view`
 
+## [[architecture/chunk-load-recovery|部署後舊分頁的 chunk 載入失敗復原]]
+
+舊 index 要不到新 chunk 時，導覽失敗自動重載一次、預載失敗顯示提示條；以及為什麼偵測不能靠 ChunkLoadError 或 404。
+
 ## [[architecture/constitution|Clessia 架構憲法]]
 
 具約束力的架構不變量。只陳述「什麼構成違反」，不含強制機制。
@@ -162,6 +166,14 @@ Tags: `architecture`, `no-division-scoping`
 
 Tags: `architecture`, `parent`, `authorization`, `security`
 
+## [[architecture/parent-read-endpoints|家長端三支讀取端點（出缺席／成績／繳費）]]
+
+家長端 P4 主體的 API 側設計。三支 GET-only 端點複用既有 admin 查詢邏輯（attendance.ts / scores.ts / invoices.ts 的 select 常數與 mapper），走 childDb + 顯式 childId 查詢參數（403 不回空），欄位過濾表逐支列出，錨點聚合數字放進各自 meta 不另開 dashboard 端點。等 STOP 批准。
+
+Tags: `architecture`, `parent`, `authorization`, `attendance`, `grades`, `billing`
+
+Links to: [[architecture/parent-data-scope]], [[roadmap]]
+
 ## [[architecture/role-authorization|角色授權的設計]]
 
 掛載的 route 曾經只驗身分不看角色。改成掛載時強制宣告可用角色、沒宣告就拒絕，並用 harness gate 守住。分兩層：route 層准入、資料層範圍。
@@ -169,6 +181,14 @@ Tags: `architecture`, `parent`, `authorization`, `security`
 Tags: `architecture`, `role-authorization`
 
 Links to: [[architecture/teacher-students-view]]
+
+## [[architecture/teacher-class-log|教務日誌（老師端寫入）]]
+
+一班一天一篇的教學紀錄與作業，從課堂卡的 bottom sheet 寫入。v1a 只寫草稿、刻意不放發布按鈕——因為發布不可逆而下游（家長端可見、LINE 推播）都還不存在。
+
+Tags: `architecture`, `teacher`, `class-logs`, `mobile-first`
+
+Links to: [[rules/teaching-log-rules]], [[architecture/teacher-today-flow]], [[architecture/teacher-schedule-mobile-day]]
 
 ## [[architecture/teacher-schedule-mobile-day|老師端課表 —— 行動優先單日檢視]]
 
