@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-09-06] lint | Health check: 0 errors, 3 warnings, 59 info
+- Mode: structural
+- Pages scanned: 128
+- Issues found: 62
+
+## [2026-09-06] map | Rebuilt index + 6 MOCs
+- Pages indexed: 117
+- Total links: 190
+- Orphan pages: 68
+
 ## [2026-09-05] capture | M8 稽核族類病收成一頁 lessons
 
 - Pages created: [[lessons/broken-looks-identical-to-normal]]
