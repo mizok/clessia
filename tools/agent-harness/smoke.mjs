@@ -20,9 +20,9 @@
  * 失敗才輸出、才 exit 1 —— 由 workflow 去開 issue。
  */
 
-import { extractScriptUrls, summarize } from './lib/smoke-probes.mjs';
+import { extractScriptUrls, resolveBaseUrl, summarize } from './lib/smoke-probes.mjs';
 
-const BASE = process.env.SMOKE_BASE_URL ?? process.argv[2] ?? 'https://demo.clessia.cc';
+const BASE = resolveBaseUrl({ env: process.env.SMOKE_BASE_URL, arg: process.argv[2] });
 const TIMEOUT_MS = 15_000;
 
 async function get(url) {

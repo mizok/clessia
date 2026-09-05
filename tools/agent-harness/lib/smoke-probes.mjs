@@ -76,3 +76,22 @@ export function summarize(results) {
     body: results.map((r) => `- ${r.ok ? '✅' : '❌'} **${r.name}** —— ${r.detail}`).join('\n'),
   };
 }
+
+/**
+ * 決定要探哪個站台。
+ *
+ * **`??` 在這裡是錯的，而且錯得很貴。** GitHub Actions 把沒填的 input 傳成
+ * **空字串**（`${{ inputs.base_url }}` 在排程觸發時就是 `''`），而 `??` 只對
+ * `null` / `undefined` 退回 —— 空字串會直接通過，於是 `fetch('' + '/api/...')`
+ * 變成 `fetch('/api/...')`，直接 `Failed to parse URL`。
+ *
+ * 2026-09-05 這支 workflow 合併後**每一次排程都會失敗並開一張 issue**，
+ * 對著一個健康的正式站喊狼來了 —— 而它自己的檔頭就寫著
+ * 「壞掉的監控比沒有監控糟」。**是我自己的監控壞了。**
+ *
+ * @param {{env?: string, arg?: string}} input
+ */
+export function resolveBaseUrl({ env, arg } = {}) {
+  const candidate = [env, arg].find((v) => typeof v === 'string' && v.trim() !== '');
+  return (candidate ?? 'https://demo.clessia.cc').replace(/\/+$/, '');
+}
