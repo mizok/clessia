@@ -1,0 +1,88 @@
+# 線上 smoke 探測。**部署完的東西真的活著嗎。**
+#
+# 判準與「不要探 /health」的理由見 tools/agent-harness/lib/smoke-probes.mjs 的檔頭。
+#
+# ## 為什麼是排程，不是「部署後」
+#
+# 部署後探測只在**有人記得**的時候跑。而這個 repo 也沒有 deploy workflow 可以掛
+# （web 走 Cloudflare 的 Git 整合、api 是有人手動 `wrangler deploy`），
+# 所以「部署後」根本沒有掛鉤點。排程不管誰部署、有沒有記得，都會發現。
+#
+# ## 失敗通知走 issue，不押在「有人會看 GitHub email」上
+#
+# 那是沒有人驗證過的假設。issue 會**累積、看得見**，而 ops-warden 每 10–15 分鐘
+# 本來就在巡 —— 把訊號收進我們自己的閉環，而不是外部收件匣。
+#
+# **成功靜默**：每 30 分鐘跑一次，成功也叫的話訊號會被自己的噪音淹掉。
+
+name: smoke
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: '要探的站台（留空用正式站）'
+        required: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # 探測只打公開 URL，**不需要任何 secret** —— 也因此不需要 npm ci。
+      - id: probe
+        run: node tools/agent-harness/smoke.mjs
+        continue-on-error: true
+        env:
+          SMOKE_BASE_URL: ${{ inputs.base_url }}
+
+      # ── 失敗：開一張 issue，但不要每半小時開一張 ──
+      # 去重靠「同標籤下有沒有 open 的」。已經有一張就什麼都不做 ——
+      # 那張已經在說「smoke 壞了」，再開一張只會讓列表變成噪音。
+      - if: steps.probe.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list --label smoke-failure --state open --json number --jq 'length')
+          if [ "$existing" != "0" ]; then
+            echo "已經有 open 的 smoke-failure issue，不重複開"
+            exit 0
+          fi
+          node tools/agent-harness/smoke.mjs > /tmp/smoke.txt 2>&1 || true
+          gh issue create \
+            --label smoke-failure \
+            --title "線上 smoke 探測失敗" \
+            --body "$(printf '%s\n\n---\n\nrun: %s/%s/actions/runs/%s\n' \
+              "$(cat /tmp/smoke.txt)" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")"
+
+      # ── 恢復：把**這支 workflow 自己開的**那張關掉 ──
+      # 不關的話，warden 會一直看到一個已經不成立的警報 ——
+      # 「帳面正確但過時」的訊號跟沒有訊號一樣糟，而且更容易讓人以後忽略它。
+      # 只動 bot 開的，人自己開的同標籤 issue 不碰。
+      - if: steps.probe.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh issue list --label smoke-failure --state open \
+            --json number,author --jq '.[] | select(.author.login == "github-actions") | .number' \
+          | while read -r n; do
+              [ -z "$n" ] && continue
+              gh issue close "$n" --comment "smoke 已恢復（run ${GITHUB_RUN_ID}）"
+            done
+
+      # probe 失敗時 job 也要紅 —— issue 是給人看的，job 狀態是給 CI 歷史看的
+      - if: steps.probe.outcome == 'failure'
+        run: exit 1

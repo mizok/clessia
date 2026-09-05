@@ -21,6 +21,8 @@ import { matchWriteRules, routeHints } from './lib/rules.mjs';
 import { blankComments } from './lib/comments.mjs';
 import { inlineCarriers } from './lib/inline-carriers.mjs';
 import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
+import { preflightVerdict } from './lib/preflight-verdict.mjs';
+import { extractScriptUrls, summarize } from './lib/smoke-probes.mjs';
 import {
   findOrphanEndpoints,
   matchesPrefix,
@@ -329,6 +331,153 @@ test('掃描範圍：同一道 gate 記多次會累加，不會互相覆蓋', ()
   const { t } = collectedScopes();
   assert.deepEqual(t.roots, ['apps/api/src', 'supabase']);
   assert.deepEqual(t.exts, ['.sql', '.ts']);
+});
+
+/**
+ * 推之前的分支狀態檢查（2026-09-05）。
+ *
+ * 起因是我一天內踩了兩次「本地認知過期」：推到已合併並刪支的分支、
+ * 換掉別人正在收的 head。兩條規則**都已經在 charter 裡**，兩次我都沒想起來要查 ——
+ * 所以「寫成一行指令」只解決了「想不起來怎麼查」，沒解決「想不起來要查」。
+ *
+ * review-steward 給的形狀：**不要做 pre-push hook**（push 沒有單一收口，
+ * 那會變成每一席各裝一份），改成掛在**已經會跑的那一步**（`npm run preflight`
+ * = harness + harness:test + 這支）。
+ *
+ * 判斷抽成純函式，是因為**第三種情況在不真的推出去的前提下做不出來** ——
+ * 而那正是最糟的一種。
+ */
+test('preflight：分支被刪掉的話，推上去的 commit 永遠不會進 main', () => {
+  const v = preflightVerdict({
+    tracking: '## foo...origin/foo [gone]',
+    localHead: 'aaaaaaaa',
+    run: null,
+  });
+  assert.equal(v.level, 'warn');
+  assert.equal(v.code, 'branch-gone');
+});
+
+/**
+ * **這一則是整支的重點。** `status` 單獨看只說「有沒有 CI 在跑」；
+ * 加上 `headSha` 才分得出「遠端已經跑掉了」—— 別人 update-branch 過而我不知道。
+ * 那是我 09-05 撞到的形狀，**只看 status 完全看不到**。
+ */
+test('preflight：遠端 CI 停在別的 SHA = 遠端已經跑掉了，不是「沒人在等」', () => {
+  const v = preflightVerdict({
+    tracking: '## foo...origin/foo',
+    localHead: 'aaaaaaaa',
+    run: { status: 'completed', headSha: 'bbbbbbbb', conclusion: 'success' },
+  });
+  assert.equal(v.level, 'warn');
+  assert.equal(v.code, 'remote-ahead');
+  assert.match(v.message, /fetch/);
+
+  // in_progress 也一樣 —— 判準是 SHA 對不對得上，不是 CI 跑不跑
+  assert.equal(
+    preflightVerdict({
+      tracking: '## foo...origin/foo',
+      localHead: 'aaaaaaaa',
+      run: { status: 'in_progress', headSha: 'bbbbbbbb', conclusion: null },
+    }).code,
+    'remote-ahead',
+  );
+});
+
+test('preflight：CI 正跑在我這顆 = 有人在等，別推', () => {
+  for (const status of ['in_progress', 'queued']) {
+    const v = preflightVerdict({
+      tracking: '## foo...origin/foo',
+      localHead: 'aaaaaaaa',
+      run: { status, headSha: 'aaaaaaaa', conclusion: null },
+    });
+    assert.equal(v.code, 'ci-running', `${status} 應該視為有人在等`);
+  }
+});
+
+/**
+ * 反方向：**該安靜的要安靜**。一個把「可以推」也講成警告的檢查，
+ * 跑三次之後就沒有人會讀它了。
+ */
+test('preflight：沒有理由攔的時候不要發警告', () => {
+  assert.equal(
+    preflightVerdict({ tracking: '## foo...origin/foo', localHead: 'aaaaaaaa', run: null }).level,
+    'ok',
+  );
+  assert.equal(
+    preflightVerdict({
+      tracking: '## foo...origin/foo',
+      localHead: 'aaaaaaaa',
+      run: { status: 'completed', headSha: 'aaaaaaaa', conclusion: 'success' },
+    }).level,
+    'ok',
+  );
+});
+
+/**
+ * 線上 smoke 探測（2026-09-05）。
+ *
+ * 這一支的核心不是「會不會探」，是**探測本身會不會永遠通過**。
+ * 工單原本列的 `/health` 就是那種：它掛在 `/health` 而不是 `/api/health`，
+ * 而正式站只有 `/api/*` 進 Worker —— 所以線上 `GET /health` 由 Pages 回
+ * SPA 的 index.html、**HTTP 200，就算 Worker 整個死掉也一樣**。
+ */
+test('smoke：script 網址從剛部署的 index.html 讀出來，不維護清單', () => {
+  const html = `
+    <html><head>
+      <script src="/main-A1B2.js" type="module"></script>
+      <script src="polyfills-C3D4.js"></script>
+      <script>console.log('inline')</script>
+    </head></html>`;
+  const urls = extractScriptUrls(html, 'https://x.test');
+
+  // 根相對與相對路徑都要解成絕對網址
+  assert.deepEqual(urls, ['https://x.test/main-A1B2.js', 'https://x.test/polyfills-C3D4.js']);
+  // inline script 沒有東西可以 fetch —— 不該混進來
+  assert.equal(urls.length, 2);
+});
+
+test('smoke：同一個 src 出現兩次只算一次', () => {
+  const html = '<script src="/a.js"></script><script src="/a.js"></script>';
+  assert.equal(extractScriptUrls(html, 'https://x.test').length, 1);
+});
+
+/**
+ * **這一則是寫壞之後改的，留著當紀錄。**
+ *
+ * 我原本斷言「解析不出來的 src 會被跳過」，而 lib 的註解也是那樣寫的。
+ * **兩個都錯**：`new URL` 對看不懂的字串不丟例外，它當成相對路徑解掉。
+ * 所以那個 `catch` 幾乎永遠不會執行。
+ *
+ * 註解寫錯比行為錯更糟 —— 行為錯會被測試抓到，**註解錯會被下一個人相信**。
+ * 現在斷言的是真實行為，並在 lib 裡寫明為什麼不加驗證：
+ * 壞 src 會在 fetch 那步變成 404 被抓到，而多驗一層是拿「探測自己誤判」
+ * 去換一個 Angular 產物不會有的問題。
+ */
+test('smoke：看不懂的 src 會被當成相對路徑，不是被跳過', () => {
+  const html = '<script src="ht tp://壞掉"></script><script src="/good.js"></script>';
+  const urls = extractScriptUrls(html, 'https://x.test');
+
+  assert.equal(urls.length, 2);
+  assert.ok(urls.includes('https://x.test/good.js'));
+  assert.ok(urls.some((u) => u.startsWith('https://x.test/ht%20tp')));
+});
+
+test('smoke：全過就是 ok，一支壞掉就整體不 ok', () => {
+  const pass = [{ name: 'a', ok: true, detail: '正常' }];
+  assert.equal(summarize(pass).ok, true);
+
+  const mixed = [
+    { name: 'a', ok: true, detail: '正常' },
+    { name: 'b', ok: false, detail: 'HTTP 500' },
+  ];
+  const s = summarize(mixed);
+  assert.equal(s.ok, false);
+  assert.equal(s.failed.length, 1);
+  // 標題要看得出壞了幾支 —— 人讀 issue 列表時只看得到標題
+  assert.match(s.title, /1\/2/);
+  // 內文要**兩種都列**：只列壞的話，看的人不知道其他探測有沒有跑
+  assert.match(s.body, /a/);
+  assert.match(s.body, /b/);
 });
 
 test('c7 擋舊版結構指令', () => {
