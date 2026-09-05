@@ -6,6 +6,9 @@ import { createLatencyProbe } from '../lib/supabase-latency-probe';
 import { isAccountUsable } from './account-status';
 import { hasPermission } from '../lib/permissions';
 import { isCampusAllowed, resolveCampusScope } from '../lib/campus-scope';
+import { resolveStudentScope } from '../lib/child-scope';
+import { createChildDb } from '../lib/child-db';
+import { resolveActiveRole } from '../lib/active-role';
 import type { AppEnv } from '../index';
 
 export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
@@ -59,7 +62,12 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
       .from('staff')
       .select('status, staff_campuses(campus_id)')
       .eq('user_id', session.user.id),
-    supabase.from('parents').select('status').eq('user_id', session.user.id),
+    // `parent_student_relations` 跟 status 一起查 —— 理由跟 staff_campuses 那行一樣：
+    // 授權要在 middleware 層成立（c1），各路由自己查的話總有一支會忘記。
+    supabase
+      .from('parents')
+      .select('status, parent_student_relations(student_id)')
+      .eq('user_id', session.user.id),
   ]);
 
   // **失敗的原因要留下來。** 這三個 error 物件原本讀完就丟 —— 於是這條路只會在正式站
@@ -107,6 +115,25 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   );
   c.set('permissions', permissions);
   c.set('supabase', supabase);
+
+  // 前端目前選定的身分（見 lib/active-role.ts）。找不到或不是這個人的角色之一 → null，
+  // 呼叫端（例如 announcements 的 audienceFor）退回角色陣列的既有優先序規則。
+  c.set('activeRole', resolveActiveRole(c.req.header('X-Active-Role'), roles));
+
+  // 這個家長看得到哪些學生。`null` = 不是家長身分（不受限）；空陣列 = 是家長但沒有
+  // 任何 parent_student_relations（什麼都看不到）。見 lib/child-scope.ts、
+  // kb/wiki/architecture/parent-data-scope.md。
+  const studentScope = resolveStudentScope({
+    roles,
+    relatedStudentIds: (parentRows ?? []).flatMap((row) => {
+      const links = (row as { parent_student_relations?: { student_id: string }[] | null })
+        .parent_student_relations;
+      return Array.isArray(links) ? links.map((link) => link.student_id) : [];
+    }),
+  });
+  c.set('studentScope', studentScope);
+  // 家長端 route 只拿得到這個，拿不到原始 supabase（見 lib/child-db.ts）。
+  c.set('childDb', createChildDb(supabase, studentScope));
 
   // 看得到哪些分校。`null` = 不受分校限制（跨分校的管理員，或由更窄的範圍
   // 限制把關的老師與家長）；空陣列 = 一個分校都沒被指派，什麼都看不到。

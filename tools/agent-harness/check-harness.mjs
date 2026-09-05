@@ -995,6 +995,34 @@ if (existsSync(FEATURES_DIR)) {
   }
 }
 
+// ── A19. 家長端檔案不得出現 c.get('supabase') ────────────────────────────────────────────
+// `routes/parent/**` 是家長端專屬檔案的目錄（見 kb/wiki/architecture/parent-data-scope.md
+// 第二節）。這些檔案只能透過 `c.get('childDb')` 查詢，不能拿原始 supabase ——
+// 「查詢走一個強制吃 scope 的 helper」守不住「根本沒呼叫」，route 裡直接寫
+// `c.get('supabase').from('scores')…` 一樣編得過。這一支只負責收尾：抓那個看得見的
+// 繞過動作，不是要求 review 的人記得檢查每一支查詢有沒有帶 scope。
+//
+// **零 baseline，因為立法時是零違規**（目錄本身跟這道 gate 同一輪引入）——
+// 跟 A18 的 feature 隔離同一個立法時機，不必分診舊債。
+{
+  const parentRoutesDir = join(ROOT, 'apps/api/src/routes/parent');
+  if (existsSync(parentRoutesDir)) {
+    for (const name of readdirSync(parentRoutesDir)) {
+      if (!name.endsWith('.ts') || name.endsWith('.spec.ts')) continue;
+      const rel = `apps/api/src/routes/parent/${name}`;
+      // 註解要先抹白 —— 這支檔案自己的說明文字就寫了 `c.get('supabase')` 這個字面值
+      // （解釋「不要這樣寫」），沒抹白的話 gate 會抓到自己的註解。
+      const source = blankComments(readFileSync(join(parentRoutesDir, name), 'utf8'), rel);
+      if (/c\.get\(\s*['"]supabase['"]\s*\)/.test(source)) {
+        fail(
+          `routes/parent/${name} 出現 c.get('supabase') —— 家長端檔案只能用 ` +
+            `c.get('childDb')，見 kb/wiki/architecture/parent-data-scope.md 第二節`,
+        );
+      }
+    }
+  }
+}
+
 // ── 雙軌表格：不要再手刻第二份手機版 ────────────────────────────────────────────────────
 // 同一份資料在元件裡宣告兩次（`<table>` + 一組平行的手機標記），靠斷點互相切換。
 // 改欄位時要記得改兩處，而**忘記的那一次不會有任何錯誤** —— 跟 page-actions 同源。

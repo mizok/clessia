@@ -12,6 +12,8 @@ import {
 } from './middleware/auth';
 import type { Permission } from './lib/permissions';
 import type { CampusScope } from './lib/campus-scope';
+import type { StudentScope } from './lib/child-scope';
+import type { ChildDb } from './lib/child-db';
 import type { Auth, MagicLinkPayload } from './auth';
 import { authPoolCleanup, getAuth } from './lib/get-auth';
 import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
@@ -90,6 +92,24 @@ export type Variables = {
    * 見 `lib/campus-scope.ts` 與 kb/wiki/architecture/authorization-scope.md 洞 5。
    */
   campusScope: CampusScope;
+  /**
+   * 前端目前選定的身分（`X-Active-Role` header，經 `resolveActiveRole` 驗證過）。
+   * `null` = 沒帶、或帶的不是這個人的角色之一。身分相關的判斷（如
+   * `announcements/visibility.ts` 的 `audienceFor`）一律先看這個，找不到才退回
+   * `roles` 陣列的優先序。見 kb/wiki/architecture/parent-data-scope.md 第四節。
+   */
+  activeRole: string | null;
+  /**
+   * 這個家長看得到哪些學生。`null` = 不是家長身分（不受限）；空陣列 = 是家長但
+   * 沒有任何 `parent_student_relations`（什麼都看不到，不是不受限）。
+   * 見 `lib/child-scope.ts`。
+   */
+  studentScope: StudentScope;
+  /**
+   * 家長端專用的查詢入口，已綁好 `studentScope`。**家長端 route 不用 `supabase`，
+   * 只用這個** —— 見 `lib/child-db.ts`。
+   */
+  childDb: ChildDb;
   supabase: SupabaseClient;
   /** 這個請求共用的 Better Auth 實例與連線池，由 `lib/get-auth.ts` 管理 */
   auth: Auth;

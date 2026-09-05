@@ -19,11 +19,10 @@ import { AnnouncementsService, type Announcement } from '@core/announcements.ser
  * `all_parents`（`routes/announcements/visibility.ts`），所以前端不需要知道
  * 自己是誰：同一支端點、同一份畫面，伺服器決定看得到什麼。
  *
- * **已知限制（計畫席裁定照現行為出貨）**：`audienceFor` 是
- * `roles.includes('teacher')` 優先，而 `auth.ts` 放進 context 的是**全部角色的
- * 陣列**不是 `activeRole` —— 所以**同時是老師又是家長的人（補習班老師的小孩也在
- * 補習班）切到家長身分時，看到的仍是老師的公告，而且不會知道自己漏了什麼**。
- * 正解要 `activeRole` 進 API context，那是授權模型設計的一部分，等使用者裁。
+ * **#291 已修（2026-09-05）**：`audienceFor` 現在先看 `activeRole`（`auth.interceptor.ts`
+ * 附的 `X-Active-Role` header，`authMiddleware` 驗證後放進 context），找不到才退回
+ * 角色陣列的優先序。同時是老師又是家長的人切到家長身分時，看到的是家長的公告。
+ * 見 kb/wiki/architecture/parent-data-scope.md 第四節。
  *
  * **抽在 shared/ 而不是各角色抄一份**：feature 之間不得互相 import（c5），
  * 而兩份同樣的收件匣遲早會各自長出東西 —— 這個 codebase 已經為此收斂過三組
