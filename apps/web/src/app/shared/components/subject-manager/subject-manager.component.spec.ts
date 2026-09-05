@@ -11,7 +11,9 @@ describe('SubjectManagerComponent', () => {
   let fixture: ComponentFixture<SubjectManagerComponent>;
   let component: SubjectManagerComponent;
 
-  const subjects: Subject[] = [{ id: 'subject-1', name: '數學', sortOrder: 0 }];
+  const subjects: Subject[] = [
+    { id: 'subject-1', name: '數學', sortOrder: 0, courseCount: 0, academyExamCount: 0 },
+  ];
   const subjectsServiceMock = {
     list: vi.fn(() => of({ data: subjects })),
     create: vi.fn(),
