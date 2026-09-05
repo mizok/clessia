@@ -1,0 +1,32 @@
+@if (childScope.children().length > 0) {
+  <div class="child-switcher">
+    @if (childScope.canSwitch()) {
+      <button
+        #switcherTrigger
+        type="button"
+        class="child-switcher__badge child-switcher__badge--interactive"
+        (click)="pop.toggle($event, switcherTrigger)"
+      >
+        {{ childScope.activeChild()?.name }}
+        <i class="child-switcher__badge-icon pi pi-chevron-down"></i>
+      </button>
+
+      <p-popover #pop styleClass="child-switcher-overlay">
+        <div class="child-switcher__list">
+          <p class="child-switcher__list-title">切換孩子</p>
+          @for (child of otherChildren(); track child.id) {
+            <button
+              class="child-switcher__list-item"
+              type="button"
+              (click)="pop.hide(); select(child.id)"
+            >
+              {{ child.name }}
+            </button>
+          }
+        </div>
+      </p-popover>
+    } @else {
+      <span class="child-switcher__badge">{{ childScope.activeChild()?.name }}</span>
+    }
+  </div>
+}
