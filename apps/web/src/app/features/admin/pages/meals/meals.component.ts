@@ -41,6 +41,7 @@ import {
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
 import { todayLocal } from '@shared/utils/session-time.util';
+import { extractErrorMessage } from '@shared/utils/api-error.util';
 
 /** 區間模式的每頁筆數。後端 pageSize 上限 100 */
 const RANGE_PAGE_SIZE = 50;
@@ -303,14 +304,13 @@ export class MealsComponent implements OnInit {
         this.load();
       },
       error: (err) => {
-        // 後端偶爾回的 error 欄位不是字串（例如驗證錯誤是物件）——直接塞進 detail
-        // 會被 Angular 用 toString() 轉成 "[object Object]"，比沒有訊息更誤導。
-        const apiError = err?.error?.error;
-        const detail = typeof apiError === 'string' ? apiError : '請稍後再試，或聯絡系統管理員';
+        // extractErrorMessage() 接三種形狀：這個專案自己的 { error: string } 慣例、
+        // Zod 驗證失敗的巢狀物件 { error: { message } }、以及完全沒回 JSON 的情況 ——
+        // 單純 typeof 檢查只接得住第一種，Zod 那條路徑照樣會塞出 [object Object]。
         this.messageService.add({
           severity: 'error',
           summary: '名單沒有確認',
-          detail,
+          detail: extractErrorMessage(err, '請稍後再試，或聯絡系統管理員'),
           // 失敗訊息不能幾秒後自己消失——使用者要有時間看到並決定要不要重試
           sticky: true,
         });
