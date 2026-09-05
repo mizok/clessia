@@ -1,6 +1,6 @@
 # Architecture — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-09-05
+> Auto-maintained by `kb:map`. Last updated: 2026-09-06
 
 ---
 
@@ -27,6 +27,12 @@ Links to: [[architecture/teacher-students-view]]
 Tags: `architecture`, `admin`, `finance`, `payments`, `invoices`
 
 Links to: [[specs/admin/finance/payments]], [[rules/billing-rules]], [[architecture/teacher-students-view]]
+
+## [[architecture/admin-todo-alerts|管理端待辦告警系統一（設計草案，待計畫席 STOP gate 批准）]]
+
+把管理端六頁的告警拉齊成「一句話+必定帶篩選的入口+落地篩選對得上告警數字」。核心決定：同頁情境延用既有的「單一資料源 computed」模式（多數頁已經是），跨頁情境（儀表板→課堂管理）改用「共用 query 組裝函式」+ 契約測試釘住；新增共用元件 app-todo-banner 統一視覺（順帶解掉 courses 徽章的 affordance 問題——藥丸+hover-only 可點暗示讓它讀成狀態標籤）；GET /api/sessions 補 attendanceTaken 參數。
+
+Tags: `architecture`, `admin`, `alerts`, `dashboard`
 
 ## [[architecture/amending-the-constitution|修憲的機制]]
 
@@ -159,6 +165,22 @@ Links to: [[specs/public/login]]
 補習班有國小部／國中部（未來高中部），但系統不建立「部」的概念，也不依部隔離可見範圍。原因是實際的人力本來就跨部。
 
 Tags: `architecture`, `no-division-scoping`
+
+## [[architecture/parent-attendance-grades-billing-pages|家長端三頁前端設計 —— 出缺席／成績／繳費]]
+
+家長端 03 片。三頁共用 #344 的 child-switcher，資料走 #351 三支 childId 必填端點。逐項核對 kb specs 與 design-web 構圖跟 #351 實際契約的落差（4 態出勤/日到班時間/每筆 NEW 標籤/課程篩選/已取消分組都對不上），提出降級方案待批准。
+
+Tags: `architecture`, `parent`, `attendance`, `grades`, `billing`
+
+Links to: [[architecture/parent-read-endpoints]], [[architecture/parent-data-scope]]
+
+## [[architecture/parent-class-logs-read|家長端讀取已發布教務日誌（v1b）]]
+
+家長端第二實例，照 parent-read-endpoints.md 的樣板抄：childDb 兩層防線、複用 admin 的 select/mapper、allowlist 欄位過濾。這支的特殊之處是 class_logs 是班級層級不是學生層級，childDb 現有 API 假設表上有 student_id 欄位，需要擴充一個新方法。等 STOP 批准，teacher-pages 的 v1b 讀取頁與發布按鈕卡在這支上。
+
+Tags: `architecture`, `parent`, `authorization`, `teaching-log`
+
+Links to: [[architecture/parent-read-endpoints]], [[architecture/parent-read-endpoints]], [[architecture/parent-read-endpoints]]
 
 ## [[architecture/parent-data-scope|家長端的資料範圍模型]]
 
