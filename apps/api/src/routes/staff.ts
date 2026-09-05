@@ -9,6 +9,7 @@ import { PERMISSIONS } from '../lib/permissions';
 import { checkRoleAssignment } from '../lib/role-assignment';
 import { campusFilterIds } from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 // ============================================================
 // Schemas
@@ -50,16 +51,12 @@ const StaffListResponseSchema = z
     data: z.array(StaffSchema),
     summary: z.object({
       total: z.number(),
-      adminCount: z
-        .number()
-        .openapi({
-          description: '有 admin 角色的人次——跟 teacherCount 可能重疊，不是 total 的分割',
-        }),
-      teacherCount: z
-        .number()
-        .openapi({
-          description: '有 teacher 角色的人次——跟 adminCount 可能重疊，不是 total 的分割',
-        }),
+      adminCount: z.number().openapi({
+        description: '有 admin 角色的人次——跟 teacherCount 可能重疊，不是 total 的分割',
+      }),
+      teacherCount: z.number().openapi({
+        description: '有 teacher 角色的人次——跟 adminCount 可能重疊，不是 total 的分割',
+      }),
       multiRoleCount: z
         .number()
         .openapi({ description: '同時具備一個以上角色的人數（目前即 admin ∩ teacher）' }),
@@ -1413,8 +1410,11 @@ app.openapi(archiveRoute, async (c) => {
     return c.json({ error: roleError.message, code: 'DB_ERROR' }, 400);
   }
 
-  // 解除未來課堂指派
-  const today = new Date().toISOString().split('T')[0];
+  // 解除未來課堂指派 —— 台北時間，不是 UTC（見 lib/taipei-date.ts 檔頭）。
+  // ⚠️ 這裡把 teacher_id 設回 null，不是軟刪除：算錯一天會連帶抹掉「誰教了
+  // 台北昨天那堂已經發生的課」這個歷史事實，沒有留下任何痕跡（跟
+  // cancel-future-sessions 的軟刪除性質不同，那邊還留著 schedule_change）。
+  const today = getCurrentTaipeiDateString();
   const { data: unassigned, error: unassignError } = await supabase
     .from('sessions')
     .update({ teacher_id: null, assignment_status: 'unassigned' })
