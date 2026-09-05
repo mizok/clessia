@@ -188,4 +188,16 @@ describe('EnrollmentsPage', () => {
 
     expect(fixture.nativeElement.textContent).toContain('這個月沒有報名進出');
   });
+
+  // 全站其他頁面（學生管理、成績登錄）都把 J1/J2 轉成國一/國二，這頁原本沒轉（Tester #29）
+  it('年級顯示中文，不是 J1/J2 代碼', async () => {
+    await setup([enrollment({ studentGrade: 'J2' })]);
+
+    expect(fixture.nativeElement.textContent).toContain('國二');
+    expect(fixture.nativeElement.textContent).not.toContain('J2');
+  });
+
+  it('查不到對照表的代碼就照原樣顯示，不是空白', () => {
+    expect(component['getGradeLabel']('UNKNOWN')).toBe('UNKNOWN');
+  });
 });

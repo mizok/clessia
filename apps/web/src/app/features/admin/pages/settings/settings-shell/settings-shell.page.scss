@@ -3,6 +3,16 @@
   flex-direction: column;
   min-height: 0;
 
+  // 只有標題需要留白——tabs 跟下面四個子頁各自已經有自己的 padding(space-6)，
+  // 這裡再包一層水平 padding 會讓子頁的內距疊兩次。
+  &__title {
+    margin: 0 0 var(--space-4);
+    padding: var(--space-6) var(--space-6) 0;
+    font-size: var(--text-2xl);
+    font-weight: var(--font-bold);
+    color: var(--zinc-900);
+  }
+
   &__body {
     padding-top: var(--space-4);
     min-height: 0;
