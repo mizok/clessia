@@ -100,7 +100,7 @@
       [label]="isEditMode() ? '儲存' : '建立家長'"
       [icon]="loading() ? 'pi pi-spinner pi-spin' : isEditMode() ? 'pi pi-check' : 'pi pi-plus'"
       [loading]="loading()"
-      [disabled]="!isFormValid()"
+      [disabled]="loading()"
       (onClick)="save()"
     />
   </div>

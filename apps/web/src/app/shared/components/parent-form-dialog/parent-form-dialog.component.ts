@@ -37,13 +37,6 @@ export class ParentFormDialogComponent {
     notes: this.config.data?.parent?.notes ?? '',
   });
 
-  protected readonly isFormValid = computed(() => {
-    const f = this.formData();
-    const hasName = f.name.trim().length > 0;
-    const hasContact = f.email.trim().length > 0 || f.phone.trim().length > 0;
-    return hasName && hasContact;
-  });
-
   protected updateForm<K extends keyof ReturnType<typeof this.formData>>(
     field: K,
     value: ReturnType<typeof this.formData>[K],
@@ -52,10 +45,20 @@ export class ParentFormDialogComponent {
   }
 
   protected save(): void {
-    if (!this.isFormValid()) return;
+    const f = this.formData();
+
+    // 按鈕刻意不 disable——disable 會把「為什麼不行」藏起來，而使用者按下去
+    // 之前完全看不出缺什麼。這裡按得下去，缺什麼就直接說。
+    if (!f.name.trim()) {
+      this.errorMessage.set('請先輸入姓名');
+      return;
+    }
+    if (!f.email.trim() && !f.phone.trim()) {
+      this.errorMessage.set('Email 與手機號碼至少要填一個');
+      return;
+    }
 
     this.errorMessage.set(null);
-    const f = this.formData();
     this.loading.set(true);
 
     if (this.isEditMode()) {
