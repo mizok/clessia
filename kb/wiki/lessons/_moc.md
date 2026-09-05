@@ -52,7 +52,7 @@ Links to: [[lessons/a-field-is-a-snapshot-not-a-path]]
 
 ## [[lessons/broken-looks-identical-to-normal|壞掉的樣子跟正常的樣子一模一樣]]
 
-2026-09-05 一天的 M8 稽核挖出同一族缺陷的 13 個實例——程式碼的語意或邏輯是對的，但渲染結果、觸發條件或視覺回饋錯了，而且錯的方式讓它看起來像對的。判準：「它壞了我們會知道嗎？」
+2026-09-05～06 挖出同一族缺陷的 16 個實例（M8 稽核 13 個 + teacher-pages 補 1 個 + 兩個時區/驗證同族案例，另附兩則查證方法本身的盲點）——程式碼的語意或邏輯是對的，但渲染結果、觸發條件或視覺回饋錯了，而且錯的方式讓它看起來像對的。判準：「它壞了我們會知道嗎？」
 
 Tags: `lessons`, `silent-failure`, `visual-parity`, `m8-audit`
 
@@ -165,4 +165,3 @@ Tags: `lessons`, `status-table-blind-spot`
 Tags: `lessons`, `performance`, `workers`, `database`
 
 Links to: [[architecture/auth-pool-lifecycle]], [[architecture/auth-pool-lifecycle]], [[lessons/local-green-is-not-repo-green]]
-
