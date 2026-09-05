@@ -24,6 +24,31 @@
     />
   </div>
 
+  <!-- 家長（選填，僅在未預填家長時顯示 —— 對齊「新增學生」兩個入口的能力） -->
+  @if (showParentPicker()) {
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">家長（選填）</label>
+      <p-autocomplete
+        [ngModel]="selectedParent()"
+        (ngModelChange)="onParentChange($event)"
+        [suggestions]="parentSuggestions()"
+        (completeMethod)="searchParents($event)"
+        optionLabel="name"
+        placeholder="輸入姓名搜尋既有家長，留空即建立無家長學生"
+        [disabled]="loading()"
+        [fluid]="true"
+        [appendTo]="'body'"
+      >
+        <ng-template pTemplate="item" let-parent>
+          <div class="form-dialog__parent-item">
+            <span>{{ parent.name }}</span>
+            <span class="form-dialog__parent-meta">{{ formatParentMeta(parent) }}</span>
+          </div>
+        </ng-template>
+      </p-autocomplete>
+    </div>
+  }
+
   <!-- 年級 + 學校 -->
   <div class="form-dialog__row">
     <div class="form-dialog__field">
