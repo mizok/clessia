@@ -145,8 +145,17 @@ admin-pages 用那顆確認彈窗的「結束後將無法再登錄分數」證�
 
 **bundle 驗收線的量法**（不要抄數字，數字會腐化，抄方法）：
 
-    npx ng cache clean
+    npx nx reset          # Nx 的計算快取（不清的話它會整個回你上一次的 build 產物）
+    rm -rf .angular/cache # Angular builder 的增量快取（nx reset 不碰這個）
     npx nx build web --configuration=production
+
+> **不要用 `npx ng cache clean`。** 這個 workspace 沒有 `angular.json`，
+> Angular CLI 會往上找到**別的 workspace** 然後對那邊動手（AGENTS.md 有記）——
+> 比報錯更糟，因為它會安靜地成功。
+>
+> **兩個快取、兩個主人**：`nx reset` 清的是 `.nx/cache`（目前 30 MB），
+> `.angular/cache`（4.5 MB）是 `@angular/build:application` 自己的，它不碰。
+> 量 bundle 要兩個都清，只清一個的話拿到的可能是上一次的產物。
 
 要比較就**兩邊各自量**：commit 後 `git checkout --detach origin/main`，清 cache 再 build 一次拿 baseline，切回來再量。同機、同 cache 狀態才是真數字 —— 我曾經因為拿舊 cache 的數字當 baseline，回報過一次偏差 0.23 kB 的假差異。
 
