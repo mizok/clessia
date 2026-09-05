@@ -8,6 +8,15 @@
         定義收費標準供報名時挑選。這裡只給定價，實際談定的金額寫在每筆報名上。
       </p>
     </div>
+    <app-page-actions>
+      <p-button
+        label="操作紀錄"
+        icon="pi pi-history"
+        [outlined]="true"
+        severity="secondary"
+        (onClick)="openAuditLog()"
+      />
+    </app-page-actions>
   </header>
 
   <!-- ── 價目表 ───────────────────────────────────────────────────────── -->

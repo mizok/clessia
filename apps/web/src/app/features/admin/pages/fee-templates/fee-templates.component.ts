@@ -20,6 +20,7 @@ import {
 } from '@core/fee-templates.service';
 import { BillingPeriodsService, type BillingPeriod } from '@core/billing-periods.service';
 
+import { PageActionsComponent } from '@shared/components/page-actions/page-actions.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -29,6 +30,7 @@ import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-c
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 
+import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { FeeTemplateFormDialogComponent } from './fee-template-form-dialog/fee-template-form-dialog.component';
 import { BillingPeriodFormDialogComponent } from './billing-period-form-dialog/billing-period-form-dialog.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
@@ -54,6 +56,7 @@ import { StatusDotComponent } from '@shared/components/status/status-dot/status-
     InputIconModule,
     InputTextModule,
     ToastModule,
+    PageActionsComponent,
     EmptyStateComponent,
     PopupMenuComponent,
     ResponsiveTableComponent,
@@ -125,6 +128,19 @@ export class FeeTemplatesComponent implements OnInit {
 
   private get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
+  }
+
+  protected openAuditLog(): void {
+    this.dialogService.open(AuditLogDialogComponent, {
+      header: '費用方案操作紀錄',
+      width: '800px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: {
+        resourceTypes: ['fee_template'],
+      },
+    });
   }
 
   // ── 價目表 ────────────────────────────────────────────────────────────────
