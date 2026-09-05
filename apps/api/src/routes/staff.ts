@@ -49,8 +49,19 @@ const StaffListResponseSchema = z
     data: z.array(StaffSchema),
     summary: z.object({
       total: z.number(),
-      adminCount: z.number(),
-      teacherCount: z.number(),
+      adminCount: z
+        .number()
+        .openapi({
+          description: '有 admin 角色的人次——跟 teacherCount 可能重疊，不是 total 的分割',
+        }),
+      teacherCount: z
+        .number()
+        .openapi({
+          description: '有 teacher 角色的人次——跟 adminCount 可能重疊，不是 total 的分割',
+        }),
+      multiRoleCount: z
+        .number()
+        .openapi({ description: '同時具備一個以上角色的人數（目前即 admin ∩ teacher）' }),
       activeCount: z.number(),
       inactiveCount: z.number(),
       archivedCount: z.number(),
@@ -149,8 +160,16 @@ interface SubjectInfo {
 
 interface StaffSummary {
   total: number;
+  /**
+   * **角色人次，不是人數的分割**。`adminCount + teacherCount` 可以大於 `total`
+   * ——同時具備 admin 與 teacher 兩個角色的人會在兩邊都被算一次
+   * （見 `staff.spec.ts` 的 `buildStaffSummary` 測試，那個不一致是刻意的）。
+   */
   adminCount: number;
   teacherCount: number;
+  /** 同時具備一個以上角色（目前只有 admin/teacher 兩種）的人數，不是「剛好兩個」——
+   *  角色種類以後若增加，這個名字不會產生歧義。 */
+  multiRoleCount: number;
   activeCount: number;
   inactiveCount: number;
   archivedCount: number;
@@ -269,17 +288,23 @@ export function buildStaffSummary(
 ): StaffSummary {
   let adminCount = 0;
   let teacherCount = 0;
+  let multiRoleCount = 0;
   let activeCount = 0;
   let inactiveCount = 0;
   let archivedCount = 0;
 
   for (const row of rows) {
     const roleInfo = roleInfoMap.get(row.user_id);
-    if (roleInfo?.roles.includes('admin')) {
+    const isAdmin = roleInfo?.roles.includes('admin') ?? false;
+    const isTeacher = roleInfo?.roles.includes('teacher') ?? false;
+    if (isAdmin) {
       adminCount++;
     }
-    if (roleInfo?.roles.includes('teacher')) {
+    if (isTeacher) {
       teacherCount++;
+    }
+    if (isAdmin && isTeacher) {
+      multiRoleCount++;
     }
     if (row.status === 'active') {
       activeCount++;
@@ -294,6 +319,7 @@ export function buildStaffSummary(
     total: rows.length,
     adminCount,
     teacherCount,
+    multiRoleCount,
     activeCount,
     inactiveCount,
     archivedCount,
@@ -305,6 +331,7 @@ function emptyStaffSummary(): StaffSummary {
     total: 0,
     adminCount: 0,
     teacherCount: 0,
+    multiRoleCount: 0,
     activeCount: 0,
     inactiveCount: 0,
     archivedCount: 0,
