@@ -137,3 +137,19 @@ export function weekAnchor(sessions: readonly EventSessionSummary[], now: Date):
     overdue: sessions.filter((s) => attendanceTone(s, now) === 'overdue').length,
   };
 }
+
+/**
+ * 課堂卡要不要顯示「寫日誌」入口。
+ *
+ * **跟 `canTakeAttendance` 只有「停課」那一半重疊** —— 日誌掛班×日期、
+ * 不掛出勤事件，所以**不需要 `eventId`**：沒有出勤事件的課堂照樣可以寫。
+ *
+ * `usesContactBook` 決定這個班寫的是聯絡簿還是日誌（班級設定的事實，不問老師）。
+ * v1a 只做日誌那一半，聯絡簿模式**刻意不顯示入口**——不是遺漏，
+ * 見 `kb/wiki/architecture/teacher-class-log.md` 的 v1c。
+ */
+export function canWriteClassLog(
+  session: Pick<EventSessionSummary, 'status' | 'usesContactBook'>,
+): boolean {
+  return session.status !== 'cancelled' && !session.usesContactBook;
+}

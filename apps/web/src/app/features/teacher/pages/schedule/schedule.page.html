@@ -180,6 +180,21 @@
                   (onClick)="openPanel(session)"
                 />
               }
+              @if (isTeacherLed() && canWriteClassLog(session)) {
+                <!--
+                  教務日誌。v1a 只有撰寫，**沒有發布** —— 發布不可逆，
+                  而家長端讀取與 LINE 推播都還不存在。
+                -->
+                <p-button
+                  styleClass="schedule-page__action"
+                  label="寫日誌"
+                  icon="pi pi-book"
+                  size="small"
+                  [outlined]="true"
+                  severity="secondary"
+                  (onClick)="openClassLog(session)"
+                />
+              }
             </article>
           } @empty {
             <p class="schedule-page__no-class">沒有課</p>

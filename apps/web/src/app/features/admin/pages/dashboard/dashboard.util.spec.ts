@@ -10,6 +10,7 @@ function session(overrides: Partial<EventSessionSummary> = {}): EventSessionSumm
     examCount: 0,
     classId: 'c1',
     className: '數學班 A',
+    usesContactBook: false,
     courseName: '數學',
     teacherName: '王老師',
     campusId: null,

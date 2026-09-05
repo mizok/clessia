@@ -81,6 +81,15 @@ export interface EventSessionSummary {
   examCount: number;
   classId: string;
   className: string;
+  /**
+   * 這個班用個人聯絡簿（`true`，國小模式）還是教務日誌（`false`，預設）。
+   *
+   * **課堂卡靠它決定要開哪一種撰寫面板** —— 老師不該被問「這堂課是哪一種」，
+   * 那是班級設定決定的事實，不是每次操作的選擇。
+   * 在 #339 之前老師端拿不到這個值（`/api/classes` 是 ADMIN_ONLY），
+   * 而**不准用「預設是 false」去猜** —— 那是拿統計當授權。
+   */
+  usesContactBook: boolean;
   courseName: string | null;
   teacherName: string | null;
   campusId: string | null;

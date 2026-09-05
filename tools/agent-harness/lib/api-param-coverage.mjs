@@ -30,6 +30,10 @@ const EXEMPT = new Map([
     '/api/sessions|courseId',
     'schema 自己標了「單一，舊版」—— 前端用的是 courseIds（複數）。留著單數是為了舊網址',
   ],
+  [
+    '/api/class-logs|published',
+    '教務日誌 v1a 沒有發布（發布不可逆而下游都還不存在，見 architecture/teacher-class-log.md），前端只查「這一班這一天」，不需要分草稿/已發布。v1b 啟用發布時要把這一筆拿掉',
+  ],
 ]);
 
 export function collectApiParams(root, record) {
