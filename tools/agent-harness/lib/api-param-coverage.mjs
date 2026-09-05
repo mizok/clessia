@@ -34,6 +34,26 @@ const EXEMPT = new Map([
     '/api/class-logs|published',
     '教務日誌 v1a 沒有發布（發布不可逆而下游都還不存在，見 architecture/teacher-class-log.md），前端只查「這一班這一天」，不需要分草稿/已發布。v1b 啟用發布時要把這一筆拿掉',
   ],
+  // 家長端三支讀取端點（出缺席／成績／繳費）是 API 先行交付，前端消費端排在
+  // P4 家長頁面（見 kb/wiki/architecture/parent-read-endpoints.md）。/api/me 的
+  // 字首已經被 auth.service.ts / api.service.ts 認領（它們打 /api/me 拿 profile），
+  // 這支只是把新子路徑掛在同一個字首下，不代表那兩支 service 要負責這些參數 ——
+  // 真正的消費端是還沒生出來的 attendance/grades/billing.service.ts。
+  // **這批不是永久決定，是排序**：前端 PR 落地時要把這裡對應的幾筆一起刪掉，
+  // 不是新增更多。
+  ['/api/me/attendance|childId', '家長端出缺席端點 API 先行，前端消費端排在 P4，見上方說明'],
+  ['/api/me/attendance|dateFrom', '同上'],
+  ['/api/me/attendance|dateTo', '同上'],
+  ['/api/me/attendance|page', '同上'],
+  ['/api/me/attendance|pageSize', '同上'],
+  ['/api/me/grades|childId', '家長端成績端點 API 先行，前端消費端排在 P4，見上方說明'],
+  ['/api/me/grades|dateFrom', '同上'],
+  ['/api/me/grades|dateTo', '同上'],
+  ['/api/me/grades|page', '同上'],
+  ['/api/me/grades|pageSize', '同上'],
+  ['/api/me/billing|childId', '家長端繳費端點 API 先行，前端消費端排在 P4，見上方說明'],
+  ['/api/me/billing|page', '同上'],
+  ['/api/me/billing|pageSize', '同上'],
 ]);
 
 export function collectApiParams(root, record) {

@@ -3,6 +3,9 @@ import type { AppEnv } from '../index';
 import { resolveDisplayName, updateDisplayName } from '../lib/display-name';
 import { getAuth } from '../lib/get-auth';
 import childrenRoute from './parent/children';
+import attendanceRoute from './parent/attendance';
+import gradesRoute from './parent/grades';
+import billingRoute from './parent/billing';
 
 const MeResponseSchema = z
   .object({
@@ -284,5 +287,8 @@ app.openapi(
 );
 
 app.route('/children', childrenRoute);
+app.route('/attendance', attendanceRoute);
+app.route('/grades', gradesRoute);
+app.route('/billing', billingRoute);
 
 export default app;

@@ -4,15 +4,22 @@ import { createChildDb } from './child-db';
 
 /** 只實作 `.from().select().in()` 這條鏈，並記下每次呼叫收到的參數。 */
 function fakeSupabase() {
-  const calls: { table?: string; columns?: string; inColumn?: string; inValues?: string[] } = {};
+  const calls: {
+    table?: string;
+    columns?: string;
+    options?: unknown;
+    inColumn?: string;
+    inValues?: string[];
+  } = {};
   return {
     calls,
     client: {
       from: (table: string) => {
         calls.table = table;
         return {
-          select: (columns: string) => {
+          select: (columns: string, options?: unknown) => {
             calls.columns = columns;
+            calls.options = options;
             const builder = {
               in: (col: string, values: string[]) => {
                 calls.inColumn = col;
@@ -68,5 +75,16 @@ describe('createChildDb', () => {
 
     expect(result).toBe(query);
     expect(calls.inCalled).toBe(false);
+  });
+
+  // 家長端的 meta 聚合數字（monthlyAbsentCount / recentCount / totalDue）要用
+  // count/head 查詢算，不能靠當頁筆數 —— 這條釘住 options 有原樣傳到底層 supabase
+  it('select() 的第二個參數（count/head）原樣傳給底層 supabase', async () => {
+    const { calls, client } = fakeSupabase();
+    const childDb = createChildDb(client as never, ['s1']);
+
+    await childDb.from('scores', 'student_id').select('id', { count: 'exact', head: true });
+
+    expect(calls.options).toEqual({ count: 'exact', head: true });
   });
 });
