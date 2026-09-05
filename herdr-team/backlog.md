@@ -140,7 +140,19 @@
      少了它畫面會說「3 筆新成績」但指不出是哪 3 筆 ——
      **那正是 Tester 抓到的管理端最大跨頁模式「告警只報數字,不給路徑」**,
      不能在家長端第一天就複製它。`recentCount` 的查詢本來就知道登錄時間
-0.3 **`attendanceTaken` 要能表達「課堂已結束」**(#363 的延伸,不是重做;排 P1-4 之後)。
+0.2 **家長端三個欄位（一支 PR 出，都是同方向）**:
+   ① `monthlyAbsentCount` 拆開（admin-pages 的 band 錨點**空著在等**）
+   ② `ParentScoreRecordSchema` 加逐筆 `createdAt`（逐筆 NEW 標籤）
+   ③ **`ParentScoreRecordSchema` 加 `passScore`（2026-09-05 新增，這條是修矛盾不是補功能）**：
+   `shared/utils/score-threshold.util.ts` 的 `isFailingScore` —— 有 `passScore` 就比它，
+   沒有就退化成 `score < totalScore * 0.6`。家長端沒有這欄，所以
+   **一場及格線設 70 的校內考、學生考 65 → 行政端顯示不及格、家長端顯示及格**。
+   **同一筆資料兩個畫面相反的結論，而家長看到的是比較寬鬆的那個。**
+   範圍：`passScore` 只做 `academy_exams`，其餘退化成比例本來就是正確行為。
+   **區分**：「欄位沒接上所以退化」在只有一個消費端時是缺口，
+   在有兩個消費端且會不一致時是**矛盾** —— 矛盾比缺口急。
+0.3 ~~`attendanceTaken` 要能表達「課堂已結束」~~（#368 已交付；`GET /api/sessions`
+   那半見 #376）。原工單描述(#363 的延伸,不是重做;排 P1-4 之後)。
    儀表板「15 未點名・近 7 天」**不是單一查詢**(`dashboard.component.ts:430-441`):
    = `untakenBeforeToday`(伺服器)+ 前端用 `hasSessionEnded` 逐筆濾今天那段。
    **但那不是業務上有兩段** —— `session-time.util.ts:34` 的 `hasSessionEnded` 就是
@@ -277,6 +289,19 @@
   目前那些按鈕長得一樣但毀掉的東西不一樣。UI 半等表出來再派 admin-pages。
   **順帶要答:哪些刪除根本不該存在**(專案已有先例:班級歸檔是設 end_date 不是刪除;
   會毀掉歷史紀錄的大概該是封存不是刪除)
+
+## 合併順序（有依賴，不能亂合）
+
+**`#368` → `#363`（互不依賴）→ `#376`（base 收斂成 main 後轉 ready）→ `#378`**
+
+- `#376`（`GET /api/sessions` 補 `endedOnly`）base 指向 `feat/attendance-ended-only`，**draft**
+- `#378`（儀表板→課堂管理 handoff，P1-6）base 指向 `#368`，**draft**
+- **`#378` 絕對不能先於 `#376` 進 main** —— 那會恰好落進被否決的選項 A：
+  卡片說 15、點下去含今天還沒到點名時間的課，數字對不上。
+  **不是設計選擇，是合併順序造成的**，但結果一樣
+- 疊 PR 鐵律：base 指到別人分支就一律 **draft**，等 base 收斂到 main 才轉 ready ——
+  讓「還不能合」變成 GitHub 擋得住的狀態，不靠人搶時間差（#89/#129 事故）。
+  下層合併後上層 base 立刻人工轉 main、下層分支即刪
 
 ## 明記的技術債(有觸發條件,不靠人記得)
 
