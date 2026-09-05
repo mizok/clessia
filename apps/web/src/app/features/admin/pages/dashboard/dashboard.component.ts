@@ -473,9 +473,6 @@ export class DashboardComponent {
         sub: `近 ${UNTAKEN_LOOKBACK_DAYS} 天`,
         icon: 'pi-exclamation-triangle',
         routerLink: RoutesCatalog.ADMIN_ATTENDANCE.absolutePath,
-        // ⚠️ 落地頁（sessions.page.ts）目前只接得住 attendanceTaken——
-        // GET /api/sessions 還沒有 endedOnly（billing-api 待補，見 PR 說明）。
-        // 這裡照樣把完整語意帶過去，缺口補上那天不用回頭改這裡。
         queryParams: {
           dateFrom: query.dateFrom,
           dateTo: query.dateTo,

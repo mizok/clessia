@@ -171,14 +171,16 @@ export class SessionsPage implements OnInit {
   /**
    * 有沒有點名過——從別頁（目前是儀表板的未點名卡）連過來時帶的篩選。
    * `undefined` 是「沒有這個篩選」，不是「false」。
-   *
-   * ⚠️ **只接得住一半**：dashboard 用 `pendingAttendanceQuery()`
-   * （`endedOnly: true`）算數字，但 `GET /api/sessions` 目前沒有 `endedOnly`
-   * （billing-api 待補，見 kb/wiki/architecture/admin-todo-alerts.md）。
-   * 在那之前，從儀表板連過來看到的堂數會比卡片上的數字多——今天還在進行中、
-   * 還沒到點名時間的課也會被含進來。這是已知、記錄在案的落差，不是這次要解的問題。
    */
   protected readonly attendanceTakenFilter = signal<boolean | undefined>(undefined);
+
+  /**
+   * 只篩「已經上完」的課堂——配 `attendanceTakenFilter() === false` 一次表達
+   * 「沒點名而且已經上完」，落地頁看到的堂數才對得上儀表板卡片的數字（不含
+   * 今天還在進行中、還沒到點名時間的課）。沒有「undefined vs false」的區分
+   * ——API 這個參數只吃 `true` 或不帶，false 就是不篩，跟預設狀態相同。
+   */
+  protected readonly endedOnlyFilter = signal(false);
 
   // ── Computed ───────────────────────────────────────────────────────────
   protected readonly activeTeachers = computed(() =>
@@ -626,6 +628,7 @@ export class SessionsPage implements OnInit {
     this.selectedStatuses.set(['scheduled']);
     this.selectedTeacherIds.set(['__unassigned__']);
     this.attendanceTakenFilter.set(undefined);
+    this.endedOnlyFilter.set(false);
     this.loadSessions();
   }
 
@@ -656,6 +659,7 @@ export class SessionsPage implements OnInit {
     this.listDateRange.set([incoming.dateFrom, incoming.dateTo]);
     this.listDateRangeModified.set(true);
     this.attendanceTakenFilter.set(incoming.attendanceTaken);
+    this.endedOnlyFilter.set(incoming.endedOnly);
   }
 
   protected clearFilters(): void {
@@ -668,6 +672,7 @@ export class SessionsPage implements OnInit {
     this.studentFilteredEnrollments.set([]);
     this.selectedStatuses.set([...DEFAULT_STATUSES]);
     this.attendanceTakenFilter.set(undefined);
+    this.endedOnlyFilter.set(false);
     this.loadSessions();
   }
 
@@ -866,6 +871,7 @@ export class SessionsPage implements OnInit {
         classIds: effectiveClassIds,
         assignmentStatus: hasUnassigned ? 'unassigned' : undefined,
         attendanceTaken: this.attendanceTakenFilter(),
+        endedOnly: this.endedOnlyFilter(),
         statuses: this.selectedStatuses().length > 0 ? this.selectedStatuses() : undefined,
         page: this.currentPage(),
         pageSize: this.PAGE_SIZE,

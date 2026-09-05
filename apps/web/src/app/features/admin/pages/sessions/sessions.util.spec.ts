@@ -6,7 +6,7 @@ import { parseAttendanceQueryParams } from './sessions.util';
 // `new Date('2026-08-22')`（無時分秒的 ISO 字串）是 UTC 解讀，UTC+8 印出來會差一天——
 // 跟實作一樣用 `parseISO`（本地時區）組期望值，不要在測試裡踩自己在別處警告過的坑
 describe('parseAttendanceQueryParams', () => {
-  it('三個欄位都在時解出完整篩選', () => {
+  it('三個必要欄位都在、沒帶 endedOnly 時解出完整篩選，endedOnly 預設 false', () => {
     const result = parseAttendanceQueryParams({
       dateFrom: '2026-08-22',
       dateTo: '2026-08-29',
@@ -17,6 +17,7 @@ describe('parseAttendanceQueryParams', () => {
       dateFrom: parseISO('2026-08-22'),
       dateTo: parseISO('2026-08-29'),
       attendanceTaken: false,
+      endedOnly: false,
     });
   });
 
@@ -30,12 +31,35 @@ describe('parseAttendanceQueryParams', () => {
     ).toBe(true);
   });
 
+  it('endedOnly=true 解成布林 true，不是字串', () => {
+    expect(
+      parseAttendanceQueryParams({
+        dateFrom: '2026-08-22',
+        dateTo: '2026-08-29',
+        attendanceTaken: 'false',
+        endedOnly: 'true',
+      })?.endedOnly,
+    ).toBe(true);
+  });
+
   it('缺日期時整組不採用（不是半套帶著錯的範圍篩）', () => {
     expect(parseAttendanceQueryParams({ attendanceTaken: 'false' })).toBeNull();
   });
 
   it('缺 attendanceTaken 時整組不採用', () => {
     expect(parseAttendanceQueryParams({ dateFrom: '2026-08-22', dateTo: '2026-08-29' })).toBeNull();
+  });
+
+  // endedOnly 不在「缺一不可」名單裡——它是可選加強條件，缺它不影響其餘三個欄位是否成立
+  it('缺 endedOnly 不影響其餘篩選成立，只是預設 false', () => {
+    const result = parseAttendanceQueryParams({
+      dateFrom: '2026-08-22',
+      dateTo: '2026-08-29',
+      attendanceTaken: 'true',
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.endedOnly).toBe(false);
   });
 
   it('沒有任何 query params 時回傳 null', () => {
@@ -65,7 +89,7 @@ describe('跨頁契約：儀表板的 queryParams 跟課堂管理頁解出來的
     };
   }
 
-  it('儀表板送出的 queryParams，課堂管理頁解出來的日期與 attendanceTaken 跟原始查詢語意相等', () => {
+  it('儀表板送出的 queryParams，課堂管理頁解出來的日期、attendanceTaken 與 endedOnly 跟原始查詢語意相等', () => {
     const dashboardQuery = pendingAttendanceQuery(NOW, 7);
     const routeParams = toRouteQueryParams(dashboardQuery);
 
@@ -75,6 +99,10 @@ describe('跨頁契約：儀表板的 queryParams 跟課堂管理頁解出來的
     expect(format(parsed!.dateFrom, 'yyyy-MM-dd')).toBe(dashboardQuery.dateFrom);
     expect(format(parsed!.dateTo, 'yyyy-MM-dd')).toBe(dashboardQuery.dateTo);
     expect(parsed!.attendanceTaken).toBe(dashboardQuery.attendanceTaken);
+    // 這條在 endedOnly 補上 GET /api/sessions 支援之前一直是缺口——
+    // dashboard 帶了 endedOnly=true，落地頁解析卻沒有回傳它，這條測試原本
+    // 不會抓到，因為根本沒斷言到這個欄位
+    expect(parsed!.endedOnly).toBe(dashboardQuery.endedOnly);
   });
 
   // 陷阱：如果有人把 dashboard 那邊的 dateTo 改回「昨天」（回到拆兩段查以前的寫法），

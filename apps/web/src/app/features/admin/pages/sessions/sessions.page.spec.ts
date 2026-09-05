@@ -353,7 +353,7 @@ describe('SessionsPage', () => {
   // 顯示預設的整月資料。用 TestBed.resetTestingModule 重建一次是因為
   // ActivatedRoute 的 query params 只在元件建立那一刻讀一次（`ngOnInit`），
   // 頂層 `beforeEach` 已經用空的 `routeQueryParams` 建過元件了
-  it('帶著儀表板的 queryParams 進來時，套用日期區間與 attendanceTaken 篩選', async () => {
+  it('帶著儀表板的 queryParams 進來時，套用日期區間、attendanceTaken 與 endedOnly 篩選', async () => {
     TestBed.resetTestingModule();
     routeQueryParams = {
       dateFrom: '2026-04-01',
@@ -399,12 +399,14 @@ describe('SessionsPage', () => {
     const localComponent = localFixture.componentInstance as unknown as {
       listDateRange: () => Date[];
       attendanceTakenFilter: () => boolean | undefined;
+      endedOnlyFilter: () => boolean;
       onStatusesChange: (statuses: string[] | null) => void;
     };
 
     expect(localComponent.listDateRange()[0]).toEqual(parseISO('2026-04-01'));
     expect(localComponent.listDateRange()[1]).toEqual(parseISO('2026-04-15'));
     expect(localComponent.attendanceTakenFilter()).toBe(false);
+    expect(localComponent.endedOnlyFilter()).toBe(true);
 
     // 落地頁真的把這個篩選送進 API 請求，不是只停在畫面狀態上沒送出去——
     // `firstCampus$`（ngOnInit 自然觸發 loadSessions 的路徑）在這個測試檔的
@@ -413,7 +415,7 @@ describe('SessionsPage', () => {
     localComponent.onStatusesChange(null);
 
     expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
-      expect.objectContaining({ attendanceTaken: false }),
+      expect.objectContaining({ attendanceTaken: false, endedOnly: true }),
     );
   });
 
@@ -625,6 +627,7 @@ describe('SessionsPage', () => {
       teacherIds: ['teacher-1'],
       assignmentStatus: 'unassigned',
       classIds: ['class-1', 'class-2'],
+      endedOnly: false,
       statuses: undefined,
       page: 1,
       pageSize: LIST_PAGE_SIZE,
