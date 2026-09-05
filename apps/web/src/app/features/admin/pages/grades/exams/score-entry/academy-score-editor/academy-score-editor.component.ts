@@ -187,7 +187,7 @@ export class AcademyScoreEditorComponent implements OnInit {
    */
   protected isFailing(score: number | null): boolean {
     // 這場考試的總分 —— 門檻是它的 60%，不是寫死的 60 分
-    return isFailingScore(score, this.exam().totalScore);
+    return isFailingScore(score, { totalScore: this.exam().totalScore });
   }
 
   protected onScoreKeydown(event: KeyboardEvent, index: number): void {
