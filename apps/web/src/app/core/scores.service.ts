@@ -41,7 +41,8 @@ export interface ScoreListResponse {
 
 export interface SubjectAverage {
   subjectName: string;
-  academyAvg: number | null;
+  academySum: number | null;
+  academyTotalSum: number | null;
   schoolAvg: number | null;
   totalRecords: number;
 }
