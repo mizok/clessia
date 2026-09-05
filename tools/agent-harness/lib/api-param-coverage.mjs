@@ -54,6 +54,14 @@ const EXEMPT = new Map([
   ['/api/me/billing|childId', '家長端繳費端點 API 先行，前端消費端排在 P4，見上方說明'],
   ['/api/me/billing|page', '同上'],
   ['/api/me/billing|pageSize', '同上'],
+  // 家長端教務日誌讀取端點，同一批排序 —— 前端消費端是 teacher-pages 的
+  // v1b（家長讀取頁 + 發布啟用），還沒生出來。見 kb/wiki/architecture/
+  // parent-class-logs-read.md。
+  ['/api/me/class-logs|childId', '家長端教務日誌讀取端點 API 先行，前端消費端排在 v1b，見上方說明'],
+  ['/api/me/class-logs|dateFrom', '同上'],
+  ['/api/me/class-logs|dateTo', '同上'],
+  ['/api/me/class-logs|page', '同上'],
+  ['/api/me/class-logs|pageSize', '同上'],
 ]);
 
 export function collectApiParams(root, record) {

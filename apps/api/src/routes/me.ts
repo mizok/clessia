@@ -6,6 +6,7 @@ import childrenRoute from './parent/children';
 import attendanceRoute from './parent/attendance';
 import gradesRoute from './parent/grades';
 import billingRoute from './parent/billing';
+import classLogsRoute from './parent/class-logs';
 
 const MeResponseSchema = z
   .object({
@@ -290,5 +291,6 @@ app.route('/children', childrenRoute);
 app.route('/attendance', attendanceRoute);
 app.route('/grades', gradesRoute);
 app.route('/billing', billingRoute);
+app.route('/class-logs', classLogsRoute);
 
 export default app;
