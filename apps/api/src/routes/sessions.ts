@@ -13,6 +13,8 @@ import {
 } from '../domain/session-assignment/session-operation-guard';
 import { planBatchUpdateTime } from '../domain/session-assignment/batch-update-time-planner';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { hasSessionEndedByNow } from '../lib/session-end-time';
+import { sliceDerivedPage } from '../lib/derived-page';
 import {
   applyAttendanceTakenFilter,
   ensureAttendanceSessionEvents,
@@ -78,6 +80,21 @@ const SessionListQuerySchema = z
       .optional()
       .transform((value) => (value === undefined ? undefined : value === 'true'))
       .openapi({ description: '有沒有點名過' }),
+    /**
+     * 只回「已經上完」的課堂 —— 跟 `/api/attendance/sessions` 的同名參數是
+     * 同一支 `hasSessionEndedByNow()`（lib/session-end-time.ts）。配
+     * `attendanceTaken=false` 一次查出「沒點名而且已經上完」，儀表板卡片與
+     * 本頁的深連結才不會因為「今天還在進行中的課」而對不上數字。
+     *
+     * 配這個參數時**不走 DB 分頁** —— 「上完了沒」是推導值，DB 濾不掉，
+     * 撈候選集合（見下方 `SESSIONS_ENDED_ONLY_CANDIDATE_LIMIT`）、應用層過濾、
+     * `sliceDerivedPage` 切頁，跟 `/api/attendance/sessions` 同一個形狀。
+     */
+    endedOnly: z
+      .enum(['true'])
+      .optional()
+      .transform((value) => value === 'true')
+      .openapi({ description: '只回已經上完的課堂' }),
   })
   .openapi('SessionListQuery');
 
@@ -551,6 +568,14 @@ export function buildBatchSessionChangeInserts(input: BatchSessionChangeInsertIn
 
 const app = new OpenAPIHono<AppEnv>();
 
+/**
+ * `endedOnly` 撈候選集合時的上限 —— 跟 `attendance.ts` 的
+ * `ENDED_ONLY_CANDIDATE_LIMIT` 同一個數字、同一個理由：單一 org、一段查詢
+ * 區間下留了遠超實際量級的餘裕。**真的頂到這個上限時，該做的是把呼叫端的
+ * 日期區間縮小，不是調高它**。
+ */
+const SESSIONS_ENDED_ONLY_CANDIDATE_LIMIT = 1000;
+
 const listSessionsRoute = createRoute({
   method: 'get',
   path: '/',
@@ -598,6 +623,7 @@ app.openapi(listSessionsRoute, async (c) => {
     statuses,
     assignmentStatus,
     attendanceTaken,
+    endedOnly,
   } = c.req.valid('query');
   const campusScope = c.get('campusScope');
 
@@ -703,7 +729,11 @@ app.openapi(listSessionsRoute, async (c) => {
   const resolvedPage = page ?? 1;
   const resolvedPageSize = pageSize ?? 50;
   const offset = (resolvedPage - 1) * resolvedPageSize;
-  dbQuery = dbQuery.range(offset, offset + resolvedPageSize - 1);
+  // `endedOnly` 是推導條件（「上完了沒」DB 濾不掉），跟 attendance.ts 同一個
+  // 形狀：不走 DB `.range()`，改撈候選集合、應用層過濾、`sliceDerivedPage` 切頁。
+  dbQuery = endedOnly
+    ? dbQuery.limit(SESSIONS_ENDED_ONLY_CANDIDATE_LIMIT)
+    : dbQuery.range(offset, offset + resolvedPageSize - 1);
 
   const { data, count, error } = await dbQuery;
   if (error) {
@@ -806,11 +836,39 @@ app.openapi(listSessionsRoute, async (c) => {
     }
   }
 
+  const mappedRows = rows.map((row) =>
+    mapSession(row, changedIds.has(row['id'] as string), attendanceCountMap, enrolledCountMap),
+  );
+
+  if (endedOnly) {
+    const ended = mappedRows.filter((session) =>
+      hasSessionEndedByNow({
+        date: session.sessionDate,
+        startTime: session.startTime,
+        endTime: session.endTime,
+      }),
+    );
+    const { rows: pageRows, total } = sliceDerivedPage(ended, resolvedPage, resolvedPageSize);
+
+    return c.json(
+      {
+        data: pageRows,
+        meta: {
+          total,
+          page: resolvedPage,
+          pageSize: resolvedPageSize,
+          totalPages: Math.ceil(total / resolvedPageSize),
+          monthUnassignedCount: monthUnassignedCount ?? 0,
+          todayPendingAttendanceCount: todayPendingAttendanceCount ?? 0,
+        },
+      },
+      200,
+    );
+  }
+
   return c.json(
     {
-      data: rows.map((row) =>
-        mapSession(row, changedIds.has(row['id'] as string), attendanceCountMap, enrolledCountMap),
-      ),
+      data: mappedRows,
       meta: {
         total: count ?? 0,
         page: resolvedPage,
