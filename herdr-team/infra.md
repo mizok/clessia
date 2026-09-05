@@ -125,6 +125,8 @@ npm ci  →  npm ci (apps/api)  →  harness  →  harness self-test
   ```
 
   收的是**傳給 walk 的那幾個目錄**（同一個變數，不是另一份清單）。
+  **宣告了一個目錄就要遞迴掃它** —— 用共用的 `walk(dir, ext)`，不要用
+  `readdirSync`（只列一層，子目錄會被安靜跳過，而 scope 紀錄宣稱掃了整棵樹）。
   沒登記的 gate，`scan-scope.json` 不可能知道它存在 —— 而**這正是這道機制
   唯一沒守住的洞**，所以它寫在這裡：讓它出現在**新 gate 誕生的地方**，
   不只死在 lib 的檔頭。（結構解是「不註冊就跑不了判斷」，但那要動 12 道簽章，
@@ -428,6 +430,34 @@ admin-pages 的 `{ params: { date } }` 誤報就是這樣被我 grep 出來的 �
 
 審查的價值在被寫成測試的那一刻才固定下來；只留在對話裡的話，
 下一次改判準就會把它磨掉，而且沒有人會知道。
+
+### `recordScope` 宣告了一個目錄，實作就該遞迴掃它
+
+掃描範圍 ratchet 收的是**傳給 `recordScope` 的 roots**，不是實際走到的檔案。
+那是刻意的取捨（收檔案路徑的話，新增一個子目錄就讓 gate 變紅，噪音大到人會關掉它），
+代價寫在 `lib/scan-scope.mjs` 檔頭：**walk 之後的落差它看不見**。
+
+2026-09-05 出現第一個實例（A19，billing-api 席）：
+
+```js
+recordScope('A19', { roots: ['apps/api/src/routes/parent'], exts: ['.ts'] });
+for (const name of readdirSync(parentRoutesDir)) {
+  if (!name.endsWith('.ts') || name.endsWith('.spec.ts')) continue;
+```
+
+`readdirSync` **只列那一層**，而子目錄的名字不以 `.ts` 結尾 → 被 `continue` 跳過。
+於是 `routes/parent/scores/index.ts` 這種檔案永遠不會被掃到，
+**而 scope 紀錄宣稱它掃了整棵子樹**。
+
+不是假設：`routes/` 底下已經有 6 個子目錄、9 支檔案，**子目錄就是這個 codebase
+的生長方式**。而失明的那天不會有任何訊號 —— gate 照樣綠，因為它掃的那一層真的沒違規。
+
+**判準：`recordScope` 宣告了一個目錄，實作就該遞迴掃它。兩者不一致時，錯的一定是實作。**
+`check-harness.mjs` 有共用的 `walk(dir, ext)`（19 處在用），用它就對了；
+`readdirSync` 只該用在「真的只要那一層」的場合。
+
+> **不因此改 ratchet 的設計** —— 噪音的代價比這個落差高。
+> 但這條要進 gate 撰寫清單，因為它是清單目前唯一擋不住的漏法。
 
 ### 席名 ≠ session 名 ≠ worktree 名（三層對照）
 
