@@ -22,6 +22,7 @@ import { blankComments } from './lib/comments.mjs';
 import { inlineCarriers } from './lib/inline-carriers.mjs';
 import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
 import { preflightVerdict } from './lib/preflight-verdict.mjs';
+import { extractScriptUrls, summarize } from './lib/smoke-probes.mjs';
 import {
   findOrphanEndpoints,
   matchesPrefix,
@@ -410,6 +411,73 @@ test('preflight：沒有理由攔的時候不要發警告', () => {
     }).level,
     'ok',
   );
+});
+
+/**
+ * 線上 smoke 探測（2026-09-05）。
+ *
+ * 這一支的核心不是「會不會探」，是**探測本身會不會永遠通過**。
+ * 工單原本列的 `/health` 就是那種：它掛在 `/health` 而不是 `/api/health`，
+ * 而正式站只有 `/api/*` 進 Worker —— 所以線上 `GET /health` 由 Pages 回
+ * SPA 的 index.html、**HTTP 200，就算 Worker 整個死掉也一樣**。
+ */
+test('smoke：script 網址從剛部署的 index.html 讀出來，不維護清單', () => {
+  const html = `
+    <html><head>
+      <script src="/main-A1B2.js" type="module"></script>
+      <script src="polyfills-C3D4.js"></script>
+      <script>console.log('inline')</script>
+    </head></html>`;
+  const urls = extractScriptUrls(html, 'https://x.test');
+
+  // 根相對與相對路徑都要解成絕對網址
+  assert.deepEqual(urls, ['https://x.test/main-A1B2.js', 'https://x.test/polyfills-C3D4.js']);
+  // inline script 沒有東西可以 fetch —— 不該混進來
+  assert.equal(urls.length, 2);
+});
+
+test('smoke：同一個 src 出現兩次只算一次', () => {
+  const html = '<script src="/a.js"></script><script src="/a.js"></script>';
+  assert.equal(extractScriptUrls(html, 'https://x.test').length, 1);
+});
+
+/**
+ * **這一則是寫壞之後改的，留著當紀錄。**
+ *
+ * 我原本斷言「解析不出來的 src 會被跳過」，而 lib 的註解也是那樣寫的。
+ * **兩個都錯**：`new URL` 對看不懂的字串不丟例外，它當成相對路徑解掉。
+ * 所以那個 `catch` 幾乎永遠不會執行。
+ *
+ * 註解寫錯比行為錯更糟 —— 行為錯會被測試抓到，**註解錯會被下一個人相信**。
+ * 現在斷言的是真實行為，並在 lib 裡寫明為什麼不加驗證：
+ * 壞 src 會在 fetch 那步變成 404 被抓到，而多驗一層是拿「探測自己誤判」
+ * 去換一個 Angular 產物不會有的問題。
+ */
+test('smoke：看不懂的 src 會被當成相對路徑，不是被跳過', () => {
+  const html = '<script src="ht tp://壞掉"></script><script src="/good.js"></script>';
+  const urls = extractScriptUrls(html, 'https://x.test');
+
+  assert.equal(urls.length, 2);
+  assert.ok(urls.includes('https://x.test/good.js'));
+  assert.ok(urls.some((u) => u.startsWith('https://x.test/ht%20tp')));
+});
+
+test('smoke：全過就是 ok，一支壞掉就整體不 ok', () => {
+  const pass = [{ name: 'a', ok: true, detail: '正常' }];
+  assert.equal(summarize(pass).ok, true);
+
+  const mixed = [
+    { name: 'a', ok: true, detail: '正常' },
+    { name: 'b', ok: false, detail: 'HTTP 500' },
+  ];
+  const s = summarize(mixed);
+  assert.equal(s.ok, false);
+  assert.equal(s.failed.length, 1);
+  // 標題要看得出壞了幾支 —— 人讀 issue 列表時只看得到標題
+  assert.match(s.title, /1\/2/);
+  // 內文要**兩種都列**：只列壞的話，看的人不知道其他探測有沒有跑
+  assert.match(s.body, /a/);
+  assert.match(s.body, /b/);
 });
 
 test('c7 擋舊版結構指令', () => {
