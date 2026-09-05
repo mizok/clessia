@@ -748,10 +748,14 @@ gh pr view <n> --json state -q .state      # 必須是 OPEN
 
 ## 已知缺口（接手時的待辦池 —— 這節會過期，接手第一件事：重寫它）
 
-> 上次除鏽 **2026-09-03**，每條都當場查證過而不是照抄。
-> 除鏽的方法：**逐條跑指令驗一次**（下面每條都附怎麼驗），已解的劃掉並寫解法，
-> 不確定的就去量 —— 這節最大的風險不是漏記，是**留著已經解掉的條目**，
-> 讓接手的人把力氣花在不存在的問題上。
+> 上次除鏽 **2026-09-05**，每條都當場跑過指令而不是照抄。
+> **格式**：每條「結論 ＋ 重跑用的指令」—— 讀的人要能便宜地驗，
+> 而不是只能選擇信或不信。已解的劃掉並寫解法。
+>
+> 這節最大的風險不是漏記，是**留著已經解掉的條目**，讓接手的人把力氣花在
+> 不存在的問題上。**2026-09-05 就抓到一條**：它寫著「c2 還有 4 筆真債」，
+> 而實際上 `allowlist` 兩側都是 `{}` —— 債在 09-04 就清完了。
+> 那條還附了「要先由 billing-api 席驗一處」的行動建議，**一個不存在的問題配了一張工單**。
 
 ### 還在的
 
@@ -762,11 +766,20 @@ gh pr view <n> --json state -q .state      # 必須是 OPEN
   那是最便宜的立法時機）。我原本寫「靜態 regex 引擎做不到」是對的，但結論下錯了：
   **規則引擎做不到 ≠ 做不到**，寫成專用函式就行（A15 / A17 早就是這個形狀）。
   仍未覆蓋的是**經由 `core/` / `shared/` 的間接耦合**，那一半靠 review。
-- **c2 還有 4 筆真債**（驗：`npm run harness` 的 A15 帳目）——
-  `me.ts:124`、`parents.ts:621` 的 email 與 `parents.ts:625`、`staff.ts:1150` 的 phone。
-  卡點不是難改，是**全 repo 零前例**：沒有任何一處用 `auth.api.updateUser` 更新過使用者。
-  要先由 billing-api 席驗一處（能不能寫 additionalFields、email 重複時的錯誤形狀）再推廣。
-  另有 1 筆**永久豁免**（`me.ts:151`，username 無 API 路徑且仍是唯一性鍵）。
+- ~~c2 還有 4 筆真債~~ → **債已歸零**（2026-09-04）。每一筆都查證過「沒有合規路徑」，
+  所以轉成永久豁免而不是待辦：`updateUser` 要被改者的 session（管理員拿不到）、
+  `adminUpdateUser` 看 `ba_user.role`（本專案全是 `'user'`）必 403、
+  `changeEmail` 的前置需要寄信管道（本專案沒有）。
+
+  ```bash
+  sed -n "/clause: 'c2',/,/^});/p" tools/agent-harness/check-harness.mjs | grep allowlist
+  # 兩側都應該是 allowlist: {} —— 非空就代表又欠了新的
+  ```
+
+  **同時新增了 SQL 側**（`seed.sql` 9 筆、`session_cleanup_cron` 1 筆，都是永久豁免）。
+  在那之前 SQL 這個載體完全沒人看，而程式碼裡寫著「真債歸零」—— 那句話當時的
+  真實含義是「在我們碰巧會掃的那個載體裡歸零」。
+
 - ~~`nx.json` 的 `defaultBase` 指向不存在的 `dev`~~ → 2026-09-03 修成 `main`，
   `nx affected` 可以直接跑。Stop gate 仍明寫 `--base=main`：**gate 的行為不該因為
   有人改 nx.json 而變**。
@@ -781,6 +794,16 @@ gh pr view <n> --json state -q .state      # 必須是 OPEN
   已同步 fvg 席並建議設常設上限，**但那是他們的引擎設定**。
   本席掛了 watch（20 GB 警戒 / 10 GB 自動 prune），但那是止血不是解法 ——
   真正的問題「這台機器要不要繼續當 CI runner」不是本席能裁的。
+
+  ```bash
+  df -h / | tail -1                        # 主機可用
+  du -sh ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw
+  # Docker.raw 是 sparse file —— 一定要用 du，ls 看到的是假的
+  ```
+
+  **2026-09-05 現況**：主機可用 189 GB、Docker.raw 54 GB、Docker Desktop 整個沒開
+  （無 app、無 VM、無 socket）。**跟 09-04 那次不同** —— 那次是 app 活著但 VM 死了，
+  所以 `open -a Docker` 是 no-op；這次是乾淨關閉，`open -a Docker` 會生效。
 
 ### 這輪解掉的（保留一行，讓下一個人知道不用再查）
 
