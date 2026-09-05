@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as classesRoute from './classes';
 
 describe('applyClassDetailScheduleScope', () => {
@@ -81,6 +81,7 @@ describe('DELETE /api/classes/:id —— session_packs 守門（真的打路由�
     const sessionsQuery = {
       select: () => sessionsQuery,
       eq: () => sessionsQuery,
+      in: () => sessionsQuery,
       lt: () => sessionsQuery,
       limit: () => sessionsQuery,
       then: (onfulfilled?: (value: unknown) => unknown) =>
@@ -147,6 +148,94 @@ describe('DELETE /api/classes/:id —— session_packs 守門（真的打路由�
       error: '此班級已有學生購買堂數包，無法刪除，請改為停用',
       code: 'HAS_SESSION_PACK',
     });
+    expect(wentPastGuard()).toBe(false);
+  });
+});
+
+/**
+ * 時區第三批 PR A：`DELETE /api/classes/:id`（單筆）與 `DELETE /api/classes/batch`
+ * 的「過去課堂」守門原本用 `new Date().toISOString().slice(0, 10)`（UTC）算「今天」，
+ * 在台北時間 00:00–08:00 之間會算成前一天。
+ *
+ * **這是 M8 洞的迴歸測試**：一個班有「台北昨天」的課堂，在 UTC 還是前一天傍晚、
+ * 台北已經跨到隔天凌晨的時刻呼叫刪除——修之前這個組合會被判定成「沒有過去課堂」
+ * 而放行，修之後（收斂進 `checkClassesPastSessions`，用台北時間）要回 409。
+ */
+describe('DELETE /api/classes —— 台北凌晨那個窗（M8 洞的迴歸測試）', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function createPastSessionsApp(pastSessionRows: Array<{ class_id: string }>) {
+    let touchedBeyondGuard = false;
+
+    const sessionsQuery = {
+      select: () => sessionsQuery,
+      eq: () => sessionsQuery,
+      in: () => sessionsQuery,
+      lt: () => sessionsQuery,
+      limit: () => sessionsQuery,
+      then: (onfulfilled?: (value: unknown) => unknown) =>
+        Promise.resolve({ data: pastSessionRows, error: null }).then(onfulfilled ?? undefined),
+    };
+
+    const supabase = {
+      from(table: string) {
+        if (table === 'sessions') return sessionsQuery;
+        // 409 之前只會查 sessions；查到別的表代表守門沒有真的擋下
+        touchedBeyondGuard = true;
+        throw new Error(`Unsupported table in this fixture: ${table}`);
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/classes/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      await next();
+    });
+    app.route('/api/classes', classesRoute.default);
+
+    return { app, wentPastGuard: () => touchedBeyondGuard };
+  }
+
+  it('單筆刪除：班級有台北昨天的課堂，UTC 還在前一天傍晚時呼叫 —— 要回 409，不能刪', async () => {
+    // 台北 2026-09-06T01:00:00+08:00 = UTC 2026-09-05T17:00:00Z，#402 出事的那個窗
+    vi.setSystemTime(new Date('2026-09-05T17:00:00Z'));
+
+    const classId = '33333333-3333-4333-8333-333333333333';
+    const { app, wentPastGuard } = createPastSessionsApp([{ class_id: classId }]);
+
+    const res = await app.request(`/api/classes/${classId}`, { method: 'DELETE' });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: '此班級已有歷史課堂記錄，無法刪除，請改為停用',
+      code: 'HAS_PAST_SESSIONS',
+    });
+    expect(wentPastGuard()).toBe(false);
+  });
+
+  it('批次刪除：同一個窗口，班級有台北昨天的課堂 —— 要被跳過，不能刪', async () => {
+    vi.setSystemTime(new Date('2026-09-05T17:00:00Z'));
+
+    const classId = '44444444-4444-4444-8444-444444444444';
+    const { app, wentPastGuard } = createPastSessionsApp([{ class_id: classId }]);
+
+    const res = await app.request('/api/classes/batch', {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids: [classId] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ deleted: 0, deletedIds: [], skipped: 1 });
     expect(wentPastGuard()).toBe(false);
   });
 });
