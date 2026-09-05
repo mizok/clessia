@@ -661,9 +661,10 @@ export class SessionsPage implements OnInit {
     }
 
     const ref = this.dialogService.open(AttendanceRosterPanelComponent, {
-      header: '管理出勤狀況',
       width: '480px',
-      closable: true,
+      modal: true,
+      showHeader: false,
+      closable: false,
       data: {
         eventId: session.eventId,
         className: session.className,
