@@ -1,11 +1,17 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
-import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { MessageService } from 'primeng/api';
+import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { ConfirmationService, MessageService } from 'primeng/api';
 
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { FeeTemplatesService, type FeeTemplate } from '@core/fee-templates.service';
+import {
+  SessionPacksService,
+  type SessionPack,
+  type SessionPackListResponse,
+} from '@core/session-packs.service';
+import { OverlayContainerService } from '@core/overlay-container.service';
 
 import { EnrollmentBillingDialogComponent } from './enrollment-billing-dialog.component';
 
@@ -35,40 +41,67 @@ const enrollment = (overrides?: Partial<Enrollment>): Enrollment =>
     ...overrides,
   }) as Enrollment;
 
+const emptyPackResponse: SessionPackListResponse = {
+  data: [],
+  summary: { purchased: 0, deducted: 0, remaining: 0, leaveDeductsSession: false },
+};
+
 describe('EnrollmentBillingDialogComponent', () => {
   let component: EnrollmentBillingDialogComponent;
   let fixture: ComponentFixture<EnrollmentBillingDialogComponent>;
 
   const enrollments = { update: vi.fn(() => of({ data: enrollment() })) };
   const feeTemplates = { list: vi.fn(() => of({ data: [feeTemplate()] })) };
+  const sessionPacks = {
+    list: vi.fn(() => of(emptyPackResponse)),
+    delete: vi.fn(() => of({ success: true })),
+  };
   const dialogRef = { close: vi.fn() };
+  const dialogService = { open: vi.fn() };
+  const overlayContainerService = { getContainer: vi.fn(() => null) };
 
-  async function setup(data: Enrollment) {
+  async function setup(
+    data: Enrollment,
+    packResponse: SessionPackListResponse = emptyPackResponse,
+  ) {
     TestBed.resetTestingModule();
     enrollments.update.mockReset().mockReturnValue(of({ data }));
     feeTemplates.list.mockReset().mockReturnValue(of({ data: [feeTemplate()] }));
+    sessionPacks.list.mockReset().mockReturnValue(of(packResponse));
+    sessionPacks.delete.mockReset().mockReturnValue(of({ success: true }));
     dialogRef.close.mockReset();
+    dialogService.open.mockReset();
 
     await TestBed.configureTestingModule({
       imports: [EnrollmentBillingDialogComponent],
       providers: [
         { provide: EnrollmentsService, useValue: enrollments },
         { provide: FeeTemplatesService, useValue: feeTemplates },
+        { provide: SessionPacksService, useValue: sessionPacks },
+        { provide: DialogService, useValue: dialogService },
+        { provide: OverlayContainerService, useValue: overlayContainerService },
         { provide: DynamicDialogRef, useValue: dialogRef },
         { provide: DynamicDialogConfig, useValue: { data: { enrollment: data } } },
         MessageService,
+        ConfirmationService,
       ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(EnrollmentBillingDialogComponent);
     component = fixture.componentInstance;
+    fixture.detectChanges();
     await fixture.whenStable();
+    fixture.detectChanges();
   }
 
   type Internals = {
     form: { set: (v: Record<string, unknown>) => void; (): Record<string, unknown> };
     save: () => void;
     pricingHint: () => string | null;
+    isSessionPackMode: () => boolean;
+    packs: () => SessionPack[];
+    packSummary: () => unknown;
+    openBuyPackDialog: () => void;
   };
   const internals = () => component as unknown as Internals;
 
@@ -151,5 +184,92 @@ describe('EnrollmentBillingDialogComponent', () => {
     });
 
     expect(internals().pricingHint()).toContain('4,500');
+  });
+
+  describe('堂數包區塊', () => {
+    it('一進 dialog 就打 API 查堂數帳，不等切到堂數制才載入', () => {
+      expect(sessionPacks.list).toHaveBeenCalledWith('en-1');
+    });
+
+    it('不是堂數制時不顯示堂數帳區塊', () => {
+      internals().form.set({
+        billingMode: 'monthly',
+        feeTemplateId: null,
+        agreedAmount: null,
+        adjustmentNote: '',
+      });
+      fixture.detectChanges();
+
+      expect(internals().isSessionPackMode()).toBe(false);
+      expect(fixture.nativeElement.querySelector('.enrollment-billing__session-pack')).toBeNull();
+    });
+
+    it('剩餘 ≤ 0 時顯示追補買警示', async () => {
+      await setup(enrollment({ billingMode: 'session_pack' }), {
+        data: [],
+        summary: { purchased: 10, deducted: 12, remaining: -2, leaveDeductsSession: false },
+      });
+
+      expect(internals().isSessionPackMode()).toBe(true);
+      const notice = fixture.nativeElement.querySelector('app-inline-notice');
+      expect(notice).not.toBeNull();
+    });
+
+    it('剩餘 > 0 時只顯示文字，不顯示警示', async () => {
+      await setup(enrollment({ billingMode: 'session_pack' }), {
+        data: [],
+        summary: { purchased: 10, deducted: 3, remaining: 7, leaveDeductsSession: false },
+      });
+
+      expect(fixture.nativeElement.querySelector('app-inline-notice')).toBeNull();
+      expect(fixture.nativeElement.textContent).toContain('剩餘');
+      expect(fixture.nativeElement.textContent).toContain('7');
+    });
+
+    it('點「記錄一次購買」帶正確的 enrollmentId 開 dialog，關閉後重新載入堂數帳', () => {
+      const onClose = of({
+        id: 'sp-2',
+        enrollmentId: 'en-1',
+        purchasedCount: 5,
+        purchasedAt: '2026-09-05',
+        expiresAt: null,
+        invoiceItemId: null,
+        note: null,
+        createdAt: '2026-09-05T00:00:00.000Z',
+      } as SessionPack);
+      dialogService.open.mockReturnValue({ onClose });
+      sessionPacks.list.mockClear();
+
+      internals().openBuyPackDialog();
+
+      expect(dialogService.open).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          data: expect.objectContaining({ enrollmentId: 'en-1', studentName: '王小明' }),
+        }),
+      );
+      expect(sessionPacks.list).toHaveBeenCalledWith('en-1');
+    });
+
+    it('確認刪除後才真的呼叫 delete API', () => {
+      const pack: SessionPack = {
+        id: 'sp-1',
+        enrollmentId: 'en-1',
+        purchasedCount: 10,
+        purchasedAt: '2026-09-01',
+        expiresAt: null,
+        invoiceItemId: null,
+        note: null,
+        createdAt: '2026-09-01T00:00:00.000Z',
+      };
+
+      (component as unknown as { confirmDeletePack: (p: SessionPack) => void }).confirmDeletePack(
+        pack,
+      );
+
+      // ConfirmationService 的預設對話框需要使用者互動才會 accept，
+      // 這裡只驗證「還沒確認前不會呼叫 delete」——確認流程本身是 PrimeNG 元件的責任
+      expect(sessionPacks.delete).not.toHaveBeenCalled();
+    });
   });
 });

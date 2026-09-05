@@ -71,10 +71,71 @@
         </span>
       </div>
     }
+
+    @if (isSessionPackMode()) {
+      <div class="enrollment-billing__field enrollment-billing__session-pack">
+        <label class="enrollment-billing__label">堂數帳</label>
+
+        @if (packSummary(); as summary) {
+          @if (summary.remaining <= 0) {
+            <app-inline-notice
+              class="enrollment-billing__session-pack-notice"
+              severity="warning"
+              summary="堂數已用完，該追補買了"
+              [detail]="
+                '剩餘 ' +
+                summary.remaining +
+                ' 堂（買了 ' +
+                summary.purchased +
+                ' 堂，已扣 ' +
+                summary.deducted +
+                ' 堂）'
+              "
+              [dismissible]="false"
+            />
+          } @else {
+            <p class="enrollment-billing__hint">
+              剩餘 <strong>{{ summary.remaining }}</strong> 堂（買了
+              {{ summary.purchased }} 堂，已扣 {{ summary.deducted }} 堂）
+            </p>
+          }
+        }
+
+        @if (packs().length > 0) {
+          <ul class="enrollment-billing__session-pack-list">
+            @for (pack of packs(); track pack.id) {
+              <li class="enrollment-billing__session-pack-item">
+                <span>{{ pack.purchasedAt }}・{{ pack.purchasedCount }} 堂</span>
+                @if (pack.note) {
+                  <span class="enrollment-billing__session-pack-note">{{ pack.note }}</span>
+                }
+                <button
+                  type="button"
+                  class="enrollment-billing__session-pack-delete"
+                  aria-label="刪除這筆購買紀錄"
+                  (click)="confirmDeletePack(pack)"
+                >
+                  <i class="pi pi-trash"></i>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+
+        <p-button
+          label="記錄一次購買"
+          [text]="true"
+          icon="pi pi-plus"
+          (onClick)="openBuyPackDialog()"
+        />
+      </div>
+    }
   </div>
 
   <footer class="enrollment-billing__footer">
     <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
     <p-button label="儲存" [loading]="saving()" (onClick)="save()" />
   </footer>
+
+  <p-confirmdialog />
 </div>

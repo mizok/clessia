@@ -1,0 +1,48 @@
+<div class="session-pack-form">
+  <header class="session-pack-form__header">
+    <h2 class="session-pack-form__title">記錄堂數購買</h2>
+    <p class="session-pack-form__hint">{{ data.studentName }}</p>
+  </header>
+
+  <div class="session-pack-form__body">
+    <div class="session-pack-form__field">
+      <label class="session-pack-form__label" for="spf-count">購買堂數 *</label>
+      <p-inputnumber
+        inputId="spf-count"
+        [min]="1"
+        [showButtons]="true"
+        [ngModel]="form().purchasedCount"
+        (ngModelChange)="update('purchasedCount', $event)"
+      />
+    </div>
+
+    <div class="session-pack-form__field">
+      <label class="session-pack-form__label" for="spf-date">購買日期 *</label>
+      <p-datepicker
+        inputId="spf-date"
+        dateFormat="yy-mm-dd"
+        [showIcon]="true"
+        [ngModel]="form().purchasedAt"
+        (ngModelChange)="update('purchasedAt', $event)"
+      />
+    </div>
+
+    <div class="session-pack-form__field">
+      <label class="session-pack-form__label" for="spf-note">備註</label>
+      <input
+        id="spf-note"
+        type="text"
+        pInputText
+        maxlength="200"
+        placeholder="如：現金付訖"
+        [ngModel]="form().note"
+        (ngModelChange)="update('note', $event)"
+      />
+    </div>
+  </div>
+
+  <footer class="session-pack-form__footer">
+    <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
+    <p-button label="記錄購買" [loading]="saving()" (onClick)="save()" />
+  </footer>
+</div>

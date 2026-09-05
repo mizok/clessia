@@ -2,11 +2,12 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { ButtonModule } from 'primeng/button';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { SelectModule } from 'primeng/select';
 import { TextareaModule } from 'primeng/textarea';
-import { MessageService } from 'primeng/api';
-import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { ConfirmationService, MessageService } from 'primeng/api';
+import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import {
@@ -15,6 +16,13 @@ import {
   type BillingMode,
   type FeeTemplate,
 } from '@core/fee-templates.service';
+import {
+  SessionPacksService,
+  type SessionPack,
+  type SessionPackSummary,
+} from '@core/session-packs.service';
+import { OverlayContainerService } from '@core/overlay-container.service';
+import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
 import {
   billingModeOptions,
@@ -23,6 +31,7 @@ import {
   isAdjusted,
   pricingHint,
 } from '../enrollment-billing.util';
+import { SessionPackFormDialogComponent } from '../session-pack-form-dialog/session-pack-form-dialog.component';
 
 /**
  * 單筆報名的計費設定 —— 見 kb/wiki/rules/billing-rules.md 規則 1 與 2。
@@ -37,20 +46,37 @@ import {
 @Component({
   selector: 'app-enrollment-billing-dialog',
   standalone: true,
-  imports: [FormsModule, ButtonModule, InputNumberModule, SelectModule, TextareaModule],
+  imports: [
+    FormsModule,
+    ButtonModule,
+    ConfirmDialogModule,
+    InputNumberModule,
+    SelectModule,
+    TextareaModule,
+    InlineNoticeComponent,
+  ],
+  providers: [ConfirmationService],
   templateUrl: './enrollment-billing-dialog.component.html',
   styleUrl: './enrollment-billing-dialog.component.scss',
 })
 export class EnrollmentBillingDialogComponent {
   private readonly enrollmentsService = inject(EnrollmentsService);
   private readonly feeTemplatesService = inject(FeeTemplatesService);
+  private readonly sessionPacksService = inject(SessionPacksService);
   private readonly messageService = inject(MessageService);
+  private readonly confirmationService = inject(ConfirmationService);
+  private readonly dialogService = inject(DialogService);
+  private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig);
 
   protected readonly enrollment: Enrollment = this.config.data.enrollment;
   protected readonly saving = signal(false);
   protected readonly templates = signal<FeeTemplate[]>([]);
+
+  protected readonly packs = signal<SessionPack[]>([]);
+  protected readonly packSummary = signal<SessionPackSummary | null>(null);
+  protected readonly loadingPacks = signal(false);
 
   protected readonly form = signal({
     billingMode: this.enrollment.billingMode as BillingMode | null,
@@ -75,10 +101,88 @@ export class EnrollmentBillingDialogComponent {
     isAdjusted(this.form().agreedAmount, this.selectedTemplate()),
   );
 
+  /**
+   * 這裡看的是**表單目前選的模式**，不是 `enrollment.billingMode`——
+   * 使用者在這個 dialog 裡把模式切成堂數制的當下，就該看得到這個區塊。
+   */
+  protected readonly isSessionPackMode = computed(() => this.form().billingMode === 'session_pack');
+
+  private get overlayContainer(): HTMLElement | null {
+    return this.overlayContainerService.getContainer();
+  }
+
   constructor() {
     this.feeTemplatesService.list({ isActive: true }).subscribe({
       next: (res) => this.templates.set(res.data),
       error: () => this.templates.set([]),
+    });
+
+    // 堂數帳跟表單模式無關（查的是這個報名本來就有的購買紀錄），
+    // 不等使用者切到堂數制才載入——一次打完，模式切換只是決定要不要顯示。
+    this.loadPacks();
+  }
+
+  private loadPacks(): void {
+    this.loadingPacks.set(true);
+    this.sessionPacksService.list(this.enrollment.id).subscribe({
+      next: (res) => {
+        this.packs.set(res.data);
+        this.packSummary.set(res.summary);
+        this.loadingPacks.set(false);
+      },
+      error: () => {
+        this.packs.set([]);
+        this.packSummary.set(null);
+        this.loadingPacks.set(false);
+      },
+    });
+  }
+
+  protected openBuyPackDialog(): void {
+    const dialogRef = this.dialogService.open(SessionPackFormDialogComponent, {
+      header: '記錄堂數購買',
+      width: '440px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { enrollmentId: this.enrollment.id, studentName: this.enrollment.studentName },
+    });
+
+    dialogRef?.onClose.subscribe((created: SessionPack | undefined) => {
+      if (!created) return;
+      this.loadPacks();
+    });
+  }
+
+  protected confirmDeletePack(pack: SessionPack): void {
+    this.confirmationService.confirm({
+      message: `確定要刪除「${pack.purchasedAt} 購買 ${pack.purchasedCount} 堂」這筆紀錄嗎？`,
+      header: '確認刪除',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: '刪除',
+      rejectLabel: '取消',
+      acceptButtonProps: { severity: 'danger' },
+      accept: () => this.deletePack(pack),
+    });
+  }
+
+  private deletePack(pack: SessionPack): void {
+    this.sessionPacksService.delete(pack.id).subscribe({
+      next: () => {
+        this.messageService.add({
+          severity: 'success',
+          summary: '已刪除',
+          detail: '購買紀錄已刪除',
+        });
+        this.loadPacks();
+      },
+      error: (err) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: '刪除失敗',
+          detail: err.error?.error || '請稍後再試',
+        });
+      },
     });
   }
 
