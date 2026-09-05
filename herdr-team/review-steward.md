@@ -381,6 +381,48 @@ gh pr list -R mizok/clessia --state open --json number,title -q '.[]|"#\(.number
 主動重掃是不等訊息**告知有新 PR**,查留言是不信訊息**告知已驗收**。
 訊息是觸發器,不是資料來源。
 
+### `is-ancestor` 的方向:問「我拿到了嗎」可以,問「我的進去了嗎」不行
+README 有一條:**squash merge 之後「commit 在不在 main」只能用內容判斷,
+`git merge-base --is-ancestor` 對原始 SHA 永遠回錯**。那條仍然成立 ——
+但它禁的是**一個方向**,不是這個指令本身。
+
+| 問法 | 可用? | 為什麼 |
+| --- | --- | --- |
+| 拿 **PR 分支的原始 commit SHA** 問「它在不在 main」 | **不行** | squash 之後那顆 SHA 從來沒進過 main |
+| 拿 **main 上真實存在的 commit** 問「它是不是這支分支的祖先」 | **可以** | 那顆 SHA 真的在 main 上,祖先關係是實的 |
+
+**方向相反**:前者問「我的東西進去了嗎」(squash 會騙你),
+後者問「**你的東西我拿到了嗎**」(不會騙)。
+
+用法(2026-09-05 夜間大批 rebase):
+```bash
+git fetch origin <分支> && git merge-base --is-ancestor <main上的修正commit> FETCH_HEAD \
+  && echo "已含修正" || echo "缺 —— 需要 rebase 才會重跑 CI"
+```
+
+**為什麼要驗這個而不只看 CI 綠**:「CI 綠」和「**CI 對正確的東西綠**」是兩件事,
+而它們在 PR 頁面上長得一模一樣。綠可能來自別的原因(對舊 base 跑的過期結果、快取),
+`is-ancestor` 直接回答「這支跑的是不是修好的 main」。
+
+### CI 的 FAILURE 可能是對舊 base 跑的過期結果 —— 用時間戳分辨
+`main` 修好之後,**GitHub 不會自動重跑既有 PR 的 CI** —— 除非分支有新的 push。
+所以板上一片紅時,先分辨「這支自己壞了」還是「它跑在修好之前」:
+
+```bash
+gh run list --branch <分支> --limit 1 --json createdAt   # CI 何時開跑
+gh pr view <修正PR> --json mergedAt                       # 修正何時進 main
+```
+2026-09-05 的實例:#404 的 CI 在 #402 合併前 **81 秒**開跑 —— 那個 FAILURE 是過期的,
+**而且能證明它過期,不是推測**。「新開的 PR 也紅」與「main 根本沒好」在列表上長得一樣,
+**時間戳是唯一能分開它們的東西**。
+
+**判定歸屬之後才決定通知誰**:紅的歸屬要先查清楚。
+- 動作在**別人**手上(等 bug 被修)→ **不通知**,那只會製造 N 份「我沒問題啊」的查證
+- 動作在**他們自己**手上(要 rebase 才會重跑)→ **通知**
+
+**差別不在紅的性質,在有沒有他們能做的事。**
+(teacher-pages 的推廣版:**通知的門檻是「收件人能不能因此做點什麼」,不是「這件事重不重要」。**)
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
