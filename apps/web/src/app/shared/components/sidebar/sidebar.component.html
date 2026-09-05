@@ -1,5 +1,7 @@
 <aside class="sidebar u-full-height u-scrollable">
-  <nav class="sidebar__nav" appAccordion #accordion="appAccordion">
+  <!-- 允許多組同時展開(Tester #35)——原本的手風琴行為讓人在學務管理裡工作時
+       想瞄一眼課務管理就會把手上的組收掉。directive 本來就支援 multi，只是這裡沒帶。 -->
+  <nav class="sidebar__nav" appAccordion [multi]="true" #accordion="appAccordion">
     @for (group of groupedNav(); track group.label) {
       @if (group.label) {
         <div

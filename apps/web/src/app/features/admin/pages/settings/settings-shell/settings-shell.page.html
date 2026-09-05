@@ -1,4 +1,7 @@
 <div class="settings-shell">
+  <!-- 這頁原本直接從 tabs 開始，沒有頁標——全站唯一（Tester #15） -->
+  <h1 class="settings-shell__title">{{ page().label }}</h1>
+
   <p-tabs [value]="activeTab()" (valueChange)="onTabChange($event)">
     <p-tablist>
       @for (tab of tabs; track tab.value) {

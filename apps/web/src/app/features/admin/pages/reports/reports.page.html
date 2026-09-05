@@ -2,9 +2,9 @@
 
 <div class="reports">
   <h1 class="reports__title">{{ page().label }}</h1>
-  <p class="reports__lede">
-    錢進來多少、還有多少沒收到。所有數字都由後端聚合，不是抓明細加總出來的。
-  </p>
+  <!-- 原本多一句「所有數字都由後端聚合，不是抓明細加總出來的」——那是給工程師看的
+       實作細節，補習班行政不需要也不會懂（Tester #22） -->
+  <p class="reports__lede">錢進來多少、還有多少沒收到。</p>
 
   <div class="reports__toolbar clessia-filter-bar">
     <p-datepicker
@@ -112,9 +112,9 @@
     <p class="reports__cash">
       <i class="pi pi-info-circle reports__cash-icon"></i>
       <span>
-        這段期間實收 <b class="reports__num">{{ summary()?.received ?? 0 | number }}</b>、
-        退款 <b class="reports__num">{{ summary()?.refunded ?? 0 | number }}</b>（單獨列，未從實收扣除）。
-        收款看收款日，與上面的開帳區間是不同的集合。
+        這段期間實收 <b class="reports__num">{{ summary()?.received ?? 0 | number }}</b
+        >、 退款 <b class="reports__num">{{ summary()?.refunded ?? 0 | number }}</b
+        >（單獨列，未從實收扣除）。 收款看收款日，與上面的開帳區間是不同的集合。
       </span>
     </p>
 
@@ -188,10 +188,7 @@
                   <!-- 比例條填色是中性深色，不用 accent —— accent 是品牌色，
                        已退出數值強調用途（#100 的視覺回歸） -->
                   <span class="reports__mini" [attr.aria-hidden]="true">
-                    <span
-                      class="reports__mini-fill"
-                      [style.width.%]="collectedPctOf(group)"
-                    ></span>
+                    <span class="reports__mini-fill" [style.width.%]="collectedPctOf(group)"></span>
                   </span>
                 }
                 @if (isAmbiguous(group)) {
