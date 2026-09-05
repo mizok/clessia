@@ -81,40 +81,50 @@
   user_roles 加 student 第四角色(select-role 天然支援)
 - 流程照舊:探索→設計文件→使用者批准→動工;頁面重用家長端(同頁換 scope 的薄層)
 
-## Tester 啟動清單(管理端 100% 後發訊號;desktop-44 已就位待命,零寫入令生效中)
+## Tester(desktop-44) —— 已啟動 2026-09-05 17:20
 
-- 啟動時要一併裁的三件:①session 模式(獨立測試帳號/無痕從零/沿用真 session 唯讀)
-  ②寫入授權範圍(如「試聽表單可真送出,假資料以 UX測試 開頭」;無授權則只填不送,
-  送出後的回饋評不到)③角色範圍(僅管理員,或含老師/家長)
-- 已到手的兩條前置發現:真 session 直進後台(Chrome 殘留 session,非漏洞)、
-  儀表板「載入中」粗體佔數字位 4-5 秒像狀態值 → 排設計席改骨架條
+三件裁決結論(計畫席 clessia-c8 裁,已發啟動令 msg 141901df):
+①**session**:沿用使用者現有 admin session 唯讀(零設定;Chrome 殘留 session 直進後台
+是瀏覽器行為非漏洞) ②**寫入**:零寫入維持,碰到「必須送出才評得到」的地方列成
+「待授權才能評」清單,累積後一次向使用者換授權 ③**範圍**:僅管理端(老師/家長 fixture
+過早,家長端 API #351 未合)
+
+- 產出:問題清單(哪一頁/怎麼重現/看到什麼/為什麼是問題),嚴重度自標,計畫席排序
+- 已交線索:儀表板「載入中」粗體佔數字位 4-5 秒像狀態值(單點已排設計席改骨架條)——
+  要 tester 找的是**同一模式還在哪些頁**,不是複驗這一點
+- 產品觀察(待使用者決):系統沒有「把家長角色加到現有帳號」的 UI 路徑
 
 ## 使用者窗口積壓
 
-
-- 及格線欄位 migration / 科目平均百分比化(語意變更)/ 640px 視覺 / iOS 抽屜確認(#282)
+- **#351 待使用者親合**(家長端授權 scope 第一實例=保留類「授權/權限邏輯」;CI 綠、
+  計畫席本人驗收留言已補)
+- 及格線欄位 migration / 640px 視覺 / iOS 抽屜確認(#282,已向 teacher-pages 索步驟
+  msg 3a94d501)
 - 誰先 db:reset 誰驗 seed 雙身分帳號
-
+- 心跳機制 A雲端cron/B手機捷徑/C手動 未選(機器睡眠本機無解)
+- 堂數制主動提醒
 
 ## 計畫席交接(2026-09-05 clessia-c8 輪替)
 
-前任計畫席因 context 過長、工具輸出污染而輪替。新任讀此節接手。
-
 ### 計畫席退化事件(進 herdr playbook)
-context 過長導致工具輸出不可信:bash 退出碼/URL、gh pr comment 回傳、SendMessage msg_id 都會污染,且會「以為送出了」。#350/#351 驗收留言查無=此故障證據(兩不同 PR 回傳共用同一 comment id)。教訓:計畫席也要輪替,不能無限跑;症狀是工具輸出自我矛盾。新任第一件事:查一支 PR comment 確認 API 回傳合理不自我矛盾,再開始裁決。
+context 過長導致工具輸出不可信:bash 退出碼/URL、gh pr comment 回傳、SendMessage msg_id
+都會污染,且會「以為送出了」。#350/#351 驗收留言查無=此故障證據(兩不同 PR 回傳共用
+同一 comment id)。教訓:**計畫席也要輪替,不能無限跑**;症狀是工具輸出自我矛盾。
+**新任第一件事**:查一支 PR comment 確認 API 回傳合理不自我矛盾,再開始裁決。
 
-### 第一刀:補 #351-#355 驗收留言(前任因污染沒送出,steward 在等,五支收不了)
-- #351 家長端三讀取端點(api,優先):isChildAllowed 兩層防線+複用 admin 查詢+遮蔽清單含 recordedBy。已驗收,steward 只有代記待本人補。
-- #352 bundle 健檢 / #353 charter cache 訂正 / #354 smoke cron 偏移 / #355 steward charter —— 都驗收過,補留言即收。
+### 交接第一刀 —— 已完成(2026-09-05 17:1x)
+#351-#355 五則計畫席本人驗收留言已補齊並回驗落地(印整個 comments 陣列,非 grep)。
+#351 非蓋章:對 diff 重驗三要點(isChildAllowed 回 403 非空清單 / childDb `.in(scope)`
+第二層 / recordedBy·recordedByRole 有 not.toHaveProperty 正面斷言)。
 
-### Tester 啟動(desktop-44 暫停中,等管理端100%——已達成)
-裁三件:session模式/寫入授權/角色範圍。結論:用使用者 admin session 唯讀評管理端(零設定);老師家長 fixture 過早不做。產品觀察:系統無把家長角色加到現有帳號的 UI 路徑。
+**新任自己犯的驗證器錯誤,留給下一任**:這五支的 `sync-feature-map` conclusion 是
+**SKIPPED**;用「非 SUCCESS 即紅燈」過濾會得到「五支全紅」的假結論。過濾要放行
+SKIPPED/NEUTRAL。又一次「驗證失敗時先懷疑驗證器」。
 
 ### 在飛線
-家長端 #351 合後 admin-pages 接 03 片前端(複用 #344 child-switcher);教務日誌 v1b 等 teacher-pages(同 childDb 線);chunk 復原/及格線/堂數包已上線。
-
-### 使用者未決/待辦
-心跳機制 A雲端cron/B手機捷徑/C手動 未選(機器睡眠本機無解);iOS 真機測試(teacher-pages 備步驟);640px 視覺;db:reset 驗 seed 雙身分;堂數制主動提醒。
+家長端 #351 合後 admin-pages 接 03 片前端(複用 #344 child-switcher);教務日誌 v1b 等
+teacher-pages(同 childDb 線);chunk 復原/及格線/堂數包已上線。
+#352/#353/#354/#355 待窗口回覆後授權 steward 合(docs+CI,不碰保留類)。
 
 ### 使用者準則(MEMORY 有)
 問題找解方不用工程理由結案;架構/換供應商級先討論不排單;UX至高原則;只用繁中。
