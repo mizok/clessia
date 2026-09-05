@@ -154,6 +154,18 @@ describe('MealsComponent', () => {
 
       expect(component['saving']()).toBe(false);
     });
+
+    /**
+     * P1-7（Tester 抓到）：黏在底部的確認鈕跟表格同一片白，行政會把它讀成
+     * 「表格的最後一列」，以為看到按鈕就是名單到底，漏勾沒捲到的學生直接訂錯份數。
+     * 明寫總數是第二層防線——就算視覺分不開，文字也要講出邊界在哪。
+     */
+    it('確認鈕旁明寫名單總數，不能只靠視覺分開表格跟動作列', () => {
+      fixture.detectChanges();
+
+      const count = fixture.nativeElement.querySelector('.meals__actions-count');
+      expect(count?.textContent?.trim()).toBe('共 2 位');
+    });
   });
 
   // 已結算的後端會擋並回 lockedStudentIds —— 前端不送，也要把擋下來的講出來
@@ -332,7 +344,9 @@ describe('MealsComponent', () => {
 
   describe('備註', () => {
     it('沒有備註時是空字串，不是字面上的 null', async () => {
-      meals.roster.mockReturnValue(of(roster([row({ recordId: 'r1', ordered: true, note: null })])));
+      meals.roster.mockReturnValue(
+        of(roster([row({ recordId: 'r1', ordered: true, note: null })])),
+      );
       component['load']();
       await fixture.whenStable();
 
@@ -340,7 +354,9 @@ describe('MealsComponent', () => {
     });
 
     it('備註跟著送出', async () => {
-      meals.roster.mockReturnValue(of(roster([row({ recordId: 'r1', ordered: true, note: '素食' })])));
+      meals.roster.mockReturnValue(
+        of(roster([row({ recordId: 'r1', ordered: true, note: '素食' })])),
+      );
       component['load']();
       await fixture.whenStable();
 

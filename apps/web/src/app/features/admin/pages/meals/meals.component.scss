@@ -88,6 +88,14 @@
 
   // **黏在底部** —— 名單有幾十列時，「確認名單」原本會被推到捲軸最下面，
   // 而那是這一頁唯一的主要動作。黏著它就不必為了存檔先捲到底。
+  //
+  // Tester 抓到的問題（P1-7）：跟表格同一色底 + 表格常見的下投影，讓這條動作列
+  // 讀起來像「表格的最後一列」而不是「浮在內容上面的固定列」——行政以為看到按鈕
+  // 就是名單到底，會漏勾下面沒捲到的學生，直接訂錯便當數量。
+  // 修法不是拿掉 sticky（那會還原原本「按鈕被推到看不見」的問題），是兩件事：
+  // 1) 底色跟表格的白區分開（zinc-50，不是同一片白）
+  // 2) 投影方向改成往上（bottom-sticky 元素該把陰影灑在往下捲的內容上，
+  //    downward 的 --shadow-md 只會落在畫面外，等於沒有投影）
   &__actions {
     position: sticky;
     bottom: 0;
@@ -99,10 +107,25 @@
     flex-wrap: wrap;
     padding: var(--space-3) var(--space-4);
     margin-top: var(--space-2);
-    background: var(--color-white);
+    background: var(--zinc-50);
     border-top: 1px solid var(--zinc-200);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-md);
+    box-shadow: 0 -4px 6px -2px rgb(0 0 0 / 8%);
+  }
+
+  &__actions-confirm {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  // 明寫總數，讓「按得下去」不會被誤讀成「看得到就是全部」——
+  // 這是這一列讀起來像浮動動作列之後，還要補的第二層：邊界要講出來，不能只靠視覺分開。
+  &__actions-count {
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--zinc-600);
+    white-space: nowrap;
   }
 
   &__hint {
