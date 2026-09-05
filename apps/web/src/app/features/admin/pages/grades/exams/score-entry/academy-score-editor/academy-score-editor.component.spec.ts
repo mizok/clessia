@@ -38,6 +38,7 @@ describe('AcademyScoreEditorComponent', () => {
     status: 'active',
     examDate: '2026-04-01',
     totalScore: 100,
+    passScore: null,
     scopeNote: '第一章',
     campusId: 'c1',
     campusName: '台北分校',
@@ -286,6 +287,17 @@ describe('AcademyScoreEditorComponent', () => {
     it('判斷走共用的門檻函式，不是模板裡的字面值', () => {
       expect(component['isFailing'](59)).toBe(true);
       expect(component['isFailing'](60)).toBe(false);
+    });
+
+    it('這場考試設了及格線時，優先用及格線而不是總分的六成', () => {
+      fixture.componentRef.setInput('exam', { ...mockExam, passScore: 70 });
+      fixture.detectChanges();
+
+      expect(component['isFailing'](65)).toBe(true);
+      expect(component['isFailing'](70)).toBe(false);
+      // 60 分在總分六成的舊門檻下剛好及格；設了及格線 70 之後變成不及格，
+      // 證明門檻確實換成及格線，不是還停在總分比例
+      expect(component['isFailing'](60)).toBe(true);
     });
   });
 });

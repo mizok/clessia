@@ -44,6 +44,7 @@ interface FormData {
   campusId: string | null;
   examDate: Date | null;
   totalScore: number;
+  passScore: number | null;
   scopeNote: string;
   classIds: string[];
 }
@@ -112,6 +113,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
     campusId: null,
     examDate: null,
     totalScore: 100,
+    passScore: null,
     scopeNote: '',
     classIds: [],
   });
@@ -125,6 +127,9 @@ export class AcademyExamFormDialogComponent implements OnInit {
   protected readonly lockExamType = computed(() => this.isEditing());
   protected readonly lockSubject = computed(() => this.isEditing());
   protected readonly lockTotalScore = computed(() => this.isEditing());
+  // 及格線不像滿分——改變它不會讓既有分數的意義跑掉，只影響「及格與否」的判讀，
+  // 所以只在考試結束（isClosed）才鎖，不因為已經編輯過或已有分數就鎖住。
+  protected readonly lockPassScore = computed(() => this.isClosed());
   protected readonly lockCampus = computed(() => this.isEditing());
   protected readonly lockClasses = computed(() => this.hasScores() || this.isClosed());
   protected readonly lockName = computed(() => this.isClosed());
@@ -139,6 +144,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
       !!f.subjectId &&
       !!f.examDate &&
       f.totalScore > 0 &&
+      (f.passScore === null || (f.passScore >= 0 && f.passScore <= f.totalScore)) &&
       f.classIds.length > 0
     );
   });
@@ -172,6 +178,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
               campusId: d.campusId,
               examDate: d.examDate ? new Date(d.examDate) : null,
               totalScore: d.totalScore,
+              passScore: d.passScore,
               scopeNote: d.scopeNote ?? '',
               classIds: d.classes.map((c) => c.classId),
             });
@@ -248,6 +255,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
       if (!this.lockSubject()) input.subjectId = f.subjectId;
       if (!this.lockExamDate()) input.examDate = examDate;
       if (!this.lockTotalScore()) input.totalScore = f.totalScore;
+      if (!this.lockPassScore()) input.passScore = f.passScore;
       if (!this.lockScopeNote()) input.scopeNote = f.scopeNote.trim() || null;
       if (!this.lockClasses()) input.classIds = f.classIds;
       if (!this.lockCampus()) input.campusId = f.campusId;
@@ -289,6 +297,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
       campusId: f.campusId,
       examDate,
       totalScore: f.totalScore,
+      passScore: f.passScore,
       scopeNote: f.scopeNote.trim() || null,
       classIds: f.classIds,
     };
