@@ -4,6 +4,7 @@ import { DbUuidSchema } from '../lib/validation';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
+import { CLASS_LOG_SELECT, toClassLogResponse } from '../lib/class-log-query';
 
 /**
  * 教務日誌（國中模式）：班級 × 日期，一班一天一篇 —— 教學紀錄 + 作業安排。
@@ -54,37 +55,6 @@ const UpsertSchema = z
   })
   .openapi('UpsertClassLog');
 
-interface ClassLogRow {
-  id: string;
-  class_id: string;
-  log_date: string;
-  teaching_record: string;
-  homework: string;
-  last_edited_by: string | null;
-  published_at: string | null;
-  classes?: { name: string } | null;
-  editor?: { name: string } | null;
-}
-
-export function toClassLogResponse(row: Record<string, unknown>) {
-  const typed = row as unknown as ClassLogRow;
-  return {
-    id: typed.id,
-    classId: typed.class_id,
-    className: typed.classes?.name ?? null,
-    logDate: typed.log_date,
-    teachingRecord: typed.teaching_record,
-    homework: typed.homework,
-    lastEditedByName: typed.editor?.name ?? null,
-    publishedAt: typed.published_at,
-    isPublished: Boolean(typed.published_at),
-  };
-}
-
-const SELECT =
-  'id, class_id, log_date, teaching_record, homework, last_edited_by, published_at, ' +
-  'classes(name), editor:ba_user!last_edited_by(name)';
-
 // ── GET /api/class-logs ────────────────────────────────────────────────────
 app.openapi(
   createRoute({
@@ -123,7 +93,7 @@ app.openapi(
 
     let query = supabase
       .from('class_logs')
-      .select(SELECT, { count: 'exact' })
+      .select(CLASS_LOG_SELECT, { count: 'exact' })
       .eq('org_id', orgId)
       .order('log_date', { ascending: false });
 
@@ -205,7 +175,7 @@ app.openapi(
         },
         { onConflict: 'class_id,log_date' },
       )
-      .select(SELECT)
+      .select(CLASS_LOG_SELECT)
       .single();
 
     if (error || !data) {
@@ -288,7 +258,7 @@ app.openapi(
       .update({ published_at: publishedAt, last_edited_by: userId })
       .eq('id', id)
       .eq('org_id', orgId)
-      .select(SELECT)
+      .select(CLASS_LOG_SELECT)
       .single();
 
     if (error || !data) {
