@@ -17,7 +17,8 @@
     "harness:test": "node --test 'tools/agent-harness/**/*.test.mjs'",
     "test:baseline": "npx nx affected -t test --base=main 2>&1 | node tools/agent-harness/test-gate.mjs --write",
     "bootstrap": "tsx apps/api/src/scripts/bootstrap-org.ts",
-    "login-link": "tsx apps/api/src/scripts/login-link.ts"
+    "login-link": "tsx apps/api/src/scripts/login-link.ts",
+    "preflight": "npm run harness && npm run harness:test && node tools/agent-harness/preflight.mjs"
   },
   "prettier": {
     "printWidth": 100,

@@ -21,6 +21,7 @@ import { matchWriteRules, routeHints } from './lib/rules.mjs';
 import { blankComments } from './lib/comments.mjs';
 import { inlineCarriers } from './lib/inline-carriers.mjs';
 import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
+import { preflightVerdict } from './lib/preflight-verdict.mjs';
 import {
   findOrphanEndpoints,
   matchesPrefix,
@@ -329,6 +330,86 @@ test('掃描範圍：同一道 gate 記多次會累加，不會互相覆蓋', ()
   const { t } = collectedScopes();
   assert.deepEqual(t.roots, ['apps/api/src', 'supabase']);
   assert.deepEqual(t.exts, ['.sql', '.ts']);
+});
+
+/**
+ * 推之前的分支狀態檢查（2026-09-05）。
+ *
+ * 起因是我一天內踩了兩次「本地認知過期」：推到已合併並刪支的分支、
+ * 換掉別人正在收的 head。兩條規則**都已經在 charter 裡**，兩次我都沒想起來要查 ——
+ * 所以「寫成一行指令」只解決了「想不起來怎麼查」，沒解決「想不起來要查」。
+ *
+ * review-steward 給的形狀：**不要做 pre-push hook**（push 沒有單一收口，
+ * 那會變成每一席各裝一份），改成掛在**已經會跑的那一步**（`npm run preflight`
+ * = harness + harness:test + 這支）。
+ *
+ * 判斷抽成純函式，是因為**第三種情況在不真的推出去的前提下做不出來** ——
+ * 而那正是最糟的一種。
+ */
+test('preflight：分支被刪掉的話，推上去的 commit 永遠不會進 main', () => {
+  const v = preflightVerdict({
+    tracking: '## foo...origin/foo [gone]',
+    localHead: 'aaaaaaaa',
+    run: null,
+  });
+  assert.equal(v.level, 'warn');
+  assert.equal(v.code, 'branch-gone');
+});
+
+/**
+ * **這一則是整支的重點。** `status` 單獨看只說「有沒有 CI 在跑」；
+ * 加上 `headSha` 才分得出「遠端已經跑掉了」—— 別人 update-branch 過而我不知道。
+ * 那是我 09-05 撞到的形狀，**只看 status 完全看不到**。
+ */
+test('preflight：遠端 CI 停在別的 SHA = 遠端已經跑掉了，不是「沒人在等」', () => {
+  const v = preflightVerdict({
+    tracking: '## foo...origin/foo',
+    localHead: 'aaaaaaaa',
+    run: { status: 'completed', headSha: 'bbbbbbbb', conclusion: 'success' },
+  });
+  assert.equal(v.level, 'warn');
+  assert.equal(v.code, 'remote-ahead');
+  assert.match(v.message, /fetch/);
+
+  // in_progress 也一樣 —— 判準是 SHA 對不對得上，不是 CI 跑不跑
+  assert.equal(
+    preflightVerdict({
+      tracking: '## foo...origin/foo',
+      localHead: 'aaaaaaaa',
+      run: { status: 'in_progress', headSha: 'bbbbbbbb', conclusion: null },
+    }).code,
+    'remote-ahead',
+  );
+});
+
+test('preflight：CI 正跑在我這顆 = 有人在等，別推', () => {
+  for (const status of ['in_progress', 'queued']) {
+    const v = preflightVerdict({
+      tracking: '## foo...origin/foo',
+      localHead: 'aaaaaaaa',
+      run: { status, headSha: 'aaaaaaaa', conclusion: null },
+    });
+    assert.equal(v.code, 'ci-running', `${status} 應該視為有人在等`);
+  }
+});
+
+/**
+ * 反方向：**該安靜的要安靜**。一個把「可以推」也講成警告的檢查，
+ * 跑三次之後就沒有人會讀它了。
+ */
+test('preflight：沒有理由攔的時候不要發警告', () => {
+  assert.equal(
+    preflightVerdict({ tracking: '## foo...origin/foo', localHead: 'aaaaaaaa', run: null }).level,
+    'ok',
+  );
+  assert.equal(
+    preflightVerdict({
+      tracking: '## foo...origin/foo',
+      localHead: 'aaaaaaaa',
+      run: { status: 'completed', headSha: 'aaaaaaaa', conclusion: 'success' },
+    }).level,
+    'ok',
+  );
 });
 
 test('c7 擋舊版結構指令', () => {
