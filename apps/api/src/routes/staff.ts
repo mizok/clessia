@@ -900,6 +900,7 @@ app.openapi(createRouteDef, async (c) => {
     if (isDuplicateEmailError(authErrorMessage)) {
       return c.json({ error: 'Email 已被使用', code: 'DUPLICATE_EMAIL' }, 409);
     }
+    console.error('[staff] 建立帳號失敗（非預期）:', error);
     return c.json(
       { error: authErrorMessage || '建立帳號失敗', code: 'CREATE_AUTH_USER_FAILED' },
       400,
@@ -919,8 +920,8 @@ app.openapi(createRouteDef, async (c) => {
         headers: c.req.raw.headers,
         asResponse: false,
       });
-    } catch (_error) {
-      // ignore rollback errors
+    } catch (rollbackError) {
+      console.error(`[staff] rollback 失敗，孤兒 ba_user=${createdUserId}:`, rollbackError);
     }
   };
 
