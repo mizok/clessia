@@ -171,7 +171,13 @@ admin / teacher / parent **沒有各自的 shell 元件**，三個角色走同�
 
 - BEM：`.block__element--modifier`
 - 全域 design tokens 在 `apps/web/src/styles.scss`（CSS custom properties）
-- 色彩 Zinc gray + Accent sky blue；spacing 基準 4px（`var(--space-*)`）；字體 Inter + Noto Sans TC
+- 色彩 Zinc gray + Accent **橘紅**（`--accent-400: #ff8557`）；spacing 基準 4px（`var(--space-*)`）；字體 Inter + Noto Sans TC
+  > 2026-09-05 訂正：這裡原本寫「Accent sky blue」，但實際色票早已換成橘紅系。
+  > 那次漂移的代價不只是文件過期 —— `inline-notice` 的 `--info` 綁 accent token
+  > （註解寫「換色系時要跟著走」），色系一換，**info 就跟著走進 error 的鄰居家**
+  > （`--accent-600 #a8340f` 對 `--error-700 #b91c1c`，同屬深紅），使用者把正常提示
+  > 讀成錯誤訊息。已由 #388 把 info 改成中性色。
+  > **教訓：寫了「因為 X 所以這樣做」的決策，在 X 不再成立時也要被回頭檢查。**
 - **禁止 viewport 單位**（c6）。上層 directive 用 ResizeObserver 寫入 `--window-width` /
   `--window-height` 等變數，子元素用 `calc(var(--window-width, 360px) * 0.9)` 取代 `90vw`
 - 寫 SCSS 前先 invoke `angular-scss-bem-standards` skill

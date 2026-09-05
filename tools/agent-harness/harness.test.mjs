@@ -23,6 +23,7 @@ import { inlineCarriers } from './lib/inline-carriers.mjs';
 import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
 import { preflightVerdict } from './lib/preflight-verdict.mjs';
 import { extractScriptUrls, resolveBaseUrl, summarize } from './lib/smoke-probes.mjs';
+import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
 import {
   findOrphanEndpoints,
   matchesPrefix,
@@ -513,6 +514,76 @@ test('smoke：全過就是 ok，一支壞掉就整體不 ok', () => {
   // 內文要**兩種都列**：只列壞的話，看的人不知道其他探測有沒有跑
   assert.match(s.body, /a/);
   assert.match(s.body, /b/);
+});
+
+/**
+ * A20：可互動元素的 class 不得全部沒定義（2026-09-05）。
+ *
+ * 守「**可點的東西看起來不可點**」—— 那種元素會吃全域 `button` reset、
+ * 渲染成一段純文字，於是沒有人會去點它。而它的失效完全沉默：
+ * 編譯過、測試過、review 過，**畫面上也「正常」，只是長得像別的東西**。
+ */
+test('A20 的定義集合一定要解析 & 巢狀，否則幾乎每個 BEM class 都會被誤判', () => {
+  // `.courses { &__badge {} }` 編出來是 `.courses__badge`，
+  // 而那個字串在 SCSS 原始碼裡**根本不存在**。
+  // 2026-09-05 一則錯誤的 bug 診斷就是這樣來的：字面 grep 回零筆 →
+  // 判成「這個 class 全庫沒定義」→ 差點用這個假前提立了一道真規則。
+  const defined = definedClasses(['.courses { &__badge { color: red; } }']);
+
+  assert.ok(defined.has('courses__badge'), '沒解析 & 的話，這裡會是 false');
+  assert.ok(defined.has('courses'));
+});
+
+test('A20 抓「可點但 class 全部沒定義」，放過有定義的', () => {
+  const defined = definedClasses(['.courses { &__badge { color: red; } }']);
+
+  // 該抓的
+  assert.deepEqual(
+    unstyledInteractive('<button class="nope-xyz" (click)="x()">go</button>', defined),
+    ['nope-xyz'],
+  );
+  // 有定義 → 安靜
+  assert.deepEqual(
+    unstyledInteractive('<button class="courses__badge" (click)="x()">go</button>', defined),
+    [],
+  );
+  // **一個沒定義但另一個有 → 放行**：元素至少有樣式，
+  // 剩下的是設計判斷不是缺陷。判準是「全部」沒定義，不是「有一個」。
+  assert.deepEqual(
+    unstyledInteractive('<button class="courses__badge nope-xyz">go</button>', defined),
+    [],
+  );
+});
+
+/**
+ * **這一則是整支最重要的反例。**
+ *
+ * Angular 模板經 prettier 之後，有幾個屬性的 button 幾乎一定是多行的。
+ * 只配對單行的 regex 會漏掉**幾乎所有真實案例** —— 而那樣得到的 0
+ * 跟真正的 0 在輸出上一模一樣，於是會拿一個沒驗過的綠燈去立法。
+ */
+test('A20 認得多行標籤 —— 那是真實模板的實際形狀', () => {
+  const defined = definedClasses(['.a { color: red; }']);
+  const html = `<button
+      type="button"
+      class="nope-xyz"
+      (click)="x()"
+    >
+      需介入 3 個課程
+    </button>`;
+  assert.deepEqual(unstyledInteractive(html, defined), ['nope-xyz']);
+});
+
+test('A20 跳過外部 class 與沒有 class 的元素', () => {
+  const defined = definedClasses(['.a { color: red; }']);
+
+  // PrimeNG 與圖示的定義不在本 repo，不該被當成孤兒
+  assert.deepEqual(unstyledInteractive('<button class="p-button">x</button>', defined), []);
+  assert.deepEqual(unstyledInteractive('<a class="pi pi-check">x</a>', defined), []);
+  // 完全沒有 class 的可點元素：沒有東西可比對，不是這支管的事
+  assert.deepEqual(unstyledInteractive('<button (click)="x()">x</button>', defined), []);
+  // 不可互動的元素不管，即使 class 沒定義（那是廣義孤兒，刻意不納入）
+  assert.deepEqual(unstyledInteractive('<div class="nope-xyz">x</div>', defined), []);
 });
 
 test('c7 擋舊版結構指令', () => {

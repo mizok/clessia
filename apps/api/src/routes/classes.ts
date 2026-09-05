@@ -5,6 +5,7 @@ import { DbUuidSchema } from '../lib/validation';
 import { buildSessionGenerationPlan } from '../domain/session-assignment/session-generation-planner';
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
 import { applyCampusFilter } from '../lib/campus-scope';
+import { checkEnrollmentSessionPacks } from '../lib/enrollment-session-pack-guard';
 import type {
   BatchAssignMode,
   BatchAssignPlanOutput,
@@ -1166,7 +1167,11 @@ app.openapi(
         content: { 'application/json': { schema: ErrorSchema } },
       },
       409: {
-        description: '已有課堂記錄，無法刪除',
+        description: '已有課堂記錄或已收費的堂數包，無法刪除',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      500: {
+        description: '守門查詢失敗 —— 拒絕刪除（fail closed）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
     },
@@ -1190,6 +1195,34 @@ app.openapi(
     if (pastSessions && pastSessions.length > 0) {
       return c.json(
         { error: '此班級已有歷史課堂記錄，無法刪除，請改為停用', code: 'HAS_PAST_SESSIONS' },
+        409,
+      );
+    }
+
+    // 刪班會連坐刪掉底下所有報名（見下方 CASCADE DELETE），而報名底下可能掛著
+    // 已收費的 session_packs（ON DELETE CASCADE）—— 「零過去課堂」不代表「零business」，
+    // 家長可能已付費但學生還沒上過任何一堂課。這條檢查跟 enrollments.ts 的單筆刪除
+    // 共用同一支 checkEnrollmentSessionPacks，見該檔註解（M8 稽核）。
+    const { data: classEnrollments, error: classEnrollmentsError } = await supabase
+      .from('enrollments')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('class_id', id);
+
+    if (classEnrollmentsError) {
+      return c.json({ error: 'ENROLLMENT_LOOKUP_FAILED', code: 'ENROLLMENT_LOOKUP_FAILED' }, 500);
+    }
+
+    const enrollmentIds = (classEnrollments ?? []).map((row) => row.id);
+    const sessionPacks = await checkEnrollmentSessionPacks({ supabase, orgId, enrollmentIds });
+
+    if (sessionPacks.status === 'check-failed') {
+      return c.json({ error: 'SESSION_PACK_CHECK_FAILED', code: 'SESSION_PACK_CHECK_FAILED' }, 500);
+    }
+
+    if (sessionPacks.status === 'has-session-pack') {
+      return c.json(
+        { error: '此班級已有學生購買堂數包，無法刪除，請改為停用', code: 'HAS_SESSION_PACK' },
         409,
       );
     }

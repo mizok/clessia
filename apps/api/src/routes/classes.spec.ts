@@ -1,3 +1,4 @@
+import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 import * as classesRoute from './classes';
 
@@ -57,5 +58,95 @@ describe('mapClass —— uses_contact_book', () => {
 
   it('欄位缺席時退回 false', () => {
     expect(mapClass?.(row)['usesContactBook']).toBe(false);
+  });
+});
+
+/**
+ * M8 稽核發現：`DELETE /api/classes/:id` 手動 `enrollments.delete().eq('class_id', id)`
+ * 完全繞過 enrollments.ts 自己的刪除守門，而底下的報名可能掛著已收費的
+ * session_packs（ON DELETE CASCADE）。跟 enrollments.ts 共用同一支
+ * `checkEnrollmentSessionPacks`（見 lib/enrollment-session-pack-guard.ts），
+ * 這裡釘住那個「無辜」情境：班級沒有過去課堂、底下報名有 session_pack，
+ * 一樣要回 409，不能刪。
+ */
+describe('DELETE /api/classes/:id —— session_packs 守門（真的打路由）', () => {
+  interface DeleteRouteFixture {
+    readonly enrollmentIds: string[];
+    readonly sessionPackCount: number;
+  }
+
+  function createDeleteRouteApp(fixture: DeleteRouteFixture) {
+    let classesTouched = false;
+
+    const sessionsQuery = {
+      select: () => sessionsQuery,
+      eq: () => sessionsQuery,
+      lt: () => sessionsQuery,
+      limit: () => sessionsQuery,
+      then: (onfulfilled?: (value: unknown) => unknown) =>
+        Promise.resolve({ data: [], error: null }).then(onfulfilled ?? undefined),
+    };
+
+    const enrollmentsQuery = {
+      select: () => enrollmentsQuery,
+      eq: () => enrollmentsQuery,
+      then: (onfulfilled?: (value: unknown) => unknown) =>
+        Promise.resolve({
+          data: fixture.enrollmentIds.map((id) => ({ id })),
+          error: null,
+        }).then(onfulfilled ?? undefined),
+    };
+
+    const sessionPacksQuery = {
+      select: () => sessionPacksQuery,
+      eq: () => sessionPacksQuery,
+      in: () => sessionPacksQuery,
+      then: (onfulfilled?: (value: unknown) => unknown) =>
+        Promise.resolve({ data: null, count: fixture.sessionPackCount, error: null }).then(
+          onfulfilled ?? undefined,
+        ),
+    };
+
+    const supabase = {
+      from(table: string) {
+        if (table === 'sessions') return sessionsQuery;
+        if (table === 'enrollments') return enrollmentsQuery;
+        if (table === 'session_packs') return sessionPacksQuery;
+        // 只有走到 409 之前的表才會被查到；一旦這個測試意外走到 cascade delete
+        // 之後的表，代表守門沒有真的擋下，讓它直接爆炸比靜靜回一個假資料更誠實。
+        classesTouched = true;
+        throw new Error(`Unsupported table in this fixture: ${table}`);
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/classes/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      await next();
+    });
+    app.route('/api/classes', classesRoute.default);
+
+    return { app, wentPastGuard: () => classesTouched };
+  }
+
+  it('班級沒有過去課堂、但底下報名有 session_pack —— 仍要回 409，不能刪', async () => {
+    const { app, wentPastGuard } = createDeleteRouteApp({
+      enrollmentIds: ['enrollment-1'],
+      sessionPackCount: 1,
+    });
+
+    const res = await app.request('/api/classes/22222222-2222-4222-8222-222222222222', {
+      method: 'DELETE',
+    });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: '此班級已有學生購買堂數包，無法刪除，請改為停用',
+      code: 'HAS_SESSION_PACK',
+    });
+    expect(wentPastGuard()).toBe(false);
   });
 });

@@ -7,6 +7,18 @@ export interface Subject {
   id: string;
   name: string;
   sortOrder: number;
+  /**
+   * 這個科目被幾門課程用著（`courses.subject_id` 是 `ON DELETE RESTRICT`，
+   * API 端會擋刪除）。有這個數字，畫面才能事先灰掉刪除按鈕、說出原因，
+   * 不用等 409 才知道 —— 跟 `Student.hasEnrollments` 同一個範本。
+   */
+  courseCount: number;
+  /**
+   * 這個科目被幾筆校內考用著（`academy_exams.subject_id` 是
+   * `ON DELETE SET NULL`）。**這個關聯 API 端也擋了**，但因為底層 DB
+   * 不會自己擋（會安靜清空欄位），這個數字對「先讓使用者知道」特別重要。
+   */
+  academyExamCount: number;
 }
 
 @Injectable({

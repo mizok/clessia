@@ -8,7 +8,7 @@
         每日勾選誰要訂餐，月底一次結算成帳單。有上課不一定訂餐 —— 課表只給候選名單。
       </p>
     </div>
-    <p-button label="月結" icon="pi pi-calculator" [outlined]="true" (onClick)="openBillingRun()" />
+    <app-page-actions [primary]="primaryAction" (primaryClick)="openBillingRun()" />
   </header>
 
   <div class="meals__toolbar clessia-filter-bar">
@@ -184,7 +184,8 @@
               />
             </td>
             <td appRtColCell="chargeable">
-              <p-toggleswitch
+              <p-checkbox
+                [binary]="true"
                 [disabled]="row.settled || !row.ordered || isRange()"
                 [ngModel]="row.chargeable"
                 (ngModelChange)="updateRow(row.studentId, 'chargeable', $event)"
@@ -227,13 +228,16 @@
           <span class="meals__hint">
             「收不收費」是人工判斷 —— 便當送到了才請假要不要收，由你決定，系統不自動判斷。
           </span>
-          <p-button
-            label="確認名單"
-            icon="pi pi-save"
-            [loading]="saving()"
-            [disabled]="overBatchLimit()"
-            (onClick)="save()"
-          />
+          <div class="meals__actions-confirm">
+            <span class="meals__actions-count">共 {{ rows().length }} 位</span>
+            <p-button
+              label="確認名單"
+              icon="pi pi-save"
+              [loading]="saving()"
+              [disabled]="overBatchLimit()"
+              (onClick)="save()"
+            />
+          </div>
         </div>
       }
 

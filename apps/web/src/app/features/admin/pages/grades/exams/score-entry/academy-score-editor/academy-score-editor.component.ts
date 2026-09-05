@@ -19,7 +19,7 @@ import { SelectModule } from 'primeng/select';
 import { DrawerModule } from 'primeng/drawer';
 import { MessageService } from 'primeng/api';
 import { focusScoreRow, scoreKeyStep } from '../score-keyboard.util';
-import { isFailingScore } from '../../../score-threshold.util';
+import { isFailingScore } from '@shared/utils/score-threshold.util';
 
 import {
   AcademyExamsService,

@@ -71,10 +71,26 @@ tags: [specs, teacher, schedule]
   第二場課的老師若看到空白表單，存檔就會蓋掉第一場寫的
 - **兩欄的可見性標在欄位名旁邊**（教學紀錄內部／作業家長會看到）——
   寫錯欄位的代價是內部溝通外洩，而那是寫入當下就決定的後果
-- **沒有發布按鈕，也不是 disabled** —— 發布不可逆，而家長端讀取與 LINE 推播
-  在 v1b 之前都不存在。灰著的按鈕仍然在承諾功能存在
+- **發布（v1b）**：按鈕**只在有既有日誌且至少一欄有內容時出現**，已發布後不再出現 ——
+  不是灰的（灰著的按鈕仍然在承諾功能存在）。二次確認說死「家長就會看到作業安排、收不回」，
+  **不提 LINE 推播**（P4，repo 至今沒有實作）。**先存再發**，否則發出去的是編輯前的版本
 
 設計與 v1a/v1b/v1c 邊界見 [[architecture/teacher-class-log]]。
+
+### 聯絡簿名單（v1c，2026-09-05）
+
+聯絡簿模式的班（`usesContactBook = true`）在同一個位置開的是**學生名單**，
+不是日誌表單 —— **兩型是兩條資料模型**（`studentId+entryDate` 一則自由文字
+vs `classId+logDate` 兩欄），刻意不做成一支元件的 if/else。
+
+- 只列**還沒寫的**：`GET /api/contact-book/missing?date=`（已對老師收斂）。
+  「列出全班」需要 `GET /api/contact-book` 加 `classId` 篩選，尚無
+- **點開之前先查一次那位學生當天有沒有已經被寫過** —— `/missing` 在載入那一刻是準的
+  但會過期，直接用空白 draft 開會讓老師蓋掉別人剛寫的、而兩邊都不會知道
+- 撰寫用的是 `shared/components/contact-book-entry-dialog`（原本住 admin，
+  v1c 提進 shared —— feature 之間不得互相 import，c5）
+
+設計見 [[architecture/teacher-contact-book]]。
 
 ### 點名面板（手機是 bottom sheet）
 

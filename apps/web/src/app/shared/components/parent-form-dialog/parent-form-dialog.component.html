@@ -25,12 +25,12 @@
   </div>
 
   <!-- Email + 手機 -->
-  @if (!isEditMode()) {
-    <p class="form-dialog__row-hint">Email 與手機號碼擇一必填</p>
-  }
   <div class="form-dialog__row">
+    @if (!isEditMode()) {
+      <p class="form-dialog__row-hint">Email 與手機號碼擇一必填</p>
+    }
     <div class="form-dialog__field">
-      <label class="form-dialog__label">Email</label>
+      <label class="form-dialog__label"> Email<span class="form-dialog__required">*</span> </label>
       <input
         type="email"
         pInputText
@@ -42,7 +42,9 @@
       />
     </div>
     <div class="form-dialog__field">
-      <label class="form-dialog__label">手機號碼</label>
+      <label class="form-dialog__label">
+        手機號碼<span class="form-dialog__required">*</span>
+      </label>
       <input
         type="tel"
         pInputText

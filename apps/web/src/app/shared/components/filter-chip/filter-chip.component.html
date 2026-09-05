@@ -1,0 +1,12 @@
+<button
+  type="button"
+  class="filter-chip"
+  [class.filter-chip--active]="active()"
+  [attr.aria-pressed]="active()"
+  (click)="toggle.emit()"
+>
+  @if (icon(); as ic) {
+    <i class="filter-chip__icon" [class]="'pi ' + ic"></i>
+  }
+  <ng-content />
+</button>

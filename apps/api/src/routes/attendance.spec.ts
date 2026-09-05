@@ -7,8 +7,8 @@ import {
   ensureAttendanceSessionEvents,
   normalizeAttendanceFilterIds,
   normalizeAttendanceSessionStatuses,
-  toAttendanceResponse,
 } from './attendance';
+import { toAttendanceResponse } from '../lib/attendance-query';
 import attendanceApp from './attendance';
 
 describe('toAttendanceResponse', () => {

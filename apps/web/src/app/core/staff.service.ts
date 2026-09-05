@@ -39,6 +39,7 @@ export interface StaffListResponse {
   data: Staff[];
   summary: {
     total: number;
+    /** 角色人次，不是 total 的分割——同時具備 admin 與 teacher 兩個角色的人兩邊都算 */
     adminCount: number;
     teacherCount: number;
     /**
@@ -47,11 +48,8 @@ export interface StaffListResponse {
      * 的兩個獨立 `if`）。這個欄位是 UI 用來把「為什麼加起來對不上」講清楚的，
      * 不要自己用 `adminCount + teacherCount - total` 反推：那個等式只在角色只有
      * 兩種時成立，多一種角色就悄悄壞掉。
-     *
-     * optional 是因為 API 側還沒接上——欄位到位前這裡是 `undefined`，UI 那邊
-     * 用 `?? 0` 處理，行為上跟「還沒有這個欄位」一致（不強加一個混合數字）。
      */
-    multiRoleCount?: number;
+    multiRoleCount: number;
     activeCount: number;
     inactiveCount: number;
     archivedCount: number;

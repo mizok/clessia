@@ -1,0 +1,81 @@
+/* **手機優先**：基準是窄螢幕，往大螢幕才加強。 */
+.grades {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: 800px;
+  margin: 0 auto;
+  min-height: 100%;
+
+  &__band-title {
+    margin: var(--space-2) 0 0;
+    font-size: var(--text-3xl);
+    font-weight: var(--font-bold);
+    letter-spacing: -0.04em;
+    line-height: 1.02;
+  }
+
+  &__filters {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    padding: var(--space-4);
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    padding: 0 var(--space-4) var(--space-6);
+  }
+
+  &__subject {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  &__subject-title {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    color: var(--zinc-600);
+  }
+
+  &__record {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--zinc-50);
+    border-radius: var(--radius-lg);
+  }
+
+  &__record-date {
+    color: var(--zinc-500);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__record-name {
+    flex: 1;
+    color: var(--zinc-900);
+  }
+
+  &__record-score {
+    font-weight: var(--font-semibold);
+    font-variant-numeric: tabular-nums;
+
+    // 跟 student-score-detail-dialog 的既有 --fail 慣例一致：顏色 + 圖示雙軌，
+    // 顏色不是唯一區分（WCAG 1.4.1）
+    &--fail {
+      color: var(--error-600);
+    }
+  }
+
+  &__fail-icon {
+    font-size: var(--text-xs);
+    margin-right: var(--space-1);
+  }
+}

@@ -23,6 +23,7 @@
   }
 
   &__row-hint {
+    grid-column: 1 / -1;
     margin: 0 0 var(--space-1);
     font-size: var(--text-xs);
     color: var(--zinc-500);

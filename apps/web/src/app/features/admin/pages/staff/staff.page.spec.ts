@@ -223,7 +223,7 @@ describe('StaffPage', () => {
    * 各算一次——這是既定規格不是 bug，但畫面原本沒講，行政會停下來以為算錯。
    */
   describe('管理員／老師合併磚的兼任備註', () => {
-    function setSummary(overrides: { multiRoleCount?: number }) {
+    function setSummary(overrides: { multiRoleCount: number }) {
       const staff: Staff[] = [
         {
           id: 'staff-1',
@@ -256,7 +256,7 @@ describe('StaffPage', () => {
               total: number;
               adminCount: number;
               teacherCount: number;
-              multiRoleCount?: number;
+              multiRoleCount: number;
               activeCount: number;
               inactiveCount: number;
               archivedCount: number;
@@ -284,12 +284,6 @@ describe('StaffPage', () => {
 
     it('沒有兼任（0）時不顯示備註', () => {
       setSummary({ multiRoleCount: 0 });
-
-      expect(fixture.nativeElement.querySelector('.staff__stat-note')).toBeNull();
-    });
-
-    it('API 還沒接上這個欄位（undefined）時也不顯示備註，不強加一個猜的數字', () => {
-      setSummary({ multiRoleCount: undefined });
 
       expect(fixture.nativeElement.querySelector('.staff__stat-note')).toBeNull();
     });

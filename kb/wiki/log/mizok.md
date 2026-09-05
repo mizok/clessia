@@ -4,142 +4,188 @@
 
 ---
 
+## [2026-09-05] capture | M8 稽核族類病收成一頁 lessons
+
+- Pages created: [[lessons/broken-looks-identical-to-normal]]
+- Sources: 全席 2026-09-05 M8 稽核發現的 13 個實例（PR #359/#389/#390/#391/#392/#393 與跨席聊天紀錄），每條實例現查 path:line 重新核實，發現並修正兩處與原始轉述不符之處（courses__badge 的 cursor:pointer 其實無條件套用非 hover-only；session-filters 的死規則已查出精確機制：模板套用的是另一個共用 class 家族）
+- Key findings: (1) 13 個實例可收斂成 5 種變形；(2) 解法有雙面——失敗要吶喊、正常要沉默，只寫一半會被誤用成「永遠加警示」
+
+## [2026-09-05] map | Rebuilt index + 6 MOCs
+
+- Pages indexed: 112
+- Total links: 181
+- Orphan pages: 67
+
+## [2026-09-05] lint | Health check: 0 errors, 1 warnings, 58 info
+
+- Mode: structural
+- Pages scanned: 122
+- Issues found: 59
+
 ## [2026-09-05] lint | Health check: 0 errors, 0 warnings, 57 info
+
 - Mode: structural
 - Pages scanned: 119
 - Issues found: 57
 
 ## [2026-09-05] lint | Health check: 0 errors, 0 warnings, 57 info
+
 - Mode: structural
 - Pages scanned: 118
 - Issues found: 57
 
 ## [2026-09-05] map | Rebuilt index + 6 MOCs
+
 - Pages indexed: 108
 - Total links: 169
 - Orphan pages: 66
 
 ## [2026-09-04] lint | Health check: 0 errors, 0 warnings, 56 info
+
 - Mode: structural
 - Pages scanned: 116
 - Issues found: 56
 
 ## [2026-09-04] map | Rebuilt index + 6 MOCs
+
 - Pages indexed: 106
 - Total links: 168
 - Orphan pages: 65
 
 ## [2026-09-04] lint | Health check: 0 errors, 3 warnings, 57 info
+
 - Mode: structural
 - Pages scanned: 114
 - Issues found: 60
 
 ## [2026-09-02] lint | Health check: 0 errors, 1 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 109
 - Issues found: 54
 
 ## [2026-09-02] lint | Health check: 0 errors, 1 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 108
 - Issues found: 54
 
 ## [2026-08-30] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 94
 - Total links: 134
 - Orphan pages: 60
 
 ## [2026-08-30] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 93
 - Total links: 130
 - Orphan pages: 60
 
 ## [2026-08-30] lint | Health check: 0 errors, 0 warnings, 52 info
+
 - Mode: structural
 - Pages scanned: 103
 - Issues found: 52
 
 ## [2026-08-30] lint | Health check: 0 errors, 0 warnings, 52 info
+
 - Mode: structural
 - Pages scanned: 103
 - Issues found: 52
 
 ## [2026-08-30] lint | Health check: 0 errors, 0 warnings, 52 info
+
 - Mode: structural
 - Pages scanned: 103
 - Issues found: 52
 
 ## [2026-08-30] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 93
 - Total links: 128
 - Orphan pages: 62
 
 ## [2026-08-30] lint | Health check: 0 errors, 0 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 103
 - Issues found: 53
 
 ## [2026-08-30] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 93
 - Total links: 127
 - Orphan pages: 63
 
 ## [2026-08-30] lint | Health check: 0 errors, 0 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 102
 - Issues found: 53
 
 ## [2026-08-30] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 92
 - Total links: 126
 - Orphan pages: 63
 
 ## [2026-08-30] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 91
 - Total links: 125
 - Orphan pages: 61
 
 ## [2026-08-30] lint | Health check: 0 errors, 0 warnings, 53 info
+
 - Mode: structural
 - Pages scanned: 101
 - Issues found: 53
 
 ## [2026-08-30] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 91
 - Total links: 123
 - Orphan pages: 63
 
 ## [2026-08-30] lint | Health check: 0 errors, 2 warnings, 54 info
+
 - Mode: structural
 - Pages scanned: 101
 - Issues found: 56
 
 ## [2026-08-30] lint | Health check: 0 errors, 4 warnings, 55 info
+
 - Mode: structural
 - Pages scanned: 101
 - Issues found: 59
 
 ## [2026-08-30] lint | Health check: 0 errors, 4 warnings, 55 info
+
 - Mode: structural
 - Pages scanned: 100
 - Issues found: 59
 
 ## [2026-08-30] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 91
 - Total links: 122
 - Orphan pages: 66
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 54 info
+
 - Mode: structural
 - Pages scanned: 99
 - Issues found: 54
 
 ## [2026-08-29] lint | Health check: 0 errors, 0 warnings, 54 info
+
 - Mode: structural
 - Pages scanned: 99
 - Issues found: 54
 
 ## [2026-08-29] map | Rebuilt index + 5 MOCs
+
 - Pages indexed: 90
 - Total links: 120
 - Orphan pages: 65

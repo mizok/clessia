@@ -1320,6 +1320,101 @@ describe('checkEnrollmentAttendance', () => {
 });
 
 /**
+ * M8 稽核發現：刪報名會連坐刪掉已收費的 session_packs（ON DELETE CASCADE），
+ * 而「零出勤、零過去課堂」正是既有兩道守門（checkEnrollmentAttendance、
+ * classes.ts 的過去課堂檢查）都會放行的組合 —— 這裡釘住那個「無辜」情境：
+ * 報名存在、有 session_pack、零出勤紀錄、零過去課堂，DELETE 一律回 409。
+ */
+describe('DELETE /api/enrollments/:id —— session_packs 守門（真的打路由）', () => {
+  interface DeleteRouteFixture {
+    readonly enrollment: { id: string; student_id: string; class_id: string };
+    readonly sessionPackCount: number;
+  }
+
+  function createDeleteRouteApp(fixture: DeleteRouteFixture) {
+    let enrollmentDeleted = false;
+
+    const enrollmentsQuery = {
+      select: () => enrollmentsQuery,
+      eq: () => enrollmentsQuery,
+      async single() {
+        return { data: fixture.enrollment, error: null };
+      },
+      delete: () => enrollmentsQuery,
+      then: (onfulfilled?: (value: unknown) => unknown) => {
+        enrollmentDeleted = true;
+        return Promise.resolve({ data: null, error: null }).then(onfulfilled ?? undefined);
+      },
+    };
+
+    const sessionsQuery = {
+      select: () => sessionsQuery,
+      eq: () => sessionsQuery,
+      then: (onfulfilled?: (value: unknown) => unknown) =>
+        Promise.resolve({ data: [], error: null }).then(onfulfilled ?? undefined),
+    };
+
+    const sessionPacksQuery = {
+      select: () => sessionPacksQuery,
+      eq: () => sessionPacksQuery,
+      in: () => sessionPacksQuery,
+      then: (onfulfilled?: (value: unknown) => unknown) =>
+        Promise.resolve({ data: null, count: fixture.sessionPackCount, error: null }).then(
+          onfulfilled ?? undefined,
+        ),
+    };
+
+    const supabase = {
+      from(table: string) {
+        if (table === 'enrollments') return enrollmentsQuery;
+        if (table === 'sessions') return sessionsQuery;
+        if (table === 'session_packs') return sessionPacksQuery;
+        throw new Error(`Unsupported table: ${table}`);
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/enrollments/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      await next();
+    });
+    app.route('/api/enrollments', enrollmentsRoute.default);
+
+    return { app, wasEnrollmentDeleted: () => enrollmentDeleted };
+  }
+
+  it('報名有 session_pack、零出勤、零過去課堂 —— 仍要回 409，不能刪', async () => {
+    const enrollmentId = '11111111-1111-4111-8111-111111111111';
+    const { app, wasEnrollmentDeleted } = createDeleteRouteApp({
+      enrollment: { id: enrollmentId, student_id: 'student-1', class_id: 'class-1' },
+      sessionPackCount: 1,
+    });
+
+    const res = await app.request(`/api/enrollments/${enrollmentId}`, { method: 'DELETE' });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'has_session_pack' });
+    expect(wasEnrollmentDeleted()).toBe(false);
+  });
+
+  it('報名沒有 session_pack 時維持原行為，正常刪除', async () => {
+    const enrollmentId = '11111111-1111-4111-8111-111111111111';
+    const { app, wasEnrollmentDeleted } = createDeleteRouteApp({
+      enrollment: { id: enrollmentId, student_id: 'student-1', class_id: 'class-1' },
+      sessionPackCount: 0,
+    });
+
+    const res = await app.request(`/api/enrollments/${enrollmentId}`, { method: 'DELETE' });
+
+    expect(res.status).toBe(204);
+    expect(wasEnrollmentDeleted()).toBe(true);
+  });
+});
+
+/**
  * B3「報名＝開帳」的三件 API 面。每一條的風險都在**接線**，不在計算：
  * 篩選有沒有真的下到查詢上、批次有沒有真的把欄位寫進去、試算有沒有真的用
  * 跟月結同一支算法。純函式測試看不到這三件事的任何一件。
