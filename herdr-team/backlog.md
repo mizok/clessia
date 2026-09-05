@@ -47,7 +47,7 @@
 ## billing-api
 
 1.5 `/api/session-packs` 查證(低優):同 class-logs,#304 標的另一個未認領端點
-2. **#295 已定案,API 側主刀**:middleware 注入 studentScope+`childDb` 入口(乙案)+activeRole 進 context+GET /api/me/children(02 片的 API 半)。⚠️ 開工前先做 session 輪替(context 99%):蒸餾+落檔+重啟
+2. ~~#295 API 側~~(#326 綠,保留類等使用者合)→ 現任務:及格線 migration(**只做 academy_exams**,PR 標保留類由使用者合)+科目平均 sum/totalSum
 3. 500 案回查:**09-07 後**,計畫席持 CF 憑證查 log、你分析(條件:POST /api/courses、
    body 含 SERVER_ERROR、不用 --status error)
 
