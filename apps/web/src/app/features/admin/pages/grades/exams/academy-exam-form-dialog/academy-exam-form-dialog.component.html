@@ -128,6 +128,21 @@
       />
     </div>
 
+    <!-- Pass Score -->
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">及格線</label>
+      <p-inputnumber
+        [ngModel]="formData().passScore"
+        (ngModelChange)="updateField('passScore', $event)"
+        [min]="0"
+        [max]="formData().totalScore"
+        [showButtons]="true"
+        [disabled]="lockPassScore()"
+        styleClass="w-full"
+      />
+      <span class="academy-exam-form-dialog__empty-hint">留空＝總分的 60%</span>
+    </div>
+
     <!-- Scope Note -->
     <div class="form-dialog__field">
       <label class="form-dialog__label">範圍說明</label>

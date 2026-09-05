@@ -186,8 +186,11 @@ export class AcademyScoreEditorComponent implements OnInit {
    * 而這一欄的紅色是唯一的訊息。門檻的問題見 `score-threshold.util`。
    */
   protected isFailing(score: number | null): boolean {
-    // 這場考試的總分 —— 門檻是它的 60%，不是寫死的 60 分
-    return isFailingScore(score, { totalScore: this.exam().totalScore });
+    // 有設定及格線就用它，沒有才退回總分的 60%（見 score-threshold.util 的三層退路）
+    return isFailingScore(score, {
+      passScore: this.exam().passScore,
+      totalScore: this.exam().totalScore,
+    });
   }
 
   protected onScoreKeydown(event: KeyboardEvent, index: number): void {

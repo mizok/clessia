@@ -14,6 +14,7 @@ export interface AcademyExam {
   status: AcademyExamStatus;
   examDate: string;
   totalScore: number;
+  passScore: number | null;
   scopeNote: string | null;
   campusId: string | null;
   subjectId: string | null;
@@ -46,6 +47,7 @@ export interface AcademyExamDetail {
   status: AcademyExamStatus;
   examDate: string;
   totalScore: number;
+  passScore: number | null;
   scopeNote: string | null;
   campusId: string | null;
   campusName: string | null;
@@ -104,6 +106,7 @@ export interface CreateAcademyExamInput {
   campusId?: string | null;
   examDate: string;
   totalScore?: number;
+  passScore?: number | null;
   scopeNote?: string | null;
   classIds: string[];
 }
@@ -115,6 +118,7 @@ export interface UpdateAcademyExamInput {
   campusId?: string | null;
   examDate?: string;
   totalScore?: number;
+  passScore?: number | null;
   scopeNote?: string | null;
   classIds?: string[];
 }

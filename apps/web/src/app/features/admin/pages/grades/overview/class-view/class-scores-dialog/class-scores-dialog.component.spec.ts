@@ -40,6 +40,7 @@ describe('ClassScoresDialogComponent', () => {
     status: 'active',
     examDate: '2026-04-01',
     totalScore: 100,
+    passScore: null,
     scopeNote: null,
     campusId: 'campus-1',
     subjectId: null,

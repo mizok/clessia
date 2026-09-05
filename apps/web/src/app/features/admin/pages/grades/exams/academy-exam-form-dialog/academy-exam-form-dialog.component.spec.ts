@@ -113,6 +113,7 @@ describe('AcademyExamFormDialogComponent', () => {
       campusId: 'c1',
       examDate: new Date('2026-04-20'),
       totalScore: 100,
+      passScore: 70,
       scopeNote: '第一章',
       classIds: ['cls-1'],
     });
@@ -126,9 +127,42 @@ describe('AcademyExamFormDialogComponent', () => {
         campusId: 'c1',
         examDate: '2026-04-20',
         totalScore: 100,
+        passScore: 70,
         classIds: ['cls-1'],
       }),
     );
+  });
+
+  it('blocks save when passScore 超過 totalScore（跟後端 CHECK 同一條界線）', async () => {
+    await createComponent({ data: { mode: 'create' } });
+    (component as unknown as { formData: { set: (v: unknown) => void } }).formData.set({
+      name: '模擬考',
+      examType: 'mock_exam',
+      subjectId: 's1',
+      campusId: 'c1',
+      examDate: new Date('2026-04-20'),
+      totalScore: 100,
+      passScore: 101,
+      scopeNote: '',
+      classIds: ['cls-1'],
+    });
+    expect(component['canSave']()).toBe(false);
+  });
+
+  it('passScore 留空（null）也算合法，代表沿用退路門檻', async () => {
+    await createComponent({ data: { mode: 'create' } });
+    (component as unknown as { formData: { set: (v: unknown) => void } }).formData.set({
+      name: '模擬考',
+      examType: 'mock_exam',
+      subjectId: 's1',
+      campusId: 'c1',
+      examDate: new Date('2026-04-20'),
+      totalScore: 100,
+      passScore: null,
+      scopeNote: '',
+      classIds: ['cls-1'],
+    });
+    expect(component['canSave']()).toBe(true);
   });
 
   it('locks identity fields whenever in edit mode (no scores)', async () => {
@@ -143,6 +177,7 @@ describe('AcademyExamFormDialogComponent', () => {
           campusId: 'c1',
           examDate: '2026-03-20',
           totalScore: 100,
+          passScore: null,
           scopeNote: '',
           classes: [{ classId: 'cls-1', className: 'A班' }],
           summary: { recordedCount: 0, expectedCount: 10 },
@@ -163,6 +198,8 @@ describe('AcademyExamFormDialogComponent', () => {
     expect(component['lockName']()).toBe(false);
     expect(component['lockExamDate']()).toBe(false);
     expect(component['lockScopeNote']()).toBe(false);
+    // 及格線不像滿分——改變它不會讓既有分數的意義跑掉，即使已編輯過也不鎖
+    expect(component['lockPassScore']()).toBe(false);
   });
 
   it('also locks classes when scores already exist', async () => {
@@ -177,6 +214,7 @@ describe('AcademyExamFormDialogComponent', () => {
           campusId: 'c1',
           examDate: '2026-03-20',
           totalScore: 100,
+          passScore: null,
           scopeNote: '',
           classes: [{ classId: 'cls-1', className: 'A班' }],
           summary: { recordedCount: 5, expectedCount: 10 },
@@ -194,6 +232,8 @@ describe('AcademyExamFormDialogComponent', () => {
     // Name and date should remain editable
     expect(component['lockName']()).toBe(false);
     expect(component['lockExamDate']()).toBe(false);
+    // 已有分數也不鎖及格線——這是它跟滿分唯一不同的地方
+    expect(component['lockPassScore']()).toBe(false);
   });
 
   it('locks everything when exam is closed', async () => {
@@ -208,6 +248,7 @@ describe('AcademyExamFormDialogComponent', () => {
           campusId: 'c1',
           examDate: '2026-03-20',
           totalScore: 100,
+          passScore: null,
           scopeNote: '',
           classes: [{ classId: 'cls-1', className: 'A班' }],
           summary: { recordedCount: 0, expectedCount: 0 },
@@ -221,6 +262,8 @@ describe('AcademyExamFormDialogComponent', () => {
     expect(component['lockExamDate']()).toBe(true);
     expect(component['lockExamType']()).toBe(true);
     expect(component['canSave']()).toBe(false);
+    // 考試結束後及格線也不該再改
+    expect(component['lockPassScore']()).toBe(true);
   });
 
   it('filters classes by campus selection', async () => {
@@ -251,6 +294,7 @@ describe('AcademyExamFormDialogComponent', () => {
           campusId: 'c1',
           examDate: '2026-03-20',
           totalScore: 100,
+          passScore: 65,
           scopeNote: '',
           classes: [{ classId: 'cls-1', className: 'A班' }],
           summary: { recordedCount: 5, expectedCount: 10 },
@@ -263,7 +307,7 @@ describe('AcademyExamFormDialogComponent', () => {
 
     expect(academyExamsServiceMock.update).toHaveBeenCalledWith(
       'exam-1',
-      expect.objectContaining({ name: '已登錄考試', examDate: '2026-03-20' }),
+      expect.objectContaining({ name: '已登錄考試', examDate: '2026-03-20', passScore: 65 }),
     );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload = (academyExamsServiceMock.update as any).mock.lastCall![1] as Record<
@@ -274,5 +318,36 @@ describe('AcademyExamFormDialogComponent', () => {
     expect(payload['subjectId']).toBeUndefined();
     expect(payload['totalScore']).toBeUndefined();
     expect(payload['classIds']).toBeUndefined();
+  });
+
+  it('清空及格線（改回 null）送出的是 null 不是 undefined，不然後端會當成沒改', async () => {
+    academyExamsServiceMock.get.mockReturnValueOnce(
+      of({
+        data: {
+          id: 'exam-1',
+          name: '已登錄考試',
+          examType: 'quiz',
+          status: 'active',
+          subjectId: 's1',
+          campusId: 'c1',
+          examDate: '2026-03-20',
+          totalScore: 100,
+          passScore: 65,
+          scopeNote: '',
+          classes: [{ classId: 'cls-1', className: 'A班' }],
+          summary: { recordedCount: 5, expectedCount: 10 },
+        },
+      }),
+    );
+    await createComponent({ data: { mode: 'edit', examId: 'exam-1' } });
+
+    (
+      component as unknown as { formData: { update: (fn: (f: unknown) => unknown) => void } }
+    ).formData.update((f) => ({ ...(f as object), passScore: null }));
+    component['save']();
+
+    const payload = (academyExamsServiceMock.update as unknown as { mock: { lastCall: unknown[] } })
+      .mock.lastCall![1] as Record<string, unknown>;
+    expect(payload['passScore']).toBeNull();
   });
 });
