@@ -353,7 +353,8 @@ mount('/api/reports', reportsRoute, ADMIN_ONLY, { all: 'view_reports' });
 // ============================================================
 
 app.onError((err, c) => {
-  console.error('API Error:', err);
+  const orgId = c.get('orgId');
+  console.error(`API Error [${c.req.method} ${c.req.path}] orgId=${orgId ?? 'unknown'}:`, err);
   return c.json(
     {
       error: 'Internal Server Error',

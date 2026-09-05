@@ -388,6 +388,7 @@ app.openapi(
       if (isDuplicateUsernameError(msg)) {
         return c.json({ error: '此手機已被使用', code: 'DUPLICATE_PHONE' }, 409);
       }
+      console.error('[parents] 建立帳號失敗（非預期）:', error);
       return c.json({ error: msg || '建立帳號失敗', code: 'CREATE_AUTH_USER_FAILED' }, 400);
     }
 
@@ -395,8 +396,8 @@ app.openapi(
       if (!createdUserId) return;
       try {
         await auth.api.removeUser({ body: { userId: createdUserId }, asResponse: false });
-      } catch {
-        // ignore rollback errors
+      } catch (rollbackError) {
+        console.error(`[parents] rollback 失敗，孤兒 ba_user=${createdUserId}:`, rollbackError);
       }
     };
 
