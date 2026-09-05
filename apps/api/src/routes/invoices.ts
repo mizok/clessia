@@ -5,6 +5,7 @@ import { INVOICE_SELECT, toInvoiceResponse } from '../lib/invoice-query';
 import { sliceDerivedPage } from '../lib/derived-page';
 import { waitUntilFrom } from '../lib/wait-until';
 import { DbUuidSchema } from '../lib/validation';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 /**
  * 帳單、明細、收款、催繳。
@@ -138,7 +139,10 @@ app.openapi(
       .select(INVOICE_SELECT, derivedFilter ? undefined : { count: 'exact' })
       .eq('org_id', orgId);
     if (params.studentId) query = query.eq('student_id', params.studentId);
-    if (overdue) query = query.lt('due_date', new Date().toISOString().slice(0, 10));
+    // 台北時間，不是 UTC —— 這是過濾條件不是預設值，算錯一天會讓整份清單的成員
+    // 錯位（在台北凌晨看繳費頁，一批帳單會被錯誤地列為逾期或錯誤地不列，
+    // 行政可能因此去催繳一個還沒到期的家長）。見 lib/taipei-date.ts 檔頭。
+    if (overdue) query = query.lt('due_date', getCurrentTaipeiDateString());
     if (!derivedFilter) query = query.range((page - 1) * pageSize, page * pageSize - 1);
 
     const { data, error, count } = await query.order('issued_at', { ascending: false });
@@ -252,7 +256,8 @@ app.openapi(
     const userId = c.get('userId');
     const body = c.req.valid('json');
 
-    const issuedAt = body.issuedAt ?? new Date().toISOString().slice(0, 10);
+    // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭
+    const issuedAt = body.issuedAt ?? getCurrentTaipeiDateString();
 
     let dueDate = body.dueDate ?? null;
     if (dueDate === undefined || body.dueDate === undefined) {
@@ -510,7 +515,8 @@ app.openapi(
       kind: body.kind ?? 'payment',
       amount: body.amount,
       method: body.method,
-      paid_at: body.paidAt ?? new Date().toISOString().slice(0, 10),
+      // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭
+      paid_at: body.paidAt ?? getCurrentTaipeiDateString(),
       proof_path: body.proofPath ?? null,
       note: body.note ?? null,
       recorded_by: userId,

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import invoicesRoute from './invoices';
 
@@ -41,7 +41,7 @@ function invoiceRow({ id, amount, paid }: FakeRow) {
  * `meta.total` 該拿的東西。
  */
 function fakeSupabase(rows: ReturnType<typeof invoiceRow>[]) {
-  const calls = { ranged: false };
+  const calls = { ranged: false, ltArgs: [] as Array<[string, unknown]> };
 
   const builder: Record<string, unknown> = {};
   let sliced = rows;
@@ -50,7 +50,10 @@ function fakeSupabase(rows: ReturnType<typeof invoiceRow>[]) {
   Object.assign(builder, {
     select: (_cols: string, _opts?: unknown) => chain(),
     eq: () => chain(),
-    lt: () => chain(),
+    lt: (column: string, value: unknown) => {
+      calls.ltArgs.push([column, value]);
+      return chain();
+    },
     range: (from: number, to: number) => {
       calls.ranged = true;
       sliced = rows.slice(from, to + 1);
@@ -143,5 +146,38 @@ describe('GET /api/invoices —— status 篩選', () => {
     const body = (await res.json()) as { data: { status: string }[] };
 
     expect(body.data.every((row) => row.status === 'unpaid')).toBe(true);
+  });
+});
+
+/**
+ * P0-1 那批 UTC 時區 bug 的同一族：`overdue` 過濾原本用
+ * `new Date().toISOString().slice(0, 10)`（UTC）算「今天」。這條**不是**預設值算錯
+ * 一天那種——它是過濾條件，算錯一天會讓整份清單的成員錯位：在台北凌晨看繳費頁，
+ * 一批帳單會被錯誤地列為逾期或錯誤地不列，行政可能因此去催繳一個還沒到期的家長。
+ *
+ * **這裡的觀測窗口刻意涵蓋出錯的條件**（照 taipei-date.spec.ts 與 #368 的形狀）：
+ * 系統時間設在「UTC 還是前一天、台北已經是今天凌晨」的那個瞬間，兩邊給的日期
+ * 不一樣，這裡斷言 `.lt('due_date', ...)` 傳的是台北的今天。
+ */
+describe('GET /api/invoices?overdue —— 台北凌晨那個窗（#402 同一族）', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('UTC 還在 09-05 傍晚，但台北已經是 09-06 凌晨 —— 過濾條件要用台北的今天', async () => {
+    // 台北 2026-09-06T01:00:00+08:00 = UTC 2026-09-05T17:00:00Z，正是 #402 出事的那個窗
+    vi.setSystemTime(new Date('2026-09-05T17:00:00Z'));
+
+    const { client, calls } = fakeSupabase([]);
+    await appWith(client).request('/?overdue=true');
+
+    expect(calls.ltArgs).toEqual([['due_date', '2026-09-06']]);
+    // 對照組：naive 的 UTC 算法在這個時刻會算成 09-05，不是 09-06——
+    // 這正是「一批帳單被錯誤地列為逾期或錯誤地不列」的根因形狀
+    expect(new Date().toISOString().slice(0, 10)).toBe('2026-09-05');
   });
 });

@@ -9,6 +9,7 @@ import {
   type AttendanceStatus,
 } from '../lib/session-pack';
 import { DbUuidSchema } from '../lib/validation';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 /**
  * 堂數包：買 N 堂慢慢上完。
@@ -247,7 +248,8 @@ app.openapi(
         org_id: orgId,
         enrollment_id: body.enrollmentId,
         purchased_count: body.purchasedCount,
-        purchased_at: body.purchasedAt ?? new Date().toISOString().slice(0, 10),
+        // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭
+        purchased_at: body.purchasedAt ?? getCurrentTaipeiDateString(),
         expires_at: body.expiresAt ?? null,
         invoice_item_id: body.invoiceItemId ?? null,
         note: body.note ?? null,
