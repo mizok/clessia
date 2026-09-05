@@ -94,3 +94,27 @@
 
 - 及格線欄位 migration / 科目平均百分比化(語意變更)/ 640px 視覺 / iOS 抽屜確認(#282)
 - 誰先 db:reset 誰驗 seed 雙身分帳號
+
+
+## 計畫席交接(2026-09-05 clessia-c8 輪替)
+
+前任計畫席因 context 過長、工具輸出污染而輪替。新任讀此節接手。
+
+### 計畫席退化事件(進 herdr playbook)
+context 過長導致工具輸出不可信:bash 退出碼/URL、gh pr comment 回傳、SendMessage msg_id 都會污染,且會「以為送出了」。#350/#351 驗收留言查無=此故障證據(兩不同 PR 回傳共用同一 comment id)。教訓:計畫席也要輪替,不能無限跑;症狀是工具輸出自我矛盾。新任第一件事:查一支 PR comment 確認 API 回傳合理不自我矛盾,再開始裁決。
+
+### 第一刀:補 #351-#355 驗收留言(前任因污染沒送出,steward 在等,五支收不了)
+- #351 家長端三讀取端點(api,優先):isChildAllowed 兩層防線+複用 admin 查詢+遮蔽清單含 recordedBy。已驗收,steward 只有代記待本人補。
+- #352 bundle 健檢 / #353 charter cache 訂正 / #354 smoke cron 偏移 / #355 steward charter —— 都驗收過,補留言即收。
+
+### Tester 啟動(desktop-44 暫停中,等管理端100%——已達成)
+裁三件:session模式/寫入授權/角色範圍。結論:用使用者 admin session 唯讀評管理端(零設定);老師家長 fixture 過早不做。產品觀察:系統無把家長角色加到現有帳號的 UI 路徑。
+
+### 在飛線
+家長端 #351 合後 admin-pages 接 03 片前端(複用 #344 child-switcher);教務日誌 v1b 等 teacher-pages(同 childDb 線);chunk 復原/及格線/堂數包已上線。
+
+### 使用者未決/待辦
+心跳機制 A雲端cron/B手機捷徑/C手動 未選(機器睡眠本機無解);iOS 真機測試(teacher-pages 備步驟);640px 視覺;db:reset 驗 seed 雙身分;堂數制主動提醒。
+
+### 使用者準則(MEMORY 有)
+問題找解方不用工程理由結案;架構/換供應商級先討論不排單;UX至高原則;只用繁中。
