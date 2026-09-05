@@ -34,6 +34,7 @@ import {
 } from './lib/api-param-coverage.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
+import { usesRawSupabase } from './lib/parent-route-scan.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -992,6 +993,44 @@ if (existsSync(FEATURES_DIR)) {
       `${v.file}:${v.line} 從 ${v.from} import 了 ${v.to} 的東西（c5）：${v.spec} —— ` +
         `要共用就往 shared/ 提（元件）或 core/ 提（狀態），不要橫向拉`,
     );
+  }
+}
+
+// ── A19. 家長端檔案不得出現 c.get('supabase') ────────────────────────────────────────────
+// `routes/parent/**` 是家長端專屬檔案的目錄（見 kb/wiki/architecture/parent-data-scope.md
+// 第二節）。這些檔案只能透過 `c.get('childDb')` 查詢，不能拿原始 supabase ——
+// 「查詢走一個強制吃 scope 的 helper」守不住「根本沒呼叫」，route 裡直接寫
+// `c.get('supabase').from('scores')…` 一樣編得過。這一支只負責收尾：抓那個看得見的
+// 繞過動作，不是要求 review 的人記得檢查每一支查詢有沒有帶 scope。
+//
+// **零 baseline，因為立法時是零違規**（目錄本身跟這道 gate 同一輪引入）——
+// 跟 A18 的 feature 隔離同一個立法時機，不必分診舊債。
+//
+// **用共用的 `walk()` 遞迴掃，不是 `readdirSync` 只列一層。** `routes/parent/`
+// 遲早會長出子目錄（`routes/` 底下現在已經有 `announcements/`、`sessions/` 等
+// 6 個子目錄），`readdirSync` 只看那一層的話子目錄裡的檔案會安靜地不被掃到 ——
+// 而且 gate 照樣綠，因為它掃的那一層真的沒有違規。`recordScope` 宣告了整棵
+// 子樹，實作就要對得上這個宣告（infra 席審查抓到，見 PR #326）。
+//
+// **能力邊界（不必修，寫給下一個人看）**：這裡只掃 `routes/parent/**`，
+// 不掃 `lib/`。`lib/child-db.ts` 本身是授權過的包裝，內部本來就要用原始
+// supabase 才建得出綁好 scope 的查詢入口 —— 綠燈的意思是「家長端 route 檔案
+// 沒有繞過 childDb」，不是「這個 codebase 沒有任何地方碰得到原始 supabase」。
+{
+  const parentRoutesDir = join(ROOT, 'apps/api/src/routes/parent');
+  if (existsSync(parentRoutesDir)) {
+    recordScope('A19', { roots: ['apps/api/src/routes/parent'], exts: ['.ts'] });
+    for (const file of walk(parentRoutesDir, '.ts')) {
+      if (file.endsWith('.spec.ts')) continue;
+      const rel = file.replace(ROOT + '/', '');
+      const source = readFileSync(file, 'utf8');
+      if (usesRawSupabase(source, rel)) {
+        fail(
+          `${rel} 出現 c.get('supabase') —— 家長端檔案只能用 ` +
+            `c.get('childDb')，見 kb/wiki/architecture/parent-data-scope.md 第二節`,
+        );
+      }
+    }
   }
 }
 

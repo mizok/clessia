@@ -1,6 +1,26 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildAcademyScoreRows } from './academy-exams';
+import { buildAcademyScoreRows, isPassScoreValid } from './academy-exams';
+
+describe('isPassScoreValid', () => {
+  it('null / undefined 一律合法（未設，不是設成 0）', () => {
+    expect(isPassScoreValid(null, 100)).toBe(true);
+    expect(isPassScoreValid(undefined, 100)).toBe(true);
+  });
+
+  it('0 是有效值（這場不當人）', () => {
+    expect(isPassScoreValid(0, 100)).toBe(true);
+  });
+
+  it('等於總分合法，超過總分不合法', () => {
+    expect(isPassScoreValid(100, 100)).toBe(true);
+    expect(isPassScoreValid(101, 100)).toBe(false);
+  });
+
+  it('負數不合法', () => {
+    expect(isPassScoreValid(-1, 100)).toBe(false);
+  });
+});
 
 const student = (name: string, grade = 'J2') => ({ name, grade });
 

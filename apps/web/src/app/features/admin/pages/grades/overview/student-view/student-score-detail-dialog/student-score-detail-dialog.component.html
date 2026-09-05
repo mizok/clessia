@@ -41,10 +41,10 @@
                   <span
                     class="student-score-detail-dialog__summary-value"
                     [class.student-score-detail-dialog__summary-value--fail]="
-                      isFailingAverage(subj.academyAvg)
+                      isFailingAcademyAverage(subj.academySum, subj.academyTotalSum)
                     "
                   >
-                    {{ formatAvg(subj.academyAvg) }}
+                    {{ formatScore(subj.academySum, subj.academyTotalSum) }}
                   </span>
                 </div>
                 <div class="student-score-detail-dialog__summary-item">

@@ -38,8 +38,11 @@
 
 1. #295 補「孩子帳號」擴充節(使用者裁:v1 不做帳號,模型天然相容 —— 學生=scope 只含自己;
    寫成擴充節)
-2. 及格線 **UI 接線半**(migration+API 已拆席歸 billing-api;等 passScore 欄位落地後接
-   #319 的接口;**這輪只做 academy_exams**,school_exams 無總分欄位是獨立產品題進窗口)
+1. 及格線 UI 接線半(**#331 已合,解鎖**:passScore 從考試表單/回應接進 #319 接口,academy 限定)
+2. 家長端 02 片前端(**#326 已合,解鎖**:GET /api/me/children + 「我的孩子」頁;
+   02 是授權第一實例,後面照它抄)
+3. **堂數包前端面**(使用者裁 a):行政買包/剩餘堂數顯示/追補買訊號 ——
+   spec 依據 kb/wiki/rules/billing-rules.md 規則 1、8;API 三支已在(#49);先探索提範圍再動工
 3. 科目平均改「幾分之幾」:API 回 sum/totalSum,平均列顯示 130/150 形式(棄百分比化);
    API 半可請 billing-api 新 session 協作
 4. (裁決紀錄)並排斷言小刀=#314 已交付
@@ -47,7 +50,7 @@
 ## billing-api
 
 1.5 `/api/session-packs` 查證(低優):同 class-logs,#304 標的另一個未認領端點
-2. **#295 已定案,API 側主刀**:middleware 注入 studentScope+`childDb` 入口(乙案)+activeRole 進 context+GET /api/me/children(02 片的 API 半)。⚠️ 開工前先做 session 輪替(context 99%):蒸餾+落檔+重啟
+2. ~~#295 API 側~~(#326 綠,保留類等使用者合)→ 現任務:及格線 migration(**只做 academy_exams**,PR 標保留類由使用者合)+科目平均 sum/totalSum
 3. 500 案回查:**09-07 後**,計畫席持 CF 憑證查 log、你分析(條件:POST /api/courses、
    body 含 SERVER_ERROR、不用 --status error)
 
@@ -62,7 +65,15 @@
 
 (無活項 —— 工具/流程改動先落這裡再做)
 
+## 學生帳號線(使用者 2026-09-05 確認要做,排家長端 03 片之後)
+
+- 架構已備:#316 擴充節(學生=scope 只含自己,同一套 childDb/studentScope)
+- 到設計階段的產品決定:登入方式(LINE?子登入?)/可見範圍(繳費給不給?)/
+  user_roles 加 student 第四角色(select-role 天然支援)
+- 流程照舊:探索→設計文件→使用者批准→動工;頁面重用家長端(同頁換 scope 的薄層)
+
 ## 使用者窗口積壓
+
 
 - 及格線欄位 migration / 科目平均百分比化(語意變更)/ 640px 視覺 / iOS 抽屜確認(#282)
 - 誰先 db:reset 誰驗 seed 雙身分帳號

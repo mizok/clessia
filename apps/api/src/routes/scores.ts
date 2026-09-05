@@ -42,7 +42,15 @@ const ScoreListResponseSchema = z
 const StudentSubjectSummarySchema = z
   .object({
     subjectName: z.string(),
-    academyAvg: z.number().nullable(),
+    // 補習班小考各場總分不同（見 academy_exams.total_score），平均掉不同滿分的
+    // 分數在數學上沒有意義（60/60 跟 60/100 平均起來的「60」是同一個數字，
+    // 意義卻天差地遠）。改回「總得分/總滿分」讓消費端自己決定要不要換算成比例，
+    // 也保留了原始分數感（見窗口裁決 2026-09-05）。
+    academySum: z.number().nullable(),
+    academyTotalSum: z.number().nullable(),
+    // school_exams 沒有總分欄位（段考慣例上都是 100 分制，但 schema 沒有記錄這個
+    // 假設），維持既有的平均 —— 跟及格線 migration 同一個範圍裁決：沒有總分資料
+    // 就不做總分換算，是獨立的產品題。
     schoolAvg: z.number().nullable(),
     totalRecords: z.number().int(),
   })
@@ -131,6 +139,17 @@ function averageOrNull(values: number[]): number | null {
   if (values.length === 0) return null;
   const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
   return Number(avg.toFixed(2));
+}
+
+/** 總得分／總滿分 —— 不做除法，讓消費端自己決定要不要換算成比例。 */
+export function sumPairsOrNull(
+  pairs: ReadonlyArray<{ score: number; totalScore: number }>,
+): { sum: number; totalSum: number } | null {
+  if (pairs.length === 0) return null;
+  return pairs.reduce(
+    (acc, pair) => ({ sum: acc.sum + pair.score, totalSum: acc.totalSum + pair.totalScore }),
+    { sum: 0, totalSum: 0 },
+  );
 }
 
 const listRoute = createRoute({
@@ -614,7 +633,9 @@ app.openapi(studentSummaryRoute, async (c) => {
   const [academyResult, schoolResult] = await Promise.all([
     supabase
       .from('academy_scores')
-      .select('score, status, academy_exams!inner(subject_id, org_id, exam_date, subjects(name))')
+      .select(
+        'score, status, academy_exams!inner(subject_id, org_id, exam_date, total_score, subjects(name))',
+      )
       .eq('student_id', studentId)
       .eq('academy_exams.org_id', orgId),
     (() => {
@@ -646,7 +667,7 @@ app.openapi(studentSummaryRoute, async (c) => {
     string,
     {
       subjectName: string;
-      academyScores: number[];
+      academyScores: Array<{ score: number; totalScore: number }>;
       schoolScores: number[];
       totalRecords: number;
     }
@@ -724,18 +745,30 @@ app.openapi(studentSummaryRoute, async (c) => {
     }
     const bucket = summaryMap.get(subjectName)!;
     bucket.totalRecords += 1;
-    if (row.status !== 'absent' && typeof row.score === 'number' && Number.isFinite(row.score)) {
-      bucket.academyScores.push(row.score);
+    // total_score 理論上一定有（academy_exams.total_score 是 NOT NULL），
+    // 防禦性檢查是為了不讓一筆型別異常的資料把整個 totalSum 弄成 NaN
+    const examTotalScore = typeof exam?.total_score === 'number' ? exam.total_score : null;
+    if (
+      row.status !== 'absent' &&
+      typeof row.score === 'number' &&
+      Number.isFinite(row.score) &&
+      examTotalScore !== null
+    ) {
+      bucket.academyScores.push({ score: row.score, totalScore: examTotalScore });
     }
   }
 
   const subjects = Array.from(summaryMap.values())
-    .map((item) => ({
-      subjectName: item.subjectName,
-      academyAvg: averageOrNull(item.academyScores),
-      schoolAvg: averageOrNull(item.schoolScores),
-      totalRecords: item.totalRecords,
-    }))
+    .map((item) => {
+      const academySummary = sumPairsOrNull(item.academyScores);
+      return {
+        subjectName: item.subjectName,
+        academySum: academySummary?.sum ?? null,
+        academyTotalSum: academySummary?.totalSum ?? null,
+        schoolAvg: averageOrNull(item.schoolScores),
+        totalRecords: item.totalRecords,
+      };
+    })
     .sort((a, b) => a.subjectName.localeCompare(b.subjectName, 'zh-Hant'));
 
   return c.json(

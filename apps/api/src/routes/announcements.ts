@@ -147,7 +147,7 @@ app.openapi(
     const orgId = c.get('orgId');
     const userId = c.get('userId');
 
-    const audience = audienceFor(c.get('roles') ?? []);
+    const audience = audienceFor(c.get('roles') ?? [], c.get('activeRole'));
     if (!audience) {
       return c.json({ error: '沒有收件匣', code: 'NO_INBOX' }, 403);
     }
@@ -312,7 +312,7 @@ app.openapi(
     const orgId = c.get('orgId');
     const userId = c.get('userId');
 
-    const audience = audienceFor(c.get('roles') ?? []);
+    const audience = audienceFor(c.get('roles') ?? [], c.get('activeRole'));
     if (!audience) {
       return c.json({ error: '沒有收件匣', code: 'NO_INBOX' }, 403);
     }

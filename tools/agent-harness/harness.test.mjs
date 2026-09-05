@@ -33,6 +33,7 @@ import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.m
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
 import { orphanModuleImports } from './lib/orphan-imports.mjs';
 import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
+import { usesRawSupabase } from './lib/parent-route-scan.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 import routerRules from './rules/doc-router.rules.json' with { type: 'json' };
 import { compareToBaseline, failingSpecs } from './test-gate.mjs';
@@ -1024,6 +1025,23 @@ test('c5 的別名清單與 tsconfig 對得上', () => {
     ['@app/*', '@features/*'],
     `能走到 features 的別名變了（現有：${paths.join(', ')}）—— check-harness 的 aliases 要跟著改`,
   );
+});
+
+// ── A19：家長端檔案不得出現 c.get('supabase') ──────────────────────────────────────────
+// 兩個方向都要測：抓得到真違規、不誤判解釋「不要這樣寫」的註解。後者不是假設性的 ——
+// `routes/parent/children.ts` 自己的檔頭說明就寫了 `c.get('supabase')` 這個字面值，
+// 第一版沒抹白註解，gate 抓到了自己的文件。
+test('A19 抓到真的 c.get(supabase) 呼叫', () => {
+  assert.equal(usesRawSupabase("const s = c.get('supabase');", 'x.ts'), true);
+  assert.equal(usesRawSupabase('const s = c.get("supabase");', 'x.ts'), true);
+});
+
+test('A19 不誤判註解裡提到 c.get(supabase) 的說明文字', () => {
+  const source = [
+    "// 這裡不用 c.get('supabase')，一律用 c.get('childDb')",
+    "const childDb = c.get('childDb');",
+  ].join('\n');
+  assert.equal(usesRawSupabase(source, 'x.ts'), false);
 });
 
 // icon 是非文字元素，WCAG 1.4.11 的門檻是 3:1 不是 4.5:1。

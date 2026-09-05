@@ -2,7 +2,28 @@
 //                     待後續加入 e2e 或更完整的 Supabase mock 後補齊。
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
-import scoresApp from './scores';
+import scoresApp, { sumPairsOrNull } from './scores';
+
+describe('sumPairsOrNull', () => {
+  it('沒有紀錄回 null，不是 0（沒登錄過跟登錄了 0 分不一樣）', () => {
+    expect(sumPairsOrNull([])).toBeNull();
+  });
+
+  // 這是這條規則存在的理由：不同總分的小考平均起來沒有意義，
+  // 「總得分/總滿分」才是看得懂的數字
+  it('累加分數與總分，不做除法', () => {
+    expect(
+      sumPairsOrNull([
+        { score: 60, totalScore: 100 },
+        { score: 70, totalScore: 50 },
+      ]),
+    ).toEqual({ sum: 130, totalSum: 150 });
+  });
+
+  it('單筆紀錄照樣是那筆的分數與總分', () => {
+    expect(sumPairsOrNull([{ score: 45, totalScore: 60 }])).toEqual({ sum: 45, totalSum: 60 });
+  });
+});
 
 interface ScoresState {
   students: Array<{ id: string; org_id: string; name: string }>;

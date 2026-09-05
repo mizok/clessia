@@ -30,6 +30,7 @@ const AcademyExamListItemSchema = z
     status: AcademyExamStatusSchema,
     examDate: z.string(),
     totalScore: z.number(),
+    passScore: z.number().nullable(),
     scopeNote: z.string().nullable(),
     campusId: z.uuid().nullable(),
     subjectId: z.uuid().nullable(),
@@ -79,6 +80,7 @@ const AcademyExamDetailSchema = z
     status: AcademyExamStatusSchema,
     examDate: z.string(),
     totalScore: z.number(),
+    passScore: z.number().nullable(),
     scopeNote: z.string().nullable(),
     campusId: z.uuid().nullable(),
     campusName: z.string().nullable(),
@@ -100,6 +102,8 @@ const CreateAcademyExamSchema = z
     campusId: DbUuidSchema.nullable().optional(),
     examDate: z.string().date(),
     totalScore: z.number().min(0).max(9999).optional(),
+    // null = 未設，沿用「總分 × 60%」的既有退路（見 score-threshold.util.ts）
+    passScore: z.number().min(0).max(9999).nullable().optional(),
     scopeNote: z.string().max(5000).nullable().optional(),
     classIds: z.array(DbUuidSchema).min(1),
   })
@@ -113,6 +117,7 @@ const UpdateAcademyExamSchema = z
     campusId: DbUuidSchema.nullable().optional(),
     examDate: z.string().date().optional(),
     totalScore: z.number().min(0).max(9999).optional(),
+    passScore: z.number().min(0).max(9999).nullable().optional(),
     scopeNote: z.string().max(5000).nullable().optional(),
     classIds: z.array(DbUuidSchema).min(1).optional(),
   })
@@ -249,6 +254,7 @@ interface ExamListRow {
   status: 'active' | 'closed';
   exam_date: string;
   total_score: number;
+  pass_score: number | null;
   scope_note: string | null;
   campus_id: string | null;
   subject_id: string | null;
@@ -292,6 +298,21 @@ function toNumberOrNull(value: unknown): number | null {
   return null;
 }
 
+/**
+ * 及格線合不合法 —— 跟 migration 的 `academy_exams_pass_score_range` CHECK
+ * 是同一條規則，**這裡先擋一次是為了給友善的錯誤訊息**，不是取代 DB constraint
+ * （DB 那道才是真正的最後防線，這裡漏接的話還有它兜底）。
+ *
+ * `null` / `undefined` 一律合法 —— 那是「未設」，不是「設成 0」。
+ */
+export function isPassScoreValid(
+  passScore: number | null | undefined,
+  totalScore: number,
+): boolean {
+  if (passScore === null || passScore === undefined) return true;
+  return passScore >= 0 && passScore <= totalScore;
+}
+
 async function ensureExamOwnedByOrg(
   supabase: AppEnv['Variables']['supabase'],
   examId: string,
@@ -301,10 +322,11 @@ async function ensureExamOwnedByOrg(
   name: string;
   status: 'active' | 'closed';
   created_by: string | null;
+  total_score: number;
 } | null> {
   const { data, error } = await supabase
     .from('academy_exams')
-    .select('id, name, status, created_by')
+    .select('id, name, status, created_by, total_score')
     .eq('id', examId)
     .eq('org_id', orgId)
     .maybeSingle();
@@ -318,6 +340,7 @@ async function ensureExamOwnedByOrg(
     name: data.name,
     status: data.status,
     created_by: (data as { created_by?: string | null }).created_by ?? null,
+    total_score: (data as { total_score: number }).total_score,
   };
 }
 
@@ -516,6 +539,7 @@ app.openapi(listRoute, async (c) => {
       status,
       exam_date,
       total_score,
+      pass_score,
       scope_note,
       campus_id,
       subject_id,
@@ -627,6 +651,7 @@ app.openapi(listRoute, async (c) => {
       status: row.status,
       examDate: row.exam_date,
       totalScore: row.total_score,
+      passScore: row.pass_score,
       scopeNote: row.scope_note,
       campusId: row.campus_id,
       subjectId: row.subject_id,
@@ -783,6 +808,7 @@ app.openapi(getRoute, async (c) => {
       status,
       exam_date,
       total_score,
+      pass_score,
       scope_note,
       campus_id,
       subject_id,
@@ -857,6 +883,7 @@ app.openapi(getRoute, async (c) => {
         status: examRow.status,
         examDate: examRow.exam_date,
         totalScore: examRow.total_score,
+        passScore: examRow.pass_score,
         scopeNote: examRow.scope_note,
         campusId: examRow.campus_id,
         campusName: campus?.name ?? null,
@@ -951,6 +978,11 @@ app.openapi(createRouteDef, async (c) => {
     return c.json({ error: '包含不合法的 classIds', code: 'INVALID_CLASS_IDS' }, 400);
   }
 
+  const totalScore = body.totalScore ?? 100;
+  if (!isPassScoreValid(body.passScore, totalScore)) {
+    return c.json({ error: '及格線不能超過總分，也不能是負數', code: 'INVALID_PASS_SCORE' }, 400);
+  }
+
   const insertExam = {
     org_id: orgId,
     name: body.name.trim(),
@@ -958,7 +990,8 @@ app.openapi(createRouteDef, async (c) => {
     subject_id: body.subjectId ?? null,
     campus_id: body.campusId ?? null,
     exam_date: body.examDate,
-    total_score: body.totalScore ?? 100,
+    total_score: totalScore,
+    pass_score: body.passScore ?? null,
     scope_note: body.scopeNote ?? null,
     status: 'active' as const,
     created_by: userId,
@@ -1108,6 +1141,15 @@ app.openapi(updateRouteDef, async (c) => {
     }
   }
 
+  // passScore 跟 totalScore 誰有值就用誰 —— 這個請求沒帶 totalScore 的話，
+  // 及格線要對照的是資料庫裡現有的總分，不是憑空當成 100
+  if (body.passScore !== undefined) {
+    const totalScore = body.totalScore ?? existing.total_score;
+    if (!isPassScoreValid(body.passScore, totalScore)) {
+      return c.json({ error: '及格線不能超過總分，也不能是負數', code: 'INVALID_PASS_SCORE' }, 400);
+    }
+  }
+
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates['name'] = body.name.trim();
   if (body.examType !== undefined) updates['exam_type'] = body.examType;
@@ -1115,6 +1157,7 @@ app.openapi(updateRouteDef, async (c) => {
   if (body.campusId !== undefined) updates['campus_id'] = body.campusId;
   if (body.examDate !== undefined) updates['exam_date'] = body.examDate;
   if (body.totalScore !== undefined) updates['total_score'] = body.totalScore;
+  if (body.passScore !== undefined) updates['pass_score'] = body.passScore;
   if (body.scopeNote !== undefined) updates['scope_note'] = body.scopeNote;
 
   if (Object.keys(updates).length > 0) {

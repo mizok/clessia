@@ -7,6 +7,12 @@ import { authClient } from './auth-client';
 
 export type UserRole = 'admin' | 'teacher' | 'parent';
 
+/**
+ * `auth.interceptor.ts` 也要讀這把鑰匙來組 `X-Active-Role` header —— 兩邊各寫一份
+ * 字面值的話，改名時漏改一處是不會報錯的那種漂移。
+ */
+export const ACTIVE_ROLE_STORAGE_KEY = 'clessia:active-role';
+
 export interface Profile {
   id: string;
   display_name: string;
@@ -120,7 +126,7 @@ export class AuthService {
       if (me.roles.length === 1) {
         this._activeRole.set(me.roles[0]);
       } else {
-        const savedRole = localStorage.getItem('clessia:active-role') as UserRole | null;
+        const savedRole = localStorage.getItem(ACTIVE_ROLE_STORAGE_KEY) as UserRole | null;
         if (savedRole && me.roles.includes(savedRole)) {
           this._activeRole.set(savedRole);
         }
@@ -137,7 +143,7 @@ export class AuthService {
 
   setActiveRole(role: UserRole) {
     this._activeRole.set(role);
-    localStorage.setItem('clessia:active-role', role);
+    localStorage.setItem(ACTIVE_ROLE_STORAGE_KEY, role);
   }
 
   hasPermission(permission: string): boolean {
@@ -201,7 +207,7 @@ export class AuthService {
     this._roles.set([]);
     this._permissions.set([]);
     this._activeRole.set(null);
-    localStorage.removeItem('clessia:active-role');
+    localStorage.removeItem(ACTIVE_ROLE_STORAGE_KEY);
     this.router.navigate(['/login']);
   }
 }
