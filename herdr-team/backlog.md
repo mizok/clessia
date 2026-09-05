@@ -94,9 +94,9 @@
 
 ## billing-api
 
-> **席位點名**:2026-09-05 17:5x 的 ListAgents 沒有 billing-api 這席。
-> `pin-better-auth-ce` 持有 `.worktrees/pin-better-auth [feat/parent-read-endpoints]`,
-> 疑似就是它。接手的人先自報身分給計畫席。
+> **席位存活查 herdr,不要查 ListAgents**(2026-09-05 計畫席犯過)。ListAgents 顯示的是
+> session 自動命名(billing-api 這席顯示為 `pin-better-auth-ce`,取自 worktree 路徑),
+> 跟 herdr 層的席位標籤是兩個系統。拿 peer 名判斷席位存不存在會得到假的「查無此席」。
 
 0. **家長端兩個小欄位(#351 合併之後才做,不要動 #351 本身)** —— 計畫席 2026-09-05 裁,
    兩條都驗過程式碼不是憑轉述:
@@ -111,7 +111,6 @@
 1. **家長端讀取「已發布教務日誌」API**(先前只存在於訊息裡,不在 backlog —— 輪替後
    逮到的第一個訊息吞噬實例)。**排在 #351 合併之後**:#351 是授權第一實例,後面照它抄。
    下游:teacher-pages 教務日誌 v1b 整個卡在這支
-1.5 `/api/session-packs` 查證(低優):同 class-logs,#304 標的另一個未認領端點
 2. 及格線 migration(**只做 academy_exams**,PR 標保留類由使用者合)+科目平均 sum/totalSum
 3. 500 案回查:**09-07 後**,計畫席持 CF 憑證查 log、你分析(條件:POST /api/courses、
    body 含 SERVER_ERROR、不用 --status error)
