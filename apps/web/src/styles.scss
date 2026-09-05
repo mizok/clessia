@@ -1634,13 +1634,6 @@ textarea.p-textarea,
     color: var(--zinc-900);
   }
 
-  &__result-desc {
-    margin: 0;
-    font-size: var(--text-base);
-    color: var(--zinc-500);
-    line-height: var(--leading-relaxed);
-  }
-
   &__result-stats {
     display: flex;
     gap: 0;
