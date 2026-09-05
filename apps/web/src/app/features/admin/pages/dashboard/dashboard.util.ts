@@ -1,41 +1,27 @@
-import type { EventSessionSummary } from '@core/attendance.service';
-import type { AttendanceMode } from '@core/org-settings.service';
-import { hasSessionEnded } from '@shared/utils/session-time.util';
+import { format, subDays } from 'date-fns';
 
 /**
- * 回溯窗內漏點名的課堂數；`null` 代表這張卡整張不該渲染。
+ * 未點名課堂卡片的篩選語意，**唯一的定義來源**——儀表板算數字、以及卡片連到
+ * 課堂管理頁時要帶的 `queryParams`，都從這支函式產生。同一份定義餵給兩邊，
+ * 才不會出現「卡片說 15、落地頁顯示別的數字」（P1-6：kb/wiki/architecture/
+ * admin-todo-alerts.md）。
  *
- * 兩個容易錯的地方：`takenAt` 是 null 才叫沒點名（用 presentCount === 0 判斷的話，
- * 全班缺席的課會被誤判），以及還沒上完的課不算漏點名（否則晚上的課從一早就在誤報）。
+ * `attendanceTaken=false` + `endedOnly=true` 一次表達「沒點名而且已經上完」——
+ * 這兩個條件以前被迫拆成「昨天以前伺服器算」+「今天前端逐筆濾」兩段，
+ * 拆的原因只是 API 表達不出「已結束」，不是業務上真的有兩段（#368 補上
+ * `endedOnly` 之後，這支函式把兩段收回一份）。
  *
- * 只在逐堂點名模式有意義 —— `daily-checkins` 建立 attendance_records 但從不蓋
- * `events.attendance_taken_at`，日到班模式下每一堂推算出席的課都會被算成漏點名。
+ * `dateTo` 特意含今天——`endedOnly` 已經排除了今天還沒上完的課，不需要
+ * 前端自己再挖掉今天。
  */
-export function countUntakenSessions(
-  sessions: readonly EventSessionSummary[],
-  mode: AttendanceMode,
+export function pendingAttendanceQuery(
   now: Date,
-): number | null {
-  if (mode !== 'per_session') return null;
-
-  // 「上完了沒」的定義共用給課堂管理與 day-timeline —— 各寫一份的話，
-  // 儀表板說「6 堂沒點名」而課堂頁標 8 堂，兩個畫面對同一件事說不一樣的話
-  //
-  // **停課不算「忘了點名」。** 這一段跟卡片的另一段必須用同一套規則：
-  // 昨天以前走 `attendanceTaken=false`，那支帶了參數就改用 inner join，
-  // 沒有出勤事件的課堂（停課刻意不補建，#123）本來就撈不到。今天這段吃的是
-  // `workbench/today` 的明細，而**那支回全部課堂含停課**（課表要顯示灰底的），
-  // 不自己濾的話同一張卡會有兩套規則。
-  return sessions.filter(
-    (s) => s.status !== 'cancelled' && !s.takenAt && hasSessionEnded(toSessionTime(s), now),
-  ).length;
-}
-
-/** `EventSessionSummary` 用 `eventDate`，共用函式吃的是 `date` */
-function toSessionTime(session: EventSessionSummary) {
+  lookbackDays: number,
+): { dateFrom: string; dateTo: string; attendanceTaken: false; endedOnly: true } {
   return {
-    date: session.eventDate,
-    startTime: session.startTime ?? null,
-    endTime: session.endTime ?? null,
+    dateFrom: format(subDays(now, lookbackDays), 'yyyy-MM-dd'),
+    dateTo: format(now, 'yyyy-MM-dd'),
+    attendanceTaken: false,
+    endedOnly: true,
   };
 }

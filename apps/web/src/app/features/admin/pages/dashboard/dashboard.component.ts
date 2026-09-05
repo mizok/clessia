@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
-import { endOfMonth, format, startOfMonth, subDays } from 'date-fns';
+import { endOfMonth, format, startOfMonth } from 'date-fns';
 import { catchError, forkJoin, of, type Observable } from 'rxjs';
 
 import { AcademyExamsService } from '@core/academy-exams.service';
@@ -27,7 +27,7 @@ import { RoutesCatalog, type RouteObj } from '@core/smart-enums/routes-catalog';
 
 import { CollapsibleComponent } from '@shared/components/collapsible/collapsible.component';
 
-import { countUntakenSessions } from './dashboard.util';
+import { pendingAttendanceQuery } from './dashboard.util';
 import {
   StatusDotComponent,
   type StatusTone,
@@ -43,6 +43,12 @@ interface StatCard {
   readonly sub?: string;
   readonly icon: string;
   readonly routerLink: string;
+  /**
+   * 帶去目的頁的篩選——**沒有這個欄位，卡片的數字跟落地頁篩選後看到的東西
+   * 永遠是兩件事**（P1-6：kb/wiki/architecture/admin-todo-alerts.md）。
+   * 沒有篩選需求的卡片就不填，模板綁 `card.queryParams ?? {}`。
+   */
+  readonly queryParams?: Readonly<Record<string, string>>;
   readonly accent?: boolean;
   /**
    * 這張卡是「今天要動作的事」還是「背景脈絡」。
@@ -386,8 +392,11 @@ export class DashboardComponent {
   protected readonly todayLabel = `${format(this.now, 'yyyy 年 M 月 d 日')} · ${WEEKDAYS[this.now.getDay()]}`;
 
   private readonly todaySessions = signal<EventSessionSummary[] | 'error' | null>(null);
-  /** 昨天以前的未點名堂數（伺服器算）。今天的部分另外從 workbench 的明細數 */
-  private readonly untakenBeforeToday = signal<CardValue>(null);
+  /**
+   * 未點名堂數，**整個來自伺服器**（`endedOnly` 到位後不再拆兩段查、
+   * 前端也不再算一次——同一個數字算兩次是這張卡先前對不上落地頁的根因）。
+   */
+  private readonly untakenCount = signal<CardValue>(null);
   private readonly todayLeaves = signal<LeaveRequest[] | 'error' | null>(null);
   private readonly gradesTodo = signal<CardValue>(null);
   private readonly activeStudents = signal<CardValue>(null);
@@ -431,15 +440,16 @@ export class DashboardComponent {
     const mode = this.attendanceMode();
     if (mode !== 'per_session') return 'hidden';
 
-    const before = this.untakenBeforeToday();
-    if (before === null || before === FAILED) return before;
-
-    // 今天的那批在 workbench 的明細裡 —— 還沒上完的不算逾期
-    const today = this.todaySessionList();
-    if (today === null) return null;
-
-    return before + (countUntakenSessions(today, mode, this.now) ?? 0);
+    return this.untakenCount();
   });
+
+  /**
+   * 未點名卡的篩選——唯一來源是 `pendingAttendanceQuery`，儀表板算數字跟
+   * 卡片的 `queryParams` 都從它產生，兩者不能各自拼一份。
+   */
+  private readonly untakenQuery = computed(() =>
+    pendingAttendanceQuery(this.now, UNTAKEN_LOOKBACK_DAYS),
+  );
 
   protected readonly cards = computed<StatCard[]>(() => {
     const cards: StatCard[] = [
@@ -454,6 +464,7 @@ export class DashboardComponent {
 
     const untaken = this.untaken();
     if (untaken !== 'hidden') {
+      const query = this.untakenQuery();
       cards.push({
         kind: 'todo',
         label: '未點名課堂',
@@ -461,6 +472,15 @@ export class DashboardComponent {
         sub: `近 ${UNTAKEN_LOOKBACK_DAYS} 天`,
         icon: 'pi-exclamation-triangle',
         routerLink: RoutesCatalog.ADMIN_ATTENDANCE.absolutePath,
+        // ⚠️ 落地頁（sessions.page.ts）目前只接得住 attendanceTaken——
+        // GET /api/sessions 還沒有 endedOnly（billing-api 待補，見 PR 說明）。
+        // 這裡照樣把完整語意帶過去，缺口補上那天不用回頭改這裡。
+        queryParams: {
+          dateFrom: query.dateFrom,
+          dateTo: query.dateTo,
+          attendanceTaken: String(query.attendanceTaken),
+          endedOnly: String(query.endedOnly),
+        },
         accent: true,
       });
     }
@@ -527,7 +547,6 @@ export class DashboardComponent {
 
   constructor() {
     this.destroyRef.onDestroy(() => (this.destroyed = true));
-    const lookbackFrom = format(subDays(this.now, UNTAKEN_LOOKBACK_DAYS), 'yyyy-MM-dd');
 
     // **逐支訂閱，不用單一 forkJoin。** forkJoin 要全部完成才 emit，於是整頁
     // 等最慢的那一支 —— 橘帶那句話可能是最早回來的，卻要等最後一支。
@@ -563,28 +582,19 @@ export class DashboardComponent {
       });
 
     /**
-     * 未點名課堂 **拆成兩段查**，因為「逾期未點名」有兩個條件而 API 只給得起一個：
-     * `attendanceTaken=false` 是「沒點名」，卡片要的是「沒點名**而且已經上完了**」。
-     *
-     * - **昨天以前**：那些課早就結束了，所以「沒點名」就等於「逾期未點名」——
-     *   用 `pageSize: 1` 取 `meta.total`，**數字由伺服器算**
-     * - **今天**：`workbench/today` 已經把今天全部的課帶回來了（幾十堂，不會破 100），
-     *   在那份明細上用 `hasSessionEnded` 濾掉還沒上完的
-     *
-     * 這支原本是 `dateFrom=7天前, dateTo=今天, pageSize=100` 撈明細自己數 ——
-     * 一天 15 堂的補習班回看 7 天就 105 堂，**破 100 之後悄悄少算而且錯得沒有徵兆**。
-     * 諷刺的是同一個函式往下 25 行就寫著這個教訓（本月報名異動那支），只是沒回頭看這支。
+     * 未點名課堂——**一支查完**。`endedOnly=true` 把「已經上完」的判斷搬到伺服器
+     * （#368），不用再拆成「昨天以前查 API、今天前端逐筆濾」兩段。`pageSize: 1`
+     * 取 `meta.total`，數字完全由伺服器算，前端不重算一次——這是計畫席當時的
+     * 硬性條件：後端能表達之後，卡片數字整個來自伺服器。
      */
     failSoft(
       this.attendanceService.sessions({
-        dateFrom: lookbackFrom,
-        dateTo: format(subDays(this.now, 1), 'yyyy-MM-dd'),
-        attendanceTaken: false,
+        ...this.untakenQuery(),
         pageSize: 1,
       }),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) => this.untakenBeforeToday.set(res === FAILED ? FAILED : res.meta.total));
+      .subscribe((res) => this.untakenCount.set(res === FAILED ? FAILED : res.meta.total));
 
     failSoft(
       forkJoin([this.academyExamsService.getTodoCount(), this.schoolExamsService.getTodoCount()]),

@@ -61,7 +61,11 @@
       <ul class="dashboard__todo-list">
         @for (card of todoCards(); track card.label) {
           <li>
-            <a class="dashboard__todo-row" [routerLink]="card.routerLink">
+            <a
+              class="dashboard__todo-row"
+              [routerLink]="card.routerLink"
+              [queryParams]="card.queryParams ?? {}"
+            >
               <span
                 class="dashboard__todo-icon"
                 [class.dashboard__todo-icon--zero]="card.value === 0"

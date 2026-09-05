@@ -8,7 +8,8 @@ import {
   viewChild,
   ChangeDetectionStrategy,
 } from '@angular/core';
-import { endOfMonth, format, startOfMonth } from 'date-fns';
+import { ActivatedRoute } from '@angular/router';
+import { endOfMonth, format, parseISO, startOfMonth } from 'date-fns';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { catchError, filter, forkJoin, map, of, switchMap, take } from 'rxjs';
 import { MessageService, type MenuItem } from 'primeng/api';
@@ -33,6 +34,7 @@ import {
 } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
 
 import { SessionCancelDialogComponent } from './dialogs/session-cancel-dialog/session-cancel-dialog.component';
+import { parseAttendanceQueryParams } from './sessions.util';
 import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
 import { SessionOperationsLogDialogComponent } from './dialogs/session-operations-log-dialog/session-operations-log-dialog.component';
@@ -115,6 +117,7 @@ export class SessionsPage implements OnInit {
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly dialogService = inject(DialogService);
   private readonly studentsService = inject(StudentsService);
+  private readonly route = inject(ActivatedRoute);
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
@@ -164,6 +167,18 @@ export class SessionsPage implements OnInit {
     endOfMonth(new Date()),
   ]);
   protected readonly listDateRangeModified = signal(false);
+
+  /**
+   * 有沒有點名過——從別頁（目前是儀表板的未點名卡）連過來時帶的篩選。
+   * `undefined` 是「沒有這個篩選」，不是「false」。
+   *
+   * ⚠️ **只接得住一半**：dashboard 用 `pendingAttendanceQuery()`
+   * （`endedOnly: true`）算數字，但 `GET /api/sessions` 目前沒有 `endedOnly`
+   * （billing-api 待補，見 kb/wiki/architecture/admin-todo-alerts.md）。
+   * 在那之前，從儀表板連過來看到的堂數會比卡片上的數字多——今天還在進行中、
+   * 還沒到點名時間的課也會被含進來。這是已知、記錄在案的落差，不是這次要解的問題。
+   */
+  protected readonly attendanceTakenFilter = signal<boolean | undefined>(undefined);
 
   // ── Computed ───────────────────────────────────────────────────────────
   protected readonly activeTeachers = computed(() =>
@@ -315,6 +330,7 @@ export class SessionsPage implements OnInit {
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
   ngOnInit(): void {
+    this.applyIncomingAttendanceFilter();
     this.loadFilters();
     this.loadStudents();
     this.firstCampus$.subscribe((campuses) => {
@@ -609,6 +625,7 @@ export class SessionsPage implements OnInit {
     this.selectedStudentIds.set([]);
     this.selectedStatuses.set(['scheduled']);
     this.selectedTeacherIds.set(['__unassigned__']);
+    this.attendanceTakenFilter.set(undefined);
     this.loadSessions();
   }
 
@@ -622,7 +639,23 @@ export class SessionsPage implements OnInit {
     this.selectedStudentIds.set([]);
     this.selectedTeacherIds.set([]);
     this.selectedStatuses.set(['scheduled', 'completed']);
+    // 現在真的篩得到了（#363）——badge 數字跟這裡套用的篩選同一個條件。
+    this.attendanceTakenFilter.set(false);
     this.loadSessions();
+  }
+
+  /**
+   * 從儀表板未點名卡連過來時套用的篩選（見 `sessions.util.ts` 的
+   * `parseAttendanceQueryParams`）。查不到完整的三個欄位就什麼都不做——
+   * 一般從選單點進這頁不會帶這些 query params，維持原本的預設篩選。
+   */
+  private applyIncomingAttendanceFilter(): void {
+    const incoming = parseAttendanceQueryParams(this.route.snapshot.queryParams);
+    if (!incoming) return;
+
+    this.listDateRange.set([incoming.dateFrom, incoming.dateTo]);
+    this.listDateRangeModified.set(true);
+    this.attendanceTakenFilter.set(incoming.attendanceTaken);
   }
 
   protected clearFilters(): void {
@@ -634,6 +667,7 @@ export class SessionsPage implements OnInit {
     this.studentEnrolledClassIds.set(new Set());
     this.studentFilteredEnrollments.set([]);
     this.selectedStatuses.set([...DEFAULT_STATUSES]);
+    this.attendanceTakenFilter.set(undefined);
     this.loadSessions();
   }
 
@@ -830,6 +864,7 @@ export class SessionsPage implements OnInit {
         teacherIds: realTeacherIds.length > 0 ? realTeacherIds : undefined,
         classIds: effectiveClassIds,
         assignmentStatus: hasUnassigned ? 'unassigned' : undefined,
+        attendanceTaken: this.attendanceTakenFilter(),
         statuses: this.selectedStatuses().length > 0 ? this.selectedStatuses() : undefined,
         page: this.currentPage(),
         pageSize: this.PAGE_SIZE,
