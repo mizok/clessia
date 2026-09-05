@@ -97,4 +97,33 @@ describe('CampusesPage', () => {
 
     expect(statValues).toEqual(['38', '33', '5']);
   });
+
+  // 分校刪除是連動最廣的操作（courses CASCADE），但選單裡原本跟「編輯」同一個
+  // 字重——使用者按下去之前完全感覺不到量級。這條釘住視覺升級不會被之後的改動悄悄拿掉。
+  it('刪除分校在選單裡用紅字並跟其他項目分隔，不是跟編輯同一個字重', () => {
+    const campus: Campus = {
+      id: 'campus-1',
+      orgId: 'org-1',
+      name: '台北校',
+      address: null,
+      phone: null,
+      isActive: true,
+      createdAt: '2026-03-11T00:00:00.000Z',
+      updatedAt: '2026-03-11T00:00:00.000Z',
+    };
+    (
+      component as unknown as { selectedCampus: { set: (value: Campus) => void } }
+    ).selectedCampus.set(campus);
+
+    const items = (
+      component as unknown as {
+        actionMenuItems: () => { label?: string; itemClass?: string; separator?: boolean }[];
+      }
+    ).actionMenuItems();
+
+    const deleteIndex = items.findIndex((item) => item.label === '刪除分校');
+    expect(deleteIndex).toBeGreaterThan(0);
+    expect(items[deleteIndex].itemClass).toBe('text-red-500');
+    expect(items[deleteIndex - 1].separator).toBe(true);
+  });
 });
