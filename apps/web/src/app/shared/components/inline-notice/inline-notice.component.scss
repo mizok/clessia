@@ -26,12 +26,25 @@
     color: var(--warning-800);
   }
 
-  // info 是 accent 語意，所以走 token —— 換色系時要跟著走。
-  // error / success / warning 維持各自的語意色（紅綠黃），那些不屬於 accent 語言。
+  // **info 不是 accent 語意，是中性語意** —— 這條原本走 accent token（見 git
+  // blame 這行以前的註解：「換色系時要跟著走」），在 accent 是天藍色的時候
+  // 沒問題，但方向 D 把 accent 換成橘紅系之後，info 跟 error 的色相只差 14.5°，
+  // 兩者的底色與文字色雙重接近，使用者在「新增家長」表單把一句正常的操作
+  // 說明看成驗證失敗（tester 實測）。
+  //
+  // 根因不是配色，是類別:`--accent-*` 是品牌色，這席自己在 kb/wiki/architecture/
+  // admin-todo-alerts.md 定過「accent 從來就不是嚴重度」——info 本來就不該借用
+  // 品牌色表達「這是一則中性提示」。改成中性色（zinc）直接離開紅橘家族，跟
+  // error（紅）/success（綠）/warning（黃）天然分開，不會因為任何嚴重度色階
+  // 未來微調又撞回去（降飽和度的 accent 只是搬遠一點，還在同一個家族）。
+  //
+  // 對比度：zinc-700 對 zinc-50 是 11.1:1，比原本 accent-600/accent-100 組合
+  // 實測的 5.18:1 更安全；邊框用 zinc-500（對 zinc-50 4.66:1，過 3:1 非文字
+  // 門檻——zinc-400 只有 2.47:1、zinc-300 只有 1.34:1，都過不了，量過三階才選定）。
   &--info {
-    border-color: var(--accent-400);
-    background: linear-gradient(135deg, var(--accent-50) 0%, var(--accent-100) 100%);
-    color: var(--accent-600);
+    border-color: var(--zinc-500);
+    background: linear-gradient(135deg, var(--zinc-50) 0%, var(--zinc-100) 100%);
+    color: var(--zinc-700);
   }
 
   &__copy {
