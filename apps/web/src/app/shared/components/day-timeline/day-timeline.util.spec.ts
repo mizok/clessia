@@ -25,6 +25,7 @@ function session(
     examCount: 0,
     classId: 'c',
     className: '班',
+    usesContactBook: false,
     courseName: null,
     teacherName: null,
     campusId: null,

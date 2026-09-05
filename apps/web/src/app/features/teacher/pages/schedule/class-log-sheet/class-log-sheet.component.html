@@ -1,0 +1,72 @@
+<div class="class-log-sheet">
+  <header class="class-log-sheet__header">
+    <h2 class="class-log-sheet__title">{{ input.className }}</h2>
+    <p class="class-log-sheet__date">{{ input.logDate }}</p>
+    <!--
+      同一班同一天兩場課會開到同一篇（class_logs 的鍵不含時段）。
+      第二場的老師必須知道自己在編輯既有內容 —— 但真正的防線是上面已經
+      把內容預載進輸入框了，這句只是把它說出來。
+    -->
+    @if (existing()) {
+      <p class="class-log-sheet__existing">本日已有日誌，你正在編輯它</p>
+    }
+  </header>
+
+  @if (loading()) {
+    <p class="class-log-sheet__state">載入中…</p>
+  } @else if (loadError()) {
+    <p class="class-log-sheet__state class-log-sheet__state--error">
+      讀取失敗，請關閉重開。現在存檔會覆蓋掉本來就有的內容。
+    </p>
+  } @else {
+    <label class="class-log-sheet__field">
+      <span class="class-log-sheet__label">
+        教學紀錄
+        <span class="class-log-sheet__visibility">內部，家長看不到</span>
+      </span>
+      <textarea
+        class="class-log-sheet__input"
+        rows="4"
+        maxlength="5000"
+        [ngModel]="teachingRecord()"
+        (ngModelChange)="teachingRecord.set($event)"
+      ></textarea>
+    </label>
+
+    <label class="class-log-sheet__field">
+      <span class="class-log-sheet__label">
+        作業安排
+        <span class="class-log-sheet__visibility class-log-sheet__visibility--public">
+          家長會看到
+        </span>
+      </span>
+      <textarea
+        class="class-log-sheet__input"
+        rows="4"
+        maxlength="5000"
+        [ngModel]="homework()"
+        (ngModelChange)="homework.set($event)"
+      ></textarea>
+    </label>
+
+    @if (saveError(); as message) {
+      <p class="class-log-sheet__state class-log-sheet__state--error">{{ message }}</p>
+    }
+
+    <footer class="class-log-sheet__footer">
+      <!--
+        v1a 只有存檔。**沒有發布按鈕，也不是 disabled** —— 發布不可逆，
+        而家長端讀取與 LINE 推播在 v1b 之前都不存在。
+      -->
+      <p-button label="取消" [text]="true" size="small" (onClick)="close()" />
+      <p-button
+        label="存檔"
+        icon="pi pi-check"
+        size="small"
+        [loading]="saving()"
+        [disabled]="nothingToSave()"
+        (onClick)="save()"
+      />
+    </footer>
+  }
+</div>

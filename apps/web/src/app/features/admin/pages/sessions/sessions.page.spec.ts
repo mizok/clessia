@@ -1079,6 +1079,7 @@ describe('SessionsPage', () => {
             examCount: 0,
             classId: 'class-1',
             className: 'A班',
+            usesContactBook: false,
             courseName: '數學',
             teacherName: '王老師',
             campusId: 'campus-1',

@@ -11,6 +11,7 @@ function session(over: Partial<EventSessionSummary> = {}): EventSessionSummary {
     examCount: 0,
     classId: 'c1',
     className: '數學班 A',
+    usesContactBook: false,
     courseName: '數學 九年級',
     teacherName: '張品妍',
     campusId: null,

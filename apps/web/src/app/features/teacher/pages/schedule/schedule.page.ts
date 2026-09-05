@@ -36,7 +36,14 @@ import {
   type RosterPanelSession,
 } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 
-import { attendanceDisplay, canTakeAttendance, daySummary, weekAnchor } from './schedule.util';
+import { ClassLogSheetComponent } from './class-log-sheet/class-log-sheet.component';
+import {
+  attendanceDisplay,
+  canTakeAttendance,
+  canWriteClassLog,
+  daySummary,
+  weekAnchor,
+} from './schedule.util';
 
 const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -317,5 +324,33 @@ export class SchedulePage implements OnInit {
         }
       },
     );
+  }
+
+  /** 判準在 util（跟 `canTakeAttendance` 同一個家），這裡只是模板的入口 */
+  protected readonly canWriteClassLog = canWriteClassLog;
+
+  /**
+   * 開日誌面板。**判準不含 `eventId`** —— 日誌掛班×日期，不掛出勤事件，
+   * 所以沒有出勤事件的課堂照樣可以寫（未來的課也可以：規則明說老師會先寫作業）。
+   */
+  protected openClassLog(session: EventSessionSummary): void {
+    const ref = this.dialogService.open(ClassLogSheetComponent, {
+      width: '480px',
+      modal: true,
+      showHeader: false,
+      closable: false,
+      // 跟點名面板同一個形狀：手機從下方升起，老師站著單手用
+      styleClass: 'roster-sheet',
+      appendTo: this.overlayContainer ?? 'body',
+      data: {
+        classId: session.classId,
+        className: session.className,
+        logDate: session.eventDate,
+      },
+    });
+
+    ref?.onClose.subscribe((saved?: boolean) => {
+      if (saved) this.loadSessions();
+    });
   }
 }

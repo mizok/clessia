@@ -6,6 +6,7 @@ import {
   attendanceDisplay,
   attendanceTone,
   canTakeAttendance,
+  canWriteClassLog,
   daySummary,
   weekAnchor,
 } from './schedule.util';
@@ -19,6 +20,7 @@ function session(over: Partial<EventSessionSummary>): EventSessionSummary {
     examCount: 0,
     classId: 'c1',
     className: '國三數學 A',
+    usesContactBook: false,
     courseName: null,
     teacherName: null,
     campusId: null,
@@ -289,5 +291,34 @@ describe('daySummary（週條每日彙總）', () => {
       count: 1,
       tone: 'pending',
     });
+  });
+});
+
+/**
+ * 課堂卡上「寫日誌」入口的分流條件。
+ *
+ * 這一段刻意跟 `canTakeAttendance` 分開測：兩者只有「停課」那一半重疊，
+ * **日誌不需要 `eventId`** —— 它掛班×日期，不掛出勤事件。
+ */
+describe('教務日誌入口的分流', () => {
+  it('日誌模式的正常課堂 → 顯示', () => {
+    expect(canWriteClassLog({ status: 'scheduled', usesContactBook: false })).toBe(true);
+  });
+
+  // 班級設定決定要寫哪一種，不問老師。聯絡簿模式的撰寫端是 v1c
+  it('聯絡簿模式 → 不顯示（刻意不做，不是遺漏）', () => {
+    expect(canWriteClassLog({ status: 'scheduled', usesContactBook: true })).toBe(false);
+  });
+
+  it('停課 → 不顯示（不會發生的課沒有教學紀錄可寫）', () => {
+    expect(canWriteClassLog({ status: 'cancelled', usesContactBook: false })).toBe(false);
+  });
+
+  /**
+   * 已結束的課堂照樣可寫 —— 補寫昨天的日誌是常態，
+   * 而且規則明說「老師可能先寫作業、下課後再補教學紀錄」，未來的課也可寫。
+   */
+  it('完成的課堂 → 仍然顯示', () => {
+    expect(canWriteClassLog({ status: 'completed', usesContactBook: false })).toBe(true);
   });
 });
