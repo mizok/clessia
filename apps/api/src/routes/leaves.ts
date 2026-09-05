@@ -4,6 +4,7 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { campusFilterIds } from '../lib/campus-scope';
+import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 const LeaveRequestSchema = z
   .object({
@@ -483,7 +484,9 @@ app.openapi(
       return c.json({ error: '找不到請假紀錄' }, 404);
     }
 
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD (UTC)
+    // 台北時間，不是 UTC —— Workers 跑在 UTC，`new Date().toISOString()` 在
+    // 台北時間 00:00–08:00 之間會算成前一天（2026-09-06 main 全紅的根因）。
+    const today = getCurrentTaipeiDateString();
     const startDate = (leave as any).start_date as string;
     const endDate = (leave as any).end_date as string;
 
@@ -529,7 +532,9 @@ app.openapi(
 
     // truncate 模式且為進行中：保留過去，截斷今日起
     if (mode === 'truncate' && isActive) {
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      // 同一支 today 算出來的昨天，不是另一個 UTC 算法 —— 兩個必須一致，
+      // 否則會出現「今天用台北算、昨天用 UTC 算」的組合，比全錯更難 debug。
+      const yesterday = addDaysToDateString(today, -1);
       await supabase
         .from('leave_requests')
         .update({ end_date: yesterday })
