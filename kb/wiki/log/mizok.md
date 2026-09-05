@@ -4,6 +4,33 @@
 
 ---
 
+## [2026-09-06] capture | broken-looks-identical-to-normal 補 teacher-pages 的 3 個實例
+
+- Pages updated: [[lessons/broken-looks-identical-to-normal]]
+- Sources: teacher-pages-5b 跨席訊息（minify 導致 grep 假陰性、自己剛做的東西感覺不需要查、
+  設計初稿承諾了不存在的效果——LINE 推播），第三個收進實例表（#14），前兩個收進
+  「怎麼盤點這個模式」當查證方法本身的盲點
+- Key findings: 14 個實例可再收斂出第 4 種變形的時間/空間兩個方向（承諾此刻就假 vs
+  承諾之後才會發生、可能永遠不發生）
+
+## [2026-09-06] map | Rebuilt index + 6 MOCs
+
+- Pages indexed: 116
+- Total links: 188
+- Orphan pages: 69
+
+## [2026-09-06] map | Rebuilt index + 6 MOCs
+
+- Pages indexed: 116
+- Total links: 188
+- Orphan pages: 69
+
+## [2026-09-06] lint | Health check: 0 errors, 2 warnings, 60 info
+
+- Mode: structural
+- Pages scanned: 127
+- Issues found: 62
+
 ## [2026-09-05] capture | M8 稽核族類病收成一頁 lessons
 
 - Pages created: [[lessons/broken-looks-identical-to-normal]]
