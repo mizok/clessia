@@ -8,7 +8,15 @@
         開帳單、收款、看誰還沒繳。狀態由累計實收推導，逾期是額外的標記不是另一種狀態。
       </p>
     </div>
-    <p-button label="手動開帳" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
+      <p-button
+        label="操作紀錄"
+        icon="pi pi-history"
+        [outlined]="true"
+        severity="secondary"
+        (onClick)="openAuditLog()"
+      />
+    </app-page-actions>
   </header>
 
   @if (uninvoicedCount() > 0) {
