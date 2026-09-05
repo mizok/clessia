@@ -71,10 +71,6 @@ const CONTRAST_EXEMPT = {
   // ─ disabled 控制項：WCAG 1.4.3 明文豁免 ─
   'apps/web/src/app/features/admin/pages/courses/class-form-dialog/class-form-dialog.component.scss|&:disabled|var(--zinc-400)|var(--zinc-50)':
     'disabled 輸入框 —— 1.4.3 明文豁免；提高對比反而讓它看起來可以按（理由也寫在該處）',
-
-  // ─ placeholder：既有設計裁決，不是遺漏 ─
-  'apps/web/src/app/features/public/shared/_auth-form.scss|&::placeholder|var(--zinc-400)|#fff':
-    'placeholder。styles.scss 已裁決刻意留 zinc-400：「還沒填」該比「已填」淡，提到 zinc-500 會讓它讀起來像已經有值。要不要動是獨立的設計題，不是對比債',
 };
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');
 const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-baseline.json');

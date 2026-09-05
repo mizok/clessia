@@ -25,11 +25,6 @@
     overflow: hidden;
   }
 
-  &__paginator {
-    flex-shrink: 0;
-    border-top: 1px solid var(--zinc-200);
-  }
-
   &__skeleton {
     padding: var(--space-3);
     display: flex;
