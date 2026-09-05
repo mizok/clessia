@@ -162,10 +162,17 @@ export class StudentScoreDetailDialogComponent implements OnInit {
   }
 
   /**
-   * 科目平均 —— **刻意不傳總分**。`academyAvg` / `schoolAvg` 是跨考試的原始分數
-   * 算術平均（`routes/scores.ts` 的 `averageOrNull`，沒有百分比化），所以它根本
-   * 沒有共同的總分。這裡退回 60 不是「還沒傳」，是那個數字本身在總分不一致時
-   * 就沒有意義 —— 那是另一個問題。
+   * 補習班小考科目平均 —— API 改回「總得分/總滿分」（#332），不再是跨考試的
+   * 算術平均。及格線沿用單場考試同一套比例退路（`isFailingScore` 的
+   * `totalScore` 層），修掉舊版「跟裸 60 比大小」在各場總分不同時沒有意義的問題。
+   */
+  protected isFailingAcademyAverage(sum: number | null, totalSum: number | null): boolean {
+    return isFailingScore(sum, { totalScore: totalSum });
+  }
+
+  /**
+   * 學校段考科目平均 —— `school_exams` 沒有總分欄位，維持原本「跟裸 60 比大小」
+   * 的退路（`score-threshold.util.ts` 的第三層）。
    */
   protected isFailingAverage(avg: number | null): boolean {
     return isFailingScore(avg);
