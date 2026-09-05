@@ -66,7 +66,13 @@
             />
           } @else {
             <!-- Display mode -->
-            <span class="subject-manager__name">{{ subject.name }}</span>
+            <span class="subject-manager__name-stack">
+              <span class="subject-manager__name">{{ subject.name }}</span>
+              @if (deleteBlockReason(subject); as reason) {
+                <!-- 常駐文字，不是只靠 tooltip —— hover 在觸控裝置上摸不到 -->
+                <span class="subject-manager__usage-hint">{{ reason }}</span>
+              }
+            </span>
             <p-button
               icon="pi pi-pencil"
               [rounded]="true"
@@ -83,9 +89,10 @@
               [text]="true"
               severity="danger"
               size="small"
-              (onClick)="confirmDelete(subject)"
-              pTooltip="刪除"
+              [disabled]="!!deleteBlockReason(subject)"
+              [pTooltip]="deleteBlockReason(subject) ?? '刪除'"
               tooltipPosition="top"
+              (onClick)="confirmDelete(subject)"
             />
           }
         </div>
