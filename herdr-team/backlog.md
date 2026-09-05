@@ -38,8 +38,8 @@
 
 1. #295 補「孩子帳號」擴充節(使用者裁:v1 不做帳號,模型天然相容 —— 學生=scope 只含自己;
    寫成擴充節)
-2. 及格線欄位動工:migration(新檔,c3)+API schema+UI 接線;**migration PR 開好後標記
-   保留類,由使用者合**,其餘部分可先行
+2. 及格線 **UI 接線半**(migration+API 已拆席歸 billing-api;等 passScore 欄位落地後接
+   #319 的接口;**這輪只做 academy_exams**,school_exams 無總分欄位是獨立產品題進窗口)
 3. 科目平均改「幾分之幾」:API 回 sum/totalSum,平均列顯示 130/150 形式(棄百分比化);
    API 半可請 billing-api 新 session 協作
 4. (裁決紀錄)並排斷言小刀=#314 已交付
