@@ -16,6 +16,8 @@
  * 自己的時區設定無關，這樣「現在」（`new Date()`，永遠是正確的絕對時刻）
  * 才能拿來直接比較。
  */
+import { addDaysToDateString } from './taipei-date';
+
 export interface SessionEndTimeLike {
   /** `YYYY-MM-DD` */
   date: string;
@@ -23,14 +25,6 @@ export interface SessionEndTimeLike {
   startTime: string | null;
   /** `HH:mm`，可為 null */
   endTime: string | null;
-}
-
-/** `date` 往後推 `days` 天，維持 `YYYY-MM-DD` 格式（用 UTC 計算避免任何時區干擾）。 */
-function addDays(date: string, days: number): string {
-  const [year, month, day] = date.split('-').map(Number);
-  const d = new Date(Date.UTC(year, month - 1, day));
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 /**
@@ -46,10 +40,10 @@ export function hasSessionEndedByNow(session: SessionEndTimeLike, now: Date = ne
   let endTime = session.endTime;
 
   if (!endTime) {
-    endDate = addDays(session.date, 1);
+    endDate = addDaysToDateString(session.date, 1);
     endTime = '00:00';
   } else if (session.startTime && endTime < session.startTime) {
-    endDate = addDays(session.date, 1);
+    endDate = addDaysToDateString(session.date, 1);
   }
 
   const endTimestamp = new Date(`${endDate}T${endTime}:00+08:00`).getTime();
