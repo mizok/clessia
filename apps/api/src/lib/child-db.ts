@@ -30,8 +30,11 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope) {
      */
     from(table: string, studentIdColumn: string) {
       return {
-        select(columns: string) {
-          const query = supabase.from(table).select(columns);
+        select(
+          columns: string,
+          options?: { count?: 'exact' | 'planned' | 'estimated'; head?: boolean },
+        ) {
+          const query = supabase.from(table).select(columns, options);
 
           // `scope === null` 理論上不該發生在家長端 route（角色層已經擋掉非家長），
           // 但保留這個分支而不是假設它不會發生 —— 跟 `applyCampusFilter` 同一個判準。

@@ -2,6 +2,12 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
 import { DbUuidSchema } from '../lib/validation';
+import {
+  ACADEMY_SCORE_SELECT,
+  SCHOOL_SCORE_SELECT,
+  mapAcademyScoreRow,
+  mapSchoolScoreRow,
+} from '../lib/score-query';
 
 const ScoreTypeSchema = z.enum(['academy', 'school']).openapi('ScoreType');
 const ScoreStatusSchema = z.enum(['scored', 'absent', 'makeup']).openapi('ScoreStatus');
@@ -252,18 +258,7 @@ app.openapi(listRoute, async (c) => {
       const buildAcademyQuery = () =>
         supabase
           .from('academy_scores')
-          .select(
-            `
-          id,
-          exam_id,
-          student_id,
-          score,
-          status,
-          academy_exams!inner ( name, exam_date, total_score, org_id, subject_id, subjects ( name ) ),
-          students!inner ( name )
-        `,
-            { count: 'exact' },
-          )
+          .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
           .eq('academy_exams.org_id', orgId);
 
       const applyAcademyFilters = (query: ReturnType<typeof buildAcademyQuery>) => {
@@ -374,19 +369,11 @@ app.openapi(listRoute, async (c) => {
       } else {
         totalAcademy = academyCount;
         for (const row of academyRows ?? []) {
-          const exam = row.academy_exams as any;
           const student = row.students as any;
           results.push({
-            id: row.id,
-            type: 'academy',
-            examName: exam.name,
-            examDate: exam.exam_date,
+            ...mapAcademyScoreRow(row),
             studentId: row.student_id,
             studentName: student.name,
-            subjectName: exam.subjects?.name ?? null,
-            score: row.score,
-            totalScore: exam.total_score,
-            status: row.status as 'scored' | 'absent' | 'makeup',
           });
         }
       }
@@ -397,19 +384,7 @@ app.openapi(listRoute, async (c) => {
       const buildSchoolQuery = () =>
         supabase
           .from('school_scores')
-          .select(
-            `
-          id,
-          school_exam_id,
-          student_id,
-          score,
-          status,
-          school_exams!inner ( label, exam_date, created_at, org_id ),
-          subjects!inner ( name ),
-          students!inner ( name )
-        `,
-            { count: 'exact' },
-          )
+          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
           .eq('school_exams.org_id', orgId);
 
       const applySchoolFilters = (query: ReturnType<typeof buildSchoolQuery>) => {
@@ -511,20 +486,11 @@ app.openapi(listRoute, async (c) => {
       } else {
         totalSchool = schoolCount;
         for (const row of schoolRows ?? []) {
-          const exam = row.school_exams as any;
-          const subject = row.subjects as any;
           const student = row.students as any;
           results.push({
-            id: row.id,
-            type: 'school',
-            examName: exam.label,
-            examDate: exam.exam_date ?? exam.created_at?.split('T')[0] ?? '',
+            ...mapSchoolScoreRow(row),
             studentId: row.student_id,
             studentName: student.name,
-            subjectName: subject.name,
-            score: row.score,
-            totalScore: null,
-            status: row.status as 'scored' | 'absent' | 'makeup',
           });
         }
       }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveStudentScope } from './child-scope';
+import { isChildAllowed, resolveStudentScope } from './child-scope';
 
 describe('resolveStudentScope', () => {
   it('不是家長身分回 null（不受限，跟 campusScope 對管理員的約定一致）', () => {
@@ -27,5 +27,25 @@ describe('resolveStudentScope', () => {
     expect(
       resolveStudentScope({ roles: ['teacher', 'parent'], relatedStudentIds: ['s1'] }),
     ).toEqual(['s1']);
+  });
+});
+
+describe('isChildAllowed', () => {
+  it('childId 在 scope 裡放行', () => {
+    expect(isChildAllowed(['s1', 's2'], 's1')).toBe(true);
+  });
+
+  it('childId 不在 scope 裡拒絕（越權指名）', () => {
+    expect(isChildAllowed(['s1'], 's9')).toBe(false);
+  });
+
+  it('沒綁任何孩子時（空陣列）一律拒絕', () => {
+    expect(isChildAllowed([], 's1')).toBe(false);
+  });
+
+  // 跟 isCampusAllowed 刻意不同：那裡 scope===null 代表「不受限」放行，
+  // 這裡 scope===null 代表「根本不是家長」，對這三支端點是異常狀態，fail-closed
+  it('scope 是 null 時一律拒絕，不是當成不受限放行', () => {
+    expect(isChildAllowed(null, 's1')).toBe(false);
   });
 });

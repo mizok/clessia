@@ -15,6 +15,11 @@ import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/s
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
 import { applyCampusFilter, type CampusScope } from '../lib/campus-scope';
+import {
+  ATTENDANCE_SELECT,
+  flattenAttendanceRow,
+  toAttendanceResponse,
+} from '../lib/attendance-query';
 
 const AttendanceStatusSchema = z
   .enum(['present', 'absent', 'on_leave'])
@@ -415,27 +420,6 @@ function extractAttendanceAuditContext(source: Record<string, any> | null | unde
   };
 }
 
-export function toAttendanceResponse(row: Record<string, unknown>) {
-  return {
-    id: row['id'] as string,
-    orgId: row['org_id'] as string,
-    studentId: row['student_id'] as string,
-    studentName: row['student_name'] as string,
-    eventId: row['event_id'] as string,
-    eventDate: row['event_date'] as string,
-    startTime: (row['start_time'] as string | null) ?? null,
-    endTime: (row['end_time'] as string | null) ?? null,
-    campusName: (row['campus_name'] as string | null) ?? null,
-    className: (row['class_name'] as string | null) ?? null,
-    status: row['status'] as 'present' | 'absent' | 'on_leave',
-    note: (row['note'] as string | null) ?? null,
-    recordedBy: (row['recorded_by'] as string | null) ?? null,
-    recordedByRole: (row['recorded_by_role'] as string | null) ?? null,
-    createdAt: row['created_at'] as string,
-    updatedAt: row['updated_at'] as string,
-  };
-}
-
 const app = new OpenAPIHono<AppEnv>();
 
 // GET /api/attendance
@@ -479,14 +463,7 @@ app.openapi(
 
     let query = supabase
       .from('attendance_records')
-      .select(
-        `
-        id, org_id, student_id, event_id, status, note, recorded_by, recorded_by_role, created_at, updated_at,
-        students!inner(name),
-        events!inner(event_date, start_time, end_time, campus_id, campuses(name), sessions(class_id, classes(name)))
-        `,
-        { count: 'exact' },
-      )
+      .select(ATTENDANCE_SELECT, { count: 'exact' })
       .eq('org_id', orgId);
 
     if (studentId) query = query.eq('student_id', studentId);
@@ -504,24 +481,7 @@ app.openapi(
       return c.json({ error: '讀取出勤紀錄失敗', message: error.message }, 500);
     }
 
-    const rows = (data ?? []).map((r: any) => ({
-      id: r.id,
-      org_id: r.org_id,
-      student_id: r.student_id,
-      student_name: r.students?.name ?? '',
-      event_id: r.event_id,
-      event_date: r.events?.event_date ?? '',
-      start_time: r.events?.start_time ?? null,
-      end_time: r.events?.end_time ?? null,
-      campus_name: r.events?.campuses?.name ?? null,
-      class_name: r.events?.sessions?.[0]?.classes?.name ?? null,
-      status: r.status,
-      note: r.note,
-      recorded_by: r.recorded_by,
-      recorded_by_role: r.recorded_by_role,
-      created_at: r.created_at,
-      updated_at: r.updated_at,
-    }));
+    const rows = (data ?? []).map((r: any) => flattenAttendanceRow(r));
 
     const total = count ?? 0;
     return c.json(
