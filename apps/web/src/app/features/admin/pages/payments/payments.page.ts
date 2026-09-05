@@ -40,6 +40,7 @@ import {
   StatusDotComponent,
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
+import { TodoBannerComponent } from '@shared/components/todo-banner/todo-banner.component';
 
 const PAGE_SIZE = LIST_PAGE_SIZE;
 
@@ -72,6 +73,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     RtColDefDirective,
     RtColCellDirective,
     RtRowDirective,
+    TodoBannerComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './payments.page.html',

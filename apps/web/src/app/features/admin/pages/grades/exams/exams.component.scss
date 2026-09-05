@@ -46,64 +46,13 @@
     container-name: exams-card;
   }
 
+  // 待辦橫幅換成共用元件 app-todo-banner 之後，每則本身就是一張獨立的邊框卡片，
+  // 不再是扁平清單的分隔列，這裡只留外距。
   &__todo-list {
     display: flex;
     flex-direction: column;
-    border-bottom: 1px solid var(--warning-100);
-  }
-
-  &__todo {
-    display: flex;
-    align-items: center;
     gap: var(--space-3);
-    width: 100%;
-    padding: var(--space-3) var(--space-6);
-    background: var(--warning-100);
-    color: var(--warning-600);
-    border: 0;
-    font-size: var(--text-sm);
-    text-align: left;
-    cursor: pointer;
-    transition: background-color 0.15s ease;
-    font-family: inherit;
-
-    & + & {
-      border-top: 1px solid var(--warning-100);
-    }
-
-    &:hover {
-      background: var(--warning-100);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--warning-600);
-      outline-offset: -2px;
-    }
-
-    &--active {
-      background: var(--warning-100);
-    }
-  }
-
-  &__todo-icon {
-    font-size: var(--text-lg);
-    flex-shrink: 0;
-  }
-
-  &__todo-text {
-    flex: 1;
-    line-height: var(--leading-normal);
-
-    strong {
-      font-weight: var(--font-semibold);
-      font-size: var(--text-md);
-    }
-  }
-
-  &__todo-arrow {
-    font-size: var(--text-sm);
-    flex-shrink: 0;
-    opacity: 0.6;
+    padding: var(--space-4) var(--space-6) 0;
   }
 
   // **手機優先**：桌機的完整工具列預設不出現，`__mobile-toolbar` 才是基準。
@@ -297,11 +246,10 @@
 //
 // **選擇器寫完整類名、一條一個**：gate 讀的是原始 SCSS 文字、不解析巢狀，
 // `.exams { &__todo { … } }` 它認不出來是 `.exams__todo`。
+//
+// `.exams__todo` 這條已經移除——待辦橫幅換成 app-todo-banner 之後，44px 是
+// 元件自己無條件宣告的（不分 pointer 粗細），不需要外層再補一次 coarse override。
 @media (pointer: coarse) {
-  .exams__todo {
-    min-height: 44px;
-  }
-
   .exams__clear-filters {
     min-height: 44px;
   }

@@ -33,28 +33,6 @@
     flex-wrap: wrap;
   }
 
-  &__badge {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--space-1) var(--space-2);
-    border: none;
-    border-radius: var(--radius-full);
-    background: var(--error-100);
-    color: var(--error-700);
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
-    cursor: pointer;
-    transition: background var(--transition-fast);
-
-    // **hover 不再加深底色。** error-700 疊 error-200 只有 4.47（差 0.03），
-    // 而 error-700 已經是這個色階最深的一階 —— 文字沒有再深的可用，
-    // 所以能動的只有底色。改用內縮的環當 hover 回饋：對比維持 5.30，
-    // 而且 `box-shadow` 不佔版面，不會讓徽章在 hover 時跳一下。
-    &:hover {
-      box-shadow: inset 0 0 0 1px var(--error-700);
-    }
-  }
-
   &__title {
     font-size: var(--text-2xl);
     font-weight: var(--font-bold);
