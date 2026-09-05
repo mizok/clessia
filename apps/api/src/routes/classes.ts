@@ -6,6 +6,7 @@ import { buildSessionGenerationPlan } from '../domain/session-assignment/session
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
 import { applyCampusFilter } from '../lib/campus-scope';
 import { checkEnrollmentSessionPacks } from '../lib/enrollment-session-pack-guard';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import type {
   BatchAssignMode,
   BatchAssignPlanOutput,
@@ -470,11 +471,15 @@ app.openapi(
     const upcomingTeacherConflictCountMap: Record<string, number> = {};
 
     if (classIds.length > 0) {
+      // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭。這個變數同時餵給下面
+      // 兩支「即將到來」查詢（477 行附近與 upcomingCancelledResult），不要各自
+      // 重算一次，免得兩處又各自漂移一次。
+      const today = getCurrentTaipeiDateString();
       const sessionsResult = await supabase
         .from('sessions')
         .select('id, class_id, session_date, start_time, end_time, teacher_id')
         .in('class_id', classIds)
-        .gte('session_date', new Date().toISOString().split('T')[0])
+        .gte('session_date', today)
         .eq('status', 'scheduled');
 
       for (const s of sessionsResult.data || []) {
@@ -583,7 +588,7 @@ app.openapi(
         .from('sessions')
         .select('class_id')
         .in('class_id', classIds)
-        .gte('session_date', new Date().toISOString().split('T')[0])
+        .gte('session_date', today)
         .eq('status', 'cancelled');
 
       for (const s of upcomingCancelledResult.data || []) {
@@ -2783,7 +2788,9 @@ app.openapi(
 
     const orgId = c.get('orgId');
     const userId = c.get('userId');
-    const today = new Date().toISOString().split('T')[0];
+    // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭。算錯一天會把台北昨天
+    // 已經上過的課堂一併抓進來取消（軟刪除，保留 schedule_change，但語意錯）。
+    const today = getCurrentTaipeiDateString();
 
     // 查出要取消的課堂 IDs
     const { data: targetSessions, error: fetchError } = await supabase

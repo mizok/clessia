@@ -4,6 +4,7 @@ import { aggregateRevenue, type RevenueInvoice, type RevenuePayment } from '../l
 import { toCsv, type CsvValue } from '../lib/csv';
 import type { CampusScope } from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 /**
  * 營收報表的聚合端點。
@@ -153,7 +154,10 @@ app.openapi(
     const params = c.req.valid('query');
     const campusScope = c.get('campusScope');
     const groupBy = params.groupBy ?? 'campus';
-    const today = new Date().toISOString().slice(0, 10);
+    // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭。這個值餵給
+    // aggregateRevenue() 算逾期分類，跟 invoices.ts:140 是同一份判斷邏輯的
+    // 第二個獨立實作（尚未收斂，記在 backlog 技術債）——這裡先只修時區。
+    const today = getCurrentTaipeiDateString();
 
     const [{ data: paymentRows }, { data: invoiceRows }] = await Promise.all([
       // 實收／退款：**收款日**落在區間內，帳單開在什麼時候不影響
