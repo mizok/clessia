@@ -78,6 +78,7 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
+import { TodoBannerComponent } from '@shared/components/todo-banner/todo-banner.component';
 
 type ExamKind = 'academy' | 'school';
 type ExamTypeFilter = ExamKind;
@@ -161,6 +162,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     RtRowDirective,
     EmptyStateComponent,
     PopupMenuComponent,
+    TodoBannerComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './exams.component.html',

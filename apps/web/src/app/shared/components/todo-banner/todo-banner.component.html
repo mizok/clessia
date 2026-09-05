@@ -1,0 +1,13 @@
+@if (count() > 0) {
+  <button
+    type="button"
+    class="todo-banner"
+    [class.todo-banner--active]="active()"
+    [attr.aria-pressed]="active()"
+    (click)="action.emit()"
+  >
+    <i class="todo-banner__icon" [class]="'pi ' + icon()"></i>
+    <span class="todo-banner__text"><ng-content /></span>
+    <i class="pi pi-arrow-right todo-banner__arrow" aria-hidden="true"></i>
+  </button>
+}

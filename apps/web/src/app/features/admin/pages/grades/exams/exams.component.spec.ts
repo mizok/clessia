@@ -191,7 +191,9 @@ describe('ExamsComponent', () => {
   });
 
   it('clicking todo KPI banner applies todo filter', () => {
-    const banner = fixture.nativeElement.querySelector('.exams__todo') as HTMLButtonElement;
+    const banner = fixture.nativeElement.querySelector(
+      'app-todo-banner .todo-banner',
+    ) as HTMLButtonElement;
     expect(banner).not.toBeNull();
 
     banner.click();

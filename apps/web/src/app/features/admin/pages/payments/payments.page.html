@@ -19,16 +19,10 @@
     </app-page-actions>
   </header>
 
-  @if (uninvoicedCount() > 0) {
-    <!-- 提示直接連到修法（考試頁待辦橫幅的模式）—— 不是一個死路的數字 -->
-    <button type="button" class="payments__todo" (click)="openUninvoiced()">
-      <i class="pi pi-exclamation-circle"></i>
-      <span class="payments__todo-text">
-        有 <strong>{{ uninvoicedCount() }}</strong> 筆生效中的報名還沒開過帳單
-      </span>
-      <i class="pi pi-arrow-right payments__todo-arrow"></i>
-    </button>
-  }
+  <!-- 提示直接連到修法（kb/wiki/architecture/admin-todo-alerts.md 的共用元件）—— 不是一個死路的數字 -->
+  <app-todo-banner [count]="uninvoicedCount()" (action)="openUninvoiced()">
+    有 <strong>{{ uninvoicedCount() }}</strong> 筆生效中的報名還沒開過帳單
+  </app-todo-banner>
 
   <div class="payments__toolbar clessia-filter-bar">
     <div class="payments__search clessia-filter-search">

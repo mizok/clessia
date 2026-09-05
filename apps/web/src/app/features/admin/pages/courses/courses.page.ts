@@ -32,6 +32,8 @@ import type { Popover } from 'primeng/popover';
 import { TooltipModule } from 'primeng/tooltip';
 import { PaginatorModule } from 'primeng/paginator';
 
+import { TodoBannerComponent } from '@shared/components/todo-banner/todo-banner.component';
+
 import { CourseFormDialogComponent } from './course-form-dialog.component';
 import { ClassFormDialogComponent } from './class-form-dialog/class-form-dialog.component';
 import { ClassRowComponent } from './class-row/class-row.component';
@@ -94,6 +96,7 @@ interface CourseGroup {
     TooltipModule,
     RouterModule,
     EmptyStateComponent,
+    TodoBannerComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './courses.page.html',
