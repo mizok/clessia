@@ -13,7 +13,11 @@
 1. **席位存活**:`herdr agent list` → 對 idle/done 超過 5 分鐘的席:
    `herdr agent read` 看尾部 —— 輸入框有殘字?有「/low-priority」橫幅?(額度耗盡→
    等回流後 nudge)有 WAITING-ON 標記?(對帳計畫席收件,漏了就催重送)
-2. **零 idle 執行**:確認 idle 席收到 backlog 認領提醒;佇列空了通知計畫席補貨
+2. **零 idle 執行**:確認 idle 席收到 backlog 認領提醒;佇列空了通知計畫席補貨。
+   **佇列深度是領先指標,idle 是落後指標**(2026-09-05 使用者提出)——每輪對每個
+   生產席數 backlog 底下的「活項數」(排除已標窗口/等外部依賴的項目,只算真正
+   可動工的),**深度 < 2 就在巡檢回報裡點名,不用等到那一席真的變成 idle 才發現**。
+   等 idle 出現才反應,補貨永遠慢半拍——這條讓計畫席在見底前半天就收到訊號。
 3. **帳面巡檢**:各席回報裡的 PR 狀態抽查(**用 `gh pr view <編號> --json state` 的
    `state`,不要用 `mergeable`/`mergeStateStatus`** —— 見下方「PR 狀態只信 state」),
    過期就糾正該席
