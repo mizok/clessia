@@ -6,6 +6,7 @@ import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrol
 import { buildPeriodFilter, buildSelect, sortColumn } from './enrollments/list-query';
 import { monthRange, prorateByDays } from '../lib/proration';
 import { applyCampusFilter } from '../lib/campus-scope';
+import { checkEnrollmentSessionPacks } from '../lib/enrollment-session-pack-guard';
 
 // ============================================================
 // Schemas
@@ -1059,11 +1060,11 @@ app.openapi(
       404: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Not Found' },
       409: {
         content: { 'application/json': { schema: ErrorSchema } },
-        description: 'Has attendance records',
+        description: 'Has attendance records, or has a purchased session pack',
       },
       500: {
         content: { 'application/json': { schema: ErrorSchema } },
-        description: 'Attendance check failed — deletion refused (fail closed)',
+        description: 'Guard query failed — deletion refused (fail closed)',
       },
     },
   }),
@@ -1095,6 +1096,20 @@ app.openapi(
 
     if (attendance.status === 'has-attendance') {
       return c.json({ error: 'has_attendance' }, 409);
+    }
+
+    const sessionPacks = await checkEnrollmentSessionPacks({
+      supabase,
+      orgId,
+      enrollmentIds: [existing.id],
+    });
+
+    if (sessionPacks.status === 'check-failed') {
+      return c.json({ error: 'SESSION_PACK_CHECK_FAILED' }, 500);
+    }
+
+    if (sessionPacks.status === 'has-session-pack') {
+      return c.json({ error: 'has_session_pack' }, 409);
     }
 
     await supabase.from('enrollments').delete().eq('id', id);
