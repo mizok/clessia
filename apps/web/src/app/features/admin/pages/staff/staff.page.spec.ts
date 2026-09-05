@@ -218,6 +218,77 @@ describe('StaffPage', () => {
     expect(statValues).toEqual(['128', '7', '121', '119']);
   });
 
+  /**
+   * P1-4（Tester 抓到）：13 管理員 + 89 老師 ≠ 101 位人員，因為兼任的人兩邊
+   * 各算一次——這是既定規格不是 bug，但畫面原本沒講，行政會停下來以為算錯。
+   */
+  describe('管理員／老師合併磚的兼任備註', () => {
+    function setSummary(overrides: { multiRoleCount: number }) {
+      const staff: Staff[] = [
+        {
+          id: 'staff-1',
+          userId: 'user-1',
+          orgId: 'org-1',
+          displayName: '王老師',
+          phone: null,
+          email: 'wang@example.com',
+          birthday: null,
+          notes: null,
+          subjectIds: [],
+          subjectNames: [],
+          status: 'active',
+          createdAt: '2026-03-11T00:00:00.000Z',
+          updatedAt: '2026-03-11T00:00:00.000Z',
+          campusIds: [],
+          roles: ['teacher'],
+          permissions: [],
+        },
+      ];
+
+      (component as unknown as { loading: { set: (value: boolean) => void } }).loading.set(false);
+      (component as unknown as { staffList: { set: (value: Staff[]) => void } }).staffList.set(
+        staff,
+      );
+      (
+        component as unknown as {
+          summary: {
+            set: (value: {
+              total: number;
+              adminCount: number;
+              teacherCount: number;
+              multiRoleCount: number;
+              activeCount: number;
+              inactiveCount: number;
+              archivedCount: number;
+            }) => void;
+          };
+        }
+      ).summary.set({
+        total: 101,
+        adminCount: 13,
+        teacherCount: 89,
+        activeCount: 98,
+        inactiveCount: 3,
+        archivedCount: 0,
+        ...overrides,
+      });
+      fixture.detectChanges();
+    }
+
+    it('有兼任人數時顯示備註，不用自己算', () => {
+      setSummary({ multiRoleCount: 1 });
+
+      const note = fixture.nativeElement.querySelector('.staff__stat-note');
+      expect(note?.textContent?.trim()).toBe('（1 位身兼兩者）');
+    });
+
+    it('沒有兼任（0）時不顯示備註', () => {
+      setSummary({ multiRoleCount: 0 });
+
+      expect(fixture.nativeElement.querySelector('.staff__stat-note')).toBeNull();
+    });
+  });
+
   // 這個系統沒有密碼 —— 一次性登入連結是員工唯一的進門方式。
   // PR #24 的後端回傳了 loginUrl，但前端型別把它丟掉、頁面也沒有任何入口，
   // 新建的員工因此完全無法登入。

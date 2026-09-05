@@ -42,7 +42,13 @@ export interface StaffListResponse {
     /** 角色人次，不是 total 的分割——同時具備 admin 與 teacher 兩個角色的人兩邊都算 */
     adminCount: number;
     teacherCount: number;
-    /** 同時具備一個以上角色（目前即 admin ∩ teacher）的人數 */
+    /**
+     * 具備一個以上角色的人數（P1-4）。`adminCount + teacherCount` 會比 `total`
+     * 多，因為兼任的人兩邊各算一次——**這是既定規格，不是 bug**（見 `staff.ts`
+     * 的兩個獨立 `if`）。這個欄位是 UI 用來把「為什麼加起來對不上」講清楚的，
+     * 不要自己用 `adminCount + teacherCount - total` 反推：那個等式只在角色只有
+     * 兩種時成立，多一種角色就悄悄壞掉。
+     */
     multiRoleCount: number;
     activeCount: number;
     inactiveCount: number;
