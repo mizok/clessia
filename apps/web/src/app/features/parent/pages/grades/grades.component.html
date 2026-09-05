@@ -1,0 +1,74 @@
+<div class="grades">
+  <app-page-band>
+    <app-child-switcher />
+    <h1 class="grades__band-title">{{ page().label }}</h1>
+    <div bandAside>
+      @if (!loading() && records().length > 0) {
+        <app-band-anchor [value]="recentCount()" unit="筆新成績">過去 7 天內登錄</app-band-anchor>
+      }
+    </div>
+  </app-page-band>
+
+  <div class="grades__filters">
+    <p-select
+      [options]="subjectOptions()"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="全部科目"
+      [showClear]="true"
+      [ngModel]="subjectFilter()"
+      (ngModelChange)="onSubjectChange($event)"
+    />
+    <p-selectbutton
+      [options]="timeRangeOptions"
+      optionLabel="label"
+      optionValue="value"
+      [allowEmpty]="false"
+      [ngModel]="timeRange()"
+      (ngModelChange)="onTimeRangeChange($event)"
+    />
+  </div>
+
+  <div class="grades__content">
+    @if (loading() && records().length === 0) {
+      <div class="skeleton-list">
+        @for (i of [1, 2, 3]; track i) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
+    } @else if (failed()) {
+      <app-empty-state
+        icon="pi pi-exclamation-circle"
+        title="載入失敗"
+        description="沒有讀到成績紀錄，可能是連線問題"
+      />
+    } @else if (groups().length === 0) {
+      <app-empty-state icon="pi pi-chart-line" title="沒有符合條件的成績" description="" />
+    } @else {
+      @for (group of groups(); track group.subjectName) {
+        <section class="grades__subject">
+          <h2 class="grades__subject-title">{{ group.subjectName }}</h2>
+          @for (record of group.records; track record.id) {
+            <div class="grades__record">
+              <span class="grades__record-date">{{ record.examDate }}</span>
+              <span class="grades__record-name">{{ record.examName }}</span>
+              @if (record.status === 'scored') {
+                <span
+                  class="grades__record-score"
+                  [class.grades__record-score--fail]="isFailing(record)"
+                >
+                  @if (isFailing(record)) {
+                    <i class="pi pi-exclamation-triangle grades__fail-icon" aria-label="不及格"></i>
+                  }
+                  {{ formatScore(record) }}
+                </span>
+              } @else {
+                <app-data-chip>{{ statusLabels[record.status] }}</app-data-chip>
+              }
+            </div>
+          }
+        </section>
+      }
+    }
+  </div>
+</div>
