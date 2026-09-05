@@ -25,6 +25,21 @@ state=$(q state)
 echo "state          = $state"
 [ "$state" = "OPEN" ] || die "PR 不是 OPEN(是 $state)—— 已合併或已關閉的 PR 不該再走這支"
 
+# ── 1.5 計畫席的驗收留言(軟檢查,不擋)────────────────────────────────────
+# 2026-09-05 起計畫席的驗收走雙載體:SendMessage(即時)+ PR 留言(耐久)。
+# **留言長在 PR 本體上,任何未來的 steward 用 gh pr view 就查得到,不依賴任何
+# session 的 transcript** —— 跟「墓碑註解留在原地」同一個原則。
+#
+# **不擋**:這條規則之前的 PR 都沒有留言,擋了會讓歷史 PR 全部收不了;
+# 而且驗收本身仍然可以只走訊息(計畫席的裁量),這裡只是提醒去確認。
+approval=$(gh pr view "$PR" -R "$REPO" --json comments \
+  -q '[.comments[] | select(.body | test("計畫席驗收"))] | length' 2>/dev/null || echo 0)
+if [ "${approval:-0}" -gt 0 ]; then
+  echo "驗收留言       = 有(${approval} 則)"
+else
+  echo "驗收留言       = 無 —— 確認你手上有訊息裡的驗收紀錄再合(不擋)"
+fi
+
 # ── 2. CI 必須有 conclusion 且為 SUCCESS ────────────────────────────────
 # 空值不等於終態:statusCheckRollup 在 check 還沒註冊時是空陣列。
 verify=$(gh pr view "$PR" -R "$REPO" --json statusCheckRollup \
