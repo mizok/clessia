@@ -8,7 +8,7 @@
         每日勾選誰要訂餐，月底一次結算成帳單。有上課不一定訂餐 —— 課表只給候選名單。
       </p>
     </div>
-    <p-button label="月結" icon="pi pi-calculator" [outlined]="true" (onClick)="openBillingRun()" />
+    <app-page-actions [primary]="primaryAction" (primaryClick)="openBillingRun()" />
   </header>
 
   <div class="meals__toolbar clessia-filter-bar">
