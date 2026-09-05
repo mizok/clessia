@@ -53,4 +53,68 @@
     justify-content: flex-end;
     gap: var(--space-2);
   }
+
+  &__session-pack {
+    gap: var(--space-3);
+  }
+
+  &__session-pack-notice {
+    display: block;
+  }
+
+  &__session-pack-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__session-pack-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--zinc-700);
+    background: var(--zinc-50);
+    border-radius: var(--radius-md);
+  }
+
+  &__session-pack-note {
+    overflow: hidden;
+    color: var(--zinc-500);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__session-pack-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    min-height: 28px;
+    padding: var(--space-1);
+    margin-left: auto;
+    color: var(--zinc-400);
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+
+    &:hover {
+      // error-600 疊在 zinc-100 上只有 4.36:1，低於文字 AA 門檻；700 是 5.89:1
+      color: var(--error-700);
+      background: var(--zinc-100);
+    }
+  }
+}
+
+// 刪除鈕觸控下明寫 44px 下限
+@media (pointer: coarse) {
+  .enrollment-billing__session-pack-delete {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
