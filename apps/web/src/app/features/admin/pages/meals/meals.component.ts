@@ -10,7 +10,6 @@ import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { ToastModule } from 'primeng/toast';
-import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -79,7 +78,6 @@ const RANGE_PAGE_SIZE = 50;
     InputTextModule,
     SelectButtonModule,
     ToastModule,
-    ToggleSwitchModule,
     TooltipModule,
     PageActionsComponent,
     EmptyStateComponent,

@@ -34,6 +34,7 @@ import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/aud
 import { FeeTemplateFormDialogComponent } from './fee-template-form-dialog/fee-template-form-dialog.component';
 import { BillingPeriodFormDialogComponent } from './billing-period-form-dialog/billing-period-form-dialog.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
+import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.component';
 
 /**
  * 費用方案管理 —— 見 kb/wiki/specs/admin/finance/fee-templates.md。
@@ -63,6 +64,7 @@ import { StatusDotComponent } from '@shared/components/status/status-dot/status-
     RtColDefDirective,
     RtColCellDirective,
     RtRowDirective,
+    FilterChipComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './fee-templates.component.html',
