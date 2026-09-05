@@ -110,9 +110,17 @@
           這堂課沒有學生
         } @else if (pendingCount() > 0) {
           還有 {{ pendingCount() }} 人未標記
-        } @else if (markedCount() === 0 && exemptCount() > 0) {
+        } @else if (exemptCount() > 0 && markedCount() === 0) {
           <!-- 全班都請假：一個都沒標不是「完成」，他根本沒東西可標 -->
           {{ exemptCount() }} 人請假，不需標記
+        } @else if (exemptCount() > 0) {
+          <!--
+            混合情況（標了一部分、也有人請假豁免）——這條原本落進「全部標記
+            完成」，因為那個分支只看「有沒有人請假」沒看「還有沒有人被標記」。
+            那句話宣稱了一個沒發生的事實：這堂課有人根本沒被標記過，
+            只是被豁免了，不等於「全部」都標了。
+          -->
+          已標記 {{ markedCount() }} 人・{{ exemptCount() }} 人請假
         } @else {
           全部標記完成
         }
