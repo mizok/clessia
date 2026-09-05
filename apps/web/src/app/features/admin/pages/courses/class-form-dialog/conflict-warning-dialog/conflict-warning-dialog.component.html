@@ -1,0 +1,30 @@
+<div class="conflict-warning">
+  <div class="conflict-warning__header">
+    <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+    <h2 class="conflict-warning__title">排課衝突警告</h2>
+  </div>
+
+  <p class="conflict-warning__lede">以下老師在指定時間已有其他班級的排課：</p>
+
+  <ul class="conflict-warning__list">
+    @for (conflict of conflicts; track $index) {
+      <li class="conflict-warning__item">
+        <span class="conflict-warning__teacher">{{ conflict.teacherName }}</span>
+        <span class="conflict-warning__detail">
+          {{ conflict.conflictingCourseName }} / {{ conflict.conflictingClassName }}
+        </span>
+        <span class="conflict-warning__time">
+          {{ getWeekdayLabel(conflict.conflictingWeekday) }}
+          {{ conflict.conflictingStartTime.substring(0, 5) }}–{{
+            conflict.conflictingEndTime.substring(0, 5)
+          }}
+        </span>
+      </li>
+    }
+  </ul>
+
+  <div class="conflict-warning__actions">
+    <p-button label="返回修改" [text]="true" severity="secondary" (onClick)="cancel()" />
+    <p-button label="仍要儲存" severity="warn" (onClick)="proceed()" />
+  </div>
+</div>

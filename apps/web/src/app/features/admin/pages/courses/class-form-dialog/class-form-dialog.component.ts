@@ -23,6 +23,7 @@ import {
 import { Course } from '@core/courses.service';
 import { Staff } from '@core/staff.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
+import { ConflictWarningDialogComponent } from './conflict-warning-dialog/conflict-warning-dialog.component';
 
 export interface ScheduleFormEntry {
   id?: string;
@@ -48,6 +49,14 @@ export interface ScheduleFormEntry {
     TooltipModule,
     InlineNoticeComponent,
   ],
+  // **自己 provide 一份 `DialogService`。** 這支元件本身是被 DynamicDialog 開起來的，
+  // 而它又要再開一層（排課衝突警告）。父層 `courses.page` 雖然有 provide，
+  // 但「dialog 內的元件解不解析得到父元件層的 provider」取決於 PrimeNG 的
+  // injector 串接方式 —— 那是我沒辦法在單元測試裡驗到的東西，
+  // 而解析失敗的症狀是**警告完全開不出來**，比原本的 bug 更糟。
+  //
+  // 自己 provide 一份就把這個不確定性拿掉了，成本是一個無狀態的 service 實例。
+  providers: [DialogService],
   templateUrl: './class-form-dialog.component.html',
   styleUrl: './class-form-dialog.component.scss',
 })
@@ -55,6 +64,7 @@ export class ClassFormDialogComponent {
   private readonly classesService = inject(ClassesService);
   private readonly messageService = inject(MessageService);
   private readonly ref = inject(DynamicDialogRef);
+  private readonly dialogService = inject(DialogService);
   private readonly config = inject(DynamicDialogConfig);
 
   protected readonly loading = signal(false);
@@ -147,8 +157,9 @@ export class ClassFormDialogComponent {
       .map((s) => ({ label: s.displayName, value: s.id }));
   });
 
-  protected readonly pendingConflicts = signal<ScheduleConflict[]>([]);
-  protected readonly conflictDialogVisible = signal(false);
+  // `pendingConflicts` / `conflictDialogVisible` 已移除 —— 衝突清單改由
+  // `ConflictWarningDialogComponent` 透過 DynamicDialog 的 data 帶進去，
+  // 元件不再需要自己保存那份狀態。
   protected readonly formValidationMessage = signal<string | null>(null);
 
   protected updateForm(field: keyof ReturnType<typeof this.formData>, value: any): void {
@@ -234,8 +245,7 @@ export class ClassFormDialogComponent {
       next: (res) => {
         this.loading.set(false);
         if (res.conflicts.length > 0) {
-          this.pendingConflicts.set(res.conflicts);
-          this.conflictDialogVisible.set(true);
+          this.openConflictWarning(res.conflicts);
         } else {
           this.doSave();
         }
@@ -247,9 +257,27 @@ export class ClassFormDialogComponent {
     });
   }
 
-  protected proceedSaveDespiteConflicts(): void {
-    this.conflictDialogVisible.set(false);
-    this.doSave();
+  /**
+   * 排課衝突警告。**這裡用 DynamicDialog 而不是模板裡的 `@if`** ——
+   * 原本那段掛的 7 個 class 全庫沒有任何 CSS 定義，所以它不是遮罩，
+   * 是掉在表單下方、被對話框高度推出視野的一塊。使用者可能沒看到就按了儲存。
+   * 理由詳見 `conflict-warning-dialog.component.ts` 的註解。
+   */
+  private openConflictWarning(conflicts: ScheduleConflict[]): void {
+    const ref = this.dialogService.open(ConflictWarningDialogComponent, {
+      width: '520px',
+      modal: true,
+      showHeader: false,
+      // 跟 courses.page 開這支對話框時同一個容器 —— 疊在既有對話框之上
+      appendTo: 'body',
+      data: { conflicts },
+    });
+
+    ref?.onClose.subscribe((proceed: boolean | undefined) => {
+      // undefined = 按遮罩或 Esc 關掉。**等同「返回修改」，不能當成同意** ——
+      // 把「沒有回答」讀成「答應了」正是這個警告要防的事。
+      if (proceed === true) this.doSave();
+    });
   }
 
   private doSave(): void {
