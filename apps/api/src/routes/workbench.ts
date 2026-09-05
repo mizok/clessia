@@ -35,6 +35,8 @@ const SessionSummarySchema = z
     isSubstitute: z.boolean(),
     classId: z.string(),
     className: z.string(),
+    /** 這個班用聯絡簿還是教務日誌 —— 老師端分入口用，`/api/classes` 是 ADMIN_ONLY 拿不到 */
+    usesContactBook: z.boolean(),
     courseName: z.string().nullable(),
     teacherName: z.string().nullable(),
     campusId: z.string().nullable(),
