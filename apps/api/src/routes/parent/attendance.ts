@@ -38,8 +38,16 @@ const ListResponseSchema = z
       total: z.number().int().min(0),
       page: z.number().int().min(1),
       pageSize: z.number().int().min(1),
-      /** 這個孩子本月（自然月，到今天為止）缺席＋請假的筆數 */
+      /**
+       * 這個孩子本月（自然月，到今天為止）**缺席**的筆數。
+       *
+       * **跟請假分開回，不合計** —— 請假是家長自己送出的，他已經知道；
+       * 缺席是他可能不知道的。合成一個數字會把唯一需要他反應的訊號
+       * 稀釋進他早就知道的事情裡。
+       */
       monthlyAbsentCount: z.number().int().min(0),
+      /** 這個孩子本月（自然月，到今天為止）**請假**的筆數 */
+      monthlyOnLeaveCount: z.number().int().min(0),
     }),
   })
   .openapi('ParentAttendanceListResponse');
@@ -115,17 +123,23 @@ app.openapi(
     if (dateTo) query = query.lte('events.event_date', dateTo);
     query = query.range(from, from + pageSize - 1).order('created_at', { ascending: false });
 
-    const [{ data, error, count }, monthlyResult] = await Promise.all([
+    const [{ data, error, count }, absentResult, onLeaveResult] = await Promise.all([
       query,
       childDb
         .from('attendance_records', 'student_id')
         .select('id', { count: 'exact', head: true })
         .eq('student_id', childId)
-        .in('status', ['absent', 'on_leave'])
+        .eq('status', 'absent')
+        .gte('events.event_date', monthStart()),
+      childDb
+        .from('attendance_records', 'student_id')
+        .select('id', { count: 'exact', head: true })
+        .eq('student_id', childId)
+        .eq('status', 'on_leave')
         .gte('events.event_date', monthStart()),
     ]);
 
-    if (error || monthlyResult.error) {
+    if (error || absentResult.error || onLeaveResult.error) {
       return c.json({ error: '讀取出缺席紀錄失敗', code: 'FETCH_ATTENDANCE_FAILED' }, 500);
     }
 
@@ -139,7 +153,8 @@ app.openapi(
           total: count ?? 0,
           page,
           pageSize,
-          monthlyAbsentCount: monthlyResult.count ?? 0,
+          monthlyAbsentCount: absentResult.count ?? 0,
+          monthlyOnLeaveCount: onLeaveResult.count ?? 0,
         },
       },
       200,

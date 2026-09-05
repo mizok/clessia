@@ -1,0 +1,63 @@
+.cb-roster {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+
+  &__header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+
+  &__date {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+
+  &__state {
+    margin: 0;
+    color: var(--text-muted);
+
+    &--error {
+      color: var(--error-600);
+    }
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    // 名單可能比一屏長；上限用視窗變數而不是 vh（c6）
+    max-height: calc(var(--window-height, 100dvh) * 0.5);
+    overflow-y: auto;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    // 一列就是一個可點目標的高度下限，不靠內容撐（#253 的教訓）
+    min-height: 44px;
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--surface-border);
+  }
+
+  &__name {
+    font-size: var(--text-md);
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+  }
+}

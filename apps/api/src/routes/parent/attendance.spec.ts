@@ -39,12 +39,23 @@ function chainable(
   return obj;
 }
 
-function fakeChildDb(rows: unknown[], monthlyCount: number) {
+function fakeChildDb(rows: unknown[], monthlyCounts: { absent: number; onLeave: number }) {
   return {
     from: (table: string) => ({
       select: (_cols: string, opts?: { head?: boolean }) => {
         if (opts?.head) {
-          return chainable(() => ({ data: null, error: null, count: monthlyCount }));
+          // 缺席與請假現在是兩支獨立查詢 —— 依 `.eq('status', ...)` 分流，
+          // 不然這個假 DB 會讓兩支查詢回同一個數字，測不出「真的分開回」。
+          return chainable((calls) => {
+            const status = calls['eq:status'];
+            const count =
+              status === 'absent'
+                ? monthlyCounts.absent
+                : status === 'on_leave'
+                  ? monthlyCounts.onLeave
+                  : 0;
+            return { data: null, error: null, count };
+          });
         }
         return chainable(() => ({ data: rows, error: null, count: rows.length }));
       },
@@ -88,19 +99,31 @@ const ROW = {
 
 describe('GET /api/me/attendance', () => {
   it('不是家長身分回 403', async () => {
-    const res = await appWith(['teacher'], ['00000000-0000-0000-0000-000000000001'], fakeChildDb([], 0)).request('/?childId=00000000-0000-0000-0000-000000000001');
+    const res = await appWith(
+      ['teacher'],
+      ['00000000-0000-0000-0000-000000000001'],
+      fakeChildDb([], { absent: 0, onLeave: 0 }),
+    ).request('/?childId=00000000-0000-0000-0000-000000000001');
     expect(res.status).toBe(403);
     expect((await res.json()) as { code: string }).toMatchObject({ code: 'NOT_PARENT' });
   });
 
   it('childId 不在 studentScope 裡回 403，不是空清單', async () => {
-    const res = await appWith(['parent'], ['00000000-0000-0000-0000-000000000002'], fakeChildDb([ROW], 1)).request('/?childId=00000000-0000-0000-0000-000000000001');
+    const res = await appWith(
+      ['parent'],
+      ['00000000-0000-0000-0000-000000000002'],
+      fakeChildDb([ROW], { absent: 1, onLeave: 0 }),
+    ).request('/?childId=00000000-0000-0000-0000-000000000001');
     expect(res.status).toBe(403);
     expect((await res.json()) as { code: string }).toMatchObject({ code: 'CHILD_OUT_OF_SCOPE' });
   });
 
   it('是家長且孩子在範圍內時回列表，recordedBy/recordedByRole 不外流', async () => {
-    const res = await appWith(['parent'], ['00000000-0000-0000-0000-000000000001'], fakeChildDb([ROW], 3)).request('/?childId=00000000-0000-0000-0000-000000000001');
+    const res = await appWith(
+      ['parent'],
+      ['00000000-0000-0000-0000-000000000001'],
+      fakeChildDb([ROW], { absent: 3, onLeave: 2 }),
+    ).request('/?childId=00000000-0000-0000-0000-000000000001');
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -117,7 +140,8 @@ describe('GET /api/me/attendance', () => {
       className: '數學 A',
       note: '請假原因',
     });
-    // 月度統計走獨立查詢，不是從當頁筆數算出來的
-    expect(body.meta).toMatchObject({ monthlyAbsentCount: 3 });
+    // 月度統計走獨立查詢，不是從當頁筆數算出來的；缺席與請假分開回
+    // （不合計），兩個數字刻意不同，證明真的是兩支查詢而不是同一個數字複製兩份
+    expect(body.meta).toMatchObject({ monthlyAbsentCount: 3, monthlyOnLeaveCount: 2 });
   });
 });

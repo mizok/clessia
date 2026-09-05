@@ -89,9 +89,16 @@
             </div>
           </td>
           <td appRtColCell="status">
-            <app-status-dot [tone]="sessionStatusTone(session)">{{
-              sessionStatusLabel(session)
-            }}</app-status-dot>
+            @if (sessionStatusTone(session) === 'pending') {
+              <!-- 正常態不畫點——「出勤狀態」欄也用同一個 app-status-dot，常態
+                   （目前 19/19）都落在 pending（中空點），兩欄並排會是同一顆點、
+                   只有文字不同。這欄不正常才需要被看見，正常花不起那個視覺預算。 -->
+              <span class="session-list__status-plain">{{ sessionStatusLabel(session) }}</span>
+            } @else {
+              <app-status-dot [tone]="sessionStatusTone(session)">{{
+                sessionStatusLabel(session)
+              }}</app-status-dot>
+            }
           </td>
           <td class="responsive-table__cell" style="text-align: center">
             <button

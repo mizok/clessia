@@ -53,6 +53,10 @@
     ],
     "exts": [".scss"]
   },
+  "unstyled-interactive": {
+    "roots": ["apps/web/src"],
+    "exts": [".html", ".scss", ".ts"]
+  },
   "usage-contrast": {
     "roots": ["apps/web/src"],
     "exts": [".scss", ".ts"]

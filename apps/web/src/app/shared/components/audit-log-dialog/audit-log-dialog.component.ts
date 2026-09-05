@@ -42,6 +42,10 @@ const ACTION_MAP: Record<string, ActionConfig> = {
   cancel_session: { label: '停課' },
   substitute_teacher: { label: '代課' },
   reschedule_session: { label: '調課' },
+  add_item: { label: '新增項目' },
+  remove_item: { label: '移除項目' },
+  payment: { label: '收款' },
+  refund: { label: '退款' },
 };
 
 const RESOURCE_TYPE_LABEL: Record<string, string> = {
@@ -52,6 +56,9 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
   staff: '人員',
   attendance: '出勤',
   leave: '請假',
+  invoice: '帳單',
+  payment_record: '收款紀錄',
+  fee_template: '費用方案',
 };
 
 @Component({

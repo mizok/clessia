@@ -50,6 +50,14 @@ describe('SettingsShellPage', () => {
     fixture.detectChanges();
   }
 
+  // 這頁原本直接從 tabs 開始，沒有頁標——全站唯一（Tester #15）
+  it('有頁標，不是直接從 tabs 開始', async () => {
+    await setup('subjects');
+
+    const title = fixture.nativeElement.querySelector('.settings-shell__title');
+    expect(title?.textContent?.trim()).toBe(RoutesCatalog.ADMIN_SETTINGS.label);
+  });
+
   it('當前 tab 讀的是 URL，不是本地狀態', async () => {
     await setup('subjects');
 

@@ -30,7 +30,7 @@ import {
 } from '@core/scores.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel, type Student } from '@core/students.service';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
-import { isFailingScore } from '../../../score-threshold.util';
+import { isFailingScore } from '@shared/utils/score-threshold.util';
 
 type TypeFilter = 'all' | ScoreRecordType;
 type TimeRange = 'all' | '1m' | '3m' | '6m';

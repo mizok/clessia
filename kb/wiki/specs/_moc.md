@@ -312,7 +312,7 @@ Tags: `specs`, `teacher`, `notifications`
 
 Tags: `specs`, `teacher`, `schedule`
 
-Links to: [[architecture/teacher-schedule-mobile-day]], [[architecture/teacher-today-flow]], [[architecture/teacher-today-flow]]
+Links to: [[architecture/teacher-schedule-mobile-day]], [[architecture/teacher-today-flow]], [[architecture/teacher-class-log]], [[architecture/teacher-today-flow]]
 
 ## [[specs/teacher/students|學生]]
 

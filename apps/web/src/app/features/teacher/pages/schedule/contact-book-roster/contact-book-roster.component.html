@@ -1,0 +1,34 @@
+<div class="cb-roster">
+  <header class="cb-roster__header">
+    <h2 class="cb-roster__title">{{ input.className }}</h2>
+    <p class="cb-roster__date">{{ input.entryDate }}　聯絡簿</p>
+  </header>
+
+  @if (loading()) {
+    <p class="cb-roster__state">載入中…</p>
+  } @else if (loadError()) {
+    <p class="cb-roster__state cb-roster__state--error">讀取失敗，請關閉重開。</p>
+  } @else if (empty()) {
+    <!-- 全寫完跟「這班沒人」在畫面上要分得出來，但兩者都不是錯誤 -->
+    <p class="cb-roster__state">這堂課的聯絡簿都寫完了。</p>
+  } @else {
+    <ul class="cb-roster__list">
+      @for (student of students(); track student.studentId) {
+        <li class="cb-roster__item">
+          <span class="cb-roster__name">{{ student.studentName }}</span>
+          <p-button
+            label="撰寫"
+            size="small"
+            [outlined]="true"
+            [loading]="opening() === student.studentId"
+            (onClick)="open(student)"
+          />
+        </li>
+      }
+    </ul>
+  }
+
+  <footer class="cb-roster__footer">
+    <p-button label="關閉" [text]="true" size="small" (onClick)="close()" />
+  </footer>
+</div>

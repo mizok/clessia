@@ -20,6 +20,10 @@ import {
 import { StudentsService, type Student } from '@core/students.service';
 import { EnrollmentsService } from '@core/enrollments.service';
 
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
@@ -31,6 +35,7 @@ import type {
   ResponsiveTablePaginationConfig,
 } from '@shared/components/responsive-table/responsive-table.models';
 
+import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 import { InvoiceDetailDialogComponent } from './invoice-detail-dialog/invoice-detail-dialog.component';
 import { InvoiceFormDialogComponent } from './invoice-form-dialog/invoice-form-dialog.component';
 import { UninvoicedDialogComponent } from './uninvoiced-dialog/uninvoiced-dialog.component';
@@ -40,6 +45,7 @@ import {
   StatusDotComponent,
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
+import { TodoBannerComponent } from '@shared/components/todo-banner/todo-banner.component';
 
 const PAGE_SIZE = LIST_PAGE_SIZE;
 
@@ -66,12 +72,14 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     ButtonModule,
     SelectModule,
     ToastModule,
+    PageActionsComponent,
     EmptyStateComponent,
     StudentAutocompleteComponent,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,
     RtRowDirective,
+    TodoBannerComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './payments.page.html',
@@ -88,6 +96,7 @@ export class PaymentsPage implements OnInit {
   private readonly overlayContainerService = inject(OverlayContainerService);
 
   protected readonly INVOICE_STATUS_LABELS = INVOICE_STATUS_LABELS;
+  protected readonly primaryAction: PageAction = { label: '手動開帳', icon: 'pi pi-plus' };
 
   protected readonly invoices = signal<Invoice[]>([]);
   protected readonly loading = signal(true);
@@ -168,6 +177,19 @@ export class PaymentsPage implements OnInit {
         summary: '已開帳',
         detail: `開了 ${result.issued} 張帳單`,
       });
+    });
+  }
+
+  protected openAuditLog(): void {
+    this.dialogService.open(AuditLogDialogComponent, {
+      header: '繳費紀錄操作紀錄',
+      width: '800px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: {
+        resourceTypes: ['invoice', 'payment_record'],
+      },
     });
   }
 

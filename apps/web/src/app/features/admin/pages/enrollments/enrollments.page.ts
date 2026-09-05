@@ -23,6 +23,7 @@ import {
   type EnrollmentStatus,
 } from '@core/enrollments.service';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
+import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 
 import { EVENT_LABELS, toEnrollmentEvent, type EnrollmentEvent } from './enrollment-event.util';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
@@ -165,6 +166,11 @@ export class EnrollmentsPage {
   private resetToFirstPage(): void {
     this.currentPage.set(1);
     this.load();
+  }
+
+  // J1/J2 沒轉成國一/國二——全站其他頁面都用中文年級（Tester #29）
+  protected getGradeLabel(grade: string): string {
+    return GRADE_LEVEL_LABELS[grade as GradeLevel] ?? grade;
   }
 
   /** 狀態變更的唯一入口是班級詳情頁，這裡只負責把人送過去 */

@@ -168,7 +168,14 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
 
   protected addSubject(): void {
     const name = this.newSubjectName().trim();
-    if (!name) return;
+    if (!name) {
+      this.showNotice({
+        severity: 'warning',
+        summary: '尚未輸入科目名稱',
+        detail: '請先輸入名稱再新增',
+      });
+      return;
+    }
 
     this.saving.set(true);
     this.subjectsService.create(name).subscribe({
@@ -176,6 +183,11 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
         this.subjects.update((list) => [...list, res.data]);
         this.newSubjectName.set('');
         this.saving.set(false);
+        this.showNotice({
+          severity: 'success',
+          summary: '已新增',
+          detail: `「${res.data.name}」已新增`,
+        });
         this.refData.invalidate('subjects');
         this.changed.emit(this.subjects());
       },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toClassLogResponse } from './class-logs';
+import { toClassLogResponse } from '../lib/class-log-query';
 
 /**
  * 教務日誌是班級×日期層級，`published_at` 是廣播扳機：

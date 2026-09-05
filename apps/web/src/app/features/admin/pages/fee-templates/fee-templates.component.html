@@ -8,6 +8,15 @@
         定義收費標準供報名時挑選。這裡只給定價，實際談定的金額寫在每筆報名上。
       </p>
     </div>
+    <app-page-actions>
+      <p-button
+        label="操作紀錄"
+        icon="pi pi-history"
+        [outlined]="true"
+        severity="secondary"
+        (onClick)="openAuditLog()"
+      />
+    </app-page-actions>
   </header>
 
   <!-- ── 價目表 ───────────────────────────────────────────────────────── -->
@@ -36,14 +45,13 @@
           />
         </p-iconfield>
       </div>
-      <p-button
-        [label]="showInactive() ? '隱藏停用方案' : '顯示停用方案'"
-        [icon]="showInactive() ? 'pi pi-eye-slash' : 'pi pi-eye'"
-        [text]="true"
-        size="small"
-        severity="secondary"
-        (onClick)="toggleShowInactive()"
-      />
+      <app-filter-chip
+        [active]="showInactive()"
+        [icon]="showInactive() ? 'pi-eye-slash' : 'pi-eye'"
+        (toggle)="toggleShowInactive()"
+      >
+        {{ showInactive() ? '隱藏停用方案' : '顯示停用方案' }}
+      </app-filter-chip>
     </div>
 
     <div class="fee-templates__content">

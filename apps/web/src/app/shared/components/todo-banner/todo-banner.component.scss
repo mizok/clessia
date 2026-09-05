@@ -1,0 +1,53 @@
+.todo-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--warning-50);
+  color: var(--warning-800);
+  border: 1px solid var(--warning-200);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+
+  &:hover {
+    background: var(--warning-100);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--warning-600);
+    outline-offset: 2px;
+  }
+
+  &--active {
+    background: var(--warning-100);
+    border-color: var(--warning-600);
+  }
+
+  &__icon {
+    font-size: var(--text-lg);
+    flex-shrink: 0;
+  }
+
+  &__text {
+    flex: 1;
+    min-width: 0;
+    line-height: var(--leading-normal);
+
+    strong {
+      font-weight: var(--font-semibold);
+      font-size: var(--text-md);
+    }
+  }
+
+  &__arrow {
+    font-size: var(--text-sm);
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
+}

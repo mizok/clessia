@@ -51,6 +51,10 @@ import { StudentFormDialogComponent } from './student-form-dialog.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { personHue } from '@shared/utils/person-hue.util';
+import {
+  PageActionsComponent,
+  type PageAction,
+} from '@shared/components/page-actions/page-actions.component';
 
 @Component({
   selector: 'app-students',
@@ -59,6 +63,7 @@ import { personHue } from '@shared/utils/person-hue.util';
     StatusDotComponent,
     PageBandComponent,
     BandAnchorComponent,
+    PageActionsComponent,
     CommonModule,
     FormsModule,
     ButtonModule,
@@ -229,6 +234,8 @@ export class StudentsPage implements OnInit {
     this.router.navigate([RoutesCatalog.ADMIN_STUDENTS.absolutePath, student.id]);
   }
 
+  protected readonly primaryAction: PageAction = { label: '新增學生', icon: 'pi pi-plus' };
+
   openEditDialog(student: Student): void {
     const ref = this.dialogService.open(StudentFormDialogComponent, {
       header: '編輯學生',
@@ -244,6 +251,33 @@ export class StudentsPage implements OnInit {
         if (updatedStudent) this.loadStudents();
       });
     }
+  }
+
+  /**
+   * `StudentFormDialogComponent` 早就有建立模式（`isCreateMode()`），但這一頁
+   * 從來沒有入口叫得到它——`kb/wiki/specs/admin/student-affairs/students.md`
+   * 明寫「待實作：手動新增學生功能尚未完成」。這支只是接線，不是新設計。
+   */
+  openCreateDialog(): void {
+    const ref = this.dialogService.open(StudentFormDialogComponent, {
+      header: '新增學生',
+      width: '560px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { student: null },
+    });
+
+    if (!ref) return;
+    ref.onClose.subscribe((createdStudent) => {
+      if (!createdStudent) return;
+      this.messageService.add({
+        severity: 'success',
+        summary: '已建立',
+        detail: `「${createdStudent.name}」已建立`,
+      });
+      this.loadStudents();
+    });
   }
 
   confirmDeactivate(student: Student): void {

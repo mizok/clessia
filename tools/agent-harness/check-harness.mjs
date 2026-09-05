@@ -26,6 +26,7 @@ import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { blankComments } from './lib/comments.mjs';
 import { inlineCarriers, inlineStyles, inlineTemplate } from './lib/inline-carriers.mjs';
 import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
+import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
 import {
   collectApiParams,
   findMissing,
@@ -70,10 +71,6 @@ const CONTRAST_EXEMPT = {
   // ─ disabled 控制項：WCAG 1.4.3 明文豁免 ─
   'apps/web/src/app/features/admin/pages/courses/class-form-dialog/class-form-dialog.component.scss|&:disabled|var(--zinc-400)|var(--zinc-50)':
     'disabled 輸入框 —— 1.4.3 明文豁免；提高對比反而讓它看起來可以按（理由也寫在該處）',
-
-  // ─ placeholder：既有設計裁決，不是遺漏 ─
-  'apps/web/src/app/features/public/shared/_auth-form.scss|&::placeholder|var(--zinc-400)|#fff':
-    'placeholder。styles.scss 已裁決刻意留 zinc-400：「還沒填」該比「已填」淡，提到 zinc-500 會讓它讀起來像已經有值。要不要動是獨立的設計題，不是對比債',
 };
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');
 const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-baseline.json');
@@ -1612,6 +1609,69 @@ function checkScanScope() {
     );
   }
 }
+
+// ── A20. 可互動元素的 class 不得全部沒定義 ──────────────────────────────────────────────
+// 守「**可點的東西看起來不可點**」。判準與能力邊界見 lib/orphan-class.mjs。
+//
+// **零 baseline，立法時零違規** —— 而那個 0 是用陷阱驗過的，不是掃出來就信：
+// 天真的單行 regex 會漏掉幾乎所有真實模板（Angular 的 button 經 prettier 之後
+// 都是多行的），而那樣得到的 0 跟真正的 0 在輸出上一模一樣。
+//
+// 全站另有 81 個「用了但沒定義」的自家 class，**刻意不納入** ——
+// 嚴重度差太多（多數是死修飾詞或遷移殘留），而一份沒有人會清的 baseline
+// 等於裝飾：它長期發出「有債」的訊號，而那訊號永遠不變。
+function checkUnstyledInteractive() {
+  const webSrc = join(ROOT, 'apps/web/src');
+  if (!existsSync(webSrc)) return;
+
+  recordScope('unstyled-interactive', {
+    roots: [webSrc.slice(ROOT.length + 1)],
+    exts: ['.scss', '.html', '.ts'],
+  });
+
+  // **樣式的載體不只 .scss。** 只讀 .scss 的話，全 inline 的元件（leave-form-dialog
+  // 的 12 個 class）與 index.html 的 <style>（啟動畫面 4 個）會被整批判成孤兒 ——
+  // 我第一版就是這樣，當場製造 17 個假陽性。
+  const styleSources = walk(webSrc, '.scss').map((f) => readFileSync(f, 'utf8'));
+  for (const f of walk(webSrc, '.ts')) {
+    if (f.endsWith('.spec.ts')) continue;
+    const src = readFileSync(f, 'utf8');
+    // **整份 .ts 都餵進去，不只 `styles:`。** 樣式在 TS 裡有第四種載體：
+    // 直接寫成 CSS 字串注入別的視窗（invoice-detail-dialog 的列印版面就是，
+    // 9 個 .print-doc__* 全在那裡）。多收的代價是 JS 的 `foo.bar {` 也會被
+    // 當成 selector 而多出幾個名字 —— **那個方向是安全的**：它造成漏報不是誤報，
+    // 而誤報會讓人關掉整道 gate。BEM 名字夠獨特，撞名的機率很低。
+    styleSources.push(src);
+  }
+  const indexHtml = join(webSrc, 'index.html');
+  if (existsSync(indexHtml)) styleSources.push(readFileSync(indexHtml, 'utf8'));
+
+  const defined = definedClasses(styleSources);
+
+  const templates = walk(webSrc, '.html').map((f) => ({
+    path: f.slice(ROOT.length + 1),
+    source: readFileSync(f, 'utf8'),
+  }));
+  for (const f of walk(webSrc, '.ts')) {
+    if (f.endsWith('.spec.ts')) continue;
+    const src = readFileSync(f, 'utf8');
+    if (!src.includes('@Component')) continue;
+    const t = inlineTemplate(src);
+    if (t.trim()) templates.push({ path: f.slice(ROOT.length + 1), source: t });
+  }
+
+  for (const { path, source } of templates) {
+    for (const classes of unstyledInteractive(source, defined)) {
+      fail(
+        `${path} 有一個可點的元素，但它的 class（${classes}）**全庫沒有任何 SCSS 定義** —— ` +
+          `它會吃全域 button reset 渲染成純文字，於是沒有人會去點它。` +
+          `注意 BEM 的 &__x 巢狀：用字面 grep 找不到不代表沒定義`,
+      );
+    }
+  }
+}
+
+checkUnstyledInteractive();
 
 checkScanScope();
 

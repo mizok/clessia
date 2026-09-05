@@ -36,6 +36,9 @@
       (onClose)="onFilterChange()"
       styleClass="clessia-filter-control clessia-filter-control--date-range"
       [appendTo]="'body'"
+      [showIcon]="true"
+      [readonlyInput]="true"
+      [firstDayOfWeek]="1"
     />
     <p-button size="small" severity="secondary" (onClick)="onFilterChange()"> 重置篩選 </p-button>
   </div>

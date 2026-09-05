@@ -195,6 +195,18 @@
                   (onClick)="openClassLog(session)"
                 />
               }
+              @if (isTeacherLed() && canWriteContactBook(session)) {
+                <!-- 聯絡簿模式的班：同一個位置，開的是學生名單不是日誌表單 -->
+                <p-button
+                  styleClass="schedule-page__action"
+                  label="寫聯絡簿"
+                  icon="pi pi-pencil"
+                  size="small"
+                  [outlined]="true"
+                  severity="secondary"
+                  (onClick)="openContactBook(session)"
+                />
+              }
             </article>
           } @empty {
             <p class="schedule-page__no-class">沒有課</p>
