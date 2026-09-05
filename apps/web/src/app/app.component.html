@@ -1,3 +1,23 @@
 <div class="app" appWindowSize>
+  <!-- 版本提示條。**刻意用純標記而不是元件** —— 這支檔案的註解寫著
+       「不要再往 root component 加 UI 依賴」（曾經因為 DynamicDialog
+       讓初始 bundle 多 140 kB）。這幾行的成本是零。 -->
+  @if (version.isStale() || version.recoveryFailed()) {
+    <div class="app__version-bar" role="status">
+      <span class="app__version-text">
+        @if (version.recoveryFailed()) {
+          重新載入後仍取得舊版本，請手動重新整理（Cmd/Ctrl + Shift + R）
+        } @else {
+          已有新版本
+        }
+      </span>
+      @if (!version.recoveryFailed()) {
+        <button type="button" class="app__version-action" (click)="version.reloadNow()">
+          重新載入
+        </button>
+      }
+    </div>
+  }
+
   <router-outlet />
 </div>
