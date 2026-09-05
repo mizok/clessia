@@ -22,7 +22,7 @@ import { blankComments } from './lib/comments.mjs';
 import { inlineCarriers } from './lib/inline-carriers.mjs';
 import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
 import { preflightVerdict } from './lib/preflight-verdict.mjs';
-import { extractScriptUrls, summarize } from './lib/smoke-probes.mjs';
+import { extractScriptUrls, resolveBaseUrl, summarize } from './lib/smoke-probes.mjs';
 import {
   findOrphanEndpoints,
   matchesPrefix,
@@ -421,6 +421,41 @@ test('preflight：沒有理由攔的時候不要發警告', () => {
  * 而正式站只有 `/api/*` 進 Worker —— 所以線上 `GET /health` 由 Pages 回
  * SPA 的 index.html、**HTTP 200，就算 Worker 整個死掉也一樣**。
  */
+/**
+ * **這一則是事故之後補的。**
+ *
+ * 原本寫 `process.env.SMOKE_BASE_URL ?? process.argv[2] ?? '<正式站>'`。
+ * 而 GitHub Actions 把沒填的 input 傳成**空字串** —— `??` 只對
+ * `null` / `undefined` 退回，空字串會直接通過。
+ *
+ * 結果：`fetch('' + '/api/system-time')` → `Failed to parse URL`，
+ * **這支 workflow 合併後每一次排程都會失敗並開一張 issue**，
+ * 對著一個健康的正式站喊狼來了。
+ *
+ * 諷刺的地方是它自己的檔頭就寫著「壞掉的監控比沒有監控糟」。
+ * **空字串是那種「測得到卻沒人想到要測」的輸入** —— 而環境變數與 CI input
+ * 正是它最常出現的地方。
+ */
+test('smoke：空字串的環境變數要退回預設，不是當成有值', () => {
+  const DEFAULT = 'https://demo.clessia.cc';
+
+  // 事故本身：CI 傳空字串
+  assert.equal(resolveBaseUrl({ env: '', arg: undefined }), DEFAULT);
+  // 只有空白也一樣
+  assert.equal(resolveBaseUrl({ env: '   ', arg: undefined }), DEFAULT);
+  // 完全沒傳
+  assert.equal(resolveBaseUrl({}), DEFAULT);
+  assert.equal(resolveBaseUrl(), DEFAULT);
+
+  // 反方向：真的有值就要用它，不能被「防呆」吃掉
+  assert.equal(resolveBaseUrl({ env: 'https://a.test' }), 'https://a.test');
+  assert.equal(resolveBaseUrl({ env: '', arg: 'https://b.test' }), 'https://b.test');
+  // env 優先於 argv
+  assert.equal(resolveBaseUrl({ env: 'https://a.test', arg: 'https://b.test' }), 'https://a.test');
+  // 尾斜線要去掉，否則會組出 //api/system-time
+  assert.equal(resolveBaseUrl({ env: 'https://a.test/' }), 'https://a.test');
+});
+
 test('smoke：script 網址從剛部署的 index.html 讀出來，不維護清單', () => {
   const html = `
     <html><head>
