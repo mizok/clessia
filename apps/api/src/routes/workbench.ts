@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { DbUuidSchema } from '../lib/validation';
 
 import type { AppEnv } from '../index';
 import { campusFilterIds } from '../lib/campus-scope';
@@ -118,7 +119,7 @@ app.openapi(
           .string()
           .regex(/^\d{4}-\d{2}-\d{2}$/)
           .optional(),
-        campusId: z.uuid().optional(),
+        campusId: DbUuidSchema.optional(),
       }),
     },
     responses: {

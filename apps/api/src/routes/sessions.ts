@@ -49,14 +49,14 @@ const SessionListQuerySchema = z
   .object({
     from: DateSchema.optional(),
     to: DateSchema.optional(),
-    campusId: z.uuid().optional().openapi({ description: '分校 ID（單一，舊版）' }),
+    campusId: DbUuidSchema.optional().openapi({ description: '分校 ID（單一，舊版）' }),
     campusIds: z.string().optional().openapi({ description: '分校 ID（逗號分隔，多選）' }),
-    courseId: z.uuid().optional().openapi({ description: '課程 ID（單一，舊版）' }),
+    courseId: DbUuidSchema.optional().openapi({ description: '課程 ID（單一，舊版）' }),
     courseIds: z.string().optional().openapi({ description: '課程 ID（逗號分隔，多選）' }),
-    teacherId: z.uuid().optional().openapi({ description: '教師 ID（單一）' }),
+    teacherId: DbUuidSchema.optional().openapi({ description: '教師 ID（單一）' }),
     teacherIds: z.string().optional().openapi({ description: '教師 ID（逗號分隔，多選）' }),
     classIds: z.string().optional().openapi({ description: '班級 ID（逗號分隔，多選）' }),
-    classId: z.uuid().optional().openapi({ description: '班級 ID' }),
+    classId: DbUuidSchema.optional().openapi({ description: '班級 ID' }),
     page: z.coerce.number().optional().openapi({ description: '頁碼' }),
     pageSize: z.coerce.number().optional().openapi({ description: '每頁筆數' }),
     statuses: z
@@ -83,24 +83,24 @@ const SessionListQuerySchema = z
 
 const SessionIdParamsSchema = z
   .object({
-    id: z.uuid().openapi({ description: '課堂 ID' }),
+    id: DbUuidSchema.openapi({ description: '課堂 ID' }),
   })
   .openapi('SessionIdParams');
 
 const SessionListItemSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     sessionDate: DateSchema,
     startTime: TimeSchema,
     endTime: TimeSchema,
     status: SessionStatusSchema,
-    classId: z.uuid(),
+    classId: DbUuidSchema,
     className: z.string(),
-    courseId: z.uuid(),
+    courseId: DbUuidSchema,
     courseName: z.string(),
-    campusId: z.uuid(),
+    campusId: DbUuidSchema,
     campusName: z.string(),
-    teacherId: z.uuid().nullable(),
+    teacherId: DbUuidSchema.nullable(),
     teacherName: z.string().nullable(),
     assignmentStatus: SessionAssignmentStatusSchema,
     hasChanges: z.boolean(),
@@ -123,7 +123,7 @@ const SessionListResponseSchema = z
 
 const SessionChangeItemSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     changeType: SessionHistoryTypeSchema,
     originalSessionDate: DateSchema.nullable(),
     originalStartTime: TimeSchema.nullable(),
@@ -131,9 +131,9 @@ const SessionChangeItemSchema = z
     newSessionDate: DateSchema.nullable(),
     newStartTime: TimeSchema.nullable(),
     newEndTime: TimeSchema.nullable(),
-    originalTeacherId: z.uuid().nullable(),
+    originalTeacherId: DbUuidSchema.nullable(),
     originalTeacherName: z.string().nullable(),
-    substituteTeacherId: z.uuid().nullable(),
+    substituteTeacherId: DbUuidSchema.nullable(),
     substituteTeacherName: z.string().nullable(),
     operationSource: z.enum(['single', 'batch']).nullable(),
     reason: z.string().nullable(),
@@ -156,7 +156,7 @@ const CancelSessionBodySchema = z
 
 const SubstituteSessionBodySchema = z
   .object({
-    substituteTeacherId: z.uuid().openapi({ description: '代課老師 ID' }),
+    substituteTeacherId: DbUuidSchema.openapi({ description: '代課老師 ID' }),
     reason: z.string().max(500).optional().openapi({ description: '代課原因' }),
   })
   .openapi('SubstituteSessionBody');
@@ -172,15 +172,15 @@ const RescheduleSessionBodySchema = z
 
 const BatchSessionTargetSchema = z
   .object({
-    sessionIds: z.array(z.uuid()).min(1).max(1000),
+    sessionIds: z.array(DbUuidSchema).min(1).max(1000),
     dryRun: z.boolean().optional(),
   })
   .openapi('BatchSessionTarget');
 
 const BatchAssignTeacherBodySchema = z
   .object({
-    sessionIds: z.array(z.uuid()).min(1).max(1000),
-    teacherId: z.uuid(),
+    sessionIds: z.array(DbUuidSchema).min(1).max(1000),
+    teacherId: DbUuidSchema,
     includeAssigned: z.boolean().default(false),
     dryRun: z.boolean().default(false),
   })
@@ -188,11 +188,11 @@ const BatchAssignTeacherBodySchema = z
 
 const BatchAssignConflictSchema = z
   .object({
-    sessionId: z.uuid(),
+    sessionId: DbUuidSchema,
     sessionDate: DateSchema,
     startTime: TimeSchema,
     endTime: TimeSchema,
-    conflictWithSessionId: z.uuid(),
+    conflictWithSessionId: DbUuidSchema,
   })
   .openapi('SessionBatchAssignConflict');
 
@@ -219,7 +219,7 @@ const BatchUncancelBodySchema = BatchSessionTargetSchema.openapi('SessionBatchUn
 
 const BatchSessionConflictSchema = z
   .object({
-    sessionId: z.uuid(),
+    sessionId: DbUuidSchema,
     sessionDate: DateSchema,
     reason: z.enum([
       'status_not_editable',
@@ -229,7 +229,7 @@ const BatchSessionConflictSchema = z
       'teacher_conflict',
     ]),
     detail: z.string(),
-    conflictingSessionId: z.uuid().optional(),
+    conflictingSessionId: DbUuidSchema.optional(),
   })
   .openapi('SessionBatchConflict');
 
@@ -237,7 +237,7 @@ const BatchSessionActionResultSchema = z
   .object({
     updated: z.number(),
     skipped: z.number(),
-    processableIds: z.array(z.uuid()),
+    processableIds: z.array(DbUuidSchema),
     conflicts: z.array(BatchSessionConflictSchema),
     dryRun: z.boolean(),
   })
@@ -832,8 +832,8 @@ const SubstitutedAwayQuerySchema = z.object({
 
 const SubstitutedAwayEntrySchema = z
   .object({
-    changeId: z.uuid(),
-    sessionId: z.uuid(),
+    changeId: DbUuidSchema,
+    sessionId: DbUuidSchema,
     sessionDate: z.string().nullable(),
     startTime: z.string().nullable(),
     endTime: z.string().nullable(),
@@ -906,8 +906,8 @@ const ChangeLogQuerySchema = z.object({
 
 const ChangeLogEntrySchema = z
   .object({
-    id: z.uuid(),
-    sessionId: z.uuid(),
+    id: DbUuidSchema,
+    sessionId: DbUuidSchema,
     changeType: z.string(),
     summary: z.string(),
     sessionDate: z.string().nullable(),

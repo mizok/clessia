@@ -8,6 +8,7 @@ import { logAudit } from '../utils/audit';
 import { PERMISSIONS } from '../lib/permissions';
 import { checkRoleAssignment } from '../lib/role-assignment';
 import { campusFilterIds } from '../lib/campus-scope';
+import { DbUuidSchema } from '../lib/validation';
 
 // ============================================================
 // Schemas
@@ -25,20 +26,20 @@ const DateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式�
 
 const StaffSchema = z
   .object({
-    id: z.uuid(),
-    userId: z.uuid(),
-    orgId: z.uuid(),
+    id: DbUuidSchema,
+    userId: DbUuidSchema,
+    orgId: DbUuidSchema,
     displayName: z.string(),
     phone: z.string().nullable(),
     email: z.email(),
     birthday: z.string().nullable(),
     notes: z.string().nullable(),
-    subjectIds: z.array(z.uuid()),
+    subjectIds: z.array(DbUuidSchema),
     subjectNames: z.array(z.string()),
     status: StaffStatusSchema,
     createdAt: z.string(),
     updatedAt: z.string(),
-    campusIds: z.array(z.uuid()),
+    campusIds: z.array(DbUuidSchema),
     roles: z.array(StaffRoleSchema),
     permissions: z.array(PermissionSchema),
   })
@@ -82,8 +83,8 @@ const CreateStaffSchema = z
     phone: z.string().max(30).nullable().optional().openapi({ description: '電話' }),
     birthday: DateStringSchema.nullable().optional().openapi({ description: '生日（YYYY-MM-DD）' }),
     notes: z.string().max(2000).nullable().optional().openapi({ description: '備註' }),
-    subjectIds: z.array(z.uuid()).optional().openapi({ description: '教學科目 IDs（老師用）' }),
-    campusIds: z.array(z.uuid()).min(1).openapi({ description: '服務分校 IDs' }),
+    subjectIds: z.array(DbUuidSchema).optional().openapi({ description: '教學科目 IDs（老師用）' }),
+    campusIds: z.array(DbUuidSchema).min(1).openapi({ description: '服務分校 IDs' }),
     roles: z
       .array(StaffRoleSchema)
       .min(1)
@@ -98,8 +99,8 @@ const UpdateStaffSchema = z
     phone: z.string().max(30).nullable().optional(),
     birthday: DateStringSchema.nullable().optional(),
     notes: z.string().max(2000).nullable().optional(),
-    subjectIds: z.array(z.uuid()).optional(),
-    campusIds: z.array(z.uuid()).min(1).optional(),
+    subjectIds: z.array(DbUuidSchema).optional(),
+    campusIds: z.array(DbUuidSchema).min(1).optional(),
     roles: z.array(StaffRoleSchema).min(1).optional().openapi({ description: '角色（可多選）' }),
     status: StaffStatusSchema.optional(),
     permissions: z.array(PermissionSchema).optional(),
@@ -119,8 +120,8 @@ const QueryParamsSchema = z.object({
   pageSize: z.string().optional().openapi({ description: '每頁筆數', example: '20' }),
   search: z.string().optional().openapi({ description: '姓名 / Email 搜尋' }),
   role: StaffRoleSchema.optional().openapi({ description: '角色篩選' }),
-  campusId: z.uuid().optional().openapi({ description: '分校篩選' }),
-  subjectId: z.uuid().optional().openapi({ description: '科目篩選' }),
+  campusId: DbUuidSchema.optional().openapi({ description: '分校篩選' }),
+  subjectId: DbUuidSchema.optional().openapi({ description: '科目篩選' }),
   status: StaffStatusSchema.optional().openapi({ description: '篩選狀態' }),
 });
 
@@ -773,7 +774,7 @@ const getRoute = createRoute({
   summary: '取得單一人員',
   request: {
     params: z.object({
-      id: z.uuid().openapi({ description: '人員 ID' }),
+      id: DbUuidSchema.openapi({ description: '人員 ID' }),
     }),
   },
   responses: {
@@ -1073,7 +1074,7 @@ const updateRoute = createRoute({
   summary: '更新人員',
   request: {
     params: z.object({
-      id: z.uuid(),
+      id: DbUuidSchema,
     }),
     body: {
       content: {
@@ -1348,7 +1349,7 @@ const archiveRoute = createRoute({
   tags: ['Staff'],
   summary: '封存人員（軟刪除：停用帳號、解除未來課堂指派，保留歷史紀錄）',
   request: {
-    params: z.object({ id: z.uuid() }),
+    params: z.object({ id: DbUuidSchema }),
   },
   responses: {
     200: {
@@ -1451,7 +1452,7 @@ const deactivateRoute = createRoute({
   tags: ['Staff'],
   summary: '停用人員（僅暫時停用，不移除角色與課堂指派）',
   request: {
-    params: z.object({ id: z.uuid() }),
+    params: z.object({ id: DbUuidSchema }),
   },
   responses: {
     200: {
@@ -1521,7 +1522,7 @@ const activateRoute = createRoute({
   tags: ['Staff'],
   summary: '啟用人員（從停用狀態恢復）',
   request: {
-    params: z.object({ id: z.uuid() }),
+    params: z.object({ id: DbUuidSchema }),
   },
   responses: {
     200: {
@@ -1591,7 +1592,7 @@ const deleteRoute = createRoute({
   summary: '刪除人員',
   request: {
     params: z.object({
-      id: z.uuid(),
+      id: DbUuidSchema,
     }),
   },
   responses: {

@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../../index';
+import { DbUuidSchema } from '../../lib/validation';
 
 /**
  * 家長端專屬的檔案。**這裡不用 `c.get('supabase')`，一律用 `c.get('childDb')`**——
@@ -9,7 +10,7 @@ import type { AppEnv } from '../../index';
 
 const ChildSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     name: z.string(),
     grade: z.string(),
     school: z.string(),

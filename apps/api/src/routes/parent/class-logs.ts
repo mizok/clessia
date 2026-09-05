@@ -20,8 +20,8 @@ import { DbUuidSchema } from '../../lib/validation';
 
 const ParentClassLogRecordSchema = z
   .object({
-    id: z.uuid(),
-    classId: z.uuid(),
+    id: DbUuidSchema,
+    classId: DbUuidSchema,
     className: z.string().nullable(),
     logDate: z.string(),
     homework: z.string(),

@@ -17,8 +17,8 @@ import { getCurrentTaipeiDateString } from '../../lib/taipei-date';
 
 const ParentAttendanceRecordSchema = z
   .object({
-    id: z.uuid(),
-    eventId: z.uuid(),
+    id: DbUuidSchema,
+    eventId: DbUuidSchema,
     eventDate: z.string(),
     startTime: z.string().nullable(),
     endTime: z.string().nullable(),

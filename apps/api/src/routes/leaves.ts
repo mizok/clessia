@@ -8,8 +8,8 @@ import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-d
 
 const LeaveRequestSchema = z
   .object({
-    id: z.uuid(),
-    orgId: z.uuid(),
+    id: DbUuidSchema,
+    orgId: DbUuidSchema,
     studentId: DbUuidSchema,
     studentName: z.string(),
     startDate: z.string(),

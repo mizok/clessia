@@ -24,7 +24,7 @@ const ErrorSchema = z
 
 const AcademyExamListItemSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     name: z.string(),
     examType: AcademyExamTypeSchema,
     status: AcademyExamStatusSchema,
@@ -32,8 +32,8 @@ const AcademyExamListItemSchema = z
     totalScore: z.number(),
     passScore: z.number().nullable(),
     scopeNote: z.string().nullable(),
-    campusId: z.uuid().nullable(),
-    subjectId: z.uuid().nullable(),
+    campusId: DbUuidSchema.nullable(),
+    subjectId: DbUuidSchema.nullable(),
     subjectName: z.string().nullable(),
     classCount: z.number().int(),
     scoreCount: z.number().int(),
@@ -55,7 +55,7 @@ const AcademyExamListResponseSchema = z
 
 const AcademyExamClassSchema = z
   .object({
-    classId: z.uuid(),
+    classId: DbUuidSchema,
     className: z.string(),
     campusName: z.string().nullable(),
     courseName: z.string().nullable(),
@@ -74,7 +74,7 @@ const AcademyExamScoreSummarySchema = z
 
 const AcademyExamDetailSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     name: z.string(),
     examType: AcademyExamTypeSchema,
     status: AcademyExamStatusSchema,
@@ -82,9 +82,9 @@ const AcademyExamDetailSchema = z
     totalScore: z.number(),
     passScore: z.number().nullable(),
     scopeNote: z.string().nullable(),
-    campusId: z.uuid().nullable(),
+    campusId: DbUuidSchema.nullable(),
     campusName: z.string().nullable(),
-    subjectId: z.uuid().nullable(),
+    subjectId: DbUuidSchema.nullable(),
     subjectName: z.string().nullable(),
     classes: z.array(AcademyExamClassSchema),
     summary: AcademyExamScoreSummarySchema,
@@ -211,7 +211,7 @@ export function buildAcademyScoreRows(
 
 const AcademyScoreSchema = z
   .object({
-    studentId: z.uuid(),
+    studentId: DbUuidSchema,
     studentName: z.string(),
     studentGrade: z.string().nullable(),
     score: z.number().nullable(),
@@ -220,7 +220,7 @@ const AcademyScoreSchema = z
     updatedAt: z.string().nullable(),
     // 一個學生可能同時在這場考試的多個班級裡（例如數學 A 班 + 數學進階班），
     // 所以是陣列而非單一 classId —— 取第一個會讓「按班級篩選」漏掉跨班的學生。
-    classIds: z.array(z.uuid()),
+    classIds: z.array(DbUuidSchema),
   })
   .openapi('AcademyScore');
 
@@ -925,7 +925,7 @@ const createRouteDef = createRoute({
       description: '建立成功',
       content: {
         'application/json': {
-          schema: z.object({ data: z.object({ id: z.uuid() }) }),
+          schema: z.object({ data: z.object({ id: DbUuidSchema }) }),
         },
       },
     },

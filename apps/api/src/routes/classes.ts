@@ -25,12 +25,12 @@ import {
 
 const ScheduleSchema = z
   .object({
-    id: z.uuid(),
-    classId: z.uuid(),
+    id: DbUuidSchema,
+    classId: DbUuidSchema,
     weekday: z.number().int().min(1).max(7),
     startTime: z.string(),
     endTime: z.string(),
-    teacherId: z.uuid().nullable(),
+    teacherId: DbUuidSchema.nullable(),
     teacherName: z.string().optional(),
     effectiveTo: z.string().nullable(),
   })
@@ -38,10 +38,10 @@ const ScheduleSchema = z
 
 const ClassSchema = z
   .object({
-    id: z.uuid(),
-    orgId: z.uuid(),
-    campusId: z.uuid(),
-    courseId: z.uuid(),
+    id: DbUuidSchema,
+    orgId: DbUuidSchema,
+    campusId: DbUuidSchema,
+    courseId: DbUuidSchema,
     courseName: z.string().optional(),
     subjectId: z.string().uuid().nullable().optional(),
     subjectName: z.string().nullable().optional(),
@@ -49,7 +49,7 @@ const ClassSchema = z
     name: z.string(),
     maxStudents: z.number(),
     gradeLevels: z.array(z.string()),
-    nextClassId: z.uuid().nullable(),
+    nextClassId: DbUuidSchema.nullable(),
     isActive: z.boolean(),
     /** 國小／國中模式的開關（kb/wiki/rules/contact-book-rules.md 規則 2）。
      *  開 = 用個人聯絡簿；關 = 走 class_logs 教務日誌 */
@@ -88,10 +88,10 @@ const ClassListResponseSchema = z
 
 const CreateClassSchema = z
   .object({
-    courseId: z.uuid(),
+    courseId: DbUuidSchema,
     name: z.string().min(1).max(50),
     maxStudents: z.number().int().min(1).max(200).optional(),
-    nextClassId: z.uuid().nullable().optional(),
+    nextClassId: DbUuidSchema.nullable().optional(),
     // 不給就用 DB 的 default false（現況全是紙本）
     usesContactBook: z.boolean().optional(),
     startDate: z
@@ -111,7 +111,7 @@ const UpdateClassSchema = z
   .object({
     name: z.string().min(1).max(50).optional(),
     maxStudents: z.number().int().min(1).max(200).optional(),
-    nextClassId: z.uuid().nullable().optional(),
+    nextClassId: DbUuidSchema.nullable().optional(),
     isActive: z.boolean().optional(),
     usesContactBook: z.boolean().optional(),
     startDate: z
@@ -132,7 +132,7 @@ const CreateScheduleSchema = z
     weekday: z.number().int().min(1).max(7),
     startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
     endTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
-    teacherId: z.uuid().nullable().optional(),
+    teacherId: DbUuidSchema.nullable().optional(),
     effectiveTo: z.string().nullable().optional(),
   })
   .openapi('CreateSchedule');
@@ -142,7 +142,7 @@ const SessionPreviewSchema = z
     sessionDate: z.string(),
     startTime: z.string(),
     endTime: z.string(),
-    teacherId: z.uuid().nullable(),
+    teacherId: DbUuidSchema.nullable(),
     teacherName: z.string().optional(),
     weekday: z.number(),
     exists: z.boolean(),
@@ -162,22 +162,22 @@ const BatchAssignBodySchema = z.object({
   to: z.string(),
   weekday: z.array(z.number().int().min(1).max(7)).optional(),
   timeRanges: z.array(BatchAssignTimeRangeSchema).optional(),
-  toTeacherId: z.uuid(),
+  toTeacherId: DbUuidSchema,
   mode: z.enum(['skip-conflicts', 'strict', 'force']).default('skip-conflicts'),
   includeAssigned: z.boolean().default(false),
   dryRun: z.boolean().optional(),
 });
 
 const BatchAssignConflictSchema = z.object({
-  sessionId: z.uuid(),
+  sessionId: DbUuidSchema,
   sessionDate: z.string(),
   startTime: z.string(),
   endTime: z.string(),
-  conflictWithSessionId: z.uuid(),
+  conflictWithSessionId: DbUuidSchema,
 });
 
 const BatchSessionTargetSchema = z.object({
-  sessionIds: z.array(z.uuid()).min(1).max(1000),
+  sessionIds: z.array(DbUuidSchema).min(1).max(1000),
   dryRun: z.boolean().optional(),
 });
 
@@ -189,7 +189,7 @@ const BatchUpdateSessionTimeBodySchema = BatchSessionTargetSchema.extend({
 const BatchCancelSessionsBodySchema = BatchSessionTargetSchema;
 
 const BatchSessionConflictSchema = z.object({
-  sessionId: z.uuid(),
+  sessionId: DbUuidSchema,
   sessionDate: z.string(),
   reason: z.enum([
     'status_not_editable',
@@ -199,13 +199,13 @@ const BatchSessionConflictSchema = z.object({
     'teacher_conflict',
   ]),
   detail: z.string(),
-  conflictingSessionId: z.uuid().optional(),
+  conflictingSessionId: DbUuidSchema.optional(),
 });
 
 const BatchSessionActionResponseSchema = z.object({
   updated: z.number(),
   skipped: z.number(),
-  processableIds: z.array(z.uuid()),
+  processableIds: z.array(DbUuidSchema),
   conflicts: z.array(BatchSessionConflictSchema),
   dryRun: z.boolean(),
 });
@@ -232,11 +232,11 @@ const CheckConflictsRequestSchema = z
         weekday: z.number().int().min(1).max(7),
         startTime: z.string(),
         endTime: z.string(),
-        teacherId: z.uuid().nullable(),
+        teacherId: DbUuidSchema.nullable(),
         effectiveTo: z.string().nullable().optional(),
       }),
     ),
-    excludeClassId: z.uuid().optional(),
+    excludeClassId: DbUuidSchema.optional(),
   })
   .openapi('CheckConflictsRequest');
 
@@ -244,7 +244,7 @@ const ScheduleConflictItemSchema = z
   .object({
     scheduleIndex: z.number().int(),
     teacherName: z.string(),
-    conflictingClassId: z.uuid(),
+    conflictingClassId: DbUuidSchema,
     conflictingClassName: z.string(),
     conflictingCourseName: z.string(),
     conflictingWeekday: z.number().int(),
@@ -752,7 +752,7 @@ app.openapi(
       body: {
         content: {
           'application/json': {
-            schema: z.object({ ids: z.array(z.uuid()), isActive: z.boolean() }),
+            schema: z.object({ ids: z.array(DbUuidSchema), isActive: z.boolean() }),
           },
         },
       },
@@ -805,7 +805,7 @@ app.openapi(
     request: {
       body: {
         content: {
-          'application/json': { schema: z.object({ ids: z.array(z.uuid()) }) },
+          'application/json': { schema: z.object({ ids: z.array(DbUuidSchema) }) },
         },
       },
     },
@@ -1029,7 +1029,7 @@ app.openapi(
     tags: ['Classes'],
     summary: '更新班級',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: { content: { 'application/json': { schema: UpdateClassSchema } } },
     },
     responses: {
@@ -1093,7 +1093,7 @@ app.openapi(
     path: '/{id}/toggle-active',
     tags: ['Classes'],
     summary: '切換班級啟用/停用',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '成功',
@@ -1156,7 +1156,7 @@ app.openapi(
     path: '/{id}',
     tags: ['Classes'],
     summary: '刪除班級（無 sessions 才可刪）',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '成功',
@@ -1270,7 +1270,7 @@ app.openapi(
     tags: ['Classes'],
     summary: '新增上課時間',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: { content: { 'application/json': { schema: CreateScheduleSchema } } },
     },
     responses: {
@@ -1347,7 +1347,7 @@ app.openapi(
     tags: ['Classes'],
     summary: '更新上課時間',
     request: {
-      params: z.object({ id: z.uuid(), sid: z.uuid() }),
+      params: z.object({ id: DbUuidSchema, sid: DbUuidSchema }),
       body: { content: { 'application/json': { schema: CreateScheduleSchema.partial() } } },
     },
     responses: {
@@ -1396,7 +1396,7 @@ app.openapi(
     path: '/{id}/schedules/{sid}',
     tags: ['Classes'],
     summary: '刪除上課時間',
-    request: { params: z.object({ id: z.uuid(), sid: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema, sid: DbUuidSchema }) },
     responses: {
       200: {
         description: '成功',
@@ -1451,7 +1451,7 @@ app.openapi(
     tags: ['Classes'],
     summary: '預覽將產生的課堂',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       query: z.object({
         from: z.string(),
         to: z.string(),
@@ -1576,7 +1576,7 @@ app.openapi(
     tags: ['Classes'],
     summary: '批次建立課堂',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: {
         content: {
           'application/json': {
@@ -1801,7 +1801,7 @@ app.openapi(
     tags: ['Classes'],
     summary: '批次指派班級課堂老師（單班級）',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: { content: { 'application/json': { schema: BatchAssignBodySchema } } },
     },
     responses: {
@@ -2065,7 +2065,7 @@ app.openapi(
     tags: ['Classes'],
     summary: '批次修改課堂時間（固定略過衝突）',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: { content: { 'application/json': { schema: BatchUpdateSessionTimeBodySchema } } },
     },
     responses: {
@@ -2344,7 +2344,7 @@ app.openapi(
     tags: ['Classes'],
     summary: '批次停課（固定略過不可停課項目）',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: { content: { 'application/json': { schema: BatchCancelSessionsBodySchema } } },
     },
     responses: {
@@ -2505,7 +2505,7 @@ app.openapi(
     tags: ['Classes'],
     summary: '批次取消停課（恢復為已排定，固定略過衝突）',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: { content: { 'application/json': { schema: BatchCancelSessionsBodySchema } } },
     },
     responses: {
@@ -2750,7 +2750,7 @@ app.openapi(
     path: '/{id}/cancel-future-sessions',
     tags: ['Classes'],
     summary: '取消此班級所有未來課堂排程（軟刪除，保留 schedule_change 紀錄）',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '成功',

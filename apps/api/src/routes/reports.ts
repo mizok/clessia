@@ -3,6 +3,7 @@ import type { AppEnv } from '../index';
 import { aggregateRevenue, type RevenueInvoice, type RevenuePayment } from '../lib/revenue-report';
 import { toCsv, type CsvValue } from '../lib/csv';
 import type { CampusScope } from '../lib/campus-scope';
+import { DbUuidSchema } from '../lib/validation';
 
 /**
  * 營收報表的聚合端點。
@@ -127,8 +128,8 @@ app.openapi(
       query: z.object({
         dateFrom: z.string().regex(DATE),
         dateTo: z.string().regex(DATE),
-        campusId: z.uuid().optional(),
-        courseId: z.uuid().optional(),
+        campusId: DbUuidSchema.optional(),
+        courseId: DbUuidSchema.optional(),
         groupBy: z.enum(['campus', 'course', 'month']).optional(),
       }),
     },
@@ -238,8 +239,8 @@ app.openapi(
       query: z.object({
         dateFrom: z.string().regex(DATE),
         dateTo: z.string().regex(DATE),
-        campusId: z.uuid().optional(),
-        courseId: z.uuid().optional(),
+        campusId: DbUuidSchema.optional(),
+        courseId: DbUuidSchema.optional(),
       }),
     },
     responses: {

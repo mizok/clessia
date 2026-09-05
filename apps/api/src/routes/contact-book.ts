@@ -25,8 +25,8 @@ const app = new OpenAPIHono<AppEnv>();
 
 const ContactBookEntrySchema = z
   .object({
-    id: z.uuid(),
-    studentId: z.uuid(),
+    id: DbUuidSchema,
+    studentId: DbUuidSchema,
     studentName: z.string().nullable(),
     entryDate: z.string(),
     content: z.string(),
@@ -256,10 +256,10 @@ const MissingResponseSchema = z
   .object({
     data: z.array(
       z.object({
-        studentId: z.uuid(),
+        studentId: DbUuidSchema,
         studentName: z.string(),
         /** 脈絡：這個學生在哪些開了聯絡簿的班。要寫的仍然只有一則 */
-        classes: z.array(z.object({ classId: z.uuid(), className: z.string() })),
+        classes: z.array(z.object({ classId: DbUuidSchema, className: z.string() })),
       }),
     ),
     meta: z.object({ total: z.number() }),

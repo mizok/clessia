@@ -3,6 +3,7 @@ import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { formatAuditCourseResourceName, logAudit } from '../utils/audit';
 import { applyCampusFilter } from '../lib/campus-scope';
+import { DbUuidSchema } from '../lib/validation';
 
 // ============================================================
 // Schemas (with OpenAPI metadata)
@@ -10,12 +11,12 @@ import { applyCampusFilter } from '../lib/campus-scope';
 
 const CourseSchema = z
   .object({
-    id: z.uuid(),
-    orgId: z.uuid(),
-    campusId: z.uuid(),
+    id: DbUuidSchema,
+    orgId: DbUuidSchema,
+    campusId: DbUuidSchema,
     campusName: z.string().optional(),
     name: z.string(),
-    subjectId: z.uuid(),
+    subjectId: DbUuidSchema,
     subjectName: z.string(),
     description: z.string().nullable(),
     isActive: z.boolean(),
@@ -39,9 +40,9 @@ const CourseListResponseSchema = z
 
 const CreateCourseSchema = z
   .object({
-    campusId: z.uuid().openapi({ description: '所屬分校 ID' }),
+    campusId: DbUuidSchema.openapi({ description: '所屬分校 ID' }),
     name: z.string().min(1).max(50).openapi({ description: '課程名稱', example: '國一數學' }),
-    subjectId: z.uuid().openapi({ description: '科目 ID' }),
+    subjectId: DbUuidSchema.openapi({ description: '科目 ID' }),
     description: z.string().max(500).nullable().optional().openapi({ description: '課程說明' }),
     gradeLevels: z.array(z.string()).min(1).openapi({ description: '適合年級' }),
   })
@@ -50,7 +51,7 @@ const CreateCourseSchema = z
 const UpdateCourseSchema = z
   .object({
     name: z.string().min(1).max(50).optional(),
-    subjectId: z.uuid().optional(),
+    subjectId: DbUuidSchema.optional(),
     description: z.string().max(500).nullable().optional(),
     isActive: z.boolean().optional(),
     gradeLevels: z.array(z.string()).min(1).optional(),
@@ -70,8 +71,8 @@ const QueryParamsSchema = z.object({
   page: z.string().optional().openapi({ description: '頁碼', example: '1' }),
   pageSize: z.string().optional().openapi({ description: '每頁筆數', example: '20' }),
   search: z.string().optional().openapi({ description: '搜尋課程名稱' }),
-  campusId: z.uuid().optional().openapi({ description: '篩選分校' }),
-  subjectId: z.uuid().optional().openapi({ description: '篩選科目 ID' }),
+  campusId: DbUuidSchema.optional().openapi({ description: '篩選分校' }),
+  subjectId: DbUuidSchema.optional().openapi({ description: '篩選科目 ID' }),
   isActive: z.string().optional().openapi({ description: '篩選狀態 (true/false)' }),
 });
 
@@ -195,7 +196,7 @@ const getRoute = createRoute({
   summary: '取得單一課程',
   request: {
     params: z.object({
-      id: z.uuid().openapi({ description: '課程 ID' }),
+      id: DbUuidSchema.openapi({ description: '課程 ID' }),
     }),
   },
   responses: {
@@ -344,7 +345,7 @@ const updateRoute = createRoute({
   summary: '更新課程',
   request: {
     params: z.object({
-      id: z.uuid(),
+      id: DbUuidSchema,
     }),
     body: {
       content: {
@@ -540,7 +541,7 @@ const deleteRoute = createRoute({
   description: '刪除課程（僅限無開課班的課程）',
   request: {
     params: z.object({
-      id: z.uuid(),
+      id: DbUuidSchema,
     }),
   },
   responses: {
