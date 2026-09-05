@@ -304,6 +304,57 @@ allowlist、baseline)都有這個性質。看到一批 `+` 時要多問一句:
   且都把「這節會過期,接手第一件事:重寫它」的自我標註留給下一版。
   **那個標註比內容重要** —— 它讓下一個人知道這節不可信,而不是讀完就當真。
 
+### 部署前不要判斷「需不需要」,直接 build 然後比 hash
+```bash
+npx nx build web --configuration=production
+ls dist/apps/web/browser/ | grep '^main-'                            # 本機
+curl -s https://demo.clessia.cc/ | grep -oE 'main-[A-Z0-9]{8}\.js'   # 線上
+```
+hash 一樣就是已上線,不一樣就推。**這個做法沒有「基準點」這個概念** ——
+不必指定任何起點,產物一樣就是一樣。
+
+**取代的舊做法是 `git diff <某 commit>..main -- apps/web`,而它出過事**
+(2026-09-05):我拿 `#337` 自己的 squash commit 當基準點,從它之後算當然看不到它,
+於是回報「web 不需部署」—— **實際漏了四個檔(及格線 UI),而使用者當時正在手機上驗那個欄位**。
+
+成因是代理指標:我每次拿「上一支合併的 commit」當「上次部署點」,
+**兩者在連續部署時剛好重合,所以一直沒出事**;那次中間收了七支才部一次,就分岔了。
+
+代價是每次多一次 build(約 15 秒,nx 有快取更短)。**值得** ——
+另一邊的代價是使用者看到舊版,而且**症狀會出現在別人身上**:
+他若回報「這功能沒生效」,第一個被懷疑的是實作席不是我的部署判斷。
+
+api 端同理:比 `wrangler deployments list` 的 version id,並用 `--dry-run --outdir`
+的產物 grep 新識別字,確認程式碼真的進 bundle。
+
+### `git grep` 的 alternation 要用 `-E`,`\|` 不生效
+實測(2026-09-05,同一個檔):
+```
+git grep -c  "passScore\|pass_score"   →  0      ← 假 MISS
+git grep -cE "passScore|pass_score"    →  19
+```
+**回 0 的樣子跟「東西不在」一模一樣。** 這個坑我踩了三次,三次都是 alternation:
+#249 猜錯字串(內容錯)、#254 猜錯 tone 值(內容錯)、#331 這次是**語法錯**。
+前兩次的教訓是「驗證字串從 diff 取」,這次補上:**表達式本身也要能運作**。
+
+### `demo.clessia.cc` 的路徑拓撲 —— 驗 Worker 只能走 workers.dev
+| 路徑 | 誰接 |
+| --- | --- |
+| `demo.clessia.cc/api/*` | Worker,但 **auth middleware 前擋**(打 404 會先拿到 401) |
+| `demo.clessia.cc/` 其他 | **Pages 的 SPA fallback**,永遠 200 —— 打不到 Worker |
+| `clessia-api-production.karasunohina.workers.dev/*` | Worker,無 Pages 介入 |
+
+**所以驗 Worker 的錯誤路徑只能走 workers.dev**:
+```
+workers.dev/no-such-route  →  {"error":"Not Found","path":"/no-such-route"}  404 ✓
+demo.clessia.cc/no-such-route  →  HTML 200（Pages fallback）
+```
+這個拓撲有兩種後果,**後者嚴重得多**:
+- **驗不到**(本席 09-04 踩到):結果不對,當場會發現
+- **假裝驗到了**(infra 09-05 抓到):`/health` 不在 `/api/*` 底下,由 Pages 接走,
+  **所以那支 smoke 探測不管 Worker 死沒死都會回 200** —— 綠燈跟真綠燈長得一模一樣。
+  已換成 `/api/system-time`。**壞掉的監控比沒有監控糟,因為它同時消耗注意力預算。**
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
