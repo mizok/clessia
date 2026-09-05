@@ -7,6 +7,7 @@ import {
   attendanceTone,
   canTakeAttendance,
   canWriteClassLog,
+  canWriteContactBook,
   daySummary,
   weekAnchor,
 } from './schedule.util';
@@ -320,5 +321,27 @@ describe('教務日誌入口的分流', () => {
    */
   it('完成的課堂 → 仍然顯示', () => {
     expect(canWriteClassLog({ status: 'completed', usesContactBook: false })).toBe(true);
+  });
+});
+
+/**
+ * 兩型的入口**互斥**：同一張卡上不會同時出現「寫日誌」與「寫聯絡簿」。
+ * 這一條測的是那個互斥性本身 —— 兩個判準各自對，仍然可能同時為真或同時為假。
+ */
+describe('兩型入口互斥', () => {
+  const both = (s: { status: string; usesContactBook: boolean }) =>
+    [canWriteClassLog(s as never), canWriteContactBook(s as never)];
+
+  it('日誌模式 → 只有日誌', () => {
+    expect(both({ status: 'scheduled', usesContactBook: false })).toEqual([true, false]);
+  });
+
+  it('聯絡簿模式 → 只有聯絡簿', () => {
+    expect(both({ status: 'scheduled', usesContactBook: true })).toEqual([false, true]);
+  });
+
+  it('停課 → 兩個都沒有（不會發生的課兩型都沒東西可寫）', () => {
+    expect(both({ status: 'cancelled', usesContactBook: false })).toEqual([false, false]);
+    expect(both({ status: 'cancelled', usesContactBook: true })).toEqual([false, false]);
   });
 });

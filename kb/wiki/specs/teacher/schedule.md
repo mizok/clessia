@@ -76,6 +76,21 @@ tags: [specs, teacher, schedule]
 
 設計與 v1a/v1b/v1c 邊界見 [[architecture/teacher-class-log]]。
 
+### 聯絡簿名單（v1c，2026-09-05）
+
+聯絡簿模式的班（`usesContactBook = true`）在同一個位置開的是**學生名單**，
+不是日誌表單 —— **兩型是兩條資料模型**（`studentId+entryDate` 一則自由文字
+vs `classId+logDate` 兩欄），刻意不做成一支元件的 if/else。
+
+- 只列**還沒寫的**：`GET /api/contact-book/missing?date=`（已對老師收斂）。
+  「列出全班」需要 `GET /api/contact-book` 加 `classId` 篩選，尚無
+- **點開之前先查一次那位學生當天有沒有已經被寫過** —— `/missing` 在載入那一刻是準的
+  但會過期，直接用空白 draft 開會讓老師蓋掉別人剛寫的、而兩邊都不會知道
+- 撰寫用的是 `shared/components/contact-book-entry-dialog`（原本住 admin，
+  v1c 提進 shared —— feature 之間不得互相 import，c5）
+
+設計見 [[architecture/teacher-contact-book]]。
+
 ### 點名面板（手機是 bottom sheet）
 
 點課堂卡上的「開始點名」開啟。**手機從下方升起、桌機置中** ——

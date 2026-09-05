@@ -29,7 +29,7 @@ import type {
   ResponsiveTablePaginationConfig,
 } from '@shared/components/responsive-table/responsive-table.models';
 
-import { ContactBookEntryDialogComponent } from './contact-book-entry-dialog/contact-book-entry-dialog.component';
+import { ContactBookEntryDialogComponent } from '@shared/components/contact-book-entry-dialog/contact-book-entry-dialog.component';
 import { dateRangeOf, signedSummary } from './contact-book.util';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.component';
