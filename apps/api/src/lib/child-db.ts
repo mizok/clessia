@@ -15,6 +15,11 @@ import type { StudentScope } from './child-scope';
  * `c.get('supabase')`，抓的是那個看得見的繞過動作。
  *
  * 見 kb/wiki/architecture/parent-data-scope.md 第二節。
+ *
+ * **A19 的能力邊界**：那道 gate 只掃 `routes/parent/**`，不掃這裡。**這支檔案
+ * 本身當然要用原始 `supabase`** 才建得出綁好 scope 的查詢入口 —— A19 綠燈的
+ * 意思是「家長端 route 檔案沒有繞過 childDb」，不是「這個 codebase 沒有任何
+ * 地方碰得到原始 supabase」。
  */
 export function createChildDb(supabase: SupabaseClient, scope: StudentScope) {
   return {

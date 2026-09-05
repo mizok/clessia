@@ -1005,17 +1005,28 @@ if (existsSync(FEATURES_DIR)) {
 //
 // **零 baseline，因為立法時是零違規**（目錄本身跟這道 gate 同一輪引入）——
 // 跟 A18 的 feature 隔離同一個立法時機，不必分診舊債。
+//
+// **用共用的 `walk()` 遞迴掃，不是 `readdirSync` 只列一層。** `routes/parent/`
+// 遲早會長出子目錄（`routes/` 底下現在已經有 `announcements/`、`sessions/` 等
+// 6 個子目錄），`readdirSync` 只看那一層的話子目錄裡的檔案會安靜地不被掃到 ——
+// 而且 gate 照樣綠，因為它掃的那一層真的沒有違規。`recordScope` 宣告了整棵
+// 子樹，實作就要對得上這個宣告（infra 席審查抓到，見 PR #326）。
+//
+// **能力邊界（不必修，寫給下一個人看）**：這裡只掃 `routes/parent/**`，
+// 不掃 `lib/`。`lib/child-db.ts` 本身是授權過的包裝，內部本來就要用原始
+// supabase 才建得出綁好 scope 的查詢入口 —— 綠燈的意思是「家長端 route 檔案
+// 沒有繞過 childDb」，不是「這個 codebase 沒有任何地方碰得到原始 supabase」。
 {
   const parentRoutesDir = join(ROOT, 'apps/api/src/routes/parent');
   if (existsSync(parentRoutesDir)) {
     recordScope('A19', { roots: ['apps/api/src/routes/parent'], exts: ['.ts'] });
-    for (const name of readdirSync(parentRoutesDir)) {
-      if (!name.endsWith('.ts') || name.endsWith('.spec.ts')) continue;
-      const rel = `apps/api/src/routes/parent/${name}`;
-      const source = readFileSync(join(parentRoutesDir, name), 'utf8');
+    for (const file of walk(parentRoutesDir, '.ts')) {
+      if (file.endsWith('.spec.ts')) continue;
+      const rel = file.replace(ROOT + '/', '');
+      const source = readFileSync(file, 'utf8');
       if (usesRawSupabase(source, rel)) {
         fail(
-          `routes/parent/${name} 出現 c.get('supabase') —— 家長端檔案只能用 ` +
+          `${rel} 出現 c.get('supabase') —— 家長端檔案只能用 ` +
             `c.get('childDb')，見 kb/wiki/architecture/parent-data-scope.md 第二節`,
         );
       }
