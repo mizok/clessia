@@ -20,8 +20,14 @@ import {
   flattenAttendanceRow,
   toAttendanceResponse,
 } from '../lib/attendance-query';
+import { DbUuidSchema } from '../lib/validation';
 import { hasSessionEndedByNow } from '../lib/session-end-time';
 import { sliceDerivedPage } from '../lib/derived-page';
+import {
+  applyAttendanceTakenFilter,
+  ensureAttendanceSessionEvents,
+  type AttendanceSessionStatus,
+} from '../lib/attendance-session-events';
 
 const AttendanceStatusSchema = z
   .enum(['present', 'absent', 'on_leave'])
@@ -29,11 +35,11 @@ const AttendanceStatusSchema = z
 
 const AttendanceRecordSchema = z
   .object({
-    id: z.uuid(),
-    orgId: z.uuid(),
-    studentId: z.uuid(),
+    id: DbUuidSchema,
+    orgId: DbUuidSchema,
+    studentId: DbUuidSchema,
     studentName: z.string(),
-    eventId: z.uuid(),
+    eventId: DbUuidSchema,
     eventDate: z.string(),
     startTime: z.string().nullable(),
     endTime: z.string().nullable(),
@@ -63,13 +69,13 @@ const AttendanceListResponseSchema = z
 const EventSessionSummarySchema = z
   .object({
     /** 課堂本身的 id。**這才是穩定的鍵** —— eventId 可能是 null（見下） */
-    sessionId: z.uuid(),
+    sessionId: DbUuidSchema,
     /**
      * 出勤事件的 id。**停課的課堂可能沒有** —— 出勤事件是列表時才補建的，
      * 而停課的課堂刻意不補（不會發生的課不該在行事曆上長出一筆）。
      * 沒有 eventId 就不能點名，前端要據此關掉點名入口。
      */
-    eventId: z.uuid().nullable(),
+    eventId: DbUuidSchema.nullable(),
     /** `scheduled` / `completed` / `cancelled` —— 停課要顯示成灰底 */
     status: z.enum(['scheduled', 'completed', 'cancelled']),
     /** 實際上這堂課的老師跟課表排定的不一致 */
@@ -80,13 +86,13 @@ const EventSessionSummarySchema = z
      * 塞整包考試資料進列表只會把每頁的體積放大而沒人用得到。
      */
     examCount: z.number().int().nonnegative(),
-    classId: z.uuid(),
+    classId: DbUuidSchema,
     className: z.string(),
     /** 這個班用聯絡簿還是教務日誌 —— 老師端分入口用，`/api/classes` 是 ADMIN_ONLY 拿不到 */
     usesContactBook: z.boolean(),
     courseName: z.string().nullable(),
     teacherName: z.string().nullable(),
-    campusId: z.uuid().nullable(),
+    campusId: DbUuidSchema.nullable(),
     campusName: z.string().nullable(),
     eventDate: z.string(),
     startTime: z.string().nullable(),
@@ -113,11 +119,11 @@ const AttendanceSessionListResponseSchema = z
 
 const RosterStudentSchema = z
   .object({
-    studentId: z.uuid(),
+    studentId: DbUuidSchema,
     studentName: z.string(),
     grade: z.string().nullable(),
     school: z.string().nullable(),
-    recordId: z.uuid().nullable(),
+    recordId: DbUuidSchema.nullable(),
     status: AttendanceStatusSchema.nullable(),
     /**
      * 這個學生今天有一張蓋到這堂課的請假單。
@@ -182,7 +188,7 @@ const RosterStudentSchema = z
 
 const AttendanceRosterSchema = z
   .object({
-    eventId: z.uuid(),
+    eventId: DbUuidSchema,
     takenAt: z.string().nullable(),
     students: z.array(RosterStudentSchema),
   })
@@ -211,14 +217,12 @@ const UpdateAttendanceSchema = z
 
 const CreateAttendanceSchema = z
   .object({
-    studentId: z.uuid(),
-    eventId: z.uuid(),
+    studentId: DbUuidSchema,
+    eventId: DbUuidSchema,
     status: AttendanceStatusSchema,
     note: z.string().nullable().optional(),
   })
   .openapi('CreateAttendance');
-
-type AttendanceSessionStatus = 'scheduled' | 'completed' | 'cancelled';
 
 interface AttendanceAuditResourceNameInput {
   readonly courseName?: string | null;
@@ -286,115 +290,6 @@ export function normalizeAttendanceFilterIds(filterIds: string | undefined): str
   );
 }
 
-export async function ensureAttendanceSessionEvents(input: {
-  readonly supabase: AppEnv['Variables']['supabase'];
-  readonly orgId: string;
-  /**
-   * 呼叫者看得到的分校。**這支會「補建」出勤事件（寫入），所以範圍不能只靠讀取端過濾**
-   * —— 少了它，A 校的管理員查詢時會替 B 校的課堂建立 event。
-   */
-  readonly campusScope: CampusScope;
-  readonly campusId?: string;
-  readonly courseIdList: readonly string[];
-  readonly classIdList: readonly string[];
-  readonly statusList: readonly AttendanceSessionStatus[];
-  readonly dateFromValue?: string;
-  readonly dateToValue?: string;
-}): Promise<{ readonly created: number; readonly error: string | null }> {
-  const {
-    supabase,
-    orgId,
-    campusScope,
-    campusId,
-    courseIdList,
-    classIdList,
-    statusList,
-    dateFromValue,
-    dateToValue,
-  } = input;
-
-  let missingSessionsQuery = supabase
-    .from('sessions')
-    .select(
-      `
-      id,
-      event_id,
-      session_date,
-      start_time,
-      end_time,
-      status,
-      class_id,
-      classes!inner(name, course_id, campus_id, courses(name))
-    `,
-    )
-    .eq('org_id', orgId)
-    .is('event_id', null)
-    .in('status', [...statusList]);
-
-  if (dateFromValue) {
-    missingSessionsQuery = missingSessionsQuery.gte('session_date', dateFromValue);
-    missingSessionsQuery = missingSessionsQuery.lte('session_date', dateToValue ?? dateFromValue);
-  }
-
-  missingSessionsQuery = applyCampusFilter(
-    missingSessionsQuery,
-    'classes.campus_id',
-    campusScope,
-    campusId,
-  );
-  if (courseIdList.length > 0) {
-    missingSessionsQuery = missingSessionsQuery.in('classes.course_id', [...courseIdList]);
-  }
-  if (classIdList.length > 0) {
-    missingSessionsQuery = missingSessionsQuery.in('class_id', [...classIdList]);
-  }
-
-  const { data: missingSessions, error: missingSessionsError } = await missingSessionsQuery;
-  if (missingSessionsError) {
-    return { created: 0, error: missingSessionsError.message };
-  }
-
-  if (!missingSessions || missingSessions.length === 0) {
-    return { created: 0, error: null };
-  }
-
-  const eventsToInsert = missingSessions.map((session: any) => {
-    const classRow = Array.isArray(session.classes) ? session.classes[0] : session.classes;
-
-    return {
-      id: crypto.randomUUID(),
-      org_id: orgId,
-      event_type: 'session' as const,
-      title: classRow?.name ?? '課堂',
-      campus_id: classRow?.campus_id ?? null,
-      event_date: session.session_date,
-      start_time: session.start_time,
-      end_time: session.end_time,
-    };
-  });
-
-  const { error: insertEventsError } = await supabase.from('events').insert(eventsToInsert);
-  if (insertEventsError) {
-    return { created: 0, error: insertEventsError.message };
-  }
-
-  const sessionUpdateResults = await Promise.all(
-    missingSessions.map((session: any, index) =>
-      supabase
-        .from('sessions')
-        .update({ event_id: eventsToInsert[index]?.id ?? null })
-        .eq('id', session.id),
-    ),
-  );
-
-  const updateError = sessionUpdateResults.find((result) => result.error)?.error;
-  if (updateError) {
-    return { created: 0, error: updateError.message };
-  }
-
-  return { created: missingSessions.length, error: null };
-}
-
 export function buildAttendanceSessionListMeta(total: number, page: number, pageSize: number) {
   return {
     total,
@@ -433,8 +328,8 @@ app.openapi(
     summary: '查詢出勤紀錄',
     request: {
       query: z.object({
-        campusId: z.uuid().optional(),
-        studentId: z.uuid().optional(),
+        campusId: DbUuidSchema.optional(),
+        studentId: DbUuidSchema.optional(),
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
         status: AttendanceStatusSchema.optional(),
@@ -921,7 +816,7 @@ app.openapi(
         date: z.string().optional(),
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
-        campusId: z.uuid().optional(),
+        campusId: DbUuidSchema.optional(),
         courseIds: z.string().optional(),
         classIds: z.string().optional(),
         statuses: z.string().optional(),
@@ -953,7 +848,7 @@ app.openapi(
           .optional()
           .transform((value) => value === 'true'),
         // 只有管理員說了算：老師一律被蓋成自己（見 attendance/teacher-scope.ts）
-        teacherId: z.uuid().optional(),
+        teacherId: DbUuidSchema.optional(),
         page: z.coerce.number().min(1).default(1).optional(),
         pageSize: z.coerce.number().min(1).max(100).default(20).optional(),
       }),
@@ -1073,11 +968,7 @@ app.openapi(
     if (scope.teacherId) sessionsQuery = sessionsQuery.eq('teacher_id', scope.teacherId);
     sessionsQuery = sessionsQuery.in('status', statusList);
 
-    if (attendanceTaken === false) {
-      sessionsQuery = sessionsQuery.is('events.attendance_taken_at', null);
-    } else if (attendanceTaken === true) {
-      sessionsQuery = sessionsQuery.not('events.attendance_taken_at', 'is', null);
-    }
+    sessionsQuery = applyAttendanceTakenFilter(sessionsQuery, attendanceTaken);
 
     const { data: sessions, error: sessionsError, count } = await sessionsQuery;
     if (sessionsError)

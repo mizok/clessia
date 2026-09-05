@@ -94,13 +94,22 @@
           <span class="staff__stat-value">{{ summary().total }}</span>
           <span class="staff__stat-label">位人員</span>
         </div>
-        <div class="staff__stat">
+        <!--
+          管理員與老師合併成同一塊，不是兩塊獨立的磚——分開放會讓人把它們讀成
+          「總人數的兩個子分類」，但一個人可以同時是管理員又是老師，兩邊各算
+          一次，加起來本來就會比總人數多（P1-4，Tester 抓到：13+89≠101 讓人
+          以為系統算錯）。放在同一塊 + 明寫兼任人數，讓「為什麼加起來對不上」
+          不用使用者自己算。
+        -->
+        <div class="staff__stat staff__stat--roles">
           <span class="staff__stat-value">{{ adminCount() }}</span>
           <span class="staff__stat-label">管理員</span>
-        </div>
-        <div class="staff__stat">
+          <span class="staff__stat-sep">・</span>
           <span class="staff__stat-value">{{ teacherCount() }}</span>
           <span class="staff__stat-label">老師</span>
+          @if (multiRoleCount() > 0) {
+            <span class="staff__stat-note">（{{ multiRoleCount() }} 位身兼兩者）</span>
+          }
         </div>
         <div class="staff__stat">
           <span class="staff__stat-value">{{ activeCount() }}</span>

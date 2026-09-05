@@ -753,8 +753,10 @@ describe('SessionsPage', () => {
     expect(dialogOpenSpy).toHaveBeenCalledWith(
       AttendanceRosterPanelComponent,
       expect.objectContaining({
-        header: '管理出勤狀況',
-        closable: true,
+        // showHeader: false + closable: false —— 元件自己畫標頭跟關閉鈕，
+        // 不能讓 PrimeNG 的 dialog chrome 再疊一層，否則會出現兩個 ×（P1 修正）
+        showHeader: false,
+        closable: false,
         // 直接給 eventId —— 列表 merge 時就配對到了，不必讓對話框再打一次同一支 API
         data: expect.objectContaining({
           eventId: 'event-1',

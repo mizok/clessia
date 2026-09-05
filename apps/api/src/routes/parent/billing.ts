@@ -14,7 +14,7 @@ import { DbUuidSchema } from '../../lib/validation';
 
 const ParentInvoiceItemSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     type: z.enum(['tuition', 'meal', 'session_pack', 'adjustment']),
     amount: z.number(),
     periodMonth: z.string().nullable(),
@@ -23,7 +23,7 @@ const ParentInvoiceItemSchema = z
 
 const ParentPaymentRecordSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     kind: z.enum(['payment', 'refund']),
     amount: z.number(),
     method: z.enum(['cash', 'transfer']),
@@ -34,7 +34,7 @@ const ParentPaymentRecordSchema = z
 
 const ParentInvoiceSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     issuedAt: z.string(),
     dueDate: z.string().nullable(),
     status: z.enum(['unpaid', 'partial', 'paid']),

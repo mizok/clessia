@@ -26,21 +26,21 @@ const BillingModeSchema = z.enum(['monthly', 'period', 'session_pack']).openapi(
 
 const EnrollmentSchema = z
   .object({
-    id: z.uuid(),
-    orgId: z.uuid(),
-    classId: z.uuid(),
+    id: DbUuidSchema,
+    orgId: DbUuidSchema,
+    classId: DbUuidSchema,
     className: z.string(),
-    campusId: z.uuid().nullable(),
+    campusId: DbUuidSchema.nullable(),
     campusName: z.string().nullable(),
-    courseId: z.uuid(),
+    courseId: DbUuidSchema,
     courseName: z.string(),
-    studentId: z.uuid(),
+    studentId: DbUuidSchema,
     studentName: z.string(),
     studentSchool: z.string(),
     studentGrade: z.string(),
     status: EnrollmentStatusSchema,
     billingMode: BillingModeSchema.nullable(),
-    feeTemplateId: z.uuid().nullable(),
+    feeTemplateId: DbUuidSchema.nullable(),
     /** 談定的每月／每期金額。與價目表的定價分開 —— 議價是常態不是例外（規則 2） */
     agreedAmount: z.number().nullable(),
     adjustmentNote: z.string().nullable(),
@@ -57,8 +57,8 @@ const EnrollmentSchema = z
 
 const ScheduleConflictWarningSchema = z
   .object({
-    studentId: z.uuid(),
-    conflictingClassId: z.uuid(),
+    studentId: DbUuidSchema,
+    conflictingClassId: DbUuidSchema,
     conflictingClassName: z.string(),
     conflictingCourseName: z.string(),
     weekday: z.number().int().min(1).max(7),
@@ -85,7 +85,7 @@ const CreateEnrollmentSchema = z
     studentId: DbUuidSchema,
     status: z.enum(['pending_payment', 'active']).default('active'),
     billingMode: BillingModeSchema.optional(),
-    feeTemplateId: z.uuid().optional(),
+    feeTemplateId: DbUuidSchema.optional(),
     agreedAmount: z.number().int().min(0).optional(),
     adjustmentNote: z.string().optional(),
     effectiveFrom: z.string().date().optional(),
@@ -98,7 +98,7 @@ const CreateEnrollmentSchema = z
 const UpdateEnrollmentSchema = z
   .object({
     billingMode: BillingModeSchema.nullable().optional(),
-    feeTemplateId: z.uuid().nullable().optional(),
+    feeTemplateId: DbUuidSchema.nullable().optional(),
     agreedAmount: z.number().int().min(0).nullable().optional(),
     adjustmentNote: z.string().nullable().optional(),
     effectiveFrom: z.string().date().optional(),
@@ -124,7 +124,7 @@ const BatchCreateEnrollmentSchema = z
     // 計費欄位跟單筆 create 對齊 —— 批次招生一次幾十筆，事後逐筆補計費設定是
     // 純粹的重工。整批同一個計費方式是常態（同一班同一個價目表）
     billingMode: BillingModeSchema.optional(),
-    feeTemplateId: z.uuid().optional(),
+    feeTemplateId: DbUuidSchema.optional(),
     agreedAmount: z.number().int().min(0).optional(),
     // billing-rules 規則 2：金額永遠可人工覆寫，而覆寫要留**調整原因**。
     // 單筆 create 一直收這個欄位，批次卻沒有 —— 於是整批議價的報名全部沒有理由可查。
@@ -133,9 +133,9 @@ const BatchCreateEnrollmentSchema = z
   .openapi('BatchCreateEnrollment');
 
 const BatchCreateResultItemSchema = z.object({
-  studentId: z.uuid(),
+  studentId: DbUuidSchema,
   status: z.enum(['enrolled', 'already_exists', 'error']),
-  enrollmentId: z.uuid().optional(),
+  enrollmentId: DbUuidSchema.optional(),
   message: z.string().optional(),
 });
 
@@ -651,7 +651,7 @@ app.openapi(
     path: '/:id',
     tags: ['Enrollments'],
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: { content: { 'application/json': { schema: UpdateEnrollmentSchema } } },
     },
     responses: {
@@ -712,7 +712,7 @@ app.openapi(
     path: '/:id/status',
     tags: ['Enrollments'],
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: { content: { 'application/json': { schema: UpdateEnrollmentStatusSchema } } },
     },
     responses: {
@@ -816,7 +816,7 @@ const ProrationPreviewSchema = z
     effectiveTo: z.string().date().nullable().optional(),
     // 兩者擇一；**agreedAmount 優先**，跟月結批次同一個優先序
     //（議價是常態，價目表只是定價 —— billing-rules 規則 2）
-    feeTemplateId: z.uuid().optional(),
+    feeTemplateId: DbUuidSchema.optional(),
     agreedAmount: z.number().int().min(0).optional(),
   })
   .refine((v) => Boolean(v.periodMonth) !== Boolean(v.billingPeriodId), {
@@ -1053,7 +1053,7 @@ app.openapi(
     method: 'delete',
     path: '/:id',
     tags: ['Enrollments'],
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       204: { description: 'No Content' },
       400: { content: { 'application/json': { schema: ErrorSchema } }, description: 'Bad Request' },

@@ -1,6 +1,6 @@
 # Lessons — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-09-05
+> Auto-maintained by `kb:map`. Last updated: 2026-09-06
 
 ---
 
@@ -10,7 +10,7 @@
 
 Tags: `lessons`, `verification`, `inference`
 
-Links to: [[lessons/new-field-branches-are-born-untested]]
+Links to: [[lessons/new-field-branches-are-born-untested]], [[lessons/bottom-sheet-meets-mobile-viewport]]
 
 ## [[lessons/agent-workflow-guide|Agent 開發流程指南]]
 
@@ -41,6 +41,14 @@ adminCreateSession 不存在；手寫 ba_session + HMAC cookie 會耦合 BA 內�
 Tags: `lessons`, `better-auth-session-delegation`
 
 Links to: [[architecture/line-oauth-login]], [[architecture/constitution|`kb/wiki/architecture/constitution`]]
+
+## [[lessons/bottom-sheet-meets-mobile-viewport|釘底的面板撞上行動瀏覽器的視窗]]
+
+兩個獨立的缺口都打在同一個位置——釘底面板最下面那排按鈕。一個是 --window-height 用 innerHeight 且只聽 window:resize（iOS 工具列收合發的是 visualViewport.resize），一個是全 repo 沒有任何 env(safe-area-inset-*)。兩者都未經真機確認。
+
+Tags: `lessons`, `mobile`, `viewport`, `ios`, `known-gap`
+
+Links to: [[lessons/a-field-is-a-snapshot-not-a-path]]
 
 ## [[lessons/broken-looks-identical-to-normal|壞掉的樣子跟正常的樣子一模一樣]]
 

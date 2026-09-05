@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
-import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { AttendanceRosterPanelComponent } from './attendance-roster-panel.component';
 import { todayLocal } from '@shared/utils/session-time.util';
@@ -672,6 +672,83 @@ describe('AttendanceRosterPanelComponent', () => {
       const text = fixture.nativeElement.textContent as string;
       expect(text).not.toContain('一併取消');
       expect(text).not.toContain('可能');
+    });
+  });
+
+  /**
+   * P1（Tester 抓到）：改了點名沒存就關閉，零提醒靜默丟棄。這裡的「改動」
+   * 特指跟載入時的快照不同的部分——已經存過的紀錄不算未儲存。
+   */
+  describe('關閉前的未儲存改動提醒', () => {
+    function stubConfirmDialog(confirmed: boolean) {
+      const dialogService = fixture.debugElement.injector.get(DialogService);
+      return vi
+        .spyOn(dialogService, 'open')
+        .mockReturnValue({ onClose: of(confirmed) } as ReturnType<DialogService['open']>);
+    }
+
+    it('沒有任何改動時直接關閉，不跳確認', async () => {
+      await render();
+      const openSpy = stubConfirmDialog(true);
+      (component as never as { close(): void }).close();
+
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(dialogRefMock.close).toHaveBeenCalledWith();
+    });
+
+    it('有未儲存的新標記時，關閉會先跳確認，取消就不關', async () => {
+      const UNMARKED = [
+        {
+          studentId: 's1',
+          studentName: '甲',
+          grade: 'J1',
+          school: '測試國中',
+          recordId: null,
+          status: null,
+        },
+      ];
+      await render(UNMARKED);
+      const openSpy = stubConfirmDialog(false);
+      (component as never as { setStatus(id: string, s: 'present' | 'absent'): void }).setStatus(
+        's1',
+        'present',
+      );
+      (component as never as { close(): void }).close();
+
+      expect(openSpy).toHaveBeenCalled();
+      expect(dialogRefMock.close).not.toHaveBeenCalled();
+    });
+
+    it('確認離開後才真的關閉', async () => {
+      const UNMARKED = [
+        {
+          studentId: 's1',
+          studentName: '甲',
+          grade: 'J1',
+          school: '測試國中',
+          recordId: null,
+          status: null,
+        },
+      ];
+      await render(UNMARKED);
+      stubConfirmDialog(true);
+      (component as never as { setStatus(id: string, s: 'present' | 'absent'): void }).setStatus(
+        's1',
+        'present',
+      );
+      (component as never as { close(): void }).close();
+
+      expect(dialogRefMock.close).toHaveBeenCalledWith();
+    });
+
+    // 已經存過的紀錄（載入時就有的 status）不算「未儲存」，不該觸發確認
+    it('已有紀錄的學生不算未儲存改動', async () => {
+      await render(); // DEFAULT_STUDENTS 裡 student-present 載入時就是 present
+      const openSpy = stubConfirmDialog(true);
+      (component as never as { close(): void }).close();
+
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(dialogRefMock.close).toHaveBeenCalledWith();
     });
   });
 });

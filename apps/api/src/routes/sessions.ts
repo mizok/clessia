@@ -13,6 +13,11 @@ import {
 } from '../domain/session-assignment/session-operation-guard';
 import { planBatchUpdateTime } from '../domain/session-assignment/batch-update-time-planner';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import {
+  applyAttendanceTakenFilter,
+  ensureAttendanceSessionEvents,
+  eventsJoinModifier,
+} from '../lib/attendance-session-events';
 
 // ============================================================
 // Schemas
@@ -44,14 +49,14 @@ const SessionListQuerySchema = z
   .object({
     from: DateSchema.optional(),
     to: DateSchema.optional(),
-    campusId: z.uuid().optional().openapi({ description: '分校 ID（單一，舊版）' }),
+    campusId: DbUuidSchema.optional().openapi({ description: '分校 ID（單一，舊版）' }),
     campusIds: z.string().optional().openapi({ description: '分校 ID（逗號分隔，多選）' }),
-    courseId: z.uuid().optional().openapi({ description: '課程 ID（單一，舊版）' }),
+    courseId: DbUuidSchema.optional().openapi({ description: '課程 ID（單一，舊版）' }),
     courseIds: z.string().optional().openapi({ description: '課程 ID（逗號分隔，多選）' }),
-    teacherId: z.uuid().optional().openapi({ description: '教師 ID（單一）' }),
+    teacherId: DbUuidSchema.optional().openapi({ description: '教師 ID（單一）' }),
     teacherIds: z.string().optional().openapi({ description: '教師 ID（逗號分隔，多選）' }),
     classIds: z.string().optional().openapi({ description: '班級 ID（逗號分隔，多選）' }),
-    classId: z.uuid().optional().openapi({ description: '班級 ID' }),
+    classId: DbUuidSchema.optional().openapi({ description: '班級 ID' }),
     page: z.coerce.number().optional().openapi({ description: '頁碼' }),
     pageSize: z.coerce.number().optional().openapi({ description: '每頁筆數' }),
     statuses: z
@@ -62,29 +67,40 @@ const SessionListQuerySchema = z
       .enum(['assigned', 'unassigned'])
       .optional()
       .openapi({ description: '指派狀態' }),
+    /**
+     * 有沒有點名過。**跟 `/api/attendance/sessions` 的同名參數是同一個概念**——
+     * 語意刻意對齊那支（`attendance.ts` 的 `attendanceTaken`），不是各自定義一次：
+     * 儀表板「未點名課堂」的數字來自那支，本頁的深連結與「今日未點名」pill
+     * 要接同一個答案，不然兩處的數字會漂移。
+     */
+    attendanceTaken: z
+      .enum(['true', 'false'])
+      .optional()
+      .transform((value) => (value === undefined ? undefined : value === 'true'))
+      .openapi({ description: '有沒有點名過' }),
   })
   .openapi('SessionListQuery');
 
 const SessionIdParamsSchema = z
   .object({
-    id: z.uuid().openapi({ description: '課堂 ID' }),
+    id: DbUuidSchema.openapi({ description: '課堂 ID' }),
   })
   .openapi('SessionIdParams');
 
 const SessionListItemSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     sessionDate: DateSchema,
     startTime: TimeSchema,
     endTime: TimeSchema,
     status: SessionStatusSchema,
-    classId: z.uuid(),
+    classId: DbUuidSchema,
     className: z.string(),
-    courseId: z.uuid(),
+    courseId: DbUuidSchema,
     courseName: z.string(),
-    campusId: z.uuid(),
+    campusId: DbUuidSchema,
     campusName: z.string(),
-    teacherId: z.uuid().nullable(),
+    teacherId: DbUuidSchema.nullable(),
     teacherName: z.string().nullable(),
     assignmentStatus: SessionAssignmentStatusSchema,
     hasChanges: z.boolean(),
@@ -107,7 +123,7 @@ const SessionListResponseSchema = z
 
 const SessionChangeItemSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     changeType: SessionHistoryTypeSchema,
     originalSessionDate: DateSchema.nullable(),
     originalStartTime: TimeSchema.nullable(),
@@ -115,9 +131,9 @@ const SessionChangeItemSchema = z
     newSessionDate: DateSchema.nullable(),
     newStartTime: TimeSchema.nullable(),
     newEndTime: TimeSchema.nullable(),
-    originalTeacherId: z.uuid().nullable(),
+    originalTeacherId: DbUuidSchema.nullable(),
     originalTeacherName: z.string().nullable(),
-    substituteTeacherId: z.uuid().nullable(),
+    substituteTeacherId: DbUuidSchema.nullable(),
     substituteTeacherName: z.string().nullable(),
     operationSource: z.enum(['single', 'batch']).nullable(),
     reason: z.string().nullable(),
@@ -140,7 +156,7 @@ const CancelSessionBodySchema = z
 
 const SubstituteSessionBodySchema = z
   .object({
-    substituteTeacherId: z.uuid().openapi({ description: '代課老師 ID' }),
+    substituteTeacherId: DbUuidSchema.openapi({ description: '代課老師 ID' }),
     reason: z.string().max(500).optional().openapi({ description: '代課原因' }),
   })
   .openapi('SubstituteSessionBody');
@@ -156,15 +172,15 @@ const RescheduleSessionBodySchema = z
 
 const BatchSessionTargetSchema = z
   .object({
-    sessionIds: z.array(z.uuid()).min(1).max(1000),
+    sessionIds: z.array(DbUuidSchema).min(1).max(1000),
     dryRun: z.boolean().optional(),
   })
   .openapi('BatchSessionTarget');
 
 const BatchAssignTeacherBodySchema = z
   .object({
-    sessionIds: z.array(z.uuid()).min(1).max(1000),
-    teacherId: z.uuid(),
+    sessionIds: z.array(DbUuidSchema).min(1).max(1000),
+    teacherId: DbUuidSchema,
     includeAssigned: z.boolean().default(false),
     dryRun: z.boolean().default(false),
   })
@@ -172,11 +188,11 @@ const BatchAssignTeacherBodySchema = z
 
 const BatchAssignConflictSchema = z
   .object({
-    sessionId: z.uuid(),
+    sessionId: DbUuidSchema,
     sessionDate: DateSchema,
     startTime: TimeSchema,
     endTime: TimeSchema,
-    conflictWithSessionId: z.uuid(),
+    conflictWithSessionId: DbUuidSchema,
   })
   .openapi('SessionBatchAssignConflict');
 
@@ -203,7 +219,7 @@ const BatchUncancelBodySchema = BatchSessionTargetSchema.openapi('SessionBatchUn
 
 const BatchSessionConflictSchema = z
   .object({
-    sessionId: z.uuid(),
+    sessionId: DbUuidSchema,
     sessionDate: DateSchema,
     reason: z.enum([
       'status_not_editable',
@@ -213,7 +229,7 @@ const BatchSessionConflictSchema = z
       'teacher_conflict',
     ]),
     detail: z.string(),
-    conflictingSessionId: z.uuid().optional(),
+    conflictingSessionId: DbUuidSchema.optional(),
   })
   .openapi('SessionBatchConflict');
 
@@ -221,7 +237,7 @@ const BatchSessionActionResultSchema = z
   .object({
     updated: z.number(),
     skipped: z.number(),
-    processableIds: z.array(z.uuid()),
+    processableIds: z.array(DbUuidSchema),
     conflicts: z.array(BatchSessionConflictSchema),
     dryRun: z.boolean(),
   })
@@ -581,8 +597,55 @@ app.openapi(listSessionsRoute, async (c) => {
     pageSize,
     statuses,
     assignmentStatus,
+    attendanceTaken,
   } = c.req.valid('query');
   const campusScope = c.get('campusScope');
+
+  // 請求指定了就用指定的（合法性由全域 campusRequestGuard 擋過），沒指定就用他的範圍。
+  // **不能只在「有指定」時才加條件** —— 那樣受限的管理員不指定就看得到全部。
+  const requestedCampusIds = campusIds
+    ? campusIds.split(',').filter(Boolean)
+    : campusId
+      ? [campusId]
+      : [];
+  const effectiveCampusFilter =
+    requestedCampusIds.length > 0 ? requestedCampusIds : campusScope ? [...campusScope] : null;
+
+  const courseIdList = courseIds
+    ? courseIds.split(',').filter(Boolean)
+    : courseId
+      ? [courseId]
+      : [];
+  const classIdList = classIds ? classIds.split(',').filter(Boolean) : classId ? [classId] : [];
+  const statusList = statuses
+    ? (statuses.split(',').filter(Boolean) as ('scheduled' | 'completed' | 'cancelled')[])
+    : [];
+
+  // 「有沒有點名」的條件下在 embed 的 `events` 欄位上，跟 `/api/attendance/sessions`
+  // 同一個坑：不配 `!inner` join 會靜靜地什麼都不篩（見 lib/session-summary.ts 的表）。
+  // 配了 `!inner` 之後，還沒被懶生成補建 event 的 scheduled/completed 課堂會被
+  // inner join 誤判成「不存在」而不是「未點名」——所以要先呼叫 ensure 補齊。
+  if (attendanceTaken !== undefined) {
+    const ensureStatusList = (
+      statusList.length > 0 ? statusList : (['scheduled', 'completed'] as const)
+    ).filter((status) => status !== 'cancelled');
+    if (ensureStatusList.length > 0) {
+      const ensureResult = await ensureAttendanceSessionEvents({
+        supabase,
+        orgId,
+        campusScope,
+        campusId,
+        courseIdList,
+        classIdList,
+        statusList: ensureStatusList,
+        dateFromValue: from,
+        dateToValue: to,
+      });
+      if (ensureResult.error) {
+        return c.json({ error: '補齊課堂事件失敗', code: 'DB_ERROR' }, 400);
+      }
+    }
+  }
 
   let dbQuery = supabase
     .from('sessions')
@@ -596,7 +659,7 @@ app.openapi(listSessionsRoute, async (c) => {
         campuses!inner ( id, name )
       ),
       staff ( display_name ),
-      events!event_id ( attendance_taken_at )
+      events${eventsJoinModifier(attendanceTaken !== undefined)} ( attendance_taken_at )
     `,
       { count: 'exact' },
     )
@@ -611,23 +674,11 @@ app.openapi(listSessionsRoute, async (c) => {
     dbQuery = dbQuery.lte('session_date', to);
   }
 
-  // 請求指定了就用指定的（合法性由全域 campusRequestGuard 擋過），沒指定就用他的範圍。
-  // **不能只在「有指定」時才加條件** —— 那樣受限的管理員不指定就看得到全部。
-  const requestedCampusIds = campusIds
-    ? campusIds.split(',').filter(Boolean)
-    : campusId
-      ? [campusId]
-      : [];
-  const effectiveCampusFilter =
-    requestedCampusIds.length > 0 ? requestedCampusIds : campusScope ? [...campusScope] : null;
   if (effectiveCampusFilter) {
     dbQuery = dbQuery.in('classes.campus_id', effectiveCampusFilter);
   }
-  if (courseIds) {
-    const ids = courseIds.split(',').filter(Boolean);
-    if (ids.length > 0) dbQuery = dbQuery.in('classes.course_id', ids);
-  } else if (courseId) {
-    dbQuery = dbQuery.eq('classes.course_id', courseId);
+  if (courseIdList.length > 0) {
+    dbQuery = dbQuery.in('classes.course_id', courseIdList);
   }
   if (teacherIds) {
     const ids = teacherIds.split(',').filter(Boolean);
@@ -637,23 +688,16 @@ app.openapi(listSessionsRoute, async (c) => {
   } else if (teacherId) {
     dbQuery = dbQuery.eq('teacher_id', teacherId);
   }
-  if (classIds) {
-    const ids = classIds.split(',').filter(Boolean);
-    if (ids.length > 0) {
-      dbQuery = dbQuery.in('class_id', ids);
-    }
-  } else if (classId) {
-    dbQuery = dbQuery.eq('class_id', classId);
+  if (classIdList.length > 0) {
+    dbQuery = dbQuery.in('class_id', classIdList);
   }
-  if (statuses) {
-    const statusList = statuses.split(',').filter(Boolean) as (
-      'scheduled' | 'completed' | 'cancelled'
-    )[];
-    if (statusList.length > 0) dbQuery = dbQuery.in('status', statusList);
+  if (statusList.length > 0) {
+    dbQuery = dbQuery.in('status', statusList);
   }
   if (assignmentStatus) {
     dbQuery = dbQuery.eq('assignment_status', assignmentStatus);
   }
+  dbQuery = applyAttendanceTakenFilter(dbQuery, attendanceTaken);
 
   // Pagination
   const resolvedPage = page ?? 1;
@@ -700,7 +744,7 @@ app.openapi(listSessionsRoute, async (c) => {
   }
   const { count: todayPendingAttendanceCount } = await todayPendingQuery;
 
-  const rows = (data ?? []) as Record<string, unknown>[];
+  const rows = (data ?? []) as unknown as Record<string, unknown>[];
   const sessionIds = rows.map((row) => row['id'] as string);
 
   const changedIds = new Set<string>();
@@ -788,8 +832,8 @@ const SubstitutedAwayQuerySchema = z.object({
 
 const SubstitutedAwayEntrySchema = z
   .object({
-    changeId: z.uuid(),
-    sessionId: z.uuid(),
+    changeId: DbUuidSchema,
+    sessionId: DbUuidSchema,
     sessionDate: z.string().nullable(),
     startTime: z.string().nullable(),
     endTime: z.string().nullable(),
@@ -862,8 +906,8 @@ const ChangeLogQuerySchema = z.object({
 
 const ChangeLogEntrySchema = z
   .object({
-    id: z.uuid(),
-    sessionId: z.uuid(),
+    id: DbUuidSchema,
+    sessionId: DbUuidSchema,
     changeType: z.string(),
     summary: z.string(),
     sessionDate: z.string().nullable(),

@@ -4,6 +4,7 @@ import { logAudit } from '../utils/audit';
 import { INVOICE_SELECT, toInvoiceResponse } from '../lib/invoice-query';
 import { sliceDerivedPage } from '../lib/derived-page';
 import { waitUntilFrom } from '../lib/wait-until';
+import { DbUuidSchema } from '../lib/validation';
 
 /**
  * 帳單、明細、收款、催繳。
@@ -21,11 +22,11 @@ const REMINDER_METHODS = ['line', 'phone', 'other'] as const;
 
 const InvoiceItemSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     type: z.enum(ITEM_TYPES),
-    enrollmentId: z.uuid().nullable(),
+    enrollmentId: DbUuidSchema.nullable(),
     amount: z.number(),
-    billingPeriodId: z.uuid().nullable(),
+    billingPeriodId: DbUuidSchema.nullable(),
     periodMonth: z.string().nullable(),
     note: z.string().nullable(),
   })
@@ -33,7 +34,7 @@ const InvoiceItemSchema = z
 
 const PaymentRecordSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     kind: z.enum(PAYMENT_KINDS),
     amount: z.number(),
     method: z.enum(PAYMENT_METHODS),
@@ -47,9 +48,9 @@ const PaymentRecordSchema = z
 
 const InvoiceSchema = z
   .object({
-    id: z.uuid(),
-    orgId: z.uuid(),
-    studentId: z.uuid(),
+    id: DbUuidSchema,
+    orgId: DbUuidSchema,
+    studentId: DbUuidSchema,
     studentName: z.string().nullable(),
     issuedAt: z.string(),
     dueDate: z.string().nullable(),
@@ -97,7 +98,7 @@ app.openapi(
     summary: '帳單列表',
     request: {
       query: z.object({
-        studentId: z.uuid().optional(),
+        studentId: DbUuidSchema.optional(),
         overdue: z.string().optional().openapi({ description: 'true = 只看過期未繳清' }),
         status: z
           .enum(['unpaid', 'partial', 'paid'])
@@ -174,7 +175,7 @@ app.openapi(
     path: '/{id}',
     tags: ['Invoices'],
     summary: '取得單一帳單（含明細與收款）',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '成功',
@@ -211,7 +212,7 @@ app.openapi(
 // ============================================================
 const CreateInvoiceSchema = z
   .object({
-    studentId: z.uuid(),
+    studentId: DbUuidSchema,
     issuedAt: z.string().regex(DATE).optional(),
     dueDate: z.string().regex(DATE).nullable().optional(),
     note: z.string().optional(),
@@ -219,9 +220,9 @@ const CreateInvoiceSchema = z
       .array(
         z.object({
           type: z.enum(ITEM_TYPES),
-          enrollmentId: z.uuid().optional(),
+          enrollmentId: DbUuidSchema.optional(),
           amount: z.number().int(),
-          billingPeriodId: z.uuid().optional(),
+          billingPeriodId: DbUuidSchema.optional(),
           periodMonth: z.string().regex(DATE).optional(),
           note: z.string().optional(),
         }),
@@ -331,15 +332,15 @@ app.openapi(
     tags: ['Invoices'],
     summary: '新增帳單明細',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: {
         content: {
           'application/json': {
             schema: z.object({
               type: z.enum(ITEM_TYPES),
-              enrollmentId: z.uuid().optional(),
+              enrollmentId: DbUuidSchema.optional(),
               amount: z.number().int(),
-              billingPeriodId: z.uuid().optional(),
+              billingPeriodId: DbUuidSchema.optional(),
               periodMonth: z.string().regex(DATE).optional(),
               note: z.string().optional(),
             }),
@@ -406,7 +407,7 @@ app.openapi(
     path: '/{id}/items/{itemId}',
     tags: ['Invoices'],
     summary: '刪除帳單明細',
-    request: { params: z.object({ id: z.uuid(), itemId: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema, itemId: DbUuidSchema }) },
     responses: {
       200: {
         description: '成功',
@@ -459,7 +460,7 @@ app.openapi(
     tags: ['Invoices'],
     summary: '記錄收款／退費',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: {
         content: {
           'application/json': {
@@ -549,7 +550,7 @@ app.openapi(
     tags: ['Invoices'],
     summary: '記錄一次催繳',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: {
         content: {
           'application/json': {
@@ -604,7 +605,7 @@ app.openapi(
     path: '/{id}/reminders',
     tags: ['Invoices'],
     summary: '催繳記錄列表',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '成功',
@@ -613,7 +614,7 @@ app.openapi(
             schema: z.object({
               data: z.array(
                 z.object({
-                  id: z.uuid(),
+                  id: DbUuidSchema,
                   method: z.enum(REMINDER_METHODS),
                   note: z.string().nullable(),
                   createdBy: z.string().nullable(),

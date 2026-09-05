@@ -21,7 +21,7 @@ const StudentGenderSchema = z
 
 const StudentSchoolSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     name: z.string(),
     shortName: z.string().nullable(),
   })
@@ -29,8 +29,8 @@ const StudentSchoolSchema = z
 
 const StudentSchema = z
   .object({
-    id: z.uuid(),
-    orgId: z.uuid(),
+    id: DbUuidSchema,
+    orgId: DbUuidSchema,
     name: z.string(),
     grade: GradeLevelSchema,
     school: StudentSchoolSchema.nullable(),
@@ -55,7 +55,7 @@ const StudentSchema = z
 
 const StudentDetailParentSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     name: z.string(),
     phone: z.string().nullable(),
     email: z.string().nullable(),
@@ -85,7 +85,7 @@ const UpdateStudentSchema = z
   .object({
     name: z.string().min(1).optional(),
     grade: GradeLevelSchema.optional(),
-    schoolId: z.uuid().nullable().optional(),
+    schoolId: DbUuidSchema.nullable().optional(),
     birthday: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD')
@@ -106,7 +106,7 @@ const CreateStudentSchema = z
   .object({
     name: z.string().min(1),
     grade: GradeLevelSchema,
-    schoolId: z.uuid().nullable().optional(),
+    schoolId: DbUuidSchema.nullable().optional(),
     birthday: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式需為 YYYY-MM-DD')

@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
+import { DbUuidSchema } from '../lib/validation';
 
 /**
  * 價目表：org 層的定價，報名時挑選。
@@ -20,8 +21,8 @@ const BILLING_MODES = ['monthly', 'period', 'session_pack'] as const;
 
 const FeeTemplateSchema = z
   .object({
-    id: z.uuid(),
-    orgId: z.uuid(),
+    id: DbUuidSchema,
+    orgId: DbUuidSchema,
     name: z.string(),
     billingMode: z.enum(BILLING_MODES),
     amount: z.number(),
@@ -213,7 +214,7 @@ app.openapi(
     tags: ['FeeTemplates'],
     summary: '更新價目表',
     request: {
-      params: z.object({ id: z.uuid() }),
+      params: z.object({ id: DbUuidSchema }),
       body: { content: { 'application/json': { schema: UpdateFeeTemplateSchema } } },
     },
     responses: {
@@ -286,7 +287,7 @@ app.openapi(
     path: '/{id}',
     tags: ['FeeTemplates'],
     summary: '刪除價目表',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '成功',

@@ -65,7 +65,7 @@ const StudentSubjectSummarySchema = z
 const StudentSummaryResponseSchema = z
   .object({
     data: z.object({
-      studentId: z.uuid(),
+      studentId: DbUuidSchema,
       studentName: z.string(),
       subjects: z.array(StudentSubjectSummarySchema),
     }),
@@ -74,7 +74,7 @@ const StudentSummaryResponseSchema = z
 
 const ClassExamScoreSchema = z
   .object({
-    studentId: z.uuid(),
+    studentId: DbUuidSchema,
     studentName: z.string(),
     score: z.number().nullable(),
     status: ScoreStatusSchema,
@@ -85,7 +85,7 @@ const ClassExamScoreSchema = z
 const ClassExamStatsResponseSchema = z
   .object({
     data: z.object({
-      examId: z.uuid(),
+      examId: DbUuidSchema,
       examName: z.string(),
       className: z.string(),
       summary: z.object({

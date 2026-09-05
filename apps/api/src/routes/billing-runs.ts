@@ -11,6 +11,7 @@ import {
   type MealItemAnomaly,
   type TuitionCandidate,
 } from '../lib/billing-run';
+import { DbUuidSchema } from '../lib/validation';
 
 /**
  * 每月／每期帳務作業。
@@ -32,7 +33,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 const AnomalySchema = z
   .object({
-    invoiceItemId: z.uuid(),
+    invoiceItemId: DbUuidSchema,
     itemAmount: z.number(),
     stampedTotal: z.number(),
     expectedAmount: z.number(),
@@ -105,7 +106,7 @@ app.openapi(
                 /** 月 run：`2026-03` 或 `2026-03-01` 都收 */
                 periodMonth: z.string().optional(),
                 /** 期 run */
-                billingPeriodId: z.uuid().optional(),
+                billingPeriodId: DbUuidSchema.optional(),
                 dueDate: z.string().regex(DATE).optional(),
               })
               .refine((v) => Boolean(v.periodMonth) !== Boolean(v.billingPeriodId), {

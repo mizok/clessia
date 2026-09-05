@@ -185,9 +185,10 @@ export class DashboardComponent {
     this.destroyRef.onDestroy(() => injector.destroy());
 
     const ref = injector.get(DialogService).open(AttendanceRosterPanelComponent, {
-      header: '管理出勤狀況',
       width: '480px',
-      closable: true,
+      modal: true,
+      showHeader: false,
+      closable: false,
       // 憲法 c6：不用 vw
       breakpoints: { '640px': '92%' },
       data: {

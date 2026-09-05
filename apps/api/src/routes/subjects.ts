@@ -1,10 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { countSubjectUsage } from '../lib/subject-usage';
+import { DbUuidSchema } from '../lib/validation';
 
 const SubjectSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     name: z.string(),
     sortOrder: z.number().int(),
     /**
@@ -122,7 +123,7 @@ const updateRoute = createRoute({
   tags: ['Subjects'],
   summary: '更新科目名稱',
   request: {
-    params: z.object({ id: z.uuid() }),
+    params: z.object({ id: DbUuidSchema }),
     body: {
       content: {
         'application/json': { schema: CreateSubjectSchema },
@@ -190,7 +191,7 @@ const deleteRoute = createRoute({
   tags: ['Subjects'],
   summary: '刪除科目',
   request: {
-    params: z.object({ id: z.uuid() }),
+    params: z.object({ id: DbUuidSchema }),
   },
   responses: {
     200: {

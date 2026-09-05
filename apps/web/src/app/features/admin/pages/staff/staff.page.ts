@@ -77,6 +77,7 @@ interface StaffSummary {
   total: number;
   adminCount: number;
   teacherCount: number;
+  multiRoleCount: number;
   activeCount: number;
   inactiveCount: number;
   archivedCount: number;
@@ -155,6 +156,7 @@ export class StaffPage implements OnInit {
     total: 0,
     adminCount: 0,
     teacherCount: 0,
+    multiRoleCount: 0,
     activeCount: 0,
     inactiveCount: 0,
     archivedCount: 0,
@@ -164,6 +166,7 @@ export class StaffPage implements OnInit {
   // Computed
   readonly adminCount = computed(() => this.summary().adminCount);
   readonly teacherCount = computed(() => this.summary().teacherCount);
+  readonly multiRoleCount = computed(() => this.summary().multiRoleCount);
   readonly activeCount = computed(() => this.summary().activeCount);
 
   protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({

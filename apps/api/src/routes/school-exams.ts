@@ -23,7 +23,7 @@ const ErrorSchema = z
 
 const SchoolExamListItemSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     academicYear: z.number().int(),
     semester: z.union([z.literal(1), z.literal(2)]),
     examType: SchoolExamTypeSchema,
@@ -33,7 +33,7 @@ const SchoolExamListItemSchema = z
     label: z.string(),
     examDate: z.string().nullable(),
     status: SchoolExamStatusSchema,
-    schoolId: z.uuid(),
+    schoolId: DbUuidSchema,
     schoolName: z.string(),
     scoreCount: z.number().int(),
     createdAt: z.string(),
@@ -54,7 +54,7 @@ const SchoolExamListResponseSchema = z
 
 const SchoolExamSubjectSummarySchema = z
   .object({
-    subjectId: z.uuid(),
+    subjectId: DbUuidSchema,
     subjectName: z.string(),
     averageScore: z.number().nullable(),
     recordedCount: z.number().int(),
@@ -63,7 +63,7 @@ const SchoolExamSubjectSummarySchema = z
 
 const SchoolExamDetailSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     academicYear: z.number().int(),
     semester: z.union([z.literal(1), z.literal(2)]),
     examType: SchoolExamTypeSchema,
@@ -73,7 +73,7 @@ const SchoolExamDetailSchema = z
     label: z.string(),
     examDate: z.string().nullable(),
     status: SchoolExamStatusSchema,
-    schoolId: z.uuid(),
+    schoolId: DbUuidSchema,
     schoolName: z.string(),
     summary: z.object({
       bySubject: z.array(SchoolExamSubjectSummarySchema),
@@ -119,7 +119,7 @@ const UpdateSchoolExamSchema = z
 
 const RecentSchoolExamStudentSchema = z
   .object({
-    studentId: z.uuid(),
+    studentId: DbUuidSchema,
     studentName: z.string(),
     studentGrade: z.string().nullable(),
     scoreCount: z.number().int(),
@@ -133,7 +133,7 @@ const SchoolExamStudentStatusSchema = z
 
 const SchoolExamStudentRowSchema = z
   .object({
-    studentId: z.uuid(),
+    studentId: DbUuidSchema,
     studentName: z.string(),
     studentGrade: z.string().nullable(),
     campusNames: z.array(z.string()),
@@ -159,10 +159,10 @@ const SchoolExamStudentListResponseSchema = z
 
 const SchoolScoreSchema = z
   .object({
-    studentId: z.uuid(),
+    studentId: DbUuidSchema,
     studentName: z.string(),
     studentGrade: z.string().nullable(),
-    subjectId: z.uuid(),
+    subjectId: DbUuidSchema,
     subjectName: z.string(),
     score: z.number().nullable(),
     status: ScoreStatusSchema,
@@ -195,13 +195,13 @@ const BatchUpsertSchoolScoresSchema = z
 
 const StudentSchoolScoreSchema = z
   .object({
-    schoolExamId: z.uuid(),
+    schoolExamId: DbUuidSchema,
     label: z.string(),
     academicYear: z.number().int(),
     semester: z.union([z.literal(1), z.literal(2)]),
     examType: SchoolExamTypeSchema,
     name: z.string().nullable(),
-    subjectId: z.uuid(),
+    subjectId: DbUuidSchema,
     subjectName: z.string(),
     score: z.number().nullable(),
     status: ScoreStatusSchema,
@@ -869,7 +869,7 @@ const createRouteDef = createRoute({
       description: '建立成功',
       content: {
         'application/json': {
-          schema: z.object({ data: z.object({ id: z.uuid(), label: z.string() }) }),
+          schema: z.object({ data: z.object({ id: DbUuidSchema, label: z.string() }) }),
         },
       },
     },

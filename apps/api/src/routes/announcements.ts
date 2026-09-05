@@ -11,11 +11,11 @@ const AudienceSchema = z.enum(['all_teachers', 'all_parents']).openapi('Announce
 
 const AnnouncementSchema = z
   .object({
-    id: z.uuid(),
+    id: DbUuidSchema,
     title: z.string(),
     body: z.string(),
     audience: AudienceSchema,
-    campusId: z.uuid().nullable(),
+    campusId: DbUuidSchema.nullable(),
     campusName: z.string().nullable(),
     publishedAt: z.string(),
     createdByName: z.string().nullable(),

@@ -1,6 +1,6 @@
 # Rules — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-09-05
+> Auto-maintained by `kb:map`. Last updated: 2026-09-06
 
 ---
 
@@ -17,6 +17,14 @@ Tags: `rules`, `attendance-rules`
 Tags: `rules`, `billing`, `payments`, `invoices`
 
 Links to: [[summaries/interview-insider-2026-08-29]], [[rules/meal-rules]], [[rules/enrollment-rules]]
+
+## [[rules/boolean-controls|布林控制項三分法]]
+
+checkbox（表格列的布林事實／集合選取）、toggle switch（表單裡單一實體的設定欄位）、filter chip（頁面層級的檢視篩選）——依「值活在哪個結構裡」挑控制項，不是憑手感。三處既有落差已修：餐費「收費」toggle 改 checkbox 對齊同列的「訂餐」；費用方案「顯示停用方案」、聯絡簿「只看未簽收」從只換文字的按鈕改成視覺會跟著狀態走的 app-filter-chip。
+
+Tags: `rules`, `design-system`, `forms`, `admin`
+
+Links to: [[architecture/admin-todo-alerts]]
 
 ## [[rules/contact-book-rules|聯絡簿規則]]
 

@@ -5,13 +5,14 @@ import { enrolledEventIds } from '../lib/enrolled-events';
 import { assertAttendanceWindow } from '../lib/attendance-window-check';
 import { logAudit } from '../utils/audit';
 import { isCampusAllowed } from '../lib/campus-scope';
+import { DbUuidSchema } from '../lib/validation';
 
 const DailyCheckinSchema = z
   .object({
-    id: z.uuid(),
-    orgId: z.uuid(),
-    studentId: z.uuid(),
-    campusId: z.uuid().nullable(),
+    id: DbUuidSchema,
+    orgId: DbUuidSchema,
+    studentId: DbUuidSchema,
+    campusId: DbUuidSchema.nullable(),
     checkinDate: z.string(),
     checkedInAt: z.string(),
     createdAt: z.string(),
@@ -20,8 +21,8 @@ const DailyCheckinSchema = z
 
 const CreateDailyCheckinSchema = z
   .object({
-    studentId: z.uuid(),
-    campusId: z.uuid().optional(),
+    studentId: DbUuidSchema,
+    campusId: DbUuidSchema.optional(),
     checkinDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   })
   .openapi('CreateDailyCheckin');
@@ -168,7 +169,7 @@ app.openapi(
     path: '/{id}',
     tags: ['DailyCheckins'],
     summary: '取消打卡（連同它寫出來的出勤紀錄一起刪）',
-    request: { params: z.object({ id: z.uuid() }) },
+    request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
       200: {
         description: '已取消',
