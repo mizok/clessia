@@ -1,0 +1,95 @@
+<div class="attendance">
+  <app-page-band>
+    <app-child-switcher />
+    <h1 class="attendance__band-title">{{ page().label }}</h1>
+  </app-page-band>
+
+  <div class="attendance__filters">
+    <p-selectbutton
+      [options]="rangeOptions"
+      optionLabel="label"
+      optionValue="value"
+      [allowEmpty]="false"
+      [ngModel]="rangeMode()"
+      (ngModelChange)="onRangeChange($event)"
+    />
+    @if (rangeMode() === 'month') {
+      <p-datepicker
+        view="month"
+        dateFormat="yy-mm"
+        [ngModel]="selectedMonth()"
+        (ngModelChange)="onMonthChange($event)"
+      />
+    }
+  </div>
+
+  <div class="attendance__content">
+    @if (loading() && groups().length === 0) {
+      <div class="skeleton-list">
+        @for (i of [1, 2, 3]; track i) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
+    } @else if (failed()) {
+      <app-empty-state
+        icon="pi pi-exclamation-circle"
+        title="載入失敗"
+        description="沒有讀到出缺席紀錄，可能是連線問題"
+      />
+    } @else if (groups().length === 0) {
+      <app-empty-state icon="pi pi-check-square" title="這段期間沒有出缺席紀錄" description="" />
+    } @else {
+      @for (group of groups(); track group.date) {
+        <div class="attendance__day">
+          <p class="attendance__day-date">{{ group.date }}</p>
+          @for (record of group.records; track record.id) {
+            <button
+              type="button"
+              class="attendance__record"
+              [attr.aria-expanded]="expandedId() === record.id"
+              (click)="toggleExpanded(record)"
+            >
+              <app-status-dot [tone]="statusTone[record.status]">{{
+                statusLabels[record.status]
+              }}</app-status-dot>
+              <span class="attendance__record-class">{{ record.className ?? '—' }}</span>
+              @if (record.campusName) {
+                <span class="attendance__record-campus">{{ record.campusName }}</span>
+              }
+            </button>
+            @if (expandedId() === record.id) {
+              <div class="attendance__record-detail">
+                @if (record.startTime && record.endTime) {
+                  <p class="attendance__record-time">
+                    {{ record.startTime }} － {{ record.endTime }}
+                  </p>
+                }
+                @if (record.note) {
+                  <p class="attendance__record-note">{{ record.note }}</p>
+                }
+                @if (!record.startTime && !record.note) {
+                  <p class="attendance__record-note">沒有更多資訊</p>
+                }
+              </div>
+            }
+          }
+        </div>
+      }
+
+      @if (hasMore()) {
+        <button
+          type="button"
+          class="attendance__load-more"
+          [disabled]="loading()"
+          (click)="loadMore()"
+        >
+          @if (loading()) {
+            載入中...
+          } @else {
+            載入更多
+          }
+        </button>
+      }
+    }
+  </div>
+</div>
