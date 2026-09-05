@@ -300,23 +300,32 @@ select {
 }
 
 /*
- * 220px 曾經不夠：實機量過三頁（課堂管理、聯絡簿、營收報表）渲染出來的完整
- * 區間文字（例如「2026/09/01 - 2026/09/30」），最寬需要 238px，220px 窄了
- * 幾 px，於是結束日被截斷成一個看起來合法、實際被切掉的日期（例如
- * `2026/09/3`）——這是外觀上跟合法日期一模一樣的截斷，比明顯亂碼更陰險。
- * 這裡留一點餘裕到 250px。
+ * 220px（後改 250px）曾經不夠：實機量過三頁（課堂管理、聯絡簿、營收報表）渲染
+ * 出來的完整區間文字（例如「2026/09/01 - 2026/09/30」），最寬需要 238px，
+ * 220px 窄了幾 px，於是結束日被截斷成一個看起來合法、實際被切掉的日期
+ * （例如 `2026/09/3`）——這是外觀上跟合法日期一模一樣的截斷，比明顯亂碼更陰險。
  *
- * ⚠️ **這條 class 規則本身不保證生效**：課堂管理頁的桌機版 datepicker 有這個
- * class，量出來 `getComputedStyle().minWidth` 卻是 `auto`——追過 cascade
- * 沒找到明確衝突的規則（`.session-filters__control` 的 scoped 樣式只設
- * `width`，沒有 `min-width`），懷疑跟 `cssLayer: false` 下 PrimeNG 執行期
- * 注入 `<style>` 的順序有關，但沒有查到確鑿證據，記錄成未解之謎而不是硬拗
- * 一個沒驗證過的解釋。三處呼叫端都額外補了 inline `style="min-width: 250px"`
- * 當保底（inline 永遠贏，不管這個謎團的真正成因是什麼）——這條 class 留著
- * 當語意標記與其他頁面可能複用的基準值，不是唯一的強制機制。
+ * **用 `ch` 不用 `px`**：250px 是對著當下字級量出來的數字，使用者放大字級或
+ * 瀏覽器縮放之後又會不夠，而且會用同一種方式無聲無息地再壞一次。`1ch` 是目前
+ * 字型下 `0` 的寬度，會跟著字級一起變。內容 23 字元，本來抓 `26ch` 留一點餘裕，
+ * 但 `ch` 是粗略估計（以 `0` 的寬度為準，不是每個字元的實際寬度，`p-inputtext-sm`
+ * 與預設尺寸的 padding 也不同）——量了三頁才發現聯絡簿/營收報表（沒用 `-sm`
+ * 尺寸）在 26ch 下還是差幾 px 截斷，改成 30ch 才在三頁都留夠餘裕。
+ *
+ * 這條規則本來看起來不生效：課堂管理頁量出來 `getComputedStyle().minWidth`
+ * 是 `auto`。查到根因是 `session-filters.component.scss` 裡一條同名的 BEM
+ * 修飾字規則（`&--date-range`，编成 `.session-filters__control--date-range`）
+ * 從沒被模板實際掛上去過——模板掛的是這裡的 `clessia-filter-control--date-range`，
+ * 兩個 class 長得像、屬於不同家族，從未是同一個東西。真正贏過這條全域規則的是
+ * 同一支元件在 container query 裡的 `.session-filters__control[_ngcontent]
+ * { min-width: auto }`（attribute 選擇器的 specificity 比這裡的單一 class 高），
+ * 已經在該元件的 SCSS 裡改成對到實際 class 的複合選擇器修好，不再需要 inline
+ * style 補洞。**「排除過『量到錯的節點』這個平凡假設」記在這裡**：直接對照過
+ * wrapper 本身與其內層 `<input>` 的 computed min-width，兩者都是 `auto`，
+ * 不是量錯節點——問題是一直有另一條更高 specificity 的規則在贏。
  */
 .clessia-filter-control--date-range {
-  min-width: 250px;
+  min-width: 30ch;
 }
 
 .clessia-filter-group {

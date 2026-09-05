@@ -34,8 +34,14 @@
     flex: 0 0 auto;
     width: 140px;
 
-    &--date-range {
-      min-width: 220px;
+    // **不是 `&--date-range`。** 那個 BEM 修飾字會編成
+    // `.session-filters__control--date-range`，但模板從沒把這個 class 掛上去——
+    // 日期範圍那顆用的是共用的 `clessia-filter-control--date-range`（不同的
+    // class 家族），兩者長得像但從未是同一個東西。舊寫法因此是死碼：從沒生效過，
+    // 也是這裡結束日被截斷（M3）追出來的根因之一，見 styles.scss 那條規則的
+    // 說明。這裡改成複合選擇器，對到模板實際掛的 class。
+    &.clessia-filter-control--date-range {
+      min-width: 30ch;
     }
   }
 
@@ -175,6 +181,12 @@
       min-width: 0;
       flex: 1 1 120px;
       width: auto;
+
+      // 這一階同樣要保底，理由跟基準區塊那條一樣：`&--date-range` 是死碼，
+      // 模板掛的是 `clessia-filter-control--date-range`。
+      &.clessia-filter-control--date-range {
+        min-width: 30ch;
+      }
     }
 
     &__mobile {
@@ -193,12 +205,12 @@
     &__control {
       min-width: auto;
       flex: 0 1 auto;
-    }
 
-    // 上面那條排在基準的 `--date-range` 後面，會把它的 220px 蓋掉，
-    // 所以要在同一個區塊裡再講一次
-    &__control--date-range {
-      min-width: 220px;
+      // 上面那條會把日期範圍的下限蓋掉，同一個區塊裡再講一次保住它。
+      // 複合選擇器對到模板實際掛的 class（見基準區塊的說明）。
+      &.clessia-filter-control--date-range {
+        min-width: 30ch;
+      }
     }
   }
 }
