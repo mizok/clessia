@@ -39,8 +39,11 @@ export interface StaffListResponse {
   data: Staff[];
   summary: {
     total: number;
+    /** 角色人次，不是 total 的分割——同時具備 admin 與 teacher 兩個角色的人兩邊都算 */
     adminCount: number;
     teacherCount: number;
+    /** 同時具備一個以上角色（目前即 admin ∩ teacher）的人數 */
+    multiRoleCount: number;
     activeCount: number;
     inactiveCount: number;
     archivedCount: number;
