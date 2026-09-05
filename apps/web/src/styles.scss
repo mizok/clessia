@@ -1089,6 +1089,40 @@ textarea.p-textarea,
   }
 }
 
+// PrimeNG 全站的 disabled 樣式只有一條全域規則：`.p-component:disabled{opacity:
+// var(--p-disabled-opacity)}`（0.6），跟按鈕原本是什麼顏色無關。對飽和色（例如
+// 上面這階 accent-500，啟用時白字壓上去是 5.31:1）疊上 0.6 透明度、再跟白底混色，
+// 算出來的有效背景只剩接近粉橘的淡色，白字對比掉到 ~2.6:1——字幾乎看不清，而且
+// 看起來只是「同一顆按鈕變淡」，不是使用者期待的「灰階=按不了」。cursor 也還是
+// PrimeNG 預設的 `default`，沒有 not-allowed 的提示。
+//
+// 改成跟 severity 脫鉤的灰階組合：不管原本是哪個顏色（primary/danger/secondary...），
+// 停用時全部收斂成同一種「這現在按不了」的樣子。實心/outline/text 三種底色結構
+// 不一樣，分開處理——套同一組實色背景會讓 outline/text 按鈕在停用時反而「長出」
+// 一個原本沒有的填色。
+//
+// **這裡的 `!important` 是必要的，不是圖方便**：PrimeNG 把每個元件的樣式在執行期
+// 動態插入 `<style>` 到 `<head>`，永遠排在這支全域 styles.scss 之後，選擇器優先度
+// 打平時它必贏（`.p-skeleton` 那組覆寫也是同一個理由）。實測 `opacity`/`cursor`
+// 不加 `!important` 完全沒生效，`.p-button:disabled{cursor:default}` 原封不動贏過來。
+.p-button:disabled {
+  opacity: 1 !important;
+  cursor: not-allowed !important;
+  // zinc-600 對 zinc-200：6.44:1。挑這一階不是「反正 disabled 不用管對比」——
+  // 目標本來就是「文字清楚可讀」，越好讀越貼近「一眼看出按不了」，沒有理由
+  // 只求壓線過 3:1。
+  color: var(--zinc-600) !important;
+
+  &:not(.p-button-text):not(.p-button-outlined) {
+    background: var(--zinc-200) !important;
+    border-color: var(--zinc-200) !important;
+  }
+
+  &.p-button-outlined {
+    border-color: var(--zinc-300) !important;
+  }
+}
+
 /* =============================================================================
    Utilities
    ============================================================================= */
