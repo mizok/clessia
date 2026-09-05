@@ -63,11 +63,13 @@ const EXEMPT = new Map([
   ['/api/me/class-logs|page', '同上'],
   ['/api/me/class-logs|pageSize', '同上'],
   // #361（design-web 告警系統統一設計）的 API 側前置：/api/sessions 補
-  // attendanceTaken 是為了讓儀表板的「未點名課堂」深連結、sessions 頁自己的
-  // 「今日未點名」pill 表達得出同一個概念。前端消費端（StatCard.queryParams、
-  // sessions.page.ts 讀 ActivatedRoute）是 design-web 那半，卡在這支之後。
-  // **這不是永久決定，是排序**——design-web 接上時要把這一筆拿掉，不是新增更多。
+  // attendanceTaken 與 endedOnly 是為了讓儀表板的「未點名課堂」深連結、sessions
+  // 頁自己的「今日未點名」pill 表達得出同一個概念。前端消費端（StatCard.queryParams、
+  // sessions.page.ts 讀 ActivatedRoute、拔掉 countUntakenSessions）是 design-web
+  // 那半，卡在這支之後。**這不是永久決定，是排序**——design-web 接上時要把這兩筆
+  // 拿掉，不是新增更多。
   ['/api/sessions|attendanceTaken', '#361 API 先行，design-web 的前端半緊接著接上，見上方說明'],
+  ['/api/sessions|endedOnly', '同上'],
 ]);
 
 export function collectApiParams(root, record) {
