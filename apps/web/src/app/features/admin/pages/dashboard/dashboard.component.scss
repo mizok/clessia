@@ -393,12 +393,20 @@
 .dashboard__fact {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  gap: var(--space-3);
   padding: var(--space-3) 0;
   text-decoration: none;
 
   &:hover .dashboard__fact-label {
     color: var(--zinc-900);
+  }
+
+  // hover 有的回饋，鍵盤也要有。原本這一列完全沒有 focus 樣式，
+  // 只剩瀏覽器預設外框
+  &:focus-visible {
+    outline: 2px solid var(--accent-400);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
   }
 }
 
@@ -407,9 +415,22 @@
 }
 
 .dashboard__fact-label {
+  flex: 1;
   font-size: var(--text-md);
   color: var(--text-muted);
   transition: color var(--transition-fast);
+}
+
+// **不依賴 hover 的可點訊號**（#516）。原本這一列除了 `cursor: pointer` 與
+// hover 變色之外沒有任何可點的線索，而**觸控裝置上 hover 不存在**。
+//
+// 用 `--zinc-500` 不是 `--zinc-400`：後者疊白只有 2.60:1，而這個圖示
+// **是可點性的唯一訊號**，不是裝飾，該看得清楚。同理不用 `opacity` 淡化 ——
+// 對比 gate 算不到 opacity 之後的實際對比。
+.dashboard__fact-chevron {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  color: var(--zinc-500);
 }
 
 .dashboard__fact-value {
