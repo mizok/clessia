@@ -199,6 +199,7 @@ const BatchSessionConflictSchema = z.object({
     'status_not_reopenable',
     'class_conflict',
     'teacher_conflict',
+    'makeup_target_already_covered',
   ]),
   detail: z.string(),
   conflictingSessionId: DbUuidSchema.optional(),
@@ -363,12 +364,49 @@ export function applyClassDetailScheduleScope<
   return query.eq('class_id', classId);
 }
 
+/**
+ * 決策 5.5 的 uncancel 守衛（#499）：**哪些「要復課的補課」的目標已經被別人補走了。**
+ *
+ * 停課的補課要復課時，如果它補的那一堂**已經另外有一堂有效的補課**，復課會撞上
+ * 部分唯一索引（`sessions_makeup_for_unique`）而變成 update 時的 500。
+ * 這一道把它變成一筆看得懂的 `conflicts`。
+ *
+ * **排除條件跟索引述詞逐字一致** —— `WHERE makeup_for_session_id IS NOT NULL
+ * AND status <> 'cancelled'`：**停掉的補課不佔位子**（索引也不擋），
+ * 所以這裡擋了就是誤擋。
+ *
+ * 回傳 `要復課的 session id → 佔住目標的那堂 session id`，
+ * 後者要放進 `conflictingSessionId` 讓使用者知道去解除哪一個連結。
+ */
+export function findCoveredMakeupTargets(
+  targets: ReadonlyArray<{ id: string; makeup_for_session_id: string | null }>,
+  siblings: ReadonlyArray<{ id: string; makeup_for_session_id: string | null; status: string }>,
+): Map<string, string> {
+  const covered = new Map<string, string>();
+
+  for (const target of targets) {
+    if (!target.makeup_for_session_id) continue;
+
+    const holder = siblings.find(
+      (sibling) =>
+        sibling.makeup_for_session_id === target.makeup_for_session_id &&
+        sibling.id !== target.id &&
+        sibling.status !== 'cancelled',
+    );
+
+    if (holder) covered.set(target.id, holder.id);
+  }
+
+  return covered;
+}
+
 type BatchSessionConflictReason =
   | 'status_not_editable'
   | 'status_not_cancellable'
   | 'status_not_reopenable'
   | 'class_conflict'
-  | 'teacher_conflict';
+  | 'teacher_conflict'
+  | 'makeup_target_already_covered';
 
 interface BatchSessionConflictItem {
   readonly sessionId: string;
@@ -2576,6 +2614,7 @@ app.openapi(
       end_time: string;
       status: 'scheduled' | 'completed' | 'cancelled';
       teacher_id: string | null;
+      makeup_for_session_id: string | null;
     }>;
 
     if (targetSessions.length === 0) {
@@ -2602,7 +2641,9 @@ app.openapi(
 
     const { data: classDateSessions, error: classDateSessionsError } = await supabase
       .from('sessions')
-      .select('id, class_id, session_date, start_time, end_time, status, teacher_id')
+      .select(
+        'id, class_id, session_date, start_time, end_time, status, teacher_id, makeup_for_session_id',
+      )
       .eq('org_id', orgId)
       .eq('class_id', id)
       .eq('status', 'scheduled')
@@ -2640,6 +2681,38 @@ app.openapi(
       end_time: string;
       teacher_id: string | null;
     }>;
+
+    // 決策 5.5：要復課的補課，它補的那一堂是不是已經被另一堂有效的補課佔住了。
+    // 撈「補同一個目標的其他課堂」—— **不限本班**，因為唯一索引是全表的。
+    const makeupTargetIds = [
+      ...new Set(
+        targetSessions
+          .map((session) => session.makeup_for_session_id)
+          .filter((targetId): targetId is string => !!targetId),
+      ),
+    ];
+
+    const makeupSiblingsResult =
+      makeupTargetIds.length === 0
+        ? { data: [], error: null }
+        : await supabase
+            .from('sessions')
+            .select('id, makeup_for_session_id, status')
+            .eq('org_id', orgId)
+            .in('makeup_for_session_id', makeupTargetIds);
+
+    if (makeupSiblingsResult.error) {
+      return c.json({ error: makeupSiblingsResult.error.message, code: 'DB_ERROR' }, 400);
+    }
+
+    const coveredMakeupTargets = findCoveredMakeupTargets(
+      targetSessions,
+      (makeupSiblingsResult.data ?? []) as Array<{
+        id: string;
+        makeup_for_session_id: string | null;
+        status: string;
+      }>,
+    );
 
     const conflicts: BatchSessionConflictItem[] = [];
     const processableIds: string[] = [];
@@ -2703,6 +2776,19 @@ app.openapi(
           });
           continue;
         }
+      }
+
+      // 決策 5.5 —— 擋在 push 之前，不要讓它變成 update 撞唯一索引的 500
+      const holderId = coveredMakeupTargets.get(target.id);
+      if (holderId) {
+        conflicts.push({
+          sessionId: target.id,
+          sessionDate: target.session_date,
+          reason: 'makeup_target_already_covered',
+          detail: '這堂補課的目標已經另外有補課了，要復課請先解除那一個連結',
+          conflictingSessionId: holderId,
+        });
+        continue;
       }
 
       processableIds.push(target.id);
