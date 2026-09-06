@@ -86,14 +86,14 @@
 
 ## design-web-2
 
-0. **chunk 載入失敗自動復原**(reset 後首刀):部署後舊 index 要新 chunk 404 → lazy route
-   靜默空白,使用者以為功能壞了(2026-09-05 使用者實際撞到,設定頁全空)。
-   解法方向:全域 ErrorHandler 抓 ChunkLoadError/dynamic import 失敗 → 自動 reload 一次
-   (帶防迴圈旗標);先探 Angular 21 的慣用法再做
+> **過期文字清除 2026-09-06**：「chunk 載入失敗自動復原」是 #350，**2026-09-05 08:53 就合了**。
+> 它在這裡掛了將近一天 —— 又一個假待辦（今天第七次）。
+> ops-warden 的新巡檢規則抓到的第一個實例。
 
-1. **P4 LINE Messaging 外部依賴查證**(bot 拉群/額度/channel 路徑/Workers 出站)
-   [已派 2026-09-05],只查不做,產出報告
-2. shared/ 8 筆觸控債已清(#293);待命備援
+0. **`conflict-modal` 那一族的死 class**（infra 的孤兒清單標為唯一可能有實際視覺後果的 6 筆）
+   —— 進行中，分支 `fix/conflict-warning-dialog`
+1. **P4 LINE Messaging 外部依賴查證**（bot 拉群/額度/channel 路徑/Workers 出站）—— 只查不做，產出報告
+2. 待命備援
 
 ## 窗口裁決落地(2026-09-05 11:15,使用者六項全裁)
 
