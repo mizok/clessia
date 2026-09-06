@@ -10,6 +10,25 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
+## ⚠️ 讀 main 的 CI 狀態之前先看這一節（2026-09-07 04:5x）
+
+**`gh run list --workflow verify.yml --branch main` 現在會顯示一批 `cancelled`,而那不是故障。**
+
+`concurrency` 的修法(PR #603, commit `fa90fce2`)只對**它之後的 commit** 生效 ——
+GitHub 讀的是**該 run 自己那顆 commit 上的 workflow 檔**,
+所以修法之前的 commit 照舊會互相取消,**而它們會在列表上停留幾小時直到排空**。
+
+**判定方法**:
+
+```bash
+git merge-base --is-ancestor fa90fce2 <run 的 sha>   # 回 0 才是修法之後的
+gh run list --workflow verify.yml --branch main      # 一定要加 --workflow,否則 smoke 的成功會混進來
+```
+
+**真正的驗證要等下一顆 main commit**:看 `fa90fce2` 那顆 run 有沒有**活著跑完**。
+
+**在那之前,板上的 `cancelled` 不是訊號 —— 而它跟真的故障長得一模一樣。**
+
 ## 接手第一件事
 
 1. `TZ=Asia/Taipei date` —— **報時間一律實跑**。前一任在這件事上憑感覺漂了四小時。
