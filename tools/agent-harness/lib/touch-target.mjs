@@ -35,8 +35,16 @@
  *
  * ## 這支看不到什麼（**綠燈不等於觸控目標都合格**）
  *
- * - **PrimeNG 元件不在掃描範圍**。它們由 `styles.scss` 的 `@media (pointer: coarse)`
- *   token 區塊統一負責（#171），元件 SCSS 永遠不會有 min-height —— 掃它們只會製造誤報。
+ * - **PrimeNG 元件不在掃描範圍** —— 元件 SCSS 永遠不會有 min-height，掃它們只會製造誤報。
+ *
+ *   **但「由全域 token 負責」這句話有範圍，2026-09-06 訂正**：
+ *   `styles.scss` 的 `@media (pointer: coarse)` 區塊只對全域**加大內距**
+ *   （`--p-button-sm-padding-y` 等），而 `min-height: 44px` **只掛在
+ *   `.clessia-filter-bar .p-button`**。其餘位置的 `p-button` 最終高度取決於字級 ——
+ *   teacher-pages 量到老師端課堂卡的動作鈕是 **34px**，而這道 gate 是綠的。
+ *
+ *   **gate 沒有量錯，是這個豁免的理由只在 filter bar 裡成立。**
+ *   在別處，PrimeNG 按鈕的觸控尺寸目前**沒有任何機制在守**。
  * - **尺寸從父層或跨檔案繼承**來的，看不到。
  * - **只涵蓋掃描範圍內的目錄**。目前是老師端；admin / parent / public **沒有人量過**，
  *   別把綠燈讀成「全站合格」。
