@@ -82,7 +82,15 @@ import { TodoBannerComponent } from '@shared/components/todo-banner/todo-banner.
 
 type ExamKind = 'academy' | 'school';
 type ExamTypeFilter = ExamKind;
-type StatusFilter = 'all' | 'todo' | 'active' | 'closed';
+/**
+ * `todo` 三個值的差別（#457）：`todo` 是「還沒登完」（N < M）不分級，
+ * `todo-none` 是一筆都沒有、`todo-partial` 是登到一半。
+ *
+ * **只有 academy 有後兩者** —— school 沒有分母（`subjects` 是補習班的科目表，
+ * 不是學校段考的科目表，「這個學生該考幾科」在資料上沒有來源），所以它只有
+ * 「一筆都沒有」這一級。`statusOptions` 因此依 tab 而不同。
+ */
+type StatusFilter = 'all' | 'todo' | 'todo-none' | 'todo-partial' | 'active' | 'closed';
 type TimeRange = 'all' | '1m' | '3m' | '6m';
 
 export interface AcademyExamRow {
@@ -96,6 +104,12 @@ export interface AcademyExamRow {
   readonly campusId: string | null;
   readonly subjectId: string | null;
   readonly scoreCount: number;
+  /**
+   * 應登錄人數（分母）= 考試日在籍 ∪ 已登錄。**`0` 是「沒有人要考」，
+   * 不是「還沒算」** —— 所以 `0 / 0` 照實顯示，不特別隱藏：那多半是範圍設錯了，
+   * 而看得見的錯誤會被修，藏起來的不會。
+   */
+  readonly expectedCount: number;
   readonly raw: AcademyExam;
 }
 
@@ -131,6 +145,12 @@ const STATUS_OPTIONS: Array<{ label: string; value: StatusFilter }> = [
   { label: '待登錄', value: 'todo' },
   { label: '進行中', value: 'active' },
   { label: '已結束', value: 'closed' },
+];
+
+/** 分級的兩個選項只在 academy tab 出現 —— school 沒有分母就沒有「登到一半」 */
+const ACADEMY_TODO_LEVEL_OPTIONS: Array<{ label: string; value: StatusFilter }> = [
+  { label: '待登錄（一筆都沒有）', value: 'todo-none' },
+  { label: '待登錄（登到一半）', value: 'todo-partial' },
 ];
 
 const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
@@ -187,7 +207,15 @@ export class ExamsComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly examTypeOptions = EXAM_TYPE_OPTIONS;
-  protected readonly statusOptions = STATUS_OPTIONS;
+  /**
+   * school tab 拿不到分級選項 —— 給它「登到一半」等於給一個它永遠篩不出東西的
+   * 選項，而空結果跟「真的沒有」長得一模一樣。
+   */
+  protected readonly statusOptions = computed<Array<{ label: string; value: StatusFilter }>>(() =>
+    this.examType() === 'academy'
+      ? [STATUS_OPTIONS[0], ...ACADEMY_TODO_LEVEL_OPTIONS, ...STATUS_OPTIONS.slice(1)]
+      : STATUS_OPTIONS,
+  );
   protected readonly timeRangeOptions = TIME_RANGE_OPTIONS;
 
   // Reference data
@@ -212,6 +240,10 @@ export class ExamsComponent implements OnInit {
   protected readonly total = signal(0);
   protected readonly loading = signal(true);
   protected readonly academyTodoCount = signal(0);
+  /** 一筆都沒有（高） */
+  protected readonly academyTodoNone = signal(0);
+  /** 登到一半（低）。school 沒有這一級 */
+  protected readonly academyTodoPartial = signal(0);
   protected readonly schoolTodoCount = signal(0);
 
   // Filters
@@ -374,8 +406,16 @@ export class ExamsComponent implements OnInit {
       .getTodoCount()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (res) => this.academyTodoCount.set(res.count),
-        error: () => this.academyTodoCount.set(0),
+        next: (res) => {
+          this.academyTodoCount.set(res.count);
+          this.academyTodoNone.set(res.none);
+          this.academyTodoPartial.set(res.partial);
+        },
+        error: () => {
+          this.academyTodoCount.set(0);
+          this.academyTodoNone.set(0);
+          this.academyTodoPartial.set(0);
+        },
       });
 
     this.schoolExamsService
@@ -403,8 +443,16 @@ export class ExamsComponent implements OnInit {
     this.loading.set(true);
 
     const dateFrom = this.resolveDateFrom(query.timeRange);
-    const status = query.status !== 'all' && query.status !== 'todo' ? query.status : undefined;
-    const todo = query.status === 'todo' ? true : undefined;
+    // `todo` 家族三個值都是「還沒登完」，只是分不分級；它們都不是 exam 的
+    // `status`（active/closed），所以不能傳進 `status` 參數
+    // 明著列舉而不是 `startsWith('todo')` —— 後者對編譯器不縮小型別，
+    // `status` 會帶著 todo 家族的值流進只吃 active/closed 的參數
+    const isTodo =
+      query.status === 'todo' || query.status === 'todo-none' || query.status === 'todo-partial';
+    const status = query.status === 'active' || query.status === 'closed' ? query.status : undefined;
+    const todo = isTodo ? true : undefined;
+    const todoLevel =
+      query.status === 'todo-none' ? 'none' : query.status === 'todo-partial' ? 'partial' : undefined;
 
     if (query.examType === 'academy') {
       this.academyExamsService
@@ -415,6 +463,7 @@ export class ExamsComponent implements OnInit {
           subjectId: query.subjectId ?? undefined,
           dateFrom,
           todo,
+          todoLevel,
           page: query.page,
           pageSize: query.pageSize,
         })
@@ -434,6 +483,7 @@ export class ExamsComponent implements OnInit {
                 campusId: exam.campusId,
                 subjectId: exam.subjectId,
                 scoreCount: exam.scoreCount,
+                expectedCount: exam.expectedCount,
                 raw: exam,
               })),
             );
@@ -509,7 +559,14 @@ export class ExamsComponent implements OnInit {
 
   // ── Filter handlers ───────────────────────────────────────────────────
   protected onExamTypeChange(value: ExamTypeFilter | null): void {
-    this.examType.set(value ?? 'academy');
+    const next = value ?? 'academy';
+    // 切到 school 時把 academy 專屬的分級篩選降回不分級的「待登錄」——
+    // 留著的話會送出一個 school 不認得的參數，結果是空清單，
+    // **而空清單跟「真的沒有」長得一模一樣**
+    if (next !== 'academy' && this.statusFilter().startsWith('todo')) {
+      this.statusFilter.set('todo');
+    }
+    this.examType.set(next);
     this.currentPage.set(1);
   }
 
@@ -533,9 +590,13 @@ export class ExamsComponent implements OnInit {
     this.currentPage.set(1);
   }
 
-  protected onTodoBannerClick(tab: ExamKind): void {
+  /**
+   * 統計卡點進去要篩到**它自己數的那一批**，不是「所有待登錄」——
+   * 兩個數字對不起來時沒有任何東西會紅（#456 同族）。
+   */
+  protected onTodoBannerClick(tab: ExamKind, level: 'none' | 'partial' | null = null): void {
     this.examType.set(tab);
-    this.statusFilter.set('todo');
+    this.statusFilter.set(level === null ? 'todo' : level === 'none' ? 'todo-none' : 'todo-partial');
     this.currentPage.set(1);
   }
 
@@ -579,7 +640,7 @@ export class ExamsComponent implements OnInit {
           campusOptions: this.campusOptions(),
           schoolOptions: this.schoolOptions(),
           subjectOptions: this.subjectOptions(),
-          statusOptions: this.statusOptions,
+          statusOptions: this.statusOptions(),
           examTypeOptions: this.examTypeOptions,
           timeRangeOptions: this.timeRangeOptions,
         },

@@ -2,6 +2,7 @@
   <button
     type="button"
     class="todo-banner"
+    [class.todo-banner--low]="tone() === 'low'"
     [class.todo-banner--active]="active()"
     [attr.aria-pressed]="active()"
     (click)="action.emit()"
