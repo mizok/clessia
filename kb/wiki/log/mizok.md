@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-09-06] verify | c2/c3/c7/c8 的 gate 覆蓋率查證
+- Pages updated: [[architecture/constitution-enforcement]]（更正一句過期七天的現況宣稱）
+- 查證：A13–A16 確實存在且被註冊執行（`check-harness.mjs` 的 `scanExisting` 呼叫），
+  2026-08-30 commit 6d717404 上線；表格寫「雙層」是對的，教訓段落寫「都還是只有 hook」是殘留
+- 全 repo 掃過同一句宣稱：billing-api.md 與 infra.md 的改善清單都已自行更正，只剩本頁
+- 發現方式：照著那句話去找工作，差一步就重做七天前完成的事
+
+## [2026-09-06] lint | Health check: 0 errors, 3 warnings, 57 info
+- Mode: structural
+- Pages scanned: 128
+- Issues found: 60
+
 ## [2026-09-06] lint | Health check: 0 errors, 3 warnings, 57 info
 - Mode: structural
 - Pages scanned: 130
