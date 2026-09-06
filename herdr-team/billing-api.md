@@ -844,27 +844,41 @@ Postgres 的原生 `uuid` 型別本身完全接受，但 `z.uuid()` 比資料庫
 - `lib/supabase-latency-probe.ts` 是**臨時**探針（#193），跑一天就 revert，
   整支拿掉即可，它沒有跟任何東西耦合。**它沒有測試是刻意的**（#199 誤刪、雙方確認不補）。
 
-改善清單（依價值排序）：
+改善清單（依價值排序）。**2026-09-06 逐項驗過一遍，九項裡有五項已經不成立** ——
+所以這份清單的第一條使用規則是：**動手前先驗它，不要先信它**（README「charter 會腐化，
+接手時先驗一遍再信它」的具體案發現場，而且是同一天內第三次撞到）。
+
+| # | 項目 | 2026-09-06 驗證結果 |
+| --- | --- | --- |
+| 1 | PostgREST 延遲拆段 | **仍成立**（見下） |
+| 2 | ~~`ba_user` 寫入路徑收斂~~ | 早已收官 |
+| 3 | ~~hook-only clause 對存量零覆蓋~~ | **已完成** —— enforcement 表現在 c2→A15、c3→A16、c7→A13、c8→A14 全部有 gate |
+| 4 | `requirePermission` 鋪到既有路由 | **仍成立，但描述過期**（見下） |
+| 5 | `ensureAttendanceSessionEvents` 在 GET 裡寫入 | **仍成立**（`attendance.ts:1004`） |
+| 6 | 出勤補登窗預設值 | 仍待產品決定 |
+| 7 | ~~web 的 CI 驗證面收斂~~ | **已完成** —— `verify.yml:89-90` 已跑 `nx build web --configuration=production` |
+| 8 | `seed.sql` 不可重入 | **仍成立**（`seed.sql:107` 的 `DELETE FROM public.staff` 之前沒有處理 `sessions.teacher_id`） |
+| 9 | ~~`c.executionCtx` 兩處不一致~~ | **已完成** —— 抽成 `lib/wait-until.ts` 的 `waitUntilFrom(c)`，全 repo 收斂 |
+
+> **為什麼五項會同時過期而沒有人發現**：這份清單裡的每一項都是「**別人順手做掉也不會
+> 來通知你**」的東西 —— gate 是 infra 補的、verify 序列是 infra 改的、`waitUntilFrom`
+> 是別人抽的。**待辦清單記的是「我當時看到的缺口」，而缺口會被別人填掉。**
+> 這跟「在飛 PR 清單要用查的不要用記的」是同一條，只是週期長到讓人以為它是穩定的。
+
+仍然成立的四項，細節：
 
 1. **PostgREST 那一段還沒量過。** Hyperdrive 已上線、延遲砍半，但它**只加速走 `pg`
    的那條路**（Better Auth 的 session 查詢，每個受保護請求都會跑到）；業務路由走
    supabase-js 的 HTTP，**不經過它**。若要再進一步，先把 PostgREST 的延遲拆成
    **HTTP 往返 vs 查詢執行**兩段 —— 大頭在前者才值得談改走 `pg`，在後者就該去看
    查詢與索引。**沒拆之前不要立案**
-2. ~~`ba_user` 寫入路徑收斂~~ —— **已收官**（見上方狀態節）。剩下的都是永久豁免，
-   不是待辦。要重啟只有一個觸發條件：**有了寄信管道**（那會讓 `changeEmail` 的
-   前置成立，`me.ts` 的 email 那一筆可以重新評估）
-3. **hook-only clause 對存量零覆蓋** —— c2 / c3 / c7 / c8 都是「有 hook 沒有 gate」，
-   enforcement 表上卻寫「✅ 已接」。c6 已於 #41 補上 gate A12，那支可以當範本
-4. **`requirePermission` 鋪到既有路由** —— 目前只有金流與報表掛了它，其餘 API 仍只有
-   角色層。需要先跟使用者定映射表
+4. **`requirePermission` 鋪到既有路由** —— ⚠️ **原本寫「目前只有金流與報表掛了它」，
+   那是錯的**：31 支 `mount()` 裡 **21 支有權限**，缺口是 10 支。盤點見 issue #464
+   （右欄刻意留空 —— 一張填好答案的表會讓審的人變成在「同意或反對」而不是在「決定」）。
+   需要先跟使用者定映射表，**授權邏輯是保留類**
 5. `attendance` 的課堂列表在查詢**之前**會跑 `ensureAttendanceSessionEvents`，也就是
    一個 GET 端點在讀之前做寫入。沒展開查過；pooler 換完仍慢的話這是下一個該看的
 6. 出勤補登窗的預設值（目前所有機構都是 `0` ＝ 無限制）要不要改成 7 天 —— 產品決定
-7. web 的 CI 驗證面收斂（build 進 verify 序列或補 typecheck target）
 8. **`seed.sql` 不可重入** —— 對已 seed 過的庫重跑會在清理 `staff` 時撞上
    `sessions_teacher_id_fkey`（清理順序沒先處理 `sessions` 對 `staff` 的參照）。
    `db:reset` 會先 drop schema 所以正常流程碰不到；哪天動 seed 清理段時順手理對
-9. **`c.executionCtx` 的處理兩處不一致** —— `lib/get-auth.ts` 是 try/catch，
-   `PATCH /api/attendance/batch` 的稽核紀錄直接丟。Workers 上一定有 executionCtx，
-   正式站沒有實害，是整理不是修復；下次動同一段時順手收
