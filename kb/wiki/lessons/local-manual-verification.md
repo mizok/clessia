@@ -144,6 +144,53 @@ column "school" does not exist          （`.select('id, name, grade, school')`�
 > **在、但本機沒套** → 補環境；**根本不在** → 改程式碼。
 > 光看錯誤訊息永遠分不出來 —— 兩次都是**去查了 migration 檔案**才分開的。
 
+### 「補完了」的保鮮期，等於下一支 migration 進 main 的時間
+
+2026-09-06 下午套完五支、回報「已補齊」。**幾小時後又落後一支**
+（`20260906083827`，#548 合進 main 帶來的），而 billing-api 就卡在那個欄位上。
+
+**落後不是一次性事件，是持續發生的。** 所以
+
+```bash
+npx supabase migration list --local
+```
+
+不是「排查時做一次」的步驟，而是**每次拿到「某支端點 500」時的第一個動作**。
+
+### 套完了不等於 API 看得到 —— 中間還隔著 PostgREST 的 schema cache
+
+**這一層是獨立的、而且同樣安靜**（billing-api 指出）：
+
+| 狀態                                         | 症狀                     |
+| -------------------------------------------- | ------------------------ |
+| DDL 沒 commit（`BEGIN`/`ROLLBACK` 試出來的） | PostgREST 連看都看不到   |
+| commit 了、但 cache 沒 reload                | **API 仍然說欄位不存在** |
+| 都好了                                       | 正常                     |
+
+**三種狀態的錯誤訊息一模一樣**（PostgREST 的 `42703` / 400）。
+
+> **所以 `BEGIN`/`ROLLBACK` 不能拿來試 schema 對 API 的影響** ——
+> 那個欄位從來沒有 commit，PostgREST 看不到它，**而且不會報錯**。
+> 「試了、沒效果」跟「試了、但它根本沒看到你試的東西」在輸出上不可區分。
+
+**驗到底要兩發**：
+
+```bash
+# ① 資料庫有沒有
+psql "$DB" -tAc "select column_name from information_schema.columns
+                 where table_name='sessions' and column_name='makeup_for_session_id';"
+
+# ② PostgREST 看不看得到（①過了②仍可能失敗）
+psql "$DB" -tAc "NOTIFY pgrst, 'reload schema';"
+curl -s -H "apikey: $SR" \
+  "http://127.0.0.1:54321/rest/v1/sessions?select=id,makeup_for_session_id&limit=1"
+# 200 = 看得到；42703 = cache 還沒 reload，**不是 migration 沒套**
+```
+
+（`$SR` 從 `npx supabase status --output json` 的 `SERVICE_ROLE_KEY` 拿。）
+
+**①證明的是「資料庫有」，不是「API 看得到」** —— 兩者之間隔著那個 cache。
+
 ### 反方向也成立
 
 > **「本機重現不了」不能證明線上沒問題**（api-2）。方向反過來時，
