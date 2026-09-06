@@ -142,6 +142,22 @@ const SessionListItemSchema = z
      * 停掉的補課不算 —— 排除條件跟部分唯一索引的述詞一致，見 `mapSessionMakeup`。
      */
     madeUpBy: SessionMakeupLinkSchema.nullable(),
+
+    // ── 出勤摘要 ──────────────────────────────────────────────────────────
+    //
+    // ⚠️ **這五個以前沒有被宣告，而 `mapSession` 一直在回、web 一直在用**
+    // （issue #611）。這個框架**不驗 response**，所以漂移了很久沒有任何訊號 ——
+    // 唯一的後果是 OpenAPI 文件說謊，而讀那份文件的人不在場。
+    //
+    // 現在 `mapSession` 的回傳型別錨定到 `z.infer<typeof SessionListItemSchema>`，
+    // **多回一個沒宣告的欄位會變成編譯期的 `TS2353`**。
+    /** 這堂課的出勤事件被點名的時間；`null` = 還沒點名 */
+    attendanceTakenAt: z.string().nullable(),
+    /** 這堂課所屬班級當天在籍的人數（分母） */
+    attendanceEnrolledCount: z.number(),
+    attendancePresentCount: z.number(),
+    attendanceOnLeaveCount: z.number(),
+    attendanceAbsentCount: z.number(),
   })
   .openapi('SessionListItem');
 
@@ -377,7 +393,7 @@ function mapSession(
   hasChanges: boolean,
   attendanceCountMap: Map<string, { present: number; onLeave: number; absent: number }>,
   enrolledCountMap: Map<string, number>,
-) {
+): z.infer<typeof SessionListItemSchema> {
   const classRow = row['classes'] as Record<string, unknown> | null;
   const courseRow = classRow?.['courses'] as Record<string, unknown> | null;
   const campusRow = classRow?.['campuses'] as Record<string, unknown> | null;
