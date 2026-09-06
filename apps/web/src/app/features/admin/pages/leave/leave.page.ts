@@ -12,6 +12,7 @@ import { format, differenceInCalendarDays } from 'date-fns';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { LeaveService, type LeaveRequest } from '@core/leave.service';
 import { ReferenceDataService } from '@core/reference-data.service';
+import { SystemClockService, addDaysToDateString } from '@core/system-clock.service';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
@@ -63,6 +64,7 @@ export class LeavePage implements OnInit {
   private readonly refData = inject(ReferenceDataService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
+  private readonly systemClock = inject(SystemClockService);
   private readonly dialogService = inject(DialogService);
 
   protected readonly loading = signal(false);
@@ -92,8 +94,13 @@ export class LeavePage implements OnInit {
     return differenceInCalendarDays(new Date(endDate), new Date(startDate)) + 1;
   }
 
+  /**
+   * 台北日期，不是瀏覽器本地日期 —— **伺服器判斷「這張假還在不在進行中」用的是
+   * 台北的今天**，基準不同的話畫面標「已過去」而後端仍當它進行中（或反過來），
+   * 而使用者沒有任何線索知道兩邊不一致（#467 同族）。
+   */
   protected leaveState(record: LeaveRequest): 'future' | 'active' | 'past' {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = this.systemClock.todayTaipei();
     if (record.startDate > today) return 'future';
     if (record.endDate >= today) return 'active';
     return 'past';
@@ -227,8 +234,13 @@ export class LeavePage implements OnInit {
   }
 
   private confirmActiveDelete(record: LeaveRequest): void {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const yesterday = format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');
+    // **這兩個日期只出現在訊息裡，真正的截斷是後端 `truncate` 做的** ——
+    // 所以它們是在**轉述後端做了什麼**，必須用後端的曆法。差一天的話，
+    // 一個已經完成的破壞性操作會被告知一個錯的日期。
+    // `yesterday` 走純字串加減（見 `addDaysToDateString` 檔頭），
+    // 不用 `Date.now() - 86400000` —— 那是對一個瞬間做算術再用本地時區格式化。
+    const today = this.systemClock.todayTaipei();
+    const yesterday = addDaysToDateString(today, -1);
 
     this.confirmationService.confirm({
       message:

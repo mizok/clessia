@@ -21,6 +21,7 @@ import {
 } from '@core/reports.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { CoursesService, type Course } from '@core/courses.service';
+import { SystemClockService } from '@core/system-clock.service';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
@@ -90,7 +91,8 @@ export class ReportsPage implements OnInit {
   protected readonly courseId = signal<string | null>(null);
   protected readonly courses = signal<Course[]>([]);
 
-  protected dateRange: Date[] | null = initialRange();
+  private readonly systemClock = inject(SystemClockService);
+  protected dateRange: Date[] | null = initialRange(this.systemClock.todayTaipei());
 
   protected readonly groupByOptions = (
     Object.keys(REVENUE_GROUP_BY_LABELS) as RevenueGroupBy[]
@@ -149,7 +151,7 @@ export class ReportsPage implements OnInit {
     this.loading.set(true);
     this.failed.set(false);
 
-    const { from, to } = rangeToStrings(this.dateRange);
+    const { from, to } = rangeToStrings(this.dateRange, this.systemClock.todayTaipei());
 
     this.service
       .revenue({
@@ -213,15 +215,22 @@ export class ReportsPage implements OnInit {
   }
 }
 
-function initialRange(): Date[] {
-  const { from, to } = defaultRange(format(new Date(), 'yyyy-MM-dd'));
+/**
+ * `today` 由呼叫端傳進來（台北曆日），**不是這裡自己 `new Date()`**。
+ *
+ * 營收報表的預設區間是「這個月」，而月份邊界正是最貴的那一天：管理員的機器
+ * 不在 Asia/Taipei 時，台北已經是 10/01 而瀏覽器還是 09/30 —— **預設就查了
+ * 上一個月，而畫面上兩個月份都是合理的數字，沒有東西會紅**（#467 同族）。
+ */
+function initialRange(today: string): Date[] {
+  const { from, to } = defaultRange(today);
   return [new Date(`${from}T00:00:00`), new Date(`${to}T00:00:00`)];
 }
 
 /** 沒選滿區間就退回預設 —— `dateFrom`/`dateTo` 是後端的必填參數 */
-function rangeToStrings(range: Date[] | null): { from: string; to: string } {
+function rangeToStrings(range: Date[] | null, today: string): { from: string; to: string } {
   if (!range || range.length < 2 || !range[0] || !range[1]) {
-    return defaultRange(format(new Date(), 'yyyy-MM-dd'));
+    return defaultRange(today);
   }
 
   return {

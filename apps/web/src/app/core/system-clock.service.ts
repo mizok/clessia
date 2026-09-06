@@ -30,6 +30,24 @@ export function taipeiDateString(epochMs: number): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * `date`（`YYYY-MM-DD`）往後推 `days` 天，維持同樣的格式。
+ *
+ * **用 `Date.UTC` 不是為了時區正確性走捷徑** —— 這裡操作的是純日曆日期字串、
+ * 不含時刻，所以用哪個時區的 `Date` 做加減都得到同一個答案；選 `Date.UTC` 只是
+ * 避免 runtime 本地時區的日光節約規則意外介入運算。
+ * **「今天是哪一天」永遠只能靠 `taipeiDateString()`** —— 這支只管「某個已知
+ * 日期往前／往後推幾天」。
+ *
+ * 跟後端 `apps/api/src/lib/taipei-date.ts` 的同名函式刻意一致，理由同上面那支。
+ */
+export function addDaysToDateString(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const d = new Date(Date.UTC(year, month - 1, day));
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 @Injectable({
   providedIn: 'root',
 })

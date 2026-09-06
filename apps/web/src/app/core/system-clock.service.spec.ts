@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { vi } from 'vitest';
 
-import { SystemClockService, taipeiDateString } from './system-clock.service';
+import { SystemClockService, addDaysToDateString, taipeiDateString } from './system-clock.service';
 
 describe('SystemClockService', () => {
   let service: SystemClockService;
@@ -112,5 +112,44 @@ describe('SystemClockService.todayTaipei', () => {
     expect(service.todayTaipei()).toBe('2023-11-15');
     // 回應裡的 `iso` 是 UTC —— 直接切它會少一天，這是最容易被「簡化」成的寫法
     expect(service.nowIso().slice(0, 10)).toBe('2023-11-14');
+  });
+});
+
+/**
+ * 純字串日期加減 —— **不含時刻，所以跟時區無關**（用 `Date.UTC` 只是避免
+ * runtime 本地時區的日光節約規則介入運算）。測的全是會在真實資料上出現的邊界。
+ */
+describe('addDaysToDateString', () => {
+  it('往前一天', () => {
+    expect(addDaysToDateString('2026-09-06', -1)).toBe('2026-09-05');
+  });
+
+  it('跨月往前', () => {
+    expect(addDaysToDateString('2026-09-01', -1)).toBe('2026-08-31');
+  });
+
+  it('跨年往前', () => {
+    expect(addDaysToDateString('2026-01-01', -1)).toBe('2025-12-31');
+  });
+
+  it('閏年的 2/29 存在，往前一天是 2/28', () => {
+    expect(addDaysToDateString('2024-03-01', -1)).toBe('2024-02-29');
+  });
+
+  it('平年沒有 2/29，3/1 往前一天是 2/28', () => {
+    expect(addDaysToDateString('2026-03-01', -1)).toBe('2026-02-28');
+  });
+
+  it('往後也對，且跨月', () => {
+    expect(addDaysToDateString('2026-08-31', 1)).toBe('2026-09-01');
+  });
+
+  // 陷阱：`Date.now() - 86400000` 是對一個**瞬間**做算術。日光節約時間切換的
+  // 那一天不是 24 小時，所以那種寫法會在切換日給出同一天或跳兩天。
+  // 這支操作的是純日曆字串，沒有這個問題 —— 這條釘住「不要改回去用毫秒減」
+  it('陷阱：日光節約切換日照樣只退一天（純日曆運算，不是減 86400000 毫秒）', () => {
+    // 2026-03-08 是美國 DST 開始日（當地只有 23 小時）
+    expect(addDaysToDateString('2026-03-09', -1)).toBe('2026-03-08');
+    expect(addDaysToDateString('2026-03-08', -1)).toBe('2026-03-07');
   });
 });

@@ -17,6 +17,7 @@ import {
   type MissingContactBookStudent,
 } from '@core/contact-book.service';
 import { StudentsService, type Student } from '@core/students.service';
+import { SystemClockService } from '@core/system-clock.service';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
@@ -85,7 +86,15 @@ export class ContactBookPage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
 
-  private readonly today = format(new Date(), 'yyyy-MM-dd');
+  /**
+   * 預設查詢區間的基準日。台北日期而不是瀏覽器本地日期 —— 後端的「今天」是
+   * 台北的（`getCurrentTaipeiDateString()`），基準差一天的話**預設區間就跟
+   * 伺服器認知的那一段錯開**，而使用者看到的只是「這幾天好像少了一筆」（#467 同族）。
+   */
+  private readonly systemClock = inject(SystemClockService);
+  private get today(): string {
+    return this.systemClock.todayTaipei();
+  }
 
   protected readonly entries = signal<ContactBookEntry[]>([]);
 
@@ -102,7 +111,15 @@ export class ContactBookPage implements OnInit {
   protected readonly missingExpanded = signal(false);
   protected readonly missingLoading = signal(true);
   protected readonly missingFailed = signal(false);
-  protected missingDate: Date = new Date();
+  /**
+   * **這個初始值會被寫進資料庫**（`entryDate`，`PUT /api/contact-book` 的鍵是
+   * `student_id, entry_date`）—— 所以它錯的後果不是顯示差一天，是**聯絡簿補寫
+   * 到錯的日期底下**。用台北曆日開始，跟後端同一個曆法。
+   *
+   * 使用者之後在日期選擇器改成別的日期時，那是他挑的本地曆日，
+   * `format()` 照本地格式化是對的 —— **只有「一開始是哪一天」需要跟伺服器對齊**。
+   */
+  protected missingDate: Date = new Date(`${this.systemClock.todayTaipei()}T00:00:00`);
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
 
