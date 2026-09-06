@@ -28,6 +28,7 @@ describe('ExamsComponent', () => {
       subjectName: '數學',
       classCount: 2,
       scoreCount: 0,
+      expectedCount: 20,
       createdAt: '2026-03-20T00:00:00Z',
       updatedAt: '2026-03-20T00:00:00Z',
     },
@@ -44,6 +45,7 @@ describe('ExamsComponent', () => {
       subjectName: '英文',
       classCount: 3,
       scoreCount: 25,
+      expectedCount: 25,
       createdAt: '2026-03-01T00:00:00Z',
       updatedAt: '2026-03-16T00:00:00Z',
     },
@@ -91,10 +93,13 @@ describe('ExamsComponent', () => {
     });
 
     const academyTodoReq = http.expectOne(`${environment.apiUrl}/api/academy-exams/todo-count`);
-    academyTodoReq.flush({ count: 2 });
+    // `count = none + partial`（#454）。只 flush `count` 的話 `none`/`partial`
+    // 會是 undefined，而那是真實環境不會出現的回應形狀
+    academyTodoReq.flush({ count: 2, none: 1, partial: 1 });
 
     const schoolTodoReq = http.expectOne(`${environment.apiUrl}/api/school-exams/todo-count`);
-    schoolTodoReq.flush({ count: 1 });
+    // school 沒有分母，所以永遠只有「一筆都沒有」這一級
+    schoolTodoReq.flush({ count: 1, none: 1, partial: 0 });
 
     const schoolsReq = http.expectOne(
       (req) =>
@@ -190,7 +195,12 @@ describe('ExamsComponent', () => {
     expect(component['currentRows']()[0].id).toBe('a1');
   });
 
-  it('clicking todo KPI banner applies todo filter', () => {
+  /**
+   * 統計卡點進去要篩到**它自己數的那一批**（#457）。橫幅說「3 場一筆都沒登」
+   * 而點進去列出的是「所有還沒登完的 8 場」，兩個數字對不起來時
+   * **沒有任何東西會紅** —— 所以這裡斷言到 `todoLevel` 那一層，不只 `todo=true`。
+   */
+  it('高級別橫幅點進去帶 todoLevel=none，不是只有 todo=true', () => {
     const banner = fixture.nativeElement.querySelector(
       'app-todo-banner .todo-banner',
     ) as HTMLButtonElement;
@@ -204,12 +214,45 @@ describe('ExamsComponent', () => {
         req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
         req.params.get('todo') === 'true',
     );
+    expect(todoReq.request.params.get('todoLevel')).toBe('none');
     todoReq.flush({
       data: [mockAcademyExams[0]],
       meta: { total: 1, page: 1, pageSize: LIST_PAGE_SIZE },
     });
 
-    expect(component['statusFilter']()).toBe('todo');
+    expect(component['statusFilter']()).toBe('todo-none');
+  });
+
+  it('低級別橫幅點進去帶 todoLevel=partial —— 兩條橫幅不會篩到同一批', () => {
+    const banners = fixture.nativeElement.querySelectorAll(
+      'app-todo-banner .todo-banner',
+    ) as NodeListOf<HTMLButtonElement>;
+    // 高 / 低 / school 三條
+    expect(banners.length).toBe(3);
+
+    banners[1].click();
+    fixture.detectChanges();
+
+    const todoReq = http.expectOne(
+      (req) =>
+        req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+        req.params.get('todo') === 'true',
+    );
+    expect(todoReq.request.params.get('todoLevel')).toBe('partial');
+    todoReq.flush({
+      data: [mockAcademyExams[0]],
+      meta: { total: 1, page: 1, pageSize: LIST_PAGE_SIZE },
+    });
+
+    expect(component['statusFilter']()).toBe('todo-partial');
+  });
+
+  // 低級別是**中性色**不是淡黃色：色相表示好/壞，深淺才表示還在等/不再等。
+  // 「登到一半」每天都會出現，常態花不起警示色（#457）
+  it('低級別橫幅走中性色，高級別維持警示色', () => {
+    const banners = fixture.nativeElement.querySelectorAll('app-todo-banner .todo-banner');
+    expect(banners[0].classList.contains('todo-banner--low')).toBe(false);
+    expect(banners[1].classList.contains('todo-banner--low')).toBe(true);
   });
 
   it('clearFilters resets todo back to all', () => {

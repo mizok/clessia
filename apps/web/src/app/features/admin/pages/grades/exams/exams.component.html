@@ -17,13 +17,28 @@
     <!-- Todo reminders (clickable KPIs, per-tab) -->
     @if (academyTodoCount() > 0 || schoolTodoCount() > 0) {
       <div class="exams__todo-list">
+        <!--
+          academy 拆兩級（#457）：一筆都沒有 = 高，登到一半 = 低。
+          不合併成一級的理由是告警量會上升（「登到一半」原本完全看不到），
+          一級化會把原本最急的那類稀釋進去。
+          school 只有一條 —— 它沒有分母，所以沒有「登到一半」這個概念。
+        -->
         <app-todo-banner
-          [count]="academyTodoCount()"
-          [active]="examType() === 'academy' && statusFilter() === 'todo'"
-          (action)="onTodoBannerClick('academy')"
+          [count]="academyTodoNone()"
+          [active]="examType() === 'academy' && statusFilter() === 'todo-none'"
+          (action)="onTodoBannerClick('academy', 'none')"
         >
-          有 <strong>{{ academyTodoCount() }}</strong> 場
-          <strong>進行中</strong>的補習班考試尚未登錄成績
+          有 <strong>{{ academyTodoNone() }}</strong> 場
+          <strong>進行中</strong>的補習班考試<strong>一筆成績都還沒登錄</strong>
+        </app-todo-banner>
+        <app-todo-banner
+          tone="low"
+          icon="pi-pencil"
+          [count]="academyTodoPartial()"
+          [active]="examType() === 'academy' && statusFilter() === 'todo-partial'"
+          (action)="onTodoBannerClick('academy', 'partial')"
+        >
+          有 <strong>{{ academyTodoPartial() }}</strong> 場補習班考試<strong>登到一半</strong>
         </app-todo-banner>
         <app-todo-banner
           [count]="schoolTodoCount()"
@@ -135,7 +150,7 @@
         />
 
         <p-select
-          [options]="statusOptions"
+          [options]="statusOptions()"
           [ngModel]="statusFilter()"
           (ngModelChange)="onStatusChange($event)"
           optionLabel="label"
@@ -250,7 +265,16 @@
                 <span class="exams__scope">{{ row.scope }}</span>
               </td>
               <td appRtColCell="score">
-                <span class="exams__score">{{ row.scoreCount }}</span>
+                <!--
+                  academy 有分母就顯示分母；school **沒有**，所以刻意不寫成裸數字
+                  （#457）：`12` 擺在 `12 / 20` 旁邊會被讀成「這場只有 12 個人要考」。
+                  讓「沒有分母」看起來像沒有分母，而不是像分母剛好等於分子。
+                -->
+                @if (row.kind === 'academy') {
+                  <span class="exams__score">{{ row.scoreCount }} / {{ row.expectedCount }}</span>
+                } @else {
+                  <span class="exams__score">{{ row.scoreCount }} 筆</span>
+                }
               </td>
               <td appRtColCell="status">
                 <app-status-dot [tone]="statusTone(row.status)">{{

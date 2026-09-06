@@ -29,6 +29,27 @@
     border-color: var(--warning-600);
   }
 
+  // 低嚴重度：中性色，不是「淡一點的黃色」。理由見元件的 `tone` 註解——
+  // 常態花不起警示色，而「登到一半」是每天都會有的正常狀態
+  &--low {
+    background: var(--zinc-50);
+    color: var(--zinc-700);
+    border-color: var(--zinc-200);
+
+    &:hover {
+      background: var(--zinc-100);
+    }
+
+    &:focus-visible {
+      outline-color: var(--zinc-600);
+    }
+  }
+
+  &--low#{&}--active {
+    background: var(--zinc-100);
+    border-color: var(--zinc-500);
+  }
+
   &__icon {
     font-size: var(--text-lg);
     flex-shrink: 0;
