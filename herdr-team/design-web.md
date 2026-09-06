@@ -165,7 +165,7 @@ admin-pages 用那顆確認彈窗的「結束後將無法再登錄分數」證�
 
 ## 四、坑（都踩過）
 
-1. **`angular.json` 不生效**。Nx 讀的是 `apps/web/project.json`。改錯檔案會出現「build 照樣印舊 budget」的鬼打牆，清 cache 也沒用。兩份目前已對齊但仍是重複設定，遲早再漂移。
+1. **Nx 讀的是 `apps/web/project.json`**（budget、styles、assets）。**`angular.json` 已經不存在了**（2026-09-07 `find` 全庫確認，不只是那兩個路徑）—— 上一版這裡寫著「兩份目前已對齊但仍是重複設定」，**而同一份 charter 的 §三 早就寫著『這個 workspace 沒有 `angular.json`』**：同一份文件兩個說法，沒有人會同時讀到那兩行。留著這一條是因為**另一半仍然成立**：本 repo 沒有 `angular.json`，所以 `ng` / `npx ng cache clean` 會往上找到**別的 workspace** 然後對那邊動手 —— 比報錯更糟，因為它會安靜地成功。
 
 2. **root component 掛什麼，所有人就下載什麼**。`app.component.ts` 曾靜態 import `DialogService` + 一個 feature 元件，把整棵 PrimeNG dialog 依賴樹釘進初始 bundle（約 140 kB）。**root component 只放 `<router-outlet>`**，任何 UI 元件、任何 `providers` 裡的 UI service 放上去都等於放進初始 bundle。
 
@@ -630,4 +630,11 @@ coarse)').matches` 永遠是 `false`（teacher-pages 在 #516 先撞到、我在
   **它在 `responsive-table` 的 cell 裡** —— 加 `min-height` 會撐開列高影響那張表的密度，
   垂直 `padding` 可能是更好的手段。
 
-- **待辦但沒排程**：Aura preset 全量匯入（約 43 kB 死重，但要先有一條比對 `from 'primeng/x'` 與 preset 清單的 gate，否則忘了補 preset 只會樣式壞掉且沒有編譯期錯誤）、primeicons 子集化、收斂 `angular.json`/`project.json`。
+- **待辦但沒排程 —— 動手前先驗它，不要先信它**（缺口會被別人順手填掉，而它在清單上長得跟還沒發生一樣）：
+
+  | 項目 | 最後驗證 | 還成立嗎 |
+  | --- | --- | --- |
+  | Aura preset 全量匯入（`import Aura from '@primeuix/themes/aura'`）。要先有一條比對 `from 'primeng/x'` 與 preset 清單的 gate，否則忘了補 preset 只會樣式壞掉且**沒有編譯期錯誤** | 2026-09-07 | ✅ 仍是全量匯入。**「約 43 kB」那個數字沒有重量過**，引用前先自己量 |
+  | primeicons 子集化（`project.json` 仍載入整支 `primeicons/primeicons.css`） | 2026-09-07 | ✅ 仍成立 |
+  | ~~收斂 `angular.json`/`project.json`~~ | 2026-09-07 | ❌ **已不成立** —— `angular.json` 全庫不存在，沒有東西要收斂 |
+

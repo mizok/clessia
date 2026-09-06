@@ -26,7 +26,9 @@ import {
 registerLocaleData(localeZhTW, 'zh-TW');
 
 // Clessia Design System - PrimeNG Theme Preset
-// Based on Aura with zinc primary + sky accent
+// Based on Aura with zinc primary + 橘紅 accent（`--accent-400: #ff8557`）
+// 2026-09-07 訂正：原本寫「sky accent」。那是天藍時期留下的，而底下整段註解
+// 講的正是「把 sky 換掉」—— 檔頭跟內文互相矛盾了不知道多久。
 const ClessiaPreset = definePreset(Aura, {
   // Aura 的 `info` severity 直接吃 `{sky.100}` / `{sky.700}`（見
   // @primeuix/themes/dist/aura/tag/index.mjs），而 `info` 是本專案好幾支清單
