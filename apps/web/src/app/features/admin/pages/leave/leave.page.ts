@@ -177,7 +177,6 @@ export class LeavePage implements OnInit {
 
   protected openAuditLog(): void {
     this.dialogService.open(AuditLogDialogComponent, {
-      header: '請假管理操作紀錄',
       width: '800px',
       modal: true,
       showHeader: false,

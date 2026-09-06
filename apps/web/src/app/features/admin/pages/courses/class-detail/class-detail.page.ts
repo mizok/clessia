@@ -220,7 +220,6 @@ export class ClassDetailPage implements OnInit {
 
   protected openBillingDialog(enrollment: Enrollment): void {
     const ref = this.dialogService.open(EnrollmentBillingDialogComponent, {
-      header: '計費設定',
       width: '460px',
       modal: true,
       showHeader: false,

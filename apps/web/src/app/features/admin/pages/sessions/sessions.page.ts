@@ -357,7 +357,6 @@ export class SessionsPage implements OnInit {
 
   protected openOperationsLog(): void {
     this.dialogService.open(SessionOperationsLogDialogComponent, {
-      header: '操作紀錄',
       width: '800px',
       modal: true,
       showHeader: false,
@@ -682,7 +681,11 @@ export class SessionsPage implements OnInit {
   // ── Detail popup ───────────────────────────────────────────────────────
   protected openDetail(session: Session): void {
     this.dialogService.open(SessionDetailDialogComponent, {
-      header: '異動紀錄',
+      // 這支的 header **會渲染**（沒有 showHeader: false），內容區原本又有一行
+      // 「課堂異動紀錄」的 eyebrow，兩個標題疊在一起。留比較精確的那個講法，
+      // 並且刻意**不**跟頁面層那顆「操作紀錄」按鈕同名 —— 那顆開的是全部課堂的
+      // 操作紀錄，這個只有這一堂，同名會把有意義的差異抹平（#448）
+      header: '課堂異動紀錄',
       width: '400px',
       data: { session, loadingChanges: true, changes: [] },
       styleClass: 'session-dialog',

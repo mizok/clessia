@@ -140,7 +140,6 @@ export class EnrollmentBillingDialogComponent {
 
   protected openBuyPackDialog(): void {
     const dialogRef = this.dialogService.open(SessionPackFormDialogComponent, {
-      header: '記錄堂數購買',
       width: '440px',
       modal: true,
       showHeader: false,

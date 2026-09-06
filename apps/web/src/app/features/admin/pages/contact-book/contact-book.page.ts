@@ -207,7 +207,6 @@ export class ContactBookPage implements OnInit {
    */
   protected writeMissing(target: MissingContactBookStudent): void {
     const ref = this.dialogService.open(ContactBookEntryDialogComponent, {
-      header: '補寫聯絡簿',
       width: '560px',
       modal: true,
       showHeader: false,
@@ -285,7 +284,6 @@ export class ContactBookPage implements OnInit {
 
   protected openEntry(entry: ContactBookEntry): void {
     const ref = this.dialogService.open(ContactBookEntryDialogComponent, {
-      header: '聯絡簿內容',
       width: '560px',
       modal: true,
       showHeader: false,

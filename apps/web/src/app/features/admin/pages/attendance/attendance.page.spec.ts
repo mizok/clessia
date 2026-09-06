@@ -715,8 +715,10 @@ describe('AttendancePage', () => {
 
     page.openAuditLog();
 
+    // `header` 曾經寫在這裡，但配 `showHeader: false` 它從來不會被渲染，
+    // 對話框的標題硬編在 `audit-log-dialog.component.html` 裡（#448）。
+    // 斷言一個使用者看不到的字串，是在替死設定背書
     expect(localDialogService.open).toHaveBeenCalledWith(AuditLogDialogComponent, {
-      header: '出勤紀錄操作紀錄',
       width: '800px',
       modal: true,
       showHeader: false,

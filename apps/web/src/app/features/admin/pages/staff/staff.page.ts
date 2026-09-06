@@ -349,7 +349,6 @@ export class StaffPage implements OnInit {
 
   openCreateDialog(): void {
     const ref = this.dialogService.open(StaffFormDialogComponent, {
-      header: '新增人員',
       width: '600px',
       modal: true,
       showHeader: false,
@@ -388,7 +387,6 @@ export class StaffPage implements OnInit {
 
   openEditDialog(staff: Staff): void {
     const ref = this.dialogService.open(StaffFormDialogComponent, {
-      header: '編輯人員',
       width: '600px',
       modal: true,
       showHeader: false,
@@ -411,7 +409,6 @@ export class StaffPage implements OnInit {
 
   openAuditLog(): void {
     this.dialogService.open(AuditLogDialogComponent, {
-      header: '人員管理操作紀錄',
       width: '800px',
       modal: true,
       showHeader: false,

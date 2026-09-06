@@ -321,7 +321,6 @@ export class MealsComponent implements OnInit {
 
   protected openBillingRun(): void {
     const ref = this.dialogService.open(BillingRunDialogComponent, {
-      header: '月結',
       width: '520px',
       modal: true,
       showHeader: false,

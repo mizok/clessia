@@ -142,7 +142,6 @@ export class StudentDetailPage implements OnInit {
     const s = this.student();
     if (!s) return;
     const ref = this.dialogService.open(StudentFormDialogComponent, {
-      header: '編輯學生資料',
       width: '560px',
       modal: true,
       showHeader: false,
