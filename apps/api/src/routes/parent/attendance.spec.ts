@@ -40,9 +40,13 @@ function chainable(
 }
 
 function fakeChildDb(rows: unknown[], monthlyCounts: { absent: number; onLeave: number }) {
-  return {
+  const selects: Array<{ table: string; cols: string; head: boolean }> = [];
+
+  const db = {
+    selects,
     from: (table: string) => ({
-      select: (_cols: string, opts?: { head?: boolean }) => {
+      select: (cols: string, opts?: { head?: boolean }) => {
+        selects.push({ table, cols, head: Boolean(opts?.head) });
         if (opts?.head) {
           // 缺席與請假現在是兩支獨立查詢 —— 依 `.eq('status', ...)` 分流，
           // 不然這個假 DB 會讓兩支查詢回同一個數字，測不出「真的分開回」。
@@ -61,6 +65,8 @@ function fakeChildDb(rows: unknown[], monthlyCounts: { absent: number; onLeave: 
       },
     }),
   };
+
+  return db;
 }
 
 function appWith(roles: string[], studentScope: readonly string[] | null, childDb: unknown) {
@@ -143,5 +149,39 @@ describe('GET /api/me/attendance', () => {
     // 月度統計走獨立查詢，不是從當頁筆數算出來的；缺席與請假分開回
     // （不合計），兩個數字刻意不同，證明真的是兩支查詢而不是同一個數字複製兩份
     expect(body.meta).toMatchObject({ monthlyAbsentCount: 3, monthlyOnLeaveCount: 2 });
+  });
+});
+
+/**
+ * **對 embed 欄位下條件，那張表一定要在 `select` 裡。**（#528）
+ *
+ * 這兩支「本月缺席／請假次數」的 count 查詢原本是：
+ *
+ * ```ts
+ * .select('id', { count: 'exact', head: true }).gte('events.event_date', monthStart())
+ * ```
+ *
+ * PostgREST 對它回 **400 `PGRST108`**（`'events' is not an embedded resource in this
+ * request`）—— 也就是 **`GET /api/me/attendance` 對每一個家長、每一次呼叫都 500**，
+ * 而這支 spec 一直是綠的：**替身把 select 字串整個忽略（參數名就是 `_cols`）**，
+ * 所以它分不出「有 embed」與「沒 embed」。
+ *
+ * 修法是把 `events!inner(event_date)` 帶進 select。**`!inner` 不是裝飾** ——
+ * 少了它，條件會靜靜地什麼都不篩（`lib/session-summary.ts` 的實測表）。
+ * 同一個知識點的兩種失敗方向：**沒 embed 是大聲的 400，有 embed 沒 `!inner` 是安靜的全回。**
+ */
+describe('GET /api/me/attendance —— 月度統計對 events 下條件，就必須 embed events', () => {
+  it('兩支 count 查詢的 select 都帶著 events!inner', async () => {
+    const childDb = fakeChildDb([], { absent: 1, onLeave: 2 });
+    const childId = '00000000-0000-0000-0000-000000000001';
+    const res = await appWith(['parent'], [childId], childDb).request(`/?childId=${childId}`);
+
+    expect(res.status).toBe(200);
+
+    const countSelects = childDb.selects.filter((call) => call.head);
+    expect(countSelects).toHaveLength(2);
+    for (const call of countSelects) {
+      expect(call.cols).toContain('events!inner');
+    }
   });
 });
