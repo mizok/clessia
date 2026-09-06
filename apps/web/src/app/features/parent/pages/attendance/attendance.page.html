@@ -2,6 +2,13 @@
   <app-page-band>
     <app-child-switcher />
     <h1 class="attendance__band-title">{{ page().label }}</h1>
+    <div bandAside>
+      @if (monthlyAbsent() !== null) {
+        <app-band-anchor [value]="monthlyAbsent()!" unit="次缺席">
+          本月
+        </app-band-anchor>
+      }
+    </div>
   </app-page-band>
 
   <div class="attendance__filters">

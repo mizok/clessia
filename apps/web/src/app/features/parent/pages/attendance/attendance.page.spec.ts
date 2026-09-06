@@ -21,7 +21,7 @@ const PAGE = {
 };
 
 function emptyResponse(): ParentAttendanceListResponse {
-  return { data: [], meta: { total: 0, page: 1, pageSize: 50, monthlyAbsentCount: 0 } };
+  return { data: [], meta: { total: 0, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 } };
 }
 
 function record(overrides: Partial<ParentAttendanceRecord> = {}): ParentAttendanceRecord {
@@ -120,7 +120,7 @@ describe('AttendancePage', () => {
         record({ id: 'r1', eventDate: '2026-09-01' }),
         record({ id: 'r2', eventDate: '2026-08-30', status: 'absent', className: '英文班' }),
       ],
-      meta: { total: 2, page: 1, pageSize: 50, monthlyAbsentCount: 1 },
+      meta: { total: 2, page: 1, pageSize: 50, monthlyAbsentCount: 1, monthlyOnLeaveCount: 0 },
     });
     comp.onRangeChange('recent30');
     activeChildId.set('child-1');
@@ -138,7 +138,7 @@ describe('AttendancePage', () => {
 
     createComponent({
       data: [record({ id: 'r1', eventDate: todayIso })],
-      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0 },
+      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -151,7 +151,7 @@ describe('AttendancePage', () => {
   it('點課堂列內展開，再點一次收合', () => {
     createComponent({
       data: [record({ note: '準時到班' })],
-      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0 },
+      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -177,5 +177,69 @@ describe('AttendancePage', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('載入失敗');
+  });
+  it('錨點顯示本月缺席數，不把請假算進去', () => {
+    createComponent({
+      data: [record()],
+      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 2, monthlyOnLeaveCount: 5 },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    // 取 `.band-anchor__value` 而不是整顆的 textContent —— 只比對那個數字本身，
+    // 合計（7）會讓這條直接不等，不用靠「不包含 7」這種鈍的斷言
+    expect(
+      fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim(),
+    ).toBe('2');
+  });
+
+  it('錨點文案標明「本月」——列表區間可以不是本月，數字卻永遠是本月', () => {
+    const comp = createComponent({
+      data: [record()],
+      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 3, monthlyOnLeaveCount: 0 },
+    });
+    comp.onRangeChange('recent30');
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-band-anchor').textContent).toContain('本月');
+  });
+
+  it('缺席 0 次照樣顯示錨點——0 是好消息，不是沒有資料', () => {
+    createComponent({
+      data: [record()],
+      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim(),
+    ).toBe('0');
+  });
+
+  it('載入成功後再失敗，錨點要收回去——留著舊數字等於用失敗換來一則好消息', () => {
+    // 先成功載到一個真數字，錨點才有東西可以「留著」——
+    // 第一次就失敗的話 monthlyAbsent 本來就是 null，那樣寫的測試對守衛沒有辨識力
+    const comp = createComponent({
+      data: [record()],
+      meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 4, monthlyOnLeaveCount: 0 },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim(),
+    ).toBe('4');
+
+    listMock.mockImplementation(() => throwError(() => new Error('boom')));
+    comp.onRangeChange('recent30');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-band-anchor')).toBeNull();
+  });
+
+  it('還沒載到資料時不顯示錨點', () => {
+    createComponent();
+    expect(fixture.nativeElement.querySelector('app-band-anchor')).toBeNull();
   });
 });

@@ -21,6 +21,7 @@ import {
   type ParentAttendanceRecord,
 } from '@core/parent-attendance.service';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { PageBandComponent } from '@shared/components/page-band/page-band.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { todayLocal } from '@shared/utils/session-time.util';
@@ -50,6 +51,7 @@ const PAGE_SIZE = 50;
     DatePickerModule,
     SelectButtonModule,
     PageBandComponent,
+    BandAnchorComponent,
     ChildSwitcherComponent,
     StatusDotComponent,
     EmptyStateComponent,
@@ -73,6 +75,18 @@ export class AttendancePage implements OnInit {
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
   protected readonly expandedId = signal<string | null>(null);
+
+  /**
+   * 本月缺席次數（錨點）。`null` = 還沒有值，**不是 0**。
+   *
+   * 用 nullable 而不是 `signal(0)`，是因為「還沒載到」跟「本月真的沒缺席」
+   * 都會讓畫面出現 0，而後者是好消息、前者什麼都不是。模板用 `!== null` 判斷，
+   * 不能用 `@if (monthlyAbsent(); as n)` —— 0 是 falsy，那樣寫剛好把唯一的好消息藏起來。
+   *
+   * 數字的範圍是**本月自然月**，跟上面的區間篩選無關（後端固定用 `monthStart()` 算），
+   * 所以模板必須把「本月」寫出來。
+   */
+  protected readonly monthlyAbsent = signal<number | null>(null);
 
   /**
    * 近10天補回沒有紀錄的日期（「今日無課」）——短區間裡缺一天會被誤讀成
@@ -145,6 +159,7 @@ export class AttendancePage implements OnInit {
         next: (res) => {
           this.records.set(append ? [...this.records(), ...res.data] : res.data);
           this.total.set(res.meta.total);
+          this.monthlyAbsent.set(res.meta.monthlyAbsentCount);
           this.page_.set(page);
           this.loading.set(false);
         },
@@ -154,6 +169,8 @@ export class AttendancePage implements OnInit {
           if (!append) {
             this.records.set([]);
             this.total.set(0);
+            // 整批查失敗時把錨點收回去 —— 留著一個「0 次缺席」等於用失敗換來一則好消息
+            this.monthlyAbsent.set(null);
           }
         },
       });

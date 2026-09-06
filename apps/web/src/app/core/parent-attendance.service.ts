@@ -24,8 +24,22 @@ export interface ParentAttendanceListResponse {
     total: number;
     page: number;
     pageSize: number;
-    /** 缺席＋請假的合計——欄位還沒拆開前只有這一個數字，見 kb 設計文件 §一-3 */
+    /**
+     * 這個孩子本月（自然月，到今天為止）**缺席**的筆數。
+     *
+     * **不含請假，也不隨查詢區間變動** —— 後端固定用 `monthStart()` 算
+     * （`apps/api/src/routes/parent/attendance.ts:126-140`），所以列表看的是近30天或
+     * 上個月時，這個數字仍然是「本月」。顯示它的地方必須把「本月」寫出來。
+     */
     monthlyAbsentCount: number;
+    /**
+     * 這個孩子本月（自然月，到今天為止）**請假**的筆數。
+     *
+     * 目前沒有畫面顯示它（計畫席裁定錨點只放缺席：請假是家長自己送出的，他已經知道，
+     * 併進去會虛增焦慮）。**留著宣告是因為 API 真的會回它** —— 拿掉的話，
+     * 下一個想做「本月請假 N 次」的人會以為要先開 API 需求單。
+     */
+    monthlyOnLeaveCount: number;
   };
 }
 
