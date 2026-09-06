@@ -58,3 +58,70 @@ describe('enrolledEventIds', () => {
     ).toEqual([]);
   });
 });
+
+/**
+ * **停課的課堂不算「到過」**（使用者 2026-09-06 裁定 1(a)，issue #485）。
+ *
+ * 這條之所以要在這裡守：停課只改 `sessions.status`，**那筆 event 留著、
+ * `sessions.event_id` 還指著它**。所以掃碼撈當天 event 時它照樣會出現，
+ * 而它一旦被寫成 `present`，扣堂數那側就會把它算進去 ——
+ * **一堂停掉的課會扣掉學生一堂已付費的堂數**。
+ */
+describe('enrolledEventIds —— 停課的課堂', () => {
+  const enrolled = [{ class_id: 'class-1', effective_from: '2020-01-01', effective_to: null }];
+
+  it('⚠️ 停課的課堂不寫出勤 —— 否則那堂課會扣掉一堂已付費的堂數', () => {
+    expect(
+      enrolledEventIds(
+        [{ id: 'ev-cancelled', sessions: [{ class_id: 'class-1', status: 'cancelled' }] }],
+        enrolled,
+        '2026-04-06',
+      ),
+    ).toEqual([]);
+  });
+
+  it('正常的課堂照舊寫 —— 過濾只砍停課那些', () => {
+    expect(
+      enrolledEventIds(
+        [
+          { id: 'ev-ok', sessions: [{ class_id: 'class-1', status: 'scheduled' }] },
+          { id: 'ev-cancelled', sessions: [{ class_id: 'class-1', status: 'cancelled' }] },
+        ],
+        enrolled,
+        '2026-04-06',
+      ),
+    ).toEqual(['ev-ok']);
+  });
+
+  it('沒帶 status 的 session 視為要寫 —— 缺欄位不該靜靜地少寫紀錄', () => {
+    // 呼叫端漏 select `status` 時，行為要退回「照舊寫」而不是「全部不寫」。
+    // 反過來設計的話，一次漏 select 會讓整批到班紀錄靜靜消失，而且沒有訊號。
+    expect(
+      enrolledEventIds(
+        [{ id: 'ev-1', sessions: [{ class_id: 'class-1' }] }],
+        enrolled,
+        '2026-04-06',
+      ),
+    ).toEqual(['ev-1']);
+  });
+
+  it('同一筆 event 掛兩堂課、只有一堂停課 → 仍然要寫', () => {
+    // event 對 session 是一對多的形狀（型別上允許陣列），只要還有一堂真的要上，
+    // 這個 event 就該有出勤紀錄
+    expect(
+      enrolledEventIds(
+        [
+          {
+            id: 'ev-1',
+            sessions: [
+              { class_id: 'class-1', status: 'cancelled' },
+              { class_id: 'class-1', status: 'scheduled' },
+            ],
+          },
+        ],
+        enrolled,
+        '2026-04-06',
+      ),
+    ).toEqual(['ev-1']);
+  });
+});
