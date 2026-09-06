@@ -83,6 +83,26 @@ git ls-remote --heads origin | grep -i "<席名>"    # 分支還在但沒有對�
 session 一啟動就自己正名，而 `terminalTitleFromRename` 預設 `true`，所以終端分頁標題
 也會跟著改。**每次輪替自動生效，不需要使用者手動命名。**
 
+### `git worktree move` 之前先查那個目錄裡有沒有跑著的行程
+
+**2026-09-06 事故**：計畫席輪替 design-web 時把 `.worktrees/bundle-analysis` 改名成
+`.worktrees/design-web`,**而那個目錄裡有一支 workerd(API dev server)正在跑**。
+
+inode 跟著搬,所以**行程沒死** —— 但它的模組解析與檔案監看還指著搬走前的路徑,
+於是它**LISTEN 著、接受連線、永遠不回**。三小時後另一席要做家長端實測時才撞到,
+而症狀(`curl` 十秒逾時、`code=000`)看起來像那支 server 掛了或別席沒收乾淨,
+**沒有任何東西指向「有人把目錄搬走了」**。
+
+**搬之前跑這個**:
+
+```bash
+lsof -a +D .worktrees/<舊名> -d cwd 2>/dev/null   # 誰的 cwd 在裡面
+lsof -nP -iTCP -sTCP:LISTEN | grep <舊名>          # 誰在裡面開了 port
+```
+
+**有東西就先請那一席收掉再搬。** 搬完通知所有席位那個路徑變了 ——
+**別席的 dev server 可能還指著舊路徑,而它不會報錯。**
+
 ### worktree 目錄名必須等於席位名
 
 **下游全部繼承它** —— `ListAgents` 的 peer 名、cwd 顯示、herdr 的 pane 名。
