@@ -19,16 +19,28 @@ import { applyCampusFilter, type CampusScope } from './campus-scope';
  *
  * 課堂只有一條產生路徑（`POST /api/classes/:id/sessions`，`routes/classes.ts`
  * 的 upsert，而且它本身已經 race-safe），把 event 一併建在那裡結構上更乾淨。
- * **但那會打破一個刻意的不變量**：停課的課堂不補建出勤事件（#123，補了行事曆
- * 會多出一筆不存在的課，所以回應 schema 明著把 `eventId` 標成 nullable）。
- * 產生時全部是 `scheduled`，所以全部會有 event；之後停課就得**回頭刪掉那筆
- * event**，而那是一個新的寫入路徑與一組新的失敗模式（刪一半、event 上已經有
- * 點名記錄怎麼辦）。
+ * **但那會打破一個刻意的不變量**：停課的課堂不補建出勤事件。
+ *
+ * #123 的原始理由是**機制上的**：只查停課時整段跳過，**一次讀取不該觸發寫入**。
+ * 代價是那些課堂的 `eventId` 是 null，所以回應 schema 明著標成 nullable。
+ *
+ * > ⚠️ 這條理由在 2026-09-06 之前被**四處註解轉述成「補了行事曆會多出一筆不
+ * > 存在的課」——那個版本是錯的**（本 repo 沒有行事曆畫面，`events` 也從來不被
+ * > 直接列出：沒有 `/api/events`，其餘讀取端要嘛用已知 id 查、要嘛配 `!inner`）。
+ * > 訂正見 issue #481。**正確的決定，理由在轉述中被換成了更好講的那個。**
+ *
+ * 產生時全部是 `scheduled`，所以全部會有 event；之後停課就得決定那筆 event
+ * 怎麼辦，而那是新的寫入路徑與新的失敗模式（刪一半、event 上已經有點名記錄
+ * 怎麼辦 —— 而 `attendance_records.event_id` 有外鍵，刪不掉）。
+ *
+ * **搬過去的真正代價**（#481 查出來的，不是「畫面會多一筆」）：停課的課堂
+ * 一旦都有 event，**#485 那條缺陷的適用範圍會從「碰巧被補建過的那些」擴大到
+ * 全部** —— 到班掃碼（`routes/daily-checkins.ts`）與扣堂數（`routes/session-packs.ts`）
+ * 撈 event 時**都沒有 session status 過濾**。
  *
  * 所以**下一個為了「乾淨」想把補建搬到產生路徑的人：那個方向是對的，
- * 但你要先答「停課的課堂那筆 event 怎麼辦」** —— 那一題牽到行事曆的顯示語意，
- * 不是 API 內部的事。重新評估的觸發條件是**「停課的課堂在行事曆上要不要出現」
- * 被產品重新決定**時，不是「哪天有空」。（分析全文見 issue #469。）
+ * 但你要先答「停課的課堂那筆 event 怎麼辦」**，而且要先確認 #485 已經修掉。
+ * 重新評估的觸發條件就是那兩件，不是「哪天有空」。（分析全文見 #469 與 #481。）
  */
 export type AttendanceSessionStatus = 'scheduled' | 'completed' | 'cancelled';
 

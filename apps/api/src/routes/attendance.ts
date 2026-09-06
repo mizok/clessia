@@ -72,7 +72,8 @@ const EventSessionSummarySchema = z
     sessionId: DbUuidSchema,
     /**
      * 出勤事件的 id。**停課的課堂可能沒有** —— 出勤事件是列表時才補建的，
-     * 而停課的課堂刻意不補（不會發生的課不該在行事曆上長出一筆）。
+     * 而停課的課堂刻意不補：**只查停課時整段跳過，一次讀取不該觸發寫入**
+     * （#123 的原始理由，見 `lib/attendance-session-events.ts` 檔頭）。
      * 沒有 eventId 就不能點名，前端要據此關掉點名入口。
      */
     eventId: DbUuidSchema.nullable(),
@@ -997,7 +998,7 @@ app.openapi(
     const toIndex = fromIndex + pageSize - 1;
 
     // **停課的課堂不補建出勤事件。** 出勤事件是「這堂課要點名」的載體，而停課的課
-    // 不會發生 —— 補建的話行事曆與出勤相關的視圖會多出一筆不存在的課。
+    // 不會發生 —— **只查停課時整段跳過，一次讀取不該觸發寫入**（#123 的原始理由）。
     // 代價是這些課堂的 `eventId` 是 null，回應 schema 明著標成 nullable。
     const ensureStatusList = statusList.filter((status) => status !== 'cancelled');
     if (ensureStatusList.length > 0) {
