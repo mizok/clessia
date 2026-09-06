@@ -1,12 +1,38 @@
 /**
  * 課務異動紀錄：把 `schedule_changes` 的原值/新值組成人看得懂的一句話。
  *
- * 五種異動類型的顯示邏輯不同 —— 停課只需要類型本身，代課要人名對照，調課要日期與時段，
+ * 各種異動類型的顯示邏輯不同 —— 停課只需要類型本身，代課要人名對照，調課要日期與時段，
  * 改時間只要時段（重複顯示日期是噪音）。這裡集中處理，前端只負責排版。
  */
 
-export type ChangeType =
-  'reschedule' | 'substitute' | 'cancellation' | 'uncancel' | 'time_change' | 'creation';
+/**
+ * `schedule_changes.change_type` 的**唯一真相**（對齊 DB 的 `schedule_change_type` enum，
+ * 2026-09-07 查 `pg_enum` 確認：這六個，不多不少）。
+ *
+ * ⚠️ **加一個新的異動類型時，只改這裡。** 之前這份清單在 API 側被抄了四份
+ * （回應 schema、查詢 schema、`mapSession` 的 cast、`summarise` 的 switch），
+ * 而 `time_change` 在其中一份漏了將近半年，`makeup` 上線當天就漏了四份 ——
+ * **沒有人記得改六個地方**（issue #605）。
+ */
+export const SCHEDULE_CHANGE_TYPES = [
+  'reschedule',
+  'substitute',
+  'cancellation',
+  'uncancel',
+  'time_change',
+  'makeup',
+] as const;
+
+/**
+ * 歷程上看得到的類型 = DB 的六種 + `creation`。
+ *
+ * **`creation` 不在 DB enum 裡** —— 它是 `buildSessionCreationHistory` 合成出來的
+ * 一筆（「這堂課是什麼時候建的」），所以**可以出現在歷程回應裡，但不能當查詢條件**。
+ * 兩份清單的差別就是這一個值，這也是為什麼它們沒有被合併成同一份。
+ */
+export const SESSION_HISTORY_TYPES = [...SCHEDULE_CHANGE_TYPES, 'creation'] as const;
+
+export type ChangeType = (typeof SESSION_HISTORY_TYPES)[number];
 
 export interface ChangeLogRow {
   readonly id: string;
@@ -97,6 +123,12 @@ function summarise(row: ChangeLogRow): string {
       if (!before) return after ? `改時間：改為 ${after}` : '改時間';
       return after ? `改時間：${before} → ${after}` : `改時間：原 ${before}`;
     }
+    case 'makeup':
+      // 只回類型本身，跟 `cancellation` / `uncancel` 一致 —— 被補的是哪一堂寫在
+      // `reason`（寫入端點填的 `補 YYYY-MM-DD 停課`）並且獨立顯示，
+      // 摘要再講一次是重複。要在摘要裡帶出目標課堂的話得 join
+      // `sessions.makeup_for_session_id`，那是另一支查詢（issue #605 有記）。
+      return '補課';
     default:
       return '異動';
   }

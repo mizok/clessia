@@ -3,7 +3,13 @@ import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { buildSubstitutedAwayEntries, type SubstitutedAwayRow } from './sessions/substituted-away';
-import { describeChange, type ChangeLogRow } from './sessions/change-log';
+import {
+  describeChange,
+  SCHEDULE_CHANGE_TYPES,
+  SESSION_HISTORY_TYPES,
+  type ChangeLogRow,
+  type ChangeType,
+} from './sessions/change-log';
 import { logAudit, formatAuditSessionResourceName } from '../utils/audit';
 import {
   assertSessionOperable,
@@ -44,9 +50,8 @@ const SessionAssignmentStatusSchema = z
   .enum(['assigned', 'unassigned'])
   .openapi('SessionAssignmentStatus');
 
-const SessionHistoryTypeSchema = z
-  .enum(['creation', 'reschedule', 'substitute', 'cancellation', 'uncancel', 'time_change'])
-  .openapi('SessionHistoryType');
+// 從 `SESSION_HISTORY_TYPES` 導出 —— 這份清單以前是手抄的，`makeup` 上線當天就漏了。
+const SessionHistoryTypeSchema = z.enum(SESSION_HISTORY_TYPES).openapi('SessionHistoryType');
 
 const SessionListQuerySchema = z
   .object({
@@ -545,8 +550,7 @@ export function mapSessionChange(row: Record<string, unknown>) {
 
   return {
     id: row['id'] as string,
-    changeType: row['change_type'] as
-      'creation' | 'reschedule' | 'substitute' | 'cancellation' | 'uncancel',
+    changeType: row['change_type'] as ChangeType,
     originalSessionDate: (row['original_session_date'] as string | null) ?? null,
     originalStartTime: toHHmm(row['original_start_time'] as string | null),
     originalEndTime: toHHmm(row['original_end_time'] as string | null),
@@ -1055,9 +1059,10 @@ app.openapi(getSubstitutedAwayRoute, async (c) => {
 const ChangeLogQuerySchema = z.object({
   from: z.string().date(),
   to: z.string().date(),
-  changeType: z
-    .enum(['reschedule', 'substitute', 'cancellation', 'uncancel', 'time_change'])
-    .optional(),
+  // **不含 `creation`** —— 它是合成的歷程項目，`schedule_changes` 裡沒有那種列，
+  // 拿它當查詢條件永遠回空。用 `SCHEDULE_CHANGE_TYPES`（DB enum）而不是
+  // `SESSION_HISTORY_TYPES`（多一個 `creation`）。
+  changeType: z.enum(SCHEDULE_CHANGE_TYPES).optional(),
   campusId: DbUuidSchema.optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
