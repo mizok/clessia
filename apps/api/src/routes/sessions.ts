@@ -1134,6 +1134,171 @@ app.openapi(getSessionChangesRoute, async (c) => {
   );
 });
 
+// ============================================================
+// PATCH /api/sessions/:id/makeup —— 設定/清除「這堂補的是哪一堂停課」
+// ============================================================
+//
+// ⚠️⚠️ **這不是一個 transaction。** PostgREST 走 HTTP，下面的 `.update()` 與
+// `.insert()` 是**兩次獨立請求**，中間可能失敗。這個 repo 刻意不引入 RPC：
+// 一支 plpgsql 函式跑在 service role 底下，等於把一段授權邏輯搬到 middleware
+// 之下，而憲法 c1 是「授權只發生在 Hono middleware 層」——**那不是加一支函式，
+// 是在既有授權模型上開一個新的層**（計畫席 2026-09-06 裁定）。
+//
+// **順序是設計的一部分，不是實作細節**：
+//
+//   ① 先寫 FK  → ② 再寫流水 → 流水失敗就把 FK 補償回 null
+//
+// 反過來（先流水後 FK）的失敗態是「流水有、FK 沒有」——**而那跟「有人設過後來
+// 解除了」這個合法狀態一模一樣**，沒有人分得出來。
+//
+// > **兩個非原子的寫入，順序決定了失敗態能不能被發現。**
+//
+// **補償也失敗時才會落到「FK 有、流水沒有」**，而那個狀態是**查得出來的**：
+//
+// ```sql
+// SELECT s.id, s.makeup_for_session_id FROM sessions s
+// WHERE s.makeup_for_session_id IS NOT NULL
+//   AND NOT EXISTS (SELECT 1 FROM schedule_changes sc
+//                   WHERE sc.session_id = s.id AND sc.change_type = 'makeup');
+// ```
+//
+// **重新評估 RPC 的觸發條件**：當**第二個**地方也需要跨語句原子性時 ——
+// 觸發點是「你正要第二次寫補償邏輯」，那是一定會撞到的時刻。
+//
+// 設計全文見 kb/wiki/architecture/session-makeup.md。
+const setSessionMakeupRoute = createRoute({
+  method: 'patch',
+  path: '/{id}/makeup',
+  tags: ['Sessions'],
+  summary: '設定或清除「這堂課補的是哪一堂停課」',
+  request: {
+    params: z.object({ id: DbUuidSchema }),
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            /** `null` = 清除連結。清除**不寫流水** —— 舊的那筆就是它的歷史 */
+            makeupForSessionId: DbUuidSchema.nullable(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: { description: '已更新' },
+    404: { description: '課堂不存在', content: { 'application/json': { schema: ErrorSchema } } },
+    409: {
+      description: '不是同一個班、目標不是停課、或那堂停課已經有補課了',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    500: { description: '操作失敗', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+});
+
+app.openapi(setSessionMakeupRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const userId = c.get('userId');
+  const { id } = c.req.valid('param');
+  const { makeupForSessionId } = c.req.valid('json');
+
+  const { data: session } = await supabase
+    .from('sessions')
+    .select('id, class_id, status, session_date, makeup_for_session_id')
+    .eq('id', id)
+    .eq('org_id', orgId)
+    .maybeSingle();
+
+  if (!session) {
+    return c.json({ error: '課堂不存在', code: 'NOT_FOUND' }, 404);
+  }
+
+  // ── 清除連結 ──────────────────────────────────────────────────────────────
+  // **不寫流水。** 連結被解除時 FK 是 null 而舊的那筆流水仍記著它發生過 ——
+  // 那是正確的，不要去修流水（計畫席裁定）。多寫一筆「解除」會讓上面那條
+  // 不變量查詢多一種例外。
+  if (makeupForSessionId === null) {
+    const { error } = await supabase
+      .from('sessions')
+      .update({ makeup_for_session_id: null })
+      .eq('id', id)
+      .eq('org_id', orgId);
+
+    if (error) return c.json({ error: error.message, code: 'DB_ERROR' }, 500);
+
+    return c.json({ ok: true }, 200);
+  }
+
+  // ── 設定連結 ──────────────────────────────────────────────────────────────
+  const { data: target } = await supabase
+    .from('sessions')
+    .select('id, class_id, status, session_date')
+    .eq('id', makeupForSessionId)
+    .eq('org_id', orgId)
+    .single();
+
+  if (!target) {
+    return c.json({ error: '找不到要補的那堂課', code: 'TARGET_NOT_FOUND' }, 404);
+  }
+  // 同班限制守在這裡而不是 DB：CHECK 跨不了列，而 trigger 是這個 repo 沒有的東西
+  //（設計文件決策 1）。代價是直接下 SQL 繞得過 —— 接受，因為那些路徑本來就
+  // 繞得過所有 API 層規則，而後果是「畫面顯示一個跨班的補課連結」，看得見。
+  if ((target as { class_id: string }).class_id !== (session as { class_id: string }).class_id) {
+    return c.json({ error: '只能補同一個班的課堂', code: 'DIFFERENT_CLASS' }, 409);
+  }
+  if ((target as { status: string }).status !== 'cancelled') {
+    return c.json({ error: '只能補已停課的課堂', code: 'TARGET_NOT_CANCELLED' }, 409);
+  }
+
+  // ① 先寫 FK。**唯一索引擋下的 1:1 違規也在這裡回 409** ——
+  // 那是資料庫守的，不是應用層重新實作一次（設計文件決策 1）。
+  const { error: linkError } = await supabase
+    .from('sessions')
+    .update({ makeup_for_session_id: makeupForSessionId })
+    .eq('id', id)
+    .eq('org_id', orgId);
+
+  if (linkError) {
+    return c.json(
+      { error: '那堂停課已經有補課了', code: 'MAKEUP_TARGET_ALREADY_COVERED' },
+      409,
+    );
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', userId)
+    .maybeSingle();
+
+  // ② 再寫流水
+  const { error: logError } = await supabase.from('schedule_changes').insert({
+    org_id: orgId,
+    session_id: id,
+    change_type: 'makeup',
+    reason: `補 ${(target as { session_date: string }).session_date} 停課`,
+    created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
+  });
+
+  if (logError) {
+    // **補償**：把 FK 清回去。補償成功 = 資料回到乾淨狀態（什麼都沒發生）。
+    const { error: revertError } = await supabase
+      .from('sessions')
+      .update({ makeup_for_session_id: null })
+      .eq('id', id)
+      .eq('org_id', orgId);
+
+    console.error(
+      '[sessions/makeup] 流水寫入失敗' +
+        (revertError ? '，而且補償也失敗 —— FK 有、流水沒有，用檔頭那支 SQL 查' : '，已補償'),
+    );
+
+    return c.json({ error: '設定補課失敗', code: 'MAKEUP_LOG_FAILED' }, 500);
+  }
+
+  return c.json({ ok: true }, 200);
+});
+
 const cancelSessionRoute = createRoute({
   method: 'post',
   path: '/{id}/cancel',
