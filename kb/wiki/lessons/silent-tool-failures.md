@@ -4,7 +4,7 @@ summary: 一連串「零輸出／綠燈」其實代表「這個檢查根本沒�
 category: lessons
 tags: [lessons, silent-failure, tooling, verification]
 status: active
-updated: 2026-09-06
+updated: 2026-09-07
 ---
 
 # 工具靜默地不做你以為它在做的事
@@ -184,6 +184,36 @@ updated: 2026-09-06
 >
 > 而**這一頁只收得到後者，是倖存者偏差** —— 前者沒有留下任何紀錄，
 > 因為它「當場就修好了」。看到這頁很長的時候，要記得**它是同一族裡比較難發現的那一半**。
+
+## 查 Supabase 的表要加 `public.` 前綴 —— `auth` 底下也有一張 `sessions`
+
+**出處：api-2，2026-09-07**（寫 #485 / #488 的量級查詢時查到的）。
+
+Supabase 的 `auth` schema 底下有一張自己的 `sessions`（登入 session），跟業務的
+`public.sessions`（課堂）**同名**。所以：
+
+```sql
+-- 危險：不知道撈到的是哪一張，或兩張混在一起
+select ... from sessions s
+select column_name from information_schema.columns where table_name = 'sessions'
+
+-- 正確
+select ... from public.sessions s
+select column_name from information_schema.columns
+ where table_schema = 'public' and table_name = 'sessions'
+```
+
+**而不加前綴查錯了不會報錯。** 查詢成功、有結果、結果是錯的 —— 用
+`information_schema` 查欄位時尤其陰，因為它會把兩張表的欄位**混在同一份結果裡**，
+於是「這張表有哪些欄位」這個問題得到一個看起來很完整的錯答案。
+
+這是本頁的正典形狀，而且它踩中的是同一個弱點：**你以為自己在指名一個東西，
+實際上那個名字在那個載體裡不唯一。** 跟「`git grep` 回零筆是因為 BEM 寫成 `&__x`」、
+「`gh run list` 不按 workflow 過濾會混進別的 workflow 的成功」是同一族 ——
+**識別字在你以為的範圍內不唯一，而多出來的那些不會舉手。**
+
+判準:**寫任何直接打資料庫的查詢時，表名一律帶 schema 前綴。** 不是因為這次撞到了，
+是因為**撞到的時候不會有訊號**。
 
 ## 為什麼這一頁在 `kb/` 而不在 charter 或通則清單裡
 
