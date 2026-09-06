@@ -13,9 +13,19 @@ export class ChildScopeService {
   private readonly _children = signal<Child[]>([]);
   private readonly _activeChildId = signal<string | null>(null);
   private readonly _loading = signal(false);
+  /**
+   * 載入狀態。**`failed` 必須跟「這個帳號沒有孩子」分開** ——
+   * 兩者都會讓 `children()` 是空陣列，而切換器對空陣列的反應是整個不渲染，
+   * 家長端三頁的 effect 也因為 `activeChildId` 是 null 而不打 API。
+   * 結果是一個**完全空白、沒有任何訊息**的家長端，跟「還沒綁孩子」一模一樣（#484 M4）。
+   *
+   * 形狀跟 `OrgSettingsService.status` 刻意一致 —— 同一種問題不要有兩種寫法。
+   */
+  private readonly _status = signal<'unloaded' | 'ready' | 'failed'>('unloaded');
   private loaded = false;
 
   readonly children = this._children.asReadonly();
+  readonly status = this._status.asReadonly();
   readonly activeChildId = this._activeChildId.asReadonly();
   readonly loading = this._loading.asReadonly();
 
@@ -36,9 +46,11 @@ export class ChildScopeService {
         if (this._activeChildId() === null && res.data.length > 0) {
           this._activeChildId.set(res.data[0].id);
         }
+        this._status.set('ready');
         this._loading.set(false);
       },
       error: () => {
+        this._status.set('failed');
         // 失敗不算「已載入過」——允許呼叫端之後重試，不然一次網路抖動就永久卡死
         this.loaded = false;
         this._loading.set(false);

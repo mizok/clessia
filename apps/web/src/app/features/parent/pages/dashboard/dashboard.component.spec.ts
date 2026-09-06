@@ -12,6 +12,7 @@ describe('DashboardComponent', () => {
     children: () => unknown[];
     activeChildId: () => string | null;
     activeChild: () => unknown;
+    status: () => 'unloaded' | 'ready' | 'failed';
     canSwitch: () => boolean;
     setActiveChild: ReturnType<typeof vi.fn>;
   };
@@ -22,6 +23,7 @@ describe('DashboardComponent', () => {
       children: () => [],
       activeChildId: () => null,
       activeChild: () => null,
+      status: () => 'ready' as const,
       canSwitch: () => false,
       setActiveChild: vi.fn(),
     };

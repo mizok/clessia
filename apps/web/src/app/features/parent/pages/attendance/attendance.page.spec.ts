@@ -63,6 +63,7 @@ describe('AttendancePage', () => {
             activeChildId: activeChildId.asReadonly(),
             children: () => [],
             activeChild: () => null,
+            status: () => 'ready' as const,
             canSwitch: () => false,
             setActiveChild: vi.fn(),
             load: childScopeLoad,
