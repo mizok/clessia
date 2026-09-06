@@ -335,5 +335,15 @@
     font-size: 0.75rem;
     color: var(--zinc-300);
   }
-}
 
+  // #508 類別 C：載入中原本整塊被一行文字取代，連帶把整條週條藏起來。
+  // 高度直接沿用 &__weekbar-day 已經寫下的 44px 下限（那裡的註解說內容
+  // 本來就把它撐到 55px 上下，但 44px 是明寫的下限，骨架卡住下限已經
+  // 足以避免「從一行文字跳成一條 55px 的週條」這種量級的跳動）。
+  &__weekbar-skeleton {
+    display: block;
+    width: 100%;
+    height: 44px;
+    border-radius: 8px;
+  }
+}

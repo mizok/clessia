@@ -13,7 +13,14 @@
   </header>
 
   @if (loading()) {
-    <p class="class-log-sheet__state">載入中…</p>
+    <div class="class-log-sheet__field-skeleton" aria-label="教學紀錄載入中">
+      <span class="skeleton-bar skeleton-bar--label"></span>
+      <span class="class-log-sheet__textarea-skeleton p-skeleton"></span>
+    </div>
+    <div class="class-log-sheet__field-skeleton" aria-label="作業安排載入中">
+      <span class="skeleton-bar skeleton-bar--label"></span>
+      <span class="class-log-sheet__textarea-skeleton p-skeleton"></span>
+    </div>
   } @else if (loadError()) {
     <p class="class-log-sheet__state class-log-sheet__state--error">
       讀取失敗，請關閉重開。現在存檔會覆蓋掉本來就有的內容。
