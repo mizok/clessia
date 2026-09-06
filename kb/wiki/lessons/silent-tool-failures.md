@@ -48,9 +48,30 @@ updated: 2026-09-06
 | harness 豁免的移除條件                | 條件寫成「v1b 啟用時拿掉」，**啟用那天沒有人在讀豁免表**                   | 查別的東西時剛好讀到那行字（運氣）                  |
 | CI 監看器 `until [ -z pending ]`      | 回報的是**它看到的那一輪**，不是你關心的那一輪                             | 記得「中間發生過一次 push」                         |
 | `git diff` 的基準點                   | 拿工作區比一個**正在前進的 `origin/main`**，別席的新內容顯示成「你刪掉的」 | 被刪的行內容跟自己做的事對不上                      |
+| `lsof -ti:<port> \| head -1`          | 回的是**跟這個 port 有關的所有 process**（含瀏覽器的殘留連線），`head -1` 又假設了順序 —— **真正的 listener 可能在清單後面** | 「這個 port 空著」但 `wrangler` 說 `Address already in use` |
 | `npx sass` 編譯失敗                   | **exit code 0**，而且把錯誤當註解寫進 `.css`，檔案確實產生了                | 8 kB 的樣式表只編出 753 bytes                       |
 | `nx affected … \| tail -12`           | 尾巴切掉了 47 個測試的失敗詳情，只留下一行 `Failed tasks`；管線 exit 0     | 輸出短到不可能裝得下我要看的東西                    |
 | `document.styleSheets` 遞迴掃描        | Chrome 的 `CSSStyleRule` **現在也有 `.cssRules`**（原生巢狀 CSS），先判 `.cssRules` 就永遠走不到 `selectorText` | 樣式明明在頁面上生效，「零條規則命中」不可能成立 |
+
+## 兩個靜默的東西疊起來，症狀會指向完全錯的方向
+
+2026-09-06 夜的實例，**兩件各自都很安靜**：
+
+1. 一支 API server 被 `git worktree move` 從腳下改名 →
+   **它沒死，只是 accept-then-hang**（LISTEN、接受連線、永遠不回）
+2. 我用 `lsof -ti:8787 | head -1` 查它，拿到的是 **Brave 的殘留 ESTABLISHED 連線**，
+   **真正的 listener 在清單後面被 `head -1` 藏掉**
+
+於是我的結論是「**8787 空著，那支 server 已經死了**」——
+**兩件事都錯，而它們錯的方向剛好一致**，所以結論讀起來毫無破綻：
+有 PID、有 port、有一個合理的故事。
+
+**戳破它的是 `wrangler` 的 `Address already in use`** —— 一個跟我的假設互相矛盾的
+第二個訊號。正解是 **`lsof -nP -iTCP:<port> -sTCP:LISTEN`**（只列 listener）。
+
+> **「port 被佔」跟「server 健康」是兩件事，而 `lsof -ti` 把兩者混在同一份清單裡。**
+>
+> 這一族單獨出現時還有機會察覺；**兩個疊起來時，錯誤的結論會比正確的更連貫。**
 
 ## 同一個工具，兩種騙法
 
