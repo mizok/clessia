@@ -14,8 +14,11 @@ function createWorkbenchApp(fixture: {
   enrollments?: Array<Record<string, unknown>>;
   checkins?: Array<Record<string, unknown>>;
   leaves?: Array<Record<string, unknown>>;
+  /** 這個請求的分校範圍。預設 null = 不受分校限制（多數測試的主題不是分校） */
+  campusScope?: readonly string[] | null;
 }) {
   const queried: string[] = [];
+  const inCalls: Array<{ table: string; column: string; values: string[] }> = [];
 
   const supabase = {
     from(table: string) {
@@ -23,7 +26,13 @@ function createWorkbenchApp(fixture: {
       const query: Record<string, unknown> = {
         select: () => query,
         eq: () => query,
-        in: () => query,
+        // **記錄 `in` 的欄位與值**，不只是回自己 —— 分校範圍是靠這條下到查詢上的，
+        // 而「有下」與「沒下」在替身的回傳值上完全一樣（它本來就回固定的 fixture）。
+        // 這是 charter 那條「替身分不出對錯時，改測送出去的查詢長什麼樣」。
+        in: (column: string, values: readonly string[]) => {
+          inCalls.push({ table, column, values: [...values] });
+          return query;
+        },
         lte: () => query,
         gte: () => query,
         or: () => query,
@@ -58,12 +67,12 @@ function createWorkbenchApp(fixture: {
     context.set('orgId', 'org-1');
     context.set('userId', 'user-1');
     context.set('roles', ['admin']);
-    context.set('campusScope', null);
+    context.set('campusScope', fixture.campusScope ?? null);
     await next();
   });
   app.route('/api/workbench', workbenchApp);
 
-  return { app, queried };
+  return { app, queried, inCalls };
 }
 
 const sessionRow = (overrides: Record<string, unknown> = {}) => ({
@@ -97,9 +106,9 @@ const sessionRow = (overrides: Record<string, unknown> = {}) => ({
 });
 
 async function today(fixture: Parameters<typeof createWorkbenchApp>[0], query = '') {
-  const { app, queried } = createWorkbenchApp(fixture);
+  const { app, queried, inCalls } = createWorkbenchApp(fixture);
   const response = await app.request(`/api/workbench/today?date=2026-04-06${query}`);
-  return { status: response.status, body: (await response.json()) as any, queried };
+  return { status: response.status, body: (await response.json()) as any, queried, inCalls };
 }
 
 describe('GET /api/workbench/today', () => {
@@ -194,5 +203,42 @@ describe('GET /api/workbench/today', () => {
 
     expect(queried).not.toContain('daily_checkins');
     expect(queried).not.toContain('leave_requests');
+  });
+});
+
+/**
+ * 分校範圍有沒有真的下到查詢上（#515 下半）。
+ *
+ * **這條只能斷言查詢形狀，不能斷言回傳值** —— 這支的替身回的是固定的 fixture，
+ * 不管條件下對下錯都回一樣的東西。charter：**當「對的實作」與「錯的實作」會產生
+ * 同樣的觀察值時，這個測試就沒有在測那件事** —— 那就換一個看得出差別的觀察點。
+ *
+ * 補這條的理由：`campusScope` 補上身分宣告之後（#523），這些 spec 全部綠 ——
+ * 但它們驗到的是「有拿到範圍」，**不是「範圍被套用」**。後者在此之前沒有任何
+ * 測試守著。
+ */
+describe('GET /api/workbench/today —— 分校範圍要下到查詢上', () => {
+  it('受限管理員的課堂查詢帶著他的分校清單', async () => {
+    const { inCalls } = await today({
+      mode: 'per_session',
+      sessions: [sessionRow()],
+      campusScope: ['campus-1'],
+    });
+
+    expect(inCalls).toContainEqual({
+      table: 'sessions',
+      column: 'classes.campus_id',
+      values: ['campus-1'],
+    });
+  });
+
+  it('不受分校限制時不下這個條件（確認上一條不是無腦通過）', async () => {
+    const { inCalls } = await today({
+      mode: 'per_session',
+      sessions: [sessionRow()],
+      campusScope: null,
+    });
+
+    expect(inCalls.some((call) => call.column === 'classes.campus_id')).toBe(false);
   });
 });
