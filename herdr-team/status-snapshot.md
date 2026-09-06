@@ -4,7 +4,11 @@
 > 然後 `gh issue list --state open` 與 `gh pr list --state open` 現查 ——
 > **本檔記的是「為什麼」，不是「還剩什麼」**。狀態一律用查的。
 >
-> 最後更新：2026-09-06 台北 16:5x（計畫席 clessia-48，Session 4%）
+> 最後更新：**2026-09-06 台北 23:2x**（review-steward 補紅燈那節；本體由計畫席 clessia-48 寫於同日 23:21）
+>
+> ⚠️ 上一版這一行寫「台北 16:5x」，而寫它的 commit `d79ae905` 是 **23:21:51+08:00** ——
+> **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
+> 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
 ## 接手第一件事
 
@@ -33,6 +37,41 @@
 1. **本機 DB 可能落後 migration** —— 錯誤訊息（`column … does not exist`）跟真的欄位被 DROP **一模一樣**。手動驗證前先 `supabase migration list`。
 2. **MCP 瀏覽器沒有真的 device emulation** —— `matchMedia('(pointer: coarse)')` 永遠是 false。繞道法在 design-web charter 坑 34。
 3. **瀏覽器 session 是共享的機器狀態** —— 換身分要先登出，會踢掉別席。三席今天各撞一次。權宜做法：**資料連通性用 API 驗，畫面才用瀏覽器**。
+
+## 紅燈：main 上有一支時序 flake（2026-09-06 23:2x 查）
+
+`663d0254` 的 verify **failure**，單一測試：
+
+```
+apps/web/src/app/core/chunk-recovery.spec.ts
+  > 防迴圈旗標 > 時間窗內再失敗 → 擋住（這是防迴圈的核心）
+  Tests  1 failed | 1274 passed
+```
+
+**這是 flake，不是真紅，而且是可以從程式碼推出來的**（不必等它再紅一次）：
+
+| 位置 | 做什麼 |
+| --- | --- |
+| `markReloadAttempted()` | 存 `at = Date.now()` — 記為 `T0` |
+| 測試斷言 | `hasReloadBeenAttempted(Date.now() + RELOAD_WINDOW_MS - 1)` — 那個 `Date.now()` 是 `T1 ≥ T0` |
+| 實作 | `return now - at < RELOAD_WINDOW_MS` |
+
+代進去：`(T1 + WINDOW - 1) - T0 < WINDOW` → **`T1 - T0 < 1`**。
+**也就是這條測試只有在兩次 `Date.now()` 落在同一毫秒時才會過。**
+CI 負載一高、跳過 1ms 就紅。
+
+隔壁那條（`+ WINDOW + 1`，期望 false）反而永遠安全：`T1 - T0 < -1` 恆不成立。
+**同一支檔案裡，一條恆真、一條靠運氣，而它們讀起來對稱。**
+
+這是 README「**測試不能用被測程式碼自己的算法當裁判**」的鄰居，但更薄一層：
+它連算法都沒共用，只是**把期望值建在第二次讀時鐘上**。
+判準補一句：**斷言裡出現第二次 `Date.now()` / `new Date()`，就是把時序寫進期望值了。**
+
+**修法**（不歸 review-steward，交給 web 側）：`markReloadAttempted()` 收一個可注入的
+`now`，或測試改用 fake timer；不要只把 `-1` 調成 `-2`，那只是把機率壓小。
+
+**對其他 PR 的意義**：這支 flake 會讓**任何一支 PR 隨機紅一次**，而它紅的樣子跟真紅一樣。
+看到 PR 紅在 `chunk-recovery.spec.ts` 就直接重跑，不要去查那支 PR 的改動。
 
 ## 額度行為（今天觀察到的，不是推論）
 
