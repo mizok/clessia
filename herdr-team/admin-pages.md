@@ -280,6 +280,23 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
 
 ## 這一席的工作習慣
 
+- **量一個「只在某個模式下才成立」的東西之前，先確認那個模式真的開著。**
+  （計畫席 2026-09-06 提，出處是同一天三席各自量到 fine-pointer 的數字卻讀成
+  coarse 的結果，其中一次開出了前提錯誤的工單 #521。）
+  **這條的可操作版本不是「去弄一個真的觸控裝置」**，而是把它翻成一個**可證偽的問題**：
+  「有沒有任何東西掛在那個模式底下，讓我現在的量測看不到它？」——
+  #516 我就是這樣回答的：`dashboard.component.scss` 有 0 個
+  `@media (pointer: coarse)` 區塊，而全庫 20+ 個 coarse 區塊**沒有一個加視覺
+  affordance**（全是抬 44px 命中區或看不見的 `::after` 擴張）。
+  **讀原始碼回答得了的問題，不需要 emulation** —— 但要說清楚你證明的是
+  「沒有 mode-conditional 的東西存在」，不是「我在那個模式下看過了」。
+- **認領工單到開 PR 之間，把工單再讀一次。** 上一條防的是**量測環境**變了，
+  這一條防的是**工單本身**變了 —— 兩者的共同點是「我以為我手上那份是最新的」。
+  #516 我讀它的時候 `comments: 0`，而計畫席在那之後加了一條
+  「嚴重度未定，動手前先確認」，**我到開 PR 都沒有再讀一次**。
+  README 的「結論有保鮮期」我一直用在**別人給我的結論**上，沒用在
+  **我自己讀過的工單**上 —— 而**一支「我讀過了」的 issue 跟一支
+  「我讀過但它後來變了」的 issue，在記憶裡長得一模一樣。**
 - **回報「我被擋住了」之前，把那個結論本身也當成一個待驗的推論。**
   #467 我回報「這支要先派給 billing-api 加 API 欄位」，理由是
   `/api/system-time` 只回 `{ epochMs, iso }`、沒有台北日期。**每一項事實都對，
@@ -563,8 +580,18 @@ gh pr list --state open --search 'author:@me'   # 帳號共用，用分支名或
 
 - **報表的 CSV 匯出** —— spec 要明細層欄位，`/api/reports/revenue` 只回聚合
 - **金流家族結構上是斷的** —— 七頁只有 `enrollments` 有跨頁導覽
-- **`payableAmount` 有兩個 feature 目錄的呼叫端** —— 第三個出現就往 `shared/` 提
-- **`/api/class-logs` 與 `/api/session-packs` 沒有任何 web service 認領**（#304 的 gate 列成 warning）
+- **`payableAmount` 仍然只有兩個呼叫端**（2026-09-06 查證）——
+  `payments/uninvoiced-dialog` 與 `courses/class-detail/student-picker-dialog`，
+  util 住在 `courses/class-detail/enrollment-billing.util.ts`。
+  **第三個出現才往 `shared/` 提，現在不用動。**
+  順帶澄清一個看起來像違規的東西：那個跨目錄 import 是 `admin` **feature 內部**的，
+  c5 管的是 feature 之間（admin / teacher / parent），**沒有踩到**。
+- ~~`/api/class-logs` 與 `/api/session-packs` 沒有 web service 認領~~
+  **這條已經過期，2026-09-06 查證後刪除**：`core/class-logs.service.ts` 與
+  `core/session-packs.service.ts` 都在了，而且**都有呼叫端**
+  （`teacher/pages/schedule/class-log-sheet`、`courses/class-detail/session-pack-form-dialog`
+  與 `enrollment-billing-dialog`）。`npm run harness` 也不再有那條 warning。
+  **留著這行字比沒有它更糟 —— 它會讓下一個人去補一個已經存在的東西。**
 - **`dashboard.component.scss` 超 SCSS 預算 2.36 kB**（budget 6 kB，實際 8.36 kB）。
   #535 又加了 200 bytes（量過的，不是估的）。**壓它需要動一批不屬於任何工單的宣告**，
   值得單獨開一單，不要夾在功能 PR 裡
