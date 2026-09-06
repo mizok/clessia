@@ -38,6 +38,16 @@
     padding: var(--space-4);
     text-align: center;
     color: var(--zinc-500);
+
+    // 查詢失敗 —— 跟 students.page 的同名修飾類同一個 token，兩頁講同一件事就長一樣
+    &--error {
+      color: var(--error-600);
+    }
+
+    // 課表有載到、只有聯絡簿待辦沒有：降一級，因為主要內容是可信的
+    &--warning {
+      color: var(--warning-600);
+    }
   }
 
   /*

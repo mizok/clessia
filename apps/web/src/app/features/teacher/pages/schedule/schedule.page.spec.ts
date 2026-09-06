@@ -28,6 +28,7 @@ describe('SchedulePage', () => {
   async function setup(
     options: {
       missingSummaryFails?: boolean;
+      sessionsFails?: boolean;
       attendanceResponsible?: 'admin' | 'teacher';
       sessions?: unknown[];
     } = {},
@@ -37,10 +38,12 @@ describe('SchedulePage', () => {
       attendanceResponsible: options.attendanceResponsible ?? 'admin',
     });
     sessionsSpy = vi.fn(() =>
-      of({
-        data: options.sessions ?? [],
-        meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
-      }),
+      options.sessionsFails
+        ? throwError(() => new Error('boom'))
+        : of({
+            data: options.sessions ?? [],
+            meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
+          }),
     );
     missingSummarySpy = vi.fn(() =>
       options.missingSummaryFails
@@ -197,6 +200,69 @@ describe('SchedulePage', () => {
       // 預設 sessions 是空的 → 七天都沒課
       expect(fixture.nativeElement.querySelectorAll('.status-dot').length).toBe(0);
       expect(fixture.nativeElement.querySelectorAll('.schedule-page__weekbar-empty').length).toBe(7);
+    });
+  });
+  describe('載入失敗要產生訊號（#484 H1／H3）', () => {
+    it('課表查失敗顯示「查詢失敗」，而不是七次「沒有課」', async () => {
+      await setup({ sessionsFails: true });
+      const text = fixture.nativeElement.textContent;
+
+      expect(text).toContain('查詢失敗');
+      // 軌道整個藏起來 —— 不藏的話七天的 `@empty` 各印一次「沒有課」，
+      // 而那跟真的沒有排課一模一樣
+      expect(fixture.nativeElement.querySelector('.schedule-page__track').hidden).toBe(true);
+    });
+
+    it('換週查失敗不留上一週的資料 —— 舊資料配新標題比空畫面危險', async () => {
+      await setup({
+        sessions: [
+          {
+            sessionId: 's1',
+            eventId: 'e1',
+            className: '數學班',
+            eventDate: MONDAY_THIS_WEEK,
+            startTime: '09:00',
+            endTime: '10:00',
+            status: 'scheduled',
+            takenAt: null,
+          },
+        ],
+      });
+      expect(fixture.nativeElement.textContent).toContain('數學班');
+
+      sessionsSpy.mockImplementation(() => throwError(() => new Error('boom')));
+      (component as unknown as { nextWeek: () => void }).nextWeek();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).not.toContain('數學班');
+      expect(fixture.nativeElement.textContent).toContain('查詢失敗');
+    });
+
+    it('重試成功後失敗訊息要消失 —— 旗標不清會一直喊失敗', async () => {
+      await setup({ sessionsFails: true });
+      expect(fixture.nativeElement.textContent).toContain('查詢失敗');
+
+      sessionsSpy.mockImplementation(() =>
+        of({ data: [], meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 } }),
+      );
+      (component as unknown as { nextWeek: () => void }).nextWeek();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).not.toContain('查詢失敗');
+    });
+
+    it('聯絡簿彙總失敗要講出來 —— 沒有徽章會被讀成「都寫完了」', async () => {
+      await setup({ missingSummaryFails: true });
+      expect(fixture.nativeElement.textContent).toContain('聯絡簿待辦數字暫時讀不到');
+    });
+
+    it('聯絡簿彙總成功時不出現那句話', async () => {
+      await setup();
+      expect(fixture.nativeElement.textContent).not.toContain('聯絡簿待辦數字暫時讀不到');
     });
   });
 });

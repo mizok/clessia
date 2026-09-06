@@ -37,13 +37,25 @@
 
   @if (loading()) {
     <p class="schedule-page__state">載入中…</p>
+  } @else if (loadError()) {
+    <!--
+      **這一格存在的理由**：沒有它的時候，查詢失敗會走到每一天的 `@empty`，
+      印出七次「沒有課」——跟真的沒有排課一模一樣。四態的寫法抄自
+      `features/teacher/pages/students/students.page.html`。
+    -->
+    <p class="schedule-page__state schedule-page__state--error">查詢失敗，請稍後再試。</p>
+  } @else if (missingFailed()) {
+    <!-- 課表有載到、只有聯絡簿待辦沒有。不講的話「沒有徽章」會被讀成「都寫完了」 -->
+    <p class="schedule-page__state schedule-page__state--warning">
+      聯絡簿待辦數字暫時讀不到，徽章可能不完整。
+    </p>
   }
 
   <!--
     桌機的週條。手機不顯示 —— 手機換日靠滑，多一條導航是重複的。
     每天只給老師掃視需要的四件事：星期、日期、幾堂、一顆狀態點。
   -->
-  @if (!loading()) {
+  @if (!loading() && !loadError()) {
     <nav class="schedule-page__weekbar" aria-label="本週各日">
       <p-button
         icon="pi pi-chevron-left"
@@ -94,6 +106,7 @@
   <div
     #track
     class="schedule-page__track"
+    [hidden]="loadError()"
     role="group"
     aria-label="本週課表，左右捲動換日"
     tabindex="0"

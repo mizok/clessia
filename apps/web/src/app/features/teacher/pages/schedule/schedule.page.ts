@@ -125,10 +125,26 @@ export class SchedulePage implements OnInit {
   });
 
   /**
-   * 每天有幾個學生的聯絡簿還沒寫。空 Map 代表還沒取到或取數失敗 ——
-   * 徽章不出現，而不是顯示 0（「查不到」跟「沒有待辦」是兩件事）。
+   * 每天有幾個學生的聯絡簿還沒寫。
+   *
+   * **空 Map 在畫面上跟「大家都寫完了」長得一模一樣** —— 兩者都不出徽章。
+   * 這支 signal 自己分不出「查不到」與「沒有待辦」，所以失敗另外用
+   * `missingFailed` 記，並在畫面上講一句話。**沒有那句話的話，
+   * 一次查詢失敗會被讀成一則好消息。**
    */
   protected readonly missingByDate = signal<ReadonlyMap<string, number>>(new Map());
+
+  /** 聯絡簿待辦彙總查失敗了 —— 課表照常顯示，但要講出來（見上方註解） */
+  protected readonly missingFailed = signal(false);
+
+  /**
+   * 課表本身查失敗了。
+   *
+   * **失敗時要把 `sessions` 清空**：換週查失敗如果留著上一週的資料，
+   * 日期標題已經換過去了而課還是舊的 —— 老師看到的每一堂都是真實資料、
+   * 可點、可點名，**比空畫面危險**。
+   */
+  protected readonly loadError = signal(false);
 
   /** 橘帶的錨點：整週的數字，不是當日的（面板不追捲動位置，理由見設計文件） */
   protected readonly anchor = computed(() => weekAnchor(this.sessions(), this.now));
@@ -209,6 +225,9 @@ export class SchedulePage implements OnInit {
 
   protected loadSessions(): void {
     this.loading.set(true);
+    // 每次重查都先清掉上一輪的失敗旗標 —— 留著的話重試成功了畫面還在喊失敗
+    this.loadError.set(false);
+    this.missingFailed.set(false);
     const start = this.currentWeekStart();
     const end = endOfWeek(start, { weekStartsOn: 1 });
     // 不必傳 teacherId：後端看角色強制套用老師自己的 id（attendance/teacher-scope.ts）。
@@ -219,7 +238,10 @@ export class SchedulePage implements OnInit {
     // 聯絡簿待辦是獨立的一支，失敗不該讓課表整個空掉 —— 所以各自訂閱，不 forkJoin
     this.contactBookService.missingSummary(dateFrom, dateTo).subscribe({
       next: (res) => this.missingByDate.set(new Map(res.data.map((d) => [d.date, d.missingCount]))),
-      error: () => this.missingByDate.set(new Map()),
+      error: () => {
+        this.missingByDate.set(new Map());
+        this.missingFailed.set(true);
+      },
     });
 
     this.attendanceService
@@ -234,7 +256,11 @@ export class SchedulePage implements OnInit {
           this.sessions.set(response.data);
           this.loading.set(false);
         },
-        error: () => this.loading.set(false),
+        error: () => {
+          this.sessions.set([]);
+          this.loadError.set(true);
+          this.loading.set(false);
+        },
       });
   }
 
