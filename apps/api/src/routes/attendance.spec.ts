@@ -165,15 +165,27 @@ describe('attendance session filter helpers', () => {
                 onfulfilled ?? undefined,
               );
             },
+            // 認領是 compare-and-set：`update().eq('id').is('event_id', null).select('id')`
+            // —— 少了 `is` 那一段，晚到的請求會覆蓋先到的（見 lib 檔頭）。
+            // 這裡沒有競爭，所以一律「搶到」，回一列。
             update(payload: { event_id: string }) {
-              return {
+              let claimedId: string | null = null;
+              const chain = {
                 eq(column: string, value: unknown) {
-                  if (column === 'id') {
-                    updatedSessions.push({ id: String(value), event_id: payload.event_id });
+                  if (column === 'id') claimedId = String(value);
+                  return chain;
+                },
+                is() {
+                  return chain;
+                },
+                select() {
+                  if (claimedId) {
+                    updatedSessions.push({ id: claimedId, event_id: payload.event_id });
                   }
-                  return Promise.resolve({ error: null });
+                  return Promise.resolve({ data: claimedId ? [{ id: claimedId }] : [], error: null });
                 },
               };
+              return chain;
             },
           };
         }
