@@ -53,13 +53,29 @@ describe('防迴圈旗標', () => {
     expect(localStorage.getItem(RELOAD_FLAG)).toBeNull();
   });
 
+  /**
+   * **`now` 一律錨在「存進去的那個值」上，不要用 `Date.now()` 再算一次。**
+   *
+   * 原本兩支都寫成 `Date.now() + RELOAD_WINDOW_MS ± 1`，而實作比的是
+   * `now - at < RELOAD_WINDOW_MS`（`at` 是 `markReloadAttempted()` 當下的時間）。
+   * 代入之後兩支都退化了，**而且是往相反的方向退**：
+   *
+   * | 原本的寫法 | 化簡 | 實際行為 |
+   * | --- | --- | --- |
+   * | 窗內：`Date.now() + W - 1` | `T1 - T0 < 1` | **只有兩次 `Date.now()` 之間零毫秒才會過** —— 天生 flake |
+   * | 窗過了：`Date.now() + W + 1` | `T1 - T0 < -1` | `T1 >= T0` 恆成立，所以**恆為假 → 斷言恆真，從來不會紅** |
+   *
+   * **一對看起來覆蓋兩個邊界的測試，其實一支是隨機的、另一支是恆真的** ——
+   * 而恆真的那支讓這一對看起來很完整。錨在 `at` 上之後兩支都是精確且確定的。
+   */
   it('時間窗內再失敗 → 擋住（這是防迴圈的核心）', async () => {
     const { markReloadAttempted, hasReloadBeenAttempted, RELOAD_WINDOW_MS } = await import(
       './chunk-recovery'
     );
     markReloadAttempted();
+    const at = Number(sessionStorage.getItem(RELOAD_FLAG));
     // 剛重載完，CDN 邊緣還在發舊的 index.html → 又失敗一次。不能再重載。
-    expect(hasReloadBeenAttempted(Date.now() + RELOAD_WINDOW_MS - 1)).toBe(true);
+    expect(hasReloadBeenAttempted(at + RELOAD_WINDOW_MS - 1)).toBe(true);
   });
 
   it('時間窗過了 → 可以再救一次（同一個 session 裡的第二次部署）', async () => {
@@ -67,7 +83,27 @@ describe('防迴圈旗標', () => {
       './chunk-recovery'
     );
     markReloadAttempted();
-    expect(hasReloadBeenAttempted(Date.now() + RELOAD_WINDOW_MS + 1)).toBe(false);
+    const at = Number(sessionStorage.getItem(RELOAD_FLAG));
+    expect(hasReloadBeenAttempted(at + RELOAD_WINDOW_MS + 1)).toBe(false);
+  });
+
+  /**
+   * **剛好等於時間窗的那一刻 —— 上面兩支都摸不到它。**
+   *
+   * `W - 1` 與 `W + 1` 在 `<` 與 `<=` 兩種實作下給出**完全相同**的結果，
+   * 所以就算把上面兩支錨好，把實作從 `< RELOAD_WINDOW_MS` 改成 `<=` 仍然全綠。
+   * **分得開這兩者的只有 `now - at === RELOAD_WINDOW_MS` 這一點。**
+   *
+   * 語意上這一刻該是「窗已經過了」（窗是半開區間 `[at, at + W)`），
+   * 所以期望 `false`。
+   */
+  it('剛好到時間窗邊界 → 已經過了（半開區間，`<` 不是 `<=`）', async () => {
+    const { markReloadAttempted, hasReloadBeenAttempted, RELOAD_WINDOW_MS } = await import(
+      './chunk-recovery'
+    );
+    markReloadAttempted();
+    const at = Number(sessionStorage.getItem(RELOAD_FLAG));
+    expect(hasReloadBeenAttempted(at + RELOAD_WINDOW_MS)).toBe(false);
   });
 
   it('旗標的值壞掉時往「不要重載」倒', async () => {
