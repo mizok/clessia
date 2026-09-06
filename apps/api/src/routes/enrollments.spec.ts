@@ -1259,7 +1259,11 @@ describe('leave backfill helper logic', () => {
         orgId: string;
         studentId: string;
         recordedBy: string;
-        events: Array<{ id: string; event_date: string }>;
+        events: Array<{
+          id: string;
+          event_date: string;
+          sessions?: { status?: string | null } | Array<{ status?: string | null }> | null;
+        }>;
         leaves: Array<{ start_date: string; end_date: string }>;
       }) => Array<{
         org_id: string;
@@ -1270,6 +1274,50 @@ describe('leave backfill helper logic', () => {
         recorded_by_role: 'system';
       }>)
     | undefined;
+
+  it('停課的課堂不回填 on_leave（#568）', () => {
+    expect(buildEnrollmentLeaveAttendanceUpserts).toBeTypeOf('function');
+
+    const rows = buildEnrollmentLeaveAttendanceUpserts?.({
+      orgId: 'org-1',
+      studentId: 'student-1',
+      recordedBy: 'user-1',
+      events: [
+        { id: 'event-1', event_date: '2026-04-02', sessions: { status: 'cancelled' } },
+        { id: 'event-2', event_date: '2026-04-03', sessions: { status: 'scheduled' } },
+      ],
+      leaves: [{ start_date: '2026-04-01', end_date: '2026-04-16' }],
+    });
+
+    expect(rows?.map((row) => row.event_id)).toEqual(['event-2']);
+  });
+
+  it('停課的課堂以陣列形狀回來時也要排除（PostgREST 實際回的就是陣列）', () => {
+    const rows = buildEnrollmentLeaveAttendanceUpserts?.({
+      orgId: 'org-1',
+      studentId: 'student-1',
+      recordedBy: 'user-1',
+      events: [{ id: 'event-1', event_date: '2026-04-02', sessions: [{ status: 'cancelled' }] }],
+      leaves: [{ start_date: '2026-04-01', end_date: '2026-04-16' }],
+    });
+
+    expect(rows).toEqual([]);
+  });
+
+  // 釘住預設方向：**沒帶 `status` 就照舊寫**。呼叫端漏 `select('status')` 時退回照舊寫，
+  // 而不是讓整批 `on_leave` 靜靜消失。少了這支，下一個人會把那個方向當成漏寫的守衛
+  // 然後「修好」它。跟 `lib/cancelled-session.ts` 的檔頭是同一條。
+  it('沒帶 status 時照舊寫入 —— 這是刻意的退化方向', () => {
+    const rows = buildEnrollmentLeaveAttendanceUpserts?.({
+      orgId: 'org-1',
+      studentId: 'student-1',
+      recordedBy: 'user-1',
+      events: [{ id: 'event-1', event_date: '2026-04-02' }],
+      leaves: [{ start_date: '2026-04-01', end_date: '2026-04-16' }],
+    });
+
+    expect(rows).toHaveLength(1);
+  });
 
   it('回填先請假後入班時，將落在請假區間內的課堂改為 on_leave', () => {
     expect(buildEnrollmentLeaveAttendanceUpserts).toBeTypeOf('function');
