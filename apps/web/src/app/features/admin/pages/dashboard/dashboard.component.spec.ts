@@ -412,6 +412,37 @@ describe('DashboardComponent（管理端）', () => {
     expect(fixture.nativeElement.textContent).toContain('讀取失敗');
   });
 
+  // #426：失敗態不能長得像骨架（會被讀成「還在載入」）也不能長得像數字
+  // （會被讀成一個異常大的值）——用小圖示 + 短字，字級/字重跟真數字不同量級
+  it('失敗態是小圖示配短字，不是骨架，也不是巨大數字樣式', async () => {
+    await setup({ fail: 'leaves' });
+
+    const errorEl = fixture.nativeElement.querySelector('.dashboard__value-error');
+    expect(errorEl).not.toBeNull();
+    expect(errorEl?.querySelector('.pi-exclamation-triangle')).not.toBeNull();
+    expect(errorEl?.textContent).toContain('讀取失敗');
+    // 失敗態不能同時長得像骨架——那會被讀成「載入特別慢」而不是「查詢失敗」
+    expect(errorEl?.querySelector('.dashboard__value-skeleton')).toBeNull();
+  });
+
+  // #426 本體：原本 `null` 直接渲染「載入中」三個字，字重/字級/位置
+  // 跟真數字一模一樣，讀起來像一個狀態值不像「還在載」。改成骨架條，
+  // 「載入中」只留給輔助技術念，不再是畫面上看得到的主要內容。
+  it('未點名卡還在載入時顯示骨架條，不是站在數字位置上的純文字', async () => {
+    await setup({ onlySessions: true, todaySessions: [session()] });
+
+    const untakenValue = fixture.nativeElement.querySelector(
+      '.dashboard__todo-row .dashboard__todo-value',
+    );
+    expect(untakenValue).not.toBeNull();
+
+    const skeleton = untakenValue?.querySelector('.dashboard__value-skeleton');
+    expect(skeleton).not.toBeNull();
+    // 骨架本身不帶文字——是純視覺元素，念出來的是旁邊的輔助文字
+    expect(skeleton?.textContent?.trim()).toBe('');
+    expect(untakenValue?.querySelector('.dashboard__sr-only')?.textContent).toContain('載入中');
+  });
+
   it('兩支成績 todo 任一支失敗，成績卡就是失敗態', async () => {
     await setup({ fail: 'grades' });
 
