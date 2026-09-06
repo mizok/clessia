@@ -1,5 +1,13 @@
 <section class="session-filters">
   <div class="session-filters__mobile">
+    <!--
+      手機版**刻意**用 `mm/dd` 而不是全站的 `yy-mm-dd`（#425 M4 查證後保留）：
+      一、窄列塞不下 `2026-09-01 - 2026-09-30`（23 字元），短版只要 13；
+      二、短版若也用連字號，`09-01 - 09-30` 裡的連字號會跟 PrimeNG 的區間分隔符
+          ` - ` 撞在一起讀不開 —— 有年份的長版靠 `2026` 開頭自己斷得開，短版沒有。
+      下面那支桌機版是同一個 `listDateRange()` 的另一軌，用長版。
+      **這是同一概念的長短版，不是不一致** —— 要「統一」之前先讀這段。
+    -->
     <p-datepicker
       class="session-filters__mobile-date clessia-filter-control clessia-filter-control--date-range"
       selectionMode="range"
@@ -29,7 +37,7 @@
       selectionMode="range"
       [ngModel]="listDateRange()"
       (ngModelChange)="onListDateRangeChange($event)"
-      dateFormat="yy/mm/dd"
+      dateFormat="yy-mm-dd"
       placeholder="選擇日期範圍"
       inputStyleClass="p-inputtext-sm clessia-filter-input"
       [showIcon]="true"
