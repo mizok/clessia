@@ -34,6 +34,14 @@ function record(overrides: Partial<ParentScoreRecord> = {}): ParentScoreRecord {
   };
 }
 
+/**
+ * API 端 `apps/api/src/routes/parent/grades.ts` 的
+ * `pageSize: z.coerce.number().int().min(1).max(100)`。
+ * **寫在這裡是為了讓越界變成紅燈，而不是變成 400** —— 前端送超過它的值時，
+ * 使用者看到的是「載入失敗」，而那跟連線問題長得一樣。
+ */
+const API_MAX_PAGE_SIZE = 100;
+
 describe('GradesComponent', () => {
   let fixture: ComponentFixture<GradesComponent>;
   let listMock: ReturnType<typeof vi.fn>;
@@ -43,7 +51,7 @@ describe('GradesComponent', () => {
   function createComponent(
     response: ParentScoreListResponse | 'error' = {
       data: [],
-      meta: { total: 0, page: 1, pageSize: 200, recentCount: 0 },
+      meta: { total: 0, page: 1, pageSize: 100, recentCount: 0 },
     },
   ) {
     activeChildId = signal<string | null>(null);
@@ -89,18 +97,27 @@ describe('GradesComponent', () => {
     expect(listMock).not.toHaveBeenCalled();
   });
 
-  it('activeChildId 出現後打 API，pageSize 200 一次拉完（照抄 student-score-detail-dialog 的既有 pattern）', () => {
+  /**
+   * **這條原本斷言 200，而 200 超過 API 的上限**（`parent/grades.ts` 的
+   * `pageSize: …max(100)`），所以每一次請求都被 Zod 擋成 400 ——
+   * **這一頁從來沒有載入成功過**，而這支測試一直是綠的：替身根本不看那個值。
+   *
+   * 測試把 bug 背書了，還在標題裡引用了一個「既有 pattern」當理由。
+   */
+  it('打 API 的 pageSize 不得超過 API 上限 100', () => {
     createComponent();
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    expect(listMock).toHaveBeenCalledWith({ childId: 'child-1', pageSize: 200 });
+    const sent = listMock.mock.calls[0][0].pageSize;
+    expect(sent).toBeLessThanOrEqual(API_MAX_PAGE_SIZE);
+    expect(listMock).toHaveBeenCalledWith({ childId: 'child-1', pageSize: 100 });
   });
 
   it('band anchor 直接用 meta.recentCount', () => {
     createComponent({
       data: [record()],
-      meta: { total: 1, page: 1, pageSize: 200, recentCount: 3 },
+      meta: { total: 1, page: 1, pageSize: 100, recentCount: 3 },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -116,7 +133,7 @@ describe('GradesComponent', () => {
         record({ id: 'r1', subjectName: '數學' }),
         record({ id: 'r2', subjectName: '英文', examName: '單字測驗' }),
       ],
-      meta: { total: 2, page: 1, pageSize: 200, recentCount: 0 },
+      meta: { total: 2, page: 1, pageSize: 100, recentCount: 0 },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -128,7 +145,7 @@ describe('GradesComponent', () => {
   it('缺考/補考用 chip 顯示，不顯示分數', () => {
     createComponent({
       data: [record({ status: 'absent', score: null })],
-      meta: { total: 1, page: 1, pageSize: 200, recentCount: 0 },
+      meta: { total: 1, page: 1, pageSize: 100, recentCount: 0 },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -146,7 +163,7 @@ describe('GradesComponent', () => {
   it('科目篩選只顯示選中的科目', () => {
     const comp = createComponent({
       data: [record({ id: 'r1', subjectName: '數學' }), record({ id: 'r2', subjectName: '英文' })],
-      meta: { total: 2, page: 1, pageSize: 200, recentCount: 0 },
+      meta: { total: 2, page: 1, pageSize: 100, recentCount: 0 },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -165,5 +182,30 @@ describe('GradesComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('載入失敗');
+  });
+  describe('截斷要講出來（沒有分頁 UI，少掉的跟本來就沒有長得一樣）', () => {
+    it('拿到的比總數少時顯示「只顯示最近 N 筆」', () => {
+      createComponent({
+        data: [record()],
+        meta: { total: 137, page: 1, pageSize: 100, recentCount: 0 },
+      });
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+
+      const text = fixture.nativeElement.textContent;
+      expect(text).toContain('只顯示最近');
+      expect(text).toContain('137');
+    });
+
+    it('全部拿到時不出現那句話 —— 沒有這一格，上一支證明不了任何事', () => {
+      createComponent({
+        data: [record()],
+        meta: { total: 1, page: 1, pageSize: 100, recentCount: 0 },
+      });
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).not.toContain('只顯示最近');
+    });
   });
 });

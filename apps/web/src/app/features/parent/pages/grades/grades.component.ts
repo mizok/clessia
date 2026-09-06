@@ -30,7 +30,18 @@ import {
   type TimeRange,
 } from './grades.util';
 
-const PAGE_SIZE = 200;
+/**
+ * **必須 ≤ API 的上限**（`apps/api/src/routes/parent/grades.ts` 的
+ * `pageSize: …max(100)`）。原本寫 200 —— 超過上限，於是每一次請求都被 Zod 擋成
+ * 400，**這一頁從來沒有載入成功過**，畫面永遠是「載入失敗」。
+ *
+ * 沒有人發現，是因為 seed 裡沒有任何 `parent` 角色，這一頁打不開（#518）。
+ *
+ * **改成 100 之後多出一個問題**：這一頁沒有分頁 UI，是一次撈完再前端篩。
+ * 超過 100 筆就會被截斷，而**截斷是安靜的** —— 所以下面用 `meta.total`
+ * 跟實際拿到的筆數比對，不一致就講出來。**不要把大聲的失敗換成安靜的截斷。**
+ */
+const PAGE_SIZE = 100;
 
 @Component({
   selector: 'app-grades',
@@ -59,6 +70,11 @@ export class GradesComponent implements OnInit {
 
   protected readonly records = signal<ParentScoreRecord[]>([]);
   protected readonly recentCount = signal(0);
+  /** 伺服器說總共有幾筆 —— 用來偵測「這一頁只拿到前 N 筆」 */
+  protected readonly total = signal(0);
+
+  /** 被截斷了：拿到的比總數少。沒有分頁 UI，所以只能講出來 */
+  protected readonly truncated = computed(() => this.total() > this.records().length);
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
   protected readonly timeRange = signal<TimeRange>('all');
@@ -125,6 +141,7 @@ export class GradesComponent implements OnInit {
       next: (res) => {
         this.records.set(res.data);
         this.recentCount.set(res.meta.recentCount);
+        this.total.set(res.meta.total);
         this.loading.set(false);
       },
       error: () => {
@@ -132,6 +149,7 @@ export class GradesComponent implements OnInit {
         this.loading.set(false);
         this.records.set([]);
         this.recentCount.set(0);
+        this.total.set(0);
       },
     });
   }
