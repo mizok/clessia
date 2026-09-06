@@ -44,6 +44,15 @@
       `features/teacher/pages/students/students.page.html`。
     -->
     <p class="schedule-page__state schedule-page__state--error">查詢失敗，請稍後再試。</p>
+  } @else if (settingsFailed()) {
+    <!--
+      設定讀不到時「漏點名」會被降級成中性的「未點名」（`schedule.util.ts` 的
+      teacherLed 分支）。**不改那個預設，只是把「我不知道」講出來** ——
+      不講的話，一週沒有任何警示跟「這週都點完了」一模一樣。
+    -->
+    <p class="schedule-page__state schedule-page__state--warning">
+      讀不到點名設定，「漏點名」提醒可能不準。
+    </p>
   } @else if (missingFailed()) {
     <!-- 課表有載到、只有聯絡簿待辦沒有。不講的話「沒有徽章」會被讀成「都寫完了」 -->
     <p class="schedule-page__state schedule-page__state--warning">

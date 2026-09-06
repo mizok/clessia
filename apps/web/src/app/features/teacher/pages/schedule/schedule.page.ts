@@ -146,6 +146,15 @@ export class SchedulePage implements OnInit {
    */
   protected readonly loadError = signal(false);
 
+  /**
+   * 點名設定讀不到 —— **不改 `isTeacherLed()` 的預設值**（那個方向是對的），
+   * 只是把「我不知道」講出來。不講的話畫面會用中性的「未點名」蓋掉所有逾期警示，
+   * 而那跟「這週都點完了」一模一樣。
+   */
+  protected readonly settingsFailed = computed(
+    () => this.orgSettingsService.status() === 'failed',
+  );
+
   /** 橘帶的錨點：整週的數字，不是當日的（面板不追捲動位置，理由見設計文件） */
   protected readonly anchor = computed(() => weekAnchor(this.sessions(), this.now));
 
@@ -175,9 +184,9 @@ export class SchedulePage implements OnInit {
   }
 
   ngOnInit(): void {
-    this.orgSettingsService.getSettings().subscribe({
-      next: (s) => this.orgSettingsService.settings.set(s),
-    });
+    // `load()` 而不是自己 subscribe —— 原本這裡只有 next 分支，失敗時沒有人接，
+    // 而 `isTeacherLed()` 的 `?? 'admin'` 會把它讀成一個真的答案
+    this.orgSettingsService.load();
     this.loadSessions();
   }
 
