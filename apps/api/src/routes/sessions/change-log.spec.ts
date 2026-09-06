@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { describeChange, type ChangeLogRow } from './change-log';
+import {
+  describeChange,
+  SCHEDULE_CHANGE_TYPES,
+  SESSION_HISTORY_TYPES,
+  type ChangeLogRow,
+} from './change-log';
 
 function row(overrides: Partial<ChangeLogRow> = {}): ChangeLogRow {
   return {
@@ -136,5 +141,29 @@ describe('describeChange', () => {
 
     expect(result.className).toBe('國三英文');
     expect(result.summary).toBe('代課：王小明 → 陳老師');
+  });
+});
+
+describe('SCHEDULE_CHANGE_TYPES 是唯一真相（#605）', () => {
+  // 這份清單對齊 DB 的 `schedule_change_type` enum（2026-09-07 查 `pg_enum`）。
+  // 釘住它是因為**加一個值以前要記得改六個地方**，而 `time_change` 在其中一份
+  // 漏了將近半年、`makeup` 上線當天漏了四份。
+  it('含 makeup，且不含合成的 creation', () => {
+    expect(SCHEDULE_CHANGE_TYPES).toContain('makeup');
+    expect(SCHEDULE_CHANGE_TYPES).not.toContain('creation');
+  });
+
+  // `creation` 只存在於歷程回應，不能當查詢條件 —— 兩份清單的差別就是這一個值。
+  it('歷程類型 = DB 六種 + creation，正好多一個', () => {
+    expect(SESSION_HISTORY_TYPES).toContain('creation');
+    expect(SESSION_HISTORY_TYPES).toHaveLength(SCHEDULE_CHANGE_TYPES.length + 1);
+  });
+
+  it('每一種 DB 類型都有自己的摘要，不會落到 default 的「異動」', () => {
+    for (const changeType of SCHEDULE_CHANGE_TYPES) {
+      const summary = describeChange(row({ change_type: changeType })).summary;
+
+      expect(summary, `${changeType} 落到 default 了`).not.toBe('異動');
+    }
   });
 });
