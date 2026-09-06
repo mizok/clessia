@@ -26,6 +26,22 @@
     font-weight: 600;
   }
 
+  // #508 類別 B：載入中原本整塊被一行文字取代。這裡跟 &__metric-value 平行，
+  // 寬高卡住同一個視覺量——不跟 #497 的 dashboard__value-skeleton 共用 class
+  // （本來就不同尺寸，跨元件共用一個參數化 utility 換不到什麼，見
+  // kb/wiki/architecture/list-loading-skeleton-batch.md）。動畫/配色交給全站
+  // 既有的 .p-skeleton。
+  //
+  // 高度 2.625rem（42px）不是字級本身（1.75rem = 28px）——量過真實渲染的
+  // &__metric-value 高度是 42px（line-height 撐開的），用字級當高度會讓
+  // 骨架矮了 1/3，量出來才知道，不要用字級直接當高度猜。
+  &__metric-skeleton {
+    display: inline-block;
+    width: 2.5ch;
+    height: 2.625rem;
+    border-radius: var(--radius-sm);
+  }
+
   &__metric-label {
     color: var(--text-muted);
   }

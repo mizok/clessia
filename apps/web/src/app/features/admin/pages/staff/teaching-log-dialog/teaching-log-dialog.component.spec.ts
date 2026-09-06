@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { SessionsService, type Session } from '@core/sessions.service';
@@ -63,6 +63,35 @@ describe('TeachingLogDialogComponent', () => {
     component = fixture.componentInstance;
     fixture.detectChanges();
   }
+
+  // #508：載入中原本整塊被一行文字取代（沒有骨架尺寸，資料到了會跳版）。
+  // 最終內容是「兩個統計方塊 + 一張表」的混合形狀，兩個統計值各用局部
+  // &__metric-skeleton，表格部分重用全站既有的 .skeleton-list。
+  it('載入中顯示統計方塊骨架與清單骨架，不是整塊被文字取代', async () => {
+    listMock.mockReset();
+    substitutedAwayMock.mockReset();
+    listMock.mockReturnValue(NEVER);
+    substitutedAwayMock.mockReturnValue(of({ data: [] }));
+
+    await TestBed.configureTestingModule({
+      imports: [TeachingLogDialogComponent],
+      providers: [
+        {
+          provide: SessionsService,
+          useValue: { list: listMock, substitutedAway: substitutedAwayMock },
+        },
+        { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
+        { provide: DynamicDialogConfig, useValue: { data } },
+      ],
+    }).compileComponents();
+
+    const f = TestBed.createComponent(TeachingLogDialogComponent);
+    f.detectChanges();
+
+    expect(f.nativeElement.querySelectorAll('.teaching-log__metric-skeleton').length).toBe(2);
+    expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
+    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+  });
 
   it('以該老師與當月區間查詢課堂', async () => {
     await setup();
