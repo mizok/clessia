@@ -11,7 +11,7 @@ import { isEnrolledOn } from '../lib/session-roster';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
 import { canManageAcademyExam, resolveExamClassIds } from '../lib/exam-scope';
 import { logAudit } from '../utils/audit';
-import { applyCampusFilter } from '../lib/campus-scope';
+import { applyCampusFilter, isCampusAllowed } from '../lib/campus-scope';
 
 const AcademyExamStatusSchema = z.enum(['active', 'closed']).openapi('AcademyExamStatus');
 
@@ -1043,6 +1043,11 @@ app.openapi(createRouteDef, async (c) => {
   const userId = c.get('userId');
   const body = c.req.valid('json');
 
+  // 分校範圍在寫入路徑上也要成立（body 不在 campusRequestGuard 的視野內）
+  if (!isCampusAllowed(c.get('campusScope'), body.campusId)) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
+
   const scope = await loadExamScope(supabase, {
     orgId,
     userId: c.get('userId'),
@@ -1241,6 +1246,11 @@ app.openapi(updateRouteDef, async (c) => {
     if (!isPassScoreValid(body.passScore, totalScore)) {
       return c.json({ error: '及格線不能超過總分，也不能是負數', code: 'INVALID_PASS_SCORE' }, 400);
     }
+  }
+
+  // PATCH 的分校是「搬家」——同樣要擋，否則受限管理員可以把考試搬出自己的範圍
+  if (body.campusId !== undefined && !isCampusAllowed(c.get('campusScope'), body.campusId)) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
 
   const updates: Record<string, unknown> = {};
