@@ -141,6 +141,8 @@ class。
 
 ## See Also
 
+- [[lessons/silent-tool-failures]] —— **同一族，但失敗的是工具不是程式**：
+  零命中／綠燈其實代表「這個檢查沒有發生」。實例目錄與判準在那一頁
 - [[lessons/empty-array-hides-loading]] ——「還沒載入」被壓成「確定沒有」，
   是失敗態/載入態被吞掉的同一族
 - [[lessons/status-table-blind-spot]] —— 另一種「看起來正常但其實沒說實話」的畫面

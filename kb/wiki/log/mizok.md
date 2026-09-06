@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-09-06] lint | Health check: 0 errors, 3 warnings, 57 info
+- Mode: structural
+- Pages scanned: 130
+- Issues found: 60
+
+## [2026-09-06] map | Rebuilt index + 6 MOCs
+- Pages indexed: 118
+- Total links: 197
+- Orphan pages: 66
+
+## [2026-09-06] lint | Health check: 0 errors, 3 warnings, 58 info
+- Mode: structural
+- Pages scanned: 130
+- Issues found: 61
+
+## [2026-09-06] map | 新增 lessons/silent-tool-failures + 重建索引
+- Pages created: [[lessons/silent-tool-failures]]
+- Pages indexed: 118（lessons 22 → 23）
+- 來源：#478 —— 把「工具靜默地不做你以為它在做的事」的實例目錄從 charter 提到 kb，
+  理由是它的讀取時機是「卡住的當下」而不是「讀文件的時候」，載體要用 doc-router
+
+## [2026-09-06] map | Rebuilt index + 6 MOCs
+- Pages indexed: 118
+- Total links: 196
+- Orphan pages: 67
+
 ## [2026-09-06] capture | 分校歸屬語意定案（#438）
 - Pages updated: [[rules/enrollment-rules]]（新增第 8 節）
 - 決定：學生的分校歸屬不濾 enrollment status —— 退班學生對分校主任是現在進行式的工作對象，
