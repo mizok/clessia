@@ -27,6 +27,7 @@ import { blankComments } from './lib/comments.mjs';
 import { inlineCarriers, inlineStyles, inlineTemplate } from './lib/inline-carriers.mjs';
 import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
 import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
+import { guardedParamNames, unguardedCampusParams } from './lib/campus-param-guard.mjs';
 import {
   collectApiParams,
   findMissing,
@@ -1733,6 +1734,45 @@ function checkUnstyledInteractive() {
 }
 
 checkUnstyledInteractive();
+
+// ── A21. 分校過濾參數不得繞過 campusRequestGuard ────────────────────────────────────────
+// 守衛攔的是**列舉出來的那幾個參數名**，所以任何叫別的名字的分校參數會直接穿過它 ——
+// 程式編得過、測試也綠，而**使用者拿得到別的分校的資料**。那是授權漏洞不是缺一道檢查。
+//
+// 判準與能力邊界見 lib/campus-param-guard.mjs。**零 baseline**：立法時零違規
+// （唯一那筆已於今日修掉）——那是最便宜的立法時機，錯過就再也不是零了。
+function checkCampusParamGuard() {
+  const authFile = join(ROOT, 'apps/api/src/middleware/auth.ts');
+  if (!existsSync(authFile)) return;
+
+  recordScope('campus-param-guard', {
+    roots: ['apps/api/src/routes', 'apps/api/src/middleware'],
+    exts: ['.ts'],
+  });
+
+  // 集合從守衛的原始碼推導，**不在這裡複製一份** —— 複製就有兩份清單，
+  // 而有人往守衛加第五個名字時它們會漂，那正是這道 gate 要防的病的變體。
+  const guarded = guardedParamNames(readFileSync(authFile, 'utf8'));
+  if (guarded.size === 0) {
+    fail(
+      'campusRequestGuard 裡找不到任何 searchParams.getAll(…) —— ' +
+        'A21 的參數集合是從那裡推導的，抽不到就等於這道 gate 什麼都沒守（而且會安靜地全綠）',
+    );
+    return;
+  }
+
+  const apiParams = collectApiParams(ROOT, null);
+  for (const { path, param } of unguardedCampusParams(apiParams, guarded)) {
+    fail(
+      `${path} 有 query 參數 \`${param}\`，名字裡有 campus 但**不在 campusRequestGuard 的列舉集合裡**` +
+        `（目前是 ${[...guarded].join(' / ')}）—— 它會直接穿過守衛，使用者拿得到別的分校的資料。` +
+        `要嘛改用既有名字，要嘛把它加進 middleware/auth.ts 的 getAll 清單。` +
+        `**注意這道 gate 只看得到 GET 的 query 參數 —— body 與 path 在它視野外，那一半沒有任何機制在守。**`,
+    );
+  }
+}
+
+checkCampusParamGuard();
 
 checkScanScope();
 

@@ -31,6 +31,10 @@
     "roots": ["apps/web/src"],
     "exts": [".ts"]
   },
+  "campus-param-guard": {
+    "roots": ["apps/api/src/middleware", "apps/api/src/routes"],
+    "exts": [".ts"]
+  },
   "dual-track-table": {
     "roots": ["apps/web/src"],
     "exts": [".html", ".ts"]
