@@ -42,7 +42,19 @@ on:
 # **會得到相反的結果，而那個失敗跟「修法無效」長得一模一樣**。
 # 2026-09-07 的驗法寫在 PR 裡：拋棄式分支＋暫時把它加進例外，兩個方向各驗一次。
 concurrency:
-  group: verify-${{ github.ref }}
+  # **main 的每一顆 commit 各自一個 group。** 尾巴在非 main 分支上是空字串，
+  # 所以那些分支的 group 跟以前完全一樣。
+  #
+  # 為什麼不能只靠下面那個 `cancel-in-progress`（#603 就是只做了那半，不夠）：
+  # `cancel-in-progress: false` 的語意是「**不要殺正在跑的那顆**」，後來的 run 會
+  # **排隊**在同一個 group 上 —— 而**同一個 group 最多只留一顆排隊中的**，
+  # 第三顆一到，中間那顆排隊的就被取消。
+  #
+  # 於是行為只是從「新的殺舊的」變成「最舊的活著跑完、中間排隊的被丟掉」，
+  # **而這支 workflow 要的是「main 的每一筆都有結論，壞了可以二分」**。
+  # 實測（2026-09-07）：`9a5daa89` 在 #603 之後照樣 cancelled，**且 jobs 長度 0**
+  #（從頭到尾沒開始），`bf25e948` 出現的下一秒它就被丟掉。
+  group: verify-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || '' }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
