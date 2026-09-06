@@ -116,6 +116,14 @@ Tags: `lessons`, `local-green-is-not-repo-green`
 
 Links to: [[lessons/awakened-tests-bite]], [[lessons/merged-does-not-mean-main]]
 
+## [[lessons/local-manual-verification|本機實機驗證怎麼進得去]]
+
+這個系統沒有密碼登入，要用 login-link 腳本產生一次性 magic link；連同它需要的環境變數、瀏覽器 session 的搶佔行為、以及 seed 裡「沒有任何 parent 角色」這個會讓家長端完全打不開的事實。
+
+Tags: `lessons`, `local-dev`, `verification`, `auth`
+
+Links to: [[lessons/broken-looks-identical-to-normal]], [[lessons/silent-tool-failures]], [[lessons/silent-tool-failures]], [[lessons/broken-looks-identical-to-normal]], [[lessons/local-green-is-not-repo-green]]
+
 ## [[lessons/menu-entry-without-a-route|選單開了、頁面寫了，路由還在 redirect]]
 
 M1 的課務異動畫面上線後完全打不開 —— 元件測試全綠，因為漏掉的東西不在元件裡，而在選單與路由表之間的縫。
@@ -158,7 +166,7 @@ Links to: [[lessons/menu-entry-without-a-route]]
 
 Tags: `lessons`, `silent-failure`, `tooling`, `verification`
 
-Links to: [[lessons/broken-looks-identical-to-normal]], [[lessons/broken-looks-identical-to-normal]], [[lessons/merged-does-not-mean-main]], [[lessons/new-field-branches-are-born-untested]], [[lessons/local-green-is-not-repo-green]], [[lessons/line-number-citations-rot]]
+Links to: [[lessons/broken-looks-identical-to-normal]], [[lessons/local-manual-verification]], [[lessons/broken-looks-identical-to-normal]], [[lessons/merged-does-not-mean-main]], [[lessons/new-field-branches-are-born-untested]], [[lessons/local-green-is-not-repo-green]], [[lessons/line-number-citations-rot]]
 
 ## [[lessons/status-table-blind-spot|現況表只掃了三分之一的系統]]
 

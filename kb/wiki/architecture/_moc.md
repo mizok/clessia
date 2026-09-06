@@ -106,6 +106,10 @@ Tags: `architecture`, `constitution-enforcement`
 
 Links to: [[architecture/constitution|`constitution`]], [[architecture/gate-map|`gate-map`]]
 
+## [[architecture/dashboard-stat-skeleton|儀表板數值卡的載入態骨架化]]
+
+修 #426——CardValue 的 null/'error' 原本渲染成跟真數字同量級的粗體文字，改用既有的 .p-skeleton 動畫取代純文字，錯誤態改用小圖示+短字降級處理，兩者都不能被誤讀成資料本身。
+
 ## [[architecture/day-timeline|一日時間軸元件（day-timeline）]]
 
 內部頁橘帶裡那條「今天」的資訊圖 —— 為什麼把排課畫成時間軸而不是再列一張表、佈局數學為什麼放在 pure util、以及 startTime/endTime 可為 null 這件事怎麼處理。
@@ -113,6 +117,10 @@ Links to: [[architecture/constitution|`constitution`]], [[architecture/gate-map|
 Tags: `architecture`, `day-timeline`, `dashboard`, `direction-d`
 
 Links to: [[architecture/design-language]], [[lessons/awakened-tests-bite]]
+
+## [[architecture/deactivate-vs-archive|停用 vs 封存 —— 不是同一個動作的兩種叫法，裁定不統一]]
+
+M4 詞彙統一（#425）查證結論——停用（可逆）與封存（不可逆）是兩個不同的動作，用字差異忠實反映各自的狀態模型，不該合併成一個字。計畫席裁定：兩個字都留著。
 
 ## [[architecture/deploying|部署]]
 
@@ -166,6 +174,10 @@ Links to: [[specs/public/login]]
 
 Tags: `architecture`, `no-division-scoping`
 
+## [[architecture/no-value-display-conventions|「沒有值」的三種寫法，不是同一件事的三種說法]]
+
+M4 詞彙統一（#425）查證結論——「—」/「未填寫」/「無關聯 X」對應三種不同語意（唯讀顯示欄位空值/可編輯欄位未填/關聯不存在），不該合併成一種寫法。
+
 ## [[architecture/parent-attendance-grades-billing-pages|家長端三頁前端設計 —— 出缺席／成績／繳費]]
 
 家長端 03 片。三頁共用 #344 的 child-switcher，資料走 #351 三支 childId 必填端點。逐項核對 kb specs 與 design-web 構圖跟 #351 實際契約的落差（4 態出勤/日到班時間/每筆 NEW 標籤/課程篩選/已取消分組都對不上），提出降級方案待批准。
@@ -203,6 +215,12 @@ Links to: [[architecture/parent-data-scope]], [[roadmap]]
 Tags: `architecture`, `role-authorization`
 
 Links to: [[architecture/teacher-students-view]]
+
+## [[architecture/session-makeup|補課（課堂標記「補的是哪一堂停課」）]]
+
+停課的課堂可以被另一堂課補回來。連結存在 sessions.makeup_for_session_id 這個自我參照 FK 上，只為可解釋性——計費完全不需要它，因為補課那堂本來就會扣、停掉的那堂本來就不扣。
+
+Tags: `architecture`, `sessions`, `makeup`, `billing-adjacent`
 
 ## [[architecture/teacher-class-log|教務日誌（老師端寫入）]]
 

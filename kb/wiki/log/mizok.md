@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-09-06] lint | Health check: 0 errors, 6 warnings, 61 info
+- Mode: structural
+- Pages scanned: 135
+- Issues found: 67
+
+## [2026-09-06] map | Rebuilt index + 6 MOCs
+- Pages indexed: 123
+- Total links: 203
+- Orphan pages: 70
+
+## [2026-09-06] map | Rebuilt index + 6 MOCs
+- Pages indexed: 123
+- Total links: 202
+- Orphan pages: 71
+
 ## [2026-09-06] verify | c2/c3/c7/c8 的 gate 覆蓋率查證
 - Pages updated: [[architecture/constitution-enforcement]]（更正一句過期七天的現況宣稱）
 - 查證：A13–A16 確實存在且被註冊執行（`check-harness.mjs` 的 `scanExisting` 呼叫），
