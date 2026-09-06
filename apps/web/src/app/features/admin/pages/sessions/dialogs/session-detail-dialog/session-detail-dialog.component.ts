@@ -94,12 +94,18 @@ export class SessionDetailDialogComponent implements OnInit {
   }
 
   protected changeTypeLabel(type: string): string {
+    // **這是第二份 `schedule_change_type` 標籤表**（另一份在
+    // `changes/changes.component.ts`）。它原本同時漏了 `time_change`（2026-03 加的）
+    // 與 `makeup`（2026-09 加的）—— 兩者都會退化成顯示原始英文字，而且不拋錯。
+    // 兩份表各自漏、各自無聲，見 PR 描述裡的收斂建議。
     const map: Record<string, string> = {
       creation: '建立',
       cancellation: '停課',
       substitute: '代課',
       reschedule: '調課',
       uncancel: '取消停課',
+      time_change: '改時間',
+      makeup: '補課',
     };
     return map[type] || type;
   }
