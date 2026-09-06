@@ -1,6 +1,16 @@
 import { hasPermission } from './permissions';
 
 /**
+ * 取用 `campusScope` 時只需要 `c.get`，**刻意不收整個 `Context<AppEnv>`** ——
+ * `AppEnv` 住在 `index.ts`，而 `index.ts` import 這個檔。型別匯入雖然會被抹除、
+ * 不產生 runtime 循環，但結構型別讓這支函式連那個依賴都不需要
+ *（`lib/wait-until.ts` 收 `Context` 是因為它真的要 `executionCtx`）。
+ */
+interface CampusScopeCarrier {
+  get(key: 'campusScope'): CampusScope | undefined;
+}
+
+/**
  * 一個使用者看得到哪些分校。
  *
  * **`org_id` 之所以可信，是因為它沒有例外（憲法 c1）。分校要的是同一種待遇。**
@@ -36,13 +46,75 @@ export function resolveCampusScope(input: CampusScopeInput): CampusScope {
   return input.assignedCampusIds;
 }
 
+export class CampusScopeMissingError extends Error {
+  readonly code = 'CAMPUS_SCOPE_MISSING';
+
+  constructor() {
+    // **訊息要說得出為什麼。** 「沒有分校範圍」會讓人去查資料；
+    // 「這支路由沒有經過 authMiddleware」直接指到原因。
+    super('campusScope 未設定 —— 這支路由沒有經過 authMiddleware');
+    this.name = 'CampusScopeMissingError';
+  }
+}
+
+/**
+ * 這個請求的分校範圍。**`campusScope` 是取用分校範圍的唯一入口**（harness gate
+ * A20 禁止其他地方裸用 `c.get('campusScope')`）。
+ *
+ * ## 缺席是錯誤狀態，不是一種範圍
+ *
+ * | 值 | 意思 |
+ * | --- | --- |
+ * | `null` | 這個角色不受分校限制（跨分校的管理員；或老師與家長 —— 他們由更窄的範圍把關） |
+ * | `[]` | 是管理員但一個分校都沒被指派，什麼都看不到（fail-closed） |
+ * | **缺席** | **`authMiddleware` 沒跑過** |
+ *
+ * **缺席時丟，不是回 `[]`。** 三個理由：
+ *
+ * 1. **那不是一種範圍，是程式錯誤。** 能走到這裡而 scope 缺席，只可能是
+ *    「一支讀分校範圍、但沒經過 `mount()` 的路由」—— `mount()` 掛的
+ *    `requireRoles` 對缺席的 `roles` 已經 403（`middleware/auth.ts:173`）。
+ * 2. **回 `[]` 對老師與家長是錯的方向。** 他們的合法值是 `null`；給 `[]` 會讓他們
+ *    看到空的，而**那看起來像資料 bug 不像設定 bug**，於是有人會去查資料。
+ * 3. **默默回空正是本檔 `isCampusAllowed` 檔頭反對的行為。** 同構的理由：
+ *    默默回空會讓「middleware 沒掛」看起來像「那個分校今天沒資料」。
+ *
+ * 丟出去之後由全域 `app.onError` 記錄（`method` + `path` + 訊息，`wrangler tail`
+ * 看得到），回應本身不吐細節。**那不是一個沒有線索的 500。**
+ *
+ * ## ⚠️ 今天沒有產線路徑會走到這裡 —— 而那正是它要存在的理由
+ *
+ * `authMiddleware` 走到底一定會 set（它之前的每個提前 return 都是錯誤回應），
+ * 而所有讀取點都在 `mount()` 底下、被 `requireRoles` 順便蓋住。
+ *
+ * > **一個被守住的洞，跟一個被別的東西順便蓋住的洞，在「今天沒事」上長得一模一樣。**
+ *
+ * 那道守衛守的是「你有沒有角色」，不是這件事 —— 它變動時（某支端點刻意允許匿名、
+ * 或用別的 guard 取代 `mount()`）這個洞會無聲打開。見 issue #515。
+ */
+export function getCampusScope(c: CampusScopeCarrier): CampusScope {
+  const scope = c.get('campusScope');
+  if (scope === undefined) throw new CampusScopeMissingError();
+
+  return scope;
+}
+
 /**
  * 請求指名某個分校時，它在不在允許範圍內。
  *
  * **不在就要 403，不是默默回空陣列** —— 默默回空會讓越權嘗試看起來像
  * 「那個分校那天沒有人」，越權的人不知道自己被擋，被越權的人也不會發現。
  */
-export function isCampusAllowed(scope: CampusScope, campusId: string | undefined | null): boolean {
+export function isCampusAllowed(
+  scope: CampusScope | undefined,
+  campusId: string | undefined | null,
+): boolean {
+  // **缺席一律拒絕**，跟 `getCampusScope` 同一個判準：那不是一種範圍，是
+  // `authMiddleware` 沒跑。這裡不丟例外是因為呼叫端要的是一個布林值來回 403 ——
+  // 而 403 對「middleware 沒掛」也是對的答案（比默默放行安全）。
+  // ⚠️ `daily-checkins.ts` 的 body 守衛走的是這一支、**不經過 `getCampusScope`**，
+  // 所以兩個入口都要各自 fail-closed。
+  if (scope === undefined) return false;
   if (!campusId) return true;
   if (scope === null) return true;
 

@@ -410,7 +410,12 @@ if (existsSync(apiIndex) && existsSync(permissionsFile)) {
     if (!name.endsWith('.ts') || name.endsWith('.spec.ts')) continue;
     const source = readFileSync(join(routesDir, name), 'utf8');
     if (!/campus_id|campusId/.test(source)) continue;
-    if (/campusFilterIds|campusScope/.test(source)) continue;
+    // ⚠️ **`getCampusScope` 要明著列出來，不能靠 `campusScope` 這個 substring** ——
+    // 大小寫不同（`getCampusScope` 裡是 `CampusScope`），所以 #515 把 20 個讀取點
+    // 從 `c.get('campusScope')` 遷到 `getCampusScope(c)` 之後，這道 gate 當場對
+    // 五支路由紅了。**它辨識「有沒有接分校過濾」靠的是識別字，而識別字被改名了。**
+    // 這一族在本 repo 記過（識別字在兩個載體之間對不上）；這次是 harness 自己攔下的。
+    if (/campusFilterIds|campusScope|getCampusScope/.test(source)) continue;
     pending.push(name);
   }
   for (const name of pending) {
@@ -1025,6 +1030,52 @@ if (existsSync(FEATURES_DIR)) {
         fail(
           `${rel} 出現 c.get('supabase') —— 家長端檔案只能用 ` +
             `c.get('childDb')，見 kb/wiki/architecture/parent-data-scope.md 第二節`,
+        );
+      }
+    }
+  }
+}
+
+// ── A20. 分校範圍只能經由 getCampusScope() 取用（issue #515）────────────────────────────
+//
+// `AppEnv` 宣告的是 `campusScope: CampusScope`（**沒有 `?`**），而 runtime 拿得到
+// `undefined` —— **那個型別在 2026-09-06 之前是假的**。缺席不是一種範圍，是
+// `authMiddleware` 沒跑過，而 `lib/campus-scope.ts` 的 `getCampusScope()` 對它丟例外。
+//
+// **為什麼需要 gate 而不是只提供 accessor**：**可以呼叫的 helper 就是可以忘記呼叫的
+// helper**。只有 accessor 的話它落在「願意停下來讀的人」那一層（第三層），
+// 不是「錯的寫法寫不出來」那一層（第一層）。判準是 #295 預審那條：
+// **問「錯的寫法還寫不寫得出來」，不是問「對的寫法方不方便」。**
+//
+// **零 baseline，因為立法時是零違規**（20 個讀取點跟這道 gate 同一輪遷移完）——
+// 立法時零違規是最便宜的立法時機，跟 A18 / A19 同一個判斷。
+//
+// **兩筆永久豁免**（不是債，不會歸零）：
+//   - `lib/campus-scope.ts` —— accessor 自己，它就是那個唯一入口的定義
+//   - `middleware/auth.ts` —— `campusRequestGuard` 在 auth 層，它跟 accessor 平級
+//
+// **能力邊界（不必修，寫給下一個人看）**：這道 gate 認的是 `c.get('campusScope')`
+// 這個字面。**值被傳進 lib 之後它就看不到了** —— `lib/attendance-session-events.ts`
+// 這類收 `CampusScope` 當參數的函式，範圍正不正確由呼叫端負責，gate 管不到。
+// 綠燈的意思是「沒有人繞過那個入口去拿值」，不是「每一處都正確地套用了範圍」。
+{
+  const scopeRoots = ['apps/api/src/routes', 'apps/api/src/lib', 'apps/api/src/middleware'];
+  const CAMPUS_SCOPE_EXEMPT = new Set([
+    'apps/api/src/lib/campus-scope.ts',
+    'apps/api/src/middleware/auth.ts',
+  ]);
+  recordScope('A20', { roots: scopeRoots, exts: ['.ts'] });
+  for (const root of scopeRoots) {
+    const dir = join(ROOT, root);
+    if (!existsSync(dir)) continue;
+    for (const file of walk(dir, '.ts')) {
+      if (file.endsWith('.spec.ts')) continue;
+      const rel = file.replace(ROOT + '/', '');
+      if (CAMPUS_SCOPE_EXEMPT.has(rel)) continue;
+      if (readFileSync(file, 'utf8').includes("get('campusScope')")) {
+        fail(
+          `${rel} 裸用 c.get('campusScope') —— 分校範圍只能經由 ` +
+            `lib/campus-scope.ts 的 getCampusScope(c) 取用（缺席會丟，見 issue #515）`,
         );
       }
     }

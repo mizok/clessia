@@ -5,8 +5,7 @@ import { taughtClassIds } from '../lib/teacher-scope';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
-import { campusFilterIds } from '../lib/campus-scope';
-
+import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 // ============================================================
 // Schemas
 // ============================================================
@@ -333,7 +332,7 @@ app.openapi(
     // 沒指定分校時也要縮到自己管的那幾間 —— `campusFilterIds` 回 null 才是「不限」
     // 這支查詢**不濾 enrollment status**（enrollment-rules 第 8 節）：分校主任要看得到
     // 自家剛退班的學生。改這裡等於改授權可見性，不是改篩選
-    const campusIds = campusFilterIds(c.get('campusScope'), campusId);
+    const campusIds = campusFilterIds(getCampusScope(c), campusId);
     if (campusIds) {
       const { data: enrollmentRows } = await supabase
         .from('enrollments')

@@ -1,3 +1,4 @@
+import { getCampusScope } from '../lib/campus-scope';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { aggregateRevenue, type RevenueInvoice, type RevenuePayment } from '../lib/revenue-report';
@@ -152,7 +153,7 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const params = c.req.valid('query');
-    const campusScope = c.get('campusScope');
+    const campusScope = getCampusScope(c);
     const groupBy = params.groupBy ?? 'campus';
     // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭。這個值餵給
     // aggregateRevenue() 算逾期分類，跟 invoices.ts:140 是同一份判斷邏輯的
@@ -261,7 +262,7 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const params = c.req.valid('query');
-    const campusScope = c.get('campusScope');
+    const campusScope = getCampusScope(c);
 
     const { data: paymentRows } = await supabase
       .from('payment_records')

@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
-import { applyCampusFilter } from '../lib/campus-scope';
+import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
 
 // ============================================================
@@ -140,7 +140,7 @@ const listRoute = createRoute({
 app.openapi(listRoute, async (c) => {
   const supabase = c.get('supabase');
   const query = c.req.valid('query');
-  const campusScope = c.get('campusScope');
+  const campusScope = getCampusScope(c);
 
   const page = Math.max(parseInt(query.page || '1'), 1);
   const rawPageSize = query.pageSize !== undefined ? parseInt(query.pageSize) : 20;

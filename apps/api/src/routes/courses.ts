@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { formatAuditCourseResourceName, logAudit } from '../utils/audit';
-import { applyCampusFilter, isCampusAllowed } from '../lib/campus-scope';
+import { applyCampusFilter, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
 
 // ============================================================
@@ -152,7 +152,7 @@ app.openapi(listRoute, async (c) => {
   if (query.search) {
     dbQuery = dbQuery.ilike('name', `%${query.search}%`);
   }
-  dbQuery = applyCampusFilter(dbQuery, 'campus_id', c.get('campusScope'), query.campusId);
+  dbQuery = applyCampusFilter(dbQuery, 'campus_id', getCampusScope(c), query.campusId);
   if (query.subjectId) {
     dbQuery = dbQuery.eq('subject_id', query.subjectId);
   }
@@ -308,7 +308,7 @@ app.openapi(createCourseRoute, async (c) => {
 
   // 分校範圍在寫入路徑上也要成立 —— 沒有這段，只管 A 校的管理員可以在 B 校建課程，
   // **而且建完自己看不到**（讀取被範圍過濾），沒有人會發現它是誰建的。
-  if (!isCampusAllowed(c.get('campusScope'), body.campusId)) {
+  if (!isCampusAllowed(getCampusScope(c), body.campusId)) {
     return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
 

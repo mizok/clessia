@@ -3,8 +3,7 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { requireRoles } from '../middleware/auth';
 import { audienceFor, campusOrFilter } from './announcements/visibility';
-import { campusFilterIds, isCampusAllowed } from '../lib/campus-scope';
-
+import { campusFilterIds, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
 const app = new OpenAPIHono<AppEnv>();
 
 const AudienceSchema = z.enum(['all_teachers', 'all_parents']).openapi('AnnouncementAudience');
@@ -107,7 +106,7 @@ app.openapi(
     // **公告不能用 `.in()` 過濾分校** —— `campus_id` 為 null 代表「全分校公告」，
     // `.in()` 會把它們一起排除掉，受限的管理員就看不到全機構公告了。
     // 用跟收件匣同一支 `campusOrFilter`（`campus_id is null OR campus_id in (…)`）。
-    const campusIds = campusFilterIds(c.get('campusScope'), campusId);
+    const campusIds = campusFilterIds(getCampusScope(c), campusId);
     if (campusIds) {
       query = query.or(campusOrFilter(campusIds));
     }
@@ -233,7 +232,7 @@ app.openapi(
     // **授權先於一切，所以這段在最前面。** body 帶的分校不在 campusRequestGuard
     // 的視野內（它只讀 query string），受限管理員否則可以對自己不管的分校發公告，
     // 而那個分校的老師與家長會收到。做法照 daily-checkins.ts:56-60。
-    if (!isCampusAllowed(c.get('campusScope'), body.campusId)) {
+    if (!isCampusAllowed(getCampusScope(c), body.campusId)) {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 

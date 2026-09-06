@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   applyCampusFilter,
   campusFilterIds,
+  CampusScopeMissingError,
+  getCampusScope,
   isCampusAllowed,
   resolveCampusScope,
+  type CampusScope,
 } from './campus-scope';
 
 describe('resolveCampusScope', () => {
@@ -168,5 +171,56 @@ describe('campusFilterIds —— 指名只能縮小範圍，撐不大它', () =>
     applyCampusFilter(query, 'campus_id', ['a'], 'b');
 
     expect(calls).toEqual([{ column: 'campus_id', values: [] }]);
+  });
+});
+
+/**
+ * **缺席不是一種範圍，是 `authMiddleware` 沒跑。**
+ *
+ * 型別宣告（`AppEnv` 的 `campusScope: CampusScope`，沒有 `?`）說它一定有，
+ * 而 runtime 拿得到 `undefined` —— **那個型別在 2026-09-06 之前是假的**。
+ * 今天沒有產線路徑走得到（`requireRoles` 對缺席的 `roles` 已經 403，順便蓋住了），
+ * 但**那道守衛守的是「你有沒有角色」，不是這件事**。見 issue #515。
+ */
+describe('getCampusScope —— 缺席時丟，不是回一個很窄的範圍', () => {
+  function carrier(scope: CampusScope | undefined) {
+    return { get: (_key: 'campusScope') => scope };
+  }
+
+  it('⚠️ 缺席 → 丟，而且訊息說得出為什麼', () => {
+    // 回 `[]` 會讓「middleware 沒掛」看起來像「那個分校今天沒資料」——
+    // 而那正是本檔 isCampusAllowed 檔頭反對的靜默空清單
+    expect(() => getCampusScope(carrier(undefined))).toThrow(CampusScopeMissingError);
+    // 訊息要指到原因，不是只說「沒有分校範圍」（那會讓人去查資料）
+    expect(() => getCampusScope(carrier(undefined))).toThrow(/authMiddleware/);
+  });
+
+  it('`null` 照過 —— 那是合法值（角色不受分校限制）', () => {
+    // 老師與家長的合法值就是 null，他們由更窄的範圍把關。
+    // 把 null 一起擋掉會鎖死所有老師與家長
+    expect(getCampusScope(carrier(null))).toBeNull();
+  });
+
+  it('空陣列照過 —— 那也是合法值（管理員沒被指派分校）', () => {
+    // `[]` 是「什麼都看不到」的 fail-closed，它跟「缺席」是兩件事
+    expect(getCampusScope(carrier([]))).toEqual([]);
+  });
+
+  it('有指派的分校原樣回', () => {
+    expect(getCampusScope(carrier(['campus-1']))).toEqual(['campus-1']);
+  });
+});
+
+describe('isCampusAllowed —— 缺席時拒絕', () => {
+  it('⚠️ 缺席 → false，即使沒有指名分校', () => {
+    // `daily-checkins.ts` 的 body 守衛走這一支、**不經過 getCampusScope**，
+    // 所以兩個入口都要各自 fail-closed。少了這裡，一支忘記掛 middleware 的
+    // 寫入端點會直接放行
+    expect(isCampusAllowed(undefined, 'campus-1')).toBe(false);
+    expect(isCampusAllowed(undefined, undefined)).toBe(false);
+  });
+
+  it('`null`（不受限）仍然放行 —— 缺席與不受限不能混為一談', () => {
+    expect(isCampusAllowed(null, 'campus-1')).toBe(true);
   });
 });

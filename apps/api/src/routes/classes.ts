@@ -4,7 +4,7 @@ import { formatAuditClassResourceName, logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
 import { buildSessionGenerationPlan } from '../domain/session-assignment/session-generation-planner';
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
-import { applyCampusFilter } from '../lib/campus-scope';
+import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
 import { checkEnrollmentSessionPacks } from '../lib/enrollment-session-pack-guard';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { checkClassesPastSessions } from '../lib/class-past-sessions';
@@ -422,7 +422,7 @@ app.openapi(
       );
 
     if (query.search) dbQuery = dbQuery.ilike('name', `%${query.search}%`);
-    dbQuery = applyCampusFilter(dbQuery, 'campus_id', c.get('campusScope'), query.campusId);
+    dbQuery = applyCampusFilter(dbQuery, 'campus_id', getCampusScope(c), query.campusId);
     if (query.courseId) dbQuery = dbQuery.eq('course_id', query.courseId);
     if (query.isActive !== undefined) dbQuery = dbQuery.eq('is_active', query.isActive === 'true');
 

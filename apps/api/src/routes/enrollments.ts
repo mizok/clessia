@@ -5,7 +5,7 @@ import { DbUuidSchema } from '../lib/validation';
 import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
 import { buildPeriodFilter, buildSelect, sortColumn } from './enrollments/list-query';
 import { monthRange, prorateByDays } from '../lib/proration';
-import { applyCampusFilter } from '../lib/campus-scope';
+import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
 import { checkEnrollmentSessionPacks } from '../lib/enrollment-session-pack-guard';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
@@ -494,7 +494,7 @@ app.openapi(
 
     if (classId) query = query.eq('class_id', classId);
     if (studentId) query = query.eq('student_id', studentId);
-    query = applyCampusFilter(query, 'classes.campus_id', c.get('campusScope'), campusId);
+    query = applyCampusFilter(query, 'classes.campus_id', getCampusScope(c), campusId);
     if (status) query = query.eq('status', status);
 
     // `true` 的過濾由 select 裡的 `!inner` 完成；`false` 要再下這一條
