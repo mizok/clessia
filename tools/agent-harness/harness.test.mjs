@@ -24,6 +24,7 @@ import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
 import { preflightVerdict } from './lib/preflight-verdict.mjs';
 import { extractScriptUrls, resolveBaseUrl, summarize } from './lib/smoke-probes.mjs';
 import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
+import { guardedParamNames, unguardedCampusParams } from './lib/campus-param-guard.mjs';
 import {
   findOrphanEndpoints,
   matchesPrefix,
@@ -661,6 +662,59 @@ test('doc-router：預期落空時才指向 silent-tool-failures', () => {
   assert.ok(!fired('幫我把 component 的 scss 改成 BEM'));
   assert.ok(!fired('這支 PR 為什麼紅了'));
   assert.ok(!fired('磁碟滿了清一下 docker cache'));
+});
+
+/**
+ * A21：分校過濾參數不得繞過 campusRequestGuard（2026-09-06，零 baseline）。
+ *
+ * 守衛攔的是**列舉出來的那幾個參數名**（`url.searchParams.getAll('campusId')` 等），
+ * 所以任何叫別的名字的分校參數會**直接穿過它** —— 程式編得過、測試也綠，
+ * 而使用者拿得到別的分校的資料。**那是授權漏洞，不是缺一道檢查。**
+ */
+test('A21：守衛集合從 auth.ts 的原始碼推導，不是另一份清單', () => {
+  // 抓的是守衛**真正讀的東西**，不是註解或型別 —— 有人加第五個名字，這裡自動跟上。
+  const guarded = guardedParamNames(`
+    const requested = [
+      ...url.searchParams.getAll('campusId'),
+      ...url.searchParams.getAll('campus_id'),
+      // 註解裡提到 campusNickname 不該被算進去
+      ...url.searchParams.getAll('campusIds').flatMap((v) => v.split(',')),
+    ];
+  `);
+  assert.deepEqual([...guarded].sort(), ['campusId', 'campusIds', 'campus_id']);
+  assert.ok(!guarded.has('campusNickname'), '註解裡的名字不該被當成守衛認得的');
+});
+
+test('A21：名字裡有 campus 但不在集合裡就是繞過', () => {
+  const guarded = new Set(['campusId', 'campus_id', 'campusIds', 'campus_ids']);
+  const hits = unguardedCampusParams(
+    {
+      '/api/sessions': ['campusId', 'page'],
+      '/api/reports': ['campusFilter'],
+      '/api/staff': ['homeCampusId'],
+      '/api/courses': ['campus_ids', 'search'],
+      '/api/x': ['studentId', 'classId'],
+    },
+    guarded,
+  );
+
+  // 該抓的兩筆
+  assert.deepEqual(
+    hits.map((h) => h.param),
+    ['campusFilter', 'homeCampusId'],
+  );
+
+  // **反例比正例重要**：合規的三支必須完全安靜，
+  // 否則這道 gate 會對每一支帶分校參數的端點亂叫，然後被關掉。
+  assert.ok(!hits.some((h) => h.path === '/api/sessions'));
+  assert.ok(!hits.some((h) => h.path === '/api/courses'), 'snake_case 複數也是合規的');
+  assert.ok(!hits.some((h) => h.path === '/api/x'), '不含 campus 的參數不歸這支管');
+});
+
+test('A21：大小寫與位置都算 —— campus 出現在名字任何地方都要被守衛認得', () => {
+  const guarded = new Set(['campusId']);
+  const hits = unguardedCampusParams({ '/api/a': ['CampusName', 'primaryCampus'] }, guarded);
+  assert.equal(hits.length, 2, '大寫開頭與結尾出現都要抓到');
 });
 
 test('c7 擋舊版結構指令', () => {
