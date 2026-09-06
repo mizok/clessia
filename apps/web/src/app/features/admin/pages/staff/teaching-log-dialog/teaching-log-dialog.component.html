@@ -11,7 +11,21 @@
   </header>
 
   @if (loading()) {
-    <p class="teaching-log__state">載入中…</p>
+    <section class="teaching-log__summary" aria-label="教學紀錄載入中">
+      <div class="teaching-log__metric">
+        <span class="teaching-log__metric-skeleton p-skeleton" aria-hidden="true"></span>
+        <span class="teaching-log__metric-label">小時</span>
+      </div>
+      <div class="teaching-log__metric">
+        <span class="teaching-log__metric-skeleton p-skeleton" aria-hidden="true"></span>
+        <span class="teaching-log__metric-label">堂</span>
+      </div>
+    </section>
+    <div class="skeleton-list">
+      @for (i of [1, 2, 3]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
   } @else if (loadError()) {
     <p class="teaching-log__state teaching-log__state--error">課堂查詢失敗，請稍後再試。</p>
   } @else {
