@@ -19,10 +19,31 @@ on:
   push:
   workflow_dispatch:
 
-# 同一個 PR 連續推送時取消前一次，只留最新結果
+# 同一個**分支**連續推送時取消前一次，只留最新結果 —— **但 main 例外**。
+#
+# `github.ref` 涵蓋 `refs/heads/main`，而註解原本寫的意圖是「同一個 PR」——
+# **作用範圍比註解描述的大**。於是 main 的每一次 push 都會殺掉前一次，
+# 而 main 的每個 commit 是一個獨立、需要各自被驗證的狀態。
+#
+# 實測（2026-09-07，issue #600）：verify.yml 在 main 上最近 30 顆 run
+# **28 顆 cancelled、1 顆 success**。那不是「板上很安靜」——
+# **沒有紅燈不代表綠，代表一整段時間沒有觀測**。
+#
+# 更尖的後果：「PR 綠不蘊含 main 綠」那條規則今晚才實際發生過一次
+#（A21 合進 main 才紅在 sync-feature-map，#563）——
+# **而如果 main 的 CI 從來沒跑完，那條規則就永遠沒有機會生效。
+# 守衛存在，但它從來沒被執行過。**
+#
+# 代價是合併密集時 main 會有多顆 run 並行、CI 分鐘數上升。那是刻意換的：
+# 沒有結論就無法二分，而 main 壞掉時「是哪一筆造成的」正是唯一要回答的問題。
+#
+# ⚠️ **改這個表達式之前先想清楚怎麼驗它。** 它的兩個分支要用兩支分支去證：
+# 在任何非 main 的分支上它都是 `true`，所以「推兩個 commit 到測試分支看兩顆都跑完」
+# **會得到相反的結果，而那個失敗跟「修法無效」長得一模一樣**。
+# 2026-09-07 的驗法寫在 PR 裡：拋棄式分支＋暫時把它加進例外，兩個方向各驗一次。
 concurrency:
   group: verify-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   verify:
