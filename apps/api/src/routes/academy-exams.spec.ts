@@ -1,6 +1,7 @@
+import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
-import { buildAcademyScoreRows, isPassScoreValid } from './academy-exams';
+import academyExamsApp, { buildAcademyScoreRows, isPassScoreValid } from './academy-exams';
 
 describe('isPassScoreValid', () => {
   it('null / undefined 一律合法（未設，不是設成 0）', () => {
@@ -132,5 +133,248 @@ describe('buildAcademyScoreRows', () => {
     );
 
     expect(rows[0].classIds).toEqual([]);
+  });
+});
+
+/**
+ * **待登錄的判定活在路由裡，純函式測試看不到它。**
+ *
+ * `buildAcademyExamExpectedCounts` 只知道「餵進來的資料算出幾個人」；
+ * 「哪些考試是候選」「`exam_date` 有沒有被撈回來」「`todoLevel` 有沒有被接住」
+ * 全都在這一層 —— 而少撈 `exam_date` 的後果是**每一場的分母都變成 0，於是告警
+ * 靜靜地永遠是空的**（charter：驗證要打到出錯的那一層）。
+ */
+describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級）', () => {
+  interface Fixture {
+    activeExams: Array<{ id: string; exam_date: string }>;
+    examClasses: Array<{ exam_id: string; class_id: string }>;
+    enrollments: Array<{
+      class_id: string;
+      student_id: string;
+      effective_from: string;
+      effective_to: string | null;
+    }>;
+    scores: Array<{ exam_id: string; student_id: string }>;
+  }
+
+  /**
+   * **替身要照路由實際 select 的欄位投影。** 不投影的話，路由少撈一個欄位
+   * （例如 `exam_date`）替身照樣回全欄位，於是「對的實作」與「錯的實作」
+   * 在這個測試上產生一樣的觀察值 —— 那個測試就沒有在測那件事。
+   * （這一段是先寫完測試、拿「拿掉 `exam_date`」當陷阱去撞，發現撞不紅才補的。）
+   */
+  function project<T extends Record<string, unknown>>(rows: T[], columns: string): T[] {
+    const wanted = columns
+      .split(',')
+      .map((col) => col.trim())
+      .filter(Boolean);
+    if (wanted.length === 0) return rows;
+    return rows.map(
+      (row) =>
+        Object.fromEntries(
+          Object.entries(row).filter(([key]) => wanted.includes(key)),
+        ) as T,
+    );
+  }
+
+  function createListApp(fixture: Fixture) {
+    // 主查詢最後下的 `.in('id', ...)` 就是「哪幾場被判成待登錄」——
+    // 直接釘住它，比斷言回傳筆數有鑑別力（筆數在對錯兩種實作下可以一樣）
+    let todoIdFilter: string[] | null = null;
+
+    const supabase = {
+      from(table: string) {
+        let columns = '';
+        const query: Record<string, unknown> = {
+          select: (cols?: string) => {
+            columns = cols ?? '';
+            return query;
+          },
+          eq: () => query,
+          neq: () => query,
+          ilike: () => query,
+          gte: () => query,
+          lte: () => query,
+          order: () => query,
+          range: () => query,
+          in: (column: string, values: string[]) => {
+            if (table === 'academy_exams' && column === 'id') todoIdFilter = values;
+            return query;
+          },
+          then: (onfulfilled?: ((value: unknown) => unknown) | null) => {
+            let result: unknown = { data: [], error: null, count: 0 };
+
+            if (table === 'academy_exams' && columns.includes('academy_scores(count)')) {
+              const visible = fixture.activeExams.filter(
+                (exam) => !todoIdFilter || todoIdFilter.includes(exam.id),
+              );
+              result = {
+                data: visible.map((exam) => ({
+                  id: exam.id,
+                  name: exam.id,
+                  exam_type: 'quiz',
+                  status: 'active',
+                  exam_date: exam.exam_date,
+                  total_score: 100,
+                  pass_score: null,
+                  scope_note: null,
+                  campus_id: null,
+                  subject_id: null,
+                  created_at: '2026-04-01T00:00:00Z',
+                  updated_at: '2026-04-01T00:00:00Z',
+                  subjects: null,
+                  academy_exam_classes: [
+                    {
+                      count: fixture.examClasses.filter((row) => row.exam_id === exam.id).length,
+                    },
+                  ],
+                  academy_scores: [
+                    { count: fixture.scores.filter((row) => row.exam_id === exam.id).length },
+                  ],
+                })),
+                error: null,
+                count: visible.length,
+              };
+            } else if (table === 'academy_exams') {
+              result = { data: project(fixture.activeExams, columns), error: null };
+            } else if (table === 'academy_exam_classes') {
+              result = { data: project(fixture.examClasses, columns), error: null };
+            } else if (table === 'enrollments') {
+              result = { data: project(fixture.enrollments, columns), error: null };
+            } else if (table === 'academy_scores') {
+              result = { data: project(fixture.scores, columns), error: null };
+            }
+
+            return Promise.resolve(result).then(onfulfilled ?? undefined);
+          },
+        };
+        return query;
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      context.set('roles', ['admin']);
+      context.set('campusScope', null);
+      await next();
+    });
+    app.route('/api/academy-exams', academyExamsApp);
+
+    async function list(queryString: string) {
+      const response = await app.request(
+        `/api/academy-exams?${queryString}`,
+        {},
+        undefined,
+        { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
+      );
+      return { response, body: (await response.json()) as { data: Array<Record<string, unknown>> } };
+    }
+
+    return { list, todoIds: () => todoIdFilter };
+  }
+
+  // 三場都在 4/10：登完的、登到一半的、一筆都沒有的
+  const BASE: Fixture = {
+    activeExams: [
+      { id: 'exam-done', exam_date: '2026-04-10' },
+      { id: 'exam-partial', exam_date: '2026-04-10' },
+      { id: 'exam-empty', exam_date: '2026-04-10' },
+    ],
+    examClasses: [
+      { exam_id: 'exam-done', class_id: 'c-done' },
+      { exam_id: 'exam-partial', class_id: 'c-partial' },
+      { exam_id: 'exam-empty', class_id: 'c-empty' },
+    ],
+    enrollments: [
+      ...['s1', 's2'].map((student_id) => ({
+        class_id: 'c-done',
+        student_id,
+        effective_from: '2026-01-01',
+        effective_to: null,
+      })),
+      ...['s3', 's4'].map((student_id) => ({
+        class_id: 'c-partial',
+        student_id,
+        effective_from: '2026-01-01',
+        effective_to: null,
+      })),
+      ...['s5', 's6'].map((student_id) => ({
+        class_id: 'c-empty',
+        student_id,
+        effective_from: '2026-01-01',
+        effective_to: null,
+      })),
+    ],
+    scores: [
+      { exam_id: 'exam-done', student_id: 's1' },
+      { exam_id: 'exam-done', student_id: 's2' },
+      { exam_id: 'exam-partial', student_id: 's3' },
+    ],
+  };
+
+  it('`todo=true` → 登完的不算待登錄，登到一半的算', async () => {
+    // 舊定義是「一筆都沒有」，於是 `exam-partial`（2 個人只登了 1 個）完全看不到
+    const { list, todoIds } = createListApp(BASE);
+    await list('todo=true');
+
+    expect(todoIds()?.sort()).toEqual(['exam-empty', 'exam-partial']);
+  });
+
+  it('`todoLevel=none` → 只有一筆都沒有的那些（高）', async () => {
+    const { list, todoIds } = createListApp(BASE);
+    await list('todo=true&todoLevel=none');
+
+    expect(todoIds()).toEqual(['exam-empty']);
+  });
+
+  it('`todoLevel=partial` → 只有登到一半的那些（低）', async () => {
+    // 不合併成一級：告警量會上升，一級化會讓最急的那類被稀釋進去
+    const { list, todoIds } = createListApp(BASE);
+    await list('todo=true&todoLevel=partial');
+
+    expect(todoIds()).toEqual(['exam-partial']);
+  });
+
+  it('⚠️ 考完才轉入的學生不進分母 —— 否則那場永遠差一筆、補不了', async () => {
+    // 舊實作用「現在 status=active」，六月插班的學生會掛在四月那場的分母上，
+    // 於是 N/M 永遠到不了滿。補不滿的警示數字會被學會忽略。
+    const { list, todoIds } = createListApp({
+      activeExams: [{ id: 'exam-apr', exam_date: '2026-04-10' }],
+      examClasses: [{ exam_id: 'exam-apr', class_id: 'c1' }],
+      enrollments: [
+        { class_id: 'c1', student_id: 'joined-later', effective_from: '2026-06-01', effective_to: null },
+      ],
+      scores: [],
+    });
+    await list('todo=true');
+
+    // 分母 0 → 沒有人要考 → 不是待登錄
+    expect(todoIds()).toBeNull();
+  });
+
+  it('分母 0（綁了班但沒有在籍學生）→ 不算待登錄，那是清不掉的告警', async () => {
+    const { list, todoIds } = createListApp({
+      activeExams: [{ id: 'exam-x', exam_date: '2026-04-10' }],
+      examClasses: [{ exam_id: 'exam-x', class_id: 'c1' }],
+      enrollments: [],
+      scores: [],
+    });
+    await list('todo=true&todoLevel=none');
+
+    expect(todoIds()).toBeNull();
+  });
+
+  it('列表每一筆都帶 `expectedCount` —— 分母跟分子回在同一筆上', async () => {
+    const { list } = createListApp(BASE);
+    const { body } = await list('');
+
+    const byId = new Map(body.data.map((row) => [row['id'], row]));
+    expect(byId.get('exam-done')).toMatchObject({ scoreCount: 2, expectedCount: 2 });
+    expect(byId.get('exam-partial')).toMatchObject({ scoreCount: 1, expectedCount: 2 });
+    expect(byId.get('exam-empty')).toMatchObject({ scoreCount: 0, expectedCount: 2 });
   });
 });
