@@ -1,5 +1,10 @@
 import type { ParentAttendanceRecord } from '@core/parent-attendance.service';
-import { ATTENDANCE_STATUS_TONE, fillMissingDays, groupByDate } from './attendance.util';
+import {
+  ATTENDANCE_STATUS_TONE,
+  fillMissingDays,
+  groupByDate,
+  sessionChipLabel,
+} from './attendance.util';
 
 const record = (overrides: Partial<ParentAttendanceRecord> = {}): ParentAttendanceRecord => ({
   id: 'r1',
@@ -85,5 +90,19 @@ describe('attendance.util', () => {
     it('沒有「遲到」——值域只有三個 key', () => {
       expect(Object.keys(ATTENDANCE_STATUS_TONE).sort()).toEqual(['absent', 'on_leave', 'present']);
     });
+  });
+});
+
+describe('sessionChipLabel', () => {
+  it('停課要標，正常的兩種都不標', () => {
+    expect(sessionChipLabel('cancelled')).toBe('停課');
+    expect(sessionChipLabel('scheduled')).toBeNull();
+    expect(sessionChipLabel('completed')).toBeNull();
+  });
+
+  it('null 有自己的標籤，不落進 scheduled', () => {
+    // 落進 scheduled 的話，「這不是課堂」跟「這是一堂正常的課」會長得一樣
+    expect(sessionChipLabel(null)).toBe('非課堂');
+    expect(sessionChipLabel(null)).not.toBe(sessionChipLabel('scheduled'));
   });
 });

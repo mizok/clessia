@@ -244,4 +244,43 @@ describe('AttendancePage', () => {
     createComponent();
     expect(fixture.nativeElement.querySelector('app-band-anchor')).toBeNull();
   });
+  describe('停課的課堂要標出來（#502）', () => {
+    it('停課仍然掛著請假時，兩件事都說得出來', () => {
+      createComponent({
+        data: [record({ status: 'on_leave', sessionStatus: 'cancelled', className: '數學班' })],
+        meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 1 },
+      });
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+
+      const text = fixture.nativeElement.textContent;
+      // 出缺席狀態沒有被課堂狀態蓋掉 —— 那一筆確實是一次請假，只是課後來停了
+      expect(text).toContain('請假');
+      expect(text).toContain('停課');
+    });
+
+    it('正常的課堂不長出 chip', () => {
+      createComponent({
+        data: [record({ sessionStatus: 'scheduled' })],
+        meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+      });
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).not.toContain('停課');
+      expect(fixture.nativeElement.textContent).not.toContain('非課堂');
+    });
+
+    it('沒有課堂的紀錄標成「非課堂」—— 不能跟正常的課長得一樣', () => {
+      createComponent({
+        data: [record({ sessionStatus: null, className: null })],
+        meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+      });
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.textContent).toContain('非課堂');
+      expect(fixture.nativeElement.textContent).not.toContain('停課');
+    });
+  });
 });

@@ -4,9 +4,7 @@
     <h1 class="attendance__band-title">{{ page().label }}</h1>
     <div bandAside>
       @if (monthlyAbsent() !== null) {
-        <app-band-anchor [value]="monthlyAbsent()!" unit="次缺席">
-          本月
-        </app-band-anchor>
+        <app-band-anchor [value]="monthlyAbsent()!" unit="次缺席"> 本月 </app-band-anchor>
       }
     </div>
   </app-page-band>
@@ -63,6 +61,13 @@
                 statusLabels[record.status]
               }}</app-status-dot>
               <span class="attendance__record-class">{{ record.className ?? '—' }}</span>
+              <!--
+                停課仍然可能掛著一筆請假（#502）。老師端同一件事用的就是 data-chip
+                （`schedule.page.html`），這裡照那個形狀，不另創一個。
+              -->
+              @if (sessionChipLabel(record.sessionStatus); as chip) {
+                <app-data-chip>{{ chip }}</app-data-chip>
+              }
               @if (record.campusName) {
                 <span class="attendance__record-campus">{{ record.campusName }}</span>
               }

@@ -20,6 +20,7 @@ import {
   ParentAttendanceService,
   type ParentAttendanceRecord,
 } from '@core/parent-attendance.service';
+import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { PageBandComponent } from '@shared/components/page-band/page-band.component';
@@ -31,6 +32,7 @@ import {
   ATTENDANCE_STATUS_TONE,
   fillMissingDays,
   groupByDate,
+  sessionChipLabel,
 } from './attendance.util';
 
 type RangeMode = 'recent10' | 'recent30' | 'month';
@@ -54,6 +56,7 @@ const PAGE_SIZE = 50;
     BandAnchorComponent,
     ChildSwitcherComponent,
     StatusDotComponent,
+    DataChipComponent,
     EmptyStateComponent,
   ],
   templateUrl: './attendance.page.html',
@@ -102,6 +105,7 @@ export class AttendancePage implements OnInit {
   protected readonly hasMore = computed(() => this.records().length < this.total());
   protected readonly statusLabels = ATTENDANCE_STATUS_LABELS;
   protected readonly statusTone = ATTENDANCE_STATUS_TONE;
+  protected readonly sessionChipLabel = sessionChipLabel;
 
   private readonly dateRange = computed<{ dateFrom?: string; dateTo?: string }>(() => {
     const mode = this.rangeMode();
