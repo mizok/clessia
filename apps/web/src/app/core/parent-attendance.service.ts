@@ -14,6 +14,12 @@ export interface ParentAttendanceRecord {
   endTime: string | null;
   campusName: string | null;
   className: string | null;
+  /**
+   * **課堂本身**的狀態。停課的課堂上面仍然可能有一筆 `on_leave`
+   *（請假在停課之前送的）—— 少了這個標記，家長會把它讀成一次正常的請假，
+   * 而老師端同一件事有「停課」標籤（#502）。
+   */
+  sessionStatus: 'scheduled' | 'completed' | 'cancelled' | null;
   status: ParentAttendanceStatus;
   note: string | null;
 }

@@ -32,6 +32,12 @@ export interface AttendanceRecord {
   endTime: string | null;
   campusName: string | null;
   className: string | null;
+  /**
+   * **課堂本身**的狀態，不是出勤狀態。`null` = 這個 event 沒有對應的課堂。
+   * 停課的課堂上面仍然可能有出勤紀錄（請假連動寫的 `on_leave` 尤其常見）——
+   * 少了這個標記，一堂沒上的課會長得跟一次正常的請假一模一樣（#502）。
+   */
+  sessionStatus: AttendanceSessionStatus | null;
   status: AttendanceStatus;
   note: string | null;
   recordedBy: string | null;
