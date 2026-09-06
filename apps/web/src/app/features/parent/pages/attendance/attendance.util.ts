@@ -21,6 +21,30 @@ export const ATTENDANCE_STATUS_LABELS: Record<ParentAttendanceStatus, string> = 
   absent: '缺席',
 };
 
+/**
+ * 課堂狀態 → 要不要在列上加一顆 chip。
+ *
+ * **用 `Record` 不用 `switch` + `default`** —— enum 多一個值時這裡是編譯錯，
+ * 而 `default` 會把它靜靜歸進「正常」（charter 的第一族）。
+ */
+const SESSION_STATUS_CHIP: Record<'scheduled' | 'completed' | 'cancelled', string | null> = {
+  scheduled: null,
+  completed: null,
+  cancelled: '停課',
+};
+
+/**
+ * `null` 有自己的分支，**不能落進 `scheduled`** ——
+ * 那會讓「這不是課堂」跟「這是一堂正常的課」在畫面上長得一樣，
+ * 而那正是後端拒絕猜預設值的理由（#514）。
+ */
+export function sessionChipLabel(
+  sessionStatus: 'scheduled' | 'completed' | 'cancelled' | null,
+): string | null {
+  if (sessionStatus === null) return '非課堂';
+  return SESSION_STATUS_CHIP[sessionStatus];
+}
+
 export interface AttendanceDayGroup {
   readonly date: string;
   readonly records: ParentAttendanceRecord[];
