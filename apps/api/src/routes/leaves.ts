@@ -1,4 +1,9 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import {
+  isCancelledSession,
+  toSessionRows,
+  type CancellableSession,
+} from '../lib/cancelled-session';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
@@ -96,13 +101,8 @@ interface LeaveValidationInput {
   readonly endTime?: string | null;
 }
 
-interface LeaveAttendanceSessionRow {
+interface LeaveAttendanceSessionRow extends CancellableSession {
   readonly class_id: string;
-  /**
-   * `sessions.status`。**沒帶就視為要寫** —— 見 `buildLeaveAttendanceUpserts` 的理由。
-   * 呼叫端要 `select('sessions!inner(class_id, status)')` 才拿得到。
-   */
-  readonly status?: string | null;
 }
 
 interface LeaveAttendanceEventRow {
@@ -159,32 +159,11 @@ export function getLeaveValidationError(input: LeaveValidationInput): string | n
   return null;
 }
 
-/**
- * 停課的課堂不寫 `on_leave`（使用者 2026-09-06 裁定，issue #502）——
- * 停課只改 `sessions.status`，那筆 event 留著，所以請假連動照樣撈得到它，
- * 於是家長端會看到「一堂沒上的課請假了」這種語意矛盾的紀錄。
- *
- * **沒帶 `status` 就視為要寫**：呼叫端漏 `select('status')` 時行為退回「照舊寫」，
- * 而不是「全部不寫」。反過來設計的話，**一次漏 select 會讓整批 `on_leave` 靜靜消失
- * 而且沒有訊號** —— 那比多寫幾筆難發現得多。跟 `lib/enrolled-events.ts` 的
- * `isCancelled` 同一個方向，兩邊要一起改。
- *
- * ⚠️ `routes/enrollments.ts` 的 `buildEnrollmentLeaveAttendanceUpserts` 是同一種紀錄的
- * **第三個寫入點**，它還沒有這道過濾（#502 的裁示範圍只涵蓋這裡）。
- */
-function isCancelledSession(sessionRow: LeaveAttendanceSessionRow): boolean {
-  return sessionRow.status === 'cancelled';
-}
-
 export function buildLeaveAttendanceUpserts(input: BuildLeaveAttendanceUpsertsInput) {
   return input.events
     .filter((eventRow) =>
       input.enrollments.some((enrollment) => {
-        const sessionRows = Array.isArray(eventRow.sessions)
-          ? eventRow.sessions
-          : eventRow.sessions
-            ? [eventRow.sessions]
-            : [];
+        const sessionRows = toSessionRows(eventRow.sessions);
 
         return sessionRows.some(
           (sessionRow) =>
@@ -278,8 +257,8 @@ async function applyLeaveAttendance(
 
   const { data: events } = await supabase
     .from('events')
-    // `status` 是給 `buildLeaveAttendanceUpserts` 排除停課用的 —— 少撈它不會報錯，
-    // 只會讓那道過濾靜靜地什麼都不做（#502）。
+    // `status` 是給 `isCancelledSession` 排除停課用的 —— 少撈它不會報錯，
+    // 只會讓那道過濾靜靜地什麼都不做。理由見 `lib/cancelled-session.ts`。
     .select('id, event_date, sessions!inner(class_id, status)')
     .eq('org_id', orgId)
     .eq('event_type', 'session')
@@ -716,8 +695,7 @@ app.openapi(
       return c.json({ error: '請假資料無效', message: validationError }, 400);
     }
 
-    const rangeChanged =
-      next.startDate !== previous.startDate || next.endDate !== previous.endDate;
+    const rangeChanged = next.startDate !== previous.startDate || next.endDate !== previous.endDate;
 
     // 只在區間真的動了才查重疊。**沒動就不查**不是省一支查詢而已 ——
     // 既有資料若已經有一組重疊（這條沒有 DB 約束，歷史資料進得來），

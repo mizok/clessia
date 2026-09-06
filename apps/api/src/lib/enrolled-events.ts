@@ -1,3 +1,5 @@
+import { isCancelledSession, toSessionRows } from './cancelled-session';
+
 /**
  * 這個學生當天**實際有報名**的課堂事件。
  *
@@ -13,9 +15,8 @@
  * 撈當天 event 時它照樣會出現。寫成 `present` 之後扣堂數那側會把它算進去 ——
  * **一堂停掉的課會扣掉學生一堂已付費的堂數**（`routes/session-packs.ts` 另有一道）。
  *
- * ⚠️ `routes/leaves.ts` 的 `buildLeaveAttendanceUpserts` 實作同一條規則的另一份。
- * 目前**刻意不合併**：那份綁著請假自己的輸入型別，而且已經有測試在守。
- * 出現第三份的時候再收斂。
+ * ⚠️ 停課那條規則已經收斂到 `lib/cancelled-session.ts`（#568 是第三個寫入點，
+ * 觸發了這裡原本寫的「出現第三份的時候再收斂」）。**在籍條件**仍然各寫一份。
  */
 export interface EnrolledEventSession {
   class_id?: string | null;
@@ -38,17 +39,6 @@ export interface EnrollmentRangeRow {
   effective_to: string | null;
 }
 
-/**
- * 停課的課堂 —— **沒帶 `status` 就視為要寫**。
- *
- * 這個預設方向是刻意的：呼叫端漏 `select('status')` 時，行為退回「照舊寫」而不是
- * 「全部不寫」。反過來設計的話，**一次漏 select 會讓整批出勤紀錄靜靜消失**，
- * 而且沒有任何訊號 —— 那比多寫幾筆難發現得多。
- */
-function isCancelled(session: EnrolledEventSession): boolean {
-  return session.status === 'cancelled';
-}
-
 export function enrolledEventIds(
   events: ReadonlyArray<EnrolledEventInput>,
   enrollments: ReadonlyArray<EnrollmentRangeRow>,
@@ -66,16 +56,14 @@ export function enrolledEventIds(
 
   return events
     .filter((event) => {
-      const sessionRows = Array.isArray(event.sessions)
-        ? event.sessions
-        : event.sessions
-          ? [event.sessions]
-          : [];
+      const sessionRows = toSessionRows(event.sessions);
 
       // 沒有 session 的 event（活動、公告之類）不是課堂 —— 掃碼不該替它寫出勤
       return sessionRows.some(
         (session) =>
-          session.class_id && enrolledClassIds.has(session.class_id) && !isCancelled(session),
+          session.class_id &&
+          enrolledClassIds.has(session.class_id) &&
+          !isCancelledSession(session),
       );
     })
     .map((event) => event.id);

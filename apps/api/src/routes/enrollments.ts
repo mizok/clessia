@@ -1,4 +1,9 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import {
+  isCancelledSession,
+  toSessionRows,
+  type CancellableSession,
+} from '../lib/cancelled-session';
 import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
@@ -263,6 +268,8 @@ interface EnrollmentLeaveRequestRow {
 interface EnrollmentEventRow {
   id: string;
   event_date: string;
+  /** 停課的課堂不回補 `on_leave`（#568）—— 規則與退化方向見 `lib/cancelled-session.ts` */
+  sessions?: CancellableSession | CancellableSession[] | null;
 }
 
 export function buildCopyFromClassPlan(
@@ -286,6 +293,14 @@ export function isCopyFromClassOverQuota(input: CopyFromClassQuotaInput): boolea
   return currentActiveCount + input.toInsertCount > maxStudents;
 }
 
+/**
+ * 報名建立／編輯時，把既有假單回補成 `on_leave`。
+ *
+ * **停課的課堂不回補**（#568）：這是「停課只改一個欄位」那族的第三個寫入點 ——
+ * 觸發路徑跟 `routes/leaves.ts` 不同（那邊是建立請假，這邊是建立報名），
+ * 但寫出來的是同一種語意矛盾的紀錄。規則與「沒帶 status 就照舊寫」的理由
+ * 都在 `lib/cancelled-session.ts`。
+ */
 export function buildEnrollmentLeaveAttendanceUpserts(input: {
   orgId: string;
   studentId: string;
@@ -294,11 +309,13 @@ export function buildEnrollmentLeaveAttendanceUpserts(input: {
   leaves: ReadonlyArray<EnrollmentLeaveRequestRow>;
 }) {
   return input.events
-    .filter((eventRow) =>
-      input.leaves.some(
-        (leaveRow) =>
-          leaveRow.start_date <= eventRow.event_date && leaveRow.end_date >= eventRow.event_date,
-      ),
+    .filter(
+      (eventRow) =>
+        !toSessionRows(eventRow.sessions).some(isCancelledSession) &&
+        input.leaves.some(
+          (leaveRow) =>
+            leaveRow.start_date <= eventRow.event_date && leaveRow.end_date >= eventRow.event_date,
+        ),
     )
     .map((eventRow) => ({
       org_id: input.orgId,
@@ -363,7 +380,9 @@ async function syncLeaveAttendanceForEnrollment(params: {
 
   const { data: events, error: eventError } = await supabase
     .from('events')
-    .select('id, event_date, sessions!inner(class_id)')
+    // `status` 是給 `isCancelledSession` 排除停課用的 —— 少撈它不會報錯，
+    // 只會讓那道過濾靜靜地什麼都不做。理由見 `lib/cancelled-session.ts`。
+    .select('id, event_date, sessions!inner(class_id, status)')
     .eq('org_id', orgId)
     .eq('event_type', 'session')
     .eq('sessions.class_id', classId)
@@ -378,10 +397,8 @@ async function syncLeaveAttendanceForEnrollment(params: {
     orgId,
     studentId,
     recordedBy,
-    events: (events as Array<{ id: string; event_date: string }>).map((eventRow) => ({
-      id: eventRow.id,
-      event_date: eventRow.event_date,
-    })),
+    // `sessions` 要一起傳下去 —— 這裡是最容易把 status 弄丟的地方
+    events: events as EnrollmentEventRow[],
     leaves: overlappingLeaves,
   });
 
