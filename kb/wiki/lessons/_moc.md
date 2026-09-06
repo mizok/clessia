@@ -56,7 +56,7 @@ Links to: [[lessons/a-field-is-a-snapshot-not-a-path]]
 
 Tags: `lessons`, `silent-failure`, `visual-parity`, `m8-audit`
 
-Links to: [[lessons/empty-array-hides-loading]], [[lessons/status-table-blind-spot]], [[lessons/new-field-branches-are-born-untested]], [[lessons/rls-backstop-drift]], [[lessons/menu-entry-without-a-route]]
+Links to: [[lessons/silent-tool-failures]], [[lessons/empty-array-hides-loading]], [[lessons/status-table-blind-spot]], [[lessons/new-field-branches-are-born-untested]], [[lessons/rls-backstop-drift]], [[lessons/menu-entry-without-a-route]]
 
 ## [[lessons/doc-code-drift-2026-08|2026-08 文件與程式碼漂移稽核]]
 
@@ -152,6 +152,14 @@ Tags: `lessons`, `bundle-size`, `angular`, `primeng`, `nx`
 
 Links to: [[lessons/menu-entry-without-a-route]]
 
+## [[lessons/silent-tool-failures|工具靜默地不做你以為它在做的事]]
+
+一連串「零輸出／綠燈」其實代表「這個檢查根本沒發生」的實例——工具沒壞、用法也對，它只是回答了另一個問題，而正確答案與錯誤答案在畫面上逐字相同。
+
+Tags: `lessons`, `silent-failure`, `tooling`, `verification`
+
+Links to: [[lessons/broken-looks-identical-to-normal]], [[lessons/broken-looks-identical-to-normal]], [[lessons/merged-does-not-mean-main]], [[lessons/new-field-branches-are-born-untested]], [[lessons/local-green-is-not-repo-green]], [[lessons/line-number-citations-rot]]
+
 ## [[lessons/status-table-blind-spot|現況表只掃了三分之一的系統]]
 
 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
@@ -165,3 +173,4 @@ Tags: `lessons`, `status-table-blind-spot`
 Tags: `lessons`, `performance`, `workers`, `database`
 
 Links to: [[architecture/auth-pool-lifecycle]], [[architecture/auth-pool-lifecycle]], [[lessons/local-green-is-not-repo-green]]
+

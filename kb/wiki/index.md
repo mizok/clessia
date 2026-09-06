@@ -5,12 +5,10 @@
 ---
 
 ## Overview (2)
-
 - [[overview]] — 本文件整理 PRD 第 1-5 章，說明專案背景、系統目標、核心名詞與角色邊界，作為各流程與功能規格的共同語意基準。
 - [[roadmap]] — 功能區現況（自動生成、由 gate 盯著）與接下來的優先順序。取代先前手畫的 BACKLOG 依賴圖。
 
 ## Architecture (35)
-
 - [[architecture/admin-contact-book-page]] — 管理端的聯絡簿是監看不是撰寫：日期區間列表＋未簽收篩選（API 無分頁且 count 是 exact，所以前端篩是誠實的），編輯已存在的一則走同一支 upsert，但不做「挑學生開新的一則」——那是老師端 P3 的工作流。「今天哪些該寫還沒寫」這輪不做，現有 API 做出來會漏班且是 N+1。
 - [[architecture/admin-dashboard-v1]] — 把四張死卡片接上真資料並補行政待辦卡：零後端改動（六種資料既有 API 全有）、未點名卡回溯 7 天且只在逐堂點名模式顯示、報名卡只取 meta.total 以免分頁截斷、經營區用 permission 蓋住、卡片是索引不是工作場。
 - [[architecture/admin-payments-page]] — 把 /admin/payments 空殼接上 /api/invoices：狀態由後端推導直接呈現、篩選只做 API 真的支援的兩項（欠繳與單一學生）而不在前端偽造狀態篩選、meta.total 在非 overdue 路徑不可信所以分頁改用「當頁滿即有下一頁」、詳情走 dialog、收款/退費/催繳/手動開帳共用同一個 dialog、列印用 @media print 切區塊。
@@ -48,14 +46,12 @@
 - [[architecture/vendor-relationship]] — 賣一套系統、客戶自付基礎設施、收維護費。客戶必須隨時能帶著資料離開 —— 這條原則否決了多租戶，也否決了任何 vendor lock-in。
 
 ## Flows (4)
-
 - [[flows/attendance]] — 本文件整理 PRD 6.4-6.5，並補充 4.16 的模式定義，說明「日到班（Check-in）」如何轉成課堂出勤（Attendance），以及管理員如何補登與補請假。
 - [[flows/enrollment]] — 本文件整理 PRD 6.3（並對齊 4.17 的來源/狀態定義），描述報名申請到繳費完成的完整作業流，涵蓋公開報名、家長端報名、加選、續課加選與管理員快速流程。
 - [[flows/renewal]] — 本文件整理 PRD 6.10，定義預告制自動續課（Pre-Notification Auto-Renewal）的時間軸、角色動作與例外處理。
 - [[flows/trial]] — 本文件整理 PRD 6.2，定義試聽申請從提交、安排、試聽到跟進的完整流程。此流程與報名申請流程獨立，但可在資料層建立來源關聯。
 
-## Lessons (22)
-
+## Lessons (23)
 - [[lessons/a-field-is-a-snapshot-not-a-path]] — 看到 published_at 有值就推論「發布流程走過」——實際上那筆是 seed 用 SQL 直接塞的，而發布端點連通知邏輯都還沒寫。同一個形狀在三個席上各出現過一次。
 - [[lessons/agent-workflow-guide]] — 本文件定義 Claude 與 Codex 協作開發時應遵循的工作流程。 目標：減少 token 消耗、提升成品品質、確保可追蹤性。
 - [[lessons/awakened-tests-bite]] — 把 @Input/@ViewChild 換成 functional API 這種「機械」重構，讓一段從來沒真正執行過的程式碼第一次跑起來，連帶暴露六支靠「那行沒跑到」才綠的 spec 與一顆 node 解析條件的地雷。
@@ -76,15 +72,14 @@
 - [[lessons/new-field-branches-are-born-untested]] — 接上 API 新回的欄位、加一個判斷分支之後，989 支測試裡有 986 支照樣全綠 —— 因為舊 fixture 沒有那個欄位，全部走 null 落進舊路徑。全綠在這種改動裡是警訊，不是好消息。
 - [[lessons/rls-backstop-drift]] — 業務表該一律啟用 RLS 當 fail-closed 後盾，但 30 張裡有 16 張沒開——早期的都有、後期新增的都沒有，而沒有任何東西會提醒。
 - [[lessons/root-component-pins-the-bundle]] — 一個只有多重角色使用者看得到的角色選擇 dialog，把 PrimeNG 整棵 dialog 依賴樹釘在初始 bundle 上，佔 756 kB 中的 140 kB。順帶記錄 angular.json 其實不生效這個會再踩一次的坑。
+- [[lessons/silent-tool-failures]] — 一連串「零輸出／綠燈」其實代表「這個檢查根本沒發生」的實例——工具沒壞、用法也對，它只是回答了另一個問題，而正確答案與錯誤答案在畫面上逐字相同。
 - [[lessons/status-table-blind-spot]] — 自動生成的功能區現況表只掃 features/admin/pages，於是家長端 11 個空殼從未出現在任何報告裡 —— 而所有優先順序決策都以那張表為依據。
 - [[lessons/workers-fanout-costs-before-the-db]] — 儀表板一次打 8 支 API，量測發現「完全不碰 DB」的請求在並行 8 條時 TTFB 從 0.46s 惡化到 1.1s（2.4 倍）。Workers 的 per-request 建池模型下，fan-out 的成本在 DB 工作之前就發生了；先量再猜，別一開始就假設是查詢慢。
 
 ## Patterns (1)
-
 - [[patterns/tables-use-responsive-table]] — 表格破版的正解是 responsive-table(欄位收合),不是 overflow 捲動;列印版面與臨時止血除外。
 
 ## Rules (7)
-
 - [[rules/attendance-rules]] — 本文件整理 PRD 8.3-8.4，定義出勤模式、系統推算邏輯、人工修改權限與請假處理規則，作為到班/點名模組的核心行為準則。
 - [[rules/billing-rules]] — 內部人訪談定案的金流業務規則：三種計費模式（月繳/期繳/堂數制）、金額永遠可人工覆寫（不做折扣引擎）、插班退班共用比例試算、帳單與收款一對多、欠繳只做可見性不做強制。
 - [[rules/boolean-controls]] — checkbox（表格列的布林事實／集合選取）、toggle switch（表單裡單一實體的設定欄位）、filter chip（頁面層級的檢視篩選）——依「值活在哪個結構裡」挑控制項，不是憑手感。三處既有落差已修：餐費「收費」toggle 改 checkbox 對齊同列的「訂餐」；費用方案「顯示停用方案」、聯絡簿「只看未簽收」從只換文字的按鈕改成視覺會跟著狀態走的 app-filter-chip。
@@ -94,7 +89,6 @@
 - [[rules/teaching-log-rules]] — 訪談最大發現：各科老師的教務日誌（教學紀錄+作業安排）現靠紙本拍照進 LINE 相簿、行政再轉貼到年級群組，粒度錯誤導致沒修課的學生也收到作業；系統應以班級名冊為粒度，日誌發布即自動送達該班家長端＋推播。
 
 ## Specs (46)
-
 - [[specs/admin/academic/calendar]] — 統一行事曆介面，管理員可瀏覽課堂並直接處理停課、代課、調課。
 - [[specs/admin/academic/classes]] — 管理開課班，設定上課時間，產生課堂。
 - [[specs/admin/academic/courses]] — /admin/courses 的課程列表 —— 管理員瀏覽與維護課程，是開課班（classes）的上層分類。
@@ -143,9 +137,7 @@
 - [[specs/teacher/students]] — 查看自己任課班級的學生名單。
 
 ## Sources (1)
-
 - [[summaries/interview-insider-2026-08-29]] — 目標補習班內部員工的一手訪談（20 題，透過使用者當傳聲筒），P1 資料模型的主要輸入。
 
 ---
-
-**Total: 117 pages**
+**Total: 118 pages**

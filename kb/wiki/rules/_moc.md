@@ -36,7 +36,7 @@ Links to: [[summaries/interview-insider-2026-08-29]], [[roadmap]], [[rules/teach
 
 ## [[rules/enrollment-rules|報名與繳費規則]]
 
-報名審核、繳費關聯與直接報名規範。2026-08-29 依訪談定案的 billing-rules 對齊：繳費狀態由收款推導（三態）、單一 due_date 無寬限期機制、金額調整是議價不是折扣類型。
+報名審核、繳費關聯與直接報名規範。2026-08-29 依訪談定案的 billing-rules 對齊：繳費狀態由收款推導（三態）、單一 due_date 無寬限期機制、金額調整是議價不是折扣類型。2026-09-06 新增第 8 節：學生的分校歸屬不隨退班消失。
 
 Tags: `rules`, `enrollment-rules`
 
