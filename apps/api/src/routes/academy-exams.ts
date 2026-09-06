@@ -2,6 +2,12 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
+import {
+  classifyAcademyExamTodo,
+  loadAcademyExamExpectedCounts,
+  type ExamEnrollmentRow,
+} from '../lib/academy-exam-roster';
+import { isEnrolledOn } from '../lib/session-roster';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
 import { canManageAcademyExam, resolveExamClassIds } from '../lib/exam-scope';
 import { logAudit } from '../utils/audit';
@@ -37,6 +43,10 @@ const AcademyExamListItemSchema = z
     subjectName: z.string().nullable(),
     classCount: z.number().int(),
     scoreCount: z.number().int(),
+    // 應登錄人數（分母）= **考試日在籍 ∪ 已登錄**。定義與理由見
+    // `lib/academy-exam-roster.ts`（issue #424 使用者裁定）。
+    // 綁了班卻一個在籍學生都沒有時是 0 —— 那不是「還沒算」，是真的沒有人要考。
+    expectedCount: z.number().int(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -323,10 +333,11 @@ async function ensureExamOwnedByOrg(
   status: 'active' | 'closed';
   created_by: string | null;
   total_score: number;
+  exam_date: string;
 } | null> {
   const { data, error } = await supabase
     .from('academy_exams')
-    .select('id, name, status, created_by, total_score')
+    .select('id, name, status, created_by, total_score, exam_date')
     .eq('id', examId)
     .eq('org_id', orgId)
     .maybeSingle();
@@ -341,6 +352,7 @@ async function ensureExamOwnedByOrg(
     status: data.status,
     created_by: (data as { created_by?: string | null }).created_by ?? null,
     total_score: (data as { total_score: number }).total_score,
+    exam_date: (data as { exam_date: string }).exam_date,
   };
 }
 
@@ -435,7 +447,12 @@ const listRoute = createRoute({
       class_id: DbUuidSchema.optional(),
       date_from: z.string().date().optional(),
       date_to: z.string().date().optional(),
+      // `todo` 的語意 2026-09-06 起是「**還沒登完**」（N < M），不再是「一筆都沒有」。
+      // `todoLevel` 把它切成兩級：`none` = 一筆都沒有（高），`partial` = 登到一半（低）。
+      // 不合併成一級的理由：告警量會上升（現在完全看不到「登到一半」的那些），
+      // 一級化會讓原本最急的那類被稀釋進去。
       todo: z.coerce.boolean().optional(),
+      todoLevel: z.enum(['none', 'partial']).optional(),
       order: z.enum(['date_asc', 'date_desc']).default('date_desc').optional(),
       page: z.coerce.number().int().min(1).default(1).optional(),
       pageSize: z.coerce.number().int().min(1).max(200).default(20).optional(),
@@ -477,6 +494,7 @@ app.openapi(listRoute, async (c) => {
     date_from: dateFrom,
     date_to: dateTo,
     todo = false,
+    todoLevel,
     order = 'date_desc',
     page = 1,
     pageSize = 20,
@@ -575,10 +593,15 @@ app.openapi(listRoute, async (c) => {
     query = query.in('id', classFilteredExamIds);
   }
 
+  // todo 模式會先為所有候選考試算一次分母，那份結果涵蓋分頁後的這一頁，
+  // 不需要再算第二次
+  let expectedCounts: Map<string, number> | null = null;
+
   if (todo) {
     let todoIdQuery = supabase
       .from('academy_exams')
-      .select('id')
+      // 分母要用每場自己的考試日算，所以這裡得把 `exam_date` 一起帶回來
+      .select('id, exam_date')
       .eq('org_id', orgId)
       .eq('status', 'active');
     if (search?.trim()) {
@@ -607,21 +630,44 @@ app.openapi(listRoute, async (c) => {
     if (todoQueryError) {
       return c.json({ error: todoQueryError.message, code: 'DB_ERROR' }, 400);
     }
-    const activeExamIds = (activeRows ?? []).map((row: { id: string }) => row.id);
-    if (activeExamIds.length === 0) {
+    const activeExams = ((activeRows ?? []) as Array<{ id: string; exam_date: string }>).map(
+      (row) => ({ id: row.id, examDate: row.exam_date }),
+    );
+    if (activeExams.length === 0) {
       return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
     }
 
     const { data: scoreRows, error: scoreRowsError } = await supabase
       .from('academy_scores')
       .select('exam_id')
-      .in('exam_id', activeExamIds);
+      .in(
+        'exam_id',
+        activeExams.map((exam) => exam.id),
+      );
     if (scoreRowsError) {
       return c.json({ error: scoreRowsError.message, code: 'DB_ERROR' }, 400);
     }
 
-    const scoredExamIds = new Set((scoreRows ?? []).map((row: { exam_id: string }) => row.exam_id));
-    const todoExamIds = activeExamIds.filter((examId) => !scoredExamIds.has(examId));
+    // `academy_scores` 有 `UNIQUE (exam_id, student_id)`，所以筆數就是人數 ——
+    // N 與 M 因此可以直接比。少了那個約束這兩個數字不同單位，比較沒有意義。
+    const recordedByExam = new Map<string, number>();
+    for (const row of (scoreRows ?? []) as Array<{ exam_id: string }>) {
+      recordedByExam.set(row.exam_id, (recordedByExam.get(row.exam_id) ?? 0) + 1);
+    }
+
+    expectedCounts = await loadAcademyExamExpectedCounts(supabase, orgId, activeExams);
+
+    const todoExamIds = activeExams
+      .filter((exam) => {
+        const level = classifyAcademyExamTodo(
+          recordedByExam.get(exam.id) ?? 0,
+          expectedCounts?.get(exam.id) ?? 0,
+        );
+        if (level === null) return false;
+        return todoLevel === undefined || level === todoLevel;
+      })
+      .map((exam) => exam.id);
+
     if (todoExamIds.length === 0) {
       return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
     }
@@ -639,10 +685,22 @@ app.openapi(listRoute, async (c) => {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
 
-  const rows = ((data ?? []) as ExamListRow[]).map((row) => {
+  const pageRows = (data ?? []) as ExamListRow[];
+  const counts =
+    expectedCounts ??
+    (await loadAcademyExamExpectedCounts(
+      supabase,
+      orgId,
+      pageRows.map((row) => ({ id: row.id, examDate: row.exam_date })),
+    ));
+
+  const rows = pageRows.map((row) => {
     const subject = pickRelationFirst(row.subjects);
     const classCount = row.academy_exam_classes?.[0]?.count ?? 0;
     const scoreCount = row.academy_scores?.[0]?.count ?? 0;
+    // 這一頁的每一筆都在 `counts` 裡（它是照 pageRows 或候選集算出來的），
+    // 所以這個 `?? 0` 走不到 —— 留著只是為了不讓型別逼出一個 non-null 斷言
+    const expectedCount = counts.get(row.id) ?? 0;
 
     return {
       id: row.id,
@@ -658,6 +716,7 @@ app.openapi(listRoute, async (c) => {
       subjectName: subject?.name ?? null,
       classCount,
       scoreCount,
+      expectedCount,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -686,7 +745,13 @@ const todoCountRoute = createRoute({
       description: '成功',
       content: {
         'application/json': {
-          schema: z.object({ count: z.number().int().min(0) }),
+          // `count` = `none + partial`，維持既有欄位不動；兩級分開回，
+          // 橫幅才能一次拿到「一筆都沒有」與「登到一半」而不用打兩次
+          schema: z.object({
+            count: z.number().int().min(0),
+            none: z.number().int().min(0),
+            partial: z.number().int().min(0),
+          }),
         },
       },
     },
@@ -709,34 +774,62 @@ app.openapi(todoCountRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
 
-  const { data: activeRows, error: activeRowsError } = await supabase
+  // **分校範圍要跟列表一致。** 橫幅原本數的是全機構，而列表套 `applyCampusFilter`
+  // —— 被指派單一分校的管理員因此會看到「有 5 場尚未登錄」然後點進去只有 2 場。
+  // 這跟這支工單要修的「告警數字跟落地頁對不上」是同一族，順手收掉。
+  let activeQuery = supabase
     .from('academy_exams')
-    .select('id')
+    .select('id, exam_date')
     .eq('org_id', orgId)
     .eq('status', 'active');
+  activeQuery = applyCampusFilter(activeQuery, 'campus_id', c.get('campusScope'), undefined);
+
+  const { data: activeRows, error: activeRowsError } = await activeQuery;
 
   if (activeRowsError) {
     return c.json({ error: activeRowsError.message, code: 'DB_ERROR' }, 400);
   }
 
-  const activeExamIds = (activeRows ?? []).map((row: { id: string }) => row.id);
-  if (activeExamIds.length === 0) {
-    return c.json({ count: 0 }, 200);
+  const activeExams = ((activeRows ?? []) as Array<{ id: string; exam_date: string }>).map(
+    (row) => ({ id: row.id, examDate: row.exam_date }),
+  );
+  if (activeExams.length === 0) {
+    return c.json({ count: 0, none: 0, partial: 0 }, 200);
   }
 
   const { data: scoreRows, error: scoreRowsError } = await supabase
     .from('academy_scores')
     .select('exam_id')
-    .in('exam_id', activeExamIds);
+    .in(
+      'exam_id',
+      activeExams.map((exam) => exam.id),
+    );
 
   if (scoreRowsError) {
     return c.json({ error: scoreRowsError.message, code: 'DB_ERROR' }, 400);
   }
 
-  const scoredExamIds = new Set((scoreRows ?? []).map((row: { exam_id: string }) => row.exam_id));
-  const count = activeExamIds.filter((examId) => !scoredExamIds.has(examId)).length;
+  const recordedByExam = new Map<string, number>();
+  for (const row of (scoreRows ?? []) as Array<{ exam_id: string }>) {
+    recordedByExam.set(row.exam_id, (recordedByExam.get(row.exam_id) ?? 0) + 1);
+  }
 
-  return c.json({ count }, 200);
+  const expectedCounts = await loadAcademyExamExpectedCounts(supabase, orgId, activeExams);
+
+  // **跟列表的 `todo` 過濾走同一支 `classifyAcademyExamTodo`** ——
+  // 判定各寫一份的話，「告警說 3 場、點進去篩出 8 場」是遲早的事
+  let none = 0;
+  let partial = 0;
+  for (const exam of activeExams) {
+    const level = classifyAcademyExamTodo(
+      recordedByExam.get(exam.id) ?? 0,
+      expectedCounts.get(exam.id) ?? 0,
+    );
+    if (level === 'none') none += 1;
+    else if (level === 'partial') partial += 1;
+  }
+
+  return c.json({ count: none + partial, none, partial }, 200);
 });
 
 const getRoute = createRoute({
@@ -1395,18 +1488,34 @@ app.openapi(listScoresRoute, async (c) => {
 
   const classIds = (examClasses ?? []).map((row) => row.class_id);
 
-  const { data: enrolledStudents, error: enrolledStudentsError } =
+  const { data: enrollmentRows, error: enrolledStudentsError } =
     classIds.length > 0
       ? await supabase
           .from('enrollments')
-          .select('student_id, class_id, students(name, grade)')
+          .select('student_id, class_id, effective_from, effective_to, students(name, grade)')
+          .eq('org_id', orgId)
+          // **排除 `void`，保留 `withdrawal`**：作廢是「這筆報名不算數」，
+          // 退班是「他真的來過然後走了」—— 後者在考試日還在籍就該出現在名單上
+          .neq('status', 'void')
           .in('class_id', classIds)
-          .eq('status', 'active')
       : { data: [], error: null };
 
   if (enrolledStudentsError) {
     return c.json({ error: enrolledStudentsError.message, code: 'DB_ERROR' }, 400);
   }
+
+  // **考試日在籍，不是「現在在籍」**（issue #424 使用者裁定）。
+  // 原本這裡是 `.eq('status', 'active')`，於是考完才轉入的學生會出現在名單上、
+  // 永遠顯示「未登錄」而且補不了，而考試日前退班的人則會回溯消失。
+  // 「某天在不在籍」的判斷跟出勤名單共用 `isEnrolledOn`，不在這裡再寫一次日期比較。
+  const enrolledStudents = (
+    (enrollmentRows ?? []) as unknown as Array<ExamEnrollmentRow & { students: unknown }>
+  ).filter((row) =>
+    isEnrolledOn(
+      { effectiveFrom: row.effective_from, effectiveTo: row.effective_to },
+      exam.exam_date,
+    ),
+  );
 
   const { data: scoredRows, error: scoredRowsError } = await supabase
     .from('academy_scores')
@@ -1418,7 +1527,7 @@ app.openapi(listScoresRoute, async (c) => {
     return c.json({ error: scoredRowsError.message, code: 'DB_ERROR' }, 400);
   }
 
-  const data = buildAcademyScoreRows(enrolledStudents ?? [], scoredRows ?? []);
+  const data = buildAcademyScoreRows(enrolledStudents, scoredRows ?? []);
 
   return c.json({ data }, 200);
 });

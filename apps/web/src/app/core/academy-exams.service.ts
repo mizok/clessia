@@ -21,6 +21,9 @@ export interface AcademyExam {
   subjectName: string | null;
   classCount: number;
   scoreCount: number;
+  // 應登錄人數（分母）= 考試日在籍 ∪ 已登錄。0 代表「沒有人要考」，不是「還沒算」。
+  // 定義見 apps/api/src/lib/academy-exam-roster.ts（issue #424 使用者裁定）
+  expectedCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -81,6 +84,9 @@ export interface AcademyExamListParams {
   dateFrom?: string;
   dateTo?: string;
   todo?: boolean;
+  // `todo` 現在的語意是「還沒登完」（N < M）。`todoLevel` 再切兩級：
+  // `none` = 一筆都沒有（高）、`partial` = 登到一半（低）
+  todoLevel?: 'none' | 'partial';
   order?: 'date_asc' | 'date_desc';
   page?: number;
   pageSize?: number;
@@ -96,7 +102,12 @@ export interface AcademyExamListResponse {
 }
 
 export interface ExamTodoCountResponse {
+  /** `none + partial` —— 還沒登完的場次總數 */
   count: number;
+  /** 一筆都沒有（高） */
+  none: number;
+  /** 登到一半（低）。school 沒有這一級，因為它沒有分母 */
+  partial: number;
 }
 
 export interface CreateAcademyExamInput {
@@ -194,6 +205,7 @@ export class AcademyExamsService {
     if (params.dateFrom !== undefined) query['date_from'] = params.dateFrom;
     if (params.dateTo !== undefined) query['date_to'] = params.dateTo;
     if (params.todo !== undefined) query['todo'] = params.todo;
+    if (params.todoLevel !== undefined) query['todoLevel'] = params.todoLevel;
     if (params.order !== undefined) query['order'] = params.order;
     if (params.page !== undefined) query['page'] = params.page;
     if (params.pageSize !== undefined) query['pageSize'] = params.pageSize;

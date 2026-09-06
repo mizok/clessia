@@ -30,13 +30,27 @@ export function countEnrolledOn(
   classId: string,
   date: string | null,
 ): number {
-  return enrollments.filter((row) => {
-    if (row.classId !== classId) return false;
-    if (date === null) return true;
-    if (row.effectiveFrom > date) return false;
-    // 結束當天還算在籍
-    return row.effectiveTo === null || row.effectiveTo >= date;
-  }).length;
+  return enrollments.filter((row) => row.classId === classId && isEnrolledOn(row, date)).length;
+}
+
+/**
+ * 這筆報名在 `date` 那天涵不涵蓋得到 —— **「某一天在不在籍」的唯一定義**。
+ *
+ * 從 `countEnrolledOn` 裡抽出來，因為第二個問題出現了：**考試的分母是「考試日在籍的
+ * 學生有幾個」，而一個學生可能同時在同一場考試的多個班裡**（數學 A 班 + 數學進階班），
+ * 所以那裡要的是「不重複的學生集合」而不是「報名筆數」，`countEnrolledOn` 的
+ * 筆數形狀會把同一個人算兩次。**形狀不同、規則相同** —— 規則就該只有一份。
+ *
+ * `date` 是 `null` 時**不套生效區間**（課堂還沒排定時間的情況）。
+ */
+export function isEnrolledOn(
+  range: Pick<EnrollmentRange, 'effectiveFrom' | 'effectiveTo'>,
+  date: string | null,
+): boolean {
+  if (date === null) return true;
+  if (range.effectiveFrom > date) return false;
+  // 結束當天還算在籍
+  return range.effectiveTo === null || range.effectiveTo >= date;
 }
 
 export interface AttendanceTally {
