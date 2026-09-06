@@ -24,6 +24,12 @@ const ParentAttendanceRecordSchema = z
     endTime: z.string().nullable(),
     campusName: z.string().nullable(),
     className: z.string().nullable(),
+    /**
+     * **課堂本身**的狀態。停課的課堂上面仍然可能有一筆 `on_leave`
+     * （請假在停課之前送的），少了這個欄位家長會把它讀成一次正常的請假 ——
+     * 而老師端同一件事有「停課」標籤（#502）。
+     */
+    sessionStatus: z.enum(['scheduled', 'completed', 'cancelled']).nullable(),
     status: z.enum(['present', 'absent', 'on_leave']),
     note: z.string().nullable(),
     // recordedBy / recordedByRole 不回：內部經手人 id 與角色標記，
@@ -66,6 +72,7 @@ function toParentAttendanceRecord(row: Record<string, unknown>) {
     endTime: full.endTime,
     campusName: full.campusName,
     className: full.className,
+    sessionStatus: full.sessionStatus,
     status: full.status,
     note: full.note,
   };

@@ -45,6 +45,12 @@ const AttendanceRecordSchema = z
     endTime: z.string().nullable(),
     campusName: z.string().nullable(),
     className: z.string().nullable(),
+    /**
+     * **課堂本身**的狀態，不是出勤狀態。`null` = 這個 event 沒有對應的課堂。
+     * 停課的課堂上面可以有出勤紀錄（請假連動寫的 `on_leave` 尤其常見），
+     * 消費端要據此標出「那堂課沒上」——見 `lib/attendance-query.ts` 檔頭與 #502。
+     */
+    sessionStatus: z.enum(['scheduled', 'completed', 'cancelled']).nullable(),
     status: AttendanceStatusSchema,
     note: z.string().nullable(),
     recordedBy: z.string().nullable(),
