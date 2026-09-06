@@ -15,7 +15,7 @@
 | -------------------------------------- | ----------------------------- | ------------------------------------------------ | ---------------- |
 | [billing-api.md](billing-api.md)       | 金流/API/auth 核心            | schema、Hono 路由、Better Auth、Workers 執行環境 | `billing-api`    |
 | [design-web.md](design-web.md)         | 視覺/設計系統/web 效能        | tokens、SCSS、bundle、mockup、登入與公開頁       | `design-web`     |
-| [api-2.md](api-2.md)（未建立）         | 後端 API 第二席               | 領域邏輯收斂、外部依賴查證；與 billing-api 分工   | `api-2`          |
+| [api-2.md](api-2.md)                   | 後端 API 第二席               | 領域邏輯收斂、外部依賴查證；與 billing-api 分工  | `api-2`          |
 | [admin-pages.md](admin-pages.md)       | 管理端頁面                    | admin feature 頁、dialog、表格、儀表板           | `admin-pages`    |
 | [review-steward.md](review-steward.md) | 審核/合併/部署機械工(可 idle) | CI 巡檢、v2 代合、部署、內容驗證                 | `review-steward` |
 | [ops-warden.md](ops-warden.md)         | 席位巡檢監工(可 idle)         | 存活檢查、通訊救援、帳面抽查                     | `ops-warden`     |
@@ -68,10 +68,10 @@ session 一啟動就自己正名，而 `terminalTitleFromRename` 預設 `true`�
 
 2026-09-06 查到兩處不符，都是「當初為別的用途開的 worktree 留下的名字」：
 
-| 席位 | 目錄 | 來源 |
-| --- | --- | --- |
+| 席位          | 目錄                         | 來源                            |
+| ------------- | ---------------------------- | ------------------------------- |
 | `billing-api` | `.worktrees/pin-better-auth` | 當初為了釘 better-auth 版本開的 |
-| `design-web` | `.worktrees/bundle-analysis` | 當初為了分析 bundle 開的 |
+| `design-web`  | `.worktrees/bundle-analysis` | 當初為了分析 bundle 開的        |
 
 於是 peer 名變成 `pin-better-auth-ce` / `bundle-analysis-00`，**而那正是「識別字跟它代表的
 東西對不上」那一族**。目錄名要改只能趁輪替（跑著的 session 的 cwd 不能消失）。
@@ -327,9 +327,9 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
     **同屬深紅配淡粉**,使用者看到的就是錯誤樣式
   - `z-index` / `background` 都設對了(成因對),但 sticky 表頭下緣沒有遮罩,
     **上一列仍然被攔腰切一半**
-  查到「程式碼是對的」時,正確的下一步不是「所以現象不成立」,
-  而是「**那為什麼它看起來是壞的?**」—— 那個問題會把你帶到真正的載體
-  (出處 admin-pages 自我歸納,2026-09-05)。
+    查到「程式碼是對的」時,正確的下一步不是「所以現象不成立」,
+    而是「**那為什麼它看起來是壞的?**」—— 那個問題會把你帶到真正的載體
+    (出處 admin-pages 自我歸納,2026-09-05)。
 - **寫了「因為 X 所以這樣做」的決策,在 X 不再成立時也要被回頭檢查** ——
   這是「等 X 成立再說的決策要在 X 成立時被檢查」的鏡像,而且更難發現:
   前者有人在等,後者沒有。
