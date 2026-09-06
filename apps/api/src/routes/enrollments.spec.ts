@@ -154,6 +154,8 @@ function createEnrollmentsTestApp(data: MockEnrollmentsRouteData) {
     context.set('supabase', supabase);
     context.set('orgId', 'org-1');
     context.set('userId', 'user-1');
+    // 主題不是分校範圍 —— 宣告成「不受分校限制」；不宣告會走進 getCampusScope 的缺席分支
+    context.set('campusScope', null);
     await next();
   });
 
@@ -1457,6 +1459,8 @@ describe('DELETE /api/enrollments/:id —— session_packs 守門（真的打路
       context.set('supabase', supabase);
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
+      // 主題不是分校範圍 —— 宣告成「不受分校限制」；不宣告會走進 getCampusScope 的缺席分支
+      context.set('campusScope', null);
       await next();
     });
     app.route('/api/enrollments', enrollmentsRoute.default);
@@ -1563,6 +1567,8 @@ describe('B3 —— 報名的計費 API', () => {
       context.set('supabase', supabase);
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
+      // 主題不是分校範圍 —— 宣告成「不受分校限制」；不宣告會走進 getCampusScope 的缺席分支
+      context.set('campusScope', null);
       await next();
     });
     app.route('/api/enrollments', enrollmentsRoute.default);

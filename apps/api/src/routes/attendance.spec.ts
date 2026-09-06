@@ -182,7 +182,10 @@ describe('attendance session filter helpers', () => {
                   if (claimedId) {
                     updatedSessions.push({ id: claimedId, event_id: payload.event_id });
                   }
-                  return Promise.resolve({ data: claimedId ? [{ id: claimedId }] : [], error: null });
+                  return Promise.resolve({
+                    data: claimedId ? [{ id: claimedId }] : [],
+                    error: null,
+                  });
                 },
               };
               return chain;
@@ -730,6 +733,10 @@ function createAttendanceTestApp(supabase: ReturnType<typeof createMockSupabase>
     context.set('orgId', 'org-1');
     context.set('userId', 'user-1');
     context.set('roles', ['admin']);
+    // 這組測試的主題不是分校範圍 —— 宣告成「不受分校限制」，那也是正式站對
+    // 老師／家長的實際值（`resolveCampusScope` 對非管理員回 null）。**不宣告的話
+    // 會走進 `getCampusScope` 的缺席分支，那是 authMiddleware 沒跑的錯誤狀態。**
+    context.set('campusScope', null);
     await next();
   });
 
@@ -1307,6 +1314,7 @@ describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', roles);
+      context.set('campusScope', null);
       await next();
     });
     app.route('/api/attendance', attendanceApp);
@@ -1449,6 +1457,7 @@ describe('PATCH /api/attendance/batch —— 未標記且有生效請假的學�
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', ['teacher']);
+      context.set('campusScope', null);
       await next();
     });
     app.route('/api/attendance', attendanceApp);
@@ -1597,6 +1606,7 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', ['admin']);
+      context.set('campusScope', null);
       await next();
     });
     app.route('/api/attendance', attendanceApp);
@@ -1879,6 +1889,7 @@ describe('POST /api/attendance/roster/{eventId}/cancel-leave', () => {
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', options.roles);
+      context.set('campusScope', null);
       await next();
     });
     app.route('/api/attendance', attendanceApp);
@@ -2031,6 +2042,7 @@ describe('GET /api/attendance/sessions?attendanceTaken', () => {
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', ['admin']);
+      context.set('campusScope', null);
       await next();
     });
     app.route('/api/attendance', attendanceApp);
