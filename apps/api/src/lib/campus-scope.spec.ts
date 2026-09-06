@@ -127,3 +127,46 @@ describe('applyCampusFilter', () => {
     expect(q.calls).toEqual([{ column: 'campus_id', values: [] }]);
   });
 });
+
+/**
+ * `campusFilterIds` 的兜底那一半（2026-09-06）。
+ *
+ * 原本 `requested` 是**覆蓋** `scope`，安全性 100% 靠 `campusRequestGuard` 攔下
+ * 範圍外的指名 —— 而那道守衛是白名單，漏列一個參數名就是一個跨分校讀取外洩
+ *（`academy-exams` 的 snake_case `campus_id` 就這樣漏了）。
+ *
+ * **既有的測試全都用「範圍內」的值**（`['a','b']` 配 `'a'`），所以覆蓋語意
+ * 危險的那一半**從來沒有被任何一支測試碰過** —— 這是它活這麼久的原因之一。
+ */
+describe('campusFilterIds —— 指名只能縮小範圍，撐不大它', () => {
+  it('範圍外的指名回空清單，不是那個分校', () => {
+    expect(campusFilterIds(['a'], 'b')).toEqual([]);
+  });
+
+  it('範圍內的指名行為完全不變（合法流量零影響）', () => {
+    expect(campusFilterIds(['a', 'b'], 'b')).toEqual(['b']);
+  });
+
+  it('不受分校限制的管理員指定任一分校都照舊', () => {
+    expect(campusFilterIds(null, 'b')).toEqual(['b']);
+  });
+
+  /**
+   * **越權的正常結局仍然是 403（`campusRequestGuard`），不是這裡的空清單。**
+   * 這條釘的是「兜底啟動之後查詢真的會空」，不是「越權應該安靜」——
+   * 兩者的分工寫在 campus-scope.ts 的檔頭。
+   */
+  it('兜底啟動時，查詢下的是空的 in 條件（= 零筆，不是沒有條件）', () => {
+    const calls: Array<{ column: string; values: string[] }> = [];
+    const query = {
+      in(column: string, values: string[]) {
+        calls.push({ column, values });
+        return query;
+      },
+    };
+
+    applyCampusFilter(query, 'campus_id', ['a'], 'b');
+
+    expect(calls).toEqual([{ column: 'campus_id', values: [] }]);
+  });
+});
