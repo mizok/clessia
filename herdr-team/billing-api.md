@@ -983,19 +983,43 @@ Postgres 的原生 `uuid` 型別本身完全接受，但 `z.uuid()` 比資料庫
   **分診的價值大於修法** —— 四支端點只有兩支是程式 bug，一支是本機 DB 落後、
   一支是正確的空。
 
-### 待下一輪接手
+### 待下一輪接手（2026-09-06 夜間交接）
 
-**全部用 `gh issue list --label seat:billing-api --state open` 查，下面只寫「為什麼還沒動」**：
+**全部用 `gh issue list --label seat:billing-api --state open` 與
+`gh pr list --state open` 查。下面只寫「為什麼還沒動」與「動之前要知道什麼」。**
 
-- **等使用者親合的保留類 PR** —— 金額路徑與授權邏輯各有在飛的，`gh pr list --state open`。
-- **issue #499 補課功能** —— 設計已批准歸檔（`kb/wiki/architecture/session-makeup.md`），
-  **三項待使用者裁**（可補清單要不要隱藏已補過的／要不要進組織級異動紀錄／家長端要不要看得到）。
-  **裁示回來之前不動實作碼**（STOP gate）。
-- **issue #488 六個 TODO** —— 報告已交，**不要在 #419 那類收斂之前動它**，
-  而且「甲（點名時寫入）vs 乙（時間過了寫入）」的語意歧義沒解掉。
-- **issue #502 請假寫進停課課堂** —— 錢已被 PR #500 擋住，剩的是那筆 `on_leave`
-  該不該存在，而**計畫席加了一個會改變處置的分岔：請假是在停課之前還是之後送的**。
-- **issue #464 權限映射表** —— 右欄留空等裁，計畫席壓著不進窗口（它不阻塞任何人）。
+#### 補課功能（issue #499）—— 進行中，下一片是讀取面
+
+設計已轉正（`kb/wiki/architecture/session-makeup.md`），三項裁示落地，
+migration 已由使用者親合進 main，**寫入端點的 PR 在飛**。
+
+**下一片要做的三件，形狀與待驗問題全部寫在 issue #499 的留言裡**
+（`issuecomment-5560194296`）—— **不要重新推導**：
+
+1. `mapSession` 的兩個方向。**embed 語法已對真 DB 實測**：
+   - 正向 `makeup_for:makeup_for_session_id(id,session_date,status)` → 物件或 null
+   - 反向 `made_up_by:sessions!makeup_for_session_id(id,session_date,status)` → **陣列**
+   - 兩者可並存不歧義；**hint 用欄位名不是約束名**（用約束名回 `PGRST200`）
+   - **反向回陣列**正好對應「數有效的 vs 數全部」——停掉的補課也在那個陣列裡
+2. 可補清單端點（排除條件要跟部分唯一索引的述詞**逐字一致**）
+3. 決策 5.5 的 uncancel 守衛（`classes.ts:2647-2709` 的 `conflicts` 迴圈加一種 reason）
+
+**不是這一席的**：`CHANGE_TYPE_LABELS` 補 `'makeup'`（`changes.component.ts:26`，
+admin-pages 的檔案）。漏了不報錯 —— **篩選選項整個不存在、表格顯示原始 enum 值**。
+
+#### 其餘待裁（不動工）
+
+- **issue #488** 六個 TODO —— 報告已交。**「甲（點名時寫入）vs 乙（時間過了寫入）」
+  的語意歧義沒解掉**，而那決定整件事的形狀
+- **issue #502** 請假寫進停課課堂 —— 第 1 項已裁（寫入點擋、既有的保留），
+  **實作還沒做**
+- **issue #464** 權限映射表 —— 右欄留空等裁，計畫席壓著（不阻塞任何人）
+- **issue #549** —— **已經被 PR #538 修掉了**，我留了證據在上面，等計畫席關
+
+#### 環境（每次動手前先確認，不是只在第一次）
+
+**本機 DB 落後是持續發生的** —— 見上方「本機 DB 落後是持續發生的」一節。
+`npx supabase migration list --local` 是第一動作。
 
 ### 一個 meta：我讀不到自己的 Ctx Used
 
