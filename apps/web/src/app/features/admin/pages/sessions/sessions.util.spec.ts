@@ -18,6 +18,7 @@ describe('parseAttendanceQueryParams', () => {
       dateTo: parseISO('2026-08-29'),
       attendanceTaken: false,
       endedOnly: false,
+      statuses: null,
     });
   });
 
@@ -65,6 +66,26 @@ describe('parseAttendanceQueryParams', () => {
   it('沒有任何 query params 時回傳 null', () => {
     expect(parseAttendanceQueryParams({})).toBeNull();
   });
+
+  it('statuses 逗號串解成陣列', () => {
+    expect(
+      parseAttendanceQueryParams({
+        dateFrom: '2026-08-22',
+        dateTo: '2026-08-29',
+        attendanceTaken: 'false',
+        statuses: 'scheduled,completed',
+      })?.statuses,
+    ).toEqual(['scheduled', 'completed']);
+  });
+
+  // `null`（沒帶）與 `[]`（有帶但空的）必須分得開——落地頁只在 `null` 時
+  // 退回自己的 `DEFAULT_STATUSES`。壓成同一個值的話，「使用者一個狀態都不選」
+  // 會被悄悄改寫成預設篩選，而畫面上看不出被改寫過
+  it('沒帶 statuses 是 null，帶了空字串是空陣列 —— 兩者不同', () => {
+    const base = { dateFrom: '2026-08-22', dateTo: '2026-08-29', attendanceTaken: 'false' };
+    expect(parseAttendanceQueryParams(base)?.statuses).toBeNull();
+    expect(parseAttendanceQueryParams({ ...base, statuses: '' })?.statuses).toEqual([]);
+  });
 });
 
 /**
@@ -86,6 +107,7 @@ describe('跨頁契約：儀表板的 queryParams 跟課堂管理頁解出來的
       dateTo: query.dateTo,
       attendanceTaken: String(query.attendanceTaken),
       endedOnly: String(query.endedOnly),
+      statuses: query.statuses.join(','),
     };
   }
 
@@ -103,6 +125,11 @@ describe('跨頁契約：儀表板的 queryParams 跟課堂管理頁解出來的
     // dashboard 帶了 endedOnly=true，落地頁解析卻沒有回傳它，這條測試原本
     // 不會抓到，因為根本沒斷言到這個欄位
     expect(parsed!.endedOnly).toBe(dashboardQuery.endedOnly);
+    // `statuses` 是同一個缺口的下一個成員（#456）：儀表板的數字吃 API 預設、
+    // 落地頁吃 web 的 `DEFAULT_STATUSES`，**兩份獨立的清單今天剛好相等**。
+    // 上面那條 `endedOnly` 的註解講的是「沒斷言到就抓不到」——一模一樣的道理，
+    // 差別只在這次是兩個預設值而不是一個漏掉的欄位
+    expect(parsed!.statuses).toEqual(dashboardQuery.statuses);
   });
 
   // 陷阱：如果有人把 dashboard 那邊的 dateTo 改回「昨天」（回到拆兩段查以前的寫法），
@@ -113,5 +140,17 @@ describe('跨頁契約：儀表板的 queryParams 跟課堂管理頁解出來的
     const parsed = parseAttendanceQueryParams(toRouteQueryParams(dashboardQuery));
 
     expect(format(parsed!.dateTo, 'yyyy-MM-dd')).toBe(format(NOW, 'yyyy-MM-dd'));
+  });
+
+  // 陷阱：把 dashboard 的 statuses 換成別的清單，落地頁解出來的要跟著換。
+  // 這條擋的是「落地頁其實沒讀這個參數、只是自己的預設剛好相等」——
+  // 那正是 #456 的原狀，而它在測試上跟修好之後**長得一模一樣**
+  it('陷阱：dashboard 換一組 statuses，落地頁解出來的跟著換（不是各用各的預設值）', () => {
+    const parsed = parseAttendanceQueryParams({
+      ...toRouteQueryParams(pendingAttendanceQuery(NOW, 7)),
+      statuses: 'scheduled',
+    });
+
+    expect(parsed!.statuses).toEqual(['scheduled']);
   });
 });

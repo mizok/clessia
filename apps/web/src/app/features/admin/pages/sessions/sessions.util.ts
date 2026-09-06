@@ -12,6 +12,12 @@ export interface IncomingAttendanceFilter {
   readonly attendanceTaken: boolean;
   /** 只篩「已經上完」的課堂——見 `dashboard.util.ts` 的 `pendingAttendanceQuery` */
   readonly endedOnly: boolean;
+  /**
+   * 來源頁指定的課堂狀態，`null` = 沒帶（維持本頁自己的 `DEFAULT_STATUSES`）。
+   * **`null` 跟 `[]` 是兩件事**：`[]` 是「有帶但一個都沒選」，那是使用者的選擇，
+   * 不該被當成「沒指定」而悄悄換成預設值。
+   */
+  readonly statuses: string[] | null;
 }
 
 /**
@@ -19,12 +25,12 @@ export interface IncomingAttendanceFilter {
  * 缺一個就整組不採用，不要半套（例如只有 `attendanceTaken` 沒有日期區間，
  * 套用了會篩出範圍錯誤的結果，比完全不篩更容易被誤讀成「就是這樣」）。
  * `endedOnly` 不在這個「缺一不可」的名單裡——它是可選的加強條件，沒帶就是
- * false，不影響其餘三個欄位是否成立。
+ * false，不影響其餘三個欄位是否成立。`statuses` 同理，沒帶就是 `null`。
  */
 export function parseAttendanceQueryParams(
   params: Readonly<Record<string, string>>,
 ): IncomingAttendanceFilter | null {
-  const { dateFrom, dateTo, attendanceTaken, endedOnly } = params;
+  const { dateFrom, dateTo, attendanceTaken, endedOnly, statuses } = params;
   if (!dateFrom || !dateTo || attendanceTaken === undefined) return null;
 
   return {
@@ -32,5 +38,6 @@ export function parseAttendanceQueryParams(
     dateTo: parseISO(dateTo),
     attendanceTaken: attendanceTaken === 'true',
     endedOnly: endedOnly === 'true',
+    statuses: statuses === undefined ? null : statuses.split(',').filter(Boolean),
   };
 }

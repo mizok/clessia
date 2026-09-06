@@ -339,6 +339,7 @@ describe('DashboardComponent（管理端）', () => {
       dateTo: sent.dateTo,
       attendanceTaken: String(sent.attendanceTaken),
       endedOnly: String(sent.endedOnly),
+      statuses: sent.statuses.join(','),
     });
   });
 
@@ -362,6 +363,10 @@ describe('DashboardComponent（管理端）', () => {
     expect(sessionCalls[0].dateTo).toBe(TODAY);
     expect(sessionCalls[0].attendanceTaken).toBe(false);
     expect(sessionCalls[0].endedOnly).toBe(true);
+    // #456：statuses 明著送。**沒送的話這支吃的是 API 預設，而落地頁吃 web 的
+    // `DEFAULT_STATUSES`** —— 兩份獨立清單今天剛好相等，任一邊改就分歧，
+    // 而分歧的樣子（卡片 15、點進去 12）跟正常的樣子一模一樣
+    expect(sessionCalls[0].statuses).toEqual(['scheduled', 'completed']);
     expect(sessionCalls[0].pageSize).toBe(1);
 
     expect(leavesMock.mock.calls[0][0]).toMatchObject({ coverDate: TODAY });

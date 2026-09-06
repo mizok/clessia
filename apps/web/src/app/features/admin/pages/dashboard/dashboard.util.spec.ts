@@ -18,6 +18,7 @@ describe('pendingAttendanceQuery', () => {
       dateTo: '2026-08-29',
       attendanceTaken: false,
       endedOnly: true,
+      statuses: ['scheduled', 'completed'],
     });
   });
 
@@ -36,5 +37,18 @@ describe('pendingAttendanceQuery', () => {
     const result = pendingAttendanceQuery(NOON, 7);
     expect(result.attendanceTaken).toBe(false);
     expect(result.endedOnly).toBe(true);
+  });
+
+  // #456：這裡明著送 statuses，就是為了不吃 `GET /api/attendance/sessions` 的
+  // API 預設。**這條的意義不在於值是什麼，在於值是從這裡來的** ——
+  // 有人把它刪掉、想「反正 API 預設一樣」，卡片就又回到靠巧合相等。
+  it('statuses 明著送，不留給 API 預設決定', () => {
+    expect(pendingAttendanceQuery(NOON, 7).statuses).toEqual(['scheduled', 'completed']);
+  });
+
+  // 陷阱：停課不該進「未點名」——它不會發生，後端也不替它補建出勤事件。
+  // 有人為了「看得比較全」把 cancelled 加進來，這條會紅。
+  it('陷阱：statuses 不含 cancelled', () => {
+    expect(pendingAttendanceQuery(NOON, 7).statuses).not.toContain('cancelled');
   });
 });
