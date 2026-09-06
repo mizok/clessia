@@ -4,6 +4,7 @@ import {
   applyAttendanceTakenFilter,
   ensureAttendanceSessionEvents,
   eventsJoinModifier,
+  unreferencedEventIds,
 } from './attendance-session-events';
 
 /**
@@ -243,5 +244,27 @@ describe('ensureAttendanceSessionEvents —— 並行補建的認領', () => {
 
     expect(result.error).toBeNull();
     expect(result.created).toBe(1);
+  });
+});
+
+describe('unreferencedEventIds（#582 認領失敗時的補償）', () => {
+  it('沒有任何 session 指著的 event 就是孤兒', () => {
+    expect(unreferencedEventIds(['e1', 'e2', 'e3'], ['e2'])).toEqual(['e1', 'e3']);
+  });
+
+  // 認領步驟「失敗」不等於「沒寫進去」—— 連線在 commit 之後斷掉的話，
+  // session 其實已經指著那個 event 了。**刪掉它會把一堂課的出勤事件拔掉**
+  //（FK 是 ON DELETE SET NULL，所以不會報錯，只是那堂課悄悄回到「沒有 event」）。
+  // 所以補償只刪「查得到沒人指著」的，不是刪「我剛插入的全部」。
+  it('已經被認領的不能刪 —— 失敗不代表沒寫進去', () => {
+    expect(unreferencedEventIds(['e1', 'e2'], ['e1', 'e2'])).toEqual([]);
+  });
+
+  it('全部都沒被認領時全部都是孤兒', () => {
+    expect(unreferencedEventIds(['e1', 'e2'], [])).toEqual(['e1', 'e2']);
+  });
+
+  it('不認得的認領紀錄不影響判斷', () => {
+    expect(unreferencedEventIds(['e1'], ['other-event'])).toEqual(['e1']);
   });
 });

@@ -50,6 +50,82 @@ export type AttendanceSessionStatus = 'scheduled' | 'completed' | 'cancelled';
  * `requireEvent` 對齊 `sessionSummarySelect({ requireEvent })` 的參數名 ——
  * 同一個判準（有沒有要對 `attendance_taken_at` 下條件）決定要不要加 `!inner`。
  */
+/**
+ * 剛插入的那批 event 裡，**沒有任何 session 指著的**（＝孤兒）。
+ *
+ * 補建是兩個非原子的步驟（`insert` 一批 event → 逐筆 CAS 認領），
+ * **而第二步失敗時沒有補償的話，已插進去的那批會永遠留著**（#582）。
+ * infra 實測：孤兒數 = 失敗數 × 該日課堂數，逐格吻合。
+ *
+ * ⚠️ **不能直接刪「我剛插入的全部」**：認領步驟「失敗」不等於「沒寫進去」——
+ * 連線在 commit 之後斷掉的話，session 其實已經指著那個 event 了。
+ * 刪掉它 FK 會 `SET NULL`（不報錯），那堂課**悄悄回到「沒有 event」**，
+ * 而掛在上面的出勤紀錄從課堂就查不到了。
+ *
+ * 所以補償只刪**查得到沒人指著**的那些。
+ */
+export function unreferencedEventIds(
+  insertedEventIds: readonly string[],
+  claimedEventIds: readonly (string | null)[],
+): string[] {
+  const claimed = new Set(claimedEventIds.filter((id): id is string => !!id));
+  return insertedEventIds.filter((id) => !claimed.has(id));
+}
+
+/**
+ * 認領步驟失敗時的補償 —— 把這一批沒有被任何人認領到的 event 刪掉。
+ *
+ * **刪失敗不讓請求失敗**（同 CAS 成功路徑的處置）：孤兒對使用者不可見，
+ * 為了清一筆看不見的垃圾而讓整份課表 400，代價完全不對等。
+ *
+ * ### ⚠️ 這不是一個 transaction
+ *
+ * PostgREST 沒有跨語句 transaction，所以「插 event」與「認領」之間**永遠**有一個
+ * 失敗態。補償是盡力而為的，補償自己也可能失敗。**失敗態長這樣**：
+ * `events` 裡有一列 `event_type = 'session'`，而沒有任何 `sessions.event_id` 指著它。
+ *
+ * **可以直接貼上去跑的不變量查詢**（找出所有孤兒）：
+ *
+ * ```sql
+ * SELECT e.id, e.event_date, e.title
+ * FROM events e
+ * WHERE e.event_type = 'session'
+ *   AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.event_id = e.id)
+ * ORDER BY e.event_date DESC;
+ * ```
+ *
+ * **刻意不做成 gate**：它的輸入是整個 DB 的狀態不是改動，放在分支上沒有意義
+ * （infra 判斷、計畫席同意，#582）。
+ */
+async function compensateUnclaimedEvents(
+  supabase: AppEnv['Variables']['supabase'],
+  insertedEventIds: readonly string[],
+): Promise<void> {
+  if (insertedEventIds.length === 0) return;
+
+  const { data: claimedRows, error: claimedError } = await supabase
+    .from('sessions')
+    .select('event_id')
+    .in('event_id', [...insertedEventIds]);
+
+  if (claimedError) {
+    console.warn('[attendance-events] 補償查詢失敗，可能留下孤兒 event', claimedError.message);
+    return;
+  }
+
+  const orphanIds = unreferencedEventIds(
+    insertedEventIds,
+    ((claimedRows ?? []) as Array<{ event_id: string | null }>).map((row) => row.event_id),
+  );
+
+  if (orphanIds.length === 0) return;
+
+  const { error: deleteError } = await supabase.from('events').delete().in('id', orphanIds);
+  if (deleteError) {
+    console.warn('[attendance-events] 補償刪除失敗，留下孤兒 event', deleteError.message);
+  }
+}
+
 export function eventsJoinModifier(requireEvent: boolean): string {
   return requireEvent ? '!event_id!inner' : '!event_id';
 }
@@ -190,6 +266,12 @@ export async function ensureAttendanceSessionEvents(input: {
 
   const updateError = sessionUpdateResults.find((result) => result.error)?.error;
   if (updateError) {
+    // **補償**：認領失敗就把這一批沒人認領到的 event 收回去（#582）。
+    // 少了這一步，已插進去的那批會永遠留著 —— infra 實測孤兒數 = 失敗數 × 該日課堂數。
+    await compensateUnclaimedEvents(
+      supabase,
+      eventsToInsert.map((event) => event.id),
+    );
     return { created: 0, error: updateError.message };
   }
 

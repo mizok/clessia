@@ -58,7 +58,17 @@ export function enrolledEventIds(
     .filter((event) => {
       const sessionRows = toSessionRows(event.sessions);
 
-      // 沒有 session 的 event（活動、公告之類）不是課堂 —— 掃碼不該替它寫出勤
+      // 沒有 session 的 event（目前 `event_type` 只有 `session` / `mock_exam`）
+      // 不是課堂 —— 掃碼不該替它寫出勤。
+      //
+      // ⚠️ **這一行順便蓋住了另一件事：孤兒 event。**
+      // `ensureAttendanceSessionEvents` 是兩個非原子的步驟，認領失敗時可能留下
+      // 「沒有任何 session 指著」的 event（#582，已加補償但補償本身也可能失敗）。
+      // **那些孤兒今天無害，正是因為這裡濾掉了它們** —— 不是因為它們不存在。
+      //
+      // **所以：放寬這個條件之前，先確認孤兒那一側的補償是可靠的**，
+      // 否則掃碼會開始替一堆不存在的課堂寫出勤。查孤兒的 SQL 在
+      // `lib/attendance-session-events.ts` 的 `compensateUnclaimedEvents` 檔頭。
       return sessionRows.some(
         (session) =>
           session.class_id &&
