@@ -36,9 +36,24 @@ describe('enrolledEventIds', () => {
   });
 
   it('沒有 session 的 event 不算課堂', () => {
-    // 活動、公告之類的 event 也住在同一張表，掃碼不該替它們寫出勤
+    // 沒有 session 的 event（`event_type = 'mock_exam'`，或 #582 那種孤兒）
+    // 也住在同一張表，掃碼不該替它們寫出勤
     expect(
       enrolledEventIds([{ id: 'ev-1', sessions: null }], [enrollment('class-1')], '2026-04-06'),
+    ).toEqual([]);
+  });
+
+  // ⚠️ 上面那支餵的是 `null`，**而真實的 PostgREST 回的是 `[]`**。
+  //
+  // 實測（2026-09-07，本機造一筆沒有 session 指著的 event 再刪掉）：
+  //   GET /events?select=id,sessions(class_id,status)&id=eq.<孤兒>
+  //   → [{"id":"…","sessions":[]}]
+  //
+  // 左 join 撈不到子列時回的是**空陣列**不是 null。兩種形狀目前都會被正確排除，
+  // 但**只測 `null` 的話，測的是我自己餵的那個值，不是系統會產生的那個值**。
+  it('沒有 session 的 event —— 空陣列才是 PostgREST 真正回的形狀（#582）', () => {
+    expect(
+      enrolledEventIds([{ id: 'ev-1', sessions: [] }], [enrollment('class-1')], '2026-04-06'),
     ).toEqual([]);
   });
 
