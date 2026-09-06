@@ -423,6 +423,57 @@ gh pr view <修正PR> --json mergedAt                       # 修正何時進 ma
 **差別不在紅的性質,在有沒有他們能做的事。**
 (teacher-pages 的推廣版:**通知的門檻是「收件人能不能因此做點什麼」,不是「這件事重不重要」。**)
 
+### 殘留值比空值陰:`FETCH_HEAD` 永遠可讀,可能是上一輪的答案
+2026-09-05 我寫了一支掃全板的迴圈,把「取得資料」和「判斷資料」放在同一圈:
+```bash
+for n in ...; do
+  git fetch origin "$br" >/dev/null 2>&1          # ← 失敗時靜默
+  git merge-base --is-ancestor <修正> FETCH_HEAD && echo 含 || echo 缺
+done
+```
+**`git fetch` 失敗時 `FETCH_HEAD` 停在上一輪的值**,而我把 stderr 丟了。
+結果四支(#367/#363/#407/#406)被標成「缺」,實際上都含 —— **我把假資訊當成掃描結果交出去了**。
+
+**這比 charter 裡「空值不等於終態」更難發現**:
+空值至少是空的、會觸發懷疑;**殘留值長得像有效資料,判斷式永遠會給出一個答案**。
+
+修法:用**跟目標一一對應、不會有殘留的值**。
+```bash
+oid=$(gh pr view "$n" -R "$REPO" --json headRefOid -q .headRefOid)
+git cat-file -e "$oid" 2>/dev/null || { echo "(本地無此 commit)"; continue; }
+git merge-base --is-ancestor <修正> "$oid"
+```
+
+**通則**:迴圈裡任何「上一輪會留下的變數」都是這個形狀 ——
+`FETCH_HEAD`、`$?`、暫存檔、未重設的累加器。**取得失敗要中止那一輪,不是繼續判斷。**
+
+### 匯總表是用來排序的,不是用來代替驗證的
+那份錯的掃描表我交給了計畫席,而它**沒有被害到 —— 因為它自己逐支驗過**。
+它那句「我照你的方法逐支 `is-ancestor` 驗過才收」不是禮貌,是實際擋掉了一次事故。
+
+方向也剛好幸運:我的 bug 讓「含」變成「缺」(保守,只會少收);
+**反過來的話它會合四支跑在舊 base 上的 PR**。
+
+所以:
+- **給別人的匯總表要標明它是怎麼產生的**(哪個指令、什麼時間點),讓收的人知道它可能錯在哪
+- **收的人仍然要逐支驗** —— 表用來決定「先看哪幾支」,不是「哪幾支可以直接收」
+
+### `git diff origin/main` 是雙向的 —— 警報規則要用三點
+charter 有一條「解完 `git diff origin/main --stat` 看檔案清單,出現自己沒碰過的檔就是警報」。
+**那條的指令寫錯了,兩點會產生假警報。**
+
+2026-09-05 實測(我這支只改一個 charter 檔,而 main 領先我 33 筆):
+```
+git diff --stat origin/main..HEAD   →  104 files changed, 3437 deletions(-)   ← 假警報
+git diff --stat origin/main...HEAD  →    1 file changed,    42 insertions(+)  ← 真的只有我加的
+```
+
+**兩點 `A..B` 是「兩邊現在的差異」**(含 main 領先我的部分,顯示成我「刪掉」了它們);
+**三點 `A...B` 是「從共同祖先到 B」**,也就是**只有我這支做了什麼**。
+
+分支落後 main 越多,兩點的假警報越大 —— 而**落後很多正是最需要這道警報的時候**。
+判分歧程度:`git rev-list --count HEAD..origin/main`。
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
