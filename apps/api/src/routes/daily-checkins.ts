@@ -93,10 +93,13 @@ app.openapi(
     // 裁的是不寫**課堂出勤**（這一層），**學生本人的到班紀錄（步驟 1）照舊寫**。
     // 兩層在這裡是兩張表、兩段程式碼，所以分得開。
     // `sessions(class_id, status)` —— **`status` 是給停課過濾用的**，漏了它
-    // `enrolledEventIds` 會退回「照舊寫」（見該檔 `isCancelled` 的理由）。
+    // `enrolledEventIds` 會退回「照舊寫」（理由見 `lib/cancelled-session.ts`）。
     // 條件不下在查詢上是刻意的：對 embed 欄位下條件要配 `!inner`，而那會連
-    // 「沒有 session 的 event」（活動、公告）一起排除掉 —— 那一條規則屬於
-    // `enrolledEventIds`，兩處各判一次遲早會漂。
+    // 「沒有 session 的 event」（**`event_type = 'mock_exam'`**）一起排除掉 ——
+    // 那一條規則屬於 `enrolledEventIds`，兩處各判一次遲早會漂。
+    //
+    // 實測（api-2，2026-09-07）：造一筆 `mock_exam` 事件之後，照原樣回 20 筆、
+    // 加上 `!inner` 回 19 筆 —— 那筆確實會被吃掉。
     let eventsQuery = supabase
       .from('events')
       .select('id, sessions(class_id, status)')
