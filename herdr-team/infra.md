@@ -1215,11 +1215,28 @@ gh pr view <n> --json state -q .state      # 必須是 OPEN
   df -h / | tail -1                        # 主機可用
   du -sh ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw
   # Docker.raw 是 sparse file —— 一定要用 du，ls 看到的是假的
+  tail -3 ~/Library/Logs/clessia-disk-watch.log   # 看門狗還活著嗎（看時間戳）
   ```
 
-  **2026-09-06 複查**：主機可用 **176 GB**、watch 仍在（PID 21009）。
-  一天內從 189 GB 掉到 176 GB —— **13 GB/日的成長仍在**，只是離警戒線還很遠。
-  根因（fvg 的 engine 沒有 GC 政策）沒有變，本席掛的 watch 仍然只是止血。
+  **接手時第一件事：確認看門狗還活著，而且不要用 PID 確認。**
+  `tail` 那行的最後一個時間戳如果超過十分鐘，它就是死了 ——
+  重新掛上是 `nohup sh tools/disk-watch.sh >/dev/null 2>&1 &`。
+
+  **2026-09-07 事故（這一段是它的教訓，不是狀態）**：上一任把看門狗掛在
+  **session 的背景任務**上，charter 裡記的是**它的 PID**。交接時我被告知
+  「看門狗還在跑，你不用重開」—— **而 `ps -p 21009` 是空的，它隨著上一任的
+  session 一起死了。** 沒有任何東西會在它死掉時發出聲音。
+
+  這正是本檔已經寫過兩次的兩條合體：**PID 是狀態不是知識**（會過期的東西要寫
+  「怎麼查」不是「是什麼」），以及 **[[壞掉的監控比沒有監控糟]]** ——
+  一個死掉的看門狗跟一個「這幾天都很安靜」的看門狗，在畫面上完全一樣，
+  **而它還讓下一任更放心**（交接訊息明著說它還在跑）。
+
+  處置是把它從「掛在 session 上、靠記 PID」改成 `tools/disk-watch.sh`：
+  **每一輪寫一行 heartbeat 進 log**，所以「它死了」變成看得見的事
+  （log 的最後一行過期）。**沒有 heartbeat 的看門狗，死掉跟安靜長得一模一樣。**
+  它仍然會在機器重開後消失 —— 真正持久的做法是 launchd LaunchAgent，
+  **但那是動使用者機器的常設設定，要先問過，不要自己裝上去。**
 
   **2026-09-05 現況**：主機可用 189 GB、Docker.raw 54 GB、Docker Desktop 整個沒開
   （無 app、無 VM、無 socket）。**跟 09-04 那次不同** —— 那次是 app 活著但 VM 死了，
