@@ -280,6 +280,19 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
 
 ## 這一席的工作習慣
 
+- **grep 回空之前，先問「這個工具的輸出裡，我要找的東西真的長這樣嗎」——
+  2026-09-06/07 一天之內三次假陰性，三次都不是 pattern 寫錯，是我對輸出格式的假設錯。**
+  - `git grep <pattern> <rev> -- <path>` 回空，而 `git show <rev>:<path>` 找得到 ——
+    我一度據此以為自己的 PR 沒進 main（`gh` 說 MERGED、`git grep` 說沒有）。
+    **可靠的做法是 `git show <rev>:<path>`，或在該 rev 的 checkout 上直接讀檔。**
+  - `nx typecheck` 的錯誤行在 `error` 與 `TS2741` 之間夾了 ANSI 碼，
+    所以 `grep -E "error TS"` 什麼都沒抓到 —— **我把「編不過」讀成「沒反應」**，
+    差一點就宣稱一道型別防線有效而其實沒驗到。**驗陷阱時看 `tail`，不要看 grep。**
+  - 我自己寫的孤兒 class 掃描器對 `responsive-table` 報了 13 個「孤兒」，
+    **而那些 class 是 `@HostBinding` 與 `renderer.addClass` 加上去的**，
+    根本不會出現在該元件的模板裡。**照它刪會弄壞全站的表格。**
+    掃描器的假設（「class 一定出現在同元件的 html」）對指令型元件不成立。
+    **共同形狀：工具沒有壞，是我對「它的輸出/它掃的載體長什麼樣」有一個沒說出口的假設。**
 - **量一個「只在某個模式下才成立」的東西之前，先確認那個模式真的開著。**
   （計畫席 2026-09-06 提，出處是同一天三席各自量到 fine-pointer 的數字卻讀成
   coarse 的結果，其中一次開出了前提錯誤的工單 #521。）
@@ -571,6 +584,13 @@ gh pr list --state open --search 'author:@me'   # 帳號共用，用分支名或
 交接當下：#535（儀表板可點訊號）與 #539（觸發條件落檔）等驗收，
 **#530 是 report-only 沒有 PR，所以它不會自己關 —— 要計畫席手動關**。
 
+**`report-only` 的工單，交付者貼完報告就自己關**（2026-09-07 計畫席定案，我提的）。
+理由：那種工單沒有 PR，所以 `Closes #N` 那套機制對它無效，它會永遠 OPEN ——
+**而「已交付但沒關」跟「還沒開始」在 `gh issue list` 上長得一模一樣**。
+2026-09-06 那晚 #530 因此被問了三次、看門狗也誤報過一次。
+**關閉留言裡要寫明結論**，報告本身留在 issue 留言（不要為了遷就機制把報告塞進 PR，
+那是改變產物的形狀去配合工具）。
+
 **零 idle 制**：交付即繼續，不等回覆。佇列空了要**回報**而不是待命；
 認為佇列裡的做不了（前置沒到／需裁決／工單有問題）也要**說出來**——
 「這支我不能做，因為 X」是合格的回報，沉默不是。
@@ -592,9 +612,23 @@ gh pr list --state open --search 'author:@me'   # 帳號共用，用分支名或
   （`teacher/pages/schedule/class-log-sheet`、`courses/class-detail/session-pack-form-dialog`
   與 `enrollment-billing-dialog`）。`npm run harness` 也不再有那條 warning。
   **留著這行字比沒有它更糟 —— 它會讓下一個人去補一個已經存在的東西。**
-- **`dashboard.component.scss` 超 SCSS 預算 2.36 kB**（budget 6 kB，實際 8.36 kB）。
-  #535 又加了 200 bytes（量過的，不是估的）。**壓它需要動一批不屬於任何工單的宣告**，
-  值得單獨開一單，不要夾在功能 PR 裡
+- **SCSS 預算：9 支超標，而那不是「我的檔案有債」是全隊狀況**（2026-09-07 量過）。
+  分佈說**門檻沒設錯**：130 支元件 SCSS，中位數 1.7 kB，只有 9 支（7%）超過 6 kB，
+  而超的都是最大的頁面級元件。**所以「調高門檻」是錯的建議。**
+  清單分兩群，兩群是不同的問題：
+  - **結構性 5 支**（超 1.33–2.63 kB）：`class-detail.page` / `dashboard.component` /
+    `class-scores-dialog` / `courses.page` / `student-detail.page`。
+    2.6 kB 不是「刪幾個能靠繼承拿到的宣告」搆得到的（charter 那個先例是 102 bytes），
+    要拆元件 —— **架構級、有視覺風險、需要裁決**
+  - **邊緣 4 支**（超 10–186 bytes）：`student-picker-dialog` / `student-score-detail-dialog` /
+    `responsive-table` / `class-view`。**2026-09-07 試過，沒有機械上安全的壓法**：
+    四個檔案零重複宣告、零 `0px`、零可縮 hex、零 `!important`；
+    剩下的 `width: 100%` / `display: block` 要逐條判斷視覺影響。
+    唯一「純機械」的是拿掉小數前導零（`0.6` → `.6`），**那是在賭 metric 不是在修問題**
+    （prettier 會加回來，而且為了一個數字讓原始碼更難讀）。**沒有做。**
+    **通則**：`npm run harness` 的 warning 與 build budget 的 warning 都屬於
+    「清不完的 ratchet 等於裝飾」那一族 —— 9 條長期不動的 warning，下一個人會整批略過，
+    **包括真的混進去的時候**。要嘛真的清，要嘛承認它是背景噪音，不要停在中間
 - **web 測試套件只在部分機器時區綠**：`UTC` / `Asia/Taipei` 綠，
   `America/New_York` / `Pacific/Kiritimati` **紅約 12 條**（在乾淨的 `origin/main`
   上驗過，不是誰的改動造成的）。#417 那輪時區 remediation 的掃描範圍是 `apps/api`，
