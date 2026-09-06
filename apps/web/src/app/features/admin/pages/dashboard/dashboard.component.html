@@ -77,9 +77,13 @@
                 [class.dashboard__todo-value--zero]="card.value === 0"
               >
                 @if (card.value === null) {
-                  載入中
+                  <span class="dashboard__value-skeleton p-skeleton" aria-hidden="true"></span>
+                  <span class="dashboard__sr-only">載入中</span>
                 } @else if (card.value === 'error') {
-                  讀取失敗
+                  <span class="dashboard__value-error">
+                    <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                    讀取失敗
+                  </span>
                 } @else {
                   {{ card.value }}
                 }
@@ -302,9 +306,13 @@
                   [class.dashboard__fact-value--zero]="card.value === 0"
                 >
                   @if (card.value === null) {
-                    載入中
+                    <span class="dashboard__value-skeleton p-skeleton" aria-hidden="true"></span>
+                    <span class="dashboard__sr-only">載入中</span>
                   } @else if (card.value === 'error') {
-                    讀取失敗
+                    <span class="dashboard__value-error">
+                      <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                      讀取失敗
+                    </span>
                   } @else {
                     {{ card.value }}
                   }

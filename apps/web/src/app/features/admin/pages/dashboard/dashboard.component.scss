@@ -201,6 +201,45 @@
   color: var(--zinc-900);
 }
 
+// #426：載入中/讀取失敗原本直接渲染成純文字，字重字級跟真數字一模一樣，
+// 讀起來像一個狀態值不像「還在載」。這兩個 element 同時用在 &__todo-value
+// 與 &__fact-value 底下，兩處數字大小不同但骨架/錯誤的處理邏輯是同一份。
+//
+// 骨架卡住最終內容的形狀——寬度用 2ch（絕大多數卡片數字是 1-2 位數），
+// 高度用 1em 卡住行高，不然骨架跟真數字切換時上下會跳。顏色與動畫交給
+// 全站既有的 `.p-skeleton`（見 styles.scss），這裡不重新發明第三種骨架配方
+// ——本專案已經有 `.p-skeleton` 的動畫骨架與橘帶專用的 `&__band-skeleton`
+// 靜態骨架，兩套各自服務不同底色，不該再長出第三套。
+.dashboard__value-skeleton {
+  display: inline-block;
+  width: 2ch;
+  height: 1em;
+  border-radius: var(--radius-sm);
+  vertical-align: middle;
+}
+
+// 錯誤態不能長得像骨架（會被讀成「還在載入，只是特別慢」）也不能長得像數字
+// （會被讀成一個異常大的值）。字級明顯小於 --text-2xl / --text-xl 的真數字、
+// 字重也降一階，這個量級差本身就排除「被讀成一個數字」的可能。
+.dashboard__value-error {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--error-600);
+}
+
+// 骨架是純視覺元素，念出來的內容交給這個——技巧複製自 &__h2--sr。
+.dashboard__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 .dashboard__todo-label {
   display: block;
   font-size: var(--text-base);
