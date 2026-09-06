@@ -47,6 +47,23 @@ describe('ClassRowComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('週三 19:00–21:00');
   });
 
+  // M4 詞彙統一（#425）：人形圖示配裸數字會被讀成「已經有幾人」，實際是容量上限，
+  // 兩者可能差到 6.7 倍。改用文字講清楚是「上限」，不是即時人數。
+  it('容量用文字講清楚是上限，不是人形圖示配裸數字', async () => {
+    await setup(makeClass({ maxStudents: 20 }));
+
+    expect(fixture.nativeElement.querySelector('.pi-users')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.class-row__capacity')?.textContent).toContain(
+      '上限 20 人',
+    );
+  });
+
+  it('沒有設定容量上限時不顯示這個欄位', async () => {
+    await setup(makeClass({ maxStudents: undefined }));
+
+    expect(fixture.nativeElement.querySelector('.class-row__capacity')).toBeNull();
+  });
+
   // 歷史班級不該出現操作選單 —— 這是原本頁面上的行為，抽出來後要保住
   it('歷史班級不顯示操作按鈕', async () => {
     await setup(makeClass(), { historical: true });

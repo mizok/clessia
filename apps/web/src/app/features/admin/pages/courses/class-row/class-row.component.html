@@ -37,10 +37,7 @@
     </span>
     <div class="class-row__info">
       @if (cls().maxStudents) {
-        <span class="class-row__capacity">
-          <i class="pi pi-users"></i>
-          {{ cls().maxStudents }}
-        </span>
+        <span class="class-row__capacity">上限 {{ cls().maxStudents }} 人</span>
       }
       <div class="class-row__tags">
         @if (historical()) {

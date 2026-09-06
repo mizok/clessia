@@ -261,7 +261,12 @@ export class ParentsPage implements OnInit {
    * 只有兩種：還在用（done）與不在等任何事了（inactive）。
    *
    * 原本 `archived` 回 `danger` —— **封存一個家長帳號不是壞消息**，
-   * 那是行政主動做的決定。停用與封存都是「不在等了」，同一個 tone。
+   * 那是行政主動做的決定。
+   *
+   * **這裡合併的只是顯示色調，不是動作本身**——`inactive`（停用，可逆，
+   * 見下方「啟用帳號」）與 `archived`（封存，不可逆，confirm 文案明講
+   * 「無法透過系統自動復原」）是兩個不同的動作，色調相同不代表它們是
+   * 同一件事。見 kb/wiki/architecture/deactivate-vs-archive.md。
    */
   protected statusTone(status: ParentStatus): StatusTone {
     return status === 'active' ? 'done' : 'inactive';
