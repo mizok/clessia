@@ -49,24 +49,39 @@ const EXEMPT = new Map([
     // 因為發布上線跟需不需要這個篩選是兩件事，舊條件把它們綁在一起才會過期。
     '前端唯一消費端（老師端課堂 bottom sheet）只查「這一班這一天」的單篇，沒有需要分草稿/已發布的清單畫面。出現「一次列出多篇日誌」的消費端時要重新評估 —— 詳細理由與 2026-09-06 的回查見上方註解',
   ],
-  // 家長端三支讀取端點（出缺席／成績／繳費）是 API 先行交付，前端消費端排在
-  // P4 家長頁面（見 kb/wiki/architecture/parent-read-endpoints.md）。/api/me 的
-  // 字首已經被 auth.service.ts / api.service.ts 認領（它們打 /api/me 拿 profile），
-  // 這支只是把新子路徑掛在同一個字首下，不代表那兩支 service 要負責這些參數 ——
-  // 真正的消費端是還沒生出來的 attendance/grades/billing.service.ts。
-  // **這批不是永久決定，是排序**：前端 PR 落地時要把這裡對應的幾筆一起刪掉，
-  // 不是新增更多。
-  ['/api/me/attendance|childId', '家長端出缺席端點 API 先行，前端消費端排在 P4，見上方說明'],
+  // ── 這批的理由 2026-09-07 改寫過（issue #589）。**舊理由已經不是真的了。** ──────
+  //
+  // 舊理由寫「前端消費端排在 P4，**真正的消費端是還沒生出來的**
+  // attendance/grades/billing.service.ts」。那三支**早就生出來了**，而且送出的正是
+  // 這些參數（`core/parent-attendance.service.ts:66-70` 等，逐參數比對 5/5、5/5、3/3）。
+  //
+  // **但這批豁免不能因此刪掉，因為它們真正在做的是另一件事** ——
+  // 而那件事舊理由只用一句附帶說明帶過（「不代表那兩支 service 要負責這些參數」）：
+  //
+  // **`servicePrefixes()` 只抽一段路徑**（regex 是 `/api/[a-z0-9-]+`），所以
+  // `/api/me/attendance`、`/api/me/grades`、`/api/me/billing`、`/api/me/class-logs`
+  // 這四支端點的前綴**全部被抽成 `/api/me`**，而 core 底下有 **6 支** service
+  // 宣告了那個前綴（auth / api / children / parent-attendance / parent-grades /
+  // parent-billing）。判斷是逐 service 做的（`findMissing` 的迴圈），
+  // 於是**每一支都要為其他五支的參數負責**。
+  //
+  // 實測：把這批拿掉，harness 從綠變成 **43 筆紅**，而每一筆都是
+  // 「這個參數有別的 service 在送，只是不是這一支」。
+  //
+  // **所以這批是在壓前綴碰撞的雜訊，不是在等 P4。** 移除條件也因此不同：
+  // **`servicePrefixes()` 改成抽最長路徑（或 findMissing 改成以端點為單位判斷）的那一天**
+  // —— 那是一個對 170 支 route 都會改變行為的決定，不在本次範圍（見 issue #589 留言）。
+  ['/api/me/attendance|childId', '前綴碰撞：6 支 service 都宣告 /api/me，每支被要求為其他支的參數負責。真正的消費端 core/parent-attendance.service.ts 有送 —— 見上方註解'],
   ['/api/me/attendance|dateFrom', '同上'],
   ['/api/me/attendance|dateTo', '同上'],
   ['/api/me/attendance|page', '同上'],
   ['/api/me/attendance|pageSize', '同上'],
-  ['/api/me/grades|childId', '家長端成績端點 API 先行，前端消費端排在 P4，見上方說明'],
+  ['/api/me/grades|childId', '前綴碰撞：6 支 service 都宣告 /api/me，每支被要求為其他支的參數負責。真正的消費端 core/parent-grades.service.ts 有送 —— 見上方註解'],
   ['/api/me/grades|dateFrom', '同上'],
   ['/api/me/grades|dateTo', '同上'],
   ['/api/me/grades|page', '同上'],
   ['/api/me/grades|pageSize', '同上'],
-  ['/api/me/billing|childId', '家長端繳費端點 API 先行，前端消費端排在 P4，見上方說明'],
+  ['/api/me/billing|childId', '前綴碰撞：6 支 service 都宣告 /api/me，每支被要求為其他支的參數負責。真正的消費端 core/parent-billing.service.ts 有送 —— 見上方註解'],
   ['/api/me/billing|page', '同上'],
   ['/api/me/billing|pageSize', '同上'],
   // 家長端教務日誌讀取端點，同一批排序 —— 前端消費端是 teacher-pages 的
@@ -77,14 +92,12 @@ const EXEMPT = new Map([
   ['/api/me/class-logs|dateTo', '同上'],
   ['/api/me/class-logs|page', '同上'],
   ['/api/me/class-logs|pageSize', '同上'],
-  // #361（design-web 告警系統統一設計）的 API 側前置：/api/sessions 補
-  // attendanceTaken 與 endedOnly 是為了讓儀表板的「未點名課堂」深連結、sessions
-  // 頁自己的「今日未點名」pill 表達得出同一個概念。前端消費端（StatCard.queryParams、
-  // sessions.page.ts 讀 ActivatedRoute、拔掉 countUntakenSessions）是 design-web
-  // 那半，卡在這支之後。**這不是永久決定，是排序**——design-web 接上時要把這兩筆
-  // 拿掉，不是新增更多。
-  ['/api/sessions|attendanceTaken', '#361 API 先行，design-web 的前端半緊接著接上，見上方說明'],
-  ['/api/sessions|endedOnly', '同上'],
+  // ── #361 的兩筆（`attendanceTaken` / `endedOnly`）已於 2026-09-07 刪除 ──────────
+  // 前端消費端（StatCard.queryParams、sessions 頁的「今日未點名」pill）已經落地並送出
+  // 這兩個參數，所以豁免對不上任何實際落差 —— 那正是下面 `staleExemptions()` 要抓的。
+  //
+  // **它們是被機器抓到的，不是被讀出來的。** 同一天 infra 逐筆讀完整張表做稽核
+  // （issue #589），讀漏了這兩筆；補上可否證性之後第一次執行就報了出來。
 ]);
 
 export function collectApiParams(root, record) {
@@ -235,6 +248,52 @@ export function findMissing(apiParams, services) {
 }
 
 /** 有打 API 的 service vs 根本不是 HTTP service —— 後者被跳過是對的 */
+/**
+ * **過期的豁免要自己叫。**
+ *
+ * 這道機制 2026-09-07 才補上（issue #589），而補它的理由是一次對照出來的觀察：
+ *
+ * | 豁免表 | 過期時 |
+ * | --- | --- |
+ * | `TOUCH_TARGET_EXEMPT` / `CONTRAST_EXEMPT`（`check-harness.mjs`） | **gate 紅** |
+ * | 本檔的 `EXEMPT`（在此之前） | **什麼都不會發生** —— 唯一的用法是 `if (EXEMPT.has(key)) continue` |
+ *
+ * 同一個 repo、兩張豁免表，一張可否證、一張不可 ——
+ * 而「豁免理由過期了沒人發現」三次全部出自不可否證的那一張
+ * （`/api/class-logs|published` 的 #461、`#361` 的 `attendanceTaken` / `endedOnly`）。
+ * **不是誰不細心：可否證的那張沒有機會過期太久，因為它會自己叫。**
+ *
+ * **驗證這件事本身**：#589 的稽核是逐筆**讀**完整張表做的，讀漏了 `#361` 那兩筆；
+ * 這支函式第一次執行就把它們報了出來。**讀得再仔細也不是機制。**
+ *
+ * ## 這支看不到什麼
+ *
+ * 它只判斷「這個 key 今天還對不對得上一個實際落差」，**不判斷理由寫得對不對**。
+ * `/api/me/*` 那批就是活生生的例子：它們對得上落差（所以這支安靜），
+ * 但**理由曾經是假的**（寫著「消費端還沒生出來」，而它們早就生出來了）。
+ * **一個理由過期、但豁免仍然必要的豁免，這支抓不到 —— 那一半只能靠人稽核。**
+ *
+ * `exempt` 只為了 self-test 可注入而存在（預設就是本檔的 `EXEMPT`）——
+ * **兩個方向都要有測試**：過期的要報，仍然必要的要安靜。
+ *
+ * @returns {string[]} 對不上任何落差的豁免 key，已排序
+ */
+export function staleExemptions(apiParams, services, exempt = EXEMPT) {
+  const gaps = new Set();
+  for (const { source } of services) {
+    const code = stripComments(source);
+    const prefixes = servicePrefixes(source);
+    if (prefixes.length === 0) continue;
+
+    for (const [path, params] of Object.entries(apiParams)) {
+      if (!prefixes.some((prefix) => matchesPrefix(path, prefix))) continue;
+      for (const name of params) if (!sendsParam(code, name)) gaps.add(`${path}|${name}`);
+    }
+  }
+
+  return [...exempt.keys()].filter((key) => !gaps.has(key)).sort();
+}
+
 export function partitionServices(services) {
   const http = [];
   const nonHttp = [];

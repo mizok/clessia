@@ -33,6 +33,7 @@ import {
   findMissing,
   findOrphanEndpoints,
   loadServices,
+  staleExemptions,
 } from './lib/api-param-coverage.mjs';
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
@@ -1629,6 +1630,17 @@ function checkApiParamCoverage() {
       `${hit.file} 沒有把 \`${hit.name}\` 當成 query 參數送出，但 \`${hit.path}\` 收它。` +
         `**前端不知道這個能力存在** —— 不是型別寫錯，是那個參數從來沒被傳過。` +
         `刻意不支援的話請加進 api-param-coverage.mjs 的 EXEMPT（要寫 why）。`,
+    );
+  }
+
+  // 豁免必須是可否證的：對不上任何實際落差時就是謊，不是保險。
+  // 跟 TOUCH_TARGET_EXEMPT / CONTRAST_EXEMPT 同一條規則 —— 這張表在 2026-09-07
+  // 之前少了它，而三次「理由過期沒人發現」全部出自這裡（issue #589）。
+  // 寫在程式碼裡的豁免只能人刪，write 模式修不掉 —— 刻意的。
+  for (const key of staleExemptions(apiParams, services)) {
+    fail(
+      `API 參數豁免過期：\`${key}\` 已經沒有對應的落差了（前端有送了）—— ` +
+        `把 api-param-coverage.mjs 的 EXEMPT 裡那一筆刪掉（豁免歸零是整筆移除，不是改字）`,
     );
   }
 

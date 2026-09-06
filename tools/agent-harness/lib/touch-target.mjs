@@ -46,8 +46,17 @@
  *   **gate 沒有量錯，是這個豁免的理由只在 filter bar 裡成立。**
  *   在別處，PrimeNG 按鈕的觸控尺寸目前**沒有任何機制在守**。
  * - **尺寸從父層或跨檔案繼承**來的，看不到。
- * - **只涵蓋掃描範圍內的目錄**。目前是老師端；admin / parent / public **沒有人量過**，
- *   別把綠燈讀成「全站合格」。
+ * - **只涵蓋掃描範圍內的目錄。** 權威是 `scan-scope.json` 的 `touch-target.roots`，
+ *   **不是這句話** —— 查法：
+ *   `node -e "console.log(require('./tools/agent-harness/scan-scope.json')['touch-target'].roots)"`
+ *
+ *   **2026-09-07 訂正（issue #589）**：這裡原本寫「目前是老師端；admin / parent /
+ *   public 沒有人量過」。實際 roots 是 `features/admin`、`features/public`、
+ *   `features/select-role`、`features/teacher`、`shared` —— **admin 與 public 早就在
+ *   範圍內，三句話裡兩句是過期的**，而**過期的兩句會把剩下那句真的一起帶走**。
+ *
+ *   仍然為真的那一句：**`features/parent`（5 支 SCSS）不在範圍內，沒有人量過。**
+ *   把它併進 roots 會產出一份新的 baseline —— 那是另一個決定，不在本次範圍。
  *
  * 定位是**防回歸**不是驗收合規：真正的合規要靠人在裝置上量，
  * 那件事不會因為這道 gate 綠燈就不用做。
@@ -66,7 +75,15 @@ function toPx(value) {
   return Number.isFinite(n) ? (m[2] === 'rem' ? n * 16 : n) : null;
 }
 
-/** PrimeNG 的東西由全域 token 管，掃它只會誤報 */
+/**
+ * PrimeNG 的東西不掃。**理由與它的範圍只寫在檔頭那一份，這裡不重複** ——
+ * 一句話講兩次就會漂：這行原本寫著「由全域 token 管」，檔頭在 2026-09-06
+ * 訂正成「那句話只在 `.clessia-filter-bar` 裡成立」，**而這一行沒跟上，
+ * 又活了一天**（issue #589 稽核抓到）。
+ *
+ * **訂正落在檔頭、沒落在使用點，而改這道 gate 的人是先看到這裡的。**
+ * 所以現在這裡只留指標：**看檔頭「這支看不到什麼」的第一條**。
+ */
 const PRIMENG = /(^|[\s>+~.:[])p-[a-z]|::ng-deep|--p-/;
 
 /**
