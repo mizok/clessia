@@ -586,6 +586,44 @@ test('A20 跳過外部 class 與沒有 class 的元素', () => {
   assert.deepEqual(unstyledInteractive('<div class="nope-xyz">x</div>', defined), []);
 });
 
+/**
+ * doc-router 的工單規則（2026-09-06）。
+ *
+ * 起因：一天內三支「幻影工單」—— 派人去做一件已經做完、或前提根本不成立的事。
+ * 每一支都帶著**站得住腳的推導**，那正是它們通過檢查的原因。
+ *
+ * ## 為什麼注入的是「去查」而不是「想一想」
+ *
+ * 原本的提案是注入一個反思式問句（「這份工單的依據是觀察還是類比？」）。
+ * **但那三支的實際被發現方式全都是「查了某個東西」**：對照已合併的 PR、
+ * 發現工作十七小時前就合掉了、去讀 migration 的 enum 定義。**沒有一支是想出來的。**
+ *
+ * 而且**問一個人「你的信念是觀察還是類比」，他會回答「觀察」** ——
+ * 那三席當下都相信自己的推導。反思會確認既有信念，查詢不會。
+ *
+ * 形式上也一致：既有 8 條規則的 hints **全部是「去讀這個檔」**，沒有一條是提問。
+ *
+ * ## 觸發要窄
+ *
+ * doc-router 掛在 UserPromptSubmit，**每則 prompt 都跑**。噪音會稀釋既有的架構提示，
+ * 所以寧可漏也不要每則都噴 —— 下面的反例就是在守這件事。
+ */
+test('doc-router：工單型 prompt 才注入「先查它做掉沒」', () => {
+  const fired = (prompt) =>
+    routeHints(prompt, routerRules.rules).some((h) => h.includes('動工前先查'));
+
+  // 該觸發的：工單抵達的那一刻
+  assert.ok(fired('新工單：把 README 通則掛上載體'));
+  assert.ok(fired('計畫席派工，接手 #465'));
+  assert.ok(fired('補貨：磁碟 watch 照掛'));
+
+  // **反例比正例重要** —— 每則 prompt 都跑，亂噴會讓人連既有的架構提示一起略過
+  assert.ok(!fired('幫我把這個 component 的 scss 改成 BEM'));
+  assert.ok(!fired('這支 PR 為什麼紅了'));
+  assert.ok(!fired('修一下 enrollment 的日期邏輯'));
+  assert.ok(!fired('把 migration 的欄位加上 index'));
+});
+
 test('c7 擋舊版結構指令', () => {
   assert.deepEqual(guard('a.component.html', '<div *ngIf="x">'), ['c7']);
   assert.deepEqual(guard('a.component.html', '@if (x) { <div></div> }'), []);
