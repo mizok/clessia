@@ -29,6 +29,7 @@ describe('SchedulePage', () => {
     options: {
       missingSummaryFails?: boolean;
       sessionsFails?: boolean;
+      orgSettingsFails?: boolean;
       attendanceResponsible?: 'admin' | 'teacher';
       sessions?: unknown[];
     } = {},
@@ -68,7 +69,9 @@ describe('SchedulePage', () => {
           // 任何呼叫 settings() 的路徑都會炸，而且是在測試裡才炸
           useValue: {
             settings: orgSettings,
+            status: signal(options.orgSettingsFails ? ('failed' as const) : ('ready' as const)),
             getSettings: () => of(orgSettings()),
+            load: vi.fn(),
           },
         },
         { provide: OverlayContainerService, useValue: { getContainer: () => null } },
@@ -263,6 +266,24 @@ describe('SchedulePage', () => {
     it('聯絡簿彙總成功時不出現那句話', async () => {
       await setup();
       expect(fixture.nativeElement.textContent).not.toContain('聯絡簿待辦數字暫時讀不到');
+    });
+  });
+  describe('點名設定讀不到要講出來（#484 H2）', () => {
+    it('設定載入失敗時說明「漏點名」提醒可能不準', async () => {
+      await setup({ orgSettingsFails: true });
+      expect(fixture.nativeElement.textContent).toContain('讀不到點名設定');
+    });
+
+    it('設定載到了就不出現那句話', async () => {
+      await setup();
+      expect(fixture.nativeElement.textContent).not.toContain('讀不到點名設定');
+    });
+
+    it('課表本身失敗時優先講課表 —— 設定的警告不蓋掉它', async () => {
+      await setup({ sessionsFails: true, orgSettingsFails: true });
+      const text = fixture.nativeElement.textContent;
+      expect(text).toContain('查詢失敗');
+      expect(text).not.toContain('讀不到點名設定');
     });
   });
 });
