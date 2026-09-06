@@ -111,7 +111,10 @@ export function collectApiParams(root, record) {
     const raw = execFileSync('npx', ['tsx', '.api-param-probe.mjs'], {
       cwd: apiDir,
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
+      // stderr 走 inherit:原本是 'ignore',probe 失敗時 execFileSync 丟出的物件裡
+      // `stderr: null`、`stdout: ''` —— **只剩一個 status: 1,查不出為什麼**。
+      // 2026-09-06 main 紅在這裡,而 CI 日誌沒有任何一行說明原因。
+      stdio: ['ignore', 'pipe', 'inherit'],
     });
     return JSON.parse(raw.trim().split('\n').pop());
   } finally {
