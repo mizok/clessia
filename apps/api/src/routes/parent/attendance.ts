@@ -132,15 +132,22 @@ app.openapi(
 
     const [{ data, error, count }, absentResult, onLeaveResult] = await Promise.all([
       query,
+      // **`events` 要在 select 裡，因為下面對 `events.event_date` 下了條件。**
+      // 原本是 `.select('id', …)`，PostgREST 對它回 400 `PGRST108`
+      //（'events' is not an embedded resource in this request）—— 也就是這支端點
+      // 對每一個家長、每一次呼叫都 500（#528）。
+      // **`!inner` 不是裝飾**：少了它，條件會靜靜地什麼都不篩（見 lib/session-summary.ts
+      // 的實測表）。同一個知識點的兩種失敗方向 —— 沒 embed 是大聲的 400，
+      // 有 embed 沒 `!inner` 是安靜的全回。
       childDb
         .from('attendance_records', 'student_id')
-        .select('id', { count: 'exact', head: true })
+        .select('id, events!inner(event_date)', { count: 'exact', head: true })
         .eq('student_id', childId)
         .eq('status', 'absent')
         .gte('events.event_date', monthStart()),
       childDb
         .from('attendance_records', 'student_id')
-        .select('id', { count: 'exact', head: true })
+        .select('id, events!inner(event_date)', { count: 'exact', head: true })
         .eq('student_id', childId)
         .eq('status', 'on_leave')
         .gte('events.event_date', monthStart()),
