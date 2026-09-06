@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { vi } from 'vitest';
 
@@ -50,7 +50,10 @@ describe('ClassLogSheetComponent', () => {
       providers: [
         { provide: DynamicDialogConfig, useValue: { data: INPUT } },
         { provide: DynamicDialogRef, useValue: { close: closeMock } },
-        { provide: ClassLogsService, useValue: { list: listMock, upsert: upsertMock, publish: publishMock } },
+        {
+          provide: ClassLogsService,
+          useValue: { list: listMock, upsert: upsertMock, publish: publishMock },
+        },
       ],
     }).compileComponents();
 
@@ -75,6 +78,34 @@ describe('ClassLogSheetComponent', () => {
    * 預載讓語意從「空白新寫」變成「編輯既有」，覆蓋因此**結構上不可能**，
    * 而不是靠老師讀到警語之後自己小心。
    */
+  // #508：載入中原本整塊被一行文字取代（沒有骨架尺寸，資料到了會跳版）。
+  // 最終內容是兩個 textarea 欄位，各用局部 &__field-skeleton（label + 輸入框骨架）。
+  it('載入中顯示兩個欄位骨架，不是整塊被文字取代', async () => {
+    listMock.mockReset();
+    upsertMock.mockReset();
+    publishMock.mockReset();
+    closeMock.mockReset();
+    listMock.mockReturnValue(NEVER);
+
+    await TestBed.configureTestingModule({
+      imports: [ClassLogSheetComponent],
+      providers: [
+        { provide: DynamicDialogConfig, useValue: { data: INPUT } },
+        { provide: DynamicDialogRef, useValue: { close: closeMock } },
+        {
+          provide: ClassLogsService,
+          useValue: { list: listMock, upsert: upsertMock, publish: publishMock },
+        },
+      ],
+    }).compileComponents();
+
+    const f = TestBed.createComponent(ClassLogSheetComponent);
+    f.detectChanges();
+
+    expect(f.nativeElement.querySelectorAll('.class-log-sheet__field-skeleton').length).toBe(2);
+    expect(f.nativeElement.querySelectorAll('.class-log-sheet__textarea-skeleton').length).toBe(2);
+  });
+
   it('開啟時把既有日誌的內容載進兩個欄位', async () => {
     await render([log()]);
 
@@ -191,7 +222,9 @@ describe('ClassLogSheetComponent', () => {
 
   it('存檔用 upsert，帶上班級與日期', async () => {
     await render();
-    (component as never as { teachingRecord: { set(v: string): void } }).teachingRecord.set('今天講了三角函數');
+    (component as never as { teachingRecord: { set(v: string): void } }).teachingRecord.set(
+      '今天講了三角函數',
+    );
     (component as never as { save(): void }).save();
 
     expect(upsertMock).toHaveBeenCalledWith({
@@ -260,7 +293,10 @@ describe('ClassLogSheetComponent', () => {
       providers: [
         { provide: DynamicDialogConfig, useValue: { data: INPUT } },
         { provide: DynamicDialogRef, useValue: { close: closeMock } },
-        { provide: ClassLogsService, useValue: { list: listMock, upsert: upsertMock, publish: publishMock } },
+        {
+          provide: ClassLogsService,
+          useValue: { list: listMock, upsert: upsertMock, publish: publishMock },
+        },
       ],
     }).compileComponents();
     const f = TestBed.createComponent(ClassLogSheetComponent);

@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 import { format, startOfWeek } from 'date-fns';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { AttendanceService } from '@core/attendance.service';
 import { ContactBookService } from '@core/contact-book.service';
 import { OrgSettingsService } from '@core/org-settings.service';
@@ -29,6 +29,7 @@ describe('SchedulePage', () => {
     options: {
       missingSummaryFails?: boolean;
       sessionsFails?: boolean;
+      sessionsStall?: boolean;
       orgSettingsFails?: boolean;
       attendanceResponsible?: 'admin' | 'teacher';
       sessions?: unknown[];
@@ -39,12 +40,14 @@ describe('SchedulePage', () => {
       attendanceResponsible: options.attendanceResponsible ?? 'admin',
     });
     sessionsSpy = vi.fn(() =>
-      options.sessionsFails
-        ? throwError(() => new Error('boom'))
-        : of({
-            data: options.sessions ?? [],
-            meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
-          }),
+      options.sessionsStall
+        ? NEVER
+        : options.sessionsFails
+          ? throwError(() => new Error('boom'))
+          : of({
+              data: options.sessions ?? [],
+              meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 },
+            }),
     );
     missingSummarySpy = vi.fn(() =>
       options.missingSummaryFails
@@ -95,6 +98,18 @@ describe('SchedulePage', () => {
   it('should create', async () => {
     await setup();
     expect(component).toBeTruthy();
+  });
+
+  // #508：載入中原本整塊被一行文字取代，連帶把整條週條藏起來。改成骨架週條後
+  // 這裡改斷言骨架元素，不是文字。7 格對齊 &__weekbar-days 既有的 7 欄 grid。
+  it('載入中顯示骨架週條，不是整塊被文字取代', async () => {
+    await setup({ sessionsStall: true });
+
+    const skeletons = fixture.nativeElement.querySelectorAll(
+      '.schedule-page__weekbar-skeleton.p-skeleton',
+    );
+    expect(skeletons.length).toBe(7);
+    expect(fixture.nativeElement.querySelector('.schedule-page__weekbar')).not.toBeNull();
   });
 
   /**
@@ -202,7 +217,9 @@ describe('SchedulePage', () => {
       await setup();
       // 預設 sessions 是空的 → 七天都沒課
       expect(fixture.nativeElement.querySelectorAll('.status-dot').length).toBe(0);
-      expect(fixture.nativeElement.querySelectorAll('.schedule-page__weekbar-empty').length).toBe(7);
+      expect(fixture.nativeElement.querySelectorAll('.schedule-page__weekbar-empty').length).toBe(
+        7,
+      );
     });
   });
   describe('載入失敗要產生訊號（#484 H1／H3）', () => {

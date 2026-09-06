@@ -36,7 +36,22 @@
   </app-page-band>
 
   @if (loading()) {
-    <p class="schedule-page__state">載入中…</p>
+    <!--
+      週條的骨架跟真正的 &__weekbar 用同一個 &__weekbar-days grid（7 欄），
+      尺寸跟排列自動對齊，不用重寫一份 grid 設定。上一週/下一週按鈕在載入中
+      也保留——它們不依賴這週的資料，拿掉會讓骨架的寬度跟真正的週條對不上。
+    -->
+    <nav class="schedule-page__weekbar" aria-label="本週課表載入中">
+      <p-button icon="pi pi-chevron-left" [text]="true" [disabled]="true" ariaLabel="上一週" />
+      <ul class="schedule-page__weekbar-days">
+        @for (i of [1, 2, 3, 4, 5, 6, 7]; track i) {
+          <li>
+            <span class="schedule-page__weekbar-skeleton p-skeleton"></span>
+          </li>
+        }
+      </ul>
+      <p-button icon="pi pi-chevron-right" [text]="true" [disabled]="true" ariaLabel="下一週" />
+    </nav>
   } @else if (loadError()) {
     <!--
       **這一格存在的理由**：沒有它的時候，查詢失敗會走到每一天的 `@empty`，
@@ -66,12 +81,7 @@
   -->
   @if (!loading() && !loadError()) {
     <nav class="schedule-page__weekbar" aria-label="本週各日">
-      <p-button
-        icon="pi pi-chevron-left"
-        [text]="true"
-        ariaLabel="上一週"
-        (onClick)="prevWeek()"
-      />
+      <p-button icon="pi pi-chevron-left" [text]="true" ariaLabel="上一週" (onClick)="prevWeek()" />
       <ul class="schedule-page__weekbar-days">
         @for (day of weekBar(); track day.dateStr) {
           <li>
