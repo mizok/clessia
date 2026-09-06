@@ -1147,6 +1147,41 @@ index 是我較舊的樹，**同一個檔案的舊版本在 `git status` 上長�
 順帶一提，**寫這則訂正的路上我又用了兩個點**，看到三個沒碰過的檔案顯示成刪除，
 第一反應還是「污染」。**那條規則我當天讀過、寫過，然後照樣用錯。**
 
+### 補償動作本身可以製造它要防的那種消失（#582）
+
+`ensureAttendanceSessionEvents` 認領失敗時要把孤兒 event 收回去。**最直覺的寫法
+「把我剛插入的那批全刪掉」是錯的**：
+
+> **認領步驟「失敗」不等於「沒寫進去」。** 連線在 commit 之後斷掉的話，
+> session 其實已經指著那個 event 了。
+
+刪掉它 FK 會 `ON DELETE SET NULL` —— **不報錯**，那堂課悄悄回到「沒有 event」，
+掛在上面的出勤紀錄從課堂就查不到了。**那正好是 CAS 那段註解裡最怕的那種消失。**
+
+所以補償要**先查真正被指著的是哪些、只刪剩下的**，並留一支測試釘住
+「已經被認領的不能刪」。
+
+> **判準：寫補償邏輯時問「這個補償在『我判斷錯了』的情況下會做什麼？」**
+> 補償跑在**失敗路徑**上，而失敗路徑的資訊天生不完整（你不知道那個請求到底
+> 有沒有生效）。**在資訊不完整的地方做破壞性動作，要先把資訊補齊，不能靠推論。**
+
+### 要驗 PostgREST 的行為，只能真的動資料庫再清乾淨
+
+charter 已經記了「`BEGIN…ROLLBACK` 對 PostgREST 無效」的兩層原因。**可操作的結論：**
+
+| 要驗什麼                                                            | 用什麼                         |
+| ------------------------------------------------------------------- | ------------------------------ |
+| 一段 SQL 套到現行 schema 上對不對、一支稽核查詢抓不抓得到           | `BEGIN … ROLLBACK`（非破壞性） |
+| **PostgREST 的行為**（embed 形狀、`!inner` 篩不篩、欄位打不打得到） | **真的寫進去 → 量 → 立刻刪掉** |
+
+第二列**沒有非破壞性的版本**。本機 DB 是共享資源，所以：造最小的一筆、量完立刻刪、
+**在回報裡寫明你造了什麼又刪了什麼**。
+
+**而「本機資料分不出來」是一種結果，不是沒有結果**：api-2 量 `daily-checkins` 的
+`!inner` 時第一輪是 19/19/19 —— **不是「加了沒差」，是 seed 裡 19 筆 events
+全是 `session` 型、沒有反例**。造一筆 `mock_exam` 之後才分得出 20 vs 19。
+跟「稽核查詢的 0 筆要先證明這個庫造得出正例」是同一句話的兩個場合。
+
 ### 列選項的時候，先問這些選項有沒有共用一個沒被裁過的前提
 
 2026-09-07，可補清單端點卡住時我列了三條路（豁免／等 UI 一起做／自己補 service），
@@ -1170,13 +1205,37 @@ index 是我較舊的樹，**同一個檔案的舊版本在 `git status` 上長�
 在**提問**這一側的版本：產出的品質檢查全部會通過，因為它們檢查的是產出本身，
 不是產出的前提。）
 
-#### 新端點會撞到 orphan gate，而它是零 baseline
+#### orphan gate 抓的是「**另起頂層前綴**的 GET 端點」，不是「每一支新端點」
 
-`tools/agent-harness/lib/api-param-coverage.mjs` 的 `findOrphanEndpoints`
-**目前 orphan count = 0**。也就是說**每一支 API 端點都被某支 web service 認領**，
-而**新增一支還沒有消費端的端點，harness 當場紅**。
+⚠️ **這一節前一版是錯的，我寫的**（2026-09-07 稍早）。原文說「每一支 API 端點都被
+某支 web service 認領，新增一支還沒有消費端的端點 harness 當場紅」——
+**那是從 `orphan count = 0` 推出來的，我沒有實際測過一支新端點。**
+design-web 去讀了 gate 的原始碼才發現不成立。
 
-驗它不用跑整個 harness（charter 那條「import 它跑一遍」）：
+**實測**（假的 `apiParams` 餵真的 `findOrphanEndpoints` + 真的 `loadServices`）：
+
+```js
+const fake = {
+  ...real,
+  '/api/sessions/{id}/makeup-candidates': ['classId'], // → 不是 orphan
+  '/api/makeup-candidates': ['classId'],
+}; // → 是 orphan
+// 結果：[ '/api/makeup-candidates' ]
+```
+
+兩個獨立的原因：
+
+1. **前綴比對只取一段**（`servicePrefixes` 是 `/\/api\/[a-z0-9-]+/g`，
+   `matchesPrefix` 是 `startsWith(prefix + '/')`）。`sessions.service.ts` 裡有一行
+   `` `${environment.apiUrl}/api/sessions` `` → **`/api/sessions` 底下所有路徑全部視為已認領**。
+2. **沒有 query 參數的端點根本不進那張表**（`collectApiParams` 只在
+   `p.length > 0` 時才收），而且**只讀 `item.get`** —— **POST 端點對這支 gate 完全隱形**。
+
+> **所以「先做 API、UI 之後再接」在這個 repo 多數時候沒有成本。**
+> 會踩到的唯一寫法是**另起一個頂層前綴、而且是帶 query 參數的 GET**。
+
+**驗它不用跑整個 harness**（charter 那條「import 它跑一遍」）——
+**但要餵一組陷阱進去，不要只看 `count === 0`**：
 
 ```js
 import {
@@ -1185,14 +1244,24 @@ import {
   findOrphanEndpoints,
 } from '<repo>/tools/agent-harness/lib/api-param-coverage.mjs';
 const root = process.cwd();
-console.log(findOrphanEndpoints(collectApiParams(root), loadServices(root)).length);
+const services = loadServices(root);
+console.log(
+  findOrphanEndpoints(
+    { ...collectApiParams(root), '/api/totally-unrelated-thing': ['x'] },
+    services,
+  ),
+);
+// 要看到那支陷阱被列出來，否則你驗的是「函式有沒有提早 return」
 ```
 
-**所以「先做 API、UI 之後再接」在這個 repo 是有成本的** —— 那個成本是一筆
-`EXEMPT` 或一次跨席排程。**動手寫新端點之前先想這件事，不要寫完才發現。**
+**這一節本身就是教訓**：`orphan count = 0` 是**量到的**，
+「所以新端點會紅」是**推的** —— 而我把兩者一起寫成了事實，
+還據此向計畫席要了兩次裁示。**「零違規」不蘊含「任何新增都算違規」，
+中間隔著一整套比對規則，而那套規則我沒讀。**
 
-⚠️ **零 baseline 的 gate 破不破口不是實作席自己的決定** ——
-「立法時零違規是最便宜的立法時機」的另一面是**破了就回不去**。
+（真正擋住可補清單端點的是 issue #592 的產品面問題 —— **使用者要的「加入課堂」
+這個系統做不到**。**卡點是真的，我給的理由是假的**，而假理由會讓下一個人
+去解一個不存在的問題。）
 
 #### 2026-09-07 這一輪做的（只記知識指標，帳面用查的）
 
