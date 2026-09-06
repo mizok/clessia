@@ -331,6 +331,8 @@ app.openapi(
       query = query.eq('grade', grade);
     }
     // 沒指定分校時也要縮到自己管的那幾間 —— `campusFilterIds` 回 null 才是「不限」
+    // 這支查詢**不濾 enrollment status**（enrollment-rules 第 8 節）：分校主任要看得到
+    // 自家剛退班的學生。改這裡等於改授權可見性，不是改篩選
     const campusIds = campusFilterIds(c.get('campusScope'), campusId);
     if (campusIds) {
       const { data: enrollmentRows } = await supabase
@@ -398,7 +400,12 @@ app.openapi(
             campuses: { name: string } | null;
           } | null;
         }>) ?? [];
+      // 刪除守門用，**不濾 status**：退班的報名也是引用，濾掉會放行一次破壞歷史的刪除
       const hasEnrollments = enrollmentRows.length > 0;
+      // **刻意不濾 status**（跟下面的 classNames 相反，不是漏了）——分校歸屬看的是
+      // 「這個分校收過他」，退班學生對分校主任是現在進行式的工作對象（退費、回流招生、
+      // 家長投訴回查）。而且這條關聯同時是 campusScope 授權走的路，濾掉不是顯示調整
+      // 是可見性收縮。理由與已知取捨見 kb/wiki/rules/enrollment-rules.md 第 8 節（#438）
       const campusNames = Array.from(
         new Set(
           enrollmentRows.map((e) => e.classes?.campuses?.name).filter((n): n is string => !!n),

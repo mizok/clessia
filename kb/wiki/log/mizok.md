@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-09-06] capture | 分校歸屬語意定案（#438）
+- Pages updated: [[rules/enrollment-rules]]（新增第 8 節）
+- 決定：學生的分校歸屬不濾 enrollment status —— 退班學生對分校主任是現在進行式的工作對象，
+  而這條關聯同時是 campusScope 授權的路，濾掉是可見性收縮不是顯示調整
+- 對照記進同一節：campusNames 不濾／classNames 濾／hasEnrollments 不濾，三個答案不同是刻意的
+- 觸發條件（D 案）：有使用者回報「分校欄位讓我以為他還在那裡上課」時，再做在籍與已退班的顯示區分
+
+## [2026-09-06] lint | Health check: 0 errors, 3 warnings, 59 info
+- Mode: structural
+- Pages scanned: 126
+- Issues found: 62
+
 ## [2026-09-06] lint | Health check: 0 errors, 3 warnings, 59 info
 - Mode: structural
 - Pages scanned: 129
