@@ -131,6 +131,35 @@ npm ci  →  npm ci (apps/api)  →  harness  →  harness self-test
 判準：**「這道檢查已經涵蓋了」是一個可以跑出來的斷言，不是可以推出來的。**
 成本通常是幾十秒 —— 而推錯的成本是一個缺口繼續開著，且大家以為它是關的。
 
+### 新增 gate 要問「它會在**哪幾個 job** 裡跑，那些 job 各自裝了什麼」
+
+2026-09-06：A21 在 PR 上全綠，**合進 main 之後 main 就紅了**。
+
+成因不是別人的 commit 插進來，是**同一份程式碼在兩個不同的 CI job 環境裡跑**：
+
+| job                                      | 有 `apps/api` 的 `npm ci` | A21 跑得起來嗎 |
+| ---------------------------------------- | ------------------------- | -------------- |
+| `verify`                                 | **有**                    | ✅             |
+| `sync-feature-map`（跑 `harness:write`） | **沒有**                  | ✖ probe 起不來 |
+
+A21 經 `collectApiParams` 起一支 `npx tsx` 探針，那支在 `apps/api` 底下
+`import('./src/index.ts')` —— 需要那個目錄自己的依賴。
+
+**「PR 綠不蘊含 main 綠」README 有這條，而這是它的新變種**：
+不是時間差（別人的 commit 在中間進來），是**環境差**。
+同一個 commit、同一支 gate、兩個 job，只有一個裝了它需要的東西。
+
+**判準：加一道 gate 之前，先數它會被幾個 job 執行到。**
+在這個 repo 裡，任何進 `harness` 的東西**至少會在兩個 job 裡跑**
+（`verify` 的 `--check` 與 `sync-feature-map` 的 `--write`），而它們的環境不同。
+
+> **附帶的一則**：那次 CI 日誌裡**沒有任何一行說明原因** ——
+> `collectApiParams` 的 `execFileSync` 用 `stdio: [_, 'pipe', 'ignore']`，
+> 於是 probe 失敗時只剩一個 `status: 1`。修法把 stderr 改成 `'inherit'`。
+>
+> **一個查不出原因的失敗，跟一個沒發生的失敗，除錯成本差一個數量級。**
+> 而 `'ignore'` 是預設會讓人寫下的那個值 —— 它看起來只是「不要吵」。
+
 ### 零 baseline 是最便宜的立法時機
 
 一道 gate 立法時如果現況是零違規，它就**永遠不需要 baseline**。
