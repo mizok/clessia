@@ -7,6 +7,7 @@ import type { Campus } from '@core/campuses.service';
 import type { LeaveRequest } from '@core/leave.service';
 import { LeaveService } from '@core/leave.service';
 import { ReferenceDataService } from '@core/reference-data.service';
+import { SystemClockService } from '@core/system-clock.service';
 import { LeavePage } from './leave.page';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 
@@ -61,6 +62,13 @@ describe('LeavePage', () => {
       providers: [
         { provide: LeaveService, useValue: leaveServiceMock },
         { provide: ReferenceDataService, useValue: referenceDataServiceMock },
+        // **這個替身不是為了控制日期，是為了不要把真的 setInterval 拉進來。**
+        // `SystemClockService` 的 constructor 會起兩個 interval（每秒 tick、
+        // 每 5 分鐘 resync），而這個檔案用 `vi.useFakeTimers()` + `runAllTimers()` ——
+        // 真的服務進來的話 `runAllTimers()` 會永遠有下一個 timer 可跑，
+        // 測試以「Aborting after running 10000 timers」失敗。
+        // 固定日期同時讓 `leaveState` 的斷言不依賴牆上時鐘。
+        { provide: SystemClockService, useValue: { todayTaipei: () => '2026-04-10' } },
       ],
     })
       .overrideComponent(LeavePage, {
@@ -85,6 +93,36 @@ describe('LeavePage', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  /**
+   * 基準日固定成 `2026-04-10`（來自上面的 `SystemClockService` 替身）——
+   * **在這之前 `leaveState` 讀的是牆上時鐘，所以它只在某些日子是綠的**，
+   * 而且沒有任何一條測試蓋到它的三個分支。
+   */
+  describe('leaveState 的三個分支（基準日 2026-04-10）', () => {
+    const state = (startDate: string, endDate: string) =>
+      (
+        component as unknown as {
+          leaveState: (r: { startDate: string; endDate: string }) => string;
+        }
+      ).leaveState({ startDate, endDate });
+
+    it('開始日在今天之後 → future', () => {
+      expect(state('2026-04-11', '2026-04-12')).toBe('future');
+    });
+
+    it('今天開始的假是 active，不是 future —— 邊界用 > 不是 >=', () => {
+      expect(state('2026-04-10', '2026-04-12')).toBe('active');
+    });
+
+    it('今天結束的假還算 active —— 當天請假當天仍然有效', () => {
+      expect(state('2026-04-08', '2026-04-10')).toBe('active');
+    });
+
+    it('昨天結束的假是 past', () => {
+      expect(state('2026-04-08', '2026-04-09')).toBe('past');
+    });
   });
 
   afterEach(() => {
