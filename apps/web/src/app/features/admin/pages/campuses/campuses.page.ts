@@ -206,7 +206,6 @@ export class CampusesPage implements OnInit {
 
   openCreateDialog(): void {
     const ref = this.dialogService.open(CampusFormDialogComponent, {
-      header: '新增分校',
       width: '450px',
       modal: true,
       showHeader: false,
@@ -222,7 +221,6 @@ export class CampusesPage implements OnInit {
 
   openEditDialog(campus: Campus): void {
     const ref = this.dialogService.open(CampusFormDialogComponent, {
-      header: '編輯分校',
       width: '450px',
       modal: true,
       showHeader: false,
@@ -239,7 +237,6 @@ export class CampusesPage implements OnInit {
 
   openAuditLog(): void {
     this.dialogService.open(AuditLogDialogComponent, {
-      header: '分校管理操作紀錄',
       width: '800px',
       modal: true,
       showHeader: false,

@@ -149,7 +149,9 @@ describe('SessionDetailDialogComponent', () => {
 
     const text = fixture.nativeElement.textContent as string;
 
-    expect(text).toContain('課堂異動紀錄');
+    // 「課堂異動紀錄」原本在內容區有一行 eyebrow，跟會渲染的 dialog header
+    // 疊成兩個標題（#448）。標題現在只有一個，斷言搬到開啟端
+    // （sessions.page.spec.ts 的 `header: '課堂異動紀錄'`）
     expect(text).toContain('時間線');
     expect(text).toContain('課堂建立');
     expect(text).toContain('建立者：系統排程');

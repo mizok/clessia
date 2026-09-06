@@ -160,7 +160,6 @@ export class PaymentsPage implements OnInit {
 
   protected openUninvoiced(): void {
     const ref = this.dialogService.open(UninvoicedDialogComponent, {
-      header: '待開帳的報名',
       width: '640px',
       modal: true,
       showHeader: false,
@@ -182,7 +181,6 @@ export class PaymentsPage implements OnInit {
 
   protected openAuditLog(): void {
     this.dialogService.open(AuditLogDialogComponent, {
-      header: '繳費紀錄操作紀錄',
       width: '800px',
       modal: true,
       showHeader: false,
@@ -295,7 +293,6 @@ export class PaymentsPage implements OnInit {
 
   protected openDetail(invoice: Invoice): void {
     const ref = this.dialogService.open(InvoiceDetailDialogComponent, {
-      header: '帳單詳情',
       width: '720px',
       modal: true,
       showHeader: false,
@@ -311,7 +308,6 @@ export class PaymentsPage implements OnInit {
 
   protected openCreateDialog(): void {
     const ref = this.dialogService.open(InvoiceFormDialogComponent, {
-      header: '開立帳單',
       width: '640px',
       modal: true,
       showHeader: false,

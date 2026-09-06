@@ -134,7 +134,6 @@ export class FeeTemplatesComponent implements OnInit {
 
   protected openAuditLog(): void {
     this.dialogService.open(AuditLogDialogComponent, {
-      header: '費用方案操作紀錄',
       width: '800px',
       modal: true,
       showHeader: false,

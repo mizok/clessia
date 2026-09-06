@@ -134,8 +134,8 @@ describe('LeavePage', () => {
   it('opens audit log dialog for leave records', () => {
     component['openAuditLog']();
 
+    // 同 attendance.page.spec：`showHeader: false` 讓 `header` 永遠不渲染（#448）
     expect(dialogServiceMock.open).toHaveBeenCalledWith(AuditLogDialogComponent, {
-      header: '請假管理操作紀錄',
       width: '800px',
       modal: true,
       showHeader: false,

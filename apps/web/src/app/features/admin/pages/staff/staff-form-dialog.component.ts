@@ -227,7 +227,6 @@ export class StaffFormDialogComponent {
 
   protected openSubjectManager(): void {
     const dialogRef = this.dialogService.open(SubjectManagerComponent, {
-      header: '管理科目',
       width: '400px',
       modal: true,
       showHeader: false,

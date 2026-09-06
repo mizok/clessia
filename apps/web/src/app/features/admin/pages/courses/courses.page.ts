@@ -524,7 +524,6 @@ export class CoursesPage implements OnInit {
 
   openAuditLog(): void {
     this.dialogService.open(AuditLogDialogComponent, {
-      header: '課程管理操作紀錄',
       width: '800px',
       modal: true,
       showHeader: false,
@@ -812,7 +811,6 @@ export class CoursesPage implements OnInit {
 
   protected openCreateCourseDialog(): void {
     const ref = this.dialogService.open(CourseFormDialogComponent, {
-      header: '新增課程',
       width: '600px',
       modal: true,
       showHeader: false,
@@ -831,7 +829,6 @@ export class CoursesPage implements OnInit {
 
   protected openEditCourseDialog(course: Course): void {
     const ref = this.dialogService.open(CourseFormDialogComponent, {
-      header: '編輯課程',
       width: '600px',
       modal: true,
       showHeader: false,
@@ -915,7 +912,6 @@ export class CoursesPage implements OnInit {
   protected openCreateClassDialog(courseId: string): void {
     const course = this.courses().find((c) => c.id === courseId);
     const ref = this.dialogService.open(ClassFormDialogComponent, {
-      header: '新增班級',
       width: '600px',
       modal: true,
       showHeader: false,
@@ -936,7 +932,6 @@ export class CoursesPage implements OnInit {
   protected openEditClassDialog(cls: Class): void {
     const course = this.courses().find((c) => c.id === cls.courseId);
     const ref = this.dialogService.open(ClassFormDialogComponent, {
-      header: '編輯班級',
       width: '600px',
       modal: true,
       showHeader: false,
@@ -975,7 +970,6 @@ export class CoursesPage implements OnInit {
     }
 
     const ref = this.dialogService.open(GenerateSessionsDialogComponent, {
-      header: '產生課堂',
       width: '600px',
       modal: true,
       showHeader: false,
@@ -1078,7 +1072,6 @@ export class CoursesPage implements OnInit {
   protected confirmToggleActive(cls: Class): void {
     if (cls.isActive) {
       const ref = this.dialogService.open(DeactivateClassDialogComponent, {
-        header: '停用班級',
         width: '500px',
         modal: true,
         showHeader: false,

@@ -238,7 +238,6 @@ export class StudentsPage implements OnInit {
 
   openEditDialog(student: Student): void {
     const ref = this.dialogService.open(StudentFormDialogComponent, {
-      header: '編輯學生',
       width: '560px',
       modal: true,
       showHeader: false,
@@ -260,7 +259,6 @@ export class StudentsPage implements OnInit {
    */
   openCreateDialog(): void {
     const ref = this.dialogService.open(StudentFormDialogComponent, {
-      header: '新增學生',
       width: '560px',
       modal: true,
       showHeader: false,
