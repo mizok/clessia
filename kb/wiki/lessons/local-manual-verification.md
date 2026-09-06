@@ -63,14 +63,18 @@ parents 表 15 筆、parent_student_relations 15 筆、全部有 user_id
 `/api/me` 是唯一能問清楚的地方：
 
 ```js
-await fetch('http://localhost:8787/api/me', {credentials:'include'}).then(r=>r.json())
+await fetch('http://localhost:8787/api/me', { credentials: 'include' }).then((r) => r.json());
 ```
 
 要換身分得先登出：
 
 ```js
-await fetch('http://localhost:8787/api/auth/sign-out',
-  {method:'POST', credentials:'include', headers:{'content-type':'application/json'}, body:'{}'})
+await fetch('http://localhost:8787/api/auth/sign-out', {
+  method: 'POST',
+  credentials: 'include',
+  headers: { 'content-type': 'application/json' },
+  body: '{}',
+});
 ```
 
 **那個 cookie 是共享的瀏覽器狀態** —— 多席同時在跑時，登出會把別人踢掉。
@@ -104,6 +108,57 @@ group by u.email order by 2 desc limit 5;
 > **零命中不代表沒問題，可能只是那一頁上什麼都沒渲染。**
 > 老師端課表的動作鈕只有在有課的那幾天才存在 —— 拿一個沒課的老師去掃，
 > 會得到一個看起來很乾淨的結果。見 [[lessons/silent-tool-failures]]。
+
+## 七、實測之前先確認本機 DB 沒有落後
+
+```bash
+npx supabase migration list --local     # `remote` 欄是空的那幾支就是還沒套
+npx supabase migration up --local       # 非破壞性，只補沒套的，不動資料也不動 session
+```
+
+**本機 DB 的 migration 狀態是本機驗證的隱藏前提。** 2026-09-06 它落後了五支，
+而**那一整天的本機手動驗證都跑在上面**。
+
+### 它出錯的樣子跟真 bug 一模一樣
+
+api-2 查一個 500，錯誤是
+
+```
+column academy_exams_1.pass_score does not exist
+```
+
+而 `pass_score` 正是最後那支未套用的 migration 加的 —— **環境落後，不是程式壞了**。
+
+同一天 infra 在 `routes/parent/children.ts:55` 抓到
+
+```
+column "school" does not exist          （`.select('id, name, grade, school')`）
+```
+
+而 `students` **從來沒有過 `school` 欄位**（只有 `20260421000001` 加的 `school_id`）——
+**這一個是程式寫錯欄位名**。
+
+**兩句錯誤訊息完全相同，而處置完全相反。**
+
+> **判準**（teacher-pages）：看到 `column X does not exist`，先查 `X` 在不在 migration 裡。
+> **在、但本機沒套** → 補環境；**根本不在** → 改程式碼。
+> 光看錯誤訊息永遠分不出來 —— 兩次都是**去查了 migration 檔案**才分開的。
+
+### 反方向也成立
+
+> **「本機重現不了」不能證明線上沒問題**（api-2）。方向反過來時，
+> 本機的新 schema 會**掩蓋掉一個只對舊 schema 才會炸的 bug**。
+
+兩個方向都是同一件事：**本機資料的形狀決定哪些 bug 看得見。**
+
+### 套的時候
+
+- **先廣播**，並問「你現在有沒有正在跑的實測」——
+  這是加法性的維護，不急在五分鐘
+- **`migration up` 不動資料也不動登入 session**；`db:reset` 會清掉所有人的 session，
+  **要用的話再廣播一次**
+- **套完要驗欄位真的在**，不是看指令回報成功：
+  `select column_name from information_schema.columns where table_name='…'`
 
 ## See Also
 
