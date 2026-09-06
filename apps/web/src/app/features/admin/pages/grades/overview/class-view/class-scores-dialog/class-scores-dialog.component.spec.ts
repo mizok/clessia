@@ -47,6 +47,7 @@ describe('ClassScoresDialogComponent', () => {
     subjectName: null,
     classCount: 1,
     scoreCount: 0,
+    expectedCount: 0,
     createdAt: '',
     updatedAt: '',
   };
