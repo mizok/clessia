@@ -50,6 +50,21 @@ export function isCampusAllowed(scope: CampusScope, campusId: string | undefined
 }
 
 /**
+ * 清單版的 `isCampusAllowed` —— 指派多個分校時（`staff.campusIds`）每一個都要在範圍內。
+ *
+ * **一個都不能超出**：只要有一個範圍外的就整批拒絕，不是默默過濾掉它。默默過濾會讓
+ * 呼叫端以為指派成功了，而少掉的那個分校沒有人會發現。
+ */
+export function campusIdsWithinScope(
+  scope: CampusScope,
+  campusIds: readonly string[] | undefined | null,
+): boolean {
+  if (!campusIds) return true;
+
+  return campusIds.every((campusId) => isCampusAllowed(scope, campusId));
+}
+
+/**
  * 這次查詢實際要用的分校清單。
  *
  * - 沒有範圍限制且請求沒指定 → `null`（不加條件）

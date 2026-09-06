@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { formatAuditCourseResourceName, logAudit } from '../utils/audit';
-import { applyCampusFilter } from '../lib/campus-scope';
+import { applyCampusFilter, isCampusAllowed } from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
 
 // ============================================================
@@ -281,6 +281,14 @@ const createCourseRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '沒有這個分校的權限',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
     409: {
       description: '課程名稱重複',
       content: {
@@ -297,6 +305,12 @@ app.openapi(createCourseRoute, async (c) => {
   const orgId = c.get('orgId');
   const userId = c.get('userId');
   const body = c.req.valid('json');
+
+  // 分校範圍在寫入路徑上也要成立 —— 沒有這段，只管 A 校的管理員可以在 B 校建課程，
+  // **而且建完自己看不到**（讀取被範圍過濾），沒有人會發現它是誰建的。
+  if (!isCampusAllowed(c.get('campusScope'), body.campusId)) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
 
   const { data, error } = await supabase
     .from('courses')

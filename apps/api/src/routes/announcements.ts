@@ -3,7 +3,7 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { requireRoles } from '../middleware/auth';
 import { audienceFor, campusOrFilter } from './announcements/visibility';
-import { campusFilterIds } from '../lib/campus-scope';
+import { campusFilterIds, isCampusAllowed } from '../lib/campus-scope';
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -218,6 +218,10 @@ app.openapi(
         description: 'Created',
         content: { 'application/json': { schema: z.object({ data: AnnouncementSchema }) } },
       },
+      403: {
+        description: '沒有這個分校的權限',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -225,6 +229,13 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const body = c.req.valid('json');
+
+    // **授權先於一切，所以這段在最前面。** body 帶的分校不在 campusRequestGuard
+    // 的視野內（它只讀 query string），受限管理員否則可以對自己不管的分校發公告，
+    // 而那個分校的老師與家長會收到。做法照 daily-checkins.ts:56-60。
+    if (!isCampusAllowed(c.get('campusScope'), body.campusId)) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
 
     const { data, error } = await supabase
       .from('announcements')

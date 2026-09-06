@@ -199,10 +199,16 @@ export const campusRequestGuard = createMiddleware<AppEnv>(async (c, next) => {
   if (scope === null) return next();
 
   const url = new URL(c.req.url);
+  // **參數名是這道守衛的盲區。** 它守的是「名字」不是「概念」——`GET /api/academy-exams`
+  // 的列表用的是 snake_case 的 `campus_id`（routes/academy-exams.ts:491），
+  // 而它會被餵進 `applyCampusFilter` 的 `requested`，**覆蓋**（不是交集）使用者的範圍。
+  // 少了 snake_case 這兩個名字，那支端點等於沒有分校隔離。
   const requested = [
     ...url.searchParams.getAll('campusId'),
+    ...url.searchParams.getAll('campus_id'),
     // 複數版是逗號分隔的清單
     ...url.searchParams.getAll('campusIds').flatMap((value) => value.split(',')),
+    ...url.searchParams.getAll('campus_ids').flatMap((value) => value.split(',')),
   ]
     .map((value) => value.trim())
     .filter(Boolean);
