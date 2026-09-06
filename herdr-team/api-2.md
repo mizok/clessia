@@ -123,6 +123,38 @@ curl -sI ".../campuses?select=id&id=in.()" -H "apikey: $K" -H "Prefer: count=exa
 `waitUntil` 不延後 promise 執行、`z.uuid()` 比 Postgres 本身還嚴。
 **共同形狀：我們以為那是「我們的邏輯」，其實那一步的語意是別人定義的。**
 
+### 要實機驗證就起自己的 server，不要爭用別席的 port（#528）
+
+`kb/wiki/lessons/local-manual-verification.md` 說「API（8787）可以直接用別席已經起好的
+那支 —— 唯讀打它不影響對方」。**那條在只讀時成立，但查 500 的根因時不成立** ——
+你需要**自己的 log**，而別席那支的 log 在別席的終端機裡。
+
+做法：`npx wrangler dev --port 8790`（挑一個沒人用的），自己的 `.dev.vars` 指向同一組
+本機 supabase。**唯讀共享資料庫、不共享 server。** 收工時只 kill 自己那個 port。
+
+搭配的取得 session 方式（不需要瀏覽器、也不會踩到別席的共享 cookie）：
+
+```sh
+set -a; . ./apps/api/.dev.vars; set +a
+LOGIN_EMAIL=parent11@demo.clessia.app npx tsx apps/api/src/scripts/login-link.ts
+curl -c jar.txt -L "<magic link>"          # 拿 session cookie
+curl -b jar.txt "http://localhost:8790/api/me/…"
+```
+
+> 瀏覽器的 session cookie 是**共享的機器狀態**（那份 lessons 第四節），
+> 而 curl 的 cookie jar 是一個檔案 —— **多席同時驗不同身分時，這個差別就是能不能平行做。**
+
+### 一個「空」要判定成 bug 之前，先確認資料源頭真的有東西（#528）
+
+`GET /api/me/billing` 回 200 但 0 筆，工單標的是「不確定是正確的空還是另一種壞」。
+查了 DB 才知道：**那個孩子真的沒有帳單**。換成同一個家長的另一個孩子（有 1 張）
+→ 端點正確回傳。
+
+**它看起來可疑，只是因為隔壁三支都是 500。**
+
+> **判準：一筆正常的結果，被異常包圍時會被讀成異常。** 判定「空」之前先問
+> 「源頭有幾筆」—— 那是一句 SQL 的事，而它決定你要不要去讀那支端點的程式碼。
+
 ### 四處寫法一致，那不是漏，那是規則
 
 #438 的工單說「`campusNames` 沒有像 `classNames` 一樣濾掉退班」。查下去：「學生 → 分校」

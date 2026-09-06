@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-09-06] capture | 這一族的大聲那一半（#528）
+- Pages updated: [[lessons/silent-tool-failures]]（新增一節）
+- 同一個 PostgREST 知識點的兩個失敗方向：少 `!inner` 是安靜地什麼都不篩、
+  連 embed 都沒有是大聲的 400。這頁原本只收得到安靜的那半
+- 倖存者偏差：報錯的那半當場就被修掉，沒有人覺得值得寫下來
+- 大聲的那半這次活了四個半月，因為那支端點在 seed 補上 parent 角色前沒人打得開
+  —— **「大聲」的前提是有人在聽**
+
+## [2026-09-06] lint | Health check: 0 errors, 7 warnings, 62 info
+- Mode: structural
+- Pages scanned: 134
+- Issues found: 69
+
 ## [2026-09-06] lint | Health check: 0 errors, 6 warnings, 61 info
 - Mode: structural
 - Pages scanned: 135
