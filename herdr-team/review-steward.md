@@ -474,6 +474,36 @@ git diff --stat origin/main...HEAD  →    1 file changed,    42 insertions(+)  
 分支落後 main 越多,兩點的假警報越大 —— 而**落後很多正是最需要這道警報的時候**。
 判分歧程度:`git rev-list --count HEAD..origin/main`。
 
+### 這一席的守衛全長在「收」的路徑上,「推」的路徑目前靠自覺
+`tools/steward-merge.sh` 守的是**收別人的 PR**:state 是 OPEN、CI 有 conclusion、
+mergeable 已算完、鎖 SHA、確認 MERGED 才刪分支、backlog 不在 diff 裡。
+
+**而「推我自己的 PR」那條路徑一道守衛都沒有。** 2026-09-05 夜間我在那條路徑上一次犯兩個錯:
+- 推 commit 到一支**已經被合併**的分支(#409),commit 擱淺
+- 被自己 charter 裡寫錯的警報指令嚇到(兩點 diff 的假警報)
+
+**兩個都是靠「剛好多查了一次」逮到的,不是流程保證的。**
+
+下一任若要補,最小的一道是:
+```bash
+gh pr view <n> --json state -q .state    # MERGED 就不要推,改從 main 開新分支
+```
+
+**這條記的不是一個已發生的錯,是一整類還沒發生的錯** —— 收的路徑被機械化之後,
+剩下的風險就集中到沒被機械化的那一半,而那一半平常看起來很安全,因為它出錯的次數少。
+
+### 一份資料只在它自己的維度上正確
+2026-09-05 我用 `headRefOid` 重驗了「哪些 PR 的 base 含 #402」,修掉了 `FETCH_HEAD` 的
+殘留值問題,然後把那份清單當成「**還在等作者推的 PR**」交出去 ——
+**而其中六支計畫席幾小時前就合了,一支是 CLOSED。**
+
+那份資料**在它自己的維度上是正確的**(base 確實不含 402),
+但我用它回答了另一個維度的問題(**PR 還開不開著**)。
+
+**判準:問「我查的這個欄位,回答的是不是我要問的那個問題?」** ——
+`headRefOid` 回答「這支跑在什麼 base 上」,`state` 才回答「它還在不在板上」。
+兩者都對,而且都可能同時成立或不成立。
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
