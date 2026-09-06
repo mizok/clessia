@@ -78,4 +78,16 @@
     font-size: var(--text-xs);
     margin-right: var(--space-1);
   }
+
+  // 只顯示前 N 筆的提示 —— 跟老師端課表的 `--warning` 同一個 token，
+  // 兩頁講「主要內容可信、但有一部分沒拿到」時長一樣
+  &__state {
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--zinc-500);
+
+    &--warning {
+      color: var(--warning-600);
+    }
+  }
 }

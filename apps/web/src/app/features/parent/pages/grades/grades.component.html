@@ -45,6 +45,16 @@
     } @else if (groups().length === 0) {
       <app-empty-state icon="pi pi-chart-line" title="沒有符合條件的成績" description="" />
     } @else {
+      <!--
+        這一頁沒有分頁 UI（一次撈完再前端篩），所以超過上限就會被截斷。
+        **截斷本身是安靜的** —— 少掉的那些跟「本來就沒有」長得一樣，
+        所以拿 `meta.total` 對一次，不一致就講出來。
+      -->
+      @if (truncated()) {
+        <p class="grades__state grades__state--warning">
+          只顯示最近 {{ records().length }} 筆，共 {{ total() }} 筆。
+        </p>
+      }
       @for (group of groups(); track group.subjectName) {
         <section class="grades__subject">
           <h2 class="grades__subject-title">{{ group.subjectName }}</h2>
