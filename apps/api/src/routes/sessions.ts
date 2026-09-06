@@ -105,6 +105,14 @@ const SessionIdParamsSchema = z
   })
   .openapi('SessionIdParams');
 
+const SessionMakeupLinkSchema = z
+  .object({
+    id: DbUuidSchema,
+    sessionDate: DateSchema,
+    status: SessionStatusSchema,
+  })
+  .openapi('SessionMakeupLink');
+
 const SessionListItemSchema = z
   .object({
     id: DbUuidSchema,
@@ -122,6 +130,13 @@ const SessionListItemSchema = z
     teacherName: z.string().nullable(),
     assignmentStatus: SessionAssignmentStatusSchema,
     hasChanges: z.boolean(),
+    /** 這堂補的是哪一堂停課（#499 正向）。一般課堂是 null。 */
+    makeupFor: SessionMakeupLinkSchema.nullable(),
+    /**
+     * 這堂停課被哪一堂**有效的**補課補了（#499 反向）。
+     * 停掉的補課不算 —— 排除條件跟部分唯一索引的述詞一致，見 `mapSessionMakeup`。
+     */
+    madeUpBy: SessionMakeupLinkSchema.nullable(),
   })
   .openapi('SessionListItem');
 
@@ -389,6 +404,66 @@ function mapSession(
     attendancePresentCount: attendanceCounts?.present ?? 0,
     attendanceOnLeaveCount: attendanceCounts?.onLeave ?? 0,
     attendanceAbsentCount: attendanceCounts?.absent ?? 0,
+    ...mapSessionMakeup(row),
+  };
+}
+
+/** 補課連結的一端（`makeup_for` 正向 / `made_up_by` 反向共用這個形狀） */
+export interface SessionMakeupLink {
+  readonly id: string;
+  readonly sessionDate: string;
+  readonly status: 'scheduled' | 'completed' | 'cancelled';
+}
+
+/**
+ * 補課的兩個方向（#499）。**自我參照 FK，PostgREST 對兩個方向回不同的形狀**，
+ * 本機實測（2026-09-07）：
+ *
+ * | 方向 | select | 空的時候回 |
+ * | --- | --- | --- |
+ * | 正向「這堂補的是哪一堂」 | `makeup_for:makeup_for_session_id(...)` | `null`（to-one） |
+ * | 反向「這堂停課被誰補了」 | `made_up_by:sessions!makeup_for_session_id(...)` | `[]`（to-many） |
+ *
+ * 兩者可以並存不歧義；**hint 用欄位名不是約束名**（用約束名回 `PGRST200`）。
+ *
+ * ---
+ *
+ * ⚠️ **反向的陣列裡含停掉的補課**，所以要自己濾。排除條件**必須跟部分唯一索引的
+ * 述詞逐字一致** —— `20260906083827_add_session_makeup.sql` 的
+ * `WHERE makeup_for_session_id IS NOT NULL AND status <> 'cancelled'`
+ * （陣列裡每一列的 `makeup_for_session_id` 依定義都是我，所以這裡只剩 `status <> 'cancelled'`）。
+ *
+ * 不一致的話，「有幾堂補課」與「有幾堂**有效的**補課」會給出不同答案，
+ * 而可補清單會列出一個存進去會被索引拒絕的選項。
+ *
+ * **不要拿 `normalizeRelationRow` 處理反向** —— 它取的是 `[0]`，
+ * 停掉的那筆排在前面時會被選中，而那是一堂沒有發生的補課。
+ */
+export function mapSessionMakeup(row: Record<string, unknown>): {
+  makeupFor: SessionMakeupLink | null;
+  madeUpBy: SessionMakeupLink | null;
+} {
+  const toLink = (value: Record<string, unknown> | null): SessionMakeupLink | null =>
+    value
+      ? {
+          id: value['id'] as string,
+          sessionDate: value['session_date'] as string,
+          status: value['status'] as SessionMakeupLink['status'],
+        }
+      : null;
+
+  const madeUpByRows = Array.isArray(row['made_up_by'])
+    ? (row['made_up_by'] as Array<Record<string, unknown>>)
+    : row['made_up_by']
+      ? [row['made_up_by'] as Record<string, unknown>]
+      : [];
+
+  // 1:1 由部分唯一索引保證 —— 有效的補課至多一堂
+  const effectiveMakeup = madeUpByRows.find((makeupRow) => makeupRow['status'] !== 'cancelled');
+
+  return {
+    makeupFor: toLink(normalizeRelationRow(row['makeup_for'])),
+    madeUpBy: toLink(effectiveMakeup ?? null),
   };
 }
 
@@ -686,7 +761,9 @@ app.openapi(listSessionsRoute, async (c) => {
         campuses!inner ( id, name )
       ),
       staff ( display_name ),
-      events${eventsJoinModifier(attendanceTaken !== undefined)} ( attendance_taken_at )
+      events${eventsJoinModifier(attendanceTaken !== undefined)} ( attendance_taken_at ),
+      makeup_for:makeup_for_session_id ( id, session_date, status ),
+      made_up_by:sessions!makeup_for_session_id ( id, session_date, status )
     `,
       { count: 'exact' },
     )
@@ -1259,10 +1336,7 @@ app.openapi(setSessionMakeupRoute, async (c) => {
     .eq('org_id', orgId);
 
   if (linkError) {
-    return c.json(
-      { error: '那堂停課已經有補課了', code: 'MAKEUP_TARGET_ALREADY_COVERED' },
-      409,
-    );
+    return c.json({ error: '那堂停課已經有補課了', code: 'MAKEUP_TARGET_ALREADY_COVERED' }, 409);
   }
 
   const { data: profile } = await supabase
