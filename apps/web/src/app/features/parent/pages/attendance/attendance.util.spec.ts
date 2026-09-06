@@ -9,6 +9,7 @@ const record = (overrides: Partial<ParentAttendanceRecord> = {}): ParentAttendan
   endTime: '10:00',
   campusName: '台北校',
   className: '數學班',
+  sessionStatus: 'scheduled',
   status: 'present',
   note: null,
   ...overrides,
