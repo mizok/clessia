@@ -368,6 +368,39 @@ c8 的 allowlist 又踩了一次（清掉違規的 PR 對著較舊的 base 是�
   抽出來的版本裡沒有那些變數。**新程式碼落在 `DO $$ ... $$` 裡的話，
   必須把整份 seed 原樣執行**（一樣可以包在 transaction 裡 ROLLBACK，非破壞性）。
 
+### ⚠️ `BEGIN…ROLLBACK` 對 **PostgREST** 的驗證無效，而失效是安靜的
+
+`BEGIN…ROLLBACK` 是這一席驗 SQL 的主力（見下一節），但它對「**這個 embed / 這個
+欄位在 PostgREST 上打不打得到**」這一類問題**完全無效**，而且**不會報錯**：
+
+1. **未提交** —— rollback 掉的 DDL 從來沒有 commit，PostgREST 連看都看不到
+2. **就算 commit 了，PostgREST 還有 schema cache** —— 它要收到
+   `NOTIFY pgrst, 'reload schema'`（或重啟）才會重新讀
+
+> **「試了、沒效果」跟「試了、但它根本沒看到你試的東西」在輸出上一模一樣。**
+> 兩者都是 PGRST 的 400，訊息長得像 schema 問題。
+
+**後果是會得出一個相反的結論**：2026-09-06 差一點得到「自我參照 FK 在 PostgREST
+上不能用」——**而那是錯的**，只是驗證方法沒生效（欄位當時根本還沒套上去）。
+
+**要驗 PostgREST 的行為，只能對已提交且已 reload 的 schema 打真的請求。**
+
+### 本機 DB 落後是**持續發生**的，不是一次性事件
+
+同一天 infra 套完五支，幾小時後又多一支（`#548` 合進 main）。
+**「補完了」這個狀態的保鮮期等於下一支 migration 進 main 的時間。**
+
+**所以「某支端點 500」的第一動作永遠是這兩行**，不是只在第一次遇到時查：
+
+```sh
+npx supabase migration list --local     # remote 欄空的就是還沒套
+psql "postgresql://postgres:postgres@localhost:54322/postgres" \
+  -tAc "select max(version) from supabase_migrations.schema_migrations"
+```
+
+**套完之後還要確認 PostgREST 看得到**（見上一條）——
+`information_schema` 有那個欄位，只證明**資料庫**有，不證明 **API 打得到**。
+
 ### transaction + ROLLBACK 驗證法
 
 `npm run db:reset` 在這個席位的環境**被權限規則擋下**（會清空本機 DB）。替代做法：
@@ -506,6 +539,26 @@ lt:  (col, v) => { predicates.push((row) => row[col] <  v); return query; },
 
 **判準補一句**：問「這個替身有沒有可能不管路由怎麼寫都回一樣的東西」時，
 **「怎麼寫」包含它撈了哪些欄位**，不只是它用了哪些運算子。
+
+#### 鏈式替身的第一守則：**只有終點回 Promise，中間一律回 `query`**
+
+2026-09-06 一天踩三次（`academy-exams.spec`、`attendance-session-events.spec`、
+`sessions.spec` 的 makeup）。每一次的形狀完全一樣：
+
+```ts
+update: (payload) => { …; return Promise.resolve({ error: null }); }   // ✗
+```
+
+而路由是 `update(...).eq(...).eq(...)` —— **`.eq` 掛在 Promise 上，當場拋例外。**
+
+**為什麼三次都沒有第一時間認出來**：那個例外被 Hono 接住變成
+`Internal Server Error`，**而路由自己回的 500 也是 500** —— 測試看到的是
+「狀態碼不對」，看起來像業務邏輯錯了，不像替身壞了。
+
+**正解**：`update` / `delete` / `insert`（**只要後面還會接條件的**）一律回 `query`，
+**終點統一在 `then`**，由 `then` 依照 `record.op` 決定回什麼。
+
+> **判準：替身的每一個方法，問「路由在它後面還會不會再接東西」。** 會的話它就不是終點。
 
 #### 替身「太寬容」與「太窄」是同一個病的兩端，而**太窄的那種便宜得多**
 
