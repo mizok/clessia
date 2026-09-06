@@ -651,8 +651,9 @@ Postgres 的原生 `uuid` 型別本身完全接受，但 `z.uuid()` 比資料庫
 
 - **#419**：保留類（過去課堂收斂 + 時區修正屬於「防資料被靜默破壞」擴充類別），
   已 rebase、CI 綠，等**使用者本人** merge——不用催，維持 ready 狀態就好。
-- **backlog.md 新增兩項排隊**：一支請假端點、一個考試分母的業務問題。細節見
-  `backlog.md` 本身，這裡不重抄一份（c11，會腐化）。
+- **兩項排隊**：一支請假端點（#423）、一個考試分母的業務問題（#424）。細節見 issue 本身，
+  這裡不重抄一份（c11，會腐化）。2026-09-06 起工單載體是 GitHub issues：
+  `gh issue list --label seat:billing-api --state open`。
 - **500 案回查**（低優，未動）：計畫席持 CF 憑證查 log，這一席分析。查詢條件：
   `POST /api/courses`、回應 body 含 `"code":"SERVER_ERROR"`、**不要用 `--status error`**
   （那是 `return` 出來的 500 不是例外，濾 invocation outcome 抓不到），用 `--method POST`。

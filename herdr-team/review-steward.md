@@ -356,7 +356,7 @@ demo.clessia.cc/no-such-route  →  HTML 200（Pages fallback）
   已換成 `/api/system-time`。**壞掉的監控比沒有監控糟,因為它同時消耗注意力預算。**
 
 ### 收完一批之後主動重掃,不等 nudge
-**這一席沒有 backlog 佇列可認領,但「板上有沒有新的綠 PR」本身就是常備工作。**
+**這一席沒有工單佇列可認領,但「板上有沒有新的綠 PR」本身就是常備工作。**
 每收完一批,隔約 15 分鐘再跑一次:
 ```bash
 gh pr list -R mizok/clessia --state open --json number,title -q '.[]|"#\(.number) \(.title)"'

@@ -473,7 +473,8 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
 ### 接下來
 
 目前沒有排隊中的項目。手上四項 Tester P0/P1（見上「這輪做了什麼」）都已
-出 PR，等 review。空檔期認領 `herdr-team/backlog.md` 的下一項（零 idle 制）。
+出 PR，等 review。空檔期認領 `gh issue list --label seat:admin-pages --state open`
+的下一項（零 idle 制；2026-09-06 起工單載體是 GitHub issues，不是 backlog.md）。
 
 ### 掛著的
 
@@ -486,7 +487,9 @@ CI/harness/依賴（infra 席）。需要新 API 或改 schema → 回報計畫�
 
 **後端先行，前端接顯示端小追加**。多數 PR 由計畫席與 review-steward 代合，
 **有順序依賴要自己講**、疊 PR 要轉 Draft、**保留類（金額／授權／migration）攢使用者窗口**。
-**零 idle 制**：交付後從 `herdr-team/backlog.md` 認領下一項（只放活項，做完直接刪）。
+**零 idle 制**：交付後用 `gh issue list --label seat:admin-pages --state open` 認領下一項；
+PR 描述寫 `Closes #N`，合併時 issue 自己關掉（2026-09-06 從 backlog.md 遷來，
+理由是那份靠人記得刪的清單失效了六次）。
 
 ### 四個 domain 的 API 形狀（下次動到直接用，不用重讀 route 檔）
 

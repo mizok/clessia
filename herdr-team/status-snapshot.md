@@ -1,6 +1,7 @@
 # 計畫席狀態快照(額度斷點恢復用)
 
-> 計畫席在額度逼近時落檔;任何 session(含復活的計畫席)接手先讀這裡+backlog.md。
+> 計畫席在額度逼近時落檔;任何 session(含復活的計畫席)接手先讀這裡
+> + `gh issue list --state open`(2026-09-06 起工單載體是 GitHub issues,不是 backlog.md)。
 > 最後更新:2026-09-03 11:56(main 已回綠 #199;待合:#196重跑/#197/#198/#200)
 
 ## 窗口待辦(使用者 12:00/17:00)
@@ -20,4 +21,4 @@
 
 ## 計畫席復活後第一件事
 gh pr list 看 CI → 合綠的(v2 授權,migration/金額/授權除外)→ 逐席 herdr agent get,
-idle 且輸入框有殘字先代按/清 → 依 backlog 補派。部署:web=pages deploy,api=wrangler deploy。
+idle 且輸入框有殘字先代按/清 → 依 `gh issue list --label seat:<席位> --state open` 補派。部署:web=pages deploy,api=wrangler deploy。

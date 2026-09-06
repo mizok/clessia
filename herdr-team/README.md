@@ -15,7 +15,7 @@
 | -------------------------------------- | ----------------------------- | ------------------------------------------------ | ---------------- |
 | [billing-api.md](billing-api.md)       | 金流/API/auth 核心            | schema、Hono 路由、Better Auth、Workers 執行環境 | `billing-api`    |
 | [design-web.md](design-web.md)         | 視覺/設計系統/web 效能        | tokens、SCSS、bundle、mockup、登入與公開頁       | `design-web`     |
-| （共用 design-web.md）                 | 視覺/設計系統/web 效能        | design-web 的第二席，同 charter，分工由計畫席派  | `design-web-2`   |
+| [api-2.md](api-2.md)（未建立）         | 後端 API 第二席               | 領域邏輯收斂、外部依賴查證；與 billing-api 分工   | `api-2`          |
 | [admin-pages.md](admin-pages.md)       | 管理端頁面                    | admin feature 頁、dialog、表格、儀表板           | `admin-pages`    |
 | [review-steward.md](review-steward.md) | 審核/合併/部署機械工(可 idle) | CI 巡檢、v2 代合、部署、內容驗證                 | `review-steward` |
 | [ops-warden.md](ops-warden.md)         | 席位巡檢監工(可 idle)         | 存活檢查、通訊救援、帳面抽查                     | `ops-warden`     |
@@ -25,7 +25,14 @@
 > Herdr pane 名 = 席位名（`herdr agent rename` 可改）。SendMessage 位址是 session
 > 自動命名、session 輪替就會變 —— **不要寫死在任何文件**，用 ListAgents 查當班的是誰。
 
-尚未開席（P4 時增開）：家長端頁面。
+**家長端頁面沒有獨立席位，由 teacher-pages 兼任**（2026-09-06）。原本記著「P4 時增開」——
+條件其實早就成立（`web:parent` 26 次檔案觸碰 + `api:parent` 18 次），但那行字沒有執行者，
+所以沒人回頭檢查。改為兼任而不是增開的理由：家長端與老師端是同一種使用情境
+（單手、走廊上查、行動優先），判準可直接遷移；而 admin-pages 的負載是 teacher-pages 的四倍多。
+
+**2026-09-06 席位改編**：`design-web-2`（前端第二席）改為 `api-2`（後端第二席）。
+理由是 `web:shared`+`web:core` 73 次由兩席分擔並沒有換到平行度，而 `apps/api` 側 128 次
+全壓在 billing-api 一席 —— **輪替時等於單點故障**。
 
 ## 通用協定（每席都適用）
 
@@ -191,6 +198,17 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
   但本檔的零 idle 制那節還寫著「從 backlog.md 認領」,於是**兩份文件同時活著且說法相反**,
   讀不同檔案的人得到不同答案。這不是誰讀錯了,是遷移只做了一半。
   搬家之後 `grep -rn '<舊載體名>'` 一次,是唯一便宜的收尾。
+- **提案經過計畫席會變成命令,所以計畫席那一關本來就是驗證關,不是轉發關。**
+  2026-09-06:design-web 的家長端 mockup 明寫「提案不是規格」,計畫席把它的「出席/遲到/
+  請假/缺席四態」原封不動寫進工單並冠上「裁定」二字。**`attendance_status` 這個 enum
+  從來只有三態**,前端註解早就寫著「畫面不該有它的位置」。同一份工單還寫著
+  「確認是空殼還是有內容」—— 等於**明知自己沒查證,還是用命令的語氣發了出去**,
+  把查證缺口當成可以外包給下游的待辦。提案的語氣是「我認為」,裁定的語氣是「就這樣做」;
+  **升級語氣的那個人要為升級後的確定性負責**。
+- **推上去 ≠ 交接完成;沒有 PR 的分支等於沒寫。** 兩天內兩次:billing-api 的 charter 蒸餾、
+  design-web-2 的 76 行交接,都只活在已推的分支上,`git pull` 之後在 main 讀不到。
+  輪替時知識沒消失純屬僥倖 —— **它只是找不到,而找不到的知識跟不存在沒有差別**。
+  輪替前的檢查是 `gh pr list --state open --search <席名>`,不是 `git log` 看有沒有 commit。
 - **stash apply 之後、commit 之前,`git diff origin/main --stat` 看一遍檔案清單** ——
   出現自己沒碰過的檔案就是警報(共用 stash 的 apply 循環會把舊快照拖著走,曾差點
   把別人已合併的工作還原掉;是 gate 紅在陌生檔案才攔下)。
