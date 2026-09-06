@@ -34,6 +34,16 @@ export interface LeaveQueryParams {
   pageSize?: number;
 }
 
+// PATCH：每個欄位都是 optional，沒帶的維持原值。
+// **沒有 `studentId`** —— 換學生等於撤掉再開一張，走刪除＋新增那條路。
+export interface UpdateLeaveInput {
+  startDate?: string;
+  endDate?: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  reason?: string | null;
+}
+
 export interface CreateLeaveInput {
   studentId: string;
   startDate: string;
@@ -62,6 +72,10 @@ export class LeaveService {
 
   create(input: CreateLeaveInput): Observable<LeaveRequest> {
     return this.http.post<LeaveRequest>(this.baseUrl, input);
+  }
+
+  update(id: string, input: UpdateLeaveInput): Observable<LeaveRequest> {
+    return this.http.patch<LeaveRequest>(`${this.baseUrl}/${id}`, input);
   }
 
   delete(id: string, mode: 'truncate' | 'full' = 'truncate'): Observable<void> {
