@@ -7,6 +7,7 @@ import { deriveAssignmentStatus } from '../domain/session-assignment/session-ass
 import { applyCampusFilter } from '../lib/campus-scope';
 import { checkEnrollmentSessionPacks } from '../lib/enrollment-session-pack-guard';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { checkClassesPastSessions } from '../lib/class-past-sessions';
 import type {
   BatchAssignMode,
   BatchAssignPlanOutput,
@@ -574,14 +575,13 @@ app.openapi(
       }
 
       // TODO: 待老師點名功能完成後，改為查 status='completed'
-      const pastSessionsResult = await supabase
-        .from('sessions')
-        .select('class_id')
-        .in('class_id', classIds)
-        .lt('session_date', new Date().toISOString().slice(0, 10));
-
-      for (const s of pastSessionsResult.data || []) {
-        hasPastSessionsSet.add(s.class_id as string);
+      // 顯示用，查詢失敗時退回空集合（跟現況一致）——刪除守門那份 fail closed，
+      // 見 lib/class-past-sessions.ts 檔頭說明兩者為什麼不同。
+      const pastSessionsCheck = await checkClassesPastSessions(supabase, classIds);
+      if (pastSessionsCheck.status === 'ok') {
+        for (const classId of pastSessionsCheck.classIdsWithPastSessions) {
+          hasPastSessionsSet.add(classId);
+        }
       }
 
       const upcomingCancelledResult = await supabase
@@ -827,6 +827,10 @@ app.openapi(
           },
         },
       },
+      500: {
+        description: '過去課堂守門查詢失敗 —— 拒絕刪除（fail closed）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
     },
   }),
   async (c) => {
@@ -838,14 +842,17 @@ app.openapi(
 
     // 查哪些班級有過去日期的課堂（有則視為已發生業務，不可刪除）
     // TODO: 待老師點名功能完成後，改為查 status='completed'
-    const today = new Date().toISOString().slice(0, 10);
-    const { data: withPastSessions } = await supabase
-      .from('sessions')
-      .select('class_id')
-      .in('class_id', ids)
-      .lt('session_date', today);
+    // 查詢失敗一律 fail closed —— 不確定有沒有過去課堂時，整批都不准刪，
+    // 不能把「查不到答案」的班級誤判成「可以刪」。
+    const pastSessionsCheck = await checkClassesPastSessions(supabase, ids);
+    if (pastSessionsCheck.status === 'check-failed') {
+      return c.json(
+        { error: 'PAST_SESSIONS_CHECK_FAILED', code: 'PAST_SESSIONS_CHECK_FAILED' },
+        500,
+      );
+    }
 
-    const hasSessionsSet = new Set((withPastSessions || []).map((s) => s.class_id as string));
+    const hasSessionsSet = pastSessionsCheck.classIdsWithPastSessions;
     const toDeleteIds = ids.filter((id) => !hasSessionsSet.has(id));
     const skipped = ids.length - toDeleteIds.length;
 
@@ -1189,15 +1196,16 @@ app.openapi(
 
     // 檢查是否有過去日期的課堂 — 有則視為曾實際發生業務，不可刪除，只能停用
     // TODO: 待老師點名功能完成後，改為檢查 status='completed'
-    const today = new Date().toISOString().slice(0, 10);
-    const { data: pastSessions } = await supabase
-      .from('sessions')
-      .select('id')
-      .eq('class_id', id)
-      .lt('session_date', today)
-      .limit(1);
+    // 查詢失敗一律 fail closed —— 不確定有沒有過去課堂時，不准刪。
+    const pastSessionsCheck = await checkClassesPastSessions(supabase, [id]);
+    if (pastSessionsCheck.status === 'check-failed') {
+      return c.json(
+        { error: 'PAST_SESSIONS_CHECK_FAILED', code: 'PAST_SESSIONS_CHECK_FAILED' },
+        500,
+      );
+    }
 
-    if (pastSessions && pastSessions.length > 0) {
+    if (pastSessionsCheck.classIdsWithPastSessions.has(id)) {
       return c.json(
         { error: '此班級已有歷史課堂記錄，無法刪除，請改為停用', code: 'HAS_PAST_SESSIONS' },
         409,
