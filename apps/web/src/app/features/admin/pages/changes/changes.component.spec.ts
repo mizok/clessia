@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
@@ -52,6 +52,30 @@ describe('ChangesComponent', () => {
     fixture.componentRef.setInput('page', RoutesCatalog.ADMIN_CHANGES);
     fixture.detectChanges();
   }
+
+  // #508：載入中原本是整塊被一行文字取代（沒有骨架尺寸，資料到了會跳版）。
+  // 改成骨架列表後這裡改斷言骨架元素，不是文字。
+  it('載入中顯示骨架列表，不是整塊被文字取代', async () => {
+    listChangesMock.mockReset();
+    listCampusesMock.mockReset();
+    listChangesMock.mockReturnValue(NEVER);
+    listCampusesMock.mockReturnValue(of({ data: [] }));
+
+    await TestBed.configureTestingModule({
+      imports: [ChangesComponent],
+      providers: [
+        { provide: SessionsService, useValue: { listChanges: listChangesMock } },
+        { provide: CampusesService, useValue: { list: listCampusesMock } },
+      ],
+    }).compileComponents();
+
+    const f = TestBed.createComponent(ChangesComponent);
+    f.componentRef.setInput('page', RoutesCatalog.ADMIN_CHANGES);
+    f.detectChanges();
+
+    expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
+    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+  });
 
   it('預設查當月', async () => {
     await setup();

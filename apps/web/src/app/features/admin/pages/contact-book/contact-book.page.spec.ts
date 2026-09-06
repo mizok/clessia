@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
@@ -72,6 +72,29 @@ describe('ContactBookPage', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  // #508：載入中原本是整塊被一行文字取代（沒有骨架尺寸，資料到了會跳版）。
+  // 改成骨架列表後這裡改斷言骨架元素，不是文字。
+  it('缺漏名單載入中顯示骨架列表，不是整塊被文字取代', async () => {
+    contactBook.missing.mockReset().mockReturnValue(NEVER);
+
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [ContactBookPage],
+      providers: [
+        { provide: ContactBookService, useValue: contactBook },
+        { provide: StudentsService, useValue: students },
+        { provide: OverlayContainerService, useValue: { getContainer: () => null } },
+      ],
+    }).compileComponents();
+
+    const f = TestBed.createComponent(ContactBookPage);
+    f.componentRef.setInput('page', { label: '聯絡簿' });
+    f.detectChanges();
+
+    expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
+    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
   });
 
   // 這支 API 沒有分頁，不帶區間等於全撈歷史

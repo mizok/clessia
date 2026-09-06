@@ -65,7 +65,11 @@
     <h2 class="admin-notifications__section-title">已發布</h2>
 
     @if (loading()) {
-      <p class="admin-notifications__state">載入中…</p>
+      <div class="skeleton-list" aria-label="已發布公告載入中">
+        @for (i of [1, 2, 3]; track i) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
     } @else if (loadError()) {
       <p class="admin-notifications__state admin-notifications__state--error">
         查詢失敗，請稍後再試。

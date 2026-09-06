@@ -24,7 +24,11 @@
     </div>
 
     @if (missingLoading()) {
-      <p class="contact-book__missing-note">載入中…</p>
+      <div class="skeleton-list" aria-label="缺漏名單載入中">
+        @for (i of [1, 2, 3]; track i) {
+          <span class="skeleton-bar"></span>
+        }
+      </div>
     } @else if (missingFailed()) {
       <p class="contact-book__missing-note">
         缺漏名單讀不到。

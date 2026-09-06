@@ -31,7 +31,11 @@
   </div>
 
   @if (loading()) {
-    <p class="enrollments__state">載入中…</p>
+    <div class="skeleton-list" aria-label="報名紀錄載入中">
+      @for (i of [1, 2, 3]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
   } @else if (loadError()) {
     <p class="enrollments__state enrollments__state--error">查詢失敗，請稍後再試。</p>
   } @else if (rows().length === 0) {

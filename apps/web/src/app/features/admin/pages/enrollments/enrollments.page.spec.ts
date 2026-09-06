@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { CampusesService } from '@core/campuses.service';
@@ -70,6 +70,31 @@ describe('EnrollmentsPage', () => {
     fixture.componentRef.setInput('page', RoutesCatalog.ADMIN_ENROLLMENTS);
     fixture.detectChanges();
   }
+
+  // #508：載入中原本是整塊被一行文字取代（沒有骨架尺寸，資料到了會跳版）。
+  // 改成骨架列表後這裡改斷言骨架元素，不是文字。
+  it('載入中顯示骨架列表，不是整塊被文字取代', async () => {
+    listMock.mockReset();
+    campusesMock.mockReset();
+    listMock.mockReturnValue(NEVER);
+    campusesMock.mockReturnValue(of({ data: [] }));
+
+    await TestBed.configureTestingModule({
+      imports: [EnrollmentsPage],
+      providers: [
+        { provide: EnrollmentsService, useValue: { list: listMock } },
+        { provide: CampusesService, useValue: { list: campusesMock } },
+        { provide: Router, useValue: { navigate: navigateMock } },
+      ],
+    }).compileComponents();
+
+    const f = TestBed.createComponent(EnrollmentsPage);
+    f.componentRef.setInput('page', RoutesCatalog.ADMIN_ENROLLMENTS);
+    f.detectChanges();
+
+    expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
+    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+  });
 
   it('預設查當月，並用 updatedAt 排序', async () => {
     await setup();
