@@ -251,6 +251,12 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
   結構性的部分:本 repo **沒有共用的假 supabase**,每支 spec 各寫一份
   (`leaves.spec.ts` 三份、`invoices.spec.ts` 一份、`lib/child-db.spec.ts:6` 一份…),
   所以這個盲區不是一個檔案的缺陷,**是一個預設會被重複發明的形狀**。
+- **理由記錯的規則,會在它真正該生效的場合被跳過。** teacher-pages 2026-09-06:
+  charter 的「動到 web 就跑 build」原本記成「因為模板改動」,而 billing-api 從反方向
+  證明**共用 interface 加必填欄位也踩得到**(typecheck 綠、vitest 綠,只有 build 紅)。
+  規則本身是對的,但**理由把適用範圍寫窄了** —— 下一個人在「我只是加了個欄位」的
+  情境裡不會想起它。**寫規則時,理由的範圍要跟規則的範圍一樣寬;
+  理由窄了,規則就等於只在你當初想到的那個場合有效。**
 - **stash apply 之後、commit 之前,`git diff origin/main --stat` 看一遍檔案清單** ——
   出現自己沒碰過的檔案就是警報(共用 stash 的 apply 循環會把舊快照拖著走,曾差點
   把別人已合併的工作還原掉;是 gate 紅在陌生檔案才攔下)。
