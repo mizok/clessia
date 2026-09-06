@@ -500,6 +500,24 @@ coarse)').matches` 永遠是 `false`（teacher-pages 在 #516 先撞到、我在
     那個條件本身（fine pointer vs coarse pointer），結論照樣會錯——這是坑 19
     「先懷疑驗證器」的具體案例，這次錯的不是驗證器的邏輯，是驗證器**站的位置**。
 
+35. **`git rebase` 撞到 add/add 衝突，先查那個檔案是不是已經在 main 裡（squash-merge
+    留下的重複），不要預設是真衝突。**
+
+    這個 repo 很多支 PR 疊在同一條線上（例如 #378 疊 #363+#368），而別人的那支先被
+    squash-merge 進 main。之後 rebase 自己的分支時，那顆早就被吸收的 commit 會撞
+    add/add（兩邊都「新建」同一個檔案）——**內容其實一模一樣，只是 squash 產生了
+    新的 SHA，git 認不出是同一份**。這次撞到兩次（`fix/object-object-toast-error`
+    對 `apps/web/.../meals.component.ts`（已合的 #411）、
+    `feat/dashboard-attendance-handoff` 對 `apps/api/.../session-end-time.ts`
+    （已合的 #368））。
+
+    **先查再解**：`git show origin/main:<path>` 看那個檔案是不是已經存在、內容是不是
+    跟衝突那顆 commit 要新增的一樣——是的話 `git rebase --skip`（丟掉這顆重複的
+    commit，不是丟掉工作），**不要**照著衝突標記手動合併兩份幾乎一樣的內容（那樣會
+    製造第三種寫法）。如果衝突是**兩邊各自新增、位置相鄰但內容不同**（例如兩份
+    PR 各自在同一個陣列附近加了一行、真正互不相關），那才是「保留兩邊」的
+    union-merge，跟上面這種是不同的形狀，先分清楚是哪一種再動手。
+
 ## 五、進行中的狀態
 
 > 這一節最容易腐化。**寫進來之前先問「這是狀態還是知識」** —— 狀態放這裡並且要定期重驗，
