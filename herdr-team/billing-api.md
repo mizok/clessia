@@ -136,6 +136,30 @@ CI 白天跑）；第二層是「觀測工具本身也可能是錯的」——`e
 那不是驗證，是把同一個假設抄了兩遍。修法是斷言換成 `getCurrentTaipeiDateString()`
 本身，讓測試的「正確答案」跟實作的「正確答案」來自同一個唯一定義，而不是各自推導。
 
+#### 一個函式的防禦只涵蓋它自己的實作，**不涵蓋它的輸入**（2026-09-06，#467）
+
+時區族的第 18 處在**前端**，而它的形狀跟前 17 處都不一樣：
+
+`apps/web/.../payments/payments.util.ts` 的 `isOverdue()` 檔頭**專門解釋了為什麼不能
+轉 `Date`** ——「轉成 Date 會帶進本地時區，跨日的那幾小時會答錯一天」，
+函式本體也確實只做字串比較。**然後呼叫端把 `format(new Date(), 'yyyy-MM-dd')`
+從參數餵了進去**（`payments.page.ts:112`、`invoice-detail-dialog.component.ts:87`）。
+
+> **函式擋住了時區 bug，而 bug 從它的參數走進來。**
+
+而伺服器側的同一條判斷用的是 `getCurrentTaipeiDateString()`（`whereOverdue`）——
+於是**篩選用台北的今天、標記用瀏覽器的今天**，機器不在 `Asia/Taipei` 時
+「這一列出現在逾期清單裡，但它看起來沒逾期」。
+
+**這一條比「又多一處 UTC」值得記的地方**：寫防禦的人通常**以為自己已經處理完了**
+（他確實在自己那一段處理對了，還寫了註解說明），所以他不會再去看呼叫端。
+**註解本身變成了一個假的安全訊號** —— 讀的人看到「這裡處理過時區了」就跳過去。
+
+> **判準：一個函式如果把「現在幾點」當參數收，那它就沒有在守時區，
+> 守時區的是它的呼叫端。** 檢查點在餵值的地方，不在用值的地方。
+> （這跟「可以呼叫的 helper 就是可以忘記呼叫的 helper」同族：
+> 問「錯的寫法還寫不寫得出來」，而不是「對的寫法方不方便」。）
+
 ### 效能
 
 - **看到「空資料庫也慢」就別再找慢查詢。** 資料量無關的症狀要配資料量無關的原因：
@@ -651,6 +675,30 @@ grep 只能告訴你「這裡有一段日期運算」，告訴不了你「這三
 > **判準：undo 與 apply 的守門條件不一樣時，「先全撤再全套」對中間沒變的部分也有副作用。**
 > 這一族的通則是：**冪等性要自己證，不能從「兩個操作互為反向」推出來。**
 
+### 要知道 gate 怎麼判，**`import` 它跑一遍，不要讀它的原始碼推論**
+
+驗 harness 的判定時，我原本在讀 `api-param-coverage.mjs` 的 `servicePrefixes` 正則，
+推論它為什麼會漏認領某支 service。**跑完發現它根本沒漏。**
+
+`tools/agent-harness/lib/*.mjs` 的函式全部是 export 的純函式，而且
+**`collectApiParams` 是純靜態的** —— 它用 `getOpenAPIDocument()`（`@hono/zod-openapi`
+的 public API）現場產生文件，**不用起 server、不用起 DB、不用 npm run harness**：
+
+```js
+import { collectApiParams, loadServices, findOrphanEndpoints, findMissing }
+  from '<repo>/tools/agent-harness/lib/api-param-coverage.mjs';
+const apiParams = collectApiParams(ROOT);
+const services = loadServices(ROOT);
+console.log(findOrphanEndpoints(apiParams, services), findMissing(apiParams, services));
+```
+
+這把「驗證 gate 的判定」從一件麻煩事變成一行 import。**它是「工具靜默地不做你以為
+它在做的事」那一族的反面解法**：那一族的每一件都是「我以為工具在做 X」，
+而這裡的做法是**不去猜工具在做什麼，直接讓它自己回答**。
+
+同樣的形狀適用於 harness 的其他 lib（`orphan-class.mjs`、`touch-target.mjs`…）——
+先看那支 lib 的 export，通常你要問的問題已經是一個函式了。
+
 ### 豁免的移除條件要挑「會被撞到」的那個（#461）
 
 README 的「**需要人主動想起來的規則，在輪替面前一定會輸**」（2026-09-06 綜合）
@@ -820,27 +868,41 @@ Postgres 的原生 `uuid` 型別本身完全接受，但 `z.uuid()` 比資料庫
 - `lib/supabase-latency-probe.ts` 是**臨時**探針（#193），跑一天就 revert，
   整支拿掉即可，它沒有跟任何東西耦合。**它沒有測試是刻意的**（#199 誤刪、雙方確認不補）。
 
-改善清單（依價值排序）：
+改善清單（依價值排序）。**2026-09-06 逐項驗過一遍，九項裡有五項已經不成立** ——
+所以這份清單的第一條使用規則是：**動手前先驗它，不要先信它**（README「charter 會腐化，
+接手時先驗一遍再信它」的具體案發現場，而且是同一天內第三次撞到）。
+
+| # | 項目 | 2026-09-06 驗證結果 |
+| --- | --- | --- |
+| 1 | PostgREST 延遲拆段 | **仍成立**（見下） |
+| 2 | ~~`ba_user` 寫入路徑收斂~~ | 早已收官 |
+| 3 | ~~hook-only clause 對存量零覆蓋~~ | **已完成** —— enforcement 表現在 c2→A15、c3→A16、c7→A13、c8→A14 全部有 gate |
+| 4 | `requirePermission` 鋪到既有路由 | **仍成立，但描述過期**（見下） |
+| 5 | `ensureAttendanceSessionEvents` 在 GET 裡寫入 | **仍成立**（`attendance.ts:1004`） |
+| 6 | 出勤補登窗預設值 | 仍待產品決定 |
+| 7 | ~~web 的 CI 驗證面收斂~~ | **已完成** —— `verify.yml:89-90` 已跑 `nx build web --configuration=production` |
+| 8 | `seed.sql` 不可重入 | **仍成立**（`seed.sql:107` 的 `DELETE FROM public.staff` 之前沒有處理 `sessions.teacher_id`） |
+| 9 | ~~`c.executionCtx` 兩處不一致~~ | **已完成** —— 抽成 `lib/wait-until.ts` 的 `waitUntilFrom(c)`，全 repo 收斂 |
+
+> **為什麼五項會同時過期而沒有人發現**：這份清單裡的每一項都是「**別人順手做掉也不會
+> 來通知你**」的東西 —— gate 是 infra 補的、verify 序列是 infra 改的、`waitUntilFrom`
+> 是別人抽的。**待辦清單記的是「我當時看到的缺口」，而缺口會被別人填掉。**
+> 這跟「在飛 PR 清單要用查的不要用記的」是同一條，只是週期長到讓人以為它是穩定的。
+
+仍然成立的四項，細節：
 
 1. **PostgREST 那一段還沒量過。** Hyperdrive 已上線、延遲砍半，但它**只加速走 `pg`
    的那條路**（Better Auth 的 session 查詢，每個受保護請求都會跑到）；業務路由走
    supabase-js 的 HTTP，**不經過它**。若要再進一步，先把 PostgREST 的延遲拆成
    **HTTP 往返 vs 查詢執行**兩段 —— 大頭在前者才值得談改走 `pg`，在後者就該去看
    查詢與索引。**沒拆之前不要立案**
-2. ~~`ba_user` 寫入路徑收斂~~ —— **已收官**（見上方狀態節）。剩下的都是永久豁免，
-   不是待辦。要重啟只有一個觸發條件：**有了寄信管道**（那會讓 `changeEmail` 的
-   前置成立，`me.ts` 的 email 那一筆可以重新評估）
-3. **hook-only clause 對存量零覆蓋** —— c2 / c3 / c7 / c8 都是「有 hook 沒有 gate」，
-   enforcement 表上卻寫「✅ 已接」。c6 已於 #41 補上 gate A12，那支可以當範本
-4. **`requirePermission` 鋪到既有路由** —— 目前只有金流與報表掛了它，其餘 API 仍只有
-   角色層。需要先跟使用者定映射表
+4. **`requirePermission` 鋪到既有路由** —— ⚠️ **原本寫「目前只有金流與報表掛了它」，
+   那是錯的**：31 支 `mount()` 裡 **21 支有權限**，缺口是 10 支。盤點見 issue #464
+   （右欄刻意留空 —— 一張填好答案的表會讓審的人變成在「同意或反對」而不是在「決定」）。
+   需要先跟使用者定映射表，**授權邏輯是保留類**
 5. `attendance` 的課堂列表在查詢**之前**會跑 `ensureAttendanceSessionEvents`，也就是
    一個 GET 端點在讀之前做寫入。沒展開查過；pooler 換完仍慢的話這是下一個該看的
 6. 出勤補登窗的預設值（目前所有機構都是 `0` ＝ 無限制）要不要改成 7 天 —— 產品決定
-7. web 的 CI 驗證面收斂（build 進 verify 序列或補 typecheck target）
 8. **`seed.sql` 不可重入** —— 對已 seed 過的庫重跑會在清理 `staff` 時撞上
    `sessions_teacher_id_fkey`（清理順序沒先處理 `sessions` 對 `staff` 的參照）。
    `db:reset` 會先 drop schema 所以正常流程碰不到；哪天動 seed 清理段時順手理對
-9. **`c.executionCtx` 的處理兩處不一致** —— `lib/get-auth.ts` 是 try/catch，
-   `PATCH /api/attendance/batch` 的稽核紀錄直接丟。Workers 上一定有 executionCtx，
-   正式站沒有實害，是整理不是修復；下次動同一段時順手收
