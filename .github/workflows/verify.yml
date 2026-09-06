@@ -126,6 +126,13 @@ jobs:
 
       - run: npm ci
 
+      # A21（campus param guard）會經 collectApiParams 起一支 probe，那支在 apps/api 底下
+      # `import('./src/index.ts')` —— 需要 apps/api 自己的依賴。verify job 早就裝了它
+      # （見上方 45-51 行的註解），**而這個 job 沒有**，於是 A21 一落地 main 就紅在這裡。
+      # 那段註解寫對了診斷，只是寫在另一個 job 旁邊 —— 規則離它守護的東西太遠。
+      - run: npm ci
+        working-directory: apps/api
+
       - name: 重生現況表
         run: npm run harness:write
 
