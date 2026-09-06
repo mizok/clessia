@@ -23,12 +23,12 @@
     } @else if (hasScores()) {
       <div class="academy-exam-form-dialog__hint">
         <i class="pi pi-info-circle"></i>
-        已有成績登錄，類型／科目／校區／滿分／關聯班級皆已鎖定以避免資料不一致。
+        已有成績登錄，類型／科目／分校／滿分／關聯班級皆已鎖定以避免資料不一致。
       </div>
     } @else if (isEditing()) {
       <div class="academy-exam-form-dialog__hint">
         <i class="pi pi-info-circle"></i>
-        考試建立後，類型／科目／校區／滿分不可修改；如需更改請刪除後重建。
+        考試建立後，類型／科目／分校／滿分不可修改；如需更改請刪除後重建。
       </div>
     }
 
@@ -80,21 +80,21 @@
 
     <!-- Campus -->
     <div class="form-dialog__field">
-      <label class="form-dialog__label">校區</label>
+      <label class="form-dialog__label">分校</label>
       <p-select
         [options]="campusOptions()"
         [ngModel]="formData().campusId"
         (ngModelChange)="onCampusChange($event)"
         optionLabel="label"
         optionValue="value"
-        placeholder="全體校區"
+        placeholder="全體分校"
         [disabled]="lockCampus()"
         [appendTo]="'body'"
         class="w-full"
       />
       @if (isEditing()) {
         <span class="academy-exam-form-dialog__empty-hint"
-          >校區不可修改；若要調整範圍請變更關聯班級。</span
+          >分校不可修改；若要調整範圍請變更關聯班級。</span
         >
       }
     </div>
@@ -175,7 +175,7 @@
       />
       @if (classOptions().length === 0) {
         <span class="academy-exam-form-dialog__empty-hint">
-          {{ formData().campusId ? '此校區目前沒有啟用中的班級' : '沒有可選的班級' }}
+          {{ formData().campusId ? '此分校目前沒有啟用中的班級' : '沒有可選的班級' }}
         </span>
       }
     </div>

@@ -88,7 +88,7 @@ export class AcademyExamFormDialogComponent implements OnInit {
     this.subjects().map((s) => ({ label: s.name, value: s.id })),
   );
   protected readonly campusOptions = computed(() => [
-    { label: '全體校區', value: null as string | null },
+    { label: '全體分校', value: null as string | null },
     ...this.campuses().map((c) => ({ label: c.name, value: c.id as string | null })),
   ]);
   protected readonly classOptions = computed(() => {

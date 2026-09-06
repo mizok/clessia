@@ -28,7 +28,7 @@
 
     @if (isAcademy()) {
       <div class="exams-filter-dialog__group">
-        <label class="exams-filter-dialog__label">校區</label>
+        <label class="exams-filter-dialog__label">分校</label>
         <p-select
           [options]="options?.campusOptions ?? []"
           [ngModel]="campusId()"
@@ -36,7 +36,7 @@
           optionLabel="label"
           optionValue="value"
           size="small"
-          placeholder="全部校區"
+          placeholder="全部分校"
           [showClear]="true"
           styleClass="exams-filter-dialog__select"
         />

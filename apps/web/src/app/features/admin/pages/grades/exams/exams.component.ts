@@ -195,7 +195,7 @@ export class ExamsComponent implements OnInit {
   protected readonly subjects = computed(() => this.refData.subjects());
   protected readonly schools = signal<School[]>([]);
   protected readonly campusOptions = computed(() => [
-    { label: '全部校區', value: null as string | null },
+    { label: '全部分校', value: null as string | null },
     ...this.campuses().map((c) => ({ label: c.name, value: c.id as string | null })),
   ]);
   protected readonly schoolOptions = computed(() => [
