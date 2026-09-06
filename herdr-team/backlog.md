@@ -184,6 +184,36 @@
   從那份實證清單出發;一個都沒撞到,優先序自然下去。
   手機直向那輪卡在 Chrome 全螢幕(需使用者手動退出)。
 
+  **✅ 觸發條件已成立並已兌現(2026-09-06)**:teacher-pages 用 live 頁面讀 computed
+  style 實測,admin 儀表板 26 個可見互動元素**命中 1 筆**(`a.dashboard__fact`),
+  開成 #516,admin-pages 已出 PR #535。**上面那句「靜態掃描難做又難信」被驗證了** ——
+  teacher-pages 當天早上先做過靜態掃描(`:hover` 5 處、`pTooltip` 零命中)並得出
+  「看起來沒問題」,**而漏掉的正是這一筆**:它的 `:hover` 規則靜態掃描看得到,
+  看不到的是「**拿掉 hover 之後它什麼都不剩**」。
+  **可點性是所有樣式加起來的結果,而靜態掃描一次只看得到一條規則。**
+
+- **`todayLocal()` 家族收斂 —— 觸發:有人要動「這堂課上完了沒」那條線時,兩支一起改**。
+  `shared/utils/session-time.util.ts` 的 `todayLocal()` 是**瀏覽器本地日期**,跟後端的
+  台北日期不一致(同 #467)。8 個呼叫端,另有 8 處散落的 `format(new Date(), 'yyyy-MM-dd')`。
+  **不要只改 `todayLocal()`**:它的檔頭明寫跟 `hasSessionEnded()` 刻意共用同一個基準
+  (「一個判今天是哪天、一個判這堂課上完了沒,基準不同就會互相矛盾」),只改一半會
+  破壞一個**有明文記錄的不變量**。
+  而且 `hasSessionEnded()` 自己也是錯的:它用 `new Date(<date>T00:00:00)`,那是拿
+  **瀏覽器本地時區**解讀課堂的日期時間 —— 紐約的使用者看一堂台北 21:00 結束的課,
+  它算成「紐約 21:00 結束」,差 12 小時。**所以正解是「課堂的日期＋時間要當成台北的
+  牆上時間解讀」**(台灣全年 UTC+8 無 DST,`new Date(<date>T<time>:00+08:00)` 即可),
+  不是換一支 today helper。
+  **跨席**:呼叫端橫跨 admin / teacher / `features/parent/` /
+  `shared/components/attendance-roster-panel`,要一次收。出處 admin-pages #467 / PR #532。
+
+- **`attendance.page.ts:307` 的 `isFuture` 刻意留著沒改 —— 觸發:上面那條 `todayLocal()`
+  收斂動工時,順手把它一起收**。
+  它是 `session.eventDate > format(new Date(), 'yyyy-MM-dd')`,而 `sessions.page.ts:303`
+  用 `s.sessionDate > todayLocal()` 問**同一個問題**。兩者今天一致(都是瀏覽器本地),
+  **所以單獨把 attendance 改成台北會製造一個新的不一致** —— 而一致性工作最大的風險
+  正是它的反面(把有意義的差異抹平)。PR #532 把管理端另外五處都改成台北了,
+  **只有這一處刻意留著**,理由就是這個配對。出處 admin-pages PR #532。
+
 ## 夜間班報告(2026-09-05 深夜 → 09-06 凌晨,計畫席 clessia-c8)
 
 **使用者睡前開了三件**:權限規則(計畫席可直接合併,deny `--admin`)、Tester 寫入授權、
