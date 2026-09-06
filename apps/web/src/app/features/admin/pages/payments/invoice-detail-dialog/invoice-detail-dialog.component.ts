@@ -1,7 +1,6 @@
 import { Component, computed, inject, signal, viewChild, type ElementRef } from '@angular/core';
 import { DecimalPipe, SlicePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { format } from 'date-fns';
 
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
@@ -11,6 +10,7 @@ import { MessageService } from 'primeng/api';
 import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
+import { SystemClockService } from '@core/system-clock.service';
 import {
   INVOICE_ITEM_TYPE_LABELS,
   INVOICE_STATUS_LABELS,
@@ -84,9 +84,11 @@ export class InvoiceDetailDialogComponent {
   /** 有任何寫入就要讓列表重新取數，關閉時把最新的帳單帶回去 */
   private readonly dirty = signal(false);
 
-  protected readonly today = format(new Date(), 'yyyy-MM-dd');
+  /** 台北日期，理由見 `payments.page.ts` 同名欄位（#467） */
+  private readonly systemClock = inject(SystemClockService);
+  protected readonly today = this.systemClock.todayTaipei;
 
-  protected readonly overdue = computed(() => isOverdue(this.invoice(), this.today));
+  protected readonly overdue = computed(() => isOverdue(this.invoice(), this.today()));
   protected readonly outstandingAmount = computed(() => outstanding(this.invoice()));
   protected readonly receiptNo = computed(() => receiptNoOf(this.invoice()));
 

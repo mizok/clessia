@@ -9,11 +9,16 @@ import type { Invoice } from '@core/invoices.service';
  */
 
 /**
- * 逾期是**衍生標記不是狀態**（billing-rules 規則 4）：過了到期日且還沒繳清。
+ * 逾期是**衍生標記不是狀態**（billing-rules **規則 7**「欠繳：可見性，不強制」）：
+ * 過了到期日且還沒繳清。（原本引成規則 4，那條是「帳單與收款一對多」。）
  *
  * 日期一律用 `YYYY-MM-DD` 字串比較，不轉 `Date` —— 這兩個值都是純日期，
  * 轉成 Date 會帶進本地時區，跨日的那幾小時會答錯一天。字典序在等長零填的
  * ISO 日期上等同時間序。
+ *
+ * **但這道防線只擋得住「轉 Date」，擋不住 `today` 本身就算錯**（#467）：
+ * 呼叫端拿瀏覽器本地日期進來的話，這裡每一步都對，答案還是錯的。
+ * `today` 一律從 `SystemClockService.todayTaipei` 來，不要自己 `new Date()`。
  */
 export function isOverdue(invoice: Invoice, today: string): boolean {
   if (invoice.dueDate === null) return false;

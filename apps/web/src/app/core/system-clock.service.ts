@@ -2,6 +2,34 @@ import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core'
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from './api.service';
 
+/**
+ * 某個瞬間在**台北**是哪一個日曆日（`YYYY-MM-DD`）。
+ *
+ * **一個「瞬間」不等於一個「日期」——中間差一個時區，而那個時區必須是明著選的。**
+ * 這支存在的理由是 web 端原本兩條路都是錯的：`format(new Date(), 'yyyy-MM-dd')`
+ * 用**瀏覽器本地**時區，`toISOString().slice(0, 10)` 用 **UTC**。伺服器判斷
+ * 「今天」用的是 `Asia/Taipei`（`apps/api/src/lib/taipei-date.ts`），所以前端
+ * 只要挑了別的時區，同一筆資料就會在兩側得到不同的答案。
+ *
+ * 刻意跟後端那支長得一樣（`Intl` + `formatToParts`），因為它們回答的是同一個
+ * 問題。**但不要把後端那支搬進 `packages/`** —— 那會讓前端相依後端 lib；
+ * 兩邊各自持有一份十行的純函式比一條跨層相依便宜。
+ */
+export function taipeiDateString(epochMs: number): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(epochMs));
+
+  const year = parts.find((part) => part.type === 'year')?.value ?? '0000';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
+  const day = parts.find((part) => part.type === 'day')?.value ?? '01';
+
+  return `${year}-${month}-${day}`;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -31,6 +59,15 @@ export class SystemClockService {
   });
   readonly nowDate = computed(() => new Date(this.nowEpochMs()));
   readonly nowIso = computed(() => this.nowDate().toISOString());
+  /**
+   * 台北時區的「今天」（`YYYY-MM-DD`），基準是**跟伺服器對過的瞬間**而不是
+   * `new Date()`，所以使用者的機器時鐘走掉了也還是對的。
+   *
+   * **是 signal 不是常數**，這一點跟它的時區一樣重要：欄位初始化取一次快照的話，
+   * 一個開著沒關的頁面跨過午夜之後，整晚都在拿昨天的日期判斷逾期。
+   * 它跟著 `ticker` 每秒重算，但 signal 以值去重 —— 下游一天只會被叫醒一次。
+   */
+  readonly todayTaipei = computed(() => taipeiDateString(this.nowEpochMs()));
   readonly lastSyncedAt = computed(() => {
     const syncedAt = this.syncedAtEpochMs();
     return syncedAt === null ? null : new Date(syncedAt);

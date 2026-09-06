@@ -1,7 +1,6 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { format } from 'date-fns';
 
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
@@ -19,6 +18,7 @@ import {
 } from '@core/invoices.service';
 import { StudentsService, type Student } from '@core/students.service';
 import { EnrollmentsService } from '@core/enrollments.service';
+import { SystemClockService } from '@core/system-clock.service';
 
 import {
   PageActionsComponent,
@@ -109,7 +109,18 @@ export class PaymentsPage implements OnInit {
   protected readonly totalRecords = signal(0);
   protected readonly statusFilter = signal<InvoiceStatus | null>(null);
 
-  protected readonly today = format(new Date(), 'yyyy-MM-dd');
+  /**
+   * **不要寫成 `format(new Date(), 'yyyy-MM-dd')`。** 那是瀏覽器本地日期，而
+   * `overdue=true` 的**篩選**是伺服器用台北日期做的 —— 管理員的機器不在
+   * `Asia/Taipei`、時間又落在台北凌晨的話，伺服器把某張帳單當逾期撈進清單，
+   * 而那一列的逾期標記不會亮（#467）。
+   *
+   * `isOverdue()` 自己是對的（它的檔頭甚至專門解釋了為什麼不轉 `Date`），
+   * **時區是從它的參數走進來的** —— 函式擋得住呼叫端傳錯型別，擋不住呼叫端
+   * 傳一個算錯的值。
+   */
+  private readonly systemClock = inject(SystemClockService);
+  protected readonly today = this.systemClock.todayTaipei;
 
   /**
    * 已經生效、但從來沒開過帳單的報名數。
@@ -273,7 +284,7 @@ export class PaymentsPage implements OnInit {
   }
 
   protected isOverdue(invoice: Invoice): boolean {
-    return isOverdue(invoice, this.today);
+    return isOverdue(invoice, this.today());
   }
 
   protected outstanding(invoice: Invoice): number {
