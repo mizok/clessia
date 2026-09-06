@@ -717,4 +717,22 @@ describe('DashboardComponent（管理端）', () => {
     expect(text).not.toContain('資料串接中');
     expect(text).not.toContain('—');
   });
+
+  /**
+   * #516：現況區每一列都是連結，而它原本**除了 hover 變色之外沒有任何可點的線索**。
+   * **觸控裝置上 hover 不存在**，所以那一列在手機上跟純文字長得一模一樣。
+   *
+   * 這條盯的不是「chevron 這個圖示」，是「**有一個不依賴 hover 的訊號**」——
+   * 換成底線或框線的話請一起改這條的斷言，但不要讓它變成零。
+   */
+  it('現況區的每一列都有不依賴 hover 的可點訊號', async () => {
+    await setup();
+
+    const rows = fixture.nativeElement.querySelectorAll('.dashboard__fact');
+    expect(rows.length).toBeGreaterThan(0);
+
+    for (const row of rows) {
+      expect(row.querySelector('.dashboard__fact-chevron')).not.toBeNull();
+    }
+  });
 });

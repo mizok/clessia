@@ -317,6 +317,14 @@
                     {{ card.value }}
                   }
                 </span>
+                <!--
+                  可點性不能只靠 hover —— 觸控裝置上沒有 hover，這一列在那裡
+                  跟純文字長得一模一樣（#516）。用 chevron 而不是底線或框線，
+                  是因為這一區刻意安靜（見 `.dashboard__facts` 的註解），
+                  而 chevron 是這個檔案裡既有的「往那邊去」語彙
+                  （`.dashboard__panel-link` 的 `pi-arrow-right`）的安靜版。
+                -->
+                <i class="pi pi-chevron-right dashboard__fact-chevron" aria-hidden="true"></i>
               </a>
             </li>
           }
