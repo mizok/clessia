@@ -1849,6 +1849,8 @@ app.openapi(studentsRoute, async (c) => {
     studentsQuery = studentsQuery.ilike('name', `%${search}%`);
   }
 
+  // 同 routes/students.ts：**不濾 enrollment status**，這條同時是 campusScope 授權的路
+  // （kb/wiki/rules/enrollment-rules.md 第 8 節）
   const campusIds = campusFilterIds(c.get('campusScope'), campusId);
   if (campusIds) {
     const { data: enrollmentRows, error: enrollmentError } = await supabase
@@ -1955,6 +1957,8 @@ app.openapi(studentsRoute, async (c) => {
 
   const allRows = studentRows.map((row) => {
     const agg = aggregated.get(row.id);
+    // 不濾 enrollment status，跟 routes/students.ts 的 campusNames 同一條規則
+    // （kb/wiki/rules/enrollment-rules.md 第 8 節）——分校歸屬看「收過他」不看現在的狀態
     const campusNames = Array.from(
       new Set(
         (row.enrollments ?? [])
