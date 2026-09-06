@@ -1,4 +1,7 @@
+import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
+
+import sessionsApp from './sessions';
 
 import {
   buildBatchSessionChangeInserts,
@@ -220,5 +223,158 @@ describe('batch session history payloads', () => {
         operation_source: 'batch',
       }),
     ]);
+  });
+});
+
+/**
+ * **補課連結的寫入不是原子的，而順序是設計的一部分。**
+ *
+ * PostgREST 走 HTTP，`.update()` 與 `.insert()` 是兩次獨立請求 —— 沒有跨語句
+ * transaction，而這個 repo 刻意不引入 RPC（plpgsql 函式跑在 service role 底下，
+ * 等於把授權邏輯搬到 middleware 之下，違反憲法 c1 的形狀。計畫席 2026-09-06 裁定）。
+ *
+ * 所以順序是「**先寫 FK、再寫流水、失敗補償**」，而選它的理由只有一個：
+ *
+ * > **兩個非原子的寫入，順序決定了失敗態能不能被發現。**
+ *
+ * 反過來（先流水後 FK）的失敗態是「流水有、FK 沒有」——**而那跟「有人設過後來
+ * 解除了」這個合法狀態一模一樣**，沒有人分得出來。
+ */
+describe('PATCH /api/sessions/:id/makeup —— 非原子寫入的順序與補償', () => {
+  const SESSION_ID = '00000000-0000-4000-8000-000000000001';
+  const TARGET_ID = '00000000-0000-4000-8000-000000000002';
+
+  interface Call {
+    table: string;
+    op: 'update' | 'insert';
+    payload?: Record<string, unknown>;
+    isCompensation?: boolean;
+  }
+
+  function createApp(options?: { logInsertFails?: boolean; compensateFails?: boolean }) {
+    const calls: Call[] = [];
+    let updateCount = 0;
+
+    const supabase = {
+      from(table: string) {
+        const record: Call = { table, op: 'update' };
+        const query: Record<string, unknown> = {
+          select: () => query,
+          eq: () => query,
+          maybeSingle: () =>
+            Promise.resolve({
+              data:
+                table === 'profiles'
+                  ? { display_name: '王主任' }
+                  : {
+                      id: SESSION_ID,
+                      class_id: 'class-1',
+                      status: 'scheduled',
+                      session_date: '2026-04-20',
+                      makeup_for_session_id: null,
+                    },
+              error: null,
+            }),
+          single: () =>
+            Promise.resolve({
+              data: {
+                id: TARGET_ID,
+                class_id: 'class-1',
+                status: 'cancelled',
+                session_date: '2026-04-06',
+              },
+              error: null,
+            }),
+          // ⚠️ **`update()` / `insert()` 之後還會接 `.eq()`，所以它們要回 query
+          // 不是 Promise。** 終點統一在 `then` —— 今天第三次踩同一個坑
+          // （直接回 Promise 的話路由當場拋例外，而那個例外變成 Hono 的
+          //  `Internal Server Error`，跟路由自己回的 500 在狀態碼上一模一樣）。
+          update: (payload: Record<string, unknown>) => {
+            record.op = 'update';
+            record.payload = payload;
+            calls.push(record);
+            updateCount += 1;
+            record.isCompensation = updateCount === 2;
+            return query;
+          },
+          insert: (payload: Record<string, unknown>) => {
+            record.op = 'insert';
+            record.payload = payload;
+            calls.push(record);
+            return Promise.resolve({
+              error: options?.logInsertFails ? { message: '流水寫不進去' } : null,
+            });
+          },
+          then: (onfulfilled?: ((value: unknown) => unknown) | null) => {
+            const failed = record.isCompensation && options?.compensateFails;
+            return Promise.resolve({
+              error: failed ? { message: '補償也失敗' } : null,
+            }).then(onfulfilled ?? undefined);
+          },
+        };
+        return query;
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const ctx = c as unknown as { set: (k: string, v: unknown) => void };
+      ctx.set('supabase', supabase);
+      ctx.set('orgId', 'org-1');
+      ctx.set('userId', 'user-1');
+      ctx.set('roles', ['admin']);
+      ctx.set('campusScope', null);
+      await next();
+    });
+    app.route('/api/sessions', sessionsApp);
+
+    async function patch(body: unknown) {
+      return app.request(
+        `/api/sessions/${SESSION_ID}/makeup`,
+        { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) },
+        undefined,
+        { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
+      );
+    }
+
+    return { patch, calls };
+  }
+
+  it('⚠️ 順序是先 FK 再流水 —— 反過來的失敗態跟一個合法狀態長得一樣', async () => {
+    const { patch, calls } = createApp();
+    const res = await patch({ makeupForSessionId: TARGET_ID });
+
+    expect(res.status).toBe(200);
+    const writes = calls.filter((c) => c.table === 'sessions' || c.table === 'schedule_changes');
+    expect(writes[0]).toMatchObject({ table: 'sessions', op: 'update' });
+    expect(writes[1]).toMatchObject({ table: 'schedule_changes', op: 'insert' });
+  });
+
+  it('⚠️ 流水寫失敗 → 把 FK 補償回去，不留「FK 有、流水沒有」', async () => {
+    const { patch, calls } = createApp({ logInsertFails: true });
+    const res = await patch({ makeupForSessionId: TARGET_ID });
+
+    expect(res.status).toBe(500);
+    const updates = calls.filter((c) => c.table === 'sessions' && c.op === 'update');
+    expect(updates).toHaveLength(2);
+    // 補償把它清回 null —— 不是清成別的值
+    expect(updates[1]?.payload).toEqual({ makeup_for_session_id: null });
+  });
+
+  it('補償也失敗 → 仍然回 500，而且不假裝成功', async () => {
+    // 這時才落到那個可查的失敗態（FK 有、流水沒有）。**回 200 會讓它消失在雷達外**
+    const { patch } = createApp({ logInsertFails: true, compensateFails: true });
+    expect((await patch({ makeupForSessionId: TARGET_ID })).status).toBe(500);
+  });
+
+  it('清除連結（傳 null）不寫流水 —— 連結解除本來就該只留舊的那筆', async () => {
+    const { patch, calls } = createApp();
+    const res = await patch({ makeupForSessionId: null });
+
+    expect(res.status).toBe(200);
+    expect(calls.filter((c) => c.table === 'schedule_changes')).toHaveLength(0);
+    expect(calls.find((c) => c.table === 'sessions')?.payload).toEqual({
+      makeup_for_session_id: null,
+    });
   });
 });
