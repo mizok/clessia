@@ -10,6 +10,7 @@ import {
   mapSessionChange,
   mapSessionMakeup,
   normalizeRelationRow,
+  sessionListSelect,
   SESSION_CHANGES_SELECT,
 } from './sessions';
 
@@ -441,5 +442,43 @@ describe('mapSessionMakeup（#499 讀取面的兩個方向）', () => {
 
     expect(result.makeupFor).toBeNull();
     expect(result.madeUpBy).toBeNull();
+  });
+});
+
+describe('sessionListSelect —— 補課的兩個 embed 不能有 !inner', () => {
+  // 本機 PostgREST 實測：任一方向加上 `!inner`，19 筆變 **0 筆** ——
+  // 它會把「沒有補課連結的課堂」整批篩掉，也就是幾乎所有課堂。
+  //
+  // 症狀是**課表突然空了**，而那離原因很遠（沒有人會想到是一個 embed 的修飾字）。
+  //
+  // ⚠️ 這支測試存在的理由是：`classes!inner` / `courses!inner` 就在上面幾行，
+  // 兩個補課 embed 沒有 `!inner` **看起來像漏寫的不對稱**，而「補齊它」
+  // 是一個看起來像改進的動作。改壞的時候要有東西紅。
+  it('正向不能有 !inner', () => {
+    expect(sessionListSelect(false)).not.toContain('makeup_for_session_id!inner');
+    expect(sessionListSelect(true)).not.toContain('makeup_for_session_id!inner');
+  });
+
+  it('反向不能有 !inner', () => {
+    expect(sessionListSelect(false)).not.toContain('sessions!makeup_for_session_id!inner');
+    expect(sessionListSelect(true)).not.toContain('sessions!makeup_for_session_id!inner');
+  });
+
+  it('兩個方向都還在（不能為了避開 !inner 而整個拿掉）', () => {
+    const select = sessionListSelect(false);
+
+    expect(select).toContain('makeup_for:makeup_for_session_id');
+    expect(select).toContain('made_up_by:sessions!makeup_for_session_id');
+  });
+
+  // `events` 的修飾字是**有條件的** —— 跟補課那兩個不同，它該不該有 `!inner`
+  // 取決於是不是要用 `attendance_taken_at` 篩父列。釘住這個差異，
+  // 免得有人「統一」成同一種寫法。
+  it('events 的 !inner 是有條件的，不要跟補課那兩個一起「統一」', () => {
+    // 實際字串是 `events!event_id!inner`（hint + inner），不是 `events!inner` ——
+    // 這裡刻意用完整的字串斷言，因為半截的 pattern 會在兩種寫法上都命中。
+    expect(sessionListSelect(true)).toContain('events!event_id!inner');
+    expect(sessionListSelect(false)).toContain('events!event_id ');
+    expect(sessionListSelect(false)).not.toContain('!inner ( attendance_taken_at )');
   });
 });

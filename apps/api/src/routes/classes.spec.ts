@@ -239,3 +239,58 @@ describe('DELETE /api/classes —— 台北凌晨那個窗（M8 洞的迴歸測�
     expect(wentPastGuard()).toBe(false);
   });
 });
+
+describe('findCoveredMakeupTargets（#499 決策 5.5 的 uncancel 守衛）', () => {
+  const findCoveredMakeupTargets = (classesRoute as Record<string, unknown>)[
+    'findCoveredMakeupTargets'
+  ] as
+    | ((
+        targets: ReadonlyArray<{ id: string; makeup_for_session_id: string | null }>,
+        siblings: ReadonlyArray<{
+          id: string;
+          makeup_for_session_id: string | null;
+          status: string;
+        }>,
+      ) => Map<string, string>)
+    | undefined;
+
+  it('復課的補課，其目標已經被另一堂有效的補課佔住 —— 擋下並指出是誰', () => {
+    expect(findCoveredMakeupTargets).toBeTypeOf('function');
+
+    const covered = findCoveredMakeupTargets!(
+      [{ id: 'makeup-a', makeup_for_session_id: 'cancelled-1' }],
+      [{ id: 'makeup-b', makeup_for_session_id: 'cancelled-1', status: 'scheduled' }],
+    );
+
+    expect(covered.get('makeup-a')).toBe('makeup-b');
+  });
+
+  // 排除條件跟部分唯一索引的述詞逐字一致：`status <> 'cancelled'`。
+  // 停掉的補課不佔位子 —— 索引也不會擋，所以這裡擋了就是誤擋。
+  it('佔住目標的那堂本身已停課 —— 不算佔住，放行', () => {
+    const covered = findCoveredMakeupTargets!(
+      [{ id: 'makeup-a', makeup_for_session_id: 'cancelled-1' }],
+      [{ id: 'makeup-b', makeup_for_session_id: 'cancelled-1', status: 'cancelled' }],
+    );
+
+    expect(covered.size).toBe(0);
+  });
+
+  it('自己不算佔住自己', () => {
+    const covered = findCoveredMakeupTargets!(
+      [{ id: 'makeup-a', makeup_for_session_id: 'cancelled-1' }],
+      [{ id: 'makeup-a', makeup_for_session_id: 'cancelled-1', status: 'cancelled' }],
+    );
+
+    expect(covered.size).toBe(0);
+  });
+
+  it('一般課堂（沒有補課連結）完全不受這道守衛影響', () => {
+    const covered = findCoveredMakeupTargets!(
+      [{ id: 'plain', makeup_for_session_id: null }],
+      [{ id: 'other', makeup_for_session_id: null, status: 'scheduled' }],
+    );
+
+    expect(covered.size).toBe(0);
+  });
+});

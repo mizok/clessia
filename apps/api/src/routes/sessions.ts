@@ -467,6 +467,44 @@ export function mapSessionMakeup(row: Record<string, unknown>): {
   };
 }
 
+/**
+ * 課堂列表的 select。**抽出來是為了讓它可以被斷言**（#499）。
+ *
+ * ⚠️ **補課的兩個 embed 都不能加 `!inner`。** 本機 PostgREST 實測（2026-09-07，
+ * api-2 先發現、本席獨立復現）：
+ *
+ * | select | 回幾筆 |
+ * | --- | --- |
+ * | 兩個方向都不加 `!inner` | **19**（全部） |
+ * | 正向加 `!inner` | **0** |
+ * | 反向加 `!inner` | **0** |
+ *
+ * `!inner` 會把「沒有補課連結的課堂」整批篩掉 —— 也就是**幾乎所有課堂**。
+ * 症狀是**課表突然空了**，而那離原因很遠，沒有人會想到是一個 embed 的修飾字。
+ *
+ * **為什麼下一個人會想加它**：`classes!inner` / `courses!inner` 就在上面幾行，
+ * 兩個補課 embed 沒有 `!inner` **看起來像漏寫的不對稱**，
+ * 而「補齊它」是一個看起來像改進的動作。
+ *
+ * `events` 那個修飾字是**有條件的**（只有在要用 `attendance_taken_at` 篩父列時才加
+ * `!inner`），跟補課這兩個不同 —— 見 `eventsJoinModifier`。
+ */
+export function sessionListSelect(requireEvent: boolean): string {
+  return `
+      id, session_date, start_time, end_time, status, assignment_status,
+      class_id, teacher_id, event_id,
+      classes!inner (
+        name,
+        courses!inner ( id, name ),
+        campuses!inner ( id, name )
+      ),
+      staff ( display_name ),
+      events${eventsJoinModifier(requireEvent)} ( attendance_taken_at ),
+      makeup_for:makeup_for_session_id ( id, session_date, status ),
+      made_up_by:sessions!makeup_for_session_id ( id, session_date, status )
+    `;
+}
+
 export function buildSessionCreationHistory(input: {
   readonly sessionId: string;
   readonly sessionCreatedAt: string;
@@ -751,22 +789,7 @@ app.openapi(listSessionsRoute, async (c) => {
 
   let dbQuery = supabase
     .from('sessions')
-    .select(
-      `
-      id, session_date, start_time, end_time, status, assignment_status,
-      class_id, teacher_id, event_id,
-      classes!inner (
-        name,
-        courses!inner ( id, name ),
-        campuses!inner ( id, name )
-      ),
-      staff ( display_name ),
-      events${eventsJoinModifier(attendanceTaken !== undefined)} ( attendance_taken_at ),
-      makeup_for:makeup_for_session_id ( id, session_date, status ),
-      made_up_by:sessions!makeup_for_session_id ( id, session_date, status )
-    `,
-      { count: 'exact' },
-    )
+    .select(sessionListSelect(attendanceTaken !== undefined), { count: 'exact' })
     .eq('org_id', orgId)
     .order('session_date')
     .order('start_time');
