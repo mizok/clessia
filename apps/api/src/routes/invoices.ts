@@ -6,6 +6,7 @@ import { sliceDerivedPage } from '../lib/derived-page';
 import { waitUntilFrom } from '../lib/wait-until';
 import { DbUuidSchema } from '../lib/validation';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { whereOverdue } from '../lib/invoice-overdue';
 
 /**
  * 帳單、明細、收款、催繳。
@@ -142,7 +143,8 @@ app.openapi(
     // 台北時間，不是 UTC —— 這是過濾條件不是預設值，算錯一天會讓整份清單的成員
     // 錯位（在台北凌晨看繳費頁，一批帳單會被錯誤地列為逾期或錯誤地不列，
     // 行政可能因此去催繳一個還沒到期的家長）。見 lib/taipei-date.ts 檔頭。
-    if (overdue) query = query.lt('due_date', getCurrentTaipeiDateString());
+    // 「過了到期日沒」這條判斷本身在 lib/invoice-overdue.ts —— 營收報表用的是同一支。
+    if (overdue) query = whereOverdue(query, getCurrentTaipeiDateString());
     if (!derivedFilter) query = query.range((page - 1) * pageSize, page * pageSize - 1);
 
     const { data, error, count } = await query.order('issued_at', { ascending: false });

@@ -17,6 +17,8 @@
  * 報表看起來完全正常，只是數字是錯的。所以每個摘要數字都從這裡出來。
  */
 
+import { isOverdueOn } from './invoice-overdue';
+
 export interface RevenuePayment {
   kind: 'payment' | 'refund';
   amount: number;
@@ -80,9 +82,10 @@ export function aggregateRevenue(input: {
     // **溢繳不產生負的未收。** 不夾的話一張多收的帳單會去抵銷另一張真正的欠款，
     // 而「還有多少沒收到」就會少報 —— 又是一個沒有徵兆的錯
     const unpaid = Math.max(0, invoice.billed - invoice.paid);
-    // 「欠」的定義是**過了 due_date 未繳清**（billing-rules 規則 7）。
-    // 沒有 due_date 表示還沒發收費袋，那還不叫欠
-    const overdue = invoice.dueDate !== null && invoice.dueDate < input.today ? unpaid : 0;
+    // 「欠」的定義是**過了 due_date 未繳清**（billing-rules 規則 7）。日期那一半的
+    // 判斷在 lib/invoice-overdue.ts —— 繳費頁列表（routes/invoices.ts）下在 SQL 上的
+    // 是同一支，兩邊不會再各自漂移
+    const overdue = isOverdueOn(invoice.dueDate, input.today) ? unpaid : 0;
 
     const group = bucket(invoice.groupKey);
     summary.billed += invoice.billed;
