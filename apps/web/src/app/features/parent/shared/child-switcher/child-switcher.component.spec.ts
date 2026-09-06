@@ -24,7 +24,11 @@ describe('ChildSwitcherComponent', () => {
   let fixture: ComponentFixture<ChildSwitcherComponent>;
   let setActiveChildSpy: ReturnType<typeof vi.fn>;
 
-  async function createComponent(children: typeof CHILDREN, activeId: string | null) {
+  async function createComponent(
+    children: typeof CHILDREN,
+    activeId: string | null,
+    status: 'unloaded' | 'ready' | 'failed' = 'ready',
+  ) {
     const childrenSignal = signal(children);
     const activeIdSignal = signal(activeId);
     setActiveChildSpy = vi.fn((id: string) => activeIdSignal.set(id));
@@ -33,6 +37,7 @@ describe('ChildSwitcherComponent', () => {
       children: childrenSignal.asReadonly(),
       activeChildId: activeIdSignal.asReadonly(),
       activeChild: () => childrenSignal().find((c) => c.id === activeIdSignal()) ?? null,
+      status: () => status,
       canSwitch: () => childrenSignal().length > 1,
       setActiveChild: setActiveChildSpy,
     };
@@ -102,5 +107,17 @@ describe('ChildSwitcherComponent', () => {
     listItems()[0]?.click();
 
     expect(setActiveChildSpy).toHaveBeenCalledWith('c2');
+  });
+  it('孩子清單讀不到時講出來 —— 空清單跟讀不到不能都是「什麼都不顯示」', async () => {
+    await createComponent([], null, 'failed');
+
+    expect(fixture.nativeElement.textContent).toContain('讀不到孩子資料');
+  });
+
+  it('讀到了但真的沒有孩子：不出現失敗訊息，也不出現徽章', async () => {
+    await createComponent([], null, 'ready');
+
+    expect(fixture.nativeElement.textContent).not.toContain('讀不到孩子資料');
+    expect(fixture.nativeElement.textContent.trim()).toBe('');
   });
 });

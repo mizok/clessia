@@ -63,6 +63,32 @@ describe('ChildScopeService', () => {
     expect(childrenServiceMock.list).toHaveBeenCalledTimes(1);
   });
 
+  it('狀態三態分得開 —— 「沒有孩子」跟「讀不到」不能共用空陣列', () => {
+    const { service } = setup([]);
+    expect(service.status()).toBe('unloaded');
+
+    service.load();
+    // 成功但真的沒有孩子：children 空，但狀態是 ready
+    expect(service.status()).toBe('ready');
+    expect(service.children()).toEqual([]);
+  });
+
+  it('載入失敗時 status 是 failed —— 畫面才有東西可講', () => {
+    const childrenServiceMock = {
+      list: vi.fn((): Observable<ChildrenListResponse> => throwError(() => new Error('boom'))),
+    };
+    TestBed.configureTestingModule({
+      providers: [{ provide: ChildrenService, useValue: childrenServiceMock }],
+    });
+    const service = TestBed.inject(ChildScopeService);
+
+    service.load();
+
+    expect(service.status()).toBe('failed');
+    // 跟成功但沒有孩子的情況比對：children 都是空的，分開它們的只有 status
+    expect(service.children()).toEqual([]);
+  });
+
   it('載入失敗時不卡死在 loading，且允許之後重試', () => {
     const childrenServiceMock = {
       list: vi.fn((): Observable<ChildrenListResponse> => throwError(() => new Error('boom'))),

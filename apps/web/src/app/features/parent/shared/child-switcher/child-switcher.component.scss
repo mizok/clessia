@@ -25,6 +25,11 @@
         background: rgb(0 0 0 / 6%);
       }
     }
+
+    // 讀不到孩子資料 —— 不可互動的失敗訊號，不是身分徽章
+    &--error {
+      color: var(--error-600);
+    }
   }
 
   &__badge-icon {

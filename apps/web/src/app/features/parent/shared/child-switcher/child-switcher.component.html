@@ -1,4 +1,12 @@
-@if (childScope.children().length > 0) {
+@if (childScope.status() === 'failed') {
+  <!--
+    **不講的話這裡什麼都不會出現** —— 而三頁的 effect 也因為 activeChildId 是 null
+    而不打 API，結果是一個完全空白的家長端，跟「這個帳號還沒綁孩子」一模一樣。
+  -->
+  <div class="child-switcher">
+    <span class="child-switcher__badge child-switcher__badge--error">讀不到孩子資料</span>
+  </div>
+} @else if (childScope.children().length > 0) {
   <div class="child-switcher">
     @if (childScope.canSwitch()) {
       <button
