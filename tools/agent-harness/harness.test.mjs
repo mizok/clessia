@@ -30,6 +30,7 @@ import {
   matchesPrefix,
   sendsParam,
   servicePrefixes,
+  staleExemptions,
   stripComments,
 } from './lib/api-param-coverage.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
@@ -1657,6 +1658,39 @@ test('對比掃描：違規要帶著選擇器回報（baseline 與豁免的鍵�
 // 造成的：整檔 grep 對普通名字全盲（`status` 因為註解提到就算數）、
 // 只認引號害物件簡寫 `{ params: { date } }` 被誤報成缺漏。
 // 所以這裡兩個方向都測：**該紅的要紅，該安靜的要安靜。**
+
+test('過期的豁免要被報出來 —— 不然它會變成一張預先簽好的空白支票', () => {
+  // 前端有送 `dateFrom`，所以那筆豁免對不上任何落差 = 過期。
+  // 留著的話，哪天前端把它拿掉，gate 本來會叫，而這筆豁免會替它蓋章放行。
+  const services = [{ source: `const url = '/api/x'; q = q.set('dateFrom', a);` }];
+  const stale = staleExemptions(
+    { '/api/x': ['dateFrom'] },
+    services,
+    new Map([['/api/x|dateFrom', '前端不支援']]),
+  );
+  assert.deepEqual(stale, ['/api/x|dateFrom']);
+});
+
+test('仍然必要的豁免要安靜 —— 誤報會讓人把整道檢查關掉', () => {
+  // 這次前端**沒有**送 `dateFrom`，所以豁免真的擋著一個落差，不該被判過期。
+  const services = [{ source: `const url = '/api/x'; q = q.set('other', a);` }];
+  const stale = staleExemptions(
+    { '/api/x': ['dateFrom'] },
+    services,
+    new Map([['/api/x|dateFrom', '前端刻意不支援']]),
+  );
+  assert.deepEqual(stale, []);
+});
+
+test('註解裡提到參數名不算前端有送 —— 否則豁免會被誤判成過期', () => {
+  // stripComments 那個洞的鏡像方向：註解裡的 `dateFrom` 若被當成有送，
+  // 這筆仍然必要的豁免就會被誤報成過期，然後有人把它刪掉。
+  const services = [{ source: `const url = '/api/x'; // 未來要送 dateFrom` }];
+  assert.deepEqual(
+    staleExemptions({ '/api/x': ['dateFrom'] }, services, new Map([['/api/x|dateFrom', 'why']])),
+    [],
+  );
+});
 
 test('sendsParam 認得四種組 query 的寫法', () => {
   assert.equal(sendsParam(`p = p.set('dateFrom', x);`, 'dateFrom'), true, 'HttpParams .set()');
