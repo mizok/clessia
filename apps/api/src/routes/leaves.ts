@@ -4,7 +4,7 @@ import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
-import { campusFilterIds } from '../lib/campus-scope';
+import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 const LeaveRequestSchema = z
@@ -420,7 +420,7 @@ app.openapi(
 
     // **這支端點本來就收 `campusId`，但從來沒有拿它過濾** —— 前端傳了也沒有效果，
     // 而且沒有任何錯誤，是靜默無效的參數。接分校範圍時一併修掉。
-    const campusIds = campusFilterIds(c.get('campusScope'), campusId);
+    const campusIds = campusFilterIds(getCampusScope(c), campusId);
     if (campusIds) {
       const { data: campusEnrollments } = await supabase
         .from('enrollments')

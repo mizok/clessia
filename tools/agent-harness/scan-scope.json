@@ -3,6 +3,10 @@
     "roots": ["apps/api/src/routes/parent"],
     "exts": [".ts"]
   },
+  "A20": {
+    "roots": ["apps/api/src/lib", "apps/api/src/middleware", "apps/api/src/routes"],
+    "exts": [".ts"]
+  },
   "api-query-params": {
     "roots": ["apps/api/src/routes", "apps/web/src/app/core"],
     "exts": [".service.ts", ".ts"]

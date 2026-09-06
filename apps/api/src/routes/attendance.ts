@@ -14,7 +14,7 @@ import { cancelLeaveForDate } from '../lib/cancel-leave-for-date';
 import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
-import { applyCampusFilter, type CampusScope } from '../lib/campus-scope';
+import { applyCampusFilter, type CampusScope, getCampusScope } from '../lib/campus-scope';
 import {
   ATTENDANCE_SELECT,
   flattenAttendanceRow,
@@ -384,7 +384,7 @@ app.openapi(
     if (status) query = query.eq('status', status);
     if (dateFrom) query = query.gte('events.event_date', dateFrom);
     if (dateTo) query = query.lte('events.event_date', dateTo);
-    query = applyCampusFilter(query, 'events.campus_id', c.get('campusScope'), campusId);
+    query = applyCampusFilter(query, 'events.campus_id', getCampusScope(c), campusId);
 
     const from = (page - 1) * pageSize;
     query = query.range(from, from + pageSize - 1).order('created_at', { ascending: false });
@@ -1011,7 +1011,7 @@ app.openapi(
       const ensureEventsResult = await ensureAttendanceSessionEvents({
         supabase,
         orgId,
-        campusScope: c.get('campusScope'),
+        campusScope: getCampusScope(c),
         campusId,
         courseIdList,
         classIdList,
@@ -1052,7 +1052,7 @@ app.openapi(
     sessionsQuery = applyCampusFilter(
       sessionsQuery,
       'classes.campus_id',
-      c.get('campusScope'),
+      getCampusScope(c),
       campusId,
     );
     if (courseIdList.length > 0) {

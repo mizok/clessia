@@ -5,8 +5,7 @@ import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
 import { canManageOrgExam } from '../lib/exam-scope';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
-import { campusFilterIds } from '../lib/campus-scope';
-
+import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 const SchoolExamTypeSchema = z.enum(['term_exam', 'mock_exam', 'other']).openapi('SchoolExamType');
 const SchoolExamStatusSchema = z.enum(['active', 'closed']).openapi('SchoolExamStatus');
 
@@ -719,7 +718,7 @@ app.openapi(getRoute, async (c) => {
       studentQuery = studentQuery.eq('grade', grade);
     }
 
-    const campusIds = campusFilterIds(c.get('campusScope'), campusId);
+    const campusIds = campusFilterIds(getCampusScope(c), campusId);
     if (campusIds) {
       const { data: enrollmentRows } = await supabase
         .from('enrollments')
@@ -1851,7 +1850,7 @@ app.openapi(studentsRoute, async (c) => {
 
   // 同 routes/students.ts：**不濾 enrollment status**，這條同時是 campusScope 授權的路
   // （kb/wiki/rules/enrollment-rules.md 第 8 節）
-  const campusIds = campusFilterIds(c.get('campusScope'), campusId);
+  const campusIds = campusFilterIds(getCampusScope(c), campusId);
   if (campusIds) {
     const { data: enrollmentRows, error: enrollmentError } = await supabase
       .from('enrollments')

@@ -7,7 +7,7 @@ import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { PERMISSIONS } from '../lib/permissions';
 import { checkRoleAssignment } from '../lib/role-assignment';
-import { campusFilterIds, campusIdsWithinScope } from '../lib/campus-scope';
+import { campusFilterIds, campusIdsWithinScope, getCampusScope } from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
@@ -511,7 +511,7 @@ app.openapi(listRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
   const query = c.req.valid('query');
-  const campusScope = c.get('campusScope');
+  const campusScope = getCampusScope(c);
 
   const page = Math.max(parseInt(query.page || '1', 10), 1);
   const rawPageSize = query.pageSize !== undefined ? parseInt(query.pageSize, 10) : 20;
@@ -891,7 +891,7 @@ app.openapi(createRouteDef, async (c) => {
 
   // `validateCampusIdsInOrg` 只驗「屬於這個 org」，不驗「屬於請求者的範圍」——
   // 少了下面這段，只管 A 校的管理員可以把人員指派到 B 校（等於發出 B 校的存取權）
-  if (!campusIdsWithinScope(c.get('campusScope'), body.campusIds)) {
+  if (!campusIdsWithinScope(getCampusScope(c), body.campusIds)) {
     return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
 
@@ -1159,7 +1159,7 @@ app.openapi(updateRoute, async (c) => {
     // permissions 時擋「改自己」—— `campusIds` 不在其中。沒有這段，一個只管 A 校的
     // 管理員可以把自己那筆 staff 的分校設成全部，下一個請求起就不受限了。
     // `all_campuses` 是 permission 所以早就被擋住，campusIds 是同一件事的另一個載體。
-    if (!campusIdsWithinScope(c.get('campusScope'), body.campusIds)) {
+    if (!campusIdsWithinScope(getCampusScope(c), body.campusIds)) {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 

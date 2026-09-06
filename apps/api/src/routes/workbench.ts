@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { DbUuidSchema } from '../lib/validation';
 
 import type { AppEnv } from '../index';
-import { campusFilterIds } from '../lib/campus-scope';
+import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { leaveCoversSession } from '../lib/leave-covers-session';
 import { SESSION_SUMMARY_SELECT, summariseSessions } from '../lib/session-summary';
@@ -139,7 +139,7 @@ app.openapi(
 
     // 分校範圍走 #175 的 campusScope：不帶 campusId 的管多校管理員 = 他管的全部。
     // 帶了的話 `campusRequestGuard` 已經在 middleware 驗過，這支不用自己擋。
-    const campusIds = campusFilterIds(c.get('campusScope'), campusId);
+    const campusIds = campusFilterIds(getCampusScope(c), campusId);
 
     const { data: org } = await supabase
       .from('organizations')

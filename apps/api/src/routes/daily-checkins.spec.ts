@@ -72,6 +72,10 @@ function createCheckinApp(
     context.set('orgId', '00000000-0000-4000-8000-0000000000a1');
     context.set('userId', 'user-1');
     context.set('roles', ['admin']);
+    // 這組測試的主題不是分校範圍 —— 宣告成「不受分校限制」，那也是正式站對
+    // 老師／家長的實際值（`resolveCampusScope` 對非管理員回 null）。**不宣告的話
+    // 會走進 `getCampusScope` 的缺席分支，那是 authMiddleware 沒跑的錯誤狀態。**
+    context.set('campusScope', null);
     await next();
   });
   app.route('/api/daily-checkins', dailyCheckinsApp);
@@ -258,6 +262,7 @@ describe('DELETE /api/daily-checkins/:id', () => {
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', ['admin']);
+      context.set('campusScope', null);
       await next();
     });
     app.route('/api/daily-checkins', dailyCheckinsApp);

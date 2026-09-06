@@ -11,8 +11,7 @@ import { isEnrolledOn } from '../lib/session-roster';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
 import { canManageAcademyExam, resolveExamClassIds } from '../lib/exam-scope';
 import { logAudit } from '../utils/audit';
-import { applyCampusFilter, isCampusAllowed } from '../lib/campus-scope';
-
+import { applyCampusFilter, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
 const AcademyExamStatusSchema = z.enum(['active', 'closed']).openapi('AcademyExamStatus');
 
 const AcademyExamTypeSchema = z
@@ -579,7 +578,7 @@ app.openapi(listRoute, async (c) => {
   } else if (status) {
     query = query.eq('status', status);
   }
-  query = applyCampusFilter(query, 'campus_id', c.get('campusScope'), campusId);
+  query = applyCampusFilter(query, 'campus_id', getCampusScope(c), campusId);
   if (subjectId) {
     query = query.eq('subject_id', subjectId);
   }
@@ -782,7 +781,7 @@ app.openapi(todoCountRoute, async (c) => {
     .select('id, exam_date')
     .eq('org_id', orgId)
     .eq('status', 'active');
-  activeQuery = applyCampusFilter(activeQuery, 'campus_id', c.get('campusScope'), undefined);
+  activeQuery = applyCampusFilter(activeQuery, 'campus_id', getCampusScope(c), undefined);
 
   const { data: activeRows, error: activeRowsError } = await activeQuery;
 
@@ -1044,7 +1043,7 @@ app.openapi(createRouteDef, async (c) => {
   const body = c.req.valid('json');
 
   // 分校範圍在寫入路徑上也要成立（body 不在 campusRequestGuard 的視野內）
-  if (!isCampusAllowed(c.get('campusScope'), body.campusId)) {
+  if (!isCampusAllowed(getCampusScope(c), body.campusId)) {
     return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
 
@@ -1249,7 +1248,7 @@ app.openapi(updateRouteDef, async (c) => {
   }
 
   // PATCH 的分校是「搬家」——同樣要擋，否則受限管理員可以把考試搬出自己的範圍
-  if (body.campusId !== undefined && !isCampusAllowed(c.get('campusScope'), body.campusId)) {
+  if (body.campusId !== undefined && !isCampusAllowed(getCampusScope(c), body.campusId)) {
     return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
 

@@ -4,7 +4,7 @@ import type { AppEnv } from '../index';
 import { enrolledEventIds } from '../lib/enrolled-events';
 import { assertAttendanceWindow } from '../lib/attendance-window-check';
 import { logAudit } from '../utils/audit';
-import { isCampusAllowed } from '../lib/campus-scope';
+import { getCampusScope, isCampusAllowed } from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
 
 const DailyCheckinSchema = z
@@ -56,7 +56,7 @@ app.openapi(
     // **body 帶的分校要自己驗。** 全域的 `campusRequestGuard` 只看 query string ——
     // 它讀不到 body（middleware 讀 body 會跟 zod-openapi 的驗證器搶同一個 stream）。
     // 少了這一段，只管 A 校的人可以替 B 校的學生打卡。
-    if (!isCampusAllowed(c.get('campusScope'), body.campusId)) {
+    if (!isCampusAllowed(getCampusScope(c), body.campusId)) {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 

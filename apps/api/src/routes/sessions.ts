@@ -15,6 +15,7 @@ import { planBatchUpdateTime } from '../domain/session-assignment/batch-update-t
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { hasSessionEndedByNow } from '../lib/session-end-time';
 import { sliceDerivedPage } from '../lib/derived-page';
+import { getCampusScope } from '../lib/campus-scope';
 import {
   applyAttendanceTakenFilter,
   ensureAttendanceSessionEvents,
@@ -625,7 +626,7 @@ app.openapi(listSessionsRoute, async (c) => {
     attendanceTaken,
     endedOnly,
   } = c.req.valid('query');
-  const campusScope = c.get('campusScope');
+  const campusScope = getCampusScope(c);
 
   // 請求指定了就用指定的（合法性由全域 campusRequestGuard 擋過），沒指定就用他的範圍。
   // **不能只在「有指定」時才加條件** —— 那樣受限的管理員不指定就看得到全部。
