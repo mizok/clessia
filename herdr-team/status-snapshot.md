@@ -43,9 +43,41 @@ git merge-base --is-ancestor fa90fce2 <run 的 sha>   # 回 0 才是修法之後
 gh run list --workflow verify.yml --branch main      # 一定要加 --workflow,否則 smoke 的成功會混進來
 ```
 
-**真正的驗證要等下一顆 main commit**:看 `fa90fce2` 那顆 run 有沒有**活著跑完**。
-
 **在那之前,板上的 `cancelled` 不是訊號 —— 而它跟真的故障長得一模一樣。**
+
+### 訂正(2026-09-07 05:0x):**#603 的修法只做了一半,`fa90fce2` 不是正確的驗證標的**
+
+上面原本寫「看 `fa90fce2` 有沒有活著跑完」。**那個標準不夠** ——
+實測 `9a5daa89`(#603 之後的 main commit,workflow 檔確實有修法)**照樣 cancelled**。
+
+`cancel-in-progress: false` 的語意是「**不要殺正在跑的那顆**」,後來的 run 會**排隊**在同一個
+group 上,而**同一個 group 最多只留一顆排隊中的** —— 第三顆一到,中間排隊的就被丟掉。
+所以行為只是從「新的殺舊的」變成「最舊的活著跑完、中間排隊的被丟掉」。
+
+補完在 **PR #613**(group 帶 `github.sha`,main 每顆 commit 各自一個 group)。
+**#613 合併之前,main 上的 commit 仍然可能沒有結論。**
+
+### **`cancelled` 有兩種,而它們在 `gh run list` 上長得一模一樣**
+
+| | `jobs` 長度 | 意思 |
+| --- | --- | --- |
+| 跑到一半被殺 | **非 0** | 它真的跑過,只是沒跑完 |
+| 從頭到尾沒開始 | **0** | 它在排隊時就被丟掉,**一行 log 都沒有** |
+
+**判定一顆 run 有沒有被驗證,要看 `jobs` 長度,不是 `conclusion`。**
+
+```bash
+gh run view <run-id> --json jobs --jq '.jobs | length'
+```
+
+**這個判準第一次用就改變了結論**:最近 30 顆 main 的 verify ——
+**success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1**。
+**30 顆只有 7 顆真的跑完**,而其中 7 顆連一個 job 都沒起過。
+只看 `conclusion` 的話,那 22 顆跟「有結論」在列表上沒有差別。
+
+> **嚴重度要講準**:那 22 顆的**程式碼**多數驗過了 —— 在 PR head 上驗的。
+> 沒驗到的是 **squash 之後的 main 本身**(「這支 PR 跟同時段合進來的其他 PR 併在一起
+> 還成不成立」)。**風險不是「程式碼沒驗過」,是「它們互相之間沒驗過,而且壞了沒辦法二分」。**
 
 ## 接手第一件事
 
