@@ -69,7 +69,7 @@ export interface EventSessionSummary {
   sessionId: string;
   /**
    * 出勤事件的 id。**停課的課堂沒有** —— 出勤事件是列表時才補建的，
-   * 而停課的課堂刻意不補（不會發生的課不該在行事曆上長出一筆）。
+   * 而停課的課堂刻意不補：**一次讀取不該觸發寫入**（#123 的原始理由）。
    * `null` 就是點不了名，呼叫端要據此關掉點名入口，不要當成空字串硬送。
    */
   eventId: string | null;
