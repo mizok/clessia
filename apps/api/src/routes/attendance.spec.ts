@@ -724,7 +724,10 @@ interface MockSupabaseData {
   readonly examsByClassId?: Record<string, string[]>;
 }
 
-function createAttendanceTestApp(supabase: ReturnType<typeof createMockSupabase>) {
+function createAttendanceTestApp(
+  supabase: ReturnType<typeof createMockSupabase>,
+  campusScope: readonly string[] | null = null,
+) {
   const app = new Hono();
 
   app.use('/api/attendance/*', async (c, next) => {
@@ -736,7 +739,7 @@ function createAttendanceTestApp(supabase: ReturnType<typeof createMockSupabase>
     // 這組測試的主題不是分校範圍 —— 宣告成「不受分校限制」，那也是正式站對
     // 老師／家長的實際值（`resolveCampusScope` 對非管理員回 null）。**不宣告的話
     // 會走進 `getCampusScope` 的缺席分支，那是 authMiddleware 沒跑的錯誤狀態。**
-    context.set('campusScope', null);
+    context.set('campusScope', campusScope);
     await next();
   });
 
@@ -746,10 +749,15 @@ function createAttendanceTestApp(supabase: ReturnType<typeof createMockSupabase>
 }
 
 function createMockSupabase(data: MockSupabaseData) {
+  // 分校範圍是靠 `.in(column, ids)` 下到查詢上的，而這些替身回的是固定 fixture ——
+  // 「有下」與「沒下」在回傳值上完全一樣，所以要記下送出去的查詢長什麼樣
+  const inCalls: Array<{ table: string; column: string; values: string[] }> = [];
+
   return {
+    inCalls,
     from(table: string) {
       if (table === 'sessions') {
-        return createSessionsQuery(data);
+        return createSessionsQuery(data, inCalls);
       }
 
       if (table === 'events') {
@@ -872,7 +880,10 @@ function createEventsQuery(data: MockSupabaseData) {
   return query;
 }
 
-function createSessionsQuery(data: MockSupabaseData) {
+function createSessionsQuery(
+  data: MockSupabaseData,
+  inCalls: Array<{ table: string; column: string; values: string[] }> = [],
+) {
   const state = {
     orgId: '',
     campusId: null as string | null,
@@ -910,6 +921,7 @@ function createSessionsQuery(data: MockSupabaseData) {
       return query;
     },
     in(column: string, values: string[]) {
+      inCalls.push({ table: 'sessions', column, values: [...values] });
       if (column === 'classes.course_id') state.courseIds = values;
       if (column === 'class_id') state.classIds = values;
       if (column === 'status') state.statuses = values;
@@ -2078,5 +2090,62 @@ describe('GET /api/attendance/sessions?attendanceTaken', () => {
     expect(selects.some((select) => select.includes('events!event_id!inner('))).toBe(false);
     expect(selects.some((select) => select.includes('events!event_id('))).toBe(true);
     expect(filters.some(([, column]) => column === 'events.attendance_taken_at')).toBe(false);
+  });
+});
+
+/**
+ * 分校範圍有沒有下到課堂查詢上（#515 下半，第二批）。
+ *
+ * `attendance.ts:1046` 用 `applyCampusFilter(sessionsQuery, 'classes.campus_id', …)`。
+ * **這條只能斷言查詢形狀** —— 上面那些替身回的是固定 fixture，條件下對下錯回一樣的
+ * 東西（charter：當「對的實作」與「錯的實作」會產生同樣的觀察值時，這個測試就沒有
+ * 在測那件事）。
+ *
+ * 補這條的理由：`campusScope` 補上身分宣告之後（#523）這些 spec 全部綠，
+ * 但它們驗到的是「有拿到範圍」，**不是「範圍被套用」**。
+ */
+describe('GET /api/attendance/sessions —— 分校範圍要下到查詢上', () => {
+  const fixture = () => ({
+    events: [
+      buildEvent({
+        id: 'event-1',
+        classId: 'class-1',
+        className: '數學 A',
+        courseId: 'course-1',
+        courseName: '數學',
+        sessionStatus: 'scheduled' as const,
+      }),
+    ],
+  });
+
+  it('受限管理員的課堂查詢帶著他的分校清單', async () => {
+    const supabase = createMockSupabase(fixture());
+    const app = createAttendanceTestApp(supabase, ['campus-1']);
+
+    const res = await app.request('/api/attendance/sessions?dateFrom=2026-04-06&dateTo=2026-04-06');
+
+    expect(res.status).toBe(200);
+
+    // **這支端點對 `sessions` 下兩次分校條件，兩次都必須有：**
+    //   1. `lib/attendance-session-events.ts:123` 的補建步驟 —— 它會**寫入**
+    //      （補出勤事件），所以範圍不能只靠讀取端過濾，否則 A 校的管理員查詢時
+    //      會替 B 校的課堂建 event
+    //   2. `attendance.ts:1052` 的列表查詢本身
+    // 只斷言「有出現過」的話，任一支滿足就會通過 —— 實測：把其中一處的範圍換成
+    // null，測試照樣綠。所以這裡釘的是**次數**。
+    const campusFilters = supabase.inCalls.filter((call) => call.column === 'classes.campus_id');
+    expect(campusFilters).toHaveLength(2);
+    for (const call of campusFilters) {
+      expect(call.values).toEqual(['campus-1']);
+    }
+  });
+
+  it('不受分校限制時不下這個條件（確認上一條不是無腦通過）', async () => {
+    const supabase = createMockSupabase(fixture());
+    const app = createAttendanceTestApp(supabase, null);
+
+    await app.request('/api/attendance/sessions?dateFrom=2026-04-06&dateTo=2026-04-06');
+
+    expect(supabase.inCalls.some((call) => call.column === 'classes.campus_id')).toBe(false);
   });
 });
