@@ -96,10 +96,19 @@ interface LeaveValidationInput {
   readonly endTime?: string | null;
 }
 
+interface LeaveAttendanceSessionRow {
+  readonly class_id: string;
+  /**
+   * `sessions.status`。**沒帶就視為要寫** —— 見 `buildLeaveAttendanceUpserts` 的理由。
+   * 呼叫端要 `select('sessions!inner(class_id, status)')` 才拿得到。
+   */
+  readonly status?: string | null;
+}
+
 interface LeaveAttendanceEventRow {
   readonly id: string;
   readonly event_date: string;
-  readonly sessions: { class_id: string } | Array<{ class_id: string }> | null;
+  readonly sessions: LeaveAttendanceSessionRow | LeaveAttendanceSessionRow[] | null;
 }
 
 interface LeaveAttendanceEnrollmentRow {
@@ -150,6 +159,23 @@ export function getLeaveValidationError(input: LeaveValidationInput): string | n
   return null;
 }
 
+/**
+ * 停課的課堂不寫 `on_leave`（使用者 2026-09-06 裁定，issue #502）——
+ * 停課只改 `sessions.status`，那筆 event 留著，所以請假連動照樣撈得到它，
+ * 於是家長端會看到「一堂沒上的課請假了」這種語意矛盾的紀錄。
+ *
+ * **沒帶 `status` 就視為要寫**：呼叫端漏 `select('status')` 時行為退回「照舊寫」，
+ * 而不是「全部不寫」。反過來設計的話，**一次漏 select 會讓整批 `on_leave` 靜靜消失
+ * 而且沒有訊號** —— 那比多寫幾筆難發現得多。跟 `lib/enrolled-events.ts` 的
+ * `isCancelled` 同一個方向，兩邊要一起改。
+ *
+ * ⚠️ `routes/enrollments.ts` 的 `buildEnrollmentLeaveAttendanceUpserts` 是同一種紀錄的
+ * **第三個寫入點**，它還沒有這道過濾（#502 的裁示範圍只涵蓋這裡）。
+ */
+function isCancelledSession(sessionRow: LeaveAttendanceSessionRow): boolean {
+  return sessionRow.status === 'cancelled';
+}
+
 export function buildLeaveAttendanceUpserts(input: BuildLeaveAttendanceUpsertsInput) {
   return input.events
     .filter((eventRow) =>
@@ -163,6 +189,7 @@ export function buildLeaveAttendanceUpserts(input: BuildLeaveAttendanceUpsertsIn
         return sessionRows.some(
           (sessionRow) =>
             enrollment.class_id === sessionRow.class_id &&
+            !isCancelledSession(sessionRow) &&
             enrollment.effective_from <= eventRow.event_date &&
             (!enrollment.effective_to || enrollment.effective_to >= eventRow.event_date),
         );
@@ -251,7 +278,9 @@ async function applyLeaveAttendance(
 
   const { data: events } = await supabase
     .from('events')
-    .select('id, event_date, sessions!inner(class_id)')
+    // `status` 是給 `buildLeaveAttendanceUpserts` 排除停課用的 —— 少撈它不會報錯，
+    // 只會讓那道過濾靜靜地什麼都不做（#502）。
+    .select('id, event_date, sessions!inner(class_id, status)')
     .eq('org_id', orgId)
     .eq('event_type', 'session')
     .gte('event_date', from)

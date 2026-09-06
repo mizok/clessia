@@ -144,6 +144,89 @@ describe('buildLeaveAttendanceUpserts', () => {
       },
     ]);
   });
+
+  it('skips cancelled sessions', () => {
+    const rows = buildLeaveAttendanceUpserts({
+      orgId: 'org-1',
+      studentId: 'student-1',
+      recordedBy: 'user-1',
+      events: [
+        {
+          id: 'event-1',
+          event_date: '2026-04-02',
+          sessions: { class_id: 'class-1', status: 'cancelled' },
+        },
+      ],
+      enrollments: [
+        { class_id: 'class-1', effective_from: '2026-04-01', effective_to: null },
+      ],
+    });
+
+    expect(rows).toEqual([]);
+  });
+
+  it('skips cancelled sessions returned as an array', () => {
+    const rows = buildLeaveAttendanceUpserts({
+      orgId: 'org-1',
+      studentId: 'student-1',
+      recordedBy: 'user-1',
+      events: [
+        {
+          id: 'event-1',
+          event_date: '2026-04-02',
+          sessions: [{ class_id: 'class-1', status: 'cancelled' }],
+        },
+      ],
+      enrollments: [
+        { class_id: 'class-1', effective_from: '2026-04-01', effective_to: null },
+      ],
+    });
+
+    expect(rows).toEqual([]);
+  });
+
+  it('still marks scheduled sessions', () => {
+    const rows = buildLeaveAttendanceUpserts({
+      orgId: 'org-1',
+      studentId: 'student-1',
+      recordedBy: 'user-1',
+      events: [
+        {
+          id: 'event-1',
+          event_date: '2026-04-02',
+          sessions: { class_id: 'class-1', status: 'scheduled' },
+        },
+      ],
+      enrollments: [
+        { class_id: 'class-1', effective_from: '2026-04-01', effective_to: null },
+      ],
+    });
+
+    expect(rows).toHaveLength(1);
+  });
+
+  // 釘住預設方向：**沒帶 `status` 就照舊寫**。反過來的話，呼叫端漏 `select('status')`
+  // 會讓整批 `on_leave` 靜靜消失而且沒有訊號 —— 比多寫幾筆難發現得多。
+  // 少了這支，下一個人會把那個方向當成漏寫的守衛然後「修好」它。
+  it('writes the record when status is absent — the deliberate fallback direction', () => {
+    const rows = buildLeaveAttendanceUpserts({
+      orgId: 'org-1',
+      studentId: 'student-1',
+      recordedBy: 'user-1',
+      events: [
+        {
+          id: 'event-1',
+          event_date: '2026-04-02',
+          sessions: { class_id: 'class-1' },
+        },
+      ],
+      enrollments: [
+        { class_id: 'class-1', effective_from: '2026-04-01', effective_to: null },
+      ],
+    });
+
+    expect(rows).toHaveLength(1);
+  });
 });
 
 describe('leave audit helpers', () => {
