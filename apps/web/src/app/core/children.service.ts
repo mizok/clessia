@@ -7,7 +7,11 @@ export interface Child {
   id: string;
   name: string;
   grade: string;
-  school: string;
+  /**
+   * 學校名。**`null` = 這個學生沒有指定學校**（`students.school_id` 是 nullable）。
+   * 後端不回 `''` —— 空字串會讓「沒設定」跟「學校叫做空字串」長得一樣。
+   */
+  school: string | null;
 }
 
 export interface ChildrenListResponse {

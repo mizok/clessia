@@ -13,7 +13,12 @@ const ChildSchema = z
     id: DbUuidSchema,
     name: z.string(),
     grade: z.string(),
-    school: z.string(),
+    /**
+     * 學校名。**`null` = 這個學生沒有指定學校**（`students.school_id` 是 nullable）。
+     * 不回 `''` —— 空字串會讓「沒設定」跟「學校叫做空字串」長得一樣，
+     * 而畫面要決定的是「要不要顯示這一行」。
+     */
+    school: z.string().nullable(),
   })
   .openapi('Child');
 
@@ -52,14 +57,46 @@ app.openapi(
     }
 
     const childDb = c.get('childDb');
-    const { data, error } = await childDb.from('students', 'id').select('id, name, grade, school');
+    // ⚠️ **不能 select 裸 `school`** —— 那個欄位在
+    // `20260421000003_seed_schools_from_students.sql:37` 就被 `DROP COLUMN` 了，
+    // 取代它的是 `school_id` FK。這支端點一直沒跟著改，所以**對每一個家長、
+    // 每一次呼叫都回 500**（`42703: column students.school does not exist`）。
+    //
+    // 它活到今天是因為兩個缺陷互相遮蔽：欄位被砍掉沒人改，而 seed 裡
+    // `parent` 角色是 0 所以沒有人打得開家長端的任何一頁。
+    // 見 issue #528。
+    const { data, error } = await childDb
+      .from('students', 'id')
+      .select('id, name, grade, schools(name)');
 
     if (error) {
       console.error('[me/children] 查詢孩子清單失敗:', error);
       return c.json({ error: '讀取孩子清單失敗', code: 'FETCH_CHILDREN_FAILED' }, 500);
     }
 
-    return c.json({ data: (data ?? []) as unknown as z.infer<typeof ChildSchema>[] }, 200);
+    const rows = (data ?? []) as unknown as Array<{
+      id: string;
+      name: string;
+      grade: string;
+      // PostgREST 的巢狀關聯可能回物件也可能回陣列
+      schools?: { name?: string | null } | Array<{ name?: string | null }> | null;
+    }>;
+
+    return c.json(
+      {
+        data: rows.map((row) => {
+          const school = Array.isArray(row.schools) ? row.schools[0] : row.schools;
+
+          return {
+            id: row.id,
+            name: row.name,
+            grade: row.grade,
+            school: school?.name ?? null,
+          };
+        }),
+      },
+      200,
+    );
   },
 );
 
