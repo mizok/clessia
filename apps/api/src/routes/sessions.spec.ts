@@ -8,6 +8,7 @@ import {
   buildSessionCreationHistory,
   buildSingleSessionChangeInsert,
   mapSessionChange,
+  mapSessionMakeup,
   normalizeRelationRow,
   SESSION_CHANGES_SELECT,
 } from './sessions';
@@ -331,7 +332,11 @@ describe('PATCH /api/sessions/:id/makeup —— 非原子寫入的順序與補�
     async function patch(body: unknown) {
       return app.request(
         `/api/sessions/${SESSION_ID}/makeup`,
-        { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) },
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        },
         undefined,
         { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
       );
@@ -376,5 +381,65 @@ describe('PATCH /api/sessions/:id/makeup —— 非原子寫入的順序與補�
     expect(calls.find((c) => c.table === 'sessions')?.payload).toEqual({
       makeup_for_session_id: null,
     });
+  });
+});
+
+describe('mapSessionMakeup（#499 讀取面的兩個方向）', () => {
+  it('正向：這堂補的是哪一堂 —— PostgREST 回物件', () => {
+    const result = mapSessionMakeup({
+      makeup_for: { id: 's-cancelled', session_date: '2026-04-01', status: 'cancelled' },
+      made_up_by: [],
+    });
+
+    expect(result.makeupFor).toEqual({
+      id: 's-cancelled',
+      sessionDate: '2026-04-01',
+      status: 'cancelled',
+    });
+    expect(result.madeUpBy).toBeNull();
+  });
+
+  it('反向：這堂停課被誰補了 —— PostgREST 回陣列', () => {
+    const result = mapSessionMakeup({
+      makeup_for: null,
+      made_up_by: [{ id: 's-makeup', session_date: '2026-04-08', status: 'scheduled' }],
+    });
+
+    expect(result.madeUpBy).toEqual({
+      id: 's-makeup',
+      sessionDate: '2026-04-08',
+      status: 'scheduled',
+    });
+  });
+
+  // 反向的陣列**含停掉的補課** —— 排除條件必須跟部分唯一索引的述詞逐字一致
+  // （`WHERE makeup_for_session_id IS NOT NULL AND status <> 'cancelled'`），
+  // 不一致的話「有幾堂補課」與「有幾堂**有效的**補課」會給出不同答案。
+  it('反向：停掉的補課不算 —— 補了又停掉等於沒補', () => {
+    const result = mapSessionMakeup({
+      makeup_for: null,
+      made_up_by: [{ id: 's-dead', session_date: '2026-04-08', status: 'cancelled' }],
+    });
+
+    expect(result.madeUpBy).toBeNull();
+  });
+
+  it('反向：停掉的與有效的並存時，只回有效的那一堂', () => {
+    const result = mapSessionMakeup({
+      makeup_for: null,
+      made_up_by: [
+        { id: 's-dead', session_date: '2026-04-08', status: 'cancelled' },
+        { id: 's-live', session_date: '2026-04-15', status: 'scheduled' },
+      ],
+    });
+
+    expect(result.madeUpBy?.id).toBe('s-live');
+  });
+
+  it('兩個方向都沒有時回 null，不回 undefined', () => {
+    const result = mapSessionMakeup({});
+
+    expect(result.makeupFor).toBeNull();
+    expect(result.madeUpBy).toBeNull();
   });
 });
