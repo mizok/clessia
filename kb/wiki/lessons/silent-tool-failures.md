@@ -118,6 +118,10 @@ updated: 2026-09-06
 
 ## See Also
 
+- [[lessons/local-manual-verification]] —— 要用真畫面驗證之前會撞到的幾道門
+  （沒有密碼登入、seed 沒有 parent 角色、瀏覽器 session 會搶佔）。
+  **它的第六節就是這一族**：拿一個本週沒課的老師去掃，會得到一個乾淨的空結果
+
 - [[lessons/broken-looks-identical-to-normal]] —— 母族：失敗不產生訊號。
   這一頁是它的「失敗的是工具」那一支
 - [[lessons/merged-does-not-mean-main]] ——「MERGED 只說明它合進了某個東西」，
