@@ -170,17 +170,17 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
       .filter(Boolean);
     if (wanted.length === 0) return rows;
     return rows.map(
-      (row) =>
-        Object.fromEntries(
-          Object.entries(row).filter(([key]) => wanted.includes(key)),
-        ) as T,
+      (row) => Object.fromEntries(Object.entries(row).filter(([key]) => wanted.includes(key))) as T,
     );
   }
 
-  function createListApp(fixture: Fixture) {
+  function createListApp(fixture: Fixture, campusScope: readonly string[] | null = null) {
     // 主查詢最後下的 `.in('id', ...)` 就是「哪幾場被判成待登錄」——
     // 直接釘住它，比斷言回傳筆數有鑑別力（筆數在對錯兩種實作下可以一樣）
     let todoIdFilter: string[] | null = null;
+    // 分校範圍靠 `.in('campus_id', …)` 下到查詢上，而這個替身回的是固定 fixture ——
+    // 「有下」與「沒下」在回傳值上完全一樣，所以記下送出去的查詢長什麼樣
+    const inCalls: Array<{ table: string; column: string; values: string[] }> = [];
 
     const supabase = {
       from(table: string) {
@@ -198,6 +198,7 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
           order: () => query,
           range: () => query,
           in: (column: string, values: string[]) => {
+            inCalls.push({ table, column, values: [...values] });
             if (table === 'academy_exams' && column === 'id') todoIdFilter = values;
             return query;
           },
@@ -259,22 +260,23 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       context.set('roles', ['admin']);
-      context.set('campusScope', null);
+      context.set('campusScope', campusScope);
       await next();
     });
     app.route('/api/academy-exams', academyExamsApp);
 
     async function list(queryString: string) {
-      const response = await app.request(
-        `/api/academy-exams?${queryString}`,
-        {},
-        undefined,
-        { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
-      );
-      return { response, body: (await response.json()) as { data: Array<Record<string, unknown>> } };
+      const response = await app.request(`/api/academy-exams?${queryString}`, {}, undefined, {
+        waitUntil: () => undefined,
+        passThroughOnException: () => undefined,
+      } as never);
+      return {
+        response,
+        body: (await response.json()) as { data: Array<Record<string, unknown>> },
+      };
     }
 
-    return { list, todoIds: () => todoIdFilter };
+    return { list, todoIds: () => todoIdFilter, inCalls };
   }
 
   // 三場都在 4/10：登完的、登到一半的、一筆都沒有的
@@ -346,7 +348,12 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
       activeExams: [{ id: 'exam-apr', exam_date: '2026-04-10' }],
       examClasses: [{ exam_id: 'exam-apr', class_id: 'c1' }],
       enrollments: [
-        { class_id: 'c1', student_id: 'joined-later', effective_from: '2026-06-01', effective_to: null },
+        {
+          class_id: 'c1',
+          student_id: 'joined-later',
+          effective_from: '2026-06-01',
+          effective_to: null,
+        },
       ],
       scores: [],
     });
@@ -376,5 +383,36 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
     expect(byId.get('exam-done')).toMatchObject({ scoreCount: 2, expectedCount: 2 });
     expect(byId.get('exam-partial')).toMatchObject({ scoreCount: 1, expectedCount: 2 });
     expect(byId.get('exam-empty')).toMatchObject({ scoreCount: 0, expectedCount: 2 });
+  });
+
+  /**
+   * 分校範圍有沒有下到查詢上（#515 下半，第三批）。
+   *
+   * `academy-exams.ts:581` 用 `applyCampusFilter(query, 'campus_id', …)`。
+   * **只能斷言查詢形狀**：這個替身回的是固定 fixture，條件下對下錯回一樣的東西。
+   *
+   * 它原本就記錄 `.in()`，但**只對 `academy_exams.id`**（那是「哪幾場待登錄」的
+   * 判定，見 `createListApp` 檔頭）—— `campus_id` 完全沒被看過。
+   */
+  describe('分校範圍要下到查詢上', () => {
+    it('受限管理員的考試列表帶著他的分校清單', async () => {
+      const app = createListApp(BASE, ['campus-1']);
+
+      await app.list('todo=true');
+
+      const campusFilters = app.inCalls.filter((call) => call.column === 'campus_id');
+      expect(campusFilters.length).toBeGreaterThan(0);
+      for (const call of campusFilters) {
+        expect(call.values).toEqual(['campus-1']);
+      }
+    });
+
+    it('不受分校限制時不下這個條件（確認上一條不是無腦通過）', async () => {
+      const app = createListApp(BASE, null);
+
+      await app.list('todo=true');
+
+      expect(app.inCalls.some((call) => call.column === 'campus_id')).toBe(false);
+    });
   });
 });
