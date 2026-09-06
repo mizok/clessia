@@ -99,10 +99,32 @@ async function summariseEnrollment(
   );
 
   // 這個班的所有 session 對應的 event —— 出勤記錄要靠它濾班
+  //
+  // **停課的課堂不算**（使用者 2026-09-06 裁定 2(b)，issue #485）。
+  //
+  // 使用者裁的原話是「**看有沒有補課 —— 補了才扣，沒補不扣**」。而計畫席查證後
+  // 回報了一個限制：**這個系統裡沒有「補課」這個概念** —— `schedule_changes` 的
+  // `change_type` 只有 `reschedule` / `substitute` / `cancellation` / `uncancel` /
+  // `time_change`。課要嘛被**改期**（`reschedule`，課本身沒停，在新日期正常上、
+  // 正常扣），要嘛被**停課**（`cancellation`，沒有任何東西接續它）。
+  // **不存在「停課 A 之後補了 B、兩者相連」這種資料。**
+  //
+  // 所以這條裁示在現行模型下的實際行為等於「不扣」——**不是因為規則是不扣，
+  // 是因為「補了」這個狀態現在無法成立**。
+  //
+  // ⚠️ **將來新增補課功能時，這裡要跟著改，而不是重新討論規則。**
+  // 規則已經裁定過了（補了才扣），改的是「怎麼判斷補了」。
+  //
+  // 為什麼這一道守在扣課側而不是只靠掃碼側（#498）：停課只改 `sessions.status`，
+  // 那筆 event 與它上面**已經存在的** `attendance_records` 都留著。掃碼側的過濾
+  // 只擋得住之後新寫的，**擋不住老師在停課之前就點好的名**，也擋不住請假連動寫下
+  // 的 `on_leave`（`routes/leaves.ts` 走另一條路）。這一道是「不論那筆紀錄從哪裡
+  // 來」的最後一關 —— 它守的是金額。
   const { data: sessionRows } = await supabase
     .from('sessions')
     .select('event_id')
     .eq('class_id', enrollment['class_id'])
+    .neq('status', 'cancelled')
     .not('event_id', 'is', null);
 
   const eventIds = (sessionRows ?? [])
