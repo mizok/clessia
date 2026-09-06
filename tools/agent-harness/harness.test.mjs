@@ -624,6 +624,45 @@ test('doc-router：工單型 prompt 才注入「先查它做掉沒」', () => {
   assert.ok(!fired('把 migration 的欄位加上 index'));
 });
 
+/**
+ * doc-router 指向 silent-tool-failures（2026-09-06）。
+ *
+ * 那一頁的讀取時機是「**卡住的當下**」，不是「讀文件的時候」——
+ * 我 grep 回零筆、我預期會紅的沒紅、我的檢查沒觸發。
+ * 沒有人會在那個當下想到去翻一份 lessons 頁，所以它的載體只能是 hook。
+ *
+ * ## 觸發字是重新設計的，提議版兩個方向都不準
+ *
+ * 原提議是 `零命中／回空／找不到／沒有紅／沒撈到／grep`。實測（用今天真的出現過的句子）：
+ *
+ * - **裸 `grep` 會誤報**：「我 grep 過全 repo，只有那一處」是**成功的搜尋**，不是卡住
+ * - **`沒有紅` 抓不到「沒紅」**，而那正是 BSD sed 陷阱沒塞進去那次的原話
+ * - 「`gh run list` 查 conclusion 得到 0」也漏掉，而那是 rerun 覆寫結論那次
+ *
+ * 收窄成「**預期落空**」那一族（零命中／回空／查不到／沒紅／沒觸發／得到 0…），
+ * 拿掉裸 `grep` —— 判準是**結果為空或與預期相反**，不是「有沒有在搜尋」。
+ *
+ * ## MAX_HINTS 不是這裡的約束
+ *
+ * `MAX_HINTS = 8`，而實測十個真實句子最多只累積到 **5 行**。多這一條不會擠掉既有提示。
+ */
+test('doc-router：預期落空時才指向 silent-tool-failures', () => {
+  const fired = (prompt) =>
+    routeHints(prompt, routerRules.rules).some((h) => h.includes('silent-tool-failures'));
+
+  // 該觸發：查了、而結果是空的或與預期相反
+  assert.ok(fired('掃描回空 —— 先懷疑 pattern'));
+  assert.ok(fired('我預期會紅的沒紅，陷阱可能沒塞進去'));
+  assert.ok(fired('gh run list 查 conclusion 會得到 0'));
+  assert.ok(fired('那個 class 全庫找不到定義'));
+
+  // **反例**：搜尋成功、或根本不是在查東西
+  assert.ok(!fired('我 grep 過全 repo，只有那一處'), '成功的搜尋不是卡住');
+  assert.ok(!fired('幫我把 component 的 scss 改成 BEM'));
+  assert.ok(!fired('這支 PR 為什麼紅了'));
+  assert.ok(!fired('磁碟滿了清一下 docker cache'));
+});
+
 test('c7 擋舊版結構指令', () => {
   assert.deepEqual(guard('a.component.html', '<div *ngIf="x">'), ['c7']);
   assert.deepEqual(guard('a.component.html', '@if (x) { <div></div> }'), []);
