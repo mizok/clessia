@@ -548,6 +548,70 @@ gh pr list -R <repo> --state open --json number,baseRefName \
 那批要驗證的 PR 會白做。這是「PR 綠不蘊含 main 綠」的鄰居,方向相反:
 前者是「零件對不代表整體對」,這條是「**我機器上對不代表 CI 上對**」。
 
+### `gh pr update-branch` 回「conflicts」時,先查 `state` —— 已合併的 PR 也是這句話
+2026-09-06 上任首掃,我對四支 PR 跑 `gh pr update-branch`,四支都回:
+
+```
+X Cannot update PR branch due to conflicts
+```
+
+拿 raw API 問,GitHub 自己也這樣講:`{"message":"merge conflict between base and head","status":"422"}`。
+**而本地 `git merge-tree --write-tree <main> <head>` 四支全部 rc=0(乾淨可合)。**
+
+真相是那四支在我掃板之後、下指令之前**已經被別人合掉了**(#453/#444/#443 於 02:19–02:20Z,
+#455/#454 於 02:22Z)。對照組:#458 當時 OPEN、`mergeable` 是 `UNKNOWN`、落後 main 4 筆,
+同一支 raw API 回 `{"message":"Updating pull request branch."}` —— **成功**。
+
+| 假設 | 被什麼推翻 |
+| --- | --- |
+| 真的有衝突 | 本地 merge-tree rc=0;#455 後來就是用**同一顆 head** `fff06e46` 合進 main 的 |
+| `allow_update_branch: false`(repo 設定關著)擋的 | #458 在同一個設定下成功 |
+| `mergeable` 還沒算完才 422 | #458 的 `mergeable` 也是 `UNKNOWN`,一樣成功 |
+| **PR 已經 MERGED** | 四中四失敗、一個 OPEN 對照組成功 |
+
+**這是 charter「判 PR 有沒有處理完一律查 `state`」的新一件衣服** ——
+上一次它穿的是 `mergeStateStatus: UNKNOWN`,這次穿的是一句**指名了錯誤成因的錯誤訊息**。
+`UNKNOWN` 至少是「不知道」,這句話是**言之鑿鑿的錯答案**,而且它會把你派去查衝突
+(我就去做了本地 merge-tree、查 repo 的 merge 設定,兩條都是死路)。
+
+操作規則:**`update-branch` 失敗的第一個動作是 `gh pr view <n> --json state`,不是去查衝突。**
+真要判有沒有衝突,用本地 `git merge-tree --write-tree <釘住的 main SHA> <head>` ——
+它不會替你猜成因。
+
+### 同 repo 的其他 worktree 會替你 `fetch`,`origin/main` 自己就會前進
+worktree 共用 `.git` 的 refs。別席在他的 worktree 跑 `git fetch`,**我這邊的 `origin/main`
+就跟著跳** —— 我沒下任何指令。今天實測:同一輪對話裡 `origin/main` 從 `394571f9` →
+`c97a5cd3` → `edaf1439` → `30e4e417`,四個值,我只 fetch 過一次。
+
+後果是**寫著 `origin/main` 的比較,在兩行指令之間會換基準**:
+```bash
+git merge-tree --write-tree origin/main "$oid"     # ← 這行的 origin/main 可能不是上一行的
+```
+而它跟殘留值那條剛好相反:`FETCH_HEAD` 是**停在舊值**,`origin/main` 是**自己往前跑**。
+兩者的共同點是**你以為它只在你動它的時候動**。
+
+修法:一輪比較開頭把 SHA 釘死,全程用那個變數。
+```bash
+MAIN=$(gh api repos/mizok/clessia/git/ref/heads/main -q .object.sha)   # 也順便繞過本地 ref 的時差
+```
+
+### 掃板結果的保鮮期以分鐘計 —— 篩選要跟合併貼在一起
+今天首掃列出七支,我對其中三支做完整篩選(CI、留言、檔案清單、diffstat、逐行看 diff、
+落後幾筆),**做完之後那三支全部已經被合掉了**。接著篩的兩支,篩完也合掉了。
+一輪分析下來,我對五支 PR 的完整篩選**全部作廢**,而它們沒有一支是我收的。
+
+沒有造成損害(篩選是唯讀的),但**那是三十分鐘的空轉**,而且危險的版本存在:
+若我當時照著那份篩選結果去下 `gh pr merge`,`steward-merge.sh` 會擋住(它每一步重問),
+**手動合則不會**。
+
+charter 早就寫過「腳本不記得剛才,每次都重問」—— 那句話當時的理由是**前一支合併會作廢
+下一支的 mergeable**。今天補上第二個理由:**別人也在收**。前者的空窗以秒計,
+後者以分鐘計,而**後者會讓你連篩都白篩**。
+
+操作規則:**批次收板時,篩一支收一支,不要先篩完一批再合。**
+真要先掃一輪決定順序,那份表就照 charter「匯總表是用來排序的」那條處理 ——
+它決定先看哪幾支,不決定哪幾支還在。
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
