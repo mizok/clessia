@@ -1,9 +1,8 @@
-import { getCampusScope } from '../lib/campus-scope';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { aggregateRevenue, type RevenueInvoice, type RevenuePayment } from '../lib/revenue-report';
 import { toCsv, type CsvValue } from '../lib/csv';
-import type { CampusScope } from '../lib/campus-scope';
+import { type CampusScope, getCampusScope } from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 

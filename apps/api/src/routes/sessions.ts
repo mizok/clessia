@@ -1,4 +1,3 @@
-import { getCampusScope } from '../lib/campus-scope';
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
@@ -16,6 +15,7 @@ import { planBatchUpdateTime } from '../domain/session-assignment/batch-update-t
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { hasSessionEndedByNow } from '../lib/session-end-time';
 import { sliceDerivedPage } from '../lib/derived-page';
+import { getCampusScope } from '../lib/campus-scope';
 import {
   applyAttendanceTakenFilter,
   ensureAttendanceSessionEvents,
