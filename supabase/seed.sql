@@ -439,6 +439,16 @@ BEGIN
 
     -- 不再插入密碼憑證（見檔案上方說明）。要登入就用 npm run login-link。
 
+-- **家長角色** —— 沒有這一行，roleGuard('parent') 會擋掉所有 /parent/**，
+    -- 於是家長端在本機**連一次都打不開**（2026-09-06 #518：user_roles 的分佈
+    -- 是 teacher 88 / admin 12 / parent 0，而 parents 表有 15 筆、關聯也齊）。
+    -- 寫法照 admin / teacher 的既有先例：user_roles 是業務表不是 ba_*，
+    -- 直寫不違反 c2；AGENTS.md 的 admin.createUser() 講的是**建使用者**，
+    -- 這裡是替既有使用者補角色。
+    INSERT INTO public.user_roles (user_id, role, permissions)
+    VALUES (v_parent_user_id, 'parent', '[]'::jsonb)
+    ON CONFLICT (user_id, role) DO NOTHING;
+
     -- 建立家長資料
     INSERT INTO public.parents (org_id, user_id, name, status)
     VALUES (
@@ -595,6 +605,16 @@ BEGIN
       email = EXCLUDED.email,
       "orgId" = EXCLUDED."orgId",
       "updatedAt" = NOW();
+
+-- **家長角色** —— 沒有這一行，roleGuard('parent') 會擋掉所有 /parent/**，
+    -- 於是家長端在本機**連一次都打不開**（2026-09-06 #518：user_roles 的分佈
+    -- 是 teacher 88 / admin 12 / parent 0，而 parents 表有 15 筆、關聯也齊）。
+    -- 寫法照 admin / teacher 的既有先例：user_roles 是業務表不是 ba_*，
+    -- 直寫不違反 c2；AGENTS.md 的 admin.createUser() 講的是**建使用者**，
+    -- 這裡是替既有使用者補角色。
+    INSERT INTO public.user_roles (user_id, role, permissions)
+    VALUES (v_parent_user_id, 'parent', '[]'::jsonb)
+    ON CONFLICT (user_id, role) DO NOTHING;
 
     -- `parents` 沒有唯一鍵，只能自己比 user_id
     SELECT id INTO v_parent_id FROM public.parents WHERE user_id = v_parent_user_id;
@@ -1482,4 +1502,41 @@ BEGIN
   END IF;
 
   RAISE NOTICE 'Contact book / class log seed data inserted successfully';
+END $$;
+
+-- ===== 家長端本機驗證用：把家長也掛到「有資料」的學生上 =====
+-- 2026-09-06 #518。補完 parent 角色之後發現**頁面仍然是空的**：
+-- seed 造出兩群**不相交**的學生 —— 27 個學生裡 12 個有報名，15 個掛了家長，
+-- 而交集是 **0**。家長端的三頁（出缺席／成績／繳費）全部讀不到東西。
+--
+-- 那正是 kb/wiki/lessons/local-manual-verification.md 第六節警告的形狀：
+-- **空的畫面驗不到東西，而空的原因可能只是這個帳號沒資料**。
+-- 補角色是必要條件不是充分條件。
+--
+-- 這裡不動既有的兩群，改用加法：讓前幾個家長**額外**成為有報名學生的家長。
+-- 現實上一個家長本來就可能有多個孩子，所以這不是為了測試而扭曲資料。
+DO $$
+DECLARE
+  v_parent RECORD;
+  v_student_id UUID;
+  v_i INT := 0;
+BEGIN
+  FOR v_parent IN
+    SELECT p.id FROM public.parents p
+    JOIN public.user_roles ur ON ur.user_id = p.user_id AND ur.role = 'parent'
+    ORDER BY p.id LIMIT 3
+  LOOP
+    v_i := v_i + 1;
+    SELECT e.student_id INTO v_student_id
+    FROM public.enrollments e
+    GROUP BY e.student_id
+    ORDER BY count(*) DESC, e.student_id
+    OFFSET (v_i - 1) LIMIT 1;
+
+    IF v_student_id IS NOT NULL THEN
+      INSERT INTO public.parent_student_relations (parent_id, student_id, relation, is_primary)
+      VALUES (v_parent.id, v_student_id, 'parent', FALSE)
+      ON CONFLICT (parent_id, student_id) DO NOTHING;
+    END IF;
+  END LOOP;
 END $$;
