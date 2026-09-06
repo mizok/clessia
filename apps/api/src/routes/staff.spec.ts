@@ -1,3 +1,4 @@
+import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
 import * as staffRoute from './staff';
@@ -59,5 +60,82 @@ describe('buildStaffSummary', () => {
       inactiveCount: 1,
       archivedCount: 1,
     });
+  });
+});
+
+/**
+ * 人員清單的分校範圍（#515 下半）。
+ *
+ * `staff.ts:527-531` 的註解：**「只管 A 校的主任不該看得到 B 校的員工名單與
+ * 聯絡方式」** —— 那是這一支比其他列表更敏感的原因（洩漏的是同事的個資，
+ * 不是課表）。而 `staff.spec.ts` 在此之前**只有純函式測試**。
+ *
+ * 這裡只能斷言查詢形狀：替身回的是固定資料，條件下對下錯回一樣的東西。
+ */
+describe('GET /api/staff —— 分校範圍要下到 staff_campuses 的查詢上', () => {
+  function fakeSupabase() {
+    const inCalls: Array<{ table: string; column: string; values: string[] }> = [];
+
+    const make = (table: string) => {
+      const builder: Record<string, unknown> = {};
+      const chain = () => builder as never;
+      Object.assign(builder, {
+        select: () => chain(),
+        eq: () => chain(),
+        or: () => chain(),
+        ilike: () => chain(),
+        order: () => chain(),
+        range: () => chain(),
+        limit: () => chain(),
+        maybeSingle: () => Promise.resolve({ data: null, error: null }),
+        in: (column: string, values: readonly string[]) => {
+          inCalls.push({ table, column, values: [...values] });
+          return chain();
+        },
+        then: (resolve: (value: { data: unknown[]; count: number; error: null }) => unknown) =>
+          resolve({ data: [], count: 0, error: null }),
+      });
+
+      return builder;
+    };
+
+    return { inCalls, from: (table: string) => make(table) };
+  }
+
+  async function list(campusScope: readonly string[] | null) {
+    const supabase = fakeSupabase();
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', supabase);
+      set('orgId', '00000000-0000-0000-0000-0000000000aa');
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', campusScope);
+      await next();
+    });
+    app.route('/', staffRoute.default as unknown as Hono);
+
+    const res = await app.request('/');
+    expect(res.status).toBe(200);
+
+    return supabase.inCalls;
+  }
+
+  it('受限管理員：用他的分校去撈 staff_campuses', async () => {
+    const inCalls = await list(['campus-1']);
+
+    expect(inCalls).toContainEqual({
+      table: 'staff_campuses',
+      column: 'campus_id',
+      values: ['campus-1'],
+    });
+  });
+
+  it('不受分校限制時不下這個條件（確認上一條不是無腦通過）', async () => {
+    const inCalls = await list(null);
+
+    expect(inCalls.some((call) => call.table === 'staff_campuses')).toBe(false);
   });
 });
