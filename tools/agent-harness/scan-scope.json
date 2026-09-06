@@ -7,6 +7,10 @@
     "roots": ["apps/api/src/routes", "apps/web/src/app/core"],
     "exts": [".service.ts", ".ts"]
   },
+  "band-contrast": {
+    "roots": ["apps/web/src"],
+    "exts": [".scss"]
+  },
   "c2": {
     "roots": ["apps/api/src", "supabase"],
     "exts": [".sql", ".ts"]

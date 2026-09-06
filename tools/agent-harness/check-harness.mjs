@@ -1252,6 +1252,16 @@ scanGhostTokens();
 function checkBandContrast() {
   const file = join(ROOT, 'apps/web/src/styles.scss');
   if (!existsSync(file)) return;
+
+  // **12 道 gate 裡唯一沒有登記範圍的一道**（2026-09-06 的載體複查抓到）。
+  // 它只讀一個檔，所以不會像走目錄的 gate 那樣「靜靜少掃一片」——
+  // 但**路徑被改掉或加了提早 return 一樣沒有訊號**，而那正是 scan-scope 要防的。
+  //
+  // 能力邊界：它讀的是 styles.scss 裡的**全域 token 定義**。
+  // 元件若自己重新定義 `--accent-vivid` 之類，會在該元件底下遮蔽全域值，
+  // 而這道 gate 看不到。**2026-09-06 查過：那四個 token 目前只在 styles.scss 定義**，
+  // 所以單檔範圍今天是對的 —— 但它是「現況」不是「保證」。
+  recordScope('band-contrast', { roots: ['apps/web/src'], exts: ['.scss'] });
   for (const violation of bandContrastViolations(readFileSync(file, 'utf8'))) fail(violation);
 }
 
