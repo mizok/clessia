@@ -353,13 +353,18 @@ describe('SessionsPage', () => {
   // 顯示預設的整月資料。用 TestBed.resetTestingModule 重建一次是因為
   // ActivatedRoute 的 query params 只在元件建立那一刻讀一次（`ngOnInit`），
   // 頂層 `beforeEach` 已經用空的 `routeQueryParams` 建過元件了
-  it('帶著儀表板的 queryParams 進來時，套用日期區間、attendanceTaken 與 endedOnly 篩選', async () => {
+  it('帶著儀表板的 queryParams 進來時，套用日期區間、attendanceTaken、endedOnly 與 statuses 篩選', async () => {
     TestBed.resetTestingModule();
     routeQueryParams = {
       dateFrom: '2026-04-01',
       dateTo: '2026-04-15',
       attendanceTaken: 'false',
       endedOnly: 'true',
+      // **刻意不是 `DEFAULT_STATUSES`（#456）。** 送 `scheduled,completed` 的話，
+      // 就算這頁完全不讀這個參數、只是退回自己的預設值，這條也照樣綠——
+      // 那正是這支 issue 要修的病：兩份獨立的預設值剛好相等，
+      // **分歧的樣子跟正常的樣子一模一樣**。用一組不同的值才有辨識力
+      statuses: 'scheduled',
     };
     sessionsServiceMock.list.mockClear();
 
@@ -400,6 +405,7 @@ describe('SessionsPage', () => {
       listDateRange: () => Date[];
       attendanceTakenFilter: () => boolean | undefined;
       endedOnlyFilter: () => boolean;
+      selectedStatuses: () => string[];
       onStatusesChange: (statuses: string[] | null) => void;
     };
 
@@ -407,6 +413,8 @@ describe('SessionsPage', () => {
     expect(localComponent.listDateRange()[1]).toEqual(parseISO('2026-04-15'));
     expect(localComponent.attendanceTakenFilter()).toBe(false);
     expect(localComponent.endedOnlyFilter()).toBe(true);
+    // 下面 `onStatusesChange(null)` 會把它清成 []，所以這條必須在那之前
+    expect(localComponent.selectedStatuses()).toEqual(['scheduled']);
 
     // 落地頁真的把這個篩選送進 API 請求，不是只停在畫面狀態上沒送出去——
     // `firstCampus$`（ngOnInit 自然觸發 loadSessions 的路徑）在這個測試檔的

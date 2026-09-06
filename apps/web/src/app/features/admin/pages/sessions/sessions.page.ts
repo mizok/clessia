@@ -660,6 +660,9 @@ export class SessionsPage implements OnInit {
     this.listDateRangeModified.set(true);
     this.attendanceTakenFilter.set(incoming.attendanceTaken);
     this.endedOnlyFilter.set(incoming.endedOnly);
+    // 來源頁明著指定了課堂狀態就照它的，沒帶才留著本頁的 `DEFAULT_STATUSES`（#456）——
+    // 兩份剛好相等的預設值會靜靜分歧，而「卡片 15、點進去 12」兩個數字都看起來合理
+    if (incoming.statuses) this.selectedStatuses.set([...incoming.statuses]);
   }
 
   protected clearFilters(): void {

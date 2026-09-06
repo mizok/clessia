@@ -478,6 +478,8 @@ export class DashboardComponent {
           dateTo: query.dateTo,
           attendanceTaken: String(query.attendanceTaken),
           endedOnly: String(query.endedOnly),
+          // 明著帶過去，落地頁才不會退回它自己的 `DEFAULT_STATUSES`（#456）
+          statuses: query.statuses.join(','),
         },
         accent: true,
       });
