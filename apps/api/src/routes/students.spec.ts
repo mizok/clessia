@@ -199,13 +199,20 @@ describe('GET /api/students —— 退班報名仍算分校歸屬，但不算在
   }
 
   /** 只實作這支 handler 用到的鏈：select/eq/order/range 各自回自己，await 時給資料 */
+  const inCalls: Array<{ column: string; values: string[] }> = [];
+
   function fakeSupabase(rows: ReturnType<typeof studentRow>[]) {
     const builder: Record<string, unknown> = {};
     const chain = () => builder as never;
     Object.assign(builder, {
       select: () => chain(),
       eq: () => chain(),
-      in: () => chain(),
+      // 記錄欄位與值：分校範圍靠這條下到查詢上，而替身回的是固定 fixture，
+      // 「有下」與「沒下」在回傳值上完全一樣（charter：改測送出去的查詢長什麼樣）
+      in: (column: string, values: readonly string[]) => {
+        inCalls.push({ column, values: [...values] });
+        return chain();
+      },
       or: () => chain(),
       order: () => chain(),
       range: () => chain(),
@@ -217,7 +224,7 @@ describe('GET /api/students —— 退班報名仍算分校歸屬，但不算在
     return { from: () => builder };
   }
 
-  async function listStudents() {
+  async function listStudents(campusScope: readonly string[] | null = null) {
     const client = fakeSupabase([studentRow()]);
     const app = new Hono();
     app.use('*', async (c, next) => {
@@ -228,7 +235,7 @@ describe('GET /api/students —— 退班報名仍算分校歸屬，但不算在
       set('userId', 'user-1');
       // admin —— 讓 resolveStudentScope 回不縮限的範圍，這組測的是 campusNames 不是授權
       set('roles', ['admin']);
-      set('campusScope', null);
+      set('campusScope', campusScope);
       await next();
     });
     app.route('/', studentsRoute.default as unknown as Hono);
@@ -262,5 +269,27 @@ describe('GET /api/students —— 退班報名仍算分校歸屬，但不算在
     const student = await listStudents();
 
     expect(student.hasEnrollments).toBe(true);
+  });
+
+  /**
+   * 分校範圍有沒有下到查詢上（#515 下半）。
+   *
+   * 學生的分校歸屬來自 `enrollments → classes.campus_id`，所以受限管理員的列表要先
+   * 用那條關聯撈出「這些分校的學生 id」再取交集（`students.ts:334-352`）。
+   * **這裡斷言的是那支查詢的形狀** —— 替身回的是固定 fixture，條件下對下錯回一樣的東西。
+   */
+  describe('GET /api/students —— 受限管理員的分校範圍要下到查詢上', () => {
+    it('帶著他管的分校去撈 enrollments，欄位是 classes.campus_id', async () => {
+      await listStudents(['campus-1']);
+
+      expect(inCalls).toContainEqual({ column: 'classes.campus_id', values: ['campus-1'] });
+    });
+
+    it('不受分校限制時不下這個條件（確認上一條不是無腦通過）', async () => {
+      inCalls.length = 0;
+      await listStudents(null);
+
+      expect(inCalls.some((call) => call.column === 'classes.campus_id')).toBe(false);
+    });
   });
 });
