@@ -651,6 +651,30 @@ grep 只能告訴你「這裡有一段日期運算」，告訴不了你「這三
 > **判準：undo 與 apply 的守門條件不一樣時，「先全撤再全套」對中間沒變的部分也有副作用。**
 > 這一族的通則是：**冪等性要自己證，不能從「兩個操作互為反向」推出來。**
 
+### 要知道 gate 怎麼判，**`import` 它跑一遍，不要讀它的原始碼推論**
+
+驗 harness 的判定時，我原本在讀 `api-param-coverage.mjs` 的 `servicePrefixes` 正則，
+推論它為什麼會漏認領某支 service。**跑完發現它根本沒漏。**
+
+`tools/agent-harness/lib/*.mjs` 的函式全部是 export 的純函式，而且
+**`collectApiParams` 是純靜態的** —— 它用 `getOpenAPIDocument()`（`@hono/zod-openapi`
+的 public API）現場產生文件，**不用起 server、不用起 DB、不用 npm run harness**：
+
+```js
+import { collectApiParams, loadServices, findOrphanEndpoints, findMissing }
+  from '<repo>/tools/agent-harness/lib/api-param-coverage.mjs';
+const apiParams = collectApiParams(ROOT);
+const services = loadServices(ROOT);
+console.log(findOrphanEndpoints(apiParams, services), findMissing(apiParams, services));
+```
+
+這把「驗證 gate 的判定」從一件麻煩事變成一行 import。**它是「工具靜默地不做你以為
+它在做的事」那一族的反面解法**：那一族的每一件都是「我以為工具在做 X」，
+而這裡的做法是**不去猜工具在做什麼，直接讓它自己回答**。
+
+同樣的形狀適用於 harness 的其他 lib（`orphan-class.mjs`、`touch-target.mjs`…）——
+先看那支 lib 的 export，通常你要問的問題已經是一個函式了。
+
 ### 豁免的移除條件要挑「會被撞到」的那個（#461）
 
 README 的「**需要人主動想起來的規則，在輪替面前一定會輸**」（2026-09-06 綜合）
