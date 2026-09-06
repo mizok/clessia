@@ -15,7 +15,11 @@ import { PaginatorModule } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
 
 import { CampusesService, type Campus } from '@core/campuses.service';
-import { SessionsService, type ChangeLogEntry } from '@core/sessions.service';
+import {
+  SessionsService,
+  type ChangeLogEntry,
+  type ScheduleChangeType,
+} from '@core/sessions.service';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
@@ -23,14 +27,38 @@ import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 const PAGE_SIZE = LIST_PAGE_SIZE;
 const MONTHS_BACK = 12;
 
-const CHANGE_TYPE_LABELS: Record<string, string> = {
+/**
+ * `schedule_change_type` 的中文標籤。**這份表的完整性沒有任何東西在守** ——
+ * enum 加了新值而這裡沒跟上時，表格會靠 `?? value` 顯示原始英文字（`makeup`），
+ * 而**它不會拋錯、不會紅燈，列還是會出現**。
+ *
+ * `creation` 不是 enum 值，是後端合成的「建立課堂」那筆。
+ */
+const CHANGE_TYPE_LABELS: Record<ScheduleChangeType, string> = {
   reschedule: '調課',
   substitute: '代課',
   cancellation: '停課',
   uncancel: '恢復上課',
   time_change: '改時間',
+  makeup: '補課',
   creation: '建立課堂',
 };
+
+/**
+ * **有標籤但不給篩的類型。**
+ *
+ * - `creation` —— 後端合成的，不是真的 enum 值，篩不到
+ * - `makeup` —— **後端還不收**：`ChangeLogQuerySchema.changeType`
+ *   （`apps/api/src/routes/sessions.ts`）的 `z.enum` 目前沒有 `makeup`，
+ *   送過去會被 zod 擋成 400。**給一個必然出錯的選項比不給更糟** ——
+ *   使用者會以為「補課這個月沒有」，而真相是那個請求根本沒送到查詢。
+ *
+ * 列表本身不受影響：`ChangeLogEntrySchema.changeType` 是 `z.string()`，
+ * 所以 makeup 的列**撈得回來也顯示得出來**，只是不能單獨篩。
+ *
+ * **等後端把 `makeup` 加進 `ChangeLogQuerySchema` 之後，把它從這裡拿掉。**
+ */
+const UNFILTERABLE_CHANGE_TYPES = new Set(['creation', 'makeup']);
 
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
@@ -79,7 +107,7 @@ export class ChangesComponent {
   protected readonly changeTypeOptions = [
     { label: '全部異動', value: null as string | null },
     ...Object.entries(CHANGE_TYPE_LABELS)
-      .filter(([value]) => value !== 'creation')
+      .filter(([value]) => !UNFILTERABLE_CHANGE_TYPES.has(value))
       .map(([value, label]) => ({ label, value: value as string | null })),
   ];
 
@@ -110,7 +138,13 @@ export class ChangesComponent {
     this.load();
   }
 
-  protected typeLabel(value: string): string {
+  /**
+   * `?? value` 是最後的退路，不是設計 —— 它會顯示原始英文字（`makeup`）。
+   * 現在 `CHANGE_TYPE_LABELS` 綁死 `ScheduleChangeType`，漏標籤會編不過，
+   * 所以正常情況走不到那個 `??`；留著是因為後端的 `changeType` 回的是
+   * `z.string()`，執行期仍可能出現型別沒涵蓋的值（型別是當下的保證，不是永久的）。
+   */
+  protected typeLabel(value: ScheduleChangeType): string {
     return CHANGE_TYPE_LABELS[value] ?? value;
   }
 

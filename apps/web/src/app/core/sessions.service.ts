@@ -71,11 +71,23 @@ export interface SessionQueryParams {
   pageSize?: number;
 }
 
+/**
+ * `schedule_change_type`（DB enum）＋ `creation`（後端合成的「建立課堂」那筆，
+ * 不是 enum 值）。
+ */
+export type ScheduleChangeType =
+  'reschedule' | 'substitute' | 'cancellation' | 'uncancel' | 'time_change' | 'makeup' | 'creation';
+
 export interface ChangeLogEntry {
   id: string;
   sessionId: string;
-  changeType:
-    'reschedule' | 'substitute' | 'cancellation' | 'uncancel' | 'time_change' | 'creation';
+  /**
+   * 對齊 DB 的 `schedule_change_type` enum，外加後端合成的 `creation`。
+   * **加 enum 值時這裡要跟著加** —— `changes.component.ts` 的標籤表用
+   * `Record<ScheduleChangeType, string>` 綁著它，漏了會編不過（那是刻意的：
+   * 漏標籤本身不拋錯，只會在畫面上顯示原始英文字）。
+   */
+  changeType: ScheduleChangeType;
   /** 後端組好的一句話，例如「代課：王小明 → 李老師」 */
   summary: string;
   sessionDate: string | null;

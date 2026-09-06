@@ -178,4 +178,49 @@ describe('ChangesComponent', () => {
 
     expect(f.nativeElement.textContent).toContain('沒有課務異動');
   });
+
+  /**
+   * `makeup` 是 2026-09-06 加進 `schedule_change_type` 的（補課）。
+   * **漏標籤不會拋錯**：表格靠 `?? value` 顯示原始英文字，列照樣出現。
+   *
+   * 標籤完整性現在由型別守著（`Record<ScheduleChangeType, string>`，漏一個編不過），
+   * 這兩條守的是型別看不到的另一半：**篩選選項該有誰、不該有誰**。
+   */
+  describe('補課（makeup）', () => {
+    it('表格顯示「補課」，不是原始 enum 值', () => {
+      const label = (component as unknown as { typeLabel: (v: string) => string }).typeLabel(
+        'makeup',
+      );
+
+      expect(label).toBe('補課');
+      expect(label).not.toBe('makeup');
+    });
+
+    /**
+     * **後端還不收 `makeup`**（`ChangeLogQuerySchema.changeType` 的 `z.enum` 沒有它），
+     * 送過去會被擋成 400。給一個必然出錯的選項比不給更糟 ——
+     * 使用者會把「請求根本沒送到查詢」讀成「補課這個月沒有」。
+     *
+     * **等後端收了就把 `makeup` 從 `UNFILTERABLE_CHANGE_TYPES` 拿掉，並刪掉這條斷言。**
+     */
+    it('但篩選選項裡沒有它 —— 後端的 z.enum 還不收，給了會 400', () => {
+      const values = (
+        component as unknown as { changeTypeOptions: { value: string | null }[] }
+      ).changeTypeOptions.map((o) => o.value);
+
+      expect(values).not.toContain('makeup');
+      expect(values).not.toContain('creation');
+      // 陷阱：其餘的都還在 —— 免得有人「修好」成把整組選項砍掉
+      expect(values).toEqual(
+        expect.arrayContaining([
+          null,
+          'reschedule',
+          'substitute',
+          'cancellation',
+          'uncancel',
+          'time_change',
+        ]),
+      );
+    });
+  });
 });
