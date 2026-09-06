@@ -46,6 +46,29 @@
 它會在 clessia-plan 底下開成 worktree 連結的子 space。**不要用 `tab create` 硬湊**
 （已犯兩次：admin-pages、design-web-2 初開時）。然後 `herdr agent start <席名> --kind claude --pane <root_pane>`。
 
+### 上任提示的第一行必須是 `/rename`（2026-09-06 使用者提出）
+
+**問題**：Claude app 的 session title 是從對話內容自動生成的，所以列表上看到的是
+「這個 session 現在在幹嘛」，**不是它是哪一席** —— 七個 session 併排時分不出誰是誰。
+
+**解法**：`herdr agent prompt` 送進 pane 的上任提示，**第一行寫 `/rename <席名>`**。
+session 一啟動就自己正名，而 `terminalTitleFromRename` 預設 `true`，所以終端分頁標題
+也會跟著改。**每次輪替自動生效，不需要使用者手動命名。**
+
+### worktree 目錄名必須等於席位名
+
+**下游全部繼承它** —— `ListAgents` 的 peer 名、cwd 顯示、herdr 的 pane 名。
+
+2026-09-06 查到兩處不符，都是「當初為別的用途開的 worktree 留下的名字」：
+
+| 席位 | 目錄 | 來源 |
+| --- | --- | --- |
+| `billing-api` | `.worktrees/pin-better-auth` | 當初為了釘 better-auth 版本開的 |
+| `design-web` | `.worktrees/bundle-analysis` | 當初為了分析 bundle 開的 |
+
+於是 peer 名變成 `pin-better-auth-ce` / `bundle-analysis-00`，**而那正是「識別字跟它代表的
+東西對不上」那一族**。目錄名要改只能趁輪替（跑著的 session 的 cwd 不能消失）。
+
 ## 開分支規範（2026-08-30 事故後新增）
 
 worktree 裡開新分支**一律** `git fetch -p origin && git checkout -b feat/x origin/main`，
