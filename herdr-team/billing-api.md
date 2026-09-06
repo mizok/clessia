@@ -87,6 +87,29 @@ different request`）。方向永遠是 per-request 建、請求結束收。
 - **加上 fail-closed 之後既有測試變紅，那是證據不是災難。** 紅的通常是「沒有宣告身分
   的測試 context」，正確的修法是補上身分並註明那組測試的主題，不是放寬檢查。
 
+### 停課只改一個欄位，而它的下游全都不跟著更新（2026-09-06，一天生出五支工單）
+
+`sessions.status = 'cancelled'` 是**單一欄位的 update**（`sessions.ts:1207` 單筆、
+`classes.ts:2444` 批次）。**`event_id` 不清、`events` 那一列不刪、
+`attendance_records` 不動、`attendance_taken_at` 不清。**
+
+於是「這堂課停了」這件事**只存在於一個欄位裡**，而每一個下游各自決定要不要看它 ——
+多數沒看：
+
+| 下游 | 看不看 status | 後果 |
+| --- | --- | --- |
+| 到班掃碼（`daily-checkins.ts`） | **沒看** | 停課的課堂被寫 `present`（#485 → PR #498） |
+| 扣堂數（`session-packs.ts`） | **沒看** | **扣掉學生一堂已付費的堂數**（#485 → PR #500） |
+| 家長端出缺席（`ATTENDANCE_SELECT`） | **沒撈** | 停課的課長得跟一次正常的請假一模一樣（#502 → PR #514） |
+| 請假連動（`leaves.ts`） | **沒看** | 仍然寫 `on_leave`（#502，未修） |
+| 「有無過去課堂」（`classes.ts`） | **只看日期** | 全部停課、從沒上過的班仍被判為不可刪（#488） |
+
+> **判準：一個「狀態改變」如果只寫進一個欄位，就要問「有幾個地方在讀這張表而不讀那個欄位」。**
+> 答案通常不是零，而且每一處的後果都不一樣 —— 有的靜默扣錢、有的只是顯示不精確。
+
+**不要指望一次修完。** 這一族的正確作法是**逐個下游各自決定語意**（停課該不該算進
+這個計數？），而那多半是業務問題不是工程問題 —— #485 的三項就是這樣拆給使用者裁的。
+
 ### lazy 生成的東西，寫入端一定看不到全部
 
 `sessions` 的出勤 `event` 是**懶生成的** —— `ensureAttendanceSessionEvents` 在有人查
@@ -435,6 +458,36 @@ lt:  (col, v) => { predicates.push((row) => row[col] <  v); return query; },
 替身跟著路由變（讓回傳值有鑑別力）／改測查詢形狀（回傳值沒有鑑別力時）。
 共同的判準還是那句：**當「對的實作」與「錯的實作」會產生同樣的觀察值時，
 這個測試就沒有在測那件事** —— 那就換一個看得出差別的觀察點。
+
+#### 這一族最短的表述：**「那個 `null` 是我自己餵的」**
+
+2026-09-06 收斂出來的一句（計畫席認為它是所有「替身分不出對錯」實例的最短形式）。
+
+出處：PR #538 把 `children` 的 `school` 改成 nullable，而我寫了一支測試餵 `schools: null`
+斷言回應是 `school: null`。**那支測試證明的是「我的 mapper 會把 null 傳下去」，
+不是「zod 序列化那一層不會把 null 擋成 500」** —— 因為那個 `null` 是我自己放進去的，
+它從來沒有經過真實的 DB、auth、與回應驗證。
+
+> **一個你自己餵進去的值，證明不了那個值在真實路徑上會發生什麼。**
+
+**可操作的版本**：寫完一支測試之後問「**這筆輸入是從哪裡來的？**」——
+答案若是「我打的」，那它驗的是**你的期望與你的實作一致**，不是**系統會這樣運作**。
+兩者在綠燈上一模一樣。
+
+（對應的補救不是加更多單元測試 —— 是明白地標出「這一半只有真的打一次才知道」，
+然後真的去打。#528 的分診就是靠 `curl` 打 PostgREST 做出來的，不是靠推論。）
+
+#### 家長端的驗收要分三層，而第三層最容易被跳過
+
+`/api/me/**` 出問題時，「回 200 了」不構成驗收。三層各自會壞：
+
+1. **auth** —— `roles` 有沒有 `parent`、`studentScope` 有沒有建起來
+2. **`childDb` scope** —— `.in(studentIdColumn, scope)` 有沒有真的縮到這個家長的孩子
+3. **zod 序列化** —— **回應 schema 擋不擋得住真實資料的形狀**（nullable 欄位、
+   embed 回物件 vs 陣列）
+
+**單元測試碰得到第 2 層，碰不到第 1 與第 3 層** —— 而第 3 層的失敗是 500，
+跟查詢炸掉的 500 在使用者眼裡一模一樣。
 
 #### 替身的第三種盲區：**它不管路由 `select` 什麼都回全欄位**
 
@@ -833,51 +886,44 @@ Postgres 的原生 `uuid` 型別本身完全接受，但 `z.uuid()` 比資料庫
 **這是一次 session 輪替的交接**（前一個 session 的 context 用盡；本輪交接的觸發原因
 本身也值得記——見下方「一個 meta 教訓」）。
 
-### 這一輪收官的（2026-09-05 夜～2026-09-06）
+### 這一輪收官的（2026-09-06 白天，接手 #432 之後）
 
-- **M8 稽核三個洞**：`session_packs` cascade 繞過刪除守門（#371）、
-  `DELETE /api/subjects/:id` 漏查 `academy_exams`（#392）、`classes.ts` 三處「有無過去
-  課堂」判斷各自算錯時區（#419，收斂進 `checkClassesPastSessions`）。三個都用同一招：
-  抽一支 fail-closed 共用函式、兩端都改去呼叫它——細節見上方「fail-closed 的形狀」
-  「抽共用函式讓改動變小」兩節。
-- **URGENT**：`leaves.ts` 的 UTC-vs-台北時區 bug 燒紅主幹 CI（#402），牽出全 repo 時區
-  remediation 三批（money 相關 #417、`enrollments.ts` 生效日 #418、`classes.ts` 收斂
-  #419 + 其餘 5 處 #421）。細節見上方「時區：UTC vs 台北，一整族的坑」一節。
-- **P0-1**：meals 批次 400，根因是 `z.uuid()` 比 Postgres 還嚴、拒絕合規但非 RFC4122
-  的 seed id，統一改用既有的 `DbUuidSchema`（#414，30 個 route 檔）。
-- **P0-2**：出勤批次點名漏掉「有生效請假但未點名」的學生，決策是後端推導並寫
-  `on_leave` 記錄、不在前端算（#416）。
-- **#295 家長端資料範圍**：只做了其中一個消費端——`ScopedIds` branded type 擴充
-  `lib/child-db.ts`，配 `GET /api/me/class-logs`（#381）。**下面四片的其餘進度不確定
-  （middleware `studentScope` / `activeRole` 進 context / `GET /api/me/children`），
-  先 `gh pr list` 查再決定要不要繼續，不要假設已完成或假設從零開始。**
+**用查的不要用記的**：`gh pr list --state merged --search "author:@me"` 是全隊共用帳號，
+用分支名或標題過濾。下面只記**知識**，不記帳面。
+
+- **停課那一族**（五支工單、四支 PR）：掃碼寫出勤（#498）、扣堂數（#500）、
+  出勤紀錄帶回課堂狀態（#514）、以及三份查證報告（#481 / #488 與 #485 的分診）。
+  知識收在上方「停課只改一個欄位」一節。
+- **時區族收尾**：#419 合了；第 18 處在**前端**（#467），判準見「函式的防禦不涵蓋輸入」。
+- **考試分母**（#454）與**請假編輯**（#443）：兩支功能切片。
+- **授權**：`campusScope` 缺席 fail-closed（PR #523，accessor + A20 gate，與 api-2 分工）。
+- **家長端 500**（#528）：`children` select 了已被 DROP 的欄位（PR #538）。
+  **分診的價值大於修法** —— 四支端點只有兩支是程式 bug，一支是本機 DB 落後、
+  一支是正確的空。
 
 ### 待下一輪接手
 
-- **#419**：保留類（過去課堂收斂 + 時區修正屬於「防資料被靜默破壞」擴充類別），
-  已 rebase、CI 綠，等**使用者本人** merge——不用催，維持 ready 狀態就好。
-- **#423 / #424 已交付**（PR #443 請假編輯、PR #454 考試分母），等驗收與合併。
-  兩支都**不是保留類**（沒有 migration、沒有金額、沒有授權邏輯）。
-  #424 的**顯示端另開 #457 給 admin-pages**（N/M 呈現、school 要跟 academy 可區分、
-  告警拆兩級）——API 與顯示端分兩支的理由是席位邊界，但**語意是綁在一起的**：
-  `todo=true` 的意思已經從「一筆都沒有」變成「還沒登完」，顯示端沒跟上時
-  橫幅的數字會變多但級別分不出來。
-- **工單載體 2026-09-06 起是 GitHub issues，不是 `backlog.md`**：
-  `gh issue list --label seat:billing-api --state open`。
-- **500 案回查**（低優，未動）：計畫席持 CF 憑證查 log，這一席分析。查詢條件：
-  `POST /api/courses`、回應 body 含 `"code":"SERVER_ERROR"`、**不要用 `--status error`**
-  （那是 `return` 出來的 500 不是例外，濾 invocation outcome 抓不到），用 `--method POST`。
-  命中的話同一筆會有 `[auth] 身分查詢失敗：<表>=<訊息>`，直接指出是哪一支身分查詢。
-  **在拿到 log 之前不要結案**——沒被記錄的空白寫在 lessons 上會偽裝成結論。
-- ~~`/api/class-logs`、`/api/session-packs` 的查證~~ —— **2026-09-06 做完，結論是
-  它們早就不在守備外了**：實跑 gate 自己的 `findOrphanEndpoints` / `findMissing`
-  兩者都回空陣列（`core/class-logs.service.ts` 在 #381 之後、
-  `core/session-packs.service.ts` 在 #348 之後各自認領了前綴）。**那筆待辦是結論
-  過了保鮮期，不是還沒做** —— 跟前任重送 session-packs「全站零命中」是同一個病。
-  **查證方式值得留下**：不要讀 gate 的程式碼推論它會怎麼判，直接 `import` 它的
-  `findOrphanEndpoints` / `findMissing` 跑一遍（`collectApiParams` 是純靜態的，
-  不用起 server 也不用 DB）。**問 gate 本人比問 gate 的原始碼準。**
-  副產物是 PR #461（`/api/class-logs|published` 那筆豁免的理由已經過期）。
+**全部用 `gh issue list --label seat:billing-api --state open` 查，下面只寫「為什麼還沒動」**：
+
+- **等使用者親合的保留類 PR** —— 金額路徑與授權邏輯各有在飛的，`gh pr list --state open`。
+- **issue #499 補課功能** —— 設計已批准歸檔（`kb/wiki/architecture/session-makeup.md`），
+  **三項待使用者裁**（可補清單要不要隱藏已補過的／要不要進組織級異動紀錄／家長端要不要看得到）。
+  **裁示回來之前不動實作碼**（STOP gate）。
+- **issue #488 六個 TODO** —— 報告已交，**不要在 #419 那類收斂之前動它**，
+  而且「甲（點名時寫入）vs 乙（時間過了寫入）」的語意歧義沒解掉。
+- **issue #502 請假寫進停課課堂** —— 錢已被 PR #500 擋住，剩的是那筆 `on_leave`
+  該不該存在，而**計畫席加了一個會改變處置的分岔：請假是在停課之前還是之後送的**。
+- **issue #464 權限映射表** —— 右欄留空等裁，計畫席壓著不進窗口（它不阻塞任何人）。
+
+### 一個 meta：我讀不到自己的 Ctx Used
+
+被問到用量時我**只能回答「讀不到」** —— context 用量不在我拿得到的任何輸出裡
+（`total_tokens` 是預算不是 context）。charter 上一輪就記過「session 自我監控可能失準」，
+這一輪是它的更基本版本：**不是失準，是根本沒有那個讀數**。
+
+**所以正確的做法不是估一個數字，是照安全側動作**：被問到的當下就蒸餾，
+不等某個門檻。**半份落了檔的工作 > 一份只存在於 context 裡的完整工作。**
+外部訊號（ops-warden 的 `herdr agent read`）才是權威。
 
 ### 跨席交集（查，不要記）
 
@@ -910,10 +956,35 @@ Postgres 的原生 `uuid` 型別本身完全接受，但 `z.uuid()` 比資料庫
 
 ### 環境
 
-- **這一席的環境擋 `npm run db:reset`**（會清空本機 DB 的權限規則）。
-  需要完整 reset 的驗證走「誰先 reset 誰驗」。要在乾淨 DB 上驗 seed 的話，
-  用 `pg_dump --schema-only` 灌進新資料庫再跑整份 seed（#143 用過這個方法）。
+- ⚠️ **`db:reset` 被擋 ≠ 不能讀 DB。** 這條 charter 之前只寫了前半，於是
+  2026-09-06 我整個上午在每一份回報裡寫「這一席跑不了真 DB」——**而那是錯的**。
+  實際上本機三個入口都通，而且**是 issue #528 分診的決定性工具**：
+
+  | 入口 | 用途 |
+  | --- | --- |
+  | `http://127.0.0.1:54321/rest/v1/…` | **直接打 PostgREST 復現查詢**（`npx supabase status --output json` 拿 `SERVICE_ROLE_KEY`） |
+  | `psql postgresql://postgres:postgres@localhost:54322/postgres` | schema 與資料查證 |
+  | `http://127.0.0.1:8787` | 本機 API（別人起的，**不要 kill**） |
+
+  **被擋的只有「會清空 DB 的動作」。** 讀取、`curl` 復現、`information_schema`
+  查欄位全部做得到 —— 而那正是「不要猜根因」唯一可行的做法。
+- **`npm run db:reset` 仍然擋著**（會清空本機 DB 的權限規則）。需要完整 reset 的
+  驗證走「誰先 reset 誰驗」。要在乾淨 DB 上驗 seed 的話，用 `pg_dump --schema-only`
+  灌進新資料庫再跑整份 seed（#143 用過這個方法）。
+- **套 pending migration 也不要自己動** —— 它是加法沒錯，但本機 DB 是共享資源，
+  別席可能正在上面工作（#528 那次是 infra）。**回報，讓計畫席決定誰補。**
 - **這一席沒有 Cloudflare 憑證** —— `wrangler tail` / dashboard 都要計畫席跑。
+- ⚠️ **本機 DB 可能落後 migration，而那會偽裝成程式 bug。** issue #528 的四支
+  端點裡有一支的 500 就是這個（`academy_exams.pass_score` 的 migration 沒套）。
+  **收到「某支端點 500」時先查兩行**：
+
+  ```sh
+  psql "postgresql://postgres:postgres@localhost:54322/postgres" \
+    -tAc "select max(version) from supabase_migrations.schema_migrations"
+  ls supabase/migrations/*.sql | tail -1
+  ```
+
+  **「服務中的 API 是最新 build」只證明程式碼是新的，不證明 schema 是新的。**
 - `lib/supabase-latency-probe.ts` 是**臨時**探針（#193），跑一天就 revert，
   整支拿掉即可，它沒有跟任何東西耦合。**它沒有測試是刻意的**（#199 誤刪、雙方確認不補）。
 
