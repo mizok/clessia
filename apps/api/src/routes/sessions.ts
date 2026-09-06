@@ -15,7 +15,7 @@ import { planBatchUpdateTime } from '../domain/session-assignment/batch-update-t
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { hasSessionEndedByNow } from '../lib/session-end-time';
 import { sliceDerivedPage } from '../lib/derived-page';
-import { getCampusScope } from '../lib/campus-scope';
+import { getCampusScope, isCampusAllowed } from '../lib/campus-scope';
 import {
   applyAttendanceTakenFilter,
   ensureAttendanceSessionEvents,
@@ -503,6 +503,22 @@ export function sessionListSelect(requireEvent: boolean): string {
       makeup_for:makeup_for_session_id ( id, session_date, status ),
       made_up_by:sessions!makeup_for_session_id ( id, session_date, status )
     `;
+}
+
+/**
+ * 課堂所屬班級的分校 —— `sessions` 沒有 `campus_id`，只能經
+ * `class_id → classes.campus_id` 間接取得（呼叫端要 embed `classes(campus_id)`）。
+ *
+ * ⚠️ **回 `null` 會被 `isCampusAllowed` 當成「不指名分校」而放行。**
+ * 今天不會發生：`classes.campus_id` 與 `sessions.class_id` 都是 `NOT NULL`
+ * （2026-09-07 查 `information_schema` 確認），而呼叫端用 `classes!inner`，
+ * 所以撈得到 session 就一定撈得到 campus。
+ * **那是一個成立的前提，不是一個被守著的前提** —— 哪天 `campus_id` 變成
+ * nullable，這裡要跟著改成拒絕。
+ */
+export function sessionCampusId(row: Record<string, unknown>): string | null {
+  const classRow = normalizeRelationRow(row['classes']);
+  return (classRow?.['campus_id'] as string | null | undefined) ?? null;
 }
 
 export function buildSessionCreationHistory(input: {
@@ -1302,15 +1318,29 @@ app.openapi(setSessionMakeupRoute, async (c) => {
   const { id } = c.req.valid('param');
   const { makeupForSessionId } = c.req.valid('json');
 
+  // **分校範圍要自己驗（#561）。** 全域的 `campusRequestGuard` 只看 query string，
+  // 而這支端點的標的來自 **path 與 body** —— A21 gate 也只看 query 參數，
+  // 所以這條路徑沒有任何自動機制在守，少了下面兩道，只管 A 校的管理員
+  // 可以把 B 校的課堂設成補課。
+  //
+  // `sessions` 沒有 `campus_id`，要經 `class_id → classes.campus_id` 間接取得，
+  // 所以查詢要 embed 它。`classes!inner` 是刻意的：撈不到班的 session 直接
+  // 當成不存在（404）而不是繼續往下跑。
+  const campusScope = getCampusScope(c);
+
   const { data: session } = await supabase
     .from('sessions')
-    .select('id, class_id, status, session_date, makeup_for_session_id')
+    .select('id, class_id, status, session_date, makeup_for_session_id, classes!inner(campus_id)')
     .eq('id', id)
     .eq('org_id', orgId)
     .maybeSingle();
 
   if (!session) {
     return c.json({ error: '課堂不存在', code: 'NOT_FOUND' }, 404);
+  }
+
+  if (!isCampusAllowed(campusScope, sessionCampusId(session as Record<string, unknown>))) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
 
   // ── 清除連結 ──────────────────────────────────────────────────────────────
@@ -1332,13 +1362,21 @@ app.openapi(setSessionMakeupRoute, async (c) => {
   // ── 設定連結 ──────────────────────────────────────────────────────────────
   const { data: target } = await supabase
     .from('sessions')
-    .select('id, class_id, status, session_date')
+    .select('id, class_id, status, session_date, classes!inner(campus_id)')
     .eq('id', makeupForSessionId)
     .eq('org_id', orgId)
     .single();
 
   if (!target) {
     return c.json({ error: '找不到要補的那堂課', code: 'TARGET_NOT_FOUND' }, 404);
+  }
+
+  // **第二次，而且是刻意的。** 下面的「同班限制」會讓兩堂課必然同分校，
+  // 所以這一道**今天**是多餘的 —— 但那是「被別的檢查順便蓋住」，不是被守住。
+  // 同班限制是**業務規則**（設計文件決策 1），哪天它放寬（例如允許跨班補課），
+  // 這裡就是唯一擋著越權的東西。**授權不要靠業務規則順便成立。**
+  if (!isCampusAllowed(campusScope, sessionCampusId(target as Record<string, unknown>))) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
   // 同班限制守在這裡而不是 DB：CHECK 跨不了列，而 trigger 是這個 repo 沒有的東西
   //（設計文件決策 1）。代價是直接下 SQL 繞得過 —— 接受，因為那些路徑本來就
