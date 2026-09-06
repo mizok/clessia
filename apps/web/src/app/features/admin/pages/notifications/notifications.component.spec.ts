@@ -157,6 +157,20 @@ describe('NotificationsComponent（管理端發布）', () => {
     expect(fixture.nativeElement.textContent).toContain('全體老師');
   });
 
+  /**
+   * 發布時間用 `yyyy-MM-dd`，不是 `yyyy/MM/dd`（#425 M4）。**年份留著**是情境選擇 ——
+   * 這是「發布過的全部公告」，會跨年；老師端收件匣（`announcement-inbox`）看的是最近
+   * 收到的，所以那邊用短版 `MM/dd HH:mm`。**但分隔符沒有情境理由**，全站其餘每一個
+   * 完整日期都是連字號。
+   */
+  it('發布時間用連字號而不是斜線', async () => {
+    await setup([announcement({ campusName: '本校' })]);
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('2026-08-18');
+    expect(text).not.toMatch(/\d{4}\/\d{2}\/\d{2}/);
+  });
+
   it('沒有分校的公告顯示為全部分校', async () => {
     await setup([announcement({ campusName: null })]);
 

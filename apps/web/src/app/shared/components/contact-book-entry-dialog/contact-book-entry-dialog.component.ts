@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
@@ -37,7 +38,7 @@ const MAX_CONTENT = 5000;
 @Component({
   selector: 'app-contact-book-entry-dialog',
   standalone: true,
-  imports: [StatusDotComponent, FormsModule, ButtonModule, TextareaModule],
+  imports: [DatePipe, StatusDotComponent, FormsModule, ButtonModule, TextareaModule],
   templateUrl: './contact-book-entry-dialog.component.html',
   styleUrl: './contact-book-entry-dialog.component.scss',
 })
