@@ -303,6 +303,18 @@ export class AttendancePage implements OnInit {
     return session.takenAt !== null;
   }
 
+  /**
+   * **這裡的「今天」是瀏覽器本地日期，而後端的是台北的 —— 但先不要單獨改它。**
+   *
+   * `sessions.page.ts` 的 `s.sessionDate > todayLocal()` 問的是**同一個問題**
+   * （這堂課是未來的嗎），而兩者今天一致（都是瀏覽器本地）。只把這一支改成
+   * 台北會讓兩頁對同一堂課給出不同答案 —— 那比現在這個一致的錯更難查。
+   *
+   * PR #532 把管理端另外五處「今天」都改成 `SystemClockService.todayTaipei` 了，
+   * **只有這一處刻意留著**。要改就跟 `todayLocal()` / `hasSessionEnded()` 一起收
+   * （後者連日期＋時間的時區解讀都是本地的，那是更大的一刀）。
+   * 觸發條件記在 `herdr-team/backlog.md` 的「等觸發條件的決策」。
+   */
   protected isFuture(session: EventSessionSummary): boolean {
     return session.eventDate > format(new Date(), 'yyyy-MM-dd');
   }
