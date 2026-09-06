@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AnnouncementsService, type Announcement } from '@core/announcements.service';
@@ -55,6 +55,32 @@ describe('NotificationsComponent（管理端發布）', () => {
     fixture.componentRef.setInput('page', RoutesCatalog.ADMIN_NOTIFICATIONS);
     fixture.detectChanges();
   }
+
+  // #508：載入中原本是整塊被一行文字取代（沒有骨架尺寸，資料到了會跳版）。
+  // 改成骨架列表後這裡改斷言骨架元素，不是文字。
+  it('已發布清單載入中顯示骨架列表，不是整塊被文字取代', async () => {
+    listMock.mockReset();
+    createMock.mockReset();
+    campusesMock.mockReset();
+    listMock.mockReturnValue(NEVER);
+    createMock.mockReturnValue(of({ data: announcement() }));
+    campusesMock.mockReturnValue(of({ data: [{ id: 'c1', name: '本校' }] }));
+
+    await TestBed.configureTestingModule({
+      imports: [NotificationsComponent],
+      providers: [
+        { provide: AnnouncementsService, useValue: { list: listMock, create: createMock } },
+        { provide: CampusesService, useValue: { list: campusesMock } },
+      ],
+    }).compileComponents();
+
+    const f = TestBed.createComponent(NotificationsComponent);
+    f.componentRef.setInput('page', RoutesCatalog.ADMIN_NOTIFICATIONS);
+    f.detectChanges();
+
+    expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
+    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+  });
 
   it('標題或內容空白時不能送出', async () => {
     await setup();

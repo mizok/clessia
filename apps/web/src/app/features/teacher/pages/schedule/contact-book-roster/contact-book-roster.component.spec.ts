@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { vi } from 'vitest';
 
@@ -49,6 +49,31 @@ describe('ContactBookRosterComponent', () => {
   const openRow = (s = missing('s1', '王小明')) =>
     (component as never as { open(x: unknown): void }).open(s);
 
+  // #508：載入中原本是整塊被一行文字取代（沒有骨架尺寸，資料到了會跳版）。
+  // 改成骨架列表後這裡改斷言骨架元素，不是文字。
+  it('載入中顯示骨架列表，不是整塊被文字取代', async () => {
+    missingMock.mockReset();
+    listMock.mockReset();
+    missingMock.mockReturnValue(NEVER);
+    listMock.mockReturnValue(of({ data: [], meta: { total: 0 } }));
+
+    await TestBed.configureTestingModule({
+      imports: [ContactBookRosterComponent],
+      providers: [
+        { provide: DynamicDialogConfig, useValue: { data: INPUT } },
+        { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
+        { provide: ContactBookService, useValue: { missing: missingMock, list: listMock } },
+        { provide: DialogService, useValue: { open: openMock } },
+      ],
+    }).compileComponents();
+
+    const f = TestBed.createComponent(ContactBookRosterComponent);
+    f.detectChanges();
+
+    expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
+    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+  });
+
   it('只列這一堂課的班，別班的缺漏不混進來', async () => {
     await render([missing('s1', '王小明'), missing('s2', '別班的', 'other-class')]);
 
@@ -82,7 +107,12 @@ describe('ContactBookRosterComponent', () => {
 
   it('查到既有的 → 用 entry 開（會預載並顯示作者），不是空白的 draft', async () => {
     await render();
-    const existing = { id: 'e1', studentId: 's1', content: '甲老師寫的', lastEditedByName: '甲老師' };
+    const existing = {
+      id: 'e1',
+      studentId: 's1',
+      content: '甲老師寫的',
+      lastEditedByName: '甲老師',
+    };
     listMock.mockReturnValue(of({ data: [existing], meta: { total: 1 } }));
     openRow();
 

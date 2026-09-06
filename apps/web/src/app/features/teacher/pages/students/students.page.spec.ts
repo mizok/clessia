@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { StudentsService, type Student } from '@core/students.service';
@@ -45,6 +45,25 @@ describe('StudentsPage（老師端）', () => {
     fixture.componentRef.setInput('page', RoutesCatalog.TEACHER_STUDENTS);
     fixture.detectChanges();
   }
+
+  // #508：載入中原本是整塊被一行文字取代（沒有骨架尺寸，資料到了會跳版）。
+  // 改成骨架列表後這裡改斷言骨架元素，不是文字。
+  it('載入中顯示骨架列表，不是整塊被文字取代', async () => {
+    listMock.mockReset();
+    listMock.mockReturnValue(NEVER);
+
+    await TestBed.configureTestingModule({
+      imports: [StudentsPage],
+      providers: [{ provide: StudentsService, useValue: { list: listMock } }],
+    }).compileComponents();
+
+    const f = TestBed.createComponent(StudentsPage);
+    f.componentRef.setInput('page', RoutesCatalog.TEACHER_STUDENTS);
+    f.detectChanges();
+
+    expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
+    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
+  });
 
   it('查詢時表明只要自己任課的學生', async () => {
     await setup();

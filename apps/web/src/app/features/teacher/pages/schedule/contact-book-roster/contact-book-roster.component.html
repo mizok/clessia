@@ -5,7 +5,11 @@
   </header>
 
   @if (loading()) {
-    <p class="cb-roster__state">載入中…</p>
+    <div class="skeleton-list" aria-label="聯絡簿名單載入中">
+      @for (i of [1, 2, 3]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
   } @else if (loadError()) {
     <p class="cb-roster__state cb-roster__state--error">讀取失敗，請關閉重開。</p>
   } @else if (empty()) {

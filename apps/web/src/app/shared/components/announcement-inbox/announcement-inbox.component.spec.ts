@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AnnouncementsService, type Announcement } from '@core/announcements.service';
@@ -108,6 +108,29 @@ describe('AnnouncementInboxComponent（老師收件匣）', () => {
     component['toggle'](component['announcements']()[0]);
 
     expect(component['unread']()).toBe(1);
+  });
+
+  // #508：載入中原本是整塊被一行文字取代（沒有骨架尺寸，資料到了會跳版）。
+  // 改成骨架列表後這裡改斷言骨架元素，不是文字。
+  it('載入中顯示骨架列表，不是整塊被文字取代', async () => {
+    inboxMock.mockReturnValue(NEVER);
+
+    await TestBed.configureTestingModule({
+      imports: [AnnouncementInboxComponent],
+      providers: [
+        {
+          provide: AnnouncementsService,
+          useValue: { inbox: inboxMock, markRead: markReadMock, markAllRead: markAllReadMock },
+        },
+      ],
+    }).compileComponents();
+
+    const f = TestBed.createComponent(AnnouncementInboxComponent);
+    f.componentRef.setInput('heading', '通知中心');
+    f.detectChanges();
+
+    expect(f.nativeElement.querySelector('.skeleton-list')).not.toBeNull();
+    expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
   });
 
   it('沒有公告時顯示空狀態', async () => {

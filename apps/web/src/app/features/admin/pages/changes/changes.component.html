@@ -33,7 +33,11 @@
   </div>
 
   @if (loading()) {
-    <p class="changes__state">載入中…</p>
+    <div class="skeleton-list" aria-label="課務異動載入中">
+      @for (i of [1, 2, 3]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
   } @else if (loadError()) {
     <p class="changes__state changes__state--error">查詢失敗，請稍後再試。</p>
   } @else if (entries().length === 0) {
