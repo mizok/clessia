@@ -5,8 +5,8 @@ import { INVOICE_SELECT, toInvoiceResponse } from '../lib/invoice-query';
 import { sliceDerivedPage } from '../lib/derived-page';
 import { waitUntilFrom } from '../lib/wait-until';
 import { DbUuidSchema } from '../lib/validation';
-import { getCurrentTaipeiDateString } from '../lib/taipei-date';
-import { whereOverdue } from '../lib/invoice-overdue';
+import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { whereDueWithin, whereOverdue } from '../lib/invoice-overdue';
 
 /**
  * 帳單、明細、收款、催繳。
@@ -102,6 +102,14 @@ app.openapi(
       query: z.object({
         studentId: DbUuidSchema.optional(),
         overdue: z.string().optional().openapi({ description: 'true = 只看過期未繳清' }),
+        outstanding: z
+          .string()
+          .optional()
+          .openapi({ description: 'true = 只看未繳清（不看到期日）—— 催繳母體' }),
+        dueWithin: z
+          .string()
+          .optional()
+          .openapi({ description: '天數 N = 只看 N 天內到期且未繳清（今天與第 N 天都含）' }),
         status: z
           .enum(['unpaid', 'partial', 'paid'])
           .optional()
@@ -132,8 +140,21 @@ app.openapi(
     const page = Math.max(1, Number(params.page ?? 1));
     const pageSize = Math.min(200, Math.max(1, Number(params.pageSize ?? 20)));
     const overdue = params.overdue === 'true';
-    // 兩個都是推導條件 —— 帶了任一個就不能讓 DB 分頁，否則被篩掉的那些會在頁與頁之間留洞
-    const derivedFilter = overdue || Boolean(params.status);
+    const outstanding = params.outstanding === 'true';
+    // 天數只收非負整數 —— 收不到就當沒帶，不要靜靜篩成空的（NaN 進日期運算會產出
+    // 一個看起來像日期的字串，而那批清單會空得毫無訊號）
+    const dueWithinRaw = params.dueWithin === undefined ? NaN : Number(params.dueWithin);
+    const dueWithinDays =
+      Number.isInteger(dueWithinRaw) && dueWithinRaw >= 0 ? dueWithinRaw : undefined;
+
+    // 三者是同一個母體（未繳清）的子集,差別只在日期那一半:
+    //   outstanding  沒有日期條件                 —— 催繳母體
+    //   overdue      due_date < 今天              —— 已逾期
+    //   dueWithin    今天 <= due_date <= 今天+N   —— 快到期
+    // **「未繳清」那一半三者共用**,所以下面只有一個 status !== 'paid'。
+    const unpaidOnly = overdue || outstanding || dueWithinDays !== undefined;
+    // 全都是推導條件 —— 帶了任一個就不能讓 DB 分頁，否則被篩掉的那些會在頁與頁之間留洞
+    const derivedFilter = unpaidOnly || Boolean(params.status);
 
     let query = supabase
       .from('invoices')
@@ -145,6 +166,16 @@ app.openapi(
     // 行政可能因此去催繳一個還沒到期的家長）。見 lib/taipei-date.ts 檔頭。
     // 「過了到期日沒」這條判斷本身在 lib/invoice-overdue.ts —— 營收報表用的是同一支。
     if (overdue) query = whereOverdue(query, getCurrentTaipeiDateString());
+    // **沒有到期日的帳單**（還沒發收費袋）:`outstanding` **含**、`overdue` 與
+    // `dueWithin` **不含**。使用者 2026-09-07 裁定 —— 帳單存在 = 這筆錢記下來了,
+    // 所以未繳清的統計要含它;但沒有到期日 = 還沒告訴家長什麼時候要繳,
+    // **去催一個你從沒通知過期限的人是錯的**。
+    // 機制上這不需要額外的分支:`outstanding` 沒有日期條件所以 NULL 那批通得過,
+    // 另外兩個用的比較對 NULL 回 NULL,那些列撈不出來。
+    if (dueWithinDays !== undefined) {
+      const today = getCurrentTaipeiDateString();
+      query = whereDueWithin(query, today, addDaysToDateString(today, dueWithinDays));
+    }
     if (!derivedFilter) query = query.range((page - 1) * pageSize, page * pageSize - 1);
 
     const { data, error, count } = await query.order('issued_at', { ascending: false });
@@ -163,7 +194,7 @@ app.openapi(
     }
 
     let rows = mapped;
-    if (overdue) rows = rows.filter((invoice) => invoice.status !== 'paid');
+    if (unpaidOnly) rows = rows.filter((invoice) => invoice.status !== 'paid');
     if (params.status) rows = rows.filter((invoice) => invoice.status === params.status);
 
     const paged = sliceDerivedPage(rows, page, pageSize);

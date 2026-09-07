@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -71,6 +72,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     FormsModule,
     ButtonModule,
     SelectModule,
+    SelectButtonModule,
     ToastModule,
     PageActionsComponent,
     EmptyStateComponent,
@@ -102,7 +104,54 @@ export class PaymentsPage implements OnInit {
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
 
-  protected readonly overdueOnly = signal(false);
+  /**
+   * 催繳篩選的三選一(#639)。**取代原本的兩態切換鈕** —— 那顆按鈕寫「只看欠繳」
+   * 而做的是「逾期且未繳清」,**照它催繳會漏掉還沒到期的未繳**(驗收:逾期 9、
+   * 未繳未逾期 8、未繳清共 17,而舊按鈕只給 9)。
+   *
+   * 三者是同一個母體的子集,對應催繳實務的三批:
+   * 快到期→提醒、已逾期→催、全部未繳清→母體。**所以是三選一不是三個開關。**
+   */
+  protected readonly dueFilter = signal<'all' | 'outstanding' | 'overdue' | 'dueSoon'>('all');
+  /** 「快到期」的天數。7 天是催繳實務的一週節奏,不是隨便挑的 */
+  protected readonly DUE_SOON_DAYS = 7;
+  protected readonly overdueOnly = computed(() => this.dueFilter() === 'overdue');
+
+  /** 順序照催繳實務的緊迫度:全部 → 母體 → 快到期 → 已逾期 */
+  protected readonly dueFilterOptions = [
+    { label: '全部', value: 'all' },
+    { label: '未繳清', value: 'outstanding' },
+    { label: '快到期', value: 'dueSoon' },
+    { label: '已逾期', value: 'overdue' },
+  ];
+
+  /** 空狀態要說清楚**是哪一個篩選**空了 —— 「沒有欠繳的帳單」對三個子集都成立,
+   *  而它們空的意思完全不同(未繳清空=全收齊了;快到期空=這週沒有要收的) */
+  protected readonly emptyStateTitle = computed(() => {
+    switch (this.dueFilter()) {
+      case 'outstanding':
+        return '沒有未繳清的帳單';
+      case 'dueSoon':
+        return `${this.DUE_SOON_DAYS} 天內沒有要到期的帳單`;
+      case 'overdue':
+        return '沒有逾期的帳單';
+      default:
+        return '沒有帳單';
+    }
+  });
+
+  protected readonly emptyStateDescription = computed(() => {
+    switch (this.dueFilter()) {
+      case 'outstanding':
+        return '所有已開立的帳單都收齊了';
+      case 'dueSoon':
+        return `目前沒有 ${this.DUE_SOON_DAYS} 天內到期又還沒繳清的帳單`;
+      case 'overdue':
+        return '目前沒有過期又還沒繳清的帳單';
+      default:
+        return '';
+    }
+  });
   protected readonly student = signal<Student | string | null>(null);
   protected readonly studentSuggestions = signal<Student[]>([]);
   protected readonly pageIndex = signal(1);
@@ -149,7 +198,7 @@ export class PaymentsPage implements OnInit {
   }));
 
   protected readonly hasFilters = computed(
-    () => this.overdueOnly() || this.statusFilter() !== null || this.selectedStudent() !== null,
+    () => this.dueFilter() !== 'all' || this.statusFilter() !== null || this.selectedStudent() !== null,
   );
 
   protected readonly selectedStudent = computed(() => {
@@ -213,7 +262,9 @@ export class PaymentsPage implements OnInit {
     this.service
       .list({
         studentId: this.selectedStudent()?.id,
-        overdue: this.overdueOnly() || undefined,
+        outstanding: this.dueFilter() === 'outstanding' || undefined,
+        overdue: this.dueFilter() === 'overdue' || undefined,
+        dueWithin: this.dueFilter() === 'dueSoon' ? this.DUE_SOON_DAYS : undefined,
         status: this.statusFilter() ?? undefined,
         page: this.pageIndex(),
         pageSize: PAGE_SIZE,
@@ -239,8 +290,8 @@ export class PaymentsPage implements OnInit {
     this.load();
   }
 
-  protected toggleOverdueOnly(): void {
-    this.overdueOnly.update((v) => !v);
+  protected setDueFilter(value: 'all' | 'outstanding' | 'overdue' | 'dueSoon'): void {
+    this.dueFilter.set(value);
     this.reload();
   }
 
@@ -271,7 +322,7 @@ export class PaymentsPage implements OnInit {
   }
 
   protected clearFilters(): void {
-    this.overdueOnly.set(false);
+    this.dueFilter.set('all');
     this.statusFilter.set(null);
     this.student.set(null);
     this.studentSuggestions.set([]);

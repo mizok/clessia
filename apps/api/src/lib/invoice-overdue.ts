@@ -41,3 +41,26 @@ export function whereOverdue<Q extends { lt(column: string, value: string): Q }>
 ): Q {
   return query.lt(OVERDUE_DUE_DATE_COLUMN, today);
 }
+
+/**
+ * 「快到期」：到期日落在 `[today, today + days]` 這個**閉區間**裡。
+ *
+ * 邊界是刻意的:
+ * - **`today` 含**（今天到期就是最急的那一批,不含它等於把最該提醒的漏掉）
+ * - **`today + days` 含**（使用者說「七天內」時,第七天在裡面）
+ * - **跟 `whereOverdue` 不重疊**:那支是 `< today`,這支從 `today` 開始 ——
+ *   同一張帳單不會同時出現在兩批裡,所以 UI 的三選一才是真的互斥。
+ *
+ * **沒有到期日的帳單不在這裡**（SQL 對 NULL 的比較回 NULL,那些列撈不出來）——
+ * 而那是對的:**還沒告訴家長什麼時候要繳,就談不上快到期**。
+ * 它們仍然算「未繳清」（`outstanding`,那條沒有日期條件）。
+ * 這個分界是使用者 2026-09-07 裁的,理由見 `routes/invoices.ts` 的 `outstanding` 註解。
+ *
+ * `until` 由呼叫端用 `lib/taipei-date.ts` 的 `addDaysToDateString` 算 ——
+ * 跟 `whereOverdue` 一樣,**這支不碰「現在」**。
+ */
+export function whereDueWithin<
+  Q extends { gte(column: string, value: string): Q; lte(column: string, value: string): Q },
+>(query: Q, today: string, until: string): Q {
+  return query.gte(OVERDUE_DUE_DATE_COLUMN, today).lte(OVERDUE_DUE_DATE_COLUMN, until);
+}
