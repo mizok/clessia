@@ -253,7 +253,16 @@ describe('PATCH /api/sessions/:id/makeup —— 非原子寫入的順序與補�
     isCompensation?: boolean;
   }
 
-  function createApp(options?: { logInsertFails?: boolean; compensateFails?: boolean }) {
+  function createApp(options?: {
+    logInsertFails?: boolean;
+    compensateFails?: boolean;
+    /** `null` = 不受限（預設）。給陣列就是只管那幾個分校的管理員 */
+    campusScope?: string[] | null;
+    /** 這堂課所屬班級的分校 */
+    sessionCampusId?: string;
+    /** 要補的那堂停課所屬班級的分校 */
+    targetCampusId?: string;
+  }) {
     const calls: Call[] = [];
     let updateCount = 0;
 
@@ -274,6 +283,7 @@ describe('PATCH /api/sessions/:id/makeup —— 非原子寫入的順序與補�
                       status: 'scheduled',
                       session_date: '2026-04-20',
                       makeup_for_session_id: null,
+                      classes: { campus_id: options?.sessionCampusId ?? 'campus-1' },
                     },
               error: null,
             }),
@@ -284,6 +294,7 @@ describe('PATCH /api/sessions/:id/makeup —— 非原子寫入的順序與補�
                 class_id: 'class-1',
                 status: 'cancelled',
                 session_date: '2026-04-06',
+                classes: { campus_id: options?.targetCampusId ?? 'campus-1' },
               },
               error: null,
             }),
@@ -325,7 +336,7 @@ describe('PATCH /api/sessions/:id/makeup —— 非原子寫入的順序與補�
       ctx.set('orgId', 'org-1');
       ctx.set('userId', 'user-1');
       ctx.set('roles', ['admin']);
-      ctx.set('campusScope', null);
+      ctx.set('campusScope', options?.campusScope ?? null);
       await next();
     });
     app.route('/api/sessions', sessionsApp);
@@ -345,6 +356,60 @@ describe('PATCH /api/sessions/:id/makeup —— 非原子寫入的順序與補�
 
     return { patch, calls };
   }
+
+  // ── 分校範圍（#561）─────────────────────────────────────────────────────
+  //
+  // 這支端點是**寫入**，而今天所有的分校範圍工作都長在讀取路徑上。
+  // A21 gate 看不到它（只看 query 參數，body 與 path 在視野外），
+  // 而這組測試在此之前**每一處都寫死 `campusScope = null`** ——
+  // **從定義上量不到受限的行為**，綠燈只代表「不受限時對」。
+  it('只管 campus-1 的管理員，不能動 campus-2 的課堂', async () => {
+    const { patch, calls } = createApp({
+      campusScope: ['campus-1'],
+      sessionCampusId: 'campus-2',
+    });
+
+    const res = await patch({ makeupForSessionId: TARGET_ID });
+
+    expect(res.status).toBe(403);
+    // **一個字都不能寫進去** —— 403 之後不該有任何 update/insert
+    expect(calls).toEqual([]);
+  });
+
+  it('目標課堂在別的分校時也擋 —— 兩顆 session 各驗一次', async () => {
+    const { patch, calls } = createApp({
+      campusScope: ['campus-1'],
+      sessionCampusId: 'campus-1',
+      targetCampusId: 'campus-2',
+    });
+
+    const res = await patch({ makeupForSessionId: TARGET_ID });
+
+    expect(res.status).toBe(403);
+    expect(calls).toEqual([]);
+  });
+
+  it('清除連結也要守 —— 那條路徑根本不查 target', async () => {
+    const { patch, calls } = createApp({
+      campusScope: ['campus-1'],
+      sessionCampusId: 'campus-2',
+    });
+
+    const res = await patch({ makeupForSessionId: null });
+
+    expect(res.status).toBe(403);
+    expect(calls).toEqual([]);
+  });
+
+  it('分校在範圍內就照常設定', async () => {
+    const { patch } = createApp({
+      campusScope: ['campus-1'],
+      sessionCampusId: 'campus-1',
+      targetCampusId: 'campus-1',
+    });
+
+    expect((await patch({ makeupForSessionId: TARGET_ID })).status).toBe(200);
+  });
 
   it('⚠️ 順序是先 FK 再流水 —— 反過來的失敗態跟一個合法狀態長得一樣', async () => {
     const { patch, calls } = createApp();
