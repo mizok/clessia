@@ -118,6 +118,19 @@ const SessionMakeupLinkSchema = z
   })
   .openapi('SessionMakeupLink');
 
+const MakeupCandidateSchema = z
+  .object({
+    id: DbUuidSchema,
+    sessionDate: DateSchema,
+    startTime: TimeSchema,
+    endTime: TimeSchema,
+  })
+  .openapi('MakeupCandidate');
+
+const MakeupCandidateListResponseSchema = z
+  .object({ data: z.array(MakeupCandidateSchema) })
+  .openapi('MakeupCandidateListResponse');
+
 const SessionListItemSchema = z
   .object({
     id: DbUuidSchema,
@@ -540,6 +553,36 @@ export function sessionListSelect(requireEvent: boolean): string {
 export function sessionCampusId(row: Record<string, unknown>): string | null {
   const classRow = normalizeRelationRow(row['classes']);
   return (classRow?.['campus_id'] as string | null | undefined) ?? null;
+}
+
+/** 可補清單的上限。**這是安全閥不是容量規劃** —— 見 `listMakeupCandidatesRoute` 的檔頭。 */
+const MAKEUP_CANDIDATE_LIMIT = 100;
+
+/**
+ * 可補清單：這個班裡「**還沒有被補過**」的停課課堂（#499，使用者 2026-09-07 裁定隱藏已補過的）。
+ *
+ * ⚠️ **排除條件不是另外寫一份,是重用 `mapSessionMakeup`** —— 它算出來的 `madeUpBy`
+ * 已經是「**有效的**補課」（停掉的補課不算,見該函式）。所以「可補」就是 `madeUpBy === null`。
+ *
+ * **為什麼要重用而不是在這裡再寫一次 `status <> 'cancelled'`**：
+ * `20260906083827_add_session_makeup.sql:44-45` 那支 migration 自己寫著
+ *
+ * > 可補清單的排除條件**必須跟這個述詞逐字一致**,否則清單會列出一個索引會拒絕的選項,
+ * > 或藏起一個其實補得成的 —— **同一條規則的兩個載體之間漂移。**
+ *
+ * **重用讓「兩個載體」變成一個**,漂移在結構上不可能發生。
+ */
+export function filterMakeupCandidates(
+  rows: ReadonlyArray<Record<string, unknown>>,
+): Array<{ id: string; sessionDate: string; startTime: string; endTime: string }> {
+  return rows
+    .filter((row) => mapSessionMakeup(row).madeUpBy === null)
+    .map((row) => ({
+      id: row['id'] as string,
+      sessionDate: row['session_date'] as string,
+      startTime: toHHmm(row['start_time'] as string | null) ?? '',
+      endTime: toHHmm(row['end_time'] as string | null) ?? '',
+    }));
 }
 
 export function buildSessionCreationHistory(input: {
@@ -1453,6 +1496,92 @@ app.openapi(setSessionMakeupRoute, async (c) => {
   }
 
   return c.json({ ok: true }, 200);
+});
+
+// ============================================================
+// GET /api/sessions/:id/makeup-candidates —— 這堂課可以補哪幾堂停課
+// ============================================================
+//
+// 使用者 2026-09-07 裁定：**隱藏已經被補過的**（不是灰掉，是不出現）。
+//
+// **語意是「指定」不是「安排」**（issue #592）：這個系統做不出額外的單堂課
+// （沒有 `POST /sessions`，唯一建立路徑是照班級 `schedules` 批次產生），
+// 所以補課只能是「把一堂**已排定**的課指定成某堂停課的補課」。
+// 端點名與錯誤訊息都要對得上這一點，不要讓行政期待它能生課。
+//
+// **不分頁，回全部 + 一個上限**（design-web 2026-09-07 的構圖）：
+// 消費端是 `p-select` 下拉，而下拉本來就翻不了頁。
+// ⚠️ **`MAKEUP_CANDIDATE_LIMIT` 是安全閥不是容量規劃** —— 它沒有經過任何量測
+// （本機 `cancelled` 只有 1 筆、`makeup_for_session_id` 非空 0 筆，量不出分布）。
+// **N 真的大到需要翻頁時，正解是換控制項，不是加 `cursor` 參數。**
+const listMakeupCandidatesRoute = createRoute({
+  method: 'get',
+  path: '/{id}/makeup-candidates',
+  tags: ['Sessions'],
+  summary: '這堂課可以補哪幾堂停課（同班、尚未被補過）',
+  request: { params: z.object({ id: DbUuidSchema }) },
+  responses: {
+    200: {
+      description: '可補的停課課堂',
+      content: { 'application/json': { schema: MakeupCandidateListResponseSchema } },
+    },
+    400: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
+    403: {
+      description: '沒有這個分校的權限',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    404: { description: '課堂不存在', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+});
+
+app.openapi(listMakeupCandidatesRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const { id } = c.req.valid('param');
+
+  // 分校範圍照 `PATCH /{id}/makeup` 同一道（#561）—— 標的來自 path，
+  // 而 `campusRequestGuard` 與 A21 gate 都只看 query 參數。
+  const campusScope = getCampusScope(c);
+
+  const { data: session } = await supabase
+    .from('sessions')
+    .select('id, class_id, classes!inner(campus_id)')
+    .eq('id', id)
+    .eq('org_id', orgId)
+    .maybeSingle();
+
+  if (!session) {
+    return c.json({ error: '課堂不存在', code: 'NOT_FOUND' }, 404);
+  }
+
+  if (!isCampusAllowed(campusScope, sessionCampusId(session as Record<string, unknown>))) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
+
+  // 反向 embed 帶回「誰補了這堂」——「已經被補過」的判定交給
+  // `filterMakeupCandidates`（重用 `mapSessionMakeup`），**不在這裡再寫一次條件**。
+  // ⚠️ `made_up_by` 不能加 `!inner`：那會把「沒有補課的停課」整批篩掉 ——
+  // 也就是把清單裡唯一該出現的東西篩光（本機實測 `!inner` 讓 19 筆變 0 筆）。
+  const { data, error } = await supabase
+    .from('sessions')
+    .select(
+      'id, session_date, start_time, end_time, made_up_by:sessions!makeup_for_session_id(id, session_date, status)',
+    )
+    .eq('org_id', orgId)
+    .eq('class_id', (session as { class_id: string }).class_id)
+    .eq('status', 'cancelled')
+    .order('session_date')
+    .order('start_time')
+    .limit(MAKEUP_CANDIDATE_LIMIT);
+
+  if (error) {
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+  }
+
+  return c.json(
+    { data: filterMakeupCandidates((data ?? []) as Array<Record<string, unknown>>) },
+    200,
+  );
 });
 
 const cancelSessionRoute = createRoute({

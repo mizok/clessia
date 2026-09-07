@@ -9,6 +9,7 @@ import {
   buildSingleSessionChangeInsert,
   mapSessionChange,
   mapSessionMakeup,
+  filterMakeupCandidates,
   normalizeRelationRow,
   sessionListSelect,
   SESSION_CHANGES_SELECT,
@@ -545,5 +546,61 @@ describe('sessionListSelect —— 補課的兩個 embed 不能有 !inner', () =
     expect(sessionListSelect(true)).toContain('events!event_id!inner');
     expect(sessionListSelect(false)).toContain('events!event_id ');
     expect(sessionListSelect(false)).not.toContain('!inner ( attendance_taken_at )');
+  });
+});
+
+describe('filterMakeupCandidates（#499 可補清單）', () => {
+  const cancelled = (id: string, date: string, madeUpBy: unknown) => ({
+    id,
+    session_date: date,
+    start_time: '10:00:00',
+    end_time: '12:00:00',
+    made_up_by: madeUpBy,
+  });
+
+  it('沒有被補過的停課課堂列進來', () => {
+    const rows = filterMakeupCandidates([cancelled('s1', '2026-04-06', [])]);
+
+    expect(rows).toEqual([
+      { id: 's1', sessionDate: '2026-04-06', startTime: '10:00', endTime: '12:00' },
+    ]);
+  });
+
+  // 「隱藏已補過的」（使用者 2026-09-07 裁定）。排除條件必須跟部分唯一索引的述詞
+  // 逐字一致 —— 不一致的話清單會列出一個索引會拒絕的選項，或藏起一個其實補得成的。
+  it('已經有有效補課的不列進來', () => {
+    const rows = filterMakeupCandidates([
+      cancelled('s1', '2026-04-06', [{ id: 'm1', session_date: '2026-04-13', status: 'scheduled' }]),
+    ]);
+
+    expect(rows).toEqual([]);
+  });
+
+  // 索引的述詞是 `status <> 'cancelled'` —— 補課那堂又被停掉時它不佔位子，
+  // 所以那堂停課「又可以被補了」。少了這一條，清單會藏起一個其實補得成的。
+  it('補課那堂又被停掉時，原本那堂停課重新可補', () => {
+    const rows = filterMakeupCandidates([
+      cancelled('s1', '2026-04-06', [{ id: 'm1', session_date: '2026-04-13', status: 'cancelled' }]),
+    ]);
+
+    expect(rows.map((row) => row.id)).toEqual(['s1']);
+  });
+
+  it('停掉的與有效的並存時仍然算被補過', () => {
+    const rows = filterMakeupCandidates([
+      cancelled('s1', '2026-04-06', [
+        { id: 'dead', session_date: '2026-04-10', status: 'cancelled' },
+        { id: 'live', session_date: '2026-04-13', status: 'scheduled' },
+      ]),
+    ]);
+
+    expect(rows).toEqual([]);
+  });
+
+  it('時間轉成 HH:mm，不回原始的 HH:mm:ss', () => {
+    const rows = filterMakeupCandidates([cancelled('s1', '2026-04-06', [])]);
+
+    expect(rows[0]?.startTime).toBe('10:00');
+    expect(rows[0]?.endTime).toBe('12:00');
   });
 });
