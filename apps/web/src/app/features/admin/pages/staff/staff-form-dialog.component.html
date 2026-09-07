@@ -18,8 +18,12 @@
         (ngModelChange)="updateForm('displayName', $event)"
         placeholder="真實姓名"
         [disabled]="loading()"
+        [class.p-invalid]="!!errors()['displayName']"
         class="w-full"
       />
+      @if (errors()['displayName']; as msg) {
+        <span class="staff-form-dialog__error-text">{{ msg }}</span>
+      }
     </div>
 
     <!-- Email -->
@@ -32,8 +36,12 @@
         (ngModelChange)="updateForm('email', $event)"
         placeholder="用來產生登入連結的 Email"
         [disabled]="loading() || isEditing()"
+        [class.p-invalid]="!!errors()['email']"
         class="w-full"
       />
+      @if (errors()['email']; as msg) {
+        <span class="staff-form-dialog__error-text">{{ msg }}</span>
+      }
     </div>
 
     <!-- Phone -->
@@ -68,7 +76,7 @@
 
   <!-- Role Selection -->
   <div class="form-dialog__field">
-    <label class="form-dialog__label">角色角色<span class="form-dialog__required">*</span></label>
+    <label class="form-dialog__label">角色<span class="form-dialog__required">*</span></label>
     <div class="role-checkboxes">
       @for (role of roleOptions; track role.value) {
         <div class="role-checkboxes__item">
@@ -84,6 +92,9 @@
         </div>
       }
     </div>
+    @if (errors()['roles']; as msg) {
+      <span class="staff-form-dialog__error-text">{{ msg }}</span>
+    }
   </div>
 
   <!-- Campuses -->
@@ -95,9 +106,13 @@
       (ngModelChange)="updateForm('campusIds', $event)"
       placeholder="選擇服務分校"
       [disabled]="loading()"
+      [class.p-invalid]="!!errors()['campusIds']"
       class="w-full"
       display="chip"
     />
+    @if (errors()['campusIds']; as msg) {
+      <span class="staff-form-dialog__error-text">{{ msg }}</span>
+    }
   </div>
 
   <!-- Subjects (if teacher) -->
@@ -122,9 +137,13 @@
         (ngModelChange)="updateForm('subjectIds', $event)"
         placeholder="選擇教學科目"
         [disabled]="loading()"
+        [class.p-invalid]="!!errors()['subjectIds']"
         class="w-full"
         display="chip"
       />
+      @if (errors()['subjectIds']; as msg) {
+        <span class="staff-form-dialog__error-text">{{ msg }}</span>
+      }
     </div>
   }
 
@@ -182,7 +201,6 @@
       [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
       [loading]="loading()"
       (onClick)="save()"
-      [disabled]="!formData().displayName.trim() || formData().roles.length === 0"
     />
   </div>
 </div>
