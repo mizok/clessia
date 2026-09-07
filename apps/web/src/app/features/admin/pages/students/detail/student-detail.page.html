@@ -266,6 +266,23 @@
                 >
               </div>
               <div class="student-detail__enrollment-right">
+                <!--
+                  只在**沒有計費模式**時出現（#638）。「還沒開帳」是合法的暫時狀態，
+                  不在這裡標 —— 條件寫在 `needsBillingSetup()` 上方，連同
+                  「為什麼 session_pack 不算異常」一起。
+                  這是少數該用警示色的地方：**沒有模式的報名是一筆永遠收不到錢的報名**，
+                  不是「還在等」。
+                -->
+                @if (needsBillingSetup(enrollment)) {
+                  <p-button
+                    label="設定計費"
+                    icon="pi pi-exclamation-triangle"
+                    severity="warn"
+                    size="small"
+                    [text]="true"
+                    (onClick)="openBillingSetup($event, enrollment)"
+                  />
+                }
                 <app-status-dot [tone]="enrollmentTone(enrollment.status)">{{
                   ENROLLMENT_STATUS_LABELS[enrollment.status]
                 }}</app-status-dot>

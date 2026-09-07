@@ -39,6 +39,7 @@ import {
   type StatusTone,
 } from '@shared/components/status/status-dot/status-dot.component';
 import { personHue } from '@shared/utils/person-hue.util';
+import { EnrollmentBillingDialogComponent } from '../../courses/class-detail/enrollment-billing-dialog/enrollment-billing-dialog.component';
 
 interface InlineNoticeState {
   readonly severity: InlineNoticeSeverity;
@@ -203,6 +204,49 @@ export class StudentDetailPage implements OnInit {
     });
   }
 
+  /**
+   * **「沒有計費模式」才是問題，「還沒開帳」不是。**（#638 裁定，billing-api 堅持）
+   *
+   * `enrollment-rules` 6.2 明寫管理員「決定是否立即開帳」—— **不開帳是合法的**。
+   * 所以這裡只看 `billingMode === null`，**不看有沒有帳單**。
+   *
+   * 條件抓寬的代價很具體：行政每建一筆正常的延後開帳報名都會看到警告，
+   * 而**每天早上紅一次的東西，一週內就會被學會忽略** —— 那時真正該看的那筆
+   * 也一起被忽略了。
+   *
+   * **`session_pack` 不要標成異常**：它永遠不進月結 run（買包時才開帳），
+   * 看起來很像「不會被收錢」，**但它是有模式的**。
+   * 用 `billingMode === null` 這個條件天然排除它 —— 寫在這裡是因為
+   * 下一個人很可能想「補一個 session_pack 的特判」，而那會是錯的。
+   */
+  protected needsBillingSetup(enrollment: Enrollment): boolean {
+    return enrollment.billingMode === null;
+  }
+
+  /** 補設定計費 —— 重用班級頁那支對話框，它吃 `{ enrollment }` */
+  protected openBillingSetup(event: Event, enrollment: Enrollment): void {
+    // 整列是 role="button"（點了會導到班級），這顆在它裡面，要擋住冒泡
+    event.stopPropagation();
+    const ref = this.dialogService.open(EnrollmentBillingDialogComponent, {
+      header: '計費設定',
+      width: '480px',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { enrollment },
+    });
+    // **對話框關閉時回的是更新後的 `Enrollment`，不是字串** —— 取消時回
+    // `undefined`。所以判斷「有沒有存」看的是有沒有值，不是比對某個字面值
+    // （我一開始寫成 `=== 'saved'`，開檔看了才發現契約不是那樣）。
+    ref?.onClose
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((updated: Enrollment | undefined) => {
+        if (!updated) return;
+        const id = this.route.snapshot.paramMap.get('id');
+        if (id) this.loadEnrollments(id);
+      });
+  }
+
   protected dismissNotice(): void {
     this.notice.set(null);
   }
@@ -236,10 +280,14 @@ export class StudentDetailPage implements OnInit {
         next: () => {
           this.enrollingClassId.set(null);
           this.conflictPrompt.set(null);
+          // **這條入口不問計費**（班級頁那條會問）—— 所以「沒有計費設定」是它的
+          // 常態結果，不是意外。用 `info` 不用 `warn`：**每次都出現的東西花不起
+          // 警示色**，否則行政一週內就學會略過它。真正要人動手的訊號放在下面
+          // 那一列的「未設定計費」標記上（那個只在真的缺模式時出現）。
           this.notice.set({
-            severity: 'success',
-            summary: '加入成功',
-            detail: `「${s.name}」已加入「${cls.name}」`,
+            severity: 'info',
+            summary: '已加入班級',
+            detail: `「${s.name}」已加入「${cls.name}」。這筆還沒有計費設定 —— 在下方該筆報名上點「設定計費」補上，否則不會產生帳單。`,
           });
           const id = this.route.snapshot.paramMap.get('id');
           if (id) this.loadEnrollments(id);
