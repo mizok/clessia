@@ -1,0 +1,57 @@
+<div class="session-op-form">
+  <div class="session-op-form__field">
+    <label for="makeupTarget" class="session-op-form__label">補的是哪一堂停課</label>
+    <p-select
+      id="makeupTarget"
+      [options]="options()"
+      [ngModel]="selectedId()"
+      (ngModelChange)="selectedId.set($event)"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="選擇一堂停課"
+      styleClass="w-full"
+      appendTo="body"
+      [loading]="loading()"
+    />
+
+    @if (loadFailed()) {
+      <p class="session-op-form__hint">可補清單載入失敗，請關閉後重試。</p>
+    } @else if (!loading() && candidates().length === 0) {
+      <!--
+        空狀態要講「為什麼空」而不只是「沒有」—— 清單隱藏了已經被補過的停課，
+        所以「空」有兩個成因（沒有停課、停課都被補走了），使用者分不出來。
+      -->
+      <p class="session-op-form__hint">
+        這個班沒有還沒被補的停課。已經被別的課堂補過的不會出現在這裡。
+      </p>
+    }
+  </div>
+
+  <!--
+    這個系統**不能新增單堂課**，所以整段用詞是「指定既有課堂」（#592）。
+    講出限制比讓使用者去找那個不存在的新增流程好。
+  -->
+  <p class="session-op-form__hint">
+    只能從<strong>這個班已排定的課堂</strong>裡指定 —— 系統無法新增單堂課。
+  </p>
+
+  <div class="session-op-form__footer">
+    @if (existingLink()) {
+      <p-button
+        label="解除連結"
+        severity="danger"
+        [text]="true"
+        [loading]="submitting()"
+        (onClick)="clearLink()"
+      />
+    }
+    <p-button label="取消" severity="secondary" [text]="true" (onClick)="closeDialog()" />
+    <p-button
+      label="確認指定"
+      severity="primary"
+      [disabled]="!selectedId()"
+      [loading]="submitting()"
+      (onClick)="submit()"
+    />
+  </div>
+</div>
