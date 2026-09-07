@@ -8,8 +8,10 @@
         [monthUnassignedCount]="monthUnassignedCount()"
         [todayPendingAttendanceCount]="todayPendingAttendanceCount()"
         [campusName]="selectedCampusName()"
+        [hiddenCancelledCount]="hiddenCancelledCount()"
         (filterUnassigned)="onFilterUnassigned()"
         (filterPendingAttendance)="onFilterPendingAttendance()"
+        (revealCancelled)="onRevealCancelled()"
       />
       <div class="cal__header-actions">
         <p-button
