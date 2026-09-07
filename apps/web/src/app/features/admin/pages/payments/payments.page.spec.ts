@@ -98,9 +98,43 @@ describe('PaymentsPage', () => {
   it('切到只看欠繳會帶 overdue=true 重新取數', () => {
     invoices.list.mockClear();
 
-    component['toggleOverdueOnly']();
+    component['setDueFilter']('overdue');
 
     expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining({ overdue: true }));
+  });
+
+  /**
+   * #639:舊的兩態切換鈕寫「只看欠繳」而做的是「逾期且未繳清」——
+   * **照它催繳會漏掉還沒到期的未繳**(驗收:逾期 9、未繳未逾期 8、未繳清 17)。
+   *
+   * 這組守的是**三選一各自送出正確的參數**。為什麼要逐個斷言而不只測一個:
+   * 三者長得像(都是催繳、都篩未繳清),**送錯參數的畫面看起來完全正常** ——
+   * 它會給你一份合理長度的清單,只是成員是別的子集。
+   */
+  it.each([
+    ['outstanding', { outstanding: true }],
+    ['dueSoon', { dueWithin: 7 }],
+    ['overdue', { overdue: true }],
+  ] as const)('三選一:%s 送出對應的參數', (filter, expected) => {
+    invoices.list.mockClear();
+
+    component['setDueFilter'](filter);
+
+    expect(invoices.list).toHaveBeenCalledWith(expect.objectContaining(expected));
+  });
+
+  it('三選一是互斥的 —— 切到別的不會把前一個留著', () => {
+    component['setDueFilter']('overdue');
+    invoices.list.mockClear();
+
+    component['setDueFilter']('outstanding');
+
+    // **前一個要真的消失,不是變成 false** —— `overdue: false` 在 toQuery 會被
+    // 當成沒給,所以行為上一樣;但留著它等於讓兩個篩選同時存在於狀態裡,
+    // 下一個讀這段的人會以為它們可以並用
+    expect(invoices.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ outstanding: true, overdue: undefined }),
+    );
   });
 
   // 學生搜尋的 API 只吃 uuid，不吃姓名關鍵字 —— 選定之後帶的必須是 id
@@ -125,7 +159,7 @@ describe('PaymentsPage', () => {
     component['onPageChange']({ first: 20, rows: 20, page: 1, pageCount: 3 });
     expect(component['pageIndex']()).toBe(2);
 
-    component['toggleOverdueOnly']();
+    component['setDueFilter']('overdue');
 
     expect(component['pageIndex']()).toBe(1);
   });
@@ -173,7 +207,7 @@ describe('PaymentsPage', () => {
     component['onStatusChange']('partial');
     invoices.list.mockClear();
 
-    component['toggleOverdueOnly']();
+    component['setDueFilter']('overdue');
 
     expect(invoices.list).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'partial', overdue: true }),
@@ -217,7 +251,7 @@ describe('PaymentsPage', () => {
   });
 
   it('清除篩選會同時清掉欠繳、狀態與學生', () => {
-    component['toggleOverdueOnly']();
+    component['setDueFilter']('overdue');
     component['onStatusChange']('unpaid');
     component['onStudentChange'](student());
     invoices.list.mockClear();

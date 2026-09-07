@@ -102,8 +102,24 @@ export interface PaymentReminder {
 export interface InvoiceQueryParams {
   /** 後端只吃 uuid，**不吃姓名關鍵字** —— 姓名搜尋走 student-autocomplete 換出 id */
   studentId?: string;
+  /**
+   * 催繳的三個子集(#639)。**同一個母體(未繳清)、差別只在日期那一半**,
+   * 所以 UI 做成三選一;並用的話是交集,不是聯集。
+   *
+   * | | 語意 | 沒有到期日的帳單 |
+   * | --- | --- | --- |
+   * | `outstanding` | 未繳清 —— **催繳母體** | **含** |
+   * | `overdue` | 已逾期未繳清 | 不含 |
+   * | `dueWithin` | N 天內到期且未繳清 | 不含 |
+   *
+   * 「沒有到期日 = 還沒發收費袋」那一欄是使用者 2026-09-07 裁的:
+   * **帳單存在 = 這筆錢記下來了**(所以算未繳清),**但沒告訴家長期限就不該去催**。
+   */
+  outstanding?: boolean;
   /** 過了 due_date 且還沒繳清。行政的追繳清單 */
   overdue?: boolean;
+  /** N 天內到期且未繳清。今天與第 N 天都含;`0` = 只看今天到期 */
+  dueWithin?: number;
   /** 推導出來的狀態（PR #64 加的）。**與 `overdue` 可並用** —— 「部分繳 + 逾期」是常見組合 */
   status?: InvoiceStatus;
   page?: number;
@@ -204,7 +220,13 @@ function toQuery(params?: InvoiceQueryParams): Record<string, string> {
 
   const query: Record<string, string> = {};
   if (params.studentId) query['studentId'] = params.studentId;
+  if (params.outstanding) query['outstanding'] = 'true';
   if (params.overdue) query['overdue'] = 'true';
+  // `dueWithin: 0` 是有效值(只看今天到期)—— 用 `!= null` 不是 truthy,
+  // 否則「今天到期」那一批會靜靜變成「沒篩」
+  if (params.dueWithin !== undefined && params.dueWithin !== null) {
+    query['dueWithin'] = String(params.dueWithin);
+  }
   if (params.status) query['status'] = params.status;
   if (params.page !== undefined) query['page'] = String(params.page);
   if (params.pageSize !== undefined) query['pageSize'] = String(params.pageSize);

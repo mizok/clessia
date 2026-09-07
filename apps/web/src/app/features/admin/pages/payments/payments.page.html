@@ -42,13 +42,20 @@
       (ngModelChange)="onStatusChange($event)"
       ariaLabel="帳單狀態"
     />
-    <p-button
-      [label]="overdueOnly() ? '顯示全部帳單' : '只看欠繳'"
-      [icon]="overdueOnly() ? 'pi pi-list' : 'pi pi-exclamation-triangle'"
-      [outlined]="!overdueOnly()"
-      [severity]="overdueOnly() ? 'danger' : 'secondary'"
+    <!--
+      催繳三選一（#639）。**不要改回兩態切換** —— 舊的那顆寫「只看欠繳」而做的是
+      「逾期且未繳清」，照它催繳會漏掉還沒到期的未繳（驗收：逾期 9、未繳未逾期 8）。
+      三個是同一個母體的子集，所以是單選不是三個開關。
+    -->
+    <p-selectButton
+      [options]="dueFilterOptions"
+      [ngModel]="dueFilter()"
+      (ngModelChange)="setDueFilter($event)"
+      optionLabel="label"
+      optionValue="value"
+      [allowEmpty]="false"
       size="small"
-      (onClick)="toggleOverdueOnly()"
+      ariaLabel="催繳篩選"
     />
     @if (hasFilters()) {
       <p-button
@@ -77,17 +84,17 @@
         <p-button label="重試" icon="pi pi-refresh" (onClick)="load()" />
       </app-empty-state>
     } @else if (invoices().length === 0) {
-      @if (overdueOnly()) {
+      @if (dueFilter() !== 'all') {
         <app-empty-state
           icon="pi pi-check-circle"
-          title="沒有欠繳的帳單"
-          description="目前沒有過期又還沒繳清的帳單"
+          [title]="emptyStateTitle()"
+          [description]="emptyStateDescription()"
         >
           <p-button
             label="顯示全部帳單"
             [text]="true"
             severity="secondary"
-            (onClick)="toggleOverdueOnly()"
+            (onClick)="setDueFilter('all')"
           />
         </app-empty-state>
       } @else if (selectedStudent()) {
