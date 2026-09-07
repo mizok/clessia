@@ -9,7 +9,7 @@
       }
 
       <div class="day-timeline__bars">
-        @for (bin of layout().bins; track bin.startHour) {
+        @for (row of renderBins(); track row.bin.startHour) {
           <!--
             一根柱分兩段：下段已點名（實心）、上段未點名（中空）。堆疊而不並排 ——
             柱高仍然是「同時幾堂」這個唯一的量，狀態是它的內部組成。
@@ -17,16 +17,18 @@
           <span
             class="day-timeline__bar"
             role="img"
-            [attr.aria-label]="describe(bin)"
-            [title]="describe(bin)"
+            [attr.aria-label]="describe(row.bin)"
+            [title]="describe(row.bin)"
           >
             <span
               class="day-timeline__seg day-timeline__seg--untaken"
-              [style.height.%]="heightPct(bin.untaken)"
+              [class.day-timeline__seg--join-left]="row.joinUntakenLeft"
+              [class.day-timeline__seg--join-right]="row.joinUntakenRight"
+              [style.height.%]="heightPct(row.bin.untaken)"
             ></span>
             <span
               class="day-timeline__seg day-timeline__seg--taken"
-              [style.height.%]="heightPct(bin.total - bin.untaken)"
+              [style.height.%]="heightPct(row.bin.total - row.bin.untaken)"
             ></span>
           </span>
         }
@@ -50,8 +52,12 @@
         <i class="day-timeline__swatch"></i>
         未點名 {{ summaryOf().untaken }}
       </span>
-      <!-- 尺度要說出來，否則只剩形狀、失去量級 -->
-      <span class="day-timeline__legend-item">最忙 {{ layout().maxTotal }} 堂</span>
+      <!--
+        尺度要說出來，否則只剩形狀、失去量級。**「同時」兩個字不能省**（#647）：
+        「已點名 N / 未點名 N」數的是**堂數**，這裡數的是**同一時刻幾堂**，
+        三個數字並列而量綱不同 —— 使用者的困惑正是「多根柱子 vs 圖例說 1 堂」。
+      -->
+      <span class="day-timeline__legend-item">最忙同時 {{ layout().maxTotal }} 堂</span>
       @if (layout().unplaced.length > 0) {
         <!--
           畫不出來的要說出來，不是默默對齊 —— 上面那句話算的是總數，

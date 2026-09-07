@@ -41,6 +41,28 @@ export class DayTimelineComponent {
     nowMarkerPct(this.layout().window, this.date(), this.now()),
   );
 
+  /**
+   * 每一根加上「**要不要跟左邊那根接起來**」（#647）。
+   *
+   * 一堂 90 分鐘的課跨 3 根，而柱間的縫讓它讀起來像 3 件事 —— 旁邊的圖例正好寫
+   * 「1 堂」。實心那段靠 `gap: 0` 就接起來了，**但未點名是 `border: 2px` 的中空盒、
+   * 有自己的左右框**，所以還要另外把內側那條框去掉。
+   *
+   * **判準是「前一根也有未點名」，不是「前一根有沒有課」** —— 一根可以「有課但
+   * 未點名 = 0」，用後者的話 run 的第一根會被錯誤地拿掉左框。
+   * CSS 的兄弟選擇器只表達得出後者（它看不到 seg 的高度），**所以這件事必須在這裡算**。
+   */
+  protected readonly renderBins = computed(() => {
+    const bins = this.layout().bins;
+    return bins.map((bin, i) => ({
+      bin,
+      // **兩邊都要**：一條分隔線是「左邊那根的右框」加「右邊那根的左框」兩條疊起來，
+      // 只去掉一邊的話線還在（實測看過 —— 4 根的 run 仍然是 4 個盒子）。
+      joinUntakenLeft: bin.untaken > 0 && (bins[i - 1]?.untaken ?? 0) > 0,
+      joinUntakenRight: bin.untaken > 0 && (bins[i + 1]?.untaken ?? 0) > 0,
+    }));
+  });
+
   protected readonly hasBars = computed(() => this.layout().maxTotal > 0);
 
   /**
