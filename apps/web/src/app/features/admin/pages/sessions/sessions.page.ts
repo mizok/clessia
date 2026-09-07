@@ -24,7 +24,9 @@ import { CoursesService, type Course } from '@core/courses.service';
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import { SessionsService, type Session } from '@core/sessions.service';
+import { SessionsService, type Session,
+  type SessionQueryParams,
+} from '@core/sessions.service';
 import type { Staff } from '@core/staff.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { StudentsService, type Student } from '@core/students.service';
@@ -55,6 +57,7 @@ import {
 import {
   SessionFiltersComponent,
   DEFAULT_STATUSES,
+  statusesAreFiltering,
 } from './components/session-filters/session-filters.component';
 import { SessionsHeaderComponent } from './components/sessions-header/sessions-header.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
@@ -228,7 +231,9 @@ export class SessionsPage implements OnInit {
     if (this.selectedTeacherIds().length > 0) count++;
     if (this.selectedClassIds().length > 0) count++;
     if (this.selectedStudentIds().length > 0) count++;
-    if (!this.isDefaultStatuses()) count++;
+    // 預設值本身就在濾掉已停課，所以它**是**一個生效中的條件（#640）。
+    // 判準是「有沒有在濾」而不是「跟預設一不一樣」——見 shared/utils/session-status.ts。
+    if (statusesAreFiltering(this.selectedStatuses())) count++;
     return count;
   });
 
@@ -238,9 +243,14 @@ export class SessionsPage implements OnInit {
       this.selectedTeacherIds().length > 0 ||
       this.selectedClassIds().length > 0 ||
       this.selectedStudentIds().length > 0 ||
+      // **這裡刻意仍然是「跟預設一不一樣」，跟上面的 activeFilterCount 不同判準。**
+      // 這個 signal 控的是「清除篩選」按鈕，而清除的目標就是回到預設 ——
+      // 用 `statusesAreFiltering` 的話按鈕在預設態就會出現，而按下去什麼都不會變。
       !this.isDefaultStatuses(),
   );
 
+  /** 目前狀態篩選正在隱藏幾堂已停課（#640）。0 = 沒有東西被隱藏，badge 不渲染 */
+  protected readonly hiddenCancelledCount = signal(0);
   protected readonly monthUnassignedCount = signal(0);
   protected readonly todayPendingAttendanceCount = signal(0);
   protected readonly displayedSessions = computed(() => {
@@ -774,6 +784,42 @@ export class SessionsPage implements OnInit {
   }
 
   // ── Private ────────────────────────────────────────────────────────────
+  /**
+   * 算出「目前的其他篩選條件之下，有幾堂已停課被狀態篩選擋在外面」（#640）。
+   *
+   * **必須沿用同一組其他條件**（日期、分校、課程、老師、班級…），只把 statuses
+   * 換成 `['cancelled']` —— 問的是「我現在這個範圍裡藏了幾堂」，不是「全庫有幾堂」。
+   *
+   * `session-list` 既有的「N 堂已停課」算的是**當頁那 20 列**裡的停課數，
+   * 所以在預設篩選之下它永遠是 0（那些列根本不在），拿不來用。
+   *
+   * **正解其實是讓後端在 `meta` 多回一個數字** —— 那裡已經有
+   * `monthUnassignedCount` / `todayPendingAttendanceCount` 兩個同性質的側邊計數，
+   * 一次請求就好。沒那樣做是因為 `apps/api` 不是這一席的領地；
+   * 接手的人要收斂的話，那是正確的方向。
+   */
+  private loadHiddenCancelledCount(listParams: SessionQueryParams): void {
+    if (listParams.statuses?.includes('cancelled') !== false) {
+      this.hiddenCancelledCount.set(0);
+      return;
+    }
+    this.sessionsService
+      .list({ ...listParams, statuses: ['cancelled'], page: 1, pageSize: 1 })
+      .subscribe({
+        next: (res) => this.hiddenCancelledCount.set(res.meta.total),
+        // 算不出來就不顯示 —— 一個猜的數字比沒有數字糟
+        error: () => this.hiddenCancelledCount.set(0),
+      });
+  }
+
+  /** 頁首那顆「已隱藏 N 堂停課」被按下 —— 把已停課加回狀態篩選 */
+  protected onRevealCancelled(): void {
+    if (this.selectedStatuses().includes('cancelled')) return;
+    this.selectedStatuses.set([...this.selectedStatuses(), 'cancelled']);
+    this.currentPage.set(1);
+    this.loadSessions();
+  }
+
   private isDefaultStatuses(): boolean {
     const current = [...this.selectedStatuses()].sort().join(',');
     const def = [...DEFAULT_STATUSES].sort().join(',');
@@ -893,22 +939,24 @@ export class SessionsPage implements OnInit {
       effectiveClassIds = this.selectedClassIds().length > 0 ? this.selectedClassIds() : undefined;
     }
 
+    const listParams: SessionQueryParams = {
+      from: dateFrom,
+      to: dateTo,
+      campusIds: this.selectedCampusIds().length > 0 ? this.selectedCampusIds() : undefined,
+      courseIds: this.selectedCourseIds().length > 0 ? this.selectedCourseIds() : undefined,
+      teacherIds: realTeacherIds.length > 0 ? realTeacherIds : undefined,
+      classIds: effectiveClassIds,
+      assignmentStatus: hasUnassigned ? 'unassigned' : undefined,
+      attendanceTaken: this.attendanceTakenFilter(),
+      endedOnly: this.endedOnlyFilter(),
+      statuses: this.selectedStatuses().length > 0 ? this.selectedStatuses() : undefined,
+      page: this.currentPage(),
+      pageSize: this.PAGE_SIZE,
+    };
+
     this.loading.set(true);
     this.sessionsService
-      .list({
-        from: dateFrom,
-        to: dateTo,
-        campusIds: this.selectedCampusIds().length > 0 ? this.selectedCampusIds() : undefined,
-        courseIds: this.selectedCourseIds().length > 0 ? this.selectedCourseIds() : undefined,
-        teacherIds: realTeacherIds.length > 0 ? realTeacherIds : undefined,
-        classIds: effectiveClassIds,
-        assignmentStatus: hasUnassigned ? 'unassigned' : undefined,
-        attendanceTaken: this.attendanceTakenFilter(),
-        endedOnly: this.endedOnlyFilter(),
-        statuses: this.selectedStatuses().length > 0 ? this.selectedStatuses() : undefined,
-        page: this.currentPage(),
-        pageSize: this.PAGE_SIZE,
-      })
+      .list(listParams)
       .pipe(
         switchMap((res) =>
           this.loadAttendanceSummaries(res.data, dateFrom, dateTo).pipe(
@@ -926,6 +974,7 @@ export class SessionsPage implements OnInit {
           this.monthUnassignedCount.set(res.meta.monthUnassignedCount);
           this.todayPendingAttendanceCount.set(res.meta.todayPendingAttendanceCount);
           this.loading.set(false);
+          this.loadHiddenCancelledCount(listParams);
         },
         error: () => {
           this.loading.set(false);

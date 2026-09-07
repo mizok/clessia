@@ -7,14 +7,15 @@ import type { Campus } from '@core/campuses.service';
 
 export const UNASSIGNED_TEACHER_ID = '__unassigned__';
 
-export const SESSION_STATUS_OPTIONS: Array<{ label: string; value: string }> = [
-  { label: '正常', value: 'scheduled' },
-  { label: '已完成', value: 'completed' },
-  { label: '已停課', value: 'cancelled' },
-];
-
-export const ALL_SESSION_STATUSES = SESSION_STATUS_OPTIONS.map((option) => option.value);
-export const DEFAULT_STATUSES = ['scheduled', 'completed'];
+// 課堂狀態的詞彙住在 `shared/utils/session-status.ts`（單一來源，#640）。
+// 這裡 re-export 是為了不動既有的 import 路徑。
+export {
+  ALL_SESSION_STATUSES,
+  DEFAULT_STATUSES,
+  SESSION_STATUS_OPTIONS,
+  statusesAreFiltering,
+} from '@shared/utils/session-status';
+import { SESSION_STATUS_OPTIONS as STATUS_OPTIONS } from '@shared/utils/session-status';
 
 @Component({
   selector: 'app-session-filters',

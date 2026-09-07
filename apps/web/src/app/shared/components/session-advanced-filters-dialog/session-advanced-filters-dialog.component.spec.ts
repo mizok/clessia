@@ -16,6 +16,15 @@ describe('SessionAdvancedFiltersDialogComponent', () => {
   let fixture: ComponentFixture<SessionAdvancedFiltersDialogComponent>;
   let dialogData: SessionAdvancedFiltersDialogData;
 
+
+  const recreate = async () => {
+    fixture = TestBed.createComponent(SessionAdvancedFiltersDialogComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+  };
+
   const dialogRefMock = {
     close: vi.fn(),
   };
@@ -132,6 +141,44 @@ describe('SessionAdvancedFiltersDialogComponent', () => {
     expect(text).toContain('學生');
     expect(text).toContain('老師');
     expect(text).toContain('課堂狀態');
+  });
+
+  /**
+   * #640：這個徽章在「正常, 已完成」（預設）之下寫「0 個進階條件」，
+   * 而那個組合**正在把已停課的課堂濾掉** —— 使用者停完課看不到那堂，
+   * 而畫面主動告訴他沒有任何條件生效。**主動說錯的答案會讓人停止尋找。**
+   *
+   * 判準改成「這組狀態有沒有在濾掉東西」（`statusesAreFiltering`），
+   * 不是「跟預設一不一樣」——三種狀態全選才是「沒有在濾」。
+   */
+  it('預設狀態正在濾掉已停課，所以要算成一個生效中的條件', async () => {
+    dialogData = buildDialogData({ mode: 'sessions', selectedStatuses: ['scheduled', 'completed'] });
+    await recreate();
+
+    expect(fixture.nativeElement.textContent).toContain('1 個進階條件');
+  });
+
+  /**
+   * 舊實作是 `selectedStatuses().length !== DEFAULT_STATUSES.length` —— **比長度**。
+   * 所以「正常 + 已停課」（長度同樣是 2、內容完全不同）也會算成 0。
+   * 這一條是那個 bug 的直接對照組：**同樣長度、不同內容**。
+   */
+  it('長度與預設相同但內容不同的狀態組合也要算成條件', async () => {
+    dialogData = buildDialogData({ mode: 'sessions', selectedStatuses: ['scheduled', 'cancelled'] });
+    await recreate();
+
+    expect(fixture.nativeElement.textContent).toContain('1 個進階條件');
+  });
+
+  /** 正面對照：三種全選＝沒有濾掉任何東西，那才是真的 0。 */
+  it('三種狀態全選時沒有濾掉任何東西，算 0', async () => {
+    dialogData = buildDialogData({
+      mode: 'sessions',
+      selectedStatuses: ['scheduled', 'completed', 'cancelled'],
+    });
+    await recreate();
+
+    expect(fixture.nativeElement.textContent).toContain('0 個進階條件');
   });
 });
 

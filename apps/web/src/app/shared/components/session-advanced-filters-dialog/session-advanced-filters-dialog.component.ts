@@ -9,13 +9,11 @@ import type { Staff } from '@core/staff.service';
 import type { Student } from '@core/students.service';
 import { ImeFilterInputComponent } from '@shared/components/ime-filter-input/ime-filter-input.component';
 
-const SESSION_STATUS_OPTIONS: Array<{ label: string; value: string }> = [
-  { label: '正常', value: 'scheduled' },
-  { label: '已完成', value: 'completed' },
-  { label: '已停課', value: 'cancelled' },
-];
-
-const DEFAULT_STATUSES = ['scheduled', 'completed'];
+import {
+  DEFAULT_STATUSES,
+  SESSION_STATUS_OPTIONS,
+  statusesAreFiltering,
+} from '@shared/utils/session-status';
 
 export interface SessionAdvancedFilterClassOption {
   readonly id: string;
@@ -130,7 +128,7 @@ export class SessionAdvancedFiltersDialogComponent {
     if (this.selectedClassIds().length > 0) count++;
     if (this.selectedStudentIds().length > 0) count++;
     if (this.selectedTeacherIds().length > 0) count++;
-    if (this.selectedStatuses().length !== DEFAULT_STATUSES.length) count++;
+    if (statusesAreFiltering(this.selectedStatuses())) count++;
     return count;
   });
 

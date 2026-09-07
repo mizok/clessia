@@ -345,7 +345,9 @@ describe('SessionsPage', () => {
     ).hasActiveFilters();
 
     expect(listDateRange).toHaveLength(2);
-    expect(activeFilterCount).toBe(0);
+    // #640：預設狀態（正常, 已完成）**正在濾掉已停課**，所以它是一個生效中的條件。
+    // 這一條原本斷言 0 —— 那把「畫面說沒有條件、而實際上有」寫成了預期行為。
+    expect(activeFilterCount).toBe(1);
     expect(hasActiveFilters).toBe(false);
   });
 
@@ -510,7 +512,10 @@ describe('SessionsPage', () => {
     expect(hasActiveFiltersBeforeClear).toBe(true);
     expect(selectedCampusIdsAfterClear).toEqual(['campus-1']);
     expect(listDateRangeAfterClear).toHaveLength(2);
-    expect(activeFilterCountAfterClear).toBe(0);
+    // #640：清完之後狀態回到預設，而預設**仍然在濾掉已停課** —— 所以是 1 不是 0。
+    // `hasActiveFilters` 刻意仍然是 false：它控的是「清除篩選」按鈕，
+    // 而已經清乾淨了就不該再出現那顆按鈕。**兩個 signal 回答不同的問題。**
+    expect(activeFilterCountAfterClear).toBe(1);
     expect(hasActiveFiltersAfterClear).toBe(false);
   });
 
@@ -574,7 +579,11 @@ describe('SessionsPage', () => {
       page: 1,
       pageSize: 100,
     });
-    expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
+    // **不能用 `toHaveBeenLastCalledWith`**：#640 之後 `loadSessions()` 會再打一支
+    // `statuses: ['cancelled'], pageSize: 1` 的計數查詢（算「被隱藏幾堂」），
+    // 所以「最後一次」已經不是主查詢了。這條要斷言的一直都是**主查詢帶了什麼**，
+    // 「最後一次」只是它的代理指標 —— 代理指標失效就換回問原本的問題。
+    expect(sessionsServiceMock.list).toHaveBeenCalledWith(
       expect.objectContaining({
         campusIds: ['campus-1'],
         courseIds: ['course-1'],
@@ -582,6 +591,14 @@ describe('SessionsPage', () => {
         classIds: ['class-1'],
         statuses: ['completed'],
         page: 1,
+      }),
+    );
+    // 對照：計數查詢確實有發出，而且沿用同一組其他條件
+    expect(sessionsServiceMock.list).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campusIds: ['campus-1'],
+        statuses: ['cancelled'],
+        pageSize: 1,
       }),
     );
   });

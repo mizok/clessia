@@ -11,6 +11,21 @@
           }
         </button>
       }
+      <!--
+        生效中的預設篩選要看得見（#640）。停課是補習班的日常，而停完課那堂就從
+        列表消失、畫面上沒有任何殘留訊號 —— 主任的第一個反應是「我是不是刪掉了」。
+        用既有的 tag-group 與 badge 形狀：那兩顆是「點了套用篩選」，
+        這顆是「點了拿掉篩選」，同一個互動的反面，零新元件。
+      -->
+      @if (hiddenCancelledCount() > 0) {
+        <button
+          type="button"
+          class="sessions-header__badge sessions-header__badge--hidden"
+          (click)="revealCancelled.emit()"
+        >
+          已隱藏 {{ hiddenCancelledCount() }} 堂停課 · 點此顯示
+        </button>
+      }
       @if (todayPendingAttendanceCount() > 0) {
         <button
           type="button"
