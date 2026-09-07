@@ -358,6 +358,18 @@ BEGIN
             v_actor)
     RETURNING id INTO v_exam;
 
+    -- **考試一定要綁班，否則它在「班級視角」是隱形的。**
+    --
+    -- 這個不變量由 `POST /api/academy-exams` 的 zod 守（`classIds` 是
+    -- `z.array(...).min(1)`，`routes/academy-exams.ts:117`），**而 DB 沒有任何約束** ——
+    -- 所以走 SQL 就繞得過。第一版忘了寫這一段，造出 4 場「有成績、沒有班」的考試：
+    -- 考試管理看得到（8/8 已登錄），班級視角每一班都說「尚未建立考試」，
+    -- 因為 `GET /api/academy-exams?classId=` 是嚴格走這張表取交集的
+    -- （`routes/academy-exams.ts:531-535`）。**兩個畫面都沒錯，是資料違反了不變量。**
+    INSERT INTO public.academy_exam_classes (exam_id, class_id)
+    VALUES (v_exam, v_class_ids[i])
+    ON CONFLICT DO NOTHING;
+
     k := 0;
     FOR v_student IN
       SELECT DISTINCT e.student_id FROM public.enrollments e
@@ -454,6 +466,43 @@ BEGIN
 END $$;
 
 -- ============================================================================
+-- 回填：把「有成績卻沒綁班」的考試補上關聯
+--
+-- **這一段在早退守衛之外，所以已經套過 seed-demo 的環境再跑一次這支檔就會被修好。**
+--
+-- 為什麼需要它：第一版漏寫 `academy_exam_classes`，而上面那個「已套用就跳出」的守衛
+-- 會讓修好的版本對已經套過的環境**完全無效** —— 檔案改對了，而受害的那些環境永遠拿不到。
+-- **一個只對新環境生效的修法，跟沒修一樣**（本機與 usability-admin 用的就是舊的那份）。
+--
+-- 判斷「該綁哪一班」不靠順序，靠資料本身：**成績上的那些學生，在哪一班有生效中的報名。**
+-- 只有唯一解時才補，避免猜錯 —— 補不了的會被下面的驗收查詢照出來。
+-- ============================================================================
+INSERT INTO public.academy_exam_classes (exam_id, class_id)
+SELECT orphan.exam_id, orphan.class_id
+FROM (
+  SELECT s.exam_id, e.class_id, count(*) AS n
+  FROM public.academy_scores s
+  JOIN public.enrollments e
+    ON e.student_id = s.student_id AND e.status = 'active'
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.academy_exam_classes aec WHERE aec.exam_id = s.exam_id
+  )
+  GROUP BY s.exam_id, e.class_id
+) orphan
+-- 一場考試的成績可能橫跨多班（學生同時在數學 A 班與進階班），
+-- 那種情況下「唯一解」不成立 —— 取覆蓋最多學生的那一班，平手就都不補。
+WHERE orphan.n = (
+  SELECT max(o2.n) FROM (
+    SELECT e2.class_id, count(*) AS n
+    FROM public.academy_scores s2
+    JOIN public.enrollments e2 ON e2.student_id = s2.student_id AND e2.status = 'active'
+    WHERE s2.exam_id = orphan.exam_id
+    GROUP BY e2.class_id
+  ) o2
+)
+ON CONFLICT DO NOTHING;
+
+-- ============================================================================
 -- 驗收查詢（套用前後各跑一次，比差值）
 --
 -- ⚠️ **不要用 `invoices.status`** —— 那個欄位不存在。逾期要照推導寫：
@@ -464,6 +513,8 @@ END $$;
 --     (select count(*) from public.sessions where status = 'cancelled')             as 停課,
 --     (select count(*) from public.sessions where makeup_for_session_id is not null) as 補課,
 --     (select count(*) from public.students)                                        as 學生,
+--     (select count(*) from public.academy_exams ae where not exists (
+--        select 1 from public.academy_exam_classes aec where aec.exam_id = ae.id))    as 孤兒考試,  -- 必須是 0
 --     (select count(*) from public.invoices i
 --        where i.due_date < current_date
 --          and coalesce((select sum(pr.amount) from public.payment_records pr
