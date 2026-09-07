@@ -18,6 +18,7 @@ import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/se
 import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
 import { SessionOperationsLogDialogComponent } from './dialogs/session-operations-log-dialog/session-operations-log-dialog.component';
+import { SessionMakeupDialogComponent } from './dialogs/session-makeup-dialog/session-makeup-dialog.component';
 import { SessionAdvancedFiltersDialogComponent } from '@shared/components/session-advanced-filters-dialog/session-advanced-filters-dialog.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
@@ -758,6 +759,97 @@ describe('SessionsPage', () => {
     ).displayedSessions();
 
     expect(displayedSessions).toEqual([expect.objectContaining({ id: 'session-2' })]);
+  });
+
+  /**
+   * **#637：交付條件不是「元件有測試」，是「有人走得到」。**
+   *
+   * `session-makeup-dialog` 自己有 6 支測試而且全綠 —— 但那些測的是**對話框內部**
+   * （給 input、驗輸出、驗撞 409 會重載清單）。**全部都是真的，而如果沒有人能
+   * 走到那裡，功能等於沒交付，且所有 gate 照樣綠。**
+   *
+   * 這兩條測的是**入口**：選單裡有沒有那一項、點下去會不會真的開那支對話框。
+   * 這是這一席 charter 坑 #1（選單與路由表之間的縫）在對話框上的版本 ——
+   * 那邊有 `app.routes.spec.ts` 當安全網，對話框這邊在 #637 之前沒有。
+   */
+  function makeSession(overrides: Partial<Session> = {}): Session {
+    return {
+      id: '00000000-0000-0000-0000-0000000000f1',
+      classId: '00000000-0000-0000-0000-0000000000f2',
+      className: '數學 A',
+      courseId: '00000000-0000-0000-0000-0000000000f3',
+      courseName: '數學',
+      campusId: '00000000-0000-0000-0000-0000000000f4',
+      campusName: '示範分校',
+      sessionDate: '2026-09-10',
+      startTime: '19:00',
+      endTime: '21:00',
+      teacherId: null,
+      teacherName: null,
+      status: 'scheduled',
+      assignmentStatus: 'unassigned',
+      hasChanges: false,
+      ...overrides,
+    } as Session;
+  }
+
+  function menuFor(session: Session) {
+    (
+      component as unknown as { contextSession: { set: (value: Session) => void } }
+    ).contextSession.set(session);
+    return (
+      component as unknown as {
+        contextMenuItems: () => Array<{ label?: string; command?: () => void }>;
+      }
+    ).contextMenuItems();
+  }
+
+  it('已排定的課堂，選單裡有「指定為補課」而且點得開對話框', () => {
+    const dialogOpenSpy = vi
+      .spyOn(
+        (component as unknown as { dialogService: { open: (...args: unknown[]) => unknown } })
+          .dialogService,
+        'open',
+      )
+      .mockReturnValue({ onClose: of(undefined) });
+
+    const session = makeSession();
+    const entry = menuFor(session).find((i) => i.label === '指定為補課');
+
+    // ① 入口存在
+    expect(entry).toBeDefined();
+
+    // ② 點下去真的開那一支 —— 不是「有一個 label 長得像入口」
+    entry!.command!();
+    expect(dialogOpenSpy).toHaveBeenCalledWith(
+      SessionMakeupDialogComponent,
+      expect.objectContaining({ data: expect.objectContaining({ session }) }),
+    );
+  });
+
+  /**
+   * 已經指定過的課堂，入口改口說「改指定補課」（對話框會多一顆解除連結）。
+   * 兩種文字都要是入口 —— 只驗其中一種的話，另一種壞掉不會有人知道。
+   */
+  it('已指定過的課堂，入口變成「改指定補課」', () => {
+    const withLink = makeSession({
+      makeupFor: { id: 'x', sessionDate: '2026-09-04', status: 'cancelled' },
+    });
+
+    expect(menuFor(withLink).map((i) => i.label)).toContain('改指定補課');
+    expect(menuFor(withLink).map((i) => i.label)).not.toContain('指定為補課');
+  });
+
+  /**
+   * **停課的那一堂是「被補的一方」，它自己不該有這個入口。**
+   * 心智模型是「在補課的那堂課上指定它補的是哪一堂停課」（#499 裁定），
+   * 而停課 toast 也是這樣寫的 —— 兩邊必須一致，否則使用者照 toast 去找會找不到。
+   */
+  it('停課的課堂沒有這個入口 —— 它是被補的一方', () => {
+    const labels = menuFor(makeSession({ status: 'cancelled' })).map((i) => i.label);
+
+    expect(labels).not.toContain('指定為補課');
+    expect(labels).not.toContain('改指定補課');
   });
 
   it('adds history entry to context menu and opens session history dialog', () => {
