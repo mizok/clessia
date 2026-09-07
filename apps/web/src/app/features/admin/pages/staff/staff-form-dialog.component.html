@@ -39,6 +39,9 @@
         [class.p-invalid]="!!errors()['email']"
         class="w-full"
       />
+      @if (errors()['email']; as msg) {
+        <span class="staff-form-dialog__error-text">{{ msg }}</span>
+      }
     </div>
 
     <!-- Phone -->
@@ -198,7 +201,6 @@
       [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
       [loading]="loading()"
       (onClick)="save()"
-      [disabled]="!formData().displayName.trim() || formData().roles.length === 0"
     />
   </div>
 </div>

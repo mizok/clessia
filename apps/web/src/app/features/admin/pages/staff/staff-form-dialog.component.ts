@@ -143,6 +143,20 @@ export class StaffFormDialogComponent {
     return Object.keys(found)[0] ?? null;
   }
 
+  /**
+   * **這顆按鈕刻意不 disable。**（#663 實測時發現的第二個成因）
+   *
+   * 原本是 `[disabled]="!displayName.trim() || roles.length === 0"` ——
+   * 於是姓名空白時**按下去真的什麼都不會發生**：`save()` 根本沒被呼叫，
+   * 沒有 toast、沒有欄位標記、沒有任何解釋。
+   * **那才是「按建立沒反應」最徹底的版本**，而它比 toast 太短更難查，
+   * 因為連一閃而過的訊號都沒有。
+   *
+   * charter 的判準：**`disabled` 是把「為什麼不行」藏起來，而那正是使用者
+   * 最需要知道的。按不下去的按鈕不會解釋原因，按得下去的才會。**
+   * 例外是「按下去會產生後果」的按鈕 —— 這一顆不是：驗證沒過就不會送出，
+   * 誤觸的代價是看到一則錯誤訊息，而那正是我們要他看到的東西。
+   */
   protected save(): void {
     const form = this.formData();
     const firstError = this.validate();
