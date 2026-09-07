@@ -5,7 +5,7 @@ import { DialogService } from 'primeng/dynamicdialog';
 
 import { StudentDetailPage } from './student-detail.page';
 import { StudentsService } from '@core/students.service';
-import { EnrollmentsService } from '@core/enrollments.service';
+import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 
 describe('StudentDetailPage', () => {
@@ -169,6 +169,40 @@ describe('StudentDetailPage', () => {
       classId: 'class-1',
       studentId: seedStudentId,
       skipConflictCheck: true,
+    });
+  });
+
+  /**
+   * **#638 這支最容易做錯的地方，所以用測試釘住條件的兩側。**
+   *
+   * 「還沒開帳」是 `enrollment-rules` 6.2 明寫的**合法暫時狀態**；
+   * 「沒有計費模式」才是一筆永遠收不到錢的報名。
+   *
+   * 條件抓寬的代價很具體：行政每建一筆正常的延後開帳報名都會看到警告，
+   * **而每天早上紅一次的東西一週內就會被學會忽略** —— 那時真正該看的也一起沒了。
+   */
+  describe('needsBillingSetup 的邊界（#638）', () => {
+    const check = (e: Partial<Enrollment>) =>
+      (
+        fixture.componentInstance as unknown as { needsBillingSetup: (x: Enrollment) => boolean }
+      ).needsBillingSetup(e as Enrollment);
+
+    it('沒有計費模式 → 要提示', () => {
+      expect(check({ billingMode: null })).toBe(true);
+    });
+
+    it('有模式就不提示，即使還沒開帳 —— 延後開帳是合法的', () => {
+      expect(check({ billingMode: 'monthly' })).toBe(false);
+      expect(check({ billingMode: 'period' })).toBe(false);
+    });
+
+    /**
+     * `session_pack` 永遠不進月結 run（買包時才開帳），看起來很像
+     * 「不會被收錢」—— **但它是有模式的**。有人想補一個 session_pack 特判時，
+     * 這條會擋住。
+     */
+    it('陷阱：session_pack 是有模式的，不算異常', () => {
+      expect(check({ billingMode: 'session_pack' })).toBe(false);
     });
   });
 });
