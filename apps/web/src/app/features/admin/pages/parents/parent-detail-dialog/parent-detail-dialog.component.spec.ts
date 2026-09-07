@@ -3,6 +3,7 @@ import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { ParentsService, type ParentDetail } from '@core/parents.service';
+import { StudentsService } from '@core/students.service';
 import { EnrollmentsService } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 
@@ -40,8 +41,20 @@ describe('ParentDetailDialogComponent', () => {
     create: vi.fn(() => of({ data: { id: 'enrollment-1' } })),
   };
 
+  const parentsServiceMock = {
+    get: vi.fn(() => of({ data: parentDetail })),
+    // 帶上參數型別 —— 不然 `mock.calls` 是空 tuple，下面那條斷言取不到 `[1]`
+    update: vi.fn((_id: string, _input: { studentIds?: string[] }) => of({ data: {} })),
+  };
+
+  const studentsServiceMock = {
+    list: vi.fn(() => of({ data: [] })),
+  };
+
   beforeEach(async () => {
     enrollmentsServiceMock.create.mockClear();
+    parentsServiceMock.update.mockClear();
+    parentsServiceMock.get.mockClear();
 
     await TestBed.configureTestingModule({
       imports: [ParentDetailDialogComponent],
@@ -60,9 +73,11 @@ describe('ParentDetailDialogComponent', () => {
         },
         {
           provide: ParentsService,
-          useValue: {
-            get: vi.fn(() => of({ data: parentDetail })),
-          },
+          useValue: parentsServiceMock,
+        },
+        {
+          provide: StudentsService,
+          useValue: studentsServiceMock,
         },
         {
           provide: EnrollmentsService,
@@ -170,6 +185,47 @@ describe('ParentDetailDialogComponent', () => {
       classId: 'class-1',
       studentId: 'student-1',
       skipConflictCheck: true,
+    });
+  });
+
+  /**
+   * **#641 這支唯一真正危險的地方。**
+   *
+   * `studentIds` 是**全量替換** —— 後端 `parents.ts:632` 先
+   * `delete().eq('parent_id', id)` 再 insert。所以送出一份不完整的清單，
+   * 就是**靜靜解除既有關聯**，而那個失效跟「本來就沒綁」在畫面上一模一樣：
+   * 不會有錯誤、不會有紅燈，只有家長少了一個小孩。
+   *
+   * 這一條釘住「送出的是現有的全部 ＋ 新的那一個」，**不是只送新的那一個**。
+   */
+  describe('綁定既有學生時的全量替換語意', () => {
+    const bind = (student: { id: string; name: string }) =>
+      (
+        fixture.componentInstance as unknown as {
+          bindExistingStudent: (s: unknown) => void;
+        }
+      ).bindExistingStudent(student);
+
+    it('送出「現有的全部 + 新的那一個」，不是只送新的', () => {
+      bind({ id: 'student-2', name: '王小華' });
+
+      expect(parentsServiceMock.update).toHaveBeenCalledWith('parent-1', {
+        studentIds: ['student-1', 'student-2'],
+      });
+    });
+
+    it('陷阱：既有的那一個一定要在清單裡 —— 少了它就是解除關聯', () => {
+      bind({ id: 'student-2', name: '王小華' });
+
+      const sent = parentsServiceMock.update.mock.calls[0][1];
+      expect(sent.studentIds).toContain('student-1');
+      expect(sent.studentIds).not.toEqual(['student-2']);
+    });
+
+    it('已經綁過的不重送，避免無謂的全量替換', () => {
+      bind({ id: 'student-1', name: '王小明' });
+
+      expect(parentsServiceMock.update).not.toHaveBeenCalled();
     });
   });
 });

@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal, computed, DestroyRef } from '@angula
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { SkeletonModule } from 'primeng/skeleton';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -59,6 +60,7 @@ interface ConflictPrompt {
     StatusDotComponent,
     DataChipComponent,
     CommonModule,
+    RouterLink,
     ButtonModule,
     SkeletonModule,
     EmptyStateComponent,

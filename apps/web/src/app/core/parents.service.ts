@@ -67,6 +67,20 @@ export interface UpdateParentInput {
   email?: string | null;
   phone?: string | null;
   notes?: string | null;
+  /**
+   * ⚠️ **全量替換，不是新增。** 後端 `PUT /api/parents/{id}` 收到這個欄位就
+   * `delete().eq('parent_id', id)` 再 insert（`apps/api/src/routes/parents.ts:632`），
+   * 所以 **`[]` 會解除所有關聯**。
+   *
+   * **送出前一定要帶上「這個家長現有的全部學生」＋你要加的那一個。**
+   * 少帶就是靜靜解除既有關聯 —— 而**那個失效跟「本來就沒綁」在畫面上一模一樣**，
+   * 不會有錯誤、不會有紅燈，只有家長少了一個小孩。
+   *
+   * **所以呼叫端要挑手上已經有完整清單的地方**（`parent-detail-dialog` 的
+   * `parentDetail.students`）。要先 GET 再 PUT 的地方不要用它 ——
+   * 「GET 失敗或回空」跟「這個家長本來就只有一個小孩」在程式裡長得一樣。
+   */
+  studentIds?: string[];
 }
 
 export interface BatchImportRow {

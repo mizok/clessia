@@ -442,3 +442,13 @@
     min-height: 44px;
   }
 }
+
+// 空狀態裡的指路連結（#641）—— 綁定的操作在家長頁，這裡只負責讓人知道路在哪。
+// 用 accent 色 + 底線：**它是這段文字裡唯一可點的東西，不能只靠色相表達**
+// （色盲、以及「顏色是有預算的」那條）。
+.student-detail__inline-link {
+  color: var(--accent-600);
+  font-weight: var(--font-semibold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

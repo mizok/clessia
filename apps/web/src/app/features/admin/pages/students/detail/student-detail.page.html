@@ -182,9 +182,25 @@
     <div class="student-detail__section-card">
       <h2 class="student-detail__section-title">關聯家長</h2>
       @if (student()!.parents.length === 0) {
+        <!--
+          **指路，不是功能**（#641 裁定甲的補充）。
+
+          綁定的操作在家長頁 —— 因為 `studentIds` 是全量替換，而家長詳情頁
+          手上就有完整清單；從學生這一側做要先 GET 再 PUT，
+          而「GET 回空」跟「這個家長本來就只有一個小孩」在程式裡長得一樣。
+
+          但使用者的脈絡在學生身上（他正看著一個沒有家長的學生），
+          **所以他不知道那條路存在** —— 可用性測試席的原句是
+          「新增學生有家長欄，編輯學生沒有，**所以留空就再也綁不上**」。
+          **綁得上，只是他不知道。** 這一句話就是要解掉那個「不知道」。
+        -->
         <div class="student-detail__empty-section">
           <i class="pi pi-users"></i>
-          <span>尚未關聯家長</span>
+          <span>
+            尚未關聯家長 —— 到
+            <a [routerLink]="['/admin/parents']" class="student-detail__inline-link">家長管理</a>
+            找到該家長，在詳情裡用「綁定既有學生」把這位學生加進去。
+          </span>
         </div>
       } @else {
         <div class="student-detail__parents-list">
