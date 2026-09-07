@@ -127,7 +127,10 @@ describe('DayTimelineComponent', () => {
       session({ eventId: 'a', startTime: '09:00', endTime: '12:00' }),
       session({ eventId: 'b', startTime: '09:30', endTime: '12:00' }),
     ]);
-    expect(el.textContent).toContain('最忙 2 堂');
+    // #647：三個數字並列而量綱不同（已點名 N / 未點名 N 是**堂數**，
+    // 最忙 N 是**同時堂數**）。加「同時」兩個字把量綱說清楚 ——
+    // 使用者的困惑正是「多根柱子 vs 圖例說 1 堂」。
+    expect(el.textContent).toContain('最忙同時 2 堂');
   });
 
   // 畫不出來的要說出來，不是默默對齊
@@ -137,7 +140,7 @@ describe('DayTimelineComponent', () => {
       session({ eventId: 'ghost', startTime: null }),
     ]);
     expect(el.textContent).toContain('另有 1 堂未排定時間');
-    expect(el.textContent).toContain('最忙 1 堂');
+    expect(el.textContent).toContain('最忙同時 1 堂');
   });
 
   it('全部都有時間時不會出現那句提醒', async () => {
@@ -151,5 +154,63 @@ describe('DayTimelineComponent', () => {
     // 今天的那條軸不保證有標記（要看此刻幾點），但別的日子一定沒有
     expect(other.querySelector('.day-timeline__now')).toBeNull();
     expect(today).toBeTruthy();
+  });
+
+  /**
+   * #647：一堂 90 分鐘的課跨 3 根，而柱與柱之間 2px 的縫讓它**讀起來像 3 件事** ——
+   * 旁邊的圖例正好寫「1 堂」。實走量過：把 gap 設成 0 之後那 3 根合成一塊連續區塊。
+   *
+   * 這條盯的是「**相鄰的柱之間沒有間隙**」，不是某個特定的 gap 值。
+   */
+  it('柱與柱之間沒有間隙 —— 一堂課跨多根時要讀成一塊', async () => {
+    const el = await render([session({ startTime: '17:00', endTime: '18:30' })]);
+    const bar = el.querySelector<HTMLElement>('.day-timeline__bars');
+
+    expect(bar).not.toBeNull();
+    // jsdom 回的是 `'0'` 不是 `'0px'` —— 斷言「不是 2px 的縫」而不是某個字面值
+    expect(['0', '0px', '']).toContain(getComputedStyle(bar as HTMLElement).gap);
+  });
+
+  /**
+   * **這一項在今天的本機展示資料上驗不出來** —— 那天 `untaken` 全是 0。
+   * 是用模擬（全部未點名）才撞到的：`--untaken` 是 `border: 2px` 的中空盒，
+   * **有自己的左右框**，所以 gap 歸零之後未點名那段仍然一格一格。
+   * 而未點名正是儀表板上最該被看見的狀態。
+   *
+   * 判準是「**前一根也有未點名**」而不是「前一根有沒有課」——
+   * 一根可以「有課但未點名 = 0」，用後者的話 run 的第一根會被錯誤地拿掉左框
+   * （CSS 兄弟選擇器只表達得出後者，所以這件事必須在元件裡算）。
+   */
+  it('相鄰的未點名柱要接成一段，不是一格一格', async () => {
+    const el = await render([
+      session({ eventId: 'a', startTime: '17:00', endTime: '18:30', takenAt: null }),
+    ]);
+    const joined = [...el.querySelectorAll('.day-timeline__seg--untaken')].map((seg) =>
+      seg.classList.contains('day-timeline__seg--join-left'),
+    );
+
+    // 17:00 那根是 run 的第一根（前一根沒有未點名）→ 保留左框
+    // 17:30 / 18:00 接在後面 → 去掉左框
+    expect(joined.filter(Boolean)).toHaveLength(2);
+
+    // **兩邊都要**：分隔線是兩條框疊起來的，只去左框的話線還在（實測過那個錯法）。
+    // 3 根的 run → 前兩根要去右框。
+    const joinedRight = [...el.querySelectorAll('.day-timeline__seg--untaken')].map((seg) =>
+      seg.classList.contains('day-timeline__seg--join-right'),
+    );
+    expect(joinedRight.filter(Boolean)).toHaveLength(2);
+  });
+
+  /** 對照組：前一根「有課但未點名 = 0」時**不能**接 —— 那是 run 的開頭 */
+  it('前一根有課但未點名為 0 時不接（run 的開頭要保留左框）', async () => {
+    const el = await render([
+      session({ eventId: 'a', startTime: '17:00', endTime: '17:30', takenAt: '2026-08-30T09:00:00Z' }),
+      session({ eventId: 'b', startTime: '17:30', endTime: '18:00', takenAt: null }),
+    ]);
+    const joined = [...el.querySelectorAll('.day-timeline__seg--untaken')].map((seg) =>
+      seg.classList.contains('day-timeline__seg--join-left'),
+    );
+
+    expect(joined.filter(Boolean)).toHaveLength(0);
   });
 });
