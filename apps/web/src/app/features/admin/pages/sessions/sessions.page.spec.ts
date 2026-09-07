@@ -427,6 +427,32 @@ describe('SessionsPage', () => {
     );
   });
 
+  /**
+   * #592（使用者 2026-09-07 裁定）：**停課後那則提示不能寫「安排補課」。**
+   *
+   * 這個系統**沒有 `POST /sessions`** —— 課堂的唯一建立路徑是「照班級的 schedules
+   * 產生」。「安排」暗示可以新增一堂課，而**使用者會去找那個不存在的流程，
+   * 然後以為是自己不會用**。
+   *
+   * 這條盯的是**那個裁定**（不能暗示可以新增課堂），不是某一句特定文案 ——
+   * 改寫文案時改這裡的斷言，但不要讓它變成零。
+   */
+  it('停課後的提示不暗示可以新增課堂', () => {
+    const local = component as unknown as {
+      dialogService: { open: (...args: unknown[]) => unknown };
+      messageService: { add: (...args: unknown[]) => void };
+      openCancelDialog: (target: Session) => void;
+    };
+    vi.spyOn(local.dialogService, 'open').mockReturnValue({ onClose: of('refresh') });
+    const addSpy = vi.spyOn(local.messageService, 'add');
+
+    local.openCancelDialog({ id: 'sess-cancel-copy', status: 'scheduled' } as Session);
+
+    const toast = addSpy.mock.calls.map((c) => c[0] as { detail?: string }).find((a) => a?.detail);
+    expect(toast?.detail).toBeDefined();
+    expect(toast!.detail).not.toContain('安排');
+  });
+
   it('clearFilters only resets advanced filters and keeps campus/date scope', () => {
     (
       component as unknown as {
