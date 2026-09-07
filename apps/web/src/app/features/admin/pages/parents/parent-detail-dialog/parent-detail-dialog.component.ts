@@ -7,13 +7,20 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { AutoCompleteModule, type AutoCompleteCompleteEvent } from 'primeng/autocomplete';
+import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DialogService, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { SkeletonModule } from 'primeng/skeleton';
 import { ParentsService, type ParentDetail, type ParentDetailStudent } from '@core/parents.service';
 import { EnrollmentsService, type ScheduleConflictWarning } from '@core/enrollments.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
-import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
+import {
+  GRADE_LEVEL_LABELS,
+  StudentsService,
+  type GradeLevel,
+  type Student,
+} from '@core/students.service';
 import type { Class } from '@core/classes.service';
 import { ClassPickerDialogComponent } from '@shared/components/class-picker-dialog/class-picker-dialog.component';
 import {
@@ -36,7 +43,7 @@ interface ConflictPrompt {
 @Component({
   selector: 'app-parent-detail-dialog',
   standalone: true,
-  imports: [ButtonModule, SkeletonModule, InlineNoticeComponent],
+  imports: [AutoCompleteModule, FormsModule, ButtonModule, SkeletonModule, InlineNoticeComponent],
   providers: [DialogService],
   templateUrl: './parent-detail-dialog.component.html',
   styleUrl: './parent-detail-dialog.component.scss',
@@ -48,6 +55,7 @@ export class ParentDetailDialogComponent implements OnInit {
   private readonly enrollmentsService = inject(EnrollmentsService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
+  private readonly studentsService = inject(StudentsService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly parent = signal<ParentDetail | null>(null);
@@ -57,12 +65,76 @@ export class ParentDetailDialogComponent implements OnInit {
   protected readonly conflictPrompt = signal<ConflictPrompt | null>(null);
   protected readonly gradeLevelLabels = GRADE_LEVEL_LABELS;
 
+  protected readonly studentSuggestions = signal<Student[]>([]);
+  protected readonly binding = signal(false);
+
+  /** 搜尋既有學生 —— 已經綁在這個家長底下的不再列出來 */
+  protected searchStudents(event: AutoCompleteCompleteEvent): void {
+    const alreadyBound = new Set(this.parent()?.students.map((s) => s.id) ?? []);
+    this.studentsService
+      .list({ search: event.query, pageSize: 10 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.studentSuggestions.set(res.data.filter((s) => !alreadyBound.has(s.id))),
+        error: () => this.studentSuggestions.set([]),
+      });
+  }
+
+  /**
+   * 綁定一個**既有**的學生。
+   *
+   * ⚠️ **`studentIds` 是全量替換**（後端 `parents.ts:632` 先 delete 再 insert），
+   * 所以這裡送的是「現有的全部 ＋ 新的那一個」，**不是只送新的那一個**。
+   *
+   * **這個操作放在這個對話框、而不是學生頁，正是因為這裡手上就有完整清單**
+   * （`parentDetail.students`）。學生頁要先 GET 再 PUT，而
+   * 「GET 失敗或回空」跟「這個家長本來就只有一個小孩」在程式裡長得一樣 ——
+   * **能繞開那一步比能做那一步有價值**（#641 裁定的依據）。
+   *
+   * 防呆：`current` 取不到就直接不送。**寧可不做，也不要送一份可能不完整的清單。**
+   */
+  protected bindExistingStudent(picked: Student | string | null): void {
+    const detail = this.parent();
+    if (!detail || !picked || typeof picked === 'string') return;
+
+    const current = detail.students.map((s) => s.id);
+    if (current.includes(picked.id)) return;
+
+    this.binding.set(true);
+    this.parentsService
+      .update(detail.id, { studentIds: [...current, picked.id] })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.binding.set(false);
+          this.notice.set({
+            severity: 'success',
+            summary: '已綁定',
+            detail: `「${picked.name}」已關聯至「${detail.name}」`,
+          });
+          this.loadParent();
+        },
+        error: () => {
+          this.binding.set(false);
+          this.notice.set({
+            severity: 'error',
+            summary: '綁定失敗',
+            detail: '請稍後再試。既有的關聯沒有變動。',
+          });
+        },
+      });
+  }
+
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
   }
 
   ngOnInit(): void {
-    const parentId = this.config.data?.parentId as string | undefined;
+    this.loadParent();
+  }
+
+  private loadParent(): void {
+    const parentId = (this.config.data?.parentId as string | undefined) ?? this.parent()?.id;
     if (!parentId) {
       this.loading.set(false);
       return;

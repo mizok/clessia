@@ -67,8 +67,39 @@
     <section class="parent-detail__students">
       <h3 class="parent-detail__section-title">關聯學生</h3>
 
+      <!--
+        **綁定既有學生**（#641 裁定甲）。放在這裡而不是學生頁，是因為
+        `parentDetail.students` 在這裡是現成的 —— `studentIds` 是全量替換，
+        而「先 GET 再 PUT」的地方，「GET 回空」跟「本來就只有一個小孩」長得一樣。
+      -->
+      <div class="parent-detail__bind">
+        <p-autocomplete
+          [ngModel]="null"
+          (ngModelChange)="bindExistingStudent($event)"
+          [suggestions]="studentSuggestions()"
+          (completeMethod)="searchStudents($event)"
+          optionLabel="name"
+          placeholder="輸入姓名綁定既有學生"
+          [disabled]="binding()"
+          [fluid]="true"
+          [appendTo]="'body'"
+        />
+      </div>
+
       @if (parentDetail.students.length === 0) {
-        <p class="parent-detail__empty">尚未建立學生資料</p>
+        <!--
+          **原本這裡寫「尚未建立學生資料」，而那句話是這個 bug 的共犯**（#642）：
+          它比按鈕更早生效 —— 使用者還沒看到選項就已經被那句話定了框，
+          於是走去「新增學生」，而那顆按鈕**在任何情況下都會建立一筆新的**
+          （`POST /api/students` 是單純 insert，沒有同名偵測）。
+          孩子已經在系統裡的話，那就是一筆重複學生。
+
+          改成**同框呈現兩個選項**：上面的搜尋框綁既有的，下面這句指出另一條路。
+        -->
+        <p class="parent-detail__empty">
+          還沒有關聯的學生。<strong>孩子已經在系統裡就用上面的搜尋框綁定</strong>； 真的是新學生才用
+          ⋮ 選單的「新增學生」。
+        </p>
       } @else {
         <ul class="parent-detail__student-list">
           @for (student of parentDetail.students; track student.id) {
