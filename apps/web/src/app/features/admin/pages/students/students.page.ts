@@ -1,4 +1,15 @@
-import { Component, OnInit, inject, signal, computed, viewChild, input } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  OnInit,
+  computed,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -86,7 +97,22 @@ import {
   styleUrl: './students.page.scss',
 })
 export class StudentsPage implements OnInit {
+  private readonly destroyRef = inject(DestroyRef);
   private readonly studentsService = inject(StudentsService);
+
+  /** 搜尋輸入 —— 節流 + 去重之後才進 `loadStudents()`（#659） */
+  private readonly searchInput = new Subject<string>();
+  /**
+   * **所有**取數都經過這裡，然後 `switchMap` 出去。
+   *
+   * `debounce` 只解一半：打字慢的人（每次間隔超過 300ms）仍然會送出多支請求，
+   * 而它們回來的順序不保證 —— **先發的後到就會蓋掉畫面**，而畫面上的輸入框
+   * 顯示的是最新的字。使用者看到「陳小華」配「陳」的結果，
+   * 而且**它不會自己追上**（沒有任何後續事件會重查）。
+   *
+   * 讓每一個取數都走同一條 `switchMap`，新的一發就取消舊的那一支。
+   */
+  private readonly loadRequests = new Subject<void>();
   private readonly messageService = inject(MessageService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
@@ -166,19 +192,42 @@ export class StudentsPage implements OnInit {
   }
 
   ngOnInit(): void {
+    this.setupLoadPipeline();
+
+    // 搜尋：節流 + 去重，然後才觸發取數。
+    // `distinctUntilChanged` 擋的是「同一個字重複送」——例如中文輸入法組字過程中
+    // 送出同樣的中間值，或使用者貼上同樣的內容。
+    this.searchInput
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        this.searchQuery.set(value);
+        this.currentPage.set(1);
+        this.loadStudents();
+      });
+
     this.loadStudents();
   }
 
+  /** 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#659） */
   loadStudents(): void {
     this.loading.set(true);
-    this.studentsService
-      .list({
-        search: this.searchQuery() || undefined,
-        grade: this.selectedGrade() ?? undefined,
-        page: this.currentPage(),
-        pageSize: this.PAGE_SIZE,
-        isActive: this.statusFilter() ?? undefined,
-      })
+    this.loadRequests.next();
+  }
+
+  private setupLoadPipeline(): void {
+    this.loadRequests
+      .pipe(
+        switchMap(() =>
+          this.studentsService.list({
+            search: this.searchQuery() || undefined,
+            grade: this.selectedGrade() ?? undefined,
+            page: this.currentPage(),
+            pageSize: this.PAGE_SIZE,
+            isActive: this.statusFilter() ?? undefined,
+          }),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: (res: StudentListResponse) => {
           this.students.set(res.data);
@@ -199,9 +248,7 @@ export class StudentsPage implements OnInit {
   }
 
   protected onSearchChange(value: string): void {
-    this.searchQuery.set(value);
-    this.currentPage.set(1);
-    this.loadStudents();
+    this.searchInput.next(value);
   }
 
   protected onGradeChange(grade: GradeLevel | null): void {
