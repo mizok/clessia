@@ -5,9 +5,11 @@ import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { monthRange } from '../lib/proration';
 import {
+  detectEnrollmentsWithoutBillingMode,
   detectMealItemAnomalies,
   groupByStudent,
   planTuitionItems,
+  type EnrollmentBillingModeCheck,
   type MealItemAnomaly,
   type TuitionCandidate,
 } from '../lib/billing-run';
@@ -40,6 +42,10 @@ const AnomalySchema = z
     expectedAmount: z.number(),
   })
   .openapi('BillingRunAnomaly');
+
+const EnrollmentWithoutBillingModeSchema = z
+  .object({ id: DbUuidSchema, studentId: DbUuidSchema, classId: DbUuidSchema })
+  .openapi('EnrollmentWithoutBillingMode');
 
 const ErrorSchema = z
   .object({ error: z.string(), code: z.string().optional() })
@@ -87,6 +93,38 @@ async function scanMealAnomalies(
   );
 }
 
+/**
+ * 掃出「active 但**沒有計費模式**」的報名 —— 永遠不進任何 run 的那些（issue #638）。
+ *
+ * 跟 `scanMealAnomalies` 並列：兩者都是**少收、不會重複收、而且查得到**。
+ * 差別是餐費那支查「開了但金額不對」，這支查「**根本沒被開過，而且不會被開**」。
+ *
+ * 範圍跟 run 挑報名的條件對齊（`status = 'active'`）—— 掃一個 run 不會碰的母體沒有意義。
+ *
+ * ⚠️ **不進 `/repair`**：餐費異常修得動（把金額改回蓋章總額，冪等），
+ * 而「該用哪一種計費模式」是**人的決定**，沒有正確答案可以自動填。
+ */
+async function scanEnrollmentsWithoutBillingMode(
+  supabase: SupabaseClient,
+  orgId: string,
+): Promise<EnrollmentBillingModeCheck[]> {
+  const { data } = await supabase
+    .from('enrollments')
+    .select('id, student_id, class_id, billing_mode')
+    .eq('org_id', orgId)
+    .eq('status', 'active')
+    .is('billing_mode', null);
+
+  return detectEnrollmentsWithoutBillingMode(
+    ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      id: row['id'] as string,
+      studentId: row['student_id'] as string,
+      classId: row['class_id'] as string,
+      billingMode: (row['billing_mode'] as string | null) ?? null,
+    })),
+  );
+}
+
 const app = new OpenAPIHono<AppEnv>();
 
 // ============================================================
@@ -129,6 +167,11 @@ app.openapi(
               mealRecordsSettled: z.number(),
               /** 三步式月結的安全網 —— 非空代表有 item 金額對不上蓋章總額 */
               anomalies: z.array(AnomalySchema),
+              /**
+               * **active 但沒有計費模式的報名**（#638）—— 非空代表有人永遠收不到錢。
+               * 跟 `anomalies` 不同：那些是開了但金額不對，這些是**根本不會被開**。
+               */
+              enrollmentsWithoutBillingMode: z.array(EnrollmentWithoutBillingModeSchema),
             }),
           },
         },
@@ -341,6 +384,7 @@ app.openapi(
     }
 
     const anomalies = await scanMealAnomalies(supabase, orgId);
+    const enrollmentsWithoutBillingMode = await scanEnrollmentsWithoutBillingMode(supabase, orgId);
 
     logAudit(
       supabase,
@@ -350,12 +394,28 @@ app.openapi(
         resourceType: 'billing_run',
         resourceName: isMonthRun ? (periodMonth as string) : (billingPeriodId as string),
         action: 'run',
-        details: { invoicesCreated, tuitionItems, mealItems, anomalies: anomalies.length },
+        details: {
+          invoicesCreated,
+          tuitionItems,
+          mealItems,
+          anomalies: anomalies.length,
+          enrollmentsWithoutBillingMode: enrollmentsWithoutBillingMode.length,
+        },
       },
       waitUntilFrom(c),
     );
 
-    return c.json({ invoicesCreated, tuitionItems, mealItems, mealRecordsSettled, anomalies }, 200);
+    return c.json(
+      {
+        invoicesCreated,
+        tuitionItems,
+        mealItems,
+        mealRecordsSettled,
+        anomalies,
+        enrollmentsWithoutBillingMode,
+      },
+      200,
+    );
   },
 );
 
@@ -367,17 +427,29 @@ app.openapi(
     method: 'get',
     path: '/anomalies',
     tags: ['BillingRuns'],
-    summary: '餐費明細與蓋章總額對不上的清單',
+    summary: '少收錢的兩種狀態：餐費金額對不上、以及沒有計費模式的報名',
     responses: {
       200: {
         description: '成功',
-        content: { 'application/json': { schema: z.object({ data: z.array(AnomalySchema) }) } },
+        content: {
+          'application/json': {
+            schema: z.object({
+              data: z.array(AnomalySchema),
+              /** #638 —— 這一支是「查得到」的正主，所以新的偵測放這裡不只放 run 的回應 */
+              enrollmentsWithoutBillingMode: z.array(EnrollmentWithoutBillingModeSchema),
+            }),
+          },
+        },
       },
     },
   }),
   async (c) => {
-    const anomalies = await scanMealAnomalies(c.get('supabase'), c.get('orgId'));
-    return c.json({ data: anomalies }, 200);
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const anomalies = await scanMealAnomalies(supabase, orgId);
+    const enrollmentsWithoutBillingMode = await scanEnrollmentsWithoutBillingMode(supabase, orgId);
+
+    return c.json({ data: anomalies, enrollmentsWithoutBillingMode }, 200);
   },
 );
 

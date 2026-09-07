@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { detectMealItemAnomalies, groupByStudent, planTuitionItems } from './billing-run';
+import {
+  detectEnrollmentsWithoutBillingMode,
+  detectMealItemAnomalies,
+  groupByStudent,
+  planTuitionItems,
+} from './billing-run';
 
 const period = { start: '2026-03-01', end: '2026-03-31' };
 
@@ -99,5 +104,44 @@ describe('detectMealItemAnomalies', () => {
     expect(
       detectMealItemAnomalies([{ invoiceItemId: 'i1', itemAmount: 800, stampedTotal: 650 }]),
     ).toHaveLength(1);
+  });
+});
+
+describe('detectEnrollmentsWithoutBillingMode', () => {
+  // `billing-runs.ts:180` 用 `.eq('billing_mode', 'monthly'|'period')` 挑報名，
+  // **NULL 兩種都不匹配** —— 所以沒有計費模式的報名永遠不進任何 run，
+  // 而且全檔唯一的異常掃描（餐費金額）看不到它。這一支就是那個「查得到」。
+  it('active 而沒有計費模式的報名要被抓出來', () => {
+    const rows = detectEnrollmentsWithoutBillingMode([
+      { id: 'e1', studentId: 's1', classId: 'c1', billingMode: null },
+      { id: 'e2', studentId: 's2', classId: 'c1', billingMode: 'monthly' },
+    ]);
+
+    expect(rows.map((row) => row.id)).toEqual(['e1']);
+  });
+
+  // ⚠️ **「還沒開帳」是合法的暫時狀態**（enrollment-rules 6.2：管理員「決定是否
+  // **立即**開帳」），**「沒有計費模式」才是永遠收不到錢的那個**。
+  // 這一支只抓後者 —— 抓錯的話行政每建一筆正常的延後開帳報名都會看到警告，
+  // 然後一週內學會忽略它。
+  it('有計費模式但還沒開帳的不算異常', () => {
+    const rows = detectEnrollmentsWithoutBillingMode([
+      { id: 'e1', studentId: 's1', classId: 'c1', billingMode: 'period' },
+      { id: 'e2', studentId: 's2', classId: 'c1', billingMode: 'session_pack' },
+    ]);
+
+    expect(rows).toEqual([]);
+  });
+
+  it('三種模式都不算異常 —— 包含永遠不進 run 的 session_pack', () => {
+    for (const mode of ['monthly', 'period', 'session_pack'] as const) {
+      expect(detectEnrollmentsWithoutBillingMode([
+        { id: 'e1', studentId: 's1', classId: 'c1', billingMode: mode },
+      ])).toEqual([]);
+    }
+  });
+
+  it('空輸入回空，不是 undefined', () => {
+    expect(detectEnrollmentsWithoutBillingMode([])).toEqual([]);
   });
 });

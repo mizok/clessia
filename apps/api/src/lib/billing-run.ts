@@ -108,6 +108,50 @@ export interface MealItemAnomaly extends MealItemCheck {
  *
  * 兩個方向都算異常 —— item 多於蓋章總額通常代表有人手動改過金額。
  */
+export interface EnrollmentBillingModeCheck {
+  id: string;
+  studentId: string;
+  classId: string;
+  /** `enrollments.billing_mode` —— **nullable 且無預設**（查 information_schema 確認） */
+  billingMode: string | null;
+}
+
+/**
+ * **active 但沒有計費模式的報名** —— 少收錢的那一半的「查得到」。
+ *
+ * 機制（2026-09-07 逐段開檔驗，issue #638）：
+ *
+ * | 段 | 事實 |
+ * | --- | --- |
+ * | 學生詳情頁「加入班級」 | `student-detail.page.ts:233` 只送 `classId`/`studentId`，**零計費欄位** |
+ * | API | `enrollments.ts:631` — `billing_mode: body.billingMode ?? null` → **存 NULL** |
+ * | 月結批次 | `billing-runs.ts` — `.eq('billing_mode', isMonthRun ? 'monthly' : 'period')`，**NULL 兩種都不匹配** |
+ *
+ * **所以那筆報名永遠不進任何 run，而且在此之前沒有任何掃描會發現它。**
+ * 學生確實進了班，課表／點名／成績全部正常 —— **只有帳單那一側是空的**。
+ *
+ * 這一支的形狀刻意抄 `detectMealItemAnomalies`，理由寫在那支的檔頭：
+ * **少收、永遠不會重複收，而且查得到** —— 這裡少的就是「查得到」那一半。
+ *
+ * ---
+ *
+ * ⚠️ **只抓「沒有計費模式」，不抓「還沒開帳」。**
+ *
+ * `enrollment-rules` 6.2：管理員「決定是否**立即**開帳」——
+ * **不開帳是合法的暫時狀態**，而沒有計費模式是一筆永遠收不到錢的報名。
+ *
+ * 把前者也報成異常的代價不是雜訊：行政每建一筆正常的延後開帳報名都會看到警告，
+ * **一週之內就會學會忽略它，那時候它連原本能提醒的事都提醒不了。**
+ *
+ * ℹ️ `session_pack` **不算異常** —— 它本來就永遠不進 run（買包時開帳），
+ * 那是有模式的，只是那個模式不走批次。
+ */
+export function detectEnrollmentsWithoutBillingMode(
+  rows: readonly EnrollmentBillingModeCheck[],
+): EnrollmentBillingModeCheck[] {
+  return rows.filter((row) => !row.billingMode);
+}
+
 export function detectMealItemAnomalies(checks: MealItemCheck[]): MealItemAnomaly[] {
   return checks
     .filter((check) => check.itemAmount !== check.stampedTotal)
