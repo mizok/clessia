@@ -41,6 +41,7 @@ import { SessionOperationsLogDialogComponent } from './dialogs/session-operation
 import { SessionRescheduleDialogComponent } from './dialogs/session-reschedule-dialog/session-reschedule-dialog.component';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
 import { SessionSubstituteDialogComponent } from './dialogs/session-substitute-dialog/session-substitute-dialog.component';
+import { SessionMakeupDialogComponent } from './dialogs/session-makeup-dialog/session-makeup-dialog.component';
 import {
   MobileFilterDialogComponent,
   type MobileFilterDialogData,
@@ -318,6 +319,13 @@ export class SessionsPage implements OnInit {
       });
     }
     if (s.status === 'scheduled') {
+      // **這是「指定」不是「新增」**（#592）：把這堂已排定的課，指定成某堂停課的補課。
+      // 停課的那一堂是**被補的一方**，所以它不出現這個選項。
+      items.push({
+        label: s.makeupFor ? '改指定補課' : '指定為補課',
+        icon: 'pi pi-link',
+        command: () => this.openMakeup(s),
+      });
       items.push({ label: '停課', icon: 'pi pi-ban', command: () => this.openCancelDialog(s) });
     }
     if (s.status === 'cancelled') {
@@ -534,25 +542,9 @@ export class SessionsPage implements OnInit {
         this.messageService.add({
           severity: 'success',
           summary: '已停課',
-          // **不要寫「安排補課」**（#592，使用者 2026-09-07 裁定）——「安排」暗示可以
-          // 新增一堂課，而這個系統**沒有 `POST /sessions`**：課堂的唯一建立路徑是
-          // 「照班級的 schedules 產生」。補課功能能做的是**把一堂已排定的課指定成
-          // 某堂停課的補課**，不是憑空生一堂。
-          // 寫「安排」的代價不是用詞不精確，是**使用者會去找那個不存在的新增流程，
-          // 然後以為是自己不會用**。
-          //
-          // ⏭️ **這則要在「指定補課」的 UI 落地那一刻改,不是在 API 落地那一刻。**
-          // 可補清單端點（`GET /api/sessions/{id}/makeup-candidates`）已經在 main,
-          // **但 web 端還沒有任何指定補課的介面**（`makeupFor|makeupCandidate` 在
-          // `apps/web/src` 零命中,2026-09-07 查）。
-          //
-          // **所以現在改成「去指定補課」會犯上面那條註解描述的同一個錯,方向相反**:
-          // 把使用者導向一個**還不存在的**流程,然後他以為是自己不會用。
-          //
-          // **觸發條件:你正要接上那個指定補課的介面** —— 那時候這則的正確內容是
-          // 「在補課那堂課上指定它補的是哪一堂」,而**不能寫成「新增」**（#592 裁定:
-          // 只能說系統真的做得到的事;那個功能是**指定**既有課堂,不是新增)。
-          detail: '補課請用調課移動既有課堂 —— 系統無法新增單堂課',
+          // 用詞受 #592 裁定約束：只能說系統真的做得到的事。這個功能是
+          // **指定既有課堂**，不是新增 —— 系統沒有 `POST /sessions`。
+          detail: '要補這一堂，請到補課的那堂課上「指定為補課」',
           life: 6000,
         });
       }
@@ -708,6 +700,23 @@ export class SessionsPage implements OnInit {
       data: { session, loadingChanges: true, changes: [] },
       styleClass: 'session-dialog',
       appendTo: this.overlayContainer ?? 'body',
+    });
+  }
+
+  /**
+   * 指定這堂課補的是哪一堂停課。可補清單由端點提供，**前端不再過濾一次** ——
+   * 排除條件的載體越多越會漂移（見 `sessions.service.ts` 的 `MakeupCandidate`）。
+   */
+  protected openMakeup(session: Session): void {
+    const ref = this.dialogService.open(SessionMakeupDialogComponent, {
+      header: '指定補課',
+      width: '420px',
+      modal: true,
+      appendTo: this.overlayContainer ?? 'body',
+      data: { session },
+    });
+    ref?.onClose.subscribe((result?: string) => {
+      if (result === 'refresh') this.loadSessions();
     });
   }
 

@@ -19,6 +19,10 @@ export interface Session {
   teacherId: string | null;
   teacherName: string | null;
   hasChanges: boolean;
+  /** 這堂課補的是哪一堂停課；`null` = 一般課堂 */
+  makeupFor?: SessionMakeupLink | null;
+  /** 這堂停課被哪一堂**有效的**補課補了；`null` = 還沒被補 */
+  madeUpBy?: SessionMakeupLink | null;
   attendanceTakenAt?: string | null;
   attendanceEnrolledCount?: number;
   attendancePresentCount?: number;
@@ -77,6 +81,33 @@ export interface SessionQueryParams {
  */
 export type ScheduleChangeType =
   'reschedule' | 'substitute' | 'cancellation' | 'uncancel' | 'time_change' | 'makeup' | 'creation';
+
+/**
+ * 補課連結的一端。`madeUpBy` 只會是**有效的**補課 —— 後端已經把
+ * 「補課那堂又被停掉」排除掉了（`mapSessionMakeup`），**前端不要再判斷一次**。
+ */
+export interface SessionMakeupLink {
+  id: string;
+  sessionDate: string;
+  status: 'scheduled' | 'completed' | 'cancelled';
+}
+
+/**
+ * 可補的停課課堂（`GET /api/sessions/{id}/makeup-candidates`）。
+ *
+ * **清單已經隱藏「已經被補過的」** —— 排除條件跟 DB 那道 partial unique index
+ * 是同一份（後端重用 `mapSessionMakeup`）。**前端再寫一份就會漂移**：
+ * migration `20260906083827_add_session_makeup.sql:44` 對這件事留了明文警告。
+ *
+ * 刻意沒有 `className`（候選依定義全同一個班）、沒有 `weekday`（前端有
+ * `getDayLabel()`）、也沒有任何計數。
+ */
+export interface MakeupCandidate {
+  id: string;
+  sessionDate: string;
+  startTime: string;
+  endTime: string;
+}
 
 export interface ChangeLogEntry {
   id: string;
@@ -273,6 +304,24 @@ export class SessionsService {
 
   cancel(sessionId: string, reason?: string): Observable<{ success: boolean }> {
     return this.http.post<{ success: boolean }>(`${this.endpoint}/${sessionId}/cancel`, { reason });
+  }
+
+  /** 這堂課可以補哪幾堂停課（同班、尚未被補過）。**不分頁** —— 消費端是下拉 */
+  listMakeupCandidates(sessionId: string): Observable<{ data: MakeupCandidate[] }> {
+    return this.http.get<{ data: MakeupCandidate[] }>(
+      `${this.endpoint}/${sessionId}/makeup-candidates`,
+    );
+  }
+
+  /**
+   * 設定或清除「這堂課補的是哪一堂停課」。`null` = 清除連結。
+   *
+   * **409 `MAKEUP_TARGET_ALREADY_COVERED` 是正常回應之一，不是意外** ——
+   * 1:1 由 DB 的 partial unique index 強制，而清單是「取的那一刻」的快照。
+   * 兩個人同時對同一堂停課指定補課時，後送出的那個會拿到它。
+   */
+  setMakeup(sessionId: string, makeupForSessionId: string | null): Observable<void> {
+    return this.http.patch<void>(`${this.endpoint}/${sessionId}/makeup`, { makeupForSessionId });
   }
 
   substitute(
