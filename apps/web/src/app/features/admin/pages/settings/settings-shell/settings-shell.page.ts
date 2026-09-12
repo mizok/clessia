@@ -55,8 +55,23 @@ export class SettingsShellPage {
     void this.router.navigate([String(value)], { relativeTo: this.route });
   }
 
-  /** 子路由那一段就是 tab —— 進 `/admin/settings` 時 redirect 還沒跑完，先給第一個 */
+  /**
+   * 子路由那一段就是 tab —— 讀的是**殼自己的 snapshot 子樹**，不是 `route.firstChild.snapshot`。
+   *
+   * 差別在時序（#804）：router 的 `activateRoutes` 是
+   * `advanceActivatedRoute(殼)` → `outlet.activateWith(殼)`（**這行建構本元件**）
+   * → `activateChildRoutes(...)` → `advanceActivatedRoute(子路由)`。
+   * 所以在這個函式第一次被呼叫的當下（欄位初始化，見 `activeTab` 的 `initialValue`），
+   * `route.firstChild` 已經存在但**它的 `snapshot` 還是 undefined** —— 讀它會丟
+   * `TypeError`，讓 `activateWith` 整個炸掉、導航被中止，而前一頁已經被拆掉了：
+   * 畫面全白、網址原地不動。整頁載入時看不到，因為那時 outlet 還沒建好，
+   * 元件改由 `RouterOutlet.ngOnInit` 在整棵樹 advance 完之後才建。
+   *
+   * `this.route.snapshot` 則在建構前就被 advance 過，而 snapshot 子樹是在 recognize
+   * 階段連 redirect 一起解完的 —— 所以這裡拿到的是**網址真正指的那個 tab**，
+   * 不必退回第一個。`firstChild` 為 null 的退路留給沒有子路由的情況。
+   */
   private currentTab(): string {
-    return this.route.firstChild?.snapshot.routeConfig?.path ?? this.tabs[0].value;
+    return this.route.snapshot.firstChild?.routeConfig?.path ?? this.tabs[0].value;
   }
 }
