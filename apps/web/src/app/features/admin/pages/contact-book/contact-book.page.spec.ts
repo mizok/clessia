@@ -2,6 +2,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
+import { MessageService } from 'primeng/api';
+import { DialogService } from 'primeng/dynamicdialog';
+
 import { OverlayContainerService } from '@core/overlay-container.service';
 import {
   ContactBookService,
@@ -368,6 +371,60 @@ describe('ContactBookPage', () => {
 
       expect(component['visibleMissing']().length).toBe(3);
       expect(component['hiddenMissingCount']()).toBe(0);
+    });
+  });
+
+  /**
+   * #738：行政版那句「這裡是行政的補寫入口」現在要由呼叫端標明對象才會出現
+   * （對話框的預設是中性版 —— 失效方向選「少講一句」而不是「講錯一句」）。
+   *
+   * **所以這條接線不接上，行政就會少掉一句對他有用的話**，而且不會有任何東西報錯。
+   *
+   * ⚠️ 只有 `writeMissing` 需要標 —— `openEntry` 是用 `{ entry }` 開的，
+   * **永遠走不到那個 `@else` 分支**（對話框那邊有一支測試釘著這件事），
+   * 標了是噪音。
+   */
+  describe('#738 補寫缺漏時要標明對象是行政', () => {
+    it('writeMissing 開對話框時帶 audience: admin', async () => {
+      const dialogServiceMock = { open: vi.fn(() => ({ onClose: NEVER })) };
+
+      // 外層 beforeEach 已經建過元件 —— 不 reset 的話 `configureTestingModule` 會丟
+      // 「test module has already been instantiated」
+      TestBed.resetTestingModule();
+
+      await TestBed.configureTestingModule({
+        imports: [ContactBookPage],
+        providers: [
+          { provide: ContactBookService, useValue: contactBook },
+          { provide: StudentsService, useValue: students },
+          { provide: OverlayContainerService, useValue: { getContainer: () => null } },
+        ],
+      })
+        // 頁面在 @Component 的 providers 裡自己給 DialogService —— 元件層級會蓋過
+        // TestBed 的，必須用 overrideComponent 才換得掉（作法同 staff.page.spec）
+        .overrideComponent(ContactBookPage, {
+          set: {
+            providers: [MessageService, { provide: DialogService, useValue: dialogServiceMock }],
+          },
+        })
+        .compileComponents();
+
+      const f = TestBed.createComponent(ContactBookPage);
+      f.componentRef.setInput('page', { label: '聯絡簿' });
+      await f.whenStable();
+
+      (
+        f.componentInstance as unknown as {
+          writeMissing: (t: MissingContactBookStudent) => void;
+        }
+      ).writeMissing({ studentId: 'stu-9', studentName: '王柏睿' } as MissingContactBookStudent);
+
+      const lastCall = dialogServiceMock.open.mock.calls.at(-1) as unknown as [
+        unknown,
+        { data: { audience?: string } },
+      ];
+
+      expect(lastCall[1].data.audience).toBe('admin');
     });
   });
 });

@@ -229,6 +229,9 @@ export class ContactBookPage implements OnInit {
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
       data: {
+        audience: 'admin' as const,
+        // **標明對象**（#738）：對話框那句話的預設是中性版，行政版要自己宣告。
+        // 只有這裡要標 —— `openEntry` 是用 `{ entry }` 開的，走不到那個分支。
         draft: {
           studentId: target.studentId,
           studentName: target.studentName,

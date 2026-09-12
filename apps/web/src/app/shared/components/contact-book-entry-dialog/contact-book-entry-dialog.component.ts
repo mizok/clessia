@@ -66,6 +66,24 @@ export class ContactBookEntryDialogComponent {
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig);
 
+  /**
+   * 「這一則還沒有人寫」底下那句話要對誰說（#738）。
+   *
+   * 原本是無條件的「撰寫者本來是帶班老師 —— **這裡是行政的補寫入口**」。
+   * `#737` 之前老師端打不開這支對話框，所以只有行政看得到、文案成立；
+   * 路打通之後，**帶班老師看到的也是那一句**，而它對他是錯的。
+   *
+   * **預設刻意是中性版，不是沿用現狀的行政版** ——
+   * 這跟 `login-link-dialog`（#666）相反，理由是失效方向：
+   * 那一支的預設（家長版）對沒宣告的呼叫端是對的，
+   * 這一支的預設（行政版）對沒宣告的呼叫端**可能是錯的**。
+   * **將來多一個開啟點而有人忘了標，使用者該看到的是「少講一句」不是「講錯一句」。**
+   */
+  protected readonly emptyNote = () =>
+    this.config.data?.audience === 'admin'
+      ? '這一則還沒有人寫。撰寫者本來是帶班老師 —— 這裡是行政的補寫入口。'
+      : '這一則還沒有人寫。';
+
   protected readonly MAX_CONTENT = MAX_CONTENT;
 
   /** 既有的一則；補寫時是 null */
