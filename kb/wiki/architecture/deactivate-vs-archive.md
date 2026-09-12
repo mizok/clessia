@@ -2,6 +2,7 @@
 title: 停用 vs 封存 —— 不是同一個動作的兩種叫法，裁定不統一
 summary: M4 詞彙統一（#425）查證結論——停用（可逆）與封存（不可逆）是兩個不同的動作，用字差異忠實反映各自的狀態模型，不該合併成一個字。計畫席裁定：兩個字都留著。
 category: architecture
+tags: [architecture, lifecycle]
 status: active
 updated: 2026-09-06
 ---

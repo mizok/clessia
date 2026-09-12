@@ -2,6 +2,7 @@
 title: 「沒有值」的三種寫法，不是同一件事的三種說法
 summary: M4 詞彙統一（#425）查證結論——「—」/「未填寫」/「無關聯 X」對應三種不同語意（唯讀顯示欄位空值/可編輯欄位未填/關聯不存在），不該合併成一種寫法。
 category: architecture
+tags: [architecture, ux, empty-value]
 status: active
 updated: 2026-09-06
 ---

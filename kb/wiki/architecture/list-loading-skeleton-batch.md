@@ -2,6 +2,7 @@
 title: 十個檔案的載入態跳版問題 —— 統一做法
 summary: #508——#426 掃到但根因不同的 10 個檔案，逐檔分類後發現「整塊被文字取代」與「沒有骨架尺寸／會跳版」在這批檔案裡是同一件事，分三類統一做法，全部重用既有 .p-skeleton／.skeleton-list，不新增第三種配方。
 category: architecture
+tags: [architecture, ux, loading]
 status: proposed
 updated: 2026-09-06
 ---

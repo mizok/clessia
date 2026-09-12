@@ -2,6 +2,7 @@
 title: 部署後舊分頁的 chunk 載入失敗復原
 summary: 舊 index 要不到新 chunk 時，導覽失敗自動重載一次、預載失敗顯示提示條；以及為什麼偵測不能靠 ChunkLoadError 或 404。
 category: architecture
+tags: [architecture, resilience]
 status: active
 updated: 2026-09-05
 ---
