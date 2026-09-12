@@ -169,3 +169,45 @@ updated: 2026-09-13
 | 1504 的尺寸 | 同上 |
 | 可刪除的科目 | 本機科目全部使用中 |
 | **新增／編輯／刪除科目** | **寫入類動作，一律不按** |
+
+## 載入中 / 錯誤
+
+- **量測**：390 × 844 ／ 主 checkout 的 dev server（port 4200）`7e9da649`
+- **手段**：同一個 XHR 包裝 —— 錯誤態把 URL 從 `:8787` 改指到沒人監聽的 `:8799`，
+  載入中把 `send` 用 `setTimeout` 延後 3 秒（**只影響那一個 iframe，不動 8787、零寫入**）。
+  方法全文見[方法頁 Phase 2-D](../README.md)
+- **證據**：每一輪都確認攔截清單不是空的，**請求數 0 的一律作廢**（例外要自己附正控）
+
+**開啟點**：`/admin/settings/subjects`（這一頁的內容就是這支元件）。
+⚠️ **那一頁用 SPA 導航進不去**（issue #804），量法見 [[specs/sitemap/admin/settings-subjects]]。
+
+### 載入中（3 秒延遲）
+
+| skeleton | spinner | 判定 |
+| --- | --- | --- |
+| **6**（`div.subject-manager__row--skeleton 284×32`） | 0 | ✅ 誠實 |
+
+骨架用的是**科目列自己的形狀**（一列一條），不是全站共用的 `skeleton-list`。
+
+⚠️ `animation-name: skeleton-wave` —— 看得見，波紋不動（坑 12）。
+
+### 錯誤（API 失敗）
+
+| 判定 | 重試鈕 | toast | 攔到的請求數 |
+| --- | --- | --- | --- |
+| 🔴 **謊稱沒資料，而且零訊號** | 否 | **0** | 1 |
+
+逐字「**尚無科目，請新增**」。
+
+機制（`subject-manager.component.ts:80-86`）：
+
+```ts
+error: () => {
+  this.loading.set(false);
+},
+```
+
+> 本機 `select count(*) from subjects` = **9**，而且正常時每一列都寫著
+> 「已被 N 個課程、M 場校內考使用中，無法刪除」——**同一支元件在失敗時說「尚無科目，請新增」。**
+>
+> 與 [[specs/sitemap/_shared/audit-log-dialog]] 的錯誤分支**一字不差**。

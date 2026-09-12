@@ -186,3 +186,28 @@ admin 的六個群組在畫面上是收合的（只看得到群組標題），
 | `Escape` / 真的 Tab 鍵                  | 需要前景分頁，實測按 Tab `activeElement` 不動（方法頁 Phase 2 有證據）                                                                           |
 | 多重角色的角色切換鈕（`--interactive`） | 測試帳號都是單一角色，該處渲染成靜態 `<span>`                                                                                                    |
 | `(1024, 1280]` 這一段                   | 四個量測寬度跳過了它                                                                                                                             |
+
+## 載入中 / 錯誤
+
+**不適用 —— 這個外框自己不取任何資料。**
+
+這一則是**結構事實**（`grep`），不是某一次執行期取樣：
+
+| 元件 | 注入的東西 | 有沒有 HTTP |
+| --- | --- | --- |
+| `ShellLayoutComponent` | `OverlayContainerService` / `AuthService` / `DeviceService` / `DialogService` | **無** |
+| `SidebarComponent` | `NavigationService` | **無** |
+| `BottomBarComponent` | `Router` / `NavigationService` | **無** |
+
+選單內容來自 `AuthService` 的角色與 permissions（**session 裡就有**，在 app bootstrap 時取得），
+`NavigationService` 只是把它算成選單項。所以外框沒有「載入中」也沒有「錯誤」——
+它要嘛跟著整個 app 一起在，要嘛整個 app 都沒起來。
+
+> ⚠️ **這一節刻意不用執行期量測下結論。** 攔截器是在**頁面載入完成之後**才裝的
+> （`window` 在導頁時會被換掉，見[方法頁](../README.md)），所以量到的永遠是
+> 「載入之後不再取數」——**證不到「載入時不取數」**。後者靠上面那張表。
+
+頂列右上角的**帳號徽章**開的是帳號設定對話框（`DialogService`），
+那一支的取數狀態不在這一頁。
+
+**家長端外框多一個孩子切換器**，它**有**取數 —— 見 [[specs/sitemap/_shared/parent-child-switcher]]。

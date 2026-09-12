@@ -168,3 +168,44 @@ updated: 2026-09-13
 > **本輪四支對話框的共同形狀**：390 下**滿寬**（佔寬比 1.00）、**沒有一支是全螢幕**、
 > 內容區**都沒有橫向溢出**、**都沒有 header 的 `×`**（`showHeader: false`，#714 確立的規則）。
 > 差別在**高度**，而那是 #784 的成因。
+
+## 載入中 / 錯誤
+
+- **量測**：390 × 844 ／ 主 checkout 的 dev server（port 4200）`7e9da649`
+- **手段**：同一個 XHR 包裝 —— 錯誤態把 URL 從 `:8787` 改指到沒人監聽的 `:8799`，
+  載入中把 `send` 用 `setTimeout` 延後 3 秒（**只影響那一個 iframe，不動 8787、零寫入**）。
+  方法全文見[方法頁 Phase 2-D](../README.md)
+- **證據**：每一輪都確認攔截清單不是空的，**請求數 0 的一律作廢**（例外要自己附正控）
+
+**開啟點**：本輪從 `/admin/sessions` 的每列 ⋮ ›「管理出勤狀況」開
+（`.popup-menu__item`，坑 3 的選擇器）。攔到 `GET /api/attendance/roster/<eventId>` 一支。
+
+### 載入中（3 秒延遲）
+
+| skeleton | spinner | 判定 |
+| --- | --- | --- |
+| 0 | **`div.roster-panel__loading 356×164` + `p-progressspinner 100×100`** | ✅ 誠實 |
+
+標頭（班級名稱 + 日期 + 時段）在延遲期間就已經正確渲染，只有名單區是 spinner。
+
+⚠️ `p-progressspinner` 的 `animation-name` 是 `p-progressspinner-rotate` / `-dash` ——
+**看得見，但不會轉**（坑 12）。
+
+### 錯誤（API 失敗）
+
+| 判定 | 重試鈕 | toast | 攔到的請求數 |
+| --- | --- | --- | --- |
+| ✅ **誠實** | 否 | 0 | 1 |
+
+對話框逐字「**無法載入點名名單**」，**沒有退化成「這堂課沒有學生」**。
+
+> **這是本輪 `_shared` 裡唯一一支錯誤態完全乾淨的取數元件。**
+> 對照 [[specs/sitemap/_shared/audit-log-dialog]] 與 [[specs/sitemap/_shared/subject-manager]]：
+> 同樣是對話框、同樣一支請求，差別只在有沒有 failed 分支。
+
+### 未驗與原因
+
+| 項目 | 原因 |
+| --- | --- |
+| 重試 | **沒有重試鈕**（要關掉重開） |
+| 從 `/admin/dashboard` 與 `/teacher/schedule` 開的樣子 | 只從 `/admin/sessions` 量。**呼叫端會影響標頭**（時段有沒有出現，見上面），但名單那半的取數是同一支 |
