@@ -28,6 +28,7 @@
 | [labor-5.md](labor-5.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-5`         |
 | [labor-6.md](labor-6.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-6`         |
 | [labor-7.md](labor-7.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-7`         |
+| [labor-8.md](labor-8.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-8`         |
 | [usability-admin.md](usability-admin.md) | 可用性測試（只看畫面，不讀碼） | 用行政任務清單走管理端，記卡點不記感受；**在 repo 外啟動** | `usability-admin` |
 
 > **`labor-{N}` 是通用執行席，刻意不綁領域。** 上面八席是照領域長出來的（金流、管理端、
