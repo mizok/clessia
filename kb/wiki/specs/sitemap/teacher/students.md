@@ -178,7 +178,22 @@ updated: 2026-09-13
 - **手段**：把 XHR 的 URL 從 `:8787` 改指到沒人監聽的 `:8799`（等同 server 掛掉，
   **只影響那一個 iframe**，不動共享資源）。方法見[方法頁 Phase 2-D](../README.md)
 - **證據**：每一輪都確認攔截清單不是空的（**請求數 0 的一律作廢**）
-- ⚠️ **本輪只量「錯誤」那一半**
+- **載入中的量測**：390 × 844 ／ dev server（port 4200）`9744f0f6` ／
+  `teacher0004@demo.clessia.app`（量測前後各打一次 `/api/me`）
+- **手段（載入中）**：同一個 XHR 包裝，把 `send` 用 `setTimeout` 延後 3 秒。
+  ⚠️ **背景分頁的 `setTimeout` 被節流**，實際延遲 ≥ 3 秒（見[方法頁](../README.md)）
+- **導航**：`ng.ɵgetRouterInstance(...)` 拿 Router 本人再 `navigateByUrl()`（見[方法頁](../README.md)）
+
+### 載入中（3 秒延遲）
+
+| skeleton | spinner | `<main>` 互動元素 | 判定 |
+| --- | --- | --- | --- |
+| **5**（`div.skeleton-list 334×156` + `span.skeleton-bar--label 114×16` + 3 條 `span.skeleton-bar 286×16`） | 0 | 3 → 3 | ✅ 誠實 |
+
+延遲期間標題、說明「你任課班級的在籍學生。」與班級下拉都在，清單區是骨架。
+
+⚠️ `span.skeleton-bar--label` 的 `opacity` 是 `0.6`、`animation-name` 是 `skeleton-wave` ——
+**那個 0.6 是樣式寫死的，不是動畫的第 0 幀**（骨架看得見，只是波紋不動，坑 12）。
 
 ### 錯誤（所有 API 都失敗）
 
@@ -192,6 +207,5 @@ updated: 2026-09-13
 
 | 項目 | 原因 |
 | --- | --- |
-| 載入中的樣子 | 本輪只量錯誤態（做法已驗過：把 XHR 的 `send` 延後 3 秒） |
 | 重試鈕按了會不會真的重打 | 需要真滑鼠（方法頁坑 12） |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |

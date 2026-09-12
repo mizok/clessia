@@ -158,7 +158,22 @@ template: `<app-announcement-inbox [heading]="page().label" />`;
 - **手段**：把 XHR 的 URL 從 `:8787` 改指到沒人監聽的 `:8799`（等同 server 掛掉，
   **只影響那一個 iframe**，不動共享資源）。方法見[方法頁 Phase 2-D](../README.md)
 - **證據**：每一輪都確認攔截清單不是空的（**請求數 0 的一律作廢**）
-- ⚠️ **本輪只量「錯誤」那一半**
+- **載入中的量測**：390 × 844 ／ dev server（port 4200）`9744f0f6` ／
+  `teacher0004@demo.clessia.app`（量測前後各打一次 `/api/me`）
+- **手段（載入中）**：同一個 XHR 包裝，把 `send` 用 `setTimeout` 延後 3 秒。
+  ⚠️ **背景分頁的 `setTimeout` 被節流**，實際延遲 ≥ 3 秒（見[方法頁](../README.md)）
+- **導航**：`ng.ɵgetRouterInstance(...)` 拿 Router 本人再 `navigateByUrl()`（見[方法頁](../README.md)）
+
+### 載入中（3 秒延遲）
+
+| skeleton | spinner | `<main>` 互動元素 | 判定 |
+| --- | --- | --- | --- |
+| **4**（`div.skeleton-list 334×120` + 3 條 `span.skeleton-bar 286×16`） | 0 | 0 → 5 | ✅ 誠實 |
+
+延遲期間 `<main>` 只有標題「通知中心」與骨架 —— 「4 則未讀」與「全部標為已讀」都不在。
+攔到的請求是 `GET /api/announcements/inbox` 一支。
+
+⚠️ 骨架 `animation-name: skeleton-wave`、`opacity: 1` —— 看得見，波紋不動（坑 12）。
 
 ### 錯誤（所有 API 都失敗）
 
@@ -172,6 +187,5 @@ template: `<app-announcement-inbox [heading]="page().label" />`;
 
 | 項目 | 原因 |
 | --- | --- |
-| 載入中的樣子 | 本輪只量錯誤態（做法已驗過：把 XHR 的 `send` 延後 3 秒） |
 | 重試鈕按了會不會真的重打 | 需要真滑鼠（方法頁坑 12） |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |
