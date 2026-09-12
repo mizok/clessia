@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-09-13] capture | 課堂狀態規則（#762 / #488）
+- Pages created: [[rules/session-status-rules]]
+- `sessions.status` 的 `completed` 沒有任何寫入路徑，而三類程式碼（16 處 `.eq('status','scheduled')`、
+  2 處從未生效的 `.neq('status','completed')`、`session-operation-guard.ts:39` 的死守衛）
+  以及前端四處顯示分支，都會在它第一次被寫入的那天同時改變行為
+- ⚠️ **`index.md` 只手動加了這一頁**：`kb:map` 的全量重建會把落後的 68 頁（123 → 191）
+  一次補進來，而那批索引屬於別席正在飛的 PR（#756 的地圖頁），夾進這支會製造大衝突。
+  **索引重建需要一支專門的 PR**
+
 ## [2026-09-06] capture | 這一族的大聲那一半（#528）
 - Pages updated: [[lessons/silent-tool-failures]]（新增一節）
 - 同一個 PostgREST 知識點的兩個失敗方向：少 `!inner` 是安靜地什麼都不篩、
