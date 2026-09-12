@@ -1,14 +1,14 @@
 ---
-title: 科目管理（/admin/settings/subjects）
-summary: /admin/settings/subjects 的實際 UI 地圖：畫面區塊、互動元素、狀態與子頁面（對話框）。
+title: 科目設定（/admin/settings/subjects）
+summary: 系統設定的「科目」tab：整頁只有一個標題和一個共用的科目管理元件。
 category: spec
-status: seedling
+status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
 updated: 2026-09-12
 ---
 
-# 科目管理
+# 科目設定
 
 <!-- generated:route-facts start —— 這一段由 tools/sitemap 生成，不要手改 -->
 
@@ -19,25 +19,51 @@ updated: 2026-09-12
 
 <!-- generated:route-facts end -->
 
-**進入方式**：<!-- TODO: 選單 / 從 <某頁> 的 <某按鈕> / 直接網址 -->
+**進入方式**：[[specs/sitemap/admin/settings]] 的「科目」tab / 直接網址 / 舊網址 redirect
+
+**外框**見 [[specs/sitemap/_shared/shell-layout]]；**tab 列屬於** [[specs/sitemap/admin/settings]]。
 
 ## 畫面區塊
 
-<!-- TODO: 由上而下、由左而右，每個區塊一小節：它顯示什麼、資料從哪裡來 -->
+**這一頁只有兩樣東西**：
+
+1. 頁首 `科目管理` + 副標「管理課程科目分類，供課程設定與老師資格篩選使用」
+2. 一張卡片，裡面**整個是共用元件** → [[specs/sitemap/_shared/subject-manager]]
+
+`subjects.page.html` 全長 12 行，沒有自己的狀態、資料或動作 ——
+**清單、行內改名、刪除限制、新增全部在那支共用元件裡**，不在這裡重寫。
 
 ## 互動元素
 
-| 元素（畫面上的字） | 類型 | 出現條件 | 按了之後 |
-| --- | --- | --- | --- |
-| <!-- TODO --> | | | |
+| 元素     | 說明                                         |
+| -------- | -------------------------------------------- |
+| （全部） | 見 [[specs/sitemap/_shared/subject-manager]] |
+
+**這一頁自己 0 個互動元素。**
 
 ## 狀態
 
-<!-- TODO: 空狀態 / 載入中 / 錯誤 / 無權限 -->
+全部由共用元件決定，見那一頁。這條路由沒有 `permission`，無權限不適用。
 
 ## 驗證紀錄
 
-<!-- TODO: 照 kb/wiki/specs/sitemap/README.md 的兩向比對做完再填。
-     未驗證的頁面 status 保持 seedling；驗完改成 developing。 -->
+- **日期**：2026-09-12 ／ **帳號**：`admin@demo.clessia.app`
+- **前端版本**：port 4202（本 worktree），`8c286802` ／ **寬度**：1504 CSS px
+- **資料狀態**：8 個科目，全部被引用（8 顆刪除鍵都是 disabled）
 
-- **狀態**：未驗證
+### 兩向比對
+
+| 方向        | 結果                                                                              |
+| ----------- | --------------------------------------------------------------------------------- |
+| 地圖 ⊆ 畫面 | 這一頁自己沒有元素；共用元件那一頁列的都找得到                                    |
+| 畫面 ⊆ 地圖 | 22 個可見元素 = tab 4（屬殼）+ 8 列 × 2（✏️ 與 disabled 的 🗑）+ 新增輸入 + 新增鍵 |
+
+**差異：0 筆。** DOM 22、可見 22 —— 沒有隱藏元素。
+
+**8 顆 🗑 全部 `disabled: true`** —— 依 #709 的要求記在元素清單裡；
+它們不是壞掉，是每個科目都被課程引用（理由常駐顯示在名稱底下）。
+
+### 未驗到的
+
+全部承接 [[specs/sitemap/_shared/subject-manager]] 的「未驗到的」。
+這一頁沒有自己的未驗項。
