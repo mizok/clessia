@@ -247,7 +247,7 @@
                     <button
                       type="button"
                       class="dashboard__spine-row dashboard__spine-row--action"
-                      [class.dashboard__spine-row--todo]="!session.takenAt"
+                      [class.dashboard__spine-row--todo]="isTodo(session)"
                       (click)="openAttendance(session)"
                     >
                       <span class="dashboard__spine-time">{{ session.startTime }}</span>
@@ -258,13 +258,13 @@
                         </span>
                       </span>
                       <app-status-dot [tone]="attendanceTone(session)">{{
-                        session.takenAt ? '已點名' : '未點名'
+                        attendanceLabel(session)
                       }}</app-status-dot>
                     </button>
                   } @else {
                     <span
                       class="dashboard__spine-row"
-                      [class.dashboard__spine-row--todo]="!session.takenAt"
+                      [class.dashboard__spine-row--todo]="isTodo(session)"
                     >
                       <span class="dashboard__spine-time">{{ session.startTime }}</span>
                       <span class="dashboard__spine-body">
@@ -274,7 +274,7 @@
                         </span>
                       </span>
                       <app-status-dot [tone]="attendanceTone(session)">{{
-                        session.takenAt ? '已點名' : '未點名'
+                        attendanceLabel(session)
                       }}</app-status-dot>
                     </span>
                   }

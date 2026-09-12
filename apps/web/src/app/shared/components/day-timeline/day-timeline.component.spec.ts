@@ -121,6 +121,25 @@ describe('DayTimelineComponent', () => {
     expect(bars(el)[0].tagName).toBe('SPAN');
   });
 
+  /**
+   * #686：停課的課堂被算進「未點名」。實機上兩堂課（一堂停課）時圖例寫「未點名 2」，
+   * 而同一頁的橘帶說「其中 1 堂還沒點名」—— **同一頁兩個數字打架**。
+   *
+   * 單元測試抓不到這一條：它是在儀表板實機看才浮出來的，
+   * 而修好儀表板那三處之後這一處仍然是錯的。
+   */
+  it('停課的課堂不算未點名，而且軸上說得出少了幾堂（#686）', async () => {
+    const el = await render([
+      session({ eventId: 'a', startTime: '09:00', endTime: '10:00' }),
+      session({ eventId: 'b', startTime: '15:00', endTime: '16:00', status: 'cancelled' }),
+    ]);
+
+    expect(el.textContent).toContain('未點名 1');
+    expect(el.textContent).not.toContain('未點名 2');
+    // **軸上少的那一堂要說出來**，否則清單兩列、軸上一根，沒有人知道為什麼
+    expect(el.textContent).toContain('另有 1 堂已停課');
+  });
+
   // 尺度要說出來，否則只剩形狀、失去量級
   it('圖例講出當日最忙幾堂', async () => {
     const el = await render([
