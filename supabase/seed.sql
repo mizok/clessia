@@ -1550,118 +1550,121 @@ END $$;
 -- 角色的帳號。於是「停用列的選單」「啟用帳號」「角色選擇彈窗」這些分支
 -- **繫結存在、畫面上摸不到**（那是「未驗」不是「不會發生」）。
 --
--- ⚠️ **這一整段一律用加法，不翻既有資料的面。**
---   地圖裡有大量逐字記下的實測值（「69 名全部在籍」「王柏翰 2026-08-26 數學 74 分」…）。
---   把既有的某一筆改成停用，等於**用一個新狀態換掉一個已驗狀態** ——
---   後者已經寫進地圖、前者還沒。加一筆新的則兩種都在。
+-- ⚠️ **零 `ba_*` 寫入（c2）。** 這一段**不建任何新帳號** ——
+--   `supabase/seed.sql` 對 c2 有 9 筆永久豁免，那個數字是上限不是額度。
+--   需要 `user_id` 的東西（家長、人員、角色）**一律掛到既有的 demo 帳號上**，
+--   只寫 `user_roles` / `parents` / `staff` 這些業務表。
 --
--- ⚠️ **`ba_user` 的寫入**：c2 說 `ba_*` 不得由**應用程式碼**直寫。這是 seed 不是
---   應用程式碼，本檔上方已有六處同樣寫法（demo 使用者本來就這樣造），
---   而 A15 gate 掃的是 `apps/api/src/**/*.ts`。新帳號一律 `60000000-` 前綴。
+-- ⚠️ **關於「加法優先」的一個修正**：初版堅持「既有資料一列都不動」，
+--   但零新帳號之後，「停用家長／停用人員」只能改既有列的 status。
+--   **真正的規則不是「不准翻面」，是「不要翻掉某個狀態的最後一個實例」** ——
+--   翻 2 位家長（共 16）、2 位人員（共 101）之後，active 那一邊還有 14 與 99 個實例，
+--   兩種狀態同時存在；而如果只有一筆資料還把它翻掉，就是用新狀態換掉舊狀態。
+--   （這條是 labor-5 擋下「把 >100 筆成績塞給王柏翰」時提出的，那裡翻掉的
+--   是那個孩子**唯一**的「正常清單」狀態，所以不行；這裡不是。）
 --
--- ⚠️ **刻意不做的兩件**（做了會破壞已驗狀態，得不償失）：
+-- ⚠️ **刻意不做的兩件**（做了會翻掉最後一個實例，淨損）：
 --   1. 讓某個家長收不到公告 —— 全庫只有一則家長公告且是全 org，
---      要做出「目前沒有公告」的空狀態只能刪掉它，而那會毀掉「有公告」那個已驗狀態
---   2. `organizations.attendance_retroactive_days` 從 0 改成 N —— 那會讓
---      老師課表上所有舊課堂變成「點名已截止」，把「開始點名／修改點名」整批換掉
-
--- ── 清理（冪等；只認這一段自己造的東西）────────────────────────────────────
-DELETE FROM public.parent_student_relations
-  WHERE parent_id IN (SELECT id FROM public.parents WHERE user_id LIKE '60000000-%');
-DELETE FROM public.parents WHERE user_id LIKE '60000000-%';
-DELETE FROM public.staff_campuses
-  WHERE staff_id IN (SELECT id FROM public.staff WHERE user_id LIKE '60000000-%');
-DELETE FROM public.staff WHERE user_id LIKE '60000000-%';
-DELETE FROM public.user_roles WHERE user_id LIKE '60000000-%';
-DELETE FROM public.ba_account WHERE "userId" LIKE '60000000-%';
-DELETE FROM public.ba_user WHERE id LIKE '60000000-%';
-
--- ── 六個新帳號（demo 專用，一律走 npm run login-link 登入）────────────────
-INSERT INTO public.ba_user (id, name, email, "emailVerified", username, "orgId", "createdAt", "updatedAt")
-VALUES
-  ('60000000-0000-0000-0001-000000000001', '停用家長示範', 'demo.parent.inactive@demo.clessia.app', true, '0960000001', '11111111-1111-1111-1111-111111111111', NOW(), NOW()),
-  ('60000000-0000-0000-0001-000000000002', '封存家長示範', 'demo.parent.archived@demo.clessia.app', true, '0960000002', '11111111-1111-1111-1111-111111111111', NOW(), NOW()),
-  ('60000000-0000-0000-0002-000000000001', '停用職員示範', 'demo.staff.inactive@demo.clessia.app', true, '0960000011', '11111111-1111-1111-1111-111111111111', NOW(), NOW()),
-  ('60000000-0000-0000-0002-000000000002', '封存職員示範', 'demo.staff.archived@demo.clessia.app', true, '0960000012', '11111111-1111-1111-1111-111111111111', NOW(), NOW()),
-  ('60000000-0000-0000-0003-000000000001', '報表專員示範', 'demo.admin.reports@demo.clessia.app', true, '0960000021', '11111111-1111-1111-1111-111111111111', NOW(), NOW()),
-  ('60000000-0000-0000-0003-000000000002', '雙角色示範', 'demo.dualrole@demo.clessia.app', true, '0960000022', '11111111-1111-1111-1111-111111111111', NOW(), NOW()),
-  ('60000000-0000-0000-0004-000000000001', '單孩家長示範', 'demo.parent.onechild@demo.clessia.app', true, '0960000031', '11111111-1111-1111-1111-111111111111', NOW(), NOW()),
-  ('60000000-0000-0000-0004-000000000002', '無孩家長示範', 'demo.parent.nochild@demo.clessia.app', true, '0960000032', '11111111-1111-1111-1111-111111111111', NOW(), NOW())
-ON CONFLICT (id) DO NOTHING;
-
--- ── 角色 ───────────────────────────────────────────────────────────────────
--- `user_roles` 是業務表不是 ba_*，直寫不違反 c2（本檔上方已有同樣的先例說明）。
-INSERT INTO public.user_roles (user_id, role, permissions) VALUES
-  ('60000000-0000-0000-0001-000000000001', 'parent',  '[]'::jsonb),
-  ('60000000-0000-0000-0001-000000000002', 'parent',  '[]'::jsonb),
-  ('60000000-0000-0000-0002-000000000001', 'teacher', '[]'::jsonb),
-  ('60000000-0000-0000-0002-000000000002', 'teacher', '[]'::jsonb),
-  ('60000000-0000-0000-0004-000000000001', 'parent',  '[]'::jsonb),
-  ('60000000-0000-0000-0004-000000000002', 'parent',  '[]'::jsonb),
-  -- **只有 view_reports 的管理員** —— 用來驗 /admin/reports 進得去、
-  -- 而 /admin/fee-templates /meals /payments 的 permissionGuard 把他導回 /admin
-  ('60000000-0000-0000-0003-000000000001', 'admin',   '["view_reports"]'::jsonb),
-  -- **唯一一個多重角色帳號** —— 登入後會進 /select-role 的角色選擇彈窗，
-  -- 也是 shell-layout「角色切換入口」唯一驗得到的帳號
-  ('60000000-0000-0000-0003-000000000002', 'admin',   '["basic_operations"]'::jsonb),
-  ('60000000-0000-0000-0003-000000000002', 'teacher', '[]'::jsonb)
-ON CONFLICT (user_id, role) DO NOTHING;
+--      要做出「目前沒有公告」只能刪掉它，而「有公告」是已驗狀態
+--   2. `organizations.attendance_retroactive_days` 0 → N —— 會讓老師課表上
+--      所有舊課堂變成「點名已截止」，把「開始點名／修改點名」整批換掉
+--
+-- 挑中的既有帳號都是**沒有任何課堂的老師**（動它們不影響課表與點名）。
 
 DO $$
 DECLARE
   demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
-  v_student_id UUID;
+  v_uid TEXT;
   v_parent_id UUID;
+  v_student_id UUID;
+BEGIN
+  -- ── 1. 停用的學生（students 沒有 user_id，可以純新增）──────────────────
+  -- admin/students 的「停用列選單」與「・停用 M」錨點；students/:id 的
+  -- 「加入班級」在停用學生上會消失
+  INSERT INTO public.students (org_id, name, grade, is_active, notes)
+  SELECT demo_org_id, '離校示範生', 'J2'::public.grade_level, FALSE, '展示用：停用狀態'
+  WHERE NOT EXISTS (SELECT 1 FROM public.students WHERE org_id = demo_org_id AND name = '離校示範生');
+
+  -- ── 2. 非 active 的家長（16 位裡翻 2 位，active 還有 14 位）──────────────
+  UPDATE public.parents p SET status = 'inactive', notes = '展示用：停用狀態'
+  FROM public.ba_user u
+  WHERE u.id = p.user_id AND u.email = 'parent14@demo.clessia.app' AND p.status = 'active';
+
+  UPDATE public.parents p SET status = 'archived', notes = '展示用：封存狀態'
+  FROM public.ba_user u
+  WHERE u.id = p.user_id AND u.email = 'parent15@demo.clessia.app' AND p.status = 'active';
+
+  -- ── 3. 非 active 的人員（101 位裡翻 2 位，active 還有 99 位）─────────────
+  -- 挑的是**沒有帶任何課堂**的老師，停用它們不會讓課表少一個人
+  UPDATE public.staff s SET status = 'inactive', notes = '展示用：停用狀態'
+  FROM public.ba_user u
+  WHERE u.id = s.user_id AND u.email = 'teacher0007@demo.clessia.app' AND s.status = 'active';
+
+  UPDATE public.staff s SET status = 'archived', notes = '展示用：封存狀態'
+  FROM public.ba_user u
+  WHERE u.id = s.user_id AND u.email = 'teacher0009@demo.clessia.app' AND s.status = 'active';
+
+  -- ── 4. 多重角色 + 只有 view_reports 的管理員（同一個帳號，一石二鳥）─────
+  -- 全庫本來 0 個多重角色帳號，於是 /select-role 的角色選擇彈窗
+  -- **任何帳號都開不出來**，shell-layout 的角色切換入口同理。
+  -- 這裡給一位沒帶課的老師加上 admin 角色，權限只給 view_reports：
+  --   * 兩個角色 → 登入後進 /select-role 的彈窗
+  --   * 選 admin 進去 → /admin/reports 進得去，
+  --     而 fee-templates / meals / payments 被 permissionGuard 導回 /admin
+  SELECT id INTO v_uid FROM public.ba_user WHERE email = 'teacher0001@demo.clessia.app';
+  IF v_uid IS NOT NULL THEN
+    INSERT INTO public.user_roles (user_id, role, permissions)
+    VALUES (v_uid, 'admin', '["view_reports"]'::jsonb)
+    ON CONFLICT (user_id, role) DO UPDATE SET permissions = EXCLUDED.permissions;
+  END IF;
+
+  -- ── 5. 單一孩子的家長 / 沒有孩子的家長（parent-child-switcher 兩種形態）──
+  -- ⚠️ 全庫本來就有一位只綁 1 個孩子的家長（陳美惠），**但她的帳號沒有 parent
+  --    角色**，roleGuard 會把她擋在 /parent/** 外面 —— 照名字挑她會做出一個
+  --    看起來合理、實際上驗不到東西的東西。所以這裡另外指定，角色一起給。
+  --    `parents.user_id` 沒有唯一約束，所以既有的老師帳號可以同時是家長
+  --    （現實上教職員的小孩在自家補習班上課本來就會這樣）。
+  SELECT id INTO v_uid FROM public.ba_user WHERE email = 'teacher0005@demo.clessia.app';
+  IF v_uid IS NOT NULL THEN
+    INSERT INTO public.user_roles (user_id, role, permissions)
+    VALUES (v_uid, 'parent', '[]'::jsonb) ON CONFLICT (user_id, role) DO NOTHING;
+
+    INSERT INTO public.parents (org_id, user_id, name, status, notes)
+    SELECT demo_org_id, v_uid, '陳靖雯', 'active', '展示用：只綁 1 個孩子'
+    WHERE NOT EXISTS (SELECT 1 FROM public.parents WHERE user_id = v_uid);
+    SELECT id INTO v_parent_id FROM public.parents WHERE user_id = v_uid LIMIT 1;
+
+    SELECT id INTO v_student_id FROM public.students
+     WHERE org_id = demo_org_id AND name = '范芷寧' LIMIT 1;
+    IF v_parent_id IS NOT NULL AND v_student_id IS NOT NULL THEN
+      INSERT INTO public.parent_student_relations (parent_id, student_id, relation, is_primary)
+      VALUES (v_parent_id, v_student_id, 'parent', FALSE)
+      ON CONFLICT (parent_id, student_id) DO NOTHING;
+    END IF;
+  END IF;
+
+  SELECT id INTO v_uid FROM public.ba_user WHERE email = 'teacher0006@demo.clessia.app';
+  IF v_uid IS NOT NULL THEN
+    INSERT INTO public.user_roles (user_id, role, permissions)
+    VALUES (v_uid, 'parent', '[]'::jsonb) ON CONFLICT (user_id, role) DO NOTHING;
+
+    -- **刻意不插 parent_student_relations** —— 這一位就是「0 個孩子」的那個形態
+    INSERT INTO public.parents (org_id, user_id, name, status, notes)
+    SELECT demo_org_id, v_uid, '楊柏睿', 'active', '展示用：一個孩子都沒綁'
+    WHERE NOT EXISTS (SELECT 1 FROM public.parents WHERE user_id = v_uid);
+  END IF;
+END $$;
+
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
   v_campus_id UUID;
-  v_campus2_id UUID;
   v_course_id UUID;
   v_class_id UUID;
-  v_class2_id UUID;
-  v_enrollment_id UUID;
-  v_event_id UUID;
-  v_session_id UUID;
-  v_invoice_id UUID;
-  v_item_id UUID;
-  v_exam_id UUID;
-  v_subject_id UUID;
-  v_teacher_id UUID;
-  v_i INT;
-  v_d DATE;
-  -- 集中放大量資料的孩子：**張宇軒（parent03 的小孩）**。
-  -- 刻意不用 parent01 的三個孩子 —— 他們是「空 / 有資料但正常」的基準，
-  -- 而 >100 筆成績會讓截斷警告永遠掛在那個孩子身上，把「正常清單」換掉。
-  v_heavy_student UUID;
   v_side_student UUID;
 BEGIN
   SELECT id INTO v_campus_id FROM public.campuses WHERE org_id = demo_org_id AND name = '文山旗艦校' LIMIT 1;
-  SELECT id INTO v_campus2_id FROM public.campuses WHERE org_id = demo_org_id AND name = '示範分校01' LIMIT 1;
-  SELECT id INTO v_heavy_student FROM public.students WHERE org_id = demo_org_id AND name = '張宇軒' LIMIT 1;
   SELECT id INTO v_side_student FROM public.students WHERE org_id = demo_org_id AND name = '范芷寧' LIMIT 1;
-
-  -- ── 1. 停用的學生（admin/students 停用列選單、「・停用 M」錨點；
-  --       admin/students/:id 的「加入班級」會消失）──────────────────────────
-  INSERT INTO public.students (org_id, name, grade, is_active, notes)
-  SELECT demo_org_id, '離校示範生', 'J2'::public.grade_level, FALSE,
-         '展示用：唯一一名停用學生'
-  WHERE NOT EXISTS (SELECT 1 FROM public.students WHERE org_id = demo_org_id AND name = '離校示範生');
-
-  -- ── 2. 非 active 的家長（admin/parents 的 inactive / archived 列選單）────
-  INSERT INTO public.parents (org_id, user_id, name, status, notes) VALUES
-    (demo_org_id, '60000000-0000-0000-0001-000000000001', '停用家長示範', 'inactive', '展示用'),
-    (demo_org_id, '60000000-0000-0000-0001-000000000002', '封存家長示範', 'archived', '展示用')
-  ON CONFLICT DO NOTHING;
-
-  -- ── 3. 非 active 的人員（admin/staff 的「重新啟用」與 archived 列）──────
-  INSERT INTO public.staff (org_id, user_id, display_name, status, notes) VALUES
-    (demo_org_id, '60000000-0000-0000-0002-000000000001', '停用職員示範', 'inactive', '展示用'),
-    (demo_org_id, '60000000-0000-0000-0002-000000000002', '封存職員示範', 'archived', '展示用')
-  ON CONFLICT DO NOTHING;
-
-  -- 報表專員與雙角色帳號也要有 staff 列，否則 /admin/staff 看不到他們
-  INSERT INTO public.staff (org_id, user_id, display_name, status, notes) VALUES
-    (demo_org_id, '60000000-0000-0000-0003-000000000001', '報表專員示範', 'active', '展示用：只有 view_reports'),
-    (demo_org_id, '60000000-0000-0000-0003-000000000002', '雙角色示範', 'active', '展示用：admin + teacher')
-  ON CONFLICT DO NOTHING;
 
   -- ── 4. 停用的分校（settings/campuses 的「顯示停用分校」與「啟用分校」）──
   INSERT INTO public.campuses (org_id, name, address, phone, is_active)
@@ -1808,25 +1811,9 @@ BEGIN
     WHERE NOT EXISTS (SELECT 1 FROM public.invoice_items WHERE invoice_id = v_invoice_id AND enrollment_id = v_enrollment2_id);
   END IF;
 
-  -- ── 13. 單一孩子的家長 / 沒有孩子的家長（parent-child-switcher 的兩種形態）──
-  -- ⚠️ 全庫本來就有一位只綁 1 個孩子的家長（陳美惠），**但她的帳號沒有 parent
-  --    角色**，roleGuard 會把她擋在 /parent/** 外面 —— 照名字挑她會做出一個
-  --    看起來合理但驗不到東西的東西。所以這裡新建，而且角色一起給。
-  INSERT INTO public.parents (org_id, user_id, name, status, notes) VALUES
-    (demo_org_id, '60000000-0000-0000-0004-000000000001', '單孩家長示範', 'active', '展示用：只綁 1 個孩子'),
-    (demo_org_id, '60000000-0000-0000-0004-000000000002', '無孩家長示範', 'active', '展示用：一個孩子都沒綁')
-  ON CONFLICT DO NOTHING;
-
-  INSERT INTO public.parent_student_relations (parent_id, student_id, relation, is_primary)
-  SELECT p.id, v_side_student, 'parent', TRUE
-  FROM public.parents p
-  WHERE p.user_id = '60000000-0000-0000-0004-000000000001' AND v_side_student IS NOT NULL
-  ON CONFLICT (parent_id, student_id) DO NOTHING;
-  -- 「無孩家長示範」刻意不插 relation
-
-  -- ── 14. 同一天兩筆出勤 + 掛在停課課堂上的出勤（parent/attendance 兩個未驗）──
+  -- ── 13. 同一天兩筆出勤 + 掛在停課課堂上的出勤（parent/attendance 兩個未驗）──
   IF v_side_student IS NOT NULL AND v_campus_id IS NOT NULL THEN
-    -- 14a. 同一天兩筆 → 驗「一次只能展開一則 / 切換展開」
+    -- 13a. 同一天兩筆 → 驗「一次只能展開一則 / 切換展開」
     FOR v_i IN 1..2 LOOP
       INSERT INTO public.events (org_id, event_type, title, campus_id, event_date, start_time, end_time, attendance_taken_at)
       SELECT demo_org_id, 'session'::public.event_type,
@@ -1850,7 +1837,7 @@ BEGIN
       );
     END LOOP;
 
-    -- 14b. 停課課堂上的出勤 → 驗 `停課` chip（chip 只看 sessions.status='cancelled'）
+    -- 13b. 停課課堂上的出勤 → 驗 `停課` chip（chip 只看 sessions.status='cancelled'）
     INSERT INTO public.events (org_id, event_type, title, campus_id, event_date, start_time, end_time)
     SELECT demo_org_id, 'session'::public.event_type, '展示用：停課那一堂', v_campus_id,
            CURRENT_DATE - 7, '10:00', '12:00'
@@ -1884,7 +1871,7 @@ BEGIN
   END IF;
 END $$;
 
--- ── 15. 三筆「量」的極端值，集中在**張宇軒**（parent03 的小孩）───────────
+-- ── 14. 三筆「量」的極端值，集中在**張宇軒**（parent03 的小孩）───────────
 -- 刻意不放在 parent01 的三個孩子身上：那三個是「空 / 有資料但正常」的基準，
 -- 而 >100 筆成績會讓**截斷警告永遠掛在那個孩子身上**（沒有分頁 UI），
 -- 等於用一個新狀態換掉一個已驗狀態。三筆放同一個孩子，驗的時候登 parent03 一次就好。
@@ -1908,7 +1895,7 @@ BEGIN
 
   IF v_student IS NULL THEN RETURN; END IF;
 
-  -- 15a. 近 30 天 > 50 筆出勤 → parent/attendance 的「載入更多」（pageSize=50）
+  -- 14a. 近 30 天 > 50 筆出勤 → parent/attendance 的「載入更多」（pageSize=50）
   FOR v_i IN 1..56 LOOP
     v_d := CURRENT_DATE - (v_i % 28) - 1;
     INSERT INTO public.events (org_id, event_type, title, campus_id, event_date, start_time, end_time, attendance_taken_at)
@@ -1929,7 +1916,7 @@ BEGIN
     );
   END LOOP;
 
-  -- 15b. > 100 筆成績 → parent/grades 的截斷警告（PAGE_SIZE=100，無分頁 UI）
+  -- 14b. > 100 筆成績 → parent/grades 的截斷警告（PAGE_SIZE=100，無分頁 UI）
   FOR v_i IN 1..104 LOOP
     INSERT INTO public.academy_exams (org_id, campus_id, name, exam_type, subject_id, exam_date, total_score, status, created_by, pass_score)
     SELECT demo_org_id, v_campus_id, '展示用：小考 #' || v_i, 'quiz'::public.academy_exam_type,
@@ -1947,7 +1934,7 @@ BEGIN
     );
   END LOOP;
 
-  -- 15c. > 20 張帳單 → parent/payments 的「載入更多」（pageSize=20）
+  -- 14c. > 20 張帳單 → parent/payments 的「載入更多」（pageSize=20）
   FOR v_i IN 1..23 LOOP
     INSERT INTO public.invoices (org_id, student_id, issued_at, due_date, note)
     SELECT demo_org_id, v_student, CURRENT_DATE - (v_i * 7), CURRENT_DATE - (v_i * 7) + 14,
@@ -1964,7 +1951,7 @@ BEGIN
   END LOOP;
 END $$;
 
--- ── 16. 今天有課、但聯絡簿沒寫完（admin/contact-book 的缺漏名單與「補寫」）──
+-- ── 15. 今天有課、但聯絡簿沒寫完（admin/contact-book 的缺漏名單與「補寫」）──
 -- 缺漏名單問的是「今天有課的聯絡簿班級裡，誰還沒有 entry」。
 -- 既有 seed 在「今天」把該寫的都寫完了，所以那一頁預設是空的。
 -- 這裡**不刪任何已寫的**，改成幫今天的聯絡簿班級加一名新學生 —— 他自然就是缺漏的那一個。
@@ -1996,35 +1983,51 @@ BEGIN
   );
 END $$;
 
--- ── 17. 保險：上面幾段靠「名字」找既有資料，找不到會**靜默什麼都不做** ──────
+-- ── 保險：這一段靠「名字／email」找既有資料，找不到會**靜默什麼都不做** ──────
 -- 那是最糟的失敗模式：seed 跑完 exit 0，而該有的展示狀態一個都沒造出來，
 -- 下一個人打開頁面看到的跟以前一模一樣，然後把「未驗」再抄一次。
--- 這裡把它變成大聲的失敗。
+-- 這裡把它變成大聲的失敗。**塞過陷阱驗它會紅。**
 DO $$
 DECLARE
   demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
   v_missing TEXT := '';
 BEGIN
+  -- 依賴的既有資料
   IF NOT EXISTS (SELECT 1 FROM public.students WHERE org_id = demo_org_id AND name = '張宇軒')
-    THEN v_missing := v_missing || ' 張宇軒'; END IF;
+    THEN v_missing := v_missing || ' 學生:張宇軒'; END IF;
   IF NOT EXISTS (SELECT 1 FROM public.students WHERE org_id = demo_org_id AND name = '范芷寧')
-    THEN v_missing := v_missing || ' 范芷寧'; END IF;
+    THEN v_missing := v_missing || ' 學生:范芷寧'; END IF;
   IF NOT EXISTS (SELECT 1 FROM public.campuses WHERE org_id = demo_org_id AND name = '文山旗艦校')
-    THEN v_missing := v_missing || ' 文山旗艦校'; END IF;
+    THEN v_missing := v_missing || ' 分校:文山旗艦校'; END IF;
   IF NOT EXISTS (SELECT 1 FROM public.classes WHERE org_id = demo_org_id AND name = '國三數學 A 班')
-    THEN v_missing := v_missing || ' 國三數學A班'; END IF;
+    THEN v_missing := v_missing || ' 班級:國三數學A班'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.ba_user WHERE email = 'teacher0001@demo.clessia.app')
+    THEN v_missing := v_missing || ' 帳號:teacher0001'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.ba_user WHERE email = 'parent14@demo.clessia.app')
+    THEN v_missing := v_missing || ' 帳號:parent14'; END IF;
 
   IF v_missing <> '' THEN
-    RAISE EXCEPTION '展示狀態補齊段找不到它依賴的既有資料：%。上游的 seed 改過名字，這一段會靜默失效 —— 請更新這裡的名稱。', v_missing;
+    RAISE EXCEPTION '展示狀態補齊段找不到它依賴的既有資料：%。上游 seed 改過名字或帳號，這一段會靜默失效 —— 請更新這裡的指名。', v_missing;
   END IF;
 
-  -- 造出來的東西也點一次名，數量不對就叫
+  -- 產出點名：每一種狀態都要真的出現
   IF (SELECT count(*) FROM public.students WHERE org_id = demo_org_id AND is_active = FALSE) = 0
-    THEN RAISE EXCEPTION '展示狀態補齊段沒有造出任何停用學生'; END IF;
+    THEN RAISE EXCEPTION '沒有造出停用學生'; END IF;
+  IF (SELECT count(*) FROM public.parents WHERE status <> 'active') < 2
+    THEN RAISE EXCEPTION '沒有造出 inactive/archived 家長'; END IF;
+  IF (SELECT count(*) FROM public.staff WHERE status <> 'active') < 2
+    THEN RAISE EXCEPTION '沒有造出 inactive/archived 人員'; END IF;
   IF (SELECT count(*) FROM (SELECT user_id FROM public.user_roles GROUP BY user_id HAVING count(*) > 1) x) = 0
-    THEN RAISE EXCEPTION '展示狀態補齊段沒有造出多重角色帳號'; END IF;
+    THEN RAISE EXCEPTION '沒有造出多重角色帳號 —— /select-role 的彈窗仍然沒有帳號開得出來'; END IF;
   IF (SELECT count(*) FROM public.meal_records WHERE invoice_item_id IS NOT NULL) = 0
-    THEN RAISE EXCEPTION '展示狀態補齊段沒有造出已結算的餐記錄'; END IF;
+    THEN RAISE EXCEPTION '沒有造出已結算的餐記錄'; END IF;
+  IF (SELECT count(*) FROM public.campuses WHERE org_id = demo_org_id AND is_active = FALSE) = 0
+    THEN RAISE EXCEPTION '沒有造出停用分校'; END IF;
+  IF (SELECT count(*) FROM public.sessions WHERE assignment_status = 'unassigned') = 0
+    THEN RAISE EXCEPTION '沒有造出未指派老師的課堂'; END IF;
+  IF (SELECT count(*) FROM public.leave_requests
+       WHERE start_date <= CURRENT_DATE AND end_date >= CURRENT_DATE) = 0
+    THEN RAISE EXCEPTION '沒有造出跨越今天的請假'; END IF;
 
   RAISE NOTICE '展示狀態補齊完成（#685）';
 END $$;
