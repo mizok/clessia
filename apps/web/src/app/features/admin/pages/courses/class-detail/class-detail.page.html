@@ -45,10 +45,7 @@
       }
 
       <div bandAside>
-        <app-band-anchor
-          [value]="enrollments().length"
-          [unit]="'/ ' + cls()!.maxStudents + ' 人'"
-        >
+        <app-band-anchor [value]="enrollments().length" [unit]="'/ ' + cls()!.maxStudents + ' 人'">
           @if (cls()!.schedules?.length) {
             <b>{{ cls()!.schedules!.length }}</b> 個時段
           } @else {
@@ -151,6 +148,7 @@
                       tabindex="0"
                       (click)="navigateToStudent(enrollment.studentId)"
                       (keydown.enter)="navigateToStudent(enrollment.studentId)"
+                      (keydown.space)="navigateToStudent(enrollment.studentId)"
                     >
                       <span class="class-detail__student-index">{{ idx + 1 }}</span>
                       <div
