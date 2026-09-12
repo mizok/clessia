@@ -723,21 +723,31 @@ CDP 的 45 秒上限（`/parent/grades` 切到有 107 筆成績的孩子之後�
 __P.visibleFast = async function (root) {
   const m = root || this.main();
   const all = [...m.querySelectorAll(this.SEL)];
-  const seen = new Set(), byFixed = new Set(), pending = new Set(all);
+  const seen = new Set(),
+    byFixed = new Set(),
+    pending = new Set(all);
   for (const pos of [0, m.scrollHeight]) {
     m.scrollTop = pos;
     await new Promise((r) => setTimeout(r, 200));
     for (const e of [...pending]) {
       const v = this.whyNoScroll(e); // 同 why() 但不捲動，出界回 'out-of-view'
-      if (v === null) { seen.add(e); pending.delete(e); }
-      else if (v === 'covered-by-fixed') { seen.add(e); byFixed.add(e); pending.delete(e); }
-      else if (v !== 'out-of-view' && v !== 'clipped/covered') pending.delete(e); // 結構性不可見，確定
+      if (v === null) {
+        seen.add(e);
+        pending.delete(e);
+      } else if (v === 'covered-by-fixed') {
+        seen.add(e);
+        byFixed.add(e);
+        pending.delete(e);
+      } else if (v !== 'out-of-view' && v !== 'clipped/covered') pending.delete(e); // 結構性不可見，確定
     }
   }
   m.scrollTop = 0;
   for (const e of pending) {
     const v = this.why(e); // 只有這些才付 scrollIntoView 的代價
-    if (!v || v === 'covered-by-fixed') { seen.add(e); if (v) byFixed.add(e); }
+    if (!v || v === 'covered-by-fixed') {
+      seen.add(e);
+      if (v) byFixed.add(e);
+    }
   }
   m.scrollTop = 0;
   this._fixedCovered = [...byFixed];
@@ -748,14 +758,36 @@ __P.visibleFast = async function (root) {
 
 **對照過，而且對照有鑑別力**（`/parent/attendance` 390，19 列）：
 
-| | 結果 | 耗時 |
-| --- | --- | --- |
-| 原版 `visibleEls` | 23 | **25.0 秒** |
-| `visibleFast` | 23（**集合逐個相同**） | **2.0 秒** |
+|                   | 結果                   | 耗時        |
+| ----------------- | ---------------------- | ----------- |
+| 原版 `visibleEls` | 23                     | **25.0 秒** |
+| `visibleFast`     | 23（**集合逐個相同**） | **2.0 秒**  |
 
 **而且 `_rescued` 是 4** —— 有 4 個元素只有靠 `scrollIntoView` 複驗才找得到，
 **所以快版不是把那一步省掉了，是只對需要的那幾個做**。
 （如果 `_rescued` 是 0，這個對照就什麼都證明不了 —— 兩版會因為「複驗根本沒發生」而一樣。）
+
+### ⚠️ 版面訊號探針要跟元素清單用同一套可見性，否則兩支會互相矛盾
+
+除了元素清單，Phase 2 還會掃一次「版面訊號」——每個可見容器的 `display` /
+`grid-template-columns` / `flex-direction` / `position` / `overflow-x`，
+四個寬度一比就知道**版面**怎麼變（元素清單只看得到**元素**怎麼變）。
+
+**這兩支要用同一套可見性判定。** 30 頁量到一半才發現版面訊號那支**沒有做捲動聯集**，
+於是它回的 `—` 有兩種意思：
+
+- 這個寬度下**不存在**
+- **在折線下方**，捲動位置 0 時量不到
+
+`/admin/payments` 就是後者：版面訊號說 390 沒有分頁器，而元素清單（有做聯集）
+說四個寬度都有。**兩支探針，兩個答案，而只有一支是對的。**
+
+**做法：版面訊號那支也走 `visibleEls()` 的同一條路**（或至少在下結論前拿元素清單交叉檢查）。
+在補上之前，**版面表只採信有元素清單佐證的那幾行**。
+
+> 這是「元素清單以 DOM 為準」那一節的同一個教訓換一個載體：
+> **一個頁面兩個工具兩個答案時，先問哪一個的可見性判定比較完整**，
+> 不要挑看起來比較合理的那一個。
 
 ### 鍵盤可達性：真的 Tab 鍵在這個環境按不動
 
@@ -929,11 +961,11 @@ x.send = function (...a) {
 
 ### 這一趟最容易寫錯的三件事
 
-| 陷阱 | 為什麼 |
-| --- | --- |
-| **只讀 `<main>` 就說「沒有錯誤提示」** | PrimeNG 的 toast `appendTo body`，**不在 `<main>` 裡**。要查 `.p-toast-message` |
-| **等太久才讀，然後說「沒有 toast」** | toast 會自己消失。實測 4 秒後 `.p-toast` 容器還在但**內容已空** —— 那是「我讀得太晚」，不是「沒有出現」 |
-| **把 skeleton 的第 0 幀當成「沒有 skeleton」** | 坑 12：背景分頁**動畫不跑**。`opacity:0` 先問 `animationName`，有名字就先懷疑環境 |
+| 陷阱                                           | 為什麼                                                                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **只讀 `<main>` 就說「沒有錯誤提示」**         | PrimeNG 的 toast `appendTo body`，**不在 `<main>` 裡**。要查 `.p-toast-message`                         |
+| **等太久才讀，然後說「沒有 toast」**           | toast 會自己消失。實測 4 秒後 `.p-toast` 容器還在但**內容已空** —— 那是「我讀得太晚」，不是「沒有出現」 |
+| **把 skeleton 的第 0 幀當成「沒有 skeleton」** | 坑 12：背景分頁**動畫不跑**。`opacity:0` 先問 `animationName`，有名字就先懷疑環境                       |
 
 ### 已經撞到的一個形狀（**只驗了一頁，不是結論**）
 
