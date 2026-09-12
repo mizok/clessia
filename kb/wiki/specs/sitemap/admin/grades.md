@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-13
 ---
 
 # 考務與成績
@@ -63,6 +63,17 @@ updated: 2026-09-12
 
 ### 未驗到的
 
-| 項目 | 原因 |
-| --- | --- |
+| 項目                | 原因   |
+| ------------------- | ------ |
 | 三條舊路由 redirect | 未實測 |
+
+## 390px
+
+- **量測**：390 × 844 ／ 前端 `3f2197f8`（4200，主 checkout ＝ `origin/main`）／ 身分 `admin@demo.clessia.app`
+
+**不適用 —— 這條路由在任何寬度都不渲染內容。**
+
+實測：390 × 844 下開 `/admin/grades`，`location.pathname` 落在 `/admin/grades/exams`。
+轉址行為與 1504 完全相同。
+
+窄寬度的現況記在 [[specs/sitemap/admin/grades-exams]] 的 `## 390px`。
