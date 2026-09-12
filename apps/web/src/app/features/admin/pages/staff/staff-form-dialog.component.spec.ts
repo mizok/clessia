@@ -146,17 +146,39 @@ describe('StaffFormDialogComponent', () => {
     });
 
     /**
-     * 表單預設 `roles: ['teacher']`（#663 的 ② 真正的成因）。取消老師角色之後，
-     * 「請選擇教學科目」指向的欄位**已經從畫面上消失**了 ——
-     * 留著那個錯誤就是一個指向不存在欄位的訊息。
+     * 取消老師角色之後，「請選擇教學科目」指向的欄位**已經從畫面上消失**了
+     * （整區在 `@if (isTeacherRole())` 裡）—— 留著那個錯誤就是一個指向不存在
+     * 欄位的訊息。
      */
     it('取消老師角色時，教學科目的錯誤跟著消失', () => {
+      comp().toggleRole('teacher', true);
       comp().save();
       expect(comp().errors()['subjectIds']).toBeDefined();
 
       comp().toggleRole('teacher', false);
 
       expect(comp().errors()['subjectIds']).toBeUndefined();
+    });
+
+    /**
+     * **#666：表單不預選任何角色。**
+     *
+     * 原本預設 `['teacher']`，於是每一個純行政都被靜默地記成老師 ——
+     * 可用性測試席建的兩個純行政都變成 `老師 + 管理員`，而頁首統計把他們
+     * 算進「90 老師」。**建立者不會發現**，他只是沒去取消一個預先勾好的框。
+     *
+     * 所以「沒選角色」必須是一個**會被擋下來、而且看得到是哪一欄**的狀態，
+     * 不是一個悄悄替使用者決定的預設值。
+     */
+    it('新建表單不預選任何角色，未選角色送出會在角色欄留下錯誤', () => {
+      expect(comp().formData().roles).toEqual([]);
+
+      comp().save();
+
+      expect(comp().errors()['roles']).toBe('請選擇角色');
+      // 沒勾老師就不該要求教學科目 —— 那個欄位根本沒顯示
+      expect(comp().errors()['subjectIds']).toBeUndefined();
+      expect(staffServiceMock.create).not.toHaveBeenCalled();
     });
   });
 });
