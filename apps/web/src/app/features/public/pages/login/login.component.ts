@@ -1,12 +1,12 @@
 import { Component, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { AuthService } from '@core/auth.service';
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 import { oauthErrorFor } from './oauth-error';
 
 @Component({
   selector: 'app-login',
-  imports: [InlineNoticeComponent, RouterLink],
+  imports: [InlineNoticeComponent],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
 })
@@ -16,8 +16,8 @@ export class LoginComponent {
 
   protected readonly error = signal<string | null>(null);
   protected readonly submitting = signal(false);
-  /** 未登記的人需要報名入口，不是「再試一次」 */
-  protected readonly showEnrollmentLink = signal(false);
+  /** 未登記的人需要「怎麼被登記」，不是「再試一次」也不是一條連到空殼頁的連結（#694） */
+  protected readonly showRegisterHint = signal(false);
   /**
    * guard 判斷 `/api/me` 是暫時性錯誤（5xx、斷線）而不是真的未登入時，
    * 會帶 `?reason=connection-error` 把人導來這裡（見 auth.guard.ts）。
@@ -30,7 +30,7 @@ export class LoginComponent {
     const oauthError = oauthErrorFor(this.route.snapshot.queryParamMap.get('error'));
     if (oauthError) {
       this.error.set(oauthError.message);
-      this.showEnrollmentLink.set(oauthError.showEnrollmentLink);
+      this.showRegisterHint.set(oauthError.showRegisterHint);
     }
 
     if (this.route.snapshot.queryParamMap.get('reason') === 'connection-error') {
@@ -53,7 +53,7 @@ export class LoginComponent {
    */
   protected async signInWithLine(): Promise<void> {
     this.error.set(null);
-    this.showEnrollmentLink.set(false);
+    this.showRegisterHint.set(false);
     this.submitting.set(true);
 
     try {

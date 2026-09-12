@@ -1,7 +1,13 @@
 export interface OauthError {
   readonly message: string;
-  /** 未登記的人需要的是報名入口，不是「再試一次」 */
-  readonly showEnrollmentLink: boolean;
+  /**
+   * 未登記的人需要的是**怎麼被登記**，不是「再試一次」。
+   *
+   * #694 之前這裡是一條連到 `/enrollment` 的連結 —— **而那一頁是純佔位殼**，
+   * 於是被擋在門外的人唯一的出路是一扇畫在牆上的門。
+   * 使用者裁定改成一句「請聯絡補習班登記」，欄位跟著改名。
+   */
+  readonly showRegisterHint: boolean;
 }
 
 /**
@@ -20,14 +26,14 @@ export function oauthErrorFor(code: string | null | undefined): OauthError | nul
     case 'signup_disabled':
       return {
         message: '這個 LINE 帳號還沒有被登記。如果你已經報名，請向補習班索取專屬連結。',
-        showEnrollmentLink: true,
+        showRegisterHint: true,
       };
 
     // 使用者在 LINE 的授權畫面按了取消。不是錯誤，語氣不要嚇人。
     case 'access_denied':
-      return { message: '已取消 LINE 登入。', showEnrollmentLink: false };
+      return { message: '已取消 LINE 登入。', showRegisterHint: false };
 
     default:
-      return { message: 'LINE 登入沒有完成，請稍後再試。', showEnrollmentLink: false };
+      return { message: 'LINE 登入沒有完成，請稍後再試。', showRegisterHint: false };
   }
 }

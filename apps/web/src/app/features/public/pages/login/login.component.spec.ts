@@ -27,13 +27,15 @@ function setupWithQueryParams(params: [string, string][]) {
   return {
     c: fixture.componentInstance as unknown as {
       error: () => string | null;
-      showEnrollmentLink: () => boolean;
+      showRegisterHint: () => boolean;
       showRetry: () => boolean;
     },
     // **看真的 DOM**：signal 對了不代表畫面上有東西。
     // 這個測試原本只斷言 signal，結果 template 裡的 @if 區塊根本沒被加進去，
     // 那條連結從來沒有渲染過，而測試一直是綠的。
     enrollLink: () => (fixture.nativeElement as HTMLElement).querySelector('.login__enroll-link'),
+    registerHint: () =>
+      (fixture.nativeElement as HTMLElement).querySelector('.login__register-hint'),
     retryBtn: () => (fixture.nativeElement as HTMLElement).querySelector('.login__retry-btn'),
   };
 }
@@ -115,19 +117,38 @@ describe('LoginComponent', () => {
 // OAuth 失敗是被導回來時寫在網址上的。純函式對了不代表接上了 ——
 // #19 的 CORS 事故就是「函式寫對但沒接上」。
 describe('LoginComponent 讀網址上的 OAuth 錯誤', () => {
-  it('未登記的帳號會顯示訊息，且畫面上真的出現報名連結', () => {
-    const { c, enrollLink } = setupWithQueryError('signup_disabled');
+  /**
+   * #694：原本這裡是一條「還沒報名？前往報名」→ `/enrollment`。
+   *
+   * **而 `/enrollment` 是純佔位殼**（模板 9 行、`<main>` 內零互動元素，
+   * PR #692 逐頁量過）—— 被擋在門外的家長，唯一的出路是一扇畫在牆上的門。
+   *
+   * 使用者裁定：**連結拿掉，換成一句「請聯絡補習班登記」。**
+   *
+   * 這不是冗贅：既有的錯誤訊息覆蓋的是「**已經**報名」那半
+   * （「如果你已經報名，請向補習班索取專屬連結」），
+   * **而被拿掉的連結服務的是「還沒報名」那半** —— 新句子補的正是那一半。
+   */
+  it('未登記的帳號會顯示訊息，並改用「請聯絡補習班登記」而不是連到空殼頁', () => {
+    const { c, enrollLink, registerHint } = setupWithQueryError('signup_disabled');
 
     expect(c.error()).toContain('還沒有被登記');
-    expect(enrollLink()).not.toBeNull();
-    expect(enrollLink()?.getAttribute('href')).toBe('/enrollment');
+    // 連結必須消失 —— 它指向的那一頁什麼都做不了
+    expect(enrollLink()).toBeNull();
+    expect(registerHint()?.textContent).toContain('請聯絡補習班登記');
   });
 
-  it('其他錯誤時畫面上沒有報名連結', () => {
-    const { c, enrollLink } = setupWithQueryError('state_mismatch');
+  /**
+   * **反向對照**：那句話是條件式的，不是每次都印。
+   * 只有「這個 LINE 帳號還沒被登記」才需要它；
+   * 使用者自己取消（`access_denied`）或別的失敗印出來只會是噪音。
+   */
+  it('其他錯誤時不出現那句話（也仍然沒有報名連結）', () => {
+    const { c, enrollLink, registerHint } = setupWithQueryError('state_mismatch');
 
     expect(c.error()).toBeTruthy();
     expect(enrollLink()).toBeNull();
+    expect(registerHint()).toBeNull();
   });
 });
 

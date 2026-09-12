@@ -10,7 +10,7 @@ describe('oauthErrorFor', () => {
     const result = oauthErrorFor('signup_disabled');
 
     expect(result?.message).toContain('還沒有被登記');
-    expect(result?.showEnrollmentLink).toBe(true);
+    expect(result?.showRegisterHint).toBe(true);
   });
 
   it('沒有 error 參數時不顯示任何東西', () => {
@@ -22,7 +22,7 @@ describe('oauthErrorFor', () => {
     const result = oauthErrorFor('state_mismatch');
 
     expect(result?.message).toBeTruthy();
-    expect(result?.showEnrollmentLink).toBe(false);
+    expect(result?.showRegisterHint).toBe(false);
   });
 
   // 使用者在 LINE 的畫面按了「取消」—— 那不是錯誤，不該嚇他
@@ -30,6 +30,6 @@ describe('oauthErrorFor', () => {
     const result = oauthErrorFor('access_denied');
 
     expect(result?.message).toContain('取消');
-    expect(result?.showEnrollmentLink).toBe(false);
+    expect(result?.showRegisterHint).toBe(false);
   });
 });

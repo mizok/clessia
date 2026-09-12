@@ -28,8 +28,15 @@
     }
   </button>
 
-  @if (showEnrollmentLink()) {
-    <a class="login__enroll-link" routerLink="/enrollment">還沒報名？前往報名</a>
+  <!--
+    **不放連到 `/enrollment` 的連結**（#694）：那一頁是純佔位殼（`<main>` 內零互動元素），
+    **被擋在門外的人唯一的出路會是一扇畫在牆上的門**。使用者裁定改成一句話。
+
+    它補的是既有錯誤訊息缺的那一半 —— 那句講的是「**已經**報名」該怎麼辦
+    （向補習班索取專屬連結），這句講的是「**還沒**報名」該怎麼辦。
+  -->
+  @if (showRegisterHint()) {
+    <p class="login__register-hint">請聯絡補習班登記</p>
   }
 
   <div class="login__foot">

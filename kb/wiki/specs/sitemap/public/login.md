@@ -69,22 +69,30 @@ LINE OAuth 失敗帶 `?error=...`）。
 
 ## 互動元素
 
-| 元素（畫面上的字） | 類型         | 出現條件                                                     | 按了之後                                                                                      |
-| ------------------ | ------------ | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| 使用 LINE 登入     | 按鈕（主要） | **永遠**（`submitting()` 時 `disabled`）                     | `auth.signInWithLine()` → **整頁離開去 LINE 授權頁**（**未驗，見下**）                        |
-| ✕（`關閉訊息`）    | 按鈕         | **只在錯誤提示存在時**（四種參數都會帶出它）                 | `error.set(null)` → 錯誤提示消失，**「重試」也跟著一起消失**（實測，見下）                    |
-| 還沒報名？前往報名 | 連結         | **只在 `?error=signup_disabled` 時**（`showEnrollmentLink`） | 導向 `/enrollment`，**SPA 導覽、不重載**（實測）                                              |
-| 重試               | 按鈕         | **只在 `?reason=connection-error` 時**（`showRetry`）        | `window.location.reload()` —— **整頁重載**，讓 `AuthService` 重跑一次 `/api/me`（實測，見下） |
+| 元素（畫面上的字） | 類型                                                                     | 出現條件                                                   | 按了之後                                                                                      |
+| ------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 使用 LINE 登入     | 按鈕（主要）                                                             | **永遠**（`submitting()` 時 `disabled`）                   | `auth.signInWithLine()` → **整頁離開去 LINE 授權頁**（**未驗，見下**）                        |
+| ✕（`關閉訊息`）    | 按鈕                                                                     | **只在錯誤提示存在時**（四種參數都會帶出它）               | `error.set(null)` → 錯誤提示消失，**「重試」也跟著一起消失**（實測，見下）                    |
+| `請聯絡補習班登記` | **純文字，不是連結**（#694 之前是「還沒報名？前往報名」→ `/enrollment`） | **只在 `?error=signup_disabled` 時**（`showRegisterHint`） | —（不可按）                                                                                   |
+| 重試               | 按鈕                                                                     | **只在 `?reason=connection-error` 時**（`showRetry`）      | `window.location.reload()` —— **整頁重載**，讓 `AuthService` 重跑一次 `/api/me`（實測，見下） |
 
 ### ⚠️ 三個條件式元素互斥的方式跟直覺不一樣
 
 - **`?error=` 與 `?reason=` 不是同一個開關**：`reason=connection-error` 走的是另一段
   `if`，它會**覆蓋** `error()` 並額外打開 `showRetry`。兩個參數同時帶時
   `reason` 的訊息會蓋掉 `error` 的（讀 `login.component.ts` 的建構子順序；**未實測**）
-- **「還沒報名？前往報名」只有 `signup_disabled` 一種情況會出現** ——
-  `access_denied` 與未知錯誤都不會。這是刻意的：沒登記的人要的是報名入口，
-  不是「再試一次」
-- **「重試」與「還沒報名」不會同時出現**（各自綁不同的參數）
+- **「請聯絡補習班登記」只有 `signup_disabled` 一種情況會出現** ——
+  `access_denied` 與未知錯誤都不會。這是刻意的：沒登記的人要的是「怎麼被登記」，
+  不是「再試一次」。
+
+  > **#694 之前這裡是一條連到 `/enrollment` 的連結**，而那一頁是純佔位殼
+  > （`<main>` 內零互動元素）—— **被擋在門外的人唯一的出路是一扇畫在牆上的門**。
+  > 使用者裁定拿掉連結、改成一句話。
+  >
+  > **新句子不是冗贅**：上方的錯誤訊息講的是「**已經**報名」該怎麼辦
+  > （向補習班索取專屬連結），這句講的是「**還沒**報名」該怎麼辦 —— 補的正是缺的那一半。
+
+- **「重試」與「請聯絡補習班登記」不會同時出現**（各自綁不同的參數）
 - **✕ 會把「重試」一起關掉**。`重試` 那顆鍵**巢狀在 `@if (error())` 裡面**
   （不是跟它平行），所以關掉錯誤提示等於連重試入口一起收走。
   **實測**：按 ✕ 之後 `.inline-notice--error` 與 `.login__retry-btn` 同時消失，
@@ -111,13 +119,13 @@ LINE OAuth 失敗帶 `?error=...`）。
 
 ### 兩向比對（五種狀態各量一次）
 
-| 網址                             | `<main>` 可見互動元素 | 實際是哪幾個                                                                          |
-| -------------------------------- | --------------------- | ------------------------------------------------------------------------------------- |
-| `/login`                         | **1**                 | `login__line-btn`                                                                     |
-| `/login?error=signup_disabled`   | **3**                 | `inline-notice__close`、`login__line-btn`、`login__enroll-link`（href `/enrollment`） |
-| `/login?error=access_denied`     | **2**                 | `inline-notice__close`、`login__line-btn`                                             |
-| `/login?error=zzz_unknown`       | **2**                 | `inline-notice__close`、`login__line-btn`                                             |
-| `/login?reason=connection-error` | **3**                 | `inline-notice__close`、`login__retry-btn`、`login__line-btn`                         |
+| 網址                             | `<main>` 可見互動元素  | 實際是哪幾個                                                                                                                                       |
+| -------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/login`                         | **1**                  | `login__line-btn`                                                                                                                                  |
+| `/login?error=signup_disabled`   | **2**（#694 之前是 3） | `inline-notice__close`、`login__line-btn`（**#694 之後 `login__enroll-link` 不存在了**，那一格改成純文字 `.login__register-hint`，不計入互動元素） |
+| `/login?error=access_denied`     | **2**                  | `inline-notice__close`、`login__line-btn`                                                                                                          |
+| `/login?error=zzz_unknown`       | **2**                  | `inline-notice__close`、`login__line-btn`                                                                                                          |
+| `/login?reason=connection-error` | **3**                  | `inline-notice__close`、`login__retry-btn`、`login__line-btn`                                                                                      |
 
 每一種狀態的不可見元素都是 **0**（總數 = 可見數）。
 
