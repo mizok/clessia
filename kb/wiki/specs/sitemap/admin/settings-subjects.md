@@ -130,3 +130,71 @@ updated: 2026-09-13
 | 那一顆可按的刪除鍵按下去的確認對話框 | **會通往寫入**，零寫入邊界；對話框也不在 `<main>` 裡 |
 | 編輯科目的就地編輯狀態               | 需要點進去，這一輪沒做                               |
 | `Escape` / 真的 Tab 鍵               | 需要前景分頁                                         |
+
+## 載入中 / 錯誤
+
+- **量測**：390 × 844 ／ 主 checkout 的 dev server（port 4200）`7e9da649` ／
+  `admin@demo.clessia.app`（permissions `["*"]`，量測前後各打一次 `/api/me`）
+- **手段**：同一個 XHR 包裝 —— 錯誤態改指 `:8799`，載入中把 `send` 延後 3 秒
+  （**只影響那一個 iframe，不動 8787**）。方法見[方法頁 Phase 2-D](../README.md)
+- ⚠️ **導航方式跟其他頁不同，見下** —— 這四個頁籤**進不去**，只能「完整載入進 shell、再切頁籤」
+
+> 🔴 **怎麼進來，決定你量不量得到這一頁。**
+>
+> `/admin/settings/*` **用 SPA 導航進不去 —— 會整頁空白**（issue #804）：
+> 側邊選單的連結、`router.navigateByUrl()`、直接指子路由，三條路都一樣，
+> `SettingsShellPage` 建構時炸在 `Cannot read properties of undefined (reading 'routeConfig')`。
+>
+> **所以本輪的量法是**：先**完整載入** `/admin/settings/<某個頁籤>`（這條路正常），
+> shell 建好之後**在 shell 內切頁籤**（`/admin/settings/schools` ↔ `campuses` …，這條路也正常）。
+> 兩段都實測過。
+>
+> 先前 #760 把這四頁記成「頁籤不是 `<a href>`，SPA 導航進不去，沒有硬鑽」——
+> **前半是對的，但真正擋住的是那個 crash**，而 crash 的樣子（畫面空白、網址不動）
+> 跟「導航沒有發生」一模一樣。
+
+> 這一頁的內容是共用元件 [[specs/sitemap/_shared/subject-manager]]，
+> **所以這一節量到的就是那支元件的狀態。**
+
+### 載入中（3 秒延遲）
+
+| skeleton | spinner | `<main>` 互動元素 | 判定 |
+| --- | --- | --- | --- |
+| **6**（`div.subject-manager__row--skeleton 284×32`） | 0 | 1 → 21 | ✅ 誠實 |
+
+骨架用的是**科目列自己的形狀**（一列一條），不是全站的 `skeleton-list`。
+
+⚠️ `animation-name: skeleton-wave` —— 看得見，波紋不動（坑 12）。
+
+### 錯誤（所有 API 都失敗）
+
+| 判定 | 重試鈕 | toast | 攔到的請求數 |
+| --- | --- | --- | --- |
+| 🔴 **謊稱沒資料，而且零訊號** | 否 | **0** | 1 |
+
+主體逐字「**尚無科目，請新增**」，**沒有 toast、沒有任何失敗字樣**。
+
+機制（`subject-manager.component.ts:80-86`）：
+
+```ts
+error: () => {
+  this.loading.set(false);     // ← 只做這一件事
+},
+```
+
+**沒有 failed 旗標、沒有 toast**，所以模板從「載入中」直接落到「空」。
+
+> 本機實際有 **9 個科目**（`select count(*) from subjects` = 9），而且畫面正常時每一列
+> 都寫著「已被 N 個課程、M 場校內考使用中，無法刪除」——
+> **同一頁在失敗時說「尚無科目，請新增」。**
+>
+> **這是本輪最乾淨的一個實例**：`_shared/audit-log-dialog` 的錯誤分支**一字不差**
+> （見 [[specs/sitemap/_shared/subject-manager]] 與 [[specs/sitemap/_shared/audit-log-dialog]]）——
+> **同一個寫法在兩支共用元件裡各長了一次**，所以它是 pattern 不是個案。
+
+### 未驗與原因
+
+| 項目 | 原因 |
+| --- | --- |
+| 重試 | **沒有重試鈕、沒有任何失敗訊號** |
+| 其他寬度 | 只量 390 |

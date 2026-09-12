@@ -192,7 +192,23 @@ updated: 2026-09-13
 - **手段**：把 XHR 的 URL 從 `:8787` 改指到沒人監聽的 `:8799`（等同 server 掛掉，
   **只影響那一個 iframe**，不動共享資源）。方法全文見[方法頁 Phase 2-D](../README.md)
 - **證據**：每一輪都確認攔截清單不是空的（`請求數`），**請求數 0 的那幾輪一律作廢**
-- ⚠️ **本輪只量「錯誤」那一半，「載入中」未量**（見下）
+- **載入中的量測**：390 × 844 ／ 主 checkout 的 dev server（port 4200）`7e9da649` ／
+  `admin@demo.clessia.app`（permissions `["*"]`，量測前後各打一次 `/api/me`）
+- **手段（載入中）**：同一個 XHR 包裝，把 `send` 用 `setTimeout` 延後 3 秒。
+  ⚠️ **背景分頁的 `setTimeout` 被節流**，實際延遲 ≥ 3 秒（見[方法頁](../README.md)）
+- **導航**：`ng.ɵgetRouterInstance(...)` 拿 Router 本人再 `navigateByUrl()`（見[方法頁](../README.md)）
+
+### 載入中（3 秒延遲）
+
+| skeleton | spinner | `<main>` 互動元素 | 判定 |
+| --- | --- | --- | --- |
+| **5**（`div.leave-page__skeleton-bar 292×20`） | 0 | 8 → 34 | ✅ 誠實 |
+
+⚠️ 這一頁的骨架**不是全站共用的 `skeleton-bar`**，是自己的 `.leave-page__skeleton-bar`，
+動畫名稱也不同（`…_pulse` 而不是 `skeleton-wave`）。**兩套骨架並存是現況，不是缺陷**，
+但改版統一樣式時要知道它在。
+
+⚠️ 動畫在背景分頁不會跑（坑 12）。
 
 ### 錯誤（所有 API 都失敗）
 
@@ -206,6 +222,5 @@ updated: 2026-09-13
 
 | 項目 | 原因 |
 | --- | --- |
-| **載入中的樣子** | 本輪只量錯誤態。**做法已經驗過**（把 XHR 的 `send` 延後 3 秒），只是沒鋪開 —— 已知形狀見 [[specs/sitemap/parent/attendance]]：切篩選時 3 秒內畫面**完全沒有反應**，沒有 skeleton／spinner／disabled |
 | **`Escape` / 真滑鼠重試** | 需要前景分頁（方法頁坑 12）。**「重試鈕按了會不會真的重打」沒有驗** |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |
