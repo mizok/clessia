@@ -1,6 +1,6 @@
 ---
 title: 課堂出勤紀錄（/admin/attendance）
-summary: /admin/attendance 沒有畫面 —— 它是轉址到 /admin/sessions；同名的頁面元件存在但接不到。
+summary: /admin/attendance 沒有畫面 —— 它是轉址到 /admin/sessions；那支接不到的同名元件已於 #698 刪除。
 category: spec
 status: developing
 tags: [sitemap, admin]
@@ -48,28 +48,25 @@ updated: 2026-09-12
 > 見驗證紀錄。`sessions.page.ts` 的 `ngOnInit` 有一支 `applyIncomingAttendanceFilter()`，
 > 看起來就是接這個的，但**「有一支看起來在接的函式」不等於「參數真的活著」**。
 
-## ⚠️ 有一支接不到的頁面元件
+## ~~有一支接不到的頁面元件~~ —— 已刪除（#698）
 
-`apps/web/src/app/features/admin/pages/attendance/` 底下有完整的一頁：
+`apps/web/src/app/features/admin/pages/attendance/` 底下曾經有完整的一頁
+（`.ts` 15.7 KB、`.html` 4.6 KB、`.scss` 4.0 KB、`.spec.ts` 21.8 KB），
+**而全庫沒有任何地方 import 它** —— 唯一會渲染它的那條路由早就改成 redirect 了。
 
-| 檔案                      | 大小    |
-| ------------------------- | ------- |
-| `attendance.page.ts`      | 15.7 KB |
-| `attendance.page.html`    | 4.6 KB  |
-| `attendance.page.scss`    | 4.0 KB  |
-| `attendance.page.spec.ts` | 21.8 KB |
-
-**全庫沒有任何地方 import 它**（`grep -rn "AttendancePage"` 在排除 `features/admin/pages/attendance/`
-與家長端之後只剩 `app.routes.ts:430`，而那一行是**家長端**的 `@features/parent/pages/attendance/attendance.page`）。
-
-唯一會渲染它的那條路由被改成 redirect 了，所以：
+當時記下的三件事，是它值得刪的理由：
 
 - 它的畫面**使用者到不了**
 - 它的 21.8 KB 測試**還在跑、還是綠的** —— 綠燈證明的是那個元件內部一致，不是它接得上
-- 它註冊為 [[specs/sitemap/_shared/audit-log-dialog]] 的開啟點之一（`resourceTypes: ['attendance']`），
-  而那個開啟點**永遠不會被走到**
+- 它註冊為 [[specs/sitemap/_shared/audit-log-dialog]] 的開啟點之一
+  （`resourceTypes: ['attendance']`），而那個開啟點**永遠不會被走到** ——
+  於是 `grep -rl` 數出來的「七個開啟點」有一個是假的
 
-→ 已開 issue 給計畫席（見驗證紀錄）。**這一頁記的是現況，不做任何處置。**
+> **2026-09-12 使用者裁決全刪**，連同 `sessions/dialogs/` 底下兩支同樣沒人 import 的
+> 對話框（`session-leave-roster-dialog`、`session-overflow-dialog`）。
+> **這條 `redirectTo` 保留** —— 舊書籤與儀表板的「未點名課堂」卡片都還指著它。
+
+**刪除之後這一頁的內容不變**：`/admin/attendance` 本來就沒有自己的畫面。
 
 ## 互動元素
 
@@ -90,6 +87,9 @@ updated: 2026-09-12
    與 [[specs/sitemap/admin/sessions]] 那一輪量到的數字一致）✓
 2. `grep` 確認 `app.routes.ts` 是 `redirectTo` 而非 `loadComponent` ✓
 3. `grep` 確認 admin 的 `AttendancePage` 無人 import ✓
+   —— **注意 `app.routes.ts` 那一筆 `AttendancePage` 是家長端的同名 class**
+   （`@features/parent/pages/attendance/attendance.page`）。刪除前重查時就是靠這一點
+   分辨的：**兩個 feature 有同名元件，只 grep 類別名會看到一筆假的引用。**
 
 ### 兩向比對
 
@@ -101,4 +101,4 @@ updated: 2026-09-12
 | 項目                                      | 原因                                                                                                                                                           |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **帶 query 參數轉址後，參數有沒有被套用** | 正要驗的時候 session 被另一席的登入踢掉（auth cookie 是 host 層級、不分 port），重登之後沒有回頭補。**這是儀表板「未點名課堂」卡片的整條路徑，值得單獨驗一次** |
-| 那支接不到的 `AttendancePage` 的畫面      | 依定義到不了；要看只能暫時改路由，不在本工單範圍                                                                                                               |
+| ~~那支接不到的 `AttendancePage` 的畫面~~  | **已無此問題** —— 元件已於 #698 刪除                                                                                                                           |

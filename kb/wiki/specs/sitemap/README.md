@@ -58,7 +58,8 @@ npx tsx tools/sitemap/generate-sitemap-skeletons.ts --check  # 缺檔就 exit 1
 > `AttendanceRosterPanelComponent` 的 `grep` 回四筆，我照著寫成「從四個地方開得到」。
 > **第四筆是死的**：`features/admin/pages/attendance/attendance.page.ts` 確實引用了它，
 > 但 `/admin/attendance` 在 `app.routes.ts` 是純 `redirectTo`，而那個頁面元件
-> **全庫沒有任何地方 import**（issue #698）。實際開得到的是三頁。
+> **全庫沒有任何地方 import**（issue #698 —— **那支孤兒已於 2026-09-12 刪除**，
+> 但這條規則留著：下一個孤兒出現時 `grep` 一樣會把它算進去）。實際開得到的是三頁。
 >
 > **命中之後多做一步**：那一頁在 `app.routes.ts` 裡是 `loadComponent` 還是 `redirectTo`？
 > 是 `redirectTo` 就不算一個開啟點。
