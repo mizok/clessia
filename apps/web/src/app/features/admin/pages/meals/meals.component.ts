@@ -120,6 +120,16 @@ export class MealsComponent implements OnInit {
   protected readonly mode = signal<'day' | 'range'>('day');
   protected readonly isRange = computed(() => this.mode() === 'range');
 
+  /**
+   * **這一次實際送出去的區間**（#710）。
+   *
+   * 空狀態要講的是「剛才查了什麼」，而**那跟選擇器現在顯示什麼是兩件事**：
+   * `onRangeChange` 會先寫入 `dateRange` 才 early-return（只選了起日時），
+   * 那一刻畫面上的資料還是上一次查詢的結果。從 `dateRange` 即時算的話，
+   * **空狀態會講一段從來沒有被查過的期間**。
+   */
+  protected readonly queriedRange = signal<{ dateFrom: string; dateTo: string } | null>(null);
+
   protected date: Date = new Date();
   protected dateRange: Date[] | null = null;
   protected readonly student = signal<Student | string | null>(null);
@@ -163,14 +173,21 @@ export class MealsComponent implements OnInit {
     this.loading.set(true);
     this.failed.set(false);
 
-    const request = this.isRange()
-      ? this.service.range({
-          ...rangeToStrings(this.dateRange, this.dateString),
-          studentId: this.selectedStudent()?.id,
-          page: this.currentPage(),
-          pageSize: RANGE_PAGE_SIZE,
-        })
-      : this.service.roster(this.dateString);
+    let request;
+    if (this.isRange()) {
+      const range = rangeToStrings(this.dateRange, this.dateString);
+      // 跟送出去的是同一個物件 —— 這樣空狀態上的日期不可能跟查詢漂掉
+      this.queriedRange.set(range);
+      request = this.service.range({
+        ...range,
+        studentId: this.selectedStudent()?.id,
+        page: this.currentPage(),
+        pageSize: RANGE_PAGE_SIZE,
+      });
+    } else {
+      this.queriedRange.set(null);
+      request = this.service.roster(this.dateString);
+    }
 
     request.subscribe({
       next: (res) => {

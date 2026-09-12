@@ -396,4 +396,97 @@ describe('MealsComponent', () => {
       expect(meals.batch.mock.calls[0][1]![0].note).toBe('素食');
     });
   });
+
+  /**
+   * #710：切到「區間查詢」而區間內沒有餐記錄時，空狀態講的是**當日模式**的字
+   * （「這天沒有候選名單 / 候選名單來自當天有課的班級」）。
+   *
+   * **而摘要句包在 `rows().length > 0` 裡面，空清單時不印** ——
+   * 於是整個畫面上**沒有任何東西說明剛才查的是哪一段期間**，
+   * 使用者能得到的結論是「這天沒排課」，實際情況是「這段期間沒有人被登記過餐」。
+   * **兩件事。**
+   */
+  describe('#710 區間查詢的空狀態', () => {
+    const emptyStateText = () =>
+      (fixture.nativeElement.querySelector('app-empty-state')?.textContent ?? '').replace(
+        /\s+/g,
+        ' ',
+      );
+
+    it('區間模式的空狀態不得講「這天」', async () => {
+      component['switchMode']('range');
+      component['onRangeChange']([
+        new Date('2026-09-01T00:00:00'),
+        new Date('2026-09-12T00:00:00'),
+      ]);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const text = emptyStateText();
+      expect(text).not.toContain('這天');
+      expect(text).not.toContain('候選名單');
+    });
+
+    it('空狀態要寫出實際查詢的區間 —— 那是畫面上唯一能說明「查了什麼」的地方', async () => {
+      component['switchMode']('range');
+      component['onRangeChange']([
+        new Date('2026-09-01T00:00:00'),
+        new Date('2026-09-12T00:00:00'),
+      ]);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const text = emptyStateText();
+      expect(text).toContain('2026-09-01');
+      expect(text).toContain('2026-09-12');
+    });
+
+    /**
+     * **區間講的必須是「送出去的那一段」，不是「選擇器現在顯示什麼」。**
+     *
+     * `onRangeChange` 會**先寫入 `dateRange` 才 early-return**（只選了起日時），
+     * 所以那一刻畫面上的資料還是上一次查詢的結果。
+     * 空狀態如果是從 `dateRange` 即時算的，**它會講一段從來沒有被查過的期間**。
+     */
+    it('只選了起日（還沒送出）時，空狀態仍然講上一次實際查的區間', async () => {
+      component['switchMode']('range');
+      component['onRangeChange']([
+        new Date('2026-09-01T00:00:00'),
+        new Date('2026-09-12T00:00:00'),
+      ]);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      meals.range.mockClear();
+      // 只選起日 —— 這一下不會觸發查詢
+      component['onRangeChange']([new Date('2026-07-05T00:00:00')]);
+      await fixture.whenStable();
+
+      // **刻意不再 detectChanges**：沒有查詢就沒有新資料，畫面本來就不該重繪。
+      // （在測試裡直接呼叫 `onRangeChange` 再跑一次 CD 會踩到日期選擇器
+      // `[ngModel]="dateRange"` 的 NG0100 —— 那是量測方式的產物，
+      // 真實流程裡這個呼叫來自 datepicker 自己的 `ngModelChange`，在 CD 內部。）
+      expect(meals.range).not.toHaveBeenCalled();
+      expect(component['queriedRange']()).toEqual({
+        dateFrom: '2026-09-01',
+        dateTo: '2026-09-12',
+      });
+      const text = emptyStateText();
+      expect(text).toContain('2026-09-01');
+      expect(text).not.toContain('2026-07-05');
+    });
+
+    /**
+     * **反向對照**：當日模式的空狀態不能被改掉。
+     * 它那兩句話是對的 —— 當日名單確實來自「當天有課的班級」。
+     */
+    it('當日模式的空狀態維持原樣', async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const text = emptyStateText();
+      expect(text).toContain('這天沒有候選名單');
+      expect(text).toContain('候選名單來自當天有課的班級');
+    });
+  });
 });
