@@ -23,6 +23,7 @@ import {
   RoutesCatalog,
   type RouteObj,
 } from '../../apps/web/src/app/core/smart-enums/routes-catalog';
+import { todayLocal } from '../../apps/web/src/app/shared/utils/session-time.util';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, '..', '..');
@@ -31,7 +32,18 @@ const OUT_ROOT = join(REPO_ROOT, 'kb', 'wiki', 'specs', 'sitemap');
 const GEN_START = '<!-- generated:route-facts start —— 這一段由 tools/sitemap 生成，不要手改 -->';
 const GEN_END = '<!-- generated:route-facts end -->';
 
-const TODAY = new Date().toISOString().slice(0, 10);
+/**
+ * 新建骨架的 `created:` / `updated:`。
+ *
+ * **本地日期，不是 `toISOString().slice(0, 10)`**（#702）—— 後者是 UTC，
+ * 在 UTC+8 的凌晨 0–8 點會寫成前一天。`refresh()` 不碰日期，所以這只影響新建的頁面，
+ * 但一個寫錯的 `created:` 沒有任何東西會叫。
+ *
+ * 用 `todayLocal` 而不是 date-fns 的 `format`：它是這個 repo 對「本地的今天」的
+ * **具名單一定義**，而且那個檔零 import（跟 `RoutesCatalog` 一樣 import 得動）。
+ * 再寫一種格式化法就是第二份定義。
+ */
+const TODAY = todayLocal();
 
 interface RouteFacts {
   readonly route: RouteObj;
