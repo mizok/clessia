@@ -118,11 +118,39 @@ describe('NotificationsComponent（管理端發布）', () => {
     });
   });
 
-  // 家長端全是空殼，發給家長沒人收得到
-  it('發送對象目前固定是全體老師', async () => {
+  /**
+   * #636:這個下拉原本鎖成常數,理由是「家長端全是空殼,發給家長沒人收得到」。
+   * **那個理由在 2026-09-04 就不成立了**(PR #291 把家長端通知中心接上了),
+   * 而註解沒有被回頭檢查 —— 五天後可用性測試才撞出來。
+   *
+   * 這三支守的是解鎖之後的三件事:**預設沒變**、**選得到家長**、**選了會送出去**。
+   */
+  it('預設仍然是全體老師 —— 解鎖不等於改預設', async () => {
     await setup();
 
-    expect(component['audience']).toBe('all_teachers');
+    expect(component['audience']()).toBe('all_teachers');
+  });
+
+  it('發送對象選得到家長', async () => {
+    await setup();
+
+    expect(component['audienceOptions'].map((o) => o.value)).toEqual([
+      'all_teachers',
+      'all_parents',
+    ]);
+  });
+
+  it('選了家長之後送出去的是 all_parents', async () => {
+    await setup();
+    component['title'].set('停課通知');
+    component['body'].set('內容');
+    component['audience'].set('all_parents');
+
+    component['submit']();
+
+    expect(createMock).toHaveBeenCalledWith(
+      expect.objectContaining({ audience: 'all_parents' }),
+    );
   });
 
   it('發布成功後清空表單並重新載入清單', async () => {
