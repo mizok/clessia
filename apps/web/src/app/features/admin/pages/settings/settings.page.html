@@ -10,6 +10,13 @@
       <p-skeleton height="2rem" styleClass="mb-2" />
       <p-skeleton height="3rem" />
     </div>
+  } @else if (loadFailed()) {
+    <!--
+      **取數失敗不能渲染表單**（#805）：`attendanceModeValue` 這時是硬編碼的
+      `'per_session'`，一間實際設定為 `daily_checkin` 的補習班會看到「隨堂點名」被選中，
+      而儲存鈕可按 —— 按下去就把那個沒讀到的值寫回去，靜靜改掉出勤模式。
+    -->
+    <app-load-failed description="沒有讀到系統設定，可能是連線問題" (retry)="loadSettings()" />
   } @else {
     <div class="settings-page__section">
       <h3 class="settings-page__section-title">出勤紀錄模式</h3>
