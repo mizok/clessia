@@ -88,6 +88,13 @@
     justify-content: flex-end;
     gap: var(--space-2);
   }
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+  }
 }
 
 // 「綁定既有學生」的搜尋框（#641）。放在清單上方 —— 空清單時它是唯一的動作，

@@ -124,4 +124,12 @@
   } @else {
     <p class="parent-detail__empty">載入失敗，請關閉後重試</p>
   }
+
+  <!--
+    刻意放在 `@if/@else` 鏈**外面**（#714）：載入失敗那一支的文案就是
+    「請關閉後重試」，關閉鈕如果在分支裡面，**它會剛好在那句話出現的時候消失**。
+  -->
+  <footer class="parent-detail__footer">
+    <p-button label="關閉" [text]="true" severity="secondary" (onClick)="close()" />
+  </footer>
 </div>

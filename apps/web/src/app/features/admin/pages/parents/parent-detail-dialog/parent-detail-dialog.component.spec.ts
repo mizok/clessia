@@ -51,10 +51,17 @@ describe('ParentDetailDialogComponent', () => {
     list: vi.fn(() => of({ data: [] })),
   };
 
+  /** #714：抽成具名的，測試才能斷言「關閉鈕真的關掉了對話框」 */
+  const dialogRefMock = {
+    close: vi.fn(),
+  };
+
   beforeEach(async () => {
     enrollmentsServiceMock.create.mockClear();
     parentsServiceMock.update.mockClear();
     parentsServiceMock.get.mockClear();
+    parentsServiceMock.get.mockReturnValue(of({ data: parentDetail }));
+    dialogRefMock.close.mockClear();
 
     await TestBed.configureTestingModule({
       imports: [ParentDetailDialogComponent],
@@ -69,7 +76,7 @@ describe('ParentDetailDialogComponent', () => {
         },
         {
           provide: DynamicDialogRef,
-          useValue: { close: vi.fn() },
+          useValue: dialogRefMock,
         },
         {
           provide: ParentsService,
@@ -185,6 +192,77 @@ describe('ParentDetailDialogComponent', () => {
       classId: 'class-1',
       studentId: 'student-1',
       skipConflictCheck: true,
+    });
+  });
+
+  /**
+   * #714：**這支對話框開了關不掉。**
+   *
+   * 這個 app 的 DynamicDialog 開啟設定沒有帶 `closable`，
+   * 而 `DynamicDialogComponent` 一律把 `[closable]="ddconfig.closable"` 綁給內層
+   * `p-dialog` —— **沒帶就是 `undefined`，把 `p-dialog` 自己的預設 `true` 蓋掉**，
+   * 所以 header 的 × 不渲染。其餘每一支都靠自己內容區的關閉／取消鈕，
+   * **而這一支的 `DynamicDialogRef` 根本沒被注入**（`ref.close()` 呼叫數 0）。
+   *
+   * 使用者只能重新整理整頁。
+   */
+  describe('#714 關閉入口', () => {
+    const closeButton = (): HTMLButtonElement | undefined =>
+      [...fixture.nativeElement.querySelectorAll('button')].find(
+        (b) => (b as HTMLElement).textContent?.trim() === '關閉',
+      ) as HTMLButtonElement | undefined;
+
+    it('有一顆「關閉」，按下去會關掉對話框', () => {
+      const btn = closeButton();
+      expect(btn).toBeTruthy();
+
+      btn!.click();
+
+      expect(dialogRefMock.close).toHaveBeenCalled();
+    });
+
+    /**
+     * **載入失敗時畫面上寫的就是「請關閉後重試」** —— 那句話是在指一顆按鈕。
+     * 關閉鈕如果被放進 `@else if (parent())` 分支裡，
+     * **它會剛好在那句話出現的時候消失**。
+     */
+    it('載入失敗時關閉鈕仍然在 —— 那個狀態的文案正是「請關閉後重試」', () => {
+      parentsServiceMock.get.mockReturnValueOnce(throwError(() => new Error('boom')));
+      const failed = TestBed.createComponent(ParentDetailDialogComponent);
+      failed.detectChanges();
+
+      const btn = [...failed.nativeElement.querySelectorAll('button')].find(
+        (b) => (b as HTMLElement).textContent?.trim() === '關閉',
+      );
+
+      expect(failed.nativeElement.textContent).toContain('請關閉後重試');
+      expect(btn).toBeTruthy();
+    });
+
+    /**
+     * **反向對照**：擋住「把排課衝突提示那顆『取消』接到 `ref.close()`」那種修法。
+     *
+     * 那顆「取消」是**子流程**的取消（放棄這一次的衝突報名），
+     * 不是關閉對話框 —— 接錯的話使用者會在看衝突警告時整個視窗被關掉，
+     * 而他還沒決定要不要報名。
+     */
+    it('衝突提示的「取消」不得關掉對話框', () => {
+      fixture.componentInstance['conflictPrompt'].set({
+        student: parentDetail.students[0],
+        cls: { id: 'class-1', name: '數學 B' } as never,
+        warnings: [],
+      });
+      fixture.detectChanges();
+
+      const cancel = [...fixture.nativeElement.querySelectorAll('button')].find(
+        (b) => (b as HTMLElement).textContent?.trim() === '取消',
+      ) as HTMLButtonElement | undefined;
+      expect(cancel).toBeTruthy();
+
+      cancel!.click();
+
+      expect(dialogRefMock.close).not.toHaveBeenCalled();
+      expect(fixture.componentInstance['conflictPrompt']()).toBeNull();
     });
   });
 
