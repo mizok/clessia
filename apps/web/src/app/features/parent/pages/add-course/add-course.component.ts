@@ -8,7 +8,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
   imports: [EmptyStateComponent],
   template: `
     <app-empty-state
-      icon="pi pi-plus-circle"
+      [icon]="'pi ' + page().icon"
       [title]="page().label"
       description="這個功能還在準備中，完成後就會出現在這裡。"
     />

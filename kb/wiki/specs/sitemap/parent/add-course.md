@@ -31,14 +31,15 @@ updated: 2026-09-12
 > ```ts
 > template: `
 >   <app-empty-state
->     icon="pi pi-plus-circle"
+>     [icon]="'pi ' + page().icon"
 >     [title]="page().label"
 >     description="這個功能還在準備中，完成後就會出現在這裡。"
 >   />
 > `,
 > ```
 >
-> **家長端有六頁長得一模一樣**（見下方「同形的六頁」），差別只有圖示與標題。
+> **家長端有六頁長得一模一樣**（見下方「同形的六頁」）——
+> 六頁的模板現在**逐字相同**，差別完全來自投影進去的 `page()`。
 >
 > 這裡記的是**現在的樣子**，不是應該有什麼。
 
@@ -46,7 +47,7 @@ updated: 2026-09-12
 
 置中的空狀態，三個部分由上而下：
 
-1. 圖示 `pi pi-plus-circle`
+1. 圖示 `pi pi-plus-circle` —— 來自 `page().icon`，跟選單用的是同一個（#708）
 2. 標題 **加選課程** —— 來自 `page().label`，也就是 `RoutesCatalog` 的路由標籤
 3. 說明 `這個功能還在準備中，完成後就會出現在這裡。`
 
@@ -93,7 +94,7 @@ updated: 2026-09-12
 | **可見**                 | **0** |
 
 `<main>` 的全部文字：`加選課程 這個功能還在準備中，完成後就會出現在這裡。`
-空狀態圖示的實際 class：`pi pi-plus-circle`
+空狀態圖示的實際 class：`pi pi-plus-circle`（**#708 修正前**；現在是 `pi pi-plus-circle`）
 
 | 方向        | 結果                       |
 | ----------- | -------------------------- |
@@ -102,25 +103,33 @@ updated: 2026-09-12
 
 **差異：0 筆。**
 
-### ⚠️ 空狀態的圖示不是從路由來的
+### 圖示從路由來（#708 之後）
 
-圖示寫死在元件的 `template` 字串裡，**不是** `page().icon`。這一頁兩邊剛好相同，
-但六頁裡有四頁不同（見下表）—— 改版時不要假設空狀態的圖示會跟著選單走。
+`[icon]="'pi ' + page().icon"` —— **跟標題同源**（標題是 `page().label`）。
+#708 之前圖示是寫死的，六頁裡有四頁跟選單不一致；那段歷史記在下表底下的引言裡。
 
 ## 同形的六頁
 
-這六頁的元件**逐字同構**（只有 `icon` 與投影進去的 `page()` 不同）：
+這六頁的元件**逐字同構**（只有投影進去的 `page()` 不同）：
 
-| 路由                 | 標題     | 空狀態圖示（寫死在元件裡） | `RoutesCatalog` 的選單圖示 |
-| -------------------- | -------- | -------------------------- | -------------------------- |
-| `/parent/schedule`   | 課表查看 | `pi pi-calendar`           | `pi-calendar-plus` ❗      |
-| `/parent/trial`      | 試聽申請 | `pi pi-star`               | `pi-headphones` ❗         |
-| `/parent/enrollment` | 報名申請 | `pi pi-file-edit`          | `pi-user-plus` ❗          |
-| `/parent/add-course` | 加選課程 | `pi pi-plus-circle`        | `pi-plus-circle`           |
-| `/parent/renewal`    | 續課資訊 | `pi pi-refresh`            | `pi-refresh`               |
-| `/parent/meals`      | 餐費紀錄 | `pi pi-shopping-bag`       | `pi-dollar` ❗             |
+| 路由                 | 標題     | 圖示（= `RoutesCatalog` 的選單圖示） |
+| -------------------- | -------- | ------------------------------------ |
+| `/parent/schedule`   | 課表查看 | `pi-calendar-plus`                   |
+| `/parent/trial`      | 試聽申請 | `pi-headphones`                      |
+| `/parent/enrollment` | 報名申請 | `pi-user-plus`                       |
+| `/parent/add-course` | 加選課程 | `pi-plus-circle`                     |
+| `/parent/renewal`    | 續課資訊 | `pi-refresh`                         |
+| `/parent/meals`      | 餐費紀錄 | `pi-dollar`                          |
 
 **六頁全部實測過，每一頁 `<main>` 內可見互動元素都是 0。**
+那個「0」有一支測試釘著（`parent-placeholder-pages.spec.ts`）——
+之後有人往 `EmptyState` 的 `<ng-content>` 投影一顆按鈕進去，**地圖會過期而測試會紅**。
+
+> **2026-09-12 之前這張表有兩欄，而且四列打著 ❗**（#708）：
+> 圖示原本寫死在元件的 `template` 字串裡，`schedule` / `trial` / `enrollment` / `meals`
+> 四頁跟選單圖示不同 —— **選單上是耳機、點進去是星星**。
+> 現在六頁都是 `[icon]="'pi ' + page().icon"`，**兩欄合併成一欄**，
+> 而「它們相同」由上面那支測試守著，不是靠下一個人記得。
 
 ### 未驗到的
 
