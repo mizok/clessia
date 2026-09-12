@@ -9,9 +9,10 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
+import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { TagModule } from 'primeng/tag';
-import { DynamicDialogConfig } from 'primeng/dynamicdialog';
+import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { SessionsService, type Session, type SubstitutedAwayEntry } from '@core/sessions.service';
 
@@ -38,6 +39,7 @@ import { RtRowDirective } from '@shared/components/responsive-table/rt-row.direc
     RtRowDirective,
     StatusDotComponent,
     FormsModule,
+    ButtonModule,
     SelectModule,
     TagModule,
   ],
@@ -49,6 +51,7 @@ export class TeachingLogDialogComponent {
   private readonly sessionsService = inject(SessionsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly config = inject(DynamicDialogConfig<TeachingLogDialogData>);
+  private readonly ref = inject(DynamicDialogRef);
 
   protected readonly staffName = this.config.data?.staffName ?? '';
   private readonly staffId = this.config.data?.staffId ?? '';
@@ -114,5 +117,19 @@ export class TeachingLogDialogComponent {
         next: (res) => this.substitutedAway.set(res.data),
         error: () => this.substitutedAway.set([]),
       });
+  }
+  /**
+   * **這支對話框原本一顆按鈕都沒有**（#727，跟 #714 的家長詳情同型）。
+   *
+   * 開啟設定（`staff.page.ts` 的 `openTeachingLog`）沒帶 `closable`，而
+   * `DynamicDialogComponent` 一律把 `[closable]="ddconfig.closable"` 綁給內層
+   * `p-dialog` —— **沒帶就是 `undefined`，把 `p-dialog` 自己的預設 `true` 蓋掉**，
+   * 於是標頭的 ✕ 不渲染；模板底部也沒有 footer。使用者只能重新整理整頁。
+   *
+   * 補在內容區而不是去開 `closable` —— 這個 app 其餘的對話框都是這個形狀
+   * （`invoice-detail`、`uninvoiced`、`parent-detail` …），**一致性優先**。
+   */
+  protected close(): void {
+    this.ref.close();
   }
 }

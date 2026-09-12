@@ -123,4 +123,12 @@
       </section>
     }
   }
+
+  <!--
+    刻意放在所有資料分支**外面**（#727）：這是唯讀檢視，沒有「做到一半不能走」的狀態，
+    而載入很慢或載不出來**正是使用者最想離開的時候**。
+  -->
+  <footer class="teaching-log__footer">
+    <p-button label="關閉" [text]="true" severity="secondary" (onClick)="close()" />
+  </footer>
 </div>
