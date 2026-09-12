@@ -21,14 +21,33 @@ const PAGE = {
 };
 
 function emptyResponse(): ParentAttendanceListResponse {
-  return { data: [], meta: { total: 0, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 } };
+  return {
+    data: [],
+    meta: { total: 0, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
+  };
+}
+
+/**
+ * fixture 的日期一律相對今天算（#670）。
+ *
+ * 寫死的日期會在某一天掉出頁面預設的「近 10 天」——`fillMissingDays` 是**用日期窗口
+ * 重建整份列表**，窗外的紀錄不是排在後面，是整筆消失。於是測試在一個跟程式碼無關的
+ * 時刻自己變紅，而下一個碰它的人看到的是「我的 PR 弄壞了測試」。
+ *
+ * 用本地時間欄位而不是 `toISOString()`：頁面的範圍計算走 date-fns 的本地時區，
+ * UTC 會在台北凌晨差一天。
+ */
+function daysAgoIso(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function record(overrides: Partial<ParentAttendanceRecord> = {}): ParentAttendanceRecord {
   return {
     id: 'r1',
     eventId: 'e1',
-    eventDate: '2026-09-01',
+    eventDate: daysAgoIso(0),
     startTime: '09:00',
     endTime: '10:00',
     campusName: '台北校',
@@ -117,10 +136,14 @@ describe('AttendancePage', () => {
   });
 
   it('依日期分組顯示，日期新到舊（近30天，不觸發補空避免干擾排序斷言）', () => {
+    const newer = daysAgoIso(3);
+    const older = daysAgoIso(20);
     const comp = createComponent({
+      // 刻意**舊的餵在前面** —— 照順序餵的話 `groupByDate` 的 Map 插入順序就已經是
+      // 期望值，那條 `.sort()` 拿掉也還是綠的
       data: [
-        record({ id: 'r1', eventDate: '2026-09-01' }),
-        record({ id: 'r2', eventDate: '2026-08-30', status: 'absent', className: '英文班' }),
+        record({ id: 'r2', eventDate: older, status: 'absent', className: '英文班' }),
+        record({ id: 'r1', eventDate: newer }),
       ],
       meta: { total: 2, page: 1, pageSize: 50, monthlyAbsentCount: 1, monthlyOnLeaveCount: 0 },
     });
@@ -130,16 +153,13 @@ describe('AttendancePage', () => {
 
     const dates = fixture.nativeElement.querySelectorAll('.attendance__day-date');
     expect(Array.from(dates).map((el: unknown) => (el as HTMLElement).textContent?.trim())).toEqual(
-      ['2026-09-01', '2026-08-30'],
+      [newer, older],
     );
   });
 
   it('近10天（預設模式）補回沒有紀錄的日期，顯示「今日無課」——避免跟載入失敗混淆', () => {
-    const today = new Date();
-    const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
     createComponent({
-      data: [record({ id: 'r1', eventDate: todayIso })],
+      data: [record({ id: 'r1', eventDate: daysAgoIso(0) })],
       meta: { total: 1, page: 1, pageSize: 50, monthlyAbsentCount: 0, monthlyOnLeaveCount: 0 },
     });
     activeChildId.set('child-1');
@@ -190,9 +210,9 @@ describe('AttendancePage', () => {
 
     // 取 `.band-anchor__value` 而不是整顆的 textContent —— 只比對那個數字本身，
     // 合計（7）會讓這條直接不等，不用靠「不包含 7」這種鈍的斷言
-    expect(
-      fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim(),
-    ).toBe('2');
+    expect(fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim()).toBe(
+      '2',
+    );
   });
 
   it('錨點文案標明「本月」——列表區間可以不是本月，數字卻永遠是本月', () => {
@@ -215,9 +235,9 @@ describe('AttendancePage', () => {
     activeChildId.set('child-1');
     fixture.detectChanges();
 
-    expect(
-      fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim(),
-    ).toBe('0');
+    expect(fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim()).toBe(
+      '0',
+    );
   });
 
   it('載入成功後再失敗，錨點要收回去——留著舊數字等於用失敗換來一則好消息', () => {
@@ -229,9 +249,9 @@ describe('AttendancePage', () => {
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
-    expect(
-      fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim(),
-    ).toBe('4');
+    expect(fixture.nativeElement.querySelector('.band-anchor__value')?.textContent?.trim()).toBe(
+      '4',
+    );
 
     listMock.mockImplementation(() => throwError(() => new Error('boom')));
     comp.onRangeChange('recent30');
