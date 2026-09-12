@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, parent]
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-13
 ---
 
 # 儀表板
@@ -108,3 +108,62 @@ updated: 2026-09-12
 | -------------------- | --------------------------------------------------------------------------- |
 | 切換器的另外三種形態 | 見 [[specs/sitemap/_shared/parent-child-switcher]]（本機帳號固定 3 個孩子） |
 | 手機寬度             | 本輪只量 1504px 桌機寬度                                                    |
+
+## 390px
+
+- **量測**：390 × 844 ／ 768 × 1024 ／ 1024 × 768 ／ 1504 × 752
+- **前端**：主 checkout 的 dev server（port 4200），`fce2aefd`
+- **身分**：`parent03@demo.clessia.app`（張建國，`roles:["parent"]`，3 個孩子）——
+  量測前後各打一次 `GET /api/me`，兩次相同
+- **取樣器**：#768 的四道濾網版，**外加 ④a 的修正**與 ④b 的 `visibleFast`（兩者本輪查出，已回寫方法頁）
+- **手段**：同源 iframe 當 viewport
+
+### 版面怎麼變
+
+**這一頁是佔位殼 + 一顆孩子切換器徽章**，四個寬度完全一樣：
+
+| 元素 | 390 | 768 | 1024 | 1504 |
+| --- | --- | --- | --- | --- |
+| `button.child-switcher__badge--interactive` | `74 × 26` | `74 × 26` | `74 × 26` | `74 × 26` |
+
+`<main>` 的其餘內容是「更多內容還在準備中／這個功能還在準備中，完成後就會出現在這裡。」
+
+**尺寸一格都沒變** —— 這一頁沒有任何響應式行為。外框（側欄 ↔ 底欄）見
+[[specs/sitemap/_shared/shell-layout]]。
+
+### 差集（1504 ↔ 390）
+
+**零差異。**
+
+### 水平溢出
+
+**無**（四個寬度 `documentElement.scrollWidth === innerWidth`，撐出界的元素 0 個）。
+整頁不產生捲動容器。
+
+### 觸控目標 < 44px
+
+| 元素 | 量到 | `(pointer: coarse)` 有沒有接住 |
+| --- | --- | --- |
+| 孩子切換器徽章 | `74 × 26` | **沒有** |
+
+**這一顆是家長端四頁共用的**（`dashboard` / `attendance` / `grades` / `payments`），
+所以它是**整個家長端最常出現、而且每一頁都低於 44px 的觸控目標**。
+它同時是「切換孩子」這個家長端最重要動作的唯一入口。**記現況，不判缺陷。**
+
+> 高度 26px 是**多重角色才有的互動版**（`--interactive`）。單孩家長渲染成靜態 `<span>`，
+> 那時它不是觸控目標 —— 本輪的帳號有 3 個孩子，量到的是互動版。
+
+### 鍵盤可達性
+
+- 全頁**沒有正數 `tabindex`** → Tab 序列 = DOM 序。
+- `<main>` 內可 Tab 元素 **1 個**（徽章）。
+- **click-only 而鍵盤到不了**：`i.child-switcher__badge-icon` 在 `<button>` 裡面，**不是缺口**。
+
+### 未驗與原因
+
+| 項目 | 原因 |
+| --- | --- |
+| 徽章按開之後的下拉（`.child-switcher-overlay`） | 屬於 [[specs/sitemap/_shared/parent-child-switcher]]，留給 `_shared` 的 Phase 2 |
+| 單孩 / 無孩家長的樣子 | 本輪帳號有 3 個孩子 |
+| 焦點環看不看得見 | **這個環境量不到**（`document.hasFocus()` 恆 `false`） |
+| `Escape` / 真的 Tab 鍵 | 需要前景分頁（方法頁坑 12） |

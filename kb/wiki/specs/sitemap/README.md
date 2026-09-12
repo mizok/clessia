@@ -660,10 +660,102 @@ Phase 1 只能說「樹裡有但使用者看不到」，現在分得出來是哪
 跟「真的看不到」分成兩種判定 —— 前者算可見，另外列出來當作現況。
 
 > ⚠️ **不要為了更準而掃很多捲動位置。** 每 0.6 屏一站試過：`why()` 裡有 `scrollIntoView`，
-> 站數一多 **CDP 會在 45 秒逾時把分頁打掛**。兩站就好，剩下的落差記成量測限制。
->
-> 實例：`/admin/courses` 390px 的 `p-button-danger` 兩站聯集量到 **19 / 20** ——
-> **少的那一顆是量測位置造成的，不是元素不存在**。這種要寫成「量測限制」，不要寫進差集表。
+> 站數一多 **CDP 會在 45 秒逾時把分頁打掛**。兩站就好。
+> （逾時有解，見下面「④b」；**但兩站聯集本身仍然夠用**。）
+
+#### ④a 訂正：那個 `19 / 20` 不是量測限制，是 `inView()` 用錯了可視區
+
+> **2026-09-13（labor-7）。** 上面那個「`/admin/courses` 少的那一顆是量測位置造成的」
+> —— **現象對、機制錯**，而歸因成「量測限制」會讓它不再被查。
+> 我在 `/parent/payments` 390 撞到**逐字同形**的 `19 / 20`，追下去發現是濾網④ 自己的洞。
+
+**機制（查出來的，不是推的）**：
+
+```
+元素 rect            top 763 / bottom 811
+w.innerHeight        844          → inView() 說「在裡面」→ 不觸發 scrollIntoView
+main.shell-content   top 56 / bottom 780   ← 真正的可視區只到這裡
+nav.bottom-bar       top 780 / bottom 844 / position: **static**
+```
+
+於是 `elementFromPoint(195, 787)` 打到底欄，而**底欄是 `position: static`**
+（shell 的底欄是 flex 佈局的一列，不是浮層）——
+**濾網④ 的 `fixed`/`sticky` 判定整條不命中**，verdict 落回 `clipped/covered`。
+
+> **濾網④ 在 admin 上有效、在 parent / teacher shell 上失效**，因為
+> `.page-actions__dock` 真的是 `position: fixed`，而 `app-bottom-bar` 不是。
+> **兩邊的症狀一模一樣（少一顆），只有 admin 那半被接住。**
+
+**修法：`inView()` 以捲動容器的 rect 為可視區，不是視窗。**
+
+```js
+const sc = this.scroller(e);
+const vp =
+  sc && sc !== this.d.scrollingElement && sc !== this.d.documentElement
+    ? sc.getBoundingClientRect()
+    : { top: 0, left: 0, bottom: this.w.innerHeight, right: this.w.innerWidth };
+const inView = (r) =>
+  r.top >= vp.top - 0.5 &&
+  r.left >= vp.left - 0.5 &&
+  r.bottom <= vp.bottom + 0.5 &&
+  r.right <= vp.right + 0.5;
+```
+
+**正控**：那一列 `why()` 從 `clipped/covered` → `null`，`/parent/payments` 390 的可見數
+**21 → 22**、帳單列 **19 → 20**，跟畫面文字「20 張待付款」與 768 / 1024 / 1504 的 22 三者對上。
+**負控**：`a.sidebar__item` 在 390 仍然全部被擋住（`zero-size`），`/parent/attendance` 仍是 23 ——
+**濾網沒有被整個放掉**。
+
+⚠️ **它是間歇的，這才是最毒的地方**：漏不漏取決於「最後幾列剛好落在底欄那 64px 裡沒有」。
+`/parent/attendance`（19 列）沒漏、`/parent/payments`（20 列）漏一列 —— **同一個 shell、同一天、同一支取樣器**。
+所以「這一頁沒漏」不能推論「這個工具沒問題」。
+
+#### ④b 45 秒逾時有解：兩站先用不捲動的判定，只對剩下的複驗
+
+`why()` 對**每一個**不在可視區的元素各做一次 `scrollIntoView`，長清單頁就會撞到
+CDP 的 45 秒上限（`/parent/grades` 切到有 107 筆成績的孩子之後必定逾時）。
+
+**`overflow()` 是更大的元凶** —— 它對 `querySelectorAll('*')` 的**每個節點**呼叫 `why()`。
+那一支改用不捲動的版本就好（它只要判「誰的 right 超出視窗」，本來就不需要捲）。
+
+```js
+// 兩站先用不捲動的判定；兩站都沒看到的，才逐個 scrollIntoView 複驗
+__P.visibleFast = async function (root) {
+  const m = root || this.main();
+  const all = [...m.querySelectorAll(this.SEL)];
+  const seen = new Set(), byFixed = new Set(), pending = new Set(all);
+  for (const pos of [0, m.scrollHeight]) {
+    m.scrollTop = pos;
+    await new Promise((r) => setTimeout(r, 200));
+    for (const e of [...pending]) {
+      const v = this.whyNoScroll(e); // 同 why() 但不捲動，出界回 'out-of-view'
+      if (v === null) { seen.add(e); pending.delete(e); }
+      else if (v === 'covered-by-fixed') { seen.add(e); byFixed.add(e); pending.delete(e); }
+      else if (v !== 'out-of-view' && v !== 'clipped/covered') pending.delete(e); // 結構性不可見，確定
+    }
+  }
+  m.scrollTop = 0;
+  for (const e of pending) {
+    const v = this.why(e); // 只有這些才付 scrollIntoView 的代價
+    if (!v || v === 'covered-by-fixed') { seen.add(e); if (v) byFixed.add(e); }
+  }
+  m.scrollTop = 0;
+  this._fixedCovered = [...byFixed];
+  this._rescued = pending.size;
+  return all.filter((e) => seen.has(e));
+};
+```
+
+**對照過，而且對照有鑑別力**（`/parent/attendance` 390，19 列）：
+
+| | 結果 | 耗時 |
+| --- | --- | --- |
+| 原版 `visibleEls` | 23 | **25.0 秒** |
+| `visibleFast` | 23（**集合逐個相同**） | **2.0 秒** |
+
+**而且 `_rescued` 是 4** —— 有 4 個元素只有靠 `scrollIntoView` 複驗才找得到，
+**所以快版不是把那一步省掉了，是只對需要的那幾個做**。
+（如果 `_rescued` 是 0，這個對照就什麼都證明不了 —— 兩版會因為「複驗根本沒發生」而一樣。）
 
 ### 鍵盤可達性：真的 Tab 鍵在這個環境按不動
 
