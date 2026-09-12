@@ -3,13 +3,19 @@
     <app-child-switcher />
     <h1 class="dashboard__band-title">{{ page().label }}</h1>
   </app-page-band>
-
-  <!-- 佔位內容。用 `app-empty-state` 而不是自己排版：這一頁的其餘部分之後會整頁重做，
+  <!--
+    **依賴孩子的頁面都包這一層**（#749）：0 個孩子時底下那些空狀態講的是
+    不成立的事（「今日無課」「目前沒有帳單紀錄」）—— 那是正面斷言，不是空白。
+    規則與措辭集中在 `app-child-scope-gate`，四頁不各自長出一種說法。
+  -->
+  <app-child-scope-gate>
+    <!-- 佔位內容。用 `app-empty-state` 而不是自己排版：這一頁的其餘部分之後會整頁重做，
        現在寫的任何樣式都是白工，而家長**現在就看得到這一頁**。孩子切換器不算白工——
        它是家長端授權模型的第一個消費端，03 片直接複用。 -->
-  <app-empty-state
-    icon="pi pi-home"
-    title="更多內容還在準備中"
-    description="這個功能還在準備中，完成後就會出現在這裡。"
-  />
+    <app-empty-state
+      icon="pi pi-home"
+      title="更多內容還在準備中"
+      description="這個功能還在準備中，完成後就會出現在這裡。"
+    />
+  </app-child-scope-gate>
 </div>

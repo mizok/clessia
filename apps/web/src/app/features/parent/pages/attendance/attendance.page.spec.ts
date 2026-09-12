@@ -81,7 +81,10 @@ describe('AttendancePage', () => {
           provide: ChildScopeService,
           useValue: {
             activeChildId: activeChildId.asReadonly(),
-            children: () => [],
+            // **不能留 `[]`**：`activeChildId` 只會從 `children[0]` 來，
+            // 所以「0 個孩子卻有 activeChildId」是現實中不存在的狀態，
+            // 而 `app-child-scope-gate`（#749）會把它擋掉。
+            children: () => [{ id: 'child-1', name: '測試孩子' }],
             activeChild: () => null,
             status: () => 'ready' as const,
             canSwitch: () => false,
@@ -302,5 +305,22 @@ describe('AttendancePage', () => {
       expect(fixture.nativeElement.textContent).toContain('非課堂');
       expect(fixture.nativeElement.textContent).not.toContain('停課');
     });
+  });
+
+  /**
+   * #749：**接線測試。** `app-child-scope-gate` 的規則與措辭有自己的測試，
+   * 但那不代表這一頁真的包了它 —— **元件寫好了不等於接上了**。
+   *
+   * 斷言的是「頁面內容在 gate **裡面**」而不只是「gate 存在」：
+   * 放一個空的 gate 在旁邊也會讓後者通過，而那什麼都擋不住。
+   */
+  it('頁面內容包在 app-child-scope-gate 裡（#749）', () => {
+    createComponent();
+    fixture.detectChanges();
+
+    const gate = fixture.nativeElement.querySelector('app-child-scope-gate');
+
+    expect(gate).toBeTruthy();
+    expect(gate.querySelector('.attendance__content')).toBeTruthy();
   });
 });
