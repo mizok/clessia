@@ -254,3 +254,20 @@ PR、或它當下分支最後一次 commit 的時間——PR 不帶 seat 標籤,
 **計畫席另外還在跑一個團隊停擺偵測的 Monitor**,跟監工的巡檢職責有重疊(都在問
 「這個團隊是不是靜止太久了」)。**要不要分工、怎麼分,目前沒有定案**——下一任
 接手時,這是一個該主動去問計畫席的問題,不要假設現狀就是最終分工。
+
+### `git fetch` 遇到 ref lock 競爭
+
+巡檢用的 `git fetch -pq origin` 偶爾會回傳:
+
+```
+error: cannot lock ref 'refs/remotes/origin/main': is at <A> but expected <B>
+```
+
+原因不是異常,是**這個 repo 的 worktree 共用同一份 `.git`**,別的席位(其他
+worktree 的 session)剛好也在同一秒 fetch,兩邊搶同一個 ref lock。**不是監工自己
+的網路或權限問題,也不代表對面席位卡住**。
+
+處理方式:不要重試 fetch。直接讀「上一次成功 fetch 留下的狀態」——
+`git log --oneline -3 origin/main` 一樣讀得到最近一次成功更新的結果,只是可能
+比這一輪 tick 晚個幾秒到位。回報時照實寫「fetch 遇到一次 ref lock 競爭,已用既有
+fetched 狀態確認」即可,不需要因此判斷成異常或多次重試。
