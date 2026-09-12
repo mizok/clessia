@@ -151,7 +151,12 @@ const AREAS = [
   },
   {
     name: '出勤與到班',
-    pages: ['admin/attendance', 'teacher/attendance', 'parent/attendance'],
+    // `admin/sessions` **同時屬於這一區與「課表與課堂」** —— 一頁服務兩個功能區。
+    // 管理端的出勤沒有自己的頁面：點名是課堂管理列選單的「管理出勤狀況」
+    // 開出 AttendanceRosterPanel 做的。原本這裡宣告的是 `admin/attendance`，
+    // 而那支孤兒元件已於 #698 刪除 —— 留著它會讓 admin 欄印成「—」，
+    // 讀起來像「管理端沒有出勤功能」，而那不是真的。
+    pages: ['admin/sessions', 'teacher/attendance', 'parent/attendance'],
     // workbench 是作業台的聚合端點：今天的課、名單、到班、請假 ——
     // 它服務的就是這個功能區，不另立一區
     routes: ['attendance', 'daily-checkins', 'workbench'],
