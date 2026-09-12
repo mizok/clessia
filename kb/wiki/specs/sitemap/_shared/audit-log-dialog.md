@@ -1,5 +1,5 @@
 ---
-title: 操作紀錄對話框（子頁面，7 頁共用）
+title: 操作紀錄對話框（子頁面，6 頁共用）
 summary: AuditLogDialogComponent 的 UI 地圖：唯讀操作紀錄表，由呼叫端指定要看哪些資源類型。
 category: spec
 status: developing
@@ -12,21 +12,21 @@ updated: 2026-09-12
 
 **元件**：`@shared/components/audit-log-dialog/audit-log-dialog.component`
 
-**開啟點（7 頁）** —— 每一頁的入口都是右上角那顆「操作紀錄」：
+**開啟點（6 頁）** —— 每一頁的入口都是右上角那顆「操作紀錄」：
 
-| 頁面                   | 傳進去的 `resourceTypes`                   |
-| ---------------------- | ------------------------------------------ |
-| `admin/campuses`       | `['campus']`                               |
-| `admin/courses`        | `['class', 'course']`                      |
-| `admin/fee-templates`  | `['fee_template']`                         |
-| `admin/leave`          | `['leave']`（`leave.page.ts:192`）         |
-| `admin/payments`       | `['invoice', 'payment_record']`            |
-| `admin/staff`          | `['staff']`                                |
-| ~~`admin/attendance`~~ | `['attendance']` —— **那一頁接不到，見下** |
+| 頁面                   | 傳進去的 `resourceTypes`                         |
+| ---------------------- | ------------------------------------------------ |
+| `admin/campuses`       | `['campus']`                                     |
+| `admin/courses`        | `['class', 'course']`                            |
+| `admin/fee-templates`  | `['fee_template']`                               |
+| `admin/leave`          | `['leave']`（`leave.page.ts:192`）               |
+| `admin/payments`       | `['invoice', 'payment_record']`                  |
+| `admin/staff`          | `['staff']`                                      |
+| ~~`admin/attendance`~~ | `['attendance']` —— **元件已刪除（#698）**，見下 |
 
-> ⚠️ **`admin/attendance` 是死的開啟點**：`/admin/attendance` 這條路由在 `app.routes.ts`
-> 是純 `redirectTo` → `/admin/sessions`，而 `admin/pages/attendance/attendance.page.ts`
-> **全庫沒有任何地方 import 它**。所以那個開啟點永遠不會被走到。
+> ⚠️ **`admin/attendance` 曾經是個死的開啟點**：`/admin/attendance` 是純 `redirectTo`
+> → `/admin/sessions`，而 `admin/pages/attendance/attendance.page.ts` 全庫無人 import。
+> **2026-09-12 那支元件已刪除（#698）**，所以現在實際的開啟點是 **6 個**不是 7 個。
 > 詳見 [[specs/sitemap/admin/attendance]]。
 
 > ⚠️ **不要跟 `/admin/sessions` 的「操作紀錄」混在一起** —— 那一顆開的是
@@ -92,12 +92,12 @@ updated: 2026-09-12
 
 ### 未驗到的
 
-| 項目                               | 原因                                                                          |
-| ---------------------------------- | ----------------------------------------------------------------------------- |
-| **展開列**（`details` 的內容）     | 桌機寬度下這支對話框不產生展開鍵；要在窄寬度下才驗得到                        |
-| 載入中 / 錯誤                      | 沒有製造手段                                                                  |
+| 項目                                   | 原因                                                                                           |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **展開列**（`details` 的內容）         | 桌機寬度下這支對話框不產生展開鍵；要在窄寬度下才驗得到                                         |
+| 載入中 / 錯誤                          | 沒有製造手段                                                                                   |
 | ~~`admin/leave` 傳的 `resourceTypes`~~ | **已補**：`['leave']`（`leave.page.ts:192`），實測列出「請假X / 日期區間」+「新增」（labor-2） |
-| 其餘 4 個入口                      | `campuses` / `staff` 在 labor-4 的後續批次，`courses` 已由 labor-1 驗過空狀態 |
+| 其餘 4 個入口                          | `campuses` / `staff` 在 labor-4 的後續批次，`courses` 已由 labor-1 驗過空狀態                  |
 
 ## 補驗紀錄（labor-4，2026-09-12）
 

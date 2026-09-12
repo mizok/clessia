@@ -1,6 +1,6 @@
 ---
 title: 點名面板（子頁面，多頁共用）
-summary: AttendanceRosterPanelComponent 的 UI 地圖：三個頁面開得到（第四個引用點是死的），逐生出席／缺席與整批出席；副標的時段依呼叫端而異。
+summary: AttendanceRosterPanelComponent 的 UI 地圖：三個頁面開得到，逐生出席／缺席與整批出席；副標的時段依呼叫端而異。
 category: spec
 status: developing
 tags: [sitemap, _shared, admin, teacher]
@@ -12,7 +12,7 @@ updated: 2026-09-12
 
 **元件**：`@shared/components/attendance-roster-panel/attendance-roster-panel.component`
 
-**`grep` 找到四個引用點，但其中一個到不了 —— 實際開得到的是三個：**
+**三個頁面開得到**（`grep` 一度有第四筆，那是已刪除的孤兒，見下）：
 
 | 開啟頁面                           | 入口                                                     |
 | ---------------------------------- | -------------------------------------------------------- |
@@ -22,10 +22,13 @@ updated: 2026-09-12
 | ~~`admin/pages/attendance`~~       | **接不到** —— 見下                                       |
 
 > ⚠️ **`grep -rl` 的命中數不等於「從幾頁開得到」。**
-> `features/admin/pages/attendance/attendance.page.ts` 引用了這支面板，
+> `features/admin/pages/attendance/attendance.page.ts` 曾經引用這支面板，
 > 但 `/admin/attendance` 這條路由是純 `redirectTo` → `/admin/sessions`，
 > **那個頁面元件全庫沒有任何地方 import**，所以它的開啟點永遠走不到。
-> 詳見 [[specs/sitemap/admin/attendance]] 與 issue #698。
+> **2026-09-12 那支元件已整個刪除**（#698），現在 `grep` 只會回三筆、而三筆都是真的。
+> 詳見 [[specs/sitemap/admin/attendance]]。
+>
+> **這條教訓不因為那個實例被刪掉而失效** —— 下一個孤兒出現時，`grep` 一樣會把它算進去。
 >
 > **我第一版就是照 `grep` 的四筆寫的**，寫完才在畫 `/admin/attendance` 時發現第四筆是死的。
 
