@@ -13,7 +13,7 @@ updated: 2026-09-12
 <!-- generated:route-facts start —— 這一段由 tools/sitemap 生成，不要手改 -->
 
 **路由**：`/login`
-**角色**：公開（未登入可進）
+**角色**：只限未登入（`guestGuard`；已登入會被導去自己的角色 shell）
 **選單位置**：（無群組）登入
 **額外權限**：無
 

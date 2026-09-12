@@ -68,13 +68,37 @@ function menuLocation(route: RouteObj): string {
   return group ? `${group} › ${route.label}` : `（無群組）${route.label}`;
 }
 
+/**
+ * 「角色」那一欄（#693）。
+ *
+ * **原本對所有沒有 `role` 的路由都印「公開（未登入可進）」** —— 而 `/login` 掛
+ * `guestGuard`（登入著的人進不去）、`/link-line` 與 `/select-role` 掛 `authGuard`
+ * （未登入進不去）。那一欄**多講了一句它查不到的話**，而它印在「不要手改」的
+ * 生成區塊裡，讀的人不會去質疑它。
+ *
+ * 現在 `RouteObj.access` 是同一份宣告的來源（`app.routes.ts` 也讀它掛 guard），
+ * 所以這裡不必再猜。**真正公開的三頁措辭一字未動** —— 它們的 `access` 是
+ * 預設的 `'public'`，字串照舊。
+ */
+function roleLine(route: RouteObj): string {
+  if (route.role) return `${route.role.label}（\`${route.role.role}\`）`;
+  switch (route.access) {
+    case 'guest-only':
+      return '只限未登入（`guestGuard`；已登入會被導去自己的角色 shell）';
+    case 'authenticated':
+      return '要登入，但不綁角色（`authGuard`）';
+    case 'public':
+      return '公開（未登入可進）';
+  }
+}
+
 function generatedBlock(f: RouteFacts): string {
   const { route } = f;
   const lines = [
     GEN_START,
     '',
     `**路由**：\`${route.absolutePath}\``,
-    `**角色**：${route.role ? `${route.role.label}（\`${f.role}\`）` : '公開（未登入可進）'}`,
+    `**角色**：${roleLine(route)}`,
     `**選單位置**：${menuLocation(route)}`,
     `**額外權限**：${route.permission ? `\`${route.permission}\`（\`permissionGuard\` + 選單隱藏）` : '無'}`,
     '',

@@ -150,6 +150,67 @@ describe('app routes —— 帶 permission 的路由必須掛對 guard', () => {
 });
 
 /**
+ * `RouteObj.access` 與 `app.routes.ts` 的 guard 必須同步（#693）——
+ * **跟上面那組 `permission` 的斷言同一個模式**。
+ *
+ * 這個欄位的存在理由是 UI 地圖生成器看不到 `app.routes.ts`（它 `import`
+ * `RoutesCatalog` 本人，刻意不 parse 原始碼）。**宣告一件執行期的事而沒有東西守著它，
+ * 就是本 repo 記過的「schema 存在不蘊含 schema 會生效」** —— 所以兩個方向都要斷言。
+ */
+describe('app routes —— RouteObj.access 與實際 guard 必須同步', () => {
+  const publicShell = routes.find((r) => r.path === '' && !r.canActivate);
+  const publicChildren = (publicShell?.children ?? []).filter((r) => r.path);
+
+  const guardNamesOf = (route: Route) =>
+    (route.canActivate ?? []).map((g) => (g as { name?: string }).name ?? '');
+
+  const catalogOf = (path: string) =>
+    RoutesCatalog.values.find((e) => e.relativePath === path);
+
+  it('公開殼子有子路由（否則下面兩組是空跑）', () => {
+    expect(publicChildren.length).toBeGreaterThan(0);
+  });
+
+  /** 方向一：宣告了 access 的，實際要掛上對應的 guard */
+  it.each([
+    ['guest-only', 'guestGuard'],
+    ['authenticated', 'authGuard'],
+  ] as const)('access = %s 的路由掛了 %s', (access, guardName) => {
+    const declared = RoutesCatalog.values.filter((e) => e.access === access);
+    expect(declared.length).toBeGreaterThan(0);
+
+    for (const entry of declared) {
+      const route = publicChildren.find((r) => r.path === entry.relativePath);
+      expect(route, `${entry.absolutePath} 不在公開殼子底下`).toBeDefined();
+      expect(guardNamesOf(route!), `${entry.absolutePath}`).toContain(guardName);
+    }
+  });
+
+  /**
+   * **方向二才是會救人的那一個**：有人在 `app.routes.ts` 加了 guard 卻沒改 catalog 時，
+   * 方向一照樣全綠（他加的那支不在 `declared` 裡），而地圖會繼續印「公開（未登入可進）」——
+   * **正是 #693 的形狀**。fail-closed：掛了 guard 就必須有宣告。
+   */
+  it('公開殼子裡掛了 guard 的路由，catalog 一定有對應的 access 宣告', () => {
+    const expected: Record<string, string> = {
+      guestGuard: 'guest-only',
+      authGuard: 'authenticated',
+    };
+
+    for (const route of publicChildren) {
+      const guards = guardNamesOf(route).filter((n) => n in expected);
+      const entry = catalogOf(route.path!);
+      if (guards.length === 0) {
+        expect(entry?.access ?? 'public', `${route.path} 沒掛 guard 卻宣告了 access`).toBe('public');
+        continue;
+      }
+      expect(entry, `${route.path} 不在 RoutesCatalog 裡`).toBeDefined();
+      expect(entry!.access, `${route.path} 掛了 ${guards.join()}`).toBe(expected[guards[0]]);
+    }
+  });
+});
+
+/**
  * `/select-role` 是三個 guard 與 LINE 登入 callback 的共同去處
  * （guest.guard、role.guard、auth.service 的 callbackURL）。
  * 它一旦沒有註冊，就會被 `path: '**'` 收去 `/login`，而 guestGuard 又會把

@@ -23,8 +23,34 @@ export class RouteObj {
      * 前端這層**不是安全邊界** —— 真正的把關在 Hono middleware 的 `requirePermission`。
      */
     public readonly permission?: string,
+    /**
+     * 這條路由**誰進得來** —— 只對 `role` 是 `undefined` 的公開殼子路由有意義（#693）。
+     *
+     * 帶 `role` 的路由不需要填：它們掛在需要登入的 shell 底下，
+     * 「要登入 + 限某角色」由 `role` 本身講完了。
+     *
+     * 填了它有兩個效果，兩個都必要（**跟 `permission` 同一個模式**）：
+     * `app.routes.ts` 據此掛 guard，UI 地圖生成器據此寫「誰進得來」那一欄。
+     * 兩者是否同步由 `app.routes.spec.ts` 斷言 —— **兩個方向都斷言**：
+     * 宣告了要有 guard，掛了 guard 也要有宣告。
+     *
+     * **為什麼不讓生成器去讀 `app.routes.ts`**：guard 住在那裡，而生成器是
+     * `import` 這個類別本人（刻意不 parse 原始碼）。沒有這個欄位的話它看不到 guard，
+     * 於是把「沒有角色」翻譯成「公開（未登入可進）」—— **多講了一句它查不到的話**，
+     * 而那句話印在「不要手改」的生成區塊裡，讀的人不會去質疑它。
+     */
+    public readonly access: RouteAccess = 'public',
   ) {}
 }
+
+/**
+ * 公開殼子路由的進入條件。
+ *
+ * - `public` —— 誰都進得來（`/trial`、`/enrollment`、`/qr-checkin`）
+ * - `guest-only` —— **登入著的人進不去**，會被導去自己的角色 shell（`/login`）
+ * - `authenticated` —— **未登入進不去**（`/link-line`、`/select-role`）
+ */
+export type RouteAccess = 'public' | 'guest-only' | 'authenticated';
 
 export class RoutesCatalog {
   public static readonly values: RouteObj[] = [];
@@ -36,6 +62,11 @@ export class RoutesCatalog {
     '登入',
     undefined,
     'pi-sign-in',
+    true,
+    undefined,
+    undefined,
+    // 登入著的人不該再看到登入頁 —— `guestGuard` 把他導去自己的角色 shell
+    'guest-only',
   );
   public static readonly PUBLIC_TRIAL = this.register(
     'trial',
@@ -65,6 +96,10 @@ export class RoutesCatalog {
     undefined,
     'pi-link',
     false,
+    undefined,
+    undefined,
+    // 一次性連結兌換完落在這裡 —— 沒登入就沒有帳號可以綁
+    'authenticated',
   );
   public static readonly PUBLIC_SELECT_ROLE = this.register(
     'select-role',
@@ -73,6 +108,11 @@ export class RoutesCatalog {
     undefined,
     'pi-users',
     false,
+    undefined,
+    undefined,
+    // 多重角色的人登入後落在這裡 —— 沒登入就沒有角色可選。
+    // guest.guard / role.guard / LINE callbackURL 都指向這條路由。
+    'authenticated',
   );
 
   // Admin
@@ -536,6 +576,7 @@ export class RoutesCatalog {
     showInMenu: boolean = true,
     group?: NavigationGroup,
     permission?: string,
+    access: RouteAccess = 'public',
   ): RouteObj {
     const route = new RouteObj(
       relativePath,
@@ -546,6 +587,7 @@ export class RoutesCatalog {
       showInMenu,
       group,
       permission,
+      access,
     );
     this.values.push(route);
     return route;
