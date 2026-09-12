@@ -44,6 +44,13 @@ export interface DensityLayout {
    * 不一致時要講，不是默默對齊。
    */
   readonly unplaced: readonly EventSessionSummary[];
+  /**
+   * 停課、因此刻意不畫進軸的課（#686）。
+   *
+   * **跟 `unplaced` 同一個處置**：呼叫端要把它說出來（「另有 N 堂已停課」）。
+   * 柱子只有已點名／未點名兩段，而停課兩者都不是 —— 塞進任一段都是一句謊。
+   */
+  readonly cancelled: readonly EventSessionSummary[];
 }
 
 /** `'09:30'` → `9.5`。格式不對或超出範圍回 `null`，不丟例外（資料來自 API）。 */
@@ -104,8 +111,24 @@ export function binDay(sessions: readonly EventSessionSummary[]): DensityLayout 
   const totals = new Array<number>(binCount).fill(0);
   const untakens = new Array<number>(binCount).fill(0);
   const unplaced: EventSessionSummary[] = [];
+  const cancelled: EventSessionSummary[] = [];
 
   for (const s of sessions) {
+    /**
+     * **停課的課堂不進軸**（#686）。
+     *
+     * 柱子只有兩段：已點名（實心）與未點名（中空）。**停課的課兩者都不是** ——
+     * 塞進哪一段都是一句謊，而且兩種謊的音量不同：塞進未點名是「有一件做不完的事」
+     * （原本的錯，看得見）；塞進已點名是「這件事做完了」（**安靜的錯，沒有人會質疑**）。
+     *
+     * 所以不畫它，改由圖例說出來 —— 跟這裡既有的 `unplaced` 同一個處置：
+     * **畫不出來的要說出來，不是默默對齊。**
+     */
+    if (s.status === 'cancelled') {
+      cancelled.push(s);
+      continue;
+    }
+
     const from = parseTimeToHours(s.startTime);
     if (from === null) {
       unplaced.push(s);
@@ -134,7 +157,7 @@ export function binDay(sessions: readonly EventSessionSummary[]): DensityLayout 
     untaken: untakens[i],
   }));
 
-  return { window: win, bins, maxTotal: Math.max(0, ...totals), unplaced };
+  return { window: win, bins, maxTotal: Math.max(0, ...totals), unplaced, cancelled };
 }
 
 /**

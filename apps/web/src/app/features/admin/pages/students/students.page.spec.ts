@@ -139,4 +139,39 @@ describe('StudentsPage', () => {
 
     expect(studentsServiceMock.list).toHaveBeenCalledTimes(1);
   });
+
+  /**
+   * **把所有取數收進同一條 `switchMap` 會帶來一個新的失效模式：
+   * 內層一 error，外層管線就終止 —— 之後這一頁永遠不會再載入任何東西。**
+   *
+   * 修改前每次取數是各自獨立的訂閱，錯一次只影響那一次；改成單一管線之後，
+   * **一次網路錯誤會把搜尋框變成死的**，而畫面上只有一則 toast，
+   * 看起來像「這次失敗了」而不是「這一頁壞了」。
+   *
+   * 這條釘住「錯過一次之後還能再查」。**沒有它，下一個重構的人會把
+   * `catchError` 拿掉，而那個缺陷安靜到沒有人會回報。**
+   */
+  it('一次請求失敗之後，後續的搜尋仍然會送出（管線沒有被 error 終止）', () => {
+    studentsServiceMock.list.mockClear();
+    pending.length = 0;
+
+    type('陳');
+    vi.advanceTimersByTime(300);
+    expect(studentsServiceMock.list).toHaveBeenCalledTimes(1);
+
+    pending[0].subject.error(new Error('boom'));
+
+    type('林');
+    vi.advanceTimersByTime(300);
+
+    expect(studentsServiceMock.list).toHaveBeenCalledTimes(2);
+
+    pending[1].subject.next(emptyRes(['林大明']));
+    pending[1].subject.complete();
+
+    const names = (component as unknown as { students: () => Array<{ name: string }> })
+      .students()
+      .map((s) => s.name);
+    expect(names).toEqual(['林大明']);
+  });
 });

@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal, computed, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { SkeletonModule } from 'primeng/skeleton';
@@ -34,6 +34,15 @@ export class ClassPickerDialogComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly searchSubject = new Subject<string>();
 
+  /**
+   * **所有**取數都經過這裡，然後 `switchMap` 出去（#661）。
+   *
+   * 這個對話框原本就有 `debounceTime(300)` + `distinctUntilChanged`，**所以它看起來是
+   * 修好的** —— 而 `debounce` 只解一半：打字間隔超過 300ms 的人仍然會送出多支請求，
+   * 回來的順序不保證，**先發的後到就會蓋掉清單**。
+   */
+  private readonly loadRequests = new Subject<void>();
+
   protected readonly loading = signal(true);
   protected readonly classes = signal<Class[]>([]);
   protected readonly total = signal(0);
@@ -62,6 +71,8 @@ export class ClassPickerDialogComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.setupLoadPipeline();
+
     this.searchSubject
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe((value) => {
@@ -72,23 +83,39 @@ export class ClassPickerDialogComponent implements OnInit {
     this.load();
   }
 
+  /** 觸發取數。實際的請求在 `setupLoadPipeline()` 那條 `switchMap` 管線裡（#661） */
   protected load(): void {
     this.loading.set(true);
-    this.classesService
-      .list({
-        search: this.searchQuery() || undefined,
-        isActive: true,
-        page: this.currentPage(),
-        pageSize: this.PAGE_SIZE,
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => {
-          this.classes.set(res.data);
-          this.total.set(res.meta.total);
-          this.loading.set(false);
-        },
-        error: () => this.loading.set(false),
+    this.loadRequests.next();
+  }
+
+  private setupLoadPipeline(): void {
+    this.loadRequests
+      .pipe(
+        switchMap(() =>
+          this.classesService
+            .list({
+              search: this.searchQuery() || undefined,
+              isActive: true,
+              page: this.currentPage(),
+              pageSize: this.PAGE_SIZE,
+            })
+            // **`catchError` 必須在內層。** 掛外層的話一次 error 就終止整條管線，
+            // 這個對話框之後再也載入不了班級 —— 而它連 toast 都沒有，
+            // 使用者只會看到一個永遠空著的挑選器。
+            .pipe(
+              catchError(() => {
+                this.loading.set(false);
+                return EMPTY;
+              }),
+            ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((res) => {
+        this.classes.set(res.data);
+        this.total.set(res.meta.total);
+        this.loading.set(false);
       });
   }
 

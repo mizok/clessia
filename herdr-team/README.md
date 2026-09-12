@@ -11,19 +11,20 @@
 
 ## 席位表
 
-| Charter                                | Domain                        | 典型工作                                         | Herdr pane 名    |
-| -------------------------------------- | ----------------------------- | ------------------------------------------------ | ---------------- |
-| [billing-api.md](billing-api.md)       | 金流/API/auth 核心            | schema、Hono 路由、Better Auth、Workers 執行環境 | `billing-api`    |
-| [design-web.md](design-web.md)         | 視覺/設計系統/web 效能        | tokens、SCSS、bundle、mockup、登入與公開頁       | `design-web`     |
-| [api-2.md](api-2.md)                   | 後端 API 第二席               | 領域邏輯收斂、外部依賴查證；與 billing-api 分工  | `api-2`          |
-| [admin-pages.md](admin-pages.md)       | 管理端頁面                    | admin feature 頁、dialog、表格、儀表板           | `admin-pages`    |
-| [review-steward.md](review-steward.md) | 審核/合併/部署機械工(可 idle) | CI 巡檢、v2 代合、部署、內容驗證                 | `review-steward` |
-| [ops-warden.md](ops-warden.md)         | 席位巡檢監工(可 idle)         | 存活檢查、通訊救援、帳面抽查                     | `ops-warden`     |
-| [teacher-pages.md](teacher-pages.md)   | 老師端頁面（行動優先）        | teacher feature 頁、手機課表、點名、成績登錄     | `teacher-pages`  |
-| [infra.md](infra.md)                   | CI/harness/依賴/工具債        | verify 序列、gate、憲法 enforcement、升版        | `infra`          |
-| [labor-1.md](labor-1.md)               | 通用執行席（無固定領域）      | 計畫席當下最缺人的那一支；跨前後端                | `labor-1`        |
-| [labor-2.md](labor-2.md)               | 通用執行席（無固定領域）      | 同上                                             | `labor-2`        |
-| [labor-3.md](labor-3.md)               | 通用執行席（無固定領域）      | 同上                                             | `labor-3`        |
+| Charter                                  | Domain                         | 典型工作                                                   | Herdr pane 名     |
+| ---------------------------------------- | ------------------------------ | ---------------------------------------------------------- | ----------------- |
+| [billing-api.md](billing-api.md)         | 金流/API/auth 核心             | schema、Hono 路由、Better Auth、Workers 執行環境           | `billing-api`     |
+| [design-web.md](design-web.md)           | 視覺/設計系統/web 效能         | tokens、SCSS、bundle、mockup、登入與公開頁                 | `design-web`      |
+| [api-2.md](api-2.md)                     | 後端 API 第二席                | 領域邏輯收斂、外部依賴查證；與 billing-api 分工            | `api-2`           |
+| [admin-pages.md](admin-pages.md)         | 管理端頁面                     | admin feature 頁、dialog、表格、儀表板                     | `admin-pages`     |
+| [review-steward.md](review-steward.md)   | 審核/合併/部署機械工(可 idle)  | CI 巡檢、v2 代合、部署、內容驗證                           | `review-steward`  |
+| [ops-warden.md](ops-warden.md)           | 席位巡檢監工(可 idle)          | 存活檢查、通訊救援、帳面抽查                               | `ops-warden`      |
+| [teacher-pages.md](teacher-pages.md)     | 老師端頁面（行動優先）         | teacher feature 頁、手機課表、點名、成績登錄               | `teacher-pages`   |
+| [infra.md](infra.md)                     | CI/harness/依賴/工具債         | verify 序列、gate、憲法 enforcement、升版                  | `infra`           |
+| [labor-1.md](labor-1.md)                 | 通用執行席（無固定領域）       | 計畫席當下最缺人的那一支；跨前後端                         | `labor-1`         |
+| [labor-2.md](labor-2.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-2`         |
+| [labor-3.md](labor-3.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-3`         |
+| [usability-admin.md](usability-admin.md) | 可用性測試（只看畫面，不讀碼） | 用行政任務清單走管理端，記卡點不記感受；**在 repo 外啟動** | `usability-admin` |
 
 > **`labor-{N}` 是通用執行席，刻意不綁領域。** 上面八席是照領域長出來的（金流、管理端、
 > CI…），而那個切法在「今天最缺人的是哪一支」這個問題上答不出來 —— 2026-09-12 一天之內
@@ -342,6 +343,14 @@ DB 驗證)。計畫席決定關不關或轉問還在用的席。
 nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自己死了的話,
 下一次成功的 wakeup 會執行全面點名復活;最壞情況 12:00/17:00 使用者任何輸入都會喚醒計畫席。
 
+- **限速對話框退場後,輸入框可能只剩殘影**(2026-09-12,labor-1 / labor-4 各卡 20 分鐘):
+  `herdr agent explain` 的 evidence 顯示一句打好沒送的字,`send-keys Enter` 三次都不動,
+  `herdr agent prompt` 回 `agent_prompted` 但席位沒動 —— **畫面是舊的,真正的輸入緩衝是空的**,
+  所以 Enter 送出的是空字串,`prompt` 的成功回報只代表按鍵送到了 pane。解法:
+  先 `send-keys <任一字元>` 逼它重繪(殘影會當場消失、只剩你打的那個字),`send-keys BSpace`
+  清掉,**再 `prompt … --wait --until working --timeout 15000`** —— 只有看到 `working` 才算送到。
+  `ctrl+u` 對殘影沒用,因為緩衝本來就是空的。
+
 - **清理自己的 process 用精準 kill**:先 `lsof -ti:<自己的port>` 拿 PID,或 pkill pattern
   必含自己的 worktree 路徑 —— 裸 `pkill -f "workerd serve"` 會殺掉所有席的 API
   (已發生:teacher-pages 誤殺 bundle-analysis 的 8787)。「不 kill 別人的 port」的
@@ -630,6 +639,39 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
   **兩席獨立修同一個 bug,而只有一份修法擋得住第二種錯法。**
   判準:**你的診斷停在第一個失敗模式時,問「修好之後有沒有第二種錯法,
   而它會不會比較安靜」。**
+
+  **2026-09-12,同一天兩個實例,而第二個是第一個的修法自己犯的。**
+
+  **① 修法把大聲換成安靜(#661 → #689)。** 全站十支搜尋沒有取消在途請求,
+  修法是把所有取數收進同一條 `switchMap` 管線。**而 `switchMap` 的內層一 error,
+  外層管線就終止** —— 那一頁**到重新整理為止都不再回應**,
+  而畫面上只有一則 toast:**看起來像「這次失敗了」,不是「這一頁壞了」**。
+  修改前每次取數是各自獨立的訂閱,錯一次只影響那一次。
+  **原本的 bug 是「顯示錯的搜尋結果」(看得見),修完變成「靜靜地不再回應」。**
+  十支裡有七支已經合進 main 才被發現。
+
+  **② 修 ① 的時候又犯一次(#686,labor-2 自己)。** 儀表板的時間軸柱子只有兩段:
+  已點名(實心)、未點名(中空)。停課的課堂被算進「未點名」,
+  第一版的修法只是把它從 `untaken` 拿掉 —— **於是它掉進 `total - untaken`,
+  也就是實心的「已點名」**。**單元測試全綠**,是實機截圖才看出來的。
+  **停課兩者都不是,塞進哪一段都是謊,而兩種謊的音量不同。**
+
+  **這一條的觸發時刻是「你正在選一個修法」** —— 而人不會在那一刻覺得自己
+  正在做一個可能出錯的判斷(跟「我正在估一個成本」同一類,見本檔
+  「觸發時刻能不能被誤認」那則)。**所以它需要的不是提醒,是一支測試。**
+
+  現在那支測試存在了:十支各有一條
+  「**一次請求失敗之後,後續的搜尋仍然會送出**」(#690 / #691 各補,
+  `grep -c '管線沒有被 error 終止'` 十支各 1),而 #686 的三處各有反向對照。
+  **規則因此落到了它守護的東西旁邊,不再需要有人記得它。**
+
+  ⚠️ **那條測試的對照組不是「修改前」。** 修改前每次取數是獨立訂閱,
+  **錯一次本來就不影響下一次,所以它在修改前是綠的** ——
+  拿 `origin/main` 當對照**證不出它有鑑別力**。它的對照組是
+  「**有 `switchMap`、沒 `catchError`**」那個版本。
+  (七支合進 main 之後,**main 自己就是那個對照組** —— 那是 labor-3 用的捷徑,
+  比自己做拋棄式版本便宜。)
+
 - **「我預期會紅的東西沒紅」時,去查替身,不要換一個突變** —— 陷阱和替身出自同一個心智模型。 billing-api 2026-09-06:
   它拿「查詢少撈 `exam_date`」當突變去撞,不紅 —— 因為它寫的假 supabase
   **不管路由 `select` 什麼都回全欄位**,「少撈一個欄位」在替身眼裡完全觀察不到。
@@ -801,6 +843,47 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
   - **Playwright 記成觸發條件,不現在做** —— 它能順便解掉 device emulation 的缺口,
     但那個缺口 2026-09-06 只造成過一次誤判(已關的 issue #521),**新增依賴要等第二個真實需求**。
     觸發點:**你第二次因為量不到某個模式而下錯結論的時候。**
+
+- **本機實機驗收的三件前置(labor-2 2026-09-12,#686 卡在每一件上)。**
+
+  **① 先確認 `:4200` 服的是誰的程式碼。**
+
+  ```bash
+  lsof -nP -iTCP:4200 -sTCP:LISTEN     # 拿 PID
+  lsof -a -p <PID> -d cwd              # 那個 process 的 worktree
+  ```
+
+  2026-09-12 `:4200` 服的是**主 checkout**,不是任何人的分支 ——
+  在那裡看等於對著別人的程式碼下結論。處置是**自己另起一個 port**
+  (`nx serve web --port 4210`),不 kill 別人的。
+  ⚠️ **這跟本檔既有的「dev server 開之前先確認 port 是不是別人的」不是同一條**:
+  那條管的是**起**的時候(會不會撞到別人),這條管的是**用**的時候
+  (那個已經在跑的,服的是不是我的程式碼)。
+  `usability-admin.md` 有更完整的版本(版本探針),**但那是給看不到 git 的席位用的** ——
+  它靠「畫面上有沒有出現預期的東西」分辨版本,而**寫程式的席位有 `lsof` 這個決定性的做法**,
+  沒有理由用間接訊號。
+
+  **② magic link 自己產,不用跟計畫席要。**
+
+  ```bash
+  set -a; . <跑著 8787 的那個 worktree>/apps/api/.dev.vars; set +a
+  export WEB_URL=http://localhost:4200
+  LOGIN_EMAIL=admin@demo.clessia.app npx tsx apps/api/src/scripts/login-link.ts
+  ```
+
+  `.dev.vars` 不進版控、每個 worktree 一份,新 worktree 沒有 ——
+  **要用跑著 8787 那個 worktree 的那一份**,否則簽出來的 token 那台 server 不認。
+
+  **③ `callbackURL` 只信任 `:4200`,但 cookie 不分 port。**
+  用 `WEB_URL=http://localhost:4210` 產的連結會回
+  **`403 INVALID_CALLBACK_URL`**(Better Auth 的 trusted origins)。
+  做法是 **callback 照給 4200,登完再自己導到 4210** ——
+  **auth cookie 是 host 層級**(上一則的同一個性質),所以 4210 照樣吃得到。
+  **同一個性質在這裡是幫手,在上一則是結構性的踢人。**
+
+  (④ 順帶:CORS 是通的,`Origin: http://localhost:4210` 打 `:8787` 回
+  `Access-Control-Allow-Origin` 正確 —— 先打一次 `OPTIONS` 確認,不要假設。)
+
 - **唯讀查正式資料庫不需要憑證交接** —— 出 SQL、使用者貼進 Supabase Dashboard 跑、把結果貼回來。
   這台機器上沒有正式環境憑證,而且 `wrangler secret` 只有 put/delete/list/bulk、**沒有 get**,
   所以正式站的 `DATABASE_URL` 從 Cloudflare 那側讀不回來。

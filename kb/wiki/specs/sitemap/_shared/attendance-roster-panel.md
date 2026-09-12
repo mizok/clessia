@@ -12,14 +12,22 @@ updated: 2026-09-12
 
 **元件**：`@shared/components/attendance-roster-panel/attendance-roster-panel.component`
 
-**從這四個地方開得到**（所以獨立成 `_shared`，不重複寫四份）：
+**`grep` 找到四個引用點，但其中一個到不了 —— 實際開得到的是三個：**
 
 | 開啟頁面                          | 入口                     |
 | --------------------------------- | ------------------------ |
 | [[specs/sitemap/admin/dashboard]] | 今日課表裡可按的那一列   |
 | [[specs/sitemap/admin/sessions]]  | 每列 ⋮ ›「管理出勤狀況」 |
-| `/admin/attendance`               | 尚未繪製                 |
-| `/teacher/schedule`               | 尚未繪製                 |
+| `/teacher/schedule`               | 尚未繪製（labor-4 批次） |
+| ~~`admin/pages/attendance`~~      | **接不到** —— 見下       |
+
+> ⚠️ **`grep -rl` 的命中數不等於「從幾頁開得到」。**
+> `features/admin/pages/attendance/attendance.page.ts` 引用了這支面板，
+> 但 `/admin/attendance` 這條路由是純 `redirectTo` → `/admin/sessions`，
+> **那個頁面元件全庫沒有任何地方 import**，所以它的開啟點永遠走不到。
+> 詳見 [[specs/sitemap/admin/attendance]] 與 issue #698。
+>
+> **我第一版就是照 `grep` 的四筆寫的**，寫完才在畫 `/admin/attendance` 時發現第四筆是死的。
 
 > 清單來源：`grep -rl AttendanceRosterPanelComponent apps/web/src/app`（排除元件自己與 spec）。
 > **新增開啟點時要回來補這張表** —— 這正是「規則寫在它守護的東西旁邊」。
