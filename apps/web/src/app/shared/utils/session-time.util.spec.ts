@@ -110,8 +110,16 @@ describe('todayLocal', () => {
    * 這一條是**防止改回 `toISOString()`** 的主要防線。
    *
    * 它在 UTC 機器上抓不到迴歸（那裡本地就是 UTC），但在任何有偏移的時區都會紅 ——
-   * 而開發與 CI 都不在 UTC。真正的防線其實是這個函式的名字：
-   * 有 `todayLocal` 可用時，沒有人會刻意去寫 `toISOString().slice(0, 10)`。
+   * 而開發與 CI 都不在 UTC。
+   *
+   * ⚠️ **這裡原本寫著「真正的防線其實是這個函式的名字：有 `todayLocal` 可用時，
+   * 沒有人會刻意去寫 `toISOString().slice(0, 10)`」—— 那句話在 2026-09-12 被推翻了。**
+   * `tools/sitemap/generate-sitemap-skeletons.ts` 就那樣寫了（#702），
+   * 而它在 `tools/` 底下，**這支測試看不到它**。
+   *
+   * 一道「不會有人那樣做」的防線，**在它宣稱的範圍之外一點約束力都沒有**，
+   * 而寫下它的那份自信讓下一個人不會再去找。留著這段是為了記住這件事，
+   * 不是為了記住那個結論。
    */
   it('與 toISOString 在跨 UTC 邊界的時刻不同（只在有時區偏移時有意義）', () => {
     const localMidnightish = new Date(2026, 7, 31, 0, 30);
