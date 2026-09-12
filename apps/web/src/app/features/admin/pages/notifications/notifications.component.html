@@ -34,7 +34,13 @@
     <div class="admin-notifications__row">
       <label class="admin-notifications__field">
         <span class="admin-notifications__label">發送對象</span>
-        <span class="admin-notifications__static">{{ AUDIENCE_LABELS[audience] }}</span>
+        <p-select
+          [options]="audienceOptions"
+          [ngModel]="audience()"
+          (ngModelChange)="audience.set($event)"
+          optionLabel="label"
+          optionValue="value"
+        />
       </label>
 
       <label class="admin-notifications__field">
