@@ -1624,6 +1624,20 @@ BEGIN
   --    看起來合理、實際上驗不到東西的東西。所以這裡另外指定，角色一起給。
   --    `parents.user_id` 沒有唯一約束，所以既有的老師帳號可以同時是家長
   --    （現實上教職員的小孩在自家補習班上課本來就會這樣）。
+  --
+  -- ⚠️ **已知的取捨：這兩個帳號同時也是「多重角色」帳號。**
+  --    要驗「單孩的靜態徽章」或「0 孩不渲染」，得先被 /select-role 的角色選擇
+  --    彈窗攔一次、選家長才進得去 —— **一個帳號背兩個測試狀態，其中一個壞掉
+  --    會擋住另一個**（labor-5 提出，判斷成立）。
+  --
+  --    **沒有更好的做法，原因是硬的**：要一個「只有 parent 角色」的帳號就得有
+  --    一個沒有其他角色的 `ba_user`，而 seed 造的每一個帳號都已經是
+  --    admin / teacher / parent 其中之一；新建帳號會撞 c2 的豁免上限。
+  --    其餘替代方案（拔掉既有 parent 的關聯做出「只剩 1 個孩子」、
+  --    或拿掉老師的 teacher 角色）都是改既有資料，會產生更難解釋的殘骸
+  --    （沒有角色的 staff 列、失去家長的學生）。
+  --
+  --    所以**留著這個耦合並寫在這裡**，讓驗的人知道那一步不是缺陷。
   SELECT id INTO v_uid FROM public.ba_user WHERE email = 'teacher0005@demo.clessia.app';
   IF v_uid IS NOT NULL THEN
     INSERT INTO public.user_roles (user_id, role, permissions)
