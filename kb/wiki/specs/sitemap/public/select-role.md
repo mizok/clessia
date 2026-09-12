@@ -19,10 +19,6 @@ updated: 2026-09-12
 
 <!-- generated:route-facts end -->
 
-> ⚠️ **生成區塊的「角色」欄在這一頁是誤導的**，跟 [[specs/sitemap/public/link-line]] 同一個原因：
-> `RoutesCatalog` 的 `role` 是 `undefined`，但 `app.routes.ts` 掛了 `canActivate: [authGuard]` ——
-> **未登入進不去**。生成器看不到 `app.routes.ts` 的 guard。已回報給計畫席。
-
 **進入方式**：
 
 1. 登入後的落地點（`guest.guard` / `role.guard` / LINE OAuth 的 `callbackURL` 都指這裡）

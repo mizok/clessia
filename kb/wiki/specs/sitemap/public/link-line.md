@@ -19,11 +19,6 @@ updated: 2026-09-12
 
 <!-- generated:route-facts end -->
 
-> ⚠️ **生成區塊的「角色」欄在這一頁是誤導的。** 它寫「公開（未登入可進）」，因為
-> `RoutesCatalog.PUBLIC_LINK_LINE` 的 `role` 是 `undefined`；**但 `app.routes.ts` 給這條路由掛了
-> `canActivate: [authGuard]`** —— **未登入進不去**，會被踢去 `/login`。
-> 生成器讀的是 `RoutesCatalog`，看不到 `app.routes.ts` 的 guard。已回報給計畫席。
-
 **進入方式**：
 
 1. **一次性連結（magic link）兌換完的落地頁** —— 這是主要入口

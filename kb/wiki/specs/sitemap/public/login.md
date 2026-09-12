@@ -19,10 +19,12 @@ updated: 2026-09-12
 
 <!-- generated:route-facts end -->
 
-> ⚠️ **「公開（未登入可進）」在這一頁要加一句：登入著的人進不來。**
-> `app.routes.ts` 給這條路由掛了 `canActivate: [guestGuard]` ——
-> **實測**：帶著 admin session 開 `http://localhost:4200/login`，網址列直接變成
-> `/admin/dashboard`。改版時不要假設這一頁在任何情況下都打得開。
+> **實測紀錄（#685 Phase 1）**：帶著 admin session 開 `http://localhost:4200/login`，
+> 網址列直接變成 `/admin/dashboard`。**改版時不要假設這一頁在任何情況下都打得開。**
+>
+> （上面「只限未登入」那一欄原本印的是「公開（未登入可進）」，而這段註記是當時
+> 人工補的緩衝。#693 把 `guestGuard` 的宣告收進 `RoutesCatalog.access` 之後
+> 生成區塊自己說得出來了，所以緩衝拿掉，**只留這筆實測**。）
 
 **進入方式**：公開頁外框的「登入」連結 / 品牌面的 `Clessia` 字標 / 直接網址 /
 **各種 guard 把人踢回來**（`auth.guard` 帶 `?reason=connection-error`、
