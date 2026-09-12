@@ -282,7 +282,27 @@ nav.bottom-bar   780 – 844 / position: **static**   ← 所以濾網④ 的 fi
 - **手段**：把 XHR 的 URL 從 `:8787` 改指到沒人監聽的 `:8799`（等同 server 掛掉，
   **只影響那一個 iframe**，不動共享資源）。方法見[方法頁 Phase 2-D](../README.md)
 - **證據**：每一輪都確認攔截清單不是空的（**請求數 0 的一律作廢**）
-- ⚠️ **本輪只量「錯誤」那一半**
+- **載入中的量測**：390 × 844 ／ dev server（port 4200）`9744f0f6` ／
+  `parent03@demo.clessia.app`（孩子 **張宇軒**，67 筆出勤 / 26 張帳單 / 105 筆成績 ——
+  本機資料最多的一個，避免坑 8）／量測前後各打一次 `/api/me`
+- **手段（載入中）**：同一個 XHR 包裝，把 `send` 用 `setTimeout` 延後 3 秒。
+  ⚠️ **背景分頁的 `setTimeout` 被節流**，實際延遲 ≥ 3 秒（見[方法頁](../README.md)）
+- **導航**：`ng.ɵgetRouterInstance(...)` 拿到 Router 本人再 `navigateByUrl()` ——
+  真 SPA 導航，`window` 不換、攔截器活得下來（見[方法頁](../README.md)）
+
+### 載入中（3 秒延遲）
+
+| skeleton | spinner | `<main>` 互動元素 | 判定 |
+| --- | --- | --- | --- |
+| **4**（`div.skeleton-list 334×120` + 3 條 `span.skeleton-bar 286×16`） | 0 | 1 → 22 | ✅ 誠實 |
+
+延遲期間 `<main>` 只有標題「繳費紀錄」與骨架，**沒有任何數字或空狀態文案**。
+
+⚠️ `span.skeleton-bar` 的 `animation-name` 是 `skeleton-wave` 而 `opacity` 是 `1` ——
+**骨架看得見，只是波紋不會動**（坑 12：背景分頁動畫不跑）。**這不是缺陷。**
+
+> **這一頁是 [[specs/sitemap/parent/attendance]] 的對照組**：同樣的 skeleton 寫法，
+> 守衛判的是 `invoices().length === 0`（原始清單）而不是填充後的清單，所以出得來。
 
 ### 錯誤（所有 API 都失敗）
 
@@ -296,6 +316,5 @@ nav.bottom-bar   780 – 844 / position: **static**   ← 所以濾網④ 的 fi
 
 | 項目 | 原因 |
 | --- | --- |
-| 載入中的樣子 | 本輪只量錯誤態（做法已驗過：把 XHR 的 `send` 延後 3 秒） |
 | 重試鈕按了會不會真的重打 | 需要真滑鼠（方法頁坑 12） |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |

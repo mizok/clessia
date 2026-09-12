@@ -306,7 +306,50 @@ GET /api/me/attendance?childId=<id>&dateFrom=2026-09-02&page=1&pageSize=50
 - **手段**：把 XHR 的 URL 從 `:8787` 改指到沒人監聽的 `:8799`（等同 server 掛掉，
   **只影響那一個 iframe**，不動共享資源）。方法見[方法頁 Phase 2-D](../README.md)
 - **證據**：每一輪都確認攔截清單不是空的（**請求數 0 的一律作廢**）
-- ⚠️ **本輪只量「錯誤」那一半**
+- **載入中的量測**：390 × 844 ／ dev server（port 4200）`9744f0f6` ／
+  `parent03@demo.clessia.app`（孩子 **張宇軒**，67 筆出勤 / 26 張帳單 / 105 筆成績 ——
+  本機資料最多的一個，避免坑 8）／量測前後各打一次 `/api/me`
+- **手段（載入中）**：同一個 XHR 包裝，把 `send` 用 `setTimeout` 延後 3 秒。
+  ⚠️ **背景分頁的 `setTimeout` 被節流**，實際延遲 ≥ 3 秒（見[方法頁](../README.md)）
+- **導航**：`ng.ɵgetRouterInstance(...)` 拿到 Router 本人再 `navigateByUrl()` ——
+  真 SPA 導航，`window` 不換、攔截器活得下來（見[方法頁](../README.md)）
+
+### 載入中（3 秒延遲）
+
+| skeleton | spinner | `<main>` 互動元素 | 判定 |
+| --- | --- | --- | --- |
+| **0** | 0 | 4 → 23（資料回來後） | 🔴 **謊稱「今日無課」** |
+
+延遲期間畫面上是**逐日清單，十一天每一天都寫「今日無課」**；統計列（`6 次缺席 本月`）不在。
+資料回來之後同一批日期換成真的出勤列。
+
+**機制查到了，不是推的**（延遲期間直接讀元件狀態）：
+
+| | 延遲中 | 資料回來後 |
+| --- | --- | --- |
+| `loading()` | `true` | `false` |
+| `records().length` | **0** | 19 |
+| `groups().length` | **11** | 11 |
+| `.skeleton-list` 在 DOM 裡 | **0 個** | 0 個 |
+
+`attendance.page.html:37` 的守衛是 `@if (loading() && groups().length === 0)`，
+而 `attendance.page.ts:100-106` 在 `rangeMode() === 'recent10'`（**預設模式**）時
+把 `groups` 餵給 `fillMissingDays(raw, dateFrom, today)` —— **它在 `records()` 還是空的時候
+就已經填出 11 天**，所以 `groups().length === 0` 永遠不成立，**skeleton 分支在預設模式下不可達**。
+
+> **對照組在同一個 repo 裡**：`payments.page.html:20` 的守衛是
+> `loading() && invoices().length === 0` —— 判的是**原始清單**而不是填充後的清單，
+> 所以它的 skeleton 出得來（見 [[specs/sitemap/parent/payments]]）。
+>
+> 錯誤態不受影響：`failed()` 時 `loading()` 已經是 `false`，第一個分支落空、
+> 第二個分支（`載入失敗`）照樣渲染 —— 跟下面「錯誤」那一節量到的一致。
+
+**已開 issue #797 給計畫席**（不順手修）。
+
+> ⚠️ **切篩選時也沒有 skeleton，但那是另一個成因**：那時 `groups()` 還握著上一批資料，
+> 所以守衛一樣不成立，畫面停在**舊資料**上 3 秒（實測：切「近30天」後 `<main>` 互動元素
+> 23 → 3.5 秒後 55，中間沒有任何載入訊號）。labor-7 記的「切篩選時畫面完全沒反應」
+> 就是這一個。
 
 ### 錯誤（所有 API 都失敗）
 
@@ -320,6 +363,5 @@ GET /api/me/attendance?childId=<id>&dateFrom=2026-09-02&page=1&pageSize=50
 
 | 項目 | 原因 |
 | --- | --- |
-| 載入中的樣子 | 本輪只量錯誤態（做法已驗過：把 XHR 的 `send` 延後 3 秒） |
 | 重試鈕按了會不會真的重打 | 需要真滑鼠（方法頁坑 12） |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |
