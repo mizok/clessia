@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-09-13] map | Rebuilt index + 6 MOCs
+- Pages indexed: 191
+- Total links: 522
+- Orphan pages: 86
+
+## [2026-09-13] lint | Health check: 0 errors, 8 warnings, 76 info
+- Mode: structural
+- Pages scanned: 200
+- Issues found: 84
+
 ## [2026-09-13] capture | 課堂狀態規則（#762 / #488）
 - Pages created: [[rules/session-status-rules]]
 - `sessions.status` 的 `completed` 沒有任何寫入路徑，而三類程式碼（16 處 `.eq('status','scheduled')`、

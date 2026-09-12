@@ -1,6 +1,6 @@
 # Architecture — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-09-06
+> Auto-maintained by `kb:map`. Last updated: 2026-09-13
 
 ---
 
@@ -110,6 +110,10 @@ Links to: [[architecture/constitution|`constitution`]], [[architecture/gate-map|
 
 修 #426——CardValue 的 null/'error' 原本渲染成跟真數字同量級的粗體文字，改用既有的 .p-skeleton 動畫取代純文字，錯誤態改用小圖示+短字降級處理，兩者都不能被誤讀成資料本身。
 
+## [[architecture/date-display-conventions|日期顯示的四種形式，各自回答不同的問題]]
+
+M4 詞彙統一（#425）查證結論——日期不統一成一種格式，而是「完整日期 / 短日期 / 帶星期 / 稽核時間戳」四種各有情境；分隔符一律連字號，斜線是 outlier。
+
 ## [[architecture/day-timeline|一日時間軸元件（day-timeline）]]
 
 內部頁橘帶裡那條「今天」的資訊圖 —— 為什麼把排課畫成時間軸而不是再列一張表、佈局數學為什麼放在 pure util、以及 startTime/endTime 可為 null 這件事怎麼處理。
@@ -159,6 +163,10 @@ Links to: [[architecture/constitution-enforcement|`constitution-enforcement`]]
 Tags: `architecture`, `auth`, `oauth`, `line`, `cloudflare`
 
 Links to: [[lessons/better-auth-session-delegation]], [[architecture/deploying]], [[specs/admin/roles-and-auth]]
+
+## [[architecture/list-loading-skeleton-batch|十個檔案的載入態跳版問題 —— 統一做法]]
+
+#508——#426 掃到但根因不同的 10 個檔案，逐檔分類後發現「整塊被文字取代」與「沒有骨架尺寸／會跳版」在這批檔案裡是同一件事，分三類統一做法，全部重用既有 .p-skeleton／.skeleton-list，不新增第三種配方。
 
 ## [[architecture/login-experience|登入體驗與角色選擇的設計]]
 
