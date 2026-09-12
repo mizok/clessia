@@ -198,3 +198,53 @@ updated: 2026-09-13
 | --- | --- |
 | **按「全部標為已讀」／展開摘要** | **寫入類動作**（會改 `announcement_reads`），一律不按 |
 | 未讀 0 則 / 多則 | 本機兩端各只有 1 則未讀。**要造更多只能寫入** |
+
+## 載入中 / 錯誤
+
+- **量測**：390 × 844 ／ 主 checkout 的 dev server（port 4200）`7e9da649`
+- **手段**：同一個 XHR 包裝 —— 錯誤態把 URL 從 `:8787` 改指到沒人監聽的 `:8799`，
+  載入中把 `send` 用 `setTimeout` 延後 3 秒（**只影響那一個 iframe，不動 8787、零寫入**）。
+  方法全文見[方法頁 Phase 2-D](../README.md)
+- **證據**：每一輪都確認攔截清單不是空的，**請求數 0 的一律作廢**（例外要自己附正控）
+
+**三個開啟點**：`/admin/notifications`、`/teacher/notifications`、`/parent/notifications`
+（`grep -rl AnnouncementInbox`，排除元件自己與 spec）。三頁都量過，結果一致。
+
+攔到 `GET /api/announcements/inbox` 一支。
+
+### 載入中（3 秒延遲）
+
+| skeleton | spinner | 判定 |
+| --- | --- | --- |
+| **4**（`div.skeleton-list 334×120` + `span.skeleton-bar 286×16` ×3） | 0 | ✅ 誠實 |
+
+延遲期間**「N 則未讀」與「全部標為已讀」都不在** —— 不會出現「先說沒有未讀、資料回來
+又冒出一則」那種閃動。骨架的 `aria-label` 是 `公告載入中`。
+
+⚠️ `animation-name: skeleton-wave` —— 看得見，波紋不動（坑 12）。
+
+### 錯誤（API 失敗）
+
+| 判定 | 重試鈕 | toast | 攔到的請求數 |
+| --- | --- | --- | --- |
+| ✅ **誠實**（四態齊全） | 否 | 0 | 1 |
+
+模板是完整的四態（`announcement-inbox.component.html:18-28`）：
+
+| 狀態 | 畫面 |
+| --- | --- |
+| `loading()` | 骨架 |
+| `loadError()` | **「查詢失敗，請稍後再試。」** |
+| `announcements().length === 0` | 「目前沒有公告。」 |
+| 其餘 | 清單 |
+
+> **「查詢失敗」與「目前沒有公告」是兩句不同的話** —— 這正是
+> [[specs/sitemap/_shared/subject-manager]] 與 [[specs/sitemap/_shared/audit-log-dialog]] 缺的那一格。
+> 三支都是 `shared/components/` 底下的元件，**寫法不一致是現況**。
+
+### 未驗與原因
+
+| 項目 | 原因 |
+| --- | --- |
+| 「全部標為已讀」失敗的樣子 | 寫入類動作，一律不按 |
+| 展開單則公告時的取數 | 展開是純前端（`openId()`），沒有額外請求 |

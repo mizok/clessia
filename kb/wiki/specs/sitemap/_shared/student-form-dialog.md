@@ -178,3 +178,68 @@ updated: 2026-09-13
 | 真 `Escape` | 需要前景分頁（坑 12）。**這一項決定 #784 的嚴重度** |
 | 1504 的尺寸 | 本輪把時間花在確認 390 的缺陷上；`width: '560px'`（`students.page.ts:295`） |
 | 另外三個開啟點 | 照計畫席「從任一個開啟點開一次就好」。**但它們的表單欄位不同（Phase 1 已記），高度也會不同** |
+
+## 載入中 / 錯誤
+
+- **量測**：390 × 844 ／ 主 checkout 的 dev server（port 4200）`7e9da649`
+- **手段**：同一個 XHR 包裝 —— 錯誤態把 URL 從 `:8787` 改指到沒人監聽的 `:8799`，
+  載入中把 `send` 用 `setTimeout` 延後 3 秒（**只影響那一個 iframe，不動 8787、零寫入**）。
+  方法全文見[方法頁 Phase 2-D](../README.md)
+- **證據**：每一輪都確認攔截清單不是空的，**請求數 0 的一律作廢**（例外要自己附正控）
+
+**開啟點**：`/admin/students` 的「新增學生」／每列的編輯。本輪從「新增學生」開。
+攔到 `GET /api/schools?isActive=true` 一支（家長是輸入時才查，不在開啟時打）。
+
+### 載入中（3 秒延遲）
+
+| skeleton | spinner | 對話框內互動元素 | 判定 |
+| --- | --- | --- | --- |
+| **0** | **0** | 17（與載入後相同） | ⚠️ **沒有載入訊號，但也沒有說謊** |
+
+整張表單在延遲期間就已經渲染完成且可填，「就讀學校\*」的下拉顯示佔位字
+「選擇或搜尋學校」——**跟「學校清單是空的」長得一樣**。
+
+### 錯誤（學校清單失敗）
+
+| 判定 | 重試鈕 | toast | 攔到的請求數 |
+| --- | --- | --- | --- |
+| 🔴 **必填欄位靜靜變成空的** | 否 | **0（畫面上）** | 1 |
+
+實測元件狀態（`ng.getComponent`）：
+
+| | 正常 | 失敗 |
+| --- | --- | --- |
+| `schools` | **`len=24`** | **`len=0`** |
+| 畫面上的 `.p-toast-message` | 0 | **0** |
+
+**「就讀學校」是必填**（`就讀學校*`），所以清單空掉之後這張表單填不完，而畫面上沒有任何說明。
+
+### 🔴 為什麼沒有 toast —— 它有寫，只是沒有出口
+
+`student-form-dialog.component.ts:145-151` 的 `error:` **確實** `messageService.add({ summary: '載入失敗', detail: '無法載入學校清單' })`。
+
+**決定性檢查**（執行期比對兩個實例）：
+
+```
+ng.getComponent(<students 頁>).messageService === ng.getComponent(<對話框>).messageService
+  → false
+```
+
+`students.page.html:1` 的 `<p-toast>` 綁的是**頁面**提供的 MessageService（`students.page.ts:97`），
+而對話框自己 `providers: [MessageService]`（`:41`）、模板裡**沒有 `<p-toast>`**
+→ **它 add 的每一則訊息都沒有訂閱者。**
+
+**同一個形狀還有三支**（`providers` 有 `MessageService`、自己的模板沒有 `p-toast`）：
+`grades/overview/class-view`、`grades/overview/student-view`、`score-entry/school-score-editor`。
+**已開 issue #809 給計畫席**（不順手修）。
+
+> **這一則改變了修法方向**：把它記成「這一頁沒有錯誤處理」會導向「補一則 toast」，
+> 而 toast 已經寫好了，補第二則一樣不會出現。
+
+### 未驗與原因
+
+| 項目 | 原因 |
+| --- | --- |
+| 家長搜尋（`parentSuggestions`）失敗的樣子 | 那支請求要**輸入文字**才會打，本輪沒有輸入（`parentSuggestions: len=0` 是「還沒查」不是「查失敗」） |
+| 送出失敗的樣子 | 寫入類動作，一律不按 |
+| 編輯既有學生時的樣子 | 只從「新增」開 |

@@ -96,3 +96,17 @@ updated: 2026-09-13
 | ---------------------- | ---------------------------------------------------------------------- |
 | `roleGuard` 擋下非家長 | 同 Phase 1 —— 本輪的家長帳號只有 `parent` 角色                         |
 | 768 / 1024             | 導向行為與寬度無關（`app.routes.ts` 的 `redirectTo`），沒有量           |
+
+## 載入中 / 錯誤
+
+- **量測**：390 × 844 ／ dev server（port 4200）`7e9da649` ／ `parent01@demo.clessia.app`
+
+**不適用 —— `/parent` 是一條轉址，沒有自己的畫面也不取資料。**
+
+實測：SPA 導航 `/parent` 正常轉到 `/parent/dashboard`，兩種狀態都在
+[[specs/sitemap/parent/dashboard]]（那一頁本身也是佔位殼，請求數 0）。
+
+外框（頂列／底欄／孩子切換器）的載入中與錯誤態見
+[[specs/sitemap/_shared/shell-layout]] 與 [[specs/sitemap/_shared/parent-child-switcher]] ——
+**切換器是家長端外框裡唯一會取數的東西**，而它兩種狀態都有。
+
