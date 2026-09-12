@@ -1,8 +1,8 @@
 ---
 title: 考務與成績（/admin/grades）
-summary: /admin/grades 的實際 UI 地圖：畫面區塊、互動元素、狀態與子頁面（對話框）。
+summary: /admin/grades 沒有自己的畫面 —— 它是有子路由的外殼，預設轉到考試管理。
 category: spec
-status: seedling
+status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
 updated: 2026-09-12
@@ -19,25 +19,50 @@ updated: 2026-09-12
 
 <!-- generated:route-facts end -->
 
-**進入方式**：<!-- TODO: 選單 / 從 <某頁> 的 <某按鈕> / 直接網址 -->
+## 這一頁是外殼，不是畫面
 
-## 畫面區塊
+`app.routes.ts` 的結構：
 
-<!-- TODO: 由上而下、由左而右，每個區塊一小節：它顯示什麼、資料從哪裡來 -->
+```
+/admin/grades                      → GradesComponent（外殼，有 children）
+  ├─ ''                            → redirectTo 'exams'（pathMatch: 'full'）
+  ├─ exams                         → ExamsComponent
+  ├─ exams/:type/:id/scores        → ScoreEntryComponent（掛 canDeactivate）
+  └─ overview
+       ├─ ''                       → OverviewComponent
+       ├─ student                  → StudentViewComponent
+       └─ class                    → ClassViewComponent
+```
+
+**打 `/admin/grades` 會直接變成 `/admin/grades/exams`**（實測網址列確認）。
+畫面見 [[specs/sitemap/admin/grades-exams]]。
+
+### 三條不在 `RoutesCatalog` 裡的舊路由
+
+```
+/admin/grades/academy-exams      → redirectTo exams
+/admin/grades/school-exam-entry  → redirectTo exams
+/admin/grades/score-records      → redirectTo overview
+```
+
+**它們沒有自己的地圖檔**（生成器只認 `RoutesCatalog`，而這三條只存在於 `app.routes.ts`）。
+記在這裡，因為舊連結與書籤還會走到它們。**本輪未實測這三條。**
 
 ## 互動元素
 
-| 元素（畫面上的字） | 類型 | 出現條件 | 按了之後 |
-| --- | --- | --- | --- |
-| <!-- TODO --> | | | |
-
-## 狀態
-
-<!-- TODO: 空狀態 / 載入中 / 錯誤 / 無權限 -->
+無 —— **外殼的模板逐字就是一行 `<router-outlet />`**（`grades.component.html`，全檔 1 行）。
+它不渲染任何自己的東西，所以子頁的地圖不需要扣掉任何共用版面。
 
 ## 驗證紀錄
 
-<!-- TODO: 照 kb/wiki/specs/sitemap/README.md 的兩向比對做完再填。
-     未驗證的頁面 status 保持 seedling；驗完改成 developing。 -->
+- **日期**：2026-09-12 ／ 帳號 `admin@demo.clessia.app` ／ 前端 `897d691f`（port 4201）
+- 打 `/admin/grades` → 網址列變成 `/admin/grades/exams`，內容為考試管理 ✓
+- 路由結構由 `app.routes.ts` 逐行確認 ✓
 
-- **狀態**：未驗證
+**兩向比對不適用** —— 這條路由沒有自己的畫面。
+
+### 未驗到的
+
+| 項目 | 原因 |
+| --- | --- |
+| 三條舊路由 redirect | 未實測 |

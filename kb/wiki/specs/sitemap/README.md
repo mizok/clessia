@@ -53,6 +53,16 @@ npx tsx tools/sitemap/generate-sitemap-skeletons.ts --check  # 缺檔就 exit 1
 判斷方法：`grep -rl <DialogComponent> apps/web/src/app`，排除元件自己與 `.spec`。
 **≥ 2 個開啟點就獨立。**
 
+> ⚠️ **`grep` 的命中數不等於「從幾頁開得到」** —— 中間隔著「那條路由渲不渲染它」。
+>
+> `AttendanceRosterPanelComponent` 的 `grep` 回四筆，我照著寫成「從四個地方開得到」。
+> **第四筆是死的**：`features/admin/pages/attendance/attendance.page.ts` 確實引用了它，
+> 但 `/admin/attendance` 在 `app.routes.ts` 是純 `redirectTo`，而那個頁面元件
+> **全庫沒有任何地方 import**（issue #698）。實際開得到的是三頁。
+>
+> **命中之後多做一步**：那一頁在 `app.routes.ts` 裡是 `loadComponent` 還是 `redirectTo`？
+> 是 `redirectTo` 就不算一個開啟點。
+
 ## 驗證：兩向比對
 
 0. **先確認你的資料能讓每一種列渲染出來**（⚠️ 這一步不能省，理由見下）
@@ -139,9 +149,27 @@ const vis = all.filter(visible);
       .trim()
       .slice(0, 30),
     href: e.getAttribute('href') || '',
+    disabled: e.disabled ?? false,
   })),
 });
 ```
+
+**`disabled` 這一欄不能省。** `/admin/courses` 的垃圾桶（刪除課程）按下去**完全沒有反應**、
+連 overlay 都沒有，差一點被記成「刪除按鈕沒作用」的缺陷。
+
+實際是 `[disabled]="group.classes.length > 0"` —— **有班級的課程本來就不能刪**，
+而那一頁 20 顆垃圾桶裡 **7 顆 disabled、13 顆可按**，我隨手抓到的第一顆剛好是 disabled 的。
+
+**清單沒有記 `disabled` 的時候，「按了沒反應」讀起來跟「壞掉」一模一樣。**
+而且它會連帶影響「出現條件」欄：那一格該寫的不是「永遠」，
+是「**永遠出現，但 `<條件>` 時 disabled**」。
+
+> **比執行期快照更強的一招（labor-5 / labor-2 補）**：
+> **去查模板有沒有 `[disabled]` 繫結** —— 沒有繫結就代表它**結構上不會**進入 disabled。
+> 上面那份清單只證明「我量的那一刻」，模板繫結證明的是所有時刻。
+>
+> 反過來也成立：**繫結存在但你這輪全部量到 `false`**，代表你的資料沒有觸發那個條件，
+> 那是「未驗」不是「不會發生」。
 
 **`visible` 那道濾網不能省**：`/admin/sessions` 的 57 個元素裡有 3 個是手機版專用
 （`session-filters__mobile-toggle` 與它自己的日期輸入），桌機寬度下在 DOM 裡但看不到。
@@ -333,10 +361,11 @@ from students s ...;
 那種「兩邊一樣」什麼都證明不了。盧安琪那筆是 53 天前，
 **只有「近1月」排除得掉**，這才叫驗過。
 
-> **元素清單一定要帶 `disabled`**（labor-1 / #698 的方法修正）：
-> 按了沒反應的按鈕，先查 `[disabled]` 再說是缺陷。
-> **更強的做法是查模板有沒有 `[disabled]` 繫結** ——
-> 沒有繫結就代表它**結構上不會**進入 disabled，比一次執行期快照耐用。
+> **元素清單一定要帶 `disabled`** —— 全文在上面「元素清單以 DOM 為準」那一節，
+> 連同「查模板繫結比執行期快照耐用」那一招。
+>
+> （這裡原本有一份完整的副本。**同一條規則寫在兩個地方會漂**，所以留位階高的那份 ——
+> 它就在取樣程式碼旁邊，是這條規則真正被執行的地方。）
 
 ## 環境：先確認你量的是哪一版
 
@@ -359,9 +388,34 @@ lsof -nP -iTCP:4200 -sTCP:LISTEN -t | head -1 | xargs -I{} lsof -p {} -a -d cwd 
 
 - 4201 的頁面可以用 callback 指向 4200 的連結登入
 - **換角色會踢掉前一個** —— 做完一個角色再換，或用獨立 Chrome profile
-- API 的 `trustedOrigins` 來自請求的 `Origin` 標頭，**頂層導覽沒有 Origin 會被拒**
-  （`INVALID_CALLBACK_URL`）。從已開啟的頁面用 `fetch(..., {credentials:'include'})`
-  兌換就會帶上 Origin
+- **`callbackURL` 不在 `WEB_URL` 上時，頂層導覽會被拒**（`INVALID_CALLBACK_URL`）——
+  從已開啟的頁面用 `fetch(..., {credentials:'include'})` 兌換就會帶上 `Origin` 而過關
+
+  規則本身（`apps/api/src/lib/origins.ts`）：
+
+  > `trustedOrigins` = `allowed` ∪ { 請求的 `Origin`，若通過 `isAllowedOrigin` }
+  > ，其中 `allowed` = 跑著那台 server 的 `WEB_URL` + `ALLOWED_ORIGINS`，
+  > 而 `isAllowedOrigin` 對 `localhost` / `127.0.0.1` **有開發豁免、不分 port**。
+
+  本機四種情況實測（用無效 token 打 `/api/auth/magic-link/verify`，
+  callback 驗證發生在 token 查詢之前，所以不必燒掉真的 token）：
+
+  | callbackURL | `Origin` 標頭           | 結果                           |
+  | ----------- | ----------------------- | ------------------------------ |
+  | `:4200`     | 無                      | **302**                        |
+  | `:4210`     | 無                      | **403 `INVALID_CALLBACK_URL`** |
+  | `:4210`     | `http://localhost:4210` | **302**                        |
+  | `:4200`     | `http://localhost:4200` | 302                            |
+
+  **`WEB_URL` 從哪來**：不在 `apps/api/.dev.vars` 裡（那份沒有這個鍵），
+  是 `apps/api/wrangler.toml` 的 `[vars]` 寫死 `WEB_URL = "http://localhost:4200"`。
+  **只看 `.dev.vars` 會以為 `allowed` 是空的** —— 我就看錯過一次。
+
+  > 這一段原本寫成「頂層導覽**沒有 Origin** 會被拒」，**範圍太寬**：
+  > callback 指向 `:4200` 的頂層導覽是會過的（上表第一列）。
+  > 由 labor-2 從反方向抓到並在本機重現 —— 它自己那則寫成「只信任 `:4200` 的 port 白名單」，
+  > **同一個現象、兩種錯的機制解釋**，兩邊都是只量了兩種情況就推論。
+  > 分開它們的是第三列（`:4210` + Origin → 302）：**那一列同時否證了兩種說法**。
 
 ## 不要做的事
 
