@@ -1,14 +1,14 @@
 ---
-title: 儀表板（/teacher/dashboard）
-summary: /teacher/dashboard 的實際 UI 地圖：畫面區塊、互動元素、狀態與子頁面（對話框）。
+title: 老師儀表板（/teacher/dashboard）—— 已刪除，只留 redirect
+summary: 這一頁已經被刪掉了；路由留著把舊書籤導到課表。元件檔案不存在，不是孤兒程式碼。
 category: spec
-status: seedling
+status: developing
 tags: [sitemap, teacher]
 created: 2026-09-12
 updated: 2026-09-12
 ---
 
-# 儀表板
+# 老師儀表板（已刪除）
 
 <!-- generated:route-facts start —— 這一段由 tools/sitemap 生成，不要手改 -->
 
@@ -19,25 +19,48 @@ updated: 2026-09-12
 
 <!-- generated:route-facts end -->
 
-**進入方式**：<!-- TODO: 選單 / 從 <某頁> 的 <某按鈕> / 直接網址 -->
+**進入方式**：只剩舊書籤與外部連結。選單、其他頁面都不再連到它。
 
-## 畫面區塊
+## 這一頁沒有畫面
 
-<!-- TODO: 由上而下、由左而右，每個區塊一小節：它顯示什麼、資料從哪裡來 -->
+`app.routes.ts`：
+
+```ts
+{
+  // 老師儀表板已刪除（今日流）—— 它獨有的只有四個數字與兩個連結，
+  // 而「今日課表」清單跟課表今天那一屏完全重複。
+  // **route 留著當 redirect**：老師可能加了書籤，讓它壞掉沒有任何好處。
+  path: RoutesCatalog.TEACHER_DASHBOARD.relativePath,
+  redirectTo: RoutesCatalog.TEACHER_SCHEDULE.relativePath,
+  pathMatch: 'full',
+}
+```
+
+`RoutesCatalog` 那一則也標了同樣的理由，且 `showInMenu: false`。
+
+## ⚠️ 跟 `/admin/attendance` 不一樣：這裡沒有孤兒元件
+
+[[specs/sitemap/admin/attendance]] 是「路由變成 redirect，但頁面元件還在、
+還引用著共用對話框，於是 `grep` 會把一個到不了的開啟點算進去」（issue #698）。
+
+**這一頁不是那個形狀** —— `features/teacher/pages/` 底下**只有
+`notifications` / `schedule` / `students` 三個目錄，`dashboard` 目錄不存在**。
+元件連同 html / scss / spec 一起刪乾淨了，沒有任何東西會誤把它算成開啟點。
+
+**收在這裡是因為下一個做清理的人會問「這條 redirect 能不能拿掉」** ——
+答案是可以拿掉，但沒有好處（成本三行，收益零），而且會讓老師的舊書籤 404。
 
 ## 互動元素
 
-| 元素（畫面上的字） | 類型 | 出現條件 | 按了之後 |
-| --- | --- | --- | --- |
-| <!-- TODO --> | | | |
+**0 個。**
 
 ## 狀態
 
-<!-- TODO: 空狀態 / 載入中 / 錯誤 / 無權限 -->
+不適用 —— 沒有畫面。
 
 ## 驗證紀錄
 
-<!-- TODO: 照 kb/wiki/specs/sitemap/README.md 的兩向比對做完再填。
-     未驗證的頁面 status 保持 seedling；驗完改成 developing。 -->
-
-- **狀態**：未驗證
+- **日期**：2026-09-12 ／ **帳號**：`teacher0003@demo.clessia.app`
+- **前端版本**：port 4202（本 worktree），`7622b0c4`
+- **實測**：打 `/teacher/dashboard` → 網址列停在 `/teacher/schedule`，頁標 `課表` ✓
+- **`ls apps/web/src/app/features/teacher/pages/`** → `notifications schedule students`（沒有 `dashboard`）✓

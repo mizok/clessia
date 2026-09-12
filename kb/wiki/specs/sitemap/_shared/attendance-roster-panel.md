@@ -1,6 +1,6 @@
 ---
 title: 點名面板（子頁面，多頁共用）
-summary: AttendanceRosterPanelComponent 的 UI 地圖：四個頁面都用它點名，逐生出席／缺席與整批出席。
+summary: AttendanceRosterPanelComponent 的 UI 地圖：三個頁面開得到（第四個引用點是死的），逐生出席／缺席與整批出席；副標的時段依呼叫端而異。
 category: spec
 status: developing
 tags: [sitemap, _shared, admin, teacher]
@@ -14,12 +14,12 @@ updated: 2026-09-12
 
 **`grep` 找到四個引用點，但其中一個到不了 —— 實際開得到的是三個：**
 
-| 開啟頁面                          | 入口                     |
-| --------------------------------- | ------------------------ |
-| [[specs/sitemap/admin/dashboard]] | 今日課表裡可按的那一列   |
-| [[specs/sitemap/admin/sessions]]  | 每列 ⋮ ›「管理出勤狀況」 |
-| `/teacher/schedule`               | 尚未繪製（labor-4 批次） |
-| ~~`admin/pages/attendance`~~      | **接不到** —— 見下       |
+| 開啟頁面                           | 入口                                                     |
+| ---------------------------------- | -------------------------------------------------------- |
+| [[specs/sitemap/admin/dashboard]]  | 今日課表裡可按的那一列                                   |
+| [[specs/sitemap/admin/sessions]]   | 每列 ⋮ ›「管理出勤狀況」                                 |
+| [[specs/sitemap/teacher/schedule]] | 課堂卡片的「開始點名」／「修改點名」（**labor-4 已驗**） |
+| ~~`admin/pages/attendance`~~       | **接不到** —— 見下                                       |
 
 > ⚠️ **`grep -rl` 的命中數不等於「從幾頁開得到」。**
 > `features/admin/pages/attendance/attendance.page.ts` 引用了這支面板，
@@ -37,8 +37,15 @@ updated: 2026-09-12
 ### 1. 標頭
 
 - 第一行：班級名稱（例：`國三國文 A 班`）
-- 第二行：`YYYY-MM-DD · HH:MM–HH:MM`
+- 第二行：`YYYY-MM-DD`，**後面的 `· HH:MM–HH:MM` 是條件式的**（`@if (session.timeRange)`）
 - 右上：`✕`
+
+> ⚠️ **時段有沒有出現，看的是哪一頁開的它。** 呼叫端自己組 `RosterPanelSession`：
+> `/admin/dashboard` 有傳 `timeRange`，**`/teacher/schedule` 沒有**
+> （`schedule.page.ts:320` 只傳 `eventId / className / eventDate`），
+> 所以老師端的副標只有 `2026-08-31`。兩邊都實測過。
+>
+> **這是「共用元件不代表兩邊長一樣」的實例** —— 差別不在元件裡，在呼叫端傳了什麼。
 
 ### 2. 學生清單
 
@@ -85,6 +92,7 @@ updated: 2026-09-12
 ### 未驗到的
 
 - `儲存點名` 與 `全部出席` 的實際結果（會寫入）
-- 從 `/admin/sessions`、`/admin/attendance`、`/teacher/schedule` 開啟時是否完全相同
-  （**只從儀表板開過**；sessions 的入口已確認存在但未逐一比對面板內容）
+- 從 `/admin/sessions` 開啟時是否完全相同（入口已確認存在，未逐一比對面板內容）
+- ~~`/teacher/schedule`~~ —— **labor-4 已比對**：19 個控制項的結構完全一致
+  （✕ + 8 位學生 ×2 + 全部出席 + 儲存點名），**唯一差別是副標少了時段**（見上）
 - 載入中 / 錯誤 / 空名單
