@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-13
 ---
 
 # 管理員根路由
@@ -26,7 +26,7 @@ updated: 2026-09-12
 實測：開 `http://localhost:4210/admin` → 網址列變成 `/admin/dashboard`，
 畫面是 [[specs/sitemap/admin/dashboard]]。
 
-**選單上也沒有它**（`showInMenu: false`），所以正常操作不會走到 —— 
+**選單上也沒有它**（`showInMenu: false`），所以正常操作不會走到 ——
 會走到它的是**手打網址**或**存了舊書籤**。
 
 ## 那條 redirect 在哪
@@ -62,3 +62,20 @@ updated: 2026-09-12
 - **前端版本**：最新 main，自架 `:4210`
 - **做法**：以 admin 身分開 `/admin`，讀 `location.pathname` 與 `<main>` 內容
 - **未驗**：非 admin 角色開 `/admin` 會被導去哪（需要切角色，而切角色會踢掉別席的瀏覽器 session）
+
+## 390px
+
+- **量測**：390 × 844 ／ 前端 `3f2197f8`（4200，主 checkout ＝ `origin/main`）／ 身分 `admin@demo.clessia.app`
+
+**不適用 —— 這條路由在任何寬度都不渲染內容。**
+
+實測：390 × 844 下開 `/admin`，`location.pathname` 落在 `/admin/dashboard`，
+`<main>` 內 8 個互動元素**全部屬於儀表板**。轉址行為與 1504 完全相同。
+
+窄寬度的現況記在 [[specs/sitemap/admin/dashboard]] 的 `## 390px`。
+
+### 未驗與原因
+
+| 項目                                        | 原因                                                    |
+| ------------------------------------------- | ------------------------------------------------------- |
+| 非 admin 角色在窄寬度開 `/admin` 會被導去哪 | 同 1504：需要切角色，而切角色會踢掉別席的瀏覽器 session |
