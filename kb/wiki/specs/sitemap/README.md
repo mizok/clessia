@@ -1,6 +1,6 @@
 ---
 title: 整站 UI 地圖 —— 方法頁
-summary: 怎麼畫一頁 UI 地圖、怎麼用瀏覽器兩向比對驗證它，以及五個會讓驗證靜靜失效的坑。
+summary: 怎麼畫一頁 UI 地圖、怎麼用瀏覽器兩向比對驗證它，以及六個會讓驗證靜靜失效的坑。
 category: spec
 status: developing
 tags: [sitemap, method]
@@ -112,7 +112,7 @@ const vis = all.filter(visible);
 
 `read_page` 仍然有用（它給 `ref`，`computer` 工具可以直接點），只是**不要拿它當清單的真相**。
 
-## 五個會讓驗證靜靜失效的坑
+## 六個會讓驗證靜靜失效的坑
 
 ### 1. toggle：你以為元件壞了，其實你按了兩次
 
@@ -166,6 +166,58 @@ const vis = all.filter(visible);
 家長端的孩子下拉**失焦就關**，所以「先按開、再下一次工具呼叫去讀 DOM」會讀到空的。
 這種一次性浮層要**在同一次互動裡讀完**，或直接用截圖存證。
 
+### 6. 按了但根本沒送到 —— 而症狀跟坑 1 一模一樣
+
+**`computer` 工具的真滑鼠點擊會整片失效，而它不報錯。** 2026-09-12 labor-5 在 `/login` 撞到：
+同一個 session 的前半段真滑鼠點擊完全正常（`/link-line` 的「稍後再說」就是真按的），
+後半段**連續 8 次不同座標的空點加上 `hover` + `click`，一個 click 事件都沒有記錄到**，
+而同一批次的 `javascript_tool` 與截圖都正常。
+
+**沒有裝監聽器之前，這件事看起來是**：「按 ✕ 沒反應」「按重試沒反應」——
+**跟坑 1（按兩次等於沒按）的症狀一字不差**，而排除了坑 1 之後最自然的下一個結論是
+「這個元件壞了」。
+
+**更毒的一種**：「重試」那顆鍵按下去的正確行為是 `location.reload()` 到**同一個網址**，
+所以**按成功與沒按到的畫面完全相同**。當時差一點就把「沒按到」寫成
+「按了，而且參數不會被清掉所以錯誤會回來」—— **一個內容正確、但根本沒驗過的結論。**
+（這是「一個『兩邊一樣』的比較結果可能是比較本身沒有鑑別力」在按鍵上的形式。）
+
+**做法：每一次按鍵都留一個「這一下有沒有送到」的證據。** 按之前先在 `document` 上掛
+capture 監聽器，按完讀它：
+
+```js
+window.__hits = [];
+document.addEventListener(
+  'click',
+  (e) =>
+    window.__hits.push({
+      x: e.clientX,
+      y: e.clientY,
+      t: e.target.tagName + '.' + e.target.className,
+      trusted: e.isTrusted,
+    }),
+  { capture: true },
+);
+```
+
+`__hits` 是空的 → **你沒按到，不要對元件下任何結論**。
+
+**先排除座標**（本輪順手校正出來的，直接拿去用）：截圖的座標框與 viewport
+**是純比例、沒有偏移**。1568×725 的框對 1504×695 的 viewport，
+`viewport = frame × 1504/1568`（y 用 `× 695/725`）。驗法：
+
+```js
+document.elementFromPoint((frameX * innerWidth) / 框寬, (frameY * innerHeight) / 框高);
+```
+
+回傳的是你要按的東西 → 座標沒問題，問題在別的地方。
+
+**真滑鼠不行時的退路是 `element.click()`，但它換掉了你的證據等級。**
+它會觸發 Angular 的 `(click)` 繫結（實測：同一顆 ✕ 真滑鼠沒反應、`click()` 正常關閉），
+但它是 `isTrusted: false` 的合成事件，**驗不到依賴真實指標事件的東西** ——
+`pointerdown`、hover 才出現的、**失焦才關的浮層（坑 5 那一族）**。
+用了就要在該頁的驗證紀錄裡寫出來，不要混在「實按驗過」裡面。
+
 ## 環境：先確認你量的是哪一版
 
 **dev server 可能服務別的 checkout。** 開工前：
@@ -205,4 +257,8 @@ lsof -nP -iTCP:4200 -sTCP:LISTEN -t | head -1 | xargs -I{} lsof -p {} -a -d cwd 
 - [[specs/sitemap/admin/dashboard]] —— 最簡單的一頁，示範資料來源與條件式元素
 - [[specs/sitemap/admin/sessions]] —— 最複雜的一頁，7 支對話框、依列狀態而異的選單
 - [[specs/sitemap/parent/attendance]] —— 另一個角色
-- [[specs/sitemap/_shared/shell-layout]] ／ [[specs/sitemap/_shared/attendance-roster-panel]]
+- [[specs/sitemap/public/login]] —— 條件式元素最多的一頁（五種狀態各量一次，全靠網址參數切換）
+- [[specs/sitemap/public/trial]] —— **佔位殼**長什麼樣、怎麼寫（`<main>` 內 0 個互動元素）
+- [[specs/sitemap/_shared/shell-layout]]（登入後三角色共用）／
+  [[specs/sitemap/_shared/public-shell]]（公開六頁共用，**跟前者是兩個不同的外框**）／
+  [[specs/sitemap/_shared/attendance-roster-panel]]
