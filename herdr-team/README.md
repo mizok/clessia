@@ -343,6 +343,14 @@ DB 驗證)。計畫席決定關不關或轉問還在用的席。
 nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自己死了的話,
 下一次成功的 wakeup 會執行全面點名復活;最壞情況 12:00/17:00 使用者任何輸入都會喚醒計畫席。
 
+- **限速對話框退場後,輸入框可能只剩殘影**(2026-09-12,labor-1 / labor-4 各卡 20 分鐘):
+  `herdr agent explain` 的 evidence 顯示一句打好沒送的字,`send-keys Enter` 三次都不動,
+  `herdr agent prompt` 回 `agent_prompted` 但席位沒動 —— **畫面是舊的,真正的輸入緩衝是空的**,
+  所以 Enter 送出的是空字串,`prompt` 的成功回報只代表按鍵送到了 pane。解法:
+  先 `send-keys <任一字元>` 逼它重繪(殘影會當場消失、只剩你打的那個字),`send-keys BSpace`
+  清掉,**再 `prompt … --wait --until working --timeout 15000`** —— 只有看到 `working` 才算送到。
+  `ctrl+u` 對殘影沒用,因為緩衝本來就是空的。
+
 - **清理自己的 process 用精準 kill**:先 `lsof -ti:<自己的port>` 拿 PID,或 pkill pattern
   必含自己的 worktree 路徑 —— 裸 `pkill -f "workerd serve"` 會殺掉所有席的 API
   (已發生:teacher-pages 誤殺 bundle-analysis 的 8787)。「不 kill 別人的 port」的
