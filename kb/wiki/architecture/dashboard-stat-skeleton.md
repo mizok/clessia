@@ -2,6 +2,7 @@
 title: 儀表板數值卡的載入態骨架化
 summary: 修 #426——CardValue 的 null/'error' 原本渲染成跟真數字同量級的粗體文字，改用既有的 .p-skeleton 動畫取代純文字，錯誤態改用小圖示+短字降級處理，兩者都不能被誤讀成資料本身。
 category: architecture
+tags: [architecture, ux, loading, dashboard]
 status: proposed
 updated: 2026-09-06
 ---

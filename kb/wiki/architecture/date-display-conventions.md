@@ -2,6 +2,7 @@
 title: 日期顯示的四種形式，各自回答不同的問題
 summary: M4 詞彙統一（#425）查證結論——日期不統一成一種格式，而是「完整日期 / 短日期 / 帶星期 / 稽核時間戳」四種各有情境；分隔符一律連字號，斜線是 outlier。
 category: architecture
+tags: [architecture, ux, date]
 status: active
 updated: 2026-09-06
 ---

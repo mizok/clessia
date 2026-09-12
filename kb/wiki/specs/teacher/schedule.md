@@ -90,7 +90,7 @@ vs `classId+logDate` 兩欄），刻意不做成一支元件的 if/else。
 - 撰寫用的是 `shared/components/contact-book-entry-dialog`（原本住 admin，
   v1c 提進 shared —— feature 之間不得互相 import，c5）
 
-設計見 [[architecture/teacher-contact-book]]。
+設計見 [[rules/contact-book-rules]]。
 
 ### 點名面板（手機是 bottom sheet）
 
