@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, teacher]
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-13
 ---
 
 # 老師根路由
@@ -64,3 +64,29 @@ updated: 2026-09-12
 | 項目                   | 原因                   |
 | ---------------------- | ---------------------- |
 | `roleGuard` 擋下非老師 | 本輪沒有非老師帳號可試 |
+
+## 390px
+
+- **量測**：390 × 844 與 1504 × 752（這一條路由沒有畫面，兩個寬度就夠 —— 見下）
+- **前端**：主 checkout 的 dev server（port 4200），`fce2aefd`（量測期間 `apps/web` 零改動）
+- **身分**：`teacher0026@demo.clessia.app`（`roles:["teacher"]`，量測前後各打一次 `GET /api/me`）
+- **手段**：同源 iframe 當 viewport
+
+### 版面怎麼變
+
+**不適用 —— 這條路由在 390 一樣沒有自己的畫面。** 兩個寬度打進去，
+`location.pathname` 都停在 `/teacher/schedule`，`<main>` 的內容是課表的。
+
+**390 與 1504 的差別完全來自落地的那一頁**（可見互動元素 5 vs 14），
+見 [[specs/sitemap/teacher/schedule]] 的 `## 390px`。
+
+### 差集 / 水平溢出 / 觸控目標 / 鍵盤可達性
+
+**全部歸落地頁**，這裡不重抄（c11）。
+
+### 未驗與原因
+
+| 項目                     | 原因                                                            |
+| ------------------------ | --------------------------------------------------------------- |
+| `roleGuard` 擋下非老師   | 同 Phase 1 —— 本輪的老師帳號只有 `teacher` 角色                 |
+| 768 / 1024               | 導向行為與寬度無關（`app.routes.ts` 的 `redirectTo`），沒有量   |
