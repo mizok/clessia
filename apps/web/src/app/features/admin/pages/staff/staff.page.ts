@@ -243,7 +243,10 @@ export class StaffPage implements OnInit {
       modal: true,
       showHeader: false,
       appendTo: this.overlayContainer || 'body',
-      data: { loginUrl, personName: staff.displayName },
+      // **對象要標出來**（#666 之二）：那支對話框是為家長流程設計的
+      // （檔頭註解逐字寫著「家長本人在場」），措辭預設也是家長版。
+      // 不標的話職員會被叫去「用自己的手機掃描」。
+      data: { loginUrl, personName: staff.displayName, audience: 'staff' as const },
     });
   }
 
