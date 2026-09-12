@@ -22,7 +22,8 @@
           (onClick)="nextWeek()"
         />
       </div>
-      @if (!loading()) {
+      <!-- 錯誤態也不印 —— 「本週 0 堂」跟真的沒課一模一樣（#800） -->
+      @if (!loading() && !loadError()) {
         @if (isTeacherLed()) {
           <app-band-anchor [value]="anchor().overdue" unit="堂待點名">
             本週 <b>{{ anchor().total }}</b> 堂
@@ -41,7 +42,7 @@
       尺寸跟排列自動對齊，不用重寫一份 grid 設定。上一週/下一週按鈕在載入中
       也保留——它們不依賴這週的資料，拿掉會讓骨架的寬度跟真正的週條對不上。
     -->
-    <nav class="schedule-page__weekbar" aria-label="本週課表載入中">
+    <nav class="schedule-page__weekbar" aria-label="本週各日">
       <p-button icon="pi pi-chevron-left" [text]="true" [disabled]="true" ariaLabel="上一週" />
       <ul class="schedule-page__weekbar-days">
         @for (i of [1, 2, 3, 4, 5, 6, 7]; track i) {
@@ -52,13 +53,29 @@
       </ul>
       <p-button icon="pi pi-chevron-right" [text]="true" [disabled]="true" ariaLabel="下一週" />
     </nav>
+    <!--
+      **日面板的骨架，而且刻意不放在上面那條週條裡面**：週條是桌機專屬
+      （SCSS 的 `display: none` 到 640px），所以骨架掛在它上面時 390 下
+      **唯一的載入訊號是 `display: none`** —— 畫面上就是七行「沒有課」（#800）。
+      這一塊在所有寬度都在，而且它取代了整個 `&__track`，所以載入中不再印「沒有課」。
+      「載入中」這句話也在這裡宣告，不在週條上：週條在手機被 `display: none`
+      移出無障礙樹，宣告掛在它上面等於 390 下沒有宣告。
+    -->
+    <div class="schedule-page__day-skeleton" role="status" aria-label="本週課表載入中">
+      <span class="schedule-page__day-skeleton-header p-skeleton"></span>
+      <span class="schedule-page__day-skeleton-card p-skeleton"></span>
+      <span class="schedule-page__day-skeleton-card p-skeleton"></span>
+    </div>
   } @else if (loadError()) {
     <!--
       **這一格存在的理由**：沒有它的時候，查詢失敗會走到每一天的 `@empty`，
-      印出七次「沒有課」——跟真的沒有排課一模一樣。四態的寫法抄自
-      `features/teacher/pages/students/students.page.html`。
+      印出七次「沒有課」——跟真的沒有排課一模一樣。
+      原本是一行文字 + 軌道上的 `[hidden]="loadError()"`，而那個 `[hidden]`
+      **從來沒有生效**：`.schedule-page__track { display: grid }` 是 author 樣式，
+      永遠蓋過 UA 的 `[hidden] { display: none }`（#800）。
+      現在軌道在錯誤態根本不渲染，遮蔽這件事不再靠 CSS 打架。
     -->
-    <p class="schedule-page__state schedule-page__state--error">查詢失敗，請稍後再試。</p>
+    <app-load-failed description="沒有讀到本週課表，可能是連線問題" (retry)="loadSessions()" />
   } @else if (settingsFailed()) {
     <!--
       設定讀不到時「漏點名」會被降級成中性的「未點名」（`schedule.util.ts` 的
@@ -122,129 +139,135 @@
     推翻了原本的七欄（格子太小），桌機改成「週條 + 放大的單日」跟手機同構。
     日期標題在每一屏裡面，所以沒有任何東西需要知道現在停在哪一天。
   -->
-  <div
-    #track
-    class="schedule-page__track"
-    [hidden]="loadError()"
-    role="group"
-    aria-label="本週課表，左右捲動換日"
-    tabindex="0"
-  >
-    @for (day of weekDays(); track day.dateStr) {
-      <section class="schedule-page__day" [class.schedule-page__day--today]="isToday(day.dateStr)">
-        <h2 class="schedule-page__day-header">
-          <span class="schedule-page__day-date">{{ day.date | date: 'M/d' }}</span>
-          <span class="schedule-page__day-label">{{ day.label }}</span>
-          @if (missingOn(day.dateStr); as missing) {
-            <span
-              class="schedule-page__pending"
-              [attr.aria-label]="missing + ' 位學生的聯絡簿還沒寫'"
-            >
-              <span class="schedule-page__pending-dot" aria-hidden="true"></span>
-              {{ missing }}
-            </span>
-          }
-        </h2>
+  @if (!loading() && !loadError()) {
+    <div
+      #track
+      class="schedule-page__track"
+      role="group"
+      aria-label="本週課表，左右捲動換日"
+      tabindex="0"
+    >
+      @for (day of weekDays(); track day.dateStr) {
+        <section
+          class="schedule-page__day"
+          [class.schedule-page__day--today]="isToday(day.dateStr)"
+        >
+          <h2 class="schedule-page__day-header">
+            <span class="schedule-page__day-date">{{ day.date | date: 'M/d' }}</span>
+            <span class="schedule-page__day-label">{{ day.label }}</span>
+            @if (missingOn(day.dateStr); as missing) {
+              <span
+                class="schedule-page__pending"
+                [attr.aria-label]="missing + ' 位學生的聯絡簿還沒寫'"
+              >
+                <span class="schedule-page__pending-dot" aria-hidden="true"></span>
+                {{ missing }}
+              </span>
+            }
+          </h2>
 
-        <div class="schedule-page__day-body">
-          @for (session of sessionsByDay().get(day.dateStr) ?? []; track session.sessionId) {
-            <article
-              class="schedule-page__session"
-              [class.schedule-page__session--cancelled]="session.status === 'cancelled'"
-            >
-              <p class="schedule-page__session-time">
-                {{ session.startTime ?? '--:--' }}–{{ session.endTime ?? '--:--' }}
-              </p>
-              <p class="schedule-page__session-name">{{ session.className }}</p>
+          <div class="schedule-page__day-body">
+            @for (session of sessionsByDay().get(day.dateStr) ?? []; track session.sessionId) {
+              <article
+                class="schedule-page__session"
+                [class.schedule-page__session--cancelled]="session.status === 'cancelled'"
+              >
+                <p class="schedule-page__session-time">
+                  {{ session.startTime ?? '--:--' }}–{{ session.endTime ?? '--:--' }}
+                </p>
+                <p class="schedule-page__session-name">{{ session.className }}</p>
 
-              <p class="schedule-page__session-meta">
-                @if (session.status === 'cancelled') {
-                  <app-data-chip>停課</app-data-chip>
-                }
-                @if (session.isSubstitute) {
-                  <app-data-chip>代課</app-data-chip>
-                }
-                @if (session.examCount > 0) {
-                  <app-data-chip>
-                    小考{{ session.examCount > 1 ? ' ×' + session.examCount : '' }}
-                  </app-data-chip>
-                }
-                @if (session.campusName) {
-                  <app-data-chip>{{ session.campusName }}</app-data-chip>
-                }
-                <span class="schedule-page__session-count">{{ session.enrolledCount }} 人</span>
-              </p>
+                <p class="schedule-page__session-meta">
+                  @if (session.status === 'cancelled') {
+                    <app-data-chip>停課</app-data-chip>
+                  }
+                  @if (session.isSubstitute) {
+                    <app-data-chip>代課</app-data-chip>
+                  }
+                  @if (session.examCount > 0) {
+                    <app-data-chip>
+                      小考{{ session.examCount > 1 ? ' ×' + session.examCount : '' }}
+                    </app-data-chip>
+                  }
+                  @if (session.campusName) {
+                    <app-data-chip>{{ session.campusName }}</app-data-chip>
+                  }
+                  <span class="schedule-page__session-count">{{ session.enrolledCount }} 人</span>
+                </p>
 
-              <div class="schedule-page__session-status">
-                @if (isRetroactiveLocked(session)) {
-                  <app-status-dot tone="inactive">點名已截止</app-status-dot>
-                } @else if (display(session); as d) {
-                  <app-status-dot [tone]="d.tone">{{ d.label }}</app-status-dot>
-                }
+                <div class="schedule-page__session-status">
+                  @if (isRetroactiveLocked(session)) {
+                    <app-status-dot tone="inactive">點名已截止</app-status-dot>
+                  } @else if (display(session); as d) {
+                    <app-status-dot [tone]="d.tone">{{ d.label }}</app-status-dot>
+                  }
 
-                @if (session.takenAt) {
-                  <span class="schedule-page__summary">
-                    <span class="schedule-page__summary-item schedule-page__summary-item--present">
-                      到 {{ session.presentCount }}
+                  @if (session.takenAt) {
+                    <span class="schedule-page__summary">
+                      <span
+                        class="schedule-page__summary-item schedule-page__summary-item--present"
+                      >
+                        到 {{ session.presentCount }}
+                      </span>
+                      <span class="schedule-page__summary-item schedule-page__summary-item--leave">
+                        假 {{ session.onLeaveCount }}
+                      </span>
+                      <span class="schedule-page__summary-item schedule-page__summary-item--absent">
+                        缺 {{ session.absentCount }}
+                      </span>
                     </span>
-                    <span class="schedule-page__summary-item schedule-page__summary-item--leave">
-                      假 {{ session.onLeaveCount }}
-                    </span>
-                    <span class="schedule-page__summary-item schedule-page__summary-item--absent">
-                      缺 {{ session.absentCount }}
-                    </span>
-                  </span>
-                }
-              </div>
+                  }
+                </div>
 
-              @if (
-                isTeacherLed() &&
-                canTakeAttendance(session) &&
-                !isUpcoming(session) &&
-                !isRetroactiveLocked(session)
-              ) {
-                <p-button
-                  styleClass="schedule-page__action"
-                  [label]="session.takenAt ? '修改點名' : '開始點名'"
-                  size="small"
-                  [outlined]="!!session.takenAt"
-                  [severity]="session.takenAt ? 'secondary' : 'primary'"
-                  (onClick)="openPanel(session)"
-                />
-              }
-              @if (isTeacherLed() && canWriteClassLog(session)) {
-                <!--
+                @if (
+                  isTeacherLed() &&
+                  canTakeAttendance(session) &&
+                  !isUpcoming(session) &&
+                  !isRetroactiveLocked(session)
+                ) {
+                  <p-button
+                    styleClass="schedule-page__action"
+                    [label]="session.takenAt ? '修改點名' : '開始點名'"
+                    size="small"
+                    [outlined]="!!session.takenAt"
+                    [severity]="session.takenAt ? 'secondary' : 'primary'"
+                    (onClick)="openPanel(session)"
+                  />
+                }
+                @if (isTeacherLed() && canWriteClassLog(session)) {
+                  <!--
                   教務日誌。v1a 只有撰寫，**沒有發布** —— 發布不可逆，
                   而家長端讀取與 LINE 推播都還不存在。
                 -->
-                <p-button
-                  styleClass="schedule-page__action"
-                  label="寫日誌"
-                  icon="pi pi-book"
-                  size="small"
-                  [outlined]="true"
-                  severity="secondary"
-                  (onClick)="openClassLog(session)"
-                />
-              }
-              @if (isTeacherLed() && canWriteContactBook(session)) {
-                <!-- 聯絡簿模式的班：同一個位置，開的是學生名單不是日誌表單 -->
-                <p-button
-                  styleClass="schedule-page__action"
-                  label="寫聯絡簿"
-                  icon="pi pi-pencil"
-                  size="small"
-                  [outlined]="true"
-                  severity="secondary"
-                  (onClick)="openContactBook(session)"
-                />
-              }
-            </article>
-          } @empty {
-            <p class="schedule-page__no-class">沒有課</p>
-          }
-        </div>
-      </section>
-    }
-  </div>
+                  <p-button
+                    styleClass="schedule-page__action"
+                    label="寫日誌"
+                    icon="pi pi-book"
+                    size="small"
+                    [outlined]="true"
+                    severity="secondary"
+                    (onClick)="openClassLog(session)"
+                  />
+                }
+                @if (isTeacherLed() && canWriteContactBook(session)) {
+                  <!-- 聯絡簿模式的班：同一個位置，開的是學生名單不是日誌表單 -->
+                  <p-button
+                    styleClass="schedule-page__action"
+                    label="寫聯絡簿"
+                    icon="pi pi-pencil"
+                    size="small"
+                    [outlined]="true"
+                    severity="secondary"
+                    (onClick)="openContactBook(session)"
+                  />
+                }
+              </article>
+            } @empty {
+              <p class="schedule-page__no-class">沒有課</p>
+            }
+          </div>
+        </section>
+      }
+    </div>
+  }
 </div>

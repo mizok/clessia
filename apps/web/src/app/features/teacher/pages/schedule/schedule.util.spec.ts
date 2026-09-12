@@ -329,8 +329,10 @@ describe('教務日誌入口的分流', () => {
  * 這一條測的是那個互斥性本身 —— 兩個判準各自對，仍然可能同時為真或同時為假。
  */
 describe('兩型入口互斥', () => {
-  const both = (s: { status: string; usesContactBook: boolean }) =>
-    [canWriteClassLog(s as never), canWriteContactBook(s as never)];
+  const both = (s: { status: string; usesContactBook: boolean }) => [
+    canWriteClassLog(s as never),
+    canWriteContactBook(s as never),
+  ];
 
   it('日誌模式 → 只有日誌', () => {
     expect(both({ status: 'scheduled', usesContactBook: false })).toEqual([true, false]);

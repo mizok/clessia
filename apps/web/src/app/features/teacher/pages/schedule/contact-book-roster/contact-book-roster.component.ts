@@ -1,12 +1,16 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
 import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
-import {
-  ContactBookService,
-  type MissingContactBookStudent,
-} from '@core/contact-book.service';
+import { ContactBookService, type MissingContactBookStudent } from '@core/contact-book.service';
 import { ContactBookEntryDialogComponent } from '@shared/components/contact-book-entry-dialog/contact-book-entry-dialog.component';
 
 /** 開這份名單需要的最小資料 —— 課堂卡上都有 */
