@@ -1,6 +1,6 @@
 ---
 title: 整站 UI 地圖 —— 方法頁
-summary: 怎麼畫一頁 UI 地圖、怎麼用瀏覽器兩向比對驗證它，以及八個會讓驗證靜靜失效的坑。
+summary: 怎麼畫一頁 UI 地圖、怎麼用瀏覽器兩向比對驗證它，以及十個會讓驗證靜靜失效的坑。
 category: spec
 status: developing
 tags: [sitemap, method]
@@ -177,7 +177,7 @@ const vis = all.filter(visible);
 
 `read_page` 仍然有用（它給 `ref`，`computer` 工具可以直接點），只是**不要拿它當清單的真相**。
 
-## 八個會讓驗證靜靜失效的坑
+## 十個會讓驗證靜靜失效的坑
 
 ### 1. toggle：你以為元件壞了，其實你按了兩次
 
@@ -294,6 +294,14 @@ document.elementFromPoint((frameX * innerWidth) / 框寬, (frameY * innerHeight)
 `pointerdown`、hover 才出現的、**失焦才關的浮層（坑 5 那一族）**。
 用了就要在該頁的驗證紀錄裡寫出來，不要混在「實按驗過」裡面。
 
+**而且它可能只生效一半 —— 那比完全不生效更難看出來。** labor-4 在 `/admin/payments`
+用 `element.click()` 依序點三個催繳篩選（`p-togglebutton`），**network 確實送出了
+`outstanding=true` / `dueWithin=7` / `overdue=true` 三支請求，但表格與選中狀態
+自始至終停在「全部」**。真滑鼠點下去才整組換掉。
+
+**所以「有送出請求」不能當作「這個控制項被切換了」的證據** —— 它只證明處理函式跑過，
+沒有證明元件的狀態跟著走。兩邊都只驗到一半，而**兩個一半湊不成一個完整的驗證**。
+
 ### 7. 量到一半身分被換掉，而畫面不會告訴你
 
 **auth cookie 是 host 層級、不分 port，而全席共用同一個 Chrome profile** ——
@@ -367,6 +375,49 @@ from students s ...;
 > （這裡原本有一份完整的副本。**同一條規則寫在兩個地方會漂**，所以留位階高的那份 ——
 > 它就在取樣程式碼旁邊，是這條規則真正被執行的地方。）
 
+### 9. 關閉對話框之後**不要固定等待再斷言** —— 要輪詢
+
+坑 2 要求「關閉後先斷言 `document.querySelector('.p-dialog') === null` 再探下一支」。
+**那條規則沒說要等多久，而預設的猜測會太短。**
+
+實測（`/admin/payments`）：`.p-dialog` 從按下關閉到真的從 DOM 消失要 **1.8–2.0 秒**。
+先用 700ms、再用 1200ms 去問，兩次都得到「還在」——
+於是先後判定「關閉鍵沒作用」與「連 ✕ 也沒作用」，**而截圖顯示它早就關了**。
+
+**這是坑 1 的第三種變體：不是按兩次，是問得太早。**（坑 1 是按兩次，坑 6 是沒按到。）
+
+```js
+const gone = async (ms = 6000) => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    if (!document.querySelector('.p-dialog')) return true;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return false; // 這時候才可以懷疑元件
+};
+```
+
+⚠️ **對話框會疊。** `/admin/payments` 的帳單詳情裡按「記錄收款」會開第二層，
+`.p-dialog` 同時存在兩個。疊起來的情境要比對**數量**，
+`=== null` 會把「上面那層關掉了、下面那層還在」讀成「沒關掉」。
+
+### 10. 元件原始碼寫了什麼，跟使用者看到什麼，中間隔著一層版面計算
+
+**讀原始碼比從畫面推論可靠**（見「不要做的事」），但它有一個特定的失效面：
+**凡是由容器寬度決定的東西，原始碼上看得到、畫面上不一定在。**
+
+`_shared/audit-log-dialog` 的前一版有兩句從原始碼讀出來的敘述，**兩句都是錯的**：
+
+| 原始碼上看到的                                           | 實際畫面（1504px 桌機）                                                                                                                              |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `expandControlPosition="start"` → 「每列可展開詳細資訊」 | **一顆展開鍵都沒有** —— 它由 `responsive-table` 的 `hasCollapsedColumns()` 決定，四欄 min-width 合計 640px、對話框內容區塞得下，所以不收合也就不產生 |
+| `currentPageReportTemplate: '顯示 {first} - {last}…'`    | **顯示 `第 1 / 2 頁`** —— 容器 ≤ 768px 時 `responsive-table` 切 compact 分頁器，**改寫樣板**並藏掉頁碼與首末頁鍵；800px 寬的對話框正好落在門檻內     |
+
+**兩句讀起來都跟量過的事實一模一樣**，這是它們危險的地方。
+
+判準：**元件有 `ResizeObserver` / `containerWidth` / `collapsible` / `compact` 這一族的字眼，
+就不要從原始碼下結論**，去量。反過來也成立 —— 量到的東西要標寬度，換個寬度它就不是那樣。
+
 ## 環境：先確認你量的是哪一版
 
 **dev server 可能服務別的 checkout。** 開工前：
@@ -384,6 +435,19 @@ lsof -nP -iTCP:4200 -sTCP:LISTEN -t | head -1 | xargs -I{} lsof -p {} -a -d cwd 
 ### 登入
 
 一次性 magic link（`npm run login-link`，需 `LOGIN_EMAIL`）。
+**被別席踢掉時自己重發就好，不必等對方讓路** —— 但在 worktree 裡直接跑會停在
+「缺少環境變數 `DATABASE_URL`」，補完又停在 `WEB_URL`（原因就是上面那段：
+`WEB_URL` 在 `wrangler.toml` 不在 `.dev.vars`，而這支腳本不讀 `wrangler.toml`）。
+**在 worktree 根目錄**跑這一行：
+
+```sh
+set -a; source <主 checkout>/apps/api/.dev.vars; set +a
+WEB_URL=http://localhost:4200 LOGIN_EMAIL=admin@demo.clessia.app \
+  npx tsx apps/api/src/scripts/login-link.ts
+```
+
+（`cd` 到別的目錄跑會 `ERR_MODULE_NOT_FOUND` —— 腳本路徑是相對的。）
+
 **auth cookie 是 host 層級不分 port**，所以：
 
 - 4201 的頁面可以用 callback 指向 4200 的連結登入
