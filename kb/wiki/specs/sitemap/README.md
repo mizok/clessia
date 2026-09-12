@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, method]
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-13
 ---
 
 # 整站 UI 地圖 —— 方法頁
@@ -207,6 +207,357 @@ const vis = all.filter(visible);
 **`read_page` 會漏報，裸 DOM 查詢會多報，兩個方向都會讓兩向比對說謊。**
 
 `read_page` 仍然有用（它給 `ref`，`computer` 工具可以直接點），只是**不要拿它當清單的真相**。
+
+## Phase 2：同一頁在 390 / 768 / 1024 再量一次（#756）
+
+Phase 1 的 53 頁 + 10 支 `_shared` **全部只量 1504px 桌機**。改版要決定 RWD 策略，窄寬度的
+現況是必要輸入。**方法是 Phase 1 的九步不變，只換視窗寬度**，另加四件手機專屬的量測
+（溢出、觸控目標、差集、鍵盤可達性）。上面所有的坑在窄寬度下**一條都沒有失效**，
+下面只寫 Phase 1 沒有的那幾層。
+
+### ⚠️ `resize_window` 在這台機器上是空操作，而它回報成功
+
+2026-09-13 實測（labor-6）：
+
+```
+resize_window(390, 844)  → "Successfully resized window …"，innerWidth 仍是 1504
+resize_window(1000, 800) → 同上，outerWidth/outerHeight 一個都沒動
+```
+
+**兩個獨立的旁證說明這不是偶發**：
+
+- MCP 的分頁**永遠** `document.visibilityState === 'hidden'`。把 Chrome 用
+  `osascript … to activate` 帶到前景之後 `document.hasFocus()` 變成 `true`，
+  **`visibilityState` 還是 `hidden`** —— 我們的分頁不是那個視窗裡被選中的那一個。
+- `osascript` 問 Chrome 要視窗與分頁清單，**列不到任何一個 localhost 分頁**
+  （只有 `chrome://whats-new` 與 `chrome://newtab`），而同一時刻擴充功能正在那個分頁上跑。
+
+**所以坑 6（真滑鼠點擊整片失效）與坑 12（動畫不跑）在這個環境是常態而不是意外**，
+不是「這一次剛好分頁在背景」。
+
+**它的失敗形狀是最壞的那一種**：工具說成功、頁面照樣渲染、每一個數字都合理 ——
+**你會拿 1504 的數字寫成 390 的地圖，而兩向比對照樣 0 差異**（跟坑 6、坑 8 同一族：
+比對的兩邊來自同一個錯的寬度）。
+
+**做法：不要用 `resize_window`。量之前一定要斷言寬度**，見下。
+
+### 做法：同源 iframe 就是 viewport
+
+把要量的路由載進一個 390px 寬的 `<iframe>`。**iframe 有自己的 viewport**，所以
+media query、`matchMedia`、container query、ResizeObserver 寫的 `--window-width`
+**全部跟著 iframe 走**（四項都實測過）。
+
+宿主頁面用同源的任一頁即可（`/qr-checkin` 最輕）。整份探測工具：
+
+```js
+window.__P = {
+  async open(path, w, h) {
+    document.querySelectorAll('#__probe').forEach((e) => e.remove());
+    const f = document.createElement('iframe');
+    f.id = '__probe';
+    f.style.cssText = `position:fixed;left:0;top:0;width:${w}px;height:${h}px;border:0;z-index:2147483647;background:#fff`;
+    f.src = path;
+    document.body.appendChild(f);
+    await new Promise((r) => f.addEventListener('load', r, { once: true }));
+    await new Promise((r) => setTimeout(r, 2000));
+    return f;
+  },
+  get f() {
+    return document.getElementById('__probe');
+  },
+  get w() {
+    return this.f.contentWindow;
+  },
+  get d() {
+    return this.f.contentDocument;
+  },
+
+  // 每一次量測的第一件事：確認你真的在你以為的寬度上
+  env() {
+    const w = this.w;
+    return {
+      iw: w.innerWidth,
+      ih: w.innerHeight,
+      windowWidthVar: w
+        .getComputedStyle(this.d.documentElement)
+        .getPropertyValue('--window-width')
+        .trim(),
+      mq: {
+        max640: w.matchMedia('(max-width:640px)').matches,
+        max768: w.matchMedia('(max-width:768px)').matches,
+        max1024: w.matchMedia('(max-width:1024px)').matches,
+        max1280: w.matchMedia('(max-width:1280px)').matches,
+      },
+    };
+  },
+};
+```
+
+**每個寬度重新 `open()` 一次，不要改既有 iframe 的寬度。** 載入後才變寬與載入時就那麼寬
+是兩種情境，後者才是使用者會遇到的；而**只有前者會讓「只在初始化時算一次」的程式碼
+留在舊寬度上**，那是量測產生的假象，不是現況。
+
+它的三個界限，都要知道：
+
+| 界限                                                                                 | 影響                                                                                               |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| 宿主視窗內高只有 752 —— **844 高的 iframe 底部 92px 在截圖裡看不到、真滑鼠也點不到** | DOM 量得到（`getBoundingClientRect` 照常）。底部固定列要靠 DOM 不靠眼睛                            |
+| 宿主頁面自己也是 Angular app                                                         | 它的元素被 iframe 蓋住，但**全域鍵盤監聽仍在**。鍵盤量測讀 iframe 的 `activeElement`，不要讀外層的 |
+| `@media (pointer: coarse)` **模擬不了**                                              | 見下面「觸控目標」那一節 —— 這是 Phase 2 最容易寫出假結論的地方                                    |
+
+**一個附帶的好處，順便解掉了坑 7 的排班問題**：iframe 不動共用視窗，所以
+**兩席可以同時量不同寬度而不互相干擾**。要協調的只剩登入身分。
+
+### 三個寬度分別落在哪一段 —— 以及沒有人量的那一段
+
+斷點的真身是 [`apps/web/src/app/shared/_breakpoints.scss`](../../../../apps/web/src/app/shared/_breakpoints.scss)：
+`640 / 768 / 1024 / 1280`，兩個方向的 mixin **邊界不對稱**：
+
+- `respond-to($bp)` → `@media (max-width: $bp)`，**含等號**
+- `respond-from($bp)` → `@media (min-width: $bp + 0.02px)`（`+ 0.02` 是刻意的，
+  讓兩者互斥，理由寫在那個檔案裡）
+
+**所以「量 768」量到的是 `≤ 768` 那一側**，不是 768 以上那一側。要看邊界另一邊得量 769。
+
+| 量測寬度       | 落在哪一段    | 誰量的                 |
+| -------------- | ------------- | ---------------------- |
+| **390**        | `(0, 640]`    | Phase 2                |
+| **768**        | `(640, 768]`  | Phase 2（只記差集）    |
+| **1024**       | `(768, 1024]` | Phase 2（只記差集）    |
+| `(1024, 1280]` | —             | **沒有人量過**（見下） |
+| **1504**       | `(1280, ∞)`   | Phase 1                |
+
+⚠️ **`(1024, 1280]` 這一段目前沒有任何量測** —— 四個寬度跳過了它。
+**不要把「量了四個寬度」讀成「四個斷點都驗過」**；需要那一段就補量 1280，
+不需要就讓這一行留著，免得下一個人以為涵蓋完整。
+
+### 高度也會改版面，所以每頁要寫「寬 × 高」
+
+不是所有版面只看寬度。`public-shell` 的品牌面高度是
+`calc(var(--window-height) * 0.36)`，夾在 `min-height: 232px` 與 `max-height: 330px` 之間：
+
+| 視窗       | 算出來                         | 實測 |
+| ---------- | ------------------------------ | ---- |
+| 390 × 844  | 844 × 0.36 = 303.8             | 304  |
+| 768 × 1024 | 1024 × 0.36 = 368.6 → 夾到上限 | 330  |
+| 1024 × 768 | 768 × 0.36 = 276.5             | 276  |
+
+**同一個寬度換個高度就是不同的畫面。** 固定值（讓每頁可比對、也可重驗）：
+
+| 寬   | 高   | 對應     |
+| ---- | ---- | -------- |
+| 390  | 844  | 手機直向 |
+| 768  | 1024 | 平板直向 |
+| 1024 | 768  | 平板橫向 |
+
+### 每頁加一節 `## 390px`，不重抄整張元素表
+
+1504 那半**一個字都不要動**。新增一節，五個小段：
+
+```markdown
+## 390px
+
+- **量測**：390 × 844 ／ 前端 `<commit>` ／ 身分 `<email>`（量測前後各打一次 `/api/me`）
+
+### 版面怎麼變
+
+（側欄 → 底欄？表格 → 卡片？哪一個斷點翻的？）
+
+### 差集（1504 ↔ 390）
+
+| 只在 390 可見 | 只在 1504 可見 | 兩邊都有但形狀不同 |
+
+### 水平溢出
+
+有／無；有就寫哪個元素撐開的
+
+### 觸控目標 < 44px
+
+| 元素 | 量到的尺寸 | `(pointer: coarse)` 有沒有接住 |
+
+### 鍵盤可達性
+
+Tab 序列、focus 看不看得見、click-only 而鍵盤到不了的元素
+
+### 未驗與原因
+```
+
+**768 / 1024 只寫差集**：跟 390 比、跟 1504 比，哪些元素出現或消失。
+**沒有差異就寫「與 390 同」一行**，不要把同一張表抄三遍（c11）。
+
+### 水平溢出：斷言 + 指出是誰撐開的
+
+```js
+__P.overflow = function () {
+  const de = this.d.documentElement,
+    iw = this.w.innerWidth;
+  return {
+    innerWidth: iw,
+    scrollWidth: de.scrollWidth,
+    overflow: de.scrollWidth > iw,
+    culprits: [...this.d.querySelectorAll('*')]
+      .filter((e) => e.getBoundingClientRect().right > iw + 0.5 && this.vis(e))
+      .slice(0, 8)
+      .map((e) => e.tagName.toLowerCase() + '.' + (e.getAttribute('class') || '').split(' ')[0]),
+  };
+};
+```
+
+`+ 0.5` 不是隨手寫的：`getBoundingClientRect` 是小數，剛好貼齊右緣的元素會回
+`right = 390.0000001` 之類的值，沒有容差的話**每一頁都會回報一堆假的溢出元素**，
+而在一份「全部都有溢出」的報告裡，真的那一筆看起來跟其他一樣。
+
+**表格與程式碼區塊有自己的 `overflow-x: auto` 是設計，不是溢出** ——
+斷言的是 `documentElement`，不是每個容器。
+
+### 觸控目標：你量到的是「滑鼠指標下」的尺寸
+
+**`@media (pointer: coarse)` 在這個環境模擬不了**（要 DevTools 的裝置模擬，MCP 沒有）。
+而這個 repo **有 20 支 SCSS 用它把命中區抬到 44px**
+（查法：`grep -rl "@media (pointer: coarse)" apps/web/src | grep \.scss$`），所以：
+
+> **一份沒有交叉比對 coarse 規則的 `< 44px` 清單，會把「桌機 42px、手機 44px」的元素
+> 記成缺陷，同時把「桌機 34px、手機還是 34px」的元素記成同一件事。**
+> 兩者在清單上長得一模一樣，而只有後者是改版要處理的。
+
+交叉比對不必去翻 SCSS，直接問 CSSOM：
+
+```js
+__P.coarseRules = function () {
+  const out = [];
+  const walk = (rules) => {
+    for (const r of rules) {
+      if (r.type === 4 /* CSSMediaRule */) {
+        if (/pointer:\s*coarse/.test(r.conditionText || r.media.mediaText || '')) {
+          for (const inner of r.cssRules) if (inner.selectorText) out.push(inner.selectorText);
+        } else walk(r.cssRules);
+      } else if (r.cssRules) walk(r.cssRules);
+    }
+  };
+  for (const ss of this.d.styleSheets) {
+    try {
+      walk(ss.cssRules);
+    } catch (e) {}
+  }
+  return out;
+};
+// 對每個 < 44px 的元素：coarse.filter((s) => el.matches(s))
+```
+
+兩個實測的對照（`_shared/shell-layout`，admin）：
+
+| 元素                      | 量到   | coarse 命中                               | 真機上      |
+| ------------------------- | ------ | ----------------------------------------- | ----------- |
+| `.shell-header__user`     | 136×42 | `.shell-header__user { min-height:44px }` | **44** ✓    |
+| `.sidebar__item`（18 條） | 223×34 | **無**                                    | **還是 34** |
+
+> **這一節跟既有的 gate 互補，不要互相取代。**
+> `tools/agent-harness/lib/touch-target.mjs` 掃的是**自刻元件的 SCSS 宣告**，
+> 它**看不到 PrimeNG 元件、看不到從父層繼承的尺寸**（它自己的檔頭就寫著這件事）。
+> Phase 2 量的是**執行期的實際矩形**，涵蓋 PrimeNG 與繼承，但**只涵蓋你這一輪渲染出來的東西**。
+> **gate 綠 ≠ 觸控目標合格**，而 Phase 2 的清單也不是全集。
+
+### 取樣器要補兩道濾網 —— Phase 1 的版本在窄寬度下會灌水
+
+「元素清單以 DOM 為準」那一節的 `visible()` 只看 `display` / `visibility` / `offsetParent`。
+**三種在 Phase 2 會出事的東西它全部放行**：
+
+| 形狀                             | 實例                                                    |
+| -------------------------------- | ------------------------------------------------------- |
+| 寬或高是 0                       | 390px 下的 `app-sidebar` 是 `0 × 724`                   |
+| 祖先 `opacity: 0`                | 收合的側欄群組（`collapsible` 用 `0fr` + `opacity: 0`） |
+| 被祖先的 `overflow: hidden` 裁掉 | 同上，子元素照樣回報 `223 × 34`                         |
+
+補強版（`why()` 回 `null` 才算看得見，回字串就是它為什麼看不見）：
+
+```js
+__P.why = function (e) {
+  const b = e.getBoundingClientRect();
+  if (b.width <= 0 || b.height <= 0) return 'zero-size';
+  const cs = this.w.getComputedStyle(e);
+  if (cs.visibility === 'hidden' || cs.display === 'none' || e.offsetParent === null)
+    return 'display/visibility';
+  for (let p = e; p; p = p.parentElement) {
+    if (this.w.getComputedStyle(p).opacity === '0')
+      return 'opacity:0 @ ' + (p.getAttribute('class') || p.tagName);
+  }
+  const cx = b.left + b.width / 2,
+    cy = b.top + b.height / 2;
+  if (cx < 0 || cy < 0 || cx > this.w.innerWidth || cy > this.w.innerHeight) return 'offscreen';
+  const hit = this.d.elementFromPoint(cx, cy);
+  if (!hit || (!e.contains(hit) && !hit.contains(e))) return 'clipped/covered';
+  return null;
+};
+```
+
+**這解掉了坑 4 的一半。** 實測 `/admin/dashboard` 1504px：側欄的 18 條 `a.sidebar__item`
+裡 **16 條是 `opacity:0 @ collapsible__inner`，只有 2 條真的看得見**。
+Phase 1 只能說「樹裡有但使用者看不到」，現在分得出來是哪 16 條。
+
+> ⚠️ **反過來會誤判，而且誤判方向是「把環境當成產品」**：
+> `opacity: 0` 且該元素的 `animationName` 不是 `none` → **那是坑 12（背景分頁動畫不跑），
+> 不是它被藏起來了**。實測 `/admin/dashboard` 390px 的底欄「更多」面板：
+> `animation: sheet-up`、`opacity: 0`、`transform: translateY(366px)`，
+> 十四個項目尺寸全部正確（84×73）**但永遠停在動畫的第 0 幀**。
+>
+> **判準：`opacity:0` 先問 `getComputedStyle(el).animationName`。** 有名字就先懷疑環境。
+
+### 鍵盤可達性：真的 Tab 鍵在這個環境按不動
+
+實測：把焦點放進 iframe 的第一個連結、用 `computer` 按 `Tab`，
+**`activeElement` 一動也不動**（成因同上：分頁不在前景）。
+
+**所以 Tab 序列用推導，不用實按 —— 但推導要先驗前提**：
+
+```js
+// 前提：全頁沒有正數 tabindex。有的話 tab 序列就不是 DOM 序，這個推導作廢
+[...d.querySelectorAll('[tabindex]')].filter((e) => Number(e.getAttribute('tabindex')) > 0).length;
+
+__P.tabbables = function (root) {
+  const sel =
+    'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),' +
+    'textarea:not([disabled]),[tabindex]:not([tabindex="-1"]),iframe,area[href],[contenteditable]';
+  return [...(root || this.d.body).querySelectorAll(sel)].filter((e) => !this.why(e));
+};
+```
+
+**焦點看不看得見**用程式焦點就量得到（`el.focus()` 是真的焦點，不是合成事件）：
+
+```js
+e.focus();
+const cs = getComputedStyle(e);
+({
+  focused: d.activeElement === e,
+  outline: cs.outlineStyle + ' ' + cs.outlineWidth,
+  boxShadow: cs.boxShadow,
+  focusVisible: e.matches(':focus-visible'),
+});
+```
+
+**`Escape` 關對話框量不到** —— 它要真鍵盤，而合成的 `KeyboardEvent` 打不到 CDK overlay
+（labor-2 已證）。**標「未驗：分頁在背景」**，不要用合成事件湊一個答案。
+`document.visibilityState === 'visible'` 的那一天再補。
+
+#### 這一趟最常撞到的形狀：`<div>` 帶 `(click)`、沒有 `tabindex`
+
+**它同時造成兩件事，而兩件都是靜靜發生的**：取樣器看不到它（地圖漏列），
+鍵盤也到不了它（可達性缺口）。README 上面已經記過一個
+（`/admin/students/:id` 的在籍班級列），Phase 2 在外框上又撞到兩個，
+而且是**整個導覽的入口**：
+
+| 元素                        | 後果                                                      |
+| --------------------------- | --------------------------------------------------------- |
+| `.sidebar__group-header` ×6 | 六個群組只能用滑鼠展開 → 側欄 18 條裡 **16 條鍵盤到不了** |
+| `.shell-header__user`       | 帳號設定與登出只能用滑鼠                                  |
+
+**做法：每一頁除了跑取樣器，另外掃一次「`cursor: pointer` 但不在 tabbable 集合裡」的元素。**
+那一份差集就是這一類。
+
+### Phase 2 的邊界（跟 Phase 1 相同的那幾條照舊）
+
+- **零寫入。** 對話框只開與關；會直接寫入的動作一律不按，記「未驗 + 原因」
+- **不順手修。** 溢出、`< 44px`、鍵盤到不了都是**記現況**；缺陷另開 issue 給計畫席
+- **不動 1504 那半的內容。** 發現 Phase 1 寫錯了，在 `## 390px` 裡註明，由計畫席裁定要不要改
 
 ## 十二個會讓驗證靜靜失效的坑
 
@@ -520,6 +871,11 @@ opacityAfter1500ms: "1"    ← 200ms 的 transition 連開始都沒有
   「**未驗：分頁在背景，這一類量不到**」
 - **`'visible'`** → 才輪到去懷疑元件
 
+> 🔴 **2026-09-13 再訂正（labor-6）**：這不是「這一次剛好在背景」——
+> **MCP 的分頁在這台機器上永遠是 `hidden`**（三個獨立旁證見 Phase 2 一節）。
+> 所以「先量一下 `visibilityState`」的結果**預設就是壞的那一邊**，
+> 動畫、真滑鼠、真鍵盤三類全部要當成量不到，而不是偶爾量不到。
+
 > **這條跟坑 7（身分被換掉）是同一族**：**環境的失效方向跟產品缺陷長得一模一樣**，
 > 而分辨它們的唯一辦法是**去量環境本身**，不是盯著畫面推理。
 
@@ -605,3 +961,10 @@ WEB_URL=http://localhost:4200 LOGIN_EMAIL=admin@demo.clessia.app \
 - [[specs/sitemap/_shared/shell-layout]]（登入後三角色共用）／
   [[specs/sitemap/_shared/public-shell]]（公開六頁共用，**跟前者是兩個不同的外框**）／
   [[specs/sitemap/_shared/attendance-roster-panel]]
+
+**Phase 2（`## 390px` 那一節怎麼寫）**：
+
+- [[specs/sitemap/_shared/shell-layout]] —— **版面真的換了一套**（側欄 ↔ 底欄 + 「更多」面板），
+  差集表最完整，也是「`<div>` 帶 `(click)` 導致鍵盤到不了」的示範
+- [[specs/sitemap/_shared/public-shell]] —— **差集為零**長什麼樣：四個寬度同樣 5 個元素，
+  只有版面方向與品牌面高度在變。**零差異的頁也要寫，而且要寫出你量過哪幾個寬度**
