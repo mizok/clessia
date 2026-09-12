@@ -42,4 +42,14 @@
     font-size: 0.8125rem;
     color: var(--zinc-500);
   }
+
+  // 驗證失敗的持久標記（#716）。**這是主體訊號，toast 是輔助。**
+  // 沿用 `staff-form-dialog` / `school-exam-form-dialog` 既有的 `__error-text`
+  // 形狀 —— 同一個 repo 裡最近的正確答案，不另外發明一套。
+  &__error-text {
+    display: block;
+    margin-top: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--error-600);
+  }
 }

@@ -20,8 +20,12 @@
       (ngModelChange)="updateForm('name', $event)"
       placeholder="請輸入學生姓名"
       [disabled]="loading()"
+      [class.p-invalid]="!!errors()['name']"
       class="w-full"
     />
+    @if (errors()['name']; as msg) {
+      <span class="form-dialog__error-text">{{ msg }}</span>
+    }
   </div>
 
   <!-- 家長（選填，僅在未預填家長時顯示 —— 對齊「新增學生」兩個入口的能力） -->
@@ -61,8 +65,12 @@
         optionValue="value"
         placeholder="選擇年級"
         [disabled]="loading()"
+        [class.p-invalid]="!!errors()['grade']"
         styleClass="w-full"
       />
+      @if (errors()['grade']; as msg) {
+        <span class="form-dialog__error-text">{{ msg }}</span>
+      }
     </div>
     <div class="form-dialog__field">
       <label class="form-dialog__label">
@@ -80,6 +88,7 @@
           [showClear]="true"
           placeholder="選擇或搜尋學校"
           [disabled]="loading()"
+          [class.p-invalid]="!!errors()['schoolId']"
           [appendTo]="'body'"
           styleClass="w-full"
         />
@@ -93,6 +102,9 @@
           pTooltip="新增學校"
         />
       </div>
+      @if (errors()['schoolId']; as msg) {
+        <span class="form-dialog__error-text">{{ msg }}</span>
+      }
       @if (creatingSchool()) {
         <div class="form-dialog__school-create">
           <input
@@ -248,7 +260,7 @@
       [icon]="loading() ? 'pi pi-spinner pi-spin' : 'pi pi-check'"
       [loading]="loading()"
       (onClick)="save()"
-      [disabled]="!isFormValid()"
+      [disabled]="loading()"
     />
   </div>
 </div>
