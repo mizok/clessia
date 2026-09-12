@@ -51,6 +51,7 @@
 | Harness 自我測試   | `npm run harness:test`                                                                    |
 | KB 檢查 / 重建索引 | kb-wiki skill：`/kb-wiki lint` / `/kb-wiki map`（**使用者層級，不進版控** —— 見下）       |
 | 重錄測試基線       | `npm run test:baseline`                                                                   |
+| 抓會過期的測試     | `npm run test:timetravel`（把時鐘推 3 個月跑一次；`TT_MONTHS=12` 可改）                   |
 | Supabase 本機      | `npm run db:start` / `db:reset`                                                           |
 | 新增 migration     | `npx supabase migration new <description>`                                                |
 | 產生元件等         | `npx nx g @schematics/angular:component foo --type component`（一律帶 `--type`）          |

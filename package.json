@@ -19,7 +19,8 @@
     "bootstrap": "tsx apps/api/src/scripts/bootstrap-org.ts",
     "login-link": "tsx apps/api/src/scripts/login-link.ts",
     "preflight": "npm run harness && npm run harness:test && node tools/agent-harness/preflight.mjs",
-    "smoke": "node tools/agent-harness/smoke.mjs"
+    "smoke": "node tools/agent-harness/smoke.mjs",
+    "test:timetravel": "TT_MONTHS=${TT_MONTHS:-3} nx test web --setup-files=apps/web/timetravel.setup.ts && cd apps/api && TT_MONTHS=${TT_MONTHS:-3} npx vitest run"
   },
   "prettier": {
     "printWidth": 100,
