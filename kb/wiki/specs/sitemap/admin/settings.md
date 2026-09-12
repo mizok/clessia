@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-13
 ---
 
 # 系統設定（tab 殼）
@@ -102,3 +102,36 @@ updated: 2026-09-12
 | 真實指標／鍵盤操作 tab 列                 | 本輪真滑鼠與真鍵盤事件都送不進頁面   |
 | 舊網址（`/admin/campuses` 等）的 redirect | 沒有逐一打過，只讀了 `app.routes.ts` |
 | 手機寬度下 tab 列的樣子                   | 只量 1504px                          |
+
+## 390px
+
+- **量測**：390 × 844 / 768 × 1024 / 1024 × 768 / 1504 × 752 ／ 前端 `3f2197f8`（4200，主 checkout ＝ `origin/main`）／ 身分 `admin@demo.clessia.app`（量測前後各打一次 `GET /api/me`）
+- **手段**：同源 iframe 當 viewport；`< 44px` 的「真機」欄是**把 `(pointer: coarse)` 區塊注進去重量一次**得到的，不是推測（方法頁 Phase 2）
+- **外框**（頂列、側欄 ↔ 底欄）不屬於這一頁，見 [[specs/sitemap/_shared/shell-layout]]
+
+### 這條路由是分頁殼 + 轉址
+
+實測：390 × 844 下開 `/admin/settings`，`location.pathname` 落在
+**`/admin/settings/campuses`**，四個寬度都一樣。
+
+`<main>` 內容是一個**帶四個分頁籤的殼**（`分校 / 學校 / 科目 / 一般`），
+底下渲染當前分頁。所以這一頁的窄寬度現況＝**分頁籤 + 當前分頁**，
+各分頁自己的現況記在它們自己的地圖裡：
+
+- [[specs/sitemap/admin/settings-campuses]]（預設落點）
+- [[specs/sitemap/admin/settings-schools]]
+- [[specs/sitemap/admin/settings-subjects]]
+- [[specs/sitemap/admin/settings-general]]
+
+### 四個分頁籤在每一個寬度都一樣
+
+`分校 / 學校 / 科目 / 一般` 四顆 `p-tab`，**各 `62 × 53`，四個寬度逐項相同**，
+沒有橫向捲、沒有收成下拉。（對照 [[specs/sitemap/admin/courses]] 的分校頁籤：
+那裡有 13 顆，390 下只有 4 顆在畫面內。**顆數少的時候不需要捲，這是資料量的差別不是設計的差別。**）
+
+### 未驗與原因
+
+| 項目                   | 原因                                                                                                                  |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 分頁籤實按切換         | 四個分頁各自用網址直接開過（比點擊多不了資訊，而且省四次往返）。**這是對工單步驟 5 的刻意簡化，理由寫在這裡供推翻。** |
+| `Escape` / 真的 Tab 鍵 | 需要前景分頁                                                                                                          |
