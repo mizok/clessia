@@ -112,21 +112,107 @@ curl -s -o /dev/null -D - "$SUPABASE_URL/rest/v1/sessions?select=id&<條件>" \
 不是當成結論。驗法就是拿一個**同形的第二實例**去撞 —— 同一個機制會在別的頁面重現，
 歸因錯的那些不會。
 
-## 七、給下一個接手的人
+## 七、量「錯誤狀態」不必停服務 —— 把 XHR 的位址改指到死 port
 
-**這一席交接時的未完成項**（狀態，會過期，自己查）：
+`#760` 的工單原本寫「停掉 8787（精準 kill，量完重啟）」。**不需要。**
 
-- **teacher 5 頁只做了 3 頁**（`index` / `dashboard` / `schedule`），
-  `notifications` 與 `students` 沒做 —— 卡在瀏覽器輪值，等 labor-6 收完 admin
-- **#760 要停 8787，而 8787 不是任何席位的** ——
-  `lsof -p <pid> -a -d cwd` 查到它的 cwd 是**主 checkout 的 `apps/api`**。
-  上任提示寫的「跟 labor-6 對時間」是錯的前提。**共享資源關掉要經過計畫席**（README 那條）
-- **`kb/wiki/index.md` 落後 68 頁**（`Total: 123` 而實際 191）。
-  `kb:map` 全量重建會一次補進來，但那批索引屬於別席在飛的 PR ——
-  **需要一支專門的 PR，等 #756 那批全合完最省事**
+```js
+// 在**已載入完成**的 iframe 上裝，之後只能用 SPA 導航觸發（window 會在導頁時被換掉）
+const Orig = w.XMLHttpRequest;
+w.__seen = [];
+w.XMLHttpRequest = function () {
+  const x = new Orig();
+  const open = x.open;
+  x.open = function (m, u, ...rest) {
+    let url = String(u);
+    if (url.includes(':8787/api/')) { w.__seen.push(m + ' ' + url); url = url.replace(':8787', ':8799'); }
+    return open.call(this, m, url, ...rest);
+  };
+  return x;                       // 載入中那一半：改成把 x.send 用 setTimeout 延後
+};
+```
 
-**登入身分的競爭沒有結構解，只能縮短窗口**：
-`environment.ts` 的 `apiUrl` 寫死 `http://localhost:8787`，所以**換 host 也分不開 cookie**
-（我試過 `127.0.0.1`：cookie 綁的是 API 的 host，不是 web 的）。
-`list_connected_browsers` 只有一個瀏覽器，也沒有第二個 profile 可用。
-**做法是把每一輪量測壓短、前後各打一次 `GET /api/me`，被踢就作廢重做那一輪。**
+**只影響那一個 iframe，不動共享資源** —— 於是這一類工單不需要計畫席批准停服務。
+
+**三個一定要記住的**：
+
+1. **patch 的是 `XMLHttpRequest` 不是 `fetch`。** 這個 app 的 `provideHttpClient` 沒有
+   `withFetch()`，全站零個直接 `fetch(` —— **patch `fetch` 只會攔到你自己的身分探針
+   （`GET /api/me`），所以它「看起來有在運作」。**
+2. **`window` 在導頁時被換掉**，所以裝完只能用 **SPA 導航**（點 `routerLink`）觸發，
+   不能 `location.href` 或重設 `iframe.src`。
+3. **`__seen` 是空的就作廢那一輪。** 我有兩次量到「請求數 0」——
+   都是因為**導航起點就是那一頁**（SPA 導航到自己不會重新取數）。
+   **沒有攔到請求就對畫面下結論，等於量了一個沒有發生的錯誤。**
+
+## 八、分類器的失效方向要先想清楚，改寬之後一定要跑負控
+
+Phase 2-D 要把 23 頁分成「誠實 / 謊稱沒資料」，我寫了一個 regex 分類器。
+
+**第一版只收「載入失敗|查詢失敗」**，於是把 `/admin/dashboard` 判成「看不出訊號」——
+而它其實逐字寫著「**讀取失敗**」。補上之後**四頁從「有問題」改判為「誠實」**。
+
+> **那個失效方向是「把誠實的判成有問題」—— 它會讓缺陷清單看起來比實際長。**
+> 而放寬 regex 的反方向是「把謊稱的判成誠實」，**那會讓清單看起來比實際短**。
+
+**所以改寬之後跑了負控**：`students` / `courses` / `parents` 在新 regex 下**仍然是
+「謊稱沒資料」**（它們的 `app-empty-state` 逐字說「尚未…」而完全沒有失敗字樣）。
+
+**可操作**：**寫分類器的當下就問「它錯的時候會往哪邊錯」**，改它的時候兩個方向各留一組
+已知案例回跑。只驗一個方向的分類器，跟沒驗一樣。
+
+## 九、一個「看起來完全成立的 P1」怎麼長出來的（#784 的完整形狀）
+
+我開了 #784（P1），然後**自己撤回**。值得完整記，因為每一步都是對的：
+
+| 我做了什麼 | 對不對 |
+| --- | --- |
+| 量到對話框 `390 × 1130`、關閉鈕 `top -112`、按鈕在畫面外 | ✅ 量到的都是真的 |
+| 測了三種捲動方式（`mask.scrollTop` / `document` / `scrollIntoView`）都到不了 | ✅ |
+| 查 `dismissableMask` 的程式碼，與實測兩個來源對上 | ✅ |
+| 比對 #714，指出「它是那條規則在窄寬度下失效」 | ✅ 推導站得住腳 |
+| 估範圍時標了「73 是候選上限不是實際數量」 | ✅ 證據分級做了 |
+| **問「這個環境的 ResizeObserver 活著嗎」** | ❌ **沒問** |
+
+成因：`InheritSizeDirective` 只在 **ResizeObserver** callback 裡寫
+`--shell-layout-body-height`，而 **ResizeObserver 在 MCP 的背景分頁 iframe 裡不觸發**
+（實測 600ms 內 0 次）→ `styles.scss:722` 的 `calc()` 無效 → `max-height: none`。
+
+**手動補上那個變數，對話框當場自己收好**（`1130 → 700`、關閉鈕 `-112 → 103`、
+按鈕 `913 → 698`、內容區變可捲）——**三件事本來就都有。**
+
+**我是被一句正確的話誤導的**：方法頁寫「…container query、**ResizeObserver 寫的
+`--window-width`** 全部跟著 iframe 走」。那句話沒錯，**但 `--window-width` 不是
+ResizeObserver 寫的**（`WindowSizeDirective` 用 `ngOnInit` + `HostListener`）。
+**我把它讀成「ResizeObserver 在這個環境有效」。**
+
+> **可操作的版本**：**量測環境的能力清單要自己驗，不要從別人的一句話推。**
+> 目前已知缺三項：`matchMedia('(pointer: coarse)')` 恆 `false`、
+> `visibilityState` 恆 `hidden`、**ResizeObserver 完全不觸發**。
+> 三個的共同形狀：**環境少了一項能力，而缺席的樣子跟「產品就是這樣」一模一樣。**
+>
+> **檢查在方法頁 Phase 2，一行就跑得完。量之前做，不是覺得可疑才做。**
+
+## 十、給下一個接手的人
+
+**未完成的工作**（#760 Phase 2-D 只做了一半）：
+
+| 還沒做 | 狀態 |
+| --- | --- |
+| **載入中那一半** | **做法驗過**（把 XHR 的 `send` 用 `setTimeout` 延後 3 秒），**三個角色都沒鋪開**。已知形狀：`/parent/attendance` 切篩選時 **3 秒內畫面完全沒反應**，沒有 skeleton／spinner／disabled |
+| **10 支 `_shared` 的錯誤態** | **一支都沒量** |
+| `/admin/settings/*` 四頁 | 頁籤不是 `<a href>`，SPA 導航進不去。**沒有硬鑽** |
+| 有路由參數的頁（`students/:id` 等） | 沒量 |
+| `public/login`、`public/select-role` 的錯誤態 | 各需要一個特定身分（登出 / 多重角色） |
+| `_shared/contact-book-entry-dialog` 的 390px | 兩個開啟點的資料狀態都開不到（頁面裡寫了怎麼量） |
+| 重試鈕按了會不會真的重打 | 需要真滑鼠（方法頁坑 12） |
+
+**環境上會再撞到的**（不是狀態，是這台機器的性質）：
+
+- **登入身分的競爭沒有結構解**：`environment.ts` 的 `apiUrl` 寫死
+  `http://localhost:8787`，所以**換 host 也分不開 cookie**（試過 `127.0.0.1`）；
+  `list_connected_browsers` 只有一個瀏覽器。**做法是把每輪量測壓短、前後各打一次
+  `GET /api/me`、被踢就作廢重做那一輪。**
+- **CDP 會在 45 秒逾時把分頁打掛** —— 一次工具呼叫裡不要塞超過 3~4 個
+  `__P.open()`；長清單頁用方法頁的 `visibleFast`（兩站先不捲動判定、只對剩下的複驗）。
+- **`overflow()` 曾經是逾時元凶**（它對每個 DOM 節點呼叫 `why()`），已改成不捲動的版本。
