@@ -1,6 +1,6 @@
 # Rules — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-09-06
+> Auto-maintained by `kb:map`. Last updated: 2026-09-13
 
 ---
 
@@ -49,6 +49,12 @@ Links to: [[rules/billing-rules]], [[rules/billing-rules]]
 Tags: `rules`, `meals`, `billing`
 
 Links to: [[summaries/interview-insider-2026-08-29]], [[rules/billing-rules]], [[rules/billing-rules]], [[rules/attendance-rules]]
+
+## [[rules/session-status-rules|課堂狀態（sessions.status）規則]]
+
+sessions.status 目前只有 scheduled 與 cancelled 會被寫入，completed 沒有任何寫入路徑；這一頁記錄哪些程式碼依賴這個現況、誰會在 completed 第一次被寫入的那天改變行為，以及刪除守門為什麼用 OR 而不是替換條件。
+
+Tags: `rules`, `sessions`, `attendance`, `classes`
 
 ## [[rules/teaching-log-rules|教務日誌與作業廣播規則]]
 

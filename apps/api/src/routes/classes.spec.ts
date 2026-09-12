@@ -83,6 +83,8 @@ describe('DELETE /api/classes/:id —— session_packs 守門（真的打路由�
       eq: () => sessionsQuery,
       in: () => sessionsQuery,
       lt: () => sessionsQuery,
+      // #762：過去課堂的判定改成 `session_date < today OR status = 'completed'`
+      or: () => sessionsQuery,
       limit: () => sessionsQuery,
       then: (onfulfilled?: (value: unknown) => unknown) =>
         Promise.resolve({ data: [], error: null }).then(onfulfilled ?? undefined),
@@ -178,6 +180,8 @@ describe('DELETE /api/classes —— 台北凌晨那個窗（M8 洞的迴歸測�
       eq: () => sessionsQuery,
       in: () => sessionsQuery,
       lt: () => sessionsQuery,
+      // #762：過去課堂的判定改成 `session_date < today OR status = 'completed'`
+      or: () => sessionsQuery,
       limit: () => sessionsQuery,
       then: (onfulfilled?: (value: unknown) => unknown) =>
         Promise.resolve({ data: pastSessionRows, error: null }).then(onfulfilled ?? undefined),

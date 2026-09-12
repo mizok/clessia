@@ -16,6 +16,14 @@ import { getCurrentTaipeiDateString } from './taipei-date';
  * 可以被刪除——跟 #402 leaves.ts 的根因同一族，但這裡的後果是**帶著真實出勤紀錄
  * 的班級被級聯刪除**，是 M8 稽核那個家族（#371 的 session_packs 守門）的鄰居。
  *
+ * **兩半缺一不可（#762）**：`session_date < 今天` 漏掉「今天稍早已上完並點過名的
+ * 課」——那個班在今天一整天被視為沒有歷史課堂，可以被刪掉，報名與出勤紀錄跟著級聯。
+ * 但**單純換成 `status='completed'` 更危險**：課堂的 `completed` 目前沒有任何寫入
+ * 路徑（#488），所以「過去日期但從沒點名」的課會從「擋著」變成「可刪」，而那正是
+ * 最可能有排課錯誤、最需要保留證據的班。所以是 `OR`，不是替換。
+ * 誰負責寫入 `completed`、以及哪些程式碼依賴「status 永遠是 scheduled」，見
+ * `kb/wiki/rules/session-status-rules.md`。
+ *
  * 查詢失敗一律回 `check-failed`：**顯示用**的呼叫端可以接受退回空集合（跟現況
  * 一致，不是這次要動的風險），**刪除守門**的呼叫端必須 fail closed（查不到答案
  * 不准刪），這是刻意分開兩種呼叫端行為，不是遺漏。
@@ -36,7 +44,7 @@ export async function checkClassesPastSessions(
     .from('sessions')
     .select('class_id')
     .in('class_id', classIds)
-    .lt('session_date', getCurrentTaipeiDateString());
+    .or(`session_date.lt.${getCurrentTaipeiDateString()},status.eq.completed`);
 
   if (error) {
     return { status: 'check-failed', message: error.message };
