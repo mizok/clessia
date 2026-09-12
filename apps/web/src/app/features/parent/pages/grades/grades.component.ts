@@ -103,7 +103,19 @@ export class GradesComponent implements OnInit {
     effect(() => {
       const childId = this.childScope.activeChildId();
       if (!childId) return;
-      untracked(() => this.load(childId));
+      untracked(() => {
+        // **換孩子 = 換一整組科目**，所以舊的科目篩選要一起丟掉（#703）。
+        //
+        // 不丟的話它不是「篩選殘留」這麼單純：`subjectOptions()` 是從 `records()`
+        // 算出來的，舊科目在新孩子身上不存在 → `p-select` 解不出標籤 →
+        // **退回顯示 placeholder「全部科目」**。篩選還在生效，控制項卻長得像沒有篩選，
+        // 而空狀態文案跟「這個孩子真的沒有成績」一模一樣 —— 家長讀成後者。
+        //
+        // **期間篩選刻意不重設**：四顆鈕恆有一顆是選中的，它顯示得出來、不會騙人，
+        // 所以使用者的選擇留著。會騙人的只有「值還在生效但畫面上消失」的那一個。
+        this.subjectFilter.set(null);
+        this.load(childId);
+      });
     });
   }
 
