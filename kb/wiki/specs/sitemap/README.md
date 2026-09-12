@@ -1024,6 +1024,68 @@ x.send = function (...a) {
 };
 ```
 
+### ✅ 導航不必再找連結：`ng` 的 debug API 給得到 Router 本人（2026-09-13 labor-8）
+
+前提訂正①要求「只能用 SPA 導航」，而 labor-7 的做法是**點 `a[routerLink]`** ——
+於是「沒有連結指過去的路由」量不到：`/admin/settings/*` 四個頁籤不是 `<a href>`、
+有路由參數的頁（`students/:id`、`grades/exams/:type/:id/scores`）也沒有現成連結。
+
+**dev build 的 `window.ng` 有 Router**（`ng.ɵnavigateByUrl` 的第一個參數就是它）：
+
+```js
+const inj = w.ng.getInjector(d.querySelector('app-root'));
+const router = w.ng['ɵgetRouterInstance'](inj);
+router.navigateByUrl('/admin/settings/campuses');   // 真 SPA 導航
+```
+
+`ng['ɵnavigateByUrl'](url)` **會丟 `The provided router is not an Angular Router`** ——
+它的簽章是 `(router, url)` 兩個參數，不是一個。
+
+**這是真的 SPA 導航**（`window` 不換、XHR 包裝活得下來、guard 與 resolver 照跑）。
+**負控做過**：六支家長端佔位頁用它導過去，攔到的請求數都是 **0** ——
+跟 labor-7 用點連結量到的**逐頁一致**，所以兩種導航法在請求上等價。
+
+> **`window.ng` 只在 dev build 存在**。它同時給得到元件實例
+> （`ng.getComponent(el)`），於是「延遲期間元件的 `loading()` / `records()` 是什麼」
+> 這種問題可以直接問，不必從畫面推 —— [[specs/sitemap/parent/attendance]]
+> 的機制就是這樣釘死的。
+
+### ⚠️ 背景分頁的 `setTimeout` 被節流 —— 你寫的 3 秒不是 3 秒
+
+實測（同一次呼叫裡用 `Date.now()` 前後夾）：
+
+| 要求 | 實際 |
+| --- | --- |
+| `setTimeout(…, 700)` | ~1000ms |
+| `setTimeout(…, 800)` | ~1450ms |
+| `setTimeout(…, 1500)` | ~2000ms |
+
+**每一個 timer 至少 1 秒**，長的還會再多幾百毫秒。三個後果：
+
+1. **延遲注入的「3 秒」實際 ≥ 3 秒** —— 方向是安全的（載入窗口更寬），但不要寫成「正好 3 秒」
+2. **一次工具呼叫塞不了那麼多頁**。一頁的 `loadProbe` 名目 6.6 秒、實際 ~8.6 秒，
+   **兩頁 ~17 秒、三頁就會逼近 CDP 的 45 秒上限**。做法：**一次兩頁**
+3. 快照上的 `t` 是 `performance.now()` 量的**真實**經過時間，那一欄可以信
+
+（跟坑 12 同源：分頁不在前景。`requestAnimationFrame` 是完全不跑，timer 是被拉長。）
+
+### 「載入中」的判定要問守衛判的是哪一份清單
+
+Phase 2-D 量到的第一個真缺陷不是「沒寫 skeleton」，是**寫了但守衛不可達**：
+
+```
+@if (loading() && groups().length === 0) { <skeleton> }
+```
+
+`groups()` 是**填充過**的清單（`fillMissingDays` 在資料回來前就填出 11 天），
+所以 `=== 0` 永遠不成立 —— **skeleton 在 DOM 裡一次都沒出現過**，
+而畫面上是十一行「今日無課」。同一個 repo 裡的
+[[specs/sitemap/parent/payments]] 判的是 `invoices()`（**原始清單**），skeleton 就出得來。
+
+> **兩頁的模板讀起來一模一樣**，差別只在守衛裡那個 signal 是原始的還是衍生的。
+> **可操作**：量到「有 skeleton 的樣式卻沒看到 skeleton」時，
+> 去讀守衛判的是哪一個 signal，不要寫成「這一頁沒做載入態」。
+
 ### 這一趟最容易寫錯的三件事
 
 | 陷阱                                           | 為什麼                                                                                                  |
