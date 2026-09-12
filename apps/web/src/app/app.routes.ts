@@ -3,7 +3,28 @@ import { authGuard } from '@core/auth.guard';
 import { roleGuard } from '@core/role.guard';
 import { permissionGuard } from '@core/permission.guard';
 import { guestGuard } from '@core/guest.guard';
-import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
+import { RoutesCatalog, type RouteObj } from '@core/smart-enums/routes-catalog';
+
+/**
+ * 公開殼子路由的 guard —— **從 `RouteObj.access` 推，不在這裡各寫一份**（#693）。
+ *
+ * 原本 guard 只住在這個檔案，而 UI 地圖生成器是 `import RoutesCatalog` 本人、
+ * 看不到這裡，於是它把「沒有角色」印成「公開（未登入可進）」——
+ * `/login`、`/link-line`、`/select-role` 三頁的生成區塊因此是錯的。
+ *
+ * 收進 catalog 之後兩邊讀同一個來源，而**同步由 `app.routes.spec.ts` 兩個方向斷言**：
+ * 宣告了要有 guard，掛了 guard 也要有宣告。跟 `permission` 完全同一個模式。
+ */
+function guardsFor(route: RouteObj) {
+  switch (route.access) {
+    case 'guest-only':
+      return [guestGuard];
+    case 'authenticated':
+      return [authGuard];
+    case 'public':
+      return [];
+  }
+}
 
 export const routes: Routes = [
   {
@@ -15,24 +36,23 @@ export const routes: Routes = [
         path: RoutesCatalog.PUBLIC_LOGIN.relativePath,
         loadComponent: () =>
           import('@features/public/pages/login/login.component').then((m) => m.LoginComponent),
-        canActivate: [guestGuard],
+        canActivate: guardsFor(RoutesCatalog.PUBLIC_LOGIN),
       },
       {
-        // 一次性連結兌換完落在這裡。要 authGuard —— 沒登入就沒有帳號可以綁
+        // 「誰進得來」的理由寫在 `RoutesCatalog.PUBLIC_LINK_LINE` 的宣告旁邊（#693）
         path: RoutesCatalog.PUBLIC_LINK_LINE.relativePath,
         loadComponent: () =>
           import('@features/public/pages/link-line/link-line.component').then(
             (m) => m.LinkLineComponent,
           ),
-        canActivate: [authGuard],
+        canActivate: guardsFor(RoutesCatalog.PUBLIC_LINK_LINE),
       },
       {
-        // 多重角色的人登入後落在這裡。要 authGuard —— 沒登入就沒有角色可選。
-        // guest.guard / role.guard / LINE callbackURL 都指向這條路由。
+        // 同上 —— 理由在 `RoutesCatalog.PUBLIC_SELECT_ROLE` 的宣告旁邊
         path: RoutesCatalog.PUBLIC_SELECT_ROLE.relativePath,
         loadComponent: () =>
           import('@features/select-role/select-role.component').then((m) => m.SelectRoleComponent),
-        canActivate: [authGuard],
+        canActivate: guardsFor(RoutesCatalog.PUBLIC_SELECT_ROLE),
       },
       {
         path: RoutesCatalog.PUBLIC_TRIAL.relativePath,

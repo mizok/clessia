@@ -13,15 +13,11 @@ updated: 2026-09-12
 <!-- generated:route-facts start —— 這一段由 tools/sitemap 生成，不要手改 -->
 
 **路由**：`/select-role`
-**角色**：公開（未登入可進）
+**角色**：要登入，但不綁角色（`authGuard`）
 **選單位置**：**選單不露出**（只能從別頁導過來或直接打網址）
 **額外權限**：無
 
 <!-- generated:route-facts end -->
-
-> ⚠️ **生成區塊的「角色」欄在這一頁是誤導的**，跟 [[specs/sitemap/public/link-line]] 同一個原因：
-> `RoutesCatalog` 的 `role` 是 `undefined`，但 `app.routes.ts` 掛了 `canActivate: [authGuard]` ——
-> **未登入進不去**。生成器看不到 `app.routes.ts` 的 guard。已回報給計畫席。
 
 **進入方式**：
 
