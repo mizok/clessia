@@ -115,6 +115,17 @@ updated: 2026-09-13
 
 ## 390px
 
+
+> ⚠️ **2026-09-13 訂正：上面的對話框尺寸是在 ResizeObserver 失效的環境下量的。**
+> `--shell-layout-body-height` 靠 `InheritSizeDirective` 的 ResizeObserver 寫入，
+> 而**它在 MCP 的背景分頁 iframe 裡不觸發** —— 於是 `styles.scss:721-722` 的
+> `max-height: calc(var(--shell-layout-body-height) - …)` 的 `calc()` 無效，
+> **computed 值是 `none`，對話框不受限**。
+>
+> **真實瀏覽器裡對話框會被限制在 `shell body 高 − 24px`（本輪環境是 `700px`），
+> 超出的部分由 `.p-dialog-content` 捲動。** 上面的高度數字要照這個重新讀：
+> **矮於 700 的那些是真的，高於 700 的只會出現在這個量測環境裡。**
+> 全文與正控見[方法頁](../README.md)的「ResizeObserver 在這個環境完全不觸發」。
 - **量測**：390 × 844 與 1504 × 752（對話框只記「版面怎麼變」，不重抄元素表）
 - **前端**：主 checkout 的 dev server（port 4200），`543e5eda`
 - **手段**：同源 iframe 當 viewport；**開啟一律用 `element.click()`（合成事件，坑 6 的等級標記）**，

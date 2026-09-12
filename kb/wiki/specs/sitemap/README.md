@@ -244,8 +244,73 @@ resize_window(1000, 800) → 同上，outerWidth/outerHeight 一個都沒動
 ### 做法：同源 iframe 就是 viewport
 
 把要量的路由載進一個 390px 寬的 `<iframe>`。**iframe 有自己的 viewport**，所以
-media query、`matchMedia`、container query、ResizeObserver 寫的 `--window-width`
+media query、`matchMedia`、container query、`--window-width`
 **全部跟著 iframe 走**（四項都實測過）。
+
+> ⚠️ **2026-09-13（labor-7）訂正：第四項原本寫「ResizeObserver 寫的 `--window-width`」，
+> 而 `--window-width` 不是 ResizeObserver 寫的。** `WindowSizeDirective` 用的是
+> `ngOnInit` + `@HostListener('window:resize')`。**那一句本身沒錯，但它會被讀成
+> 「ResizeObserver 在這個環境有效」—— 而那是錯的，見下一節。**
+> （我就是這樣讀的，然後開了一張不成立的 P1：#784。）
+
+#### ⚠️ ResizeObserver 在這個環境**完全不觸發** —— 而它是量測環境最貴的一個坑
+
+**實測**：在 iframe 裡建一個 `div`、`new ResizeObserver(cb).observe(div)`，
+**600ms 內 callback 觸發 0 次**。（跟坑 12 的 `requestAnimationFrame` 不跑同一族 ——
+兩者都掛在背景分頁不會執行的 rendering steps 上。）
+
+**後果比「動畫不跑」嚴重，因為它改變的是版面而不是過場**：
+
+| directive | 寫入機制 | 在這個環境 |
+| --- | --- | --- |
+| `WindowSizeDirective`（`--window-width` / `--window-height`） | `ngOnInit` + `@HostListener('window:resize')` | **活的** |
+| `InheritSizeDirective`（`--shell-layout-body-width` / `-height`） | **只在 ResizeObserver callback 裡 `setProperty`** | **死的 —— 變數從頭到尾是空的** |
+
+而 `styles.scss:721-723` 是：
+
+```scss
+.p-dialog {
+  max-height: calc(var(--shell-layout-body-height) - var(--space-3) * 2) !important;
+  max-width:  calc(var(--shell-layout-body-width)  - var(--space-3) * 2) !important;
+}
+```
+
+**變數沒有值 → `calc()` 無效 → `max-height` 的 computed 值是 `none` → 每一支對話框都不受限。**
+
+**正控**（手動補上那兩個變數，同一個對話框當場自己收好）：
+
+| | 補之前 | 補之後 |
+| --- | --- | --- |
+| `computed max-height` | **`none`** | **`700px`** |
+| `.p-dialog` 高 | `1130` | **`700`** |
+| 對話框範圍（視窗 `0..844`） | `-143 .. 987` | **`72 .. 772`** |
+| 關閉鈕 | `-112 .. -80` | **`103 .. 135`** |
+| 底部 `取消` / `送出` | `913 .. 954` | **`698 .. 739`** |
+| `.p-dialog-content` | `1128 → 1128`（不可捲） | **`698 → 1128`（可捲）** |
+
+> **所以 Phase 2 量到的每一支對話框尺寸都偏大。** `--shell-layout-body-*` 全 repo 只被
+> 那兩行用，但那兩行管的是**每一支 `.p-dialog`**。已經量過的那些沒有「出事」，
+> **只是因為它們的內容本來就矮** —— 數字要照這個重新解讀。
+
+**量之前先跑這一行**（跟坑 12 的 `visibilityState` 同一個位置，不是「覺得可疑才查」）：
+
+```js
+let ro = 0;
+const probe = d.createElement('div');
+probe.style.cssText = 'width:123px;height:45px';
+d.body.appendChild(probe);
+new w.ResizeObserver(() => ro++).observe(probe);
+await new Promise((r) => setTimeout(r, 600));
+probe.remove();
+// ro === 0 → 任何靠 ResizeObserver 寫的 CSS 變數都是空的，凡是吃那些變數的版面都量不準
+```
+
+**`ro === 0` 的時候可以做什麼**：手動把那個 directive 會寫的變數補上去
+（上表的正控就是這樣做的），**但要標明那是補出來的**，不是量到的。
+
+> **這一則是「量測環境本身可能回答另一個問題」的第三個成員**
+> （前兩個：`matchMedia('(pointer: coarse)')` 恆 `false`、`visibilityState` 恆 `hidden`）。
+> 三個的共同形狀：**環境少了一項能力，而缺席的樣子跟「產品就是這樣」一模一樣。**
 
 宿主頁面用同源的任一頁即可（`/qr-checkin` 最輕）。整份探測工具：
 
