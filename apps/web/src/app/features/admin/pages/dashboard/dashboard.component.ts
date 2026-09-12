@@ -541,7 +541,10 @@ export class DashboardComponent {
   protected readonly todayHeadline = computed(() => {
     const sessions = this.todaySessions();
     if (sessions === null || sessions === FAILED) return null;
-    const untaken = sessions.filter((s) => s.takenAt === null).length;
+    // **停課的不算未點名**（#686）—— 它永遠不會被點，算進去等於宣稱有一件
+    // 做不完的事。`total` 刻意**不**排除停課：時間軸照樣畫得出那一列
+    // （標成「已停課」），總數少一堂的話這句話會跟下面的清單對不上。
+    const untaken = sessions.filter((s) => s.status !== 'cancelled' && s.takenAt === null).length;
     return { total: sessions.length, untaken };
   });
 
@@ -632,10 +635,40 @@ export class DashboardComponent {
     return toAttendanceTone(
       {
         time: { date: session.eventDate, startTime: session.startTime, endTime: session.endTime },
-        cancelled: false,
+        // **原本寫死 `false`（#686）** —— 共用推導本來就有停課分支（回 `inactive`），
+        // 而這裡把它關掉了，於是一堂停課被算成「上完了卻沒點」。
+        cancelled: session.status === 'cancelled',
         taken: session.takenAt !== null && session.takenAt !== undefined,
       },
       new Date(),
     );
+  }
+
+  /**
+   * 狀態點旁邊那行字。**一個方法，不是模板裡兩份三元運算式**（#686）。
+   *
+   * 原本可按與不可按兩個分支各寫一次 `takenAt ? '已點名' : '未點名'`，
+   * 而**兩份都沒有停課分支** —— 一堂停掉的課顯示成「未點名」，
+   * 但它點不下去，也沒有任何地方說那是因為停課。這一頁說有 2 件事要做，
+   * 其中一件永遠做不完。
+   *
+   * **為什麼是「已停課」而不是課堂管理用的「不適用」**：那一頁同一列
+   * **另有一欄**寫著「已停課」（`session-list.component.html:84` 與 `:96` 並排），
+   * 所以「不適用」有東西撐著。**儀表板一列只有一個狀態位**，
+   * 用「不適用」的話使用者看不出為什麼。這裡跟老師端課表同族
+   * （`ATTENDANCE_TONE_LABELS.inactive`）—— 那也是一列一個狀態位的版面。
+   *
+   * 沒有直接引用老師端那份 `Record`：跨 feature import 違反 c5，
+   * 而為了兩個字把它提到 `shared/` 會連帶把「還沒上／漏點名」那兩個
+   * 儀表板從來不說的字一起帶進來。
+   */
+  protected attendanceLabel(session: EventSessionSummary): string {
+    if (session.status === 'cancelled') return '已停課';
+    return session.takenAt ? '已點名' : '未點名';
+  }
+
+  /** 這一列算不算「今天還要處理的事」——停課的不算（#686） */
+  protected isTodo(session: EventSessionSummary): boolean {
+    return session.status !== 'cancelled' && !session.takenAt;
   }
 }

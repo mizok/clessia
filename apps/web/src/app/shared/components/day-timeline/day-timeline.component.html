@@ -58,6 +58,16 @@
         三個數字並列而量綱不同 —— 使用者的困惑正是「多根柱子 vs 圖例說 1 堂」。
       -->
       <span class="day-timeline__legend-item">最忙同時 {{ layout().maxTotal }} 堂</span>
+      @if (layout().cancelled.length > 0) {
+        <!--
+          停課的課刻意不畫進軸（柱子只有已點名／未點名兩段，停課兩者都不是）——
+          所以要在這裡說出來，否則軸上少一根而下面的清單多一列，沒有人知道為什麼。
+          跟下面 `unplaced` 是同一個處置（#686）。
+        -->
+        <span class="day-timeline__legend-item">
+          另有 {{ layout().cancelled.length }} 堂已停課
+        </span>
+      }
       @if (layout().unplaced.length > 0) {
         <!--
           畫不出來的要說出來，不是默默對齊 —— 上面那句話算的是總數，

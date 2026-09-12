@@ -556,6 +556,84 @@ describe('DashboardComponent（管理端）', () => {
   });
 
   /**
+   * #686：停課的課堂被顯示成「未點名」，而且算進「今天 N 堂還沒點名」。
+   *
+   * **同一列的可按性判斷有正確排除它**（`canTakeAttendance`），所以那一列刻意
+   * 被渲染成不可按的靜態文字 —— 於是這一頁說有 2 件事要做，**其中一件永遠做不完**，
+   * 而且沒有任何地方告訴使用者那是因為停課。
+   *
+   * 成因是**同一份判斷散在三處而只有一處記得停課**：狀態點的字（模板裡兩份三元）、
+   * `--todo` 的高亮、以及 `attendanceTone` 那裡寫死的 `cancelled: false`。
+   */
+  describe('停課的課堂（#686）', () => {
+    const cancelled = () =>
+      session({ sessionId: 's-cancelled', eventId: null, status: 'cancelled' });
+
+    /**
+     * **取那一列，不是整頁的 textContent** —— 右欄有一張「未點名課堂」的卡，
+     * 拿整頁去比對的話 `not.toContain('未點名')` 會撞到它，
+     * 而那個失敗跟這條要驗的事情無關。
+     */
+    function rowText(): string {
+      const row = fixture.nativeElement.querySelector('.dashboard__spine-row') as HTMLElement;
+      return row?.textContent ?? '';
+    }
+
+    function bandText(): string {
+      const band = fixture.nativeElement.querySelector('.dashboard__band') as HTMLElement;
+      return band?.textContent ?? '';
+    }
+
+    it('狀態點說「已停課」，不是「未點名」', async () => {
+      await setup({ mode: 'per_session', todaySessions: [cancelled()] });
+
+      expect(rowText()).toContain('已停課');
+      expect(rowText()).not.toContain('未點名');
+    });
+
+    /**
+     * **為什麼是「已停課」而不是課堂管理的「不適用」**：那一頁同一列另有一欄
+     * 寫著「已停課」撐著，儀表板一列只有一個狀態位。
+     */
+    it('不用「不適用」—— 這一列沒有第二欄可以解釋原因', async () => {
+      await setup({ mode: 'per_session', todaySessions: [cancelled()] });
+
+      expect(rowText()).not.toContain('不適用');
+    });
+
+    it('tone 是 inactive（不在等了，不該催），不是 overdue', async () => {
+      await setup({ mode: 'per_session', todaySessions: [cancelled()] });
+
+      const tone = (
+        component as unknown as { attendanceTone: (s: EventSessionSummary) => string }
+      ).attendanceTone(cancelled());
+      expect(tone).toBe('inactive');
+    });
+
+    it('不帶 --todo 高亮 —— 它不是今天要處理的事', async () => {
+      await setup({ mode: 'per_session', todaySessions: [cancelled()] });
+
+      const row = fixture.nativeElement.querySelector('.dashboard__spine-row') as HTMLElement;
+      expect(row.classList.contains('dashboard__spine-row--todo')).toBe(false);
+    });
+
+    /**
+     * 橘帶：**`untaken` 要排除停課，`total` 刻意不排除。**
+     *
+     * 時間軸照樣畫得出那一列（標成「已停課」），總數少一堂的話這句話會跟
+     * 下面的清單對不上 —— 那是把一個看得見的矛盾換成另一個。
+     */
+    it('橘帶的「還沒點名」不含停課，而「幾堂課」照算', async () => {
+      await setup({
+        mode: 'per_session',
+        todaySessions: [session(), cancelled()],
+      });
+
+      expect(bandText()).toContain('今天 2 堂課，其中 1 堂還沒點名');
+    });
+  });
+
+  /**
    * 日到班看板。**晨間視角是「誰還沒到」，不是「誰到了」** ——
    * 一張列出全部學生的表，行政要自己掃描找出缺口；而晨間真正的工作是追還沒到的人。
    */

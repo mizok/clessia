@@ -97,9 +97,19 @@ export class DayTimelineComponent {
     return bin.startHour;
   }
 
+  /**
+   * **停課的課堂不算「未點名」**（#686）—— 它永遠不會被點。
+   *
+   * 原本是 `all.length - taken`，於是一堂停課被算進未點名：實機上兩堂課（一堂停課）
+   * 的圖例寫「未點名 2」，而橘帶同時說「其中 1 堂還沒點名」——**同一頁兩個數字打架**。
+   *
+   * `taken` 不用改：停課的課堂 `takenAt` 本來就是 null，它已經不在裡面。
+   * `total` 刻意照算全部 —— 軸上那幾根柱子畫得出停課那一堂，總數少一根就對不上。
+   */
   protected readonly summaryOf = computed(() => {
     const all = this.sessions();
     const taken = all.filter((s) => s.takenAt !== null).length;
-    return { total: all.length, taken, untaken: all.length - taken };
+    const untaken = all.filter((s) => s.status !== 'cancelled' && s.takenAt === null).length;
+    return { total: all.length, taken, untaken };
   });
 }

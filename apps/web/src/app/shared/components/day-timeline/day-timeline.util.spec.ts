@@ -16,11 +16,12 @@ function session(
   endTime: string | null,
   id = startTime ?? 'x',
   takenAt: string | null = null,
+  status: 'scheduled' | 'cancelled' = 'scheduled',
 ) {
   return {
     eventId: id,
     sessionId: id,
-    status: 'scheduled',
+    status,
     isSubstitute: false,
     examCount: 0,
     classId: 'c',
@@ -237,5 +238,48 @@ describe('axisTicks', () => {
 
   it('很短的視窗給每小時一個刻度', () => {
     expect(axisTicks({ startHour: 8, endHour: 14 })).toEqual([8, 9, 10, 11, 12, 13, 14]);
+  });
+});
+
+/**
+ * #686：`untaken` 驅動柱子上那一段「待辦」的顏色。停課的課堂算進去的話，
+ * 軸上會有一根宣稱有待辦的柱子，而那件事永遠做不完。
+ */
+describe('binDay 與停課（#686）', () => {
+  /**
+   * **柱子只有兩段：已點名（實心）與未點名（中空）。停課兩者都不是。**
+   *
+   * 第一版只把它從 `untaken` 拿掉，結果它掉進 `total - untaken` 那一段 ——
+   * 也就是**實心的「已點名」**。那是把一個看得見的錯（「有一件做不完的事」）
+   * 換成一個安靜的錯（「這件事做完了」）。實機截圖才看出來。
+   */
+  it('停課的課堂完全不進軸 —— 不是塞進任一段', () => {
+    const layout = binDay([
+      session('09:00', '10:00', 'a'),
+      session('09:00', '10:00', 'b', null, 'cancelled'),
+    ]);
+
+    const bin = layout.bins.find((b) => b.total > 0);
+    expect(bin?.total).toBe(1);
+    expect(bin?.untaken).toBe(1);
+    expect(layout.cancelled.length).toBe(1);
+  });
+
+  it('全部停課時軸上一根都沒有，而且說得出來有幾堂', () => {
+    const layout = binDay([session('09:00', '10:00', 'a', null, 'cancelled')]);
+
+    expect(layout.bins.every((b) => b.total === 0)).toBe(true);
+    expect(layout.maxTotal).toBe(0);
+    expect(layout.cancelled.length).toBe(1);
+  });
+
+  it('停課的課不會被誤算成沒排時間（兩個清單分開）', () => {
+    const layout = binDay([
+      session(null, null, 'ghost'),
+      session('09:00', '10:00', 'c', null, 'cancelled'),
+    ]);
+
+    expect(layout.unplaced.map((s) => s.sessionId)).toEqual(['ghost']);
+    expect(layout.cancelled.map((s) => s.sessionId)).toEqual(['c']);
   });
 });
