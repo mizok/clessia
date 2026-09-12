@@ -1,3 +1,5 @@
+<p-toast position="top-center" [baseZIndex]="30000" />
+
 <div class="entry-dialog">
   <header class="entry-dialog__header">
     <div class="entry-dialog__title-group">
@@ -25,7 +27,8 @@
   @if (entry(); as existing) {
     @if (existing.isSigned && existing.signedAt) {
       <p class="entry-dialog__signed-note">
-        家長已於 {{ existing.signedAt | date: 'yyyy-MM-dd HH:mm' }} 簽收。改內容不會取消簽收 —— 家長看到的是最新版本。
+        家長已於 {{ existing.signedAt | date: 'yyyy-MM-dd HH:mm' }} 簽收。改內容不會取消簽收 ——
+        家長看到的是最新版本。
       </p>
     }
   } @else {

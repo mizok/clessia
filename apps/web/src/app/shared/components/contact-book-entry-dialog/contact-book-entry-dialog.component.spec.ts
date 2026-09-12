@@ -70,4 +70,74 @@ describe('ContactBookEntryDialogComponent', () => {
 
     expect(text).not.toContain('簽收。');
   });
+
+  /**
+   * #733：**這支對話框自己 `inject(MessageService)`，卻沒有自己 `provide` 它。**
+   *
+   * `MessageService` 不是 `providedIn: 'root'` —— 要由 injector 鏈上的誰給。
+   * 三個開啟點裡只有 admin 那兩處給了（`contact-book.page.ts:76`）；
+   * 老師端（`contact-book-roster.component.ts:100`）整條鏈上都沒有，
+   * 於是按「撰寫」時 `NG0201`，DOM 裡多一層**空的** `.p-dialog`，
+   * 使用者看到的是「這顆按鈕壞了」。
+   *
+   * ⚠️ **上面那些既有測試每一支都自己 provide 了 `MessageService`** ——
+   * 也就是說**測試環境剛好複製了會動的那個呼叫端**，所以這個缺陷對它們不可見。
+   * 下面第一支就是把那個缺口補起來。
+   */
+  describe('#733 對話框要能自己活著（不依賴呼叫端提供 MessageService）', () => {
+    /** 刻意**不**提供 `MessageService` —— 這就是老師端的 injector 環境 */
+    const setupWithoutMessageService = async () => {
+      await TestBed.configureTestingModule({
+        imports: [ContactBookEntryDialogComponent],
+        providers: [
+          { provide: ContactBookService, useValue: { upsert: vi.fn() } },
+          { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
+          { provide: DynamicDialogConfig, useValue: { data: { entry: signedEntry } } },
+        ],
+      }).compileComponents();
+
+      const f = TestBed.createComponent(ContactBookEntryDialogComponent);
+      f.detectChanges();
+      return f;
+    };
+
+    it('呼叫端沒有提供 MessageService 時照樣建得起來，而且有內容', async () => {
+      const f = await setupWithoutMessageService();
+
+      // 修前：`createComponent` 直接丟 NG0201，跑不到這裡
+      expect(f.nativeElement.textContent).toContain('王小明');
+      expect(f.nativeElement.querySelectorAll('button').length).toBeGreaterThan(0);
+    });
+
+    /**
+     * **只 provide 不夠，還要有人在聽。**
+     *
+     * `MessageService` 是 toast 的通道，訊息只會出現在**綁同一個實例**的
+     * `<p-toast>` 上。這支對話框原本沒有自己的 toast —— admin 端看得到訊息，
+     * 是因為**剛好共用了頁面層的實例**，而那一頁的模板第一行有 `<p-toast>`。
+     *
+     * **老師端整條路上沒有任何 `<p-toast>`**（全 app 的 toast 都在 admin 頁面層，
+     * 唯一的例外是 `login-link-dialog` 自己帶一個）。所以只補 provider 的話，
+     * NG0201 會消失、對話框會打開，**而「儲存失敗」永遠不會被看見** ——
+     * 把一個大聲的錯誤換成一個安靜的。
+     *
+     * 形狀照 `login-link-dialog`（全站唯一的先例），不另發明。
+     */
+    it('自己帶 <p-toast> —— 否則訊息會送進沒有人在聽的地方', async () => {
+      const f = await setupWithoutMessageService();
+
+      expect(f.nativeElement.querySelector('p-toast')).toBeTruthy();
+    });
+
+    /**
+     * **反向對照**：admin 那條路（呼叫端有提供 `MessageService`）不能被弄壞。
+     * 這一支修前就是綠的 —— 它守的是「修法不要只顧老師端」。
+     */
+    it('呼叫端有提供 MessageService 時（admin 那條路）照樣正常', async () => {
+      const text = await setup(signedEntry);
+
+      expect(text).toContain('王小明');
+      expect(fixture.nativeElement.querySelectorAll('button').length).toBeGreaterThan(0);
+    });
+  });
 });
