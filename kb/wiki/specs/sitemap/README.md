@@ -523,28 +523,43 @@ nav.bottom-bar         : position: static（不是 fixed），top 780 / bottom 8
 | `cy > innerHeight → 'offscreen'`     | 那是「還沒捲到」，不是看不見。**比一屏長的頁面，下半部的互動元素會整批消失**                 |
 | `elementFromPoint` 打到底欄 → `clipped/covered` | 元素矩形 `top 798 / bottom 850` 超出 main 的可視底（780），那個點當然打在底欄上 |
 
-**水平方向的出界要留著**（那是真的看不到，也是溢出訊號）；**垂直方向要換成「它的捲動祖先的可視區」**：
+**⚠️ 第一版的修法只修了垂直，而水平有一模一樣的缺口** —— 見下面「同一天的鏡像」。
+最終版**兩個軸都問「有沒有捲動祖先」**：
 
 ```js
-__P.scrollParent = function (e) {
+__P.scrollParentAxis = function (e, axis) {
+  const prop = axis === 'x' ? 'overflowX' : 'overflowY';
+  const sizeS = axis === 'x' ? 'scrollWidth' : 'scrollHeight';
+  const sizeC = axis === 'x' ? 'clientWidth' : 'clientHeight';
   for (let p = e.parentElement; p; p = p.parentElement) {
     const cs = this.w.getComputedStyle(p);
-    if (/(auto|scroll)/.test(cs.overflowY) && p.scrollHeight > p.clientHeight + 2) return p;
+    if (/(auto|scroll)/.test(cs[prop]) && p[sizeS] > p[sizeC] + 2) return p;
   }
   const de = this.d.documentElement;
-  return de.scrollHeight > this.w.innerHeight + 2 ? de : null;
+  const win = axis === 'x' ? this.w.innerWidth : this.w.innerHeight;
+  return de[sizeS] > win + 2 ? de : null;
 };
-// why() 裡，把原本那兩段換成：
-if (cx < 0 || cx > this.w.innerWidth) return 'offscreen-x'; // 水平出界才是真的看不到
-const sp = this.scrollParent(e);
-if (sp) {
+// why() 裡，把原本的 offscreen / elementFromPoint 兩段換成：
+const inView = (axis) => {
+  const c = axis === 'x' ? cx : cy;
+  const win = axis === 'x' ? this.w.innerWidth : this.w.innerHeight;
+  if (c >= 0 && c <= win) return 'in';
+  const sp = this.scrollParentAxis(e, axis);
+  if (!sp) return 'out'; // 沒有捲動容器 = 真的看不到
   const r =
     sp === this.d.documentElement
-      ? { top: 0, bottom: this.w.innerHeight }
-      : sp.getBoundingClientRect();
-  if (cy < r.top || cy > r.bottom) return null; // 捲動得到
-}
-if (cy < 0 || cy > this.w.innerHeight) return null;
+      ? { start: 0, end: win }
+      : (() => {
+          const rr = sp.getBoundingClientRect();
+          return axis === 'x' ? { start: rr.left, end: rr.right } : { start: rr.top, end: rr.bottom };
+        })();
+  return c < r.start || c > r.end ? 'scrollable' : 'in';
+};
+const hx = inView('x'),
+  hy = inView('y');
+if (hx === 'out') return 'offscreen-x';
+if (hy === 'out') return 'offscreen-y';
+if (hx === 'scrollable' || hy === 'scrollable') return null; // 捲動得到
 const hit = this.d.elementFromPoint(cx, cy);
 if (!hit) return 'clipped/covered';
 if (e.contains(hit) || hit.contains(e)) return null;
@@ -563,6 +578,28 @@ return 'clipped/covered';
 > **它跟 Phase 1 推翻 `read_page` 的那一條是同一族**：漏列的樣子跟「本來就沒有」一模一樣，
 > 而**兩向比對是照取樣器寫的**，所以比對的兩邊都看不到它 —— **0 差異**。
 > **這一族在 Phase 2 比 Phase 1 嚴重**：390 下一屏塞得下的頁面本來就少。
+
+#### 同一天的鏡像：水平捲動容器，而我剛修完垂直
+
+**修完垂直的一小時後在 `/teacher/schedule` 撞到一模一樣的形狀，只是換了個軸。**
+
+那一頁是「一日一屏」的水平軌道：
+
+```
+div.schedule-page__track   390 下 clientWidth 366 → scrollWidth 2634（七天橫著排）
+```
+
+今天沒有課，軌道停在第一屏，**有課那兩天的「開始點名 / 寫日誌」就落在 viewport 右邊外面** ——
+剛修好的 `why()` 照樣把它們判成 `offscreen-x`。同一頁 390 下 **3 → 5**。
+
+**而 `documentElement.scrollWidth === innerWidth`（無溢出）** ——
+所以溢出斷言不會叫，兩向比對也不會叫。
+
+> **這正是團隊 README 那條「防護習慣綁在場景上，不綁在工具上」**：
+> 我為「垂直捲動的長頁面」建立的檢查，**在換成水平軸的同一個工具上不會自動跟著走**。
+> 兩次的機制、症狀、修法完全同形，中間只隔一小時。
+>
+> **可操作的版本：修好一個軸之後，回頭問另一個軸有沒有同一個洞。**
 
 ### 鍵盤可達性：真的 Tab 鍵在這個環境按不動
 
