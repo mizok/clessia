@@ -36,7 +36,7 @@ import {
   type StudentQueryParams,
 } from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import { Subject, debounceTime, forkJoin, map, of, switchMap } from 'rxjs';
+import { EMPTY, Subject, catchError, debounceTime, forkJoin, map, of, switchMap } from 'rxjs';
 
 import { StudentScoreDetailDialogComponent } from './student-score-detail-dialog/student-score-detail-dialog.component';
 import {
@@ -365,24 +365,33 @@ export class StudentViewComponent implements OnInit {
                 map((responses) => [firstPage, ...responses].flatMap((response) => response.data)),
               );
             }),
+            // **`catchError` 必須在內層，不能掛在外層 `pipe` 上。**
+            // 所有取數收進單一管線之後，內層的 error 會終止外層 ——
+            // **一次網路錯誤就讓這一頁再也載入不了任何東西**，而畫面上只有一則
+            // toast，看起來像「這次失敗了」不是「這一頁壞了」。
+            //
+            // ⚠️ **這一支的管線是巢狀的，所以位置比其他六支更講究**：它掛在
+            // `switchMap(firstPage => …)` **之後**，因此同時涵蓋第一頁與
+            // `forkJoin` 的分頁。掛在 `list({ page: 1 })` 那一層的話，
+            // **分頁失敗收不到**，而第一頁的測試照樣會綠。
+            // 兩半各由 spec 的一條測試釘住（#689）。
+            catchError(() => {
+              this.rawStudents.set([]);
+              this.loadingList.set(false);
+              this.messageService.add({
+                severity: 'error',
+                summary: '載入失敗',
+                detail: '無法載入學生名單',
+              });
+              return EMPTY;
+            }),
           );
         }),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe({
-        next: (students) => {
-          this.rawStudents.set(students);
-          this.loadingList.set(false);
-        },
-        error: () => {
-          this.rawStudents.set([]);
-          this.loadingList.set(false);
-          this.messageService.add({
-            severity: 'error',
-            summary: '載入失敗',
-            detail: '無法載入學生名單',
-          });
-        },
+      .subscribe((students) => {
+        this.rawStudents.set(students);
+        this.loadingList.set(false);
       });
   }
 

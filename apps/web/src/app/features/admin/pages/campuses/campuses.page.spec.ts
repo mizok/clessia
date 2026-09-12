@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { CampusesService, type Campus } from '@core/campuses.service';
 import { vi } from 'vitest';
@@ -125,5 +125,58 @@ describe('CampusesPage', () => {
     expect(deleteIndex).toBeGreaterThan(0);
     expect(items[deleteIndex].itemClass).toBe('text-red-500');
     expect(items[deleteIndex - 1].separator).toBe(true);
+  });
+
+  /**
+   * **把所有取數收進同一條 `switchMap` 會帶來一個新的失效模式：
+   * 內層一 error，外層管線就終止 —— 之後這一頁永遠不會再載入任何東西。**
+   *
+   * 修改前每次取數是各自獨立的訂閱，錯一次只影響那一次；改成單一管線之後，
+   * **一次網路錯誤會把搜尋框變成死的**，而畫面上只有一則 toast，
+   * 看起來像「這次失敗了」而不是「這一頁壞了」。
+   *
+   * 這條釘住「錯過一次之後還能再查」。**沒有它，下一個重構的人會把
+   * `catchError` 拿掉，而那個缺陷安靜到沒有人會回報。**
+   *
+   * 這支 spec 的其他測試用的是立即完成的 `of()` 替身，餵不出「還沒回來的請求」——
+   * 所以這一區自己換上可控的 `Subject` 替身，並在收尾時換回去。
+   */
+  describe('搜尋管線的錯誤復原（#689）', () => {
+    const pending: Array<Subject<ReturnType<typeof buildCampusResponse>>> = [];
+
+    beforeEach(() => {
+      // 這個 app 是 zoneless（Angular 21 + signals），沒有 `fakeAsync` ——
+      // 時間用 vitest 的假計時器控制。`debounceTime` 走 asyncScheduler 的 setTimeout。
+      vi.useFakeTimers();
+      pending.length = 0;
+      campusesServiceMock.list.mockReset();
+      campusesServiceMock.list.mockImplementation(() => {
+        const subject = new Subject<ReturnType<typeof buildCampusResponse>>();
+        pending.push(subject);
+        return subject.asObservable();
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      campusesServiceMock.list.mockReset();
+      campusesServiceMock.list.mockReturnValue(of(buildCampusResponse()));
+    });
+
+    it('一次請求失敗之後，後續的搜尋仍然會送出（管線沒有被 error 終止）', () => {
+      const type = (text: string) =>
+        (component as unknown as { onSearchChange: (v: string) => void }).onSearchChange(text);
+
+      type('台北');
+      vi.advanceTimersByTime(300);
+      expect(campusesServiceMock.list).toHaveBeenCalledTimes(1);
+
+      pending[0].error(new Error('boom'));
+
+      type('新竹');
+      vi.advanceTimersByTime(300);
+
+      expect(campusesServiceMock.list).toHaveBeenCalledTimes(2);
+    });
   });
 });
