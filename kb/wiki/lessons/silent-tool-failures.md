@@ -1,10 +1,10 @@
 ---
 title: 工具靜默地不做你以為它在做的事
-summary: 一連串「零輸出／綠燈」其實代表「這個檢查根本沒發生」的實例——工具沒壞、用法也對，它只是回答了另一個問題，而正確答案與錯誤答案在畫面上逐字相同。2026-09-06 補上「這一族的大聲那一半」：同一個知識點常有兩個失敗方向，報錯的那半當場就被修掉所以從沒被記錄。 2026-09-07 補上第一筆方向相反的：查得到，但查到的不是它（`grep -c` 數到的是散文註解不是程式碼）。
+summary: 一連串「零輸出／綠燈」其實代表「這個檢查根本沒發生」的實例——工具沒壞、用法也對，它只是回答了另一個問題，而正確答案與錯誤答案在畫面上逐字相同。2026-09-06 補上「這一族的大聲那一半」：同一個知識點常有兩個失敗方向，報錯的那半當場就被修掉所以從沒被記錄。 2026-09-07 補上第一筆方向相反的：查得到，但查到的不是它（`grep -c` 數到的是散文註解不是程式碼）。2026-09-13 補上措辭最強的一種：工具明講 `successfully resolved`，而它解析到的是另一個 checkout 的同名檔（#782）。
 category: lessons
 tags: [lessons, silent-failure, tooling, verification]
 status: active
-updated: 2026-09-07
+updated: 2026-09-13
 ---
 
 # 工具靜默地不做你以為它在做的事
@@ -53,6 +53,7 @@ updated: 2026-09-07
 | `nx affected … \| tail -12`           | 尾巴切掉了 47 個測試的失敗詳情，只留下一行 `Failed tasks`；管線 exit 0                                                       | 輸出短到不可能裝得下我要看的東西                            |
 | `document.styleSheets` 遞迴掃描       | Chrome 的 `CSSStyleRule` **現在也有 `.cssRules`**（原生巢狀 CSS），先判 `.cssRules` 就永遠走不到 `selectorText`              | 樣式明明在頁面上生效，「零條規則命中」不可能成立            |
 | `grep -c '<字串>'` 確認突變落地       | 那個字串**同時活在文件註解裡**，所以回 1 被讀成「突變沒生效」——**程式碼那行真的被移除了**                                    | 測試紅了，而我以為突變沒生效（**兩件事互相矛盾**）          |
+| TypeScript 的 `paths` 解析            | **解析到另一個 checkout 的同名檔**，而 tsc 把它叫做 `successfully resolved`                                                  | 改了自己 worktree 裡的檔，錯誤訊息卻說「找不到這個 export」 |
 
 ## 兩個靜默的東西疊起來，症狀會指向完全錯的方向
 
@@ -333,6 +334,64 @@ grep -c 'madeUpBy === null' apps/api/src/routes/sessions.ts   # → 1
 （跟本頁 `public.` 前綴那則的差別：那則是**同名的表**讓你查錯對象，
 這則是**同樣的字串**在兩種載體裡都合法。前者換一個限定詞就解決，
 後者要換一種錨點 —— 因為那個字串在散文裡出現是**應該的**，不是錯誤。）
+
+## 最強的一種措辭：工具明講「成功」，而它成功地做錯了（#782）
+
+前面每一則的共同點是工具**不說話**（零筆、綠燈、空輸出）。這一則不同 ——
+**工具主動宣告成功，用的字就是 `successfully`。**
+
+`apps/api/tsconfig.json` 沒有宣告自己的 `baseUrl`，於是繼承 `tsconfig.base.json` 的
+`"baseUrl": "."`（＝ **repo 根目錄**），而它的 `paths` 是照「相對於 `apps/api`」寫的
+（`../../packages/…`）。兩者一組合，路徑往上多跳兩層。
+
+在 worktree 裡跑 `tsc --traceResolution`：
+
+```
+======== Module name '@clessia/shared-types' was successfully resolved to
+         '/Users/…/Workspace/clessia/packages/shared-types/src/index.ts'. ========
+```
+
+**那個路徑沒有 `.worktrees/labor-6`。** 它解析到了**主 checkout 的同名檔**，
+而那個檔**真的存在、內容也真的合法** —— 所以 TypeScript 沒有任何理由報錯。
+
+### 它呈現給你的錯誤指向錯的方向
+
+改了自己 worktree 裡的 `packages/shared-types`，加了一個 export，然後：
+
+```
+error TS2305: Module '"@clessia/shared-types"' has no exported member 'PROBE_782'.
+```
+
+**這句話說的是「你沒加」，而你剛剛加了。** 真正的意思是「你加錯地方了 ——
+我讀的不是那個檔」，但沒有任何一個字提到「哪個檔」。
+
+於是最自然的下一步是去**檢查自己有沒有存檔、有沒有打錯字、是不是 export 寫錯** ——
+全部都對，於是開始懷疑工具鏈壞了。**沒有人會想到要問「你到底讀了哪個檔」**，
+因為那個問題在單一 checkout 的世界裡沒有意義。
+
+### 判準
+
+> **凡是「路徑設定 + 相對寫法」的組合，出問題時先問工具「你解析到哪個檔」，
+> 不要問「我是不是寫錯了」。**
+
+多數工具都有這個開關，而且它是**唯一一個會把實際路徑印出來的**：
+
+| 工具               | 問法                                                                               |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| TypeScript         | `tsc -p <config> --noEmit --traceResolution`                                       |
+| esbuild / wrangler | 錯誤訊息裡本來就帶解析後的相對路徑（`../../../../packages/…` —— **數一下有幾層**） |
+| Node               | `node --trace-resolution`（或 `require.resolve()` 印出來）                         |
+
+**`../../../../` 那個數字本身就是證據** —— 從 `apps/api/src/lib` 往上四層是 repo 根，
+而 `packages/` 應該在 repo 根**底下**，不是同層。
+
+### 這一族跟「基準點移動」那一節是親戚
+
+[[lessons/silent-tool-failures]] 上面那則講的是**別人在你兩次量測之間改了共用資源**。
+這一則是**你自己的工具一直在讀共用資源，而你以為它在讀你的**。
+
+兩者的共同點：**worktree 讓「同一個路徑」有了兩個答案**，
+而多數工具的錯誤訊息是照「只有一個答案」的世界寫的。
 
 ## 為什麼這一頁在 `kb/` 而不在 charter 或通則清單裡
 

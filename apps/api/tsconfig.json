@@ -2,6 +2,14 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "../../dist/apps/api",
+    // **一定要自己宣告 `baseUrl`。** 沒有它就繼承 `tsconfig.base.json` 的 `"."`
+    // （＝ repo 根目錄），而下面的 paths 是照「相對於 apps/api」寫的 ——
+    // 兩者一組合就往上多跳兩層，跳出 repo。
+    //
+    // 在 worktree 裡它**解析得到一個真的存在的檔案，只是屬於主 checkout**，
+    // 而 TypeScript 把那個叫做 "successfully resolved"（issue #782）。
+    // `apps/web/tsconfig.json` 一直是對的，因為它自己宣告了 baseUrl。
+    "baseUrl": ".",
     "types": ["@cloudflare/workers-types"],
     "lib": ["ES2022"],
     "paths": {
