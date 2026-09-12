@@ -444,6 +444,60 @@ __P.coarseRules = function () {
 // 對每個 < 44px 的元素：coarse.filter((s) => el.matches(s))
 ```
 
+> 🔴 **2026-09-13 訂正（labor-6）：選擇器比對只對自刻元件成立，對 PrimeNG 會漏報。**
+>
+> `styles.scss` 的 coarse 區塊改的不是選擇器的尺寸，是 `:root` 上的
+> `--p-inputtext-padding-y` / `--p-button-padding-y` 這一族 **token**。
+> `el.matches(selector)` 永遠比對不到 `:root`，於是**每一個 PrimeNG 控制項都會被報成
+> 「沒有 coarse 規則接住」** —— 而它們多數是會被抬到 44 的。
+>
+> **改成直接量**：把 `(pointer: coarse)` 區塊的宣告從 CSSOM 抄出來、注入 iframe、
+> 重量一次、再移除。拿到的是**真機尺寸**，不是推測。
+
+```js
+__P.coarseCss = function () {
+  const parts = [];
+  const walk = (rules) => {
+    for (const r of rules) {
+      if (r.type === 4) {
+        if (/pointer:\s*coarse/.test(r.conditionText || r.media.mediaText || '')) {
+          for (const inner of r.cssRules) parts.push(inner.cssText);
+        } else walk(r.cssRules);
+      } else if (r.cssRules) walk(r.cssRules);
+    }
+  };
+  for (const ss of this.d.styleSheets) {
+    try {
+      walk(ss.cssRules);
+    } catch (e) {}
+  }
+  return parts.join('\n');
+};
+__P.withCoarse = async function (fn) {
+  const st = this.d.createElement('style');
+  st.textContent = this.coarseCss();
+  this.d.documentElement.appendChild(st); // 放最後才蓋得過同權重的規則
+  await new Promise((r) => setTimeout(r, 300));
+  try {
+    return fn();
+  } finally {
+    st.remove();
+  }
+};
+```
+
+實測（`/admin/notifications`，390px）——**同一排控制項，三個被抬、一個沒有**：
+
+| 元素                                   | 滑鼠指標下 | 注入 coarse 後 |
+| -------------------------------------- | ---------- | -------------- |
+| `span.p-select-label`                  | `100 × 40` | `100 × 44` ✓   |
+| `div.p-select-dropdown`                | `40 × 40`  | `40 × 44` ✓    |
+| `button.p-button`                      | `58 × 41`  | `58 × 45` ✓    |
+| **`input.admin-notifications__input`** | `300 × 38` | **`300 × 38`** |
+
+最後那顆是專案自刻的 `.admin-notifications__input`、**不是 `.p-inputtext`**，所以吃不到那族 token。
+**這種「旁邊每一個都被抬了、只有它沒有」的落差，選擇器比對版本看不出來。**
+
 兩個實測的對照（`_shared/shell-layout`，admin）：
 
 | 元素                      | 量到   | coarse 命中                               | 真機上      |
@@ -457,36 +511,111 @@ __P.coarseRules = function () {
 > Phase 2 量的是**執行期的實際矩形**，涵蓋 PrimeNG 與繼承，但**只涵蓋你這一輪渲染出來的東西**。
 > **gate 綠 ≠ 觸控目標合格**，而 Phase 2 的清單也不是全集。
 
-### 取樣器要補兩道濾網 —— Phase 1 的版本在窄寬度下會灌水
+### 取樣器要補四道濾網 —— Phase 1 的版本在窄寬度下會灌水
 
 「元素清單以 DOM 為準」那一節的 `visible()` 只看 `display` / `visibility` / `offsetParent`。
-**三種在 Phase 2 會出事的東西它全部放行**：
+**五種在 Phase 2 會出事的東西它全部放行**，而且**每一種都是往「灌水」的方向錯**
+（報了一個使用者看不到的元素），只有最後一種是往「漏報」的方向：
 
-| 形狀                             | 實例                                                    |
-| -------------------------------- | ------------------------------------------------------- |
-| 寬或高是 0                       | 390px 下的 `app-sidebar` 是 `0 × 724`                   |
-| 祖先 `opacity: 0`                | 收合的側欄群組（`collapsible` 用 `0fr` + `opacity: 0`） |
-| 被祖先的 `overflow: hidden` 裁掉 | 同上，子元素照樣回報 `223 × 34`                         |
+| 形狀                                       | 實例                                                    | 濾網 |
+| ------------------------------------------ | ------------------------------------------------------- | ---- |
+| 寬或高是 0                                 | 390px 下的 `app-sidebar` 是 `0 × 724`                   | 既有 |
+| 祖先 `opacity: 0`                          | 收合的側欄群組（`collapsible` 用 `0fr` + `opacity: 0`） | ①    |
+| 祖先被壓成 `height: 0` + `overflow:hidden` | `/admin/courses` 的課程群組，子元素照樣回報 `87 × 20`   | ②    |
+| **在捲軸下方**（不是看不到，是要捲）       | 390px 下折線以下的一切                                  | ③    |
+| **被固定底部浮層壓住**（捲一下就露出來）   | `.page-actions__dock` + `app-bottom-bar` 蓋住底部 130px | ④    |
 
 補強版（`why()` 回 `null` 才算看得見，回字串就是它為什麼看不見）：
 
 ```js
 __P.why = function (e) {
-  const b = e.getBoundingClientRect();
-  if (b.width <= 0 || b.height <= 0) return 'zero-size';
+  const b0 = e.getBoundingClientRect();
+  if (b0.width <= 0 || b0.height <= 0) return 'zero-size';
   const cs = this.w.getComputedStyle(e);
   if (cs.visibility === 'hidden' || cs.display === 'none' || e.offsetParent === null)
     return 'display/visibility';
-  for (let p = e; p; p = p.parentElement) {
-    if (this.w.getComputedStyle(p).opacity === '0')
-      return 'opacity:0 @ ' + (p.getAttribute('class') || p.tagName);
+  // ① 祖先透明 ② 祖先被壓成 0 且切掉溢出 —— 兩者都不要靠命中測試去發現
+  for (let p = e.parentElement; p; p = p.parentElement) {
+    const ps = this.w.getComputedStyle(p);
+    if (ps.opacity === '0')
+      return (
+        'opacity:0 @ ' +
+        (p.getAttribute('class') || p.tagName) +
+        (ps.animationName !== 'none' ? ' [animation=' + ps.animationName + ' → 疑似坑 12]' : '')
+      );
+    if (ps.overflow !== 'visible' && (p.clientHeight === 0 || p.clientWidth === 0))
+      return 'collapsed-ancestor @ ' + (p.getAttribute('class') || p.tagName);
   }
+  // ③ 捲軸外不等於不存在 —— 捲進來再測，測完還原
+  const inView = (r) =>
+    r.top >= 0 && r.left >= 0 && r.bottom <= this.w.innerHeight && r.right <= this.w.innerWidth;
+  let b = b0,
+    restore = null;
+  if (!inView(b0)) {
+    const sc = this.scroller(e);
+    restore = sc ? [sc, sc.scrollTop, sc.scrollLeft] : null;
+    e.scrollIntoView({ block: 'center', inline: 'center' });
+    b = e.getBoundingClientRect();
+  }
+  let verdict = null;
   const cx = b.left + b.width / 2,
     cy = b.top + b.height / 2;
-  if (cx < 0 || cy < 0 || cx > this.w.innerWidth || cy > this.w.innerHeight) return 'offscreen';
-  const hit = this.d.elementFromPoint(cx, cy);
-  if (!hit || (!e.contains(hit) && !hit.contains(e))) return 'clipped/covered';
-  return null;
+  if (cx < 0 || cy < 0 || cx > this.w.innerWidth || cy > this.w.innerHeight) {
+    verdict = 'offscreen-even-after-scroll';
+  } else {
+    const hit = this.d.elementFromPoint(cx, cy);
+    if (!hit || (!e.contains(hit) && !hit.contains(e))) {
+      verdict = 'clipped/covered';
+      // ④ 被固定浮層壓住 ≠ 看不到：捲一下就露出來
+      for (let p = hit; p; p = p.parentElement) {
+        const pos = this.w.getComputedStyle(p).position;
+        if (pos === 'fixed' || pos === 'sticky') {
+          verdict = 'covered-by-fixed';
+          break;
+        }
+      }
+    }
+  }
+  if (restore) {
+    restore[0].scrollTop = restore[1];
+    restore[0].scrollLeft = restore[2];
+  }
+  return verdict;
+};
+// 橫向捲動容器也算 scroller —— 分校頁籤是橫向捲的
+__P.scroller = function (e) {
+  for (let p = e.parentElement; p; p = p.parentElement) {
+    const cs = this.w.getComputedStyle(p);
+    if (
+      ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && p.scrollHeight > p.clientHeight) ||
+      ((cs.overflowX === 'auto' || cs.overflowX === 'scroll') && p.scrollWidth > p.clientWidth)
+    )
+      return p;
+  }
+  return this.d.scrollingElement;
+};
+// 可見元素 = 捲動頂 + 捲動底兩個位置的聯集
+__P.visibleEls = async function (root) {
+  const m = root || this.main();
+  const all = [...m.querySelectorAll(this.SEL)];
+  const seen = new Set(),
+    byFixed = new Set();
+  for (const pos of [0, m.scrollHeight]) {
+    m.scrollTop = pos;
+    await new Promise((r) => setTimeout(r, 200));
+    all.forEach((e) => {
+      if (seen.has(e)) return;
+      const v = this.why(e);
+      if (!v) seen.add(e);
+      else if (v === 'covered-by-fixed') {
+        seen.add(e);
+        byFixed.add(e);
+      }
+    });
+  }
+  m.scrollTop = 0;
+  this._fixedCovered = [...byFixed];
+  return all.filter((e) => seen.has(e));
 };
 ```
 
@@ -501,6 +630,40 @@ Phase 1 只能說「樹裡有但使用者看不到」，現在分得出來是哪
 > 十四個項目尺寸全部正確（84×73）**但永遠停在動畫的第 0 幀**。
 >
 > **判準：`opacity:0` 先問 `getComputedStyle(el).animationName`。** 有名字就先懷疑環境。
+
+#### 濾網②：收合容器要用結構判斷，**不能靠命中測試**
+
+`/admin/courses` 的課程群組收合用的是 `height: 0` + `overflow: hidden`
+（**不是 `display:none`，也不是 `opacity:0`**）。裡面的 `<button>` 照樣回報 `87 × 20` 的 rect。
+
+**而命中測試在這種元素上時好時壞**：同一頁、同一個狀態，390 判 1 個可見、1504 判 3 個可見 ——
+**而實際上四個寬度的 20 個群組全部是收合的**（逐一查 `--collapsed` class 確認過）。
+成因是捲動之後那個 rect 落在自己祖先被繪製的位置上，`hit.contains(e)` 就成立了。
+
+加上 `overflow !== 'visible' && clientHeight === 0` 那一行之後，四個寬度一致、跑三次完全相同。
+
+> **一個「看起來有在過濾」的濾網比沒有濾網更糟** —— 它會給你一個穩定的錯誤數字，
+> 而那個數字在兩向比對裡是 0 差異。
+
+#### 濾網③：捲軸外不等於不存在
+
+第一版把「中心點在 viewport 外」判成 `offscreen`。**390 下折線以下的東西全部變成
+「只在 1504 可見」** —— `/admin/dashboard` 因此多報了一筆假差集（`在籍學生` 那張卡）。
+
+#### 濾網④：「可見」是捲動位置的函數，因為有固定底部浮層
+
+390 下 `.page-actions__dock`（`position: fixed`）加上 `app-bottom-bar`
+**合計蓋住畫面底部約 130px**。`/admin/courses` 在捲動位置 0 有 2 顆列刪除鍵被壓在下面，
+**捲到底之後 20 顆全部看得到**。
+
+所以可見元素取**捲動頂 + 捲動底兩個位置的聯集**，並把「被 `fixed`/`sticky` 壓住」
+跟「真的看不到」分成兩種判定 —— 前者算可見，另外列出來當作現況。
+
+> ⚠️ **不要為了更準而掃很多捲動位置。** 每 0.6 屏一站試過：`why()` 裡有 `scrollIntoView`，
+> 站數一多 **CDP 會在 45 秒逾時把分頁打掛**。兩站就好，剩下的落差記成量測限制。
+>
+> 實例：`/admin/courses` 390px 的 `p-button-danger` 兩站聯集量到 **19 / 20** ——
+> **少的那一顆是量測位置造成的，不是元素不存在**。這種要寫成「量測限制」，不要寫進差集表。
 
 ### 鍵盤可達性：真的 Tab 鍵在這個環境按不動
 
