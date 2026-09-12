@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { BehaviorSubject, of, throwError } from 'rxjs';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -44,9 +44,11 @@ describe('StudentDetailPage', () => {
   };
 
   const enrollmentsServiceMock = {
+    // `data` 標型別 —— 不標的話會被推論成 `never[]`，
+    // 之後用 `mockReturnValue` 餵真的 enrollment 進去會編譯失敗
     list: vi.fn(() =>
       of({
-        data: [],
+        data: [] as Enrollment[],
         meta: { total: 0, page: 1, pageSize: 50, totalPages: 1 },
       }),
     ),
@@ -203,6 +205,82 @@ describe('StudentDetailPage', () => {
      */
     it('陷阱：session_pack 是有模式的，不算異常', () => {
       expect(check({ billingMode: 'session_pack' })).toBe(false);
+    });
+  });
+
+  /**
+   * #722：在籍班級列的鍵盤操作。
+   *
+   * **工單寫的「沒有 `tabindex`、沒有 `role`」不成立** —— 那一列本來就有
+   * `role="button"` + `tabindex="0"` + `(keydown.enter)`，比工單指為範本的
+   * `/admin/enrollments`（只有 `tabindex` 與 Enter，沒有 `role`）**更完整**。
+   * 下面前兩條就是把這個前提釘住，免得下次又被當成缺陷開一次。
+   *
+   * **真正缺的是 Space**：對 `role="button"` 來說 Enter 與 Space 都是啟動鍵，
+   * 而這一列按 Space 什麼都不會發生（瀏覽器還會把頁面往下捲）。
+   * repo 裡 `payments` 與 `contact-book` 的可點列都已經是 Enter + Space。
+   */
+  describe('#722 在籍班級列的鍵盤操作', () => {
+    const enrollmentRow = () =>
+      fixture.nativeElement.querySelector('.student-detail__enrollment-item') as HTMLElement;
+
+    async function renderWithOneEnrollment() {
+      enrollmentsServiceMock.list.mockReturnValue(
+        of({
+          data: [
+            {
+              id: 'enrollment-1',
+              studentId: seedStudentId,
+              classId: 'class-1',
+              courseId: 'course-1',
+              className: '三年級數學 A',
+              courseName: '數學',
+              campusName: '文山旗艦校',
+              effectiveFrom: '2026-09-01',
+              status: 'active',
+              billingMode: 'monthly',
+            } as unknown as Enrollment,
+          ],
+          meta: { total: 1, page: 1, pageSize: 50, totalPages: 1 },
+        }),
+      );
+
+      fixture = TestBed.createComponent(StudentDetailPage);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return TestBed.inject(Router);
+    }
+
+    it('列是鍵盤觸達得到的 —— `role="button"` + `tabindex="0"`（前提確認，不是新行為）', async () => {
+      await renderWithOneEnrollment();
+
+      const row = enrollmentRow();
+      expect(row).toBeTruthy();
+      expect(row.getAttribute('tabindex')).toBe('0');
+      expect(row.getAttribute('role')).toBe('button');
+    });
+
+    it('Enter 觸發導向（既有行為，反向對照）', async () => {
+      const router = await renderWithOneEnrollment();
+      const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      enrollmentRow().dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }),
+      );
+
+      expect(navigate).toHaveBeenCalledWith(['/admin/courses', 'course-1', 'classes', 'class-1']);
+    });
+
+    it('Space 也要觸發導向 —— `role="button"` 的標準啟動鍵有兩個', async () => {
+      const router = await renderWithOneEnrollment();
+      const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+      enrollmentRow().dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true }),
+      );
+
+      expect(navigate).toHaveBeenCalledWith(['/admin/courses', 'course-1', 'classes', 'class-1']);
     });
   });
 });
