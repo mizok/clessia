@@ -307,6 +307,24 @@ describe('StaffPage', () => {
       expect(config.data.loginUrl).toContain('token=t');
       expect(config.data.personName).toBe('王老師');
     });
+    /**
+     * #666 之二：**這條接線不接上，對話框那半就是死碼。**
+     *
+     * `LoginLinkDialogComponent` 的 `audience` 預設是 `'parent'`
+     * （家長那條路刻意一字不動），所以**職員版只有在這裡明式傳了才會出現**。
+     * 少了這一行，對話框裡的兩套措辭永遠只會用到一套，而且沒有任何東西會報錯。
+     */
+    it('開的時候要標明對象是職員 —— 否則對話框會用家長的措辭', () => {
+      (component as unknown as { issueLoginLink: (s: Staff) => void }).issueLoginLink(staff);
+
+      const lastCall = dialogServiceMock.open.mock.calls.at(-1) as unknown as [
+        unknown,
+        { data: { audience?: string } },
+      ];
+
+      expect(lastCall[1].data.audience).toBe('staff');
+    });
+
     // 還沒有登入帳號的人產生不出連結 —— 要說清楚，不要靜靜地什麼都沒發生
     it('沒有 userId 時不呼叫 API', () => {
       (component as unknown as { issueLoginLink: (s: Staff) => void }).issueLoginLink({

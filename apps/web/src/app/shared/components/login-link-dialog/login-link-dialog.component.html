@@ -10,11 +10,7 @@
 </div>
 
 <div class="login-link">
-  <app-inline-notice
-    severity="info"
-    detail="請對方用自己的手機掃描下方 QR，登入後綁定 LINE。連結 24 小時內有效、只能使用一次。"
-    [dismissible]="false"
-  />
+  <app-inline-notice severity="info" [detail]="noticeDetail()" [dismissible]="false" />
 
   <div class="login-link__qr">
     <qrcode [qrdata]="loginUrl()" [width]="220" errorCorrectionLevel="M" elementType="canvas" />

@@ -13,6 +13,12 @@ import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-n
  * **櫃檯當場掃是綁定成功率最高的時刻** —— 家長本人在場、有真人可以帶著操作，
  * 長輩不需要看懂連結或自己完成任何步驟。錯過就得事後追。
  *
+ * ⚠️ **上面那段是家長流程的理由，而這支對話框後來也被人員流程重用了**（#666 之二）：
+ * 建完一個坐辦公室的職員之後跳的也是這一個，卻叫他「用自己的手機掃描」。
+ * 使用者裁定**同一個能力、兩套措辭** —— 家長版一字不動，職員版換一句。
+ *
+ * **`audience` 預設是 `'parent'`**，所以沒傳的呼叫端（`parents.page.ts`）行為完全不變。
+ *
  * 連結太長（含 token 與 callbackURL），沒有人會用手打，所以：
  * - 主要路徑是 QR
  * - 掃不到就複製連結用 LINE 傳
@@ -33,6 +39,17 @@ export class LoginLinkDialogComponent {
 
   protected readonly loginUrl = () => (this.config.data?.loginUrl ?? '') as string;
   protected readonly personName = () => (this.config.data?.personName ?? '') as string;
+
+  /**
+   * 兩套措辭只差在「要請誰做什麼」那一句。
+   *
+   * **後半那句不分對象**：連結會過期、只能用一次**是事實不是措辭** ——
+   * 拿掉它，職員不會知道這條連結 24 小時後就沒用了。
+   */
+  protected readonly noticeDetail = () =>
+    ((this.config.data?.audience ?? 'parent') === 'staff'
+      ? '請同仁用手機掃描綁定，或複製連結傳給他。'
+      : '請對方用自己的手機掃描下方 QR，登入後綁定 LINE。') + '連結 24 小時內有效、只能使用一次。';
 
   protected onHide(): void {
     this.ref.close();
