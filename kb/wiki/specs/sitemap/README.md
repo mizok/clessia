@@ -1,6 +1,6 @@
 ---
 title: 整站 UI 地圖 —— 方法頁
-summary: 怎麼畫一頁 UI 地圖、怎麼用瀏覽器兩向比對驗證它，以及六個會讓驗證靜靜失效的坑。
+summary: 怎麼畫一頁 UI 地圖、怎麼用瀏覽器兩向比對驗證它，以及八個會讓驗證靜靜失效的坑。
 category: spec
 status: developing
 tags: [sitemap, method]
@@ -112,7 +112,7 @@ const vis = all.filter(visible);
 
 `read_page` 仍然有用（它給 `ref`，`computer` 工具可以直接點），只是**不要拿它當清單的真相**。
 
-## 六個會讓驗證靜靜失效的坑
+## 八個會讓驗證靜靜失效的坑
 
 ### 1. toggle：你以為元件壞了，其實你按了兩次
 
@@ -148,11 +148,22 @@ const vis = all.filter(visible);
 
 本 repo 的正確選擇器：
 
-| 東西       | 選擇器                                                                      |
-| ---------- | --------------------------------------------------------------------------- |
-| 列動作選單 | `.popup-menu__panel` / 項目 `.popup-menu__item` / 文字 `.popup-menu__label` |
-| 對話框     | `.p-dialog`                                                                 |
-| 遮罩       | `.cdk-overlay-backdrop`                                                     |
+| 東西               | 選擇器                                                                              |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| 列動作選單         | `.popup-menu__panel` / 項目 `.popup-menu__item` / 文字 `.popup-menu__label`         |
+| 對話框             | `.p-dialog`                                                                         |
+| 遮罩               | `.cdk-overlay-backdrop`                                                             |
+| **底部抽屜**       | `.p-drawer`（**不是** `.p-dialog`）／遮罩 `.p-drawer-mask`                          |
+| **孩子切換器下拉** | `.child-switcher-overlay`（PrimeNG `p-popover`）／項目 `.child-switcher__list-item` |
+| **下拉選單浮層**   | `.p-overlay`／選項 `.p-select-option, li[role="option"]`                            |
+
+⚠️ **`p-select` 的清除鍵是 `<svg class="p-select-clear-icon">`，不是 `<button>`** ——
+上面那段標準 DOM 查詢的選擇器清單裡沒有 `svg`，**所以它抓不到**。
+它是一個真的可以按、而且會改變畫面的東西（實測：按下去被篩掉的資料立刻出現）。
+**「畫面 ⊆ 地圖」會在這裡漏水**：數字對得起來，但少了一個元素。
+
+⚠️ **對話框／抽屜的內容通常不在 `<main>` 裡**（`appendTo="body"`），
+所以頁面的兩向比對**量不到它們** —— 要另外查。
 
 ### 4. 收合／隱藏的內容仍然在樹裡
 
@@ -217,6 +228,78 @@ document.elementFromPoint((frameX * innerWidth) / 框寬, (frameY * innerHeight)
 但它是 `isTrusted: false` 的合成事件，**驗不到依賴真實指標事件的東西** ——
 `pointerdown`、hover 才出現的、**失焦才關的浮層（坑 5 那一族）**。
 用了就要在該頁的驗證紀錄裡寫出來，不要混在「實按驗過」裡面。
+
+### 7. 量到一半身分被換掉，而畫面不會告訴你
+
+**auth cookie 是 host 層級、不分 port，而全席共用同一個 Chrome profile** ——
+**任何一席登入都會把你踢掉。** 2026-09-12 labor-5 做家長端時被踢**三次**，
+其中一次在量測中途。
+
+**它長得像產品缺陷**：`/parent/payments` 切到另一個孩子之後顯示
+「**載入失敗 —— 沒有讀到繳費紀錄，可能是連線問題**」，而 DB 明明有 2 張帳單。
+真相是別席在那幾秒登入了 admin，`GET /api/me/billing` 回 `403 NOT_PARENT`。
+
+**而頂列徽章還寫著「家長／林志明」。** shell 不會因為 cookie 變了而重繪，
+所以**從 DOM 讀身分會給你一個假的安全通過** ——
+「我有檢查過身分」跟「身分是對的」是兩件事。
+
+**做法：身分斷言一律打 `GET /api/me`，而且量測前後各一次。**
+
+```js
+const who = async () => {
+  const r = await fetch('http://localhost:8787/api/me', { credentials: 'include' });
+  const j = await r.json();
+  return j.email + ' ' + JSON.stringify(j.roles);
+};
+// 量測前後各呼叫一次，兩次都寫進驗證紀錄
+```
+
+前後兩次不一致（或跟你要的角色不符）→ **那次量測作廢重做**，不要「修一下再用」。
+
+**例外要單獨標等級**：labor-5 有一次按期間篩選鈕時 `who()` 回 admin，
+但那個操作是**純前端 computed、完全不打 API**，而資料是在確認為家長時載入的 ——
+**結論成立，但它跟「乾淨 session 驗過」不是同一個等級**，所以在該頁單獨寫了一段。
+
+> **這一條也是排程問題，不只是技術問題**：連續量測要跟別席協調一個獨佔窗口。
+> 開工前用 peer message 講一聲，被踢了要講第二聲。
+
+### 8. 空資料讓地圖漏掉元素，而兩向比對照樣是 0 差異
+
+**Phase 0 的 [[specs/sitemap/parent/attendance]] 是用 `林子璿` 量的，
+而那個孩子在本機的出勤紀錄是 0 筆。**
+
+於是逐日清單每一天都是「今日無課」，**`button.attendance__record` 一顆都沒有渲染出來**，
+可見互動元素收斂在「4 個」，地圖列 4 個，**差異 0 筆**。
+
+切到 `王柏翰`（11 筆）重量是 **5 個**。那顆漏掉的按鈕可以按、會就地展開明細。
+
+**這是坑 6 之外的第二種「兩邊來自同一個瞎掉的來源」** ——
+不是工具瞎掉，是**你手上的資料讓那一類元素根本沒有機會出現**。
+
+**做法**：畫任何清單型頁面之前，先問「**我的資料能讓每一種列都渲染出來嗎**」。
+
+- 能 → 量
+- 不能 → **換一筆資料**（切孩子、切篩選、換帳號；本輪就是查 DB 找出哪個孩子有資料）
+- 都不能 → **把「這個狀態下量不到」寫進未驗清單**，不要讓計數自己收斂
+
+查資料分佈比猜快很多。例：
+
+```sql
+select s.name,
+  (select count(*) from invoices i where i.student_id = s.id) as invoices,
+  (select count(*) from attendance_records ar where ar.student_id = s.id) as attend
+from students s ...;
+```
+
+**挑資料的時候順便挑「有鑑別力」的那一筆**：驗期間篩選器時，
+王柏翰那筆是 17 天前 —— 四個期間**全都包含它**，切來切去結果一樣，
+那種「兩邊一樣」什麼都證明不了。盧安琪那筆是 53 天前，
+**只有「近1月」排除得掉**，這才叫驗過。
+
+> **元素清單一定要帶 `disabled`**（labor-1 / #698 的方法修正）：
+> 按了沒反應的按鈕，先查 `[disabled]` 再說是缺陷。
+> **更強的做法是查模板有沒有 `[disabled]` 繫結** ——
+> 沒有繫結就代表它**結構上不會**進入 disabled，比一次執行期快照耐用。
 
 ## 環境：先確認你量的是哪一版
 
