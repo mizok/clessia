@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 
 import { ButtonModule } from 'primeng/button';
 import { TextareaModule } from 'primeng/textarea';
+import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
@@ -38,7 +39,24 @@ const MAX_CONTENT = 5000;
 @Component({
   selector: 'app-contact-book-entry-dialog',
   standalone: true,
-  imports: [DatePipe, StatusDotComponent, FormsModule, ButtonModule, TextareaModule],
+  imports: [DatePipe, StatusDotComponent, FormsModule, ButtonModule, TextareaModule, ToastModule],
+  /**
+   * **自己帶 `MessageService` 與自己的 `<p-toast>`**（#733）。
+   *
+   * `MessageService` 不是 `providedIn: 'root'`，而這支元件 `inject` 了它 ——
+   * 原本要靠呼叫端在元件層 `providers` 裡給。三個開啟點裡只有 admin 那兩處給了，
+   * **老師端（`teacher/pages/schedule/contact-book-roster`）整條鏈上都沒有**，
+   * 於是 `NG0201`、對話框開出來是空的，使用者看到的是「這顆按鈕壞了」。
+   *
+   * **為什麼連 `<p-toast>` 也要自己帶**：`MessageService` 只是通道，訊息只會出現在
+   * 綁**同一個實例**的 `<p-toast>` 上。admin 端看得到訊息是因為剛好共用了頁面層的實例，
+   * 而那一頁的模板第一行有 `<p-toast>`。**老師端整條路上沒有任何 `<p-toast>`** ——
+   * 所以只補 provider 的話 `NG0201` 會消失、對話框會打開，
+   * 而「儲存失敗」永遠不會被看見。**那是把一個大聲的錯誤換成一個安靜的。**
+   *
+   * 形狀照 `login-link-dialog`（全站唯一「對話框自己帶 toast」的先例），不另發明。
+   */
+  providers: [MessageService],
   templateUrl: './contact-book-entry-dialog.component.html',
   styleUrl: './contact-book-entry-dialog.component.scss',
 })
