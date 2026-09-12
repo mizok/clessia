@@ -95,10 +95,31 @@ export class StudentFormDialogComponent {
     { label: '不提供', value: 'prefer_not_to_say' },
   ];
 
-  protected readonly isFormValid = computed(() => {
+  /**
+   * 驗證失敗的持久標記（#716，方向由 #664 定）。
+   *
+   * **toast 是輔助，這個才是主體訊號** —— 錯誤跟著欄位顯示，
+   * 直到那個欄位被改動為止。
+   */
+  protected readonly errors = signal<Record<string, string>>({});
+
+  /**
+   * 回傳第一個錯誤的欄位 key，全部通過回 `null`。
+   *
+   * **一次收集全部**而不是遇到第一個就 return —— 使用者一次看到所有要補的東西，
+   * 不用「修一個、再按一次、再發現下一個」。
+   */
+  private validate(): string | null {
     const f = this.formData();
-    return f.name.trim().length > 0 && f.grade.length > 0 && !!f.schoolId;
-  });
+    const found: Record<string, string> = {};
+
+    if (!f.name.trim()) found['name'] = '請填寫姓名';
+    if (!f.grade) found['grade'] = '請選擇年級';
+    if (!f.schoolId) found['schoolId'] = '請選擇就讀學校';
+
+    this.errors.set(found);
+    return Object.keys(found)[0] ?? null;
+  }
 
   constructor() {
     this.schoolsService
@@ -131,8 +152,29 @@ export class StudentFormDialogComponent {
       });
   }
 
+  /**
+   * **這顆按鈕刻意只在 `loading()` 時 disable。**（#716，照 #664 的判準）
+   *
+   * 原本是 `[disabled]="!isFormValid()"` —— 必填沒填時**按下去真的什麼都不會發生**：
+   * 沒有 toast、沒有欄位標記、沒有任何解釋。
+   *
+   * 判準：**`disabled` 是把「為什麼不行」藏起來，而那正是使用者最需要知道的。
+   * 按不下去的按鈕不會解釋原因，按得下去的才會。**
+   * 例外是「按下去會產生後果」的按鈕 —— 驗證沒過就不會送出，
+   * 誤觸的代價只是看到一則錯誤訊息，而那正是我們要他看到的東西。
+   * （`loading()` 期間仍然 disable，那時候按下去**會**產生後果：重複建立。）
+   */
   protected save(): void {
-    if (!this.isFormValid()) return;
+    const firstError = this.validate();
+    if (firstError) {
+      // toast 留著當**輔助** —— 有人的視線可能正好在右上，但它不再是唯一訊號
+      this.messageService.add({
+        severity: 'warn',
+        summary: '請檢查標示的欄位',
+        detail: this.errors()[firstError],
+      });
+      return;
+    }
 
     const f = this.formData();
     this.loading.set(true);
@@ -235,6 +277,17 @@ export class StudentFormDialogComponent {
     value: ReturnType<typeof this.formData>[K],
   ): void {
     this.formData.update((f) => ({ ...f, [field]: value }));
+    this.clearError(field as string);
+  }
+
+  /** 改動一個欄位就清掉它的錯誤 —— 錯誤是「上次送出時的狀態」，不是永久標籤 */
+  private clearError(field: string): void {
+    if (!this.errors()[field]) return;
+    this.errors.update((e) => {
+      const next = { ...e };
+      delete next[field];
+      return next;
+    });
   }
 
   private formatDate(date: Date): string {

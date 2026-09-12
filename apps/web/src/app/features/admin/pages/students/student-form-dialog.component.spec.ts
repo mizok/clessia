@@ -127,4 +127,108 @@ describe('StudentFormDialogComponent', () => {
       expect.objectContaining({ parentId: 'parent-2' }),
     );
   });
+
+  /**
+   * #716：送出鍵原本是 `[disabled]="!isFormValid()"`。
+   *
+   * **方向由 #664 定了**（人員表單）：`disabled` 是把「為什麼不行」藏起來，
+   * 而那正是使用者最需要知道的 —— **按不下去的按鈕不會解釋原因，按得下去的才會**。
+   * 家長表單已經是新方向，學生表單是舊的那一版。
+   */
+  describe('#716 送出鍵改成欄位級錯誤', () => {
+    async function renderEmptyForm() {
+      await setup({ student: null });
+      fixture = TestBed.createComponent(StudentFormDialogComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    const submitButton = (): HTMLButtonElement =>
+      [...fixture.nativeElement.querySelectorAll('button')].find((b) =>
+        (b as HTMLElement).textContent?.includes('建立學生'),
+      ) as HTMLButtonElement;
+
+    it('必填全空時送出鍵仍然可以按', async () => {
+      await renderEmptyForm();
+
+      expect(submitButton()).toBeTruthy();
+      expect(submitButton().disabled).toBe(false);
+    });
+
+    it('按下去逐欄顯示錯誤，而且不送出請求', async () => {
+      await renderEmptyForm();
+
+      submitButton().click();
+      fixture.detectChanges();
+
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('請填寫姓名');
+      expect(text).toContain('請選擇年級');
+      expect(text).toContain('請選擇就讀學校');
+
+      // **沒有送出** —— 驗證沒過就不會打 API，誤觸的代價只是看到錯誤訊息
+      expect(studentsServiceMock.create).not.toHaveBeenCalled();
+    });
+
+    /**
+     * **一次收集全部**，不是遇到第一個就停 —— 照 #664 的形狀：
+     * 使用者一次看到所有要補的東西，不用「修一個、再按一次、再發現下一個」。
+     */
+    it('三個必填一次全部標出來，不是一次一個', async () => {
+      await renderEmptyForm();
+
+      submitButton().click();
+      fixture.detectChanges();
+
+      const errors = (component as unknown as { errors: () => Record<string, string> }).errors();
+      expect(Object.keys(errors).sort()).toEqual(['grade', 'name', 'schoolId']);
+    });
+
+    it('改動一個欄位就清掉它的錯誤 —— 錯誤是「上次送出時的狀態」，不是永久標籤', async () => {
+      await renderEmptyForm();
+      submitButton().click();
+      fixture.detectChanges();
+
+      (
+        component as unknown as {
+          updateForm: (f: string, v: unknown) => void;
+        }
+      ).updateForm('name', '王小明');
+      fixture.detectChanges();
+
+      const errors = (component as unknown as { errors: () => Record<string, string> }).errors();
+      expect(errors['name']).toBeUndefined();
+      // 沒碰的那兩個要還在 —— 否則就變成「改一個欄位把全部錯誤洗掉」
+      expect(errors['grade']).toBeTruthy();
+      expect(errors['schoolId']).toBeTruthy();
+    });
+
+    /**
+     * **反向對照**：擋住「把 `disabled` 整個拿掉」那種過頭的修法。
+     *
+     * `loading()` 期間必須還是 disabled —— 那顆按鈕**按下去會產生後果**
+     * （重複建立學生），而 #664 的判準本來就把這種情況列為例外。
+     */
+    it('送出中仍然 disabled —— 這一顆按下去會產生後果', async () => {
+      await renderEmptyForm();
+
+      // **必填先填滿** —— 不填的話這條會因為「表單無效」而通過，
+      // 那跟 `loading()` 沒有關係，測試就證明不了它要證明的事。
+      const c = component as unknown as {
+        updateForm: (f: string, v: unknown) => void;
+        loading: { set: (v: boolean) => void };
+      };
+      c.updateForm('name', '王小明');
+      c.updateForm('grade', 'P5');
+      c.updateForm('schoolId', 'school-1');
+      fixture.detectChanges();
+      expect(submitButton().disabled).toBe(false);
+
+      c.loading.set(true);
+      fixture.detectChanges();
+
+      expect(submitButton().disabled).toBe(true);
+    });
+  });
 });
