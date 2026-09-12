@@ -396,6 +396,32 @@ if (existsSync(apiIndex) && existsSync(permissionsFile)) {
       );
     }
   }
+
+  // ── A7c. 每個權限在 seed 的權限矩陣段都要有一個帳號（clause c11）─────────────
+  // `supabase/seed.sql` 為 #759 抄了一份權限清單（SQL 讀不到 TS，只能抄）。
+  // **手抄的清單必須有機制守** —— 新增一個權限而忘了給它帳號的話，
+  // 矩陣會少一欄，而少的那一欄在畫面上跟「這個權限不擋任何東西」長得一模一樣。
+  const seedFile = join(ROOT, 'supabase/seed.sql');
+  if (existsSync(seedFile)) {
+    const seed = readFileSync(seedFile, 'utf8');
+    const matrixStart = seed.indexOf('權限矩陣的固定帳號');
+    if (matrixStart === -1) {
+      fail(
+        'supabase/seed.sql 找不到「權限矩陣的固定帳號」段（#759）—— ' +
+          '它被刪掉的話，8 個權限的變體矩陣就沒有帳號可以登入',
+      );
+    } else {
+      const matrix = seed.slice(matrixStart);
+      for (const permission of vocabulary) {
+        if (!matrix.includes(`'${permission}'`)) {
+          fail(
+            `權限 ${permission} 在 supabase/seed.sql 的權限矩陣段裡沒有對應帳號 —— ` +
+              `矩陣會少一欄，而「少一欄」跟「這個權限不擋任何東西」在畫面上一模一樣`,
+          );
+        }
+      }
+    }
+  }
 }
 
 // ── A7c. 每一支碰 campus_id 的路由都要接上分校預設過濾（clause c1）──────────────────────

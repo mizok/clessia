@@ -2045,3 +2045,114 @@ BEGIN
 
   RAISE NOTICE '展示狀態補齊完成（#685）';
 END $$;
+
+-- =============================================================================
+-- ===== 權限矩陣的固定帳號 —— 9 個權限各一個管理員（#759 Phase 2-C）=====
+-- =============================================================================
+--
+-- admin 這個角色靠 `user_roles.permissions` 分職責，而本機**每一個 `adminNN`
+-- 帳號都是 `["*"]`** —— 於是「只有 manage_courses 的人看得到哪些選單、進得去哪些頁」
+-- 在畫面上一次都摸不到。#759 要量的那張矩陣，沒有這一段就只有 `*` 一欄。
+--
+-- ⚠️ **零 `ba_*` 寫入（c2）：這一段不建任何新帳號。**
+--   seed 對 c2 的 9 筆豁免**是上限不是額度**（見上一節）。這裡只改 `user_roles`
+--   這張業務表，把既有的 `admin01`～`admin10` 從 `["*"]` 改成單一權限。
+--
+-- ⚠️ **為什麼挑 `adminNN` 而不是「給沒帶課的老師加 admin 角色」**：
+--   後者會做出 10 個**多重角色**帳號，每次登入都要先被 `/select-role` 攔一次，
+--   而且會改變老師端的登入行為 —— 那是別人正在量的東西。
+--   `adminNN` 是單一角色、有 `staff` 列、彼此對稱，改它們不牽動任何其他頁面。
+--
+-- ⚠️ **沒有翻掉 `["*"]` 的最後一個實例**：`admin@demo.clessia.app` 與 `admin11`
+--   保持 `["*"]`（2 個實例）。前者是所有人登入用的那一個，不要動它。
+--
+-- ⚠️ **`all_campuses` 會污染其他八欄的讀法，量矩陣的人必須知道**：
+--   沒有 `all_campuses` 的管理員**只看得到 `staff_campuses` 指派給他的分校**
+--   （`lib/campus-scope.ts` 在 middleware 裡讀它）。所以 `admin01`～`admin08`
+--   看到的清單都是**分校窄化過**的 —— **那是 `all_campuses` 缺席造成的，
+--   不是它們各自那個權限造成的**。要分辨就對照 `admin09`（只有 `all_campuses`）。
+--
+-- ⚠️ **`[]` 那個案例原本掛在 `teacher0001` 上，而它已經被覆蓋掉了**：
+--   上面「teacher0001 兼一個 admin 身分」那一段給的是 `'[]'`，但更後面的
+--   「展示狀態補齊」段又把同一列改成 `["view_reports"]` ——
+--   **同一支 seed 裡兩個區塊寫同一列，後面那個贏**，於是本機自 2026-09 起
+--   **沒有任何 `[]` 的管理員**（實測 `select ... where permissions = '[]'` 回 0 列）。
+--   這裡把它還給 `admin10`，兩個展示狀態不再共用同一列。
+--
+-- **清單的家是 `apps/api/src/lib/permissions.ts`**，不是這裡。
+-- 下面這份是抄的，由 `npm run harness` 的 A7b 盯著：**新增一個權限而沒有在這裡
+-- 給它一個帳號，gate 會紅**（c11 —— 手抄的清單必須有機制守）。
+
+DO $$
+DECLARE
+  -- 順序要跟 emails 對齊；權威清單見 apps/api/src/lib/permissions.ts
+  v_perms TEXT[] := ARRAY[
+    'basic_operations', 'manage_courses', 'manage_students', 'manage_finance',
+    'manage_staff', 'manage_roles', 'manage_org_settings', 'view_reports', 'all_campuses'
+  ];
+  v_emails TEXT[] := ARRAY[
+    'admin01@demo.clessia.app', 'admin02@demo.clessia.app', 'admin03@demo.clessia.app',
+    'admin04@demo.clessia.app', 'admin05@demo.clessia.app', 'admin06@demo.clessia.app',
+    'admin07@demo.clessia.app', 'admin08@demo.clessia.app', 'admin09@demo.clessia.app'
+  ];
+  v_empty_email TEXT := 'admin10@demo.clessia.app';
+  v_keep_wildcard TEXT[] := ARRAY['admin@demo.clessia.app', 'admin11@demo.clessia.app'];
+  v_missing TEXT := '';
+  v_uid TEXT;
+  i INT;
+BEGIN
+  -- ── 先確認依賴的帳號都還在（照這支 seed 既有的 v_missing 慣例）────────────
+  -- 上游改名或減少 adminNN 的數量時，這一段要**大聲失敗**而不是靜靜少做幾個。
+  FOR i IN 1 .. array_length(v_emails, 1) LOOP
+    IF NOT EXISTS (SELECT 1 FROM public.ba_user WHERE email = v_emails[i]) THEN
+      v_missing := v_missing || v_emails[i] || ' ';
+    END IF;
+  END LOOP;
+  IF NOT EXISTS (SELECT 1 FROM public.ba_user WHERE email = v_empty_email) THEN
+    v_missing := v_missing || v_empty_email || ' ';
+  END IF;
+  FOR i IN 1 .. array_length(v_keep_wildcard, 1) LOOP
+    IF NOT EXISTS (SELECT 1 FROM public.ba_user WHERE email = v_keep_wildcard[i]) THEN
+      v_missing := v_missing || v_keep_wildcard[i] || ' ';
+    END IF;
+  END LOOP;
+  IF v_missing <> '' THEN
+    RAISE EXCEPTION '權限矩陣段找不到它依賴的既有帳號：%。上游 seed 改過名字或數量，這一段會靜默失效 —— 請更新這裡的指名。', v_missing;
+  END IF;
+
+  IF array_length(v_perms, 1) <> array_length(v_emails, 1) THEN
+    RAISE EXCEPTION '權限矩陣段：權限有 % 個、帳號有 % 個，兩份清單沒對齊。',
+      array_length(v_perms, 1), array_length(v_emails, 1);
+  END IF;
+
+  -- ── 指派：一個帳號一個權限 ────────────────────────────────────────────────
+  FOR i IN 1 .. array_length(v_perms, 1) LOOP
+    SELECT id INTO v_uid FROM public.ba_user WHERE email = v_emails[i];
+    UPDATE public.user_roles
+       SET permissions = to_jsonb(ARRAY[v_perms[i]])
+     WHERE user_id = v_uid AND role = 'admin';
+  END LOOP;
+
+  -- ── 有 admin 角色但沒有任何細部權限 ───────────────────────────────────────
+  SELECT id INTO v_uid FROM public.ba_user WHERE email = v_empty_email;
+  UPDATE public.user_roles SET permissions = '[]'::jsonb
+   WHERE user_id = v_uid AND role = 'admin';
+
+  -- ── 產出點名：每一種都要真的存在 ──────────────────────────────────────────
+  FOR i IN 1 .. array_length(v_perms, 1) LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM public.user_roles
+       WHERE role = 'admin' AND permissions = to_jsonb(ARRAY[v_perms[i]])
+    ) THEN
+      RAISE EXCEPTION '權限矩陣段：沒有造出只有 % 的管理員', v_perms[i];
+    END IF;
+  END LOOP;
+
+  IF NOT EXISTS (SELECT 1 FROM public.user_roles WHERE role = 'admin' AND permissions = '[]'::jsonb)
+    THEN RAISE EXCEPTION '權限矩陣段：沒有造出「有 admin 角色但零細部權限」的管理員'; END IF;
+
+  IF (SELECT count(*) FROM public.user_roles WHERE role = 'admin' AND permissions = '["*"]'::jsonb) < 2
+    THEN RAISE EXCEPTION '權限矩陣段：`*` 的管理員少於 2 個 —— 翻掉了那個狀態的最後一個實例'; END IF;
+
+  RAISE NOTICE '權限矩陣帳號完成（#759）：% 個單一權限 + 1 個空權限', array_length(v_perms, 1);
+END $$;
