@@ -380,9 +380,34 @@ lsof -nP -iTCP:4200 -sTCP:LISTEN -t | head -1 | xargs -I{} lsof -p {} -a -d cwd 
 
 - 4201 的頁面可以用 callback 指向 4200 的連結登入
 - **換角色會踢掉前一個** —— 做完一個角色再換，或用獨立 Chrome profile
-- API 的 `trustedOrigins` 來自請求的 `Origin` 標頭，**頂層導覽沒有 Origin 會被拒**
-  （`INVALID_CALLBACK_URL`）。從已開啟的頁面用 `fetch(..., {credentials:'include'})`
-  兌換就會帶上 Origin
+- **`callbackURL` 不在 `WEB_URL` 上時，頂層導覽會被拒**（`INVALID_CALLBACK_URL`）——
+  從已開啟的頁面用 `fetch(..., {credentials:'include'})` 兌換就會帶上 `Origin` 而過關
+
+  規則本身（`apps/api/src/lib/origins.ts`）：
+
+  > `trustedOrigins` = `allowed` ∪ { 請求的 `Origin`，若通過 `isAllowedOrigin` }
+  > ，其中 `allowed` = 跑著那台 server 的 `WEB_URL` + `ALLOWED_ORIGINS`，
+  > 而 `isAllowedOrigin` 對 `localhost` / `127.0.0.1` **有開發豁免、不分 port**。
+
+  本機四種情況實測（用無效 token 打 `/api/auth/magic-link/verify`，
+  callback 驗證發生在 token 查詢之前，所以不必燒掉真的 token）：
+
+  | callbackURL | `Origin` 標頭           | 結果                           |
+  | ----------- | ----------------------- | ------------------------------ |
+  | `:4200`     | 無                      | **302**                        |
+  | `:4210`     | 無                      | **403 `INVALID_CALLBACK_URL`** |
+  | `:4210`     | `http://localhost:4210` | **302**                        |
+  | `:4200`     | `http://localhost:4200` | 302                            |
+
+  **`WEB_URL` 從哪來**：不在 `apps/api/.dev.vars` 裡（那份沒有這個鍵），
+  是 `apps/api/wrangler.toml` 的 `[vars]` 寫死 `WEB_URL = "http://localhost:4200"`。
+  **只看 `.dev.vars` 會以為 `allowed` 是空的** —— 我就看錯過一次。
+
+  > 這一段原本寫成「頂層導覽**沒有 Origin** 會被拒」，**範圍太寬**：
+  > callback 指向 `:4200` 的頂層導覽是會過的（上表第一列）。
+  > 由 labor-2 從反方向抓到並在本機重現 —— 它自己那則寫成「只信任 `:4200` 的 port 白名單」，
+  > **同一個現象、兩種錯的機制解釋**，兩邊都是只量了兩種情況就推論。
+  > 分開它們的是第三列（`:4210` + Origin → 302）：**那一列同時否證了兩種說法**。
 
 ## 不要做的事
 
