@@ -88,7 +88,10 @@ export class StaffFormDialogComponent {
     notes: this.staff()?.notes ?? '',
     subjectIds: this.staff()?.subjectIds ?? [],
     campusIds: this.staff()?.campusIds ?? [],
-    roles: this.staff()?.roles ?? ['teacher'],
+    // #666：**不預選任何角色。** 原本預設 `['teacher']`，於是每一個純行政都被
+    // 靜默地記成老師 —— 建立者只是沒去取消一個預先勾好的框，而那個人會出現在
+    // 排課、代課、鐘點費的候選名單裡。省一次點擊，換一筆要人工才發現的髒資料。
+    roles: this.staff()?.roles ?? ([] as StaffRole[]),
     permissions: this.staff()?.permissions ?? [],
   });
 
