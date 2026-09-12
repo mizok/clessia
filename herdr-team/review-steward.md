@@ -832,6 +832,7 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 
 | 部署時間(台北) | 截線 SHA | web bundle | api version id | 部署者 |
 | --- | --- | --- | --- | --- |
+| 2026-09-13 00:3x | `b5b8ac92` | `main-AQOBVFQF.js` | `fc287869` | review-steward |
 | 2026-09-12 14:2x | `924c9ac2` | `main-UNYN3OOY.js` | `11b95f6d` | review-steward |
 | (在那之前) | 不明 | `main-PWQOIY54.js` | 不明 | 不明,約一週前 |
 
@@ -843,6 +844,47 @@ gh run list --workflow=verify.yml --branch=main --limit 15 \
   --json headSha,status,conclusion \
   -q '.[]|select(.status=="completed" and .conclusion=="success")|.headSha' | head -1
 ```
+
+### 「今天最後一支」是個會動的目標 —— 截線機制就是為此存在(2026-09-13 實例)
+
+第二次部署時計畫席指定「今天最後一支是 #742,main 在 `e86e49ba`」。實際查:
+
+```
+56390801 in_progress     ← 我在等的期間 main 又前進了
+e86e49ba in_progress     ← #742,計畫席指定的那顆
+b5b8ac92 completed/success ← 最新一顆綠的
+```
+
+**#742 的 CI 沒跑完,而且等它的期間 main 已經多了一顆。** 等下去不會收斂。
+
+所以照規則部署 `b5b8ac92`,**並在回報裡寫明 #742 不在這一批**。
+指定「最後一支」的人看到的是合併紀錄(那是瞬間完成的),
+**而截線要的是「CI 跑完且綠」(那要幾分鐘)** —— 兩者在高速合併日永遠對不上。
+
+> **不要為了對齊某一顆指定的 commit 而等** —— 等的期間 main 會再動,
+> 而「部署一顆沒跑完 CI 的 commit」是拿掉守衛,不是通融。
+
+### 這一批全是 web 時,OpenAPI 完全不變是正確的
+
+2026-09-13 那次 47 筆裡 **api 一個檔都沒動**,所以線上 `openapi.json` 的
+大小與字串計數跟上一次**逐字相同**(290977 字元)。
+
+**「數字沒變」在這裡不是部署沒生效** —— 判準是先查 `git diff --stat <上次截線>..<這次截線> -- apps/api`,
+空的話 OpenAPI 本來就該一樣。**不查那個就會把正確的結果讀成故障。**
+
+### 驗線上的 lazy chunk:用檔名抓,看 content-type
+
+`index.html` 只引 eager chunk,**lazy 載入的頁面(login、餐費、大部分 feature)不在裡面** ——
+只抓 index 引的那幾個會回零命中,而那跟「沒部署成功」長得一樣(2026-09-13 踩到)。
+
+做法:先在本機產物找出含目標字串的 chunk 檔名,再用**同名**抓線上的:
+
+```bash
+curl -s -o /tmp/c -w '%{content_type}' "https://demo.clessia.cc/<chunk 名>"
+# application/javascript = 真的有那個檔;text/html = SPA fallback,那個檔不存在
+```
+
+**看 content-type 不看狀態碼** —— `demo.clessia.cc` 的任何路徑都回 200(charter 拓撲那節)。
 
 ### 一次完整部署的順序(2026-09-12 實跑過)
 

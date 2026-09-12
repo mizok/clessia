@@ -28,15 +28,17 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-09-12 14:2x 部署，review-steward）
+## 🚀 線上是哪一版（2026-09-13 00:3x 部署，review-steward）
 
-**截線 `924c9ac2`** —— 那之後合的都還沒上線。
+**截線 `b5b8ac92`** —— 那之後合的都還沒上線。**含 `e86e49ba`（#742）** —— 它是計畫席指定的
+「今天最後一支」，但**部署當下它的 CI 還在跑**，所以不在這一批。
 
 | | 值 |
 | --- | --- |
-| web bundle | `main-UNYN3OOY.js`（部署前是 `main-PWQOIY54.js`，約一週前） |
-| api version id | `11b95f6d` |
+| web bundle | `main-AQOBVFQF.js`（部署前是 `main-UNYN3OOY.js`，2026-09-12 14:2x） |
+| api version id | `fc287869` |
 | 三方比對 | 部署後線上 == 本機 build，且 != 部署前線上 ✓ |
+| 這一批 | 上次部署後的 **47 筆**，其中 18 支 feat/fix，**幾乎全是 `apps/web`** |
 
 **跨部署的累積紀錄在 `herdr-team/review-steward.md` 的「部署節奏與截線紀錄」表**，
 不在這裡 —— 這一節會被清空，那張表不會。
@@ -47,11 +49,13 @@
 
 ### ⚠️ 這次驗了什麼、沒驗什麼 —— 不要讀成「四條路徑驗過了」
 
-**驗了**（產物層 + API 層）：
+**驗了**（2026-09-13 這次）：
 
-- web 產物裡有「全體家長」（#672）、「進階篩選」（#655）、「請填」（#664）
-- api 的 `workers.dev/openapi.json` 裡有 `outstanding` ×5、`dueWithin` ×1、`makeup` ×15
-- api 正控 / 負控 / SPA fallback 拓撲對照全部符合 charter 記載
+- **線上實際下載 lazy chunk**（不只驗本機產物）：`chunk-5SUT627O.js` 含「請聯絡補習班」（#740）、
+  `chunk-WPXR4OZL.js` 含「這段期間」（#721），兩個都是 `application/javascript` 而非 SPA fallback 的 HTML
+- api 正控 / 負控（404 + JSON）/ SPA fallback 拓撲對照，全部符合 charter 記載
+- **api 的 `openapi.json` 與上次逐字相同，而那是正確的** ——
+  `git diff 924c9ac2..b5b8ac92 -- apps/api` 是空的（這批一個 api 檔都沒動）
 
 **沒驗**：
 
