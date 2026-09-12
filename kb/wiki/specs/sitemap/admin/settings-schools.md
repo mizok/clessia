@@ -247,3 +247,53 @@ updated: 2026-09-13
 | 五個欄位擠在 332px 的實際可讀性   | **這是量不出來的東西** —— 數字上沒有溢出、沒有截斷偵測。要判斷得用眼睛看，而截圖在這個環境只拍得到 iframe 上緣 752px |
 | 新增／編輯學校對話框在 390 的版面 | 對話框內容不在 `<main>` 裡                                                                                           |
 | `Escape` / 真的 Tab 鍵            | 需要前景分頁                                                                                                         |
+
+## 載入中 / 錯誤
+
+- **量測**：390 × 844 ／ 主 checkout 的 dev server（port 4200）`7e9da649` ／
+  `admin@demo.clessia.app`（permissions `["*"]`，量測前後各打一次 `/api/me`）
+- **手段**：同一個 XHR 包裝 —— 錯誤態改指 `:8799`，載入中把 `send` 延後 3 秒
+  （**只影響那一個 iframe，不動 8787**）。方法見[方法頁 Phase 2-D](../README.md)
+- ⚠️ **導航方式跟其他頁不同，見下** —— 這四個頁籤**進不去**，只能「完整載入進 shell、再切頁籤」
+
+> 🔴 **怎麼進來，決定你量不量得到這一頁。**
+>
+> `/admin/settings/*` **用 SPA 導航進不去 —— 會整頁空白**（issue #804）：
+> 側邊選單的連結、`router.navigateByUrl()`、直接指子路由，三條路都一樣，
+> `SettingsShellPage` 建構時炸在 `Cannot read properties of undefined (reading 'routeConfig')`。
+>
+> **所以本輪的量法是**：先**完整載入** `/admin/settings/<某個頁籤>`（這條路正常），
+> shell 建好之後**在 shell 內切頁籤**（`/admin/settings/schools` ↔ `campuses` …，這條路也正常）。
+> 兩段都實測過。
+>
+> 先前 #760 把這四頁記成「頁籤不是 `<a href>`，SPA 導航進不去，沒有硬鑽」——
+> **前半是對的，但真正擋住的是那個 crash**，而 crash 的樣子（畫面空白、網址不動）
+> 跟「導航沒有發生」一模一樣。
+
+### 載入中（3 秒延遲）
+
+| skeleton | spinner | `<main>` 互動元素 | 判定 |
+| --- | --- | --- | --- |
+| 0 | **2**（`div.schools-page__loading 334×84` + `i.pi.pi-spinner 16×16`） | 3 → 53 | ✅ 誠實 |
+
+主體逐字「**載入中…**」。
+
+⚠️ spinner `animation-name: fa-spin` —— 看得見，不會轉（坑 12）。
+
+### 錯誤（所有 API 都失敗）
+
+| 判定 | 重試鈕 | toast | 攔到的請求數 |
+| --- | --- | --- | --- |
+| 🔴 **謊稱沒資料**（toast 誠實但會消失） | 否 | 1 | 1 |
+
+toast「**載入失敗**」，主體「**尚無學校／點右上角「新增學校」建立第一筆**」。
+攔到 `GET /api/schools` 一支。
+
+> 本機實際有 **24 所學校**（同一份清單在 `_shared/student-form-dialog` 量到 `schools: len=24`）。
+
+### 未驗與原因
+
+| 項目 | 原因 |
+| --- | --- |
+| toast 停留多久 | 沒量 |
+| 其他寬度 | 只量 390 |

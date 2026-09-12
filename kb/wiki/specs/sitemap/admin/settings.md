@@ -135,3 +135,50 @@ updated: 2026-09-13
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | 分頁籤實按切換         | 四個分頁各自用網址直接開過（比點擊多不了資訊，而且省四次往返）。**這是對工單步驟 5 的刻意簡化，理由寫在這裡供推翻。** |
 | `Escape` / 真的 Tab 鍵 | 需要前景分頁                                                                                                          |
+
+## 載入中 / 錯誤
+
+- **量測**：390 × 844 ／ 主 checkout 的 dev server（port 4200）`7e9da649` ／
+  `admin@demo.clessia.app`（permissions `["*"]`，量測前後各打一次 `/api/me`）
+- **手段**：同一個 XHR 包裝 —— 錯誤態改指 `:8799`，載入中把 `send` 延後 3 秒
+  （**只影響那一個 iframe，不動 8787**）。方法見[方法頁 Phase 2-D](../README.md)
+
+**這一頁自己不取任何資料。** `SettingsShellPage` 只畫頁標 + 一列 tab + `router-outlet`
+（見上面「這一頁自己沒有內容」），`grep` 它的原始碼沒有任何 HTTP service。
+四個頁籤各自的載入中與錯誤態在各自的地圖裡。
+
+### 🔴 但是：從 app 內部進不來，會整頁空白
+
+| 進入方式 | 結果 |
+| --- | --- |
+| **完整載入** `/admin/settings` | ✅ 正常，redirect 到 `/admin/settings/campuses` |
+| 側邊選單 `a[href="/admin/settings"]` 的 click | 🔴 網址停在原頁、`<main>` 只剩 76 bytes 空殼 |
+| `router.navigateByUrl('/admin/settings')` | 🔴 同上，promise reject |
+| SPA 導航直接指 `/admin/settings/campuses` 或 `/general` | 🔴 同上 |
+| **已經在 shell 裡再切頁籤** | ✅ 正常 |
+
+console：
+
+```
+TypeError: Cannot read properties of undefined (reading 'routeConfig')
+    at _SettingsShellPage.currentTab
+    at <instance_members_initializer>
+    at new _SettingsShellPage
+    at _RouterOutlet.activateWith
+```
+
+`settings-shell.page.ts:59-61` 的 `this.route.firstChild?.snapshot.routeConfig?.path` ——
+`firstChild?.` 與 `routeConfig?.` 都有 optional chaining，**中間的 `snapshot` 沒有**，
+而它在 `:45-51` 的 `toSignal(..., { initialValue: this.currentTab() })` 於**元件建構當下**被呼叫。
+
+**負控**：`/admin/grades`（同樣是有 children 的 shell）、`/admin/attendance`、`/admin`
+三條 SPA 導航**都正常** —— 所以不是「shell 型路由都這樣」，是這一支讀了還沒備妥的 snapshot。
+
+**已開 issue #804 給計畫席**（P1，不順手修）。
+
+### 未驗與原因
+
+| 項目 | 原因 |
+| --- | --- |
+| 真滑鼠點側邊選單 | 需要前景分頁（坑 12）。**兩條合成路徑（DOM click 與 Router API）都重現**，而錯誤堆疊落在 app 自己的程式碼裡 |
+| 其他寬度 | 390 與 1024 都重現過 |

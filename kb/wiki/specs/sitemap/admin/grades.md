@@ -77,3 +77,15 @@ updated: 2026-09-13
 轉址行為與 1504 完全相同。
 
 窄寬度的現況記在 [[specs/sitemap/admin/grades-exams]] 的 `## 390px`。
+
+## 載入中 / 錯誤
+
+- **量測**：390 × 844 ／ dev server（port 4200）`7e9da649` ／ `admin@demo.clessia.app`
+
+**不適用 —— 這一條是外殼，自己不渲染內容也不取資料。**
+
+實測：SPA 導航 `/admin/grades` **正常 redirect 到 `/admin/grades/exams`**（`router().url` 確認），
+畫面是 [[specs/sitemap/admin/grades-exams]]。載入中與錯誤態都在各個 child 的地圖裡。
+
+> 這一條同時是 [[specs/sitemap/admin/settings]] 那個 crash 的**負控**：
+> 兩者都是「有 children 的 shell」，而只有 settings 那一支在 SPA 導航時炸掉。

@@ -135,3 +135,79 @@ updated: 2026-09-13
 | 切換出勤模式並儲存                  | **會寫入**，零寫入邊界。⚠️ 而且 seed 的註解明講過：把 `attendance_retroactive_days` 之類的設定翻掉會讓老師課表上所有舊課堂變成「點名已截止」，**那是翻掉最後一個實例** |
 | 財務設定欄位（要 `manage_finance`） | 這一輪用的是 `["*"]` 的帳號，看得到全部；單一權限帳號的樣子屬 #759 的矩陣                                                                                              |
 | `Escape` / 真的 Tab 鍵              | 需要前景分頁                                                                                                                                                           |
+
+## 載入中 / 錯誤
+
+- **量測**：390 × 844 ／ 主 checkout 的 dev server（port 4200）`7e9da649` ／
+  `admin@demo.clessia.app`（permissions `["*"]`，量測前後各打一次 `/api/me`）
+- **手段**：同一個 XHR 包裝 —— 錯誤態改指 `:8799`，載入中把 `send` 延後 3 秒
+  （**只影響那一個 iframe，不動 8787**）。方法見[方法頁 Phase 2-D](../README.md)
+- ⚠️ **導航方式跟其他頁不同，見下** —— 這四個頁籤**進不去**，只能「完整載入進 shell、再切頁籤」
+
+> 🔴 **怎麼進來，決定你量不量得到這一頁。**
+>
+> `/admin/settings/*` **用 SPA 導航進不去 —— 會整頁空白**（issue #804）：
+> 側邊選單的連結、`router.navigateByUrl()`、直接指子路由，三條路都一樣，
+> `SettingsShellPage` 建構時炸在 `Cannot read properties of undefined (reading 'routeConfig')`。
+>
+> **所以本輪的量法是**：先**完整載入** `/admin/settings/<某個頁籤>`（這條路正常），
+> shell 建好之後**在 shell 內切頁籤**（`/admin/settings/schools` ↔ `campuses` …，這條路也正常）。
+> 兩段都實測過。
+>
+> 先前 #760 把這四頁記成「頁籤不是 `<a href>`，SPA 導航進不去，沒有硬鑽」——
+> **前半是對的，但真正擋住的是那個 crash**，而 crash 的樣子（畫面空白、網址不動）
+> 跟「導航沒有發生」一模一樣。
+
+### 載入中（3 秒延遲）
+
+| skeleton | spinner | `<main>` 互動元素 | 判定 |
+| --- | --- | --- | --- |
+| **2**（`p-skeleton 268×32` + `p-skeleton 268×48`） | 0 | 1 → 4 | ✅ 誠實 |
+
+延遲期間只有頁籤列與「一般設定」標題，設定區是兩條骨架。
+
+⚠️ `animation-name: skeleton-wave` —— 看得見，波紋不動（坑 12）。
+
+### 錯誤（所有 API 都失敗）
+
+| 判定 | 重試鈕 | toast | 攔到的請求數 |
+| --- | --- | --- | --- |
+| 🔴 **渲染硬編碼的預設值，而且儲存鈕可按** | 否 | 1 | 1 |
+
+toast「**錯誤／無法載入系統設定**」（會自己消失）。主體**照常渲染整個表單**：
+
+| 量到的 | 值 |
+| --- | --- |
+| `隨堂點名` | `aria-checked="true"`、`p-togglebutton-checked` |
+| `日到班` | `aria-checked="false"` |
+| `儲存` 按鈕 | **`disabled === false`** |
+
+機制（`settings.page.ts:31` / `:38-50`，`settings.page.html:8`）：
+
+```ts
+protected attendanceModeValue: AttendanceMode = 'per_session';   // 硬編碼預設
+...
+error: () => { this.messageService.add(...); this.loading.set(false); }   // 沒有 failed 旗標
+```
+
+模板只有兩態 `@if (loading()) { 骨架 } @else { 表單 }` —— **沒有錯誤態**，
+所以失敗時走 `@else`，選中的是那個沒讀到的預設值，而 `saveAttendanceMode()`
+會把它送進 `updateSettings()`。
+
+> **這比「謊稱沒資料」更危險**：那一族是讀的問題，這一支**接到寫入路徑上** ——
+> 一間實際設定為 `daily_checkin` 的補習班，在讀取失敗時會看到「隨堂點名」被選中，
+> 按下儲存就靜靜換掉出勤模式（那個設定決定老師端有沒有點名入口）。
+>
+> ⚠️ **本機看不出來**：`select attendance_mode from organizations` = **`per_session`**，
+> 剛好等於硬編碼的預設值 —— **所以在這台機器上「錯誤態顯示的值」與真實值永遠一致。**
+> 這是「兩邊一樣可能是比較本身沒有鑑別力」的又一個實例。
+
+**已開 issue #805 給計畫席**（不順手修）。
+
+### 未驗與原因
+
+| 項目 | 原因 |
+| --- | --- |
+| 按下儲存真的會寫入嗎 | **沒有按**（Phase 2-D 零寫入）。那一半從原始碼推得，留給 #758 的寫入窗口 —— 要驗的話先記下 `attendance_mode`，驗完 `db:reset` |
+| toast 停留多久 | 沒量 |
+| 其他寬度 | 只量 390 |
