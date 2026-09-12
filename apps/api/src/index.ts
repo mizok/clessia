@@ -328,7 +328,9 @@ mount('/api/schools', schoolsRoute, ADMIN_ONLY, { write: 'manage_courses' });
 mount('/api/staff', staffRoute, ADMIN_ONLY, { write: 'manage_staff' });
 mount('/api/subjects', subjectsRoute, ADMIN_ONLY, { write: 'manage_courses' });
 mount('/api/classes', classesRoute, ADMIN_ONLY, { write: 'manage_courses' });
-mount('/api/audit-logs', auditLogsRoute, ADMIN_ONLY);
+// **稽核日誌是報表類讀取**（#464 裁決）：誰在什麼時候改了誰的資料，
+// 不該每個 admin 都看得到，所以是 `all` 不是 `write` —— 看得到就是問題。
+mount('/api/audit-logs', auditLogsRoute, ADMIN_ONLY, { all: 'view_reports' });
 mount('/api/sessions', sessionsRoute, ADMIN_ONLY, { write: 'manage_courses' });
 mount('/api/students', studentsRoute, ['admin', 'teacher'], { write: 'manage_students' });
 mount('/api/parents', parentsRoute, ADMIN_ONLY, { write: 'manage_students' });
@@ -344,9 +346,16 @@ mount('/api/workbench', workbenchRoute, ADMIN_ONLY);
 // 成績三支開給老師，但**範圍限制在路由層**（`lib/exam-scope.ts` / `lib/teacher-scope.ts`）：
 // 老師只碰自己固定任課的班。單純把角色加上去是不安全的 —— 那會讓任何老師讀寫全校的
 // 考試與成績。見 herdr-team/billing-api-p3-grades-scope-design.md
-mount('/api/academy-exams', academyExamsRoute, ['admin', 'teacher']);
-mount('/api/school-exams', schoolExamsRoute, ['admin', 'teacher']);
-mount('/api/scores', scoresRoute, ['admin', 'teacher']);
+mount('/api/academy-exams', academyExamsRoute, ['admin', 'teacher'], {
+  write: 'basic_operations',
+});
+mount('/api/school-exams', schoolExamsRoute, ['admin', 'teacher'], {
+  write: 'basic_operations',
+});
+// 成績三支跟點名／聯絡簿同一類的日常學務操作（#464 裁決），所以是同一個權限。
+// **`write` 不是 `all`** —— 成績要被別的頁面當基礎資料讀。
+// 老師不受影響：`requireAdminPermission` 明寫「不是管理員就不看權限」（auth.ts:254）。
+mount('/api/scores', scoresRoute, ['admin', 'teacher'], { write: 'basic_operations' });
 // 收件匣對 teacher/parent 開放；發布與管理端列表在 route 內另外要求 admin
 mount('/api/announcements', announcementsRoute, ANY_ROLE);
 // 聯絡簿與教務日誌：admin 與 teacher 都寫得到，老師的範圍在 route 內縮限到

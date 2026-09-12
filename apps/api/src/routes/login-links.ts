@@ -2,6 +2,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { mintLoginLinkForRequest } from './login-links/mint';
 import { decideLoginLinkTarget } from './login-links/target';
+import { requiredPermissionsForTarget } from './login-links/permission';
+import { hasPermission } from '../lib/permissions';
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -34,6 +36,7 @@ const createLinkRouteDef = createRoute({
   request: { body: { content: { 'application/json': { schema: RequestSchema } } } },
   responses: {
     200: { description: '成功', content: { 'application/json': { schema: ResponseSchema } } },
+    403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
     404: { description: '找不到', content: { 'application/json': { schema: ErrorSchema } } },
     422: { description: '無法產生', content: { 'application/json': { schema: ErrorSchema } } },
   },
@@ -65,6 +68,26 @@ app.openapi(createLinkRouteDef, async (c) => {
       return c.json({ error: '這個帳號還沒有任何角色', code: 'NO_ROLES' }, 422);
     }
     return c.json({ error: '找不到這個使用者', code: 'NOT_FOUND' }, 404);
+  }
+
+  /**
+   * **依對象要求權限**（#464）。掛在 handler 而不是 `mount()` 上，
+   * 理由逐字取自裁決：「**route 層讀不到 body 的對象，掛單一權限不是太鬆就是太緊**」。
+   *
+   * 這支端點原本只有 `ADMIN_ONLY` —— 一個只有 `basic_operations` 的行政
+   * 可以替**任何人**產生連結，包含替總管理員產生一條。**登入連結就是帳號。**
+   *
+   * 對象同時是老師與家長時（`seed.sql` 的 `teacher0005` 就是）**兩個權限都要**：
+   * 產不出連結的代價是找另一個管理員，產得出不該產的連結的代價是有人拿到別人的帳號。
+   */
+  const targetRoles = (roleRows ?? []).map((r: { role: string }) => r.role);
+  const callerPermissions = c.get('permissions') ?? [];
+  const missing = requiredPermissionsForTarget(targetRoles).filter(
+    (needed) => !hasPermission(callerPermissions, needed),
+  );
+
+  if (missing.length > 0) {
+    return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
   }
 
   const email = baUser?.['email'] as string | null;
