@@ -48,7 +48,7 @@ import { CoursesService, Course } from '@core/courses.service';
 import type { Campus } from '@core/campuses.service';
 import type { Subject } from '@core/subjects.service';
 // `Subject` 這個名字被上面的科目型別佔走了，所以 rxjs 的取別名。
-import { Subject as RxSubject, debounceTime, switchMap } from 'rxjs';
+import { EMPTY, Subject as RxSubject, catchError, debounceTime, switchMap } from 'rxjs';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { Staff } from '@core/staff.service';
@@ -472,37 +472,44 @@ export class CoursesPage implements OnInit {
     this.loadRequests
       .pipe(
         switchMap(() =>
-          this.coursesService.list({
-            search: this.searchQuery() || undefined,
-            campusId: this.selectedCampusId() || undefined,
-            subjectId: this.selectedSubjectId() || undefined,
-            isActive:
-              this.statusFilter() === 'intervention' || this.statusFilter() === null
-                ? true
-                : (this.statusFilter() as boolean),
-            page: this.statusFilter() === 'intervention' ? 1 : this.currentPage(),
-            pageSize: this.statusFilter() === 'intervention' ? 0 : this.PAGE_SIZE,
-          }),
+          this.coursesService
+            .list({
+              search: this.searchQuery() || undefined,
+              campusId: this.selectedCampusId() || undefined,
+              subjectId: this.selectedSubjectId() || undefined,
+              isActive:
+                this.statusFilter() === 'intervention' || this.statusFilter() === null
+                  ? true
+                  : (this.statusFilter() as boolean),
+              page: this.statusFilter() === 'intervention' ? 1 : this.currentPage(),
+              pageSize: this.statusFilter() === 'intervention' ? 0 : this.PAGE_SIZE,
+            })
+            // **`catchError` 必須在內層，不能掛在外層 `pipe` 上。**
+            // 所有取數收進單一管線之後，內層的 error 會終止外層 ——
+            // **一次網路錯誤就讓這一頁再也載入不了任何東西**，而畫面上只有一則
+            // toast，看起來像「這次失敗了」不是「這一頁壞了」。
+            // 由 spec 的「一次請求失敗之後…」那條釘住（#689）。
+            .pipe(
+              catchError((err) => {
+                console.error('loadCourses failed:', err);
+                this.loading.set(false);
+                this.messageService.add({
+                  severity: 'error',
+                  summary: '載入失敗',
+                  detail: '無法載入課程資料',
+                });
+                return EMPTY;
+              }),
+            ),
         ),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe({
-        next: (res) => {
-          this.courses.set(res.data);
-          this.total.set(res.meta?.total ?? res.data.length);
-          this.expandedCourseIds.set(new Set());
-          this.selectedClassIds.set(new Set());
-          this.loading.set(false);
-        },
-        error: (err) => {
-          console.error('loadCourses failed:', err);
-          this.loading.set(false);
-          this.messageService.add({
-            severity: 'error',
-            summary: '載入失敗',
-            detail: '無法載入課程資料',
-          });
-        },
+      .subscribe((res) => {
+        this.courses.set(res.data);
+        this.total.set(res.meta?.total ?? res.data.length);
+        this.expandedCourseIds.set(new Set());
+        this.selectedClassIds.set(new Set());
+        this.loading.set(false);
       });
   }
 

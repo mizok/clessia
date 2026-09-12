@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, debounceTime, switchMap } from 'rxjs';
+import { EMPTY, Subject, catchError, debounceTime, switchMap } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { InputTextModule } from 'primeng/inputtext';
@@ -98,22 +98,31 @@ export class SchoolsPage implements OnInit {
   private setupLoadPipeline(): void {
     this.loadRequests
       .pipe(
-        switchMap(() => this.schoolsService.list({ search: this.search() || undefined })),
+        switchMap(() =>
+          this.schoolsService
+            .list({ search: this.search() || undefined })
+            // **`catchError` 必須在內層，不能掛在外層 `pipe` 上。**
+            // 所有取數收進單一管線之後，內層的 error 會終止外層 ——
+            // **一次網路錯誤就讓這一頁再也載入不了任何東西**，而畫面上只有一則
+            // toast，看起來像「這次失敗了」不是「這一頁壞了」。
+            // 由 spec 的「一次請求失敗之後…」那條釘住（#689）。
+            .pipe(
+              catchError((error) => {
+                this.loading.set(false);
+                this.messageService.add({
+                  severity: 'error',
+                  summary: '載入失敗',
+                  detail: error?.error?.error ?? '',
+                });
+                return EMPTY;
+              }),
+            ),
+        ),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe({
-        next: (response) => {
-          this.schools.set(response.data);
-          this.loading.set(false);
-        },
-        error: (error) => {
-          this.loading.set(false);
-          this.messageService.add({
-            severity: 'error',
-            summary: '載入失敗',
-            detail: error?.error?.error ?? '',
-          });
-        },
+      .subscribe((response) => {
+        this.schools.set(response.data);
+        this.loading.set(false);
       });
   }
 

@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -433,5 +433,58 @@ describe('CoursesPage', () => {
     ).selectedTeacherIds();
 
     expect(selectedTeacherIds).toEqual(['teacher-1', 'teacher-3']);
+  });
+
+  /**
+   * **把所有取數收進同一條 `switchMap` 會帶來一個新的失效模式：
+   * 內層一 error，外層管線就終止 —— 之後這一頁永遠不會再載入任何東西。**
+   *
+   * 修改前每次取數是各自獨立的訂閱，錯一次只影響那一次；改成單一管線之後，
+   * **一次網路錯誤會把搜尋框變成死的**，而畫面上只有一則 toast，
+   * 看起來像「這次失敗了」而不是「這一頁壞了」。
+   *
+   * 這條釘住「錯過一次之後還能再查」。**沒有它，下一個重構的人會把
+   * `catchError` 拿掉，而那個缺陷安靜到沒有人會回報。**
+   *
+   * 這支 spec 的其他測試用的是立即完成的 `of()` 替身，餵不出「還沒回來的請求」——
+   * 所以這一區自己換上可控的 `Subject` 替身，並在收尾時換回去。
+   */
+  describe('搜尋管線的錯誤復原（#689）', () => {
+    const pending: Array<Subject<{ data: never[] }>> = [];
+
+    beforeEach(() => {
+      // 這個 app 是 zoneless（Angular 21 + signals），沒有 `fakeAsync` ——
+      // 時間用 vitest 的假計時器控制。`debounceTime` 走 asyncScheduler 的 setTimeout。
+      vi.useFakeTimers();
+      pending.length = 0;
+      coursesServiceMock.list.mockReset();
+      coursesServiceMock.list.mockImplementation(() => {
+        const subject = new Subject<{ data: never[] }>();
+        pending.push(subject);
+        return subject.asObservable();
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      coursesServiceMock.list.mockReset();
+      coursesServiceMock.list.mockImplementation(() => of({ data: [] }));
+    });
+
+    it('一次請求失敗之後，後續的搜尋仍然會送出（管線沒有被 error 終止）', () => {
+      const type = (text: string) =>
+        (component as unknown as { onSearchChange: (v: string) => void }).onSearchChange(text);
+
+      type('數學');
+      vi.advanceTimersByTime(300);
+      expect(coursesServiceMock.list).toHaveBeenCalledTimes(1);
+
+      pending[0].error(new Error('boom'));
+
+      type('英文');
+      vi.advanceTimersByTime(300);
+
+      expect(coursesServiceMock.list).toHaveBeenCalledTimes(2);
+    });
   });
 });
