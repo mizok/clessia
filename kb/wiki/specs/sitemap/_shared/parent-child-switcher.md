@@ -1,0 +1,133 @@
+---
+title: 孩子切換器（家長端四頁共用）
+summary: 家長端橘色頁首上的孩子徽章與切換下拉；三種形態（可切換／靜態／讀取失敗）由 ChildScopeService 決定。
+category: spec
+status: developing
+tags: [sitemap, _shared, parent]
+created: 2026-09-12
+updated: 2026-09-12
+---
+
+# 孩子切換器（ChildSwitcher）
+
+**元件**：`@features/parent/shared/child-switcher/child-switcher.component`
+**狀態來源**：`@core/child-scope.service`（`ChildScopeService`，`providedIn: 'root'`）
+
+**四個頁面用它**（`grep -rl app-child-switcher`，排除元件自己）：
+
+- [[specs/sitemap/parent/dashboard]]
+- [[specs/sitemap/parent/attendance]]
+- [[specs/sitemap/parent/grades]]
+- [[specs/sitemap/parent/payments]]
+
+≥ 2 個使用點，所以照[[specs/sitemap/README|方法頁]]的規則獨立成一頁；
+上面四頁只放連結，**不要各自抄一份**（c11）。
+
+> **家長端其餘六頁（課表查看／試聽申請／報名申請／加選課程／續課資訊／餐費紀錄）
+> 沒有這個東西** —— 它們是 `EmptyState` 佔位頁，連「現在在看哪個孩子」都不顯示。
+
+## 它長在哪裡
+
+在 `app-page-band`（橘色頁首橫幅）的**左上角**，頁面標題的上方。
+
+## 三種形態 —— 這是這一頁最重要的一段
+
+`child-switcher.component.html` 的分支順序就是判斷順序：
+
+| 條件                      | 渲染出什麼                                                    | 可互動？ |
+| ------------------------- | ------------------------------------------------------------- | -------- |
+| `status() === 'failed'`   | 紅色徽章 `讀不到孩子資料`                                     | 否       |
+| `children().length > 1`   | **按鈕**徽章：孩子名字 + `pi-chevron-down`（`--interactive`） | **是**   |
+| `children().length === 1` | **靜態** `<span>` 徽章，只有名字，沒有箭頭                    | 否       |
+| `children().length === 0` | **整個元件什麼都不渲染**                                      | —        |
+
+`canSwitch()` 就是 `children().length > 1` ——
+**跟角色徽章「單一角色不給互動」是同一條規則**（`ChildScopeService` 的註解明寫）。
+
+### ⚠️ `failed` 那一支是刻意存在的，不要當成多餘的分支刪掉
+
+`ChildScopeService._status` 的註解寫得很清楚（#484 M4）：
+**`failed` 必須跟「這個帳號沒有孩子」分開**。兩者都會讓 `children()` 是空陣列，
+而空陣列時切換器整個不渲染、家長端三頁的 effect 也因為 `activeChildId` 是 null 而不打 API ——
+**結果是一個完全空白、沒有任何訊息的家長端，跟「還沒綁孩子」一模一樣。**
+
+## 互動元素
+
+| 元素（畫面上的字） | 類型           | 出現條件                    | 按了之後                   |
+| ------------------ | -------------- | --------------------------- | -------------------------- |
+| `<孩子名字>` ⌄     | 按鈕（toggle） | **`children().length > 1`** | 開／關下拉（見下方子頁面） |
+| `<孩子名字>`       | 靜態徽章       | `children().length === 1`   | —（不是按鈕）              |
+| `讀不到孩子資料`   | 靜態徽章       | `status() === 'failed'`     | —（不是按鈕）              |
+
+## 子頁面：切換孩子（下拉）
+
+**開啟方式**：按徽章。**是 PrimeNG 的 `p-popover`，不是對話框。**
+
+**選擇器**（本 repo 的正確答案，加進[[specs/sitemap/README|方法頁]]的選擇器表）：
+
+| 東西       | 選擇器                                                   |
+| ---------- | -------------------------------------------------------- |
+| 浮層本體   | `.child-switcher-overlay`（實際 class 還帶 `p-popover`） |
+| 標頭文字   | `.child-switcher__list-title`                            |
+| 每一個選項 | `.child-switcher__list-item`                             |
+
+**不是** `.p-dialog`、**不是** `.popup-menu__panel` —— 實測 `.p-dialog` 與 `.p-drawer` 都是 `null`。
+
+內容：
+
+- 標頭：`切換孩子`
+- **目前選中的孩子不在清單裡**，只列其他孩子（`otherChildren()`）
+- 選一個 → `pop.hide()` 然後 `select(child.id)` → `ChildScopeService.setActiveChild()`
+  → 各頁的 effect 用新的 `childId` 重新取數
+
+**關閉方式**：再按一次徽章（toggle）、選一個孩子、或點別處失焦。
+
+### ⚠️ 它是 toggle —— Phase 0 差點因此送出一支假 P1
+
+`(click)="pop.toggle($event, switcherTrigger)"`。**按兩次等於沒按**，而症狀是
+「有 3 個孩子的家長換不了孩子」。詳見[[specs/sitemap/README|方法頁]]坑 1。
+
+**本輪又被同一族的東西騙了一次**（坑 6）：用 `computer` 真滑鼠點徽章**完全沒反應**，
+而 `document` 上的 capture 監聽器顯示**那一下根本沒產生 click 事件** ——
+不是元件壞了，是點擊沒送到。
+
+## 驗證紀錄
+
+- **日期**：2026-09-12 ／ **前端版本**：`9f08061a`（主 checkout 的 dev server，port 4200）
+- **視窗**：1504 × 695
+- **角色帳號**：`parent01@demo.clessia.app`（家長 林志明）
+- **身分斷言**：每次量測前後都打 `GET /api/me`，回傳
+  `parent01@demo.clessia.app / ["parent"]`（**理由見下方警告**）
+
+### 實測到的（`children().length === 3`，走 `canSwitch` 那一支）
+
+| 量到什麼                  | 結果                                                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 徽章                      | `button.child-switcher__badge.child-switcher__badge--interactive`，文字 `林子璿`                               |
+| 按一下（合成 click）      | 浮層開啟，class 是 `child-switcher-overlay p-component p-popover`                                              |
+| 標頭                      | `切換孩子`                                                                                                     |
+| 選項                      | `王柏翰`、`盧安琪` —— **目前的 `林子璿` 不在清單裡** ✓                                                         |
+| `.p-dialog` / `.p-drawer` | 都是 `null` ✓                                                                                                  |
+| 選 `王柏翰`               | 浮層關閉、徽章變成 `王柏翰`、頁面重新取數（在 `/parent/payments` 上量的：空狀態 → `7200 元待繳 / 2 張待付款`） |
+
+**這是 Phase 0 的 `parent/attendance.md` 標成「未驗」的那一條** ——
+本輪實際切換了，而且切換後的畫面有變化，所以下拉與重新取數都成立。
+
+### ⚠️ 三種形態只驗到一種
+
+本機 `parent01` 固定有 3 個孩子。`canSwitch === false`（單一孩子的靜態徽章）、
+`length === 0`（整個不渲染）、`status === 'failed'`（紅色徽章）**三種都沒驗到** ——
+要驗得換帳號或讓 `GET /api/me/children` 失敗。
+
+### ⚠️ 量測環境警告：auth cookie 是 host 層級，別席登入會把你踢掉
+
+本輪被踢**三次**，其中一次發生在量測中途，而**畫面上看不出來**：
+
+`/parent/payments` 切到 `王柏翰` 之後顯示「**載入失敗 —— 沒有讀到繳費紀錄，可能是連線問題**」，
+而 DB 明明有 2 張帳單。**當下的結論幾乎就是一支缺陷。**
+
+真相是**別席在那幾秒間登入了 admin**，`GET /api/me/billing` 回 `403 NOT_PARENT`。
+**而頂列徽章還寫著「家長 / 林志明」** —— shell 不會因為 cookie 變了而重繪，
+所以**從 DOM 讀身分會給你一個假的安全通過**。重登之後同一支請求三個孩子全部 200。
+
+**所以身分斷言一律打 `GET /api/me`，不要看畫面。** 這一條已加進[[specs/sitemap/README|方法頁]]。
