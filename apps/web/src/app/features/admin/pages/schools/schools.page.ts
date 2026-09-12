@@ -152,8 +152,16 @@ export class SchoolsPage implements OnInit {
       return;
     }
 
+    // **`acceptLabel` / `rejectLabel` 不能省**（#752）：PrimeNG 原生的
+    // `ConfirmationService` 沒給就會吃元件庫的英文預設值（`Yes` / `No`），
+    // 而這一頁的訊息是中文 —— 全站唯一一個中文訊息配英文按鈕的確認框。
+    // 這裡的四個欄位跟另外 9 個 `confirmationService.confirm()` 呼叫點同形。
     this.confirmationService.confirm({
       message: `確定刪除「${school.name}」？`,
+      header: '確認刪除',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: '刪除',
+      rejectLabel: '取消',
       accept: () => {
         this.schoolsService
           .delete(school.id)

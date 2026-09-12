@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ConfirmationService } from 'primeng/api';
 import { Subject, of } from 'rxjs';
 import { afterEach, beforeEach as viBeforeEach, vi } from 'vitest';
 
@@ -159,6 +160,59 @@ describe('SchoolsPage', () => {
      */
     it('標題不是 h1 —— 殼已經擁有頁面的 h1', () => {
       expect(fixture.nativeElement.querySelector('h1')).toBeNull();
+    });
+  });
+
+  describe('#752 刪除確認框的按鈕要是中文', () => {
+    /**
+     * 這一頁用的是 PrimeNG 原生的 `ConfirmationService`，**不是**共用的
+     * `ConfirmDialogComponent`。原生那支沒給 `acceptLabel` / `rejectLabel`
+     * 就會吃元件庫的英文預設值（`Yes` / `No`）——而全站其他 9 個
+     * `confirmationService.confirm()` 呼叫點**每一個都有給中文**。
+     *
+     * 所以這裡驗的不是「有沒有中文化的機制」，是**這一處有沒有照既有形狀寫**。
+     */
+    const zeroStudentSchool = {
+      id: 'school-0',
+      name: '示範可刪除國中',
+      shortName: null,
+      isActive: true,
+      studentCount: 0,
+    };
+
+    it('confirm() 帶的是中文的 acceptLabel / rejectLabel，而不是讓 PrimeNG 用英文預設值', () => {
+      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
+      const confirmSpy = vi.spyOn(confirmationService, 'confirm');
+
+      (component as unknown as { onDelete: (s: unknown) => void }).onDelete(zeroStudentSchool);
+
+      expect(confirmSpy).toHaveBeenCalledTimes(1);
+      const arg = confirmSpy.mock.calls[0]![0]!;
+      expect(arg.acceptLabel).toBe('刪除');
+      expect(arg.rejectLabel).toBe('取消');
+    });
+
+    it('也帶 header 與 icon —— 跟另外 9 個呼叫點同一個形狀', () => {
+      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
+      const confirmSpy = vi.spyOn(confirmationService, 'confirm');
+
+      (component as unknown as { onDelete: (s: unknown) => void }).onDelete(zeroStudentSchool);
+
+      const arg = confirmSpy.mock.calls[0]![0]!;
+      expect(arg.header).toBe('確認刪除');
+      expect(arg.icon).toBe('pi pi-exclamation-triangle');
+    });
+
+    it('學生數 > 0 時仍然只出 toast，不開確認框', () => {
+      const confirmationService = fixture.debugElement.injector.get(ConfirmationService);
+      const confirmSpy = vi.spyOn(confirmationService, 'confirm');
+
+      (component as unknown as { onDelete: (s: unknown) => void }).onDelete({
+        ...zeroStudentSchool,
+        studentCount: 2,
+      });
+
+      expect(confirmSpy).not.toHaveBeenCalled();
     });
   });
 });
