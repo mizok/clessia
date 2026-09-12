@@ -140,4 +140,92 @@ describe('ContactBookEntryDialogComponent', () => {
       expect(fixture.nativeElement.querySelectorAll('button').length).toBeGreaterThan(0);
     });
   });
+
+  /**
+   * #738：「還沒有人寫」那一支的文案**無條件**印
+   * 「撰寫者本來是帶班老師 —— **這裡是行政的補寫入口**」。
+   *
+   * `#737` 之前老師端根本打不開這支對話框（NG0201），**所以只有行政看得到，文案成立**。
+   * 路打通之後，帶班老師自己進來看到的也是這一句 ——
+   * 對他來說「撰寫者本來是帶班老師」講的就是他自己，而「這裡是行政的補寫入口」是錯的。
+   *
+   * **不是 #737 的回歸，是它讓一條路走得通之後才露出來的。**
+   *
+   * 修法：`audience` 分岔，**而預設是中性的那一版**（見下方測試的理由）。
+   */
+  describe('#738 「還沒有人寫」的文案依對象分岔', () => {
+    const ADMIN_ONLY = '這裡是行政的補寫入口';
+
+    async function renderDraft(data: Record<string, unknown> = {}) {
+      await TestBed.configureTestingModule({
+        imports: [ContactBookEntryDialogComponent],
+        providers: [
+          { provide: ContactBookService, useValue: { upsert: vi.fn() } },
+          { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
+          {
+            provide: DynamicDialogConfig,
+            useValue: {
+              data: {
+                draft: { studentId: 's1', studentName: '王柏睿', entryDate: '2026-08-31' },
+                ...data,
+              },
+            },
+          },
+        ],
+      }).compileComponents();
+
+      const f = TestBed.createComponent(ContactBookEntryDialogComponent);
+      f.detectChanges();
+      return (f.nativeElement.textContent as string).replace(/\s+/g, ' ');
+    }
+
+    /**
+     * **預設是中性版，而不是沿用現狀的行政版。**
+     *
+     * 這一點跟 `login-link-dialog`（#666）的做法相反，是刻意的：
+     * 那一支的預設（家長版）對沒宣告的呼叫端是**對的**，這一支的預設（行政版）
+     * 對沒宣告的呼叫端**可能是錯的**。
+     *
+     * **失效方向要選「少講一句」而不是「講錯一句」** ——
+     * 將來多一個開啟點而有人忘了標對象時，使用者看到的是資訊少一點，不是被告知錯的事。
+     */
+    it('沒有標明對象時不講「行政」—— 老師那條路就是這樣開的', async () => {
+      const text = await renderDraft();
+
+      expect(text).toContain('這一則還沒有人寫');
+      expect(text).not.toContain(ADMIN_ONLY);
+      expect(text).not.toContain('行政');
+    });
+
+    it('標明是老師時也不講「行政」', async () => {
+      const text = await renderDraft({ audience: 'teacher' });
+
+      expect(text).not.toContain('行政');
+    });
+
+    /**
+     * **反向對照 1**：行政版一字不動。
+     * 那句話對行政是**有用的** —— 它解釋了「為什麼你在寫一則不是你負責的聯絡簿」。
+     */
+    it('標明是行政時保留原句', async () => {
+      const text = await renderDraft({ audience: 'admin' });
+
+      expect(text).toContain('撰寫者本來是帶班老師');
+      expect(text).toContain(ADMIN_ONLY);
+    });
+
+    /**
+     * **反向對照 2**：已經有內容的那一則**根本不走這個分支**。
+     *
+     * 這條同時釘住我對 `@if (entry()) … @else` 的理解 ——
+     * `contact-book.page.ts:303` 的 `openEntry` 是用 `{ entry }` 開的，
+     * **永遠到不了這句話**，所以那個呼叫端不需要標對象（標了是噪音）。
+     */
+    it('已經有內容時兩個版本都不印這一句', async () => {
+      const text = await setup(signedEntry);
+
+      expect(text).not.toContain('這一則還沒有人寫');
+      expect(text).not.toContain(ADMIN_ONLY);
+    });
+  });
 });
