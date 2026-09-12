@@ -176,6 +176,87 @@ describe('GradesComponent', () => {
     expect(titles[0].textContent).toBe('數學');
   });
 
+  /**
+   * #703：切換孩子時 `subjectFilter` 不會被重設。
+   *
+   * **它不只是「篩選殘留」** —— `subjectOptions()` 是從 `records()` 算出來的，
+   * 換了孩子之後舊科目不在選項裡，於是 `p-select` 解不出標籤、
+   * **退回顯示 placeholder「全部科目」**。篩選還在生效，控制項卻長得像沒有篩選，
+   * 而空狀態文案（`沒有符合條件的成績`）跟「這個孩子真的沒有成績」一模一樣。
+   *
+   * 家長會讀成「這個孩子沒有成績」。
+   */
+  describe('#703 切換孩子時的篩選狀態', () => {
+    function listByChild() {
+      listMock.mockImplementation(({ childId }: { childId: string }) =>
+        of(
+          childId === 'child-1'
+            ? {
+                data: [record({ id: 'r1', subjectName: '數學', examDate: '2026-09-01' })],
+                meta: { total: 1, page: 1, pageSize: 100, recentCount: 1 },
+              }
+            : {
+                data: [
+                  record({
+                    id: 'r2',
+                    subjectName: '自然',
+                    examName: '自然模擬考',
+                    examDate: '2026-09-01',
+                  }),
+                ],
+                meta: { total: 1, page: 1, pageSize: 100, recentCount: 1 },
+              },
+        ),
+      );
+    }
+
+    it('切換到沒有該科目的孩子時，不得把他的成績全部濾光', () => {
+      const comp = createComponent() as unknown as {
+        onSubjectChange: (s: string | null) => void;
+      };
+      listByChild();
+
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+      comp.onSubjectChange('數學');
+      fixture.detectChanges();
+      // 前提成立：篩選確實生效了（孩子一只有數學，所以仍是 1 組）
+      expect(fixture.nativeElement.querySelectorAll('.grades__subject-title').length).toBe(1);
+
+      activeChildId.set('child-2');
+      fixture.detectChanges();
+
+      const titles = fixture.nativeElement.querySelectorAll('.grades__subject-title');
+      expect(titles.length).toBe(1);
+      expect(titles[0].textContent).toBe('自然');
+      expect(fixture.nativeElement.textContent).not.toContain('沒有符合條件的成績');
+    });
+
+    /**
+     * **反向對照**：擋住「切換孩子就把所有篩選重設」那種過寬的修法。
+     *
+     * 期間篩選跟科目篩選不同 —— 它**顯示得出來**（四顆鈕恆有一顆是選中的），
+     * 所以它不會騙人，使用者的選擇要留著。會騙人的只有「值消失但仍生效」的那個。
+     */
+    it('期間篩選要保留 —— 它顯示得出來，不會騙人', () => {
+      const comp = createComponent() as unknown as {
+        onTimeRangeChange: (r: 'all' | '1m' | '3m' | '6m' | null) => void;
+        timeRange: () => string;
+      };
+      listByChild();
+
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+      comp.onTimeRangeChange('3m');
+      fixture.detectChanges();
+
+      activeChildId.set('child-2');
+      fixture.detectChanges();
+
+      expect(comp.timeRange()).toBe('3m');
+    });
+  });
+
   it('載入失敗顯示失敗狀態', () => {
     createComponent('error');
     activeChildId.set('child-1');
