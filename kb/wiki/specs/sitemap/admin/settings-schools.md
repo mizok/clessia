@@ -162,10 +162,11 @@ updated: 2026-09-12
 | 0 學生那列的 🗑 | **這次開出確認框**（不是 toast）：`確定刪除「示範可刪除國中」？` ✓ |
 | 按 `No`        | 關閉，25 列不變（零寫入）✓                                         |
 
-> ⚠️ **那支確認框的兩顆按鈕是 `No` / `Yes`，英文。** 全站其他確認都是
-> [[specs/sitemap/_shared/confirm-dialog]] 的 `取消` / `刪除`。
-> 這一頁用的是 PrimeNG 的 `ConfirmationService` 而**沒有指定 `acceptLabel` /
-> `rejectLabel`**，於是吃了元件庫的英文預設值。→ **已開 issue #752**（未順手修）。
+> ⚠️ **當時那支確認框的兩顆按鈕是 `No` / `Yes`，英文** —— 這一頁用 PrimeNG 的
+> `ConfirmationService` 而沒有指定 `acceptLabel` / `rejectLabel`，於是吃了元件庫的
+> 英文預設值，是全站唯一一個中文訊息配英文按鈕的確認框。
+> **已修（#752）**：補上 `header` / `icon` / `acceptLabel` / `rejectLabel`，
+> 跟另外 9 個 `confirmationService.confirm()` 呼叫點同形。
 >
 > **這個落差之前摸不到** —— 沒有 0 學生的學校，這條路根本走不到。
 
