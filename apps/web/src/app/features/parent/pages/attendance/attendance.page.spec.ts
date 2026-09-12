@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
 import { ChildScopeService } from '@core/child-scope.service';
@@ -322,5 +322,60 @@ describe('AttendancePage', () => {
 
     expect(gate).toBeTruthy();
     expect(gate.querySelector('.attendance__content')).toBeTruthy();
+  });
+
+  /**
+   * **#797：預設模式下 skeleton 分支結構性不可達。**
+   *
+   * 守衛是 `loading() && groups().length === 0`，而 `groups` 在 `recent10`（預設）
+   * 會走 `fillMissingDays` —— **`records()` 還是空陣列時它就已經填出 11 天**，
+   * 於是 `groups().length === 0` 永遠不成立。使用者在慢速網路上看到的是
+   * **十一行「今日無課」**，而那是一句正面斷言：「這十一天都沒課」。
+   *
+   * 對照組 `parent/payments` 的守衛判的是**原始清單**（`invoices()`），所以它的
+   * skeleton 出得來 —— 兩頁模板讀起來一模一樣，差別只在守衛裡那個 signal。
+   *
+   * 斷言照工單的狀態表：延遲中 `records().length === 0` / `groups().length === 11`。
+   */
+  it('載入中（原始清單還是空的）要渲染 skeleton，不能謊稱「今日無課」', () => {
+    const pending = new Subject<ParentAttendanceListResponse>();
+    activeChildId = signal<string | null>(null);
+    childScopeLoad = vi.fn();
+    listMock = vi.fn(() => pending.asObservable());
+
+    TestBed.configureTestingModule({
+      imports: [AttendancePage],
+      providers: [
+        {
+          provide: ChildScopeService,
+          useValue: {
+            activeChildId: activeChildId.asReadonly(),
+            children: () => [{ id: 'child-1', name: '測試孩子' }],
+            activeChild: () => null,
+            status: () => 'ready' as const,
+            canSwitch: () => false,
+            setActiveChild: vi.fn(),
+            load: childScopeLoad,
+          },
+        },
+        { provide: ParentAttendanceService, useValue: { list: listMock } },
+      ],
+    });
+    fixture = TestBed.createComponent(AttendancePage);
+    fixture.componentRef.setInput('page', PAGE);
+    fixture.detectChanges();
+
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelectorAll('.skeleton-list').length, '載入中要有 skeleton').toBe(1);
+    expect(host.textContent ?? '').not.toContain('今日無課');
+
+    // 資料回來之後才換成真的列
+    pending.next(emptyResponse());
+    pending.complete();
+    fixture.detectChanges();
+    expect(host.querySelectorAll('.skeleton-list').length).toBe(0);
   });
 });
