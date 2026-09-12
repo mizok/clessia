@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, _shared, admin]
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-13
 ---
 
 # 學生表單對話框（子頁面）
@@ -103,3 +103,59 @@ updated: 2026-09-12
 - **未驗**：`creatingSchool()` 的就地新建學校分支（會寫入）、`loading()` 狀態、
   從 `/admin/parents` 與 `/admin/students/:id` 開啟的那兩條路徑
   （條件已從原始碼確認，畫面未實測）
+
+## 390px
+
+- **量測**：390 × 844 與 1504 × 752（對話框只記「版面怎麼變」，不重抄元素表）
+- **前端**：主 checkout 的 dev server（port 4200），`543e5eda`
+- **手段**：同源 iframe 當 viewport；**開啟一律用 `element.click()`（合成事件，坑 6 的等級標記）**，
+  關閉後用輪詢斷言消失（坑 9），疊層時比對**數量**不是 `=== null`
+
+### 🔴 390 下關閉鈕與送出鈕都在畫面外，而且捲不到 —— 已開單 #784
+
+| | 390 × 844 |
+| --- | --- |
+| `.p-dialog` | **`390 × 1130 @0,-143`** |
+| 佔高比 | **`1.34`** |
+| 對話框範圍 | **`-143 .. 987`**（視窗是 `0 .. 844`） |
+
+五顆按鈕**只有兩顆在視窗內**：
+
+| 按鈕 | `top..bottom` | 在視窗內 |
+| --- | --- | --- |
+| `Close`（`.dialog-header-inline__close`） | **`-112 .. -80`** | **否（上方）** |
+| 日期選擇器的 icon | `198 .. 229` | 是 |
+| `Choose Date` | `274 .. 312` | 是 |
+| **`取消`** | **`913 .. 954`** | **否（下方）** |
+| **`建立學生`** | **`913 .. 954`** | **否（下方）** |
+
+**三種捲動方式都到不了**（`mask.scrollTop` / `documentElement`+`body.scrollTop` /
+`scrollIntoView({block:'center'})`，關閉鈕的 `top` 始終是 `-112`）。
+
+機制：`.p-dialog-mask` 是 `display: flex; align-items: center; overflow: visible`
+（`clientHeight 844` / `scrollHeight 987`）——**flex 置中讓對話框往兩端溢出，
+而 `overflow: visible` 不產生捲軸**。`.p-dialog-content` 雖然是 `overflow-y: auto`，
+但它 `scrollHeight === clientHeight`（1128），**自己也沒有捲動空間**。
+
+**點遮罩不關**（已驗；`students.page.ts:294-299` 沒傳 `dismissableMask`，PrimeNG 預設 `false`
+——程式碼與實測兩個獨立來源對上）。**`Escape` 未驗**（只能發合成事件），
+而**390 是手機寬度，手機鍵盤沒有 Escape 鍵**。
+
+> **這是 #714 那條規則在窄寬度下失效**：#714 確立「每一支都靠自己內容區的關閉／取消鈕」，
+> 而這一支**符合**那條規則 —— 問題是那顆鈕跟著內容區一起被推出畫面。
+> **#714 的形狀是「沒有關閉入口」，這一支是「有，但到不了」。**
+
+### 觸控目標 < 44px
+
+390 下可見的 16 個互動元素裡，**10 個以上低於 44**（`p-autocomplete-input` `356 × 38`、
+三組 `p-select` 的 label `314/274 × 40` 與 trigger `40 × 40`、`p-datepicker-input` `316 × 38`、
+`p-datepicker-dropdown` `40 × 38`…），**沒有一個被 coarse 規則接住**。
+
+### 未驗與原因
+
+| 項目 | 原因 |
+| --- | --- |
+| **按「建立學生」** | **寫入類動作，一律不按** |
+| 真 `Escape` | 需要前景分頁（坑 12）。**這一項決定 #784 的嚴重度** |
+| 1504 的尺寸 | 本輪把時間花在確認 390 的缺陷上；`width: '560px'`（`students.page.ts:295`） |
+| 另外三個開啟點 | 照計畫席「從任一個開啟點開一次就好」。**但它們的表單欄位不同（Phase 1 已記），高度也會不同** |
