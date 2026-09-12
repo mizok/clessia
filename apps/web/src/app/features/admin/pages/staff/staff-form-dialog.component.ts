@@ -14,6 +14,7 @@ import {
   StaffService,
   Staff,
   StaffRole,
+  PERMISSIONS,
   Permission,
   CreateStaffInput,
   UpdateStaffInput,
@@ -22,21 +23,33 @@ import { Campus } from '@core/campuses.service';
 import { Subject } from '@core/subjects.service';
 import { SubjectManagerComponent } from '@shared/components/subject-manager/subject-manager.component';
 
-const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] = [
-  { value: 'basic_operations', label: '日常行政', description: '查詢與處理報名、出勤、請假' },
-  { value: 'manage_courses', label: '課程管理', description: '課程與排課管理' },
-  { value: 'manage_students', label: '學生管理', description: '學生與家長資料管理' },
-  { value: 'manage_finance', label: '財務管理', description: '財務與收費管理' },
-  { value: 'manage_staff', label: '帳號管理', description: '系統帳號與權限管理' },
-  { value: 'manage_roles', label: '角色管理', description: '指派或變更帳號角色與權限' },
-  { value: 'view_reports', label: '報表查看', description: '查看營收與統計報表' },
-  {
-    value: 'all_campuses',
+/**
+ * 中文標籤與說明。**只有這張表是手寫的，值的集合不是** ——
+ * 它是 `Record<Permission, …>`，所以**詞彙表多一個值而這裡沒跟上，編譯就會失敗**。
+ * 這是 #772 的修法核心：把「別漏掉」從人的責任換成編譯器的責任。
+ */
+const PERMISSION_META: Record<Permission, { label: string; description: string }> = {
+  basic_operations: { label: '日常行政', description: '查詢與處理報名、出勤、請假' },
+  manage_courses: { label: '課程管理', description: '課程與排課管理' },
+  manage_students: { label: '學生管理', description: '學生與家長資料管理' },
+  manage_finance: { label: '財務管理', description: '財務與收費管理' },
+  manage_staff: { label: '帳號管理', description: '系統帳號與權限管理' },
+  manage_roles: { label: '角色管理', description: '指派或變更帳號角色與權限' },
+  manage_org_settings: {
+    label: '機構設定',
+    // 實際擋得住的是這三個欄位（`routes/org-settings.ts` 的 UpdateOrgSettingsSchema
+    // 扣掉需要 manage_finance 的那三個）。**機構名稱不在裡面 —— 那支端點不給改。**
+    description: '出勤模式、點名權責與補登天數等機構層級設定',
+  },
+  view_reports: { label: '報表查看', description: '查看營收與統計報表' },
+  all_campuses: {
     label: '跨分校',
     description: '不受指派分校限制，看得到全機構的資料',
   },
-];
+};
 
+const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] =
+  PERMISSIONS.map((value) => ({ value, ...PERMISSION_META[value] }));
 const ROLE_OPTIONS: { value: StaffRole; label: string }[] = [
   { value: 'admin', label: '管理員' },
   { value: 'teacher', label: '老師' },

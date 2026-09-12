@@ -6,15 +6,34 @@ import { environment } from '@env/environment';
 export type StaffRole = 'admin' | 'teacher';
 export type StaffStatus = 'active' | 'inactive' | 'archived';
 
-export type Permission =
-  | 'basic_operations'
-  | 'manage_courses'
-  | 'manage_students'
-  | 'manage_finance'
-  | 'manage_staff'
-  | 'manage_roles'
-  | 'view_reports'
-  | 'all_campuses';
+/**
+ * 細部權限的詞彙表（前端這一份）。
+ *
+ * **權威在 `apps/api/src/lib/permissions.ts`** —— 這裡是抄的，因為 `apps/api` 的
+ * tsconfig `paths` 目前解析不到 `packages/`（issue #782），沒有共用的家可以放。
+ *
+ * **抄的清單必須有機制守**（c11）：
+ *
+ * - **順序與內容跟權威清單逐項相同**，由 `npm run harness` 的 A7d 守著
+ * - **少一個值會讓 `PERMISSION_OPTIONS` 編譯失敗** ——
+ *   它是從這個陣列生成的，而標籤表是 `Record<Permission, …>`
+ *
+ * 之前這裡是一串手寫的 union，跟選項清單各一份，**兩份都少了 `manage_org_settings`**
+ * （#772）：那個權限擋得住 API 的寫入，畫面上卻沒有人給得出來。
+ */
+export const PERMISSIONS = [
+  'basic_operations',
+  'manage_courses',
+  'manage_students',
+  'manage_finance',
+  'manage_staff',
+  'manage_roles',
+  'manage_org_settings',
+  'view_reports',
+  'all_campuses',
+] as const;
+
+export type Permission = (typeof PERMISSIONS)[number];
 
 export interface Staff {
   id: string;

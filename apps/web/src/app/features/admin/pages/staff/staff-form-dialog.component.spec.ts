@@ -181,4 +181,48 @@ describe('StaffFormDialogComponent', () => {
       expect(staffServiceMock.create).not.toHaveBeenCalled();
     });
   });
+
+  /**
+   * **#772：`manage_org_settings` 擋得住 API 的寫入，但畫面上沒有那個勾選框。**
+   *
+   * 詞彙表的家是 `apps/api/src/lib/permissions.ts`（9 個），而前端手抄了三份
+   * 且都少了它 —— 於是除了 `["*"]` 的超級管理員，**沒有任何人拿得到它，
+   * 也沒有任何人給得出來**。使用者看到的是：設定頁進得去、改得動、按儲存才吃 403。
+   *
+   * 這裡**對畫面上真的渲染出來的勾選框斷言**，不是對某個匯出的常數 ——
+   * 「授不授得出一個權限」取決於那個框在不在，不取決於某支陣列的內容。
+   */
+  describe('權限勾選清單要涵蓋整個詞彙表（#772）', () => {
+    const renderedPermissionIds = (): string[] =>
+      Array.from(
+        fixture.nativeElement.querySelectorAll(
+          '.permission-item label[for^="perm_"]',
+        ) as NodeListOf<HTMLLabelElement>,
+      ).map((el) => el.getAttribute('for')!.replace(/^perm_/, ''));
+
+    const asAdmin = () =>
+      fixture.componentInstance as unknown as {
+        toggleRole: (r: string, checked: boolean) => void;
+      };
+
+    beforeEach(() => {
+      asAdmin().toggleRole('admin', true);
+      fixture.detectChanges();
+    });
+
+    it('manage_org_settings 授得出來', () => {
+      expect(renderedPermissionIds()).toContain('manage_org_settings');
+    });
+
+    it('每一個框都有中文標籤與說明，不是裸露的 key', () => {
+      const items = Array.from(
+        fixture.nativeElement.querySelectorAll('.permission-item') as NodeListOf<HTMLElement>,
+      );
+      expect(items.length).toBeGreaterThan(0);
+      for (const item of items) {
+        expect(item.querySelector('.permission-item__label')?.textContent?.trim()).toBeTruthy();
+        expect(item.querySelector('.permission-item__desc')?.textContent?.trim()).toBeTruthy();
+      }
+    });
+  });
 });
