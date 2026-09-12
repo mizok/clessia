@@ -21,6 +21,20 @@
 | [ops-warden.md](ops-warden.md)         | 席位巡檢監工(可 idle)         | 存活檢查、通訊救援、帳面抽查                     | `ops-warden`     |
 | [teacher-pages.md](teacher-pages.md)   | 老師端頁面（行動優先）        | teacher feature 頁、手機課表、點名、成績登錄     | `teacher-pages`  |
 | [infra.md](infra.md)                   | CI/harness/依賴/工具債        | verify 序列、gate、憲法 enforcement、升版        | `infra`          |
+| [labor-1.md](labor-1.md)               | 通用執行席（無固定領域）      | 計畫席當下最缺人的那一支；跨前後端                | `labor-1`        |
+| [labor-2.md](labor-2.md)               | 通用執行席（無固定領域）      | 同上                                             | `labor-2`        |
+| [labor-3.md](labor-3.md)               | 通用執行席（無固定領域）      | 同上                                             | `labor-3`        |
+
+> **`labor-{N}` 是通用執行席，刻意不綁領域。** 上面八席是照領域長出來的（金流、管理端、
+> CI…），而那個切法在「今天最缺人的是哪一支」這個問題上答不出來 —— 2026-09-12 一天之內
+> 最急的依序是**測試時間炸彈 → 搜尋競態 → 表單預設值**，橫跨三個領域，而當班的領域席
+> 有兩席 Ctx 已經到停損線。
+>
+> **所以 labor 席的 domain 欄位是「無」而不是待填。** 它的專長靠 charter 累積（測試方法、
+> 驗證紀律、工具陷阱），不靠功能區劃分 —— 那些知識跨領域，領域席反而各自重學一遍。
+>
+> **開席位用 `herdr worktree create`**，不是 `workspace create` —— 見
+> [kb/wiki/lessons/herdr-seat-worktree-workspace.md](../kb/wiki/lessons/herdr-seat-worktree-workspace.md)。
 
 > Herdr pane 名 = 席位名（`herdr agent rename` 可改）。SendMessage 位址是 session
 > 自動命名、session 輪替就會變 —— **不要寫死在任何文件**，用 ListAgents 查當班的是誰。
