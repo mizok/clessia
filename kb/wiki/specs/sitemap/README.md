@@ -135,7 +135,7 @@ const visible = (e) => {
 const main = document.querySelector('main') || document.body;
 const all = [
   ...main.querySelectorAll(
-    'a,button,input,select,textarea,[role="button"],[role="tab"],[role="link"],[role="checkbox"]',
+    'a,button,input,select,textarea,[role="button"],[role="tab"],[role="link"],[role="checkbox"],[tabindex]:not([tabindex="-1"])',
   ),
 ];
 const vis = all.filter(visible);
@@ -170,6 +170,35 @@ const vis = all.filter(visible);
 >
 > 反過來也成立：**繫結存在但你這輪全部量到 `false`**，代表你的資料沒有觸發那個條件，
 > 那是「未驗」不是「不會發生」。
+
+> ⚠️ **`[tabindex]:not([tabindex="-1"])` 那一段不能省**（labor-2 於 `/admin/enrollments` 抓到）。
+>
+> 這個 repo 有**可點但沒有 `role` 的列**：
+>
+> ```html
+> <tr
+>   appRtRow
+>   class="enrollments__row"
+>   tabindex="0"
+>   (click)="openClass(row)"
+>   (keydown.enter)="openClass(row)"
+> ></tr>
+> ```
+>
+> 沒有 `[tabindex]` 那一段時，`/admin/enrollments` 取樣到 **3 個**；加上之後 **18 個** ——
+> **漏掉的 12 個 `<tr>` 是整頁最主要的互動**（點下去導向班級詳情）。
+>
+> **而兩向比對照樣是 0 差異**，因為地圖是照取樣器寫的 ——
+> 跟本節開頭推翻 `read_page` 的理由一模一樣，只是這次瞎掉的是**選擇器清單**。
+> 一頁「只有 3 個互動元素」的唯讀頁地圖，讀起來甚至很合理。
+>
+> 副作用是會多抓到下拉的重複 `span`（enrollments 上是 3 個）。**留著** ——
+> 多報看得見、漏報看不見，方向跟下面 `disabled` 那條的判準一致。
+> 不要再加 `cursor === 'pointer'` 之類的啟發式去濾：那又是一層可能瞎掉的東西。
+>
+> **反方向也存在**：`/admin/students/:id` 的在籍班級列是 `<div>` 帶 `(click)`、
+> **沒有 `tabindex`** —— 可以點但鍵盤到不了。取樣器一樣看不到它，
+> 而那是頁面本身的問題，不是取樣器的（記成現況，見那一頁）。
 
 **`visible` 那道濾網不能省**：`/admin/sessions` 的 57 個元素裡有 3 個是手機版專用
 （`session-filters__mobile-toggle` 與它自己的日期輸入），桌機寬度下在 DOM 裡但看不到。
