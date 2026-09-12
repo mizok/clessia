@@ -34,7 +34,18 @@
     </div>
 
     <div class="attendance__content">
-      @if (loading() && groups().length === 0) {
+      <!--
+        **守衛判的是原始清單 `records()`，不是衍生的 `groups()`**（#797）。
+
+        `groups` 在 `recent10`（預設模式）會走 `fillMissingDays` ——
+        **`records()` 還是空陣列時它就已經填出十一天**，於是
+        `groups().length === 0` 永遠不成立，skeleton 分支**結構性不可達**，
+        而使用者在慢速網路上看到的是十一行「今日無課」：一句正面斷言。
+
+        對照組 `parent/payments` 判的是 `invoices()`（原始），所以它的 skeleton 出得來。
+        **兩頁模板讀起來一模一樣，差別只在守衛裡那個 signal 是原始的還是填充過的。**
+      -->
+      @if (loading() && records().length === 0) {
         <div class="skeleton-list">
           @for (i of [1, 2, 3]; track i) {
             <span class="skeleton-bar"></span>
