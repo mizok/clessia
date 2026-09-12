@@ -16,10 +16,6 @@ import { ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { TableModule } from 'primeng/table';
 import { ToastModule } from 'primeng/toast';
-import {
-  PageBreadcrumbComponent,
-  type BreadcrumbItem,
-} from '@shared/components/page-breadcrumb/page-breadcrumb.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { SchoolsService } from '@core/schools.service';
 import type { School } from '@core/schools.service';
@@ -37,7 +33,6 @@ import { StatusDotComponent } from '@shared/components/status/status-dot/status-
     InputTextModule,
     ToastModule,
     ConfirmDialogModule,
-    PageBreadcrumbComponent,
     EmptyStateComponent,
   ],
   providers: [MessageService, ConfirmationService, DialogService],
@@ -51,8 +46,6 @@ export class SchoolsPage implements OnInit {
   private readonly confirmationService = inject(ConfirmationService);
   private readonly dialogService = inject(DialogService);
   private readonly destroyRef = inject(DestroyRef);
-
-  protected readonly breadcrumbs: BreadcrumbItem[] = [{ label: '系統設定' }, { label: '學校管理' }];
 
   /** 搜尋輸入 —— 節流 + 去重之後才進 `load()`（#661） */
   private readonly searchInput = new Subject<string>();

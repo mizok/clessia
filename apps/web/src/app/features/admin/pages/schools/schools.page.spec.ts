@@ -110,4 +110,55 @@ describe('SchoolsPage', () => {
 
     expect(schoolsServiceMock.list).toHaveBeenCalledTimes(1);
   });
+
+  /**
+   * #728：這一頁是 `/admin/settings` tab 殼底下的四個 tab 之一，
+   * 而**殼自己已經畫了 `<h1>系統設定</h1>` + tab 列**。
+   *
+   * 這一頁原本用 `<app-page-breadcrumb [items]="[{系統設定},{學校管理}]" />` 當頁首，
+   * 於是切到「學校」時畫面由上而下是：
+   *
+   * ```
+   * 系統設定            ← 殼的 h1
+   * [分校][學校][科目][一般]
+   * 系統設定 › 學校管理  ← 只有這一頁才有的麵包屑
+   * ```
+   *
+   * **「系統設定」出現兩次**，而切到別的 tab 那條麵包屑又不見了。
+   * 另外三個 tab 都是純標題（分校管理／科目管理／一般設定），沒有麵包屑。
+   *
+   * 成因推測：四頁**先各自存在、後來才被收進 tab 殼**
+   * （`app.routes.ts` 留著四個舊網址的 redirect 可以佐證）。
+   * 麵包屑在舊結構下是合理的，殼加上去之後它就變成重複的那一份。
+   */
+  describe('#728 tab 內不該有自己的麵包屑', () => {
+    it('不再渲染麵包屑', () => {
+      expect(fixture.nativeElement.querySelector('app-page-breadcrumb')).toBeNull();
+    });
+
+    it('頁面自己不再出現「系統設定」—— 那是殼的標題', () => {
+      expect(fixture.nativeElement.textContent).not.toContain('系統設定');
+    });
+
+    it('有一個「學校管理」標題，跟另外三個 tab 一致', () => {
+      const title = fixture.nativeElement.querySelector('.schools-page__title');
+
+      expect(title?.textContent?.trim()).toBe('學校管理');
+    });
+
+    /**
+     * **反向對照**：標題不能是 `<h1>`。
+     *
+     * 殼已經擁有這個頁面的 `<h1>`（`系統設定`），tab 內容再放一個就是**兩個 h1**。
+     * issue 原本建議「改成跟另外三頁一致的 `<h1>學校管理</h1>`」——
+     * 而另外三頁裡，`分校` 與 `科目` 用 `<h1>`（**它們才是錯的那一邊**），
+     * `一般` 用 `<h2>`（**對的那一邊**）。這裡照 `一般`。
+     *
+     * 樣式上四者完全相同（`--text-2xl` / bold / `--zinc-900`），
+     * **所以這個選擇不會讓畫面長得不一樣**，只是不再多一個 h1。
+     */
+    it('標題不是 h1 —— 殼已經擁有頁面的 h1', () => {
+      expect(fixture.nativeElement.querySelector('h1')).toBeNull();
+    });
+  });
 });

@@ -1,5 +1,19 @@
 <div class="schools-page">
-  <app-page-breadcrumb [items]="breadcrumbs" />
+  <!--
+    **不用麵包屑**（#728）：這一頁是 `/admin/settings` tab 殼底下的一個 tab，
+    而殼自己已經畫了 `<h1>系統設定</h1>` + tab 列 —— 再放一條
+    `系統設定 › 學校管理` 會讓「系統設定」在同一個畫面上出現兩次，
+    而且切到別的 tab 時那條又不見了。
+
+    標題用 `<h2>` 不是 `<h1>`：**殼擁有這個頁面的 h1**。
+    樣式與另外三個 tab 相同（`--text-2xl` / bold），所以畫面不會不一樣。
+  -->
+  <header class="schools-page__header">
+    <div class="schools-page__title-group">
+      <h2 class="schools-page__title">學校管理</h2>
+      <p class="schools-page__subtitle">管理學生就讀的學校清單，供學生資料填寫時選用</p>
+    </div>
+  </header>
 
   <div class="schools-page__toolbar">
     <input
