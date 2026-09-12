@@ -82,24 +82,66 @@ describe('NotificationsComponent（管理端發布）', () => {
     expect(f.nativeElement.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0);
   });
 
-  it('標題或內容空白時不能送出', async () => {
+  /**
+   * #723（照 #664／#718 的方向）：**按鈕不再擋，按下去才驗、逐欄標錯。**
+   *
+   * 原本是 `[disabled]="!canSubmit()"` —— 沒填時按下去**什麼都不會發生**，
+   * 沒有欄位標記也沒有解釋。現在按得下去，而**送不出去的理由看得見**。
+   */
+  it('標題或內容空白時按發布不會送出，而且兩個欄位同時標錯', async () => {
     await setup();
+    createMock.mockClear();
 
-    expect(component['canSubmit']()).toBe(false);
+    component['submit']();
 
-    component['title'].set('停課通知');
-    expect(component['canSubmit']()).toBe(false);
-
-    component['body'].set('內容');
-    expect(component['canSubmit']()).toBe(true);
+    expect(createMock).not.toHaveBeenCalled();
+    // **一次收集全部**，不是遇到第一個就 return
+    expect(component['errors']()).toEqual({ title: '請填寫標題', body: '請填寫內容' });
   });
 
   it('只有空白字元也算空白', async () => {
     await setup();
+    createMock.mockClear();
     component['title'].set('   ');
     component['body'].set('   ');
 
-    expect(component['canSubmit']()).toBe(false);
+    component['submit']();
+
+    expect(createMock).not.toHaveBeenCalled();
+    expect(Object.keys(component['errors']())).toEqual(['title', 'body']);
+  });
+
+  it('發布鍵只在送出中才 disabled —— 沒填也按得下去', async () => {
+    await setup();
+
+    const btn = fixture.nativeElement.querySelector('.admin-notifications__composer button');
+    expect(btn.disabled).toBe(false);
+  });
+
+  it('錯誤訊息顯示在欄位旁邊，不是只有 toast', async () => {
+    await setup();
+
+    component['submit']();
+    fixture.detectChanges();
+
+    const texts = [
+      ...fixture.nativeElement.querySelectorAll('.admin-notifications__error-text'),
+    ].map((e) => (e as HTMLElement).textContent?.trim());
+    expect(texts).toEqual(['請填寫標題', '請填寫內容']);
+    expect(
+      fixture.nativeElement.querySelector('.admin-notifications__input.p-invalid'),
+    ).not.toBeNull();
+  });
+
+  /** 錯誤是「上次送出時的狀態」，不是永久標籤 */
+  it('改動欄位就清掉那一欄的錯誤，另一欄留著', async () => {
+    await setup();
+    component['submit']();
+    expect(Object.keys(component['errors']())).toEqual(['title', 'body']);
+
+    component['onTitleChange']('停課通知');
+
+    expect(component['errors']()).toEqual({ body: '請填寫內容' });
   });
 
   it('送出時去掉前後空白並帶上分校', async () => {

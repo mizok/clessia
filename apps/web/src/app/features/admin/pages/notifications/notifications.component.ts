@@ -78,9 +78,45 @@ export class NotificationsComponent {
     ...this.campuses().map((c) => ({ label: c.name, value: c.id as string | null })),
   ]);
 
-  protected readonly canSubmit = computed(
-    () => this.title().trim().length > 0 && this.body().trim().length > 0 && !this.submitting(),
-  );
+  /**
+   * 欄位級錯誤 —— **上次按「發布」時的驗證結果**，不是永久標籤。
+   * 改動那個欄位就清掉（`onTitleChange` / `onBodyChange`）。
+   */
+  protected readonly errors = signal<Record<string, string>>({});
+
+  /**
+   * **一次收集全部**而不是遇到第一個就 return —— 使用者一次看到所有要補的東西，
+   * 不用「修一個、再按一次、再發現下一個」。（照 #664 的形狀）
+   */
+  private validate(): string | null {
+    const found: Record<string, string> = {};
+
+    if (!this.title().trim()) found['title'] = '請填寫標題';
+    if (!this.body().trim()) found['body'] = '請填寫內容';
+
+    this.errors.set(found);
+    return Object.keys(found)[0] ?? null;
+  }
+
+  /** 改動一個欄位就清掉它的錯誤 */
+  private clearError(field: string): void {
+    if (!this.errors()[field]) return;
+    this.errors.update((e) => {
+      const next = { ...e };
+      delete next[field];
+      return next;
+    });
+  }
+
+  protected onTitleChange(value: string): void {
+    this.title.set(value);
+    this.clearError('title');
+  }
+
+  protected onBodyChange(value: string): void {
+    this.body.set(value);
+    this.clearError('body');
+  }
 
   constructor() {
     this.campusesService
@@ -94,8 +130,19 @@ export class NotificationsComponent {
     this.load();
   }
 
+  /**
+   * **這顆按鈕刻意只在 `submitting()` 時 disable。**（#723，照 #664／#718 的判準）
+   *
+   * 原本是 `[disabled]="!canSubmit()"` —— 標題或內容沒填時**按下去什麼都不會發生**：
+   * 沒有欄位標記、沒有任何解釋。
+   *
+   * **`disabled` 是把「為什麼不行」藏起來，而那正是使用者最需要知道的。
+   * 按不下去的按鈕不會解釋原因，按得下去的才會。**
+   * `submitting()` 期間仍然 disable —— 那時候按下去**會**產生後果（重複發布）。
+   */
   protected submit(): void {
-    if (!this.canSubmit()) return;
+    const firstError = this.validate();
+    if (firstError) return;
 
     this.submitting.set(true);
     this.submitError.set(null);

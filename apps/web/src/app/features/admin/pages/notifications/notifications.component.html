@@ -2,7 +2,7 @@
   <header class="admin-notifications__header">
     <h1 class="admin-notifications__title">{{ page().label }}</h1>
     <p class="admin-notifications__subtitle">
-      發布站內公告給老師。公告會出現在老師的通知頁，並顯示未讀數。
+      發布站內公告給老師或家長。公告會出現在對方的通知頁，並顯示未讀數。
     </p>
   </header>
 
@@ -16,8 +16,12 @@
         type="text"
         maxlength="200"
         [ngModel]="title()"
-        (ngModelChange)="title.set($event)"
+        (ngModelChange)="onTitleChange($event)"
+        [class.p-invalid]="!!errors()['title']"
       />
+      @if (errors()['title']; as msg) {
+        <span class="admin-notifications__error-text">{{ msg }}</span>
+      }
     </label>
 
     <label class="admin-notifications__field">
@@ -27,8 +31,12 @@
         rows="5"
         maxlength="5000"
         [ngModel]="body()"
-        (ngModelChange)="body.set($event)"
+        (ngModelChange)="onBodyChange($event)"
+        [class.p-invalid]="!!errors()['body']"
       ></textarea>
+      @if (errors()['body']; as msg) {
+        <span class="admin-notifications__error-text">{{ msg }}</span>
+      }
     </label>
 
     <div class="admin-notifications__row">
@@ -59,9 +67,13 @@
       <p class="admin-notifications__error">{{ submitError() }}</p>
     }
 
+    <!--
+      **只在 `submitting()` 時 disable**（#723，照 #664／#718）——
+      `disabled` 是把「為什麼不行」藏起來，而那正是使用者最需要知道的。
+    -->
     <p-button
       label="發布"
-      [disabled]="!canSubmit()"
+      [disabled]="submitting()"
       [loading]="submitting()"
       (onClick)="submit()"
     />
