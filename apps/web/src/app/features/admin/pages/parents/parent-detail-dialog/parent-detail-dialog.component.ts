@@ -10,7 +10,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AutoCompleteModule, type AutoCompleteCompleteEvent } from 'primeng/autocomplete';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
-import { DialogService, DynamicDialogConfig } from 'primeng/dynamicdialog';
+import { DialogService, DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { SkeletonModule } from 'primeng/skeleton';
 import { ParentsService, type ParentDetail, type ParentDetailStudent } from '@core/parents.service';
 import { EnrollmentsService, type ScheduleConflictWarning } from '@core/enrollments.service';
@@ -51,6 +51,7 @@ interface ConflictPrompt {
 })
 export class ParentDetailDialogComponent implements OnInit {
   private readonly config = inject(DynamicDialogConfig);
+  private readonly ref = inject(DynamicDialogRef);
   private readonly parentsService = inject(ParentsService);
   private readonly enrollmentsService = inject(EnrollmentsService);
   private readonly dialogService = inject(DialogService);
@@ -257,5 +258,20 @@ export class ParentDetailDialogComponent implements OnInit {
           });
         },
       });
+  }
+  /**
+   * **這支對話框原本沒有任何關閉入口**（#714）。
+   *
+   * 開啟設定沒帶 `closable`，而 `DynamicDialogComponent` 一律把
+   * `[closable]="ddconfig.closable"` 綁給內層 `p-dialog` —— **沒帶就是 `undefined`，
+   * 把 `p-dialog` 自己的預設 `true` 蓋掉**，於是 header 的 × 不渲染。
+   * Escape 與點遮罩也都沒開。使用者只能重新整理整頁。
+   *
+   * 補在內容區而不是去開 `closable` —— 這個 app 其餘的對話框都是這個形狀
+   * （`invoice-detail`、`uninvoiced`、`session-leave-roster` …），
+   * **一致性比少打一行重要**；而改 `closable` 的預設會動到全部 12 個開啟點。
+   */
+  protected close(): void {
+    this.ref.close();
   }
 }
