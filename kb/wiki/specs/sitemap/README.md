@@ -1159,7 +1159,15 @@ error: () => {
 **沒有 failed 旗標、沒有 toast**，所以模板從「載入中」直接落到「空」。
 
 **同一個寫法在兩支獨立的共用元件裡各長了一次** —— 所以下一個寫共用元件的人
-很可能會再長第三次。這條屬於 `kb/wiki/lessons/`，不屬於任何一頁的地圖。
+很可能會再長第三次。逐支的量測在 [[specs/sitemap/_shared/subject-manager]] 與
+[[specs/sitemap/_shared/audit-log-dialog]]。
+
+> **而「沒有 toast」有兩種成因，修法完全不同**：這一種是**沒有寫**；
+> 另一種是**寫了但沒有出口** —— 元件自己 `providers: [MessageService]` 而模板裡沒有
+> `<p-toast>`，於是它 add 的每一則都沒有訂閱者（四支，issue #809，
+> 量測見 [[specs/sitemap/_shared/student-form-dialog]]）。
+> **兩者在畫面上一模一樣，而把後者讀成前者會導向「補一則 toast」—— 補了也不會出現。**
+> 分辨方法：去看那個元件的 `providers` 與它自己的模板，不要只看有沒有 `messageService.add`。
 
 ### 每頁寫什麼
 
