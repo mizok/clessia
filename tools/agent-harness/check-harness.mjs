@@ -358,6 +358,27 @@ if (existsSync(apiIndex)) {
   }
 }
 
+// ── A7a2. 宣告了 `paths` 的 tsconfig 一定要自己宣告 `baseUrl`（issue #782）───────────
+// 沒有 baseUrl 就繼承 `tsconfig.base.json` 的 `"."`（＝ repo 根），
+// 而各 app 的 paths 是照「相對於自己」寫的 —— 兩者一組合就跳出 repo。
+//
+// **失效方式是「解析成功但解析錯」**：在 worktree 裡它會讀到主 checkout 的同名檔，
+// 而 tsc 把那叫做 `successfully resolved`（見 kb/wiki/lessons/silent-tool-failures.md）。
+// 文件擋不住這件事再發生一次，所以釘在這裡。
+for (const appDir of ['apps/api', 'apps/web']) {
+  const configPath = join(ROOT, appDir, 'tsconfig.json');
+  if (!existsSync(configPath)) continue;
+  const raw = readFileSync(configPath, 'utf8');
+  // 只看 compilerOptions 這一層：有 paths 就必須有 baseUrl
+  if (/"paths"\s*:/.test(raw) && !/"baseUrl"\s*:/.test(raw)) {
+    fail(
+      `${appDir}/tsconfig.json 宣告了 paths 卻沒有自己的 baseUrl —— ` +
+        '它會繼承 repo 根的 baseUrl，而 paths 是照「相對於這個 app」寫的，' +
+        '結果在 worktree 裡解析到主 checkout 的同名檔（issue #782）',
+    );
+  }
+}
+
 // ── A7b. 細部權限的詞彙表每一個值都要有 mount 真的用到（clause c1）─────────────────────
 // 七個權限裡只有 manage_finance 與 view_reports 在 API 有效力，其餘五個只擋前端 ——
 // 直接打 API 就繞過去。middleware/auth.ts 的註解自己寫著「那是畫面控制不是授權」，
