@@ -859,6 +859,109 @@ public 六頁實測：**專案零自訂 focus 規則**，命中的 5 條全是 P
 - **不順手修。** 溢出、`< 44px`、鍵盤到不了都是**記現況**；缺陷另開 issue 給計畫席
 - **不動 1504 那半的內容。** 發現 Phase 1 寫錯了，在 `## 390px` 裡註明，由計畫席裁定要不要改
 
+## Phase 2-D：載入中與錯誤狀態（#760）—— 方法，**尚未執行**
+
+> **這一節是動手前先寫好的方法，不是量測結果。** 兩個前提在工單裡是錯的，
+> 而兩個都是**跑一次**查出來的，所以先寫在這裡，免得下一個人照工單做。
+
+### ⚠️ 前提訂正①：`patch fetch` 對這個 app 完全無效
+
+工單 #760 寫「在導航前 patch `fetch` 加 3 秒延遲」。
+
+`app.config.ts:151` 是 `provideHttpClient(withInterceptors([authInterceptor]))`
+—— **沒有 `withFetch()`**；而 `grep -rn "fetch(" apps/web/src/app`（排除 `.spec.`）
+**零命中**。**所以 app 的每一個請求都是 `XMLHttpRequest`。**
+
+**推論要驗，所以兩個計數器同時裝**（`fetch` 與 `XMLHttpRequest.open` 各包一層），
+然後做一次 **SPA 導航**（點 `routerLink`，不換 document，計數器才活得下來）：
+
+```
+fetchCalls : []                                 ← 0 次
+xhrCalls   : ['GET …:8787/api/campuses',
+              'GET …:8787/api/announcements?']   ← 2 次
+```
+
+**patch `fetch` 只會攔到你自己的探針**（例如 `GET /api/me` 的身分斷言），
+**攔不到 app 的任何一個請求**。要 patch 的是 `XMLHttpRequest`。
+
+> ⚠️ **`window` 會在導頁時被換掉**，所以「載入前裝計數器、載入後讀」讀到的是新 document
+> 的（`undefined`）。**裝完之後只能用 SPA 導航**（`a[routerLink]` 的 `.click()`），
+> 不能用 `location.href` / 重設 `iframe.src`。
+
+### ⚠️ 前提訂正②：錯誤狀態**不需要停 8787**
+
+工單寫「停掉 8787（精準 kill，量完重啟）」。8787 是**共享資源**（而且
+`lsof -p <pid> -a -d cwd` 查到它的 cwd 是**主 checkout 的 `apps/api`**，不是任何席位的），
+關它要經過計畫席，而且會打斷每一席。
+
+**把 XHR 的 URL 改指到一個沒人監聽的 port 就等同「server 掛掉」，而且只影響那一個 iframe。**
+
+```js
+// 在**已經載入完成**的 iframe 裡裝，然後用 SPA 導航觸發取數
+const OrigXHR = w.XMLHttpRequest;
+w.__redirected = [];
+w.XMLHttpRequest = function () {
+  const x = new OrigXHR();
+  const open = x.open;
+  x.open = function (m, u, ...rest) {
+    let url = String(u);
+    if (url.includes(':8787/api/')) {
+      w.__redirected.push(url);
+      url = url.replace(':8787', ':8799'); // 沒人監聽 = 連線失敗
+    }
+    return open.call(this, m, url, ...rest);
+  };
+  return x;
+};
+```
+
+**`__redirected` 不是空的**，才代表這一輪真的走了錯誤路徑
+（跟坑 6 的 `__hits` 同一個道理：**沒有證據就不要對畫面下結論**）。
+
+**載入中**用同一個包裝，把 `send` 延後即可：
+
+```js
+const send = x.send;
+x.send = function (...a) {
+  setTimeout(() => send.apply(x, a), 3000); // 3 秒後才真的送出
+};
+```
+
+### 這一趟最容易寫錯的三件事
+
+| 陷阱 | 為什麼 |
+| --- | --- |
+| **只讀 `<main>` 就說「沒有錯誤提示」** | PrimeNG 的 toast `appendTo body`，**不在 `<main>` 裡**。要查 `.p-toast-message` |
+| **等太久才讀，然後說「沒有 toast」** | toast 會自己消失。實測 4 秒後 `.p-toast` 容器還在但**內容已空** —— 那是「我讀得太晚」，不是「沒有出現」 |
+| **把 skeleton 的第 0 幀當成「沒有 skeleton」** | 坑 12：背景分頁**動畫不跑**。`opacity:0` 先問 `animationName`，有名字就先懷疑環境 |
+
+### 已經撞到的一個形狀（**只驗了一頁，不是結論**）
+
+`/admin/courses` 在 5 個 API 全部失敗時，`<main>` 渲染的是
+**「尚未建立任何課程 ／ 點擊右上角『新增課程』開始建立課程與班級」** —— 空狀態。
+
+機制查到了（`courses.page.ts:493`）：`catchError` 出一則 toast 然後 `return EMPTY`
+→ `subscribe` 不執行 → `courses` 維持初始空陣列 → 走空狀態分支。
+
+**證據等級**：主體是空狀態**已驗**；toast 當下有沒有出現、停留多久**未驗**
+（讀得太晚，而且第一次只讀了 `<main>`）。
+
+> **值得記的是下一層**：toast 會消失，**之後「載入失敗」與「真的沒有資料」
+> 在畫面上一模一樣**。而 `courses.page.ts:487-491` 的註解自己就在擔心同一族的事
+> （#689：「看起來像『這次失敗了』不是『這一頁壞了』」）——
+> **它修掉了「管線被 error 終止」那一半，沒修「失敗之後畫面說沒有資料」那一半。**
+>
+> **一頁不構成結論。** 要等 #760 量完才知道這是通則還是個案。
+
+### 每頁寫什麼
+
+地圖頁加一節 `## 載入中 / 錯誤`，四個小段：
+
+- **載入中**：skeleton ／ spinner ／ 空白？量得到的話記元素與尺寸；**動畫停在第 0 幀要標明**
+- **錯誤**：文案逐字、有沒有重試鍵、**主體退化成什麼**（空狀態？保留舊資料？整頁空白？）
+- **重試**：按了會不會真的重打（要有 `__redirected` 或請求計數當證據）
+- **未驗與原因**
+
 ## 十二個會讓驗證靜靜失效的坑
 
 ### 1. toggle：你以為元件壞了，其實你按了兩次
