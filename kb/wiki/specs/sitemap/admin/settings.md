@@ -60,12 +60,20 @@ updated: 2026-09-12
 
 ## 已知的落差（記錄現況，不在這裡修）
 
-**四個 tab 只有「學校」多畫一條麵包屑。** `/admin/settings/schools` 的模板頂端有
-`<app-page-breadcrumb [items]="breadcrumbs" />`，內容是 `系統設定 › 學校管理`；
-另外三頁（`grep -rln page-breadcrumb` 在 campuses / subjects / settings 底下 **0 筆**）沒有。
+### ~~四個 tab 只有「學校」多畫一條麵包屑~~ —— 已修（#728）
 
-於是同一個殼裡：切到「學校」時畫面上會同時有殼的 h1「系統設定」與麵包屑的「系統設定」，
-切到別的 tab 又不見了。→ **已開 issue #728**（未順手修），細節見 [[specs/sitemap/admin/settings-schools]]。
+修正前：`/admin/settings/schools` 的模板頂端有 `<app-page-breadcrumb [items]="breadcrumbs" />`，
+內容是 `系統設定 › 學校管理`，於是同一個殼裡「系統設定」出現兩次，
+而切到別的 tab 又不見了。**現在四個 tab 都是純標題。**
+
+### 仍然存在：四個 tab 的標題層級不一致
+
+**殼自己是 `<h1>系統設定</h1>`**，而分校與科目兩個 tab 也用 `<h1>` ——
+切到那兩頁時頁面有**兩個 h1**。學校（#728 之後）與一般是 `<h2>`，那是對的那一邊。
+
+字級四者相同，**所以這是語意層級的問題不是視覺問題**，畫面上看不出來。
+→ **待計畫席定方向**（#728 把它標成「視覺方向該由計畫席定」而沒有一起改）。
+細節見 [[specs/sitemap/admin/settings-schools]]。
 
 ## 驗證紀錄
 
