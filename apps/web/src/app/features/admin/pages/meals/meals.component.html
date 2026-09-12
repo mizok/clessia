@@ -111,11 +111,25 @@
         <p-button label="重試" icon="pi pi-refresh" (onClick)="load()" />
       </app-empty-state>
     } @else if (rows().length === 0) {
-      <app-empty-state
-        icon="pi pi-calendar-times"
-        title="這天沒有候選名單"
-        description="候選名單來自當天有課的班級 —— 這天可能沒有排課"
-      />
+      <!--
+        **兩種模式的「空」是兩件事**（#710）：當日是「這天沒排課」，
+        區間是「這段期間沒有人被登記過餐」。而摘要句包在 `rows().length > 0`
+        裡面、空清單時不印，所以**這裡是畫面上唯一能說明「剛才查了什麼」的地方** ——
+        區間一定要寫出來。
+      -->
+      @if (queriedRange(); as range) {
+        <app-empty-state
+          icon="pi pi-inbox"
+          title="這段期間沒有餐記錄"
+          [description]="range.dateFrom + ' ~ ' + range.dateTo + ' 沒有任何學生被登記過餐'"
+        />
+      } @else {
+        <app-empty-state
+          icon="pi pi-calendar-times"
+          title="這天沒有候選名單"
+          description="候選名單來自當天有課的班級 —— 這天可能沒有排課"
+        />
+      }
     } @else {
       <app-responsive-table
         [headTemplate]="mealHead"
