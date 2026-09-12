@@ -1540,3 +1540,494 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- =============================================================================
+-- ===== 展示狀態補齊 —— 讓 UI 地圖的「未驗」驗得到（#685 Phase 1 後續）=====
+-- =============================================================================
+--
+-- 53 頁地圖驗完之後盤點剩下的「未驗」：**只有約三分之一是漏做，其餘是展示資料
+-- 只有一種狀態** —— 學生全在籍、家長與人員全 active、分校全啟用、沒有任何多重
+-- 角色的帳號。於是「停用列的選單」「啟用帳號」「角色選擇彈窗」這些分支
+-- **繫結存在、畫面上摸不到**（那是「未驗」不是「不會發生」）。
+--
+-- ⚠️ **零 `ba_*` 寫入（c2）。** 這一段**不建任何新帳號** ——
+--   `supabase/seed.sql` 對 c2 有 9 筆永久豁免，那個數字是上限不是額度。
+--   需要 `user_id` 的東西（家長、人員、角色）**一律掛到既有的 demo 帳號上**，
+--   只寫 `user_roles` / `parents` / `staff` 這些業務表。
+--
+-- ⚠️ **關於「加法優先」的一個修正**：初版堅持「既有資料一列都不動」，
+--   但零新帳號之後，「停用家長／停用人員」只能改既有列的 status。
+--   **真正的規則不是「不准翻面」，是「不要翻掉某個狀態的最後一個實例」** ——
+--   翻 2 位家長（共 16）、2 位人員（共 101）之後，active 那一邊還有 14 與 99 個實例，
+--   兩種狀態同時存在；而如果只有一筆資料還把它翻掉，就是用新狀態換掉舊狀態。
+--   （這條是 labor-5 擋下「把 >100 筆成績塞給王柏翰」時提出的，那裡翻掉的
+--   是那個孩子**唯一**的「正常清單」狀態，所以不行；這裡不是。）
+--
+-- ⚠️ **刻意不做的兩件**（做了會翻掉最後一個實例，淨損）：
+--   1. 讓某個家長收不到公告 —— 全庫只有一則家長公告且是全 org，
+--      要做出「目前沒有公告」只能刪掉它，而「有公告」是已驗狀態
+--   2. `organizations.attendance_retroactive_days` 0 → N —— 會讓老師課表上
+--      所有舊課堂變成「點名已截止」，把「開始點名／修改點名」整批換掉
+--
+-- 挑中的既有帳號都是**沒有任何課堂的老師**（動它們不影響課表與點名）。
+
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  v_uid TEXT;
+  v_parent_id UUID;
+  v_student_id UUID;
+BEGIN
+  -- ── 1. 停用的學生（students 沒有 user_id，可以純新增）──────────────────
+  -- admin/students 的「停用列選單」與「・停用 M」錨點；students/:id 的
+  -- 「加入班級」在停用學生上會消失
+  INSERT INTO public.students (org_id, name, grade, is_active, notes)
+  SELECT demo_org_id, '離校示範生', 'J2'::public.grade_level, FALSE, '展示用：停用狀態'
+  WHERE NOT EXISTS (SELECT 1 FROM public.students WHERE org_id = demo_org_id AND name = '離校示範生');
+
+  -- ── 2. 非 active 的家長（16 位裡翻 2 位，active 還有 14 位）──────────────
+  UPDATE public.parents p SET status = 'inactive', notes = '展示用：停用狀態'
+  FROM public.ba_user u
+  WHERE u.id = p.user_id AND u.email = 'parent14@demo.clessia.app' AND p.status = 'active';
+
+  UPDATE public.parents p SET status = 'archived', notes = '展示用：封存狀態'
+  FROM public.ba_user u
+  WHERE u.id = p.user_id AND u.email = 'parent15@demo.clessia.app' AND p.status = 'active';
+
+  -- ── 3. 非 active 的人員（101 位裡翻 2 位，active 還有 99 位）─────────────
+  -- 挑的是**沒有帶任何課堂**的老師，停用它們不會讓課表少一個人
+  UPDATE public.staff s SET status = 'inactive', notes = '展示用：停用狀態'
+  FROM public.ba_user u
+  WHERE u.id = s.user_id AND u.email = 'teacher0007@demo.clessia.app' AND s.status = 'active';
+
+  UPDATE public.staff s SET status = 'archived', notes = '展示用：封存狀態'
+  FROM public.ba_user u
+  WHERE u.id = s.user_id AND u.email = 'teacher0009@demo.clessia.app' AND s.status = 'active';
+
+  -- ── 4. 多重角色 + 只有 view_reports 的管理員（同一個帳號，一石二鳥）─────
+  -- 全庫本來 0 個多重角色帳號，於是 /select-role 的角色選擇彈窗
+  -- **任何帳號都開不出來**，shell-layout 的角色切換入口同理。
+  -- 這裡給一位沒帶課的老師加上 admin 角色，權限只給 view_reports：
+  --   * 兩個角色 → 登入後進 /select-role 的彈窗
+  --   * 選 admin 進去 → /admin/reports 進得去，
+  --     而 fee-templates / meals / payments 被 permissionGuard 導回 /admin
+  SELECT id INTO v_uid FROM public.ba_user WHERE email = 'teacher0001@demo.clessia.app';
+  IF v_uid IS NOT NULL THEN
+    INSERT INTO public.user_roles (user_id, role, permissions)
+    VALUES (v_uid, 'admin', '["view_reports"]'::jsonb)
+    ON CONFLICT (user_id, role) DO UPDATE SET permissions = EXCLUDED.permissions;
+  END IF;
+
+  -- ── 5. 單一孩子的家長 / 沒有孩子的家長（parent-child-switcher 兩種形態）──
+  -- ⚠️ 全庫本來就有一位只綁 1 個孩子的家長（陳美惠），**但她的帳號沒有 parent
+  --    角色**，roleGuard 會把她擋在 /parent/** 外面 —— 照名字挑她會做出一個
+  --    看起來合理、實際上驗不到東西的東西。所以這裡另外指定，角色一起給。
+  --    `parents.user_id` 沒有唯一約束，所以既有的老師帳號可以同時是家長
+  --    （現實上教職員的小孩在自家補習班上課本來就會這樣）。
+  SELECT id INTO v_uid FROM public.ba_user WHERE email = 'teacher0005@demo.clessia.app';
+  IF v_uid IS NOT NULL THEN
+    INSERT INTO public.user_roles (user_id, role, permissions)
+    VALUES (v_uid, 'parent', '[]'::jsonb) ON CONFLICT (user_id, role) DO NOTHING;
+
+    INSERT INTO public.parents (org_id, user_id, name, status, notes)
+    SELECT demo_org_id, v_uid, '陳靖雯', 'active', '展示用：只綁 1 個孩子'
+    WHERE NOT EXISTS (SELECT 1 FROM public.parents WHERE user_id = v_uid);
+    SELECT id INTO v_parent_id FROM public.parents WHERE user_id = v_uid LIMIT 1;
+
+    SELECT id INTO v_student_id FROM public.students
+     WHERE org_id = demo_org_id AND name = '范芷寧' LIMIT 1;
+    IF v_parent_id IS NOT NULL AND v_student_id IS NOT NULL THEN
+      INSERT INTO public.parent_student_relations (parent_id, student_id, relation, is_primary)
+      VALUES (v_parent_id, v_student_id, 'parent', FALSE)
+      ON CONFLICT (parent_id, student_id) DO NOTHING;
+    END IF;
+  END IF;
+
+  SELECT id INTO v_uid FROM public.ba_user WHERE email = 'teacher0006@demo.clessia.app';
+  IF v_uid IS NOT NULL THEN
+    INSERT INTO public.user_roles (user_id, role, permissions)
+    VALUES (v_uid, 'parent', '[]'::jsonb) ON CONFLICT (user_id, role) DO NOTHING;
+
+    -- **刻意不插 parent_student_relations** —— 這一位就是「0 個孩子」的那個形態
+    INSERT INTO public.parents (org_id, user_id, name, status, notes)
+    SELECT demo_org_id, v_uid, '楊柏睿', 'active', '展示用：一個孩子都沒綁'
+    WHERE NOT EXISTS (SELECT 1 FROM public.parents WHERE user_id = v_uid);
+  END IF;
+END $$;
+
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  v_campus_id UUID;
+  v_course_id UUID;
+  v_class_id UUID;
+  v_side_student UUID;
+BEGIN
+  SELECT id INTO v_campus_id FROM public.campuses WHERE org_id = demo_org_id AND name = '文山旗艦校' LIMIT 1;
+  SELECT id INTO v_side_student FROM public.students WHERE org_id = demo_org_id AND name = '范芷寧' LIMIT 1;
+
+  -- ── 4. 停用的分校（settings/campuses 的「顯示停用分校」與「啟用分校」）──
+  INSERT INTO public.campuses (org_id, name, address, phone, is_active)
+  SELECT demo_org_id, '已停辦示範校', '台北市示範區停辦路 1 號', '02-2899-0000', FALSE
+  WHERE NOT EXISTS (SELECT 1 FROM public.campuses WHERE org_id = demo_org_id AND name = '已停辦示範校');
+
+  -- ── 5. 停用的價目表（fee-templates 列選單的「啟用」）────────────────────
+  INSERT INTO public.fee_templates (org_id, name, billing_mode, amount, is_active)
+  SELECT demo_org_id, '舊制月繳（已停用）', 'monthly'::public.billing_mode, 4000, FALSE
+  WHERE NOT EXISTS (SELECT 1 FROM public.fee_templates WHERE org_id = demo_org_id AND name = '舊制月繳（已停用）');
+
+  -- ── 6. 學校：0 名學生的（刪得掉）與停用的 ───────────────────────────────
+  INSERT INTO public.schools (org_id, name, short_name, is_active)
+  SELECT demo_org_id, '示範可刪除國中', '可刪除國中', TRUE
+  WHERE NOT EXISTS (SELECT 1 FROM public.schools WHERE org_id = demo_org_id AND name = '示範可刪除國中');
+  INSERT INTO public.schools (org_id, name, short_name, is_active)
+  SELECT demo_org_id, '示範已停用高中', '已停用高中', FALSE
+  WHERE NOT EXISTS (SELECT 1 FROM public.schools WHERE org_id = demo_org_id AND name = '示範已停用高中');
+
+  -- ── 7. 沒被任何課程引用的科目（subject-manager 的 🗑 才按得下去）────────
+  INSERT INTO public.subjects (org_id, name, sort_order)
+  SELECT demo_org_id, '示範可刪科目', 99
+  WHERE NOT EXISTS (SELECT 1 FROM public.subjects WHERE org_id = demo_org_id AND name = '示範可刪科目');
+
+  -- ── 8. 沒有任何課堂的班級（admin/courses 的「刪除班級」才啟用）──────────
+  SELECT id INTO v_course_id FROM public.courses WHERE org_id = demo_org_id ORDER BY created_at LIMIT 1;
+  IF v_course_id IS NOT NULL AND v_campus_id IS NOT NULL THEN
+    INSERT INTO public.classes (org_id, campus_id, course_id, name, max_students, is_active, start_date)
+    SELECT demo_org_id, v_campus_id, v_course_id, '示範空班（無課堂）', 10, TRUE, CURRENT_DATE + 30
+    WHERE NOT EXISTS (SELECT 1 FROM public.classes WHERE org_id = demo_org_id AND name = '示範空班（無課堂）');
+  END IF;
+
+  -- ── 9. 未指派老師的課堂（admin/sessions 列選單的「指派老師」）────────────
+  SELECT id INTO v_class_id FROM public.classes WHERE org_id = demo_org_id AND name = '國三數學 A 班' LIMIT 1;
+  IF v_class_id IS NOT NULL THEN
+    INSERT INTO public.sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status, teacher_id)
+    SELECT demo_org_id, v_class_id, CURRENT_DATE + 3, '19:00', '21:00', 'scheduled', 'unassigned'::public.session_assignment_status, NULL
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.sessions
+      WHERE class_id = v_class_id AND session_date = CURRENT_DATE + 3 AND start_time = '19:00'
+    );
+  END IF;
+
+  -- ── 10. 進行中的請假（admin/leave 的 active 取消文案；既有只有 past 與 future）──
+  IF v_side_student IS NOT NULL THEN
+    INSERT INTO public.leave_requests (org_id, student_id, start_date, end_date, reason, submitted_by, submitted_by_role)
+    SELECT demo_org_id, v_side_student, CURRENT_DATE - 1, CURRENT_DATE + 2,
+           '展示用：跨越今天的請假（進行中）', '22222222-2222-2222-2222-222222222222', 'admin'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.leave_requests
+      WHERE student_id = v_side_student AND start_date = CURRENT_DATE - 1 AND end_date = CURRENT_DATE + 2
+    );
+  END IF;
+END $$;
+
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  v_campus_id UUID;
+  v_campus2_id UUID;
+  v_heavy_student UUID;
+  v_side_student UUID;
+  v_class_id UUID;
+  v_class2_id UUID;
+  v_enrollment_id UUID;
+  v_enrollment2_id UUID;
+  v_event_id UUID;
+  v_session_id UUID;
+  v_invoice_id UUID;
+  v_exam_id UUID;
+  v_subject_id UUID;
+  v_teacher_id UUID;
+  v_i INT;
+  v_d DATE;
+BEGIN
+  SELECT id INTO v_campus_id  FROM public.campuses WHERE org_id = demo_org_id AND name = '文山旗艦校' LIMIT 1;
+  SELECT id INTO v_campus2_id FROM public.campuses WHERE org_id = demo_org_id AND name = '示範分校01' LIMIT 1;
+  SELECT id INTO v_heavy_student FROM public.students WHERE org_id = demo_org_id AND name = '張宇軒' LIMIT 1;
+  SELECT id INTO v_side_student  FROM public.students WHERE org_id = demo_org_id AND name = '范芷寧' LIMIT 1;
+  SELECT class_id INTO v_class_id FROM public.enrollments WHERE student_id = v_heavy_student LIMIT 1;
+
+  -- ── 11. 已結算的餐記錄（admin/meals 的 `已結算` 狀態、tooltip 與鎖住）────
+  -- 既有 18 筆餐記錄的 invoice_item_id 全是 null，所以「已結算」摸不到。
+  -- 這裡補一天，並把它掛到一張真的帳單明細上（月結會做的事，這裡直接做結果）。
+  IF v_heavy_student IS NOT NULL THEN
+    INSERT INTO public.invoices (org_id, student_id, issued_at, due_date, note)
+    SELECT demo_org_id, v_heavy_student, CURRENT_DATE - 20, CURRENT_DATE - 6, '展示用：含已結算餐費'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.invoices WHERE student_id = v_heavy_student AND note = '展示用：含已結算餐費'
+    )
+    RETURNING id INTO v_invoice_id;
+
+    IF v_invoice_id IS NULL THEN
+      SELECT id INTO v_invoice_id FROM public.invoices
+      WHERE student_id = v_heavy_student AND note = '展示用：含已結算餐費' LIMIT 1;
+    END IF;
+
+    INSERT INTO public.invoice_items (invoice_id, type, amount, note)
+    SELECT v_invoice_id, 'meal'::public.invoice_item_type, 390, '展示用：6 天餐費'
+    WHERE NOT EXISTS (SELECT 1 FROM public.invoice_items WHERE invoice_id = v_invoice_id);
+
+    FOR v_i IN 0..5 LOOP
+      v_d := CURRENT_DATE - 26 + v_i;
+      INSERT INTO public.meal_records (org_id, student_id, meal_date, ordered, chargeable, unit_price, invoice_item_id, note, created_by)
+      SELECT demo_org_id, v_heavy_student, v_d, TRUE, TRUE, 65,
+             (SELECT id FROM public.invoice_items WHERE invoice_id = v_invoice_id LIMIT 1),
+             '展示用：已結算', '22222222-2222-2222-2222-222222222222'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM public.meal_records WHERE student_id = v_heavy_student AND meal_date = v_d
+      );
+    END LOOP;
+  END IF;
+
+  -- ── 12. 跨分校的帳單（admin/reports 的模糊桶 `（跨分校）`）──────────────
+  -- 一張帳單的兩筆明細指向**不同分校**的班級 → 後端不做比例拆分，自成一組。
+  SELECT id INTO v_class2_id FROM public.classes
+   WHERE org_id = demo_org_id AND campus_id = v_campus2_id AND id <> COALESCE(v_class_id, id) LIMIT 1;
+  SELECT id INTO v_enrollment_id  FROM public.enrollments WHERE student_id = v_heavy_student LIMIT 1;
+
+  IF v_heavy_student IS NOT NULL AND v_class2_id IS NOT NULL THEN
+    -- 讓他在另一個分校的班也有一筆報名（跨分校的前提）
+    INSERT INTO public.enrollments (org_id, class_id, student_id, status, effective_from, billing_mode, agreed_amount, notes)
+    SELECT demo_org_id, v_class2_id, v_heavy_student, 'active'::public.enrollment_status, CURRENT_DATE - 60,
+           'monthly'::public.billing_mode, 3000, '展示用：跨分校帳單的第二個分校'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.enrollments WHERE student_id = v_heavy_student AND class_id = v_class2_id
+    );
+    SELECT id INTO v_enrollment2_id FROM public.enrollments
+     WHERE student_id = v_heavy_student AND class_id = v_class2_id LIMIT 1;
+
+    INSERT INTO public.invoices (org_id, student_id, issued_at, due_date, note)
+    SELECT demo_org_id, v_heavy_student, CURRENT_DATE - 5, CURRENT_DATE + 9, '展示用：跨分校帳單'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.invoices WHERE student_id = v_heavy_student AND note = '展示用：跨分校帳單'
+    );
+    SELECT id INTO v_invoice_id FROM public.invoices
+     WHERE student_id = v_heavy_student AND note = '展示用：跨分校帳單' LIMIT 1;
+
+    INSERT INTO public.invoice_items (invoice_id, type, enrollment_id, amount, note)
+    SELECT v_invoice_id, 'tuition'::public.invoice_item_type, v_enrollment_id, 4800, '文山旗艦校的班'
+    WHERE NOT EXISTS (SELECT 1 FROM public.invoice_items WHERE invoice_id = v_invoice_id AND enrollment_id = v_enrollment_id);
+    INSERT INTO public.invoice_items (invoice_id, type, enrollment_id, amount, note)
+    SELECT v_invoice_id, 'tuition'::public.invoice_item_type, v_enrollment2_id, 3000, '示範分校01 的班'
+    WHERE NOT EXISTS (SELECT 1 FROM public.invoice_items WHERE invoice_id = v_invoice_id AND enrollment_id = v_enrollment2_id);
+  END IF;
+
+  -- ── 13. 同一天兩筆出勤 + 掛在停課課堂上的出勤（parent/attendance 兩個未驗）──
+  IF v_side_student IS NOT NULL AND v_campus_id IS NOT NULL THEN
+    -- 13a. 同一天兩筆 → 驗「一次只能展開一則 / 切換展開」
+    FOR v_i IN 1..2 LOOP
+      INSERT INTO public.events (org_id, event_type, title, campus_id, event_date, start_time, end_time, attendance_taken_at)
+      SELECT demo_org_id, 'session'::public.event_type,
+             '展示用：同日第 ' || v_i || ' 堂', v_campus_id, CURRENT_DATE - 4,
+             (ARRAY['10:00','14:00'])[v_i]::time, (ARRAY['12:00','16:00'])[v_i]::time, NOW()
+      WHERE NOT EXISTS (
+        SELECT 1 FROM public.events
+        WHERE org_id = demo_org_id AND event_date = CURRENT_DATE - 4
+          AND title = '展示用：同日第 ' || v_i || ' 堂'
+      );
+      SELECT id INTO v_event_id FROM public.events
+       WHERE org_id = demo_org_id AND event_date = CURRENT_DATE - 4
+         AND title = '展示用：同日第 ' || v_i || ' 堂' LIMIT 1;
+
+      INSERT INTO public.attendance_records (org_id, event_id, student_id, status, note, recorded_by, recorded_by_role)
+      SELECT demo_org_id, v_event_id, v_side_student,
+             (ARRAY['present','on_leave'])[v_i]::public.attendance_status,
+             '展示用：同一天的第 ' || v_i || ' 筆', '22222222-2222-2222-2222-222222222222', 'admin'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM public.attendance_records WHERE event_id = v_event_id AND student_id = v_side_student
+      );
+    END LOOP;
+
+    -- 13b. 停課課堂上的出勤 → 驗 `停課` chip（chip 只看 sessions.status='cancelled'）
+    INSERT INTO public.events (org_id, event_type, title, campus_id, event_date, start_time, end_time)
+    SELECT demo_org_id, 'session'::public.event_type, '展示用：停課那一堂', v_campus_id,
+           CURRENT_DATE - 7, '10:00', '12:00'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.events WHERE org_id = demo_org_id AND title = '展示用：停課那一堂'
+    );
+    SELECT id INTO v_event_id FROM public.events
+     WHERE org_id = demo_org_id AND title = '展示用：停課那一堂' LIMIT 1;
+
+    SELECT class_id INTO v_class2_id FROM public.enrollments WHERE student_id = v_side_student LIMIT 1;
+    -- 這個班原本的老師 —— `sessions_assignment_consistent_chk` 要求
+    -- assigned 必須有 teacher_id、unassigned 必須沒有，兩者不能混
+    SELECT teacher_id INTO v_teacher_id FROM public.sessions
+     WHERE class_id = v_class2_id AND teacher_id IS NOT NULL LIMIT 1;
+    IF v_class2_id IS NOT NULL THEN
+      INSERT INTO public.sessions (org_id, class_id, session_date, start_time, end_time, status, assignment_status, teacher_id, event_id)
+      SELECT demo_org_id, v_class2_id, CURRENT_DATE - 7, '10:00', '12:00', 'cancelled',
+             CASE WHEN v_teacher_id IS NULL THEN 'unassigned' ELSE 'assigned' END::public.session_assignment_status,
+             v_teacher_id, v_event_id
+      WHERE NOT EXISTS (
+        SELECT 1 FROM public.sessions WHERE event_id = v_event_id
+      );
+    END IF;
+
+    INSERT INTO public.attendance_records (org_id, event_id, student_id, status, note, recorded_by, recorded_by_role)
+    SELECT demo_org_id, v_event_id, v_side_student, 'on_leave'::public.attendance_status,
+           '展示用：這一堂停課了', '22222222-2222-2222-2222-222222222222', 'admin'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.attendance_records WHERE event_id = v_event_id AND student_id = v_side_student
+    );
+  END IF;
+END $$;
+
+-- ── 14. 三筆「量」的極端值，集中在**張宇軒**（parent03 的小孩）───────────
+-- 刻意不放在 parent01 的三個孩子身上：那三個是「空 / 有資料但正常」的基準，
+-- 而 >100 筆成績會讓**截斷警告永遠掛在那個孩子身上**（沒有分頁 UI），
+-- 等於用一個新狀態換掉一個已驗狀態。三筆放同一個孩子，驗的時候登 parent03 一次就好。
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  v_student UUID;
+  v_campus_id UUID;
+  v_subject_id UUID;
+  v_exam_id UUID;
+  v_event_id UUID;
+  v_invoice_id UUID;
+  v_enrollment_id UUID;
+  v_i INT;
+  v_d DATE;
+BEGIN
+  SELECT id INTO v_student   FROM public.students WHERE org_id = demo_org_id AND name = '張宇軒' LIMIT 1;
+  SELECT id INTO v_campus_id FROM public.campuses WHERE org_id = demo_org_id AND name = '文山旗艦校' LIMIT 1;
+  SELECT id INTO v_subject_id FROM public.subjects WHERE org_id = demo_org_id AND name = '數學' LIMIT 1;
+  SELECT id INTO v_enrollment_id FROM public.enrollments WHERE student_id = v_student LIMIT 1;
+
+  IF v_student IS NULL THEN RETURN; END IF;
+
+  -- 14a. 近 30 天 > 50 筆出勤 → parent/attendance 的「載入更多」（pageSize=50）
+  FOR v_i IN 1..56 LOOP
+    v_d := CURRENT_DATE - (v_i % 28) - 1;
+    INSERT INTO public.events (org_id, event_type, title, campus_id, event_date, start_time, end_time, attendance_taken_at)
+    SELECT demo_org_id, 'session'::public.event_type, '展示用：量測用課堂 #' || v_i,
+           v_campus_id, v_d, '18:00', '20:00', NOW()
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.events WHERE org_id = demo_org_id AND title = '展示用：量測用課堂 #' || v_i
+    );
+    SELECT id INTO v_event_id FROM public.events
+     WHERE org_id = demo_org_id AND title = '展示用：量測用課堂 #' || v_i LIMIT 1;
+
+    INSERT INTO public.attendance_records (org_id, event_id, student_id, status, recorded_by, recorded_by_role)
+    SELECT demo_org_id, v_event_id, v_student,
+           (ARRAY['present','present','present','absent','on_leave'])[(v_i % 5) + 1]::public.attendance_status,
+           '22222222-2222-2222-2222-222222222222', 'admin'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.attendance_records WHERE event_id = v_event_id AND student_id = v_student
+    );
+  END LOOP;
+
+  -- 14b. > 100 筆成績 → parent/grades 的截斷警告（PAGE_SIZE=100，無分頁 UI）
+  FOR v_i IN 1..104 LOOP
+    INSERT INTO public.academy_exams (org_id, campus_id, name, exam_type, subject_id, exam_date, total_score, status, created_by, pass_score)
+    SELECT demo_org_id, v_campus_id, '展示用：小考 #' || v_i, 'quiz'::public.academy_exam_type,
+           v_subject_id, CURRENT_DATE - (v_i % 90) - 1, 100, 'closed', '22222222-2222-2222-2222-222222222222', 60
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.academy_exams WHERE org_id = demo_org_id AND name = '展示用：小考 #' || v_i
+    );
+    SELECT id INTO v_exam_id FROM public.academy_exams
+     WHERE org_id = demo_org_id AND name = '展示用：小考 #' || v_i LIMIT 1;
+
+    INSERT INTO public.academy_scores (exam_id, student_id, score, status, created_by)
+    SELECT v_exam_id, v_student, 40 + (v_i * 7 % 60), 'scored'::public.score_status, '22222222-2222-2222-2222-222222222222'
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.academy_scores WHERE exam_id = v_exam_id AND student_id = v_student
+    );
+  END LOOP;
+
+  -- 14c. > 20 張帳單 → parent/payments 的「載入更多」（pageSize=20）
+  FOR v_i IN 1..23 LOOP
+    INSERT INTO public.invoices (org_id, student_id, issued_at, due_date, note)
+    SELECT demo_org_id, v_student, CURRENT_DATE - (v_i * 7), CURRENT_DATE - (v_i * 7) + 14,
+           '展示用：量測用帳單 #' || v_i
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.invoices WHERE student_id = v_student AND note = '展示用：量測用帳單 #' || v_i
+    );
+    SELECT id INTO v_invoice_id FROM public.invoices
+     WHERE student_id = v_student AND note = '展示用：量測用帳單 #' || v_i LIMIT 1;
+
+    INSERT INTO public.invoice_items (invoice_id, type, enrollment_id, amount, note)
+    SELECT v_invoice_id, 'tuition'::public.invoice_item_type, v_enrollment_id, 3600, '展示用'
+    WHERE NOT EXISTS (SELECT 1 FROM public.invoice_items WHERE invoice_id = v_invoice_id);
+  END LOOP;
+END $$;
+
+-- ── 15. 今天有課、但聯絡簿沒寫完（admin/contact-book 的缺漏名單與「補寫」）──
+-- 缺漏名單問的是「今天有課的聯絡簿班級裡，誰還沒有 entry」。
+-- 既有 seed 在「今天」把該寫的都寫完了，所以那一頁預設是空的。
+-- 這裡**不刪任何已寫的**，改成幫今天的聯絡簿班級加一名新學生 —— 他自然就是缺漏的那一個。
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  v_class_id UUID;
+  v_student_id UUID;
+BEGIN
+  SELECT c.id INTO v_class_id
+  FROM public.classes c
+  JOIN public.sessions s ON s.class_id = c.id AND s.session_date = CURRENT_DATE AND s.status <> 'cancelled'
+  WHERE c.org_id = demo_org_id AND c.uses_contact_book = TRUE
+  LIMIT 1;
+
+  IF v_class_id IS NULL THEN RETURN; END IF;
+
+  INSERT INTO public.students (org_id, name, grade, is_active, notes)
+  SELECT demo_org_id, '聯絡簿缺漏示範生', 'P5'::public.grade_level, TRUE, '展示用：今天有課但沒寫聯絡簿'
+  WHERE NOT EXISTS (SELECT 1 FROM public.students WHERE org_id = demo_org_id AND name = '聯絡簿缺漏示範生');
+  SELECT id INTO v_student_id FROM public.students
+   WHERE org_id = demo_org_id AND name = '聯絡簿缺漏示範生' LIMIT 1;
+
+  INSERT INTO public.enrollments (org_id, class_id, student_id, status, effective_from, billing_mode, agreed_amount, notes)
+  SELECT demo_org_id, v_class_id, v_student_id, 'active'::public.enrollment_status, CURRENT_DATE - 30,
+         'monthly'::public.billing_mode, 3600, '展示用：製造聯絡簿缺漏'
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.enrollments WHERE student_id = v_student_id AND class_id = v_class_id
+  );
+END $$;
+
+-- ── 保險：這一段靠「名字／email」找既有資料，找不到會**靜默什麼都不做** ──────
+-- 那是最糟的失敗模式：seed 跑完 exit 0，而該有的展示狀態一個都沒造出來，
+-- 下一個人打開頁面看到的跟以前一模一樣，然後把「未驗」再抄一次。
+-- 這裡把它變成大聲的失敗。**塞過陷阱驗它會紅。**
+DO $$
+DECLARE
+  demo_org_id UUID := '11111111-1111-1111-1111-111111111111';
+  v_missing TEXT := '';
+BEGIN
+  -- 依賴的既有資料
+  IF NOT EXISTS (SELECT 1 FROM public.students WHERE org_id = demo_org_id AND name = '張宇軒')
+    THEN v_missing := v_missing || ' 學生:張宇軒'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.students WHERE org_id = demo_org_id AND name = '范芷寧')
+    THEN v_missing := v_missing || ' 學生:范芷寧'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.campuses WHERE org_id = demo_org_id AND name = '文山旗艦校')
+    THEN v_missing := v_missing || ' 分校:文山旗艦校'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.classes WHERE org_id = demo_org_id AND name = '國三數學 A 班')
+    THEN v_missing := v_missing || ' 班級:國三數學A班'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.ba_user WHERE email = 'teacher0001@demo.clessia.app')
+    THEN v_missing := v_missing || ' 帳號:teacher0001'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.ba_user WHERE email = 'parent14@demo.clessia.app')
+    THEN v_missing := v_missing || ' 帳號:parent14'; END IF;
+
+  IF v_missing <> '' THEN
+    RAISE EXCEPTION '展示狀態補齊段找不到它依賴的既有資料：%。上游 seed 改過名字或帳號，這一段會靜默失效 —— 請更新這裡的指名。', v_missing;
+  END IF;
+
+  -- 產出點名：每一種狀態都要真的出現
+  IF (SELECT count(*) FROM public.students WHERE org_id = demo_org_id AND is_active = FALSE) = 0
+    THEN RAISE EXCEPTION '沒有造出停用學生'; END IF;
+  IF (SELECT count(*) FROM public.parents WHERE status <> 'active') < 2
+    THEN RAISE EXCEPTION '沒有造出 inactive/archived 家長'; END IF;
+  IF (SELECT count(*) FROM public.staff WHERE status <> 'active') < 2
+    THEN RAISE EXCEPTION '沒有造出 inactive/archived 人員'; END IF;
+  IF (SELECT count(*) FROM (SELECT user_id FROM public.user_roles GROUP BY user_id HAVING count(*) > 1) x) = 0
+    THEN RAISE EXCEPTION '沒有造出多重角色帳號 —— /select-role 的彈窗仍然沒有帳號開得出來'; END IF;
+  IF (SELECT count(*) FROM public.meal_records WHERE invoice_item_id IS NOT NULL) = 0
+    THEN RAISE EXCEPTION '沒有造出已結算的餐記錄'; END IF;
+  IF (SELECT count(*) FROM public.campuses WHERE org_id = demo_org_id AND is_active = FALSE) = 0
+    THEN RAISE EXCEPTION '沒有造出停用分校'; END IF;
+  IF (SELECT count(*) FROM public.sessions WHERE assignment_status = 'unassigned') = 0
+    THEN RAISE EXCEPTION '沒有造出未指派老師的課堂'; END IF;
+  IF (SELECT count(*) FROM public.leave_requests
+       WHERE start_date <= CURRENT_DATE AND end_date >= CURRENT_DATE) = 0
+    THEN RAISE EXCEPTION '沒有造出跨越今天的請假'; END IF;
+
+  RAISE NOTICE '展示狀態補齊完成（#685）';
+END $$;
