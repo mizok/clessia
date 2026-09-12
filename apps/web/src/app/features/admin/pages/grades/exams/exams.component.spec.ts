@@ -301,4 +301,27 @@ describe('ExamsComponent', () => {
       expect(tone.call(component, 'closed')).toBe('inactive');
     });
   });
+
+  /**
+   * **#788：取數失敗時畫面不能渲染成「查無資料」。**
+   * 這一頁的 `error` 分支本來就把 `currentRows` 設成 `[]`，於是失敗與空清單
+   * 在狀態上完全相同 —— #791 還記下它是「唯一謊稱沒資料卻給得出重試」的一頁。
+   */
+  it('取數失敗時渲染「載入失敗」', () => {
+    // `beforeEach` 已經把初始請求收掉了，所以先觸發一次重新載入
+    (component as unknown as { reloadListAndCounts: () => void }).reloadListAndCounts();
+    fixture.detectChanges();
+
+    const listReq = http.expectOne(
+      (req) =>
+        req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) && req.params.has('page'),
+    );
+    listReq.error(new ProgressEvent('boom'));
+    // 其餘同時發出的請求照樣收掉，免得 verify() 抱怨
+    http.match(() => true).forEach((r) => r.flush({ count: 0, none: 0, partial: 0 }));
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('載入失敗');
+  });
 });

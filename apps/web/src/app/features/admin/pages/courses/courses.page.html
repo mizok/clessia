@@ -111,6 +111,8 @@
             <span class="skeleton-bar"></span>
           }
         </div>
+      } @else if (loadFailed()) {
+        <app-load-failed description="沒有讀到課程資料，可能是連線問題" (retry)="loadCourses()" />
       } @else if (courseGroups().length === 0) {
         <!-- Empty State -->
         @if (hasActiveFilters()) {

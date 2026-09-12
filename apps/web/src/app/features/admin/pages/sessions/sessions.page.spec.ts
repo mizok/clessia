@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { parseISO } from 'date-fns';
 import { AttendanceService, type AttendanceSessionListResponse } from '@core/attendance.service';
@@ -1345,5 +1345,20 @@ describe('SessionsPage', () => {
         attendancePresentCount: 8,
       }),
     );
+  });
+
+  /**
+   * **#788：取數失敗時畫面不能渲染成「尚未有資料」。**
+   * 斷言**畫面主體**而不是某個 signal —— 使用者看到的是畫面。
+   */
+  it('取數失敗時渲染「載入失敗」而不是「此期間沒有課堂」', () => {
+    sessionsServiceMock.list.mockReturnValueOnce(throwError(() => new Error('boom')));
+    (component as unknown as { loadSessions: () => void }).loadSessions();
+    if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('載入失敗');
+    expect(text).not.toContain('此期間沒有課堂');
   });
 });

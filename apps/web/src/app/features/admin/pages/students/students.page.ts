@@ -51,6 +51,7 @@ import { RouteObj, RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { PageBandComponent } from '@shared/components/page-band/page-band.component';
 import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -86,6 +87,7 @@ import {
     InputTextModule,
     SelectModule,
     EmptyStateComponent,
+    LoadFailedComponent,
     PopupMenuComponent,
     ResponsiveTableComponent,
     RtColDefDirective,
@@ -126,6 +128,12 @@ export class StudentsPage implements OnInit {
   // State
   readonly students = signal<Student[]>([]);
   readonly loading = signal(true);
+
+  /**
+   * 取數失敗。**跟 `students().length === 0` 是兩件事** —— `catchError` 回 `EMPTY`
+   * 之後兩者在狀態上相同，而畫面只看狀態，於是失敗會被渲染成「尚未有學生資料」（#788）。
+   */
+  readonly loadFailed = signal(false);
   readonly searchQuery = signal('');
   readonly selectedGrade = signal<GradeLevel | null>(null);
   readonly summary = signal({ total: 0, activeCount: 0 });
@@ -211,6 +219,7 @@ export class StudentsPage implements OnInit {
   /** 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#659） */
   loadStudents(): void {
     this.loading.set(true);
+    this.loadFailed.set(false);
     this.loadRequests.next();
   }
 
@@ -234,12 +243,11 @@ export class StudentsPage implements OnInit {
             .pipe(
               catchError((err) => {
                 console.error('Failed to load students', err);
-                this.messageService.add({
-                  severity: 'error',
-                  summary: '載入失敗',
-                  detail: '無法載入學生列表',
-                });
+                // **不再發 toast** —— 主體現在有常駐的失敗狀態（照 /admin/payments 的正例）。
+                // 一則會消失的 toast 加上一個留著的錯誤畫面，兩個訊號互相矛盾（#788）。
+                this.loadFailed.set(true);
                 this.loading.set(false);
+                // `EMPTY` 照舊 —— 它是 #689 的修法，拆掉會讓整條管線死在第一次錯誤上。
                 return EMPTY;
               }),
             ),

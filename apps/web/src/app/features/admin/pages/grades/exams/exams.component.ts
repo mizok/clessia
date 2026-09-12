@@ -34,6 +34,7 @@ import type {
   ResponsiveTablePaginationConfig,
 } from '@shared/components/responsive-table/responsive-table.models';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import {
   ConfirmDialogComponent,
@@ -181,6 +182,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     RtColCellDirective,
     RtRowDirective,
     EmptyStateComponent,
+    LoadFailedComponent,
     PopupMenuComponent,
     TodoBannerComponent,
   ],
@@ -239,6 +241,12 @@ export class ExamsComponent implements OnInit {
   protected readonly currentRows = signal<ExamRow[]>([]);
   protected readonly total = signal(0);
   protected readonly loading = signal(true);
+
+  /**
+   * 取數失敗。**跟「清單長度 0」是兩件事** —— 這一頁的 `error` 分支本來就把
+   * `currentRows` 設成 `[]`，於是失敗與「查無資料」在狀態上完全相同（#788）。
+   */
+  protected readonly loadFailed = signal(false);
   protected readonly academyTodoCount = signal(0);
   /** 一筆都沒有（高） */
   protected readonly academyTodoNone = signal(0);
@@ -449,10 +457,15 @@ export class ExamsComponent implements OnInit {
     // `status` 會帶著 todo 家族的值流進只吃 active/closed 的參數
     const isTodo =
       query.status === 'todo' || query.status === 'todo-none' || query.status === 'todo-partial';
-    const status = query.status === 'active' || query.status === 'closed' ? query.status : undefined;
+    const status =
+      query.status === 'active' || query.status === 'closed' ? query.status : undefined;
     const todo = isTodo ? true : undefined;
     const todoLevel =
-      query.status === 'todo-none' ? 'none' : query.status === 'todo-partial' ? 'partial' : undefined;
+      query.status === 'todo-none'
+        ? 'none'
+        : query.status === 'todo-partial'
+          ? 'partial'
+          : undefined;
 
     if (query.examType === 'academy') {
       this.academyExamsService
@@ -494,11 +507,8 @@ export class ExamsComponent implements OnInit {
             if (requestId !== this.latestListRequestId) return;
             this.currentRows.set([]);
             this.total.set(0);
-            this.messageService.add({
-              severity: 'error',
-              summary: '載入失敗',
-              detail: '無法載入補習班考試列表',
-            });
+            // **不再發 toast** —— 主體現在有常駐的失敗狀態（照 /admin/payments，#788）
+            this.loadFailed.set(true);
             this.loading.set(false);
           },
         });
@@ -547,11 +557,8 @@ export class ExamsComponent implements OnInit {
           if (requestId !== this.latestListRequestId) return;
           this.currentRows.set([]);
           this.total.set(0);
-          this.messageService.add({
-            severity: 'error',
-            summary: '載入失敗',
-            detail: '無法載入學校考試列表',
-          });
+          // **不再發 toast** —— 主體現在有常駐的失敗狀態（照 /admin/payments，#788）
+          this.loadFailed.set(true);
           this.loading.set(false);
         },
       });
@@ -596,7 +603,9 @@ export class ExamsComponent implements OnInit {
    */
   protected onTodoBannerClick(tab: ExamKind, level: 'none' | 'partial' | null = null): void {
     this.examType.set(tab);
-    this.statusFilter.set(level === null ? 'todo' : level === 'none' ? 'todo-none' : 'todo-partial');
+    this.statusFilter.set(
+      level === null ? 'todo' : level === 'none' ? 'todo-none' : 'todo-partial',
+    );
     this.currentPage.set(1);
   }
 
@@ -675,7 +684,8 @@ export class ExamsComponent implements OnInit {
     return format(subMonths(new Date(), months), 'yyyy-MM-dd');
   }
 
-  private reloadListAndCounts(): void {
+  protected reloadListAndCounts(): void {
+    this.loadFailed.set(false);
     this.reloadToken.update((v) => v + 1);
     this.loadTodoCounts();
   }

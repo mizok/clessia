@@ -37,18 +37,22 @@
     />
   </section>
 
-  <app-sessions-body
-    [loading]="loading()"
-    [sessions]="displayedSessions()"
-    [selectedIds]="selectedIds()"
-    [selectedCount]="selectedCount()"
-    [total]="displayedTotal()"
-    [pageSize]="PAGE_SIZE"
-    [currentPage]="currentPage()"
-    (selectedIdsChange)="onSelectedIdsChange($event)"
-    (contextMenuRequested)="onSessionListContextMenu($event)"
-    (clearSelection)="clearSelection()"
-    (openBatchSheet)="openBatchSheet($event)"
-    (pageChange)="onPageChange($event)"
-  />
+  @if (loadFailed()) {
+    <app-load-failed description="沒有讀到課堂資料，可能是連線問題" (retry)="loadSessions()" />
+  } @else {
+    <app-sessions-body
+      [loading]="loading()"
+      [sessions]="displayedSessions()"
+      [selectedIds]="selectedIds()"
+      [selectedCount]="selectedCount()"
+      [total]="displayedTotal()"
+      [pageSize]="PAGE_SIZE"
+      [currentPage]="currentPage()"
+      (selectedIdsChange)="onSelectedIdsChange($event)"
+      (contextMenuRequested)="onSessionListContextMenu($event)"
+      (clearSelection)="clearSelection()"
+      (openBatchSheet)="openBatchSheet($event)"
+      (pageChange)="onPageChange($event)"
+    />
+  }
 </div>

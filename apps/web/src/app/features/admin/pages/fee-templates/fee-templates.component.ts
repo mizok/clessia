@@ -33,6 +33,7 @@ import { BillingPeriodsService, type BillingPeriod } from '@core/billing-periods
 
 import { PageActionsComponent } from '@shared/components/page-actions/page-actions.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
@@ -70,6 +71,7 @@ import { FilterChipComponent } from '@shared/components/filter-chip/filter-chip.
     ToastModule,
     PageActionsComponent,
     EmptyStateComponent,
+    LoadFailedComponent,
     PopupMenuComponent,
     ResponsiveTableComponent,
     RtColDefDirective,
@@ -94,6 +96,12 @@ export class FeeTemplatesComponent implements OnInit {
 
   protected readonly templates = signal<FeeTemplate[]>([]);
   protected readonly templatesLoading = signal(true);
+
+  /**
+   * 取數失敗。**跟「清單長度 0」是兩件事** —— 錯誤被吃掉之後兩者在狀態上相同，
+   * 而畫面只看狀態，於是失敗被渲染成「尚未有資料」（#788）。
+   */
+  protected readonly loadFailed = signal(false);
   protected readonly searchQuery = signal('');
 
   /** 搜尋輸入 —— 節流 + 去重之後才進 `loadTemplates()`（#661） */
@@ -188,6 +196,7 @@ export class FeeTemplatesComponent implements OnInit {
   /** 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#661） */
   protected loadTemplates(): void {
     this.templatesLoading.set(true);
+    this.loadFailed.set(false);
     this.loadRequests.next();
   }
 
@@ -208,12 +217,11 @@ export class FeeTemplatesComponent implements OnInit {
             // 由 spec 的「一次請求失敗之後…」那條釘住（#689）。
             .pipe(
               catchError(() => {
-                this.messageService.add({
-                  severity: 'error',
-                  summary: '載入失敗',
-                  detail: '無法載入價目表',
-                });
+                // **不再發 toast** —— 主體現在有常駐的失敗狀態（照 /admin/payments）。
+                // 會消失的 toast + 留著的錯誤畫面＝兩個互相矛盾的訊號（#788）。
+                this.loadFailed.set(true);
                 this.templatesLoading.set(false);
+                // `EMPTY` 照舊 —— #689 的修法，拆掉整條管線會死在第一次錯誤上。
                 return EMPTY;
               }),
             ),

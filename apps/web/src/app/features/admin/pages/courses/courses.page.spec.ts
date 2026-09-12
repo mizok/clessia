@@ -487,4 +487,19 @@ describe('CoursesPage', () => {
       expect(coursesServiceMock.list).toHaveBeenCalledTimes(2);
     });
   });
+
+  /**
+   * **#788：取數失敗時畫面不能渲染成「尚未有資料」。**
+   * 斷言**畫面主體**而不是某個 signal —— 使用者看到的是畫面。
+   */
+  it('取數失敗時渲染「載入失敗」而不是「尚未建立任何課程」', () => {
+    coursesServiceMock.list.mockReturnValueOnce(throwError(() => new Error('boom')));
+    (component as unknown as { loadCourses: () => void }).loadCourses();
+    if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('載入失敗');
+    expect(text).not.toContain('尚未建立任何課程');
+  });
 });
