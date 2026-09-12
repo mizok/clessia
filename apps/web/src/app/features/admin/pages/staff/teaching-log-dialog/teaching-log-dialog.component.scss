@@ -88,4 +88,9 @@
   &__reason {
     font-style: italic;
   }
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
 }
