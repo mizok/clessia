@@ -684,18 +684,63 @@ __P.tabbables = function (root) {
 };
 ```
 
-**焦點看不看得見**用程式焦點就量得到（`el.focus()` 是真的焦點，不是合成事件）：
+**焦點看不看得見 —— 這個環境也量不到。**
+
+> ⚠️ **2026-09-13（labor-7）訂正。** 這一段原本寫「用程式焦點就量得到（`el.focus()` 是
+> 真的焦點，不是合成事件）」。`el.focus()` 確實是真的焦點 —— **但 `:focus` 偽類還要求
+> document 本身有焦點**，而 MCP 的分頁 `document.hasFocus()` 恆為 `false`：
+
+```
+el.focus() 之後
+  activeElement === el   → true
+  el.matches(':focus')   → false     ← 偽類不成立
+  outlineStyle           → "none"    ← 所以 outline 永遠回 none
+```
+
+**對照過兩組，排除了「這是 iframe 的問題」**：同一時刻對**宿主頁**（不是 iframe）的
+同一個元素做一模一樣的事，**結果完全相同** —— 所以不是 iframe，是 document 沒有焦點。
+
+> ⚠️ **這裡跟 Phase 2 開頭那句有出入，兩邊都照實留著。** 那句寫
+> 「`osascript … to activate` 之後 `hasFocus()` 變成 `true`」，而 labor-7 同一天照做
+> **`hasFocus()` 沒有變**。
+>
+> **一個共同的旁證指向同一件事**：`osascript` 問 Chrome 要分頁清單，**兩次都列不到
+> 任何 localhost 分頁**（只有 `chrome://whats-new` 與 `chrome://newtab`）——
+> 我們的分頁不在那個 AppleScript 看得到的視窗裡，所以 `activate` 帶到前景的
+> **不是它**。`hasFocus()` 會不會變成 `true`，看的是**那一刻誰是被選中的分頁**。
+>
+> **可操作的結論一樣**：**量之前先讀 `document.hasFocus()`** ——
+> `false` 就不要填「焦點看得見／看不見」那一格，填未驗。
+
+**改記結構事實 —— 那一半查得到**：專案有沒有自訂 `:focus` / `:focus-visible` 樣式，
+CSSOM 問得到：
 
 ```js
-e.focus();
-const cs = getComputedStyle(e);
-({
-  focused: d.activeElement === e,
-  outline: cs.outlineStyle + ' ' + cs.outlineWidth,
-  boxShadow: cs.boxShadow,
-  focusVisible: e.matches(':focus-visible'),
-});
+__P.focusRules = function () {
+  const out = [];
+  const walk = (rules) => {
+    for (const r of rules) {
+      if (r.selectorText && /:focus/.test(r.selectorText)) out.push(r.selectorText);
+      else if (r.cssRules) walk(r.cssRules);
+    }
+  };
+  for (const ss of this.d.styleSheets) {
+    try {
+      walk(ss.cssRules);
+    } catch (e) {}
+  }
+  return [...new Set(out)];
+};
 ```
+
+public 六頁實測：**專案零自訂 focus 規則**，命中的 5 條全是 PrimeNG 自己的
+（`.p-inputtext:focus` 那一族）——所以連結與自刻按鈕吃的是**瀏覽器預設焦點環**。
+反例是 `/teacher/schedule`：它有 `.schedule-page__track:focus-visible`。
+**「有沒有自訂」查得到，「長什麼樣」標未驗。**
+
+> **這一則自己就是「量到的那一半與推出來的那一半」的實例**：
+> `activeElement === el` 是量到的（真的），「所以焦點在它身上、outline 量得到」是推的
+> （錯的）—— 而兩者當時寫在同一句話裡。
 
 **`Escape` 關對話框量不到** —— 它要真鍵盤，而合成的 `KeyboardEvent` 打不到 CDK overlay
 （labor-2 已證）。**標「未驗：分頁在背景」**，不要用合成事件湊一個答案。

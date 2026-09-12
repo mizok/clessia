@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, public]
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-13
 ---
 
 # 綁定 LINE
@@ -129,3 +129,68 @@ updated: 2026-09-12
 | 錯誤提示與它的 ✕     | 沒有製造 `linkLine()` 失敗的手段                                                 |
 | 未登入時被 `authGuard` 擋掉的實際行為 | 本輪全程帶著 session；留給驗 `/login` 的那一輪               |
 | 手機寬度             | 本輪只量 1504px 桌機寬度                                                         |
+
+## 390px
+
+- **量測**：390 × 844 ／ 768 × 1024 ／ 1024 × 768 ／ 1504 × 752（同一輪四個寬度）
+- **前端**：主 checkout 的 dev server（port 4200），量測期間從 `40c84b20` 前進到 `fce2aefd` ——
+  **`git diff 40c84b20 fce2aefd -- apps/web packages` 是空的**，前端零改動
+- **身分**：`admin@demo.clessia.app`（量測前後各打一次 `GET /api/me`，兩次都是 `roles:["admin"]`）
+  —— 這一頁的內容與角色無關（Phase 1 已查證）
+- **手段**：同源 iframe 當 viewport
+
+### 版面怎麼變
+
+**`<main>` 內沒有任何斷點**。兩顆按鈕從頭到尾都是 `width: 100%` 貼著卡片走，
+所以「版面變化」全部來自卡片寬度：
+
+| 寬度 | 兩顆按鈕   |
+| ---- | ---------- |
+| 390  | `350 × 44` |
+| 768  | `480 × 44` |
+| 1024 | `480 × 44` |
+| 1504 | `480 × 44` |
+
+**390 是唯一不是 480 的那個，而它不是斷點造成的。** 按鈕是 `width: 100%`
+（`link-line.component.scss:21`），外層表單是 `max-width: 480px`
+（`features/public/shared/_auth-form.scss:68`）—— 所以 390 下是被視窗夾住的 350，
+**768 起就已經觸到那個上限**，於是 768 / 1024 / 1504 在這一頁完全相同。
+（`350 = 390 − 40`，兩側各 20 的外框內距；**這一句是從兩個量到的數字推的**，
+沒有回去對哪一條 padding 規則。）
+
+外框的版面切換（上下堆疊 ↔ 左右並排）見 [[specs/sitemap/_shared/public-shell]]。
+
+### 差集（1504 ↔ 390）
+
+**`<main>` 內零差異** —— 兩顆按鈕四個寬度都在、都可見、都不 disabled。
+只有尺寸不同（上表）。外框的差集見 `_shared/public-shell`。
+
+### 水平溢出
+
+**無。** 四個寬度 `documentElement.scrollWidth === innerWidth`，撐出界的元素 0 個。
+整頁**不產生捲動容器**（`main.public-shell__main` 的 `scrollHeight === clientHeight`）。
+
+### 觸控目標 < 44px
+
+**`<main>` 內 0 筆** —— 兩顆按鈕在四個寬度都是 `44` 高，**不靠 `(pointer: coarse)`**：
+高度是寫死的（`link-line.component.scss:22` 的 `height: 44px`、`:48` 的 `min-height: 44px`），
+而 CSSOM 查過兩顆都沒有被任何 coarse 規則命中。
+
+> 這一頁是本輪 public 六頁裡**唯一不需要 coarse 規則就達標**的一頁。
+> 外框那四條 `public-shell__link` 是 `23` 高且沒有 coarse 接住 —— 見 `_shared/public-shell`。
+
+### 鍵盤可達性
+
+- 全頁**沒有正數 `tabindex`** → Tab 序列 = DOM 序。
+- **`<main>` 內的 Tab 序列**：`綁定 LINE 帳號` → `稍後再說`（2 個，與 DOM 序一致，四個寬度相同）。
+- **click-only 而鍵盤到不了**：`<main>` 內 **0 筆**。
+
+### 未驗與原因
+
+| 項目                         | 原因                                                                                                                                                                                        |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 錯誤提示與它的 ✕ 在 390 的樣子 | 同 Phase 1 —— 沒有製造 `linkLine()` 失敗的手段。**它是 `<main>` 內唯一還沒被量到的元素**                                                                                                   |
+| 送出中（兩鍵 disabled）      | 要按下「綁定 LINE 帳號」才看得到，而那是寫入類動作（會整頁離開到 line.me）                                                                                                                 |
+| 焦點環看不看得見             | **這個環境量不到**：`document.hasFocus()` 恆 `false` → `:focus` 偽類不成立 → `outline` 回 `none`。宿主頁與 iframe 對照過（兩邊一樣），`osascript activate` 後也沒變。專案零自訂 `:focus` 樣式 |
+| `Escape` / 真的 Tab 鍵       | 需要前景分頁（方法頁坑 12）                                                                                                                                                                |
+| `(1024, 1280]`               | 四個量測寬度跳過了它；這一頁 768 起就已經是最終樣子，**不需要補量**                                                                                                                        |
