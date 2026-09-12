@@ -810,6 +810,80 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 1. **驗證失敗時,先跑一次「已知會成功」的對照**(我驗 A21 時就該先確認本地有那個檔)
 2. **要指控別人之前,再換一條獨立的路問一次** —— 這條救了 #569(換條路才發現我 grep 的是管理端路由)
 
+## 部署節奏與截線紀錄(2026-09-12 計畫席定,使用者授權)
+
+### 節奏:**每次收完一批 PR、或每天最後一支合併之後,部署一次**
+
+**為什麼要有節奏**:2026-09-12 之前累積了 **90 支未上線**才被注意到,而注意到它的
+不是任何一道檢查 —— 是可用性測試撞到。
+
+**真正的風險不是「線上是舊的」,是「部署這條路壞了而沒有人知道」。**
+`smoke.yml` 過了,而它證明的是**線上那一版還在服務**,不是**部署還做得動** ——
+**這兩件事在一個沒有人部署的一週裡長得一模一樣。** 沒有 CI 部署,全手動。
+
+> **一條一週沒跑過的部署路徑,它的損壞是看不見的。**
+> 而把第一次部署排在 demo 前,等於把它排在**最糟的時刻**:
+> 幾個月沒跑過的流程,在有時間壓力下第一次執行,帶著幾百支未驗證的 commit。
+
+### 上一次部署的截線 —— **這一節就是那個紀錄的所在**
+
+在 2026-09-12 之前,「線上落後多少」這個問題**在任何地方都查不到答案**,
+只能拿線上的 bundle hash 去猜。所以截線記在這裡,**每次部署後更新這張表**。
+
+| 部署時間(台北) | 截線 SHA | web bundle | api version id | 部署者 |
+| --- | --- | --- | --- | --- |
+| 2026-09-12 14:2x | `924c9ac2` | `main-UNYN3OOY.js` | `11b95f6d` | review-steward |
+| (在那之前) | 不明 | `main-PWQOIY54.js` | 不明 | 不明,約一週前 |
+
+**截線選法**:**最近一顆 CI 完成且 `conclusion=success` 的 main commit**,不是 HEAD ——
+HEAD 上通常還有幾顆在跑,而部署一顆沒跑完的 commit 等於自己放棄那道守衛。
+
+```bash
+gh run list --workflow=verify.yml --branch=main --limit 15 \
+  --json headSha,status,conclusion \
+  -q '.[]|select(.status=="completed" and .conclusion=="success")|.headSha' | head -1
+```
+
+### 一次完整部署的順序(2026-09-12 實跑過)
+
+```bash
+# ① 記錄部署前線上 —— 三方比對的第一方
+curl -s https://demo.clessia.cc/ | grep -oE 'main-[A-Z0-9]{8}\.js'
+
+# ② 切到截線、確認乾淨、build
+git checkout -B steward-desk <截線 SHA> && git status --short
+npx nx build web --configuration=production
+ls dist/apps/web/browser/ | grep -oE '^main-[A-Z0-9]{8}\.js'   # ③ 本機 build
+
+# ③ 部署前先驗產物內容 —— 挑 **minify 改不掉** 的字串(文案、CSS class)
+#    RxJS 運算子名(debounceTime)之類會被 mangle,回 0 是探針壞不是東西不在
+
+# ④ web
+npx wrangler pages deploy dist/apps/web/browser --project-name=clessia --branch=main
+
+# ⑤ api:先 dry-run 驗 binding,再真的部署
+cd apps/api && npx wrangler deploy --env production --dry-run --outdir /tmp/api-dry
+npx wrangler deploy --env production
+
+# ⑥ 三方比對:部署後線上 == 本機 build,且 != 部署前線上
+# ⑦ api 驗證走 workers.dev,不走 demo.clessia.cc(那條被 Pages 的 SPA fallback 接走)
+```
+
+**⑦ 的正控與負控都要跑**:
+- 正控 `workers.dev/api/system-time` → 有 JSON
+- 負控 `workers.dev/no-such-route` → **404 + `application/json`**
+- 對照 `demo.clessia.cc/no-such-route` → **200 + `text/html`**(證明拓撲仍如 charter 所述)
+
+**驗新程式碼真的上線**:抓 `workers.dev/openapi.json`(**不是 `/doc`**,那條回 404)
+數新識別字。2026-09-12 實測:`outstanding` ×5、`dueWithin` ×1、`makeup` ×15。
+**探針裡放一個「早就存在」的字串當對照**(例如 `all_parents`)——
+它回 0 就是你的探針壞了,不是程式碼沒上線。我第一次就是這樣抓到自己查錯路徑的。
+
+### 出事就回退,不要現場修
+
+回退之後再查。Pages 在 dashboard 可回滾到前一次 deployment;
+Worker 用 `npx wrangler rollback --env production`。
+
 ## 部署備忘(實測)
 - Pages project = `clessia`(domains `clessia.pages.dev` / `demo.clessia.cc`),
   production 對應 `--branch=main`(用 `wrangler pages deployment list` 可確認歷史都是它)
