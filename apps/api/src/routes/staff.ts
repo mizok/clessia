@@ -1278,6 +1278,32 @@ app.openapi(updateRoute, async (c) => {
 
   // Handle roles update
   if (body.roles !== undefined) {
+    /**
+     * **改角色是「先刪光再重建」，所以要先把既有權限撈出來**（#680）。
+     *
+     * `permissions` 在 schema 上是 `.optional()`，而這個端點**沒有任何地方宣告
+     * 自己是 PUT 的「整份取代」語意** —— 於是「不帶」原本被實作成「清空」。
+     * `PUT /api/staff/{id}` 回 200、沒有警告，而洗掉的是權限：
+     * **失效方向是「這個管理員突然看不到東西了」，且沒有任何紀錄說明為什麼。**
+     *
+     * 使用者裁定**甲：不帶就不動**。讀在 delete 之前 —— 刪完再讀就永遠是空的。
+     *
+     * **空陣列不等於沒帶**：`?? ` 只在 `undefined` 時退回既有值，
+     * 明式送 `[]` 仍然清空 —— 那是前端唯一的清空路徑
+     * （`staff-form-dialog.component.ts:187` 非 admin 時明式送 `[]`）。
+     */
+    const { data: priorRoleRows } = await supabase
+      .from('user_roles')
+      .select('role, permissions')
+      .eq('user_id', userId)
+      .eq('role', 'admin');
+
+    const priorAdminPermissions = ((priorRoleRows || []).find(
+      (row) => (row as { role?: string }).role === 'admin',
+    )?.['permissions'] ?? []) as Permission[];
+
+    const effectivePermissions = body.permissions ?? priorAdminPermissions;
+
     // Delete existing roles
     const { error: deleteRolesError } = await supabase
       .from('user_roles')
@@ -1293,7 +1319,7 @@ app.openapi(updateRoute, async (c) => {
     const roleRows = body.roles.map((role) => ({
       user_id: userId,
       role,
-      permissions: role === 'admin' ? normalizeAdminPermissions('admin', body.permissions) : [],
+      permissions: role === 'admin' ? normalizeAdminPermissions('admin', effectivePermissions) : [],
     }));
 
     const { error: insertRolesError } = await supabase.from('user_roles').insert(roleRows);

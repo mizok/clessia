@@ -139,3 +139,163 @@ describe('GET /api/staff —— 分校範圍要下到 staff_campuses 的查詢�
     expect(inCalls.some((call) => call.table === 'staff_campuses')).toBe(false);
   });
 });
+
+/**
+ * #680：**改 `roles` 而不帶 `permissions` 會把既有權限靜默清空。**
+ *
+ * `PUT /api/staff/:id` 改角色時是「先刪光再重建」，而重建那一列的 permissions 取自
+ * `body.permissions` —— 沒帶就是 `undefined`，`normalizeAdminPermissions` 把它變成 `[]`。
+ *
+ * **API 回 200、schema 上那個欄位是 `.optional()`**，所以「不帶」是合法請求，
+ * 而「不帶」的語意被實作成「清空」—— 那是 PUT 與 PATCH 語意的混淆。
+ * 洗掉的是**權限**，失效方向是「這個管理員突然看不到東西了」，**而沒有任何紀錄說明為什麼**。
+ *
+ * 使用者裁定**甲：不帶就不動**。
+ *
+ * 前端不受影響（已查）：`staff-form-dialog.component.ts:187` **永遠明式送
+ * `permissions`**（非 admin 時送 `[]`），而 `staffService.update` 全 repo 只有那一個呼叫端。
+ * 所以「從 UI 清空權限」走的是明式 `[]`，不是省略。
+ */
+describe('#680 PUT /api/staff/:id —— 改 roles 時沒帶 permissions 不得清空既有權限', () => {
+  const ORG = '00000000-0000-0000-0000-0000000000aa';
+  const TARGET_STAFF = '00000000-0000-0000-0000-0000000000d9';
+  const TARGET_USER = 'target-user';
+  const EXISTING: string[] = ['manage_staff', 'basic_operations'];
+
+  /** 記下每一次 insert，測試才看得到「重建出來的那一列帶什麼權限」 */
+  function fakeDb() {
+    const inserted: Array<{ table: string; rows: unknown }> = [];
+
+    const make = (table: string) => {
+      const builder: Record<string, unknown> = {};
+      const chain = () => builder as never;
+      Object.assign(builder, {
+        select: () => chain(),
+        insert: (rows: unknown) => {
+          inserted.push({ table, rows });
+          return chain();
+        },
+        update: () => chain(),
+        delete: () => chain(),
+        eq: () => chain(),
+        in: () => chain(),
+        order: () => chain(),
+        limit: () => chain(),
+        maybeSingle: () =>
+          Promise.resolve({
+            data:
+              table === 'staff'
+                ? { id: TARGET_STAFF, user_id: TARGET_USER, org_id: ORG }
+                : table === 'user_roles'
+                  ? { role: 'admin' } // checkUserIsAdmin（問的是**請求者**）
+                  : null,
+            error: null,
+          }),
+        single: () => Promise.resolve({ data: null, error: null }),
+        then: (resolve: (value: unknown) => unknown) =>
+          resolve({
+            // 這一條是「既有權限」的來源：`select('permissions')` 的清單查詢
+            data: table === 'user_roles' ? [{ role: 'admin', permissions: EXISTING }] : [],
+            count: 0,
+            error: null,
+          }),
+      });
+
+      return builder;
+    };
+
+    return { inserted, from: (table: string) => make(table) };
+  }
+
+  async function put(body: unknown) {
+    const db = fakeDb();
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', db);
+      set('orgId', ORG);
+      set('userId', 'requester-user'); // **不是 target** —— 否則被「不能改自己」擋掉
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', staffRoute.default as unknown as Hono);
+
+    const res = await app.request(`/${TARGET_STAFF}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    const adminRow = db.inserted
+      .filter((call) => call.table === 'user_roles')
+      .flatMap((call) => (Array.isArray(call.rows) ? call.rows : [call.rows]))
+      .find((row) => (row as { role?: string }).role === 'admin') as
+      { permissions?: string[] } | undefined;
+
+    return { status: res.status, adminRow };
+  }
+
+  it('不帶 permissions 時沿用既有的，不是清成空陣列', async () => {
+    const { status, adminRow } = await put({ roles: ['admin'] });
+
+    expect(status).toBe(200);
+    expect(adminRow?.permissions).toEqual(EXISTING);
+  });
+
+  /**
+   * **反向對照 1**：明式送 `[]` 仍然要清空。
+   * 這是**前端唯一的清空路徑**（`staff-form-dialog:187` 非 admin 時送 `[]`）——
+   * 修法如果把「空陣列」也當成「不動」，UI 上的「取消勾選全部」就永遠生效不了。
+   */
+  it('明式送空陣列時照樣清空 —— 那是前端真正在用的清空路徑', async () => {
+    const { status, adminRow } = await put({ roles: ['admin'], permissions: [] });
+
+    expect(status).toBe(200);
+    expect(adminRow?.permissions).toEqual([]);
+  });
+
+  /**
+   * **反向對照 2**：有帶值時用帶的那個，不要被「沿用既有」蓋掉。
+   */
+  it('有帶 permissions 時用帶的那一份', async () => {
+    const { status, adminRow } = await put({ roles: ['admin'], permissions: ['manage_roles'] });
+
+    expect(status).toBe(200);
+    expect(adminRow?.permissions).toEqual(['manage_roles']);
+  });
+
+  /**
+   * **反向對照 3**：`teacher` 那一列永遠是空的，沿用邏輯不能溢出到它身上。
+   */
+  it('teacher 那一列的 permissions 永遠是空的', async () => {
+    const db = fakeDb();
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', db);
+      set('orgId', ORG);
+      set('userId', 'requester-user');
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', staffRoute.default as unknown as Hono);
+
+    await app.request(`/${TARGET_STAFF}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ roles: ['teacher'] }),
+    });
+
+    const teacherRow = db.inserted
+      .filter((call) => call.table === 'user_roles')
+      .flatMap((call) => (Array.isArray(call.rows) ? call.rows : [call.rows]))
+      .find((row) => (row as { role?: string }).role === 'teacher') as
+      { permissions?: string[] } | undefined;
+
+    expect(teacherRow?.permissions).toEqual([]);
+  });
+});
