@@ -95,15 +95,20 @@ updated: 2026-09-12
 [[specs/sitemap/_shared/audit-log-dialog]]。欄位：`操作者`｜`時間`｜`對象`｜`動作`。
 關閉是 header 右上的 icon-only `×`（`.dialog-header-inline__close`）。
 
-## ⚠️ 這一頁同時出現兩套對話框系統
+## 這一頁同時出現兩套對話框系統
 
 | 系統 | 怎麼開 | header 的 `×` |
 | --- | --- | --- |
-| **DynamicDialog** | `dialogService.open(...)`（操作紀錄、新增請假） | **從不渲染**，靠元件自己畫 |
-| **ConfirmDialog** | `confirmationService.confirm(...)`（取消請假） | **會渲染**（`p-dialog-close-button`） |
+| **DynamicDialog** | `dialogService.open(...)`（操作紀錄、新增請假） | **只在開啟設定帶 `closable: true` 時才有**；這兩支都沒帶，所以靠元件自己畫的 icon-only `×` |
+| **ConfirmDialog** | `confirmationService.confirm(...)`（取消請假） | **一律有**（`p-dialog-close-button`） |
 
-這個區別在 [[specs/sitemap/admin/parents]] 那支關不掉的對話框（issue #714）上是關鍵 ——
-**看到某支有 `×` 不代表 DynamicDialog 也會有**。
+> **`closable` 沒帶不等於用預設值。** `DynamicDialogComponent` 一律把
+> `[closable]="ddconfig.closable"` 綁給內層 `p-dialog`，**沒帶就是 `undefined`，
+> 蓋掉 `p-dialog` 自己的預設 `true`** —— 那正是 issue #714／#717 的根因。
+>
+> ⚠️ 我原本在這裡寫的是「DynamicDialog **從不**渲染 `×`」，**那是錯的**：
+> 我拿來當正控的那支也沒帶 `closable`，兩個同類互相比較當然一樣。
+> 帶了 `closable: true` 的（`SessionAdvancedFiltersDialog`）**× 就有渲染**。
 
 ## 驗證紀錄
 
