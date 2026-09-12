@@ -73,6 +73,39 @@ describe('StudentsPage', () => {
     expect(component).toBeTruthy();
   });
 
+  /**
+   * **#788：取數失敗時畫面不能渲染成「尚未有學生資料」。**
+   *
+   * `catchError` 回 `EMPTY` 之後（那是 #689 的修法，不能拆），`students()` 維持初始的
+   * `[]` —— 於是「失敗」與「成功但沒有資料」在狀態上完全相同，畫面走空狀態分支，
+   * 還附一顆「新增學生」邀請使用者建出重複資料。而唯一的錯誤訊號是**會自己消失的 toast**。
+   *
+   * 這裡斷言**畫面主體**，不是斷言某個 signal —— 使用者看到的是畫面。
+   */
+  it('取數失敗時渲染「載入失敗」而不是「尚未有學生資料」', () => {
+    pending[0].subject.error(new Error('boom'));
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('載入失敗');
+    expect(text).not.toContain('尚未有學生資料');
+  });
+
+  it('取數失敗時給得出重試 —— 按下去要重新打一次', () => {
+    const callsBefore = studentsServiceMock.list.mock.calls.length;
+    pending[0].subject.error(new Error('boom'));
+    fixture.detectChanges();
+
+    const retry = (fixture.nativeElement as HTMLElement).querySelector(
+      'app-load-failed button',
+    ) as HTMLButtonElement | null;
+    expect(retry, '失敗狀態要有重試鈕').toBeTruthy();
+
+    retry!.click();
+    vi.advanceTimersByTime(500);
+    expect(studentsServiceMock.list.mock.calls.length).toBeGreaterThan(callsBefore);
+  });
+
   const type = (text: string) =>
     (component as unknown as { onSearchChange: (v: string) => void }).onSearchChange(text);
 

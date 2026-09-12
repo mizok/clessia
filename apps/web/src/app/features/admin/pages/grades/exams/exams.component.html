@@ -28,8 +28,9 @@
           [active]="examType() === 'academy' && statusFilter() === 'todo-none'"
           (action)="onTodoBannerClick('academy', 'none')"
         >
-          有 <strong>{{ academyTodoNone() }}</strong> 場
-          <strong>進行中</strong>的補習班考試<strong>一筆成績都還沒登錄</strong>
+          有 <strong>{{ academyTodoNone() }}</strong> 場 <strong>進行中</strong>的補習班考試<strong
+            >一筆成績都還沒登錄</strong
+          >
         </app-todo-banner>
         <app-todo-banner
           tone="low"
@@ -183,6 +184,11 @@
             <span class="skeleton-bar"></span>
           }
         </div>
+      } @else if (loadFailed()) {
+        <app-load-failed
+          description="沒有讀到考試資料，可能是連線問題"
+          (retry)="reloadListAndCounts()"
+        />
       } @else if (currentRows().length === 0) {
         @if (hasActiveFilters()) {
           <app-empty-state

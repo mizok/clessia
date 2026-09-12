@@ -24,9 +24,7 @@ import { CoursesService, type Course } from '@core/courses.service';
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import { SessionsService, type Session,
-  type SessionQueryParams,
-} from '@core/sessions.service';
+import { SessionsService, type Session, type SessionQueryParams } from '@core/sessions.service';
 import type { Staff } from '@core/staff.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { StudentsService, type Student } from '@core/students.service';
@@ -38,6 +36,7 @@ import {
 import { SessionCancelDialogComponent } from './dialogs/session-cancel-dialog/session-cancel-dialog.component';
 import { parseAttendanceQueryParams } from './sessions.util';
 import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
+import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
 import { SessionOperationsLogDialogComponent } from './dialogs/session-operations-log-dialog/session-operations-log-dialog.component';
 import { SessionRescheduleDialogComponent } from './dialogs/session-reschedule-dialog/session-reschedule-dialog.component';
@@ -101,6 +100,7 @@ interface AttendanceDialogCloseResult {
     SessionsHeaderComponent,
     SessionsBodyComponent,
     SessionFiltersComponent,
+    LoadFailedComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './sessions.page.html',
@@ -129,6 +129,13 @@ export class SessionsPage implements OnInit {
 
   // ── View state ─────────────────────────────────────────────────────────
   protected readonly loading = signal(false);
+
+  /**
+   * 取數失敗。#791 把這一頁標為最嚴重的一支：5 個請求全部失敗，
+   * 而畫面只說「此期間沒有課堂」—— **沒有 toast、沒有 empty-state、
+   * 沒有任何錯誤字樣**。課堂管理是每天在用的頁，取數失敗會讓人以為那天沒排課（#788）。
+   */
+  protected readonly loadFailed = signal(false);
   protected readonly sessions = signal<SessionRow[]>([]);
 
   // Filter options — campuses & teachers come from shared cache
@@ -898,7 +905,7 @@ export class SessionsPage implements OnInit {
     });
   }
 
-  private loadSessions(): void {
+  protected loadSessions(): void {
     const range = this.listDateRange();
     const rawIds = this.selectedTeacherIds();
     const realTeacherIds = rawIds.filter((id) => id !== '__unassigned__');
@@ -955,6 +962,7 @@ export class SessionsPage implements OnInit {
     };
 
     this.loading.set(true);
+    this.loadFailed.set(false);
     this.sessionsService
       .list(listParams)
       .pipe(
@@ -978,11 +986,8 @@ export class SessionsPage implements OnInit {
         },
         error: () => {
           this.loading.set(false);
-          this.messageService.add({
-            severity: 'error',
-            summary: '載入失敗',
-            detail: '無法載入課堂資料',
-          });
+          // **不再發 toast** —— 主體現在有常駐的失敗狀態（照 /admin/payments，#788）
+          this.loadFailed.set(true);
         },
       });
   }

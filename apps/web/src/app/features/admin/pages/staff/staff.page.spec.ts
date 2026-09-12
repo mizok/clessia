@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { CampusesService } from '@core/campuses.service';
 import { StaffService } from '@core/staff.service';
@@ -493,5 +493,20 @@ describe('StaffPage', () => {
       pending[1].subject.complete();
       expect(names()).toEqual(['王大明']);
     });
+  });
+
+  /**
+   * **#788：取數失敗時畫面不能渲染成「尚未有資料」。**
+   * 斷言**畫面主體**而不是某個 signal —— 使用者看到的是畫面。
+   */
+  it('取數失敗時渲染「載入失敗」而不是「尚未建立人員」', () => {
+    staffServiceMock.list.mockReturnValueOnce(throwError(() => new Error('boom')));
+    (component as unknown as { loadStaff: () => void }).loadStaff();
+    if (vi.isFakeTimers()) vi.advanceTimersByTime(1000);
+    fixture.detectChanges();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('載入失敗');
+    expect(text).not.toContain('尚未建立人員');
   });
 });

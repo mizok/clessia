@@ -61,6 +61,11 @@
             <span class="skeleton-bar"></span>
           }
         </div>
+      } @else if (loadFailed()) {
+        <app-load-failed
+          description="沒有讀到價目表資料，可能是連線問題"
+          (retry)="loadTemplates()"
+        />
       } @else if (templates().length === 0) {
         @if (searchQuery()) {
           <app-empty-state
