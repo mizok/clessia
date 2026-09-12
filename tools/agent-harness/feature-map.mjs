@@ -48,6 +48,21 @@ const MOUNT_ALIAS = { 'org-settings': 'org' };
 const SPEC_EXEMPT = ['README.md', 'BRAINSTORM_PROMPT.md'];
 
 /**
+ * `specs/sitemap/` 不是功能規格，是**依路由索引的 UI 地圖**（issue #685）——
+ * 一條路由一個檔，53 個。把它們塞進 AREAS 會壞掉兩件事：
+ * 功能區的 spec 欄會被灌成一份重複的路由清單，而「這個功能區有沒有規格」
+ * 這個訊號會被稀釋成永遠為真。
+ *
+ * **它的完整性由另一道 gate 守**，不是沒人守：
+ *
+ *   npx tsx tools/sitemap/generate-sitemap-skeletons.ts --check
+ *
+ * 那支腳本從 `RoutesCatalog` 本人讀路由，少一個檔就 exit 1。
+ * 換句話說這個豁免讓渡的是「歸屬哪個功能區」，不是「有沒有被檢查」。
+ */
+const SPEC_EXEMPT_PREFIXES = ['sitemap/'];
+
+/**
  * 功能區藍圖。刻意**手寫**而非從磁碟推導 —— 推導的話「規劃了但還沒開始」這個訊號就不存在了。
  * 代價是磁碟上多出來的東西會靜默消失，所以底下有反向斷言把未歸類的項目變成錯誤。
  */
@@ -356,7 +371,9 @@ const diskPages = ROLES.flatMap((role) =>
   listDirs(rolePagesDir(role)).map((name) => `${role}/${name}`),
 );
 const diskRoutes = listRoutes();
-const diskSpecs = walkSpecs(SPECS).filter((s) => !SPEC_EXEMPT.includes(s));
+const diskSpecs = walkSpecs(SPECS).filter(
+  (s) => !SPEC_EXEMPT.includes(s) && !SPEC_EXEMPT_PREFIXES.some((p) => s.startsWith(p)),
+);
 
 // ── 反向斷言：磁碟上的東西必須被藍圖認領，否則會靜默從統計消失 ──────────────────────────
 const failures = [];
