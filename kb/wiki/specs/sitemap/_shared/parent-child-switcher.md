@@ -113,7 +113,43 @@ updated: 2026-09-12
 **這是 Phase 0 的 `parent/attendance.md` 標成「未驗」的那一條** ——
 本輪實際切換了，而且切換後的畫面有變化，所以下拉與重新取數都成立。
 
-### ⚠️ 三種形態只驗到一種
+### 2026-09-13 補驗：四種形態驗到三種
+
+`#746` 的 seed 造出了單孩與 0 孩的家長帳號之後補的。
+
+| 形態                   | 帳號                      | 量到什麼                                                                                                                                                |
+| ---------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **≥ 2 孩子（可切換）** | `parent01@` / `parent03@` | `button.child-switcher__badge--interactive` + `pi-chevron-down`，按一次開下拉                                                                           |
+| **1 個孩子（靜態）**   | `teacher0005@`            | **`<span class="child-switcher__badge">`** —— 不是 `<button>`、**沒有 `--interactive`、沒有箭頭**。`<main>` 內可見互動元素 **0 個**（≥2 孩子時是 1 個） |
+| **0 個孩子（不渲染）** | `teacher0006@`            | **`.child-switcher` 整個不存在**，徽章也不存在。`/parent/attendance` 的可見互動元素只剩 3 顆期間鈕                                                      |
+| `status === 'failed'`  | —                         | **仍未驗**（要讓 `GET /api/me/children` 失敗）                                                                                                          |
+
+**「0 個孩子時不打 child API」也一併證實了**：`/parent/attendance` 的
+`performance.getEntriesByType('resource')` 只有 `/api/me/children`，
+**沒有 `/api/me/attendance`** —— 跟 `ChildScopeService` 的 `activeChildId` 保持 `null`、
+各頁 effect `if (!childId) return;` 一致。
+
+#### ⚠️ 驗這兩種形態要先過角色選擇彈窗
+
+`teacher0005@` / `teacher0006@` 是**既有老師帳號加上 `parent` 角色**（`seed.sql` 的取捨：
+新建帳號會撞憲法 c2 的 `ba_*` 豁免上限）。**所以它們是 teacher + parent 兩個角色** ——
+登入後會先進 [[specs/sitemap/public/select-role]] 的彈窗，選「家長」才進得到這裡。
+
+**兩個測試狀態耦合在同一個帳號上**：角色選擇彈窗壞掉的話，這兩種形態也連帶驗不到。
+這是**刻意的取捨不是缺陷**，理由在 `seed.sql` 那一段的註解裡。
+
+#### 🔴 0 個孩子那一支露出一支真缺陷（#749）
+
+切換器不渲染是**對的**，但**其餘頁面照樣渲染，而且講的是不成立的話**：
+
+- `/parent/attendance` → 逐日清單照常，每天印 **「今日無課」**
+- `/parent/payments` → **「目前沒有帳單紀錄」**
+
+**那是在正面斷言「你的孩子沒課／沒帳單」，而這個帳號沒有孩子。**
+`ChildScopeService` 的註解預言過這個形狀，但只解決了 `failed` 那一半。
+→ **已開 issue #749**（未順手修）。
+
+### ⚠️ 原本的「三種形態只驗到一種」（保留，說明當時為什麼驗不到）
 
 本機 `parent01` 固定有 3 個孩子。`canSwitch === false`（單一孩子的靜態徽章）、
 `length === 0`（整個不渲染）、`status === 'failed'`（紅色徽章）**三種都沒驗到** ——
