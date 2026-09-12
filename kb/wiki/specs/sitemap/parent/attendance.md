@@ -209,8 +209,9 @@ GET /api/me/attendance?childId=<id>&dateFrom=2026-09-02&page=1&pageSize=50
 
 #### 0 個孩子的家長在這一頁看到什麼（#749）
 
-逐日清單**照常渲染**，每一天印「今日無課」，而那個帳號**沒有孩子**。
-只打 `/api/me/children`、沒打 `/api/me/attendance`。→ 見 [[specs/sitemap/_shared/parent-child-switcher]]。
+**#749 修正後**：內容區改渲染「**這個帳號還沒有綁定任何學生**」，
+逐日清單不再出現 —— 原本那個「每天都印今日無課」是在正面斷言一件不存在的事。
+（仍然只打 `/api/me/children`。）機制見 [[specs/sitemap/_shared/parent-child-switcher]]。
 
 ### 未驗到的
 

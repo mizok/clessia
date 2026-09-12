@@ -19,6 +19,7 @@ import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/ba
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageBandComponent } from '@shared/components/page-band/page-band.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
+import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 import {
   INVOICE_ITEM_TYPE_LABELS,
   INVOICE_STATUS_LABELS,
@@ -37,6 +38,7 @@ const PAGE_SIZE = 20;
     DrawerModule,
     PageBandComponent,
     ChildSwitcherComponent,
+    ChildScopeGateComponent,
     BandAnchorComponent,
     EmptyStateComponent,
   ],

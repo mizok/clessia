@@ -4,11 +4,17 @@ import { ChildScopeService } from '@core/child-scope.service';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageBandComponent } from '@shared/components/page-band/page-band.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
+import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [EmptyStateComponent, PageBandComponent, ChildSwitcherComponent],
+  imports: [
+    EmptyStateComponent,
+    PageBandComponent,
+    ChildSwitcherComponent,
+    ChildScopeGateComponent,
+  ],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })

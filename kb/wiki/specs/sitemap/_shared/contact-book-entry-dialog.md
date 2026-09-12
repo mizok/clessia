@@ -14,11 +14,11 @@ updated: 2026-09-12
 
 ## 兩個開啟點，兩種 `data` 形狀
 
-| 開啟點 | 路由 | 傳進去的 `data` | 寬度 |
-| --- | --- | --- | --- |
-| `admin/contact-book` 的列（編輯既有） | `/admin/contact-book`（`loadComponent`） | `{ entry }` | `560px` |
-| `admin/contact-book` 的 `補寫`（新寫） | 同上 | `{ …缺漏那筆的學生與日期 }` | `560px` |
-| `teacher/schedule` 的 `contact-book-roster` | `/teacher/schedule`（`loadComponent`） | `existing`（**直接傳那一筆，不是包在物件裡**） | `480px` |
+| 開啟點                                      | 路由                                     | 傳進去的 `data`                                | 寬度    |
+| ------------------------------------------- | ---------------------------------------- | ---------------------------------------------- | ------- |
+| `admin/contact-book` 的列（編輯既有）       | `/admin/contact-book`（`loadComponent`） | `{ entry }`                                    | `560px` |
+| `admin/contact-book` 的 `補寫`（新寫）      | 同上                                     | `{ …缺漏那筆的學生與日期 }`                    | `560px` |
+| `teacher/schedule` 的 `contact-book-roster` | `/teacher/schedule`（`loadComponent`）   | `existing`（**直接傳那一筆，不是包在物件裡**） | `480px` |
 
 > ⚠️ **兩邊的寬度與 `data` 形狀都不同。** 老師端傳的是 `existing` 本身、管理端傳
 > `{ entry }` —— 讀單一頁的地圖會以為它永遠一樣。這跟
@@ -27,7 +27,7 @@ updated: 2026-09-12
 **兩個開啟點都逐筆回 `app.routes.ts` 確認過是 `loadComponent` 不是 `redirectTo`。**
 
 > 📌 驗這件事的時候我先 grep 到 `app.routes.ts:366` —— **那一行是
-> `TEACHER_DASHBOARD` redirect *到* schedule，不是 schedule 本身**，
+> `TEACHER_DASHBOARD` redirect _到_ schedule，不是 schedule 本身**，
 > 差點得出「老師端那條是死的」。真正的路由在 `:378-382`。
 > **grep 命中要看清楚是哪一筆，這是 #698 那條的第二個實例。**
 
@@ -41,11 +41,11 @@ updated: 2026-09-12
 
 ## 互動元素
 
-| 元素 | 類型 | 出現條件 | 按了之後 |
-| --- | --- | --- | --- |
-| `內容` | 多行輸入 | 永遠 | — |
-| `取消` | 按鈕 | 永遠 | 關閉，不回傳 |
-| `儲存` | 按鈕 | 永遠 | **剛開啟時 `disabled`**（內容未改動）；按下去會寫入 |
+| 元素   | 類型     | 出現條件 | 按了之後                                            |
+| ------ | -------- | -------- | --------------------------------------------------- |
+| `內容` | 多行輸入 | 永遠     | —                                                   |
+| `取消` | 按鈕     | 永遠     | 關閉，不回傳                                        |
+| `儲存` | 按鈕     | 永遠     | **剛開啟時 `disabled`**（內容未改動）；按下去會寫入 |
 
 ## 驗證紀錄
 

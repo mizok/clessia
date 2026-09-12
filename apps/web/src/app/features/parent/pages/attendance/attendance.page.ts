@@ -27,6 +27,7 @@ import { PageBandComponent } from '@shared/components/page-band/page-band.compon
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { todayLocal } from '@shared/utils/session-time.util';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
+import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 import {
   ATTENDANCE_STATUS_LABELS,
   ATTENDANCE_STATUS_TONE,
@@ -55,6 +56,7 @@ const PAGE_SIZE = 50;
     PageBandComponent,
     BandAnchorComponent,
     ChildSwitcherComponent,
+    ChildScopeGateComponent,
     StatusDotComponent,
     DataChipComponent,
     EmptyStateComponent,

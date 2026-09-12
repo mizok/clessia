@@ -8,77 +8,86 @@
       }
     </div>
   </app-page-band>
-
-  <div class="grades__filters">
-    <p-select
-      [options]="subjectOptions()"
-      optionLabel="label"
-      optionValue="value"
-      placeholder="全部科目"
-      [showClear]="true"
-      [ngModel]="subjectFilter()"
-      (ngModelChange)="onSubjectChange($event)"
-    />
-    <p-selectbutton
-      [options]="timeRangeOptions"
-      optionLabel="label"
-      optionValue="value"
-      [allowEmpty]="false"
-      [ngModel]="timeRange()"
-      (ngModelChange)="onTimeRangeChange($event)"
-    />
-  </div>
-
-  <div class="grades__content">
-    @if (loading() && records().length === 0) {
-      <div class="skeleton-list">
-        @for (i of [1, 2, 3]; track i) {
-          <span class="skeleton-bar"></span>
-        }
-      </div>
-    } @else if (failed()) {
-      <app-empty-state
-        icon="pi pi-exclamation-circle"
-        title="載入失敗"
-        description="沒有讀到成績紀錄，可能是連線問題"
+  <!--
+    **依賴孩子的頁面都包這一層**（#749）：0 個孩子時底下那些空狀態講的是
+    不成立的事（「今日無課」「目前沒有帳單紀錄」）—— 那是正面斷言，不是空白。
+    規則與措辭集中在 `app-child-scope-gate`，四頁不各自長出一種說法。
+  -->
+  <app-child-scope-gate>
+    <div class="grades__filters">
+      <p-select
+        [options]="subjectOptions()"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="全部科目"
+        [showClear]="true"
+        [ngModel]="subjectFilter()"
+        (ngModelChange)="onSubjectChange($event)"
       />
-    } @else if (groups().length === 0) {
-      <app-empty-state icon="pi pi-chart-line" title="沒有符合條件的成績" description="" />
-    } @else {
-      <!--
+      <p-selectbutton
+        [options]="timeRangeOptions"
+        optionLabel="label"
+        optionValue="value"
+        [allowEmpty]="false"
+        [ngModel]="timeRange()"
+        (ngModelChange)="onTimeRangeChange($event)"
+      />
+    </div>
+
+    <div class="grades__content">
+      @if (loading() && records().length === 0) {
+        <div class="skeleton-list">
+          @for (i of [1, 2, 3]; track i) {
+            <span class="skeleton-bar"></span>
+          }
+        </div>
+      } @else if (failed()) {
+        <app-empty-state
+          icon="pi pi-exclamation-circle"
+          title="載入失敗"
+          description="沒有讀到成績紀錄，可能是連線問題"
+        />
+      } @else if (groups().length === 0) {
+        <app-empty-state icon="pi pi-chart-line" title="沒有符合條件的成績" description="" />
+      } @else {
+        <!--
         這一頁沒有分頁 UI（一次撈完再前端篩），所以超過上限就會被截斷。
         **截斷本身是安靜的** —— 少掉的那些跟「本來就沒有」長得一樣，
         所以拿 `meta.total` 對一次，不一致就講出來。
       -->
-      @if (truncated()) {
-        <p class="grades__state grades__state--warning">
-          只顯示最近 {{ records().length }} 筆，共 {{ total() }} 筆。
-        </p>
+        @if (truncated()) {
+          <p class="grades__state grades__state--warning">
+            只顯示最近 {{ records().length }} 筆，共 {{ total() }} 筆。
+          </p>
+        }
+        @for (group of groups(); track group.subjectName) {
+          <section class="grades__subject">
+            <h2 class="grades__subject-title">{{ group.subjectName }}</h2>
+            @for (record of group.records; track record.id) {
+              <div class="grades__record">
+                <span class="grades__record-date">{{ record.examDate }}</span>
+                <span class="grades__record-name">{{ record.examName }}</span>
+                @if (record.status === 'scored') {
+                  <span
+                    class="grades__record-score"
+                    [class.grades__record-score--fail]="isFailing(record)"
+                  >
+                    @if (isFailing(record)) {
+                      <i
+                        class="pi pi-exclamation-triangle grades__fail-icon"
+                        aria-label="不及格"
+                      ></i>
+                    }
+                    {{ formatScore(record) }}
+                  </span>
+                } @else {
+                  <app-data-chip>{{ statusLabels[record.status] }}</app-data-chip>
+                }
+              </div>
+            }
+          </section>
+        }
       }
-      @for (group of groups(); track group.subjectName) {
-        <section class="grades__subject">
-          <h2 class="grades__subject-title">{{ group.subjectName }}</h2>
-          @for (record of group.records; track record.id) {
-            <div class="grades__record">
-              <span class="grades__record-date">{{ record.examDate }}</span>
-              <span class="grades__record-name">{{ record.examName }}</span>
-              @if (record.status === 'scored') {
-                <span
-                  class="grades__record-score"
-                  [class.grades__record-score--fail]="isFailing(record)"
-                >
-                  @if (isFailing(record)) {
-                    <i class="pi pi-exclamation-triangle grades__fail-icon" aria-label="不及格"></i>
-                  }
-                  {{ formatScore(record) }}
-                </span>
-              } @else {
-                <app-data-chip>{{ statusLabels[record.status] }}</app-data-chip>
-              }
-            </div>
-          }
-        </section>
-      }
-    }
-  </div>
+    </div>
+  </app-child-scope-gate>
 </div>

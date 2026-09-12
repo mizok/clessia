@@ -22,6 +22,7 @@ import { DataChipComponent } from '@shared/components/status/data-chip/data-chip
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageBandComponent } from '@shared/components/page-band/page-band.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
+import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
 import {
   SCORE_STATUS_LABELS,
   TIME_RANGE_OPTIONS,
@@ -52,6 +53,7 @@ const PAGE_SIZE = 100;
     SelectModule,
     PageBandComponent,
     ChildSwitcherComponent,
+    ChildScopeGateComponent,
     BandAnchorComponent,
     DataChipComponent,
     EmptyStateComponent,
