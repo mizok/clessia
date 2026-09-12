@@ -95,15 +95,27 @@ interface CampusSummary {
   inactiveCount: number;
 }
 
-export function buildCampusSummary(
-  rows: Array<{ is_active: boolean }>,
-  total: number,
-): CampusSummary {
+/**
+ * 三個數字必須來自**同一個集合**（#751）。
+ *
+ * 原本的簽章是 `(rows, total)`，而呼叫端傳進來的 `total` 是**主清單查詢的
+ * `count`** —— 那一支有套 `isActive` 篩選，`rows` 沒有。於是隱藏停用分校時
+ * 畫面會印出「12 個分校 / 12 啟用中 / 1 已停用」，**12 ≠ 12 + 1**，
+ * 而按下「顯示停用分校」之後第一個數字自己變成 13。
+ *
+ * **拿掉那個參數而不是修正它的來源**：一個「傳進來但不該被信任」的參數
+ * 是下一個人會再踩一次的坑。現在 `total` 只能是 `rows.length`，
+ * 三個數字在結構上不可能對不起來。
+ *
+ * ⚠️ **這跟分頁的 `meta.total` 是兩件事** —— 那一個必須維持「篩選後的筆數」，
+ * 否則頁數會算錯。前端的統計列讀 `summary.total`、分頁讀 `meta.total`。
+ */
+export function buildCampusSummary(rows: Array<{ is_active: boolean }>): CampusSummary {
   const activeCount = rows.filter((row) => row.is_active).length;
   const inactiveCount = rows.length - activeCount;
 
   return {
-    total,
+    total: rows.length,
     activeCount,
     inactiveCount,
   };
@@ -192,7 +204,7 @@ app.openapi(listRoute, async (c) => {
     console.error('DB Error:', summaryError);
   }
 
-  const summary = buildCampusSummary((summaryRows || []) as Array<{ is_active: boolean }>, total);
+  const summary = buildCampusSummary((summaryRows || []) as Array<{ is_active: boolean }>);
 
   return c.json(
     {

@@ -6,10 +6,7 @@ import * as campusesRoute from './campuses';
 describe('buildCampusSummary', () => {
   it('builds global campus summary counts from filtered rows', () => {
     const buildCampusSummary = (campusesRoute as Record<string, unknown>)['buildCampusSummary'] as
-      | ((
-          rows: Array<{ is_active: boolean }>,
-          total: number,
-        ) => {
+      | ((rows: Array<{ is_active: boolean }>) => {
           total: number;
           activeCount: number;
           inactiveCount: number;
@@ -18,16 +15,46 @@ describe('buildCampusSummary', () => {
 
     expect(buildCampusSummary).toBeTypeOf('function');
 
-    const summary = buildCampusSummary?.(
-      [{ is_active: true }, { is_active: false }, { is_active: true }],
-      3,
-    );
+    const summary = buildCampusSummary?.([
+      { is_active: true },
+      { is_active: false },
+      { is_active: true },
+    ]);
 
     expect(summary).toEqual({
       total: 3,
       activeCount: 2,
       inactiveCount: 1,
     });
+  });
+
+  /**
+   * #751：三個數字要對得起來。
+   *
+   * `activeCount` / `inactiveCount` 一直是從**未套 `isActive` 篩選**的 rows 算的
+   * （`campuses.ts` 那行註解：「summary 不套用 isActive filter，永遠反映全機構的
+   * 真實總數」），但 `total` 原本是主清單查詢的 `count`，那一支**有**套篩選。
+   * 於是隱藏停用分校時畫面印出「12 個分校 / 12 啟用中 / 1 已停用」—— 12 ≠ 12+1。
+   *
+   * **上面那條既有測試沒抓到，是因為它給的 rows.length 與 total 剛好相等。**
+   * 這一條刻意讓兩者不一致。
+   */
+  it('#751 總數含停用 —— 三個數字必須自洽，不受清單篩選影響', () => {
+    const buildCampusSummary = (campusesRoute as Record<string, unknown>)['buildCampusSummary'] as (
+      rows: Array<{ is_active: boolean }>,
+    ) => { total: number; activeCount: number; inactiveCount: number };
+
+    // 全機構 3 間（2 啟用 1 停用），而清單當下只顯示啟用的那 2 間
+    const summary = buildCampusSummary([
+      { is_active: true },
+      { is_active: false },
+      { is_active: true },
+    ]);
+
+    expect(summary.total).toBe(3);
+    expect(summary.activeCount).toBe(2);
+    expect(summary.inactiveCount).toBe(1);
+    expect(summary.total).toBe(summary.activeCount + summary.inactiveCount);
   });
 });
 
