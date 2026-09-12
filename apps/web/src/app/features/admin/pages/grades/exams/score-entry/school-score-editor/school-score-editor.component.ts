@@ -13,7 +13,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 
 import { InputTextModule } from 'primeng/inputtext';
 import { IconFieldModule } from 'primeng/iconfield';
@@ -133,12 +133,26 @@ export class SchoolScoreEditorComponent implements OnInit {
   );
 
   private readonly searchTerm$ = new Subject<string>();
+
+  /**
+   * **所有**取數都經過這裡，然後 `switchMap` 出去（#661）。
+   *
+   * 這個元件原本就有 `debounceTime(300)` + `distinctUntilChanged`，**所以它看起來是
+   * 修好的** —— 而 `debounce` 只解一半：打字間隔超過 300ms 的人仍然會送出多支請求，
+   * 回來的順序不保證，**先發的後到就會蓋掉畫面**。
+   */
+  private readonly loadRequests = new Subject<void>();
   private lastEmittedFilter: { campusId: string; grade: string | null } = {
     campusId: '',
     grade: null,
   };
 
   constructor() {
+    // **在 effect 之前建好管線。** 下面那個 effect 會呼叫 `loadStudents()`，
+    // 而 `loadRequests` 是普通 Subject 不重播 —— 管線若晚一步建立，
+    // 那一發會**靜靜丟掉**，畫面停在空的而沒有任何錯誤。
+    this.setupLoadPipeline();
+
     effect(() => {
       const campuses = this.refData.campuses();
       if (campuses.length === 0) return;
@@ -250,30 +264,43 @@ export class SchoolScoreEditorComponent implements OnInit {
       this.filterChange.emit(currentFilter);
     }
 
-    this.schoolExamsService
-      .getStudents(this.examId(), {
-        campusId: this.campusId() || undefined,
-        status: this.statusFilter(),
-        search: this.searchTerm() || undefined,
-        grade: this.gradeFilter() ?? undefined,
-        page: this.page(),
-        pageSize: this.pageSize,
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => {
-          this.students.set(res.data);
-          this.totalStudents.set(res.meta.total);
-          this.loadingStudents.set(false);
-        },
-        error: () => {
-          this.loadingStudents.set(false);
-          this.messageService.add({
-            severity: 'error',
-            summary: '載入失敗',
-            detail: '無法載入學生列表',
-          });
-        },
+    this.loadRequests.next();
+  }
+
+  private setupLoadPipeline(): void {
+    this.loadRequests
+      .pipe(
+        switchMap(() =>
+          this.schoolExamsService
+            .getStudents(this.examId(), {
+              campusId: this.campusId() || undefined,
+              status: this.statusFilter(),
+              search: this.searchTerm() || undefined,
+              grade: this.gradeFilter() ?? undefined,
+              page: this.page(),
+              pageSize: this.pageSize,
+            })
+            // **`catchError` 必須在內層。** 掛外層的話一次 error 就終止整條管線，
+            // 這個編輯器之後再也載入不了學生 —— 而畫面上只有一則 toast，
+            // 看起來像「這次失敗了」不是「它壞了」。
+            .pipe(
+              catchError(() => {
+                this.loadingStudents.set(false);
+                this.messageService.add({
+                  severity: 'error',
+                  summary: '載入失敗',
+                  detail: '無法載入學生列表',
+                });
+                return EMPTY;
+              }),
+            ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((res) => {
+        this.students.set(res.data);
+        this.totalStudents.set(res.meta.total);
+        this.loadingStudents.set(false);
       });
   }
 

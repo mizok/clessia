@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import { EMPTY, Subject, catchError, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
@@ -121,7 +121,20 @@ export class ParentsPage implements OnInit {
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
 
+  /** 搜尋輸入 —— 節流 + 去重之後才觸發取數 */
   private readonly searchSubject = new Subject<string>();
+
+  /**
+   * **所有**取數都經過這裡，然後 `switchMap` 出去（#661）。
+   *
+   * 這一頁原本就有 `debounceTime(300)` + `distinctUntilChanged`，**所以它看起來是
+   * 修好的** —— 而 `debounce` 只解一半：打字間隔超過 300ms 的人仍然會送出多支請求，
+   * 它們回來的順序不保證，**先發的後到就會蓋掉畫面**，而輸入框顯示的是最新的字。
+   * 使用者看到「陳小華」配「陳」的結果，**而且它不會自己追上**。
+   *
+   * 讓每一個取數都走同一條 `switchMap`，新的一發就取消在途的舊請求。
+   */
+  private readonly loadRequests = new Subject<void>();
 
   // Status options
   protected readonly statusOptions = [
@@ -201,6 +214,8 @@ export class ParentsPage implements OnInit {
   }));
 
   ngOnInit(): void {
+    this.setupLoadPipeline();
+
     this.searchSubject
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe((value) => {
@@ -211,30 +226,47 @@ export class ParentsPage implements OnInit {
     this.loadParents();
   }
 
+  /** 觸發取數。實際的請求在 `setupLoadPipeline()` 那條 `switchMap` 管線裡（#661） */
   protected loadParents(): void {
     this.loading.set(true);
-    this.parentsService
-      .list({
-        search: this.searchQuery() || undefined,
-        status: this.selectedStatus() ?? undefined,
-        page: this.currentPage(),
-        pageSize: this.PAGE_SIZE,
-      })
-      .subscribe({
-        next: (res) => {
-          this.parents.set(res.data);
-          this.total.set(res.meta.total);
-          this.summary.set(res.summary);
-          this.loading.set(false);
-        },
-        error: () => {
-          this.messageService.add({
-            severity: 'error',
-            summary: '載入失敗',
-            detail: '無法載入家長列表',
-          });
-          this.loading.set(false);
-        },
+    this.loadRequests.next();
+  }
+
+  private setupLoadPipeline(): void {
+    this.loadRequests
+      .pipe(
+        switchMap(() =>
+          this.parentsService
+            .list({
+              search: this.searchQuery() || undefined,
+              status: this.selectedStatus() ?? undefined,
+              page: this.currentPage(),
+              pageSize: this.PAGE_SIZE,
+            })
+            // **`catchError` 必須在內層，不能掛在外層 `pipe` 上。**
+            // 所有取數收進單一管線之後，內層的 error 會終止外層 ——
+            // **一次網路錯誤就讓這一頁再也載入不了任何東西**，而畫面上只有一則
+            // toast，看起來像「這次失敗了」不是「這一頁壞了」。
+            // 改成單一管線引入的新失效模式，由 spec 的「一次請求失敗之後…」那條釘住。
+            .pipe(
+              catchError(() => {
+                this.messageService.add({
+                  severity: 'error',
+                  summary: '載入失敗',
+                  detail: '無法載入家長列表',
+                });
+                this.loading.set(false);
+                return EMPTY;
+              }),
+            ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((res) => {
+        this.parents.set(res.data);
+        this.total.set(res.meta.total);
+        this.summary.set(res.summary);
+        this.loading.set(false);
       });
   }
 
