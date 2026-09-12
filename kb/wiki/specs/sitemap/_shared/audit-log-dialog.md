@@ -19,7 +19,7 @@ updated: 2026-09-12
 | `admin/campuses`       | `['campus']`                               |
 | `admin/courses`        | `['class', 'course']`                      |
 | `admin/fee-templates`  | `['fee_template']`                         |
-| `admin/leave`          | （未查）                                   |
+| `admin/leave`          | `['leave']`（`leave.page.ts:192`）         |
 | `admin/payments`       | `['invoice', 'payment_record']`            |
 | `admin/staff`          | `['staff']`                                |
 | ~~`admin/attendance`~~ | `['attendance']` —— **那一頁接不到，見下** |
@@ -96,7 +96,7 @@ updated: 2026-09-12
 | ---------------------------------- | ----------------------------------------------------------------------------- |
 | **展開列**（`details` 的內容）     | 桌機寬度下這支對話框不產生展開鍵；要在窄寬度下才驗得到                        |
 | 載入中 / 錯誤                      | 沒有製造手段                                                                  |
-| `admin/leave` 傳的 `resourceTypes` | 那一頁還沒輪到（在 ADMIN_STUDENT_AFFAIRS 批次裡）                             |
+| ~~`admin/leave` 傳的 `resourceTypes`~~ | **已補**：`['leave']`（`leave.page.ts:192`），實測列出「請假X / 日期區間」+「新增」（labor-2） |
 | 其餘 4 個入口                      | `campuses` / `staff` 在 labor-4 的後續批次，`courses` 已由 labor-1 驗過空狀態 |
 
 ## 補驗紀錄（labor-4，2026-09-12）
