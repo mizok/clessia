@@ -874,15 +874,31 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
   `.dev.vars` 不進版控、每個 worktree 一份,新 worktree 沒有 ——
   **要用跑著 8787 那個 worktree 的那一份**,否則簽出來的 token 那台 server 不認。
 
-  **③ `callbackURL` 只信任 `:4200`,但 cookie 不分 port。**
-  用 `WEB_URL=http://localhost:4210` 產的連結會回
-  **`403 INVALID_CALLBACK_URL`**(Better Auth 的 trusted origins)。
-  做法是 **callback 照給 4200,登完再自己導到 4210** ——
-  **auth cookie 是 host 層級**(上一則的同一個性質),所以 4210 照樣吃得到。
-  **同一個性質在這裡是幫手,在上一則是結構性的踢人。**
+  **③ `callbackURL` 的信任條件 —— 是 `Origin` 標頭,不是 port 白名單。**
 
-  (④ 順帶:CORS 是通的,`Origin: http://localhost:4210` 打 `:8787` 回
-  `Access-Control-Allow-Origin` 正確 —— 先打一次 `OPTIONS` 確認,不要假設。)
+  > ⚠️ **這一則原本寫錯,2026-09-12 當天由 labor-1 的交接訊息與實測推翻。**
+  > 原文寫「`callbackURL` 只信任 `:4200`」並建議「callback 照給 4200,登完再自己導到 4210」——
+  > **那是把現象寫成了機制**:我量到 4210 被拒、4200 過,就推論成 port 白名單,
+  > **沒有去讀 `apps/api/src/lib/origins.ts`**。真正的規則多一條路,而那條路才是好用的那條。
+
+  `trustedOrigins` = `allowed`(來自**跑著的那台 server** 的 `WEB_URL` + `ALLOWED_ORIGINS`)
+  **∪** { 請求的 `Origin`,若它通過 `isAllowedOrigin` }。
+  而 `isAllowedOrigin` 對 `localhost` / `127.0.0.1` **有開發豁免,不分 port**
+  (`origins.ts:56-60`)。三種情況實測:
+
+  | `callbackURL`         | `Origin` 標頭           | 結果    |
+  | --------------------- | ----------------------- | ------- |
+  | `:4200`(== `WEB_URL`) | 無(頂層導覽)            | **302** |
+  | `:4210`               | 無                      | **403** |
+  | `:4210`               | `http://localhost:4210` | **302** |
+
+  **所以要在自己的 port 登入,做法是帶上 `Origin`** ——
+  從已開啟的頁面 `fetch(link, { credentials: 'include' })` 兌換就會帶(labor-1 的做法)。
+  繞道走 4200 也可以(auth cookie 是 host 層級、不分 port),但那是次佳解。
+
+  **這一則自己就是本檔那條「量到的那一半與推出來的那一半寫在同一句話裡」的實例** ——
+  而且是**寫進共用文件之後**才被推翻的,所以它擴散了半天。
+  檢查點沒有新的:**你正要從一個 403 推論出一條規則的那一刻,去讀那支判斷函式。**
 
 - **唯讀查正式資料庫不需要憑證交接** —— 出 SQL、使用者貼進 Supabase Dashboard 跑、把結果貼回來。
   這台機器上沒有正式環境憑證,而且 `wrangler secret` 只有 put/delete/list/bulk、**沒有 get**,
