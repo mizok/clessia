@@ -246,3 +246,17 @@ url        = http://localhost:4200/admin/dashboard
 | 焦點環看不看得見           | **這個環境量不到**：`document.hasFocus()` 恆 `false` → `:focus` 偽類不成立 → `outline` 回 `none`。專案零自訂 `:focus` 樣式                       |
 | `Escape`                   | 這個彈窗 `closeOnEscape: false`，**本來就不該關** —— 但「按了真的沒關」仍然未驗（需要真鍵盤）                                                   |
 | `(1024, 1280]`             | 四個量測寬度跳過了它；彈窗 641 起就是固定 `400px`，**不需要補量**                                                                               |
+
+## 載入中 / 錯誤
+
+- **量測**：390 × 844 ／ dev server（port 4200）`543e5eda` ／ 身分 `parent03@demo.clessia.app`
+- **手段**：把 XHR 的 URL 從 `:8787` 改指到沒人監聽的 `:8799`，再用 **SPA 導航**（點外框連結）
+  進入這一頁；方法見[方法頁 Phase 2-D](../README.md)
+
+**未量。** 本輪身分 `parent03@demo.clessia.app` 是**單一角色**，開 `/select-role`
+會**直接被導去 `/parent/dashboard`**（實測，與 Phase 1 一致）—— 量不到這一頁。
+
+要量它得用多重角色帳號（`teacher0001@demo.clessia.app`）。
+
+**預期**：這一頁的資料來自 `auth.roles()`（已經在 session 裡），彈窗是 `await import()`
+進來的 —— **沒有列表 API**，所以應該沒有錯誤態。**但那是推的，不是量的。**
