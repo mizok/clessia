@@ -53,6 +53,16 @@ npx tsx tools/sitemap/generate-sitemap-skeletons.ts --check  # 缺檔就 exit 1
 判斷方法：`grep -rl <DialogComponent> apps/web/src/app`，排除元件自己與 `.spec`。
 **≥ 2 個開啟點就獨立。**
 
+> ⚠️ **`grep` 的命中數不等於「從幾頁開得到」** —— 中間隔著「那條路由渲不渲染它」。
+>
+> `AttendanceRosterPanelComponent` 的 `grep` 回四筆，我照著寫成「從四個地方開得到」。
+> **第四筆是死的**：`features/admin/pages/attendance/attendance.page.ts` 確實引用了它，
+> 但 `/admin/attendance` 在 `app.routes.ts` 是純 `redirectTo`，而那個頁面元件
+> **全庫沒有任何地方 import**（issue #698）。實際開得到的是三頁。
+>
+> **命中之後多做一步**：那一頁在 `app.routes.ts` 裡是 `loadComponent` 還是 `redirectTo`？
+> 是 `redirectTo` 就不算一個開啟點。
+
 ## 驗證：兩向比對
 
 0. **先確認你的資料能讓每一種列渲染出來**（⚠️ 這一步不能省，理由見下）
@@ -139,9 +149,20 @@ const vis = all.filter(visible);
       .trim()
       .slice(0, 30),
     href: e.getAttribute('href') || '',
+    disabled: e.disabled ?? false,
   })),
 });
 ```
+
+**`disabled` 這一欄不能省。** `/admin/courses` 的垃圾桶（刪除課程）按下去**完全沒有反應**、
+連 overlay 都沒有，差一點被記成「刪除按鈕沒作用」的缺陷。
+
+實際是 `[disabled]="group.classes.length > 0"` —— **有班級的課程本來就不能刪**，
+而那一頁 20 顆垃圾桶裡 **7 顆 disabled、13 顆可按**，我隨手抓到的第一顆剛好是 disabled 的。
+
+**清單沒有記 `disabled` 的時候，「按了沒反應」讀起來跟「壞掉」一模一樣。**
+而且它會連帶影響「出現條件」欄：那一格該寫的不是「永遠」，
+是「**永遠出現，但 `<條件>` 時 disabled**」。
 
 **`visible` 那道濾網不能省**：`/admin/sessions` 的 57 個元素裡有 3 個是手機版專用
 （`session-filters__mobile-toggle` 與它自己的日期輸入），桌機寬度下在 DOM 裡但看不到。
