@@ -1,6 +1,6 @@
 # Lessons — Map of Content
 
-> Auto-maintained by `kb:map`. Last updated: 2026-09-06
+> Auto-maintained by `kb:map`. Last updated: 2026-09-13
 
 ---
 
@@ -86,6 +86,12 @@ Links to: [[lessons/status-table-blind-spot]]
 
 Tags: `lessons`, `generated-tables-need-verifying`
 
+## [[lessons/herdr-seat-worktree-workspace|開一個新席位 —— 為什麼 workspace create 不夠，要用 worktree create]]
+
+席位要出現在 herdr 側邊欄的專案樹底下（clessia-plan → review-steward / ops-warden），靠的是「cwd 是同名的 git worktree」，不是 workspace 的 label。用 workspace create 起的席位 label 對但位置錯；用 tab create 起的則整個掛在計畫席底下。正確做法是 herdr worktree create 一次把 worktree 與 workspace 建起來。含 2026-09-12 連錯三次的實際過程與每一次錯在哪。
+
+Tags: `lessons`, `herdr`, `worktree`, `runbook`, `agent-ops`
+
 ## [[lessons/herdr-team-orchestration|Herdr 多席調度]]
 
 計畫席用 herdr+SendMessage 調度 domain 席:開席序列、送達驗證、席名對位、廣度掃描分派形狀、帳面漂移的校正。
@@ -166,7 +172,7 @@ Links to: [[lessons/menu-entry-without-a-route]]
 
 Tags: `lessons`, `silent-failure`, `tooling`, `verification`
 
-Links to: [[lessons/broken-looks-identical-to-normal]], [[lessons/local-manual-verification]], [[lessons/broken-looks-identical-to-normal]], [[lessons/merged-does-not-mean-main]], [[lessons/new-field-branches-are-born-untested]], [[lessons/local-green-is-not-repo-green]], [[lessons/line-number-citations-rot]]
+Links to: [[lessons/broken-looks-identical-to-normal]], [[lessons/local-manual-verification]], [[lessons/silent-tool-failures]], [[lessons/local-manual-verification]], [[lessons/broken-looks-identical-to-normal]], [[lessons/merged-does-not-mean-main]], [[lessons/new-field-branches-are-born-untested]], [[lessons/local-green-is-not-repo-green]], [[lessons/line-number-citations-rot]]
 
 ## [[lessons/status-table-blind-spot|現況表只掃了三分之一的系統]]
 
