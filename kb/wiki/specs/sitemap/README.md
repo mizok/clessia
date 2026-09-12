@@ -502,6 +502,68 @@ Phase 1 只能說「樹裡有但使用者看不到」，現在分得出來是哪
 >
 > **判準：`opacity:0` 先問 `getComputedStyle(el).animationName`。** 有名字就先懷疑環境。
 
+#### ⚠️ 第三道濾網：可視區不是視窗 —— 上面那版會把「捲一下就看得到」判成看不見
+
+> **2026-09-13（labor-7）訂正。** `/admin/dashboard` 390 × 844，同一份取樣器只換 `why()`：
+> **可見互動元素 10 → 13**。漏掉的是 `a.dashboard__fact[在籍學生]`、
+> `a.dashboard__fact[本月報名異動]`、`a.dashboard__panel-link[前往管理]`。
+
+機制是這個 app 的捲動結構，**查出來的不是推的**：
+
+```
+documentElement / body : overflow-y: hidden，高度 == innerHeight   → 視窗自己不捲動
+main.shell-content     : overflow-y: auto，clientHeight 724 → scrollHeight 1038
+nav.bottom-bar         : position: static（不是 fixed），top 780 / bottom 844
+```
+
+於是上面那版的兩條判定各自出錯：
+
+| 判定                                 | 為什麼錯                                                                                     |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `cy > innerHeight → 'offscreen'`     | 那是「還沒捲到」，不是看不見。**比一屏長的頁面，下半部的互動元素會整批消失**                 |
+| `elementFromPoint` 打到底欄 → `clipped/covered` | 元素矩形 `top 798 / bottom 850` 超出 main 的可視底（780），那個點當然打在底欄上 |
+
+**水平方向的出界要留著**（那是真的看不到，也是溢出訊號）；**垂直方向要換成「它的捲動祖先的可視區」**：
+
+```js
+__P.scrollParent = function (e) {
+  for (let p = e.parentElement; p; p = p.parentElement) {
+    const cs = this.w.getComputedStyle(p);
+    if (/(auto|scroll)/.test(cs.overflowY) && p.scrollHeight > p.clientHeight + 2) return p;
+  }
+  const de = this.d.documentElement;
+  return de.scrollHeight > this.w.innerHeight + 2 ? de : null;
+};
+// why() 裡，把原本那兩段換成：
+if (cx < 0 || cx > this.w.innerWidth) return 'offscreen-x'; // 水平出界才是真的看不到
+const sp = this.scrollParent(e);
+if (sp) {
+  const r =
+    sp === this.d.documentElement
+      ? { top: 0, bottom: this.w.innerHeight }
+      : sp.getBoundingClientRect();
+  if (cy < r.top || cy > r.bottom) return null; // 捲動得到
+}
+if (cy < 0 || cy > this.w.innerHeight) return null;
+const hit = this.d.elementFromPoint(cx, cy);
+if (!hit) return 'clipped/covered';
+if (e.contains(hit) || hit.contains(e)) return null;
+for (let p = hit; p; p = p.parentElement) {
+  // 被 fixed / sticky 蓋住 = 捲一下就不遮
+  const pos = this.w.getComputedStyle(p).position;
+  if (pos === 'fixed' || pos === 'sticky') return null;
+}
+return 'clipped/covered';
+```
+
+**兩個方向都驗過**：正控 —— 那 3 個在 1504 下本來就可見，修正版在 390 也看得到；
+負控 —— 18 條 `sidebar__item` 在 390 仍然被擋住（`zero-size`，側欄 `display:none`），
+**濾網沒有被整個放掉**。
+
+> **它跟 Phase 1 推翻 `read_page` 的那一條是同一族**：漏列的樣子跟「本來就沒有」一模一樣，
+> 而**兩向比對是照取樣器寫的**，所以比對的兩邊都看不到它 —— **0 差異**。
+> **這一族在 Phase 2 比 Phase 1 嚴重**：390 下一屏塞得下的頁面本來就少。
+
 ### 鍵盤可達性：真的 Tab 鍵在這個環境按不動
 
 實測：把焦點放進 iframe 的第一個連結、用 `computer` 按 `Tab`，
@@ -521,18 +583,64 @@ __P.tabbables = function (root) {
 };
 ```
 
-**焦點看不看得見**用程式焦點就量得到（`el.focus()` 是真的焦點，不是合成事件）：
+**焦點看不看得見 —— 這個環境也量不到。**
+
+> ⚠️ **2026-09-13（labor-7）訂正。** 這一段原本寫「用程式焦點就量得到（`el.focus()` 是
+> 真的焦點，不是合成事件）」。`el.focus()` 確實是真的焦點 —— **但 `:focus` 偽類還要求
+> document 本身有焦點**，而 MCP 的分頁 `document.hasFocus()` 恆為 `false`：
+
+```
+el.focus() 之後
+  activeElement === el   → true
+  el.matches(':focus')   → false     ← 偽類不成立
+  outlineStyle           → "none"    ← 所以 outline 永遠回 none
+```
+
+**對照過兩組，排除了「這是 iframe 的問題」**：同一時刻對**宿主頁**（不是 iframe）的
+同一個元素做一模一樣的事，**結果完全相同** —— 所以不是 iframe，是 document 沒有焦點。
+
+> ⚠️ **這裡跟上面 Phase 2 開頭那句有出入，兩邊都照實留著。** 那句寫
+> 「`osascript … to activate` 之後 `hasFocus()` 變成 `true`」，而 labor-7 同一天照做
+> **`hasFocus()` 沒有變**。
+>
+> **一個共同的旁證指向同一件事**：`osascript` 問 Chrome 要分頁清單，**兩次都列不到
+> 任何 localhost 分頁**（只有 `chrome://whats-new` 與 `chrome://newtab`）——
+> 我們的分頁不在那個 AppleScript 看得到的視窗裡，所以 `activate` 帶到前景的
+> **不是它**。`hasFocus()` 會不會變成 `true`，看的是**那一刻誰是被選中的分頁**，
+> 那不是我們控制得了的。
+>
+> **可操作的結論一樣**：**量之前先讀 `document.hasFocus()`** ——
+> `false` 就不要填「焦點看得見／看不見」那一格，填未驗。
+
+**改記結構事實 —— 那一半查得到**：專案有沒有自訂 `:focus` / `:focus-visible` 樣式，
+CSSOM 問得到：
 
 ```js
-e.focus();
-const cs = getComputedStyle(e);
-({
-  focused: d.activeElement === e,
-  outline: cs.outlineStyle + ' ' + cs.outlineWidth,
-  boxShadow: cs.boxShadow,
-  focusVisible: e.matches(':focus-visible'),
-});
+__P.focusRules = function () {
+  const out = [];
+  const walk = (rules) => {
+    for (const r of rules) {
+      if (r.selectorText && /:focus/.test(r.selectorText)) out.push(r.selectorText);
+      else if (r.cssRules) walk(r.cssRules);
+    }
+  };
+  for (const ss of this.d.styleSheets) {
+    try {
+      walk(ss.cssRules);
+    } catch (e) {}
+  }
+  return [...new Set(out)];
+};
 ```
+
+public 六頁實測：**專案零自訂 focus 規則**，命中的 5 條全是 PrimeNG 自己的
+（`.p-inputtext:focus` 那一族），所以連結與自刻按鈕吃的是**瀏覽器預設焦點環**。
+**實際渲染出來長什麼樣標「未驗：`document.hasFocus()` 恆 false」**，不要用一個
+量不到的值去填那一格。
+
+> **這一則自己就是「量到的那一半與推出來的那一半」的實例**：
+> `activeElement === el` 是量到的（真的），「所以焦點在它身上、outline 量得到」是推的
+> （錯的）—— 而兩者當時寫在同一句話裡。
 
 **`Escape` 關對話框量不到** —— 它要真鍵盤，而合成的 `KeyboardEvent` 打不到 CDK overlay
 （labor-2 已證）。**標「未驗：分頁在背景」**，不要用合成事件湊一個答案。
