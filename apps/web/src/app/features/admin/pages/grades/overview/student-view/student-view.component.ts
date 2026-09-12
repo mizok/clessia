@@ -36,7 +36,7 @@ import {
   type StudentQueryParams,
 } from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import { forkJoin, map, of, switchMap } from 'rxjs';
+import { Subject, debounceTime, forkJoin, map, of, switchMap } from 'rxjs';
 
 import { StudentScoreDetailDialogComponent } from './student-score-detail-dialog/student-score-detail-dialog.component';
 import {
@@ -87,7 +87,22 @@ export class StudentViewComponent implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly messageService = inject(MessageService);
   private readonly destroyRef = inject(DestroyRef);
-  private studentsRequestToken = 0;
+
+  /** 搜尋輸入 —— 節流之後才進 `resetAndReload()`（#661） */
+  private readonly searchInput = new Subject<string>();
+  /**
+   * **所有**學生取數都經過這裡，然後 `switchMap` 出去。
+   *
+   * 這一支原本就擋得住「後發先回蓋掉畫面」——靠一個手寫的 `studentsRequestToken`
+   * （每次取數 `++`，回來時對不上就丟掉）。**那道防線是對的，它只是比較貴**：
+   * 請求照樣發出去、照樣跑完、照樣佔著連線，只是結果被丟掉；而這一頁的取數會
+   * `forkJoin` 扇出到 `totalPages` 支，**沒有 debounce 時每按一鍵扇出一整批**。
+   *
+   * `switchMap` 一併解掉兩件事：舊的那一支真的被取消，而且不必再維護
+   * 「每個 callback 都記得比對 token」這個要人記得的規則 ——
+   * 少一個 token 就少一個會跟畫面脫鉤的狀態複本。
+   */
+  private readonly loadRequests = new Subject<void>();
 
   readonly page = input<RouteObj>();
 
@@ -147,6 +162,20 @@ export class StudentViewComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.setupLoadPipeline();
+
+    // 搜尋：節流 + 去重，然後才觸發取數。
+    // 去重比對的是 `searchText` signal 而不是 `distinctUntilChanged` ——
+    // 後者的記憶是這個狀態的第二份複本，而 `clearFilters()` 直接
+    // `searchText.set('')` 不經過這條管線，會讓它跟畫面脫鉤。
+    this.searchInput
+      .pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef))
+      .subscribe((text) => {
+        if (text === this.searchText()) return;
+        this.searchText.set(text);
+        this.resetAndReload();
+      });
+
     this.refData.loadCampuses();
     this.loadSchools();
     this.loadStudents();
@@ -167,9 +196,7 @@ export class StudentViewComponent implements OnInit {
   }
 
   protected onSearchChange(text: string): void {
-    if (this.searchText() === text) return;
-    this.searchText.set(text);
-    this.resetAndReload();
+    this.searchInput.next(text);
   }
 
   protected onSchoolChange(schoolId: string | null): void {
@@ -308,43 +335,46 @@ export class StudentViewComponent implements OnInit {
       });
   }
 
+  /** 觸發取數。實際的請求在 `setupLoadPipeline()` 的那條 `switchMap` 管線裡（#661） */
   private loadStudents(): void {
-    const requestToken = ++this.studentsRequestToken;
     this.loadingList.set(true);
+    this.loadRequests.next();
+  }
 
-    const baseParams = this.buildStudentQueryParams();
-
-    this.studentsService
-      .list({ ...baseParams, page: 1, pageSize: 100 })
+  private setupLoadPipeline(): void {
+    this.loadRequests
       .pipe(
-        switchMap((firstPage) => {
-          const totalPages =
-            firstPage.meta?.totalPages ??
-            Math.max(1, Math.ceil((firstPage.meta?.total ?? firstPage.data.length) / 100));
+        switchMap(() => {
+          const baseParams = this.buildStudentQueryParams();
+          return this.studentsService.list({ ...baseParams, page: 1, pageSize: 100 }).pipe(
+            switchMap((firstPage) => {
+              const totalPages =
+                firstPage.meta?.totalPages ??
+                Math.max(1, Math.ceil((firstPage.meta?.total ?? firstPage.data.length) / 100));
 
-          if (totalPages <= 1) {
-            return of(firstPage.data);
-          }
+              if (totalPages <= 1) {
+                return of(firstPage.data);
+              }
 
-          const requests = Array.from({ length: totalPages - 1 }, (_, index) => {
-            const page = index + 2;
-            return this.studentsService.list({ ...baseParams, page, pageSize: 100 });
-          });
+              const requests = Array.from({ length: totalPages - 1 }, (_, index) => {
+                const page = index + 2;
+                return this.studentsService.list({ ...baseParams, page, pageSize: 100 });
+              });
 
-          return forkJoin(requests).pipe(
-            map((responses) => [firstPage, ...responses].flatMap((response) => response.data)),
+              return forkJoin(requests).pipe(
+                map((responses) => [firstPage, ...responses].flatMap((response) => response.data)),
+              );
+            }),
           );
         }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
         next: (students) => {
-          if (requestToken !== this.studentsRequestToken) return;
           this.rawStudents.set(students);
           this.loadingList.set(false);
         },
         error: () => {
-          if (requestToken !== this.studentsRequestToken) return;
           this.rawStudents.set([]);
           this.loadingList.set(false);
           this.messageService.add({

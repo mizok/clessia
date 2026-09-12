@@ -8,6 +8,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -46,6 +47,8 @@ import { ClassesService, Class, Schedule } from '@core/classes.service';
 import { CoursesService, Course } from '@core/courses.service';
 import type { Campus } from '@core/campuses.service';
 import type { Subject } from '@core/subjects.service';
+// `Subject` 這個名字被上面的科目型別佔走了，所以 rxjs 的取別名。
+import { Subject as RxSubject, debounceTime, switchMap } from 'rxjs';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { Staff } from '@core/staff.service';
@@ -171,6 +174,20 @@ export class CoursesPage implements OnInit {
 
   // ---- Filters ----
   protected readonly searchQuery = signal('');
+
+  /** 搜尋輸入 —— 節流 + 去重之後才進 `loadCourses()`（#661） */
+  private readonly searchInput = new RxSubject<string>();
+  /**
+   * **所有**課程取數都經過這裡，然後 `switchMap` 出去。
+   *
+   * `debounce` 只解一半：打字慢的人（每次間隔超過 300ms）仍然會送出多支請求，
+   * 而它們回來的順序不保證 —— 先發的後到就會蓋掉 `courses`。
+   *
+   * 這一頁的症狀跟別頁不同：`courseGroups` 還會用**當下**的字在前端再篩一次，
+   * 所以看到的不是「別的字的結果」而是**結果變少** —— stale 那一頁裡符合
+   * 新關鍵字的通常只有零星幾筆。一樣是錯的，只是比較不像錯的。
+   */
+  private readonly loadRequests = new RxSubject<void>();
   protected readonly selectedCampusId = signal<string | null>(null);
   protected readonly selectedSubjectId = signal<string | null>(null);
   protected readonly selectedTeacherIds = signal<string[]>([]);
@@ -370,6 +387,22 @@ export class CoursesPage implements OnInit {
     this.historicalDateTo.set(s.historicalDateTo);
     this.currentPage.set(s.currentPage);
 
+    this.setupLoadPipeline();
+
+    // 搜尋：節流 + 去重，然後才觸發取數。
+    // 去重比對的是 `searchQuery` signal 而不是 `distinctUntilChanged` ——
+    // 後者的記憶是這個狀態的第二份複本，而這一頁有**兩條**不經過管線的重設
+    // （上面的 filter 快照還原、`clearFilters()`），任一條都會讓它跟畫面脫鉤，
+    // 然後靜靜吞掉下一次同樣的字。
+    this.searchInput
+      .pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        if (value === this.searchQuery()) return;
+        this.searchQuery.set(value);
+        this.currentPage.set(1);
+        this.loadCourses();
+      });
+
     this.loadFilterOptions();
     this.loadAll();
 
@@ -429,20 +462,30 @@ export class CoursesPage implements OnInit {
       });
   }
 
+  /** 觸發取數。實際的請求在 `setupLoadPipeline()` 的那條 `switchMap` 管線裡（#661） */
   private loadCourses(): void {
     this.loading.set(true);
-    this.coursesService
-      .list({
-        search: this.searchQuery() || undefined,
-        campusId: this.selectedCampusId() || undefined,
-        subjectId: this.selectedSubjectId() || undefined,
-        isActive:
-          this.statusFilter() === 'intervention' || this.statusFilter() === null
-            ? true
-            : (this.statusFilter() as boolean),
-        page: this.statusFilter() === 'intervention' ? 1 : this.currentPage(),
-        pageSize: this.statusFilter() === 'intervention' ? 0 : this.PAGE_SIZE,
-      })
+    this.loadRequests.next();
+  }
+
+  private setupLoadPipeline(): void {
+    this.loadRequests
+      .pipe(
+        switchMap(() =>
+          this.coursesService.list({
+            search: this.searchQuery() || undefined,
+            campusId: this.selectedCampusId() || undefined,
+            subjectId: this.selectedSubjectId() || undefined,
+            isActive:
+              this.statusFilter() === 'intervention' || this.statusFilter() === null
+                ? true
+                : (this.statusFilter() as boolean),
+            page: this.statusFilter() === 'intervention' ? 1 : this.currentPage(),
+            pageSize: this.statusFilter() === 'intervention' ? 0 : this.PAGE_SIZE,
+          }),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: (res) => {
           this.courses.set(res.data);
@@ -464,9 +507,7 @@ export class CoursesPage implements OnInit {
   }
 
   protected onSearchChange(value: string): void {
-    this.searchQuery.set(value);
-    this.currentPage.set(1);
-    this.loadCourses();
+    this.searchInput.next(value);
   }
 
   protected onSubjectChange(value: string | null): void {

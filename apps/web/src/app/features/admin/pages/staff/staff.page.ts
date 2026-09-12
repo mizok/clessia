@@ -1,4 +1,7 @@
-import { Component, OnInit, inject, signal, computed, viewChild } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal, computed, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+// `Subject` 這個名字被 `@core/subjects.service` 的科目型別佔走了，所以 rxjs 的取別名。
+import { Subject as RxSubject, debounceTime, switchMap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -120,8 +123,23 @@ export class StaffPage implements OnInit {
    *  字面量每輪變更偵測都會產生新物件，讓 signal input 每次都判定為「變了」。 */
   protected readonly primaryAction: PageAction = { label: '新增人員', icon: 'pi pi-plus' };
 
+  private readonly destroyRef = inject(DestroyRef);
   private readonly dialogService = inject(DialogService);
   private readonly staffService = inject(StaffService);
+
+  /** 搜尋輸入 —— 節流 + 去重之後才進 `loadStaff()`（#661） */
+  private readonly searchInput = new RxSubject<string>();
+  /**
+   * **所有**取數都經過這裡，然後 `switchMap` 出去。
+   *
+   * `debounce` 只解一半：打字慢的人（每次間隔超過 300ms）仍然會送出多支請求，
+   * 而它們回來的順序不保證 —— **先發的後到就會蓋掉畫面**，而畫面上的輸入框
+   * 顯示的是最新的字。一次打完「李語涵」四個字回 4 筆（那是「李」的結果集）
+   * 就是這樣來的，**而且它不會自己追上**：沒有任何後續事件會重查。
+   *
+   * 讓每一個取數都走同一條 `switchMap`，新的一發就取消舊的那一支。
+   */
+  private readonly loadRequests = new RxSubject<void>();
   private readonly campusesService = inject(CampusesService);
   private readonly subjectsService = inject(SubjectsService);
   private readonly messageService = inject(MessageService);
@@ -265,6 +283,26 @@ export class StaffPage implements OnInit {
   );
 
   ngOnInit(): void {
+    this.setupLoadPipeline();
+
+    // 搜尋：節流 + 去重，然後才觸發取數。
+    // 去重擋的是「同一個字重複送」——中文輸入法組字過程中送出同樣的中間值，
+    // 或使用者貼上同樣的內容。
+    //
+    // **去重比對的是 `searchQuery` signal，不是 `distinctUntilChanged`。**
+    // `distinctUntilChanged` 的記憶住在管線裡，是這個狀態的第二份複本，
+    // 而 `clearFilters()` 直接 `searchQuery.set('')` 不經過這條管線 ——
+    // 清完篩選再打一次同樣的字，管線會認為「跟上次一樣」而整個吞掉，
+    // **搜尋框有字、列表卻是未篩選的全部**。比對 signal 沒有第二份複本可以脫鉤。
+    this.searchInput
+      .pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        if (value === this.searchQuery()) return;
+        this.searchQuery.set(value);
+        this.currentPage.set(1);
+        this.loadStaff();
+      });
+
     this.loadFilterOptions();
     this.loadStaff();
   }
@@ -281,18 +319,28 @@ export class StaffPage implements OnInit {
     });
   }
 
+  /** 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#661） */
   private loadStaff(): void {
     this.loading.set(true);
-    this.staffService
-      .list({
-        search: this.searchQuery() || undefined,
-        role: this.roleFilter() || undefined,
-        campusId: this.campusFilter() || undefined,
-        subjectId: this.subjectFilter() || undefined,
-        status: this.staffStatusFilter() ?? undefined,
-        page: this.currentPage(),
-        pageSize: this.PAGE_SIZE,
-      })
+    this.loadRequests.next();
+  }
+
+  private setupLoadPipeline(): void {
+    this.loadRequests
+      .pipe(
+        switchMap(() =>
+          this.staffService.list({
+            search: this.searchQuery() || undefined,
+            role: this.roleFilter() || undefined,
+            campusId: this.campusFilter() || undefined,
+            subjectId: this.subjectFilter() || undefined,
+            status: this.staffStatusFilter() ?? undefined,
+            page: this.currentPage(),
+            pageSize: this.PAGE_SIZE,
+          }),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: (res: StaffListResponse) => {
           this.staffList.set(res.data);
@@ -313,9 +361,7 @@ export class StaffPage implements OnInit {
   }
 
   protected onSearchChange(value: string): void {
-    this.searchQuery.set(value);
-    this.currentPage.set(1);
-    this.loadStaff();
+    this.searchInput.next(value);
   }
 
   protected onRoleFilterChange(value: StaffRole | null): void {

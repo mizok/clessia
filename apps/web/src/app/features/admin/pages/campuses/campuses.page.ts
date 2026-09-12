@@ -1,4 +1,6 @@
-import { Component, OnInit, inject, signal, computed, viewChild } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal, computed, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, debounceTime, switchMap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -87,6 +89,21 @@ export class CampusesPage implements OnInit {
     inactiveCount: 0,
   });
   private readonly campusesService = inject(CampusesService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  /** 搜尋輸入 —— 節流 + 去重之後才進 `loadCampuses()`（#661） */
+  private readonly searchInput = new Subject<string>();
+  /**
+   * **所有**取數都經過這裡，然後 `switchMap` 出去。
+   *
+   * `debounce` 只解一半：打字慢的人（每次間隔超過 300ms）仍然會送出多支請求，
+   * 而它們回來的順序不保證 —— **先發的後到就會蓋掉畫面**，而畫面上的輸入框
+   * 顯示的是最新的字，使用者無從分辨。**而且它不會自己追上**：
+   * 沒有任何後續事件會重查。
+   *
+   * 讓每一個取數都走同一條 `switchMap`，新的一發就取消舊的那一支。
+   */
+  private readonly loadRequests = new Subject<void>();
   private readonly messageService = inject(MessageService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
@@ -155,6 +172,21 @@ export class CampusesPage implements OnInit {
   }));
 
   ngOnInit(): void {
+    this.setupLoadPipeline();
+
+    // 搜尋：節流 + 去重，然後才觸發取數。
+    // 去重比對的是 `searchQuery` signal 而不是 `distinctUntilChanged` ——
+    // 後者的記憶是這個狀態的第二份複本，任何不經過這條管線的重設
+    // （清除篩選之類）都會讓它跟畫面脫鉤，然後靜靜吞掉下一次同樣的字。
+    this.searchInput
+      .pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        if (value === this.searchQuery()) return;
+        this.searchQuery.set(value);
+        this.currentPage.set(1);
+        this.loadCampuses();
+      });
+
     this.loadCampuses();
   }
 
@@ -164,15 +196,25 @@ export class CampusesPage implements OnInit {
     this.loadCampuses();
   }
 
+  /** 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#661） */
   loadCampuses(): void {
     this.loading.set(true);
-    this.campusesService
-      .list({
-        search: this.searchQuery() || undefined,
-        page: this.currentPage(),
-        pageSize: this.PAGE_SIZE,
-        isActive: this.showInactiveCampuses() ? undefined : true,
-      })
+    this.loadRequests.next();
+  }
+
+  private setupLoadPipeline(): void {
+    this.loadRequests
+      .pipe(
+        switchMap(() =>
+          this.campusesService.list({
+            search: this.searchQuery() || undefined,
+            page: this.currentPage(),
+            pageSize: this.PAGE_SIZE,
+            isActive: this.showInactiveCampuses() ? undefined : true,
+          }),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: (res: CampusListResponse) => {
           this.campuses.set(res.data);
@@ -194,9 +236,7 @@ export class CampusesPage implements OnInit {
   }
 
   protected onSearchChange(value: string): void {
-    this.searchQuery.set(value);
-    this.currentPage.set(1);
-    this.loadCampuses();
+    this.searchInput.next(value);
   }
 
   protected onPage(event: ResponsiveTablePageEvent): void {

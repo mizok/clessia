@@ -1,4 +1,15 @@
-import { Component, OnInit, computed, inject, input, signal, viewChild } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  OnInit,
+  computed,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, debounceTime, switchMap } from 'rxjs';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -84,6 +95,20 @@ export class FeeTemplatesComponent implements OnInit {
   protected readonly templates = signal<FeeTemplate[]>([]);
   protected readonly templatesLoading = signal(true);
   protected readonly searchQuery = signal('');
+
+  /** 搜尋輸入 —— 節流 + 去重之後才進 `loadTemplates()`（#661） */
+  private readonly searchInput = new Subject<string>();
+  /**
+   * **所有**取數都經過這裡，然後 `switchMap` 出去。
+   *
+   * `debounce` 只解一半：打字慢的人（每次間隔超過 300ms）仍然會送出多支請求，
+   * 而它們回來的順序不保證 —— **先發的後到就會蓋掉畫面**，而畫面上的輸入框
+   * 顯示的是最新的字。**而且它不會自己追上**：沒有任何後續事件會重查。
+   *
+   * 讓每一個取數都走同一條 `switchMap`，新的一發就取消舊的那一支。
+   */
+  private readonly loadRequests = new Subject<void>();
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly showInactive = signal(false);
 
   protected readonly periods = signal<BillingPeriod[]>([]);
@@ -124,6 +149,20 @@ export class FeeTemplatesComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.setupLoadPipeline();
+
+    // 搜尋：節流 + 去重，然後才觸發取數。
+    // 去重比對的是 `searchQuery` signal 而不是 `distinctUntilChanged` ——
+    // 後者的記憶是這個狀態的第二份複本，任何不經過這條管線的重設都會讓它
+    // 跟畫面脫鉤，然後靜靜吞掉下一次同樣的字。
+    this.searchInput
+      .pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => {
+        if (value === this.searchQuery()) return;
+        this.searchQuery.set(value);
+        this.loadTemplates();
+      });
+
     this.loadTemplates();
     this.loadPeriods();
   }
@@ -146,14 +185,24 @@ export class FeeTemplatesComponent implements OnInit {
 
   // ── 價目表 ────────────────────────────────────────────────────────────────
 
+  /** 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#661） */
   protected loadTemplates(): void {
     this.templatesLoading.set(true);
-    this.feeTemplatesService
-      .list({
-        search: this.searchQuery() || undefined,
-        // 停用不刪除：預設只看啟用中的，但停用的要找得回來（歷史報名還引用著）
-        isActive: this.showInactive() ? undefined : true,
-      })
+    this.loadRequests.next();
+  }
+
+  private setupLoadPipeline(): void {
+    this.loadRequests
+      .pipe(
+        switchMap(() =>
+          this.feeTemplatesService.list({
+            search: this.searchQuery() || undefined,
+            // 停用不刪除：預設只看啟用中的，但停用的要找得回來（歷史報名還引用著）
+            isActive: this.showInactive() ? undefined : true,
+          }),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: (res) => {
           this.templates.set(res.data);
@@ -171,8 +220,7 @@ export class FeeTemplatesComponent implements OnInit {
   }
 
   protected onSearchChange(value: string): void {
-    this.searchQuery.set(value);
-    this.loadTemplates();
+    this.searchInput.next(value);
   }
 
   protected toggleShowInactive(): void {

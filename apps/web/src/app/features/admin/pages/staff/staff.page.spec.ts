@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { CampusesService } from '@core/campuses.service';
 import { StaffService } from '@core/staff.service';
@@ -314,6 +314,138 @@ describe('StaffPage', () => {
         userId: '',
       } as Staff);
       expect(staffServiceMock.createLoginLink).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * #661：搜尋沒有 debounce 也沒有取消。
+   *
+   * 可用性測試席的活重現：一次打完「李語涵」四個字 → **回 4 筆**
+   * （李語涵、李宇翔、李彥廷、李泓安），那是「**李**」的結果集 ——
+   * 搜尋框顯示的字跟送出去查的字不一樣，而且**它不會自己追上**。
+   *
+   * 這個時序**實機演不到**（本機 API 太快，沒有重疊窗口），只有替身做得到：
+   * 每支請求回一個我們自己控制何時完成的 `Subject`。
+   */
+  describe('搜尋的在途請求（#661）', () => {
+    type StaffListRes = ReturnType<typeof buildStaffResponse>;
+    const pending: Array<{ search: string | undefined; subject: Subject<StaffListRes> }> = [];
+
+    // `roles` / `subjectNames` / `campusIds` 不能省 —— 模板有 `staff.roles.includes('admin')`
+    // 與 `staff.subjectNames.length`，少了它們會在測試輸出裡噴 TypeError 而
+    // **不讓任何一條測試紅**（渲染的例外不會傳回斷言）。
+    const staffNamed = (names: string[]) =>
+      buildStaffResponse({
+        data: names.map(
+          (displayName, i) =>
+            ({
+              id: `s${i}`,
+              userId: `u${i}`,
+              displayName,
+              status: 'active',
+              roles: ['teacher'],
+              permissions: [],
+              subjectIds: [],
+              subjectNames: [],
+              campusIds: [],
+            }) as unknown as Staff,
+        ),
+        meta: { total: names.length, page: 1, pageSize: 20, totalPages: 1 },
+      });
+
+    const type = (text: string) =>
+      (component as unknown as { onSearchChange: (v: string) => void }).onSearchChange(text);
+
+    const names = () =>
+      (component as unknown as { staffList: () => Array<{ displayName: string }> })
+        .staffList()
+        .map((s) => s.displayName);
+
+    beforeEach(() => {
+      // 這個 app 是 zoneless（Angular 21 + signals），沒有 `fakeAsync` ——
+      // 時間用 vitest 的假計時器控制。`debounceTime` 走 asyncScheduler 的 setTimeout。
+      vi.useFakeTimers();
+      pending.length = 0;
+      staffServiceMock.list.mockReset();
+      staffServiceMock.list.mockImplementation((params?: { search?: string }) => {
+        const subject = new Subject<StaffListRes>();
+        pending.push({ search: params?.search, subject });
+        return subject.asObservable();
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('連續打字只送出一次請求（最後那個字）', () => {
+      type('李');
+      type('李語');
+      type('李語涵');
+      vi.advanceTimersByTime(300);
+
+      expect(staffServiceMock.list).toHaveBeenCalledTimes(1);
+      expect(pending.at(-1)?.search).toBe('李語涵');
+    });
+
+    /**
+     * **debounce 只解一半。** 打字慢的人（每次間隔超過 300ms）仍然會送出多支請求，
+     * 而它們回來的順序不保證 —— 先發的後到就會蓋掉畫面。
+     *
+     * 這條**故意讓兩支請求都真的送出**（中間 tick 過 debounce），
+     * 然後讓**先發的後回**。有 `switchMap` 的話先發的那支已經被取消，
+     * 它的結果不該出現在畫面上。
+     */
+    it('先發的請求後回時不會蓋掉畫面（switchMap 取消）', () => {
+      type('李');
+      vi.advanceTimersByTime(300);
+      type('李語涵');
+      vi.advanceTimersByTime(300);
+
+      expect(staffServiceMock.list).toHaveBeenCalledTimes(2);
+
+      // 後發的先回 —— 畫面應該是「李語涵」的結果
+      pending[1].subject.next(staffNamed(['李語涵']));
+      pending[1].subject.complete();
+
+      // 先發的那支現在才回（就是那 4 筆）。它已經被取消，不該被採用。
+      pending[0].subject.next(staffNamed(['李語涵', '李宇翔', '李彥廷', '李泓安']));
+      pending[0].subject.complete();
+
+      expect(names()).toEqual(['李語涵']);
+    });
+
+    /** 對照組：同樣的字不重複送（否則上面那兩條在「每次都送」的實作下也會過） */
+    it('同樣的關鍵字不重複送出請求', () => {
+      type('李語涵');
+      vi.advanceTimersByTime(300);
+      type('李語涵');
+      vi.advanceTimersByTime(300);
+
+      expect(staffServiceMock.list).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * 去重比對的是 `searchQuery` signal，不是 `distinctUntilChanged`。
+     *
+     * `clearFilters()` 直接 `searchQuery.set('')`、不經過搜尋管線 ——
+     * 若去重的記憶是管線自己的那一份，清完篩選再打一次同樣的字會被整個吞掉，
+     * **搜尋框有字、列表卻是未篩選的全部**。那是同一族的另一種穿法。
+     */
+    it('清除篩選之後再打同樣的字，仍然會查', () => {
+      type('李語涵');
+      vi.advanceTimersByTime(300);
+      expect(staffServiceMock.list).toHaveBeenCalledTimes(1);
+
+      (component as unknown as { clearFilters: () => void }).clearFilters();
+      expect(staffServiceMock.list).toHaveBeenCalledTimes(2);
+      expect(pending.at(-1)?.search).toBeUndefined();
+
+      type('李語涵');
+      vi.advanceTimersByTime(300);
+
+      expect(staffServiceMock.list).toHaveBeenCalledTimes(3);
+      expect(pending.at(-1)?.search).toBe('李語涵');
     });
   });
 });
