@@ -1,11 +1,31 @@
 import { Hono } from 'hono';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 // **靜態 import，不要在 test body 裡動態 import。**
 // 原本兩個測試各寫 `await import('./parents')`，於是**模組轉譯的時間被算進
 // 5 秒的 test timeout**。這支路由檔很大，轉譯本身就要好幾秒 —— 本機連跑三次
 // 分別是 2.5s 過、3.0s 過、5.0s **失敗**。
 // 隨機紅在跟改動無關的地方，比慢更貴：它會讓所有人開始不信任 CI。
+// #877：建帳號那條路要 `auth.api.createUser`，所以整支檔案共用一個假的 Better Auth。
+// **只有「建新帳號」的分支會叫到它** —— matched 到既有家長的那幾支測試走不到這裡，
+// 所以這個 mock 不會改變它們的行為。
+const createdUsers: string[] = [];
+const removedUsers: string[] = [];
+vi.mock('../lib/get-auth', () => ({
+  getAuth: () => ({
+    api: {
+      createUser: async ({ body }: { body: { email: string } }) => {
+        const id = `ba-new-${createdUsers.length + 1}`;
+        createdUsers.push(body.email);
+        return { user: { id } };
+      },
+      removeUser: async ({ body }: { body: { userId: string } }) => {
+        removedUsers.push(body.userId);
+      },
+    },
+  }),
+}));
+
 import parentsRoute, { toParentResponse } from './parents';
 
 describe('toParentResponse', () => {
@@ -488,5 +508,118 @@ describe('POST /batch-check —— 範圍外的同名家長不具名、不可合
     const body = await check(null);
 
     expect(body.warnings[0].type).toBe('merging_with_existing');
+  });
+});
+
+/**
+ * **#877：UI 建出來的家長沒有 `user_roles`，登入連結必然 422、家長端也進不去。**
+ *
+ * `parents.ts` 全檔零 `user_roles` 寫入，而 `staff.ts` 有 13 處 ——
+ * **兩條建帳號的路，一條插角色一條不插。**
+ *
+ * 這兩條測試釘的是「**建完帳號之後有沒有寫那一列**」，而不是端點回 200 ——
+ * 原本的行為就是回 200 而且畫面上一切正常，**壞掉的地方要下一次登入才看得見**。
+ * （同族：#876 的 toast 說「已停用」而網路上送的是 DELETE。）
+ */
+describe('建立家長要一併給 parent 角色（#877）', () => {
+  /** 記下所有 `from(<table>).insert(<rows>)`，好斷言 `user_roles` 那一列真的被寫了 */
+  function fakeSupabase(inserts: Array<{ table: string; rows: unknown }>) {
+    return {
+      from(table: string) {
+        const builder: Record<string, unknown> = {};
+        const chain = () => builder as never;
+        Object.assign(builder, {
+          select: () => chain(),
+          eq: () => chain(),
+          in: () => chain(),
+          or: () => chain(),
+          order: () => chain(),
+          range: () => chain(),
+          limit: () => chain(),
+          ilike: () => chain(),
+          update: () => chain(),
+          upsert: () => chain(),
+          delete: () => chain(),
+          insert: (rows: unknown) => {
+            inserts.push({ table, rows });
+            // `user_roles` 的 insert 沒有接 `.select()`，所以它自己就是 thenable
+            return Object.assign(chain(), {
+              then: (resolve: (v: { data: null; error: null }) => unknown) =>
+                resolve({ data: null, error: null }),
+            });
+          },
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          single: () => Promise.resolve({ data: { id: 'new-parent-1' }, error: null }),
+          then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
+            resolve({ data: [], error: null }),
+        });
+
+        return builder;
+      },
+    };
+  }
+
+  function appWith(inserts: Array<{ table: string; rows: unknown }>) {
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', fakeSupabase(inserts));
+      set('orgId', 'org-1');
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', parentsRoute as unknown as Hono);
+    return app;
+  }
+
+  const roleRowsIn = (inserts: Array<{ table: string; rows: unknown }>) =>
+    inserts.filter((i) => i.table === 'user_roles').map((i) => i.rows);
+
+  it('單筆新增：建完帳號寫入 user_roles(parent)', async () => {
+    const inserts: Array<{ table: string; rows: unknown }> = [];
+
+    await appWith(inserts).request(
+      '/',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '王小明的媽媽', email: 'qa-877-single@example.test' }),
+      },
+      { PLACEHOLDER_EMAIL_DOMAIN: 'placeholder.invalid' },
+    );
+
+    expect(roleRowsIn(inserts)).toEqual([
+      { user_id: expect.stringMatching(/^ba-new-/), role: 'parent', permissions: [] },
+    ]);
+  });
+
+  it('批次匯入：每建一個新家長就寫一列 user_roles(parent)', async () => {
+    const inserts: Array<{ table: string; rows: unknown }> = [];
+
+    await appWith(inserts).request(
+      '/batch-import',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          rows: [
+            {
+              parentName: '陳大文',
+              parentEmail: 'qa-877-import@example.test',
+              studentName: '陳小華',
+              studentGrade: 'J1',
+              studentSchool: '大安國中',
+            },
+          ],
+        }),
+      },
+      { PLACEHOLDER_EMAIL_DOMAIN: 'placeholder.invalid' },
+    );
+
+    expect(roleRowsIn(inserts)).toEqual([
+      { user_id: expect.stringMatching(/^ba-new-/), role: 'parent', permissions: [] },
+    ]);
   });
 });
