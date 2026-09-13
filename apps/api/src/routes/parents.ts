@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { getAuth } from '../lib/get-auth';
 import { mintLoginLinkForRequest } from './login-links/mint';
 import { requireAdminMiddleware } from '../middleware/auth';
+import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -222,11 +223,63 @@ app.openapi(
       }
     }
 
+    /**
+     * 分校範圍（#816）。**家長身上沒有 `campus_id`**，所以範圍要走三跳：
+     * `enrollments`（分校）→ `student_id` → `parent_student_relations` → `parent_id`。
+     * 形狀照 `students.ts` 既有的做法（先撈 id 集合，再 `.in('id', …)`）。
+     *
+     * 判準：**分校管理員看得到的家長 = 孩子在他的分校有報名的家長。**
+     * 孩子跨分校時任一分校的管理員都看得到那位家長 —— 不做「只看得到自己分校那半的
+     * 孩子」的細切（計畫席裁定，先窄化清單）。
+     *
+     * ⚠️ **`classes!inner` 是寫死的，不跟任何條件連動** —— PostgREST 的巢狀過濾走
+     * left join，`classes.campus_id` 條件不成立的報名不會被排除、只會把關聯變成 null
+     * 留著。#815 就是因為 `!inner` 跟著「使用者有沒有傳 campusId」走、而條件跟著
+     * scope 走，兩邊分岔。**這裡不給它分岔的機會。**
+     */
+    const campusIds = campusFilterIds(getCampusScope(c), undefined);
+    let scopedParentIds: string[] | null = null;
+    if (campusIds) {
+      const { data: campusEnrollments } = await supabase
+        .from('enrollments')
+        .select('student_id, classes!inner(campus_id)')
+        .in('classes.campus_id', [...campusIds]);
+
+      const campusStudentIds = [
+        ...new Set(
+          ((campusEnrollments ?? []) as Array<{ student_id: string | null }>)
+            .map((row) => row.student_id)
+            .filter((id): id is string => !!id),
+        ),
+      ];
+
+      if (campusStudentIds.length === 0) {
+        scopedParentIds = [];
+      } else {
+        const { data: scopedRelations } = await supabase
+          .from('parent_student_relations')
+          .select('parent_id')
+          .in('student_id', campusStudentIds);
+
+        scopedParentIds = [
+          ...new Set(
+            ((scopedRelations ?? []) as Array<{ parent_id: string | null }>)
+              .map((row) => row.parent_id)
+              .filter((id): id is string => !!id),
+          ),
+        ];
+      }
+    }
+
     let query = supabase
       .from('parents')
       .select('*', { count: 'exact' })
       .eq('org_id', orgId)
       .order('name');
+
+    // 空清單也是條件 —— `.in(col, [])` 實測是零筆而不是「沒有條件」
+    // （量測紀錄在 `lib/campus-scope.ts` 的 `campusFilterIds` 檔頭）
+    if (scopedParentIds) query = query.in('id', scopedParentIds);
 
     if (search) {
       // 搜尋 ba_user email/phone
