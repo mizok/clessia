@@ -387,8 +387,16 @@ export class StudentsPage implements OnInit {
     });
   }
 
+  /**
+   * **停用是軟的（#876）。** 這裡原本逐字呼叫 `this.studentsService.delete(...)` ——
+   * 跟 `deleteStudent()` 同一支 API，兩者只有 toast 文字不同，於是按「停用」會把學生
+   * 從 DB 永久刪掉，而確認文案寫的是「不會出現在預設篩選結果中」。
+   *
+   * **那個 bug 藏得住是因為 toast 文字從頭到尾都是對的** —— 畫面說「已停用」。
+   * 所以 spec 釘的是「呼叫了哪一支 API」，不是 toast 文字。
+   */
   private deactivateStudent(student: Student): void {
-    this.studentsService.delete(student.id).subscribe({
+    this.studentsService.update(student.id, { isActive: false }).subscribe({
       next: () => {
         this.messageService.add({
           severity: 'success',
