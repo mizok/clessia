@@ -291,6 +291,10 @@ PostToolUse hook 會在每次編輯後自動跑，不用手動格式化。
 - `npx nx affected -t typecheck` 綠
 - 沒有新增 Banned Approaches 表裡的任何一項
 - 非顯而易見的新 pattern 有寫進 `kb/`
+- **最後一次驗證用 `npx nx run-many -t test --skip-nx-cache`** —— `npm test` 會吃 nx cache，
+  而**命中 cache 的輸出跟真的跑過一模一樣**：那行「read from cache」印在測試摘要**後面**，
+  而摘要本身是上一次的、全綠的。#848 的實例：改完 `rt-col-def.directive.ts` 跑 `npm test`
+  回 read from cache，**而那份 cache 是改動前的**。
 
 ## Agent skills
 
