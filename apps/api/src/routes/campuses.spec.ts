@@ -129,3 +129,144 @@ describe('GET /api/campuses —— 分校範圍要套在清單與統計兩支查
     expect(inCalls.some((call) => call.column === 'id')).toBe(false);
   });
 });
+
+/**
+ * **#837：分校的稽核 `details` 全是 `{}`** —— `update` 只留改完後的名字，
+ * 「這一筆改了什麼」完全查不到（labor-8 實按比對六種 `resource_type` 時發現）。
+ *
+ * 分校是 13 個實例的實體、改名／停用是行政上會被追問的動作 ——
+ * 稽核答得出誰／何時、答不出改成什麼，等於只有一半。
+ *
+ * ⚠️ **工單說「五顆都補」，而 API 只有三個端點**：UI 的停用／啟用走的是
+ * `PUT /{id}`（改 `is_active`），所以那五次操作在稽核上是
+ * `create` / `update` ×3 / `delete`。三個端點補完就涵蓋五顆。
+ */
+describe('campuses 的稽核 details（#837）', () => {
+  const ORG = '00000000-0000-0000-0000-0000000000aa';
+  const CAMPUS = '00000000-0000-0000-0000-0000000000c1';
+  const BEFORE = {
+    id: CAMPUS,
+    name: '中正分校',
+    address: '舊地址',
+    phone: null,
+    is_active: true,
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+  };
+
+  function fakeDb() {
+    const auditRows: Array<Record<string, unknown>> = [];
+    // **update 之前與之後的 `single()` 要回不同的東西** ——
+    // 同一個替身要同時扮演「改動前的那一列」與「改完回傳的那一列」
+    let updated = false;
+    let after: Record<string, unknown> = BEFORE;
+
+    const make = (table: string) => {
+      const builder: Record<string, unknown> = {};
+      const chain = () => builder as never;
+      Object.assign(builder, {
+        select: () => chain(),
+        eq: () => chain(),
+        in: () => chain(),
+        order: () => chain(),
+        limit: () => chain(),
+        insert: (rows: Record<string, unknown>) => {
+          if (table === 'audit_logs') {
+            auditRows.push(rows);
+            return Promise.resolve({ error: null });
+          }
+          return chain();
+        },
+        update: (payload: Record<string, unknown>) => {
+          updated = true;
+          after = { ...BEFORE, ...payload };
+          return chain();
+        },
+        delete: () => chain(),
+        single: () =>
+          Promise.resolve({
+            data:
+              table === 'campuses'
+                ? updated
+                  ? after
+                  : BEFORE
+                : table === 'profiles'
+                  ? null
+                  : { id: 'new-campus', name: '新分校', is_active: true },
+            error: null,
+          }),
+        maybeSingle: () => Promise.resolve({ data: null, error: null }),
+        then: (resolve: (value: unknown) => unknown) =>
+          resolve({ data: [], count: 0, error: null }),
+      });
+
+      return builder;
+    };
+
+    return { auditRows, from: (table: string) => make(table) };
+  }
+
+  async function request(path: string, method: string, body?: unknown) {
+    const db = fakeDb();
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', db);
+      set('orgId', ORG);
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', campusesRoute.default as unknown as Hono);
+
+    const res = await app.request(path, {
+      method,
+      ...(body === undefined
+        ? {}
+        : { body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }),
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    return { status: res.status, auditRows: db.auditRows };
+  }
+
+  it('改名：details 記得下 from 與 to，只含這次送出的欄位', async () => {
+    const { status, auditRows } = await request(`/${CAMPUS}`, 'PUT', { name: '中正旗艦校' });
+
+    expect(status).toBe(200);
+    const row = auditRows.find((r) => r['action'] === 'update');
+    expect(row?.['details']).toEqual({
+      fields: ['name'],
+      from: { name: '中正分校' },
+      to: { name: '中正旗艦校' },
+    });
+  });
+
+  // 停用走的是同一支 PUT —— 所以它也要記得下 is_active 的 before
+  it('停用：details 的 from 記得下原本是啟用的', async () => {
+    const { auditRows } = await request(`/${CAMPUS}`, 'PUT', { isActive: false });
+
+    const row = auditRows.find((r) => r['action'] === 'update');
+    expect(row?.['details']).toEqual({
+      fields: ['is_active'],
+      from: { is_active: true },
+      to: { is_active: false },
+    });
+  });
+
+  it('刪除：details 是刪前快照，不含 created_at 這類不是人改的欄位', async () => {
+    const { auditRows } = await request(`/${CAMPUS}`, 'DELETE');
+
+    const row = auditRows.find((r) => r['action'] === 'delete');
+    expect(row?.['details']).toEqual({
+      name: '中正分校',
+      address: '舊地址',
+      phone: null,
+      is_active: true,
+    });
+    expect(row?.['details']).not.toHaveProperty('created_at');
+  });
+});
