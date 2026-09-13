@@ -61,6 +61,36 @@ describe('SchoolsPage', () => {
     expect(component).toBeTruthy();
   });
 
+  /**
+   * **#812：取數失敗時畫面不能說「尚無學校」。** 實際有 24 所。
+   * 斷言畫面主體，不是某個 signal —— 使用者看到的是畫面。
+   */
+  it('取數失敗時渲染「載入失敗」，不說「尚無學校」', () => {
+    pending[0].subject.error(new Error('boom'));
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('載入失敗');
+    expect(host.textContent).not.toContain('尚無學校');
+  });
+
+  it('重試鈕真的重打，成功後清單回來', () => {
+    pending[0].subject.error(new Error('boom'));
+    fixture.detectChanges();
+    const callsBefore = schoolsServiceMock.list.mock.calls.length;
+
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>('app-load-failed button')!
+      .click();
+    fixture.detectChanges();
+
+    expect(schoolsServiceMock.list.mock.calls.length).toBe(callsBefore + 1);
+    pending[pending.length - 1].subject.next(res(['大安高工']));
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('載入失敗');
+  });
+
   const type = (text: string) =>
     (component as unknown as { onSearch: (v: string) => void }).onSearch(text);
 

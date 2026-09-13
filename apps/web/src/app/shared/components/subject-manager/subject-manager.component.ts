@@ -8,6 +8,7 @@ import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { SubjectsService } from '@core/subjects.service';
 import type { Subject } from '@core/subjects.service';
 import { ReferenceDataService } from '@core/reference-data.service';
+import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import {
   InlineNoticeComponent,
   type InlineNoticeSeverity,
@@ -33,6 +34,7 @@ interface SubjectManagerNotice {
     SkeletonModule,
     TooltipModule,
     InlineNoticeComponent,
+    LoadFailedComponent,
   ],
   providers: [DialogService],
   templateUrl: './subject-manager.component.html',
@@ -49,6 +51,11 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
 
   protected readonly subjects = signal<Subject[]>([]);
   protected readonly loading = signal(false);
+  /**
+   * 取數失敗。**不能沿用 `subjects().length === 0`** —— 那句「尚無科目，請新增」
+   * 在失敗時是謊話，而底下還有一個「新增」欄位邀請使用者建出重複的科目（#788 / #812）。
+   */
+  protected readonly loadFailed = signal(false);
   protected readonly editingId = signal<string | null>(null);
   protected readonly editingName = signal('');
   protected readonly newSubjectName = signal('');
@@ -74,12 +81,15 @@ export class SubjectManagerComponent implements OnInit, OnDestroy {
 
   protected loadSubjects(): void {
     this.loading.set(true);
+    this.loadFailed.set(false);
     this.subjectsService.list().subscribe({
       next: (res) => {
         this.subjects.set(res.data);
         this.loading.set(false);
       },
+      // 原本只關掉 loading —— **零訊號**，畫面直接變成「尚無科目」（#812）
       error: () => {
+        this.loadFailed.set(true);
         this.loading.set(false);
       },
     });

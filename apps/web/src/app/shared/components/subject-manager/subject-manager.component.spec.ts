@@ -52,6 +52,38 @@ describe('SubjectManagerComponent', () => {
 
   // `confirmDelete` 曾經名不副實——名字說要確認，實際上直接呼叫刪除 API，
   // 一次點擊沒有反悔機會。這條釘住「一定要先走過確認對話框」。
+  /**
+   * **#812：取數失敗時畫面不能說「尚無科目，請新增」。**
+   * 那句話在失敗時是謊話，而底下的「新增」欄位會邀請使用者建出重複的科目。
+   * 斷言畫面主體，不是某個 signal —— 使用者看到的是畫面。
+   */
+  it('取數失敗時渲染「載入失敗」，不說「尚無科目」也不給新增欄位', async () => {
+    subjectsServiceMock.list.mockReturnValue(throwError(() => new Error('boom')));
+    (component as unknown as { loadSubjects: () => void }).loadSubjects();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('載入失敗');
+    expect(host.textContent).not.toContain('尚無科目');
+    expect(host.querySelector('.subject-manager__add')).toBeNull();
+  });
+
+  it('重試鈕真的重打 —— 成功後清單就回來了', async () => {
+    subjectsServiceMock.list.mockReturnValue(throwError(() => new Error('boom')));
+    (component as unknown as { loadSubjects: () => void }).loadSubjects();
+    fixture.detectChanges();
+    const callsBefore = subjectsServiceMock.list.mock.calls.length;
+
+    subjectsServiceMock.list.mockReturnValue(of({ data: subjects }));
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>('app-load-failed button')!
+      .click();
+    fixture.detectChanges();
+
+    expect(subjectsServiceMock.list.mock.calls.length).toBe(callsBefore + 1);
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('載入失敗');
+  });
+
   it('點刪除會先跳確認對話框，取消就不呼叫刪除 API', () => {
     const openSpy = stubConfirmDialog(false);
 

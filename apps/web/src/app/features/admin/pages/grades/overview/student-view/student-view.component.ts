@@ -21,6 +21,7 @@ import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import {
   PageBreadcrumbComponent,
   type BreadcrumbItem,
@@ -76,6 +77,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     PageBreadcrumbComponent,
     JdenticonAvatarComponent,
     ToastModule,
+    LoadFailedComponent,
   ],
   templateUrl: './student-view.component.html',
   styleUrl: './student-view.component.scss',
@@ -125,6 +127,11 @@ export class StudentViewComponent implements OnInit {
 
   protected readonly rawStudents = signal<Student[]>([]);
   protected readonly loadingList = signal(true);
+  /**
+   * 取數失敗。**不能沿用 `pagedStudents().length === 0`** —— 那一格說
+   * 「請嘗試調整篩選條件或搜尋關鍵字」，也就是**叫使用者去做一件不會有用的事**（#812）。
+   */
+  protected readonly loadFailed = signal(false);
   protected readonly currentPage = signal(1);
 
   protected readonly schoolOptionsState = signal<Array<FilterOption<string>>>([]);
@@ -338,8 +345,9 @@ export class StudentViewComponent implements OnInit {
   }
 
   /** 觸發取數。實際的請求在 `setupLoadPipeline()` 的那條 `switchMap` 管線裡（#661） */
-  private loadStudents(): void {
+  protected loadStudents(): void {
     this.loadingList.set(true);
+    this.loadFailed.set(false);
     this.loadRequests.next();
   }
 
@@ -377,14 +385,12 @@ export class StudentViewComponent implements OnInit {
             // `forkJoin` 的分頁。掛在 `list({ page: 1 })` 那一層的話，
             // **分頁失敗收不到**，而第一頁的測試照樣會綠。
             // 兩半各由 spec 的一條測試釘住（#689）。
+            // **不再發 toast** —— 主體現在有常駐的失敗狀態；會消失的 toast 加留著的
+            // 錯誤畫面是兩個互相矛盾的訊號（#788 的裁定）
             catchError(() => {
               this.rawStudents.set([]);
+              this.loadFailed.set(true);
               this.loadingList.set(false);
-              this.messageService.add({
-                severity: 'error',
-                summary: '載入失敗',
-                detail: '無法載入學生名單',
-              });
               return EMPTY;
             }),
           );

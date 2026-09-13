@@ -78,6 +78,8 @@
       <i class="pi pi-spinner pi-spin"></i>
       載入學生名單...
     </div>
+  } @else if (loadFailed()) {
+    <app-load-failed description="沒有讀到學生名單，可能是連線問題" (retry)="loadStudents()" />
   } @else if (pagedStudents().length === 0) {
     <app-empty-state
       icon="pi pi-users"

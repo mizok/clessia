@@ -21,6 +21,7 @@ import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import {
   PageBreadcrumbComponent,
   type BreadcrumbItem,
@@ -65,6 +66,7 @@ interface CourseGroup {
     EmptyStateComponent,
     PageBreadcrumbComponent,
     ToastModule,
+    LoadFailedComponent,
   ],
   templateUrl: './class-view.component.html',
   styleUrl: './class-view.component.scss',
@@ -99,6 +101,11 @@ export class ClassViewComponent implements OnInit {
 
   protected readonly courseGroups = signal<CourseGroup[]>([]);
   protected readonly loadingGroups = signal(true);
+  /**
+   * 取數失敗。**不能沿用 `filteredGroups().length === 0`** —— 那一格說
+   * 「無符合的課程／請嘗試調整篩選條件」，也就是**叫使用者去做一件不會有用的事**（#812）。
+   */
+  protected readonly loadFailed = signal(false);
   protected readonly todoExamCountMap = signal<Record<string, number>>({});
   protected readonly loadingTodoMap = signal(false);
 
@@ -253,7 +260,8 @@ export class ClassViewComponent implements OnInit {
     });
   }
 
-  private loadGroups(): void {
+  /** `protected` 而不是 `private`：失敗態的重試鈕要在模板裡呼叫它（#812） */
+  protected loadGroups(): void {
     if (!this.campusId()) {
       this.courseGroups.set([]);
       this.todoExamCountMap.set({});
@@ -262,6 +270,7 @@ export class ClassViewComponent implements OnInit {
     }
 
     this.loadingGroups.set(true);
+    this.loadFailed.set(false);
     this.classesService
       .list({
         campusId: this.campusId(),
@@ -275,12 +284,10 @@ export class ClassViewComponent implements OnInit {
           this.loadTodoExamCounts(classes);
           this.loadingGroups.set(false);
         },
+        // **不再發 toast** —— 主體現在有常駐的失敗狀態；會消失的 toast 加留著的
+        // 錯誤畫面是兩個互相矛盾的訊號（#788 的裁定）
         error: () => {
-          this.messageService.add({
-            severity: 'error',
-            summary: '載入失敗',
-            detail: '無法載入課程/班級列表',
-          });
+          this.loadFailed.set(true);
           this.courseGroups.set([]);
           this.todoExamCountMap.set({});
           this.loadingGroups.set(false);

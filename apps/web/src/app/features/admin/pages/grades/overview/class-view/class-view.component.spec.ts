@@ -79,6 +79,40 @@ describe('ClassViewComponent', () => {
     expect(component['searchText']()).toBe('');
   });
 
+  /**
+   * **#812：取數失敗時畫面不能說「無符合的課程／請嘗試調整篩選條件」** ——
+   * 那是**叫使用者去做一件不會有用的事**。
+   * #809 讓這支的 toast 終於出得來了，但 toast 會消失，而退化畫面留著。
+   */
+  it('取數失敗時渲染「載入失敗」，不叫使用者調整篩選條件', () => {
+    component['onCampusChange']('campus-1');
+    const classRequests = http.match((r) => r.url.includes('/api/classes'));
+    classRequests[0].flush(null, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('載入失敗');
+    expect(host.textContent).not.toContain('請嘗試調整篩選條件');
+  });
+
+  it('重試鈕真的重打 /api/classes', () => {
+    component['onCampusChange']('campus-1');
+    http
+      .match((r) => r.url.includes('/api/classes'))[0]
+      .flush(null, {
+        status: 500,
+        statusText: 'Server Error',
+      });
+    fixture.detectChanges();
+
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>('app-load-failed button')!
+      .click();
+    fixture.detectChanges();
+
+    expect(http.match((r) => r.url.includes('/api/classes'))).toHaveLength(1);
+  });
+
   it('should load grouped classes with a single classes request on campus change', () => {
     component['onCampusChange']('campus-1');
     expect(component['campusId']()).toBe('campus-1');

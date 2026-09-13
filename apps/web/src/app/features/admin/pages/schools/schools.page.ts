@@ -17,6 +17,7 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { TableModule } from 'primeng/table';
 import { ToastModule } from 'primeng/toast';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { SchoolsService } from '@core/schools.service';
 import type { School } from '@core/schools.service';
 import { SchoolFormDialogComponent, type SchoolFormResult } from './school-form-dialog.component';
@@ -34,6 +35,7 @@ import { StatusDotComponent } from '@shared/components/status/status-dot/status-
     ToastModule,
     ConfirmDialogModule,
     EmptyStateComponent,
+    LoadFailedComponent,
   ],
   providers: [MessageService, ConfirmationService, DialogService],
   templateUrl: './schools.page.html',
@@ -62,6 +64,8 @@ export class SchoolsPage implements OnInit {
 
   protected readonly schools = signal<School[]>([]);
   protected readonly loading = signal(true);
+  /** 取數失敗。**不能沿用 `schools().length === 0`** —— 「尚無學校」在失敗時是謊話（#812） */
+  protected readonly loadFailed = signal(false);
   protected readonly search = signal('');
 
   ngOnInit(): void {
@@ -83,8 +87,9 @@ export class SchoolsPage implements OnInit {
   }
 
   /** 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#661） */
-  private load(): void {
+  protected load(): void {
     this.loading.set(true);
+    this.loadFailed.set(false);
     this.loadRequests.next();
   }
 
@@ -100,13 +105,11 @@ export class SchoolsPage implements OnInit {
             // toast，看起來像「這次失敗了」不是「這一頁壞了」。
             // 由 spec 的「一次請求失敗之後…」那條釘住（#689）。
             .pipe(
-              catchError((error) => {
+              // **不再發 toast** —— 主體現在有常駐的失敗狀態；會消失的 toast
+              // 加留著的錯誤畫面是兩個互相矛盾的訊號（#788 的裁定）
+              catchError(() => {
+                this.loadFailed.set(true);
                 this.loading.set(false);
-                this.messageService.add({
-                  severity: 'error',
-                  summary: '載入失敗',
-                  detail: error?.error?.error ?? '',
-                });
                 return EMPTY;
               }),
             ),
