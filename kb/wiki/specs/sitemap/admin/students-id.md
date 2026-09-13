@@ -221,3 +221,24 @@ updated: 2026-09-13
 | --- | --- |
 | 404 與連線失敗會不會走不同分支 | 本輪只製造連線失敗；**真的 404 沒有量**（要一個不存在的 id，屬於另一種輸入） |
 | 其他寬度 | 只量 390 |
+
+## 寫入實按（Phase 2-B 第 5 輪，2026-09-13）
+
+環境與基線見 [[specs/sitemap/admin/students]] 同名一節。
+
+| 鈕 | 端點 | 結果 |
+| --- | --- | --- |
+| `加入班級` → 班級卡片 | `POST /api/enrollments` | ✅ `enrollments` +1（`status=active`、`effective_from=今天`、`billing_mode` 空） |
+
+- **班級選擇器點一下卡片就直接送出**，沒有第二段確認
+- **成功訊息是頁內 inline notice 不是 toast**：
+  「「X」已加入「Y」。這筆還沒有計費設定 —— 在下方該筆報名上點『設定計費』補上，否則不會產生帳單。」
+- 於是那一筆報名長出 `設定計費` 鈕（`needsBillingSetup()` 為真），本頁上一輪列為未驗的那一顆
+  **現在有觸發條件了**，但它屬課務管理那一輪的 `EnrollmentBillingDialogComponent`，本輪未按
+- **報名建立不寫 `attendance_records`**（實測 0 筆）。清單標的那張表是**請假**才會碰的，
+  見 [[specs/sitemap/admin/leave]]
+- `audit_logs` 留 `enrollment/create`，`resource_name` = 「學生 / 班級」，`details` 是完整欄位快照
+
+> ⚠️ **`audit.ts:14-16` 的註解已經過期**：它逐字寫「報名的建立與退班完全沒有稽核紀錄」，
+> 而 #851（`0acb278e`）已經把報名類接上了。**charter 裡轉述那句話的那一節同樣過期** ——
+> 接手時先驗一遍再信它，這是實例。
