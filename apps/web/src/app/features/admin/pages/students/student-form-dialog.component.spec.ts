@@ -39,6 +39,28 @@ describe('StudentFormDialogComponent', () => {
     studentsServiceMock.create.mockClear();
   });
 
+  /**
+   * **#809：這支對話框自己 `providers: [MessageService]`，所以它拿到的是自己的實例**，
+   * 而 `students.page` 的 `<p-toast>` 訂閱的是 students.page 提供的那一個 ——
+   * 執行期實測過兩個實例 `!==`。對話框模板沒有出口的話，它發的每一則都沒有訂閱者：
+   * 「就讀學校」讀不到時下拉**靜靜是空的**，而那是必填欄位。
+   *
+   * 斷言查 `document` 而不是 `fixture.nativeElement`，而且查渲染出來的訊息
+   * 不是「add 有沒有被呼叫」—— 後者是意圖，前者是結果。
+   */
+  it('發出的 toast 有出口 —— DOM 裡真的長出訊息', async () => {
+    await setup({ student: null });
+    fixture = TestBed.createComponent(StudentFormDialogComponent);
+    fixture.detectChanges();
+
+    fixture.debugElement.injector
+      .get(MessageService)
+      .add({ severity: 'error', summary: '載入失敗', detail: '無法載入學校清單' });
+    fixture.detectChanges();
+
+    expect(document.querySelector('.p-toast-message')).not.toBeNull();
+  });
+
   // #364 後續：學生頁「新增學生」沒有預填家長，這條路徑要能挑家長，
   // 才不會跟家長頁的同名選項能力不同。
   it('未預填 parentId 時顯示家長選擇器，並把選到的家長帶進建立請求', async () => {

@@ -8,6 +8,7 @@ import { SelectModule } from 'primeng/select';
 import { TextareaModule } from 'primeng/textarea';
 import { DatePickerModule } from 'primeng/datepicker';
 import { AutoCompleteModule, type AutoCompleteCompleteEvent } from 'primeng/autocomplete';
+import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig } from 'primeng/dynamicdialog';
 import { TooltipModule } from 'primeng/tooltip';
@@ -37,6 +38,7 @@ import {
     DatePickerModule,
     AutoCompleteModule,
     TooltipModule,
+    ToastModule,
   ],
   providers: [MessageService],
   templateUrl: './student-form-dialog.component.html',

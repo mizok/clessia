@@ -29,7 +29,9 @@ describe('ClassViewComponent', () => {
         set: {
           providers: [
             { provide: DialogService, useValue: { open: openMock } },
-            { provide: MessageService, useValue: { add: vi.fn() } },
+            // **真的 MessageService，不是 `{ add: vi.fn() }`**：假物件沒有 observable，
+            // `<p-toast>` 就算不存在測試也看不出來（#809 就是這樣藏了一週）
+            { provide: MessageService, useValue: new MessageService() },
           ],
         },
       })
@@ -51,6 +53,25 @@ describe('ClassViewComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  /**
+   * **#809：這支元件自己 `providers: [MessageService]`，所以它拿到的是自己的實例，
+   * 而 `<p-toast>` 訂閱的是注入它的那一層** —— 模板沒有出口的話，
+   * `messageService.add()` 的每一則都沒有訂閱者，畫面上零訊號。
+   *
+   * 斷言查的是 `document`（`appendTo="body"` 會把 toast 搬出元件），
+   * 而且查的是**渲染出來的訊息**，不是「add 有沒有被呼叫」—— 後者是意圖，前者是結果。
+   */
+  it('發出的 toast 有出口 —— DOM 裡真的長出訊息', () => {
+    fixture.detectChanges();
+
+    fixture.debugElement.injector
+      .get(MessageService)
+      .add({ severity: 'error', summary: '載入失敗', detail: '無法載入課程/班級列表' });
+    fixture.detectChanges();
+
+    expect(document.querySelector('.p-toast-message')).not.toBeNull();
   });
 
   it('should start with no campus selected', () => {

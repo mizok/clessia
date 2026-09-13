@@ -17,6 +17,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { PaginatorModule } from 'primeng/paginator';
 import { DialogService } from 'primeng/dynamicdialog';
 import { ButtonModule } from 'primeng/button';
+import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -74,6 +75,7 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
     EmptyStateComponent,
     PageBreadcrumbComponent,
     JdenticonAvatarComponent,
+    ToastModule,
   ],
   templateUrl: './student-view.component.html',
   styleUrl: './student-view.component.scss',
