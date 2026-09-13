@@ -147,56 +147,48 @@ CHECK 擋掉而**線上靜默 0 筆稽核** —— #828 的症狀搬到線上，
 | 金額計算路徑 | 無 |
 | 授權／權限邏輯 | **有** —— #836（第 2 件） |
 
-## ⚠️ 讀 main 的 CI 狀態之前先看這一節（2026-09-07 04:5x）
+## main 的 verify 判準（**2026-09-13 12:5x 複查：那批 `cancelled` 已經清空了**）
 
-**`gh run list --workflow verify.yml --branch main` 現在會顯示一批 `cancelled`,而那不是故障。**
+**上一版這一節寫的是「`gh run list` 現在會顯示一批 `cancelled`，而那不是故障」。那個狀態已經不成立** ——
+`#603`（`cancel-in-progress: false`）只做了一半，補完在 **`#613`（group 帶 `github.sha`）**，
+它於 **2026-09-06 21:02 已合**。實測（12:5x）：
 
-`concurrency` 的修法(PR #603, commit `fa90fce2`)只對**它之後的 commit** 生效 ——
-GitHub 讀的是**該 run 自己那顆 commit 上的 workflow 檔**,
-所以修法之前的 commit 照舊會互相取消,**而它們會在列表上停留幾小時直到排空**。
-
-**判定方法**:
-
-```bash
-git merge-base --is-ancestor fa90fce2 <run 的 sha>   # 回 0 才是修法之後的
-gh run list --workflow verify.yml --branch main      # 一定要加 --workflow,否則 smoke 的成功會混進來
+```
+gh run list --workflow verify.yml --branch main --limit 40 --json conclusion \
+  --jq 'group_by(.conclusion)|map("\(.[0].conclusion // "running")=\(length)")|join(" ")'
+→ success=38  running=2      （回溯到 2026-09-13 00:07，零 cancelled）
 ```
 
-**在那之前,板上的 `cancelled` 不是訊號 —— 而它跟真的故障長得一模一樣。**
+**所以 main 的 verify 現在讀起來就是字面意思。** 下面留的是**判準**，不是狀態 ——
+它在 `cancelled` 再次出現時（改 concurrency、加 workflow、或 GitHub 那邊改行為）還會用到。
 
-### 訂正(2026-09-07 05:0x):**#603 的修法只做了一半,`fa90fce2` 不是正確的驗證標的**
-
-上面原本寫「看 `fa90fce2` 有沒有活著跑完」。**那個標準不夠** ——
-實測 `9a5daa89`(#603 之後的 main commit,workflow 檔確實有修法)**照樣 cancelled**。
-
-`cancel-in-progress: false` 的語意是「**不要殺正在跑的那顆**」,後來的 run 會**排隊**在同一個
-group 上,而**同一個 group 最多只留一顆排隊中的** —— 第三顆一到,中間排隊的就被丟掉。
-所以行為只是從「新的殺舊的」變成「最舊的活著跑完、中間排隊的被丟掉」。
-
-補完在 **PR #613**(group 帶 `github.sha`,main 每顆 commit 各自一個 group)。
-**#613 合併之前,main 上的 commit 仍然可能沒有結論。**
-
-### **`cancelled` 有兩種,而它們在 `gh run list` 上長得一模一樣**
+### `cancelled` 有兩種，而它們在 `gh run list` 上長得一模一樣
 
 | | `jobs` 長度 | 意思 |
 | --- | --- | --- |
-| 跑到一半被殺 | **非 0** | 它真的跑過,只是沒跑完 |
-| 從頭到尾沒開始 | **0** | 它在排隊時就被丟掉,**一行 log 都沒有** |
+| 跑到一半被殺 | **非 0** | 它真的跑過，只是沒跑完 |
+| 從頭到尾沒開始 | **0** | 它在排隊時就被丟掉，**一行 log 都沒有** |
 
-**判定一顆 run 有沒有被驗證,要看 `jobs` 長度,不是 `conclusion`。**
+**判定一顆 run 有沒有被驗證，要看 `jobs` 長度，不是 `conclusion`。**
 
 ```bash
 gh run view <run-id> --json jobs --jq '.jobs | length'
+gh run list --workflow verify.yml --branch main   # 一定要加 --workflow,否則 smoke 的成功會混進來
 ```
 
-**這個判準第一次用就改變了結論**:最近 30 顆 main 的 verify ——
-**success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1**。
-**30 顆只有 7 顆真的跑完**,而其中 7 顆連一個 job 都沒起過。
-只看 `conclusion` 的話,那 22 顆跟「有結論」在列表上沒有差別。
+**這個判準第一次用就改變了結論**（2026-09-07 那批）：最近 30 顆 main 的 verify ——
+success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只有 7 顆真的跑完**，
+其中 7 顆連一個 job 都沒起過。只看 `conclusion` 的話，那 22 顆跟「有結論」在列表上沒有差別。
 
-> **嚴重度要講準**:那 22 顆的**程式碼**多數驗過了 —— 在 PR head 上驗的。
-> 沒驗到的是 **squash 之後的 main 本身**(「這支 PR 跟同時段合進來的其他 PR 併在一起
-> 還成不成立」)。**風險不是「程式碼沒驗過」,是「它們互相之間沒驗過,而且壞了沒辦法二分」。**
+> **嚴重度要講準**：那 22 顆的**程式碼**多數驗過了 —— 在 PR head 上驗的。
+> 沒驗到的是 **squash 之後的 main 本身**（「這支 PR 跟同時段合進來的其他 PR 併在一起還成不成立」）。
+> **風險不是「程式碼沒驗過」，是「它們互相之間沒驗過，而且壞了沒辦法二分」。**
+
+> **⚠️ `cancel-in-progress: false` 不等於「不會取消」**（#603 只做了一半的成因）：
+> 它的語意是「不要殺**正在跑**的那顆」，後來的 run 會**排隊**在同一個 group 上，
+> 而**同一個 group 最多只留一顆排隊中的** —— 第三顆一到，中間排隊的就被丟掉。
+> 行為只是從「新的殺舊的」變成「最舊的活著跑完、中間排隊的被丟掉」。
+> **修法是讓每顆 commit 各自一個 group**（group 帶 `github.sha`）。
 
 ## 接手第一件事（2026-09-13 **12:4x**，計畫席 labor-plan-20260913-1211 上任後重寫）
 
@@ -247,17 +239,14 @@ Phase 1（53 頁 + 10 支 _shared 兩向比對）✅；Phase 2-A 響應式 63/63
 2. **MCP 瀏覽器沒有真的 device emulation** —— `matchMedia('(pointer: coarse)')` 永遠是 false。繞道法在 design-web charter 坑 34。
 3. **瀏覽器 session 是共享的機器狀態** —— 換身分要先登出，會踢掉別席。三席今天各撞一次。權宜做法：**資料連通性用 API 驗，畫面才用瀏覽器**。
 
-## 紅燈：main 上有一支時序 flake（2026-09-06 23:2x 查）
+## 判準：斷言裡出現第二次 `Date.now()`，就是把時序寫進期望值了
 
-`663d0254` 的 verify **failure**，單一測試：
+> **這一節的「紅燈」部分已經不成立** —— 那支 flake 由 **`0f5f6599`（#621）** 修掉了
+> （2026-09-13 12:5x 複查：測試現在錨在**存進去的那個值**上，`hasReloadBeenAttempted(at + W - 1)`，
+> 而不是 `Date.now() + W - 1`；實作的 `hasReloadBeenAttempted(now = Date.now())` 收可注入的 `now`）。
+> **判準留著，因為它會在下一支同型的測試上再次成立。**
 
-```
-apps/web/src/app/core/chunk-recovery.spec.ts
-  > 防迴圈旗標 > 時間窗內再失敗 → 擋住（這是防迴圈的核心）
-  Tests  1 failed | 1274 passed
-```
-
-**這是 flake，不是真紅，而且是可以從程式碼推出來的**（不必等它再紅一次）：
+原本的形狀（`apps/web/src/app/core/chunk-recovery.spec.ts`）：
 
 | 位置 | 做什麼 |
 | --- | --- |
@@ -265,22 +254,20 @@ apps/web/src/app/core/chunk-recovery.spec.ts
 | 測試斷言 | `hasReloadBeenAttempted(Date.now() + RELOAD_WINDOW_MS - 1)` — 那個 `Date.now()` 是 `T1 ≥ T0` |
 | 實作 | `return now - at < RELOAD_WINDOW_MS` |
 
-代進去：`(T1 + WINDOW - 1) - T0 < WINDOW` → **`T1 - T0 < 1`**。
-**也就是這條測試只有在兩次 `Date.now()` 落在同一毫秒時才會過。**
-CI 負載一高、跳過 1ms 就紅。
+代進去：`(T1 + W - 1) - T0 < W` → **`T1 - T0 < 1`**。
+**也就是這條測試只有在兩次 `Date.now()` 落在同一毫秒時才會過。** CI 負載一高、跳過 1ms 就紅。
 
-隔壁那條（`+ WINDOW + 1`，期望 false）反而永遠安全：`T1 - T0 < -1` 恆不成立。
-**同一支檔案裡，一條恆真、一條靠運氣，而它們讀起來對稱。**
+**隔壁那條（`+ W + 1`，期望 false）反而永遠安全**：`T1 - T0 < -1` 恆不成立 ⇒ **斷言恆真，從來不會紅**。
 
-這是 README「**測試不能用被測程式碼自己的算法當裁判**」的鄰居，但更薄一層：
-它連算法都沒共用，只是**把期望值建在第二次讀時鐘上**。
-判準補一句：**斷言裡出現第二次 `Date.now()` / `new Date()`，就是把時序寫進期望值了。**
-
-**修法**（不歸 review-steward，交給 web 側）：`markReloadAttempted()` 收一個可注入的
-`now`，或測試改用 fake timer；不要只把 `-1` 調成 `-2`，那只是把機率壓小。
-
-**對其他 PR 的意義**：這支 flake 會讓**任何一支 PR 隨機紅一次**，而它紅的樣子跟真紅一樣。
-看到 PR 紅在 `chunk-recovery.spec.ts` 就直接重跑，不要去查那支 PR 的改動。
+> **同一支檔案裡，一條恆真、一條靠運氣，而它們讀起來對稱。**
+> 這是 README「測試不能用被測程式碼自己的算法當裁判」的鄰居，但更薄一層：
+> 它連算法都沒共用，只是**把期望值建在第二次讀時鐘上**。
+>
+> **修法**：`now` 一律錨在「存進去的那個值」上（或注入 `now` / 用 fake timer）。
+> **不要只把 `-1` 調成 `-2`** —— 那只是把機率壓小。
+>
+> **順帶**：兩條裡真正該擔心的是**恆真的那條** —— 靠運氣的那條至少會紅給你看，
+> 恆真的那條**綠了多久都不代表它驗過任何東西**。
 
 ## 額度行為（今天觀察到的，不是推論）
 
