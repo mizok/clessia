@@ -31,6 +31,7 @@
 | [labor-8.md](labor-8.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-8`         |
 | [labor-9.md](labor-9.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-9`         |
 | [usability-admin.md](usability-admin.md) | 可用性測試（只看畫面，不讀碼） | 用行政任務清單走管理端，記卡點不記感受；**在 repo 外啟動** | `usability-admin` |
+| [labor-db-reset.md](labor-db-reset.md)   | 本機 DB reset（只做這一件）    | 依請求跑 `npm run db:reset` 並回報憑證；不改碼、不開 PR    | `labor-db-reset`  |
 
 > **`labor-*` 是通用執行席，刻意不綁領域。** 2026-09-13 起新開的生產席命名為 `labor-<開席時間戳>`（`labor-YYYYMMDD-HHMM`），`labor-1`～`labor-9` 是改制前的流水號；常設席用職務名（`labor-reviewer`、`labor-db-reset`）。 上面八席是照領域長出來的（金流、管理端、
 > CI…），而那個切法在「今天最缺人的是哪一支」這個問題上答不出來 —— 2026-09-12 一天之內
