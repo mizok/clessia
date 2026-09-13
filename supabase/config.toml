@@ -62,7 +62,11 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./seed.sql"]
+# ⚠️ **順序有意義**：`seed-demo.sql` 沿用 `seed.sql` 已建好的帳號（它不建使用者，c2），
+# 所以 `seed.sql` 必須先跑。#838：原本只有 `seed.sql`，而 `seed.sql` 裡有一段
+# 依賴 `seed-demo.sql` 造的資料 —— `db:reset` 因此在 guard 上 rollback 成空庫。
+# `seed-demo.sql` 只做加法、不 TRUNCATE、重跑會自我修復（見它的檔頭），所以放進來是安全的。
+sql_paths = ["./seed.sql", "./seed-demo.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.

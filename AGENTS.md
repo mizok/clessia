@@ -52,9 +52,21 @@
 | KB 檢查 / 重建索引 | kb-wiki skill：`/kb-wiki lint` / `/kb-wiki map`（**使用者層級，不進版控** —— 見下）       |
 | 重錄測試基線       | `npm run test:baseline`                                                                   |
 | 抓會過期的測試     | `npm run test:timetravel`（把時鐘推 3 個月跑一次；`TT_MONTHS=12` 可改）                   |
-| Supabase 本機      | `npm run db:start` / `db:reset`                                                           |
+| Supabase 本機      | `npm run db:start` / `db:reset`（**兩支 seed 都會套**，見下）                             |
 | 新增 migration     | `npx supabase migration new <description>`                                                |
 | 產生元件等         | `npx nx g @schematics/angular:component foo --type component`（一律帶 `--type`）          |
+
+> **本機展示資料 = `seed.sql` ＋ `seed-demo.sql`，`db:reset` 兩者都套**（#838 起）。
+> `seed.sql` 是冒煙測試用的（每張表 1–6 筆，`test-baseline.json` 的基線依賴它），
+> `seed-demo.sql` 是像真的補習班那一份（一學期的課、報名、成績）。
+> **順序有意義**：`seed-demo.sql` 沿用 `seed.sql` 已建好的帳號（它不建使用者，c2），
+> 所以 `config.toml` 的 `sql_paths` 是 `["./seed.sql", "./seed-demo.sql"]`。
+>
+> ⚠️ **要加「依賴展示資料」的段落請加在 `seed-demo.sql`** —— #838 就是因為一段
+> 依賴 `seed-demo` 資料的 guard 寫在 `seed.sql` 裡，而當時 `db:reset` 只跑 `seed.sql`：
+> **一跑就 RAISE EXCEPTION、整批 rollback，本機變成空庫。**
+> 那段程式碼在本機能動，是因為寫它的人早就手動套過 `seed-demo.sql` ——
+> **而 `db:reset` 被 deny 擋著，所以沒有人跑得動它，也就沒有人發現它壞了。**
 
 > **`test:timetravel` 什麼時候跑它**（#670）——**刻意不接進 CI**：它會製造一個新的紅燈來源，
 > 而那個紅燈的成因跟當事人的改動無關，下一個人得花半小時才搞清楚不是他弄的。所以它是
