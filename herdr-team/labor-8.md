@@ -90,6 +90,42 @@ gh pr list --state open --search "labor-8"   # 共用 GitHub 帳號，要用分�
 兩次都是**問錯了表／欄位**，而兩次的空結果看起來都像一個發現。
 （第 2 條還多一層：它「看起來像缺陷」比「看起來像沒有」更誘人寫下去。）
 
+## `db:reset` 被 deny 擋住，但 `npx supabase migration up` 沒有
+
+`.claude/settings.json` 的 deny 只擋 `db reset` 的五個變體。**`npx supabase migration up`
+不在清單上，而它只套尚未執行的 migration、不動資料** —— 別席合了一支 migration 進 main 之後，
+本機要它生效**不需要 reset**。
+
+```sh
+psql "$DATABASE_URL" -At -c \
+  "select count(*) from supabase_migrations.schema_migrations where version='<version>'"
+npx supabase migration up
+```
+
+⚠️ **worktree 要先有那個檔** —— 從舊的 origin/main 開的分支看不到它，先 `git fetch` 再從最新
+origin/main 開分支（或單獨 checkout 那個檔）。
+
+> **為什麼這條值得寫下來**：套沒套過那支 migration，**它的失敗長得跟「程式沒接」一模一樣**。
+> 有人回報「新加的 audit / 新欄位寫不進去」時，**第一個該問的是他套過那支 migration 沒有**，
+> 不是去讀路由的程式碼。（labor-9 指出這一點比我原本寫的重要。）
+
+## 只看一欄就說「沒有記錄」—— 空欄位跟空紀錄是兩件事
+
+我回報 #832「`organization` 的 `resource_name` 是空的，所以稽核答不出改成什麼」。
+**錯的**：那筆的 `details` 是
+`{"fields":["attendance_mode"],"values":{"attendance_mode":"daily_checkin"}}` ——
+資訊完整，只是不在我看的那一欄。而 `resource_name` 留空是**刻意**的
+（被改的不是那個叫「Clessia Demo」的東西，是一個設定欄位）。
+
+**查完六種 resource_type 之後結論還反過來**：那兩支新寫的是最完整的，
+`subject.update` 是唯一記得下 before 值的（`{"from":…,"to":…}`），
+而**真正空的是 `campus`**（五筆 `details` 全 `{}`）。
+
+> **判準：說「這裡沒有記錄 X」之前，把那張表的每一個欄位都看一遍。**
+> 這是「grep 回空先懷疑 pattern」在**欄位**上的形式 ——
+> 而它比 grep 那一版更容易犯，因為你**確實看到了一個空值**，
+> 那比「什麼都沒找到」更像一個發現。
+
 ## 給下一個接手的人
 
 - **charter 會腐化，接手時先驗一遍再信它。**
