@@ -16,6 +16,8 @@
           <span class="skeleton-bar"></span>
         }
       </div>
+    } @else if (loadFailed()) {
+      <app-load-failed description="沒有讀到操作紀錄，可能是連線問題" (retry)="loadPage()" />
     } @else if (logs().length === 0) {
       <div class="audit-log-dialog__empty">
         <i class="pi pi-history"></i>

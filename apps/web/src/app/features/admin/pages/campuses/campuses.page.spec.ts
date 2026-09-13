@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { CampusesService, type Campus } from '@core/campuses.service';
 import { vi } from 'vitest';
@@ -50,6 +50,37 @@ describe('CampusesPage', () => {
     fixture = TestBed.createComponent(CampusesPage);
     component = fixture.componentInstance;
     await fixture.whenStable();
+  });
+
+  /**
+   * **#812：取數失敗時畫面不能說「尚無分校」或「沒有找到符合…的分校」。**
+   * 實際有 13 個。後者更糟 —— 它叫使用者換關鍵字，而換了不會有用。
+   */
+  it('取數失敗時渲染「載入失敗」，不說沒有分校', () => {
+    campusesServiceMock.list.mockReturnValue(throwError(() => new Error('boom')));
+    component.loadCampuses();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('載入失敗');
+    expect(host.textContent).not.toContain('尚無分校');
+    expect(host.textContent).not.toContain('請嘗試其他關鍵字');
+  });
+
+  it('重試鈕真的重打', () => {
+    campusesServiceMock.list.mockReturnValue(throwError(() => new Error('boom')));
+    component.loadCampuses();
+    fixture.detectChanges();
+    const callsBefore = campusesServiceMock.list.mock.calls.length;
+
+    campusesServiceMock.list.mockReturnValue(of(buildCampusResponse()));
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>('app-load-failed button')!
+      .click();
+    fixture.detectChanges();
+
+    expect(campusesServiceMock.list.mock.calls.length).toBe(callsBefore + 1);
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('載入失敗');
   });
 
   it('should create', () => {

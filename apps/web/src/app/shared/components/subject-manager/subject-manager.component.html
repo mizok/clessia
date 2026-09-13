@@ -27,6 +27,12 @@
           <span class="skeleton-bar"></span>
         </div>
       }
+    } @else if (loadFailed()) {
+      <!--
+        **失敗時連「新增」欄位都不渲染**：你不知道現有科目有哪些，
+        而那顆新增會邀請使用者建出重複的科目（#788 的理由，逐字適用）。
+      -->
+      <app-load-failed description="沒有讀到科目清單，可能是連線問題" (retry)="loadSubjects()" />
     } @else {
       <!-- Subject list -->
       @for (subject of subjects(); track subject.id) {

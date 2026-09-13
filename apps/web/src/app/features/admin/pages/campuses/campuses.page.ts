@@ -12,6 +12,7 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { CampusFormDialogComponent } from './campus-form-dialog.component';
 
 // Responsive Table
+import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
@@ -73,6 +74,7 @@ import {
     RtColDefDirective,
     RtColCellDirective,
     RtRowDirective,
+    LoadFailedComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './campuses.page.html',
@@ -115,6 +117,8 @@ export class CampusesPage implements OnInit {
   // State
   readonly campuses = signal<Campus[]>([]);
   readonly loading = signal(true);
+  /** 取數失敗。**不能沿用 `campuses().length === 0`** —— 那兩個空狀態在失敗時都是謊話（#812） */
+  readonly loadFailed = signal(false);
   readonly searchQuery = signal('');
   protected readonly currentPage = signal(1);
   protected readonly total = signal(0);
@@ -199,6 +203,7 @@ export class CampusesPage implements OnInit {
   /** 觸發取數。實際的請求在 `ngOnInit` 的那條 `switchMap` 管線裡（#661） */
   loadCampuses(): void {
     this.loading.set(true);
+    this.loadFailed.set(false);
     this.loadRequests.next();
   }
 
@@ -219,13 +224,11 @@ export class CampusesPage implements OnInit {
             // toast，看起來像「這次失敗了」不是「這一頁壞了」。
             // 由 spec 的「一次請求失敗之後…」那條釘住（#689）。
             .pipe(
+              // **不再發 toast** —— 主體現在有常駐的失敗狀態；會消失的 toast
+              // 加留著的錯誤畫面是兩個互相矛盾的訊號（#788 的裁定）
               catchError((err) => {
                 console.error('Failed to load campuses', err);
-                this.messageService.add({
-                  severity: 'error',
-                  summary: '載入失敗',
-                  detail: '無法載入分校列表',
-                });
+                this.loadFailed.set(true);
                 this.loading.set(false);
                 return EMPTY;
               }),

@@ -77,6 +77,23 @@ describe('StudentViewComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  /**
+   * **#812：取數失敗時畫面不能說「請嘗試調整篩選條件或搜尋關鍵字」** ——
+   * 那是叫使用者去做一件不會有用的事。#809 讓這支的 toast 出得來了，
+   * 但 toast 會消失，而退化畫面留著。
+   */
+  it('取數失敗時渲染「載入失敗」，不叫使用者調整篩選條件', () => {
+    fixture.detectChanges();
+    http
+      .expectOne((req) => req.url.includes('/api/students'))
+      .flush(null, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('載入失敗');
+    expect(host.textContent).not.toContain('請嘗試調整篩選條件');
+  });
+
   it('loads students on init with active filter by default', () => {
     fixture.detectChanges();
 

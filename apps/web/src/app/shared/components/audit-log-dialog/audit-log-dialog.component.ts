@@ -11,6 +11,7 @@ import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-de
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 
 interface ActionConfig {
   label: string;
@@ -71,6 +72,7 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
     RtColDefDirective,
     RtColCellDirective,
     RtRowDirective,
+    LoadFailedComponent,
   ],
   templateUrl: './audit-log-dialog.component.html',
   styleUrl: './audit-log-dialog.component.scss',
@@ -84,6 +86,8 @@ export class AuditLogDialogComponent {
 
   protected readonly logs = signal<AuditLog[]>([]);
   protected readonly loading = signal(false);
+  /** 取數失敗。**不能沿用 `logs().length === 0`** —— 「尚無操作紀錄」在失敗時是謊話（#812） */
+  protected readonly loadFailed = signal(false);
   protected readonly page = signal(1);
   protected readonly pageSize = signal(10);
   protected readonly total = signal(0);
@@ -149,8 +153,10 @@ export class AuditLogDialogComponent {
     this.loadPage();
   }
 
-  private loadPage(): void {
+  /** `protected` 而不是 `private`：失敗態的重試鈕要在模板裡呼叫它（#812） */
+  protected loadPage(): void {
     this.loading.set(true);
+    this.loadFailed.set(false);
     this.auditLogsService
       .list({
         resourceTypes: this.resourceTypes(),
@@ -163,7 +169,9 @@ export class AuditLogDialogComponent {
           this.total.set(res.meta.total);
           this.loading.set(false);
         },
+        // 原本只關掉 loading —— **零訊號**，44 筆紀錄的對話框變成「尚無操作紀錄」（#812）
         error: () => {
+          this.loadFailed.set(true);
           this.loading.set(false);
         },
       });

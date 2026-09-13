@@ -27,6 +27,8 @@
 
   @if (loading()) {
     <div class="schools-page__loading"><i class="pi pi-spinner pi-spin"></i> 載入中…</div>
+  } @else if (loadFailed()) {
+    <app-load-failed description="沒有讀到學校清單，可能是連線問題" (retry)="load()" />
   } @else if (schools().length === 0) {
     <app-empty-state
       icon="pi pi-building-columns"
