@@ -58,6 +58,17 @@ export class RtColDefDirective {
     return this.key();
   }
 
+  /**
+   * 把主欄標記暴露到 DOM（#848）。**不是為了樣式，是為了讓這個不變量在外面看得見** ——
+   * 版面健全度掃描的判準是「宣告順序第一個非動作欄有沒有被收合」，
+   * 而 `/admin/contact-book` 正當地 opt-out 了；沒有這個屬性，掃描只能把它報成缺陷，
+   * 而「正當的例外」與「真的壞掉」在報告上會長得一模一樣。
+   */
+  @HostBinding('attr.data-rt-col-primary')
+  protected get dataColumnPrimary(): string | null {
+    return this.primary() ? '' : null;
+  }
+
   @HostBinding('class.responsive-table__header-cell')
   protected readonly headerCellClass = true;
 
