@@ -59,3 +59,42 @@ curl -s -o /dev/null -w 'type=%{content_type}\n' "https://demo.clessia.cc/chunk-
 真正在做判斷的是 content-type,而那道判準本身要被驗一次。
 正控證明探針抓得到東西,負控證明它**抓不到不該有的東西**;
 charter 的「gate 寫完塞陷阱看它會不會紅」在部署驗證上的同一件事。
+
+### 部署會撞上 schema,而 git 看不到正式 DB
+
+2026-09-13 計畫席裁定,補上 charter 部署步驟一直缺的那一步(步驟本身寫在
+[`review-steward.md`](review-steward.md) 的 ⓪,**因為做部署的人讀的是那個編號清單,
+不是這一檔**)。
+
+**觸發它的是 #832**:它同時帶了 api 接線與一支 migration
+(`20260913101500`,把 `subject` / `organization` 加進 `audit_logs.resource_type` 的 CHECK)。
+若 api 先上線而正式 DB 沒套,`logAudit` 的 insert 會被 CHECK 擋 —— 而它是 fire-and-forget
+(`apps/api/src/utils/audit.ts`:`waitUntil` 包住、`catch` 只 `console.warn`),
+於是**線上靜默 0 筆**,跟 #828 原本的症狀一模一樣。
+
+**一般形狀**:**凡是「寫入失敗被吞掉」的路徑,schema 落後就等於靜默資料遺失。**
+不會有 5xx、不會有紅燈、smoke 照樣綠 —— **它跟功能正常運作長得一模一樣。**
+
+#### 那道檢查是個代理指標,它漏掉的是「正式 DB 現在在哪」
+
+`git log <上次截線>..<這次截線> -- supabase/migrations` 回答的是
+**「這個窗口內有沒有新 migration」**,不是**「正式 DB 套到哪一支」**。兩者平常重合
+(每一支都被套了),不重合的那次沒有訊號 —— 這是 charter「一份資料只在它自己的維度上正確」
+的同一族:
+
+| 我查的 | 它回答的 | 我要知道的 |
+| --- | --- | --- |
+| `git log <窗口> -- supabase/migrations` | 這段 commit 範圍有沒有動 schema | 正式 DB 現在的 schema 是哪一版 |
+
+**具體的漏法**:上一輪有一支 migration 沒被套,而這一輪的窗口裡沒有新 migration ——
+檢查回空、綠燈放行,**而缺的那支還是缺的**。窗口的右邊界是查得到的,**左邊界是假設出來的**。
+
+**所以截線表加了「正式 DB 套到」一欄。** 它補的正是那個左邊界。
+而它**只能由使用者填** —— repo 裡查不到(`package.json` 的 `db:*` 全指向本機 supabase),
+所以那一欄不是量測值,是**宣告值**;寫下它的人是唯一知道的人。
+
+> **這條沒有做完。** 現在的狀態是「有一道會叫停的檢查 + 一欄要人填的紀錄」,
+> 而**要人填的東西在輪替面前一定會輸**(README 通則)。真正的機械解是讓正式 DB
+> 自己說它套到哪(一支唯讀查詢 `supabase_migrations.schema_migrations`),
+> 那需要 #495 那條「能連真 DB 的驗證環境」—— **在那之前這一欄會空著,
+> 而空著比填一個猜的值誠實。**

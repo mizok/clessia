@@ -830,12 +830,16 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 在 2026-09-12 之前,「線上落後多少」這個問題**在任何地方都查不到答案**,
 只能拿線上的 bundle hash 去猜。所以截線記在這裡,**每次部署後更新這張表**。
 
-| 部署時間(台北) | 截線 SHA | web bundle | api version id | 部署者 |
-| --- | --- | --- | --- | --- |
-| 2026-09-13 09:5x | `fce7c2b6` | `main-VWXREIM7.js` | `2d198aac` | labor-reviewer |
-| 2026-09-13 00:3x | `b5b8ac92` | `main-AQOBVFQF.js` | `fc287869` | review-steward |
-| 2026-09-12 14:2x | `924c9ac2` | `main-UNYN3OOY.js` | `11b95f6d` | review-steward |
-| (在那之前) | 不明 | `main-PWQOIY54.js` | 不明 | 不明,約一週前 |
+| 部署時間(台北) | 截線 SHA | web bundle | api version id | 正式 DB 套到 | 部署者 |
+| --- | --- | --- | --- | --- | --- |
+| 2026-09-13 09:5x | `fce7c2b6` | `main-VWXREIM7.js` | `2d198aac` | **不明**(見下) | labor-reviewer |
+| 2026-09-13 00:3x | `b5b8ac92` | `main-AQOBVFQF.js` | `fc287869` | 不明 | review-steward |
+| 2026-09-12 14:2x | `924c9ac2` | `main-UNYN3OOY.js` | `11b95f6d` | 不明 | review-steward |
+| (在那之前) | 不明 | `main-PWQOIY54.js` | 不明 | 不明 | 不明,約一週前 |
+
+**「正式 DB 套到」這一欄只能由使用者填** —— repo 裡沒有任何指令查得到它
+(`package.json` 的 `db:*` 全部指向本機 supabase),所以它不是查出來的,是**報出來的**。
+前三列寫「不明」不是漏填,是**那三次部署當時沒有人在記這件事**,回頭補等於編造。
 
 **截線選法**:**最近一顆 CI 完成且 `conclusion=success` 的 main commit**,不是 HEAD ——
 HEAD 上通常還有幾顆在跑,而部署一顆沒跑完的 commit 等於自己放棄那道守衛。
@@ -887,9 +891,31 @@ curl -s -o /tmp/c -w '%{content_type}' "https://demo.clessia.cc/<chunk 名>"
 
 **看 content-type 不看狀態碼** —— `demo.clessia.cc` 的任何路徑都回 200(charter 拓撲那節)。
 
+### ⓪ 部署前先查有沒有沒套的 migration —— **這一步在 ① 之前,而且它會叫停**
+
+> 2026-09-13 計畫席裁定(#832 的 migration 差點被這條路漏掉),理由與更廣的形狀寫在
+> [`labor-reviewer.md`](labor-reviewer.md)「部署會撞上 schema,而 git 看不到正式 DB」那節。
+
+```bash
+git log --oneline <上次截線>..<這次截線> -- supabase/migrations
+```
+
+**非空就停下來,報計畫席與使用者,不要繼續。** 正式 DB 的 migration **由使用者親自套**
+(schema 是保留類),**套完才部署 api**。
+
+**預設整批都停,不是只停 api。** 要拆成「web 先上、api 等」得先說明**這一批的 web
+不依賴那支 migration 之後的 api 行為** —— 沒說明就是一起等。
+
+**為什麼這一步比它看起來重要**:`logAudit` 是 fire-and-forget
+(`waitUntilFrom` 包住、失敗只 `console.warn`),所以 **api 先上線而 DB 沒套,
+症狀是「程式接上了、DB 裡 0 筆」而線上一聲不響** —— 那正是 #828 的症狀搬到線上,
+而且更難查。**這一類的通則:凡是「寫入失敗被吞掉」的路徑,schema 落後就等於靜默資料遺失。**
+
 ### 一次完整部署的順序(2026-09-12 實跑過)
 
 ```bash
+# ⓪ 先跑上面那道 migration 檢查 —— 非空就停,不要往下走
+
 # ① 記錄部署前線上 —— 三方比對的第一方
 curl -s https://demo.clessia.cc/ | grep -oE 'main-[A-Z0-9]{8}\.js'
 
