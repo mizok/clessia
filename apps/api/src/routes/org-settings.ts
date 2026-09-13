@@ -2,6 +2,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { writeRequiresAdmin } from '../middleware/auth';
 import { hasPermission } from '../lib/permissions';
+import { logAudit } from '../utils/audit';
+import { waitUntilFrom } from '../lib/wait-until';
 
 const AttendanceModeSchema = z.enum(['per_session', 'daily_checkin']).openapi('AttendanceMode');
 
@@ -143,6 +145,7 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
+    const userId = c.get('userId');
     const body = c.req.valid('json');
 
     // 餐費單價、開帳天數、比例分攤基準是**財務設定** —— 改它們要 `manage_finance`，
@@ -175,6 +178,32 @@ app.openapi(
     if (error || !data) {
       return c.json({ error: '更新組織設定失敗' }, 500);
     }
+
+    /**
+     * **#828：這是整個系統設定區裡影響面最大的開關，而它原本是唯一一個改了不留痕跡的。**
+     *
+     * `attendance_mode` 不是外觀選項 —— 它決定老師端有沒有點名入口、出勤紀錄怎麼產生
+     * （`schedule.page.ts` 的 `isTeacherLed()` 吃它）。在這一筆之前，
+     * **沒有任何方法可以回答「是誰、什麼時候把出勤模式改掉的」。**
+     *
+     * `details` 記的是**這次請求實際送出的欄位**（`updates` 的 key 是 snake_case 的
+     * 欄位名），不是整張設定 —— 一次只改一個欄位時，稽核紀錄不該看起來像全部都動了。
+     */
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        // `organization` 而不是 `org_settings`：被動到的實體就是 `organizations` 那一列
+        //（理由寫在 20260913101500 那支 migration 的檔頭）
+        resourceType: 'organization',
+        resourceId: orgId,
+        resourceName: null,
+        action: 'update',
+        details: { fields: Object.keys(updates), values: updates },
+      },
+      waitUntilFrom(c),
+    );
 
     return c.json(
       toOrgSettingsResponse(data, hasPermission(c.get('permissions') ?? [], 'manage_finance')),

@@ -175,3 +175,133 @@ describe('touchesFinanceSettings', () => {
     expect(toOrgSettingsResponse(row).attendanceMode).toBe('daily_checkin');
   });
 });
+
+/**
+ * **#828：出勤模式改了不留痕跡。**
+ *
+ * `attendance_mode` 決定**老師端有沒有點名入口**、出勤紀錄怎麼產生
+ * （`schedule.page.ts` 的 `isTeacherLed()` 吃它）——
+ * 它是整個系統設定區裡影響面最大的開關，而它原本是唯一一個沒有 `audit_logs` 的。
+ * 在這一筆之前，**沒有任何方法可以回答「是誰、什麼時候把出勤模式改掉的」。**
+ *
+ * ⚠️ 這組測試證明的是「接線存在」，不是「DB 真的收下那一筆」——
+ * `resource_type` 的 CHECK 是這一輪才加上 `organization` 的，
+ * 而 `logAudit` 被 CHECK 擋掉時只會印一行，測試照樣綠（見 subjects.spec 的同一段）。
+ *
+ * 上面那組 `appAs` 刻意不給 supabase（它只測准入，到 DB 那行就 500），
+ * 所以這裡自己建一個**替身完整**的 app。
+ */
+describe('PATCH /settings 的稽核紀錄（#828）', () => {
+  function appWithDb() {
+    const auditRows: Array<Record<string, unknown>> = [];
+
+    const supabase = {
+      from(table: string) {
+        if (table === 'organizations') {
+          return {
+            update: () => ({
+              eq: () => ({
+                select: () => ({
+                  single: () =>
+                    Promise.resolve({
+                      data: {
+                        id: 'org-1',
+                        name: 'Clessia Demo',
+                        attendance_mode: 'daily_checkin',
+                        attendance_responsible: 'admin',
+                        attendance_retroactive_days: 0,
+                        invoice_due_days: 7,
+                        meal_default_price: 60,
+                        proration_basis: 'sessions',
+                      },
+                      error: null,
+                    }),
+                }),
+              }),
+            }),
+          };
+        }
+        // `logAudit` 先查 profiles 再寫 audit_logs —— 缺任何一個它就靜默失敗
+        if (table === 'profiles') {
+          return {
+            select: () => ({
+              eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+            }),
+          };
+        }
+        if (table === 'audit_logs') {
+          return {
+            insert: (payload: Record<string, unknown>) => {
+              auditRows.push(payload);
+              return Promise.resolve({ error: null });
+            },
+          };
+        }
+        throw new Error(`Unsupported table in this fixture: ${table}`);
+      },
+    };
+
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set;
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('orgId', 'org-1');
+      set('userId', 'user-1');
+      set('supabase', supabase);
+      await next();
+    });
+    app.route('/', orgSettingsRoute as unknown as Hono);
+
+    return { app, auditRows };
+  }
+
+  async function patchMode(body: unknown) {
+    const { app, auditRows } = appWithDb();
+    const res = await app.request('/settings', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(200);
+    // fire-and-forget：讓 logAudit 的 microtask 跑完
+    await Promise.resolve();
+    await Promise.resolve();
+
+    return auditRows;
+  }
+
+  it('改出勤模式會寫一筆 audit_logs', async () => {
+    const auditRows = await patchMode({ attendanceMode: 'daily_checkin' });
+
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]).toMatchObject({
+      resource_type: 'organization',
+      resource_id: 'org-1',
+      action: 'update',
+    });
+  });
+
+  /**
+   * **`details` 只記這次真的送出的欄位。** 一次只改一個欄位時，
+   * 稽核紀錄不該看起來像整張設定都動了 —— 那會讓「誰改了出勤模式」這個問題
+   * 在每一筆設定變更上都得到「可能是他」的答案。
+   */
+  it('details 只含這次送出的欄位，不是整張設定', async () => {
+    const auditRows = await patchMode({ attendanceMode: 'daily_checkin' });
+
+    expect(auditRows[0]['details']).toEqual({
+      fields: ['attendance_mode'],
+      values: { attendance_mode: 'daily_checkin' },
+    });
+  });
+
+  it('改別的欄位時 details 跟著換 —— 不是寫死出勤模式', async () => {
+    const auditRows = await patchMode({ attendanceRetroactiveDays: 30 });
+
+    expect(auditRows[0]['details']).toEqual({
+      fields: ['attendance_retroactive_days'],
+      values: { attendance_retroactive_days: 30 },
+    });
+  });
+});

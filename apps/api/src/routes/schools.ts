@@ -159,10 +159,13 @@ app.openapi(createRouteDef, async (c) => {
     {
       orgId,
       userId,
+      // #828：`action` 收斂成裸的 `create` / `update` / `delete`（跟 campuses 一致）——
+      // `resource_type` 已經帶了實體種類，`school.` 前綴是重複的。
+      // ⚠️ **已經寫進 DB 的列不會變**，所以 `school.*` 從此只存在於歷史列。
       resourceType: 'school',
       resourceId: data.id,
       resourceName: data.name,
-      action: 'school.create',
+      action: 'create',
       details: {},
     },
     waitUntilFrom(c),
@@ -240,7 +243,7 @@ app.openapi(updateRouteDef, async (c) => {
       resourceType: 'school',
       resourceId: id,
       resourceName: data.name,
-      action: 'school.update',
+      action: 'update',
       details: payload,
     },
     waitUntilFrom(c),
@@ -315,7 +318,7 @@ app.openapi(deleteRouteDef, async (c) => {
       resourceType: 'school',
       resourceId: id,
       resourceName: data.name,
-      action: 'school.delete',
+      action: 'delete',
       details: {},
     },
     waitUntilFrom(c),
