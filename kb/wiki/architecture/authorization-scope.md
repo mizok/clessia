@@ -3,7 +3,7 @@ title: 授權範圍 —— 分校、職務、細部權限
 summary: 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
 category: architecture
 status: active
-updated: 2026-09-02
+updated: 2026-09-13
 tags: [architecture, authorization, campus, teacher-scope, permissions, security]
 ---
 
