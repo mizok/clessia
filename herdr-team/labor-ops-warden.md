@@ -66,6 +66,31 @@
    **`backlog.md` 的席位段落不再是這項檢查的輸入**(2026-09-06 起,見上)——
    若巡檢過程中順手看到 backlog.md 與 issue 兩邊說法不一致,那不是「兩邊都要信
    一半」,是**只信 issue,把矛盾回報計畫席**,不要自己判斷哪個對。
+
+   **孤兒 seat 標籤掃描**(2026-09-13 計畫席加,它上任第一次點名就撞到三筆):
+   **issue 掛著 `seat:X` 但 X 已經不在 `herdr agent list` 上**。這是「不要用 issue 板
+   推論席位活動」那條的鏡像 —— **反過來一樣成立:席位消失不會讓 issue 板變樣**,
+   於是那些工單在板上看起來「有人在做」,實際上沒有人。席名集合對 `seat:` 標籤集合
+   取差集就查得出來,**只列出來給計畫席,不判斷嚴重度、不重派**(重派是它的):
+
+   ```bash
+   live=$(herdr agent list 2>/dev/null | python3 -c "import sys,json;print('\n'.join(
+     a['name'] for a in json.load(sys.stdin)['result']['agents'] if a.get('name')))" | sort -u)
+   gh issue list --state open --limit 200 --json number,title,labels \
+     --jq '.[] as $i | $i.labels[] | select(.name|startswith("seat:"))
+           | "\(.name|ltrimstr("seat:"))\t#\($i.number) \($i.title)"' \
+    | while IFS=$'\t' read -r seat rest; do
+        grep -qx "$seat" <<<"$live" || echo "孤兒 seat:$seat  $rest"
+      done
+   ```
+
+   **這支掃不到的那一半,要一起講出來**:它只看 **open issue**。派在**已合 PR 的後續
+   驗證**上的工作不帶 `seat:` 標籤、也不在 issue 板上,席位一死就完全無人知道
+   (2026-09-13 的第四筆:#655/#660/#664/#672 派給 `usability-admin`,那一席退場後
+   四條線上驗證全部沒有回報,而 `seat:usability-admin` 這個標籤**從來不存在**,
+   所以這支一行掃描永遠掃不到它)。**掃描回綠不等於沒有孤兒工作,只等於 issue 板上
+   沒有** —— 回報時要把這句一起寫,不然綠燈會被讀成「都盤過了」。
+
 5. **絕不做**:**派新工單、指示某席接哪一項、代它做決定**(那全是計畫席的)、
    改 backlog/issue 內容(只讀)、任何程式碼。**「指出一張既有工單」也算派工**——
    2026-09-06 曾經對照 backlog.md 判斷某席「佇列空了」,直接告訴它「去接續 X」,
