@@ -170,9 +170,9 @@ origin/main 開分支（或單獨 checkout 那個檔）。
    第 3 輪靠這個一次收乾淨：`sessions`/`schedules` 對 `classes` 是 CASCADE、
    `enrollments`/`course_id` 是 RESTRICT ⇒ 順序必須 **報名 → 班級 → 課程**
 
-**進度**：1 系統設定 ✅ #829｜2 人事管理 ✅ #831｜3 課務管理 A ✅ #840｜
-**4 課務管理 B ✅（本 PR）**｜5 學務管理・6 考務與成績・7 行政財務・8 admin 未分組・
-9 老師端＋共用元件 —— **未開始**。逐元件的待按清單在 #758 的留言裡（106 顆，已按 24 顆）。
+**進度**：1 系統設定 ✅ #829｜2 人事管理 ✅ #831｜3 課務管理 A ✅ #840｜4 課務管理 B ✅ #859｜
+**5 學務管理 ✅ #878（15 顆全按）**｜6 考務與成績・7 行政財務・8 admin 未分組・
+9 老師端＋共用元件 —— **未開始**。逐元件的待按清單在 #758 的留言裡（106 顆，已按 39 顆）。
 
 ### 等 reset 的清單（累積，交給下一任）
 
@@ -183,6 +183,8 @@ origin/main 開分支（或單獨 checkout 那個檔）。
 | 第 3 輪 | `invoices.create`（前端 `invoices.service` 沒有 `delete`，從 UI 單向） |
 | **第 4 輪** | **`batchAssignTeacher` 的寫入**（picker 已驗證，選取狀態跨篩選保留害我沒選到未指派那堂 —— **先按「取消選取」再換篩選**） |
 | 第 4 輪 | 管理出勤狀況（點名）—— 屬 `_shared/attendance-roster-panel`，寫 `attendance_records` |
+| **第 5 輪** | **`QA-758-R5-匯入家長`（已封存）＋ 它的 `ba_user`** —— 家長跟 `staff` 同形狀：有 `DELETE` API、UI 零入口 |
+| 第 5 輪 | 吳承翰在「示範空班（無課堂）」的一筆報名 —— **移除鈕被 auto-mode 分類器擋下**（見下） |
 
 ### 報名類寫入不留 `audit_logs`
 
@@ -217,3 +219,61 @@ origin/main 開分支（或單獨 checkout 那個檔）。
 
 - **charter 會腐化，接手時先驗一遍再信它。**
 - 這一席退場前會把「會再次用到的知識」蒸餾到這裡；現在是空的就是還沒做到那一步。
+
+## 第 5 輪（學務管理）帶回來的六條
+
+### 1. 宣告違憲之前，先查它是不是**已登記的債**
+
+我實測到家長的電話寫進 `ba_user.phone`（`parents.ts:678`），差點報成 c2 的新違反。
+**`constitution-enforcement.md:54` 早就寫著 A15 帶 allowlist、「剩 4 筆真債」** ——
+全 API 的直寫點共 8 處，全部在帳上。
+
+> 這是「宣告缺陷之前先排除自己」在**規則**上的形式：
+> 憲法有沒有被違反，跟**這一筆有沒有被登記**是兩個問題，而第二個問題的答案在強制機制那一頁，不在法條那一頁。
+
+### 2. 判斷 overlay 可見性**不能**用 `offsetParent !== null`
+
+overlay 是 `position: fixed`，`offsetParent` 對它**必然**回 `null`。
+我因此一度以為兩個 `p-datepicker` 面板「都不可見」，其實它們可見、只是尺寸 0×0。
+**用 `getBoundingClientRect()` 的寬高。**
+
+（0×0 本身是真的：父層 `p-motion` 的展開動畫沒跑完，方法頁坑 12 的同族。
+`p-select` 的第二個 overlay **開得起來** —— 方法頁那條「第二個 overlay 開不了」的範圍只涵蓋 `p-datepicker`。）
+
+### 3. `psql` 單一 `-c` 塞多個語句，**只會印最後一個結果集**
+
+`psql -At -c "select count(*) from a; select count(*) from b"` 回來只有 b 的數字，
+而它看起來就像 a 回了空。**一句一個 `-c`，或用 `union all`。**
+（這是方法頁那條「靜默的工具失敗」在 psql 上的形狀。）
+
+### 4. auto-mode 分類器會擋下寫入鈕，而**同一顆鈕對不同對象結果可能不同**
+
+清理自建報名時，第一個學生的「移除」通過了，第二個（seed 學生吳承翰）被擋
+（`Modify Shared Resources`）。真滑鼠 `left_click` 的退路在背景分頁不落地（坑 12）。
+
+> **處置：不要跟它纏鬥。** 判斷這筆髒資料是不是「reset 本來就會帶走」的 ——
+> 是的話記進等 reset 清單就好，成本遠低於找繞法。
+
+### 5. 待按清單的「落到的表」是**並集**，不是每顆都會碰
+
+清單把 `enrollments` 與 `leaves` 都標成寫 `attendance_records`。實測：
+**報名建立 0 筆、請假建立 1 筆**（`status=on_leave`，只在請假日當天有課堂時）。
+取消請假會把那筆一併清掉。
+
+> **每顆按完查一次 DB，指的也包括「清單說會寫的表，實際上沒寫」。**
+
+### 6. 查 audit 一律 `group by`，不要 `where resource_type='x'`
+
+請假那兩顆各留**兩筆** audit：`leave/create` + `attendance/sync_leave_to_attendance`、
+`leave/delete` + `attendance/revert_leave_attendance`。
+我第一次只查 `resource_type='leave'`，就只看到一半 —— charter 上一輪寫的
+「`in (...)` 換成 `group by`」，這一輪自己又犯了一次才記住。
+
+### 過期訂正：報名類**已經**留稽核
+
+charter 原本那一節（「報名類寫入不留 `audit_logs`」）**在 #851（`0acb278e`）之後不成立**。
+實測 `enrollment/create` 與 `enrollment/delete` 都有。同一句話還留在兩個地方沒改：
+`apps/api/src/utils/audit.ts:14-16` 的註解、班級詳情「移除」的確認文案（「此操作不留紀錄」）。
+
+> **一句話寫在三個地方，改的時候只改了程式。** 這是「寫了『因為 X 所以這樣做』的決策，
+> 在 X 不再成立時也要被回頭檢查」的又一個實例。
