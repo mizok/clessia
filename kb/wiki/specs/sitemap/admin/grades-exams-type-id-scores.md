@@ -323,3 +323,46 @@ error: () => {
 | 「載入失敗／無法載入考試資料」那則 toast | **沒有捕捉到** —— 讀取時畫面上只剩落地頁自己的 toast。機制在原始碼上確定存在，但**畫面上有沒有真的出現過、停留多久，是未驗的** |
 | 重試鈕按了會不會真的重打 | 需要真滑鼠（坑 12） |
 | 其他寬度 | 只量 390 |
+
+## 寫入實按（Phase 2-B 第 6 輪，2026-09-13）
+
+環境與基線見 [[specs/sitemap/admin/grades-exams]] 同名一節。
+
+**兩種成績登錄器是兩套 UI，不是同一套換資料**：
+
+| | 補習班（`academy-score-editor`） | 學校（`school-score-editor` + `score-edit-dialog`） |
+| --- | --- | --- |
+| 版面 | **一張表**，每列一名學生（分數／狀態／備註都在列上） | **每名學生一張卡片**，點開對話框逐**科目**登分 |
+| 儲存 | 右下 **FAB「儲存成績」** | 對話框內的 `儲存` |
+| 儲存鈕何時存在 | `@if (!isClosed() && canSave())` —— **有 dirty 才渲染**（`score-entry.component.html:105`） | 對話框一開就在 |
+| 一次寫幾列 | 每名學生 1 列 `academy_scores` | 每名學生 × 每科目 1 列 `school_scores` |
+| 篩選 | 無 | 分校 / 年級 / 全部・待登錄・已登錄・缺考・補考 |
+
+實按結果：補習班登 3 名學生 → `academy_scores` +3；
+學校登 1 名學生 × 3 科 → `school_scores` +3。兩邊都 toast「已更新 3 筆成績」，
+audit 各一筆 `*.scores.upsert`，`details` 是 `{"affected": 3}`。
+
+### 分數欄是 `p-inputnumber`，而「原生 setter + 派 input」**在這裡有效**
+
+方法頁把 `p-inputnumber` 跟 `p-datepicker` 一起列在「合成值無效」那一欄。
+**本輪實測：分數欄吃得下** —— `setNative(el, '85')` 之後派一個 `blur`，
+`dirtyCount()` 立刻變 1、FAB 出現、送出去的值也是 85（DB 確認）。
+
+> **訂正範圍**：無效的是 `p-datepicker`（含 `[timeOnly]`）。
+> `p-inputnumber` 這個用法（`[(ngModel)]` + blur 提交）吃得下合成值。
+> ⚠️ 但**不要因此推論所有 `p-inputnumber` 都行** —— 差別可能在有沒有 `blur` 這一步，
+> 本輪只驗了這兩處（成績欄、學校考試的學年度）。
+
+### 補習班成績表的一個假象
+
+填進去之後 `input.value` 是 `85`，**但 `main` 的 `innerText` 讀不到它**
+（`p-inputnumber` 的值在 `<input value>` 上，不在文字節點裡）。
+**用 `innerText` 驗「填進去了沒有」會得到一個假的空結果** —— 讀 `input.value`，或直接查 DB。
+
+### 未驗
+
+| 項目 | 原因 |
+| --- | --- |
+| 狀態下拉（正常／缺考／補考…）的寫入 | 只驗了 `正常`；改狀態會走 `status !== 'scored'` 那條分支，**那是唯一能繞過「清空無效」的路**，但它寫進去的仍是一列成績 |
+| 學校登錄頁的四個篩選 | 唯讀，非寫入鈕 |
+| 已結束考試的成績頁 | `isClosed()` 時 FAB 不渲染，本輪沒在結束狀態下開過成績頁 |
