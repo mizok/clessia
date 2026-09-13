@@ -28,17 +28,21 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-09-13 00:3x 部署，review-steward）
+## 🚀 線上是哪一版（2026-09-13 09:5x 部署，labor-reviewer）
 
-**截線 `b5b8ac92`** —— 那之後合的都還沒上線。**含 `e86e49ba`（#742）** —— 它是計畫席指定的
-「今天最後一支」，但**部署當下它的 CI 還在跑**，所以不在這一批。
+**截線 `fce7c2b6`** —— 那之後合的都還沒上線。截線就是部署當下 main 的 HEAD，
+而且它的 verify 已經 `completed/success`（**不是**「等某一支指定的 PR」——
+charter 記著那個目標會一直動）。
 
 | | 值 |
 | --- | --- |
-| web bundle | `main-AQOBVFQF.js`（部署前是 `main-UNYN3OOY.js`，2026-09-12 14:2x） |
-| api version id | `fc287869` |
+| web bundle | `main-VWXREIM7.js`（部署前是 `main-AQOBVFQF.js`，2026-09-13 00:3x） |
+| api version id | `2d198aac`（部署前是 `fc287869`） |
 | 三方比對 | 部署後線上 == 本機 build，且 != 部署前線上 ✓ |
-| 這一批 | 上次部署後的 **47 筆**，其中 18 支 feat/fix，**幾乎全是 `apps/web`** |
+| 這一批 | 上次部署後的 **59 筆**，其中 17 支 feat/fix；**web 81 檔、api 14 檔都有動** |
+
+`styles-NT5GAE5N.css` 前後相同 —— 全域 `styles.scss` 這批沒動，**元件級 SCSS 編進 JS chunk**
+（charter 部署備忘），所以那個 hash 不變是正確的，不是沒部署到。
 
 **跨部署的累積紀錄在 `herdr-team/review-steward.md` 的「部署節奏與截線紀錄」表**，
 不在這裡 —— 這一節會被清空，那張表不會。
@@ -47,27 +51,40 @@
 理由不是「線上不能舊」，是**部署這條路壞了而沒有人知道** ——
 `smoke` 證明的是線上那一版還在服務，不是部署還做得動。
 
-### ⚠️ 這次驗了什麼、沒驗什麼 —— 不要讀成「四條路徑驗過了」
+### ⚠️ 這次驗了什麼、沒驗什麼
 
-**驗了**（2026-09-13 這次）：
+**驗了**：
 
-- **線上實際下載 lazy chunk**（不只驗本機產物）：`chunk-5SUT627O.js` 含「請聯絡補習班」（#740）、
-  `chunk-WPXR4OZL.js` 含「這段期間」（#721），兩個都是 `application/javascript` 而非 SPA fallback 的 HTML
-- api 正控 / 負控（404 + JSON）/ SPA fallback 拓撲對照，全部符合 charter 記載
-- **api 的 `openapi.json` 與上次逐字相同，而那是正確的** ——
-  `git diff 924c9ac2..b5b8ac92 -- apps/api` 是空的（這批一個 api 檔都沒動）
+- **線上實際下載 lazy chunk**：`chunk-D7HVCXT6.js` / `chunk-NCW4Z35I.js` 含
+  `manage_org_settings`（#772，上次截線的 web 是 **0 處**），`chunk-2UQO7W2J.js` /
+  `chunk-3GZRGV7N.js` 含 `app-load-failed`（#788，上次截線**整個目錄不存在**）——
+  四個都是 `application/javascript`
+- **負控**：`chunk-ZZZZZZZZ.js` 回 `text/html`（SPA fallback）——
+  證明「拿到 JS」這件事有鑑別力。`demo.clessia.cc` 任何路徑都回 200，**做判斷的是 content-type**
+- **api 的 `openapi.json` 前後有差，而差的正好是這批改的那支**：
+  `/api/login-links` 多了 `403 權限不足`（#464 的 `requiredPermissionsForTarget`）。
+  上次那批「逐字相同」是因為一個 api 檔都沒動；這批動了 14 個，所以**該有差**
+- api 正控（`workers.dev/api/system-time` → JSON 200）、負控（`workers.dev/no-such-route`
+  → **404 + JSON**）、拓撲對照（`demo.clessia.cc/no-such-route` → **200 + HTML**）全部符合 charter
 
 **沒驗**：
 
 > **產物裡有那些字串 ≠ 畫面上那些功能能動。**
 
-**四條使用者會感覺到行為改變的路徑，一條都沒有在線上實際點過**（本席的瀏覽器擴充沒連上）。
-其中 **#660 的「搜尋慢一拍」完全沒有可用的產物探針** ——
-它只動邏輯、沒有新文案或 CSS class，而 `debounceTime` 是 RxJS 的 import 名，
-production build 會 mangle 掉（產物裡回 0 是**探針壞**不是東西不在，
-原始碼層已確認截線含它）。
+本席不碰瀏覽器（Chrome 由 labor-8 獨占），**這批 17 支 feat/fix 沒有一條在線上被實際點過**。
+其中權限相關的幾支（#772 權限勾選清單、#464 login-links 的 403）**只有登入之後才看得到**，
+而那要一個有瀏覽器、且知道修法前長什麼樣的席。
+
+**⚠️ 這批含授權/權限路徑的改動**（#464 的 mount 權限重掛、#816 的家長清單分校範圍）——
+它們是**已經合進 main 的**（保留類的「使用者親合」在合併那一關，不在部署這一關），
+但線上生效就是現在。**行為若不對，回退是 `npx wrangler rollback --env production`，
+不要現場修。**
 
 ### 這半歸誰、什麼時候 —— **已派工，不是待辦**
+
+> **這一小節是從上一批（截線 `b5b8ac92`）帶過來的，沒有被這次部署取代** ——
+> 那四條早就在線上（`b5b8ac92` 是 `fce7c2b6` 的祖先），**還沒有人回報走過**。
+> 走完請把整節刪掉。
 
 **`usability-admin` 席**（計畫席 2026-09-12 指派）。選它的理由是它有瀏覽器，
 而且**跑過兩輪管理端任務，知道這四條在修法前長什麼樣** —— 比對得出差別。
@@ -222,7 +239,7 @@ gh run view <run-id> --json jobs --jq '.jobs | length'
 ## 保留類（只有使用者能合）
 
 **migration（schema）／金額計算路徑／授權權限邏輯。** 這三類 CI 綠也不要合，
-攢到使用者窗口。其餘計畫席自己合，或交 `review-steward` 代合。
+攢到使用者窗口。其餘計畫席自己合，或交 `labor-reviewer` 代合。
 
 ## 這一輪在飛的東西：為什麼還沒完，不是進度快照
 

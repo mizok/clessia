@@ -17,7 +17,7 @@
 | [design-web.md](design-web.md)           | 視覺/設計系統/web 效能         | tokens、SCSS、bundle、mockup、登入與公開頁                 | `design-web`      |
 | [api-2.md](api-2.md)                     | 後端 API 第二席                | 領域邏輯收斂、外部依賴查證；與 billing-api 分工            | `api-2`           |
 | [admin-pages.md](admin-pages.md)         | 管理端頁面                     | admin feature 頁、dialog、表格、儀表板                     | `admin-pages`     |
-| [review-steward.md](review-steward.md)   | 審核/合併/部署機械工(可 idle)  | CI 巡檢、v2 代合、部署、內容驗證                           | `review-steward`  |
+| [labor-reviewer.md](labor-reviewer.md)   | 審核/合併/部署機械工(可 idle)  | CI 巡檢、v2 代合、部署、內容驗證                           | `labor-reviewer`  |
 | [ops-warden.md](ops-warden.md)           | 席位巡檢監工(可 idle)          | 存活檢查、通訊救援、帳面抽查                               | `ops-warden`      |
 | [teacher-pages.md](teacher-pages.md)     | 老師端頁面（行動優先）         | teacher feature 頁、手機課表、點名、成績登錄               | `teacher-pages`   |
 | [infra.md](infra.md)                     | CI/harness/依賴/工具債         | verify 序列、gate、憲法 enforcement、升版                  | `infra`           |
@@ -364,11 +364,11 @@ DB 驗證)。計畫席決定關不關或轉問還在用的席。
    **不要停下來等。**
 2. **需要裁決的先做到 STOP gate 前一步就停**,把選項寫成報告貼在 issue 上,
    **不要自己拍板**,也不要找別席代裁 —— **同儕不能授權**。
-3. **非保留類的綠 PR 交給 `review-steward`** —— 它本來就有 v2 代合的職責,
+3. **非保留類的綠 PR 交給 `labor-reviewer`** —— 它本來就有 v2 代合的職責,
    不需要計畫席在場。**保留類(migration / 金額計算路徑 / 授權權限邏輯)一律等使用者。**
 4. **每一席在自己 Ctx 到 90% 時主動蒸餾 charter 並開 PR** ——
    沒有計畫席叫你,你得自己盯。**charter 進了 main,下一任才拿得到。**
-5. **`review-steward` 額外負責**:把「使用者早上回來會想先看的東西」寫進
+5. **`labor-reviewer` 額外負責**:把「使用者早上回來會想先看的東西」寫進
    `herdr-team/status-snapshot.md` —— 合了什麼、卡在哪些裁決、有沒有紅燈。
    **那是唯一會被復活的計畫席讀到的檔案。**
 
