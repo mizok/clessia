@@ -39,11 +39,6 @@
     text-align: center;
     color: var(--zinc-500);
 
-    // 查詢失敗 —— 跟 students.page 的同名修飾類同一個 token，兩頁講同一件事就長一樣
-    &--error {
-      color: var(--error-600);
-    }
-
     // 課表有載到、只有聯絡簿待辦沒有：降一級，因為主要內容是可信的
     &--warning {
       color: var(--warning-600);
@@ -231,6 +226,35 @@
     text-align: center;
     font-size: 0.85rem;
     color: var(--zinc-500);
+  }
+
+  /*
+   * 載入中的日面板骨架。**不在 &__weekbar 裡面** —— 那條是桌機專屬
+   * （下面的 `display: none` 到 640px），骨架掛在它上面時 390 下唯一的
+   * 載入訊號是 `display: none`，畫面上就是七行「沒有課」（#800）。
+   * 這一塊在所有寬度都在，而且它取代整個 &__track，所以載入中不印「沒有課」。
+   *
+   * 尺寸對齊它要替代的東西（日期標題一列 + 兩張課卡），不是隨便的高度：
+   * 骨架跟真物件差太多的話，資料回來那一刻會有一次量級級的跳動。
+   */
+  &__day-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  &__day-skeleton-header {
+    /* 跟 &__weekbar-day 明寫的 44px 下限同一個數，兩處骨架的量級才一致 */
+    width: 100%;
+    height: 44px;
+    border-radius: var(--radius-lg);
+  }
+
+  &__day-skeleton-card {
+    /* 一張 &__session 卡是時間 + 班名 + 一列 chip + 狀態列，約 120px */
+    width: 100%;
+    height: 120px;
+    border-radius: var(--radius-xl);
   }
 }
 

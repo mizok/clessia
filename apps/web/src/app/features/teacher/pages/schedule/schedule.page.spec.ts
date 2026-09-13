@@ -113,6 +113,31 @@ describe('SchedulePage', () => {
   });
 
   /**
+   * **#800**：上面那條的骨架掛在 `&__weekbar` 上，而週條是桌機專屬
+   * （`display: none` 到 `@container shell-content (min-width: 640px)`）——
+   * 所以 390px 下**唯一的載入訊號是 `display: none`**，畫面上就是七行「沒有課」。
+   *
+   * jsdom 沒有 layout，量不到 container query；**能量到的是根因本身** ——
+   * 載入訊號不准掛在那個桌機專屬容器裡面。
+   */
+  it('載入骨架不在桌機專屬的週條裡 —— 390 下也要有訊號', async () => {
+    await setup({ sessionsStall: true });
+
+    expect(fixture.nativeElement.querySelector('.schedule-page__day-skeleton')).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.schedule-page__weekbar .schedule-page__day-skeleton'),
+    ).toBeNull();
+  });
+
+  // 骨架只蓋住週條的話，日清單那半在載入中照樣印七次「沒有課」——1024 也一樣
+  it('載入中不渲染軌道，畫面上沒有「沒有課」', async () => {
+    await setup({ sessionsStall: true });
+
+    expect(fixture.nativeElement.textContent).not.toContain('沒有課');
+    expect(fixture.nativeElement.querySelector('.schedule-page__track')).toBeNull();
+  });
+
+  /**
    * 這條釘住的是一個會靜靜壞掉的東西：後端預設**不回** `cancelled`，
    * 所以少傳 `statuses` 的話停課永遠不會出現，而畫面上看起來只是「那天沒課」。
    */
@@ -223,14 +248,46 @@ describe('SchedulePage', () => {
     });
   });
   describe('載入失敗要產生訊號（#484 H1／H3）', () => {
-    it('課表查失敗顯示「查詢失敗」，而不是七次「沒有課」', async () => {
+    /**
+     * **#800**：這條原本斷言 `.schedule-page__track` 的 `hidden` 屬性是 true，
+     * 而它一直是綠的 —— **但畫面上那塊東西看得見**：`[hidden]` 只設了屬性，
+     * `.schedule-page__track { display: grid }` 是 author 樣式，永遠蓋過 UA 的
+     * `[hidden] { display: none }`（跟 specificity 無關，是階層順序）。
+     * 於是錯誤畫面是「查詢失敗」＋七行「沒有課」照樣佔滿版面 —— 正好是這條
+     * 測試以為自己擋掉的東西。
+     *
+     * **改成斷言使用者看得到的東西**：軌道不渲染、畫面上沒有「沒有課」。
+     */
+    it('課表查失敗不渲染軌道，畫面上沒有七次「沒有課」', async () => {
       await setup({ sessionsFails: true });
       const text = fixture.nativeElement.textContent;
 
-      expect(text).toContain('查詢失敗');
-      // 軌道整個藏起來 —— 不藏的話七天的 `@empty` 各印一次「沒有課」，
-      // 而那跟真的沒有排課一模一樣
-      expect(fixture.nativeElement.querySelector('.schedule-page__track').hidden).toBe(true);
+      expect(text).toContain('載入失敗');
+      expect(text).not.toContain('沒有課');
+      expect(fixture.nativeElement.querySelector('.schedule-page__track')).toBeNull();
+    });
+
+    /**
+     * 錯誤態的錨點會印「0 堂待點名／本週 0 堂」，跟「真的沒課」一模一樣 ——
+     * 跟七行「沒有課」同一個後果（#800）。
+     *
+     * 斷言元素不存在而不是文字不含「本週」：`app-load-failed` 的 description
+     * 自己就有「本週」兩個字（**第一版這條就是這樣誤紅的**）。
+     */
+    it('課表查失敗時不印本週堂數錨點', async () => {
+      await setup({ sessionsFails: true });
+
+      expect(fixture.nativeElement.querySelector('app-band-anchor')).toBeNull();
+    });
+
+    it('錯誤態的重試會重新取數', async () => {
+      await setup({ sessionsFails: true });
+      const callsBefore = sessionsSpy.mock.calls.length;
+
+      fixture.nativeElement.querySelector('app-load-failed button').click();
+      fixture.detectChanges();
+
+      expect(sessionsSpy.mock.calls.length).toBe(callsBefore + 1);
     });
 
     it('換週查失敗不留上一週的資料 —— 舊資料配新標題比空畫面危險', async () => {
@@ -257,12 +314,12 @@ describe('SchedulePage', () => {
       fixture.detectChanges();
 
       expect(fixture.nativeElement.textContent).not.toContain('數學班');
-      expect(fixture.nativeElement.textContent).toContain('查詢失敗');
+      expect(fixture.nativeElement.textContent).toContain('載入失敗');
     });
 
     it('重試成功後失敗訊息要消失 —— 旗標不清會一直喊失敗', async () => {
       await setup({ sessionsFails: true });
-      expect(fixture.nativeElement.textContent).toContain('查詢失敗');
+      expect(fixture.nativeElement.textContent).toContain('載入失敗');
 
       sessionsSpy.mockImplementation(() =>
         of({ data: [], meta: { total: 0, page: 1, pageSize: 20, totalPages: 1 } }),
@@ -272,7 +329,7 @@ describe('SchedulePage', () => {
       await fixture.whenStable();
       fixture.detectChanges();
 
-      expect(fixture.nativeElement.textContent).not.toContain('查詢失敗');
+      expect(fixture.nativeElement.textContent).not.toContain('載入失敗');
     });
 
     it('聯絡簿彙總失敗要講出來 —— 沒有徽章會被讀成「都寫完了」', async () => {
@@ -299,7 +356,7 @@ describe('SchedulePage', () => {
     it('課表本身失敗時優先講課表 —— 設定的警告不蓋掉它', async () => {
       await setup({ sessionsFails: true, orgSettingsFails: true });
       const text = fixture.nativeElement.textContent;
-      expect(text).toContain('查詢失敗');
+      expect(text).toContain('載入失敗');
       expect(text).not.toContain('讀不到點名設定');
     });
   });

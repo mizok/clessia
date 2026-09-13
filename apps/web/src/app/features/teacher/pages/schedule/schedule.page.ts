@@ -2,11 +2,12 @@ import {
   Component,
   ElementRef,
   OnInit,
-  afterNextRender,
   computed,
+  effect,
   inject,
   input,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
@@ -31,6 +32,7 @@ import { PageBandComponent } from '@shared/components/page-band/page-band.compon
 import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
+import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import {
   AttendanceRosterPanelComponent,
   type RosterPanelSession,
@@ -67,6 +69,7 @@ const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
     BandAnchorComponent,
     StatusDotComponent,
     DataChipComponent,
+    LoadFailedComponent,
   ],
   providers: [DialogService],
   templateUrl: './schedule.page.html',
@@ -151,9 +154,7 @@ export class SchedulePage implements OnInit {
    * 只是把「我不知道」講出來。不講的話畫面會用中性的「未點名」蓋掉所有逾期警示，
    * 而那跟「這週都點完了」一模一樣。
    */
-  protected readonly settingsFailed = computed(
-    () => this.orgSettingsService.status() === 'failed',
-  );
+  protected readonly settingsFailed = computed(() => this.orgSettingsService.status() === 'failed');
 
   /** 橘帶的錨點：整週的數字，不是當日的（面板不追捲動位置，理由見設計文件） */
   protected readonly anchor = computed(() => weekAnchor(this.sessions(), this.now));
@@ -179,8 +180,22 @@ export class SchedulePage implements OnInit {
   }
 
   constructor() {
-    // 進頁停在今天那一屏。一次性，之後不再過問捲動位置。
-    afterNextRender(() => this.snapToToday());
+    /*
+     * 進頁與換週都停在今天那一屏 —— **等軌道回到 DOM 之後才做**（#800）。
+     *
+     * 軌道現在是條件渲染的（載入中／錯誤態不畫），而先前兩個呼叫點都落在
+     * 它不在 DOM 的那一刻：`afterNextRender` 的第一次 render 是載入中；
+     * 換週時同步呼叫，拿到的是**即將被拆掉的那個元素**。
+     * 這支 effect 只依賴 `track()`，所以它正好在「軌道出現」時跑一次
+     * —— 進頁一次、每次換週一次；使用者手動捲動之後不會被拉回去，
+     * 因為那不會讓軌道重建。
+     */
+    effect(() => {
+      if (!this.track()) return;
+      // untracked：snapToToday 會讀 weekDays()，不 untracked 的話那些 signal
+      // 都變成這支 effect 的依賴，資料一動就把使用者捲回今天
+      untracked(() => this.snapToToday());
+    });
   }
 
   ngOnInit(): void {
@@ -193,20 +208,20 @@ export class SchedulePage implements OnInit {
   protected prevWeek(): void {
     this.currentWeekStart.update((d) => subWeeks(d, 1));
     this.loadSessions();
-    this.snapToToday();
   }
 
   protected nextWeek(): void {
     this.currentWeekStart.update((d) => addWeeks(d, 1));
     this.loadSessions();
-    this.snapToToday();
   }
 
   /**
    * 把軌道對到今天那一屏；這一週沒有今天就回到週一。
    *
-   * 換週時可以同步呼叫 —— 七個面板的幾何在換週時不變（只有面板裡的卡片會換），
-   * 所以現有的 `offsetLeft` 已經是對的，不必等下一次 render。
+   * **換週時不能同步呼叫了**（#800）：軌道現在是條件渲染的（載入中／錯誤態不畫），
+   * 換週會先進載入中把它從 DOM 移掉，所以呼叫當下 `track()` 還是**即將被拆掉的
+   * 那個元素** —— 設了 `scrollLeft` 也隨它一起消失，而新元素從 0 開始（週一）。
+   * 換週不再呼叫這裡，改由建構式那支 effect 在軌道回到 DOM 之後做。
    * 桌機是 grid、沒有水平捲動，這裡設 `scrollLeft` 是無害的 no-op。
    */
   private snapToToday(): void {
