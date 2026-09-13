@@ -479,6 +479,105 @@ if (existsSync(apiIndex) && existsSync(permissionsFile)) {
   }
 }
 
+// ── A7e. audit_logs.resource_type 的 SQL CHECK 與 TS union 要逐項相同（issue #830）──
+// 兩份清單住在不同語言的不同檔案裡（DB 的 CHECK constraint 與 `utils/audit.ts` 的
+// `ResourceType`），靠人記得一起改 —— 而漏掉的後果是**靜默的**：
+// `logAudit` 是 fire-and-forget（`waitUntilFrom` 包住、失敗只進 console），
+// 所以少一個值的症狀是「程式看起來接上了、`audit_logs` 裡 0 筆」。
+// #828 逐顆實按才發現科目與出勤模式從來沒有稽核紀錄，就是這個形狀；
+// 而 `enrollment` 在 SQL 側從 2026-03 就存在、TS 側一直沒有，漂移了半年沒有人發現。
+//
+// **SQL 側的真相是「最後執行的那一支 migration」**：這個 constraint 的慣例是
+// DROP + ADD **完整清單**，而執行順序看**時間戳**不是合併順序
+//（事故見 `20260829110000_audit_logs_billing_resource_types.sql` 的檔頭 ——
+// 兩條軌並行時後合的那支因為時間戳較早而先跑，把另一條加的值靜靜清掉）。
+// 所以這裡按**檔名排序**取最後一支含 CHECK 的，不是最後修改的、也不是最後合併的。
+//
+// ⚠️ **兩側都要先剝註解才比對。** 第一版沒剝，於是 gate 的一半是死的：
+// `audit.ts` 的註解裡有一句 `resourceType: 'enrollment'`，而值的比對是 `/'([a-z_]+)'/g`
+// —— 把 union 裡的 `| 'enrollment'` 整行刪掉之後，**註解裡那個字串讓 gate 照樣綠**。
+// 是塞陷阱才看到的（四個陷阱裡只有這一個沒紅）。SQL 側同樣要剝：
+// 將來有人在括號內用 `-- 'legacy_thing',` 停用一個值時，不剝的話 gate 會當它還在。
+function stripComments(source, marker) {
+  return source
+    .split('\n')
+    .map((line) => {
+      const at = line.indexOf(marker);
+      return at === -1 ? line : line.slice(0, at);
+    })
+    .join('\n');
+}
+
+{
+  const auditTsPath = join(ROOT, 'apps/api/src/utils/audit.ts');
+  const migrationsDir = join(ROOT, 'supabase/migrations');
+
+  if (existsSync(auditTsPath) && existsSync(migrationsDir)) {
+    const checkFiles = readdirSync(migrationsDir)
+      .filter((name) => name.endsWith('.sql'))
+      .sort()
+      .filter((name) =>
+        readFileSync(join(migrationsDir, name), 'utf8').includes('resource_type IN ('),
+      );
+
+    if (checkFiles.length === 0) {
+      fail(
+        'supabase/migrations 裡找不到任何 `resource_type IN (` 的 CHECK（#830）—— ' +
+          'audit_logs 的值域約束不見了，任何字串都寫得進去，而這道 gate 也就沒有比對的對象',
+      );
+    } else {
+      const lastCheckFile = checkFiles[checkFiles.length - 1];
+      const sqlSource = readFileSync(join(migrationsDir, lastCheckFile), 'utf8');
+      // 一支 migration 可能同時 DROP 舊的再 ADD 新的，取**最後**一組（ADD 在後）
+      const sqlBlocks = [...sqlSource.matchAll(/resource_type IN \(([\s\S]*?)\)/g)];
+      const sqlValues = [
+        ...new Set(
+          [...stripComments(sqlBlocks[sqlBlocks.length - 1][1], '--').matchAll(/'([a-z_]+)'/g)].map(
+            ([, v]) => v,
+          ),
+        ),
+      ].sort();
+
+      const tsSource = readFileSync(auditTsPath, 'utf8');
+      const unionMatch = /type ResourceType =([\s\S]*?);/.exec(tsSource);
+      if (!unionMatch) {
+        fail(
+          'apps/api/src/utils/audit.ts 找不到 `type ResourceType =`（#830）—— ' +
+            '它被改名或刪掉的話，這道 gate 會靜靜地什麼都不比對',
+        );
+      } else {
+        const tsValues = [
+          ...new Set(
+            [...stripComments(unionMatch[1], '//').matchAll(/'([a-z_]+)'/g)].map(([, v]) => v),
+          ),
+        ].sort();
+
+        const sqlOnly = sqlValues.filter((v) => !tsValues.includes(v));
+        const tsOnly = tsValues.filter((v) => !sqlValues.includes(v));
+
+        // **兩個方向都要報，而且後果不同** ——
+        // SQL 有 TS 無：那個值寫得進 DB，但程式打不出來（`logAudit` 的呼叫端會型別錯誤）
+        // TS 有 SQL 無：程式打得出來，而 DB 會拒收 —— **這一邊是靜默的那一邊**
+        if (sqlOnly.length > 0 || tsOnly.length > 0) {
+          fail(
+            `audit_logs.resource_type 的 SQL CHECK 與 TS union 不一致（#830）：\n` +
+              `      SQL（權威，supabase/migrations/${lastCheckFile}）：${sqlValues.join(', ')}\n` +
+              `      TS（apps/api/src/utils/audit.ts）：${tsValues.join(', ')}\n` +
+              (sqlOnly.length > 0
+                ? `      只在 SQL：${sqlOnly.join(', ')} —— 程式打不出這個值\n`
+                : '') +
+              (tsOnly.length > 0
+                ? `      只在 TS：${tsOnly.join(', ')} —— **程式打得出來而 DB 會拒收，` +
+                  `而 logAudit 失敗只進 console：症狀是「看起來接上了、audit_logs 裡 0 筆」**\n`
+                : '') +
+              '      加一個實體時兩邊要一起加；migration 的慣例是 DROP + ADD 完整清單',
+          );
+        }
+      }
+    }
+  }
+}
+
 // ── A7c. 每一支碰 campus_id 的路由都要接上分校預設過濾（clause c1）──────────────────────
 // 「指名別的分校」由全域的 campusRequestGuard 擋住，但「沒指定時只回自己的分校」
 // 要各路由自己過濾。**14 支已全部接上，所以這條從提醒升級成擋。**
