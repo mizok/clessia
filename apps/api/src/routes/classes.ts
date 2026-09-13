@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { formatAuditClassResourceName, logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
+import { checkTeacherEligibility } from '../lib/teacher-eligibility';
 import { buildSessionGenerationPlan } from '../domain/session-assignment/session-generation-planner';
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
 import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
@@ -1406,16 +1407,88 @@ app.openapi(
         description: '成功',
         content: { 'application/json': { schema: z.object({ data: ScheduleSchema }) } },
       },
+      400: {
+        description: 'DB 錯誤',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       404: {
         description: '不存在',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      409: {
+        description: '這位老師未被指派到本分校或科目（#854，跟代課同一個錯誤碼）',
         content: { 'application/json': { schema: ErrorSchema } },
       },
     },
   }),
   async (c) => {
     const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
     const { id, sid } = c.req.valid('param');
     const body = c.req.valid('json');
+
+    /**
+     * **#854：排課指定任課老師要驗分校與科目，跟代課同一個判準、同一個錯誤碼。**
+     *
+     * 原本這裡完全不驗，而代課（409）與批次指派（skip）都驗 —— 三處讀同一張表、一處漏。
+     * 後果：A 校老師被排進 B 校的課，**那堂課從此找不到代課老師**，而畫面上一切正常。
+     *
+     * ⚠️ **只在 `teacherId` 真的變動時驗。** 前端的排課對話框把既有 `teacherId`
+     * 原封不動送回來（它的老師下拉在 D4 已被移除），所以「改個上課時間」也會帶著舊老師。
+     * 不分變動與否一律驗的話，**歷史資料裡任何一筆不合格的排課會從此無法編輯**
+     * —— 那不是擋，那是鎖死（#854 的邊界「既有已排的不回溯」真正的含意）。
+     */
+    const { data: existingSchedule } = await supabase
+      .from('schedules')
+      .select('id, class_id, teacher_id')
+      .eq('id', sid)
+      .eq('class_id', id)
+      .maybeSingle();
+
+    const nextTeacherId = body.teacherId;
+    const teacherChanged =
+      nextTeacherId !== undefined &&
+      nextTeacherId !== ((existingSchedule?.['teacher_id'] as string | null) ?? null);
+
+    // `null` 是取消指派 —— 沒有人要驗資格
+    if (teacherChanged && nextTeacherId) {
+      const { data: classRow } = await supabase
+        .from('classes')
+        .select('id, campus_id, course_id')
+        .eq('org_id', orgId)
+        .eq('id', id)
+        .maybeSingle();
+      const { data: courseRow } = await supabase
+        .from('courses')
+        .select('subject_id')
+        .eq('org_id', orgId)
+        .eq('id', (classRow?.['course_id'] as string | undefined) ?? '')
+        .maybeSingle();
+
+      const campusId = classRow?.['campus_id'] as string | undefined;
+      const subjectId = courseRow?.['subject_id'] as string | undefined;
+
+      if (!campusId || !subjectId) {
+        return c.json(
+          { error: '這個班級缺少分校或科目設定，無法指派老師', code: 'TEACHER_NOT_ELIGIBLE' },
+          409,
+        );
+      }
+
+      const eligibility = await checkTeacherEligibility(supabase, {
+        staffId: nextTeacherId,
+        orgId,
+        campusId,
+        subjectId,
+      });
+
+      if (!eligibility.eligible) {
+        if ('dbError' in eligibility) {
+          return c.json({ error: eligibility.dbError, code: 'DB_ERROR' }, 400);
+        }
+        return c.json({ error: eligibility.reason, code: 'TEACHER_NOT_ELIGIBLE' }, 409);
+      }
+    }
 
     const updateData: Record<string, unknown> = {};
     if (body.weekday !== undefined) updateData['weekday'] = body.weekday;
