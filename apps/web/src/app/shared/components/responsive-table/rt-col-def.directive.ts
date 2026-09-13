@@ -25,6 +25,11 @@ export class RtColDefDirective {
   readonly minWidth = input.required<number>({ alias: 'appRtColDefMinWidth' });
   readonly priority = input.required<number>({ alias: 'appRtColDefPriority' });
   readonly collapsible = input(true, { alias: 'appRtColDefCollapsible' });
+  /**
+   * 這一欄是這筆資料的**身分**嗎（#848）。不給就是宣告順序的第一欄 ——
+   * 只有慣例不成立的表要標（`/admin/contact-book` 第一欄是日期，身分是學生）。
+   */
+  readonly primary = input(false, { alias: 'appRtColDefPrimary' });
 
   constructor() {
     effect(() => {
@@ -34,6 +39,7 @@ export class RtColDefDirective {
         minWidth: this.minWidth(),
         priority: this.priority(),
         collapsible: this.collapsible(),
+        primary: this.primary(),
       });
     });
 

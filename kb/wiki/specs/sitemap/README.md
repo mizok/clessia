@@ -450,6 +450,251 @@ Tab 序列、focus 看不看得見、click-only 而鍵盤到不了的元素
 **768 / 1024 只寫差集**：跟 390 比、跟 1504 比，哪些元素出現或消失。
 **沒有差異就寫「與 390 同」一行**，不要把同一張表抄三遍（c11）。
 
+### 第 4 條手機專屬檢查：版面健全度（#848）
+
+**前三條（溢出、觸控目標、差集）量的是「元素在不在、可不可見、夠不夠大」——
+它們量不到版面壞掉。** #848 是使用者在 390 實機看到的：`/admin/fee-templates` 的
+「新增價目表」被壓成一個 76×133 的直立色塊，五個字一字一行；而
+[[specs/sitemap/admin/fee-templates]] 的 390 節寫的是「新增方案四個寬度都在頁首」
+「除了展開鍵之外零差異」—— **每一句都是對的，而畫面是壞的**。
+
+Phase 2 的 63 頁都有這個盲點。這一條補的就是它，四個量法：
+
+| 症狀             | 量法                                                                 |
+| ---------------- | -------------------------------------------------------------------- |
+| 動作鈕被擠成直排 | 文字 ≤ 8 字卻被折成 ≥ 2 行（`Range.getClientRects().length` 數行盒） |
+| 文字被截         | 葉節點 `scrollWidth > clientWidth`                                    |
+| 表格首欄不是名稱 | 宣告順序第一個非動作欄的 `th` 是不是 `display: none`                  |
+| 版面被內距吃掉   | 從錨點往上累加水平 padding/margin/border，佔視窗寬的比例              |
+
+**53 頁跑一趟約 25 分鐘**（每頁 `open()` 等 2 秒，一次工具呼叫最多塞 6 頁 ——
+再多會撞到 45 秒 CDP 逾時，跟 ④b 同一個限制）。腳本掛在 `__P` 上：
+
+```js
+Object.assign(window.__P, {
+  lab(e) {
+    const c = (e.getAttribute('class') || '')
+      .split(/\s+/)
+      .filter((x) => x && !/^(ng-|p-element$)/.test(x))
+      .slice(0, 3)
+      .join('.');
+    return e.tagName.toLowerCase() + (c ? '.' + c : '');
+  },
+  txt(e) {
+    return (e.textContent || '').replace(/\s+/g, ' ').trim();
+  },
+  lineCount(e) {
+    /* 上面那一段 */
+  },
+
+  // ⑤ 從錨點往上累加水平內距 —— 「panel 左右太寬」的可量化形式
+  padChain(a) {
+    const w = this.w;
+    const chain = [];
+    let sum = 0;
+    for (let p = a; p && p !== this.d.documentElement; p = p.parentElement) {
+      const cs = w.getComputedStyle(p);
+      const h =
+        (parseFloat(cs.paddingLeft) || 0) +
+        (parseFloat(cs.paddingRight) || 0) +
+        (parseFloat(cs.marginLeft) || 0) +
+        (parseFloat(cs.marginRight) || 0) +
+        (parseFloat(cs.borderLeftWidth) || 0) +
+        (parseFloat(cs.borderRightWidth) || 0);
+      if (h > 0) {
+        chain.push(this.lab(p) + ':' + Math.round(h));
+        sum += h;
+      }
+    }
+    return {
+      sum: Math.round(sum),
+      pct: Math.round((sum / w.innerWidth) * 1000) / 10,
+      contentWidth: Math.round(w.innerWidth - sum),
+      chain,
+    };
+  },
+
+  // ④ 觸控分支模擬：抄那段 CSS、去掉 media query、注入、量完移除
+  COARSE:
+    '.responsive-table__expand-cell,.responsive-table__expand-header{width:44px;min-width:44px;padding:0}' +
+    '.responsive-table__expand-button{width:44px;height:44px}' +
+    '.responsive-table__cell{padding-block:var(--space-3)}',
+  coarse(on) {
+    const el = this.d.getElementById('__cs');
+    if (el) el.remove();
+    if (!on) return;
+    const s = this.d.createElement('style');
+    s.id = '__cs';
+    s.textContent = this.COARSE;
+    this.d.head.appendChild(s);
+  },
+  em() {
+    const b = this.d.querySelector('.responsive-table__expand-button');
+    if (!b) return null;
+    const row = b.closest('tr');
+    const rb = b.getBoundingClientRect();
+    const rh = row ? row.getBoundingClientRect().height : null;
+    return {
+      btn: Math.round(rb.width) + 'x' + Math.round(rb.height),
+      row: rh ? Math.round(rh) : null,
+      ratio: rh ? Math.round((rb.height / rh) * 100) / 100 : null,
+    };
+  },
+
+  layout() {
+    const w = this.w,
+      d = this.d;
+    const o = { squeezed: [], truncated: [], tables: [] };
+
+    // ① 動作元素被擠成直排
+    const seen = new Set();
+    for (const e of d.querySelectorAll('button, a[href], [role="button"], .p-button')) {
+      if (seen.has(e)) continue;
+      seen.add(e);
+      const t = this.txt(e);
+      if (!t || t.length > 8) continue;
+      if (this.why(e)) continue;
+      const r = e.getBoundingClientRect();
+      const cs = w.getComputedStyle(e);
+      let lh = parseFloat(cs.lineHeight);
+      if (!isFinite(lh)) lh = (parseFloat(cs.fontSize) || 14) * 1.5;
+      const lines = this.lineCount(e);
+      if (lines >= 2) o.squeezed.push(t + '[' + lines + '行 ' + Math.round(r.width) + 'x' + Math.round(r.height) + ']');
+      else if (r.height > 2.2 * lh) o.tallOnly = (o.tallOnly || 0) + 1; // 交叉比對用，不進清單
+    }
+
+    // ② 文字被截 —— inline 的 clientWidth 恆 0、sr-only 是 clip 出來的，兩者都要排除
+    for (const e of d.querySelectorAll('h1,h2,h3,h4,p,td,th,label,li,div,button')) {
+      if (e.children.length > 0) continue; // 只看葉節點
+      const t = this.txt(e);
+      if (!t) continue;
+      const cs = w.getComputedStyle(e);
+      if (cs.display === 'inline' || cs.clipPath !== 'none' || e.clientWidth <= 1) continue;
+      if (e.scrollWidth <= e.clientWidth + 1) continue;
+      if (this.why(e)) continue;
+      o.truncated.push(this.lab(e) + '|' + t.slice(0, 20) + '|' + e.scrollWidth + '>' + e.clientWidth);
+    }
+
+    // ③ responsive-table 收合後列上第一個資料欄是不是身分欄
+    const isAct = (k) => /^(actions?|menu|ops|select|checkbox|expand)$/i.test(k);
+    for (const t of d.querySelectorAll('.responsive-table')) {
+      const hr = t.querySelector('thead tr');
+      if (!hr) continue;
+      const cols = [...hr.querySelectorAll('th[data-rt-col-key]')].map((th) => ({
+        k: th.getAttribute('data-rt-col-key'),
+        v: w.getComputedStyle(th).display !== 'none',
+      }));
+      if (!cols.length) continue;
+      const dc = cols.filter((c) => !isAct(c.k));
+      const pr = dc[0] || null;
+      const fv = dc.find((c) => c.v) || null;
+      if (pr && !pr.v)
+        o.tables.push('✗' + pr.k + '→' + (fv ? fv.k : 'null') + ' [' + cols.map((c) => (c.v ? c.k : '(' + c.k + ')')).join(' ') + ']');
+    }
+
+    // ④ 展開鍵：量到的 + 補出來的
+    o.exp = this.em();
+    if (o.exp) {
+      this.coarse(true);
+      o.expC = this.em();
+      this.coarse(false);
+    }
+
+    // ⑤ 兩個錨點 —— 只用一個會漏掉沒有表格的頁（見下）
+    const h1 = d.querySelector('main h1, main h2') || d.querySelector('h1');
+    const tb = d.querySelector('.responsive-table');
+    o.pad = h1 ? this.padChain(h1) : null;
+    o.padTb = tb ? this.padChain(tb) : null;
+    return o;
+  },
+
+  async scan(p, w = 390, h = 844) {
+    await this.open(p, w, h);
+    const env = this.env();
+    if (env.iw !== w) return { p, ABORT: 'width ' + env.iw }; // 環境無條件先斷言
+    const lp = this.d.location.pathname;
+    if (lp !== p.split('?')[0]) return { p, ABORT: '→' + lp }; // 被導走 = 這一頁沒量到
+    return { p, ...this.layout() };
+  },
+});
+```
+
+⚠️ **輸出裡不要留 `=` 與 `;`** —— 瀏覽器工具會把 `ratio=0.68;radius=9999px` 這種字串
+判成 cookie 資料並整批擋掉（回 `[BLOCKED: Cookie/query string data]`，**不是錯誤，是空回應**）。
+把它們換成 `→` 與 ` / ` 就過了。同一族：路徑裡的 UUID 也要遮掉。
+
+#### ⚠️ 「高度 > 2.2 × 行高」這個直覺判準會整批誤報
+
+工單原文給的是這一條，而它在**每一頁**都命中底欄的五個 tab（圖示上、文字下，
+本來就是兩層）與 `filter-chip`（刻意做到 44px）。53 頁都會列，清單沒有用。
+
+**改成數文字實際被折成幾行就精準了**：
+
+```js
+lineCount(e) {
+  const r = this.d.createRange();
+  let n = 0;
+  const w = this.d.createTreeWalker(e, NodeFilter.SHOW_TEXT);
+  let t;
+  while ((t = w.nextNode())) {
+    if (!t.textContent.trim()) continue;
+    r.selectNodeContents(t);
+    n = Math.max(n, r.getClientRects().length); // 行盒數 = 這段文字被折成幾行
+  }
+  return n;
+}
+```
+
+`/admin/fee-templates` 那顆回 **5**，正好對上使用者說的「五個字一字一行」。
+
+> **一般化：「版面壞掉」的判準要落在「文字被拆開」這件事本身，不要落在盒子的尺寸上。**
+> 盒子高有一百種正當理由，文字被折成五行只有一種。
+> 兩個判準都量、都記，**但 defect 清單只採後者** —— 前者留著當交叉比對。
+
+#### 觸控分支量不到，就把那段 CSS 注入進去補，並標明它是補出來的
+
+`@media (pointer: coarse)` 在這個環境恆 `false`（「觸控目標」那一節），所以
+**「44px 圓鈕把列撐醜」這件事根本量不到** —— 桌機分支量到的是 26×26。
+
+做法跟 `--shell-layout-body-*` 的正控同一招：把那段規則抄成無 media query 的一份
+注入 iframe、量完移除。#848 的實測（**補出來的，不是量到的**）：
+
+| 頁                    | 鈕      | 列高 | 鈕 / 列高       |
+| --------------------- | ------- | ---- | --------------- |
+| `/admin/payments`     | 44 × 44 | 45   | **0.98**        |
+| `/admin/reports`      | 44 × 44 | 45   | **0.98**        |
+| `/admin/contact-book` | 44 × 44 | 45   | **0.97**        |
+| `/admin/students`     | 44 × 44 | 65   | 0.68            |
+
+> **注入式的量測一定要在報告裡標成「補出來的」。** 它回答的是
+> 「如果那個分支生效，數字會是多少」，不是「使用者現在看到什麼」——
+> 兩者在這個環境剛好不同，而**混在同一張表裡沒有人分得出來**。
+
+#### ⚠️ padding 錨點抓錯的時候，它回報的是好消息
+
+第一版的錨點是 `d.querySelector('.shell-content *')`，它抓到的是 **`router-outlet`**
+（`.shell-content` 的第一個子元素，沒有任何內距）—— 於是**所有沒有表格的頁
+一律低報成「只有 24px、零缺陷」**。
+
+改成兩個錨點：`main h1`（視窗 → 標題）與 `.responsive-table`（視窗 → 表格，
+這一條才含卡片那一層）。修正後 `/admin/fee-templates` 的表格層是
+**116px ＝ 視窗的 29.7%，內容只剩 274px**。
+
+> 這是「驗證失敗先懷疑驗證器」的**反向版本**：那一條講的是量到奇怪的東西之後怎麼辦，
+> 這一次是**量到太漂亮的東西**。`/admin/courses` 回「零缺陷且只有 24px」看起來像
+> 一頁寫得很好的程式碼 —— 而它只是錨點抓錯。**兩者要觸發同一個動作。**
+
+#### 這一條的可見性濾網刻意比元素清單寬
+
+元素清單的 `why()` 有四道濾網，其中 ③（捲軸外）與 ④（被固定浮層壓住）**在這一條不套**：
+一顆被擠成直排的按鈕，**捲下去才看得到不代表它沒壞**。
+只保留 ①（祖先 `opacity: 0`）與 ②（祖先被壓成 0）—— 那兩種是真的不存在於畫面上。
+
+> 這跟「版面訊號探針要跟元素清單用同一套可見性」那一條**看起來矛盾，其實不是**：
+> 那一條講的是**同一份清單**的兩支探針不要用不同標準（會互相矛盾）；
+> 這裡是**兩份不同的清單**（可見元素 vs 版面缺陷），而它們問的問題不同。
+> **要寫出來的是「這一份用的是哪一套」**，不是硬要兩份一樣。
+
 ### 水平溢出：斷言 + 指出是誰撐開的
 
 ```js

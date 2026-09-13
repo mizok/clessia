@@ -1,5 +1,14 @@
+@use 'shared/breakpoints' as bp;
+
 .settings-page {
-  padding: var(--space-6);
+  /* 手機優先（#848）：手機不吃水平內距 —— `.shell-content` 已經給了 12px。
+     這一層再給 24px、卡片再給 20px 的話，390 下左右合計 116px = **視窗的 29.7%**，
+     內容只剩 274px（掃描 A 實測，全站 11 頁同形）。桌機的值由下面的 respond-from 還原。 */
+  padding: var(--space-4) 0;
+
+  @include bp.respond-from('tablet-portrait') {
+    padding: var(--space-6);
+  }
 
   &__header {
     margin-bottom: var(--space-6);
@@ -16,8 +25,13 @@
     background: var(--surface-card);
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-md);
-    padding: var(--space-6);
+    // 手機優先（#848）：卡片內距在 390 下降一階，桌機維持原值
+    padding: var(--space-4);
     margin-bottom: var(--space-4);
+
+    @include bp.respond-from('tablet-portrait') {
+      padding: var(--space-6);
+    }
     max-width: 640px;
   }
 
@@ -38,15 +52,31 @@
   // 原本 selectbutton(2 個選項)跟「儲存」擠在同一排、只靠 margin 隔開，
   // 讀起來像三個平行選項（Tester #16）。獨立的分隔線元素讓「儲存」明確是
   // 一個動作，不是第三個選項——不疊在按鈕自己的樣式上，避免看起來像按鈕的一部分。
+  //
+  // 手機優先（#848）：這三顆（隨堂點名 / 日到班 / 儲存）原本永遠同一列，
+  // 390 下每一顆的文字都被折成兩行（掃描 A 量到 88×66、73×66、74×64）。
+  // 基準改成直排，每一顆拿到整列寬 —— 順帶讓拇指按得到。
   &__control {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
     gap: var(--space-4);
+
+    @include bp.respond-from('tablet-portrait') {
+      flex-direction: row;
+      align-items: center;
+    }
   }
 
+  // 直排時分隔線要橫著擺，否則它是一條 1px 寬、24px 高的直線卡在中間
   &__divider {
-    width: 1px;
-    height: 24px;
+    width: 100%;
+    height: 1px;
     background: var(--zinc-200);
+
+    @include bp.respond-from('tablet-portrait') {
+      width: 1px;
+      height: 24px;
+    }
   }
 }

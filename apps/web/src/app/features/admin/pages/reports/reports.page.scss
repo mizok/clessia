@@ -1,14 +1,21 @@
+@use 'shared/breakpoints' as bp;
+
 // 營收報表 —— 摘要卡 + 分組統計。所有數字來自後端聚合
 .reports {
-  padding: var(--space-6);
+  /* 手機優先（#848）：手機不吃水平內距 —— `.shell-content` 已經給了 12px。
+     這一層再給 24px、卡片再給 20px 的話，390 下左右合計 116px = **視窗的 29.7%**，
+     內容只剩 274px（掃描 A 實測，全站 11 頁同形）。桌機的值由下面的 respond-from 還原。 */
+  padding: var(--space-4) 0;
+
+  @include bp.respond-from('tablet-portrait') {
+    padding: var(--space-6);
+  }
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
   max-width: 1200px;
   margin: 0 auto;
   min-height: 100%;
-
-
 
   &__title {
     margin: 0;
@@ -18,18 +25,12 @@
     line-height: var(--leading-tight);
   }
 
-
   &__toolbar {
     display: flex;
     align-items: center;
     gap: var(--space-3);
     flex-wrap: wrap;
   }
-
-
-
-
-
 
   // 退款與應收未收各自有顏色 —— 它們是不同性質的數字，不該跟實收長得一樣
 
@@ -154,11 +155,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  background: repeating-linear-gradient(
-    -45deg,
-    var(--band-ink) 0 5px,
-    transparent 5px 10px
-  );
+  background: repeating-linear-gradient(-45deg, var(--band-ink) 0 5px, transparent 5px 10px);
 }
 
 .reports__flow-keys {

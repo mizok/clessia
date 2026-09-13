@@ -11,27 +11,28 @@
 
 ## 席位表
 
-| Charter                                  | Domain                         | 典型工作                                                   | Herdr pane 名     |
-| ---------------------------------------- | ------------------------------ | ---------------------------------------------------------- | ----------------- |
-| [billing-api.md](billing-api.md)         | 金流/API/auth 核心             | schema、Hono 路由、Better Auth、Workers 執行環境           | `billing-api`     |
-| [design-web.md](design-web.md)           | 視覺/設計系統/web 效能         | tokens、SCSS、bundle、mockup、登入與公開頁                 | `design-web`      |
-| [api-2.md](api-2.md)                     | 後端 API 第二席                | 領域邏輯收斂、外部依賴查證；與 billing-api 分工            | `api-2`           |
-| [admin-pages.md](admin-pages.md)         | 管理端頁面                     | admin feature 頁、dialog、表格、儀表板                     | `admin-pages`     |
-| [labor-reviewer.md](labor-reviewer.md)   | 審核/合併/部署機械工(可 idle)  | CI 巡檢、v2 代合、部署、內容驗證                           | `labor-reviewer`  |
-| [labor-ops-warden.md](labor-ops-warden.md) | 席位巡檢監工(可 idle)          | 存活檢查、通訊救援、帳面抽查                               | `labor-ops-warden` |
-| [teacher-pages.md](teacher-pages.md)     | 老師端頁面（行動優先）         | teacher feature 頁、手機課表、點名、成績登錄               | `teacher-pages`   |
-| [infra.md](infra.md)                     | CI/harness/依賴/工具債         | verify 序列、gate、憲法 enforcement、升版                  | `infra`           |
-| [labor-1.md](labor-1.md)                 | 通用執行席（無固定領域）       | 計畫席當下最缺人的那一支；跨前後端                         | `labor-1`         |
-| [labor-2.md](labor-2.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-2`         |
-| [labor-3.md](labor-3.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-3`         |
-| [labor-4.md](labor-4.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-4`         |
-| [labor-5.md](labor-5.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-5`         |
-| [labor-6.md](labor-6.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-6`         |
-| [labor-7.md](labor-7.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-7`         |
-| [labor-8.md](labor-8.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-8`         |
-| [labor-9.md](labor-9.md)                 | 通用執行席（無固定領域）       | 同上                                                       | `labor-9`         |
-| [usability-admin.md](usability-admin.md) | 可用性測試（只看畫面，不讀碼） | 用行政任務清單走管理端，記卡點不記感受；**在 repo 外啟動** | `usability-admin` |
-| [labor-db-reset.md](labor-db-reset.md)   | 本機 DB reset（只做這一件）    | 依請求跑 `npm run db:reset` 並回報憑證；不改碼、不開 PR    | `labor-db-reset`  |
+| Charter                                          | Domain                         | 典型工作                                                   | Herdr pane 名         |
+| ------------------------------------------------ | ------------------------------ | ---------------------------------------------------------- | --------------------- |
+| [billing-api.md](billing-api.md)                 | 金流/API/auth 核心             | schema、Hono 路由、Better Auth、Workers 執行環境           | `billing-api`         |
+| [design-web.md](design-web.md)                   | 視覺/設計系統/web 效能         | tokens、SCSS、bundle、mockup、登入與公開頁                 | `design-web`          |
+| [api-2.md](api-2.md)                             | 後端 API 第二席                | 領域邏輯收斂、外部依賴查證；與 billing-api 分工            | `api-2`               |
+| [admin-pages.md](admin-pages.md)                 | 管理端頁面                     | admin feature 頁、dialog、表格、儀表板                     | `admin-pages`         |
+| [labor-reviewer.md](labor-reviewer.md)           | 審核/合併/部署機械工(可 idle)  | CI 巡檢、v2 代合、部署、內容驗證                           | `labor-reviewer`      |
+| [labor-ops-warden.md](labor-ops-warden.md)       | 席位巡檢監工(可 idle)          | 存活檢查、通訊救援、帳面抽查                               | `labor-ops-warden`    |
+| [teacher-pages.md](teacher-pages.md)             | 老師端頁面（行動優先）         | teacher feature 頁、手機課表、點名、成績登錄               | `teacher-pages`       |
+| [infra.md](infra.md)                             | CI/harness/依賴/工具債         | verify 序列、gate、憲法 enforcement、升版                  | `infra`               |
+| [labor-1.md](labor-1.md)                         | 通用執行席（無固定領域）       | 計畫席當下最缺人的那一支；跨前後端                         | `labor-1`             |
+| [labor-2.md](labor-2.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-2`             |
+| [labor-3.md](labor-3.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-3`             |
+| [labor-4.md](labor-4.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-4`             |
+| [labor-5.md](labor-5.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-5`             |
+| [labor-6.md](labor-6.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-6`             |
+| [labor-7.md](labor-7.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-7`             |
+| [labor-8.md](labor-8.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-8`             |
+| [labor-9.md](labor-9.md)                         | 通用執行席（無固定領域）       | 同上                                                       | `labor-9`             |
+| [labor-20260913-1134.md](labor-20260913-1134.md) | 通用執行席（無固定領域）       | 同上                                                       | `labor-20260913-1134` |
+| [usability-admin.md](usability-admin.md)         | 可用性測試（只看畫面，不讀碼） | 用行政任務清單走管理端，記卡點不記感受；**在 repo 外啟動** | `usability-admin`     |
+| [labor-db-reset.md](labor-db-reset.md)           | 本機 DB reset（只做這一件）    | 依請求跑 `npm run db:reset` 並回報憑證；不改碼、不開 PR    | `labor-db-reset`      |
 
 > **`labor-*` 是通用執行席，刻意不綁領域。** 2026-09-13 起新開的生產席命名為 `labor-<開席時間戳>`（`labor-YYYYMMDD-HHMM`），`labor-1`～`labor-9` 是改制前的流水號；常設席（`labor-reviewer`、`labor-db-reset`、`labor-ops-warden`）也是 `labor-` 開頭，且**每次交接換新 session 就換時間戳**（`labor-ops-warden-20260913-1200`）；charter 檔名維持不帶時間戳的職務名。 上面八席是照領域長出來的（金流、管理端、
 > CI…），而那個切法在「今天最缺人的是哪一支」這個問題上答不出來 —— 2026-09-12 一天之內

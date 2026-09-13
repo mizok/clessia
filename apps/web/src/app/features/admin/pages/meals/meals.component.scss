@@ -1,6 +1,15 @@
+@use 'shared/breakpoints' as bp;
+
 // 餐費管理 —— 每日名單勾選
 .meals {
-  padding: var(--space-6);
+  /* 手機優先（#848）：手機不吃水平內距 —— `.shell-content` 已經給了 12px。
+     這一層再給 24px、卡片再給 20px 的話，390 下左右合計 116px = **視窗的 29.7%**，
+     內容只剩 274px（掃描 A 實測，全站 11 頁同形）。桌機的值由下面的 respond-from 還原。 */
+  padding: var(--space-4) 0;
+
+  @include bp.respond-from('tablet-portrait') {
+    padding: var(--space-6);
+  }
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
