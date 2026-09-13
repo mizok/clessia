@@ -317,3 +317,97 @@ GET /api/courses?page=1&pageSize=20&isActive=true
 | --- | --- |
 | **`Escape` / 真滑鼠重試** | 需要前景分頁（方法頁坑 12）。**「重試鈕按了會不會真的重打」沒有驗** |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |
+
+## 寫入類動作（實按）—— ⚠️ 第 3 輪未完成
+
+- **量測**：1024 × 768 ／ dev server（port 4200）／ `admin@demo.clessia.app`（`["*"]`）
+- **輪次**：#758 **第 3 輪（課務管理 A：課程／班級）** ——
+  **本輪在第 5 顆之後中止**：本機 DB 被一次失敗的 `db:reset` 清空（seed 的 guard
+  raise 之後整批 rollback，issue #838）。**空庫看起來像「沒資料」而不會報錯**，
+  所以計畫席裁定停手，等 DB 恢復再續
+- 做法同前兩輪：自建 `QA-758-R3*` 走生命週期（`db:reset` 被 `.claude/settings.json` 的
+  deny 擋著，那是刻意的安全欄）
+
+### 動手前先做的反向動作對照 —— 它改變了工作量
+
+**三顆看起來是寫入、其實是唯讀**（handler 只 `select`）：
+
+| 端點 | 實際 |
+| --- | --- |
+| `POST /api/classes/check-conflicts` | 只 `select` `classes` / `schedules`，回 `{ conflicts }` |
+| `POST /api/enrollments/proration-preview` | 只 `select` `billing_periods` / `fee_templates`，回算出來的金額 |
+| `POST /api/enrollments/batch-match` | 零寫入呼叫 |
+
+**所以待按清單上這一區的 24 顆要扣掉 3 顆。**
+
+**FK 決定了拆解順序**（`information_schema` 查的）：
+
+| 外鍵 | ON DELETE |
+| --- | --- |
+| `sessions.class_id → classes` | **CASCADE** |
+| `schedules.class_id → classes` | **CASCADE** |
+| `academy_exam_classes.class_id` / `class_logs.class_id` | CASCADE |
+| `enrollments.class_id → classes` | **RESTRICT** |
+| `classes.course_id → courses` | **RESTRICT** |
+
+⇒ **`generateSessions` 是可復原的**（刪班級就連帶刪掉課堂與時段），
+而拆解順序**必須是 報名 → 班級 → 課程**。
+
+### 已按（5 顆，全部落地）
+
+| # | 動作 | 端點 | 畫面 |
+| --- | --- | --- | --- |
+| 1 | **新增課程** | `POST /api/courses` | toast `新增成功／「QA-758-R3 測試課程」已建立` |
+| 2 | **新增班級** | `POST /api/classes` → **201** | **沒有 toast** |
+| 3 | **新增時段**（跟著班級一起送） | `POST /api/classes/{id}/schedules` → **201** | 同上 |
+| 4 | 加入學生 → **時段衝突守衛** | （前置檢查） | 見下 |
+| 5 | **加入學生** | `POST /api/enrollments/batch` → 200 | 見下 |
+
+**新增課程的驗證是「disable 送出鈕」那一套**（跟系統設定三頁同，跟人員管理相反）：
+只填課程名稱時「建立」**仍然 disabled**，要連「適合年級\*」也選了才亮 —— **兩個必填各自都會擋**。
+
+**新增班級沒有 toast** —— 課程有、班級沒有。記現況。
+
+### 🔴 加入學生：時段衝突是**軟守衛**，有覆寫路徑
+
+我的班排週一 09:00–11:00，而挑的學生已在週一 10:00–12:00 的班。按「確認加入 1 人」之後
+對話框長出一段：
+
+> **部分學生與其他班級時段衝突** ／ 若已確認可覆蓋，仍可繼續加入
+> 出勤測試學生01： 數學 九年級會考總複習班 · 數學班 A （週一 10:00–12:00）
+> 〔取消〕〔仍要加入〕
+
+按「仍要加入」→ `POST /api/enrollments/batch → 200`，報名落地（`status = active`）。
+
+### 加入學生是**三步**，不是兩步
+
+`選擇學生` → `確認加入`（+ 可能的衝突閘）→ **`加入結果`**（`已加入 1 人／完成／為這 1 筆開帳`）。
+
+⚠️ **背後的清單要按「完成」才刷新** —— 我在結果步驟還開著的時候讀畫面，
+看到的是「尚未加入任何學生／0 / 20 人」，**而 DB 裡報名已經在了**。
+重新載入該頁就顯示 `1 / 20 人`。**差一點記成「寫入成功但清單不更新」的缺陷。**
+
+### `invoices.create` 沒按 —— 先查反向動作的結果
+
+「確認加入」那一步預設勾著「同時開立第一張帳單」。**按之前先查它的反向動作**：
+`apps/web/src/app/core/invoices.service.ts` 的寫入 method 只有
+`create` / `addItem` / `removeItem` / `recordPayment` / `createReminder` ——
+**沒有 `delete`**。API 那邊有 `DELETE`（`invoices.ts:444`）但**前端不呼叫它**。
+
+⇒ **從 UI 是單向的**，取消勾選、列進「等 reset」清單（它本來也屬第 6 輪）。
+
+> 這是第 2 輪那個教訓（`staff` 沒有 UI 刪除入口）在**動手之前**被套用的一次。
+
+### 未按 / 未完成（第 3 輪剩下的）
+
+產生課堂、班級編輯、時段增刪改、停開班（含 `cancelFutureSessions`）、複製名單、
+Excel 匯入、堂數包新增刪除、在籍狀態變更、報名計費編輯、課程編輯／刪除、
+批次啟用停用／批次刪除。**約 16 顆。**
+
+### 中止時的殘留（**刻意，等 DB 恢復後收尾**）
+
+`QA-758-R3 測試課程` 1 筆、`QA-758-R3 測試班` 1 筆、時段 1 筆、報名 1 筆、課堂 0 筆。
+
+⚠️ **那次失敗的 `db:reset` 已經把它們連同整個庫一起清空了** ——
+所以實際上不需要收尾，但**下一輪開始前要重新確認**，不要假設它們還在或已經沒了。
+
