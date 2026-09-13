@@ -295,7 +295,16 @@ updated: 2026-09-13
 | 列選單 `刪除學生` → `刪除` | `DELETE /api/students/{id}` | ✅ toast「已刪除」；留 `student/delete`（同上一列的端點） |
 | 學校列的 `＋` → `建立` | `POST /api/schools` | ✅ `schools` +1，新學校當場選入表單；留 `school/create` |
 
-### 🔴 `停用` 呼叫的是 `DELETE`，學生被永久刪除
+### 🔴 `停用` 呼叫的是 `DELETE`，學生被永久刪除（**已於 2026-09-13 修掉，見下方訂正**）
+
+> **時態標注（計畫席 2026-09-13 15:2x 加）**：以下整段描述的是 **#880 合併之前**的行為。
+> 已改成 `update(id, { isActive: false })`（#876 → PR #880），**本頁上方
+> 「列動作選單」那一節記的才是現況**。
+>
+> **內容一個字不改** —— 這一輪實按的觀察是真的，它記錄的是那一刻的世界。
+> 加這行的理由是它原本用現在式寫，而**同一個檔案上方已經寫著「已修好」**，
+> 讀的人會撞上一份自相矛盾的文件。
+
 
 `students.page.ts:388` 的 `deactivateStudent()` 逐字呼叫 `this.studentsService.delete(student.id)`
 —— **跟 `deleteStudent()` 同一支 API**，只有 toast 文字不同（「已停用」vs「已刪除」）。
