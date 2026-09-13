@@ -291,9 +291,39 @@
       padding: 0;
     }
 
+    /* 44px 是**觸控目標**，不是這顆鈕該有的視覺尺寸（#848）。
+       原本圓框、底色、陰影全部跟著放大到 44 —— 使用者的字是
+       「太大顆把列撐醜」，而列高只有 44.5px，等於一顆圓鈕佔掉整列
+       （掃描 A 量到 ratio 0.67~0.98，payments / reports / contact-book 幾乎是 1.0）。
+
+       改成**看得見的部分縮到 chevron、摸得到的部分維持 44** ——
+       多出來的 18px 是透明內距，命中區一格都沒少。
+       AAA 2.5.5 要的是目標尺寸，它從來沒有要求那個目標要畫出來。 */
     &__expand-button {
       width: 44px;
       height: 44px;
+      border: 0;
+      border-radius: 0;
+      background: none;
+      box-shadow: none;
+    }
+
+    /* 展開狀態靠 icon 自己換（`pi-chevron-right` ↔ `pi-chevron-down`），
+       不靠邊框與底色 —— 那兩者在這個分支已經沒有了。
+       這也順手讓狀態不再只由顏色承載。 */
+    &__expand-button[aria-expanded='true'] {
+      border-color: transparent;
+      background: none;
+      box-shadow: none;
+    }
+
+    &__expand-button:hover {
+      background: none;
+      transform: none;
+    }
+
+    &__expand-icon {
+      font-size: 1.5rem;
     }
   }
 

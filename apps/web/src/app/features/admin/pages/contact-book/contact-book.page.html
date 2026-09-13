@@ -181,7 +181,16 @@
       <ng-template #entryHead>
         <tr>
           <th appRtColDef="date" [appRtColDefMinWidth]="110" [appRtColDefPriority]="1">日期</th>
-          <th appRtColDef="student" [appRtColDefMinWidth]="120" [appRtColDefPriority]="1">學生</th>
+          <!-- 主欄 opt-out（#848）：這張表宣告順序的第一欄是日期，而列上該留的是學生 ——
+               收掉學生只會剩下一排說不出是誰的日期。 -->
+          <th
+            appRtColDef="student"
+            [appRtColDefMinWidth]="120"
+            [appRtColDefPriority]="1"
+            [appRtColDefPrimary]="true"
+          >
+            學生
+          </th>
           <th appRtColDef="content" [appRtColDefMinWidth]="240" [appRtColDefPriority]="2">內容</th>
           <th appRtColDef="editor" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">
             最後編輯

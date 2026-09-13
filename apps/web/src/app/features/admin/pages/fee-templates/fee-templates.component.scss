@@ -1,6 +1,15 @@
+@use 'shared/breakpoints' as bp;
+
 // 費用方案管理 —— 一頁兩個區塊（價目表 + 收費期間）
 .fee-templates {
-  padding: var(--space-6);
+  /* 手機優先（#848）：手機不吃水平內距 —— `.shell-content` 已經給了 12px。
+     這一層再給 24px、卡片再給 20px 的話，390 下左右合計 116px = **視窗的 29.7%**，
+     內容只剩 274px（掃描 A 實測，全站 11 頁同形）。桌機的值由下面的 respond-from 還原。 */
+  padding: var(--space-4) 0;
+
+  @include bp.respond-from('tablet-portrait') {
+    padding: var(--space-6);
+  }
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
@@ -40,17 +49,35 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    padding: var(--space-5);
+    // 頁面容器歸零之後，卡片這一層就是 390 剩下的最大一塊（#848）
+    padding: var(--space-4);
+
+    @include bp.respond-from('tablet-portrait') {
+      padding: var(--space-5);
+    }
     background: #fff;
     border: 1px solid var(--zinc-200);
     border-radius: var(--radius-xl);
   }
 
+  /**
+   * 手機優先（#848）：標題與「新增價目表」原本擠在同一列 —— 標題與副標吃掉寬度，
+   * 390 下按鈕只剩 76px，**五個字被折成五行**（掃描 A 量到 76×133）。
+   *
+   * 基準是直排（標題一列、動作鈕一列），`respond-from` 之後才回到同一列。
+   * 這是 `staff.page.scss` 的頁首早就在做的事，只是那一頁走的是舊方向。
+   */
   &__section-header {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+    flex-direction: column;
+    align-items: stretch;
     gap: var(--space-4);
+
+    @include bp.respond-from('tablet-portrait') {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
   }
 
   &__section-title-group {

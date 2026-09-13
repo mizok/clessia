@@ -1,8 +1,17 @@
+@use 'shared/breakpoints' as bp;
+
 .subjects-page {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-6);
+  /* 手機優先（#848）：手機不吃水平內距 —— `.shell-content` 已經給了 12px。
+     這一層再給 24px、卡片再給 20px 的話，390 下左右合計 116px = **視窗的 29.7%**，
+     內容只剩 274px（掃描 A 實測，全站 11 頁同形）。桌機的值由下面的 respond-from 還原。 */
+  padding: var(--space-4) 0;
+
+  @include bp.respond-from('tablet-portrait') {
+    padding: var(--space-6);
+  }
   // 跟分校頁(1200px)同屬系統設定的相鄰分頁，切換分頁時寬度跳動太劇烈（Tester #33）。
   // 不直接抄 1200px——這頁的內容只是一份簡單清單，撐到那個寬度會留一大片空白，
   // 那是另一種問題。800px 是縮小落差的折衷值，不是「兩邊本來就該一樣寬」。

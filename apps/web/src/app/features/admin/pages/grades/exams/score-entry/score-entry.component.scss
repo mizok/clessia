@@ -4,7 +4,13 @@
    這一頁的統計列在手機上是**兩欄格線**、桌機才是可換行的一排；
    兩者差的不只是間距，所以每一組都要在寬版明確解回去。 */
 .score-entry {
-  padding: var(--space-4);
+  // 水平歸零（#848）：`.shell-content` 12 ＋ 這一層 16 ＋ 卡片 17 = 左右 90px
+  // ＝ 視窗的 23.1%。這一支本來就是手機優先，只是水平那一份沒歸零。
+  padding: var(--space-4) 0;
+
+  @include respond-from('tablet-portrait') {
+    padding: var(--space-4);
+  }
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
