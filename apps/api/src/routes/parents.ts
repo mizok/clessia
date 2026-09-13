@@ -2,7 +2,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { getAuth } from '../lib/get-auth';
 import { mintLoginLinkForRequest } from './login-links/mint';
 import { requireAdminMiddleware } from '../middleware/auth';
-import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
+import { getCampusScope } from '../lib/campus-scope';
+import { isParentWithinScope, resolveScopedParentIds } from '../lib/parent-campus-scope';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -223,53 +224,9 @@ app.openapi(
       }
     }
 
-    /**
-     * 分校範圍（#816）。**家長身上沒有 `campus_id`**，所以範圍要走三跳：
-     * `enrollments`（分校）→ `student_id` → `parent_student_relations` → `parent_id`。
-     * 形狀照 `students.ts` 既有的做法（先撈 id 集合，再 `.in('id', …)`）。
-     *
-     * 判準：**分校管理員看得到的家長 = 孩子在他的分校有報名的家長。**
-     * 孩子跨分校時任一分校的管理員都看得到那位家長 —— 不做「只看得到自己分校那半的
-     * 孩子」的細切（計畫席裁定，先窄化清單）。
-     *
-     * ⚠️ **`classes!inner` 是寫死的，不跟任何條件連動** —— PostgREST 的巢狀過濾走
-     * left join，`classes.campus_id` 條件不成立的報名不會被排除、只會把關聯變成 null
-     * 留著。#815 就是因為 `!inner` 跟著「使用者有沒有傳 campusId」走、而條件跟著
-     * scope 走，兩邊分岔。**這裡不給它分岔的機會。**
-     */
-    const campusIds = campusFilterIds(getCampusScope(c), undefined);
-    let scopedParentIds: string[] | null = null;
-    if (campusIds) {
-      const { data: campusEnrollments } = await supabase
-        .from('enrollments')
-        .select('student_id, classes!inner(campus_id)')
-        .in('classes.campus_id', [...campusIds]);
-
-      const campusStudentIds = [
-        ...new Set(
-          ((campusEnrollments ?? []) as Array<{ student_id: string | null }>)
-            .map((row) => row.student_id)
-            .filter((id): id is string => !!id),
-        ),
-      ];
-
-      if (campusStudentIds.length === 0) {
-        scopedParentIds = [];
-      } else {
-        const { data: scopedRelations } = await supabase
-          .from('parent_student_relations')
-          .select('parent_id')
-          .in('student_id', campusStudentIds);
-
-        scopedParentIds = [
-          ...new Set(
-            ((scopedRelations ?? []) as Array<{ parent_id: string | null }>)
-              .map((row) => row.parent_id)
-              .filter((id): id is string => !!id),
-          ),
-        ];
-      }
-    }
+    // 分校範圍（#816）。判準與其餘 8 個端點共用同一支函式（#821）——
+    // 在 9 個地方各寫一次就是 9 個會分岔的判準（#815 的形狀）
+    const scopedParentIds = await resolveScopedParentIds(supabase, getCampusScope(c));
 
     let query = supabase
       .from('parents')
@@ -408,6 +365,24 @@ app.openapi(
     const orgId = c.get('orgId');
     const body = c.req.valid('json');
 
+    /**
+     * **#821：這支端點刻意不套分校範圍，理由在這裡。**
+     *
+     * 建立一位家長時 `parent_student_relations` 與 `enrollments` 都還不存在，
+     * **所以沒有任何東西能說這位家長屬於哪個分校** —— 那不是實作疏漏，是
+     * 「分校歸屬由報名決定」（`AGENTS.md`：學生分校來自 enrollments）的必然結果。
+     *
+     * 守得住的層都不在這支端點裡：
+     *
+     * 1. **`staff_campuses` 那一層** —— 若要求「受限管理員建立的家長自動歸屬他的分校」，
+     *    那需要一個新的歸屬欄位或關聯表，是 schema 變更。
+     * 2. **報名那一層** —— 家長一旦有孩子報名就自動落入某個分校的範圍（現在就是這樣）。
+     *
+     * **後果（已知且被接受）**：受限管理員建得出家長，而那位家長在有報名之前
+     * **他自己也看不到**（清單濾掉、`GET /{id}` 回 403）。
+     * 那不是這支 PR 引入的 —— #816 的清單已經是這個行為。
+     */
+
     if (!body.email && !body.phone) {
       return c.json({ error: 'Email 或手機號碼至少填一個', code: 'EMAIL_OR_PHONE_REQUIRED' }, 400);
     }
@@ -536,6 +511,10 @@ app.openapi(
     summary: '取得家長詳情（含關聯學生）',
     request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
+      403: {
+        description: '沒有權限存取這位家長（不在你的分校範圍內）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       200: {
         description: '家長詳情',
         content: { 'application/json': { schema: z.object({ data: ParentDetailSchema }) } },
@@ -547,6 +526,13 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const { id } = c.req.valid('param');
+
+    // **#821：越權回 403，不默默回空** —— 跟既有的 `campusRequestGuard` 一致
+    //（`isCampusAllowed` 檔頭：默默回空會讓越權嘗試看起來像「那個分校那天沒有人」）。
+    // 判準與 `GET /` 共用同一支函式，不在這裡重算。
+    if (!(await isParentWithinScope(supabase, getCampusScope(c), id))) {
+      return c.json({ error: '沒有權限存取這位家長' }, 403);
+    }
 
     const { data, error } = await supabase
       .from('parents')
@@ -625,6 +611,10 @@ app.openapi(
       body: { content: { 'application/json': { schema: UpdateParentSchema } } },
     },
     responses: {
+      403: {
+        description: '沒有權限存取這位家長（不在你的分校範圍內）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       200: {
         description: '更新成功',
         content: { 'application/json': { schema: z.object({ data: ParentSchema }) } },
@@ -637,6 +627,13 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const { id } = c.req.valid('param');
+
+    // **#821：越權回 403，不默默回空** —— 跟既有的 `campusRequestGuard` 一致
+    //（`isCampusAllowed` 檔頭：默默回空會讓越權嘗試看起來像「那個分校那天沒有人」）。
+    // 判準與 `GET /` 共用同一支函式，不在這裡重算。
+    if (!(await isParentWithinScope(supabase, getCampusScope(c), id))) {
+      return c.json({ error: '沒有權限存取這位家長' }, 403);
+    }
     const body = c.req.valid('json');
 
     // 確認家長存在
@@ -761,6 +758,10 @@ app.openapi(
     summary: '啟用家長帳號（inactive → active）',
     request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
+      403: {
+        description: '沒有權限存取這位家長（不在你的分校範圍內）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       200: {
         description: '啟用成功',
         content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
@@ -773,6 +774,13 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const { id } = c.req.valid('param');
+
+    // **#821：越權回 403，不默默回空** —— 跟既有的 `campusRequestGuard` 一致
+    //（`isCampusAllowed` 檔頭：默默回空會讓越權嘗試看起來像「那個分校那天沒有人」）。
+    // 判準與 `GET /` 共用同一支函式，不在這裡重算。
+    if (!(await isParentWithinScope(supabase, getCampusScope(c), id))) {
+      return c.json({ error: '沒有權限存取這位家長' }, 403);
+    }
 
     const { data: parentRow, error: fetchError } = await supabase
       .from('parents')
@@ -820,6 +828,10 @@ app.openapi(
     summary: '停用家長帳號（active → inactive）',
     request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
+      403: {
+        description: '沒有權限存取這位家長（不在你的分校範圍內）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       200: {
         description: '停用成功',
         content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
@@ -832,6 +844,13 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const { id } = c.req.valid('param');
+
+    // **#821：越權回 403，不默默回空** —— 跟既有的 `campusRequestGuard` 一致
+    //（`isCampusAllowed` 檔頭：默默回空會讓越權嘗試看起來像「那個分校那天沒有人」）。
+    // 判準與 `GET /` 共用同一支函式，不在這裡重算。
+    if (!(await isParentWithinScope(supabase, getCampusScope(c), id))) {
+      return c.json({ error: '沒有權限存取這位家長' }, 403);
+    }
 
     const { data: parentRow, error: fetchError } = await supabase
       .from('parents')
@@ -879,6 +898,10 @@ app.openapi(
     summary: '封存家長帳號（單向，無法透過 API 解除）',
     request: { params: z.object({ id: DbUuidSchema }) },
     responses: {
+      403: {
+        description: '沒有權限存取這位家長（不在你的分校範圍內）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       200: {
         description: '封存成功',
         content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
@@ -891,6 +914,13 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const { id } = c.req.valid('param');
+
+    // **#821：越權回 403，不默默回空** —— 跟既有的 `campusRequestGuard` 一致
+    //（`isCampusAllowed` 檔頭：默默回空會讓越權嘗試看起來像「那個分校那天沒有人」）。
+    // 判準與 `GET /` 共用同一支函式，不在這裡重算。
+    if (!(await isParentWithinScope(supabase, getCampusScope(c), id))) {
+      return c.json({ error: '沒有權限存取這位家長' }, 403);
+    }
 
     const { data: parentRow, error: fetchError } = await supabase
       .from('parents')
@@ -1004,6 +1034,26 @@ app.openapi(
     const orgId = c.get('orgId');
     const { rows } = c.req.valid('json');
     const placeholderDomain = c.env.PLACEHOLDER_EMAIL_DOMAIN ?? 'phone.internal';
+
+    /**
+     * **#821 第 8 項（C 案）：這支端點要套範圍，但警告不能整個消失。**
+     *
+     * 它原本回「系統已有同名家長『X』」——對受限管理員洩漏別校家長的姓名。
+     * 三個選項的權衡：
+     *
+     * - **A 套範圍**（警告整個消失）→ 跨分校重複家長變得**建得出來且零訊號**
+     * - **B 不套** → 就是 #816 認定的那種洩漏
+     * - **C 套範圍 ＋ 不含姓名的警告** ← 計畫席裁定
+     *
+     * C 有兩半，兩半都必要：
+     *
+     * 1. **範圍外的同名家長不能當 `mergeTarget`** —— 否則這支說「可以合併」而
+     *    `batch-import` 會擋，**兩支端點對同一筆資料給出相反的答案**
+     * 2. 那則警告**不含姓名**（防重複成立、不洩漏也成立）
+     */
+    const scopedParentIds = await resolveScopedParentIds(supabase, getCampusScope(c));
+    const isInScope = (parentId: string) =>
+      scopedParentIds === null || scopedParentIds.includes(parentId);
 
     // Step 1: 收集不重複的正規化姓名
     const nameMap = new Map<string, number[]>(); // normalizedName -> rowIndexes
@@ -1122,6 +1172,9 @@ app.openapi(
 
         // 找第一個可合併的 DB 家長（phone 或 email 任一匹配）
         const mergeTarget = matchingDbParents.find((p) => {
+          // 範圍外的家長不可合併（#821 C 案的第 1 半）——
+          // 合併的下一步是 `batch-import`，而它對範圍外的家長會讓該筆失敗
+          if (!isInScope(p.id)) return false;
           const contact = userContactMap.get(p.user_id);
           if (!contact) return false;
           const phoneMatch = importPhone && contact.phone && importPhone === contact.phone;
@@ -1131,11 +1184,16 @@ app.openapi(
         });
 
         if (!mergeTarget) {
-          // canMerge = false → 同名不同聯絡
+          // canMerge = false → 同名不同聯絡，**或**同名家長全都在範圍外（#821 C 案）
+          const namedTarget = matchingDbParents.find((p) => isInScope(p.id));
           warnings.push({
             rowIndex,
             type: 'same_name_exists',
-            message: `系統已有同名家長「${matchingDbParents[0].name}」，請確認是否為不同人`,
+            // **範圍內的才具名** —— 「請確認是否為不同人」需要知道是誰才做得到；
+            // 範圍外的只說「有」不說「是誰」：重複防得住，姓名不外流。
+            message: namedTarget
+              ? `系統已有同名家長「${namedTarget.name}」，請確認是否為不同人`
+              : '系統中已有同名家長，請洽總管理者確認',
           });
           continue;
         }
@@ -1328,6 +1386,16 @@ app.openapi(
     const body = c.req.valid('json');
     const { rows } = body;
 
+    /**
+     * **#821：這支端點不只建立新家長 —— 同名同聯絡時會 match 到既有家長，
+     * 然後在那個家長底下建學生。** 所以受限管理員的匯入可以把學生掛到一位
+     * 他看不到的別校家長底下，那是**寫入越權**。
+     *
+     * 在迴圈外算一次（不是每一筆各算一次）—— 50 列的匯入會變成 100 支查詢。
+     * `null` = 不受分校限制。
+     */
+    const scopedParentIds = await resolveScopedParentIds(supabase, getCampusScope(c));
+
     // 結果陣列
     const results: Array<{
       rowIndex: number;
@@ -1431,7 +1499,16 @@ app.openapi(
                 `此電話／Email 已屬於另一位家長「${existingName}」，無法建立為「${importedName}」`,
               );
             }
-            parentId = (parentMatch as { id: string }).id;
+            const matchedParentId = (parentMatch as { id: string }).id;
+            // **越權讓「這一筆」失敗，不是整批失敗**（#821）：批次匯入既有的語意
+            // 是逐筆 `results.push({ status })`，整批擋掉會讓一個越權列把其餘
+            // 合法的列一起關在外面。`throw` 走下面那個 catch 的逐筆標記路徑。
+            if (scopedParentIds && !scopedParentIds.includes(matchedParentId)) {
+              throw new Error(
+                `此電話／Email 已屬於一位不在你分校範圍內的家長「${existingName}」，無法匯入`,
+              );
+            }
+            parentId = matchedParentId;
           }
         }
 
