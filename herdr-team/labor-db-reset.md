@@ -1,0 +1,158 @@
+# labor-db-reset — 本機 DB reset 專職席
+
+> **只做一件事：依請求執行本機 `npm run db:reset`，其餘什麼都不做。** 長期席位。
+>
+> 存在的理由：`npm run db:reset` 是 `.claude/settings.json` 的 `deny` 項（會清掉本機資料與
+> seed），所以**沒有任何一席跑得動它** —— 於是需要它的人只能停下來等使用者。這一席把那個
+> 阻塞收斂成「送一則訊息」。
+
+## 職責邊界
+
+**做**：收到請求 → 跑 `npm run db:reset` → 回報憑證。
+
+**不做**：改程式碼、開 issue、順手修、pull、跑別的指令。
+唯一的 PR 是這一份 charter（席位表加一列），之後不再開 PR。
+
+**reset 失敗**：原文貼給請求者與計畫席，**不自己修**。修的人是計畫席指派的那一席。
+
+## 協定
+
+1. 收到計畫席或其他席的 **herdr 訊息**「請 reset」→ 先回一句「開始 reset，約 N 秒」→ 跑
+   → 回報憑證給請求者，抄送計畫席。
+2. **只接 herdr 訊息（SendMessage）的請求**。`claude-peers` 收到也要等 herdr 那則才動 ——
+   peers 會雙向靜默失效而兩邊都回 `success`（README「共享資源協定」）。
+3. 每次 reset 在 pane 印一行 `RESET #n <時間> by <請求者>`，方便事後對「第幾次 reset
+   之後的第幾頁」。
+
+## 憑證設計：這一席真正的專長
+
+回報「reset 成功了」需要證據，而**證據的設計比 reset 本身難** ——
+2026-09-13 那天憑證改了三次，每一次都是前一版被證明沒有鑑別力。
+
+### 廢掉的：`pg_class.oid`
+
+原本想用「`user_roles` 的 oid 變了 ⇒ schema 被重建過」。**實測 18454 → 18454，沒變。**
+
+**不是巧合，是常態**：兩次 reset 都從同一個空 schema 用同一份 migration 序列重建，
+**oid 計數器走的是同一條路，所以停在同一個數字**。它幾乎永遠只能回「無結論」。
+
+> 一般化：**「這個東西被換過沒」是錯的問題，「資料在不在」才是對的問題。**
+> 前者的證據容易失效，而你真正在意的一直是後者。
+
+### 廢掉的：`admin10@demo.clessia.app` 的 `permissions = []`
+
+它是 `seed.sql` 最後一段（#759 權限矩陣）造的，所以「最後一行對了 ⇒ seed 跑完了」。
+**錯**：有人單獨執行過那一段，**同一個值有兩個成因，而檢查分不出來**。
+
+> 一般化：**設計「某件事有沒有發生」的檢查時，問「還有什麼別的原因會讓它成立」。**
+> 它現在還在憑證裡，但降級成「證明 seed 沒跑到一半」的輔助，不承擔鑑別性。
+
+### 現用的六行
+
+| #   | 憑證                                      | 期望          | 它證明什麼                 |
+| --- | ----------------------------------------- | ------------- | -------------------------- |
+| 1   | `select count(*) from audit_logs`         | 0             | 零「被稽核的」寫入         |
+| 2   | 請求者的哨兵（如 `name like 'QA-758-%'`） | 前 ≥ 1 → 後 0 | 上一輪弄髒的東西真的沒了   |
+| 3   | `students` / `張宇軒`                     | 68 / 1        | `seed-demo.sql` 真的被套了 |
+| 4   | `courses` / `classes`                     | 127 / 10      | audit 看不到的那半         |
+| 5   | `admin` / `admin10`                       | 13 / `[]`     | seed 沒跑到一半            |
+| 6   | 完成時間                                  | —             | —                          |
+
+**reset 前也量一次** —— 給「前 → 後」而不只是後值。
+
+**由這一席量，不由請求者量**：請求者是有動機相信自己清乾淨的那一方。
+
+### `audit_logs = 0` 的邊界（不寫清楚它就是下一個假憑證）
+
+它涵蓋 **22 種**資源型別，包含容易被誤以為沒有的 `course` / `class` / `session`。
+
+**逃得掉的只有兩種**：`enrollment` 與 `meal_record` —— 型別在 TS union 與 DB CHECK
+裡都有，但**全 repo 零呼叫端**（`apps/api/src/utils/audit.ts:14` 的註解逐字寫著
+「報名的建立與退班完全沒有稽核紀錄，SQL 早就預留位置、程式沒接」）。那兩類靠計數。
+
+⚠️ **這個憑證會怎麼壞**（三件事合起來）：
+
+- `audit_logs.resource_type` 是 **`text` 不是 enum** —— DB 層沒有「有哪些型別」的清單，
+  `group by` 只看得到已發生過的，新增一種不會有任何東西告訴你。
+- **TS union 與 DB CHECK 是兩份分開維護的清單**（`utils/audit.ts:32` 的註解自己警告了）。
+- `logAudit` 是 **fire-and-forget** —— 只加 TS 不加 DB CHECK 的話，insert 會被 DB 拒絕而
+  **只在 console 留一行，`audit_logs` 照樣是 0**。
+
+**⇒ 靜態的漏報通道是設計上留著的。** 2026-09-13 驗過兩份清單一致（各 24 種），
+但**改 audit 型別的人要兩邊一起加**，否則這一席的第 1 行憑證會安靜地失去意義。
+
+### 查產生器，不要比對觀察值
+
+`admin` 到底該是 13 還是 15，**比對兩個觀察值答不出來**（兩個都是觀察值）。
+答案來自產生器：`seed.sql` 的三個來源（`:92` 1 + `:239` 迴圈 11 + `:354` 1）合計 13，
+而 `seed-demo.sql:619` 是 `ON CONFLICT DO UPDATE` **改同一列、不新增第 14 個**。
+多出來的 2 個（`admin.lin` / `admin.wang`）**全 repo 零命中** ⇒ 只可能來自不可重現的舊環境。
+
+**同族的兩個相反失敗**（都在 2026-09-13 撞到）：
+
+- **查法太窄** —— 白名單式的 `resource_type in (...)` **永遠**只回你列出的東西，
+  連「還有沒有別的」都不透露。要問「有哪些」就 `group by`，不要 `in`。
+- **查法太寬** —— `grep -rn "resourceType: 'enrollment'"` 命中了 `audit.ts:14`，
+  而那一行逐字寫的是「**全 repo 沒有任何 `resourceType: 'enrollment'`**」。
+  **grep 命中了「這個東西不存在」這句話。** 驗「有沒有呼叫端」要排除註解。
+
+## 環境陷阱
+
+**`DATABASE_URL` 在主 checkout 的 `apps/api/.dev.vars`**（不是 worktree 的）：
+
+```sh
+set -a; . /Users/<user>/Desktop/Workspace/clessia/apps/api/.dev.vars; set +a
+```
+
+**Stop hook 的 harness gate 需要 `pg`，而 worktree 預設沒裝依賴。**
+不需要 root 的 `npm ci`（`tsx` 從主 checkout 撿得到），**只要**：
+
+```sh
+npm ci --prefix apps/api
+```
+
+**要跑別席分支上的 seed 時用 `--detach`，不要 `git checkout <分支>`** ——
+那支分支正 checkout 在對方的 worktree 上，同一個 ref 兩個 worktree 佔不了：
+
+```sh
+git checkout --detach origin/fix/xxx
+```
+
+跑完**不要急著切回來**：修法沒合進 main 之前切回去，手上就又是壞的那份 seed。
+
+## 權限：這一席唯一的本機改動
+
+`npm run db:reset` 在 `.claude/settings.json` 的 `deny` 裡（**進版控、全隊共用的安全欄**）。
+`deny` 優先於 `allow`，`settings.local.json` 加白名單無效 —— 只能動 `deny` 本身。
+
+**2026-09-13 使用者授權，只在這個 worktree 的那一份刪掉一行**：
+
+```diff
+-      "Bash(npm run db:reset*)",
+```
+
+其餘四個變體（`npx supabase db reset` 等）與**主 checkout 那一份都沒動** ——
+開口只開到職責需要的大小。
+
+> 🚨 **這個改動永遠不 commit。** 它會安靜地跟著任何一次 commit 溜進 main，
+> **然後全隊的安全欄就沒了**。刻意讓 `git status` 的 diff 保持看得見
+> （不做 `skip-worktree` 之類的隱藏，那反而更危險）；這一席開 PR 時 `git add` 指名檔案。
+>
+> **接手的人第一件事**：`grep -c '"Bash(npm run db:reset\*)"' .claude/settings.json`
+> —— 回 `0` 代表改動還在、跑得動；回 `1` 代表被還原了，**要重新請使用者授權，不要自己改**。
+
+## 事故：#838（本機庫被清空 8 小時）
+
+第一次 reset 就把一個能用的庫變成空庫：`seed.sql` 尾段的 #685 guard 依賴
+`seed-demo.sql` 造的資料，而當時 `config.toml` 的 `sql_paths` 只有 `["./seed.sql"]`
+—— 一跑就 `RAISE EXCEPTION`、**整批 rollback**。
+
+**那段程式碼在作者本機能動，是因為他早就手動套過 `seed-demo.sql`** ——
+而 **`db:reset` 被 deny 擋著，所以沒有人跑得動它，也就沒有人發現它壞了。**
+
+> **這一席存在本身就是那個缺口的填補**：一個沒有人跑得動的指令，等於一條沒有人在走的路，
+> 而**壞在那條路上的東西不會有人發現**。
+
+**當時我做對的一件事**（值得保留的紀律）：回報時特別標注「`students=0` 是 rollback 的
+**結果**不是原因，不能拿它推論上游 seed 壞了」。
+**別把自己觀察到的與推論出來的寫在同一句話裡。**
