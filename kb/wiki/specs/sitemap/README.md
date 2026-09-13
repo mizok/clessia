@@ -1508,6 +1508,19 @@ opacityAfter1500ms: "1"    ← 200ms 的 transition 連開始都沒有
 
 **背景分頁裡 CSS 動畫不會跑、`requestAnimationFrame` 不會觸發。**
 
+> **2026-09-13（labor-8）補一層，對「靠事件收尾」的元件更關鍵**：
+> **`transitionend` 不觸發，即使 computed 值已經變了。**
+> 對照組：在 iframe 裡自建一個 `transition: opacity 200ms` 的元素、設 `opacity: 0`，
+> **1.2 秒後 computed 是 `0`（值到了），而 `transitionend` 觸發 0 次。**
+>
+> 這解釋了一整族「浮層關不掉」的殘留：**CDK 的 `cdk-overlay-backdrop` 是在
+> `transitionend` 的處理器裡被移除的**，而它的 transition 只有 `0.001s` ——
+> 短到你會以為它跟動畫無關。實測按下對話框「取消」之後 `.p-dialog` 歸零，
+> 但 backdrop（`1024×768`、`pointer-events: auto`）留著不走。
+>
+> **判準：看到浮層殘留，先問「它是靠什麼事件被移除的」，不要只問「有沒有動畫」。**
+> `animation-name: none` **排除不掉這一族**。
+
 #### 它會讓三種東西看起來像缺陷
 
 | 現象                                                                                                  | 真正的原因                                                 |

@@ -446,7 +446,60 @@ updated: 2026-09-13
 五顆**全部**有 `audit_logs`，`action` 是裸的 `create` / `update` / `deactivate` / `activate` / `archive`
 （跟分校同一套；**學校那三顆才是帶前綴的異類**，見 issue #828）。
 
-### 🔴 殘留：這一輪沒能回到起點
+### 清理：走 API 不走 UI（計畫席核可）
+
+**UI 上沒有任何刪除人員的入口。** 封存後的 ⋮ 只剩 `編輯 / 授課紀錄 / 產生登入連結`。
+`DELETE /api/staff/{id}` 存在（`staff.ts:1630`）**但全前端零呼叫端** ——
+#758 的待按清單裡 `staff.page.ts` 與 `staff-form-dialog` 兩列都沒有 `delete`。
+
+所以測試人員是**用那支端點清掉的，不是按出來的**（計畫席核可：那是清理不是量測）。
+`staff` 回到 101、`user_roles` 該筆消失、`staff_campuses` / `staff_subjects` **零孤兒**。
+
+### 🔴 但 `ba_user` 清不掉，那個 email 從此不能再用
+
+刪除**沒有**動 `ba_user`，而 `ba_user.email` 有 UNIQUE 索引
+（`ba_user_email_key`），`ba_*` 又**可讀不可寫**（c2）。
+
+**實測**：用同一個 email 從 UI 再建一次 →
+
+```
+POST /api/staff → 400
+{"error":"User already exists. Use another email.","code":"CREATE_AUTH_USER_FAILED"}
+```
+
+那一列掛著 0 個 `user_roles` / `staff` / `parents` / `ba_session` —— 完全脫離的帳號列。
+**已開 issue #833。**
+
+⚠️ 那則錯誤的 detail 是 `err.error?.error` 直接吐出來的，
+所以**中文介面上出現一句英文** `User already exists. Use another email.`（來自 Better Auth）。
+
+### 三個被我自己推翻的假設（都在下判斷之前查掉了）
+
+| 我先以為 | 查了什麼 | 實際 |
+| --- | --- | --- |
+| 改名沒寫進去（`ba_user.name` 還是舊的） | schema | **顯示名稱住在 `staff.display_name`**，`ba_*` 本來就不可寫（c2）—— 不是缺陷 |
+| 登入連結不留痕跡（`ba_verification` 查不到） | 那張表的欄位 | **`identifier` 存的是 token 本身，不是 email** —— 查法錯了 |
+| **建立失敗時畫面完全沒有訊號** | 縮短讀取延遲、比對 MessageService 實例 | **toast 有出現**（`新增失敗 User already exists…`），我在請求來回後又等 2.5 秒才讀，**它已經過期了**。兩個 MessageService 實例 `===` 為 `true`，所以**不是 #809 那一族** |
+
+> 第三條是方法頁「**等太久才讀，然後說『沒有 toast』**」那條的實例 ——
+> **而那條是我自己寫進方法頁的**。清單寫得再對，也要在需要它的那一刻讀。
+
+### 對話框關閉後的 backdrop 殘留 —— 是環境不是產品
+
+按「取消」之後 `.p-dialog` 是 0，但 `cdk-overlay-backdrop` **還在**
+（`1024×768`、`pointer-events: auto`、2.5 秒後仍在）。
+
+**排除自己之後確定是環境**：那個 backdrop 的 `transition` 只有 `0.001s`，
+而**這個環境 `transitionend` 一次都不觸發** —— 對照組：自建一個 200 ms transition 的元素，
+**1.2 秒內 `transitionend` 觸發 0 次**。CDK 在 `transitionend` 的處理器裡移除 backdrop。
+
+> **這比方法頁坑 12 現有的敘述更精確一點**：那裡量到的是「200 ms 的 transition 連開始都沒有」，
+> 這裡量到的是「**computed 值變了，而事件仍然不觸發**」。對 CDK 這種
+> 「靠事件收尾」的元件，後者才是關鍵。
+
+### 舊：殘留（已由上面的清理解決，保留成因）
+
+#### 為什麼會走到需要清理這一步
 
 **UI 上沒有任何刪除人員的入口。** 封存後的 ⋮ 只剩 `編輯 / 授課紀錄 / 產生登入連結`。
 所以 `QA-758-R2 測試人員-改名`（`archived`）與它的 `ba_user`、`ba_verification`
