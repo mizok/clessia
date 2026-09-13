@@ -4,6 +4,7 @@ import {
   applyCampusFilter,
   campusFilterIds,
   CampusScopeMissingError,
+  filtersCampus,
   getCampusScope,
   isCampusAllowed,
   resolveCampusScope,
@@ -89,6 +90,32 @@ describe('campusFilterIds', () => {
 
   it('沒有任何分校 → 空清單，查詢會回空而不是全部', () => {
     expect(campusFilterIds([], undefined)).toEqual([]);
+  });
+});
+
+/**
+ * **#815：`filtersCampus` 是「select 要不要 `!inner`」與「要不要下條件」的單一判準。**
+ *
+ * 這四條的形狀刻意跟 `campusFilterIds` 一對一 —— 它就是那支函式的布林投影。
+ * 之所以要有這個名字而不是讓呼叫端自己寫 `campusFilterIds(...) !== null`：
+ * **呼叫端一旦自己推論，就會推出別的東西** —— `enrollments` 原本推的是
+ * 「使用者有沒有傳 campusId」，而那在「只被指派一個分校又不帶參數」時剛好相反。
+ */
+describe('filtersCampus —— 巢狀 select 要不要 inner join 的唯一判準', () => {
+  it('不受限又沒指名 → 不下條件，所以不要 inner join', () => {
+    expect(filtersCampus(null, undefined)).toBe(false);
+  });
+
+  it('受限但沒指名 → 條件是他被指派的全部，要 inner join（#815 漏的就是這格）', () => {
+    expect(filtersCampus(['campus-1'], undefined)).toBe(true);
+  });
+
+  it('不受限但指名一間 → 那是篩選，一樣要 inner join', () => {
+    expect(filtersCampus(null, 'campus-1')).toBe(true);
+  });
+
+  it('一個分校都沒被指派 → 空清單也是條件，要 inner join', () => {
+    expect(filtersCampus([], undefined)).toBe(true);
   });
 });
 

@@ -200,28 +200,49 @@ describe('GET /api/students —— 退班報名仍算分校歸屬，但不算在
 
   /** 只實作這支 handler 用到的鏈：select/eq/order/range 各自回自己，await 時給資料 */
   const inCalls: Array<{ column: string; values: string[] }> = [];
+  /**
+   * 逐支查詢的記錄。**`inCalls` 是全部 `.in()` 混在一起的**，
+   * 分不出「主清單下的」與「activeCount 那支獨立 count 下的」——
+   * 而 #815 第 2 節漏的正好只有後者，所以要能分開看。
+   *
+   * 分法：`activeCount` 是唯一用 `{ count: 'exact', head: true }` 的查詢。
+   */
+  const queries: Array<{ head: boolean; ins: Array<{ column: string; values: string[] }> }> = [];
 
   function fakeSupabase(rows: ReturnType<typeof studentRow>[]) {
-    const builder: Record<string, unknown> = {};
-    const chain = () => builder as never;
-    Object.assign(builder, {
-      select: () => chain(),
-      eq: () => chain(),
-      // 記錄欄位與值：分校範圍靠這條下到查詢上，而替身回的是固定 fixture，
-      // 「有下」與「沒下」在回傳值上完全一樣（charter：改測送出去的查詢長什麼樣）
-      in: (column: string, values: readonly string[]) => {
-        inCalls.push({ column, values: [...values] });
-        return chain();
-      },
-      or: () => chain(),
-      order: () => chain(),
-      range: () => chain(),
-      // 查詢是被 `await` 的（不是靠最後一個方法回 Promise），所以替身要是 thenable
-      then: (resolve: (value: { data: unknown; count: number; error: null }) => unknown) =>
-        resolve({ data: rows, count: rows.length, error: null }),
-    });
+    function newBuilder() {
+      const record = { head: false, ins: [] as Array<{ column: string; values: string[] }> };
+      queries.push(record);
 
-    return { from: () => builder };
+      const builder: Record<string, unknown> = {};
+      const chain = () => builder as never;
+      Object.assign(builder, {
+        select: (_columns?: string, options?: { head?: boolean }) => {
+          record.head = options?.head === true;
+          return chain();
+        },
+        eq: () => chain(),
+        // 記錄欄位與值：分校範圍靠這條下到查詢上，而替身回的是固定 fixture，
+        // 「有下」與「沒下」在回傳值上完全一樣（charter：改測送出去的查詢長什麼樣）
+        in: (column: string, values: readonly string[]) => {
+          inCalls.push({ column, values: [...values] });
+          record.ins.push({ column, values: [...values] });
+          return chain();
+        },
+        or: () => chain(),
+        order: () => chain(),
+        range: () => chain(),
+        // 查詢是被 `await` 的（不是靠最後一個方法回 Promise），所以替身要是 thenable
+        then: (resolve: (value: { data: unknown; count: number; error: null }) => unknown) =>
+          resolve({ data: rows, count: rows.length, error: null }),
+      });
+
+      return builder;
+    }
+
+    // **每次 `from()` 要是新的一支** —— 共用一個 builder 的話所有查詢的條件會疊在一起，
+    // 「哪一支下了什麼」從定義上分不出來
+    return { from: () => newBuilder() };
   }
 
   async function listStudents(campusScope: readonly string[] | null = null) {
@@ -290,6 +311,36 @@ describe('GET /api/students —— 退班報名仍算分校歸屬，但不算在
       await listStudents(null);
 
       expect(inCalls.some((call) => call.column === 'classes.campus_id')).toBe(false);
+    });
+  });
+
+  /**
+   * **#815 第 2 節：`activeCount` 是一支獨立的 count 查詢，而它只濾了 `org_id`。**
+   *
+   * 主清單有套分校範圍（上面兩條釘著），但儀表板的「在籍學生」卡片讀的是
+   * `summary.activeCount` —— 所以只被指派一個分校的管理員，**儀表板說 69、
+   * 他自己的學生頁說 0**。原本註解裡的「全量」是指「不受 `isActive` filter 影響」，
+   * 而它連分校也一起不受影響了：一個字面成立、範圍過寬的實作。
+   *
+   * 洩漏的是計數不是紀錄，但它跟第 1 節同一族 —— 「有一處算了 scope，另一處自己推論」。
+   */
+  describe('GET /api/students —— activeCount 也要套分校範圍（#815）', () => {
+    it('受限管理員的 activeCount 那支 count 查詢有下 id 條件', async () => {
+      queries.length = 0;
+      await listStudents(['campus-1']);
+
+      const countQuery = queries.find((q) => q.head);
+      expect(countQuery).toBeDefined();
+      expect(countQuery?.ins.some((call) => call.column === 'id')).toBe(true);
+    });
+
+    it('不受分校限制時那支 count 不下 id 條件（確認上一條不是無腦通過）', async () => {
+      queries.length = 0;
+      await listStudents(null);
+
+      const countQuery = queries.find((q) => q.head);
+      expect(countQuery).toBeDefined();
+      expect(countQuery?.ins.some((call) => call.column === 'id')).toBe(false);
     });
   });
 });

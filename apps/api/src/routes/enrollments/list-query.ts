@@ -41,8 +41,13 @@ const SELECT_RELATIONS =
  * PostgREST 的巢狀過濾預設走 left join —— 少了 `!inner`，`classes.campus_id` 條件不成立的
  * 報名不會被排除，只會把 classes 關聯變成 null 留在結果裡。那看起來像「篩選壞掉」，
  * 而且班級欄位會整排空白。
+ *
+ * ⚠️ **第一個參數是「這次查詢會不會下分校條件」，不是「使用者有沒有傳 campusId」。**
+ * 原本收的是 `campusId?: string`，於是只被指派一個分校的管理員**不帶參數**時
+ * ——條件由 campusScope 下去了、join 卻還是 left —— 他看得到全機構的報名（#815）。
+ * 呼叫端一律用 `filtersCampus(scope, campusId)` 算它，**跟 `applyCampusFilter` 同一個判準**。
  */
-export function buildSelect(campusId?: string, hasInvoice?: boolean): string {
+export function buildSelect(filtersCampus?: boolean, hasInvoice?: boolean): string {
   const invoiceJoin =
     hasInvoice === undefined
       ? ''
@@ -54,7 +59,7 @@ export function buildSelect(campusId?: string, hasInvoice?: boolean): string {
         ? ', invoice_items!inner(id)'
         : ', invoice_items(id)';
 
-  return `${SELECT_COLUMNS}, ${campusId ? 'classes!inner' : 'classes'}${SELECT_RELATIONS}${invoiceJoin}`;
+  return `${SELECT_COLUMNS}, ${filtersCampus ? 'classes!inner' : 'classes'}${SELECT_RELATIONS}${invoiceJoin}`;
 }
 
 export type EnrollmentSort = 'createdAt' | 'updatedAt';

@@ -192,6 +192,23 @@ export function campusFilterIds(
 }
 
 /**
+ * 這次查詢會不會實際下分校條件。
+ *
+ * **給過濾巢狀欄位的呼叫端用**（`classes.campus_id`、`events.campus_id` 這種）：
+ * PostgREST 的巢狀過濾預設走 left join，條件不成立的列不會被排除、只會把關聯變成
+ * null 留在結果裡 —— 所以 select 必須配 `!inner`，**而且「要不要 inner」與
+ * 「有沒有下條件」必須是同一個判準**。
+ *
+ * #815 漏的正是這件事：select 那邊問的是「使用者有沒有傳 `campusId`」，
+ * 條件這邊問的是 scope，兩邊在「只被指派一個分校的管理員不帶參數」時分岔 ——
+ * 於是條件下去了、join 卻是 left，該被排除的列全部留著。
+ * **兩處問同一支函式，就不會再分岔。**
+ */
+export function filtersCampus(scope: CampusScope, requested?: string | null): boolean {
+  return campusFilterIds(scope, requested) !== null;
+}
+
+/**
  * 把分校範圍套到一個查詢上。**各路由的呼叫端只有一行，因為漏掉一行就是一個洞。**
  *
  * `column` 各路由不同（`campus_id` / `classes.campus_id` / `events.campus_id`），
