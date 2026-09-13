@@ -144,17 +144,46 @@ jobs:
           # 要跟前一次 push 比 diff，所以需要歷史
           fetch-depth: 0
 
-      # **查不到 base 就跑**（新分支的第一次 push、force-push 之後、`before` 是全零）。
-      # 這個方向是刻意的：漏跑一次才是風險，多跑一次只是慢。
+      # ⚠️ **`github.event.before` 對新分支的第一次 push 是全零**，而**那是這個 repo 的常態**
+      # ——本檔開頭自己寫著「實際工作方式是在長期 feature branch 上直接推送，PR 開得晚」。
+      # 第一版只靠 `before`，於是 fail-open 分支幾乎每支 PR 都會走到：
+      # #845（只動 `herdr-team/` 兩個檔）照樣跑完整的 `db reset`，**filter 等於沒作用**。
+      #
+      # 所以 `before` 不可用時**退到 merge-base**（這支分支從 main 分出去的那一點）——
+      # 那才是「這支分支改了什麼」的正確 base。只有連 merge-base 都算不出來才 fail-open。
+      #
+      # **每一條路徑都印出 base 與 diff。** 這一步的產出是「跑或不跑」，
+      # 而判錯的方向是靜默的 —— 上一版就是靠 log 第一行印出的 `base='000…0'` 才查出來的。
       - name: 這次 push 有沒有動到 supabase/
         id: scope
         run: |
-          base='${{ github.event.before }}'
-          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] \
-             || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
-            echo 'base 查不到（新分支或 force-push）—— 保守起見照跑'
+          before='${{ github.event.before }}'
+          base=''
+
+          if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] \
+             && git cat-file -e "$before^{commit}" 2>/dev/null; then
+            base="$before"
+            echo "base 來源：github.event.before"
+          else
+            # 新分支的第一次 push、force-push、或 before 已經不在本地歷史裡
+            git fetch --no-tags origin main 2>/dev/null || true
+            base="$(git merge-base FETCH_HEAD HEAD 2>/dev/null \
+                    || git merge-base origin/main HEAD 2>/dev/null || true)"
+            echo "base 來源：merge-base 對 main（before 是 '$before'）"
+          fi
+
+          echo "base=$base"
+
+          if [ -z "$base" ]; then
+            echo '連 merge-base 都算不出來 —— 保守起見照跑（漏跑一次才是風險）'
             echo 'run=true' >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "$base" HEAD | grep -q '^supabase/'; then
+            exit 0
+          fi
+
+          echo '這個範圍動到的檔（前 20 筆）:'
+          git diff --name-only "$base" HEAD | head -20
+
+          if git diff --name-only "$base" HEAD | grep -q '^supabase/'; then
             echo 'supabase/ 有改動 —— 跑'
             echo 'run=true' >> "$GITHUB_OUTPUT"
           else
