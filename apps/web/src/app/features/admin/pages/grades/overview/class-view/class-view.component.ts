@@ -17,6 +17,7 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
 import { DialogService } from 'primeng/dynamicdialog';
+import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
@@ -63,6 +64,7 @@ interface CourseGroup {
     InputTextModule,
     EmptyStateComponent,
     PageBreadcrumbComponent,
+    ToastModule,
   ],
   templateUrl: './class-view.component.html',
   styleUrl: './class-view.component.scss',

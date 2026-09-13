@@ -78,7 +78,14 @@ describe('SchoolScoreEditorComponent', () => {
     })
       .overrideComponent(SchoolScoreEditorComponent, {
         set: {
-          providers: [{ provide: DialogService, useValue: { open: dialogOpenMock } }],
+          providers: [
+            { provide: DialogService, useValue: { open: dialogOpenMock } },
+            // **元件層的 MessageService 要留著**（真實例，不是 `{ add: vi.fn() }`）：
+            // 這一層正是 #809 的成因所在 —— override 把它拿掉的話，注入鏈會往上
+            // 找到 TestBed 那一個，於是「元件自己 provide 會不會斷開出口」
+            // 從定義上就測不到了
+            { provide: MessageService, useValue: new MessageService() },
+          ],
         },
       })
       .compileComponents();
@@ -91,6 +98,23 @@ describe('SchoolScoreEditorComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
+  });
+
+  /**
+   * **#809：這支元件自己 `providers: [MessageService]`，所以它拿到的是自己的實例，
+   * 而 `<p-toast>` 訂閱的是注入它的那一層** —— 模板沒有出口的話，
+   * `messageService.add()` 的每一則都沒有訂閱者，畫面上零訊號。
+   *
+   * 斷言查的是 `document`（toast 會被搬出元件），而且查的是**渲染出來的訊息**，
+   * 不是「add 有沒有被呼叫」—— 後者是意圖，前者是結果。
+   */
+  it('發出的 toast 有出口 —— DOM 裡真的長出訊息', () => {
+    fixture.debugElement.injector
+      .get(MessageService)
+      .add({ severity: 'error', summary: '載入失敗', detail: '無法載入學生成績' });
+    fixture.detectChanges();
+
+    expect(document.querySelector('.p-toast-message')).not.toBeNull();
   });
 
   it('loads students on init', () => {

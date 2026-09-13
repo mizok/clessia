@@ -21,6 +21,7 @@ import { InputIconModule } from 'primeng/inputicon';
 import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { PaginatorModule } from 'primeng/paginator';
+import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -77,6 +78,7 @@ const STUDENT_STATUS_OPTIONS: Array<{ label: string; value: SchoolExamStudentSta
     SelectModule,
     SelectButtonModule,
     PaginatorModule,
+    ToastModule,
   ],
   providers: [DialogService, MessageService],
   templateUrl: './school-score-editor.component.html',
