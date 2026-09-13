@@ -2,6 +2,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { countSubjectUsage } from '../lib/subject-usage';
 import { DbUuidSchema } from '../lib/validation';
+import { logAudit } from '../utils/audit';
+import { waitUntilFrom } from '../lib/wait-until';
 
 const SubjectSchema = z
   .object({
@@ -144,8 +146,13 @@ const updateRoute = createRoute({
 app.openapi(updateRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
+  const userId = c.get('userId');
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
+
+  // 改名要記得**改之前**叫什麼 —— 只記新名字的話，稽核紀錄回答不了
+  // 「原本那個科目去哪了」（#828）
+  const { data: before } = await supabase.from('subjects').select('name').eq('id', id).single();
 
   const { data, error } = await supabase
     .from('subjects')
@@ -169,6 +176,22 @@ app.openapi(updateRoute, async (c) => {
   if (courseUsage.error || examUsage.error) {
     return c.json({ error: '讀取科目用量失敗', code: 'USAGE_CHECK_FAILED' }, 400);
   }
+
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'subject',
+      resourceId: data.id as string,
+      resourceName: data.name as string,
+      // 裸 action（`create` / `update` / `delete`）—— `resource_type` 已經帶了實體種類，
+      // 前綴是重複的。見 PR #828 對 `school.*` 的收斂說明。
+      action: 'update',
+      details: { from: before?.name ?? null, to: data.name },
+    },
+    waitUntilFrom(c),
+  );
 
   return c.json(
     {
@@ -213,6 +236,7 @@ const deleteRoute = createRoute({
 app.openapi(deleteRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
+  const userId = c.get('userId');
   const { id } = c.req.valid('param');
 
   // `courses.subject_id` 是 ON DELETE RESTRICT，DB 本身就會擋，這裡查是為了
@@ -262,11 +286,27 @@ app.openapi(deleteRoute, async (c) => {
     );
   }
 
+  // 刪之前先讀名字 —— 刪完就查不到了（形狀照 `campuses.ts` 的 delete）
+  const { data: existing } = await supabase.from('subjects').select('name').eq('id', id).single();
+
   const { error } = await supabase.from('subjects').delete().eq('id', id);
 
   if (error) {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
+
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'subject',
+      resourceId: id,
+      resourceName: existing?.name ?? null,
+      action: 'delete',
+    },
+    waitUntilFrom(c),
+  );
 
   return c.json({ success: true }, 200);
 });
@@ -300,6 +340,7 @@ const createSubjectRoute = createRoute({
 app.openapi(createSubjectRoute, async (c) => {
   const supabase = c.get('supabase');
   const orgId = c.get('orgId');
+  const userId = c.get('userId');
   const body = c.req.valid('json');
 
   const { count: maxOrder } = await supabase
@@ -319,6 +360,19 @@ app.openapi(createSubjectRoute, async (c) => {
     }
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
+
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'subject',
+      resourceId: data.id as string,
+      resourceName: data.name as string,
+      action: 'create',
+    },
+    waitUntilFrom(c),
+  );
 
   return c.json(
     {

@@ -21,7 +21,13 @@ type ResourceType =
   | 'payment_record'
   | 'session_pack'
   | 'meal_record'
-  | 'billing_run';
+  | 'billing_run'
+  // #828：科目與組織設定的寫入原本完全沒有 audit_logs。
+  // **這個 union 與 DB 的 CHECK constraint 是兩份清單** ——
+  // 加值一定要兩邊一起加，`logAudit` 是 fire-and-forget，
+  // 只加這裡的話 insert 會被 DB 拒絕而**只在 console 留一行**。
+  | 'subject'
+  | 'organization';
 
 export interface AuditLogParams {
   orgId: string;

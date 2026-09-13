@@ -32,6 +32,7 @@ function createDeleteTestApp(fixture: {
   examRows: UsageRow[] | 'error';
 }) {
   let subjectDeleted = false;
+  const auditRows: Array<Record<string, unknown>> = [];
 
   const supabase = {
     from(table: string) {
@@ -39,12 +40,34 @@ function createDeleteTestApp(fixture: {
       if (table === 'academy_exams') return countableQuery(fixture.examRows);
       if (table === 'subjects') {
         return {
+          // #828 起 delete 之前會先讀名字（稽核要記得刪掉的是哪一個）
+          select: () => ({
+            eq: () => ({ single: () => Promise.resolve({ data: { name: '數學' }, error: null }) }),
+          }),
           delete: () => ({
             eq: () => {
               subjectDeleted = true;
               return Promise.resolve({ error: null });
             },
           }),
+        };
+      }
+      // `logAudit` 會查 profiles 再寫 audit_logs。**這兩張表回最小可用的東西而不是
+      // 丟例外** —— 丟例外的話 logAudit 會在它自己的 try/catch 裡靜默失敗，
+      // 於是「有沒有寫稽核」在這組 fixture 裡永遠不可觀察（leaves.spec 的同一個坑）。
+      if (table === 'profiles') {
+        return {
+          select: () => ({
+            eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+          }),
+        };
+      }
+      if (table === 'audit_logs') {
+        return {
+          insert: (payload: Record<string, unknown>) => {
+            auditRows.push(payload);
+            return Promise.resolve({ error: null });
+          },
         };
       }
       throw new Error(`Unsupported table in this fixture: ${table}`);
@@ -56,11 +79,12 @@ function createDeleteTestApp(fixture: {
     const context = c as unknown as { set: (key: string, value: unknown) => void };
     context.set('supabase', supabase);
     context.set('orgId', 'org-1');
+    context.set('userId', 'user-1');
     await next();
   });
   app.route('/api/subjects', subjectsRoute);
 
-  return { app, wasSubjectDeleted: () => subjectDeleted };
+  return { app, wasSubjectDeleted: () => subjectDeleted, auditRows };
 }
 
 describe('DELETE /api/subjects/:id —— 用量守門', () => {
@@ -166,5 +190,52 @@ describe('GET /api/subjects —— 列表帶用量欄位', () => {
       { id: 'subject-1', name: '數學', sortOrder: 1, courseCount: 2, academyExamCount: 0 },
       { id: 'subject-2', name: '英文', sortOrder: 2, courseCount: 0, academyExamCount: 1 },
     ]);
+  });
+});
+
+/**
+ * **#828：科目的三顆寫入鈕完全沒有 `audit_logs`** ——
+ * #758 第 1 輪逐顆實按查 DB 對照：分校 5 筆、學校 3 筆、**科目 0 筆**。
+ *
+ * ⚠️ **這組測試證明的是「接線存在」，不是「DB 真的收下那一筆」。**
+ * `audit_logs.resource_type` 有 CHECK constraint，而 `subject` 是這一輪
+ * 新加進去的（`20260913101500` 那支 migration）——
+ * **CHECK 擋掉的話 `logAudit` 只會在它自己的 try/catch 裡印一行，測試照樣綠。**
+ * 那一半只能靠實按或本機 PostgREST 驗。
+ */
+describe('DELETE /api/subjects/:id —— 稽核紀錄（#828）', () => {
+  it('刪除成功時寫一筆 audit_logs，記得刪掉的是哪一個科目', async () => {
+    const { app, auditRows } = createDeleteTestApp({ courseRows: [], examRows: [] });
+
+    const res = await app.request(`/api/subjects/${SUBJECT_ID}`, { method: 'DELETE' });
+    expect(res.status).toBe(200);
+    // `logAudit` 是 fire-and-forget（waitUntil 包住），讓它的 microtask 跑完
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]).toMatchObject({
+      resource_type: 'subject',
+      resource_id: SUBJECT_ID,
+      // **刪之前讀的名字** —— 刪完就查不到了
+      resource_name: '數學',
+      // 裸 action，不是 'subject.delete'（#828 的收斂）
+      action: 'delete',
+    });
+  });
+
+  // 反向對照：被擋下來的刪除不該留稽核紀錄（沒發生的事不要記）
+  it('因為有課程在用而被擋時，不寫 audit_logs', async () => {
+    const { app, auditRows } = createDeleteTestApp({
+      courseRows: [{ subject_id: SUBJECT_ID }],
+      examRows: [],
+    });
+
+    const res = await app.request(`/api/subjects/${SUBJECT_ID}`, { method: 'DELETE' });
+    expect(res.status).toBe(409);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(auditRows).toHaveLength(0);
   });
 });
