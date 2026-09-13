@@ -19,6 +19,8 @@ updated: 2026-09-13
 
 <!-- generated:route-facts end -->
 
+**權限變體**：🔒 需要 `manage_finance`。沒有這個權限的管理員**被導回 `/admin/dashboard`**，側欄也看不到這一項。逐權限的量測見 [[specs/sitemap/_shared/permission-matrix]]。
+
 **進入方式**：選單「行政財務 › 餐費管理」/ 直接網址（沒有其他頁面連過來）
 
 **外框**見 [[specs/sitemap/_shared/shell-layout]]。

@@ -10,6 +10,8 @@ updated: 2026-09-13
 
 # 外框（ShellLayout）
 
+> **側欄與底欄的項目數依 `permissions` 而異**（14 / 15 / 17 / 18 四種，只有四項會被權限藏起來）—— 逐權限的量測見 [[specs/sitemap/_shared/permission-matrix]]。
+
 **元件**：`@shared/components/layout/shell-layout/shell-layout.component`
 
 `/admin/**`、`/teacher/**`、`/parent/**` **全部走這一個外框**（`AGENTS.md` 的角色與授權架構）。

@@ -19,6 +19,8 @@ updated: 2026-09-13
 
 <!-- generated:route-facts end -->
 
+**權限變體**：任何 admin 角色都進得去（不論 `permissions`），頁內的寫入鈕也不會因為缺權限而消失 —— 按下去由 API 擋。逐權限的量測見 [[specs/sitemap/_shared/permission-matrix]]。
+
 **進入方式**：選單「考務與成績 › 考試管理」/ **`/admin/grades` 轉址過來**（見 [[specs/sitemap/admin/grades]]）/
 儀表板「成績待登錄」卡片 / 三條舊路由 redirect
 

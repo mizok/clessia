@@ -19,6 +19,8 @@ updated: 2026-09-13
 
 <!-- generated:route-facts end -->
 
+**權限變體**：🔒 需要 `view_reports`。沒有這個權限的管理員**被導回 `/admin/dashboard`**，側欄也看不到這一項。逐權限的量測見 [[specs/sitemap/_shared/permission-matrix]]。
+
 > ⚠️ **這是行政財務四頁裡唯一不吃 `manage_finance` 的一頁** —— 它要的是 `view_reports`。
 > 只給「看得到數字、不能動錢」的人正是這條權限的用途。
 
