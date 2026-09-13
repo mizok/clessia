@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
+import { auditDeleteSnapshot, auditFieldDiff } from '../lib/audit-diff';
 import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
 
@@ -348,6 +349,15 @@ app.openapi(createCampusRoute, async (c) => {
       resourceId: data.id as string,
       resourceName: data.name as string,
       action: 'create',
+      // **形狀刻意跟 `update` 一致**（`from` 全是 null）—— 查稽核的人會寫一個
+      // 處理 `details.from/to` 的查詢，兩種形狀會讓他寫兩個。
+      // 而建立時 `from` 全 null 正好表達「原本不存在」（#837）。
+      details: auditFieldDiff(null, {
+        name: data.name,
+        address: data.address,
+        phone: data.phone,
+        is_active: data.is_active,
+      }),
     },
     waitUntilFrom(c),
   );
@@ -406,6 +416,10 @@ app.openapi(updateRoute, async (c) => {
   if (body.phone !== undefined) updateData['phone'] = body.phone;
   if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
 
+  // **改動前先讀一次** —— 稽核要答得出「原本是什麼」，而改完就查不到了（#837）。
+  // UI 的停用／啟用走的也是這支 PUT，所以這一讀同時涵蓋那兩顆。
+  const { data: before } = await supabase.from('campuses').select('*').eq('id', id).single();
+
   const { data, error } = await supabase
     .from('campuses')
     .update(updateData)
@@ -426,6 +440,7 @@ app.openapi(updateRoute, async (c) => {
       resourceId: id,
       resourceName: data.name as string,
       action: 'update',
+      details: auditFieldDiff(before as Record<string, unknown> | null, updateData),
     },
     waitUntilFrom(c),
   );
@@ -489,7 +504,8 @@ app.openapi(deleteRoute, async (c) => {
     return c.json({ error: `此分校有 ${count} 個課程，無法刪除`, code: 'HAS_COURSES' }, 409);
   }
 
-  const { data: existing } = await supabase.from('campuses').select('name').eq('id', id).single();
+  // **`select('*')` 而不是只取 name** —— 刪完就查不到了，這是留下快照的唯一機會（#837）
+  const { data: existing } = await supabase.from('campuses').select('*').eq('id', id).single();
 
   const { error } = await supabase.from('campuses').delete().eq('id', id);
 
@@ -506,6 +522,14 @@ app.openapi(deleteRoute, async (c) => {
       resourceId: id,
       resourceName: existing?.name ?? null,
       action: 'delete',
+      // 只挑會被追問的欄位 —— 整列會把 `created_at` / `updated_at` 這些
+      // 「不是人改的」欄位一起塞進去（#837）
+      details: auditDeleteSnapshot(existing as Record<string, unknown> | null, [
+        'name',
+        'address',
+        'phone',
+        'is_active',
+      ]),
     },
     waitUntilFrom(c),
   );

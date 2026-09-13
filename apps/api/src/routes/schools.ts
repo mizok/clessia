@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
+import { auditDeleteSnapshot, auditFieldDiff } from '../lib/audit-diff';
 import { waitUntilFrom } from '../lib/wait-until';
 
 export function buildSchoolListQuery(params: { search?: string; isActive?: boolean }): {
@@ -166,7 +167,12 @@ app.openapi(createRouteDef, async (c) => {
       resourceId: data.id,
       resourceName: data.name,
       action: 'create',
-      details: {},
+      // 形狀跟 `update` 一致（`from` 全 null＝原本不存在），理由見 `lib/audit-diff.ts`（#837）
+      details: auditFieldDiff(null, {
+        name: data.name,
+        short_name: data.short_name,
+        is_active: data.is_active,
+      }),
     },
     waitUntilFrom(c),
   );
@@ -220,6 +226,15 @@ app.openapi(updateRouteDef, async (c) => {
   if (body.isActive !== undefined) payload['is_active'] = body.isActive;
   if (Object.keys(payload).length === 0) return c.json({ success: true }, 200);
 
+  // **改動前先讀一次** —— `details` 原本只有新值（`details: payload`），
+  // 於是稽核答得出「現在是什麼」而那查資料表就有答案；要問稽核的是「原本是什麼」（#837）
+  const { data: before } = await supabase
+    .from('schools')
+    .select('*')
+    .eq('id', id)
+    .eq('org_id', orgId)
+    .single();
+
   const { data, error } = await supabase
     .from('schools')
     .update(payload)
@@ -244,7 +259,7 @@ app.openapi(updateRouteDef, async (c) => {
       resourceId: id,
       resourceName: data.name,
       action: 'update',
-      details: payload,
+      details: auditFieldDiff(before as Record<string, unknown> | null, payload),
     },
     waitUntilFrom(c),
   );
@@ -296,12 +311,14 @@ app.openapi(deleteRouteDef, async (c) => {
     return c.json({ error: '此學校仍有學校考試事件，無法刪除', code: 'CONSTRAINT' }, 409);
   }
 
+  // **`select('*')` 而不是 `id, name`** —— PostgREST 的 delete 會 returning 被刪掉的那一列，
+  // 所以刪前快照不必多查一次（campuses 那支沒有 returning，只能先讀）。#837
   const { data, error } = await supabase
     .from('schools')
     .delete()
     .eq('id', id)
     .eq('org_id', orgId)
-    .select('id, name')
+    .select('*')
     .single();
 
   if (error) {
@@ -319,7 +336,11 @@ app.openapi(deleteRouteDef, async (c) => {
       resourceId: id,
       resourceName: data.name,
       action: 'delete',
-      details: {},
+      details: auditDeleteSnapshot(data as Record<string, unknown> | null, [
+        'name',
+        'short_name',
+        'is_active',
+      ]),
     },
     waitUntilFrom(c),
   );
