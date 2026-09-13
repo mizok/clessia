@@ -10,7 +10,7 @@ import { DbUuidSchema } from '../lib/validation';
 import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
 import { buildPeriodFilter, buildSelect, sortColumn } from './enrollments/list-query';
 import { monthRange, prorateByDays } from '../lib/proration';
-import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
+import { applyCampusFilter, filtersCampus, getCampusScope } from '../lib/campus-scope';
 import { checkEnrollmentSessionPacks } from '../lib/enrollment-session-pack-guard';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
@@ -501,17 +501,20 @@ app.openapi(
     } = c.req.valid('query');
     const orgId = c.get('orgId');
     const supabase = c.get('supabase');
+    // **select 的 inner join 與下面的 applyCampusFilter 必須同一個判準**（#815）——
+    // 問「會不會下條件」，不是問「使用者有沒有傳 campusId」
+    const campusScope = getCampusScope(c);
 
     let query = supabase
       .from('enrollments')
-      .select(buildSelect(campusId, hasInvoice), { count: 'exact' })
+      .select(buildSelect(filtersCampus(campusScope, campusId), hasInvoice), { count: 'exact' })
       .eq('org_id', orgId)
       .order(sortColumn(sort), { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
 
     if (classId) query = query.eq('class_id', classId);
     if (studentId) query = query.eq('student_id', studentId);
-    query = applyCampusFilter(query, 'classes.campus_id', getCampusScope(c), campusId);
+    query = applyCampusFilter(query, 'classes.campus_id', campusScope, campusId);
     if (status) query = query.eq('status', status);
 
     // `true` 的過濾由 select 裡的 `!inner` 完成；`false` 要再下這一條

@@ -3,7 +3,7 @@ title: 授權範圍 —— 分校、職務、細部權限
 summary: 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
 category: architecture
 status: active
-updated: 2026-09-02
+updated: 2026-09-13
 tags: [architecture, authorization, campus, teacher-scope, permissions, security]
 ---
 
@@ -111,13 +111,13 @@ school-exams、contact-book、class-logs，以及 `/api/attendance/sessions` 的
 
 ## 現況（2026-09-03）
 
-| 洞                   | 狀態         | 落地的東西                                                                                                 |
-| -------------------- | ------------ | ---------------------------------------------------------------------------------------------------------- |
-| 1 老師改得動組織設定 | **已修**     | `writeRequiresAdmin('manage_org_settings')`；財務欄位另外要 `manage_finance`，讀寫都收                     |
-| 2 五個權限只擋前端   | **已修**     | `mount()` 的 `{ all } / { write }`，harness A7b 防退化                                                     |
-| 3 提權與自我提權     | **已修**     | `lib/role-assignment.ts`，接在 staff 的建立與更新                                                          |
-| 4 老師只擋讀不擋寫   | **已修**     | `lib/attendance-write-scope.ts`，接在三支寫入端點                                                          |
-| 5 分校零隔離         | **地基完成** | `campusScope` 掛 middleware、`all_campuses` 權限、migration、全域 `campusRequestGuard`（指名別的分校 403） |
+| 洞                   | 狀態         | 落地的東西                                                                                                                                                                |
+| -------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 老師改得動組織設定 | **已修**     | `writeRequiresAdmin('manage_org_settings')`；財務欄位另外要 `manage_finance`，讀寫都收                                                                                    |
+| 2 五個權限只擋前端   | **已修**     | `mount()` 的 `{ all } / { write }`，harness A7b 防退化                                                                                                                    |
+| 3 提權與自我提權     | **已修**     | `lib/role-assignment.ts`，接在 staff 的建立與更新                                                                                                                         |
+| 4 老師只擋讀不擋寫   | **已修**     | `lib/attendance-write-scope.ts`，接在三支寫入端點                                                                                                                         |
+| 5 分校零隔離         | **地基完成** | `campusScope` 掛 middleware、`all_campuses` 權限、migration、全域 `campusRequestGuard`（指名別的分校 403）。⚠️ 2026-09-13 發現「接上了 ≠ 生效了」的一種，見下方 #815 那節 |
 
 **洞 5 已完成**：14 支路由全部接上「不指定分校時只回自己的分校」，
 harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一個洞就不會是「還沒做完」
@@ -131,6 +131,52 @@ harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一�
    （它只看 query string）。少了那一段，只管 A 校的人可以替 B 校的學生打卡
 3. **`ensureAttendanceSessionEvents` 會寫入**（補建出勤事件），所以範圍不能只靠讀取端
    過濾 —— 少了它，A 校的管理員查詢時會替 B 校的課堂建立 event
+
+### 2026-09-13 補：接上了 ≠ 生效了 —— PostgREST 的 left join 會把 scope 吃掉（#815）
+
+**`/api/enrollments` 的 `campusScope` 條件一直有下，而它一直沒有作用。**
+
+只被指派一間分校（且該分校 0 筆報名）的管理員打開 `/admin/enrollments`，
+**不帶 `campusId`** 就看得到全機構的 12 筆報名與學生姓名，而班級欄位整排空白。
+帶自己的 `campusId` 回 0 筆、帶別校回 403 —— **後兩條證明擋的機制本身是活的**，
+漏的只有「不帶參數」那條路，而那是畫面的**預設路徑**。
+
+成因不在授權層，在查詢組裝層：
+
+| 那一行問的是                                             | 實際決定條件的是                                                          |
+| -------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `buildSelect(campusId)` —— **使用者有沒有傳 `campusId`** | `applyCampusFilter(..., scope, campusId)` —— **scope 與 campusId 的交集** |
+
+PostgREST 的巢狀過濾預設走 **left join**：少了 `!inner`，`classes.campus_id` 條件
+不成立的報名**不會被排除**，只會把 `classes` 關聯變成 null 留在結果裡。
+兩邊在「受限管理員不帶參數」時分岔，於是條件下去了、join 是 left、資料全留著。
+
+> **這個洞的形狀值得單獨記住**：`campusScope` 在 middleware 算對了、條件也真的下到查詢上了，
+> **而它被更下游的一個 join 語意吃掉**。#464 問的是「實際擋的層跟裁定要掛的層對不對得上」——
+> 這是一個反例：**層對了，層裡面的語意沒對。**
+
+修法是讓兩邊問同一支函式 `filtersCampus(scope, requested)`（`lib/campus-scope.ts`），
+而不是在 select 那邊多寫一個條件 —— **多寫一個條件的話，下一個加巢狀過濾的人還是會各自推論一次。**
+
+**過濾巢狀欄位的呼叫端共四個**（2026-09-13 自己數過一遍，工單記的是「9 個呼叫端、2 個巢狀」，
+實際是 10 個呼叫端、4 個巢狀）：
+
+| 呼叫端                                 | 欄位                | select                                                 | 狀態        |
+| -------------------------------------- | ------------------- | ------------------------------------------------------ | ----------- |
+| `routes/enrollments.ts`                | `classes.campus_id` | 原本 `campusId ? 'classes!inner' : 'classes'`          | 🔴 **已修** |
+| `routes/attendance.ts:387`             | `events.campus_id`  | `ATTENDANCE_SELECT` 的 `events!inner` **無條件**       | ✅          |
+| `routes/attendance.ts:1052`            | `classes.campus_id` | `SESSION_SUMMARY_SELECT` 的 `classes!inner` **無條件** | ✅          |
+| `lib/attendance-session-events.ts:199` | `classes.campus_id` | `classes!inner` **無條件**                             | ✅          |
+
+**三個安全的都是「無條件 `!inner`」** —— 那是另一種對的做法，而且更難寫錯：
+它不需要跟任何判準保持一致。**只有 enrollments 想要「有時 inner、有時 left」，
+而那個「有時」的條件寫錯了。**
+
+**同一族的第二處**：`routes/students.ts` 的 `activeCount` 是一支獨立的 count 查詢，
+只濾了 `org_id` —— 主清單有套 scope，但儀表板的「在籍學生」卡片讀的是它，
+所以受限管理員**儀表板說 69、自己的學生頁說 0**。註解裡的「全量」本來只指
+「不受 `isActive` filter 影響」，而它連分校也一起不受影響了：**一個字面成立、範圍過寬的實作。**
+修法是重用主清單已經算好的學生 id 集合 —— **算兩次就會分岔一次。**
 
 **`reports.ts` 的判準與其他不同**：篩選是「沾到就算」（跨班帳單沾到這個分校就進來），
 **範圍是「沾到就不能看」** —— 一張帳單只要有任何一筆明細在範圍外，受限的管理員就

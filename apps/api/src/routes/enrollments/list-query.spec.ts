@@ -36,9 +36,10 @@ describe('buildPeriodFilter', () => {
 });
 
 describe('buildSelect', () => {
-  // 少了 !inner 的話 campus 篩選不會排除任何列，只會讓班級欄位變成空白
-  it('依分校過濾時 classes 必須是 inner join', () => {
-    expect(buildSelect('campus-1')).toContain('classes!inner(');
+  // 少了 !inner 的話 campus 篩選不會排除任何列，只會讓班級欄位變成空白。
+  // **參數是「這次會不會下分校條件」，不是「使用者有沒有傳 campusId」**（#815）
+  it('會下分校條件時 classes 必須是 inner join', () => {
+    expect(buildSelect(true)).toContain('classes!inner(');
   });
 
   it('沒有分校條件時維持一般關聯', () => {
@@ -49,7 +50,7 @@ describe('buildSelect', () => {
   });
 
   it('兩種情況取得的欄位一樣', () => {
-    expect(buildSelect('campus-1').replace('classes!inner', 'classes')).toBe(buildSelect());
+    expect(buildSelect(true).replace('classes!inner', 'classes')).toBe(buildSelect());
   });
 });
 
@@ -77,17 +78,17 @@ describe('buildSelect 的 hasInvoice', () => {
   });
 
   it('要「有帳單」時用 inner join', () => {
-    expect(buildSelect(undefined, true)).toContain('invoice_items!inner(id)');
+    expect(buildSelect(false, true)).toContain('invoice_items!inner(id)');
   });
 
   it('要「沒帳單」時用 left join（過濾靠 is.null，不是 join）', () => {
-    const select = buildSelect(undefined, false);
+    const select = buildSelect(false, false);
     expect(select).toContain('invoice_items(id)');
     expect(select).not.toContain('invoice_items!inner');
   });
 
   it('跟 campusId 的 inner join 並存', () => {
-    const select = buildSelect('campus-1', true);
+    const select = buildSelect(true, true);
     expect(select).toContain('classes!inner');
     expect(select).toContain('invoice_items!inner');
   });

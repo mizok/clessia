@@ -333,6 +333,15 @@ app.openapi(
     // 這支查詢**不濾 enrollment status**（enrollment-rules 第 8 節）：分校主任要看得到
     // 自家剛退班的學生。改這裡等於改授權可見性，不是改篩選
     const campusIds = campusFilterIds(getCampusScope(c), campusId);
+    /**
+     * 這個人看得到哪些學生 id。`null` = 不受分校限制。
+     *
+     * **下面的 `activeCount` 要用同一個集合**（#815 第 2 節）——
+     * 它原本只濾 `org_id`，於是只被指派一個分校的管理員在儀表板看到
+     * 「在籍學生 69」而他自己的學生頁說 0。
+     * 讓第二處自己再算一次就是同一個 bug 的第二個實例：**算兩次就會分岔一次。**
+     */
+    let scopedStudentIds: string[] | null = null;
     if (campusIds) {
       const { data: enrollmentRows } = await supabase
         .from('enrollments')
@@ -347,12 +356,11 @@ app.openapi(
         ),
       );
 
-      if (campusStudentIds.length > 0) {
-        query = query.in('id', campusStudentIds);
-      } else {
-        // 該分校無學生，直接回空集合
-        query = query.in('id', ['00000000-0000-0000-0000-000000000000']);
-      }
+      // 該分校無學生時用一個不存在的 id 表示空集合 —— `.in('id', [])` 也是零筆，
+      // 但保留既有寫法，不趁機改語意
+      scopedStudentIds =
+        campusStudentIds.length > 0 ? campusStudentIds : ['00000000-0000-0000-0000-000000000000'];
+      query = query.in('id', scopedStudentIds);
     }
     if (isActive !== undefined) {
       query = query.eq('is_active', isActive);
@@ -370,12 +378,17 @@ app.openapi(
     const rows = (data ?? []) as Array<Record<string, unknown>>;
     const total = count ?? 0;
 
-    // 獨立 query 取得全量 activeCount（不受 isActive filter 影響）
-    const { count: activeCount } = await supabase
+    // 獨立 query 取得全量 activeCount。
+    // **「全量」只指「不受 `isActive` filter 影響」** —— 分校範圍照樣要套（#815）：
+    // 不套的話儀表板的「在籍學生」卡片會對只管一個分校的人報全機構的數字，
+    // 而他自己的學生頁說 0。用主清單算好的 `scopedStudentIds`，不另外再算一次。
+    let activeCountQuery = supabase
       .from('students')
       .select('*', { count: 'exact', head: true })
       .eq('org_id', orgId)
       .eq('is_active', true);
+    if (scopedStudentIds) activeCountQuery = activeCountQuery.in('id', scopedStudentIds);
+    const { count: activeCount } = await activeCountQuery;
 
     const students = rows.map((row) => {
       const relations =

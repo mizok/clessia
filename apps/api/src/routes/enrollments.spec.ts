@@ -1554,6 +1554,8 @@ describe('B3 —— 報名的計費 API', () => {
     fixture: {
       period?: { start_date: string; end_date: string } | null;
       template?: { amount: number } | null;
+      /** 預設 `null`（不受分校限制）—— 只有 #815 那組測試會給值 */
+      campusScope?: readonly string[] | null;
     } = {},
   ) {
     const filters: Array<[string, unknown]> = [];
@@ -1575,7 +1577,12 @@ describe('B3 —— 報名的計費 API', () => {
             filters.push([`${table}.is.${column}`, value]);
             return query;
           },
-          in: () => query,
+          // **參數要記下來**：原本是 `in: () => query`，於是「分校條件下到哪一欄、
+          // 下了哪些 id」從定義上測不到 —— 而 #815 漏的正是這件事
+          in: (column: string, values: unknown[]) => {
+            filters.push([`${table}.in.${column}`, values]);
+            return query;
+          },
           or: () => query,
           order: () => query,
           range: () => query,
@@ -1616,7 +1623,7 @@ describe('B3 —— 報名的計費 API', () => {
       context.set('orgId', 'org-1');
       context.set('userId', 'user-1');
       // 主題不是分校範圍 —— 宣告成「不受分校限制」；不宣告會走進 getCampusScope 的缺席分支
-      context.set('campusScope', null);
+      context.set('campusScope', fixture.campusScope ?? null);
       await next();
     });
     app.route('/api/enrollments', enrollmentsRoute.default);
@@ -1650,6 +1657,50 @@ describe('B3 —— 報名的計費 API', () => {
       await app.request('/api/enrollments');
 
       expect(selects.some((select) => select.includes('invoice_items'))).toBe(false);
+    });
+  });
+
+  /**
+   * **#815：`classes` 的 inner join 原本只看「使用者有沒有傳 campusId」，
+   * 不看「這次查詢有沒有在套 campusScope」。**
+   *
+   * PostgREST 的巢狀過濾預設走 left join —— 少了 `!inner`，`classes.campus_id`
+   * 條件不成立的報名不會被排除，只會把 classes 關聯變成 null 留在結果裡。
+   * 於是只被指派一個分校的管理員**不帶參數**（畫面的預設路徑）就看得到全機構的
+   * 報名與學生姓名，而班級欄位整排空白。
+   *
+   * 第三條是對照組，而且它比前兩條更容易被改壞：**「不受分校限制又沒帶參數」
+   * 必須維持 left join** —— 無條件 inner 會把沒有班級關聯的報名一起弄丟。
+   */
+  /** `campusId` 走 `DbUuidSchema` —— 不是 UUID 的話驗證會先擋下來，測到的是驗證器不是這個 bug */
+  const CAMPUS_08 = '11111111-1111-4111-8111-111111111111';
+
+  describe('GET /api/enrollments 的分校範圍（#815）', () => {
+    it('只被指派一個分校、不帶 campusId 時，classes 要 inner join 且條件真的下去', async () => {
+      const { app, filters, selects } = createApp({ campusScope: [CAMPUS_08] });
+
+      await app.request('/api/enrollments');
+
+      expect(selects.some((select) => select.includes('classes!inner'))).toBe(true);
+      expect(filters).toContainEqual(['enrollments.in.classes.campus_id', [CAMPUS_08]]);
+    });
+
+    it('帶自己的 campusId 時照舊 inner join', async () => {
+      const { app, filters, selects } = createApp({ campusScope: [CAMPUS_08] });
+
+      await app.request(`/api/enrollments?campusId=${CAMPUS_08}`);
+
+      expect(selects.some((select) => select.includes('classes!inner'))).toBe(true);
+      expect(filters).toContainEqual(['enrollments.in.classes.campus_id', [CAMPUS_08]]);
+    });
+
+    it('不受分校限制又沒帶參數時維持 left join —— 沒有條件就不該縮限', async () => {
+      const { app, filters, selects } = createApp();
+
+      await app.request('/api/enrollments');
+
+      expect(selects.some((select) => select.includes('classes!inner'))).toBe(false);
+      expect(filters.some(([key]) => key === 'enrollments.in.classes.campus_id')).toBe(false);
     });
   });
 
