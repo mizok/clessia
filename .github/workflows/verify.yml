@@ -122,6 +122,68 @@ jobs:
       - name: build web
         run: npx nx build web --configuration=production
 
+  # ── seed 能不能真的跑起來 —— 「沒人跑得動的東西不會有人發現它壞了」（#841）──────
+  #
+  # #838：`seed.sql` 的一段依賴另一支要手動套的檔案，而 `db:reset` 被
+  # `.claude/settings.json` 的 deny 擋著 —— **長期沒有人跑得動，所以沒有人發現它壞了**，
+  # 直到第一次真的跑就整批 rollback、本機變成空庫。期間那支 seed 被改過好幾次，
+  # 每一次都只在「作者自己那台已經手動套過補充資料的機器」上驗過。
+  #
+  # 這個 job 把那件事搬到 CI：**真的起一次 Postgres、真的跑一次 reset、真的查資料在不在。**
+  #
+  # **只在動到 `supabase/**` 的 push 上跑。** 它要拉 Docker image、起整組 stack，
+  # 比 `verify` 慢一個量級，而 seed 與 migration 只會因為那個目錄的改動而壞。
+  #
+  # ⚠️ `on.push.paths` 會過濾**整個 workflow**（連 `verify` 一起關掉），所以過濾做在
+  # job 內、用 `git diff` 自己判 —— 不引入第三方 action。
+  seed-reset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 要跟前一次 push 比 diff，所以需要歷史
+          fetch-depth: 0
+
+      # **查不到 base 就跑**（新分支的第一次 push、force-push 之後、`before` 是全零）。
+      # 這個方向是刻意的：漏跑一次才是風險，多跑一次只是慢。
+      - name: 這次 push 有沒有動到 supabase/
+        id: scope
+        run: |
+          base='${{ github.event.before }}'
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo 'base 查不到（新分支或 force-push）—— 保守起見照跑'
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$base" HEAD | grep -q '^supabase/'; then
+            echo 'supabase/ 有改動 —— 跑'
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'supabase/ 沒動 —— 跳過'
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: supabase/setup-cli@v1
+        if: steps.scope.outputs.run == 'true'
+        with:
+          version: latest
+
+      # `db start` 而不是 `start`：只要 Postgres（＋ migration／seed 的執行環境），
+      # 不需要 Studio / Kong / Realtime 那一整套 —— 少拉幾個 image。
+      - name: supabase db start
+        if: steps.scope.outputs.run == 'true'
+        run: supabase db start
+
+      # 這一步就是 #838 第一次跑就炸的那一步。
+      # **它會真的執行全部 migration 與 `sql_paths` 裡的每一支 seed。**
+      - name: supabase db reset
+        if: steps.scope.outputs.run == 'true'
+        run: supabase db reset
+
+      # **「沒有報錯」證不出「資料在」** —— 哨兵查的是後者（理由寫在那支 SQL 的檔頭）。
+      - name: seed 哨兵
+        if: steps.scope.outputs.run == 'true'
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/seed-sentinels.sql
+
   # ── main 上自動重生現況表 ──────────────────────────────────────────────────────────────
   #
   # 為什麼要有這個 job：`kb/wiki/roadmap.md` 的功能區現況表是**從整個 repo 的磁碟狀態**
