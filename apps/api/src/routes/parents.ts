@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAuth } from '../lib/get-auth';
 import { mintLoginLinkForRequest } from './login-links/mint';
 import { requireAdminMiddleware } from '../middleware/auth';
@@ -166,6 +167,36 @@ function buildPostgrestEq(field: string, value: string): string {
 // ============================================================
 // Routes
 // ============================================================
+
+/**
+ * 建完家長帳號之後給它 `parent` 角色（#877）。
+ *
+ * **原本這一步不存在** —— `parents.ts` 全檔零 `user_roles` 寫入，而 `staff.ts` 有 13 處。
+ * 後果不只是「產生登入連結」回 422（`login-links.ts:68` 的 `NO_ROLES`）：
+ * **沒有 `parent` 角色的帳號登入後過不了 `roleGuard`，根本進不了家長端。**
+ *
+ * 之所以沒有人發現，是因為 seed 的家長角色是 `seed.sql:90` 直接 INSERT 的 ——
+ * **「家長有角色」是 seed 的性質，不是產品的**，而在 seed 資料上點永遠不會撞到。
+ *
+ * ## `permissions` 給空陣列是刻意的
+ *
+ * `user_roles.permissions` 只有 admin 在用（`staff.ts:997` 逐字是
+ * `role === 'admin' ? normalizeAdminPermissions(...) : []` —— **teacher 拿到的也是 `[]`**），
+ * 而 `auth.hasPermission()` 的呼叫端全部是管理端的細部職責（`view_revenue`、`manage_staff` …）。
+ * **家長端沒有任何 `permissionGuard`**，它的可見範圍由「這是誰的孩子」決定，不由權限字串決定。
+ *
+ * 寫在這裡是因為**不寫理由，下一個人會合理地把它當缺失補上**。
+ */
+async function insertParentRole(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<{ error: { message: string } | null }> {
+  const { error } = await supabase
+    .from('user_roles')
+    .insert({ user_id: userId, role: 'parent', permissions: [] });
+
+  return { error: error ? { message: error.message } : null };
+}
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -457,6 +488,17 @@ app.openapi(
     if (insertError || !parentRow) {
       await rollback();
       return c.json({ error: '建立家長資料失敗', code: 'CREATE_PARENT_FAILED' }, 400);
+    }
+
+    const { error: insertRoleError } = await insertParentRole(supabase, createdUserId!);
+
+    if (insertRoleError) {
+      await supabase
+        .from('parents')
+        .delete()
+        .eq('id', (parentRow as Record<string, unknown>)['id'] as string);
+      await rollback();
+      return c.json({ error: insertRoleError.message, code: 'CREATE_PARENT_ROLE_FAILED' }, 400);
     }
 
     // INSERT parent_student_relations
@@ -1625,6 +1667,19 @@ app.openapi(
           }
 
           parentId = (newParentRow as { id: string }).id;
+
+          const { error: insertRoleError } = await insertParentRole(supabase, createdUserId!);
+
+          if (insertRoleError) {
+            await supabase.from('parents').delete().eq('id', parentId);
+            try {
+              await auth.api.removeUser({ body: { userId: createdUserId! }, asResponse: false });
+            } catch {
+              // ignore
+            }
+            throw new Error('建立家長角色失敗，請稍後再試');
+          }
+
           parentsCreated++;
         }
 
