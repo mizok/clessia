@@ -1,4 +1,4 @@
-# ops-warden 席 charter(監工)
+# labor-ops-warden 席 charter(監工)
 
 **作用:分散計畫席的巡檢負載。允許 idle** —— 每輪巡完沒事就停,不找活。
 
@@ -93,7 +93,7 @@
 2026-09-03 連續踩兩次(teacher-pages「A1 小刀先做」、infra「繼續做第 2 項」),兩次都
 誤報成「已代送」。
 
-正確作法:`ctrl+u` 清掉殘字 → `herdr agent prompt <席> '<殘字原文> —— 這句是 ops-warden
+正確作法:`ctrl+u` 清掉殘字 → `herdr agent prompt <席> '<殘字原文> —— 這句是 labor-ops-warden
 代送:<你查證的結論>'` → **12 秒後 `herdr agent list` 確認該席轉 working,轉了才算送達**。
 沒轉 working 就是沒送到,不要寫進回報。這是送達協定「msg_id 才算送了」的 pane 版本:
 **回傳 ok 不算送達,對方動起來才算。**
