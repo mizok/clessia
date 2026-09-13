@@ -90,6 +90,68 @@ gh pr list --state open --search "labor-8"   # 共用 GitHub 帳號，要用分�
 兩次都是**問錯了表／欄位**，而兩次的空結果看起來都像一個發現。
 （第 2 條還多一層：它「看起來像缺陷」比「看起來像沒有」更誘人寫下去。）
 
+## `db:reset` 被 deny 擋住，但 `npx supabase migration up` 沒有
+
+`.claude/settings.json` 的 deny 只擋 `db reset` 的五個變體。**`npx supabase migration up`
+不在清單上，而它只套尚未執行的 migration、不動資料** —— 別席合了一支 migration 進 main 之後，
+本機要它生效**不需要 reset**。
+
+```sh
+psql "$DATABASE_URL" -At -c \
+  "select count(*) from supabase_migrations.schema_migrations where version='<version>'"
+npx supabase migration up
+```
+
+⚠️ **worktree 要先有那個檔** —— 從舊的 origin/main 開的分支看不到它，先 `git fetch` 再從最新
+origin/main 開分支（或單獨 checkout 那個檔）。
+
+> **為什麼這條值得寫下來**：套沒套過那支 migration，**它的失敗長得跟「程式沒接」一模一樣**。
+> 有人回報「新加的 audit / 新欄位寫不進去」時，**第一個該問的是他套過那支 migration 沒有**，
+> 不是去讀路由的程式碼。（labor-9 指出這一點比我原本寫的重要。）
+
+## 只看一欄就說「沒有記錄」—— 空欄位跟空紀錄是兩件事
+
+我回報 #832「`organization` 的 `resource_name` 是空的，所以稽核答不出改成什麼」。
+**錯的**：那筆的 `details` 是
+`{"fields":["attendance_mode"],"values":{"attendance_mode":"daily_checkin"}}` ——
+資訊完整，只是不在我看的那一欄。而 `resource_name` 留空是**刻意**的
+（被改的不是那個叫「Clessia Demo」的東西，是一個設定欄位）。
+
+**查完六種 resource_type 之後結論還反過來**：那兩支新寫的是最完整的，
+`subject.update` 是唯一記得下 before 值的（`{"from":…,"to":…}`），
+而**真正空的是 `campus`**（五筆 `details` 全 `{}`）。
+
+> **判準：說「這裡沒有記錄 X」之前，把那張表的每一個欄位都看一遍。**
+> 這是「grep 回空先懷疑 pattern」在**欄位**上的形式 ——
+> 而它比 grep 那一版更容易犯，因為你**確實看到了一個空值**，
+> 那比「什麼都沒找到」更像一個發現。
+
+## 這個 repo 的表單有兩種輸入，只有一種吃得下合成的值
+
+- **原生的**（`pInputText`、`input[type=time]`、`textarea`）—— 「原生 setter + 派 `input`」有效
+- **PrimeNG 包裝的**（`p-datepicker`、數字輸入）—— **無效，而且靜靜無效**：
+  DOM 上看得到你填的值，送出去的是舊值
+
+我因此兩次把「填了沒存進去」當成缺陷候選（班級的起訖日期、人數上限）。
+**退路有兩條**：點它自己的 UI（日曆的 `td span` 可以），
+或從元件 signal 設值（`ng.getComponent` 拿實例）——**後者要另標證據等級，那是「設模型」不是「按 UI」**。
+
+⚠️ **第二個 overlay 在合成事件下開不起來**（第一個可以）。同一族的成因：
+`transitionend` 不觸發 ⇒ CDK overlay 收不乾淨 ⇒ 下一個開不了。
+
+## `grep` 會命中「這個東西不存在」這句話
+
+驗 `resourceType: 'enrollment'` 有沒有呼叫端，`grep` 回一筆，我差點回報「它有」。
+**那一筆是註解本身，而註解逐字寫著「全 repo 沒有任何 `resourceType: 'enrollment'`」。**
+
+> 今天同一族錯了四次，而**四次的方向不同**：
+> 查錯表（`ba_user.name` vs `staff.display_name`）、查錯欄（`resource_name` vs `details`）、
+> **白名單式 `in (...)` 只回我列出的**（以為 course/class 不留 audit）、
+> **命中註解**。
+>
+> **可操作**：`in (...)` 換成 `group by`；驗「有沒有呼叫端」時排除註解行。
+> 前三個是**查得太窄**，最後一個是**查得太寬** —— 兩個方向都會給你一個看起來像發現的空結果。
+
 ## 給下一個接手的人
 
 - **charter 會腐化，接手時先驗一遍再信它。**
