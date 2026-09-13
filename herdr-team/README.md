@@ -390,6 +390,15 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
   都會讓它整句消失。真正的輸入緩衝是空的,所以 Enter 送出的是空字串。第一版把它寫成「畫面是舊的」,
   那是把現象寫成了機制。**處置不變**:`send-keys <任一字元>` → `send-keys BSpace` →
   `prompt … --wait --until working --timeout 15000`,**看到 `working` 才算送到**;`ctrl+u` 沒用,緩衝本來就是空的。
+  > **⚠️ 上面那句「看到 `working` 才算送到」只對 idle 的席位成立。**
+  > 對**已經在 working 的席位**下同一道指令,`--wait --until working` 會回
+  > `{"error":{"code":"timeout"}}` —— 因為它等的是**狀態變化**,而狀態沒有變。
+  > `prompt --help` 自己寫著:從非 working 狀態出發才會先要求 5000ms 內觀察到變化。
+  > **那個 timeout 跟「訊息沒送到」長得一模一樣**,而照這條規則的字面做,
+  > 下一步是重送 —— 於是對方在同一個 turn 裡收到兩份。
+  > **處置:timeout 之後先 `herdr agent read <席名>` 看訊息在不在 pane 裡,不要直接重送。**
+  > (labor-reviewer 2026-09-13 交接時踩到:計畫席輪替當下每一席都在對一個 working 的席位回報,
+  > **這條在輪替那一刻對全隊同時生效**。)
 - **清理自己的 process 用精準 kill**:先 `lsof -ti:<自己的port>` 拿 PID,或 pkill pattern
   必含自己的 worktree 路徑 —— 裸 `pkill -f "workerd serve"` 會殺掉所有席的 API
   (已發生:teacher-pages 誤殺 bundle-analysis 的 8787)。「不 kill 別人的 port」的
