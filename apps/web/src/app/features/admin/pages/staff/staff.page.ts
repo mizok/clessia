@@ -36,7 +36,6 @@ import {
   StaffListResponse,
   StaffRole,
   StaffStatus,
-  Permission,
 } from '@core/staff.service';
 import { CampusesService, Campus } from '@core/campuses.service';
 import { SubjectsService, Subject } from '@core/subjects.service';
@@ -62,15 +61,6 @@ import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
-
-const PERMISSION_OPTIONS: { value: Permission; label: string; description: string }[] = [
-  { value: 'basic_operations', label: '日常行政', description: '查詢與處理報名、出勤、請假' },
-  { value: 'manage_courses', label: '課程管理', description: '課程與排課管理' },
-  { value: 'manage_students', label: '學生管理', description: '學生與家長資料管理' },
-  { value: 'manage_finance', label: '財務管理', description: '財務與收費管理' },
-  { value: 'manage_staff', label: '帳號管理', description: '系統帳號與權限管理' },
-  { value: 'view_reports', label: '報表查看', description: '查看營收與統計報表' },
-];
 
 interface RoleOption {
   value: StaffRole;
@@ -152,7 +142,6 @@ export class StaffPage implements OnInit {
   }
 
   // Constants exposed to template
-  protected readonly permissionOptions = PERMISSION_OPTIONS;
   protected readonly roleOptions = ROLE_OPTIONS;
   protected readonly staffStatusOptions = [
     { value: 'active', label: '啟用中' },

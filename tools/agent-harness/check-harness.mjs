@@ -418,6 +418,40 @@ if (existsSync(apiIndex) && existsSync(permissionsFile)) {
     }
   }
 
+  // ── A7d. 前端的權限詞彙表要跟權威清單逐項相同（clause c11）───────────────────
+  // `apps/api` 的 tsconfig paths 目前解析不到 `packages/`（issue #782），
+  // 所以前端只能抄一份。**抄的清單必須有機制守。**
+  //
+  // 少一個值的後果在畫面上是**看不見的**：那個權限的勾選框不存在，於是沒有人給得出來，
+  // 而「給不出來」跟「這個權限不擋任何東西」長得一模一樣（#772 就是這樣活了好幾個月）。
+  //
+  // **順序也比對** —— 它決定人員表單上勾選框的排列，讓兩邊能逐項對照。
+  const webPermissionsFile = join(ROOT, 'apps/web/src/app/core/staff.service.ts');
+  if (existsSync(webPermissionsFile)) {
+    const webSource = readFileSync(webPermissionsFile, 'utf8');
+    const webStart = webSource.indexOf('export const PERMISSIONS');
+    if (webStart === -1) {
+      fail(
+        'apps/web/src/app/core/staff.service.ts 找不到 `export const PERMISSIONS` —— ' +
+          '前端的權限詞彙表不見了，人員表單的勾選框就沒有來源（#772）',
+      );
+    } else {
+      const webVocabulary = [
+        ...webSource
+          .slice(webStart, webSource.indexOf('] as const', webStart))
+          .matchAll(/'([a-z_]+)'/g),
+      ].map(([, value]) => value);
+      if (webVocabulary.join(',') !== vocabulary.join(',')) {
+        fail(
+          '前端與 API 的權限詞彙表不一致（#772）：\n' +
+            `      API（權威，apps/api/src/lib/permissions.ts）：${vocabulary.join(', ')}\n` +
+            `      web（apps/web/src/app/core/staff.service.ts）：${webVocabulary.join(', ')}\n` +
+            '      少一個值＝那個權限在人員表單上沒有勾選框＝沒有人給得出來',
+        );
+      }
+    }
+  }
+
   // ── A7c. 每個權限在 seed 的權限矩陣段都要有一個帳號（clause c11）─────────────
   // `supabase/seed.sql` 為 #759 抄了一份權限清單（SQL 讀不到 TS，只能抄）。
   // **手抄的清單必須有機制守** —— 新增一個權限而忘了給它帳號的話，
