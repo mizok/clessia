@@ -229,27 +229,45 @@ gh run view <run-id> --json jobs --jq '.jobs | length'
 > 沒驗到的是 **squash 之後的 main 本身**(「這支 PR 跟同時段合進來的其他 PR 併在一起
 > 還成不成立」)。**風險不是「程式碼沒驗過」,是「它們互相之間沒驗過,而且壞了沒辦法二分」。**
 
-## 接手第一件事
+## 接手第一件事（2026-09-13 12:1x，計畫席 clessia-c8 交接，Ctx 73% 時寫）
 
-1. `TZ=Asia/Taipei date` —— **報時間一律實跑**。前一任在這件事上憑感覺漂了四小時。
-2. `herdr agent list` —— 誰在 working、誰 idle。**不要用 issue 板推論席位活動**（前一任犯過）。
-3. `gh pr list --state open` —— 非 draft 且 CI 綠的**非保留類**直接合。
-4. 讀 `herdr-team/README.md` 的「計畫席消失時怎麼辦」與全席通則（2026-09-06 新增二十幾條）。
+1. `TZ=Asia/Taipei date` —— 報時間一律實跑。
+2. `herdr agent list` + 每席 `herdr agent read <席> | grep Ctx` —— 誰在 working、誰 Ctx 過線。**不要用 issue 板推論席位活動。**
+3. `gh pr list --state open` —— 非 draft、CI 綠、**非保留類**直接合（合前：`git rev-list --count origin/<br>..origin/main` + 檔案交集，交集非空叫作者 rebase）；保留類（migration／金額路徑／授權邏輯）**只有使用者能合**，標題已帶【保留類】。
+4. 讀 `herdr-team/README.md`「計畫席消失時怎麼辦」「席位復活程序」（含**建議提示殘影**：席位 idle 時輸入框那句「打好沒送的字」是建議提示不是殘字，`send-keys <任一字元>` → `BSpace` → `prompt --wait --until working` 才算送到）、「共享資源協定」（**獨占資源的交棒一律經計畫席，claude-peers 會雙向靜默失效**）。
+5. 心跳：launchd 每 30 分鐘 prompt 你與 ops-warden；帳戶限速（09-12/13 一天三次、各停 1.5–3 小時）會讓全席出現 `/low-priority` 橫幅，復工時逐席用第 4 條的三步推回 working。
 
-## 保留類（只有使用者能合）
+### 席位（2026-09-13 12:1x）
 
-**migration（schema）／金額計算路徑／授權權限邏輯。** 這三類 CI 綠也不要合，
-攢到使用者窗口。其餘計畫席自己合，或交 `labor-reviewer` 代合。
+| 席 | 在做 | 備註 |
+| --- | --- | --- |
+| `labor-8` | #758 寫入實按第 4 輪（課堂／異動），瀏覽器暫交出 | 每輪 reset 走 labor-db-reset；輪末 reset 收尾；#836 合後改 `admin/staff.md` 兩處 |
+| `labor-9` | #846 報名 audit → #849 seed 員工分校 | 保留類 PR 標好等使用者 |
+| `labor-20260913-1134` | #848（P1，使用者實機點名的 390 版面）持瀏覽器一小時 | 掃描 → 修共用處 → 重掃歸零 → 回填地圖；掃完交回 labor-8 |
+| `labor-db-reset` | 只做 `npm run db:reset`（使用者親自授權，deny 行只在它的 worktree 移除） | 憑證：students 有張宇軒、admin 13、admin10=[] |
+| `labor-reviewer` | 代合與部署（取代 review-steward） | **部署前查 migration**：main 有 #832 的 migration，正式 DB 要使用者親自套完才能部署 api |
+| `ops-warden` | 心跳巡檢、備援；**巡檢附帶回報計畫席 Ctx，≥80% 叫交接** | 09-13 11:5x 換過新 session |
 
-## 這一輪在飛的東西：為什麼還沒完，不是進度快照
+**命名（使用者裁定）**：生產席 `labor-YYYYMMDD-HHMM`；常設席也帶時間戳 `<職務名>-YYYYMMDD-HHMM`；charter 檔名維持職務名。常設席 **context 滿了就交接**（新 session 接同 charter），不是關掉留空。
 
-| 主題 | 卡在哪 |
+### 等使用者的（12:1x）
+
+| 項 | 動作 |
 | --- | --- |
-| **補課功能** | schema 已合（PR #548）。API 那片卡在**寫入順序**：PostgREST 沒有跨語句 transaction，裁定走「先寫 FK、再寫 `schedule_changes`、加補償」，理由是**先寫流水的失敗態跟一個合法狀態長得一模一樣**。RPC 記成觸發條件（第二個地方也需要原子性時再評估）。 |
-| **PR #535**（儀表板可點訊號） | CI 綠但**押著**。那筆缺陷是在 fine pointer 下量的，而**這個環境沒有真的 device emulation**。等 design-web 用注入法（charter 坑 34）驗證那個問題在 coarse 下是否真的存在。**結論若是「不存在」，不要 revert**——它加的鍵盤 focus 樣式無論如何都對。 |
-| **issue #502 第 1 項** | 已裁：寫入點擋（先停課後請假不再寫 `on_leave`）、既有的保留（那是當時正確的歷史）。**尚未實作。** |
-| **issue #488**（六個從沒執行的 TODO） | 報告已交。**甲（點名時寫 `completed`）vs 乙（時間過了寫）的語意歧義沒解**，而乙需要 Cloudflare Cron Trigger（這個專案沒有排程基礎設施）。 |
-| **issue #464**（`requirePermission` 盤點） | 表已做好、右欄留空。**計畫席刻意壓著沒推給使用者**——它不阻塞任何人，而使用者手上已有保留類要合。三個前提問題要跟空表一起送。 |
+| **#836【保留類】** | 親合（#833：人員 DELETE 改 409、POST 接管孤兒 ba_user） |
+| **正式 DB migration** | `20260913101500`（audit_logs CHECK 加 subject/organization）要使用者親自套，套完叫 labor-reviewer 部署（累積 17+ 支） |
+| `.claude/settings.json` deny | 主 checkout 的 `npm run db:reset*` deny 仍在，只有 labor-db-reset 的 worktree 移除了那行 —— 不 commit |
+
+### UI 地圖現況
+
+Phase 1（53 頁 + 10 支 _shared 兩向比對）✅；Phase 2-A 響應式 63/63 ✅、2-C 權限矩陣 ✅（`_shared/permission-matrix.md`：9 個權限只有 2 個改前端）、2-D 載入中／錯誤 63/63 ✅；**2-B 寫入實按 #758 第 3 輪已合、第 4 輪進行中**，共 9 輪；完備度約 90/100，剩下的在 #758 與 #848（地圖量不到版面壞掉，這是方法盲點）。方法頁 `kb/wiki/specs/sitemap/README.md` 12 個坑 + Phase 2 節。
+
+### 今天學到、下一任會再用到的
+
+- **seed = `seed.sql` + `seed-demo.sql`**（#842 起 `config.toml` 兩者都套）；`npx supabase migration up` 可套新 migration 不觸發 deny；CI `seed-reset` job 跑 reset + 哨兵，paths filter 退到 merge-base（#847）。
+- 「沒有炸」證不出「資料在」；「屬性設了」不蘊含「看不見」（斷言落在畫面）；替身少記一個東西＝把那件事斷言成永遠正常（labor-9 charter 那張表）。
+- 開單前提要自己開檔驗：#722、#784 是幻影單（分別是我沒開檔、ResizeObserver 在量測 iframe 不觸發）。
+- 合併 PR 後席位往同分支疊 commit 會擱淺（#692 / #715）；疊 PR 用 draft，合了上游再 rebase 轉 ready。
 
 ## 今天證實的三個環境限制（會讓你誤判）
 
