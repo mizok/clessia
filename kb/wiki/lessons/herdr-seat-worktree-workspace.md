@@ -3,7 +3,7 @@ title: 開一個新席位 —— 為什麼 workspace create 不夠，要用 work
 summary: 席位要出現在 herdr 側邊欄的專案樹底下（clessia-plan → review-steward / ops-warden），靠的是「cwd 是同名的 git worktree」，不是 workspace 的 label。用 workspace create 起的席位 label 對但位置錯；用 tab create 起的則整個掛在計畫席底下。正確做法是 herdr worktree create 一次把 worktree 與 workspace 建起來。含 2026-09-12 連錯三次的實際過程與每一次錯在哪。
 category: lesson
 status: active
-updated: 2026-09-12
+updated: 2026-09-13
 tags: [lessons, herdr, worktree, runbook, agent-ops]
 ---
 
@@ -24,7 +24,7 @@ herdr worktree create \
 herdr agent start labor-1 --kind claude --pane <回傳的 pane_id> --timeout 120000
 ```
 
-**命名慣例（2026-09-13 使用者改定）：生產席一律 `labor-<開席時間戳>`，格式 `labor-YYYYMMDD-HHMM`（例：`labor-20260913-0945`）。** 之前的 `labor-{N}` 流水號到 labor-9 為止；常設席**也帶時間戳**（2026-09-13 使用者追加）：`<職務名>-YYYYMMDD-HHMM`，例 `ops-warden-20260913-1200`、`labor-reviewer-20260913-1200`、`labor-db-reset-20260913-1200`；charter 檔名維持職務名（`herdr-team/ops-warden.md`），輪替時只換 session／worktree 名，charter 不動。理由：流水號要查「上一個是幾號」，時間戳自帶開席時刻，而且不會撞號。
+**命名慣例（2026-09-13 使用者改定）：生產席一律 `labor-<開席時間戳>`，格式 `labor-YYYYMMDD-HHMM`（例：`labor-20260913-0945`）。** 之前的 `labor-{N}` 流水號到 labor-9 為止；常設席（`labor-reviewer`、`labor-db-reset`、`labor-ops-warden`）同樣是 `labor-` 開頭，開席時一樣帶時間戳（`labor-ops-warden-20260913-1200`），只是 charter 檔名用不帶時間戳的職務名。理由：流水號要查「上一個是幾號」，時間戳自帶開席時刻，而且不會撞號。
 
 ## 為什麼是這一條而不是別條
 
