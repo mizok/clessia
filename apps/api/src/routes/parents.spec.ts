@@ -374,3 +374,119 @@ describe('POST /batch-import —— matched 到別校既有家長時該筆失敗
     expect(results.some((r) => r.error?.includes('不在你分校範圍內'))).toBe(false);
   });
 });
+
+/**
+ * **#821 第 8 項（計畫席裁定 C 案）：`POST /batch-check` 套範圍，但警告不含姓名。**
+ *
+ * 它原本回「系統已有同名家長『X』」——**對受限管理員洩漏別校家長的姓名**。
+ * 三個選項的權衡寫在 #821 的留言：
+ *
+ * - A 套範圍（警告整個消失）→ 跨分校重複家長變得**建得出來且零訊號**
+ * - B 不套 → 就是 #816 認定的那種洩漏
+ * - **C 套範圍 ＋ 不含姓名的警告** → 防重複與不洩漏都成立
+ *
+ * C 有兩半，兩半都要測：
+ * 1. 範圍外的同名家長**不能當 mergeTarget** —— 否則 check 說「可以合併」而
+ *    `batch-import` 會擋，**兩支端點對同一筆資料給出相反的答案**
+ * 2. 那則警告**不含姓名**
+ */
+describe('POST /batch-check —— 範圍外的同名家長不具名、不可合併（#821 C 案）', () => {
+  const OTHER_PARENT = '77777777-7777-4777-8777-777777777777';
+  const OTHER_PARENT_NAME = '陳美玲';
+
+  function fakeSupabase() {
+    return {
+      from(table: string) {
+        const builder: Record<string, unknown> = {};
+        const chain = () => builder as never;
+        Object.assign(builder, {
+          select: () => chain(),
+          eq: () => chain(),
+          in: () => chain(),
+          or: () => chain(),
+          order: () => chain(),
+          limit: () => chain(),
+          ilike: () => chain(),
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
+            resolve({
+              data:
+                table === 'parents'
+                  ? [{ id: OTHER_PARENT, name: OTHER_PARENT_NAME, user_id: 'ba-9' }]
+                  : table === 'ba_user'
+                    ? // 聯絡方式**相符** —— 所以在沒有範圍限制時這一筆是「可合併」
+                      [{ id: 'ba-9', phone: '0955000111', email: null }]
+                    : // `parent_student_relations` 回空有兩個作用：範圍查詢算出
+                      // 「一個家長都不在範圍內」，而 Step 3.5 也沒有既有學生
+                      [],
+              error: null,
+            }),
+        });
+
+        return builder;
+      },
+    };
+  }
+
+  async function check(campusScope: readonly string[] | null) {
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', fakeSupabase());
+      set('orgId', 'org-1');
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('campusScope', campusScope);
+      await next();
+    });
+    app.route('/', parentsRoute as unknown as Hono);
+
+    const res = await app.request(
+      '/batch-check',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          rows: [
+            {
+              parentName: OTHER_PARENT_NAME,
+              parentPhone: '0955000111',
+              studentName: '陳小安',
+              studentGrade: 'P5',
+              studentSchool: '大安國小',
+            },
+          ],
+        }),
+      },
+      { PLACEHOLDER_EMAIL_DOMAIN: 'placeholder.invalid' },
+    );
+    expect(res.status).toBe(200);
+
+    return (await res.json()) as {
+      warnings: Array<{ type: string; message: string }>;
+      errors: Array<{ type: string; message: string }>;
+    };
+  }
+
+  it('受限管理員：警告仍然出現（重複防得住），但不含那位家長的姓名', async () => {
+    const body = await check(['campus-1']);
+
+    expect(body.warnings).toHaveLength(1);
+    expect(body.warnings[0].message).not.toContain(OTHER_PARENT_NAME);
+    expect(body.warnings[0].message).toContain('請洽總管理者');
+  });
+
+  it('受限管理員：範圍外的同名家長不算「可合併」—— 否則跟 batch-import 的答案相反', async () => {
+    const body = await check(['campus-1']);
+
+    expect(body.warnings[0].type).toBe('same_name_exists');
+    expect(body.warnings[0].type).not.toBe('merging_with_existing');
+  });
+
+  // 反向對照：不受分校限制時同一組資料是「可合併」且看得到姓名
+  it('不受分校限制時照舊 —— 可合併，而且警告具名', async () => {
+    const body = await check(null);
+
+    expect(body.warnings[0].type).toBe('merging_with_existing');
+  });
+});

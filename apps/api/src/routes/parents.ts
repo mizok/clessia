@@ -1035,6 +1035,26 @@ app.openapi(
     const { rows } = c.req.valid('json');
     const placeholderDomain = c.env.PLACEHOLDER_EMAIL_DOMAIN ?? 'phone.internal';
 
+    /**
+     * **#821 第 8 項（C 案）：這支端點要套範圍，但警告不能整個消失。**
+     *
+     * 它原本回「系統已有同名家長『X』」——對受限管理員洩漏別校家長的姓名。
+     * 三個選項的權衡：
+     *
+     * - **A 套範圍**（警告整個消失）→ 跨分校重複家長變得**建得出來且零訊號**
+     * - **B 不套** → 就是 #816 認定的那種洩漏
+     * - **C 套範圍 ＋ 不含姓名的警告** ← 計畫席裁定
+     *
+     * C 有兩半，兩半都必要：
+     *
+     * 1. **範圍外的同名家長不能當 `mergeTarget`** —— 否則這支說「可以合併」而
+     *    `batch-import` 會擋，**兩支端點對同一筆資料給出相反的答案**
+     * 2. 那則警告**不含姓名**（防重複成立、不洩漏也成立）
+     */
+    const scopedParentIds = await resolveScopedParentIds(supabase, getCampusScope(c));
+    const isInScope = (parentId: string) =>
+      scopedParentIds === null || scopedParentIds.includes(parentId);
+
     // Step 1: 收集不重複的正規化姓名
     const nameMap = new Map<string, number[]>(); // normalizedName -> rowIndexes
     for (let i = 0; i < rows.length; i++) {
@@ -1152,6 +1172,9 @@ app.openapi(
 
         // 找第一個可合併的 DB 家長（phone 或 email 任一匹配）
         const mergeTarget = matchingDbParents.find((p) => {
+          // 範圍外的家長不可合併（#821 C 案的第 1 半）——
+          // 合併的下一步是 `batch-import`，而它對範圍外的家長會讓該筆失敗
+          if (!isInScope(p.id)) return false;
           const contact = userContactMap.get(p.user_id);
           if (!contact) return false;
           const phoneMatch = importPhone && contact.phone && importPhone === contact.phone;
@@ -1161,11 +1184,16 @@ app.openapi(
         });
 
         if (!mergeTarget) {
-          // canMerge = false → 同名不同聯絡
+          // canMerge = false → 同名不同聯絡，**或**同名家長全都在範圍外（#821 C 案）
+          const namedTarget = matchingDbParents.find((p) => isInScope(p.id));
           warnings.push({
             rowIndex,
             type: 'same_name_exists',
-            message: `系統已有同名家長「${matchingDbParents[0].name}」，請確認是否為不同人`,
+            // **範圍內的才具名** —— 「請確認是否為不同人」需要知道是誰才做得到；
+            // 範圍外的只說「有」不說「是誰」：重複防得住，姓名不外流。
+            message: namedTarget
+              ? `系統已有同名家長「${namedTarget.name}」，請確認是否為不同人`
+              : '系統中已有同名家長，請洽總管理者確認',
           });
           continue;
         }
