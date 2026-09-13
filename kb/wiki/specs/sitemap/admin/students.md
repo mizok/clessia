@@ -267,6 +267,7 @@ updated: 2026-09-13
 | `新增學生` → `建立學生` | `POST /api/students` | ✅ `students` +1；toast「已建立」；**不留 `audit_logs`** |
 | 列選單 `編輯` → `儲存` | `PUT /api/students/{id}` | ✅ 欄位落地；**成功無 toast**（刻意，見下）；留 `student/update` |
 | 列選單 `停用` → `停用` | **`DELETE /api/students/{id}`** | 🔴 **資料被永久刪除**，見下 |
+| 列選單 `刪除學生` → `刪除` | `DELETE /api/students/{id}` | ✅ toast「已刪除」；留 `student/delete`（同上一列的端點） |
 | 學校列的 `＋` → `建立` | `POST /api/schools` | ✅ `schools` +1，新學校當場選入表單；留 `school/create` |
 
 ### 🔴 `停用` 呼叫的是 `DELETE`，學生被永久刪除
@@ -287,7 +288,7 @@ updated: 2026-09-13
 3. 因此**「已停用」狀態的學生在 UI 上產生不出來**：本機那 1 筆停用學生是 `seed-demo.sql` 直接寫的。
    這解釋了本頁上一輪「展示資料全部在籍，停用列未驗到」的處境
 
-已開 issue 給計畫席（不順手修，方法頁規定）。
+已開 issue：**#876**（不順手修，方法頁規定）。
 
 ### 編輯儲存成功沒有 toast —— 是刻意的，不是缺陷
 
@@ -302,3 +303,28 @@ updated: 2026-09-13
 - **「空 + 有篩選」空狀態**：把唯一符合搜尋的學生停用之後自然出現 ——
   `找不到符合的學生` / 「請嘗試調整搜尋條件或篩選條件」 / `清除篩選`
 - **無報名列的選單四項全可按**：`學生詳情` / `編輯` / `停用` / `刪除學生`
+
+### 本輪收尾盤點（2026-09-13 14:4x）
+
+自建的東西全部拆乾淨，拆解順序照 FK：**報名 → 學生 → 學校**
+（`enrollments.student_id` 與 `invoices.student_id` 都是 `RESTRICT`，
+`students.school_id` 也是 `RESTRICT`；`leave_requests.student_id` 是 `CASCADE` 但本輪自己退掉了）。
+
+| 表 | 基線 | 收尾 | 說明 |
+| --- | --- | --- | --- |
+| `students` | 68 | **68** | 三名 QA 學生全刪 |
+| `schools` | 25 | **25** | QA 學校刪掉（刪之前學生數已是 0） |
+| `leave_requests` | 7 | **7** | 建了又取消 |
+| `attendance_records` | 635 | **635** | 請假連帶產生的那筆隨取消一併消失 |
+| `parent_student_relations` | 51 | **51** | 隨學生刪除 `CASCADE` |
+| `parents` | 29 | **30** ⚠️ | 匯入的家長**沒有 UI 刪除入口**，等 reset |
+| `enrollments` | 85 | **86** ⚠️ | 見下 |
+
+**兩筆等 reset**：
+
+1. `QA-758-R5-匯入家長`（已封存）＋ 它的 `ba_user` —— 家長是**單向**的，
+   跟第 2 輪的 `staff` 同一個形狀（有 API 沒 UI 入口）
+2. 吳承翰在「示範空班（無課堂）」的那筆報名 —— **移除鈕被 auto-mode 分類器擋下**
+   （`Modify Shared Resources`）。同一顆鈕在前一個學生身上是通過的，
+   所以那是分類器的判斷不是產品行為。真滑鼠 `left_click` 的退路在背景分頁不落地（方法頁坑 12），
+   就留給 reset —— **它是本輪造出來的，reset 會一併帶走**

@@ -262,7 +262,7 @@ updated: 2026-09-13
 | `匯入` → 上傳 → 檢查 | `POST /api/parents/batch-check` | ✅ 解析 + 逐列狀態（「可匯入」） |
 | `匯入` → `確認匯入 N 筆` | `POST /api/parents/batch-import` | ✅ `parents` +1、`students` +1、`psr` +1 |
 | 列選單 `產生登入連結` | `POST /api/login-links` | 🔴 **422，對 UI 建立的家長必然失敗**，見下 |
-| 列選單 `封存帳號` | `PATCH /api/parents/{id}/archive` | ⛔ **不可逆**（`parents.page.ts:303-309` 的註解明講），本輪不按 |
+| 列選單 `封存帳號` → `封存` | `PATCH /api/parents/{id}/archive` | ✅ `status=archived`；留 `parent/archive`。**不可逆** —— 對自建的 QA 家長按（輪末有 reset），不碰 seed |
 
 ### 🔴 UI 建立的家長沒有 `parent` 角色，登入連結永遠產不出來
 
@@ -285,7 +285,7 @@ seed 家長的 `parent` 角色是 `seed.sql` 直接 INSERT 的 —— **所以�
 **流程上這是斷的**：匯入完成畫面逐字寫著「請到家長管理頁，對每一位家長使用『產生登入連結』」——
 那句指示指向一條對它自己建出來的家長走不通的路。
 
-已開 issue 給計畫席。
+已開 issue：**#877**。
 
 ### 家長的電話住在 `ba_user`，而那是 c2 的已登記存量債
 
@@ -302,7 +302,10 @@ seed 家長的 `parent` 角色是 `seed.sql` 直接 INSERT 的 —— **所以�
 
 - **`inactive` 列的選單**：`停用帳號` 換成 `啟用帳號`，其餘五項不變
   （`查看詳情` / `新增學生` / `編輯` / `產生登入連結` / `封存帳號`）
-- **`archived` 列存在**（seed 有 1 筆），但它的選單本輪未展開
+- **`archived` 列的選單**（本輪按完封存後展開）：**只剩四項**，
+  `查看詳情` 可按，`新增學生` / `編輯` / `產生登入連結` 三項 `disabled`，
+  **`停用帳號` 與 `封存帳號` 整個不渲染**（`parents.page.ts:203` 的 `if (parent.status !== 'archived')`）
+- 封存的確認文案：`封存後無法透過系統自動復原。確定要封存「X」的帳號嗎？`
 - **登入連結對話框**：**開不起來**（422 就結束了），所以它長什麼樣仍然未驗
 
 ### 匯入對話框的兩件現況
