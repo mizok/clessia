@@ -33,7 +33,7 @@
 | [usability-admin.md](usability-admin.md) | 可用性測試（只看畫面，不讀碼） | 用行政任務清單走管理端，記卡點不記感受；**在 repo 外啟動** | `usability-admin` |
 | [labor-db-reset.md](labor-db-reset.md)   | 本機 DB reset（只做這一件）    | 依請求跑 `npm run db:reset` 並回報憑證；不改碼、不開 PR    | `labor-db-reset`  |
 
-> **`labor-*` 是通用執行席，刻意不綁領域。** 2026-09-13 起新開的生產席命名為 `labor-<開席時間戳>`（`labor-YYYYMMDD-HHMM`），`labor-1`～`labor-9` 是改制前的流水號；常設席用職務名（`labor-reviewer`、`labor-db-reset`）。 上面八席是照領域長出來的（金流、管理端、
+> **`labor-*` 是通用執行席，刻意不綁領域。** 2026-09-13 起新開的生產席命名為 `labor-<開席時間戳>`（`labor-YYYYMMDD-HHMM`），`labor-1`～`labor-9` 是改制前的流水號；常設席同樣帶時間戳 `<職務名>-YYYYMMDD-HHMM`（每次交接換新 session 就換一次時間戳；charter 檔名維持職務名）。 上面八席是照領域長出來的（金流、管理端、
 > CI…），而那個切法在「今天最缺人的是哪一支」這個問題上答不出來 —— 2026-09-12 一天之內
 > 最急的依序是**測試時間炸彈 → 搜尋競態 → 表單預設值**，橫跨三個領域，而當班的領域席
 > 有兩席 Ctx 已經到停損線。
