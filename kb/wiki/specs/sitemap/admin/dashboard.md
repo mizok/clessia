@@ -19,6 +19,8 @@ updated: 2026-09-13
 
 <!-- generated:route-facts end -->
 
+**權限變體**：任何 admin 角色都進得去。**有 `view_reports` 時多兩張卡片**（`在籍學生`／`本月報名異動`，`dashboard.component.ts:506`）——逐權限的量測見 [[specs/sitemap/_shared/permission-matrix]]。
+
 **進入方式**：左側選單第一項 / 登入後的預設落點（magic link 兌換完就落在這裡）/ 直接網址
 
 **外框**（左側選單、右上角色徽章與帳號）不屬於這一頁，見 [[specs/sitemap/_shared/shell-layout]]。

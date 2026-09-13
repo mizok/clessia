@@ -19,6 +19,8 @@ updated: 2026-09-13
 
 <!-- generated:route-facts end -->
 
+**權限變體**：任何 admin 角色都進得去，而且**清單沒有被分校窄化**（`routes/parents.ts` 沒有 import campus-scope；是不是該窄化見 [[specs/sitemap/_shared/permission-matrix]]）。
+
 **進入方式**：選單「學務管理 › 家長管理」／直接網址。
 
 **外框**見 [[specs/sitemap/_shared/shell-layout]]。

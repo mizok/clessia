@@ -19,6 +19,8 @@ updated: 2026-09-13
 
 <!-- generated:route-facts end -->
 
+**權限變體**：任何 admin 角色都進得去 —— 但 🔴 **這一頁的分校範圍是漏的**（只被指派一個分校的管理員看得到全機構的報名與學生姓名，issue #815）。見 [[specs/sitemap/_shared/permission-matrix]]。
+
 **進入方式**：選單「學務管理 › 報名進出」／直接網址。
 
 **外框**見 [[specs/sitemap/_shared/shell-layout]]。
