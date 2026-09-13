@@ -24,7 +24,7 @@ herdr worktree create \
 herdr agent start labor-1 --kind claude --pane <回傳的 pane_id> --timeout 120000
 ```
 
-**命名慣例：執行席一律 `labor-{N}`。**
+**命名慣例（2026-09-13 使用者改定）：生產席一律 `labor-<開席時間戳>`，格式 `labor-YYYYMMDD-HHMM`（例：`labor-20260913-0945`）。** 之前的 `labor-{N}` 流水號到 labor-9 為止；常設席（`labor-reviewer`、`labor-db-reset`、`ops-warden`）用職務名不用時間戳。理由：流水號要查「上一個是幾號」，時間戳自帶開席時刻，而且不會撞號。
 
 ## 為什麼是這一條而不是別條
 
