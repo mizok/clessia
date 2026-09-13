@@ -277,3 +277,102 @@ GET /api/academy-exams?page=1&pageSize=20
 | --- | --- |
 | **`Escape` / 真滑鼠重試** | 需要前景分頁（方法頁坑 12）。**「重試鈕按了會不會真的重打」沒有驗** |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |
+
+## 寫入實按（Phase 2-B 第 6 輪，2026-09-13）
+
+- **環境**：web 自架 `:4202`（分支 `docs/758-round6-exams-scores` ＝ `origin/main` `96349c50`）／
+  API 是主 checkout 的 `:8787`（`2dccc780`；`academy-exams` / `school-exams` 兩支路由與 `origin/main` 逐字相同）
+- **DB 基線**：labor-db-reset RESET #3（12:00:27）＋ main `b556d6a9` 的兩支 seed，
+  **加上第 5 輪未清掉的兩筆**（一位封存家長、一筆報名 —— 都不碰考務的表）。
+  開按前 `academy_exams=114` / `academy_exam_classes=11` / `academy_scores=180` /
+  `school_exams=5` / `school_scores=170`
+- **哨兵**：`QA-758-R6*`
+
+### 補習班考試（`/api/academy-exams`）
+
+| 鈕 | 端點 | 結果 |
+| --- | --- | --- |
+| `新增考試` → `新增補習班考試` → `建立` | `POST /` | ✅ `academy_exams` +1、`academy_exam_classes` +1、**`academy_scores` 不變**（不預建成績列）；toast「建立成功」 |
+| 列選單 `編輯基本資料` → `儲存` | `PUT /{id}` | ✅ toast「更新成功」；audit 的 `updatedFields` 列出 **4 個欄位**＋`classIdsReplaced: true`，**雖然我只改了範圍說明**（PUT 語意，整組覆寫） |
+| 成績登錄頁的 `儲存成績` FAB | `POST /{id}/scores` | ✅ 3 筆 `academy_scores`；toast「已更新 3 筆成績」 |
+| 列選單 `結束考試` → `結束考試` | `PATCH /{id}/close` | ✅ 狀態 → `已結束`，選單換成 `重新開啟` |
+| 列選單 `重新開啟` | `PATCH /{id}/reopen` | ✅ 狀態回 `進行中`。**沒有確認對話框、也沒有 toast** —— 點下去就做（`close` 兩者都有） |
+| 列選單 `刪除` | `DELETE /{id}` | ⛔ **按不到** —— 有成績時 `disabled`，見下 |
+
+### 學校考試（`/api/school-exams`）
+
+| 鈕 | 端點 | 結果 |
+| --- | --- | --- |
+| `新增考試` → `新增學校考試` → `建立` | `POST /` | ✅ `school_exams` +1；toast 用的是**組合名**「114-2 段考 · X」 |
+| 列選單 `編輯基本資料` → `儲存` | `PUT /{id}` | ✅ toast「更新成功」 |
+| 列選單 `結束考試` → `結束考試` | `PATCH /{id}/close` | ✅ 同補習班 |
+| 列選單 `重新開啟` | `PATCH /{id}/reopen` | ✅ **這一支有 toast**（「已恢復為進行中」）—— 跟補習班那支不對稱 |
+| 列選單 `刪除` → `刪除` | `DELETE /{id}` | ✅ **在成績為 0 時可按**；`school_exams` 回基線 |
+| 學生卡片 → `儲存` | `POST /{id}/scores` | ✅ 3 筆 `school_scores`（逐科目一列） |
+
+`audit_logs` 兩邊都齊，action 帶 resource 前綴：`academy_exam.create` / `.update` /
+`.scores.upsert` / `.close` / `.reopen`，`school_exam.*` 同形（多一個 `.delete`）。
+**`close` / `reopen` / `delete` 的 `details` 都是空 `{}`。**
+
+> ⚠️ 我查 audit 時用了 `... group by 1,2 order by 1,2 | tail -8`，
+> **`academy_exam.scores.upsert` 被 `tail` 切掉了**，差點寫成「成績不留稽核」。
+> **「查得太窄」也包括輸出的截斷** —— 前一輪學到的是查詢條件，這一輪是管線。
+
+### 🔴「刪除」不是「永遠」—— 而登錄過成績的考試**再也刪不掉**
+
+本頁原本寫「刪除｜永遠｜開確認對話框」。**實測不是**：
+
+```ts
+// exams.component.ts:354
+disabled: row.scoreCount > 0,
+```
+
+而這不只是前端的保守：**API 端也擋**
+（`academy-exams.ts:1393` / `school-exams.ts:1213`，`scoreCount > 0` → 400 `HAS_SCORES`）。
+
+**沒有出路**：兩支路由**都沒有「刪除成績」的端點**（只有 `POST /{id}/scores` 這個 upsert），
+UI 上也沒有任何清除入口。於是：
+
+> **一場考試只要登錄過一筆成績，它與它的成績就是永久資料** ——
+> 不是「難刪」，是**系統裡沒有那條路**。
+
+⚠️ 連帶一條**推論的陷阱**：`academy_exam_classes` / `academy_scores` → `academy_exams` 的 FK
+是 `CASCADE`（`school_scores` → `school_exams` 也是），
+**看 FK 會以為「刪考試就一次收乾淨」** —— 而那條 CASCADE **永遠不會被觸發**，
+因為刪除在更上游就被 `HAS_SCORES` 擋住了。
+**FK 說的是「如果刪得掉會怎樣」，不是「刪不刪得掉」。**
+
+（我就是照 FK 估的，跟計畫席回報「第 6 輪不需要 reset」—— **錯了，需要**。）
+
+已開 issue：**#886**。
+
+### 🔴 清空分數後按「儲存成績」：什麼都不會發生，而畫面還說「N 筆未儲存」
+
+把已登錄的三筆分數清成空值 → 標題出現「3 筆未儲存」、FAB 出現 → 按下去
+**沒有 toast、沒有 API 請求**（`read_network_requests` 確認零 POST）、DB 不變。
+
+成因在 `academy-score-editor.component.ts:241-245`：
+
+```ts
+const dirtyRows = this.rows().filter(
+  (r) => this.isRowDirty(r) && (r.score !== null || r.status !== 'scored'),
+);
+if (dirtyRows.length === 0) return;   // ← 靜默
+```
+
+清空分數 ⇒ `score === null` 且 `status` 還是 `'scored'` ⇒ 整列被濾掉 ⇒ 空陣列 ⇒ `return`。
+
+**學校那支有同一條規則、處置不同**：`score-edit-dialog.component.ts:303` 一樣 `continue`，
+但 payload 空時是 `this.ref.close()` —— 對話框會關掉，不會卡在「未儲存」的畫面上。
+
+> 兩邊真正共通的不是提示，是**「已登錄的分數改不回未登錄」**：
+> API 那支是 `upsert`（`onConflict: exam_id,student_id`），送 `score: null` 只會把欄位設成 null，
+> **列還在** —— 而 `HAS_SCORES` 數的是列數。
+
+### 順手驗到的條件式狀態
+
+- `編輯基本資料` 在 `已結束` 時 **`disabled`**（`exams.component.ts:332`）——
+  本頁原本記「永遠」，同樣要訂正
+- `新增考試` 開的是**選單**（`新增補習班考試` / `新增學校考試`），不是直接開對話框
+- 補習班／學校的切換是 `p-selectbutton`（`p-togglebutton`），不是 tab ——
+  **學校考試的列在預設檢視裡看不到**，用 `tbody tr` 找不到它不是資料問題
