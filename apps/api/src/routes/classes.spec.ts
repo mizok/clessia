@@ -298,3 +298,153 @@ describe('findCoveredMakeupTargets（#499 決策 5.5 的 uncancel 守衛）', ()
     expect(covered.size).toBe(0);
   });
 });
+
+/**
+ * **#854：排課指定任課老師不驗分校／科目，而代課與批次指派都驗。**
+ *
+ * 三處讀同一張表（`staff_campuses`）、一處漏 —— 行政可以把 A 校老師排進 B 校的課，
+ * **那堂課從此找不到代課老師**（代課的候選讀的正是那張表），
+ * 而畫面上那堂課看起來完全正常。#849 在本機看到的就是這個形狀，只是成因是 seed。
+ *
+ * ⚠️ **只在 `teacherId` 真的變動時驗** —— 前端的排課對話框把既有 `teacherId`
+ * 原封不動送回來（`class-form-dialog.component.ts:364`，而它的老師下拉在 D4 已被移除），
+ * 所以「改個上課時間」也會帶著舊老師。不分變動與否一律驗的話，
+ * **歷史資料裡任何一筆不合格的排課會從此無法編輯** —— 那不是擋，那是鎖死。
+ */
+describe('PUT /api/classes/:id/schedules/:sid —— 任課老師的資格（#854）', () => {
+  const CLASS_ID = '00000000-0000-0000-0000-0000000000c1';
+  const SCHEDULE_ID = '00000000-0000-0000-0000-0000000000e1';
+  const OWN_TEACHER = '00000000-0000-0000-0000-0000000000a1';
+  const OTHER_CAMPUS_TEACHER = '00000000-0000-0000-0000-0000000000a2';
+  const CAMPUS_A = '00000000-0000-0000-0000-0000000000f1';
+  const SUBJECT_MATH = '00000000-0000-0000-0000-0000000000b1';
+
+  /** `eligibleStaffId` 是「被指派到 CAMPUS_A 且有 SUBJECT_MATH」的那一位 */
+  function createApp(options: { existingTeacherId?: string | null } = {}) {
+    const updates: Array<Record<string, unknown>> = [];
+
+    const supabase = {
+      from(table: string) {
+        const builder: Record<string, unknown> = {};
+        const chain = () => builder as never;
+        Object.assign(builder, {
+          select: () => chain(),
+          eq: () => chain(),
+          in: () => chain(),
+          order: () => chain(),
+          limit: () => chain(),
+          update: (payload: Record<string, unknown>) => {
+            updates.push(payload);
+            return chain();
+          },
+          maybeSingle: () =>
+            Promise.resolve({
+              data:
+                table === 'schedules'
+                  ? {
+                      id: SCHEDULE_ID,
+                      class_id: CLASS_ID,
+                      teacher_id: options.existingTeacherId ?? OWN_TEACHER,
+                    }
+                  : table === 'classes'
+                    ? { id: CLASS_ID, campus_id: CAMPUS_A, course_id: 'course-1' }
+                    : table === 'courses'
+                      ? { subject_id: SUBJECT_MATH }
+                      : table === 'staff'
+                        ? { id: 'x', user_id: 'u1', status: 'active' }
+                        : table === 'user_roles'
+                          ? { role: 'teacher' }
+                          : null,
+              error: null,
+            }),
+          single: () =>
+            Promise.resolve({
+              data: { id: SCHEDULE_ID, class_id: CLASS_ID, teacher_id: OWN_TEACHER },
+              error: null,
+            }),
+          then: (resolve: (value: unknown) => unknown) =>
+            resolve({
+              // 關鍵的兩張表：只有 OWN_TEACHER 被指派到 CAMPUS_A
+              data:
+                table === 'staff_subjects'
+                  ? [{ subject_id: SUBJECT_MATH }]
+                  : table === 'staff_campuses'
+                    ? // 由測試決定這位老師有沒有 CAMPUS_A —— 見下面每條的註解
+                      ((globalThis as { __campusRows?: unknown[] }).__campusRows ?? [])
+                    : [],
+              count: 0,
+              error: null,
+            }),
+        });
+
+        return builder;
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/classes/*', async (c, next) => {
+      const context = c as unknown as { set: (k: string, v: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      context.set('campusScope', null);
+      await next();
+    });
+    app.route('/api/classes', classesRoute.default as unknown as Hono);
+
+    return { app, updates };
+  }
+
+  const put = (app: Hono, body: unknown) =>
+    app.request(`/api/classes/${CLASS_ID}/schedules/${SCHEDULE_ID}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  it('把別校的老師排進來 → 409，訊息說得出該去哪裡改', async () => {
+    (globalThis as { __campusRows?: unknown[] }).__campusRows = []; // 這位老師沒有 CAMPUS_A
+    const { app, updates } = createApp();
+
+    const res = await put(app, { weekday: 1, teacherId: OTHER_CAMPUS_TEACHER });
+
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { code: string; error: string };
+    expect(body.code).toBe('TEACHER_NOT_ELIGIBLE');
+    expect(body.error).toContain('人員管理');
+    // **擋下來就不能寫進去** —— 只回 409 而照樣 update 的話比不擋更糟
+    expect(updates).toHaveLength(0);
+  });
+
+  it('本校老師 → 照舊通過', async () => {
+    (globalThis as { __campusRows?: unknown[] }).__campusRows = [{ campus_id: CAMPUS_A }];
+    const { app } = createApp();
+
+    const res = await put(app, { weekday: 1, teacherId: OWN_TEACHER });
+
+    expect(res.status).not.toBe(409);
+  });
+
+  /**
+   * **這一條是「既有已排的不回溯」的真正含意** —— 不只是不改歷史資料，
+   * 而是擋下的規則不能讓既有資料無法編輯。
+   */
+  it('只改時間、teacherId 沒變 → 不驗資格（否則歷史資料會鎖死）', async () => {
+    (globalThis as { __campusRows?: unknown[] }).__campusRows = []; // 這位老師「現在」不合格
+    const { app } = createApp({ existingTeacherId: OTHER_CAMPUS_TEACHER });
+
+    // 送的 teacherId 跟既有的一樣 —— 前端就是這樣送的
+    const res = await put(app, { weekday: 3, teacherId: OTHER_CAMPUS_TEACHER });
+
+    expect(res.status).not.toBe(409);
+  });
+
+  it('取消指派（teacherId: null）不驗資格', async () => {
+    (globalThis as { __campusRows?: unknown[] }).__campusRows = [];
+    const { app } = createApp();
+
+    const res = await put(app, { weekday: 1, teacherId: null });
+
+    expect(res.status).not.toBe(409);
+  });
+});

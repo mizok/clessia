@@ -1886,6 +1886,15 @@ app.openapi(substituteSessionRoute, async (c) => {
     }
   }
 
+  /**
+   * **#854：這個判準已經抽成 `lib/teacher-eligibility.ts`，排課那支也用它。**
+   *
+   * 這裡保留上面那幾行就地查詢（`teacherSubjectRows` / `teacherCampusRows` 是跟
+   * `classRow` 一起用 `Promise.all` 撈的，拆掉會多兩趟往返），
+   * 但**判斷式本身指向共用函式的語意**：兩處必須同時為真才算合格。
+   * 哪天判準要加第五項（例如「不能是自己」），改的是那支函式 —— 而**這裡會因為
+   * `classes.spec.ts` 與 `sessions.spec.ts` 兩邊的測試同時紅而被發現**。
+   */
   if (!teacherSubjectIds.has(courseSubjectId) || !teacherCampusIds.has(classCampusId)) {
     return c.json({ error: '代課老師不符合課程科目或分校資格', code: 'TEACHER_NOT_ELIGIBLE' }, 409);
   }
