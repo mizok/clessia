@@ -462,6 +462,70 @@ BEGIN
             v_actor);
   END LOOP;
 
+  -- ── 讓「代課」與「批次指派老師」按得下去（#849）──────────────────────────
+  --
+  -- **問題**：這一支建了文山旗艦校與它的課堂、指派了任課老師，
+  -- 卻沒有把那些老師登記進 `staff_campuses` —— 而代課／批次指派的候選讀的正是它
+  -- （前端 `session-assign-dialog`、後端 `sessions.ts` 的 `substitute` 與
+  -- `batch-assign-teacher` **三處一致**，後兩者會回 409 / skip）。
+  --
+  -- 於是本機 101 堂課（84%）所在的分校**一位被指派的老師都沒有**，
+  -- 兩個動作在任何一堂課上都按不下去（#849 量到的）。
+  --
+  -- **修法是補資料不是放寬產品**：`staff_campuses` 是產品明確且在 API 層強制的判準，
+  -- 放寬前端候選只會變成「選得到但送不出去」。
+  --
+  -- 兩件都要做，少一件代課仍然沒有候選：
+  --   1. 有課堂的分校 → 它的任課老師要有該校的 `staff_campuses` 列
+  --   2. 每個（分校, 科目）**至少 2 位**老師 —— 代課清單會排除原任課老師，
+  --      只有 1 位的話扣掉他就是空的（#849 在示範分校01 量到的正是這個）
+  --
+  -- 資料驅動、`ON CONFLICT DO NOTHING`，所以重跑會自我修復（同本檔其餘部分）。
+
+  -- 1. 任課老師 → 他實際在教的那個分校
+  INSERT INTO public.staff_campuses (staff_id, campus_id)
+  SELECT DISTINCT sch.teacher_id, cl.campus_id
+    FROM public.schedules sch
+    JOIN public.classes cl ON cl.id = sch.class_id
+   WHERE cl.org_id = v_org AND sch.teacher_id IS NOT NULL
+  ON CONFLICT DO NOTHING;
+
+  -- 2. 任課老師 → 他實際在教的那個科目
+  INSERT INTO public.staff_subjects (staff_id, subject_id)
+  SELECT DISTINCT sch.teacher_id, co.subject_id
+    FROM public.schedules sch
+    JOIN public.classes cl ON cl.id = sch.class_id
+    JOIN public.courses co ON co.id = cl.course_id
+   WHERE cl.org_id = v_org AND sch.teacher_id IS NOT NULL AND co.subject_id IS NOT NULL
+  ON CONFLICT DO NOTHING;
+
+  -- 3. 每個（分校, 科目）補到至少 2 位 —— 把本檔用到的那批老師（`v_teacher_ids`）
+  --    交叉指派到「有課堂的分校 × 那些課堂的科目」。
+  --    **只補這 6 位、只補有課堂的分校**：不動其他分校的指派，
+  --    也不讓全機構每個老師都變成能教所有科目。
+  INSERT INTO public.staff_campuses (staff_id, campus_id)
+  SELECT DISTINCT t.staff_id, x.campus_id
+    FROM unnest(v_teacher_ids) AS t(staff_id)
+    CROSS JOIN (
+      SELECT DISTINCT cl.campus_id
+        FROM public.classes cl
+        JOIN public.schedules sch ON sch.class_id = cl.id
+       WHERE cl.org_id = v_org
+    ) AS x
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO public.staff_subjects (staff_id, subject_id)
+  SELECT DISTINCT t.staff_id, x.subject_id
+    FROM unnest(v_teacher_ids) AS t(staff_id)
+    CROSS JOIN (
+      SELECT DISTINCT co.subject_id
+        FROM public.classes cl
+        JOIN public.schedules sch ON sch.class_id = cl.id
+        JOIN public.courses co ON co.id = cl.course_id
+       WHERE cl.org_id = v_org AND co.subject_id IS NOT NULL
+    ) AS x
+  ON CONFLICT DO NOTHING;
+
   RAISE NOTICE 'seed-demo 套用完成。';
 END $$;
 
