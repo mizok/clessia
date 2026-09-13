@@ -30,6 +30,7 @@
 DO $$
 DECLARE
   v_admin_count   INT;
+  v_no_candidate  INT;
   v_missing       TEXT := '';
 BEGIN
   -- ── 哨兵 1：`seed-demo.sql` 真的被套了 ────────────────────────────────────
@@ -90,9 +91,37 @@ BEGIN
       || E'（見 seed.sql 的 #759 段）';
   END IF;
 
+  -- ── 哨兵 4：每一堂課都要有代課候選（#849）────────────────────────────────
+  --
+  -- 「代課」與「批次指派老師」的候選是 **分校 ∩ 科目 ∩ 排除原任課老師**
+  -- （前端 `session-assign-dialog`、後端 `sessions.ts` 的 `substitute` 與
+  -- `batch-assign-teacher` 三處一致）。#849 之前本機任何一堂課都按不下去：
+  -- 有 101 堂課的分校一位被指派的老師都沒有，而另一個分校每科剛好 1 位、
+  -- 扣掉原老師就是空的。
+  --
+  -- **這一條直接模擬產品的那個查詢** —— 它證的不是「資料存在」，
+  -- 是**「那兩顆按鈕按得下去」**。少了它，下一次 seed 改動讓候選再度變空時，
+  -- 沒有任何東西會出聲（那正是 #849 的形狀：資料看起來都在，功能卻是死的）。
+  SELECT count(*) INTO v_no_candidate
+    FROM public.sessions se
+    JOIN public.classes cl ON cl.id = se.class_id
+    JOIN public.courses co ON co.id = cl.course_id
+   WHERE NOT EXISTS (
+     SELECT 1
+       FROM public.staff s
+       JOIN public.staff_campuses sc ON sc.staff_id = s.id AND sc.campus_id = cl.campus_id
+       JOIN public.staff_subjects ss ON ss.staff_id = s.id AND ss.subject_id = co.subject_id
+      WHERE s.status = 'active' AND s.id IS DISTINCT FROM se.teacher_id
+   );
+  IF v_no_candidate > 0 THEN
+    v_missing := v_missing || E'\n  - 有 ' || v_no_candidate
+      || ' 堂課找不到任何代課候選（分校 ∩ 科目 ∩ 排除原老師）——'
+      || E'「代課」與「批次指派老師」在那些課堂上按不下去（#849）';
+  END IF;
+
   IF v_missing <> '' THEN
     RAISE EXCEPTION E'seed 哨兵不通過：%\n\n這代表 `db:reset` 造出來的資料跟預期不符。\n「沒有報錯」證不出「資料在」—— 這支檔案存在的理由就是那件事（#838 / #841）。', v_missing;
   END IF;
 
-  RAISE NOTICE 'seed 哨兵全數通過：seed-demo 已套用、admin 13 列、admin10 空權限';
+  RAISE NOTICE 'seed 哨兵全數通過：seed-demo 已套用、admin 13 列、admin10 空權限、每堂課都有代課候選';
 END $$;
