@@ -126,6 +126,32 @@ origin/main 開分支（或單獨 checkout 那個檔）。
 > 而它比 grep 那一版更容易犯，因為你**確實看到了一個空值**，
 > 那比「什麼都沒找到」更像一個發現。
 
+## 這個 repo 的表單有兩種輸入，只有一種吃得下合成的值
+
+- **原生的**（`pInputText`、`input[type=time]`、`textarea`）—— 「原生 setter + 派 `input`」有效
+- **PrimeNG 包裝的**（`p-datepicker`、數字輸入）—— **無效，而且靜靜無效**：
+  DOM 上看得到你填的值，送出去的是舊值
+
+我因此兩次把「填了沒存進去」當成缺陷候選（班級的起訖日期、人數上限）。
+**退路有兩條**：點它自己的 UI（日曆的 `td span` 可以），
+或從元件 signal 設值（`ng.getComponent` 拿實例）——**後者要另標證據等級，那是「設模型」不是「按 UI」**。
+
+⚠️ **第二個 overlay 在合成事件下開不起來**（第一個可以）。同一族的成因：
+`transitionend` 不觸發 ⇒ CDK overlay 收不乾淨 ⇒ 下一個開不了。
+
+## `grep` 會命中「這個東西不存在」這句話
+
+驗 `resourceType: 'enrollment'` 有沒有呼叫端，`grep` 回一筆，我差點回報「它有」。
+**那一筆是註解本身，而註解逐字寫著「全 repo 沒有任何 `resourceType: 'enrollment'`」。**
+
+> 今天同一族錯了四次，而**四次的方向不同**：
+> 查錯表（`ba_user.name` vs `staff.display_name`）、查錯欄（`resource_name` vs `details`）、
+> **白名單式 `in (...)` 只回我列出的**（以為 course/class 不留 audit）、
+> **命中註解**。
+>
+> **可操作**：`in (...)` 換成 `group by`；驗「有沒有呼叫端」時排除註解行。
+> 前三個是**查得太窄**，最後一個是**查得太寬** —— 兩個方向都會給你一個看起來像發現的空結果。
+
 ## 給下一個接手的人
 
 - **charter 會腐化，接手時先驗一遍再信它。**
