@@ -163,6 +163,9 @@ function createEnrollmentsTestApp(data: MockEnrollmentsRouteData) {
   return app;
 }
 
+/** #846：這個替身底下的 audit 寫入（`test-setup.ts` 的守衛要求 profiles/audit_logs 都在） */
+const auditRowsForRoutes: Array<Record<string, unknown>> = [];
+
 function createMockEnrollmentsSupabase(seed: MockEnrollmentsRouteData) {
   const state = {
     classes: [...(seed.classes ?? [])],
@@ -196,6 +199,26 @@ function createMockEnrollmentsSupabase(seed: MockEnrollmentsRouteData) {
 
       if (table === 'attendance_records') {
         return createAttendanceUpsertQuery();
+      }
+
+      // #846：`logAudit` 走 `profiles` → `audit_logs`。**兩段都要在替身上存在** ——
+      // 少了任何一段它會在自己的 try/catch 裡靜默失敗，而 `test-setup.ts` 的守衛
+      // 會把那個靜默變成紅燈（它的訊息逐字告訴你要補什麼）。
+      if (table === 'profiles') {
+        return {
+          select: () => ({
+            eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+          }),
+        } as never;
+      }
+
+      if (table === 'audit_logs') {
+        return {
+          insert: (payload: Record<string, unknown>) => {
+            auditRowsForRoutes.push(payload);
+            return Promise.resolve({ error: null });
+          },
+        } as never;
       }
 
       throw new Error(`Unsupported table: ${table}`);
@@ -1497,6 +1520,22 @@ describe('DELETE /api/enrollments/:id —— session_packs 守門（真的打路
         if (table === 'enrollments') return enrollmentsQuery;
         if (table === 'sessions') return sessionsQuery;
         if (table === 'session_packs') return sessionPacksQuery;
+        // #846：`logAudit` 走 `profiles` → `audit_logs`，兩段都要在
+        //（`test-setup.ts` 的守衛會把「靜默失敗」變成紅燈，訊息逐字告訴你要補什麼）
+        if (table === 'profiles') {
+          return {
+            select: () => ({
+              eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+            }),
+          } as never;
+        }
+
+        if (table === 'audit_logs') {
+          return {
+            insert: () => Promise.resolve({ error: null }),
+          } as never;
+        }
+
         throw new Error(`Unsupported table: ${table}`);
       },
     };
@@ -1561,6 +1600,11 @@ describe('B3 —— 報名的計費 API', () => {
     const filters: Array<[string, unknown]> = [];
     const inserted: Array<Record<string, unknown>> = [];
     const selects: string[] = [];
+    // #846：`logAudit` 會先查 `profiles` 再寫 `audit_logs` —— **缺任何一邊它就在自己的
+    // try/catch 裡靜默失敗**，於是「有沒有寫稽核」在這組 fixture 裡不可觀察
+    // （leaves.spec 的檔頭記過同一個坑）
+    const auditRows: Array<Record<string, unknown>> = [];
+    const updatedPayloads: Array<{ table: string; payload: Record<string, unknown> }> = [];
 
     const supabase = {
       from(table: string) {
@@ -1583,26 +1627,61 @@ describe('B3 —— 報名的計費 API', () => {
             filters.push([`${table}.in.${column}`, values]);
             return query;
           },
+          // #846：POST / 的排課衝突檢查與配額查詢會用到這幾個 —— 少了就 500，
+          // 而那看起來像 handler 壞了
+          gte: () => query,
+          lte: () => query,
+          neq: () => query,
+          not: () => query,
+          limit: () => query,
+          // PATCH /:id/status 與 PATCH /:id 走 update（#846）
+          update: (payload: Record<string, unknown>) => {
+            updatedPayloads.push({ table, payload });
+            return query;
+          },
+          delete: () => query,
           or: () => query,
           order: () => query,
           range: () => query,
           insert: (payload: Record<string, unknown>) => {
+            if (table === 'audit_logs') {
+              auditRows.push(payload);
+              return Promise.resolve({ error: null });
+            }
             if (table === 'enrollments') inserted.push(payload);
             return query;
           },
           maybeSingle: () =>
             Promise.resolve({
               data:
-                table === 'billing_periods'
-                  ? (fixture.period ?? { start_date: '2026-04-01', end_date: '2026-04-30' })
-                  : table === 'fee_templates'
-                    ? (fixture.template ?? { amount: 3000 })
-                    : table === 'classes'
-                      ? { id: 'class-1', max_students: null }
-                      : null,
+                table === 'profiles'
+                  ? null // logAudit 查 display_name
+                  : table === 'billing_periods'
+                    ? (fixture.period ?? { start_date: '2026-04-01', end_date: '2026-04-30' })
+                    : table === 'fee_templates'
+                      ? (fixture.template ?? { amount: 3000 })
+                      : table === 'classes'
+                        ? { id: 'class-1', max_students: null }
+                        : null,
               error: null,
             }),
-          single: () => Promise.resolve({ data: { id: 'new-enrollment' }, error: null }),
+          // #846：audit 的 resource_name 是「學生 / 班級」，所以這裡要帶得出關聯名稱
+          single: () =>
+            Promise.resolve({
+              data: {
+                id: 'new-enrollment',
+                student_id: 'stu-1',
+                class_id: 'cls-1',
+                status: 'active',
+                effective_from: '2026-09-01',
+                billing_mode: 'per_session',
+                fee_template_id: null,
+                agreed_amount: 3000,
+                students: { name: '王小明' },
+                classes: { name: '國三數學 A 班' },
+              },
+              error: null,
+            }),
           then: (
             onfulfilled?:
               ((value: { data: unknown[]; count: number; error: null }) => unknown) | null,
@@ -1628,7 +1707,7 @@ describe('B3 —— 報名的計費 API', () => {
     });
     app.route('/api/enrollments', enrollmentsRoute.default);
 
-    return { app, filters, inserted, selects };
+    return { app, filters, inserted, selects, auditRows, updatedPayloads };
   }
 
   describe('GET /api/enrollments?hasInvoice', () => {
@@ -1829,6 +1908,110 @@ describe('B3 —— 報名的計費 API', () => {
       });
 
       expect(status).toBe(400);
+    });
+  });
+  /**
+   * **#846：報名類寫入完全不留 `audit_logs`。**
+   *
+   * `enrollment` 有 TS 型別、有 DB CHECK 值，而**全 repo 零呼叫端** ——
+   * `utils/audit.ts` 的註解逐字寫著「報名的建立與退班完全沒有稽核紀錄」
+   * （那句話是我在 #830 補 `enrollment` 到 union 時寫下的旁註）。
+   *
+   * 報名／退班直接影響帳單與出勤，是行政上最常被追問
+   * 「誰在什麼時候把這個學生加進來／退掉」的動作 —— 現在只能靠計數推。
+   *
+   * ⚠️ **`resource_name` 是「學生 / 班級」而不是某個名字** —— 報名沒有名字，
+   * 而追問的形狀是「誰把**這個學生**加進**這個班**」。形狀照 `leaves.ts` 的
+   * `buildLeaveAuditResourceName`，不自創第二種。
+   */
+  describe('報名類寫入的稽核紀錄（#846）', () => {
+    const CLASS_ID = '11111111-1111-4111-8111-111111111111';
+    const STUDENT_ID = '22222222-2222-4222-8222-222222222222';
+
+    /** fire-and-forget：讓 logAudit 的 microtask 跑完 */
+    const flush = async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    };
+
+    it('建立單筆：action 是裸的 create，resource_name 是「學生 / 班級」', async () => {
+      const { app, auditRows } = createApp();
+
+      await app.request('/api/enrollments', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ classId: CLASS_ID, studentId: STUDENT_ID, status: 'active' }),
+      });
+      await flush();
+
+      expect(auditRows).toHaveLength(1);
+      expect(auditRows[0]).toMatchObject({
+        resource_type: 'enrollment',
+        action: 'create',
+        resource_name: '王小明 / 國三數學 A 班',
+      });
+    });
+
+    /**
+     * **議價金額刻意記進 details** —— `agreed_amount` 只在建立那一刻被決定，
+     * 而「這個學生為什麼收這個價」是行政上會被追問的事。
+     * （這一支不參與任何金額計算，只把已經決定好的值抄進稽核。）
+     */
+    it('建立單筆：details 帶得到帳單欄位的當下值', async () => {
+      const { app, auditRows } = createApp();
+
+      await app.request('/api/enrollments', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ classId: CLASS_ID, studentId: STUDENT_ID, status: 'active' }),
+      });
+      await flush();
+
+      expect(auditRows[0]['details']).toMatchObject({
+        student_id: 'stu-1',
+        class_id: 'cls-1',
+        agreed_amount: 3000,
+      });
+    });
+
+    // 退班走的是 PATCH /:id/status（不是 DELETE —— 那支是真刪，且有出勤守衛）
+    /**
+     * **批次記一筆，不是每個學生一筆。**
+     * 一次匯入 40 人記 40 筆會把 audit_logs 洗成一面牆，而追問的形狀是
+     * 「**那一批**是誰匯的」—— 名單放在 `details.student_ids` 裡仍然追得到。
+     *
+     * 這支也是 **Excel 匯入**的落地點（前端走 `batch-match` 唯讀比對 → `batchCreate`
+     * → `POST /batch`），所以接了它就涵蓋工單列的「Excel 匯入」——那不是獨立的 API。
+     */
+    it('批次建立：記一筆，details 帶學生名單與人數', async () => {
+      const { app, auditRows } = createApp();
+
+      await app.request('/api/enrollments/batch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ classId: CLASS_ID, studentIds: [STUDENT_ID] }),
+      });
+      await flush();
+
+      const row = auditRows.find((r) => r['action'] === 'create');
+      expect(row).toBeDefined();
+      expect(String(row?.['resource_name'])).toContain('批次報名');
+      expect(JSON.stringify(row?.['details'])).toContain('student_ids');
+    });
+
+    it('在籍狀態變更：details 記得下 from 與 to', async () => {
+      const { app, auditRows } = createApp();
+
+      await app.request(`/api/enrollments/${CLASS_ID}/status`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: 'withdrawal', notes: '轉學' }),
+      });
+      await flush();
+
+      const row = auditRows.find((r) => r['action'] === 'update');
+      expect(row).toBeDefined();
+      expect(JSON.stringify(row?.['details'])).toContain('status');
     });
   });
 });

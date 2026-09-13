@@ -11,6 +11,13 @@ import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrol
 import { buildPeriodFilter, buildSelect, sortColumn } from './enrollments/list-query';
 import { monthRange, prorateByDays } from '../lib/proration';
 import { applyCampusFilter, filtersCampus, getCampusScope } from '../lib/campus-scope';
+import { logAudit } from '../utils/audit';
+import { waitUntilFrom } from '../lib/wait-until';
+import { auditFieldDiff } from '../lib/audit-diff';
+import {
+  buildEnrollmentAuditResourceName,
+  buildEnrollmentCreateDetails,
+} from '../lib/enrollment-audit';
 import { checkEnrollmentSessionPacks } from '../lib/enrollment-session-pack-guard';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
@@ -664,6 +671,21 @@ app.openapi(
       });
     }
 
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'enrollment',
+        resourceId: data.id as string,
+        // 報名沒有名字 —— 追問的形狀是「誰把**這個學生**加進**這個班**」（#846）
+        resourceName: buildEnrollmentAuditResourceName(data),
+        action: 'create',
+        details: buildEnrollmentCreateDetails(data as Record<string, unknown>),
+      },
+      waitUntilFrom(c),
+    );
+
     return c.json({ data: toEnrollmentResponse(data) }, 201);
   },
 );
@@ -690,7 +712,22 @@ app.openapi(
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
     const orgId = c.get('orgId');
+    const userId = c.get('userId');
     const supabase = c.get('supabase');
+
+    /**
+     * **改動前先讀一次** —— 這支端點改得動 `agreed_amount` / `billing_mode` /
+     * `fee_template_id`，而「誰把這個學生的議價改掉了」正是行政上會被追問的事（#846）。
+     *
+     * ⚠️ **這裡只是把值抄進稽核，不參與任何金額計算。** enrollments 是金額的上游，
+     * 動到帳單欄位的**邏輯**要先報（#846 的邊界）—— 記錄它變了什麼不在那個範圍裡。
+     */
+    const { data: before } = await supabase
+      .from('enrollments')
+      .select('*')
+      .eq('id', id)
+      .eq('org_id', orgId)
+      .single();
 
     const updates: Record<string, unknown> = {};
     if (body.billingMode !== undefined) updates['billing_mode'] = body.billingMode;
@@ -725,6 +762,20 @@ app.openapi(
       });
     }
 
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'enrollment',
+        resourceId: id,
+        resourceName: buildEnrollmentAuditResourceName(data),
+        action: 'update',
+        details: auditFieldDiff(before as Record<string, unknown> | null, updates),
+      },
+      waitUntilFrom(c),
+    );
+
     return c.json({ data: toEnrollmentResponse(data) }, 200);
   },
 );
@@ -756,6 +807,7 @@ app.openapi(
     const { id } = c.req.valid('param');
     const { status, notes } = c.req.valid('json');
     const orgId = c.get('orgId');
+    const userId = c.get('userId');
     const supabase = c.get('supabase');
 
     if (['suspended', 'withdrawal', 'void'].includes(status) && !notes?.trim()) {
@@ -798,6 +850,23 @@ app.openapi(
       .single();
 
     if (error) return c.json({ error: error.message }, 500);
+
+    // #846：在籍狀態變更（含退班）要留痕 —— 「誰在什麼時候把這個學生退掉」
+    // 是行政上最常被追問的事，而在這之前只能靠計數推。
+    // `existing.status` 是上面已經讀過的舊值，不必多查一次。
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'enrollment',
+        resourceId: id,
+        resourceName: buildEnrollmentAuditResourceName(data),
+        action: 'update',
+        details: auditFieldDiff({ status: existing.status }, updates),
+      },
+      waitUntilFrom(c),
+    );
 
     if (data.status === 'active') {
       await syncLeaveAttendanceForEnrollment({
@@ -1070,6 +1139,37 @@ app.openapi(
       }
     }
 
+    /**
+     * **批次記一筆，不是每個學生一筆**（#846）。
+     *
+     * 一次匯入 40 個學生記 40 筆稽核，會把 audit_logs 洗成一面牆 ——
+     * 而行政追問的形狀是「**那一批**是誰匯的」，不是「第 17 個學生是誰加的」。
+     * 名單放在 `details.student_ids` 裡，要逐個追仍然追得到。
+     *
+     * ⚠️ **這支端點也是 Excel 匯入的落地點**（前端 `roster-import-dialog` 走
+     * `batch-match`（唯讀比對）→ `batchCreate` → 這裡），所以接了它就涵蓋工單列的
+     * 「Excel 匯入」—— 那不是一支獨立的 API。
+     */
+    const createdIds = results
+      // status 的值域是 'enrolled' | 'already_exists' | 'error'（編譯器抓到我一開始寫錯成 'created'）
+      .filter((r) => r.status === 'enrolled')
+      .map((r) => r.studentId as string);
+    if (createdIds.length > 0) {
+      logAudit(
+        supabase,
+        {
+          orgId,
+          userId,
+          resourceType: 'enrollment',
+          resourceId: classId,
+          resourceName: `批次報名 / ${createdIds.length} 人`,
+          action: 'create',
+          details: { class_id: classId, student_ids: createdIds, count: createdIds.length },
+        },
+        waitUntilFrom(c),
+      );
+    }
+
     return c.json({ results, warnings: [...preconditions.conflicts] }, 200);
   },
 );
@@ -1098,11 +1198,14 @@ app.openapi(
   async (c) => {
     const { id } = c.req.valid('param');
     const orgId = c.get('orgId');
+    const userId = c.get('userId');
     const supabase = c.get('supabase');
 
     const { data: existing } = await supabase
       .from('enrollments')
-      .select('id, student_id, class_id')
+      // #846：稽核要答得出「刪掉的是誰的哪一筆」——**刪完就查不到了**，
+      // 所以這裡順帶把關聯名稱一起讀出來（原本只有三個 id）
+      .select('id, student_id, class_id, status, effective_from, students(name), classes(name)')
       .eq('id', id)
       .eq('org_id', orgId)
       .single();
@@ -1140,6 +1243,29 @@ app.openapi(
     }
 
     await supabase.from('enrollments').delete().eq('id', id);
+
+    // **真刪不是退班** —— 退班走 `PATCH /:id/status`（status → withdrawal）。
+    // 這支有出勤與堂數包的守衛，所以能走到這裡的是「真的沒有留下任何痕跡的報名」
+    // —— 而那正是最需要稽核的一種：**刪完之後沒有任何地方查得到它存在過。**
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'enrollment',
+        resourceId: id,
+        resourceName: buildEnrollmentAuditResourceName(existing),
+        action: 'delete',
+        details: {
+          student_id: existing.student_id ?? null,
+          class_id: existing.class_id ?? null,
+          status: existing.status ?? null,
+          effective_from: existing.effective_from ?? null,
+        },
+      },
+      waitUntilFrom(c),
+    );
+
     return new Response(null, { status: 204 });
   },
 );
@@ -1280,6 +1406,28 @@ app.openapi(
           recordedBy: userId,
         }),
       ),
+    );
+
+    // 批次記一筆（理由同 `POST /batch`）：追問的是「那一批是誰複製的」，
+    // 而名單放在 details 裡仍然追得到（#846）
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'enrollment',
+        resourceId: targetClassId,
+        resourceName: `複製名單 / ${toInsertStudentIds.length} 人`,
+        action: 'create',
+        details: {
+          source_class_id: sourceClassId,
+          target_class_id: targetClassId,
+          student_ids: toInsertStudentIds,
+          copied: toInsertStudentIds.length,
+          skipped,
+        },
+      },
+      waitUntilFrom(c),
     );
 
     return c.json({ copied: toInsertStudentIds.length, skipped }, 200);
