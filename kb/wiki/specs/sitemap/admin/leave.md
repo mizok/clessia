@@ -240,3 +240,39 @@ updated: 2026-09-13
 | --- | --- |
 | **`Escape` / 真滑鼠重試** | 需要前景分頁（方法頁坑 12）。**「重試鈕按了會不會真的重打」沒有驗** |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |
+
+## 寫入實按（Phase 2-B 第 5 輪，2026-09-13）
+
+環境與基線見 [[specs/sitemap/admin/students]] 同名一節。開按前 `leave_requests=7`、
+`attendance_records=635`。
+
+| 鈕 | 端點 | 結果 |
+| --- | --- | --- |
+| `新增請假` → `送出請假` | `POST /api/leaves` | ✅ `leave_requests` +1，**並連帶產生 1 筆 `attendance_records`（`status=on_leave`）** |
+| 列尾 `取消` → `確認取消` | `DELETE /api/leaves/{id}` | ✅ 兩張表都回到基線 —— **連帶的 `attendance_records` 一併清掉** |
+
+`audit_logs` 兩顆各留**兩筆**：`leave/create` + `attendance/sync_leave_to_attendance`，
+`leave/delete` + `attendance/revert_leave_attendance`。
+
+> ⚠️ 我第一次只查 `where resource_type='leave'`，就只看到一半。
+> **`group by resource_type, action` 才看得到全貌** —— 白名單式的 `in (...)` 只會回你列出的那些。
+
+- **連帶寫入的條件是「請假日當天有課堂」**：同一輪在報名時（`POST /api/enrollments`）
+  `attendance_records` 是 **0 筆**，請假才長出那一筆。待按清單把兩者都標成「落到 `attendance_records`」，
+  **但它們不是同一回事**
+- 確認文案本輪取到的是 `future` 分支（`確定要取消 X 的請假申請（日期）？` / `返回`＋`確認取消`）；
+  `active` / `past` 兩支仍未驗
+
+### 表單的四個 `p-datepicker`：第一個點得動，之後全塌
+
+開始日期的日曆點 `td > span` 有效（方法頁記的退路 1）。**但第二個之後的 overlay 全部是 0×0**
+（`getBoundingClientRect()` 量到的，父層是 `p-motion`），對它們的合成 `click` 靜靜無效 ——
+時間選擇器按 5 次 `Next Hour`，面板與輸入框都不動。
+
+> ⚠️ **判斷 overlay 可見性不要用 `offsetParent !== null`** —— overlay 是 `position: fixed`，
+> `offsetParent` 對它**必然**是 `null`，於是「看起來全部不可見」而其實只有尺寸是 0。
+> 用 `getBoundingClientRect()` 的寬高。
+
+**本輪的退路**：`ng.getComponent(<APP-LEAVE-FORM-DIALOG>)` 直接設 `startDate` / `endDate` / `reason`
+再 `ng.applyChanges()`。⚠️ **那是「設模型」不是「按 UI」** —— 送出鈕是真的按的，但輸入值繞過了
+日曆的互動。時間欄位**選填**（`startTime ? format(...) : null`），所以只設兩個日期就能送出。

@@ -261,3 +261,70 @@ updated: 2026-09-13
 | --- | --- |
 | **`Escape` / 真滑鼠重試** | 需要前景分頁（方法頁坑 12）。**「重試鈕按了會不會真的重打」沒有驗** |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |
+
+## 寫入實按（Phase 2-B 第 5 輪，2026-09-13）
+
+環境與基線見 [[specs/sitemap/admin/students]] 同名一節（同一輪、同一組）。開按前
+`parents=29`（啟用 27 · 停用 1 · 封存 1）、`parent_student_relations=51`。
+
+| 鈕 | 端點 | 結果 |
+| --- | --- | --- |
+| 列選單 `停用帳號` → `停用` | `PATCH /api/parents/{id}/deactivate` | ✅ `status=inactive`；留 `parent/deactivate`（`details` 空 `{}`） |
+| 列選單 `啟用帳號` → `啟用` | `PATCH /api/parents/{id}/activate` | ✅ 回 `active`，統計回到 27/1；留 `parent/activate` |
+| 列選單 `編輯` → `儲存` | `PUT /api/parents/{id}` | ✅ 電話落地，**寫的是 `ba_user.phone`**（見下）；**成功無 toast**；留 `parent/update`（`details` 空） |
+| 列選單 `新增學生` → `建立學生` | `POST /api/students`（帶 `presetParentId`） | ✅ `students` +1、`parent_student_relations` +1（`is_primary=true`）；toast「學生已建立…已關聯至」 |
+| 詳情對話框的 `報名班級` | `POST /api/enrollments` | ✅ `enrollments` +1；**成功訊息是對話框內的 inline notice，不是 toast** |
+| `匯入` → 上傳 → 檢查 | `POST /api/parents/batch-check` | ✅ 解析 + 逐列狀態（「可匯入」） |
+| `匯入` → `確認匯入 N 筆` | `POST /api/parents/batch-import` | ✅ `parents` +1、`students` +1、`psr` +1 |
+| 列選單 `產生登入連結` | `POST /api/login-links` | 🔴 **422，對 UI 建立的家長必然失敗**，見下 |
+| 列選單 `封存帳號` → `封存` | `PATCH /api/parents/{id}/archive` | ✅ `status=archived`；留 `parent/archive`。**不可逆** —— 對自建的 QA 家長按（輪末有 reset），不碰 seed |
+
+### 🔴 UI 建立的家長沒有 `parent` 角色，登入連結永遠產不出來
+
+`POST /api/login-links` 回 **422**（toast 只說「產生失敗／請稍後再試」，看不出原因）。
+路由的三個 422 出口是 `NO_ROLES` / `NO_EMAIL` / `LINK_FAILED`（`login-links.ts:68/96/102`），
+查 DB 分得出來是哪一個：
+
+```
+QA-758-R5-匯入家長 | qa-758-r5-import@example.test | (roles 空)
+劉俊賢（seed）      | parent07@demo.clessia.app     | parent
+```
+
+**`apps/api/src/routes/parents.ts` 全檔沒有任何 `user_roles` 的寫入**
+（`grep -rn user_roles apps/api/src/routes/` 只命中 `login-links` / `me` / `sessions` / `staff`）。
+seed 家長的 `parent` 角色是 `seed.sql` 直接 INSERT 的 —— **所以「有角色」是 seed 的性質，不是產品的**。
+
+推論範圍：批次匯入與單筆新增走的是同一段建帳號程式碼，**兩條路建出來的家長都沒有角色**。
+（本輪只實按了匯入那條；單筆新增未按，但程式碼路徑相同。）
+
+**流程上這是斷的**：匯入完成畫面逐字寫著「請到家長管理頁，對每一位家長使用『產生登入連結』」——
+那句指示指向一條對它自己建出來的家長走不通的路。
+
+已開 issue：**#877**。
+
+### 家長的電話住在 `ba_user`，而那是 c2 的已登記存量債
+
+`parents` 表沒有 `phone` 欄（欄位只有 `id, org_id, name, notes, created_at, updated_at, user_id, status`）。
+編輯表單的電話寫進 `ba_user.phone`（`parents.ts:678`），email 寫進 `ba_user.email`（`:674`）。
+
+**這不是新發現的違憲** —— c2 的 gate A15 帶 allowlist，
+`constitution-enforcement.md:54` 記「剩 4 筆真債待 billing-api 驗證 API 路徑」。
+全 API 的直寫點共 8 處（`parents.ts:436/674/678/1593`、`me.ts:131/169`、`staff.ts:961/1199`）。
+
+> **判準：宣告違憲之前，先查它是不是已登記的債。** 這是「宣告缺陷之前先排除自己」在**規則**上的形式。
+
+### 上一輪列為未驗、本輪驗到的
+
+- **`inactive` 列的選單**：`停用帳號` 換成 `啟用帳號`，其餘五項不變
+  （`查看詳情` / `新增學生` / `編輯` / `產生登入連結` / `封存帳號`）
+- **`archived` 列的選單**（本輪按完封存後展開）：**只剩四項**，
+  `查看詳情` 可按，`新增學生` / `編輯` / `產生登入連結` 三項 `disabled`，
+  **`停用帳號` 與 `封存帳號` 整個不渲染**（`parents.page.ts:203` 的 `if (parent.status !== 'archived')`）
+- 封存的確認文案：`封存後無法透過系統自動復原。確定要封存「X」的帳號嗎？`
+- **登入連結對話框**：**開不起來**（422 就結束了），所以它長什麼樣仍然未驗
+
+### 匯入對話框的兩件現況
+
+- 檔案解析 `slice(2)` —— **前兩列都當表頭跳過**（`parent-import-dialog.component.ts:302`），
+  欄序是 家長姓名 / 電話 / Email / 家長備註 / 學生姓名 / 年級 / 學校 / 生日 / 性別
+- **匯入完成後、按「完成」之前，背後的統計不會更新**（仍顯示舊的 29）

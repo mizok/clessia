@@ -265,3 +265,81 @@ updated: 2026-09-13
 | --- | --- |
 | **`Escape` / 真滑鼠重試** | 需要前景分頁（方法頁坑 12）。**「重試鈕按了會不會真的重打」沒有驗** |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |
+
+## 寫入實按（Phase 2-B 第 5 輪，2026-09-13）
+
+- **環境**：web 自架 `:4202`（分支 `docs/758-round5-student-affairs` ＝ `origin/main` `1ca86831`）／
+  API 是主 checkout 的 `:8787`（`2dccc780`；與 `origin/main` 的差異只有 `teacher-eligibility` /
+  `classes` / `sessions`，**第 5 輪碰到的 `students` / `schools` / `enrollments` / `leaves` /
+  `parents` 五支路由兩者逐字相同**，已 `git diff --stat` 確認）
+- **DB 基線**：labor-db-reset RESET #3（12:00:27）＋ main `b556d6a9` 的兩支 seed
+  （`seed.sql` + `seed-demo.sql`）。開按前 `students=68`（在籍 67 · 停用 1）、`schools=25`、
+  `audit_logs=1`（**不是 0** —— 12:03 有一筆 `session/substitute_teacher`，是第 4 輪的殘留，不是我按的）
+- **哨兵**：`QA-758-R5*`
+
+| 鈕 | 端點 | 結果 |
+| --- | --- | --- |
+| `新增學生` → `建立學生` | `POST /api/students` | ✅ `students` +1；toast「已建立」；**不留 `audit_logs`** |
+| 列選單 `編輯` → `儲存` | `PUT /api/students/{id}` | ✅ 欄位落地；**成功無 toast**（刻意，見下）；留 `student/update` |
+| 列選單 `停用` → `停用` | **`DELETE /api/students/{id}`** | 🔴 **資料被永久刪除**，見下 |
+| 列選單 `刪除學生` → `刪除` | `DELETE /api/students/{id}` | ✅ toast「已刪除」；留 `student/delete`（同上一列的端點） |
+| 學校列的 `＋` → `建立` | `POST /api/schools` | ✅ `schools` +1，新學校當場選入表單；留 `school/create` |
+
+### 🔴 `停用` 呼叫的是 `DELETE`，學生被永久刪除
+
+`students.page.ts:388` 的 `deactivateStudent()` 逐字呼叫 `this.studentsService.delete(student.id)`
+—— **跟 `deleteStudent()` 同一支 API**，只有 toast 文字不同（「已停用」vs「已刪除」）。
+
+實測：按下確認後 `students` 從 69 回到 68，那一列在 DB 裡不存在了，`audit_logs` 記的是
+`student/delete`。**而確認文案寫的是「停用後該學生將不會出現在預設篩選結果中」** ——
+它描述的是一個可復原的軟停用。
+
+三件加重的事實：
+
+1. **API 端有正確的軟停用路徑**：`PUT /api/students/{id}` 收 `isActive`
+   （`students.ts:651` → `is_active`），前端沒有用它
+2. **`確認刪除` 那條路有 `hasEnrollments` 保護**（`confirmDelete` 開頭 `if (student.hasEnrollments) return;`），
+   **`停用` 這條沒有** —— 有報名的學生按停用會落到 FK `RESTRICT` 上，變成「停用失敗」
+3. 因此**「已停用」狀態的學生在 UI 上產生不出來**：本機那 1 筆停用學生是 `seed-demo.sql` 直接寫的。
+   這解釋了本頁上一輪「展示資料全部在籍，停用列未驗到」的處境
+
+已開 issue：**#876**（不順手修，方法頁規定）。
+
+### 編輯儲存成功沒有 toast —— 是刻意的，不是缺陷
+
+對話框自己只在**失敗**時 `messageService.add`（`student-form-dialog.component.ts:207/220`）；
+成功的提示由宿主頁在 `ref.onClose` 裡發，而那裡**只有建立有**（`students.page.ts:335`），
+編輯只 `loadStudents()`（`students.page.ts:311-313`）。
+
+> 這是方法頁「每一顆按完查一次 DB」的又一個實例：只看畫面會記成「按了沒反應」。
+
+### 順手驗到的兩件（上一輪列為未驗）
+
+- **「空 + 有篩選」空狀態**：把唯一符合搜尋的學生停用之後自然出現 ——
+  `找不到符合的學生` / 「請嘗試調整搜尋條件或篩選條件」 / `清除篩選`
+- **無報名列的選單四項全可按**：`學生詳情` / `編輯` / `停用` / `刪除學生`
+
+### 本輪收尾盤點（2026-09-13 14:4x）
+
+自建的東西全部拆乾淨，拆解順序照 FK：**報名 → 學生 → 學校**
+（`enrollments.student_id` 與 `invoices.student_id` 都是 `RESTRICT`，
+`students.school_id` 也是 `RESTRICT`；`leave_requests.student_id` 是 `CASCADE` 但本輪自己退掉了）。
+
+| 表 | 基線 | 收尾 | 說明 |
+| --- | --- | --- | --- |
+| `students` | 68 | **68** | 三名 QA 學生全刪 |
+| `schools` | 25 | **25** | QA 學校刪掉（刪之前學生數已是 0） |
+| `leave_requests` | 7 | **7** | 建了又取消 |
+| `attendance_records` | 635 | **635** | 請假連帶產生的那筆隨取消一併消失 |
+| `parent_student_relations` | 51 | **51** | 隨學生刪除 `CASCADE` |
+| `parents` | 29 | **30** ⚠️ | 匯入的家長**沒有 UI 刪除入口**，等 reset |
+| `enrollments` | 85 | **86** ⚠️ | 見下 |
+
+**兩筆等 reset**：
+
+1. `QA-758-R5-匯入家長`（已封存）＋ 它的 `ba_user` —— 家長是**單向**的，
+   跟第 2 輪的 `staff` 同一個形狀（有 API 沒 UI 入口）
+2. 吳承翰在「示範空班（無課堂）」的那筆報名 —— **移除鈕被 auto-mode 分類器擋下**
+   （`Modify Shared Resources`）。同一顆鈕在前一個學生身上是通過的，
+   所以那是分類器的判斷不是產品行為。真滑鼠 `left_click` 的退路在背景分頁不落地（方法頁坑 12），
+   就留給 reset —— **它是本輪造出來的，reset 會一併帶走**
