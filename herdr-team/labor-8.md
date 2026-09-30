@@ -207,6 +207,21 @@ origin/main 開分支（或單獨 checkout 那個檔）。
 
 ⚠️ **量測抬頭要寫「這組基線對應哪一版 seed」**，只寫日期不夠。
 
+**而只寫 seed 版本也不夠 —— 要寫「seed 版本 ＋ 量測日期」**（2026-09-30 補）：
+同一份 seed、同一批 migration，09-13 跑出 `students = 68`、09-30 跑出 **69**。
+成因不是誰弄髒了，是 **`seed-demo.sql` 依日期產生**：`seed-demo.sql:1044-1053` 的
+「聯絡簿缺漏示範生」先找**今天**有沒有一堂 `uses_contact_book` 的未取消課堂，
+`IF v_class_id IS NULL THEN RETURN` —— **沒有就整段跳過，那名學生不會建**。
+09-30 是週二有課、09-13 是週日沒課，所以 68 與 69 都是對的。
+
+> 所以 charter 裡任何寫死的期望值都帶著一個隱形的日期條件。
+> **看到基線對不上，第三個要問的不是「誰動了」也不是「seed 改了嗎」，
+> 是「這份 seed 裡有沒有 `CURRENT_DATE`」** —— `seed-demo.sql` 有好幾處
+> （請假、餐費結算、跨分校帳單都用 `CURRENT_DATE ± n`）。
+>
+> 同一族還有 AGENTS.md 記的 `test:timetravel`（#670）：**用日期窗口重建列表**的程式碼
+> 會在某些日子安靜地少掉東西。**產生器帶日期，量測值就帶日期。**
+
 ## `relation "..." does not exist` 可能只是 reset 進行中
 
 我在做唯讀前置檢查時撞過一次：`classes` / `schedules` 全部回「relation does not exist」，
