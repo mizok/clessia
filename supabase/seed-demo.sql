@@ -1127,9 +1127,14 @@ BEGIN
   INSERT INTO public.leave_requests (org_id, student_id, start_date, end_date,
                                      reason, submitted_by, submitted_by_role)
   SELECT ar.org_id, ar.student_id, e.event_date, e.event_date,
+         -- ⚠️ 取 **兩個** 字元不是一個：UUID 首字元只有 `0-9a-f` **16 種**，
+         -- 同一天不同學生撞同一個理由的機率高到看得出來 ——
+         -- 實際畫面上出現過「王柏翰／劉宜蓁 同日同為『看牙醫』」連續兩列。
+         -- 兩個字元是 256 種，散得開而且一樣可重現。
          (ARRAY['生病','家庭因素','學校活動','看牙醫','家族旅遊','身體不適'])[
            1 + ((EXTRACT(DAY FROM e.event_date)::int
-                 + ascii(substr(ar.student_id::text, 1, 1))) % 6)],
+                 + ascii(substr(ar.student_id::text, 1, 1)) * 16
+                 + ascii(substr(ar.student_id::text, 2, 1))) % 6)],
          COALESCE(
            (SELECT p.user_id
               FROM public.parent_student_relations psr
