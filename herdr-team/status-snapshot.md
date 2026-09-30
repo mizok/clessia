@@ -23,181 +23,50 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-09-13 09:5x 部署，labor-reviewer）
+## 🚀 線上是哪一版（2026-09-30 13:0x 部署，labor-reviewer）
 
-**截線 `fce7c2b6`** —— 那之後合的都還沒上線。截線就是部署當下 main 的 HEAD，
-而且它的 verify 已經 `completed/success`（**不是**「等某一支指定的 PR」——
-charter 記著那個目標會一直動）。
+**截線 `1a57db88`**：web `main-M67JFMAA.js`、api `7cd80d82`、**正式 DB 套到 `20260913143909`**
+（跨部署紀錄在 `herdr-team/review-steward.md` 的截線表，那張表現在三欄都對得上實測）。
+截線後 main 累積的請現查 `git rev-list --count 1a57db88..origin/main`；截至 14:4x 是 7 筆，
+只有 #904（餐費／催繳稽核接線）是 api 行為，其餘 doc / seed。**部署窗口由計畫席叫。**
 
-| | 值 |
-| --- | --- |
-| web bundle | `main-VWXREIM7.js`（部署前是 `main-AQOBVFQF.js`，2026-09-13 00:3x） |
-| api version id | `2d198aac`（部署前是 `fc287869`） |
-| 三方比對 | 部署後線上 == 本機 build，且 != 部署前線上 ✓ |
-| 這一批 | 上次部署後的 **59 筆**，其中 17 支 feat/fix；**web 81 檔、api 14 檔都有動** |
+⓪ 現在分兩類（#905 起）：**schema migration 套完才部署；data backfill 部署完才套；分不出來當 schema。**
 
-`styles-NT5GAE5N.css` 前後相同 —— 全域 `styles.scss` 這批沒動，**元件級 SCSS 編進 JS chunk**
-（charter 部署備忘），所以那個 hash 不變是正確的，不是沒部署到。
+## 📋 給使用者：等你的三件（2026-09-30 **14:4x**，計畫席 labor-plan-20260913-1211 交接前重寫）
 
-**跨部署的累積紀錄在 `herdr-team/review-steward.md` 的「部署節奏與截線紀錄」表**，
-不在這裡 —— 這一節會被清空，那張表不會。
+> 狀態一律現查：`gh issue list --state open --label blocked`、`gh pr list --state open`。
 
-**節奏（2026-09-12 起）**：每次收完一批 PR、或每天最後一支合併之後部署一次。
-理由不是「線上不能舊」，是**部署這條路壞了而沒有人知道** ——
-`smoke` 證明的是線上那一版還在服務，不是部署還做得動。
+### 1. #898 —— 帳單建立後既刪不掉也作廢不掉：**「作廢 vs 刪除」要你裁一句**
 
-### ⚠️ 這次驗了什麼、沒驗什麼
+`status` enum 只有 `unpaid | partial | paid`、零 DELETE 路由（計畫席開檔驗過）。金流紀錄通常該作廢不該刪
+（審計軌跡），但那是產品決定；決了才開設計（碰 enum = migration、碰合計 = 金額路徑 → 【保留類】）。
 
-**驗了**：
+### 2. #911 —— 公告三顆寫入零稽核，**要先加 CHECK 值（migration）**
 
-- **線上實際下載 lazy chunk**：`chunk-D7HVCXT6.js` / `chunk-NCW4Z35I.js` 含
-  `manage_org_settings`（#772，上次截線的 web 是 **0 處**），`chunk-2UQO7W2J.js` /
-  `chunk-3GZRGV7N.js` 含 `app-load-failed`（#788，上次截線**整個目錄不存在**）——
-  四個都是 `application/javascript`
-- **負控**：`chunk-ZZZZZZZZ.js` 回 `text/html`（SPA fallback）——
-  證明「拿到 JS」這件事有鑑別力。`demo.clessia.cc` 任何路徑都回 200，**做判斷的是 content-type**
-- **api 的 `openapi.json` 前後有差，而差的正好是這批改的那支**：
-  `/api/login-links` 多了 `403 權限不足`（#464 的 `requiredPermissionsForTarget`）。
-  上次那批「逐字相同」是因為一個 api 檔都沒動；這批動了 14 個，所以**該有差**
-- api 正控（`workers.dev/api/system-time` → JSON 200）、負控（`workers.dev/no-such-route`
-  → **404 + JSON**）、拓撲對照（`demo.clessia.cc/no-such-route` → **200 + HTML**）全部符合 charter
+`announcement` 不在 `resource_type` CHECK 也不在 TS union。分兩支：migration 一支（保留類，你親合＋親自套正式 DB，
+schema 類 → **套完才部署**）、接線一支。建議只記「發佈」、不記「標記已讀」。
 
-**沒驗**：
+### 3. 排程決策（不急，17 天前就問了）
 
-> **產物裡有那些字串 ≠ 畫面上那些功能能動。**
+**#758 剩第 8–9 輪（15 顆）做完之後，全隊要不要轉 P4 家長端？** roadmap：11 頁空殼是產品價值所在。要決的是什麼時候切。
 
-本席不碰瀏覽器（Chrome 由 labor-8 獨占），**這批 17 支 feat/fix 沒有一條在線上被實際點過**。
-其中權限相關的幾支（#772 權限勾選清單、#464 login-links 的 403）**只有登入之後才看得到**，
-而那要一個有瀏覽器、且知道修法前長什麼樣的席。
+## 今日紀錄（2026-09-30，復工日）
 
-**⚠️ 這批含授權/權限路徑的改動**（#464 的 mount 權限重掛、#816 的家長清單分校範圍）——
-它們是**已經合進 main 的**（保留類的「使用者親合」在合併那一關，不在部署這一關），
-但線上生效就是現在。**行為若不對，回退是 `npx wrangler rollback --env production`，
-不要現場修。**
-
-### 這半沒有人在做 —— **原本派給 `usability-admin`，那一席已經不在了**
-
-> #655 / #660 / #664 / #672 四條線上驗證（`b5b8ac92` 那批，早就在線上）**從來沒有被走過**。
-> 計畫席 2026-09-12 指派給 `usability-admin`，而 `herdr agent list` 上**沒有這一席**了。
->
-> **它掃不到，因為它不在 issue 板上** —— 那四個編號是**已合的 PR**，`seat:usability-admin`
-> 這個標籤從來不存在。監工席的孤兒 seat 掃描只看 open issue，**派在已合 PR 之後的工作
-> 天生沒有載體，席位一死完全沒有任何東西會變樣**。
->
-> **修法（2026-09-13 起）**：不要把後續動作掛在 PR 上，**要開 issue**。
-
-要走的四條（下一個拿到瀏覽器、且知道修法前長什麼樣的席）：
-
-| # | 線上該看到什麼 |
-| --- | --- |
-| #655 | 課堂列表的預設篩選看得見；停課之後那堂課不再「消失」 |
-| #660 | 學生搜尋打字到出結果**慢一拍（300ms）—— 那是刻意的**，要確認在線上網路條件下感覺對 |
-| #664 | 人員表單驗證失敗**留在欄位上**，不再只有一閃而過的 toast |
-| #672 | 公告的「發送對象」下拉**選得到家長**（預設仍是老師） |
-
-## 📋 給使用者：等你的五件（2026-09-13 **15:4x**，計畫席 labor-plan-20260913-1211 收工前重寫）
-
-> **這一節每次計畫席輪替都會重寫**，狀態一律現查：
-> `gh pr list --state open`、`gh issue list --state open --label blocked`。
-
-### 1. 部署卡住 —— **只有你能解，卡著 47 筆已合的東西**
-
-`supabase/migrations/20260913101500_audit_logs_subject_organization_resource_types.sql`（#832）
-**要你親自套進正式 DB**（schema = 保留類）。**套完之前不能部署 api。**
-
-**為什麼不能先部署**：`logAudit` 是 fire-and-forget（`apps/api/src/utils/audit.ts` 的
-`waitUntil?.(promise)`，`catch` 只 `console.warn`）。api 上線而 DB 沒套，insert 被 CHECK 擋掉
-⇒ **線上靜默 0 筆稽核**，#828 的症狀搬到線上、更難查。
-
-**套完跟計畫席說，`labor-reviewer` 立刻部署。** 線上現在是 `main-VWXREIM7.js`（09:5x 部的）。
-
-### 2. 三支保留類 PR —— **合併順序有實質差別**
-
-| 順序 | PR | 內容 |
-| --- | --- | --- |
-| — | **#836** | 人員不能刪除只能封存，建立時接管孤兒 `ba_user`（#833） |
-| **先** | **#882** | 建立家長要一併寫入 `user_roles(parent)`（#877） |
-| **後** | **#884** | migration：補寫既有家長缺少的 `parent` 角色 |
-
-⚠️ **#884 必須在 #882 之後** —— 反過來的話補完的當下是對的，而在 #882 上線前**每建一個新家長就又多一筆沒角色的**。
-
-**三支我都留了計畫席審查意見在 PR 上**（我開檔驗過的前提、作者怎麼回答關鍵問題），
-**不必從頭讀 diff**。#877 的嚴重度值得知道：**UI 建出來的家長不只產不出登入連結，
-它們登入後過不了 `roleGuard`，根本進不了家長端** —— 而沒有人早點發現，是因為
-**「家長有角色」是 seed 的性質，不是產品的**。
-
-### 3. 心跳腳本 —— **我改不動（權限擋）**
-
-`~/.local/bin/clessia-heartbeat.sh` 的 `WARDEN_MSG` 內文還寫著「喚醒計畫席 `clessia-c8`」。
-我下 `sed -i` 被 auto mode 的 `Unauthorized Persistence` 擋掉，**沒有繞過**。
-
-**建議不是改掉這次那個名字，是讓那段訊息不指名任何席位**：
-
-```
-! sed -i '' 's/計畫席 clessia-c8/計畫席（用 `herdr agent list` 找當班的 labor-plan-*）/' ~/.local/bin/clessia-heartbeat.sh
-```
-
-**理由（labor-reviewer 提的）**：那個檔在 `~/.local/bin/`、不進版控、**沒有任何 gate 看得見**，
-所以它每次輪替都會過期一次，而**發現它的每次都是偶然**。改名字只解這一次。
-
-**它壞掉的時機特別糟**：那段話**只在「額度斷線恢復」時才會被讀到**，平常每一輪都看起來正常。
-（監工的 charter #865 已經把「復活對象一律現查」寫成防線，所以就算腳本沒改也有一層擋著。）
-
-### 4. #495 要不要架能連真 DB 的驗證環境 —— **消費者已經五個**
-
-| # | 只有正式 DB 說得出的答案 | 需要 |
-| --- | --- | --- |
-| #485 | 現存資料裡有幾筆被錯扣 | 唯讀 |
-| #488 | 那個計數在真實資料上少多少（issue 已關，**問題還在**） | 唯讀 |
-| #479 | 真正的並行 | 起服務發並行請求（**貴的那一半**） |
-| 部署左邊界 | 正式 DB 現在套到哪一支 migration | 唯讀 |
-| **#877** | **正式站有幾個家長沒有 `parent` 角色**（本機 1 筆） | 唯讀 |
-
-**五筆裡四筆只要唯讀。** 建議不變：先做便宜的那一半。
-
-### 5. 排程決策（下次窗口再答就好）
-
-**#758 的 UI 地圖還剩 4 輪（第 6–9）。做完之後全隊要不要轉 P4 家長端？**
-
-`kb/wiki/roadmap.md` 那節寫得很直接：**11 頁全是 14–18 行的空殼，這是產品價值的所在 ——
-沒有家長端，這是行政內部工具，不是補習班系統。** 順序 roadmap 也給了
-（出缺席 → 繳費 → 成績 → 課表 → 聯絡簿 → 報名／加選）。
-
-**要你決的不是做什麼，是什麼時候切**，以及切的時候 #758 剩下的輪次要收尾還是暫停。
-
-
-## 收工紀錄（2026-09-13 15:4x，計畫席 labor-plan-20260913-1211）
-
-**使用者要求收尾**（省 token 給另一個專案，週一–週三）。**這不是輪替，是全隊停工** ——
-下一個接手的人讀「接手第一件事」那節就好，席位狀態一律現查。
-
-**今天合了 20+ 支**，其中 doc/charter 類佔多數（README 從 1694 → 約 1800 行，
-**開頭現在有閱讀導引：新席約 200 行、計畫席約 500 行、其餘 1100 行 grep 不要讀**）。
-
-### 停工前的三個未完狀態
-
-| | 狀態 |
-| --- | --- |
-| `labor-20260913-1222` | #758 第 6 輪（考務與成績）進行中，**持有瀏覽器**。第 5 輪已合（#878） |
-| `labor-20260913-1134` | 手上 **#867**（四條線上驗證）等瀏覽器；#876/#877 已交付（#880 合、#882/#884 等使用者） |
-| 兩支 Monitor | **掛在計畫席 session 上，隨它關閉消失** —— 下一任要自己重掛（「接手第一件事」第 6 條） |
-
-### 今天新長出來、寫進 README 的規則（合了才算數，現查 `git log`）
-
-- **怎麼讀 README**（閱讀導引 + 那 1098 行的節加了 15 個 `###` 子標題）
-- **「自己開的不自己合」要的是第二次獨立檢查，不是第二個人**
-- **禁令擋不住正當需求；而預設值連需求都不需要**（分支名不要用席位名）
-- **送達的假陽性與假陰性**（`--wait --until working` 對已在 working 的席位）
-- **結論附上取得方式 / 已知上限**（#881，三方碰過：作者寫、監工擋、計畫席裁）
-- **抄慣例前先查它有沒有被 ratchet 判死**
-- **沒有執行者的期限不是期限**
+- **合了 20+ 支**（含使用者親合 #836、#882、#884），部署 1 次，正式 DB 套 1 支 backfill（使用者驗 `parents_missing_role = 0`）。
+- **修掉三支會壞 showcase 的**：#886 登錄過成績的考試刪不掉（#893：清空分數後儲存 = 刪那一列）、
+  **#907 本機 demo「記錄收款」必然失敗**（seed 自算收據號繞過 `receipt_counters`，#909 修 seed）、#877 UI 建的家長沒角色（#882 + #884）。
+- **#758 到 64/106**；第 8–9 輪不是 5 顆是 **15 顆**（`_shared` 十個共用元件一顆沒按過，`parent-form-dialog` 連頁都沒有），預期表在 `docs/758-round8-9-prep`。
+- **兩次額度斷線**（13:0x–14:1x 的 17 天前那次不算；今天 13:35–14:4x 一次）。復工三席把回報**印在 pane 沒送出**，
+  一席**送到一半斷線**（12:54，`API Error … mid-response`）—— 監工 charter 現在分兩列處置（#903）。
+- **seed 依日期產生**：`seed-demo.sql:1044` 的「聯絡簿缺漏示範生」只在當天有聯絡簿課的日子才建 → `students` 68/69 都對；
+  db-reset charter 憑證表不再寫死筆數（#899）。
+- **導航員 charter 三份逐字同一句假話**（「api 沒有 test target」）—— #900 修三支；README 加「同一模具壓出來的錯誤，複本一致反而更像佐證」（#902）。
+- **Chrome 擴充機器層斷線一次**（`Browser extension is not connected`），只有使用者能重連；線上驗證（#867）要**使用者親自登入 demo 留 session**，席位不該在非 localhost 走 LINE OAuth。
 
 ### 兩件只存在於訊息裡、沒有進任何檔案的
 
-1. **#884 必須排在 #882 之後**（已寫進 #883 的代記與快照第 2 件，但**GitHub 上沒有機制擋**）。
-2. **`labor-20260913-1134` 刻意沒在本機套 #884 的 migration** —— 因為 `labor-20260913-1222`
-   正在用 DB 做寫入實按，套下去會汙染它每一顆的量測而它不會知道。
-   **要真的套一次，得等那一輪結束、reset 之後。**
+1. **`:8787` 現在是 `labor-20260913-1222` 自己起的 dev server**（主 checkout 那支停工期間沒了），跑 `f9656aca`+；別席若以為 8787 是主 checkout 的會判斷錯。
+2. **痕跡制文件讓 `grep -c` 驗「假話清光了沒」反向失效**（每清一句就永久 +1 命中，reviewer 在 #902 留言）—— 還沒進 README，跟下面「接手第一件事」第 6 條那句訂正一起，下一次 README 批次落檔。
 
 ## main 的 verify 判準（**2026-09-13 12:5x 複查：那批 `cancelled` 已經清空了**）
 
@@ -242,48 +111,40 @@ success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只
 > 行為只是從「新的殺舊的」變成「最舊的活著跑完、中間排隊的被丟掉」。
 > **修法是讓每顆 commit 各自一個 group**（group 帶 `github.sha`）。
 
-## 接手第一件事（2026-09-13 **12:4x**，計畫席 labor-plan-20260913-1211 上任後重寫）
+## 接手第一件事（2026-09-30 **14:4x**，計畫席 labor-plan-20260913-1211 交接前重寫）
 
 1. `TZ=Asia/Taipei date` —— 報時間一律實跑。
-2. `herdr agent list` + 每席 `herdr agent read <席> | grep Ctx` —— 誰在 working、誰 Ctx 過線。**不要用 issue 板推論席位活動**；反過來也一樣，**席位死掉不會讓 issue 板變樣**。
-3. `gh pr list --state open` —— 非 draft、CI 綠、**非保留類**直接合（合前：`git rev-list --count origin/<br>..origin/main` + 檔案交集，交集非空叫作者 rebase）；保留類（migration／金額路徑／授權邏輯）**只有使用者能合**，標題已帶【保留類】。**作者已退場的 PR 由計畫席自己 rebase**（上任當天就撞到一支：#859）。
-4. 讀 `herdr-team/README.md`「計畫席消失時怎麼辦」「席位復活程序」「共享資源協定」。
-5. 心跳：launchd 每 30 分鐘 prompt 你與 labor-ops-warden；帳戶限速（09-12/13 一天三次、各停 1.5–3 小時）會讓全席出現 `/low-priority` 橫幅。
-6. **兩支 Monitor 掛在計畫席 session 上，會隨它關閉而消失 —— 自己重掛**：① open PR 的 verify/seed-reset 結論（**綁 head_sha**，否則會拿到 rebase 前那顆的綠燈）② 席位 idle 集合 + 未認領 issue 的變動。腳本範例在 scratchpad，**注意 macOS 是 bash 3.2，沒有 `declare -A`**（第一版就是這樣 exit 1 的）。
+2. `herdr agent list` + 每席 Ctx（監工的 `ctx()`）—— **不要用 issue 板推論席位活動；席位死掉也不會讓 issue 板變樣。**
+3. `gh pr list --state open` —— 非保留類 CI 綠由計畫席收或授權 `labor-reviewer`（合前 `behind` + 檔案交集 + `merge-tree`；**交集非空不等於要作者 rebase，驗語意衝突就好，否則快節奏的板會鎖死**；**零衝突也要讀 —— 它對「你的改動有沒有讓對方那段話變成假的」一無所知**）。保留類三類只有使用者能合。
+4. 讀 README 開頭的**閱讀導引**（新席 200 行、計畫席 500 行、其餘 grep），再讀「席位復活程序」「共享資源協定」「計畫席消失時怎麼辦」。
+5. 心跳：launchd 每 30 分鐘 prompt 計畫席與監工；**腳本在 `~/.local/bin/clessia-heartbeat.sh`，計畫席名寫死在裡面，改它會被 auto-mode 擋（`Unauthorized Persistence`）→ 輪替時請使用者改**；暫停用 `touch ~/.local/share/clessia-heartbeat.pause`（這個不會被擋）。
+6. **兩支 Monitor 掛在計畫席 session 上，且每 30 分鐘到期要重掛**（`persistent: true` 現在不持久）；**腳本放 scratchpad 活不過一次長假（/tmp 會被清）—— 內容在 README「席位復活程序」附近沒有，重寫要點：① open PR 逐支查 head sha 的 check-runs（綁 sha，事件是快照會帶過期 sha）② 席位 idle 集合 + 未認領未 blocked issue；macOS 是 bash 3.2，沒有 `declare -A`**。
+7. **跨席訊息一律寫檔再 `"$(cat 檔)"`** —— 反引號在雙引號裡會被執行、單引號會被吃掉，今天各踩兩次。`--wait --until working` 對已在 working 的席位回假 timeout，驗送達讀對方 pane 找**原文**（不是自己的摘要）。
+8. **席位回報只印在 pane 沒送出**是長假後的集體退化（三席同時）；判斷看**輸出區**，輸入框那句永遠是建議提示殘影，**不構成任何送達判斷**（兩個方向都不能推）。
 
-### 上任當天新學到的三件（都在別處會再撞到）
-
-- **`SendMessage` 的 peer 名跟 herdr 的 `name` 不是同一個命名空間。** `SendMessage to: clessia-c8` 回 `No agent named ... is reachable`，而 ListAgents 上它叫 `clessia-44`。**跨席一律 `herdr agent prompt <herdr 名>`。**
-- **`herdr worktree create --path` 是相對於你的 cwd。** 在計畫席的 worktree 裡下相對路徑，會建出 `.worktrees/labor-plan-…/.worktrees/<新席>` 這種巢狀目錄（我建了一次，`herdr worktree remove --workspace <id> --force` 收掉重來）。**一律給絕對路徑。**
-- **合併後刪本地分支會失敗，如果那支還 checkout 在別席的 worktree 上。** 遠端刪得掉、本地刪不掉，訊息會指名是哪個 worktree —— 那不是錯誤，是那一席還站在已合併分支上（擱淺的起點），通知它切回去。
-
-### 席位（2026-09-13 12:4x）
+### 席位（2026-09-30 14:4x）
 
 | 席 | 在做 | 備註 |
 | --- | --- | --- |
-| `labor-20260913-1134` | #848（P1，390 版面）→ PR #860 | **持有瀏覽器**；52 頁重掃中，歸零前不合 #860；交還時會明講 |
-| `labor-20260913-1222` | #758 寫入實按第 5–9 輪（labor-8 後手） | 等瀏覽器；charter 是 `herdr-team/labor-8.md` |
-| `labor-db-reset` | 只做 `npm run db:reset`（deny 行只在它的 worktree 移除，**永不 commit**） | **只接計畫席的請求，別席直接找它會被擋回來** |
-| `labor-reviewer` | 代合與部署（取代 review-steward） | **部署前查 migration**；目前部署卡在 `20260913101500` 未套進正式 DB |
-| `labor-ops-warden` | 心跳巡檢、備援 | **每輪量計畫席 Ctx，≥80% 叫交接**；孤兒 `seat:` 掃描 |
+| `labor-20260913-1134` | **#867** 四條線上驗證（使用者已在 Chrome 登入 demo，席位接著點） | 持瀏覽器；做完交回 1222。Ctx 64% |
+| `labor-20260913-1222` | #758 第 8–9 輪 15 顆，預期表已推 | 等瀏覽器＋一次 reset；`:8787` 是它的。Ctx 51% |
+| `labor-db-reset` | 開「容器重啟階段 CLI 錯誤不構成 reset 失敗」charter PR | 只接計畫席請求；DB 停在 RESET #6 + 1 筆 #907 驗證收款 |
+| `labor-reviewer` | 待命，板空 | 部署 ⓪ 分 schema/backfill；下一批只有 #904 是 api 行為 |
+| `labor-ops-warden` | 巡檢；每輪量計畫席 Ctx，≥80% 觸發交接 | 孤兒 seat 掃描、截斷掃描 |
 
-**已退場**：`labor-8`（charter 隨 #859 進 main）、`labor-9`（#858）、`usability-admin`、`clessia-c8`。
+**已退場**：`labor-8`、`labor-9`、`usability-admin`、`clessia-c8`。**模型**：計畫席一律 Fable；生產席依任務 Sonnet/Opus（使用者 09-13 裁）。
 
-**命名（使用者裁定）**：生產席 `labor-YYYYMMDD-HHMM`；常設席也帶時間戳 `<職務名>-YYYYMMDD-HHMM`；charter 檔名維持職務名。常設席 **context 滿了就交接**（新 session 接同 charter），不是關掉留空。
-
-### 等使用者的 —— **看上面「📋 給使用者」那節**，不在這裡複製
-
-只補一條那節沒有的：`.claude/settings.json` 的 `npm run db:reset*` deny 在主 checkout 仍然在，**只有 `labor-db-reset` 的 worktree 移除了那一行，而且永遠不 commit**。它的 `git status` 常駐一筆 `M .claude/settings.json` 是正常的。
 ### UI 地圖現況
 
-Phase 1（53 頁 + 10 支 _shared 兩向比對）✅；Phase 2-A 響應式 63/63 ✅、2-C 權限矩陣 ✅（`_shared/permission-matrix.md`：9 個權限只有 2 個改前端）、2-D 載入中／錯誤 63/63 ✅；**2-B 寫入實按 #758 第 3 輪已合、第 4 輪進行中**，共 9 輪；完備度約 90/100，剩下的在 #758 與 #848（地圖量不到版面壞掉，這是方法盲點）。方法頁 `kb/wiki/specs/sitemap/README.md` 12 個坑 + Phase 2 節。
+Phase 1 ✅；2-A 響應式 ✅（#848 之後 390 版面歸零）；2-C 權限 ✅；2-D 載入／錯誤 ✅；**2-B 寫入實按 #758 64/106，剩第 8–9 輪 15 顆**（`_shared` 十顆從沒按過）。方法頁 `kb/wiki/specs/sitemap/README.md` 14 個坑。
 
 ### 今天學到、下一任會再用到的
 
-- **seed = `seed.sql` + `seed-demo.sql`**（#842 起 `config.toml` 兩者都套）；`npx supabase migration up` 可套新 migration 不觸發 deny；CI `seed-reset` job 跑 reset + 哨兵，paths filter 退到 merge-base（#847）。
-- 「沒有炸」證不出「資料在」；「屬性設了」不蘊含「看不見」（斷言落在畫面）；替身少記一個東西＝把那件事斷言成永遠正常（labor-9 charter 那張表）。
-- 開單前提要自己開檔驗：#722、#784 是幻影單（分別是我沒開檔、ResizeObserver 在量測 iframe 不觸發）。
-- 合併 PR 後席位往同分支疊 commit 會擱淺（#692 / #715）；疊 PR 用 draft，合了上游再 rebase 轉 ready。
+- **seed 用 SQL 抄捷徑就繞過產品維持不變量的東西**，兩個方向：#877 讓斷的路徑看起來通、#907 讓好的路徑看起來壞。**在 seed 資料上點永遠不會發現。**
+- **可回收性住在端點的前置檢查與缺席的端點裡**（`HAS_SCORES` #886、`invoices` 零 DELETE #898、`class-logs.publish` 無 unpublish）—— 按之前先讀。
+- **「沒有 X」是比「X 在這裡」強得多的斷言**：導航員回來一句零命中，自己換一個 pattern 再跑一次（#895 / #897）。grep 字串 ≠ grep 賦值（我今天把 `seed.sql` 的註解當成賦值）。
+- **筆數量不到狀態**（reopen／停用／清空在筆數上跟沒變一樣）—— 殘留清單有狀態改變的項目要連欄位一起給（#910）。
+- **backfill 的正確性判準是「它要補的集合空了」，不是「SQL 沒報錯」**（#906）。
 
 ## 今天證實的三個環境限制（會讓你誤判）
 
