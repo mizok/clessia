@@ -832,6 +832,7 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 
 | 部署時間(台北) | 截線 SHA | web bundle | api version id | 正式 DB 套到 | 部署者 |
 | --- | --- | --- | --- | --- | --- |
+| 2026-09-30 13:0x | `1a57db88` | `main-M67JFMAA.js` | `7cd80d82` | `20260913101500`(backfill `20260913143909` 部署後套) | labor-reviewer |
 | 2026-09-13 15:1x | `cac1afb5` | `main-VUM3OUNI.js` | `89104040` | **`20260913101500`** | labor-reviewer |
 | 2026-09-13 09:5x | `fce7c2b6` | `main-VWXREIM7.js` | `2d198aac` | 不明(見下) | labor-reviewer |
 | 2026-09-13 00:3x | `b5b8ac92` | `main-AQOBVFQF.js` | `fc287869` | 不明 | review-steward |
@@ -911,8 +912,26 @@ curl -s -o /tmp/c -w '%{content_type}' "https://demo.clessia.cc/<chunk 名>"
 git log --oneline <上次截線>..<這次截線> -- supabase/migrations
 ```
 
-**非空就停下來,報計畫席與使用者,不要繼續。** 正式 DB 的 migration **由使用者親自套**
-(schema 是保留類),**套完才部署 api**。
+**非空就停下來,報計畫席與使用者,不要繼續。** 而**停下來之後要先分類** ——
+`supabase/migrations` 底下有兩種東西,它們的正確順序**相反**:
+
+| 類型 | 怎麼認(看**內容**不看檔名) | 順序 |
+| --- | --- | --- |
+| **schema** | 有 `ALTER TABLE` / `CREATE …` / constraint / type 變更 | **套完才部署** |
+| **data backfill** | 只有 `INSERT … WHERE NOT EXISTS` / `UPDATE` | **部署完才套** |
+| **分不出來** | —— | **當 schema 處理**(保守方向) |
+
+**為什麼相反**:⓪ 的意圖是「api 不能跑在缺它所需 schema 的 DB 上」——
+schema 是 api **依賴**的東西(`20260913101500` 的 CHECK:沒套就靜默 0 筆);
+**backfill 不被 api 依賴,它只是補既有列**,而寫入端的修法要**上線**才會生效 ——
+所以先部署再 backfill,窗口是 0;反過來的話「補完之後、修法上線前」新建的資料仍然是壞的。
+
+**冪等性是這條能成立的前提**:`INSERT … WHERE NOT EXISTS` 隨時可重跑,
+所以「晚套幾小時、或套完又漏幾筆」都不是問題 —— **重跑就是那個回頭**。
+(第一個實例:2026-09-30 的 `20260913143909_backfill_parent_user_roles`,
+計畫席裁甲。本席當時擔心「漏掉那幾筆沒有東西會回頭發現」,**在冪等 backfill 上不成立。**)
+
+正式 DB 的 migration **一律由使用者親自套**(兩類都是)。
 
 **預設整批都停,不是只停 api。** 要拆成「web 先上、api 等」得先說明**這一批的 web
 不依賴那支 migration 之後的 api 行為** —— 沒說明就是一起等。
