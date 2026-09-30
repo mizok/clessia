@@ -376,6 +376,10 @@ const publishedAt = (existing['published_at'] as string | null) ?? new Date().to
 預期表寫「有（`daily-checkins.ts` 2 處 `logAudit`）」。**實際 POST 那支零稽核** ——
 唯一的 `logAudit` 在 `:261`，而那是 **DELETE 端點**（`:183` 起）裡的。
 
+**✅ 2026-09-30 已修（#923）** —— `POST` 現在留 `attendance` / `checkin`，
+`details` 的 `attendanceRecordsCreated` 跟 `cancel_checkin` 的 `attendanceRecordsRemoved`
+對稱。**從 `48b40b42` 起，上面那一格「零稽核」就過期了**，留著當修法前的紀錄。
+
 > **`grep -c logAudit` 把第 6 行的 `import { logAudit }` 也算進去了。**
 > 「查得太窄／太寬」這一輪的形狀是**計數包含了 import 宣告**。
 > 前四種：查錯表／欄、`in (...)` 白名單、`tail` 截斷輸出、正則假設值是字面量。
@@ -400,6 +404,20 @@ leave_requests:     許雅雯 → 只有 09-10 一筆
 
 > **這是 #907 同一個形狀的第三例**：seed 用 SQL 抄捷徑，繞過了產品維持不變量的機制。
 > 前兩例是 `user_roles`（#877）與 `receipt_counters`（#907）。
+
+**✅ 2026-09-30 已修（#922）並在畫面上實按確認** —— 而且是**同一組**（許雅雯 / 2026-09-01 /
+國二英文 B 班），修法前後對照得上：
+
+| | 修法前（第 8 輪） | 修法後（RESET #10，`48b40b42`） |
+| --- | --- | --- |
+| 面板訊息 | 🔴 `銷假失敗：這個學生當天沒有請假` | ✅ **`已銷假，可以標記出席了`** |
+| 那一列 | 「請假」標記 + `他來了` | **變成 `出席` / `缺席` 兩顆**，跟其他人一樣 |
+| 底部計數 | `已標記 7 人・1 人請假` | `還有 1 人未標記` |
+| DB | 沒有任何變化 | `leave_requests` 84→83、`on_leave` 78→77、**那一列出勤紀錄被移除** |
+| `audit_logs` | — | `leave` / `cancel_leave`，`details` 有 `removedLeaves` 的完整快照 |
+
+出勤列是**移除**不是改成 `absent` —— 跟 `attendance-rules.md` 第 6 節
+「沒有紀錄 ≠ 缺席，假的缺席會流進扣課與月結」一致。
 > 已開 issue：**#916**（seed 的請假示範資料應該從 `leave_requests` 產生，讓出勤列跟著走）。
 
 ### ✅ 第 7 顆順手確認了兩件
