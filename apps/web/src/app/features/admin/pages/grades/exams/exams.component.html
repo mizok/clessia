@@ -293,6 +293,7 @@
                   [rounded]="true"
                   [text]="true"
                   severity="secondary"
+                  [ariaLabel]="getSchoolDisplayName(row) + ' 的操作'"
                   (onClick)="openActionMenu($event, row)"
                 />
               </td>

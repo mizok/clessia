@@ -176,6 +176,7 @@
                   [rounded]="true"
                   [text]="true"
                   severity="secondary"
+                  [ariaLabel]="student.name + ' 的操作'"
                   (onClick)="openActionMenu($event, student); $event.stopPropagation()"
                 />
               </td>
