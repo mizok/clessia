@@ -240,10 +240,21 @@ export class AcademyScoreEditorComponent implements OnInit {
   }
 
   save(): void {
-    const dirtyRows = this.rows().filter(
-      (r) => this.isRowDirty(r) && (r.score !== null || r.status !== 'scored'),
-    );
-    if (dirtyRows.length === 0) return;
+    // **清空的列要送出去，不能濾掉**（#886）。原本這裡多一個
+    // `(r.score !== null || r.status !== 'scored')` —— 那正好排除掉
+    // 「使用者把分數清空」的列，於是按下儲存**什麼都不會發生**，
+    // 而標題上的「N 筆未儲存」與 FAB 都還在。後端收到之後會刪掉那一列。
+    const dirtyRows = this.rows().filter((r) => this.isRowDirty(r));
+
+    if (dirtyRows.length === 0) {
+      // 原本是靜默 `return`。「完全沒有改動」這條路仍然存在，而沉默跟當掉長得一樣。
+      this.messageService.add({
+        severity: 'info',
+        summary: '沒有需要儲存的變更',
+        detail: '這一頁沒有任何改動',
+      });
+      return;
+    }
 
     const input: SaveAcademyScoresInput[] = dirtyRows.map((r) => ({
       studentId: r.studentId,

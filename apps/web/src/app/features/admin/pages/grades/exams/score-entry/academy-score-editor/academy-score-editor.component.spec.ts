@@ -300,4 +300,59 @@ describe('AcademyScoreEditorComponent', () => {
       expect(component['isFailing'](60)).toBe(true);
     });
   });
+
+  /**
+   * **#886：清空分數後儲存 = 刪除那一列。**
+   *
+   * 原本 `save()` 把「`score === null` 且 `status === 'scored'`」的列整個濾掉，
+   * 於是清空之後按儲存**什麼都不會發生** —— 沒有 toast、沒有請求，
+   * 而標題上的「N 筆未儲存」與 FAB 都還在。使用者會以為畫面當掉了。
+   *
+   * 這兩條釘的是「**那一列有沒有被送出去**」，不是 toast 文字 ——
+   * 這個 bug 的形狀就是「畫面說有改動、網路上什麼都沒發生」。
+   */
+  describe('清空分數（#886）', () => {
+    it('把已有分數的列清空之後，那一列會被送出（score: null）', () => {
+      const row = component['rows']()[0];
+      const originalScore = row.original.score;
+      expect(originalScore).not.toBeNull();
+
+      component['onScoreChange'](row, null);
+      component['save']();
+
+      expect(academyExamsServiceMock.saveScores).toHaveBeenCalledWith(
+        'exam-1',
+        expect.arrayContaining([
+          expect.objectContaining({ studentId: row.studentId, score: null, status: 'scored' }),
+        ]),
+      );
+    });
+
+    // 缺考的 null **不是**清空 —— 它是被登錄過的事實。
+    // 這一條跟上一條一起，才說得出「送出去的是哪一種 null」。
+    it('改成缺考仍然送出，而且 status 是 absent', () => {
+      const row = component['rows']()[0];
+
+      component['onStatusChange'](row, 'absent');
+      component['save']();
+
+      expect(academyExamsServiceMock.saveScores).toHaveBeenCalledWith(
+        'exam-1',
+        expect.arrayContaining([
+          expect.objectContaining({ studentId: row.studentId, score: null, status: 'absent' }),
+        ]),
+      );
+    });
+
+    // 「完全沒有改動」這條路仍然存在（清空的列不再被濾掉之後也一樣），
+    // 而它原本是靜默的 —— 現在要說話。
+    it('完全沒有改動時不送請求，但要給訊息', () => {
+      component['save']();
+
+      expect(academyExamsServiceMock.saveScores).not.toHaveBeenCalled();
+      expect(messageServiceMock.add).toHaveBeenCalledWith(
+        expect.objectContaining({ summary: expect.stringContaining('沒有') }),
+      );
+    });
+  });
 });

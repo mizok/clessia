@@ -6,6 +6,7 @@ import { canManageOrgExam } from '../lib/exam-scope';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
+import { splitScoreMutations } from '../lib/score-mutations';
 const SchoolExamTypeSchema = z.enum(['term_exam', 'mock_exam', 'other']).openapi('SchoolExamType');
 const SchoolExamStatusSchema = z.enum(['active', 'closed']).openapi('SchoolExamStatus');
 
@@ -1346,7 +1347,12 @@ const upsertScoresRoute = createRoute({
       description: '登錄成功',
       content: {
         'application/json': {
-          schema: z.object({ success: z.boolean(), affected: z.number().int().min(0) }),
+          schema: z.object({
+            success: z.boolean(),
+            affected: z.number().int().min(0),
+            // 被清空而刪掉的列數（#886）
+            removed: z.number().int().min(0),
+          }),
         },
       },
     },
@@ -1453,7 +1459,12 @@ app.openapi(upsertScoresRoute, async (c) => {
     return c.json({ error: '存在不屬於此機構的 subjectId', code: 'INVALID_SUBJECT_IDS' }, 400);
   }
 
-  const payload = body.scores.map((item) => ({
+  // 清空分數 ＝ 刪除那一列（#886）。跟補習班考試同一條語意、同一個判準 ——
+  // 兩邊分開做的話會有一段時間「補習班考試清得掉、學校考試清不掉」，
+  // 而那個不一致沒有辦法對使用者解釋。
+  const { toUpsert, toDelete } = splitScoreMutations(body.scores);
+
+  const payload = toUpsert.map((item) => ({
     school_exam_id: id,
     student_id: item.studentId,
     subject_id: item.subjectId,
@@ -1463,31 +1474,75 @@ app.openapi(upsertScoresRoute, async (c) => {
     created_by: userId,
   }));
 
-  const { error } = await supabase
-    .from('school_scores')
-    .upsert(payload, { onConflict: 'school_exam_id,student_id,subject_id' });
+  if (payload.length > 0) {
+    const { error } = await supabase
+      .from('school_scores')
+      .upsert(payload, { onConflict: 'school_exam_id,student_id,subject_id' });
 
-  if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    if (error) {
+      return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+    }
   }
 
-  logAudit(
-    supabase,
-    {
-      orgId,
-      userId,
-      resourceType: 'school_exam',
-      resourceId: id,
-      resourceName: schoolExam.label,
-      action: 'school_exam.scores.upsert',
-      details: {
-        affected: payload.length,
-      },
-    },
-    waitUntilFrom(c),
-  );
+  // ⚠️ 學校考試的唯一鍵是三段（多一個 `subject_id`），**所以不能像補習班那樣
+  // 只用 studentId 一次刪完** —— 同一個學生在同一場校內考有多科，
+  // 只用 `in('student_id', …)` 會把他沒有被清空的其他科一起刪掉。
+  const removedKeys = toDelete.map((item) => ({
+    studentId: item.studentId,
+    subjectId: item.subjectId,
+  }));
 
-  return c.json({ success: true, affected: payload.length }, 200);
+  for (const key of removedKeys) {
+    const { error: deleteError } = await supabase
+      .from('school_scores')
+      .delete()
+      .eq('school_exam_id', id)
+      .eq('student_id', key.studentId)
+      .eq('subject_id', key.subjectId);
+
+    if (deleteError) {
+      return c.json({ error: deleteError.message, code: 'DB_ERROR' }, 400);
+    }
+  }
+
+  if (payload.length > 0) {
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'school_exam',
+        resourceId: id,
+        resourceName: schoolExam.label,
+        action: 'school_exam.scores.upsert',
+        details: {
+          affected: payload.length,
+        },
+      },
+      waitUntilFrom(c),
+    );
+  }
+
+  if (removedKeys.length > 0) {
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'school_exam',
+        resourceId: id,
+        resourceName: schoolExam.label,
+        action: 'school_exam.scores.delete',
+        details: {
+          // 校內考一筆成績要「學生 + 科目」才指得出來，只記 studentId 不夠
+          removed: removedKeys,
+        },
+      },
+      waitUntilFrom(c),
+    );
+  }
+
+  return c.json({ success: true, affected: payload.length, removed: removedKeys.length }, 200);
 });
 
 const closeRoute = createRoute({

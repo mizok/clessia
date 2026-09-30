@@ -9,6 +9,7 @@ import {
 } from '../lib/academy-exam-roster';
 import { isEnrolledOn } from '../lib/session-roster';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
+import { splitScoreMutations } from '../lib/score-mutations';
 import { canManageAcademyExam, resolveExamClassIds } from '../lib/exam-scope';
 import { logAudit } from '../utils/audit';
 import { applyCampusFilter, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
@@ -1561,7 +1562,12 @@ const upsertScoresRoute = createRoute({
       description: '登錄成功',
       content: {
         'application/json': {
-          schema: z.object({ success: z.boolean(), affected: z.number().int().min(0) }),
+          schema: z.object({
+            success: z.boolean(),
+            affected: z.number().int().min(0),
+            // 被清空而刪掉的列數（#886）
+            removed: z.number().int().min(0),
+          }),
         },
       },
     },
@@ -1650,7 +1656,13 @@ app.openapi(upsertScoresRoute, async (c) => {
     return c.json({ error: '存在不屬於此機構的 studentId', code: 'INVALID_STUDENT_IDS' }, 400);
   }
 
-  const payload = body.scores.map((item) => ({
+  // **清空分數的那些列要刪掉，不是把欄位設成 null**（#886）。
+  // `scoreCount` 數的是列數，所以留著一列 null 的話「已登錄」不會歸零，
+  // 而考試的刪除守衛（`HAS_SCORES`）也就永遠解不開。
+  // 判準的陷阱（缺考／補考的 null 不是清空）住在 `splitScoreMutations` 裡。
+  const { toUpsert, toDelete } = splitScoreMutations(body.scores);
+
+  const payload = toUpsert.map((item) => ({
     exam_id: id,
     student_id: item.studentId,
     score: item.score,
@@ -1659,31 +1671,74 @@ app.openapi(upsertScoresRoute, async (c) => {
     created_by: userId,
   }));
 
-  const { error: upsertError } = await supabase
-    .from('academy_scores')
-    .upsert(payload, { onConflict: 'exam_id,student_id' });
+  if (payload.length > 0) {
+    const { error: upsertError } = await supabase
+      .from('academy_scores')
+      .upsert(payload, { onConflict: 'exam_id,student_id' });
 
-  if (upsertError) {
-    return c.json({ error: upsertError.message, code: 'DB_ERROR' }, 400);
+    if (upsertError) {
+      return c.json({ error: upsertError.message, code: 'DB_ERROR' }, 400);
+    }
   }
 
-  logAudit(
-    supabase,
-    {
-      orgId,
-      userId,
-      resourceType: 'academy_exam',
-      resourceId: id,
-      resourceName: exam.name,
-      action: 'academy_exam.scores.upsert',
-      details: {
-        affected: payload.length,
-      },
-    },
-    waitUntilFrom(c),
-  );
+  const removedStudentIds = toDelete.map((item) => item.studentId);
 
-  return c.json({ success: true, affected: payload.length }, 200);
+  if (removedStudentIds.length > 0) {
+    // where 用的是 upsert 的同一組唯一鍵（`exam_id, student_id`），兩邊不會不一致
+    const { error: deleteError } = await supabase
+      .from('academy_scores')
+      .delete()
+      .eq('exam_id', id)
+      .in('student_id', removedStudentIds);
+
+    if (deleteError) {
+      return c.json({ error: deleteError.message, code: 'DB_ERROR' }, 400);
+    }
+  }
+
+  if (payload.length > 0) {
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'academy_exam',
+        resourceId: id,
+        resourceName: exam.name,
+        action: 'academy_exam.scores.upsert',
+        details: {
+          affected: payload.length,
+        },
+      },
+      waitUntilFrom(c),
+    );
+  }
+
+  if (removedStudentIds.length > 0) {
+    // **兩筆分開記，不合成一筆** —— 合起來就分不出哪幾個 studentId 是被刪的。
+    // `details` 記的是名單而不是數字：刪除要答得出「哪一筆不見了」，
+    // 只有 `affected` 的話事後查不回來。
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'academy_exam',
+        resourceId: id,
+        resourceName: exam.name,
+        action: 'academy_exam.scores.delete',
+        details: {
+          removed: removedStudentIds,
+        },
+      },
+      waitUntilFrom(c),
+    );
+  }
+
+  return c.json(
+    { success: true, affected: payload.length, removed: removedStudentIds.length },
+    200,
+  );
 });
 
 const closeRoute = createRoute({
