@@ -34,6 +34,25 @@ compatibility_flags = ["nodejs_compat"]
 enabled = true
 head_sampling_rate = 1
 
+# ── Smart Placement（#944）────────────────────────────────────────────────────
+#
+# 台灣的流量在聖荷西（SJC）跑 Worker，而資料庫在新加坡（AWS ap-southeast-1），
+# 所以**每一次** DB 往返都跨太平洋。Smart Placement 讓 Cloudflare 把 Worker
+# 搬到離後端近的機房執行（入口機房不變，由入口轉送過去）。
+#
+# ⚠️ **它省的是「第 2 次以後」的往返，不是第 1 次。** Hyperdrive 官方文件原話：
+# 每個請求只查一次時，放在哪裡端到端都一樣（往返只是換了一段路走）。
+# 所以量效果要看**一個請求查多次**的端點，只查一次的端點不會變快、
+# 不碰 DB 的端點反而會多一段轉送 —— 見 kb/wiki/architecture/deploying.md。
+#
+# 放在頂層就夠：`placement` 跟 `observability` 一樣是**可繼承**的鍵。
+# 部署後要等分析期（官方：最多 15 分鐘，且需要來自多個地點的持續流量），
+# 回應標頭 `cf-placement: remote-XXX` 才代表真的被搬走；`local-XXX` 是沒搬。
+#
+# c12：這只是 Cloudflare 的部署提示，`server.ts` 的 Node 自架路徑完全不受影響。
+[placement]
+mode = "smart"
+
 [vars]
 ENVIRONMENT = "development"
 WEB_URL = "http://localhost:4200"

@@ -4,7 +4,7 @@ summary: 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能
 category: architecture
 tags: [architecture, deployment, cloudflare, supabase]
 status: active
-updated: 2026-08-31
+updated: 2026-09-30
 ---
 
 # 部署
@@ -165,6 +165,50 @@ Hyperdrive 在 Cloudflare 邊緣維持到 origin 的長連線，Worker 連的是
 免費方案可用（每日 10 萬次查詢，快取與未快取都計數）。Hyperdrive **只加速走 `pg` 的那條路**
 （Better Auth 的 session 查詢，也就是每一個受保護的請求）；業務路由走 supabase-js 的 HTTP
 介面，不經過它。
+
+## Worker 放在哪裡執行（Smart Placement，#944）
+
+**現象**（2026-09-30，從台灣量）：`demo.clessia.cc/cdn-cgi/trace` 回 `colo=SJC` —— 台灣的請求在
+**聖荷西**跑 Worker，而資料庫在**新加坡**（Supabase 的 IPv6 位址落在 `2406:da18::/32`，
+AWS ap-southeast-1）。同一台機器打 `www.cloudflare.com` 是 `colo=TPE`，所以不是使用者網路的問題，
+是這個 zone 的入口路由。於是每一次 DB 往返都跨太平洋。
+
+**改動前基準**（各 10 次、TTFB 中位數）：`/api/system-time`（不碰 DB）0.50s、
+`/api/auth/magic-link/verify?token=<假>`（查 1 次 DB）0.86s ⇒ 一次往返約 0.36s。
+
+**設定**：`apps/api/wrangler.toml` 頂層 `[placement] mode = "smart"`。`placement` 是可繼承鍵，
+`env.production` 會吃到（用 wrangler 的 `unstable_readConfig` 讀過解析後的設定，不是照文件推論）。
+c12：這只是 Cloudflare 的部署提示，`server.ts` 的 Node 自架路徑不受影響。
+
+**官方文件講的機制**（查證於 2026-09-30）：
+
+- Smart Placement 量的是 Worker 在各機房的**請求耗時**，把入口轉送過去的額外延遲也算進去；
+  只影響 `fetch` handler，只考慮 Worker **曾經執行過**的機房。
+  （[Workers › Placement](https://developers.cloudflare.com/workers/configuration/placement/)）
+- 部署後最多要 **15 分鐘**分析，而且需要**來自多個地點的持續流量**。流量不夠時狀態是
+  `INSUFFICIENT_INVOCATIONS`，不會搬；搬了反而變慢會自己退回（`UNSUPPORTED_APPLICATION`）。
+  狀態可以用 Workers API（`/workers/services/<name>`）查。
+- 回應標頭 `cf-placement: remote-XXX` = 被搬到 XXX 執行；`local-XXX` = 沒搬。
+  官方註明這個標頭**可能在 beta 結束前拿掉**。
+- **Hyperdrive 文件：每個請求只查一次時，placement 不會改善端到端延遲** —— 往返只是換一段路走
+  （[Hyperdrive › How it works](https://developers.cloudflare.com/hyperdrive/configuration/how-hyperdrive-works/)）。
+
+**所以預期是這樣，量的時候不要看錯欄位**：
+
+| 端點形狀 | 搬到新加坡之後 |
+| --- | --- |
+| 不碰 DB（`system-time`） | **略慢**：多一段入口 SJC → 新加坡的轉送 |
+| 查 1 次 DB（`magic-verify`） | **大致不變**：往返只是從「Worker↔DB」移到「入口↔Worker」 |
+| 一個請求依序查 N 次（多數業務 API：auth 身分查詢 + 業務查詢） | **省下約 (N−1) × 0.36s** —— 這才是要看的 |
+
+直接看 Worker 端的數字最準：`middleware/auth.ts` 的 probe 會在 Workers Logs 印
+`[probe] <method> <path> 查詢 N 支、合計 Xms`，搬過去之後每支的毫秒數應該從數百掉到個位數。
+
+**另一個選項（互斥，還沒試）**：placement hint `region = "aws:ap-southeast-1"` —— 直接指定雲端區域，
+不需要分析期也不需要流量門檻。demo 站的流量幾乎只來自台灣，Smart Placement 可能一直停在
+`INSUFFICIENT_INVOCATIONS`；那時改這一行就是下一步。
+
+**結果**：待部署並過分析期後由 #944 補上（包含「沒效」）。
 
 ## 只有人能做的步驟
 
