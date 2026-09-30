@@ -25,6 +25,7 @@ import { crossFeatureImports } from './lib/feature-boundaries.mjs';
 import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { blankComments } from './lib/comments.mjs';
 import { inlineCarriers, inlineStyles, inlineTemplate } from './lib/inline-carriers.mjs';
+import { ariaIconButtonViolations } from './lib/aria-icon-button.mjs';
 import { recordScope, collectedScopes, diffScopes } from './lib/scan-scope.mjs';
 import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
 import { guardedParamNames, unguardedCampusParams } from './lib/campus-param-guard.mjs';
@@ -78,6 +79,10 @@ const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-basel
 const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-baseline.json');
 const TOUCH_TARGET_BASELINE = join(ROOT, 'tools/agent-harness/touch-target-baseline.json');
 const API_PARAM_BASELINE = join(ROOT, 'tools/agent-harness/api-param-baseline.json');
+const ARIA_ICON_BUTTON_BASELINE = join(
+  ROOT,
+  'tools/agent-harness/aria-icon-button-baseline.json',
+);
 
 /**
  * 觸控尺寸的**永久豁免**。語意跟 `touch-target-baseline.json` 不同，
@@ -1965,6 +1970,89 @@ function checkCampusParamGuard() {
 }
 
 checkCampusParamGuard();
+
+// ── A22. icon-only 的按鈕必須有可及名稱（#930）─────────────────────────────────────────
+//
+// 一顆只有圖示的按鈕，螢幕閱讀器唸出來是「按鈕」——沒有別的。而這種缺漏
+// **在畫面上完全看不出來**：它跟隔壁有 aria-label 的那顆長得一模一樣，
+// 所以 review 抓不到、手動點也抓不到。「看不出來的缺漏」正是 gate 該守的那一類。
+//
+// 判準與三種形狀寫在 `lib/aria-icon-button.mjs`。**最值得這道 gate 存在的是第三種**：
+// 原生 `<button>` 上寫 `[ariaLabel]`（PrimeNG 元件的 input）——
+// DOM 上不會出現 `aria-label`，畫面正常，**而 `grep aria` 會命中它**。
+// 存量是 0，所以它從第一天就是純防回歸，帳本上不會有人替它背書。
+//
+// **inline template 也要掃**：全 inline 的元件不少，只讀 .html 會漏報
+// （A20 的「可互動元素 class 沒定義」當初就吃過這個虧）。
+function checkAriaIconButtons() {
+  const webSrc = join(ROOT, 'apps/web/src');
+  if (!existsSync(webSrc)) return;
+
+  recordScope('aria-icon-button', {
+    roots: [webSrc.slice(ROOT.length + 1)],
+    exts: ['.html', '.ts'],
+  });
+
+  const files = walk(webSrc, '.html').map((f) => ({
+    path: f.slice(ROOT.length + 1).replace('apps/web/src/', ''),
+    text: readFileSync(f, 'utf8'),
+  }));
+  for (const f of walk(webSrc, '.ts')) {
+    if (f.endsWith('.spec.ts')) continue;
+    const src = readFileSync(f, 'utf8');
+    if (!src.includes('@Component')) continue;
+    const t = inlineTemplate(src);
+    if (t.trim()) {
+      files.push({ path: f.slice(ROOT.length + 1).replace('apps/web/src/', ''), text: t });
+    }
+  }
+
+  const baseline = existsSync(ARIA_ICON_BUTTON_BASELINE)
+    ? JSON.parse(readFileSync(ARIA_ICON_BUTTON_BASELINE, 'utf8'))
+    : {};
+
+  const found = {};
+  const detail = {};
+  for (const v of ariaIconButtonViolations(files)) {
+    found[v.path] = (found[v.path] ?? 0) + 1;
+    (detail[v.path] ??= []).push(`${v.kind}: ${v.snippet}`);
+    // 第三種是**新的規則類別、存量 0**，所以它不走 ratchet —— 一出現就紅。
+    // 讓它混進帳本的話，第一個寫錯的人會把帳面加一，而那正是要擋的動作。
+    if (v.kind === 'wrong-aria-label') {
+      fail(
+        `${v.path} 在原生 <button> 上寫了 ariaLabel —— **那是 PrimeNG 元件的 input，` +
+          `原生元素不吃**，DOM 上不會出現 aria-label 而畫面完全正常。` +
+          `改成 aria-label="…" 或 [attr.aria-label]="…"：${v.snippet}`,
+      );
+    }
+  }
+
+  for (const [path, count] of Object.entries(found)) {
+    if (detail[path].every((d) => d.startsWith('wrong-aria-label'))) continue;
+    const allowed = baseline[path] ?? 0;
+    const ratchetable = count - detail[path].filter((d) => d.startsWith('wrong-aria-label')).length;
+    if (ratchetable > allowed) {
+      fail(
+        `${path} 有 ${ratchetable} 顆 icon-only 按鈕沒有可及名稱（帳面 ${allowed}）——` +
+          `螢幕閱讀器只會唸「按鈕」。補 ariaLabel（p-button）或 aria-label（原生）：` +
+          `${detail[path].filter((d) => !d.startsWith('wrong-aria-label')).join(' ｜ ')}`,
+      );
+    }
+  }
+
+  for (const [path, allowed] of Object.entries(baseline)) {
+    const ratchetable =
+      (detail[path] ?? []).filter((d) => !d.startsWith('wrong-aria-label')).length;
+    if (ratchetable < allowed) {
+      fail(
+        `${path} 的 icon-only 按鈕違規剩 ${ratchetable} 顆、帳面還寫 ${allowed} ——` +
+          `請把 aria-icon-button-baseline.json 的數字改小（歸零就整筆刪掉）`,
+      );
+    }
+  }
+}
+
+checkAriaIconButtons();
 
 checkScanScope();
 
