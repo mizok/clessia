@@ -5,6 +5,7 @@ import { getAuth } from '../lib/get-auth';
 import { mintLoginLinkForRequest } from './login-links/mint';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
+import { isOrphanAuthUser } from '../lib/orphan-auth-user';
 import { PERMISSIONS } from '../lib/permissions';
 import { checkRoleAssignment } from '../lib/role-assignment';
 import { campusFilterIds, campusIdsWithinScope, getCampusScope } from '../lib/campus-scope';
@@ -907,59 +908,110 @@ app.openapi(createRouteDef, async (c) => {
     }
   }
 
-  const auth = getAuth(c);
-  // **刻意不給 password** —— Better Auth 的 createUser 明說不給就是「magic link 或
-  // social login only user」。給了會做一次 scrypt，那正是撞爆 Workers 10ms CPU 的東西。
-  let createdUserId: string | null = null;
+  /**
+   * **#833：這個 email 已經有 `ba_user` 時，先看它是不是完全脫離的孤兒。**
+   *
+   * `ba_user.email` 有 UNIQUE 索引而 `ba_*` 可讀不可寫（c2），所以孤兒列
+   * **把那個 email 永久佔住了** —— 而孤兒會持續產生（下面的 `rollbackCreatedUser()`
+   * 呼叫的 `removeUser` 在這個專案必定 403，見 DELETE handler 的說明）。
+   * 三張表都空才接管，判準與「為什麼是三張」寫在 `lib/orphan-auth-user.ts`。
+   *
+   * ⚠️ **這裡是精確比對 email。** Better Auth 可能有自己的正規化（大小寫等），
+   * 所以比對不到的情況仍然存在 —— 那時會落到下面的 `createUser`，
+   * 而它會回既有的 409。**退路是安全的那一邊：接管不到就照舊拒絕。**
+   */
+  const { data: existingAuthUser } = await supabase
+    .from('ba_user')
+    .select('id')
+    .eq('email', body.email)
+    .maybeSingle();
 
-  try {
-    const newUser = await (auth.api as any).createUser({
-      body: {
-        name: body.displayName,
-        email: body.email,
-        data: {
-          display_name: body.displayName,
-          ...(body.phone ? { phone: body.phone } : {}),
-        },
-      },
-      asResponse: false,
-    });
-
-    createdUserId = newUser.user.id;
-  } catch (error) {
-    const authErrorMessage = error instanceof Error ? error.message : String(error);
-    if (isDuplicateEmailError(authErrorMessage)) {
+  let reclaimedUserId: string | null = null;
+  if (existingAuthUser) {
+    const existingId = (existingAuthUser as { id: string }).id;
+    if (!(await isOrphanAuthUser(supabase, existingId))) {
+      // 掛著 staff / parents / user_roles 任一 → 那是別人的帳號
       return c.json({ error: 'Email 已被使用', code: 'DUPLICATE_EMAIL' }, 409);
     }
-    console.error('[staff] 建立帳號失敗（非預期）:', error);
-    return c.json(
-      { error: authErrorMessage || '建立帳號失敗', code: 'CREATE_AUTH_USER_FAILED' },
-      400,
-    );
+    reclaimedUserId = existingId;
   }
 
-  const rollbackCreatedUser = async () => {
-    if (!createdUserId) {
-      return;
-    }
+  // ⚠️ **`createdUserId` 只填「我們真的建出來的」** —— 接管來的那一列不能進這個變數，
+  // 否則 `rollbackCreatedUser()` 會去刪一個不是我們建的帳號（#833）。
+  let createdUserId: string | null = null;
+  // 接管路徑不建帳號，所以沒有東西要 rollback
+  let rollbackCreatedUser: () => Promise<void> = async () => {};
 
+  if (!reclaimedUserId) {
+    // **`getAuth(c)` 也移進來**：它要開 DB 連線（`c.env.HYPERDRIVE`），
+    // 而接管路徑根本不呼叫 Better Auth —— 少一次連線，也讓「接管不碰 auth」
+    // 這件事在結構上看得出來。
+    const auth = getAuth(c);
+    // **刻意不給 password** —— Better Auth 的 createUser 明說不給就是「magic link 或
+    // social login only user」。給了會做一次 scrypt，那正是撞爆 Workers 10ms CPU 的東西。
     try {
-      await auth.api.removeUser({
+      const newUser = await (auth.api as any).createUser({
         body: {
-          userId: createdUserId,
+          name: body.displayName,
+          email: body.email,
+          data: {
+            display_name: body.displayName,
+            ...(body.phone ? { phone: body.phone } : {}),
+          },
         },
-        headers: c.req.raw.headers,
         asResponse: false,
       });
-    } catch (rollbackError) {
-      console.error(`[staff] rollback 失敗，孤兒 ba_user=${createdUserId}:`, rollbackError);
+
+      createdUserId = newUser.user.id;
+    } catch (error) {
+      const authErrorMessage = error instanceof Error ? error.message : String(error);
+      if (isDuplicateEmailError(authErrorMessage)) {
+        return c.json({ error: 'Email 已被使用', code: 'DUPLICATE_EMAIL' }, 409);
+      }
+      console.error('[staff] 建立帳號失敗（非預期）:', error);
+      return c.json(
+        { error: authErrorMessage || '建立帳號失敗', code: 'CREATE_AUTH_USER_FAILED' },
+        400,
+      );
     }
-  };
+
+    rollbackCreatedUser = async () => {
+      if (!createdUserId) {
+        return;
+      }
+
+      try {
+        await auth.api.removeUser({
+          body: {
+            userId: createdUserId,
+          },
+          headers: c.req.raw.headers,
+          asResponse: false,
+        });
+      } catch (rollbackError) {
+        // ⚠️ **這個 catch 從來沒有不被觸發過**：`removeUser` 有 `adminMiddleware` 且要
+        // `user:delete` 權限，而這個專案沒有人的 `ba_user.role` 是 admin（#833）。
+        // 所以這裡留下的孤兒是真的，而它們由 `POST` 開頭的接管路徑救回來。
+        console.error(`[staff] rollback 失敗，孤兒 ba_user=${createdUserId}:`, rollbackError);
+      }
+    };
+  }
+
+  /**
+   * 這次要用的 auth 使用者 —— 接管來的或剛建出來的。
+   * **`createdUserId` 保持「只有我們建的」**，所以 rollback 不會去動接管的那一列。
+   */
+  const authUserId = reclaimedUserId ?? createdUserId;
+  if (!authUserId) {
+    // 走不到：上面兩條路都會 return。留著是因為型別要收斂，而「靜靜地用 null 去建 staff」
+    // 會是一筆 user_id 為 null 的孤兒列 —— 那比 500 難查。
+    return c.json({ error: '建立帳號失敗', code: 'CREATE_AUTH_USER_FAILED' }, 400);
+  }
 
   const { error: updateUserError } = await supabase
     .from('ba_user')
     .update({ orgId: orgId })
-    .eq('id', createdUserId);
+    .eq('id', authUserId);
 
   if (updateUserError) {
     await rollbackCreatedUser();
@@ -969,7 +1021,7 @@ app.openapi(createRouteDef, async (c) => {
   const { data: staffRow, error: insertStaffError } = await supabase
     .from('staff')
     .insert({
-      user_id: createdUserId,
+      user_id: authUserId,
       org_id: orgId,
       display_name: body.displayName,
       birthday: body.birthday || null,
@@ -992,7 +1044,7 @@ app.openapi(createRouteDef, async (c) => {
 
   // Insert multiple roles
   const roleRows = body.roles.map((role) => ({
-    user_id: createdUserId,
+    user_id: authUserId,
     role,
     permissions: role === 'admin' ? normalizeAdminPermissions('admin', body.permissions) : [],
   }));
@@ -1048,6 +1100,13 @@ app.openapi(createRouteDef, async (c) => {
       resourceId: staffRow.id as string,
       resourceName: body.displayName,
       action: 'create',
+      // **接管要在稽核上看得出來**（#833）：同一個 `action: 'create'`，
+      // 但這一筆用的是一個**早就存在的 `ba_user`** —— 而那個 email 上一次屬於誰
+      // 只有 audit 回答得出來。不記的話，「這個帳號怎麼會有舊的 session 紀錄」
+      // 這種問題查不到源頭。
+      ...(reclaimedUserId
+        ? { details: { reclaimed_orphan_ba_user: reclaimedUserId, email: body.email } }
+        : {}),
     },
     waitUntilFrom(c),
   );
@@ -1669,6 +1728,14 @@ const deleteRoute = createRoute({
         },
       },
     },
+    409: {
+      description: '人員不能刪除，只能封存（#833）',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
   },
 });
 
@@ -1687,37 +1754,39 @@ app.openapi(deleteRoute, async (c) => {
     return c.json({ error: '僅管理員可刪除人員', code: 'FORBIDDEN' }, 403);
   }
 
-  const userId = staffRow['user_id'] as string;
-
-  const { error: deleteStaffError } = await supabase.from('staff').delete().eq('id', id);
-  if (deleteStaffError) {
-    return c.json({ error: deleteStaffError.message, code: 'DELETE_STAFF_FAILED' }, 400);
-  }
-
-  const { error: deleteRoleError } = await supabase
-    .from('user_roles')
-    .delete()
-    .eq('user_id', userId)
-    .in('role', ['admin', 'teacher']);
-
-  if (deleteRoleError) {
-    return c.json({ error: deleteRoleError.message, code: 'DELETE_ROLE_FAILED' }, 400);
-  }
-
-  logAudit(
-    supabase,
+  /**
+   * **#833：人員不能刪除，只能封存。**
+   *
+   * 這支端點原本刪掉 `staff` 與 `user_roles` 而 **`ba_user` 留著** ——
+   * 而 `ba_user.email` 有 UNIQUE 索引、`ba_*` 表可讀不可寫（憲法 c2），
+   * 所以那個 email **從此不能再建任何帳號**，而 app 裡沒有任何東西清得掉它。
+   * 補習班常見的「老師離職 → 半年後回來」因此用不回自己的公司信箱。
+   *
+   * **為什麼不是「刪掉 ba_user 就好」**：`auth.api.removeUser` 有
+   * `use: [adminMiddleware]`（`createUser` 沒有），而它要
+   * `hasPermission({ role: session.user.role, permissions: { user: ['delete'] } })` ——
+   * 這個專案的 `ba_user.role` 全部是 `DEFAULT 'user'`（角色在 `user_roles`，
+   * 見 `20260223000002_ba_user_role.sql` 的註解）、`auth.ts` 是零選項的
+   * `adminPlugin()`，所以**沒有任何人過得了那道檢查**。
+   * 上面 `rollbackCreatedUser()` 呼叫的是同一支，而它的 catch 訊息逐字寫著
+   * 「rollback 失敗，孤兒 ba_user=」—— **它從來沒成功過。**
+   *
+   * 要讓它成功只有三條路，三條都不可接受：`adminUserIds` 白名單（Better Auth 層的
+   * 超級權限）、自訂 AC 讓 `user` 角色有 `user:delete`（**等於每個登入者都能刪任何帳號**）、
+   * 直寫 `ba_user`（c2）。
+   *
+   * **所以這裡止血**：不刪，回 409 並說出該走哪條路。UI 本來就沒有刪除入口
+   * （封存才是正規路徑），`staff.service.ts` 的 `delete()` 也沒有任何畫面在呼叫。
+   * **不回 404**：404 會被讀成「這個人不存在」，而那是另一件事。
+   * 既有的孤兒由 `POST /api/staff` 的接管路徑救回來（同一支 PR）。
+   */
+  return c.json(
     {
-      orgId: staffRow['org_id'] as string,
-      userId: requesterUserId,
-      resourceType: 'staff',
-      resourceId: id,
-      resourceName: staffRow['display_name'] as string,
-      action: 'delete',
+      error: '人員不能刪除，只能封存。刪除會讓這個 email 永久無法再建立帳號。',
+      code: 'STAFF_DELETE_NOT_ALLOWED',
     },
-    waitUntilFrom(c),
+    409,
   );
-
-  return c.json({ success: true }, 200);
 });
 
 export default app;
