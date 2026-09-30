@@ -1,4 +1,4 @@
-import type { Invoice } from '@core/invoices.service';
+import { isOpenInvoice, type Invoice } from '@core/invoices.service';
 
 /**
  * 帳單顯示的邊界計算。狀態本身由後端推導（`@core/invoices.service`），
@@ -22,13 +22,15 @@ import type { Invoice } from '@core/invoices.service';
  */
 export function isOverdue(invoice: Invoice, today: string): boolean {
   if (invoice.dueDate === null) return false;
-  if (invoice.status === 'paid') return false;
+  if (!isOpenInvoice(invoice.status)) return false;
 
   return invoice.dueDate < today;
 }
 
 /** 還欠多少。溢繳（退費多於應繳）回負數 —— 夾成 0 會讓「該退多少」看不見 */
 export function outstanding(invoice: Invoice): number {
+  // 作廢單不欠（#898）—— 淨額歸零才能作廢，但 total 還在，不擋的話會算成欠全額
+  if (invoice.status === 'void') return 0;
   return invoice.total - invoice.netPaid;
 }
 

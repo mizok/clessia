@@ -42,6 +42,16 @@
     </div>
   </dl>
 
+  @if (isVoided()) {
+    <!-- 作廢單凍結：所有寫入入口都收起來，只留查閱與列印（#898） -->
+    <app-inline-notice
+      severity="info"
+      summary="這張帳單已作廢，不能再修改"
+      [detail]="voidedSummary()"
+      [dismissible]="false"
+    />
+  }
+
   <div class="invoice-detail__body">
     <!-- ── 明細 ─────────────────────────────────────────────────────── -->
     <section class="invoice-detail__section">
@@ -102,6 +112,7 @@
     <section class="invoice-detail__section">
       <div class="invoice-detail__section-header">
         <h3 class="invoice-detail__section-title">收款記錄</h3>
+        @if (!isVoided()) {
         <div class="invoice-detail__section-actions">
           <p-button
             label="記錄收款"
@@ -119,6 +130,7 @@
             (onClick)="openPaymentDialog('refund')"
           />
         </div>
+        }
       </div>
 
       @if (invoice().payments.length === 0) {
@@ -204,6 +216,7 @@
       <h3 class="invoice-detail__section-title">催繳記錄</h3>
       <p class="invoice-detail__hint">催繳只留紀錄，不會停課也不會擋住任何東西。</p>
 
+      @if (!isVoided()) {
       <div class="invoice-detail__reminder-form">
         <p-select
           [options]="reminderMethodOptions"
@@ -230,6 +243,7 @@
           (onClick)="addReminder()"
         />
       </div>
+      }
 
       @if (remindersLoading()) {
         <p class="invoice-detail__empty">載入中…</p>
@@ -253,6 +267,71 @@
     </section>
   </div>
 
+  @if (voidFormOpen()) {
+    <!--
+      作廢確認（#898）。放在 body 與 footer 之間：按鈕在 footer，面板就長在它正上方，
+      不會因為 body 捲動而出現在看不到的地方。
+    -->
+    <section class="invoice-detail__void" aria-labelledby="invoice-void-title">
+      <h3 id="invoice-void-title" class="invoice-detail__void-title">作廢這張帳單</h3>
+      @if (invoice().netPaid !== 0) {
+        <!-- 淨額歸零才能作廢（使用者裁決）—— 擋在前端是為了直接給下一步，後端另有一層 -->
+        <p class="invoice-detail__void-text">
+          @if (invoice().netPaid > 0) {
+            已收淨額 {{ invoice().netPaid | number }} 元 —— 先記一筆退款把淨額歸零，才能作廢。
+          } @else {
+            退款比收款多 {{ -invoice().netPaid | number }} 元 —— 淨額要歸零才能作廢。
+          }
+        </p>
+        <div class="invoice-detail__void-actions">
+          <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancelVoid()" />
+          @if (invoice().netPaid > 0) {
+            <p-button
+              label="記錄退費"
+              icon="pi pi-reply"
+              severity="danger"
+              [outlined]="true"
+              (onClick)="openPaymentDialog('refund')"
+            />
+          }
+        </div>
+      } @else {
+        <p class="invoice-detail__void-text">
+          作廢後<strong>無法復原</strong>，帳單會留著但不再計入任何應收與催繳。要重新收費請另開一張新帳單。
+        </p>
+        @if (mealItemCount() > 0) {
+          <p class="invoice-detail__void-text">
+            這張帳單的餐費會回到未結算，下次帳務作業會重新計入。
+          </p>
+        }
+        <label class="invoice-detail__void-label" for="invoice-void-reason">作廢理由（必填）</label>
+        <textarea
+          id="invoice-void-reason"
+          class="invoice-detail__void-reason"
+          pTextarea
+          rows="2"
+          maxlength="500"
+          placeholder="例如：開錯月份、重複開帳"
+          [ngModel]="voidReason()"
+          (ngModelChange)="voidReason.set($event)"
+        ></textarea>
+        @if (voidError()) {
+          <p class="invoice-detail__void-error" role="alert">{{ voidError() }}</p>
+        }
+        <div class="invoice-detail__void-actions">
+          <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancelVoid()" />
+          <p-button
+            label="確認作廢"
+            severity="danger"
+            [loading]="voiding()"
+            [disabled]="!voidReason().trim()"
+            (onClick)="confirmVoid()"
+          />
+        </div>
+      }
+    </section>
+  }
+
   <footer class="invoice-detail__footer">
     <p-button label="列印收費單" icon="pi pi-print" [outlined]="true" (onClick)="printInvoice()" />
     <p-button
@@ -263,6 +342,15 @@
       [pTooltip]="receiptNo() === null ? '還沒有收款，沒有收據可印' : ''"
       (onClick)="printReceipt()"
     />
+    @if (!isVoided() && !voidFormOpen()) {
+      <p-button
+        label="作廢帳單"
+        icon="pi pi-ban"
+        [text]="true"
+        severity="danger"
+        (onClick)="openVoidForm()"
+      />
+    }
     <p-button label="關閉" [text]="true" severity="secondary" (onClick)="close()" />
   </footer>
 </div>

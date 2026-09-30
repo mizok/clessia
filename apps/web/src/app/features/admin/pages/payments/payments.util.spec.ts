@@ -13,6 +13,9 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
     status: 'unpaid',
     total: 3000,
     netPaid: 0,
+    voidedAt: null,
+    voidedBy: null,
+    voidReason: null,
     items: [],
     payments: [],
     createdAt: '2026-08-01T00:00:00Z',
@@ -89,6 +92,22 @@ describe('outstanding', () => {
   // 退費多於應繳（例如整筆退掉又有調整）—— 夾成 0 會讓「要退多少」看不見
   it('溢繳回負數，不夾成零', () => {
     expect(outstanding(invoice({ netPaid: 3500 }))).toBe(-500);
+  });
+});
+
+/**
+ * #898：作廢單不逾期、不欠 —— 它的 total − netPaid 是全額，
+ * 讓它逾期或欠錢就是叫行政去催一張不存在的帳單。
+ */
+describe('作廢單', () => {
+  const voided = invoice({ status: 'void', dueDate: '2026-08-01', voidedAt: '2026-08-20T00:00:00Z' });
+
+  it('過了到期日也不算逾期', () => {
+    expect(isOverdue(voided, TODAY)).toBe(false);
+  });
+
+  it('不欠任何錢', () => {
+    expect(outstanding(voided)).toBe(0);
   });
 });
 

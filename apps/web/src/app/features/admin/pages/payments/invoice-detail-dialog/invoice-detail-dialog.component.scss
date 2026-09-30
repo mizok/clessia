@@ -187,6 +187,51 @@
     font-variant-numeric: tabular-nums;
   }
 
+  // 作廢確認面板（#898）。error 色只給邊框與標題 —— 內文是說明不是錯誤訊息
+  &__void {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: 1px solid var(--error-200);
+    border-radius: var(--radius-md);
+  }
+
+  &__void-title {
+    margin: 0;
+    font-size: var(--text-base);
+    font-weight: var(--font-semibold);
+    color: var(--error-700);
+  }
+
+  &__void-text {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--zinc-700);
+  }
+
+  &__void-label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    color: var(--zinc-900);
+  }
+
+  &__void-reason {
+    width: 100%;
+  }
+
+  &__void-error {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--error-700);
+  }
+
+  &__void-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+
   &__footer {
     display: flex;
     justify-content: flex-end;
