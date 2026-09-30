@@ -832,8 +832,8 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 
 | 部署時間(台北) | 截線 SHA | web bundle | api version id | 正式 DB 套到 | 部署者 |
 | --- | --- | --- | --- | --- | --- |
-| 2026-09-30 13:0x | `1a57db88` | `main-M67JFMAA.js` | `7cd80d82` | **`20260913143909`** | labor-reviewer |
-| 2026-09-13 15:1x | `cac1afb5` | `main-VUM3OUNI.js` | `89104040` | **`20260913101500`** | labor-reviewer |
+| 2026-09-30 13:0x | `1a57db88` | `main-M67JFMAA.js` | `7cd80d82` | **未知(#915)** | labor-reviewer |
+| 2026-09-13 15:1x | `cac1afb5` | `main-VUM3OUNI.js` | `89104040` | 未知(#915) | labor-reviewer |
 | 2026-09-13 09:5x | `fce7c2b6` | `main-VWXREIM7.js` | `2d198aac` | 不明(見下) | labor-reviewer |
 | 2026-09-13 00:3x | `b5b8ac92` | `main-AQOBVFQF.js` | `fc287869` | 不明 | review-steward |
 | 2026-09-12 14:2x | `924c9ac2` | `main-UNYN3OOY.js` | `11b95f6d` | 不明 | review-steward |
@@ -852,6 +852,42 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 **「正式 DB 套到」這一欄只能由使用者填** —— repo 裡沒有任何指令查得到它
 (`package.json` 的 `db:*` 全部指向本機 supabase),所以它不是查出來的,是**報出來的**。
 前三列寫「不明」不是漏填,是**那三次部署當時沒有人在記這件事**,回頭補等於編造。
+
+### ⚠️ 這一欄的語意訂正(2026-09-30,#915)——**「套到 X」不蘊含「X 之前的全在」**
+
+**這一欄原本記的是「使用者說他套了哪一支」,而它被讀成了「正式 DB 的 schema 到哪一版」。
+那兩件事之間隔著一個假設:中間沒有漏。**
+
+#915 證偽了它:正式 DB **沒有** `sessions.makeup_for_session_id`
+(使用者跑 `information_schema` 回 0 列),也就是 `20260906083827_add_session_makeup.sql`
+**從來沒套上** —— 而這一欄當時寫著 `20260913143909`,一支**更新**的 migration。
+
+**兩件事可以同時為真**:最新那支在、而比它早的漏了一支。
+**`max(version)` 看不出中間的洞**,`schema_migrations` 依序排出來的「最上面幾筆」也看不出來。
+
+> **判準改成差集,不是最大值**:
+> **repo 的全部 migration version** 減去 **`schema_migrations` 的 version**,**差集為空才算套齊**。
+
+產生那支查詢的指令(**只讀 repo,不碰正式 DB**;輸出交給使用者貼進 Supabase Dashboard 跑):
+
+```bash
+git ls-tree --name-only origin/main supabase/migrations/ \
+  | grep -oE '[0-9]{14}' \
+  | awk 'BEGIN{printf "select v as missing_version from (values "} \
+         {printf "%s(%c%s%c)", (NR>1?",":""), 39, $0, 39} \
+         END{print ") as t(v) where v not in (select version from supabase_migrations.schema_migrations) order by 1;"}'
+```
+
+**回空列才算套齊**;回幾列就是那幾支沒套。
+
+**為什麼舊判準通過了三次**:兩次量測各自都是對的,只是量的不是這件事 ——
+一次看的是 `schema_migrations` **排序後最上面那筆**(那是 max),
+一次看的是 **backfill 的效果**(`parents_missing_role = 0`,那證明那一支跑過,
+不證明別支也在)。**兩者都不會因為中間漏一支而變樣。**
+
+> 這是 charter 那條「**一份資料只在它自己的維度上正確**」的又一件衣服:
+> 問「我查的這個東西,回答的是不是我要問的那個問題?」——
+> **`max` 回答「最後套的是哪一支」,差集才回答「有沒有漏」。**
 
 **截線選法**:**最近一顆 CI 完成且 `conclusion=success` 的 main commit**,不是 HEAD ——
 HEAD 上通常還有幾顆在跑,而部署一顆沒跑完的 commit 等於自己放棄那道守衛。
@@ -932,6 +968,11 @@ schema 是 api **依賴**的東西(`20260913101500` 的 CHECK:沒套就靜默 0 
 計畫席裁甲。本席當時擔心「漏掉那幾筆沒有東西會回頭發現」,**在冪等 backfill 上不成立。**)
 
 正式 DB 的 migration **一律由使用者親自套**(兩類都是)。
+
+**而 ⓪ 的窗口式檢查有一個已知的左邊界問題**(見 [`labor-reviewer.md`](labor-reviewer.md)):
+它只看「這個窗口內有沒有新 migration」。**2026-09-30 的 #915 把那個推論變成了事實** ——
+正式 DB 漏了 `20260906083827`,而每一輪 ⓪ 都是綠的,因為那支不在任何一輪的窗口裡。
+**所以部署前除了跑 ⓪,每隔一段時間要請使用者跑一次上面那支差集查詢**(不是每次,它要人工)。
 
 > **那一輪走完了(2026-09-30 13:1x)**:使用者套完 backfill 並驗 `parents_missing_role = 0`。
 > **順序是「部署 → 套」而不是「套 → 部署」,窗口確實是 0** ——
