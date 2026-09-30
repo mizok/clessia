@@ -426,6 +426,11 @@ seed 直接 `INSERT` 了 10 筆收款**並指定 `receipt_no`**，而 trigger �
 `IF NEW.receipt_no IS NOT NULL THEN RETURN NEW`（「明確指定號碼時不覆寫，資料搬遷用」）——
 **於是計數器完全沒前進**。從 UI 收款時 trigger 取到 3，撞上 seed 已經用掉的 3。
 
+**✅ 2026-09-30 已修（#909）並在 UI 實按確認**：`seed-demo.sql` 不再自己算 `receipt_no`，
+交給 trigger 取號。RESET #6 之後 `next_no = 11` / `max = 10`（修法前是 3 / 10），
+按一次「記錄收款」1,500 元 → toast「已記錄收款」、帳單 `未繳` → `部分繳`、
+`receipt_no = 11`、計數器前進到 12。**下面那一段是修法前的現況紀錄，留著當對照。**
+
 已開 issue：**#907**。⚠️ **showcase 會用這份 demo 資料，而「記錄收款」是繳費流程的主線**。
 
 > **這是 charter 那條「seed 會讓一整條產品路徑看起來是通的」的反面**：
