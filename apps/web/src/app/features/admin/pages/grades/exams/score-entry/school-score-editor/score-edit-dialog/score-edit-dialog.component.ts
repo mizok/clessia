@@ -300,7 +300,10 @@ export class ScoreEditDialogComponent implements OnInit {
     const payload: SaveSchoolScoresInput[] = [];
     for (const row of this.rows()) {
       if (!this.isRowDirty(row)) continue;
-      if (row.score === null && row.status === 'scored') continue;
+      // **清空的列要送出去**（#886）。原本這裡有一條
+      // `if (row.score === null && row.status === 'scored') continue;` ——
+      // 它排除掉的正是「使用者把分數清空」的列，於是那個動作永遠傳不到後端。
+      // 後端收到之後會刪掉那一列（`splitScoreMutations`）。
 
       payload.push({
         studentId: this.data.studentId,

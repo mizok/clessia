@@ -129,10 +129,21 @@ details: { removed: [studentId, …] }, // 誰的成績被拿掉
    靜默 return（`academy-score-editor.component.ts:246`）。清空的列不再被濾掉之後，
    這條路自然不會走到；**但那個靜默 return 本身要補訊息**，因為「完全沒有改動就按儲存」
    仍然會走到它。
-2. **`recordedCount` 灌水** —— `academy-exams.ts:989` 的
-   `recordedCount: typedScoreRows.length` 數的是列數，而平均分只算 `score !== null` 的。
-   所以 `score=null, status='scored'` 的幽靈列會讓「已登錄 N 筆」比實際多，
-   **而平均分不受影響** —— 兩個數字互相矛盾而沒有人會發現。刪列同時修掉它。
+2. ~~**`recordedCount` 灌水**~~ —— **實作時判斷錯了，不改。** 訂正如下。
+
+   設計時我寫「`recordedCount: typedScoreRows.length` 數列數而平均分只算
+   `score !== null` 的，所以幽靈列會讓『已登錄』比實際多」。**兩個理由都不成立**：
+
+   - **`rows.length` 才是對的語意。** 畫面上它跟 `absentCount` 成對顯示成
+     「**已登錄 / 缺考**」（`class-scores-dialog.component.html:137`）——
+     「已登錄」本來就**包含缺考**，而缺考的 `score` 就是 null。
+     改成只數 `score !== null` 會讓缺考從「已登錄」裡消失。
+   - **幽靈列在這支修法之後產不出來。** 唯一能造出 `score=null, status='scored'` 的路
+     是「清空後儲存」，而它現在走 delete。修之前前端也把那種列濾掉了 ——
+     **所以那個灌水從頭到尾就沒有發生過**，它是我從程式碼推出來的，不是量到的。
+
+   > 留著這一段而不是刪掉：**一個站得住腳的推導掛在一個沒查過的前提上**
+   > （「幽靈列存在」）—— 這個 repo 最常見的錯法。理由寫得越順，越沒有人想去查它。
 
 ## 影響的既有元件
 
