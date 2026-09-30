@@ -634,6 +634,21 @@ app.openapi(
       created_by: userId,
     });
 
+    // #901：同檔另外四支寫入都有稽核，只有這一支漏了。
+    // `details` 記管道（催繳爭議時要答得出「用哪個方式、什麼時候」）。
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'invoice',
+        resourceId: id,
+        action: 'invoice.remind',
+        details: { method: body.method },
+      },
+      waitUntilFrom(c),
+    );
+
     return c.json({ success: true }, 201);
   },
 );

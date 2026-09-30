@@ -2,6 +2,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { summariseMealRecords, type MealAmountRow } from '../lib/meal-summary';
 import { DbUuidSchema } from '../lib/validation';
+import { logAudit } from '../utils/audit';
+import { waitUntilFrom } from '../lib/wait-until';
 
 /**
  * 餐務：每日名單。
@@ -375,6 +377,32 @@ app.openapi(
       if (error) {
         return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
       }
+
+      // #901：這一支是 `meals.ts` 唯一的寫入端點，而它寫的是**金額鄰近**的資料
+      // （`unit_price`、`chargeable`）—— 在這之前全檔零稽核。
+      //
+      // 記在 `writable.length > 0` 裡面是刻意的：已結算的列不參與寫入，
+      // **零筆寫入時不該留下一筆說「改了」的稽核**。稽核要對得上實際發生的事，
+      // 不是對得上「有人按了按鈕」。
+      //
+      // `resourceId` 留空：這是一批而不是一列，沒有單一的 id 指得出來；
+      // 哪一天、動了幾筆寫在 `details` 裡（`resource_type` 的 CHECK 已含
+      // `'meal_record'`，`action` 欄無 CHECK，所以零 migration）。
+      logAudit(
+        supabase,
+        {
+          orgId,
+          userId,
+          resourceType: 'meal_record',
+          action: 'meal_record.batch_upsert',
+          details: {
+            date,
+            updated: writable.length,
+            lockedCount: rows.length - writable.length,
+          },
+        },
+        waitUntilFrom(c),
+      );
     }
 
     return c.json(

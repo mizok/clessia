@@ -199,7 +199,6 @@ describe('GET /api/invoices?overdue —— 台北凌晨那個窗（#402 同一�
   });
 });
 
-
 /**
  * `outstanding` 與 `dueWithin`（#639）。三個篩選是**同一個母體的子集**,
  * 差別只在日期那一半 —— 所以這組測試守兩件事:
@@ -269,7 +268,92 @@ describe('GET /api/invoices —— outstanding / dueWithin（#639）', () => {
       const { client } = fakeSupabase(rows);
       const res = await appWith(client).request(`/?${qs}`);
       const body = (await res.json()) as { data: Array<{ id: string }> };
-      expect(body.data.map((r) => r.id), qs).not.toContain('c');
+      expect(
+        body.data.map((r) => r.id),
+        qs,
+      ).not.toContain('c');
     }
+  });
+});
+
+/**
+ * **#901：`POST /{id}/reminders` 漏接稽核。**
+ *
+ * 同檔另外四支寫入（`:353 / :432 / :478 / :564`）都有 `logAudit`，只有催繳沒有。
+ *
+ * ⚠️ **查「有沒有稽核」要 grep `logAudit(` 本身，不要 grep action 字串** ——
+ * 收款那支的 action 是三元運算不是字面量
+ * （`body.kind === 'refund' ? 'refund' : 'payment'`，`invoices.ts:571`），
+ * `grep -oE "action: '[a-z_.]+'"` 抓不到它，會讓人以為它也漏了。
+ */
+describe('POST /api/invoices/{id}/reminders —— 稽核（#901）', () => {
+  const INVOICE = '00000000-0000-0000-0000-00000000001a';
+
+  /** 記下所有 `insert`，好斷言 `audit_logs` 真的多了一列 */
+  function recordingSupabase(inserts: Array<{ table: string; rows: unknown }>, found = true) {
+    const builder: Record<string, unknown> = {};
+    let table = '';
+    const chain = () => builder as never;
+    Object.assign(builder, {
+      select: () => chain(),
+      eq: () => chain(),
+      insert: (rows: unknown) => {
+        inserts.push({ table, rows });
+        return Promise.resolve({ error: null });
+      },
+      maybeSingle: () =>
+        Promise.resolve({
+          data: table === 'invoices' ? (found ? { id: INVOICE } : null) : null,
+          error: null,
+        }),
+    });
+
+    return {
+      from(name: string) {
+        table = name;
+        return builder;
+      },
+    };
+  }
+
+  async function remind(inserts: Array<{ table: string; rows: unknown }>, found = true) {
+    const res = await appWith(recordingSupabase(inserts, found)).request(`/${INVOICE}/reminders`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ method: 'line', note: '第一次催繳' }),
+    });
+    // fire-and-forget + 兩層 await，不排空 microtask 佇列的話會斷言在寫入之前
+    await new Promise((r) => setTimeout(r, 0));
+    return res;
+  }
+
+  const auditRowsIn = (inserts: Array<{ table: string; rows: unknown }>) =>
+    inserts.filter((i) => i.table === 'audit_logs').map((i) => i.rows);
+
+  it('記錄一次催繳之後 audit_logs 多一列，記得住用哪個管道', async () => {
+    const inserts: Array<{ table: string; rows: unknown }> = [];
+
+    await remind(inserts);
+
+    expect(inserts.some((i) => i.table === 'payment_reminders')).toBe(true);
+    expect(auditRowsIn(inserts)).toEqual([
+      expect.objectContaining({
+        resource_type: 'invoice',
+        resource_id: INVOICE,
+        action: 'invoice.remind',
+        details: expect.objectContaining({ method: 'line' }),
+      }),
+    ]);
+  });
+
+  // 帳單不存在時提早 404，**什麼都沒寫，所以也不該有稽核**。
+  it('帳單不存在時兩張表都不寫', async () => {
+    const inserts: Array<{ table: string; rows: unknown }> = [];
+
+    const res = await remind(inserts, false);
+
+    expect(res.status).toBe(404);
+    expect(inserts.some((i) => i.table === 'payment_reminders')).toBe(false);
+    expect(auditRowsIn(inserts)).toEqual([]);
   });
 });
