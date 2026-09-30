@@ -155,6 +155,27 @@ app.openapi(
       );
     }
 
+    // 取消打卡（DELETE）一直有稽核，建立卻沒有 —— 於是「這個人今天被標成到班過」
+    // 在 `audit_logs` 上只留得下後半段（#919）。`details` 帶衍生出勤列的筆數，
+    // 跟 `cancel_checkin` 的 `attendanceRecordsRemoved` 對得起來。
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'attendance',
+        resourceId: (checkin as any).id,
+        resourceName: null,
+        action: 'checkin',
+        details: {
+          studentId: body.studentId,
+          checkinDate: body.checkinDate,
+          attendanceRecordsCreated: eventIds.length,
+        },
+      },
+      waitUntilFrom(c),
+    );
+
     return c.json(
       {
         id: (checkin as any).id,

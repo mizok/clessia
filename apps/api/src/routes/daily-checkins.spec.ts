@@ -20,10 +20,17 @@ function createCheckinApp(
   } = {},
 ) {
   const upsertCalls: Array<{ table: string; rows: unknown; options: unknown }> = [];
+  const insertCalls: Array<{ table: string; row: unknown }> = [];
 
   const supabase = {
     from(table: string) {
       const query = {
+        // `logAudit` 走 `.insert()` —— 替身少了它，稽核就會靜默失敗，
+        // 而這個檔的 setup 會把「靜默失敗」變成紅燈（那是對的）。
+        insert(row: unknown) {
+          insertCalls.push({ table, row });
+          return Promise.resolve({ error: null });
+        },
         upsert(rows: unknown, options: unknown) {
           upsertCalls.push({ table, rows, options });
           return {
@@ -48,6 +55,9 @@ function createCheckinApp(
         },
         select: () => query,
         eq: () => query,
+        // `logAudit` 先查 `profiles` 拿 `user_name` 才寫 `audit_logs`，
+        // 鏈是 select().eq().maybeSingle() —— 少一段就靜默失敗。
+        maybeSingle: () => Promise.resolve({ data: null, error: null }),
         then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
           const data =
             table === 'enrollments'
@@ -80,7 +90,7 @@ function createCheckinApp(
   });
   app.route('/api/daily-checkins', dailyCheckinsApp);
 
-  return { app, upsertCalls };
+  return { app, upsertCalls, insertCalls };
 }
 
 describe('POST /api/daily-checkins', () => {
@@ -123,6 +133,40 @@ describe('POST /api/daily-checkins', () => {
     // 掃碼是機器寫的，不是人 —— 這一欄之後要用來分辨「能不能覆蓋」
     expect(rows.every((row) => row['recorded_by_role'] === 'system')).toBe(true);
     expect(rows.every((row) => row['status'] === 'present')).toBe(true);
+  });
+
+  /**
+   * 取消打卡一直有稽核、建立卻沒有（#919）—— 於是「這個人今天被標成到班過」
+   * 在 `audit_logs` 上**只留得下後半段**：查稽核的人會看到一筆
+   * `cancel_checkin`，而那筆取消的東西在紀錄裡從來沒有出現過。
+   */
+  it('把建立到班也寫進 audit_logs —— 不是只有取消才留痕（#919）', async () => {
+    const { app, insertCalls } = createCheckinApp();
+
+    await app.request('/api/daily-checkins', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        studentId: '00000000-0000-4000-8000-0000000000b1',
+        checkinDate: '2026-04-01',
+      }),
+    });
+
+    const audit = insertCalls.find((call) => call.table === 'audit_logs')?.row as Record<
+      string,
+      unknown
+    >;
+
+    expect(audit).toBeDefined();
+    expect(audit['action']).toBe('checkin');
+    expect(audit['resource_type']).toBe('attendance');
+    // 衍生出勤列的筆數要跟得上 —— `cancel_checkin` 那支記的是
+    // `attendanceRecordsRemoved`，兩邊對得起來才查得出「建了幾筆、刪了幾筆」
+    expect(audit['details']).toMatchObject({
+      studentId: '00000000-0000-4000-8000-0000000000b1',
+      checkinDate: '2026-04-01',
+      attendanceRecordsCreated: 2,
+    });
   });
 });
 
