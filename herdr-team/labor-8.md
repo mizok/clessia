@@ -250,6 +250,29 @@ origin/main 開分支（或單獨 checkout 那個檔）。
 > 重查一次；還是沒有，再問 `select count(*) from information_schema.tables where table_schema='public'`
 > —— 有數字就是重建中，是 0 才是真的出事。
 
+## `stash push -u` 在乾淨的工作區**不建 entry** —— 所以緊接的 `pop` 彈的是別人的
+
+2026-09-30 我踩了一次。想在 `origin/main` 上重算一份清單，於是
+`git stash push -u -m "…"` → `git checkout origin/main -- …` → `git stash pop`。
+**8 個檔衝突**，彈出來的是別席的 `stash@{0}`（`infra-seed-518`）。
+
+`CLAUDE.md` 與 README 都寫著規則本體（堆疊跨 worktree 共用、**永遠不要 bare `pop`**、
+要 `apply <sha>` 再按 tag 找回來 drop）。**我讀過那條而且還是踩了** ——
+因為規則沒說出**讓它必然發生的那個機制**：
+
+> **`stash push` 在工作區乾淨時什麼都不做**（「No local changes to save」），
+> **不會建立 entry**。於是下一行的 `pop` 對到的是堆疊上原本的第一筆 —— 別人的。
+
+我的改動剛 commit 完，所以工作區是乾淨的 —— **「我剛 push 過所以最上面那筆是我的」
+這個假設，正好在它最不成立的時候最像成立。**
+
+**可操作**：`pop` 之前先 `git stash list`，確認最上面那筆的訊息是你剛下的 tag。
+（或照 `CLAUDE.md` 的做法：`push` 之後立刻記下 SHA，之後只用 `apply <sha>`。）
+
+⚠️ 沒有造成損失是**運氣加 git 的設計**：衝突時 entry 會被保留
+（「The stash entry is kept in case you need it again」）。**若當時沒有衝突，
+別席那筆就會被靜靜地 pop 掉並從堆疊上消失。**
+
 ## 給下一個接手的人
 
 - **charter 會腐化，接手時先驗一遍再信它。**
