@@ -4,6 +4,8 @@ import { DbUuidSchema } from '../lib/validation';
 import { requireRoles } from '../middleware/auth';
 import { audienceFor, campusOrFilter } from './announcements/visibility';
 import { campusFilterIds, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
+import { waitUntilFrom } from '../lib/wait-until';
+import { logAudit } from '../utils/audit';
 const app = new OpenAPIHono<AppEnv>();
 
 const AudienceSchema = z.enum(['all_teachers', 'all_parents']).openapi('AnnouncementAudience');
@@ -251,7 +253,26 @@ app.openapi(
 
     if (error) return c.json({ error: error.message }, 500);
 
-    return c.json({ data: toResponse(data as unknown as AnnouncementDbRow, new Set()) }, 201);
+    const row = data as unknown as AnnouncementDbRow;
+
+    // #911：公告的稽核**只記發佈**（使用者 2026-09-30 裁定）—— 已讀兩支刻意不記，
+    // `announcement_reads` 本身就存了誰、何時第一次讀，而且永久（audit_logs 90 天就清）。
+    // `details` 記發給誰、哪個分校：發錯對象時第一個要問的就是這兩個。
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId: c.get('userId'),
+        resourceType: 'announcement',
+        resourceId: row.id,
+        resourceName: row.title,
+        action: 'announcement.publish',
+        details: { audience: body.audience, campusId: body.campusId ?? null },
+      },
+      waitUntilFrom(c),
+    );
+
+    return c.json({ data: toResponse(row, new Set()) }, 201);
   },
 );
 
