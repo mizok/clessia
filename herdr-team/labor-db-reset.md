@@ -211,36 +211,46 @@ git checkout --detach origin/fix/xxx
 
 跑完**不要急著切回來**：修法沒合進 main 之前切回去，手上就又是壞的那份 seed。
 
-## `supabase db reset` 會報失敗而其實做完了（2026-09-30，RESET #4）
+## `Restarting containers...` 之後的 CLI 錯誤不構成 reset 失敗
 
-**症狀** —— CLI 非零退出，最後一行是：
-
-```
-supabase_storage_clessia container is not ready: unhealthy
-Try rerunning the command with --debug to troubleshoot the error.
-```
-
-**而 migration 與兩支 seed 全部跑完了。** 那個容器**在 CLI 放棄之後 44 秒才變成 healthy**
-（`docker ps` 看得到 `Up 44 seconds (healthy)`）—— **它只是慢過健檢窗口，不是壞了。**
-
-**判準：看哨兵檔，不看 exit code。**
+**判準：`Restarting containers...` 這一行之後的任何 CLI 錯誤，都不能判成 reset 失敗** ——
+migration 與兩支 seed 在那之前就跑完了。**判準永遠是哨兵檔：**
 
 ```sh
 psql "$DATABASE_URL" -f supabase/seed-sentinels.sql   # 全數通過 ⇒ DB 層是完整的
 ```
 
+### 兩個實例，症狀不同、階段相同
+
+|              | RESET #4（2026-09-30 12:25）                                 | RESET #6（2026-09-30 13:32）                                                  |
+| ------------ | ------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| CLI 最後一行 | `supabase_storage_clessia container is not ready: unhealthy` | `Error status 502: An invalid response was received from the upstream server` |
+| 階段         | **`Restarting containers...` 之後**                          | **同一階段**                                                                  |
+| DB 層        | 完整（哨兵四條全過）                                         | 完整（哨兵四條全過，`next_no` 也對）                                          |
+| 事後容器狀態 | 那個容器在 CLI 放棄後 **44 秒**才 healthy                    | 除既有的 `edge_runtime` 外全 healthy                                          |
+
+> **這一節原本掛在 `storage` 上，第二個實例把它改寫了** —— 兩次症狀不同而階段相同 ⇒
+> **問題不在某個容器，在「容器重啟階段的健檢」本身**。
+> **掛在症狀上的判準只擋得住重演，掛在階段上的擋得住同一類。**
+
 **兩個方向都會錯**：
 
 - 只看 exit code → 回報「reset 失敗」，**請求者白等一輪**，而資料其實已經好了。
-- 只看資料 → 說「完全沒事」，**但 storage 真的異常過**。
+- 只看資料 → 說「完全沒事」，**但那些容器真的異常過**。
 
-**邊界：storage 那一塊這一席不背書。** 我驗的是 DB 層。**要用 storage 的席位自己驗**
-（檔案上傳／下載、發票 PDF、匯出）—— 回報時要明講這一句，不要讓對方以為 reset 綠燈
-等於 storage 可用。
+**邊界：DB 層之外這一席不背書。** 我驗的是 migration + seed + 哨兵。**storage / API 那一塊
+要用它的席位自己驗**（檔案上傳／下載、發票 PDF、匯出）—— 回報時要明講這一句，
+不要讓對方把 reset 綠燈讀成 storage 可用。
 
-> **升級條件**：這是**第一個實例，所以只進 charter**。在別人的機器或 CI 上再發生一次，
-> 就升到 `AGENTS.md` 的 `db:reset` 那段旁邊 —— **一個實例進 charter，兩個實例進專案指引**
-> （計畫席 2026-09-30 訂）。
+> **升級條件維持「在別人的機器或 CI 上再發生一次」才升 `AGENTS.md`** ——
+> 一個實例進 charter，兩個實例進專案指引（計畫席 2026-09-30 訂）。
+>
+> ⚠️ **已知上限：目前的兩個實例是「同一台機器、不同症狀」。** 那足以把判準從容器改寫到
+> 階段（已做），**但不足以升級** —— 證據還是只有一台機器，而 `AGENTS.md` 是全隊的，
+> 別人的機器容器啟動夠快就根本不會遇到。
+>
+> **它離升級只差一台機器。** 下一個在別的機器或 CI 上撞到同一階段錯誤的人，
+> 你手上那一次就是第二台 —— **直接升，不用再攢。**
 
 （順帶：`supabase_edge_runtime_clessia` 長期是 `Exited (137)`。**那是既有狀態，不是 reset
 造成的** —— 每次看到不要當成新事故，也不要順手去修，不在這一席職責內。）
