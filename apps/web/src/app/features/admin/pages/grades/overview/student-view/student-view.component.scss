@@ -64,6 +64,11 @@
     border: 1px solid var(--zinc-200);
     border-radius: var(--radius-lg);
     cursor: pointer;
+
+    /* 觸控門檻只在 coarse 底下宣告 —— 跟 styles.scss:176 同一個原則：桌機完全不受影響 */
+    @media (pointer: coarse) {
+      min-height: 44px;
+    }
     text-align: left;
     transition: all 150ms ease-out;
 

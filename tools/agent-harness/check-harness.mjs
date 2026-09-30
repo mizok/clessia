@@ -1003,24 +1003,26 @@ function checkTouchTargets() {
   // 包含一顆連尺寸宣告都沒有的麵包屑連結（正是這道 gate 反向判準要抓的形狀）。
   const sharedDir = join(ROOT, 'apps/web/src/app/shared');
   const selectRoleDir = join(ROOT, 'apps/web/src/app/features/select-role');
+  // **家長端全數納入（2026-09-30，#924 P2 的後續）**：它跟老師端一樣是「使用者幾乎只在
+  // 手機上開」的角色端，卻一直不在範圍內 —— 掃出 7 筆沒有任何尺寸下限的自刻元素。
+  const parentDir = join(ROOT, 'apps/web/src/app/features/parent');
   if (!existsSync(teacherDir) || !existsSync(adminDir)) return;
-
-  const desktopFirst = new Set(
-    existsSync(MOBILE_FIRST_BASELINE)
-      ? JSON.parse(readFileSync(MOBILE_FIRST_BASELINE, 'utf8'))
-      : [],
-  );
 
   const scoped = [
     ...walk(teacherDir, '.scss'),
     ...(existsSync(publicDir) ? walk(publicDir, '.scss') : []),
     ...(existsSync(sharedDir) ? walk(sharedDir, '.scss') : []),
     ...(existsSync(selectRoleDir) ? walk(selectRoleDir, '.scss') : []),
-    ...walk(adminDir, '.scss').filter((f) => !desktopFirst.has(f.slice(ROOT.length + 1))),
+    ...(existsSync(parentDir) ? walk(parentDir, '.scss') : []),
+    // **admin 的桌機優先檔不再排除（2026-09-30）**。原本的分批依據是「遷完手機優先才納入」，
+    // 那讓 15 筆自刻元素長期在範圍外 —— 而**觸控門檻跟手機優先是兩件事**：
+    // 尺寸下限寫在 `@media (pointer: coarse)` 裡的話，桌機版面完全不受影響
+    // （跟 `styles.scss:176` 同一個原則），所以沒有理由等遷移。
+    ...walk(adminDir, '.scss'),
   ];
 
   recordScope('touch-target', {
-    roots: [teacherDir, publicDir, sharedDir, selectRoleDir, adminDir]
+    roots: [teacherDir, publicDir, sharedDir, selectRoleDir, parentDir, adminDir]
       .filter((d) => existsSync(d))
       .map((d) => d.slice(ROOT.length + 1)),
     exts: ['.scss'],

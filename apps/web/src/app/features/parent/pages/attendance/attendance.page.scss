@@ -62,6 +62,13 @@
     border-radius: var(--radius-lg);
     cursor: pointer;
 
+    /* 觸控門檻：桌機 40px、手指 44px（A17 既有頁面的合規形狀） */
+    min-height: 40px;
+
+    @media (pointer: coarse) {
+      min-height: 44px;
+    }
+
     &:hover {
       background: var(--zinc-100);
     }
@@ -98,6 +105,13 @@
     border: 1px solid var(--zinc-200);
     border-radius: var(--radius-lg);
     cursor: pointer;
+
+    /* 觸控門檻：桌機 40px、手指 44px（A17 既有頁面的合規形狀） */
+    min-height: 40px;
+
+    @media (pointer: coarse) {
+      min-height: 44px;
+    }
 
     &:disabled {
       cursor: default;

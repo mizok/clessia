@@ -33,6 +33,11 @@
     color: var(--color-white);
     border: none;
     cursor: pointer;
+
+    /* 觸控門檻只在 coarse 底下宣告 —— 跟 styles.scss:176 同一個原則：桌機完全不受影響 */
+    @media (pointer: coarse) {
+      min-height: 44px;
+    }
     display: flex;
     align-items: center;
     justify-content: center;
@@ -78,6 +83,11 @@
     background: var(--color-white);
     height: 36px;
     cursor: pointer;
+
+    /* 觸控門檻只在 coarse 底下宣告 —— 跟 styles.scss:176 同一個原則：桌機完全不受影響 */
+    @media (pointer: coarse) {
+      min-height: 44px;
+    }
     transition: border-color var(--transition-fast);
 
     &:hover {
