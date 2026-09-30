@@ -15,6 +15,7 @@ import { formatGenerated } from './lib/format.mjs';
 import { crossFeatureImports } from './lib/feature-boundaries.mjs';
 import { dualTrackTables } from './lib/dual-track-table.mjs';
 import { touchTargetViolations } from './lib/touch-target.mjs';
+import { ariaIconButtonViolations } from './lib/aria-icon-button.mjs';
 import { pendingWrites, toRepoPath } from './lib/hook-io.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import { matchWriteRules, routeHints } from './lib/rules.mjs';
@@ -1215,6 +1216,55 @@ test('手機優先：countDesktopFirst 數的是次數，給人看規模用', ()
 // 改回去的症狀不是報錯，是**最嚴重的那類違規再也抓不到**（它們沒有數字可抓）。
 
 const tt = (source) => touchTargetViolations([{ path: 'a.scss', source }]).map((v) => v.kind);
+
+// ── A22（#930）icon-only 按鈕的可及名稱 ─────────────────────────────────────────────
+const aria = (text) => ariaIconButtonViolations([{ path: 'a.html', text }]).map((v) => v.kind);
+
+test('陷阱一：p-button 有 icon 沒 label 也沒 ariaLabel —— 螢幕閱讀器只唸「按鈕」', () => {
+  assert.deepEqual(aria('<p-button icon="pi pi-trash" (onClick)="del()" />'), ['p-button']);
+  // 有 label 就有可及名稱（icon 只是裝飾）
+  assert.deepEqual(aria('<p-button icon="pi pi-trash" label="刪除" />'), []);
+  // ariaLabel 是 p-button 自己的 input，這裡是合規寫法
+  assert.deepEqual(aria('<p-button icon="pi pi-trash" ariaLabel="刪除" />'), []);
+  assert.deepEqual(aria('<p-button icon="pi pi-trash" [ariaLabel]="t()" />'), []);
+});
+
+test('陷阱二：原生 button 內容只有圖示標籤，沒有 aria-label', () => {
+  assert.deepEqual(aria('<button type="button"><i class="pi pi-times"></i></button>'), ['native']);
+  assert.deepEqual(
+    aria('<button type="button" aria-label="關閉"><i class="pi pi-times"></i></button>'),
+    [],
+  );
+  // `{{ }}` 插值是**動態名稱**不是沒有名稱 —— 誤報這個形狀會逼人替每顆有文字的鈕加 aria
+  assert.deepEqual(aria('<button type="button">{{ label() }}</button>'), []);
+  // 註解不算文字（否則加一行註解就能讓違規消失）
+  assert.deepEqual(
+    aria('<button type="button"><!-- 關閉 --><i class="pi pi-times"></i></button>'),
+    ['native'],
+  );
+});
+
+test('陷阱三：原生 button 上寫 ariaLabel —— 做了一半，而 grep「aria」會命中它', () => {
+  // 這是整支 gate 最值得存在的一條：DOM 上不會出現 aria-label，畫面完全正常，
+  // 作者以為處理好了。存量 0，所以它從第一天就是純防回歸。
+  assert.deepEqual(
+    aria('<button type="button" [ariaLabel]="\'關閉\'"><i class="pi pi-times"></i></button>'),
+    ['wrong-aria-label'],
+  );
+  assert.deepEqual(
+    aria('<button type="button" ariaLabel="關閉"><i class="pi pi-times"></i></button>'),
+    ['wrong-aria-label'],
+  );
+  // 正確載體不該被誤報
+  assert.deepEqual(
+    aria('<button type="button" [attr.aria-label]="t()"><i class="pi pi-times"></i></button>'),
+    [],
+  );
+});
+
+test('pButton directive 版帶 label 算合規 —— PrimeNG 會把它渲染成文字', () => {
+  assert.deepEqual(aria('<button pButton icon="pi pi-plus" label="新增學校"></button>'), []);
+});
 
 test('沒有尺寸下限的可點元素要抓到 —— 那是實際踩過的形狀', () => {
   // 老師端 dashboard 改動前的原樣：整頁僅有的兩個導覽動作，實測 100×20

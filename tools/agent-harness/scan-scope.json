@@ -11,6 +11,10 @@
     "roots": ["apps/api/src/routes", "apps/web/src/app/core"],
     "exts": [".service.ts", ".ts"]
   },
+  "aria-icon-button": {
+    "roots": ["apps/web/src"],
+    "exts": [".html", ".ts"]
+  },
   "band-contrast": {
     "roots": ["apps/web/src"],
     "exts": [".scss"]

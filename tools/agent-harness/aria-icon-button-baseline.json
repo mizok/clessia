@@ -1,0 +1,14 @@
+{
+  "app/features/admin/pages/courses/class-form-dialog/class-form-dialog.component.html": 1,
+  "app/features/admin/pages/courses/courses.page.html": 2,
+  "app/features/admin/pages/leave/leave.page.html": 1,
+  "app/features/admin/pages/payments/uninvoiced-dialog/uninvoiced-dialog.component.html": 1,
+  "app/features/admin/pages/schools/schools.page.html": 2,
+  "app/features/admin/pages/sessions/dialogs/session-operations-log-dialog/session-operations-log-dialog.component.html": 1,
+  "app/features/admin/pages/students/student-form-dialog.component.html": 1,
+  "app/shared/components/account-settings-dialog/account-settings-dialog.component.html": 4,
+  "app/shared/components/attendance-roster-panel/attendance-roster-panel.component.html": 1,
+  "app/shared/components/audit-log-dialog/audit-log-dialog.component.html": 1,
+  "app/shared/components/subject-manager/subject-manager.component.html": 5,
+  "app/shared/components/todo-banner/todo-banner.component.html": 1
+}
