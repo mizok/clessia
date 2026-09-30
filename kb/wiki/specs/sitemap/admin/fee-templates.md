@@ -326,11 +326,11 @@ updated: 2026-09-30
 | 5 | 價目表 `編輯` → 送出 | `PUT /{id}` | `fee_templates` | `fee_template` / `update` | ✅ 來回 |
 | 6 | 價目表列上的 `停用` / `啟用` | `PUT /{id}` | `fee_templates` | `fee_template` / `update` | ✅ 來回 |
 | 7 | 價目表 `刪除` | `DELETE /{id}` | `fee_templates` | `fee_template` / `delete` | — |
-| 8 | 餐費 `批次登錄` | `POST /api/meals` | `meal_records` | **零** —— `meals.ts` 全檔沒有 `logAudit` | 🔴 **無**（`meals.service` 零 delete） |
+| 8 | 餐費 `批次登錄` | `POST /api/meals` | `meal_records` | **零**（見 **#901**）—— `meals.ts` 全檔沒有 `logAudit` | 🔴 **無**（`meals.service` 零 delete） |
 | 9 | 帳單 `新增` → 送出 | `POST /api/invoices` | `invoices` + `invoice_items` | `invoice` / `create` | 🔴 **無**（#898） |
 | 10 | 未開單對話框 → 開立 | `POST /api/invoices` | 同上 | 同上 | 🔴 **無**（#898） |
 | 11 | 帳單詳情 `記錄收款` | `POST /{id}/payments` | `payment_records`＋改 `invoices.status` | `payment_record` / **`payment` 或 `refund`**（依 `body.kind`） | 🔴 **無** |
-| 12 | 帳單詳情 `建立催繳` | `POST /{id}/reminders` | `payment_reminders` | **零** —— 最後一個 `logAudit` 在 `:564`（收款），催繳的 handler 從 `:587` 起 | 🔴 **無** |
+| 12 | 帳單詳情 `建立催繳` | `POST /{id}/reminders` | `payment_reminders` | **零**（見 **#901**）—— 最後一個 `logAudit` 在 `:564`（收款），催繳的 handler 從 `:587` 起 | 🔴 **無** |
 | 13 | 餐費 `執行結算` | `POST /api/billing-runs` | `invoices` + `invoice_items` + `meal_records` | `billing_run` / `run` | 🔴 **無** |
 
 ### 三件推的時候就該講清楚的
