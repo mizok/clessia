@@ -34,10 +34,19 @@ tools: Read, Grep, Glob, Bash, mcp__code-review-graph__query_graph_tool, mcp__co
 只研究本領域。若任務需要出勤 / 成績的內部細節：**停下來**，回報你需要的介面，
 由主 session 統籌跨領域。
 
+## 回報紀律
+
+說「沒有 X / 不存在 / 零命中」之前的兩條檢查，見
+[`grades-domain.md`](grades-domain.md) 的「回報紀律」節。
+**那一節不複製到這裡** —— 同一條規則三份副本會各自漂（c11）。
+
 ## 驗證
 
-`npx nx test web --base=main` · `npm run harness`
-（注意：`apps/api` 目前沒有 test target，API 測試不會被執行）
+`npx nx run-many -t test --skip-nx-cache` · `npm run harness`
+
+⚠️ **`apps/api` 有 `test` target**（`apps/api/project.json` 的 targets：
+`serve, build, deploy, test, typecheck`），API 測試會被跑到。
+**本節原本寫著「沒有 test target、不會被執行」—— 那是錯的**（#895）。
 
 ## 回報格式（硬性上限）
 
