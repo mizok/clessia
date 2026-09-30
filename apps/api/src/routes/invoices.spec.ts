@@ -357,3 +357,399 @@ describe('POST /api/invoices/{id}/reminders —— 稽核（#901）', () => {
     expect(auditRowsIn(inserts)).toEqual([]);
   });
 });
+
+// ============================================================
+// #898 帳單作廢
+// ============================================================
+
+/**
+ * 按 `from()` 記錄**每一條鏈**的替身：每次 `from(table)` 開一條新鏈，鏈上的每個呼叫
+ * （`update` / `is` / `in` …）連同參數都記下來。作廢的正確與否大半在
+ * 「送出去的查詢長什麼樣」（有沒有 `.is('voided_at', null)`、解章解的是哪些 item），
+ * 替身回的資料分不出對錯，所以斷言查詢本身（billing-api charter「替身分不出對錯時」）。
+ *
+ * 跟真的 postgrest builder 一樣，**鏈上任何一點都可以 await**（thenable），
+ * 結果由 `resolve(chain)` 依表與操作決定。
+ */
+interface Chain {
+  table: string;
+  calls: Array<[string, ...unknown[]]>;
+}
+
+function chainFake(resolve: (chain: Chain) => { data?: unknown; error?: unknown; count?: number }) {
+  const chains: Chain[] = [];
+
+  const client = {
+    from(table: string) {
+      const chain: Chain = { table, calls: [] };
+      chains.push(chain);
+      const query: Record<string, unknown> = {};
+      for (const method of [
+        'select',
+        'eq',
+        'is',
+        'in',
+        'lt',
+        'gte',
+        'lte',
+        'range',
+        'order',
+        'update',
+        'insert',
+        'delete',
+      ]) {
+        query[method] = (...args: unknown[]) => {
+          chain.calls.push([method, ...args]);
+          return query;
+        };
+      }
+      const settle = () => Promise.resolve({ data: null, error: null, ...resolve(chain) });
+      query['maybeSingle'] = () => {
+        chain.calls.push(['maybeSingle']);
+        return settle();
+      };
+      query['single'] = () => {
+        chain.calls.push(['single']);
+        return settle();
+      };
+      query['then'] = (ok: (v: unknown) => unknown, ng: (e: unknown) => unknown) =>
+        settle().then(ok, ng);
+      return query;
+    },
+  };
+
+  const has = (chain: Chain, method: string) => chain.calls.some(([m]) => m === method);
+  const argsOf = (chain: Chain, method: string) =>
+    chain.calls.filter(([m]) => m === method).map(([, ...args]) => args);
+
+  return { client, chains, has, argsOf };
+}
+
+const VOID_ID = '00000000-0000-0000-0000-0000000008a0';
+
+/** 帳單原始列：預設是一張收了又全退、淨額 0、可以作廢的帳單，含一筆學費與一筆餐費 */
+function voidableRow(overrides: Record<string, unknown> = {}) {
+  return {
+    ...invoiceRow({ id: VOID_ID, amount: 3000, paid: 0 }),
+    invoice_items: [
+      { id: 'item-tuition', type: 'tuition', amount: 3000 },
+      { id: 'item-meal', type: 'meal', amount: 900 },
+    ],
+    payment_records: [
+      { id: 'p1', kind: 'payment', amount: 3900, method: 'cash', paid_at: '2026-03-02' },
+      { id: 'p2', kind: 'refund', amount: 3900, method: 'cash', paid_at: '2026-03-03' },
+    ],
+    voided_at: null,
+    voided_by: null,
+    void_reason: null,
+    ...overrides,
+  };
+}
+
+/**
+ * 作廢流程的預設劇本：撈得到帳單、沒有堂數包、update 成功回一列、解章回兩筆。
+ * 撈帳單的第二次（作廢後回傳）回已作廢的版本。
+ */
+function voidScenario(
+  opts: {
+    row?: Record<string, unknown> | null;
+    sessionPacks?: number;
+    updated?: unknown[];
+    updateError?: unknown;
+  } = {},
+) {
+  const row = opts.row === undefined ? voidableRow() : opts.row;
+  let invoiceReads = 0;
+  return chainFake((chain) => {
+    const ops = chain.calls.map(([m]) => m);
+    if (chain.table === 'invoices' && ops.includes('update')) {
+      return { data: opts.updated ?? [{ id: VOID_ID }], error: opts.updateError ?? null };
+    }
+    if (chain.table === 'invoices') {
+      invoiceReads += 1;
+      if (!row) return { data: null };
+      return {
+        data:
+          invoiceReads === 1
+            ? row
+            : { ...row, voided_at: '2026-09-30T08:00:00Z', voided_by: 'u1', void_reason: '開錯月' },
+      };
+    }
+    if (chain.table === 'session_packs') return { data: [], count: opts.sessionPacks ?? 0 };
+    if (chain.table === 'meal_records') return { data: [{ id: 'm1' }, { id: 'm2' }] };
+    return { data: null };
+  });
+}
+
+async function postVoid(client: unknown, reason: unknown = '開錯月') {
+  const res = await appWith(client).request(`/${VOID_ID}/void`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  });
+  await new Promise((r) => setTimeout(r, 0)); // logAudit 是 fire-and-forget
+  return res;
+}
+
+describe('POST /api/invoices/{id}/void —— 前置檢查（使用者裁決 2026-09-30）', () => {
+  const invoiceUpdates = (fake: ReturnType<typeof chainFake>) =>
+    fake.chains.filter((c) => c.table === 'invoices' && fake.has(c, 'update'));
+
+  it('帳單不存在 → 404，什麼都不寫', async () => {
+    const fake = voidScenario({ row: null });
+    const res = await postVoid(fake.client);
+
+    expect(res.status).toBe(404);
+    expect(invoiceUpdates(fake)).toEqual([]);
+  });
+
+  it('已作廢 → 409 ALREADY_VOIDED（不可撤銷，也不能重複作廢）', async () => {
+    const fake = voidScenario({
+      row: voidableRow({ voided_at: '2026-09-01T00:00:00Z', voided_by: 'u9', void_reason: 'x' }),
+    });
+    const res = await postVoid(fake.client);
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { code: string }).code).toBe('ALREADY_VOIDED');
+    expect(invoiceUpdates(fake)).toEqual([]);
+  });
+
+  it('淨收款 > 0 → 409 NET_PAID_NONZERO，訊息帶金額並指出要先退款', async () => {
+    const fake = voidScenario({
+      row: voidableRow({
+        payment_records: [
+          { id: 'p1', kind: 'payment', amount: 1000, method: 'cash', paid_at: '2026-03-02' },
+        ],
+      }),
+    });
+    const res = await postVoid(fake.client);
+    const body = (await res.json()) as { code: string; error: string };
+
+    expect(res.status).toBe(409);
+    expect(body.code).toBe('NET_PAID_NONZERO');
+    expect(body.error).toContain('1,000');
+    expect(body.error).toContain('退款');
+    expect(invoiceUpdates(fake)).toEqual([]);
+  });
+
+  // 裁決 A：退多了 = 還欠家長錢
+  it('淨收款 < 0 也 → 409 NET_PAID_NONZERO', async () => {
+    const fake = voidScenario({
+      row: voidableRow({
+        payment_records: [
+          { id: 'p1', kind: 'payment', amount: 1000, method: 'cash', paid_at: '2026-03-02' },
+          { id: 'p2', kind: 'refund', amount: 1500, method: 'cash', paid_at: '2026-03-03' },
+        ],
+      }),
+    });
+    const res = await postVoid(fake.client);
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { code: string }).code).toBe('NET_PAID_NONZERO');
+    expect(invoiceUpdates(fake)).toEqual([]);
+  });
+
+  // 裁決 D：這條只有 API 這一層，DB 沒有 trigger
+  it('明細連到堂數包 → 409 HAS_SESSION_PACK，訊息說要先處理堂數包', async () => {
+    const fake = voidScenario({ sessionPacks: 1 });
+    const res = await postVoid(fake.client);
+    const body = (await res.json()) as { code: string; error: string };
+
+    expect(res.status).toBe(409);
+    expect(body.code).toBe('HAS_SESSION_PACK');
+    expect(body.error).toContain('堂數包');
+    expect(invoiceUpdates(fake)).toEqual([]);
+
+    // 查的是這張帳單的明細 id，不是整個組織
+    const packQuery = fake.chains.find((c) => c.table === 'session_packs');
+    expect(packQuery && fake.argsOf(packQuery, 'in')).toEqual([
+      ['invoice_item_id', ['item-tuition', 'item-meal']],
+    ]);
+  });
+
+  it('理由空白 → 400，什麼都不寫', async () => {
+    const fake = voidScenario();
+    const res = await postVoid(fake.client, '   ');
+
+    expect(res.status).toBe(400);
+    expect(invoiceUpdates(fake)).toEqual([]);
+  });
+
+  // 檢查後、寫入前被別人先作廢了：條件式 update 回 0 列
+  it('update 回 0 列（競態）→ 409 ALREADY_VOIDED', async () => {
+    const fake = voidScenario({ updated: [] });
+    const res = await postVoid(fake.client);
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { code: string }).code).toBe('ALREADY_VOIDED');
+  });
+
+  // 檢查後、寫入前插進一筆收款：DB trigger RAISE。回 409 而不是 500 —— 這是業務衝突
+  it('DB trigger 拒絕（競態）→ 409 VOID_REJECTED', async () => {
+    const fake = voidScenario({ updateError: { code: '23514', message: 'net paid 100' } });
+    const res = await postVoid(fake.client);
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { code: string }).code).toBe('VOID_REJECTED');
+  });
+});
+
+describe('POST /api/invoices/{id}/void —— 成功', () => {
+  it('條件式寫入三欄：只在 voided_at 仍為空時生效，理由去頭尾空白', async () => {
+    const fake = voidScenario();
+    const res = await postVoid(fake.client, '  開錯月  ');
+
+    expect(res.status).toBe(200);
+    const update = fake.chains.find((c) => c.table === 'invoices' && fake.has(c, 'update'));
+    expect(update && fake.argsOf(update, 'update')).toEqual([
+      [expect.objectContaining({ voided_by: 'u1', void_reason: '開錯月', voided_at: expect.any(String) })],
+    ]);
+    expect(update && fake.argsOf(update, 'is')).toEqual([['voided_at', null]]);
+    expect(update && fake.argsOf(update, 'eq')).toEqual(
+      expect.arrayContaining([
+        ['id', VOID_ID],
+        ['org_id', '00000000-0000-0000-0000-0000000000aa'],
+      ]),
+    );
+  });
+
+  // 裁決 B：作廢 = 收費項回到未開帳。只解**餐費** item 的章 —— 學費靠查衍生列，不用解
+  it('解除這張帳單餐費明細的蓋章，只動餐費那幾個 item', async () => {
+    const fake = voidScenario();
+    await postVoid(fake.client);
+
+    const release = fake.chains.find((c) => c.table === 'meal_records');
+    expect(release && fake.argsOf(release, 'update')).toEqual([[{ invoice_item_id: null }]]);
+    expect(release && fake.argsOf(release, 'in')).toEqual([['invoice_item_id', ['item-meal']]]);
+  });
+
+  it('沒有餐費明細就不碰 meal_records', async () => {
+    const fake = voidScenario({
+      row: voidableRow({
+        invoice_items: [{ id: 'item-tuition', type: 'tuition', amount: 3000 }],
+        payment_records: [],
+      }),
+    });
+    await postVoid(fake.client);
+
+    expect(fake.chains.some((c) => c.table === 'meal_records')).toBe(false);
+  });
+
+  it('寫一列稽核：resource_type invoice、action invoice.void、記下理由', async () => {
+    const fake = voidScenario();
+    await postVoid(fake.client);
+
+    const audit = fake.chains.find((c) => c.table === 'audit_logs');
+    expect(audit && fake.argsOf(audit, 'insert')).toEqual([
+      [
+        expect.objectContaining({
+          resource_type: 'invoice',
+          resource_id: VOID_ID,
+          action: 'invoice.void',
+          details: expect.objectContaining({ reason: '開錯月', mealRecordsReleased: 2 }),
+        }),
+      ],
+    ]);
+  });
+
+  it('回傳作廢後的帳單：status void、帶作廢資訊、金額照算', async () => {
+    const fake = voidScenario();
+    const res = await postVoid(fake.client);
+    const { data } = (await res.json()) as {
+      data: { status: string; voidedAt: string; voidedBy: string; voidReason: string; total: number };
+    };
+
+    expect(data).toMatchObject({
+      status: 'void',
+      voidedAt: '2026-09-30T08:00:00Z',
+      voidedBy: 'u1',
+      voidReason: '開錯月',
+      total: 3900,
+    });
+  });
+
+  // 死在作廢之後、解章之前 → 重按一次要能補解章（冪等），否則餐費永遠卡在作廢單上
+  it('已作廢時仍補做一次解章（重試路徑）', async () => {
+    const fake = voidScenario({
+      row: voidableRow({ voided_at: '2026-09-01T00:00:00Z', voided_by: 'u1', void_reason: 'x' }),
+    });
+    const res = await postVoid(fake.client);
+
+    expect(res.status).toBe(409);
+    const release = fake.chains.find((c) => c.table === 'meal_records');
+    expect(release && fake.argsOf(release, 'in')).toEqual([['invoice_item_id', ['item-meal']]]);
+  });
+});
+
+/**
+ * 作廢單凍結：API 這層給看得懂的 409，DB trigger 兜底 —— **但催繳沒有 trigger**
+ * （`payment_reminders` 不影響金額），所以催繳那支 API 這層是唯一一層。
+ */
+describe('作廢單上的寫入 → 409 INVOICE_VOIDED', () => {
+  const voided = voidableRow({ voided_at: '2026-09-01T00:00:00Z', voided_by: 'u1', void_reason: 'x' });
+
+  const cases: Array<[string, string, string, unknown]> = [
+    ['新增明細', 'POST', `/${VOID_ID}/items`, { type: 'adjustment', amount: -100 }],
+    ['刪除明細', 'DELETE', `/${VOID_ID}/items/00000000-0000-0000-0000-000000000077`, undefined],
+    ['記收款', 'POST', `/${VOID_ID}/payments`, { amount: 100, method: 'cash' }],
+    ['催繳', 'POST', `/${VOID_ID}/reminders`, { method: 'line' }],
+  ];
+
+  for (const [label, method, path, body] of cases) {
+    it(`${label}：409，且沒有任何寫入`, async () => {
+      const fake = chainFake((chain) => (chain.table === 'invoices' ? { data: voided } : {}));
+      const res = await appWith(fake.client).request(path, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(res.status).toBe(409);
+      expect(((await res.json()) as { code: string }).code).toBe('INVOICE_VOIDED');
+      const writes = fake.chains.filter(
+        (c) => fake.has(c, 'insert') || fake.has(c, 'delete') || fake.has(c, 'update'),
+      );
+      expect(writes.map((c) => c.table)).toEqual([]);
+    });
+  }
+});
+
+describe('GET /api/invoices —— 作廢單', () => {
+  const rows = [
+    invoiceRow({ id: '00000000-0000-0000-0000-000000000001', amount: 1000, paid: 0 }),
+    { ...invoiceRow({ id: '00000000-0000-0000-0000-000000000002', amount: 1000, paid: 0 }), voided_at: '2026-09-01T00:00:00Z', voided_by: 'u1', void_reason: 'x' },
+  ];
+
+  // 裁決 C：預設列出（灰顯在前端），稽核軌跡要看得到
+  it('沒帶篩選時列出作廢單，status 是 void', async () => {
+    const { client } = fakeSupabase(rows as never);
+    const res = await appWith(client).request('/');
+    const body = (await res.json()) as { data: Array<{ id: string; status: string }> };
+
+    expect(body.data.map((r) => r.status)).toEqual(['unpaid', 'void']);
+  });
+
+  // 作廢單的 total − netPaid 是全額，放進催繳母體就是叫行政去催一張不存在的帳單
+  it('outstanding / overdue / dueWithin 都不含作廢單', async () => {
+    for (const qs of ['outstanding=true', 'overdue=true', 'dueWithin=36500']) {
+      const { client } = fakeSupabase(rows as never);
+      const res = await appWith(client).request(`/?${qs}`);
+      const body = (await res.json()) as { data: Array<{ id: string }> };
+      // 斷言 id 不是 status —— 沒實作時作廢單被推導成 unpaid，斷言 status 會空轉變綠
+      expect(
+        body.data.map((r) => r.id),
+        qs,
+      ).toEqual(['00000000-0000-0000-0000-000000000001']);
+    }
+  });
+
+  it('status=void 只回作廢單', async () => {
+    const { client } = fakeSupabase(rows as never);
+    const res = await appWith(client).request('/?status=void');
+    const body = (await res.json()) as { data: Array<{ status: string }>; meta: { total: number } };
+
+    expect(body.data.map((r) => r.status)).toEqual(['void']);
+    expect(body.meta.total).toBe(1);
+  });
+});

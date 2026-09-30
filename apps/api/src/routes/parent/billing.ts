@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../../index';
 import { isChildAllowed } from '../../lib/child-scope';
 import { INVOICE_SELECT, toInvoiceResponse, type InvoiceResponse } from '../../lib/invoice-query';
+import { isOpenInvoice } from '../../lib/invoice-status';
 import { DbUuidSchema } from '../../lib/validation';
 
 /**
@@ -37,9 +38,11 @@ const ParentInvoiceSchema = z
     id: DbUuidSchema,
     issuedAt: z.string(),
     dueDate: z.string().nullable(),
-    status: z.enum(['unpaid', 'partial', 'paid']),
+    status: z.enum(['unpaid', 'partial', 'paid', 'void']),
     total: z.number(),
     netPaid: z.number(),
+    /** #898。作廢理由與經手人不外流（跟 note 一樣是行政內部），只給時間 */
+    voidedAt: z.string().nullable(),
     items: z.array(ParentInvoiceItemSchema),
     payments: z.array(ParentPaymentRecordSchema),
     createdAt: z.string(),
@@ -75,6 +78,7 @@ function toParentInvoice(invoice: InvoiceResponse) {
     status: invoice.status,
     total: invoice.total,
     netPaid: invoice.netPaid,
+    voidedAt: invoice.voidedAt,
     items: invoice.items.map((item) => ({
       id: item.id,
       type: item.type,
@@ -154,7 +158,8 @@ app.openapi(
     const mapped = pageRows.map((row) => toParentInvoice(toInvoiceResponse(row)));
     const totalDue = allRows
       .map((row) => toInvoiceResponse(row))
-      .filter((invoice) => invoice.status !== 'paid')
+      // isOpenInvoice 而不是 `!== 'paid'` —— 作廢單的 total − netPaid 是全額（#898）
+      .filter((invoice) => isOpenInvoice(invoice.status))
       .reduce((sum, invoice) => sum + (invoice.total - invoice.netPaid), 0);
 
     return c.json(

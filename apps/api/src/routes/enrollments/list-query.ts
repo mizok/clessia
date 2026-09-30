@@ -55,9 +55,12 @@ export function buildSelect(filtersCampus?: boolean, hasInvoice?: boolean): stri
         // `invoice_items=is.null` 的過濾（沒有任何帳單項目的）。
         // **兩種都跟 `count: 'exact'` 相容** —— 本機 PostgREST 實測：
         // 全部 24、有帳單 1、沒帳單 23，加起來對得上。
+        // #898：帶上帳單的 voided_at —— 作廢單上的明細不算開過帳，過濾
+        // （`invoice_items.invoices.voided_at is null`）下在路由上。
+        // ⚠️ 這條巢狀過濾配 `is.null` 的語意要打真的 PostgREST 驗（charter：join 語意實測）。
         hasInvoice
-        ? ', invoice_items!inner(id)'
-        : ', invoice_items(id)';
+        ? ', invoice_items!inner(id, invoices!inner(voided_at))'
+        : ', invoice_items(id, invoices!inner(voided_at))';
 
   return `${SELECT_COLUMNS}, ${filtersCampus ? 'classes!inner' : 'classes'}${SELECT_RELATIONS}${invoiceJoin}`;
 }

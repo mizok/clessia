@@ -263,3 +263,42 @@ describe('GET /api/reports/revenue —— 到期日當天還沒逾期', () => {
     expect(body.summary.overdueOutstanding).toBe(0);
   });
 });
+
+/**
+ * #898：作廢單的**應收**不算，**現金**照算。
+ *
+ * 作廢要求淨額歸零，所以作廢單上的收款與退款是真的發生過的現金流（收了又退），
+ * 實收／退款兩欄照列、互相抵銷；但它開出來的那筆應收已經不存在了 ——
+ * 算進去的話 billed 虛增、未收與逾期各多出整張。
+ */
+describe('GET /api/reports/revenue —— 作廢單不算應收（#898）', () => {
+  it('作廢單的金額不進 billed / outstanding / overdueOutstanding', async () => {
+    const live = invoiceRow({
+      id: 'inv-live',
+      issuedAt: '2026-09-01',
+      dueDate: '2026-09-02',
+      amount: 3000,
+      paid: 0,
+      campusId: CAMPUS_MINE,
+      campusName: '中正分校',
+    });
+    const voided = {
+      ...invoiceRow({
+        id: 'inv-void',
+        issuedAt: '2026-09-01',
+        dueDate: '2026-09-02',
+        amount: 5000,
+        paid: 0,
+        campusId: CAMPUS_MINE,
+        campusName: '中正分校',
+      }),
+      voided_at: '2026-09-10T00:00:00Z',
+    };
+
+    const body = await revenue([live, voided]);
+
+    expect(body.summary.billed).toBe(3000);
+    expect(body.summary.outstanding).toBe(3000);
+    expect(body.summary.overdueOutstanding).toBe(3000);
+  });
+});

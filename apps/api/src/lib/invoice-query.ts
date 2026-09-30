@@ -11,6 +11,7 @@ import { deriveInvoiceStatus, invoiceTotals } from './invoice-status';
  */
 export const INVOICE_SELECT =
   'id, org_id, student_id, issued_at, due_date, note, created_by, created_at, updated_at,' +
+  ' voided_at, voided_by, void_reason,' +
   ' students(name),' +
   ' invoice_items(id, type, enrollment_id, amount, billing_period_id, period_month, note, created_at),' +
   ' payment_records(id, kind, amount, method, paid_at, proof_path, receipt_no, note, recorded_by, created_at)';
@@ -52,6 +53,7 @@ export function toInvoiceResponse(row: Record<string, unknown>) {
 
   const { total, net } = invoiceTotals(items, payments);
   const student = row['students'] as { name?: string } | null;
+  const voidedAt = (row['voided_at'] as string | null) ?? null;
 
   return {
     id: row['id'] as string,
@@ -61,9 +63,13 @@ export function toInvoiceResponse(row: Record<string, unknown>) {
     issuedAt: row['issued_at'] as string,
     dueDate: (row['due_date'] as string | null) ?? null,
     note: (row['note'] as string | null) ?? null,
-    status: deriveInvoiceStatus(items, payments),
+    status: deriveInvoiceStatus(items, payments, voidedAt !== null),
     total,
     netPaid: net,
+    // #898。家長端不帶 voidReason（跟 note 一樣是行政內部）
+    voidedAt,
+    voidedBy: (row['voided_by'] as string | null) ?? null,
+    voidReason: (row['void_reason'] as string | null) ?? null,
     items,
     payments,
     createdAt: row['created_at'] as string,

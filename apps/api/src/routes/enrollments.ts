@@ -525,7 +525,8 @@ app.openapi(
     if (status) query = query.eq('status', status);
 
     // `true` 的過濾由 select 裡的 `!inner` 完成；`false` 要再下這一條
-
+    // 兩個方向都先把作廢單的明細篩掉（#898）—— 作廢 = 收費項回到未開帳
+    if (hasInvoice !== undefined) query = query.is('invoice_items.invoices.voided_at', null);
     if (hasInvoice === false) query = query.is('invoice_items', null);
 
     const periodFilter = buildPeriodFilter(from, to);

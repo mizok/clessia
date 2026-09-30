@@ -78,13 +78,23 @@ describe('buildSelect 的 hasInvoice', () => {
   });
 
   it('要「有帳單」時用 inner join', () => {
-    expect(buildSelect(false, true)).toContain('invoice_items!inner(id)');
+    expect(buildSelect(false, true)).toContain('invoice_items!inner(id, invoices!inner(voided_at))');
   });
 
   it('要「沒帳單」時用 left join（過濾靠 is.null，不是 join）', () => {
     const select = buildSelect(false, false);
-    expect(select).toContain('invoice_items(id)');
+    expect(select).toContain('invoice_items(id, invoices!inner(voided_at))');
     expect(select).not.toContain('invoice_items!inner');
+  });
+
+  /**
+   * #898：作廢單上的明細**不算開過帳** —— 作廢 = 收費項回到未開帳（裁決 B），
+   * 所以「未開帳」清單要把它列回來。兩個方向都帶上帳單的 voided_at，
+   * 過濾（`invoice_items.invoices.voided_at is null`）下在路由上。
+   */
+  it('兩個方向都帶上帳單的作廢狀態（#898）', () => {
+    expect(buildSelect(false, true)).toContain('invoices!inner(voided_at)');
+    expect(buildSelect(false, false)).toContain('invoices!inner(voided_at)');
   });
 
   it('跟 campusId 的 inner join 並存', () => {
