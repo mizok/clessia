@@ -832,16 +832,21 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 
 | 部署時間(台北) | 截線 SHA | web bundle | api version id | 正式 DB 套到 | 部署者 |
 | --- | --- | --- | --- | --- | --- |
-| 2026-09-13 09:5x | `fce7c2b6` | `main-VWXREIM7.js` | `2d198aac` | **不明**(見下) | labor-reviewer |
+| 2026-09-13 15:1x | `cac1afb5` | `main-VUM3OUNI.js` | `89104040` | **`20260913101500`** | labor-reviewer |
+| 2026-09-13 09:5x | `fce7c2b6` | `main-VWXREIM7.js` | `2d198aac` | 不明(見下) | labor-reviewer |
 | 2026-09-13 00:3x | `b5b8ac92` | `main-AQOBVFQF.js` | `fc287869` | 不明 | review-steward |
 | 2026-09-12 14:2x | `924c9ac2` | `main-UNYN3OOY.js` | `11b95f6d` | 不明 | review-steward |
 | (在那之前) | 不明 | `main-PWQOIY54.js` | 不明 | 不明 | 不明,約一週前 |
 
-> **2026-09-13 收工時的 ⓪ 現況(寫在這裡而不是快照,因為快照那一節會被清空)**:
-> 部署**叫停中** —— `supabase/migrations/20260913101500_audit_logs_subject_organization_resource_types.sql`
-> **尚未套進正式 DB**,截線 `fce7c2b6` 之後 main 已累積 **47 筆**未上線。
-> 線上仍是 `main-VWXREIM7.js` / api `2d198aac`(當日多次實測,無人插隊)。
-> **使用者套完之後由當班計畫席叫部署席**,不要自行開跑。
+> **2026-09-13 的 ⓪ 走完一輪,結案**:那支 migration 曾讓部署叫停約五小時,
+> 使用者親自套進正式 DB 之後放行,截線 `cac1afb5` 已上線(46 筆)。
+> **這是 ⓪ 這道檢查第一次真的擋住東西,而它擋對了** ——
+> `logAudit` 是 fire-and-forget,DB 沒套的話症狀是線上靜默 0 筆。
+>
+> **使用者的驗證方式值得記**:`pg_get_constraintdef` 的輸出在 Dashboard 表格裡
+> **被截斷在 `'student'`**,而新加的兩個值在最後面 —— **舊 constraint 的前半段長得一模一樣**。
+> 所以改用布林:`... like '%''subject''%' as has_subject` ——
+> **兩個 `true` 才是證據,截斷的字串不是。**
 
 **「正式 DB 套到」這一欄只能由使用者填** —— repo 裡沒有任何指令查得到它
 (`package.json` 的 `db:*` 全部指向本機 supabase),所以它不是查出來的,是**報出來的**。
