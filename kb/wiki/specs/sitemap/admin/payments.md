@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-09-30
 ---
 
 # 繳費紀錄
@@ -390,3 +390,60 @@ updated: 2026-09-13
 | --- | --- |
 | **`Escape` / 真滑鼠重試** | 需要前景分頁（方法頁坑 12）。**「重試鈕按了會不會真的重打」沒有驗** |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |
+
+## 寫入實按（Phase 2-B 第 7 輪，2026-09-30）
+
+基線見 [[specs/sitemap/admin/fee-templates]] 的「實按結果」一節（同一輪、同一組）。
+開按前 `invoices=50` / `invoice_items=51` / `payment_records=10` / `payment_reminders=1`。
+
+| 鈕 | 端點 | 結果 |
+| --- | --- | --- |
+| `手動開帳` → `開立帳單` | `POST /api/invoices` | ✅ `invoices` +1、`invoice_items` +1；toast「已開立帳單 · 張宇軒 · 100 元」；audit `invoice` / `create`（`details` 空） |
+| 橫幅「有 N 筆…還沒開過帳單」→ 列上的 `開帳` | `POST /api/invoices` | ✅ 同上（累計 `invoice/create` 2 筆） |
+| 帳單詳情 `記錄收款` → `記錄收款` | `POST /{id}/payments` | 🔴 **失敗**，見下 |
+| 帳單詳情 `記一次`（催繳） | `POST /{id}/reminders` | ✅ `payment_reminders` +1，**但畫面沒更新**，見下 |
+
+### 🔴 `記錄收款` 在本機 demo 必然失敗（收據號計數器與資料不同步）
+
+toast 是**原始的 Postgres 錯誤**：
+
+> 記錄失敗
+> `duplicate key value violates unique constraint "payment_records_org_receipt_no_unique"`
+
+**產品本身是對的**：`receipt_no` 由 DB 的 `BEFORE INSERT` trigger 取號
+（`20260829120000_create_invoices_payments.sql:168`），用的是 `receipt_counters` 計數表
+而不是 `max+1` —— route 的註解（`invoices.ts:491`）還特地寫明為什麼不用 `max+1`。
+
+**壞的是 seed**：
+
+```
+receipt_counters.next_no = 3
+payment_records 實際 max(receipt_no) = 10
+兩支 seed 對 receipt_counters 的寫入次數 = 0
+```
+
+seed 直接 `INSERT` 了 10 筆收款**並指定 `receipt_no`**，而 trigger 開頭是
+`IF NEW.receipt_no IS NOT NULL THEN RETURN NEW`（「明確指定號碼時不覆寫，資料搬遷用」）——
+**於是計數器完全沒前進**。從 UI 收款時 trigger 取到 3，撞上 seed 已經用掉的 3。
+
+已開 issue：**#907**。⚠️ **showcase 會用這份 demo 資料，而「記錄收款」是繳費流程的主線**。
+
+> **這是 charter 那條「seed 會讓一整條產品路徑看起來是通的」的反面**：
+> 這一次 seed 讓一條**好的**路徑看起來是壞的。
+> 兩個方向的共同點是 **seed 直接寫資料會繞過產品自己的機制**（那裡是 `user_roles`，這裡是 trigger）。
+
+### 催繳成功了，但詳情對話框仍說「還沒有催繳過」
+
+`payment_reminders` 1 → 2（DB 確認），而帳單詳情的「催繳記錄」區塊沒有重繪。
+**零 `audit_logs`**（見 #901）。
+
+### ⚠️ 這一頁把我騙了兩次，兩次都是 toast
+
+1. **toast 會留著**：收款失敗的 toast 還掛在畫面上時，我按了另一顆成功的鈕，
+   讀到的仍是那兩行失敗訊息 —— 差點把成功的「開帳」記成失敗。
+2. **第一次按 `記錄收款` 我完全沒看到 toast**（等了 2.5 秒才讀），
+   於是以為「按了沒反應」。**是 DB 與 `ng.getComponent` 的 `form()` 一起把真相還原的**：
+   model 的 `amount` 是 60、`saving` 是 false、而 `payment_records` 沒變 ⇒ 送出過且失敗了。
+
+> **判準：toast 是最不可靠的證據來源** —— 它會消失、會殘留、會是上一顆的。
+> 每一顆按完查一次 DB 那條，**在這一頁是唯一能分辨成敗的手段**。

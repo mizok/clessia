@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-09-30
 ---
 
 # 人員管理
@@ -466,6 +466,18 @@ updated: 2026-09-13
 **UI 上沒有任何刪除人員的入口。** 封存後的 ⋮ 只剩 `編輯 / 授課紀錄 / 產生登入連結`。
 所以 `QA-758-R2 測試人員-改名`（`archived`）與它的 `ba_user`、`ba_verification`
 **留在本機，要等 `db:reset` 才會消失**。
+
+> **⚠️ 2026-09-30 訂正（#836 之後實按）**：這一段下面原本寫「`DELETE /api/staff/{id}` 是存在的，
+> 刪 `staff` 與 `user_roles`」。**#836 把它改成不刪了** —— 端點還在，但**回 409 並指向封存**
+> （`staff.ts` 的 delete handler：「不刪，回 409 並說出該走哪條路。UI 本來就沒有刪除入口」）。
+>
+> **UI 這一半本輪重驗過，仍然成立**：啟用中人員的 ⋮ 是
+> `編輯 / 授課紀錄 / 產生登入連結 / 停用帳號 / 封存帳號` 五項，**沒有刪除**。
+>
+> **#836 的另一半「建立同 email 會接管孤兒 `ba_user`」未驗**：要造一個孤兒
+> 必須繞過 UI 直接刪 `staff` 列，而那個 `DELETE` 被 auto-mode 分類器擋下
+> （`Modify Shared Resources`）—— **它本來就該擋**，所以這件在 UI 地圖的方法裡驗不了，
+> 留給有 DB 權限的席或單元測試。
 
 > **`DELETE /api/staff/{id}` 是存在的**（`staff.ts:1630`，刪 `staff` 與 `user_roles`），
 > **但全前端沒有任何元件呼叫它** —— #758 的待按清單裡 `staff.page.ts` 只列了

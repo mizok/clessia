@@ -352,3 +352,53 @@ updated: 2026-09-30
    所以 `grep -oE "action: '[a-z_.]+'"` **抓不到它**，會讓人以為收款不留稽核。
    > 「查得太窄」這一輪的形狀是**正則假設了值是字面量**。
    > 前三輪分別是：查錯表／欄、`in (...)` 白名單、`tail` 截斷輸出。
+
+## 實按結果（2026-09-30，13 顆全按）
+
+**基線**：RESET #4（12:25:36）＋ main `f9656aca` 的兩支 seed，**量測日 2026-09-30**
+（日期是基線的一部分，見 `herdr-team/labor-8.md`）。開按前
+`fee_templates=4`（3 啟用 + 1 停用）／`billing_periods=2`／`invoices=50`／`invoice_items=51`／
+`payment_records=10`／`payment_reminders=1`／`meal_records=24`／`audit_logs=0`。
+
+### 本頁的 7 顆：全部符合預期
+
+| # | 鈕 | 結果 |
+| --- | --- | --- |
+| 1 | 收費期間 `新增期間` → `儲存` | ✅ `billing_periods` +1；toast「新增成功」；audit `billing_period` / `create`（`details` 空 `{}`） |
+| 2 | 收費期間 `編輯` → `儲存` | ✅ toast「更新成功」；audit `update` |
+| 3 | 收費期間 `刪除` → `刪除` | ✅ 回到基線 2；audit `delete`。確認文案：`確定要刪除「X」嗎？此操作無法復原。` |
+| 4 | 價目表 `新增價目表` → `儲存` | ✅ `fee_templates` +1；audit `fee_template` / `create` |
+| 5 | 價目表 `編輯` → `儲存` | ✅ 定價 3,500 → 4,200；audit `update` |
+| 6 | 價目表列上的 `停用` | ✅ **沒有確認對話框，直接送出**；toast「不會再出現在報名選單」；走的是 `PUT`（audit 記 `update` 不是 `deactivate`） |
+| 7 | 價目表 `刪除` → `刪除` | ✅ 回到基線 4；audit `delete` |
+
+**`audit_logs` 逐筆對上**：`billing_period` create/update/delete 各 1，
+`fee_template` create 1 / **update 3** / delete 1 —— update 那 3 筆是「編輯定價 + 停用 + 啟用」，
+**停用與啟用都走同一支 `PUT`**，稽核上分不出它們。
+
+### 順手驗到：`!isActive` 列的選單（本頁原本未驗）
+
+停用之後那一列**從預設清單消失**，要按 `顯示停用方案`（按下去變成 `隱藏停用方案`）才看得到。
+`!isActive` 列的 ⋮ 是 **`編輯` / `啟用` / `刪除` 三項** —— 跟本頁上方表格記的一致。
+按 `啟用` 的 toast 是「已重新啟用」。
+
+⚠️ **它不是 `p-toggleswitch`**（我先照地圖的印象去找 switch，`P.$$('p-toggleswitch')` 回 0）——
+**是一顆會換字的 `button`**。
+
+### `刪除` 的確認文案已經把 `IN_USE` 寫進去了
+
+> 確定要刪除「X」嗎？此操作無法復原。**已經被報名引用過的價目表刪不掉，請改為停用。**
+
+所以 409 那條分支**在按之前就被文案講明了**，不必真的去撞。
+（`fee-templates.ts` 的 `IN_USE` 409 與 `billing-periods.ts` 的「這個期間已被使用」仍未實撞，
+需要拿 seed 的價目表去按 —— 那是**失敗分支、不寫入**，下一輪可補。）
+
+### 兩個 `p-datepicker` 都是 0×0，連第一個也是
+
+第 6 輪記的是「第一個點得動、之後全塌」，**本輪第一個就塌了**
+（`getBoundingClientRect()` 量到 0×0，父層 `p-motion`）。
+走退路：`ng.getComponent(<APP-BILLING-PERIOD-FORM-DIALOG>)` 設 `form` signal 的
+`startDate` / `endDate` 再 `applyChanges`。⚠️ **那是「設模型」不是「按 UI」。**
+
+> 所以那條的範圍要再收窄一次：**不是「第一個可以」，是「有時候第一個可以」** ——
+> 可靠的做法是**先量尺寸再決定走哪條路**，不要依賴上一輪的結論。
