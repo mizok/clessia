@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-09-30
 ---
 
 # 儀表板
@@ -271,3 +271,79 @@ updated: 2026-09-13
 | --- | --- |
 | **`Escape` / 真滑鼠重試** | 需要前景分頁（方法頁坑 12）。**「重試鈕按了會不會真的重打」沒有驗** |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |
+
+## 第 8＋9 輪的「預期」欄（⚠️ 推的，不是看到的；2026-09-30）
+
+> 做法同第 7 輪：**按之前先從原始碼推一遍**，按完逐格標「✅ 符合」或「🔴 不符合 + 實際」。
+> 基線用 `labor-db-reset` 的 RESET #6 憑證（**含 #909 的 seed**）。
+
+### ⚠️ 先訂正顆數：不是 5 顆，是 **15 顆**
+
+待按清單把共用元件獨立列成第 10 節（10 顆），並註明「**跟著它的宿主頁一起按**」。
+逐頁檢查 `kb/wiki/specs/sitemap/_shared/` 之後：**那 10 顆一顆都還沒按**
+（`subject-manager` / `announcement-inbox` / `attendance-roster-panel` /
+`contact-book-entry-dialog` 四頁都沒有「寫入實按」節；`parent-form-dialog` 連頁都還沒有）。
+
+| 輪 | 顆數 | 內容 |
+| --- | --- | --- |
+| 8 | 3 | `daily-checkins` ×2（儀表板）、`announcements.create`（通知中心） |
+| 9 | 2 | `class-logs` ×2（老師端課堂日誌） |
+| 9（共用） | **10** | 上述四個元件 + `parent-form-dialog` |
+| **合計** | **15** | |
+
+> ⚠️ **`parent-form-dialog` 不等於第 5 輪按過的那兩個**：第 5 輪按的是
+> `parent-detail-dialog`（`parents.update`）與 `parent-import-dialog`（批次）。
+> **「新增家長」那顆走的是 `parent-form-dialog`，還沒按過。**
+
+### 逐顆預期
+
+| # | 鈕 | 端點（推） | 寫哪張表（推） | `audit_logs`（推） | 反向動作（推） |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 儀表板 `到班打卡` | `POST /api/daily-checkins` | `daily_checkins` + `attendance_records` | 有（`daily-checkins.ts` 2 處 `logAudit`） | ✅ 第 2 顆 |
+| 2 | 儀表板 `取消打卡` | `DELETE /api/daily-checkins/{id}` | 同上 | 有 | ✅ 互為反向 |
+| 3 | 通知中心 `發佈公告` | `POST /api/announcements` | `announcements` | **零** —— `announcements.ts` 全檔沒有 `logAudit` | 🔴 **無**（service 零 delete，API 只有 3 個 POST） |
+| 4 | 公告收件匣 `標記已讀` | `POST /api/announcements/{id}/read` | `announcement_reads` | **零** | 🔴 無 |
+| 5 | 公告收件匣 `全部標記已讀` | `POST /api/announcements/read-all` | `announcement_reads` | **零** | 🔴 無 |
+| 6 | 老師端日誌 `儲存` | `PUT /api/class-logs` | `class_logs` | 有（3 處） | 🔴 **無 DELETE 端點** |
+| 7 | 老師端日誌 `發布` | `POST /api/class-logs/{id}/publish` | `class_logs.published_at` | 有 | 🔴 **不可逆**，見下 |
+| 8 | 聯絡簿 `儲存` | `PUT /api/contact-book` | `contact_book_entries` | 有（2 處） | 🔴 無 DELETE |
+| 9 | 點名 `儲存出缺席` | `PATCH /api/attendance` | `attendance_records` + `events` | 有（`attendance.ts` 8 處） | ✅ **來回**（改既有列，不新增） |
+| 10 | 點名 `取消請假` | `POST /api/attendance/cancel-leave` | `attendance_records` + `leave_requests` | 有 | ⚠️ 反向是**跨頁**的 `leaves.create`（第 5 輪驗過） |
+| 11 | 新增家長 → 送出 | `POST /api/parents` | `ba_user` + `parents` | 有 | 🔴 **無**（第 5 輪已證：家長 UI 零刪除入口） |
+| 12 | 編輯家長 → 送出 | `PUT /api/parents/{id}` | 同上 | 有 | ✅ 來回 |
+| 13 | 科目 `新增` | `POST /api/subjects` | `subjects` | 有 | ✅ 第 15 顆 |
+| 14 | 科目 `改名` | `PUT /api/subjects/{id}` | `subjects` | 有 | ✅ 來回 |
+| 15 | 科目 `刪除` | `DELETE /api/subjects/{id}` | `subjects` | 有 | ✅ 反向本身（seed 備了「示範可刪科目」） |
+
+### `class-logs.publish` 是這 15 顆裡唯一「不可逆」的
+
+`class-logs.ts:252-254` 逐字：
+
+```ts
+// 已經發布過就不重設時間 —— published_at 是「第一次公開」的時間點
+const publishedAt = (existing['published_at'] as string | null) ?? new Date().toISOString();
+```
+
+**沒有 unpublish 端點，`PUT`（upsert）也不會把它設回 `NULL`**，而整支路由**沒有 DELETE**。
+所以「發布」按下去之後，那篇日誌**永遠是已發布**。
+
+> 這是第 7 輪那條判準的第三個實例：**可回收性住在端點的前置檢查與缺席的端點裡，不在 FK 裡。**
+> 前兩個是 `HAS_SCORES`（#886）與 `invoices` 沒有 DELETE 路由（#898）。
+
+### `announcements.ts` 全檔零 `logAudit` —— #901 沒涵蓋到它
+
+#901 開的是**餐費批次登錄**與**帳單催繳**兩處零稽核。
+**公告的三顆（發佈／標記已讀／全部已讀）也是零**，而「發佈公告」是會送到所有人眼前的動作。
+**本輪照實記，不開新單** —— 建議計畫席併進 #901 的範圍（`announcement` 這個 resourceType
+在 TS union 與 DB CHECK 裡有沒有，我沒查，留給修那支的人）。
+
+### reset 判定：**要**
+
+| 堆 | 顆數 | 顆 |
+| --- | --- | --- |
+| 可回收 | 7 | 1, 2, 9, 12, 13, 14, 15 |
+| ⚠️ 跨頁回收 | 1 | 10（反向在請假頁） |
+| **單向** | **7** | 3, 4, 5, 6, 7, 8, 11 |
+
+第 8 輪單獨看只有第 3 顆是單向；**第 9 輪那 12 顆有 6 顆單向**。
+兩輪合起來一次 reset 收尾是對的。
