@@ -106,6 +106,7 @@
           [rounded]="true"
           severity="secondary"
           size="small"
+          [ariaLabel]="cls().name + ' 的操作'"
           (onClick)="openMenu.emit($event); $event.stopPropagation()"
         />
       </div>

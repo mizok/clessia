@@ -107,6 +107,7 @@
               [text]="true"
               severity="secondary"
               size="small"
+              [attr.aria-label]="session.className + ' · ' + session.courseName + ' 的操作'"
               (click)="openContextMenu($event, session)"
             ></button>
           </td>
