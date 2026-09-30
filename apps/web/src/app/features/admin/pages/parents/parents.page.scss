@@ -39,7 +39,7 @@
   }
 
   &__card {
-    background: #fff;
+    background: var(--color-white);
     border-radius: var(--radius-xl);
     border: 1px solid var(--zinc-200);
     box-shadow: var(--shadow-sm);
@@ -136,7 +136,7 @@
     border-radius: 50%;
     background: linear-gradient(135deg, hsl(var(--h, 210) 31% 36%), hsl(var(--h, 210) 36% 30%));
     box-shadow: 0 2px 5px -1px hsl(var(--h, 210) 31% 36% / 0.22);
-    color: #fff;
+    color: var(--color-white);
     font-size: 13px;
     font-weight: var(--font-bold);
     display: flex;

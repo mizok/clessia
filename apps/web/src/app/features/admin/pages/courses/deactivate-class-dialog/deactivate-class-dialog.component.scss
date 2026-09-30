@@ -19,7 +19,7 @@
     padding: var(--space-5);
     border: 1px solid var(--zinc-200);
     border-radius: var(--radius-xl);
-    background: linear-gradient(180deg, #fff 0%, rgba(250, 250, 250, 0.8) 100%), var(--zinc-50);
+    background: linear-gradient(180deg, var(--color-white) 0%, rgba(250, 250, 250, 0.8) 100%), var(--zinc-50);
   }
 
   &__hero-icon {
@@ -69,7 +69,7 @@
     border: 1px solid var(--zinc-200);
     border-radius: var(--radius-lg);
     padding: var(--space-4);
-    background: #fff;
+    background: var(--color-white);
     min-height: 100%;
   }
 
@@ -100,7 +100,7 @@
 
   &__option--danger {
     border-color: var(--error-100);
-    background: linear-gradient(180deg, rgba(254, 242, 242, 0.6) 0%, #fff 100%);
+    background: linear-gradient(180deg, rgba(254, 242, 242, 0.6) 0%, var(--color-white) 100%);
   }
 
   &__option--neutral {

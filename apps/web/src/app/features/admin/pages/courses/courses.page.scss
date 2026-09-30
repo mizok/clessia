@@ -48,7 +48,7 @@
   }
 
   &__card {
-    background: #fff;
+    background: var(--color-white);
     border-radius: var(--radius-xl);
     border: 1px solid var(--zinc-200);
     box-shadow: var(--shadow-sm);
@@ -162,7 +162,7 @@
     padding: 0 4px;
     border-radius: var(--radius-full);
     background: var(--accent-500);
-    color: #fff;
+    color: var(--color-white);
     font-size: 10px;
     font-weight: var(--font-bold);
     line-height: 1;

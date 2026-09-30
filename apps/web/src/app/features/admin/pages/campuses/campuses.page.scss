@@ -49,7 +49,7 @@
 
   // Main Content Card
   &__card {
-    background: #fff;
+    background: var(--color-white);
     border-radius: var(--radius-xl);
     border: 1px solid var(--zinc-200);
     box-shadow: var(--shadow-sm);

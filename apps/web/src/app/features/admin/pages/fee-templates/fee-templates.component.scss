@@ -55,7 +55,7 @@
     @include bp.respond-from('tablet-portrait') {
       padding: var(--space-5);
     }
-    background: #fff;
+    background: var(--color-white);
     border: 1px solid var(--zinc-200);
     border-radius: var(--radius-xl);
   }
