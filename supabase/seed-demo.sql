@@ -909,9 +909,13 @@ BEGIN
        WHERE org_id = demo_org_id AND event_date = CURRENT_DATE - 4
          AND title = '展示用：同日第 ' || v_i || ' 堂' LIMIT 1;
 
+      -- **兩堂都 `on_leave` 是刻意的**：請假是「整天」的概念，同一天的兩堂本來就該一起請。
+      -- 它同時讓檔尾 #916 補齊的 `GROUP BY (學生, 日期)` 分支**真的被走到** ——
+      -- 在這之前本機的 `distinct(student, event_date)` 恰好等於 `on_leave` 總數，
+      -- 也就是那個分支從來沒有執行過，而**沒被執行過的去重邏輯不算被驗過**。
       INSERT INTO public.attendance_records (org_id, event_id, student_id, status, note, recorded_by, recorded_by_role)
       SELECT demo_org_id, v_event_id, v_side_student,
-             (ARRAY['present','on_leave'])[v_i]::public.attendance_status,
+             'on_leave'::public.attendance_status,
              '展示用：同一天的第 ' || v_i || ' 筆', '22222222-2222-2222-2222-222222222222', 'admin'
       WHERE NOT EXISTS (
         SELECT 1 FROM public.attendance_records WHERE event_id = v_event_id AND student_id = v_side_student
@@ -1116,10 +1120,29 @@ BEGIN
   -- **這個不變量的理由**：點名面板的「請假」標記讀 `attendance_records.status`，
   -- 而「他來了」（銷假）去找 `leave_requests` —— 兩個真相來源。
   -- 少了請假單，demo 上每一顆銷假鈕都會回「這個學生當天沒有請假」。
+  -- `reason` 與 `submitted_by` 都**由資料決定、不用 random** —— reset 要可重現。
+  -- 理由：學生 UUID 首字元的碼 + 日期，同一人同一天永遠是同一個理由。
+  -- 申請人：**該學生自己的家長**（`is_primary` 優先）；沒有家長的學生才退回管理員，
+  -- `submitted_by_role` 跟著一起換 —— 一整頁都是同一個帳號送出的請假看起來就是假的。
   INSERT INTO public.leave_requests (org_id, student_id, start_date, end_date,
                                      reason, submitted_by, submitted_by_role)
   SELECT ar.org_id, ar.student_id, e.event_date, e.event_date,
-         '展示用：當日請假', '22222222-2222-2222-2222-222222222222', 'parent'
+         (ARRAY['生病','家庭因素','學校活動','看牙醫','家族旅遊','身體不適'])[
+           1 + ((EXTRACT(DAY FROM e.event_date)::int
+                 + ascii(substr(ar.student_id::text, 1, 1))) % 6)],
+         COALESCE(
+           (SELECT p.user_id
+              FROM public.parent_student_relations psr
+              JOIN public.parents p ON p.id = psr.parent_id
+             WHERE psr.student_id = ar.student_id
+             ORDER BY psr.is_primary DESC
+             LIMIT 1),
+           '22222222-2222-2222-2222-222222222222'
+         ),
+         CASE WHEN EXISTS (
+                SELECT 1 FROM public.parent_student_relations psr
+                 WHERE psr.student_id = ar.student_id
+              ) THEN 'parent' ELSE 'admin' END
     FROM public.attendance_records ar
     JOIN public.events e ON e.id = ar.event_id
    WHERE ar.status = 'on_leave'
