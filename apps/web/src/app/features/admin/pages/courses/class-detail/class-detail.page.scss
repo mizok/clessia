@@ -190,6 +190,11 @@
     padding: var(--space-3) var(--space-4);
     background: #fff;
     cursor: pointer;
+
+    /* 觸控門檻只在 coarse 底下宣告 —— 跟 styles.scss:176 同一個原則：桌機完全不受影響 */
+    @media (pointer: coarse) {
+      min-height: 44px;
+    }
     user-select: none;
     border-left: 3px solid transparent;
     transition:
@@ -359,6 +364,11 @@
     background: none;
     border: none;
     cursor: pointer;
+
+    /* 觸控門檻只在 coarse 底下宣告 —— 跟 styles.scss:176 同一個原則：桌機完全不受影響 */
+    @media (pointer: coarse) {
+      min-height: 44px;
+    }
     padding: var(--space-2);
     border-radius: var(--radius-sm);
     color: var(--zinc-400);

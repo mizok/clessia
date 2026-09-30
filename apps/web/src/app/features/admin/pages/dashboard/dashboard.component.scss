@@ -52,6 +52,11 @@
   font-weight: var(--font-semibold);
   color: var(--band-ink);
   cursor: pointer;
+
+  /* 觸控門檻只在 coarse 底下宣告 —— 跟 styles.scss:176 同一個原則：桌機完全不受影響 */
+  @media (pointer: coarse) {
+    min-height: 44px;
+  }
   background: none;
   border: 1px solid var(--band-rule);
   border-radius: var(--radius-full);

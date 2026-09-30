@@ -62,6 +62,7 @@
   "touch-target": {
     "roots": [
       "apps/web/src/app/features/admin",
+      "apps/web/src/app/features/parent",
       "apps/web/src/app/features/public",
       "apps/web/src/app/features/select-role",
       "apps/web/src/app/features/teacher",
