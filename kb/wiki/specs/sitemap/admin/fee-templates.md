@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-09-30
 ---
 
 # 費用方案管理
@@ -308,3 +308,47 @@ updated: 2026-09-13
 | --- | --- |
 | **`Escape` / 真滑鼠重試** | 需要前景分頁（方法頁坑 12）。**「重試鈕按了會不會真的重打」沒有驗** |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |
+
+## 第 7 輪 13 顆的「預期」欄（⚠️ 從原始碼推的，**不是看到的**）
+
+> **這一節寫在實按之前**，目的是讓「按下去之後看到什麼」有一個可以被否證的對照。
+> 每一格都是讀 `apps/api/src/routes/*.ts` 與 `apps/web/src/app/core/*.service.ts` 推出來的；
+> **實按之後會逐格標「✅ 符合」或「🔴 不符合 + 實際」**，不符合的那些才是這一輪的產出。
+> 基線：RESET #4（2026-09-30 12:25:36）＋ main `f9656aca` 的兩支 seed，
+> `audit_logs = 0`、`students = 69`（**69 是 09-30 這個日期的正確值**，見 charter 的 seed 日期那條）。
+
+| # | 鈕 | 端點（推） | 寫哪張表（推） | `audit_logs`（推） | 反向動作（推） |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 收費期間 `新增` → 送出 | `POST /api/billing-periods` | `billing_periods` | `billing_period` / `create` | ✅ 列上的 `刪除` |
+| 2 | 收費期間 `編輯` → 送出 | `PUT /{id}` | `billing_periods` | `billing_period` / `update` | ✅ 來回 |
+| 3 | 收費期間 `刪除` | `DELETE /{id}` | `billing_periods` | `billing_period` / `delete` | — |
+| 4 | 價目表 `新增` → 送出 | `POST /api/fee-templates` | `fee_templates` | `fee_template` / `create` | ✅ 列上的 `刪除` |
+| 5 | 價目表 `編輯` → 送出 | `PUT /{id}` | `fee_templates` | `fee_template` / `update` | ✅ 來回 |
+| 6 | 價目表列上的 `停用` / `啟用` | `PUT /{id}` | `fee_templates` | `fee_template` / `update` | ✅ 來回 |
+| 7 | 價目表 `刪除` | `DELETE /{id}` | `fee_templates` | `fee_template` / `delete` | — |
+| 8 | 餐費 `批次登錄` | `POST /api/meals` | `meal_records` | **零** —— `meals.ts` 全檔沒有 `logAudit` | 🔴 **無**（`meals.service` 零 delete） |
+| 9 | 帳單 `新增` → 送出 | `POST /api/invoices` | `invoices` + `invoice_items` | `invoice` / `create` | 🔴 **無**（#898） |
+| 10 | 未開單對話框 → 開立 | `POST /api/invoices` | 同上 | 同上 | 🔴 **無**（#898） |
+| 11 | 帳單詳情 `記錄收款` | `POST /{id}/payments` | `payment_records`＋改 `invoices.status` | `payment_record` / **`payment` 或 `refund`**（依 `body.kind`） | 🔴 **無** |
+| 12 | 帳單詳情 `建立催繳` | `POST /{id}/reminders` | `payment_reminders` | **零** —— 最後一個 `logAudit` 在 `:564`（收款），催繳的 handler 從 `:587` 起 | 🔴 **無** |
+| 13 | 餐費 `執行結算` | `POST /api/billing-runs` | `invoices` + `invoice_items` + `meal_records` | `billing_run` / `run` | 🔴 **無** |
+
+### 三件推的時候就該講清楚的
+
+1. **兩支 `DELETE` 都有 `IN_USE` 409 的前置檢查**
+   （`fee-templates.ts` 的「這份價目表已被報名引用，請改為停用」／
+   `billing-periods.ts` 的「這個期間已被使用，無法刪除」）——
+   所以自建的價目表與收費期間**不要綁到報名或帳單上**，否則輪末拆不掉。
+   這是 #886 教的那條（**可回收性住在 DELETE 端點開頭的前置檢查裡**）第一次拿來用在按之前。
+
+2. **`invoices` 沒有刪除或作廢路徑**（#898）：全檔對 `invoices` 表只有一顆 `.delete()`
+   且它在 handler 內部不是路由；唯一的 `DELETE` 路由是 `/{id}/items/{itemId}`（刪帳單裡的單一項目）。
+   加上 `status` 的 enum 只有 `unpaid | partial | paid`，**連作廢都沒有**。
+   ⚠️ 我第一次讀的時候把那顆 `DELETE` 當成「刪帳單的端點、只是 UI 沒接」——
+   **看到 `method: 'delete'` 要連 `path` 一起讀**。
+
+3. **`action` 不一定是字面量**：`:571` 是
+   `action: body.kind === 'refund' ? 'refund' : 'payment'`，
+   所以 `grep -oE "action: '[a-z_.]+'"` **抓不到它**，會讓人以為收款不留稽核。
+   > 「查得太窄」這一輪的形狀是**正則假設了值是字面量**。
+   > 前三輪分別是：查錯表／欄、`in (...)` 白名單、`tail` 截斷輸出。
