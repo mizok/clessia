@@ -347,3 +347,94 @@ const publishedAt = (existing['published_at'] as string | null) ?? new Date().to
 
 第 8 輪單獨看只有第 3 顆是單向；**第 9 輪那 12 顆有 6 顆單向**。
 兩輪合起來一次 reset 收尾是對的。
+
+## 實按結果（第 8＋9 輪，2026-09-30）
+
+**基線**：`labor-db-reset` RESET #7（15:04:25，HEAD `1573aae1`，哨兵四條全過，
+`audit_logs = 0` ＝零人為操作）。量測日 2026-09-30（日期是基線的一部分）。
+
+**15 顆裡按到 11 顆，4 顆未驗** —— 未驗的四顆**全部是「入口不存在或條件不滿足」**，不是漏按。
+
+### 按到的 11 顆
+
+| # | 鈕 | 結果 | 對預期 |
+| --- | --- | --- | --- |
+| 1 | 儀表板 `勾到班` | ✅ `daily_checkins` +1、`attendance_records` +1 | 🔴 **稽核不符**，見下 |
+| 2 | 儀表板 `取消` | ✅ 兩張表都回基線；audit `attendance` / `cancel_checkin`，`details` 含 `attendanceRecordsRemoved: 1` | ✅ |
+| 3 | 通知中心 `發布` | ✅ `announcements` 0→1；**零稽核** | ✅ |
+| 4 | 科目 `新增` | ✅ `subjects` +1；audit `subject` / `create`；**無 toast** | ✅ |
+| 5 | 科目改名（鉛筆 → 打勾） | ✅ audit `update`；**無 toast** | ✅ |
+| 6 | 科目 `刪除` → `刪除` | ✅ 回基線 9；audit `delete`；**無 toast** | ✅ |
+| 7 | 家長頁 `新增家長` → `建立家長` | ✅ `parents` +1，**接著自動開登入連結 QR 對話框**；audit `parent` / `create` | ✅ 並解掉兩件，見下 |
+| 8 | 聯絡簿 `補寫` → `寫入` | ✅ `contact_book_entries` 6→7；audit `contact_book_entry` / `upsert` | ✅ |
+| 9 | 點名面板 `儲存點名` | ✅ 改 `absent` 再改回 `present` 的**完整來回**；audit `batch_update_attendance`，`details` 有 `{presentCount, absentCount, onLeaveCount, updatedCount, inferredLeaveCount}` | ✅ |
+| 10 | 點名面板 `他來了`（銷假） | 🔴 **「銷假失敗：這個學生當天沒有請假」**，見下 | 🔴 |
+| 11 | 老師端通知 → 點公告（標記已讀） | ✅ `announcement_reads` 0→1；**零稽核** | ✅ |
+
+### 🔴 第 1 顆的稽核：我的預期表推錯了
+
+預期表寫「有（`daily-checkins.ts` 2 處 `logAudit`）」。**實際 POST 那支零稽核** ——
+唯一的 `logAudit` 在 `:261`，而那是 **DELETE 端點**（`:183` 起）裡的。
+
+> **`grep -c logAudit` 把第 6 行的 `import { logAudit }` 也算進去了。**
+> 「查得太窄／太寬」這一輪的形狀是**計數包含了 import 宣告**。
+> 前四種：查錯表／欄、`in (...)` 白名單、`tail` 截斷輸出、正則假設值是字面量。
+> **可操作：數呼叫點要排除 import 行**（`grep -c "logAudit(" ` 或看行號分布）。
+
+### 🔴 第 10 顆：seed 的 `on_leave` 出勤列沒有對應的請假單
+
+面板上許雅雯標著「請假」、有「他來了」按鈕，按下去卻說**「這個學生當天沒有請假」**。
+
+查 DB 分得出來：
+
+```
+attendance_records: 許雅雯 on_leave → 09-01、09-08、09-15 …（多筆）
+leave_requests:     許雅雯 → 只有 09-10 一筆
+```
+
+**seed 直接寫了 `attendance_records.status = 'on_leave'`，沒有建對應的 `leave_requests`。**
+面板的「請假」標記讀的是出勤列，而銷假 API 去找的是請假單 —— **兩個真相來源，UI 只看其中一個**。
+
+**成功路徑在這份 seed 上驗不了**：全庫掃過「有請假單 ∧ 該日有 `on_leave` 出勤列 ∧ 那個 event 有 session」
+的組合是**零**（最接近的兩組：蔡孟儒 09-15 是 `present`；張宇軒 09-25 是 `on_leave` 但那個 event 沒有 session）。
+
+> **這是 #907 同一個形狀的第三例**：seed 用 SQL 抄捷徑，繞過了產品維持不變量的機制。
+> 前兩例是 `user_roles`（#877）與 `receipt_counters`（#907）。
+> 已開 issue：**#916**（seed 的請假示範資料應該從 `leave_requests` 產生，讓出勤列跟著走）。
+
+### ✅ 第 7 顆順手確認了兩件
+
+- **#877 已解**：UI 建立的家長**有 `parent` 角色**（`user_roles` 查得到），
+  而且建立後**直接產出登入連結 QR** —— 那正是第 5 輪「開不起來所以未驗」的那個對話框。
+- **`parent-form-dialog` 同時是新增與編輯**（`parents.page.ts:323` 新增、`:359` 編輯）
+  ⇒ **它的 `update` 第 5 輪就按過了**（那時記在「編輯家長資料」）。
+  所以共用元件待按其實是 **9 顆不是 10 顆** —— 我的預期表這一格也推錯了。
+
+### 未驗的 4 顆（全部是入口不存在或條件不滿足）
+
+| 顆 | 原因 |
+| --- | --- |
+| `class-logs.upsert`（`寫日誌`） | **`attendance_responsible = 'admin'`**（seed 預設）⇒ `isTeacherLed()` 為 false ⇒ **老師端的動作鈕整層不渲染**（點名、寫日誌、寫聯絡簿都一樣）。而 **`attendanceResponsible` 在 admin 設定頁沒有 UI 入口**（`grep` 只在 `settings.page.spec.ts` 命中），所以連「先改設定再按」都做不到 |
+| `class-logs.publish` | 同上，**而且它在 UI 上本來就沒有入口** —— `schedule.page.html:238` 的註解逐字寫「v1a 只有撰寫，**沒有發布** —— 發布不可逆，而家長端讀取與 LINE 推播都還不存在」 |
+| `announcement-inbox.markAllRead` | `全部標為已讀` 只在**有未讀時**渲染。本輪唯一那則公告已被第 11 顆讀掉，按鈕就消失了 |
+| `parent-form-dialog.update` | **第 5 輪已按過**（同元件的編輯模式），不是漏按 |
+
+> **`class-logs` 那兩顆的處境值得單獨記**：老師端**整個動作層**被一個
+> **沒有 UI 入口的組織設定**關著。這比「按鈕有條件」嚴重一級 ——
+> 條件式按鈕至少能靠製造資料狀態驗到，**而這個條件只能改 DB**。
+
+### 第 1、2 顆需要先切換組織設定
+
+`勾到班` 只在 `@if (isDailyCheckin())` 下渲染（`dashboard.component.html:106`），
+而 seed 預設 `attendance_mode = 'per_session'`。本輪走**來回**：
+系統設定 → 一般 → `日到班` → 儲存 → 按兩顆 → 改回 `隨堂點名` → 儲存（DB 確認已還原）。
+兩次都留 audit `organization` / `update`。
+
+### 輪末盤點
+
+`daily_checkins` 0（回基線）、`subjects` 9（回基線）、`attendance_records` 635（回基線）、
+`contact_book_entries` 7（**+1**）、`announcements` 1（**+1**）、`announcement_reads` 1（**+1**）、
+`parents` 30（**+1**）、`audit_logs` 10。
+
+**四項等 reset**（全部是單向）：QA 家長 ＋ 它的 `ba_user` ＋ 那張未用的登入連結、
+公告 1 則、已讀 1 筆、聯絡簿 1 則。
