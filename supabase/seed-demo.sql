@@ -255,6 +255,8 @@ BEGIN
       WHERE e.class_id = v_class AND e.status = 'active'
     LOOP
       k := k + 1;
+      -- ⚠️ 這裡寫的 `on_leave` **沒有**同時建請假單 —— 補齊在檔尾那一段（#916）。
+      -- 理由寫在那裡：面板讀出勤列、銷假 API 找請假單，是兩個真相來源。
       INSERT INTO public.attendance_records (org_id, event_id, student_id, status,
                                              recorded_by, recorded_by_role)
       VALUES (v_org, v_event, v_student,
@@ -1108,5 +1110,36 @@ BEGIN
        WHERE start_date <= CURRENT_DATE AND end_date >= CURRENT_DATE) = 0
     THEN RAISE EXCEPTION '沒有造出跨越今天的請假'; END IF;
 
-  RAISE NOTICE '展示狀態補齊完成（#685）';
+  -- ── 兜底：每一筆 `on_leave` 都要有一張對應的請假單（#916）────────────────
+  -- **所有**寫 `on_leave` 的地方都靠這一段補（主出勤迴圈、同日兩堂、量測用課堂）——
+  -- 收在一處是刻意的：分散在各段落補，下一個加 `on_leave` 的人會漏掉。
+  -- **這個不變量的理由**：點名面板的「請假」標記讀 `attendance_records.status`，
+  -- 而「他來了」（銷假）去找 `leave_requests` —— 兩個真相來源。
+  -- 少了請假單，demo 上每一顆銷假鈕都會回「這個學生當天沒有請假」。
+  INSERT INTO public.leave_requests (org_id, student_id, start_date, end_date,
+                                     reason, submitted_by, submitted_by_role)
+  SELECT ar.org_id, ar.student_id, e.event_date, e.event_date,
+         '展示用：當日請假', '22222222-2222-2222-2222-222222222222', 'parent'
+    FROM public.attendance_records ar
+    JOIN public.events e ON e.id = ar.event_id
+   WHERE ar.status = 'on_leave'
+     AND NOT EXISTS (
+       SELECT 1 FROM public.leave_requests lr
+        WHERE lr.student_id = ar.student_id
+          AND e.event_date BETWEEN lr.start_date AND lr.end_date
+     )
+   GROUP BY ar.org_id, ar.student_id, e.event_date;   -- 同一人同一天多堂課只補一張
+
+  IF (SELECT count(*)
+        FROM public.attendance_records ar
+        JOIN public.events e ON e.id = ar.event_id
+       WHERE ar.status = 'on_leave'
+         AND NOT EXISTS (
+           SELECT 1 FROM public.leave_requests lr
+            WHERE lr.student_id = ar.student_id
+              AND e.event_date BETWEEN lr.start_date AND lr.end_date
+         )) > 0
+    THEN RAISE EXCEPTION '有 on_leave 出勤列沒有對應的請假單（#916）'; END IF;
+
+  RAISE NOTICE '展示狀態補齊完成（#685）；on_leave 與請假單一致（#916）';
 END $$;
