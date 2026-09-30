@@ -55,7 +55,6 @@ DECLARE
 
   v_term_start    date := (current_date - interval '10 weeks')::date;
   v_term_end      date := (current_date + interval '6 weeks')::date;
-  v_receipt       integer;
   v_status        text;
   -- 所有 `created_by` / `recorded_by` / `submitted_by` 都有 FK 指向 `ba_user`，
   -- 所以不能塞任意字串。沿用既有的 demo 管理員（c2：不建立新使用者）。
@@ -416,9 +415,6 @@ BEGIN
   -- **`invoices` 沒有 status 欄位** —— 狀態是推導的（`due_date` 與 `payment_records`
   -- 的關係）。所以「逾期」是靠「due_date 已過 + 沒有付款紀錄」造出來的，
   -- 不是塞一個字串。驗收查詢也要照這個推導寫（見下方註解）。
-  SELECT COALESCE(MAX(receipt_no), 0) INTO v_receipt
-  FROM public.payment_records WHERE org_id = v_org;
-
   k := 0;
   FOREACH v_student IN ARRAY v_student_ids[1:24] LOOP
     k := k + 1;
@@ -436,13 +432,16 @@ BEGIN
 
     -- 一部分已繳；`k % 3 = 0`（已過期那批）刻意不繳 → 那就是逾期
     IF k % 2 = 0 AND k % 3 <> 0 THEN
-      v_receipt := v_receipt + 1;
+      -- `receipt_no` 由 trigger 指派，這裡不給（跟 `seed.sql` 同一個做法）。
+      -- ⚠️ 自己算號碼會**繞過** `assign_receipt_no()` 的
+      -- 「明確指定就不覆寫」分支，於是 `receipt_counters` 完全不前進 ——
+      -- 結果是本機 demo 上從 UI 按「記錄收款」必然撞 unique（#907）。
       INSERT INTO public.payment_records (org_id, invoice_id, kind, amount, method,
-                                          paid_at, receipt_no, recorded_by)
+                                          paid_at, recorded_by)
       VALUES (v_org, v_invoice, 'payment',
               CASE WHEN k % 2 = 0 THEN 4800 ELSE 3600 END,
               CASE WHEN k % 4 = 0 THEN 'transfer' ELSE 'cash' END::payment_method,
-              current_date - 8, v_receipt, v_actor);
+              current_date - 8, v_actor);
     END IF;
   END LOOP;
 
