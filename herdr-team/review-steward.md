@@ -832,7 +832,7 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 
 | 部署時間(台北) | 截線 SHA | web bundle | api version id | 正式 DB 套到 | 部署者 |
 | --- | --- | --- | --- | --- | --- |
-| 2026-09-30 13:0x | `1a57db88` | `main-M67JFMAA.js` | `7cd80d82` | `20260913101500`(backfill `20260913143909` 部署後套) | labor-reviewer |
+| 2026-09-30 13:0x | `1a57db88` | `main-M67JFMAA.js` | `7cd80d82` | **`20260913143909`** | labor-reviewer |
 | 2026-09-13 15:1x | `cac1afb5` | `main-VUM3OUNI.js` | `89104040` | **`20260913101500`** | labor-reviewer |
 | 2026-09-13 09:5x | `fce7c2b6` | `main-VWXREIM7.js` | `2d198aac` | 不明(見下) | labor-reviewer |
 | 2026-09-13 00:3x | `b5b8ac92` | `main-AQOBVFQF.js` | `fc287869` | 不明 | review-steward |
@@ -932,6 +932,12 @@ schema 是 api **依賴**的東西(`20260913101500` 的 CHECK:沒套就靜默 0 
 計畫席裁甲。本席當時擔心「漏掉那幾筆沒有東西會回頭發現」,**在冪等 backfill 上不成立。**)
 
 正式 DB 的 migration **一律由使用者親自套**(兩類都是)。
+
+> **那一輪走完了(2026-09-30 13:1x)**:使用者套完 backfill 並驗 `parents_missing_role = 0`。
+> **順序是「部署 → 套」而不是「套 → 部署」,窗口確實是 0** ——
+> 而**驗證方式值得記**:backfill 的正確性判準是**它要補的那個集合現在空了**
+> (`parents_missing_role = 0`),不是「migration 跑完沒報錯」。
+> **後者只證明 SQL 執行了,前者證明它做到了它要做的事。**
 
 **預設整批都停,不是只停 api。** 要拆成「web 先上、api 等」得先說明**這一批的 web
 不依賴那支 migration 之後的 api 行為** —— 沒說明就是一起等。
