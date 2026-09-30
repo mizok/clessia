@@ -118,7 +118,7 @@ success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只
 3. `gh pr list --state open` —— 非保留類 CI 綠由計畫席收或授權 `labor-reviewer`（合前 `behind` + 檔案交集 + `merge-tree`；**交集非空不等於要作者 rebase，驗語意衝突就好，否則快節奏的板會鎖死**；**零衝突也要讀 —— 它對「你的改動有沒有讓對方那段話變成假的」一無所知**）。保留類三類只有使用者能合。
 4. 讀 README 開頭的**閱讀導引**（新席 200 行、計畫席 500 行、其餘 grep），再讀「席位復活程序」「共享資源協定」「計畫席消失時怎麼辦」。
 5. 心跳：launchd 每 30 分鐘 prompt 計畫席與監工；**腳本在 `~/.local/bin/clessia-heartbeat.sh`，計畫席名寫死在裡面，改它會被 auto-mode 擋（`Unauthorized Persistence`）→ 輪替時請使用者改**；暫停用 `touch ~/.local/share/clessia-heartbeat.pause`（這個不會被擋）。
-6. **兩支 Monitor 掛在計畫席 session 上，且每 30 分鐘到期要重掛**（`persistent: true` 現在不持久）；**腳本放 scratchpad 活不過一次長假（/tmp 會被清）—— 內容在 README「席位復活程序」附近沒有，重寫要點：① open PR 逐支查 head sha 的 check-runs（綁 sha，事件是快照會帶過期 sha）② 席位 idle 集合 + 未認領未 blocked issue；macOS 是 bash 3.2，沒有 `declare -A`**。
+6. **兩支 Monitor 掛在計畫席 session 上，且每 30 分鐘到期要重掛**（`persistent: true` 現在不持久）；**腳本放 scratchpad 活不過一次長假（/tmp 會被清）—— 2026-09-30 訂正：要點已經落檔在 README「席位復活程序」節底下的「兩支 Monitor 的腳本要點」，重寫照那幾條走（含一條先前沒寫下來的：idle 監看必須排除 labor-plan / db-reset / reviewer / ops-warden，否則每 30 分鐘 20 則）**。
 7. **跨席訊息一律寫檔再 `"$(cat 檔)"`** —— 反引號在雙引號裡會被執行、單引號會被吃掉，今天各踩兩次。`--wait --until working` 對已在 working 的席位回假 timeout，驗送達讀對方 pane 找**原文**（不是自己的摘要）。
 8. **席位回報只印在 pane 沒送出**是長假後的集體退化（三席同時）；判斷看**輸出區**，輸入框那句永遠是建議提示殘影，**不構成任何送達判斷**（兩個方向都不能推）。
 
