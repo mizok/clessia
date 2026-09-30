@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-09-30
 ---
 
 # 餐費管理
@@ -396,3 +396,42 @@ session 篩選列的三個手機元素，但**任何用 `app-page-actions` 帶 p
 | --- | --- |
 | **`Escape` / 真滑鼠重試** | 需要前景分頁（方法頁坑 12）。**「重試鈕按了會不會真的重打」沒有驗** |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |
+
+## 寫入實按（Phase 2-B 第 7 輪，2026-09-30）
+
+基線見 [[specs/sitemap/admin/fee-templates]] 的「實按結果」一節。開按前 `meal_records=24`。
+
+| 鈕 | 端點 | 結果 |
+| --- | --- | --- |
+| `確認名單` | `POST /api/meals` | ✅ `meal_records` 24 → **42**；toast「名單已確認 / 2026-09-30 寫入 18 筆」；**零 `audit_logs`**（見 #901） |
+| `月結` → `執行月結` | `POST /api/billing-runs` | ✅ 開立 **42** 張帳單；audit `billing_run` / `run`，`details` 是這一輪最完整的一筆 |
+
+### 「訂 6 份」寫的是 18 列
+
+畫面說「訂 6 份，其中 6 份要收費」，而 `確認名單` 寫進去 **18 筆** ——
+**每個候選學生都留一列**，`ordered` 記 true/false（6 訂 + 12 不訂）。
+「確認名單」確認的是**整份名單**，不是「有訂的那些」。
+
+### `billing_run` 的 `details` 是稽核裡最有內容的一筆
+
+```json
+{"anomalies": 0, "mealItems": 0, "tuitionItems": 50,
+ "invoicesCreated": 42, "enrollmentsWithoutBillingMode": 8}
+```
+
+（本輪其他 12 顆的 `details` 幾乎都是空 `{}`。）
+
+### ⚠️ `mealItems: 0` 不是缺陷 —— 結算月份預設是**上個月**
+
+我差點把它報成「月結撈不到餐費」：9 月明明有 18 筆 `ordered ∧ chargeable ∧ 未結算`
+（09-21 / 09-22 / 09-30 各 6），而 `mealItems` 是 0。
+
+**排除自己**：`ng.getComponent(<APP-BILLING-RUN-DIALOG>)` 讀出 `month` 是
+**`2026-08-01`** —— 對話框的「結算月份」預設**上個月**，而 8 月沒有未結算的餐費。
+API 那段查詢（`billing-runs.ts:266-273`）條件是對的。
+
+> ⚠️ **但對話框的說明文字逐字寫「把<b>這個月</b>『要收費且尚未結算』的餐費與學費加總成帳單」**
+> —— 文案說「這個月」，預設值是「上個月」。記成現況（**不是缺陷，是文案與預設值不一致**）。
+>
+> **判準：報「它沒撈到 X」之前，先確認它去撈的是哪一個範圍。**
+> 這一輪「先排除自己」第三次救了我 —— 前兩次是 toast 殘留、與收款那顆的 model 值。

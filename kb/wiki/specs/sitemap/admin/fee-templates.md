@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-09-30
 ---
 
 # 費用方案管理
@@ -308,3 +308,97 @@ updated: 2026-09-13
 | --- | --- |
 | **`Escape` / 真滑鼠重試** | 需要前景分頁（方法頁坑 12）。**「重試鈕按了會不會真的重打」沒有驗** |
 | 其他寬度 | 錯誤態與寬度無關（是狀態不是版面），只量 390 |
+
+## 第 7 輪 13 顆的「預期」欄（⚠️ 從原始碼推的，**不是看到的**）
+
+> **這一節寫在實按之前**，目的是讓「按下去之後看到什麼」有一個可以被否證的對照。
+> 每一格都是讀 `apps/api/src/routes/*.ts` 與 `apps/web/src/app/core/*.service.ts` 推出來的；
+> **實按之後會逐格標「✅ 符合」或「🔴 不符合 + 實際」**，不符合的那些才是這一輪的產出。
+> 基線：RESET #4（2026-09-30 12:25:36）＋ main `f9656aca` 的兩支 seed，
+> `audit_logs = 0`、`students = 69`（**69 是 09-30 這個日期的正確值**，見 charter 的 seed 日期那條）。
+
+| # | 鈕 | 端點（推） | 寫哪張表（推） | `audit_logs`（推） | 反向動作（推） |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 收費期間 `新增` → 送出 | `POST /api/billing-periods` | `billing_periods` | `billing_period` / `create` | ✅ 列上的 `刪除` |
+| 2 | 收費期間 `編輯` → 送出 | `PUT /{id}` | `billing_periods` | `billing_period` / `update` | ✅ 來回 |
+| 3 | 收費期間 `刪除` | `DELETE /{id}` | `billing_periods` | `billing_period` / `delete` | — |
+| 4 | 價目表 `新增` → 送出 | `POST /api/fee-templates` | `fee_templates` | `fee_template` / `create` | ✅ 列上的 `刪除` |
+| 5 | 價目表 `編輯` → 送出 | `PUT /{id}` | `fee_templates` | `fee_template` / `update` | ✅ 來回 |
+| 6 | 價目表列上的 `停用` / `啟用` | `PUT /{id}` | `fee_templates` | `fee_template` / `update` | ✅ 來回 |
+| 7 | 價目表 `刪除` | `DELETE /{id}` | `fee_templates` | `fee_template` / `delete` | — |
+| 8 | 餐費 `批次登錄` | `POST /api/meals` | `meal_records` | **零**（見 **#901**）—— `meals.ts` 全檔沒有 `logAudit` | 🔴 **無**（`meals.service` 零 delete） |
+| 9 | 帳單 `新增` → 送出 | `POST /api/invoices` | `invoices` + `invoice_items` | `invoice` / `create` | 🔴 **無**（#898） |
+| 10 | 未開單對話框 → 開立 | `POST /api/invoices` | 同上 | 同上 | 🔴 **無**（#898） |
+| 11 | 帳單詳情 `記錄收款` | `POST /{id}/payments` | `payment_records`＋改 `invoices.status` | `payment_record` / **`payment` 或 `refund`**（依 `body.kind`） | 🔴 **無** |
+| 12 | 帳單詳情 `建立催繳` | `POST /{id}/reminders` | `payment_reminders` | **零**（見 **#901**）—— 最後一個 `logAudit` 在 `:564`（收款），催繳的 handler 從 `:587` 起 | 🔴 **無** |
+| 13 | 餐費 `執行結算` | `POST /api/billing-runs` | `invoices` + `invoice_items` + `meal_records` | `billing_run` / `run` | 🔴 **無** |
+
+### 三件推的時候就該講清楚的
+
+1. **兩支 `DELETE` 都有 `IN_USE` 409 的前置檢查**
+   （`fee-templates.ts` 的「這份價目表已被報名引用，請改為停用」／
+   `billing-periods.ts` 的「這個期間已被使用，無法刪除」）——
+   所以自建的價目表與收費期間**不要綁到報名或帳單上**，否則輪末拆不掉。
+   這是 #886 教的那條（**可回收性住在 DELETE 端點開頭的前置檢查裡**）第一次拿來用在按之前。
+
+2. **`invoices` 沒有刪除或作廢路徑**（#898）：全檔對 `invoices` 表只有一顆 `.delete()`
+   且它在 handler 內部不是路由；唯一的 `DELETE` 路由是 `/{id}/items/{itemId}`（刪帳單裡的單一項目）。
+   加上 `status` 的 enum 只有 `unpaid | partial | paid`，**連作廢都沒有**。
+   ⚠️ 我第一次讀的時候把那顆 `DELETE` 當成「刪帳單的端點、只是 UI 沒接」——
+   **看到 `method: 'delete'` 要連 `path` 一起讀**。
+
+3. **`action` 不一定是字面量**：`:571` 是
+   `action: body.kind === 'refund' ? 'refund' : 'payment'`，
+   所以 `grep -oE "action: '[a-z_.]+'"` **抓不到它**，會讓人以為收款不留稽核。
+   > 「查得太窄」這一輪的形狀是**正則假設了值是字面量**。
+   > 前三輪分別是：查錯表／欄、`in (...)` 白名單、`tail` 截斷輸出。
+
+## 實按結果（2026-09-30，13 顆全按）
+
+**基線**：RESET #4（12:25:36）＋ main `f9656aca` 的兩支 seed，**量測日 2026-09-30**
+（日期是基線的一部分，見 `herdr-team/labor-8.md`）。開按前
+`fee_templates=4`（3 啟用 + 1 停用）／`billing_periods=2`／`invoices=50`／`invoice_items=51`／
+`payment_records=10`／`payment_reminders=1`／`meal_records=24`／`audit_logs=0`。
+
+### 本頁的 7 顆：全部符合預期
+
+| # | 鈕 | 結果 |
+| --- | --- | --- |
+| 1 | 收費期間 `新增期間` → `儲存` | ✅ `billing_periods` +1；toast「新增成功」；audit `billing_period` / `create`（`details` 空 `{}`） |
+| 2 | 收費期間 `編輯` → `儲存` | ✅ toast「更新成功」；audit `update` |
+| 3 | 收費期間 `刪除` → `刪除` | ✅ 回到基線 2；audit `delete`。確認文案：`確定要刪除「X」嗎？此操作無法復原。` |
+| 4 | 價目表 `新增價目表` → `儲存` | ✅ `fee_templates` +1；audit `fee_template` / `create` |
+| 5 | 價目表 `編輯` → `儲存` | ✅ 定價 3,500 → 4,200；audit `update` |
+| 6 | 價目表列上的 `停用` | ✅ **沒有確認對話框，直接送出**；toast「不會再出現在報名選單」；走的是 `PUT`（audit 記 `update` 不是 `deactivate`） |
+| 7 | 價目表 `刪除` → `刪除` | ✅ 回到基線 4；audit `delete` |
+
+**`audit_logs` 逐筆對上**：`billing_period` create/update/delete 各 1，
+`fee_template` create 1 / **update 3** / delete 1 —— update 那 3 筆是「編輯定價 + 停用 + 啟用」，
+**停用與啟用都走同一支 `PUT`**，稽核上分不出它們。
+
+### 順手驗到：`!isActive` 列的選單（本頁原本未驗）
+
+停用之後那一列**從預設清單消失**，要按 `顯示停用方案`（按下去變成 `隱藏停用方案`）才看得到。
+`!isActive` 列的 ⋮ 是 **`編輯` / `啟用` / `刪除` 三項** —— 跟本頁上方表格記的一致。
+按 `啟用` 的 toast 是「已重新啟用」。
+
+⚠️ **它不是 `p-toggleswitch`**（我先照地圖的印象去找 switch，`P.$$('p-toggleswitch')` 回 0）——
+**是一顆會換字的 `button`**。
+
+### `刪除` 的確認文案已經把 `IN_USE` 寫進去了
+
+> 確定要刪除「X」嗎？此操作無法復原。**已經被報名引用過的價目表刪不掉，請改為停用。**
+
+所以 409 那條分支**在按之前就被文案講明了**，不必真的去撞。
+（`fee-templates.ts` 的 `IN_USE` 409 與 `billing-periods.ts` 的「這個期間已被使用」仍未實撞，
+需要拿 seed 的價目表去按 —— 那是**失敗分支、不寫入**，下一輪可補。）
+
+### 兩個 `p-datepicker` 都是 0×0，連第一個也是
+
+第 6 輪記的是「第一個點得動、之後全塌」，**本輪第一個就塌了**
+（`getBoundingClientRect()` 量到 0×0，父層 `p-motion`）。
+走退路：`ng.getComponent(<APP-BILLING-PERIOD-FORM-DIALOG>)` 設 `form` signal 的
+`startDate` / `endDate` 再 `applyChanges`。⚠️ **那是「設模型」不是「按 UI」。**
+
+> 所以那條的範圍要再收窄一次：**不是「第一個可以」，是「有時候第一個可以」** ——
+> 可靠的做法是**先量尺寸再決定走哪條路**，不要依賴上一輪的結論。

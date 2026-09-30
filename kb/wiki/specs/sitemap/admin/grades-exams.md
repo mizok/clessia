@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-09-30
 ---
 
 # 考試管理
@@ -376,3 +376,15 @@ if (dirtyRows.length === 0) return;   // ← 靜默
 - `新增考試` 開的是**選單**（`新增補習班考試` / `新增學校考試`），不是直接開對話框
 - 補習班／學校的切換是 `p-selectbutton`（`p-togglebutton`），不是 tab ——
   **學校考試的列在預設檢視裡看不到**，用 `tbody tr` 找不到它不是資料問題
+
+## ⚠️ #893 之後：成績刪得掉了（2026-09-30 實按）
+
+本頁上一輪記的「登錄過成績的考試再也刪不掉」（#886）**已經由 #893 解掉**。實按：
+
+1. 重新開啟一場已結束、有 1 筆成績的考試 → 進成績登錄 → **把分數清成空值** → `儲存成績`
+2. `academy_scores` 那一列**真的被刪除**（該考試 0 筆）
+3. `audit_logs` 多一筆 **`academy_exam.scores.delete`**，`details` 是 `{"removed": ["<score id>"]}`
+4. 回列表，該考試顯示 `0 / 0`，列選單的 **`刪除` 從 `disabled` 變成可按**
+
+⚠️ **toast 說「已更新 0 筆成績」** —— 刪了 1 筆卻報 0，
+`affected` 只算 upsert 不算 delete。**不影響結果，但看畫面會以為沒做事。**
