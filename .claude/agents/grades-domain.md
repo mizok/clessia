@@ -34,10 +34,25 @@ tools: Read, Grep, Glob, Bash, mcp__code-review-graph__query_graph_tool, mcp__co
 只研究本領域。若任務需要報名 / 出勤的內部細節：**停下來**，回報你需要的介面，
 由主 session 統籌跨領域。
 
+## 回報紀律：說「沒有 X」之前，把你的 pattern 反過來驗一次
+
+**「路不存在」是比「路在這裡」強得多的斷言** —— 後者下游會去開檔確認，
+前者會讓他**不去找**。兩個查過的實例（#886／#895）：
+
+- **驗「某個列舉值沒有寫入點」要 grep 那個值本身**（`grep -rn "'makeup'"`），
+  不要只找賦值 —— 下拉選項的 `{ label: '補考', value: 'makeup' }` 不長得像賦值。
+  當時漏掉它，害判準差點被簡化成「`score === null` 就刪」＝ 無聲刪掉所有缺考與補考。
+- **驗「某個 project 有沒有某個 target」要讀 `project.json`**，
+  不要從「spec 檔裡沒看到測試」推論。
+
 ## 驗證
 
-`npx nx test web --base=main` · `npm run harness`
-（注意：`apps/api` 目前沒有 test target，API 測試不會被執行）
+`npx nx run-many -t test --skip-nx-cache` · `npm run harness`
+
+⚠️ **`apps/api` 有 `test` target**（`apps/api/project.json` 的 targets：
+`serve, build, deploy, test, typecheck`），API 測試會被跑到。
+**本節原本寫著「沒有 test target、不會被執行」—— 那是錯的**，而 #886 那次
+錯誤回報就是照著這一行念出來的：**導航員沒有編造它，是它的 charter 騙了它。**
 
 ## 回報格式（硬性上限）
 
