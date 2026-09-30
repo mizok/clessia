@@ -832,8 +832,9 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 
 | 部署時間(台北) | 截線 SHA | web bundle | api version id | 正式 DB 套到 | 部署者 |
 | --- | --- | --- | --- | --- | --- |
-| 2026-09-30 13:0x | `1a57db88` | `main-M67JFMAA.js` | `7cd80d82` | **未知(#915)** | labor-reviewer |
-| 2026-09-13 15:1x | `cac1afb5` | `main-VUM3OUNI.js` | `89104040` | 未知(#915) | labor-reviewer |
+| 2026-09-30 16:0x | `b0a7d419` | `main-M2YWZD2J.js` | `15fc5bcb` | **差集 0**(使用者 16:1x 實跑) | labor-reviewer |
+| 2026-09-30 13:0x | `1a57db88` | `main-M67JFMAA.js` | `7cd80d82` | 未知(#915)※ | labor-reviewer |
+| 2026-09-13 15:1x | `cac1afb5` | `main-VUM3OUNI.js` | `89104040` | 未知(#915)※ | labor-reviewer |
 | 2026-09-13 09:5x | `fce7c2b6` | `main-VWXREIM7.js` | `2d198aac` | 不明(見下) | labor-reviewer |
 | 2026-09-13 00:3x | `b5b8ac92` | `main-AQOBVFQF.js` | `fc287869` | 不明 | review-steward |
 | 2026-09-12 14:2x | `924c9ac2` | `main-UNYN3OOY.js` | `11b95f6d` | 不明 | review-steward |
@@ -848,6 +849,16 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 > **被截斷在 `'student'`**,而新加的兩個值在最後面 —— **舊 constraint 的前半段長得一模一樣**。
 > 所以改用布林:`... like '%''subject''%' as has_subject` ——
 > **兩個 `true` 才是證據,截斷的字串不是。**
+
+> **※ 那兩列的「未知」現在知道漏的是哪一支了**:`20260906083827_add_session_makeup`。
+> 使用者 2026-09-30 16:1x 補套(含 `INSERT schema_migrations` + `NOTIFY pgrst reload`),
+> 之後跑差集查詢(repo 72 支 vs `schema_migrations`)**回 0 列**。
+> **那兩列保持「未知」而不是回填** —— 當時確實不知道,回填等於編造;
+> 知道的是**現在**已經一致,那寫在最新那一列。
+>
+> **症狀也對上了**:#915 的形狀是未登入打 `/api/sessions` 回 **400**(PostgREST 找不到欄位),
+> 補套後本席在 16:0x 部署完實測回 **401 `NO_SESSION`** —— **走到了 auth 才被擋**,
+> 那正是「schema 缺口已經補上」的行為證據,比「差集 0」多一層(前者是宣告,後者是行為)。
 
 **「正式 DB 套到」這一欄只能由使用者填** —— repo 裡沒有任何指令查得到它
 (`package.json` 的 `db:*` 全部指向本機 supabase),所以它不是查出來的,是**報出來的**。
