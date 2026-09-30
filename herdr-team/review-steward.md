@@ -971,3 +971,14 @@ Worker 用 `npx wrangler rollback --env production`。
 - 元件級 SCSS 會編進 **JS chunk**,不在 `styles-*.css` —— 驗 dist 內容要 grep `*.js`
 - api 部署前先 `npx wrangler deploy --env production --dry-run --outdir <tmp>` 驗 binding
 - worktree 是乾淨的,部署前 root 與 `apps/api` 各要 `npm ci`
+- **部署後手機端要強制重新整理** —— 舊 bundle 還在快取時,症狀跟「這功能壞了」**一模一樣**。
+  2026-09-13 實例:使用者回報「入口頁面連登入都有問題」,而當天的查證兩邊都乾淨 ——
+  本席用 curl 驗到 index.html 的 12 個 eager chunk 全 200、`/login` 回 SPA、
+  `/api/auth/get-session` 在 workers.dev 與 `demo.clessia.cc` 都 200+JSON;
+  計畫席用瀏覽器驗到按鈕 → `/api/auth/sign-in/social` 200 → 導去 LINE。
+  **成因是手機端快取,強制重新整理就好。**
+
+  > **對這一席的意義**:部署完成的回報裡順手帶一句「手機請強制重新整理」——
+  > 否則第一個打開它的人會回報一個不存在的 bug,**而查那個 bug 的成本落在部署席身上**。
+  > 這跟 charter 那條「假紅燈比假綠燈更陰」同族:
+  > **它會讓人去查一個沒有壞的東西,而查完什麼都沒發現不會讓下一次變便宜。**
