@@ -78,7 +78,7 @@
     min-width: 0;
     border: 1px solid var(--zinc-200);
     border-radius: 8px;
-    background: #fff;
+    background: var(--color-white);
     /* header 有底色而面板有圓角 —— 少了這行，header 的方角會戳出圓角 */
     overflow: hidden;
 

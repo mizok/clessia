@@ -31,7 +31,7 @@
     &:focus {
       border: none;
       box-shadow: none;
-      background: #fff;
+      background: var(--color-white);
     }
   }
 
@@ -45,7 +45,7 @@
       min-width: 80px;
       --p-select-border-color: var(--zinc-200);
       --p-select-hover-border-color: var(--zinc-300);
-      --p-select-background: #fff;
+      --p-select-background: var(--color-white);
       --p-select-color: var(--zinc-600);
       --p-select-sm-font-size: var(--text-xs);
       --p-select-sm-padding-y: 0;
@@ -101,7 +101,7 @@
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
-    background: #fff;
+    background: var(--color-white);
     border: none;
     border-left: 3px solid transparent;
     cursor: pointer;
@@ -160,7 +160,7 @@
 
     .pi {
       font-size: 10px;
-      color: #fff;
+      color: var(--color-white);
       opacity: 0;
       transform: scale(0.4);
       transition:
@@ -176,7 +176,7 @@
     border-radius: 50%;
     background: linear-gradient(135deg, hsl(var(--h, 210) 31% 36%), hsl(var(--h, 210) 36% 30%));
     box-shadow: 0 2px 6px -1px hsl(var(--h, 210) 31% 36% / 0.25);
-    color: #fff;
+    color: var(--color-white);
     font-size: 13px;
     font-weight: var(--font-bold);
     display: flex;
@@ -228,7 +228,7 @@
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
-    background: #fff;
+    background: var(--color-white);
 
     & + & {
       border-top: 1px solid var(--zinc-100);
