@@ -15,6 +15,9 @@
     <div class="student-autocomplete__item">
       <span class="student-autocomplete__name">{{ student.name }}</span>
       <span class="student-autocomplete__meta">{{ formatStudentMeta(student) }}</span>
+      @if (showContact() && formatStudentContact(student)) {
+        <span class="student-autocomplete__meta">{{ formatStudentContact(student) }}</span>
+      }
     </div>
   </ng-template>
 </p-autocomplete>

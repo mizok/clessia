@@ -15,6 +15,9 @@ import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
 import { WorkbenchService } from '@core/workbench.service';
 import { DailyCheckinsService } from '@core/daily-checkins.service';
+import { SystemClockService } from '@core/system-clock.service';
+import { signal } from '@angular/core';
+import { By } from '@angular/platform-browser';
 import { DashboardComponent } from './dashboard.component';
 import { format } from 'date-fns';
 
@@ -260,6 +263,8 @@ describe('DashboardComponent（管理端）', () => {
           provide: AuthService,
           useValue: { hasPermission: (p: string) => permissions.includes(p) },
         },
+        // 請假區（#964）的子元件用台北的今天；儀表板本身不用它
+        { provide: SystemClockService, useValue: { todayTaipei: signal('2026-10-01') } },
       ],
     }).compileComponents();
 
@@ -812,5 +817,37 @@ describe('DashboardComponent（管理端）', () => {
     for (const row of rows) {
       expect(row.querySelector('.dashboard__fact-chevron')).not.toBeNull();
     }
+  });
+
+  /**
+   * #964 UI 實驗：接到電話就地請假。任務流本身在 `phone-leave.component.spec.ts`；
+   * 這裡守儀表板的兩件事：入口給誰、送出之後底下的看板有沒有跟著更新（閉環在同一頁）。
+   */
+  describe('接到電話：請假（#964）', () => {
+    const entry = () =>
+      Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+          '.dashboard__band-toggle',
+        ),
+      ).find((b) => b.textContent?.includes('接到電話：請假'));
+
+    it('沒有請假寫入權限（basic_operations）的人看不到入口', async () => {
+      await setup({ permissions: ['view_reports'] });
+      expect(entry()).toBeUndefined();
+    });
+
+    it('送出成功後重抓「今日」—— 剛登記的假出現在底下的看板上', async () => {
+      await setup({ permissions: ['view_reports', 'basic_operations'] });
+      entry()!.click();
+      fixture.detectChanges();
+
+      const before = { workbench: workbenchMock.mock.calls.length, leaves: leavesMock.mock.calls.length };
+      const panel = fixture.debugElement.query(By.css('app-phone-leave'));
+      expect(panel).not.toBeNull();
+      panel.componentInstance.completed.emit();
+
+      expect(workbenchMock.mock.calls.length).toBe(before.workbench + 1);
+      expect(leavesMock.mock.calls.length).toBe(before.leaves + 1);
+    });
   });
 });

@@ -10,6 +10,8 @@ import { isSubstituteSession } from '../lib/session-substitute';
 import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
 import { resolveRecordedByRole } from '../lib/recorded-by-role';
 import { leaveCoversSession } from '../lib/leave-covers-session';
+import { buildStudentDay } from '../lib/student-day';
+import { requireRoles } from '../middleware/auth';
 import { cancelLeaveForDate } from '../lib/cancel-leave-for-date';
 import {
   countEnrolledOn,
@@ -1099,6 +1101,161 @@ app.openapi(
       },
       200,
     );
+  },
+);
+
+// GET /api/attendance/student-day —— 某個學生某一天的課（#964 接到電話請假的送出前預覽）
+//
+// **只是預覽。** 真正把課堂標成請假的是 `POST /api/leaves` 的請假連動（保留類，只呼叫不改）；
+// 前端送出後用 `GET /api/attendance?studentId=` 顯示實際寫入的結果。組裝規則在
+// `lib/student-day.ts`（在籍沿用 `isEnrolledOn`、請假覆蓋沿用 `leaveCoversSession`）。
+//
+// 只給 admin：這是行政接電話的流程。查詢兩輪 —— 先撈他在讀的班，其餘四支只依賴班級 id，
+// 同一輪發出去（#948：線上每一輪都是一段 Worker↔DB 往返）。
+const STUDENT_DAY_UPCOMING_LIMIT = 20;
+
+app.openapi(
+  createRoute({
+    method: 'get',
+    path: '/student-day',
+    tags: ['Attendance'],
+    summary: '某學生某一天的課、點名狀態與既有請假（請假前預覽）',
+    middleware: [requireRoles('admin')] as const,
+    request: {
+      query: z.object({
+        studentId: DbUuidSchema,
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    },
+    responses: {
+      200: {
+        description: '成功',
+        content: {
+          'application/json': {
+            schema: z.object({
+              data: z.object({
+                date: z.string(),
+                sessions: z.array(
+                  z.object({
+                    sessionId: z.string(),
+                    eventId: z.string().nullable(),
+                    startTime: z.string().nullable(),
+                    endTime: z.string().nullable(),
+                    className: z.string(),
+                    cancelled: z.boolean(),
+                    attendance: z.string().nullable(),
+                    existingLeave: z
+                      .object({ startDate: z.string(), endDate: z.string() })
+                      .nullable(),
+                  }),
+                ),
+                nextSession: z
+                  .object({
+                    date: z.string(),
+                    startTime: z.string().nullable(),
+                    className: z.string(),
+                  })
+                  .nullable(),
+              }),
+            }),
+          },
+        },
+      },
+      403: { description: '權限不足', content: { 'application/json': { schema: z.object({ error: z.string() }) } } },
+      500: { description: '查詢失敗', content: { 'application/json': { schema: z.object({ error: z.string() }) } } },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const { studentId, date } = c.req.valid('query');
+
+    // 分校範圍照 middleware 的結果收斂（c1）：受限管理員只看得到自己分校的班
+    let enrollmentQuery = supabase
+      .from('enrollments')
+      .select('class_id, effective_from, effective_to, classes!inner(name, campus_id)')
+      .eq('org_id', orgId)
+      .eq('student_id', studentId)
+      .eq('status', 'active');
+    enrollmentQuery = applyCampusFilter(enrollmentQuery, 'classes.campus_id', getCampusScope(c));
+
+    const { data: enrollmentRows, error: enrollmentError } = await enrollmentQuery;
+    if (enrollmentError) return c.json({ error: enrollmentError.message }, 500);
+
+    const enrollments = ((enrollmentRows ?? []) as Array<Record<string, any>>).map((row) => ({
+      classId: row['class_id'] as string,
+      className: (row['classes']?.name as string | undefined) ?? '',
+      effectiveFrom: row['effective_from'] as string,
+      effectiveTo: (row['effective_to'] as string | null) ?? null,
+    }));
+    if (enrollments.length === 0) {
+      return c.json({ data: { date, sessions: [], nextSession: null } }, 200);
+    }
+
+    const classIds = [...new Set(enrollments.map((e) => e.classId))];
+    const [sessionsResult, recordsResult, leavesResult, upcomingResult] = await Promise.all([
+      supabase
+        .from('sessions')
+        .select('id, event_id, class_id, start_time, end_time, status')
+        .eq('org_id', orgId)
+        .in('class_id', classIds)
+        .eq('session_date', date),
+      supabase
+        .from('attendance_records')
+        .select('event_id, status, events!inner(event_date)')
+        .eq('org_id', orgId)
+        .eq('student_id', studentId)
+        .eq('events.event_date', date),
+      supabase
+        .from('leave_requests')
+        .select('start_date, end_date, start_time, end_time')
+        .eq('org_id', orgId)
+        .eq('student_id', studentId)
+        .lte('start_date', date)
+        .gte('end_date', date),
+      supabase
+        .from('sessions')
+        .select('class_id, session_date, start_time, status')
+        .eq('org_id', orgId)
+        .in('class_id', classIds)
+        .gt('session_date', date)
+        .order('session_date', { ascending: true })
+        .order('start_time', { ascending: true })
+        .limit(STUDENT_DAY_UPCOMING_LIMIT),
+    ]);
+    const failed = [sessionsResult, recordsResult, leavesResult, upcomingResult].find((r) => r.error);
+    if (failed?.error) return c.json({ error: failed.error.message }, 500);
+
+    const day = buildStudentDay({
+      date,
+      enrollments,
+      sessions: ((sessionsResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
+        sessionId: row['id'] as string,
+        eventId: (row['event_id'] as string | null) ?? null,
+        classId: row['class_id'] as string,
+        startTime: (row['start_time'] as string | null) ?? null,
+        endTime: (row['end_time'] as string | null) ?? null,
+        status: row['status'] as string,
+      })),
+      records: ((recordsResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
+        eventId: row['event_id'] as string,
+        status: row['status'] as string,
+      })),
+      leaves: ((leavesResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
+        startDate: row['start_date'] as string,
+        endDate: row['end_date'] as string,
+        startTime: (row['start_time'] as string | null) ?? null,
+        endTime: (row['end_time'] as string | null) ?? null,
+      })),
+      upcoming: ((upcomingResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
+        classId: row['class_id'] as string,
+        date: row['session_date'] as string,
+        startTime: (row['start_time'] as string | null) ?? null,
+        status: row['status'] as string,
+      })),
+    });
+
+    return c.json({ data: day }, 200);
   },
 );
 

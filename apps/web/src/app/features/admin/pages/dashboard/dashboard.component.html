@@ -21,6 +21,18 @@
           {{ timelineCollapsed() ? '展開時間軸' : '收合時間軸' }}
         </button>
       }
+      @if (canPhoneLeave()) {
+        <!-- #964 UI 實驗：接到電話就地請假。重用既有的帶上按鈕樣式，不引入新視覺 -->
+        <button
+          type="button"
+          class="dashboard__band-toggle"
+          [attr.aria-expanded]="phoneLeaveOpen()"
+          aria-controls="dashboard-phone-leave"
+          (click)="phoneLeaveOpen.set(!phoneLeaveOpen())"
+        >
+          ＋ 接到電話：請假
+        </button>
+      }
     </div>
 
     @if (todayHeadline(); as head) {
@@ -102,6 +114,19 @@
     </section>
   }
 
+  @if (phoneLeaveOpen()) {
+    <!--
+      放在待處理卡片列**之後**：卡片列是用負 margin 壓進橘帶的（--band-seam），
+      插在帶與卡片之間會把那個構圖拆開。
+    -->
+    <app-phone-leave
+      id="dashboard-phone-leave"
+      [rosterAvailable]="!isDailyCheckin()"
+      (completed)="loadToday()"
+      (rosterRequested)="openRosterDialog($event)"
+      (closed)="phoneLeaveOpen.set(false)"
+    />
+  }
   <div class="dashboard__cols">
     @if (isDailyCheckin()) {
       <!--

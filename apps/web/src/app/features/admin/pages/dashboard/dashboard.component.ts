@@ -103,9 +103,20 @@ import {
   type WorkbenchToday,
 } from '@core/workbench.service';
 import { DailyCheckinsService } from '@core/daily-checkins.service';
+import {
+  PhoneLeaveComponent,
+  type PhoneLeaveRosterRequest,
+} from './phone-leave/phone-leave.component';
+
 @Component({
   selector: 'app-dashboard',
-  imports: [StatusDotComponent, RouterLink, DayTimelineComponent, CollapsibleComponent],
+  imports: [
+    StatusDotComponent,
+    RouterLink,
+    DayTimelineComponent,
+    CollapsibleComponent,
+    PhoneLeaveComponent,
+  ],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -178,6 +189,35 @@ export class DashboardComponent {
   protected async openAttendance(session: EventSessionSummary): Promise<void> {
     if (!this.canTakeAttendance(session) || session.eventId === null) return;
 
+    await this.openRosterDialog(
+      {
+        eventId: session.eventId,
+        className: session.className,
+        eventDate: session.eventDate,
+        startTime: session.startTime,
+        endTime: session.endTime,
+      },
+      (takenAt) =>
+        // **就地更新，不重打 API。** 這一列的狀態剛剛才由 dialog 寫進去，
+        // 再查一次只是把同一件事問兩遍，而且會讓那一列閃一下。
+        this.todaySessions.update((sessions) =>
+          sessions === null || sessions === FAILED
+            ? sessions
+            : sessions.map((item) =>
+                item.sessionId === session.sessionId ? { ...item, takenAt } : item,
+              ),
+        ),
+    );
+  }
+
+  /**
+   * 開點名名單對話框。今日課表的「點名」與接到電話請假的結果卡（#964）共用這一份。
+   * `onTaken` 只有在對話框裡真的存了點名時才會被叫。
+   */
+  protected async openRosterDialog(
+    target: PhoneLeaveRosterRequest,
+    onTaken?: (takenAt: string) => void,
+  ): Promise<void> {
     const [{ DialogService }, { AttendanceRosterPanelComponent }] = await Promise.all([
       import('primeng/dynamicdialog'),
       import('@shared/components/attendance-roster-panel/attendance-roster-panel.component'),
@@ -198,12 +238,12 @@ export class DashboardComponent {
       // 憲法 c6：不用 vw
       breakpoints: { '640px': '92%' },
       data: {
-        eventId: session.eventId,
-        className: session.className,
-        eventDate: session.eventDate,
+        eventId: target.eventId,
+        className: target.className,
+        eventDate: target.eventDate,
         timeRange:
-          session.startTime && session.endTime
-            ? `${session.startTime}–${session.endTime}`
+          target.startTime && target.endTime
+            ? `${target.startTime}–${target.endTime}`
             : undefined,
       },
       styleClass: 'session-dialog',
@@ -211,16 +251,7 @@ export class DashboardComponent {
 
     // open() 在沒有 document 的環境回 null
     ref?.onClose.subscribe((result?: { takenAt: string }) => {
-      if (!result) return;
-      // **就地更新，不重打 API。** 這一列的狀態剛剛才由 dialog 寫進去，
-      // 再查一次只是把同一件事問兩遍，而且會讓那一列閃一下。
-      this.todaySessions.update((sessions) =>
-        sessions === null || sessions === FAILED
-          ? sessions
-          : sessions.map((item) =>
-              item.sessionId === session.sessionId ? { ...item, takenAt: result.takenAt } : item,
-            ),
-      );
+      if (result) onTaken?.(result.takenAt);
     });
 
     // 離開這條路由時彈窗要跟著消失。用 destroy() 不是 close() ——
@@ -236,6 +267,11 @@ export class DashboardComponent {
   // 三段的順序就是它們的重要性：還沒到（工作）→ 已請假（別打那通電話）→ 已到（確認）。
 
   protected readonly isDailyCheckin = computed(() => this.attendanceMode() === 'daily_checkin');
+
+  // ── 接到電話：請假（#964 UI 實驗）──────────────────────────────────────
+  // 寫入走既有 `POST /api/leaves`，它要求 `basic_operations` —— 沒有的人連入口都不給
+  protected readonly canPhoneLeave = computed(() => this.auth.hasPermission('basic_operations'));
+  protected readonly phoneLeaveOpen = signal(false);
 
   private readonly arrivedById = computed(
     () => new Map((this.workbench()?.arrived ?? []).map((a) => [a.studentId, a])),
@@ -572,17 +608,7 @@ export class DashboardComponent {
     // 而**形狀的判斷本來就該只有一份，在伺服器**。
     //
     // 日到班模式下這一支還順便帶回應到／已到／請假，前端不必再打三支。
-    failSoft(this.workbenchService.today())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) => {
-        if (res === FAILED) {
-          this.todaySessions.set(FAILED);
-          return;
-        }
-        this.todaySessions.set(res.sessions);
-        this.attendanceMode.set(res.mode);
-        this.workbench.set(res);
-      });
+    this.loadWorkbench();
 
     /**
      * 未點名課堂——**一支查完**。`endedOnly=true` 把「已經上完」的判斷搬到伺服器
@@ -608,9 +634,7 @@ export class DashboardComponent {
       );
 
     // ③ 現況欄：背景脈絡，最後填也不影響使用者在做的事
-    failSoft(this.leaveService.list({ coverDate: this.todayIso, pageSize: 100 }))
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((res) => this.todayLeaves.set(res === FAILED ? FAILED : res.data));
+    this.loadTodayLeaves();
 
     failSoft(this.studentsService.list({ pageSize: 1 }))
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -630,6 +654,35 @@ export class DashboardComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((res) => this.enrollmentChanges.set(res === FAILED ? FAILED : res.meta.total));
   }
+  /**
+   * 重抓「今日」—— 接到電話請假送出後叫（#964）：讓剛登記的假也出現在底下的看板上
+   * （日到班模式：從「還沒到」移到「已請假」）。只重抓會被請假改到的那兩支。
+   */
+  protected loadToday(): void {
+    this.loadWorkbench();
+    this.loadTodayLeaves();
+  }
+
+  private loadWorkbench(): void {
+    failSoft(this.workbenchService.today())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((res) => {
+        if (res === FAILED) {
+          this.todaySessions.set(FAILED);
+          return;
+        }
+        this.todaySessions.set(res.sessions);
+        this.attendanceMode.set(res.mode);
+        this.workbench.set(res);
+      });
+  }
+
+  private loadTodayLeaves(): void {
+    failSoft(this.leaveService.list({ coverDate: this.todayIso, pageSize: 100 }))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((res) => this.todayLeaves.set(res === FAILED ? FAILED : res.data));
+  }
+
   /** 跟課堂管理用同一支推導 —— 兩個畫面對「漏點名」必須說一樣的話 */
   protected attendanceTone(session: EventSessionSummary): StatusTone {
     return toAttendanceTone(
