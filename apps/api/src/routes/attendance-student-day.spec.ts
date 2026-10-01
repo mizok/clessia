@@ -133,11 +133,10 @@ describe('GET /api/attendance/student-day', () => {
       ]),
     );
     expect(fake.argsOf('leave_requests', 'eq')).toEqual(
-      expect.arrayContaining([
-        ['org_id', 'org-1'],
-        ['student_id', STUDENT],
-      ]),
+      expect.arrayContaining([['org_id', 'org-1']]),
     );
+    // #970：請假單的學生名單來自「已套範圍的在籍查詢」，不是直接用參數
+    expect(fake.argsOf('leave_requests', 'in')).toEqual([['student_id', [STUDENT]]]);
   });
 
   // 讀取端點照 middleware 的分校範圍收斂（c1：授權在 middleware 層成立，路由照用）

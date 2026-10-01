@@ -10,7 +10,7 @@ import { isSubstituteSession } from '../lib/session-substitute';
 import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
 import { resolveRecordedByRole } from '../lib/recorded-by-role';
 import { leaveCoversSession } from '../lib/leave-covers-session';
-import { buildStudentDay } from '../lib/student-day';
+import { buildStudentDay, leavesTouchingSessions } from '../lib/student-day';
 import { requireRoles } from '../middleware/auth';
 import { cancelLeaveForDate } from '../lib/cancel-leave-for-date';
 import {
@@ -1181,6 +1181,9 @@ app.openapi(
 
     const { data: enrollmentRows, error: enrollmentError } = await enrollmentQuery;
     if (enrollmentError) return c.json({ error: enrollmentError.message }, 500);
+    // 範圍內的學生 —— 只有「已套分校範圍的在籍查詢」撈得到他，這份名單才不是空的。
+    // 請假單沒有分校欄位，它的範圍就是這一份（跟 GET /api/leaves 列表同一個定義）
+    const scopedStudentIds = (enrollmentRows ?? []).length > 0 ? [studentId] : [];
 
     const enrollments = ((enrollmentRows ?? []) as Array<Record<string, any>>).map((row) => ({
       classId: row['class_id'] as string,
@@ -1193,6 +1196,18 @@ app.openapi(
     }
 
     const classIds = [...new Set(enrollments.map((e) => e.classId))];
+
+    // #970：每一支都**自己**帶範圍，不靠組裝端「以 sessions 為骨幹、其他只當查表」——
+    // 否則哪天有人把 records／leaves 直接放進回應，就是跨分校可見，而那次 diff 不會碰到範圍
+    let recordsQuery = supabase
+      .from('attendance_records')
+      .select('event_id, status, events!inner(event_date, campus_id)')
+      .eq('org_id', orgId)
+      .eq('student_id', studentId)
+      .eq('events.event_date', date);
+    // 跟 GET /api/attendance 同一個寫法：出勤的分校就是課堂事件的分校
+    recordsQuery = applyCampusFilter(recordsQuery, 'events.campus_id', getCampusScope(c));
+
     const [sessionsResult, recordsResult, leavesResult, upcomingResult] = await Promise.all([
       supabase
         .from('sessions')
@@ -1200,17 +1215,12 @@ app.openapi(
         .eq('org_id', orgId)
         .in('class_id', classIds)
         .eq('session_date', date),
-      supabase
-        .from('attendance_records')
-        .select('event_id, status, events!inner(event_date)')
-        .eq('org_id', orgId)
-        .eq('student_id', studentId)
-        .eq('events.event_date', date),
+      recordsQuery,
       supabase
         .from('leave_requests')
         .select('start_date, end_date, start_time, end_time')
         .eq('org_id', orgId)
-        .eq('student_id', studentId)
+        .in('student_id', scopedStudentIds)
         .lte('start_date', date)
         .gte('end_date', date),
       supabase
@@ -1226,27 +1236,34 @@ app.openapi(
     const failed = [sessionsResult, recordsResult, leavesResult, upcomingResult].find((r) => r.error);
     if (failed?.error) return c.json({ error: failed.error.message }, 500);
 
+    const sessions = ((sessionsResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
+      sessionId: row['id'] as string,
+      eventId: (row['event_id'] as string | null) ?? null,
+      classId: row['class_id'] as string,
+      startTime: (row['start_time'] as string | null) ?? null,
+      endTime: (row['end_time'] as string | null) ?? null,
+      status: row['status'] as string,
+    }));
+
     const day = buildStudentDay({
       date,
       enrollments,
-      sessions: ((sessionsResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
-        sessionId: row['id'] as string,
-        eventId: (row['event_id'] as string | null) ?? null,
-        classId: row['class_id'] as string,
-        startTime: (row['start_time'] as string | null) ?? null,
-        endTime: (row['end_time'] as string | null) ?? null,
-        status: row['status'] as string,
-      })),
+      sessions,
       records: ((recordsResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
         eventId: row['event_id'] as string,
         status: row['status'] as string,
       })),
-      leaves: ((leavesResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
-        startDate: row['start_date'] as string,
-        endDate: row['end_date'] as string,
-        startTime: (row['start_time'] as string | null) ?? null,
-        endTime: (row['end_time'] as string | null) ?? null,
-      })),
+      // 只留蓋到範圍內課堂的那幾張 —— 同一個學生在他校的假不進來（#970）
+      leaves: leavesTouchingSessions(
+        ((leavesResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
+          startDate: row['start_date'] as string,
+          endDate: row['end_date'] as string,
+          startTime: (row['start_time'] as string | null) ?? null,
+          endTime: (row['end_time'] as string | null) ?? null,
+        })),
+        sessions,
+        date,
+      ),
       upcoming: ((upcomingResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
         classId: row['class_id'] as string,
         date: row['session_date'] as string,
