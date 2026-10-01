@@ -4,7 +4,7 @@ summary: 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能
 category: architecture
 tags: [architecture, deployment, cloudflare, supabase]
 status: active
-updated: 2026-08-31
+updated: 2026-09-30
 ---
 
 # 部署
@@ -165,6 +165,62 @@ Hyperdrive 在 Cloudflare 邊緣維持到 origin 的長連線，Worker 連的是
 免費方案可用（每日 10 萬次查詢，快取與未快取都計數）。Hyperdrive **只加速走 `pg` 的那條路**
 （Better Auth 的 session 查詢，也就是每一個受保護的請求）；業務路由走 supabase-js 的 HTTP
 介面，不經過它。
+
+## Worker 放在哪裡執行（placement hint，#944）
+
+**現象**（2026-09-30，從台灣量）：`demo.clessia.cc/cdn-cgi/trace` 回 `colo=SJC` —— 台灣的請求在
+**聖荷西**跑 Worker，而資料庫在**新加坡**。同一台機器打 `www.cloudflare.com` 是 `colo=TPE`，
+所以不是使用者網路的問題，是這個 zone 的入口路由。於是每一次 DB 往返都跨太平洋。
+
+**資料庫在哪一區的查法**（不要照記憶寫，換專案時重查）：
+
+```bash
+dig +short AAAA db.<project-ref>.supabase.co          # 2026-09-30：2406:da18:1691:a200::2c66
+curl -s https://ip-ranges.amazonaws.com/ip-ranges.json # AWS 官方 IP 範圍表，比對那個位址落在哪個 prefix
+```
+
+結果：`2406:da18::/35` → `ap-southeast-1`（服務 `AMAZON` / `EC2`）。
+
+**改動前基準**（各 10 次、TTFB 中位數）：`/api/system-time`（不碰 DB）0.50s、
+`/api/auth/magic-link/verify?token=<假>`（查 1 次 DB）0.86s ⇒ 一次往返約 0.36s。
+
+**設定**：`apps/api/wrangler.toml` 頂層 `[placement] region = "aws:ap-southeast-1"`。
+Cloudflare 會把它對應到「到那個雲端區域延遲最低」的機房執行，**不需要分析期**。
+`placement` 是可繼承鍵，`env.production` 會吃到（用 wrangler 的 `unstable_readConfig` 讀過解析後的設定；
+wrangler 只寫 `region` 時上傳的是 `{ mode: "targeted", region }`）。
+**換資料庫區域時這一行要跟著改。**
+c12：這只是 Cloudflare 的部署提示，`server.ts` 的 Node 自架路徑不受影響。
+
+**為什麼不是 Smart Placement（`mode = "smart"`）**：它需要**來自多個地點的持續流量**、最多 15 分鐘分析，
+流量不夠時停在 `INSUFFICIENT_INVOCATIONS` 不搬。demo 站幾乎只有台灣流量，部署一輪大概白等。
+兩者互斥。客戶的正式站若流量分布廣、或後端不只一個，再重新評估。
+
+**官方文件講的機制**（查證於 2026-09-30）：
+
+- placement 只影響 `fetch` handler；靜態資源永遠由最近的機房回。
+  （[Workers › Placement](https://developers.cloudflare.com/workers/configuration/placement/)）
+- 啟用 placement 時所有回應都帶 `cf-placement` 標頭：`remote-XXX` = 在 XXX 執行；`local-XXX` = 沒搬。
+  官方註明這個標頭**可能在 beta 結束前拿掉**。
+- **Hyperdrive 文件：每個請求只查一次時，placement 不會改善端到端延遲** —— 往返只是換一段路走
+  （[Hyperdrive › How it works](https://developers.cloudflare.com/hyperdrive/configuration/how-hyperdrive-works/)）。
+
+**預期與判準 —— 量的時候不要看錯欄位**：
+
+| 端點形狀 | 預期 |
+| --- | --- |
+| 不碰 DB（`system-time`） | **可能略慢**：多一段入口 SJC → 新加坡的轉送。**這不是沒效** |
+| 查 1 次 DB（`magic-verify`） | **大致持平或小降**：往返從「Worker↔DB」移到「入口↔Worker」 |
+| 一個請求依序查 N 次（多數業務 API：auth 身分查詢 + 業務查詢） | **主要受益者**：省下約 (N−1) × 0.36s |
+
+依序看三樣：
+
+1. **`cf-placement` 是 `remote-*`** —— 不是的話先查設定，不要量延遲
+2. **`npx wrangler tail --env production --search "[probe]"`** —— `middleware/auth.ts` 的 probe 印
+   `[probe] <method> <path> 查詢 N 支、合計 Xms、最慢 Yms`，是 **Worker 端**每次 Supabase 呼叫的耗時。
+   搬過去之後每支應該從數百毫秒掉到個位數～數十毫秒。有 wrangler 權限就能看，不需要登入
+3. **查多次 DB 的端點的 TTFB**（例：管理端帳單列表）—— 要登入 cookie
+
+**結果**：待部署後由 #944 補上（包含「沒效」）。
 
 ## 只有人能做的步驟
 

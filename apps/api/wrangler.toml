@@ -34,6 +34,29 @@ compatibility_flags = ["nodejs_compat"]
 enabled = true
 head_sampling_rate = 1
 
+# ── Placement：讓 Worker 在資料庫旁邊執行（#944）────────────────────────────
+#
+# 台灣的流量在聖荷西（SJC）跑 Worker，而資料庫在新加坡（AWS ap-southeast-1，
+# 查法見 kb/wiki/architecture/deploying.md），所以**每一次** DB 往返都跨太平洋。
+# placement hint 讓 Cloudflare 改在「離這個雲端區域延遲最低」的機房執行
+# （入口機房不變，由入口轉送過去）。
+#
+# **為什麼是 region hint 不是 `mode = "smart"`**：Smart Placement 需要「來自多個地點
+# 的持續流量」才會做決定，demo 站幾乎只有台灣流量，大概會一直停在
+# `INSUFFICIENT_INVOCATIONS`（不搬）。hint 直接指定、不需要分析期。兩者互斥。
+#
+# ⚠️ **它省的是「第 2 次以後」的往返，不是第 1 次。** Hyperdrive 官方文件原話：
+# 每個請求只查一次時，放在哪裡端到端都一樣（往返只是換了一段路走）。
+# 所以量效果要看**一個請求查多次**的端點；不碰 DB 的端點反而多一段轉送、可能略慢
+# —— 判準見 kb/wiki/architecture/deploying.md，**不要拿 system-time 變慢當沒效**。
+#
+# 放在頂層就夠：`placement` 跟 `observability` 一樣是**可繼承**的鍵。
+# **換資料庫區域時這一行要跟著改**，否則會把 Worker 放到離 DB 更遠的地方。
+#
+# c12：這只是 Cloudflare 的部署提示，`server.ts` 的 Node 自架路徑完全不受影響。
+[placement]
+region = "aws:ap-southeast-1"
+
 [vars]
 ENVIRONMENT = "development"
 WEB_URL = "http://localhost:4200"
