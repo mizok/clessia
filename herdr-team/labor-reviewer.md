@@ -316,3 +316,13 @@ gh issue view <N> -R <repo> --json state,title
 
 **三次的共同形狀是:一個站得住腳的推導 + 一個沒去查的前提。**
 charter 裡那麼多條「先查」,全部是這個形狀的不同衣服。
+
+---
+
+## 接手後補記(2026-10-01,計畫席轉述前一任只存在訊息裡的兩件)
+
+- **tail 時間窗**:規則寫在 [`deploying.md`](../kb/wiki/architecture/deploying.md) 的「用時間窗量一趟真人操作」
+  (開 tail 前問計畫席有沒有別席在打 demo、捕獲檔原檔留著、判準本身未驗)。
+- **`steward-merge.sh` 收的 PR 會刪分支,別人用 `gh pr merge` 合的不會** ——
+  退場時 `git ls-remote --heads origin` 對一次,是唯一會發現殘留分支的時刻。
+
