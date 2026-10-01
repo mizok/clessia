@@ -1,0 +1,183 @@
+# 正式 DB 的 migration 由 CI 代套（#963，使用者 2026-10-01 裁定）。
+#
+# **為什麼**：原本是使用者手貼 SQL 到 Supabase SQL Editor、再手動補 schema_migrations。
+# 兩天內兩次事故都出在「人在 CI 外面搬 SQL」：漏套一支（#915，線上 400）、
+# 貼上時 `$$` 被終端機吃掉（#921）。
+#
+# **把關點不變，而且是兩道**：
+#   1. 使用者親合 migration 的 PR（保留類）
+#   2. 使用者在 `prod-db` environment 按 Approve，apply 才會跑
+#
+# ## 流程
+#
+#   verify 在 main 上綠 ──► plan（只讀：算差集）──► apply（等 Approve，再 db push）
+#
+# - **verify 沒綠就不碰正式 DB。** verify 的 seed-reset job 已經在 CI 的本機 stack
+#   上真的跑過一次全部 migration —— 那是套正式之前的彩排。
+# - plan 對**每一顆**綠的 main commit 都跑：差集 0 就結束，step summary 寫「clean」。
+#   ⓪（`herdr-team/review-steward.md`）與截線表的「正式 DB 套到」欄讀的就是這個結果，
+#   不再靠使用者手跑差集 SQL。
+# - 判斷邏輯在 `tools/agent-harness/lib/migration-plan.mjs`（有測試），跟
+#   `supabase db push` 的拒絕條件一致；**CI 永遠不帶 `--include-all`**。
+#
+# ## schema 與 backfill 的順序相反（#905）
+#
+# backfill 類的檔案第一行寫 `-- clessia:apply after-deploy`：plan 看到它就**不往 apply 走**，
+# 等部署完由使用者手動 dispatch 這支（填部署的截線 SHA）。沒標的一律當 schema（套完才部署）。
+# 兩類同批待套會紅 —— 一次 db push 拆不開，要分批合併。
+#
+# ## 沒設定 secret 時
+#
+# fork 出去自架的客戶 repo 沒有 `SUPABASE_DB_URL`：plan 印一行「未設定，略過」然後綠燈結束，
+# **不會對任何 DB 動手**（c12）。整個機制要退回手動流程，刪掉 environment 的 secret 即可。
+
+name: migrate
+
+# 標題帶 SHA：workflow_run 觸發的 run，GitHub 列表上的 headSha 是預設分支當下的 HEAD，
+# 不一定是 verify 驗的那一顆 —— ⓪ 要用標題找截線那一顆的結果。
+run-name: migrate @ ${{ github.event.workflow_run.head_sha || github.sha }}
+
+on:
+  workflow_run:
+    workflows: [verify]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deployed_sha:
+        description: '只有要套 after-deploy backfill 時才填：已經部署上線的截線 SHA'
+        required: false
+
+permissions:
+  contents: read
+
+# **同一時間只能有一顆在碰正式 DB**，而且不殺正在跑的。
+# 代價：合併密集時中間排隊的 run 會被丟掉 —— 那沒關係，下一顆 plan 比的是全部 version，
+# 不會漏套；只是被丟掉的那顆 SHA 沒有結果，⓪ 要選有結果的那顆當截線。
+concurrency:
+  group: migrate-prod
+  cancel-in-progress: false
+
+env:
+  # 釘版本：正式 DB 的寫入不跟 latest。升版要另開 PR、看 changelog 的 db push 段落。
+  SUPABASE_CLI_VERSION: 2.119.0
+
+jobs:
+  plan:
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    environment: prod-db-plan
+    outputs:
+      configured: ${{ steps.cfg.outputs.configured }}
+      state: ${{ steps.plan.outputs.state }}
+      pending: ${{ steps.plan.outputs.pending }}
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - id: sha
+        run: echo "sha=${{ github.event.workflow_run.head_sha || github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - id: cfg
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::SUPABASE_DB_URL 未設定 —— 略過，不碰任何 DB'
+          else
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.cfg.outputs.configured == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.sha.outputs.sha }}
+
+      - if: steps.cfg.outputs.configured == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # 唯讀：只撈 version。表不存在、連不上都會在這裡大聲失敗（ON_ERROR_STOP）。
+      - if: steps.cfg.outputs.configured == 'true'
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -At \
+            -c 'select version from supabase_migrations.schema_migrations order by 1' \
+            > "$RUNNER_TEMP/remote.txt"
+
+      # dispatch 的輸入不直接內插進 shell（script injection）—— 走 env、只收 SHA 的形狀
+      - if: steps.cfg.outputs.configured == 'true' && inputs.deployed_sha
+        env:
+          DEPLOYED_SHA: ${{ inputs.deployed_sha }}
+        run: |
+          if ! printf '%s' "$DEPLOYED_SHA" | grep -Eq '^[0-9a-f]{7,40}$'; then
+            echo "deployed_sha 不是 SHA：$DEPLOYED_SHA"; exit 1
+          fi
+          echo "部署者確認已上線的截線：\`$DEPLOYED_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - if: steps.cfg.outputs.configured == 'true'
+        id: plan
+        run: |
+          node tools/agent-harness/migrate-plan.mjs --remote "$RUNNER_TEMP/remote.txt" \
+            ${{ inputs.deployed_sha && '--deployed' || '' }}
+
+      # 留一份 CLI 自己的判斷在 log 裡 —— 兩邊不一致就是 migration-plan.mjs 該修了
+      - if: steps.plan.outputs.state == 'apply'
+        uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - if: steps.plan.outputs.state == 'apply'
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: supabase db push --db-url "$DB_URL" --dry-run
+
+  apply:
+    needs: plan
+    if: needs.plan.outputs.state == 'apply'
+    runs-on: ubuntu-latest
+    # **使用者在這裡按 Approve** —— environment 設了 required reviewer，沒按就不會往下跑
+    environment: prod-db
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      # 等核准的期間可能過了很久 —— 重算一次，待套清單必須跟 plan 時一模一樣
+      - name: 核准前後正式 DB 沒被動過
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -At \
+            -c 'select version from supabase_migrations.schema_migrations order by 1' \
+            > "$RUNNER_TEMP/remote.txt"
+          node tools/agent-harness/migrate-plan.mjs --remote "$RUNNER_TEMP/remote.txt" \
+            ${{ inputs.deployed_sha && '--deployed' || '' }} \
+            --expect '${{ needs.plan.outputs.pending }}'
+
+      # 一支檔案的語句加上寫 history 那一列是同一個隱式 transaction：失敗就整支回滾、
+      # 不留 history 列（前面已成功的保留）。`CREATE INDEX CONCURRENTLY` 例外 —— 本 repo 沒有，
+      # 要寫的話請獨立成一支檔。**絕不帶 --include-all。**
+      - name: supabase db push
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: supabase db push --db-url "$DB_URL" --yes
+
+      - name: 套完之後差集必須是 0
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -At \
+            -c 'select version from supabase_migrations.schema_migrations order by 1' \
+            > "$RUNNER_TEMP/remote.txt"
+          node tools/agent-harness/migrate-plan.mjs --remote "$RUNNER_TEMP/remote.txt" --expect-clean

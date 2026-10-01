@@ -1,10 +1,10 @@
 ---
 title: 部署
-summary: 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能做、以及為什麼 API 必須能在 Node 底下跑。
+summary: 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能做、為什麼 API 必須能在 Node 底下跑，以及正式 DB 的 migration 怎麼由 CI 代套。
 category: architecture
 tags: [architecture, deployment, cloudflare, supabase]
 status: active
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # 部署
@@ -415,10 +415,39 @@ while i < len(s):
 3. **判準（`wallTime` 對 合計／最慢）本身還沒被真實 `[probe]` 驗過** ——
    數字對不上時**先懷疑判準，再懷疑 PR**。
 
+## 正式 DB 的 migration：CI 代套（#963）
+
+**本 repo 的正式站**由 `.github/workflows/migrate.yml` 套 migration，**不再手貼 SQL**。
+它接在 verify（main 上綠）後面：
+
+1. **plan**（只讀）：撈 `supabase_migrations.schema_migrations`，跟 `supabase/migrations/` 比**全部 version**，
+   判斷在 `tools/agent-harness/lib/migration-plan.mjs`（有測試）。結果寫進 step summary：
+   `clean`（差集 0）／`apply`／`after-deploy`／`blocked`（紅）。
+2. **apply**：停在 `prod-db` environment 等使用者按 Approve，再 `supabase db push --db-url … --yes`。
+   套前重算一次（等核准期間 DB 被動過就停），套後差集必須是 0。
+
+| 規則 | 理由 |
+| --- | --- |
+| **永不帶 `--include-all`** | 中間漏套（#915 的形狀）時 CLI 會以 `Found local migration files to be inserted before the last migration on remote database.` 拒絕 —— 補哪一支要人決定 |
+| backfill 檔**第一行**寫 `-- clessia:apply after-deploy` | schema 要「套完才部署」、backfill 要「部署完才套」（#905），一次 `db push` 拆不開；有標記的 plan 不自動套，部署完由使用者 dispatch（填 `deployed_sha`） |
+| schema 與 backfill **分批合** | 同批待套 plan 會紅 |
+| 一支檔是一個隱式 transaction | 失敗整支回滾、不留 history 列；`CREATE INDEX CONCURRENTLY` 例外，要寫就獨立成一支檔 |
+| 套壞了用新的 migration 往前修 | c3：已提交的檔不可改；沒有 down migration |
+
+**設定**（一次性，使用者做）：GitHub repo → Settings → Environments 建 `prod-db`（Required reviewers =
+使用者、Deployment branches = `main`）與 `prod-db-plan`（只限 `main`），兩者各放 environment secret
+`SUPABASE_DB_URL` = Supabase Dashboard → Connect → **Session pooler** 的連線字串。
+GitHub hosted runner 沒有 IPv6，而 direct connection 預設只有 IPv6 —— ⚠️ 這點是依文件推論，
+**第一次 plan 實跑就是它的驗證**。
+
+**自架客戶不受影響（c12）**：沒有 `SUPABASE_DB_URL` 時 migrate.yml 印「未設定，略過」並綠燈結束；
+下一節第 2 步的 `supabase db push` 照樣是手動套的方式。退回手動流程 = 刪掉 environment secret。
+
 ## 只有人能做的步驟
 
 1. **建 Supabase 專案**、拿 service role key 與 connection string
 2. **`npx supabase link --project-ref <ref>`** 然後 `supabase db push` 套用 migration
+   （之後的 migration 可以改由 CI 代套，見上一節；不設定就照這一步手動）
 3. **`npx wrangler login`**、`wrangler secret put`（上面四個）
    、以及 **`wrangler hyperdrive create`**（見上一節；連線字串是機密，只有部署的人碰得到）
 4. **決定網域**與 Cloudflare 帳號歸屬。在 Dashboard 掛上：

@@ -214,6 +214,9 @@ admin / teacher / parent **沒有各自的 shell 元件**，三個角色走同�
 
 - Migration 命名 `YYYYMMDDHHMMSS_description.sql`
 - **已提交的 migration 不可修改**（c3）——schema 變更一律新增 ALTER TABLE migration
+- **正式 DB 的 migration 由 CI 代套**（`migrate.yml`，#963）——不要在 CI 外對正式 DB 跑 migration。
+  只做資料補寫的 backfill，檔案**第一行**寫 `-- clessia:apply after-deploy`（部署完才套），
+  並且跟 schema 變更**分開 PR**；規則見 `kb/wiki/architecture/deploying.md`
 - **授權只發生在 Hono middleware 層**（org_id 過濾，c1）。API 使用 service role key，
   它會繞過 RLS —— RLS 不是第二道防線
 - 業務表**仍然啟用 RLS 且沒有任何 policy**，這是刻意的 fail-closed 後盾：目前沒有任何
