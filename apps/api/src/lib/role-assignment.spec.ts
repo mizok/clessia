@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { checkRoleAssignment } from './role-assignment';
+import { addedPermissions, checkRoleAssignment } from './role-assignment';
 
 const base = {
   permissions: ['manage_staff', 'manage_roles'],
@@ -54,5 +54,49 @@ describe('checkRoleAssignment', () => {
     expect(
       checkRoleAssignment({ ...base, targetUserId: null, permissions: ['manage_staff'] }),
     ).toMatchObject({ ok: false, reason: 'missing-permission' });
+  });
+});
+
+/**
+ * **權限只能給自己有的**（使用者 2026-10-01 裁定，#966 A2'）。
+ *
+ * 只看 `manage_roles` 的話，自己沒有 `manage_finance` 的管理員可以建一個有它的帳號，
+ * 再替那個帳號鑄登入連結 —— 拿到自己原本沒有的權限。判的是**新增的**權限：
+ * 對方原本就有、這次沒動的不算（否則連替別人多加一個自己有的權限都會被擋）。
+ */
+describe('checkRoleAssignment —— 新增的權限必須是自己有的', () => {
+  it('發出自己沒有的權限 → 拒絕', () => {
+    const verdict = checkRoleAssignment({ ...base, grantedPermissions: ['manage_finance'] });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.ok === false && verdict.reason).toBe('exceeds-own');
+  });
+
+  it('只發自己有的 → 可以', () => {
+    expect(checkRoleAssignment({ ...base, grantedPermissions: ['manage_staff'] })).toEqual({
+      ok: true,
+    });
+  });
+
+  it('`*` 可以發任何權限 —— 只有持有全部權限者能開任何權限', () => {
+    expect(
+      checkRoleAssignment({
+        ...base,
+        permissions: ['*'],
+        grantedPermissions: ['manage_finance', 'all_campuses'],
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it('沒有新增任何權限（只拿掉、或原封不動）→ 這條不管', () => {
+    expect(checkRoleAssignment({ ...base, grantedPermissions: [] })).toEqual({ ok: true });
+  });
+});
+
+describe('addedPermissions', () => {
+  it('新清單減掉原本的', () => {
+    expect(addedPermissions(['manage_finance'], ['manage_finance', 'basic_operations'])).toEqual([
+      'basic_operations',
+    ]);
+    expect(addedPermissions(['manage_finance'], [])).toEqual([]);
   });
 });
