@@ -4,7 +4,7 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import {
   classifyAcademyExamTodo,
-  loadAcademyExamExpectedCounts,
+  loadAcademyExamCounts,
   type ExamEnrollmentRow,
 } from '../lib/academy-exam-roster';
 import { isEnrolledOn } from '../lib/session-roster';
@@ -637,25 +637,13 @@ app.openapi(listRoute, async (c) => {
       return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
     }
 
-    const { data: scoreRows, error: scoreRowsError } = await supabase
-      .from('academy_scores')
-      .select('exam_id')
-      .in(
-        'exam_id',
-        activeExams.map((exam) => exam.id),
-      );
-    if (scoreRowsError) {
-      return c.json({ error: scoreRowsError.message, code: 'DB_ERROR' }, 400);
+    // N（已登錄）與 M（分母）同一支 loader 撈 —— #949 前這裡另查一次 `academy_scores`，是重複的
+    const examCounts = await loadAcademyExamCounts(supabase, orgId, activeExams);
+    if (examCounts.scoresError) {
+      return c.json({ error: examCounts.scoresError, code: 'DB_ERROR' }, 400);
     }
-
-    // `academy_scores` 有 `UNIQUE (exam_id, student_id)`，所以筆數就是人數 ——
-    // N 與 M 因此可以直接比。少了那個約束這兩個數字不同單位，比較沒有意義。
-    const recordedByExam = new Map<string, number>();
-    for (const row of (scoreRows ?? []) as Array<{ exam_id: string }>) {
-      recordedByExam.set(row.exam_id, (recordedByExam.get(row.exam_id) ?? 0) + 1);
-    }
-
-    expectedCounts = await loadAcademyExamExpectedCounts(supabase, orgId, activeExams);
+    const recordedByExam = examCounts.recorded;
+    expectedCounts = examCounts.expected;
 
     const todoExamIds = activeExams
       .filter((exam) => {
@@ -688,11 +676,13 @@ app.openapi(listRoute, async (c) => {
   const pageRows = (data ?? []) as ExamListRow[];
   const counts =
     expectedCounts ??
-    (await loadAcademyExamExpectedCounts(
-      supabase,
-      orgId,
-      pageRows.map((row) => ({ id: row.id, examDate: row.exam_date })),
-    ));
+    (
+      await loadAcademyExamCounts(
+        supabase,
+        orgId,
+        pageRows.map((row) => ({ id: row.id, examDate: row.exam_date })),
+      )
+    ).expected;
 
   const rows = pageRows.map((row) => {
     const subject = pickRelationFirst(row.subjects);
@@ -797,24 +787,15 @@ app.openapi(todoCountRoute, async (c) => {
     return c.json({ count: 0, none: 0, partial: 0 }, 200);
   }
 
-  const { data: scoreRows, error: scoreRowsError } = await supabase
-    .from('academy_scores')
-    .select('exam_id')
-    .in(
-      'exam_id',
-      activeExams.map((exam) => exam.id),
-    );
-
-  if (scoreRowsError) {
-    return c.json({ error: scoreRowsError.message, code: 'DB_ERROR' }, 400);
+  // N（已登錄）與 M（分母）同一支 loader 撈 —— #949 前這裡另查一次 `academy_scores`，是重複的
+  const {
+    expected: expectedCounts,
+    recorded: recordedByExam,
+    scoresError,
+  } = await loadAcademyExamCounts(supabase, orgId, activeExams);
+  if (scoresError) {
+    return c.json({ error: scoresError, code: 'DB_ERROR' }, 400);
   }
-
-  const recordedByExam = new Map<string, number>();
-  for (const row of (scoreRows ?? []) as Array<{ exam_id: string }>) {
-    recordedByExam.set(row.exam_id, (recordedByExam.get(row.exam_id) ?? 0) + 1);
-  }
-
-  const expectedCounts = await loadAcademyExamExpectedCounts(supabase, orgId, activeExams);
 
   // **跟列表的 `todo` 過濾走同一支 `classifyAcademyExamTodo`** ——
   // 判定各寫一份的話，「告警說 3 場、點進去篩出 8 場」是遲早的事

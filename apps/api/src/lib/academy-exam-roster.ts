@@ -99,23 +99,38 @@ export function buildAcademyExamExpectedCounts(input: ExamExpectedCountInput): M
   return result;
 }
 
+export interface AcademyExamCounts {
+  /** 分母 M：考試日在籍 ∪ 已登錄 */
+  expected: Map<string, number>;
+  /** 分子 N：已登錄筆數。`academy_scores` 有 `UNIQUE (exam_id, student_id)`，所以筆數就是人數 */
+  recorded: Map<string, number>;
+  /**
+   * 成績查詢失敗時的訊息。**呼叫端必須把它當成錯誤回出去** —— 吞掉的話 N 會變成 0，
+   * 每一場都被判成「一筆都沒登」，待辦橫幅跟著灌水。（分母那兩支查詢的錯誤維持原本的吞法。）
+   */
+  scoresError: string | null;
+}
+
 /**
  * 撈齊三份資料再交給上面的純函式。**三支批次查詢，不是每場考試各發一次** ——
  * 延遲 ≈ 每請求的固定成本 × 一頁打幾支，減次數比減單次划算。
+ *
+ * #949：成績只需要考試 id，跟班級對照同一輪發；只有報名要等班級對照（兩輪，原本三輪）。
+ * 已登錄數 N 也從同一份成績算 —— 呼叫端原本各自再查一次 `academy_scores`，是重複的。
  */
-export async function loadAcademyExamExpectedCounts(
+export async function loadAcademyExamCounts(
   supabase: SupabaseClient,
   orgId: string,
   exams: ReadonlyArray<{ id: string; examDate: string }>,
-): Promise<Map<string, number>> {
-  if (exams.length === 0) return new Map();
+): Promise<AcademyExamCounts> {
+  if (exams.length === 0) return { expected: new Map(), recorded: new Map(), scoresError: null };
 
   const examIds = exams.map((exam) => exam.id);
 
-  const { data: examClasses } = await supabase
-    .from('academy_exam_classes')
-    .select('exam_id, class_id')
-    .in('exam_id', examIds);
+  const [{ data: examClasses }, { data: scores, error: scoresError }] = await Promise.all([
+    supabase.from('academy_exam_classes').select('exam_id, class_id').in('exam_id', examIds),
+    supabase.from('academy_scores').select('exam_id, student_id').in('exam_id', examIds),
+  ]);
 
   const classIds = Array.from(
     new Set(((examClasses ?? []) as Array<{ class_id: string }>).map((row) => row.class_id)),
@@ -134,17 +149,20 @@ export async function loadAcademyExamExpectedCounts(
           .neq('status', 'void')
           .in('class_id', classIds);
 
-  const { data: scores } = await supabase
-    .from('academy_scores')
-    .select('exam_id, student_id')
-    .in('exam_id', examIds);
+  const scoreRows = (scores ?? []) as Array<{ exam_id: string; student_id: string }>;
+  const recorded = new Map<string, number>();
+  for (const row of scoreRows) recorded.set(row.exam_id, (recorded.get(row.exam_id) ?? 0) + 1);
 
-  return buildAcademyExamExpectedCounts({
-    exams,
-    examClasses: (examClasses ?? []) as Array<{ exam_id: string; class_id: string }>,
-    enrollments: (enrollments ?? []) as ExamEnrollmentRow[],
-    scores: (scores ?? []) as Array<{ exam_id: string; student_id: string }>,
-  });
+  return {
+    expected: buildAcademyExamExpectedCounts({
+      exams,
+      examClasses: (examClasses ?? []) as Array<{ exam_id: string; class_id: string }>,
+      enrollments: (enrollments ?? []) as ExamEnrollmentRow[],
+      scores: scoreRows,
+    }),
+    recorded,
+    scoresError: scoresError?.message ?? null,
+  };
 }
 
 export type AcademyExamTodoLevel = 'none' | 'partial';

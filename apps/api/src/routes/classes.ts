@@ -60,7 +60,6 @@ const ClassSchema = z
     scheduleCount: z.number().optional(),
     scheduleTeacherIds: z.array(z.string()).optional(),
     hasUpcomingSessions: z.boolean().optional(),
-    hasAnySessions: z.boolean().optional(),
     // TODO: 待老師點名功能完成後，改為依據 status='completed' 判斷
     hasPastSessions: z.boolean().optional(),
     upcomingCancelledCount: z.number().optional(),
@@ -297,7 +296,6 @@ interface ClassExtras {
   scheduleCount?: number;
   scheduleTeacherIds?: string[];
   hasUpcomingSessions?: boolean;
-  hasAnySessions?: boolean;
   // TODO: 待老師點名功能完成後，改為依據 status='completed' 判斷
   hasPastSessions?: boolean;
   upcomingCancelledCount?: number;
@@ -334,7 +332,6 @@ export function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     scheduleCount: extras?.scheduleCount,
     scheduleTeacherIds: extras?.scheduleTeacherIds,
     hasUpcomingSessions: extras?.hasUpcomingSessions,
-    hasAnySessions: extras?.hasAnySessions,
     hasPastSessions: extras?.hasPastSessions,
     upcomingCancelledCount: extras?.upcomingCancelledCount,
     upcomingUnassignedCount: extras?.upcomingUnassignedCount,
@@ -502,7 +499,6 @@ app.openapi(
     const scheduleCountMap: Record<string, number> = {};
     const scheduleTeacherMap: Record<string, string[]> = {};
     const hasUpcomingSet = new Set<string>();
-    const hasAnySessionSet = new Set<string>();
     // TODO: 待老師點名功能完成後，改為查 status='completed'
     const hasPastSessionsSet = new Set<string>();
     const upcomingCancelledCountMap: Record<string, number> = {};
@@ -515,12 +511,26 @@ app.openapi(
       // 兩支「即將到來」查詢（477 行附近與 upcomingCancelledResult），不要各自
       // 重算一次，免得兩處又各自漂移一次。
       const today = getCurrentTaipeiDateString();
-      const sessionsResult = await supabase
-        .from('sessions')
-        .select('id, class_id, session_date, start_time, end_time, teacher_id')
-        .in('class_id', classIds)
-        .gte('session_date', today)
-        .eq('status', 'scheduled');
+      // #949：三支都只依賴 classIds，彼此互不相依 —— 同一輪發出去
+      // （原本依序發四支，第四支是下面註解說的 any-sessions，已刪）。
+      const [sessionsResult, pastSessionsCheck, upcomingCancelledResult] = await Promise.all([
+        supabase
+          .from('sessions')
+          .select('id, class_id, session_date, start_time, end_time, teacher_id')
+          .in('class_id', classIds)
+          .gte('session_date', today)
+          .eq('status', 'scheduled'),
+        // TODO: 待老師點名功能完成後，改為查 status='completed'
+        // 顯示用，查詢失敗時退回空集合（跟現況一致）——刪除守門那份 fail closed，
+        // 見 lib/class-past-sessions.ts 檔頭說明兩者為什麼不同。
+        checkClassesPastSessions(supabase, classIds),
+        supabase
+          .from('sessions')
+          .select('class_id')
+          .in('class_id', classIds)
+          .gte('session_date', today)
+          .eq('status', 'cancelled'),
+      ]);
 
       for (const s of sessionsResult.data || []) {
         const classId = s.class_id as string;
@@ -604,31 +614,11 @@ app.openapi(
         }
       }
 
-      const anySessionsResult = await supabase
-        .from('sessions')
-        .select('class_id')
-        .in('class_id', classIds);
-
-      for (const s of anySessionsResult.data || []) {
-        hasAnySessionSet.add(s.class_id as string);
-      }
-
-      // TODO: 待老師點名功能完成後，改為查 status='completed'
-      // 顯示用，查詢失敗時退回空集合（跟現況一致）——刪除守門那份 fail closed，
-      // 見 lib/class-past-sessions.ts 檔頭說明兩者為什麼不同。
-      const pastSessionsCheck = await checkClassesPastSessions(supabase, classIds);
       if (pastSessionsCheck.status === 'ok') {
         for (const classId of pastSessionsCheck.classIdsWithPastSessions) {
           hasPastSessionsSet.add(classId);
         }
       }
-
-      const upcomingCancelledResult = await supabase
-        .from('sessions')
-        .select('class_id')
-        .in('class_id', classIds)
-        .gte('session_date', today)
-        .eq('status', 'cancelled');
 
       for (const s of upcomingCancelledResult.data || []) {
         const classId = s.class_id as string;
@@ -653,7 +643,6 @@ app.openapi(
             .map((s: any) => s.teacher_id)
             .filter((tid): tid is string => !!tid),
           hasUpcomingSessions: hasUpcomingSet.has(id),
-          hasAnySessions: hasAnySessionSet.has(id),
           hasPastSessions: hasPastSessionsSet.has(id),
           upcomingCancelledCount: upcomingCancelledCountMap[id] ?? 0,
           upcomingUnassignedCount: upcomingUnassignedCountMap[id] ?? 0,

@@ -155,6 +155,8 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
       effective_to: string | null;
     }>;
     scores: Array<{ exam_id: string; student_id: string }>;
+    /** 設了就讓 `academy_scores` 查詢失敗 */
+    scoresError?: string;
   }
 
   /**
@@ -243,7 +245,9 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
             } else if (table === 'enrollments') {
               result = { data: project(fixture.enrollments, columns), error: null };
             } else if (table === 'academy_scores') {
-              result = { data: project(fixture.scores, columns), error: null };
+              result = fixture.scoresError
+                ? { data: null, error: { message: fixture.scoresError } }
+                : { data: project(fixture.scores, columns), error: null };
             }
 
             return Promise.resolve(result).then(onfulfilled ?? undefined);
@@ -276,7 +280,15 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
       };
     }
 
-    return { list, todoIds: () => todoIdFilter, inCalls };
+    async function todoCount() {
+      const response = await app.request('/api/academy-exams/todo-count', {}, undefined, {
+        waitUntil: () => undefined,
+        passThroughOnException: () => undefined,
+      } as never);
+      return { response, body: (await response.json()) as Record<string, unknown> };
+    }
+
+    return { list, todoCount, todoIds: () => todoIdFilter, inCalls };
   }
 
   // 三場都在 4/10：登完的、登到一半的、一筆都沒有的
@@ -317,6 +329,24 @@ describe('GET /api/academy-exams —— 待登錄的判定（N < M，分兩級�
       { exam_id: 'exam-partial', student_id: 's3' },
     ],
   };
+
+  /**
+   * #949：已登錄數 N 改由 loader 那支成績查詢一起算（原本兩支路由各自再查一次）。
+   * loader 對分母那兩支查詢的錯誤是吞掉的 —— **成績那支不能照吞**：N 變 0 的話每場都被判成
+   * 「一筆都沒登」，待辦數灌水，而畫面看起來完全正常。
+   */
+  it('成績查詢失敗 → todo 列表與 todo-count 都回 400，不是把每場判成待辦', async () => {
+    const { list, todoCount } = createListApp({ ...BASE, scoresError: 'boom' });
+
+    expect((await list('todo=true')).response.status).toBe(400);
+    expect((await todoCount()).response.status).toBe(400);
+  });
+
+  it('todo-count 的數字跟 todo 列表同一套判定（一場一半、一場全空）', async () => {
+    const { todoCount } = createListApp(BASE);
+
+    expect((await todoCount()).body).toEqual({ count: 2, none: 1, partial: 1 });
+  });
 
   it('`todo=true` → 登完的不算待登錄，登到一半的算', async () => {
     // 舊定義是「一筆都沒有」，於是 `exam-partial`（2 個人只登了 1 個）完全看不到
