@@ -832,6 +832,7 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 
 | 部署時間(台北) | 截線 SHA | web bundle | api version id | 正式 DB 套到 | 部署者 |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-01 13:3x | `fe645c49` | `main-LKILBF6A.js` | `dd2be985` | 同上(本批不動 migrations) | labor-reviewer |
 | 2026-10-01 12:2x | `3fca05b1` | `main-FD2BVKMS.js` | `bf86bfc4` | 同上(本批不動 migrations) | labor-reviewer |
 | 2026-10-01 10:4x | `c8f3b8f6` | `main-3R3GCOKF.js`(未變,無 web 改動) | `07cda777` | 使用者 10:3x 驗證四項 true,**差集未重跑**(見下) | labor-reviewer |
 | 2026-10-01 09:4x | `228ff2ad` | `main-3R3GCOKF.js` | `f9a863d5` | 差集 0(09-30 16:0x;本批不動 migrations) | labor-reviewer |
