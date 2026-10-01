@@ -520,75 +520,55 @@ app.openapi(listRoute, async (c) => {
   const pageSize = unpaginated ? 0 : Math.max(rawPageSize, 1);
   const offset = (page - 1) * pageSize;
 
-  let filteredStaffIdsByCampus: string[] | null = null;
-  let filteredStaffIdsBySubject: string[] | null = null;
-  let filteredUserIdsByRole: string[] | null = null;
-
   // 沒指定分校時也要縮到自己管的那幾間。**人員清單尤其重要** ——
   // 只管 A 校的主任不該看得到 B 校的員工名單與聯絡方式。
   const campusIds = campusFilterIds(campusScope, query.campusId);
-  if (campusIds) {
-    const { data: campusLinks } = await supabase
-      .from('staff_campuses')
-      .select('staff_id, campuses!inner(id)')
-      .in('campus_id', [...campusIds]);
-    filteredStaffIdsByCampus = (campusLinks || []).map((row) => row.staff_id);
+
+  // #949：四個篩選查詢（分校、角色、科目、搜尋）彼此互不相依 —— 同一輪發出去。
+  // 線上每一輪都是一段 Worker↔DB 往返，原本依序發最多是五段（角色要先查 ba_user）。
+  const none = Promise.resolve({ data: null, error: null });
+  const [campusResult, roleResult, subjectResult, searchResult] = await Promise.all([
+    campusIds
+      ? supabase
+          .from('staff_campuses')
+          .select('staff_id, campuses!inner(id)')
+          .in('campus_id', [...campusIds])
+      : none,
+    // 角色篩選**不先把 user_roles 限縮到本 org**：`user_roles` 沒有 org 欄，原本要先查一輪
+    // `ba_user.orgId` 拿本 org 的使用者再 `.in()`。但這份名單只拿去當下面 staff 主查詢的
+    // `.in('user_id')`，而主查詢本身就 `eq('org_id')` —— 別 org 的 user_id 對不到任何列，
+    // 結果一樣、少一輪。（c12：一個部署一個機構，這份名單本來就只有本機構的人。）
+    query.role ? supabase.from('user_roles').select('user_id').eq('role', query.role) : none,
+    query.subjectId
+      ? supabase.from('staff_subjects').select('staff_id').eq('subject_id', query.subjectId)
+      : none,
+    query.search
+      ? supabase
+          .from('ba_user')
+          .select('id')
+          .or(`email.ilike.%${query.search}%,phone.ilike.%${query.search}%`)
+      : none,
+  ]);
+
+  if (roleResult.error) {
+    return c.json({ error: roleResult.error.message, code: 'DB_ERROR' }, 400);
+  }
+  if (subjectResult.error) {
+    return c.json({ error: subjectResult.error.message, code: 'DB_ERROR' }, 400);
   }
 
-  if (query.role) {
-    // 用 ba_user.orgId 而不是 profiles.org_id：profiles 只有 seed.sql 會寫入，
-    // 透過 app 建立的員工在那裡沒有列，拿它篩選會讓這些人整批從結果消失。
-    const { data: orgUsers, error: orgProfileError } = await supabase
-      .from('ba_user')
-      .select('id')
-      .eq('orgId', orgId);
-
-    if (orgProfileError) {
-      return c.json({ error: orgProfileError.message, code: 'DB_ERROR' }, 400);
-    }
-
-    const orgUserIds = (orgUsers || []).map((user) => user.id);
-    if (orgUserIds.length === 0) {
-      return c.json(
-        {
-          data: [],
-          summary: emptyStaffSummary(),
-          meta: {
-            total: 0,
-            page,
-            pageSize,
-            totalPages: 0,
-          },
-        },
-        200,
-      );
-    }
-
-    const { data: roleRows, error: roleFilterError } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('role', query.role)
-      .in('user_id', orgUserIds);
-
-    if (roleFilterError) {
-      return c.json({ error: roleFilterError.message, code: 'DB_ERROR' }, 400);
-    }
-
-    filteredUserIdsByRole = (roleRows || []).map((row) => row.user_id);
-  }
-
-  if (query.subjectId) {
-    const { data: subjectLinks, error: subjectFilterError } = await supabase
-      .from('staff_subjects')
-      .select('staff_id')
-      .eq('subject_id', query.subjectId);
-
-    if (subjectFilterError) {
-      return c.json({ error: subjectFilterError.message, code: 'DB_ERROR' }, 400);
-    }
-
-    filteredStaffIdsBySubject = (subjectLinks || []).map((row) => row.staff_id);
-  }
+  const filteredStaffIdsByCampus: string[] | null = campusIds
+    ? ((campusResult.data ?? []) as Array<{ staff_id: string }>).map((row) => row.staff_id)
+    : null;
+  const filteredUserIdsByRole: string[] | null = query.role
+    ? ((roleResult.data ?? []) as Array<{ user_id: string }>).map((row) => row.user_id)
+    : null;
+  const filteredStaffIdsBySubject: string[] | null = query.subjectId
+    ? ((subjectResult.data ?? []) as Array<{ staff_id: string }>).map((row) => row.staff_id)
+    : null;
+  const matchingUserIds: string[] = ((searchResult.data ?? []) as Array<{ id: string }>).map(
+    (user) => user.id,
+  );
 
   // 條件是 `campusIds` 不是 `query.campusId` —— 受分校限制的管理員即使沒指定分校，
   // 查不到人也要回空，不能落下去變成「看到全部」
@@ -641,15 +621,8 @@ app.openapi(listRoute, async (c) => {
   }
 
   let dbQuery = supabase.from('staff').select('*', { count: 'exact' }).eq('org_id', orgId);
-  let matchingUserIds: string[] = [];
 
   if (query.search) {
-    const { data: baMatches } = await supabase
-      .from('ba_user')
-      .select('id')
-      .or(`email.ilike.%${query.search}%,phone.ilike.%${query.search}%`);
-    matchingUserIds = (baMatches ?? []).map((user: { id: string }) => user.id);
-
     if (matchingUserIds.length > 0) {
       dbQuery = dbQuery.or(
         `display_name.ilike.%${query.search}%,user_id.in.(${matchingUserIds.join(',')})`,
@@ -678,22 +651,6 @@ app.openapi(listRoute, async (c) => {
   dbQuery = dbQuery.order('created_at', { ascending: false });
   if (!unpaginated) dbQuery = dbQuery.range(offset, offset + pageSize - 1);
 
-  const { data, count, error } = await dbQuery;
-
-  if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
-  }
-
-  const staffRows = (data || []) as Record<string, unknown>[];
-  const { campusMap, subjectMap, roleInfoMap, baUserMap } = await loadStaffRelations(
-    supabase,
-    staffRows,
-  );
-  const staffList = staffRows.map((row) =>
-    mapStaff(row, campusMap, subjectMap, roleInfoMap, baUserMap),
-  );
-  const total = count || 0;
-
   // summary 不套用 status filter，永遠反映全機構（含封存）的真實總數
   let summaryQuery = supabase.from('staff').select('user_id, status').eq('org_id', orgId);
 
@@ -719,32 +676,49 @@ app.openapi(listRoute, async (c) => {
     summaryQuery = summaryQuery.in('user_id', filteredUserIdsByRole);
   }
 
-  const { data: summaryRows, error: summaryError } = await summaryQuery;
+  // #949：主查詢與 summary 互不相依（summary 只用篩選條件，不用主查詢的結果）——
+  // 同一輪發出去；兩邊各自的關聯（主查詢的 loadStaffRelations、summary 的角色）再一輪。
+  const [{ data, count, error }, { data: summaryRows, error: summaryError }] = await Promise.all([
+    dbQuery,
+    summaryQuery,
+  ]);
 
+  if (error) {
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+  }
   if (summaryError) {
     return c.json({ error: summaryError.message, code: 'DB_ERROR' }, 400);
   }
 
+  const staffRows = (data || []) as Record<string, unknown>[];
   const summaryUserIds = Array.from(
     new Set(((summaryRows || []) as Array<{ user_id: string }>).map((row) => row.user_id)),
   );
-  let summaryRoleInfoMap = new Map<string, RoleInfo>();
 
-  if (summaryUserIds.length > 0) {
-    const { data: summaryRoleRows, error: summaryRoleError } = await supabase
-      .from('user_roles')
-      .select('user_id, role, permissions')
-      .in('user_id', summaryUserIds);
+  const [{ campusMap, subjectMap, roleInfoMap, baUserMap }, summaryRoleResult] =
+    await Promise.all([
+      loadStaffRelations(supabase, staffRows),
+      summaryUserIds.length > 0
+        ? supabase
+            .from('user_roles')
+            .select('user_id, role, permissions')
+            .in('user_id', summaryUserIds)
+        : Promise.resolve({ data: [] as UserRoleRow[], error: null }),
+    ]);
 
-    if (summaryRoleError) {
-      return c.json({ error: summaryRoleError.message, code: 'DB_ERROR' }, 400);
-    }
+  const staffList = staffRows.map((row) =>
+    mapStaff(row, campusMap, subjectMap, roleInfoMap, baUserMap),
+  );
+  const total = count || 0;
 
-    const filteredSummaryRoleRows = (summaryRoleRows || []).filter(
-      (row) => row.role === 'admin' || row.role === 'teacher',
-    ) as UserRoleRow[];
-    summaryRoleInfoMap = toRoleInfoMap(filteredSummaryRoleRows);
+  if (summaryRoleResult.error) {
+    return c.json({ error: summaryRoleResult.error.message, code: 'DB_ERROR' }, 400);
   }
+  const summaryRoleInfoMap = toRoleInfoMap(
+    ((summaryRoleResult.data || []) as UserRoleRow[]).filter(
+      (row) => row.role === 'admin' || row.role === 'teacher',
+    ),
+  );
 
   const typedSummaryRows = (summaryRows || []) as Array<{ user_id: string; status: string }>;
   const summary = buildStaffSummary(typedSummaryRows, summaryRoleInfoMap);

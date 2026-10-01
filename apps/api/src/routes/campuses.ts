@@ -180,15 +180,6 @@ app.openapi(listRoute, async (c) => {
   dbQuery = dbQuery.order('created_at', { ascending: false });
   if (!unpaginated) dbQuery = dbQuery.range(offset, offset + pageSize - 1);
 
-  const { data, count, error } = await dbQuery;
-
-  if (error) {
-    console.error('DB Error:', error);
-  }
-
-  const campuses = (data || []).map((row) => mapCampus(row as Record<string, unknown>));
-  const total = count || 0;
-
   // summary 不套用 isActive filter，永遠反映全機構的真實總數
   let summaryQuery = supabase.from('campuses').select('is_active');
 
@@ -199,7 +190,18 @@ app.openapi(listRoute, async (c) => {
     summaryQuery = summaryQuery.ilike('name', `%${query.search}%`);
   }
 
-  const { data: summaryRows, error: summaryError } = await summaryQuery;
+  // #949：summary 不用列表的結果 —— 同一輪發出去
+  const [{ data, count, error }, { data: summaryRows, error: summaryError }] = await Promise.all([
+    dbQuery,
+    summaryQuery,
+  ]);
+
+  if (error) {
+    console.error('DB Error:', error);
+  }
+
+  const campuses = (data || []).map((row) => mapCampus(row as Record<string, unknown>));
+  const total = count || 0;
 
   if (summaryError) {
     console.error('DB Error:', summaryError);

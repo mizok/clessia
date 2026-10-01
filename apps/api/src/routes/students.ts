@@ -369,15 +369,6 @@ app.openapi(
     const offset = (page - 1) * pageSize;
     query = query.range(offset, offset + pageSize - 1);
 
-    const { data, error, count } = await query;
-
-    if (error) {
-      return c.json({ error: '讀取學生列表失敗', message: error.message }, 500);
-    }
-
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
-    const total = count ?? 0;
-
     // 獨立 query 取得全量 activeCount。
     // **「全量」只指「不受 `isActive` filter 影響」** —— 分校範圍照樣要套（#815）：
     // 不套的話儀表板的「在籍學生」卡片會對只管一個分校的人報全機構的數字，
@@ -388,7 +379,19 @@ app.openapi(
       .eq('org_id', orgId)
       .eq('is_active', true);
     if (scopedStudentIds) activeCountQuery = activeCountQuery.in('id', scopedStudentIds);
-    const { count: activeCount } = await activeCountQuery;
+
+    // #949：計數只用 `scopedStudentIds`（列表之前就算好了），不用列表的結果 —— 同一輪發出去
+    const [{ data, error, count }, { count: activeCount }] = await Promise.all([
+      query,
+      activeCountQuery,
+    ]);
+
+    if (error) {
+      return c.json({ error: '讀取學生列表失敗', message: error.message }, 500);
+    }
+
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    const total = count ?? 0;
 
     const students = rows.map((row) => {
       const relations =

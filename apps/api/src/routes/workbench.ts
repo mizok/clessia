@@ -141,16 +141,6 @@ app.openapi(
     // 帶了的話 `campusRequestGuard` 已經在 middleware 驗過，這支不用自己擋。
     const campusIds = campusFilterIds(getCampusScope(c), campusId);
 
-    const { data: org } = await supabase
-      .from('organizations')
-      .select('attendance_mode')
-      .eq('id', orgId)
-      .maybeSingle();
-
-    const mode =
-      ((org as { attendance_mode?: string } | null)?.attendance_mode as
-        'per_session' | 'daily_checkin') ?? 'per_session';
-
     let sessionsQuery = supabase
       .from('sessions')
       .select(SESSION_SUMMARY_SELECT)
@@ -160,7 +150,15 @@ app.openapi(
 
     if (campusIds) sessionsQuery = sessionsQuery.in('classes.campus_id', campusIds);
 
-    const { data: sessionRows, error: sessionsError } = await sessionsQuery;
+    // #949：點名模式只在撈完課堂之後才用到，兩支互不相依 —— 同一輪發出去
+    const [{ data: org }, { data: sessionRows, error: sessionsError }] = await Promise.all([
+      supabase.from('organizations').select('attendance_mode').eq('id', orgId).maybeSingle(),
+      sessionsQuery,
+    ]);
+
+    const mode =
+      ((org as { attendance_mode?: string } | null)?.attendance_mode as
+        'per_session' | 'daily_checkin') ?? 'per_session';
     if (sessionsError) {
       return c.json({ error: '查詢課堂失敗', message: sessionsError.message }, 500);
     }
