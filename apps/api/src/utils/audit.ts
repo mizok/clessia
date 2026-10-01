@@ -34,7 +34,10 @@ type ResourceType =
   // 加值一定要兩邊一起加，`logAudit` 是 fire-and-forget，
   // 只加這裡的話 insert 會被 DB 拒絕而**只在 console 留一行**。
   | 'subject'
-  | 'organization';
+  | 'organization'
+  // #911：只記「發佈」—— 已讀兩支刻意不記（使用者 2026-09-30 裁定）：
+  // `announcement_reads` 本身就存了誰、何時第一次讀，而且永久；audit_logs 90 天就清
+  | 'announcement';
 
 export interface AuditLogParams {
   orgId: string;
