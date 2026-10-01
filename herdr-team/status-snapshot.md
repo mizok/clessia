@@ -12,7 +12,6 @@
 > **可操作：交接文件裡寫「必須在 X 之前做完」的事項，同一行要寫執行者。
 > 沒有執行者的期限不是期限，是一段每天被重讀一次的焦慮。**
 
-
 > 額度逼近或輪替時落檔。**任何 session（含復活的計畫席）接手先讀這裡**，
 > 然後 `gh issue list --state open` 與 `gh pr list --state open` 現查 ——
 > **本檔記的是「為什麼」，不是「還剩什麼」**。狀態一律用查的。
@@ -67,10 +66,10 @@ gh run list --workflow verify.yml --branch main --limit 40 --json conclusion \
 
 ### `cancelled` 有兩種，而它們在 `gh run list` 上長得一模一樣
 
-| | `jobs` 長度 | 意思 |
-| --- | --- | --- |
-| 跑到一半被殺 | **非 0** | 它真的跑過，只是沒跑完 |
-| 從頭到尾沒開始 | **0** | 它在排隊時就被丟掉，**一行 log 都沒有** |
+|                | `jobs` 長度 | 意思                                    |
+| -------------- | ----------- | --------------------------------------- |
+| 跑到一半被殺   | **非 0**    | 它真的跑過，只是沒跑完                  |
+| 從頭到尾沒開始 | **0**       | 它在排隊時就被丟掉，**一行 log 都沒有** |
 
 **判定一顆 run 有沒有被驗證，要看 `jobs` 長度，不是 `conclusion`。**
 
@@ -106,14 +105,14 @@ success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只
 
 ### 席位（2026-10-01 12:4x）
 
-| 席 | 在做 | 備註 |
-| --- | --- | --- |
-| `labor-20260930-1515`（Opus） | 等瀏覽器走查 #931 | 熟 #898／#911／效能；Ctx 58% |
-| `labor-20261001-1037`（Opus） | 空（#950 交付、#953 調查交付） | 熟 sessions／在籍判定；Ctx 27% |
-| `labor-reviewer` | 等 tail | Ctx 77%，**快要輪替** |
-| `labor-db-reset` | 待命，DB 在 RESET #11 | 殘留（12:5x 實查）：ba_session 4、ba_verification 5（db-reset 憑證：乾淨庫 ba_verification = 0；ba_session 的乾淨值沒量過） |
-| `labor-ops-warden` | 巡檢 | 孤兒掃描三個盲區已落檔 |
-| `labor-20260913-1222` | **已退場，等使用者關** | |
+| 席                            | 在做                           | 備註                                                                                                                        |
+| ----------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `labor-20260930-1515`（Opus） | 等瀏覽器走查 #931              | 熟 #898／#911／效能；Ctx 58%                                                                                                |
+| `labor-20261001-1037`（Opus） | 空（#950 交付、#953 調查交付） | 熟 sessions／在籍判定；Ctx 27%                                                                                              |
+| `labor-reviewer`              | 等 tail                        | Ctx 77%，**快要輪替**                                                                                                       |
+| `labor-db-reset`              | 待命，DB 在 RESET #11          | 殘留（12:5x 實查）：ba_session 4、ba_verification 5（db-reset 憑證：乾淨庫 ba_verification = 0；ba_session 的乾淨值沒量過） |
+| `labor-ops-warden`            | 巡檢                           | 孤兒掃描三個盲區已落檔                                                                                                      |
+| `labor-20260913-1222`         | **已退場，等使用者關**         |                                                                                                                             |
 
 **已退場**：`labor-20260913-1134`（#927）、`labor-20260913-1222`（#943）。
 
@@ -143,11 +142,11 @@ success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只
 
 原本的形狀（`apps/web/src/app/core/chunk-recovery.spec.ts`）：
 
-| 位置 | 做什麼 |
-| --- | --- |
-| `markReloadAttempted()` | 存 `at = Date.now()` — 記為 `T0` |
-| 測試斷言 | `hasReloadBeenAttempted(Date.now() + RELOAD_WINDOW_MS - 1)` — 那個 `Date.now()` 是 `T1 ≥ T0` |
-| 實作 | `return now - at < RELOAD_WINDOW_MS` |
+| 位置                    | 做什麼                                                                                       |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| `markReloadAttempted()` | 存 `at = Date.now()` — 記為 `T0`                                                             |
+| 測試斷言                | `hasReloadBeenAttempted(Date.now() + RELOAD_WINDOW_MS - 1)` — 那個 `Date.now()` 是 `T1 ≥ T0` |
+| 實作                    | `return now - at < RELOAD_WINDOW_MS`                                                         |
 
 代進去：`(T1 + W - 1) - T0 < W` → **`T1 - T0 < 1`**。
 **也就是這條測試只有在兩次 `Date.now()` 落在同一毫秒時才會過。** CI 負載一高、跳過 1ms 就紅。
