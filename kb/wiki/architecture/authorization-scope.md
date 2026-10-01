@@ -3,7 +3,7 @@ title: 授權範圍 —— 分校、職務、細部權限
 summary: 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
 category: architecture
 status: active
-updated: 2026-09-13
+updated: 2026-10-01
 tags: [architecture, authorization, campus, teacher-scope, permissions, security]
 ---
 
@@ -141,6 +141,20 @@ harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一�
    （它只看 query string）。少了那一段，只管 A 校的人可以替 B 校的學生打卡
 3. **`ensureAttendanceSessionEvents` 會寫入**（補建出勤事件），所以範圍不能只靠讀取端
    過濾 —— 少了它，A 校的管理員查詢時會替 B 校的課堂建立 event
+
+### 2026-10-01 補：範圍可以從「發給別人」那一側逃出去（#966 A 批）
+
+上面守的都是「呼叫者自己碰得到什麼」。**另一側是呼叫者能發出什麼**：
+
+- **登入連結就是帳號**：鑄連結的人拿到的是對象看得到的全部。判準在
+  `routes/login-links/scope.ts` —— 對象的觸及分校（管理員用同一支 `resolveCampusScope`、
+  老師是指派 ∪ 任課班級、家長是孩子報名的分校）必須是呼叫者範圍的**子集**；
+  對象不受限而呼叫者受限 → 403。對象還沒有任何分校（剛註冊）放行，臨櫃 QR 要用。
+- **發出 `all_campuses` 等於發出不受限的帳號**：`grantsWiderThanScope`（`lib/campus-scope.ts`），
+  接在 `POST /api/staff` 與 `PUT /api/staff/:id`。`campusIdsWithinScope` 守的是 `campusIds`
+  這個載體，這支守 permission 這個載體。
+
+寫入面其餘缺口（body／path 帶 id 卻不驗分校）的盤點在 #966。
 
 ### 2026-09-13 補：接上了 ≠ 生效了 —— PostgREST 的 left join 會把 scope 吃掉（#815）
 

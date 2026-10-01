@@ -228,3 +228,18 @@ export function applyCampusFilter<T extends { in(column: string, values: string[
 
   return ids ? query.in(column, [...ids]) : query;
 }
+
+/**
+ * 受限的呼叫者要發出 `all_campuses` —— **等於發出一個不受分校限制的帳號，一律不行**（#966 A 批）。
+ *
+ * `checkRoleAssignment` 只擋「改自己」與「沒有 manage_roles」，不看發出去的權限有多大；
+ * 而建帳號的回應會附上新帳號的登入連結，所以只管 A 校的管理員建一個 `all_campuses`
+ * 的管理員，下一秒就不受限了。`campusIdsWithinScope` 守的是 `campusIds` 這個載體，
+ * 這支守 permission 這個載體。
+ */
+export function grantsWiderThanScope(
+  scope: CampusScope,
+  grantedPermissions: readonly string[] | undefined,
+): boolean {
+  return scope !== null && (grantedPermissions ?? []).includes('all_campuses');
+}

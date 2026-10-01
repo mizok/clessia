@@ -8,7 +8,12 @@ import { logAudit } from '../utils/audit';
 import { isOrphanAuthUser } from '../lib/orphan-auth-user';
 import { PERMISSIONS } from '../lib/permissions';
 import { checkRoleAssignment } from '../lib/role-assignment';
-import { campusFilterIds, campusIdsWithinScope, getCampusScope } from '../lib/campus-scope';
+import {
+  campusFilterIds,
+  campusIdsWithinScope,
+  getCampusScope,
+  grantsWiderThanScope,
+} from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
@@ -869,6 +874,10 @@ app.openapi(createRouteDef, async (c) => {
   if (!campusIdsWithinScope(getCampusScope(c), body.campusIds)) {
     return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
+  // 同一件事的另一個載體：發 `all_campuses` 就是發出不受限的帳號（#966 A 批）
+  if (grantsWiderThanScope(getCampusScope(c), body.permissions)) {
+    return c.json({ error: '你的範圍受分校限制，不能發出「跨分校」權限', code: 'FORBIDDEN' }, 403);
+  }
 
   const campusesValid = await validateCampusIdsInOrg(supabase, orgId, body.campusIds);
   if (!campusesValid) {
@@ -1184,6 +1193,10 @@ app.openapi(updateRoute, async (c) => {
   });
   if (!assignment.ok) {
     return c.json({ error: assignment.message, code: 'FORBIDDEN' }, 403);
+  }
+  // 受限的管理員不能替別人加上 `all_campuses`（#966 A 批，見 `grantsWiderThanScope`）
+  if (grantsWiderThanScope(getCampusScope(c), body.permissions)) {
+    return c.json({ error: '你的範圍受分校限制，不能發出「跨分校」權限', code: 'FORBIDDEN' }, 403);
   }
 
   if (body.campusIds !== undefined) {

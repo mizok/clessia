@@ -159,3 +159,73 @@ describe('寫入路徑的分校範圍 —— body 帶的 campusId 不能超出�
     expect(res.status).not.toBe(403);
   });
 });
+
+/**
+ * **#966 A 批：受限管理員不能發出比自己大的分校範圍。**
+ *
+ * `checkRoleAssignment` 只擋「改自己」與「沒有 manage_roles」，不看發出去的權限有多大。
+ * 於是只管 A 校、有 manage_roles 的管理員可以建一個帶 `all_campuses` 的新管理員
+ * （`campusIds` 填自己範圍內的分校就過得了上面那道），回應還附上那個帳號的 `loginUrl`
+ * —— 一步跳出自己的範圍。PUT 給別人加 `all_campuses` 是同一件事的另一個入口。
+ */
+describe('寫入路徑的分校範圍 —— 不能發出 all_campuses', () => {
+  const OTHER_STAFF = '00000000-0000-0000-0000-0000000000d2';
+
+  function newAdmin(permissions: string[]) {
+    return {
+      displayName: '新主任',
+      email: 'new-admin@example.test',
+      campusIds: [MINE],
+      roles: ['admin'],
+      permissions,
+    };
+  }
+
+  it('POST /api/staff —— 受限管理員建不出帶 all_campuses 的管理員', async () => {
+    const db = fakeDb({ user_roles: { role: 'admin' }, campuses: [{ id: MINE }] });
+    const res = await appWith(staffRoute, [MINE], db).request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(newAdmin(['basic_operations', 'all_campuses'])),
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('PUT /api/staff/:id —— 受限管理員不能替別人加上 all_campuses', async () => {
+    const db = fakeDb({
+      staff: { id: OTHER_STAFF, user_id: 'other-user', org_id: ORG },
+      user_roles: { role: 'admin' },
+    });
+    const res = await appWith(staffRoute, [MINE], db).request(`/${OTHER_STAFF}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ permissions: ['all_campuses'] }),
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  // ── 反向對照 ──
+  it('POST /api/staff —— 受限管理員建範圍內、不帶 all_campuses 的管理員，不被這一層擋', async () => {
+    const db = fakeDb({ user_roles: { role: 'admin' }, campuses: [{ id: MINE }] });
+    const res = await appWith(staffRoute, [MINE], db).request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(newAdmin(['basic_operations'])),
+    });
+
+    expect(res.status).not.toBe(403);
+  });
+
+  it('POST /api/staff —— 不受限的管理員照樣可以發 all_campuses', async () => {
+    const db = fakeDb({ user_roles: { role: 'admin' }, campuses: [{ id: MINE }] });
+    const res = await appWith(staffRoute, null, db).request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(newAdmin(['all_campuses'])),
+    });
+
+    expect(res.status).not.toBe(403);
+  });
+});
