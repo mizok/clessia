@@ -1,6 +1,11 @@
 import { registerLocaleData } from '@angular/common';
 import localeZhTW from '@angular/common/locales/zh-Hant';
-import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import {
+  ApplicationConfig,
+  inject,
+  provideAppInitializer,
+  provideBrowserGlobalErrorListeners,
+} from '@angular/core';
 import {
   PreloadAllModules,
   provideRouter,
@@ -18,6 +23,7 @@ import Aura from '@primeuix/themes/aura';
 import { routes } from './app.routes';
 import { authInterceptor } from '@core/auth.interceptor';
 import { provideSystemClock } from '@core/system-clock.providers';
+import { AuthService } from '@core/auth.service';
 import {
   handleChunkNavigationError,
   provideChunkRecovery,
@@ -162,6 +168,18 @@ export const appConfig: ApplicationConfig = {
       ripple: true,
     }),
     provideSystemClock(),
+    // #951：讓 `/api/me` 跟 `/api/system-time` **同時**出發。
+    //
+    // 時鐘那個 initializer 會擋住啟動（同步前不能拿瀏覽器的時間算「今天」），而 AuthService
+    // 原本要等路由守衛第一次注入它才發 `/me` —— 守衛又在啟動完成之後才跑，於是兩段往返依序走。
+    // 這裡只是提早**建立** AuthService（它的建構子就會發 `/me`），**不回傳 promise、不擋啟動**；
+    // 守衛之後 await 的 `auth.ready` 已經在路上或早就完成了。時鐘的語意完全不變。
+    //
+    // 代價：沒有守衛、也沒用到 AuthService 的三個公開頁（/trial、/enrollment、/qr-checkin）
+    // 每次整頁載入多一支平行的 `/me`（匿名者拿 401，AuthService 安靜處理）。不擋畫面。
+    provideAppInitializer(() => {
+      inject(AuthService);
+    }),
     ...provideChunkRecovery(),
   ],
 };
