@@ -832,6 +832,7 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 
 | 部署時間(台北) | 截線 SHA | web bundle | api version id | 正式 DB 套到 | 部署者 |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-01 09:4x | `228ff2ad` | `main-3R3GCOKF.js` | `f9a863d5` | 差集 0(09-30 16:0x;本批不動 migrations) | labor-reviewer |
 | 2026-09-30 16:0x | `b0a7d419` | `main-M2YWZD2J.js` | `15fc5bcb` | **差集 0**(使用者 16:0x 實跑) | labor-reviewer |
 | 2026-09-30 13:0x | `1a57db88` | `main-M67JFMAA.js` | `7cd80d82` | 未知(#915)※ | labor-reviewer |
 | 2026-09-13 15:1x | `cac1afb5` | `main-VUM3OUNI.js` | `89104040` | 未知(#915)※ | labor-reviewer |
@@ -1063,6 +1064,13 @@ Worker 用 `npx wrangler rollback --env production`。
 - 元件級 SCSS 會編進 **JS chunk**,不在 `styles-*.css` —— 驗 dist 內容要 grep `*.js`
 - api 部署前先 `npx wrangler deploy --env production --dry-run --outdir <tmp>` 驗 binding
 - worktree 是乾淨的,部署前 root 與 `apps/api` 各要 `npm ci`
+- **截線選法有一個例外:當這一批的目的就是某一顆 commit 時,要等它的 CI。**
+  charter 的規則是「取最近一顆 completed/success,不等 HEAD」—— 2026-10-01 那次若照字面做,
+  截線會落在 `b61cfea0`,**而它不含 #945 的 `wrangler.toml`**(實測 `grep -c placement` → 0 比 3),
+  等於部署出一個沒有 placement 的版本、然後去量它 —— **整趟白跑,而且會得到「沒效」的結論。**
+  **判準:那條規則防的是「等一個會一直前進的目標」;而指定的那一顆不會前進,它要嘛綠要嘛紅。**
+  做法:確認 HEAD 就是那一顆(`git show <sha>:<那個檔>` 比對內容,不只看 PR 編號),然後等它。
+
 - **部署後手機端要強制重新整理** —— 舊 bundle 還在快取時,症狀跟「這功能壞了」**一模一樣**。
   2026-09-13 實例:使用者回報「入口頁面連登入都有問題」,而當天的查證兩邊都乾淨 ——
   本席用 curl 驗到 index.html 的 12 個 eager chunk 全 200、`/login` 回 SPA、
