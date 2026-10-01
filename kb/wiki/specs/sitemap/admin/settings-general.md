@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-10-01
 ---
 
 # 一般設定
@@ -44,7 +44,8 @@ updated: 2026-09-13
 
 > **這個設定會改變別的頁面**：`/admin/dashboard` 的課表列能不能按、
 > `/admin/sessions` 的點名入口，都看 `mode === 'per_session'`
-> （見 [[specs/sitemap/admin/dashboard]]）。**本機是「隨堂點名」。**
+> （見 [[specs/sitemap/admin/dashboard]]）。**本機是「隨堂點名」**（以下觀察當時）。
+> ⚠️ #976（2026-10-01）起 `organizations.attendance_mode` 的預設值是 `daily_checkin`，`db:reset` 之後本機 demo 是日到班；以下觀察仍是在隨堂點名下做的。
 
 ## 互動元素
 

@@ -568,6 +568,47 @@ WHERE orphan.n = (
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
+-- 日到班的展示資料：今天的到班打卡（#976）
+--
+-- #976 起組織預設是日到班，儀表板改看「今日到班」—— 而這支原本一筆 `daily_checkins`
+-- 都沒有，於是 demo 一打開，今天有課的學生全部是「未到」，看不出這個模式長什麼樣。
+--
+-- 補法：今天有課（未停課）、在籍、當天沒請假的學生，**每三位打卡兩位**；剩下那位就是「未到」，
+-- 請假的學生由既有的請假資料呈現。三種狀態同時都有。
+--
+-- **在早退守衛之外，而且相對 `current_date`**：哪一天重跑就補那一天的；
+-- `UNIQUE (student_id, checkin_date)` 讓重跑無害。今天剛好沒課（例如週日）就一筆都不會補，那是對的。
+--
+-- **只寫 `daily_checkins`、不寫衍生的 `attendance_records`**：今天的課多半還沒有出勤事件
+-- （懶生成），`POST /api/daily-checkins` 在那種情況下也只會寫打卡本身 —— 跟 API 的行為一致，
+-- 不造出「API 不會產生」的資料形狀。`checked_in_by` 留空（c2：不碰 `ba_*`）。
+-- ============================================================================
+WITH today_students AS (
+  SELECT DISTINCT ON (e.student_id) e.org_id, e.student_id, c.campus_id
+  FROM public.sessions s
+  JOIN public.classes c ON c.id = s.class_id
+  JOIN public.enrollments e
+    ON e.class_id = s.class_id
+   AND e.status = 'active'
+   AND e.effective_from <= current_date
+   AND (e.effective_to IS NULL OR e.effective_to >= current_date)
+  WHERE s.session_date = current_date
+    AND s.status <> 'cancelled'
+    AND NOT EXISTS (
+      SELECT 1 FROM public.leave_requests l
+      WHERE l.student_id = e.student_id
+        AND current_date BETWEEN l.start_date AND l.end_date
+    )
+  ORDER BY e.student_id, s.start_time
+),
+numbered AS (
+  SELECT today_students.*, row_number() OVER (ORDER BY student_id) AS n FROM today_students
+)
+INSERT INTO public.daily_checkins (org_id, campus_id, student_id, checkin_date)
+SELECT org_id, campus_id, student_id, current_date FROM numbered WHERE n % 3 <> 0
+ON CONFLICT (student_id, checkin_date) DO NOTHING;
+
+-- ============================================================================
 -- 驗收查詢（套用前後各跑一次，比差值）
 --
 -- ⚠️ **不要用 `invoices.status`** —— 那個欄位不存在。逾期要照推導寫：

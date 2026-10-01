@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-30
+updated: 2026-10-01
 ---
 
 # 儀表板
@@ -171,7 +171,7 @@ updated: 2026-09-30
 | 「收合時間軸」按下後的文字與版面                 | 忘了在關掉對話框後補按一次，下一輪補                         |
 | 今日課表的空狀態                                 | 本機今天有課，沒有不改資料就能製造空狀態的手段               |
 | 錯誤狀態（API 失敗）                             | 需要攔截或關掉 API，會影響其他席正在用的 8787                |
-| 日到班模式（`mode !== 'per_session'`）下的課表列 | 本機組織是 `per_session`；切換模式是寫入操作，不在本工單範圍 |
+| 日到班模式（`mode !== 'per_session'`）下的課表列 | 本機組織是 `per_session`；切換模式是寫入操作，不在本工單範圍。⚠️ #976（2026-10-01）起 `organizations.attendance_mode` 的預設值是 `daily_checkin`，`db:reset` 之後本機 demo 是日到班，這一列下次可以直接量 |
 
 ## 390px
 
