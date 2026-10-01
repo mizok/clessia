@@ -18,7 +18,6 @@ import { ToastModule } from 'primeng/toast';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import type { Campus } from '@core/campuses.service';
-import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
 import { ClassesService } from '@core/classes.service';
 import { CoursesService, type Course } from '@core/courses.service';
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
@@ -69,19 +68,6 @@ import { SessionsActionsService } from './services/sessions-actions.service';
 import { todayLocal } from '@shared/utils/session-time.util';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
-/**
- * 列表用的課堂 —— 比 `Session` 多一個 `eventId`。
- *
- * 三態，**不要壓成兩態**：
- * - `string` —— 出勤事件在，點得了名
- * - `null` —— 停課，後端刻意不補建事件（`EventSessionSummary.eventId` 的註解），點不了
- * - `undefined` —— **還不知道**（出勤摘要那支 API 掛了，`loadAttendanceSummaries` 吞掉錯誤回空陣列）
- *
- * 把 `undefined` 當成 `null` 會讓摘要 API 一掛掉、整頁的點名入口就全部灰掉 ——
- * 那是把「沒問到」講成「不能點」（`kb/wiki/lessons/empty-array-hides-loading.md`）。
- */
-type SessionRow = Session & { readonly eventId?: string | null };
-
 interface AttendanceDialogCloseResult {
   readonly eventId: string;
   readonly takenAt: string;
@@ -114,7 +100,6 @@ export class SessionsPage implements OnInit {
   private readonly classesService = inject(ClassesService);
   private readonly coursesService = inject(CoursesService);
   private readonly enrollmentsService = inject(EnrollmentsService);
-  private readonly attendanceService = inject(AttendanceService);
   private readonly sessionsService = inject(SessionsService);
   private readonly sessionsActionsService = inject(SessionsActionsService);
   private readonly messageService = inject(MessageService);
@@ -136,7 +121,7 @@ export class SessionsPage implements OnInit {
    * 沒有任何錯誤字樣**。課堂管理是每天在用的頁，取數失敗會讓人以為那天沒排課（#788）。
    */
   protected readonly loadFailed = signal(false);
-  protected readonly sessions = signal<SessionRow[]>([]);
+  protected readonly sessions = signal<Session[]>([]);
 
   // Filter options — campuses & teachers come from shared cache
   protected readonly campuses = computed(() => this.refData.campuses());
@@ -307,7 +292,7 @@ export class SessionsPage implements OnInit {
   });
 
   // ── Context menu ───────────────────────────────────────────────────────
-  protected readonly contextSession = signal<SessionRow | null>(null);
+  protected readonly contextSession = signal<Session | null>(null);
   protected readonly contextMenuItems = computed<MenuItem[]>(() => {
     const s = this.contextSession();
     if (!s) return [];
@@ -317,7 +302,7 @@ export class SessionsPage implements OnInit {
         label: '管理出勤狀況',
         icon: 'pi pi-id-card',
         // UTC 日期會讓半夜的「今天」被當成未來，選項會被錯誤 disable
-        // `eventId === null` 是停課（沒有出勤事件可點）；`undefined` 是還不知道，不擋
+        // `eventId === null` 是停課（沒有出勤事件可點，#123）
         disabled: s.sessionDate > todayLocal() || s.eventId === null,
         command: () => this.openAttendance(s),
       },
@@ -737,14 +722,13 @@ export class SessionsPage implements OnInit {
     });
   }
 
-  protected openAttendance(session: SessionRow): void {
-    // `undefined` = 出勤摘要那支 API 沒回來。原本的對話框會自己反查一次，但反查打的是
-    // **同一支 API**，所以那時候它也是壞的 —— 差別只在壞在對話框裡還是壞在入口。
+  protected openAttendance(session: Session): void {
+    // 停課沒有出勤事件（選單已 disable）；這裡是防線，不讓對話框拿到空的 eventId
     if (!session.eventId) {
       this.messageService.add({
         severity: 'warn',
         summary: '無法開啟點名',
-        detail: '出勤資料尚未載入完成，請重新整理後再試。',
+        detail: '這堂課沒有出勤事件，請重新整理後再試。',
       });
       return;
     }
@@ -791,34 +775,6 @@ export class SessionsPage implements OnInit {
   }
 
   // ── Private ────────────────────────────────────────────────────────────
-  /**
-   * 算出「目前的其他篩選條件之下，有幾堂已停課被狀態篩選擋在外面」（#640）。
-   *
-   * **必須沿用同一組其他條件**（日期、分校、課程、老師、班級…），只把 statuses
-   * 換成 `['cancelled']` —— 問的是「我現在這個範圍裡藏了幾堂」，不是「全庫有幾堂」。
-   *
-   * `session-list` 既有的「N 堂已停課」算的是**當頁那 20 列**裡的停課數，
-   * 所以在預設篩選之下它永遠是 0（那些列根本不在），拿不來用。
-   *
-   * **正解其實是讓後端在 `meta` 多回一個數字** —— 那裡已經有
-   * `monthUnassignedCount` / `todayPendingAttendanceCount` 兩個同性質的側邊計數，
-   * 一次請求就好。沒那樣做是因為 `apps/api` 不是這一席的領地；
-   * 接手的人要收斂的話，那是正確的方向。
-   */
-  private loadHiddenCancelledCount(listParams: SessionQueryParams): void {
-    if (listParams.statuses?.includes('cancelled') !== false) {
-      this.hiddenCancelledCount.set(0);
-      return;
-    }
-    this.sessionsService
-      .list({ ...listParams, statuses: ['cancelled'], page: 1, pageSize: 1 })
-      .subscribe({
-        next: (res) => this.hiddenCancelledCount.set(res.meta.total),
-        // 算不出來就不顯示 —— 一個猜的數字比沒有數字糟
-        error: () => this.hiddenCancelledCount.set(0),
-      });
-  }
-
   /** 頁首那顆「已隱藏 N 堂停課」被按下 —— 把已停課加回狀態篩選 */
   protected onRevealCancelled(): void {
     if (this.selectedStatuses().includes('cancelled')) return;
@@ -963,96 +919,24 @@ export class SessionsPage implements OnInit {
 
     this.loading.set(true);
     this.loadFailed.set(false);
-    this.sessionsService
-      .list(listParams)
-      .pipe(
-        switchMap((res) =>
-          this.loadAttendanceSummaries(res.data, dateFrom, dateTo).pipe(
-            map((summaries) => ({
-              res,
-              sessions: this.mergeAttendanceSummaries(res.data, summaries),
-            })),
-          ),
-        ),
-      )
-      .subscribe({
-        next: ({ res, sessions }) => {
-          this.sessions.set(sessions);
-          this.totalSessions.set(res.meta.total);
-          this.monthUnassignedCount.set(res.meta.monthUnassignedCount);
-          this.todayPendingAttendanceCount.set(res.meta.todayPendingAttendanceCount);
-          this.loading.set(false);
-          this.loadHiddenCancelledCount(listParams);
-        },
-        error: () => {
-          this.loading.set(false);
-          // **不再發 toast** —— 主體現在有常駐的失敗狀態（照 /admin/payments，#788）
-          this.loadFailed.set(true);
-        },
-      });
-  }
-
-  private loadAttendanceSummaries(
-    sessions: readonly Session[],
-    dateFrom?: string,
-    dateTo?: string,
-  ) {
-    if (sessions.length === 0) {
-      return of([] as EventSessionSummary[]);
-    }
-
-    const classIds = [...new Set(sessions.map((session) => session.classId))];
-    const dates = sessions.map((session) => session.sessionDate).sort();
-
-    return this.attendanceService
-      .sessions({
-        classIds,
-        dateFrom: dateFrom ?? dates[0],
-        dateTo: dateTo ?? dates.at(-1),
-        page: 1,
-        pageSize: 100,
-      })
-      .pipe(
-        map((response) => response.data),
-        catchError(() => of([] as EventSessionSummary[])),
-      );
-  }
-
-  private mergeAttendanceSummaries(
-    sessions: readonly Session[],
-    summaries: readonly EventSessionSummary[],
-  ): SessionRow[] {
-    const summaryMap = new Map(
-      summaries.map((summary) => [this.getAttendanceSummaryKey(summary), summary]),
-    );
-
-    return sessions.map((session) => {
-      const summary = summaryMap.get(this.getAttendanceSummaryKey(session));
-      if (!summary) {
-        return session;
-      }
-
-      return {
-        ...session,
-        // 這裡本來就配對到 summary 了，eventId 一起帶走 —— 不帶的話點開對話框時
-        // 會用同一組 key 再打一次同一支 API 做一模一樣的配對
-        eventId: summary.eventId,
-        attendanceTakenAt: summary.takenAt,
-        attendanceEnrolledCount: summary.enrolledCount,
-        attendancePresentCount: summary.presentCount,
-        attendanceOnLeaveCount: summary.onLeaveCount,
-        attendanceAbsentCount: summary.absentCount,
-      };
+    // 一支請求拿齊（#950）：出勤摘要、eventId、被狀態篩選藏起來的停課數（#640）
+    // 都跟著 `/api/sessions` 回來。原本是 sessions → attendance/sessions →
+    // sessions?statuses=cancelled 三段依序請求。
+    this.sessionsService.list(listParams).subscribe({
+      next: (res) => {
+        this.sessions.set(res.data);
+        this.totalSessions.set(res.meta.total);
+        this.monthUnassignedCount.set(res.meta.monthUnassignedCount);
+        this.todayPendingAttendanceCount.set(res.meta.todayPendingAttendanceCount);
+        this.hiddenCancelledCount.set(res.meta.hiddenCancelledCount);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        // **不再發 toast** —— 主體現在有常駐的失敗狀態（照 /admin/payments，#788）
+        this.loadFailed.set(true);
+      },
     });
-  }
-
-  private getAttendanceSummaryKey(
-    value:
-      | Pick<Session, 'classId' | 'sessionDate' | 'startTime' | 'endTime'>
-      | Pick<EventSessionSummary, 'classId' | 'eventDate' | 'startTime' | 'endTime'>,
-  ): string {
-    const date = 'sessionDate' in value ? value.sessionDate : value.eventDate;
-    return [value.classId, date, value.startTime ?? '', value.endTime ?? ''].join('|');
   }
 
   private refreshStudentEnrolledClassIds(studentIds: string[], onComplete?: () => void): void {

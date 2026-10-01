@@ -1572,7 +1572,19 @@ describe('PATCH /api/attendance/batch —— 未標記且有生效請假的學�
  * 而出勤事件是懶生成的）。
  */
 describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
-  function createRosterApp(leaveRows: Array<Record<string, unknown>>) {
+  const DEFAULT_ENROLLMENTS = [
+    {
+      student_id: 'stu-1',
+      effective_from: '2026-01-01',
+      effective_to: null,
+      students: { name: '王小明', grade: 'J1' },
+    },
+  ];
+
+  function createRosterApp(
+    leaveRows: Array<Record<string, unknown>>,
+    enrollmentRows: Array<Record<string, unknown>> = DEFAULT_ENROLLMENTS,
+  ) {
     const queriedTables: string[] = [];
 
     const supabase = {
@@ -1600,7 +1612,7 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
           then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
             const data =
               table === 'enrollments'
-                ? [{ student_id: 'stu-1', students: { name: '王小明', grade: 'J1' } }]
+                ? enrollmentRows
                 : table === 'leave_requests'
                   ? leaveRows
                   : [];
@@ -1626,8 +1638,11 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
     return { app, queriedTables };
   }
 
-  async function roster(leaveRows: Array<Record<string, unknown>>) {
-    const { app, queriedTables } = createRosterApp(leaveRows);
+  async function roster(
+    leaveRows: Array<Record<string, unknown>>,
+    enrollmentRows?: Array<Record<string, unknown>>,
+  ) {
+    const { app, queriedTables } = createRosterApp(leaveRows, enrollmentRows);
     const response = await app.request('/api/attendance/roster/event-1');
     const payload = (await response.json()) as {
       students: Array<{
@@ -1641,6 +1656,28 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
     };
     return { payload, queriedTables };
   }
+
+  // 在籍判定走 `isEnrolledOn`（#950）—— 跟課堂列表的在籍人數同一份規則。
+  // 替身不套 DB 條件，所以區間外的列會原樣回來；名單得自己濾掉。
+  it('課堂日不在報名生效區間內的學生不在名單上（#950）', async () => {
+    const student = (id: string, from: string, to: string | null) => ({
+      student_id: id,
+      effective_from: from,
+      effective_to: to,
+      students: { name: id, grade: 'J1' },
+    });
+    const { payload } = await roster(
+      [],
+      [
+        student('stu-in', '2026-01-01', null),
+        student('stu-ends-that-day', '2026-01-01', '2026-04-06'),
+        student('stu-later', '2026-04-07', null),
+        student('stu-left', '2026-01-01', '2026-04-05'),
+      ],
+    );
+
+    expect(payload.students.map((s) => s.studentId)).toEqual(['stu-in', 'stu-ends-that-day']);
+  });
 
   it('沒有點名紀錄、但當天有假 —— 仍然標得出來', async () => {
     // 這就是原本的洞：請假在課堂 event 生成之前建立，連動一筆都沒寫到

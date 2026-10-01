@@ -23,7 +23,13 @@ export interface Session {
   makeupFor?: SessionMakeupLink | null;
   /** 這堂停課被哪一堂**有效的**補課補了；`null` = 還沒被補 */
   madeUpBy?: SessionMakeupLink | null;
+  /**
+   * 這堂課的出勤事件（點名入口要用）。`null` = 停課 —— 後端刻意不補建 event（#123），
+   * 其餘狀態在 `/api/sessions` 查詢前已補齊（#950）。
+   */
+  eventId?: string | null;
   attendanceTakenAt?: string | null;
+  /** 課堂**當天**在籍的人數（#950，依課堂日期，跟點名名單同一份規則） */
   attendanceEnrolledCount?: number;
   attendancePresentCount?: number;
   attendanceOnLeaveCount?: number;
@@ -219,6 +225,8 @@ export class SessionsService {
       totalPages: number;
       monthUnassignedCount: number;
       todayPendingAttendanceCount: number;
+      /** 狀態篩選藏起來的停課數（同一組其他條件）；沒藏就是 0 */
+      hiddenCancelledCount: number;
     };
   }> {
     const query: Record<string, string> = {};
@@ -261,6 +269,7 @@ export class SessionsService {
         totalPages: number;
         monthUnassignedCount: number;
         todayPendingAttendanceCount: number;
+        hiddenCancelledCount: number;
       };
     }>(this.endpoint, { params: query });
   }
