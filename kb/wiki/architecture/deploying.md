@@ -260,6 +260,73 @@ c12：這只是 Cloudflare 的部署提示，`server.ts` 的 Node 自架路徑�
 > 判準 b 與 c 都需要 session：**b 要有人登入後點幾下**（tail 由有 wrangler 權限的人同時開著），
 > c 要 cookie。
 
+## 量「查詢並行化有沒有生效」—— 用 `wallTime` 對「合計／最慢」，不要用 TTFB
+
+> **判準先寫在前面**（計畫席 2026-10-01 採用）：
+>
+> | 查詢是怎麼跑的 | `wallTime` 會接近 |
+> | --- | --- |
+> | **循序** N 支 | **`合計`**（各查詢耗時的總和） |
+> | **並行** N 支 | **`最慢`**，而 `合計` 明顯大於它 |
+>
+> **`合計 / 最慢` 的比值本身就是並行度**：N 支全並行時約等於 N、循序時約等於 1。
+> **判準：`wallTime` 從「≈合計」變成「≈最慢」= 並行生效；沒變 = 沒生效。**
+
+三個數字都在 `wrangler tail --format json` 的同一筆事件裡：
+
+- **`wallTime`**：事件頂層（毫秒）
+- **`合計` / `最慢`**：`middleware/auth.ts` 印的 `[probe]` 行，實作在 `lib/supabase-latency-probe.ts`
+  （`totalMs += elapsed` 是**總和**、`slowestMs` 是**最大值**）
+
+### 為什麼不用 TTFB
+
+1. **對網路雜訊免疫** —— 三個數字全是 Worker 內部量的，不含入口↔執行機房那一段。
+   2026-10-01 實測：同一設定下 `magic-verify` 的 TTFB 中位數在 **0.16～0.29** 之間跑
+   （跨度 0.13），**比單支 PR 可能帶來的改善還大**。
+2. **單筆請求就能判** —— 不需要中位數、不需要前後各量三四輪。
+3. **不需要把 session 交出去** —— 只要有人登入後正常點幾頁，量的人同時開 `wrangler tail`；
+   **session 留在使用者的瀏覽器裡，量的人只拿到 Worker 的 log。**
+4. **前後比的是同一件事** —— 同一支端點、同一組欄位，而不是「未登入端點」對「登入端點」。
+
+### 涵蓋不到的，先講
+
+- **瀏覽器端的發出時序 tail 看不到**（例：#951 讓 `/api/me` 與 `/api/system-time` 同時出發）——
+  Worker 只看到兩個獨立請求。那要看 waterfall 裡兩筆的**起點是否重疊**，**只有瀏覽器量得到**。
+- **未登入的請求不會印 `[probe]`**：`format()` 在 `count === 0` 時回 `null` ——
+  它們一次 DB 都沒查。所以這個判準**只能在登入後的流量上用**。
+- `wallTime` 含 Worker 內的其他工作（序列化等），所以是「接近」不是「等於」——
+  **但循序與並行的差距是 N 倍級的，不會被那點開銷蓋掉。**
+- **「沒變」有兩條路**：並行沒生效，或**改動根本沒進這一版**。
+  後者要用**只有新版才有的字串**去 bundle 裡驗（例：`announcement.publish`），
+  **不要拿這個判準回答那個問題。**
+
+### 量的時候要帶一個陰性對照
+
+挑一支**這一批沒有改到**的多查詢端點（2026-10-01 那次用管理端帳單列表，
+`git show <squash> --name-only | grep -i invoice` 是空的）—— **它前後應該不變**。
+不變才證明「有變的那幾支是改動造成的，不是整站在那個時段剛好比較快」。
+
+### 分析腳本（`wrangler tail` 的輸出不是 NDJSON）
+
+`--format json` 吐的是**pretty-print 的 JSON 串接**，所以 `wc -l` 的行數**不是事件數**
+（2026-10-01 踩過：935 行其實是 8 筆）。要逐個 `raw_decode`：
+
+```python
+import json, sys
+s = sys.stdin.read(); dec = json.JSONDecoder(); i = 0
+while i < len(s):
+    while i < len(s) and s[i] in ' \n\r\t': i += 1
+    if i >= len(s): break
+    e, i = dec.raw_decode(s, i)
+    probe = next((str(l.get('message')) for l in (e.get('logs') or [])
+                  if '[probe]' in str(l.get('message'))), None)
+    if probe:
+        print(e.get('wallTime'), probe)
+```
+
+**捕獲檔裡的 log 筆數要一起報** —— 它是正控：log 非 0 而 `[probe]` 是 0，意思是
+「**沒有 probe 行**」；log 也 0 則是「**管道沒抓到**」。**兩者在 `grep -c` 上都是 `0`。**
+
 **判準 c（一個請求查多次 DB 的端點）：未量** —— 要登入 cookie。
 而**那正是 placement 的主要受益形狀**，所以目前的結論只涵蓋 0 次與 1 次 DB 的端點。
 
