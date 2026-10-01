@@ -11,7 +11,12 @@ import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
 import { resolveRecordedByRole } from '../lib/recorded-by-role';
 import { leaveCoversSession } from '../lib/leave-covers-session';
 import { cancelLeaveForDate } from '../lib/cancel-leave-for-date';
-import { countEnrolledOn, tallyAttendance, type EnrollmentRange } from '../lib/session-roster';
+import {
+  countEnrolledOn,
+  isEnrolledOn,
+  tallyAttendance,
+  type EnrollmentRange,
+} from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
 import { applyCampusFilter, type CampusScope, getCampusScope } from '../lib/campus-scope';
@@ -1132,13 +1137,23 @@ app.openapi(
     const classId = (ev as any).sessions?.[0]?.class_id;
     const eventDate = (ev as any).event_date as string;
 
-    const { data: enrollments } = await supabase
+    // 在籍判定走 `isEnrolledOn`（#950）—— 跟課堂列表的在籍人數同一份規則，不在 SQL 裡
+    // 另寫一份。撈這個班的 active 報名（量級是一個班），在記憶體裡依課堂日期過濾。
+    // ⚠️ 點名寫入的驗證（PUT 那支）與到班掃碼（lib/enrolled-events.ts）仍各有一份
+    // 等價的條件 —— 它們是扣堂的上游，屬保留類，刻意沒在 #950 一起收。
+    const { data: classEnrollments } = await supabase
       .from('enrollments')
-      .select('student_id, students(name, grade, schools(id, name, short_name))')
+      .select(
+        'student_id, effective_from, effective_to, students(name, grade, schools(id, name, short_name))',
+      )
       .eq('class_id', classId)
-      .eq('status', 'active')
-      .lte('effective_from', eventDate)
-      .or(`effective_to.is.null,effective_to.gte.${eventDate}`);
+      .eq('status', 'active');
+    const enrollments = (classEnrollments ?? []).filter((row: any) =>
+      isEnrolledOn(
+        { effectiveFrom: row.effective_from, effectiveTo: row.effective_to ?? null },
+        eventDate,
+      ),
+    );
 
     const { data: records } = await supabase
       .from('attendance_records')

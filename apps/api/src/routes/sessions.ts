@@ -21,6 +21,12 @@ import { planBatchUpdateTime } from '../domain/session-assignment/batch-update-t
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { hasSessionEndedByNow } from '../lib/session-end-time';
 import { sliceDerivedPage } from '../lib/derived-page';
+import {
+  countEnrolledOn,
+  tallyAttendance,
+  type AttendanceTally,
+  type EnrollmentRange,
+} from '../lib/session-roster';
 import { getCampusScope, isCampusAllowed } from '../lib/campus-scope';
 import {
   applyAttendanceTakenFilter,
@@ -164,9 +170,17 @@ const SessionListItemSchema = z
     //
     // 現在 `mapSession` 的回傳型別錨定到 `z.infer<typeof SessionListItemSchema>`，
     // **多回一個沒宣告的欄位會變成編譯期的 `TS2353`**。
+    /**
+     * 這堂課的出勤事件（點名入口要用）。`null` = 停課 —— 停課刻意不補建 event（#123），
+     * 其餘狀態在查詢前已由 `ensureAttendanceSessionEvents` 補齊。
+     */
+    eventId: DbUuidSchema.nullable(),
     /** 這堂課的出勤事件被點名的時間；`null` = 還沒點名 */
     attendanceTakenAt: z.string().nullable(),
-    /** 這堂課所屬班級當天在籍的人數（分母） */
+    /**
+     * 這堂課所屬班級**課堂當天**在籍的人數（分母）—— `lib/session-roster.ts` 的
+     * `countEnrolledOn`，跟 `/api/attendance/sessions` 與點名名單同一份規則（#950）
+     */
     attendanceEnrolledCount: z.number(),
     attendancePresentCount: z.number(),
     attendanceOnLeaveCount: z.number(),
@@ -184,6 +198,8 @@ const SessionListResponseSchema = z
       totalPages: z.number(),
       monthUnassignedCount: z.number(),
       todayPendingAttendanceCount: z.number(),
+      /** 狀態篩選有指定且不含停課時，同一組其他條件下被藏起來的停課數；否則 0 */
+      hiddenCancelledCount: z.number(),
     }),
   })
   .openapi('SessionListResponse');
@@ -404,8 +420,8 @@ interface BatchSessionChangeInsertInput {
 function mapSession(
   row: Record<string, unknown>,
   hasChanges: boolean,
-  attendanceCountMap: Map<string, { present: number; onLeave: number; absent: number }>,
-  enrolledCountMap: Map<string, number>,
+  attendanceTally: Map<string, AttendanceTally>,
+  enrollmentRanges: readonly EnrollmentRange[],
 ): z.infer<typeof SessionListItemSchema> {
   const classRow = row['classes'] as Record<string, unknown> | null;
   const courseRow = classRow?.['courses'] as Record<string, unknown> | null;
@@ -415,11 +431,12 @@ function mapSession(
 
   const eventId = row['event_id'] as string | null;
   const classId = row['class_id'] as string;
-  const attendanceCounts = eventId ? attendanceCountMap.get(eventId) : undefined;
+  const attendanceCounts = eventId ? attendanceTally.get(eventId) : undefined;
+  const sessionDate = row['session_date'] as string;
 
   return {
     id: row['id'] as string,
-    sessionDate: row['session_date'] as string,
+    sessionDate,
     startTime: toHHmm(row['start_time'] as string | null) ?? '',
     endTime: toHHmm(row['end_time'] as string | null) ?? '',
     status: row['status'] as 'scheduled' | 'completed' | 'cancelled',
@@ -434,10 +451,11 @@ function mapSession(
     assignmentStatus: (row['assignment_status'] as 'assigned' | 'unassigned' | null) ?? 'assigned',
     hasChanges,
     attendanceTakenAt: (eventRow?.['attendance_taken_at'] as string | null) ?? null,
-    attendanceEnrolledCount: enrolledCountMap.get(classId) ?? 0,
-    attendancePresentCount: attendanceCounts?.present ?? 0,
-    attendanceOnLeaveCount: attendanceCounts?.onLeave ?? 0,
-    attendanceAbsentCount: attendanceCounts?.absent ?? 0,
+    eventId: eventId ?? null,
+    attendanceEnrolledCount: countEnrolledOn(enrollmentRanges, classId, sessionDate),
+    attendancePresentCount: attendanceCounts?.presentCount ?? 0,
+    attendanceOnLeaveCount: attendanceCounts?.onLeaveCount ?? 0,
+    attendanceAbsentCount: attendanceCounts?.absentCount ?? 0,
     ...mapSessionMakeup(row),
   };
 }
@@ -840,85 +858,80 @@ app.openapi(listSessionsRoute, async (c) => {
     ? (statuses.split(',').filter(Boolean) as ('scheduled' | 'completed' | 'cancelled')[])
     : [];
 
-  // 「有沒有點名」的條件下在 embed 的 `events` 欄位上，跟 `/api/attendance/sessions`
-  // 同一個坑：不配 `!inner` join 會靜靜地什麼都不篩（見 lib/session-summary.ts 的表）。
-  // 配了 `!inner` 之後，還沒被懶生成補建 event 的 scheduled/completed 課堂會被
-  // inner join 誤判成「不存在」而不是「未點名」——所以要先呼叫 ensure 補齊。
-  if (attendanceTaken !== undefined) {
-    const ensureStatusList = (
-      statusList.length > 0 ? statusList : (['scheduled', 'completed'] as const)
-    ).filter((status) => status !== 'cancelled');
-    if (ensureStatusList.length > 0) {
-      const ensureResult = await ensureAttendanceSessionEvents({
-        supabase,
-        orgId,
-        campusScope,
-        campusId,
-        courseIdList,
-        classIdList,
-        statusList: ensureStatusList,
-        dateFromValue: from,
-        dateToValue: to,
-      });
-      if (ensureResult.error) {
-        return c.json({ error: '補齊課堂事件失敗', code: 'DB_ERROR' }, 400);
-      }
+  // 補建出勤事件 —— **每次都跑**（#950）。回應要帶 `eventId`，而懶生成的課堂還沒有
+  // event；這原本是課堂頁第 2 段請求（`/api/attendance/sessions`）的副作用，搬過來而已。
+  // 另一個理由不變：`attendanceTaken` 的條件下在 embed 的 `events` 上、配 `!inner`
+  // （不配會靜靜地什麼都不篩，見 lib/session-summary.ts 的表），還沒補建的課堂會被
+  // inner join 誤判成「不存在」而不是「未點名」。
+  //
+  // ⚠️ 這一步會**寫入**，分校範圍不能只靠讀取端過濾 —— 範圍由 ensure 內部的
+  // `applyCampusFilter(…, campusScope, campusId)` 套上（lib/attendance-session-events.ts）。
+  // 停課不補建（#123）：只查停課時整段跳過。
+  const ensureStatusList = (
+    statusList.length > 0 ? statusList : (['scheduled', 'completed'] as const)
+  ).filter((status) => status !== 'cancelled');
+  if (ensureStatusList.length > 0) {
+    const ensureResult = await ensureAttendanceSessionEvents({
+      supabase,
+      orgId,
+      campusScope,
+      campusId,
+      courseIdList,
+      classIdList,
+      statusList: ensureStatusList,
+      dateFromValue: from,
+      dateToValue: to,
+    });
+    if (ensureResult.error) {
+      return c.json({ error: '補齊課堂事件失敗', code: 'DB_ERROR' }, 400);
     }
   }
 
-  let dbQuery = supabase
-    .from('sessions')
-    .select(sessionListSelect(attendanceTaken !== undefined), { count: 'exact' })
-    .eq('org_id', orgId)
-    .order('session_date')
-    .order('start_time');
-
-  if (from) {
-    dbQuery = dbQuery.gte('session_date', from);
-  }
-  if (to) {
-    dbQuery = dbQuery.lte('session_date', to);
-  }
-
-  if (effectiveCampusFilter) {
-    dbQuery = dbQuery.in('classes.campus_id', effectiveCampusFilter);
-  }
-  if (courseIdList.length > 0) {
-    dbQuery = dbQuery.in('classes.course_id', courseIdList);
-  }
-  if (teacherIds) {
-    const ids = teacherIds.split(',').filter(Boolean);
-    if (ids.length > 0) {
-      dbQuery = dbQuery.in('teacher_id', ids);
-    }
-  } else if (teacherId) {
-    dbQuery = dbQuery.eq('teacher_id', teacherId);
-  }
-  if (classIdList.length > 0) {
-    dbQuery = dbQuery.in('class_id', classIdList);
-  }
-  if (statusList.length > 0) {
-    dbQuery = dbQuery.in('status', statusList);
-  }
-  if (assignmentStatus) {
-    dbQuery = dbQuery.eq('assignment_status', assignmentStatus);
-  }
-  dbQuery = applyAttendanceTakenFilter(dbQuery, attendanceTaken);
+  // 主查詢與停課計數**共用同一組條件**（狀態除外）—— 停課計數問的是「我現在這個範圍裡
+  // 藏了幾堂」，兩邊各寫一份條件的話會漂（#640）。select 也用同一份，join 語意才一致。
+  const listSelect = sessionListSelect(attendanceTaken !== undefined);
+  const filteredSessions = (options: { count: 'exact'; head?: boolean }) => {
+    let query = supabase
+      .from('sessions')
+      .select(listSelect, options)
+      .eq('org_id', orgId)
+      .order('session_date')
+      .order('start_time');
+    if (from) query = query.gte('session_date', from);
+    if (to) query = query.lte('session_date', to);
+    if (effectiveCampusFilter) query = query.in('classes.campus_id', effectiveCampusFilter);
+    if (courseIdList.length > 0) query = query.in('classes.course_id', courseIdList);
+    const teacherIdList = teacherIds ? teacherIds.split(',').filter(Boolean) : [];
+    if (teacherIdList.length > 0) query = query.in('teacher_id', teacherIdList);
+    else if (!teacherIds && teacherId) query = query.eq('teacher_id', teacherId);
+    if (classIdList.length > 0) query = query.in('class_id', classIdList);
+    if (assignmentStatus) query = query.eq('assignment_status', assignmentStatus);
+    return applyAttendanceTakenFilter(query, attendanceTaken);
+  };
 
   // Pagination
   const resolvedPage = page ?? 1;
   const resolvedPageSize = pageSize ?? 50;
   const offset = (resolvedPage - 1) * resolvedPageSize;
+
+  let mainQuery = filteredSessions({ count: 'exact' });
+  if (statusList.length > 0) mainQuery = mainQuery.in('status', statusList);
   // `endedOnly` 是推導條件（「上完了沒」DB 濾不掉），跟 attendance.ts 同一個
   // 形狀：不走 DB `.range()`，改撈候選集合、應用層過濾、`sliceDerivedPage` 切頁。
-  dbQuery = endedOnly
-    ? dbQuery.limit(SESSIONS_ENDED_ONLY_CANDIDATE_LIMIT)
-    : dbQuery.range(offset, offset + resolvedPageSize - 1);
+  mainQuery = endedOnly
+    ? mainQuery.limit(SESSIONS_ENDED_ONLY_CANDIDATE_LIMIT)
+    : mainQuery.range(offset, offset + resolvedPageSize - 1);
 
-  const { data, count, error } = await dbQuery;
-  if (error) {
-    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
-  }
+  // 被狀態篩選藏起來的停課數（#640 → #950 從前端第 4 段請求搬進 meta）。
+  // 狀態沒指定時停課本來就看得到，不發這支。`endedOnly` 時撈候選列套同一個推導。
+  const hidesCancelled = statusList.length > 0 && !statusList.includes('cancelled');
+  const cancelledQuery = hidesCancelled
+    ? endedOnly
+      ? filteredSessions({ count: 'exact' })
+          .in('status', ['cancelled'])
+          .limit(SESSIONS_ENDED_ONLY_CANDIDATE_LIMIT)
+      : filteredSessions({ count: 'exact', head: true }).in('status', ['cancelled'])
+    : null;
 
   // 本月未指派 / 今日未點名 — 受 campus filter 影響，但不受其他 filter 影響
   // 沒指定分校時退回呼叫者的範圍 —— 跟主查詢用同一個結果，兩邊不能各算一次
@@ -936,7 +949,6 @@ app.openapi(listSessionsRoute, async (c) => {
   if (effectiveCampusIds) {
     monthUnassignedQuery = monthUnassignedQuery.in('classes.campus_id', effectiveCampusIds);
   }
-  const { count: monthUnassignedCount } = await monthUnassignedQuery;
 
   const today = getCurrentTaipeiDateString();
   let todayPendingQuery = supabase
@@ -952,73 +964,96 @@ app.openapi(listSessionsRoute, async (c) => {
   if (effectiveCampusIds) {
     todayPendingQuery = todayPendingQuery.in('classes.campus_id', effectiveCampusIds);
   }
-  const { count: todayPendingAttendanceCount } = await todayPendingQuery;
+
+  // 第一輪：四支互不相依（#950 / #948 A 節）
+  const [
+    { data, count, error },
+    { count: monthUnassignedCount },
+    { count: todayPendingAttendanceCount },
+    cancelledResult,
+  ] = await Promise.all([
+    mainQuery,
+    monthUnassignedQuery,
+    todayPendingQuery,
+    cancelledQuery ?? Promise.resolve(null),
+  ]);
+  if (error) {
+    return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
+  }
+
+  // 算不出來就給 0 —— 一個猜的數字比沒有數字糟（沿用前端原本的處理）
+  const hiddenCancelledCount = !cancelledResult
+    ? 0
+    : endedOnly
+      ? ((cancelledResult.data ?? []) as unknown as Record<string, unknown>[]).filter((row) =>
+          hasSessionEndedByNow({
+            date: row['session_date'] as string,
+            startTime: toHHmm(row['start_time'] as string | null) ?? '',
+            endTime: toHHmm(row['end_time'] as string | null) ?? '',
+          }),
+        ).length
+      : (cancelledResult.count ?? 0);
 
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
   const sessionIds = rows.map((row) => row['id'] as string);
-
-  const changedIds = new Set<string>();
-  if (sessionIds.length > 0) {
-    const { data: changes, error: changesError } = await supabase
-      .from('schedule_changes')
-      .select('session_id')
-      .in('session_id', sessionIds);
-
-    if (changesError) {
-      return c.json({ error: changesError.message, code: 'DB_ERROR' }, 400);
-    }
-
-    for (const change of changes ?? []) {
-      changedIds.add(change.session_id as string);
-    }
-  }
-
-  // Batch-fetch attendance counts per event
   const eventIds = rows
     .map((row) => row['event_id'] as string | null)
     .filter((id): id is string => Boolean(id));
-
-  const attendanceCountMap = new Map<
-    string,
-    { present: number; onLeave: number; absent: number }
-  >();
-  if (eventIds.length > 0) {
-    const { data: attendanceRecords } = await supabase
-      .from('attendance_records')
-      .select('event_id, status')
-      .in('event_id', eventIds)
-      .eq('org_id', orgId);
-
-    for (const record of attendanceRecords ?? []) {
-      const eid = record.event_id as string;
-      const counts = attendanceCountMap.get(eid) ?? { present: 0, onLeave: 0, absent: 0 };
-      if (record.status === 'present') counts.present++;
-      else if (record.status === 'on_leave') counts.onLeave++;
-      else if (record.status === 'absent') counts.absent++;
-      attendanceCountMap.set(eid, counts);
-    }
-  }
-
-  // Batch-fetch active enrollment counts per class
   const uniqueClassIds = [...new Set(rows.map((row) => row['class_id'] as string))];
-  const enrolledCountMap = new Map<string, number>();
-  if (uniqueClassIds.length > 0) {
-    const { data: enrollments } = await supabase
-      .from('enrollments')
-      .select('class_id')
-      .in('class_id', uniqueClassIds)
-      .eq('status', 'active')
-      .eq('org_id', orgId);
 
-    for (const enrollment of enrollments ?? []) {
-      const cid = enrollment.class_id as string;
-      enrolledCountMap.set(cid, (enrolledCountMap.get(cid) ?? 0) + 1);
-    }
+  // 第二輪：三支都只依賴主查詢的結果，彼此不相依
+  const [changesResult, attendanceResult, enrollmentResult] = await Promise.all([
+    sessionIds.length > 0
+      ? supabase.from('schedule_changes').select('session_id').in('session_id', sessionIds)
+      : Promise.resolve({ data: [], error: null }),
+    eventIds.length > 0
+      ? supabase
+          .from('attendance_records')
+          .select('event_id, status')
+          .in('event_id', eventIds)
+          .eq('org_id', orgId)
+      : Promise.resolve({ data: [] }),
+    // 在籍**依課堂日期**（使用者 2026-10-01 裁定，#950）—— 撈生效區間、每堂用
+    // `countEnrolledOn` 算，跟 `/api/attendance/sessions` 與點名名單同一份規則
+    uniqueClassIds.length > 0
+      ? supabase
+          .from('enrollments')
+          .select('class_id, effective_from, effective_to')
+          .in('class_id', uniqueClassIds)
+          .eq('status', 'active')
+          .eq('org_id', orgId)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  if (changesResult.error) {
+    return c.json({ error: changesResult.error.message, code: 'DB_ERROR' }, 400);
   }
+  const changedIds = new Set(
+    ((changesResult.data ?? []) as Array<{ session_id: string }>).map((row) => row.session_id),
+  );
+  const attendanceTally = tallyAttendance(
+    ((attendanceResult.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      eventId: row['event_id'] as string,
+      status: row['status'] as string,
+    })),
+  );
+  const enrollmentRanges: EnrollmentRange[] = (
+    (enrollmentResult.data ?? []) as Array<Record<string, unknown>>
+  ).map((row) => ({
+    classId: row['class_id'] as string,
+    effectiveFrom: row['effective_from'] as string,
+    effectiveTo: (row['effective_to'] as string | null) ?? null,
+  }));
 
   const mappedRows = rows.map((row) =>
-    mapSession(row, changedIds.has(row['id'] as string), attendanceCountMap, enrolledCountMap),
+    mapSession(row, changedIds.has(row['id'] as string), attendanceTally, enrollmentRanges),
   );
+
+  const sideCounts = {
+    monthUnassignedCount: monthUnassignedCount ?? 0,
+    todayPendingAttendanceCount: todayPendingAttendanceCount ?? 0,
+    hiddenCancelledCount,
+  };
 
   if (endedOnly) {
     const ended = mappedRows.filter((session) =>
@@ -1038,8 +1073,7 @@ app.openapi(listSessionsRoute, async (c) => {
           page: resolvedPage,
           pageSize: resolvedPageSize,
           totalPages: Math.ceil(total / resolvedPageSize),
-          monthUnassignedCount: monthUnassignedCount ?? 0,
-          todayPendingAttendanceCount: todayPendingAttendanceCount ?? 0,
+          ...sideCounts,
         },
       },
       200,
@@ -1054,8 +1088,7 @@ app.openapi(listSessionsRoute, async (c) => {
         page: resolvedPage,
         pageSize: resolvedPageSize,
         totalPages: Math.ceil((count ?? 0) / resolvedPageSize),
-        monthUnassignedCount: monthUnassignedCount ?? 0,
-        todayPendingAttendanceCount: todayPendingAttendanceCount ?? 0,
+        ...sideCounts,
       },
     },
     200,

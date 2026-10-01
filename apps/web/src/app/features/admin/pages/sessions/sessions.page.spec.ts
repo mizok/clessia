@@ -580,10 +580,8 @@ describe('SessionsPage', () => {
       page: 1,
       pageSize: 100,
     });
-    // **不能用 `toHaveBeenLastCalledWith`**：#640 之後 `loadSessions()` 會再打一支
-    // `statuses: ['cancelled'], pageSize: 1` 的計數查詢（算「被隱藏幾堂」），
-    // 所以「最後一次」已經不是主查詢了。這條要斷言的一直都是**主查詢帶了什麼**，
-    // 「最後一次」只是它的代理指標 —— 代理指標失效就換回問原本的問題。
+    // 這條要斷言的一直都是**主查詢帶了什麼**（#640 時期 `loadSessions()` 還會多打一支
+    // 停課計數查詢，「最後一次」因此不可靠；#950 把它搬進 meta 之後仍維持問原本的問題）。
     expect(sessionsServiceMock.list).toHaveBeenCalledWith(
       expect.objectContaining({
         campusIds: ['campus-1'],
@@ -594,13 +592,9 @@ describe('SessionsPage', () => {
         page: 1,
       }),
     );
-    // 對照：計數查詢確實有發出，而且沿用同一組其他條件
-    expect(sessionsServiceMock.list).toHaveBeenCalledWith(
-      expect.objectContaining({
-        campusIds: ['campus-1'],
-        statuses: ['cancelled'],
-        pageSize: 1,
-      }),
+    // #950 之後停課數跟著主查詢的 meta 回來，前端不再另發計數查詢
+    expect(sessionsServiceMock.list).not.toHaveBeenCalledWith(
+      expect.objectContaining({ statuses: ['cancelled'] }),
     );
   });
 
@@ -974,7 +968,7 @@ describe('SessionsPage', () => {
         // 不能讓 PrimeNG 的 dialog chrome 再疊一層，否則會出現兩個 ×（P1 修正）
         showHeader: false,
         closable: false,
-        // 直接給 eventId —— 列表 merge 時就配對到了，不必讓對話框再打一次同一支 API
+        // 直接給 eventId —— 列表那一支（/api/sessions，#950）就帶回來了，不必讓對話框再查一次
         data: expect.objectContaining({
           eventId: 'event-1',
           className: '數學 B',
@@ -1015,8 +1009,8 @@ describe('SessionsPage', () => {
     expect(item?.disabled).toBe(true);
   });
 
-  // eventId 是 undefined 代表出勤摘要那支 API 沒回來 —— 那是「還不知道」不是「不能點」
-  it('出勤摘要還沒到的課堂不會被誤鎖', () => {
+  // 只有 `null`（停課）才鎖 —— 沒帶 eventId 的列不該被當成停課（判準是 `=== null` 不是 falsy）
+  it('沒帶 eventId 的課堂不會被誤鎖', () => {
     const unknown_ = {
       id: '00000000-0000-0000-0000-000000000042',
       classId: '00000000-0000-0000-0000-000000000032',
@@ -1264,87 +1258,46 @@ describe('SessionsPage', () => {
     expect(page).toBe(3);
   });
 
-  it('enriches sessions with attendance summary for session list display', () => {
+  // #950：出勤摘要、eventId、被藏起來的停課數都跟著 `/api/sessions` 一支回來 ——
+  // 原本是 sessions → attendance/sessions → sessions?statuses=cancelled 三段依序請求
+  it('一支請求拿齊：列表的出勤欄位與停課數直接用 /api/sessions 的回應', () => {
+    const row = {
+      id: 'session-1',
+      classId: 'class-1',
+      className: 'A班',
+      courseId: 'course-1',
+      courseName: '數學',
+      campusId: 'campus-1',
+      campusName: '示範分校',
+      sessionDate: '2026-04-08',
+      startTime: '09:00',
+      endTime: '11:00',
+      teacherId: 'teacher-1',
+      teacherName: '王老師',
+      status: 'scheduled',
+      assignmentStatus: 'assigned',
+      hasChanges: false,
+      eventId: 'event-1',
+      attendanceTakenAt: '2026-04-08T11:05:00.000Z',
+      attendanceEnrolledCount: 10,
+      attendancePresentCount: 8,
+    } as Session;
+    const response = makeListResponse([row]);
     sessionsServiceMock.list.mockReturnValueOnce(
-      of(
-        makeListResponse([
-          {
-            id: 'session-1',
-            classId: 'class-1',
-            className: 'A班',
-            courseId: 'course-1',
-            courseName: '數學',
-            campusId: 'campus-1',
-            campusName: '示範分校',
-            sessionDate: '2026-04-08',
-            startTime: '09:00',
-            endTime: '11:00',
-            teacherId: 'teacher-1',
-            teacherName: '王老師',
-            status: 'scheduled',
-            assignmentStatus: 'assigned',
-            hasChanges: false,
-          },
-        ]),
-      ),
+      of({ ...response, meta: { ...response.meta, hiddenCancelledCount: 3 } }),
     );
-    attendanceServiceMock.sessions.mockReturnValueOnce(
-      of({
-        data: [
-          {
-            eventId: 'event-1',
-            sessionId: 'session-1',
-            status: 'scheduled',
-            isSubstitute: false,
-            examCount: 0,
-            classId: 'class-1',
-            className: 'A班',
-            usesContactBook: false,
-            courseName: '數學',
-            teacherName: '王老師',
-            campusId: 'campus-1',
-            campusName: '示範分校',
-            eventDate: '2026-04-08',
-            startTime: '09:00',
-            endTime: '11:00',
-            enrolledCount: 10,
-            presentCount: 8,
-            onLeaveCount: 1,
-            absentCount: 1,
-            takenAt: '2026-04-08T11:05:00.000Z',
-          },
-        ],
-        meta: { total: 1, page: 1, pageSize: 1000, totalPages: 1 },
-      }),
-    );
+    sessionsServiceMock.list.mockClear();
 
-    (component as unknown as { loadSessions: () => void }).loadSessions();
+    (component as unknown as { onStatusesChange: (value: string[]) => void }).onStatusesChange([
+      'scheduled',
+    ]);
 
-    expect(attendanceServiceMock.sessions).toHaveBeenCalledWith(
-      expect.objectContaining({
-        classIds: ['class-1'],
-        dateFrom: '2026-04-01',
-        dateTo: '2026-04-30',
-        page: 1,
-        pageSize: 100,
-      }),
-    );
+    expect(sessionsServiceMock.list).toHaveBeenCalledTimes(1);
+    expect(attendanceServiceMock.sessions).not.toHaveBeenCalled();
+    expect((component as unknown as { sessions: () => Session[] }).sessions()[0]).toEqual(row);
     expect(
-      (
-        component as unknown as {
-          sessions: {
-            (): Array<
-              Session & { attendanceTakenAt?: string | null; attendancePresentCount?: number }
-            >;
-          };
-        }
-      ).sessions()[0],
-    ).toEqual(
-      expect.objectContaining({
-        attendanceTakenAt: '2026-04-08T11:05:00.000Z',
-        attendancePresentCount: 8,
-      }),
-    );
+      (component as unknown as { hiddenCancelledCount: () => number }).hiddenCancelledCount(),
+    ).toBe(3);
   });
 
   /**
