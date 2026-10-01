@@ -18,6 +18,11 @@ export class StudentAutocompleteComponent {
   readonly placeholder = input('輸入姓名模糊搜尋');
   readonly disabled = input(false);
   readonly forceSelection = input(false);
+  /**
+   * 多顯示一行「分校 · 家長」（#964）。同名同年級同校的學生只靠「年級 · 學校」分不出來，
+   * 而接電話時最可靠的線索是**打來的家長是誰**。預設關：既有使用點一字不動。
+   */
+  readonly showContact = input(false);
 
   readonly valueChange = output<Student | string | null>();
   readonly queryChange = output<string>();
@@ -28,6 +33,12 @@ export class StudentAutocompleteComponent {
 
   protected onComplete(event: AutoCompleteCompleteEvent): void {
     this.queryChange.emit(event.query);
+  }
+
+  protected formatStudentContact(student: Student): string {
+    return [student.campusNames.join('、'), student.parentNames.join('、')]
+      .filter(Boolean)
+      .join(' · ');
   }
 
   protected formatStudentMeta(student: Student): string {

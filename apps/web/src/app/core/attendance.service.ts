@@ -62,6 +62,28 @@ export interface AttendanceQueryParams {
   pageSize?: number;
 }
 
+/**
+ * 某學生某一天的課（`GET /api/attendance/student-day`，#964 接到電話請假的送出前預覽）。
+ * **是預覽不是承諾** —— 實際標成請假的以送出後 `list({ studentId })` 回來的為準。
+ */
+export interface StudentDaySession {
+  sessionId: string;
+  eventId: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  className: string;
+  cancelled: boolean;
+  attendance: AttendanceStatus | null;
+  existingLeave: { startDate: string; endDate: string } | null;
+}
+
+export interface StudentDay {
+  date: string;
+  sessions: StudentDaySession[];
+  /** 只在那天沒課時有值 */
+  nextSession: { date: string; startTime: string | null; className: string } | null;
+}
+
 export interface UpdateAttendanceInput {
   status?: AttendanceStatus;
   note?: string | null;
@@ -186,6 +208,12 @@ export class AttendanceService {
     if (params.page) httpParams = httpParams.set('page', params.page);
     if (params.pageSize) httpParams = httpParams.set('pageSize', params.pageSize);
     return this.http.get<AttendanceListResponse>(this.baseUrl, { params: httpParams });
+  }
+
+  studentDay(studentId: string, date: string): Observable<{ data: StudentDay }> {
+    return this.http.get<{ data: StudentDay }>(`${this.baseUrl}/student-day`, {
+      params: new HttpParams().set('studentId', studentId).set('date', date),
+    });
   }
 
   update(id: string, input: UpdateAttendanceInput): Observable<AttendanceRecord> {
