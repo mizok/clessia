@@ -68,6 +68,25 @@ export interface StudentDay {
 
 const hhmm = (time: string | null) => (time ? time.slice(0, 5) : null);
 
+/**
+ * 只留下**至少蓋到一堂已推出課堂**的請假單（#970）。
+ *
+ * `leave_requests` 沒有分校欄位，查詢本身只能限到「範圍內的學生」。同一個學生若在兩校都有班，
+ * 一張只蓋到他校課堂的假仍會被撈回來 —— 這裡在它進入任何變數之前就收掉，讓「範圍」不靠
+ * 組裝端恰好只把它當查表（reviewer 在 #967 標的失效方向）。
+ */
+export function leavesTouchingSessions<L extends StudentDayInput['leaves'][number]>(
+  leaves: L[],
+  sessions: ReadonlyArray<Pick<StudentDaySessionRow, 'startTime' | 'endTime'>>,
+  date: string,
+): L[] {
+  return leaves.filter((leave) =>
+    sessions.some((s) =>
+      leaveCoversSession(leave, { date, startTime: s.startTime, endTime: s.endTime }),
+    ),
+  );
+}
+
 export function buildStudentDay(input: StudentDayInput): StudentDay {
   const classNameById = new Map(input.enrollments.map((e) => [e.classId, e.className]));
   const enrolledOn = (classId: string, date: string) =>
