@@ -76,3 +76,20 @@ test('apply 在 prod-db（required reviewer）後面', () => {
 test('永不帶 --include-all', () => {
   assert.doesNotMatch(code, /--include-all/);
 });
+
+// ── #968 reviewer 審出的兩個執行洞 ──────────────────────────────────────────────
+
+test('concurrency 只掛在 apply —— 頂層的話中間 commit 的 plan 會被丟，⓪ 找不到截線', () => {
+  const topLevel = code.slice(0, code.indexOf('\njobs:\n'));
+  assert.doesNotMatch(topLevel, /^concurrency:/m);
+  assert.doesNotMatch(all.remote, /concurrency:/);
+  assert.doesNotMatch(all.plan, /concurrency:/);
+  assert.match(all.apply, /concurrency:\s*\n\s+group: migrate-prod\s*\n\s+cancel-in-progress: false/);
+});
+
+test('dispatch（after-deploy）的標題與目標都是 deployed_sha —— ⓪ 用標題找部署截線那顆', () => {
+  assert.match(code, /^run-name: .*inputs\.deployed_sha/m);
+  assert.match(code, /TARGET_SHA: .*inputs\.deployed_sha/);
+  // 標題全字比對，所以只收完整 SHA
+  assert.match(all.plan, /\[0-9a-f\]\{40\}/);
+});

@@ -53,7 +53,9 @@ name: migrate
 
 # 標題帶 SHA：workflow_run 觸發的 run，GitHub 列表上的 headSha 是預設分支當下的 HEAD，
 # 不一定是 verify 驗的那一顆 —— ⓪ 要用標題找截線那一顆的結果。
-run-name: migrate @ ${{ github.event.workflow_run.head_sha || github.sha }}
+# dispatch（after-deploy backfill）時標題是 `deployed_sha`：⓪ 找的是「部署截線那顆」，
+# 不是 dispatch 當下 main 的 HEAD（#968 reviewer 審出）。所以 deployed_sha 只收完整 40 字元。
+run-name: migrate @ ${{ github.event.workflow_run.head_sha || inputs.deployed_sha || github.sha }}
 
 on:
   workflow_run:
@@ -63,24 +65,24 @@ on:
   workflow_dispatch:
     inputs:
       deployed_sha:
-        description: '只有要套 after-deploy backfill 時才填：已經部署上線的截線 SHA'
+        description: '只有要套 after-deploy backfill 時才填：已經部署上線的截線（完整 40 字元 SHA）'
         required: false
 
 permissions:
   contents: read
 
-# **同一時間只能有一顆在碰正式 DB**，而且不殺正在跑的。
-# 代價：合併密集時中間排隊的 run 會被丟掉 —— 那沒關係，下一顆 plan 比的是全部 version，
-# 不會漏套；只是被丟掉的那顆 SHA 沒有結果，⓪ 要選有結果的那顆當截線。
-concurrency:
-  group: migrate-prod
-  cancel-in-progress: false
+# concurrency **只掛在 apply**（#968 reviewer 審出）。頂層掛一個 group 的話，
+# `cancel-in-progress: false` 的同一個 group 最多只留一顆排隊中的 —— 第三顆一到，中間那顆就被丟掉
+# （verify.yml 的 #603 → #613 同一個形狀），於是合併密集日大多數 commit 沒有 plan 結果，⓪ 常態性找不到截線。
+# remote / plan 唯讀、互不干擾，每顆都要有結果，所以不設；只有碰正式 DB 的 apply 序列化。
 
 env:
   # 釘版本：正式 DB 的寫入不跟 latest。升版要另開 PR、看 changelog 的 db push 段落。
   SUPABASE_CLI_VERSION: 2.119.0
   # 要套的那一顆。入口條件（下面 remote 的 if）保證它是本 repo main 上的 push 或 main 上的 dispatch
-  TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  # dispatch 帶 deployed_sha 時套的就是**部署的那顆**，不是 dispatch 當下 main 的 HEAD（後者可能含
+  # 還沒驗、還沒部署的新 migration）；plan 會驗它在 main 上
+  TARGET_SHA: ${{ github.event.workflow_run.head_sha || inputs.deployed_sha || github.sha }}
 
 jobs:
   # ── 帶 secret、不 checkout、不執行 repo 的任何程式碼 ──────────────────────────
@@ -139,8 +141,8 @@ jobs:
         env:
           DEPLOYED_SHA: ${{ inputs.deployed_sha }}
         run: |
-          if ! printf '%s' "$DEPLOYED_SHA" | grep -Eq '^[0-9a-f]{7,40}$'; then
-            echo "deployed_sha 不是 SHA：$DEPLOYED_SHA"; exit 1
+          if ! printf '%s' "$DEPLOYED_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "deployed_sha 要完整 40 字元 SHA（⓪ 用標題全字比對）：$DEPLOYED_SHA"; exit 1
           fi
           echo "部署者確認已上線的截線：\`$DEPLOYED_SHA\`" >> "$GITHUB_STEP_SUMMARY"
 
@@ -159,6 +161,11 @@ jobs:
     runs-on: ubuntu-latest
     # **使用者在這裡按 Approve** —— environment 設了 required reviewer，沒按就不會往下跑
     environment: prod-db
+    # 同一時間只能有一顆在碰正式 DB，而且不殺正在跑的。排隊中被丟掉的那顆不會漏套：
+    # 下一顆 apply 的 db push 套的是全部待套檔
+    concurrency:
+      group: migrate-prod
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -171,6 +178,7 @@ jobs:
       # 等核准的期間可能過了很久 —— 重算一次，待套清單必須跟 plan 時一模一樣。
       # 用內嵌 shell 而不是 migrate-plan.mjs：這個 job 帶 secret，不執行 repo 的腳本。
       - name: 核准前後正式 DB 沒被動過
+        id: recheck
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           EXPECTED: ${{ needs.plan.outputs.pending }}
@@ -179,11 +187,18 @@ jobs:
           psql "$DB_URL" -v ON_ERROR_STOP=1 -At \
             -c 'select version from supabase_migrations.schema_migrations order by 1' | sort > "$RUNNER_TEMP/remote.txt"
           now=$(comm -23 "$RUNNER_TEMP/local.txt" "$RUNNER_TEMP/remote.txt" | paste -sd, -)
+          # 排在前面的另一顆 apply 已經把同一批套掉了（合併密集日的常態）—— 沒事可做，不是異常
+          if [ -z "$now" ]; then
+            echo '### 待套的已由前一顆 apply 套上，這顆不再 push' >> "$GITHUB_STEP_SUMMARY"
+            echo 'skip=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ "$now" != "$EXPECTED" ]; then
             echo "待套清單跟 plan 時不一樣（plan：$EXPECTED；現在：$now）—— 停"; exit 1
           fi
 
       - name: CLI 自己的判斷（留在 log 裡）
+        if: steps.recheck.outputs.skip != 'true'
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: supabase db push --db-url "$DB_URL" --dry-run
@@ -192,6 +207,7 @@ jobs:
       # 不留 history 列（前面已成功的保留）。`CREATE INDEX CONCURRENTLY` 例外 —— 本 repo 沒有，
       # 要寫的話請獨立成一支檔。**絕不帶 --include-all。**
       - name: supabase db push
+        if: steps.recheck.outputs.skip != 'true'
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: supabase db push --db-url "$DB_URL" --yes

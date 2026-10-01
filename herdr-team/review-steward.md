@@ -914,6 +914,9 @@ git ls-tree --name-only origin/main supabase/migrations/ \
 > 不是窗口,#915 那種左邊界問題不再需要人工補查。
 > **生效條件**:使用者設好 `prod-db` / `prod-db-plan` 兩個 environment(#963 的 PR 描述有步驟),
 > 而且第一次 plan 是綠的。在那之前沿用舊流程。
+> **#968 合進 main 之前,`gh run list --workflow migrate.yml` 必然回
+> `HTTP 404: workflow migrate.yml not found on the default branch`** —— 那不是壞掉,
+> 是 GitHub 只認預設分支上的 workflow 檔。
 
 ### ⚠️ 這一欄的語意訂正(2026-09-30,#915)——**「套到 X」不蘊含「X 之前的全在」**
 
@@ -1013,7 +1016,7 @@ curl -s -o /tmp/c -w '%{content_type}' "https://demo.clessia.cc/<chunk 名>"
 > | --- | --- |
 > | plan 綠,summary 寫 `clean` | **放行** |
 > | apply 綠(套完差集 0) | **放行** |
-> | plan 綠,summary 寫 `after-deploy`(只剩 backfill 待套) | **放行部署**;部署完請使用者 dispatch `migrate.yml`,`deployed_sha` 填這次的截線 |
+> | plan 綠,summary 寫 `after-deploy`(只剩 backfill 待套) | **放行部署**;部署完請使用者 dispatch `migrate.yml`,`deployed_sha` 填這次的截線(**完整 40 字元**;那顆 run 的標題就是它) |
 > | 任何一個 job 紅、apply 還在等 Approve、或那顆根本沒有 migrate run(被 concurrency 丟掉) | **停**,報計畫席與使用者;沒有 run 的話改選有結果的那顆當截線 |
 >
 > 分類不再是部署當下的人工判斷:backfill 由作者在檔頭寫 `-- clessia:apply after-deploy`,
