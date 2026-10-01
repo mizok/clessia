@@ -426,6 +426,11 @@ while i < len(s):
 2. **apply**：停在 `prod-db` environment 等使用者按 Approve，再 `supabase db push --db-url … --yes`。
    套前重算一次（等核准期間 DB 被動過就停），套後差集必須是 0。
 
+**安全邊界**（repo 是 public，#968 審出的 pwn-request 形狀）：只接本 repo main 上 push 的 verify；
+**帶 secret 的 job（撈 version 的 `remote`、套用的 `apply`）不執行 repo 的腳本**，
+跑 `migrate-plan.mjs` 的 `plan` 拿不到 secret。結構由 `tools/agent-harness/migrate-workflow.test.mjs` 守 ——
+要改 migrate.yml 先讀它。
+
 | 規則 | 理由 |
 | --- | --- |
 | **永不帶 `--include-all`** | 中間漏套（#915 的形狀）時 CLI 會以 `Found local migration files to be inserted before the last migration on remote database.` 拒絕 —— 補哪一支要人決定 |
