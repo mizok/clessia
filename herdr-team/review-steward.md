@@ -832,6 +832,7 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 
 | 部署時間(台北) | 截線 SHA | web bundle | api version id | 正式 DB 套到 | 部署者 |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-01 10:4x | `c8f3b8f6` | `main-3R3GCOKF.js`(未變,無 web 改動) | `07cda777` | 使用者 10:3x 驗證四項 true,**差集未重跑**(見下) | labor-reviewer |
 | 2026-10-01 09:4x | `228ff2ad` | `main-3R3GCOKF.js` | `f9a863d5` | 差集 0(09-30 16:0x;本批不動 migrations) | labor-reviewer |
 | 2026-09-30 16:0x | `b0a7d419` | `main-M2YWZD2J.js` | `15fc5bcb` | **差集 0**(使用者 16:0x 實跑) | labor-reviewer |
 | 2026-09-30 13:0x | `1a57db88` | `main-M67JFMAA.js` | `7cd80d82` | 未知(#915)※ | labor-reviewer |
@@ -875,6 +876,24 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 >
 > **所以目前的證據只有宣告那一層**(差集查詢回 0 列)。**行為證據還沒有** ——
 > 要等帶身分的瀏覽器重量 `/admin/sessions`(Chrome 擴充斷線中)。
+
+> **2026-10-01 10:4x 那一列的「差集未重跑」是什麼意思**:這一批有兩支 schema migration
+> (`20260930072356_invoice_void`、`20260930075822_audit_logs_announcement_resource_type`,
+> 都由使用者親合),使用者在 10:3x 前套上正式 DB 並跑了**四項驗證**:
+> invoices 三欄、三支 trigger、CHECK 含 `announcement`、`schema_migrations` 兩筆 —— **全 true**。
+> 所以「schema 類套完才部署」已滿足。
+>
+> **但那四項不是差集** —— 它們證明的是「**這兩支的效果在**」,不證明「**沒有別的漏掉**」。
+> 那正是 #915 的形狀(當時 `max(version)` 也是對的,漏的那支在它之前)。
+> **所以這一列標「差集未重跑」而不是「差集 0」。** 下次請使用者跑的 SQL 由這支指令產生:
+
+```bash
+git ls-tree --name-only origin/main supabase/migrations/ \
+  | grep -oE '[0-9]{14}' \
+  | awk 'BEGIN{printf "select v as missing_version from (values "} \
+         {printf "%s(%c%s%c)", (NR>1?",":""), 39, $0, 39} \
+         END{print ") as t(v) where v not in (select version from supabase_migrations.schema_migrations) order by 1;"}'
+```
 
 **「正式 DB 套到」這一欄只能由使用者填** —— repo 裡沒有任何指令查得到它
 (`package.json` 的 `db:*` 全部指向本機 supabase),所以它不是查出來的,是**報出來的**。
