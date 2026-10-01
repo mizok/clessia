@@ -568,47 +568,6 @@ WHERE orphan.n = (
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
--- 日到班的展示資料：今天的到班打卡（#976）
---
--- #976 起組織預設是日到班，儀表板改看「今日到班」—— 而這支原本一筆 `daily_checkins`
--- 都沒有，於是 demo 一打開，今天有課的學生全部是「未到」，看不出這個模式長什麼樣。
---
--- 補法：今天有課（未停課）、在籍、當天沒請假的學生，**每三位打卡兩位**；剩下那位就是「未到」，
--- 請假的學生由既有的請假資料呈現。三種狀態同時都有。
---
--- **在早退守衛之外，而且相對 `current_date`**：哪一天重跑就補那一天的；
--- `UNIQUE (student_id, checkin_date)` 讓重跑無害。今天剛好沒課（例如週日）就一筆都不會補，那是對的。
---
--- **只寫 `daily_checkins`、不寫衍生的 `attendance_records`**：今天的課多半還沒有出勤事件
--- （懶生成），`POST /api/daily-checkins` 在那種情況下也只會寫打卡本身 —— 跟 API 的行為一致，
--- 不造出「API 不會產生」的資料形狀。`checked_in_by` 留空（c2：不碰 `ba_*`）。
--- ============================================================================
-WITH today_students AS (
-  SELECT DISTINCT ON (e.student_id) e.org_id, e.student_id, c.campus_id
-  FROM public.sessions s
-  JOIN public.classes c ON c.id = s.class_id
-  JOIN public.enrollments e
-    ON e.class_id = s.class_id
-   AND e.status = 'active'
-   AND e.effective_from <= current_date
-   AND (e.effective_to IS NULL OR e.effective_to >= current_date)
-  WHERE s.session_date = current_date
-    AND s.status <> 'cancelled'
-    AND NOT EXISTS (
-      SELECT 1 FROM public.leave_requests l
-      WHERE l.student_id = e.student_id
-        AND current_date BETWEEN l.start_date AND l.end_date
-    )
-  ORDER BY e.student_id, s.start_time
-),
-numbered AS (
-  SELECT today_students.*, row_number() OVER (ORDER BY student_id) AS n FROM today_students
-)
-INSERT INTO public.daily_checkins (org_id, campus_id, student_id, checkin_date)
-SELECT org_id, campus_id, student_id, current_date FROM numbered WHERE n % 3 <> 0
-ON CONFLICT (student_id, checkin_date) DO NOTHING;
-
--- ============================================================================
 -- 驗收查詢（套用前後各跑一次，比差值）
 --
 -- ⚠️ **不要用 `invoices.status`** —— 那個欄位不存在。逾期要照推導寫：
@@ -1211,4 +1170,67 @@ BEGIN
     THEN RAISE EXCEPTION '有 on_leave 出勤列沒有對應的請假單（#916）'; END IF;
 
   RAISE NOTICE '展示狀態補齊完成（#685）；on_leave 與請假單一致（#916）';
+END $$;
+
+-- ============================================================================
+-- 日到班的展示資料：今天的到班打卡（#976）
+--
+-- #976 起組織預設是日到班，儀表板改看「今日到班」—— 而這支原本一筆 `daily_checkins`
+-- 都沒有，於是 demo 一打開，今天有課的學生全部是「未到」，看不出這個模式長什麼樣。
+--
+-- 補法：今天有課（未停課）、在籍、當天沒請假的學生，**每三位打卡兩位**；剩下那位就是「未到」，
+-- 請假的學生由既有的請假資料呈現。三種狀態同時都有。
+--
+-- ⚠️ **這段必須是整支檔案的最後一段。** 它的母體（今天有課、在籍、沒請假）依賴前面
+-- 每一段造出來的課堂、報名、請假單 —— 第一版放在 #685 展示狀態補齊**之前**，那段後來才建的
+-- 「跨越今天的請假」沒被排除，於是同一個學生今天既「已到班」又「請假中」（#977 驗收，
+-- db-reset 席量出 11 筆 vs 期望 10）。跟 #838／#916 同一個形狀：依賴資料的段落寫在產生它的段落前面。
+-- 緊接在下面的 guard 守這件事（跟 #916 同一套路：違反就 RAISE）。
+--
+-- **在早退守衛之外，而且相對 `current_date`**：哪一天重跑就補那一天的；
+-- `UNIQUE (student_id, checkin_date)` 讓重跑無害。今天剛好沒課（例如週日）就一筆都不會補，那是對的。
+--
+-- **只寫 `daily_checkins`、不寫衍生的 `attendance_records`**：今天的課多半還沒有出勤事件
+-- （懶生成），`POST /api/daily-checkins` 在那種情況下也只會寫打卡本身 —— 跟 API 的行為一致，
+-- 不造出「API 不會產生」的資料形狀。`checked_in_by` 留空（c2：不碰 `ba_*`）。
+-- ============================================================================
+WITH today_students AS (
+  SELECT DISTINCT ON (e.student_id) e.org_id, e.student_id, c.campus_id
+  FROM public.sessions s
+  JOIN public.classes c ON c.id = s.class_id
+  JOIN public.enrollments e
+    ON e.class_id = s.class_id
+   AND e.status = 'active'
+   AND e.effective_from <= current_date
+   AND (e.effective_to IS NULL OR e.effective_to >= current_date)
+  WHERE s.session_date = current_date
+    AND s.status <> 'cancelled'
+    AND NOT EXISTS (
+      SELECT 1 FROM public.leave_requests l
+      WHERE l.student_id = e.student_id
+        AND current_date BETWEEN l.start_date AND l.end_date
+    )
+  ORDER BY e.student_id, s.start_time
+),
+numbered AS (
+  SELECT today_students.*, row_number() OVER (ORDER BY student_id) AS n FROM today_students
+)
+INSERT INTO public.daily_checkins (org_id, campus_id, student_id, checkin_date)
+SELECT org_id, campus_id, student_id, current_date FROM numbered WHERE n % 3 <> 0
+ON CONFLICT (student_id, checkin_date) DO NOTHING;
+
+-- 今天有打卡的學生，不得有涵蓋今天的請假單 —— 同一人同一天「已到班」又「請假中」，
+-- 儀表板與請假頁會各自說自己是對的（#977）。紅了代表打卡段又被放到建請假單的段落前面了。
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM public.daily_checkins dc
+      JOIN public.leave_requests l
+        ON l.student_id = dc.student_id
+       AND dc.checkin_date BETWEEN l.start_date AND l.end_date
+     WHERE dc.checkin_date = current_date
+  ) THEN
+    RAISE EXCEPTION '今天有學生同時已打卡又請假中 —— 打卡段必須是 seed-demo 的最後一段（#977）';
+  END IF;
 END $$;
