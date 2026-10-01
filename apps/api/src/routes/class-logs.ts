@@ -2,6 +2,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
+import { getCampusScope } from '../lib/campus-scope';
+import { isClassInScope } from '../lib/campus-write-guard';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
 import { CLASS_LOG_SELECT, toClassLogResponse } from '../lib/class-log-query';
@@ -161,6 +163,10 @@ app.openapi(
         return c.json({ error: '這個班不在你的任課範圍', code: 'FORBIDDEN' }, 403);
       }
     }
+    // 老師由任課範圍把關（上面）；受限的管理員由分校（#966）
+    if (!(await isClassInScope(supabase, orgId, getCampusScope(c), classId))) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
 
     const { data, error } = await supabase
       .from('class_logs')
@@ -247,6 +253,12 @@ app.openapi(
       if (!allowed.includes(existing['class_id'] as string)) {
         return c.json({ error: '這個班不在你的任課範圍', code: 'FORBIDDEN' }, 403);
       }
+    }
+    // 發布＝家長看得到（#966）：受限的管理員只能發自己分校的班
+    if (
+      !(await isClassInScope(supabase, orgId, getCampusScope(c), existing['class_id'] as string))
+    ) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 
     // 已經發布過就不重設時間 —— published_at 是「第一次公開」的時間點，

@@ -10,6 +10,7 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
+import { isStudentInScope } from '../lib/campus-write-guard';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 const LeaveRequestSchema = z
@@ -508,6 +509,11 @@ app.openapi(
       return c.json({ error: '請假資料無效', message: validationError }, 400);
     }
 
+    // 分校範圍（#966）：body 只帶 studentId，全域守衛看不到分校。請假會連動出勤（扣堂上游）
+    if (!(await isStudentInScope(supabase, orgId, getCampusScope(c), body.studentId))) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
+
     // 1. 衝突檢查：同學生是否有重疊的請假紀錄
     const { data: conflicts } = await supabase
       .from('leave_requests')
@@ -670,6 +676,9 @@ app.openapi(
     }
 
     const studentId = (existing as any).student_id as string;
+    if (!(await isStudentInScope(supabase, orgId, getCampusScope(c), studentId))) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
     const previous: LeaveDateRange = {
       startDate: (existing as any).start_date as string,
       endDate: (existing as any).end_date as string,
@@ -871,6 +880,16 @@ app.openapi(
 
     if (!leave) {
       return c.json({ error: '找不到請假紀錄' }, 404);
+    }
+    if (
+      !(await isStudentInScope(
+        supabase,
+        orgId,
+        getCampusScope(c),
+        (leave as any).student_id as string,
+      ))
+    ) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 
     // 台北時間，不是 UTC —— Workers 跑在 UTC，`new Date().toISOString()` 在

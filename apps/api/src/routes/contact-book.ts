@@ -10,6 +10,8 @@ import {
   type SessionOnDate,
 } from '../lib/contact-book-missing';
 import { logAudit } from '../utils/audit';
+import { getCampusScope } from '../lib/campus-scope';
+import { isStudentInScope } from '../lib/campus-write-guard';
 import { waitUntilFrom } from '../lib/wait-until';
 
 /**
@@ -200,6 +202,10 @@ app.openapi(
       if (!allowed.includes(studentId)) {
         return c.json({ error: '這位學生不在你的任課班級', code: 'FORBIDDEN' }, 403);
       }
+    }
+    // 老師由任課範圍把關（上面）；受限的管理員由分校（#966）
+    if (!(await isStudentInScope(supabase, orgId, getCampusScope(c), studentId))) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 
     // 每生每日一則（rules 1）。共編＝覆寫同一列並換掉 last_edited_by，
