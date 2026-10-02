@@ -5,7 +5,7 @@ import { INVOICE_SELECT, toInvoiceResponse } from '../lib/invoice-query';
 import { sliceDerivedPage } from '../lib/derived-page';
 import { waitUntilFrom } from '../lib/wait-until';
 import { DbUuidSchema } from '../lib/validation';
-import { findInOrg, missingInOrg } from '../lib/org-scope';
+import { findInOrg, inOrg, missingInOrg } from '../lib/org-scope';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { whereDueWithin, whereOverdue } from '../lib/invoice-overdue';
 import { invoiceTotals, isOpenInvoice, voidBlockReason } from '../lib/invoice-status';
@@ -379,7 +379,7 @@ app.openapi(
 
       if (itemsError) {
         // 明細寫不進去的話帳單留著只會是一張空殼，回滾掉比留著誤導好
-        await supabase.from('invoices').delete().eq('id', invoiceId);
+        await inOrg(supabase.from('invoices').delete().eq('id', invoiceId), orgId);
         return c.json({ error: itemsError.message, code: 'CREATE_ITEMS_FAILED' }, 400);
       }
     }
@@ -644,16 +644,19 @@ app.openapi(
 /** 解除這張帳單餐費明細的蓋章，回解了幾筆 */
 async function releaseMealStamps(
   supabase: AppEnv['Variables']['supabase'],
+  orgId: string,
   items: Array<{ id: string; type: string }>,
 ): Promise<number> {
   const mealItemIds = items.filter((item) => item.type === 'meal').map((item) => item.id);
   if (mealItemIds.length === 0) return 0;
 
-  const { data } = await supabase
-    .from('meal_records')
-    .update({ invoice_item_id: null })
-    .in('invoice_item_id', mealItemIds)
-    .select('id');
+  const { data } = await inOrg(
+    supabase
+      .from('meal_records')
+      .update({ invoice_item_id: null })
+      .in('invoice_item_id', mealItemIds),
+    orgId,
+  ).select('id');
 
   return (data ?? []).length;
 }
@@ -720,7 +723,7 @@ app.openapi(
     const invoice = toInvoiceResponse(row as unknown as Record<string, unknown>);
 
     if (invoice.voidedAt !== null) {
-      await releaseMealStamps(supabase, invoice.items);
+      await releaseMealStamps(supabase, orgId, invoice.items);
       return c.json({ error: '這張帳單已經作廢過了', code: 'ALREADY_VOIDED' }, 409);
     }
 
@@ -769,7 +772,7 @@ app.openapi(
       return c.json({ error: '這張帳單已經作廢過了', code: 'ALREADY_VOIDED' }, 409);
     }
 
-    const mealRecordsReleased = await releaseMealStamps(supabase, invoice.items);
+    const mealRecordsReleased = await releaseMealStamps(supabase, orgId, invoice.items);
 
     logAudit(
       supabase,

@@ -55,16 +55,24 @@ describe('resolveDisplayName', () => {
 
 /** 記下每一次 `from(x).update(y).eq(col, val)`，用來斷言寫到了哪些表。 */
 function recordingSupabase() {
-  const writes: Array<{ table: string; values: Record<string, unknown>; column: string }> = [];
+  const writes: Array<{
+    table: string;
+    values: Record<string, unknown>;
+    column: string;
+    org: string;
+  }> = [];
   return {
     writes,
     client: {
       from: (table: string) => ({
         update: (values: Record<string, unknown>) => ({
-          eq: (column: string, _value: string) => {
-            writes.push({ table, values, column });
-            return Promise.resolve({ error: null });
-          },
+          // 第二個 eq 是 `inOrg` 加的 org 範圍（#966 B5c）—— 記下來，下面斷言每一筆都有
+          eq: (column: string, _value: string) => ({
+            eq: (orgColumn: string, orgValue: string) => {
+              writes.push({ table, values, column, org: `${orgColumn}=${orgValue}` });
+              return Promise.resolve({ error: null });
+            },
+          }),
         }),
       }),
     },
@@ -78,12 +86,17 @@ describe('updateDisplayName', () => {
   it('三個來源都寫，不做任何分支判斷 —— 沒有對應列的就是 no-op', async () => {
     const { writes, client } = recordingSupabase();
 
-    await updateDisplayName(client as never, 'u1', '王主任');
+    await updateDisplayName(client as never, 'org-1', 'u1', '王主任');
 
     expect(writes).toEqual([
-      { table: 'profiles', values: { display_name: '王主任' }, column: 'id' },
-      { table: 'staff', values: { display_name: '王主任' }, column: 'user_id' },
-      { table: 'parents', values: { name: '王主任' }, column: 'user_id' },
+      { table: 'profiles', values: { display_name: '王主任' }, column: 'id', org: 'org_id=org-1' },
+      {
+        table: 'staff',
+        values: { display_name: '王主任' },
+        column: 'user_id',
+        org: 'org_id=org-1',
+      },
+      { table: 'parents', values: { name: '王主任' }, column: 'user_id', org: 'org_id=org-1' },
     ]);
   });
 
@@ -92,7 +105,7 @@ describe('updateDisplayName', () => {
   it('同時是 staff 又是 parent 的人，兩處都會被更新', async () => {
     const { writes, client } = recordingSupabase();
 
-    await updateDisplayName(client as never, 'u1', '王主任');
+    await updateDisplayName(client as never, 'org-1', 'u1', '王主任');
 
     expect(writes.filter((w) => w.table === 'staff')).toHaveLength(1);
     expect(writes.filter((w) => w.table === 'parents')).toHaveLength(1);
@@ -102,7 +115,7 @@ describe('updateDisplayName', () => {
   it('不碰 ba_user', async () => {
     const { writes, client } = recordingSupabase();
 
-    await updateDisplayName(client as never, 'u1', '王主任');
+    await updateDisplayName(client as never, 'org-1', 'u1', '王主任');
 
     expect(writes.map((w) => w.table)).not.toContain('ba_user');
   });

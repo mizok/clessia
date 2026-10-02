@@ -7,6 +7,7 @@ import attendanceRoute from './parent/attendance';
 import gradesRoute from './parent/grades';
 import billingRoute from './parent/billing';
 import classLogsRoute from './parent/class-logs';
+import { inOrg } from '../lib/org-scope';
 
 const MeResponseSchema = z
   .object({
@@ -118,11 +119,12 @@ app.openapi(
   }),
   async (c) => {
     const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
     const userId = c.get('userId');
     const body = c.req.valid('json');
 
     if (body.displayName !== undefined) {
-      await updateDisplayName(supabase, userId, body.displayName);
+      await updateDisplayName(supabase, orgId, userId, body.displayName);
     }
 
     if (body.email !== undefined) {
@@ -171,7 +173,10 @@ app.openapi(
     }
 
     if (body.birthday !== undefined) {
-      await supabase.from('staff').update({ birthday: body.birthday }).eq('user_id', userId);
+      await inOrg(
+        supabase.from('staff').update({ birthday: body.birthday }).eq('user_id', userId),
+        orgId,
+      );
     }
 
     const [profileResult, rolesResult, staffResult, parentResult, baUserResult] = await Promise.all(

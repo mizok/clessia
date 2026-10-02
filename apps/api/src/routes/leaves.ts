@@ -12,6 +12,7 @@ import { logAudit } from '../utils/audit';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { isStudentInScope } from '../lib/campus-write-guard';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { inOrg } from '../lib/org-scope';
 
 const LeaveRequestSchema = z
   .object({
@@ -338,10 +339,10 @@ async function revertLeaveAttendance(input: LeaveAttendanceRangeInput): Promise<
 
   if (!events || events.length === 0) return 0;
 
-  const { data: removed } = await supabase
-    .from('attendance_records')
-    .delete()
-    .eq('student_id', studentId)
+  const { data: removed } = await inOrg(
+    supabase.from('attendance_records').delete().eq('student_id', studentId),
+    orgId,
+  )
     .eq('status', 'on_leave')
     .in(
       'event_id',

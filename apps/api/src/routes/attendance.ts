@@ -36,6 +36,7 @@ import {
   ensureAttendanceSessionEvents,
   type AttendanceSessionStatus,
 } from '../lib/attendance-session-events';
+import { inOrg } from '../lib/org-scope';
 
 const AttendanceStatusSchema = z
   .enum(['present', 'absent', 'on_leave'])
@@ -1186,8 +1187,14 @@ app.openapi(
           },
         },
       },
-      403: { description: '權限不足', content: { 'application/json': { schema: z.object({ error: z.string() }) } } },
-      500: { description: '查詢失敗', content: { 'application/json': { schema: z.object({ error: z.string() }) } } },
+      403: {
+        description: '權限不足',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
+      500: {
+        description: '查詢失敗',
+        content: { 'application/json': { schema: z.object({ error: z.string() }) } },
+      },
     },
   }),
   async (c) => {
@@ -1258,7 +1265,9 @@ app.openapi(
         .order('start_time', { ascending: true })
         .limit(STUDENT_DAY_UPCOMING_LIMIT),
     ]);
-    const failed = [sessionsResult, recordsResult, leavesResult, upcomingResult].find((r) => r.error);
+    const failed = [sessionsResult, recordsResult, leavesResult, upcomingResult].find(
+      (r) => r.error,
+    );
     if (failed?.error) return c.json({ error: failed.error.message }, 500);
 
     const sessions = ((sessionsResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
@@ -1563,16 +1572,22 @@ app.openapi(
       );
 
       if (action.kind === 'delete') {
-        await supabase
-          .from('leave_requests')
-          .delete()
-          .eq('id', row['id'] as string);
+        await inOrg(
+          supabase
+            .from('leave_requests')
+            .delete()
+            .eq('id', row['id'] as string),
+          orgId,
+        );
         leavesDeleted += 1;
       } else if (action.kind === 'shrink') {
-        await supabase
-          .from('leave_requests')
-          .update({ start_date: action.startDate, end_date: action.endDate })
-          .eq('id', row['id'] as string);
+        await inOrg(
+          supabase
+            .from('leave_requests')
+            .update({ start_date: action.startDate, end_date: action.endDate })
+            .eq('id', row['id'] as string),
+          orgId,
+        );
         leavesTruncated += 1;
         // **取最遠的，不是最後一個** —— 多張假都連坐時，「最後處理到的那張」
         // 取決於查詢回傳順序，那不是一個有意義的答案。

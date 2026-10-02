@@ -1,8 +1,1 @@
-{
-  "apps/api/src/lib/attendance-session-events.ts": 3,
-  "apps/api/src/lib/display-name.ts": 3,
-  "apps/api/src/routes/attendance.ts": 2,
-  "apps/api/src/routes/invoices.ts": 2,
-  "apps/api/src/routes/leaves.ts": 1,
-  "apps/api/src/routes/me.ts": 1
-}
+{}
