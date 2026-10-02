@@ -57,6 +57,7 @@ import {
 } from '@shared/components/status/status-dot/status-dot.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { personHue } from '@shared/utils/person-hue.util';
+import { loginLinkErrorDetail } from '@shared/utils/login-link-error.util';
 import {
   PageActionsComponent,
   type PageAction,
@@ -263,8 +264,12 @@ export class StaffPage implements OnInit {
 
     this.staffService.createLoginLink(staff.userId).subscribe({
       next: (res) => this.openLoginLinkDialog(staff, res.url),
-      error: () => {
-        this.messageService.add({ severity: 'error', summary: '產生失敗', detail: '請稍後再試' });
+      error: (err) => {
+        this.messageService.add({
+          severity: 'error',
+          summary: '產生失敗',
+          detail: loginLinkErrorDetail(err, '人員'),
+        });
       },
     });
   }
