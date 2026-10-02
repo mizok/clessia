@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { inOrg } from './org-scope';
 
 /**
  * 一個人的顯示名稱該從哪裡來。
@@ -53,10 +54,17 @@ export function resolveDisplayName(sources: DisplayNameSources): string {
  */
 export async function updateDisplayName(
   supabase: SupabaseClient,
+  orgId: string,
   userId: string,
   displayName: string,
 ): Promise<void> {
-  await supabase.from('profiles').update({ display_name: displayName }).eq('id', userId);
-  await supabase.from('staff').update({ display_name: displayName }).eq('user_id', userId);
-  await supabase.from('parents').update({ name: displayName }).eq('user_id', userId);
+  await inOrg(
+    supabase.from('profiles').update({ display_name: displayName }).eq('id', userId),
+    orgId,
+  );
+  await inOrg(
+    supabase.from('staff').update({ display_name: displayName }).eq('user_id', userId),
+    orgId,
+  );
+  await inOrg(supabase.from('parents').update({ name: displayName }).eq('user_id', userId), orgId);
 }

@@ -1,5 +1,6 @@
 import type { AppEnv } from '../index';
 import { applyCampusFilter, type CampusScope } from './campus-scope';
+import { inOrg } from './org-scope';
 
 /**
  * 出勤事件是懶生成的 —— **唯一定義**，`routes/attendance.ts`（`/api/attendance/sessions`）
@@ -99,6 +100,7 @@ export function unreferencedEventIds(
  */
 async function compensateUnclaimedEvents(
   supabase: AppEnv['Variables']['supabase'],
+  orgId: string,
   insertedEventIds: readonly string[],
 ): Promise<void> {
   if (insertedEventIds.length === 0) return;
@@ -120,7 +122,10 @@ async function compensateUnclaimedEvents(
 
   if (orphanIds.length === 0) return;
 
-  const { error: deleteError } = await supabase.from('events').delete().in('id', orphanIds);
+  const { error: deleteError } = await inOrg(
+    supabase.from('events').delete().in('id', orphanIds),
+    orgId,
+  );
   if (deleteError) {
     console.warn('[attendance-events] 補償刪除失敗，留下孤兒 event', deleteError.message);
   }
@@ -255,10 +260,13 @@ export async function ensureAttendanceSessionEvents(input: {
   // 兩個行政同時載入儀表板、或一個人重新整理兩次就夠了。
   const sessionUpdateResults = await Promise.all(
     missingSessions.map((session: any, index) =>
-      supabase
-        .from('sessions')
-        .update({ event_id: eventsToInsert[index]?.id ?? null })
-        .eq('id', session.id)
+      inOrg(
+        supabase
+          .from('sessions')
+          .update({ event_id: eventsToInsert[index]?.id ?? null })
+          .eq('id', session.id),
+        orgId,
+      )
         .is('event_id', null)
         .select('id'),
     ),
@@ -270,6 +278,7 @@ export async function ensureAttendanceSessionEvents(input: {
     // 少了這一步，已插進去的那批會永遠留著 —— infra 實測孤兒數 = 失敗數 × 該日課堂數。
     await compensateUnclaimedEvents(
       supabase,
+      orgId,
       eventsToInsert.map((event) => event.id),
     );
     return { created: 0, error: updateError.message };
@@ -286,7 +295,7 @@ export async function ensureAttendanceSessionEvents(input: {
     // **刪失敗不讓請求失敗。** 孤兒 event 對使用者不可見（沒有 `/api/events`；
     // 其餘讀取端要嘛用已知 id 查、要嘛配 `!inner` 排除掉沒有 session 的列），
     // 為了清一筆看不見的垃圾而讓整份課表 400，代價完全不對等。
-    await supabase.from('events').delete().in('id', unclaimedEventIds);
+    await inOrg(supabase.from('events').delete().in('id', unclaimedEventIds), orgId);
   }
 
   // 回**真的認領到幾筆**，不是「本來想建幾筆」—— 後者在有競爭時會誇大
