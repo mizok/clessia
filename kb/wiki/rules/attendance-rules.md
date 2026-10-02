@@ -3,7 +3,7 @@ title: 出勤與請假規則
 summary: 本文件整理 PRD 8.3-8.4，定義出勤模式、系統推算邏輯、人工修改權限與請假處理規則，作為到班/點名模組的核心行為準則。
 category: rule
 status: active
-updated: 2026-10-01
+updated: 2026-10-03
 tags: [rules, attendance-rules]
 ---
 
@@ -26,6 +26,9 @@ tags: [rules, attendance-rules]
 
 - 打卡僅記錄到班時間，不直接完成課堂出勤。
 - 需由管理員或老師逐堂確認。
+
+> 2026-10-03 起 API 照這條走（#1099）：`POST /api/daily-checkins` 讀 `organizations.attendance_mode`，課堂模式只寫到班紀錄、
+> 不寫 `attendance_records`。在那之前兩種模式都替當天有報名的課堂寫 `present`。分校層級的模式尚未實作（待使用者裁）。
 
 ## 2. 通用出勤規則
 

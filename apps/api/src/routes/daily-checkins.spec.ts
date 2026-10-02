@@ -17,6 +17,9 @@ function createCheckinApp(
   fixture: {
     events?: Array<{ id: string; sessions: unknown }>;
     enrollments?: Array<{ class_id: string; effective_from: string; effective_to: string | null }>;
+    /** `organizations.attendance_mode`；預設日到班（DB 預設，#976） */
+    mode?: 'daily_checkin' | 'per_session';
+    orgError?: boolean;
   } = {},
 ) {
   const upsertCalls: Array<{ table: string; rows: unknown; options: unknown }> = [];
@@ -59,7 +62,13 @@ function createCheckinApp(
         // 鏈是 select().eq().maybeSingle() —— 少一段就靜默失敗。
         // #966 B6：寫入前先驗學生屬於本 org（`students` 的 findInOrg）
         maybeSingle: () =>
-          Promise.resolve({ data: table === 'students' ? { id: 'stu-1' } : null, error: null }),
+          Promise.resolve(
+            table === 'organizations'
+              ? fixture.orgError
+                ? { data: null, error: { message: 'boom' } }
+                : { data: { attendance_mode: fixture.mode ?? 'daily_checkin' }, error: null }
+              : { data: table === 'students' ? { id: 'stu-1' } : null, error: null },
+          ),
         then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
           const data =
             table === 'enrollments'
@@ -195,6 +204,7 @@ describe('POST /api/daily-checkins —— 只寫有報名的課堂', () => {
     const attendance = upsertCalls.find((call) => call.table === 'attendance_records');
     return {
       status: response.status,
+      wroteCheckin: upsertCalls.some((call) => call.table === 'daily_checkins'),
       eventIds: ((attendance?.rows ?? []) as Array<Record<string, unknown>>).map(
         (row) => row['event_id'],
       ),
@@ -221,6 +231,33 @@ describe('POST /api/daily-checkins —— 只寫有報名的課堂', () => {
 
     // 人到了就是到了，即使他今天一堂課都沒有 —— 兩層分開
     expect(status).toBe(201);
+    expect(eventIds).toEqual([]);
+  });
+
+  /**
+   * #1099：課堂模式（per_session）下打卡只記到班時間，不直接完成課堂出勤
+   * （rules/attendance-rules.md 1.2）。原本整支沒讀 attendance_mode，兩種模式都替課堂寫 present。
+   */
+  it('課堂模式：到班紀錄照建，但不寫任何課堂出勤', async () => {
+    const { status, wroteCheckin, eventIds } = await checkin({ mode: 'per_session' });
+
+    expect(status).toBe(201);
+    expect(wroteCheckin).toBe(true);
+    expect(eventIds).toEqual([]);
+  });
+
+  it('日到班模式：照舊替有報名的課堂寫 present', async () => {
+    const { eventIds } = await checkin({ mode: 'daily_checkin' });
+
+    expect(eventIds).toEqual(['event-1', 'event-2']);
+  });
+
+  // 讀不到模式就不知道該不該寫出勤 —— 在任何寫入之前停下，不猜
+  it('讀機構設定失敗：500，到班紀錄也不寫', async () => {
+    const { status, wroteCheckin, eventIds } = await checkin({ orgError: true });
+
+    expect(status).toBe(500);
+    expect(wroteCheckin).toBe(false);
     expect(eventIds).toEqual([]);
   });
 

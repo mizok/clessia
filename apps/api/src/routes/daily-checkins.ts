@@ -69,6 +69,20 @@ app.openapi(
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 
+    // 0. 機構的出勤模式（#1099）。**在任何寫入之前讀** —— 讀不到就不知道該不該替課堂寫出勤，
+    //    停在這裡比「到班寫了、課堂出勤猜一個」好。分校層級的模式等使用者裁，先用 organizations 的欄位。
+    const { data: org, error: orgError } = await supabase
+      .from('organizations')
+      .select('attendance_mode')
+      .eq('id', orgId)
+      .maybeSingle();
+    if (orgError) {
+      return c.json({ error: '讀取出勤模式失敗', message: orgError.message }, 500);
+    }
+    // 讀到空列（理論上不會：NOT NULL）時跟 DB 預設一致（#976）
+    const attendanceMode =
+      (org as { attendance_mode?: string } | null)?.attendance_mode ?? 'daily_checkin';
+
     // 1. 建立打卡紀錄（UPSERT 防重複，UNIQUE: student_id, checkin_date）
     const { data: checkin, error } = await supabase
       .from('daily_checkins')
@@ -90,83 +104,90 @@ app.openapi(
       return c.json({ error: '打卡失敗', message: error?.message }, 500);
     }
 
-    // 2. 替該學生當天**實際有報名**的課堂建立 attendance_records（present）
-    //
-    // **原本是「當天這個分校的所有課堂」** —— 包含他根本沒報名的班，於是出勤紀錄裡
-    // 會冒出他從來沒上過的課，而那些紀錄會流進扣課與月結（使用者 2026-09-03 裁定）。
-    //
-    // 到班紀錄（步驟 1）與課堂出勤是**兩層**：人到了就是到了，即使他今天一堂課都沒有。
-    // 所以這一段一筆都寫不出來是正常結果，不是失敗。
-    //
-    // **停課的課堂不寫**（使用者 2026-09-06 裁定 1(a)，issue #485）——
-    // 裁的是不寫**課堂出勤**（這一層），**學生本人的到班紀錄（步驟 1）照舊寫**。
-    // 兩層在這裡是兩張表、兩段程式碼，所以分得開。
-    // `sessions(class_id, status)` —— **`status` 是給停課過濾用的**，漏了它
-    // `enrolledEventIds` 會退回「照舊寫」（理由見 `lib/cancelled-session.ts`）。
-    // 條件不下在查詢上是刻意的：對 embed 欄位下條件要配 `!inner`，而那會連
-    // 「沒有 session 的 event」（**`event_type = 'mock_exam'`**）一起排除掉 ——
-    // 那一條規則屬於 `enrolledEventIds`，兩處各判一次遲早會漂。
-    //
-    // 實測（api-2，2026-09-07）：造一筆 `mock_exam` 事件之後，照原樣回 20 筆、
-    // 加上 `!inner` 回 19 筆 —— 那筆確實會被吃掉。
-    let eventsQuery = supabase
-      .from('events')
-      .select('id, sessions(class_id, status)')
-      .eq('org_id', orgId)
-      .eq('event_date', body.checkinDate);
-
-    if (body.campusId) {
-      eventsQuery = eventsQuery.eq('campus_id', body.campusId);
-    } else {
-      // 沒指名分校時，受限的呼叫者只寫得到自己分校的課堂（#966）：
-      // 跨分校的孩子在 B 校當天的課，不該被 A 校的打卡寫成 present
-      const scope = getCampusScope(c);
-      if (scope !== null) eventsQuery = eventsQuery.in('campus_id', [...scope]);
-    }
-
-    const [{ data: events }, { data: enrollments }] = await Promise.all([
-      eventsQuery,
-      // 在籍條件照抄 roster（`status = 'active'` + 生效區間）—— 掃碼寫得出來的紀錄，
-      // 必須是那堂課點名時看得到的人，否則會出現「有出勤紀錄但名單上沒這個人」的鬼影
-      supabase
-        .from('enrollments')
-        .select('class_id, effective_from, effective_to')
+    // 2. 課堂模式（per_session）：打卡只記到班時間，不直接完成課堂出勤，由管理員或老師逐堂點名
+    //    （rules/attendance-rules.md 1.2，#1099）。原本整支沒讀模式，兩種模式都替課堂寫 present。
+    //    **取消打卡（DELETE）那段不跟著看模式**：它只刪掃碼寫的（`system` + `present`），
+    //    課堂模式本來就不會有；當天中途切換模式時，早先日到班寫的那些仍要刪得掉。
+    let eventIds: string[] = [];
+    if (attendanceMode === 'daily_checkin') {
+      // 2. 替該學生當天**實際有報名**的課堂建立 attendance_records（present）
+      //
+      // **原本是「當天這個分校的所有課堂」** —— 包含他根本沒報名的班，於是出勤紀錄裡
+      // 會冒出他從來沒上過的課，而那些紀錄會流進扣課與月結（使用者 2026-09-03 裁定）。
+      //
+      // 到班紀錄（步驟 1）與課堂出勤是**兩層**：人到了就是到了，即使他今天一堂課都沒有。
+      // 所以這一段一筆都寫不出來是正常結果，不是失敗。
+      //
+      // **停課的課堂不寫**（使用者 2026-09-06 裁定 1(a)，issue #485）——
+      // 裁的是不寫**課堂出勤**（這一層），**學生本人的到班紀錄（步驟 1）照舊寫**。
+      // 兩層在這裡是兩張表、兩段程式碼，所以分得開。
+      // `sessions(class_id, status)` —— **`status` 是給停課過濾用的**，漏了它
+      // `enrolledEventIds` 會退回「照舊寫」（理由見 `lib/cancelled-session.ts`）。
+      // 條件不下在查詢上是刻意的：對 embed 欄位下條件要配 `!inner`，而那會連
+      // 「沒有 session 的 event」（**`event_type = 'mock_exam'`**）一起排除掉 ——
+      // 那一條規則屬於 `enrolledEventIds`，兩處各判一次遲早會漂。
+      //
+      // 實測（api-2，2026-09-07）：造一筆 `mock_exam` 事件之後，照原樣回 20 筆、
+      // 加上 `!inner` 回 19 筆 —— 那筆確實會被吃掉。
+      let eventsQuery = supabase
+        .from('events')
+        .select('id, sessions(class_id, status)')
         .eq('org_id', orgId)
-        .eq('student_id', body.studentId)
-        .eq('status', 'active'),
-    ]);
+        .eq('event_date', body.checkinDate);
 
-    const eventIds = enrolledEventIds(
-      (events ?? []) as Array<{
-        id: string;
-        sessions?:
-          | { class_id?: string | null; status?: string | null }
-          | Array<{ class_id?: string | null; status?: string | null }>
-          | null;
-      }>,
-      (enrollments ?? []) as Array<{
-        class_id: string;
-        effective_from: string;
-        effective_to: string | null;
-      }>,
-      body.checkinDate,
-    );
+      if (body.campusId) {
+        eventsQuery = eventsQuery.eq('campus_id', body.campusId);
+      } else {
+        // 沒指名分校時，受限的呼叫者只寫得到自己分校的課堂（#966）：
+        // 跨分校的孩子在 B 校當天的課，不該被 A 校的打卡寫成 present
+        const scope = getCampusScope(c);
+        if (scope !== null) eventsQuery = eventsQuery.in('campus_id', [...scope]);
+      }
 
-    if (eventIds.length > 0) {
-      await supabase.from('attendance_records').upsert(
-        eventIds.map((eventId: string) => ({
-          org_id: orgId,
-          student_id: body.studentId,
-          event_id: eventId,
-          status: 'present',
-          recorded_by: userId,
-          recorded_by_role: 'system',
-        })),
-        // **只補沒有的，不動已經存在的。** 掃碼是機器讀到一張卡，不該推翻老師的判斷 ——
-        // 老師改成缺席、學生事後補掃，原本會被改回 present 而且不留痕跡。
-        // 掃碼寫的永遠是 `present`，所以「跳過已存在的」不會漏掉任何資訊。
-        { onConflict: 'student_id,event_id', ignoreDuplicates: true },
+      const [{ data: events }, { data: enrollments }] = await Promise.all([
+        eventsQuery,
+        // 在籍條件照抄 roster（`status = 'active'` + 生效區間）—— 掃碼寫得出來的紀錄，
+        // 必須是那堂課點名時看得到的人，否則會出現「有出勤紀錄但名單上沒這個人」的鬼影
+        supabase
+          .from('enrollments')
+          .select('class_id, effective_from, effective_to')
+          .eq('org_id', orgId)
+          .eq('student_id', body.studentId)
+          .eq('status', 'active'),
+      ]);
+
+      eventIds = enrolledEventIds(
+        (events ?? []) as Array<{
+          id: string;
+          sessions?:
+            | { class_id?: string | null; status?: string | null }
+            | Array<{ class_id?: string | null; status?: string | null }>
+            | null;
+        }>,
+        (enrollments ?? []) as Array<{
+          class_id: string;
+          effective_from: string;
+          effective_to: string | null;
+        }>,
+        body.checkinDate,
       );
+
+      if (eventIds.length > 0) {
+        await supabase.from('attendance_records').upsert(
+          eventIds.map((eventId: string) => ({
+            org_id: orgId,
+            student_id: body.studentId,
+            event_id: eventId,
+            status: 'present',
+            recorded_by: userId,
+            recorded_by_role: 'system',
+          })),
+          // **只補沒有的，不動已經存在的。** 掃碼是機器讀到一張卡，不該推翻老師的判斷 ——
+          // 老師改成缺席、學生事後補掃，原本會被改回 present 而且不留痕跡。
+          // 掃碼寫的永遠是 `present`，所以「跳過已存在的」不會漏掉任何資訊。
+          { onConflict: 'student_id,event_id', ignoreDuplicates: true },
+        );
+      }
     }
 
     // 取消打卡（DELETE）一直有稽核，建立卻沒有 —— 於是「這個人今天被標成到班過」
