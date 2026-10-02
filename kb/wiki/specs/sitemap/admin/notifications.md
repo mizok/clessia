@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-10-02
 ---
 
 # 通知中心
@@ -35,6 +35,8 @@ updated: 2026-09-13
 
 ⚠️ **這句話已經不準了，見下方「刻意記下」。**
 
+> ✅ **已修（#723，PR #731）**：副標現為「發布站內公告給老師或家長。公告會出現在對方的通知頁，並顯示未讀數。」（`notifications.component.html:5`）。上面是 2026-09-13 實測當時的修前觀察，保留。
+
 ### 2. 發布新公告
 
 | 欄位       | 控制項   | 預設       |
@@ -62,6 +64,8 @@ updated: 2026-09-13
 | `發布`     | 按鈕     | 永遠     | **`[disabled]="!canSubmit()"`** —— 見下；按下去會寫入，**未按** |
 
 ### ⚠️ `發布` 還是舊的 disabled 寫法
+
+> ✅ **已修（#723，PR #731）**：現在只在送出中 `[disabled]="submitting()"`（`notifications.component.html:76`），一進頁不再停用。以下是修前觀察，保留。
 
 `[disabled]="!canSubmit()"`（`notifications.component.html:64`）——
 **實測剛進頁面時它是 disabled。**
