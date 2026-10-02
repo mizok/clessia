@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-10-02
 ---
 
 # 家長管理
@@ -279,7 +279,13 @@ updated: 2026-09-13
 | 列選單 `產生登入連結` | `POST /api/login-links` | 🔴 **422，對 UI 建立的家長必然失敗**，見下 |
 | 列選單 `封存帳號` → `封存` | `PATCH /api/parents/{id}/archive` | ✅ `status=archived`；留 `parent/archive`。**不可逆** —— 對自建的 QA 家長按（輪末有 reset），不碰 seed |
 
-### 🔴 UI 建立的家長沒有 `parent` 角色，登入連結永遠產不出來
+### ✅ 已修（#877）—— 原：🔴 UI 建立的家長沒有 `parent` 角色，登入連結永遠產不出來
+
+> **2026-10-02 更新（#1004）**：#877 已修 —— 建立家長時寫入 `user_roles` 的 `parent`
+> （#882：`parents.ts` 的 `insertParentRole`，單筆建立與批次匯入都呼叫），既有家長由 #884 的
+> backfill migration `20260913143909_backfill_parent_user_roles.sql` 補齊。
+> **仍未修的是附帶那件**：三種 422（`NO_ROLES`／`NO_EMAIL`／`LINK_FAILED`）在 UI 上是同一句
+> 「產生失敗／請稍後再試」（#1006）。以下是修之前（2026-09-13）的觀察，留著當對照：
 
 `POST /api/login-links` 回 **422**（toast 只說「產生失敗／請稍後再試」，看不出原因）。
 路由的三個 422 出口是 `NO_ROLES` / `NO_EMAIL` / `LINK_FAILED`（`login-links.ts:68/96/102`），

@@ -3,7 +3,7 @@ title: 請假管理
 summary: 建立和查詢請假紀錄。請假只能由管理員建立，支援事後補請。
 category: spec
 status: active
-updated: 2026-03-17
+updated: 2026-10-02
 tags: [specs, admin, student-affairs, leave]
 ---
 
@@ -23,7 +23,14 @@ tags: [specs, admin, student-affairs, leave]
 2. **允許事後補請**（已過去的課堂也可以補建請假）
 3. 建立請假後，系統**自動將對應課堂的出勤狀態改為 `leave`**
 4. 若該課堂出勤已被標為其他狀態（`present`/`late`/`absent`），建立請假後仍需覆蓋為 `leave`
-5. **刪除請假後**：出勤狀態不自動還原（需管理員手動修正出勤），避免誤覆蓋人工修改
+5. **刪除（銷假）請假後**：**以 [[rules/attendance-rules]] §6、§7 為準**（使用者 2026-09-03 定案）——
+   銷假＝刪除請假單；請假連動寫的 `on_leave` 紀錄**刪掉**，學生回到「還沒點名」；
+   **已點過名的日子不動**（老師點的到課／缺席不會被刪）。
+
+   > **2026-10-02 更正（#1004）**：這一條原本寫「出勤狀態不自動還原（需管理員手動修正出勤）」，
+   > 那是 2026-03 的舊規格，已被上述定案取代；程式照定案做（`leaves.ts` 的 DELETE 路徑、
+   > `attendance.ts` 點名名單的 cancel-leave 只刪 `on_leave`）。規則只寫在 attendance-rules 一處，
+   > 這裡不再複述細節 —— 兩頁各說各話正是這次矛盾的來源。
 
 ## MVP 功能
 
