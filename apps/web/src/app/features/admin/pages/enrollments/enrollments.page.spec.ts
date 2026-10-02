@@ -128,8 +128,10 @@ describe('EnrollmentsPage', () => {
       }),
     ]);
 
-    expect(component['joinedCount']()).toBe(1);
-    expect(component['leftCount']()).toBe(1);
+    // #1022：統計句只能有全量的總數 —— 不能再出現只算當頁的「本頁 新報名 N／退班 M」
+    const summary = fixture.nativeElement.querySelector('.enrollments__summary')?.textContent ?? '';
+    expect(summary).toMatch(/共\s*\d+\s*筆/);
+    expect(summary).not.toContain('本頁');
     expect(fixture.nativeElement.textContent).toContain('新報名');
     expect(fixture.nativeElement.textContent).toContain('退班');
   });
