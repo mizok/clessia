@@ -33,7 +33,7 @@
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-03 01:3x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-03 02:0x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
@@ -49,7 +49,9 @@
 
 **疊在 #1069 上的**：#1078（P1 admin/changes＋共用客製下拉 select-field＋T3 gate A27／A28，draft、base=T4 分支，非保留類）—— #1069 合後 2335 rebase 轉 ready、reviewer 代合，不用您。
 
-接下來會出現的保留類：目前沒有（2335 做 #1076 非保留類）。
+接下來會出現的保留類：#1098（老師讀學生單筆／出勤列表無範圍，2335）。
+
+**夜間新開的**：#1099（掃碼不看出勤模式一律寫 present，P2 bug，未派）、#1100（後端缺口盤點總表 52 條，追蹤 issue，逐條驗過才拆單 —— 早上跟您一起 triage，P2 的 20 條裡 campus-attendance-mode 要先裁分校層級）。
 
 ### 使用者動手的
 
