@@ -7,7 +7,7 @@ import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { isOrphanAuthUser } from '../lib/orphan-auth-user';
 import { PERMISSIONS } from '../lib/permissions';
-import { checkRoleAssignment } from '../lib/role-assignment';
+import { addedPermissions, checkRoleAssignment } from '../lib/role-assignment';
 import {
   campusFilterIds,
   campusIdsWithinScope,
@@ -859,6 +859,8 @@ app.openapi(createRouteDef, async (c) => {
     requesterUserId,
     targetUserId: null,
     touchesRoleAssignment: true,
+    // 新帳號沒有「原本的」權限，帶的全部都是發出去的（非 admin 的權限會被清空，見 normalizeAdminPermissions）
+    grantedPermissions: body.roles.includes('admin') ? (body.permissions ?? []) : [],
   });
   if (!assignment.ok) {
     return c.json({ error: assignment.message, code: 'FORBIDDEN' }, 403);
@@ -1183,13 +1185,31 @@ app.openapi(updateRoute, async (c) => {
 
   const userId = staffRow['user_id'] as string;
 
+  // 「發出去的」只有新增的那幾個（#966 A2'）：對方原本就有的不算，拿掉的更不算。
+  // 沒帶 `permissions` 時改角色會沿用原本的（#680），也沒有新增。
+  let grantedPermissions: string[] = [];
+  if (body.permissions !== undefined) {
+    const { data: priorAdminRow } = await supabase
+      .from('user_roles')
+      .select('permissions')
+      .eq('user_id', userId)
+      .eq('role', 'admin')
+      .maybeSingle();
+    const prior = (priorAdminRow as { permissions?: unknown } | null)?.permissions;
+    grantedPermissions = addedPermissions(
+      Array.isArray(prior) ? (prior as string[]) : [],
+      body.permissions,
+    );
+  }
+
   // 改人事資料是 `manage_staff`（mount 擋過了）；**指定角色與權限是 `manage_roles`**，
-  // 而且不論有什麼權限都不能改自己 —— 提權的路要經過另一個人。
+  // 而且不論有什麼權限都不能改自己 —— 提權的路要經過另一個人；也只能發出自己有的權限。
   const assignment = checkRoleAssignment({
     permissions: c.get('permissions') ?? [],
     requesterUserId,
     targetUserId: userId,
     touchesRoleAssignment: body.roles !== undefined || body.permissions !== undefined,
+    grantedPermissions,
   });
   if (!assignment.ok) {
     return c.json({ error: assignment.message, code: 'FORBIDDEN' }, 403);

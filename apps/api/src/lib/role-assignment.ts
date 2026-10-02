@@ -11,6 +11,11 @@ import { hasPermission } from './permissions';
  * 提權的路一定要經過另一個人。這一條連 `*` 都擋 —— 它擋的不是權限不足，
  * 是「自己批准自己」這個動作。
  *
+ * 第三條（使用者 2026-10-01 裁定，#966 A2'）：**權限只能給自己有的。**
+ * 只看 `manage_roles` 的話，自己沒有 `manage_finance` 的人可以建一個有它的帳號、再替它鑄
+ * 登入連結，拿到自己原本沒有的權限。只有持有全部權限者（`*`）能開任何權限。
+ * 這條**也約束不受分校限制的管理員** —— 它跟分校無關。
+ *
  * 見 kb/wiki/architecture/authorization-scope.md 洞 3。
  */
 export interface RoleAssignmentInput {
@@ -20,13 +25,18 @@ export interface RoleAssignmentInput {
   readonly targetUserId: string | null;
   /** 這次請求有沒有動到 roles 或 permissions */
   readonly touchesRoleAssignment: boolean;
+  /**
+   * 這次**新增**給對方的權限（新清單減掉對方原本的，見 `addedPermissions`）。
+   * 只拿掉、或原封不動 → 空陣列：降權不是提權。
+   */
+  readonly grantedPermissions?: readonly string[];
 }
 
 export type RoleAssignmentVerdict =
   | { readonly ok: true }
   | {
       readonly ok: false;
-      readonly reason: 'self' | 'missing-permission';
+      readonly reason: 'self' | 'missing-permission' | 'exceeds-own';
       readonly message: string;
     };
 
@@ -52,5 +62,21 @@ export function checkRoleAssignment(input: RoleAssignmentInput): RoleAssignmentV
     };
   }
 
+  const beyondOwn = (input.grantedPermissions ?? []).filter(
+    (permission) => !hasPermission(input.permissions, permission),
+  );
+  if (beyondOwn.length > 0) {
+    return {
+      ok: false,
+      reason: 'exceeds-own',
+      message: `不能發出你自己沒有的權限：${beyondOwn.join('、')}`,
+    };
+  }
+
   return { ok: true };
+}
+
+/** 新清單裡、對方原本沒有的權限 —— 「發出去」的只有這些 */
+export function addedPermissions(prior: readonly string[], next: readonly string[]): string[] {
+  return next.filter((permission) => !prior.includes(permission));
 }

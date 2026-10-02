@@ -101,6 +101,12 @@ optional。
 > （`lib/role-assignment.ts`；`staff.ts:850-858` 建立、`:1177-1186` 更新）—— 改角色／權限需 `manage_roles`，
 > 且**不能改自己**（連 `*` 也擋）。`mount('/api/staff', …, { write: 'manage_staff' })`（`index.ts:328`）另擋人事資料寫入。
 
+> **2026-10-01 補第三條（使用者裁定，#966 A2'）：權限只能給自己有的。**
+> `manage_roles` 加上「不能改自己」仍然漏一條路：自己沒有 `manage_finance` 的人建一個有它的
+> 帳號，再替它鑄登入連結，就拿到自己原本沒有的權限。現在 `checkRoleAssignment` 也比
+> **新增的**權限（`addedPermissions`：新清單減對方原本的）必須都是呼叫者有的；只有 `*` 能開任何權限。
+> 拿掉權限不受限（降權不是提權）。**這條也約束不受分校限制的管理員。**
+
 ### 洞 4 — 老師的範圍限制只擋讀，不擋寫
 
 `lib/teacher-scope.ts` 的 `loadTeachingScope` 與 `routes/attendance/teacher-scope.ts`
