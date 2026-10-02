@@ -63,6 +63,14 @@
     color: var(--zinc-900);
   }
 
+  // 模糊桶說明：正式的可見文字（tooltip 只是桌機補充）
+  &__groups-note {
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+    color: var(--zinc-600);
+  }
+
   &__group-key {
     font-weight: var(--font-medium);
     color: var(--zinc-900);

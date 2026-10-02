@@ -29,9 +29,7 @@ import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-c
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
 import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
 
-import { defaultRange, groupKeyLabel, isAmbiguousKey,
-  splitBilled,
-} from './reports.util';
+import { defaultRange, groupKeyLabel, isAmbiguousKey, splitBilled } from './reports.util';
 
 /**
  * 營收報表 —— 見 kb/wiki/specs/admin/finance/reports.md。
@@ -205,6 +203,10 @@ export class ReportsPage implements OnInit {
     this.courseId.set(null);
     this.load();
   }
+
+  protected readonly hasAmbiguousGroup = computed(() =>
+    this.groups().some((group) => isAmbiguousKey(group.key)),
+  );
 
   protected labelOf(group: RevenueGroup): string {
     return groupKeyLabel(group.key, this.groupBy());

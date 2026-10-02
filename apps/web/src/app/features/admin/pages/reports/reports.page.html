@@ -133,6 +133,16 @@
         />
       </div>
 
+      <!--
+        模糊桶的說明要**看得見**（#1029）：tooltip 只在 hover 出現、`<i>` 不可聚焦，
+        手機與鍵盤使用者看不到。這行小字是正式說明，列上的 tooltip 留作桌機補充。
+      -->
+      @if (hasAmbiguousGroup()) {
+        <p class="reports__groups-note">
+          「（跨分校）」「（跨課程）」「（未分類）」是刻意的：跨多個分校／課程的帳單不拆分也不重複計入，沒有班的帳單（例如純餐費）歸未分類，所以各組小計加起來等於總計。
+        </p>
+      }
+
       @if (groups().length === 0) {
         <app-empty-state
           icon="pi pi-chart-bar"
