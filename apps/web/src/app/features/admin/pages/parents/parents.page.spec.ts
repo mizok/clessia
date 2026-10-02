@@ -243,6 +243,21 @@ describe('ParentsPage', () => {
       );
     });
 
+    it('#1008 列表預設不含封存；選了狀態就改用該狀態（含封存）', () => {
+      const lastParams = () =>
+        parentsServiceMock.list.mock.calls.at(-1)![0] as {
+          status?: string;
+          excludeArchived?: boolean;
+        };
+      vi.advanceTimersByTime(0);
+      expect(lastParams()).toMatchObject({ status: undefined, excludeArchived: true });
+
+      (component as unknown as { onStatusChange: (s: string | null) => void }).onStatusChange(
+        'archived',
+      );
+      expect(lastParams()).toMatchObject({ status: 'archived', excludeArchived: false });
+    });
+
     it('匯入對話框拿到 onImported，呼叫它就重抓列表（不靠關閉時回傳的值）', () => {
       const open = vi.spyOn(injected(DialogService), 'open').mockReturnValue(null as never);
       (component as unknown as { openImportDialog: () => void }).openImportDialog();

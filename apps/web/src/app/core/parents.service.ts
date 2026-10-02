@@ -51,6 +51,8 @@ export interface ParentListResponse {
 export interface ParentQueryParams {
   search?: string;
   status?: ParentStatus;
+  /** 沒指定 status 時不含封存（列表頁預設） */
+  excludeArchived?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -60,6 +62,7 @@ export interface CreateParentInput {
   email?: string;
   phone?: string;
   notes?: string;
+  studentIds?: string[];
 }
 
 export interface UpdateParentInput {
@@ -195,6 +198,7 @@ export class ParentsService {
     const q: Record<string, string | number> = {};
     if (params.search !== undefined) q['search'] = params.search;
     if (params.status !== undefined) q['status'] = params.status;
+    if (params.excludeArchived) q['excludeArchived'] = 'true';
     if (params.page !== undefined) q['page'] = params.page;
     if (params.pageSize !== undefined) q['pageSize'] = params.pageSize;
     return q;

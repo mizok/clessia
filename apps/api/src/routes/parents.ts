@@ -211,6 +211,8 @@ app.openapi(
       query: z.object({
         search: z.string().optional(),
         status: ParentStatusSchema.optional(),
+        // 沒指定 status 時預設不含封存（列表頁用）；不帶這個參數＝維持原行為（全部）
+        excludeArchived: z.enum(['true']).optional(),
         page: z.coerce.number().min(1).default(1).optional(),
         pageSize: z.coerce.number().min(1).max(100).default(20).optional(),
       }),
@@ -229,7 +231,7 @@ app.openapi(
   async (c) => {
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
-    const { search, status, page = 1, pageSize = 20 } = c.req.valid('query');
+    const { search, status, excludeArchived, page = 1, pageSize = 20 } = c.req.valid('query');
     const offset = (page - 1) * pageSize;
 
     // 取得 org 下所有 parent 的 id，用來查 student 關聯
@@ -303,6 +305,8 @@ app.openapi(
     }
     if (status) {
       query = query.eq('status', status);
+    } else if (excludeArchived) {
+      query = query.neq('status', 'archived');
     }
 
     query = query.range(offset, offset + pageSize - 1);

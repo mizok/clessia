@@ -26,11 +26,10 @@
 
   <!-- Email + 手機 -->
   <div class="form-dialog__row">
-    @if (!isEditMode()) {
-      <p class="form-dialog__row-hint">Email 與手機號碼擇一必填</p>
-    }
     <div class="form-dialog__field">
-      <label class="form-dialog__label"> Email<span class="form-dialog__required">*</span> </label>
+      <label class="form-dialog__label">
+        Email<span class="form-dialog__hint">與手機至少填一個</span>
+      </label>
       <input
         type="email"
         pInputText
@@ -43,7 +42,7 @@
     </div>
     <div class="form-dialog__field">
       <label class="form-dialog__label">
-        手機號碼<span class="form-dialog__required">*</span>
+        手機號碼<span class="form-dialog__hint">與 Email 至少填一個</span>
       </label>
       <input
         type="tel"
@@ -56,6 +55,24 @@
       />
     </div>
   </div>
+
+  <!-- 關聯學生：只在新增時（編輯的 studentIds 是全量替換，由詳情對話框管） -->
+  @if (!isEditMode()) {
+    <div class="form-dialog__field">
+      <label class="form-dialog__label">關聯學生</label>
+      <p-autocomplete
+        [(ngModel)]="selectedStudents"
+        [suggestions]="studentSuggestions()"
+        (completeMethod)="searchStudents($event)"
+        [multiple]="true"
+        optionLabel="name"
+        placeholder="輸入姓名搜尋學生（可選多位）"
+        [disabled]="loading()"
+        [fluid]="true"
+        appendTo="body"
+      />
+    </div>
+  }
 
   <!-- 備註 -->
   <div class="form-dialog__field">
