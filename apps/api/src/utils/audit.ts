@@ -12,8 +12,8 @@ type ResourceType =
   // 而這裡一直沒有 —— 單向漂移了半年（#830）。
   // **沒有人依賴這個缺口**（`enrollments.ts` 的 `logAudit` 數是 0、
   // 全 repo 沒有任何 `resourceType: 'enrollment'`），所以補齊是純加法。
-  // ⚠️ 順帶記一件事：**報名的建立與退班完全沒有稽核紀錄** ——
-  // SQL 早就預留了位置，程式沒接。那是另一個缺口，不在 #830 的範圍裡。
+  // （#830 當時另記了「報名的建立與退班完全沒有稽核紀錄」—— 那個缺口已由 #851 接上，
+  // `enrollments.ts` 現在有建立／更新／刪除的 `logAudit`。#999 一併更正這句。）
   | 'enrollment'
   | 'attendance'
   | 'leave'

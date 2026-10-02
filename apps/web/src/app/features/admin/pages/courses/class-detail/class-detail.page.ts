@@ -367,7 +367,8 @@ export class ClassDetailPage implements OnInit {
     this.openConfirmDialog(
       '移除學生',
       {
-        message: `確定要移除「${enrollment.studentName}」？此操作不留紀錄，無法復原。`,
+        // #999：原本寫「此操作不留紀錄」—— 刪除報名在後端會寫 audit_logs（#851），那半句是錯的
+        message: `確定要移除「${enrollment.studentName}」？移除後無法復原（操作紀錄會保留）。`,
         acceptLabel: '移除',
         rejectLabel: '取消',
         acceptSeverity: 'danger',
