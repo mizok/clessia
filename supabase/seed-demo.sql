@@ -186,7 +186,8 @@ BEGIN
       CASE WHEN i <= 4 THEN ARRAY['J1','J2','J3']::grade_level[]
            ELSE ARRAY['P5','P6']::grade_level[] END,
       true, v_term_start, v_term_end,
-      (i <= 2), (i = 1))
+      -- 聯絡簿是國小模式：國小班（i=5,6）開、國中班關（contact-book-rules）
+      (i >= 5), (i = 1))
     RETURNING id INTO v_class;
     v_class_ids := array_append(v_class_ids, v_class);
 
