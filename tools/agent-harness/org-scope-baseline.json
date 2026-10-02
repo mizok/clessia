@@ -7,6 +7,5 @@
   "apps/api/src/routes/enrollments.ts": 1,
   "apps/api/src/routes/invoices.ts": 2,
   "apps/api/src/routes/leaves.ts": 1,
-  "apps/api/src/routes/me.ts": 1,
-  "apps/api/src/routes/parents.ts": 8
+  "apps/api/src/routes/me.ts": 1
 }
