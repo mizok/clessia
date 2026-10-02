@@ -27,6 +27,7 @@ import { extractScriptUrls, resolveBaseUrl, summarize } from './lib/smoke-probes
 import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
 import { guardedParamNames, unguardedCampusParams } from './lib/campus-param-guard.mjs';
 import { rootVariables, themeMappingProblems } from './lib/tailwind-theme.mjs';
+import { hasInlineStyles, ledgerDiff, sourceConflicts, sourcePaths } from './lib/scss-ledger.mjs';
 import {
   declaredOrgTables,
   orgTablesFromMigrations,
@@ -1969,4 +1970,50 @@ test('c6 的 class regex 涵蓋 Tailwind 全部會產生 viewport 單位的 clas
   );
   assert.deepEqual(missed, [], 'c6 的 regex 漏抓這些會產生 viewport 單位的 class');
   assert.deepEqual(falsePositive, [], 'c6 的 regex 誤判這些不產生 viewport 單位的 class');
+});
+
+// ── A24：SCSS 歸零帳面（#991 T2）───────────────────────────────────────────────────────
+
+test('A24 紅：帳面外出現新的 SCSS；綠：帳面上的檔都還在、沒有新的', () => {
+  const book = ['apps/web/src/a.scss', 'apps/web/src/b.component.ts'];
+  assert.deepEqual(ledgerDiff(book, book), { added: [], gone: [] });
+  assert.deepEqual(ledgerDiff([...book, 'apps/web/src/new.scss'], book).added, [
+    'apps/web/src/new.scss',
+  ]);
+});
+
+test('A24 紅：帳面上的檔被刪了而帳面沒改（下一個人可以免費加回去）', () => {
+  assert.deepEqual(
+    ledgerDiff(['apps/web/src/a.scss'], ['apps/web/src/a.scss', 'apps/web/src/gone.scss']).gone,
+    ['apps/web/src/gone.scss'],
+  );
+});
+
+test('A24 內嵌 styles: 也是 SCSS（inlineStyleLanguage 是 scss）', () => {
+  assert.equal(
+    hasInlineStyles("@Component({\n  selector: 'x',\n  styles: [`:host { display: block; }`],\n})"),
+    true,
+  );
+  assert.equal(hasInlineStyles('@Component({\n  styles: `:host { display: block; }`,\n})'), true);
+  assert.equal(hasInlineStyles("@Component({\n  styleUrl: './x.scss',\n})"), false);
+});
+
+test('A24 @source：註解裡的不算、not 排除不算', () => {
+  const css =
+    "/* 每支頁面 PR 加一行 `@source './app/…';` */\n@source './app/features/admin/pages/changes';\n@source not './app/x';";
+  assert.deepEqual(sourcePaths(css), ['./app/features/admin/pages/changes']);
+});
+
+test('A24 交叉檢查：列入 @source 的目錄底下不得還有 SCSS（前綴要以目錄為界）', () => {
+  const entries = [
+    'apps/web/src/app/pages/changes/changes.component.scss',
+    'apps/web/src/app/pages/changes-log/x.scss',
+  ];
+  assert.deepEqual(sourceConflicts(['apps/web/src/app/pages/changes'], entries), [
+    {
+      dir: 'apps/web/src/app/pages/changes',
+      entries: ['apps/web/src/app/pages/changes/changes.component.scss'],
+    },
+  ]);
+  assert.deepEqual(sourceConflicts(['apps/web/src/app/pages/other'], entries), []);
 });
