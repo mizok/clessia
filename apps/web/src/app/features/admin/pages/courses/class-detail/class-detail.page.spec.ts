@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -93,6 +93,30 @@ describe('ClassDetailPage', () => {
       classId: seedClassId,
       pageSize: 100,
     });
+  });
+
+  /**
+   * #998：取數失敗時畫面不能只剩麵包屑。課程列表在 #795 接上了 `app-load-failed`，這頁漏了 ——
+   * toast 幾秒就消失，之後 `<main>` 裡沒有任何說明，也沒有重試。
+   * 斷言**畫面主體**，不是某個 signal（同 courses.page.spec 的 #788 那條）。
+   */
+  it('取數失敗時渲染「載入失敗」與重試，而不是只剩麵包屑', () => {
+    classesServiceMock.get.mockReturnValueOnce(throwError(() => new Error('boom')));
+    (component as unknown as { loadClass: () => void }).loadClass();
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('app-load-failed')).not.toBeNull();
+    expect(host.textContent).toContain('載入失敗');
+
+    // 重試真的重打，而且成功後回到正常畫面
+    const callsBefore = classesServiceMock.get.mock.calls.length;
+    host.querySelector<HTMLButtonElement>('app-load-failed button')!.click();
+    fixture.detectChanges();
+
+    expect(classesServiceMock.get.mock.calls.length).toBe(callsBefore + 1);
+    expect(host.querySelector('app-load-failed')).toBeNull();
+    expect(host.querySelector('.class-detail__band-grade')).not.toBeNull();
   });
 
   it('shows grade chips in the hero summary block', () => {
