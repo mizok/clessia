@@ -15,6 +15,7 @@ import {
   grantsWiderThanScope,
 } from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
+import { findInOrg, inOrg } from '../lib/org-scope';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 // ============================================================
@@ -461,12 +462,17 @@ async function loadStaffRelations(
   };
 }
 
-async function getStaffById(
+/**
+ * **所有單筆人員讀寫的入口**，所以 org 範圍收在這一處（c1，#966 B3）。
+ * 別 org 的 id 跟不存在一樣回 null → 呼叫端 404。修之前這裡沒有 org 條件，
+ * GET／PUT／封存／停用／啟用／刪除全部繼承了那個洞。
+ */
+function getStaffById(
   supabase: SupabaseClient,
+  orgId: string,
   id: string,
 ): Promise<Record<string, unknown> | null> {
-  const { data } = await supabase.from('staff').select('*').eq('id', id).maybeSingle();
-  return (data as Record<string, unknown> | null) || null;
+  return findInOrg(supabase, 'staff', orgId, id, '*');
 }
 
 function normalizeAdminPermissions(role: StaffRole, permissions?: Permission[]): Permission[] {
@@ -700,16 +706,15 @@ app.openapi(listRoute, async (c) => {
     new Set(((summaryRows || []) as Array<{ user_id: string }>).map((row) => row.user_id)),
   );
 
-  const [{ campusMap, subjectMap, roleInfoMap, baUserMap }, summaryRoleResult] =
-    await Promise.all([
-      loadStaffRelations(supabase, staffRows),
-      summaryUserIds.length > 0
-        ? supabase
-            .from('user_roles')
-            .select('user_id, role, permissions')
-            .in('user_id', summaryUserIds)
-        : Promise.resolve({ data: [] as UserRoleRow[], error: null }),
-    ]);
+  const [{ campusMap, subjectMap, roleInfoMap, baUserMap }, summaryRoleResult] = await Promise.all([
+    loadStaffRelations(supabase, staffRows),
+    summaryUserIds.length > 0
+      ? supabase
+          .from('user_roles')
+          .select('user_id, role, permissions')
+          .in('user_id', summaryUserIds)
+      : Promise.resolve({ data: [] as UserRoleRow[], error: null }),
+  ]);
 
   const staffList = staffRows.map((row) =>
     mapStaff(row, campusMap, subjectMap, roleInfoMap, baUserMap),
@@ -776,9 +781,10 @@ const getRoute = createRoute({
 
 app.openapi(getRoute, async (c) => {
   const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
   const { id } = c.req.valid('param');
 
-  const staffRow = await getStaffById(supabase, id);
+  const staffRow = await getStaffById(supabase, orgId, id);
   if (!staffRow) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
@@ -1037,7 +1043,7 @@ app.openapi(createRouteDef, async (c) => {
   const { error: roleError } = await supabase.from('user_roles').insert(roleRows);
 
   if (roleError) {
-    await supabase.from('staff').delete().eq('id', staffRow.id);
+    await inOrg(supabase.from('staff').delete().eq('id', staffRow.id), orgId);
     await rollbackCreatedUser();
     return c.json({ error: roleError.message, code: 'CREATE_ROLE_FAILED' }, 400);
   }
@@ -1049,7 +1055,7 @@ app.openapi(createRouteDef, async (c) => {
 
   const { error: staffCampusError } = await supabase.from('staff_campuses').insert(campusRows);
   if (staffCampusError) {
-    await supabase.from('staff').delete().eq('id', staffRow.id);
+    await inOrg(supabase.from('staff').delete().eq('id', staffRow.id), orgId);
     await rollbackCreatedUser();
     return c.json({ error: staffCampusError.message, code: 'CREATE_STAFF_CAMPUSES_FAILED' }, 400);
   }
@@ -1062,7 +1068,7 @@ app.openapi(createRouteDef, async (c) => {
 
     const { error: staffSubjectError } = await supabase.from('staff_subjects').insert(subjectRows);
     if (staffSubjectError) {
-      await supabase.from('staff').delete().eq('id', staffRow.id);
+      await inOrg(supabase.from('staff').delete().eq('id', staffRow.id), orgId);
       await rollbackCreatedUser();
       return c.json(
         { error: staffSubjectError.message, code: 'CREATE_STAFF_SUBJECTS_FAILED' },
@@ -1071,7 +1077,7 @@ app.openapi(createRouteDef, async (c) => {
     }
   }
 
-  const freshStaffRow = await getStaffById(supabase, staffRow.id as string);
+  const freshStaffRow = await getStaffById(supabase, orgId, staffRow.id as string);
   if (!freshStaffRow) {
     return c.json({ error: '建立人員後讀取失敗', code: 'READ_AFTER_CREATE_FAILED' }, 400);
   }
@@ -1169,11 +1175,12 @@ const updateRoute = createRoute({
 
 app.openapi(updateRoute, async (c) => {
   const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
   const requesterUserId = c.get('userId');
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
 
-  const staffRow = await getStaffById(supabase, id);
+  const staffRow = await getStaffById(supabase, orgId, id);
   if (!staffRow) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
@@ -1229,7 +1236,6 @@ app.openapi(updateRoute, async (c) => {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 
-    const orgId = staffRow['org_id'] as string;
     const campusesValid = await validateCampusIdsInOrg(supabase, orgId, body.campusIds);
     if (!campusesValid) {
       return c.json({ error: '分校資料不正確', code: 'INVALID_CAMPUSES' }, 400);
@@ -1237,7 +1243,6 @@ app.openapi(updateRoute, async (c) => {
   }
 
   if (body.subjectIds !== undefined) {
-    const orgId = staffRow['org_id'] as string;
     const subjectsValid = await validateSubjectIdsInOrg(supabase, orgId, body.subjectIds);
     if (!subjectsValid) {
       return c.json({ error: '科目資料不正確', code: 'INVALID_SUBJECTS' }, 400);
@@ -1251,10 +1256,10 @@ app.openapi(updateRoute, async (c) => {
   if (body.status !== undefined) updateData['status'] = body.status;
 
   if (Object.keys(updateData).length > 0) {
-    const { error: updateStaffError } = await supabase
-      .from('staff')
-      .update(updateData)
-      .eq('id', id);
+    const { error: updateStaffError } = await inOrg(
+      supabase.from('staff').update(updateData).eq('id', id),
+      orgId,
+    );
     if (updateStaffError) {
       return c.json({ error: updateStaffError.message, code: 'UPDATE_STAFF_FAILED' }, 400);
     }
@@ -1266,10 +1271,10 @@ app.openapi(updateRoute, async (c) => {
   }
 
   if (body.displayName !== undefined) {
-    const { error: updateProfileError } = await supabase
-      .from('profiles')
-      .update({ display_name: body.displayName })
-      .eq('id', userId);
+    const { error: updateProfileError } = await inOrg(
+      supabase.from('profiles').update({ display_name: body.displayName }).eq('id', userId),
+      orgId,
+    );
 
     if (updateProfileError) {
       return c.json({ error: updateProfileError.message, code: 'UPDATE_PROFILE_FAILED' }, 400);
@@ -1419,7 +1424,7 @@ app.openapi(updateRoute, async (c) => {
     }
   }
 
-  const freshStaffRow = await getStaffById(supabase, id);
+  const freshStaffRow = await getStaffById(supabase, orgId, id);
   if (!freshStaffRow) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
@@ -1485,7 +1490,7 @@ app.openapi(archiveRoute, async (c) => {
   const requesterUserId = c.get('userId');
   const { id } = c.req.valid('param');
 
-  const staffRow = await getStaffById(supabase, id);
+  const staffRow = await getStaffById(supabase, orgId, id);
   if (!staffRow) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
@@ -1496,10 +1501,10 @@ app.openapi(archiveRoute, async (c) => {
   }
 
   // 停用帳號
-  const { error: deactivateError } = await supabase
-    .from('staff')
-    .update({ status: 'archived' })
-    .eq('id', id);
+  const { error: deactivateError } = await inOrg(
+    supabase.from('staff').update({ status: 'archived' }).eq('id', id),
+    orgId,
+  );
 
   if (deactivateError) {
     return c.json({ error: deactivateError.message, code: 'DB_ERROR' }, 400);
@@ -1587,10 +1592,11 @@ const deactivateRoute = createRoute({
 
 app.openapi(deactivateRoute, async (c) => {
   const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
   const requesterUserId = c.get('userId');
   const { id } = c.req.valid('param');
 
-  const staffRow = await getStaffById(supabase, id);
+  const staffRow = await getStaffById(supabase, orgId, id);
   if (!staffRow) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
@@ -1600,7 +1606,10 @@ app.openapi(deactivateRoute, async (c) => {
     return c.json({ error: '僅管理員可停用人員', code: 'FORBIDDEN' }, 403);
   }
 
-  const { error } = await supabase.from('staff').update({ status: 'inactive' }).eq('id', id);
+  const { error } = await inOrg(
+    supabase.from('staff').update({ status: 'inactive' }).eq('id', id),
+    orgId,
+  );
   if (error) {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
@@ -1657,10 +1666,11 @@ const activateRoute = createRoute({
 
 app.openapi(activateRoute, async (c) => {
   const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
   const requesterUserId = c.get('userId');
   const { id } = c.req.valid('param');
 
-  const staffRow = await getStaffById(supabase, id);
+  const staffRow = await getStaffById(supabase, orgId, id);
   if (!staffRow) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
@@ -1670,7 +1680,10 @@ app.openapi(activateRoute, async (c) => {
     return c.json({ error: '僅管理員可啟用人員', code: 'FORBIDDEN' }, 403);
   }
 
-  const { error } = await supabase.from('staff').update({ status: 'active' }).eq('id', id);
+  const { error } = await inOrg(
+    supabase.from('staff').update({ status: 'active' }).eq('id', id),
+    orgId,
+  );
   if (error) {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
   }
@@ -1748,10 +1761,11 @@ const deleteRoute = createRoute({
 
 app.openapi(deleteRoute, async (c) => {
   const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
   const requesterUserId = c.get('userId');
   const { id } = c.req.valid('param');
 
-  const staffRow = await getStaffById(supabase, id);
+  const staffRow = await getStaffById(supabase, orgId, id);
   if (!staffRow) {
     return c.json({ error: '人員不存在', code: 'NOT_FOUND' }, 404);
   }
