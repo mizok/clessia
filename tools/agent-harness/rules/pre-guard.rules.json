@@ -22,20 +22,26 @@
     {
       "id": "c6",
       "path": "\\.scss$",
-      "forbid": "(?<!var\\([^()]*)[0-9](vh|vw|dvh|svh|lvh)\\b",
-      "message": "禁止 viewport 單位。改用上層 directive 寫入的 CSS 變數，例如 calc(var(--window-width, 360px) * 0.9)。var() 的 fallback 可以用 viewport 單位（那是變數解不到時的分支，換成 px 只會從不精確變成一定是錯的）—— 禁的是直接拿它當值。"
+      "forbid": "(?<!var\\([^()]*)[0-9](vh|vw|dvh|svh|lvh)\\b|(?<![\\w-])!?(?:[\\w-]+:)*!?(?:min-|max-)?(?:h|w|size|block|inline)-(?:screen|[dsl]v[hw])!?(?![\\w-])",
+      "message": "禁止 viewport 單位。改用上層 directive 寫入的 CSS 變數，例如 calc(var(--window-width, 360px) * 0.9)。var() 的 fallback 可以用 viewport 單位（那是變數解不到時的分支，換成 px 只會從不精確變成一定是錯的）—— 禁的是直接拿它當值。 **Tailwind**：h-screen／min-h-dvh／w-svw／block-screen 等（含 md: 之類的 variant）一樣產生 viewport 單位 —— 改用 h-window／min-h-window／max-h-window／w-window（apps/web/src/tailwind.css，讀 --window-*）。"
     },
     {
       "id": "c6",
       "path": "^apps/web/src/.*(?<!\\.spec)\\.ts$",
-      "forbid": "(?<!var\\([^()]*)[0-9](vh|vw|dvh|svh|lvh)\\b",
-      "message": "禁止 viewport 單位。TS 裡最常見的是 PrimeNG dialog 的 width —— 改用它自己的 breakpoints 選項：width: '400px', breakpoints: { '640px': '96%' }。dialog 掛在 body 上、看不到 --window-* 變數，所以那條路在這裡走不通（#273 清零時驗過）。"
+      "forbid": "(?<!var\\([^()]*)[0-9](vh|vw|dvh|svh|lvh)\\b|(?<![\\w-])!?(?:[\\w-]+:)*!?(?:min-|max-)?(?:h|w|size|block|inline)-(?:screen|[dsl]v[hw])!?(?![\\w-])",
+      "message": "禁止 viewport 單位。TS 裡最常見的是 PrimeNG dialog 的 width —— 改用它自己的 breakpoints 選項：width: '400px', breakpoints: { '640px': '96%' }。dialog 掛在 body 上、看不到 --window-* 變數，所以那條路在這裡走不通（#273 清零時驗過）。 **Tailwind**：h-screen／min-h-dvh／w-svw／block-screen 等（含 md: 之類的 variant）一樣產生 viewport 單位 —— 改用 h-window／min-h-window／max-h-window／w-window（apps/web/src/tailwind.css，讀 --window-*）。"
     },
     {
       "id": "c6",
       "path": "^apps/web/src/.*\\.html$",
-      "forbid": "(?<!var\\([^()]*)[0-9](vh|vw|dvh|svh|lvh)\\b",
-      "message": "禁止 viewport 單位。HTML 這側有兩種載體：`[style.height]` / `[ngStyle]` 綁定，以及 index.html 的 <style> 區塊（全螢幕啟動畫面最容易伸手拿 100vh）。改用上層 directive 寫入的 CSS 變數，例如 calc(var(--window-height, 100dvh) * 0.9)。"
+      "forbid": "(?<!var\\([^()]*)[0-9](vh|vw|dvh|svh|lvh)\\b|(?<![\\w-])!?(?:[\\w-]+:)*!?(?:min-|max-)?(?:h|w|size|block|inline)-(?:screen|[dsl]v[hw])!?(?![\\w-])",
+      "message": "禁止 viewport 單位。HTML 這側有兩種載體：`[style.height]` / `[ngStyle]` 綁定，以及 index.html 的 <style> 區塊（全螢幕啟動畫面最容易伸手拿 100vh）。改用上層 directive 寫入的 CSS 變數，例如 calc(var(--window-height, 100dvh) * 0.9)。 **Tailwind**：h-screen／min-h-dvh／w-svw／block-screen 等（含 md: 之類的 variant）一樣產生 viewport 單位 —— 改用 h-window／min-h-window／max-h-window／w-window（apps/web/src/tailwind.css，讀 --window-*）。"
+    },
+    {
+      "id": "c6",
+      "path": "^apps/web/src/.*\\.css$",
+      "forbid": "(?<!var\\([^()]*)[0-9](vh|vw|dvh|svh|lvh)\\b|(?<![\\w-])!?(?:[\\w-]+:)*!?(?:min-|max-)?(?:h|w|size|block|inline)-(?:screen|[dsl]v[hw])!?(?![\\w-])",
+      "message": "禁止 viewport 單位（含 @apply 的 Tailwind utility）。var() 的 fallback 可以用 viewport 單位 —— 那是 c6 的明文例外，tailwind.css 的 h-window 就是這樣寫的。 **Tailwind**：h-screen／min-h-dvh／w-svw／block-screen 等（含 md: 之類的 variant）一樣產生 viewport 單位 —— 改用 h-window／min-h-window／max-h-window／w-window（apps/web/src/tailwind.css，讀 --window-*）。"
     },
     {
       "id": "c7",

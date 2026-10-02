@@ -354,6 +354,20 @@ max-height: calc(var(--window-height, 100dvh) * 0.55); // ✓ 放行
 lookbehind（`(?<!var\([^()]*)`），gate A12 **餵同一條規則給同一支 matcher**，兩層不會漂
 —— 分開寫兩份 regex 的話，漂掉的方向一定是 gate 比 hook 寬。
 
+### c6：Tailwind 的 class 名稱也是載體（#991 T1，改機制不修法）
+
+舊 regex 要求「數字緊接單位」，**`h-screen`、`min-h-dvh`、`w-svw` 這種名字裡沒有數字的 class 全部看不到**。
+現在每條 c6 規則的 `forbid` 是兩段 alternation：原本的值（fallback-aware）＋ class 名稱
+（`(?:min-|max-)?(?:h|w|size|block|inline)-(?:screen|[dsl]v[hw])`，前面可接任意 variant 與 `!`）。
+載體四種：`.scss`／`.ts`（inline template、`[ngClass]`）／`.html`／**`.css`**（新增，`@apply`）；A12 四種都掃。
+
+- **寫在同一條規則裡、不另開一條**：`scanExisting` 取「第一條 path 符合的規則」的 regex 數行號，
+  同一個 path 掛兩條規則的話第二條永遠不會被數到。
+- **清單不手抄**：`harness:test` 用已安裝的 Tailwind 窮舉全部 class（2026-10-02：23,286 個，71 個會輸出 viewport 單位），
+  斷言 regex **零漏抓、零誤判**。Tailwind 升版多出新族時這條自己紅。
+- 合規替代：`tailwind.css` 的 `h-window`／`min-h-window`／`max-h-window`／`w-window`（讀 `--window-*`）。
+- **條文本身**（c6 只寫「SCSS」）的修訂草案在 `tailwind-adoption.md` 5.1，**由使用者親手改 `constitution.md`**。
+
 ### c8：「等裝飾器 API」的範圍
 
 條文列的是 `@Input()` / `@Output()` / `@ViewChild()`。**「等」= 這三個 + 同類的
