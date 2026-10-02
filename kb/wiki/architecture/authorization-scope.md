@@ -191,6 +191,9 @@ harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一�
   釘（`routes/org-scope-writes.spec.ts`，替身 `test-utils/multi-org-db.ts` 真的照條件過濾、沒實作的方法一律丟），
   寫入那層由 harness **A23** 釘（ratchet，帳面 `tools/agent-harness/org-scope-baseline.json` 只能往下）。
 - `OrgTable` 型別即清單：子表（`schedules`、`invoice_items`…）傳不進去 —— 它們要驗的是父列。
+- **批次端點**（`ids: [...]`）用 `missingInOrg`：任何一個不屬於本 org 就**整批 404**，不略過（B2 的 classes
+  batch-set-active／DELETE /batch）。**存在檢查排在所有守門查詢之前** —— 否則別 org 的 id 會先拿到 409，
+  等於告訴對方「這個班有歷史課堂／堂數包」。
 
 分批與盤點在 #966 的「B 批設計提案」留言。
 

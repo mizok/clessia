@@ -120,6 +120,25 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
       },
       single: () => Promise.resolve(one(true)),
       maybeSingle: () => Promise.resolve(one(false)),
+      /** PostgREST 的 `or('a.lt.x,b.eq.y')`：只支援 eq / neq / lt / lte / gt / gte，值一律字串比較 */
+      or(expression: string) {
+        const ops: Record<string, (a: string, b: string) => boolean> = {
+          eq: (a, b) => a === b,
+          neq: (a, b) => a !== b,
+          lt: (a, b) => a < b,
+          lte: (a, b) => a <= b,
+          gt: (a, b) => a > b,
+          gte: (a, b) => a >= b,
+        };
+        const terms = expression.split(',').map((term) => {
+          const [column, op, ...rest] = term.split('.');
+          const compare = ops[op as string];
+          if (!column || !compare) throw new Error(`multi-org-db：or 不支援 \`${term}\``);
+          return (row: Row) => row[column] != null && compare(String(row[column]), rest.join('.'));
+        });
+        filters.push((row) => terms.some((test) => test(row)));
+        return proxy;
+      },
       then(resolve: (value: Result) => unknown, reject?: (reason: unknown) => unknown) {
         return Promise.resolve().then(run).then(resolve, reject);
       },

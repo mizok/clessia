@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { formatAuditClassResourceName, logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
+import { findInOrg, inOrg, missingInOrg } from '../lib/org-scope';
 import { checkTeacherEligibility } from '../lib/teacher-eligibility';
 import { buildSessionGenerationPlan } from '../domain/session-assignment/session-generation-planner';
 import { deriveAssignmentStatus } from '../domain/session-assignment/session-assignment.rules';
@@ -795,6 +796,10 @@ app.openapi(
         description: '成功',
         content: { 'application/json': { schema: z.object({ updated: z.number() }) } },
       },
+      404: {
+        description: '有班級不存在（含別 org 的 id）—— 整批不動',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
     },
   }),
   async (c) => {
@@ -804,11 +809,15 @@ app.openapi(
     const { ids, isActive } = c.req.valid('json');
     if (ids.length === 0) return c.json({ updated: 0 }, 200);
 
-    const { data, error } = await supabase
-      .from('classes')
-      .update({ is_active: isActive, updated_by: userId })
-      .in('id', ids)
-      .select('id');
+    // 任何一個 id 不屬於本 org → 整批 404，不略過（c1，#966 B2）
+    if ((await missingInOrg(supabase, 'classes', orgId, ids)).length > 0) {
+      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    }
+
+    const { data, error } = await inOrg(
+      supabase.from('classes').update({ is_active: isActive, updated_by: userId }).in('id', ids),
+      orgId,
+    ).select('id');
 
     if (error) return c.json({ updated: 0 }, 200);
 
@@ -855,6 +864,10 @@ app.openapi(
           },
         },
       },
+      404: {
+        description: '有班級不存在（含別 org 的 id）—— 整批不動',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       500: {
         description: '過去課堂守門查詢失敗 —— 拒絕刪除（fail closed）',
         content: { 'application/json': { schema: ErrorSchema } },
@@ -867,6 +880,11 @@ app.openapi(
     const userId = c.get('userId');
     const { ids } = c.req.valid('json');
     if (ids.length === 0) return c.json({ deleted: 0, deletedIds: [], skipped: 0 }, 200);
+
+    // 任何一個 id 不屬於本 org → 整批 404，不略過（c1，#966 B2）
+    if ((await missingInOrg(supabase, 'classes', orgId, ids)).length > 0) {
+      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    }
 
     // 查哪些班級有過去日期的課堂（有則視為已發生業務，不可刪除）
     // TODO: 待老師點名功能完成後，改為查 status='completed'
@@ -888,7 +906,7 @@ app.openapi(
       return c.json({ deleted: 0, deletedIds: [], skipped }, 200);
     }
 
-    const { error } = await supabase.from('classes').delete().in('id', toDeleteIds);
+    const { error } = await inOrg(supabase.from('classes').delete().in('id', toDeleteIds), orgId);
     if (error) return c.json({ deleted: 0, deletedIds: [], skipped }, 200);
 
     logAudit(
@@ -1085,9 +1103,19 @@ app.openapi(
   }),
   async (c) => {
     const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
     const userId = c.get('userId');
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
+
+    // 班級本身與 body 指名的下一期班級都要屬於本 org（c1，#966 B2）
+    const [current, nextClass] = await Promise.all([
+      findInOrg(supabase, 'classes', orgId, id),
+      body.nextClassId ? findInOrg(supabase, 'classes', orgId, body.nextClassId) : null,
+    ]);
+    if (!current || (body.nextClassId && !nextClass)) {
+      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    }
 
     const updateData: Record<string, unknown> = { updated_by: userId };
     if (body.name !== undefined) updateData['name'] = body.name;
@@ -1098,10 +1126,10 @@ app.openapi(
     if (body.startDate !== undefined) updateData['start_date'] = body.startDate;
     if (body.endDate !== undefined) updateData['end_date'] = body.endDate;
 
-    const { data, error } = await supabase
-      .from('classes')
-      .update(updateData)
-      .eq('id', id)
+    const { data, error } = await inOrg(
+      supabase.from('classes').update(updateData).eq('id', id),
+      orgId,
+    )
       .select('*, courses(name, grade_levels, subjects(id, name)), campuses(name)')
       .single();
 
@@ -1112,7 +1140,7 @@ app.openapi(
     logAudit(
       supabase,
       {
-        orgId: c.get('orgId'),
+        orgId,
         userId,
         resourceType: 'class',
         resourceId: id,
@@ -1147,23 +1175,24 @@ app.openapi(
   }),
   async (c) => {
     const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
     const userId = c.get('userId');
     const { id } = c.req.valid('param');
 
-    const { data: current } = await supabase
-      .from('classes')
-      .select('is_active')
-      .eq('id', id)
-      .single();
+    // 別 org 的 id 跟不存在一樣回 404（c1，#966 B2）
+    const current = await findInOrg(supabase, 'classes', orgId, id, 'is_active');
 
     if (!current) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
-    const { data, error } = await supabase
-      .from('classes')
-      .update({ is_active: !current.is_active, updated_by: userId })
-      .eq('id', id)
+    const { data, error } = await inOrg(
+      supabase
+        .from('classes')
+        .update({ is_active: !current['is_active'], updated_by: userId })
+        .eq('id', id),
+      orgId,
+    )
       .select('*, courses(name, grade_levels, subjects(id, name)), campuses(name)')
       .single();
 
@@ -1174,13 +1203,13 @@ app.openapi(
     logAudit(
       supabase,
       {
-        orgId: c.get('orgId'),
+        orgId,
         userId,
         resourceType: 'class',
         resourceId: id,
         resourceName: classAuditResourceName(data as Record<string, unknown>),
         action: 'toggle_active',
-        details: { isActive: !current.is_active },
+        details: { isActive: !current['is_active'] },
       },
       waitUntilFrom(c),
     );
@@ -1221,6 +1250,19 @@ app.openapi(
     const orgId = c.get('orgId');
     const userId = c.get('userId');
     const { id } = c.req.valid('param');
+
+    // 刪之前先讀（稽核要名字），同時是 org 範圍的存在檢查 —— 排在所有守門查詢之前，
+    // 否則別 org 的 id 會先拿到 409，等於告訴對方「這個班有歷史課堂」（c1，#966 B2）
+    const existing = await findInOrg(
+      supabase,
+      'classes',
+      orgId,
+      id,
+      'name, courses(name), campuses(name)',
+    );
+    if (!existing) {
+      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    }
 
     // 檢查是否有過去日期的課堂 — 有則視為曾實際發生業務，不可刪除，只能停用
     // TODO: 待老師點名功能完成後，改為檢查 status='completed'
@@ -1269,17 +1311,12 @@ app.openapi(
     }
 
     // CASCADE DELETE: 刪除關聯資料
-    await supabase.from('sessions').delete().eq('class_id', id);
+    // `schedules` 沒有 org_id 欄位 —— 它的範圍由上面驗過的父班級保證
+    await inOrg(supabase.from('sessions').delete().eq('class_id', id), orgId);
     await supabase.from('schedules').delete().eq('class_id', id);
-    await supabase.from('enrollments').delete().eq('class_id', id);
+    await inOrg(supabase.from('enrollments').delete().eq('class_id', id), orgId);
 
-    const { data: existing } = await supabase
-      .from('classes')
-      .select('name, courses(name), campuses(name)')
-      .eq('id', id)
-      .single();
-
-    const { error } = await supabase.from('classes').delete().eq('id', id);
+    const { error } = await inOrg(supabase.from('classes').delete().eq('id', id), orgId);
     if (error) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
@@ -1291,9 +1328,7 @@ app.openapi(
         userId,
         resourceType: 'class',
         resourceId: id,
-        resourceName: classAuditResourceName(
-          existing as Record<string, unknown> | null | undefined,
-        ),
+        resourceName: classAuditResourceName(existing),
         action: 'delete',
       },
       waitUntilFrom(c),
@@ -1323,6 +1358,10 @@ app.openapi(
         description: '驗證錯誤',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      404: {
+        description: '班級不存在',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       409: {
         description: '時段重複',
         content: { 'application/json': { schema: ErrorSchema } },
@@ -1336,11 +1375,17 @@ app.openapi(
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
 
-    const { data: cls } = await supabase
-      .from('classes')
-      .select('name, courses(name), campuses(name)')
-      .eq('id', id)
-      .single();
+    // `schedules` 沒有 org_id 欄位，要驗的是父班級屬於本 org（c1，#966 B2）
+    const cls = await findInOrg(
+      supabase,
+      'classes',
+      orgId,
+      id,
+      'name, courses(name), campuses(name)',
+    );
+    if (!cls) {
+      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    }
 
     const { data, error } = await supabase
       .from('schedules')
@@ -1369,7 +1414,7 @@ app.openapi(
         userId,
         resourceType: 'class',
         resourceId: id,
-        resourceName: classAuditResourceName(cls as Record<string, unknown> | null | undefined),
+        resourceName: classAuditResourceName(cls),
         action: 'add_schedule',
         details: { weekday: body.weekday, startTime: body.startTime, endTime: body.endTime },
       },
@@ -1415,6 +1460,11 @@ app.openapi(
     const orgId = c.get('orgId');
     const { id, sid } = c.req.valid('param');
     const body = c.req.valid('json');
+
+    // `schedules` 沒有 org_id 欄位，要驗的是父班級屬於本 org（c1，#966 B2）
+    if (!(await findInOrg(supabase, 'classes', orgId, id))) {
+      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    }
 
     /**
      * **#854：排課指定任課老師要驗分校與科目，跟代課同一個判準、同一個錯誤碼。**
@@ -1527,11 +1577,17 @@ app.openapi(
     const userId = c.get('userId');
     const { id, sid } = c.req.valid('param');
 
-    const { data: cls } = await supabase
-      .from('classes')
-      .select('name, courses(name), campuses(name)')
-      .eq('id', id)
-      .single();
+    // `schedules` 沒有 org_id 欄位，要驗的是父班級屬於本 org（c1，#966 B2）
+    const cls = await findInOrg(
+      supabase,
+      'classes',
+      orgId,
+      id,
+      'name, courses(name), campuses(name)',
+    );
+    if (!cls) {
+      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    }
 
     const { error } = await supabase.from('schedules').delete().eq('id', sid).eq('class_id', id);
 
@@ -1546,7 +1602,7 @@ app.openapi(
         userId,
         resourceType: 'class',
         resourceId: id,
-        resourceName: classAuditResourceName(cls as Record<string, unknown> | null | undefined),
+        resourceName: classAuditResourceName(cls),
         action: 'delete_schedule',
       },
       waitUntilFrom(c),
