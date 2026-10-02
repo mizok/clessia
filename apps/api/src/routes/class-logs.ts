@@ -3,7 +3,7 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { loadTeachingScope, taughtClassIds } from '../lib/teacher-scope';
 import { getCampusScope } from '../lib/campus-scope';
-import { isClassInScope } from '../lib/campus-write-guard';
+import { classWriteScope } from '../lib/campus-write-guard';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
 import { CLASS_LOG_SELECT, toClassLogResponse } from '../lib/class-log-query';
@@ -139,6 +139,7 @@ app.openapi(
     responses: {
       200: { description: 'OK', content: { 'application/json': { schema: ClassLogSchema } } },
       403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: '班級不存在', content: { 'application/json': { schema: ErrorSchema } } },
       500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -164,7 +165,11 @@ app.openapi(
       }
     }
     // 老師由任課範圍把關（上面）；受限的管理員由分校（#966）
-    if (!(await isClassInScope(supabase, orgId, getCampusScope(c), classId))) {
+    const scoped = await classWriteScope(supabase, orgId, getCampusScope(c), classId);
+    if (scoped === 'not-found') {
+      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    }
+    if (scoped === 'out-of-scope') {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 
@@ -255,9 +260,16 @@ app.openapi(
       }
     }
     // 發布＝家長看得到（#966）：受限的管理員只能發自己分校的班
-    if (
-      !(await isClassInScope(supabase, orgId, getCampusScope(c), existing['class_id'] as string))
-    ) {
+    const scoped = await classWriteScope(
+      supabase,
+      orgId,
+      getCampusScope(c),
+      existing['class_id'] as string,
+    );
+    if (scoped === 'not-found') {
+      return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    }
+    if (scoped === 'out-of-scope') {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 

@@ -87,8 +87,13 @@ async function call(
   return { status: res.status, scopeDenied: res.status === 403 && json?.error === SCOPE_DENIED };
 }
 
-const notInScope: Rows = { enrollments: [] };
-const inScope: Rows = { enrollments: [{ student_id: STUDENT, classes: { campus_id: A } }] };
+// #966 B6 起寫入前先驗學生屬於本 org（不分受限與否），所以兩組都要有那個學生
+const student = { students: [{ id: STUDENT, org_id: ORG }] };
+const notInScope: Rows = { ...student, enrollments: [] };
+const inScope: Rows = {
+  ...student,
+  enrollments: [{ student_id: STUDENT, classes: { campus_id: A } }],
+};
 const leave = {
   leave_requests: [
     { id: ROW, student_id: STUDENT, start_date: '2026-04-06', end_date: '2026-04-06' },
@@ -116,7 +121,7 @@ describe('請假（POST 是 #966 的起點）', () => {
       (await call(leavesRoute, { ...inScope, ...leave }, 'DELETE', `/${ROW}`)).scopeDenied,
     ).toBe(false);
   });
-  it('反向：不受分校限制的呼叫者不受影響（也不多查）', async () => {
+  it('反向：不受分校限制的呼叫者不被分校擋（但仍驗 org，#966 B6）', async () => {
     expect((await call(leavesRoute, notInScope, 'POST', '/', leaveBody, null)).scopeDenied).toBe(
       false,
     );

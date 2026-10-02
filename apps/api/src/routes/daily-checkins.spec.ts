@@ -57,7 +57,9 @@ function createCheckinApp(
         eq: () => query,
         // `logAudit` 先查 `profiles` 拿 `user_name` 才寫 `audit_logs`，
         // 鏈是 select().eq().maybeSingle() —— 少一段就靜默失敗。
-        maybeSingle: () => Promise.resolve({ data: null, error: null }),
+        // #966 B6：寫入前先驗學生屬於本 org（`students` 的 findInOrg）
+        maybeSingle: () =>
+          Promise.resolve({ data: table === 'students' ? { id: 'stu-1' } : null, error: null }),
         then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
           const data =
             table === 'enrollments'
@@ -268,12 +270,14 @@ describe('DELETE /api/daily-checkins/:id', () => {
                       checkin_date: options.eventDate,
                       campus_id: null,
                     }
-                  : table === 'organizations'
-                    ? {
-                        attendance_responsible: options.responsible ?? 'admin',
-                        attendance_retroactive_days: options.retroDays ?? 0,
-                      }
-                    : null,
+                  : table === 'students'
+                    ? { id: 'stu-1' }
+                    : table === 'organizations'
+                      ? {
+                          attendance_responsible: options.responsible ?? 'admin',
+                          attendance_retroactive_days: options.retroDays ?? 0,
+                        }
+                      : null,
               error: null,
             }),
           delete: () => {

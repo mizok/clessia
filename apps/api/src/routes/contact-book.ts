@@ -11,7 +11,7 @@ import {
 } from '../lib/contact-book-missing';
 import { logAudit } from '../utils/audit';
 import { getCampusScope } from '../lib/campus-scope';
-import { isStudentInScope } from '../lib/campus-write-guard';
+import { studentWriteScope } from '../lib/campus-write-guard';
 import { waitUntilFrom } from '../lib/wait-until';
 
 /**
@@ -179,6 +179,7 @@ app.openapi(
         content: { 'application/json': { schema: ContactBookEntrySchema } },
       },
       403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: '學生不存在', content: { 'application/json': { schema: ErrorSchema } } },
       500: { description: '伺服器錯誤', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
@@ -204,7 +205,11 @@ app.openapi(
       }
     }
     // 老師由任課範圍把關（上面）；受限的管理員由分校（#966）
-    if (!(await isStudentInScope(supabase, orgId, getCampusScope(c), studentId))) {
+    const scoped = await studentWriteScope(supabase, orgId, getCampusScope(c), studentId);
+    if (scoped === 'not-found') {
+      return c.json({ error: '學生不存在', code: 'NOT_FOUND' }, 404);
+    }
+    if (scoped === 'out-of-scope') {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 
