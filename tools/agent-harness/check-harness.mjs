@@ -830,6 +830,9 @@ scanExisting({ clause: 'c6', dir: WEB_SRC, ext: '.ts', label: '使用了 viewpor
 // 以及 index.html 的 <style> 區塊 —— 那是全螢幕啟動畫面，**最容易伸手拿 100vh 的地方**，
 // 而它先前只被 c7 掃過（.html），c6 看不到。同樣零違規、零 baseline。
 scanExisting({ clause: 'c6', dir: WEB_SRC, ext: '.html', label: '使用了 viewport 單位' });
+// c6 的 **CSS 載體**（#991 T1）：`tailwind.css` 與元件 `.css` 的 `@apply h-screen`。
+// 同一份規則也認 Tailwind 的 class 名稱（h-screen、min-h-dvh…），四種副檔名都吃到。
+scanExisting({ clause: 'c6', dir: WEB_SRC, ext: '.css', label: '使用了 viewport 單位' });
 
 // A13（c7）— 存量本來就是 0（Angular 21 全面用新語法），gate 立起來防回歸
 scanExisting({ clause: 'c7', dir: WEB_SRC, ext: '.html', label: '使用了舊版結構指令' });

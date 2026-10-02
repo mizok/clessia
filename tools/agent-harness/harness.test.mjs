@@ -143,7 +143,7 @@ test('c6 三個載體的規則都在，A12 的三次掃描才撈得到', () => {
   // （加第三個載體時這條就紅了，而紅得沒有意義）；
   // 「`.scss` / `.ts` / `.html` 三種都有人守」才是真正的不變量。
   const covered = (ext) => c6.some((r) => new RegExp(r.path).test(`apps/web/src/app/a.${ext}`));
-  for (const ext of ['scss', 'ts', 'html']) {
+  for (const ext of ['scss', 'ts', 'html', 'css']) {
     assert.ok(covered(ext), `c6 的 .${ext} 載體沒人守 —— 那個檔型會靜默失效`);
   }
 
@@ -1875,4 +1875,98 @@ test('A25 紅：同名自我參照放在會輸出的區塊（少了 reference）
   const p = themeMappingProblems(`@theme inline { --text-xs: var(--text-xs); }`, STYLES);
   assert.equal(p.length, 1);
   assert.match(p[0], /自我參照/);
+});
+
+// ── c6 的 Tailwind class 載體（#991 T1）────────────────────────────────────────────────
+// 舊的 regex 要求「數字緊接單位」，所以 `h-screen`、`min-h-dvh` 這種名稱裡沒有數字的 class 全部看不到。
+
+test('c6 擋 Tailwind 會產生 viewport 單位的 class —— 含 variant、important、任意 variant、邏輯屬性族', () => {
+  for (const cls of [
+    'h-screen',
+    'md:h-screen',
+    'hover:min-h-dvh',
+    'h-screen!',
+    '!h-screen',
+    'lg:max-inline-svw',
+    'dark:md:w-dvw',
+    '[&>div]:h-svh',
+    'group-hover:block-lvh',
+    'size-screen',
+  ]) {
+    assert.deepEqual(
+      guard('apps/web/src/app/a.html', `<div class="p-4 ${cls}"></div>`),
+      ['c6'],
+      cls,
+    );
+  }
+  // inline template 與 [ngClass]（.ts）、@apply（.css／.scss）同一條規則
+  assert.deepEqual(guard('apps/web/src/app/a.ts', 'template: `<div class="min-h-screen"></div>`'), [
+    'c6',
+  ]);
+  assert.deepEqual(guard('apps/web/src/app/a.css', '.x { @apply h-dvh; }'), ['c6']);
+  assert.deepEqual(guard('apps/web/src/app/a.scss', '.x { @apply w-screen; }'), ['c6']);
+});
+
+test('c6 放過：h-window、var() fallback 的任意值、只是名字相近的 class、註解', () => {
+  for (const cls of [
+    'h-window',
+    'min-h-window',
+    'h-screen-x',
+    'my-h-screen',
+    'h-[calc(var(--window-height,100dvh)*0.9)]',
+    'w-svg',
+    'h-full',
+    'inline-flex',
+    'inline-block',
+    'block',
+  ]) {
+    assert.deepEqual(guard('apps/web/src/app/a.html', `<div class="${cls}"></div>`), [], cls);
+  }
+  assert.deepEqual(
+    guard(
+      'apps/web/src/app/a.css',
+      '/* 不要用 h-screen */\n.x { height: var(--window-height, 100dvh); }',
+    ),
+    [],
+  );
+});
+
+/**
+ * **清單不手抄（c11）**：直接問已安裝的 Tailwind「哪些 class 會輸出 viewport 單位」，
+ * 斷言 c6 的 regex 一個不漏、也不誤判。Tailwind 升版多了新族（#995 就漏過 block／inline 兩族）
+ * 這條會自己紅。
+ *
+ * ⚠️ 用的是 `__unstable__loadDesignSystem` —— 名字就寫著不穩定。這條紅的時候先分清楚：
+ * 是 **API 變了**（loadDesignSystem 不存在、getClassList 形狀變了 → 改這支 test），
+ * 還是 **regex 漏了**（下面的 missed 有東西 → 改 pre-guard.rules.json 的 c6）。
+ */
+test('c6 的 class regex 涵蓋 Tailwind 全部會產生 viewport 單位的 class（窮舉）', async () => {
+  const tw = await import('tailwindcss');
+  assert.equal(
+    typeof tw.__unstable__loadDesignSystem,
+    'function',
+    'Tailwind 的 design system API 變了 —— 改這支 test，不是 regex 的問題',
+  );
+  // 這個檔的 ROOT 是假的 '/repo'（給路徑比對用）；這裡要讀真的 node_modules
+  const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
+  const themeCss = readFileSync(join(repoRoot, 'node_modules/tailwindcss/theme.css'), 'utf8');
+  const ds = await tw.__unstable__loadDesignSystem(themeCss);
+  const classes = ds.getClassList().map(([name]) => name);
+  const css = ds.candidatesToCss(classes);
+  const viewport = classes.filter(
+    (_, i) => css[i] && /[0-9.](vh|vw|dvh|dvw|svh|svw|lvh|lvw)\b/.test(css[i]),
+  );
+  assert.ok(
+    classes.length > 10_000 && viewport.length > 0,
+    `窮舉看起來沒跑起來（${classes.length} 個 class、${viewport.length} 個 viewport）`,
+  );
+
+  const rule = guardRules.rules.find((r) => r.id === 'c6' && r.path.includes('html'));
+  const forbid = new RegExp(rule.forbid);
+  const missed = viewport.filter((cls) => !forbid.test(`class="${cls}"`));
+  const falsePositive = classes.filter(
+    (cls) => !viewport.includes(cls) && forbid.test(`class="${cls}"`),
+  );
+  assert.deepEqual(missed, [], 'c6 的 regex 漏抓這些會產生 viewport 單位的 class');
+  assert.deepEqual(falsePositive, [], 'c6 的 regex 誤判這些不產生 viewport 單位的 class');
 });
