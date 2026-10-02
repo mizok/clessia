@@ -15,6 +15,8 @@ export interface ParentScoreRecord {
   score: number | null;
   totalScore: number | null;
   status: ParentScoreStatus;
+  /** 考試描述：校內考的範圍說明，段考一律 null（#1076）。有值的那筆可以展開看 */
+  description: string | null;
 }
 
 export interface ParentScoreListResponse {

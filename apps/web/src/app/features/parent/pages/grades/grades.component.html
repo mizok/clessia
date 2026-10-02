@@ -64,26 +64,30 @@
           <section class="grades__subject">
             <h2 class="grades__subject-title">{{ group.subjectName }}</h2>
             @for (record of group.records; track record.id) {
-              <div class="grades__record">
-                <span class="grades__record-date">{{ record.examDate }}</span>
-                <span class="grades__record-name">{{ record.examName }}</span>
-                @if (record.status === 'scored') {
-                  <span
-                    class="grades__record-score"
-                    [class.grades__record-score--fail]="isFailing(record)"
-                  >
-                    @if (isFailing(record)) {
-                      <i
-                        class="pi pi-exclamation-triangle grades__fail-icon"
-                        aria-label="不及格"
-                      ></i>
-                    }
-                    {{ formatScore(record) }}
-                  </span>
-                } @else {
-                  <app-data-chip>{{ statusLabels[record.status] }}</app-data-chip>
-                }
-              </div>
+              @if (record.description) {
+                <!--
+                  #1076：有描述（校內考的範圍說明）的那筆才能展開。原生 <details>：
+                  鍵盤、讀屏的「已展開／已收合」都不用自己做。沒有描述的不給展開 ——
+                  點了什麼都沒有的列，比不能點更糟。
+                -->
+                <details class="grades__item">
+                  <summary class="grades__record grades__record--expandable">
+                    <ng-container
+                      [ngTemplateOutlet]="recordRow"
+                      [ngTemplateOutletContext]="{ $implicit: record }"
+                    />
+                    <i class="pi pi-chevron-down grades__chevron" aria-hidden="true"></i>
+                  </summary>
+                  <p class="grades__desc">{{ record.description }}</p>
+                </details>
+              } @else {
+                <div class="grades__record">
+                  <ng-container
+                    [ngTemplateOutlet]="recordRow"
+                    [ngTemplateOutletContext]="{ $implicit: record }"
+                  />
+                </div>
+              }
             }
           </section>
         }
@@ -91,3 +95,18 @@
     </div>
   </app-child-scope-gate>
 </div>
+
+<ng-template #recordRow let-record>
+  <span class="grades__record-date">{{ record.examDate }}</span>
+  <span class="grades__record-name">{{ record.examName }}</span>
+  @if (record.status === 'scored') {
+    <span class="grades__record-score" [class.grades__record-score--fail]="isFailing(record)">
+      @if (isFailing(record)) {
+        <i class="pi pi-exclamation-triangle grades__fail-icon" aria-label="不及格"></i>
+      }
+      {{ formatScore(record) }}
+    </span>
+  } @else {
+    <app-data-chip>{{ statusLabel(record) }}</app-data-chip>
+  }
+</ng-template>

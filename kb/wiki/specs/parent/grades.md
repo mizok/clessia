@@ -3,7 +3,7 @@ title: 成績查閱
 summary: 查看孩子的考試成績。
 category: spec
 status: active
-updated: 2026-02-13
+updated: 2026-10-03
 tags: [specs, parent, grades]
 ---
 
@@ -29,11 +29,13 @@ tags: [specs, parent, grades]
 
 - 課程篩選（全部/特定課程）
 - 學期篩選（預設當學期）
+  > ⚠️ **未實作（#1076）**：規格寫「學期」，但 `rules/billing-rules.md`、`rules/enrollment-rules.md` 定義的「期」是機構自訂、不是寫死的學期；校內考（`academy_exams`）也沒有學期欄位。待使用者裁定「期」的定義。
 
 ### 展開詳情
 
 - 點擊考試項目可展開詳情
 - 顯示考試描述（如果有的話）
+  > 已實作（#1076）：描述＝校內考的範圍說明（`academy_exams.scope_note`）；段考沒有描述欄。只有有描述的那筆可以展開。
 
 ## 資料依賴
 

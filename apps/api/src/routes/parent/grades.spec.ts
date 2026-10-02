@@ -29,6 +29,7 @@ const ACADEMY_ROW = {
     exam_date: '2026-09-01',
     total_score: 100,
     pass_score: 60,
+    scope_note: '第三章 一元二次方程式',
     subjects: { name: '數學' },
   },
 };
@@ -125,6 +126,8 @@ describe('GET /api/me/grades', () => {
       createdAt: '2026-09-01T08:00:00Z',
       // 校內考才有及格線；#377 矛盾（家長端退化成比例、行政端用真門檻）就是靠這個欄位補上
       passScore: 60,
+      // #1076：展開詳情顯示的考試描述＝校內考的範圍說明（scope_note）
+      description: '第三章 一元二次方程式',
     });
     expect(body.data[1]).toMatchObject({
       type: 'school',
@@ -134,6 +137,8 @@ describe('GET /api/me/grades', () => {
       createdAt: '2026-08-20T09:00:00Z',
       // 段考沒有及格線這個欄位 —— 一律 null，前端該退化成比例算
       passScore: null,
+      // 段考沒有描述欄位（school_exams 只有 label）
+      description: null,
     });
     // 不回 studentId / studentName —— 家長已經知道自己在看誰
     expect(body.data[0]).not.toHaveProperty('studentId');

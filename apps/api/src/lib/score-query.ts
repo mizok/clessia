@@ -14,7 +14,7 @@ export const ACADEMY_SCORE_SELECT = `
   score,
   status,
   created_at,
-  academy_exams!inner ( name, exam_date, total_score, pass_score, org_id, subject_id, subjects ( name ) )
+  academy_exams!inner ( name, exam_date, total_score, pass_score, scope_note, org_id, subject_id, subjects ( name ) )
 `;
 
 export const SCHOOL_SCORE_SELECT = `
@@ -45,6 +45,11 @@ export interface ScoreRecordBase {
    * 這是刻意的降級路徑，不是漏欄位（見 migration 20260905035442 的說明）。
    */
   passScore: number | null;
+  /**
+   * 考試描述（#1076，家長端展開詳情用）。**只有 academy_exams 有對應欄位**（`scope_note`，範圍說明）；
+   * 段考（school_exams）沒有描述欄，一律 `null`。
+   */
+  description: string | null;
 }
 
 export function mapAcademyScoreRow(row: any): ScoreRecordBase {
@@ -60,6 +65,7 @@ export function mapAcademyScoreRow(row: any): ScoreRecordBase {
     status: row.status,
     createdAt: row.created_at,
     passScore: exam.pass_score ?? null,
+    description: exam.scope_note || null,
   };
 }
 
@@ -77,5 +83,6 @@ export function mapSchoolScoreRow(row: any): ScoreRecordBase {
     status: row.status,
     createdAt: row.created_at,
     passScore: null,
+    description: null,
   };
 }

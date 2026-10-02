@@ -30,6 +30,7 @@ function record(overrides: Partial<ParentScoreRecord> = {}): ParentScoreRecord {
     score: 88,
     totalScore: 100,
     status: 'scored',
+    description: null,
     ...overrides,
   };
 }
@@ -143,6 +144,28 @@ describe('GradesComponent', () => {
 
     const titles = fixture.nativeElement.querySelectorAll('.grades__subject-title');
     expect(titles.length).toBe(2);
+  });
+
+  // #1076（規格「展開詳情」）：有描述的那筆可以展開看，沒有描述的不給一個點了什麼都沒有的展開
+  it('有描述的成績可以展開看描述，沒有描述的不能展開', () => {
+    createComponent({
+      data: [
+        record({ id: 'r1', examName: '單元小考', description: '第三章 一元二次方程式' }),
+        record({ id: 'r2', examName: '單字測驗', description: null }),
+      ],
+      meta: { total: 2, page: 1, pageSize: 100, recentCount: 0 },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const items = el.querySelectorAll('details.grades__item');
+    expect(items.length).toBe(1);
+    expect(items[0].querySelector('summary')?.textContent).toContain('單元小考');
+    expect(items[0].querySelector('.grades__desc')?.textContent).toContain('第三章 一元二次方程式');
+    // 沒有描述的那筆照舊是一般列
+    const plain = [...el.querySelectorAll('div.grades__record')].map((r) => r.textContent);
+    expect(plain.some((t) => t?.includes('單字測驗'))).toBe(true);
   });
 
   it('缺考/補考用 chip 顯示，不顯示分數', () => {

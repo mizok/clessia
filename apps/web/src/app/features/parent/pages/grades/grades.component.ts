@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   Component,
   OnInit,
@@ -49,6 +50,7 @@ const PAGE_SIZE = 100;
   standalone: true,
   imports: [
     FormsModule,
+    NgTemplateOutlet,
     SelectButtonModule,
     SelectModule,
     PageBandComponent,
@@ -69,6 +71,11 @@ export class GradesComponent implements OnInit {
 
   protected readonly timeRangeOptions = TIME_RANGE_OPTIONS;
   protected readonly statusLabels = SCORE_STATUS_LABELS;
+
+  /** 列的內容住在 ng-template 裡（可展開與不可展開兩種外框共用），那裡的 `let-` 變數沒有型別 */
+  protected statusLabel(record: ParentScoreRecord): string {
+    return this.statusLabels[record.status];
+  }
 
   protected readonly records = signal<ParentScoreRecord[]>([]);
   protected readonly recentCount = signal(0);
