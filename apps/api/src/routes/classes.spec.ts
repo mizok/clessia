@@ -69,6 +69,25 @@ describe('mapClass —— uses_contact_book', () => {
  * 這裡釘住那個「無辜」情境：班級沒有過去課堂、底下報名有 session_pack，
  * 一樣要回 409，不能刪。
  */
+/**
+ * #966 B2 起刪除會**先**以 org 範圍確認班級存在（在所有守門查詢之前）。
+ * 這個 builder 只回答那一次存在檢查 —— 它**沒有** `delete`，所以路由若越過守門
+ * 走到刪除，一樣會在這裡炸開，「守門有沒有真的擋下」的鑑別力不變。
+ */
+function classesExistQuery(ids: readonly string[]) {
+  const query = {
+    select: () => query,
+    eq: () => query,
+    in: () => query,
+    maybeSingle: () => Promise.resolve({ data: { id: ids[0] }, error: null }),
+    then: (onfulfilled?: (value: unknown) => unknown) =>
+      Promise.resolve({ data: ids.map((id) => ({ id })), error: null }).then(
+        onfulfilled ?? undefined,
+      ),
+  };
+  return query;
+}
+
 describe('DELETE /api/classes/:id —— session_packs 守門（真的打路由）', () => {
   interface DeleteRouteFixture {
     readonly enrollmentIds: string[];
@@ -115,6 +134,7 @@ describe('DELETE /api/classes/:id —— session_packs 守門（真的打路由�
         if (table === 'sessions') return sessionsQuery;
         if (table === 'enrollments') return enrollmentsQuery;
         if (table === 'session_packs') return sessionPacksQuery;
+        if (table === 'classes') return classesExistQuery(['22222222-2222-4222-8222-222222222222']);
         // 只有走到 409 之前的表才會被查到；一旦這個測試意外走到 cascade delete
         // 之後的表，代表守門沒有真的擋下，讓它直接爆炸比靜靜回一個假資料更誠實。
         classesTouched = true;
@@ -190,7 +210,8 @@ describe('DELETE /api/classes —— 台北凌晨那個窗（M8 洞的迴歸測�
     const supabase = {
       from(table: string) {
         if (table === 'sessions') return sessionsQuery;
-        // 409 之前只會查 sessions；查到別的表代表守門沒有真的擋下
+        if (table === 'classes') return classesExistQuery(pastSessionRows.map((r) => r.class_id));
+        // 409 之前只會查 sessions（與上面的存在檢查）；查到別的表代表守門沒有真的擋下
         touchedBeyondGuard = true;
         throw new Error(`Unsupported table in this fixture: ${table}`);
       },
