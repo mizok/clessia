@@ -162,6 +162,23 @@ harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一�
 
 寫入面其餘缺口（body／path 帶 id 卻不驗分校）的盤點在 #966。
 
+### 2026-10-01 補：寫入面 —— body／path 只帶 id 的端點（#966 C 批）
+
+`campusRequestGuard` 只讀 query string，**body 或 path 只帶學生／課堂／班級 id 的寫入它看不到**。
+出勤、請假、打卡、教務日誌、聯絡簿這一批改走 `lib/campus-write-guard.ts`，判準刻意跟讀取面同一份
+（寫得到的 = 看得到的）：
+
+| 資源 | 分校從哪來 | 判準 |
+| --- | --- | --- |
+| 學生 | 報名 → `classes.campus_id`（任何狀態） | 任一筆在範圍內就算（同 `GET /api/leaves`、家長範圍，#816） |
+| 課堂 | `events.campus_id` | 在範圍內；**null 視為範圍外**（讀取面的 `.in()` 也看不到它） |
+| 班級 | `classes.campus_id` | 在範圍內 |
+
+`scope === null`（不受限的管理員、老師、家長）不多查。**測試替身沒宣告 `campusScope` 會丟
+`CampusScopeMissingError`** —— 那是 fail-closed 在作用，替身要宣告成 `null`。
+
+其餘寫入面的缺口（報名、學生、家長、班級、課堂、考試、金流，以及缺 `org_id` 的那批）見 #966 B／D 批。
+
 ### 2026-09-13 補：接上了 ≠ 生效了 —— PostgREST 的 left join 會把 scope 吃掉（#815）
 
 **`/api/enrollments` 的 `campusScope` 條件一直有下，而它一直沒有作用。**

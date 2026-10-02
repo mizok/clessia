@@ -22,6 +22,7 @@ import {
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
 import { applyCampusFilter, type CampusScope, getCampusScope } from '../lib/campus-scope';
+import { resourceCampusAllowed } from '../lib/campus-write-guard';
 import {
   ATTENDANCE_SELECT,
   flattenAttendanceRow,
@@ -443,12 +444,19 @@ app.openapi(
 
     const { data: ev } = await supabase
       .from('events')
-      .select('event_date')
+      .select('event_date, campus_id')
       .eq('id', body.eventId)
       .eq('org_id', orgId)
       .single();
 
     if (!ev) return c.json({ error: '找不到課堂或無權限', message: undefined }, 500);
+
+    // 分校範圍（#966）：老師的範圍在下面；受限的管理員在這裡。出勤是扣堂上游
+    if (
+      !resourceCampusAllowed(getCampusScope(c), (ev as { campus_id?: string | null }).campus_id)
+    ) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
 
     // **範圍：這堂課是不是他的。** 時窗管「什麼時候還能改」，範圍管「能改誰的」，
     // 兩個都要過。清單本來就回傳 eventId，少了這一段，老師換一個值就改得動別班。
@@ -576,13 +584,20 @@ app.openapi(
     const { data: ev } = await supabase
       .from('events')
       .select(
-        'id, attendance_taken_at, event_date, start_time, end_time, sessions(class_id, classes(name, courses(name)))',
+        'id, attendance_taken_at, event_date, start_time, end_time, campus_id, sessions(class_id, classes(name, courses(name)))',
       )
       .eq('id', eventId)
       .eq('org_id', orgId)
       .single();
 
     if (!ev) return c.json({ error: '找不到課堂或無權限' }, 403);
+
+    // 分校範圍（#966）：老師的範圍在下面；受限的管理員在這裡
+    if (
+      !resourceCampusAllowed(getCampusScope(c), (ev as { campus_id?: string | null }).campus_id)
+    ) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
 
     const roles = c.get('roles') ?? [];
 
@@ -794,12 +809,22 @@ app.openapi(
 
     const { data: existing } = await supabase
       .from('attendance_records')
-      .select('event_id, events(event_date)')
+      .select('event_id, events(event_date, campus_id)')
       .eq('id', id)
       .eq('org_id', orgId)
       .single();
 
     if (!existing) return c.json({ error: '找不到出勤紀錄或無權限', message: undefined }, 500);
+
+    // 分校範圍（#966）：分校跟著這筆紀錄的課堂（`events.campus_id`）
+    const existingEvent = (existing as { events?: unknown }).events;
+    const existingCampusId = (
+      (Array.isArray(existingEvent) ? existingEvent[0] : existingEvent) as
+        { campus_id?: string | null } | null | undefined
+    )?.campus_id;
+    if (!resourceCampusAllowed(getCampusScope(c), existingCampusId)) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
 
     // **範圍：這堂課是不是他的。** 時窗管「什麼時候還能改」，範圍管「能改誰的」，
     // 兩個都要過。清單本來就回傳 eventId，少了這一段，老師換一個值就改得動別班。
@@ -1491,12 +1516,19 @@ app.openapi(
 
     const { data: ev } = await supabase
       .from('events')
-      .select('id, event_date')
+      .select('id, event_date, campus_id')
       .eq('id', eventId)
       .eq('org_id', orgId)
       .single();
 
     if (!ev) return c.json({ error: '找不到課堂' }, 404);
+
+    // 分校範圍（#966）：這支會刪／截斷請假單、清掉 on_leave —— 受限的管理員只能動自己分校的課堂
+    if (
+      !resourceCampusAllowed(getCampusScope(c), (ev as { campus_id?: string | null }).campus_id)
+    ) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
 
     const eventDate = (ev as { event_date: string }).event_date;
 

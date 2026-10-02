@@ -324,6 +324,8 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
       context.set('orgId', 'org-1');
+      // 寫入端 #966 起會讀分校範圍；這組測試的主題不是它 —— 宣告成不受限（正式站由 authMiddleware 設）
+      context.set('campusScope', null);
       context.set('userId', 'user-1');
       context.set('roles', ['admin']);
       await next();
@@ -498,6 +500,8 @@ describe('POST /api/leaves —— 重疊檢查', () => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
       context.set('orgId', 'org-1');
+      // 寫入端 #966 起會讀分校範圍；這組測試的主題不是它 —— 宣告成不受限（正式站由 authMiddleware 設）
+      context.set('campusScope', null);
       context.set('userId', 'user-1');
       context.set('roles', ['admin']);
       await next();
@@ -813,6 +817,8 @@ describe('PATCH /api/leaves/:id', () => {
       const context = c as unknown as { set: (key: string, value: unknown) => void };
       context.set('supabase', supabase);
       context.set('orgId', 'org-1');
+      // 寫入端 #966 起會讀分校範圍；這組測試的主題不是它 —— 宣告成不受限（正式站由 authMiddleware 設）
+      context.set('campusScope', null);
       context.set('userId', 'user-1');
       context.set('roles', ['admin']);
       await next();

@@ -5,6 +5,7 @@ import { enrolledEventIds } from '../lib/enrolled-events';
 import { assertAttendanceWindow } from '../lib/attendance-window-check';
 import { logAudit } from '../utils/audit';
 import { getCampusScope, isCampusAllowed } from '../lib/campus-scope';
+import { isStudentInScope, resourceCampusAllowed } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
 
 const DailyCheckinSchema = z
@@ -59,6 +60,10 @@ app.openapi(
     if (!isCampusAllowed(getCampusScope(c), body.campusId)) {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
+    // 打卡分校填自己的、學生卻是別校的 —— 上面那道擋不到（#966）
+    if (!(await isStudentInScope(supabase, orgId, getCampusScope(c), body.studentId))) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
 
     // 1. 建立打卡紀錄（UPSERT 防重複，UNIQUE: student_id, checkin_date）
     const { data: checkin, error } = await supabase
@@ -108,6 +113,11 @@ app.openapi(
 
     if (body.campusId) {
       eventsQuery = eventsQuery.eq('campus_id', body.campusId);
+    } else {
+      // 沒指名分校時，受限的呼叫者只寫得到自己分校的課堂（#966）：
+      // 跨分校的孩子在 B 校當天的課，不該被 A 校的打卡寫成 present
+      const scope = getCampusScope(c);
+      if (scope !== null) eventsQuery = eventsQuery.in('campus_id', [...scope]);
     }
 
     const [{ data: events }, { data: enrollments }] = await Promise.all([
@@ -236,6 +246,16 @@ app.openapi(
     const row = checkin as Record<string, unknown>;
     const checkinDate = row['checkin_date'] as string;
     const studentId = row['student_id'] as string;
+
+    // 分校範圍（#966）：打卡有記分校就看它；沒記（舊資料、不指名的打卡）退回學生的分校
+    const checkinCampusId = (row['campus_id'] as string | null) ?? null;
+    const scope = getCampusScope(c);
+    const inScope = checkinCampusId
+      ? resourceCampusAllowed(scope, checkinCampusId)
+      : await isStudentInScope(supabase, orgId, scope, studentId);
+    if (!inScope) {
+      return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+    }
 
     const window = await assertAttendanceWindow(supabase, {
       orgId,
