@@ -33,7 +33,7 @@
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-03 01:3x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-03 01:4x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
@@ -47,9 +47,11 @@
 
 | #1094 | #1081 授權：點名名單 GET 加老師範圍（任課或代課才可讀） | 可合（verify 看 GitHub）。head `1c9d8231`，base main，5 支檔，+222/-1。新 `lib/attendance-read-scope.ts` 重用寫入端純函式；不看責任歸屬（#920 唯讀模式依賴）；別 org 仍 404。spec 修前實測 200 → 修後 403，本機純老師帳號實打一致。跟 #1080 試合無衝突，誰先合都可以（兩支都合後 2335 收掉刻意重複的 staff/sessions 查詢）。 |
 
+| #1102 | #1098 授權：老師讀學生單筆對齊列表範圍（固定任課）、出勤列表 GET 收成 admin-only | 可合（verify 看 GitHub）。head `f1c3192e`，base main，4 支檔，+129/-1。修前 spec 實測兩支都 200 → 單筆：別 org 404、非他學生 403；列表只開管理員（web 端只有管理端 phone-leave 在打，計畫席查過）。跟 #1080、#1094 兩兩試合無衝突。沒本機實打（stack 已收）。 |
+
 **疊在 #1069 上的**：#1078（P1 admin/changes＋共用客製下拉 select-field＋T3 gate A27／A28，draft、base=T4 分支，非保留類）—— #1069 合後 2335 rebase 轉 ready、reviewer 代合，不用您。
 
-接下來會出現的保留類：#1098（老師讀學生單筆／出勤列表無範圍，2335）。
+接下來會出現的保留類：目前沒有。
 
 **夜間新開的**：#1099（掃碼不看出勤模式一律寫 present，P2 bug，未派）、#1100（後端缺口盤點總表 52 條，追蹤 issue，逐條驗過才拆單 —— 早上跟您一起 triage，P2 的 20 條裡 campus-attendance-mode 要先裁分校層級）。
 
