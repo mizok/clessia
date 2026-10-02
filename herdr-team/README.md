@@ -1150,6 +1150,15 @@ nudge 席位吃佇列(工單都在 SendMessage 佇列不會丟)。計畫席自�
   2. 輸入框停著 `[Pasted text` → `herdr agent send-keys <席名> enter`
   3. **在對方 pane 裡看到你訊息的內文**（不要比對第一行 —— 方括號標頭在 pane 裡會被改寫），
      或對方從 idle 變 `working`，才算送到；對方原本就在 working 時只認第一種。
+- **找行程只印 PID —— 不要用 `pgrep -fl`、`ps eww`。** labor-reviewer-20261001-2204 2026-10-02:
+  為了確認 `wrangler tail` 還在跑,跑了 `pgrep -fl "wrangler.*tail"`,輸出裡 `npm exec` 那一行
+  後面**接著整份啟動它的 shell 環境變數**(含雲端 Supabase 的連線字串與資料庫密碼、
+  Better Auth secret),**整段進了 session 轉錄**。原因:`npm exec` 會改寫自己的 process title,
+  macOS 上環境區塊就跟著被 `-l` 顯示出來。**洩的是「啟動它的那個 shell 的全部環境」**,
+  所以任何在同一種 shell 環境下對 `npx`／`npm exec` 行程用 `-l`／`ww` 的席都會踩到。
+  **做法:`pgrep -f <pattern>`(不加 `-l`,只吐 PID)或 `ps -o pid,comm -p <pid>`;
+  要停行程時 `lsof -t <它寫入的檔>` 取 PID 再 `kill`。** 輸出一旦印出就收不回 ——
+  事後只能輪替密碼,所以這條要在「下指令前」就想起來,而不是事後補救。
 
 ### 七、驗證環境、身分與前置
 
