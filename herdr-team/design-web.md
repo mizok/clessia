@@ -632,7 +632,7 @@ coarse)').matches` 永遠是 `false`（teacher-pages 在 #516 先撞到、我在
 - **artifact**：https://claude.ai/artifact/1ygX5JqxVqbcKMsriDWgqG（同一個 URL 一路迭代；批 3 交付約 Version 28）。
   更新：`Artifact` publish，`file_path`＝`.design-explorations/973-layout/index.html`、`root`＝該資料夾**絕對路徑**、`files` 只帶這次改到的檔（共用的 `a6.js`／`a6.css`／`shared/*` 改了要一起帶）。
   ⚠️ 設計稿資料夾被 gitignore，**只在上一任的 worktree 裡**（`.worktrees/labor-20261002-1234/.design-explorations/973-layout/`）。先整個複製過來（含 `_tools/`），worktree 被清掉後 artifact 是唯一來源（`Artifact` read 的 `paths` 可把檔案拉回來）。**不要從零重做。**
-- **進度（批 0–4 完成＝管理端 29 頁＋老師端 3 頁）**：老師端檔名 `t-*.html`、家長端 `p-*.html`；`A2.shell({ role: 'teacher' | 'parent' })` 會換成該角色的頁首選單（沒有分校切換與搜尋；「切換身分」真的導到那個角色的首頁）。剩批 5 家長端（11 頁，其中 7 頁產品是佔位頁 → 照 `specs/parent/*.md` 畫完整頁）、批 6 公開頁（6 頁，照產品現狀搬、只補三條標準）。
+- **進度（批 0–5 完成＝管理端 29 頁＋老師端 3 頁＋家長端 11 頁，artifact Version 31）**：老師端檔名 `t-*.html`、家長端 `p-*.html`；`A2.shell({ role: 'teacher' | 'parent' })` 會換成該角色的頁首選單（沒有分校切換與搜尋；「切換身分」真的導到那個角色的首頁）。剩批 6 公開頁（6 頁，照產品現狀搬、只補三條標準）。
   頁名↔檔名看 `a6-editorial/a6.js` 的 `BUILT` 與 `shared/proto.js` 的 groups；每做完一批兩處都要加（否則「更多」點了跳「批 N 補上」、右下膠囊顯示成「儀表板」）。
 - **計畫席 10/02 已裁的（不要重問）**：設計稿一律照**應然規格**（`kb/wiki/specs/`、`kb/wiki/rules/`；rules 比 specs 新以 rules 為準），規格有產品沒有的標「新」、產品有規格沒寫的保留並在 notes 註記、產品 bug 不照抄而是列給計畫席開單；每頁 notes 第一段是「規格 vs 現況」差異表。
   「更多」照產品選單分組與名稱；toast 深灰（`--gray-sheet`）底近黑字；日期欄用原生 input（不自刻 datepicker）；系統設定＝一支頁面 hash 分頁算 5 頁；公開頁照現狀搬；佔位頁照規格畫完整；考試完成後仍可修改；取消請假＝刪除請假單、還沒點名的回到「還沒點名」、已點名的不動（`rules/attendance-rules.md` §6–7）。出勤模式是**分校層級**（照 rules，「一般」裡的機構值＝新分校沿用的預設）；老師端學生點開是**頁內面板**（不加詳情頁）；收件匣未讀用**橘點**（`--accent-500`，對白約 5:1；紅留給錯誤與逾期）；日到班下老師可看可改自己任課當天的出勤（產品缺口另開單）。
@@ -640,12 +640,22 @@ coarse)').matches` 永遠是 `false`（teacher-pages 在 #516 先撞到、我在
 - **做法：fork 並行**。指令範本在 `_tools/FORK-PROMPT.md`（照改頁名）。fork 只新增自己的頁；**主席等全部 fork 回報才改共用檔**，改完全站跑 `smoke`（19→24 頁 × 2 視口）、`kit-check`、`flows`，再用 `_tools/audit-many.sh` 獨立重跑新頁全量稽核（**fork 自報不算數** —— 批 2 主席重驗抓到兩件 fork 沒抓到的：⋯ 選單開到畫面外、審稿膠囊蓋住「儲存」）。
 - **共用零件**（a6.js／a6.css 檔尾 #990 段）：客製下拉（原生 select 隱藏留作資料來源，自動換）、`A2.toast`、`A2.act`、`A2.form`（select／text／date／time／money／radio／textarea 欄位、必填擋並寫「還沒填」）、`A2.forms.leave|checkin|pay`、全站 popover／dialog 進出場、`::details-content` 收合過渡、`.new`、全站搜尋。零件展示頁 `kit.html`。
   fork 反覆要求、**還沒做**的：`A2.form` 的危險色送出鈕、`body`（純說明段落）、`validate`（跨欄位）、第三顆按鈕；`--dock-h` 變數（兩頁寫死 `bottom: 136px`）；`A2.sheet`（唯讀對話框，各頁各寫一份 `dlg()`）；`.icobtn` 收進 a6.css。依「寫入從簡」方針沒排，要做時一次收。
-- **批 5 家長端怎麼開工（交給下一任）**：
+- **批 5 家長端怎麼開工**（10/03 已照這五步做完，留作批 6 的範本）：
   1. 先做一個共用件再開 fork：**孩子切換器**（`kb/wiki/specs/sitemap/_shared/parent-child-switcher.md`：家長端橘色頁首上的孩子徽章＋切換下拉，可切換／靜態／讀取失敗三種形態），收進 `a6.js`（例如 `A2.shell` 的 `o.child` 或 `A2.childSwitcher()`），11 頁都用同一個，否則 fork 會各畫一份。
   2. 家長端頁首已就緒：`A2.shell({ role: 'parent', page: 'p-dashboard' … })`，選單是首頁／到班／成績／繳費＋更多（課表查看、餐費紀錄、報名申請、試聽申請、加選課程、續課資訊、通知中心）；檔名 `p-dashboard`、`p-attendance`、`p-grades`、`p-payments`、`p-schedule`、`p-meals`、`p-enrollment`、`p-trial`、`p-add-course`、`p-renewal`、`p-notifications`（`a6.js` 的 `MORES.parent` 已用這些檔名、標 `data-batch` 5）。
   3. 7 頁產品是佔位頁 → 照 `kb/wiki/specs/parent/*.md` 畫完整頁（已裁 A）；家長通知跟老師通知同一種收件匣（橘點）。行動優先、跟老師端同一套判準。
   4. 做完把 11 頁加進 `BUILT` 與膠囊 groups（新開「家長端」分組），`MORES.parent` 的 `data-batch` 自然消失。
   5. 管理端通知中心 `notifications.html` 的未讀點還是近黑（10/02 裁定要改橘點，我交接前若沒改完就由你改，`t-notifications.html` 已改）。
+- **批 5 留下的（10/03）**：
+  - **孩子切換器**＝`A2.shell({ role: 'parent', child: true })`＋`A2.kids`（`active`／`list`／`gate(html)`／`on(fn)`）。三種形態加 0 孩子用 hash 示範：`kids-1`、`kids-0`、`kids-failed`（可跟頁面自己的 hash 並存）。
+    設計稿刻意跟產品不同的三處寫在 a6.js 那段檔頭：徽章與選項 ≥44px、失敗不用紅（紅不貼橘）、失敗時內容區給「重新讀取」。
+    **誰掛、誰不掛**：依賴「目前這個孩子」的頁掛（首頁、到班、成績、繳費、課表、餐費、加選、續課）；通知不掛不 gate（公告發給全體家長）；報名、試聽不掛（表單第一步選孩子，紀錄混列所有孩子）。
+  - **預設示範狀態也要是最壞情況**：繳費頁 fork 讓預設孩子「都繳清了」，首屏看不到「待繳」這條主路徑；逾期、部分繳都藏在要切換才看得到的孩子裡。主席驗收時補了一張待繳單。**驗收看截圖時問「預設打開的那一刻，最重要的那條路徑在不在畫面上」**。
+  - **頁面元素 id 會撞到殼的 id**：殼佔用了 `more`、`acct`、`kidpop`、`proto-all`。批 5 一個 fork 把「載入更多」寫成 `id="more"`，頁首「更多」就打不開（稽核抓到）。頁面 id 一律加頁面前綴。
+  - **`navigator.clipboard.writeText` 回傳的是 promise，`try/catch` 接不到它的拒絕**。headless 與部分瀏覽器會拒絕，要寫 `.catch()`。這個錯誤只在打開那張待繳單的對話框之後才出現，稽核的第二層才抓得到。
+  - **殺行程**（`FORK-PROMPT.md` 第 8 條）：`pkill -f <字串>` 拿那個字串對**全機每一個行程的完整命令列**做子字串比對。`cat` 會比中任何路徑或參數含 cat 的行程，`/Applications` 底下的程式也算在內。所以判斷要不要用它，不是看自己想殺的那一個長什麼樣，是看**全機有誰的命令列會包含這個字串**。
+    pattern 要含自己的 worktree 絕對路徑，或先用 `lsof -t` 拿 PID 再 `kill`。批 5 一個 fork 跑過 `pkill -f "cat"`，計畫席事後查過，沒有找到受害的行程。
+  - **artifact 發布被拒（「沒看過線上版」）**：換 session 之後第一次發布，要先 `Artifact` read 線上的 index，**整份 Read**，再把 `files` 裡要蓋掉的每個共用檔都用 read 的 `paths` 拉下來。拉下來之後跟自己改前的備份 diff，一致才重發。主席動共用檔前先把 a6.js／a6.css 備份到 scratchpad，就是為了這一步可以直接比對。
 - **每輪回報格式**（計畫席要的）：改了什麼（改前→改後）、改到哪些檔、playwright 結果（含實按）、截圖路徑、還沒解決的、待裁的列成選項、順帶發現的產品 bug（附檔案:行號）、Ctx。送完照 README「六」#988 三步確認送達（找內文關鍵字，不要比對第一行）。
 
 ## 五、進行中的狀態
