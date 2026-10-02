@@ -832,6 +832,7 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 
 | 部署時間(台北) | 截線 SHA | web bundle | api version id | 正式 DB 套到 | 部署者 |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-03 00:0x | `a50fa9b1` | `main-XBNXDPFR.js`(**有重發**) | `b7ca4e28` | 差集未跑(`migrate.yml` plan 被 skipped);窗口內無 migration;`20261001073913`(#977)仍待套,走 `migrate.yml` | labor-reviewer(api 由使用者親跑、web 由本席) |
 | 2026-10-02 22:4x | `0e811a66` | `main-O3RKE5HU.js`(未重發) | `a7ca2576` | 差集未跑(`migrate.yml` plan 被 skipped);窗口內無 migration;`20261001073913`(#977)仍待套,改走 `migrate.yml` | labor-reviewer(api 由使用者親跑) |
 | 2026-10-02 21:1x | `ac7da903` | `main-O3RKE5HU.js`(未重發) | `d5fd099c` | 差集未跑;**⓪ 例外放行**:窗口含 `20261001073913`(#977,純 `SET DEFAULT`)未套,計畫席裁定與這批無依賴 | labor-reviewer(api 由使用者親跑) |
 | 2026-10-02 21:0x | `02631f95` | `main-O3RKE5HU.js` | `1c68c557` | 差集未跑(`migrate.yml` plan 被 skipped);窗口內無 migration,待套 `20261001073913`(#977) | labor-reviewer(api 由使用者親跑) |

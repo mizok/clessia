@@ -326,3 +326,10 @@ charter 裡那麼多條「先查」,全部是這個形狀的不同衣服。
 - **`steward-merge.sh` 收的 PR 會刪分支,別人用 `gh pr merge` 合的不會** ——
   退場時 `git ls-remote --heads origin` 對一次,是唯一會發現殘留分支的時刻。
 
+- **build 失敗時 `dist` 還在,而且是上一次的**(2026-10-03 第四次部署):merge 了一支改 `package.json`／lock 的 PR(#1055 加 tailwind／postcss)之後,
+  worktree 沒重跑 `npm ci`,`nx build web` 報 `MODULE_NOT_FOUND` 失敗 —— **但 `dist/apps/web/browser/` 還留著上一次(22:41)的產物**,
+  `ls` 出來的 `main-*.js` 與線上相同,於是我回報「web 不用發」。**那是舊檔,不是這次的產物。**
+  抓到的契機不是 hash,而是「原始碼明明有改、兩百個檔內容卻逐一與線上相同」這個矛盾。
+  做法:**build 完先看退出狀態與 `dist` 的 mtime(要是剛剛),`package.json`／lock 動過就先 `npm ci`**;
+  這是 `review-steward.md`「部署前確認 dist 是這次 build 出來的」的另一個成因(那條講的是兩個 dist 目錄,這條是同一個目錄裡的舊檔)。
+

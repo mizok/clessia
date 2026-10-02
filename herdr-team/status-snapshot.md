@@ -22,11 +22,12 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-02 22:4x 第三次部署，labor-reviewer-20261001-2204）
+## 🚀 線上是哪一版（2026-10-03 00:0x 第四次部署，labor-reviewer-20261001-2204）
 
-**截線 `0e811a66`**（#966 B6，#1049；`verify` 與 `migrate.yml` 的 `remote` 皆 success）：web `main-O3RKE5HU.js`（**未重發**：`02631f95..0e811a66` 對 `apps/web`、`packages` 零改動，本機 build 與線上同 hash）、api `a7ca2576`（使用者親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。含 #966 全部十一支（A／A2'／B1–B6／C 的授權與 org_id 修正）。
-**正式 DB**：09-30 16:0x 差集 0；10-01 10:3x 使用者套 #921、#934 —— **之後差集未重跑**。**#977 的 `20261001073913`（純 `SET DEFAULT`）仍待套**——10-02 ⓪ 例外放行（只改欄位預設值、程式兩種出勤模式皆支援、與授權改動無依賴；本機 `BEGIN…ROLLBACK` 試過）。**套法已改**：不再手貼 SQL（#968 的目的），等使用者設好 `prod-db-plan`／`prod-db` environment 與 secret，由 `migrate.yml` 走 remote → plan → apply（使用者在 `prod-db` 按 Approve）；`0e811a66` 那顆的 `plan`／`apply` 目前仍是 **skipped**（environment 未設）。plan 輸出預期只有該列。
-**部署驗證的限度**：workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html；`openapi.json` 與前一版**逐路徑相同**（127→127）——這幾批都是行為收緊、沒有新路由，**openapi 證明不了新程式碼上線**，只證明服務正常、版本 ID 已換。「是 `0e811a66` 的程式碼」靠的是部署當下 worktree HEAD＝`0e811a66`、工作樹乾淨，**沒有線上可查的內容探針**；行為層驗證要帶身分（例如 A 校管理員替 B 校學生建請假應被拒）。
+**截線 `a50fa9b1`**（#1060，#1034 退費上限＋多退態；`verify` 與 `migrate.yml` 的 `remote` 皆 success）：web `main-XBNXDPFR.js`（**這次有重發**，由本席 `wrangler pages deploy`；0211 之後含 Tailwind T0／T1／T2 工具鏈與 payments 頁修正）、api `b7ca4e28`（使用者親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。順序：api 先、web 後。
+**正式 DB**：09-30 16:0x 差集 0；10-01 10:3x 使用者套 #921、#934 —— **之後差集未重跑**。**#977 的 `20261001073913`（純 `SET DEFAULT`）仍待套**（10-02 ⓪ 例外放行；改走 `migrate.yml` remote → plan → apply，`prod-db-plan`／`prod-db` environment 未設時 plan／apply 是 skipped）。
+**部署驗證**：web 線上 `main-XBNXDPFR.js`＝本機 build；內容探針 `overrefunded` 在三個同名 chunk 線上各 ×3／×2／×1（部署前線上同名 chunk 抓回 0），負控 `chunk-ZZZZZZZZ.js` 回 `text/html`；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html。**限度**：api 側（#1034 退費上限）是行為收緊、無新路由，openapi 證明不了新程式碼上線，只證明服務正常、版本已換；要真證明得帶身分退費超收應回 409。
+**這次踩到的坑**：第一次 build 因 `npm ci` 沒重跑而**失敗**（#1055 加了 tailwind／postcss devDeps，`MODULE_NOT_FOUND`），我看到的是 22:41 的舊 `dist`，一度誤判「web 不用發」；見 `labor-reviewer.md`。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 📋 等使用者
