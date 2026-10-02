@@ -18,6 +18,8 @@
     <div class="class-detail__loading">
       <p-skeleton width="100%" height="176px" borderRadius="10px" />
     </div>
+  } @else if (loadFailed()) {
+    <app-load-failed description="沒有讀到這個班的資料，可能是連線問題" (retry)="loadClass()" />
   } @else if (cls()) {
     <!-- 橘帶：班的身分在左，錨點（收了幾人 / 上限）在右。
          這裡不放頭像圓球 —— 帶本身就是那個色塊，再放一顆是同一件事做兩次。

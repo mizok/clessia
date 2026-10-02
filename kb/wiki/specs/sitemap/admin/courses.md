@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-10-02
 ---
 
 # 課程管理
@@ -307,7 +307,11 @@ GET /api/courses?page=1&pageSize=20&isActive=true
 
 | 判定 | 重試鈕 | toast | 攔到的請求數 |
 | --- | --- | --- | --- |
-| 🔴 謊稱沒資料 | 否 | 1 | 5 |
+| ✅ **已修（#795）** —— 原判定：🔴 謊稱沒資料 | 否 → **是** | 1 | 5 |
+
+> **2026-10-02 更新**：#795 已修 —— 取數失敗時渲染 `app-load-failed`（「載入失敗」＋重試鈕），
+> 不再落到空狀態（`courses.page.html:115`，`courses.page.spec.ts` 的 #788 那條釘住）。
+> 下面這一句是**修之前**（2026-09-13）的觀察，留著當對照：
 
 空狀態說「**尚未建立任何課程**／點擊右上角「新增課程」開始建立課程與班級」，外加一顆「新增課程」。
 

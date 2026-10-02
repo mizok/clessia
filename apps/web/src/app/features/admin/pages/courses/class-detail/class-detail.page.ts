@@ -44,6 +44,7 @@ import { CopyRosterDialogComponent } from './copy-roster-dialog/copy-roster-dial
 import { RosterImportDialogComponent } from './roster-import-dialog/roster-import-dialog.component';
 import { EnrollmentBillingDialogComponent } from './enrollment-billing-dialog/enrollment-billing-dialog.component';
 import { personHue } from '@shared/utils/person-hue.util';
+import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 
 @Component({
   selector: 'app-class-detail',
@@ -57,6 +58,7 @@ import { personHue } from '@shared/utils/person-hue.util';
     SkeletonModule,
     PageBreadcrumbComponent,
     PopupMenuComponent,
+    LoadFailedComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './class-detail.page.html',
@@ -100,6 +102,8 @@ export class ClassDetailPage implements OnInit {
   });
   protected readonly enrollments = signal<Enrollment[]>([]);
   protected readonly loading = signal(true);
+  /** #998：取數失敗要有自己的畫面（同課程列表 #795）—— toast 幾秒就消失，之後只剩麵包屑 */
+  protected readonly loadFailed = signal(false);
   protected readonly enrollmentsLoading = signal(true);
 
   protected readonly statusLabels = ENROLLMENT_STATUS_LABELS;
@@ -172,6 +176,8 @@ export class ClassDetailPage implements OnInit {
       return;
     }
 
+    this.loading.set(true);
+    this.loadFailed.set(false);
     this.classesService
       .get(classId)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -186,6 +192,7 @@ export class ClassDetailPage implements OnInit {
             summary: '載入失敗',
             detail: '無法載入班級資料',
           });
+          this.loadFailed.set(true);
           this.loading.set(false);
         },
       });
