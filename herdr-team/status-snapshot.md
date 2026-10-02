@@ -33,7 +33,7 @@
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-03 02:0x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-03 01:3x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
@@ -45,9 +45,11 @@
 
 | #1089 | #1059 授權：人員管理頁只有 `manage_staff` 進得了 | 可合（verify 看 GitHub）。head `46690258`，base main，7 支檔：routes-catalog 掛 `manage_staff`＋`app.routes.ts` 掛 `permissionGuard`、補 `permission.guard.spec`；API 不動（讀取維持開放給挑選器，`index.ts` 補防誤鎖註解）。本機 11 個 demo 管理員實測：無權限的全導回 dashboard、選單無人員管理。權限矩陣與 route-facts 重生。 |
 
+| #1094 | #1081 授權：點名名單 GET 加老師範圍（任課或代課才可讀） | 可合（verify 看 GitHub）。head `1c9d8231`，base main，5 支檔，+222/-1。新 `lib/attendance-read-scope.ts` 重用寫入端純函式；不看責任歸屬（#920 唯讀模式依賴）；別 org 仍 404。spec 修前實測 200 → 修後 403，本機純老師帳號實打一致。跟 #1080 試合無衝突，誰先合都可以（兩支都合後 2335 收掉刻意重複的 staff/sessions 查詢）。 |
+
 **疊在 #1069 上的**：#1078（P1 admin/changes＋共用客製下拉 select-field＋T3 gate A27／A28，draft、base=T4 分支，非保留類）—— #1069 合後 2335 rebase 轉 ready、reviewer 代合，不用您。
 
-接下來會出現的保留類（2335 排程中）：#1081（roster GET 老師範圍）。
+接下來會出現的保留類：目前沒有（2335 做 #1076 非保留類）。
 
 ### 使用者動手的
 
@@ -61,6 +63,7 @@
 - **#990 全部 47 頁交付（10-03 01:4x，artifact Version 32）—— 批 5 家長端 11 頁與批 6 公開頁 6 頁您還沒看過，看過後 #990 才關。** 批 6 新增兩題：額滿除了「能不能送申請」還要不要開放「候補」（併成一題）；機器人驗證用哪一家（設計稿假設 Cloudflare Turnstile，歸工程）。
 - **批 5 家長端三項**：(a) 額滿的班能不能送申請（設計稿畫成可送、交補習班審）、試聽算不算名額 —— 規格沒寫；(b) 續課預告 T-5～T-0 的單位（specs/parent/dashboard.md 沒寫，計畫席暫裁「天」，同頁待繳提醒用「3 天內」）；(c) 加選頁「新增孩子」計畫席已裁 A（不加，新孩子走公開報名頁），可否決。
 - **#1074 已付款「確認人」**：規格要、API 刻意不回 `recordedBy`（billing.ts:69）。二選一：(A) 改規格拿掉；(B) 改產品回傳並顯示。另 **#1073** 待付款要列帳戶資訊 —— 帳戶資訊住哪（分校層級欄位？沒有就是 migration）。
+- **#1076 家長成績頁「學期篩選」規格要怎麼解**：parent/grades API 不回學期；`school_exams` 有學年＋學期（1/2），`academy_exams` 沒有。「期」在 rules 是機構自訂（billing-rules.md:20、enrollment-rules.md:32），所以不能寫死 8/1–1/31。三選一：沿用學校學期（只對學校段考有意義）／沿用機構自訂的「期」（academy_exams 要加欄，migration）／改規格用既有期間篩選就夠。可展開顯示描述那半 2335 已在做。
 - **P1 admin/changes 五處超出 API**（2335 照預設做、不動後端，可否決）：老師／班級搜尋不做、批次用（類型＋原因＋操作者＋秒）前端分組、每列「看這堂」不做只留工具列「到課表」、時間欄不做依上課日分章、開場標題放頁首。
 
 - **出勤模式層級**：設計稿照 rules 畫成分校層級，日後一支 migration（保留類）；使用者未回，視同同意。
