@@ -5,6 +5,7 @@ import type { AppEnv } from '../index';
 import { isAttendanceEditable } from '../lib/attendance-window';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { assertAttendanceWindow } from '../lib/attendance-window-check';
+import { teacherCanReadEvent } from '../lib/attendance-read-scope';
 import { sessionSummarySelect, summariseSessions } from '../lib/session-summary';
 import { isSubstituteSession } from '../lib/session-substitute';
 import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
@@ -21,7 +22,6 @@ import {
 } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
-import { teacherCanReadEvent } from '../lib/attendance-read-scope';
 import { applyCampusFilter, type CampusScope, getCampusScope } from '../lib/campus-scope';
 import { resourceCampusAllowed } from '../lib/campus-write-guard';
 import {
