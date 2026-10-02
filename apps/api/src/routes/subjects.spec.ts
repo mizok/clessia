@@ -40,15 +40,22 @@ function createDeleteTestApp(fixture: {
       if (table === 'academy_exams') return countableQuery(fixture.examRows);
       if (table === 'subjects') {
         return {
-          // #828 起 delete 之前會先讀名字（稽核要記得刪掉的是哪一個）
+          // #828 起 delete 之前會先讀名字（稽核要記得刪掉的是哪一個）；
+          // #966 B1 起讀與刪都以 org 範圍定位：`.eq('id')` 之後再接 `.eq('org_id')`
           select: () => ({
-            eq: () => ({ single: () => Promise.resolve({ data: { name: '數學' }, error: null }) }),
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: () => Promise.resolve({ data: { name: '數學' }, error: null }),
+              }),
+            }),
           }),
           delete: () => ({
-            eq: () => {
-              subjectDeleted = true;
-              return Promise.resolve({ error: null });
-            },
+            eq: () => ({
+              eq: () => {
+                subjectDeleted = true;
+                return Promise.resolve({ error: null });
+              },
+            }),
           }),
         };
       }

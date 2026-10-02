@@ -51,6 +51,10 @@
     "roots": ["apps/web/src"],
     "exts": [".scss"]
   },
+  "org-scope-writes": {
+    "roots": ["apps/api/src"],
+    "exts": [".ts"]
+  },
   "orphan-imports": {
     "roots": ["apps/web/src"],
     "exts": [".html", ".ts"]

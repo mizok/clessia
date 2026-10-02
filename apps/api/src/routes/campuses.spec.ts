@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
+import { createMultiOrgDb } from '../test-utils/multi-org-db';
 import * as campusesRoute from './campuses';
 
 describe('buildCampusSummary', () => {
@@ -154,64 +155,16 @@ describe('campuses 的稽核 details（#837）', () => {
     updated_at: '2026-01-01',
   };
 
-  function fakeDb() {
-    const auditRows: Array<Record<string, unknown>> = [];
-    // **update 之前與之後的 `single()` 要回不同的東西** ——
-    // 同一個替身要同時扮演「改動前的那一列」與「改完回傳的那一列」
-    let updated = false;
-    let after: Record<string, unknown> = BEFORE;
-
-    const make = (table: string) => {
-      const builder: Record<string, unknown> = {};
-      const chain = () => builder as never;
-      Object.assign(builder, {
-        select: () => chain(),
-        eq: () => chain(),
-        in: () => chain(),
-        order: () => chain(),
-        limit: () => chain(),
-        insert: (rows: Record<string, unknown>) => {
-          if (table === 'audit_logs') {
-            auditRows.push(rows);
-            return Promise.resolve({ error: null });
-          }
-          return chain();
-        },
-        update: (payload: Record<string, unknown>) => {
-          updated = true;
-          after = { ...BEFORE, ...payload };
-          return chain();
-        },
-        delete: () => chain(),
-        single: () =>
-          Promise.resolve({
-            data:
-              table === 'campuses'
-                ? updated
-                  ? after
-                  : BEFORE
-                : table === 'profiles'
-                  ? null
-                  : { id: 'new-campus', name: '新分校', is_active: true },
-            error: null,
-          }),
-        maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        then: (resolve: (value: unknown) => unknown) =>
-          resolve({ data: [], count: 0, error: null }),
-      });
-
-      return builder;
-    };
-
-    return { auditRows, from: (table: string) => make(table) };
-  }
+  // 真的照條件過濾的替身 —— 路由先以 org 範圍讀「改動前那一列」（#966 B1），
+  // 回固定資料的替身分不出條件有沒有下對
+  const fakeDb = () => createMultiOrgDb({ campuses: [{ ...BEFORE, org_id: ORG }] });
 
   async function request(path: string, method: string, body?: unknown) {
     const db = fakeDb();
     const app = new Hono();
     app.use('*', async (c, next) => {
       const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
-      set('supabase', db);
+      set('supabase', db.client);
       set('orgId', ORG);
       set('userId', 'user-1');
       set('roles', ['admin']);
@@ -227,10 +180,10 @@ describe('campuses 的稽核 details（#837）', () => {
         ? {}
         : { body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }),
     });
-    await Promise.resolve();
-    await Promise.resolve();
+    // 稽核是 fire-and-forget，等它落地
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
-    return { status: res.status, auditRows: db.auditRows };
+    return { status: res.status, auditRows: db.rows('audit_logs') };
   }
 
   it('改名：details 記得下 from 與 to，只含這次送出的欄位', async () => {

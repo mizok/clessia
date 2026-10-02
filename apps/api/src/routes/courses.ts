@@ -3,6 +3,7 @@ import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { formatAuditCourseResourceName, logAudit } from '../utils/audit';
 import { applyCampusFilter, getCampusScope, isCampusAllowed } from '../lib/campus-scope';
+import { findInOrg, inOrg } from '../lib/org-scope';
 import { DbUuidSchema } from '../lib/validation';
 
 // ============================================================
@@ -407,13 +408,10 @@ app.openapi(updateRoute, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
 
-  const { data: existingCourse, error: existingCourseError } = await supabase
-    .from('courses')
-    .select('id, is_active')
-    .eq('id', id)
-    .maybeSingle();
+  // 別 org 的 id 跟不存在一樣回 404（c1，#966 B1）
+  const existingCourse = await findInOrg(supabase, 'courses', orgId, id, 'id, is_active');
 
-  if (existingCourseError || !existingCourse) {
+  if (!existingCourse) {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
   }
 
@@ -506,10 +504,10 @@ app.openapi(updateRoute, async (c) => {
     }
   }
 
-  const { data, error } = await supabase
-    .from('courses')
-    .update(updateData)
-    .eq('id', id)
+  const { data, error } = await inOrg(
+    supabase.from('courses').update(updateData).eq('id', id),
+    orgId,
+  )
     .select('*, campuses(name), subjects(name)')
     .single();
 
@@ -592,6 +590,12 @@ app.openapi(deleteRoute, async (c) => {
   const userId = c.get('userId');
   const { id } = c.req.valid('param');
 
+  // 刪之前先讀（稽核要名字），同時是 org 範圍的存在檢查（c1，#966 B1）
+  const existing = await findInOrg(supabase, 'courses', orgId, id, 'name, campuses(name)');
+  if (!existing) {
+    return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
+  }
+
   // Check for related classes
   const { count } = await supabase
     .from('classes')
@@ -602,13 +606,7 @@ app.openapi(deleteRoute, async (c) => {
     return c.json({ error: `此課程有 ${count} 個開課班，無法刪除`, code: 'HAS_CLASSES' }, 409);
   }
 
-  const { data: existing } = await supabase
-    .from('courses')
-    .select('name, campuses(name)')
-    .eq('id', id)
-    .single();
-
-  const { error } = await supabase.from('courses').delete().eq('id', id);
+  const { error } = await inOrg(supabase.from('courses').delete().eq('id', id), orgId);
 
   if (error) {
     return c.json({ error: '課程不存在', code: 'NOT_FOUND' }, 404);
@@ -622,9 +620,10 @@ app.openapi(deleteRoute, async (c) => {
       resourceType: 'course',
       resourceId: id,
       resourceName: formatAuditCourseResourceName({
-        courseName: existing?.name as string | null | undefined,
-        campusName: (existing?.campuses as Record<string, unknown> | null | undefined)?.['name'] as
-          string | null,
+        courseName: existing['name'] as string | null | undefined,
+        campusName: (existing['campuses'] as Record<string, unknown> | null | undefined)?.[
+          'name'
+        ] as string | null,
       }),
       action: 'delete',
     },

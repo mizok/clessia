@@ -4,6 +4,7 @@ import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { auditDeleteSnapshot, auditFieldDiff } from '../lib/audit-diff';
 import { applyCampusFilter, getCampusScope } from '../lib/campus-scope';
+import { findInOrg, inOrg } from '../lib/org-scope';
 import { DbUuidSchema } from '../lib/validation';
 
 // ============================================================
@@ -420,12 +421,16 @@ app.openapi(updateRoute, async (c) => {
 
   // **改動前先讀一次** —— 稽核要答得出「原本是什麼」，而改完就查不到了（#837）。
   // UI 的停用／啟用走的也是這支 PUT，所以這一讀同時涵蓋那兩顆。
-  const { data: before } = await supabase.from('campuses').select('*').eq('id', id).single();
+  // 別 org 的 id 跟不存在一樣回 404（c1，#966 B1）
+  const before = await findInOrg(supabase, 'campuses', orgId, id, '*');
+  if (!before) {
+    return c.json({ error: '分校不存在', code: 'NOT_FOUND' }, 404);
+  }
 
-  const { data, error } = await supabase
-    .from('campuses')
-    .update(updateData)
-    .eq('id', id)
+  const { data, error } = await inOrg(
+    supabase.from('campuses').update(updateData).eq('id', id),
+    orgId,
+  )
     .select('*')
     .single();
 
@@ -442,7 +447,7 @@ app.openapi(updateRoute, async (c) => {
       resourceId: id,
       resourceName: data.name as string,
       action: 'update',
-      details: auditFieldDiff(before as Record<string, unknown> | null, updateData),
+      details: auditFieldDiff(before, updateData),
     },
     waitUntilFrom(c),
   );
@@ -496,6 +501,13 @@ app.openapi(deleteRoute, async (c) => {
   const userId = c.get('userId');
   const { id } = c.req.valid('param');
 
+  // **`select('*')` 而不是只取 name** —— 刪完就查不到了，這是留下快照的唯一機會（#837）。
+  // 同時是 org 範圍的存在檢查：別 org 的 id 跟不存在一樣回 404（c1，#966 B1）
+  const existing = await findInOrg(supabase, 'campuses', orgId, id, '*');
+  if (!existing) {
+    return c.json({ error: '分校不存在', code: 'NOT_FOUND' }, 404);
+  }
+
   // Check for related courses
   const { count } = await supabase
     .from('courses')
@@ -506,10 +518,7 @@ app.openapi(deleteRoute, async (c) => {
     return c.json({ error: `此分校有 ${count} 個課程，無法刪除`, code: 'HAS_COURSES' }, 409);
   }
 
-  // **`select('*')` 而不是只取 name** —— 刪完就查不到了，這是留下快照的唯一機會（#837）
-  const { data: existing } = await supabase.from('campuses').select('*').eq('id', id).single();
-
-  const { error } = await supabase.from('campuses').delete().eq('id', id);
+  const { error } = await inOrg(supabase.from('campuses').delete().eq('id', id), orgId);
 
   if (error) {
     return c.json({ error: '分校不存在', code: 'NOT_FOUND' }, 404);
@@ -522,16 +531,11 @@ app.openapi(deleteRoute, async (c) => {
       userId,
       resourceType: 'campus',
       resourceId: id,
-      resourceName: existing?.name ?? null,
+      resourceName: (existing['name'] as string | null) ?? null,
       action: 'delete',
       // 只挑會被追問的欄位 —— 整列會把 `created_at` / `updated_at` 這些
       // 「不是人改的」欄位一起塞進去（#837）
-      details: auditDeleteSnapshot(existing as Record<string, unknown> | null, [
-        'name',
-        'address',
-        'phone',
-        'is_active',
-      ]),
+      details: auditDeleteSnapshot(existing, ['name', 'address', 'phone', 'is_active']),
     },
     waitUntilFrom(c),
   );

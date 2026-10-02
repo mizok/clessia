@@ -3,7 +3,7 @@ title: 憲法強制機制索引
 summary: 每條 clause 用什麼機制守、在哪一層擋、目前接上了沒有。改機制不算修法。
 category: architecture
 status: active
-updated: 2026-08-29
+updated: 2026-10-02
 tags: [architecture, constitution-enforcement]
 ---
 
@@ -50,7 +50,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 
 | Clause                     | 分類          | 機制                                                                                                                                                | 狀態                                                                        |
 | -------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| c1 授權在 API 層           | Semantic      | harness gate A7（每支 route 掛載必須宣告角色）+ 人工 review                                                                                         | ⚠️ 部分：准入已機器化，資料範圍靠 review                                    |
+| c1 授權在 API 層           | Semantic      | harness gate A7（route 掛載宣告角色）+ A23（org 表寫入帶 `org_id`，ratchet）+ 人工 review                                                           | ⚠️ 部分：准入與寫入 `org_id` 已機器化，分校範圍靠 review                    |
 | c2 `ba_*` 不得寫入         | Deterministic | **雙層**：pre-guard regex（只擋 insert/update/upsert/delete，讀取放行；**單寫 `orgId` 已豁免**，見下）+ harness gate A15（存量，債 4 + 永久豁免 1） | ⚠️ 雙重，剩 4 筆真債待 billing-api 驗證 API 路徑                            |
 | c3 已提交 migration 不可改 | Deterministic | **雙層**：pre-guard + `whenTracked`（寫入當下）+ harness gate A16（分支對照 `origin/main...HEAD` 的 M/D/R）                                         | ✅ 雙重 —— A16 看不到「直接推 main」的情形，理由見下                        |
 | c4 migration 檔名          | Deterministic | 由 `supabase migration new` 保證                                                                                                                    | 依賴工具，未另外 gate                                                       |
@@ -93,7 +93,8 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | A16  | 本分支沒有修改／刪除／改名已提交的 migration（c3；比 `origin/main...HEAD`）                                                                               |
 | A17  | 掃描範圍內自己刻的可點元素有尺寸下限（44px；ratchet。範圍＝老師端 + **公開頁** + admin 已遷手機優先者；1×1 焦點哨兵除外；空殼頁另發警告）                 |
 | A18  | `features/<a>` 不得 import `features/<b>`（c5 可判定的那一半；**無 baseline，立法時零違規**）                                                             |
-| A22  | icon-only 的按鈕有可及名稱（#930；ratchet 21 筆。**第三種形狀「原生 `<button>` 上寫 `ariaLabel`」存量 0、不走 ratchet，一出現就紅**）                   |
+| A22  | icon-only 的按鈕有可及名稱（#930；ratchet 21 筆。**第三種形狀「原生 `<button>` 上寫 `ariaLabel`」存量 0、不走 ratchet，一出現就紅**）                     |
+| A23  | org 表的 update/delete 帶 `.eq('org_id')` 或 `inOrg()`（c1，#966 B；ratchet 只能往下；org 表從 migration 推導，對照 `OrgTable`）                          |
 
 ### 存量 allowlist：讓債務可見且會自己收斂
 

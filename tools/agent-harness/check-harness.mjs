@@ -39,6 +39,11 @@ import {
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import { usesRawSupabase } from './lib/parent-route-scan.mjs';
+import {
+  declaredOrgTables,
+  orgTablesFromMigrations,
+  unscopedOrgWrites,
+} from './lib/org-scope-writes.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -79,10 +84,8 @@ const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-basel
 const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-baseline.json');
 const TOUCH_TARGET_BASELINE = join(ROOT, 'tools/agent-harness/touch-target-baseline.json');
 const API_PARAM_BASELINE = join(ROOT, 'tools/agent-harness/api-param-baseline.json');
-const ARIA_ICON_BUTTON_BASELINE = join(
-  ROOT,
-  'tools/agent-harness/aria-icon-button-baseline.json',
-);
+const ORG_SCOPE_BASELINE = join(ROOT, 'tools/agent-harness/org-scope-baseline.json');
+const ARIA_ICON_BUTTON_BASELINE = join(ROOT, 'tools/agent-harness/aria-icon-button-baseline.json');
 
 /**
  * 觸控尺寸的**永久豁免**。語意跟 `touch-target-baseline.json` 不同，
@@ -2043,8 +2046,9 @@ function checkAriaIconButtons() {
   }
 
   for (const [path, allowed] of Object.entries(baseline)) {
-    const ratchetable =
-      (detail[path] ?? []).filter((d) => !d.startsWith('wrong-aria-label')).length;
+    const ratchetable = (detail[path] ?? []).filter(
+      (d) => !d.startsWith('wrong-aria-label'),
+    ).length;
     if (ratchetable < allowed) {
       fail(
         `${path} 的 icon-only 按鈕違規剩 ${ratchetable} 顆、帳面還寫 ${allowed} ——` +
@@ -2055,6 +2059,101 @@ function checkAriaIconButtons() {
 }
 
 checkAriaIconButtons();
+
+// ── A23. 對 org 表的 update / delete 要帶 `org_id`（c1，#966 B 批）───────────────────────
+//
+// API 用 service role，RLS 不擋 —— `org_id` 過濾是唯一的一道牆，而少寫它**不會報任何錯**。
+// 判準、推導方式與看不到什麼寫在 `lib/org-scope-writes.mjs`。
+//
+// **帳面只能往下**：每支檔案的違規數不能超過帳面（新增就紅），也不能低於帳面
+// （修掉了就要把帳面改小，否則下一個人可以免費加回去）。`--write` 只會把帳面往下壓，
+// 不會替新違規開帳 —— 那正是要擋的動作。
+function checkOrgScopedWrites() {
+  const apiSrc = join(ROOT, 'apps/api/src');
+  const orgScopeFile = join(apiSrc, 'lib/org-scope.ts');
+  if (!existsSync(apiSrc) || !existsSync(MIGRATIONS)) return;
+
+  recordScope('org-scope-writes', { roots: ['apps/api/src'], exts: ['.ts'] });
+
+  // 哪些表有 org_id 從 migration 推導，不抄（c11）
+  const orgTables = orgTablesFromMigrations(
+    readdirSync(MIGRATIONS)
+      .filter((f) => f.endsWith('.sql'))
+      .sort()
+      .map((f) => readFileSync(join(MIGRATIONS, f), 'utf8')),
+  );
+  if (orgTables.size === 0) {
+    fail('A23 從 migration 推導不出任何帶 org_id 的表 —— 推導壞了，這道 gate 會安靜地全綠');
+    return;
+  }
+
+  // `OrgTable` 型別即清單 —— 它跟 migration 漂開的話，`findInOrg` 會拒收新表或收下子表
+  const declared = existsSync(orgScopeFile)
+    ? declaredOrgTables(readFileSync(orgScopeFile, 'utf8'))
+    : null;
+  if (!declared) {
+    fail(
+      'apps/api/src/lib/org-scope.ts 找不到 `export type OrgTable = …`（A23 拿它對照 migration）',
+    );
+  } else {
+    const missing = [...orgTables].filter((t) => !declared.has(t)).sort();
+    const extra = [...declared].filter((t) => !orgTables.has(t)).sort();
+    if (missing.length > 0 || extra.length > 0) {
+      fail(
+        `lib/org-scope.ts 的 \`OrgTable\` 跟 migration 對不上 —— ` +
+          (missing.length > 0 ? `少了（有 org_id 欄位）：${missing.join('、')}；` : '') +
+          (extra.length > 0 ? `多了（沒有 org_id 欄位，是子表或已刪）：${extra.join('、')}` : ''),
+      );
+    }
+  }
+
+  const files = walk(apiSrc, '.ts')
+    .filter((f) => !f.endsWith('.spec.ts') && !f.includes('/scripts/'))
+    .map((f) => ({ path: f.slice(ROOT.length + 1), text: readFileSync(f, 'utf8') }));
+
+  const found = {};
+  const detail = {};
+  for (const hit of unscopedOrgWrites(files, orgTables)) {
+    found[hit.path] = (found[hit.path] ?? 0) + 1;
+    (detail[hit.path] ??= []).push(`:${hit.line} ${hit.table}.${hit.op}`);
+  }
+
+  let baseline = existsSync(ORG_SCOPE_BASELINE)
+    ? JSON.parse(readFileSync(ORG_SCOPE_BASELINE, 'utf8'))
+    : {};
+
+  if (mode === 'write') {
+    baseline = Object.fromEntries(
+      Object.entries(baseline)
+        .map(([path, allowed]) => [path, Math.min(allowed, found[path] ?? 0)])
+        .filter(([, n]) => n > 0),
+    );
+    writeFileSync(ORG_SCOPE_BASELINE, `${JSON.stringify(baseline, null, 2)}\n`);
+  }
+
+  for (const [path, count] of Object.entries(found)) {
+    const allowed = baseline[path] ?? 0;
+    if (count > allowed) {
+      fail(
+        `${path} 有 ${count} 處對 org 表的 update/delete 沒帶 org_id（帳面 ${allowed}）：` +
+          `${detail[path].join('、')} —— 用 \`inOrg(query, orgId)\` 包住或接 \`.eq('org_id', orgId)\`` +
+          `（apps/api/src/lib/org-scope.ts，c1）。**這道 gate 只看 update/delete**，` +
+          `insert/upsert 與 body 指名的外部 id 屬不屬於本 org 仍靠 review。`,
+      );
+    }
+  }
+  for (const [path, allowed] of Object.entries(baseline)) {
+    const count = found[path] ?? 0;
+    if (count < allowed) {
+      fail(
+        `${path} 的 org_id 缺口剩 ${count} 處、帳面還寫 ${allowed} —— ` +
+          `把 org-scope-baseline.json 改小（歸零就整筆刪掉；\`npm run harness:write\` 會代改）`,
+      );
+    }
+  }
+}
+
+checkOrgScopedWrites();
 
 checkScanScope();
 
