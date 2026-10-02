@@ -3,7 +3,7 @@ title: 授權範圍 —— 分校、職務、細部權限
 summary: 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
 category: architecture
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 tags: [architecture, authorization, campus, teacher-scope, permissions, security]
 ---
 
@@ -120,6 +120,11 @@ school-exams、contact-book、class-logs，以及 `/api/attendance/sessions` 的
 
 含意：老師點名清單上看不到別班，但**知道 `eventId` 就改得動別班的出勤**。
 清單已經回傳 `eventId`，換一個值即可。
+
+**讀的那一側（#1081，2026-10-03 已修）**：`GET /api/attendance/roster/{eventId}` 原本也只有 `.eq('org_id')`，
+同 org 的老師知道 `eventId` 就讀得到任一堂的名單（姓名、年級、學校、請假）。現在走 `lib/attendance-read-scope.ts`
+的 `teacherCanReadEvent`：歸屬規則跟寫入同一份（任課或代課），**但不看點名責任歸屬** —— 行政負責點名的機構，
+老師端仍要唯讀看自己課的名單（#920）。別 org 的 id 先在課堂查詢就 404，不洩漏存在與否。
 
 ### 洞 5 — 分校完全沒有隔離
 

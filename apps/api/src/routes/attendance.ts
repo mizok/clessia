@@ -21,6 +21,7 @@ import {
 } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
 import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
+import { teacherCanReadEvent } from '../lib/attendance-read-scope';
 import { applyCampusFilter, type CampusScope, getCampusScope } from '../lib/campus-scope';
 import { resourceCampusAllowed } from '../lib/campus-write-guard';
 import {
@@ -1341,6 +1342,18 @@ app.openapi(
       .single();
 
     if (evError || !ev) return c.json({ error: '找不到課堂' }, 404);
+
+    // #1081：老師只能讀自己（任課或代課）課堂的名單。別 org 的 id 在上面已是 404，不洩漏存在與否
+    if (
+      !(await teacherCanReadEvent(supabase, {
+        orgId,
+        userId: c.get('userId'),
+        roles: c.get('roles') ?? [],
+        eventId,
+      }))
+    ) {
+      return c.json({ error: '這不是你的課堂', code: 'FORBIDDEN' }, 403);
+    }
 
     const classId = (ev as any).sessions?.[0]?.class_id;
     const eventDate = (ev as any).event_date as string;

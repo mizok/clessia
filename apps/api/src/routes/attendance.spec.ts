@@ -1880,6 +1880,93 @@ describe('GET /api/attendance/roster/{eventId} —— 請假推導', () => {
  * **on_leave 紀錄是被刪掉而不是改成 absent**（後者是「系統替老師寫一個相反的謊」，
  * 而純函式完全看不到這件事）。
  */
+/**
+ * #1081：名單讀取原本只有 `.eq('org_id')` —— 同 org 的老師知道 `eventId` 就讀得到任一堂的名單
+ * （學生姓名、年級、學校、請假）。跟寫入那側（authorization-scope 洞 4）同一個形狀。
+ * 讀取的範圍跟寫入同一份歸屬規則（任課或代課），但**不看點名責任歸屬** ——
+ * 行政負責點名的機構，老師端仍要唯讀看自己課的名單（#920）。
+ */
+describe('GET /api/attendance/roster/{eventId} —— 老師只能讀自己課的名單', () => {
+  function createApp(roles: string[], teacher: { session: string; schedule: string }) {
+    const supabase = {
+      from(table: string) {
+        const query: Record<string, unknown> = {
+          select: () => query,
+          eq: () => query,
+          in: () => query,
+          lte: () => query,
+          gte: () => query,
+          or: () => query,
+          maybeSingle: () =>
+            Promise.resolve({
+              data:
+                table === 'staff'
+                  ? { id: 'staff-me' }
+                  : // 行政負責點名：讀取不能受它影響
+                    { attendance_responsible: 'admin' },
+              error: null,
+            }),
+          single: () =>
+            Promise.resolve({
+              data: {
+                id: 'event-1',
+                event_date: '2026-04-06',
+                start_time: '09:00',
+                end_time: '11:00',
+                attendance_taken_at: null,
+                sessions: [{ class_id: 'class-1' }],
+              },
+              error: null,
+            }),
+          then: (onfulfilled?: ((value: { data: unknown[]; error: null }) => unknown) | null) =>
+            Promise.resolve({
+              data:
+                table === 'sessions'
+                  ? [{ teacher_id: teacher.session, schedules: { teacher_id: teacher.schedule } }]
+                  : [],
+              error: null,
+            }).then(onfulfilled ?? undefined),
+        };
+        return query;
+      },
+    };
+
+    const app = new Hono();
+    app.use('/api/*', async (c, next) => {
+      const context = c as unknown as { set: (key: string, value: unknown) => void };
+      context.set('supabase', supabase);
+      context.set('orgId', 'org-1');
+      context.set('userId', 'user-1');
+      context.set('roles', roles);
+      context.set('campusScope', null);
+      await next();
+    });
+    app.route('/api/attendance', attendanceApp);
+    return app;
+  }
+
+  const status = async (roles: string[], session: string, schedule: string) =>
+    (await createApp(roles, { session, schedule }).request('/api/attendance/roster/event-1'))
+      .status;
+
+  it('不是自己的課 → 403', async () => {
+    expect(await status(['teacher'], 'someone-else', 'someone-else')).toBe(403);
+  });
+
+  it('固定任課的課 → 200（行政負責點名的機構也是）', async () => {
+    expect(await status(['teacher'], 'someone-else', 'staff-me')).toBe(200);
+  });
+
+  // 點名含代課（attendance-write-scope 的註解），名單是點名畫面的資料來源，同一條
+  it('代課的那一堂 → 200', async () => {
+    expect(await status(['teacher'], 'staff-me', 'someone-else')).toBe(200);
+  });
+
+  it('管理員不受限', async () => {
+    expect(await status(['admin'], 'someone-else', 'someone-else')).toBe(200);
+  });
+});
+
 describe('POST /api/attendance/roster/{eventId}/cancel-leave', () => {
   function createCancelApp(options: {
     roles: string[];
