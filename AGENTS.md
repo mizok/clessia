@@ -25,18 +25,18 @@
 這些是**具約束力的憲法條款**，不是風格偏好。全文與強制機制見
 `kb/wiki/architecture/constitution.md`；此處只列對照：
 
-| 禁止                                                        | Clause |
-| ----------------------------------------------------------- | ------ |
-| 修改已提交的 migration 檔                                   | c3     |
-| 直接寫入 `ba_*`（Better Auth）表                            | c2     |
-| SCSS 使用 `vh` / `vw` / `dvh` / `svh` / `lvh`               | c6     |
-| Template 使用 `*ngIf` / `*ngFor` / `*ngSwitch`              | c7     |
-| 使用 `@Input()` / `@Output()` / `@ViewChild()` 等裝飾器 API | c8     |
-| 在 `kb/` 之外另起文件目錄（`docs/` 等）                     | c9     |
-| feature 之間互相 import                                     | c5     |
-| 把規則寫進 `CLAUDE.md`                                      | c10    |
-| 在文件裡手抄會腐化的清單                                    | c11    |
-| 讓客戶無法脫離架構自行 host（vendor lock-in、多租戶）       | c12    |
+| 禁止                                                                              | Clause |
+| --------------------------------------------------------------------------------- | ------ |
+| 修改已提交的 migration 檔                                                         | c3     |
+| 直接寫入 `ba_*`（Better Auth）表                                                  | c2     |
+| 樣式產生 `vh` / `vw` / `dvh` / `svh` / `lvh`（含 Tailwind `h-screen` 等 utility） | c6     |
+| Template 使用 `*ngIf` / `*ngFor` / `*ngSwitch`                                    | c7     |
+| 使用 `@Input()` / `@Output()` / `@ViewChild()` 等裝飾器 API                       | c8     |
+| 在 `kb/` 之外另起文件目錄（`docs/` 等）                                           | c9     |
+| feature 之間互相 import                                                           | c5     |
+| 把規則寫進 `CLAUDE.md`                                                            | c10    |
+| 在文件裡手抄會腐化的清單                                                          | c11    |
+| 讓客戶無法脫離架構自行 host（vendor lock-in、多租戶）                             | c12    |
 
 ## Commands
 
