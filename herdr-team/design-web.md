@@ -577,7 +577,7 @@ coarse)').matches` 永遠是 `false`（teacher-pages 在 #516 先撞到、我在
 - 用字對齊產品的異動紀錄頁（`changes.component.ts`）：調課、代課、停課、恢復上課、改時間、補課。產品**沒有任何匯出功能**（只有匯入家長、匯入名冊）。
 
 ### 5. 工具坑（這兩天踩的）
-- **herdr 長訊息停在對方輸入框**（`[Pasted text]`）→ 見 README「六、指令與工具」（#988）。我的送信腳本在 scratchpad 的 `send.sh`，關鍵三步已寫進 README。
+- **herdr 長訊息停在對方輸入框**（`[Pasted text]`）→ 見 README「六、指令與工具」（#988）。送信腳本當時放在 session 的 scratchpad（別的 session 讀不到），關鍵三步已寫進 README，照著做即可。
 - **playwright**：版本要 `1.60.0` 才對得上本機快取的 chromium-1223。頁面自己管狀態的勾選框要用 `click()`，`check()` 會誤判「狀態沒變」。同一頁同時存在桌機與手機兩份 DOM 時，選擇器要加 `:visible`。`page.goto` 只換 hash **不會重載**，連走多個例子會殘留前一個的狀態 —— 每個例子開新頁。
 - **zsh**：`for v in "1440,900 d"; do set -- $v` 不會拆參數，要寫 `set -- ${=v}`；配上 `>/dev/null` 會**靜默失敗、留下舊截圖**，看起來像修了沒效。截完看一眼檔案時間。
 - **artifact 發布**：`root` 要給絕對路徑；頁面只收得到純 `#hash`，收不到 query string（示範狀態用 `#typhoon` 這種）；多檔發布時共用的 `shared/*.js` 改了要一起帶上。
@@ -588,7 +588,9 @@ coarse)').matches` 永遠是 `false`（teacher-pages 在 #516 先撞到、我在
 
 - **artifact**：https://claude.ai/artifact/1ygX5JqxVqbcKMsriDWgqG（同一個 URL 一路迭代到 Version 22）。
   更新方式：`Artifact` publish，`file_path`＝`.design-explorations/973-layout/index.html`、`root`＝該資料夾的**絕對路徑**、`files` 只帶這次改到的檔。
-  若本機沒有 `.design-explorations/973-layout/`（換機器），先用 `Artifact` 的 read（`path`）把要改的檔拉回來。
+  ⚠️ **設計稿資料夾只存在 `labor-20261001-1456` 那個 worktree 裡**（`.worktrees/labor-20261001-1456/.design-explorations/973-layout/`，被 gitignore）。
+  新席在自己的 worktree 裡**不會有它** —— 先把整個資料夾複製過來，或用 `Artifact` 的 read（`paths`）把要改的檔拉回來；**不要從零重做**。
+  那個 worktree 被清掉之後，artifact 就是唯一的來源。
 - **索引頁結構**：左側橘色品牌面＋段落導覽；右側由新到舊：每一輪一個 `<section id="r6x">`，最新的標「（最新）」，舊的保留當對照。改一版就在最上面加一節、把上一節的「（最新）」拿掉、導覽加一條連結。
 - **檔案分工**（`a6-editorial/`）：`a6.css` 殼與全站規則（檔尾按日期分段，每段開頭寫使用者原話）、`a6.js` 頁首／帳號選單／浮層定位／捲動陰影；五頁各一支 html（`<template id="notes">` 是設計說明，最上面一段寫最新修正）；課表另有 `schedule.css`／`schedule.js`（批次、快速選取面板、異動跑馬燈）。共用資料在 `shared/`：`data.js`（含 `org`、日到班 `todayExpected`／`checkins`）、`stress.js`（課表最壞情況）、`flow.js`（流場，元件原樣移植）、`proto.js`（右下導覽膠囊）、`world.css`（tokens）。
 - **playwright**：scratchpad 已裝 `node_modules/playwright`（1.60.0）；截圖用 `npx -y playwright@1.60.0 screenshot --viewport-size=1440,900|390,844 --wait-for-timeout=1500`。每輪都要量：尺寸、對比（對實際底色）、JS 錯誤、橫向溢出，桌機與手機各一。
