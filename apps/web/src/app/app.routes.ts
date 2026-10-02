@@ -348,6 +348,7 @@ export const routes: Routes = [
             loadComponent: () =>
               import('@features/admin/pages/staff/staff.page').then((m) => m.StaffPage),
             data: { page: RoutesCatalog.ADMIN_STAFF },
+            canActivate: [permissionGuard('manage_staff')],
           },
           {
             path: '',
