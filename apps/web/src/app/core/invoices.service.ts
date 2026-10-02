@@ -16,7 +16,8 @@ import { environment } from '@env/environment';
  * 三態推導 ＋ 作廢。逾期是**正交的衍生標記**，不是狀態（billing-rules 規則 4）。
  * `void` 不是推導的，它來自 `voidedAt`（#898）。
  */
-export type InvoiceStatus = 'unpaid' | 'partial' | 'paid' | 'void';
+/** `overrefunded`：淨額 < 0（退的比收的多，#1034）—— 不在等錢，跟後端同名狀態同一個定義 */
+export type InvoiceStatus = 'unpaid' | 'partial' | 'paid' | 'void' | 'overrefunded';
 
 export type InvoiceItemType = 'tuition' | 'meal' | 'session_pack' | 'adjustment';
 export type PaymentKind = 'payment' | 'refund';
@@ -28,6 +29,7 @@ export const INVOICE_STATUS_LABELS: Readonly<Record<InvoiceStatus, string>> = {
   partial: '部分繳',
   paid: '繳清',
   void: '已作廢',
+  overrefunded: '多退',
 };
 
 /**

@@ -33,6 +33,18 @@ describe('aggregateRevenue', () => {
     expect(result.summary.refunded).toBe(30000);
   });
 
+  // #1034：淨額為負（多退）不產生未收 —— 以前 10,000 − (−500) 會報成 10,500 的欠款
+  it('淨額為負的帳單不算進未收', () => {
+    const result = aggregateRevenue({
+      payments: [],
+      invoices: [invoice(10000, -500, '2026-03-01')],
+      today: TODAY,
+    });
+
+    expect(result.summary.outstanding).toBe(0);
+    expect(result.summary.overdueOutstanding).toBe(0);
+  });
+
   it('應收未收 = 開出的應繳 − 已收', () => {
     const result = aggregateRevenue({
       payments: [],

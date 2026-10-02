@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '@env/environment';
 
 /** `void` 來自作廢（#898），不是推導。家長端看得到作廢單但不計應繳 */
-export type ParentInvoiceStatus = 'unpaid' | 'partial' | 'paid' | 'void';
+export type ParentInvoiceStatus = 'unpaid' | 'partial' | 'paid' | 'void' | 'overrefunded';
 export type ParentInvoiceItemType = 'tuition' | 'meal' | 'session_pack' | 'adjustment';
 export type ParentPaymentKind = 'payment' | 'refund';
 export type ParentPaymentMethod = 'cash' | 'transfer';

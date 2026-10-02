@@ -33,8 +33,15 @@
       class="invoice-detail__summary-item"
       [class.invoice-detail__summary-item--due]="outstandingAmount() > 0"
     >
-      <dt>{{ outstandingAmount() < 0 ? '溢繳' : '尚欠' }}</dt>
-      <dd>{{ (outstandingAmount() < 0 ? -outstandingAmount() : outstandingAmount()) | number }}</dd>
+      @if (overRefundedAmount() > 0) {
+        <dt>多退</dt>
+        <dd>{{ overRefundedAmount() | number }}</dd>
+      } @else {
+        <dt>{{ outstandingAmount() < 0 ? '溢繳' : '尚欠' }}</dt>
+        <dd>
+          {{ (outstandingAmount() < 0 ? -outstandingAmount() : outstandingAmount()) | number }}
+        </dd>
+      }
     </div>
     <div class="invoice-detail__summary-item">
       <dt>繳費期限</dt>
@@ -113,23 +120,23 @@
       <div class="invoice-detail__section-header">
         <h3 class="invoice-detail__section-title">收款記錄</h3>
         @if (!isVoided()) {
-        <div class="invoice-detail__section-actions">
-          <p-button
-            label="記錄收款"
-            icon="pi pi-plus"
-            size="small"
-            (onClick)="openPaymentDialog('payment')"
-          />
-          <p-button
-            label="記錄退費"
-            icon="pi pi-reply"
-            size="small"
-            severity="danger"
-            [outlined]="true"
-            [disabled]="invoice().payments.length === 0"
-            (onClick)="openPaymentDialog('refund')"
-          />
-        </div>
+          <div class="invoice-detail__section-actions">
+            <p-button
+              label="記錄收款"
+              icon="pi pi-plus"
+              size="small"
+              (onClick)="openPaymentDialog('payment')"
+            />
+            <p-button
+              label="記錄退費"
+              icon="pi pi-reply"
+              size="small"
+              severity="danger"
+              [outlined]="true"
+              [disabled]="invoice().payments.length === 0"
+              (onClick)="openPaymentDialog('refund')"
+            />
+          </div>
         }
       </div>
 
@@ -217,32 +224,32 @@
       <p class="invoice-detail__hint">催繳只留紀錄，不會停課也不會擋住任何東西。</p>
 
       @if (!isVoided()) {
-      <div class="invoice-detail__reminder-form">
-        <p-select
-          [options]="reminderMethodOptions"
-          optionLabel="label"
-          optionValue="value"
-          [ngModel]="reminderMethod()"
-          (ngModelChange)="reminderMethod.set($event)"
-          ariaLabel="催繳方式"
-        />
-        <input
-          type="text"
-          pInputText
-          maxlength="200"
-          placeholder="備註（選填）"
-          aria-label="催繳備註"
-          [ngModel]="reminderNote()"
-          (ngModelChange)="reminderNote.set($event)"
-        />
-        <p-button
-          label="記一次"
-          icon="pi pi-megaphone"
-          size="small"
-          [loading]="savingReminder()"
-          (onClick)="addReminder()"
-        />
-      </div>
+        <div class="invoice-detail__reminder-form">
+          <p-select
+            [options]="reminderMethodOptions"
+            optionLabel="label"
+            optionValue="value"
+            [ngModel]="reminderMethod()"
+            (ngModelChange)="reminderMethod.set($event)"
+            ariaLabel="催繳方式"
+          />
+          <input
+            type="text"
+            pInputText
+            maxlength="200"
+            placeholder="備註（選填）"
+            aria-label="催繳備註"
+            [ngModel]="reminderNote()"
+            (ngModelChange)="reminderNote.set($event)"
+          />
+          <p-button
+            label="記一次"
+            icon="pi pi-megaphone"
+            size="small"
+            [loading]="savingReminder()"
+            (onClick)="addReminder()"
+          />
+        </div>
       }
 
       @if (remindersLoading()) {
