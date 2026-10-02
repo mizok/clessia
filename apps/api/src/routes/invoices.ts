@@ -5,6 +5,7 @@ import { INVOICE_SELECT, toInvoiceResponse } from '../lib/invoice-query';
 import { sliceDerivedPage } from '../lib/derived-page';
 import { waitUntilFrom } from '../lib/wait-until';
 import { DbUuidSchema } from '../lib/validation';
+import { findInOrg, missingInOrg } from '../lib/org-scope';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { whereDueWithin, whereOverdue } from '../lib/invoice-overdue';
 import { invoiceTotals, isOpenInvoice, voidBlockReason } from '../lib/invoice-status';
@@ -291,6 +292,10 @@ app.openapi(
         content: { 'application/json': { schema: z.object({ data: InvoiceSchema }) } },
       },
       400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+      404: {
+        description: '學生或明細參照不存在',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
     },
   }),
   async (c) => {
@@ -298,6 +303,31 @@ app.openapi(
     const orgId = c.get('orgId');
     const userId = c.get('userId');
     const body = c.req.valid('json');
+
+    // body 指名的學生與明細參照都要屬於本 org，而且要在寫入**之前**驗 ——
+    // 先開帳再發現明細不對的話，回滾那一步失敗就會留下空殼（c1，#966 B4）
+    const items = body.items ?? [];
+    const [student, foreignEnrollments, foreignPeriods] = await Promise.all([
+      findInOrg(supabase, 'students', orgId, body.studentId),
+      missingInOrg(
+        supabase,
+        'enrollments',
+        orgId,
+        items.flatMap((item) => (item.enrollmentId ? [item.enrollmentId] : [])),
+      ),
+      missingInOrg(
+        supabase,
+        'billing_periods',
+        orgId,
+        items.flatMap((item) => (item.billingPeriodId ? [item.billingPeriodId] : [])),
+      ),
+    ]);
+    if (!student) {
+      return c.json({ error: '學生不存在', code: 'STUDENT_NOT_FOUND' }, 404);
+    }
+    if (foreignEnrollments.length > 0 || foreignPeriods.length > 0) {
+      return c.json({ error: '明細指名的報名或計費期不存在', code: 'REFERENCE_NOT_FOUND' }, 404);
+    }
 
     // 台北時間，不是 UTC —— 見 lib/taipei-date.ts 檔頭
     const issuedAt = body.issuedAt ?? getCurrentTaipeiDateString();
@@ -728,7 +758,10 @@ app.openapi(
     if (updateError) {
       // 檢查之後插進一筆收款：trigger 以淨額 ≠ 0 拒絕。這是業務衝突不是系統錯誤
       return c.json(
-        { error: '帳單在作廢的同時有變動（例如剛記了一筆收款），請重新整理再試', code: 'VOID_REJECTED' },
+        {
+          error: '帳單在作廢的同時有變動（例如剛記了一筆收款），請重新整理再試',
+          code: 'VOID_REJECTED',
+        },
         409,
       );
     }

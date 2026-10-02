@@ -9,7 +9,10 @@
  * 測試空轉的來源（1515 charter §三：替身少一個方法，測到的是「請求失敗所以沒稽核」）。
  * 撞到就補實作，不要改成回 `this`。
  *
- * 刻意不做：`select` 的欄位清單與巢狀關聯（一律回整列）、排序、分頁、upsert。
+ * `upsert` 的衝突比對**跨 org**（只看 `onConflict` 那幾欄）—— 跟真的 DB 一樣：衝突鍵不含
+ * `org_id` 時，別 org 的同鍵列會被覆寫。那正是 B4 要抓的形狀，替身不能替它擋掉。
+ *
+ * 刻意不做：`select` 的欄位清單與巢狀關聯（一律回整列）、排序、分頁。
  */
 
 type Row = Record<string, unknown>;
@@ -38,7 +41,9 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
   };
 
   function builder(table: string) {
-    let op: 'select' | 'update' | 'delete' | 'insert' = 'select';
+    let op: 'select' | 'update' | 'delete' | 'insert' | 'upsert' = 'select';
+    let conflictKeys: string[] = [];
+    let ignoreDuplicates = false;
     let payload: Row | Row[] | null = null;
     let returning = false;
     let countOnly = false;
@@ -55,6 +60,17 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         }));
         all.push(...inserted);
         return { data: returning ? inserted : null, error: null };
+      }
+      if (op === 'upsert') {
+        const written: Row[] = [];
+        for (const incoming of Array.isArray(payload) ? payload : [payload as Row]) {
+          const existing = all.find((row) => conflictKeys.every((k) => row[k] === incoming[k]));
+          if (existing && ignoreDuplicates) continue;
+          if (existing) Object.assign(existing, incoming);
+          else all.push({ id: crypto.randomUUID(), ...incoming });
+          written.push({ ...(existing ?? all[all.length - 1]) });
+        }
+        return { data: returning ? written : null, error: null };
       }
       if (op === 'update') {
         for (const row of matched) Object.assign(row, payload);
@@ -93,6 +109,13 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         payload = value;
         return proxy;
       },
+      upsert(value: Row | Row[], options?: { onConflict?: string; ignoreDuplicates?: boolean }) {
+        op = 'upsert';
+        payload = value;
+        conflictKeys = (options?.onConflict ?? 'id').split(',').map((k) => k.trim());
+        ignoreDuplicates = options?.ignoreDuplicates === true;
+        return proxy;
+      },
       update(value: Row) {
         op = 'update';
         payload = value;
@@ -112,6 +135,11 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
       },
       in(column: string, values: readonly unknown[]) {
         filters.push((row) => values.includes(row[column]));
+        return proxy;
+      },
+      not(column: string, operator: string, value: unknown) {
+        if (operator !== 'is') throw new Error(`multi-org-db：not(…, '${operator}') 沒有實作`);
+        filters.push((row) => (row[column] ?? null) !== value);
         return proxy;
       },
       is(column: string, value: unknown) {

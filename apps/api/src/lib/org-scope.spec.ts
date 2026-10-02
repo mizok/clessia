@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
 
 import { createMultiOrgDb } from '../test-utils/multi-org-db';
-import { findInOrg, inOrg } from './org-scope';
+import { findInOrg, inOrg, missingInOrg } from './org-scope';
 
 const ORG_A = '00000000-0000-0000-0000-00000000000a';
 const ORG_B = '00000000-0000-0000-0000-00000000000b';
@@ -54,6 +54,18 @@ describe('findInOrg', () => {
     } as unknown as SupabaseClient;
 
     await expect(findInOrg(broken, 'subjects', ORG_A, 'sub-a')).rejects.toThrow('down');
+  });
+});
+
+describe('missingInOrg', () => {
+  it('回出不屬於本 org 的那些（含不存在），去重；全在 org 內回空陣列', async () => {
+    const supabase = seeded().client as SupabaseClient;
+
+    expect(
+      await missingInOrg(supabase, 'subjects', ORG_A, ['sub-a', 'sub-b', 'nope', 'sub-b']),
+    ).toEqual(['sub-b', 'nope']);
+    expect(await missingInOrg(supabase, 'subjects', ORG_A, ['sub-a'])).toEqual([]);
+    expect(await missingInOrg(supabase, 'subjects', ORG_A, [])).toEqual([]);
   });
 });
 

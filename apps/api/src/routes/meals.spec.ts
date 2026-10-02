@@ -53,7 +53,13 @@ describe('POST /api/meals/batch —— 稽核（#901）', () => {
             }),
           then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
             resolve({
-              data: table === 'meal_records' ? settled.map((id) => ({ student_id: id })) : [],
+              data:
+                table === 'meal_records'
+                  ? settled.map((id) => ({ student_id: id }))
+                  : // #966 B4：寫入前驗學生屬於本 org —— 兩個學生都在
+                    table === 'students'
+                    ? [{ id: STUDENT_A }, { id: STUDENT_B }]
+                    : [],
               error: null,
             }),
         });

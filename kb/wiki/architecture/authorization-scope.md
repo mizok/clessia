@@ -192,6 +192,11 @@ harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一�
   寫入那層由 harness **A23** 釘（ratchet，帳面 `tools/agent-harness/org-scope-baseline.json` 只能往下）。
 - `OrgTable` 型別即清單：子表（`schedules`、`invoice_items`…）傳不進去 —— 它們要驗的是父列。
 
+- **body 指名的外部 id**（B4）用 `missingInOrg(supabase, table, orgId, ids)`，**在寫入之前**驗、整批拒絕。
+  最嚴重的一處是 `POST /api/meals/batch`：`upsert(onConflict: student_id,meal_date)` 的衝突鍵不含 `org_id`，
+  別 org 的學生 id 會把對方那天的列**整列覆寫、連 `org_id` 一起換掉**，而「已結算不動」的鎖只查自己 org 的列。
+  **衝突鍵不含 `org_id` 的 upsert 都是這個形狀**，A23 看不到 upsert，那一半靠 review。
+
 分批與盤點在 #966 的「B 批設計提案」留言。
 
 ### 2026-09-13 補：接上了 ≠ 生效了 —— PostgREST 的 left join 會把 scope 吃掉（#815）
