@@ -95,6 +95,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | A18  | `features/<a>` 不得 import `features/<b>`（c5 可判定的那一半；**無 baseline，立法時零違規**）                                                             |
 | A22  | icon-only 的按鈕有可及名稱（#930；ratchet 21 筆。**第三種形狀「原生 `<button>` 上寫 `ariaLabel`」存量 0、不走 ratchet，一出現就紅**）                     |
 | A23  | org 表的 update/delete 帶 `.eq('org_id')` 或 `inOrg()`（c1，#966 B；ratchet 只能往下；org 表從 migration 推導，對照 `OrgTable`）                          |
+| A25  | `tailwind.css` 的 `@theme` 映射：引用的 token 必須在 `styles.scss :root`、字重不得寫進 `--font-*`、同名映射要在 `reference` 區塊 |
 
 ### 存量 allowlist：讓債務可見且會自己收斂
 

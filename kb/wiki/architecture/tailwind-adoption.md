@@ -83,6 +83,11 @@ gate A12（`check-harness.mjs` 的 `scanExisting({ clause: 'c6', … })`）**餵
 @source "./app";
 ```
 
+> **T0 實作時改成「已遷移路徑清單、起始為空」（#991 計畫席裁定，2026-10-02）**：不寫 `@source './app'`。
+> 既有 template 有 **90+ 處 PrimeFlex 遺留的死 class**（`w-full` ×90、`mb-2`、`p-4`、`text-2xl`…，SCSS 從沒定義、今天是 no-op），
+> 掃整個 app 會把它們喚醒（實測：產生 33 個 utility，含 `.w-full`、`.container`、`.fixed`）。每支頁面 PR 只把自己的目錄加進 `@source`，
+> 同時刪掉該目錄的 `.scss`；A24 交叉檢查兩邊。
+
 **本 repo 少了這兩行的後果**：`kb/` 裡任何一份提到 `h-screen` 的文件（例如本頁）都會讓正式 bundle 多出違反 c6 的 CSS，而**沒有任何一道 gate 掃得到**：gate 看的是原始碼，不是產物。
 
 **② gate：認 class 名稱。** 在 `pre-guard.rules.json` 加 c6 規則，路徑涵蓋 `.html`、`apps/web/src/**/*.ts`（inline template、`[ngClass]`）、`.css`、`.scss`（`@apply`）：

@@ -26,6 +26,7 @@ import { preflightVerdict } from './lib/preflight-verdict.mjs';
 import { extractScriptUrls, resolveBaseUrl, summarize } from './lib/smoke-probes.mjs';
 import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
 import { guardedParamNames, unguardedCampusParams } from './lib/campus-param-guard.mjs';
+import { rootVariables, themeMappingProblems } from './lib/tailwind-theme.mjs';
 import {
   declaredOrgTables,
   orgTablesFromMigrations,
@@ -1837,4 +1838,41 @@ test('A23 讀得到 OrgTable union（型別即清單，要跟 migration 對照�
   const src = `export type OrgTable =\n  | 'campuses'\n  | 'subjects';\nexport function inOrg() {}`;
   assert.deepEqual([...declaredOrgTables(src)].sort(), ['campuses', 'subjects']);
   assert.equal(declaredOrgTables('export type Other = string;'), null);
+});
+
+// ── A25：tailwind.css 的 @theme 映射（#991 T0）────────────────────────────────────────
+
+const STYLES = `:root {\n  --zinc-500: #786f69;\n  --font-medium: 500;\n  --text-xs: 11px;\n}\n.x { --not-root: 1; }`;
+
+test('A25 :root 只讀 tokens 那一塊', () => {
+  assert.deepEqual([...rootVariables(STYLES)].sort(), ['--font-medium', '--text-xs', '--zinc-500']);
+});
+
+test('A25 綠：引用存在、字重在 --font-weight-*、同名映射放在 reference 區塊', () => {
+  const css = `@theme inline reference {\n  --*: initial;\n  --color-zinc-500: var(--zinc-500);\n  --font-weight-medium: var(--font-medium);\n  --text-xs: var(--text-xs);\n}\n@theme static { --spacing: 4px; }`;
+  assert.deepEqual(themeMappingProblems(css, STYLES), []);
+});
+
+test('A25 紅：引用不存在的 token', () => {
+  const p = themeMappingProblems(
+    `@theme inline reference { --color-zinc-950: var(--zinc-950); }`,
+    STYLES,
+  );
+  assert.equal(p.length, 1);
+  assert.match(p[0], /--zinc-950 不在 styles\.scss/);
+});
+
+test('A25 紅：字重寫進 --font-*（Tailwind 的字體家族命名空間）', () => {
+  const p = themeMappingProblems(
+    `@theme inline reference { --font-medium: var(--font-medium); }`,
+    STYLES,
+  );
+  assert.equal(p.length, 1);
+  assert.match(p[0], /--font-weight-medium/);
+});
+
+test('A25 紅：同名自我參照放在會輸出的區塊（少了 reference）', () => {
+  const p = themeMappingProblems(`@theme inline { --text-xs: var(--text-xs); }`, STYLES);
+  assert.equal(p.length, 1);
+  assert.match(p[0], /自我參照/);
 });
