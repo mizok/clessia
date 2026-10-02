@@ -147,7 +147,7 @@ export class ParentsPage implements OnInit {
 
   // Status options
   protected readonly statusOptions = [
-    { label: '全部狀態', value: null },
+    { label: '啟用＋停用（不含封存）', value: null },
     { label: PARENT_STATUS_LABELS.active, value: 'active' as ParentStatus },
     { label: PARENT_STATUS_LABELS.inactive, value: 'inactive' as ParentStatus },
     { label: PARENT_STATUS_LABELS.archived, value: 'archived' as ParentStatus },
@@ -250,6 +250,7 @@ export class ParentsPage implements OnInit {
             .list({
               search: this.searchQuery() || undefined,
               status: this.selectedStatus() ?? undefined,
+              excludeArchived: this.selectedStatus() === null,
               page: this.currentPage(),
               pageSize: this.PAGE_SIZE,
             })

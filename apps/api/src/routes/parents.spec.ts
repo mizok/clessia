@@ -92,12 +92,13 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
     readonly table: string;
     columns: string;
     readonly ins: Array<{ column: string; values: string[] }>;
+    readonly neqs: Array<{ column: string; value: string }>;
   }
 
   function fakeSupabase(queries: QueryRecord[]) {
     return {
       from(table: string) {
-        const record: QueryRecord = { table, columns: '', ins: [] };
+        const record: QueryRecord = { table, columns: '', ins: [], neqs: [] };
         queries.push(record);
 
         const builder: Record<string, unknown> = {};
@@ -108,6 +109,10 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
             return chain();
           },
           eq: () => chain(),
+          neq: (column: string, value: string) => {
+            record.neqs.push({ column, value });
+            return chain();
+          },
           or: () => chain(),
           order: () => chain(),
           range: () => chain(),
@@ -135,7 +140,7 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
     };
   }
 
-  async function listParents(campusScope: readonly string[] | null) {
+  async function listParents(campusScope: readonly string[] | null, search = '') {
     const queries: QueryRecord[] = [];
     const app = new Hono();
     app.use('*', async (c, next) => {
@@ -151,11 +156,25 @@ describe('GET /api/parents —— 分校範圍（#816）', () => {
 
     // **第三個參數是 env** —— handler 會讀 `c.env.PLACEHOLDER_EMAIL_DOMAIN`
     // 來判斷 email 是不是佔位信箱，裸 Hono 的 `c.env` 沒有值，不給就是 500
-    const res = await app.request('/', {}, { PLACEHOLDER_EMAIL_DOMAIN: 'placeholder.invalid' });
+    const res = await app.request(
+      `/${search}`,
+      {},
+      { PLACEHOLDER_EMAIL_DOMAIN: 'placeholder.invalid' },
+    );
     expect(res.status).toBe(200);
 
     return queries;
   }
+
+  // #1008：規格「封存預設隱藏」。opt-in 參數，其他呼叫端（學生表單）行為不變。
+  it('excludeArchived=true → 家長清單加上 status != archived；沒帶就不加', async () => {
+    const withFlag = await listParents(null, '?excludeArchived=true');
+    const listQuery = withFlag.find((q) => q.table === 'parents' && q.columns === '*');
+    expect(listQuery?.neqs).toContainEqual({ column: 'status', value: 'archived' });
+
+    const without = await listParents(null);
+    expect(without.find((q) => q.table === 'parents' && q.columns === '*')?.neqs).toEqual([]);
+  });
 
   it('受限管理員：分校條件下到 enrollments，家長 id 條件下到 parents', async () => {
     const queries = await listParents(['campus-1']);

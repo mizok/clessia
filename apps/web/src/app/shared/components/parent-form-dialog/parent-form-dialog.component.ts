@@ -1,5 +1,7 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, DestroyRef, inject, signal, computed } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { AutoCompleteModule, type AutoCompleteCompleteEvent } from 'primeng/autocomplete';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { TextareaModule } from 'primeng/textarea';
@@ -11,11 +13,19 @@ import {
   CreateParentInput,
   UpdateParentInput,
 } from '@core/parents.service';
+import { StudentsService, type Student } from '@core/students.service';
 
 @Component({
   selector: 'app-parent-form-dialog',
   standalone: true,
-  imports: [FormsModule, ButtonModule, InputTextModule, TextareaModule, InlineNoticeComponent],
+  imports: [
+    FormsModule,
+    AutoCompleteModule,
+    ButtonModule,
+    InputTextModule,
+    TextareaModule,
+    InlineNoticeComponent,
+  ],
   templateUrl: './parent-form-dialog.component.html',
   styleUrl: './parent-form-dialog.component.scss',
 })
@@ -23,6 +33,8 @@ export class ParentFormDialogComponent {
   private readonly parentsService = inject(ParentsService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly config = inject(DynamicDialogConfig);
+  private readonly studentsService = inject(StudentsService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly loading = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
@@ -36,6 +48,20 @@ export class ParentFormDialogComponent {
     phone: this.config.data?.parent?.phone ?? '',
     notes: this.config.data?.parent?.notes ?? '',
   });
+
+  protected selectedStudents: Student[] = [];
+  protected readonly studentSuggestions = signal<Student[]>([]);
+
+  protected searchStudents(event: AutoCompleteCompleteEvent): void {
+    const picked = new Set(this.selectedStudents.map((s) => s.id));
+    this.studentsService
+      .list({ search: event.query, pageSize: 10 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => this.studentSuggestions.set(res.data.filter((s) => !picked.has(s.id))),
+        error: () => this.studentSuggestions.set([]),
+      });
+  }
 
   protected updateForm<K extends keyof ReturnType<typeof this.formData>>(
     field: K,
@@ -79,6 +105,9 @@ export class ParentFormDialogComponent {
         email: f.email.trim() || undefined,
         phone: f.phone.trim() || undefined,
         notes: f.notes.trim() || undefined,
+        studentIds: this.selectedStudents.length
+          ? this.selectedStudents.map((s) => s.id)
+          : undefined,
       };
 
       this.parentsService.create(input).subscribe({
