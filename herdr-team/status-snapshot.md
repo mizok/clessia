@@ -22,10 +22,12 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-01 13:3x 部署，labor-reviewer）
+## 🚀 線上是哪一版（2026-10-02 21:0x 部署，labor-reviewer-20261001-2204）
 
-**截線 `fe645c49`**：web `main-LKILBF6A.js`、api `dd2be985`（含 #954／#955／#957 效能三支、#967 請假實驗）、`cf-placement: remote-SIN`（`[placement] region = "aws:ap-southeast-1"`，#945）。
-**正式 DB**：09-30 16:0x 差集 0（補套 `20260906083827`，#915）；10-01 10:3x 使用者再套 #921、#934 並驗四項 true —— **之後差集未重跑**（產生器在 `review-steward.md`）。
+**截線 `02631f95`**（#972；最近一顆 verify success 的 main commit）：web `main-O3RKE5HU.js`、api `1c68c557`（**api 由使用者親自跑 `wrangler deploy`**，auto mode 分類器擋了本席的 production deploy）、`cf-placement: remote-SIN`（`[placement] region = "aws:ap-southeast-1"`，#945）。
+這批含 #931 帳單作廢（api 端點 `/api/invoices/{id}/void`）、#972 分校範圍、#1015–#1038 的 web 修正。**main HEAD `9516ae40`（#977）不在內**：它只帶 migration＋seed＋kb、無 app 程式碼。
+**正式 DB**：09-30 16:0x 差集 0；10-01 10:3x 使用者套 #921、#934 —— **之後差集未重跑**。`migrate.yml` 在 `02631f95` 的 plan／apply 被 skipped（`prod-db` environment 未設），所以 CI 沒給差集；差集 SQL（產生器在 `review-steward.md`）已 pbcopy 給使用者，預期只回 `20261001073913`（#977，純 `SET DEFAULT`，尚未套）。
+**部署驗證**：web 線上＝本機 build；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html；`openapi.json` 127 條路徑、`/api/invoices/{id}/void` 在、`excludeArchived` 1、正控 `all_parents` 1。**web 先上、api 後上之間有一段「新 web＋舊 api」的混合態**（#931／#1016 的 api 端點尚未在）。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 📋 等使用者
