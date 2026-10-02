@@ -3,7 +3,7 @@ title: 餐費管理
 summary: 每日名單勾選：每生每日一筆餐記錄（單價在筆上、訂了沒、收不收費是人工開關），月底加總未結算的筆數開帳單。餐別維度與逐筆手動輸入金額已於 2026-08-29 訪談否定。
 category: spec
 status: active
-updated: 2026-08-29
+updated: 2026-10-03
 tags: [specs, admin, finance, meals]
 ---
 
@@ -87,14 +87,12 @@ tags: [specs, admin, finance, meals]
 > `apps/api/src/routes/meals.ts`（掛在 `/api/meals`，`manage_finance`）。
 > 管理端頁見 `apps/web/src/app/features/admin/pages/meals/`。
 >
-> **本頁與已交付的 API 之間還有三個缺口**（2026-08-30 實作時查證，已回報）：
+> **2026-08-30 記的三個 API 缺口都已補上**（2026-10-03 對 `apps/api/src/routes/meals.ts` 核對，#1100）：
 >
-> 1. **沒有日期區間查詢** —— `GET /api/meals` 只吃單日的 `date`，也沒有學生篩選、沒有 `meta`。
->    上面「查詢與統計」那節（日期範圍、區間總金額與筆數、`meta.total`）目前**做不了**，
->    頁面只有當日名單的合計。
-> 2. **沒有班級欄位** —— 上面說每一列要顯示班級，`MealRosterRow` 不回 `className`。
-> 3. **備註讀寫都不通** —— `meal_records` 有 `note` 欄位，但 `GET` 不回它、
->    `POST /batch` 也不吃它，所以頁面沒有備註輸入框（做一個存不進去的欄位比沒有更糟）。
+> 1. **日期區間查詢** —— `GET /api/meals` 收 `dateFrom` / `dateTo`（`meals.ts:89`、`:117-123`），
+>    區間模式只回實際存在的餐記錄。
+> 2. **班級欄位** —— 每列回 `classNames`（`meals.ts:32`、`:240-255`；一位學生可能在多個班，所以是陣列）。
+> 3. **備註讀寫** —— `GET` 回 `note`（`meals.ts:41`），`POST /batch` 收 `note`（`meals.ts:308`）。
 >
 > 「匯出 CSV」沒有端點，但資料在手上、前端組得出來 —— 那是範圍問題不是缺口，等有人開口。
 
