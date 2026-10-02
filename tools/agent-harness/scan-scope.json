@@ -63,6 +63,10 @@
     "roots": ["apps/web/src"],
     "exts": [".html", ".ts"]
   },
+  "scss-ledger": {
+    "roots": ["apps/web/src"],
+    "exts": [".css", ".scss", ".ts"]
+  },
   "tailwind-theme": {
     "roots": ["apps/web/src"],
     "exts": [".css"]

@@ -345,6 +345,9 @@ layer 順序由第一次出現決定，所以：
 - 拿掉 `inlineStyleLanguage: scss`、Sass 依賴、`_breakpoints.scss`、`respond-*` mixin；
 - `angular-scss-bem-standards` 整支退場。
 
+> **已落地（#991 T2，gate A24）**：使用者裁定全站歸零後，帳面單位定為**檔**（起點 134：131 支 `.scss`＋3 支內嵌 `styles:`），
+> 行數只印不擋。`tailwind.css` 的 `@source`（已遷移目錄）是帳面的另一面，A24 交叉檢查兩邊。
+
 **過程中建議加一道棘輪 gate**：`.scss` 檔數與 BEM class 數**只准減少**（`mobile-first` gate 的「只准變少」同一個形狀）。不然「避免繼續使用 BEM＋SCSS」只是一句沒有執行者的話。
 
 ---

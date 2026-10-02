@@ -40,6 +40,7 @@ import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import { usesRawSupabase } from './lib/parent-route-scan.mjs';
 import { themeMappingProblems } from './lib/tailwind-theme.mjs';
+import { hasInlineStyles, ledgerDiff, sourceConflicts, sourcePaths } from './lib/scss-ledger.mjs';
 import {
   declaredOrgTables,
   orgTablesFromMigrations,
@@ -86,6 +87,7 @@ const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-basel
 const TOUCH_TARGET_BASELINE = join(ROOT, 'tools/agent-harness/touch-target-baseline.json');
 const API_PARAM_BASELINE = join(ROOT, 'tools/agent-harness/api-param-baseline.json');
 const ORG_SCOPE_BASELINE = join(ROOT, 'tools/agent-harness/org-scope-baseline.json');
+const SCSS_LEDGER = join(ROOT, 'tools/agent-harness/scss-ledger-baseline.json');
 const ARIA_ICON_BUTTON_BASELINE = join(ROOT, 'tools/agent-harness/aria-icon-button-baseline.json');
 
 /**
@@ -2176,6 +2178,73 @@ function checkTailwindTheme() {
 }
 
 checkTailwindTheme();
+
+// ── A24. SCSS 歸零帳面（#991 T2）──────────────────────────────────────────────────────
+// 單位是檔：帳面外的 .scss／內嵌 styles: 一出現就紅（不准新增 SCSS）；帳面上的檔不見了也紅
+// （要把帳面改小，否則下一個人可以免費加回去）。`--write` 只會刪、不會加。
+// 交叉檢查：tailwind.css 的 @source（已遷移目錄）底下不得還有帳面條目。判準在 lib/scss-ledger.mjs。
+function checkScssLedger() {
+  const webSrc = join(ROOT, 'apps/web/src');
+  if (!existsSync(webSrc)) return;
+  recordScope('scss-ledger', { roots: ['apps/web/src'], exts: ['.scss', '.ts', '.css'] });
+
+  const rel = (f) => f.slice(ROOT.length + 1);
+  const current = [
+    ...walk(webSrc, '.scss').map(rel),
+    ...walk(webSrc, '.ts')
+      .filter((f) => !f.endsWith('.spec.ts') && hasInlineStyles(readFileSync(f, 'utf8')))
+      .map(rel),
+  ].sort();
+
+  let baseline = existsSync(SCSS_LEDGER) ? JSON.parse(readFileSync(SCSS_LEDGER, 'utf8')) : [];
+  if (mode === 'write') {
+    const now = new Set(current);
+    baseline = baseline.filter((p) => now.has(p));
+    writeFileSync(SCSS_LEDGER, `${JSON.stringify(baseline, null, 2)}\n`);
+  }
+
+  const { added, gone } = ledgerDiff(current, baseline);
+  for (const p of added) {
+    fail(
+      `${p} 是新的 SCSS（${p.endsWith('.ts') ? '內嵌 styles:' : '.scss 檔'}）—— 全站 SCSS 正在歸零（#991），` +
+        `新 UI 一律 Tailwind（utility 寫在 template；真的要元件樣式用 .css ＋ @reference）`,
+    );
+  }
+  for (const p of gone) {
+    fail(
+      `${p} 已經不在了，帳面還寫著 —— 跑 npm run harness:write 把它從 scss-ledger-baseline.json 移除`,
+    );
+  }
+
+  const twFile = join(webSrc, 'tailwind.css');
+  if (existsSync(twFile)) {
+    const dirs = sourcePaths(readFileSync(twFile, 'utf8')).map((p) =>
+      join('apps/web/src', p).replace(/\/$/, ''),
+    );
+    for (const dir of dirs) {
+      if (!existsSync(join(ROOT, dir))) {
+        fail(
+          `tailwind.css 的 @source 指向 ${dir}，但它不存在 —— 拼錯的話那個目錄的 utility 會靜靜不產生`,
+        );
+      }
+    }
+    for (const { dir, entries } of sourceConflicts(dirs, current)) {
+      fail(
+        `${dir} 已列入 tailwind.css 的 @source（已遷移），底下卻還有 SCSS：${entries.join('、')} —— ` +
+          `同一個目錄兩套並存時未分層的 SCSS 會贏、utility 看起來像沒效。遷完再列，或把 SCSS 刪掉`,
+      );
+    }
+  }
+
+  const lines = current
+    .filter((p) => p.endsWith('.scss'))
+    .reduce((n, p) => n + readFileSync(join(ROOT, p), 'utf8').split('\n').length, 0);
+  warnings.push(
+    `SCSS 帳面剩 ${baseline.length} 筆（${current.filter((p) => p.endsWith('.scss')).length} 支 .scss／${lines} 行；#991 歸零目標）`,
+  );
+}
+
+checkScssLedger();
 
 checkScanScope();
 
