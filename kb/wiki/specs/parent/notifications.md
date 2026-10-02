@@ -3,7 +3,7 @@ title: 通知中心（家長）
 summary: 查看課務異動通知。
 category: spec
 status: active
-updated: 2026-09-04
+updated: 2026-10-03
 tags: [specs, parent, notifications]
 ---
 
@@ -28,7 +28,7 @@ tags: [specs, parent, notifications]
   - 標題（例如：「國一數學 A 班 調課通知」）
   - 摘要內容（例如：「1/30 的課堂已調整至 2/2」）
   - 發送時間（相對時間）
-  - 已讀/未讀狀態（未讀有藍點標記）
+  - 已讀/未讀狀態（未讀有 accent 色圓點標記，`--accent-500`）
 
 ### 點擊展開
 

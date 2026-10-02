@@ -3,7 +3,7 @@ title: 通知中心（管理員）
 summary: 查看系統通知與課務異動通知。
 category: spec
 status: active
-updated: 2026-02-13
+updated: 2026-10-03
 tags: [specs, admin, notifications]
 ---
 
@@ -20,7 +20,7 @@ tags: [specs, admin, notifications]
 
 - 通知列表（時間軸，最新在上）
 - 通知類型圖示（調課/代課/停課/系統通知）
-- 已讀/未讀狀態（未讀有藍點標記）
+- 已讀/未讀狀態（未讀有 accent 色圓點標記，`--accent-500`）
 - 點擊展開完整內容
 - 全部標為已讀按鈕
 - 通知保留 90 天
