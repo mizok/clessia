@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, teacher]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-10-01
 ---
 
 # 課表
@@ -231,7 +231,7 @@ updated: 2026-09-13
 | 週條每一天的 `snapToDay`                     | 本輪真滑鼠事件送不進頁面（方法頁坑 6），合成 click 不驗捲動   |
 | 水平軌道的 scroll-snap 換日                  | 同上                                                          |
 | `點名已截止`（補登期限）狀態                 | 本機沒有超過期限的課堂                                        |
-| 行政負責點名模式下的錨點與「沒有點名入口」   | 本機是 `per_session`；切模式是寫入                            |
+| 行政負責點名模式下的錨點與「沒有點名入口」   | 本機是 `per_session`；切模式是寫入。⚠️ #976（2026-10-01）起 `organizations.attendance_mode` 的預設值是 `daily_checkin`，`db:reset` 之後本機 demo 是日到班 |
 | 三行警語（查詢失敗／設定讀不到／待辦讀不到） | 沒有製造手段                                                  |
 | `儲存點名`、`存檔`                           | 寫入                                                          |
 | 手機寬度（週條不顯示、靠滑換日）             | 只量 1504px —— **這一頁是行動優先設計，窄寬度值得單獨看一次** |
