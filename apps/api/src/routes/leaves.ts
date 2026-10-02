@@ -10,7 +10,7 @@ import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
-import { isStudentInScope } from '../lib/campus-write-guard';
+import { studentWriteScope } from '../lib/campus-write-guard';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { inOrg } from '../lib/org-scope';
 
@@ -511,7 +511,11 @@ app.openapi(
     }
 
     // 分校範圍（#966）：body 只帶 studentId，全域守衛看不到分校。請假會連動出勤（扣堂上游）
-    if (!(await isStudentInScope(supabase, orgId, getCampusScope(c), body.studentId))) {
+    const scoped = await studentWriteScope(supabase, orgId, getCampusScope(c), body.studentId);
+    if (scoped === 'not-found') {
+      return c.json({ error: '學生不存在', code: 'NOT_FOUND' }, 404);
+    }
+    if (scoped === 'out-of-scope') {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 
@@ -677,7 +681,11 @@ app.openapi(
     }
 
     const studentId = (existing as any).student_id as string;
-    if (!(await isStudentInScope(supabase, orgId, getCampusScope(c), studentId))) {
+    const scoped = await studentWriteScope(supabase, orgId, getCampusScope(c), studentId);
+    if (scoped === 'not-found') {
+      return c.json({ error: '學生不存在', code: 'NOT_FOUND' }, 404);
+    }
+    if (scoped === 'out-of-scope') {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
     const previous: LeaveDateRange = {
@@ -882,14 +890,16 @@ app.openapi(
     if (!leave) {
       return c.json({ error: '找不到請假紀錄' }, 404);
     }
-    if (
-      !(await isStudentInScope(
-        supabase,
-        orgId,
-        getCampusScope(c),
-        (leave as any).student_id as string,
-      ))
-    ) {
+    const scoped = await studentWriteScope(
+      supabase,
+      orgId,
+      getCampusScope(c),
+      (leave as any).student_id as string,
+    );
+    if (scoped === 'not-found') {
+      return c.json({ error: '學生不存在', code: 'NOT_FOUND' }, 404);
+    }
+    if (scoped === 'out-of-scope') {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 

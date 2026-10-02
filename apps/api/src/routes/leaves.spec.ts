@@ -157,9 +157,7 @@ describe('buildLeaveAttendanceUpserts', () => {
           sessions: { class_id: 'class-1', status: 'cancelled' },
         },
       ],
-      enrollments: [
-        { class_id: 'class-1', effective_from: '2026-04-01', effective_to: null },
-      ],
+      enrollments: [{ class_id: 'class-1', effective_from: '2026-04-01', effective_to: null }],
     });
 
     expect(rows).toEqual([]);
@@ -177,9 +175,7 @@ describe('buildLeaveAttendanceUpserts', () => {
           sessions: [{ class_id: 'class-1', status: 'cancelled' }],
         },
       ],
-      enrollments: [
-        { class_id: 'class-1', effective_from: '2026-04-01', effective_to: null },
-      ],
+      enrollments: [{ class_id: 'class-1', effective_from: '2026-04-01', effective_to: null }],
     });
 
     expect(rows).toEqual([]);
@@ -197,9 +193,7 @@ describe('buildLeaveAttendanceUpserts', () => {
           sessions: { class_id: 'class-1', status: 'scheduled' },
         },
       ],
-      enrollments: [
-        { class_id: 'class-1', effective_from: '2026-04-01', effective_to: null },
-      ],
+      enrollments: [{ class_id: 'class-1', effective_from: '2026-04-01', effective_to: null }],
     });
 
     expect(rows).toHaveLength(1);
@@ -220,9 +214,7 @@ describe('buildLeaveAttendanceUpserts', () => {
           sessions: { class_id: 'class-1' },
         },
       ],
-      enrollments: [
-        { class_id: 'class-1', effective_from: '2026-04-01', effective_to: null },
-      ],
+      enrollments: [{ class_id: 'class-1', effective_from: '2026-04-01', effective_to: null }],
     });
 
     expect(rows).toHaveLength(1);
@@ -288,7 +280,9 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
           },
           // `logAudit` 會先查 profiles 拿 display_name —— 少了這個方法，
           // 整支稽核就在 catch 裡消失
-          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          // #966 B6：寫入前先驗學生屬於本 org（`students` 的 findInOrg）
+          maybeSingle: () =>
+            Promise.resolve({ data: table === 'students' ? { id: 'stu-1' } : null, error: null }),
           insert: (payload: Record<string, unknown>) => {
             if (table === 'audit_logs') auditRows.push(payload);
             return Promise.resolve({ error: null });
@@ -458,7 +452,9 @@ describe('POST /api/leaves —— 重疊檢查', () => {
           },
           in: () => query,
           or: () => query,
-          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          // #966 B6：寫入前先驗學生屬於本 org（`students` 的 findInOrg）
+          maybeSingle: () =>
+            Promise.resolve({ data: table === 'students' ? { id: 'stu-1' } : null, error: null }),
           single: () =>
             Promise.resolve({
               data: {
@@ -774,7 +770,9 @@ describe('PATCH /api/leaves/:id', () => {
             if (table === 'audit_logs') auditRows.push(payload);
             return Promise.resolve({ error: null });
           },
-          maybeSingle: () => Promise.resolve({ data: null, error: null }),
+          // #966 B6：寫入前先驗學生屬於本 org（`students` 的 findInOrg）
+          maybeSingle: () =>
+            Promise.resolve({ data: table === 'students' ? { id: 'stu-1' } : null, error: null }),
           single: () => {
             if (record.op === 'update') {
               return Promise.resolve({
@@ -782,14 +780,20 @@ describe('PATCH /api/leaves/:id', () => {
                 error: null,
               });
             }
-            return Promise.resolve({ data: { ...leave, students: { name: '王小明' } }, error: null });
+            return Promise.resolve({
+              data: { ...leave, students: { name: '王小明' } },
+              error: null,
+            });
           },
           then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
             let data: unknown[] = [];
             if (table === 'leave_requests') {
               // 重疊查詢：照路由實際下的 lte/gte 過濾，替身才分得出對錯的實作
               data = otherLeaves.filter((row) => {
-                if (record.lte && String(row[record.lte[0] as 'start_date']) > String(record.lte[1]))
+                if (
+                  record.lte &&
+                  String(row[record.lte[0] as 'start_date']) > String(record.lte[1])
+                )
                   return false;
                 if (record.gte && String(row[record.gte[0] as 'end_date']) < String(record.gte[1]))
                   return false;
@@ -857,9 +861,7 @@ describe('PATCH /api/leaves/:id', () => {
     // 那天有人真的看過名單、做過判斷；改短一張假不代表可以回頭改寫別人做完的事
     expect(eventQueries[0]?.isNull).toContain('attendance_taken_at');
 
-    expect(
-      queries.some((q) => q.table === 'attendance_records' && q.op === 'delete'),
-    ).toBe(true);
+    expect(queries.some((q) => q.table === 'attendance_records' && q.op === 'delete')).toBe(true);
     // 縮短不會產生新的 on_leave
     expect(queries.some((q) => q.table === 'attendance_records' && q.op === 'upsert')).toBe(false);
   });

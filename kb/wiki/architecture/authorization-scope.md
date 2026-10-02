@@ -174,7 +174,10 @@ harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一�
 | 課堂 | `events.campus_id` | 在範圍內；**null 視為範圍外**（讀取面的 `.in()` 也看不到它） |
 | 班級 | `classes.campus_id` | 在範圍內 |
 
-`scope === null`（不受限的管理員、老師、家長）不多查。**測試替身沒宣告 `campusScope` 會丟
+`scope === null`（不受限的管理員、老師、家長）不查分校，**但仍驗 org**（#966 B6）：原本 null 直接放行，
+而 daily-checkins／contact-book／class-logs 的 upsert 衝突鍵不含 `org_id`，不受限的管理員拿別 org 的 id
+會把對方那一列整列覆寫。現在 helper 是三態 `studentWriteScope`／`classWriteScope`（`ok`／`not-found`→404／
+`out-of-scope`→403），**名字刻意改掉**：回字串的函式若還叫 `is…`，舊的 `if (!(await is…()))` 會靜靜全放行。**測試替身沒宣告 `campusScope` 會丟
 `CampusScopeMissingError`** —— 那是 fail-closed 在作用，替身要宣告成 `null`。
 
 其餘寫入面的缺口（報名、學生、家長、班級、課堂、考試、金流，以及缺 `org_id` 的那批）見 #966 B／D 批。

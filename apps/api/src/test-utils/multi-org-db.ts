@@ -18,6 +18,10 @@
 type Row = Record<string, unknown>;
 type Filter = (row: Row) => boolean;
 
+/** `classes.campus_id` 這種巢狀欄位：沿著種子資料裡的物件往下取（模擬 `classes!inner(...)` 的過濾） */
+const field = (row: Row, column: string): unknown =>
+  column.split('.').reduce<unknown>((value, key) => (value as Row | null)?.[key], row);
+
 interface Result {
   readonly data: unknown;
   readonly error: { readonly code: string; readonly message: string } | null;
@@ -48,6 +52,7 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
     let returning = false;
     let countOnly = false;
     const filters: Filter[] = [];
+    let rowLimit = Infinity;
 
     function run(): Result {
       const all = tableOf(table);
@@ -84,7 +89,7 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         return { data: returning ? matched : null, error: null };
       }
       if (countOnly) return { data: null, count: matched.length, error: null };
-      return { data: matched.map((r) => ({ ...r })), error: null };
+      return { data: matched.slice(0, rowLimit).map((r) => ({ ...r })), error: null };
     }
 
     function one(required: boolean): Result {
@@ -134,7 +139,7 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         return proxy;
       },
       eq(column: string, value: unknown) {
-        filters.push((row) => row[column] === value);
+        filters.push((row) => field(row, column) === value);
         return proxy;
       },
       neq(column: string, value: unknown) {
@@ -142,7 +147,11 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         return proxy;
       },
       in(column: string, values: readonly unknown[]) {
-        filters.push((row) => values.includes(row[column]));
+        filters.push((row) => values.includes(field(row, column)));
+        return proxy;
+      },
+      limit(count: number) {
+        rowLimit = count;
         return proxy;
       },
       not(column: string, operator: string, value: unknown) {

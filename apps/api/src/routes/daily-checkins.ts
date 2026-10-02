@@ -5,7 +5,7 @@ import { enrolledEventIds } from '../lib/enrolled-events';
 import { assertAttendanceWindow } from '../lib/attendance-window-check';
 import { logAudit } from '../utils/audit';
 import { getCampusScope, isCampusAllowed } from '../lib/campus-scope';
-import { isStudentInScope, resourceCampusAllowed } from '../lib/campus-write-guard';
+import { resourceCampusAllowed, studentWriteScope } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
 
 const DailyCheckinSchema = z
@@ -61,7 +61,11 @@ app.openapi(
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
     // 打卡分校填自己的、學生卻是別校的 —— 上面那道擋不到（#966）
-    if (!(await isStudentInScope(supabase, orgId, getCampusScope(c), body.studentId))) {
+    const scoped = await studentWriteScope(supabase, orgId, getCampusScope(c), body.studentId);
+    if (scoped === 'not-found') {
+      return c.json({ error: '學生不存在', code: 'NOT_FOUND' }, 404);
+    }
+    if (scoped === 'out-of-scope') {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 
@@ -250,10 +254,15 @@ app.openapi(
     // 分校範圍（#966）：打卡有記分校就看它；沒記（舊資料、不指名的打卡）退回學生的分校
     const checkinCampusId = (row['campus_id'] as string | null) ?? null;
     const scope = getCampusScope(c);
-    const inScope = checkinCampusId
+    const scoped = checkinCampusId
       ? resourceCampusAllowed(scope, checkinCampusId)
-      : await isStudentInScope(supabase, orgId, scope, studentId);
-    if (!inScope) {
+        ? 'ok'
+        : 'out-of-scope'
+      : await studentWriteScope(supabase, orgId, scope, studentId);
+    if (scoped === 'not-found') {
+      return c.json({ error: '學生不存在', code: 'NOT_FOUND' }, 404);
+    }
+    if (scoped === 'out-of-scope') {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 
