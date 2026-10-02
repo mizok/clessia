@@ -33,7 +33,7 @@
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-03 01:5x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-03 02:0x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
@@ -43,9 +43,11 @@
 
 | #1080 | #920 授權範圍：老師在「行政負責點名」機構寫出勤 → 403 | 可合（verify 看 GitHub）。head `e61643a5`，base main，15 支檔。根因修在共用函式 `teacherAttendanceWriteAccess`（三態），四支寫入（記錄／批次／更新／銷假）全走；設定頁加「誰負責點名」開關；老師課表「看名單」→ 面板唯讀。修前 spec 實測 200、本機純老師帳號實打 403。順帶發現 roster GET 無老師範圍檢查 → #1081（保留類，2335 接）。 |
 
+| #1089 | #1059 授權：人員管理頁只有 `manage_staff` 進得了 | 可合（verify 看 GitHub）。head `46690258`，base main，7 支檔：routes-catalog 掛 `manage_staff`＋`app.routes.ts` 掛 `permissionGuard`、補 `permission.guard.spec`；API 不動（讀取維持開放給挑選器，`index.ts` 補防誤鎖註解）。本機 11 個 demo 管理員實測：無權限的全導回 dashboard、選單無人員管理。權限矩陣與 route-facts 重生。 |
+
 **疊在 #1069 上的**：#1078（P1 admin/changes＋共用客製下拉 select-field＋T3 gate A27／A28，draft、base=T4 分支，非保留類）—— #1069 合後 2335 rebase 轉 ready、reviewer 代合，不用您。
 
-接下來會出現的保留類（2335 排程中）：#1059（人員管理進頁 guard，授權）、#1081（roster GET 老師範圍）。
+接下來會出現的保留類（2335 排程中）：#1081（roster GET 老師範圍）。
 
 ### 使用者動手的
 
