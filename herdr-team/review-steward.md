@@ -897,9 +897,26 @@ git ls-tree --name-only origin/main supabase/migrations/ \
          END{print ") as t(v) where v not in (select version from supabase_migrations.schema_migrations) order by 1;"}'
 ```
 
-**「正式 DB 套到」這一欄只能由使用者填** —— repo 裡沒有任何指令查得到它
+**「正式 DB 套到」這一欄原本只能由使用者填** —— repo 裡沒有任何指令查得到它
 (`package.json` 的 `db:*` 全部指向本機 supabase),所以它不是查出來的,是**報出來的**。
 前三列寫「不明」不是漏填,是**那三次部署當時沒有人在記這件事**,回頭補等於編造。
+
+> **#963 之後(使用者 2026-10-01 裁定)這一欄由 CI 填**:`migrate.yml` 對每一顆綠的 main
+> commit 都跑 plan,step summary 寫差集。填法是 **`clean(migrate run <id>)`** ——
+> 去 Actions 找標題 `migrate @ <截線 SHA>` 那一顆:
+>
+> ```bash
+> gh run list --workflow migrate.yml --limit 30 --json databaseId,displayTitle,conclusion \
+>   -q '.[] | select(.displayTitle == "migrate @ <截線完整 SHA>")'
+> ```
+>
+> 上面那支 awk 產生差集 SQL、請使用者手跑的做法**退役** —— plan 每次比的就是**全部** version,
+> 不是窗口,#915 那種左邊界問題不再需要人工補查。
+> **生效條件**:使用者設好 `prod-db` / `prod-db-plan` 兩個 environment(#963 的 PR 描述有步驟),
+> 而且第一次 plan 是綠的。在那之前沿用舊流程。
+> **#968 合進 main 之前,`gh run list --workflow migrate.yml` 必然回
+> `HTTP 404: workflow migrate.yml not found on the default branch`** —— 那不是壞掉,
+> 是 GitHub 只認預設分支上的 workflow 檔。
 
 ### ⚠️ 這一欄的語意訂正(2026-09-30,#915)——**「套到 X」不蘊含「X 之前的全在」**
 
@@ -992,6 +1009,21 @@ curl -s -o /tmp/c -w '%{content_type}' "https://demo.clessia.cc/<chunk 名>"
 > 2026-09-13 計畫席裁定(#832 的 migration 差點被這條路漏掉),理由與更廣的形狀寫在
 > [`labor-reviewer.md`](labor-reviewer.md)「部署會撞上 schema,而 git 看不到正式 DB」那節。
 
+> **#963 之後的 ⓪(生效條件見上方截線表那節)**:查**截線那一顆**的 `migrate.yml` 結果,
+> 不再看 git 窗口、不再請使用者手跑差集:
+>
+> | 截線那顆的 migrate | ⓪ 判定 |
+> | --- | --- |
+> | plan 綠,summary 寫 `clean` | **放行** |
+> | apply 綠(套完差集 0) | **放行** |
+> | plan 綠,summary 寫 `after-deploy`(只剩 backfill 待套) | **放行部署**;部署完請使用者 dispatch `migrate.yml`,`deployed_sha` 填這次的截線(**完整 40 字元**;那顆 run 的標題就是它) |
+> | 任何一個 job 紅、apply 還在等 Approve、或那顆根本沒有 migrate run(被 concurrency 丟掉) | **停**,報計畫席與使用者;沒有 run 的話改選有結果的那顆當截線 |
+>
+> 分類不再是部署當下的人工判斷:backfill 由作者在檔頭寫 `-- clessia:apply after-deploy`,
+> 沒標的一律當 schema;兩類同批待套 plan 會紅(要分批合)。下面那張分類表是這條規則的由來。
+>
+> **舊流程(生效條件達成前沿用)**:
+
 ```bash
 git log --oneline <上次截線>..<這次截線> -- supabase/migrations
 ```
@@ -1015,12 +1047,14 @@ schema 是 api **依賴**的東西(`20260913101500` 的 CHECK:沒套就靜默 0 
 (第一個實例:2026-09-30 的 `20260913143909_backfill_parent_user_roles`,
 計畫席裁甲。本席當時擔心「漏掉那幾筆沒有東西會回頭發現」,**在冪等 backfill 上不成立。**)
 
-正式 DB 的 migration **一律由使用者親自套**(兩類都是)。
+正式 DB 的 migration **一律由使用者親合**(兩類都是)。#963 之後**由 `migrate.yml` 代套**、
+使用者在 `prod-db` environment 按 Approve;**任何人(含 agent)不得在 CI 外對正式 DB 跑 migration**。
 
 **而 ⓪ 的窗口式檢查有一個已知的左邊界問題**(見 [`labor-reviewer.md`](labor-reviewer.md)):
 它只看「這個窗口內有沒有新 migration」。**2026-09-30 的 #915 把那個推論變成了事實** ——
 正式 DB 漏了 `20260906083827`,而每一輪 ⓪ 都是綠的,因為那支不在任何一輪的窗口裡。
 **所以部署前除了跑 ⓪,每隔一段時間要請使用者跑一次上面那支差集查詢**(不是每次,它要人工)。
+**#963 之後這段退役** —— plan 每顆 main commit 都比全部 version。
 
 > **那一輪走完了(2026-09-30 13:1x)**:使用者套完 backfill 並驗 `parents_missing_role = 0`。
 > **順序是「部署 → 套」而不是「套 → 部署」,窗口確實是 0** ——

@@ -1,0 +1,224 @@
+# 正式 DB 的 migration 由 CI 代套（#963，使用者 2026-10-01 裁定）。
+#
+# **為什麼**：原本是使用者手貼 SQL 到 Supabase SQL Editor、再手動補 schema_migrations。
+# 兩天內兩次事故都出在「人在 CI 外面搬 SQL」：漏套一支（#915，線上 400）、
+# 貼上時 `$$` 被終端機吃掉（#921）。
+#
+# **把關點不變，而且是兩道**：
+#   1. 使用者親合 migration 的 PR（保留類）
+#   2. 使用者在 `prod-db` environment 按 Approve，apply 才會跑
+#
+# ## 流程
+#
+#   verify 在 main 上綠 ──► remote（只讀：撈正式 DB 的 version）──► plan（算差集）
+#                                                              ──► apply（等 Approve，再 db push）
+#
+# ## 安全邊界（#968 計畫席審出的洞，修法全部落地）
+#
+# repo 是 public。`workflow_run` 的 `branches: [main]` 比的是 **head_branch** ——
+# fork 的 PR 可以把分支取名叫 main。若 verify 哪天對 PR 跑，這支就會被觸發，而那一顆
+# 的程式碼是 fork 的。GitHub 文件把這個形狀列為 workflow_run 的「pwn request」。三層：
+#
+#   1. **入口**：只接「本 repo、main 上、push 事件」的 verify（`workflow_run.event`、
+#      `head_repository`、`head_branch` 三個都比），以及 main 上的手動 dispatch。
+#      另外 checkout 之後驗 SHA 是 main 的祖先（在 main 上的 commit 才可信）。
+#   2. **帶 secret 的 job 不執行 repo 的程式碼**：
+#      - `remote`（帶 secret）不 checkout，只跑 runner 內建的 psql
+#      - `plan`（跑 repo 的 migrate-plan.mjs）**沒有 environment、拿不到 secret**
+#      - `apply`（帶 secret）只執行 supabase CLI 與內嵌 shell；它要套的 SQL 本來就是
+#        repo 的內容 —— 那正是使用者在 Approve 時審的東西
+#   3. **environment 的 Deployment branches = main**：這層擋得住「從別的分支 dispatch」，
+#      **擋不住 workflow_run**（那種 run 的 ref 永遠是預設分支）—— 所以它是第二道，不是唯一一道。
+#
+# - **verify 沒綠就不碰正式 DB。** verify 的 seed-reset job 已經在 CI 的本機 stack
+#   上真的跑過一次全部 migration —— 那是套正式之前的彩排。
+# - plan 對**每一顆**綠的 main commit 都跑：差集 0 就結束，step summary 寫「clean」。
+#   ⓪（`herdr-team/review-steward.md`）與截線表的「正式 DB 套到」欄讀的就是這個結果，
+#   不再靠使用者手跑差集 SQL。
+# - 判斷邏輯在 `tools/agent-harness/lib/migration-plan.mjs`（有測試），跟
+#   `supabase db push` 的拒絕條件一致；**CI 永遠不帶 `--include-all`**。
+#
+# ## schema 與 backfill 的順序相反（#905）
+#
+# backfill 類的檔案第一行寫 `-- clessia:apply after-deploy`：plan 看到它就**不往 apply 走**，
+# 等部署完由使用者手動 dispatch 這支（填部署的截線 SHA）。沒標的一律當 schema（套完才部署）。
+# 兩類同批待套會紅 —— 一次 db push 拆不開，要分批合併。
+#
+# ## 沒設定 secret 時
+#
+# fork 出去自架的客戶 repo 沒有 `SUPABASE_DB_URL`：plan 印一行「未設定，略過」然後綠燈結束，
+# **不會對任何 DB 動手**（c12）。整個機制要退回手動流程，刪掉 environment 的 secret 即可。
+
+name: migrate
+
+# 標題帶 SHA：workflow_run 觸發的 run，GitHub 列表上的 headSha 是預設分支當下的 HEAD，
+# 不一定是 verify 驗的那一顆 —— ⓪ 要用標題找截線那一顆的結果。
+# dispatch（after-deploy backfill）時標題是 `deployed_sha`：⓪ 找的是「部署截線那顆」，
+# 不是 dispatch 當下 main 的 HEAD（#968 reviewer 審出）。所以 deployed_sha 只收完整 40 字元。
+run-name: migrate @ ${{ github.event.workflow_run.head_sha || inputs.deployed_sha || github.sha }}
+
+on:
+  workflow_run:
+    workflows: [verify]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deployed_sha:
+        description: '只有要套 after-deploy backfill 時才填：已經部署上線的截線（完整 40 字元 SHA）'
+        required: false
+
+permissions:
+  contents: read
+
+# concurrency **只掛在 apply**（#968 reviewer 審出）。頂層掛一個 group 的話，
+# `cancel-in-progress: false` 的同一個 group 最多只留一顆排隊中的 —— 第三顆一到，中間那顆就被丟掉
+# （verify.yml 的 #603 → #613 同一個形狀），於是合併密集日大多數 commit 沒有 plan 結果，⓪ 常態性找不到截線。
+# remote / plan 唯讀、互不干擾，每顆都要有結果，所以不設；只有碰正式 DB 的 apply 序列化。
+
+env:
+  # 釘版本：正式 DB 的寫入不跟 latest。升版要另開 PR、看 changelog 的 db push 段落。
+  SUPABASE_CLI_VERSION: 2.119.0
+  # 要套的那一顆。入口條件（下面 remote 的 if）保證它是本 repo main 上的 push 或 main 上的 dispatch
+  # dispatch 帶 deployed_sha 時套的就是**部署的那顆**，不是 dispatch 當下 main 的 HEAD（後者可能含
+  # 還沒驗、還沒部署的新 migration）；plan 會驗它在 main 上
+  TARGET_SHA: ${{ github.event.workflow_run.head_sha || inputs.deployed_sha || github.sha }}
+
+jobs:
+  # ── 帶 secret、不 checkout、不執行 repo 的任何程式碼 ──────────────────────────
+  remote:
+    if: >-
+      (github.event_name == 'workflow_run'
+        && github.event.workflow_run.conclusion == 'success'
+        && github.event.workflow_run.event == 'push'
+        && github.event.workflow_run.head_branch == 'main'
+        && github.event.workflow_run.head_repository.full_name == github.repository)
+      || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    environment: prod-db-plan
+    outputs:
+      configured: ${{ steps.fetch.outputs.configured }}
+      versions: ${{ steps.fetch.outputs.versions }}
+    steps:
+      # 唯讀：只撈 version（不是機密）。表不存在、連不上都會在這裡大聲失敗（ON_ERROR_STOP）。
+      - id: fetch
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::SUPABASE_DB_URL 未設定 —— 略過，不碰任何 DB'
+            exit 0
+          fi
+          versions=$(psql "$DB_URL" -v ON_ERROR_STOP=1 -At \
+            -c 'select version from supabase_migrations.schema_migrations order by 1' | paste -sd, -)
+          echo 'configured=true' >> "$GITHUB_OUTPUT"
+          echo "versions=$versions" >> "$GITHUB_OUTPUT"
+
+  # ── 執行 repo 的程式碼，所以**拿不到任何 secret**（沒有 environment）──────────────
+  plan:
+    needs: remote
+    if: needs.remote.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      state: ${{ steps.plan.outputs.state }}
+      pending: ${{ steps.plan.outputs.pending }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+
+      # 入口條件之外的再一道：要套的那顆必須已經在 main 上
+      - run: git merge-base --is-ancestor "$TARGET_SHA" origin/main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # dispatch 的輸入不直接內插進 shell（script injection）—— 走 env、只收 SHA 的形狀
+      - if: inputs.deployed_sha
+        env:
+          DEPLOYED_SHA: ${{ inputs.deployed_sha }}
+        run: |
+          if ! printf '%s' "$DEPLOYED_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "deployed_sha 要完整 40 字元 SHA（⓪ 用標題全字比對）：$DEPLOYED_SHA"; exit 1
+          fi
+          echo "部署者確認已上線的截線：\`$DEPLOYED_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - id: plan
+        env:
+          REMOTE_VERSIONS: ${{ needs.remote.outputs.versions }}
+        run: |
+          printf '%s\n' "$REMOTE_VERSIONS" | tr ',' '\n' > "$RUNNER_TEMP/remote.txt"
+          node tools/agent-harness/migrate-plan.mjs --remote "$RUNNER_TEMP/remote.txt" \
+            ${{ inputs.deployed_sha && '--deployed' || '' }}
+
+  # ── 帶 secret；只執行 supabase CLI 與內嵌 shell，不跑 repo 的腳本 ─────────────────
+  apply:
+    needs: [remote, plan]
+    if: needs.plan.outputs.state == 'apply'
+    runs-on: ubuntu-latest
+    # **使用者在這裡按 Approve** —— environment 設了 required reviewer，沒按就不會往下跑
+    environment: prod-db
+    # 同一時間只能有一顆在碰正式 DB，而且不殺正在跑的。排隊中被丟掉的那顆不會漏套：
+    # 下一顆 apply 的 db push 套的是全部待套檔
+    concurrency:
+      group: migrate-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TARGET_SHA }}
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      # 等核准的期間可能過了很久 —— 重算一次，待套清單必須跟 plan 時一模一樣。
+      # 用內嵌 shell 而不是 migrate-plan.mjs：這個 job 帶 secret，不執行 repo 的腳本。
+      - name: 核准前後正式 DB 沒被動過
+        id: recheck
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          EXPECTED: ${{ needs.plan.outputs.pending }}
+        run: |
+          ls supabase/migrations/*.sql | sed -E 's#.*/([0-9]{14})_.*#\1#' | sort > "$RUNNER_TEMP/local.txt"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -At \
+            -c 'select version from supabase_migrations.schema_migrations order by 1' | sort > "$RUNNER_TEMP/remote.txt"
+          now=$(comm -23 "$RUNNER_TEMP/local.txt" "$RUNNER_TEMP/remote.txt" | paste -sd, -)
+          # 排在前面的另一顆 apply 已經把同一批套掉了（合併密集日的常態）—— 沒事可做，不是異常
+          if [ -z "$now" ]; then
+            echo '### 待套的已由前一顆 apply 套上，這顆不再 push' >> "$GITHUB_STEP_SUMMARY"
+            echo 'skip=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$now" != "$EXPECTED" ]; then
+            echo "待套清單跟 plan 時不一樣（plan：$EXPECTED；現在：$now）—— 停"; exit 1
+          fi
+
+      - name: CLI 自己的判斷（留在 log 裡）
+        if: steps.recheck.outputs.skip != 'true'
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: supabase db push --db-url "$DB_URL" --dry-run
+
+      # 一支檔案的語句加上寫 history 那一列是同一個隱式 transaction：失敗就整支回滾、
+      # 不留 history 列（前面已成功的保留）。`CREATE INDEX CONCURRENTLY` 例外 —— 本 repo 沒有，
+      # 要寫的話請獨立成一支檔。**絕不帶 --include-all。**
+      - name: supabase db push
+        if: steps.recheck.outputs.skip != 'true'
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: supabase db push --db-url "$DB_URL" --yes
+
+      - name: 套完之後差集必須是 0
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -At \
+            -c 'select version from supabase_migrations.schema_migrations order by 1' | sort > "$RUNNER_TEMP/remote.txt"
+          missing=$(comm -23 "$RUNNER_TEMP/local.txt" "$RUNNER_TEMP/remote.txt" | paste -sd, -)
+          extra=$(comm -13 "$RUNNER_TEMP/local.txt" "$RUNNER_TEMP/remote.txt" | paste -sd, -)
+          echo "### 套完：repo 有、正式 DB 沒有：${missing:-無}；正式 DB 有、repo 沒有：${extra:-無}" >> "$GITHUB_STEP_SUMMARY"
+          [ -z "$missing" ] && [ -z "$extra" ]
