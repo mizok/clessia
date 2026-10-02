@@ -3,7 +3,7 @@ title: 學生報名
 summary: 管理員直接將學生加入開課班（跳過申請流程），適用現場報名、老生加報、特殊例外。
 category: spec
 status: active
-updated: 2026-08-19
+updated: 2026-10-02
 tags: [specs, admin, enrollment]
 ---
 
@@ -25,7 +25,7 @@ tags: [specs, admin, enrollment]
 
 1. 選擇學生（可搜尋）
 2. 選擇開課班
-3. 設定繳費週期（月繳 `monthly` / 期繳 `semester`）
+3. 設定計費模式 `billing_mode`（現行值與規則見 [[rules/enrollment-rules]] 的「計費模式規則」，這裡不複述）
 4. 設定生效起迄日期
 5. 選擇是否建立繳費單：
    - **是**：建立繳費單（`invoices`），狀態 `pending`；Enrollment 狀態設為 `pending_payment`
