@@ -27,6 +27,11 @@ import { extractScriptUrls, resolveBaseUrl, summarize } from './lib/smoke-probes
 import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
 import { guardedParamNames, unguardedCampusParams } from './lib/campus-param-guard.mjs';
 import {
+  declaredOrgTables,
+  orgTablesFromMigrations,
+  unscopedOrgWrites,
+} from './lib/org-scope-writes.mjs';
+import {
   findOrphanEndpoints,
   matchesPrefix,
   sendsParam,
@@ -1782,4 +1787,54 @@ test('findOrphanEndpoints 把沒人認領的端點列出來，不靜靜跳過', 
   const apiParams = { '/api/meals': ['date'], '/api/session-packs': ['studentId'] };
   const services = [{ file: 'meals.service.ts', source: '`${environment.apiUrl}/api/meals`' }];
   assert.deepEqual(findOrphanEndpoints(apiParams, services), ['/api/session-packs']);
+});
+
+// ── A23：對 org 表的 update / delete 要帶 org_id（c1，#966 B 批）─────────────────────────
+
+const ORG_TABLES = new Set(['campuses', 'sessions']);
+const orgWrites = (text) =>
+  unscopedOrgWrites([{ path: 'a.ts', text }], ORG_TABLES).map((h) => `${h.table}.${h.op}`);
+
+test('A23 紅：org 表的 update / delete 只用 id 定位', () => {
+  assert.deepEqual(orgWrites(`await supabase.from('campuses').update(x).eq('id', id);`), [
+    'campuses.update',
+  ]);
+  assert.deepEqual(
+    orgWrites(
+      `const { error } = await supabase\n  .from('sessions')\n  .delete()\n  .in('id', ids);`,
+    ),
+    ['sessions.delete'],
+  );
+});
+
+test('A23 綠：帶 .eq(org_id)、被 inOrg 包住、子表、只讀 —— 都不算', () => {
+  assert.deepEqual(
+    orgWrites(`await supabase.from('campuses').update(x).eq('id', id).eq('org_id', orgId);`),
+    [],
+  );
+  assert.deepEqual(
+    orgWrites(
+      `await inOrg(\n  supabase\n    .from('campuses')\n    .delete()\n    .eq('id', id),\n  orgId,\n);`,
+    ),
+    [],
+  );
+  assert.deepEqual(orgWrites(`await supabase.from('schedules').delete().eq('id', id);`), []);
+  assert.deepEqual(orgWrites(`await supabase.from('campuses').select('*').eq('id', id);`), []);
+});
+
+test('A23 的 org 表集合從 migration 推導：create 帶欄位、alter 補欄位、drop 移除', () => {
+  const tables = orgTablesFromMigrations([
+    `create table public.campuses (id uuid primary key, org_id uuid not null references organizations(id));`,
+    `CREATE TABLE public.schedules (id uuid, class_id uuid references classes(id));`,
+    `create table public.old_thing (id uuid, org_id uuid);`,
+    `ALTER TABLE public.events ADD COLUMN org_id uuid;`,
+    `-- create table public.commented (org_id uuid);\nDROP TABLE IF EXISTS public.old_thing;`,
+  ]);
+  assert.deepEqual([...tables].sort(), ['campuses', 'events']);
+});
+
+test('A23 讀得到 OrgTable union（型別即清單，要跟 migration 對照）', () => {
+  const src = `export type OrgTable =\n  | 'campuses'\n  | 'subjects';\nexport function inOrg() {}`;
+  assert.deepEqual([...declaredOrgTables(src)].sort(), ['campuses', 'subjects']);
+  assert.equal(declaredOrgTables('export type Other = string;'), null);
 });

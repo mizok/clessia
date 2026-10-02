@@ -3,7 +3,7 @@ title: 授權範圍 —— 分校、職務、細部權限
 summary: 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
 category: architecture
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 tags: [architecture, authorization, campus, teacher-scope, permissions, security]
 ---
 
@@ -178,6 +178,21 @@ harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一�
 `CampusScopeMissingError`** —— 那是 fail-closed 在作用，替身要宣告成 `null`。
 
 其餘寫入面的缺口（報名、學生、家長、班級、課堂、考試、金流，以及缺 `org_id` 的那批）見 #966 B／D 批。
+
+### 2026-10-02 補：寫入要以 `org_id` 定位（#966 B 批）
+
+上面都是 org **之內**的範圍。更底層的一道是 org 本身：API 走 service role，**少寫一個
+`.eq('org_id', orgId)` 不會報任何錯**，別 org 的 id 照樣改得動、刪得掉（c12 單租戶自架下可利用性低，
+但仍違反 c1）。收斂在 `lib/org-scope.ts`：
+
+- `findInOrg(supabase, table, orgId, id, columns)` —— 寫入前的存在檢查；**別 org 的 id 跟不存在一樣回 404**
+  （回 403 等於告訴對方「這個 id 存在」）。查詢失敗丟例外，不折成 null。
+- `inOrg(query, orgId)` —— **寫入本身也帶**，不只前面讀一次。兩層各有偵測器：讀取那層由路由 spec
+  釘（`routes/org-scope-writes.spec.ts`，替身 `test-utils/multi-org-db.ts` 真的照條件過濾、沒實作的方法一律丟），
+  寫入那層由 harness **A23** 釘（ratchet，帳面 `tools/agent-harness/org-scope-baseline.json` 只能往下）。
+- `OrgTable` 型別即清單：子表（`schedules`、`invoice_items`…）傳不進去 —— 它們要驗的是父列。
+
+分批與盤點在 #966 的「B 批設計提案」留言。
 
 ### 2026-09-13 補：接上了 ≠ 生效了 —— PostgREST 的 left join 會把 scope 吃掉（#815）
 

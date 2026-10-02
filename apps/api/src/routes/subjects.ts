@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { countSubjectUsage } from '../lib/subject-usage';
+import { findInOrg, inOrg } from '../lib/org-scope';
 import { DbUuidSchema } from '../lib/validation';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
@@ -152,12 +153,16 @@ app.openapi(updateRoute, async (c) => {
 
   // 改名要記得**改之前**叫什麼 —— 只記新名字的話，稽核紀錄回答不了
   // 「原本那個科目去哪了」（#828）
-  const { data: before } = await supabase.from('subjects').select('name').eq('id', id).single();
+  // 同時是 org 範圍的存在檢查：別 org 的 id 跟不存在一樣回 404（c1，#966 B1）
+  const before = await findInOrg(supabase, 'subjects', orgId, id, 'name');
+  if (!before) {
+    return c.json({ error: '科目不存在', code: 'NOT_FOUND' }, 404);
+  }
 
-  const { data, error } = await supabase
-    .from('subjects')
-    .update({ name: body.name.trim() })
-    .eq('id', id)
+  const { data, error } = await inOrg(
+    supabase.from('subjects').update({ name: body.name.trim() }).eq('id', id),
+    orgId,
+  )
     .select('id, name, sort_order')
     .single();
 
@@ -188,7 +193,7 @@ app.openapi(updateRoute, async (c) => {
       // 裸 action（`create` / `update` / `delete`）—— `resource_type` 已經帶了實體種類，
       // 前綴是重複的。見 PR #828 對 `school.*` 的收斂說明。
       action: 'update',
-      details: { from: before?.name ?? null, to: data.name },
+      details: { from: before['name'] ?? null, to: data.name },
     },
     waitUntilFrom(c),
   );
@@ -222,6 +227,7 @@ const deleteRoute = createRoute({
       content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
     },
     400: { description: '錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+    404: { description: '科目不存在', content: { 'application/json': { schema: ErrorSchema } } },
     409: {
       description: '科目已被課程或校內考使用，無法刪除',
       content: { 'application/json': { schema: ErrorSchema } },
@@ -238,6 +244,12 @@ app.openapi(deleteRoute, async (c) => {
   const orgId = c.get('orgId');
   const userId = c.get('userId');
   const { id } = c.req.valid('param');
+
+  // 刪之前先讀名字（刪完就查不到了），同時是 org 範圍的存在檢查（c1，#966 B1）
+  const existing = await findInOrg(supabase, 'subjects', orgId, id, 'name');
+  if (!existing) {
+    return c.json({ error: '科目不存在', code: 'NOT_FOUND' }, 404);
+  }
 
   // `courses.subject_id` 是 ON DELETE RESTRICT，DB 本身就會擋，這裡查是為了
   // 給友善訊息（說出被幾門課程用著）。
@@ -286,10 +298,7 @@ app.openapi(deleteRoute, async (c) => {
     );
   }
 
-  // 刪之前先讀名字 —— 刪完就查不到了（形狀照 `campuses.ts` 的 delete）
-  const { data: existing } = await supabase.from('subjects').select('name').eq('id', id).single();
-
-  const { error } = await supabase.from('subjects').delete().eq('id', id);
+  const { error } = await inOrg(supabase.from('subjects').delete().eq('id', id), orgId);
 
   if (error) {
     return c.json({ error: error.message, code: 'DB_ERROR' }, 400);
@@ -302,7 +311,7 @@ app.openapi(deleteRoute, async (c) => {
       userId,
       resourceType: 'subject',
       resourceId: id,
-      resourceName: existing?.name ?? null,
+      resourceName: (existing['name'] as string | null) ?? null,
       action: 'delete',
     },
     waitUntilFrom(c),
