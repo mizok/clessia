@@ -24,6 +24,15 @@
     白畫面換閃爍。
   -->
     <style>
+      /*
+       * #991 T4：PrimeNG overlay 在 runtime 逐一掃 document.styleSheets 找 `-anchor-gutter`，
+       * 碰到沒有 .style 的規則（@charset、@layer…）就丟例外、**整支樣式表跳過**。
+       * Aura 的定義進了 @layer primeng、styles.css 開頭是 @charset，兩邊都找不到 →
+       * 下拉跟觸發鈕之間的 2px 消失。所以放在這支 <style> 的**第一條**。值同 Aura 預設。
+       */
+      :root {
+        --p-anchor-gutter: 2px;
+      }
       .app-splash {
         --app-splash-surface: #f4f4f5; /* zinc-100，與 body 同底 */
         --app-splash-ink: #18181b; /* zinc-900 */

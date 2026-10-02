@@ -155,6 +155,16 @@
 
   /* Transitions */
   --transition-fast: 0.12s ease;
+
+  /* =============================================================================
+     PrimeNG token 覆寫（#991 T4）
+     PrimeNG 進 layer 之後，「只想改預設狀態」的覆寫要寫成 token，不能寫成 class 規則 ——
+     class 規則在 legacy layer 一律贏，會連 hover／checked／focus／invalid 一起蓋掉。
+     ============================================================================= */
+  --p-checkbox-border-color: var(--zinc-300);
+  --p-checkbox-border-radius: var(--radius-sm);
+  --p-textarea-border-color: var(--zinc-300);
+  --p-textarea-border-radius: var(--radius-md);
 }
 
 /* =============================================================================
@@ -678,10 +688,6 @@
       border-radius: var(--radius-sm);
       transition: background var(--transition-fast);
 
-      &:hover {
-        background: rgba(0, 0, 0, 0.08);
-      }
-
       &:focus {
         box-shadow: 0 0 0 2px var(--accent-500);
       }
@@ -1042,46 +1048,14 @@
     }
   }
 
-  .p-checkbox {
-    .p-checkbox-box {
-      border: 1px solid var(--zinc-300);
-      border-radius: var(--radius-sm);
-    }
-  }
-
-  textarea.p-textarea,
-  .p-textarea {
-    border: 1px solid var(--zinc-300);
-    border-radius: var(--radius-md);
-
-    &:focus {
-      border-color: var(--accent-500);
-      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
-    }
-  }
-
   /* =============================================================================
      Form Input Global Styles
      ============================================================================= */
+  /* #991 T4：預設框色、transition、:focus、::placeholder 四條拿掉了 —— 它們跟 Aura 同分或較低分，
+     從沒生效過（focus 環還是舊的天藍色）；進 legacy layer 之後會變成一律贏，連 .p-invalid 的紅框都蓋掉。 */
   .p-inputtext {
-    border-color: var(--zinc-200);
-    transition:
-      border-color var(--transition-fast),
-      box-shadow var(--transition-fast);
-
     &:hover:not(:disabled):not(:focus) {
       border-color: var(--zinc-400);
-    }
-
-    &:focus {
-      border-color: var(--accent-500);
-      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
-    }
-
-    &::placeholder {
-      // 刻意留 zinc-400（對白 2.60）——「還沒填」本來就該比「已填」淡，
-      // 提到 zinc-500 會讓 placeholder 讀起來像已經有值。要不要動是獨立的設計題。
-      color: var(--zinc-400);
     }
   }
 
@@ -1763,15 +1737,6 @@
   }
 
   @include bp.respond-to('tablet-portrait') {
-    .p-paginator {
-      display: flex;
-      align-items: center;
-      flex-wrap: nowrap;
-      justify-content: center;
-      gap: var(--space-2);
-      padding: var(--space-2) var(--space-3);
-    }
-
     .p-paginator .p-paginator-pages,
     .p-paginator .p-paginator-first,
     .p-paginator .p-paginator-last,
