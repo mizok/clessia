@@ -39,6 +39,10 @@
     "roots": ["apps/api/src/middleware", "apps/api/src/routes"],
     "exts": [".ts"]
   },
+  "css-layer-order": {
+    "roots": ["apps/web/src"],
+    "exts": [".css", ".scss", ".ts"]
+  },
   "dual-track-table": {
     "roots": ["apps/web/src"],
     "exts": [".html", ".ts"]

@@ -27,6 +27,7 @@ import { extractScriptUrls, resolveBaseUrl, summarize } from './lib/smoke-probes
 import { definedClasses, unstyledInteractive } from './lib/orphan-class.mjs';
 import { guardedParamNames, unguardedCampusParams } from './lib/campus-param-guard.mjs';
 import { rootVariables, themeMappingProblems } from './lib/tailwind-theme.mjs';
+import { layerOrderProblems } from './lib/css-layer-order.mjs';
 import { hasInlineStyles, ledgerDiff, sourceConflicts, sourcePaths } from './lib/scss-ledger.mjs';
 import {
   declaredOrgTables,
@@ -1876,6 +1877,42 @@ test('A25 紅：同名自我參照放在會輸出的區塊（少了 reference）
   const p = themeMappingProblems(`@theme inline { --text-xs: var(--text-xs); }`, STYLES);
   assert.equal(p.length, 1);
   assert.match(p[0], /自我參照/);
+});
+
+// ── A26：cascade layer 順序三處一致（#991 T4）──────────────────────────────────────────
+
+const LAYERS = {
+  tailwindCss: `/* x */\n@layer theme, base, primeng, legacy, utilities;\n@import 'x';`,
+  stylesScss: `@use 'bp';\n:root { --a: 1; }\n@layer theme, base, primeng, legacy, utilities;\n@layer legacy {\n}`,
+  appConfigTs: `cssLayer: { name: 'primeng', order: 'theme, base, primeng, legacy' },`,
+};
+
+test('A26 綠：三處一致、PrimeNG 的 order 是前綴', () => {
+  assert.deepEqual(layerOrderProblems(LAYERS), []);
+});
+
+test('A26 紅：PrimeNG 的 order 漏了 legacy 以外的順序（legacy 會排到 primeng 前面）', () => {
+  const p = layerOrderProblems({
+    ...LAYERS,
+    appConfigTs: `cssLayer: { name: 'primeng', order: 'theme, base, legacy, primeng' },`,
+  });
+  assert.equal(p.length, 1);
+  assert.match(p[0], /不是 tailwind\.css 順序的前綴/);
+});
+
+test('A26 紅：cssLayer 被改回 false', () => {
+  const p = layerOrderProblems({ ...LAYERS, appConfigTs: `cssLayer: false,` });
+  assert.equal(p.length, 1);
+  assert.match(p[0], /utilities 永遠贏不了 Aura/);
+});
+
+test('A26 紅：styles.scss 的順序跟 tailwind.css 不一致', () => {
+  const p = layerOrderProblems({
+    ...LAYERS,
+    stylesScss: `@layer theme, base, legacy, primeng, utilities;`,
+  });
+  assert.equal(p.length, 1);
+  assert.match(p[0], /styles\.scss 的 layer 順序/);
 });
 
 // ── c6 的 Tailwind class 載體（#991 T1）────────────────────────────────────────────────
