@@ -2182,10 +2182,13 @@ app.openapi(
     }
 
     if (!dryRun && plan.updatedIds.length > 0) {
-      const { error: updateError } = await supabase
-        .from('sessions')
-        .update({ teacher_id: body.toTeacherId, assignment_status: 'assigned' })
-        .in('id', plan.updatedIds);
+      const { error: updateError } = await inOrg(
+        supabase
+          .from('sessions')
+          .update({ teacher_id: body.toTeacherId, assignment_status: 'assigned' })
+          .in('id', plan.updatedIds),
+        orgId,
+      );
 
       if (updateError) {
         return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
@@ -3021,10 +3024,10 @@ app.openapi(
 
     if (sessionIds.length > 0) {
       // 軟刪除：更新狀態為 cancelled
-      const { error: updateError } = await supabase
-        .from('sessions')
-        .update({ status: 'cancelled' })
-        .in('id', sessionIds);
+      const { error: updateError } = await inOrg(
+        supabase.from('sessions').update({ status: 'cancelled' }).in('id', sessionIds),
+        orgId,
+      );
 
       if (updateError) {
         return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);

@@ -464,10 +464,10 @@ app.openapi(updateRoute, async (c) => {
 
       if (sessionIds.length > 0) {
         // 軟刪除：更新狀態為 cancelled
-        const { error: updateError } = await supabase
-          .from('sessions')
-          .update({ status: 'cancelled' })
-          .in('id', sessionIds);
+        const { error: updateError } = await inOrg(
+          supabase.from('sessions').update({ status: 'cancelled' }).in('id', sessionIds),
+          orgId,
+        );
 
         if (updateError) {
           return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
@@ -495,7 +495,10 @@ app.openapi(updateRoute, async (c) => {
 
         if (insertError) {
           // Rollback sessions
-          await supabase.from('sessions').update({ status: 'scheduled' }).in('id', sessionIds);
+          await inOrg(
+            supabase.from('sessions').update({ status: 'scheduled' }).in('id', sessionIds),
+            orgId,
+          );
           return c.json({ error: insertError.message, code: 'DB_ERROR' }, 400);
         }
 
