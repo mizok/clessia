@@ -22,12 +22,11 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-02 21:0x 部署，labor-reviewer-20261001-2204）
+## 🚀 線上是哪一版（2026-10-02 21:1x 第二次部署，labor-reviewer-20261001-2204）
 
-**截線 `02631f95`**（#972；最近一顆 verify success 的 main commit）：web `main-O3RKE5HU.js`、api `1c68c557`（**api 由使用者親自跑 `wrangler deploy`**，auto mode 分類器擋了本席的 production deploy）、`cf-placement: remote-SIN`（`[placement] region = "aws:ap-southeast-1"`，#945）。
-這批含 #931 帳單作廢（api 端點 `/api/invoices/{id}/void`）、#972 分校範圍、#1015–#1038 的 web 修正。**main HEAD `9516ae40`（#977）不在內**：它只帶 migration＋seed＋kb、無 app 程式碼。
-**正式 DB**：09-30 16:0x 差集 0；10-01 10:3x 使用者套 #921、#934 —— **之後差集未重跑**。`migrate.yml` 在 `02631f95` 的 plan／apply 被 skipped（`prod-db` environment 未設），所以 CI 沒給差集；差集 SQL（產生器在 `review-steward.md`）已 pbcopy 給使用者，預期只回 `20261001073913`（#977，純 `SET DEFAULT`，尚未套）。
-**部署驗證**：web 線上＝本機 build；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html；`openapi.json` 127 條路徑、`/api/invoices/{id}/void` 在、`excludeArchived` 1、正控 `all_parents` 1。**web 先上、api 後上之間有一段「新 web＋舊 api」的混合態**（#931／#1016 的 api 端點尚未在）。
+**截線 `ac7da903`**（#975；#974／#975 的 verify 與 `migrate.yml` 皆 success）：web `main-O3RKE5HU.js`（**未重發**：`02631f95..ac7da903` 無 web／packages 改動，本機 build 與線上同 hash）、api `d5fd099c`（使用者親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。含 #974（權限只能給自己有的）、#975（12 支寫入守分校）。
+**⓪ 例外（計畫席 10-02 裁定，不是新規則）**：窗口含 #977 的 `20261001073913`，**部署時尚未套到正式 DB**。放行理由：只改欄位預設值（`SET DEFAULT`）、程式兩種出勤模式皆支援、與這批授權改動無依賴；本席已在本機 `BEGIN…ROLLBACK` 試過（套後 `'daily_checkin'`、回滾後 `'per_session'`）。**差集結果使用者尚未回**；回了若只有該列，再 pbcopy migration 原文請其套，套完以 `select column_default from information_schema.columns where table_name='organizations' and column_name='attendance_mode'` 驗。
+**部署驗證的限度**：workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html；`openapi.json` 與前一版**逐路徑相同**（127→127、無新增／移除）——#974／#975 是行為收緊、沒有新路由，**所以 openapi 證明不了新程式碼上線**，只證明服務正常、版本 ID 已換。「是 `ac7da903` 的程式碼」這一點的依據是：部署在 HEAD＝`ac7da903`、工作樹乾淨的 worktree 裡由使用者執行，**沒有線上可查的內容探針**；行為層驗證需要帶身分的受限管理員打一次被擋的寫入。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 📋 等使用者
