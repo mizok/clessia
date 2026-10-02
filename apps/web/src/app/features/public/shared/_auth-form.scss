@@ -73,6 +73,22 @@
     margin-bottom: var(--space-6);
   }
 
+  // 標題上方的眉標（「最後一步」「報名服務」…）。4 頁在用，#1085 之前沒有任何規則
+  &__badge {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    letter-spacing: 0.04em;
+    color: var(--zinc-600);
+  }
+
+  &__subtitle {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: var(--leading-relaxed);
+    color: var(--zinc-600);
+  }
+
   &__title {
     margin: 0 0 var(--space-2) 0;
     font-size: var(--text-2xl);

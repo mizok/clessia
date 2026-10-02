@@ -75,9 +75,11 @@
     transform: translateY(0);
   }
 
+  // disabled 只發生在送出中（文字已換成「前往 LINE...」＋spinner）。不用 opacity：
+  // 這顆鍵的文字對比本來就只有 2.26:1（使用者知情選的，見 specs/public/login.md），
+  // 再乘 0.6 會更低（#1085，charter 坑 27）
   &__line-btn:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
+    cursor: progress;
   }
 
   // 官方素材是白色的、按鈕也是白底，所以放進綠底 chip ——
