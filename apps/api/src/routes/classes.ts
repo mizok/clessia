@@ -1387,6 +1387,11 @@ app.openapi(
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
+    // 指名的老師要屬於本 org（c1，#966 B5a）。任課資格（分校／科目）是 #854 的另一題，不在這裡
+    if (body.teacherId && !(await findInOrg(supabase, 'staff', orgId, body.teacherId))) {
+      return c.json({ error: '老師不存在', code: 'TEACHER_NOT_FOUND' }, 404);
+    }
+
     const { data, error } = await supabase
       .from('schedules')
       .insert({
@@ -2042,6 +2047,11 @@ app.openapi(
 
     if (!cls) {
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+    }
+
+    // 指名的老師要屬於本 org（c1，#966 B5a）
+    if (!(await findInOrg(supabase, 'staff', orgId, body.toTeacherId))) {
+      return c.json({ error: '老師不存在', code: 'TEACHER_NOT_FOUND' }, 404);
     }
 
     const { data: classSessions, error: classSessionsError } = await supabase

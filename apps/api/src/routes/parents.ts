@@ -9,6 +9,7 @@ import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
 import { DbUuidSchema } from '../lib/validation';
+import { inOrg } from '../lib/org-scope';
 
 // ============================================================
 // Schemas
@@ -497,10 +498,13 @@ app.openapi(
     const { error: insertRoleError } = await insertParentRole(supabase, createdUserId!);
 
     if (insertRoleError) {
-      await supabase
-        .from('parents')
-        .delete()
-        .eq('id', (parentRow as Record<string, unknown>)['id'] as string);
+      await inOrg(
+        supabase
+          .from('parents')
+          .delete()
+          .eq('id', (parentRow as Record<string, unknown>)['id'] as string),
+        orgId,
+      );
       await rollback();
       return c.json({ error: insertRoleError.message, code: 'CREATE_PARENT_ROLE_FAILED' }, 400);
     }
@@ -515,10 +519,13 @@ app.openapi(
       }));
       const { error: relError } = await supabase.from('parent_student_relations').insert(relations);
       if (relError) {
-        await supabase
-          .from('parents')
-          .delete()
-          .eq('id', (parentRow as Record<string, unknown>)['id'] as string);
+        await inOrg(
+          supabase
+            .from('parents')
+            .delete()
+            .eq('id', (parentRow as Record<string, unknown>)['id'] as string),
+          orgId,
+        );
         await rollback();
         return c.json({ error: relError.message, code: 'CREATE_RELATIONS_FAILED' }, 400);
       }
@@ -702,10 +709,10 @@ app.openapi(
     if (body.notes !== undefined) updatePayload['notes'] = body.notes;
 
     if (Object.keys(updatePayload).length > 0) {
-      const { error: updateError } = await supabase
-        .from('parents')
-        .update(updatePayload)
-        .eq('id', id);
+      const { error: updateError } = await inOrg(
+        supabase.from('parents').update(updatePayload).eq('id', id),
+        orgId,
+      );
       if (updateError) {
         return c.json({ error: updateError.message, code: 'UPDATE_PARENT_FAILED' }, 400);
       }
@@ -839,10 +846,10 @@ app.openapi(
       return c.json({ error: '家長不存在', code: 'NOT_FOUND' }, 404);
     }
 
-    const { error: updateError } = await supabase
-      .from('parents')
-      .update({ status: 'active' })
-      .eq('id', id);
+    const { error: updateError } = await inOrg(
+      supabase.from('parents').update({ status: 'active' }).eq('id', id),
+      orgId,
+    );
 
     if (updateError) {
       return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
@@ -909,10 +916,10 @@ app.openapi(
       return c.json({ error: '家長不存在', code: 'NOT_FOUND' }, 404);
     }
 
-    const { error: updateError } = await supabase
-      .from('parents')
-      .update({ status: 'inactive' })
-      .eq('id', id);
+    const { error: updateError } = await inOrg(
+      supabase.from('parents').update({ status: 'inactive' }).eq('id', id),
+      orgId,
+    );
 
     if (updateError) {
       return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
@@ -984,10 +991,10 @@ app.openapi(
       return c.json({ error: '家長已封存', code: 'ALREADY_ARCHIVED' }, 400);
     }
 
-    const { error: updateError } = await supabase
-      .from('parents')
-      .update({ status: 'archived' })
-      .eq('id', id);
+    const { error: updateError } = await inOrg(
+      supabase.from('parents').update({ status: 'archived' }).eq('id', id),
+      orgId,
+    );
 
     if (updateError) {
       return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
@@ -1675,7 +1682,7 @@ app.openapi(
           const { error: insertRoleError } = await insertParentRole(supabase, createdUserId!);
 
           if (insertRoleError) {
-            await supabase.from('parents').delete().eq('id', parentId);
+            await inOrg(supabase.from('parents').delete().eq('id', parentId), orgId);
             try {
               await auth.api.removeUser({ body: { userId: createdUserId! }, asResponse: false });
             } catch {
@@ -1828,7 +1835,7 @@ app.openapi(
             relError,
           );
           // 嘗試刪除剛建立的學生（best effort）
-          await supabase.from('students').delete().eq('id', studentId);
+          await inOrg(supabase.from('students').delete().eq('id', studentId), orgId);
           studentsCreated--;
           throw new Error('建立家長學生關聯失敗，請稍後再試');
         }
