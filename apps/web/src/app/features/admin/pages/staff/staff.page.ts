@@ -427,6 +427,13 @@ export class StaffPage implements OnInit {
           // 建完立刻給連結：櫃檯把 QR 給對方掃，是綁定成功率最高的時刻
           if (result.data && result.loginUrl) {
             this.openLoginLinkDialog(result.data, result.loginUrl);
+          } else if (result.data) {
+            // 後端 mint 失敗時 loginUrl 是 null —— 不說的話櫃檯不知道連結沒出來（#1028）
+            this.messageService.add({
+              severity: 'warn',
+              summary: '人員已建立',
+              detail: '但登入連結沒產生：請到列表用「產生登入連結」重試',
+            });
           }
         }
       });
