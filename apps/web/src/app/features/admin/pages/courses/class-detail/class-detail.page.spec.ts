@@ -119,6 +119,27 @@ describe('ClassDetailPage', () => {
     expect(host.querySelector('.class-detail__band-grade')).not.toBeNull();
   });
 
+  /**
+   * #999：移除學生的確認文案原本寫「此操作不留紀錄」—— 跟事實相反：刪除報名在後端會寫
+   * `audit_logs`（`enrollment` / `delete`，#851 接上的）。後半句「無法復原」仍然成立。
+   * 元件自己 `providers` 了 `DialogService`，所以從元件的 injector 拿，不是 TestBed 的 mock。
+   */
+  it('移除學生的確認文案不宣稱「不留紀錄」，並說明紀錄會保留', () => {
+    const dialog = fixture.debugElement.injector.get(DialogService);
+    const open = vi.spyOn(dialog, 'open').mockReturnValue(null as never);
+
+    (component as unknown as { confirmRemove: (e: unknown) => void }).confirmRemove({
+      id: 'enr-1',
+      studentName: '王小明',
+    });
+
+    const message = (open.mock.calls[0][1] as { data: { message: string } }).data.message;
+    expect(message).toContain('王小明');
+    expect(message).toContain('無法復原');
+    expect(message).toContain('操作紀錄會保留');
+    expect(message).not.toContain('不留紀錄');
+  });
+
   it('shows grade chips in the hero summary block', () => {
     // hero 併進橘帶之後 chip 改叫 __band-grade（同一個東西、同一個位置）
     const gradeChip = fixture.nativeElement.querySelector('.class-detail__band-grade');
