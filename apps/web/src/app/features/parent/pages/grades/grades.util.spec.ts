@@ -10,6 +10,7 @@ const record = (overrides: Partial<ParentScoreRecord> = {}): ParentScoreRecord =
   score: 88,
   totalScore: 100,
   status: 'scored',
+  description: null,
   ...overrides,
 });
 

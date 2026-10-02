@@ -40,6 +40,8 @@ const ParentScoreRecordSchema = z
      * 不及格，而家長看到的正是比較寬鬆的那個。見 #377 的討論。
      */
     passScore: z.number().nullable(),
+    /** 考試描述：校內考的範圍說明（`scope_note`），段考一律 `null`（#1076） */
+    description: z.string().nullable(),
   })
   .openapi('ParentScoreRecord');
 

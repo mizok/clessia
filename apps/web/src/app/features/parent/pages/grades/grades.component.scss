@@ -52,6 +52,40 @@
     border-radius: var(--radius-lg);
   }
 
+  // #1076：可展開的那筆。外框（底色、圓角）搬到 __item，summary 本身只管排版
+  &__item {
+    background: var(--zinc-50);
+    border-radius: var(--radius-lg);
+  }
+
+  &__record--expandable {
+    min-height: 44px;
+    cursor: pointer;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+  }
+
+  &__chevron {
+    font-size: var(--text-xs);
+    color: var(--zinc-500);
+    transition: transform var(--transition-fast);
+  }
+
+  &__item[open] &__chevron {
+    transform: rotate(180deg);
+  }
+
+  &__desc {
+    margin: 0;
+    padding: 0 var(--space-3) var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--zinc-700);
+    white-space: pre-line;
+  }
+
   &__record-date {
     color: var(--zinc-500);
     font-size: var(--text-sm);
