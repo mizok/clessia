@@ -49,30 +49,50 @@ function toArray<T>(value: T | T[] | null | undefined): T[] {
 }
 
 /**
- * 查出這個 event 的授課老師，然後判斷。**查詢失敗一律當成不通過** ——
- * 授權的洞幾乎都長在「查不到就放行」上。
+ * 老師寫出勤的三種結果。**原本是 boolean（`assertTeacherCanWriteAttendance`）**，#920 加了第三種
+ * 「機構由行政負責點名」時一併改名 —— 回字串的函式若還叫 assert…／can…，漏改的
+ * `if (!(await …))` 會**永遠是 false（非空字串是 truthy）而靜靜全放行**，typecheck 不會報。
  */
-export async function assertTeacherCanWriteAttendance(
+export type TeacherAttendanceWriteAccess = 'ok' | 'not-yours' | 'not-responsible';
+
+/**
+ * 查出這個 event 的授課老師與機構的點名責任，然後判斷。**查詢失敗一律當成不通過** ——
+ * 授權的洞幾乎都長在「查不到就放行」上。
+ *
+ * **行政負責點名（`attendance_responsible = 'admin'`）的機構，老師一律不能寫（#920）。**
+ * 老師端在那種機構只給唯讀的到班狀態；這道原本只靠老師端不渲染點名鈕（c1：前端隱藏
+ * UI 不構成授權）。讀不到設定時跟前端、補登窗同一個預設：`'admin'`。
+ */
+export async function teacherAttendanceWriteAccess(
   supabase: SupabaseClient,
   params: { orgId: string; userId: string; roles: readonly string[]; eventId: string },
-): Promise<boolean> {
-  if (params.roles.includes('admin')) return true;
-  if (!params.roles.includes('teacher')) return false;
+): Promise<TeacherAttendanceWriteAccess> {
+  if (params.roles.includes('admin')) return 'ok';
+  if (!params.roles.includes('teacher')) return 'not-yours';
 
-  const [{ data: ownStaff }, { data: sessionRows, error }] = await Promise.all([
-    supabase
-      .from('staff')
-      .select('id')
-      .eq('user_id', params.userId)
-      .eq('org_id', params.orgId)
-      .maybeSingle(),
-    supabase
-      .from('sessions')
-      .select('teacher_id, schedules!schedule_id(teacher_id)')
-      .eq('event_id', params.eventId),
-  ]);
+  const [{ data: org, error: orgError }, { data: ownStaff }, { data: sessionRows, error }] =
+    await Promise.all([
+      supabase
+        .from('organizations')
+        .select('attendance_responsible')
+        .eq('id', params.orgId)
+        .maybeSingle(),
+      supabase
+        .from('staff')
+        .select('id')
+        .eq('user_id', params.userId)
+        .eq('org_id', params.orgId)
+        .maybeSingle(),
+      supabase
+        .from('sessions')
+        .select('teacher_id, schedules!schedule_id(teacher_id)')
+        .eq('event_id', params.eventId),
+    ]);
 
-  if (error) return false;
+  if (orgError || error) return 'not-yours';
+  const responsible =
+    (org as { attendance_responsible?: string } | null)?.attendance_responsible ?? 'admin';
+  if (responsible !== 'teacher') return 'not-responsible';
 
   const rows = (sessionRows ?? []) as EventOwnershipRow[];
 
@@ -83,5 +103,7 @@ export async function assertTeacherCanWriteAttendance(
     scheduledTeacherIds: rows.flatMap((row) =>
       toArray(row.schedules).map((schedule) => schedule?.teacher_id ?? null),
     ),
-  });
+  })
+    ? 'ok'
+    : 'not-yours';
 }

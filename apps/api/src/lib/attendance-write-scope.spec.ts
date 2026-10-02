@@ -2,10 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import {
-  assertTeacherCanWriteAttendance,
-  canTeacherWriteAttendance,
-} from './attendance-write-scope';
+import { canTeacherWriteAttendance, teacherAttendanceWriteAccess } from './attendance-write-scope';
 
 const base = {
   roles: ['teacher'],
@@ -75,6 +72,9 @@ function supabaseStub(options: {
   sessionsError?: boolean;
   ownStaffId?: string | null;
   teacherId?: string | null;
+  /** `organizations.attendance_responsible`；預設 'teacher'（老師負責點名，範圍檢查才有意義） */
+  responsible?: string | null;
+  orgError?: boolean;
 }): SupabaseClient {
   return {
     from(table: string) {
@@ -82,10 +82,20 @@ function supabaseStub(options: {
         select: () => query,
         eq: () => query,
         maybeSingle: () =>
-          Promise.resolve({
-            data: options.ownStaffId === null ? null : { id: options.ownStaffId ?? 'me' },
-            error: null,
-          }),
+          Promise.resolve(
+            table === 'organizations'
+              ? {
+                  data:
+                    options.responsible === null
+                      ? null
+                      : { attendance_responsible: options.responsible ?? 'teacher' },
+                  error: options.orgError ? { message: 'boom' } : null,
+                }
+              : {
+                  data: options.ownStaffId === null ? null : { id: options.ownStaffId ?? 'me' },
+                  error: null,
+                },
+          ),
         then: (onfulfilled?: ((value: unknown) => unknown) | null) =>
           Promise.resolve(
             table === 'sessions' && options.sessionsError
@@ -108,37 +118,60 @@ function supabaseStub(options: {
 
 const params = { orgId: 'org-1', userId: 'user-1', roles: ['teacher'], eventId: 'event-1' };
 
-describe('assertTeacherCanWriteAttendance', () => {
+describe('teacherAttendanceWriteAccess', () => {
   it('是自己的課就放行', async () => {
-    await expect(assertTeacherCanWriteAttendance(supabaseStub({}), params)).resolves.toBe(true);
+    await expect(teacherAttendanceWriteAccess(supabaseStub({}), params)).resolves.toBe('ok');
   });
 
-  // 突變測試抓到過：把這裡改成 `return true` 時，原本整組測試仍然全綠
+  // 突變測試抓到過：把這裡改成放行時，原本整組測試仍然全綠
   it('查課堂失敗時拒絕，不是放行', async () => {
     await expect(
-      assertTeacherCanWriteAttendance(supabaseStub({ sessionsError: true }), params),
-    ).resolves.toBe(false);
+      teacherAttendanceWriteAccess(supabaseStub({ sessionsError: true }), params),
+    ).resolves.toBe('not-yours');
   });
 
   it('查不到自己的 staff 列時拒絕', async () => {
     await expect(
-      assertTeacherCanWriteAttendance(supabaseStub({ ownStaffId: null }), params),
-    ).resolves.toBe(false);
+      teacherAttendanceWriteAccess(supabaseStub({ ownStaffId: null }), params),
+    ).resolves.toBe('not-yours');
   });
 
   it('不是自己的課就拒絕', async () => {
     await expect(
-      assertTeacherCanWriteAttendance(supabaseStub({ teacherId: 'someone-else' }), params),
-    ).resolves.toBe(false);
+      teacherAttendanceWriteAccess(supabaseStub({ teacherId: 'someone-else' }), params),
+    ).resolves.toBe('not-yours');
   });
 
-  // 管理員不查資料庫就通過 —— 這支每次寫入都會跑，不該為管理員多打兩支查詢
-  it('管理員直接放行', async () => {
+  // #920：行政負責點名的機構，老師端只能看
+  it('行政負責點名的機構，自己的課也拒絕（not-responsible）', async () => {
     await expect(
-      assertTeacherCanWriteAttendance(supabaseStub({ teacherId: 'someone-else' }), {
-        ...params,
-        roles: ['admin'],
-      }),
-    ).resolves.toBe(true);
+      teacherAttendanceWriteAccess(supabaseStub({ responsible: 'admin' }), params),
+    ).resolves.toBe('not-responsible');
+  });
+
+  // 讀不到設定時跟前端、補登窗同一個預設（'admin'）—— 往「不能寫」那邊倒
+  it('讀不到機構設定時當成行政負責', async () => {
+    await expect(
+      teacherAttendanceWriteAccess(supabaseStub({ responsible: null }), params),
+    ).resolves.toBe('not-responsible');
+  });
+
+  it('查機構設定失敗時拒絕', async () => {
+    await expect(
+      teacherAttendanceWriteAccess(supabaseStub({ orgError: true }), params),
+    ).resolves.not.toBe('ok');
+  });
+
+  // 管理員不查資料庫就通過 —— 這支每次寫入都會跑，不該為管理員多打查詢
+  it('管理員直接放行（行政負責的機構也是）', async () => {
+    await expect(
+      teacherAttendanceWriteAccess(
+        supabaseStub({ teacherId: 'someone-else', responsible: 'admin' }),
+        {
+          ...params,
+          roles: ['admin'],
+        },
+      ),
+    ).resolves.toBe('ok');
   });
 });

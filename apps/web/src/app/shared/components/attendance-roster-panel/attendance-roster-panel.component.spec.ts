@@ -65,6 +65,7 @@ describe('AttendanceRosterPanelComponent', () => {
 
   let activeRole: ReturnType<typeof signal<'teacher' | 'admin'>>;
   let panelDate: string;
+  let panelReadOnly: boolean;
 
   async function render(students: unknown[] = DEFAULT_STUDENTS) {
     rosterStudents = students;
@@ -78,6 +79,7 @@ describe('AttendanceRosterPanelComponent', () => {
   beforeEach(async () => {
     activeRole = signal<'teacher' | 'admin'>('teacher');
     panelDate = todayLocal();
+    panelReadOnly = false;
     rosterStudents = DEFAULT_STUDENTS;
     cancelLeaveResponse = {
       leavesDeleted: 1,
@@ -101,7 +103,12 @@ describe('AttendanceRosterPanelComponent', () => {
           // 已經來不及，config 在 configureTestingModule 當下就定死了
           useValue: {
             get data() {
-              return { eventId: 'event-1', className: '數學班 A', eventDate: panelDate };
+              return {
+                eventId: 'event-1',
+                className: '數學班 A',
+                eventDate: panelDate,
+                readOnly: panelReadOnly,
+              };
             },
           },
         },
@@ -114,6 +121,24 @@ describe('AttendanceRosterPanelComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
+  });
+
+  /**
+   * #920：行政負責點名的機構，老師端看名單用唯讀模式。
+   * 只是畫面上不給按 —— 真正的擋在 API（老師寫入一律 403），這裡守的是「不要給一顆必然失敗的按鈕」。
+   */
+  it('唯讀模式：看得到名單與狀態，但沒有切換、全部出席、儲存、他來了', async () => {
+    panelReadOnly = true;
+    await render();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.textContent).toContain('王小明');
+    expect(el.textContent).toContain('李小華');
+    expect(el.textContent).toContain('由行政人員點名');
+    expect(el.querySelector('.roster-panel__toggle')).toBeNull();
+    expect(el.textContent).not.toContain('儲存點名');
+    expect(el.textContent).not.toContain('全部出席');
+    expect(el.textContent).not.toContain('他來了');
   });
 
   it('在修改點名時仍顯示請假學生，且不提供切換按鈕', () => {

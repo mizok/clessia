@@ -32,6 +32,12 @@ export interface RosterPanelSession {
    * 一個不同步的數字擺在正在編輯的畫面上，比沒有更糟。
    */
   timeRange?: string;
+  /**
+   * 只看不點（#920）：機構由行政負責點名（`attendance_responsible = 'admin'`）時，老師端仍要看得到
+   * 自己課堂的名單與到／假／缺，但不給出席／缺席切換、「他來了」與儲存。
+   * **這是畫面上的唯讀，不是授權** —— API 的寫入端點在那種機構對老師一律 403。
+   */
+  readOnly?: boolean;
 }
 
 @Component({
@@ -223,6 +229,7 @@ export class AttendanceRosterPanelComponent implements OnInit {
    * 這是端到端實測才發現的：service 被 mock 的單元測試看不到這條規則。
    */
   protected canCancelLeave(): boolean {
+    if (this.session.readOnly) return false;
     return this.auth.activeRole() === 'admin' || this.session.eventDate === todayLocal();
   }
 

@@ -108,4 +108,35 @@ describe('SettingsPage', () => {
     expect(bodyText()).toContain('出勤紀錄模式');
     expect(bodyText()).not.toContain('載入失敗');
   });
+
+  // #920：API 早就收 attendanceResponsible，之前只缺 UI —— 老師端整層點名／日誌／聯絡簿只能靠改 DB 打開
+  describe('誰負責點名', () => {
+    it('選中的是讀回來的值', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(
+        of({ ...DAILY_CHECKIN, attendanceResponsible: 'teacher' }),
+      );
+      await setup();
+
+      expect(bodyText()).toContain('誰負責點名');
+      expect(component['attendanceResponsibleValue']).toBe('teacher');
+    });
+
+    it('儲存只送 attendanceResponsible，不夾帶出勤模式', async () => {
+      await setup();
+      component['attendanceResponsibleValue'] = 'teacher';
+
+      component['saveAttendanceResponsible']();
+
+      expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({
+        attendanceResponsible: 'teacher',
+      });
+    });
+
+    it('取數失敗時這一段也不渲染（不能把沒讀到的預設值存回去，#805）', async () => {
+      orgSettingsServiceMock.getSettings.mockReturnValue(throwError(() => new Error('boom')));
+      await setup();
+
+      expect(bodyText()).not.toContain('誰負責點名');
+    });
+  });
 });
