@@ -115,6 +115,15 @@
           </td>
           <td appRtColCell="actions">
             <p-button
+              icon="pi pi-pencil"
+              severity="secondary"
+              [text]="true"
+              size="small"
+              pTooltip="編輯請假"
+              ariaLabel="編輯請假"
+              (onClick)="openEditDialog(record)"
+            />
+            <p-button
               icon="pi pi-trash"
               severity="danger"
               [text]="true"
