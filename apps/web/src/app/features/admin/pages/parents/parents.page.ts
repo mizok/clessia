@@ -450,6 +450,8 @@ export class ParentsPage implements OnInit {
 
     this.parentsService.createLoginLink(parent.userId).subscribe({
       next: (res) => this.openLoginLinkDialog(parent, res.url),
+      // 403（權限或分校範圍不夠，#464／#966）是永久拒絕 —— 顯示伺服器說的原因，不叫人「稍後再試」
+      // （loginLinkErrorDetail 對 403 優先採伺服器訊息；其餘錯誤碼給可行動文案，#1006）
       error: (err) => {
         this.messageService.add({
           severity: 'error',

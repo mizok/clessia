@@ -21,8 +21,14 @@ describe('loginLinkErrorDetail（#1006）', () => {
     expect(loginLinkErrorDetail(http('LINK_FAILED'), '家長')).toContain('稍後再試');
   });
 
-  it('403 FORBIDDEN → 說權限不足，而不是叫人重試', () => {
-    expect(loginLinkErrorDetail(http('FORBIDDEN', 403), '家長')).toContain('權限');
+  it('403 → 照伺服器說的原因（含 #966 的 OUT_OF_SCOPE），不用寫死文案蓋掉', () => {
+    expect(loginLinkErrorDetail(http('OUT_OF_SCOPE', 403), '家長')).toBe('後端的話');
+    expect(loginLinkErrorDetail(http('FORBIDDEN', 403), '家長')).toBe('後端的話');
+  });
+
+  it('403 但伺服器沒給訊息 → 退回「沒有權限」文案，而不是叫人重試', () => {
+    const e = new HttpErrorResponse({ status: 403, error: { code: 'FORBIDDEN' } });
+    expect(loginLinkErrorDetail(e, '家長')).toContain('權限');
   });
 
   it('未知錯誤碼或非 HTTP 錯誤 → 退回通用句，不噴物件', () => {

@@ -3,7 +3,9 @@ import type { AppEnv } from '../index';
 import { mintLoginLinkForRequest } from './login-links/mint';
 import { decideLoginLinkTarget } from './login-links/target';
 import { requiredPermissionsForTarget } from './login-links/permission';
+import { loadTargetReach, reachWithinScope } from './login-links/scope';
 import { hasPermission } from '../lib/permissions';
+import { getCampusScope } from '../lib/campus-scope';
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -39,6 +41,10 @@ const createLinkRouteDef = createRoute({
     403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
     404: { description: '找不到', content: { 'application/json': { schema: ErrorSchema } } },
     422: { description: '無法產生', content: { 'application/json': { schema: ErrorSchema } } },
+    500: {
+      description: '查不出對象的分校',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
   },
 });
 
@@ -49,7 +55,8 @@ app.openapi(createLinkRouteDef, async (c) => {
 
   const [{ data: baUser }, { data: roleRows }] = await Promise.all([
     supabase.from('ba_user').select('email, orgId').eq('id', userId).maybeSingle(),
-    supabase.from('user_roles').select('role').eq('user_id', userId),
+    // permissions 是給分校範圍那一層算「對象是不是不受限的管理員」用的
+    supabase.from('user_roles').select('role, permissions').eq('user_id', userId),
   ]);
 
   const decision = decideLoginLinkTarget(
@@ -88,6 +95,29 @@ app.openapi(createLinkRouteDef, async (c) => {
 
   if (missing.length > 0) {
     return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+  }
+
+  /**
+   * **分校範圍**（#966 A 批）。連結就是帳號，所以鑄的人拿到的是對象看得到的全部 ——
+   * 對象看得到的分校必須全部在呼叫者範圍內。少了這層，只管 A 校的管理員替不受限的
+   * 管理員鑄一條連結就全拿了。判準在 `login-links/scope.ts`。
+   *
+   * 不受限的呼叫者不多查；查詢失敗一律拒絕（查不到 ≠ 沒有分校）。
+   */
+  const callerScope = getCampusScope(c);
+  if (callerScope !== null) {
+    let reach;
+    try {
+      reach = await loadTargetReach(supabase, callerOrgId, userId, roleRows ?? []);
+    } catch {
+      return c.json({ error: '查不出這個人的分校，無法產生連結', code: 'SCOPE_CHECK_FAILED' }, 500);
+    }
+    if (!reachWithinScope(callerScope, reach)) {
+      return c.json(
+        { error: '這個人有你管理範圍以外的分校，無法替他產生連結', code: 'OUT_OF_SCOPE' },
+        403,
+      );
+    }
   }
 
   const email = baUser?.['email'] as string | null;
