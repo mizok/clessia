@@ -14,16 +14,19 @@ tags: [architecture, tailwind, styling, primeng, c6, migration]
 > 改用 Tailwind 重新排過，**避免繼續使用 BEM + SCSS**」。
 >
 > 本頁每一個關於 Tailwind／PrimeNG／Angular 行為的敘述都附出處（官方文件或原始碼）。
-> 沒有查到、只是推定的，一律標 **〔未驗證〕**。
+> 第一版留下的九條〔未驗證〕已在 2026-10-02 用拋棄式 spike **逐條實測**，結論回填在各節，
+> 方法與版本見文末「實測紀錄」。**其中三條推翻了第一版的寫法**（標 ⚠️ 實測推翻）。
 
 ## 結論先講
 
 1. **c6 現有的 regex 抓不到 Tailwind 最常見的違規。** 它要求「數字緊接單位」（`[0-9](vh|vw|dvh|svh|lvh)`），
    所以 `h-[100vh]` 抓得到，**`h-screen`、`min-h-dvh`、`w-svw` 抓不到**，因為 class 名稱裡沒有數字。
-   補法分三層：
-   - **建置層**：用 `@source not inline(...)` 讓這些 class 根本不產生。
-   - **gate**：pre-guard 加一條認 class 名稱的規則，A12 跟著吃到。
+   Tailwind 4.3.3 共有 **71 個** class 會輸出 viewport 單位，**不只 `h`／`w`／`size`，還有邏輯屬性的 `block-*`、`inline-*` 族**（窮舉實測）。
+   補法：
+   - **gate**：pre-guard 加一條認 class 名稱的規則（實測 71／71、零誤判），A12 跟著吃到。
+   - **掃描範圍**：`source(none)` 加上 `@source "./app"`。⚠️ 實測：預設的自動偵測以 cwd 為根，Nx 的 cwd 是 repo 根目錄，**`kb/` 文件裡寫的 `md:h-screen` 會真的被產生進 bundle**。
    - **替代**：提供讀 `--window-*` 的 `h-window` 這類 utility。
+   - ⚠️ 實測推翻：第一版的「`@source not inline` 擋掉這些 class」**擋不住 variant**（`md:h-screen` 照樣產生），不能當防線。
 2. **PrimeNG 要從 `cssLayer: false` 改成放進 `primeng` layer**，這是官方的並存方式。
    **連帶效果是 cascade 勝負翻轉**：未分層的樣式一律贏過分層的，所以現有 SCSS 對 PrimeNG 的每一條覆寫都會自動勝出。
    以前靠 specificity 輸掉、所以「沒效」的規則，可能突然生效。這一步要在 47 頁 sitemap 上做視覺回歸。
@@ -56,32 +59,52 @@ gate A12（`check-harness.mjs` 的 `scanExisting({ clause: 'c6', … })`）**餵
 | `@apply h-screen;`（寫在 CSS 裡）                                  | ❌ 同上                                                                                             |
 | `md:h-screen`（加 variant）                                        | ❌ 同上                                                                                             |
 
-**會產生 viewport 單位的 utility**，以 height 為例，官方列出 `h-screen`、`h-dvh`、`h-dvw`、`h-lvh`、`h-lvw`、`h-svh`、`h-svw`
-（<https://tailwindcss.com/docs/height>）。`min-h-`、`max-h-`、`w-`、`min-w-`、`max-w-`、`size-` 是同一族。
-〔未驗證：每一族的完整清單，實作時以 Tailwind 原始碼的 utility 定義核對，不要照本頁的列舉抄。〕
+**會產生 viewport 單位的 utility —— 實測窮舉**：用 Tailwind 4.3.3 的 design system API（`__unstable__loadDesignSystem` → `getClassList()` → `candidatesToCss()`）
+把**全部 23,286 個 class** 逐一轉成 CSS，輸出含 `vh`／`vw`／`dvh`／`dvw`／`svh`／`svw`／`lvh`／`lvw` 的共 **71 個**，分屬這些族：
 
-### 1.2 補法：三層，缺一層就有洞
+- `h`、`min-h`、`max-h`、`w`、`min-w`、`max-w`、`size`
+- ⚠️ **第一版漏掉的邏輯屬性族**：`block`、`min-block`、`max-block`（`block-size`），`inline`、`min-inline`、`max-inline`（`inline-size`）。例如 `block-screen` → `block-size: 100vh`。
 
-**① 建置層：不產生。** `@source not inline()` 會阻止指定的 class（**含它們的 variant**）被產生，**即使原始碼裡寫了**
-（<https://tailwindcss.com/docs/detecting-classes-in-source-files>，「Explicitly excluding classes」）。
+值的後綴是 `screen`、`dvh`、`dvw`、`svh`、`svw`、`lvh`、`lvw`（不是每族都有全部後綴）。
+**這份清單不手抄進規則**（c11）：Tailwind 升版時重跑一次窮舉（實測紀錄裡的方法），比對 regex 有沒有漏。
+
+### 1.2 補法
+
+**① ⚠️ 實測推翻：`@source not inline()` 不是防線。** 第一版寫它「會阻止指定的 class（含 variant）被產生」。實測（`@tailwindcss/node` 的 `compile().build()`）：
+排除規則寫 `{min-,max-,}{h,w,block,inline}-{screen,…}` 時，`h-screen` 確實不產生，**但 `md:h-screen`、`hover:h-screen` 照樣產生**。
+官方範例 `{hover:,focus:,}bg-red-…` 是**把 variant 逐一列進 pattern**。responsive、state、任意 variant 列不完，所以這一層**拿掉**。
+
+**①' 掃描範圍：`source(none)` 是必要的，不是選配。** `@tailwindcss/postcss` 的掃描根目錄是 `options.base ?? process.cwd()`（`dist/index.mjs`），而 Nx 執行建置時的 cwd 是 **repo 根目錄**。
+實測：在 spike 專案根目錄放一份 Markdown，內容是「範例：`bg-lime-950`、`md:h-screen`」，production build 的全域 CSS **真的產生了 `.md\:h-screen` 與 `.bg-lime-950`**；連 spike 裡驗證腳本的陷阱字串也被撿進去。
+換成下面的寫法之後兩者都消失，app 用到的 class 照常產生（官方語法：<https://tailwindcss.com/docs/detecting-classes-in-source-files>，「Disabling automatic detection」）：
 
 ```css
-/* apps/web/src/tailwind.css —— c6：這些 utility 直接產生 viewport 單位 */
-@source not inline("{min-,max-,}{h,w}-{screen,dvh,dvw,svh,svw,lvh,lvw}");
-@source not inline("size-{screen,dvh,dvw,svh,svw,lvh,lvw}");
+@import 'tailwindcss/utilities.css' layer(utilities) source(none);
+@source "./app";
 ```
 
-**它單獨不夠**：寫了 `h-screen` 只會**靜靜地沒有樣式**，作者看到的是「高度沒撐開」，而不是違規訊息。所以還要第 ② 層。
+**本 repo 少了這兩行的後果**：`kb/` 裡任何一份提到 `h-screen` 的文件（例如本頁）都會讓正式 bundle 多出違反 c6 的 CSS，而**沒有任何一道 gate 掃得到**：gate 看的是原始碼，不是產物。
 
 **② gate：認 class 名稱。** 在 `pre-guard.rules.json` 加 c6 規則，路徑涵蓋 `.html`、`apps/web/src/**/*.ts`（inline template、`[ngClass]`）、`.css`、`.scss`（`@apply`）：
 
 ```
-(?<![\w-])(?:[\w-]+:)*(?:min-|max-)?(?:h|w|size)-(?:screen|[dsl]v[hw])(?![\w-])
+(?<![\w-])!?(?:[\w-]+:)*!?(?:min-|max-)?(?:h|w|size|block|inline)-(?:screen|[dsl]v[hw])!?(?![\w-])
 ```
+
+**實測**（對全部 23,286 個 class）：
+
+- 這條抓到 **71／71、誤判 0**；第一版的草案（只有 `h`、`w`、`size`）**漏 24 個（34%）**。
+- 八個陷阱全抓：`md:h-screen`、`hover:min-h-dvh`、`h-screen!`、`!h-screen`、`lg:max-inline-svw`、`dark:md:w-dvw`、`[&>div]:h-svh`、`group-hover:block-lvh`。
+- 八個非違規全放：`h-screen-x`、`my-h-screen`、`h-[calc(var(--window-height,100dvh)*0.9)]`、`w-svg`、`h-full`、`inline-flex`、`inline-block`、`block`。
+- 對 repo 現有 `apps/web/src` 656 個 `.html`／`.ts`／`.scss`／`.css` **零命中**（上線不需要 baseline）。
 
 - A12 **自動跟著吃到**：它從同一份 `pre-guard.rules.json` 取規則，不必改 gate 的程式碼。這正是 enforcement 頁說的「兩層共用同一條規則，不會漂」。
 - 字串拼接出來的 class（`'h-' + x`）regex 看不到，但 **Tailwind 自己也看不到**（官方：class 名稱必須完整、靜態出現，<https://tailwindcss.com/docs/detecting-classes-in-source-files>），所以那種寫法本來就不會有樣式。不另外處理。
-- 〔未驗證：regex 要放進 harness 的 matcher 用既有測試框架驗，**先塞一個 `md:h-screen` 陷阱看它紅**，再寫綠的。〕
+- 實作時仍要放進 harness 的 matcher，用既有測試框架再驗一次（上面是在 spike 用同一條 regex 驗的，不是經過 `matchWriteRules`）。
+
+**②' 選配：掃產物。** 在 CI 的 `nx build web --configuration=production` 之後，用 c6 regex 掃 `dist/**/*.css`。不論 variant、任意值還是 `@apply`，最後都落在產物裡，所以這是**唯一不必列舉寫法**的一層。
+實測：修正後的 build **0 筆**；拿掉 `source(none)` 的 build **抓到 10 筆**。
+⚠️ **只能掃宣告的值，不能掃 selector**：合規的 `h-[calc(var(--window-height,100dvh)*0.9)]` 在 selector 裡被跳脫成 `var\(`，`var()` 例外認不出來，會誤判。
 
 **③ 替代：給一條合規的路。** 只有禁令沒有替代品的規則擋不住正當需求（`herdr-team/README.md`「開分支規範」那節的教訓）。
 
@@ -105,7 +128,10 @@ gate A12（`check-harness.mjs` 的 `scanExisting({ clause: 'c6', … })`）**餵
 要「九成高」這種比例的話，可以之後再加 functional utility（`--value()`）；現在不做。
 
 > **為什麼不直接覆寫 `h-screen` 讓它讀變數？** 那會讓名稱說謊：讀的人看到 `h-screen` 會以為是 `100vh`，而 c6 存在的理由正是兩者不同。
-> 另外，「`@utility` 能否覆寫同名的內建 utility」我沒有查到官方說法〔未驗證〕。
+> **實測還有第二個理由：覆寫不掉。** `@utility h-screen { height: var(--window-height, 100dvh); }` 的輸出是
+> `.h-screen { height: 100vh; height: var(--window-height, 100dvh); }`，兩份宣告**疊加**，`100vh` 仍在。
+>
+> `h-window` 搭 variant 實測正常：`md:h-window` 會產生在 `@media (width >= 48rem)` 裡。
 
 ---
 
@@ -120,7 +146,13 @@ PrimeNG 的 Tailwind 頁面（<https://primeng.dev/tailwind>，頁面顯示版�
   這樣 Tailwind utility 才能**不靠 `!important`** 覆寫元件樣式。
 - 搭配 `tailwindcss-primeui` 外掛（`@import "tailwindcss-primeui";`），把 PrimeNG 的語意色（`primary`、`surface`）映成 `bg-primary` 之類的 utility。
 
-〔未驗證：PrimeNG **21** 的同一頁。v20 與現行 v22 一致，推定 v21 相同。實作前在 21.1.x 上實測一次。〕
+**實測（PrimeNG 21.1.10，`@primeuix/styled` 0.7.4；repo 鎖的是 21.1.1，而 layer 邏輯住的 `@primeuix/styled` 同為 0.7.4）**：
+在單元測試環境掛一顆 `p-button`，設 `cssLayer: { name: 'primeng', order: 'theme, base, primeng' }`：
+
+- PrimeNG 注入一支 `data-primeng-style-id="layer-order"` 的 `<style>`，內容是 `@layer theme,base,primeng`；
+- 11 支注入的樣式裡 8 支包在 `@layer primeng{…}` 裡（其餘是 layer-order 本身與不含規則的空表）。
+
+行為跟 v20／v22 文件一致。原始碼出處：`@primeuix/styled` 的 `getLayerOrder()` 與 `transformCSS()`。
 
 ### 2.2 ⚠️ 現況是 `cssLayer: false`，改了之後勝負會翻轉
 
@@ -146,8 +178,12 @@ Tailwind 的 preflight 會重置 `h1`、`ul`、`img`、`button` 等基礎樣式�
 @layer theme, base, primeng, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
 /* preflight 刻意不匯入：過渡期它會改變所有既有頁面的基礎樣式 */
-@import 'tailwindcss/utilities.css' layer(utilities);
+/* source(none)：不讓 Tailwind 以 cwd（= repo 根目錄）自動掃描，見 1.2 ①' */
+@import 'tailwindcss/utilities.css' layer(utilities) source(none);
+@source './app';
 ```
+
+（spike 用這幾行 build 過：production build 成功，app 的 class 都產生，preflight 不在輸出裡。）
 
 入口頁全部重排完、BEM 頁面所剩不多時，再評估要不要打開。
 
@@ -178,9 +214,8 @@ Tailwind 預設**只輸出有被用到的** theme 變數（<https://tailwindcss.
   --*: initial;
   --spacing: 4px;
   --color-white: var(--color-white);
-  --color-zinc-50: var(
-    --zinc-50
-  ); /* …逐一映射，不手抄完整清單（c11）：由 styles.scss 的 :root 產生 */
+  /* …逐一映射，不手抄完整清單（c11）：由 styles.scss 的 :root 產生 */
+  --color-zinc-50: var(--zinc-50);
   --color-accent-400: var(--accent-400);
   --font-sans: var(--font-sans);
   --font-weight-normal: var(--font-normal);
@@ -192,17 +227,22 @@ Tailwind 預設**只輸出有被用到的** theme 變數（<https://tailwindcss.
 
 **映射表不手抄**（c11）。建議由 `styles.scss` 的 `:root` 產生，或加一道 gate：`@theme` 裡出現的每個名稱，都必須對應到 `styles.scss` 的一個變數，而且不得是 `--font-<weight>` 這種衝突名稱。
 
-**深色模式**：PrimeNG 用 `darkModeSelector: '.dark-mode'`。Tailwind 的 `dark:` variant 要對齊同一個 selector〔未驗證：v4 的 `@custom-variant` 寫法，實作時查官方 dark-mode 頁〕。
+**深色模式**：PrimeNG 用 `darkModeSelector: '.dark-mode'`。Tailwind 的 `dark:` variant 用 `@custom-variant` 對齊同一個 selector。
+實測（Tailwind 4.3.3）：`@custom-variant dark (&:where(.dark-mode, .dark-mode *));` 加上 `dark:bg-black`，輸出 `.dark\:bg-black:where(.dark-mode, .dark-mode *) { … }`。
 
 **`tailwindcss-primeui` 要不要裝**：它會帶來第二套色名（`primary`／`surface`），跟本專案的 `accent`／`zinc` 指向同一批顏色。兩套名字並存，等於讓下一個人猜該用哪個。**建議先不裝**，只用本專案 tokens。→ **待裁決點 3**。
 
 ### 2.5 斷點：剛好不用映射
 
 `apps/web/src/app/shared/_breakpoints.scss:9-12`：mobile 640、tablet-portrait 768、tablet-landscape 1024、desktop 1280。
-正好是 Tailwind 的 `sm`／`md`／`lg`／`xl` 預設值〔在 root font-size 16px 的前提下；Tailwind 預設以 rem 表示〕。
+正好是 Tailwind 的 `sm`／`md`／`lg`／`xl` 預設值（Tailwind 以 rem 表示，root font-size 16px 時相等）。實測輸出：`sm:` → `@media (width >= 40rem)`、`md:` → `48rem`、`lg:` → `64rem`、`xl:` → `80rem`。
 
-- `respond-from` 的 `+0.02px` 是為了避免 `max-width` 與 `min-width` 區塊在邊界上重疊；Tailwind 的 `max-*:` variant 用的是範圍語法〔未驗證：邊界是否包含〕。
-- 容器查詢（`respond-from-container`）對應 Tailwind 的 `@container` 與 `@sm:` 之類的 variant〔未驗證：v4 語法〕。
+- ⚠️ **正好 640px 的裝置會換邊**。實測 `sm:` 是 `width >= 40rem`（含 640）、`max-sm:` 是 `width < 40rem`（不含 640）。
+  專案舊的 `respond-to(mobile)` 是 `max-width: 640px`（含 640），`respond-from(mobile)` 是 `min-width: 640.02px`。
+  所以在正好 640px 的裝置上，**舊寫法算手機、Tailwind 算平板**。差一個像素寬，但重排時「同一支裝置看到的版型變了」要知道原因在這裡。
+- **容器查詢的預設尺寸跟專案不同**。實測 `@sm:` 是 `@container (width >= 24rem)`（384px），`@lg:` 是 32rem，跟專案用在容器的 640 起跳不一樣，**要自訂**。
+  實測 `--container-*` 驅動容器 variant、`--breakpoint-*` 驅動 media，而且都可以直接寫 px：`@theme { --container-tablet: 768px; }` → `@tablet:p-4` 輸出 `@container (width >= 768px)`。
+  自訂成 px 也順便拿掉「root font-size 是 16px」這個前提。
 
 ---
 
@@ -217,15 +257,24 @@ Tailwind 預設**只輸出有被用到的** theme 變數（<https://tailwindcss.
 | Tailwind 入口 | **新檔 `apps/web/src/tailwind.css`**（純 CSS），加進 `apps/web/project.json` 的 `build.options.styles` | 官方：v4「不是設計來跟 Sass、Less、Stylus 一起用的」（<https://tailwindcss.com/docs/compatibility>）。所以不放進 `styles.scss`                                                                                          |
 | `ng add`      | **用不了**：本 repo 沒有 `angular.json`（`AGENTS.md`）。照上面三列手動接                               | —                                                                                                                                                                                                                       |
 
-**順序**：`tailwind.css` 第一行就宣告 `@layer theme, base, primeng, utilities;`。layer 的順序由第一次出現決定，要在 PrimeNG 注入樣式之前就定好。
-〔未驗證：PrimeNG 在 runtime 注入的 `@layer primeng` 與 build 時宣告的順序，在 SSR 與 CSR 下是否都一致。〕
+**順序：實際上是 PrimeNG 先定的。** 實測加讀原始碼：PrimeNG 用 `first: true` 把 `layer-order` 那支 `<style>` **插在 `<head>` 的第一個位置**
+（`primeng-basecomponent.mjs:301-303` 呼叫 load、`primeng-usestyle.mjs:22` 的 `HEAD.insertBefore(styleRef, HEAD.firstChild)`），比全域樣式表的 `<link>` 還早。
+layer 順序由第一次出現決定，所以：
+
+- PrimeNG 的 `order` 寫 `'theme, base, primeng'`，`tailwind.css` 宣告 `theme, base, primeng, utilities`，`utilities` 就接在最後。**結果正確**（spike 的測試斷言 layer-order 在模擬的全域樣式之前）。
+- **兩邊字串必須一致**：PrimeNG 的 `order` 是 `tailwind.css` 那行的前綴。哪天有人只改一邊，順序會照 PrimeNG 那一行走。
+- 本 repo **沒有 SSR**（`apps/web/src` 沒有 server 入口），所以不用另外驗 SSR 的注入順序。
 
 **元件樣式**：新元件原則上**不寫元件樣式**，全部在 template 用 utility。真的需要時用 `.css`（不是 `.scss`），開頭 `@reference "<到 tailwind.css 的相對路徑>";` 才能 `@apply`
-（<https://tailwindcss.com/docs/compatibility>，CSS modules 的段落；Angular 元件樣式是同一種「各自編譯的樣式表」〔未驗證：Angular 元件 CSS 跑不跑同一支 PostCSS，實作時用一個 `@apply` 驗〕）。
+（<https://tailwindcss.com/docs/compatibility>，CSS modules 的段落）。
+**實測可用**：元件 `app.css` 寫 `@reference "../tailwind.css"; .probe-apply { @apply p-6 h-window; }`，production build 的輸出是
+`.probe-apply[_ngcontent-%COMP%]{height:var(--window-height, 100dvh);padding:calc(var(--spacing, .25rem) * 6)}`：`@apply` 展開、自訂 utility 可用、emulated encapsulation 照套。
+注意 `var(--spacing, .25rem)`：元件 CSS 引用的 theme 變數帶著 Tailwind 的預設 fallback，**全域 CSS 若沒有輸出那個變數，就會靜靜用 fallback**（Tailwind 只輸出有被用到的 theme 變數）。用了 `--*: initial` 之後，要確認 `--spacing` 這類基本變數在全域一定會輸出（`@theme static` 或在全域用到一次）。
 
-**掃描範圍**：`@source "./app";` 明寫在 `tailwind.css`，不依賴自動偵測〔未驗證：monorepo 下 `@tailwindcss/postcss` 自動偵測的根目錄是哪裡〕。
+**掃描範圍**：**必須** `source(none)` 加上 `@source "./app";`。實測與原始碼見 1.2 ①'：自動偵測的根目錄是 `process.cwd()`，Nx 底下就是 repo 根目錄，連 `kb/` 的 Markdown 都會被掃。
 
-**單元測試**：`@angular/build:unit-test` 是否也套 PostCSS〔未驗證〕。測試不比對樣式，影響低。
+**單元測試**：`@angular/build:unit-test` **有套 PostCSS**。實測：spec 讀元件注入的 `<style>`，`@apply` 已展開成 `--window-height`。
+反向對照：拿掉 `.postcssrc.json` 再跑，同一支 spec 變紅，因為 `@apply p-6 h-window;` 原封不動留在樣式裡。
 
 ### 3.2 prettier plugin（class 排序）
 
@@ -272,13 +321,13 @@ Tailwind 預設**只輸出有被用到的** theme 變數（<https://tailwindcss.
 
 這幾支 gate 解析的是 SCSS（`tools/agent-harness/lib/` 底下）。**頁面改用 Tailwind 之後，樣式活在 template 的 class 字串裡，它們什麼都看不到**，而且輸出還是綠的：
 
-| gate            | 守什麼                               | Tailwind 頁面上                             | 對應的補法（另開單）                                                                      |
-| --------------- | ------------------------------------ | ------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `scss-contrast` | 文字實際疊在哪個底上的對比           | 失明                                        | 解析 class 字串裡的 `text-*`／`bg-*` 配對，對到 token 值算對比                            |
-| `touch-target`  | 自刻可點元素的 44px 下限             | 失明                                        | 可點元素（`button`、`a`、`(click)`）的 class 要有 `min-h-11`、`size-11` 或等值            |
-| `mobile-first`  | 桌機優先（`respond-to`）只准變少     | 失明                                        | Tailwind 本身就是 mobile-first。新規則改成「新程式碼不得用 `max-*:` variant」             |
-| `orphan-class`  | template 的 class 在 SCSS 有沒有對應 | 不適用                                      | utility 拼錯會**靜靜沒樣式**。可以用 Tailwind 的候選比對驗 class 是否存在〔未驗證可行性〕 |
-| `band-contrast` | token 本身的值                       | **仍有效**：它看 `styles.scss`，tokens 不搬 | 不用動                                                                                    |
+| gate            | 守什麼                               | Tailwind 頁面上                             | 對應的補法（另開單）                                                                          |
+| --------------- | ------------------------------------ | ------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `scss-contrast` | 文字實際疊在哪個底上的對比           | 失明                                        | 解析 class 字串裡的 `text-*`／`bg-*` 配對，對到 token 值算對比                                |
+| `touch-target`  | 自刻可點元素的 44px 下限             | 失明                                        | 可點元素（`button`、`a`、`(click)`）的 class 要有 `min-h-11`、`size-11` 或等值                |
+| `mobile-first`  | 桌機優先（`respond-to`）只准變少     | 失明                                        | Tailwind 本身就是 mobile-first。新規則改成「新程式碼不得用 `max-*:` variant」                 |
+| `orphan-class`  | template 的 class 在 SCSS 有沒有對應 | 不適用                                      | utility 拼錯會**靜靜沒樣式**。實測可行：`candidatesToCss()` 對拼錯的 class 回空（見實測紀錄） |
+| `band-contrast` | token 本身的值                       | **仍有效**：它看 `styles.scss`，tokens 不搬 | 不用動                                                                                        |
 
 **判準**：第一頁 Tailwind 上線之前，至少 `touch-target` 與 `scss-contrast` 要有 class 版本。
 否則「gate 全綠」在那一頁上的意思會變成「沒有東西在看」，而輸出看不出來。
@@ -333,14 +382,24 @@ Tailwind 預設**只輸出有被用到的** theme 變數（<https://tailwindcss.
 6. **「不再新增 BEM＋SCSS」用棘輪 gate，不入憲**（5.3），同意嗎？
 7. **第一頁 Tailwind 上線前**，要求 `touch-target` 與 `scss-contrast` 先有 class 版本（4.3），同意嗎？
 
-## 實作前必須驗證的〔未驗證〕清單
+## 實測紀錄（2026-10-02，拋棄式 spike，不在 repo 內）
 
-- PrimeNG **21** 的 `cssLayer` 行為與 v20／v22 文件一致
-- 每一族 sizing utility 的完整 viewport 清單（1.1）
-- 新的 c6 regex 抓得到 `md:h-screen` 這類陷阱（1.2 ②）
-- `@utility` 能否覆寫同名內建 utility（1.2 ③ 的「為什麼不」）
-- 深色模式 `@custom-variant` 的 v4 寫法、容器查詢 variant 語法、`max-*:` 的邊界（2.4、2.5）
-- runtime 注入的 `@layer primeng` 與 build 時的 layer 順序宣告是否一致（3.1）
-- Angular 元件 `.css` 是否走同一支 PostCSS、`@reference` 能否用（3.1）
-- `@tailwindcss/postcss` 在 Nx monorepo 的自動偵測根目錄（3.1）
-- `@angular/build:unit-test` 是否套 PostCSS（3.1）
+**環境**：Angular 21.2（`@angular/build` 21.2.24）、Tailwind 4.3.3（`@tailwindcss/postcss` 4.3.3）、PrimeNG 21.1.10、`@primeuix/themes` 2.0.3、`@primeuix/styled` 0.7.4。
+repo 鎖的是 Angular 21.1.3、PrimeNG 21.1.1；`@primeuix/themes`／`@primeuix/styled` 版本相同。
+spike 用 `ng new` 建（npm 10 的 arborist 在 peer 解析時 `edgesOut` 崩潰，改用 npm 11 安裝；**沒有**用 `--legacy-peer-deps`）。
+
+| #   | 原本的〔未驗證〕                      | 實測結論                                                                                                                 | 方法                                      |
+| --- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| 1   | PrimeNG 21 的 `cssLayer`              | ✅ 與文件一致；layer-order 插在 head 最前面                                                                              | 單元測試掛 `p-button`，讀注入的 `<style>` |
+| 2   | 每一族 viewport utility 的完整清單    | ⚠️ **71 個，多出 `block`／`inline` 族**（第一版漏）                                                                      | design system API 窮舉 23,286 個 class    |
+| 3   | c6 class regex 抓不抓得到陷阱         | ✅ 修正版 71／71、誤判 0、8 陷阱全中；repo 656 檔零命中。草案漏 34%                                                      | 同上＋掃 `apps/web/src`                   |
+| 4   | `@utility` 能否覆寫同名內建           | ⚠️ **不能，兩份宣告疊加，`100vh` 仍在**                                                                                  | `compile().build()`                       |
+| 5   | dark、容器、`max-*:` 邊界             | ✅ `@custom-variant` 可對齊 `.dark-mode`；⚠️ 640px 換邊；容器預設 24rem 起跳要自訂                                       | 同上                                      |
+| 6   | runtime layer 順序                    | ✅ PrimeNG 先宣告，`utilities` 接在後面；兩邊字串要一致；repo 無 SSR                                                     | 原始碼＋單元測試                          |
+| 7   | 元件 `.css` 走 PostCSS、`@reference`  | ✅ 可用，`@apply` 展開、encapsulation 照套；注意 theme 變數 fallback                                                     | production build 讀產物                   |
+| 8   | 自動偵測的根目錄                      | ⚠️ **`process.cwd()` → Nx 底下是 repo 根，文件裡的 class 會被產生**；`source(none)` 修好                                 | 原始碼＋build 前後比對                    |
+| 9   | unit-test builder 套 PostCSS          | ✅ 有；拿掉 `.postcssrc.json` 的反向對照會紅                                                                             | 單元測試讀注入樣式                        |
+| 附  | 第一版的 `@source not inline` 建置層  | ⚠️ **擋不住 variant**，拿掉；改提「掃產物的宣告值」選配層                                                                | `compile().build()`、掃 dist              |
+| 附  | `orphan-class` 的 Tailwind 版可不可行 | ✅ 可行：`candidatesToCss()` 對拼錯的 class（`itme-center`、`p-44x`）回空。但 BEM class 也回空，只能套在純 Tailwind 元件 | design system API                         |
+
+**第一版被推翻的三處**（讀第一版的人要知道）：`@source not inline` 不是防線、c6 regex 漏了 `block`／`inline` 族、不加 `source(none)` 的話文件裡的 class 會進 bundle。
