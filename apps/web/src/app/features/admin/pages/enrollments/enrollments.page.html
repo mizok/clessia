@@ -48,8 +48,12 @@
     </p>
   } @else {
     <p class="enrollments__summary">
-      本頁 新報名 <strong>{{ joinedCount() }}</strong> 筆、退班
-      <strong>{{ leftCount() }}</strong> 筆，共 {{ total() }} 筆
+      <!--
+        只留全量的 T。原本「本頁 新報名 N 筆、退班 M 筆，共 T 筆」的 N／M 只算目前這一頁（≤20 列），
+        T 是伺服器全量，三個數字並排會被讀成同一個母體（#1022）。要全量的 N／M 得在列表 API 多做兩次
+        聚合（且那支有分校範圍的 inner join），等有設計真的需要再加。
+      -->
+      共 {{ total() }} 筆
     </p>
 
     <app-responsive-table

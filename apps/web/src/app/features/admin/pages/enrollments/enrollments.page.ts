@@ -113,13 +113,6 @@ export class EnrollmentsPage {
     this.enrollments().map((enrollment) => ({ enrollment, event: toEnrollmentEvent(enrollment) })),
   );
 
-  protected readonly joinedCount = computed(
-    () => this.rows().filter((row) => row.event.kind === 'joined').length,
-  );
-  protected readonly leftCount = computed(
-    () => this.rows().filter((row) => row.event.kind === 'left').length,
-  );
-
   protected readonly first = computed(() => (this.currentPage() - 1) * PAGE_SIZE);
 
   /** 分頁交給 app-responsive-table 內建的 paginator —— 表格與它的分頁不該被拆開 */
