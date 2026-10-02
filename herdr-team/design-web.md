@@ -598,6 +598,8 @@ coarse)').matches` 永遠是 `false`（teacher-pages 在 #516 先撞到、我在
 - **網址只比路徑、不比 hash**。否則 `href="#"` 的假連結（v22 的「更多」13 個）會被算成有回饋。
 - **收合段落先全部展開再量**。否則裡面的連結全部是「點擊逾時」—— 那不是失敗也不是通過，是**沒驗到**，而它在總數裡長得跟驗過一樣。
 
+**多頁並行跑用 `_tools/audit-many.sh <輸出資料夾> <並行數> 頁[#hash] …`**，不要自己在 `xargs sh -c` 裡組檔名 —— 10/02 批 3 一次引號嵌套把檔名吃掉，16 份結果全是 `"file":"","total":0,"dead":0`：**打開的是資料夾列表頁、一個元素都沒按，而 `dead: 0` 長得跟全過一模一樣**。腳本現在會把 total 0 印成「量測失敗」。並行數 4 以內（6 個同時跑會載入逾時）。
+
 另外三件：
 - **改前／改後要用同一版腳本重跑**。量法改了就兩邊都重跑，不要拿舊量法的「改前」比新量法的「改後」。改前基準用備份的 v22 檔案另開資料夾跑（不要在正在改的資料夾裡跑）。
 - **稽核跑的時候不要改它在讀的檔** —— 每按一次都重新載入頁面，改到一半的 a6.js 會讓那份結果作廢（批 0 課表手機那份就是這樣丟掉的）。
@@ -613,18 +615,20 @@ coarse)').matches` 永遠是 `false`（teacher-pages 在 #516 先撞到、我在
 - 主席要等**全部** fork 回報才動共用檔；動完所有頁重跑冒煙＋零件＋流程，再獨立重跑新頁的全量稽核（fork 自報的數字不算數）。
 - 每個 fork 都會各自在頁內複製同一批樣式（`.new`、圖示鈕、確認框危險色），收斂是主席的工作；這次收進 a6.css 的：`[hidden]`、`.new`、`.acset__in` 直排不撐、`textarea`、`.fdlg__foot` 黏底、`.pop` 貼著實際被按的那顆。
 
-## 四之二、#990 怎麼開工（給下一任）
+## 四之二、#990 怎麼接手（給下一任；2026-10-02 批 3 後蒸餾）
 
-- **artifact**：https://claude.ai/artifact/1ygX5JqxVqbcKMsriDWgqG（同一個 URL 一路迭代到 Version 22）。
-  更新方式：`Artifact` publish，`file_path`＝`.design-explorations/973-layout/index.html`、`root`＝該資料夾的**絕對路徑**、`files` 只帶這次改到的檔。
-  ⚠️ **設計稿資料夾只存在 `labor-20261001-1456` 那個 worktree 裡**（`.worktrees/labor-20261001-1456/.design-explorations/973-layout/`，被 gitignore）。
-  新席在自己的 worktree 裡**不會有它** —— 先把整個資料夾複製過來，或用 `Artifact` 的 read（`paths`）把要改的檔拉回來；**不要從零重做**。
-  那個 worktree 被清掉之後，artifact 就是唯一的來源。
-- **索引頁結構**：左側橘色品牌面＋段落導覽；右側由新到舊：每一輪一個 `<section id="r6x">`，最新的標「（最新）」，舊的保留當對照。改一版就在最上面加一節、把上一節的「（最新）」拿掉、導覽加一條連結。
-- **檔案分工**（`a6-editorial/`）：`a6.css` 殼與全站規則（檔尾按日期分段，每段開頭寫使用者原話）、`a6.js` 頁首／帳號選單／浮層定位／捲動陰影；五頁各一支 html（`<template id="notes">` 是設計說明，最上面一段寫最新修正）；課表另有 `schedule.css`／`schedule.js`（批次、快速選取面板、異動跑馬燈）。共用資料在 `shared/`：`data.js`（含 `org`、日到班 `todayExpected`／`checkins`）、`stress.js`（課表最壞情況）、`flow.js`（流場，元件原樣移植）、`proto.js`（右下導覽膠囊）、`world.css`（tokens）。
-- **playwright**：scratchpad 已裝 `node_modules/playwright`（1.60.0）；截圖用 `npx -y playwright@1.60.0 screenshot --viewport-size=1440,900|390,844 --wait-for-timeout=1500`。每輪都要量：尺寸、對比（對實際底色）、JS 錯誤、橫向溢出，桌機與手機各一。
-- **每輪回報格式**（計畫席要的）：改了什麼值（改前→改後表格）、對比、改到哪些檔、playwright 結果（含實按的互動）、截圖路徑、還沒解決的、待使用者裁的列成選項（**判斷不了的不要自己拍板**）。送完一定用 `send.sh` 的三步確認送達。
-- **#990 的三條標準**（按鈕可見回饋、彈出有進出場動畫、下拉全客製）：下拉那條已有規則（a6.css「下拉框統一規則」，套用清單寫在註解裡），新頁照抄；其他兩條先套回既有五頁再補新頁。
+- **artifact**：https://claude.ai/artifact/1ygX5JqxVqbcKMsriDWgqG（同一個 URL 一路迭代；批 3 交付約 Version 28）。
+  更新：`Artifact` publish，`file_path`＝`.design-explorations/973-layout/index.html`、`root`＝該資料夾**絕對路徑**、`files` 只帶這次改到的檔（共用的 `a6.js`／`a6.css`／`shared/*` 改了要一起帶）。
+  ⚠️ 設計稿資料夾被 gitignore，**只在上一任的 worktree 裡**（`.worktrees/labor-20261002-1234/.design-explorations/973-layout/`）。先整個複製過來（含 `_tools/`），worktree 被清掉後 artifact 是唯一來源（`Artifact` read 的 `paths` 可把檔案拉回來）。**不要從零重做。**
+- **進度（批 0–3 完成＝管理端 29 頁全部有 demo）**：剩批 4 老師端（課表、學生、通知 3 頁）、批 5 家長端（11 頁，其中 7 頁產品是佔位頁 → 照 `specs/parent/*.md` 畫完整頁）、批 6 公開頁（6 頁，照產品現狀搬、只補三條標準）。
+  頁名↔檔名看 `a6-editorial/a6.js` 的 `BUILT` 與 `shared/proto.js` 的 groups；每做完一批兩處都要加（否則「更多」點了跳「批 N 補上」、右下膠囊顯示成「儀表板」）。
+- **計畫席 10/02 已裁的（不要重問）**：設計稿一律照**應然規格**（`kb/wiki/specs/`、`kb/wiki/rules/`；rules 比 specs 新以 rules 為準），規格有產品沒有的標「新」、產品有規格沒寫的保留並在 notes 註記、產品 bug 不照抄而是列給計畫席開單；每頁 notes 第一段是「規格 vs 現況」差異表。
+  「更多」照產品選單分組與名稱；toast 深灰（`--gray-sheet`）底近黑字；日期欄用原生 input（不自刻 datepicker）；系統設定＝一支頁面 hash 分頁算 5 頁；公開頁照現狀搬；佔位頁照規格畫完整；考試完成後仍可修改；取消請假＝刪除請假單、還沒點名的回到「還沒點名」、已點名的不動（`rules/attendance-rules.md` §6–7）。
+- **驗收主軸是「導覽完整」**（使用者 10/02 14:5x）：每個連結、按鈕、列點下去都要真的到它指向的頁或對話框。寫入模擬從簡。每批交付附「按了沒變化」數字與「連結目標存在率」（批 3 後 100%）。
+- **做法：fork 並行**。指令範本在 `_tools/FORK-PROMPT.md`（照改頁名）。fork 只新增自己的頁；**主席等全部 fork 回報才改共用檔**，改完全站跑 `smoke`（19→24 頁 × 2 視口）、`kit-check`、`flows`，再用 `_tools/audit-many.sh` 獨立重跑新頁全量稽核（**fork 自報不算數** —— 批 2 主席重驗抓到兩件 fork 沒抓到的：⋯ 選單開到畫面外、審稿膠囊蓋住「儲存」）。
+- **共用零件**（a6.js／a6.css 檔尾 #990 段）：客製下拉（原生 select 隱藏留作資料來源，自動換）、`A2.toast`、`A2.act`、`A2.form`（select／text／date／time／money／radio／textarea 欄位、必填擋並寫「還沒填」）、`A2.forms.leave|checkin|pay`、全站 popover／dialog 進出場、`::details-content` 收合過渡、`.new`、全站搜尋。零件展示頁 `kit.html`。
+  fork 反覆要求、**還沒做**的：`A2.form` 的危險色送出鈕、`body`（純說明段落）、`validate`（跨欄位）、第三顆按鈕；`--dock-h` 變數（兩頁寫死 `bottom: 136px`）；`A2.sheet`（唯讀對話框，各頁各寫一份 `dlg()`）；`.icobtn` 收進 a6.css。依「寫入從簡」方針沒排，要做時一次收。
+- **每輪回報格式**（計畫席要的）：改了什麼（改前→改後）、改到哪些檔、playwright 結果（含實按）、截圖路徑、還沒解決的、待裁的列成選項、順帶發現的產品 bug（附檔案:行號）、Ctx。送完照 README「六」#988 三步確認送達（找內文關鍵字，不要比對第一行）。
 
 ## 五、進行中的狀態
 
