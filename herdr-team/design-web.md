@@ -632,7 +632,7 @@ coarse)').matches` 永遠是 `false`（teacher-pages 在 #516 先撞到、我在
 - **artifact**：https://claude.ai/artifact/1ygX5JqxVqbcKMsriDWgqG（同一個 URL 一路迭代；批 3 交付約 Version 28）。
   更新：`Artifact` publish，`file_path`＝`.design-explorations/973-layout/index.html`、`root`＝該資料夾**絕對路徑**、`files` 只帶這次改到的檔（共用的 `a6.js`／`a6.css`／`shared/*` 改了要一起帶）。
   ⚠️ 設計稿資料夾被 gitignore，**只在上一任的 worktree 裡**（`.worktrees/labor-20261002-1234/.design-explorations/973-layout/`）。先整個複製過來（含 `_tools/`），worktree 被清掉後 artifact 是唯一來源（`Artifact` read 的 `paths` 可把檔案拉回來）。**不要從零重做。**
-- **進度（批 0–5 完成＝管理端 29 頁＋老師端 3 頁＋家長端 11 頁，artifact Version 31）**：老師端檔名 `t-*.html`、家長端 `p-*.html`；`A2.shell({ role: 'teacher' | 'parent' })` 會換成該角色的頁首選單（沒有分校切換與搜尋；「切換身分」真的導到那個角色的首頁）。剩批 6 公開頁（6 頁，照產品現狀搬、只補三條標準）。
+- **進度（批 0–6 全部完成＝管理端 29＋老師端 3＋家長端 11＋公開頁 6 ＝ 47 頁，2026-10-03 artifact Version 32）**：老師端檔名 `t-*.html`、家長端 `p-*.html`；`A2.shell({ role: 'teacher' | 'parent' })` 會換成該角色的頁首選單（沒有分校切換與搜尋；「切換身分」真的導到那個角色的首頁）。公開頁檔名 `pub-*.html`，外框是 `A2.pub({ page }, html)`（照產品 public-shell 搬）。#990 的頁面覆蓋已經沒有剩下的批次。
   頁名↔檔名看 `a6-editorial/a6.js` 的 `BUILT` 與 `shared/proto.js` 的 groups；每做完一批兩處都要加（否則「更多」點了跳「批 N 補上」、右下膠囊顯示成「儀表板」）。
 - **計畫席 10/02 已裁的（不要重問）**：設計稿一律照**應然規格**（`kb/wiki/specs/`、`kb/wiki/rules/`；rules 比 specs 新以 rules 為準），規格有產品沒有的標「新」、產品有規格沒寫的保留並在 notes 註記、產品 bug 不照抄而是列給計畫席開單；每頁 notes 第一段是「規格 vs 現況」差異表。
   「更多」照產品選單分組與名稱；toast 深灰（`--gray-sheet`）底近黑字；日期欄用原生 input（不自刻 datepicker）；系統設定＝一支頁面 hash 分頁算 5 頁；公開頁照現狀搬；佔位頁照規格畫完整；考試完成後仍可修改；取消請假＝刪除請假單、還沒點名的回到「還沒點名」、已點名的不動（`rules/attendance-rules.md` §6–7）。出勤模式是**分校層級**（照 rules，「一般」裡的機構值＝新分校沿用的預設）；老師端學生點開是**頁內面板**（不加詳情頁）；收件匣未讀用**橘點**（`--accent-500`，對白約 5:1；紅留給錯誤與逾期）；日到班下老師可看可改自己任課當天的出勤（產品缺口另開單）。
@@ -656,6 +656,10 @@ coarse)').matches` 永遠是 `false`（teacher-pages 在 #516 先撞到、我在
   - **殺行程**（`FORK-PROMPT.md` 第 8 條）：`pkill -f <字串>` 拿那個字串對**全機每一個行程的完整命令列**做子字串比對。`cat` 會比中任何路徑或參數含 cat 的行程，`/Applications` 底下的程式也算在內。所以判斷要不要用它，不是看自己想殺的那一個長什麼樣，是看**全機有誰的命令列會包含這個字串**。
     pattern 要含自己的 worktree 絕對路徑，或先用 `lsof -t` 拿 PID 再 `kill`。批 5 一個 fork 跑過 `pkill -f "cat"`，計畫席事後查過，沒有找到受害的行程。
   - **artifact 發布被拒（「沒看過線上版」）**：換 session 之後第一次發布，要先 `Artifact` read 線上的 index，**整份 Read**，再把 `files` 裡要蓋掉的每個共用檔都用 read 的 `paths` 拉下來。拉下來之後跟自己改前的備份 diff，一致才重發。主席動共用檔前先把 a6.js／a6.css 備份到 scratchpad，就是為了這一步可以直接比對。
+- **批 6 留下的（10/03）**：
+  - **斷點裡把容器從 `relative`／`fixed` 改成 `static` 時，它裡面 `position: absolute; inset: 0` 的子元素會改用更外層的容器定位**，通常就是整頁。公開外框的品牌面在 ≤1024px 改成 static，流場 canvas 就鋪滿整個第一屏、蓋住白面上所有按鈕：手機整頁點不到，白面上也畫滿線。這是我寫共用件時弄出來的，兩個 fork 各自從稽核的「intercepts pointer events」抓到。
+    **規則**：容器裡有 absolute 的裝飾層，就給容器 `position: relative`，不要給 static；純裝飾層一律加 `pointer-events: none`。**主席先做共用件時，至少用 playwright 在手機寬度實按一顆主面的按鈕**，不能只看截圖。截圖上看起來只是「白面多了幾條線」。
+  - **裁定要套到同一族的每一頁，不是只套到被問的那一頁**。「額滿能不能送」是在家長端加選頁被問到的，但同一條規則也出現在家長報名頁（原本不能選）和訪客報名頁（原本不能勾、打電話候補）。三頁原本各有一種做法，裁定之後要逐頁找出來對齊。**收到裁定時 grep 那個業務詞**（這次是「額滿」），把每一處都改掉。
 - **每輪回報格式**（計畫席要的）：改了什麼（改前→改後）、改到哪些檔、playwright 結果（含實按）、截圖路徑、還沒解決的、待裁的列成選項、順帶發現的產品 bug（附檔案:行號）、Ctx。送完照 README「六」#988 三步確認送達（找內文關鍵字，不要比對第一行）。
 
 ## 五、進行中的狀態
