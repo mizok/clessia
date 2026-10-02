@@ -31,6 +31,9 @@
  * 只掃已遷移的目錄，死 class 留在未遷移的頁上照舊無效，整頁重寫時自然消失。
  */
 
+@source './app/shared/components/select-field';
+@source './app/features/admin/pages/changes';
+
 /* 跟 PrimeNG 的 darkModeSelector 對齊 */
 @custom-variant dark (&:where(.dark-mode, .dark-mode *));
 

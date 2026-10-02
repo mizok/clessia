@@ -16,7 +16,12 @@ import { fileURLToPath } from 'node:url';
 
 import { formatGenerated } from './lib/format.mjs';
 import { bandContrastViolations } from './lib/band-contrast.mjs';
-import { readTokenPalette, usageContrastViolations } from './lib/scss-contrast.mjs';
+import {
+  contrast,
+  readTokenPalette,
+  resolveColor,
+  usageContrastViolations,
+} from './lib/scss-contrast.mjs';
 import { countDesktopFirst, desktopFirstFiles } from './lib/mobile-first.mjs';
 import { orphanModuleImports } from './lib/orphan-imports.mjs';
 import { destructivePrimaryActions, headerActionButtons } from './lib/page-actions.mjs';
@@ -41,6 +46,8 @@ import { missingUserSkills } from './lib/user-skills.mjs';
 import { usesRawSupabase } from './lib/parent-route-scan.mjs';
 import { themeMappingProblems } from './lib/tailwind-theme.mjs';
 import { layerOrderProblems } from './lib/css-layer-order.mjs';
+import { loadTailwind } from './lib/tailwind-classes.mjs';
+import { touchTargetClassViolations, contrastClassViolations } from './lib/tailwind-a11y.mjs';
 import { hasInlineStyles, ledgerDiff, sourceConflicts, sourcePaths } from './lib/scss-ledger.mjs';
 import {
   declaredOrgTables,
@@ -1891,6 +1898,8 @@ function checkScanScope() {
 // 全站另有 81 個「用了但沒定義」的自家 class，**刻意不納入** ——
 // 嚴重度差太多（多數是死修飾詞或遷移殘留），而一份沒有人會清的 baseline
 // 等於裝飾：它長期發出「有債」的訊號，而那訊號永遠不變。
+const tailwind = await loadTailwind(ROOT);
+
 function checkUnstyledInteractive() {
   const webSrc = join(ROOT, 'apps/web/src');
   if (!existsSync(webSrc)) return;
@@ -1931,8 +1940,13 @@ function checkUnstyledInteractive() {
     if (t.trim()) templates.push({ path: f.slice(ROOT.length + 1), source: t });
   }
 
+  // Tailwind 頁（tailwind.css 的 @source 目錄）：樣式活在 class 字串裡，Tailwind 會產生 CSS 的就算有定義。
+  // 只對 @source 目錄有效 —— 其他目錄不會被掃，寫在那裡的 utility 實際上沒有樣式。
   for (const { path, source } of templates) {
-    for (const classes of unstyledInteractive(source, defined)) {
+    const known = tailwind?.covers(path)
+      ? { has: (c) => defined.has(c) || tailwind.generates(c) }
+      : defined;
+    for (const classes of unstyledInteractive(source, known)) {
       fail(
         `${path} 有一個可點的元素，但它的 class（${classes}）**全庫沒有任何 SCSS 定義** —— ` +
           `它會吃全域 button reset 渲染成純文字，於是沒有人會去點它。` +
@@ -1943,6 +1957,46 @@ function checkUnstyledInteractive() {
 }
 
 checkUnstyledInteractive();
+
+// ── A27／A28. Tailwind 頁的觸控尺寸與對比（#991 T3）────────────────────────────────────
+// A17 與 scss-contrast 讀 SCSS；已遷移的頁（tailwind.css 的 @source 目錄）SCSS 已刪，它們看不到。
+// 這兩道改讀 template 的 class 字串。判準與看不到的東西見 lib/tailwind-a11y.mjs。
+// **零 baseline**：新遷移的頁一進 @source 就受檢。
+function checkTailwindA11y() {
+  if (!tailwind || !tailwind.dirs.length) return;
+  recordScope('tailwind-a11y', { roots: tailwind.dirs, exts: ['.html', '.ts'] });
+  const palette = readTokenPalette(readFileSync(join(ROOT, 'apps/web/src/styles.scss'), 'utf8'));
+  const colors = {
+    colorOf: tailwind.colorOf,
+    resolve: (v) => resolveColor(v, palette),
+    contrast,
+  };
+  for (const dir of tailwind.dirs) {
+    const abs = join(ROOT, dir);
+    if (!existsSync(abs)) continue;
+    const files = [
+      ...walk(abs, '.html').map((f) => ({ f, t: readFileSync(f, 'utf8') })),
+      ...walk(abs, '.ts')
+        .filter((f) => !f.endsWith('.spec.ts'))
+        .map((f) => ({ f, t: inlineTemplate(readFileSync(f, 'utf8')) }))
+        .filter(({ t }) => t.trim()),
+    ];
+    for (const { f, t } of files) {
+      const rel = f.slice(ROOT.length + 1);
+      for (const v of touchTargetClassViolations(t, rel)) {
+        fail(
+          `${rel}:${v.line} 的 <${v.tag}> 可點，但沒有 ≥${TOUCH_MIN_PX}px 的高度下限（class：${v.classes}）—— ` +
+            `寫在基底（不帶 lg:／max-*: 等 variant）：min-h-11、h-11、size-11 或 h-[44px]`,
+        );
+      }
+      for (const v of contrastClassViolations(t, colors, rel)) {
+        fail(`${rel}:${v.line} 的 ${v.fg} 疊在 ${v.bg} 上對比 ${v.ratio}，低於 ${v.threshold}`);
+      }
+    }
+  }
+}
+
+checkTailwindA11y();
 
 // ── A21. 分校過濾參數不得繞過 campusRequestGuard ────────────────────────────────────────
 // 守衛攔的是**列舉出來的那幾個參數名**，所以任何叫別的名字的分校參數會直接穿過它 ——

@@ -1,36 +1,78 @@
-<div class="changes">
-  <header class="changes__header">
-    <div class="changes__title-group">
-      <h1 class="changes__title">{{ page().label }}</h1>
-      <p class="changes__subtitle">
-        調課、代課、停課的完整紀錄。此頁唯讀，要修改課堂請至課堂管理。
-      </p>
-    </div>
+<div class="flex flex-col gap-5 p-4 lg:gap-6 lg:p-6">
+  <!-- 開場：A6 放在殼的橘色色面裡；P1 先住舊殼，所以放在頁首（殼切片時搬家） -->
+  <header>
+    <h1
+      class="m-0 max-w-[18em] text-[28px] leading-tight font-bold tracking-[-0.03em] text-zinc-900 lg:text-[40px]"
+    >
+      @if (monthTotal() === null) {
+        {{ page().label }}
+      } @else if (monthTotal() === 0) {
+        {{ monthNumber() }} 月沒有異動。
+      } @else {
+        {{ monthNumber() }} 月 {{ monthTotal() }} 則異動，<br />停課
+        {{ monthCancelled() ?? '—' }} 堂。
+      }
+    </h1>
+    <p class="mt-2 mb-0 text-md text-zinc-700">調課、代課、停課的完整紀錄。要改課堂，到課表。</p>
   </header>
 
-  <div class="changes__filters">
-    <p-select
-      [options]="monthOptions"
-      [ngModel]="month()"
-      (ngModelChange)="onMonthChange($event)"
-      optionLabel="label"
-      optionValue="value"
-    />
-    <p-select
-      [options]="changeTypeOptions"
-      [ngModel]="changeType()"
-      (ngModelChange)="onChangeTypeChange($event)"
-      optionLabel="label"
-      optionValue="value"
-    />
-    <p-select
-      [options]="campusOptions()"
-      [ngModel]="campusId()"
-      (ngModelChange)="onCampusChange($event)"
-      optionLabel="label"
-      optionValue="value"
-    />
-  </div>
+  <section
+    class="flex flex-col gap-3 rounded-lg bg-zinc-100 p-4 lg:flex-row lg:items-end lg:gap-4"
+    role="search"
+    aria-label="篩選課務異動"
+  >
+    <div class="min-w-0 lg:w-56">
+      <app-select-field
+        label="月份"
+        [options]="monthOptions"
+        [value]="month()"
+        (valueChange)="onMonthChange($event!)"
+      />
+    </div>
+
+    <!-- 手機首屏只回答「這個月有哪些異動」：其餘篩選收進一列 -->
+    <button
+      type="button"
+      class="flex min-h-11 items-center gap-3 border-0 bg-transparent p-0 text-left lg:hidden"
+      [attr.aria-expanded]="filtersOpen()"
+      aria-controls="changes-more-filters"
+      (click)="filtersOpen.set(!filtersOpen())"
+    >
+      <span class="text-lg font-semibold text-zinc-900">篩選</span>
+      <span class="ml-auto text-md text-zinc-600">{{ filterSummary() }}</span>
+      <i
+        class="pi pi-chevron-down text-zinc-900 transition-transform"
+        [class.rotate-180]="filtersOpen()"
+        aria-hidden="true"
+      ></i>
+    </button>
+    <div
+      id="changes-more-filters"
+      class="grid-cols-2 gap-3 lg:grid lg:w-[28rem]"
+      [class.grid]="filtersOpen()"
+      [class.hidden]="!filtersOpen()"
+    >
+      <app-select-field
+        label="異動類型"
+        [options]="changeTypeOptions"
+        [value]="changeType()"
+        (valueChange)="onChangeTypeChange($event)"
+      />
+      <app-select-field
+        label="分校"
+        [options]="campusOptions()"
+        [value]="campusId()"
+        (valueChange)="onCampusChange($event)"
+      />
+    </div>
+
+    <a
+      class="inline-flex h-11 items-center justify-center gap-1.5 self-end rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 lg:ml-auto"
+      [routerLink]="scheduleLink"
+    >
+      到課表 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
+    </a>
+  </section>
 
   @if (loading()) {
     <div class="skeleton-list" aria-label="課務異動載入中">
@@ -39,63 +81,162 @@
       }
     </div>
   } @else if (loadError()) {
-    <p class="changes__state changes__state--error">查詢失敗，請稍後再試。</p>
+    <p class="m-0 text-base text-error-700" role="alert">查詢失敗，請稍後再試。</p>
   } @else if (entries().length === 0) {
-    <p class="changes__state">這個月沒有課務異動。</p>
-  } @else {
-    <app-responsive-table
-      [headTemplate]="changeHead"
-      [bodyTemplate]="changeBody"
-      [pagination]="pagination()"
-      (page)="onPageChange($event.page + 1)"
-    />
-
-    <ng-template #changeHead>
-      <tr>
-        <!--
-          課堂是這一列的身分（哪一堂被動了）。收掉它就剩一排無主的異動 ——
-          知道「有人改了時間」但不知道改的是哪一堂，等於什麼都沒說。
-        -->
-        <th
-          appRtColDef="session"
-          [appRtColDefMinWidth]="140"
-          [appRtColDefPriority]="1"
-          [appRtColDefCollapsible]="false"
+    <p class="m-0 py-8 text-base text-zinc-700">
+      @if (filtered()) {
+        {{ monthNumber() }} 月沒有符合的異動。
+        <button
+          type="button"
+          class="min-h-11 border-0 bg-transparent p-0 font-semibold text-zinc-900 underline underline-offset-[3px]"
+          (click)="resetFilters()"
         >
-          課堂
-        </th>
-        <!-- 手機上留得下的第二欄要是**內容**：這頁存在的理由就是「改了什麼」 -->
-        <th appRtColDef="summary" [appRtColDefMinWidth]="180" [appRtColDefPriority]="2">
-          變更內容
-        </th>
-        <th appRtColDef="type" [appRtColDefMinWidth]="120" [appRtColDefPriority]="3">類型</th>
-        <th appRtColDef="createdAt" [appRtColDefMinWidth]="120" [appRtColDefPriority]="4">
-          異動時間
-        </th>
-        <th appRtColDef="operator" [appRtColDefMinWidth]="110" [appRtColDefPriority]="5">操作者</th>
-        <th appRtColDef="reason" [appRtColDefMinWidth]="160" [appRtColDefPriority]="6">原因</th>
-      </tr>
-    </ng-template>
-
-    <ng-template #changeBody>
-      @for (row of entries(); track row.id) {
-        <tr appRtRow [appRtRow]="row" [appRtRowId]="row.id">
-          <td appRtColCell="session">
-            <span class="changes__session-date">{{ row.sessionDate }}</span>
-            <span class="changes__class-name">{{ row.className }}</span>
-          </td>
-          <td appRtColCell="summary">{{ row.summary }}</td>
-          <td appRtColCell="type">
-            <app-data-chip>{{ typeLabel(row.changeType) }}</app-data-chip>
-            @if (row.isBatch) {
-              <app-data-chip>批次</app-data-chip>
-            }
-          </td>
-          <td appRtColCell="createdAt">{{ row.createdAt | date: 'MM/dd HH:mm' }}</td>
-          <td appRtColCell="operator">{{ row.createdByName ?? '—' }}</td>
-          <td appRtColCell="reason" class="changes__reason">{{ row.reason ?? '—' }}</td>
-        </tr>
+          清除篩選
+        </button>
+      } @else {
+        {{ monthNumber() }} 月沒有任何調課、代課或停課。
       }
-    </ng-template>
+    </p>
+  } @else {
+    <p class="m-0 text-md text-zinc-600">
+      {{ monthNumber() }} 月共 {{ total() }} 則
+      @if (filtered()) {
+        ·
+        <button
+          type="button"
+          class="min-h-11 border-0 bg-transparent p-0 font-semibold text-zinc-900 underline underline-offset-[3px]"
+          (click)="resetFilters()"
+        >
+          清除篩選
+        </button>
+      }
+    </p>
+
+    <div>
+      @for (chapter of chapters(); track chapter.date) {
+        <section
+          class="grid gap-2 border-b border-surface-border py-6 lg:grid-cols-[208px_minmax(0,1fr)] lg:gap-8 lg:py-8"
+          [attr.aria-label]="dayLabel(chapter.date)"
+        >
+          <div class="flex items-baseline gap-3 lg:sticky lg:top-4 lg:block lg:self-start">
+            <div
+              class="text-[32px] leading-none font-bold tracking-[-0.04em] tabular-nums text-zinc-900 lg:text-[44px]"
+            >
+              {{ dayLabel(chapter.date) }}
+            </div>
+            <p class="m-0 text-sm text-zinc-600 lg:mt-0.5">{{ dayMeta(chapter.date) }}</p>
+            <p class="m-0 text-base font-bold tabular-nums text-zinc-900 lg:mt-3 lg:text-xl">
+              {{ chapter.count }} 則
+            </p>
+          </div>
+
+          <div>
+            @for (item of chapter.items; track item.key) {
+              @let e = item.rows[0];
+              @if (item.rows.length === 1) {
+                <div
+                  class="grid gap-x-5 gap-y-1 border-b border-surface-border py-4 last:border-b-0 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)] lg:items-baseline"
+                >
+                  <span
+                    class="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-zinc-900"
+                  >
+                    {{ e.className ?? '—' }}
+                    <ng-container
+                      [ngTemplateOutlet]="typeTag"
+                      [ngTemplateOutletContext]="{
+                        $implicit: e.changeType,
+                        label: typeLabel(e.changeType),
+                      }"
+                    />
+                    @if (e.isBatch) {
+                      <span class="rounded-sm border border-zinc-900 px-1 text-xs font-semibold"
+                        >批次</span
+                      >
+                    }
+                  </span>
+                  <span class="text-md tabular-nums text-zinc-900">{{ e.summary }}</span>
+                  <ng-container
+                    [ngTemplateOutlet]="why"
+                    [ngTemplateOutletContext]="{ $implicit: e }"
+                  />
+                </div>
+              } @else {
+                <details class="group border-b border-surface-border last:border-b-0">
+                  <summary
+                    class="grid min-h-11 cursor-pointer list-none gap-x-5 gap-y-1 py-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] lg:items-baseline [&::-webkit-details-marker]:hidden"
+                  >
+                    <span
+                      class="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-zinc-900"
+                    >
+                      <ng-container
+                        [ngTemplateOutlet]="typeTag"
+                        [ngTemplateOutletContext]="{
+                          $implicit: e.changeType,
+                          label: typeLabel(e.changeType) + ' ' + item.rows.length + ' 堂',
+                        }"
+                      />
+                      <span class="rounded-sm border border-zinc-900 px-1 text-xs font-semibold"
+                        >批次</span
+                      >
+                    </span>
+                    <span class="text-md text-zinc-900">{{ classCount(item.rows) }} 個班</span>
+                    <ng-container
+                      [ngTemplateOutlet]="why"
+                      [ngTemplateOutletContext]="{ $implicit: e }"
+                    />
+                    <span
+                      class="text-md font-semibold whitespace-nowrap text-zinc-900 underline underline-offset-[3px]"
+                    >
+                      看是哪 {{ item.rows.length }} 堂<span
+                        class="hidden font-medium group-open:inline"
+                        >（收起）</span
+                      >
+                    </span>
+                  </summary>
+                  <ul class="m-0 mb-4 list-none rounded-md bg-zinc-100 px-3 py-1 lg:ml-0">
+                    @for (row of item.rows; track row.id) {
+                      <li
+                        class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-t border-zinc-200 py-2 text-md first:border-t-0"
+                      >
+                        <span>{{ row.className ?? '—' }}</span>
+                        <small class="text-sm text-zinc-600">{{ row.summary }}</small>
+                      </li>
+                    }
+                  </ul>
+                </details>
+              }
+            }
+          </div>
+        </section>
+      }
+    </div>
+
+    @if (total() > pageSize) {
+      <p-paginator
+        [first]="first()"
+        [rows]="pageSize"
+        [totalRecords]="total()"
+        (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
+      />
+    }
   }
 </div>
+
+<ng-template #typeTag let-type let-label="label">
+  <span
+    class="inline-flex items-center gap-1 rounded-sm px-1.5 py-px text-xs font-semibold whitespace-nowrap text-zinc-800"
+    [class.bg-zinc-100]="type !== 'cancellation'"
+    [class.shadow-[inset_0_0_0_1px_var(--zinc-500)]]="type === 'cancellation'"
+  >
+    <i class="pi {{ typeIcon(type) }} text-[10px]" aria-hidden="true"></i>{{ label }}
+  </span>
+</ng-template>
+
+<ng-template #why let-e>
+  <span class="text-md text-zinc-700">
+    {{ e.reason ?? '沒寫原因' }}
+    <span class="mt-0.5 block text-sm tabular-nums text-zinc-600">
+      {{ e.createdByName ?? '—' }} · {{ e.createdAt | date: 'M/d HH:mm' }}
+    </span>
+  </span>
+</ng-template>
