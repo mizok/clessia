@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { summariseMealRecords, type MealAmountRow } from '../lib/meal-summary';
 import { DbUuidSchema } from '../lib/validation';
+import { missingInOrg } from '../lib/org-scope';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
 
@@ -328,6 +329,7 @@ app.openapi(
         },
       },
       400: { description: '錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: '學生不存在', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -335,6 +337,19 @@ app.openapi(
     const orgId = c.get('orgId');
     const userId = c.get('userId');
     const { date, rows } = c.req.valid('json');
+
+    // 學生要屬於本 org —— upsert 的衝突鍵（student_id, meal_date）不含 org_id，
+    // 別 org 的學生 id 會把對方那天的列整列覆寫，連已結算的也擋不住（c1，#966 B4）。
+    // 整批拒絕而不是略過：部分成功會讓行政以為整批都存了。
+    const foreign = await missingInOrg(
+      supabase,
+      'students',
+      orgId,
+      rows.map((row) => row.studentId),
+    );
+    if (foreign.length > 0) {
+      return c.json({ error: '學生不存在', code: 'STUDENT_NOT_FOUND' }, 404);
+    }
 
     const { data: org } = await supabase
       .from('organizations')
