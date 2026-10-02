@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { DynamicDialogRef } from 'primeng/dynamicdialog';
+import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { of, throwError } from 'rxjs';
 import * as XLSX from 'xlsx';
 
@@ -41,6 +41,7 @@ describe('ParentImportDialogComponent', () => {
     batchCheck: vi.fn(() => of({ warnings: [], errors: [] })),
     batchImport: vi.fn(),
   };
+  const onImported = vi.fn();
 
   async function parse(file: File) {
     await (component as never as { processFile(f: File): Promise<void> }).processFile(file);
@@ -49,11 +50,13 @@ describe('ParentImportDialogComponent', () => {
 
   beforeEach(async () => {
     parentsServiceMock.batchCheck.mockClear();
+    onImported.mockClear();
 
     await TestBed.configureTestingModule({
       imports: [ParentImportDialogComponent],
       providers: [
         { provide: DynamicDialogRef, useValue: { close: vi.fn() } },
+        { provide: DynamicDialogConfig, useValue: { data: { onImported } } },
         { provide: ParentsService, useValue: parentsServiceMock },
       ],
     }).compileComponents();
@@ -143,5 +146,40 @@ describe('ParentImportDialogComponent', () => {
     );
 
     expect(rows.length).toBe(1);
+  });
+
+  /**
+   * #1007：匯入成功之後，家長列表要在**匯入當下**就刷新 —— 不能等使用者按「完成」。
+   * 對話框右上的 X 是 PrimeNG 內建的，以 `undefined` 關閉、不經過 `onDone()`，
+   * 所以「按完成才回 'imported'」那條路會讓按 X 的人看到舊列表。
+   */
+  describe('匯入成功就通知頁面刷新（#1007）', () => {
+    const csv = () =>
+      csvFile([
+        ['家長姓名', '家長電話', '家長Email', '備註', '學生姓名', '年級', '學校', '生日', '性別'],
+        ['必填', '', '', '', '必填', '必填', '必填', '', ''],
+        ['李大華', '0987654321', '', '', '李小華', '國二', '示範國中', '2011/03/08', '女'],
+      ]);
+    const submit = () => (component as never as { onSubmit(): void }).onSubmit();
+
+    it('至少一筆成功 → 立刻通知（不等按「完成」）', async () => {
+      await parse(csv());
+      parentsServiceMock.batchImport.mockReturnValueOnce(
+        of({ results: [{ rowIndex: 0, status: 'success' }] }),
+      );
+      submit();
+
+      expect(onImported).toHaveBeenCalledTimes(1);
+    });
+
+    it('全部失敗 → 不通知（列表沒有變）', async () => {
+      await parse(csv());
+      parentsServiceMock.batchImport.mockReturnValueOnce(
+        of({ results: [{ rowIndex: 0, status: 'failed', error: 'x' }] }),
+      );
+      submit();
+
+      expect(onImported).not.toHaveBeenCalled();
+    });
   });
 });

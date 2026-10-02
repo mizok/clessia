@@ -341,14 +341,14 @@ export class ParentsPage implements OnInit {
   }
 
   protected openImportDialog(): void {
-    const ref = this.dialogService.open(ParentImportDialogComponent, {
+    // #1007：匯入**成功的當下**就刷新，不等關閉時的回傳值 —— 右上的 X 是 PrimeNG 內建的，
+    // 以 undefined 關閉、不經過對話框的「完成」，原本按 X 的人會一直看到舊列表與舊統計
+    this.dialogService.open(ParentImportDialogComponent, {
       header: '批次匯入家長',
       width: '720px',
       modal: true,
       appendTo: this.overlayContainer || 'body',
-    });
-    ref?.onClose.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
-      if (result === 'imported') this.loadParents();
+      data: { onImported: () => this.loadParents() },
     });
   }
 
@@ -368,7 +368,14 @@ export class ParentsPage implements OnInit {
         ref.onClose
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe((result?: { type: string }) => {
-            if (result?.type === 'updated') this.loadParents();
+            if (result?.type !== 'updated') return;
+            // #1007：同頁其他操作都有成功 toast，只有編輯沒有
+            this.messageService.add({
+              severity: 'success',
+              summary: '已儲存',
+              detail: `「${res.data.name}」的資料已更新`,
+            });
+            this.loadParents();
           });
       },
       error: () => {

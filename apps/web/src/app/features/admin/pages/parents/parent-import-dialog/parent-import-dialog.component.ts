@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { finalize, firstValueFrom } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
-import { DynamicDialogRef } from 'primeng/dynamicdialog';
+import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
@@ -78,6 +78,10 @@ export class ParentImportDialogComponent {
   private xlsx: XLSXModule | null = null;
 
   private readonly ref = inject(DynamicDialogRef);
+  /** 頁面傳進來的 `onImported`（#1007）。可選：對話框單獨測試時沒有 */
+  private readonly config = inject(DynamicDialogConfig, { optional: true }) as DynamicDialogConfig<{
+    onImported?: () => void;
+  }> | null;
   private readonly parentsService = inject(ParentsService);
 
   protected readonly step = signal<1 | 2 | 3 | 4>(1);
@@ -217,6 +221,10 @@ export class ParentImportDialogComponent {
           }
           this.submitResult.set(result);
           this.step.set(4);
+          // #1007：有任何一筆成功就請頁面立刻刷新 —— 不等「完成」，因為 X 不經過它
+          if (result.results.some((r) => r.status !== 'failed')) {
+            this.config?.data?.onImported?.();
+          }
         },
         error: (error: unknown) => {
           console.error('[batch-import] HTTP error:', error);
