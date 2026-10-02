@@ -82,6 +82,12 @@ optional。
 `middleware/auth.ts` 的 `requirePermission` 註解自己寫著：「在金流之前 API 完全
 沒有這一層 …… 那是畫面控制不是授權：直接打 API 就繞過去了」。**金流補了，其餘沒有。**
 
+> ✅ **已修（2026-10-02 核對，上面是修前觀察，保留）**：#464 之後 `apps/api/src/index.ts` 的 `mount()` 對
+> `basic_operations`（`:339-341`）、`manage_courses`（`:325,327,329,330,334`）、`manage_students`（`:335-337`）、
+> `manage_staff`（`:328`）都掛了 `{ write: … }`（`requireAdminPermissionOnWrite`，`:293-299`，只擋寫、讀放行）。
+> `manage_roles` 不在 `mount()` 上，在 `lib/role-assignment.ts` 與 `routes/staff.ts:850-858,1177-1186`。
+> 上表的「API 強制」欄因此全為 ✅（寫入層級）。
+
 ### 洞 3 — 任何管理員都能建帳號、改角色、改權限
 
 `staff.ts` 的建立／更新／封存三支都用 `checkUserIsAdmin(supabase, requesterUserId)`
@@ -90,6 +96,10 @@ optional。
 含意：一個只該做日常操作的管理員，直接打 `POST /api/staff` 就能給自己開一個
 權限全開的帳號。**沒有自我提權的防線** —— `requesterUserId` 只用來判斷 isAdmin，
 沒有比對「被改的人是不是自己」。
+
+> ✅ **已修（2026-10-02 核對，上面是修前觀察，保留）**：建立與更新都呼叫 `checkRoleAssignment`
+> （`lib/role-assignment.ts`；`staff.ts:850-858` 建立、`:1177-1186` 更新）—— 改角色／權限需 `manage_roles`，
+> 且**不能改自己**（連 `*` 也擋）。`mount('/api/staff', …, { write: 'manage_staff' })`（`index.ts:328`）另擋人事資料寫入。
 
 ### 洞 4 — 老師的範圍限制只擋讀，不擋寫
 
