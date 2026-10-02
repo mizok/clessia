@@ -326,6 +326,36 @@ describe('StaffPage', () => {
     });
 
     // 還沒有登入帳號的人產生不出連結 —— 要說清楚，不要靜靜地什麼都沒發生
+    // #1028：loginUrl 為 null（後端 mint 失敗）也要說出來，並且照常刷新列表
+    describe('新增人員後 loginUrl 為 null', () => {
+      const created = (loginUrl: string | null) => {
+        dialogServiceMock.open.mockReturnValueOnce({
+          onClose: of({ data: staff, loginUrl }),
+        } as never);
+        const add = vi.spyOn(fixture.debugElement.injector.get(MessageService), 'add');
+        const listCalls = staffServiceMock.list.mock.calls.length;
+        component.openCreateDialog();
+        return { add, listCalls };
+      };
+
+      it('null → warn toast，不開 QR 對話框，仍重抓列表', () => {
+        const { add, listCalls } = created(null);
+
+        expect(add).toHaveBeenCalledWith(
+          expect.objectContaining({ severity: 'warn', summary: '人員已建立' }),
+        );
+        expect(dialogServiceMock.open).toHaveBeenCalledTimes(1); // 只有建立表單那次
+        expect(staffServiceMock.list.mock.calls.length).toBe(listCalls + 1);
+      });
+
+      it('有 loginUrl → 開 QR 對話框，不出 warn', () => {
+        const { add } = created('https://x/verify?token=t');
+
+        expect(add).not.toHaveBeenCalled();
+        expect(dialogServiceMock.open).toHaveBeenCalledTimes(2);
+      });
+    });
+
     it('沒有 userId 時不呼叫 API', () => {
       (component as unknown as { issueLoginLink: (s: Staff) => void }).issueLoginLink({
         ...staff,
