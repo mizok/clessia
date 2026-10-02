@@ -3,7 +3,7 @@ title: 通知中心（老師）
 summary: 查看課務異動通知。
 category: spec
 status: active
-updated: 2026-09-04
+updated: 2026-10-03
 tags: [specs, teacher, notifications]
 ---
 
@@ -49,7 +49,7 @@ published_at / created_by / created_at / updated_at —— **沒有任何型別�
 
 樂觀更新照舊，但**失敗時翻回的是整批**，不是失敗的那幾則 —— 原子端點沒有「部分失敗」。
 在此之前是對未讀逐一呼叫 `POST /{id}/read`（N 次往返、非原子，中途失敗會留下一半已讀，
-而使用者看到的是「按了但紅點還在」）。
+而使用者看到的是「按了但未讀圓點還在」）。
 
 ## 資料依賴
 
