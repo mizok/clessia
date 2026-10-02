@@ -200,6 +200,44 @@ describe('ScoreEntryComponent', () => {
     expect(component.canDeactivate()).toBe(true);
   });
 
+  // #1020：dirty → 掛 beforeunload（會被 preventDefault 攔下）；存完 → 拿掉
+  it('dirty 時掛 beforeunload 攔截，存檔後（dirty=false）移除', async () => {
+    await setup('academy', 'a1');
+    flushAcademyRequests();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const fire = () => {
+      const e = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+
+    expect(fire()).toBe(false);
+
+    component['dirty'].set(true);
+    fixture.detectChanges();
+    expect(fire()).toBe(true);
+
+    component['dirty'].set(false);
+    fixture.detectChanges();
+    expect(fire()).toBe(false);
+  });
+
+  it('元件銷毀時移除 beforeunload，不留下孤兒 listener', async () => {
+    await setup('academy', 'a1');
+    flushAcademyRequests();
+    await fixture.whenStable();
+    component['dirty'].set(true);
+    fixture.detectChanges();
+
+    fixture.destroy();
+
+    const e = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(false);
+  });
+
   it('canSave is false when not dirty', async () => {
     await setup('academy', 'a1');
     flushAcademyRequests();

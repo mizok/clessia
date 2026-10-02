@@ -4,6 +4,7 @@ import {
   DestroyRef,
   OnInit,
   computed,
+  effect,
   inject,
   input,
   signal,
@@ -84,6 +85,17 @@ export class ScoreEntryComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly dirty = signal(false);
+
+  /**
+   * 有未儲存變更時，重新整理／關分頁／改網址也要攔（#1020）。站內導頁由 `canDeactivate`
+   * 管，這條管「離開整個頁面」；瀏覽器自己出確認框，文案不可自訂。
+   */
+  private readonly warnOnUnload = effect((onCleanup) => {
+    if (!this.dirty()) return;
+    const handler = (e: BeforeUnloadEvent): void => e.preventDefault();
+    window.addEventListener('beforeunload', handler);
+    onCleanup(() => window.removeEventListener('beforeunload', handler));
+  });
   private readonly schoolFilter = signal<{ campusId: string; grade: string | null } | null>(null);
 
   protected readonly academyExam = signal<AcademyExamDetail | null>(null);
