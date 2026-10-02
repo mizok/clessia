@@ -4,8 +4,8 @@ import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
 import { TextareaModule } from 'primeng/textarea';
 import { SelectModule } from 'primeng/select';
-import { DynamicDialogRef } from 'primeng/dynamicdialog';
-import { format } from 'date-fns';
+import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
+import { format, parseISO } from 'date-fns';
 import {
   StudentsService,
   type Student,
@@ -14,7 +14,7 @@ import {
   type GradeLevel,
 } from '@core/students.service';
 import { ReferenceDataService } from '@core/reference-data.service';
-import { LeaveService, type CreateLeaveInput } from '@core/leave.service';
+import { LeaveService, type CreateLeaveInput, type LeaveRequest } from '@core/leave.service';
 import { StudentAutocompleteComponent } from '@shared/components/student-autocomplete/student-autocomplete.component';
 
 interface SelectOption<T> {
@@ -33,6 +33,13 @@ function isStudentSelection(value: unknown): value is Student {
   );
 }
 
+/** DB 回 `HH:MM:SS`，picker 要 Date */
+function toTimeDate(time: string | null): Date | null {
+  if (!time) return null;
+  const [h, m] = time.split(':').map(Number);
+  return new Date(2000, 0, 1, h, m);
+}
+
 @Component({
   selector: 'app-leave-form-dialog',
   standalone: true,
@@ -46,42 +53,49 @@ function isStudentSelection(value: unknown): value is Student {
   ],
   template: `
     <div class="leave-form">
-      <div class="leave-form__filters">
-        <div class="leave-form__filter-group">
-          <label class="leave-form__label">分校</label>
-          <p-select
-            [(ngModel)]="selectedCampusId"
-            [options]="campusOptions()"
-            optionLabel="label"
-            optionValue="value"
-            placeholder="全部分校"
-            styleClass="w-full"
-            (onChange)="onFilterChange()"
-          />
+      @if (editing) {
+        <div class="leave-form__field leave-form__field--full">
+          <label class="leave-form__label">學生</label>
+          <strong>{{ editing.studentName }}</strong>
         </div>
-        <div class="leave-form__filter-group">
-          <label class="leave-form__label">年級</label>
-          <p-select
-            [(ngModel)]="selectedGrade"
-            [options]="gradeOptions"
-            optionLabel="label"
-            optionValue="value"
-            placeholder="全部年級"
-            styleClass="w-full"
-            (onChange)="onFilterChange()"
-          />
+      } @else {
+        <div class="leave-form__filters">
+          <div class="leave-form__filter-group">
+            <label class="leave-form__label">分校</label>
+            <p-select
+              [(ngModel)]="selectedCampusId"
+              [options]="campusOptions()"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="全部分校"
+              styleClass="w-full"
+              (onChange)="onFilterChange()"
+            />
+          </div>
+          <div class="leave-form__filter-group">
+            <label class="leave-form__label">年級</label>
+            <p-select
+              [(ngModel)]="selectedGrade"
+              [options]="gradeOptions"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="全部年級"
+              styleClass="w-full"
+              (onChange)="onFilterChange()"
+            />
+          </div>
         </div>
-      </div>
 
-      <div class="leave-form__field leave-form__field--full">
-        <label class="leave-form__label">學生 <span class="leave-form__required">*</span></label>
-        <app-student-autocomplete
-          [value]="selectedStudent"
-          (valueChange)="selectedStudent = $event"
-          [suggestions]="studentSuggestions()"
-          (queryChange)="searchStudents($event)"
-        />
-      </div>
+        <div class="leave-form__field leave-form__field--full">
+          <label class="leave-form__label">學生 <span class="leave-form__required">*</span></label>
+          <app-student-autocomplete
+            [value]="selectedStudent"
+            (valueChange)="selectedStudent = $event"
+            [suggestions]="studentSuggestions()"
+            (queryChange)="searchStudents($event)"
+          />
+        </div>
+      }
 
       <div class="leave-form__range-grid">
         <div class="leave-form__range-group">
@@ -145,7 +159,7 @@ function isStudentSelection(value: unknown): value is Student {
       <div class="leave-form__actions">
         <p-button label="取消" severity="secondary" (onClick)="cancel()" [disabled]="saving()" />
         <p-button
-          label="送出請假"
+          [label]="editing ? '儲存變更' : '送出請假'"
           icon="pi pi-check"
           [loading]="saving()"
           (onClick)="submit()"
@@ -230,6 +244,9 @@ export class LeaveFormDialogComponent implements OnInit {
   private readonly studentsService = inject(StudentsService);
   private readonly refData = inject(ReferenceDataService);
   private readonly leaveService = inject(LeaveService);
+  // 編輯模式：`data.leave` 有值。換學生等於撤掉再開一張（PATCH 沒有 studentId），所以學生唯讀。
+  protected readonly editing: LeaveRequest | null =
+    inject(DynamicDialogConfig, { optional: true })?.data?.leave ?? null;
 
   protected selectedCampusId: string | null = null;
   protected selectedGrade: GradeLevel | null = null;
@@ -257,6 +274,15 @@ export class LeaveFormDialogComponent implements OnInit {
   ];
 
   ngOnInit(): void {
+    const leave = this.editing;
+    if (leave) {
+      this.startDate = parseISO(leave.startDate);
+      this.endDate = parseISO(leave.endDate);
+      this.startTime = toTimeDate(leave.startTime);
+      this.endTime = toTimeDate(leave.endTime);
+      this.reason = leave.reason ?? '';
+      return;
+    }
     this.refData.loadCampuses();
   }
 
@@ -267,7 +293,7 @@ export class LeaveFormDialogComponent implements OnInit {
 
   protected canSubmit(): boolean {
     return (
-      isStudentSelection(this.selectedStudent) &&
+      (this.editing !== null || isStudentSelection(this.selectedStudent)) &&
       !!this.startDate &&
       !!this.endDate &&
       this.startDate <= this.endDate
@@ -290,7 +316,8 @@ export class LeaveFormDialogComponent implements OnInit {
   }
 
   protected submit(): void {
-    if (!isStudentSelection(this.selectedStudent)) {
+    const student = this.selectedStudent;
+    if (!this.editing && !isStudentSelection(student)) {
       this.errorMessage.set('請從建議清單選擇一位學生');
       return;
     }
@@ -315,16 +342,21 @@ export class LeaveFormDialogComponent implements OnInit {
     this.saving.set(true);
     this.errorMessage.set(null);
 
-    const input: CreateLeaveInput = {
-      studentId: this.selectedStudent.id,
+    const fields = {
       startDate: format(this.startDate, 'yyyy-MM-dd'),
       endDate: format(this.endDate, 'yyyy-MM-dd'),
       startTime: this.startTime ? format(this.startTime, 'HH:mm') : null,
       endTime: this.endTime ? format(this.endTime, 'HH:mm') : null,
       reason: this.reason || null,
     };
+    const request$ = this.editing
+      ? this.leaveService.update(this.editing.id, fields)
+      : this.leaveService.create({
+          studentId: (student as Student).id,
+          ...fields,
+        } satisfies CreateLeaveInput);
 
-    this.leaveService.create(input).subscribe({
+    request$.subscribe({
       next: (leave) => {
         this.saving.set(false);
         this.dialogRef.close(leave);
@@ -332,7 +364,9 @@ export class LeaveFormDialogComponent implements OnInit {
       error: (err) => {
         this.saving.set(false);
         const msg = err?.error?.message;
-        this.errorMessage.set(msg ?? '新增請假失敗，請稍後再試');
+        this.errorMessage.set(
+          msg ?? (this.editing ? '儲存失敗，請稍後再試' : '新增請假失敗，請稍後再試'),
+        );
       },
     });
   }

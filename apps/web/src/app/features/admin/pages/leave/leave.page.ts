@@ -182,6 +182,28 @@ export class LeavePage implements OnInit {
     });
   }
 
+  protected openEditDialog(record: LeaveRequest): void {
+    const ref = this.dialogService.open(LeaveFormDialogComponent, {
+      header: '編輯請假',
+      width: '480px',
+      modal: true,
+      data: { leave: record },
+    });
+
+    if (!ref) return;
+
+    ref.onClose.subscribe((leave: LeaveRequest | null) => {
+      if (leave) {
+        this.messageService.add({
+          severity: 'success',
+          summary: '已更新',
+          detail: `${leave.studentName} 的請假已更新`,
+        });
+        this.loadRecords();
+      }
+    });
+  }
+
   protected openAuditLog(): void {
     this.dialogService.open(AuditLogDialogComponent, {
       width: '800px',

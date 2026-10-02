@@ -9,6 +9,7 @@ import { LeaveService } from '@core/leave.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { LeavePage } from './leave.page';
+import { LeaveFormDialogComponent } from './leave-form-dialog.component';
 import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/audit-log-dialog.component';
 
 describe('LeavePage', () => {
@@ -182,5 +183,19 @@ describe('LeavePage', () => {
         resourceTypes: ['leave'],
       },
     });
+  });
+
+  it('#1005 編輯：以該筆資料開表單；儲存後提示並重新載入列表', () => {
+    const onClose = { subscribe: (fn: (v: unknown) => void) => fn({ ...activeRecord }) };
+    dialogServiceMock.open.mockReturnValue({ onClose });
+    const listCalls = leaveServiceMock.list.mock.calls.length;
+
+    (component as any).openEditDialog(activeRecord);
+
+    expect(dialogServiceMock.open).toHaveBeenCalledWith(
+      LeaveFormDialogComponent,
+      expect.objectContaining({ data: { leave: activeRecord } }),
+    );
+    expect(leaveServiceMock.list.mock.calls.length).toBe(listCalls + 1);
   });
 });

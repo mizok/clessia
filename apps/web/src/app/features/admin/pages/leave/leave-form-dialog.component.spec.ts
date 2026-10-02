@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { of } from 'rxjs';
-import { DynamicDialogRef } from 'primeng/dynamicdialog';
+import { of, throwError } from 'rxjs';
+import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { LeaveFormDialogComponent } from './leave-form-dialog.component';
 import { StudentsService } from '@core/students.service';
@@ -127,5 +127,87 @@ describe('LeaveFormDialogComponent', () => {
       pageSize: 30,
       searchScope: 'student_name',
     });
+  });
+});
+
+// #1005：同一個表單的編輯模式（`data.leave` 有值）
+describe('LeaveFormDialogComponent 編輯模式', () => {
+  const close = vi.fn();
+  const leaveServiceMock = {
+    create: vi.fn(),
+    update: vi.fn(() => of({ id: 'leave-1', studentName: '劉靖雯' })),
+  };
+  const leave = {
+    id: 'leave-1',
+    studentId: 'student-1',
+    studentName: '劉靖雯',
+    startDate: '2026-04-02',
+    endDate: '2026-04-03',
+    startTime: '09:30:00',
+    endTime: null,
+    reason: '感冒',
+  };
+
+  let fixture: ComponentFixture<LeaveFormDialogComponent>;
+  let dialog: any;
+
+  beforeEach(async () => {
+    close.mockReset();
+    leaveServiceMock.create.mockReset();
+    leaveServiceMock.update.mockClear();
+    await TestBed.configureTestingModule({
+      imports: [LeaveFormDialogComponent],
+      providers: [
+        { provide: DynamicDialogRef, useValue: { close } },
+        { provide: DynamicDialogConfig, useValue: { data: { leave } } },
+        { provide: StudentsService, useValue: { list: vi.fn() } },
+        {
+          provide: ReferenceDataService,
+          useValue: { campuses: signal<Campus[]>([]), loadCampuses: vi.fn() },
+        },
+        { provide: LeaveService, useValue: leaveServiceMock },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(LeaveFormDialogComponent);
+    dialog = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
+  });
+
+  it('學生唯讀、不顯示搜尋框；表單帶入原值', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-student-autocomplete')).toBeNull();
+    expect(el.textContent).toContain('劉靖雯');
+    expect(dialog.reason).toBe('感冒');
+    expect(dialog.startTime.getHours()).toBe(9);
+    expect(dialog.endTime).toBeNull();
+  });
+
+  it('儲存 → 呼叫 update（不是 create），帶新日期與原因，並以結果關閉', () => {
+    dialog.endDate = new Date(2026, 3, 5);
+    dialog.reason = '改成事假';
+
+    dialog.submit();
+
+    expect(leaveServiceMock.create).not.toHaveBeenCalled();
+    expect(leaveServiceMock.update).toHaveBeenCalledWith('leave-1', {
+      startDate: '2026-04-02',
+      endDate: '2026-04-05',
+      startTime: '09:30',
+      endTime: null,
+      reason: '改成事假',
+    });
+    expect(close).toHaveBeenCalledWith(expect.objectContaining({ id: 'leave-1' }));
+  });
+
+  it('409 重疊時把後端訊息顯示在表單裡，不關閉', () => {
+    leaveServiceMock.update.mockReturnValueOnce(
+      throwError(() => ({ error: { message: '該學生在 2026-04-04 ~ 2026-04-06 已有請假紀錄' } })),
+    );
+
+    dialog.submit();
+
+    expect(dialog.errorMessage()).toContain('已有請假紀錄');
+    expect(close).not.toHaveBeenCalled();
   });
 });
