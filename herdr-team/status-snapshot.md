@@ -33,7 +33,7 @@
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-03 01:4x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-03 01:5x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
@@ -59,7 +59,7 @@
 
 1. ~~修憲 c6 續跑~~ 已完成：腳本已跑、#1062 於 10-02 23:38 由擁有者合併、`law-c6` worktree 已清。（這一列在 #1061 寫下時腳本還沒跑，10-03 00:2x 複查才發現已過期 —— 快照寫「等使用者」的事項，接手先 `gh pr list --state all --search` 查一次。）
 2. ~~兩個 GitHub environment~~ 已設好（10-03 00:0x），#977 已由 migrate.yml 套上；之後遇到 migration 只要在 Actions 的 `prod-db` 按 Approve。
-3. **api 部署**：每次由使用者在 reviewer worktree 的 `apps/api` 跑 `npx wrangler deploy --env production`（分類器擋 reviewer 的 production deploy）；reviewer 準備截線並驗證。
+3. **api 部署**：每次由使用者在 reviewer worktree 的 `apps/api` 跑 `npx wrangler deploy --env production`（分類器擋 reviewer 的 production deploy）；reviewer 準備截線並驗證。 **待部署的 api 變更（夜間合進 main、線上仍是 `b7ca4e28`）**：#1096（parent/grades 加 description）、#1105（掃碼依模式）；web：#1091、#1093、#1096。下次部署 reviewer 備截線。
 4. **T4 cssLayer 回歸**需使用者在場一次（複製 `.dev.vars`），計畫席排時間。
 
 ### 使用者要裁的
@@ -68,6 +68,7 @@
 - **批 5 家長端三項**：(a) 額滿的班能不能送申請（設計稿畫成可送、交補習班審）、試聽算不算名額 —— 規格沒寫；(b) 續課預告 T-5～T-0 的單位（specs/parent/dashboard.md 沒寫，計畫席暫裁「天」，同頁待繳提醒用「3 天內」）；(c) 加選頁「新增孩子」計畫席已裁 A（不加，新孩子走公開報名頁），可否決。
 - **#1074 已付款「確認人」**：規格要、API 刻意不回 `recordedBy`（billing.ts:69）。二選一：(A) 改規格拿掉；(B) 改產品回傳並顯示。另 **#1073** 待付款要列帳戶資訊 —— 帳戶資訊住哪（分校層級欄位？沒有就是 migration）。
 - **#1076 家長成績頁「學期篩選」規格要怎麼解**：parent/grades API 不回學期；`school_exams` 有學年＋學期（1/2），`academy_exams` 沒有。「期」在 rules 是機構自訂（billing-rules.md:20、enrollment-rules.md:32），所以不能寫死 8/1–1/31。三選一：沿用學校學期（只對學校段考有意義）／沿用機構自訂的「期」（academy_exams 要加欄，migration）／改規格用既有期間篩選就夠。可展開顯示描述那半 2335 已在做。
+- **#1105 已合（掃碼不看出勤模式 → per_session 不再寫課堂 present）要您知道的下游**：這是 rules §1.2 的預期行為，但 `attendance_records` 會流進扣課與月結，per_session 機構的自動出勤紀錄會少一批（改由老師點名補）。計畫席判非保留類、reviewer 提醒它算金額下游 —— 您看一眼就好，不用裁。
 - **P1 admin/changes 五處超出 API**（2335 照預設做、不動後端，可否決）：老師／班級搜尋不做、批次用（類型＋原因＋操作者＋秒）前端分組、每列「看這堂」不做只留工具列「到課表」、時間欄不做依上課日分章、開場標題放頁首。
 
 - **出勤模式層級**：設計稿照 rules 畫成分校層級，日後一支 migration（保留類）；使用者未回，視同同意。
