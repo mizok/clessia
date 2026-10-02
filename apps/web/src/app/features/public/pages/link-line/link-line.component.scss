@@ -10,7 +10,6 @@
     font-size: var(--text-sm);
     line-height: var(--leading-relaxed);
     color: var(--zinc-500);
-    text-align: center;
   }
 
   &__btn {
@@ -35,9 +34,10 @@
     background: var(--line-brand-hover);
   }
 
+  // disabled 只發生在送出中（文字已換成「前往 LINE...」＋spinner）。不用 opacity：
+  // 它把字和底一起淡化、對比只會更低（#1085，charter 坑 27）
   &__btn:disabled {
-    cursor: not-allowed;
-    opacity: 0.6;
+    cursor: progress;
   }
 
   &__skip {
