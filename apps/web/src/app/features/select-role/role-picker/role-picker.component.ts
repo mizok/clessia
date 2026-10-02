@@ -14,7 +14,7 @@ const ROLE_OPTIONS: RoleOption[] = [
   {
     role: 'admin',
     icon: 'pi-shield',
-    label: '管理者',
+    label: '管理員',
     description: '跨分校管理、系統設定、日常營運',
   },
   { role: 'teacher', icon: 'pi-book', label: '任課老師', description: '課表、點名、學生學習紀錄' },
