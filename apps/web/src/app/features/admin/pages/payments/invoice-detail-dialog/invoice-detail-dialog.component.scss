@@ -1,3 +1,5 @@
+@use 'shared/breakpoints' as bp;
+
 .invoice-detail {
   display: flex;
   flex-direction: column;
@@ -146,11 +148,17 @@
     color: var(--zinc-500);
   }
 
+  // **手機優先**：一列一個欄位是基準。三欄並排（選單＋備註＋按鈕）在 390 寬的對話框裡放不下，
+  // 備註輸入框的最小寬度把整列撐出去，最右邊的『記一次』被裁到對話框外（#1033）。
   &__reminder-form {
     display: grid;
-    grid-template-columns: minmax(96px, auto) 1fr auto;
+    grid-template-columns: 1fr;
     gap: var(--space-2);
     align-items: center;
+
+    @include bp.respond-from('mobile') {
+      grid-template-columns: minmax(96px, auto) 1fr auto;
+    }
   }
 
   &__reminder-list {
