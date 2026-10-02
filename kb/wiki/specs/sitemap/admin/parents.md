@@ -271,7 +271,7 @@ updated: 2026-10-02
 | --- | --- | --- |
 | 列選單 `停用帳號` → `停用` | `PATCH /api/parents/{id}/deactivate` | ✅ `status=inactive`；留 `parent/deactivate`（`details` 空 `{}`） |
 | 列選單 `啟用帳號` → `啟用` | `PATCH /api/parents/{id}/activate` | ✅ 回 `active`，統計回到 27/1；留 `parent/activate` |
-| 列選單 `編輯` → `儲存` | `PUT /api/parents/{id}` | ✅ 電話落地，**寫的是 `ba_user.phone`**（見下）；**成功無 toast**；留 `parent/update`（`details` 空） |
+| 列選單 `編輯` → `儲存` | `PUT /api/parents/{id}` | ✅ 電話落地，**寫的是 `ba_user.phone`**（見下）；**成功無 toast**（2026-10-02 #1007 已修：成功會給「已儲存」toast）；留 `parent/update`（`details` 空） |
 | 列選單 `新增學生` → `建立學生` | `POST /api/students`（帶 `presetParentId`） | ✅ `students` +1、`parent_student_relations` +1（`is_primary=true`）；toast「學生已建立…已關聯至」 |
 | 詳情對話框的 `報名班級` | `POST /api/enrollments` | ✅ `enrollments` +1；**成功訊息是對話框內的 inline notice，不是 toast** |
 | `匯入` → 上傳 → 檢查 | `POST /api/parents/batch-check` | ✅ 解析 + 逐列狀態（「可匯入」） |
@@ -334,3 +334,4 @@ seed 家長的 `parent` 角色是 `seed.sql` 直接 INSERT 的 —— **所以�
 - 檔案解析 `slice(2)` —— **前兩列都當表頭跳過**（`parent-import-dialog.component.ts:302`），
   欄序是 家長姓名 / 電話 / Email / 家長備註 / 學生姓名 / 年級 / 學校 / 生日 / 性別
 - **匯入完成後、按「完成」之前，背後的統計不會更新**（仍顯示舊的 29）
+  > **2026-10-02 #1007 已修**：匯入有任何一筆成功就當下刷新列表與統計（不等「完成」，按右上 X 關閉也一樣）。

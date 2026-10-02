@@ -42,6 +42,7 @@ describe('ParentsPage', () => {
       pending.push({ search: params.search, subject });
       return subject.asObservable();
     }),
+    get: vi.fn((id: string) => of({ data: { id, name: '王媽媽' } })),
   };
 
   viBeforeEach(() => {
@@ -194,5 +195,42 @@ describe('ParentsPage', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('載入失敗');
     expect(text).not.toContain('尚未有家長資料');
+  });
+
+  /**
+   * #1007：同一頁其他操作都有 toast，只有編輯沒有；匯入要在成功當下就刷新列表。
+   * 元件自己 `providers: [MessageService, DialogService]`，TestBed 那層的 mock 蓋不到 ——
+   * 從元件的 injector 拿實際那一個來 spy。
+   */
+  describe('#1007', () => {
+    const injected = <T>(token: new (...args: never[]) => T) =>
+      fixture.debugElement.injector.get(token);
+
+    it('編輯家長成功 → 成功 toast，並重抓列表', () => {
+      vi.spyOn(injected(DialogService), 'open').mockReturnValue({
+        onClose: of({ type: 'updated' }),
+      } as never);
+      const add = vi.spyOn(injected(MessageService), 'add');
+      const listCalls = parentsServiceMock.list.mock.calls.length;
+
+      (component as unknown as { openEditDialog: (p: unknown) => void }).openEditDialog({
+        id: 'p1',
+        name: '王媽媽',
+      });
+
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'success' }));
+      expect(parentsServiceMock.list.mock.calls.length).toBe(listCalls + 1);
+    });
+
+    it('匯入對話框拿到 onImported，呼叫它就重抓列表（不靠關閉時回傳的值）', () => {
+      const open = vi.spyOn(injected(DialogService), 'open').mockReturnValue(null as never);
+      (component as unknown as { openImportDialog: () => void }).openImportDialog();
+      const config = open.mock.calls.at(-1)![1] as { data: { onImported: () => void } };
+      const listCalls = parentsServiceMock.list.mock.calls.length;
+
+      config.data.onImported();
+
+      expect(parentsServiceMock.list.mock.calls.length).toBe(listCalls + 1);
+    });
   });
 });
