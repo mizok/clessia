@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
 import { resolveStudentScope } from './students/teacher-scope';
-import { taughtClassIds } from '../lib/teacher-scope';
+import { taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
 import type { AppEnv } from '../index';
 import { logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
@@ -564,6 +564,29 @@ app.openapi(
 
     if (error || !data) {
       return c.json({ error: '學生不存在' }, 404);
+    }
+
+    // #1098：老師只讀得到自己固定任課班的學生（跟列表同一個範圍，代課不算「我的學生」）。
+    // 別 org 的 id 在上面已是 404；同 org 但不是他的學生 → 403
+    const roles = c.get('roles') ?? [];
+    if (!roles.includes('admin')) {
+      const { data: ownStaff } = await supabase
+        .from('staff')
+        .select('id')
+        .eq('user_id', c.get('userId'))
+        .eq('org_id', orgId)
+        .maybeSingle();
+      const scope = resolveStudentScope({
+        roles,
+        taughtByMe: true,
+        ownStaffId: (ownStaff?.id as string | undefined) ?? null,
+      });
+      if (
+        'forbidden' in scope ||
+        !(await taughtStudentIds(supabase, orgId, scope.teacherStaffId!)).includes(id)
+      ) {
+        return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+      }
     }
 
     const row = data as Record<string, unknown>;

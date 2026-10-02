@@ -121,6 +121,11 @@ school-exams、contact-book、class-logs，以及 `/api/attendance/sessions` 的
 含意：老師點名清單上看不到別班，但**知道 `eventId` 就改得動別班的出勤**。
 清單已經回傳 `eventId`，換一個值即可。
 
+**同形狀的另外兩支（#1098，2026-10-03 已修）**：`GET /api/students/{id}` 單筆只有 `.eq('org_id')`（列表有走
+`resolveStudentScope`），老師讀得到全機構任一學生 → 改成跟列表同一個範圍（固定任課班的學生，`lib/teacher-scope.ts`
+的 `taughtStudentIds`；別 org 404、同 org 非他的學生 403）。`GET /api/attendance` 列表完全沒有老師範圍 →
+前端只有管理端儀表板在用，比照同檔 `/student-day` 改成只開給管理員。
+
 ### 洞 5 — 分校完全沒有隔離
 
 見上表。分校主任看得到、也改得動別校的收入、名單、出勤。
