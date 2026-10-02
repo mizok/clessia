@@ -7,6 +7,7 @@ import { waitUntilFrom } from '../lib/wait-until';
 import { DbUuidSchema } from '../lib/validation';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { whereDueWithin, whereOverdue } from '../lib/invoice-overdue';
+import { invoiceTotals, isOpenInvoice, voidBlockReason } from '../lib/invoice-status';
 
 /**
  * 帳單、明細、收款、催繳。
@@ -21,6 +22,10 @@ const ITEM_TYPES = ['tuition', 'meal', 'session_pack', 'adjustment'] as const;
 const PAYMENT_KINDS = ['payment', 'refund'] as const;
 const PAYMENT_METHODS = ['cash', 'transfer'] as const;
 const REMINDER_METHODS = ['line', 'phone', 'other'] as const;
+const INVOICE_STATUSES = ['unpaid', 'partial', 'paid', 'void'] as const;
+
+/** 作廢單凍結（#898）。四支寫入共用的回應 —— DB trigger 另有一層，催繳那支沒有 */
+const VOIDED = { error: '這張帳單已作廢，不能再修改', code: 'INVOICE_VOIDED' } as const;
 
 const InvoiceItemSchema = z
   .object({
@@ -57,11 +62,14 @@ const InvoiceSchema = z
     issuedAt: z.string(),
     dueDate: z.string().nullable(),
     note: z.string().nullable(),
-    /** 推導值，不是欄位 */
-    status: z.enum(['unpaid', 'partial', 'paid']),
+    /** 推導值，不是欄位 —— 唯一例外是 void，它來自 voided_at（#898） */
+    status: z.enum(INVOICE_STATUSES),
     total: z.number(),
     /** 收款減退費 */
     netPaid: z.number(),
+    voidedAt: z.string().nullable(),
+    voidedBy: z.string().nullable(),
+    voidReason: z.string().nullable(),
     items: z.array(InvoiceItemSchema),
     payments: z.array(PaymentRecordSchema),
     createdAt: z.string(),
@@ -111,7 +119,7 @@ app.openapi(
           .optional()
           .openapi({ description: '天數 N = 只看 N 天內到期且未繳清（今天與第 N 天都含）' }),
         status: z
-          .enum(['unpaid', 'partial', 'paid'])
+          .enum(INVOICE_STATUSES)
           .optional()
           .openapi({ description: '推導出來的狀態，與 overdue 可並用' }),
         page: z.string().optional(),
@@ -151,7 +159,7 @@ app.openapi(
     //   outstanding  沒有日期條件                 —— 催繳母體
     //   overdue      due_date < 今天              —— 已逾期
     //   dueWithin    今天 <= due_date <= 今天+N   —— 快到期
-    // **「未繳清」那一半三者共用**,所以下面只有一個 status !== 'paid'。
+    // **「未繳清」那一半三者共用**,所以下面只有一個 isOpenInvoice。
     const unpaidOnly = overdue || outstanding || dueWithinDays !== undefined;
     // 全都是推導條件 —— 帶了任一個就不能讓 DB 分頁，否則被篩掉的那些會在頁與頁之間留洞
     const derivedFilter = unpaidOnly || Boolean(params.status);
@@ -194,7 +202,9 @@ app.openapi(
     }
 
     let rows = mapped;
-    if (unpaidOnly) rows = rows.filter((invoice) => invoice.status !== 'paid');
+    // 作廢單不在母體裡（#898）—— 它的 total − netPaid 是全額，放進來就是叫行政去催一張
+    // 不存在的帳單。所以是 isOpenInvoice，不是 `!== 'paid'`
+    if (unpaidOnly) rows = rows.filter((invoice) => isOpenInvoice(invoice.status));
     if (params.status) rows = rows.filter((invoice) => invoice.status === params.status);
 
     const paged = sliceDerivedPage(rows, page, pageSize);
@@ -393,6 +403,7 @@ app.openapi(
       },
       400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: '帳單不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      409: { description: '帳單已作廢', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -404,7 +415,7 @@ app.openapi(
 
     const { data: invoice } = await supabase
       .from('invoices')
-      .select('id')
+      .select('id, voided_at')
       .eq('id', id)
       .eq('org_id', orgId)
       .maybeSingle();
@@ -412,6 +423,7 @@ app.openapi(
     if (!invoice) {
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
     }
+    if (invoice['voided_at']) return c.json(VOIDED, 409);
 
     const { error } = await supabase.from('invoice_items').insert({
       invoice_id: id,
@@ -452,6 +464,7 @@ app.openapi(
         content: { 'application/json': { schema: z.object({ data: InvoiceSchema }) } },
       },
       404: { description: '不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      409: { description: '帳單已作廢', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -462,7 +475,7 @@ app.openapi(
 
     const { data: invoice } = await supabase
       .from('invoices')
-      .select('id')
+      .select('id, voided_at')
       .eq('id', id)
       .eq('org_id', orgId)
       .maybeSingle();
@@ -470,6 +483,7 @@ app.openapi(
     if (!invoice) {
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
     }
+    if (invoice['voided_at']) return c.json(VOIDED, 409);
 
     await supabase.from('invoice_items').delete().eq('id', itemId).eq('invoice_id', id);
 
@@ -522,6 +536,7 @@ app.openapi(
       },
       400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: '帳單不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      409: { description: '帳單已作廢', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -533,7 +548,7 @@ app.openapi(
 
     const { data: invoice } = await supabase
       .from('invoices')
-      .select('id')
+      .select('id, voided_at')
       .eq('id', id)
       .eq('org_id', orgId)
       .maybeSingle();
@@ -541,6 +556,7 @@ app.openapi(
     if (!invoice) {
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
     }
+    if (invoice['voided_at']) return c.json(VOIDED, 409);
 
     const { error } = await supabase.from('payment_records').insert({
       org_id: orgId,
@@ -578,6 +594,170 @@ app.openapi(
 );
 
 // ============================================================
+// POST /api/invoices/:id/void —— 作廢（#898）
+//
+// **作廢，不刪除；淨額歸零才能作廢；不可撤銷**（使用者 2026-09-30 裁定）。
+// 堂數包連著的帳單也擋（裁決 D：作廢帳單但堂數還在 = 沒收錢的堂數）。
+//
+// 淨額與「已作廢」在 DB trigger 另有一層（`20260930072356_invoice_void.sql`）——
+// 這裡先檢查是為了回看得懂的錯誤；**競態由 trigger 擋**，所以 update 的錯誤也要接。
+//
+// 作廢 = 這張帳單的收費項回到未開帳（裁決 B）：
+// - 學費：`billing-runs.ts` 的冪等查詢排除作廢單，不用在這裡做事
+// - 餐費：冪等靠蓋章，所以要在這裡把章解掉
+//
+// ⚠️ 作廢與解章是兩次呼叫（supabase-js 一次呼叫一個交易，跟 billing-runs 三步式同形）。
+// 死在中間 = 作廢了但餐費還蓋著 → **少收，不會重複收**，而且再按一次作廢會補做解章
+// （ALREADY_VOIDED 那條路也跑一次，where 只挑這張帳單的 item，冪等）。
+// ============================================================
+
+/** 解除這張帳單餐費明細的蓋章，回解了幾筆 */
+async function releaseMealStamps(
+  supabase: AppEnv['Variables']['supabase'],
+  items: Array<{ id: string; type: string }>,
+): Promise<number> {
+  const mealItemIds = items.filter((item) => item.type === 'meal').map((item) => item.id);
+  if (mealItemIds.length === 0) return 0;
+
+  const { data } = await supabase
+    .from('meal_records')
+    .update({ invoice_item_id: null })
+    .in('invoice_item_id', mealItemIds)
+    .select('id');
+
+  return (data ?? []).length;
+}
+
+/** 前置檢查失敗時給行政看的話 —— 要說清楚下一步該做什麼 */
+function voidBlockMessage(code: 'NET_PAID_NONZERO' | 'HAS_SESSION_PACK', netPaid: number): string {
+  if (code === 'HAS_SESSION_PACK') {
+    return '這張帳單的明細連到堂數包 —— 先處理堂數包才能作廢';
+  }
+  const amount = Math.abs(netPaid).toLocaleString('en-US');
+  return netPaid > 0
+    ? `已收淨額 ${amount} 元 —— 請先記一筆退款把淨額歸零才能作廢`
+    : `退款比收款多 ${amount} 元 —— 淨額要歸零才能作廢`;
+}
+
+app.openapi(
+  createRoute({
+    method: 'post',
+    path: '/{id}/void',
+    tags: ['Invoices'],
+    summary: '作廢帳單（不可撤銷）',
+    request: {
+      params: z.object({ id: DbUuidSchema }),
+      body: {
+        content: {
+          'application/json': {
+            schema: z.object({ reason: z.string().trim().min(1).max(500) }),
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: '成功',
+        content: { 'application/json': { schema: z.object({ data: InvoiceSchema }) } },
+      },
+      400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
+      404: { description: '帳單不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      409: {
+        description: '已作廢／淨額不為 0／連到堂數包',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      500: { description: '檢查失敗', content: { 'application/json': { schema: ErrorSchema } } },
+    },
+  }),
+  async (c) => {
+    const supabase = c.get('supabase');
+    const orgId = c.get('orgId');
+    const userId = c.get('userId');
+    const { id } = c.req.valid('param');
+    const { reason } = c.req.valid('json');
+
+    const { data: row } = await supabase
+      .from('invoices')
+      .select(INVOICE_SELECT)
+      .eq('id', id)
+      .eq('org_id', orgId)
+      .maybeSingle();
+
+    if (!row) {
+      return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
+    }
+
+    const invoice = toInvoiceResponse(row as unknown as Record<string, unknown>);
+
+    if (invoice.voidedAt !== null) {
+      await releaseMealStamps(supabase, invoice.items);
+      return c.json({ error: '這張帳單已經作廢過了', code: 'ALREADY_VOIDED' }, 409);
+    }
+
+    // 堂數包：查不到答案要當成「擋」（fail-closed，跟 enrollment-session-pack-guard 同形狀）
+    let hasSessionPack = false;
+    if (invoice.items.length > 0) {
+      const { count, error } = await supabase
+        .from('session_packs')
+        .select('id', { count: 'exact', head: true })
+        .in(
+          'invoice_item_id',
+          invoice.items.map((item) => item.id),
+        );
+      if (error) {
+        return c.json({ error: '無法確認堂數包，請稍後再試', code: 'CHECK_FAILED' }, 500);
+      }
+      hasSessionPack = (count ?? 0) > 0;
+    }
+
+    const { net } = invoiceTotals(invoice.items, invoice.payments);
+    const blocked = voidBlockReason({ voided: false, netPaid: net, hasSessionPack });
+    if (blocked === 'NET_PAID_NONZERO' || blocked === 'HAS_SESSION_PACK') {
+      return c.json({ error: voidBlockMessage(blocked, net), code: blocked }, 409);
+    }
+
+    // 條件式：只在 voided_at 仍為空時生效 —— 檢查之後被別人先作廢了，這裡回 0 列
+    const { data: updated, error: updateError } = await supabase
+      .from('invoices')
+      .update({ voided_at: new Date().toISOString(), voided_by: userId, void_reason: reason })
+      .eq('id', id)
+      .eq('org_id', orgId)
+      .is('voided_at', null)
+      .select('id');
+
+    if (updateError) {
+      // 檢查之後插進一筆收款：trigger 以淨額 ≠ 0 拒絕。這是業務衝突不是系統錯誤
+      return c.json(
+        { error: '帳單在作廢的同時有變動（例如剛記了一筆收款），請重新整理再試', code: 'VOID_REJECTED' },
+        409,
+      );
+    }
+    if (!updated || updated.length === 0) {
+      return c.json({ error: '這張帳單已經作廢過了', code: 'ALREADY_VOIDED' }, 409);
+    }
+
+    const mealRecordsReleased = await releaseMealStamps(supabase, invoice.items);
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'invoice',
+        resourceId: id,
+        action: 'invoice.void',
+        details: { reason, total: invoice.total, mealRecordsReleased },
+      },
+      waitUntilFrom(c),
+    );
+
+    const { data } = await supabase.from('invoices').select(INVOICE_SELECT).eq('id', id).single();
+
+    return c.json({ data: toInvoiceResponse(data as unknown as Record<string, unknown>) }, 200);
+  },
+);
+
+// ============================================================
 // 催繳：記錄與列表
 //
 // 規則 7：催繳是**業務資料**不塞 audit_logs —— 行政要看得到「這張催過幾次、怎麼催的」。
@@ -607,6 +787,7 @@ app.openapi(
         content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
       },
       404: { description: '帳單不存在', content: { 'application/json': { schema: ErrorSchema } } },
+      409: { description: '帳單已作廢', content: { 'application/json': { schema: ErrorSchema } } },
     },
   }),
   async (c) => {
@@ -618,7 +799,7 @@ app.openapi(
 
     const { data: invoice } = await supabase
       .from('invoices')
-      .select('id')
+      .select('id, voided_at')
       .eq('id', id)
       .eq('org_id', orgId)
       .maybeSingle();
@@ -626,6 +807,7 @@ app.openapi(
     if (!invoice) {
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
     }
+    if (invoice['voided_at']) return c.json(VOIDED, 409);
 
     await supabase.from('payment_reminders').insert({
       invoice_id: id,

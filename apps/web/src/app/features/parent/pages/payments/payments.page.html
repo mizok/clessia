@@ -68,6 +68,27 @@
           </section>
         }
 
+        @if (groups().voided.length > 0) {
+          <!--
+            作廢單（#898）：看得到、預設收合、不計應繳。原生 <details> 自帶開合與鍵盤操作。
+            金額照列：家長手上有紙本收費袋，對得上那張紙才知道是哪一張被作廢了。
+          -->
+          <details class="payments__voided">
+            <summary class="payments__section-title payments__voided-summary">
+              已作廢（{{ groups().voided.length }}）
+            </summary>
+            @for (invoice of groups().voided; track invoice.id) {
+              <button type="button" class="payments__row" (click)="openDetail(invoice)">
+                <span class="payments__row-id">#{{ invoice.id.slice(0, 8) }}</span>
+                <span class="payments__row-amount payments__row-amount--void"
+                  >{{ invoice.total | number }} 元</span
+                >
+                <span class="payments__row-status payments__row-status--void">已作廢</span>
+              </button>
+            }
+          </details>
+        }
+
         @if (hasMore()) {
           <button
             type="button"
@@ -115,7 +136,11 @@
             <p class="payments__detail-due">繳費期限 {{ invoice.dueDate }}</p>
           }
 
-          @if (invoice.status !== 'paid') {
+          @if (invoice.status === 'void') {
+            <div class="payments__detail-notice">
+              <p>這張帳單已作廢，不需要付款。如有疑問請洽補習班行政人員。</p>
+            </div>
+          } @else if (invoice.status !== 'paid') {
             <div class="payments__detail-notice">
               <p>付款方式：現金或轉帳，帳戶資訊請洽補習班行政人員。</p>
               <p>完成付款後請通知補習班確認。</p>

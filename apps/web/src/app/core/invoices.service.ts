@@ -12,8 +12,11 @@ import { environment } from '@env/environment';
  * 兩邊各算一次就會有兩個版本的真相。
  */
 
-/** 三態。逾期是**正交的衍生標記**，不是第四種狀態（billing-rules 規則 4） */
-export type InvoiceStatus = 'unpaid' | 'partial' | 'paid';
+/**
+ * 三態推導 ＋ 作廢。逾期是**正交的衍生標記**，不是狀態（billing-rules 規則 4）。
+ * `void` 不是推導的，它來自 `voidedAt`（#898）。
+ */
+export type InvoiceStatus = 'unpaid' | 'partial' | 'paid' | 'void';
 
 export type InvoiceItemType = 'tuition' | 'meal' | 'session_pack' | 'adjustment';
 export type PaymentKind = 'payment' | 'refund';
@@ -24,7 +27,16 @@ export const INVOICE_STATUS_LABELS: Readonly<Record<InvoiceStatus, string>> = {
   unpaid: '未繳',
   partial: '部分繳',
   paid: '繳清',
+  void: '已作廢',
 };
+
+/**
+ * 「還在等錢」的唯一定義，跟後端 `lib/invoice-status.ts` 的 `isOpenInvoice` 同一條。
+ * 列舉「是」而不是排除「不是」—— `status !== 'paid'` 會把作廢單算成欠全額（#898）。
+ */
+export function isOpenInvoice(status: InvoiceStatus): boolean {
+  return status === 'unpaid' || status === 'partial';
+}
 
 export const INVOICE_ITEM_TYPE_LABELS: Readonly<Record<InvoiceItemType, string>> = {
   tuition: '學費',
@@ -85,6 +97,10 @@ export interface Invoice {
   total: number;
   /** 收款減退費 */
   netPaid: number;
+  /** #898。作廢不可撤銷；三個欄位同進同出（voidedBy 可能因帳號被刪而是 null） */
+  voidedAt: string | null;
+  voidedBy: string | null;
+  voidReason: string | null;
   items: InvoiceItem[];
   payments: PaymentRecord[];
   createdAt: string;
@@ -194,6 +210,14 @@ export class InvoicesService {
 
   addItem(id: string, input: CreateInvoiceItemInput): Observable<{ data: Invoice }> {
     return this.http.post<{ data: Invoice }>(`${this.endpoint}/${id}/items`, input);
+  }
+
+  /**
+   * 作廢（#898）。**不可撤銷**。淨額 ≠ 0、已作廢、連到堂數包時後端回 409，
+   * `error` 是給行政看的完整句子（含下一步該做什麼），直接顯示即可。
+   */
+  voidInvoice(id: string, reason: string): Observable<{ data: Invoice }> {
+    return this.http.post<{ data: Invoice }>(`${this.endpoint}/${id}/void`, { reason });
   }
 
   removeItem(id: string, itemId: string): Observable<{ data: Invoice }> {

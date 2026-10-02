@@ -1717,8 +1717,10 @@ describe('B3 —— 報名的計費 API', () => {
       await app.request('/api/enrollments?hasInvoice=false');
 
       // left join + is.null —— 少了 is.null 就會把所有報名都撈回來
-      expect(selects.some((select) => select.includes('invoice_items(id)'))).toBe(true);
+      expect(selects.some((select) => select.includes('invoice_items(id,'))).toBe(true);
       expect(filters).toContainEqual(['enrollments.is.invoice_items', null]);
+      // #898：作廢單的明細先被篩掉，只剩作廢單的報名才會落進「沒開過帳」
+      expect(filters).toContainEqual(['enrollments.is.invoice_items.invoices.voided_at', null]);
     });
 
     it('要「開過帳」時走 inner join，不下 is.null', async () => {
@@ -1726,8 +1728,10 @@ describe('B3 —— 報名的計費 API', () => {
 
       await app.request('/api/enrollments?hasInvoice=true');
 
-      expect(selects.some((select) => select.includes('invoice_items!inner(id)'))).toBe(true);
+      expect(selects.some((select) => select.includes('invoice_items!inner(id,'))).toBe(true);
       expect(filters).not.toContainEqual(['enrollments.is.invoice_items', null]);
+      // #898：只有作廢單明細的報名不算「開過帳」
+      expect(filters).toContainEqual(['enrollments.is.invoice_items.invoices.voided_at', null]);
     });
 
     it('不帶這個參數時完全不碰帳單關聯', async () => {

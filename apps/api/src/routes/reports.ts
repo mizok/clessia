@@ -112,7 +112,7 @@ function matchesFilter(
 }
 
 const INVOICE_SELECT =
-  'id, issued_at, due_date,' +
+  'id, issued_at, due_date, voided_at,' +
   ' invoice_items(amount, enrollments(classes(campus_id, course_id, campuses(name), courses(name)))),' +
   ' payment_records(kind, amount)';
 
@@ -192,6 +192,10 @@ app.openapi(
 
     const invoices: RevenueInvoice[] = [];
     for (const row of (invoiceRows ?? []) as unknown as Record<string, unknown>[]) {
+      // 作廢單的應收已經不存在（#898）。**只跳過應收這一腿** —— 上面收款那一腿照算：
+      // 作廢要求淨額歸零，所以它的收款與退款是真的現金流，兩欄互相抵銷。
+      // 在記憶體篩而不是下在查詢上，跟分校過濾同一個理由：替身不模擬過濾，這樣測得到。
+      if (row['voided_at']) continue;
       const contexts = classContexts(row);
       if (!matchesFilter(contexts, params.campusId, params.courseId, campusScope)) continue;
 

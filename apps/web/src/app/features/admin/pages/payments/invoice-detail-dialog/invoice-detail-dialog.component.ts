@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
+import { TextareaModule } from 'primeng/textarea';
 import { SelectModule } from 'primeng/select';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
@@ -22,6 +23,8 @@ import {
   type PaymentReminder,
   type ReminderMethod,
 } from '@core/invoices.service';
+
+import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
 import { PaymentFormDialogComponent } from '../payment-form-dialog/payment-form-dialog.component';
 import { isOverdue, outstanding, receiptNoOf } from '../payments.util';
@@ -61,6 +64,8 @@ import { RtRowDirective } from '@shared/components/responsive-table/rt-row.direc
     FormsModule,
     ButtonModule,
     InputTextModule,
+    TextareaModule,
+    InlineNoticeComponent,
     SelectModule,
     TooltipModule,
   ],
@@ -99,9 +104,29 @@ export class InvoiceDetailDialogComponent {
    * 這樣「部分繳 + 逾期」才表達得出來：狀態說「部分繳」（還在等），
    * 旁邊的「逾期」說該處理了。把兩者塞進一個 tone 會少掉一半資訊。
    */
-  protected readonly statusTone = computed<StatusTone>(() =>
-    this.invoice().status === 'paid' ? 'done' : 'pending',
+  protected readonly statusTone = computed<StatusTone>(() => {
+    const status = this.invoice().status;
+    if (status === 'void') return 'inactive';
+    return status === 'paid' ? 'done' : 'pending';
+  });
+
+  // ── 作廢（#898）─────────────────────────────────────────────────────
+  // 跟催繳一樣是頁內面板不是第三層 dialog（理由見檔頭）。
+  protected readonly isVoided = computed(() => this.invoice().status === 'void');
+  protected readonly voidedSummary = computed(() => {
+    const { voidedAt, voidReason } = this.invoice();
+    // voidedBy 是帳號 id 不是姓名，前端沒有對照表 —— 顯示了也讀不懂，所以不列
+    const at = voidedAt ? voidedAt.slice(0, 16).replace('T', ' ') : '';
+    return `${at} 作廢 · 理由：${voidReason ?? '—'}`;
+  });
+  /** 作廢後會回到未結算的餐費筆數提示 —— 行政要知道下次帳務作業會重新計入 */
+  protected readonly mealItemCount = computed(
+    () => this.invoice().items.filter((item) => item.type === 'meal').length,
   );
+  protected readonly voidFormOpen = signal(false);
+  protected readonly voidReason = signal('');
+  protected readonly voiding = signal(false);
+  protected readonly voidError = signal<string | null>(null);
 
   // ── 催繳 ──────────────────────────────────────────────────────────────
   protected readonly reminders = signal<PaymentReminder[]>([]);
@@ -188,6 +213,42 @@ export class InvoiceDetailDialogComponent {
           this.savingReminder.set(false);
         },
       });
+  }
+
+  protected openVoidForm(): void {
+    this.voidReason.set('');
+    this.voidError.set(null);
+    this.voidFormOpen.set(true);
+  }
+
+  protected cancelVoid(): void {
+    this.voidFormOpen.set(false);
+  }
+
+  protected confirmVoid(): void {
+    const reason = this.voidReason().trim();
+    if (!reason) return;
+
+    this.voiding.set(true);
+    this.voidError.set(null);
+    this.service.voidInvoice(this.invoice().id, reason).subscribe({
+      next: (res) => {
+        this.invoice.set(res.data);
+        this.dirty.set(true);
+        this.voiding.set(false);
+        this.voidFormOpen.set(false);
+        this.messageService.add({
+          severity: 'success',
+          summary: '帳單已作廢',
+          detail: '要重新收費請另開一張新帳單',
+        });
+      },
+      // 409 的訊息是後端寫好的完整句子（淨額、堂數包、已作廢），原樣顯示在面板裡
+      error: (err) => {
+        this.voidError.set(err.error?.error || '作廢失敗，請稍後再試');
+        this.voiding.set(false);
+      },
+    });
   }
 
   protected printInvoice(): void {

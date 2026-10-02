@@ -156,4 +156,33 @@ describe('GET /api/me/billing', () => {
     // 只有未繳清那筆的 (total - netPaid) = 600 算進 totalDue，已繳清的不算
     expect(body.meta).toMatchObject({ totalDue: 600 });
   });
+
+  // #898 裁決 E：家長看得到作廢單（前端收合），但不計應繳 ——
+  // 作廢單的 total − netPaid 是全額，算進去就是向家長要一筆不存在的錢
+  it('作廢單列出、status 是 void、不帶作廢理由、不計入 totalDue', async () => {
+    const VOIDED_INVOICE = {
+      ...UNPAID_INVOICE,
+      id: 'inv3',
+      payment_records: [],
+      voided_at: '2026-09-20T00:00:00Z',
+      voided_by: 'staff-1',
+      void_reason: '內部：開錯月份',
+    };
+    const res = await appWith(
+      ['parent'],
+      [CHILD_ID],
+      fakeChildDb([UNPAID_INVOICE, VOIDED_INVOICE], [UNPAID_INVOICE, VOIDED_INVOICE]),
+    ).request(`/?childId=${CHILD_ID}`);
+
+    const body = (await res.json()) as {
+      data: Array<Record<string, unknown>>;
+      meta: Record<string, unknown>;
+    };
+
+    const voided = body.data.find((invoice) => invoice['id'] === 'inv3');
+    expect(voided).toMatchObject({ status: 'void', voidedAt: '2026-09-20T00:00:00Z' });
+    expect(voided).not.toHaveProperty('voidReason');
+    expect(voided).not.toHaveProperty('voidedBy');
+    expect(body.meta).toMatchObject({ totalDue: 600 });
+  });
 });

@@ -64,11 +64,15 @@ async function scanMealAnomalies(
 ): Promise<MealItemAnomaly[]> {
   const { data: mealItems } = await supabase
     .from('invoice_items')
-    .select('id, amount, invoices!inner(org_id)')
+    .select('id, amount, invoices!inner(org_id, voided_at)')
     .eq('type', 'meal')
     .eq('invoices.org_id', orgId);
 
-  const items = (mealItems ?? []) as unknown as Record<string, unknown>[];
+  // 作廢單不掃（#898）：作廢時章已解，它的 item 必然「對不上」，
+  // 放進來的話 repair 會去改一張作廢單（DB trigger 擋下 → 每次都回報一筆修不掉的異常）
+  const items = ((mealItems ?? []) as unknown as Record<string, unknown>[]).filter(
+    (item) => !(item['invoices'] as { voided_at?: string | null } | null)?.voided_at,
+  );
   if (items.length === 0) return [];
 
   const itemIds = items.map((item) => item['id'] as string);
@@ -240,7 +244,9 @@ app.openapi(
     if (candidates.length > 0) {
       let billedQuery = supabase
         .from('invoice_items')
-        .select('enrollment_id')
+        // 帶上帳單的作廢狀態：作廢單上的學費列不算開過（#898 裁決 B）——
+        // 不然作廢一張 run 帳單，那個月就永遠開不出來
+        .select('enrollment_id, invoices!inner(voided_at)')
         .eq('type', 'tuition')
         .in(
           'enrollment_id',
@@ -253,6 +259,7 @@ app.openapi(
 
       const { data: billedRows } = await billedQuery;
       for (const row of (billedRows ?? []) as unknown as Record<string, unknown>[]) {
+        if ((row['invoices'] as { voided_at?: string | null } | null)?.voided_at) continue;
         alreadyBilled.add(row['enrollment_id'] as string);
       }
     }

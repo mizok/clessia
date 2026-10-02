@@ -350,6 +350,8 @@ export class PaymentsPage implements OnInit {
    * 旁邊的「逾期」說該處理了。把兩者塞進一個 tone 會少掉一半資訊。
    */
   protected statusTone(invoice: Invoice): StatusTone {
+    // 作廢單用既有的 inactive —— 它不在等錢，也不是繳清（#898）
+    if (invoice.status === 'void') return 'inactive';
     return invoice.status === 'paid' ? 'done' : 'pending';
   }
 

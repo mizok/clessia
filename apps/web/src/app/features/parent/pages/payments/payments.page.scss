@@ -91,6 +91,37 @@
       color: var(--zinc-600);
       background: var(--zinc-100);
     }
+
+    &--void {
+      color: var(--zinc-600);
+      background: var(--zinc-100);
+    }
+  }
+
+  // 作廢單（#898）。刪除線：這筆錢不再是應繳，但數字要讀得出來（對紙本收費袋用）
+  &__row-amount--void {
+    color: var(--zinc-600);
+    text-decoration: line-through;
+  }
+
+  // <details> 上的 flex/grid 在部分瀏覽器不生效，所以用 block ＋ 列間距
+  &__voided {
+    display: block;
+  }
+
+  &__voided-summary {
+    cursor: pointer;
+
+    /* 觸控門檻：桌機 40px、手指 44px（同檔 __load-more 的既有形狀） */
+    min-height: 40px;
+
+    @media (pointer: coarse) {
+      min-height: 44px;
+    }
+  }
+
+  &__voided &__row {
+    margin-top: var(--space-2);
   }
 
   &__load-more {

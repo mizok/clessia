@@ -75,6 +75,20 @@
     outline-offset: -2px;
   }
 
+  // 作廢單（#898）：列出但退到背景 —— 稽核看得到，眼睛不會停在它上面。
+  // 金額加刪除線：它不再是一筆應收，但數字本身要讀得出來（對紙本收費袋用）。
+  // 灰到 zinc-500 為止 —— 再淡就掉到 AA 4.5:1 以下（harness 的對比 gate 看不到這裡，
+  // 因為底色來自別的規則）
+  &__row--void &__student,
+  &__row--void &__date {
+    color: var(--zinc-500);
+  }
+
+  &__row--void &__amount {
+    color: var(--zinc-500);
+    text-decoration: line-through;
+  }
+
   &__student {
     font-weight: var(--font-medium);
     color: var(--zinc-900);

@@ -28,6 +28,7 @@ function invoice(overrides: Partial<ParentInvoice> = {}): ParentInvoice {
     status: 'unpaid',
     total: 5000,
     netPaid: 0,
+    voidedAt: null,
     items: [{ id: 'item-1', type: 'tuition', amount: 5000, periodMonth: '2026-08' }],
     payments: [],
     createdAt: '2026-08-01T00:00:00.000Z',
@@ -133,6 +134,36 @@ describe('PaymentsPage', () => {
       '已付款',
     ]);
     expect(fixture.nativeElement.textContent).not.toContain('已取消');
+  });
+
+  // #898 裁決 E：看得到、預設收合、不在待付款裡、點開不叫家長付款
+  it('作廢單進收合的「已作廢」組，不在待付款裡，詳情不顯示付款方式', () => {
+    createComponent({
+      data: [
+        invoice({ id: 'a', status: 'unpaid' }),
+        invoice({ id: 'v0000000-void', status: 'void', voidedAt: '2026-08-20T00:00:00Z' }),
+      ],
+      meta: { total: 2, page: 1, pageSize: 20, totalDue: 5000 },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+
+    const voided = fixture.nativeElement.querySelector('.payments__voided') as HTMLDetailsElement;
+    expect(voided).not.toBeNull();
+    expect(voided.open).toBe(false);
+    expect(voided.textContent).toContain('#v0000000');
+
+    const pending = fixture.nativeElement.querySelector('.payments__section') as HTMLElement;
+    expect(pending.textContent).toContain('待付款');
+    expect(pending.textContent).not.toContain('#v0000000');
+
+    (voided.querySelector('.payments__row') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const detail = document.body.querySelector('.payments__detail');
+    expect(detail?.textContent).toContain('已作廢');
+    expect(detail?.textContent).toContain('不需要付款');
+    expect(detail?.textContent).not.toContain('付款方式');
   });
 
   it('點一筆帳單開詳情抽屜，顯示明細但不顯示內部備註或經手人', () => {

@@ -8,6 +8,7 @@ const invoice = (overrides: Partial<ParentInvoice> = {}): ParentInvoice => ({
   status: 'unpaid',
   total: 5000,
   netPaid: 0,
+  voidedAt: null,
   items: [],
   payments: [],
   createdAt: '2026-08-01T00:00:00.000Z',
@@ -27,9 +28,17 @@ describe('payments.util', () => {
       expect(groups.paid.map((i) => i.id)).toEqual(['c']);
     });
 
-    it('沒有已取消這一組——全系統的狀態值域只有三態', () => {
-      const groups = groupInvoices([invoice({ status: 'paid' })]);
-      expect(Object.keys(groups)).toEqual(['pending', 'paid']);
+    // #898 裁決 E：家長看得到作廢單（收合），但它不是「待付款」也不是「已付款」
+    it('作廢單自成一組，不進待付款也不進已付款', () => {
+      const groups = groupInvoices([
+        invoice({ id: 'a', status: 'unpaid' }),
+        invoice({ id: 'v', status: 'void', voidedAt: '2026-08-20T00:00:00Z' }),
+        invoice({ id: 'c', status: 'paid' }),
+      ]);
+
+      expect(groups.pending.map((i) => i.id)).toEqual(['a']);
+      expect(groups.paid.map((i) => i.id)).toEqual(['c']);
+      expect(groups.voided.map((i) => i.id)).toEqual(['v']);
     });
   });
 

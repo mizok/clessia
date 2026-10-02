@@ -3,7 +3,8 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '@env/environment';
 
-export type ParentInvoiceStatus = 'unpaid' | 'partial' | 'paid';
+/** `void` 來自作廢（#898），不是推導。家長端看得到作廢單但不計應繳 */
+export type ParentInvoiceStatus = 'unpaid' | 'partial' | 'paid' | 'void';
 export type ParentInvoiceItemType = 'tuition' | 'meal' | 'session_pack' | 'adjustment';
 export type ParentPaymentKind = 'payment' | 'refund';
 export type ParentPaymentMethod = 'cash' | 'transfer';
@@ -29,6 +30,8 @@ export interface ParentInvoice {
   issuedAt: string;
   dueDate: string | null;
   status: ParentInvoiceStatus;
+  /** 只給時間 —— 作廢理由與經手人是行政內部，後端不外流 */
+  voidedAt: string | null;
   total: number;
   netPaid: number;
   items: ParentInvoiceItem[];

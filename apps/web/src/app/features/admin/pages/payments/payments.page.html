@@ -161,6 +161,7 @@
             [appRtRow]="invoice"
             [appRtRowId]="invoice.id"
             class="payments__row"
+            [class.payments__row--void]="invoice.status === 'void'"
             tabindex="0"
             role="button"
             [attr.aria-label]="(invoice.studentName ?? '未知學生') + ' 的帳單詳情'"
