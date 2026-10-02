@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { Subject, of, throwError } from 'rxjs';
@@ -43,6 +44,7 @@ describe('ParentsPage', () => {
       return subject.asObservable();
     }),
     get: vi.fn((id: string) => of({ data: { id, name: '王媽媽' } })),
+    createLoginLink: vi.fn(() => of({ url: 'https://x', expiresInSeconds: 1 })),
   };
 
   viBeforeEach(() => {
@@ -220,6 +222,25 @@ describe('ParentsPage', () => {
 
       expect(add).toHaveBeenCalledWith(expect.objectContaining({ severity: 'success' }));
       expect(parentsServiceMock.list.mock.calls.length).toBe(listCalls + 1);
+    });
+
+    it('#1006 產生登入連結失敗 → toast 依錯誤碼說明成因，不是一律「請稍後再試」', () => {
+      parentsServiceMock.createLoginLink.mockReturnValueOnce(
+        throwError(
+          () => new HttpErrorResponse({ status: 422, error: { error: 'x', code: 'NO_EMAIL' } }),
+        ),
+      );
+      const add = vi.spyOn(injected(MessageService), 'add');
+
+      (component as unknown as { issueLoginLink: (p: unknown) => void }).issueLoginLink({
+        id: 'p1',
+        userId: 'u1',
+        name: '王媽媽',
+      });
+
+      expect(add).toHaveBeenCalledWith(
+        expect.objectContaining({ severity: 'error', detail: expect.stringContaining('Email') }),
+      );
     });
 
     it('匯入對話框拿到 onImported，呼叫它就重抓列表（不靠關閉時回傳的值）', () => {
