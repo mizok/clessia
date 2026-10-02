@@ -25,7 +25,7 @@
 ## 🚀 線上是哪一版（2026-10-03 00:0x 第四次部署，labor-reviewer-20261001-2204）
 
 **截線 `a50fa9b1`**（#1060，#1034 退費上限＋多退態；`verify` 與 `migrate.yml` 的 `remote` 皆 success）：web `main-XBNXDPFR.js`（**這次有重發**，由本席 `wrangler pages deploy`；0211 之後含 Tailwind T0／T1／T2 工具鏈與 payments 頁修正）、api `b7ca4e28`（使用者親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。順序：api 先、web 後。
-**正式 DB**：09-30 16:0x 差集 0；10-01 10:3x 使用者套 #921、#934 —— **之後差集未重跑**。**#977 的 `20261001073913`（純 `SET DEFAULT`）仍待套**（10-02 ⓪ 例外放行；改走 `migrate.yml` remote → plan → apply，`prod-db-plan`／`prod-db` environment 未設時 plan／apply 是 skipped）。
+**正式 DB**：**10-03 00:1x 差集 0**（run `37031607697`：`migrate.yml` 第一次真的走完 remote → plan → 使用者 Approve → apply，套了 #977 的 `20261001073913`，套完複查 missing／extra 皆無）。`prod-db-plan`／`prod-db` environment 已設（10-03 00:0x，secret 用 Session pooler），**之後每顆 main 的 migration 都走這條，不再手貼 SQL**（#968）。
 **部署驗證**：web 線上 `main-XBNXDPFR.js`＝本機 build；內容探針 `overrefunded` 在三個同名 chunk 線上各 ×3／×2／×1（部署前線上同名 chunk 抓回 0），負控 `chunk-ZZZZZZZZ.js` 回 `text/html`；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html。**限度**：api 側（#1034 退費上限）是行為收緊、無新路由，openapi 證明不了新程式碼上線，只證明服務正常、版本已換；要真證明得帶身分退費超收應回 409。
 **這次踩到的坑**：第一次 build 因 `npm ci` 沒重跑而**失敗**（#1055 加了 tailwind／postcss devDeps，`MODULE_NOT_FOUND`），我看到的是 22:41 的舊 `dist`，一度誤判「web 不用發」；見 `labor-reviewer.md`。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
@@ -44,7 +44,7 @@
 ### 使用者動手的
 
 1. **修憲 c6 續跑**：`bash ~/Desktop/clessia-amend-c6-resume.sh`（改動已在 `.worktrees/law-c6`，只差 commit／push／PR；第一支在確認提示被 `!` 的 stdin 切掉）。合併由使用者。
-2. **兩個 GitHub environment**：`prod-db-plan` 補 secret `SUPABASE_DB_URL`（輪替後的新 URI）＋Deployment branches main only；`prod-db` 新建＋同 secret＋Required reviewer。設完 #977 的 `20261001073913` 由 migrate.yml 套（計畫席 `workflow_dispatch` 指到最新 main）。
+2. ~~兩個 GitHub environment~~ 已設好（10-03 00:0x），#977 已由 migrate.yml 套上；之後遇到 migration 只要在 Actions 的 `prod-db` 按 Approve。
 3. **api 部署**：每次由使用者在 reviewer worktree 的 `apps/api` 跑 `npx wrangler deploy --env production`（分類器擋 reviewer 的 production deploy）；reviewer 準備截線並驗證。
 4. **T4 cssLayer 回歸**需使用者在場一次（複製 `.dev.vars`），計畫席排時間。
 
