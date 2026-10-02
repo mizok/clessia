@@ -12,7 +12,13 @@
  * `void` 是例外：它**不是**推導出來的，是 `invoices.voided_at` 這個事實（#898）——
  * 「這張作廢了」是一個人的決定，算不出來。所以它蓋過其餘三態。
  */
-export type InvoiceStatus = 'unpaid' | 'partial' | 'paid' | 'void';
+/**
+ * `overrefunded`（多退）：淨額 < 0 —— 退的比收的多（#1034）。新的退費已經被 API 擋在已收淨額以內
+ * （`REFUND_EXCEEDS_PAID`），這一態是給既有或邊緣資料的防線：它**不是**未繳（以前會被當成
+ * 「尚欠 = 應繳 − 負數」而算成更大的欠款，家長端多出一筆待付款），也不是繳清。
+ * `isOpenInvoice` 列舉「是」的兩態，所以它自然不在催繳、逾期、家長待付款裡。
+ */
+export type InvoiceStatus = 'unpaid' | 'partial' | 'paid' | 'void' | 'overrefunded';
 
 export interface AmountRow {
   amount: number;
@@ -55,9 +61,10 @@ export function deriveInvoiceStatus(
 
   const { total, net } = invoiceTotals(items, payments);
 
+  if (net < 0) return 'overrefunded';
   // 先判 unpaid：這樣「還沒加明細的空帳單」會是未繳而不是繳清（`net >= total`
   // 在 0 >= 0 時會成立，顯示繳清會騙人 —— 什麼都還沒收）
-  if (net <= 0) return 'unpaid';
+  if (net === 0) return 'unpaid';
   if (net >= total) return 'paid';
 
   return 'partial';

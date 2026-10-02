@@ -75,3 +75,13 @@ describe('payments.util', () => {
     });
   });
 });
+
+// #1034：多退的帳單以前落進「待付款」，叫家長再繳一次
+describe('groupInvoices —— 多退', () => {
+  it('多退不是待付款，歸在已付款那組', () => {
+    const groups = groupInvoices([invoice({ id: 'a', status: 'overrefunded', netPaid: -500 })]);
+
+    expect(groups.pending).toEqual([]);
+    expect(groups.paid.map((i) => i.id)).toEqual(['a']);
+  });
+});

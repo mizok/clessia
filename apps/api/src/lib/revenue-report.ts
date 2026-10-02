@@ -81,7 +81,9 @@ export function aggregateRevenue(input: {
   for (const invoice of input.invoices) {
     // **溢繳不產生負的未收。** 不夾的話一張多收的帳單會去抵銷另一張真正的欠款，
     // 而「還有多少沒收到」就會少報 —— 又是一個沒有徵兆的錯
-    const unpaid = Math.max(0, invoice.billed - invoice.paid);
+    //
+    // **淨額為負（多退，#1034）也不產生未收**：以前 `billed − 負數` 會把它算成比應繳還大的欠款
+    const unpaid = invoice.paid < 0 ? 0 : Math.max(0, invoice.billed - invoice.paid);
     // 「欠」的定義是**過了 due_date 未繳清**（billing-rules 規則 7）。日期那一半的
     // 判斷在 lib/invoice-overdue.ts —— 繳費頁列表（routes/invoices.ts）下在 SQL 上的
     // 是同一支，兩邊不會再各自漂移

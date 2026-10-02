@@ -22,6 +22,7 @@ export const INVOICE_STATUS_LABELS: Record<ParentInvoiceStatus, string> = {
   partial: '部分繳',
   paid: '已付款',
   void: '已作廢',
+  overrefunded: '多退',
 };
 
 export interface InvoiceGroups {
@@ -44,7 +45,8 @@ export function groupInvoices(invoices: readonly ParentInvoice[]): InvoiceGroups
   for (const invoice of invoices) {
     if (invoice.status === 'void') {
       voided.push(invoice);
-    } else if (invoice.status === 'paid') {
+    } else if (invoice.status === 'paid' || invoice.status === 'overrefunded') {
+      // 多退（淨額 < 0，#1034）不是待付款 —— 以前被算成「尚欠 = 應繳 − 負數」，叫家長再繳一次
       paid.push(invoice);
     } else {
       pending.push(invoice);

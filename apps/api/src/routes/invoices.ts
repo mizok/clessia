@@ -8,7 +8,12 @@ import { DbUuidSchema } from '../lib/validation';
 import { findInOrg, inOrg, missingInOrg } from '../lib/org-scope';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { whereDueWithin, whereOverdue } from '../lib/invoice-overdue';
-import { invoiceTotals, isOpenInvoice, voidBlockReason } from '../lib/invoice-status';
+import {
+  invoiceTotals,
+  isOpenInvoice,
+  type PaymentRow,
+  voidBlockReason,
+} from '../lib/invoice-status';
 
 /**
  * 帳單、明細、收款、催繳。
@@ -23,7 +28,7 @@ const ITEM_TYPES = ['tuition', 'meal', 'session_pack', 'adjustment'] as const;
 const PAYMENT_KINDS = ['payment', 'refund'] as const;
 const PAYMENT_METHODS = ['cash', 'transfer'] as const;
 const REMINDER_METHODS = ['line', 'phone', 'other'] as const;
-const INVOICE_STATUSES = ['unpaid', 'partial', 'paid', 'void'] as const;
+const INVOICE_STATUSES = ['unpaid', 'partial', 'paid', 'void', 'overrefunded'] as const;
 
 /** 作廢單凍結（#898）。四支寫入共用的回應 —— DB trigger 另有一層，催繳那支沒有 */
 const VOIDED = { error: '這張帳單已作廢，不能再修改', code: 'INVOICE_VOIDED' } as const;
@@ -566,7 +571,10 @@ app.openapi(
       },
       400: { description: '驗證錯誤', content: { 'application/json': { schema: ErrorSchema } } },
       404: { description: '帳單不存在', content: { 'application/json': { schema: ErrorSchema } } },
-      409: { description: '帳單已作廢', content: { 'application/json': { schema: ErrorSchema } } },
+      409: {
+        description: '帳單已作廢，或退費超過這張帳單已收的淨額（REFUND_EXCEEDS_PAID）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
     },
   }),
   async (c) => {
@@ -587,6 +595,32 @@ app.openapi(
       return c.json({ error: '帳單不存在', code: 'NOT_FOUND' }, 404);
     }
     if (invoice['voided_at']) return c.json(VOIDED, 409);
+
+    // **退費不得超過這張帳單已收的淨額**（#1034 裁決 C）。收 1,000、退 1,500 會讓淨額變 −500，
+    // 帳務上沒有意義（輸入錯誤，或跨帳單的補償 —— 那該開新帳單），而家長端會把它算成新欠款。
+    // ⚠️ 只擋在 API：兩筆退費同時進來時各自讀到同一個淨額，仍可能一起超過。
+    // 要完全擋住得在 DB trigger 裡判（同 #898 淨額歸零的做法），另開。
+    if (body.kind === 'refund') {
+      const { data: rows, error: paidError } = await supabase
+        .from('payment_records')
+        .select('kind, amount')
+        .eq('org_id', orgId)
+        .eq('invoice_id', id);
+      if (paidError) {
+        return c.json({ error: paidError.message, code: 'DB_ERROR' }, 400);
+      }
+      const { net } = invoiceTotals([], (rows ?? []) as PaymentRow[]);
+      if (body.amount > net) {
+        const max = Math.max(0, net).toLocaleString('en-US');
+        return c.json(
+          {
+            error: `退費超過已收：這張帳單已收淨額 ${net.toLocaleString('en-US')} 元，最多可退 ${max} 元`,
+            code: 'REFUND_EXCEEDS_PAID',
+          },
+          409,
+        );
+      }
+    }
 
     const { error } = await supabase.from('payment_records').insert({
       org_id: orgId,

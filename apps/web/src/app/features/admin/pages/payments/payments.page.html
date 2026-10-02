@@ -187,12 +187,16 @@
               <span class="payments__amount">{{ invoice.netPaid | number }}</span>
             </td>
             <td appRtColCell="outstanding">
-              <span
-                class="payments__amount"
-                [class.payments__amount--due]="outstanding(invoice) > 0"
-              >
-                {{ outstanding(invoice) | number }}
-              </span>
+              @if (overRefunded(invoice) > 0) {
+                <span class="payments__amount">多退 {{ overRefunded(invoice) | number }}</span>
+              } @else {
+                <span
+                  class="payments__amount"
+                  [class.payments__amount--due]="outstanding(invoice) > 0"
+                >
+                  {{ outstanding(invoice) | number }}
+                </span>
+              }
             </td>
             <td appRtColCell="status">
               <div class="payments__status">

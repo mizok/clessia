@@ -55,6 +55,13 @@ describe('deriveInvoiceStatus', () => {
     expect(deriveInvoiceStatus([item(3000)], [pay(3000), refund(1000)], false)).toBe('partial');
   });
 
+  // #1034：收 1,000、退 1,500 —— 以前推成「未繳」，尚欠 = 1,000 − (−500) = 1,500，家長端多一筆待付款
+  it('退的比收的多（淨額 < 0）→ 多退，不是未繳', () => {
+    expect(deriveInvoiceStatus([item(1000)], [pay(1000), refund(1500)], false)).toBe(
+      'overrefunded',
+    );
+  });
+
   it('全額退費退回未繳', () => {
     expect(deriveInvoiceStatus([item(3000)], [pay(3000), refund(3000)], false)).toBe('unpaid');
   });
@@ -105,6 +112,11 @@ describe('isOpenInvoice', () => {
   it('繳清與作廢不是 open', () => {
     expect(isOpenInvoice('paid')).toBe(false);
     expect(isOpenInvoice('void')).toBe(false);
+  });
+
+  // 多退不在等錢 —— 催繳、逾期、家長待付款都問這一句（#1034）
+  it('多退不是 open', () => {
+    expect(isOpenInvoice('overrefunded')).toBe(false);
   });
 });
 

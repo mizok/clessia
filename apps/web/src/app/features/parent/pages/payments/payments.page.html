@@ -62,7 +62,11 @@
                 @if (latestPaymentDate(invoice); as paidAt) {
                   <span class="payments__row-hint">{{ paidAt }}</span>
                 }
-                <span class="payments__row-status payments__row-status--paid">已付款</span>
+                <span class="payments__row-status payments__row-status--paid">{{
+                  invoice.status === 'overrefunded'
+                    ? '多退 ' + (-invoice.netPaid | number) + ' 元'
+                    : '已付款'
+                }}</span>
               </button>
             }
           </section>
@@ -140,7 +144,7 @@
             <div class="payments__detail-notice">
               <p>這張帳單已作廢，不需要付款。如有疑問請洽補習班行政人員。</p>
             </div>
-          } @else if (invoice.status !== 'paid') {
+          } @else if (invoice.status === 'unpaid' || invoice.status === 'partial') {
             <div class="payments__detail-notice">
               <p>付款方式：現金或轉帳，帳戶資訊請洽補習班行政人員。</p>
               <p>完成付款後請通知補習班確認。</p>

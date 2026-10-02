@@ -27,7 +27,7 @@ import {
 import { InlineNoticeComponent } from '@shared/components/inline-notice/inline-notice.component';
 
 import { PaymentFormDialogComponent } from '../payment-form-dialog/payment-form-dialog.component';
-import { isOverdue, outstanding, receiptNoOf } from '../payments.util';
+import { isOverdue, outstanding, overRefunded, receiptNoOf } from '../payments.util';
 import {
   StatusDotComponent,
   type StatusTone,
@@ -95,6 +95,8 @@ export class InvoiceDetailDialogComponent {
 
   protected readonly overdue = computed(() => isOverdue(this.invoice(), this.today()));
   protected readonly outstandingAmount = computed(() => outstanding(this.invoice()));
+  /** 淨額 < 0 的那一段（#1034）—— 跟「溢繳」不同：溢繳是收多了，多退是退多了 */
+  protected readonly overRefundedAmount = computed(() => overRefunded(this.invoice()));
   protected readonly receiptNo = computed(() => receiptNoOf(this.invoice()));
 
   /**

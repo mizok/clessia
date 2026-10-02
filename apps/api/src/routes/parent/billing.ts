@@ -38,7 +38,7 @@ const ParentInvoiceSchema = z
     id: DbUuidSchema,
     issuedAt: z.string(),
     dueDate: z.string().nullable(),
-    status: z.enum(['unpaid', 'partial', 'paid', 'void']),
+    status: z.enum(['unpaid', 'partial', 'paid', 'void', 'overrefunded']),
     total: z.number(),
     netPaid: z.number(),
     /** #898。作廢理由與經手人不外流（跟 note 一樣是行政內部），只給時間 */

@@ -40,7 +40,7 @@ import { AuditLogDialogComponent } from '@shared/components/audit-log-dialog/aud
 import { InvoiceDetailDialogComponent } from './invoice-detail-dialog/invoice-detail-dialog.component';
 import { InvoiceFormDialogComponent } from './invoice-form-dialog/invoice-form-dialog.component';
 import { UninvoicedDialogComponent } from './uninvoiced-dialog/uninvoiced-dialog.component';
-import { isOverdue, outstanding } from './payments.util';
+import { isOverdue, outstanding, overRefunded } from './payments.util';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import {
   StatusDotComponent,
@@ -198,7 +198,8 @@ export class PaymentsPage implements OnInit {
   }));
 
   protected readonly hasFilters = computed(
-    () => this.dueFilter() !== 'all' || this.statusFilter() !== null || this.selectedStudent() !== null,
+    () =>
+      this.dueFilter() !== 'all' || this.statusFilter() !== null || this.selectedStudent() !== null,
   );
 
   protected readonly selectedStudent = computed(() => {
@@ -342,6 +343,10 @@ export class PaymentsPage implements OnInit {
     return outstanding(invoice);
   }
 
+  protected overRefunded(invoice: Invoice): number {
+    return overRefunded(invoice);
+  }
+
   /**
    * **逾期不是第四種狀態**（billing-rules 規則 7）—— 它是 `due_date` 的衍生標記，
    * 所以這裡只看 status，逾期由旁邊那顆獨立的標記承擔。
@@ -352,6 +357,7 @@ export class PaymentsPage implements OnInit {
   protected statusTone(invoice: Invoice): StatusTone {
     // 作廢單用既有的 inactive —— 它不在等錢，也不是繳清（#898）
     if (invoice.status === 'void') return 'inactive';
+    // 多退（#1034）不是繳清：要處理（追回或另開帳單）
     return invoice.status === 'paid' ? 'done' : 'pending';
   }
 

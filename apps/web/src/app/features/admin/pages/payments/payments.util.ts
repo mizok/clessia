@@ -27,11 +27,18 @@ export function isOverdue(invoice: Invoice, today: string): boolean {
   return invoice.dueDate < today;
 }
 
-/** 還欠多少。溢繳（退費多於應繳）回負數 —— 夾成 0 會讓「該退多少」看不見 */
+/** 還欠多少。溢繳（收的比應繳多）回負數 —— 夾成 0 會讓「該退多少」看不見 */
 export function outstanding(invoice: Invoice): number {
   // 作廢單不欠（#898）—— 淨額歸零才能作廢，但 total 還在，不擋的話會算成欠全額
   if (invoice.status === 'void') return 0;
+  // 多退（淨額 < 0，#1034）也不算欠：以前 `total − 負數` 會報成比應繳還大的欠款
+  if (invoice.status === 'overrefunded') return 0;
   return invoice.total - invoice.netPaid;
+}
+
+/** 多退了多少（淨額 < 0 的那一段）；不是多退的帳單回 0 */
+export function overRefunded(invoice: Invoice): number {
+  return invoice.status === 'overrefunded' ? -invoice.netPaid : 0;
 }
 
 /**

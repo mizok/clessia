@@ -1,4 +1,4 @@
-import { isOverdue, outstanding, receiptNoOf } from './payments.util';
+import { isOverdue, outstanding, overRefunded, receiptNoOf } from './payments.util';
 import type { Invoice, PaymentRecord } from '@core/invoices.service';
 
 function invoice(overrides: Partial<Invoice> = {}): Invoice {
@@ -100,7 +100,11 @@ describe('outstanding', () => {
  * 讓它逾期或欠錢就是叫行政去催一張不存在的帳單。
  */
 describe('作廢單', () => {
-  const voided = invoice({ status: 'void', dueDate: '2026-08-01', voidedAt: '2026-08-20T00:00:00Z' });
+  const voided = invoice({
+    status: 'void',
+    dueDate: '2026-08-01',
+    voidedAt: '2026-08-20T00:00:00Z',
+  });
 
   it('過了到期日也不算逾期', () => {
     expect(isOverdue(voided, TODAY)).toBe(false);
@@ -146,5 +150,23 @@ describe('receiptNoOf', () => {
     });
 
     expect(receiptNoOf(inv)).toBe(12);
+  });
+});
+
+// #1034：收 1,000、退 1,500（淨額 −500）以前被報成「尚欠 1,500」
+describe('outstanding／overRefunded —— 多退（淨額 < 0）', () => {
+  const overrefunded = invoice({ total: 1000, netPaid: -500, status: 'overrefunded' });
+
+  it('多退不算欠', () => {
+    expect(outstanding(overrefunded)).toBe(0);
+  });
+
+  it('多退顯示退多了多少', () => {
+    expect(overRefunded(overrefunded)).toBe(500);
+  });
+
+  it('不是多退的帳單 overRefunded 是 0（溢繳照舊由 outstanding 的負數表達）', () => {
+    expect(overRefunded(invoice({ total: 1000, netPaid: 1200, status: 'paid' }))).toBe(0);
+    expect(outstanding(invoice({ total: 1000, netPaid: 1200, status: 'paid' }))).toBe(-200);
   });
 });

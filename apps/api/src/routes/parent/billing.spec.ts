@@ -185,4 +185,39 @@ describe('GET /api/me/billing', () => {
     expect(voided).not.toHaveProperty('voidedBy');
     expect(body.meta).toMatchObject({ totalDue: 600 });
   });
+
+  // #1034：收 1,000、退 1,500 的帳單在家長端被算成「尚欠 1,500」、待付款合計多 1,500
+  it('多退的帳單（淨額 < 0）列出、status 是 overrefunded、不計入 totalDue', async () => {
+    const OVERREFUNDED_INVOICE = {
+      ...UNPAID_INVOICE,
+      id: 'inv4',
+      payment_records: [
+        { ...UNPAID_INVOICE.payment_records[0], id: 'pay4', amount: '1000' },
+        {
+          ...UNPAID_INVOICE.payment_records[0],
+          id: 'ref4',
+          kind: 'refund',
+          amount: '1500',
+          receipt_no: null,
+        },
+      ],
+    };
+    const res = await appWith(
+      ['parent'],
+      [CHILD_ID],
+      fakeChildDb([UNPAID_INVOICE, OVERREFUNDED_INVOICE], [UNPAID_INVOICE, OVERREFUNDED_INVOICE]),
+    ).request(`/?childId=${CHILD_ID}`);
+
+    const body = (await res.json()) as {
+      data: Array<Record<string, unknown>>;
+      meta: Record<string, unknown>;
+    };
+
+    expect(body.data.find((invoice) => invoice['id'] === 'inv4')).toMatchObject({
+      status: 'overrefunded',
+      netPaid: -500,
+    });
+    // 只有 UNPAID_INVOICE 的 1,000 − 400 = 600
+    expect(body.meta).toMatchObject({ totalDue: 600 });
+  });
 });
