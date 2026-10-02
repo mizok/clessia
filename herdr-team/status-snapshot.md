@@ -113,7 +113,7 @@ success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只
 > 行為只是從「新的殺舊的」變成「最舊的活著跑完、中間排隊的被丟掉」。
 > **修法是讓每顆 commit 各自一個 group**（group 帶 `github.sha`）。
 
-## 接手第一件事（2026-10-02 10:0x，計畫席 labor-plan-20261002-0935 補 5、6 兩條）
+## 接手第一件事（2026-10-02 09:4x，計畫席 labor-plan-20261002-0935 補 5、6 兩條）
 
 1. `TZ=Asia/Taipei date` —— 報時間一律實跑（本任自己也報錯過一次「16:1x」）。
 2. `herdr agent list` + 每席 Ctx（監工的 `ctx()`）。**閒置久的席 footer 會收掉 Ctx 列 → 讀不到 ≠ 0%，標「未量」**（#946）。
@@ -125,7 +125,7 @@ success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只
 8. 跨席訊息寫檔再 `"$(cat 檔)"`，heredoc 用**加引號、名字罕見**的分隔符。
 9. **要使用者在正式 DB 跑的 SQL：`pbcopy` 原檔，不要貼在訊息裡**（`$$` 會被吃）。
 
-### 席位（2026-10-02 10:0x，計畫席 labor-plan-20261002-0935 上任後）
+### 席位（2026-10-02 09:4x，計畫席 labor-plan-20261002-0935 上任後）
 
 > 前任 `labor-plan-20260930-1448`、舊 `labor-reviewer`、`labor-20260913-1222` 已於 10-02 關閉（`herdr workspace close`）。
 
