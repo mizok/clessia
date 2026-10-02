@@ -7,6 +7,7 @@ import {
 import { requireAdminMiddleware } from '../middleware/auth';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
+import { inOrg } from '../lib/org-scope';
 import { checkEnrollmentAttendance, checkEnrollmentPreconditions } from './enrollments/validation';
 import { buildPeriodFilter, buildSelect, sortColumn } from './enrollments/list-query';
 import { monthRange, prorateByDays } from '../lib/proration';
@@ -1243,7 +1244,7 @@ app.openapi(
       return c.json({ error: 'has_session_pack' }, 409);
     }
 
-    await supabase.from('enrollments').delete().eq('id', id);
+    await inOrg(supabase.from('enrollments').delete().eq('id', id), orgId);
 
     // **真刪不是退班** —— 退班走 `PATCH /:id/status`（status → withdrawal）。
     // 這支有出勤與堂數包的守衛，所以能走到這裡的是「真的沒有留下任何痕跡的報名」
