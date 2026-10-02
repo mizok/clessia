@@ -3,15 +3,20 @@ title: 人員管理
 summary: 管理管理員、老師帳號。
 category: spec
 status: active
-updated: 2026-08-29
+updated: 2026-10-02
 tags: [specs, admin, system, staff]
 ---
 
 # 人員管理
 
 **路徑**: `/admin/staff`
-**角色**: Admin（需 manage_staff 權限）
+**角色**: Admin（**進頁與讀取不設門檻**；新增／編輯／停用／封存／改權限需 `manage_staff`，由 API 強制）
 **分組**: 系統設定
+
+> 2026-10-02 計畫席裁決（#1027，可逆暫定、待使用者確認）：維持「任何管理員可進可讀，寫入由 API 擋」。
+> 讀取刻意放行 —— 排課指派對話框等要讀人員（`apps/api/src/index.ts:277-290` 註解）；寫入由 `mount('/api/staff', …, { write: 'manage_staff' })`（`index.ts:328`）擋。
+> **UI 不會因缺權限而停用寫入鈕**（按下去才由 API 回 403），見 [[specs/sitemap/admin/staff]] 與 [[specs/sitemap/_shared/permission-matrix]]。
+> 若使用者否決、改成要擋進頁，屬授權邏輯（保留類），另開單。
 
 ## 核心目的
 
@@ -71,5 +76,7 @@ tags: [specs, admin, system, staff]
 
 ## 實作註記
 
-- manage_staff 權限者才能指派他人權限
-- 不可指派權限給已有 manage_staff 權限的人（避免權限無限擴張）
+- 改人事資料需 `manage_staff`（API `mount` 層擋）；**指定角色與權限需 `manage_roles`**（`apps/api/src/lib/role-assignment.ts`）
+- **任何人都不能改自己的角色與權限**（連 `*` 也擋）—— 提權的路一定要經過另一個人
+- ~~不可指派權限給已有 manage_staff 權限的人~~：舊版防「權限無限擴張」的寫法，**已被上面兩條取代**（2026-10-02 核對，程式無此規則）
+- UI 沒有預先提示缺 `manage_roles`：送出後才顯示後端訊息「需要「管理角色權限」才能指定角色或權限」
