@@ -3,7 +3,7 @@ title: Clessia 架構憲法
 summary: 具約束力的架構不變量。只陳述「什麼構成違反」，不含強制機制。
 category: architecture
 status: binding
-updated: 2026-08-23
+updated: 2026-10-02
 tags: [architecture, constitution]
 ---
 
@@ -88,11 +88,15 @@ migration 的環境**永遠不會拿到後來塞進去的變更**。
 
 ### c6 禁止 viewport 單位 [Deterministic]
 
-SCSS 不得使用 `vh` / `vw` / `dvh` / `svh` / `lvh`。這些單位在 mobile Safari 位址列伸縮與巢狀
-scroll container 下行為不可靠。
+樣式不得產生 `vh` / `vw` / `dvh` / `svh` / `lvh`。這包含 SCSS／CSS 的值、`[style.*]`／`[ngStyle]`
+綁定，以及**產生這些單位的 Tailwind utility**（`h-screen`、`min-h-dvh`、`w-svw` 等，與它們的任意值
+寫法）。這些單位在 mobile Safari 位址列伸縮與巢狀 scroll container 下行為不可靠。
 
 改用上層 directive 以 ResizeObserver 寫入的 CSS 自訂屬性：
-`calc(var(--window-width, 360px) * 0.9)` 取代 `90vw`。
+`calc(var(--window-width, 360px) * 0.9)` 取代 `90vw`；Tailwind 用 `h-window`／`w-window` 系列。
+
+> 2026-10-02 修訂：載體從「SCSS」擴大到「樣式」。enforcement 早已涵蓋 `.ts`／`.html`，
+> Tailwind 導入（#991）又多一個載體；條文跟上現況。
 
 ### c7 Template 只用原生 control flow [Deterministic]
 
