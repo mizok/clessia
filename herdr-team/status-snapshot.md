@@ -43,7 +43,7 @@
 
 ### 使用者動手的
 
-1. **修憲 c6 續跑**：`bash ~/Desktop/clessia-amend-c6-resume.sh`（改動已在 `.worktrees/law-c6`，只差 commit／push／PR；第一支在確認提示被 `!` 的 stdin 切掉）。合併由使用者。
+1. ~~修憲 c6 續跑~~ 已完成：腳本已跑、#1062 於 10-02 23:38 由擁有者合併、`law-c6` worktree 已清。（這一列在 #1061 寫下時腳本還沒跑，10-03 00:2x 複查才發現已過期 —— 快照寫「等使用者」的事項，接手先 `gh pr list --state all --search` 查一次。）
 2. ~~兩個 GitHub environment~~ 已設好（10-03 00:0x），#977 已由 migrate.yml 套上；之後遇到 migration 只要在 Actions 的 `prod-db` 按 Approve。
 3. **api 部署**：每次由使用者在 reviewer worktree 的 `apps/api` 跑 `npx wrangler deploy --env production`（分類器擋 reviewer 的 production deploy）；reviewer 準備截線並驗證。
 4. **T4 cssLayer 回歸**需使用者在場一次（複製 `.dev.vars`），計畫席排時間。
