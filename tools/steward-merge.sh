@@ -42,8 +42,9 @@ fi
 
 # ── 2. CI 必須有 conclusion 且為 SUCCESS ────────────────────────────────
 # 空值不等於終態:statusCheckRollup 在 check 還沒註冊時是空陣列。
+# 同 head 多筆 verify 取最新一筆(tools/steward-verify.jq,有測試):join 全部會把 CANCELLED+SUCCESS 串成非綠。
 verify=$(gh pr view "$PR" -R "$REPO" --json statusCheckRollup \
-  -q '[.statusCheckRollup[] | select(.name=="verify") | .conclusion // ""] | join("")')
+  | jq -r -f "$(dirname "$0")/steward-verify.jq")
 echo "verify         = ${verify:-（還沒有 conclusion）}"
 [ -n "$verify" ] || die "CI 還沒跑完 —— 空值不是綠燈"
 [ "$verify" = "SUCCESS" ] || die "CI 不是 SUCCESS(是 $verify)"
