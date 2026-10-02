@@ -191,6 +191,9 @@ harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一�
   釘（`routes/org-scope-writes.spec.ts`，替身 `test-utils/multi-org-db.ts` 真的照條件過濾、沒實作的方法一律丟），
   寫入那層由 harness **A23** 釘（ratchet，帳面 `tools/agent-harness/org-scope-baseline.json` 只能往下）。
 - `OrgTable` 型別即清單：子表（`schedules`、`invoice_items`…）傳不進去 —— 它們要驗的是父列。
+- **共用的讀取函式是根因所在**（B3）：`routes/staff.ts` 的 `getStaffById` 沒有 org 條件，GET／PUT／封存／停用／
+  啟用／刪除 6 支全繼承。改成 `getStaffById(supabase, orgId, id)`（內部走 `findInOrg`）一處修完，**簽名多一個參數，
+  編譯器逼每個呼叫端補上** —— 下一個新呼叫端不可能忘記。
 
 分批與盤點在 #966 的「B 批設計提案」留言。
 

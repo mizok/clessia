@@ -83,6 +83,14 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
     }
 
     const impl: Record<string, unknown> = {
+      gte(column: string, value: string) {
+        filters.push((row) => row[column] != null && String(row[column]) >= value);
+        return proxy;
+      },
+      lte(column: string, value: string) {
+        filters.push((row) => row[column] != null && String(row[column]) <= value);
+        return proxy;
+      },
       select(_columns?: string, options?: { count?: string; head?: boolean }) {
         if (op === 'select') countOnly = options?.head === true;
         else returning = true;
