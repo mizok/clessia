@@ -236,6 +236,25 @@ describe('ReportsPage', () => {
       expect(component['isAmbiguous'](unclassified)).toBe(true);
     });
 
+    // #1029：說明不能只放 tooltip（手機 hover 不到）；有模糊桶才出現，沒有就不佔位
+    it('有模糊桶 → 頁面上有可見說明文字；沒有 → 沒有', async () => {
+      const note = () => fixture.nativeElement.querySelector('.reports__groups-note');
+
+      reports.revenue.mockReturnValue(
+        of(response({ groups: [{ key: '（跨分校）', ...figures() }] })),
+      );
+      component['load']();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(note()?.textContent).toContain('小計加起來等於總計');
+
+      reports.revenue.mockReturnValue(of(response({ groups: [{ key: '中山校', ...figures() }] })));
+      component['load']();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(note()).toBeNull();
+    });
+
     it('模糊桶照原樣顯示，不改名', async () => {
       reports.revenue.mockReturnValue(
         of(response({ groups: [{ key: '（跨分校）', ...figures() }] })),
