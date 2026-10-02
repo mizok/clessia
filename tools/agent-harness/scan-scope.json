@@ -63,6 +63,10 @@
     "roots": ["apps/web/src"],
     "exts": [".html", ".ts"]
   },
+  "tailwind-theme": {
+    "roots": ["apps/web/src"],
+    "exts": [".css"]
+  },
   "touch-target": {
     "roots": [
       "apps/web/src/app/features/admin",

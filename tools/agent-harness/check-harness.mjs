@@ -39,6 +39,7 @@ import {
 import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import { usesRawSupabase } from './lib/parent-route-scan.mjs';
+import { themeMappingProblems } from './lib/tailwind-theme.mjs';
 import {
   declaredOrgTables,
   orgTablesFromMigrations,
@@ -2154,6 +2155,24 @@ function checkOrgScopedWrites() {
 }
 
 checkOrgScopedWrites();
+
+// ── A25. tailwind.css 的 @theme 映射（#991 T0）────────────────────────────────────────
+// 引用不存在的 token、字重寫進字體家族命名空間、同名自我參照被輸出 —— 三件都不會報錯，
+// 只會讓 utility 靜靜沒樣式或樣式錯。判準在 lib/tailwind-theme.mjs。
+function checkTailwindTheme() {
+  const twFile = join(ROOT, 'apps/web/src/tailwind.css');
+  const stylesFile = join(ROOT, 'apps/web/src/styles.scss');
+  if (!existsSync(twFile)) return;
+  recordScope('tailwind-theme', { roots: ['apps/web/src'], exts: ['.css'] });
+  for (const problem of themeMappingProblems(
+    readFileSync(twFile, 'utf8'),
+    readFileSync(stylesFile, 'utf8'),
+  )) {
+    fail(`apps/web/src/tailwind.css：${problem}`);
+  }
+}
+
+checkTailwindTheme();
 
 checkScanScope();
 

@@ -24,7 +24,8 @@
         ],
         "styles": [
           "primeicons/primeicons.css",
-          "apps/web/src/styles.scss"
+          "apps/web/src/styles.scss",
+          "apps/web/src/tailwind.css"
         ],
         "stylePreprocessorOptions": {
           "includePaths": [

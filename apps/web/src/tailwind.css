@@ -1,0 +1,153 @@
+/*
+ * Tailwind 入口（#991 T0）。設計與每一行的理由：kb/wiki/architecture/tailwind-adoption.md
+ *
+ * 純 CSS，不放進 styles.scss —— Tailwind 4 不是設計來跟 Sass 一起用的。
+ * tokens 的來源仍是 styles.scss 的 :root；這裡只引用、不另定值（c11），A24b gate 守映射。
+ */
+
+/*
+ * layer 順序。⚠️ PrimeNG 的 cssLayer.order 必須是這一行的前綴（T4 切換時接上）——
+ * PrimeNG 把 layer-order 插在 <head> 最前面，順序由第一次出現決定。
+ */
+@layer theme, base, primeng, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+/* preflight 刻意不匯入：過渡期它會改變所有既有頁面的基礎樣式（#991 裁定 4） */
+/*
+ * source(none)：不讓 Tailwind 以 cwd 自動掃描 —— Nx 底下 cwd 是 repo 根目錄，
+ * 不加的話 kb/ 文件裡寫的 `md:h-screen` 會真的被產生進 bundle（#995 實測）。
+ */
+@import 'tailwindcss/utilities.css' layer(utilities) source(none);
+
+/*
+ * **掃描範圍 = 已遷移路徑清單，起始為空（#991 計畫席裁定）。** 每支頁面 PR 把自己的目錄加一行
+ * `@source './app/…';`，同一支 PR 刪掉那個目錄的 .scss —— 這份清單就是 SCSS 帳面的另一面，
+ * A24 交叉檢查兩邊（列在這裡的目錄底下不得有 .scss；帳面上還有 .scss 的目錄不得列在這裡）。
+ *
+ * 為什麼不是 `@source './app'`：既有 template 有 90+ 處「長得像 Tailwind、但 SCSS 從沒定義」的
+ * 死 class（PrimeFlex 遺留：`w-full` ×90、`mb-2`、`p-4`、`text-2xl`…），今天是 no-op。
+ * 掃整個 app 的話它們會被喚醒，那些元素突然套上 width:100%／margin。
+ * 只掃已遷移的目錄，死 class 留在未遷移的頁上照舊無效，整頁重寫時自然消失。
+ */
+
+/* 跟 PrimeNG 的 darkModeSelector 對齊 */
+@custom-variant dark (&:where(.dark-mode, .dark-mode *));
+
+/*
+ * 清掉 Tailwind 預設 theme 再逐一映射。不清的話會有兩套 zinc，而且
+ * `--font-medium` 在本專案是字重、在 Tailwind 的 `--font-*` 是字體家族（語意衝突）。
+ *
+ * `inline`：utility 直接寫 `var(--zinc-500)`，不經 Tailwind 的中介變數。
+ * `reference`：**這些映射不輸出到 :root**。不加的話會輸出 `--text-xs: var(--text-xs)` 這種
+ * 自我參照（實測），今天靠 styles.scss 未分層而贏，但哪天 :root 被包進 layer 就變成循環。
+ */
+@theme inline reference {
+  --*: initial;
+
+  --color-white: var(--color-white);
+  --color-black: var(--color-black);
+  --color-zinc-50: var(--zinc-50);
+  --color-zinc-100: var(--zinc-100);
+  --color-zinc-200: var(--zinc-200);
+  --color-zinc-300: var(--zinc-300);
+  --color-zinc-400: var(--zinc-400);
+  --color-zinc-500: var(--zinc-500);
+  --color-zinc-600: var(--zinc-600);
+  --color-zinc-700: var(--zinc-700);
+  --color-zinc-800: var(--zinc-800);
+  --color-zinc-900: var(--zinc-900);
+  --color-accent-50: var(--accent-50);
+  --color-accent-100: var(--accent-100);
+  --color-accent-200: var(--accent-200);
+  --color-accent-400: var(--accent-400);
+  --color-accent-500: var(--accent-500);
+  --color-accent-600: var(--accent-600);
+  --color-accent-700: var(--accent-700);
+  --color-accent-vivid: var(--accent-vivid);
+  --color-accent-vivid-2: var(--accent-vivid-2);
+  --color-success-100: var(--success-100);
+  --color-success-600: var(--success-600);
+  --color-warning-50: var(--warning-50);
+  --color-warning-100: var(--warning-100);
+  --color-warning-200: var(--warning-200);
+  --color-warning-600: var(--warning-600);
+  --color-warning-800: var(--warning-800);
+  --color-error-100: var(--error-100);
+  --color-error-200: var(--error-200);
+  --color-error-600: var(--error-600);
+  --color-error-700: var(--error-700);
+  --color-band-ink: var(--band-ink);
+  --color-band-ink-muted: var(--band-ink-muted);
+  --color-band-rule: var(--band-rule);
+  --color-muted: var(--text-muted);
+  --color-surface-border: var(--surface-border);
+  --color-surface-card: var(--surface-card);
+
+  --font-sans: var(--font-sans);
+  --font-weight-normal: var(--font-normal);
+  --font-weight-medium: var(--font-medium);
+  --font-weight-semibold: var(--font-semibold);
+  --font-weight-bold: var(--font-bold);
+
+  --text-xxs: var(--text-xxs);
+  --text-xs: var(--text-xs);
+  --text-sm: var(--text-sm);
+  --text-md: var(--text-md);
+  --text-base: var(--text-base);
+  --text-lg: var(--text-lg);
+  --text-xl: var(--text-xl);
+  --text-2xl: var(--text-2xl);
+  --text-3xl: var(--text-3xl);
+
+  --leading-tight: var(--leading-tight);
+  --leading-normal: var(--leading-normal);
+  --leading-relaxed: var(--leading-relaxed);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-full: var(--radius-full);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+}
+
+/*
+ * 不能 inline 的：`--spacing` 是乘數，元件 CSS（@reference）引用時要拿得到全域變數，
+ * 不然會靜靜用 Tailwind 的 0.25rem fallback（#995 第 7 條）。static = 一定輸出。
+ * 斷點與容器尺寸被上面的 `--*: initial` 一起清掉了，要重新宣告：
+ * 斷點沿用 Tailwind 名稱（正好等於 _breakpoints.scss 的 640／768／1024／1280）；
+ * 容器用專案的名稱（Tailwind 預設的 @sm 是 24rem，跟專案不同）。都寫 px，不依賴 root font-size。
+ */
+@theme static {
+  --spacing: 4px;
+
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+
+  --container-mobile: 640px;
+  --container-tablet-portrait: 768px;
+  --container-tablet-landscape: 1024px;
+  --container-desktop: 1280px;
+}
+
+/*
+ * c6 的合規替代：讀上層 directive 寫入的 --window-*。
+ * viewport 單位只出現在 var() 的 fallback —— 那是 c6 的明文例外（constitution-enforcement.md）。
+ * 不覆寫 h-screen：名字會說謊，而且實測覆寫不掉（兩份宣告疊加，100vh 仍在）。
+ */
+@utility h-window {
+  height: var(--window-height, 100dvh);
+}
+@utility min-h-window {
+  min-height: var(--window-height, 100dvh);
+}
+@utility max-h-window {
+  max-height: var(--window-height, 100dvh);
+}
+@utility w-window {
+  width: var(--window-width, 100dvw);
+}
