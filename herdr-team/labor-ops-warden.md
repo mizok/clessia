@@ -634,8 +634,22 @@ PR、或它當下分支最後一次 commit 的時間——PR 不帶 seat 標籤,
 不是我搜錯檔名,是**它 09-30 開席至今從沒蒸餾過,知識只在記憶裡**(計畫席確認)。
 **一個 82% 而零落檔的席位,正是這條規則最該抓到的狀態,而它差點以空輸出通過。**
 
-**作法**:`ls herdr-team/<席>.md` 先確認檔在,再 `git log`。查不到檔 → **直接回報
-「該席沒有 charter 檔、從未蒸餾」**,不要寫成「比對正常」。
+**作法**:**對 `origin/main` 查,不要對自己的工作樹查** ——
+
+```bash
+git fetch -pq origin
+git ls-tree --name-only origin/main herdr-team/<席>.md        # 空 = 真的沒有這個檔
+git log -1 --format='%ad %s' --date=format:'%m-%d %H:%M' \
+  origin/main -- herdr-team/<席>.md                           # 最後一次蒸餾
+```
+
+查不到檔 → **回報「該席沒有 charter 檔、從未蒸餾」**,不要寫成「比對正常」。
+
+⚠️ **用 `ls` 查會給錯答案,而我上一版就是這樣寫的**(2026-10-02 當天寫、當天踩):
+監工長時間停在自己開的 charter 分支上,**工作樹落後 main 好幾個 commit**,
+於是 `ls herdr-team/labor-20260930-1515.md` 回「No such file or directory」——
+**而那個檔已經由 #1012 合進 main 了**。我差點第二次回報「該席從未蒸餾」,
+而事實是它已經蒸餾完並退場。**`ls` 答的是「我的工作樹有沒有」,不是「專案有沒有」。**
 **席名與 charter 檔名不一定對得上**(`labor-20260913-1222` 用 `labor-8.md`、
 `labor-20261001-1456` 的蒸餾在 `design-web.md`),所以找不到檔時**先問計畫席檔名**,
 得到「沒有這個檔」才是結論。
