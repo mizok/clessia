@@ -1,9 +1,11 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { NEVER, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 
-import { CampusesService } from '@core/campuses.service';
+import { CampusContextService } from '@core/campus-context.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { EnrollmentsService, type Enrollment } from '@core/enrollments.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
@@ -45,22 +47,21 @@ describe('EnrollmentsPage', () => {
   let component: EnrollmentsPage;
 
   const listMock = vi.fn();
-  const campusesMock = vi.fn();
+  const refDataMock = { campuses: signal<unknown[]>([]), loadCampuses: vi.fn() };
   const navigateMock = vi.fn();
 
   async function setup(data: Enrollment[] = [enrollment()], total = data.length) {
     listMock.mockReset();
-    campusesMock.mockReset();
+    localStorage.removeItem('clessia.campusContext');
     navigateMock.mockReset();
 
     listMock.mockReturnValue(of({ data, meta: { total, page: 1, pageSize: 20, totalPages: 1 } }));
-    campusesMock.mockReturnValue(of({ data: [] }));
 
     await TestBed.configureTestingModule({
       imports: [EnrollmentsPage],
       providers: [
         { provide: EnrollmentsService, useValue: { list: listMock } },
-        { provide: CampusesService, useValue: { list: campusesMock } },
+        { provide: ReferenceDataService, useValue: refDataMock },
         { provide: Router, useValue: { navigate: navigateMock } },
       ],
     }).compileComponents();
@@ -75,15 +76,14 @@ describe('EnrollmentsPage', () => {
   // 改成骨架列表後這裡改斷言骨架元素，不是文字。
   it('載入中顯示骨架列表，不是整塊被文字取代', async () => {
     listMock.mockReset();
-    campusesMock.mockReset();
+    localStorage.removeItem('clessia.campusContext');
     listMock.mockReturnValue(NEVER);
-    campusesMock.mockReturnValue(of({ data: [] }));
 
     await TestBed.configureTestingModule({
       imports: [EnrollmentsPage],
       providers: [
         { provide: EnrollmentsService, useValue: { list: listMock } },
-        { provide: CampusesService, useValue: { list: campusesMock } },
+        { provide: ReferenceDataService, useValue: refDataMock },
         { provide: Router, useValue: { navigate: navigateMock } },
       ],
     }).compileComponents();
@@ -149,13 +149,15 @@ describe('EnrollmentsPage', () => {
     expect(fixture.nativeElement.textContent).toContain('08/14');
   });
 
-  it('切換分校會重新查詢並回到第一頁', async () => {
+  it('分校跟頂欄走：頂欄換分校會重新查詢並回到第一頁（#1138）', async () => {
     await setup();
     component['onPageChange'](3);
     listMock.mockClear();
 
-    component['onCampusChange']('campus-9');
+    TestBed.inject(CampusContextService).select('campus-9');
+    fixture.detectChanges();
 
+    expect(listMock).toHaveBeenCalledTimes(1);
     const call = listMock.mock.calls[0][0];
     expect(call.campusId).toBe('campus-9');
     expect(call.page).toBe(1);
@@ -189,15 +191,14 @@ describe('EnrollmentsPage', () => {
 
   it('查詢失敗顯示錯誤而不是空白', async () => {
     listMock.mockReset();
-    campusesMock.mockReset();
+    localStorage.removeItem('clessia.campusContext');
     listMock.mockReturnValue(throwError(() => new Error('boom')));
-    campusesMock.mockReturnValue(of({ data: [] }));
 
     await TestBed.configureTestingModule({
       imports: [EnrollmentsPage],
       providers: [
         { provide: EnrollmentsService, useValue: { list: listMock } },
-        { provide: CampusesService, useValue: { list: campusesMock } },
+        { provide: ReferenceDataService, useValue: refDataMock },
         { provide: Router, useValue: { navigate: navigateMock } },
       ],
     }).compileComponents();
