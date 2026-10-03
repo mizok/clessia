@@ -8,14 +8,15 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
 import { PaginatorModule } from 'primeng/paginator';
 import { SelectModule } from 'primeng/select';
 
-import { CampusesService, type Campus } from '@core/campuses.service';
+import { skip } from 'rxjs';
+import { CampusContextService } from '@core/campus-context.service';
 import {
   ENROLLMENT_STATUS_LABELS,
   EnrollmentsService,
@@ -65,7 +66,8 @@ export class EnrollmentsPage {
   readonly page = input.required<RouteObj>();
 
   private readonly enrollmentsService = inject(EnrollmentsService);
-  private readonly campusesService = inject(CampusesService);
+  /** 分校跟頂欄走（#1138）：頁內分校下拉拿掉 */
+  private readonly campusCtx = inject(CampusContextService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -81,8 +83,7 @@ export class EnrollmentsPage {
 
   protected readonly month = signal(format(new Date(), 'yyyy-MM'));
   protected readonly status = signal<EnrollmentStatus | null>(null);
-  protected readonly campusId = signal<string | null>(null);
-  protected readonly campuses = signal<Campus[]>([]);
+  private readonly campusId = this.campusCtx.id;
 
   protected readonly monthOptions = [
     ...Array.from({ length: MONTHS_BACK }, (_, i) => {
@@ -104,11 +105,6 @@ export class EnrollmentsPage {
     })),
   ];
 
-  protected readonly campusOptions = computed(() => [
-    { label: '全部分校', value: null as string | null },
-    ...this.campuses().map((campus) => ({ label: campus.name, value: campus.id as string | null })),
-  ]);
-
   protected readonly rows = computed<EnrollmentRow[]>(() =>
     this.enrollments().map((enrollment) => ({ enrollment, event: toEnrollmentEvent(enrollment) })),
   );
@@ -124,13 +120,11 @@ export class EnrollmentsPage {
   protected readonly hasPeriod = computed(() => this.month() !== ALL_MONTHS);
 
   constructor() {
-    this.campusesService
-      .list()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => this.campuses.set(res.data),
-        error: () => this.campuses.set([]),
-      });
+    this.campusCtx.use();
+    // 初次載入在下面；這裡只管之後頂欄換分校
+    toObservable(this.campusId)
+      .pipe(skip(1), takeUntilDestroyed())
+      .subscribe(() => this.resetToFirstPage());
 
     this.load();
   }
@@ -142,11 +136,6 @@ export class EnrollmentsPage {
 
   protected onStatusChange(value: EnrollmentStatus | null): void {
     this.status.set(value);
-    this.resetToFirstPage();
-  }
-
-  protected onCampusChange(value: string | null): void {
-    this.campusId.set(value);
     this.resetToFirstPage();
   }
 

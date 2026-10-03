@@ -21,13 +21,6 @@
       optionLabel="label"
       optionValue="value"
     />
-    <p-select
-      [options]="campusOptions()"
-      [ngModel]="campusId()"
-      (ngModelChange)="onCampusChange($event)"
-      optionLabel="label"
-      optionValue="value"
-    />
   </div>
 
   @if (loading()) {
