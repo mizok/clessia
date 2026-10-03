@@ -43,6 +43,11 @@ const StudentSchema = z
     notes: z.string().nullable(),
     isActive: z.boolean(),
     parentNames: z.array(z.string()),
+    /**
+     * 主要家長（`parentNames[0]` 那位）的電話，全站搜尋結果的第二行用（#1138）。
+     * **只有列表回這欄、只有管理員有值**；老師一律 null —— 家長電話不進老師的學生名單。
+     */
+    primaryParentPhone: z.string().nullable().optional(),
     campusNames: z.array(z.string()),
     /** 在籍班級（老師端用來分組；管理端目前不顯示） */
     classNames: z.array(z.string()),
@@ -288,7 +293,7 @@ app.openapi(
     let query = supabase
       .from('students')
       .select(
-        `*, schools(id, name, short_name), parent_student_relations(is_primary, relation, parents(id, name)), enrollments(id, status, classes(id, name, campus_id, campuses(name)))`,
+        `*, schools(id, name, short_name), parent_student_relations(is_primary, relation, parents(id, name, user_id)), enrollments(id, status, classes(id, name, campus_id, campuses(name)))`,
         { count: 'exact' },
       )
       .eq('org_id', orgId)
@@ -315,9 +320,36 @@ app.openapi(
           return c.json({ error: '讀取學生列表失敗', message: relationError.message }, 500);
         }
 
+        let phoneRows: Array<{ student_id: string | null }> = [];
+        // 家長電話（#1138 全站搜尋）：3 碼以上純數字才比。電話住在 `ba_user.phone`
+        // （20260317000003 把 parents.phone 移走了），寫法照 /api/parents 的搜尋。
+        // ponytail: 照輸入的字串連續比對；電話若存成帶 `-` 的格式，跨 `-` 的片段比不到 —— 真有這種資料再正規化
+        if (/^\d{3,}$/.test(search)) {
+          const { data: users, error: userError } = await supabase
+            .from('ba_user')
+            .select('id')
+            .ilike('phone', `%${search}%`);
+          if (userError) {
+            return c.json({ error: '讀取學生列表失敗', message: userError.message }, 500);
+          }
+          const userIds = (users ?? []).map((u: { id: string }) => u.id);
+          if (userIds.length > 0) {
+            // ba_user 不分機構，所以這裡一定要限本機構的家長
+            const { data, error: phoneError } = await supabase
+              .from('parent_student_relations')
+              .select('student_id, parents!inner(user_id, org_id)')
+              .eq('parents.org_id', orgId)
+              .in('parents.user_id', userIds);
+            if (phoneError) {
+              return c.json({ error: '讀取學生列表失敗', message: phoneError.message }, 500);
+            }
+            phoneRows = (data ?? []) as Array<{ student_id: string | null }>;
+          }
+        }
+
         matchedStudentIds = Array.from(
           new Set(
-            ((relationRows ?? []) as Array<{ student_id: string | null }>)
+            [...((relationRows ?? []) as Array<{ student_id: string | null }>), ...phoneRows]
               .map((row) => row.student_id)
               .filter((studentId): studentId is string => !!studentId),
           ),
@@ -393,17 +425,40 @@ app.openapi(
     const rows = (data ?? []) as Array<Record<string, unknown>>;
     const total = count ?? 0;
 
+    type Relation = {
+      is_primary: boolean;
+      relation: string | null;
+      parents: { id: string; name: string; user_id: string | null } | null;
+    };
+    const relationsOf = (row: Record<string, unknown>) =>
+      ((row['parent_student_relations'] as Relation[]) ?? [])
+        .filter((r) => r.parents?.name)
+        .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0));
+
+    // 主要家長電話：只有管理員查（計畫席裁 #1138 Q-b A）。電話住在 ba_user（唯讀，c2 只禁寫）
+    const phoneByUser = new Map<string, string | null>();
+    if (scope.teacherStaffId === null) {
+      const userIds = [
+        ...new Set(
+          rows
+            .map((row) => relationsOf(row)[0]?.parents?.user_id)
+            .filter((id): id is string => !!id),
+        ),
+      ];
+      if (userIds.length > 0) {
+        const { data: users } = await supabase
+          .from('ba_user')
+          .select('id, phone')
+          .in('id', userIds);
+        for (const u of users ?? []) phoneByUser.set(u.id as string, (u.phone as string) ?? null);
+      }
+    }
+
     const students = rows.map((row) => {
-      const relations =
-        (row['parent_student_relations'] as Array<{
-          is_primary: boolean;
-          relation: string | null;
-          parents: { id: string; name: string } | null;
-        }>) ?? [];
-      const parentNames = relations
-        .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0))
-        .map((r) => r.parents?.name ?? '')
-        .filter(Boolean);
+      const relations = relationsOf(row);
+      const parentNames = relations.map((r) => r.parents!.name);
+      const primaryUserId = relations[0]?.parents?.user_id;
+      const primaryParentPhone = (primaryUserId && phoneByUser.get(primaryUserId)) || null;
       const enrollmentRows =
         (row['enrollments'] as Array<{
           id: string;
@@ -436,7 +491,10 @@ app.openapi(
         ),
       );
 
-      return toStudentResponse(row, parentNames, campusNames, hasEnrollments, classNames);
+      return {
+        ...toStudentResponse(row, parentNames, campusNames, hasEnrollments, classNames),
+        primaryParentPhone,
+      };
     });
 
     return c.json(
