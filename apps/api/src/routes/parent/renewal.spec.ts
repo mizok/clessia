@@ -57,6 +57,7 @@ function appWith(roles: string[], scope: string[], db: unknown) {
     set('roles', roles);
     set('studentScope', scope);
     set('childDb', db);
+    set('orgId', 'org-1');
     await next();
   });
   app.route('/', renewalRoute as unknown as Hono);
@@ -102,6 +103,7 @@ const CLASSES = [
     schedules: [slot(2)],
     next_class: {
       id: 'up-next',
+      org_id: 'org-1',
       name: '國三英文',
       schedules: [slot(5)],
       fee_template: { amount: 24000, is_active: true },
@@ -113,7 +115,7 @@ const CLASSES = [
     end_date: '2027-01-20',
     courses: { name: '理化' },
     schedules: [],
-    next_class: { id: 'n2', name: '國三理化', schedules: [], fee_template: null },
+    next_class: { id: 'n2', org_id: 'org-1', name: '國三理化', schedules: [], fee_template: null },
   },
 ];
 
@@ -197,6 +199,7 @@ describe('GET /api/me/renewal-preview（#1121）', () => {
             schedules: [slot(4)],
             next_class: {
               id: 'x',
+              org_id: 'org-1',
               name: '國三國文',
               schedules: [],
               fee_template: { amount: 30000, is_active: true },
@@ -236,6 +239,34 @@ describe('GET /api/me/renewal-preview（#1121）', () => {
       estimatedAmount: null,
       estimateSource: null,
     });
+  });
+
+  it('下一班是別的機構的班 → 當作沒有下一班（不把別機構的班名、時段、參考價給家長）', async () => {
+    const res = await request(
+      fakeChildDb({
+        periods: [PERIOD],
+        enrollments: [enrollment('e-x', 'cross')],
+        classes: [
+          {
+            id: 'cross',
+            name: '國二數學 B',
+            end_date: '2027-01-20',
+            courses: { name: '數學' },
+            schedules: [slot(3)],
+            next_class: {
+              id: 'other-org-class',
+              org_id: 'org-2',
+              name: '別家的國三數學',
+              schedules: [slot(6)],
+              fee_template: { amount: 99999, is_active: true },
+            },
+          },
+        ],
+      }),
+    );
+    const item = ((await res.json()) as { data: { items: Row[] } }).data.items[0];
+    expect(item).toMatchObject({ nextClassName: '國二數學 B', upgraded: false });
+    expect(JSON.stringify(item)).not.toContain('別家');
   });
 
   it('只列這個孩子、在讀、期繳的報名（兄弟姊妹、月繳、已結束的報名都不出現）', async () => {

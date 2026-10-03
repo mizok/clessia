@@ -67,7 +67,7 @@ const CLASS_SELECT = `
   courses(name),
   schedules(weekday, start_time, end_time, effective_to),
   next_class:next_class_id(
-    id, name,
+    id, name, org_id,
     schedules(weekday, start_time, end_time, effective_to),
     fee_template:fee_templates!default_fee_template_id(amount, is_active)
   )
@@ -103,6 +103,7 @@ app.openapi(
     const failed = () => c.json({ error: '讀取續課預覽失敗', code: 'FETCH_RENEWAL_FAILED' }, 500);
 
     const childDb = c.get('childDb');
+    const orgId = c.get('orgId');
     const today = getCurrentTaipeiDateString();
 
     const { data: periodRows, error: periodError } = await childDb
@@ -160,7 +161,10 @@ app.openapi(
     const items = enrollments.flatMap((enrollment) => {
       const current = classById.get(enrollment['class_id'] as string);
       if (!current) return [];
-      const nextClass = one(current['next_class']);
+      // 嵌入的那一層不經 orgRef 的 org 過濾 —— FK 不保證 next_class_id 指到同一個機構的班
+      // （reviewer 二讀）。別的機構的班當作沒有下一班，不把它的名稱、時段、參考價給家長
+      const embedded = one(current['next_class']);
+      const nextClass = embedded && embedded['org_id'] === orgId ? embedded : null;
       const endsBefore = !!current['end_date'] && current['end_date'] < nextPeriod.startDate;
       const upgraded = endsBefore && !!nextClass;
       const target = upgraded ? nextClass : current;
