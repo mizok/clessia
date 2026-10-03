@@ -5,16 +5,18 @@
 
   <div class="class-view__toolbar class-view__toolbar--desktop">
     <div class="class-view__toolbar-main">
-      <p-select
-        [options]="campusOptions()"
-        [ngModel]="campusId()"
-        (ngModelChange)="onCampusChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="選擇分校"
-        size="small"
-        styleClass="class-view__campus-select"
-      />
+      @if (showCampusPicker()) {
+        <p-select
+          [options]="campusOptions()"
+          [ngModel]="campusId()"
+          (ngModelChange)="onCampusChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="選擇分校"
+          size="small"
+          styleClass="class-view__campus-select"
+        />
+      }
       <div class="class-view__search">
         <i class="pi pi-search class-view__search-icon"></i>
         <input

@@ -11,7 +11,8 @@ import {
   untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { CampusContextService } from '@core/campus-context.service';
 
 import { MultiSelectModule } from 'primeng/multiselect';
 import { SelectModule } from 'primeng/select';
@@ -31,7 +32,7 @@ import { ReferenceDataService } from '@core/reference-data.service';
 import { AcademyExamsService } from '@core/academy-exams.service';
 import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import { catchError, forkJoin, map, of } from 'rxjs';
+import { catchError, filter, forkJoin, map, of } from 'rxjs';
 
 import { ClassScoresDialogComponent } from './class-scores-dialog/class-scores-dialog.component';
 import {
@@ -93,7 +94,14 @@ export class ClassViewComponent implements OnInit {
     value: grade,
   }));
 
-  protected readonly campusId = signal<string>('');
+  /**
+   * 分校跟頂欄走（#1138，計畫席裁定）：這頁一定要一間分校才有東西看。
+   * 頂欄選了分校就用它（頁內下拉收起）；頂欄是「全部」時頁內留下拉，預設第一間。
+   */
+  private readonly campusCtx = inject(CampusContextService);
+  private readonly localCampusId = signal<string>('');
+  protected readonly campusId = computed(() => this.campusCtx.id() ?? this.localCampusId());
+  protected readonly showCampusPicker = computed(() => this.campusCtx.id() === null);
   protected readonly searchText = signal('');
   protected readonly selectedGrades = signal<GradeLevel[]>([]);
   protected readonly subjectIdFilter = signal<string | null>(null);
@@ -163,13 +171,17 @@ export class ClassViewComponent implements OnInit {
   });
 
   constructor() {
+    this.campusCtx.use();
     effect(() => {
       const campuses = this.refData.campuses();
       if (campuses.length === 0) return;
-      if (untracked(() => this.campusId())) return;
-      this.campusId.set(campuses[0].id);
-      this.loadGroups();
+      if (untracked(() => this.localCampusId())) return;
+      this.localCampusId.set(campuses[0].id);
     });
+    // 分校一定下來（頂欄或頁內預設）就載；之後任一邊換了再載
+    toObservable(this.campusId)
+      .pipe(filter(Boolean), takeUntilDestroyed())
+      .subscribe(() => this.loadGroups());
   }
 
   ngOnInit(): void {
@@ -178,8 +190,7 @@ export class ClassViewComponent implements OnInit {
   }
 
   protected onCampusChange(id: string): void {
-    this.campusId.set(id);
-    this.loadGroups();
+    this.localCampusId.set(id);
   }
 
   protected onSearchChange(text: string): void {
@@ -213,7 +224,8 @@ export class ClassViewComponent implements OnInit {
           subjectId: this.subjectIdFilter(),
         },
         options: {
-          campusOptions: this.campusOptions(),
+          // 頂欄選了分校時對話框不給選（空清單 = 不出那一欄）
+          campusOptions: this.showCampusPicker() ? this.campusOptions() : [],
           gradeOptions: this.gradeOptions,
           subjectOptions: this.subjectOptions(),
         },
@@ -379,7 +391,7 @@ export class ClassViewComponent implements OnInit {
     this.selectedGrades.set(snapshot.selectedGrades);
     this.subjectIdFilter.set(snapshot.subjectId);
 
-    if (prevCampusId !== nextCampusId) {
+    if (this.showCampusPicker() && prevCampusId !== nextCampusId) {
       this.onCampusChange(nextCampusId);
     }
   }

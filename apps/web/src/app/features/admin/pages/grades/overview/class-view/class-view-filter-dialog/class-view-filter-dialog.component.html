@@ -9,19 +9,21 @@
   </div>
 
   <div class="class-view-filter-dialog__body">
-    <div class="class-view-filter-dialog__group">
-      <label class="class-view-filter-dialog__label">分校</label>
-      <p-select
-        [options]="options?.campusOptions ?? []"
-        [ngModel]="campusId()"
-        (ngModelChange)="campusId.set($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="選擇分校"
-        size="small"
-        [appendTo]="'body'"
-      />
-    </div>
+    @if (options?.campusOptions?.length) {
+      <div class="class-view-filter-dialog__group">
+        <label class="class-view-filter-dialog__label">分校</label>
+        <p-select
+          [options]="options?.campusOptions ?? []"
+          [ngModel]="campusId()"
+          (ngModelChange)="campusId.set($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="選擇分校"
+          size="small"
+          [appendTo]="'body'"
+        />
+      </div>
+    }
 
     <div class="class-view-filter-dialog__group">
       <label class="class-view-filter-dialog__label">年級</label>
