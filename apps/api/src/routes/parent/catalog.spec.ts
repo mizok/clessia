@@ -152,6 +152,22 @@ describe('GET /api/me/catalog', () => {
         [CLS_MATH, CLS_ENG, CLS_OLD].sort(),
       );
     });
+
+    /**
+     * #1243：課程停用＝正在收掉（管理端不能再開新班、排未來課，COURSE_INACTIVE），
+     * 家長加選頁不該再推它底下的班。公開目錄（#1241）同一條。
+     */
+    it('課程已停用的班不回（班本身還是啟用中）', async () => {
+      const { body } = await get(
+        appWith(
+          seed({ [CLS_OLD]: { courses: { id: 'course-x', name: '舊課', is_active: false } } }),
+        ),
+      );
+
+      expect(body.data.map((c: { classId: string }) => c.classId).sort()).toEqual(
+        [CLS_MATH, CLS_ENG].sort(),
+      );
+    });
   });
 
   describe('內容', () => {

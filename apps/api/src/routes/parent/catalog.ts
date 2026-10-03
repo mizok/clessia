@@ -16,7 +16,7 @@ import { DbUuidSchema } from '../../lib/validation';
 
 const CLASS_SELECT = `
   id, name, grade_levels, max_students, is_active, end_date,
-  courses(id, name, description, subjects(name)),
+  courses(id, name, description, is_active, subjects(name)),
   campuses(name),
   schedules(weekday, start_time, end_time, effective_to, teacher:staff!teacher_id(display_name)),
   fee_template:fee_templates!default_fee_template_id(amount, billing_mode, is_active)
@@ -116,6 +116,8 @@ app.openapi(
     const classes = ((classResult.data ?? []) as Row[]).filter(
       (row) =>
         (!row['end_date'] || row['end_date'] >= today) &&
+        // #1243：課程停用＝正在收掉（不能再開新班、排未來課），加選頁不推它底下的班
+        one(row['courses'])?.['is_active'] !== false &&
         countEnrolledOn(ranges, row['id'], today) === 0,
     );
 
