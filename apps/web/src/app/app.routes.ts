@@ -91,22 +91,6 @@ export const routes: Routes = [
         canActivate: [roleGuard('admin')],
         children: [
           {
-            path: '',
-            loadComponent: () =>
-              import('@shared/components/sidebar/sidebar.component').then(
-                (m) => m.SidebarComponent,
-              ),
-            outlet: 'sidebar',
-          },
-          {
-            path: '',
-            loadComponent: () =>
-              import('@shared/components/bottom-bar/bottom-bar.component').then(
-                (m) => m.BottomBarComponent,
-              ),
-            outlet: 'bottom-bar',
-          },
-          {
             path: RoutesCatalog.ADMIN_DASHBOARD.relativePath,
             loadComponent: () =>
               import('@features/admin/pages/dashboard/dashboard.component').then(
@@ -364,22 +348,6 @@ export const routes: Routes = [
         canActivate: [roleGuard('teacher')],
         children: [
           {
-            path: '',
-            loadComponent: () =>
-              import('@shared/components/sidebar/sidebar.component').then(
-                (m) => m.SidebarComponent,
-              ),
-            outlet: 'sidebar',
-          },
-          {
-            path: '',
-            loadComponent: () =>
-              import('@shared/components/bottom-bar/bottom-bar.component').then(
-                (m) => m.BottomBarComponent,
-              ),
-            outlet: 'bottom-bar',
-          },
-          {
             // 老師儀表板已刪除（今日流）—— 它獨有的只有四個數字與兩個連結，
             // 而「今日課表」清單跟課表今天那一屏完全重複。
             // **route 留著當 redirect**：老師可能加了書籤，讓它壞掉沒有任何好處。
@@ -420,22 +388,6 @@ export const routes: Routes = [
         path: RoutesCatalog.PARENT_ROOT.relativePath,
         canActivate: [roleGuard('parent')],
         children: [
-          {
-            path: '',
-            loadComponent: () =>
-              import('@shared/components/sidebar/sidebar.component').then(
-                (m) => m.SidebarComponent,
-              ),
-            outlet: 'sidebar',
-          },
-          {
-            path: '',
-            loadComponent: () =>
-              import('@shared/components/bottom-bar/bottom-bar.component').then(
-                (m) => m.BottomBarComponent,
-              ),
-            outlet: 'bottom-bar',
-          },
           {
             path: RoutesCatalog.PARENT_DASHBOARD.relativePath,
             loadComponent: () =>

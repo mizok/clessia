@@ -1,110 +1,180 @@
-<div class="shell-layout">
-  <header class="shell-header">
-    <div class="shell-header__left">
-      <span class="shell-header__logo-text">Clessia</span>
-    </div>
-    <div class="shell-header__right">
-      @if (auth.activeRole(); as role) {
-        @if (auth.roles().length > 1) {
-          @if (device.isTouchDevice()) {
-            <button
-              #roleTrigger
-              type="button"
-              class="shell-header__role-badge shell-header__role-badge--{{
-                role
-              }} shell-header__role-badge--interactive"
-              (click)="rolePop.toggle($event, roleTrigger)"
+<div class="flex h-window flex-col">
+  <!-- A6 頂欄（#991 殼切片 S3）：桌機一列；≤860 導覽掉到第二列、可橫捲。捲離頂端才有下陰影 -->
+  <header
+    class="relative z-10 shrink-0 bg-zinc-900 text-white transition-shadow data-scrolled:shadow-[0_6px_16px_-6px_rgb(26_22_20/28%)]"
+    [attr.data-scrolled]="scrolled() || null"
+  >
+    <div
+      class="page-wrap flex flex-wrap items-center gap-x-4 pt-1 wide:h-14 wide:flex-nowrap wide:gap-x-8 wide:pt-0"
+    >
+      <a
+        class="inline-flex min-h-11 items-center text-[22px] leading-none font-bold tracking-[-0.04em] text-white no-underline wide:text-2xl"
+        [routerLink]="nav.topItems()[0]?.route ?? '/'"
+        >Clessia</a
+      >
+
+      <nav
+        class="order-3 -mx-1 flex w-full items-center gap-5 overflow-x-auto px-1 [scrollbar-width:none] wide:order-none wide:mx-0 wide:w-auto wide:overflow-visible wide:px-0"
+        aria-label="主要導覽"
+      >
+        @for (item of nav.topItems(); track item.route) {
+          <a
+            class="group inline-flex min-h-11 shrink-0 items-center text-base font-medium whitespace-nowrap text-zinc-300 no-underline hover:text-white aria-[current=page]:font-semibold aria-[current=page]:text-white"
+            [routerLink]="item.route"
+            routerLinkActive
+            ariaCurrentWhenActive="page"
+          >
+            <span
+              class="border-b-2 border-transparent py-0.5 group-hover:border-zinc-400 group-aria-[current=page]:border-accent-vivid"
+              >{{ item.label }}</span
             >
-              {{ roleLabels[role] }}
-              <i class="shell-header__role-badge-icon pi pi-chevron-down"></i>
-            </button>
-          } @else {
-            <button
-              #roleTrigger
-              type="button"
-              class="shell-header__role-badge shell-header__role-badge--{{
-                role
-              }} shell-header__role-badge--interactive"
-              (click)="rolePop.toggle($event, roleTrigger)"
-              pTooltip="你擁有多個角色，點擊即可切換"
-              tooltipPosition="bottom"
-              tooltipStyleClass="clessia-tooltip clessia-tooltip--role-switch"
-              appAutoOpenTooltip
-              [appAutoOpenTooltipEnterDelay]="500"
-              [appAutoOpenTooltipEnterDuration]="220"
-              [appAutoOpenTooltipLeaveDuration]="220"
-            >
-              {{ roleLabels[role] }}
-              <i class="shell-header__role-badge-icon pi pi-chevron-down"></i>
-            </button>
-          }
-        } @else {
-          <span class="shell-header__role-badge shell-header__role-badge--{{ role }}">
-            {{ roleLabels[role] }}
-          </span>
+          </a>
         }
+        @if (nav.moreGroups().length > 0) {
+          <button
+            class="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-base font-medium whitespace-nowrap text-zinc-300 hover:text-white"
+            type="button"
+            popovertarget="shell-more"
+            [attr.aria-expanded]="moreOpen()"
+          >
+            更多<i class="pi pi-chevron-down text-xs" aria-hidden="true"></i>
+          </button>
+        }
+      </nav>
+
+      @if (auth.activeRole(); as role) {
+        <button
+          class="ml-auto inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 text-md text-zinc-300 hover:bg-zinc-800 hover:text-white aria-expanded:bg-zinc-800 aria-expanded:text-white wide:-mr-1.5"
+          type="button"
+          popovertarget="shell-account"
+          [attr.aria-expanded]="accountOpen()"
+          [attr.aria-label]="'帳戶：' + displayName() + '，目前身分 ' + roleLabels[role]"
+        >
+          <app-jdenticon-avatar
+            class="block rounded-full bg-white"
+            [size]="28"
+            [value]="avatarSeed()"
+          />
+          <span class="hidden whitespace-nowrap wide:inline"
+            >{{ displayName() }} · {{ roleLabels[role] }}</span
+          >
+          <span class="font-semibold text-white wide:hidden">{{ roleLabels[role] }}</span>
+          <i class="pi pi-chevron-down text-xs" aria-hidden="true"></i>
+        </button>
       }
-
-      <p-popover #rolePop styleClass="role-switch-overlay">
-        <div class="role-switch">
-          <p class="role-switch__title">切換身分</p>
-          @for (r of otherRoles(); track r) {
-            <button class="role-switch__item" type="button" (click)="rolePop.hide(); switchRole(r)">
-              <i class="role-switch__item-icon pi" [class]="'pi ' + roleIcons[r]"></i>
-              {{ roleLabels[r] }}
-            </button>
-          }
-        </div>
-      </p-popover>
-
-      <div class="shell-header__user" #userTrigger (click)="op.toggle($event, userTrigger)">
-        <app-jdenticon-avatar class="shell-header__avatar" [size]="30" [value]="avatarSeed()" />
-        <span class="shell-header__user-name">{{
-          auth.profile()?.display_name || auth.user()?.email
-        }}</span>
-      </div>
-
-      <p-popover #op styleClass="user-menu-overlay">
-        <div class="user-menu">
-          <div class="user-menu__info">
-            <app-jdenticon-avatar class="user-menu__avatar" [size]="48" [value]="avatarSeed()" />
-            <div class="user-menu__text">
-              <span class="user-menu__name">{{ auth.profile()?.display_name || 'User' }}</span>
-              <span class="user-menu__email">{{ auth.user()?.email }}</span>
-            </div>
-          </div>
-          <hr class="user-menu__divider" />
-          <div class="user-menu__items">
-            <button class="user-menu__item" (click)="openAccountSettings()">
-              <i class="user-menu__item-icon pi pi-user-edit"></i>
-              帳號設定
-            </button>
-            <button class="user-menu__item user-menu__item--danger" (click)="signOut()">
-              <i class="user-menu__item-icon pi pi-sign-out"></i>
-              登出
-            </button>
-          </div>
-        </div>
-      </p-popover>
     </div>
   </header>
 
   <div
-    class="shell-layout__body"
-    #shellBody
+    class="flex min-h-0 flex-1 flex-col overflow-hidden"
     id="shell-container"
     appInheritSize
     appOverlayContainer
     [widthVar]="'--shell-layout-body-width'"
     [heightVar]="'--shell-layout-body-height'"
   >
-    <div class="shell-container">
-      <router-outlet name="sidebar" />
-      <main class="shell-content" [class.shell-content--centered]="centered()">
-        <router-outlet />
-      </main>
+    <!--
+      `.shell-content`：styles.scss 的 view-transition 與「停靠列留底」兩條規則掛在這個名字上；
+      container `shell-content` 是 sessions／teacher schedule 的容器查詢斷點。
+      內距只給還沒遷到 A6 的頁 —— 放了 <app-page-open> 的頁全寬出血，內距由頁面的 page-wrap 給。
+      手機有停靠列（page-actions，position: fixed 貼底）時，底部留出它的高度，不然最後一列被蓋住。
+      這條原本在 styles.scss，T4 把它包進 legacy layer 之後就輸給元件樣式、一直沒生效。
+    -->
+    <main
+      class="shell-content @container/shell-content flex flex-1 flex-col overflow-y-auto bg-zinc-50 has-[app-page-open]:bg-white not-has-[app-page-open]:p-3 not-has-[app-page-open]:pb-[calc(8px+env(safe-area-inset-bottom,0px))] not-has-[app-page-open]:sm:p-8 max-[640.02px]:has-[.page-actions\_\_dock]:pb-[calc(var(--space-3)*2+44px+env(safe-area-inset-bottom,0px))]"
+      (scroll)="onScroll($event)"
+    >
+      <router-outlet />
+    </main>
+  </div>
+</div>
+
+<!-- 「更多」：照產品選單分組（NavigationService.moreGroups）。原生 popover：點外面、Esc 自動關 -->
+@if (nav.moreGroups().length > 0) {
+  <div
+    class="m-0 w-[340px] max-w-[calc(100%-32px)] rounded-lg border border-surface-border bg-white px-5 py-4 text-zinc-900 shadow-[0_12px_32px_-8px_rgb(26_22_20/24%)]"
+    id="shell-more"
+    popover
+    (toggle)="onPopoverToggle($event, 'more')"
+  >
+    <div class="grid grid-cols-2 gap-x-6 gap-y-4">
+      @for (group of nav.moreGroups(); track group.label ?? '') {
+        <div>
+          @if (group.label) {
+            <h3 class="m-0 mb-1 text-sm font-semibold text-zinc-600">{{ group.label }}</h3>
+          }
+          @for (item of group.items; track item.route) {
+            <a
+              class="flex min-h-11 items-center text-md text-zinc-900 no-underline underline-offset-[3px] hover:underline aria-[current=page]:font-semibold"
+              [routerLink]="item.route"
+              routerLinkActive
+              ariaCurrentWhenActive="page"
+              (click)="hide('shell-more')"
+              >{{ item.label }}</a
+            >
+          }
+        </div>
+      }
+    </div>
+  </div>
+}
+
+<!-- 帳戶：人 → 切換身分 → 帳號設定 → 登出（A6 第六輪）。≤860 是底部抽屜 -->
+<div
+  class="m-0 w-[300px] rounded-lg border border-surface-border bg-white p-2 text-zinc-900 shadow-[0_12px_32px_-8px_rgb(26_22_20/24%)] max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:max-h-[calc(100%-48px)] max-wide:w-full max-wide:max-w-none max-wide:overflow-y-auto max-wide:rounded-none max-wide:rounded-t-xl max-wide:border-0 max-wide:px-3 max-wide:pb-6 max-wide:backdrop:bg-zinc-900/40"
+  id="shell-account"
+  popover
+  aria-label="帳戶"
+  (toggle)="onPopoverToggle($event, 'account')"
+>
+  <div class="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300 wide:hidden" aria-hidden="true"></div>
+  <div class="flex items-center gap-3 p-3">
+    <app-jdenticon-avatar
+      class="block rounded-full bg-zinc-900"
+      [size]="48"
+      [value]="avatarSeed()"
+    />
+    <div class="min-w-0">
+      <p class="m-0 text-lg font-bold">{{ displayName() }}</p>
+      <p class="m-0 text-md [overflow-wrap:anywhere] text-zinc-600">{{ auth.user()?.email }}</p>
     </div>
   </div>
 
-  <router-outlet name="bottom-bar" />
+  @if (otherRoles().length > 0) {
+    <div
+      class="mt-1 rounded-md bg-zinc-100 px-1.5 py-2"
+      role="group"
+      aria-labelledby="shell-account-switch"
+    >
+      <p class="m-0 px-1.5 py-1 text-sm font-semibold text-zinc-600" id="shell-account-switch">
+        切換身分
+      </p>
+      @for (r of otherRoles(); track r) {
+        <button
+          class="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-sm border-0 bg-transparent px-1.5 text-left text-base font-medium text-zinc-900 hover:bg-zinc-200"
+          type="button"
+          (click)="switchRole(r)"
+        >
+          <i class="pi {{ roleIcons[r] }}" aria-hidden="true"></i>{{ roleLabels[r] }}
+        </button>
+      }
+    </div>
+  }
+
+  <div class="mt-2 border-t border-surface-border pt-2">
+    <button
+      class="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-3 text-left text-base font-medium text-zinc-900 hover:bg-zinc-100"
+      type="button"
+      (click)="openAccountSettings()"
+    >
+      <i class="pi pi-user-edit" aria-hidden="true"></i>帳號設定
+    </button>
+    <button
+      class="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-3 text-left text-base font-medium text-error-700 hover:bg-error-100"
+      type="button"
+      (click)="signOut()"
+    >
+      <i class="pi pi-sign-out" aria-hidden="true"></i>登出
+    </button>
+  </div>
 </div>

@@ -1,60 +1,48 @@
-import {
-  Component,
-  HostListener,
-  inject,
-  computed,
-  input,
-  viewChild,
-  type ElementRef,
-  afterNextRender,
-} from '@angular/core';
-import { RouterOutlet } from '@angular/router';
-import { Tooltip } from 'primeng/tooltip';
-import { Popover } from 'primeng/popover';
+import { Component, HostListener, computed, inject, signal } from '@angular/core';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { DialogService } from 'primeng/dynamicdialog';
 import { JdenticonAvatarComponent } from '@shared/components/jdenticon-avatar/jdenticon-avatar.component';
 import { AuthService, type UserRole } from '@core/auth.service';
-import { AutoOpenTooltipDirective } from '@shared/directives/auto-open-tooltip.directive';
-import { DeviceService } from '@core/device.service';
+import { NavigationService } from '@core/navigation.service';
 import { InheritSizeDirective } from '@shared/directives/inherit-size.directive';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
 import { AccountSettingsDialogComponent } from '@shared/components/account-settings-dialog/account-settings-dialog.component';
 
+/** A6 的手機／桌機切換（tailwind.css 的 `--breakpoint-wide`） */
+const WIDE = '(min-width: 861px)';
+
+/**
+ * 三個角色共用的殼（A6 頂欄，#991 殼切片 S3）：頂欄＋main。側欄與手機底部分頁已拿掉 ——
+ * 導覽全在頂欄（≤860 掉到第二列橫捲），其餘項目進「更多」。選單資料來自 `NavigationService`
+ * 的 `topItems`／`moreGroups`，權限過濾在那裡。
+ *
+ * **main 自己捲、頂欄不動**（不是 A6 稿的文件捲動＋sticky，#991 裁定 Q1）：
+ * `--shell-layout-body-*`（對話框尺寸）、overlay container、`shell-content` 容器查詢、
+ * view-transition 都依賴 main 是捲動容器。
+ *
+ * 「更多」與帳戶浮層用原生 popover：點外面、Esc、焦點回到觸發鈕都是瀏覽器給的。
+ */
 @Component({
   selector: 'app-shell-layout',
-  standalone: true,
   imports: [
     RouterOutlet,
-    Tooltip,
-    AutoOpenTooltipDirective,
-    Popover,
+    RouterLink,
+    RouterLinkActive,
     JdenticonAvatarComponent,
     InheritSizeDirective,
     OverlayContainerDirective,
   ],
   providers: [DialogService],
   templateUrl: './shell-layout.component.html',
-  styleUrl: './shell-layout.component.scss',
+  host: { class: 'block' },
 })
 export class ShellLayoutComponent {
-  // template 裡的 `op.toggle()` 用的是 template reference variable，
-  // 跟這個 query 無關 —— 這裡只服務 TS 側的兩處 hide()。
-  private readonly op = viewChild<Popover>('op');
-
-  private readonly shellBody = viewChild<ElementRef<HTMLElement>>('shellBody');
-  private readonly overlayContainerService = inject(OverlayContainerService);
-  protected get overlayContainer(): HTMLElement | null {
-    return this.overlayContainerService.getContainer();
-  }
-
   public readonly auth = inject(AuthService);
-  protected readonly avatarSeed = computed(() => {
-    return (
-      (this.auth.user()?.id || 'ANYMOUS') + '_' + (this.auth.profile()?.display_name || 'USER')
-    );
-  });
-  protected readonly device = inject(DeviceService);
+  protected readonly nav = inject(NavigationService);
+  private readonly dialogService = inject(DialogService);
+  private readonly overlayContainerService = inject(OverlayContainerService);
+
   protected readonly roleLabels: Record<UserRole, string> = {
     admin: '管理員',
     teacher: '任課老師',
@@ -67,44 +55,82 @@ export class ShellLayoutComponent {
     parent: 'pi-users',
   };
 
-  /**
-   * 徽章上點得到的選項 —— 目前這個角色不列，點自己沒有意義。
-   * 只有多重角色的人看得到徽章的互動樣式，所以這裡不會是空的。
-   */
+  protected readonly displayName = computed(
+    () => this.auth.profile()?.display_name || this.auth.user()?.email || '',
+  );
+  protected readonly avatarSeed = computed(
+    () => (this.auth.user()?.id || 'ANYMOUS') + '_' + (this.auth.profile()?.display_name || 'USER'),
+  );
+  /** 帳戶浮層裡點得到的身分 —— 目前這個不列，點自己沒有意義 */
   protected readonly otherRoles = computed(() =>
     this.auth.roles().filter((role) => role !== this.auth.activeRole()),
   );
 
+  protected readonly scrolled = signal(false);
+  protected readonly moreOpen = signal(false);
+  protected readonly accountOpen = signal(false);
+
+  protected onScroll(event: Event) {
+    this.scrolled.set((event.target as HTMLElement).scrollTop > 0);
+  }
+
   /**
-   * Header 的角色快速切換。#34 曾把徽章改成導向 `/select-role`，切個身分要走一整趟
-   * 頁面 —— 那是退步。這裡就地切換：零導航、零動態載入。
-   *
-   * `/select-role` 那條路仍然在，服務的是登入後的初選與 guard 的落點，是另一個場景。
+   * popover 預設開在畫面正中，這裡讓它貼著觸發鈕（A6 同一招）。帳戶浮層在手機是 CSS 的底部抽屜，
+   * 不給位置；「更多」兩種寬度都貼著鈕，往左貼齊不超出畫面。
    */
+  protected onPopoverToggle(event: Event, which: 'more' | 'account') {
+    const pop = event.target as HTMLElement;
+    const open = (event as ToggleEvent).newState === 'open';
+    (which === 'more' ? this.moreOpen : this.accountOpen).set(open);
+    if (!open) return;
+    pop.removeAttribute('style');
+    if (which === 'account' && !window.matchMedia(WIDE).matches) return;
+    const opener = document.querySelector(`[popovertarget="${pop.id}"]`);
+    if (!opener) return;
+    const r = opener.getBoundingClientRect();
+    const header = (opener.closest('header') ?? opener).getBoundingClientRect();
+    const left =
+      which === 'account'
+        ? Math.max(16, r.right - pop.offsetWidth)
+        : Math.max(16, Math.min(r.left, window.innerWidth - pop.offsetWidth - 16));
+    // 從頁首下緣往下 8px，不從按鈕下緣：按鈕在頁首裡置中，從它算會黏著頁首邊緣
+    Object.assign(pop.style, {
+      position: 'fixed',
+      left: `${left}px`,
+      top: `${header.bottom + 8}px`,
+    });
+  }
+
+  /** 原生 popover 裡點連結不會自己關 */
+  protected hide(id: string) {
+    document.getElementById(id)?.hidePopover?.();
+  }
+
+  /** 位置是開的那一刻算的，視窗一變就失準 —— 直接關掉 */
+  @HostListener('window:resize')
+  onResize() {
+    this.hide('shell-more');
+    this.hide('shell-account');
+  }
+
+  /** 就地切換身分：零導航、零動態載入（`/select-role` 是登入後的初選，另一個場景） */
   protected switchRole(role: UserRole) {
+    this.hide('shell-account');
     this.auth.navigateToRoleShell(role);
   }
 
-  private readonly dialogService = inject(DialogService);
-
-  readonly centered = input(false, { transform: (v: boolean | string) => v === '' || v === true });
-
-  @HostListener('window:resize')
-  onResize() {
-    this.op()?.hide();
-  }
-
-  openAccountSettings() {
-    this.op()?.hide();
+  protected openAccountSettings() {
+    this.hide('shell-account');
     this.dialogService.open(AccountSettingsDialogComponent, {
       width: '480px',
       modal: true,
       showHeader: false,
-      appendTo: this.overlayContainer ?? 'body',
+      appendTo: this.overlayContainerService.getContainer() ?? 'body',
     });
   }
 
-  signOut() {
+  protected signOut() {
+    this.hide('shell-account');
     this.auth.signOut();
   }
 }
