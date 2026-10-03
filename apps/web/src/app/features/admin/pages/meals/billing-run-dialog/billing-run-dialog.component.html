@@ -1,7 +1,11 @@
 <div class="billing-run">
   <header class="billing-run__header">
-    <h2 class="billing-run__title">月結</h2>
-    <p class="billing-run__hint">把這個月「要收費且尚未結算」的餐費與學費加總成帳單。</p>
+    <h2 class="billing-run__title">{{ modeLabel() }}</h2>
+    @if (mode() === 'period') {
+      <p class="billing-run__hint">把這一期「期繳」報名的學費開成帳單（餐費照舊跟著月結走）。</p>
+    } @else {
+      <p class="billing-run__hint">把這個月「要收費且尚未結算」的餐費與學費加總成帳單。</p>
+    }
   </header>
 
   @if (result(); as done) {
@@ -64,27 +68,61 @@
     </footer>
   } @else {
     <div class="billing-run__field">
-      <label class="billing-run__label" for="br-month">結算月份</label>
-      <p-datepicker
-        inputId="br-month"
-        view="month"
-        dateFormat="yy-mm"
-        [showIcon]="true"
-        [readonlyInput]="true"
-        [ngModel]="month"
-        (ngModelChange)="month = $event"
+      <span class="billing-run__label" id="br-mode">開單類型</span>
+      <p-selectbutton
+        ariaLabelledBy="br-mode"
+        [options]="modeOptions"
+        optionLabel="label"
+        optionValue="value"
+        [allowEmpty]="false"
+        [ngModel]="mode()"
+        (ngModelChange)="mode.set($event)"
       />
     </div>
 
+    @if (mode() === 'period') {
+      <div class="billing-run__field">
+        <label class="billing-run__label" for="br-period">開哪一期</label>
+        <p-select
+          inputId="br-period"
+          [options]="periods()"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="選擇期"
+          [ngModel]="periodId"
+          (ngModelChange)="periodId = $event"
+        />
+      </div>
+    } @else {
+      <div class="billing-run__field">
+        <label class="billing-run__label" for="br-month">結算月份</label>
+        <p-datepicker
+          inputId="br-month"
+          view="month"
+          dateFormat="yy-mm"
+          [showIcon]="true"
+          [readonlyInput]="true"
+          [ngModel]="month"
+          (ngModelChange)="month = $event"
+        />
+      </div>
+    }
+
     <p class="billing-run__notice">
-      <strong>同一個月可以重複跑。</strong>
-      月結只撈「尚未結算」的記錄，處理完就蓋上結算標記 ——
+      <strong>{{ mode() === 'period' ? '同一期可以重複跑。' : '同一個月可以重複跑。' }}</strong>
+      {{ modeLabel() }}只撈「尚未結算」的記錄，處理完就蓋上結算標記 ——
       所以跑第二次不會重複開帳單，之後補登的舊記錄下次會自動被撈進來。
     </p>
 
     <footer class="billing-run__footer">
       <p-button label="取消" [text]="true" severity="secondary" (onClick)="close()" />
-      <p-button label="執行月結" icon="pi pi-play" [loading]="running()" (onClick)="run()" />
+      <p-button
+        [label]="'執行' + modeLabel()"
+        icon="pi pi-play"
+        [loading]="running()"
+        [disabled]="mode() === 'period' && !periodId"
+        (onClick)="run()"
+      />
     </footer>
   }
 </div>

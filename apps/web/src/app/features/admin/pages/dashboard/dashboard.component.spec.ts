@@ -6,6 +6,7 @@ import { vi } from 'vitest';
 import { AcademyExamsService } from '@core/academy-exams.service';
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
 import { AuthService } from '@core/auth.service';
+import { BillingPeriodsService, type UpcomingUnbilledPeriod } from '@core/billing-periods.service';
 import { EnrollmentsService } from '@core/enrollments.service';
 import { LeaveService, type LeaveRequest } from '@core/leave.service';
 import { OrgSettingsService, type AttendanceMode } from '@core/org-settings.service';
@@ -75,6 +76,8 @@ function leave(overrides: Partial<LeaveRequest> = {}): LeaveRequest {
 }
 
 interface SetupOptions {
+  /** #1293 待開單：`fail` = 端點失敗 */
+  unbilled?: UpcomingUnbilledPeriod[] | 'fail';
   /** 日到班看板的三段。逐堂模式的測試不必給。 */
   workbenchExpected?: {
     studentId: string;
@@ -122,6 +125,7 @@ describe('DashboardComponent（管理端）', () => {
   const workbenchMock = vi.fn();
   const checkInMock = vi.fn();
   const cancelMock = vi.fn();
+  const unbilledMock = vi.fn();
 
   function sessionList(data: EventSessionSummary[]) {
     return of({
@@ -147,7 +151,12 @@ describe('DashboardComponent（管理端）', () => {
       workbenchExpected = [],
       workbenchArrived = [],
       workbenchOnLeave = [],
+      unbilled = [],
     } = options;
+    unbilledMock.mockReset();
+    unbilledMock.mockReturnValue(
+      unbilled === 'fail' ? throwError(() => new Error('boom')) : of({ data: unbilled }),
+    );
 
     /**
      * 漸進渲染測試用：只讓「今日課表」那一支回覆，其餘永遠不回。
@@ -258,6 +267,7 @@ describe('DashboardComponent（管理端）', () => {
         { provide: SchoolExamsService, useValue: { getTodoCount: schoolTodoMock } },
         { provide: StudentsService, useValue: { list: studentsMock } },
         { provide: EnrollmentsService, useValue: { list: enrollmentsMock } },
+        { provide: BillingPeriodsService, useValue: { upcomingUnbilled: unbilledMock } },
         { provide: OrgSettingsService, useValue: { getSettings: orgSettingsMock } },
         {
           provide: AuthService,
@@ -406,6 +416,46 @@ describe('DashboardComponent（管理端）', () => {
     expect(cardLabels()).not.toContain('本月報名異動');
     expect(cardLabels()).toContain('今日課堂');
     expect(cardLabels()).toContain('今日請假');
+  });
+
+  // #1293：系統沒有排程提醒開單，行政只看得到這張卡
+  describe('待開單卡（#1293）', () => {
+    const upcoming: UpcomingUnbilledPeriod = {
+      periodId: 'p-1',
+      name: '2027 上學期',
+      startDate: '2026-10-15',
+      daysUntil: 11,
+      pendingEnrollmentCount: 8,
+    };
+
+    it('有 manage_finance 且有待開的期 → 待處理區出現，帶去開單 dialog 並選好那一期', async () => {
+      await setup({ permissions: ['manage_finance'], unbilled: [upcoming] });
+      expect(unbilledMock).toHaveBeenCalledTimes(1);
+      expect(card('待開單')).toMatchObject({
+        kind: 'todo',
+        value: 1,
+        sub: '2027 上學期 10 月 15 日 開始',
+        routerLink: RoutesCatalog.ADMIN_MEALS.absolutePath,
+        queryParams: { billingRun: 'period', periodId: 'p-1' },
+      });
+    });
+
+    it('沒有待開的期 → 不出現（不是顯示 0）', async () => {
+      await setup({ permissions: ['manage_finance'], unbilled: [] });
+      expect(cardLabels()).not.toContain('待開單');
+    });
+
+    it('沒有 manage_finance → 不打端點、不出現', async () => {
+      await setup({ permissions: ['view_reports'], unbilled: [upcoming] });
+      expect(unbilledMock).not.toHaveBeenCalled();
+      expect(cardLabels()).not.toContain('待開單');
+    });
+
+    it('端點失敗 → 卡片顯示失敗態，其他卡照常', async () => {
+      await setup({ permissions: ['manage_finance'], unbilled: 'fail' });
+      expect(card('待開單')?.value).toBe('error');
+      expect(cardLabels()).toContain('今日課堂');
+    });
   });
 
   it('單張卡失敗只讓那張卡顯示失敗，其他照常', async () => {

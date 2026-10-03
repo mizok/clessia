@@ -1,15 +1,22 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { format } from 'date-fns';
 
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
+import { SelectModule } from 'primeng/select';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { MessageService } from 'primeng/api';
-import { DynamicDialogRef } from 'primeng/dynamicdialog';
+import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 
 import { Router } from '@angular/router';
 
-import { BillingRunsService, type BillingRunResult } from '@core/billing-runs.service';
+import { BillingPeriodsService, type BillingPeriod } from '@core/billing-periods.service';
+import {
+  BillingRunsService,
+  type BillingRunResult,
+  type BillingRunInput,
+} from '@core/billing-runs.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 
 /**
@@ -22,11 +29,19 @@ import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
  *
  * **`anomalies` 非空就是要人看的東西**（item 金額對不上蓋章的餐記錄總額），
  * 不要在成功訊息裡吞掉它。
+ *
+ * **期繳開單**（#1293）：原本這裡只送 `periodMonth`，後端的 `billingPeriodId`（期 run）在 UI 上點不到。
+ * 儀表板的「待開單」卡片帶 `{ mode: 'period', periodId }` 打開這個 dialog、直接選好那一期。
  */
+export interface BillingRunDialogData {
+  readonly mode?: 'month' | 'period';
+  readonly periodId?: string;
+}
+
 @Component({
   selector: 'app-billing-run-dialog',
   standalone: true,
-  imports: [FormsModule, ButtonModule, DatePickerModule],
+  imports: [FormsModule, ButtonModule, DatePickerModule, SelectModule, SelectButtonModule],
   templateUrl: './billing-run-dialog.component.html',
   styleUrl: './billing-run-dialog.component.scss',
 })
@@ -35,15 +50,43 @@ export class BillingRunDialogComponent {
   private readonly messageService = inject(MessageService);
   private readonly ref = inject(DynamicDialogRef);
   private readonly router = inject(Router);
+  private readonly periodsService = inject(BillingPeriodsService);
+  private readonly data = (inject(DynamicDialogConfig, { optional: true })?.data ??
+    {}) as BillingRunDialogData;
+
+  protected readonly modeOptions = [
+    { label: '月結（月繳＋餐費）', value: 'month' },
+    { label: '期繳', value: 'period' },
+  ];
+  protected readonly mode = signal<'month' | 'period'>(this.data.mode ?? 'month');
+  protected readonly modeLabel = computed(() => (this.mode() === 'period' ? '期繳開單' : '月結'));
+  protected readonly periods = signal<BillingPeriod[]>([]);
+  protected periodId: string | null = this.data.periodId ?? null;
 
   /** 預設上個月 —— 月結通常在月初補跑上一個月 */
   protected month: Date = previousMonth();
   protected readonly running = signal(false);
   protected readonly result = signal<BillingRunResult | null>(null);
 
+  constructor() {
+    // 期的清單：開始日新到舊（API 的排序），下拉直接用
+    this.periodsService.list().subscribe({
+      next: (res) => this.periods.set(res.data),
+      error: () => this.periods.set([]),
+    });
+  }
+
   protected run(): void {
+    const label = this.modeLabel();
+    let input: BillingRunInput;
+    if (this.mode() === 'period') {
+      if (!this.periodId) return;
+      input = { billingPeriodId: this.periodId };
+    } else {
+      input = { periodMonth: format(this.month, 'yyyy-MM') };
+    }
     this.running.set(true);
-    this.service.run({ periodMonth: format(this.month, 'yyyy-MM') }).subscribe({
+    this.service.run(input).subscribe({
       next: (res) => {
         this.result.set(res);
         this.running.set(false);
@@ -51,7 +94,7 @@ export class BillingRunDialogComponent {
         if (res.anomalies.length > 0) {
           this.messageService.add({
             severity: 'warn',
-            summary: `月結完成，但有 ${res.anomalies.length} 筆金額對不上`,
+            summary: `${label}完成，但有 ${res.anomalies.length} 筆金額對不上`,
             detail: '下面列出來的帳單明細要人工核對',
             life: 10000,
           });
@@ -60,14 +103,14 @@ export class BillingRunDialogComponent {
 
         this.messageService.add({
           severity: 'success',
-          summary: '月結完成',
+          summary: `${label}完成`,
           detail: `開立 ${res.invoicesCreated} 張帳單`,
         });
       },
       error: (err) => {
         this.messageService.add({
           severity: 'error',
-          summary: '月結失敗',
+          summary: `${label}失敗`,
           detail: err.error?.error || '請稍後再試',
         });
         this.running.set(false);
