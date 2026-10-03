@@ -4,30 +4,41 @@
       <span class="dialog-header-inline__breadcrumb">補習班考試</span>
       <span class="dialog-header-inline__title">{{ isEditing() ? '編輯考試' : '新增考試' }}</span>
     </div>
-    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="cancel()"
+      aria-label="關閉"
+    >
       <i class="pi pi-times"></i>
     </button>
   </div>
 
   @if (loading()) {
-    <div class="academy-exam-form-dialog__loading">
+    <div class="flex items-center justify-center gap-2 p-8 text-sm text-zinc-500">
       <i class="pi pi-spinner pi-spin"></i>
       <span>載入中...</span>
     </div>
   } @else {
     @if (isClosed()) {
-      <div class="academy-exam-form-dialog__hint academy-exam-form-dialog__hint--warn">
-        <i class="pi pi-lock"></i>
+      <div
+        class="flex items-start gap-2 rounded-md px-4 py-3 mb-4 text-sm leading-normal bg-warning-100 text-warning-600"
+      >
+        <i class="pi pi-lock text-md shrink-0 mt-0.5"></i>
         此考試已結束，欄位無法修改；如需調整請先重新開啟。
       </div>
     } @else if (hasScores()) {
-      <div class="academy-exam-form-dialog__hint">
-        <i class="pi pi-info-circle"></i>
+      <div
+        class="flex items-start gap-2 rounded-md px-4 py-3 mb-4 text-sm leading-normal bg-accent-50 text-accent-700"
+      >
+        <i class="pi pi-info-circle text-md shrink-0 mt-0.5"></i>
         已有成績登錄，類型／科目／分校／滿分／關聯班級皆已鎖定以避免資料不一致。
       </div>
     } @else if (isEditing()) {
-      <div class="academy-exam-form-dialog__hint">
-        <i class="pi pi-info-circle"></i>
+      <div
+        class="flex items-start gap-2 rounded-md px-4 py-3 mb-4 text-sm leading-normal bg-accent-50 text-accent-700"
+      >
+        <i class="pi pi-info-circle text-md shrink-0 mt-0.5"></i>
         考試建立後，類型／科目／分校／滿分不可修改；如需更改請刪除後重建。
       </div>
     }
@@ -93,7 +104,7 @@
         class="w-full"
       />
       @if (isEditing()) {
-        <span class="academy-exam-form-dialog__empty-hint"
+        <span class="mt-1 block text-xs text-zinc-500"
           >分校不可修改；若要調整範圍請變更關聯班級。</span
         >
       }
@@ -140,7 +151,7 @@
         [disabled]="lockPassScore()"
         styleClass="w-full"
       />
-      <span class="academy-exam-form-dialog__empty-hint">留空＝總分的 60%</span>
+      <span class="mt-1 block text-xs text-zinc-500">留空＝總分的 60%</span>
     </div>
 
     <!-- Scope Note -->
@@ -174,7 +185,7 @@
         class="w-full"
       />
       @if (classOptions().length === 0) {
-        <span class="academy-exam-form-dialog__empty-hint">
+        <span class="mt-1 block text-xs text-zinc-500">
           {{ formData().campusId ? '此分校目前沒有啟用中的班級' : '沒有可選的班級' }}
         </span>
       }

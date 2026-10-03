@@ -67,7 +67,6 @@ function trimmedRequiredValidator(control: AbstractControl<string>): ValidationE
     InputTextModule,
   ],
   templateUrl: './school-exam-form-dialog.component.html',
-  styleUrl: './school-exam-form-dialog.component.scss',
 })
 export class SchoolExamFormDialogComponent implements OnInit {
   private readonly formBuilder = inject(FormBuilder);
