@@ -1,76 +1,49 @@
-<div class="class-scores-dialog">
-  @if (classData; as classInfo) {
-    <div class="dialog-header-inline">
-      <div class="dialog-header-inline__content class-scores-dialog__header-content">
-        <div class="class-scores-dialog__header-text">
-          <span class="class-scores-dialog__name">{{ classInfo.name }}</span>
-          @if (classGradeLabels()) {
-            <span class="class-scores-dialog__grade">{{ classGradeLabels() }}</span>
-          }
-        </div>
-        <span class="class-scores-dialog__capacity">上限 {{ classInfo.maxStudents }} 人</span>
-      </div>
-      <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="關閉">
-        <i class="pi pi-times"></i>
-      </button>
+<!--
+  A6 版（#991 grades G4，grades-class.html 的對話框）：考試範圍切換＋選考試 → 灰統計 → 分數分布 → 名單篩選 → .rec 名單 → 底部連結。
+  #991 grades Q4：名單篩選不做「待登錄」—— API 把沒成績的學生回成 status:'scored'＋score:null，推導出來的人數會跟考試列表對不上。
+-->
+@if (classData; as classInfo) {
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content flex min-w-0 flex-col gap-0.5">
+      <span class="dialog-header-inline__title">{{ classInfo.name }}</span>
+      <span class="text-sm text-zinc-600">
+        @if (classGradeLabels()) {
+          {{ classGradeLabels() }} ·
+        }
+        上限 {{ classInfo.maxStudents }} 人
+      </span>
     </div>
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="close()"
+      aria-label="關閉"
+    >
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
 
-    <div class="class-scores-dialog__body">
-      <div class="class-scores-dialog__exam-toolbar">
-        <p-selectbutton
-          [options]="examScopeOptions"
-          [ngModel]="examScope()"
-          (ngModelChange)="onExamScopeChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          [allowEmpty]="false"
-          size="small"
-        />
-
-        @if (examScope() === 'todo') {
-          <span class="class-scores-dialog__hint">僅顯示待登錄考試</span>
+  <div class="flex flex-col gap-4 px-4 pb-4 wide:px-6 wide:pb-6">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <span
+        class="inline-flex overflow-hidden rounded-md border border-zinc-300"
+        role="group"
+        aria-label="考試範圍"
+      >
+        @for (opt of examScopeOptions; track opt.value) {
+          <button
+            type="button"
+            class="min-h-11 cursor-pointer border-0 bg-white px-3 text-md text-zinc-900 not-first:border-l not-first:border-zinc-300 aria-pressed:bg-zinc-900 aria-pressed:font-semibold aria-pressed:text-white"
+            [attr.aria-pressed]="examScope() === opt.value"
+            (click)="onExamScopeChange(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
         }
-      </div>
+      </span>
 
-      @if (examScope() === 'todo') {
-        @if (loadingExams()) {
-          <div class="class-scores-dialog__loading class-scores-dialog__loading--inline">
-            <i class="pi pi-spinner pi-spin"></i>
-            載入待登錄考試中...
-          </div>
-        } @else if (exams().length === 0) {
-          <app-empty-state
-            icon="pi pi-check-circle"
-            title="此班級沒有待登錄的考試"
-            description="目前此班級的考試都已完成登錄，可切換到「全部」查看歷史考試"
-          />
-        } @else {
-          <div class="class-scores-dialog__todo-list">
-            @for (exam of exams(); track exam.id) {
-              <button
-                type="button"
-                class="class-scores-dialog__todo-row"
-                (click)="goToScoreEntry(exam)"
-              >
-                <div class="class-scores-dialog__todo-content">
-                  <span class="class-scores-dialog__todo-name">{{ exam.name }}</span>
-                  <div class="class-scores-dialog__todo-meta">
-                    <span class="class-scores-dialog__todo-date">{{
-                      formatDate(exam.examDate)
-                    }}</span>
-                    <app-data-chip>{{ getExamTypeLabel(exam.examType) }}</app-data-chip>
-                  </div>
-                  @if (exam.scopeNote) {
-                    <p class="class-scores-dialog__todo-scope">{{ exam.scopeNote }}</p>
-                  }
-                </div>
-                <i class="pi pi-arrow-right class-scores-dialog__todo-arrow" aria-hidden="true"></i>
-              </button>
-            }
-          </div>
-        }
-      } @else {
-        <div class="class-scores-dialog__exam-selector">
+      @if (examScope() === 'all') {
+        <div class="min-w-0 flex-1 wide:max-w-[22rem]" data-part="exam-selector">
           <p-select
             [options]="examOptions()"
             [ngModel]="selectedExamId()"
@@ -83,194 +56,227 @@
             [showClear]="true"
             [loading]="loadingExams()"
             [appendTo]="'body'"
-            styleClass="class-scores-dialog__exam-select"
+            ariaLabel="選一場考試"
+            styleClass="w-full"
           />
         </div>
-
-        @if (loadingStats()) {
-          <div class="class-scores-dialog__loading class-scores-dialog__loading--inline">
-            <i class="pi pi-spinner pi-spin"></i>
-            載入統計中...
-          </div>
-        } @else if (stats(); as data) {
-          <div class="class-scores-dialog__summary">
-            <div class="class-scores-dialog__stat-card class-scores-dialog__stat-card--avg">
-              <div class="class-scores-dialog__stat-icon">
-                <i class="pi pi-chart-line"></i>
-              </div>
-              <div class="class-scores-dialog__stat-body">
-                <span class="class-scores-dialog__stat-label">平均分數</span>
-                <span class="class-scores-dialog__stat-value">
-                  {{ data.summary.averageScore !== null ? data.summary.averageScore : '—' }}
-                </span>
-              </div>
-            </div>
-            <div class="class-scores-dialog__stat-card class-scores-dialog__stat-card--high">
-              <div class="class-scores-dialog__stat-icon">
-                <i class="pi pi-arrow-up"></i>
-              </div>
-              <div class="class-scores-dialog__stat-body">
-                <span class="class-scores-dialog__stat-label">最高分</span>
-                <span class="class-scores-dialog__stat-value">
-                  {{ data.summary.highestScore !== null ? data.summary.highestScore : '—' }}
-                </span>
-              </div>
-            </div>
-            <div class="class-scores-dialog__stat-card class-scores-dialog__stat-card--low">
-              <div class="class-scores-dialog__stat-icon">
-                <i class="pi pi-arrow-down"></i>
-              </div>
-              <div class="class-scores-dialog__stat-body">
-                <span class="class-scores-dialog__stat-label">最低分</span>
-                <span class="class-scores-dialog__stat-value">
-                  {{ data.summary.lowestScore !== null ? data.summary.lowestScore : '—' }}
-                </span>
-              </div>
-            </div>
-            <div class="class-scores-dialog__stat-card class-scores-dialog__stat-card--count">
-              <div class="class-scores-dialog__stat-icon">
-                <i class="pi pi-users"></i>
-              </div>
-              <div class="class-scores-dialog__stat-body">
-                <span class="class-scores-dialog__stat-label">已登錄 / 缺考</span>
-                <span class="class-scores-dialog__stat-value">
-                  {{ data.summary.recordedCount }} / {{ data.summary.absentCount }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div class="class-scores-dialog__score-filter">
-            <p-selectbutton
-              [options]="scoreStatusOptions"
-              [ngModel]="scoreStatusFilter()"
-              (ngModelChange)="scoreStatusFilter.set($event ?? 'all')"
-              optionLabel="label"
-              optionValue="value"
-              [allowEmpty]="false"
-              size="small"
-            />
-          </div>
-
-          @if (sortedScores().length === 0) {
-            <app-empty-state
-              icon="pi pi-chart-bar"
-              title="尚無成績紀錄"
-              description="此班級的這場考試尚無登錄成績"
-            />
-          } @else {
-            <div class="class-scores-dialog__table-wrap">
-              <table class="class-scores-dialog__table">
-                <thead>
-                  <tr>
-                    <th class="class-scores-dialog__th">#</th>
-                    <th class="class-scores-dialog__th">學生姓名</th>
-                    <th class="class-scores-dialog__th class-scores-dialog__th--score">分數</th>
-                    <th class="class-scores-dialog__th">狀態</th>
-                    <th class="class-scores-dialog__th">備註</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (row of sortedScores(); track row.studentId; let i = $index) {
-                    <tr class="class-scores-dialog__row">
-                      <td class="class-scores-dialog__cell class-scores-dialog__cell--rank">
-                        {{ i + 1 }}
-                      </td>
-                      <td class="class-scores-dialog__cell">{{ row.studentName }}</td>
-                      <td
-                        class="class-scores-dialog__cell class-scores-dialog__cell--score"
-                        [class.class-scores-dialog__cell--fail]="isFailing(row.score)"
-                      >
-                        @if (isFailing(row.score)) {
-                          <i
-                            class="pi pi-exclamation-triangle class-scores-dialog__fail-icon"
-                            aria-label="不及格"
-                          ></i>
-                        }
-                        {{ row.score !== null ? row.score : '—' }}
-                      </td>
-                      <td class="class-scores-dialog__cell">
-                        @if (row.status === 'scored') {
-                          <app-status-dot tone="done">{{
-                            getStatusLabel(row.status)
-                          }}</app-status-dot>
-                        } @else {
-                          <app-data-chip>{{ getStatusLabel(row.status) }}</app-data-chip>
-                        }
-                      </td>
-                      <td class="class-scores-dialog__cell class-scores-dialog__cell--notes">
-                        {{ row.notes ?? '—' }}
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-
-            <div class="class-scores-dialog__mobile-list">
-              @for (row of sortedScores(); track row.studentId; let i = $index) {
-                <article class="class-scores-dialog__mobile-card">
-                  <div class="class-scores-dialog__mobile-header">
-                    <div class="class-scores-dialog__mobile-rank">
-                      <span class="class-scores-dialog__mobile-rank-label">排名</span>
-                      <span class="class-scores-dialog__mobile-rank-value">{{ i + 1 }}</span>
-                    </div>
-                    <div class="class-scores-dialog__mobile-identity">
-                      <span class="class-scores-dialog__mobile-name">{{ row.studentName }}</span>
-                      @if (row.status === 'scored') {
-                        <app-status-dot tone="done">{{
-                          getStatusLabel(row.status)
-                        }}</app-status-dot>
-                      } @else {
-                        <app-data-chip>{{ getStatusLabel(row.status) }}</app-data-chip>
-                      }
-                    </div>
-                  </div>
-
-                  <div class="class-scores-dialog__mobile-score-row">
-                    <span class="class-scores-dialog__mobile-label">分數</span>
-                    <span
-                      class="class-scores-dialog__mobile-score"
-                      [class.class-scores-dialog__mobile-score--fail]="isFailing(row.score)"
-                    >
-                      <!--
-                        **形狀訊號要跟桌機一致。** 上面那張表的不及格有 icon +
-                        aria-label，這張卡片原本只有顏色 —— 而顏色不能是唯一的區分
-                        （WCAG 1.4.1）。這是雙軌實作漂移的實例：兩份渲染改到後來
-                        不一樣了，而且沒有任何錯誤。
-                      -->
-                      @if (isFailing(row.score)) {
-                        <i
-                          class="pi pi-exclamation-triangle class-scores-dialog__fail-icon"
-                          aria-label="不及格"
-                        ></i>
-                      }
-                      {{ row.score !== null ? row.score : '—' }}
-                    </span>
-                  </div>
-
-                  <div class="class-scores-dialog__mobile-notes">
-                    <span class="class-scores-dialog__mobile-label">備註</span>
-                    <p class="class-scores-dialog__mobile-note-text">{{ row.notes ?? '—' }}</p>
-                  </div>
-                </article>
-              }
-            </div>
-          }
-        } @else if (!loadingExams() && examOptions().length === 0) {
-          <app-empty-state
-            icon="pi pi-file"
-            title="此班級尚未建立考試"
-            description="請先到考試管理建立考試，再回到此處查看該班級統計資料"
-          />
-        } @else if (!selectedExamId()) {
-          <app-empty-state
-            icon="pi pi-file-edit"
-            title="請選擇考試"
-            description="選擇一場補習班考試以查看該班的成績統計與學生排名"
-          />
-        }
+      } @else {
+        <span class="text-sm text-zinc-600">只列還沒登錄完的考試</span>
       }
     </div>
-  }
-</div>
+
+    @if (examScope() === 'todo') {
+      @if (loadingExams()) {
+        <p class="m-0 flex items-center gap-2 py-6 text-md text-zinc-600">
+          <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>載入待登錄考試中…
+        </p>
+      } @else if (exams().length === 0) {
+        <app-empty-state
+          icon="pi pi-check-circle"
+          title="此班級沒有待登錄的考試"
+          description="目前此班級的考試都已完成登錄，可切換到「全部」查看歷史考試"
+        />
+      } @else {
+        <ul class="m-0 list-none border-t border-zinc-900 p-0">
+          @for (exam of exams(); track exam.id) {
+            <li class="border-b border-surface-border">
+              <button
+                type="button"
+                class="flex min-h-11 w-full cursor-pointer items-center gap-3 border-0 bg-transparent py-3 text-left text-zinc-900 hover:bg-zinc-50"
+                data-part="todo-row"
+                (click)="goToScoreEntry(exam)"
+              >
+                <span class="min-w-0 flex-1">
+                  <span class="block font-semibold">{{ exam.name }}</span>
+                  <span class="block text-sm text-zinc-600 tabular-nums">
+                    {{ formatDate(exam.examDate) }} · {{ getExamTypeLabel(exam.examType) }}
+                    @if (exam.scopeNote) {
+                      · {{ exam.scopeNote }}
+                    }
+                  </span>
+                </span>
+                <span class="text-md font-semibold whitespace-nowrap">去登錄</span>
+                <i class="pi pi-arrow-right text-sm text-zinc-600" aria-hidden="true"></i>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    } @else {
+      @if (loadingStats()) {
+        <p class="m-0 flex items-center gap-2 py-6 text-md text-zinc-600">
+          <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>載入統計中…
+        </p>
+      } @else if (stats(); as data) {
+        <dl
+          class="m-0 grid grid-cols-2 gap-3 rounded-lg bg-zinc-100 p-4 sm:grid-cols-3 wide:grid-cols-5"
+        >
+          <div>
+            <dt class="text-sm text-zinc-700">平均</dt>
+            <dd class="m-0 mt-0.5 text-2xl font-bold tabular-nums">
+              {{ data.summary.averageScore ?? '—' }}
+            </dd>
+          </div>
+          <div>
+            <dt class="text-sm text-zinc-700">最高</dt>
+            <dd class="m-0 mt-0.5 text-2xl font-bold tabular-nums">
+              {{ data.summary.highestScore ?? '—' }}
+            </dd>
+          </div>
+          <div>
+            <dt class="text-sm text-zinc-700">最低</dt>
+            <dd class="m-0 mt-0.5 text-2xl font-bold tabular-nums">
+              {{ data.summary.lowestScore ?? '—' }}
+            </dd>
+          </div>
+          <div>
+            <dt class="text-sm text-zinc-700">不及格（{{ passLine() }} 分以下）</dt>
+            <dd class="m-0 mt-0.5 text-2xl font-bold tabular-nums">{{ failCount() }} 人</dd>
+          </div>
+          <div>
+            <dt class="text-sm text-zinc-700">缺考</dt>
+            <dd class="m-0 mt-0.5 text-2xl font-bold tabular-nums">
+              {{ data.summary.absentCount }} 人
+            </dd>
+          </div>
+        </dl>
+
+        <div>
+          <p class="m-0 mb-2 text-md font-bold text-zinc-800">
+            分數分布 · 已登錄 {{ data.summary.recordedCount }}／{{ scoreCounts().all }} 人
+          </p>
+          @for (band of distribution(); track band.label) {
+            <div
+              class="grid grid-cols-[112px_minmax(0,1fr)_56px] items-center gap-3 py-0.5 text-sm tabular-nums"
+            >
+              <span
+                [class.text-error-700]="band.fail"
+                [class.font-semibold]="band.fail"
+                [class.text-zinc-800]="!band.fail"
+                >{{ band.label }}
+                @if (band.fail) {
+                  不及格
+                }
+              </span>
+              <span class="block h-2.5 min-w-0.5 rounded-[5px]" aria-hidden="true">
+                <span
+                  class="block h-full min-w-0.5 rounded-[5px]"
+                  [class.bg-error-700]="band.fail"
+                  [class.bg-zinc-900]="!band.fail"
+                  [style.width.%]="band.pct"
+                ></span>
+              </span>
+              <span>{{ band.n }} 人</span>
+            </div>
+          }
+        </div>
+
+        <span
+          class="inline-flex flex-wrap self-start overflow-hidden rounded-md border border-zinc-300"
+          role="group"
+          aria-label="名單"
+        >
+          @for (opt of scoreStatusOptions; track opt.value) {
+            <button
+              type="button"
+              class="min-h-11 cursor-pointer border-0 bg-white px-3 text-md text-zinc-900 not-first:border-l not-first:border-zinc-300 aria-pressed:bg-zinc-900 aria-pressed:font-semibold aria-pressed:text-white"
+              [attr.aria-pressed]="scoreStatusFilter() === opt.value"
+              (click)="scoreStatusFilter.set(opt.value)"
+            >
+              {{ opt.label }} {{ scoreCounts()[opt.value] }}
+            </button>
+          }
+        </span>
+
+        @if (sortedScores().length === 0) {
+          <app-empty-state
+            icon="pi pi-chart-bar"
+            title="尚無成績紀錄"
+            description="此班級的這場考試尚無登錄成績"
+          />
+        } @else {
+          <!-- A6 .rec：桌機與手機同一份名單（不再有表格與卡片兩軌）；序號＝依分數排的名次 -->
+          <ol class="m-0 list-none border-t border-zinc-900 p-0" aria-label="成績名單">
+            @for (row of sortedScores(); track row.studentId; let i = $index) {
+              <li
+                class="grid grid-cols-[2rem_minmax(0,1fr)_4.5rem_auto] items-center gap-3 border-b border-surface-border py-3"
+                data-part="rec"
+              >
+                <span class="text-sm text-zinc-600 tabular-nums">{{ i + 1 }}</span>
+                <span class="min-w-0">
+                  <span class="block font-semibold">{{ row.studentName }}</span>
+                  @if (row.notes) {
+                    <span class="block text-sm text-zinc-600">{{ row.notes }}</span>
+                  }
+                </span>
+                <span class="text-right text-lg font-bold tabular-nums">{{
+                  row.score !== null ? row.score : '—'
+                }}</span>
+                <span class="justify-self-end">
+                  @if (row.status === 'absent') {
+                    <span
+                      class="inline-flex items-center gap-1 rounded-sm px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-800 shadow-[inset_0_0_0_1px_var(--zinc-500)]"
+                      ><i class="pi pi-times text-[10px]" aria-hidden="true"></i>缺考</span
+                    >
+                  } @else if (isFailing(row.score)) {
+                    <!-- 不只靠顏色（WCAG 1.4.1）：圖示＋字 -->
+                    <span
+                      class="inline-flex items-center gap-1 rounded-sm bg-error-100 px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-error-700"
+                      ><i
+                        class="pi pi-exclamation-triangle text-[10px]"
+                        data-part="fail-icon"
+                        aria-label="不及格"
+                      ></i
+                      >不及格</span
+                    >
+                  } @else if (row.status === 'makeup') {
+                    <span
+                      class="inline-flex items-center rounded-sm bg-zinc-100 px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-800"
+                      >補考</span
+                    >
+                  } @else if (row.score !== null) {
+                    <span
+                      class="inline-flex items-center rounded-sm bg-success-100 px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-900"
+                      >及格</span
+                    >
+                  }
+                </span>
+              </li>
+            }
+          </ol>
+        }
+      } @else if (!loadingExams() && examOptions().length === 0) {
+        <app-empty-state
+          icon="pi pi-file"
+          title="此班級尚未建立考試"
+          description="請先到考試管理建立考試，再回到此處查看該班級統計資料"
+        />
+      } @else if (!selectedExamId()) {
+        <app-empty-state
+          icon="pi pi-file-edit"
+          title="請選擇考試"
+          description="選擇一場補習班考試以查看該班的成績統計與學生排名"
+        />
+      }
+    }
+
+    <div class="flex flex-wrap justify-end gap-2 pt-2">
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+        (click)="goToClassDetail()"
+      >
+        班級詳情
+      </button>
+      @if (examScope() === 'all' && selectedExam(); as exam) {
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center rounded-md border-0 bg-accent-vivid px-4 text-md font-semibold text-zinc-900 hover:bg-accent-vivid-2"
+          (click)="goToScoreEntry(exam)"
+        >
+          登錄這場成績
+        </button>
+      }
+    </div>
+  </div>
+}

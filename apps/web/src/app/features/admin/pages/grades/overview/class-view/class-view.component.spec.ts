@@ -87,7 +87,7 @@ describe('ClassViewComponent', () => {
     fixture.detectChanges();
     const host = fixture.nativeElement as HTMLElement;
     expect(
-      host.querySelector('.class-view__toolbar--desktop p-select[placeholder="選擇分校"]'),
+      host.querySelector('[data-part=desktop-filters] p-select[placeholder="選擇分校"]'),
     ).not.toBeNull();
 
     TestBed.inject(CampusContextService).select('campus-9');
@@ -95,7 +95,7 @@ describe('ClassViewComponent', () => {
 
     expect(component['campusId']()).toBe('campus-9');
     expect(
-      host.querySelector('.class-view__toolbar--desktop p-select[placeholder="選擇分校"]'),
+      host.querySelector('[data-part=desktop-filters] p-select[placeholder="選擇分校"]'),
     ).toBeNull();
     const reqs = http.match((r) => r.url.includes('/api/classes'));
     expect(reqs.map((r) => r.request.params.get('campusId'))).toEqual(['campus-9']);
@@ -319,7 +319,7 @@ describe('ClassViewComponent', () => {
     fixture.detectChanges();
 
     const rowButton = fixture.nativeElement.querySelector(
-      '.class-view__class-row',
+      '[data-part=class-row]',
     ) as HTMLButtonElement;
     rowButton.click();
 
@@ -365,7 +365,7 @@ describe('ClassViewComponent', () => {
     fixture.detectChanges();
 
     const todoButton = fixture.nativeElement.querySelector(
-      '.class-view__class-todo',
+      '[data-part=class-todo]',
     ) as HTMLButtonElement;
     todoButton.click();
 
@@ -410,7 +410,7 @@ describe('ClassViewComponent', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    expect(host.querySelector('.class-view__course-group')).not.toBeNull();
+    expect(host.querySelector('[data-part=course-group]')).not.toBeNull();
     expect(host.textContent).toContain('數學進階');
     expect(host.textContent).toContain('A班');
     expect(host.textContent).toContain('上限 20 人');

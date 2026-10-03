@@ -39,7 +39,6 @@ export interface ClassViewFilterDialogResult {
   standalone: true,
   imports: [FormsModule, ButtonModule, SelectModule, MultiSelectModule],
   templateUrl: './class-view-filter-dialog.component.html',
-  styleUrl: './class-view-filter-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ClassViewFilterDialogComponent {

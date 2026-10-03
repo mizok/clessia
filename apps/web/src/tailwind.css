@@ -41,6 +41,7 @@
 @source './app/features/admin/pages/changes';
 @source './app/features/admin/pages/courses';
 @source './app/features/admin/pages/dashboard';
+@source './app/features/admin/pages/grades/overview/class-view';
 @source './app/features/admin/pages/grades/exams';
 @source './app/features/admin/pages/sessions';
 @source './app/features/admin/pages/students';
