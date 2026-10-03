@@ -36,7 +36,7 @@
 > **10-03 21:1x–10-04 01:0x 全席額度斷線**（第二次，第一次 16:0x–19:4x）；01:0x 回流後計畫席逐席接回，無半截回合。
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-04 01:0x，計畫席 labor-plan-20261003-1534。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-04 01:2x，計畫席 labor-plan-20261003-1534。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
@@ -47,9 +47,11 @@
 
 
 | #1225 | #1110 批次代課 `PATCH /sessions/batch-substitute`＋`batch-assign-teacher` 補分校檢查（別校 id 整批 403） | head `6e231b5e`（rebase 過 #1219），verify 綠，MERGEABLE。設計過 gate（#1110 留言）。**無 migration，不凍結，先合這支。** 合後 2033 把 #1228（其他六支寫入端點補分校檢查，#1221）轉 base 再請您合。 |
+| #1241 | #1125 公開課程目錄 `GET /api/public/catalog`（免登入；org 從部署變數 `PUBLIC_ORG_SLUG` 解析、沒設 404 fail-closed；不含老師名；抽 `lib/catalog-class.ts` 與家長目錄共用） | head `5f550a61`。設計過 gate（#1125 留言）。**無 migration。跟 #1216 同檔 parent/catalog.ts 會衝突，後合的 rebase。** 另要您裁：正式環境要不要設 `PUBLIC_ORG_SLUG`（設了公開頁才開）。 |
+| #1240 | #1146 migrate.yml：apply 刪 concurrency、recheck 改子集判準、skip 不做套後比對；deploying.md 寫明「凍結合併規則待第一次真實 Approve 驗證後再放寬」 | head `391c898e`。設計過 gate（#1146 留言）。CI 碰正式 DB 流程，判保留類。**無 migration。** 合後下一支 migration 的 Approve 行為要觀察，補在 #1146。 |
 | #1216 | #1118 餘項推薦課：migration `classes.is_recommended boolean default false`＋班級 API（`manage_courses`）＋catalog 推薦優先＋班級表單開關 | head `035bf64c`，base main，CI 綠。設計過 gate（#1118 留言）。**含 migration，同上凍結流程。建議跟 #1219 分開合，各自 Approve 一次。** |
 
-接下來會出現的保留類：#1110（批次代課＋batch-assign-teacher 分校檢查，2033，已過 gate）、#1111、#1195、#966 系列（sessions 其他端點分校洞，2033 開單中）。10-03 已合的保留類：#1132／#1137／#1141／#1143／#1145／#1150／#1152／#1180／#1183／#1188／#1197／#1212（migration 皆已套、使用者逐一 Approve；#1212 的 Approve 期間守衛取消過一顆插隊 run）。
+接下來會出現的保留類：sessions 鏈 #1228 → #1235（疊 #1225，2033 逐層轉 base）、#1123／#1124／#1126 公開端點（2006，各先過 gate）、#1195。10-03 已合的保留類：#1132／#1137／#1141／#1143／#1145／#1150／#1152／#1180／#1183／#1188／#1197／#1212／#1219（migration 皆已套、使用者逐一 Approve；#1212／#1219 的 Approve 期間守衛各取消一顆插隊 run）。
 
 10-03 已合的保留類：#1132、#1137、#1141、#1143、#1145、#1150（四支 migration 皆已由 migrate.yml 套、使用者逐一 Approve）。**S3 殼改寫 #1154 15:1x 已合**（使用者看截圖 OK），疊在上面的 #1155／#1159／#1162／#1164 由 1456 逐支轉 main。第五次部署 12:1x 完成（截線 `6103d4d0`，紀錄 #1153）；**第六次等 #1152 合後備**（api：#1141／#1143／#1145／#1150／#1152，web：S3 起）。**教訓（#1146）**：等 Approve 的 apply 會被後續 main 的新 run 取代 → Approve 落地前凍結合併，計畫席掛守衛取消新 run。
 **家長端寫入的架構裁定（10-03 11:5x，計畫席裁，您可否決）**：`parent-data-scope.md` 原列「家長端寫入 v1 唯讀」為明確不做；為了候補登記與申請表，改成寫入走 `childDb.insert／update`（scope 外在送 DB 前拒絕）、機構層級參考資料走 `orgRef` 白名單唯讀（classes／courses／enrollments 計數），不用 DB trigger。文件更新跟 #1119 同 PR。
@@ -147,9 +149,9 @@ success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只
 
 | 席                                       | 在做                                                                                                                        | 備註                                                                                        |
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `labor-20261003-1552`（Opus）            | 前端：G2／G3／H1／H2／courses C1 全合；C2 班級詳情 #1230（rebase 後轉 ready）→ C3 十支 dialog → #1196 | 開席 10-03 15:52，接 1456（已關，charter #1186 已合）；設計稿與 .pw-regression 已複製到它 worktree |
-| `labor-20261003-2006`（Opus）            | 後端：#1212 已合已套；#1216（等使用者）；#1127 掃描器 A #1229（ready）→ B 列印卡；charter 起草中 | 開席 10-03 20:06，接 1536（已關，charter #1200 已合）；本機 DB 乾淨基線 RESET #15 |
-| `labor-20261003-2033`（Opus）            | 後端 sessions API：#1213／#1219 已合；#1225（等使用者）→ #1228（疊 #1225）→ #1111（WIP 分支）→ #1195 後端 | 開席 10-03 20:33，第三生產席（計畫席判斷：未指派串擋課表功能、額度撐得住） |
+| `labor-20261004-0110`（Opus）            | 前端：#991 courses C3 十支 dialog（遷完收成一行 @source）→ #1138 餘項逐頁接分校 context → #1194 課塊代課文案 | 開席 10-04 01:10，接 1552（已關，charter #1227／#1236 已合）；設計稿與 .pw-regression 已複製 |
+| `labor-20261003-2006`（Opus）            | 後端：#1127 全線完成（A #1229／B #1238 已合）；#1216（等使用者）；公開端點 #1125（#1241 等使用者）→ #1123 → #1124 → #1126；charter #1233 已合 | 開席 10-03 20:06，接 1536（已關，charter #1200 已合）；本機 DB 乾淨基線 RESET #15 |
+| `labor-20261003-2033`（Opus）            | 後端 sessions API：#1225（等使用者）→ #1228 → #1235（鏈，逐層轉 base）；#1146 → #1240（等使用者）；之後 #1195、CONCURRENTLY 守衛；charter #1237 已合 | 開席 10-03 20:33，第三生產席（計畫席判斷：未指派串擋課表功能、額度撐得住） |
 | `labor-plan-20261003-1534`（Fable）      | 計畫席 | 開席 10-03 15:34，接 2351（已關）；心跳腳本已改名 |
 | `labor-reviewer-20261001-2204`（Sonnet） | 代合＋部署驗證；今天四十餘支。**分類器擋它**：production deploy、手動 merge、刪遠端分支、部分留言 —— 這幾類走計畫席或使用者 | steward-merge.sh 已修多筆 verify（#1053）                                                   |
 | `labor-db-reset`                         | 待命；本機 DB＝main（RESET #13）                                                                                            | charter 新增「筆數也量不到搬移」（#1019）                                                   |
