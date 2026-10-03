@@ -382,18 +382,17 @@ function isTimeOverlap(startA: string, endA: string, startB: string, endB: strin
 }
 
 /**
- * 批次寫入的分校範圍（#1110）：任一堂的班級不在呼叫者範圍內 → 整批拒絕（計畫席裁）。
+ * 批次寫入的分校範圍（#1110、#1221）：任一堂不在呼叫者範圍內 → 整批拒絕（計畫席裁）。
+ * `campusById` 用班級 id 或課堂 id 當鍵都行，`ids` 對得上就好。
  * 受限管理員畫面上看不到別校的課，送進來就是前端 bug 或試探，fail-closed 而且看得見；
  * 當成「不符資格」跳過會混進 skipped 裡沒人發現。判準跟 `classWriteScope` 同一份。
  */
 function batchOutOfCampusScope(
   scope: CampusScope,
-  classIds: readonly string[],
-  campusByClass: ReadonlyMap<string, string>,
+  ids: readonly string[],
+  campusById: ReadonlyMap<string, string | null>,
 ): boolean {
-  return (
-    scope !== null && classIds.some((id) => !resourceCampusAllowed(scope, campusByClass.get(id)))
-  );
+  return scope !== null && ids.some((id) => !resourceCampusAllowed(scope, campusById.get(id)));
 }
 
 type BatchSessionConflictReason =
@@ -716,11 +715,11 @@ async function loadSessionOperationState(
   supabase: AppEnv['Variables']['supabase'],
   orgId: string,
   id: string,
-): Promise<SessionOperationState | null> {
+): Promise<(SessionOperationState & { readonly campusId: string | null }) | null> {
   const { data, error } = await supabase
     .from('sessions')
     .select(
-      'status, assignment_status, teacher_id, class_id, session_date, start_time, end_time, teacher:staff!teacher_id(display_name), class:classes!class_id(name, course:courses!course_id(name, campus:campuses!campus_id(name)))',
+      'status, assignment_status, teacher_id, class_id, session_date, start_time, end_time, teacher:staff!teacher_id(display_name), class:classes!class_id(name, campus_id, course:courses!course_id(name, campus:campuses!campus_id(name)))',
     )
     .eq('org_id', orgId)
     .eq('id', id)
@@ -749,6 +748,8 @@ async function loadSessionOperationState(
     endTime: data.end_time as string,
     teacherId: (data.teacher_id as string | null) ?? null,
     teacherName: (teacherRow?.['display_name'] as string | null | undefined) ?? null,
+    // 分校取 classes.campus_id（跟列表的分校過濾同一欄）—— 單堂寫入的範圍檢查用（#1221）
+    campusId: (classRow?.['campus_id'] as string | null | undefined) ?? null,
   };
 }
 
@@ -1944,6 +1945,10 @@ const cancelSessionRoute = createRoute({
     },
   },
   responses: {
+    403: {
+      description: '課堂不在呼叫者的分校範圍（批次：任一堂就整批拒絕）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     200: {
       description: '成功',
       content: {
@@ -1989,6 +1994,9 @@ app.openapi(cancelSessionRoute, async (c) => {
   const sessionState = await loadSessionOperationState(supabase, orgId, id);
   if (!sessionState) {
     return c.json({ error: '課堂不存在', code: 'NOT_FOUND' }, 404);
+  }
+  if (!resourceCampusAllowed(getCampusScope(c), sessionState.campusId)) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
   if (sessionState.status !== 'scheduled') {
     return c.json(
@@ -2075,6 +2083,10 @@ const substituteSessionRoute = createRoute({
     },
   },
   responses: {
+    403: {
+      description: '課堂不在呼叫者的分校範圍（批次：任一堂就整批拒絕）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     200: {
       description: '成功',
       content: {
@@ -2120,6 +2132,9 @@ app.openapi(substituteSessionRoute, async (c) => {
   const sessionState = await loadSessionOperationState(supabase, orgId, id);
   if (!sessionState) {
     return c.json({ error: '課堂不存在', code: 'NOT_FOUND' }, 404);
+  }
+  if (!resourceCampusAllowed(getCampusScope(c), sessionState.campusId)) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
   try {
     assertSessionOperable(sessionState);
@@ -2352,6 +2367,10 @@ const rescheduleSessionRoute = createRoute({
     },
   },
   responses: {
+    403: {
+      description: '課堂不在呼叫者的分校範圍（批次：任一堂就整批拒絕）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     200: {
       description: '成功',
       content: {
@@ -2397,6 +2416,9 @@ app.openapi(rescheduleSessionRoute, async (c) => {
   const sessionState = await loadSessionOperationState(supabase, orgId, id);
   if (!sessionState) {
     return c.json({ error: '課堂不存在', code: 'NOT_FOUND' }, 404);
+  }
+  if (!resourceCampusAllowed(getCampusScope(c), sessionState.campusId)) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
 
   if (sessionState.status !== 'scheduled') {
@@ -3255,6 +3277,10 @@ const batchUpdateTimeRoute = createRoute({
     },
   },
   responses: {
+    403: {
+      description: '課堂不在呼叫者的分校範圍（批次：任一堂就整批拒絕）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     200: {
       description: '成功',
       content: {
@@ -3290,7 +3316,9 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
 
   const { data: sessionRows, error: sessionRowsError } = await supabase
     .from('sessions')
-    .select('id, class_id, session_date, start_time, end_time, status, teacher_id')
+    .select(
+      'id, class_id, session_date, start_time, end_time, status, teacher_id, classes!inner(campus_id)',
+    )
     .eq('org_id', orgId)
     .in('id', uniqueSessionIds);
 
@@ -3307,6 +3335,20 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
     status: 'scheduled' | 'completed' | 'cancelled';
     teacher_id: string | null;
   }>;
+  if (
+    batchOutOfCampusScope(
+      getCampusScope(c),
+      targetSessions.map((session) => session.id),
+      new Map(
+        ((sessionRows ?? []) as Array<Record<string, unknown>>).map((row) => [
+          row['id'] as string,
+          sessionCampusId(row),
+        ]),
+      ),
+    )
+  ) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
 
   if (targetSessions.length === 0) {
     return c.json(
@@ -3502,6 +3544,10 @@ const batchCancelRoute = createRoute({
     },
   },
   responses: {
+    403: {
+      description: '課堂不在呼叫者的分校範圍（批次：任一堂就整批拒絕）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     200: {
       description: '成功',
       content: {
@@ -3531,7 +3577,9 @@ app.openapi(batchCancelRoute, async (c) => {
 
   const { data: sessionRows, error: sessionRowsError } = await supabase
     .from('sessions')
-    .select('id, class_id, session_date, start_time, end_time, status, teacher_id')
+    .select(
+      'id, class_id, session_date, start_time, end_time, status, teacher_id, classes!inner(campus_id)',
+    )
     .eq('org_id', orgId)
     .in('id', uniqueSessionIds);
 
@@ -3548,6 +3596,20 @@ app.openapi(batchCancelRoute, async (c) => {
     status: 'scheduled' | 'completed' | 'cancelled';
     teacher_id: string | null;
   }>;
+  if (
+    batchOutOfCampusScope(
+      getCampusScope(c),
+      targetSessions.map((session) => session.id),
+      new Map(
+        ((sessionRows ?? []) as Array<Record<string, unknown>>).map((row) => [
+          row['id'] as string,
+          sessionCampusId(row),
+        ]),
+      ),
+    )
+  ) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
 
   if (targetSessions.length === 0) {
     return c.json(
@@ -3676,6 +3738,10 @@ const batchUncancelRoute = createRoute({
     },
   },
   responses: {
+    403: {
+      description: '課堂不在呼叫者的分校範圍（批次：任一堂就整批拒絕）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     200: {
       description: '成功',
       content: {
@@ -3705,7 +3771,9 @@ app.openapi(batchUncancelRoute, async (c) => {
 
   const { data: sessionRows, error: sessionRowsError } = await supabase
     .from('sessions')
-    .select('id, class_id, session_date, start_time, end_time, status, teacher_id')
+    .select(
+      'id, class_id, session_date, start_time, end_time, status, teacher_id, classes!inner(campus_id)',
+    )
     .eq('org_id', orgId)
     .in('id', uniqueSessionIds);
 
@@ -3722,6 +3790,20 @@ app.openapi(batchUncancelRoute, async (c) => {
     status: 'scheduled' | 'completed' | 'cancelled';
     teacher_id: string | null;
   }>;
+  if (
+    batchOutOfCampusScope(
+      getCampusScope(c),
+      targetSessions.map((session) => session.id),
+      new Map(
+        ((sessionRows ?? []) as Array<Record<string, unknown>>).map((row) => [
+          row['id'] as string,
+          sessionCampusId(row),
+        ]),
+      ),
+    )
+  ) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
 
   if (targetSessions.length === 0) {
     return c.json(
