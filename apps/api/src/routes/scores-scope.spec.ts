@@ -85,6 +85,7 @@ interface Fixture {
   academy?: unknown[];
   school?: unknown[];
   academyCount?: number;
+  classCampus?: string;
 }
 
 function resolver(f: Fixture): Resolver {
@@ -95,7 +96,10 @@ function resolver(f: Fixture): Resolver {
       return { data: (f.classStudents ?? []).map((student_id) => ({ student_id })) };
     if (q.table === 'academy_exam_classes')
       return { data: (f.examLinks ?? []).map((exam_id) => ({ exam_id })) };
+    if (q.table === 'classes' && f.classCampus)
+      return { data: { id: 'c', campus_id: f.classCampus } };
     if (q.table === 'classes') return { data: (f.courseClasses ?? []).map((id) => ({ id })) };
+    if (q.table === 'students') return { data: { id: STUDENT, name: '王小明', school_id: null } };
     if (q.table === 'academy_scores') {
       return { data: f.academy ?? [], count: f.academyCount ?? (f.academy ?? []).length };
     }
@@ -325,5 +329,45 @@ describe('GET /api/scores/students —— 每生聚合（#1115）', () => {
     );
     await app.request(`/api/scores/students?studentId=${STUDENT}&classId=${CLASS}`);
     for (const q of scoreQueries(queries)) expect(inArg(q, 'student_id')).toEqual(['u1']);
+  });
+});
+
+describe('summary／class-exam 的分校範圍（#1250）', () => {
+  const EXAM = '44444444-4444-4444-8444-444444444444';
+
+  it.each([
+    ['學生摘要', `/api/scores/student/${STUDENT}/summary`, {}],
+    ['班級考試統計', `/api/scores/class/${CLASS}/exam/${EXAM}`, { classCampus: 'campus-2' }],
+  ] as const)('%s：別校 → 403 FORBIDDEN', async (_n, path, extra) => {
+    const { app } = createApp(resolver({ campusStudents: [], ...extra }), ['campus-1']);
+    const res = await app.request(path);
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code: string }).code).toBe('FORBIDDEN');
+  });
+
+  it.each([
+    [
+      '學生摘要（同校）',
+      `/api/scores/student/${STUDENT}/summary`,
+      { campusStudents: [STUDENT] },
+      ['campus-1'],
+    ],
+    ['學生摘要（不受限）', `/api/scores/student/${STUDENT}/summary`, {}, null],
+    [
+      '班級考試統計（同校）',
+      `/api/scores/class/${CLASS}/exam/${EXAM}`,
+      { classCampus: 'campus-1' },
+      ['campus-1'],
+    ],
+    [
+      '班級考試統計（不受限）',
+      `/api/scores/class/${CLASS}/exam/${EXAM}`,
+      { classCampus: 'campus-2' },
+      null,
+    ],
+  ] as const)('%s：不被分校擋', async (_n, path, extra, scope) => {
+    const { app } = createApp(resolver(extra as Fixture), scope as string[] | null);
+    const res = await app.request(path);
+    expect(res.status).not.toBe(403);
   });
 });
