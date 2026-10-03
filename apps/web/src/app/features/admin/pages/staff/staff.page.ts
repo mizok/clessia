@@ -27,6 +27,10 @@ import type {
   ResponsiveTablePaginationConfig,
 } from '@shared/components/responsive-table/responsive-table.models';
 import { StaffFormDialogComponent } from './staff-form-dialog.component';
+import {
+  KioskFormDialogComponent,
+  type KioskFormDialogResult,
+} from './kiosk-form-dialog/kiosk-form-dialog.component';
 import { TeachingLogDialogComponent } from './teaching-log-dialog/teaching-log-dialog.component';
 
 // Services
@@ -81,7 +85,11 @@ interface StaffSummary {
 const ROLE_OPTIONS: RoleOption[] = [
   { value: 'admin', label: '管理員' },
   { value: 'teacher', label: '老師' },
+  { value: 'kiosk', label: '掃碼機台' },
 ];
+
+/** 分校門口的打卡平板（#1127）。只能單獨存在，所以看有沒有這個角色就夠 */
+const isKiosk = (staff: Staff) => staff.roles.includes('kiosk');
 
 @Component({
   selector: 'app-staff',
@@ -197,13 +205,23 @@ export class StaffPage implements OnInit {
   protected readonly actionMenuItems = computed<MenuItem[]>(() => {
     const staff = this.selectedStaff();
     if (!staff) return [];
+    const kiosk = isKiosk(staff);
     const items: MenuItem[] = [
-      { label: '編輯', icon: 'pi pi-pencil', command: () => this.openEditDialog(staff) },
       {
-        label: '授課紀錄',
-        icon: 'pi pi-history',
-        command: () => this.openTeachingLog(staff),
+        label: '編輯',
+        icon: 'pi pi-pencil',
+        command: () => (kiosk ? this.openKioskDialog(staff) : this.openEditDialog(staff)),
       },
+      // 機台不上課
+      ...(kiosk
+        ? []
+        : [
+            {
+              label: '授課紀錄',
+              icon: 'pi pi-history',
+              command: () => this.openTeachingLog(staff),
+            },
+          ]),
       {
         label: '產生登入連結',
         icon: 'pi pi-qrcode',
@@ -244,7 +262,12 @@ export class StaffPage implements OnInit {
       // **對象要標出來**（#666 之二）：那支對話框是為家長流程設計的
       // （檔頭註解逐字寫著「家長本人在場」），措辭預設也是家長版。
       // 不標的話職員會被叫去「用自己的手機掃描」。
-      data: { loginUrl, personName: staff.displayName, audience: 'staff' as const },
+      // 機台的 QR 是給門口平板掃的，不是給人（#1127）
+      data: {
+        loginUrl,
+        personName: staff.displayName,
+        audience: isKiosk(staff) ? ('kiosk' as const) : ('staff' as const),
+      },
     });
   }
 
@@ -420,23 +443,48 @@ export class StaffPage implements OnInit {
     });
 
     if (ref)
-      ref.onClose.subscribe((result?: { data?: Staff; loginUrl?: string | null }) => {
-        if (result) {
-          this.refData.invalidate('teachers');
-          this.currentPage.set(1);
-          this.loadStaff();
+      ref.onClose.subscribe((result?: { data?: Staff; loginUrl?: string | null }) =>
+        this.afterCreate(result),
+      );
+  }
 
-          // 建完立刻給連結：櫃檯把 QR 給對方掃，是綁定成功率最高的時刻
-          if (result.data && result.loginUrl) {
-            this.openLoginLinkDialog(result.data, result.loginUrl);
-          } else if (result.data) {
-            // 後端 mint 失敗時 loginUrl 是 null —— 不說的話櫃檯不知道連結沒出來（#1028）
-            this.messageService.add({
-              severity: 'warn',
-              summary: '人員已建立',
-              detail: '但登入連結沒產生：請到列表用「產生登入連結」重試',
-            });
-          }
+  /** 新增人員與新增機台共用：刷新列表，然後當場給登入 QR */
+  private afterCreate(result?: { data?: Staff; loginUrl?: string | null }): void {
+    if (!result) return;
+    this.refData.invalidate('teachers');
+    this.currentPage.set(1);
+    this.loadStaff();
+
+    // 建完立刻給連結：櫃檯把 QR 給對方掃，是綁定成功率最高的時刻
+    if (result.data && result.loginUrl) {
+      this.openLoginLinkDialog(result.data, result.loginUrl);
+    } else if (result.data) {
+      // 後端 mint 失敗時 loginUrl 是 null —— 不說的話櫃檯不知道連結沒出來（#1028）
+      this.messageService.add({
+        severity: 'warn',
+        summary: isKiosk(result.data) ? '機台已建立' : '人員已建立',
+        detail: '但登入連結沒產生：請到列表用「產生登入連結」重試',
+      });
+    }
+  }
+
+  /** 新增（沒帶 staff）或編輯掃碼機台（#1127） */
+  openKioskDialog(staff?: Staff): void {
+    const ref = this.dialogService.open(KioskFormDialogComponent, {
+      width: 'min(480px, 90%)',
+      modal: true,
+      showHeader: false,
+      appendTo: this.overlayContainer || 'body',
+      data: { campuses: this.campuses(), staff },
+    });
+
+    if (ref)
+      ref.onClose.subscribe((result?: KioskFormDialogResult) => {
+        if (!result) return;
+        if (staff) {
+          this.loadStaff();
+        } else {
+          this.afterCreate(result);
         }
       });
   }
@@ -638,7 +686,7 @@ export class StaffPage implements OnInit {
   }
 
   getRoleLabel(role: StaffRole): string {
-    return role === 'admin' ? '管理員' : '老師';
+    return ROLE_OPTIONS.find((option) => option.value === role)?.label ?? role;
   }
 
   private formatDate(date: Date): string {

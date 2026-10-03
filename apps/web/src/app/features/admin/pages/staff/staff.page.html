@@ -5,9 +5,17 @@
   <header class="staff__header">
     <div class="staff__title-group">
       <h1 class="staff__title">人員管理</h1>
-      <p class="staff__subtitle">管理管理員、老師帳號</p>
+      <p class="staff__subtitle">管理管理員、老師帳號與分校門口的掃碼機台</p>
     </div>
     <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
+      <p-button
+        label="新增掃碼機台"
+        icon="pi pi-qrcode"
+        [outlined]="true"
+        severity="secondary"
+        (onClick)="openKioskDialog()"
+        data-testid="staff-add-kiosk"
+      />
       <p-button
         label="操作紀錄"
         icon="pi pi-history"

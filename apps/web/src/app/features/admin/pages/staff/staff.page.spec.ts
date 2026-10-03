@@ -12,6 +12,8 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { LoginLinkDialogComponent } from '@shared/components/login-link-dialog/login-link-dialog.component';
 
 import { StaffPage } from './staff.page';
+import { KioskFormDialogComponent } from './kiosk-form-dialog/kiosk-form-dialog.component';
+import { StaffFormDialogComponent } from './staff-form-dialog.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 describe('StaffPage', () => {
@@ -293,7 +295,13 @@ describe('StaffPage', () => {
   // PR #24 的後端回傳了 loginUrl，但前端型別把它丟掉、頁面也沒有任何入口，
   // 新建的員工因此完全無法登入。
   describe('StaffPage 的登入連結', () => {
-    const staff = { id: 's1', userId: 'u1', displayName: '王老師', status: 'active' } as Staff;
+    const staff = {
+      id: 's1',
+      userId: 'u1',
+      displayName: '王老師',
+      status: 'active',
+      roles: ['teacher'],
+    } as Staff;
     it('產生連結會開 LoginLinkDialog 並帶入網址', () => {
       (component as unknown as { issueLoginLink: (s: Staff) => void }).issueLoginLink(staff);
       expect(staffServiceMock.createLoginLink).toHaveBeenCalledWith('u1');
@@ -362,6 +370,68 @@ describe('StaffPage', () => {
         userId: '',
       } as Staff);
       expect(staffServiceMock.createLoginLink).not.toHaveBeenCalled();
+    });
+  });
+
+  // #1127：分校門口的掃碼機台。建立／編輯走自己的 dialog（不是人員表單），QR 給平板掃
+  describe('掃碼機台', () => {
+    const kiosk = {
+      id: 'k1',
+      userId: 'uk',
+      displayName: '本校門口',
+      status: 'active',
+      roles: ['kiosk'],
+      campusIds: ['c1'],
+    } as Staff;
+    type MenuHarness = {
+      selectedStaff: { set: (s: Staff) => void };
+      actionMenuItems: () => Array<{ label?: string; command?: () => void }>;
+    };
+    const menuFor = (s: Staff) => {
+      const h = component as unknown as MenuHarness;
+      h.selectedStaff.set(s);
+      return h.actionMenuItems();
+    };
+    const lastDialog = () =>
+      dialogServiceMock.open.mock.calls.at(-1) as unknown as [
+        unknown,
+        { data: Record<string, unknown> },
+      ];
+
+    it('「新增掃碼機台」開機台 dialog；建好後用機台措辭開 QR', () => {
+      dialogServiceMock.open.mockReturnValueOnce({
+        onClose: of({ data: kiosk, loginUrl: 'https://x/link' }),
+      } as never);
+      (
+        fixture.nativeElement.querySelector('[data-testid="staff-add-kiosk"] button') as HTMLElement
+      ).click();
+
+      expect((dialogServiceMock.open.mock.calls as unknown as unknown[][])[0]?.[0]).toBe(
+        KioskFormDialogComponent,
+      );
+      const [dialog, config] = lastDialog();
+      expect(dialog).toBe(LoginLinkDialogComponent);
+      expect(config.data['audience']).toBe('kiosk');
+    });
+
+    it('機台的選單：沒有授課紀錄，編輯開機台 dialog', () => {
+      const items = menuFor(kiosk);
+      expect(items.map((i) => i.label)).not.toContain('授課紀錄');
+      items.find((i) => i.label === '編輯')?.command?.();
+      const [dialog, config] = lastDialog();
+      expect(dialog).toBe(KioskFormDialogComponent);
+      expect(config.data['staff']).toBe(kiosk);
+    });
+
+    it('一般人員的選單不變', () => {
+      const items = menuFor({ ...kiosk, roles: ['teacher'] } as Staff);
+      expect(items.map((i) => i.label)).toContain('授課紀錄');
+      items.find((i) => i.label === '編輯')?.command?.();
+      expect(lastDialog()[0]).toBe(StaffFormDialogComponent);
+    });
+
+    it('角色標籤寫「掃碼機台」', () => {
+      expect(component.getRoleLabel('kiosk')).toBe('掃碼機台');
     });
   });
 
