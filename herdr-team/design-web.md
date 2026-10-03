@@ -629,9 +629,9 @@ coarse)').matches` 永遠是 `false`（teacher-pages 在 #516 先撞到、我在
 
 ## 四之二、#990 怎麼接手（給下一任；2026-10-02 批 3 後蒸餾）
 
-- **artifact**：https://claude.ai/artifact/1ygX5JqxVqbcKMsriDWgqG（同一個 URL 一路迭代；批 3 交付約 Version 28）。
+- **artifact**：https://claude.ai/artifact/1ygX5JqxVqbcKMsriDWgqG（同一個 URL 一路迭代；10/03 交接時是 **Version 43**）。
   更新：`Artifact` publish，`file_path`＝`.design-explorations/973-layout/index.html`、`root`＝該資料夾**絕對路徑**、`files` 只帶這次改到的檔（共用的 `a6.js`／`a6.css`／`shared/*` 改了要一起帶）。
-  ⚠️ 設計稿資料夾被 gitignore，**只在上一任的 worktree 裡**（`.worktrees/labor-20261002-1234/.design-explorations/973-layout/`）。先整個複製過來（含 `_tools/`），worktree 被清掉後 artifact 是唯一來源（`Artifact` read 的 `paths` 可把檔案拉回來）。**不要從零重做。**
+  ⚠️ 設計稿資料夾被 gitignore，**只在上一任的 worktree 裡**（10/03 起是 `.worktrees/labor-20261002-2356/.design-explorations/973-layout/`；它的 `_review/` 有 #1100 後端缺口的三份原檔，已貼在 #1100 留言）。先整個複製過來（含 `_tools/`），worktree 被清掉後 artifact 是唯一來源（`Artifact` read 的 `paths` 可把檔案拉回來）。**不要從零重做。**
 - **進度（批 0–6 全部完成＝管理端 29＋老師端 3＋家長端 11＋公開頁 6 ＝ 47 頁，2026-10-03 artifact Version 32）**：老師端檔名 `t-*.html`、家長端 `p-*.html`；`A2.shell({ role: 'teacher' | 'parent' })` 會換成該角色的頁首選單（沒有分校切換與搜尋；「切換身分」真的導到那個角色的首頁）。公開頁檔名 `pub-*.html`，外框是 `A2.pub({ page }, html)`（照產品 public-shell 搬）。#990 的頁面覆蓋已經沒有剩下的批次。
   頁名↔檔名看 `a6-editorial/a6.js` 的 `BUILT` 與 `shared/proto.js` 的 groups；每做完一批兩處都要加（否則「更多」點了跳「批 N 補上」、右下膠囊顯示成「儀表板」）。
 - **計畫席 10/02 已裁的（不要重問）**：設計稿一律照**應然規格**（`kb/wiki/specs/`、`kb/wiki/rules/`；rules 比 specs 新以 rules 為準），規格有產品沒有的標「新」、產品有規格沒寫的保留並在 notes 註記、產品 bug 不照抄而是列給計畫席開單；每頁 notes 第一段是「規格 vs 現況」差異表。
@@ -660,6 +660,8 @@ coarse)').matches` 永遠是 `false`（teacher-pages 在 #516 先撞到、我在
   - **斷點裡把容器從 `relative`／`fixed` 改成 `static` 時，它裡面 `position: absolute; inset: 0` 的子元素會改用更外層的容器定位**，通常就是整頁。公開外框的品牌面在 ≤1024px 改成 static，流場 canvas 就鋪滿整個第一屏、蓋住白面上所有按鈕：手機整頁點不到，白面上也畫滿線。這是我寫共用件時弄出來的，兩個 fork 各自從稽核的「intercepts pointer events」抓到。
     **規則**：容器裡有 absolute 的裝飾層，就給容器 `position: relative`，不要給 static；純裝飾層一律加 `pointer-events: none`。**主席先做共用件時，至少用 playwright 在手機寬度實按一顆主面的按鈕**，不能只看截圖。截圖上看起來只是「白面多了幾條線」。
   - **裁定要套到同一族的每一頁，不是只套到被問的那一頁**。「額滿能不能送」是在家長端加選頁被問到的，但同一條規則也出現在家長報名頁（原本不能選）和訪客報名頁（原本不能勾、打電話候補）。三頁原本各有一種做法，裁定之後要逐頁找出來對齊。**收到裁定時 grep 那個業務詞**（這次是「額滿」），把每一處都改掉。
+- **交接時的狀態（10/03，labor-20261002-2356 → 下一任）**：47 頁做完，公開殼手機版定在 V43（橫向兩面，左面字標 0.14 倍寬、tagline 0.082 倍、輕量入口列、流場回桌機預設只放大彎曲 1.2）。#990 等使用者驗收批 5、6 後由計畫席關。#1100 的 P2 草稿在該 issue 留言，計畫席逐條驗完才開單。**待使用者裁**：試聽算不算名額。
+  - **「大膽」要給中間值，不要給極值**：V41「可以更大膽」→ V42 把字標放到 0.2 倍寬、流場加密加粗、2×2 實心大區塊 →「太過大膽了一點」→ V43 取中間值。使用者給的是方向，不是幅度；**一次只把幅度推到一半，給他看了再推**，比一次推到底再退回來少一輪。
 - **10/03 使用者看稿回饋留下的（V34–V41）**：
   - **公開殼手機版的演變，以及每一步為什麼被否決**。現在的定案是**橫向兩面**：左面是整屏的品牌面，跟桌機同一塊，流場全強度，加上入口選項；右面是白色表單。用 `left` 平移，一次只看一面。深連結和 `#form` 直接落在右面，進右面時 `pushState`，所以瀏覽器返回鍵能回左面。逐步的經過：
     1. 原版「上橘下白」：使用者說太浪費手機畫面。
