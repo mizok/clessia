@@ -77,12 +77,16 @@ import {
 import {
   ScheduleGanttComponent,
   type ScheduleMenuRequest,
+  type SchedulePickRequest,
 } from './components/schedule-gantt/schedule-gantt.component';
 import { ScheduleListComponent } from './components/schedule-list/schedule-list.component';
+import { ScheduleQuickPicksComponent } from './components/schedule-quick-picks/schedule-quick-picks.component';
+import { ScheduleQuickSheetComponent } from './components/schedule-quick-sheet/schedule-quick-sheet.component';
 import {
   groupByDate,
   groupByStart,
   layoutDay,
+  pickRange,
   summarizeWeek,
   type WeekDaySummary,
 } from './schedule-day.util';
@@ -113,6 +117,8 @@ const FETCH_LIMIT = 500;
     SessionBatchComponent,
     ScheduleGanttComponent,
     ScheduleListComponent,
+    ScheduleQuickPicksComponent,
+    ScheduleQuickSheetComponent,
     SessionFiltersComponent,
     LoadFailedComponent,
     PageOpenComponent,
@@ -360,11 +366,17 @@ export class SessionsPage implements OnInit {
 
   // ── Selection state ────────────────────────────────────────────────────
   protected readonly selectedIds = signal<Set<string>>(new Set());
+  /** 勾過的課的資料（批次對話框要知道有沒有停課、能指派哪些老師；勾到的課不一定在畫面上） */
+  private readonly known = new Map<string, Session>();
   protected readonly selectedCount = computed(() => this.selectedIds().size);
   protected readonly selectedSessions = computed(() => {
     const selected = this.selectedIds();
     if (selected.size === 0) return [];
-    return this.displayedSessions().filter((session) => selected.has(session.id));
+    // 快速選取勾的課可能不在畫面上（別天、整期）：從勾的當下記下來的那份補
+    const shown = new Map(this.displayedSessions().map((s) => [s.id, s]));
+    return [...selected]
+      .map((id) => shown.get(id) ?? this.known.get(id))
+      .filter((s): s is Session => !!s);
   });
   protected readonly hasCancelledSelection = computed(() =>
     this.selectedSessions().some((session) => session.status === 'cancelled'),
@@ -456,6 +468,8 @@ export class SessionsPage implements OnInit {
 
   protected clearSelection(): void {
     this.selectedIds.set(new Set());
+    this.lastPicked = null;
+    this.pickLabel.set('');
   }
 
   protected openOperationsLog(): void {
@@ -800,10 +814,10 @@ export class SessionsPage implements OnInit {
     this.moveTo(d);
   }
 
+  /** 換日／週、換天都**留著勾**（#1174 G3）：快速選取勾的是跨天的（某老師這週、某班整期），批次列會說有幾堂不在畫面上 */
   protected setView(view: 'day' | 'week'): void {
     if (this.mode() === view) return;
     this.mode.set(view);
-    this.clearSelection();
     this.loadSessions();
   }
 
@@ -818,9 +832,12 @@ export class SessionsPage implements OnInit {
 
   private moveTo(d: Date): void {
     this.day.set(startOfDay(d));
-    // 勾選只對畫面上那一天（週）有意義（批次動作是對勾到的課）；換天就放掉，不留看不到的勾
-    this.clearSelection();
     this.loadSessions();
+  }
+
+  /** 「跳到某天」小日曆（原生 date input，`yyyy-MM-dd`） */
+  protected jumpTo(value: string): void {
+    if (value) this.setDay(parseISO(value));
   }
 
   /** 週視圖手機那一行（A6 `.wm__s`）：幾堂、最擠的時段、停課、其他異動 */
@@ -874,10 +891,136 @@ export class SessionsPage implements OnInit {
     return st.length === 0 || st.includes('cancelled');
   });
 
-  protected toggleSelect(id: string): void {
-    const next = new Set(this.selectedIds());
-    if (!next.delete(id)) next.add(id);
-    this.selectedIds.set(next);
+  // ── 勾課（#1174 G3）：單勾、Shift 範圍勾、快速選取 ────────────────────────────
+  /** 上一次單堂勾的那堂（Shift 範圍勾的起點） */
+  private lastPicked: string | null = null;
+  /** 勾到的課怎麼來的（批次列的小字：「逐堂勾選」「林老師這週（今天起）」） */
+  protected readonly pickLabel = signal('');
+  /** 桌機快速選取列開著沒（手機是底部面板） */
+  protected readonly picking = signal(false);
+  protected readonly sheetOpen = signal(false);
+  /** 畫面上由上而下的順序（甘特是老師列由上而下），Shift 範圍勾用 */
+  private readonly pickOrder = computed(() => {
+    const mode = this.mode();
+    if (mode === 'day')
+      return this.layout()?.rows.flatMap((r) => r.blocks.map((b) => b.session.id)) ?? [];
+    const groups =
+      mode === 'week'
+        ? this.week().flatMap((d) => d.groups)
+        : this.resultChapters().flatMap((c) => c.groups);
+    return groups.flatMap((g) => g.sessions.map((s) => s.id));
+  });
+  /** 快速選取的兩個下拉：老師、班（跟著分校篩選） */
+  protected readonly teacherPickOptions = computed(() =>
+    this.activeTeachers().map((t) => ({ label: t.displayName, value: t.id })),
+  );
+  protected readonly classPickOptions = computed(() => {
+    const campus = new Set(this.selectedCampusIds());
+    return this.classes()
+      .filter((c) => campus.size === 0 || campus.has(c.campusId))
+      .map((c) => ({ label: c.name, value: c.id }));
+  });
+  /** 勾到的課裡，現在畫面上看得到幾堂 */
+  protected readonly visibleSelectedCount = computed(() => {
+    const ids = this.selectedIds();
+    return this.displayedSessions().filter((s) => ids.has(s.id)).length;
+  });
+
+  protected toggleSelect(req: SchedulePickRequest): void {
+    for (const s of this.displayedSessions()) this.known.set(s.id, s);
+    const last = req.shiftKey ? this.lastPicked : null;
+    this.selectedIds.set(pickRange(this.selectedIds(), this.pickOrder(), last, req.id));
+    this.lastPicked = req.id;
+    this.pickLabel.set('逐堂勾選');
+  }
+
+  protected readonly dayIso = computed(() => format(this.day(), 'yyyy-MM-dd'));
+  /** 手機面板列哪些課：跟著目前的檢視（日＝那天、週＝有課的每一天、篩選結果＝依日期分章） */
+  protected readonly sheetChapters = computed(() => {
+    const mode = this.mode();
+    if (mode === 'day') return [{ date: this.dayIso(), groups: this.dayGroups() }];
+    if (mode === 'week')
+      return this.week()
+        .filter((d) => d.groups.length)
+        .map((d) => ({ date: d.date, groups: d.groups }));
+    return this.resultChapters();
+  });
+
+  /** 面板的動作鈕：先收起面板（原生 modal 在 top layer，會蓋住批次對話框）再開 */
+  protected onSheetAct(mode: BatchMode | null): void {
+    this.sheetOpen.set(false);
+    this.openBatchSheet(mode);
+  }
+
+  /** 手機長按一堂：勾起它、打開快速選取面板（A6） */
+  protected onLongPress(id: string): void {
+    if (!this.selectedIds().has(id)) this.toggleSelect({ id, shiftKey: false });
+    this.sheetOpen.set(true);
+  }
+
+  private pickAll(sessions: readonly Session[], label: string): void {
+    for (const s of sessions) this.known.set(s.id, s);
+    this.selectedIds.set(new Set(sessions.map((s) => s.id)));
+    this.lastPicked = null;
+    this.pickLabel.set(label);
+  }
+
+  /** 這一整天（`yyyy-MM-dd`；週視圖每欄一顆） */
+  protected pickDay(date: string): void {
+    const name =
+      date === format(this.now(), 'yyyy-MM-dd')
+        ? '今天'
+        : `週${this.weekdayLabel(date)} ${format(parseISO(date), 'M/d')}`;
+    this.pickAll(
+      this.displayedSessions().filter((s) => s.sessionDate === date),
+      `${name}整天`,
+    );
+  }
+
+  /** 某位老師這週的課（今天起、不含停課，A6 `selectTeacher`） */
+  protected pickTeacher(teacherId: string): void {
+    const sunday = this.weekDays()[6];
+    const from = [this.weekDays()[0], startOfDay(this.now())].reduce((a, b) => (a > b ? a : b));
+    const name = this.staff().find((t) => t.id === teacherId)?.displayName ?? '這位老師';
+    if (from > sunday) return this.pickAll([], `${name}這週（今天起）`);
+    this.fetchPicks(
+      {
+        teacherIds: [teacherId],
+        from: format(from, 'yyyy-MM-dd'),
+        to: format(sunday, 'yyyy-MM-dd'),
+      },
+      `${name}這週（今天起）`,
+    );
+  }
+
+  /** 某個班整期的課（今天起、不含停課，A6 `selectClass`） */
+  protected pickClass(classId: string): void {
+    const name = this.classes().find((c) => c.id === classId)?.name ?? '這個班';
+    this.fetchPicks(
+      { classIds: [classId], from: format(this.now(), 'yyyy-MM-dd') },
+      `${name}整期（今天起）`,
+    );
+  }
+
+  private fetchPicks(params: SessionQueryParams, label: string): void {
+    this.sessionsService
+      .list({
+        ...params,
+        // 跟畫面同一個分校篩選：勾到的課要是這一頁看得到的那一間
+        campusIds: this.selectedCampusIds().length > 0 ? this.selectedCampusIds() : undefined,
+        statuses: ['scheduled'],
+        page: 1,
+        pageSize: FETCH_LIMIT,
+      })
+      .subscribe({
+        next: (res) => this.pickAll(res.data, label),
+        error: () =>
+          this.messageService.add({
+            severity: 'error',
+            summary: '沒有勾到課',
+            detail: '可能是連線問題，再試一次',
+          }),
+      });
   }
 
   // ── Detail popup ───────────────────────────────────────────────────────

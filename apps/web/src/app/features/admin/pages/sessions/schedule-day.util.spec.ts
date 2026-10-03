@@ -1,5 +1,12 @@
 import type { Session } from '@core/sessions.service';
-import { groupByDate, groupByStart, isLive, layoutDay, summarizeWeek } from './schedule-day.util';
+import {
+  groupByDate,
+  groupByStart,
+  isLive,
+  layoutDay,
+  pickRange,
+  summarizeWeek,
+} from './schedule-day.util';
 
 function s(over: Partial<Session> & { id: string }): Session {
   return {
@@ -160,5 +167,28 @@ describe('summarizeWeek', () => {
   it('整天停課：同時 0 班', () => {
     const [d] = summarizeWeek(['2026-10-01'], [s({ id: 'x', status: 'cancelled' })]);
     expect(d.maxConcurrent).toBe(0);
+  });
+});
+
+describe('pickRange（Shift 範圍勾，A6 toggle）', () => {
+  const order = ['a', 'b', 'c', 'd', 'e'];
+
+  it('從上一次勾的到這一次，中間全部加進去（不分方向）', () => {
+    expect([...pickRange(new Set(['b']), order, 'b', 'd')].sort()).toEqual(['b', 'c', 'd']);
+    expect([...pickRange(new Set(['d']), order, 'd', 'b')].sort()).toEqual(['b', 'c', 'd']);
+  });
+
+  it('範圍勾只加不減：已勾的留著', () => {
+    expect([...pickRange(new Set(['a', 'c']), order, 'c', 'e')].sort()).toEqual([
+      'a',
+      'c',
+      'd',
+      'e',
+    ]);
+  });
+
+  it('沒有上一次、或上一次不在畫面上：當成單勾切換', () => {
+    expect([...pickRange(new Set(), order, null, 'c')]).toEqual(['c']);
+    expect([...pickRange(new Set(['c']), order, 'zz', 'c')]).toEqual([]);
   });
 });

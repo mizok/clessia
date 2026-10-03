@@ -3,10 +3,11 @@
   桌機是墨色浮條（暫時出現的操作才用黑，A5）；手機是深一階的灰面＋頂端 2px 近黑線（10/02 手機黑色減量）。
   四個動作直接攤開（#1174 G1，A6 bar()）：主動作「停課」橘，其餘描邊；各自開原本的批次 dialog（先預覽再套用）。
   A6 的「改到別天」「批次代課」沒有 API，不放。
+  手機不出這條（#1174 G3）：數字與動作都在「快速選取」底部面板裡（A6 第四次修正）。
 -->
 @if (selectedCount() > 0) {
   <div
-    class="fixed inset-x-0 bottom-0 z-20 border-t-2 border-zinc-900 bg-zinc-200 wide:pointer-events-none wide:bottom-6 wide:border-t-0 wide:bg-transparent"
+    class="fixed inset-x-0 bottom-0 z-20 max-wide:hidden border-t-2 border-zinc-900 bg-zinc-200 wide:pointer-events-none wide:bottom-6 wide:border-t-0 wide:bg-transparent"
   >
     <div class="page-wrap">
       <div
@@ -14,9 +15,21 @@
         role="region"
         aria-label="批次調整課堂"
       >
-        <span class="text-md font-semibold text-zinc-900 tabular-nums wide:text-white"
-          >已勾 <b class="text-xl">{{ selectedCount() }}</b> 堂</span
+        <p
+          class="m-0 flex flex-col text-md font-semibold text-zinc-900 tabular-nums wide:text-white"
         >
+          <span
+            >已勾 <b class="text-xl">{{ selectedCount() }}</b> 堂</span
+          >
+          @if (source() || visibleCount() < selectedCount()) {
+            <span class="text-sm font-normal wide:text-zinc-300"
+              >{{ source() || '逐堂勾選' }}
+              @if (visibleCount() < selectedCount()) {
+                · 畫面上看得到 {{ visibleCount() }} 堂
+              }
+            </span>
+          }
+        </p>
         <div class="ml-auto flex flex-wrap items-center gap-2">
           <button
             type="button"

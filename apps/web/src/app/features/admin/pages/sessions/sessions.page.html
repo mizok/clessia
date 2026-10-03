@@ -56,6 +56,22 @@
         </button>
       </div>
       <span class="text-md text-zinc-700 tabular-nums">{{ weekLabel() }}</span>
+      <!-- 跳到某天（#1184 留下的，併進 G3）：原生日期選擇器，按鈕只是它的入口 -->
+      <label
+        class="ml-auto inline-flex size-11 cursor-pointer items-center justify-center rounded-md text-zinc-900 hover:bg-zinc-200"
+        title="跳到某天"
+        (click)="$any(jump).showPicker?.()"
+      >
+        <i class="pi pi-calendar" aria-hidden="true"></i>
+        <input
+          #jump
+          class="sr-only"
+          type="date"
+          aria-label="跳到某天"
+          [value]="day() | date: 'yyyy-MM-dd'"
+          (change)="jumpTo(jump.value)"
+        />
+      </label>
     </div>
     <!-- 日期條（A6 .dtabs）：一週七天，選中那天橘底線（週視圖沒有選中的天，點一天＝看那天） -->
     <div class="page-wrap flex items-center gap-1">
@@ -134,6 +150,29 @@
           隱藏停課
         </button>
       }
+      <!-- 快速選取（#1174 G3）：桌機開關工具列下的「一次勾：」那一列；手機打開底部面板 -->
+      <button
+        type="button"
+        class="hidden h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:inline-flex"
+        [attr.aria-pressed]="picking()"
+        (click)="picking.set(!picking())"
+      >
+        @if (picking()) {
+          <i class="pi pi-check text-sm" aria-hidden="true"></i>完成
+        } @else {
+          <i class="pi pi-check-square text-sm" aria-hidden="true"></i>快速選取
+        }
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:hidden"
+        aria-haspopup="dialog"
+        (click)="sheetOpen.set(true)"
+      >
+        <i class="pi pi-check-square text-sm" aria-hidden="true"></i>快速選取{{
+          selectedCount() ? ' · 已勾 ' + selectedCount() : ''
+        }}
+      </button>
       <button
         type="button"
         class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
@@ -144,6 +183,23 @@
       </button>
     </div>
   </div>
+  @if (picking()) {
+    <!-- 桌機「一次勾：」（A6 .sx__row--q） -->
+    <div
+      class="page-wrap hidden flex-wrap items-end gap-x-4 gap-y-2 border-t border-zinc-300 py-3 wide:flex"
+    >
+      <span class="pb-3 text-md font-semibold text-zinc-700">一次勾：</span>
+      <app-schedule-quick-picks
+        [dayName]="mode() === 'day' ? dayName() : null"
+        [teacherOptions]="teacherPickOptions()"
+        [classOptions]="classPickOptions()"
+        (pickDay)="pickDay(dayIso())"
+        (pickTeacher)="pickTeacher($event)"
+        (pickClass)="pickClass($event)"
+      />
+      <span class="pb-3 text-sm text-zinc-700">按住 Shift 再勾一堂，中間的會一起勾起來</span>
+    </div>
+  }
 </div>
 
 <div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
@@ -188,6 +244,7 @@
           [selectedIds]="selectedIds()"
           [now]="now()"
           (toggle)="toggleSelect($event)"
+          (longPress)="onLongPress($event)"
           (menu)="onMenuRequested($event)"
         />
       </section>
@@ -218,6 +275,15 @@
             <p class="m-0 mt-0.5 text-sm text-zinc-700 tabular-nums">
               {{ d.changed ? '異動 ' + d.changed : '沒有異動' }}
             </p>
+            @if (picking() && d.sessions.length) {
+              <button
+                type="button"
+                class="mt-1 inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 text-sm font-semibold text-zinc-900 underline decoration-zinc-400 underline-offset-4 hover:decoration-current"
+                (click)="pickDay(d.date)"
+              >
+                勾選這一整天
+              </button>
+            }
           </header>
           <app-schedule-list
             [groups]="d.groups"
@@ -265,6 +331,7 @@
         [selectedIds]="selectedIds()"
         [now]="now()"
         [isToday]="isToday()"
+        [picking]="picking()"
         (toggle)="toggleSelect($event)"
         (menu)="onMenuRequested($event)"
       />
@@ -276,6 +343,7 @@
         [clashIds]="clashIds()"
         [now]="now()"
         (toggle)="toggleSelect($event)"
+        (longPress)="onLongPress($event)"
         (menu)="onMenuRequested($event)"
       />
     </div>
@@ -286,7 +354,27 @@
   <app-session-batch
     [selectedCount]="selectedCount()"
     [hasCancelled]="hasCancelledSelection()"
+    [source]="pickLabel()"
+    [visibleCount]="visibleSelectedCount()"
     (clearSelection)="clearSelection()"
     (openBatchSheet)="openBatchSheet($event)"
   />
 </div>
+
+<app-schedule-quick-sheet
+  [open]="sheetOpen()"
+  [title]="mode() === 'day' ? dayName() : mode() === 'week' ? weekLabel() : '篩選結果'"
+  [chapters]="sheetChapters()"
+  [selectedIds]="selectedIds()"
+  [visibleCount]="visibleSelectedCount()"
+  [dayName]="mode() === 'day' ? dayName() : null"
+  [teacherOptions]="teacherPickOptions()"
+  [classOptions]="classPickOptions()"
+  (toggle)="toggleSelect({ id: $event, shiftKey: false })"
+  (pickDay)="pickDay(dayIso())"
+  (pickTeacher)="pickTeacher($event)"
+  (pickClass)="pickClass($event)"
+  (clear)="clearSelection()"
+  (act)="onSheetAct($event)"
+  (closed)="sheetOpen.set(false)"
+/>
