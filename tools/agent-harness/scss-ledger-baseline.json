@@ -75,7 +75,6 @@
   "apps/web/src/app/features/public/pages/enrollment/enrollment.component.scss",
   "apps/web/src/app/features/public/pages/link-line/link-line.component.scss",
   "apps/web/src/app/features/public/pages/login/login.component.scss",
-  "apps/web/src/app/features/public/pages/qr-checkin/qr-checkin.component.scss",
   "apps/web/src/app/features/public/pages/trial/trial.component.scss",
   "apps/web/src/app/features/public/public-shell.component.scss",
   "apps/web/src/app/features/public/shared/_auth-form.scss",

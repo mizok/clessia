@@ -13,8 +13,10 @@ interface Harness {
   error: () => string | null;
 }
 
-function setup(linkResult: string | null | Error) {
+function setup(linkResult: string | null | Error, roles: string[] = ['parent']) {
   const auth = {
+    roles: () => roles,
+    navigateToRoleShell: vi.fn(),
     linkLine: vi.fn(() =>
       linkResult instanceof Error ? Promise.reject(linkResult) : Promise.resolve(linkResult),
     ),
@@ -35,6 +37,17 @@ function setup(linkResult: string | null | Error) {
 }
 
 describe('LinkLineComponent', () => {
+  // #1127：機台是平板不是人，沒有 LINE 可綁 —— 一次性連結兌換完直接進打卡頁
+  it('純掃碼機台帳號：不問綁 LINE，直接進打卡頁', () => {
+    const { auth } = setup(null, ['kiosk']);
+    expect(auth.navigateToRoleShell).toHaveBeenCalledWith('kiosk');
+  });
+
+  it('一般帳號照舊停在綁定頁', () => {
+    const { auth } = setup(null, ['parent']);
+    expect(auth.navigateToRoleShell).not.toHaveBeenCalled();
+  });
+
   it('按下綁定會把使用者交給 LINE', async () => {
     const { auth, c } = setup(null);
 

@@ -156,7 +156,7 @@ const AREAS = [
     // 開出 AttendanceRosterPanel 做的。原本這裡宣告的是 `admin/attendance`，
     // 而那支孤兒元件已於 #698 刪除 —— 留著它會讓 admin 欄印成「—」，
     // 讀起來像「管理端沒有出勤功能」，而那不是真的。
-    pages: ['admin/sessions', 'teacher/attendance', 'parent/attendance'],
+    pages: ['admin/sessions', 'admin/checkin', 'teacher/attendance', 'parent/attendance'],
     // workbench 是作業台的聚合端點：今天的課、名單、到班、請假 ——
     // 它服務的就是這個功能區，不另立一區
     routes: ['attendance', 'daily-checkins', 'workbench'],

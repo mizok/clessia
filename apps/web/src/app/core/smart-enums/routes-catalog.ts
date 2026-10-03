@@ -46,7 +46,7 @@ export class RouteObj {
 /**
  * 公開殼子路由的進入條件。
  *
- * - `public` —— 誰都進得來（`/trial`、`/enrollment`、`/qr-checkin`）
+ * - `public` —— 誰都進得來（`/trial`、`/enrollment`）
  * - `guest-only` —— **登入著的人進不去**，會被導去自己的角色 shell（`/login`）
  * - `authenticated` —— **未登入進不去**（`/link-line`、`/select-role`）
  */
@@ -81,13 +81,6 @@ export class RoutesCatalog {
     '我要報名',
     undefined,
     'pi-file-edit',
-  );
-  public static readonly PUBLIC_CHECKIN = this.register(
-    'qr-checkin',
-    '/qr-checkin',
-    'QR 到班打卡',
-    undefined,
-    'pi-qrcode',
   );
   public static readonly PUBLIC_LINK_LINE = this.register(
     'link-line',
@@ -244,6 +237,17 @@ export class RoutesCatalog {
     'pi-book',
     true,
     NavigationGroup.ADMIN_STUDENT_AFFAIRS,
+  );
+  // #1127：行政開的到班打卡站（跟門口機台同一個元件）。後端寫入門檻是 basic_operations
+  public static readonly ADMIN_CHECKIN = this.register(
+    'checkin',
+    '/admin/checkin',
+    '到班打卡',
+    UserType.ADMIN,
+    'pi-qrcode',
+    true,
+    NavigationGroup.ADMIN_STUDENT_AFFAIRS,
+    'basic_operations',
   );
   // Group: 考務與成績
   public static readonly ADMIN_GRADES = this.register(
@@ -569,6 +573,16 @@ export class RoutesCatalog {
     'pi-wallet',
     true,
     NavigationGroup.PARENT_LIFE_AND_PAYMENTS,
+  );
+
+  // Kiosk（#1127）：不掛 ShellLayout、沒有選單
+  public static readonly KIOSK_CHECKIN = this.register(
+    'kiosk/checkin',
+    '/kiosk/checkin',
+    '到班打卡',
+    UserType.KIOSK,
+    'pi-qrcode',
+    false,
   );
 
   private static register(

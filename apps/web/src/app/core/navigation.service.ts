@@ -41,6 +41,8 @@ const TOP_NAV: Record<UserRole, readonly (readonly [RouteObj, string])[]> = {
     [RoutesCatalog.PARENT_GRADES, '成績'],
     [RoutesCatalog.PARENT_PAYMENTS, '繳費'],
   ],
+  // 機台不掛 ShellLayout，沒有頂欄（#1127）
+  kiosk: [],
 };
 
 @Injectable({

@@ -1,0 +1,21 @@
+<div class="flex min-h-full flex-col bg-zinc-50">
+  <header class="flex items-center justify-between gap-4 bg-zinc-900 px-6 py-4 text-white">
+    <div>
+      <p class="text-xs text-zinc-400">到班打卡</p>
+      <p class="text-lg font-semibold" data-testid="kiosk-station">
+        {{ stationName()?.display_name }}
+      </p>
+    </div>
+    <p-button
+      label="登出"
+      icon="pi pi-sign-out"
+      [text]="true"
+      severity="secondary"
+      styleClass="text-zinc-300"
+      (onClick)="signOut()"
+    />
+  </header>
+  <main class="flex-1 px-4 py-8">
+    <app-checkin-station />
+  </main>
+</div>

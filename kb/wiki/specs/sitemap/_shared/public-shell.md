@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, _shared, public, rwd]
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-10-03
 ---
 
 # 公開頁外框（PublicShell）
@@ -13,6 +13,9 @@ updated: 2026-09-13
 **元件**：`@features/public/public-shell.component`
 
 `/login`、`/trial`、`/enrollment`、`/qr-checkin`、`/link-line`、`/select-role`
+
+> **2026-10-03 更新（#1127）**：「QR 到班打卡」連結與 `/qr-checkin` 頁已移除（網址轉 `/login`）。
+> 下面的量測是移除前做的，連結那一列與 Tab 序列的第 5 個已不存在；其餘照舊。
 **全部走這一個外框**（`app.routes.ts` 最上層那個 `path: ''` 的 children）。
 
 > **這一頁跟 [[specs/sitemap/_shared/shell-layout]] 是兩個不同的外框。**
