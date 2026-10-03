@@ -9,6 +9,7 @@ import { RouteObj } from '@core/smart-enums/routes-catalog';
 import {
   OrgSettingsService,
   type AttendanceMode,
+  type AttendanceResponsible,
   type OrgSettings,
 } from '@core/org-settings.service';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
@@ -44,6 +45,15 @@ export class SettingsPage implements OnInit {
    */
   protected attendanceModeValue: AttendanceMode = 'per_session';
 
+  /** 同 attendanceModeValue：只在取數回來之前存在，失敗態不渲染表單（#805） */
+  protected attendanceResponsibleValue: AttendanceResponsible = 'admin';
+  protected readonly savingResponsible = signal(false);
+
+  protected readonly attendanceResponsibleOptions = [
+    { label: '行政負責', value: 'admin' },
+    { label: '老師負責', value: 'teacher' },
+  ];
+
   protected readonly attendanceModeOptions = [
     { label: '隨堂點名', value: 'per_session' },
     { label: '日到班', value: 'daily_checkin' },
@@ -60,6 +70,7 @@ export class SettingsPage implements OnInit {
       next: (s) => {
         this.settings.set(s);
         this.attendanceModeValue = s.attendanceMode;
+        this.attendanceResponsibleValue = s.attendanceResponsible;
         this.loading.set(false);
       },
       // **不發 toast** —— 主體現在有常駐的失敗狀態；會消失的 toast + 留著的錯誤畫面
@@ -92,5 +103,31 @@ export class SettingsPage implements OnInit {
         });
       },
     });
+  }
+
+  /** #920：點名責任歸屬。API 早就收這個欄位（`PATCH /api/org/settings`），之前只缺 UI */
+  protected saveAttendanceResponsible(): void {
+    this.savingResponsible.set(true);
+    this.orgSettingsService
+      .updateSettings({ attendanceResponsible: this.attendanceResponsibleValue })
+      .subscribe({
+        next: (s) => {
+          this.settings.set(s);
+          this.savingResponsible.set(false);
+          this.messageService.add({
+            severity: 'success',
+            summary: '已儲存',
+            detail: '點名責任歸屬已更新',
+          });
+        },
+        error: () => {
+          this.savingResponsible.set(false);
+          this.messageService.add({
+            severity: 'error',
+            summary: '錯誤',
+            detail: '儲存失敗，請稍後再試',
+          });
+        },
+      });
   }
 }

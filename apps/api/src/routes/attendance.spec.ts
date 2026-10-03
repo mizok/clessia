@@ -1249,7 +1249,11 @@ function buildEvent(input: {
  * 純函式測試。錯在接線那一層，測試就得跨到那一層。
  */
 describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
-  function createBatchApp(roles: string[], teachesThisClass = true) {
+  function createBatchApp(
+    roles: string[],
+    teachesThisClass = true,
+    responsible: 'admin' | 'teacher' = 'teacher',
+  ) {
     const upserted: Array<Record<string, unknown>> = [];
     // 補登窗是按台北日期算的，所以測試也要用台北的今天
     // （`getCurrentTaipeiDateString` 在 attendance.ts 裡是私有的，這裡照抄一次）
@@ -1279,7 +1283,7 @@ describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
               data:
                 table === 'staff'
                   ? { id: 'staff-1' }
-                  : { attendance_responsible: 'teacher', attendance_retroactive_days: 0 },
+                  : { attendance_responsible: responsible, attendance_retroactive_days: 0 },
               error: null,
             }),
           single: () =>
@@ -1334,8 +1338,12 @@ describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
     return { app, upserted };
   }
 
-  async function save(roles: string[], teachesThisClass = true) {
-    const { app, upserted } = createBatchApp(roles, teachesThisClass);
+  async function save(
+    roles: string[],
+    teachesThisClass = true,
+    responsible: 'admin' | 'teacher' = 'teacher',
+  ) {
+    const { app, upserted } = createBatchApp(roles, teachesThisClass, responsible);
     const response = await app.request(
       '/api/attendance/batch',
       {
@@ -1376,6 +1384,22 @@ describe('PATCH /api/attendance/batch —— recorded_by_role', () => {
 
   it('管理員不受這個範圍限制', async () => {
     expect((await save(['admin'], false)).status).toBe(200);
+  });
+
+  /**
+   * #920：行政負責點名（`attendance_responsible = 'admin'`）的機構，老師端只給唯讀的到班狀態。
+   * **寫入原本沒有任何 API 檢查擋** —— 補登窗在 admin 負責時直接放行，只靠老師端不渲染點名鈕
+   * （c1：前端隱藏 UI 不構成授權）。老師端開始顯示唯讀名單之後，入口變多，這道要在 API 補上。
+   */
+  it('行政負責點名的機構，老師自己的課也不能寫（403，不寫進 DB）', async () => {
+    const { status, upserted } = await save(['teacher'], true, 'admin');
+
+    expect(status).toBe(403);
+    expect(upserted).toHaveLength(0);
+  });
+
+  it('行政負責點名的機構，同時有 admin 角色的人照常可寫', async () => {
+    expect((await save(['admin', 'teacher'], true, 'admin')).status).toBe(200);
   });
 
   it('管理員點的名記成 admin', async () => {

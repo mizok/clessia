@@ -234,6 +234,21 @@
                     (onClick)="openPanel(session)"
                   />
                 }
+                @if (!isTeacherLed() && canTakeAttendance(session) && !isUpcoming(session)) {
+                  <!--
+                    #920：行政負責點名的機構，老師仍要看得到自己課堂的名單與到／假／缺（rules/attendance-rules.md），
+                    只是不能點、不能改 —— 面板開唯讀模式，API 對老師的寫入一律 403。
+                  -->
+                  <p-button
+                    styleClass="schedule-page__action"
+                    label="看名單"
+                    icon="pi pi-list"
+                    size="small"
+                    [outlined]="true"
+                    severity="secondary"
+                    (onClick)="openPanel(session, true)"
+                  />
+                }
                 @if (isTeacherLed() && canWriteClassLog(session)) {
                   <!--
                   教務日誌。v1a 只有撰寫，**沒有發布** —— 發布不可逆，

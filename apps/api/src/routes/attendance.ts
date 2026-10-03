@@ -20,7 +20,17 @@ import {
   type EnrollmentRange,
 } from '../lib/session-roster';
 import { formatAuditSessionResourceName, logAudit } from '../utils/audit';
-import { assertTeacherCanWriteAttendance } from '../lib/attendance-write-scope';
+import {
+  teacherAttendanceWriteAccess,
+  type TeacherAttendanceWriteAccess,
+} from '../lib/attendance-write-scope';
+
+/** 老師寫出勤被擋時的回應。兩種原因要說得出差別：一個是「不是你的課」、一個是「這間由行政點名」 */
+function teacherWriteDenied(access: Exclude<TeacherAttendanceWriteAccess, 'ok'>) {
+  return access === 'not-responsible'
+    ? { error: '本機構由行政人員負責點名，老師端只能查看', code: 'NOT_RESPONSIBLE' }
+    : { error: '這不是你的課堂', code: 'FORBIDDEN' };
+}
 import { applyCampusFilter, type CampusScope, getCampusScope } from '../lib/campus-scope';
 import { resourceCampusAllowed } from '../lib/campus-write-guard';
 import {
@@ -461,16 +471,13 @@ app.openapi(
 
     // **範圍：這堂課是不是他的。** 時窗管「什麼時候還能改」，範圍管「能改誰的」，
     // 兩個都要過。清單本來就回傳 eventId，少了這一段，老師換一個值就改得動別班。
-    if (
-      !(await assertTeacherCanWriteAttendance(supabase, {
-        orgId,
-        userId,
-        roles,
-        eventId: body.eventId,
-      }))
-    ) {
-      return c.json({ error: '這不是你的課堂', code: 'FORBIDDEN' }, 403);
-    }
+    const writeAccess = await teacherAttendanceWriteAccess(supabase, {
+      orgId,
+      userId,
+      roles,
+      eventId: body.eventId,
+    });
+    if (writeAccess !== 'ok') return c.json(teacherWriteDenied(writeAccess), 403);
 
     if ((ev as any).event_date > getCurrentTaipeiDateString()) {
       return c.json({ error: '未來課堂尚未開放點名', message: undefined }, 500);
@@ -604,11 +611,13 @@ app.openapi(
 
     // **範圍：這堂課是不是他的。** 時窗管「什麼時候還能改」，範圍管「能改誰的」，
     // 兩個都要過。清單本來就回傳 eventId，少了這一段，老師換一個值就改得動別班。
-    if (
-      !(await assertTeacherCanWriteAttendance(supabase, { orgId, userId, roles, eventId: eventId }))
-    ) {
-      return c.json({ error: '這不是你的課堂', code: 'FORBIDDEN' }, 403);
-    }
+    const writeAccess = await teacherAttendanceWriteAccess(supabase, {
+      orgId,
+      userId,
+      roles,
+      eventId: eventId,
+    });
+    if (writeAccess !== 'ok') return c.json(teacherWriteDenied(writeAccess), 403);
 
     const classId = (ev as any).sessions?.[0]?.class_id;
     const eventDate = (ev as any).event_date as string;
@@ -829,16 +838,13 @@ app.openapi(
 
     // **範圍：這堂課是不是他的。** 時窗管「什麼時候還能改」，範圍管「能改誰的」，
     // 兩個都要過。清單本來就回傳 eventId，少了這一段，老師換一個值就改得動別班。
-    if (
-      !(await assertTeacherCanWriteAttendance(supabase, {
-        orgId,
-        userId,
-        roles,
-        eventId: (existing as any).event_id as string,
-      }))
-    ) {
-      return c.json({ error: '這不是你的課堂', code: 'FORBIDDEN' }, 403);
-    }
+    const writeAccess = await teacherAttendanceWriteAccess(supabase, {
+      orgId,
+      userId,
+      roles,
+      eventId: (existing as any).event_id as string,
+    });
+    if (writeAccess !== 'ok') return c.json(teacherWriteDenied(writeAccess), 403);
 
     const existingEventDate = (existing as any).events?.event_date as string | null;
     if (existingEventDate && existingEventDate > getCurrentTaipeiDateString()) {
@@ -1515,13 +1521,13 @@ app.openapi(
     const { studentId } = c.req.valid('json');
 
     // 範圍：跟點名同一條規則（含代課 —— 代課老師當天就是要點那堂課的名）
-    const allowed = await assertTeacherCanWriteAttendance(supabase, {
+    const writeAccess = await teacherAttendanceWriteAccess(supabase, {
       orgId,
       userId: c.get('userId'),
       roles: c.get('roles') ?? [],
       eventId,
     });
-    if (!allowed) return c.json({ error: '無權限操作此課堂' }, 403);
+    if (writeAccess !== 'ok') return c.json(teacherWriteDenied(writeAccess), 403);
 
     const { data: ev } = await supabase
       .from('events')

@@ -218,6 +218,21 @@ describe('SchedulePage', () => {
       expect(text).toContain('漏點名');
       expect(text).toContain('堂待點名');
     });
+
+    // #920：行政負責時老師沒有點名入口，但要能唯讀看自己課堂的名單（rules/attendance-rules.md）
+    it('admin 模式：有「看名單」、沒有「開始點名」', async () => {
+      await setup({ attendanceResponsible: 'admin', sessions: PAST_UNTAKEN });
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('看名單');
+      expect(text).not.toContain('開始點名');
+    });
+
+    it('teacher 模式：有「開始點名」、沒有「看名單」', async () => {
+      await setup({ attendanceResponsible: 'teacher', sessions: PAST_UNTAKEN });
+      const text = fixture.nativeElement.textContent as string;
+      expect(text).toContain('開始點名');
+      expect(text).not.toContain('看名單');
+    });
   });
 
   /**

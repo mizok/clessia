@@ -3,7 +3,7 @@ title: 授權範圍 —— 分校、職務、細部權限
 summary: 三個軸的範圍限制在建立帳號時都有收，執行時多數沒有用。這一頁記下五個可驗證的洞、補完的設計、以及 fail-closed 上線最真實的風險（既有管理員會看到空白而不是報錯）。
 category: architecture
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 tags: [architecture, authorization, campus, teacher-scope, permissions, security]
 ---
 
@@ -134,6 +134,15 @@ school-exams、contact-book、class-logs，以及 `/api/attendance/sessions` 的
 | 3 提權與自我提權     | **已修**     | `lib/role-assignment.ts`，接在 staff 的建立與更新                                                                                                                         |
 | 4 老師只擋讀不擋寫   | **已修**     | `lib/attendance-write-scope.ts`，接在三支寫入端點                                                                                                                         |
 | 5 分校零隔離         | **地基完成** | `campusScope` 掛 middleware、`all_campuses` 權限、migration、全域 `campusRequestGuard`（指名別的分校 403）。⚠️ 2026-09-13 發現「接上了 ≠ 生效了」的一種，見下方 #815 那節 |
+
+**點名責任歸屬（#920，2026-10-03）**：`attendance_responsible = 'admin'` 的機構，老師寫出勤原本**沒有任何 API 檢查擋**
+（補登窗在 admin 負責時直接放行，只靠老師端不渲染點名鈕）。現在 `lib/attendance-write-scope.ts` 的
+`teacherAttendanceWriteAccess` 回三態（`ok`／`not-yours`／`not-responsible`），四支老師寫入
+（記錄、批次、更新、銷假）都經過它。從 boolean 改三態時**一併改名**，讓 typecheck 逼出每個呼叫點。
+
+⚠️ **同時發現、未修**：`GET /api/attendance/roster/{eventId}` **沒有老師範圍檢查**，同 org 的老師知道
+`eventId` 就讀得到任何一堂的名單（學生姓名、年級、學校、請假）。跟洞 4 同一個形狀，只是在讀的那一側。
+#920 讓老師端多了「看名單」入口，但入口只開在自己的課上；端點本身另開單處理。
 
 **洞 5 已完成**：14 支路由全部接上「不指定分校時只回自己的分校」，
 harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一個洞就不會是「還沒做完」

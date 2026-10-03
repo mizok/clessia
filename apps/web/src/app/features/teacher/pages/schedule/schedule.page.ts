@@ -328,7 +328,7 @@ export class SchedulePage implements OnInit {
     return this.missingByDate().get(dateStr) ?? 0;
   }
 
-  protected openPanel(session: EventSessionSummary): void {
+  protected openPanel(session: EventSessionSummary, readOnly = false): void {
     // 停課沒有出勤事件 —— 模板已經藏掉入口，這裡是型別上的第二道
     if (session.eventId === null || !canTakeAttendance(session)) return;
 
@@ -336,6 +336,7 @@ export class SchedulePage implements OnInit {
       eventId: session.eventId,
       className: session.className,
       eventDate: session.eventDate,
+      readOnly,
     };
 
     const ref = this.dialogService.open(AttendanceRosterPanelComponent, {

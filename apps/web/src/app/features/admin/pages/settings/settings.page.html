@@ -40,5 +40,30 @@
         />
       </div>
     </div>
+
+    <div class="settings-page__section">
+      <h3 id="settings-responsible-title" class="settings-page__section-title">誰負責點名</h3>
+      <p class="settings-page__section-desc">
+        <strong>行政負責</strong
+        >：由行政人員點名。老師端只看得到自己課堂的名單與到／假／缺，不能點名或修改。<br />
+        <strong>老師負責</strong>：老師端出現點名、教務日誌、聯絡簿，可在補登期限內修改。
+      </p>
+      <div class="settings-page__control">
+        <p-selectbutton
+          [options]="attendanceResponsibleOptions"
+          [(ngModel)]="attendanceResponsibleValue"
+          optionLabel="label"
+          optionValue="value"
+          ariaLabelledBy="settings-responsible-title"
+        />
+        <span class="settings-page__divider" aria-hidden="true"></span>
+        <p-button
+          label="儲存"
+          icon="pi pi-check"
+          [loading]="savingResponsible()"
+          (onClick)="saveAttendanceResponsible()"
+        />
+      </div>
+    </div>
   }
 </div>

@@ -73,6 +73,16 @@
                 (onClick)="cancelLeave(student.studentId)"
               />
             }
+          } @else if (session.readOnly) {
+            <app-data-chip>
+              {{
+                getStatus(student.studentId) === 'present'
+                  ? '出席'
+                  : getStatus(student.studentId) === 'absent'
+                    ? '缺席'
+                    : '未點名'
+              }}
+            </app-data-chip>
           } @else {
             <div class="roster-panel__toggle">
               <p-button
@@ -97,45 +107,51 @@
       }
     </div>
 
-    <div class="roster-panel__footer">
-      <!--
+    @if (session.readOnly) {
+      <div class="roster-panel__footer">
+        <span class="roster-panel__progress">由行政人員點名，這裡只能查看</span>
+      </div>
+    } @else {
+      <div class="roster-panel__footer">
+        <!--
         進度講在按鈕旁邊。**三種狀態都有話講，所以這一格永遠在** ——
         標完最後一人的瞬間如果它消失，footer 會縮 25px、儲存鈕往上跳，
         而那正是手指要按下去的那一刻（teacher-pages 在 390px 實測到）。
 
         三句話長度刻意接近（都 ≤ 9 字），不然換行本身又是一次位移。
       -->
-      <span class="roster-panel__progress">
-        @if (rosterEmpty()) {
-          這堂課沒有學生
-        } @else if (pendingCount() > 0) {
-          還有 {{ pendingCount() }} 人未標記
-        } @else if (exemptCount() > 0 && markedCount() === 0) {
-          <!-- 全班都請假：一個都沒標不是「完成」，他根本沒東西可標 -->
-          {{ exemptCount() }} 人請假，不需標記
-        } @else if (exemptCount() > 0) {
-          <!--
+        <span class="roster-panel__progress">
+          @if (rosterEmpty()) {
+            這堂課沒有學生
+          } @else if (pendingCount() > 0) {
+            還有 {{ pendingCount() }} 人未標記
+          } @else if (exemptCount() > 0 && markedCount() === 0) {
+            <!-- 全班都請假：一個都沒標不是「完成」，他根本沒東西可標 -->
+            {{ exemptCount() }} 人請假，不需標記
+          } @else if (exemptCount() > 0) {
+            <!--
             混合情況（標了一部分、也有人請假豁免）——這條原本落進「全部標記
             完成」，因為那個分支只看「有沒有人請假」沒看「還有沒有人被標記」。
             那句話宣稱了一個沒發生的事實：這堂課有人根本沒被標記過，
             只是被豁免了，不等於「全部」都標了。
           -->
-          已標記 {{ markedCount() }} 人・{{ exemptCount() }} 人請假
-        } @else {
-          全部標記完成
-        }
-      </span>
-      <div class="roster-panel__actions">
-        <p-button
-          label="全部出席"
-          icon="pi pi-users"
-          severity="secondary"
-          [outlined]="true"
-          (onClick)="markAllPresent()"
-        />
-        <!-- 刻意不 disable：按不下去的按鈕不會解釋原因，按得下去的才會（save() 裡說明） -->
-        <p-button label="儲存點名" icon="pi pi-check" [loading]="saving()" (onClick)="save()" />
+            已標記 {{ markedCount() }} 人・{{ exemptCount() }} 人請假
+          } @else {
+            全部標記完成
+          }
+        </span>
+        <div class="roster-panel__actions">
+          <p-button
+            label="全部出席"
+            icon="pi pi-users"
+            severity="secondary"
+            [outlined]="true"
+            (onClick)="markAllPresent()"
+          />
+          <!-- 刻意不 disable：按不下去的按鈕不會解釋原因，按得下去的才會（save() 裡說明） -->
+          <p-button label="儲存點名" icon="pi pi-check" [loading]="saving()" (onClick)="save()" />
+        </div>
       </div>
-    </div>
+    }
   }
 </div>
