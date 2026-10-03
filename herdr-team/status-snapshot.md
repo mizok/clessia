@@ -33,13 +33,15 @@
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-03 15:4x，計畫席 labor-plan-20261003-1534。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-03 15:5x，計畫席 labor-plan-20261003-1534。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
 | PR    | 為什麼保留                                   | 狀態                                                                                                                                                                                                                                  |
 | ----- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | #1183 | kiosk 角色：migration `20261003073117_kiosk_role.sql`＋授權（daily-checkins 免登入打卡、campus-scope）＋ AGENTS.md 角色表加第四角色 | head `65385b44`，verify 綠。**可否決 kiosk 角色本身**（設計在 #1127 留言與 `kb/wiki/architecture/kiosk-checkin.md`）。合了請在 Actions `prod-db` 按 Approve；**計畫席在您合的瞬間凍結其他合併並掛守衛，apply 綠才解凍**（#1146）。 |
+
+| #1188 | kiosk 帳號 API：POST /api/staff 收 roles=[kiosk]（單獨、一校、無權限、佔位 email）、PUT 限改名／狀態／換校、login-links 對 kiosk 要 manage_staff＋範圍＝綁的分校、打卡回應帶 student.name＋todaySessions | **draft 疊 #1183**，head `742eba92`。1536 的刻意判斷：建機台帳號門檻用 `manage_staff` 不走 `manage_roles`（理由在 PR）—— 您可否決。#1183 合後它轉 base main 再請您合。 |
 
 接下來會出現的保留類：#1127 前端後半（1536，疊 #1183）、#1175 課程費用欄（1536）、#1118 餘項推薦課 `is_recommended` migration（1536）。10-03 已合的保留類鏈：#1132／#1137／#1141／#1143／#1145／#1150／#1152／#1180（migration 皆已套、使用者逐一 Approve；#1180 的 run `37106717548` apply 綠）。
 
@@ -52,7 +54,9 @@
 
 1. ~~修憲 c6 續跑~~ 已完成：腳本已跑、#1062 於 10-02 23:38 由擁有者合併、`law-c6` worktree 已清。（這一列在 #1061 寫下時腳本還沒跑，10-03 00:2x 複查才發現已過期 —— 快照寫「等使用者」的事項，接手先 `gh pr list --state all --search` 查一次。）
 2. ~~兩個 GitHub environment~~ 已設好（10-03 00:0x），#977 已由 migrate.yml 套上；之後遇到 migration 只要在 Actions 的 `prod-db` 按 Approve。
-3. **api 部署**：每次由使用者在 reviewer worktree 的 `apps/api` 跑 `npx wrangler deploy --env production`；reviewer 準備截線並驗證。**第五次部署備中（10-03 12:4x）**：⓪ 窗口到 main `6103d4d0`（S2），含 #1132 migration 已套；api：#1080／#1094／#1102／#1096／#1105／#1132／#1136／#1137；web：T4／#1078／#1089／#1091／#1093／#1096／#1080／#1147／#1148。reviewer 回「就緒＋截線」後請您按。
+3. **api 部署**：每次由使用者在 reviewer worktree 的 `apps/api` 跑 `npx wrangler deploy --env production`；reviewer 準備截線並驗證。**第七次部署就緒（10-03 15:5x，reviewer 驗過）**：截線 main `3590b5f5`（#1162）；窗口 `9ae774ea..3590b5f5` 唯一 migration 是 #1180 的 `20261003071532_payment_info.sql`，已由 run `37106717548` apply 綠；api 動的是 #1180 帳戶資訊五檔；web 新 `main-GXLILR73.js`（本機 167 個 js 有 31 個線上沒有）。**您按 api 那一行，reviewer 再發 web**：
+   `cd .worktrees/labor-reviewer-20261001-2204/apps/api && npx wrangler deploy --env production`
+   #1164 與之後合的歸第八次。
 4. **T4 cssLayer 回歸**需使用者在場一次（複製 `.dev.vars`），計畫席排時間。
 
 ### 使用者要裁的
@@ -137,7 +141,7 @@ success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只
 
 | 席                                       | 在做                                                                                                                        | 備註                                                                                        |
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `labor-20261003-1456`（Opus）            | 前端：#991 逐頁 A6（#1162→#1164 等 rebase）、#1174 課表甘特 G1（#1184 draft，#1179 已合要轉 base main）；之後 #1138 | 開席 10-03 14:56，接 1226；charter #1186 |
+| `labor-20261003-1552`（Opus）            | 前端：#1174 G2 週視圖 → G3 快速選取、#1138 H1 全站搜尋／H2 CampusContextService、#991 courses 目錄 | 開席 10-03 15:52，接 1456（已關，charter #1186 已合）；設計稿與 .pw-regression 已複製到它 worktree |
 | `labor-20261003-1536`（Opus）            | 後端：#1127 後半（kiosk 帳號端點、前端搬頁與登入導向，疊 #1183）→ QR 卡設計 → #1175 → #1118 餘項 | 開席 10-03 15:36，接 1307（charter #1185）；1307 的 #1150 實打殘留在本機 DB（db-reset 已量，下次 reset 逐項對） |
 | `labor-plan-20261003-1534`（Fable）      | 計畫席 | 開席 10-03 15:34，接 2351（已關）；心跳腳本已改名 |
 | `labor-reviewer-20261001-2204`（Sonnet） | 代合＋部署驗證；今天四十餘支。**分類器擋它**：production deploy、手動 merge、刪遠端分支、部分留言 —— 這幾類走計畫席或使用者 | steward-merge.sh 已修多筆 verify（#1053）                                                   |
