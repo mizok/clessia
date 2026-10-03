@@ -8,6 +8,7 @@ import gradesRoute from './parent/grades';
 import billingRoute from './parent/billing';
 import classLogsRoute from './parent/class-logs';
 import enrollmentRequestsRoute from './parent/enrollment-requests';
+import trialRequestsRoute from './parent/trial-requests';
 import { inOrg } from '../lib/org-scope';
 
 const MeResponseSchema = z
@@ -299,5 +300,6 @@ app.route('/grades', gradesRoute);
 app.route('/billing', billingRoute);
 app.route('/class-logs', classLogsRoute);
 app.route('/enrollment-requests', enrollmentRequestsRoute);
+app.route('/trial-requests', trialRequestsRoute);
 
 export default app;

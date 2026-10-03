@@ -3,7 +3,7 @@ title: 試聽申請流程
 summary: 本文件整理 PRD 6.2，定義試聽申請從提交、安排、試聽到跟進的完整流程。此流程與報名申請流程獨立，但可在資料層建立來源關聯。
 category: flow
 status: active
-updated: 2026-03-17
+updated: 2026-10-03
 tags: [flows, trial]
 ---
 
@@ -23,6 +23,10 @@ tags: [flows, trial]
 可中止分支：
 
 - `canceled`：家長取消時由管理員代為標記。
+
+> 2026-10-03（#1120）：已有帳號的家長走 `POST /api/me/trial-requests`，一門課一筆、狀態 `pending`；
+> DB 拼法是 `cancelled`（與既有 enum 一致）。**試聽算不算名額尚未裁**，目前不扣名額、不檢查額滿。
+> 公開表單（無帳號）與管理端安排另案。
 
 ## 3. 完整流程（誰做什麼）
 

@@ -104,6 +104,7 @@ gate 只是收尾：**禁止家長端的檔案出現 `c.get('supabase')`**。它
 - **寫入走 `childDb.from(table, studentIdColumn)` 的 `insert()`／`update()`**（`lib/child-db.ts`）。
   - `insert`：這一列的學生 id 不在 scope（或根本不是家長，scope `null`）→ **不送 DB**，回 `outOfScope`，
     route 回 403。`org_id` 一律蓋成 session 的，呼叫端塞什麼都不算數。
+  - `insertMany`（#1120 試聽一次多門課）：**任一列越權整批不送**，部分寫入比全拒更難收拾。
   - `update`：回傳的 builder 已帶 `org_id` 與 `.in(studentIdColumn, scope)`，scope 外的列根本選不到；
     學生欄位與 `org_id` 從 values 裡剔除（不能把一筆資料「過戶」給別的學生或別的 org）。
   - ⚠️ **寫入面的 `null` 跟讀取面刻意不同**：讀取面 `scope === null` 不加條件（防禦性保留），
