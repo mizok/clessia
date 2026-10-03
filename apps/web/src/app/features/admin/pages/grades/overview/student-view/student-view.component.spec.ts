@@ -6,6 +6,8 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { MessageService } from 'primeng/api';
 import { vi } from 'vitest';
 
+import { CampusContextService } from '@core/campus-context.service';
+
 import { StudentViewComponent } from './student-view.component';
 
 describe('StudentViewComponent', () => {
@@ -16,6 +18,8 @@ describe('StudentViewComponent', () => {
   const openMock = vi.fn();
 
   beforeEach(async () => {
+    // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
+    localStorage.removeItem('clessia.campusContext');
     await TestBed.configureTestingModule({
       imports: [StudentViewComponent],
       providers: [
@@ -114,6 +118,25 @@ describe('StudentViewComponent', () => {
     });
 
     expect((component as any).loadingList()).toBe(false);
+  });
+
+  it('分校跟頂欄走：頂欄換分校帶 campusId 重查學生（#1138）', () => {
+    fixture.detectChanges();
+    http
+      .match((req) => req.url.includes('/api/students'))
+      .forEach((r) =>
+        r.flush({ data: [], meta: { total: 0, page: 1, pageSize: 100, totalPages: 1 } }),
+      );
+
+    TestBed.inject(CampusContextService).select('campus-9');
+    fixture.detectChanges();
+
+    const reqs = http.match((req) => req.url.includes('/api/students'));
+    expect(reqs.map((r) => r.request.params.get('campusId'))).toEqual(['campus-9']);
+    reqs.forEach((r) =>
+      r.flush({ data: [], meta: { total: 0, page: 1, pageSize: 100, totalPages: 1 } }),
+    );
+    http.match(() => true).forEach((r) => r.flush({ data: [], meta: { total: 0 } }));
   });
 
   it('opens score detail dialog when selecting student', () => {

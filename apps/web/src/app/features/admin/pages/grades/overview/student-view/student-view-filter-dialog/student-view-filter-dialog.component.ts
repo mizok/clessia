@@ -16,7 +16,6 @@ export interface FilterOption<TValue> {
 }
 
 export interface StudentViewFilterSnapshot {
-  readonly campusId: string;
   readonly searchText: string;
   readonly grade: GradeLevel | '';
   readonly schoolId: string | null;
@@ -26,7 +25,6 @@ export interface StudentViewFilterSnapshot {
 export interface StudentViewFilterDialogData {
   readonly initial: StudentViewFilterSnapshot;
   readonly options: {
-    readonly campusOptions: ReadonlyArray<FilterOption<string>>;
     readonly gradeOptions: ReadonlyArray<FilterOption<GradeLevel>>;
     readonly schoolOptions: ReadonlyArray<FilterOption<string>>;
     readonly statusOptions: ReadonlyArray<FilterOption<StudentActiveStatusFilter>>;
@@ -49,7 +47,6 @@ export class StudentViewFilterDialogComponent {
 
   protected readonly options = this.config.data?.options;
 
-  protected readonly campusId = signal(this.config.data?.initial.campusId ?? '');
   protected readonly searchText = signal(this.config.data?.initial.searchText ?? '');
   protected readonly grade = signal<GradeLevel | ''>(this.config.data?.initial.grade ?? '');
   protected readonly schoolId = signal<string | null>(this.config.data?.initial.schoolId ?? null);
@@ -62,17 +59,11 @@ export class StudentViewFilterDialogComponent {
   }
 
   protected clear(): void {
-    this.campusId.set('');
     this.searchText.set('');
     this.grade.set('');
     this.schoolId.set(null);
     this.status.set('active');
     this.config.data?.onClear?.();
-    this.emitChange();
-  }
-
-  protected onCampusChange(value: string | null): void {
-    this.campusId.set(value ?? '');
     this.emitChange();
   }
 
@@ -98,7 +89,6 @@ export class StudentViewFilterDialogComponent {
 
   private emitChange(): void {
     this.config.data?.onChange?.({
-      campusId: this.campusId(),
       searchText: this.searchText(),
       grade: this.grade(),
       schoolId: this.schoolId(),

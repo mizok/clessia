@@ -10,21 +10,6 @@
 
   <div class="student-view-filter-dialog__body">
     <div class="student-view-filter-dialog__group">
-      <label class="student-view-filter-dialog__label">分校</label>
-      <p-select
-        [options]="options?.campusOptions ?? []"
-        [ngModel]="campusId()"
-        (ngModelChange)="onCampusChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全部分校"
-        [showClear]="true"
-        size="small"
-        [appendTo]="'body'"
-      />
-    </div>
-
-    <div class="student-view-filter-dialog__group">
       <label class="student-view-filter-dialog__label">搜尋</label>
       <input
         pInputText
