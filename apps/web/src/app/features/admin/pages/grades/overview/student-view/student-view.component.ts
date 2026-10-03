@@ -17,17 +17,13 @@ import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
 import { PaginatorModule } from 'primeng/paginator';
 import { DialogService } from 'primeng/dynamicdialog';
-import { ButtonModule } from 'primeng/button';
+import { RouterLink } from '@angular/router';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
-import {
-  PageBreadcrumbComponent,
-  type BreadcrumbItem,
-} from '@shared/components/page-breadcrumb/page-breadcrumb.component';
-import { JdenticonAvatarComponent } from '@shared/components/jdenticon-avatar/jdenticon-avatar.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { SchoolsService } from '@core/schools.service';
 import {
   GRADE_LEVEL_LABELS,
@@ -47,7 +43,6 @@ import {
   type StudentActiveStatusFilter,
   type StudentViewFilterSnapshot,
 } from './student-view-filter-dialog/student-view-filter-dialog.component';
-import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
 const GRADE_OPTIONS: Array<{ label: string; value: GradeLevel }> = GRADE_LEVELS.map((grade) => ({
@@ -67,20 +62,18 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
   selector: 'app-student-view',
   standalone: true,
   imports: [
-    DataChipComponent,
     FormsModule,
+    RouterLink,
+    PageOpenComponent,
     SelectModule,
     InputTextModule,
     PaginatorModule,
-    ButtonModule,
     EmptyStateComponent,
-    PageBreadcrumbComponent,
-    JdenticonAvatarComponent,
     ToastModule,
     LoadFailedComponent,
   ],
   templateUrl: './student-view.component.html',
-  styleUrl: './student-view.component.scss',
+  host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [DialogService, MessageService],
 })
@@ -108,11 +101,6 @@ export class StudentViewComponent implements OnInit {
   private readonly loadRequests = new Subject<void>();
 
   readonly page = input<RouteObj>();
-
-  protected readonly breadcrumbs: BreadcrumbItem[] = [
-    { label: '成績總覽', routerLink: '/admin/grades/overview' },
-    { label: '學生視角' },
-  ];
 
   protected readonly gradeOptions = GRADE_OPTIONS;
   protected readonly statusOptions = STATUS_OPTIONS;
@@ -147,7 +135,10 @@ export class StudentViewComponent implements OnInit {
       result = result.filter((student) => student.school?.id === schoolId);
     }
 
-    return result;
+    // 依年級分章（A6，計畫席裁 Q7）：先依年級排好再切頁；同年級內維持 API 回來的順序（sort 是穩定的）
+    return [...result].sort(
+      (a, b) => GRADE_LEVELS.indexOf(a.grade) - GRADE_LEVELS.indexOf(b.grade),
+    );
   });
 
   protected readonly totalStudents = computed(() => this.filteredStudents().length);
@@ -155,6 +146,17 @@ export class StudentViewComponent implements OnInit {
   protected readonly pagedStudents = computed(() => {
     const start = (this.currentPage() - 1) * PAGE_SIZE;
     return this.filteredStudents().slice(start, start + PAGE_SIZE);
+  });
+
+  /** 這一頁的學生依年級分章；同一年級可能跨頁 */
+  protected readonly pageChapters = computed(() => {
+    const chapters: Array<{ grade: GradeLevel; students: Student[] }> = [];
+    for (const s of this.pagedStudents()) {
+      const last = chapters.at(-1);
+      if (last?.grade === s.grade) last.students.push(s);
+      else chapters.push({ grade: s.grade, students: [s] });
+    }
+    return chapters;
   });
 
   constructor() {

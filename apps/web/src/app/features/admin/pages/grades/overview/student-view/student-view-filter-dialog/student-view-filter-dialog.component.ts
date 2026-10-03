@@ -38,7 +38,6 @@ export interface StudentViewFilterDialogData {
   standalone: true,
   imports: [FormsModule, ButtonModule, InputTextModule, SelectModule],
   templateUrl: './student-view-filter-dialog.component.html',
-  styleUrl: './student-view-filter-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StudentViewFilterDialogComponent {

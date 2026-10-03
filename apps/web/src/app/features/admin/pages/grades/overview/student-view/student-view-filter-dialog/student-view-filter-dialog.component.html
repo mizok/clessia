@@ -1,16 +1,21 @@
-<div class="student-view-filter-dialog">
+<div class="flex flex-col gap-4">
   <div class="dialog-header-inline">
-    <div class="dialog-header-inline__content student-view-filter-dialog__header-content">
-      <span class="student-view-filter-dialog__title">篩選</span>
+    <div class="dialog-header-inline__content flex w-full flex-row items-center">
+      <span class="text-md font-semibold text-zinc-900">篩選</span>
     </div>
-    <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="關閉">
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="close()"
+      aria-label="關閉"
+    >
       <i class="pi pi-times"></i>
     </button>
   </div>
 
-  <div class="student-view-filter-dialog__body">
-    <div class="student-view-filter-dialog__group">
-      <label class="student-view-filter-dialog__label">搜尋</label>
+  <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-2">
+      <label class="text-xs font-semibold text-zinc-600">搜尋</label>
       <input
         pInputText
         type="text"
@@ -20,9 +25,9 @@
       />
     </div>
 
-    <div class="student-view-filter-dialog__row">
-      <div class="student-view-filter-dialog__group">
-        <label class="student-view-filter-dialog__label">年級</label>
+    <div class="grid grid-cols-2 gap-3">
+      <div class="flex flex-col gap-2">
+        <label class="text-xs font-semibold text-zinc-600">年級</label>
         <p-select
           [options]="options?.gradeOptions ?? []"
           [ngModel]="grade()"
@@ -36,8 +41,8 @@
         />
       </div>
 
-      <div class="student-view-filter-dialog__group">
-        <label class="student-view-filter-dialog__label">就讀學校</label>
+      <div class="flex flex-col gap-2">
+        <label class="text-xs font-semibold text-zinc-600">就讀學校</label>
         <p-select
           [options]="options?.schoolOptions ?? []"
           [ngModel]="schoolId()"
@@ -52,8 +57,8 @@
       </div>
     </div>
 
-    <div class="student-view-filter-dialog__group">
-      <label class="student-view-filter-dialog__label">啟用狀態</label>
+    <div class="flex flex-col gap-2">
+      <label class="text-xs font-semibold text-zinc-600">啟用狀態</label>
       <p-select
         [options]="options?.statusOptions ?? []"
         [ngModel]="status()"
@@ -66,7 +71,7 @@
     </div>
   </div>
 
-  <div class="student-view-filter-dialog__actions">
+  <div class="flex justify-end">
     <p-button label="重設" severity="secondary" [text]="true" (onClick)="clear()" />
   </div>
 </div>

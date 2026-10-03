@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { of } from 'rxjs';
@@ -14,6 +15,7 @@ describe('StudentScoreDetailDialogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [StudentScoreDetailDialogComponent],
       providers: [
+        provideRouter([]),
         { provide: DynamicDialogRef, useValue: { close: () => undefined } },
         {
           provide: DynamicDialogConfig,
@@ -60,11 +62,9 @@ describe('StudentScoreDetailDialogComponent', () => {
     ]);
     fixture.detectChanges();
 
-    const values = fixture.nativeElement.querySelectorAll(
-      '.student-score-detail-dialog__summary-value',
-    );
+    const values = fixture.nativeElement.querySelectorAll('[data-part=summary-value]');
     expect(values[0].textContent.trim()).toBe('50 / 100');
-    expect(values[0].classList).toContain('student-score-detail-dialog__summary-value--fail');
+    expect(values[0].hasAttribute('data-fail')).toBe(true);
   });
 
   it('補習班科目平均達六成門檻時不標記不及格', () => {
@@ -79,10 +79,8 @@ describe('StudentScoreDetailDialogComponent', () => {
     ]);
     fixture.detectChanges();
 
-    const values = fixture.nativeElement.querySelectorAll(
-      '.student-score-detail-dialog__summary-value',
-    );
-    expect(values[0].classList).not.toContain('student-score-detail-dialog__summary-value--fail');
+    const values = fixture.nativeElement.querySelectorAll('[data-part=summary-value]');
+    expect(values[0].hasAttribute('data-fail')).toBe(false);
   });
 
   it('補習班科目沒有任何小考成績時（sum 為 null）顯示 — 且不標記不及格', () => {
@@ -97,10 +95,8 @@ describe('StudentScoreDetailDialogComponent', () => {
     ]);
     fixture.detectChanges();
 
-    const values = fixture.nativeElement.querySelectorAll(
-      '.student-score-detail-dialog__summary-value',
-    );
+    const values = fixture.nativeElement.querySelectorAll('[data-part=summary-value]');
     expect(values[0].textContent.trim()).toBe('—');
-    expect(values[0].classList).not.toContain('student-score-detail-dialog__summary-value--fail');
+    expect(values[0].hasAttribute('data-fail')).toBe(false);
   });
 });

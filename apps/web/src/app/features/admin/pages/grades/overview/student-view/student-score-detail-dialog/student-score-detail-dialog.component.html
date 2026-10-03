@@ -1,232 +1,229 @@
-<div class="student-score-detail-dialog">
-  @if (student; as s) {
-    <div class="dialog-header-inline">
-      <div class="dialog-header-inline__content student-score-detail-dialog__header-content">
-        <app-jdenticon-avatar [value]="s.id" [size]="36" />
-        <div class="student-score-detail-dialog__header-text">
-          <span class="student-score-detail-dialog__name">{{ s.name }}</span>
-          <span class="student-score-detail-dialog__grade">{{ formatGrade(s.grade) }}</span>
-        </div>
+<!--
+  A6 版（#991 grades G5，A6 grades-student.html 的 .gdlg）：標頭 → 各科摘要（A6 沒畫，既有功能保留）→
+  型態／科目／期間 → 合計列 → .rec 紀錄列 → 學生檔案。
+  A6 每場的「及格線」「班名／班平均」「這場全班的成績」缺資料（ScoreRecord 沒有 passScore／className／
+  classAvg／examId），列 #991 後續項；不及格沿用既有退路（該場總分的 60%）。
+-->
+@if (student; as s) {
+  <div class="dialog-header-inline">
+    <div class="dialog-header-inline__content flex items-center gap-3">
+      <app-jdenticon-avatar [value]="s.id" [size]="36" />
+      <div class="flex min-w-0 flex-col">
+        <span class="text-lg font-bold text-zinc-900">{{ s.name }} 的成績</span>
+        <span class="text-sm text-zinc-600">{{ formatGrade(s.grade) }}</span>
       </div>
-      <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="關閉">
-        <i class="pi pi-times"></i>
+    </div>
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="close()"
+      aria-label="關閉"
+    >
+      <i class="pi pi-times"></i>
+    </button>
+  </div>
+
+  <div class="flex flex-col gap-4 px-4 pb-4 wide:px-6 wide:pb-6">
+    @if (loadingSummary()) {
+      <p class="m-0 flex items-center gap-2 text-sm text-zinc-600">
+        <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+        載入科目摘要...
+      </p>
+    } @else if (summary().length > 0) {
+      <!-- 各科摘要（既有功能，A6 沒畫）：灰面、一科一格 -->
+      <div class="grid grid-cols-1 gap-3 rounded-lg bg-zinc-100 p-4 sm:grid-cols-2">
+        @for (subj of summary(); track subj.subjectName) {
+          <div class="flex min-w-0 flex-col gap-2">
+            <span class="flex items-baseline justify-between gap-2">
+              <b class="text-base text-zinc-900">{{ subj.subjectName }}</b>
+              <span class="text-sm text-zinc-600 tabular-nums">{{ subj.totalRecords }} 筆</span>
+            </span>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="flex flex-col gap-0.5">
+                <span class="inline-flex items-center gap-1 text-sm text-zinc-700">
+                  近期小考
+                  <i
+                    class="pi pi-info-circle text-xs text-zinc-600"
+                    pTooltip="最近一次段考之後的補習班考試平均；若無段考紀錄則取全部歷史。"
+                    tooltipPosition="top"
+                    aria-label="近期小考的算法"
+                  ></i>
+                </span>
+                <span
+                  data-part="summary-value"
+                  class="text-xl font-bold text-zinc-900 tabular-nums data-fail:text-error-700"
+                  [attr.data-fail]="
+                    isFailingAcademyAverage(subj.academySum, subj.academyTotalSum) || null
+                  "
+                >
+                  {{ formatScore(subj.academySum, subj.academyTotalSum) }}
+                </span>
+              </div>
+              <div class="flex flex-col gap-0.5">
+                <span class="text-sm text-zinc-700">最近段考</span>
+                <span
+                  data-part="summary-value"
+                  class="text-xl font-bold text-zinc-900 tabular-nums data-fail:text-error-700"
+                  [attr.data-fail]="isFailingAverage(subj.schoolAvg) || null"
+                >
+                  {{ formatAvg(subj.schoolAvg) }}
+                </span>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <p-select
+        [options]="typeOptions"
+        [ngModel]="typeFilter()"
+        (ngModelChange)="onTypeChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        ariaLabel="考試型態"
+        [appendTo]="'body'"
+        styleClass="min-w-36"
+      />
+      <p-select
+        [options]="subjectOptions()"
+        [ngModel]="subjectFilter()"
+        (ngModelChange)="onSubjectChange($event)"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="全部科目"
+        [showClear]="true"
+        ariaLabel="科目"
+        [appendTo]="'body'"
+        styleClass="min-w-36"
+      />
+      <!-- 期間：A6 .seg -->
+      <span
+        class="inline-flex overflow-hidden rounded-md border border-zinc-300"
+        role="group"
+        aria-label="期間"
+      >
+        @for (opt of timeRangeOptions; track opt.value) {
+          <button
+            type="button"
+            class="min-h-11 cursor-pointer border-0 bg-white px-3 text-md text-zinc-900 not-first:border-l not-first:border-zinc-300 aria-pressed:bg-zinc-900 aria-pressed:font-semibold aria-pressed:text-white"
+            [attr.aria-pressed]="timeRange() === opt.value"
+            (click)="onTimeRangeChange(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        }
+      </span>
+    </div>
+
+    @if (!loadingScores() && scores().length > 0) {
+      <p class="m-0 text-md text-zinc-700 tabular-nums">
+        顯示 <b>{{ filteredScores().length }}</b
+        >／{{ scores().length }} 場 · 不及格 {{ failCount() }} 場
+        @if (absentCount()) {
+          · 缺考 {{ absentCount() }} 場
+        }
+      </p>
+    }
+
+    @if (loadingScores()) {
+      <p class="m-0 flex items-center gap-2 text-sm text-zinc-600">
+        <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+        載入成績中...
+      </p>
+    } @else if (filteredScores().length === 0) {
+      <app-empty-state
+        icon="pi pi-chart-bar"
+        title="尚無成績紀錄"
+        description="此學生目前沒有符合篩選條件的成績"
+      />
+    } @else {
+      <!-- 紀錄列（A6 .rec）：桌機手機同一份 -->
+      <ul class="m-0 list-none border-t border-zinc-900 p-0" aria-label="成績紀錄">
+        @for (record of pagedScores(); track record.id) {
+          <li
+            data-part="record"
+            class="grid grid-cols-[48px_minmax(0,1fr)_72px] items-center gap-x-4 gap-y-1 border-b border-surface-border py-3 wide:grid-cols-[64px_minmax(0,1fr)_120px_auto]"
+          >
+            <span class="text-sm text-zinc-600 tabular-nums">{{ record.examDate.slice(5) }}</span>
+            <span class="min-w-0">
+              <span class="font-semibold text-zinc-900">{{ record.examName }}</span>
+              <span class="block text-sm text-zinc-600">
+                {{ getTypeLabel(record.type) }}
+                @if (record.subjectName) {
+                  · {{ record.subjectName }}
+                }
+                · {{ record.examDate }}
+              </span>
+            </span>
+            <span
+              class="text-right text-xl font-bold tabular-nums"
+              [class.text-zinc-900]="!isFailing(record.score, record.totalScore)"
+              [class.text-error-700]="isFailing(record.score, record.totalScore)"
+            >
+              {{ formatScore(record.score, record.totalScore) }}
+              <small class="block text-xs font-medium text-zinc-600">
+                @switch (record.status) {
+                  @case ('absent') {
+                    缺考
+                  }
+                  @case ('makeup') {
+                    補考
+                  }
+                  @default {
+                    分
+                  }
+                }
+              </small>
+            </span>
+            <span class="col-[2/-1] justify-self-start wide:col-auto wide:justify-self-end">
+              @if (record.status === 'absent') {
+                <span
+                  class="inline-flex items-center gap-1 rounded-sm bg-zinc-100 px-1.5 text-xs leading-normal font-semibold text-zinc-800"
+                  ><i class="pi pi-times text-[10px]" aria-hidden="true"></i>缺考</span
+                >
+              } @else if (isFailing(record.score, record.totalScore)) {
+                <span
+                  class="inline-flex items-center gap-1 rounded-sm bg-error-100 px-1.5 text-xs leading-normal font-semibold text-error-700"
+                  ><i class="pi pi-exclamation-triangle text-[10px]" aria-label="不及格"></i
+                  >不及格</span
+                >
+              } @else if (record.status === 'makeup') {
+                <span
+                  class="inline-flex items-center rounded-sm bg-zinc-100 px-1.5 text-xs leading-normal font-semibold text-zinc-800"
+                  >補考</span
+                >
+              }
+            </span>
+          </li>
+        }
+      </ul>
+
+      @if (filteredScores().length > scorePageSize) {
+        <p-paginator
+          [rows]="scorePageSize"
+          [totalRecords]="filteredScores().length"
+          [first]="scorePage() * scorePageSize"
+          (onPageChange)="onScorePageChange($event)"
+        />
+      }
+    }
+
+    <div class="flex justify-end gap-2">
+      <a
+        class="inline-flex h-11 items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400"
+        [routerLink]="['/admin/students', s.id]"
+        (click)="close()"
+        >學生檔案</a
+      >
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+        (click)="close()"
+      >
+        關閉
       </button>
     </div>
-
-    <div class="student-score-detail-dialog__body">
-      @if (loadingSummary()) {
-        <div
-          class="student-score-detail-dialog__loading student-score-detail-dialog__loading--inline"
-        >
-          <i class="pi pi-spinner pi-spin"></i>
-          載入科目摘要...
-        </div>
-      } @else if (summary().length > 0) {
-        <div class="student-score-detail-dialog__summary">
-          @for (subj of summary(); track subj.subjectName) {
-            <div class="student-score-detail-dialog__summary-card">
-              <span class="student-score-detail-dialog__summary-subject">{{
-                subj.subjectName
-              }}</span>
-              <div class="student-score-detail-dialog__summary-scores">
-                <div class="student-score-detail-dialog__summary-item">
-                  <span class="student-score-detail-dialog__summary-label">
-                    近期小考
-                    <i
-                      class="pi pi-info-circle student-score-detail-dialog__summary-info"
-                      pTooltip="最近一次段考之後的補習班考試平均；若無段考紀錄則取全部歷史。"
-                      tooltipPosition="top"
-                    ></i>
-                  </span>
-                  <span
-                    class="student-score-detail-dialog__summary-value"
-                    [class.student-score-detail-dialog__summary-value--fail]="
-                      isFailingAcademyAverage(subj.academySum, subj.academyTotalSum)
-                    "
-                  >
-                    {{ formatScore(subj.academySum, subj.academyTotalSum) }}
-                  </span>
-                </div>
-                <div class="student-score-detail-dialog__summary-item">
-                  <span class="student-score-detail-dialog__summary-label">最近段考</span>
-                  <span
-                    class="student-score-detail-dialog__summary-value"
-                    [class.student-score-detail-dialog__summary-value--fail]="
-                      isFailingAverage(subj.schoolAvg)
-                    "
-                  >
-                    {{ formatAvg(subj.schoolAvg) }}
-                  </span>
-                </div>
-              </div>
-              <span class="student-score-detail-dialog__summary-count"
-                >{{ subj.totalRecords }} 筆</span
-              >
-            </div>
-          }
-        </div>
-      }
-
-      <div class="student-score-detail-dialog__filters">
-        <div class="student-score-detail-dialog__filter-row">
-          <p-select
-            [options]="typeOptions"
-            [ngModel]="typeFilter()"
-            (ngModelChange)="onTypeChange($event)"
-            optionLabel="label"
-            optionValue="value"
-            size="small"
-            [appendTo]="'body'"
-            styleClass="student-score-detail-dialog__type-select"
-          />
-          <p-select
-            [options]="subjectOptions()"
-            [ngModel]="subjectFilter()"
-            (ngModelChange)="onSubjectChange($event)"
-            optionLabel="label"
-            optionValue="value"
-            placeholder="全部科目"
-            [showClear]="true"
-            size="small"
-            [appendTo]="'body'"
-            styleClass="student-score-detail-dialog__subject-select"
-          />
-        </div>
-        <p-selectbutton
-          [options]="timeRangeOptions"
-          [ngModel]="timeRange()"
-          (ngModelChange)="onTimeRangeChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          size="small"
-        />
-      </div>
-
-      @if (!loadingScores() && scores().length > 0) {
-        <div class="student-score-detail-dialog__result-bar">
-          <span class="student-score-detail-dialog__result-count">
-            顯示 <strong>{{ filteredScores().length }}</strong> / {{ scores().length }} 筆
-          </span>
-        </div>
-      }
-
-      @if (loadingScores()) {
-        <div
-          class="student-score-detail-dialog__loading student-score-detail-dialog__loading--inline"
-        >
-          <i class="pi pi-spinner pi-spin"></i>
-          載入成績中...
-        </div>
-      } @else if (filteredScores().length === 0) {
-        <app-empty-state
-          icon="pi pi-chart-bar"
-          title="尚無成績紀錄"
-          description="此學生目前沒有符合篩選條件的成績"
-        />
-      } @else {
-        <div class="student-score-detail-dialog__table-wrap">
-          <table class="student-score-detail-dialog__table">
-            <thead>
-              <tr>
-                <th class="student-score-detail-dialog__th">日期</th>
-                <th class="student-score-detail-dialog__th">考試名稱</th>
-                <th class="student-score-detail-dialog__th">類型</th>
-                <th class="student-score-detail-dialog__th">科目</th>
-                <th class="student-score-detail-dialog__th student-score-detail-dialog__th--score">
-                  分數
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (record of pagedScores(); track record.id) {
-                <tr class="student-score-detail-dialog__score-row">
-                  <td
-                    class="student-score-detail-dialog__cell student-score-detail-dialog__cell--date"
-                  >
-                    {{ record.examDate }}
-                  </td>
-                  <td class="student-score-detail-dialog__cell">{{ record.examName }}</td>
-                  <td class="student-score-detail-dialog__cell">
-                    <app-data-chip>{{ getTypeLabel(record.type) }}</app-data-chip>
-                  </td>
-                  <td class="student-score-detail-dialog__cell">{{ record.subjectName ?? '—' }}</td>
-                  <td
-                    class="student-score-detail-dialog__cell student-score-detail-dialog__cell--score"
-                    [class.student-score-detail-dialog__cell--fail]="
-                      isFailing(record.score, record.totalScore)
-                    "
-                  >
-                    @if (isFailing(record.score, record.totalScore)) {
-                      <i
-                        class="pi pi-exclamation-triangle student-score-detail-dialog__fail-icon"
-                        aria-label="不及格"
-                      ></i>
-                    }
-                    {{ formatScore(record.score, record.totalScore) }}
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-
-        <div class="student-score-detail-dialog__record-cards">
-          @for (record of pagedScores(); track record.id) {
-            <article class="student-score-detail-dialog__record-card">
-              <div class="student-score-detail-dialog__record-top">
-                <div class="student-score-detail-dialog__record-meta">
-                  <span class="student-score-detail-dialog__record-date">{{
-                    record.examDate
-                  }}</span>
-                  <span class="student-score-detail-dialog__record-name">{{
-                    record.examName
-                  }}</span>
-                </div>
-                <app-data-chip>{{ getTypeLabel(record.type) }}</app-data-chip>
-              </div>
-              <div class="student-score-detail-dialog__record-grid">
-                <div class="student-score-detail-dialog__record-field">
-                  <span class="student-score-detail-dialog__record-label">科目</span>
-                  <span class="student-score-detail-dialog__record-value">{{
-                    record.subjectName ?? '—'
-                  }}</span>
-                </div>
-                <div class="student-score-detail-dialog__record-field">
-                  <span class="student-score-detail-dialog__record-label">分數</span>
-                  <span
-                    class="student-score-detail-dialog__record-value student-score-detail-dialog__record-value--score"
-                    [class.student-score-detail-dialog__record-value--fail]="
-                      isFailing(record.score, record.totalScore)
-                    "
-                  >
-                    <!--
-                      **形狀訊號要跟桌機一致。** 上面那張表的不及格有 icon +
-                      aria-label，這張卡片原本只有顏色 —— 而顏色不能是唯一的區分
-                      （WCAG 1.4.1）。雙軌實作漂移的實例。
-                    -->
-                    @if (isFailing(record.score, record.totalScore)) {
-                      <i
-                        class="pi pi-exclamation-triangle student-score-detail-dialog__fail-icon"
-                        aria-label="不及格"
-                      ></i>
-                    }
-                    {{ formatScore(record.score, record.totalScore) }}
-                  </span>
-                </div>
-              </div>
-            </article>
-          }
-        </div>
-
-        @if (filteredScores().length > scorePageSize) {
-          <p-paginator
-            [rows]="scorePageSize"
-            [totalRecords]="filteredScores().length"
-            [first]="scorePage() * scorePageSize"
-            (onPageChange)="onScorePageChange($event)"
-          />
-        }
-      }
-    </div>
-  }
-</div>
+  </div>
+}

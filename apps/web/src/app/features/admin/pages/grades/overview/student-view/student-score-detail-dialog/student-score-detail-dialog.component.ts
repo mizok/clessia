@@ -10,13 +10,13 @@ import {
   untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { subMonths } from 'date-fns';
 
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
 import { MessageService } from 'primeng/api';
 import { PaginatorModule } from 'primeng/paginator';
-import { SelectButtonModule } from 'primeng/selectbutton';
 import { SelectModule } from 'primeng/select';
 import { TooltipModule } from 'primeng/tooltip';
 
@@ -29,7 +29,6 @@ import {
   type SubjectAverage,
 } from '@core/scores.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel, type Student } from '@core/students.service';
-import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
 import { isFailingScore } from '@shared/utils/score-threshold.util';
 
 type TypeFilter = 'all' | ScoreRecordType;
@@ -61,17 +60,16 @@ const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
   selector: 'app-student-score-detail-dialog',
   standalone: true,
   imports: [
-    DataChipComponent,
     FormsModule,
+    RouterLink,
     EmptyStateComponent,
     JdenticonAvatarComponent,
     PaginatorModule,
-    SelectButtonModule,
     SelectModule,
     TooltipModule,
   ],
   templateUrl: './student-score-detail-dialog.component.html',
-  styleUrl: './student-score-detail-dialog.component.scss',
+  host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StudentScoreDetailDialogComponent implements OnInit {
@@ -128,6 +126,14 @@ export class StudentScoreDetailDialogComponent implements OnInit {
 
     return result;
   });
+
+  /** 合計列（A6 .gdlg__sum）：只數篩選後的；不算跨場平均 —— 各場總分不同，平均沒有意義 */
+  protected readonly failCount = computed(
+    () => this.filteredScores().filter((r) => this.isFailing(r.score, r.totalScore)).length,
+  );
+  protected readonly absentCount = computed(
+    () => this.filteredScores().filter((r) => r.status === 'absent').length,
+  );
 
   protected readonly pagedScores = computed(() => {
     const all = this.filteredScores();
