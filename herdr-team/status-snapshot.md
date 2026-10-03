@@ -22,13 +22,13 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-03 20:2x 第八次部署，labor-reviewer-20261001-2204）
+## 🚀 線上是哪一版（2026-10-03 20:4x 第九次部署，labor-reviewer-20261001-2204）
 
-**截線 `3a3e70c9`**（#1197；`verify` success）：web `main-C6R5BOGL.js`（有重發，本席 `wrangler pages deploy`；本機 `dist` 20:20 新產物、build exit=0）、api `ea6338e4-71b5-4d2c-aa6d-8b02287d06dd`（使用者 20:22 親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。順序：api 先、web 後。
-含：api #1183 kiosk 角色＋#1188 機台帳號＋打卡回應帶確認資訊＋#1197 學生搜尋比對家長電話（僅管理員）；web 含 #1164（學生檔案 A6）、#1191（課表 G2 週視圖）（7 個新 js 檔）。
-**⓪**：窗口 `3590b5f5..3a3e70c9` 的 migration 只有 #1183 的 `20261003073117_kiosk_role.sql`，已由 `migrate.yml` run `37121615717` apply 綠套上；#1188／#1197 無 migration。
-**部署驗證**：web 線上 `main-C6R5BOGL.js`＝本機 build；本機 167 個 js 檔線上缺 0 個（部署前 7）、負控 chunk 回 `text/html`；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html；cf-placement `remote-SIN`；`openapi.json` 132 條路徑（`/api/staff`、`/api/students`、`/api/daily-checkins`、`/api/login-links` 皆在；無新路由，kiosk 是角色與既有端點的行為）。**限度**：openapi 證明不了新程式碼上線，只證明服務正常、版本已換。
-**第九批**：#1203（全站搜尋 H1，`26b487b1`）、#1206（打卡看假單）之後合進 main 的。
+**截線 `d55aa967`**（#1193；`verify` success）：web `main-AZKSKONB.js`（有重發，本席 `wrangler pages deploy`；本機 `dist` 20:37 新產物、build exit=0）、api `7ceb9391-2a91-46f1-8d60-44c5e587e3a6`（使用者 20:41 親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。順序：api 先、web 後。
+含：api #1206（打卡看假單，`daily-checkins.ts` 一支）；web #1203（全站搜尋 H1）、#1210（課表 G3 快速選取）、#1193（人員頁機台 UI）等（本機 172 個 js 檔裡有 88 個是新的）。
+**⓪**：窗口 `3a3e70c9..d55aa967` 無 migration。
+**部署驗證**：web 線上 `main-AZKSKONB.js`＝本機 build；本機 172 個 js 檔線上缺 0 個（部署前 88；**驗證當下有一個 chunk 回了 `text/html`，過幾秒、換 cache-buster 與 pages 預覽網址後都回 `application/javascript`——是 Pages 傳播延遲，不是漏發**）、負控 chunk 回 `text/html`；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html；cf-placement `remote-SIN`；`openapi.json` 132 條路徑（無新路由）。**限度**：openapi 證明不了新程式碼上線，只證明服務正常、版本已換。
+**第十批**：#1213（sessions 列表 latestChange，`cbe6a063`）、#1215（H2 分校鈕）、#1214／#1212（`classes.default_fee_template_id` migration，保留類，凍結中等 Approve）之後合進 main 的。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 📋 等使用者
