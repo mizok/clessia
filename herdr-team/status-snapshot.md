@@ -33,18 +33,19 @@
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-03 11:4x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-03 12:0x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
 | PR    | 為什麼保留                                   | 狀態                                                                                                                                                                                                                                  |
 | ----- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| #1137 | #1133 授權（c1）：campuses GET 補 org 過濾、PUT／DELETE 加分校範圍 | 可合（verify 看 GitHub）。head `85f17f23`，已 rebase 到含 #1132／#1136 的 main，2 支檔。修前紅 3 條→綠。 |
-| #1141 | #1119 migration＋授權：enrollment_requests 表＋家長端報名申請（含候補） | 可合。head `3e6570de`，10 支檔，新 migration `20261003033635_enrollment_requests.sql`（只新增；RLS 啟用無 policy，照既有慣例）；childDb 加 insert／update（scope 外在送 DB 前拒絕、org_id 取 session）、orgRef 白名單只讀、activeEnrollmentCount 只回數字；/api/me/enrollment-requests GET／POST／:id/cancel；額滿 server 判、家長明確帶 waitlist 才建候補（您 10-03 裁）。A19 gate 乾淨（parent 路由零 c.get('supabase')）。**含架構文件變更** parent-data-scope.md「家長端寫入 v1 唯讀」→ 走 childDb 入口。未做：核准流程與管理端列表、家長端寫入稽核、候補自動遞補。合後 migrate.yml 再停一次 prod-db 等 Approve。 |
+| #1141 | #1119 migration＋授權：enrollment_requests 表＋家長端報名申請（含候補） | **第五次部署完成後才合**（帶 migration，合後再 Approve 一次）。head `3e6570de`，10 支檔，新 migration `20261003033635_enrollment_requests.sql`；childDb 加 insert／update（scope 外在送 DB 前拒絕）、orgRef 白名單只讀；額滿 server 判、家長明確帶 waitlist 才建候補。A19 乾淨。**含架構文件變更** parent-data-scope.md「v1 唯讀」→ 走 childDb 入口（您可否決）。 |
+| #1143 | #1120 migration＋授權：trial_requests 表＋家長端試聽申請 | draft 疊在 #1141 上；#1141 合後 1155 轉 base main 再轉 ready。head `a986d2c6`，新 migration `20261003034741_trial_requests.sql`；名額不扣（試聽算不算名額待裁）。 |
+| #1145 | #1116 授權：家長端「孩子的課堂」GET /api/me/sessions | 可合但排 #1143 之後（child-db.spec.ts／me.ts 尾端文字衝突，後合者 rebase）。head `d44b33fc`，+764/-13。三項裁定照做（停課回 cancelled、代課露實際老師＋isSubstitute、段考不放）。**順帶修一個現有 bug**：childDb.pluck 只套家長全部孩子，class-logs 把兄弟姊妹的班混進來（不越權、張冠李戴），pluck 加必填 studentId。 |
 
-接下來會出現的保留類（labor-20261003-1119 排程中）：#1120（trial_requests）。
+接下來會出現的保留類（labor-20261003-1155 排程中）：#1114（請假綁堂次，migration）、#1118（家長課程目錄）。
 
-10-03 中午已合：#1132（出勤模式分校層級，migration 已由 migrate.yml 套／待 Approve 見上）、#1136（重掃不覆寫，非保留）。
+10-03 中午已合：#1132（出勤模式分校層級；migration `20261003032358` 已由 migrate.yml 套，使用者 12:0x Approve，差集複查過）、#1136（重掃不覆寫）、#1137（campuses c1）。**教訓（#1146）**：等 Approve 的 apply 會被後續 main 的新 run 取代 → Approve 落地前凍結合併，計畫席掛守衛取消新 run。
 **家長端寫入的架構裁定（10-03 11:5x，計畫席裁，您可否決）**：`parent-data-scope.md` 原列「家長端寫入 v1 唯讀」為明確不做；為了候補登記與申請表，改成寫入走 `childDb.insert／update`（scope 外在送 DB 前拒絕）、機構層級參考資料走 `orgRef` 白名單唯讀（classes／courses／enrollments 計數），不用 DB trigger。文件更新跟 #1119 同 PR。
 
 10-03 上午已合的五支保留類：#1069（T4）、#1080（#920）、#1094（#1081）、#1102（#1098）、#1089（#1059），分支皆已刪；#1078（P1）隨後由 reviewer 合。
@@ -53,7 +54,7 @@
 
 1. ~~修憲 c6 續跑~~ 已完成：腳本已跑、#1062 於 10-02 23:38 由擁有者合併、`law-c6` worktree 已清。（這一列在 #1061 寫下時腳本還沒跑，10-03 00:2x 複查才發現已過期 —— 快照寫「等使用者」的事項，接手先 `gh pr list --state all --search` 查一次。）
 2. ~~兩個 GitHub environment~~ 已設好（10-03 00:0x），#977 已由 migrate.yml 套上；之後遇到 migration 只要在 Actions 的 `prod-db` 按 Approve。
-3. **api 部署**：每次由使用者在 reviewer worktree 的 `apps/api` 跑 `npx wrangler deploy --env production`（分類器擋 reviewer 的 production deploy）；reviewer 準備截線並驗證。**第五次部署待備（10-03 中午）**：api 含 #1080／#1094／#1102／#1096／#1105，web 含 T4 #1069／#1078／#1089／#1091／#1093／#1096／#1080；reviewer 等 main verify 綠備截線後請您按。
+3. **api 部署**：每次由使用者在 reviewer worktree 的 `apps/api` 跑 `npx wrangler deploy --env production`；reviewer 準備截線並驗證。**第五次部署備中（10-03 12:4x）**：⓪ 窗口到 main `6103d4d0`（S2），含 #1132 migration 已套；api：#1080／#1094／#1102／#1096／#1105／#1132／#1136／#1137；web：T4／#1078／#1089／#1091／#1093／#1096／#1080／#1147／#1148。reviewer 回「就緒＋截線」後請您按。
 4. **T4 cssLayer 回歸**需使用者在場一次（複製 `.dev.vars`），計畫席排時間。
 
 ### 使用者要裁的
@@ -141,8 +142,8 @@ success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只
 
 | 席                                       | 在做                                                                                                                        | 備註                                                                                        |
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `labor-20261002-2126`（Opus）            | Tailwind **P1：admin/changes**（#991，剛放行）→ #920 → #1059；T0／T1／T2 已合；T4 等使用者在場                              | charter `labor-20261002-2126.md`（#1050）；B 批方法在裡面；Ctx 晚間 45%                     |
-| `labor-20261002-1234`（Opus）            | #990 批 4 完成（Version 29）、第二段補驗收尾後**蒸餾交接**；批 5 家長端 11 頁交下一任                                       | charter `design-web.md`（#1026／#1051）；設計稿資料夾只在它的 worktree，交接要複製；Ctx 70% |
+| `labor-20261003-1128`（Opus）            | #991 殼切片 S：S1 #1147、S2 #1148 已合，S3（殼改寫＋刪 sidebar）進行中；之後 #1138 頂欄搜尋＋分校切換 | 開席 10-03 11:28；A6 稿在 2356 的 worktree（留著）                                           |
+| `labor-20261003-1155`（Opus）            | #1100 後端缺口鏈：#1145 交付，接 #1114 → #1118；#1143 等 #1141 合後轉 base                                   | 開席 10-03 11:55，接 1119（charter `labor-20261003-1119.md`）                                 |
 | `labor-reviewer-20261001-2204`（Sonnet） | 代合＋部署驗證；今天四十餘支。**分類器擋它**：production deploy、手動 merge、刪遠端分支、部分留言 —— 這幾類走計畫席或使用者 | steward-merge.sh 已修多筆 verify（#1053）                                                   |
 | `labor-db-reset`                         | 待命；本機 DB＝main（RESET #13）                                                                                            | charter 新增「筆數也量不到搬移」（#1019）                                                   |
 | `labor-ops-warden`                       | 巡檢；10-02 charter 加了 UTC、重讀、[Pasted text]、charter 檔對 origin/main 查、時長判準、backlog 用 blocked 承載           |                                                                                             |
