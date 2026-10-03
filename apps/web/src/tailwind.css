@@ -32,6 +32,7 @@
  */
 
 @source './app/shared/components/select-field';
+@source './app/shared/components/page-open';
 @source './app/features/admin/pages/changes';
 
 /* 跟 PrimeNG 的 darkModeSelector 對齊 */
@@ -131,6 +132,11 @@
   --breakpoint-md: 768px;
   --breakpoint-lg: 1024px;
   --breakpoint-xl: 1280px;
+  /*
+   * A6 殼的桌機／手機切換（設計稿 `max-width: 860px`）。殼與遷移後的頁面「桌機版面」一律用 `wide:`；
+   * sm／md／lg／xl 留給頁面內部細排（#991 S 裁定 Q3）。
+   */
+  --breakpoint-wide: 861px;
 
   --container-mobile: 640px;
   --container-tablet-portrait: 768px;
@@ -154,4 +160,13 @@
 }
 @utility w-window {
   width: var(--window-width, 100dvw);
+}
+
+/*
+ * A6 的白面欄寬（`.wrap`）：開場色面裡的字與頁面本體對齊同一條左緣。遷移後的頁面本體一律包它。
+ */
+@utility page-wrap {
+  max-width: 1120px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 4%, 48px);
 }
