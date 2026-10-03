@@ -2172,3 +2172,47 @@ test('A24 交叉檢查：列入 @source 的目錄底下不得還有 SCSS（前�
   ]);
   assert.deepEqual(sourceConflicts(['apps/web/src/app/pages/other'], entries), []);
 });
+
+test('A24 交叉檢查：@source 列單一檔案時只算同一個元件的 SCSS，同目錄別頁的不算', () => {
+  const dir = 'apps/web/src/app/pages/students';
+  const entries = [
+    `${dir}/students.page.scss`,
+    `${dir}/detail/student-detail.page.scss`,
+    `${dir}/student-form-dialog.component.scss`,
+  ];
+  // 列表頁已遷（.scss 已刪）：同目錄的 dialog、detail 還沒遷，不得誤紅
+  assert.deepEqual(sourceConflicts([`${dir}/students.page.html`], entries.slice(1)), []);
+  // 但列了檔案、自己的 .scss 還在 —— 兩套並存，照樣紅
+  assert.deepEqual(sourceConflicts([`${dir}/students.page.html`], entries), [
+    { dir: `${dir}/students.page.html`, entries: [`${dir}/students.page.scss`] },
+  ]);
+});
+
+/**
+ * `@source` 列單一檔案時，A27 要真的掃到它（不是因為 walk 不認檔案而靜默跳過），
+ * A24 也不能把同目錄還沒遷的 .scss 當衝突。兩個邊界都在 check-harness.mjs 的組裝裡，
+ * 所以整支跑：暫時在 tailwind.css 加一行指向陷阱檔的 @source，跑完還原。
+ */
+test('@source 列單一檔案：A27 仍抓得到陷阱、A24 不對同目錄其他 .scss 誤紅', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const src = join(here, '../../apps/web/src');
+  const twFile = join(src, 'tailwind.css');
+  const original = readFileSync(twFile, 'utf8');
+  const trapRel = 'app/features/admin/pages/students/__a27-trap__.html'; // 同目錄有 students.page.scss
+  const trap = join(src, trapRel);
+  try {
+    writeFileSync(trap, '<button class="flex items-center" (click)="x()">a</button>\n');
+    writeFileSync(twFile, `${original}\n@source './${trapRel}';\n`);
+    const run = spawnSync(process.execPath, [join(here, 'check-harness.mjs')], {
+      encoding: 'utf8',
+    });
+    assert.ok(
+      run.stderr.split('\n').some((l) => l.includes('__a27-trap__.html:1 的 <button> 可點')),
+      run.stderr,
+    );
+    assert.ok(!/students[^\n]*已列入 tailwind\.css 的 @source/.test(run.stderr), run.stderr);
+  } finally {
+    writeFileSync(twFile, original);
+    rmSync(trap, { force: true });
+  }
+});

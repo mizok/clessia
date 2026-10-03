@@ -5,7 +5,7 @@
  * 「沒定義」（A20 實例：Tailwind 按鈕被判成「會吃 button reset 渲染成純文字」）。
  *
  * 判準用 Tailwind 自己的 design system（`candidatesToCss`）：拼錯的、不存在的 utility 回空，
- * 跟 build 的行為一致。**只對 `tailwind.css` 的 `@source` 目錄底下的檔有效** —— 其他目錄不會被掃，
+ * 跟 build 的行為一致。**只對 `tailwind.css` 的 `@source` 列的目錄（或單一檔案）有效** —— 其他目錄不會被掃，
  * 寫在那裡的 `w-full` 實際上沒有樣式（PrimeFlex 遺留的死 class 就是這種）。
  *
  * ⚠️ API 名稱帶 `__unstable__`。Tailwind 升版時它若改名，這裡會丟例外而不是靜靜放行。
