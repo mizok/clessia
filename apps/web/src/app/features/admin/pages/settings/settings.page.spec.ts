@@ -139,4 +139,33 @@ describe('SettingsPage', () => {
       expect(bodyText()).not.toContain('誰負責點名');
     });
   });
+
+  /**
+   * #1073：補習班帳戶資訊（家長待付款頁要看）。它是財務設定 —— API 只回給有
+   * `manage_finance` 的人（key 不存在 ≠ null），所以沒有那個 key 就整段不畫：
+   * 畫一個讀不到值的空欄位、按下儲存就會把機構的帳戶清掉。
+   */
+  it('有帳戶資訊這個 key（財務權限）→ 顯示多行欄位，儲存送 paymentInfo', async () => {
+    orgSettingsServiceMock.getSettings.mockReturnValue(
+      of({ ...DAILY_CHECKIN, paymentInfo: '台銀 004\n帳號 111' }),
+    );
+    await setup();
+
+    const textarea = (fixture.nativeElement as HTMLElement).querySelector(
+      'textarea.settings-page__textarea',
+    ) as HTMLTextAreaElement | null;
+    expect(bodyText()).toContain('家長付款帳戶資訊');
+    expect(textarea?.value).toBe('台銀 004\n帳號 111');
+
+    component['paymentInfoValue'] = '郵局 700';
+    component['savePaymentInfo']();
+
+    expect(orgSettingsServiceMock.updateSettings).toHaveBeenCalledWith({ paymentInfo: '郵局 700' });
+  });
+
+  it('回應裡沒有 paymentInfo（沒有財務權限）→ 不畫帳戶資訊區塊', async () => {
+    await setup();
+
+    expect(bodyText()).not.toContain('家長付款帳戶資訊');
+  });
 });

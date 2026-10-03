@@ -10,6 +10,8 @@ export interface Campus {
   address: string | null;
   phone: string | null;
   isActive: boolean;
+  /** 帳戶資訊覆寫（#1073）。null = 沿用機構預設 */
+  paymentInfo: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -47,6 +49,8 @@ export interface UpdateCampusInput {
   address?: string | null;
   phone?: string | null;
   isActive?: boolean;
+  /** null／空白 = 改回沿用機構預設。要 `manage_finance`，沒有的人不要送這個 key */
+  paymentInfo?: string | null;
 }
 
 @Injectable({

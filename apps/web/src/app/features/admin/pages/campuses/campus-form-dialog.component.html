@@ -49,6 +49,23 @@
     />
   </div>
 
+  @if (canEditPaymentInfo()) {
+    <div class="form-dialog__field">
+      <label class="form-dialog__label" for="campus-payment-info">家長付款帳戶資訊</label>
+      <textarea
+        id="campus-payment-info"
+        pTextarea
+        rows="4"
+        maxlength="1000"
+        [ngModel]="formData().paymentInfo"
+        (ngModelChange)="updateForm('paymentInfo', $event)"
+        placeholder="留白＝沿用系統設定裡的機構帳戶資訊"
+        [disabled]="loading()"
+        class="w-full"
+      ></textarea>
+    </div>
+  }
+
   <!-- Footer -->
   <div class="form-dialog__footer">
     <p-button

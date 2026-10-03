@@ -100,6 +100,7 @@ describe('CampusesPage', () => {
         address: null,
         phone: null,
         isActive: true,
+        paymentInfo: null,
         createdAt: '2026-03-11T00:00:00.000Z',
         updatedAt: '2026-03-11T00:00:00.000Z',
       },
@@ -139,6 +140,7 @@ describe('CampusesPage', () => {
       address: null,
       phone: null,
       isActive: true,
+      paymentInfo: null,
       createdAt: '2026-03-11T00:00:00.000Z',
       updatedAt: '2026-03-11T00:00:00.000Z',
     };

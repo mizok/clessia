@@ -42,6 +42,17 @@
     margin: 0 0 var(--space-2);
   }
 
+  &__textarea {
+    width: 100%;
+    resize: vertical;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--space-3);
+  }
+
   &__section-desc {
     font-size: 0.875rem;
     color: var(--zinc-500);

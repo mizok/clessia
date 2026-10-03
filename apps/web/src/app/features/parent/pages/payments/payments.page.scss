@@ -191,6 +191,21 @@
     color: var(--zinc-500);
   }
 
+  // #1073：帳戶資訊是管理員打的多行文字 —— 換行要照留，長帳號要能折
+  &__account-text {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+
+  &__detail-notice &__account-campus {
+    font-weight: 600;
+    color: var(--zinc-700);
+  }
+
+  &__account + &__account {
+    margin-top: var(--space-2);
+  }
+
   &__detail-notice {
     padding: var(--space-3);
     background: var(--zinc-50);

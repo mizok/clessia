@@ -14,7 +14,11 @@ import { DrawerModule } from 'primeng/drawer';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { ChildScopeService } from '@core/child-scope.service';
-import { ParentBillingService, type ParentInvoice } from '@core/parent-billing.service';
+import {
+  ParentBillingService,
+  type ParentInvoice,
+  type ParentInvoiceListResponse,
+} from '@core/parent-billing.service';
 import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { PageBandComponent } from '@shared/components/page-band/page-band.component';
@@ -54,6 +58,8 @@ export class PaymentsPage implements OnInit {
   protected readonly invoices = signal<ParentInvoice[]>([]);
   protected readonly total = signal(0);
   protected readonly totalDue = signal(0);
+  /** 補習班帳戶資訊（#1073），待付款詳情列出；空陣列退回「請洽行政人員」 */
+  protected readonly paymentInfo = signal<ParentInvoiceListResponse['meta']['paymentInfo']>([]);
   protected readonly currentPage = signal(1);
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
@@ -110,6 +116,7 @@ export class PaymentsPage implements OnInit {
         this.invoices.set(append ? [...this.invoices(), ...res.data] : res.data);
         this.total.set(res.meta.total);
         this.totalDue.set(res.meta.totalDue);
+        this.paymentInfo.set(res.meta.paymentInfo);
         this.currentPage.set(page);
         this.loading.set(false);
       },

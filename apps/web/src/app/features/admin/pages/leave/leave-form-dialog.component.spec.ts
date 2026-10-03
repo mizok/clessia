@@ -34,6 +34,7 @@ describe('LeaveFormDialogComponent', () => {
         address: null,
         phone: null,
         isActive: true,
+        paymentInfo: null,
         createdAt: '2026-04-09T00:00:00.000Z',
         updatedAt: '2026-04-09T00:00:00.000Z',
       },
