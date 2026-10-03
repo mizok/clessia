@@ -16,7 +16,7 @@ import dailyCheckinsApp from './daily-checkins';
  */
 function createCheckinApp(
   fixture: {
-    events?: Array<{ id: string; sessions: unknown }>;
+    events?: Array<{ id: string; sessions: unknown; start_time?: string; end_time?: string }>;
     enrollments?: Array<{ class_id: string; effective_from: string; effective_to: string | null }>;
     /** `organizations.attendance_mode`；預設日到班（DB 預設，#976） */
     mode?: 'daily_checkin' | 'per_session';
@@ -327,6 +327,12 @@ describe('POST /api/daily-checkins —— 只寫有報名的課堂', () => {
     const attendance = upsertCalls.find((call) => call.table === 'attendance_records');
     return {
       status: response.status,
+      statusByEvent: Object.fromEntries(
+        ((attendance?.rows ?? []) as Array<Record<string, unknown>>).map((row) => [
+          row['event_id'],
+          row['status'],
+        ]),
+      ),
       wroteCheckin: upsertCalls.some((call) => call.table === 'daily_checkins'),
       eventIds: ((attendance?.rows ?? []) as Array<Record<string, unknown>>).map(
         (row) => row['event_id'],
@@ -373,6 +379,53 @@ describe('POST /api/daily-checkins —— 只寫有報名的課堂', () => {
     const { eventIds } = await checkin({ mode: 'daily_checkin' });
 
     expect(eventIds).toEqual(['event-1', 'event-2']);
+  });
+
+  /**
+   * #1201：假單建立時那堂的 event 多半還沒生成（家長提前請假），連動寫不到 `on_leave`；
+   * 學生到校一掃碼，那堂就被寫成 present、流進扣課。判準跟點名名單同一支 `leaveCoversSession`。
+   */
+  const TWO_SESSIONS = [
+    {
+      id: 'ev-am',
+      start_time: '09:00',
+      end_time: '10:00',
+      sessions: [{ id: 'ses-am', class_id: 'class-1' }],
+    },
+    {
+      id: 'ev-pm',
+      start_time: '14:00',
+      end_time: '15:00',
+      sessions: [{ id: 'ses-pm', class_id: 'class-1' }],
+    },
+  ];
+  const LEAVE_DAY = { start_date: '2026-04-06', end_date: '2026-04-06' };
+
+  it('被假單（時間窗）蓋到的課堂寫 on_leave，其他照寫 present', async () => {
+    const { statusByEvent } = await checkin({
+      events: TWO_SESSIONS,
+      leaves: [{ ...LEAVE_DAY, start_time: '08:00', end_time: '12:00' }],
+    });
+
+    expect(statusByEvent).toEqual({ 'ev-am': 'on_leave', 'ev-pm': 'present' });
+  });
+
+  it('綁定堂次的假只蓋那一堂（看 session id，不看時間）', async () => {
+    const { statusByEvent } = await checkin({
+      events: TWO_SESSIONS,
+      leaves: [
+        {
+          ...LEAVE_DAY,
+          start_time: null,
+          end_time: null,
+          leave_request_sessions: [
+            { session_id: 'ses-pm', sessions: { session_date: '2026-04-06' } },
+          ],
+        },
+      ],
+    });
+
+    expect(statusByEvent).toEqual({ 'ev-am': 'present', 'ev-pm': 'on_leave' });
   });
 
   // #1112：出勤模式是分校層級 —— 打卡帶了分校，就看那個分校的設定

@@ -2,11 +2,12 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { enrolledClassIdsOn, enrolledEventIds } from '../lib/enrolled-events';
-import { isCancelledSession } from '../lib/cancelled-session';
+import { isCancelledSession, toSessionRows } from '../lib/cancelled-session';
 import {
   LEAVE_WINDOW_COLUMNS,
   leaveCoversSession,
   toLeaveWindow,
+  type SessionWindow,
 } from '../lib/leave-covers-session';
 import { assertAttendanceWindow } from '../lib/attendance-window-check';
 import { logAudit } from '../utils/audit';
@@ -188,17 +189,30 @@ app.openapi(
     // 在籍條件照抄 roster（`status = 'active'` + 生效區間）—— 掃碼寫得出來的紀錄，
     // 必須是那堂課點名時看得到的人，否則會出現「有出勤紀錄但名單上沒這個人」的鬼影。
     // 兩種模式都要讀：確認畫面的「今日課堂」用同一份（#1127）。
-    const { data: enrollments } = await supabase
-      .from('enrollments')
-      .select('class_id, effective_from, effective_to')
-      .eq('org_id', orgId)
-      .eq('student_id', body.studentId)
-      .eq('status', 'active');
+    // 假單同理：寫出勤（#1201）與確認畫面的 `onLeave` 共用這一份、同一支 `coveredByLeave`。
+    const [{ data: enrollments }, { data: leaveRows }] = await Promise.all([
+      supabase
+        .from('enrollments')
+        .select('class_id, effective_from, effective_to')
+        .eq('org_id', orgId)
+        .eq('student_id', body.studentId)
+        .eq('status', 'active'),
+      supabase
+        .from('leave_requests')
+        .select(LEAVE_WINDOW_COLUMNS)
+        .eq('org_id', orgId)
+        .eq('student_id', body.studentId)
+        .lte('start_date', body.checkinDate)
+        .gte('end_date', body.checkinDate),
+    ]);
     const enrollmentRows = (enrollments ?? []) as Array<{
       class_id: string;
       effective_from: string;
       effective_to: string | null;
     }>;
+    const leaves = ((leaveRows ?? []) as Array<Record<string, unknown>>).map(toLeaveWindow);
+    const coveredByLeave = (session: SessionWindow) =>
+      leaves.some((leave) => leaveCoversSession(leave, session));
 
     let eventIds: string[] = [];
     if (attendanceMode === 'daily_checkin') {
@@ -223,7 +237,7 @@ app.openapi(
       // 加上 `!inner` 回 19 筆 —— 那筆確實會被吃掉。
       let eventsQuery = supabase
         .from('events')
-        .select('id, sessions(class_id, status)')
+        .select('id, start_time, end_time, sessions(id, class_id, status)')
         .eq('org_id', orgId)
         .eq('event_date', body.checkinDate);
 
@@ -251,18 +265,36 @@ app.openapi(
       );
 
       if (eventIds.length > 0) {
+        // 被假單蓋到的課堂寫 `on_leave` 不寫 `present`（#1201）。請假連動只寫得到建單當下
+        // **已經存在**的 event，而 event 是讀取時才補建的 —— 家長提前請假時那堂還沒有紀錄，
+        // 學生到校一掃碼就被寫成出席、流進扣課。
+        // 寫 `on_leave` 而不是跳過：點名名單送出時也是替被蓋到的人補寫 `on_leave`（system）。
+        const eventById = new Map(
+          ((events ?? []) as Array<Record<string, any>>).map((event) => [event['id'], event]),
+        );
+        const eventOnLeave = (eventId: string) => {
+          const event = eventById.get(eventId);
+          return coveredByLeave({
+            sessionId: toSessionRows<{ id?: string }>(event?.['sessions'])[0]?.id ?? null,
+            date: body.checkinDate,
+            startTime: event?.['start_time'] ?? null,
+            endTime: event?.['end_time'] ?? null,
+          });
+        };
+
         await supabase.from('attendance_records').upsert(
           eventIds.map((eventId: string) => ({
             org_id: orgId,
             student_id: body.studentId,
             event_id: eventId,
-            status: 'present',
+            status: eventOnLeave(eventId) ? 'on_leave' : 'present',
             recorded_by: userId,
             recorded_by_role: 'system',
           })),
           // **只補沒有的，不動已經存在的。** 掃碼是機器讀到一張卡，不該推翻老師的判斷 ——
           // 老師改成缺席、學生事後補掃，原本會被改回 present 而且不留痕跡。
-          // 掃碼寫的永遠是 `present`，所以「跳過已存在的」不會漏掉任何資訊。
+          // 掃碼寫的只有 `present` 與假單推得出的 `on_leave`，所以「跳過已存在的」不會漏掉任何資訊。
+          // 取消打卡（DELETE）只刪 `present`：這裡寫的 `on_leave` 跟著假單走，不跟著這次打卡走。
           { onConflict: 'student_id,event_id', ignoreDuplicates: true },
         );
       }
@@ -302,7 +334,7 @@ app.openapi(
     if (confirmationScope !== null) {
       sessionsQuery = sessionsQuery.in('classes.campus_id', [...confirmationScope]);
     }
-    const [{ data: student }, { data: sessionRows }, { data: leaveRows }] = await Promise.all([
+    const [{ data: student }, { data: sessionRows }] = await Promise.all([
       supabase
         .from('students')
         .select('name')
@@ -310,13 +342,6 @@ app.openapi(
         .eq('id', body.studentId)
         .maybeSingle(),
       classIds.length > 0 ? sessionsQuery : Promise.resolve({ data: [] }),
-      supabase
-        .from('leave_requests')
-        .select(LEAVE_WINDOW_COLUMNS)
-        .eq('org_id', orgId)
-        .eq('student_id', body.studentId)
-        .lte('start_date', body.checkinDate)
-        .gte('end_date', body.checkinDate),
     ]);
     const liveSessions = ((sessionRows ?? []) as Array<Record<string, any>>).filter(
       (row) => !isCancelledSession(row),
@@ -340,7 +365,6 @@ app.openapi(
         r.status,
       ]),
     );
-    const leaves = ((leaveRows ?? []) as Array<Record<string, unknown>>).map(toLeaveWindow);
     const todaySessions = liveSessions
       .map((row) => {
         const klass = Array.isArray(row['classes']) ? row['classes'][0] : row['classes'];
@@ -353,9 +377,7 @@ app.openapi(
           className: (klass?.name as string | undefined) ?? '',
           startTime,
           endTime,
-          onLeave: leaves.some((leave) =>
-            leaveCoversSession(leave, { sessionId, date: body.checkinDate, startTime, endTime }),
-          ),
+          onLeave: coveredByLeave({ sessionId, date: body.checkinDate, startTime, endTime }),
           attendance: ((eventId && statusByEvent.get(eventId)) || null) as
             'present' | 'absent' | 'on_leave' | null,
         };
