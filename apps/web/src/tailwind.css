@@ -24,6 +24,8 @@
  * **掃描範圍 = 已遷移路徑清單，起始為空（#991 計畫席裁定）。** 每支頁面 PR 把自己的目錄加一行
  * `@source './app/…';`，同一支 PR 刪掉那個目錄的 .scss —— 這份清單就是 SCSS 帳面的另一面，
  * A24 交叉檢查兩邊（列在這裡的目錄底下不得有 .scss；帳面上還有 .scss 的目錄不得列在這裡）。
+ * 目錄裡還有沒遷的別頁時（students 列表與 detail/ 同目錄），改列**單一檔案**（`x.page.html`、`x.page.ts`）：
+ * A24 只看同一個元件的 .scss，A27／A28 照樣掃到它；整個目錄遷完再收成一行目錄。
  *
  * 為什麼不是 `@source './app'`：既有 template 有 90+ 處「長得像 Tailwind、但 SCSS 從沒定義」的
  * 死 class（PrimeFlex 遺留：`w-full` ×90、`mb-2`、`p-4`、`text-2xl`…），今天是 no-op。

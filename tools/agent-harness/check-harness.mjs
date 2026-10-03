@@ -10,7 +10,7 @@
  * claim exists actually exists. Semantic quality is a review/LLM job, not a gate's.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -191,8 +191,13 @@ function skillDescription(name) {
   return text.length > 110 ? `${text.slice(0, 107)}…` : text;
 }
 
-/** 遞迴列出副檔名相符的檔案。A10 / A11 / A12 共用 —— 原本各自帶一份一樣的閉包。 */
+/**
+ * 遞迴列出副檔名相符的檔案。A10 / A11 / A12 共用 —— 原本各自帶一份一樣的閉包。
+ * 傳進來的是檔案也認（tailwind.css 的 `@source` 可以列單一檔案，A27／A28 拿它當根）——
+ * 不認的話 `readdirSync` 對檔案丟 ENOTDIR，或被呼叫端的 try 吞掉而**靜默掃不到**。
+ */
 function walk(dir, ext) {
+  if (statSync(dir).isFile()) return dir.endsWith(ext) ? [dir] : [];
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
     entry.isDirectory()
       ? walk(join(dir, entry.name), ext)

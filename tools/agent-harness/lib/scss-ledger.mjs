@@ -39,15 +39,24 @@ export function ledgerDiff(current, baseline) {
 }
 
 /**
- * @param {string[]} sourceDirs `@source` 解析成的 repo 相對目錄
+ * `@source` 也可以列**單一檔案**（目錄裡有還沒遷的別頁時，例如 students 列表與 detail/ 同目錄）。
+ * 那時衝突只算**同一個元件**的 SCSS（`x.page.html` ↔ `x.page.scss`、內嵌 styles 的 `x.page.ts`），
+ * 同目錄別的元件的 .scss 不算 —— 它們還沒遷，本來就該在。
+ *
+ * @param {string[]} sourceDirs `@source` 解析成的 repo 相對路徑（目錄或檔案）
  * @param {string[]} entries    帳面上還在的條目
- * @returns {Array<{dir: string, entries: string[]}>} 已列入 @source、底下卻還有 SCSS 的目錄
+ * @returns {Array<{dir: string, entries: string[]}>} 已列入 @source、卻還有 SCSS 的目錄或檔案
  */
 export function sourceConflicts(sourceDirs, entries) {
+  const stem = (p) => p.replace(/\.(html|ts|scss)$/, '');
   return sourceDirs
     .map((dir) => ({
       dir,
-      entries: entries.filter((e) => e === dir || e.startsWith(`${dir.replace(/\/$/, '')}/`)),
+      entries: entries.filter((e) =>
+        /\.(html|ts)$/.test(dir)
+          ? stem(e) === stem(dir)
+          : e === dir || e.startsWith(`${dir.replace(/\/$/, '')}/`),
+      ),
     }))
     .filter((c) => c.entries.length > 0);
 }
