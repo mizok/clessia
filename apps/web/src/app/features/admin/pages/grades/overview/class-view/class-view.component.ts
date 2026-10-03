@@ -23,10 +23,8 @@ import { MessageService } from 'primeng/api';
 
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
-import {
-  PageBreadcrumbComponent,
-  type BreadcrumbItem,
-} from '@shared/components/page-breadcrumb/page-breadcrumb.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { RouterLink } from '@angular/router';
 import { type Class, ClassesService } from '@core/classes.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { AcademyExamsService } from '@core/academy-exams.service';
@@ -65,12 +63,13 @@ interface CourseGroup {
     SelectModule,
     InputTextModule,
     EmptyStateComponent,
-    PageBreadcrumbComponent,
+    PageOpenComponent,
+    RouterLink,
     ToastModule,
     LoadFailedComponent,
   ],
   templateUrl: './class-view.component.html',
-  styleUrl: './class-view.component.scss',
+  host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [DialogService, MessageService],
 })
@@ -83,11 +82,6 @@ export class ClassViewComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly page = input<RouteObj>();
-
-  protected readonly breadcrumbs: BreadcrumbItem[] = [
-    { label: '成績總覽', routerLink: '/admin/grades/overview' },
-    { label: '班級視角' },
-  ];
 
   protected readonly gradeOptions = GRADE_LEVELS.map((grade) => ({
     label: GRADE_LEVEL_LABELS[grade],
@@ -128,6 +122,11 @@ export class ClassViewComponent implements OnInit {
       label: subject.name,
       value: subject.id,
     })),
+  );
+
+  /** 色面標題的「N 個班」：這間分校載回來的開課班（不看搜尋與篩選） */
+  protected readonly classCount = computed(() =>
+    this.courseGroups().reduce((n, group) => n + group.classes.length, 0),
   );
 
   protected readonly todoClassCount = computed(

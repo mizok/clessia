@@ -112,7 +112,7 @@ describe('ClassScoresDialogComponent', () => {
    *
    * 這條測試釘住的是「兩軌都要有形狀訊號」。修好卻不釘住，它會再漂一次。
    */
-  it('不及格在桌機與手機兩軌都有形狀訊號，不只顏色', async () => {
+  it('不及格有形狀訊號（圖示＋字），不只顏色', async () => {
     listMock.mockReturnValue(of({ data: [exam], meta: { total: 1 } }));
     getClassExamStatsMock.mockReturnValue(
       of({
@@ -131,10 +131,10 @@ describe('ClassScoresDialogComponent', () => {
     component['selectedExamId'].set('exam-1');
     await fixture.whenStable();
 
-    const icons = fixture.nativeElement.querySelectorAll('.class-scores-dialog__fail-icon');
+    const icons = fixture.nativeElement.querySelectorAll('[data-part=fail-icon]');
 
-    // 兩軌各一個 —— 表格那一格與卡片那一格
-    expect(icons.length).toBe(2);
+    // A6 版桌機／手機同一份名單（#991 grades G4），只剩一軌 —— 釘住的仍是「有形狀訊號」
+    expect(icons.length).toBe(1);
     for (const icon of icons) {
       expect(icon.getAttribute('aria-label')).toBe('不及格');
     }
@@ -163,9 +163,7 @@ describe('ClassScoresDialogComponent', () => {
 
     // 總分 50 的六成是 30，40 分及格——跟裸 60 比大小的舊邏輯會誤判成不及格
     expect(component['isFailing'](40)).toBe(false);
-    expect(fixture.nativeElement.querySelectorAll('.class-scores-dialog__fail-icon').length).toBe(
-      0,
-    );
+    expect(fixture.nativeElement.querySelectorAll('[data-part=fail-icon]').length).toBe(0);
   });
 
   it('有設定及格線時優先用它，而不是總分的六成', () => {
@@ -224,7 +222,7 @@ describe('ClassScoresDialogComponent', () => {
 
     const host = fixture.nativeElement as HTMLElement;
     expect(host.textContent).toContain('此班級沒有待登錄的考試');
-    expect(host.querySelector('.class-scores-dialog__exam-selector')).toBeNull();
+    expect(host.querySelector('[data-part=exam-selector]')).toBeNull();
   });
 
   it('切換到全部後，應重新打 API 且不帶 todo 參數', () => {
@@ -269,7 +267,7 @@ describe('ClassScoresDialogComponent', () => {
     fixture.detectChanges();
 
     const todoRow = fixture.nativeElement.querySelector(
-      '.class-scores-dialog__todo-row',
+      '[data-part=todo-row]',
     ) as HTMLButtonElement;
     todoRow.click();
 

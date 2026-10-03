@@ -12,6 +12,7 @@ import trialRequestsRoute from './parent/trial-requests';
 import sessionsRoute from './parent/sessions';
 import catalogRoute from './parent/catalog';
 import renewalRoute from './parent/renewal';
+import mealsRoute from './parent/meals';
 import { inOrg } from '../lib/org-scope';
 
 const MeResponseSchema = z
@@ -301,6 +302,7 @@ app.route('/children', childrenRoute);
 app.route('/attendance', attendanceRoute);
 app.route('/grades', gradesRoute);
 app.route('/renewal-preview', renewalRoute);
+app.route('/meals', mealsRoute);
 app.route('/billing', billingRoute);
 app.route('/class-logs', classLogsRoute);
 app.route('/enrollment-requests', enrollmentRequestsRoute);
