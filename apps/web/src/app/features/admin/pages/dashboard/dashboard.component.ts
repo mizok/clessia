@@ -10,6 +10,7 @@ import {
   createEnvironmentInjector,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { endOfMonth, format, startOfMonth } from 'date-fns';
 import { catchError, forkJoin, of, type Observable } from 'rxjs';
@@ -26,6 +27,7 @@ import { StudentsService } from '@core/students.service';
 import { RoutesCatalog, type RouteObj } from '@core/smart-enums/routes-catalog';
 
 import { CollapsibleComponent } from '@shared/components/collapsible/collapsible.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 
 import { pendingAttendanceQuery } from './dashboard.util';
 import {
@@ -116,9 +118,10 @@ import {
     DayTimelineComponent,
     CollapsibleComponent,
     PhoneLeaveComponent,
+    PageOpenComponent,
+    NgTemplateOutlet,
   ],
   templateUrl: './dashboard.component.html',
-  styleUrl: './dashboard.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardComponent {
@@ -242,9 +245,7 @@ export class DashboardComponent {
         className: target.className,
         eventDate: target.eventDate,
         timeRange:
-          target.startTime && target.endTime
-            ? `${target.startTime}–${target.endTime}`
-            : undefined,
+          target.startTime && target.endTime ? `${target.startTime}–${target.endTime}` : undefined,
       },
       styleClass: 'session-dialog',
     });
@@ -569,6 +570,14 @@ export class DashboardComponent {
 
   /** 現況：背景脈絡，放右側安靜的窄欄 */
   protected readonly factCards = computed(() => this.cards().filter((c) => c.kind === 'fact'));
+
+  /** 「現況」摺疊列的摘要：只列已經有數字的，載入中／失敗的不佔位 */
+  protected readonly factSummary = computed(() =>
+    this.factCards()
+      .filter((c) => typeof c.value === 'number')
+      .map((c) => `${c.label} ${c.value}`)
+      .join(' · '),
+  );
 
   /**
    * 橘帶上那句話。**它算的是總數**，而時間軸只畫得出有時間的那部分 ——

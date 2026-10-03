@@ -52,7 +52,7 @@ const REASON_CHIPS = ['病假', '事假'] as const;
     StudentAutocompleteComponent,
   ],
   templateUrl: './phone-leave.component.html',
-  styleUrl: './phone-leave.component.scss',
+  host: { class: 'block' },
 })
 export class PhoneLeaveComponent {
   private readonly studentsService = inject(StudentsService);

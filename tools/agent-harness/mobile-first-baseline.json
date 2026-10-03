@@ -5,7 +5,6 @@
   "apps/web/src/app/features/admin/pages/courses/courses.page.scss",
   "apps/web/src/app/features/admin/pages/courses/deactivate-class-dialog/deactivate-class-dialog.component.scss",
   "apps/web/src/app/features/admin/pages/courses/generate-sessions-dialog/generate-sessions-dialog.component.scss",
-  "apps/web/src/app/features/admin/pages/dashboard/dashboard.component.scss",
   "apps/web/src/app/features/admin/pages/grades/overview/student-view/student-view.component.scss",
   "apps/web/src/app/features/admin/pages/schools/schools.page.scss",
   "apps/web/src/app/features/admin/pages/sessions/dialogs/session-operations-log-dialog/session-operations-log-dialog.component.scss",

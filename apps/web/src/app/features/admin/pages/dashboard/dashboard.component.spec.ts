@@ -422,12 +422,12 @@ describe('DashboardComponent（管理端）', () => {
   it('失敗態是小圖示配短字，不是骨架，也不是巨大數字樣式', async () => {
     await setup({ fail: 'leaves' });
 
-    const errorEl = fixture.nativeElement.querySelector('.dashboard__value-error');
+    const errorEl = fixture.nativeElement.querySelector('[data-testid="value-error"]');
     expect(errorEl).not.toBeNull();
     expect(errorEl?.querySelector('.pi-exclamation-triangle')).not.toBeNull();
     expect(errorEl?.textContent).toContain('讀取失敗');
     // 失敗態不能同時長得像骨架——那會被讀成「載入特別慢」而不是「查詢失敗」
-    expect(errorEl?.querySelector('.dashboard__value-skeleton')).toBeNull();
+    expect(errorEl?.querySelector('[data-testid="value-skeleton"]')).toBeNull();
   });
 
   // #426 本體：原本 `null` 直接渲染「載入中」三個字，字重/字級/位置
@@ -437,15 +437,15 @@ describe('DashboardComponent（管理端）', () => {
     await setup({ onlySessions: true, todaySessions: [session()] });
 
     const untakenValue = fixture.nativeElement.querySelector(
-      '.dashboard__todo-row .dashboard__todo-value',
+      '[data-testid="todo-row"] [data-testid="todo-value"]',
     );
     expect(untakenValue).not.toBeNull();
 
-    const skeleton = untakenValue?.querySelector('.dashboard__value-skeleton');
+    const skeleton = untakenValue?.querySelector('[data-testid="value-skeleton"]');
     expect(skeleton).not.toBeNull();
     // 骨架本身不帶文字——是純視覺元素，念出來的是旁邊的輔助文字
     expect(skeleton?.textContent?.trim()).toBe('');
-    expect(untakenValue?.querySelector('.dashboard__sr-only')?.textContent).toContain('載入中');
+    expect(untakenValue?.querySelector('.sr-only')?.textContent).toContain('載入中');
   });
 
   it('兩支成績 todo 任一支失敗，成績卡就是失敗態', async () => {
@@ -476,7 +476,7 @@ describe('DashboardComponent（管理端）', () => {
 
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('今天 2 堂課');
-    expect(fixture.nativeElement.querySelector('.dashboard__band-skeleton')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="band-skeleton"]')).toBeNull();
     // 而現況欄還在等
     expect(text).toContain('載入中');
   });
@@ -517,7 +517,7 @@ describe('DashboardComponent（管理端）', () => {
    */
   describe('就地點名', () => {
     function rows(): HTMLElement[] {
-      return [...fixture.nativeElement.querySelectorAll('.dashboard__spine-row')];
+      return [...fixture.nativeElement.querySelectorAll('[data-testid="spine-row"]')];
     }
 
     it('逐堂點名模式下，有 eventId 的課堂整列是按鈕', async () => {
@@ -580,12 +580,12 @@ describe('DashboardComponent（管理端）', () => {
      * 而那個失敗跟這條要驗的事情無關。
      */
     function rowText(): string {
-      const row = fixture.nativeElement.querySelector('.dashboard__spine-row') as HTMLElement;
+      const row = fixture.nativeElement.querySelector('[data-testid="spine-row"]') as HTMLElement;
       return row?.textContent ?? '';
     }
 
     function bandText(): string {
-      const band = fixture.nativeElement.querySelector('.dashboard__band') as HTMLElement;
+      const band = fixture.nativeElement.querySelector('app-page-open') as HTMLElement;
       return band?.textContent ?? '';
     }
 
@@ -618,8 +618,8 @@ describe('DashboardComponent（管理端）', () => {
     it('不帶 --todo 高亮 —— 它不是今天要處理的事', async () => {
       await setup({ mode: 'per_session', todaySessions: [cancelled()] });
 
-      const row = fixture.nativeElement.querySelector('.dashboard__spine-row') as HTMLElement;
-      expect(row.classList.contains('dashboard__spine-row--todo')).toBe(false);
+      const row = fixture.nativeElement.querySelector('[data-testid="spine-row"]') as HTMLElement;
+      expect(row.hasAttribute('data-todo')).toBe(false);
     });
 
     /**
@@ -727,7 +727,7 @@ describe('DashboardComponent（管理端）', () => {
     it('單一分校不顯示分組標題', async () => {
       const el = await board({ workbenchExpected: [student({ studentId: 'a' })] });
 
-      expect(el.querySelectorAll('.dashboard__board-group').length).toBe(0);
+      expect(el.querySelectorAll('[data-testid="board-group"]').length).toBe(0);
     });
 
     /**
@@ -750,7 +750,7 @@ describe('DashboardComponent（管理端）', () => {
         }),
       );
 
-      el.querySelector<HTMLButtonElement>('.dashboard__board-action')!.click();
+      el.querySelector<HTMLButtonElement>('[data-testid="board-action"]')!.click();
       await fixture.whenStable();
 
       expect(component['notArrivedCount']()).toBe(0);
@@ -778,7 +778,7 @@ describe('DashboardComponent（管理端）', () => {
 
     const text = fixture.nativeElement.textContent as string;
     expect(text).not.toContain('今天沒有排課');
-    expect(fixture.nativeElement.querySelector('.dashboard__band-skeleton')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="band-skeleton"]')).not.toBeNull();
   });
 
   it('今天沒課時顯示空狀態', async () => {
@@ -811,11 +811,11 @@ describe('DashboardComponent（管理端）', () => {
   it('現況區的每一列都有不依賴 hover 的可點訊號', async () => {
     await setup();
 
-    const rows = fixture.nativeElement.querySelectorAll('.dashboard__fact');
+    const rows = fixture.nativeElement.querySelectorAll('[data-testid="fact"]');
     expect(rows.length).toBeGreaterThan(0);
 
     for (const row of rows) {
-      expect(row.querySelector('.dashboard__fact-chevron')).not.toBeNull();
+      expect(row.querySelector('.pi-chevron-right')).not.toBeNull();
     }
   });
 
@@ -826,9 +826,7 @@ describe('DashboardComponent（管理端）', () => {
   describe('接到電話：請假（#964）', () => {
     const entry = () =>
       Array.from(
-        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
-          '.dashboard__band-toggle',
-        ),
+        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
       ).find((b) => b.textContent?.includes('接到電話：請假'));
 
     it('沒有請假寫入權限（basic_operations）的人看不到入口', async () => {
@@ -841,7 +839,10 @@ describe('DashboardComponent（管理端）', () => {
       entry()!.click();
       fixture.detectChanges();
 
-      const before = { workbench: workbenchMock.mock.calls.length, leaves: leavesMock.mock.calls.length };
+      const before = {
+        workbench: workbenchMock.mock.calls.length,
+        leaves: leavesMock.mock.calls.length,
+      };
       const panel = fixture.debugElement.query(By.css('app-phone-leave'));
       expect(panel).not.toBeNull();
       panel.componentInstance.completed.emit();

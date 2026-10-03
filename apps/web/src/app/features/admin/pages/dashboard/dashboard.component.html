@@ -1,19 +1,50 @@
-<div class="dashboard">
-  <h1 class="dashboard__title">{{ page().label }}</h1>
-  <p class="dashboard__lede">今天要處理什麼、今天會發生什麼。數字只是背景。</p>
+<!--
+  A6 版（#991）：色面 → 灰工具列 → 待處理 → 主段（今日課表／到班看板）→ 灰摺疊列。
+  換版不換資料：A6 稿的「該到沒到＋家長電話」「逾期帳單」「臨時狀況」要的資料這頁沒有，另開單。
+-->
+<app-page-open>
+  <ng-container openTitle>
+    @if (todayHeadline(); as head) {
+      @if (head.total === 0) {
+        今天沒有排課。
+      } @else if (head.untaken === 0) {
+        今天 {{ head.total }} 堂課，全部點完了。
+      } @else {
+        今天 {{ head.total }} 堂課，其中 {{ head.untaken }} 堂還沒點名。
+      }
+    } @else if (sessionsFailed()) {
+      今日課表讀取失敗。
+    } @else {
+      <!-- 骨架而不是「載入中」三個字：色面是整頁最顯眼的位置，一行字在那個尺寸下讀起來像內容 -->
+      <span
+        class="inline-block h-[1em] w-[min(100%,18ch)] rounded-sm bg-band-rule align-middle opacity-45"
+        data-testid="band-skeleton"
+        aria-label="今日課表載入中"
+      ></span>
+    }
+  </ng-container>
 
-  <!--
-    橘帶：一句話 + 一張資訊圖，不是放大的數字卡。
-    白工作面靠 --band-seam 往上壓進帶裡，兩塊才會讀成一個構圖。
-  -->
-  <section class="dashboard__band">
-    <div class="dashboard__band-head">
-      <p class="dashboard__band-meta">{{ todayLabel }}</p>
+  @if (todaySessionList(); as sessions) {
+    <!--
+      收的是時間軸不是整塊色面 —— 那句話是這一頁的錨點。使用者按過就照他的意思（localStorage）。
+    -->
+    <app-collapsible id="dashboard-timeline" [collapsed]="timelineCollapsed()">
+      <div class="mt-6">
+        <app-day-timeline [sessions]="sessions" [date]="todayKey" />
+      </div>
+    </app-collapsible>
+  }
+</app-page-open>
 
+<!-- 灰工具列：這頁在講哪一天＋櫃台動作（A6 .tbar） -->
+<div class="bg-zinc-100">
+  <div class="page-wrap flex min-h-16 flex-wrap items-center gap-x-4 gap-y-2 py-3">
+    <p class="m-0 text-base font-semibold text-zinc-900 tabular-nums">{{ todayLabel }}</p>
+    <div class="ml-auto flex flex-wrap items-center gap-2">
       @if (hasTimeline()) {
         <button
           type="button"
-          class="dashboard__band-toggle"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
           [attr.aria-expanded]="!timelineCollapsed()"
           aria-controls="dashboard-timeline"
           (click)="toggleTimeline()"
@@ -22,103 +53,23 @@
         </button>
       }
       @if (canPhoneLeave()) {
-        <!-- #964 UI 實驗：接到電話就地請假。重用既有的帶上按鈕樣式，不引入新視覺 -->
+        <!-- #964：接到電話就地請假 -->
         <button
           type="button"
-          class="dashboard__band-toggle"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
           [attr.aria-expanded]="phoneLeaveOpen()"
           aria-controls="dashboard-phone-leave"
           (click)="phoneLeaveOpen.set(!phoneLeaveOpen())"
         >
-          ＋ 接到電話：請假
+          <i class="pi pi-phone text-sm" aria-hidden="true"></i>接到電話：請假
         </button>
       }
     </div>
+  </div>
+</div>
 
-    @if (todayHeadline(); as head) {
-      @if (head.total === 0) {
-        <p class="dashboard__band-line">今天沒有排課。</p>
-      } @else if (head.untaken === 0) {
-        <p class="dashboard__band-line">今天 {{ head.total }} 堂課，全部點完了。</p>
-      } @else {
-        <p class="dashboard__band-line">
-          今天 {{ head.total }} 堂課，其中 {{ head.untaken }} 堂還沒點名。
-        </p>
-      }
-    } @else if (sessionsFailed()) {
-      <p class="dashboard__band-line">今日課表讀取失敗。</p>
-    } @else {
-      <!-- 骨架而不是「載入中」三個字：橘帶是整頁最顯眼的位置，
-           一行字在那個尺寸下讀起來像內容，骨架讀起來像「還沒到」 -->
-      <p class="dashboard__band-line dashboard__band-line--pending" aria-label="今日課表載入中">
-        <span class="dashboard__band-skeleton"></span>
-      </p>
-    }
-
-    @if (todaySessionList(); as sessions) {
-      <!--
-        收的是時間軸不是整條帶 —— 帶上那句話是這一頁的錨點。
-        課多的時候（lane > 3）預設收起來：實測 4 條 lane 就讓橘帶吃掉 48% 的視窗，
-        課表脊椎整段掉到摺線下。使用者按過之後就照他的意思，不再自動判斷。
-      -->
-      <app-collapsible id="dashboard-timeline" [collapsed]="timelineCollapsed()">
-        <app-day-timeline [sessions]="sessions" [date]="todayKey" />
-      </app-collapsible>
-    }
-  </section>
-
-  @if (todoCards().length > 0) {
-    <section class="dashboard__todo">
-      <h2 class="dashboard__h2 dashboard__h2--sr">待處理</h2>
-      <ul class="dashboard__todo-list">
-        @for (card of todoCards(); track card.label) {
-          <li>
-            <a
-              class="dashboard__todo-row"
-              [routerLink]="card.routerLink"
-              [queryParams]="card.queryParams ?? {}"
-            >
-              <span
-                class="dashboard__todo-icon"
-                [class.dashboard__todo-icon--zero]="card.value === 0"
-              >
-                <i class="pi {{ card.icon }}"></i>
-              </span>
-              <span
-                class="dashboard__todo-value"
-                [class.dashboard__todo-value--zero]="card.value === 0"
-              >
-                @if (card.value === null) {
-                  <span class="dashboard__value-skeleton p-skeleton" aria-hidden="true"></span>
-                  <span class="dashboard__sr-only">載入中</span>
-                } @else if (card.value === 'error') {
-                  <span class="dashboard__value-error">
-                    <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-                    讀取失敗
-                  </span>
-                } @else {
-                  {{ card.value }}
-                }
-              </span>
-              <span class="dashboard__todo-text">
-                <span class="dashboard__todo-label">{{ card.label }}</span>
-                @if (card.sub) {
-                  <span class="dashboard__todo-sub">{{ card.sub }}</span>
-                }
-              </span>
-              <span class="dashboard__todo-go"> 前往 <i class="pi pi-arrow-right"></i> </span>
-            </a>
-          </li>
-        }
-      </ul>
-    </section>
-  }
-
+<div class="page-wrap flex flex-col gap-10 pt-6 pb-28 wide:gap-12 wide:pt-8 wide:pb-32">
   @if (phoneLeaveOpen()) {
-    <!--
-      放在待處理卡片列**之後**：卡片列是用負 margin 壓進橘帶的（--band-seam），
-      插在帶與卡片之間會把那個構圖拆開。
-    -->
     <app-phone-leave
       id="dashboard-phone-leave"
       [rosterAvailable]="!isDailyCheckin()"
@@ -127,255 +78,299 @@
       (closed)="phoneLeaveOpen.set(false)"
     />
   }
-  <div class="dashboard__cols">
-    @if (isDailyCheckin()) {
-      <!--
-        **日到班的機構，左欄是到班看板而不是課表。**
 
-        晨間視角是「誰還沒到」不是「誰到了」：一張列出全部學生的表，行政要自己掃描
-        找出缺口，而晨間真正的工作是追還沒到的人。三段的順序就是它們的重要性。
-
-        設計見 kb/wiki/architecture/today-workbench.md。
-      -->
-      <section class="dashboard__panel">
-        <div class="dashboard__panel-head">
-          <h2 class="dashboard__h2">還沒到（{{ notArrivedCount() }}）</h2>
-          <a class="dashboard__panel-link" [routerLink]="['/admin/sessions']">
-            今日課表 <i class="pi pi-arrow-right"></i>
-          </a>
-        </div>
-
-        @if (notArrivedCount() === 0) {
-          <p class="dashboard__empty">今天該到的都到了。</p>
-        } @else {
-          @for (group of notArrivedGroups(); track group.campusName) {
-            <!-- 單一分校的機構不顯示分組標題 —— 那是一句沒有資訊的話 -->
-            @if (notArrivedGroups().length > 1) {
-              <h3 class="dashboard__board-group">{{ group.campusName }}</h3>
-            }
-            <ul class="dashboard__board">
-              @for (student of group.students; track student.studentId) {
-                <li class="dashboard__board-row">
-                  <span class="dashboard__board-who">
-                    <span class="dashboard__spine-name">{{ student.studentName }}</span>
-                    <span class="dashboard__spine-meta">
-                      {{ student.grade ?? '—' }}
-                      @if (student.firstSession) {
-                        · {{ student.firstSession.startTime }} {{ student.firstSession.className }}
-                      }
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    class="dashboard__board-action"
-                    [disabled]="boardBusy() !== null"
-                    (click)="checkIn(student)"
-                  >
-                    勾到班
-                  </button>
-                </li>
-              }
-            </ul>
-          }
+  @if (todoCards().length > 0) {
+    <section aria-labelledby="dashboard-todo-title">
+      <h2 id="dashboard-todo-title" class="sr-only">待處理</h2>
+      <ul class="m-0 list-none border-t border-zinc-900 p-0">
+        @for (card of todoCards(); track card.label) {
+          <li>
+            <a
+              class="flex min-h-11 items-center gap-4 border-b border-surface-border py-4 text-zinc-900 no-underline hover:[&_[data-label]]:underline hover:[&_[data-label]]:underline-offset-4"
+              data-testid="todo-row"
+              [routerLink]="card.routerLink"
+              [queryParams]="card.queryParams ?? {}"
+            >
+              <span
+                class="min-w-[2ch] text-3xl leading-none font-bold tracking-[-0.03em] tabular-nums"
+                [class.text-zinc-500]="card.value === 0"
+                data-testid="todo-value"
+              >
+                @if (card.value === null) {
+                  <span
+                    class="p-skeleton inline-block h-[1em] w-[2ch] rounded-sm align-middle"
+                    data-testid="value-skeleton"
+                    aria-hidden="true"
+                  ></span>
+                  <span class="sr-only">載入中</span>
+                } @else if (card.value === 'error') {
+                  <ng-container [ngTemplateOutlet]="valueError" />
+                } @else {
+                  {{ card.value }}
+                }
+              </span>
+              <span class="min-w-0">
+                <span class="block text-lg font-semibold" data-label>{{ card.label }}</span>
+                @if (card.sub) {
+                  <span class="block text-md text-zinc-600">{{ card.sub }}</span>
+                }
+              </span>
+              <span
+                class="ml-auto flex items-center gap-1.5 text-md font-semibold whitespace-nowrap"
+              >
+                前往 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
+              </span>
+            </a>
+          </li>
         }
+      </ul>
+    </section>
+  }
 
-        @if (leaveList().length > 0) {
-          <!--
-            **已請假是第三種狀態，不是「還沒到」的一種。**
-            混在一起行政會去打一通不必要的電話。
-          -->
-          <h3 class="dashboard__board-group">已請假（{{ leaveList().length }}）</h3>
-          <ul class="dashboard__board">
-            @for (leave of leaveList(); track leave.studentId) {
-              <li class="dashboard__board-row">
-                <span class="dashboard__board-who">
-                  <span class="dashboard__spine-name">{{ leave.studentName }}</span>
-                  <span class="dashboard__spine-meta">
-                    {{ leave.startDate }}–{{ leave.endDate }} · {{ leave.submittedByRole }}
+  @if (isDailyCheckin()) {
+    <!--
+      **日到班的機構，主段是到班看板而不是課表。** 晨間視角是「誰還沒到」不是「誰到了」。
+      三段的順序就是它們的重要性。設計見 kb/wiki/architecture/today-workbench.md。
+    -->
+    <section aria-labelledby="dashboard-main-title">
+      <ng-container
+        [ngTemplateOutlet]="secHead"
+        [ngTemplateOutletContext]="{
+          title: '還沒到（' + notArrivedCount() + '）',
+          link: '今日課表',
+        }"
+      />
+
+      @if (notArrivedCount() === 0) {
+        <p class="m-0 py-6 text-base text-zinc-700">今天該到的都到了。</p>
+      } @else {
+        @for (group of notArrivedGroups(); track group.campusName) {
+          <!-- 單一分校的機構不顯示分組標題 —— 那是一句沒有資訊的話 -->
+          @if (notArrivedGroups().length > 1) {
+            <h3 class="mt-6 mb-2 text-md font-semibold text-zinc-600" data-testid="board-group">
+              {{ group.campusName }}
+            </h3>
+          }
+          <ul class="m-0 list-none p-0">
+            @for (student of group.students; track student.studentId) {
+              <li
+                class="flex items-center justify-between gap-3 border-b border-surface-border py-3"
+              >
+                <span class="min-w-0">
+                  <span class="block text-base font-semibold text-zinc-900">{{
+                    student.studentName
+                  }}</span>
+                  <span class="mt-0.5 block text-sm text-zinc-600">
+                    {{ student.grade ?? '—' }}
+                    @if (student.firstSession) {
+                      · {{ student.firstSession.startTime }} {{ student.firstSession.className }}
+                    }
                   </span>
                 </span>
+                <button
+                  type="button"
+                  class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  data-testid="board-action"
+                  [disabled]="boardBusy() !== null"
+                  (click)="checkIn(student)"
+                >
+                  勾到班
+                </button>
               </li>
             }
           </ul>
         }
+      }
 
-        @if (arrivedList().length > 0) {
-          <!-- 已到是「確認」不是「工作」，所以預設收合、排在最後 -->
-          <div class="dashboard__board-head">
-            <h3 class="dashboard__board-group">已到（{{ arrivedList().length }}）</h3>
-            <button
-              type="button"
-              class="dashboard__band-toggle"
-              [attr.aria-expanded]="!arrivedCollapsed()"
-              aria-controls="dashboard-arrived"
-              (click)="toggleArrived()"
-            >
-              {{ arrivedCollapsed() ? '展開' : '收合' }}
-            </button>
-          </div>
-
-          <app-collapsible id="dashboard-arrived" [collapsed]="arrivedCollapsed()">
-            <ul class="dashboard__board">
-              @for (arrival of arrivedList(); track arrival.checkinId) {
-                <li class="dashboard__board-row">
-                  <span class="dashboard__board-who">
-                    <span class="dashboard__spine-name">{{ arrival.studentName }}</span>
-                    <!--
-                      **只講觀察到的事實。** 不寫「已為 N 堂課記錄出席」——
-                      那個數字取決於 API 的散播規則，是機器的推論不是事實。
-                    -->
-                    <span class="dashboard__spine-meta">
-                      已到班 {{ arrivalClock(arrival.checkedInAt) }}
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    class="dashboard__board-action"
-                    [disabled]="boardBusy() !== null"
-                    (click)="cancelArrival(arrival.checkinId)"
-                  >
-                    取消
-                  </button>
-                </li>
-              }
-            </ul>
-          </app-collapsible>
-        }
-      </section>
-    } @else {
-      <section class="dashboard__panel">
-        <div class="dashboard__panel-head">
-          <h2 class="dashboard__h2">今日課表</h2>
-          <a class="dashboard__panel-link" [routerLink]="['/admin/sessions']">
-            查看全部 <i class="pi pi-arrow-right"></i>
-          </a>
-        </div>
-
-        @if (sessionsFailed()) {
-          <p class="dashboard__empty">今日課表讀取失敗</p>
-        } @else if (todaySessionList(); as sessions) {
-          @if (sessions.length === 0) {
-            <p class="dashboard__empty">今日尚無排課</p>
-          } @else {
-            <ul class="dashboard__spine">
-              @for (session of sessions; track session.sessionId) {
-                <li>
-                  <!--
-                  **點得了名的那幾堂整列可按，直接開點名 dialog。** 這是作業台的核心：
-                  原本要走「儀表板 → 課堂管理 → 找到那一堂 → 開 dialog」四步，
-                  而那四步每天重複五次。
-
-                  點不了的（日到班模式、或停課沒有 eventId）維持成一列靜態文字 ——
-                  不做成看起來能按卻沒反應的假 affordance。
-                -->
-                  @if (canTakeAttendance(session)) {
-                    <button
-                      type="button"
-                      class="dashboard__spine-row dashboard__spine-row--action"
-                      [class.dashboard__spine-row--todo]="isTodo(session)"
-                      (click)="openAttendance(session)"
-                    >
-                      <span class="dashboard__spine-time">{{ session.startTime }}</span>
-                      <span class="dashboard__spine-body">
-                        <span class="dashboard__spine-name">{{ session.className }}</span>
-                        <span class="dashboard__spine-meta">
-                          {{ session.courseName }} · {{ session.teacherName }}
-                        </span>
-                      </span>
-                      <app-status-dot [tone]="attendanceTone(session)">{{
-                        attendanceLabel(session)
-                      }}</app-status-dot>
-                    </button>
-                  } @else {
-                    <span
-                      class="dashboard__spine-row"
-                      [class.dashboard__spine-row--todo]="isTodo(session)"
-                    >
-                      <span class="dashboard__spine-time">{{ session.startTime }}</span>
-                      <span class="dashboard__spine-body">
-                        <span class="dashboard__spine-name">{{ session.className }}</span>
-                        <span class="dashboard__spine-meta">
-                          {{ session.courseName }} · {{ session.teacherName }}
-                        </span>
-                      </span>
-                      <app-status-dot [tone]="attendanceTone(session)">{{
-                        attendanceLabel(session)
-                      }}</app-status-dot>
-                    </span>
-                  }
-                </li>
-              }
-            </ul>
-          }
-        } @else {
-          <!-- null = 還不知道。載入中不得宣稱「今日尚無排課」 -->
-          <div class="skeleton-list" aria-label="今日課表載入中">
-            @for (i of [1, 2, 3]; track i) {
-              <span class="skeleton-bar"></span>
-            }
-          </div>
-        }
-      </section>
-    }
-
-    <aside class="dashboard__aside">
-      <section class="dashboard__panel">
-        <div class="dashboard__panel-head"><h2 class="dashboard__h2">現況</h2></div>
-        <ul class="dashboard__facts">
-          @for (card of factCards(); track card.label) {
-            <li>
-              <a class="dashboard__fact" [routerLink]="card.routerLink">
-                <span class="dashboard__fact-label">{{ card.label }}</span>
-                <span
-                  class="dashboard__fact-value"
-                  [class.dashboard__fact-value--zero]="card.value === 0"
-                >
-                  @if (card.value === null) {
-                    <span class="dashboard__value-skeleton p-skeleton" aria-hidden="true"></span>
-                    <span class="dashboard__sr-only">載入中</span>
-                  } @else if (card.value === 'error') {
-                    <span class="dashboard__value-error">
-                      <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-                      讀取失敗
-                    </span>
-                  } @else {
-                    {{ card.value }}
-                  }
+      @if (leaveList().length > 0) {
+        <!-- **已請假是第三種狀態，不是「還沒到」的一種。** 混在一起行政會去打一通不必要的電話。 -->
+        <h3 class="mt-6 mb-2 text-md font-semibold text-zinc-600" data-testid="board-group">
+          已請假（{{ leaveList().length }}）
+        </h3>
+        <ul class="m-0 list-none p-0">
+          @for (leave of leaveList(); track leave.studentId) {
+            <li class="flex items-center justify-between gap-3 border-b border-surface-border py-3">
+              <span class="min-w-0">
+                <span class="block text-base font-semibold text-zinc-900">{{
+                  leave.studentName
+                }}</span>
+                <span class="mt-0.5 block text-sm text-zinc-600">
+                  {{ leave.startDate }}–{{ leave.endDate }} · {{ leave.submittedByRole }}
                 </span>
-                <!--
-                  可點性不能只靠 hover —— 觸控裝置上沒有 hover，這一列在那裡
-                  跟純文字長得一模一樣（#516）。用 chevron 而不是底線或框線，
-                  是因為這一區刻意安靜（見 `.dashboard__facts` 的註解），
-                  而 chevron 是這個檔案裡既有的「往那邊去」語彙
-                  （`.dashboard__panel-link` 的 `pi-arrow-right`）的安靜版。
-                -->
-                <i class="pi pi-chevron-right dashboard__fact-chevron" aria-hidden="true"></i>
-              </a>
+              </span>
             </li>
           }
         </ul>
-      </section>
+      }
 
-      <section class="dashboard__panel">
-        <div class="dashboard__panel-head">
-          <h2 class="dashboard__h2">今日請假</h2>
-          <a class="dashboard__panel-link" [routerLink]="['/admin/leave']">
-            前往管理 <i class="pi pi-arrow-right"></i>
-          </a>
+      @if (arrivedList().length > 0) {
+        <!-- 已到是「確認」不是「工作」，所以預設收合、排在最後 -->
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="mt-6 mb-2 text-md font-semibold text-zinc-600" data-testid="board-group">
+            已到（{{ arrivedList().length }}）
+          </h3>
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+            [attr.aria-expanded]="!arrivedCollapsed()"
+            aria-controls="dashboard-arrived"
+            (click)="toggleArrived()"
+          >
+            {{ arrivedCollapsed() ? '展開' : '收合' }}
+          </button>
         </div>
 
+        <app-collapsible id="dashboard-arrived" [collapsed]="arrivedCollapsed()">
+          <ul class="m-0 list-none p-0">
+            @for (arrival of arrivedList(); track arrival.checkinId) {
+              <li
+                class="flex items-center justify-between gap-3 border-b border-surface-border py-3"
+              >
+                <span class="min-w-0">
+                  <span class="block text-base font-semibold text-zinc-900">{{
+                    arrival.studentName
+                  }}</span>
+                  <!-- **只講觀察到的事實。** 不寫「已為 N 堂課記錄出席」—— 那是 API 散播規則的推論 -->
+                  <span class="mt-0.5 block text-sm text-zinc-600"
+                    >已到班 {{ arrivalClock(arrival.checkedInAt) }}</span
+                  >
+                </span>
+                <button
+                  type="button"
+                  class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  data-testid="board-action"
+                  [disabled]="boardBusy() !== null"
+                  (click)="cancelArrival(arrival.checkinId)"
+                >
+                  取消
+                </button>
+              </li>
+            }
+          </ul>
+        </app-collapsible>
+      }
+    </section>
+  } @else {
+    <section aria-labelledby="dashboard-main-title">
+      <ng-container
+        [ngTemplateOutlet]="secHead"
+        [ngTemplateOutletContext]="{ title: '今日課表', link: '查看全部' }"
+      />
+
+      @if (sessionsFailed()) {
+        <p class="m-0 py-6 text-base text-zinc-700">今日課表讀取失敗</p>
+      } @else if (todaySessionList(); as sessions) {
+        @if (sessions.length === 0) {
+          <p class="m-0 py-6 text-base text-zinc-700">今日尚無排課</p>
+        } @else {
+          <ul class="m-0 list-none p-0">
+            @for (session of sessions; track session.sessionId) {
+              <li class="border-b border-surface-border">
+                <!--
+                  **點得了名的那幾堂整列可按，直接開點名 dialog。** 原本要走「儀表板 → 課堂管理
+                  → 找到那一堂 → 開 dialog」四步，每天重複五次。點不了的（日到班、或停課沒有
+                  eventId）維持成靜態文字 —— 不做成看起來能按卻沒反應的假 affordance。
+                -->
+                @if (canTakeAttendance(session)) {
+                  <button
+                    type="button"
+                    class="group grid min-h-11 grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-4 py-3 w-full cursor-pointer border-0 bg-transparent text-left hover:bg-zinc-50 focus-visible:bg-zinc-50"
+                    data-testid="spine-row"
+                    [attr.data-todo]="isTodo(session) ? '' : null"
+                    (click)="openAttendance(session)"
+                  >
+                    <span
+                      class="relative text-md font-bold text-zinc-900 tabular-nums after:absolute after:top-1/2 after:-right-2 after:size-[7px] after:-translate-y-1/2 after:rounded-full after:border-2 after:border-zinc-300 after:bg-surface-card after:content-[''] group-data-todo:after:border-accent-500 group-data-todo:after:bg-accent-500"
+                      >{{ session.startTime }}</span
+                    >
+                    <span class="min-w-0">
+                      <span class="block text-base font-semibold text-zinc-900">{{
+                        session.className
+                      }}</span>
+                      <span class="mt-0.5 block text-sm text-zinc-600"
+                        >{{ session.courseName }} · {{ session.teacherName }}</span
+                      >
+                    </span>
+                    <app-status-dot [tone]="attendanceTone(session)">{{
+                      attendanceLabel(session)
+                    }}</app-status-dot>
+                  </button>
+                } @else {
+                  <span
+                    class="group grid min-h-11 grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-4 py-3"
+                    data-testid="spine-row"
+                    [attr.data-todo]="isTodo(session) ? '' : null"
+                  >
+                    <span
+                      class="relative text-md font-bold text-zinc-900 tabular-nums after:absolute after:top-1/2 after:-right-2 after:size-[7px] after:-translate-y-1/2 after:rounded-full after:border-2 after:border-zinc-300 after:bg-surface-card after:content-[''] group-data-todo:after:border-accent-500 group-data-todo:after:bg-accent-500"
+                      >{{ session.startTime }}</span
+                    >
+                    <span class="min-w-0">
+                      <span class="block text-base font-semibold text-zinc-900">{{
+                        session.className
+                      }}</span>
+                      <span class="mt-0.5 block text-sm text-zinc-600"
+                        >{{ session.courseName }} · {{ session.teacherName }}</span
+                      >
+                    </span>
+                    <app-status-dot [tone]="attendanceTone(session)">{{
+                      attendanceLabel(session)
+                    }}</app-status-dot>
+                  </span>
+                }
+              </li>
+            }
+          </ul>
+        }
+      } @else {
+        <!-- null = 還不知道。載入中不得宣稱「今日尚無排課」 -->
+        <div class="skeleton-list mt-4" aria-label="今日課表載入中">
+          @for (i of [1, 2, 3]; track i) {
+            <span class="skeleton-bar"></span>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  <!-- 灰摺疊列（A6 .coll）：背景脈絡收成一列，右邊是摘要，點了才開 -->
+  <div class="grid gap-2">
+    <details class="group rounded-lg bg-zinc-100">
+      <summary
+        class="flex min-h-14 cursor-pointer list-none items-center gap-4 rounded-lg px-4 py-3 hover:bg-zinc-200 wide:min-h-16 wide:px-5 [&::-webkit-details-marker]:hidden"
+      >
+        <span class="shrink-0 text-lg font-bold tracking-[-0.01em] text-zinc-900 wide:text-xl"
+          >今日請假</span
+        >
+        <span class="ml-auto text-right text-md text-zinc-700 tabular-nums wide:text-base">
+          @if (leavesFailed()) {
+            讀取失敗
+          } @else if (todayLeaveList(); as leaves) {
+            {{ leaves.length }} 筆
+          } @else {
+            載入中
+          }
+        </span>
+        <i
+          class="pi pi-chevron-down text-sm text-zinc-900 transition-transform group-open:rotate-180"
+          aria-hidden="true"
+        ></i>
+      </summary>
+      <div class="mx-1 mb-1 rounded-md bg-white px-4 pt-2 pb-6 wide:px-5">
         @if (leavesFailed()) {
-          <p class="dashboard__empty">今日請假讀取失敗</p>
+          <p class="m-0 py-4 text-md text-zinc-700">今日請假讀取失敗</p>
         } @else if (todayLeaveList(); as leaves) {
           @if (leaves.length === 0) {
-            <p class="dashboard__empty">今天沒有人請假</p>
+            <p class="m-0 py-4 text-md text-zinc-700">今天沒有人請假</p>
           } @else {
-            <ul class="dashboard__leaves">
+            <ul class="m-0 list-none p-0">
               @for (leave of leaves; track leave.id) {
-                <li class="dashboard__leave">
-                  <span>{{ leave.studentName }}</span>
+                <li
+                  class="flex items-baseline gap-3 border-b border-surface-border py-3 text-base text-zinc-900 last:border-b-0"
+                >
+                  <span class="font-semibold">{{ leave.studentName }}</span>
                   @if (leave.reason) {
-                    <span class="dashboard__leave-reason">{{ leave.reason }}</span>
+                    <span class="text-md text-zinc-600">{{ leave.reason }}</span>
                   }
                 </li>
               }
@@ -388,7 +383,93 @@
             }
           </div>
         }
-      </section>
-    </aside>
+        <a
+          class="mt-3 inline-flex min-h-11 items-center gap-1 text-md font-medium text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
+          [routerLink]="['/admin/leave']"
+        >
+          到請假頁 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
+        </a>
+      </div>
+    </details>
+
+    <details class="group rounded-lg bg-zinc-100">
+      <summary
+        class="flex min-h-14 cursor-pointer list-none items-center gap-4 rounded-lg px-4 py-3 hover:bg-zinc-200 wide:min-h-16 wide:px-5 [&::-webkit-details-marker]:hidden"
+      >
+        <span class="shrink-0 text-lg font-bold tracking-[-0.01em] text-zinc-900 wide:text-xl"
+          >現況</span
+        >
+        <span class="ml-auto text-right text-md text-zinc-700 tabular-nums wide:text-base">{{
+          factSummary()
+        }}</span>
+        <i
+          class="pi pi-chevron-down text-sm text-zinc-900 transition-transform group-open:rotate-180"
+          aria-hidden="true"
+        ></i>
+      </summary>
+      <div class="mx-1 mb-1 rounded-md bg-white px-4 pt-2 pb-6 wide:px-5">
+        <ul class="m-0 list-none p-0">
+          @for (card of factCards(); track card.label) {
+            <li class="border-b border-surface-border last:border-b-0">
+              <a
+                class="flex min-h-11 items-baseline gap-3 py-3 text-zinc-900 no-underline hover:[&>[data-label]]:underline hover:[&>[data-label]]:underline-offset-4"
+                data-testid="fact"
+                [routerLink]="card.routerLink"
+              >
+                <span class="flex-1 text-base" data-label>{{ card.label }}</span>
+                <span
+                  class="text-xl font-bold tracking-[-0.02em] tabular-nums"
+                  [class.text-zinc-500]="card.value === 0"
+                >
+                  @if (card.value === null) {
+                    <span
+                      class="p-skeleton inline-block h-[1em] w-[2ch] rounded-sm align-middle"
+                      data-testid="value-skeleton"
+                      aria-hidden="true"
+                    ></span>
+                    <span class="sr-only">載入中</span>
+                  } @else if (card.value === 'error') {
+                    <ng-container [ngTemplateOutlet]="valueError" />
+                  } @else {
+                    {{ card.value }}
+                  }
+                </span>
+                <!--
+                  可點性不能只靠 hover —— 觸控裝置上沒有 hover（#516）。chevron 是這頁「往那邊去」的安靜版。
+                -->
+                <i class="pi pi-chevron-right text-sm text-zinc-600" aria-hidden="true"></i>
+              </a>
+            </li>
+          }
+        </ul>
+      </div>
+    </details>
   </div>
 </div>
+
+<ng-template #secHead let-title="title" let-link="link">
+  <div class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-surface-border pb-3">
+    <h2
+      id="dashboard-main-title"
+      class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
+    >
+      {{ title }}
+    </h2>
+    <a
+      class="ml-auto inline-flex min-h-11 items-center gap-1 text-md font-medium text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
+      [routerLink]="['/admin/sessions']"
+    >
+      {{ link }} <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
+    </a>
+  </div>
+</ng-template>
+
+<ng-template #valueError>
+  <span
+    class="inline-flex items-center gap-1 text-sm font-medium text-error-700"
+    data-testid="value-error"
+  >
+    <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+    讀取失敗
+  </span>
+</ng-template>
