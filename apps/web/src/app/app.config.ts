@@ -132,6 +132,28 @@ const ClessiaPreset = definePreset(Aura, {
       },
     },
   },
+  // 勾選是近黑不是橘（A6；#1196）：primary 的橘留給「要你做事」的按鈕與色面，
+  // 勾起來的 checkbox／radio 是狀態不是行動。原生 checkbox 那邊用 `accent-zinc-900` 對齊（課表甘特、名冊）。
+  components: {
+    checkbox: {
+      root: {
+        checkedBackground: '#1a1614', // zinc-900
+        checkedHoverBackground: '#2a2523', // zinc-800
+        checkedBorderColor: '#1a1614',
+        checkedHoverBorderColor: '#2a2523',
+        checkedFocusBorderColor: '#1a1614',
+      },
+    },
+    radiobutton: {
+      root: {
+        checkedBackground: '#1a1614',
+        checkedHoverBackground: '#2a2523',
+        checkedBorderColor: '#1a1614',
+        checkedHoverBorderColor: '#2a2523',
+        checkedFocusBorderColor: '#1a1614',
+      },
+    },
+  },
 });
 
 export const appConfig: ApplicationConfig = {
