@@ -1,21 +1,26 @@
 @for (g of groups(); track g.start) {
   <section class="mt-4 first:mt-0" [attr.aria-label]="g.start + ' 開始'">
-    <h3
-      class="m-0 border-b border-zinc-900 pb-1 text-sm font-normal text-zinc-600 tabular-nums"
-    >
+    <h3 class="m-0 border-b border-zinc-900 pb-1 text-sm font-normal text-zinc-600 tabular-nums">
       <b class="text-base text-zinc-900">{{ g.start }}</b> 開始 · {{ g.sessions.length }} 堂
     </h3>
     @for (s of g.sessions; track s.id) {
+      <!-- 週視圖的窄欄（compact）：勾選欄收窄、不放 ⋯（點課本身就開同一個選單），班名才有地方放 -->
       <div
-        class="grid grid-cols-[44px_minmax(0,1fr)_44px] items-start border-b border-surface-border"
+        class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start border-b border-surface-border"
         [class.bg-zinc-100]="selectedIds().has(s.id)"
       >
-        <label class="grid size-11 cursor-pointer place-items-center">
+        <label
+          class="grid h-11 cursor-pointer place-items-center"
+          [class.w-11]="!compact()"
+          [class.w-7]="compact()"
+        >
           <input
             type="checkbox"
             class="size-4 cursor-pointer accent-zinc-900"
             [checked]="selectedIds().has(s.id)"
-            [attr.aria-label]="'勾 ' + s.className + ' ' + s.sessionDate.slice(5) + ' ' + s.startTime"
+            [attr.aria-label]="
+              '勾 ' + s.className + ' ' + s.sessionDate.slice(5) + ' ' + s.startTime
+            "
             (change)="toggle.emit(s.id)"
           />
         </label>
@@ -31,24 +36,38 @@
             [class.text-zinc-600]="s.status === 'cancelled'"
             >{{ s.className }}</span
           >
-          <span class="text-sm leading-snug text-zinc-600 tabular-nums"
-            >{{ s.startTime }}–{{ s.endTime }} ·
-            <span class="whitespace-nowrap">{{ s.teacherName ?? '未指派' }}</span>
-            @if (s.attendanceEnrolledCount !== undefined) {
-              · {{ s.attendanceEnrolledCount }} 人
-            }
-            · {{ s.campusName }}</span
+          @if (compact()) {
+            <span class="text-sm leading-snug text-zinc-600 tabular-nums"
+              >到 {{ s.endTime }} ·
+              <span class="whitespace-nowrap">{{ s.teacherName ?? '未指派' }}</span></span
+            >
+          } @else {
+            <span class="text-sm leading-snug text-zinc-600 tabular-nums"
+              >{{ s.startTime }}–{{ s.endTime }} ·
+              <span class="whitespace-nowrap">{{ s.teacherName ?? '未指派' }}</span>
+              @if (s.attendanceEnrolledCount !== undefined) {
+                · {{ s.attendanceEnrolledCount }} 人
+              }
+              · {{ s.campusName }}</span
+            >
+          }
+          <app-session-tags
+            class="mt-0.5"
+            [session]="s"
+            [live]="live(s)"
+            [clash]="clashIds().has(s.id)"
+          />
+        </button>
+        @if (!compact()) {
+          <button
+            type="button"
+            class="inline-flex size-11 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200"
+            [attr.aria-label]="s.className + ' 的操作'"
+            (click)="menu.emit({ event: $event, session: s })"
           >
-          <app-session-tags class="mt-0.5" [session]="s" [live]="live(s)" [clash]="clashIds().has(s.id)" />
-        </button>
-        <button
-          type="button"
-          class="inline-flex size-11 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200"
-          [attr.aria-label]="s.className + ' 的操作'"
-          (click)="menu.emit({ event: $event, session: s })"
-        >
-          <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
-        </button>
+            <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+          </button>
+        }
       </div>
     }
   </section>
