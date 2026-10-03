@@ -33,33 +33,24 @@
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-03 11:0x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-03 11:3x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
-| PR    | 為什麼保留                                   | 狀態                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ----- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| #1069 | #991 T4 cssLayer：使用者要先看回歸判讀表才合 | draft，head `8935dbf5`，計畫席驗過憲法未動。**判讀表摘要**：188 個狀態（全部靜態路由＋3 參數路由 × 1440/390，含下拉與對話框）× 66 個 computed style，切換前跑兩次當雜訊基準。抓到 8 類翻轉全修（reset 壓掉 Aura padding/border → 進 `@layer base`；勾選框線、textarea 狀態 → 改 token；下拉 2px gutter → `index.html` inline；天藍 focus 環、inputtext 框色、手機分頁器、toast 關閉鈕 hover 四條是「以前同分或低分、從沒生效」的規則 → 刪）。修後 0 筆真實差異。**要您裁的兩點**：刪的四條是從沒上畫面的規則（不是讓設計意圖生效）；toast 鍵盤 focus 環改 accent（可否決）。harness／typecheck 綠，styles 41.73→41.24kB。 |
+| PR    | 為什麼保留                                   | 狀態                                                                                                                                                                                                                                  |
+| ----- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1132 | #1112 migration＋授權：出勤模式改分校層級    | 可合（verify 看 GitHub）。head `ae075010`，12 支檔，新 migration `20261003032358_campus_attendance_mode.sql`（只新增，未動舊檔）；`lib/attendance-mode.ts` 推算分校→機構→daily_checkin；PUT /api/campuses/:id 可寫 attendanceMode（manage_org_settings＋resourceCampusAllowed）。修前紅 7 條→綠。合後 migrate.yml 會停在 prod-db 等您 Approve。 |
 
-| #1080 | #920 授權範圍：老師在「行政負責點名」機構寫出勤 → 403 | 可合（verify 看 GitHub）。head `e61643a5`，base main，15 支檔。根因修在共用函式 `teacherAttendanceWriteAccess`（三態），四支寫入（記錄／批次／更新／銷假）全走；設定頁加「誰負責點名」開關；老師課表「看名單」→ 面板唯讀。修前 spec 實測 200、本機純老師帳號實打 403。順帶發現 roster GET 無老師範圍檢查 → #1081（保留類，2335 接）。 |
+接下來會出現的保留類（labor-20261003-1119 排程中）：#1133（campuses GET 無 org 過濾，c1）、#1119／#1120（requests 表＋家長端第一次寫入）。
+**家長端寫入的架構裁定（10-03 11:5x，計畫席裁，您可否決）**：`parent-data-scope.md` 原列「家長端寫入 v1 唯讀」為明確不做；為了候補登記與申請表，改成寫入走 `childDb.insert／update`（scope 外在送 DB 前拒絕）、機構層級參考資料走 `orgRef` 白名單唯讀（classes／courses／enrollments 計數），不用 DB trigger。文件更新跟 #1119 同 PR。
 
-| #1089 | #1059 授權：人員管理頁只有 `manage_staff` 進得了 | 可合（verify 看 GitHub）。head `46690258`，base main，7 支檔：routes-catalog 掛 `manage_staff`＋`app.routes.ts` 掛 `permissionGuard`、補 `permission.guard.spec`；API 不動（讀取維持開放給挑選器，`index.ts` 補防誤鎖註解）。本機 11 個 demo 管理員實測：無權限的全導回 dashboard、選單無人員管理。權限矩陣與 route-facts 重生。 |
-
-| #1094 | #1081 授權：點名名單 GET 加老師範圍（任課或代課才可讀） | 可合（verify 看 GitHub）。head `1c9d8231`，base main，5 支檔，+222/-1。新 `lib/attendance-read-scope.ts` 重用寫入端純函式；不看責任歸屬（#920 唯讀模式依賴）；別 org 仍 404。spec 修前實測 200 → 修後 403，本機純老師帳號實打一致。跟 #1080 試合無衝突，誰先合都可以（兩支都合後 2335 收掉刻意重複的 staff/sessions 查詢）。 |
-
-| #1102 | #1098 授權：老師讀學生單筆對齊列表範圍（固定任課）、出勤列表 GET 收成 admin-only | 可合（verify 看 GitHub）。head `f1c3192e`，base main，4 支檔，+129/-1。修前 spec 實測兩支都 200 → 單筆：別 org 404、非他學生 403；列表只開管理員（web 端只有管理端 phone-leave 在打，計畫席查過）。跟 #1080、#1094 兩兩試合無衝突。沒本機實打（stack 已收）。 |
-
-**疊在 #1069 上的**：#1078（P1 admin/changes＋共用客製下拉 select-field＋T3 gate A27／A28，draft、base=T4 分支，非保留類）—— #1069 合後 2335 rebase 轉 ready、reviewer 代合，不用您。
-
-接下來會出現的保留類：目前沒有。
-
-**夜間新開的**：#1099（掃碼不看出勤模式一律寫 present，P2 bug，未派）、#1100（後端缺口盤點總表 52 條，追蹤 issue，逐條驗過才拆單 —— 早上跟您一起 triage，P2 的 20 條裡 campus-attendance-mode 要先裁分校層級）。
+10-03 上午已合的五支保留類：#1069（T4）、#1080（#920）、#1094（#1081）、#1102（#1098）、#1089（#1059），分支皆已刪；#1078（P1）隨後由 reviewer 合。
 
 ### 使用者動手的
 
 1. ~~修憲 c6 續跑~~ 已完成：腳本已跑、#1062 於 10-02 23:38 由擁有者合併、`law-c6` worktree 已清。（這一列在 #1061 寫下時腳本還沒跑，10-03 00:2x 複查才發現已過期 —— 快照寫「等使用者」的事項，接手先 `gh pr list --state all --search` 查一次。）
 2. ~~兩個 GitHub environment~~ 已設好（10-03 00:0x），#977 已由 migrate.yml 套上；之後遇到 migration 只要在 Actions 的 `prod-db` 按 Approve。
-3. **api 部署**：每次由使用者在 reviewer worktree 的 `apps/api` 跑 `npx wrangler deploy --env production`（分類器擋 reviewer 的 production deploy）；reviewer 準備截線並驗證。 **待部署的 api 變更（夜間合進 main、線上仍是 `b7ca4e28`）**：#1096（parent/grades 加 description）、#1105（掃碼依模式）；web：#1091、#1093、#1096。下次部署 reviewer 備截線。
+3. **api 部署**：每次由使用者在 reviewer worktree 的 `apps/api` 跑 `npx wrangler deploy --env production`（分類器擋 reviewer 的 production deploy）；reviewer 準備截線並驗證。**第五次部署待備（10-03 中午）**：api 含 #1080／#1094／#1102／#1096／#1105，web 含 T4 #1069／#1078／#1089／#1091／#1093／#1096／#1080；reviewer 等 main verify 綠備截線後請您按。
 4. **T4 cssLayer 回歸**需使用者在場一次（複製 `.dev.vars`），計畫席排時間。
 
 ### 使用者要裁的
