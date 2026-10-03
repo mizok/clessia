@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { isAfterDeploy, planMigrations } from './lib/migration-plan.mjs';
+import { isAfterDeploy, planMigrations, staleNewMigrations } from './lib/migration-plan.mjs';
 
 const m = (version, afterDeploy = false) => ({
   version,
@@ -76,4 +76,41 @@ test('isAfterDeploy 只認第一個非空行的標記', () => {
   assert.equal(isAfterDeploy('\n\n-- clessia:apply after-deploy\n'), true);
   assert.equal(isAfterDeploy('-- 說明\n-- clessia:apply after-deploy\n'), false);
   assert.equal(isAfterDeploy('alter table t add column x int;'), false);
+});
+
+// ── #1248：PR 新增的 migration 不能比 main 最新那支舊 ─────────────────────────────
+// #1216 的形狀：PR 開著時 main 合進了更新的一支，這支合下去 CLI 就以 inserted before 拒絕
+test('新增的比 base 最新那支舊 → stale（#1216 的實際檔名）', () => {
+  const result = staleNewMigrations(
+    ['20261003123801_class_is_recommended.sql'],
+    ['20261003073117_kiosk_role.sql', '20261003124241_schedule_change_type_creation.sql'],
+  );
+  assert.deepEqual(result, {
+    stale: ['20261003123801_class_is_recommended.sql'],
+    baseLatest: '20261003124241',
+  });
+});
+
+test('新增的比 base 最新那支新 → 放行', () => {
+  const result = staleNewMigrations(
+    ['20261004010000_new.sql'],
+    ['20261003124241_schedule_change_type_creation.sql'],
+  );
+  assert.deepEqual(result.stale, []);
+});
+
+test('跟 base 最新那支同一個時間戳也算 stale（version 撞號）', () => {
+  const result = staleNewMigrations(['20261003124241_other.sql'], ['20261003124241_a.sql']);
+  assert.deepEqual(result.stale, ['20261003124241_other.sql']);
+});
+
+test('只回舊的那幾支；base 沒有任何 migration 時一律放行；不是 migration 檔名的忽略', () => {
+  assert.deepEqual(
+    staleNewMigrations(
+      ['20261001000000_old.sql', '20261005000000_new.sql', 'README.md'],
+      ['20261003000000_main.sql'],
+    ).stale,
+    ['20261001000000_old.sql'],
+  );
+  assert.deepEqual(staleNewMigrations(['20261001000000_x.sql'], []).stale, []);
 });
