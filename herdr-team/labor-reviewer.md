@@ -348,3 +348,48 @@ charter 裡那麼多條「先查」,全部是這個形狀的不同衣服。
   `MERGED` 就視同凍結已開 —— 停手、盯那顆 migrate、回報計畫席,不要等訊息。
   同族:本檔「回報已合要以讀回為準」(判斷要依賴剛讀回的事實,不依賴前一個呼叫或別人的通知)。
 
+---
+
+# 蒸餾第三輪(2026-10-04,接手席先讀這一節)
+
+這兩天(10-03～04)代合了上百支 PR、做了十次部署。**下面每一條都是踩過才寫的**;狀態類的東西(哪支 PR 在哪)不寫在這裡。
+
+## 合併授權 v3 下,保留類 PR 的「獨立第二次檢查」清單
+
+保留類(migration／金額路徑／授權範圍／公開端點／CI 碰正式 DB)由**計畫席合**,本席只做第二次檢查、**只報不合**。每支固定回這幾項(缺一項就是沒查完):
+
+1. **head 與授權一致**、`mergeable` 是什麼(`UNKNOWN` 要再查,不要當成沒衝突)。
+2. **org_id**:這支新增／改動的每一條 DB 查詢與寫入有沒有 `.eq('org_id')`;只按 `staff_id`／`session_id` 的子查詢,要確認它的 id 先在同一呼叫驗過屬於本 org。
+3. **範圍**:分校範圍(`getCampusScope`、整批拒絕還是跳過)、老師範圍(`teacher-scope`,**空陣列≠不縮限**)、家長範圍(`isChildAllowed` 越權回 403 不回空、`childDb` 之外還要 `.eq('student_id')` 防兄弟姊妹混入)。
+4. **誰看得到什麼有沒有變多**:新增欄位／新端點對哪些角色可見;白名單擴大要讀它回傳的欄位。公開端點:必須 fail-closed(沒設 org 就 404)、不回老師名／學生資料、費用與名額是否有意公開(**要明講,讓人裁**)、有沒有速率限制。
+5. **金額路徑**:加總是不是 JS 浮點(單價兩位小數會有尾數)、不收費的是不是 0。
+6. **migration**:有沒有、時間戳是否比 main 新(A16b 會擋)、是否只新增、是否在上次截線之後(⓪)。
+7. **`+` 側禁用項**(vh／vw／`*ngIf`／`@Input`／`innerHTML`)與「被刪的行在 `+` 側有沒有重現」。
+8. **外部假設要標出來**:例如「CLI 把一支檔放同一個 transaction」這種我沒讀原始碼驗證的前提,**寫「未驗」,不要寫成結論**。
+
+CI／部署類(`.github/workflows`)另看:觸發條件(`workflow_run` 的 conclusion／head_branch／head_repository)、secrets 只在哪些 step 用、`environment:` 的保護規則會不會讓自動變手動、concurrency 的 **pending 會被取消**(`cancel-in-progress:false` 只保護「正在跑」的)。
+
+## 凍結邊界(補充 #1223)
+
+- 保留類 migration PR 一被合,本席**自己**進凍結:不合任何東西(含 docs)、盯那顆 `migrate.yml` 的 apply。**run 標題的 sha 會誤導**(守衛可能取消較新的 run、TARGET_SHA 才是真的),看 job 狀態與計畫席讀回的 TARGET_SHA。
+- 每次 merge 的**同一個呼叫**先讀一次所有保留類 migration PR 的 state,`MERGED` 就停。
+
+## 寫部署紀錄 PR 的指令:退出碼要擋住後面的提交
+
+(#1192 的教訓)寫檔(python/sed)失敗後,後面的 commit／push／`gh pr create` 照跑,PR 就帶著錯的內容。做法:`set -e` 或全部用 `&&` 串;python 用 `assert 舊字串 in s` 再寫;**macOS 的 `sed -i` 要帶 `''`**,不然靜默失敗(我曾因此送出「見下一行讀回」);`git push` 偶爾網路瞬斷,重推前先確認 `git status` 乾淨。
+
+## Pages 部署後驗證:先抓到舊的 ≠ 沒部署
+
+`demo.clessia.cc` 前面有 CDN／Pages 傳播延遲:部署完立刻抓 `index.html` 可能還是舊 `main-*.js`,或某個新 chunk 短暫回 `text/html`(SPA fallback)。判法:**換 cache-buster(`?cb=$RANDOM`)重抓、再抓 `<hash>.pages.dev` 預覽網址**;兩者都對才算部署對、只有線上舊才是真有問題。「本機 js 檔線上缺 N 個」要等歸零,不是第一次就判。負控(`chunk-ZZZZZZZZ.js` 回 `text/html`)與正控(`all_parents` 出現次數)每次都跑。
+
+## 查 `Closes` 有沒有生效
+
+合併後 `gh issue view <n> --json state` 讀回;`Closes #N` 要寫在 **PR 描述**裡才會自動關(我查到的情形都是這樣關掉的)。**只有 `Refs` 的不會關**(代記要寫「Refs,無 Closes」)。`steward-merge.sh` 自己不查 issue,要自己查。同一支 PR 合進 main 之前被別人合掉時(我曾遇 #1206),**讀回 state/mergedAt/commits 確認合進去的就是授權的 head**,再回報「不是我合的」。
+
+## 其他散落的小判準
+
+- `steward-merge.sh` 合併後會**自動刪分支**(疊在上面的 PR 會擋住並印 `gh pr edit --base main` 指令);作者說「不用刪」時,先告訴他已刪。
+- 同一 head 多筆 `verify`(重複 push 的 1 秒 CANCELLED):腳本已改取最新一筆(#1053);不要手動 `gh pr merge` 繞過(分類器會擋)。
+- build 完看 `dist` 的 **mtime 與退出碼**;`package.json`／lock 動過先 `npm ci`(#1055／#1172 都踩過)。
+- 回報一律從 `gh pr view <n> --json state,mergeCommit` 讀回,**不跟 merge 指令串在同一條**(#1220 的教訓)。
+
