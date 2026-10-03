@@ -1,73 +1,113 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<div class="student-view">
-  <app-page-breadcrumb [items]="breadcrumbs" />
+<!--
+  A6 版（#991 grades G5，grades-student.html）：色面（返回成績總覽、N 位學生）→ 灰工具列（搜尋、年級／學校／狀態）
+  → 依年級分章的學生列。計畫席裁 Q7：照 A6 分章，但每列**不放分數欄**（缺批次學生成績摘要 API，#991 後續項）；
+  「課程／開課班／期間」篩選與匯出 CSV 也列後續項。分校跟頂欄（#1138），頁內不再有分校。
+-->
+<app-page-open>
+  <a
+    openBack
+    class="mb-2 inline-flex min-h-11 items-center gap-1.5 text-md font-semibold text-band-ink no-underline hover:underline hover:underline-offset-4"
+    routerLink="/admin/grades/overview"
+  >
+    <i class="pi pi-arrow-left text-sm" aria-hidden="true"></i>成績總覽
+  </a>
+  <ng-container openTitle>
+    @if (loadingList() || loadFailed()) {
+      學生視角
+    } @else {
+      {{ totalStudents() }} 位學生
+    }
+  </ng-container>
+  <ng-container openSub>點一位學生，看他每一場考試的成績。</ng-container>
+</app-page-open>
 
-  <div class="student-view__toolbar student-view__toolbar--desktop">
-    <div class="student-view__search">
-      <i class="pi pi-search student-view__search-icon"></i>
+<div class="bg-zinc-100">
+  <div
+    class="page-wrap flex flex-col gap-3 py-3 wide:flex-row wide:items-end wide:gap-4"
+    role="search"
+    aria-label="篩選學生"
+  >
+    <label class="flex min-w-0 flex-col gap-1 wide:w-72">
+      <span class="text-sm font-semibold text-zinc-700">搜尋</span>
       <input
         pInputText
-        type="text"
+        type="search"
+        class="h-11 w-full"
         [ngModel]="searchText()"
         (ngModelChange)="onSearchChange($event)"
-        placeholder="搜尋學生姓名..."
-        class="student-view__search-input"
+        placeholder="學生姓名"
       />
+    </label>
+
+    <!-- 桌機：篩選攤開（同 G4 class-view） -->
+    <div class="hidden gap-3 wide:flex wide:items-end" data-part="desktop-filters">
+      <div class="flex min-w-40 flex-col gap-1">
+        <span class="text-sm font-semibold text-zinc-700" id="sv-f-grade">年級</span>
+        <p-select
+          [options]="gradeOptions"
+          [ngModel]="gradeFilter()"
+          (ngModelChange)="onGradeChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部年級"
+          [showClear]="true"
+          ariaLabelledBy="sv-f-grade"
+          styleClass="w-full"
+        />
+      </div>
+      <div class="flex min-w-40 flex-col gap-1">
+        <span class="text-sm font-semibold text-zinc-700" id="sv-f-school">學校</span>
+        <p-select
+          [options]="schoolOptions()"
+          [ngModel]="schoolIdFilter()"
+          (ngModelChange)="onSchoolChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="全部學校"
+          [showClear]="true"
+          ariaLabelledBy="sv-f-school"
+          styleClass="w-full"
+        />
+      </div>
+      <div class="flex min-w-32 flex-col gap-1">
+        <span class="text-sm font-semibold text-zinc-700" id="sv-f-status">狀態</span>
+        <p-select
+          [options]="statusOptions"
+          [ngModel]="activeStatusFilter()"
+          (ngModelChange)="onActiveStatusChange($event)"
+          optionLabel="label"
+          optionValue="value"
+          ariaLabelledBy="sv-f-status"
+          styleClass="w-full"
+        />
+      </div>
     </div>
 
-    <p-select
-      [options]="gradeOptions"
-      [ngModel]="gradeFilter()"
-      (ngModelChange)="onGradeChange($event)"
-      optionLabel="label"
-      optionValue="value"
-      placeholder="全部年級"
-      [showClear]="true"
-      size="small"
-      styleClass="student-view__grade-select"
-    />
-
-    <p-select
-      [options]="schoolOptions()"
-      [ngModel]="schoolIdFilter()"
-      (ngModelChange)="onSchoolChange($event)"
-      optionLabel="label"
-      optionValue="value"
-      placeholder="全部學校"
-      [showClear]="true"
-      size="small"
-      styleClass="student-view__school-select"
-    />
-
-    <p-select
-      [options]="statusOptions"
-      [ngModel]="activeStatusFilter()"
-      (ngModelChange)="onActiveStatusChange($event)"
-      optionLabel="label"
-      optionValue="value"
-      size="small"
-      styleClass="student-view__status-select"
-    />
+    <!-- 手機：其餘條件收進篩選對話框 -->
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 self-start rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 wide:hidden"
+      (click)="openMobileFilterDialog()"
+    >
+      <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
+      篩選
+    </button>
   </div>
+</div>
 
-  <div class="student-view__toolbar student-view__toolbar--mobile">
-    <p-button
-      label="篩選"
-      icon="pi pi-sliders-h"
-      severity="secondary"
-      [outlined]="true"
-      (onClick)="openMobileFilterDialog()"
-    />
-  </div>
-
+<div class="page-wrap pt-2 pb-28 wide:pb-32">
   @if (loadingList()) {
-    <div class="student-view__loading">
-      <i class="pi pi-spinner pi-spin"></i>
-      載入學生名單...
+    <div class="skeleton-list mt-6" aria-label="學生名單載入中">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <span class="skeleton-bar"></span>
+      }
     </div>
   } @else if (loadFailed()) {
-    <app-load-failed description="沒有讀到學生名單，可能是連線問題" (retry)="loadStudents()" />
+    <div class="mt-6">
+      <app-load-failed description="沒有讀到學生名單，可能是連線問題" (retry)="loadStudents()" />
+    </div>
   } @else if (pagedStudents().length === 0) {
     <app-empty-state
       icon="pi pi-users"
@@ -76,33 +116,53 @@
       description="請嘗試調整篩選條件或搜尋關鍵字"
     />
   } @else {
-    <div class="student-view__list">
-      @for (s of pagedStudents(); track s.id) {
-        <button type="button" class="student-view__row" (click)="selectStudent(s)">
-          <app-jdenticon-avatar class="student-view__row-avatar" [value]="s.id" [size]="44" />
-          <div class="student-view__row-main">
-            <div class="student-view__row-head">
-              <span class="student-view__row-name">{{ s.name }}</span>
-              <span class="student-view__row-grade-chip">{{ formatGrade(s.grade) }}</span>
-            </div>
-            <div class="student-view__row-meta">
-              @if (s.school?.name; as schoolName) {
-                <span class="student-view__row-school">
-                  <i class="pi pi-book"></i>{{ schoolName }}
-                </span>
-              }
-              @for (cn of s.campusNames; track cn) {
-                <app-data-chip>{{ cn }}</app-data-chip>
-              }
-            </div>
+    <!--
+      依年級分章（A6 .chap）：名單一次抓完、前端分頁 —— 整份先依年級排好再切頁，
+      所以同一個年級可能跨頁，分章只分「這一頁」上的學生。
+    -->
+    @for (chap of pageChapters(); track chap.grade) {
+      <section
+        class="grid gap-3 border-b border-surface-border py-6 wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-8"
+        [attr.aria-label]="formatGrade(chap.grade)"
+        data-part="grade-chapter"
+      >
+        <div class="flex items-baseline gap-3 wide:block wide:self-start">
+          <div class="text-[28px] leading-none font-bold tracking-[-0.04em] wide:text-[44px]">
+            {{ formatGrade(chap.grade) }}
           </div>
-          <i class="pi pi-chevron-right student-view__row-chevron"></i>
-        </button>
-      }
-    </div>
+          <p class="m-0 text-base font-bold tabular-nums wide:mt-3 wide:text-xl">
+            {{ chap.students.length }}<span class="ml-1 text-md font-medium text-zinc-600">位</span>
+          </p>
+        </div>
+        <div>
+          @for (s of chap.students; track s.id) {
+            <button
+              type="button"
+              class="group grid min-h-11 w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-0 border-b border-surface-border bg-transparent py-4 text-left text-zinc-900 last:border-b-0"
+              data-part="student-row"
+              (click)="selectStudent(s)"
+            >
+              <span class="min-w-0">
+                <span
+                  class="block text-lg font-semibold group-hover:underline group-hover:underline-offset-4"
+                  >{{ s.name }}</span
+                >
+                <span class="block text-sm text-zinc-600">
+                  {{ s.school?.name ?? '未填學校' }}
+                  @if (s.classNames?.length) {
+                    · {{ s.classNames.join('、') }}
+                  }
+                </span>
+              </span>
+              <i class="pi pi-chevron-right text-sm text-zinc-600" aria-hidden="true"></i>
+            </button>
+          }
+        </div>
+      </section>
+    }
 
     @if (totalStudents() > pageSize) {
-      <div class="student-view__pagination">
+      <div class="mt-6">
         <p-paginator
           [first]="(currentPage() - 1) * pageSize"
           [rows]="pageSize"

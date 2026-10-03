@@ -181,10 +181,14 @@ describe('StudentViewComponent', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-    const rows = host.querySelectorAll('.student-view__row');
+    const rows = host.querySelectorAll('[data-part=student-row]');
     expect(rows.length).toBe(2);
     expect(rows[0].textContent).toContain('王小明');
-    expect(rows[0].textContent).toContain('國一');
+    // 年級改成分章標題（A6，#991 grades Q7）
+    const chapters = host.querySelectorAll('[data-part=grade-chapter]');
+    expect(chapters.length).toBe(2);
+    expect(chapters[0].textContent).toContain('國一');
+    expect(chapters[0].textContent).toContain('王小明');
   });
 
   /**
