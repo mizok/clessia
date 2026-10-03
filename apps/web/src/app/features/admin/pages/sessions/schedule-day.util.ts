@@ -177,3 +177,24 @@ export function summarizeWeek(
     };
   });
 }
+
+/**
+ * 勾一堂課（A6 `toggle()`）。`last` 是上一次勾的那堂；按著 Shift、而且兩堂都在畫面順序 `order` 裡時，
+ * 把中間的全部加進去（只加不減）；否則就是單堂切換。順序：甘特是老師列由上而下，清單是由上而下。
+ */
+export function pickRange(
+  selected: ReadonlySet<string>,
+  order: readonly string[],
+  last: string | null,
+  id: string,
+): Set<string> {
+  const next = new Set(selected);
+  const a = last === null ? -1 : order.indexOf(last);
+  const b = order.indexOf(id);
+  if (a >= 0 && b >= 0) {
+    for (const x of order.slice(Math.min(a, b), Math.max(a, b) + 1)) next.add(x);
+  } else if (!next.delete(id)) {
+    next.add(id);
+  }
+  return next;
+}

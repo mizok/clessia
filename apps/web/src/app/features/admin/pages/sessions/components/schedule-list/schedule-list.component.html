@@ -9,8 +9,10 @@
         class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start border-b border-surface-border"
         [class.bg-zinc-100]="selectedIds().has(s.id)"
       >
+        <!-- 手機沒有原地勾選框（A6）：勾課走「快速選取」面板，或長按一堂 -->
         <label
-          class="grid h-11 cursor-pointer place-items-center"
+          (click)="onPickClick($event, s.id)"
+          class="hidden h-11 cursor-pointer place-items-center wide:grid"
           [class.w-11]="!compact()"
           [class.w-7]="compact()"
         >
@@ -21,14 +23,18 @@
             [attr.aria-label]="
               '勾 ' + s.className + ' ' + s.sessionDate.slice(5) + ' ' + s.startTime
             "
-            (change)="toggle.emit(s.id)"
           />
         </label>
         <button
           type="button"
           class="flex min-h-11 min-w-0 cursor-pointer flex-col items-start gap-px border-0 bg-transparent px-0 py-2 text-left text-zinc-900"
           [attr.aria-label]="s.className + ' ' + s.startTime + '–' + s.endTime + '：看看能做什麼'"
-          (click)="menu.emit({ event: $event, session: s })"
+          (click)="onMain($event, s)"
+          (pointerdown)="pressStart($event, s.id)"
+          (pointerup)="pressEnd()"
+          (pointercancel)="pressEnd()"
+          (pointerleave)="pressEnd()"
+          (contextmenu)="pressed && $event.preventDefault()"
         >
           <span
             class="text-md leading-snug font-semibold"

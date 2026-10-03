@@ -37,6 +37,12 @@ export class SelectFieldComponent<T> {
   readonly label = input.required<string>();
   readonly options = input.required<readonly SelectFieldOption<T>[]>();
   readonly value = model<T | null>(null);
+  /**
+   * 選單面板掛在哪。預設 body；**放在原生 modal `<dialog>` 裡時要給那個 dialog 元素** ——
+   * dialog 在 top layer，掛到 body 的面板會被它蓋住、點不到；給 `'self'` 則會被 dialog 的捲動區裁掉，
+   * 也沒有手機的底部面板（#1174 G3 快速選取面板，兩種都實測過）。
+   */
+  readonly appendTo = input<'body' | HTMLElement>('body');
 
   protected readonly labelId = `select-field-${++seq}`;
   protected readonly filter = computed(() => this.options().length > 8);
@@ -69,7 +75,10 @@ export class SelectFieldComponent<T> {
       },
     } as SelectPassThrough),
     // 手機版遮罩是 flex 容器，中間那層 <p-motion> 是 inline 寬度 —— 子元素要撐滿才會是全寬底部面板
-    pcOverlay: { root: { class: 'max-[860px]:*:w-full' }, content: { class: 'max-[860px]:w-full' } },
+    pcOverlay: {
+      root: { class: 'max-[860px]:*:w-full' },
+      content: { class: 'max-[860px]:w-full' },
+    },
     header: { class: 'p-0' },
     pcFilter: {
       root: {

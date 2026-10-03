@@ -1,0 +1,109 @@
+<dialog
+  #dialog
+  class="inset-x-0 top-auto bottom-0 m-0 max-h-[88%] min-h-11 w-full max-w-none flex-col rounded-t-xl border-0 bg-zinc-200 p-0 text-zinc-900 shadow-[0_-12px_32px_-8px_rgb(26_22_20/28%)] backdrop:bg-zinc-900/40 open:flex"
+  aria-labelledby="quick-sheet-title"
+  (click)="onBackdrop($event)"
+  (close)="closed.emit()"
+>
+  <header class="flex flex-none items-baseline gap-2 pt-3 pr-2 pb-2 pl-4">
+    <h2 class="m-0 text-xl font-bold tracking-tight" id="quick-sheet-title">快速選取</h2>
+    <span class="text-md font-semibold text-zinc-700 tabular-nums">{{ title() }}</span>
+    <button
+      type="button"
+      class="ml-auto grid size-11 cursor-pointer place-items-center self-center rounded-full border-0 bg-transparent text-zinc-900 hover:bg-zinc-300"
+      aria-label="關閉"
+      (click)="dialog.close()"
+    >
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
+  </header>
+
+  <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
+    <p class="m-0 mb-2 text-md font-semibold text-zinc-700">一次勾：</p>
+    <app-schedule-quick-picks
+      [appendTo]="dialog"
+      [dayName]="dayName()"
+      [teacherOptions]="teacherOptions()"
+      [classOptions]="classOptions()"
+      (pickDay)="pickDay.emit()"
+      (pickTeacher)="pickTeacher.emit($event)"
+      (pickClass)="pickClass.emit($event)"
+    />
+
+    @for (ch of chapters(); track ch.date) {
+      @if (chapters().length > 1) {
+        <h3 class="m-0 mt-5 text-lg font-bold tabular-nums">{{ ch.date | date: 'M/d' }}</h3>
+      }
+      @for (g of ch.groups; track g.start) {
+        <div class="mt-4">
+          <p class="m-0 border-b border-zinc-900 pb-1 text-sm text-zinc-600 tabular-nums">
+            <b class="text-base text-zinc-900">{{ g.start }}</b> 開始 · {{ g.sessions.length }} 堂
+          </p>
+          @for (s of g.sessions; track s.id) {
+            <label
+              class="grid min-h-11 cursor-pointer grid-cols-[28px_minmax(0,1fr)] items-start gap-x-1 border-b border-zinc-300 py-2"
+            >
+              <input
+                type="checkbox"
+                class="mt-0.5 size-5 cursor-pointer accent-zinc-900"
+                [checked]="selectedIds().has(s.id)"
+                (change)="toggle.emit(s.id)"
+              />
+              <span class="min-w-0">
+                <span class="block text-md font-semibold">{{ s.className }}</span>
+                <span class="block text-sm text-zinc-700 tabular-nums"
+                  >{{ s.startTime }}–{{ s.endTime }} · {{ s.teacherName ?? '未指派' }}
+                  @if (statusNote(s.status); as note) {
+                    · <b class="text-zinc-900">{{ note }}</b>
+                  }
+                </span>
+              </span>
+            </label>
+          }
+        </div>
+      }
+    } @empty {
+      <p class="m-0 mt-4 text-md text-zinc-700">這裡沒有課。</p>
+    }
+  </div>
+
+  <footer class="flex-none border-t border-zinc-300 bg-zinc-200 px-4 pt-3 pb-4">
+    <div class="flex flex-wrap items-baseline gap-x-3">
+      <p class="m-0 text-md font-semibold tabular-nums" aria-live="polite">
+        已勾 <b class="text-xl">{{ selectedIds().size }}</b> 堂
+        @if (selectedIds().size > visibleCount()) {
+          <span class="block text-sm font-normal text-zinc-700"
+            >這裡 {{ visibleCount() }} 堂，其他
+            {{ selectedIds().size - visibleCount() }} 堂不在這裡</span
+          >
+        }
+      </p>
+      <button
+        type="button"
+        class="ml-auto inline-flex h-11 cursor-pointer items-center border-0 bg-transparent px-1 text-md font-semibold text-zinc-900 underline decoration-zinc-400 underline-offset-4 disabled:cursor-default disabled:text-zinc-500 disabled:no-underline"
+        [disabled]="!selectedIds().size"
+        (click)="clear.emit()"
+      >
+        全部取消選取
+      </button>
+    </div>
+    <div class="mt-2 grid grid-cols-2 gap-2">
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold text-zinc-900 disabled:cursor-default disabled:opacity-50"
+        [disabled]="!selectedIds().size"
+        (click)="act.emit(null)"
+      >
+        其他動作
+      </button>
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border-0 bg-accent-vivid px-3 text-md font-semibold text-zinc-900 disabled:cursor-default disabled:opacity-50"
+        [disabled]="!selectedIds().size"
+        (click)="act.emit('cancel')"
+      >
+        <i class="pi pi-times text-sm" aria-hidden="true"></i>停課
+      </button>
+    </div>
+  </footer>
+</dialog>

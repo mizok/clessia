@@ -1,0 +1,25 @@
+<div class="flex flex-col gap-3 wide:flex-row wide:items-end">
+  @if (dayName(); as name) {
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900"
+      (click)="pickDay.emit()"
+    >
+      <i class="pi pi-calendar text-sm" aria-hidden="true"></i>這一整天（{{ name }}）
+    </button>
+  }
+  <app-select-field
+    class="wide:w-56"
+    label="某位老師這週的課"
+    [options]="teacherOptions()"
+    [appendTo]="appendTo()"
+    (valueChange)="$event && pickTeacher.emit($event)"
+  />
+  <app-select-field
+    class="wide:w-56"
+    label="某個班整期的課"
+    [options]="classOptions()"
+    [appendTo]="appendTo()"
+    (valueChange)="$event && pickClass.emit($event)"
+  />
+</div>

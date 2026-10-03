@@ -352,20 +352,20 @@ describe('SessionsPage', () => {
     expect((component as unknown as { mode: () => string }).mode()).toBe('day');
   });
 
-  it('換天：只查那一天、放掉勾選', () => {
+  it('換天：只查那一天；勾選留著（#1174 G3：快速選取勾的是跨天的）', () => {
     const c = component as unknown as {
       setDay: (d: Date) => void;
       selectedIds: { set: (v: Set<string>) => void; (): Set<string> };
     };
     c.selectedIds.set(new Set(['s1']));
     c.setDay(new Date(2026, 9, 6));
-    expect(c.selectedIds().size).toBe(0);
+    expect(c.selectedIds().size).toBe(1);
     expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
       expect.objectContaining({ from: '2026-10-06', to: '2026-10-06' }),
     );
   });
 
-  it('週視圖：查週一到週日、放掉勾選；上下週留在週視圖；點一天切回那天的日視圖', () => {
+  it('週視圖：查週一到週日、勾選留著；上下週留在週視圖；點一天切回那天的日視圖', () => {
     const c = component as unknown as {
       setDay: (d: Date) => void;
       setView: (v: 'day' | 'week') => void;
@@ -377,7 +377,7 @@ describe('SessionsPage', () => {
     c.selectedIds.set(new Set(['s1']));
     c.setView('week');
     expect(c.mode()).toBe('week');
-    expect(c.selectedIds().size).toBe(0);
+    expect(c.selectedIds().size).toBe(1);
     expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
       expect.objectContaining({ from: '2026-10-05', to: '2026-10-11' }),
     );
@@ -392,6 +392,101 @@ describe('SessionsPage', () => {
     expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
       expect.objectContaining({ from: '2026-10-14', to: '2026-10-14' }),
     );
+  });
+
+  describe('快速選取（#1174 G3）', () => {
+    const ses = (id: string, over: Partial<Session> = {}) =>
+      ({
+        id,
+        classId: 'c1',
+        className: '數學A',
+        courseId: 'co',
+        campusId: 'ca',
+        sessionDate: '2026-10-07',
+        startTime: '17:00',
+        endTime: '18:00',
+        teacherId: 't1',
+        teacherName: '林',
+        status: 'scheduled',
+        assignmentStatus: 'assigned',
+        hasChanges: false,
+        ...over,
+      }) as Session;
+    type C = {
+      setDay: (d: Date) => void;
+      selectedIds: () => Set<string>;
+      selectedSessions: () => Session[];
+      hasCancelledSelection: () => boolean;
+      visibleSelectedCount: () => number;
+      pickLabel: () => string;
+      pickTeacher: (id: string) => void;
+      pickClass: (id: string) => void;
+      pickDay: (d: string) => void;
+      toggleSelect: (r: { id: string; shiftKey: boolean }) => void;
+      sessions: { set: (v: Session[]) => void };
+      now: { set: (v: Date) => void };
+    };
+
+    it('某位老師這週：查今天起到週日、只要正常的課，勾到的不在畫面上也算數', () => {
+      const c = component as unknown as C;
+      c.setDay(new Date(2026, 9, 7)); // 週三
+      c.now.set(new Date(2026, 9, 7, 9));
+      sessionsServiceMock.list.mockReturnValueOnce(
+        of(
+          makeListResponse([
+            ses('x1', { sessionDate: '2026-10-09' }),
+            ses('x2', { sessionDate: '2026-10-10' }),
+          ]),
+        ),
+      );
+      c.pickTeacher('t1');
+      expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          teacherIds: ['t1'],
+          from: '2026-10-07',
+          to: '2026-10-11',
+          statuses: ['scheduled'],
+        }),
+      );
+      expect([...c.selectedIds()]).toEqual(['x1', 'x2']);
+      // 畫面上（那一天）一堂都沒有，但批次對話框要的資料還在
+      expect(c.visibleSelectedCount()).toBe(0);
+      expect(c.selectedSessions().map((s) => s.id)).toEqual(['x1', 'x2']);
+      expect(c.pickLabel()).toContain('這週（今天起）');
+    });
+
+    it('某個班整期：今天起、沒有結束日', () => {
+      const c = component as unknown as C;
+      c.now.set(new Date(2026, 9, 7, 9));
+      c.pickClass('c9');
+      const last = (sessionsServiceMock.list.mock.lastCall as unknown[])[0] as Record<
+        string,
+        unknown
+      >;
+      expect(last).toMatchObject({ classIds: ['c9'], from: '2026-10-07', statuses: ['scheduled'] });
+      expect(last['to']).toBeUndefined();
+    });
+
+    it('這一整天勾畫面上那天的全部（含停課，才能批次恢復）；Shift 勾從上一堂勾到這一堂', () => {
+      const c = component as unknown as C;
+      c.sessions.set([
+        ses('a', { startTime: '09:00', endTime: '10:00', teacherId: 't1' }),
+        ses('b', { startTime: '10:00', endTime: '11:00', teacherId: 't1', status: 'cancelled' }),
+        ses('c', { startTime: '09:00', endTime: '10:00', teacherId: 't2', teacherName: '王' }),
+        ses('z', { sessionDate: '2026-10-08' }),
+      ]);
+      c.pickDay('2026-10-07');
+      expect([...c.selectedIds()].sort()).toEqual(['a', 'b', 'c']);
+      expect(c.hasCancelledSelection()).toBe(true);
+
+      // 日視圖手上只有那一天的課（上面那筆別天的只是用來驗「這一整天」不會勾到它）
+      c.sessions.set(c.selectedSessions());
+      (component as unknown as { clearSelection: () => void }).clearSelection();
+      c.toggleSelect({ id: 'a', shiftKey: false });
+      c.toggleSelect({ id: 'c', shiftKey: true });
+      // 甘特順序：林老師那列（a, b）在上、王老師（c）在下 —— 中間的 b 一起勾
+      expect([...c.selectedIds()].sort()).toEqual(['a', 'b', 'c']);
+    });
   });
 
   it('隱藏停課：狀態收成正常＋已完成；回到課表時恢復全部', () => {
