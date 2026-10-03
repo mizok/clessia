@@ -488,6 +488,33 @@ git show origin/main:<檔案> | grep -c '<你最後一次改動裡一句獨特�
 可以砍掉自己那道防禦的理由** —— 對應 charter 那條「要刪掉一個防禦分支前,先問它是不是
 留給未來的呼叫端」。
 
+## 跑 gate 時不要把它接到 pipe 上 —— `|` 吃掉退出碼,`&&` 就永遠成立
+
+**錯的寫法**(2026-10-03 我用它開了一支假稱 harness 綠的 PR):
+
+```bash
+npm run harness 2>&1 | tail -2 && git commit …      # ← tail 成功,所以 && 永遠往下走
+```
+
+`npm run harness` 那一輪**退出碼是 1**(worktree 的 root `node_modules` 缺
+`@tailwindcss/node`,那是 Tailwind 導入後新加的依賴),而我只看 `tail -2` 的尾巴 ——
+**輸出尾巴是 Node 的 stack trace 結尾,看起來跟綠燈的尾巴一樣無害**,`&&` 也照樣放行。
+**於是 commit、push、PR 都成立了,而 PR 描述裡寫著「`npm run harness` 綠」。**
+
+**正確寫法:先存退出碼,再看輸出**
+
+```bash
+npm run harness >/tmp/h.log 2>&1; echo "exit=$?"; tail -3 /tmp/h.log
+```
+
+**兩條推論**:
+
+- **`exit=0` 才是綠,輸出長相不是** —— 這就是全席通則「綠燈有兩種,輸出上一模一樣」的
+  pipe 版本,而我連「有沒有打勾」都沒看。
+- **長時間不動的 worktree 會因為別人新加的依賴而跑不動 gate**。
+  `npm run harness` 突然 `ERR_MODULE_NOT_FOUND` → **先 `npm install`,不要先懷疑 gate**。
+  (監工的 worktree 幾天不碰 `package.json`,所以這件事只會發生在監工與其他長命席位身上。)
+
 ## PR 狀態只信 `state`,`mergeable`/`mergeStateStatus` 在已結案的 PR 上是垃圾值
 
 `mergeable` 欄位一旦 PR 進入 `MERGED` 或 `CLOSED`,GitHub **就不再計算它**,永遠回
