@@ -4,7 +4,7 @@ summary: 三個元件（Supabase / Workers / Pages）、哪些步驟只有人能
 category: architecture
 tags: [architecture, deployment, cloudflare, supabase]
 status: active
-updated: 2026-10-01
+updated: 2026-10-04
 ---
 
 # 部署
@@ -424,7 +424,12 @@ while i < len(s):
    判斷在 `tools/agent-harness/lib/migration-plan.mjs`（有測試）。結果寫進 step summary：
    `clean`（差集 0）／`apply`／`after-deploy`／`blocked`（紅）。
 2. **apply**：停在 `prod-db` environment 等使用者按 Approve，再 `supabase db push --db-url … --yes`。
-   套前重算一次（等核准期間 DB 被動過就停），套後差集必須是 0。
+   套前重算一次：**現在待套的必須是 plan 時的子集**（多出 plan 沒看過的就停；空的就 skip），套後差集必須是 0。
+
+**多顆 apply 同時 waiting 是正常的**（#1146 拿掉了 concurrency —— 它會讓等 Approve 的那顆被下一顆取代）。
+**按最新那顆**（待套最多）；其餘不用理，之後被按也只會 skip 或套剩下的子集。
+⚠️ **在第一次真實 Approve 驗證通過之前，「Approve 落地前計畫席凍結合併」照舊**（計畫席 10-04 裁）——
+驗證通過、結果記在 #1146 之後再放寬這條。
 
 **安全邊界**（repo 是 public，#968 審出的 pwn-request 形狀）：只接本 repo main 上 push 的 verify；
 **帶 secret 的 job（撈 version 的 `remote`、套用的 `apply`）不執行 repo 的腳本**，
@@ -436,7 +441,8 @@ while i < len(s):
 | **永不帶 `--include-all`** | 中間漏套（#915 的形狀）時 CLI 會以 `Found local migration files to be inserted before the last migration on remote database.` 拒絕 —— 補哪一支要人決定 |
 | backfill 檔**第一行**寫 `-- clessia:apply after-deploy` | schema 要「套完才部署」、backfill 要「部署完才套」（#905），一次 `db push` 拆不開；有標記的 plan 不自動套，部署完由使用者 dispatch（填 `deployed_sha`） |
 | schema 與 backfill **分批合** | 同批待套 plan 會紅 |
-| 一支檔是一個隱式 transaction | 失敗整支回滾、不留 history 列；`CREATE INDEX CONCURRENTLY` 例外，要寫就獨立成一支檔 |
+| 一支檔是一個隱式 transaction | 失敗整支回滾、不留 history 列。**兩顆 apply 同時被按也靠它**：後到的那顆撞 `schema_migrations` 主鍵、整支回滾（含 DML），不會套兩次（#1146 用 CLI 2.119.0 對拋棄式 DB 實測：計數只 +1） |
+| `CREATE/DROP INDEX CONCURRENTLY`、`REINDEX … CONCURRENTLY`、`VACUUM`、`ALTER SYSTEM`、`CLUSTER` **獨立成一支只有那一句的檔** | CLI 遇到它們會先 flush、單獨執行 —— 同一支檔被拆成多個 transaction。跟 DML 混在一起時，兩顆同時套會讓 DML **套兩次**（#1146 實測：計數 +2） |
 | 套壞了用新的 migration 往前修 | c3：已提交的檔不可改；沒有 down migration |
 
 **設定**（一次性，使用者做）：GitHub repo → Settings → Environments 建 `prod-db`（Required reviewers =

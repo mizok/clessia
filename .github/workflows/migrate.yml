@@ -71,10 +71,23 @@ on:
 permissions:
   contents: read
 
-# concurrency **只掛在 apply**（#968 reviewer 審出）。頂層掛一個 group 的話，
-# `cancel-in-progress: false` 的同一個 group 最多只留一顆排隊中的 —— 第三顆一到，中間那顆就被丟掉
-# （verify.yml 的 #603 → #613 同一個形狀），於是合併密集日大多數 commit 沒有 plan 結果，⓪ 常態性找不到截線。
-# remote / plan 唯讀、互不干擾，每顆都要有結果，所以不設；只有碰正式 DB 的 apply 序列化。
+# **整支都不掛 concurrency**（#968 拿掉頂層、#1146 拿掉 apply 的）。一個 group 最多只留
+# 「一顆 running＋一顆 pending」，新的 pending 會取消舊的 —— 而**等 Approve 的 job 就是 pending**：
+# 合併密集時使用者還沒按，那顆就被下一顆取代（10-03 `fb7fd272`／`4e3ae695`）；沒人理的 waiting
+# 反過來佔住 group，後面的 apply 一直 pending 沒有按鈕（`389045d7`）。
+#
+# 現在多顆 apply 可以同時 waiting，**使用者按最新那顆**（它的待套是最大集合）；其餘不用理 ——
+# 之後被按也只會 skip 或套剩下的子集（見 apply 的 recheck）。
+#
+# **兩顆同時被 Approve 怎麼擋**：recheck 的差集重算有 TOCTOU，擋不住。擋住的是 DB ——
+# CLI（v2.119.0，`pkg/migration/file.go` 的 `ExecBatch`）把**一支檔的全部語句＋寫 history 那列**
+# 放進同一個 pipeline batch（一個 Sync = 一個隱式 transaction），而 `schema_migrations.version`
+# 是 PRIMARY KEY（`history.go` 的 CREATE_VERSION_TABLE）。後到的那顆要嘛 DDL 自己撞錯，要嘛 history
+# INSERT 撞主鍵 —— **整支檔回滾（含 DML），不會套兩次**；那顆紅燈，DB 一致。
+# ⚠️ 例外：`CREATE/DROP INDEX CONCURRENTLY`、`REINDEX … CONCURRENTLY`、`VACUUM`、`ALTER SYSTEM`、`CLUSTER`
+# 會讓 CLI 先 flush、單獨執行 —— **同一支檔會被拆成多個 transaction**，上面的保證就不成立。
+# 本 repo 0 支（2026-10-04 grep）；真要寫就**獨立成一支只有那一句的檔**。升 CLI 版本時重讀那段原始碼。
+# ponytail: 靠 PK＋單一 transaction 兜底，不另做序列化；CLI 哪天改成分開寫 history，改用 GitHub API tie-break
 
 env:
   # 釘版本：正式 DB 的寫入不跟 latest。升版要另開 PR、看 changelog 的 db push 段落。
@@ -161,11 +174,7 @@ jobs:
     runs-on: ubuntu-latest
     # **使用者在這裡按 Approve** —— environment 設了 required reviewer，沒按就不會往下跑
     environment: prod-db
-    # 同一時間只能有一顆在碰正式 DB，而且不殺正在跑的。排隊中被丟掉的那顆不會漏套：
-    # 下一顆 apply 的 db push 套的是全部待套檔
-    concurrency:
-      group: migrate-prod
-      cancel-in-progress: false
+    # 不掛 concurrency（#1146）—— 為什麼、以及兩顆同時被按怎麼擋，見檔頭 concurrency 那段
     steps:
       - uses: actions/checkout@v4
         with:
@@ -175,7 +184,9 @@ jobs:
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
-      # 等核准的期間可能過了很久 —— 重算一次，待套清單必須跟 plan 時一模一樣。
+      # 等核准的期間可能過了很久 —— 重算一次。**現在待套的必須是 plan 時待套的子集**（#1146）：
+      # 使用者核准的是 plan 那一批，套它的子集沒有超出核准。子集的常態：多顆 waiting 並存時
+      # 另一顆先被按、先套掉了一部分。**多出 plan 沒看過的才停** —— 那代表正式 DB 被別的東西動過。
       # 用內嵌 shell 而不是 migrate-plan.mjs：這個 job 帶 secret，不執行 repo 的腳本。
       - name: 核准前後正式 DB 沒被動過
         id: recheck
@@ -186,15 +197,21 @@ jobs:
           ls supabase/migrations/*.sql | sed -E 's#.*/([0-9]{14})_.*#\1#' | sort > "$RUNNER_TEMP/local.txt"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -At \
             -c 'select version from supabase_migrations.schema_migrations order by 1' | sort > "$RUNNER_TEMP/remote.txt"
-          now=$(comm -23 "$RUNNER_TEMP/local.txt" "$RUNNER_TEMP/remote.txt" | paste -sd, -)
-          # 排在前面的另一顆 apply 已經把同一批套掉了（合併密集日的常態）—— 沒事可做，不是異常
-          if [ -z "$now" ]; then
-            echo '### 待套的已由前一顆 apply 套上，這顆不再 push' >> "$GITHUB_STEP_SUMMARY"
+          comm -23 "$RUNNER_TEMP/local.txt" "$RUNNER_TEMP/remote.txt" > "$RUNNER_TEMP/now.txt"
+          printf '%s\n' "${EXPECTED}" | tr ',' '\n' | sort > "$RUNNER_TEMP/expected.txt"
+          now=$(paste -sd, - < "$RUNNER_TEMP/now.txt")
+          unexpected=$(comm -23 "$RUNNER_TEMP/now.txt" "$RUNNER_TEMP/expected.txt" | paste -sd, -)
+          if [ -n "${unexpected}" ]; then
+            echo "現在待套的有 plan 沒看過的（plan：${EXPECTED}；現在：${now}；多出：${unexpected}）—— 停"; exit 1
+          fi
+          # 另一顆 apply 已經把這批套掉了（多顆 waiting 並存時的常態）—— 沒事可做，不是異常
+          if [ -z "${now}" ]; then
+            echo '### 待套的已由另一顆 apply 套上，這顆不再 push' >> "$GITHUB_STEP_SUMMARY"
             echo 'skip=true' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ "$now" != "$EXPECTED" ]; then
-            echo "待套清單跟 plan 時不一樣（plan：$EXPECTED；現在：$now）—— 停"; exit 1
+          if [ "${now}" != "${EXPECTED}" ]; then
+            echo "### plan 時待套 ${EXPECTED}；另一顆已套掉一部分，這顆只套剩下的 ${now}" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: CLI 自己的判斷（留在 log 裡）
@@ -212,7 +229,10 @@ jobs:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: supabase db push --db-url "$DB_URL" --yes
 
+      # skip 的那顆不比：它的 checkout 可能比另一顆舊，「正式 DB 有、repo 沒有」會列出另一顆
+      # 剛套的新檔而誤紅（#1146）。有 push 的那顆，checkout 必然含全部已套的（待套只會是子集）
       - name: 套完之後差集必須是 0
+        if: steps.recheck.outputs.skip != 'true'
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
