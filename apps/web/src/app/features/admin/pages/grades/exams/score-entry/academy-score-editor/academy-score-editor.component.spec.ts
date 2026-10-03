@@ -1,3 +1,4 @@
+import { provideRouter } from '@angular/router';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MessageService } from 'primeng/api';
 import { of } from 'rxjs';
@@ -74,6 +75,7 @@ describe('AcademyScoreEditorComponent', () => {
       providers: [
         { provide: AcademyExamsService, useValue: academyExamsServiceMock },
         { provide: MessageService, useValue: messageServiceMock },
+        provideRouter([]),
       ],
     }).compileComponents();
 
@@ -154,9 +156,9 @@ describe('AcademyScoreEditorComponent', () => {
 
   it('renders mobile compact list with student info', () => {
     const host = fixture.nativeElement as HTMLElement;
-    const rows = host.querySelectorAll('.academy-score-editor__mobile-row');
+    const rows = host.querySelectorAll('[data-part=mobile-row]');
 
-    expect(host.querySelector('.academy-score-editor__mobile-list')).not.toBeNull();
+    expect(host.querySelector('[data-part=mobile-list]')).not.toBeNull();
     expect(rows.length).toBe(2);
 
     const firstRow = rows[0] as HTMLElement;
@@ -261,7 +263,7 @@ describe('AcademyScoreEditorComponent', () => {
     function setScore(score: number | null) {
       component['onScoreChange'](component['rows']()[0], score);
       fixture.detectChanges();
-      return fixture.nativeElement.querySelectorAll('.academy-score-editor__fail-icon');
+      return fixture.nativeElement.querySelectorAll('[data-part=fail-icon]');
     }
 
     it('低於門檻時有 icon，而且螢幕閱讀器讀得到', () => {

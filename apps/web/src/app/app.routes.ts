@@ -166,7 +166,8 @@ export const routes: Routes = [
                   ),
                 data: { page: RoutesCatalog.ADMIN_GRADES_SCORE_ENTRY },
                 canDeactivate: [
-                  (component: { canDeactivate: () => boolean }) => component.canDeactivate(),
+                  (component: { canDeactivate: () => boolean | Promise<boolean> }) =>
+                    component.canDeactivate(),
                 ],
               },
               {

@@ -1,182 +1,115 @@
-<div class="academy-score-editor">
-  @if (loading()) {
-    <div class="academy-score-editor__loading">
-      <i class="pi pi-spinner pi-spin"></i>
-      <span>載入學生名單...</span>
+<!--
+  A6 版（#991 grades G2a）：合計一行（A6 #tally）→ `.sc` 成績表（桌機）／逐列清單＋底部面板（手機）。
+  未儲存的「還有幾位沒存」移到外殼的底部儲存列；每一格只說「這一格是我剛改的」（列首近黑邊）。
+-->
+@if (loading()) {
+  <div class="flex items-center justify-center gap-2 p-12 text-sm text-zinc-600">
+    <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+    <span>載入學生名單...</span>
+  </div>
+} @else {
+  <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <p class="m-0 text-md text-zinc-700" data-part="tally">
+      <b class="text-zinc-900 tabular-nums">{{ tally().logged }}／{{ tally().total }}</b> 已登錄 ·
+      缺考 {{ tally().absent }} · 不及格
+      @if (exam().passScore !== null) {
+        （&lt; {{ exam().passScore }}）
+      }
+      <b class="text-zinc-900 tabular-nums">{{ tally().fail }}</b> 位
+    </p>
+
+    <!-- 多班考試的「篩選班級」（A6 沒畫，照留） -->
+    @if (classOptions().length > 0) {
+      <p-select
+        [options]="classOptions()"
+        [ngModel]="classFilter()"
+        (ngModelChange)="classFilter.set($event)"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="篩選班級"
+        [showClear]="true"
+        ariaLabel="篩選班級"
+        styleClass="w-full wide:ml-auto wide:w-auto wide:min-w-50"
+      />
+    }
+  </div>
+
+  @if (filteredRows().length === 0) {
+    <div class="flex flex-col items-center gap-2 p-12 text-sm text-zinc-600">
+      <i class="pi pi-users text-2xl" aria-hidden="true"></i>
+      <span>目前沒有學生可登錄成績</span>
     </div>
   } @else {
-    <!-- Class filter -->
-    @if (classOptions().length > 0) {
-      <div class="academy-score-editor__toolbar">
-        <p-select
-          [options]="classOptions()"
-          [ngModel]="classFilter()"
-          (ngModelChange)="classFilter.set($event)"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="篩選班級"
-          [showClear]="true"
-          size="small"
-          styleClass="academy-score-editor__class-select"
-        />
-      </div>
-    }
-
-    <!-- 未儲存的**急迫性放在這裡**，不是放在每一格上。
-         每一格只需要說「這一格是我剛改的」（列首的近黑邊），
-         「你還有幾筆沒存」是整批的事。 -->
-    @if (dirtyCount() > 0) {
-      <p class="academy-score-editor__unsaved">
-        <strong>{{ dirtyCount() }}</strong> 筆未儲存
-      </p>
-    }
-
-    @if (filteredRows().length === 0) {
-      <div class="academy-score-editor__empty">
-        <i class="pi pi-users"></i>
-        <span>目前沒有學生可登錄成績</span>
-      </div>
-    } @else {
-      <div class="academy-score-editor__table-wrap">
-        <table class="academy-score-editor__table">
-          <thead>
-            <tr>
-              <th class="academy-score-editor__th academy-score-editor__th--name">學生</th>
-              <th class="academy-score-editor__th academy-score-editor__th--grade">年級</th>
-              <th class="academy-score-editor__th academy-score-editor__th--score">
-                分數 <span class="academy-score-editor__total">/{{ exam().totalScore }}</span>
-              </th>
-              <th class="academy-score-editor__th academy-score-editor__th--status">狀態</th>
-              <th class="academy-score-editor__th academy-score-editor__th--notes">備註</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of filteredRows(); track row.studentId; let i = $index) {
-              <tr
-                class="academy-score-editor__row"
-                [class.academy-score-editor__row--dirty]="isRowDirty(row)"
-              >
-                <td class="academy-score-editor__cell">
-                  <span class="academy-score-editor__student-name">{{ row.studentName }}</span>
-                </td>
-                <td class="academy-score-editor__cell academy-score-editor__cell--grade">
-                  {{ formatGrade(row.studentGrade) }}
-                </td>
-                <td class="academy-score-editor__cell academy-score-editor__cell--score">
-                  <p-inputnumber
-                    [attr.data-score-row]="i"
-                    (keydown)="onScoreKeydown($event, i)"
-                    [ngModel]="row.score"
-                    (ngModelChange)="onScoreChange(row, $event)"
-                    [min]="0"
-                    [max]="exam().totalScore"
-                    [disabled]="disabled() || isAbsent(row)"
-                    [placeholder]="isAbsent(row) ? '—' : ''"
-                    styleClass="academy-score-editor__score-input"
-                    [inputStyleClass]="'academy-score-editor__score-field'"
-                  />
-                  @if (isFailing(row.score)) {
-                    <i
-                      class="pi pi-exclamation-triangle academy-score-editor__fail-icon"
-                      aria-label="不及格"
-                    ></i>
-                  }
-                </td>
-                <td class="academy-score-editor__cell academy-score-editor__cell--status">
-                  <p-select
-                    [options]="statusOptions"
-                    [ngModel]="row.status"
-                    (ngModelChange)="onStatusChange(row, $event)"
-                    optionLabel="label"
-                    optionValue="value"
-                    [disabled]="disabled()"
-                    size="small"
-                    styleClass="academy-score-editor__status-select"
-                  />
-                </td>
-                <td class="academy-score-editor__cell academy-score-editor__cell--notes">
-                  <input
-                    type="text"
-                    pInputText
-                    [ngModel]="row.notes"
-                    (ngModelChange)="onNotesChange(row, $event)"
-                    [disabled]="disabled()"
-                    placeholder="備註"
-                    class="academy-score-editor__notes-input"
-                  />
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Mobile compact list -->
-      <div class="academy-score-editor__mobile-list">
-        @for (row of filteredRows(); track row.studentId) {
-          <button type="button" class="academy-score-editor__mobile-row" (click)="openSheet(row)">
-            <div class="academy-score-editor__mobile-info">
-              <span class="academy-score-editor__mobile-name">{{ row.studentName }}</span>
-              <span class="academy-score-editor__mobile-grade">{{
-                formatGrade(row.studentGrade)
-              }}</span>
-            </div>
-            <span
-              class="academy-score-editor__mobile-score"
-              [class.academy-score-editor__mobile-score--absent]="isAbsent(row)"
-              [class.academy-score-editor__mobile-score--fail]="isFailing(row.score)"
-              [class.academy-score-editor__mobile-score--dirty]="isRowDirty(row)"
+    <table class="mt-6 hidden w-full border-collapse wide:table" aria-label="成績">
+      <thead>
+        <tr>
+          <th
+            class="border-b border-zinc-900 pr-3 pb-2 text-left text-sm font-semibold text-zinc-600"
+          >
+            學生
+          </th>
+          <th
+            class="border-b border-zinc-900 pr-3 pb-2 text-left text-sm font-semibold text-zinc-600"
+          >
+            分數（滿分 {{ exam().totalScore }}）
+          </th>
+          <th
+            class="w-36 border-b border-zinc-900 pr-3 pb-2 text-left text-sm font-semibold text-zinc-600"
+          >
+            狀態
+          </th>
+          <th
+            class="border-b border-zinc-900 pr-3 pb-2 text-left text-sm font-semibold text-zinc-600"
+          >
+            備註
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of filteredRows(); track row.studentId; let i = $index) {
+          <tr>
+            <!-- 列首近黑邊 = 這一列改過還沒存；不用底色（未儲存不吃色彩通道，見 #886 前後的討論） -->
+            <td
+              class="border-b border-surface-border py-2 pr-3 align-middle data-dirty:pl-3 data-dirty:shadow-[inset_3px_0_0_var(--zinc-900)]"
+              [attr.data-dirty]="isRowDirty(row) || null"
             >
-              @if (isAbsent(row)) {
-                缺考
-              } @else if (row.score !== null) {
-                @if (isFailing(row.score)) {
-                  <i
-                    class="pi pi-exclamation-triangle academy-score-editor__fail-icon"
-                    aria-label="不及格"
-                  ></i>
-                }
-                {{ row.score }}
-              } @else {
-                未登錄
-              }
-            </span>
-          </button>
-        }
-      </div>
-
-      <!-- Bottom Sheet (PrimeNG Drawer) -->
-      <p-drawer
-        [(visible)]="sheetVisible"
-        position="bottom"
-        [modal]="true"
-        [appendTo]="'body'"
-        styleClass="academy-score-editor__sheet drawer-auto"
-      >
-        @if (sheetRow(); as row) {
-          <ng-template #header>
-            <div class="academy-score-editor__sheet-header">
-              <span class="academy-score-editor__sheet-name">{{ row.studentName }}</span>
-              <span class="academy-score-editor__sheet-grade">{{
+              <a
+                class="inline-flex min-h-11 items-center font-bold no-underline hover:underline hover:underline-offset-[3px]"
+                [class.text-zinc-900]="!isUnrecorded(row)"
+                [class.text-zinc-600]="isUnrecorded(row)"
+                [routerLink]="['/admin/students', row.studentId]"
+                >{{ row.studentName }}</a
+              >
+              <small class="ml-1.5 text-sm text-zinc-600">{{
                 formatGrade(row.studentGrade)
-              }}</span>
-            </div>
-          </ng-template>
-
-          <div class="academy-score-editor__sheet-body">
-            <div class="academy-score-editor__sheet-field">
-              <label class="academy-score-editor__sheet-label">分數 /{{ exam().totalScore }}</label>
+              }}</small>
+            </td>
+            <td
+              class="border-b border-surface-border py-2 pr-3 align-middle whitespace-nowrap [&[data-fail]_input]:text-error-700"
+              [attr.data-fail]="isFailing(row.score) || null"
+            >
               <p-inputnumber
+                [attr.data-score-row]="i"
+                (keydown)="onScoreKeydown($event, i)"
                 [ngModel]="row.score"
                 (ngModelChange)="onScoreChange(row, $event)"
                 [min]="0"
                 [max]="exam().totalScore"
                 [disabled]="disabled() || isAbsent(row)"
-                styleClass="academy-score-editor__sheet-input"
+                [placeholder]="isAbsent(row) ? '—' : ''"
+                [ariaLabel]="row.studentName + ' 的分數'"
+                inputStyleClass="h-10 w-22 text-right text-lg font-semibold tabular-nums"
               />
-            </div>
-            <div class="academy-score-editor__sheet-field">
-              <label class="academy-score-editor__sheet-label">狀態</label>
+              <span class="ml-1 text-sm text-zinc-600">／{{ exam().totalScore }}</span>
+              @if (isFailing(row.score)) {
+                <i
+                  data-part="fail-icon"
+                  class="pi pi-exclamation-triangle ml-1 text-xs text-error-600"
+                  aria-label="不及格"
+                ></i>
+              }
+            </td>
+            <td class="border-b border-surface-border py-2 pr-3 align-middle">
               <p-select
                 [options]="statusOptions"
                 [ngModel]="row.status"
@@ -184,25 +117,129 @@
                 optionLabel="label"
                 optionValue="value"
                 [disabled]="disabled()"
-                [appendTo]="'body'"
-                styleClass="academy-score-editor__sheet-select"
+                [ariaLabel]="row.studentName + ' 的狀態'"
+                styleClass="w-full"
               />
-            </div>
-            <div class="academy-score-editor__sheet-field">
-              <label class="academy-score-editor__sheet-label">備註</label>
+            </td>
+            <td class="border-b border-surface-border py-2 pr-3 align-middle">
               <input
                 type="text"
                 pInputText
+                class="h-10 w-full min-w-30 text-md"
                 [ngModel]="row.notes"
                 (ngModelChange)="onNotesChange(row, $event)"
                 [disabled]="disabled()"
-                placeholder="輸入備註..."
-                class="academy-score-editor__sheet-notes"
+                placeholder="備註"
+                [attr.aria-label]="row.studentName + ' 的備註'"
               />
-            </div>
-          </div>
+            </td>
+          </tr>
         }
-      </p-drawer>
-    }
+      </tbody>
+    </table>
+
+    <!-- 手機：逐列清單，點一列開底部面板改 -->
+    <div class="mt-4 flex flex-col border-t border-zinc-900 wide:hidden" data-part="mobile-list">
+      @for (row of filteredRows(); track row.studentId) {
+        <button
+          type="button"
+          data-part="mobile-row"
+          class="flex min-h-11 w-full cursor-pointer items-center justify-between border-0 border-b border-surface-border bg-white px-0 py-3 text-left hover:bg-zinc-50 data-dirty:pl-3 data-dirty:shadow-[inset_3px_0_0_var(--zinc-900)]"
+          [attr.data-dirty]="isRowDirty(row) || null"
+          (click)="openSheet(row)"
+        >
+          <span class="flex items-baseline gap-2">
+            <span
+              class="font-bold"
+              [class.text-zinc-900]="!isUnrecorded(row)"
+              [class.text-zinc-600]="isUnrecorded(row)"
+              >{{ row.studentName }}</span
+            >
+            <span class="text-sm text-zinc-600">{{ formatGrade(row.studentGrade) }}</span>
+          </span>
+          <span
+            class="text-md font-semibold tabular-nums"
+            [class.text-warning-800]="isAbsent(row)"
+            [class.text-error-700]="!isAbsent(row) && isFailing(row.score)"
+            [class.text-zinc-900]="!isAbsent(row) && !isFailing(row.score) && row.score !== null"
+            [class.text-zinc-600]="!isAbsent(row) && row.score === null"
+          >
+            @if (isAbsent(row)) {
+              缺考
+            } @else if (row.score !== null) {
+              @if (isFailing(row.score)) {
+                <i
+                  data-part="fail-icon"
+                  class="pi pi-exclamation-triangle mr-1 text-xs text-error-600"
+                  aria-label="不及格"
+                ></i>
+              }
+              {{ row.score }}
+            } @else {
+              未登錄
+            }
+          </span>
+        </button>
+      }
+    </div>
+
+    <!-- 底部面板（PrimeNG Drawer，A6 沒畫，照留） -->
+    <p-drawer
+      [(visible)]="sheetVisible"
+      position="bottom"
+      [modal]="true"
+      [appendTo]="'body'"
+      styleClass="drawer-auto"
+    >
+      @if (sheetRow(); as row) {
+        <ng-template #header>
+          <div class="flex items-baseline gap-2">
+            <span class="text-lg font-semibold text-zinc-900">{{ row.studentName }}</span>
+            <span class="text-sm text-zinc-600">{{ formatGrade(row.studentGrade) }}</span>
+          </div>
+        </ng-template>
+
+        <div class="flex flex-col gap-4">
+          <label class="flex flex-col gap-2">
+            <span class="text-sm font-semibold text-zinc-700">分數 ／{{ exam().totalScore }}</span>
+            <p-inputnumber
+              [ngModel]="row.score"
+              (ngModelChange)="onScoreChange(row, $event)"
+              [min]="0"
+              [max]="exam().totalScore"
+              [disabled]="disabled() || isAbsent(row)"
+              styleClass="w-full"
+              inputStyleClass="h-11 w-full text-lg font-semibold tabular-nums"
+            />
+          </label>
+          <div class="flex flex-col gap-2">
+            <span class="text-sm font-semibold text-zinc-700" id="sheet-status-label">狀態</span>
+            <p-select
+              [options]="statusOptions"
+              [ngModel]="row.status"
+              (ngModelChange)="onStatusChange(row, $event)"
+              optionLabel="label"
+              optionValue="value"
+              [disabled]="disabled()"
+              [appendTo]="'body'"
+              ariaLabelledBy="sheet-status-label"
+              styleClass="w-full"
+            />
+          </div>
+          <label class="flex flex-col gap-2">
+            <span class="text-sm font-semibold text-zinc-700">備註</span>
+            <input
+              type="text"
+              pInputText
+              class="h-11 w-full"
+              [ngModel]="row.notes"
+              (ngModelChange)="onNotesChange(row, $event)"
+              [disabled]="disabled()"
+              placeholder="輸入備註..."
+            />
+          </label>
+        </div>
+      }
+    </p-drawer>
   }
-</div>
+}

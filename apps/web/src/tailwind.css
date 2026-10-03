@@ -46,6 +46,9 @@
 @source './app/features/admin/pages/grades/exams/exams-filter-dialog';
 @source './app/features/admin/pages/grades/exams/academy-exam-form-dialog';
 @source './app/features/admin/pages/grades/exams/school-exam-form-dialog';
+@source './app/features/admin/pages/grades/exams/score-entry/score-entry.component.html';
+@source './app/features/admin/pages/grades/exams/score-entry/score-entry.component.ts';
+@source './app/features/admin/pages/grades/exams/score-entry/academy-score-editor';
 @source './app/features/admin/pages/sessions';
 @source './app/features/admin/pages/students';
 @source './app/features/admin/pages/checkin';

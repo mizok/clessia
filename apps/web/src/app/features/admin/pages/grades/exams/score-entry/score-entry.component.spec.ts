@@ -250,7 +250,7 @@ describe('ScoreEntryComponent', () => {
     expect(component['canSave']()).toBe(true);
   });
 
-  it('renders the mobile-ready shell structure', async () => {
+  it('已結束：頁首寫明只能檢視，沒有儲存列', async () => {
     await setup('academy', 'a1');
     flushAcademyRequests({ ...mockAcademyDetail, status: 'closed' as const });
 
@@ -258,15 +258,11 @@ describe('ScoreEntryComponent', () => {
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
-
-    expect(host.querySelector('.score-entry__header-card')).not.toBeNull();
-    expect(host.querySelector('.score-entry__editor')).not.toBeNull();
-    expect(host.querySelector('.score-entry__closed-hint')).not.toBeNull();
-    // FAB is hidden when exam is closed
-    expect(host.querySelector('.score-entry__fab')).toBeNull();
+    expect(host.textContent).toContain('這場考試已結束');
+    expect(host.querySelector('[role=region][aria-label=儲存]')).toBeNull();
   });
 
-  it('shows FAB save button when editor has unsaved changes', async () => {
+  it('有沒存的變更時出現底部儲存列（取代 FAB）', async () => {
     await setup('academy', 'a1');
     flushAcademyRequests();
 
@@ -274,10 +270,69 @@ describe('ScoreEntryComponent', () => {
     component['dirty'].set(true);
     fixture.detectChanges();
 
-    const host = fixture.nativeElement as HTMLElement;
-    const fab = host.querySelector('.score-entry__fab');
+    const bar = (fixture.nativeElement as HTMLElement).querySelector(
+      '[role=region][aria-label=儲存]',
+    );
+    expect(bar?.textContent).toContain('儲存成績');
+  });
 
-    expect(fab).not.toBeNull();
-    expect(fab?.textContent).toContain('儲存成績');
+  // Q3（#991 grades）：站內導頁攔截改成頁內三選項對話框，不再用 window.confirm
+  describe('離開攔截', () => {
+    beforeEach(() => {
+      // jsdom 沒有完整的 <dialog> modal 行為；只需要開關狀態
+      HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
+        this.open = true;
+      };
+      HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
+        this.open = false;
+      };
+    });
+
+    async function dirtyPage(): Promise<void> {
+      await setup('academy', 'a1');
+      flushAcademyRequests();
+      await fixture.whenStable();
+      component['dirty'].set(true);
+      fixture.detectChanges();
+    }
+
+    it('留下來 → 不放行；不儲存離開 → 放行', async () => {
+      await dirtyPage();
+      const confirmSpy = vi.spyOn(window, 'confirm');
+
+      const stay = component.canDeactivate() as Promise<boolean>;
+      const dialog = (fixture.nativeElement as HTMLElement).querySelector('dialog')!;
+      expect(dialog.open).toBe(true);
+      component['resolveLeave']('stay');
+      await expect(stay).resolves.toBe(false);
+      expect(dialog.open).toBe(false);
+
+      const leave = component.canDeactivate() as Promise<boolean>;
+      component['resolveLeave']('discard');
+      await expect(leave).resolves.toBe(true);
+      expect(confirmSpy).not.toHaveBeenCalled();
+    });
+
+    it('儲存後離開：存成功才放行，存失敗就留下', async () => {
+      await dirtyPage();
+      const save = vi.fn();
+      (component as unknown as { saveScores: () => void }).saveScores = save;
+
+      const ok = component.canDeactivate() as Promise<boolean>;
+      component['resolveLeave']('save');
+      expect(save).toHaveBeenCalled();
+      component['onSaved']();
+      http
+        .expectOne((r) => r.url.endsWith('/api/academy-exams/a1'))
+        .flush({ data: mockAcademyDetail }); // 存檔後重抓統計
+      component['onSavingChange'](false);
+      await expect(ok).resolves.toBe(true);
+
+      component['dirty'].set(true);
+      const failed = component.canDeactivate() as Promise<boolean>;
+      component['resolveLeave']('save');
+      component['onSavingChange'](false); // 沒有 onSaved —— 存檔失敗，dirty 還在
+      await expect(failed).resolves.toBe(false);
+    });
   });
 });
