@@ -222,7 +222,7 @@ describe('StudentDetailPage', () => {
    */
   describe('#722 在籍班級列的鍵盤操作', () => {
     const enrollmentRow = () =>
-      fixture.nativeElement.querySelector('.student-detail__enrollment-item') as HTMLElement;
+      fixture.nativeElement.querySelector('[data-testid="enrollment-item"]') as HTMLElement;
 
     async function renderWithOneEnrollment() {
       enrollmentsServiceMock.list.mockReturnValue(

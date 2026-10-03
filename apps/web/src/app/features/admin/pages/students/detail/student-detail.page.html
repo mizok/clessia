@@ -1,6 +1,75 @@
-<div class="student-detail">
-  <app-page-breadcrumb [items]="breadcrumbItems()" />
+<!--
+  A6 版（#991）：色面（返回、姓名、年級學校、主要家長）→ 灰工具列（狀態＋編輯）→ 各段。
+  換版不換資料：A6 稿的到班格、考試、帳單、操作紀錄要的資料這頁沒有，另開單。
+-->
+<app-page-open>
+  <a
+    openBack
+    class="mb-2 inline-flex min-h-11 items-center gap-1.5 text-md font-semibold text-band-ink no-underline hover:underline hover:underline-offset-4"
+    [routerLink]="studentsLink"
+  >
+    <i class="pi pi-arrow-left text-sm" aria-hidden="true"></i>學生列表
+  </a>
+  <ng-container openTitle>
+    @if (student(); as s) {
+      {{ s.name }}
+    } @else if (loading()) {
+      <span
+        class="inline-block h-[1em] w-[4ch] rounded-sm bg-band-rule align-middle opacity-45"
+        aria-label="學生資料載入中"
+      ></span>
+    } @else {
+      找不到學生資料
+    }
+  </ng-container>
+  <ng-container openSub>
+    @if (student(); as s) {
+      {{ getGradeLabel(s.grade) }} · {{ s.school?.name ?? '學校未填寫' }}
+    }
+  </ng-container>
 
+  @if (primaryParent(); as p) {
+    <!-- 主要聯絡人一行（A6 `.contact`）：櫃台最常做的事是打給家長 -->
+    <p
+      class="mt-4 mb-0 flex flex-wrap items-center gap-x-5 gap-y-1 text-base text-band-ink wide:mt-6"
+    >
+      <span class="font-semibold"
+        >{{ p.name }}
+        @if (p.relation) {
+          （{{ p.relation }}）
+        }
+      </span>
+      @if (p.phone) {
+        <span class="text-band-ink-muted tabular-nums">{{ p.phone }}</span>
+        <a
+          class="inline-flex min-h-11 items-center gap-1.5 font-semibold text-band-ink underline decoration-band-rule decoration-[1.5px] underline-offset-[5px]"
+          [href]="'tel:' + p.phone"
+        >
+          <i class="pi pi-phone text-sm" aria-hidden="true"></i>打電話
+        </a>
+      }
+    </p>
+  }
+</app-page-open>
+
+@if (student(); as s) {
+  <div class="bg-zinc-100">
+    <div class="page-wrap flex min-h-16 flex-wrap items-center gap-x-4 gap-y-2 py-3">
+      <app-status-dot [tone]="s.isActive ? 'done' : 'inactive'">{{
+        s.isActive ? '在籍' : '停用'
+      }}</app-status-dot>
+      <button
+        type="button"
+        class="ml-auto inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        (click)="openEditDialog()"
+      >
+        <i class="pi pi-pencil text-sm" aria-hidden="true"></i>編輯資料
+      </button>
+    </div>
+  </div>
+}
+
+<div class="page-wrap flex flex-col gap-10 pt-6 pb-28 wide:gap-12 wide:pt-8 wide:pb-32">
   @if (notice(); as n) {
     <app-inline-notice
       [severity]="n.severity"
@@ -11,14 +80,17 @@
   }
 
   @if (conflictPrompt(); as prompt) {
-    <div class="student-detail__conflict">
+    <div
+      class="flex flex-col gap-3 rounded-lg border border-warning-200 bg-warning-50 p-4"
+      data-testid="conflict"
+    >
       <app-inline-notice
         severity="warning"
         summary="與其他班級時段衝突"
         [detail]="'此學生已報名以下時段衝突的班級'"
         [dismissible]="false"
       />
-      <ul class="student-detail__conflict-list">
+      <ul class="m-0 pl-5 text-sm leading-relaxed text-zinc-700">
         @for (
           warning of prompt.warnings;
           track warning.studentId +
@@ -37,7 +109,7 @@
           </li>
         }
       </ul>
-      <div class="student-detail__conflict-actions">
+      <div class="flex justify-end gap-2">
         <p-button
           label="取消"
           severity="secondary"
@@ -54,20 +126,11 @@
     </div>
   }
 
-  <!-- Back Navigation -->
-  <div class="student-detail__nav">
-    <p-button
-      label="學生列表"
-      icon="pi pi-arrow-left"
-      [text]="true"
-      severity="secondary"
-      (onClick)="goBack()"
-    />
-  </div>
-
   @if (loading()) {
-    <div class="student-detail__loading">
-      <i class="pi pi-spinner pi-spin" style="font-size: 2rem; color: var(--zinc-400)"></i>
+    <div class="skeleton-list" aria-label="學生資料載入中">
+      @for (i of [1, 2, 3]; track i) {
+        <span class="skeleton-bar"></span>
+      }
     </div>
   } @else if (!student()) {
     <app-empty-state
@@ -78,261 +141,272 @@
       <p-button label="返回列表" icon="pi pi-arrow-left" (onClick)="goBack()" />
     </app-empty-state>
   } @else {
-    <!-- Profile Header -->
-    <div class="student-detail__profile-card">
-      <div class="student-detail__profile-header">
-        <div class="student-detail__avatar" [style.--h]="getPersonHue(student()!.id)">
-          {{ student()!.name[0] }}
-        </div>
-        <div class="student-detail__profile-info">
-          <div class="student-detail__name-row">
-            <h1 class="student-detail__name">{{ student()!.name }}</h1>
-            <app-status-dot [tone]="student()!.isActive ? 'done' : 'inactive'">{{
-              student()!.isActive ? '在籍' : '停用'
-            }}</app-status-dot>
-          </div>
-          <div class="student-detail__meta-row">
-            <span class="student-detail__grade">{{ getGradeLabel(student()!.grade) }}</span>
-            <span class="student-detail__separator">·</span>
-            <span class="student-detail__school">{{ student()!.school?.name ?? '未填寫' }}</span>
-          </div>
-        </div>
-        <div class="student-detail__profile-actions">
-          <p-button
-            label="編輯資料"
-            icon="pi pi-pencil"
-            [outlined]="true"
-            severity="secondary"
-            styleClass="student-detail__edit-button"
-            (onClick)="openEditDialog()"
-          />
-        </div>
-      </div>
-    </div>
+    @let s = student()!;
 
-    <!-- Basic Info Card -->
-    <div class="student-detail__section-card">
-      <h2 class="student-detail__section-title">基本資料</h2>
-      <div class="student-detail__info-grid">
-        <div class="student-detail__info-item">
-          <span class="student-detail__info-label">性別</span>
-          <span class="student-detail__info-value">{{ getGenderLabel(student()!.gender) }}</span>
-        </div>
-        <div class="student-detail__info-item">
-          <span class="student-detail__info-label">生日</span>
-          <span class="student-detail__info-value">
-            {{ student()!.birthday ?? '未填寫' }}
-          </span>
-        </div>
-        <div class="student-detail__info-item">
-          <span class="student-detail__info-label">電話</span>
-          @if (student()!.phone) {
-            <a [href]="'tel:' + student()!.phone" class="student-detail__phone-link">
-              {{ student()!.phone }}
-            </a>
-          } @else {
-            <span class="student-detail__info-empty">未填寫</span>
-          }
-        </div>
-        <div class="student-detail__info-item">
-          <span class="student-detail__info-label">Email</span>
-          @if (student()!.email) {
-            <a [href]="'mailto:' + student()!.email" class="student-detail__email-link">
-              {{ student()!.email }}
-            </a>
-          } @else {
-            <span class="student-detail__info-empty">未填寫</span>
-          }
-        </div>
-        <div class="student-detail__info-item student-detail__info-item--full">
-          <span class="student-detail__info-label">地址</span>
-          <span class="student-detail__info-value">
-            {{ student()!.address ?? '未填寫' }}
-          </span>
-        </div>
-        <div class="student-detail__info-item">
-          <span class="student-detail__info-label">緊急聯絡人</span>
-          <span class="student-detail__info-value">
-            {{ student()!.emergencyContactName ?? '未填寫' }}
-          </span>
-        </div>
-        <div class="student-detail__info-item">
-          <span class="student-detail__info-label">緊急聯絡電話</span>
-          @if (student()!.emergencyContactPhone) {
-            <a
-              [href]="'tel:' + student()!.emergencyContactPhone"
-              class="student-detail__phone-link"
-            >
-              {{ student()!.emergencyContactPhone }}
-            </a>
-          } @else {
-            <span class="student-detail__info-empty">未填寫</span>
-          }
-        </div>
-        @if (student()!.notes) {
-          <div class="student-detail__info-item student-detail__info-item--full">
-            <span class="student-detail__info-label">備註</span>
-            <span class="student-detail__info-value">{{ student()!.notes }}</span>
-          </div>
+    <!-- 在籍班級：最常被點的一段放最上面（A6「這學期的課」） -->
+    <section aria-labelledby="sd-classes">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-surface-border pb-3">
+        <h2
+          id="sd-classes"
+          class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
+        >
+          在籍班級
+        </h2>
+        @if (s.isActive) {
+          <button
+            type="button"
+            class="ml-auto inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+            (click)="openClassPicker()"
+          >
+            <i class="pi pi-plus text-sm" aria-hidden="true"></i>加入班級
+          </button>
         }
       </div>
-    </div>
-
-    <!-- Parents Card -->
-    <div class="student-detail__section-card">
-      <h2 class="student-detail__section-title">關聯家長</h2>
-      @if (student()!.parents.length === 0) {
-        <!--
-          **指路，不是功能**（#641 裁定甲的補充）。
-
-          綁定的操作在家長頁 —— 因為 `studentIds` 是全量替換，而家長詳情頁
-          手上就有完整清單；從學生這一側做要先 GET 再 PUT，
-          而「GET 回空」跟「這個家長本來就只有一個小孩」在程式裡長得一樣。
-
-          但使用者的脈絡在學生身上（他正看著一個沒有家長的學生），
-          **所以他不知道那條路存在** —— 可用性測試席的原句是
-          「新增學生有家長欄，編輯學生沒有，**所以留空就再也綁不上**」。
-          **綁得上，只是他不知道。** 這一句話就是要解掉那個「不知道」。
-        -->
-        <div class="student-detail__empty-section">
-          <i class="pi pi-users"></i>
-          <span>
-            尚未關聯家長 —— 到
-            <a [routerLink]="['/admin/parents']" class="student-detail__inline-link">家長管理</a>
-            找到該家長，在詳情裡用「綁定既有學生」把這位學生加進去。
-          </span>
-        </div>
+      @if (enrollmentsLoading()) {
+        <p-skeleton height="48px" styleClass="mt-4" />
+      } @else if (enrollments().length === 0) {
+        <p class="m-0 py-6 text-base text-zinc-700">尚未加入任何班級。</p>
       } @else {
-        <div class="student-detail__parents-list">
-          @for (parent of student()!.parents; track parent.id) {
-            <div class="student-detail__parent-item">
-              <div class="student-detail__parent-avatar" [style.--h]="getPersonHue(parent.id)">
-                {{ parent.name[0] }}
+        <ul class="m-0 list-none p-0">
+          @for (enrollment of enrollments(); track enrollment.id) {
+            <li class="border-b border-surface-border">
+              <div
+                class="group flex min-h-11 cursor-pointer items-center gap-4 py-5 select-none hover:bg-zinc-50 focus-visible:bg-zinc-50"
+                data-testid="enrollment-item"
+                role="button"
+                tabindex="0"
+                (click)="navigateToClass(enrollment.courseId, enrollment.classId)"
+                (keydown.enter)="navigateToClass(enrollment.courseId, enrollment.classId)"
+                (keydown.space)="navigateToClass(enrollment.courseId, enrollment.classId)"
+              >
+                <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span
+                      class="text-xl font-semibold tracking-[-0.01em] text-zinc-900 group-hover:underline group-hover:underline-offset-4"
+                      >{{ enrollment.className }}</span
+                    >
+                    @if (enrollment.campusName) {
+                      <app-data-chip>{{ enrollment.campusName }}</app-data-chip>
+                    }
+                  </div>
+                  <span class="text-md text-zinc-600"
+                    >{{ enrollment.courseName }} · 自 {{ enrollment.effectiveFrom }}</span
+                  >
+                </div>
+                <div class="flex shrink-0 items-center gap-3">
+                  <!--
+                    只在**沒有計費模式**時出現（#638）。「還沒開帳」是合法的暫時狀態，
+                    不在這裡標 —— 條件寫在 `needsBillingSetup()` 上方。
+                    **沒有模式的報名是一筆永遠收不到錢的報名**，不是「還在等」，所以用警示色。
+                  -->
+                  @if (needsBillingSetup(enrollment)) {
+                    <p-button
+                      label="設定計費"
+                      icon="pi pi-exclamation-triangle"
+                      severity="warn"
+                      size="small"
+                      [text]="true"
+                      (onClick)="openBillingSetup($event, enrollment)"
+                    />
+                  }
+                  <app-status-dot [tone]="enrollmentTone(enrollment.status)">{{
+                    ENROLLMENT_STATUS_LABELS[enrollment.status]
+                  }}</app-status-dot>
+                  <i
+                    class="pi pi-chevron-right text-[11px] text-zinc-600 transition-transform group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  ></i>
+                </div>
               </div>
-              <div class="student-detail__parent-info">
-                <div class="student-detail__parent-name-row">
-                  <span class="student-detail__parent-name">{{ parent.name }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <section aria-labelledby="sd-parents">
+      <div class="border-b border-surface-border pb-3">
+        <h2
+          id="sd-parents"
+          class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
+        >
+          關聯家長
+        </h2>
+      </div>
+      @if (s.parents.length === 0) {
+        <!--
+          **指路，不是功能**（#641 裁定甲的補充）。綁定的操作在家長頁 —— `studentIds` 是全量替換，
+          家長詳情頁手上就有完整清單。但使用者的脈絡在學生身上，**所以他不知道那條路存在**。
+        -->
+        <p class="m-0 py-6 text-base text-zinc-700">
+          尚未關聯家長 —— 到
+          <a
+            [routerLink]="['/admin/parents']"
+            class="inline-flex min-h-11 items-center font-semibold text-zinc-900 underline underline-offset-2"
+            >家長管理</a
+          >
+          找到該家長，在詳情裡用「綁定既有學生」把這位學生加進去。
+        </p>
+      } @else {
+        <ul class="m-0 list-none p-0">
+          @for (parent of s.parents; track parent.id) {
+            <li class="flex items-start gap-3 border-b border-surface-border py-4">
+              <span
+                class="flex size-9 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,hsl(var(--h,210)_31%_36%),hsl(var(--h,210)_36%_30%))] text-[13px] font-bold tracking-[-0.01em] text-white select-none"
+                [style.--h]="getPersonHue(parent.id)"
+                aria-hidden="true"
+                >{{ parent.name[0] }}</span
+              >
+              <div class="flex min-w-0 flex-1 flex-col gap-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="text-base font-semibold text-zinc-900">{{ parent.name }}</span>
                   @if (parent.isPrimary) {
                     <app-data-chip>主要聯絡人</app-data-chip>
                   }
                   @if (parent.relation) {
-                    <span class="student-detail__parent-relation">{{ parent.relation }}</span>
+                    <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">{{
+                      parent.relation
+                    }}</span>
                   }
                 </div>
-                <div class="student-detail__parent-contacts">
+                <div class="flex flex-wrap gap-x-5">
                   @if (parent.phone) {
-                    <a [href]="'tel:' + parent.phone" class="student-detail__phone-link">
-                      <i class="pi pi-phone"></i> {{ parent.phone }}
+                    <a
+                      [href]="'tel:' + parent.phone"
+                      class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
+                    >
+                      <i class="pi pi-phone text-xs" aria-hidden="true"></i>{{ parent.phone }}
                     </a>
                   }
                   @if (parent.email) {
-                    <a [href]="'mailto:' + parent.email" class="student-detail__email-link">
-                      <i class="pi pi-envelope"></i> {{ parent.email }}
+                    <a
+                      [href]="'mailto:' + parent.email"
+                      class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
+                    >
+                      <i class="pi pi-envelope text-xs" aria-hidden="true"></i>{{ parent.email }}
                     </a>
                   }
                 </div>
               </div>
-            </div>
+            </li>
           }
-        </div>
+        </ul>
       }
-    </div>
+    </section>
 
-    <!-- 在籍班級 -->
-    <div class="student-detail__section-card">
-      <div class="student-detail__section-header">
-        <h2 class="student-detail__section-title">在籍班級</h2>
-        @if (student()?.isActive) {
-          <p-button
-            label="加入班級"
-            icon="pi pi-plus"
-            size="small"
-            [outlined]="true"
-            (onClick)="openClassPicker()"
-          />
+    <section aria-labelledby="sd-basic">
+      <div class="border-b border-surface-border pb-3">
+        <h2
+          id="sd-basic"
+          class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
+        >
+          基本資料
+        </h2>
+      </div>
+      <dl class="m-0 grid grid-cols-1 gap-x-8 gap-y-4 pt-5 md:grid-cols-2">
+        <div class="flex flex-col gap-1">
+          <dt class="text-sm font-semibold text-zinc-600">性別</dt>
+          <dd class="m-0 text-base text-zinc-900">{{ getGenderLabel(s.gender) }}</dd>
+        </div>
+        <div class="flex flex-col gap-1">
+          <dt class="text-sm font-semibold text-zinc-600">生日</dt>
+          <dd
+            class="m-0 text-base"
+            [class.text-zinc-900]="!!s.birthday"
+            [class.text-zinc-600]="!s.birthday"
+            [class.italic]="!s.birthday"
+          >
+            {{ s.birthday ?? '未填寫' }}
+          </dd>
+        </div>
+        <div class="flex flex-col gap-1">
+          <dt class="text-sm font-semibold text-zinc-600">電話</dt>
+          <dd class="m-0 text-base text-zinc-900">
+            @if (s.phone) {
+              <a
+                [href]="'tel:' + s.phone"
+                class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
+                >{{ s.phone }}</a
+              >
+            } @else {
+              <span class="m-0 text-base text-zinc-600 italic">未填寫</span>
+            }
+          </dd>
+        </div>
+        <div class="flex flex-col gap-1">
+          <dt class="text-sm font-semibold text-zinc-600">Email</dt>
+          <dd class="m-0 text-base text-zinc-900">
+            @if (s.email) {
+              <a
+                [href]="'mailto:' + s.email"
+                class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
+                >{{ s.email }}</a
+              >
+            } @else {
+              <span class="m-0 text-base text-zinc-600 italic">未填寫</span>
+            }
+          </dd>
+        </div>
+        <div class="flex flex-col gap-1 md:col-span-2">
+          <dt class="text-sm font-semibold text-zinc-600">地址</dt>
+          <dd
+            class="m-0 text-base"
+            [class.text-zinc-900]="!!s.address"
+            [class.text-zinc-600]="!s.address"
+            [class.italic]="!s.address"
+          >
+            {{ s.address ?? '未填寫' }}
+          </dd>
+        </div>
+        <div class="flex flex-col gap-1">
+          <dt class="text-sm font-semibold text-zinc-600">緊急聯絡人</dt>
+          <dd
+            class="m-0 text-base"
+            [class.text-zinc-900]="!!s.emergencyContactName"
+            [class.text-zinc-600]="!s.emergencyContactName"
+            [class.italic]="!s.emergencyContactName"
+          >
+            {{ s.emergencyContactName ?? '未填寫' }}
+          </dd>
+        </div>
+        <div class="flex flex-col gap-1">
+          <dt class="text-sm font-semibold text-zinc-600">緊急聯絡電話</dt>
+          <dd class="m-0 text-base text-zinc-900">
+            @if (s.emergencyContactPhone) {
+              <a
+                [href]="'tel:' + s.emergencyContactPhone"
+                class="inline-flex min-h-11 items-center gap-1.5 text-base text-zinc-900 underline decoration-zinc-300 underline-offset-4 tabular-nums hover:decoration-zinc-900"
+                >{{ s.emergencyContactPhone }}</a
+              >
+            } @else {
+              <span class="m-0 text-base text-zinc-600 italic">未填寫</span>
+            }
+          </dd>
+        </div>
+        @if (s.notes) {
+          <div class="flex flex-col gap-1 md:col-span-2">
+            <dt class="text-sm font-semibold text-zinc-600">備註</dt>
+            <dd class="m-0 text-base text-zinc-900">{{ s.notes }}</dd>
+          </div>
         }
-      </div>
-      @if (enrollmentsLoading()) {
-        <p-skeleton height="48px" />
-      } @else if (enrollments().length === 0) {
-        <div class="student-detail__empty-section">
-          <i class="pi pi-list"></i>
-          <span>尚未加入任何班級</span>
-        </div>
-      } @else {
-        <div class="student-detail__enrollments-list">
-          @for (enrollment of enrollments(); track enrollment.id) {
-            <div
-              class="student-detail__enrollment-item"
-              role="button"
-              tabindex="0"
-              (click)="navigateToClass(enrollment.courseId, enrollment.classId)"
-              (keydown.enter)="navigateToClass(enrollment.courseId, enrollment.classId)"
-              (keydown.space)="navigateToClass(enrollment.courseId, enrollment.classId)"
-            >
-              <div class="student-detail__enrollment-info">
-                <div class="student-detail__enrollment-name-row">
-                  <span class="student-detail__enrollment-class">{{ enrollment.className }}</span>
-                  @if (enrollment.campusName) {
-                    <app-data-chip>{{ enrollment.campusName }}</app-data-chip>
-                  }
-                </div>
-                <span class="student-detail__enrollment-course">{{ enrollment.courseName }}</span>
-                <span class="student-detail__enrollment-since"
-                  >自 {{ enrollment.effectiveFrom }}</span
-                >
-              </div>
-              <div class="student-detail__enrollment-right">
-                <!--
-                  只在**沒有計費模式**時出現（#638）。「還沒開帳」是合法的暫時狀態，
-                  不在這裡標 —— 條件寫在 `needsBillingSetup()` 上方，連同
-                  「為什麼 session_pack 不算異常」一起。
-                  這是少數該用警示色的地方：**沒有模式的報名是一筆永遠收不到錢的報名**，
-                  不是「還在等」。
-                -->
-                @if (needsBillingSetup(enrollment)) {
-                  <p-button
-                    label="設定計費"
-                    icon="pi pi-exclamation-triangle"
-                    severity="warn"
-                    size="small"
-                    [text]="true"
-                    (onClick)="openBillingSetup($event, enrollment)"
-                  />
-                }
-                <app-status-dot [tone]="enrollmentTone(enrollment.status)">{{
-                  ENROLLMENT_STATUS_LABELS[enrollment.status]
-                }}</app-status-dot>
-                <i class="pi pi-chevron-right student-detail__enrollment-arrow"></i>
-              </div>
-            </div>
-          }
-        </div>
-      }
-    </div>
+      </dl>
+    </section>
 
-    <!-- Deferred: Attendance -->
-    <div class="student-detail__section-card student-detail__section-card--deferred">
-      <div class="student-detail__deferred-header">
-        <h2 class="student-detail__section-title">出缺席紀錄</h2>
-        <span class="student-detail__deferred-badge">開發中</span>
-      </div>
-      <div class="student-detail__empty-section">
-        <i class="pi pi-calendar"></i>
-        <span>出缺席功能開發中</span>
-      </div>
-    </div>
-
-    <!-- Deferred: Grades -->
-    <div class="student-detail__section-card student-detail__section-card--deferred">
-      <div class="student-detail__deferred-header">
-        <h2 class="student-detail__section-title">成績紀錄</h2>
-        <span class="student-detail__deferred-badge">開發中</span>
-      </div>
-      <div class="student-detail__empty-section">
-        <i class="pi pi-chart-line"></i>
-        <span>成績功能開發中</span>
-      </div>
-    </div>
+    <!-- 出缺席與成績：功能還沒做，照舊標「開發中」（不是新加的占位） -->
+    @for (d of deferredSections; track d.title) {
+      <section [attr.aria-label]="d.title">
+        <div class="flex items-center gap-3 border-b border-surface-border pb-3">
+          <h2
+            class="m-0 text-2xl leading-tight font-bold tracking-[-0.025em] text-zinc-900 wide:text-3xl"
+          >
+            {{ d.title }}
+          </h2>
+          <span class="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700"
+            >開發中</span
+          >
+        </div>
+        <p class="m-0 py-6 text-base text-zinc-700">{{ d.body }}</p>
+      </section>
+    }
   }
 </div>
