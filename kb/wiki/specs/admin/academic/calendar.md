@@ -3,7 +3,7 @@ title: 課堂行事曆（Admin Calendar）
 summary: 統一行事曆介面，管理員可瀏覽課堂並直接處理停課、代課、調課。
 category: spec
 status: active
-updated: 2026-10-03
+updated: 2026-10-04
 tags: [specs, admin, academic, calendar]
 ---
 
@@ -44,6 +44,12 @@ tags: [specs, admin, academic, calendar]
 - `PATCH /api/sessions/batch-substitute` — 批次代課（#1110）：逐堂寫 `substitute` 異動（原老師、`operation_source=batch`），
   `dryRun` 預設 true。代課老師不合格整批 409；逐堂不符（非 scheduled、未指派、同一人、科目／分校不符、時段衝突）列在 `conflicts`。
   有任一堂不在呼叫者分校範圍 → 整批 403（`batch-assign-teacher` 同）
+- `PATCH /api/sessions/batch-reschedule` — 批次改到別天（#1111）：`dayOffset`（±1–28）或 `targetWeekday`
+  （1=週一…7=週日，**同一週週一到週日**：週三改週一是往前兩天，不是下週）二擇一；可選新時段（不帶就沿用每堂原時段）。
+  `dryRun` 預設 true，回 `planned`（每堂落點）。逐堂寫 `reschedule` 異動（`operation_source=batch`）。
+  逐堂不符（非 scheduled、落點跟原本一樣 `no_change`、同班／同老師重疊）列在 `conflicts`；
+  同一批要搬走的堂不擋彼此的落點（整期往後挪）。分校同上整批 403。
+  寫入照落點分組（一組一次 update），中途失敗或流水失敗會把已搬的搬回原處；撞唯一鍵回 409
 
 ## 資料庫
 
