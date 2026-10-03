@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import dailyCheckinsApp from './daily-checkins';
 
 /**
@@ -24,6 +25,9 @@ function createCheckinApp(
     orgError?: boolean;
     /** 當天已經打過卡（#1127）：衝突時 upsert 什麼都不回，路由要讀回原本那筆 */
     existingCheckedInAt?: string;
+    /** #1127：誰在打（預設不受分校限制的管理員） */
+    roles?: string[];
+    campusScope?: readonly string[] | null;
   } = {},
 ) {
   const upsertCalls: Array<{ table: string; rows: unknown; options: unknown }> = [];
@@ -62,6 +66,9 @@ function createCheckinApp(
         },
         select: () => query,
         eq: () => query,
+        // 受分校限制的人（機台）打卡時，events 會再帶一次 `.in('campus_id', scope)`
+        in: () => query,
+        limit: () => query,
         // `logAudit` 先查 `profiles` 拿 `user_name` 才寫 `audit_logs`，
         // 鏈是 select().eq().maybeSingle() —— 少一段就靜默失敗。
         // #966 B6：寫入前先驗學生屬於本 org（`students` 的 findInOrg）
@@ -100,17 +107,75 @@ function createCheckinApp(
     context.set('supabase', supabase);
     context.set('orgId', '00000000-0000-4000-8000-0000000000a1');
     context.set('userId', 'user-1');
-    context.set('roles', ['admin']);
+    context.set('roles', fixture.roles ?? ['admin']);
     // 這組測試的主題不是分校範圍 —— 宣告成「不受分校限制」，那也是正式站對
     // 老師／家長的實際值（`resolveCampusScope` 對非管理員回 null）。**不宣告的話
     // 會走進 `getCampusScope` 的缺席分支，那是 authMiddleware 沒跑的錯誤狀態。**
-    context.set('campusScope', null);
+    context.set('campusScope', fixture.campusScope ?? null);
     await next();
   });
   app.route('/api/daily-checkins', dailyCheckinsApp);
 
   return { app, upsertCalls, insertCalls };
 }
+
+/**
+ * #1127：掃碼機台（kiosk 角色）。放在門口的平板 —— 只能打卡，不能讀任何東西；
+ * 分校取帳號綁的那一個、日期取台北今天，body 給別的一律 403（不是默默改掉）。
+ */
+describe('daily-checkins —— 掃碼機台（kiosk，#1127）', () => {
+  const CAMPUS = '00000000-0000-4000-8000-0000000000c1';
+  const OTHER = '00000000-0000-4000-8000-0000000000c2';
+  const STUDENT = '00000000-0000-4000-8000-0000000000b1';
+  const kiosk = (campusScope: readonly string[] = [CAMPUS]) =>
+    createCheckinApp({ roles: ['kiosk'], campusScope });
+  const post = (app: ReturnType<typeof kiosk>['app'], body: object) =>
+    app.request('/api/daily-checkins', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        studentId: STUDENT,
+        checkinDate: getCurrentTaipeiDateString(),
+        ...body,
+      }),
+    });
+
+  it('沒給 campusId：用帳號綁的分校寫入', async () => {
+    const { app, upsertCalls } = kiosk();
+    const res = await post(app, {});
+
+    expect(res.status).toBe(201);
+    const row = upsertCalls.find((c) => c.table === 'daily_checkins')?.rows as {
+      campus_id: string;
+    };
+    expect(row.campus_id).toBe(CAMPUS);
+  });
+
+  it('body 指定別的分校：403，沒寫', async () => {
+    const { app, upsertCalls } = kiosk();
+    expect((await post(app, { campusId: OTHER })).status).toBe(403);
+    expect(upsertCalls).toHaveLength(0);
+  });
+
+  it('不是今天：403（機台不補登），沒寫', async () => {
+    const { app, upsertCalls } = kiosk();
+    expect((await post(app, { checkinDate: '2020-01-01' })).status).toBe(403);
+    expect(upsertCalls).toHaveLength(0);
+  });
+
+  it('帳號沒有綁剛好一個分校：403（不猜是哪一校）', async () => {
+    expect((await post(kiosk([]).app, {})).status).toBe(403);
+    expect((await post(kiosk([CAMPUS, OTHER]).app, {})).status).toBe(403);
+  });
+
+  it('只能打卡：GET 與 DELETE 都 403', async () => {
+    const { app } = kiosk();
+    expect((await app.request('/api/daily-checkins?date=2026-04-01')).status).toBe(403);
+    expect((await app.request(`/api/daily-checkins/${STUDENT}`, { method: 'DELETE' })).status).toBe(
+      403,
+    );
+  });
+});
 
 describe('POST /api/daily-checkins', () => {
   /**

@@ -40,6 +40,10 @@ export interface CampusScopeInput {
 }
 
 export function resolveCampusScope(input: CampusScopeInput): CampusScope {
+  // #1127：掃碼機台綁一個分校 —— 下面那條「非管理員不受限」對它是全開，要先攔
+  if (input.roles.includes('kiosk') && !input.roles.includes('admin')) {
+    return input.assignedCampusIds;
+  }
   if (!input.roles.includes('admin')) return null;
   if (hasPermission(input.permissions, 'all_campuses')) return null;
 

@@ -8,6 +8,7 @@ import { getCampusScope, isCampusAllowed } from '../lib/campus-scope';
 import { resourceCampusAllowed, studentWriteScope } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
 import { resolveAttendanceMode } from '../lib/attendance-mode';
+import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 
 const DailyCheckinSchema = z
   .object({
@@ -31,6 +32,24 @@ const CreateDailyCheckinSchema = z
 
 const app = new OpenAPIHono<AppEnv>();
 
+/** 純機台帳號（#1127）：kiosk 角色、沒有同時是管理員 */
+const isKioskOnly = (roles: readonly string[] | undefined) =>
+  (roles ?? []).includes('kiosk') && !(roles ?? []).includes('admin');
+
+/**
+ * #1127：掃碼機台是放在門口、誰都摸得到的平板 —— **只能打卡**。這支 route 的讀（當日名單）
+ * 與刪除都不開給它。掛載層（`index.ts`）只看角色，分不出方法，所以在這裡擋。
+ */
+app.use('*', async (c, next) => {
+  if (
+    isKioskOnly(c.get('roles')) &&
+    !(c.req.method === 'POST' && c.req.path.endsWith('/daily-checkins'))
+  ) {
+    return c.json({ error: '掃碼機台只能打卡', code: 'FORBIDDEN' }, 403);
+  }
+  return next();
+});
+
 // POST /api/daily-checkins
 app.openapi(
   createRoute({
@@ -53,7 +72,24 @@ app.openapi(
     const supabase = c.get('supabase');
     const orgId = c.get('orgId');
     const userId = c.get('userId');
-    const body = c.req.valid('json');
+    const body = { ...c.req.valid('json') };
+
+    // #1127：機台的分校是帳號綁的那一個、日期是台北今天。body 給別的就拒絕 ——
+    // 默默改掉會讓「機台設定錯了」看起來像打卡成功。
+    if (isKioskOnly(c.get('roles'))) {
+      const scope = getCampusScope(c);
+      if (!scope || scope.length !== 1) {
+        return c.json({ error: '機台帳號要綁定剛好一個分校', code: 'FORBIDDEN' }, 403);
+      }
+      const [kioskCampus] = scope;
+      if (body.campusId !== undefined && body.campusId !== kioskCampus) {
+        return c.json({ error: '機台只能替自己的分校打卡', code: 'FORBIDDEN' }, 403);
+      }
+      if (body.checkinDate !== getCurrentTaipeiDateString()) {
+        return c.json({ error: '機台只能打今天的卡', code: 'FORBIDDEN' }, 403);
+      }
+      body.campusId = kioskCampus;
+    }
 
     // **body 帶的分校要自己驗。** 全域的 `campusRequestGuard` 只看 query string ——
     // 它讀不到 body（middleware 讀 body 會跟 zod-openapi 的驗證器搶同一個 stream）。
