@@ -546,7 +546,13 @@ app.openapi(
 
     return c.json(
       {
-        data: toParentResponse(parentRow as Record<string, unknown>, 0),
+        // 回應是**建立後**的狀態（#1198）：ba_user 已經寫了 email／手機、關聯表已經寫了孩子。
+        // 原本 `toParentResponse(row, 0)` 回 `phone: null`、`studentCount: 0`。
+        // email 只回使用者填的那個 —— 只有手機時 ba_user 的 email 是佔位字串，不外露（同 GET）。
+        data: toParentResponse(parentRow as Record<string, unknown>, body.studentIds?.length ?? 0, {
+          email: body.email ?? null,
+          phone: body.phone ?? null,
+        }),
         // 取代 initialPassword：櫃檯把它變成 QR 給家長當場掃
         loginUrl: await mintLoginLinkForRequest(c, authEmail),
       },

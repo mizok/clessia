@@ -22,6 +22,9 @@ vi.mock('../lib/get-auth', () => ({
       removeUser: async ({ body }: { body: { userId: string } }) => {
         removedUsers.push(body.userId);
       },
+      // 建立成功的回應帶一次性登入連結（`mintLoginLinkForRequest`）；不寄信，url 由 hook 交回 ——
+      // 這裡什麼都不交回，回應的 `loginUrl` 是 null，測的是回應的其餘欄位
+      signInMagicLink: async () => undefined,
     },
   }),
 }));
@@ -612,6 +615,58 @@ describe('建立家長要一併給 parent 角色（#877）', () => {
     expect(roleRowsIn(inserts)).toEqual([
       { user_id: expect.stringMatching(/^ba-new-/), role: 'parent', permissions: [] },
     ]);
+  });
+
+  /**
+   * #1198：成功回應原本是「建立前的快照」—— `phone: null`、`studentCount: 0`，
+   * 而 ba_user 已經寫了電話、關聯表也已經寫了孩子。前端用回應更新列表就會畫錯值。
+   */
+  it('單筆新增：回應帶建立時的手機與孩子數，不是空快照', async () => {
+    const inserts: Array<{ table: string; rows: unknown }> = [];
+
+    const res = await appWith(inserts).request(
+      '/',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: '王小明的媽媽',
+          phone: '0912345678',
+          studentIds: [
+            '00000000-0000-4000-8000-000000000001',
+            '00000000-0000-4000-8000-000000000002',
+          ],
+        }),
+      },
+      // 回應帶登入連結 —— 鑄連結要 WEB_URL
+      { PLACEHOLDER_EMAIL_DOMAIN: 'placeholder.invalid', WEB_URL: 'http://localhost:4200' },
+    );
+    const { data } = (await res.json()) as any;
+
+    expect(res.status).toBe(201);
+    expect(data).toMatchObject({
+      phone: '0912345678',
+      // 只有手機的家長，ba_user 的 email 是佔位字串 —— 不外露（同 GET 的處理）
+      email: null,
+      loginAccount: '0912345678',
+      studentCount: 2,
+    });
+  });
+
+  it('單筆新增：有 email 時回 email', async () => {
+    const res = await appWith([]).request(
+      '/',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '林媽媽', email: 'qa-1198@example.test' }),
+      },
+      // 回應帶登入連結 —— 鑄連結要 WEB_URL
+      { PLACEHOLDER_EMAIL_DOMAIN: 'placeholder.invalid', WEB_URL: 'http://localhost:4200' },
+    );
+    const { data } = (await res.json()) as any;
+
+    expect(data).toMatchObject({ email: 'qa-1198@example.test', phone: null, studentCount: 0 });
   });
 
   it('批次匯入：每建一個新家長就寫一列 user_roles(parent)', async () => {
