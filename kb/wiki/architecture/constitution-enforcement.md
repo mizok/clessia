@@ -81,7 +81,7 @@ PreToolUse guard  →   Stop verify gate  →   CI verify        →   程式碼
 | A3   | 沒有 `doc/` 或 `docs/` 目錄（c9）                                                                                                                         |
 | A5   | pre-guard **與 doc-router** 引用的每個 clause id 都存在於憲法中                                                                                           |
 | A6   | 每個 skill 在 `.claude/skills` 與 `.codex/skills` 都有 symlink（真身在 `.agents/skills/`）。`SYMLINK_EXEMPT` 有豁免清單 —— 改動前先看 `check-harness.mjs` |
-| A7   | `apps/api/src/index.ts` 每支 route 都用 `mount(path, route, roles)` 宣告角色（c1）                                                                        |
+| A7   | `apps/api/src/index.ts` 每支 route 都用 `mount(path, route, roles)` 宣告角色（c1）；例外：`/api/public/*`（免登入，#1125）必須掛在 `authMiddleware` 之前                                                                        |
 | A8   | 每張業務表都有 `ENABLE ROW LEVEL SECURITY`（c1 的 fail-closed 後盾）                                                                                      |
 | A9   | `.claude/settings.json` 的 deny 規則指向的檔案真的存在（護欄不得靜默失效）                                                                                |
 | A10  | `apps/api/src` 不得 import 雲端供應商專屬服務（KV / R2 / Durable Objects，c12）                                                                           |

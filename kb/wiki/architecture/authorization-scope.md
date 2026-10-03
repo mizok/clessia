@@ -371,6 +371,16 @@ attendance 的三支寫入端點加上「這個 `eventId` 的班是不是我教�
 時窗與範圍是兩件事：時窗管「什麼時候還能改」，範圍管「能改誰的」。
 兩個都要過，不互相取代。
 
+## 公開端點：沒有 session 時 org 從哪來（#1125）
+
+`/api/public/*`（課程目錄，之後的報名送出、試聽申請）免登入，沒有 `ba_user.orgId` 可讀。
+**org 由部署設定 `PUBLIC_ORG_SLUG` 決定**（`lib/public-org.ts` 的 `publicOrgMiddleware` 以 `organizations.slug` 查 id），
+不從網址或請求內容來 —— c12 下一個部署＝一個客戶；從網址帶 slug 會讓同一個 DB 裡的其他 org 列（demo、測試）可以被外面點名。
+
+- **沒設、或對不到 → 404 `PUBLIC_DISABLED`**（fail-closed：沒準備好招生的客戶不會不小心開著）。
+- 掛在 `authMiddleware` **之前**；harness A7 對 `/api/public/*` 放行角色宣告，但要求它在那一行之前，掛錯位置會紅。
+- 讀取一律 `.eq('org_id', orgId)`（c1 照舊），公開回應不含老師名等內部資料。
+
 ## 上線順序 —— 真正的風險在這裡，不在寫法
 
 fail-closed 的授權一旦打開，**沒有資料的人看到的是空白不是報錯**，那是最難診斷的

@@ -4,6 +4,16 @@ import { isChildAllowed } from '../../lib/child-scope';
 import { countEnrolledOn, type EnrollmentRange } from '../../lib/session-roster';
 import { getCurrentTaipeiDateString } from '../../lib/taipei-date';
 import { DbUuidSchema } from '../../lib/validation';
+import {
+  CatalogClassSchema,
+  byCourseThenClass,
+  catalogClassSelect,
+  isOpenClass,
+  liveSchedules,
+  one,
+  toCatalogClass,
+  type Row,
+} from '../../lib/catalog-class';
 
 /**
  * 家長端課程／開課班目錄 —— 加選、試聽、首頁推薦共用。見 kb/wiki/architecture/parent-catalog-read.md。
@@ -14,54 +24,20 @@ import { DbUuidSchema } from '../../lib/validation';
  * 費用（#1175）：取自班級的預設範本，只是參考價 —— 實際報名價以報名時選的範本為準。
  */
 
-const CLASS_SELECT = `
-  id, name, grade_levels, max_students, is_active, end_date,
-  courses(id, name, description, subjects(name)),
-  campuses(name),
-  schedules(weekday, start_time, end_time, effective_to, teacher:staff!teacher_id(display_name)),
-  fee_template:fee_templates!default_fee_template_id(amount, billing_mode, is_active)
-`;
+/** 共用欄位（`lib/catalog-class.ts`）＋家長目錄才要的老師名 */
+const CLASS_SELECT = catalogClassSelect(', teacher:staff!teacher_id(display_name)');
 
-const ParentCatalogClassSchema = z
-  .object({
-    classId: DbUuidSchema,
-    className: z.string(),
-    gradeLevels: z.array(z.string()),
-    courseId: z.string().nullable(),
-    courseName: z.string().nullable(),
-    /** 科目名（`courses.subject_id → subjects.name`） */
-    subject: z.string().nullable(),
-    courseDescription: z.string().nullable(),
-    campusName: z.string().nullable(),
-    /** 今天仍有效的每週時段（1=週一 … 7=週日） */
-    slots: z.array(
-      z.object({ weekday: z.number().int(), startTime: z.string(), endTime: z.string() }),
-    ),
-    teacherNames: z.array(z.string()),
-    maxStudents: z.number().int(),
-    remainingSeats: z.number().int().min(0),
-    /** 孩子的年級在 `gradeLevels` 裡，或 `gradeLevels` 為空（不限）。前端預設篩、可切換顯示全部 */
-    matchesGrade: z.boolean(),
-    /** 目錄參考價（班級的預設範本，#1175）。沒設、或範本已停用 → null（停用的價目表不再對外報價） */
-    fee: z
-      .object({
-        amount: z.number().int(),
-        billingMode: z.enum(['monthly', 'period', 'session_pack']),
-      })
-      .nullable(),
-  })
-  .openapi('ParentCatalogClass');
+const ParentCatalogClassSchema = CatalogClassSchema.extend({
+  teacherNames: z.array(z.string()),
+  /** 孩子的年級在 `gradeLevels` 裡，或 `gradeLevels` 為空（不限）。前端預設篩、可切換顯示全部 */
+  matchesGrade: z.boolean(),
+}).openapi('ParentCatalogClass');
 
 const ListResponseSchema = z
   .object({ data: z.array(ParentCatalogClassSchema) })
   .openapi('ParentCatalogResponse');
 
 const ErrorSchema = z.object({ error: z.string(), code: z.string() }).openapi('ParentCatalogError');
-
-type Row = Record<string, any>;
-const one = (value: unknown): Row | null => (Array.isArray(value) ? value[0] : value) ?? null;
-const many = (value: unknown): Row[] =>
-  Array.isArray(value) ? value : value ? [value as Row] : [];
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -114,9 +90,7 @@ app.openapi(
 
     // ponytail: 結束日與「今天在籍」在記憶體濾 —— 一間補習班的開課班是幾十到幾百班
     const classes = ((classResult.data ?? []) as Row[]).filter(
-      (row) =>
-        (!row['end_date'] || row['end_date'] >= today) &&
-        countEnrolledOn(ranges, row['id'], today) === 0,
+      (row) => isOpenClass(row, today) && countEnrolledOn(ranges, row['id'], today) === 0,
     );
 
     const { counts, error: countError } = await childDb.activeEnrollmentCounts(
@@ -126,52 +100,20 @@ app.openapi(
 
     const data = classes
       .map((row) => {
-        const course = one(row['courses']);
-        const schedules = many(row['schedules'])
-          .filter((s) => !s['effective_to'] || s['effective_to'] >= today)
-          .sort(
-            (a, b) => a['weekday'] - b['weekday'] || a['start_time'].localeCompare(b['start_time']),
-          );
         const gradeLevels = (row['grade_levels'] ?? []) as string[];
-        const maxStudents = row['max_students'] as number;
-        const feeTemplate = one(row['fee_template']);
         return {
-          classId: row['id'] as string,
-          className: row['name'] as string,
-          gradeLevels,
-          courseId: (course?.['id'] as string | undefined) ?? null,
-          courseName: (course?.['name'] as string | undefined) ?? null,
-          subject: (one(course?.['subjects'])?.['name'] as string | undefined) ?? null,
-          courseDescription: (course?.['description'] as string | null | undefined) ?? null,
-          campusName: (one(row['campuses'])?.['name'] as string | undefined) ?? null,
-          slots: schedules.map((s) => ({
-            weekday: s['weekday'] as number,
-            startTime: (s['start_time'] as string).slice(0, 5),
-            endTime: (s['end_time'] as string).slice(0, 5),
-          })),
+          ...toCatalogClass(row, counts.get(row['id']) ?? 0, today),
           teacherNames: [
             ...new Set(
-              schedules
+              liveSchedules(row, today)
                 .map((s) => one(s['teacher'])?.['display_name'] as string | undefined)
                 .filter((name): name is string => !!name),
             ),
           ],
-          maxStudents,
-          remainingSeats: Math.max(0, maxStudents - (counts.get(row['id']) ?? 0)),
           matchesGrade: gradeLevels.length === 0 || (!!grade && gradeLevels.includes(grade)),
-          fee: feeTemplate?.['is_active']
-            ? {
-                amount: Number(feeTemplate['amount']),
-                billingMode: feeTemplate['billing_mode'] as 'monthly' | 'period' | 'session_pack',
-              }
-            : null,
         };
       })
-      .sort(
-        (a, b) =>
-          (a.courseName ?? '').localeCompare(b.courseName ?? '') ||
-          a.className.localeCompare(b.className),
-      );
+      .sort(byCourseThenClass);
 
     return c.json({ data }, 200);
   },

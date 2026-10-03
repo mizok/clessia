@@ -64,6 +64,8 @@ BETTER_AUTH_URL = "http://localhost:8787"
 ALLOWED_ORIGINS = ""
 SUPABASE_URL = "http://127.0.0.1:54321"
 PLACEHOLDER_EMAIL_DOMAIN = "phone.internal"
+# 公開頁（報名、試聽、課程目錄）屬於哪個 org（#1125）；沒設＝公開端點 404。本機 seed 的 org 是 demo
+PUBLIC_ORG_SLUG = "demo"
 
 # ── 正式環境 ──────────────────────────────────────────────────────────────
 # 部署：npx wrangler deploy --env production
