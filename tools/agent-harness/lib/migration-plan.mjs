@@ -75,3 +75,28 @@ export function planMigrations({ local, remote, deployed = false }) {
         `待套 ${pending.length} 支 after-deploy backfill —— 先部署，再手動觸發 migrate（填部署截線 SHA）。`,
       );
 }
+
+/**
+ * 本分支**新增**的 migration 裡，時間戳不比 base（origin/main）最新一支新的那些（#1248）。
+ *
+ * PR 開著的期間 main 合進了更新的 migration，這支合下去之後就是「比遠端最新還舊卻沒套」——
+ * `migrate.yml` 的 plan 會被 CLI 以 `inserted before the last migration` 拒絕（我們永不帶
+ * `--include-all`）。但 verify 在合併前不會紅，只有人眼看得到（#1216 撞到）。
+ * 修法是 `git mv` 成新的時間戳 —— 檔案還沒進 main，改名不違反 c3。
+ *
+ * 只看新增檔：既有的檔由 A16（c3）管，這裡不碰。
+ *
+ * @param {string[]} addedFiles 本分支新增的檔名（basename）
+ * @param {string[]} baseFiles base 上 supabase/migrations/ 的檔名（basename）
+ * @returns {{ stale: string[], baseLatest: string | null }}
+ */
+export function staleNewMigrations(addedFiles, baseFiles) {
+  const version = (file) => /^(\d{14})_/.exec(file)?.[1] ?? null;
+  const baseLatest = baseFiles.map(version).filter(Boolean).sort().at(-1) ?? null;
+  if (baseLatest === null) return { stale: [], baseLatest };
+  const stale = addedFiles.filter((file) => {
+    const v = version(file);
+    return v !== null && v <= baseLatest;
+  });
+  return { stale, baseLatest };
+}

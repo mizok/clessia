@@ -54,6 +54,7 @@ import {
   orgTablesFromMigrations,
   unscopedOrgWrites,
 } from './lib/org-scope-writes.mjs';
+import { staleNewMigrations } from './lib/migration-plan.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -123,7 +124,6 @@ const TOUCH_TARGET_EXEMPT = {
     '同上：<tr>，真正的修復在 responsive-table 的共用 coarse 區塊',
   'apps/web/src/app/features/admin/pages/payments/payments.page.scss|.payments__row':
     '同上：<tr>，真正的修復在 responsive-table 的共用 coarse 區塊',
-
 };
 const DUAL_TRACK_BASELINE = join(ROOT, 'tools/agent-harness/dual-track-baseline.json');
 const SCAN_SCOPE = join(ROOT, 'tools/agent-harness/scan-scope.json');
@@ -994,6 +994,36 @@ if (migrationsChanged.status !== 0) {
     fail(
       `${paths.at(-1)} 是已提交的 migration，本分支卻${status.startsWith('D') ? '刪除' : status.startsWith('R') ? '改名' : '修改'}了它（c3）。` +
         `schema 變更請新增一支 ALTER TABLE migration：npx supabase migration new <description>`,
+    );
+  }
+}
+
+// ── A16b. 本分支新增的 migration 不能比 main 最新那支舊（#1248）──────────────────────────
+// 合下去之後 migrate.yml 的 plan 會被 CLI 以 `inserted before the last migration` 拒絕，
+// 而 verify 原本不會紅（#1216）。判斷在 lib/migration-plan.mjs 的 staleNewMigrations（有測試）。
+// 跟 A16 同一個基準 `origin/main...HEAD`；拿不到 origin/main 時 A16 已經警告過，這裡安靜跳過。
+const migrationsAdded = spawnSync(
+  'git',
+  ['diff', '--name-only', '--diff-filter=A', 'origin/main...HEAD', '--', 'supabase/migrations/'],
+  { cwd: ROOT, encoding: 'utf8' },
+);
+const mainMigrations = spawnSync(
+  'git',
+  ['ls-tree', '--name-only', 'origin/main', 'supabase/migrations/'],
+  { cwd: ROOT, encoding: 'utf8' },
+);
+if (migrationsAdded.status === 0 && mainMigrations.status === 0) {
+  const basename = (path) => path.split('/').at(-1);
+  const { stale, baseLatest } = staleNewMigrations(
+    migrationsAdded.stdout.split('\n').filter(Boolean).map(basename),
+    mainMigrations.stdout.split('\n').filter(Boolean).map(basename),
+  );
+  for (const file of stale) {
+    fail(
+      `supabase/migrations/${file} 的時間戳不比 main 最新那支（${baseLatest}）新 —— ` +
+        `合下去之後 migrate.yml 會被 CLI 以 inserted before the last migration 拒絕（#1248）。` +
+        `這支還沒進 main，改名不違反 c3：git mv supabase/migrations/${file} ` +
+        `supabase/migrations/<新時間戳>_${file.replace(/^\d{14}_/, '')}`,
     );
   }
 }
