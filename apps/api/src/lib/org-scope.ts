@@ -36,6 +36,7 @@ export type OrgTable =
   | 'parents'
   | 'payment_records'
   | 'profiles'
+  | 'public_applications'
   | 'receipt_counters'
   | 'schedule_changes'
   | 'school_exams'

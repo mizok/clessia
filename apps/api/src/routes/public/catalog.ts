@@ -5,8 +5,8 @@ import {
   CatalogClassSchema,
   byCourseThenClass,
   catalogClassSelect,
-  isOpenClass,
-  one,
+  isPublicOpenClass,
+  takenSeats,
   toCatalogClass,
   type Row,
 } from '../../lib/catalog-class';
@@ -57,26 +57,14 @@ app.openapi(
     if (error) return failed();
 
     // ponytail: 結束日與課程停用在記憶體濾 —— 一間補習班的開課班是幾十到幾百班
-    const classes = ((data ?? []) as Row[]).filter(
-      (row) => isOpenClass(row, today) && one(row['courses'])?.['is_active'] !== false,
-    );
+    const classes = ((data ?? []) as Row[]).filter((row) => isPublicOpenClass(row, today));
 
-    const taken = new Map<string, number>();
-    if (classes.length > 0) {
-      const { data: rows, error: countError } = await supabase
-        .from('enrollments')
-        .select('class_id')
-        .eq('org_id', orgId)
-        .in(
-          'class_id',
-          classes.map((row) => row['id'] as string),
-        )
-        .in('status', ['active', 'pending_payment']);
-      if (countError) return failed();
-      for (const row of (rows ?? []) as Array<{ class_id: string }>) {
-        taken.set(row.class_id, (taken.get(row.class_id) ?? 0) + 1);
-      }
-    }
+    const { taken, error: countError } = await takenSeats(
+      supabase,
+      orgId,
+      classes.map((row) => row['id'] as string),
+    );
+    if (countError) return failed();
 
     // 名額晚一分鐘可接受；免登入讀取最便宜的防刷（正式的防濫用在 #1126）
     c.header('Cache-Control', 'public, max-age=60');

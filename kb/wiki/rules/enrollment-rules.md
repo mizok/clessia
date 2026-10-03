@@ -18,6 +18,9 @@ tags: [rules, enrollment-rules]
    - **額滿班不能送正式申請，但可以登記候補**（使用者 2026-10-03 裁）：狀態為 `waitlist`，讓補習班知道有人在等。
      額滿由伺服器數（佔名額 = 在籍＋待繳費），家長端要明確選擇候補才會建立（#1119，`POST /api/me/enrollment-requests`）。
    - 家長可自行取消 `pending`／`waitlist` 的申請；核准之後要聯絡補習班。
+   - **公開表單（沒登入的新家長，#1123）不走這張表**：寫進 `public_applications`（未驗證的申請，狀態是聯絡流程
+     `new → contacted → converted／rejected／spam`），**不建家長、學生、帳號**（那是 1.4 首次收款時的事）。
+     額滿判定與名額同公開目錄（`lib/catalog-class.ts` 的 `takenSeats`），額滿班記為候補。管理員聯絡後走既有建檔與報名。
 2. 管理員審核通過後：
    - 建立繳費單。
    - 建立 Enrollment（狀態 `pending_payment`）。
