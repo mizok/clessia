@@ -116,4 +116,30 @@ describe('ParentFormDialogComponent', () => {
     const input = (parentsServiceMock.create.mock.calls.at(-1) as unknown as [object])[0];
     expect(input).not.toHaveProperty('studentIds', expect.anything());
   });
+
+  /**
+   * #1245：從公開申請「建立家長」—— 新增模式，但欄位先帶好申請人填的。
+   * `prefill` 不是 `parent`：有 `parent` 會變成編輯模式（打 update 而不是 create）。
+   */
+  it('prefill：新增模式、欄位預填，送出走 create', () => {
+    TestBed.inject(DynamicDialogConfig).data = {
+      parent: null,
+      prefill: { name: '王媽媽', email: null, phone: '0912345678' },
+    };
+    const other = TestBed.createComponent(ParentFormDialogComponent);
+    other.detectChanges();
+    const c = other.componentInstance as unknown as {
+      formData: () => { name: string; email: string; phone: string };
+      isEditMode: () => boolean;
+      save: () => void;
+    };
+
+    expect(c.isEditMode()).toBe(false);
+    expect(c.formData()).toMatchObject({ name: '王媽媽', email: '', phone: '0912345678' });
+    c.save();
+    expect(parentsServiceMock.create).toHaveBeenCalledWith(
+      expect.objectContaining({ name: '王媽媽', phone: '0912345678' }),
+    );
+    TestBed.inject(DynamicDialogConfig).data = { parent: null };
+  });
 });

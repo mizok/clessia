@@ -115,12 +115,13 @@ const AREAS = [
     name: '報名',
     pages: [
       'admin/enrollments',
+      'admin/applications',
       'parent/enrollment',
       'parent/add-course',
       'parent/renewal',
       'parent/trial',
     ],
-    routes: ['enrollments'],
+    routes: ['enrollments', 'public-applications'],
     specs: [
       'admin/enrollment/enrollment.md',
       'admin/enrollment/enrollment-requests.md',

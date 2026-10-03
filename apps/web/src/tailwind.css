@@ -46,6 +46,7 @@
 @source './app/features/admin/pages/sessions/sessions.page.html';
 @source './app/features/admin/pages/students';
 @source './app/features/admin/pages/checkin';
+@source './app/features/admin/pages/applications';
 @source './app/features/kiosk';
 @source './app/shared/components/checkin-station';
 @source './app/features/admin/pages/staff/kiosk-form-dialog';

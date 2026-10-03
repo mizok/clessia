@@ -208,6 +208,17 @@ export class RoutesCatalog {
     true,
     NavigationGroup.ADMIN_STUDENT_AFFAIRS,
   );
+  // #1245：公開報名／試聽表單送進來、還沒建檔的申請。個資 —— 讀也要 manage_students
+  public static readonly ADMIN_APPLICATIONS = this.register(
+    'applications',
+    '/admin/applications',
+    '公開申請',
+    UserType.ADMIN,
+    'pi-inbox',
+    true,
+    NavigationGroup.ADMIN_STUDENT_AFFAIRS,
+    'manage_students',
+  );
   public static readonly ADMIN_ENROLLMENTS = this.register(
     'enrollments',
     '/admin/enrollments',
