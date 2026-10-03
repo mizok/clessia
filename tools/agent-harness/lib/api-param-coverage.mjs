@@ -114,6 +114,13 @@ const EXEMPT = new Map([
     '/api/me/catalog|childId',
     '家長端課程目錄 API 先行（#1118），前端消費端另開，見 kb/wiki/architecture/parent-catalog-read.md',
   ],
+  // #1117 家長端餐費讀取：API 先行，前端消費端（p-meals）由前端席另開。前端送出那天 staleExemptions() 會叫。
+  [
+    '/api/me/meals|childId',
+    '家長端餐費讀取 API 先行（#1117），前端消費端另開，見 kb/wiki/specs/parent/meals.md',
+  ],
+  ['/api/me/meals|dateFrom', '同上'],
+  ['/api/me/meals|dateTo', '同上'],
   // ── #361 的兩筆（`attendanceTaken` / `endedOnly`）已於 2026-09-07 刪除 ──────────
   // 前端消費端（StatCard.queryParams、sessions 頁的「今日未點名」pill）已經落地並送出
   // 這兩個參數，所以豁免對不上任何實際落差 —— 那正是下面 `staleExemptions()` 要抓的。

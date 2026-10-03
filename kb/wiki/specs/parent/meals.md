@@ -3,7 +3,7 @@ title: 餐費紀錄
 summary: 查看孩子的餐費紀錄。
 category: spec
 status: active
-updated: 2026-02-13
+updated: 2026-10-04
 tags: [specs, parent, meals]
 ---
 
@@ -22,7 +22,10 @@ tags: [specs, parent, meals]
 
 - 按月份分組顯示，每月一個區塊
 - 每月區塊顯示：月份標題、當月總金額、該月所有餐費明細
-- 每筆明細顯示：日期、餐別（早/午/晚/點心）、金額、備註（若有）
+- 每筆明細顯示：日期、金額；**有訂但這天不收費**的顯示 0 元並標「不收費」；已經進帳單的標「已入帳」
+- ~~餐別（早/午/晚/點心）~~：不存在 —— 餐費規則是**每生每日一筆**（[[rules/meal-rules]] 規則 2），以 rules 為準（#1117）
+- ~~備註~~：`meal_records.note` 是行政的內部備註（收不收的人工裁量理由），家長端不顯示（#1117，同帳單備註的判準）
+- 只列**有訂**的那幾天；沒訂的那天不是餐費
 
 ### 篩選
 
@@ -35,11 +38,18 @@ tags: [specs, parent, meals]
 - 匯出按鈕位於頁面頂部右側
 - 支援匯出 CSV 格式
 - 匯出範圍依目前篩選條件
-- 匯出欄位：日期、餐別、金額、備註
+- 匯出欄位：日期、金額、是否收費、是否已入帳
 
 ### 空狀態
 
 若無餐費紀錄，顯示空狀態提示
+
+## API（#1117）
+
+`GET /api/me/meals?childId=&dateFrom=&dateTo=` —— 區間**必填、最多 366 天**（每生每日一筆，
+一次撈得完、不分頁）。回 `data: [{ date, unitPrice, chargeable, amount, settled }]`（新到舊）與
+`meta.months: [{ month, count, totalAmount }]`（區間內每月加總，每月區塊的標題直接用）。
+非家長 403 `NOT_PARENT`、別人的孩子 403 `CHILD_OUT_OF_SCOPE`、區間不合法 400。
 
 ## 資料依賴
 
