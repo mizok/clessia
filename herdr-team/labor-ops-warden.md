@@ -534,6 +534,12 @@ npm run harness >/tmp/h.log 2>&1; echo "exit=$?"; tail -3 /tmp/h.log
 重新查一次新鮮的 `state`。**每一句陳述 PR 狀態的話,送出前都要有一次剛查的
 `gh pr view --json state` 佐證,不能用「我記得上輪是這樣」。**
 
+**自己剛做的動作也算「陳述」,一樣要查證再說**(2026-10-03 計畫席訂):那天我回報
+「兩支都標 draft／疊好了」—— **那一刻並不是**。`gh pr create --base main` 把 #1169 開成
+`base=main`、`draft=false`,而它的分支長在另一支 PR 的分支上,**所以 diff 含兩個 commit**。
+我是送出訊息之後才查、查到才改。**「我剛剛做了 X」跟「上一輪是 Y」一樣是斷言** ——
+而前者更容易跳過查證,因為動作是自己下的,感覺不需要確認。
+
 判 PR 有沒有處理完,一律查 `state`(`OPEN`/`MERGED`/`CLOSED`);`mergeable` /
 `mergeStateStatus` 只在 `state == OPEN` 時才有意義,`gh pr list --state open` 這種
 篩選過的列表沒有這個陷阱,但單支 `gh pr view` 若沒指定欄位就會連 `mergeable`
