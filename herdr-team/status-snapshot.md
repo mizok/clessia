@@ -33,15 +33,18 @@
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-03 11:3x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-03 11:4x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
 | PR    | 為什麼保留                                   | 狀態                                                                                                                                                                                                                                  |
 | ----- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| #1132 | #1112 migration＋授權：出勤模式改分校層級    | 可合（verify 看 GitHub）。head `ae075010`，12 支檔，新 migration `20261003032358_campus_attendance_mode.sql`（只新增，未動舊檔）；`lib/attendance-mode.ts` 推算分校→機構→daily_checkin；PUT /api/campuses/:id 可寫 attendanceMode（manage_org_settings＋resourceCampusAllowed）。修前紅 7 條→綠。合後 migrate.yml 會停在 prod-db 等您 Approve。 |
+| #1137 | #1133 授權（c1）：campuses GET 補 org 過濾、PUT／DELETE 加分校範圍 | 可合（verify 看 GitHub）。head `85f17f23`，已 rebase 到含 #1132／#1136 的 main，2 支檔。修前紅 3 條→綠。 |
+| #1141 | #1119 migration＋授權：enrollment_requests 表＋家長端報名申請（含候補） | 可合。head `3e6570de`，10 支檔，新 migration `20261003033635_enrollment_requests.sql`（只新增；RLS 啟用無 policy，照既有慣例）；childDb 加 insert／update（scope 外在送 DB 前拒絕、org_id 取 session）、orgRef 白名單只讀、activeEnrollmentCount 只回數字；/api/me/enrollment-requests GET／POST／:id/cancel；額滿 server 判、家長明確帶 waitlist 才建候補（您 10-03 裁）。A19 gate 乾淨（parent 路由零 c.get('supabase')）。**含架構文件變更** parent-data-scope.md「家長端寫入 v1 唯讀」→ 走 childDb 入口。未做：核准流程與管理端列表、家長端寫入稽核、候補自動遞補。合後 migrate.yml 再停一次 prod-db 等 Approve。 |
 
-接下來會出現的保留類（labor-20261003-1119 排程中）：#1133（campuses GET 無 org 過濾，c1）、#1119／#1120（requests 表＋家長端第一次寫入）。
+接下來會出現的保留類（labor-20261003-1119 排程中）：#1120（trial_requests）。
+
+10-03 中午已合：#1132（出勤模式分校層級，migration 已由 migrate.yml 套／待 Approve 見上）、#1136（重掃不覆寫，非保留）。
 **家長端寫入的架構裁定（10-03 11:5x，計畫席裁，您可否決）**：`parent-data-scope.md` 原列「家長端寫入 v1 唯讀」為明確不做；為了候補登記與申請表，改成寫入走 `childDb.insert／update`（scope 外在送 DB 前拒絕）、機構層級參考資料走 `orgRef` 白名單唯讀（classes／courses／enrollments 計數），不用 DB trigger。文件更新跟 #1119 同 PR。
 
 10-03 上午已合的五支保留類：#1069（T4）、#1080（#920）、#1094（#1081）、#1102（#1098）、#1089（#1059），分支皆已刪；#1078（P1）隨後由 reviewer 合。
