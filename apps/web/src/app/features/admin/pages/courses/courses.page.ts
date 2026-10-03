@@ -8,7 +8,8 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { CampusContextService } from '@core/campus-context.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -19,7 +20,6 @@ import { MessageService, MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { ToastModule } from 'primeng/toast';
 import { ButtonModule } from 'primeng/button';
-import { TabsModule } from 'primeng/tabs';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
@@ -33,7 +33,7 @@ import type { Popover } from 'primeng/popover';
 import { TooltipModule } from 'primeng/tooltip';
 import { PaginatorModule } from 'primeng/paginator';
 
-import { TodoBannerComponent } from '@shared/components/todo-banner/todo-banner.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 
 import { CourseFormDialogComponent } from './course-form-dialog.component';
 import { ClassFormDialogComponent } from './class-form-dialog/class-form-dialog.component';
@@ -48,7 +48,7 @@ import { CoursesService, Course } from '@core/courses.service';
 import type { Campus } from '@core/campuses.service';
 import type { Subject } from '@core/subjects.service';
 // `Subject` 這個名字被上面的科目型別佔走了，所以 rxjs 的取別名。
-import { EMPTY, Subject as RxSubject, catchError, debounceTime, switchMap } from 'rxjs';
+import { EMPTY, Subject as RxSubject, catchError, debounceTime, skip, switchMap } from 'rxjs';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { Staff } from '@core/staff.service';
@@ -85,7 +85,6 @@ interface CourseGroup {
     FormsModule,
     ToastModule,
     ButtonModule,
-    TabsModule,
     PopupMenuComponent,
     IconFieldModule,
     InputIconModule,
@@ -101,11 +100,10 @@ interface CourseGroup {
     RouterModule,
     EmptyStateComponent,
     LoadFailedComponent,
-    TodoBannerComponent,
+    PageOpenComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './courses.page.html',
-  styleUrl: './courses.page.scss',
 })
 export class CoursesPage implements OnInit {
   /** 這一頁的主要行動。**寫成 readonly property 不是模板裡的物件字面量** ——
@@ -196,7 +194,12 @@ export class CoursesPage implements OnInit {
    * 新關鍵字的通常只有零星幾筆。一樣是錯的，只是比較不像錯的。
    */
   private readonly loadRequests = new RxSubject<void>();
-  protected readonly selectedCampusId = signal<string | null>(null);
+  /**
+   * 分校跟頂欄走（#1138 H2 的 CampusContextService；#991 courses C1 接上）：頁內分校 tabs 拿掉。
+   * `null`＝全部分校。不再存在 filter 快照裡（它本來就是全站的一份）。
+   */
+  private readonly campusCtx = inject(CampusContextService);
+  protected readonly selectedCampusId = this.campusCtx.id;
   protected readonly selectedSubjectId = signal<string | null>(null);
   protected readonly selectedTeacherIds = signal<string[]>([]);
   protected readonly statusFilter = signal<boolean | 'intervention' | null>(null);
@@ -339,6 +342,11 @@ export class CoursesPage implements OnInit {
     ).length;
   });
 
+  /** 色面：這間分校（或全部）正在開的班數（`classes()` 是不分頁拿全部的那份） */
+  protected readonly openClassCount = computed(() => {
+    const campus = this.selectedCampusId();
+    return this.classes().filter((c) => c.isActive && (!campus || c.campusId === campus)).length;
+  });
   protected readonly selectedCampusName = computed(() => {
     const id = this.selectedCampusId();
     if (!id) return null;
@@ -382,11 +390,18 @@ export class CoursesPage implements OnInit {
   // Lifecycle
   // ================================================================
 
+  constructor() {
+    this.campusCtx.use();
+    // 初次載入由 ngOnInit 的 loadAll 做；這裡只管「之後頂欄換了分校」
+    toObservable(this.campusCtx.id)
+      .pipe(skip(1), takeUntilDestroyed())
+      .subscribe(() => this.onCampusChanged());
+  }
+
   ngOnInit(): void {
     // 還原上次離開時的 filter 狀態
     const s = this.filterState;
     this.searchQuery.set(s.searchQuery);
-    this.selectedCampusId.set(s.selectedCampusId);
     this.selectedSubjectId.set(s.selectedSubjectId);
     this.selectedTeacherIds.set(s.selectedTeacherIds);
     this.statusFilter.set(s.statusFilter);
@@ -418,7 +433,6 @@ export class CoursesPage implements OnInit {
     this.destroyRef.onDestroy(() => {
       const fs = this.filterState;
       fs.searchQuery = this.searchQuery();
-      fs.selectedCampusId = this.selectedCampusId();
       fs.selectedSubjectId = this.selectedSubjectId();
       fs.selectedTeacherIds = this.selectedTeacherIds();
       fs.statusFilter = this.statusFilter();
@@ -647,8 +661,8 @@ export class CoursesPage implements OnInit {
     this.loadCourses();
   }
 
-  protected onCampusTabChange(value: string | number | null | undefined): void {
-    this.selectedCampusId.set(!value || value === 'all' ? null : String(value));
+  /** 頂欄換了分校：老師篩選裡不在新分校的拿掉，回第一頁重查 */
+  private onCampusChanged(): void {
     this.selectedTeacherIds.update((teacherIds) =>
       teacherIds.filter((teacherId) => this.validTeacherIdsForSelectedCampus().has(teacherId)),
     );
@@ -664,7 +678,6 @@ export class CoursesPage implements OnInit {
       this.onToggleHistorical(false);
     }
     this.searchQuery.set('');
-    this.selectedCampusId.set(null);
     this.selectedSubjectId.set(null);
     this.selectedTeacherIds.set([]);
     this.statusFilter.set(null);

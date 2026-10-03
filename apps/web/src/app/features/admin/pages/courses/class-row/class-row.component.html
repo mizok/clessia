@@ -1,122 +1,123 @@
+<!--
+  A6 班級列（courses.html `.cls`，#991 courses C1）：勾選｜名稱＋標籤｜時段｜容量｜⋯。手機：名稱下面疊時段與容量。
+  點名稱＝進班級；點列的其他地方＝勾選（批次啟用／停用／刪除）。
+  `data-part` 是給 spec 的掛點（樣式改成 utility 之後，class 名不再穩定）。
+-->
 <div
-  class="class-row"
-  [class.class-row--historical]="historical()"
-  [class.class-row--selected]="selected()"
+  class="grid min-h-11 cursor-pointer grid-cols-[28px_minmax(0,1fr)_44px] items-center gap-x-3 gap-y-1 border-t border-zinc-100 py-3 wide:grid-cols-[28px_minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1fr)_44px] wide:gap-x-5"
+  [class.bg-zinc-100]="selected()"
+  (click)="onRowClick($event)"
 >
-  <div class="class-row__summary" (click)="toggleSelection.emit($event)">
-    <input
-      type="checkbox"
-      class="batch-checkbox"
-      [checked]="selected()"
-      (change)="toggleSelection.emit($any($event))"
-      (click)="$event.stopPropagation()"
-    />
-    <span class="class-row__name-group">
-      <button
-        type="button"
-        class="class-row__name"
-        (click)="navigate.emit(); $event.stopPropagation()"
+  <input
+    type="checkbox"
+    class="col-start-1 row-start-1 size-4 cursor-pointer accent-zinc-900"
+    [checked]="selected()"
+    [attr.aria-label]="'勾選 ' + cls().name"
+    (change)="toggleSelection.emit($any($event))"
+  />
+
+  <span class="col-start-2 row-start-1 flex min-w-0 items-center gap-0.5">
+    <button
+      type="button"
+      data-part="name"
+      class="min-h-11 min-w-0 cursor-pointer truncate border-0 bg-transparent p-0 text-left text-base font-semibold text-zinc-900 hover:underline hover:underline-offset-4"
+      [class.text-zinc-600]="historical() || !cls().isActive"
+      (click)="navigate.emit(); $event.stopPropagation()"
+    >
+      {{ cls().name }}
+    </button>
+    <button
+      type="button"
+      data-part="nav"
+      class="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+      aria-label="前往班級詳情"
+      (click)="navigate.emit(); $event.stopPropagation()"
+    >
+      <i class="pi pi-angle-right" aria-hidden="true"></i>
+    </button>
+  </span>
+
+  <span
+    data-part="schedules"
+    class="col-start-2 text-md text-zinc-700 tabular-nums wide:col-start-3 wide:row-start-1"
+  >
+    @if ((cls().schedules?.length ?? 0) > 0) {
+      {{ scheduleSummary() }}
+    } @else {
+      <span class="text-zinc-600">尚無時間表</span>
+    }
+  </span>
+
+  <div
+    class="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1 wide:col-start-4 wide:row-start-1"
+  >
+    @if (cls().maxStudents) {
+      <span data-part="capacity" class="text-md text-zinc-700 tabular-nums"
+        >上限 {{ cls().maxStudents }} 人</span
       >
-        {{ cls().name }}
-      </button>
-      <button
-        type="button"
-        class="class-row__nav-btn"
-        (click)="navigate.emit(); $event.stopPropagation()"
-        aria-label="前往班級詳情"
+    }
+    @if (historical()) {
+      <span class="text-sm font-semibold text-zinc-600">已結束</span>
+    } @else {
+      <span
+        class="text-sm font-semibold"
+        [class.text-zinc-700]="cls().isActive"
+        [class.text-zinc-600]="!cls().isActive"
+        >{{ cls().isActive ? '啟用' : '停用' }}</span
       >
-        <i class="pi pi-angle-right"></i>
-      </button>
-    </span>
-    <span class="class-row__schedules">
-      @if ((cls().schedules?.length ?? 0) > 0) {
-        {{ scheduleSummary() }}
-      } @else {
-        <span class="class-row__no-schedule">尚無時間表</span>
+      @if ((cls().upcomingUnassignedCount ?? 0) > 0) {
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-sm font-semibold text-warning-800 underline decoration-warning-600 underline-offset-4"
+          (click)="navigateUnassigned.emit(); $event.stopPropagation()"
+        >
+          <i class="pi pi-exclamation-triangle text-xs" aria-hidden="true"></i>
+          {{ cls().upcomingUnassignedCount }} 堂未指派
+        </button>
       }
-    </span>
-    <div class="class-row__info">
-      @if (cls().maxStudents) {
-        <span class="class-row__capacity">上限 {{ cls().maxStudents }} 人</span>
+      @if (cls().scheduleCount === 0) {
+        <span class="inline-flex items-center gap-1 text-sm font-semibold text-warning-800">
+          <i class="pi pi-exclamation-triangle text-xs" aria-hidden="true"></i>
+          無時段
+        </span>
+      } @else if (
+        cls().isActive && !cls().hasUpcomingSessions && (cls().upcomingCancelledCount ?? 0) > 0
+      ) {
+        <span class="inline-flex items-center gap-1 text-sm text-zinc-700">
+          <i class="pi pi-calendar-times text-xs" aria-hidden="true"></i>
+          {{ mobile() ? '皆停課' : '未來皆停課' }}
+        </span>
+      } @else if (cls().isActive && !cls().hasUpcomingSessions) {
+        <button
+          type="button"
+          data-part="generate"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-sm font-semibold text-zinc-900 underline decoration-zinc-400 underline-offset-4 hover:decoration-current"
+          (click)="generateSessions.emit(); $event.stopPropagation()"
+        >
+          <i class="pi pi-calendar-plus text-xs" aria-hidden="true"></i>
+          {{ mobile() ? '無排程' : '無未來排程' }}，產生課堂
+        </button>
       }
-      <div class="class-row__tags">
-        @if (historical()) {
-          <span class="class-row__tag-historical">已結束</span>
-        } @else {
-          <span
-            class="class-row__status-dot"
-            [class.class-row__status-dot--active]="cls().isActive"
-            [pTooltip]="cls().isActive ? '啟用中' : '停用中'"
-            tooltipPosition="top"
-          ></span>
-          @if ((cls().upcomingUnassignedCount ?? 0) > 0) {
-            <button
-              type="button"
-              class="class-row__intervention-link"
-              (click)="navigateUnassigned.emit(); $event.stopPropagation()"
-              pTooltip="查看未指派課堂"
-              tooltipPosition="top"
-            >
-              <i class="pi pi-exclamation-triangle"></i>
-              {{ cls().upcomingUnassignedCount }} 堂未指派
-            </button>
-          }
-          @if (cls().scheduleCount === 0) {
-            <span
-              class="class-row__completeness-warn"
-              pTooltip="尚未設定上課時間"
-              tooltipPosition="top"
-            >
-              <i class="pi pi-exclamation-triangle"></i>
-              無時段
-            </span>
-          } @else if (
-            cls().isActive && !cls().hasUpcomingSessions && (cls().upcomingCancelledCount ?? 0) > 0
-          ) {
-            <span
-              class="class-row__completeness-info"
-              pTooltip="未來課堂皆為停課狀態"
-              tooltipPosition="top"
-            >
-              <i class="pi pi-calendar-times"></i>
-              {{ mobile() ? '皆停課' : '未來皆停課' }}
-            </span>
-          } @else if (cls().isActive && !cls().hasUpcomingSessions) {
-            <button
-              type="button"
-              class="class-row__completeness-info class-row__completeness-info--action"
-              (click)="generateSessions.emit(); $event.stopPropagation()"
-              pTooltip="目前無未來排程（含今天），點擊產生課堂"
-              tooltipPosition="top"
-            >
-              <i class="pi pi-calendar-plus"></i>
-              {{ mobile() ? '無排程' : '無未來排程' }}
-              <i class="pi pi-arrow-right"></i>
-            </button>
-          }
-        }
-      </div>
-    </div>
-    @if (!historical()) {
-      <div class="class-row__actions-group">
-        <p-button
-          #menuTrigger
-          icon="pi pi-ellipsis-v"
-          [text]="true"
-          [rounded]="true"
-          severity="secondary"
-          size="small"
-          [ariaLabel]="cls().name + ' 的操作'"
-          (onClick)="openMenu.emit($event); $event.stopPropagation()"
-        />
-      </div>
     }
   </div>
+
+  @if (!historical()) {
+    <p-button
+      class="col-start-3 row-start-1 justify-self-end wide:col-start-5"
+      icon="pi pi-ellipsis-h"
+      [text]="true"
+      [rounded]="true"
+      severity="secondary"
+      [ariaLabel]="cls().name + ' 的操作'"
+      (onClick)="openMenu.emit($event); $event.stopPropagation()"
+    />
+  }
+
   @if (cls().startDate || cls().endDate) {
-    <div class="class-row__date-row">
-      {{ cls().startDate ? (cls().startDate | slice: 0 : 10) : '' }}
-      ～
+    <!-- col-[2/span_2]：分開寫 col-start-2＋col-span-2 時，col-span 的 grid-column 簡寫會蓋掉起點 -->
+    <span class="col-[2/span_2] text-sm text-zinc-600 tabular-nums wide:col-[2/span_3]">
+      {{ cls().startDate ? (cls().startDate | slice: 0 : 10) : '' }} ～
       {{ cls().endDate ? (cls().endDate | slice: 0 : 10) : '' }}
-    </div>
+    </span>
   }
 </div>

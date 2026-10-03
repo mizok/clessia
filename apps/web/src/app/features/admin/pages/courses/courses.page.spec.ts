@@ -7,6 +7,7 @@ import { MessageService, ConfirmationService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
 import { CoursesPage } from './courses.page';
+import { CampusContextService } from '@core/campus-context.service';
 import { CoursesService } from '@core/courses.service';
 import { ClassesService, type Class } from '@core/classes.service';
 import { ReferenceDataService } from '@core/reference-data.service';
@@ -82,6 +83,8 @@ describe('CoursesPage', () => {
   };
 
   beforeEach(async () => {
+    // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
+    localStorage.removeItem('clessia.campusContext');
     sessionsServiceMock.list.mockClear();
     confirmationServiceMock.confirm.mockClear();
 
@@ -353,7 +356,7 @@ describe('CoursesPage', () => {
     );
   });
 
-  it('filters teacher options by selected campus tab', () => {
+  it('filters teacher options by the topbar campus（#1138 H2，tabs 拿掉）', () => {
     refDataMock.teachers.set([
       {
         id: 'teacher-1',
@@ -375,12 +378,8 @@ describe('CoursesPage', () => {
       },
     ]);
 
-    (
-      component as unknown as {
-        onCampusTabChange: (value: string | number | null | undefined) => void;
-        filteredStaffOptions: () => Array<{ value: string }>;
-      }
-    ).onCampusTabChange('campus-1');
+    TestBed.inject(CampusContextService).select('campus-1');
+    fixture.detectChanges();
 
     const options = (
       component as unknown as {
@@ -391,7 +390,7 @@ describe('CoursesPage', () => {
     expect(options.map((option) => option.value)).toEqual(['teacher-1', 'teacher-3']);
   });
 
-  it('removes selected teachers that do not belong to the active campus tab', () => {
+  it('removes selected teachers that do not belong to the topbar campus', () => {
     refDataMock.teachers.set([
       {
         id: 'teacher-1',
@@ -416,15 +415,11 @@ describe('CoursesPage', () => {
     (
       component as unknown as {
         selectedTeacherIds: { set: (value: string[]) => void };
-        onCampusTabChange: (value: string | number | null | undefined) => void;
       }
     ).selectedTeacherIds.set(['teacher-1', 'teacher-2', 'teacher-3']);
 
-    (
-      component as unknown as {
-        onCampusTabChange: (value: string | number | null | undefined) => void;
-      }
-    ).onCampusTabChange('campus-1');
+    TestBed.inject(CampusContextService).select('campus-1');
+    fixture.detectChanges();
 
     const selectedTeacherIds = (
       component as unknown as {

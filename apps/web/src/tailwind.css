@@ -38,6 +38,8 @@
 @source './app/shared/components/layout/global-search';
 @source './app/shared/components/layout/shell-layout';
 @source './app/features/admin/pages/changes';
+@source './app/features/admin/pages/courses/class-row';
+@source './app/features/admin/pages/courses/courses.page.html';
 @source './app/features/admin/pages/dashboard';
 @source './app/features/admin/pages/sessions/components';
 @source './app/features/admin/pages/sessions/sessions.page.html';

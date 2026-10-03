@@ -1,458 +1,496 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
-<!-- 方法 1: 動態 Selector -->
 
-<div class="courses">
-  <!-- Page Header -->
-  <header class="courses__header">
-    <div class="courses__title-group">
-      <div class="courses__title-row">
-        <h1 class="courses__title">{{ page().label }}</h1>
-      </div>
-      <p class="courses__subtitle">層級管理課程與班級，設定上課時間</p>
-    </div>
-    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateCourseDialog()">
-      <p-button
-        label="操作紀錄"
-        icon="pi pi-history"
-        [outlined]="true"
-        severity="secondary"
-        (onClick)="openAuditLog()"
-      />
-    </app-page-actions>
-  </header>
-
-  <app-todo-banner
-    [count]="interventionCount()"
-    [active]="statusFilter() === 'intervention'"
-    (action)="onFilterIntervention()"
-  >
-    @if (selectedCampusName(); as name) {
-      {{ name }} · 需介入 <strong>{{ interventionCount() }}</strong> 個課程
+<!--
+  A6 版（#991 courses C1）：色面 → 灰工具列（搜尋、篩選、操作紀錄、新增課程）→ 需介入灰列 → 課程列（展開是班級列）。
+  換版不換資料：A6 的「依科目分章」做不出來（課程清單是伺服器分頁，計畫席裁 Q1 不分章，另列後續項）；
+  分校改由頂欄的 CampusContextService 決定（Q2），頁內 tabs 拿掉；批次勾選照留（Q3）。
+-->
+<app-page-open>
+  <ng-container openTitle>
+    @if (loading() || loadFailed()) {
+      {{ page().label }}
+    } @else if (hasActiveFilters()) {
+      符合篩選的 {{ total() }} 門課程。
     } @else {
-      需介入 <strong>{{ interventionCount() }}</strong> 個課程
+      {{ total() }} 門課程，{{ openClassCount() }} 個班正在開。
     }
-  </app-todo-banner>
+  </ng-container>
+  @if (selectedCampusName(); as name) {
+    <ng-container openSub>{{ name }}</ng-container>
+  }
+</app-page-open>
 
-  <!-- Filter Bar -->
-  <div class="courses__card">
-    @if (activeCampuses().length > 1) {
-      <p-tabs
-        [value]="selectedCampusId() ?? 'all'"
-        (valueChange)="onCampusTabChange($event)"
-        styleClass="courses__campus-tabs"
+<div class="bg-zinc-100">
+  <div
+    class="page-wrap flex flex-col gap-3 py-3 wide:flex-row wide:items-end wide:gap-4"
+    role="search"
+    aria-label="篩選課程"
+  >
+    <label class="flex min-w-0 flex-col gap-1 wide:w-80">
+      <span class="text-sm font-semibold text-zinc-700">搜尋</span>
+      <span class="relative">
+        <i
+          class="pi pi-search pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-zinc-600"
+          aria-hidden="true"
+        ></i>
+        <input
+          type="search"
+          pInputText
+          class="h-11 w-full pl-9"
+          placeholder="課程或班級名稱"
+          [ngModel]="searchQuery()"
+          (ngModelChange)="onSearchChange($event)"
+        />
+      </span>
+    </label>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        [attr.aria-label]="
+          activeFilterCount() > 0 ? '篩選（' + activeFilterCount() + ' 個條件）' : '篩選'
+        "
+        (click)="onFilterBtnClick($event)"
       >
-        <p-tablist>
-          <p-tab value="all">全部</p-tab>
-          @for (campus of activeCampuses(); track campus.id) {
-            <p-tab [value]="campus.id">{{ campus.name }}</p-tab>
-          }
-        </p-tablist>
-      </p-tabs>
-    }
-    <div class="courses__toolbar">
-      <div class="courses__toolbar-main">
-        <label class="courses__select-all" pTooltip="全選 / 取消全選" tooltipPosition="top">
-          <input
-            type="checkbox"
-            class="batch-checkbox"
-            [checked]="allVisibleSelected()"
-            [indeterminate]="selectedClassIds().size > 0 && !allVisibleSelected()"
-            (change)="toggleSelectAll()"
-          />
-        </label>
-
-        <div class="courses__search">
-          <p-iconfield iconPosition="left">
-            <p-inputicon styleClass="pi pi-search" />
-            <input
-              type="text"
-              pInputText
-              placeholder="搜尋課程或班級..."
-              [ngModel]="searchQuery()"
-              (ngModelChange)="onSearchChange($event)"
-            />
-          </p-iconfield>
-        </div>
-
+        <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
+        篩選
+        @if (activeFilterCount() > 0) {
+          <span
+            class="inline-grid min-w-5 place-items-center rounded-full bg-zinc-900 px-1.5 text-xs font-bold text-white"
+            aria-hidden="true"
+            >{{ activeFilterCount() }}</span
+          >
+        }
+      </button>
+      @if (hasActiveFilters()) {
         <button
           type="button"
-          class="courses__filter-btn"
-          [class.courses__filter-btn--active]="activeFilterCount() > 0"
-          (click)="onFilterBtnClick($event)"
+          class="inline-flex h-11 cursor-pointer items-center border-0 bg-transparent px-2 text-md font-semibold text-zinc-900 underline decoration-zinc-400 underline-offset-4 hover:decoration-current"
+          (click)="clearFilters()"
         >
-          <i class="pi pi-sliders-h"></i>
-          篩選
-          @if (activeFilterCount() > 0) {
-            <span class="courses__filter-badge">{{ activeFilterCount() }}</span>
-          }
+          清除篩選
         </button>
-
-        @if (hasActiveFilters()) {
-          <p-button
-            label="清除"
-            icon="pi pi-filter-slash"
-            [text]="true"
-            severity="secondary"
-            (onClick)="clearFilters()"
-          />
-        }
-      </div>
-      <!-- /toolbar-main -->
-    </div>
-
-    <!-- Content -->
-    <div class="courses__content">
-      @if (loading()) {
-        <!-- Skeleton -->
-        <div class="skeleton-list">
-          @for (group of [1, 2, 3]; track group) {
-            <span class="skeleton-bar skeleton-bar--label"></span>
-            <span class="skeleton-bar"></span>
-            <span class="skeleton-bar"></span>
-          }
-        </div>
-      } @else if (loadFailed()) {
-        <app-load-failed description="沒有讀到課程資料，可能是連線問題" (retry)="loadCourses()" />
-      } @else if (courseGroups().length === 0) {
-        <!-- Empty State -->
-        @if (hasActiveFilters()) {
-          <app-empty-state
-            icon="pi pi-filter-slash"
-            title="找不到符合條件的課程或班級"
-            description="試試調整搜尋關鍵字或篩選條件"
-          >
-            <p-button
-              label="清除篩選"
-              icon="pi pi-filter-slash"
-              [outlined]="true"
-              severity="secondary"
-              (onClick)="clearFilters()"
-            />
-          </app-empty-state>
-        } @else {
-          <app-empty-state
-            icon="pi pi-book"
-            title="尚未建立任何課程"
-            description="點擊右上角「新增課程」開始建立課程與班級"
-          >
-            <p-button label="新增課程" icon="pi pi-plus" (onClick)="openCreateCourseDialog()" />
-          </app-empty-state>
-        }
-      } @else {
-        <!-- Course Groups -->
-        <div class="courses__groups">
-          @for (group of courseGroups(); track group.course.id) {
-            <div class="course-group">
-              <!-- Course Header -->
-              <div
-                class="course-group__header"
-                [class.course-group__header--no-classes]="group.classes.length === 0"
-                [attr.role]="group.classes.length > 0 ? 'button' : null"
-                [attr.tabindex]="group.classes.length > 0 ? 0 : null"
-                [attr.aria-expanded]="
-                  group.classes.length > 0 ? !isCourseCollapsed(group.course.id) : null
-                "
-                (click)="group.classes.length > 0 && toggleCourse(group.course.id)"
-                (keydown.enter)="group.classes.length > 0 && toggleCourse(group.course.id)"
-                (keydown.space)="onCourseHeaderSpace($event, group)"
-              >
-                <div class="course-group__info">
-                  <div class="course-group__name-row">
-                    @if (group.classes.length > 0) {
-                      <i
-                        class="pi course-group__chevron"
-                        [class.pi-chevron-down]="!isCourseCollapsed(group.course.id)"
-                        [class.pi-chevron-right]="isCourseCollapsed(group.course.id)"
-                      ></i>
-                    } @else {
-                      <i class="pi course-group__chevron course-group__chevron--placeholder"></i>
-                    }
-                    <i class="pi pi-book course-group__icon"></i>
-                    <div class="course-group__name-stack">
-                      <span class="course-group__name">
-                        {{ group.course.name }}
-                        @if (hasCourseNeedsIntervention(group)) {
-                          <i
-                            class="pi pi-exclamation-triangle course-group__intervention"
-                            [pTooltip]="getCourseInterventionTooltip(group)"
-                            tooltipPosition="top"
-                          ></i>
-                        }
-                      </span>
-                      <span class="course-group__campus-mobile">
-                        {{ group.course.campusName ?? getCampusName(group.course.campusId) }} ·
-                        {{ group.course.subjectName }}
-                        @if (!group.course.isActive) {
-                          · 已停用
-                        }
-                      </span>
-                    </div>
-                  </div>
-                  <span class="course-group__count">{{ group.classes.length }} 個班</span>
-                </div>
-                <div class="course-group__actions" (click)="$event.stopPropagation()">
-                  <p-button
-                    [label]="isMobile() ? '' : '新增班'"
-                    icon="pi pi-plus"
-                    size="small"
-                    [outlined]="true"
-                    severity="secondary"
-                    [disabled]="!group.course.isActive"
-                    [pTooltip]="!group.course.isActive ? '課程已停用，無法新增班級' : ''"
-                    tooltipPosition="top"
-                    (onClick)="openCreateClassDialog(group.course.id)"
-                  />
-                  <p-button
-                    icon="pi pi-pencil"
-                    [rounded]="true"
-                    [text]="true"
-                    severity="secondary"
-                    size="small"
-                    pTooltip="編輯課程"
-                    tooltipPosition="top"
-                    (onClick)="openEditCourseDialog(group.course)"
-                  />
-                  <p-button
-                    icon="pi pi-trash"
-                    [rounded]="true"
-                    [text]="true"
-                    severity="danger"
-                    size="small"
-                    [disabled]="group.classes.length > 0"
-                    [pTooltip]="
-                      group.classes.length > 0 ? '此課程底下還有班級，無法刪除' : '刪除課程'
-                    "
-                    tooltipPosition="top"
-                    (onClick)="confirmDeleteCourse(group.course)"
-                  />
-                </div>
-              </div>
-
-              <!-- Classes List -->
-              <div
-                class="course-group__classes"
-                [class.course-group__classes--collapsed]="isCourseCollapsed(group.course.id)"
-              >
-                <div class="course-group__classes-inner">
-                  @for (cls of group.classes; track cls.id) {
-                    <app-class-row
-                      [cls]="cls"
-                      [selected]="selectedClassIds().has(cls.id)"
-                      [historical]="isHistorical(cls)"
-                      [scheduleSummary]="getScheduleSummary(cls.schedules)"
-                      [mobile]="isMobile()"
-                      (toggleSelection)="toggleClassSelection(cls.id, $event)"
-                      (navigate)="navigateToClass(group.course.id, cls.id)"
-                      (navigateUnassigned)="navigateToUnassignedSessions(cls)"
-                      (generateSessions)="openGenerateDialog(cls)"
-                      (openMenu)="openActionMenu($event, cls, actionMenu)"
-                    />
-                  } @empty {
-                    <div class="course-group__empty">此課程尚無班級，點擊「新增班」建立</div>
-                  }
-                </div>
-              </div>
-            </div>
-          }
-        </div>
-
-        @if (total() > PAGE_SIZE && statusFilter() !== 'intervention') {
-          <div class="courses__pagination">
-            <p-paginator
-              [first]="(currentPage() - 1) * PAGE_SIZE"
-              [rows]="PAGE_SIZE"
-              [totalRecords]="total()"
-              [showCurrentPageReport]="true"
-              [currentPageReportTemplate]="
-                isMobile()
-                  ? '第 {currentPage} / {totalPages} 頁'
-                  : '顯示 {first} - {last}，共 {totalRecords} 筆課程'
-              "
-              [showPageLinks]="!isMobile()"
-              [showFirstLastIcon]="!isMobile()"
-              (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
-            />
-          </div>
-        }
       }
     </div>
 
-    <!-- Batch Action Bar -->
-    @if (selectedClassIds().size > 0) {
-      <div class="courses__batch-bar">
-        <span class="courses__batch-count">已選 {{ selectedClassIds().size }} 個班級</span>
-        <div class="courses__batch-actions">
+    <div class="wide:ml-auto">
+      <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateCourseDialog()">
+        <button
+          type="button"
+          class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+          (click)="openAuditLog()"
+        >
+          <i class="pi pi-history text-sm" aria-hidden="true"></i>
+          操作紀錄
+        </button>
+      </app-page-actions>
+    </div>
+  </div>
+</div>
+
+<div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
+  <!-- 需介入：灰色收起來的提醒列（A6 .attn） -->
+  @if (interventionCount() > 0 || statusFilter() === 'intervention') {
+    <div
+      class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 py-2 pr-2 pl-4 text-base"
+    >
+      <p class="m-0">
+        <i class="pi pi-exclamation-circle mr-1 text-sm" aria-hidden="true"></i>
+        @if (statusFilter() === 'intervention') {
+          只看需介入的 <b>{{ interventionCount() }}</b> 門課程
+        } @else {
+          <b>需介入 {{ interventionCount() }} 門課程</b
+          >：沒有時段、沒有未來的課堂，或有課堂還沒指派老師。
+        }
+      </p>
+      <button
+        type="button"
+        class="ml-auto inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400"
+        (click)="
+          statusFilter() === 'intervention' ? onStatusFilterChange(null) : onFilterIntervention()
+        "
+      >
+        {{ statusFilter() === 'intervention' ? '看全部課程' : '只看這幾門' }}
+      </button>
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="skeleton-list" aria-label="課程載入中">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
+  } @else if (loadFailed()) {
+    <app-load-failed description="沒有讀到課程資料，可能是連線問題" (retry)="loadCourses()" />
+  } @else if (courseGroups().length === 0) {
+    @if (hasActiveFilters()) {
+      <app-empty-state
+        icon="pi pi-filter-slash"
+        title="找不到符合條件的課程或班級"
+        description="試試調整搜尋關鍵字或篩選條件"
+      >
+        <p-button
+          label="清除篩選"
+          icon="pi pi-filter-slash"
+          [outlined]="true"
+          severity="secondary"
+          (onClick)="clearFilters()"
+        />
+      </app-empty-state>
+    } @else {
+      <app-empty-state
+        icon="pi pi-book"
+        title="尚未建立任何課程"
+        description="點擊「新增課程」開始建立課程與班級"
+      >
+        <p-button label="新增課程" icon="pi pi-plus" (onClick)="openCreateCourseDialog()" />
+      </app-empty-state>
+    }
+  } @else {
+    <label
+      class="mb-1 inline-flex min-h-11 cursor-pointer items-center gap-2 text-md text-zinc-700"
+    >
+      <input
+        type="checkbox"
+        class="size-4 cursor-pointer accent-zinc-900"
+        [checked]="allVisibleSelected()"
+        [indeterminate]="selectedClassIds().size > 0 && !allVisibleSelected()"
+        (change)="toggleSelectAll()"
+      />
+      全選這一頁的班級
+    </label>
+
+    <div class="border-t border-zinc-900">
+      @for (group of courseGroups(); track group.course.id) {
+        @let collapsed = isCourseCollapsed(group.course.id);
+        @let hasClasses = group.classes.length > 0;
+        <section class="border-b border-surface-border" [attr.aria-label]="group.course.name">
+          <!-- 課程列（A6 .crs__sum）：名稱｜分校·科目｜N 個班｜狀態｜＋新增班、編輯、刪除 -->
+          <div
+            class="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-3 wide:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_56px_auto] wide:gap-x-6"
+          >
+            <button
+              type="button"
+              class="col-start-1 row-start-1 flex min-h-11 min-w-0 items-center gap-2 border-0 bg-transparent p-0 text-left text-lg font-semibold text-zinc-900"
+              [class.cursor-pointer]="hasClasses"
+              [class.hover:underline]="hasClasses"
+              [class.text-zinc-600]="!group.course.isActive"
+              [disabled]="!hasClasses"
+              [attr.aria-expanded]="hasClasses ? !collapsed : null"
+              (click)="toggleCourse(group.course.id)"
+            >
+              <i
+                class="pi w-3 shrink-0 text-xs"
+                [class.pi-chevron-down]="hasClasses && !collapsed"
+                [class.pi-chevron-right]="hasClasses && collapsed"
+                aria-hidden="true"
+              ></i>
+              <span class="truncate underline-offset-4">{{ group.course.name }}</span>
+              @if (hasCourseNeedsIntervention(group)) {
+                <i
+                  class="pi pi-exclamation-triangle shrink-0 text-sm text-warning-800"
+                  [attr.aria-label]="getCourseInterventionTooltip(group)"
+                  [pTooltip]="getCourseInterventionTooltip(group)"
+                  tooltipPosition="top"
+                ></i>
+              }
+            </button>
+            <span
+              class="col-start-1 row-start-2 pl-5 text-md text-zinc-600 wide:col-start-2 wide:row-start-1 wide:pl-0"
+            >
+              {{ group.course.campusName ?? getCampusName(group.course.campusId) }} ·
+              {{ group.course.subjectName }}
+              <span class="wide:hidden">
+                · {{ group.classes.length }} 個班
+                @if (!group.course.isActive) {
+                  · 停用
+                }
+              </span>
+            </span>
+            <span class="hidden text-md text-zinc-600 tabular-nums wide:inline"
+              ><b class="font-semibold text-zinc-900">{{ group.classes.length }}</b> 個班</span
+            >
+            <span
+              class="hidden text-md wide:inline"
+              [class.font-semibold]="group.course.isActive"
+              [class.text-zinc-700]="group.course.isActive"
+              [class.text-zinc-600]="!group.course.isActive"
+              >{{ group.course.isActive ? '啟用' : '停用' }}</span
+            >
+            <div
+              class="col-start-2 row-span-2 row-start-1 flex items-center gap-1 wide:col-start-5 wide:row-span-1"
+            >
+              <p-button
+                [label]="isMobile() ? '' : '新增班'"
+                icon="pi pi-plus"
+                [outlined]="true"
+                severity="secondary"
+                [ariaLabel]="'在 ' + group.course.name + ' 新增班'"
+                [disabled]="!group.course.isActive"
+                [pTooltip]="!group.course.isActive ? '課程已停用，無法新增班級' : ''"
+                tooltipPosition="top"
+                (onClick)="openCreateClassDialog(group.course.id)"
+              />
+              <p-button
+                icon="pi pi-pencil"
+                [rounded]="true"
+                [text]="true"
+                severity="secondary"
+                [ariaLabel]="'編輯 ' + group.course.name"
+                pTooltip="編輯課程"
+                tooltipPosition="top"
+                (onClick)="openEditCourseDialog(group.course)"
+              />
+              <p-button
+                icon="pi pi-trash"
+                [rounded]="true"
+                [text]="true"
+                severity="danger"
+                [ariaLabel]="'刪除 ' + group.course.name"
+                [disabled]="hasClasses"
+                [pTooltip]="hasClasses ? '此課程底下還有班級，無法刪除' : '刪除課程'"
+                tooltipPosition="top"
+                (onClick)="confirmDeleteCourse(group.course)"
+              />
+            </div>
+          </div>
+
+          <!-- 班級（A6 .crs__body）：收合用 grid-template-rows 1fr↔0fr 做高度動畫 -->
+          <div
+            class="grid transition-[grid-template-rows] duration-250 ease-out"
+            [style.grid-template-rows]="collapsed ? '0fr' : '1fr'"
+            [attr.inert]="collapsed ? '' : null"
+          >
+            <div class="min-h-0 overflow-hidden wide:pl-5">
+              @if (group.course.description) {
+                <p class="m-0 mb-2 max-w-[64ch] text-md text-zinc-600">
+                  {{ group.course.description }}
+                </p>
+              }
+              @for (cls of group.classes; track cls.id) {
+                <app-class-row
+                  [cls]="cls"
+                  [selected]="selectedClassIds().has(cls.id)"
+                  [historical]="isHistorical(cls)"
+                  [scheduleSummary]="getScheduleSummary(cls.schedules)"
+                  [mobile]="isMobile()"
+                  (toggleSelection)="toggleClassSelection(cls.id, $event)"
+                  (navigate)="navigateToClass(group.course.id, cls.id)"
+                  (navigateUnassigned)="navigateToUnassignedSessions(cls)"
+                  (generateSessions)="openGenerateDialog(cls)"
+                  (openMenu)="openActionMenu($event, cls, actionMenu)"
+                />
+              } @empty {
+                <p class="m-0 border-t border-zinc-100 py-3 text-md text-zinc-600">
+                  此課程尚無班級，點「新增班」建立
+                </p>
+              }
+            </div>
+          </div>
+        </section>
+      }
+    </div>
+
+    @if (total() > PAGE_SIZE && statusFilter() !== 'intervention') {
+      <div class="mt-8 flex justify-center">
+        <p-paginator
+          [first]="(currentPage() - 1) * PAGE_SIZE"
+          [rows]="PAGE_SIZE"
+          [totalRecords]="total()"
+          [showCurrentPageReport]="true"
+          [currentPageReportTemplate]="
+            isMobile()
+              ? '第 {currentPage} / {totalPages} 頁'
+              : '顯示 {first} - {last}，共 {totalRecords} 筆課程'
+          "
+          [showPageLinks]="!isMobile()"
+          [showFirstLastIcon]="!isMobile()"
+          (onPageChange)="onPageChange(($event.page ?? 0) + 1)"
+        />
+      </div>
+    }
+  }
+</div>
+
+<!--
+  批次列（同課表 #1179 的樣子）：勾了班級才浮出來、固定在畫面底。
+  桌機是墨色浮條；手機是深一階的灰面＋頂端 2px 近黑線。
+-->
+@if (selectedClassIds().size > 0) {
+  <div
+    class="fixed inset-x-0 bottom-0 z-20 border-t-2 border-zinc-900 bg-zinc-200 max-wide:bottom-[calc(var(--space-3)*2+44px+env(safe-area-inset-bottom,0px))] wide:pointer-events-none wide:bottom-6 wide:border-t-0 wide:bg-transparent"
+  >
+    <div class="page-wrap">
+      <div
+        class="flex flex-wrap items-center gap-x-5 gap-y-2 py-3 wide:pointer-events-auto wide:rounded-lg wide:bg-zinc-900 wide:px-5 wide:shadow-[0_12px_32px_-8px_rgb(26_22_20/40%)]"
+        role="region"
+        aria-label="批次調整班級"
+      >
+        <span class="text-md font-semibold text-zinc-900 tabular-nums wide:text-white"
+          >已勾 <b class="text-xl">{{ selectedClassIds().size }}</b> 個班</span
+        >
+        <div class="ml-auto flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent px-3 text-md font-semibold whitespace-nowrap text-zinc-900 underline decoration-zinc-400 underline-offset-4 hover:decoration-current wide:text-white wide:decoration-zinc-500"
+            (click)="clearSelection()"
+          >
+            全部取消選取
+          </button>
           @if (selectedInactiveCount() > 0) {
-            <p-button
-              [label]="'啟用 ' + selectedInactiveCount() + ' 個'"
-              icon="pi pi-check-circle"
-              size="small"
-              severity="success"
-              [outlined]="true"
-              (onClick)="batchActivate()"
-            />
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-zinc-600 wide:bg-transparent wide:text-white wide:hover:border-white"
+              (click)="batchActivate()"
+            >
+              <i class="pi pi-check-circle text-sm" aria-hidden="true"></i>啟用
+              {{ selectedInactiveCount() }} 個
+            </button>
           }
           @if (selectedActiveCount() > 0) {
-            <p-button
-              [label]="'停用 ' + selectedActiveCount() + ' 個'"
-              icon="pi pi-ban"
-              size="small"
-              severity="secondary"
-              [outlined]="true"
-              (onClick)="batchDeactivate()"
-            />
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-zinc-600 wide:bg-transparent wide:text-white wide:hover:border-white"
+              (click)="batchDeactivate()"
+            >
+              <i class="pi pi-ban text-sm" aria-hidden="true"></i>停用
+              {{ selectedActiveCount() }} 個
+            </button>
           }
-          <p-button
-            [label]="'刪除 ' + selectedClassIds().size + ' 個'"
-            icon="pi pi-trash"
-            size="small"
-            severity="danger"
-            [outlined]="true"
-            (onClick)="batchDelete()"
-          />
-          <p-button
-            label="取消選取"
-            icon="pi pi-times"
-            size="small"
-            [text]="true"
-            severity="secondary"
-            (onClick)="clearSelection()"
-          />
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border-0 bg-error-700 px-4 text-md font-semibold whitespace-nowrap text-white hover:bg-error-600"
+            (click)="batchDelete()"
+          >
+            <i class="pi pi-trash text-sm" aria-hidden="true"></i>刪除
+            {{ selectedClassIds().size }} 個
+          </button>
         </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- 桌面: Popover 篩選面板 -->
+<p-popover #filterPopover styleClass="w-80">
+  <ng-container [ngTemplateOutlet]="filterContent" />
+</p-popover>
+
+<!-- 手機: Drawer 篩選面板 -->
+<p-drawer
+  header="篩選"
+  position="bottom"
+  [visible]="filterPanelVisible()"
+  (visibleChange)="filterPanelVisible.set($event)"
+  styleClass="drawer-auto"
+  [appendTo]="'body'"
+>
+  <ng-container [ngTemplateOutlet]="filterContent" />
+</p-drawer>
+
+<!-- 共用篩選內容 -->
+<ng-template #filterContent>
+  <div class="flex flex-col gap-4">
+    <div class="flex flex-col gap-1">
+      <span class="text-sm font-semibold text-zinc-700">科目</span>
+      <p-select
+        [options]="subjectOptions()"
+        [ngModel]="selectedSubjectId()"
+        (ngModelChange)="onSubjectChange($event)"
+        placeholder="全部科目"
+        [showClear]="true"
+        styleClass="w-full"
+        [appendTo]="'body'"
+      />
+    </div>
+
+    <!-- appendTo body：panel 在 popover/drawer 內部，overlay 要掛在 body 層才能超出 panel 範圍 -->
+    <div class="flex flex-col gap-1">
+      <span class="text-sm font-semibold text-zinc-700">老師</span>
+      <p-multiselect
+        [options]="filteredStaffOptions()"
+        [ngModel]="selectedTeacherIds()"
+        (ngModelChange)="onTeacherChange($event)"
+        placeholder="全部老師"
+        selectedItemsLabel="{0} 位老師"
+        [filter]="true"
+        filterBy="label"
+        filterPlaceholder="搜尋老師..."
+        styleClass="w-full"
+        [appendTo]="'body'"
+        [virtualScroll]="true"
+        [virtualScrollItemSize]="38"
+      >
+        <ng-template #item let-option>
+          <div class="flex min-w-0 flex-col">
+            <span class="truncate">{{ option.label }}</span>
+            @if (option.subjectNames?.length > 0) {
+              <span class="truncate text-sm text-zinc-600">{{
+                option.subjectNames.join('、')
+              }}</span>
+            }
+          </div>
+        </ng-template>
+      </p-multiselect>
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <span class="text-sm font-semibold text-zinc-700">狀態</span>
+      <p-select
+        [options]="statusOptions"
+        [ngModel]="statusFilter()"
+        (ngModelChange)="onStatusFilterChange($event)"
+        placeholder="全部狀態"
+        styleClass="w-full"
+        [appendTo]="'body'"
+      />
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <span class="text-sm font-semibold text-zinc-700">歷史班級</span>
+      <label class="flex cursor-pointer items-center gap-2 text-md text-zinc-900">
+        <p-toggleswitch [ngModel]="showHistorical()" (ngModelChange)="onToggleHistorical($event)" />
+        含歷史班級
+      </label>
+      <div class="flex flex-wrap items-center gap-2">
+        <p-datepicker
+          [ngModel]="historicalDateFrom()"
+          (ngModelChange)="onHistoricalDateFromChange($event)"
+          dateFormat="yy-mm-dd"
+          [showIcon]="true"
+          placeholder="開始日期"
+          [appendTo]="'body'"
+        />
+        <p-datepicker
+          [ngModel]="historicalDateTo()"
+          (ngModelChange)="onHistoricalDateToChange($event)"
+          dateFormat="yy-mm-dd"
+          [showIcon]="true"
+          placeholder="結束日期"
+          [appendTo]="'body'"
+        />
+        @if (loadingHistorical()) {
+          <i class="pi pi-spin pi-spinner text-zinc-600" aria-label="載入歷史班級中"></i>
+        }
+      </div>
+    </div>
+
+    @if (activeFilterCount() > 0) {
+      <div class="flex justify-end border-t border-zinc-200 pt-3">
+        <p-button
+          label="清除篩選"
+          icon="pi pi-filter-slash"
+          [text]="true"
+          severity="secondary"
+          size="small"
+          (onClick)="clearFilters()"
+        />
       </div>
     }
   </div>
-
-  <!-- 桌面: Popover 篩選面板 -->
-  <p-popover #filterPopover styleClass="courses__filter-popover">
-    <ng-container [ngTemplateOutlet]="filterContent" />
-  </p-popover>
-
-  <!-- 手機: Drawer 篩選面板 -->
-  <p-drawer
-    header="篩選"
-    position="bottom"
-    [visible]="filterPanelVisible()"
-    (visibleChange)="filterPanelVisible.set($event)"
-    styleClass="drawer-auto"
-    [appendTo]="'body'"
-  >
-    <ng-container [ngTemplateOutlet]="filterContent" />
-  </p-drawer>
-
-  <!-- 共用篩選內容 -->
-  <ng-template #filterContent>
-    <div class="courses__filter-panel">
-      <!-- 科目 -->
-      <div class="courses__filter-section">
-        <span class="courses__filter-label">科目</span>
-        <p-select
-          [options]="subjectOptions()"
-          [ngModel]="selectedSubjectId()"
-          (ngModelChange)="onSubjectChange($event)"
-          placeholder="全部科目"
-          [showClear]="true"
-          styleClass="select-sm"
-          [appendTo]="'body'"
-        />
-      </div>
-
-      <!-- 老師 -->
-      <!-- Note: appendTo 由 overlayContainer 改為 'body'，因為 panel 在 popover/drawer 內部，
-           overlay 需掛在 body 層才能超出 panel 範圍。若 z-index 有衝突可恢復為 [appendTo]="overlayContainer"。 -->
-      <div class="courses__filter-section">
-        <span class="courses__filter-label">老師</span>
-        <p-multiselect
-          [options]="filteredStaffOptions()"
-          [ngModel]="selectedTeacherIds()"
-          (ngModelChange)="onTeacherChange($event)"
-          placeholder="全部老師"
-          selectedItemsLabel="{0} 位老師"
-          [filter]="true"
-          filterBy="label"
-          filterPlaceholder="搜尋老師..."
-          styleClass="select-sm"
-          [appendTo]="'body'"
-          [virtualScroll]="true"
-          [virtualScrollItemSize]="38"
-        >
-          <ng-template #item let-option>
-            <div class="courses__teacher-option">
-              <span class="courses__teacher-option-name">{{ option.label }}</span>
-              @if (option.subjectNames?.length > 0) {
-                <span class="courses__teacher-option-subjects">{{
-                  option.subjectNames.join('、')
-                }}</span>
-              }
-            </div>
-          </ng-template>
-        </p-multiselect>
-      </div>
-
-      <!-- 狀態 -->
-      <div class="courses__filter-section">
-        <span class="courses__filter-label">狀態</span>
-        <p-select
-          [options]="statusOptions"
-          [ngModel]="statusFilter()"
-          (ngModelChange)="onStatusFilterChange($event)"
-          placeholder="全部狀態"
-          styleClass="select-sm"
-          [appendTo]="'body'"
-        />
-      </div>
-
-      <!-- 含歷史班級 + 日期範圍（獨立顯示，不依賴 toggle）-->
-      <div class="courses__filter-section">
-        <span class="courses__filter-label">歷史班級</span>
-        <div class="courses__filter-historical-row">
-          <p-toggleswitch
-            [ngModel]="showHistorical()"
-            (ngModelChange)="onToggleHistorical($event)"
-          />
-          <span class="courses__filter-historical-label">含歷史班級</span>
-        </div>
-        <div class="courses__filter-dates">
-          <p-datepicker
-            [ngModel]="historicalDateFrom()"
-            (ngModelChange)="onHistoricalDateFromChange($event)"
-            dateFormat="yy-mm-dd"
-            [showIcon]="true"
-            placeholder="開始日期"
-            styleClass="datepicker-sm"
-            [appendTo]="'body'"
-          />
-          <p-datepicker
-            [ngModel]="historicalDateTo()"
-            (ngModelChange)="onHistoricalDateToChange($event)"
-            dateFormat="yy-mm-dd"
-            [showIcon]="true"
-            placeholder="結束日期"
-            styleClass="datepicker-sm"
-            [appendTo]="'body'"
-          />
-          @if (loadingHistorical()) {
-            <i class="pi pi-spin pi-spinner courses__historical-loading"></i>
-          }
-        </div>
-      </div>
-
-      <!-- Panel Footer：有 active filter 時顯示清除按鈕 -->
-      @if (activeFilterCount() > 0) {
-        <div class="courses__filter-footer">
-          <p-button
-            label="清除篩選"
-            icon="pi pi-filter-slash"
-            [text]="true"
-            severity="secondary"
-            size="small"
-            (onClick)="clearFilters()"
-          />
-        </div>
-      }
-    </div>
-  </ng-template>
-</div>
+</ng-template>
 
 <!-- Class Action Menu -->
 <app-popup-menu #actionMenu [model]="classActionMenuItems()" />

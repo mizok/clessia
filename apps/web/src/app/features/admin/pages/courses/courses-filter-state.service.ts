@@ -4,7 +4,6 @@ import { Injectable } from '@angular/core';
 @Injectable({ providedIn: 'root' })
 export class CoursesFilterStateService {
   searchQuery = '';
-  selectedCampusId: string | null = null;
   selectedSubjectId: string | null = null;
   selectedTeacherIds: string[] = [];
   statusFilter: boolean | 'intervention' | null = null;
