@@ -154,6 +154,21 @@ const SessionListItemSchema = z
     teacherName: z.string().nullable(),
     assignmentStatus: SessionAssignmentStatusSchema,
     hasChanges: z.boolean(),
+    /**
+     * 最新一筆異動（照 `created_at`），課塊寫「代課・原 X」用（#1194）。沒有異動是 null。
+     * `hasChanges` 留著：舊呼叫端只看它。
+     */
+    latestChange: z
+      .object({
+        type: z.enum(SCHEDULE_CHANGE_TYPES),
+        reason: z.string().nullable(),
+        originalTeacherName: z.string().nullable(),
+        originalDate: DateSchema.nullable(),
+        originalStartTime: TimeSchema.nullable(),
+        originalEndTime: TimeSchema.nullable(),
+        createdAt: z.string(),
+      })
+      .nullable(),
     /** 這堂補的是哪一堂停課（#499 正向）。一般課堂是 null。 */
     makeupFor: SessionMakeupLinkSchema.nullable(),
     /**
@@ -419,7 +434,7 @@ interface BatchSessionChangeInsertInput {
 
 function mapSession(
   row: Record<string, unknown>,
-  hasChanges: boolean,
+  latestChange: z.infer<typeof SessionListItemSchema>['latestChange'],
   attendanceTally: Map<string, AttendanceTally>,
   enrollmentRanges: readonly EnrollmentRange[],
 ): z.infer<typeof SessionListItemSchema> {
@@ -449,7 +464,8 @@ function mapSession(
     teacherId: (row['teacher_id'] as string | null) ?? null,
     teacherName: (teacherRow?.['display_name'] as string | undefined) ?? null,
     assignmentStatus: (row['assignment_status'] as 'assigned' | 'unassigned' | null) ?? 'assigned',
-    hasChanges,
+    hasChanges: latestChange !== null,
+    latestChange,
     attendanceTakenAt: (eventRow?.['attendance_taken_at'] as string | null) ?? null,
     eventId: eventId ?? null,
     attendanceEnrolledCount: countEnrolledOn(enrollmentRanges, classId, sessionDate),
@@ -1004,7 +1020,13 @@ app.openapi(listSessionsRoute, async (c) => {
   // 第二輪：三支都只依賴主查詢的結果，彼此不相依
   const [changesResult, attendanceResult, enrollmentResult] = await Promise.all([
     sessionIds.length > 0
-      ? supabase.from('schedule_changes').select('session_id').in('session_id', sessionIds)
+      ? supabase
+          .from('schedule_changes')
+          .select(
+            'session_id, change_type, reason, original_teacher_name, original_session_date, original_start_time, original_end_time, created_at',
+          )
+          .in('session_id', sessionIds)
+          .order('created_at', { ascending: false })
       : Promise.resolve({ data: [], error: null }),
     eventIds.length > 0
       ? supabase
@@ -1028,9 +1050,21 @@ app.openapi(listSessionsRoute, async (c) => {
   if (changesResult.error) {
     return c.json({ error: changesResult.error.message, code: 'DB_ERROR' }, 400);
   }
-  const changedIds = new Set(
-    ((changesResult.data ?? []) as Array<{ session_id: string }>).map((row) => row.session_id),
-  );
+  // 新到舊排好了，每堂第一筆就是最新的
+  const latestChanges = new Map<string, z.infer<typeof SessionListItemSchema>['latestChange']>();
+  for (const row of (changesResult.data ?? []) as Array<Record<string, unknown>>) {
+    const sessionId = row['session_id'] as string;
+    if (latestChanges.has(sessionId)) continue;
+    latestChanges.set(sessionId, {
+      type: row['change_type'] as (typeof SCHEDULE_CHANGE_TYPES)[number],
+      reason: (row['reason'] as string | null) ?? null,
+      originalTeacherName: (row['original_teacher_name'] as string | null) ?? null,
+      originalDate: (row['original_session_date'] as string | null) ?? null,
+      originalStartTime: toHHmm(row['original_start_time'] as string | null),
+      originalEndTime: toHHmm(row['original_end_time'] as string | null),
+      createdAt: row['created_at'] as string,
+    });
+  }
   const attendanceTally = tallyAttendance(
     ((attendanceResult.data ?? []) as Array<Record<string, unknown>>).map((row) => ({
       eventId: row['event_id'] as string,
@@ -1046,7 +1080,12 @@ app.openapi(listSessionsRoute, async (c) => {
   }));
 
   const mappedRows = rows.map((row) =>
-    mapSession(row, changedIds.has(row['id'] as string), attendanceTally, enrollmentRanges),
+    mapSession(
+      row,
+      latestChanges.get(row['id'] as string) ?? null,
+      attendanceTally,
+      enrollmentRanges,
+    ),
   );
 
   const sideCounts = {

@@ -241,3 +241,72 @@ describe('GET /api/sessions —— 補建 event 只在呼叫者的分校範圍�
     expect(queries.some(isEnsureProbe)).toBe(false);
   });
 });
+
+describe('GET /api/sessions —— latestChange（#1194）', () => {
+  it('每堂帶最新一筆異動；一次批次查、照 created_at 新到舊；沒有異動是 null', async () => {
+    const { app, queries } = createApp((q) => {
+      if (isMainQuery(q)) {
+        return {
+          data: [sessionRow('s-1', '2026-04-06', 'e-1'), sessionRow('s-2', '2026-04-13', 'e-2')],
+          count: 2,
+        };
+      }
+      if (q.table === 'schedule_changes') {
+        // 替身不排序 —— 照 DB 的 order 回新到舊
+        return {
+          data: [
+            {
+              session_id: 's-1',
+              change_type: 'substitute',
+              reason: '病假',
+              original_teacher_name: '王老師',
+              original_session_date: '2026-04-06',
+              original_start_time: '09:00:00',
+              original_end_time: '11:00:00',
+              created_at: '2026-04-05T10:00:00+00:00',
+            },
+            {
+              session_id: 's-1',
+              change_type: 'reschedule',
+              reason: null,
+              original_teacher_name: null,
+              original_session_date: '2026-04-02',
+              original_start_time: '14:00:00',
+              original_end_time: '16:00:00',
+              created_at: '2026-04-01T10:00:00+00:00',
+            },
+          ],
+        };
+      }
+      return { data: [] };
+    });
+
+    const res = await app.request('/api/sessions?from=2026-04-01&to=2026-04-30');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: Array<{ id: string; hasChanges: boolean; latestChange: unknown }>;
+    };
+
+    expect(body.data.map((s) => [s.id, s.hasChanges, s.latestChange])).toEqual([
+      [
+        's-1',
+        true,
+        {
+          type: 'substitute',
+          reason: '病假',
+          originalTeacherName: '王老師',
+          originalDate: '2026-04-06',
+          originalStartTime: '09:00',
+          originalEndTime: '11:00',
+          createdAt: '2026-04-05T10:00:00+00:00',
+        },
+      ],
+      ['s-2', false, null],
+    ]);
+
+    const changeQueries = queries.filter((q) => q.table === 'schedule_changes');
+    expect(changeQueries).toHaveLength(1);
+    expect(has(changeQueries[0], 'in', 'session_id', ['s-1', 's-2'])).toBe(true);
+    expect(has(changeQueries[0], 'order', 'created_at', { ascending: false })).toBe(true);
+  });
+});
