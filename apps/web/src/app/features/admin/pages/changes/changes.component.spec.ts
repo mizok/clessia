@@ -6,7 +6,8 @@ import { provideRouter } from '@angular/router';
 
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { SessionsService, type ChangeLogEntry } from '@core/sessions.service';
-import { CampusesService } from '@core/campuses.service';
+import { CampusContextService } from '@core/campus-context.service';
+import { ReferenceDataService } from '@core/reference-data.service';
 import { SystemClockService } from '@core/system-clock.service';
 
 import { ChangesComponent } from './changes.component';
@@ -32,21 +33,22 @@ describe('ChangesComponent', () => {
   let component: ChangesComponent;
 
   const listChangesMock = vi.fn();
-  const listCampusesMock = vi.fn();
+  const refDataMock = { campuses: signal<unknown[]>([]), loadCampuses: vi.fn() };
+
+  // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
+  beforeEach(() => localStorage.removeItem('clessia.campusContext'));
 
   async function setup() {
     listChangesMock.mockReset();
-    listCampusesMock.mockReset();
     listChangesMock.mockReturnValue(
       of({ data: [entry()], meta: { total: 1, page: 1, pageSize: 20 } }),
     );
-    listCampusesMock.mockReturnValue(of({ data: [] }));
 
     await TestBed.configureTestingModule({
       imports: [ChangesComponent],
       providers: [
         { provide: SessionsService, useValue: { listChanges: listChangesMock } },
-        { provide: CampusesService, useValue: { list: listCampusesMock } },
+        { provide: ReferenceDataService, useValue: refDataMock },
         { provide: SystemClockService, useValue: { todayTaipei: signal('2026-08-15') } },
         provideRouter([]),
       ],
@@ -62,15 +64,13 @@ describe('ChangesComponent', () => {
   // 改成骨架列表後這裡改斷言骨架元素，不是文字。
   it('載入中顯示骨架列表，不是整塊被文字取代', async () => {
     listChangesMock.mockReset();
-    listCampusesMock.mockReset();
     listChangesMock.mockReturnValue(NEVER);
-    listCampusesMock.mockReturnValue(of({ data: [] }));
 
     await TestBed.configureTestingModule({
       imports: [ChangesComponent],
       providers: [
         { provide: SessionsService, useValue: { listChanges: listChangesMock } },
-        { provide: CampusesService, useValue: { list: listCampusesMock } },
+        { provide: ReferenceDataService, useValue: refDataMock },
         { provide: SystemClockService, useValue: { todayTaipei: signal('2026-08-15') } },
         provideRouter([]),
       ],
@@ -111,6 +111,25 @@ describe('ChangesComponent', () => {
     expect(call.page).toBe(1);
   });
 
+  it('分校跟頂欄走：換分校回第一頁重查，月總數不重查；清除篩選不動分校（#1138）', async () => {
+    await setup();
+    component['onPageChange'](3);
+    listChangesMock.mockClear();
+
+    TestBed.inject(CampusContextService).select('campus-1');
+    fixture.detectChanges();
+
+    expect(listChangesMock).toHaveBeenCalledTimes(1);
+    const call = listChangesMock.mock.calls[0][0];
+    expect(call.campusId).toBe('campus-1');
+    expect(call.page).toBe(1);
+
+    listChangesMock.mockClear();
+    component['resetFilters']();
+    expect(listChangesMock.mock.calls[0][0].campusId).toBe('campus-1');
+    expect(fixture.nativeElement.textContent).not.toContain('全部分校');
+  });
+
   it('「全部」類型不送 changeType 參數', async () => {
     await setup();
     listChangesMock.mockClear();
@@ -122,17 +141,15 @@ describe('ChangesComponent', () => {
 
   it('批次操作要標記出來', async () => {
     listChangesMock.mockReset();
-    listCampusesMock.mockReset();
     listChangesMock.mockReturnValue(
       of({ data: [entry({ isBatch: true })], meta: { total: 1, page: 1, pageSize: 20 } }),
     );
-    listCampusesMock.mockReturnValue(of({ data: [] }));
 
     await TestBed.configureTestingModule({
       imports: [ChangesComponent],
       providers: [
         { provide: SessionsService, useValue: { listChanges: listChangesMock } },
-        { provide: CampusesService, useValue: { list: listCampusesMock } },
+        { provide: ReferenceDataService, useValue: refDataMock },
         { provide: SystemClockService, useValue: { todayTaipei: signal('2026-08-15') } },
         provideRouter([]),
       ],
@@ -147,15 +164,13 @@ describe('ChangesComponent', () => {
 
   it('查詢失敗顯示錯誤而不是空白', async () => {
     listChangesMock.mockReset();
-    listCampusesMock.mockReset();
     listChangesMock.mockReturnValue(throwError(() => new Error('boom')));
-    listCampusesMock.mockReturnValue(of({ data: [] }));
 
     await TestBed.configureTestingModule({
       imports: [ChangesComponent],
       providers: [
         { provide: SessionsService, useValue: { listChanges: listChangesMock } },
-        { provide: CampusesService, useValue: { list: listCampusesMock } },
+        { provide: ReferenceDataService, useValue: refDataMock },
         { provide: SystemClockService, useValue: { todayTaipei: signal('2026-08-15') } },
         provideRouter([]),
       ],
@@ -171,15 +186,13 @@ describe('ChangesComponent', () => {
 
   it('沒有紀錄時顯示空狀態', async () => {
     listChangesMock.mockReset();
-    listCampusesMock.mockReset();
     listChangesMock.mockReturnValue(of({ data: [], meta: { total: 0, page: 1, pageSize: 20 } }));
-    listCampusesMock.mockReturnValue(of({ data: [] }));
 
     await TestBed.configureTestingModule({
       imports: [ChangesComponent],
       providers: [
         { provide: SessionsService, useValue: { listChanges: listChangesMock } },
-        { provide: CampusesService, useValue: { list: listCampusesMock } },
+        { provide: ReferenceDataService, useValue: refDataMock },
         { provide: SystemClockService, useValue: { todayTaipei: signal('2026-08-15') } },
         provideRouter([]),
       ],
@@ -244,20 +257,18 @@ describe('ChangesComponent', () => {
 
   it('開場標題：這個月總共幾則、停課幾堂（不看類型與分校篩選）', async () => {
     listChangesMock.mockReset();
-    listCampusesMock.mockReset();
     listChangesMock.mockImplementation((p: { changeType?: string; pageSize: number }) =>
       of({
         data: p.pageSize === 1 ? [] : [entry()],
         meta: { total: p.changeType === 'cancellation' ? 3 : 6, page: 1, pageSize: p.pageSize },
       }),
     );
-    listCampusesMock.mockReturnValue(of({ data: [] }));
 
     await TestBed.configureTestingModule({
       imports: [ChangesComponent],
       providers: [
         { provide: SessionsService, useValue: { listChanges: listChangesMock } },
-        { provide: CampusesService, useValue: { list: listCampusesMock } },
+        { provide: ReferenceDataService, useValue: refDataMock },
         { provide: SystemClockService, useValue: { todayTaipei: signal('2026-08-15') } },
         provideRouter([]),
       ],
