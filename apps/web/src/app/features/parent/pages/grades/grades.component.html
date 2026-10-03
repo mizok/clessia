@@ -24,13 +24,13 @@
         [ngModel]="subjectFilter()"
         (ngModelChange)="onSubjectChange($event)"
       />
-      <p-selectbutton
-        [options]="timeRangeOptions"
+      <p-select
+        [options]="periodOptions()"
         optionLabel="label"
         optionValue="value"
-        [allowEmpty]="false"
-        [ngModel]="timeRange()"
-        (ngModelChange)="onTimeRangeChange($event)"
+        ariaLabel="學期"
+        [ngModel]="periodFilter() ?? 'all'"
+        (ngModelChange)="onPeriodChange($event)"
       />
     </div>
 

@@ -52,7 +52,7 @@ describe('GradesComponent', () => {
   function createComponent(
     response: ParentScoreListResponse | 'error' = {
       data: [],
-      meta: { total: 0, page: 1, pageSize: 100, recentCount: 0 },
+      meta: { total: 0, page: 1, pageSize: 100, recentCount: 0, periods: [] },
     },
   ) {
     activeChildId = signal<string | null>(null);
@@ -121,7 +121,7 @@ describe('GradesComponent', () => {
   it('band anchor 直接用 meta.recentCount', () => {
     createComponent({
       data: [record()],
-      meta: { total: 1, page: 1, pageSize: 100, recentCount: 3 },
+      meta: { total: 1, page: 1, pageSize: 100, recentCount: 3, periods: [] },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -137,13 +137,52 @@ describe('GradesComponent', () => {
         record({ id: 'r1', subjectName: '數學' }),
         record({ id: 'r2', subjectName: '英文', examName: '單字測驗' }),
       ],
-      meta: { total: 2, page: 1, pageSize: 100, recentCount: 0 },
+      meta: { total: 2, page: 1, pageSize: 100, recentCount: 0, periods: [] },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
 
     const titles = fixture.nativeElement.querySelectorAll('.grades__subject-title');
     expect(titles.length).toBe(2);
+  });
+
+  // #1076（規格「學期篩選，預設當學期」）：學期＝機構的期，預設含今天的那一期
+  it('預設只顯示今天所在那一期的考試，換到「全部」才看得到別期的', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-10T10:00:00'));
+    try {
+      createComponent({
+        data: [
+          record({ id: 'r1', examName: '九月小考', examDate: '2026-09-05' }),
+          record({ id: 'r2', examName: '五月小考', examDate: '2026-05-05' }),
+        ],
+        meta: {
+          total: 2,
+          page: 1,
+          pageSize: 100,
+          recentCount: 0,
+          periods: [
+            { id: 'fall', name: '115 上學期', startDate: '2026-08-01', endDate: '2027-01-31' },
+            { id: 'spring', name: '114 下學期', startDate: '2026-02-01', endDate: '2026-07-31' },
+          ],
+        },
+      });
+      const comp = fixture.componentInstance as unknown as {
+        onPeriodChange: (f: string | null) => void;
+      };
+      activeChildId.set('child-1');
+      fixture.detectChanges();
+
+      const text = () => (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text()).toContain('九月小考');
+      expect(text()).not.toContain('五月小考');
+
+      comp.onPeriodChange('all');
+      fixture.detectChanges();
+      expect(text()).toContain('五月小考');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // #1076（規格「展開詳情」）：有描述的那筆可以展開看，沒有描述的不給一個點了什麼都沒有的展開
@@ -153,7 +192,7 @@ describe('GradesComponent', () => {
         record({ id: 'r1', examName: '單元小考', description: '第三章 一元二次方程式' }),
         record({ id: 'r2', examName: '單字測驗', description: null }),
       ],
-      meta: { total: 2, page: 1, pageSize: 100, recentCount: 0 },
+      meta: { total: 2, page: 1, pageSize: 100, recentCount: 0, periods: [] },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -171,7 +210,7 @@ describe('GradesComponent', () => {
   it('缺考/補考用 chip 顯示，不顯示分數', () => {
     createComponent({
       data: [record({ status: 'absent', score: null })],
-      meta: { total: 1, page: 1, pageSize: 100, recentCount: 0 },
+      meta: { total: 1, page: 1, pageSize: 100, recentCount: 0, periods: [] },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -189,7 +228,7 @@ describe('GradesComponent', () => {
   it('科目篩選只顯示選中的科目', () => {
     const comp = createComponent({
       data: [record({ id: 'r1', subjectName: '數學' }), record({ id: 'r2', subjectName: '英文' })],
-      meta: { total: 2, page: 1, pageSize: 100, recentCount: 0 },
+      meta: { total: 2, page: 1, pageSize: 100, recentCount: 0, periods: [] },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -219,7 +258,7 @@ describe('GradesComponent', () => {
           childId === 'child-1'
             ? {
                 data: [record({ id: 'r1', subjectName: '數學', examDate: '2026-09-01' })],
-                meta: { total: 1, page: 1, pageSize: 100, recentCount: 1 },
+                meta: { total: 1, page: 1, pageSize: 100, recentCount: 1, periods: [] },
               }
             : {
                 data: [
@@ -230,7 +269,7 @@ describe('GradesComponent', () => {
                     examDate: '2026-09-01',
                   }),
                 ],
-                meta: { total: 1, page: 1, pageSize: 100, recentCount: 1 },
+                meta: { total: 1, page: 1, pageSize: 100, recentCount: 1, periods: [] },
               },
         ),
       );
@@ -261,25 +300,25 @@ describe('GradesComponent', () => {
     /**
      * **反向對照**：擋住「切換孩子就把所有篩選重設」那種過寬的修法。
      *
-     * 期間篩選跟科目篩選不同 —— 它**顯示得出來**（四顆鈕恆有一顆是選中的），
+     * 學期篩選跟科目篩選不同 —— 期是機構的，換孩子還是同一組，選中的那個**顯示得出來**，
      * 所以它不會騙人，使用者的選擇要留著。會騙人的只有「值消失但仍生效」的那個。
      */
-    it('期間篩選要保留 —— 它顯示得出來，不會騙人', () => {
+    it('學期篩選要保留 —— 它顯示得出來，不會騙人', () => {
       const comp = createComponent() as unknown as {
-        onTimeRangeChange: (r: 'all' | '1m' | '3m' | '6m' | null) => void;
-        timeRange: () => string;
+        onPeriodChange: (f: string | null) => void;
+        periodFilter: () => string | null;
       };
       listByChild();
 
       activeChildId.set('child-1');
       fixture.detectChanges();
-      comp.onTimeRangeChange('3m');
+      comp.onPeriodChange('unassigned');
       fixture.detectChanges();
 
       activeChildId.set('child-2');
       fixture.detectChanges();
 
-      expect(comp.timeRange()).toBe('3m');
+      expect(comp.periodFilter()).toBe('unassigned');
     });
   });
 
@@ -294,7 +333,7 @@ describe('GradesComponent', () => {
     it('拿到的比總數少時顯示「只顯示最近 N 筆」', () => {
       createComponent({
         data: [record()],
-        meta: { total: 137, page: 1, pageSize: 100, recentCount: 0 },
+        meta: { total: 137, page: 1, pageSize: 100, recentCount: 0, periods: [] },
       });
       activeChildId.set('child-1');
       fixture.detectChanges();
@@ -307,7 +346,7 @@ describe('GradesComponent', () => {
     it('全部拿到時不出現那句話 —— 沒有這一格，上一支證明不了任何事', () => {
       createComponent({
         data: [record()],
-        meta: { total: 1, page: 1, pageSize: 100, recentCount: 0 },
+        meta: { total: 1, page: 1, pageSize: 100, recentCount: 0, periods: [] },
       });
       activeChildId.set('child-1');
       fixture.detectChanges();

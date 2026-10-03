@@ -152,11 +152,12 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
     },
 
     /**
-     * **機構層級的參考資料**（#1119 B）：班級目錄、課程。不是孩子的資料，所以不套 scope，
-     * 只帶 `org_id`。**白名單寫死、只讀** —— 不在這份清單的表傳不進來（型別錯誤）。
+     * **機構層級的參考資料**（#1119 B）：班級目錄、課程、機構的期（#1076，成績的學期篩選）。
+     * 不是孩子的資料，所以不套 scope，只帶 `org_id`。**白名單寫死、只讀** —— 不在這份清單的表
+     * 傳不進來（型別錯誤）。
      * `enrollments` 不在這裡：家長只該知道「還有沒有位子」，見 `activeEnrollmentCount`。
      */
-    orgRef(table: 'classes' | 'courses') {
+    orgRef(table: 'classes' | 'courses' | 'billing_periods') {
       return {
         select(columns: string) {
           return supabase.from(table).select(columns).eq('org_id', orgId);
