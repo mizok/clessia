@@ -201,6 +201,12 @@ harness 的 A7c **從提醒升級成擋** —— 覆蓋率一旦完整，下一�
 
 其餘寫入面的缺口（報名、學生、家長、班級、課堂、考試、金流，以及缺 `org_id` 的那批）見 #966 B／D 批。
 
+**課表（`sessions`）的寫入**（#1109／#1110／#1221，2026-10-03）：分校取 `classes.campus_id`
+（跟列表過濾同一欄，不是 `events.campus_id` —— 未來的堂還沒有 event）。單堂（cancel／substitute／
+reschedule、加開）不在範圍 → 403；**批次（batch-*）任一堂不在範圍 → 整批 403，dryRun 也擋**
+（計畫席裁：受限管理員畫面上看不到別校的課，送進來就是 bug 或試探，當成「不符資格」跳過會混進 skipped 裡）。
+批次共用 `routes/sessions.ts` 的 `batchOutOfCampusScope`。
+
 ### 2026-10-02 補：寫入要以 `org_id` 定位（#966 B 批）
 
 上面都是 org **之內**的範圍。更底層的一道是 org 本身：API 走 service role，**少寫一個
