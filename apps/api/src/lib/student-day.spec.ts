@@ -91,7 +91,7 @@ describe('buildStudentDay', () => {
   it('已經有請假覆蓋那堂 → 帶出請假區間（前端據此停用送出）', () => {
     const day = buildStudentDay({
       ...base,
-      leaves: [{ startDate: '2026-09-30', endDate: '2026-10-03', startTime: null, endTime: null }],
+      leaves: [{ startDate: '2026-09-30', endDate: '2026-10-03', startTime: null, endTime: null, boundSessions: [] }],
     });
 
     expect(day.sessions.map((s) => s.existingLeave)).toEqual([
@@ -105,7 +105,7 @@ describe('buildStudentDay', () => {
     const day = buildStudentDay({
       ...base,
       leaves: [
-        { startDate: '2026-10-01', endDate: '2026-10-01', startTime: '13:00', endTime: '15:00' },
+        { startDate: '2026-10-01', endDate: '2026-10-01', startTime: '13:00', endTime: '15:00', boundSessions: [] },
       ],
     });
 

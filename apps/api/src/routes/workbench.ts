@@ -4,7 +4,11 @@ import { DbUuidSchema } from '../lib/validation';
 import type { AppEnv } from '../index';
 import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
-import { leaveCoversSession } from '../lib/leave-covers-session';
+import {
+  LEAVE_WINDOW_COLUMNS,
+  leaveCoversSession,
+  toLeaveWindow,
+} from '../lib/leave-covers-session';
 import { SESSION_SUMMARY_SELECT, summariseSessions } from '../lib/session-summary';
 import { resolveAttendanceMode } from '../lib/attendance-mode';
 
@@ -277,7 +281,7 @@ app.openapi(
       if (studentIds.length > 0) {
         const { data: leaveRows } = await supabase
           .from('leave_requests')
-          .select('student_id, start_date, end_date, start_time, end_time, submitted_by_role')
+          .select(`student_id, submitted_by_role, ${LEAVE_WINDOW_COLUMNS}`)
           .eq('org_id', orgId)
           .in('student_id', studentIds)
           .lte('start_date', targetDate)
@@ -291,15 +295,13 @@ app.openapi(
           .filter((row) =>
             // 半天假只蓋到部分時段 —— 用跟 roster 同一支判斷（#153），
             // 日到班沒有單堂時段，所以拿整天去比
-            leaveCoversSession(
-              {
-                startDate: row['start_date'] as string,
-                endDate: row['end_date'] as string,
-                startTime: (row['start_time'] as string | null) ?? null,
-                endTime: (row['end_time'] as string | null) ?? null,
-              },
-              { date: targetDate, startTime: null, endTime: null },
-            ),
+            // 綁定堂次的假：當天任一綁定堂被蓋到就算（#1114 裁定 2）
+            leaveCoversSession(toLeaveWindow(row), {
+              sessionId: null,
+              date: targetDate,
+              startTime: null,
+              endTime: null,
+            }),
           )
           .map((row) => ({
             studentId: row['student_id'] as string,

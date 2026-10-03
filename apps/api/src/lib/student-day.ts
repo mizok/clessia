@@ -1,5 +1,5 @@
 import { isEnrolledOn } from './session-roster';
-import { leaveCoversSession } from './leave-covers-session';
+import { leaveCoversSession, type LeaveWindow } from './leave-covers-session';
 
 /**
  * 「某個學生某一天」的預覽（#964：接到電話 → 不換頁請假）。純函式，不碰 DB。
@@ -37,12 +37,7 @@ export interface StudentDayInput {
   /** 這個學生在 `date` 當天的出勤紀錄 */
   records: Array<{ eventId: string; status: string }>;
   /** 這個學生涵蓋 `date` 的請假單 */
-  leaves: Array<{
-    startDate: string;
-    endDate: string;
-    startTime: string | null;
-    endTime: string | null;
-  }>;
+  leaves: LeaveWindow[];
   /** 這些班在 `date` 之後的課堂，依日期、時間遞增（給「那天沒課」時找下一堂） */
   upcoming: Array<{ classId: string; date: string; startTime: string | null; status: string }>;
 }
@@ -77,12 +72,17 @@ const hhmm = (time: string | null) => (time ? time.slice(0, 5) : null);
  */
 export function leavesTouchingSessions<L extends StudentDayInput['leaves'][number]>(
   leaves: L[],
-  sessions: ReadonlyArray<Pick<StudentDaySessionRow, 'startTime' | 'endTime'>>,
+  sessions: ReadonlyArray<Pick<StudentDaySessionRow, 'sessionId' | 'startTime' | 'endTime'>>,
   date: string,
 ): L[] {
   return leaves.filter((leave) =>
     sessions.some((s) =>
-      leaveCoversSession(leave, { date, startTime: s.startTime, endTime: s.endTime }),
+      leaveCoversSession(leave, {
+        sessionId: s.sessionId,
+        date,
+        startTime: s.startTime,
+        endTime: s.endTime,
+      }),
     ),
   );
 }
@@ -99,7 +99,12 @@ export function buildStudentDay(input: StudentDayInput): StudentDay {
     .sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? ''))
     .map((s) => {
       const leave = input.leaves.find((l) =>
-        leaveCoversSession(l, { date: input.date, startTime: s.startTime, endTime: s.endTime }),
+        leaveCoversSession(l, {
+          sessionId: s.sessionId,
+          date: input.date,
+          startTime: s.startTime,
+          endTime: s.endTime,
+        }),
       );
       return {
         sessionId: s.sessionId,

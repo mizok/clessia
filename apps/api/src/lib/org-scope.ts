@@ -31,6 +31,7 @@ export type OrgTable =
   | 'fee_templates'
   | 'invoices'
   | 'leave_requests'
+  | 'leave_request_sessions'
   | 'meal_records'
   | 'parents'
   | 'payment_records'

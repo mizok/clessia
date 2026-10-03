@@ -10,10 +10,15 @@ import { sessionSummarySelect, summariseSessions } from '../lib/session-summary'
 import { isSubstituteSession } from '../lib/session-substitute';
 import { countExamsBySession, sessionExamKey } from '../lib/session-exams';
 import { resolveRecordedByRole } from '../lib/recorded-by-role';
-import { leaveCoversSession } from '../lib/leave-covers-session';
+import {
+  LEAVE_WINDOW_COLUMNS,
+  leaveCoversSession,
+  toLeaveWindow,
+} from '../lib/leave-covers-session';
 import { buildStudentDay, leavesTouchingSessions } from '../lib/student-day';
 import { requireRoles } from '../middleware/auth';
 import { cancelLeaveForDate } from '../lib/cancel-leave-for-date';
+import { toSessionRows } from '../lib/cancelled-session';
 import {
   countEnrolledOn,
   isEnrolledOn,
@@ -596,7 +601,7 @@ app.openapi(
     const { data: ev } = await supabase
       .from('events')
       .select(
-        'id, attendance_taken_at, event_date, start_time, end_time, campus_id, sessions(class_id, classes(name, courses(name)))',
+        'id, attendance_taken_at, event_date, start_time, end_time, campus_id, sessions(id, class_id, classes(name, courses(name)))',
       )
       .eq('id', eventId)
       .eq('org_id', orgId)
@@ -698,13 +703,15 @@ app.openapi(
     if (unmarkedIds.length > 0) {
       const { data: leaves } = await supabase
         .from('leave_requests')
-        .select('student_id, start_date, end_date, start_time, end_time')
+        .select(`student_id, ${LEAVE_WINDOW_COLUMNS}`)
         .eq('org_id', orgId)
         .in('student_id', unmarkedIds)
         .lte('start_date', eventDate)
         .gte('end_date', eventDate);
 
       const sessionWindow = {
+        // 綁定堂次的假只認這一堂（#1114）
+        sessionId: toSessionRows((ev as any).sessions as { id: string } | null)[0]?.id ?? null,
         date: eventDate,
         startTime: (ev as any).start_time ?? null,
         endTime: (ev as any).end_time ?? null,
@@ -714,15 +721,7 @@ app.openapi(
       for (const leave of (leaves ?? []) as Array<Record<string, unknown>>) {
         const studentId = leave['student_id'] as string;
         if (coveredStudentIds.has(studentId)) continue; // 一個學生只要有一張蓋到就夠了
-        const covers = leaveCoversSession(
-          {
-            startDate: leave['start_date'] as string,
-            endDate: leave['end_date'] as string,
-            startTime: (leave['start_time'] as string | null) ?? null,
-            endTime: (leave['end_time'] as string | null) ?? null,
-          },
-          sessionWindow,
-        );
+        const covers = leaveCoversSession(toLeaveWindow(leave), sessionWindow);
         if (covers) coveredStudentIds.add(studentId);
       }
 
@@ -1260,7 +1259,7 @@ app.openapi(
       recordsQuery,
       supabase
         .from('leave_requests')
-        .select('start_date, end_date, start_time, end_time')
+        .select(LEAVE_WINDOW_COLUMNS)
         .eq('org_id', orgId)
         .in('student_id', scopedStudentIds)
         .lte('start_date', date)
@@ -1299,12 +1298,7 @@ app.openapi(
       })),
       // 只留蓋到範圍內課堂的那幾張 —— 同一個學生在他校的假不進來（#970）
       leaves: leavesTouchingSessions(
-        ((leavesResult.data ?? []) as Array<Record<string, any>>).map((row) => ({
-          startDate: row['start_date'] as string,
-          endDate: row['end_date'] as string,
-          startTime: (row['start_time'] as string | null) ?? null,
-          endTime: (row['end_time'] as string | null) ?? null,
-        })),
+        ((leavesResult.data ?? []) as Array<Record<string, any>>).map(toLeaveWindow),
         sessions,
         date,
       ),
@@ -1345,7 +1339,7 @@ app.openapi(
 
     const { data: ev, error: evError } = await supabase
       .from('events')
-      .select('id, event_date, start_time, end_time, attendance_taken_at, sessions(class_id)')
+      .select('id, event_date, start_time, end_time, attendance_taken_at, sessions(id, class_id)')
       .eq('id', eventId)
       .eq('org_id', orgId)
       .single();
@@ -1403,13 +1397,14 @@ app.openapi(
         ? { data: [] as Array<Record<string, unknown>> }
         : await supabase
             .from('leave_requests')
-            .select('student_id, start_date, end_date, start_time, end_time')
+            .select(`student_id, ${LEAVE_WINDOW_COLUMNS}`)
             .eq('org_id', orgId)
             .in('student_id', rosterStudentIds)
             .lte('start_date', eventDate)
             .gte('end_date', eventDate);
 
     const sessionWindow = {
+      sessionId: toSessionRows((ev as any).sessions as { id: string } | null)[0]?.id ?? null,
       date: eventDate,
       startTime: ((ev as any).start_time as string | null) ?? null,
       endTime: ((ev as any).end_time as string | null) ?? null,
@@ -1422,16 +1417,8 @@ app.openapi(
     // 銷假的連坐預測 —— 逐張假算，不是從 min/max 推（見 schema 的說明）
     const cancelDropsByStudent = new Map<string, string>();
     for (const row of (leaves ?? []) as Array<Record<string, unknown>>) {
-      const covers = leaveCoversSession(
-        {
-          startDate: row['start_date'] as string,
-          endDate: row['end_date'] as string,
-          startTime: (row['start_time'] as string | null) ?? null,
-          endTime: (row['end_time'] as string | null) ?? null,
-        },
-        sessionWindow,
-      );
-      if (!covers) continue;
+      const leaveWindow = toLeaveWindow(row);
+      if (!leaveCoversSession(leaveWindow, sessionWindow)) continue;
 
       const studentKey = row['student_id'] as string;
       const startDate = row['start_date'] as string;
@@ -1446,7 +1433,7 @@ app.openapi(
       if (!existingEnd || endDate > existingEnd) leaveEndByStudent.set(studentKey, endDate);
 
       // **用銷假自己那支算**：預測與動作共用一份實作，才不會「預覽說會、按下去卻不會」
-      const action = cancelLeaveForDate({ startDate, endDate }, eventDate);
+      const action = cancelLeaveForDate(leaveWindow, eventDate);
       if (action.kind === 'shrink' && action.droppedAfter) {
         const existingDrop = cancelDropsByStudent.get(studentKey);
         // 多張都連坐時取最遠的那一天 —— 警告要說出最壞的情況
@@ -1572,7 +1559,7 @@ app.openapi(
 
     const { data: leaves } = await supabase
       .from('leave_requests')
-      .select('id, start_date, end_date, start_time, end_time, reason, submitted_by_role')
+      .select(`id, reason, submitted_by_role, ${LEAVE_WINDOW_COLUMNS}`)
       .eq('org_id', orgId)
       .eq('student_id', studentId)
       .lte('start_date', eventDate)
@@ -1588,10 +1575,7 @@ app.openapi(
     let droppedAfter: string | null = null;
 
     for (const row of leaveRows) {
-      const action = cancelLeaveForDate(
-        { startDate: row['start_date'] as string, endDate: row['end_date'] as string },
-        eventDate,
-      );
+      const action = cancelLeaveForDate(toLeaveWindow(row), eventDate);
 
       if (action.kind === 'delete') {
         await inOrg(
@@ -1617,6 +1601,24 @@ app.openapi(
         if (action.droppedAfter && (!droppedAfter || action.droppedAfter > droppedAfter)) {
           droppedAfter = action.droppedAfter;
         }
+      } else if (action.kind === 'unbind') {
+        // 綁定型（#1114 裁定 1）：只拆當天的綁定列，區間收成剩下的綁定堂；別天不連坐
+        await inOrg(
+          supabase
+            .from('leave_request_sessions')
+            .delete()
+            .eq('leave_request_id', row['id'] as string)
+            .in('session_id', action.sessionIds),
+          orgId,
+        );
+        await inOrg(
+          supabase
+            .from('leave_requests')
+            .update({ start_date: action.startDate, end_date: action.endDate })
+            .eq('id', row['id'] as string),
+          orgId,
+        );
+        leavesTruncated += 1;
       }
     }
 
