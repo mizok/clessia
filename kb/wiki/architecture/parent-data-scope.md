@@ -1,9 +1,9 @@
 ---
 title: 家長端的資料範圍模型
-summary: 家長端引入第三個授權維度（org → 分校 → 學生）。範圍在 middleware 注入、家長端 route 拿不到原始 supabase、只拿得到已綁 scope 的 childDb（預審時修正，原本的「必填參數」推論守不住「根本沒呼叫」）；越權指名回 403 不回空；多重角色的身分判定改看 activeRole。拒絕每支 route 自己 join、RLS、前端過濾三種替代。學生帳號是家長的退化情形（scope 只含自己），模型天然相容、v1 不做。
+summary: 家長端引入第三個授權維度（org → 分校 → 學生）。範圍在 middleware 注入、家長端 route 拿不到原始 supabase、只拿得到已綁 scope 的 childDb（預審時修正，原本的「必填參數」推論守不住「根本沒呼叫」）；越權指名回 403 不回空；多重角色的身分判定改看 activeRole。拒絕每支 route 自己 join、RLS、前端過濾三種替代。學生帳號是家長的退化情形（scope 只含自己），模型天然相容、v1 不做。2026-10-03 起家長端寫入走 childDb.insert／update、機構參考資料走 orgRef（#1119）。
 category: architecture
 status: draft
-updated: 2026-09-05
+updated: 2026-10-03
 tags: [architecture, parent, authorization, security]
 ---
 
@@ -96,6 +96,28 @@ gate 只是收尾：**禁止家長端的檔案出現 `c.get('supabase')`**。它
 「每支 route 記得 join」是最後一層 —— 而 `campusRequestGuard` 的註解已經說了那條會
 發生什麼：**總有一支會忘記，而忘記的方式是安靜的。**
 
+### 二之一、家長端的寫入與機構參考資料（2026-10-03，#1119）
+
+**v1 原本唯讀**（見「明確不做」的舊版）。使用者 2026-10-03 裁「額滿班要能登記候補讓補習班知道」，
+家長端報名申請因此成為產品決定，計畫席同日裁定寫入的形狀（A＋B，不走 trigger）：
+
+- **寫入走 `childDb.from(table, studentIdColumn)` 的 `insert()`／`update()`**（`lib/child-db.ts`）。
+  - `insert`：這一列的學生 id 不在 scope（或根本不是家長，scope `null`）→ **不送 DB**，回 `outOfScope`，
+    route 回 403。`org_id` 一律蓋成 session 的，呼叫端塞什麼都不算數。
+  - `update`：回傳的 builder 已帶 `org_id` 與 `.in(studentIdColumn, scope)`，scope 外的列根本選不到；
+    學生欄位與 `org_id` 從 values 裡剔除（不能把一筆資料「過戶」給別的學生或別的 org）。
+  - ⚠️ **寫入面的 `null` 跟讀取面刻意不同**：讀取面 `scope === null` 不加條件（防禦性保留），
+    寫入面一律 fail-closed（等同空陣列）。
+- **機構參考資料走 `childDb.orgRef(table)`**：班級目錄、課程不是孩子的資料，不套 scope、只帶 `org_id`。
+  **白名單寫死在型別上**（`'classes' | 'courses'`），只讀。
+- **名額只回數字**：`childDb.activeEnrollmentCount(classId)` 是 head 查詢，家長只該知道「還有沒有位子」，
+  拿不到別的學生的報名列。
+- 業務判斷（額滿、候補）在 server 做，**不信 body 的任何「已額滿」旗標**。
+
+**為什麼不是 DB trigger**（判額滿、強制改成 waitlist）：它不用 `orgRef`，但把業務規則藏進 SQL ——
+測不到、讀 route 的人看不到。A＋B 保住了本節「拿不到錯的工具」與 A19 gate：家長端 route 仍然
+碰不到原始 `supabase`，新的入口各自有「scope 外拒絕」的單元測試（`lib/child-db.spec.ts`）。
+
 ### 三、指名越權回 403，不回空
 
 沿用分校那層的決定。家長帶 `?studentId=<別人的小孩>` 要拿到 403，
@@ -164,8 +186,10 @@ c1 的違反例就是這個：「僅靠前端不顯示按鈕來『限制』」�
 
 ## 明確不做
 
-- **家長端的寫入**（報名、請假、訂餐）—— v1 唯讀。寫入要各自的業務規則與確認流程，
-  而且 `campusRequestGuard` 的第三條提醒了：**body 的驗證不能靠 middleware**
+- ~~**家長端的寫入**（報名、請假、訂餐）—— v1 唯讀~~ → **2026-10-03 起寫入走
+  `childDb.insert`／`update`、參考資料走 `orgRef`**（見第二之一節，#1119）。理由：使用者裁
+  「額滿要能登記候補」讓家長端寫入成為產品決定。**每一種寫入仍要各自的業務規則與確認流程**
+  （目前只有報名申請），而 `campusRequestGuard` 的第三條仍然成立：**body 的驗證不能靠 middleware**
 - **細部權限**（家長之間的差異，例如「只有主要聯絡人看得到帳單」）——
   `parent_student_relations` 有 `is_primary` 欄位，但 v1 不用它
 - **跨機構的家長**（同一個人在兩間補習班都有小孩）—— `org_id` 那層已經處理，

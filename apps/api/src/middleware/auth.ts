@@ -133,7 +133,7 @@ export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   });
   c.set('studentScope', studentScope);
   // 家長端 route 只拿得到這個，拿不到原始 supabase（見 lib/child-db.ts）。
-  c.set('childDb', createChildDb(supabase, studentScope));
+  c.set('childDb', createChildDb(supabase, studentScope, orgId));
 
   // 看得到哪些分校。`null` = 不受分校限制（跨分校的管理員，或由更窄的範圍
   // 限制把關的老師與家長）；空陣列 = 一個分校都沒被指派，什麼都看不到。

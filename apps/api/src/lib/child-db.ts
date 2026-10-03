@@ -40,7 +40,10 @@ export type ScopedIds = readonly string[] & { readonly [scopedIdsBrand]: true };
  * 意思是「家長端 route 檔案沒有繞過 childDb」，不是「這個 codebase 沒有任何
  * 地方碰得到原始 supabase」。
  */
-export function createChildDb(supabase: SupabaseClient, scope: StudentScope) {
+export function createChildDb(supabase: SupabaseClient, scope: StudentScope, orgId: string) {
+  /** 寫入用：`null`（不是家長）在寫入面一律 fail-closed，跟讀取面的「不加條件」刻意不同 */
+  const writableIds = scope === null ? [] : [...scope];
+
   return {
     /**
      * @param studentIdColumn 這張表存學生 id 的欄位 —— `students` 表本身用 `id`，
@@ -84,7 +87,70 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope) {
           const ids = [...new Set(rows.map((row) => row[idColumn] as string))];
           return { rows, ids: ids as unknown as ScopedIds, error: null };
         },
+
+        /**
+         * 寫一筆（#1119，家長端第一次寫入）。**範圍檢查在送 DB 之前**：這一列的學生 id
+         * 不在 scope（或根本不是家長）就不送，回 `outOfScope`，呼叫端回 403。
+         * `org_id` 一律蓋成 session 的 —— 呼叫端塞什麼都不算數。
+         */
+        async insert(
+          row: Record<string, unknown>,
+          columns = '*',
+        ): Promise<{ data: unknown; error: unknown; outOfScope: boolean }> {
+          const studentId = row[studentIdColumn];
+          if (typeof studentId !== 'string' || !writableIds.includes(studentId)) {
+            return { data: null, error: null, outOfScope: true };
+          }
+          const { data, error } = await supabase
+            .from(table)
+            .insert({ ...row, org_id: orgId })
+            .select(columns)
+            .single();
+          return { data, error, outOfScope: false };
+        },
+
+        /**
+         * 改資料。回傳的 builder **已經帶 `org_id` 與 scope 條件**，scope 外的列根本選不到。
+         * 學生欄位與 `org_id` 不允許被改（把一筆申請「過戶」給別的學生或別的 org）。
+         */
+        update(values: Record<string, unknown>) {
+          const safe = { ...values };
+          delete safe['org_id'];
+          delete safe[studentIdColumn];
+          return supabase
+            .from(table)
+            .update(safe)
+            .eq('org_id', orgId)
+            .in(studentIdColumn, writableIds);
+        },
       };
+    },
+
+    /**
+     * **機構層級的參考資料**（#1119 B）：班級目錄、課程。不是孩子的資料，所以不套 scope，
+     * 只帶 `org_id`。**白名單寫死、只讀** —— 不在這份清單的表傳不進來（型別錯誤）。
+     * `enrollments` 不在這裡：家長只該知道「還有沒有位子」，見 `activeEnrollmentCount`。
+     */
+    orgRef(table: 'classes' | 'courses') {
+      return {
+        select(columns: string) {
+          return supabase.from(table).select(columns).eq('org_id', orgId);
+        },
+      };
+    },
+
+    /**
+     * 某班佔名額的人數（在籍＋待繳費，跟 `enrollments/validation.ts` 的額滿判斷同一組狀態）。
+     * **只回數字**（head 查詢），不回任何別的學生的列。
+     */
+    async activeEnrollmentCount(classId: string): Promise<{ count: number; error: unknown }> {
+      const { count, error } = await supabase
+        .from('enrollments')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId)
+        .eq('class_id', classId)
+        .in('status', ['active', 'pending_payment']);
+      return { count: count ?? 0, error };
     },
 
     /**

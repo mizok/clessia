@@ -3,7 +3,7 @@ title: 報名與繳費規則
 summary: 報名審核、繳費關聯與直接報名規範。2026-08-29 依訪談定案的 billing-rules 對齊：繳費狀態由收款推導（三態）、單一 due_date 無寬限期機制、金額調整是議價不是折扣類型。2026-09-06 新增第 8 節：學生的分校歸屬不隨退班消失。
 category: rule
 status: active
-updated: 2026-09-06
+updated: 2026-10-03
 tags: [rules, enrollment-rules]
 ---
 
@@ -15,6 +15,9 @@ tags: [rules, enrollment-rules]
 ## 1. 報名申請基本規則
 
 1. 家長提交申請後，狀態為 `pending`（待審核）。
+   - **額滿班不能送正式申請，但可以登記候補**（使用者 2026-10-03 裁）：狀態為 `waitlist`，讓補習班知道有人在等。
+     額滿由伺服器數（佔名額 = 在籍＋待繳費），家長端要明確選擇候補才會建立（#1119，`POST /api/me/enrollment-requests`）。
+   - 家長可自行取消 `pending`／`waitlist` 的申請；核准之後要聯絡補習班。
 2. 管理員審核通過後：
    - 建立繳費單。
    - 建立 Enrollment（狀態 `pending_payment`）。
