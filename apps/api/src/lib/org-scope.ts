@@ -43,7 +43,8 @@ export type OrgTable =
   | 'sessions'
   | 'staff'
   | 'students'
-  | 'subjects';
+  | 'subjects'
+  | 'trial_requests';
 
 /**
  * 查詢尾端接這個 = `.eq('org_id', orgId)`，但有名字、可 grep、A23 認得。

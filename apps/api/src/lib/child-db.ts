@@ -110,6 +110,26 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
         },
 
         /**
+         * 一批寫入（#1120 試聽一次多門課）。**任一列的學生不在 scope 就整批不送** ——
+         * 部分寫入比全拒更難收拾。規則同 `insert`；空陣列當成拒絕，不送一個空 insert。
+         */
+        async insertMany(
+          rows: Record<string, unknown>[],
+          columns = '*',
+        ): Promise<{ data: unknown[] | null; error: unknown; outOfScope: boolean }> {
+          const allowed = rows.every((row) => {
+            const studentId = row[studentIdColumn];
+            return typeof studentId === 'string' && writableIds.includes(studentId);
+          });
+          if (rows.length === 0 || !allowed) return { data: null, error: null, outOfScope: true };
+          const { data, error } = await supabase
+            .from(table)
+            .insert(rows.map((row) => ({ ...row, org_id: orgId })))
+            .select(columns);
+          return { data: (data as unknown[] | null) ?? null, error, outOfScope: false };
+        },
+
+        /**
          * 改資料。回傳的 builder **已經帶 `org_id` 與 scope 條件**，scope 外的列根本選不到。
          * 學生欄位與 `org_id` 不允許被改（把一筆申請「過戶」給別的學生或別的 org）。
          */

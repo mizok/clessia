@@ -299,3 +299,41 @@ describe('createChildDb —— insert / update / orgRef / activeEnrollmentCount'
     expect(await childDb.activeEnrollmentCount('c1')).toEqual({ count: 2, error: null });
   });
 });
+
+/** #1120：試聽一次可選多門課 —— 一批寫入，**任一列 scope 外就整批不送** */
+describe('createChildDb —— insertMany', () => {
+  it('全部在 scope 內：整批寫入，org_id 蓋成 session 的', async () => {
+    const db = createMultiOrgDb({});
+    const childDb = createChildDb(db.client as never, ['stu-mine'], 'org-1');
+
+    const result = await childDb.from('trial_requests', 'student_id').insertMany([
+      { student_id: 'stu-mine', course_id: 'a', org_id: 'org-evil' },
+      { student_id: 'stu-mine', course_id: 'b' },
+    ]);
+
+    expect(result.outOfScope).toBe(false);
+    expect(db.rows('trial_requests').map((r) => r['org_id'])).toEqual(['org-1', 'org-1']);
+  });
+
+  it('混了一列 scope 外的：整批不送 DB', async () => {
+    const db = createMultiOrgDb({});
+    const childDb = createChildDb(db.client as never, ['stu-mine'], 'org-1');
+
+    const result = await childDb.from('trial_requests', 'student_id').insertMany([
+      { student_id: 'stu-mine', course_id: 'a' },
+      { student_id: 'stu-other', course_id: 'b' },
+    ]);
+
+    expect(result.outOfScope).toBe(true);
+    expect(db.rows('trial_requests')).toHaveLength(0);
+  });
+
+  it('空陣列：當成 scope 外（不送一個空 insert）', async () => {
+    const db = createMultiOrgDb({});
+    const childDb = createChildDb(db.client as never, ['stu-mine'], 'org-1');
+
+    expect((await childDb.from('trial_requests', 'student_id').insertMany([])).outOfScope).toBe(
+      true,
+    );
+  });
+});
