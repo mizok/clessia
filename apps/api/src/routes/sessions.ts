@@ -18,6 +18,7 @@ import {
   SessionUnassignedError,
 } from '../domain/session-assignment/session-operation-guard';
 import { planBatchUpdateTime } from '../domain/session-assignment/batch-update-time-planner';
+import { toWeekdayFromString } from '../domain/session-assignment/time-utils';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { hasSessionEndedByNow } from '../lib/session-end-time';
 import { sliceDerivedPage } from '../lib/derived-page';
@@ -330,6 +331,7 @@ const BatchSessionConflictSchema = z
       'unassigned',
       'same_teacher',
       'teacher_not_eligible',
+      'no_change',
     ]),
     detail: z.string(),
     conflictingSessionId: DbUuidSchema.optional(),
@@ -403,7 +405,8 @@ type BatchSessionConflictReason =
   | 'teacher_conflict'
   | 'unassigned'
   | 'same_teacher'
-  | 'teacher_not_eligible';
+  | 'teacher_not_eligible'
+  | 'no_change';
 
 interface BatchSessionConflictItem {
   readonly sessionId: string;
@@ -3523,6 +3526,381 @@ app.openapi(batchUpdateTimeRoute, async (c) => {
       skipped,
       processableIds,
       conflicts,
+      dryRun,
+    },
+    200,
+  );
+});
+
+// ============================================================
+// PATCH /api/sessions/batch-reschedule —— 批次改到別天（#1111）
+// ============================================================
+//
+// batch-update-time 只改時段、日期不動（語意不動）；這支改日期（可順便改時段），
+// 逐堂寫 reschedule 流水。設計與裁示見 #1111：
+// - `dayOffset`（±1–28 天）或 `targetWeekday`（1=週一…7=週日，**同一週週一到週日**）二擇一
+// - dryRun 預設 true，回 `planned`（每堂落點）給前端預覽
+// - 照新落點分組 update（一組一次請求）—— 逐堂打最多 1000 次會撞 Workers subrequest 上限
+// - 非交易：update 中途失敗或流水失敗，已搬的照原落點分組搬回去
+const BatchRescheduleBodySchema = BatchSessionTargetSchema.extend({
+  dayOffset: z.number().int().min(-28).max(28).optional(),
+  targetWeekday: z.number().int().min(1).max(7).optional(),
+  startTime: TimeSchema.optional(),
+  endTime: TimeSchema.optional(),
+  reason: z.string().max(500).optional(),
+}).openapi('SessionBatchRescheduleBody');
+
+const BatchRescheduleResultSchema = BatchSessionActionResultSchema.extend({
+  planned: z.array(
+    z.object({
+      sessionId: DbUuidSchema,
+      newSessionDate: DateSchema,
+      newStartTime: TimeSchema,
+      newEndTime: TimeSchema,
+    }),
+  ),
+}).openapi('SessionBatchRescheduleResult');
+
+const batchRescheduleRoute = createRoute({
+  method: 'patch',
+  path: '/batch-reschedule',
+  tags: ['Sessions'],
+  summary: '批次改到別天（逐堂留調課紀錄；dryRun 預設 true）',
+  request: {
+    body: { content: { 'application/json': { schema: BatchRescheduleBodySchema } } },
+  },
+  responses: {
+    200: {
+      description: '成功（不符或衝突的堂列在 conflicts）',
+      content: { 'application/json': { schema: BatchRescheduleResultSchema } },
+    },
+    400: {
+      description: '參數或資料錯誤',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    403: {
+      description: '有課堂不在呼叫者的分校範圍（整批拒絕）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    409: {
+      description: '寫入時撞到同班同時段（已全部搬回）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    500: { description: '寫入失敗', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+});
+
+/** 依 dayOffset 或同一週（週一到週日）的 targetWeekday 算新日期 */
+export function resolveRescheduleDate(
+  sessionDate: string,
+  target: { readonly dayOffset?: number; readonly targetWeekday?: number },
+): string {
+  const offset =
+    target.dayOffset ?? (target.targetWeekday as number) - toWeekdayFromString(sessionDate);
+  const date = new Date(`${sessionDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+app.openapi(batchRescheduleRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const userId = c.get('userId');
+  const body = c.req.valid('json');
+  const uniqueSessionIds = [...new Set(body.sessionIds)];
+  const dryRun = body.dryRun ?? true;
+
+  if (
+    (body.dayOffset === undefined) === (body.targetWeekday === undefined) ||
+    body.dayOffset === 0
+  ) {
+    return c.json(
+      { error: 'dayOffset（非 0）與 targetWeekday 要剛好帶一個', code: 'INVALID_TARGET' },
+      400,
+    );
+  }
+  if ((body.startTime === undefined) !== (body.endTime === undefined)) {
+    return c.json({ error: '開始與結束時間要一起帶', code: 'INVALID_TIME_RANGE' }, 400);
+  }
+  if (
+    body.startTime !== undefined &&
+    toMinutes(normalizeTime(body.startTime)) >= toMinutes(normalizeTime(body.endTime as string))
+  ) {
+    return c.json({ error: '開始時間需早於結束時間', code: 'INVALID_TIME_RANGE' }, 400);
+  }
+
+  const { data: sessionRows, error: sessionRowsError } = await supabase
+    .from('sessions')
+    .select(
+      'id, class_id, session_date, start_time, end_time, status, teacher_id, classes!inner(campus_id)',
+    )
+    .eq('org_id', orgId)
+    .in('id', uniqueSessionIds);
+  if (sessionRowsError) {
+    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
+  }
+  const targets = (sessionRows ?? []) as Array<{
+    id: string;
+    class_id: string;
+    session_date: string;
+    start_time: string;
+    end_time: string;
+    status: 'scheduled' | 'completed' | 'cancelled';
+    teacher_id: string | null;
+  }>;
+  if (
+    batchOutOfCampusScope(
+      getCampusScope(c),
+      targets.map((t) => t.id),
+      new Map(
+        ((sessionRows ?? []) as Array<Record<string, unknown>>).map((row) => [
+          row['id'] as string,
+          sessionCampusId(row),
+        ]),
+      ),
+    )
+  ) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
+
+  // 每堂的落點
+  const landing = new Map(
+    targets.map((t) => [
+      t.id,
+      {
+        date: resolveRescheduleDate(t.session_date, body),
+        start: normalizeTime(body.startTime ?? t.start_time),
+        end: normalizeTime(body.endTime ?? t.end_time),
+      },
+    ]),
+  );
+
+  const noChange = targets.filter((t) => {
+    const l = landing.get(t.id)!;
+    return (
+      t.status === 'scheduled' &&
+      l.date === t.session_date &&
+      l.start === normalizeTime(t.start_time) &&
+      l.end === normalizeTime(t.end_time)
+    );
+  });
+  const movable = targets.filter((t) => !noChange.includes(t));
+
+  const newDates = [...new Set([...landing.values()].map((l) => l.date))];
+  const classIds = [...new Set(targets.map((t) => t.class_id))];
+  const teacherIds = [
+    ...new Set(targets.map((t) => t.teacher_id).filter((id): id is string => !!id)),
+  ];
+  // 只有**真的要搬走的**不擋位。`no_change`（落點就是原位、留在原地）照樣擋 —— 原本整批 target 都
+  // 排除，別的堂會被允許搬到它頭上，實寫時撞唯一鍵（二讀時一併抓到的，#1111）
+  const movingIds = new Set(movable.map((t) => t.id));
+  const [classPeerResult, teacherPeerResult] = await Promise.all([
+    newDates.length > 0
+      ? supabase
+          .from('sessions')
+          .select('id, class_id, session_date, start_time, end_time')
+          .eq('org_id', orgId)
+          .eq('status', 'scheduled')
+          .in('class_id', classIds)
+          .in('session_date', newDates)
+      : Promise.resolve({ data: [], error: null }),
+    newDates.length > 0 && teacherIds.length > 0
+      ? supabase
+          .from('sessions')
+          .select('id, session_date, start_time, end_time, teacher_id')
+          .eq('org_id', orgId)
+          .eq('status', 'scheduled')
+          .in('teacher_id', teacherIds)
+          .in('session_date', newDates)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  const peerError = classPeerResult.error ?? teacherPeerResult.error;
+  if (peerError) {
+    return c.json({ error: peerError.message, code: 'DB_ERROR' }, 400);
+  }
+  // 同一批要搬走的堂不擋位（它們的新位置由 planner 的 plannedSlots 比）。
+  // ponytail: 被 planner 判衝突、留在原地的堂不會回頭擋後面的堂 —— 由唯一鍵兜底（下面 23505 → 409、全部搬回）
+  const classPeers = ((classPeerResult.data ?? []) as Array<Record<string, unknown>>).filter(
+    (row) => !movingIds.has(row['id'] as string),
+  );
+  const teacherPeers = ((teacherPeerResult.data ?? []) as Array<Record<string, unknown>>).filter(
+    (row) => !movingIds.has(row['id'] as string),
+  );
+
+  const plan = planBatchUpdateTime({
+    targetSessions: movable.map((t) => {
+      const l = landing.get(t.id)!;
+      return {
+        id: t.id,
+        classId: t.class_id,
+        teacherId: t.teacher_id,
+        sessionDate: t.session_date,
+        status: t.status,
+        newSessionDate: l.date,
+        newStartTime: l.start,
+        newEndTime: l.end,
+      };
+    }),
+    existingClassPeers: classPeers.map((row) => ({
+      id: row['id'] as string,
+      classId: row['class_id'] as string,
+      sessionDate: row['session_date'] as string,
+      startTime: row['start_time'] as string,
+      endTime: row['end_time'] as string,
+    })),
+    existingTeacherPeers: teacherPeers.map((row) => ({
+      id: row['id'] as string,
+      teacherId: row['teacher_id'] as string | null,
+      sessionDate: row['session_date'] as string,
+      startTime: row['start_time'] as string,
+      endTime: row['end_time'] as string,
+    })),
+  });
+
+  const conflicts: BatchSessionConflictItem[] = [
+    ...noChange.map((t) => ({
+      sessionId: t.id,
+      sessionDate: t.session_date,
+      reason: 'no_change' as const,
+      detail: '新日期與時段跟原本相同',
+    })),
+    ...plan.conflicts,
+  ];
+  const processableIds = plan.processableIds;
+  const processable = targets.filter((t) => processableIds.includes(t.id));
+  const planned = processable.map((t) => {
+    const l = landing.get(t.id)!;
+    return {
+      sessionId: t.id,
+      newSessionDate: l.date,
+      newStartTime: toHHmm(l.start) ?? l.start,
+      newEndTime: toHHmm(l.end) ?? l.end,
+    };
+  });
+  const skipped = uniqueSessionIds.length - processableIds.length;
+
+  if (!dryRun && processable.length > 0) {
+    const groupBy = (key: (t: (typeof processable)[number]) => string) => {
+      const groups = new Map<string, string[]>();
+      for (const t of processable) {
+        const k = key(t);
+        groups.set(k, [...(groups.get(k) ?? []), t.id]);
+      }
+      return groups;
+    };
+    const slotKey = (date: string, start: string, end: string) =>
+      `${date}|${normalizeTime(start)}|${normalizeTime(end)}`;
+    const updateGroup = (key: string, ids: string[]) => {
+      const [session_date, start_time, end_time] = key.split('|');
+      return supabase
+        .from('sessions')
+        .update({ session_date, start_time, end_time })
+        .eq('org_id', orgId)
+        .in('id', ids);
+    };
+    // 搬回：只搬已經搬走的那些，照原落點分組
+    const moveBack = async (movedIds: ReadonlySet<string>) => {
+      const originals = new Map<string, string[]>();
+      for (const t of processable.filter((p) => movedIds.has(p.id))) {
+        const k = slotKey(t.session_date, t.start_time, t.end_time);
+        originals.set(k, [...(originals.get(k) ?? []), t.id]);
+      }
+      const results = await Promise.all([...originals].map(([key, ids]) => updateGroup(key, ids)));
+      return results.every((r) => !r.error);
+    };
+
+    // ① 分組搬（循序：中途失敗時知道搬到哪）。
+    //
+    // **順序是設計的一部分**（二讀抓到的）：sessions 有 UNIQUE (class_id, session_date, start_time)，
+    // 而 UPDATE 是逐組發的。整期往後挪一天時，若先搬 A（10/21→10/22）而 B 還在 10/22，就撞唯一鍵 →
+    // 整批搬回 409 —— dryRun 說可以、實寫偶發失敗，取決於 processable 剛好是什麼順序。
+    // 所以照落點排：**往後挪由晚到早、往前挪由早到晚**，鏈上的下一個位置一定先空出來。
+    // 互擋的鏈只會出現在 dayOffset（全批同方向）；targetWeekday 的落點在同一週內，
+    // 同班同時段兩堂落到同一天會被 planner 判 class_conflict，鏈接不起來 —— 照早到晚即可。
+    // ponytail: 兩堂互換位置（A→B 的位置、B→A 的位置）這種環排不出順序，會撞唯一鍵 409、全部搬回
+    const groups = [
+      ...groupBy((t) => {
+        const l = landing.get(t.id)!;
+        return slotKey(l.date, l.start, l.end);
+      }),
+    ].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    if ((body.dayOffset ?? 0) > 0) groups.reverse();
+    const moved = new Set<string>();
+    for (const [key, ids] of groups) {
+      const { error } = await updateGroup(key, ids);
+      if (error) {
+        const reverted = await moveBack(moved);
+        console.error(
+          '[sessions/batch-reschedule] 搬移中途失敗' + (reverted ? '，已搬回' : '，而且搬回也失敗'),
+        );
+        return error.code === '23505'
+          ? c.json({ error: '同班級於此時段已有課堂', code: 'CLASS_CONFLICT' }, 409)
+          : c.json({ error: '批次調課失敗', code: 'RESCHEDULE_UPDATE_FAILED' }, 500);
+      }
+      ids.forEach((id) => moved.add(id));
+    }
+
+    // ② 逐堂寫流水
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name')
+      .eq('id', userId)
+      .maybeSingle();
+    const { error: logError } = await supabase.from('schedule_changes').insert(
+      processable.map((t) => {
+        const l = landing.get(t.id)!;
+        return {
+          org_id: orgId,
+          session_id: t.id,
+          change_type: 'reschedule' as const,
+          original_session_date: t.session_date,
+          original_start_time: t.start_time,
+          original_end_time: t.end_time,
+          new_session_date: l.date,
+          new_start_time: l.start,
+          new_end_time: l.end,
+          reason: body.reason ?? null,
+          created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
+          operation_source: 'batch' as const,
+        };
+      }),
+    );
+    if (logError) {
+      const reverted = await moveBack(moved);
+      console.error(
+        '[sessions/batch-reschedule] 流水寫入失敗' +
+          (reverted ? '，已搬回' : '，而且搬回也失敗 —— 課堂已搬、流水沒有'),
+      );
+      return c.json({ error: '批次調課失敗', code: 'RESCHEDULE_LOG_FAILED' }, 500);
+    }
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'session',
+        resourceName: 'sessions',
+        action: 'batch_reschedule_sessions',
+        details: {
+          requested: uniqueSessionIds.length,
+          updated: processable.length,
+          skipped,
+          dayOffset: body.dayOffset ?? null,
+          targetWeekday: body.targetWeekday ?? null,
+        },
+      },
+      waitUntilFrom(c),
+    );
+  }
+
+  return c.json(
+    {
+      updated: dryRun ? 0 : processable.length,
+      skipped,
+      processableIds,
+      conflicts,
+      planned,
       dryRun,
     },
     200,
