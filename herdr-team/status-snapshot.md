@@ -34,7 +34,7 @@
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-03 20:3x，計畫席 labor-plan-20261003-1534。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-03 20:5x，計畫席 labor-plan-20261003-1534。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
@@ -43,9 +43,11 @@
 
 
 
-| #1212 | #1175 課程費用欄：migration `20261003122743_class_default_fee_template.sql`（classes 加 `default_fee_template_id`，FK `ON DELETE SET NULL`＋索引）＋班級 API 寫入要 `manage_finance`（無權限帶 key → 403）、範本限本 org 且 active＋`/api/me/catalog` 回 `fee`＋管理端班級表單「目錄參考價」下拉 | head `54fa4498`，verify 跑中。設計 10-03 20:1x 過 STOP gate（#1175 留言）。**合的瞬間我凍結、掛守衛，請接著在 `prod-db` 按 Approve**；apply 綠後派 db-reset，2006 做 embed 實打貼回 PR。家長目錄畫參考價留給加選頁（P4 批 5）。 |
 
-接下來會出現的保留類：#1118 餘項（推薦課 `is_recommended` migration，2006，疊 #1212）、#1109／#1110／#1111／#1195（sessions API 串，2033，各自先過 STOP gate）。10-03 已合的保留類鏈：#1132／#1137／#1141／#1143／#1145／#1150／#1152／#1180／#1183／#1188／#1197（migration 皆已套、使用者逐一 Approve）。
+| #1219 | #1109 加開單堂 `POST /api/sessions`：migration `20261003124241_schedule_change_type_creation.sql`（enum 加 `creation`，純加值）＋ classWriteScope 分校範圍、四種 409 衝突碼、流水失敗補償刪 session | head `1f8a02fa`。設計 10-03 20:3x 過 gate（#1109 留言，裁 creation／不引 RPC／201 回整堂）。**含 migration：合的瞬間我凍結、掛守衛，請接著 Approve。** 成功路徑實打等套完補。 |
+| #1216 | #1118 餘項推薦課：migration `classes.is_recommended boolean default false`＋班級 API（`manage_courses`）＋catalog 推薦優先＋班級表單開關 | head `035bf64c`，base main，CI 綠。設計過 gate（#1118 留言）。**含 migration，同上凍結流程。建議跟 #1219 分開合，各自 Approve 一次。** |
+
+接下來會出現的保留類：#1110（批次代課＋batch-assign-teacher 分校檢查，2033，已過 gate）、#1111、#1195、#966 系列（sessions 其他端點分校洞，2033 開單中）。10-03 已合的保留類：#1132／#1137／#1141／#1143／#1145／#1150／#1152／#1180／#1183／#1188／#1197／#1212（migration 皆已套、使用者逐一 Approve；#1212 的 Approve 期間守衛取消過一顆插隊 run）。
 
 10-03 已合的保留類：#1132、#1137、#1141、#1143、#1145、#1150（四支 migration 皆已由 migrate.yml 套、使用者逐一 Approve）。**S3 殼改寫 #1154 15:1x 已合**（使用者看截圖 OK），疊在上面的 #1155／#1159／#1162／#1164 由 1456 逐支轉 main。第五次部署 12:1x 完成（截線 `6103d4d0`，紀錄 #1153）；**第六次等 #1152 合後備**（api：#1141／#1143／#1145／#1150／#1152，web：S3 起）。**教訓（#1146）**：等 Approve 的 apply 會被後續 main 的新 run 取代 → Approve 落地前凍結合併，計畫席掛守衛取消新 run。
 **家長端寫入的架構裁定（10-03 11:5x，計畫席裁，您可否決）**：`parent-data-scope.md` 原列「家長端寫入 v1 唯讀」為明確不做；為了候補登記與申請表，改成寫入走 `childDb.insert／update`（scope 外在送 DB 前拒絕）、機構層級參考資料走 `orgRef` 白名單唯讀（classes／courses／enrollments 計數），不用 DB trigger。文件更新跟 #1119 同 PR。
