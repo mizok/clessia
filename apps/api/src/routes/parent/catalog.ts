@@ -10,12 +10,13 @@ import { DbUuidSchema } from '../../lib/validation';
  *
  * 班級是**機構參考資料**：走 `childDb.orgRef('classes')`（只帶 `org_id`、不套孩子 scope），
  * 課程／分校／時段／老師名以 embed 帶出；名額走 `activeEnrollmentCounts`（只拿數字）。
- * 裁定（#1152）：全機構所有分校、年級只標 `matchesGrade` 不過濾、推薦不帶欄位。
+ * 裁定（#1152）：全機構所有分校、年級只標 `matchesGrade` 不過濾。
+ * 推薦（#1118）：班級的人工標記 `is_recommended`，推薦的排最前（規格「推薦加選的優先顯示」）。
  * 費用（#1175）：取自班級的預設範本，只是參考價 —— 實際報名價以報名時選的範本為準。
  */
 
 const CLASS_SELECT = `
-  id, name, grade_levels, max_students, is_active, end_date,
+  id, name, grade_levels, max_students, is_active, end_date, is_recommended,
   courses(id, name, description, is_active, subjects(name)),
   campuses(name),
   schedules(weekday, start_time, end_time, effective_to, teacher:staff!teacher_id(display_name)),
@@ -49,6 +50,8 @@ const ParentCatalogClassSchema = z
         billingMode: z.enum(['monthly', 'period', 'session_pack']),
       })
       .nullable(),
+    /** 推薦加選（管理端人工標記，#1118）。列表已把推薦的排在最前 */
+    isRecommended: z.boolean(),
   })
   .openapi('ParentCatalogClass');
 
@@ -167,10 +170,12 @@ app.openapi(
                 billingMode: feeTemplate['billing_mode'] as 'monthly' | 'period' | 'session_pack',
               }
             : null,
+          isRecommended: row['is_recommended'] === true,
         };
       })
       .sort(
         (a, b) =>
+          Number(b.isRecommended) - Number(a.isRecommended) ||
           (a.courseName ?? '').localeCompare(b.courseName ?? '') ||
           a.className.localeCompare(b.className),
       );

@@ -62,6 +62,8 @@ const ClassSchema = z
     usesContactBook: z.boolean(),
     /** 目錄參考價的範本（#1175）。只回 id —— 金額要 `manage_finance` 才讀得到（`/api/fee-templates`） */
     defaultFeeTemplateId: DbUuidSchema.nullable(),
+    /** 家長端「推薦加選」的人工標記（#1118） */
+    isRecommended: z.boolean(),
     scheduleCount: z.number().optional(),
     scheduleTeacherIds: z.array(z.string()).optional(),
     hasUpcomingSessions: z.boolean().optional(),
@@ -101,6 +103,7 @@ const CreateClassSchema = z
     nextClassId: DbUuidSchema.nullable().optional(),
     /** #1175：要 `manage_finance`；沒有時**不要帶這個 key**（帶了整筆 403） */
     defaultFeeTemplateId: DbUuidSchema.nullable().optional(),
+    isRecommended: z.boolean().optional(),
     // 不給就用 DB 的 default false（現況全是紙本）
     usesContactBook: z.boolean().optional(),
     startDate: z
@@ -123,6 +126,7 @@ const UpdateClassSchema = z
     nextClassId: DbUuidSchema.nullable().optional(),
     /** #1175：要 `manage_finance`；沒有時**不要帶這個 key**（帶了整筆 403） */
     defaultFeeTemplateId: DbUuidSchema.nullable().optional(),
+    isRecommended: z.boolean().optional(),
     isActive: z.boolean().optional(),
     usesContactBook: z.boolean().optional(),
     startDate: z
@@ -374,6 +378,7 @@ export function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     // undefined，前端拿 undefined 去畫開關會變成不確定狀態
     usesContactBook: (row['uses_contact_book'] as boolean | undefined) ?? false,
     defaultFeeTemplateId: (row['default_fee_template_id'] as string | null | undefined) ?? null,
+    isRecommended: (row['is_recommended'] as boolean | undefined) ?? false,
     scheduleCount: extras?.scheduleCount,
     scheduleTeacherIds: extras?.scheduleTeacherIds,
     hasUpcomingSessions: extras?.hasUpcomingSessions,
@@ -1099,6 +1104,7 @@ app.openapi(
         max_students: body.maxStudents ?? 20,
         next_class_id: body.nextClassId ?? null,
         default_fee_template_id: body.defaultFeeTemplateId ?? null,
+        ...(body.isRecommended === undefined ? {} : { is_recommended: body.isRecommended }),
         ...(body.usesContactBook === undefined ? {} : { uses_contact_book: body.usesContactBook }),
         start_date: body.startDate ?? null,
         end_date: body.endDate ?? null,
@@ -1190,6 +1196,7 @@ app.openapi(
     if (body.nextClassId !== undefined) updateData['next_class_id'] = body.nextClassId;
     if (body.isActive !== undefined) updateData['is_active'] = body.isActive;
     if (body.usesContactBook !== undefined) updateData['uses_contact_book'] = body.usesContactBook;
+    if (body.isRecommended !== undefined) updateData['is_recommended'] = body.isRecommended;
     if (body.startDate !== undefined) updateData['start_date'] = body.startDate;
     if (body.endDate !== undefined) updateData['end_date'] = body.endDate;
 

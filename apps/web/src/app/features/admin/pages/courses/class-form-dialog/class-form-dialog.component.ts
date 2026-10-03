@@ -89,6 +89,8 @@ export class ClassFormDialogComponent {
   protected readonly defaultFeeTemplateId = signal<string | null>(this.originalFeeTemplateId);
   private readonly feeTemplates = signal<FeeTemplate[]>([]);
   protected readonly feeOptions = computed(() => feeTemplateOptions(this.feeTemplates()));
+  /** 家長端「推薦加選」（#1118）：目錄排最前、卡片畫推薦標籤 */
+  protected readonly isRecommended = signal(this.cls()?.isRecommended ?? false);
 
   constructor() {
     // 只列使用中的範本 —— 停用的 API 會擋（停用的價目表不再對外報價）
@@ -324,6 +326,7 @@ export class ClassFormDialogComponent {
         startDate: this.startDate() ? format(this.startDate()!, 'yyyy-MM-dd') : null,
         endDate: this.endDate() ? format(this.endDate()!, 'yyyy-MM-dd') : null,
         isActive: form.isActive,
+        isRecommended: this.isRecommended(),
         ...this.feeTemplatePatch(),
       };
       this.classesService.update(this.cls()!.id, updateInput).subscribe({
@@ -347,6 +350,7 @@ export class ClassFormDialogComponent {
         nextClassId: form.nextClassId,
         startDate: this.startDate() ? format(this.startDate()!, 'yyyy-MM-dd') : null,
         endDate: this.endDate() ? format(this.endDate()!, 'yyyy-MM-dd') : null,
+        isRecommended: this.isRecommended(),
         ...this.feeTemplatePatch(),
       };
       this.classesService.create(input).subscribe({
