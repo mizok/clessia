@@ -110,7 +110,8 @@ gate 只是收尾：**禁止家長端的檔案出現 `c.get('supabase')`**。它
   - ⚠️ **寫入面的 `null` 跟讀取面刻意不同**：讀取面 `scope === null` 不加條件（防禦性保留），
     寫入面一律 fail-closed（等同空陣列）。
 - **機構參考資料走 `childDb.orgRef(table)`**：班級目錄、課程不是孩子的資料，不套 scope、只帶 `org_id`。
-  **白名單寫死在型別上**（`'classes' | 'courses'`），只讀。
+  **白名單寫死在型別上**（`'classes' | 'courses' | 'billing_periods'`），只讀。
+  `billing_periods`（#1076）：成績頁的學期篩選＝機構的期，期名與起訖日期不是敏感資料。
 - **名額只回數字**：`childDb.activeEnrollmentCount(classId)` 是 head 查詢，家長只該知道「還有沒有位子」，
   拿不到別的學生的報名列。
 - 業務判斷（額滿、候補）在 server 做，**不信 body 的任何「已額滿」旗標**。

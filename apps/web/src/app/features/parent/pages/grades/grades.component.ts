@@ -11,12 +11,15 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { SelectButtonModule } from 'primeng/selectbutton';
 import { SelectModule } from 'primeng/select';
 
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import { ChildScopeService } from '@core/child-scope.service';
-import { ParentGradesService, type ParentScoreRecord } from '@core/parent-grades.service';
+import {
+  ParentGradesService,
+  type ParentGradePeriod,
+  type ParentScoreRecord,
+} from '@core/parent-grades.service';
 import { isFailingScore } from '@shared/utils/score-threshold.util';
 import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
@@ -24,12 +27,14 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 import { PageBandComponent } from '@shared/components/page-band/page-band.component';
 import { ChildSwitcherComponent } from '../../shared/child-switcher/child-switcher.component';
 import { ChildScopeGateComponent } from '../../shared/child-scope-gate/child-scope-gate.component';
+import { format } from 'date-fns';
 import {
   SCORE_STATUS_LABELS,
-  TIME_RANGE_OPTIONS,
-  filterByTimeRange,
+  defaultPeriodFilter,
+  filterByPeriod,
   groupBySubject,
-  type TimeRange,
+  periodOptions,
+  type PeriodFilter,
 } from './grades.util';
 
 /**
@@ -51,7 +56,6 @@ const PAGE_SIZE = 100;
   imports: [
     FormsModule,
     NgTemplateOutlet,
-    SelectButtonModule,
     SelectModule,
     PageBandComponent,
     ChildSwitcherComponent,
@@ -69,7 +73,6 @@ export class GradesComponent implements OnInit {
   private readonly childScope = inject(ChildScopeService);
   private readonly gradesService = inject(ParentGradesService);
 
-  protected readonly timeRangeOptions = TIME_RANGE_OPTIONS;
   protected readonly statusLabels = SCORE_STATUS_LABELS;
 
   /** 列的內容住在 ng-template 裡（可展開與不可展開兩種外框共用），那裡的 `let-` 變數沒有型別 */
@@ -86,7 +89,11 @@ export class GradesComponent implements OnInit {
   protected readonly truncated = computed(() => this.total() > this.records().length);
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
-  protected readonly timeRange = signal<TimeRange>('all');
+  /** 機構的期（`billing_periods`）＝學期篩選的選項來源（#1076） */
+  protected readonly periods = signal<ParentGradePeriod[]>([]);
+  /** `null`＝使用者還沒選過，第一次拿到期清單時套預設（含今天的期） */
+  protected readonly periodFilter = signal<PeriodFilter | null>(null);
+  protected readonly periodOptions = computed(() => periodOptions(this.periods(), this.records()));
   protected readonly subjectFilter = signal<string | null>(null);
 
   protected readonly subjectOptions = computed(() => {
@@ -103,7 +110,7 @@ export class GradesComponent implements OnInit {
     const bySubject = this.subjectFilter()
       ? this.records().filter((r) => r.subjectName === this.subjectFilter())
       : this.records();
-    return filterByTimeRange(bySubject, this.timeRange(), new Date());
+    return filterByPeriod(bySubject, this.periodFilter() ?? 'all', this.periods());
   });
 
   protected readonly groups = computed(() => groupBySubject(this.filteredRecords()));
@@ -120,8 +127,8 @@ export class GradesComponent implements OnInit {
         // **退回顯示 placeholder「全部科目」**。篩選還在生效，控制項卻長得像沒有篩選，
         // 而空狀態文案跟「這個孩子真的沒有成績」一模一樣 —— 家長讀成後者。
         //
-        // **期間篩選刻意不重設**：四顆鈕恆有一顆是選中的，它顯示得出來、不會騙人，
-        // 所以使用者的選擇留著。會騙人的只有「值還在生效但畫面上消失」的那一個。
+        // **學期篩選刻意不重設**：期是機構的，換孩子還是同一組期，選中的那個顯示得出來、
+        // 不會騙人，所以使用者的選擇留著。會騙人的只有「值還在生效但畫面上消失」的那一個。
         this.subjectFilter.set(null);
         this.load(childId);
       });
@@ -136,8 +143,8 @@ export class GradesComponent implements OnInit {
     this.subjectFilter.set(subject);
   }
 
-  protected onTimeRangeChange(range: TimeRange | null): void {
-    this.timeRange.set(range ?? 'all');
+  protected onPeriodChange(filter: PeriodFilter | null): void {
+    this.periodFilter.set(filter ?? 'all');
   }
 
   /**
@@ -163,6 +170,12 @@ export class GradesComponent implements OnInit {
         this.records.set(res.data);
         this.recentCount.set(res.meta.recentCount);
         this.total.set(res.meta.total);
+        this.periods.set(res.meta.periods);
+        if (this.periodFilter() === null) {
+          this.periodFilter.set(
+            defaultPeriodFilter(res.meta.periods, format(new Date(), 'yyyy-MM-dd')),
+          );
+        }
         this.loading.set(false);
       },
       error: () => {

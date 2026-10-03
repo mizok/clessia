@@ -45,6 +45,14 @@ const ParentScoreRecordSchema = z
   })
   .openapi('ParentScoreRecord');
 
+/**
+ * 機構的期（`billing_periods`）。成績頁的「學期」篩選就是它（#1076，使用者裁：全系統只有一條
+ * 時間軸）。歸屬在前端用 `examDate` 落在 `startDate`～`endDate` 判；期允許重疊。
+ */
+const ParentGradePeriodSchema = z
+  .object({ id: z.string(), name: z.string(), startDate: z.string(), endDate: z.string() })
+  .openapi('ParentGradePeriod');
+
 const ListResponseSchema = z
   .object({
     data: z.array(ParentScoreRecordSchema),
@@ -54,6 +62,8 @@ const ListResponseSchema = z
       pageSize: z.number().int().min(1),
       /** 過去 7 天內新登錄的成績筆數（登錄時間，不是考試日期） */
       recentCount: z.number().int().min(0),
+      /** 機構的期，`startDate` 新到舊 */
+      periods: z.array(ParentGradePeriodSchema),
     }),
   })
   .openapi('ParentScoreListResponse');
@@ -116,22 +126,33 @@ app.openapi(
 
     const recentSince = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
 
-    const [academyResult, schoolResult, academyRecent, schoolRecent] = await Promise.all([
-      academyQuery,
-      schoolQuery,
-      childDb
-        .from('academy_scores', 'student_id')
-        .select('id', { count: 'exact', head: true })
-        .eq('student_id', childId)
-        .gte('created_at', recentSince),
-      childDb
-        .from('school_scores', 'student_id')
-        .select('id', { count: 'exact', head: true })
-        .eq('student_id', childId)
-        .gte('created_at', recentSince),
-    ]);
+    const [academyResult, schoolResult, academyRecent, schoolRecent, periodsResult] =
+      await Promise.all([
+        academyQuery,
+        schoolQuery,
+        childDb
+          .from('academy_scores', 'student_id')
+          .select('id', { count: 'exact', head: true })
+          .eq('student_id', childId)
+          .gte('created_at', recentSince),
+        childDb
+          .from('school_scores', 'student_id')
+          .select('id', { count: 'exact', head: true })
+          .eq('student_id', childId)
+          .gte('created_at', recentSince),
+        childDb
+          .orgRef('billing_periods')
+          .select('id, name, start_date, end_date')
+          .order('start_date', { ascending: false }),
+      ]);
 
-    if (academyResult.error || schoolResult.error || academyRecent.error || schoolRecent.error) {
+    if (
+      academyResult.error ||
+      schoolResult.error ||
+      academyRecent.error ||
+      schoolRecent.error ||
+      periodsResult.error
+    ) {
       return c.json({ error: '讀取成績失敗', code: 'FETCH_GRADES_FAILED' }, 500);
     }
 
@@ -156,6 +177,14 @@ app.openapi(
           page,
           pageSize,
           recentCount: (academyRecent.count ?? 0) + (schoolRecent.count ?? 0),
+          periods: (
+            (periodsResult.data ?? []) as unknown as Array<{
+              id: string;
+              name: string;
+              start_date: string;
+              end_date: string;
+            }>
+          ).map((p) => ({ id: p.id, name: p.name, startDate: p.start_date, endDate: p.end_date })),
         },
       },
       200,

@@ -11,6 +11,7 @@ function chainable(resolve: () => { data: unknown; error: unknown; count?: numbe
     eq: () => obj,
     gte: () => obj,
     lte: () => obj,
+    order: () => obj,
     then: (onfulfilled: (value: unknown) => unknown) =>
       Promise.resolve(resolve()).then(onfulfilled),
   };
@@ -56,8 +57,15 @@ function fakeChildDb(
   schoolRows: unknown[],
   academyRecent: number,
   schoolRecent: number,
+  periods: unknown[] = [],
 ) {
   return {
+    orgRef: (table: string) => ({
+      select: () => {
+        if (table !== 'billing_periods') throw new Error(`unexpected orgRef(${table})`);
+        return chainable(() => ({ data: periods, error: null }));
+      },
+    }),
     from: (table: string) => ({
       select: (_cols: string, opts?: { head?: boolean }) => {
         if (opts?.head) {
@@ -145,5 +153,23 @@ describe('GET /api/me/grades', () => {
     expect(body.data[0]).not.toHaveProperty('studentName');
     // recentCount 是兩張表獨立查詢加總，不靠當頁筆數
     expect(body.meta).toMatchObject({ total: 2, recentCount: 2 });
+  });
+
+  it('meta.periods 回機構的期（billing_periods），前端用它判考試落在哪個期（#1076）', async () => {
+    const res = await appWith(
+      ['parent'],
+      [CHILD_ID],
+      fakeChildDb([ACADEMY_ROW], [], 0, 0, [
+        { id: 'p2', name: '115 上學期', start_date: '2026-08-01', end_date: '2027-01-31' },
+        { id: 'p1', name: '114 下學期', start_date: '2026-02-01', end_date: '2026-07-31' },
+      ]),
+    ).request(`/?childId=${CHILD_ID}`);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { meta: { periods: unknown[] } };
+    expect(body.meta.periods).toEqual([
+      { id: 'p2', name: '115 上學期', startDate: '2026-08-01', endDate: '2027-01-31' },
+      { id: 'p1', name: '114 下學期', startDate: '2026-02-01', endDate: '2026-07-31' },
+    ]);
   });
 });

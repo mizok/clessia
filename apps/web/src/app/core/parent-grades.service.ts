@@ -19,6 +19,15 @@ export interface ParentScoreRecord {
   description: string | null;
 }
 
+/** 機構的期（`billing_periods`）＝成績頁的「學期」篩選（#1076） */
+export interface ParentGradePeriod {
+  id: string;
+  name: string;
+  /** `YYYY-MM-DD`，含頭尾 */
+  startDate: string;
+  endDate: string;
+}
+
 export interface ParentScoreListResponse {
   data: ParentScoreRecord[];
   meta: {
@@ -27,6 +36,8 @@ export interface ParentScoreListResponse {
     pageSize: number;
     /** 過去 7 天內新登錄的成績筆數（登錄時間，不是考試日期） */
     recentCount: number;
+    /** 機構的期，`startDate` 新到舊 */
+    periods: ParentGradePeriod[];
   };
 }
 

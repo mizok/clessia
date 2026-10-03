@@ -1,18 +1,65 @@
-import { subMonths } from 'date-fns';
 import type {
+  ParentGradePeriod,
   ParentScoreRecord,
   ParentScoreStatus,
   ParentScoreType,
 } from '@core/parent-grades.service';
 
-export type TimeRange = 'all' | '1m' | '3m' | '6m';
+/**
+ * 學期篩選的值：`'all'`、`'unassigned'`（沒有任何期涵蓋），或某個期的 id。
+ * 學期＝機構的期（`billing_periods`），使用者裁定全系統只有一條時間軸（#1076）。
+ */
+export type PeriodFilter = string;
 
-export const TIME_RANGE_OPTIONS: Array<{ label: string; value: TimeRange }> = [
-  { label: '近1月', value: '1m' },
-  { label: '近3月', value: '3m' },
-  { label: '近半年', value: '6m' },
-  { label: '全部', value: 'all' },
-];
+export interface PeriodOption {
+  readonly label: string;
+  readonly value: PeriodFilter;
+}
+
+const inPeriod = (examDate: string, period: ParentGradePeriod): boolean => {
+  const day = examDate.slice(0, 10);
+  return period.startDate <= day && day <= period.endDate;
+};
+
+/** 期允許重疊，所以一筆考試可以同時屬於兩個期 —— 兩邊都看得到，不挑「主要的那個」 */
+export function filterByPeriod(
+  records: readonly ParentScoreRecord[],
+  filter: PeriodFilter,
+  periods: readonly ParentGradePeriod[],
+): ParentScoreRecord[] {
+  if (filter === 'all') return [...records];
+  if (filter === 'unassigned') {
+    return records.filter((r) => !periods.some((p) => inPeriod(r.examDate, p)));
+  }
+  const period = periods.find((p) => p.id === filter);
+  return period ? records.filter((r) => inPeriod(r.examDate, period)) : [...records];
+}
+
+/** 全部＋各期＋未分期（只在真的有未分期的考試時出現 —— 空選項只會讓人點進去看到空白） */
+export function periodOptions(
+  periods: readonly ParentGradePeriod[],
+  records: readonly ParentScoreRecord[],
+): PeriodOption[] {
+  const options: PeriodOption[] = [
+    { label: '全部', value: 'all' },
+    ...periods.map((p) => ({ label: p.name, value: p.id })),
+  ];
+  if (records.some((r) => !periods.some((p) => inPeriod(r.examDate, p)))) {
+    options.push({ label: '未分期', value: 'unassigned' });
+  }
+  return options;
+}
+
+/** 預設＝含今天的期；重疊時取起始日最晚的（新的那期）；沒有期涵蓋今天 → 全部 */
+export function defaultPeriodFilter(
+  periods: readonly ParentGradePeriod[],
+  today: string,
+): PeriodFilter {
+  const current = periods
+    .filter((p) => inPeriod(today, p))
+    .sort((a, b) => (a.startDate < b.startDate ? 1 : -1));
+  return current[0]?.id ?? 'all';
+}
 
 export const SCORE_STATUS_LABELS: Record<ParentScoreStatus, string> = {
   scored: '已登錄',
@@ -24,19 +71,6 @@ export const SCORE_TYPE_LABELS: Record<ParentScoreType, string> = {
   academy: '補習班',
   school: '學校考試',
 };
-
-/** 時間範圍篩選——照抄 `student-score-detail-dialog` 的既有 TIME_RANGE_OPTIONS pattern，
- * 取代規格原本要的「學期」（那是計費期間的概念，跟學期是兩件事，不該混用） */
-export function filterByTimeRange(
-  records: readonly ParentScoreRecord[],
-  range: TimeRange,
-  now: Date,
-): ParentScoreRecord[] {
-  if (range === 'all') return [...records];
-  const months = range === '1m' ? 1 : range === '3m' ? 3 : 6;
-  const cutoff = subMonths(now, months);
-  return records.filter((record) => new Date(record.examDate) >= cutoff);
-}
 
 export interface SubjectGroup {
   readonly subjectName: string;
