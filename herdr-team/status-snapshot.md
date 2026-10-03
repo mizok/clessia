@@ -22,12 +22,12 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-03 12:2x 第五次部署，labor-reviewer-20261001-2204）
+## 🚀 線上是哪一版（2026-10-03 15:3x 第六次部署，labor-reviewer-20261001-2204）
 
-**截線 `6103d4d0`**（#1148；`verify` 與 `migrate.yml` 的 `remote`／`plan` 皆 success、apply skipped＝無待套）：web `main-BTV4Z3GW.js`（有重發，本席 `wrangler pages deploy`）、api `40e8bfc3-39d1-4c37-a27e-8bc2a4f1fac8`（使用者親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。順序：api 先、web 後。
-含：api #1080／#1094／#1102／#1096／#1105／#1132／#1136／#1137（授權範圍收緊、掃碼依模式、重掃不覆寫、出勤模式分校層級）；web T4 #1069／#1078／#1089／#1091／#1093／#1096／#1080／#1147／#1148。
-**正式 DB**：`20261003032358`（#1132，campuses.attendance_mode）已由 `migrate.yml` run `37094247171` 套上（使用者 Approve）；**之後 `migrate @ 6103d4d0` 的 plan 乾淨**（apply skipped）。**#1141（`20261003033635_enrollment_requests.sql`）尚未合**，等本次部署完才合、合後再 Approve 一次。
-**部署驗證**：web 線上 `main-BTV4Z3GW.js`＝本機 build（`dist` 12:09 新產物、build exit=0）；內容探針 `page-open`（#1147 新元件）線上同名檔 ×3（部署前 0）、負控 chunk 回 `text/html`；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html；`openapi.json` 127 條路徑。**限度**：api 側這批是行為收緊與既有端點欄位，無新路由，openapi 證明不了新程式碼上線，只證明服務正常、版本已換；要真證明得帶身分打被擋的請求。
+**截線 `9ae774ea`**（#1159；`verify` success）：web `main-WEOVGVCN.js`（有重發，本席 `wrangler pages deploy`；本機 `dist` 15:25 新產物、`npm ci` 後 build exit=0）、api `06175109-23fa-44eb-816b-61930588887d`（使用者親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。順序：api 先、web 後。
+含：api #1141／#1143／#1145／#1150／#1152／#1168／#1172／#1177（家長端報名／試聽申請、孩子的課堂、課程目錄、請假綁堂次、成績期篩選）；web S3 殼 #1154、#1155、#1159（儀表板 A6）、#1168。
+**⓪**：窗口 `6103d4d0..9ae774ea` 的 migration（#1141 `20261003033635`、#1143 `20261003034741`、#1150 `20261003041305`）皆有使用者 Approve 的 `migrate.yml` apply 綠 run（`37098894493`／`37100682363`／`37104999847`）。**#1180（`20261003071532_payment_info.sql`，merge `2360b055`）在截線之後才合**——不在這次部署內；其 migration 等 Approve、api 部分屬第七次。
+**部署驗證**：web 線上 `main-WEOVGVCN.js`＝本機 build（先抓到舊 hash 是 CDN 快取，換 cache-buster 與 pages 預覽網址後一致）；本機 167 個 js 檔線上缺 0 個（部署前 61）、負控 chunk 回 `text/html`；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html；`openapi.json` 132 條路徑，新端點 `/api/me/catalog`／`/me/sessions`／`/me/enrollment-requests`／`/me/trial-requests` 皆在（用 paths 證存在，不用 401）。**限度**：授權收緊類改動無新路由、openapi 證明不了新程式碼上線。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 📋 等使用者
