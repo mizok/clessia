@@ -832,6 +832,7 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 
 | 部署時間(台北) | 截線 SHA | web bundle | api version id | 正式 DB 套到 | 部署者 |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-04 06:3x | `1fa88495` | `main-2WJRY3S4.js`(有重發) | `5210641e` | `20261003122743`／`20261003124241`(#1212／#1219)皆 apply 綠已套;窗口內無其他 migration | labor-reviewer(api 由使用者親跑、web 由本席) |
 | 2026-10-03 20:4x | `d55aa967` | `main-AZKSKONB.js`(有重發) | `7ceb9391` | 窗口 3a3e70c9..d55aa967 無 migration | labor-reviewer(api 由使用者親跑、web 由本席) |
 | 2026-10-03 20:2x | `3a3e70c9` | `main-C6R5BOGL.js`(有重發) | `ea6338e4` | `20261003073117`(#1183 kiosk)已由 migrate.yml run 37121615717 apply 綠套上;#1188／#1197 無 migration | labor-reviewer(api 由使用者親跑、web 由本席) |
 | 2026-10-03 19:4x | `3590b5f5` | `main-GXLILR73.js`(有重發) | `7ace638f` | `20261003071532`(#1180)已由 migrate.yml run 37106717548 apply 綠套上;窗口內無其他 migration | labor-reviewer(api 由使用者親跑、web 由本席) |
