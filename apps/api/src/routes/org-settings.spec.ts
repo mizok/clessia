@@ -110,6 +110,18 @@ describe('toOrgSettingsResponse', () => {
       invoiceDueDays: 14,
       mealDefaultPrice: 0,
       prorationBasis: 'days',
+      // #1073：還沒設定帳戶資訊 → null（家長頁退回「請洽行政人員」）
+      paymentInfo: null,
+    });
+  });
+
+  it('帳戶資訊照回；空字串視同未設定（#1073）', () => {
+    const base = { id: 'org-1', name: '測試', attendance_mode: 'per_session' };
+    expect(toOrgSettingsResponse({ ...base, payment_info: '台銀 004\n帳號 123' })).toMatchObject({
+      paymentInfo: '台銀 004\n帳號 123',
+    });
+    expect(toOrgSettingsResponse({ ...base, payment_info: '' })).toMatchObject({
+      paymentInfo: null,
     });
   });
 
@@ -139,6 +151,7 @@ describe('toOrgSettingsResponse', () => {
     expect(result).not.toHaveProperty('mealDefaultPrice');
     expect(result).not.toHaveProperty('invoiceDueDays');
     expect(result).not.toHaveProperty('prorationBasis');
+    expect(result).not.toHaveProperty('paymentInfo');
     // 老師真正需要的那幾個還在
     expect(result).toMatchObject({
       attendanceMode: 'per_session',
@@ -163,6 +176,12 @@ describe('touchesFinanceSettings', () => {
 
   it('改比例分攤基準算', () => {
     expect(touchesFinanceSettings({ prorationBasis: 'sessions' })).toBe(true);
+  });
+
+  // #1073：改帳戶資訊＝改家長匯款的去向，是金額路徑的門
+  it('改帳戶資訊算（含清空成 null）', () => {
+    expect(touchesFinanceSettings({ paymentInfo: '台銀 004' })).toBe(true);
+    expect(touchesFinanceSettings({ paymentInfo: null })).toBe(true);
   });
 
   // 0 是合法的值，不能被 `!body[key]` 那種寫法漏掉

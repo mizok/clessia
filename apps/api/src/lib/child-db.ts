@@ -157,11 +157,27 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
      * 傳不進來（型別錯誤）。
      * `enrollments` 不在這裡：家長只該知道「還有沒有位子」，見 `activeEnrollmentCount`。
      */
-    orgRef(table: 'classes' | 'courses' | 'billing_periods') {
+    orgRef(table: 'classes' | 'courses' | 'billing_periods' | 'campuses') {
       return {
         select(columns: string) {
           return supabase.from(table).select(columns).eq('org_id', orgId);
         },
+      };
+    },
+
+    /**
+     * 機構的帳戶資訊（#1073，家長待付款要看）。`organizations` 沒有 `org_id` 欄，走不了 `orgRef`；
+     * **只回這一欄** —— 不把整份機構設定（財務設定等）開給家長。
+     */
+    async orgPaymentInfo(): Promise<{ paymentInfo: string | null; error: unknown }> {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('payment_info')
+        .eq('id', orgId)
+        .maybeSingle();
+      return {
+        paymentInfo: (data as { payment_info?: string | null } | null)?.payment_info ?? null,
+        error,
       };
     },
 

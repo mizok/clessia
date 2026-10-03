@@ -4,6 +4,7 @@ import { SelectButtonModule } from 'primeng/selectbutton';
 import { ButtonModule } from 'primeng/button';
 import { ToastModule } from 'primeng/toast';
 import { SkeletonModule } from 'primeng/skeleton';
+import { TextareaModule } from 'primeng/textarea';
 import { MessageService } from 'primeng/api';
 import { RouteObj } from '@core/smart-enums/routes-catalog';
 import {
@@ -23,6 +24,7 @@ import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.
     ButtonModule,
     ToastModule,
     SkeletonModule,
+    TextareaModule,
     LoadFailedComponent,
   ],
   providers: [MessageService],
@@ -49,6 +51,10 @@ export class SettingsPage implements OnInit {
   protected attendanceResponsibleValue: AttendanceResponsible = 'admin';
   protected readonly savingResponsible = signal(false);
 
+  /** #1073：帳戶資訊。只在回應帶了這個 key（有財務權限）時畫，見模板 */
+  protected paymentInfoValue = '';
+  protected readonly savingPaymentInfo = signal(false);
+
   protected readonly attendanceResponsibleOptions = [
     { label: '行政負責', value: 'admin' },
     { label: '老師負責', value: 'teacher' },
@@ -71,6 +77,7 @@ export class SettingsPage implements OnInit {
         this.settings.set(s);
         this.attendanceModeValue = s.attendanceMode;
         this.attendanceResponsibleValue = s.attendanceResponsible;
+        this.paymentInfoValue = s.paymentInfo ?? '';
         this.loading.set(false);
       },
       // **不發 toast** —— 主體現在有常駐的失敗狀態；會消失的 toast + 留著的錯誤畫面
@@ -129,5 +136,30 @@ export class SettingsPage implements OnInit {
           });
         },
       });
+  }
+
+  /** #1073：家長待付款頁看到的帳戶資訊（機構預設；分校可在分校設定覆寫）。清空＝未設定 */
+  protected savePaymentInfo(): void {
+    this.savingPaymentInfo.set(true);
+    this.orgSettingsService.updateSettings({ paymentInfo: this.paymentInfoValue }).subscribe({
+      next: (s) => {
+        this.settings.set(s);
+        this.paymentInfoValue = s.paymentInfo ?? '';
+        this.savingPaymentInfo.set(false);
+        this.messageService.add({
+          severity: 'success',
+          summary: '已儲存',
+          detail: '帳戶資訊已更新',
+        });
+      },
+      error: () => {
+        this.savingPaymentInfo.set(false);
+        this.messageService.add({
+          severity: 'error',
+          summary: '錯誤',
+          detail: '儲存失敗，請稍後再試',
+        });
+      },
+    });
   }
 }

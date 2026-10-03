@@ -4,6 +4,8 @@ import { isChildAllowed } from '../../lib/child-scope';
 import { INVOICE_SELECT, toInvoiceResponse, type InvoiceResponse } from '../../lib/invoice-query';
 import { isOpenInvoice } from '../../lib/invoice-status';
 import { DbUuidSchema } from '../../lib/validation';
+import { paymentInfoEntries } from '../../lib/payment-info';
+import type { ChildDb } from '../../lib/child-db';
 
 /**
  * 家長端的帳單列表。複用 `routes/invoices.ts`（admin）的 select 與 mapper
@@ -58,6 +60,11 @@ const ListResponseSchema = z
       pageSize: z.number().int().min(1),
       /** 這個孩子全部未繳清帳單的 (total − netPaid) 加總，不分頁截斷 */
       totalDue: z.number(),
+      /**
+       * 補習班帳戶資訊（#1073）：這個孩子**在籍**分校的生效值（分校覆寫 → 機構預設），以內容去重。
+       * 多筆時標分校名。全都沒設定 → `[]`。
+       */
+      paymentInfo: z.array(z.object({ campusName: z.string().nullable(), text: z.string() })),
     }),
   })
   .openapi('ParentInvoiceListResponse');
@@ -94,6 +101,55 @@ function toParentInvoice(invoice: InvoiceResponse) {
       receiptNo: payment.receiptNo,
     })),
     createdAt: invoice.createdAt,
+  };
+}
+
+/** 在籍＝佔名額的那兩種狀態（跟 `enrollments/validation.ts` 的額滿判斷同一組） */
+const ENROLLED_STATUSES = new Set(['active', 'pending_payment']);
+
+/** 孩子在籍的班 → 分校 → 生效的帳戶資訊（#1073）。讀法全走 childDb，不碰原始 supabase */
+async function readPaymentInfo(childDb: ChildDb, childId: string) {
+  const enrollments = await childDb
+    .from('enrollments', 'student_id')
+    .pluck('class_id, status', 'class_id', childId);
+  const classIds = [
+    ...new Set(
+      enrollments.rows
+        .filter((r) => ENROLLED_STATUSES.has(r['status'] as string))
+        .map((r) => r['class_id'] as string),
+    ),
+  ];
+
+  const classes =
+    classIds.length === 0
+      ? { data: [], error: null }
+      : await childDb.orgRef('classes').select('id, campus_id').in('id', classIds);
+  const campusIds = [
+    ...new Set(
+      ((classes.data ?? []) as unknown as Array<{ campus_id: string | null }>)
+        .map((r) => r.campus_id)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+
+  const [campuses, org] = await Promise.all([
+    campusIds.length === 0
+      ? Promise.resolve({ data: [], error: null })
+      : childDb.orgRef('campuses').select('id, name, payment_info').in('id', campusIds),
+    childDb.orgPaymentInfo(),
+  ]);
+
+  const error = enrollments.error ?? classes.error ?? campuses.error ?? org.error;
+  const campusRows = (campuses.data ?? []) as unknown as Array<{
+    name: string;
+    payment_info: string | null;
+  }>;
+  return {
+    error,
+    entries: paymentInfoEntries(
+      campusRows.map((r) => ({ name: r.name, paymentInfo: r.payment_info })),
+      org.paymentInfo,
+    ),
   };
 }
 
@@ -138,7 +194,7 @@ app.openapi(
 
     // `totalDue` 是**全部**帳單（不分頁）算出來的 —— 分頁截斷不能拿來算總額，
     // 跟出缺席／成績的 meta 同一個判準，所以另開一支不分頁的查詢。
-    const [pageResult, allResult] = await Promise.all([
+    const [pageResult, allResult, paymentInfo] = await Promise.all([
       childDb
         .from('invoices', 'student_id')
         .select(INVOICE_SELECT, { count: 'exact' })
@@ -146,9 +202,10 @@ app.openapi(
         .range(from, from + pageSize - 1)
         .order('issued_at', { ascending: false }),
       childDb.from('invoices', 'student_id').select(INVOICE_SELECT).eq('student_id', childId),
+      readPaymentInfo(childDb, childId),
     ]);
 
-    if (pageResult.error || allResult.error) {
+    if (pageResult.error || allResult.error || paymentInfo.error) {
       return c.json({ error: '讀取帳單失敗', code: 'FETCH_BILLING_FAILED' }, 500);
     }
 
@@ -170,6 +227,7 @@ app.openapi(
           page,
           pageSize,
           totalDue,
+          paymentInfo: paymentInfo.entries,
         },
       },
       200,

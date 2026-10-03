@@ -330,6 +330,81 @@ describe('PUT /api/campuses/:id —— 出勤模式（#1112）', () => {
 });
 
 /**
+ * #1073：分校的帳戶資訊覆寫。null／空白 = 沿用機構預設。
+ * 門檻是 `manage_finance`（跟機構預設同一個）—— 改帳號等於改家長匯款的去向。
+ */
+describe('PUT /api/campuses/:id —— 帳戶資訊（#1073）', () => {
+  const ORG = '00000000-0000-0000-0000-0000000000aa';
+  const ID = '00000000-0000-0000-0000-0000000000c1';
+
+  async function put(body: unknown, permissions: string[]) {
+    const db = createMultiOrgDb({
+      campuses: [
+        {
+          id: ID,
+          org_id: ORG,
+          name: '中正',
+          address: null,
+          phone: null,
+          is_active: true,
+          attendance_mode: null,
+          payment_info: null,
+          created_at: '2026-01-01',
+          updated_at: '2026-01-01',
+        },
+      ],
+    });
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', db.client);
+      set('orgId', ORG);
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('permissions', permissions);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', campusesRoute.default as unknown as Hono);
+    const res = await app.request(`/${ID}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+      headers: { 'content-type': 'application/json' },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return {
+      status: res.status,
+      body: (await res.json()) as any,
+      stored: db.rows('campuses')[0]?.['payment_info'],
+    };
+  }
+
+  it('有 manage_finance：寫得進去，回應帶 paymentInfo', async () => {
+    const { status, body, stored } = await put({ paymentInfo: '中正專戶\n帳號 999' }, [
+      'manage_finance',
+    ]);
+
+    expect(status).toBe(200);
+    expect(stored).toBe('中正專戶\n帳號 999');
+    expect(body.data.paymentInfo).toBe('中正專戶\n帳號 999');
+  });
+
+  it('清成空白 = 改回沿用機構預設（存 null）', async () => {
+    const { status, stored } = await put({ paymentInfo: '   ' }, ['manage_finance']);
+
+    expect(status).toBe(200);
+    expect(stored).toBeNull();
+  });
+
+  it('只有 manage_org_settings（改得了出勤模式）也不能改帳戶資訊：403，沒寫', async () => {
+    const { status, stored } = await put({ paymentInfo: '詐騙帳戶' }, ['manage_org_settings']);
+
+    expect(status).toBe(403);
+    expect(stored).toBeNull();
+  });
+});
+
+/**
  * #1133（c1）：`GET /{id}` 原本 `select('*').eq('id', id)`，沒有 org 條件 ——
  * 任一 org 的管理員拿到 id 就讀得到別 org 的分校。同檔 PUT／DELETE 早就走 `findInOrg`。
  * 順帶：受分校限制的管理員只能改／刪自己管的分校（清單已照範圍縮，寫得到的 = 看得到的）。

@@ -47,6 +47,11 @@ export interface ParentInvoiceListResponse {
     pageSize: number;
     /** 這個孩子全部未繳清帳單的 (total − netPaid) 加總，不分頁截斷 */
     totalDue: number;
+    /**
+     * 補習班帳戶資訊（#1073）：這個孩子在籍分校的生效值，以內容去重。
+     * 多筆時 `campusName` 標分校；全都沒設定 → `[]`。
+     */
+    paymentInfo: Array<{ campusName: string | null; text: string }>;
   };
 }
 

@@ -49,7 +49,7 @@ describe('PaymentsPage', () => {
   function createComponent(
     response: ParentInvoiceListResponse | 'error' = {
       data: [],
-      meta: { total: 0, page: 1, pageSize: 20, totalDue: 0 },
+      meta: { total: 0, page: 1, pageSize: 20, totalDue: 0, paymentInfo: [] },
     },
   ) {
     activeChildId = signal<string | null>(null);
@@ -106,7 +106,7 @@ describe('PaymentsPage', () => {
   it('band anchor 直接用 meta.totalDue，不用前端加總（分頁截斷同型坑）', () => {
     createComponent({
       data: [invoice()],
-      meta: { total: 1, page: 1, pageSize: 20, totalDue: 12345 },
+      meta: { total: 1, page: 1, pageSize: 20, totalDue: 12345, paymentInfo: [] },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -123,7 +123,7 @@ describe('PaymentsPage', () => {
         invoice({ id: 'b', status: 'partial' }),
         invoice({ id: 'c', status: 'paid', netPaid: 5000 }),
       ],
-      meta: { total: 3, page: 1, pageSize: 20, totalDue: 5000 },
+      meta: { total: 3, page: 1, pageSize: 20, totalDue: 5000, paymentInfo: [] },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -143,7 +143,7 @@ describe('PaymentsPage', () => {
         invoice({ id: 'a', status: 'unpaid' }),
         invoice({ id: 'v0000000-void', status: 'void', voidedAt: '2026-08-20T00:00:00Z' }),
       ],
-      meta: { total: 2, page: 1, pageSize: 20, totalDue: 5000 },
+      meta: { total: 2, page: 1, pageSize: 20, totalDue: 5000, paymentInfo: [] },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -169,7 +169,7 @@ describe('PaymentsPage', () => {
   it('點一筆帳單開詳情抽屜，顯示明細但不顯示內部備註或經手人', () => {
     createComponent({
       data: [invoice()],
-      meta: { total: 1, page: 1, pageSize: 20, totalDue: 5000 },
+      meta: { total: 1, page: 1, pageSize: 20, totalDue: 5000, paymentInfo: [] },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();
@@ -183,6 +183,48 @@ describe('PaymentsPage', () => {
     expect(detail?.textContent).toContain('5,000');
     // API allowlist 本來就不回 note/recordedBy，這裡確認畫面沒有意外自己補一個
     expect(detail?.textContent).not.toContain('recordedBy');
+  });
+
+  // #1073：待付款列補習班帳戶資訊（孩子在籍分校的生效值）；全都沒設定才退回「請洽行政人員」
+  it('待付款詳情列帳戶資訊；跨分校多筆時標分校名', () => {
+    createComponent({
+      data: [invoice()],
+      meta: {
+        total: 1,
+        page: 1,
+        pageSize: 20,
+        totalDue: 5000,
+        paymentInfo: [
+          { campusName: '中正', text: '台銀 004\n帳號 111' },
+          { campusName: '信義', text: '郵局 700' },
+        ],
+      },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.payments__row') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const detail = document.body.querySelector('.payments__detail');
+    expect(detail?.textContent).toContain('台銀 004');
+    expect(detail?.textContent).toContain('中正');
+    expect(detail?.textContent).toContain('郵局 700');
+    expect(detail?.textContent).not.toContain('帳戶資訊請洽補習班行政人員');
+  });
+
+  it('沒有任何帳戶資訊時照舊請家長洽行政人員', () => {
+    createComponent({
+      data: [invoice()],
+      meta: { total: 1, page: 1, pageSize: 20, totalDue: 5000, paymentInfo: [] },
+    });
+    activeChildId.set('child-1');
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.payments__row') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(document.body.querySelector('.payments__detail')?.textContent).toContain(
+      '帳戶資訊請洽補習班行政人員',
+    );
   });
 
   it('已付款的帳單顯示付款記錄而不是確認人', () => {
@@ -203,7 +245,7 @@ describe('PaymentsPage', () => {
           ],
         }),
       ],
-      meta: { total: 1, page: 1, pageSize: 20, totalDue: 0 },
+      meta: { total: 1, page: 1, pageSize: 20, totalDue: 0, paymentInfo: [] },
     });
     activeChildId.set('child-1');
     fixture.detectChanges();

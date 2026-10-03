@@ -16,7 +16,6 @@ describe('SessionAdvancedFiltersDialogComponent', () => {
   let fixture: ComponentFixture<SessionAdvancedFiltersDialogComponent>;
   let dialogData: SessionAdvancedFiltersDialogData;
 
-
   const recreate = async () => {
     fixture = TestBed.createComponent(SessionAdvancedFiltersDialogComponent);
     component = fixture.componentInstance;
@@ -152,7 +151,10 @@ describe('SessionAdvancedFiltersDialogComponent', () => {
    * 不是「跟預設一不一樣」——三種狀態全選才是「沒有在濾」。
    */
   it('預設狀態正在濾掉已停課，所以要算成一個生效中的條件', async () => {
-    dialogData = buildDialogData({ mode: 'sessions', selectedStatuses: ['scheduled', 'completed'] });
+    dialogData = buildDialogData({
+      mode: 'sessions',
+      selectedStatuses: ['scheduled', 'completed'],
+    });
     await recreate();
 
     expect(fixture.nativeElement.textContent).toContain('1 個進階條件');
@@ -164,7 +166,10 @@ describe('SessionAdvancedFiltersDialogComponent', () => {
    * 這一條是那個 bug 的直接對照組：**同樣長度、不同內容**。
    */
   it('長度與預設相同但內容不同的狀態組合也要算成條件', async () => {
-    dialogData = buildDialogData({ mode: 'sessions', selectedStatuses: ['scheduled', 'cancelled'] });
+    dialogData = buildDialogData({
+      mode: 'sessions',
+      selectedStatuses: ['scheduled', 'cancelled'],
+    });
     await recreate();
 
     expect(fixture.nativeElement.textContent).toContain('1 個進階條件');
@@ -237,6 +242,7 @@ function buildCampus(id: string, name: string): Campus {
     address: null,
     phone: null,
     isActive: true,
+    paymentInfo: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };

@@ -33,6 +33,11 @@ export interface OrgSettings {
   mealDefaultPrice?: number;
   /** 插班／退班比例試算的基準，預設 days */
   prorationBasis?: 'days' | 'sessions';
+  /**
+   * 補習班帳戶資訊的機構預設（#1073，多行文字），家長待付款頁會看到。`null` = 還沒設定。
+   * 也是財務設定：沒有 `manage_finance` 時這個 key 不存在。
+   */
+  paymentInfo?: string | null;
 }
 
 export interface UpdateOrgSettingsInput {
@@ -42,6 +47,8 @@ export interface UpdateOrgSettingsInput {
   invoiceDueDays?: number;
   mealDefaultPrice?: number;
   prorationBasis?: 'days' | 'sessions';
+  /** 空白存成 null（= 未設定）。要 `manage_finance` */
+  paymentInfo?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

@@ -3,7 +3,7 @@ title: 系統設定
 summary: 全域系統參數設定。
 category: spec
 status: active
-updated: 2026-02-13
+updated: 2026-10-03
 tags: [specs, admin, system, settings]
 ---
 
@@ -32,6 +32,9 @@ tags: [specs, admin, system, settings]
 | -------------- | ---------------------- | ------ |
 | 預設繳費期限   | 建立繳費單時的預設天數 | 7 天   |
 | 繳費到期前提醒 | 期限前幾天提醒家長     | 3 天   |
+
+- **家長付款帳戶資訊**（#1073）：多行文字，家長待付款帳單看得到；分校可在分校設定覆寫。
+  只有「財務管理」（`manage_finance`）看得到、改得了。見 [[architecture/payment-info]]。
 
 ### 續課設定
 

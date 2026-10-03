@@ -65,5 +65,37 @@
         />
       </div>
     </div>
+
+    <!--
+      #1073：財務設定 —— 沒有 manage_finance 時 API 回應裡沒有這個 key，整段不畫
+      （畫一個讀不到值的空欄位，按儲存就會把機構的帳戶清掉）。
+    -->
+    @if (settings()?.paymentInfo !== undefined) {
+      <div class="settings-page__section">
+        <h3 id="settings-payment-info-title" class="settings-page__section-title">
+          家長付款帳戶資訊
+        </h3>
+        <p class="settings-page__section-desc">
+          家長在「繳費」頁看到待付款帳單時會看到這段文字（例如銀行代碼、帳號、戶名、匯款後怎麼通知）。
+          分校可以在分校設定另外填寫，沒填的分校沿用這裡。留白＝家長看到「請洽補習班行政人員」。
+        </p>
+        <textarea
+          pTextarea
+          class="settings-page__textarea"
+          rows="5"
+          maxlength="1000"
+          aria-labelledby="settings-payment-info-title"
+          [(ngModel)]="paymentInfoValue"
+        ></textarea>
+        <div class="settings-page__actions">
+          <p-button
+            label="儲存"
+            icon="pi pi-check"
+            [loading]="savingPaymentInfo()"
+            (onClick)="savePaymentInfo()"
+          />
+        </div>
+      </div>
+    }
   }
 </div>
