@@ -19,6 +19,7 @@ import { AcademyExamsService } from '@core/academy-exams.service';
 import { AttendanceService, type EventSessionSummary } from '@core/attendance.service';
 import { DayTimelineComponent } from '@shared/components/day-timeline/day-timeline.component';
 import { AuthService } from '@core/auth.service';
+import { BillingPeriodsService, type UpcomingUnbilledPeriod } from '@core/billing-periods.service';
 import { EnrollmentsService } from '@core/enrollments.service';
 import { LeaveService, type LeaveRequest } from '@core/leave.service';
 import type { AttendanceMode } from '@core/org-settings.service';
@@ -133,6 +134,7 @@ export class DashboardComponent {
   private readonly schoolExamsService = inject(SchoolExamsService);
   private readonly studentsService = inject(StudentsService);
   private readonly enrollmentsService = inject(EnrollmentsService);
+  private readonly billingPeriodsService = inject(BillingPeriodsService);
   private readonly workbenchService = inject(WorkbenchService);
   private readonly dailyCheckinsService = inject(DailyCheckinsService);
   private readonly auth = inject(AuthService);
@@ -437,6 +439,13 @@ export class DashboardComponent {
   private readonly untakenCount = signal<CardValue>(null);
   private readonly todayLeaves = signal<LeaveRequest[] | 'error' | null>(null);
   private readonly gradesTodo = signal<CardValue>(null);
+  /**
+   * 待開單（#1293）：14 天內開始、有期繳生卻還沒開單的期。系統沒有排程提醒，行政只看得到這裡。
+   * 只有 `manage_finance` 的人會載入（開單是財務動作，端點也掛這個權限）。
+   */
+  private readonly unbilledPeriods = signal<readonly UpcomingUnbilledPeriod[] | 'error' | null>(
+    null,
+  );
   private readonly activeStudents = signal<CardValue>(null);
   private readonly enrollmentChanges = signal<CardValue>(null);
   /** `null` 代表讀不到機構設定 */
@@ -540,6 +549,23 @@ export class DashboardComponent {
       },
     );
 
+    // 沒有待開的期就不出現（不是顯示 0）—— 一學期才一次的事，平常不該佔一格
+    const unbilled = this.unbilledPeriods();
+    if (unbilled === FAILED || (unbilled && unbilled.length > 0)) {
+      const first = unbilled === FAILED ? null : unbilled[0];
+      cards.push({
+        kind: 'todo',
+        label: '待開單',
+        value: unbilled === FAILED ? FAILED : unbilled.length,
+        sub: first ? `${first.name} ${formatMonthDay(first.startDate)} 開始` : undefined,
+        icon: 'pi-receipt',
+        routerLink: RoutesCatalog.ADMIN_MEALS.absolutePath,
+        // 帶去開單對話框、直接選好那一期 —— 卡片說的那一期就是點進去開的那一期（P1-6）
+        queryParams: first ? { billingRun: 'period', periodId: first.periodId } : undefined,
+        accent: true,
+      });
+    }
+
     if (this.auth.hasPermission('view_reports')) {
       cards.push(
         {
@@ -642,6 +668,12 @@ export class DashboardComponent {
         this.gradesTodo.set(res === FAILED ? FAILED : res[0].count + res[1].count),
       );
 
+    if (this.auth.hasPermission('manage_finance')) {
+      failSoft(this.billingPeriodsService.upcomingUnbilled())
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((res) => this.unbilledPeriods.set(res === FAILED ? FAILED : res.data));
+    }
+
     // ③ 現況欄：背景脈絡，最後填也不影響使用者在做的事
     this.loadTodayLeaves();
 
@@ -733,4 +765,10 @@ export class DashboardComponent {
   protected isTodo(session: EventSessionSummary): boolean {
     return session.status !== 'cancelled' && !session.takenAt;
   }
+}
+
+/** `2026-10-15` → `10 月 15 日` */
+function formatMonthDay(date: string): string {
+  const [, month, day] = date.split('-');
+  return `${Number(month)} 月 ${Number(day)} 日`;
 }

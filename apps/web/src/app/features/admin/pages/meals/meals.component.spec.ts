@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
+import { DialogService } from 'primeng/dynamicdialog';
 
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { MealsService, type MealBatchRow, type MealRosterRow } from '@core/meals.service';
@@ -487,6 +488,31 @@ describe('MealsComponent', () => {
       const text = emptyStateText();
       expect(text).toContain('這天沒有候選名單');
       expect(text).toContain('候選名單來自當天有課的班級');
+    });
+  });
+
+  // #1293：儀表板「待開單」卡片帶 ?billingRun=period&periodId=… 過來 —— 一進頁就開 dialog、選好那一期
+  describe('從待開單卡片進來', () => {
+    async function create(inputs: Record<string, string | undefined>) {
+      const f = TestBed.createComponent(MealsComponent);
+      // DialogService 掛在元件層級（providers），要從元件的 injector 拿、在 ngOnInit 之前 spy
+      const dialog = f.debugElement.injector.get(DialogService);
+      const open = vi.spyOn(dialog, 'open').mockReturnValue({ onClose: of(false) } as never);
+      f.componentRef.setInput('page', { label: '餐費管理' });
+      for (const [key, value] of Object.entries(inputs)) f.componentRef.setInput(key, value);
+      await f.whenStable();
+      return open;
+    }
+
+    it('billingRun=period → 開單 dialog 帶 { mode: period, periodId }', async () => {
+      const open = await create({ billingRun: 'period', periodId: 'p-1' });
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(open.mock.calls[0][1]).toMatchObject({ data: { mode: 'period', periodId: 'p-1' } });
+    });
+
+    it('沒帶 billingRun → 不自動開', async () => {
+      const open = await create({});
+      expect(open).not.toHaveBeenCalled();
     });
   });
 });

@@ -21,6 +21,16 @@ export interface BillingPeriod {
   updatedAt: string;
 }
 
+/** 儀表板「待開單」（#1293）：14 天內開始、有期繳生卻還沒開單的期 */
+export interface UpcomingUnbilledPeriod {
+  periodId: string;
+  name: string;
+  /** YYYY-MM-DD */
+  startDate: string;
+  daysUntil: number;
+  pendingEnrollmentCount: number;
+}
+
 export interface CreateBillingPeriodInput {
   name: string;
   startDate: string;
@@ -40,6 +50,10 @@ export class BillingPeriodsService {
 
   list(): Observable<{ data: BillingPeriod[] }> {
     return this.http.get<{ data: BillingPeriod[] }>(this.endpoint);
+  }
+
+  upcomingUnbilled(): Observable<{ data: UpcomingUnbilledPeriod[] }> {
+    return this.http.get<{ data: UpcomingUnbilledPeriod[] }>(`${this.endpoint}/upcoming-unbilled`);
   }
 
   create(input: CreateBillingPeriodInput): Observable<{ data: BillingPeriod }> {

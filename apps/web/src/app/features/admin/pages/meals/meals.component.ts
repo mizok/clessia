@@ -34,7 +34,10 @@ import type {
   ResponsiveTablePaginationConfig,
 } from '@shared/components/responsive-table/responsive-table.models';
 
-import { BillingRunDialogComponent } from './billing-run-dialog/billing-run-dialog.component';
+import {
+  BillingRunDialogComponent,
+  type BillingRunDialogData,
+} from './billing-run-dialog/billing-run-dialog.component';
 import { draftTotals, draftToBatchRows, rosterToDraft, type MealDraftRow } from './meals.util';
 import {
   StatusDotComponent,
@@ -94,6 +97,12 @@ const RANGE_PAGE_SIZE = 50;
 })
 export class MealsComponent implements OnInit {
   readonly page = input.required<RouteObj>();
+  /**
+   * 儀表板「待開單」卡片帶過來的（#1293）：`?billingRun=period&periodId=…` 一進頁就打開開單 dialog、
+   * 選好那一期 —— 卡片說的那一期就是點進去開的那一期（admin-todo-alerts P1-6）
+   */
+  readonly billingRun = input<string | undefined>();
+  readonly periodId = input<string | undefined>();
 
   private readonly service = inject(MealsService);
   private readonly studentsService = inject(StudentsService);
@@ -158,6 +167,9 @@ export class MealsComponent implements OnInit {
   );
 
   ngOnInit(): void {
+    if (this.billingRun() === 'period') {
+      this.openBillingRun({ mode: 'period', periodId: this.periodId() });
+    }
     this.load();
   }
 
@@ -336,8 +348,9 @@ export class MealsComponent implements OnInit {
     });
   }
 
-  protected openBillingRun(): void {
+  protected openBillingRun(data: BillingRunDialogData = {}): void {
     const ref = this.dialogService.open(BillingRunDialogComponent, {
+      data,
       width: '520px',
       modal: true,
       showHeader: false,
