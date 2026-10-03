@@ -82,7 +82,7 @@ const STUDENT_STATUS_OPTIONS: Array<{ label: string; value: SchoolExamStudentSta
   ],
   providers: [DialogService, MessageService],
   templateUrl: './school-score-editor.component.html',
-  styleUrl: './school-score-editor.component.scss',
+  host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SchoolScoreEditorComponent implements OnInit {

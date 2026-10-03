@@ -7,7 +7,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { isAfterDeploy, planMigrations, staleNewMigrations } from './lib/migration-plan.mjs';
+import {
+  isAfterDeploy,
+  planMigrations,
+  splitStatements,
+  splitsTransaction,
+  staleNewMigrations,
+} from './lib/migration-plan.mjs';
 
 const m = (version, afterDeploy = false) => ({
   version,
@@ -113,4 +119,59 @@ test('只回舊的那幾支；base 沒有任何 migration 時一律放行；不�
     ['20261001000000_old.sql'],
   );
   assert.deepEqual(staleNewMigrations(['20261001000000_x.sql'], []).stale, []);
+});
+
+// ── #1242：會被 CLI 拆成多個 transaction 的檔 ─────────────────────────────────
+// #1146 實測：含 CONCURRENTLY 的檔，兩顆 apply 同時被按時檔內其他語句被套兩次
+test('CONCURRENTLY 與其他語句混在同一支 → splitsTransaction', () => {
+  assert.equal(
+    splitsTransaction(
+      'UPDATE public.x SET n = n + 1;\nCREATE INDEX CONCURRENTLY IF NOT EXISTS x_idx ON public.x (n);',
+    ),
+    true,
+  );
+  assert.equal(splitsTransaction('create unique index concurrently a on b (c);\nselect 1;'), true);
+  assert.equal(splitsTransaction('VACUUM ANALYZE public.x;\nSELECT 1;'), true);
+});
+
+test('只有那一句的檔放行；一般檔放行', () => {
+  assert.equal(
+    splitsTransaction('-- 說明\nCREATE INDEX CONCURRENTLY IF NOT EXISTS x_idx ON public.x (n);\n'),
+    false,
+  );
+  assert.equal(
+    splitsTransaction('CREATE INDEX x_idx ON public.x (n);\nUPDATE public.x SET n = 1;'),
+    false,
+  );
+});
+
+test('註解、字串、函式本體裡出現的 CONCURRENTLY／分號不算', () => {
+  const sql = [
+    '-- 之後要 CREATE INDEX CONCURRENTLY 的話請獨立成一支',
+    "COMMENT ON TABLE public.x IS 'VACUUM; 不是語句';",
+    'CREATE FUNCTION public.f() RETURNS void LANGUAGE plpgsql AS $$',
+    'BEGIN PERFORM 1; PERFORM 2; END;',
+    '$$;',
+    '/* CLUSTER public.x; */',
+  ].join('\n');
+  assert.equal(splitStatements(sql).length, 2);
+  assert.equal(splitsTransaction(sql), false);
+});
+
+test('待套裡有會拆 transaction 的檔 → blocked，訊息指名那支檔', () => {
+  const plan = planMigrations({
+    local: [m('1'), { ...m('2'), splitsTransaction: true }],
+    remote: ['1'],
+  });
+  assert.equal(plan.state, 'blocked');
+  assert.match(plan.reason, /2_x\.sql/);
+  assert.match(plan.reason, /#1242/);
+});
+
+test('已經套過的檔不管它會不會拆（只看待套）', () => {
+  const plan = planMigrations({
+    local: [{ ...m('1'), splitsTransaction: true }, m('2')],
+    remote: ['1'],
+  });
+  assert.equal(plan.state, 'apply');
 });

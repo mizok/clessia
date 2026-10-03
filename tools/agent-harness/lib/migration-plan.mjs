@@ -22,7 +22,84 @@ export function isAfterDeploy(sql) {
 }
 
 /**
- * @param {{ local: Array<{version: string, file: string, afterDeploy: boolean}>,
+ * supabase CLI（v2.119.0，`apps/cli-go/pkg/migration/file.go` 的 `isPipelineIncompatible`）遇到這些語句
+ * 會先 flush、再單獨執行 —— **同一支檔被拆成多個 transaction**（#1242）。
+ */
+const PIPELINE_INCOMPATIBLE = [
+  /^CREATE\s+(UNIQUE\s+)?INDEX\s+CONCURRENTLY(\s|$)/i,
+  /^DROP\s+INDEX\s+CONCURRENTLY(\s|$)/i,
+  /^REINDEX(\s|\().*\sCONCURRENTLY(\s|$)/is,
+  /^VACUUM(\s|\(|$)/i,
+  /^ALTER\s+SYSTEM(\s|$)/i,
+  /^CLUSTER(\s|$)/i,
+];
+
+/**
+ * 把 SQL 切成語句（去掉註解）。只為了數語句與看開頭，不是完整的 parser —— 但要正確跳過
+ * `--`／`/* *\/` 註解、單引號字串、`$tag$ … $tag$` 函式本體，否則函式裡的 `;` 會被當成語句結尾。
+ */
+export function splitStatements(sql) {
+  const statements = [];
+  let current = '';
+  let i = 0;
+  while (i < sql.length) {
+    const rest = sql.slice(i);
+    if (rest.startsWith('--')) {
+      const end = sql.indexOf('\n', i);
+      i = end === -1 ? sql.length : end;
+      continue;
+    }
+    if (rest.startsWith('/*')) {
+      const end = sql.indexOf('*/', i + 2);
+      i = end === -1 ? sql.length : end + 2;
+      continue;
+    }
+    const dollar = /^\$[A-Za-z_]*\$/.exec(rest);
+    if (dollar) {
+      const end = sql.indexOf(dollar[0], i + dollar[0].length);
+      const stop = end === -1 ? sql.length : end + dollar[0].length;
+      current += sql.slice(i, stop);
+      i = stop;
+      continue;
+    }
+    if (sql[i] === "'") {
+      let j = i + 1;
+      while (j < sql.length && !(sql[j] === "'" && sql[j + 1] !== "'")) j += sql[j] === "'" ? 2 : 1;
+      current += sql.slice(i, j + 1);
+      i = j + 1;
+      continue;
+    }
+    if (sql[i] === ';') {
+      if (current.trim()) statements.push(current.trim());
+      current = '';
+      i += 1;
+      continue;
+    }
+    current += sql[i];
+    i += 1;
+  }
+  if (current.trim()) statements.push(current.trim());
+  return statements;
+}
+
+/**
+ * 這支檔會不會被 CLI 拆成多個 transaction，而且拆開會出事（#1242）：
+ * **同時有** CONCURRENTLY 這類語句**與**其他語句。
+ *
+ * #1146 用 CLI 2.119.0 對拋棄式 DB 實測：兩顆 apply 同時被按時，一般檔靠 `schema_migrations`
+ * 主鍵＋單一 transaction 只套一次（計數 +1）；**含 CONCURRENTLY 的檔計數 +2 —— 檔內的 UPDATE
+ * 被套了兩次**（它在 flush 時已經自己 commit 了）。只有那一句的檔沒有這個問題，放行。
+ */
+export function splitsTransaction(sql) {
+  const statements = splitStatements(sql);
+  return (
+    statements.length > 1 &&
+    statements.some((statement) => PIPELINE_INCOMPATIBLE.some((re) => re.test(statement)))
+  );
+}
+
+/**
+ * @param {{ local: Array<{version: string, file: string, afterDeploy: boolean, splitsTransaction?: boolean}>,
  *           remote: string[], deployed?: boolean }} input
  *   `deployed` = 部署者確認這一批的程式碼已經上線（手動 dispatch 時給）
  * @returns {{ state: 'clean' | 'apply' | 'after-deploy' | 'blocked', reason: string,
@@ -57,6 +134,16 @@ export function planMigrations({ local, remote, deployed = false }) {
     );
   }
   if (pending.length === 0) return result('clean', '差集 0：repo 的每一支都已套上正式 DB。');
+
+  const splitting = pending.filter((m) => m.splitsTransaction).map((m) => m.file);
+  if (splitting.length > 0) {
+    return result(
+      'blocked',
+      `${splitting.join(', ')} 同時有 CONCURRENTLY／VACUUM 這類語句與其他語句 —— CLI 會把它拆成多個 ` +
+        'transaction，兩顆 apply 同時被按時其他語句會被套兩次（#1146 實測）。' +
+        '把那一句獨立成一支只有它的 migration（#1242）。',
+    );
+  }
 
   const backfills = pending.filter((m) => m.afterDeploy);
   if (backfills.length === 0) return result('apply', `待套 ${pending.length} 支 schema。`);

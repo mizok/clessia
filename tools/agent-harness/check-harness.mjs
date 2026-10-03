@@ -54,7 +54,7 @@ import {
   orgTablesFromMigrations,
   unscopedOrgWrites,
 } from './lib/org-scope-writes.mjs';
-import { staleNewMigrations } from './lib/migration-plan.mjs';
+import { splitsTransaction, staleNewMigrations } from './lib/migration-plan.mjs';
 import guardRules from './rules/pre-guard.rules.json' with { type: 'json' };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -80,8 +80,6 @@ const CONTRAST_EXEMPT = {
   // ─ 空狀態的大圖示：WCAG 1.4.11 明文豁免「純裝飾」 ─
   // 這幾處都是同一個形狀：一個 24–40px 的灰圖示，旁邊必定有標題與說明文字，
   // 圖示不承載任何文字沒講的資訊。提高對比會讓它從「氣氛」變成「重點」。
-  'apps/web/src/app/features/admin/pages/grades/exams/score-entry/school-score-editor/school-score-editor.component.scss|i|var(--zinc-300)|var(--zinc-50)':
-    '空狀態圖示（i 40px），同一個容器裡的 zinc-500 說明文字承載資訊 —— 1.4.11 純裝飾豁免',
   'apps/web/src/app/shared/components/empty-state/empty-state.component.scss|i|var(--zinc-400)|var(--zinc-100)':
     '共用空狀態元件的圖示（i 28px，圓底 zinc-100），__title 與說明文字承載資訊 —— 1.4.11 純裝飾豁免',
 };
@@ -1028,6 +1026,16 @@ if (migrationsAdded.status === 0 && mainMigrations.status === 0) {
     migrationsAdded.stdout.split('\n').filter(Boolean).map(basename),
     mainMigrations.stdout.split('\n').filter(Boolean).map(basename),
   );
+  // #1242：同一支檔混了 CONCURRENTLY 這類語句與其他語句 —— 合下去之後 migrate 的 plan 會判 blocked，
+  // 在 PR 上就先紅（判斷在 lib/migration-plan.mjs 的 splitsTransaction，有測試）
+  for (const path of migrationsAdded.stdout.split('\n').filter(Boolean)) {
+    if (existsSync(join(ROOT, path)) && splitsTransaction(readFileSync(join(ROOT, path), 'utf8'))) {
+      fail(
+        `${path} 同時有 CONCURRENTLY／VACUUM 這類語句與其他語句 —— supabase CLI 會把它拆成多個 transaction，` +
+          '兩顆 apply 同時被按時其他語句會被套兩次（#1146 實測）。把那一句獨立成一支只有它的 migration（#1242）',
+      );
+    }
+  }
   for (const file of stale) {
     fail(
       `supabase/migrations/${file} 的時間戳不比 main 最新那支（${baseLatest}）新 —— ` +
