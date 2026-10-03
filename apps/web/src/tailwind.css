@@ -40,9 +40,7 @@
 @source './app/features/admin/pages/dashboard';
 @source './app/features/admin/pages/sessions/components';
 @source './app/features/admin/pages/sessions/sessions.page.html';
-/* students：detail/ 還沒遷，先列單一檔案（#1161）；整個目錄遷完再收成一行 */
-@source './app/features/admin/pages/students/students.page.html';
-@source './app/features/admin/pages/students/student-form-dialog.component.html';
+@source './app/features/admin/pages/students';
 
 /* 跟 PrimeNG 的 darkModeSelector 對齊 */
 @custom-variant dark (&:where(.dark-mode, .dark-mode *));

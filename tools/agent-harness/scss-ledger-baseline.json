@@ -66,7 +66,6 @@
   "apps/web/src/app/features/admin/pages/staff/staff-form-dialog.component.scss",
   "apps/web/src/app/features/admin/pages/staff/staff.page.scss",
   "apps/web/src/app/features/admin/pages/staff/teaching-log-dialog/teaching-log-dialog.component.scss",
-  "apps/web/src/app/features/admin/pages/students/detail/student-detail.page.scss",
   "apps/web/src/app/features/admin/pages/subjects/subjects.page.scss",
   "apps/web/src/app/features/parent/pages/attendance/attendance.page.scss",
   "apps/web/src/app/features/parent/pages/dashboard/dashboard.component.scss",

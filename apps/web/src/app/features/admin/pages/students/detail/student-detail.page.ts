@@ -23,10 +23,7 @@ import {
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { RoutesCatalog } from '@core/smart-enums/routes-catalog';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import {
-  PageBreadcrumbComponent,
-  type BreadcrumbItem,
-} from '@shared/components/page-breadcrumb/page-breadcrumb.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ClassPickerDialogComponent } from '@shared/components/class-picker-dialog/class-picker-dialog.component';
 import {
   InlineNoticeComponent,
@@ -64,12 +61,11 @@ interface ConflictPrompt {
     ButtonModule,
     SkeletonModule,
     EmptyStateComponent,
-    PageBreadcrumbComponent,
+    PageOpenComponent,
     InlineNoticeComponent,
   ],
   providers: [DialogService],
   templateUrl: './student-detail.page.html',
-  styleUrl: './student-detail.page.scss',
 })
 export class StudentDetailPage implements OnInit {
   private readonly studentsService = inject(StudentsService);
@@ -86,14 +82,18 @@ export class StudentDetailPage implements OnInit {
 
   readonly student = signal<StudentDetail | null>(null);
 
-  protected readonly breadcrumbItems = computed<BreadcrumbItem[]>(() => {
-    const s = this.student();
-    return [
-      { label: '學務管理' },
-      { label: '學生', routerLink: '/admin/students' },
-      { label: s?.name ?? '...' },
-    ];
+  protected readonly studentsLink = RoutesCatalog.ADMIN_STUDENTS.absolutePath;
+
+  /** 色面上那一行聯絡人：標了主要聯絡人的那位，沒標就第一位 */
+  protected readonly primaryParent = computed(() => {
+    const parents = this.student()?.parents ?? [];
+    return parents.find((p) => p.isPrimary) ?? parents[0] ?? null;
   });
+
+  protected readonly deferredSections = [
+    { title: '出缺席紀錄', body: '出缺席功能開發中。' },
+    { title: '成績紀錄', body: '成績功能開發中。' },
+  ] as const;
   readonly loading = signal(true);
   protected readonly enrollments = signal<Enrollment[]>([]);
   protected readonly enrollmentsLoading = signal(false);

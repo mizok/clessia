@@ -12,8 +12,8 @@ import { FlowFieldComponent } from '@shared/components/flow-field/flow-field.com
  * 流場會動（A6），捲出畫面與 `prefers-reduced-motion` 由 flow-field 自己停。
  * 對比：橘面上只用 `band-ink(-muted)`，那兩個 token 的透明度地板見 styles.scss。
  *
- * ponytail: 只有 title／sub 兩個具名插槽＋其餘內容；A6 的統計列（`stats`）與返回連結
- * 等第一個需要的頁再加。
+ * 具名插槽：`openBack`（返回連結，學生檔案起）、`openTitle`、`openSub`，其餘內容接在下面。
+ * ponytail: A6 的統計列（`stats`）等第一個需要的頁再加。
  */
 @Component({
   selector: 'app-page-open',
