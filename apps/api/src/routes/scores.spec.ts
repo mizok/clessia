@@ -20,6 +20,15 @@ describe('sumPairsOrNull', () => {
     ).toEqual({ sum: 130, totalSum: 150 });
   });
 
+  it('帶小數的分數相加不冒浮點尾巴（本機實打出 100.66999999999999）', () => {
+    expect(
+      sumPairsOrNull([
+        { score: 50.67, totalScore: 100 },
+        { score: 50, totalScore: 100 },
+      ]),
+    ).toEqual({ sum: 100.67, totalSum: 200 });
+  });
+
   it('單筆紀錄照樣是那筆的分數與總分', () => {
     expect(sumPairsOrNull([{ score: 45, totalScore: 60 }])).toEqual({ sum: 45, totalSum: 60 });
   });
@@ -54,6 +63,8 @@ function createTestApp(state: ScoresState) {
     // staff 查詢，那不是這條測試的主題（範圍限制另有 exam-scope 的測試守）
     (c as any).set('roles', ['admin']);
     (c as any).set('userId', 'u1');
+    // 不受限的管理員（#1115 起 list 會讀分校範圍；替身沒宣告會丟 CampusScopeMissingError）
+    (c as any).set('campusScope', null);
     await next();
   });
   app.route('/api/scores', scoresApp);
