@@ -166,12 +166,12 @@ describe('ClassScoresDialogComponent', () => {
     component['selectedExamId'].set('exam-1');
     await fixture.whenStable();
 
-    // 只看狀態那一格（彙總列與篩選選項本來就有「已登錄」三個字）
-    const chips = [...(fixture.nativeElement as HTMLElement).querySelectorAll('app-data-chip')].map(
-      (el) => el.textContent?.trim(),
+    // 只看名單那一列（彙總列與篩選選項本來就有「已登錄」三個字）
+    const row = [...(fixture.nativeElement as HTMLElement).querySelectorAll('li')].find((li) =>
+      li.textContent?.includes('王小明'),
     );
-    expect(chips.length).toBeGreaterThan(0);
-    expect(chips.every((t) => t === '待登錄')).toBe(true);
+    expect(row?.textContent).toContain('待登錄');
+    expect(row?.textContent).not.toContain('及格');
     expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('pending');
   });
 
