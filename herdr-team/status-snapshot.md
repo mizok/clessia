@@ -38,38 +38,25 @@
 > **合併順序建議（10-04 02:0x）**：先合無 migration 的 #1225／#1240／#1252／#1261／#1265，再合 #1241（合完叫 2006 rebase #1216），最後合 #1216（含 migration）並 Approve；鏈上的 draft（sessions #1228→#1235、scores #1255→#1258、公開端點 #1247→#1251→#1259→#1262）由各席在底層合後轉 base。
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-04 02:0x，計畫席 labor-plan-20261003-1534。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-04 07:0x，計畫席 labor-plan-20261003-1534。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
-### 保留類 PR（只有使用者能合）
+### 保留類 PR（v3 起由計畫席合；含 migration 的仍要您按 Approve、含您要裁的選擇的等您裁）
 
-| PR    | 為什麼保留                                   | 狀態                                                                                                                                                                                                                                  |
-| ----- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PR    | 為什麼保留                                   | 狀態 |
+| ----- | -------------------------------------------- | ---- |
+| #1216 | #1118 推薦課 `classes.is_recommended`（migration `20261003172959`） | head `d9967f27`，base main，已過 #1263／#1241 兩次 rebase。**合了要您 Approve**，所以等您醒來我再合（免得凍結卡整晚）。 |
+| #1247 | #1123 公開報名送出：`public_applications`＋`public_application_targets`（migration `20261003172458`） | head `640405fe`，base main。**同上等您醒**；它的時間戳比 #1216 舊，#1216 先合它要 git mv。上面疊 #1251 試聽 → #1259 審核頁 → #1262 防濫用（各含 migration），2006 逐層轉 base。 |
+| #1261 | #1117 家長餐費讀取 | 二讀過，跟 main 的豁免清單撞兩次，2033 第三次 rebase 中；回 head 我立刻合。 |
+| #1235 | #1111 批次調課到別天（授權） | 二讀抓到 unique key 順序問題（整期往後挪會 409），退回 2033 修。 |
+| #1258 | #1253 scores 列表（同檔 scores.ts） | 二讀建議加頂層穩定排序鍵，退回 2033 修；#1281 疊它。 |
 
-
-
-
-| #1225 | #1110 批次代課 `PATCH /sessions/batch-substitute`＋`batch-assign-teacher` 補分校檢查（別校 id 整批 403） | head `6e231b5e`（rebase 過 #1219），verify 綠，MERGEABLE。設計過 gate（#1110 留言）。**無 migration，不凍結，先合這支。** 合後 2033 把 #1228（其他六支寫入端點補分校檢查，#1221）轉 base 再請您合。 |
-| #1241 | #1125 公開課程目錄 `GET /api/public/catalog`（免登入；org 從部署變數 `PUBLIC_ORG_SLUG` 解析、沒設 404 fail-closed；不含老師名；抽 `lib/catalog-class.ts` 與家長目錄共用） | head `47b24c02`（已過 #1263 rebase，課程停用條件收進 `isOpenClass` 共用）。設計過 gate（#1125 留言）。**無 migration。跟 #1216 同檔 parent/catalog.ts 互撞：合一支後等 2006 rebase 另一支再合。** 另要您裁：正式環境要不要設 `PUBLIC_ORG_SLUG`（設了公開頁才開）。 |
-| #1240 | #1146 migrate.yml：apply 刪 concurrency、recheck 改子集判準、skip 不做套後比對；deploying.md 寫明「凍結合併規則待第一次真實 Approve 驗證後再放寬」 | head `391c898e`。設計過 gate（#1146 留言）。CI 碰正式 DB 流程，判保留類。**無 migration。** 合後下一支 migration 的 Approve 行為要觀察，補在 #1146。 |
-| #1252 | #1115 成績查詢：`GET /api/scores` 補分校範圍（原本完全沒有）＋classId／courseId 篩選、新 `GET /api/scores/students` 每生聚合（必帶範圍 `SCOPE_REQUIRED`、超量 `TOO_MANY_ROWS`）、小數收兩位 | head `365e439c`。設計過 gate（#1115 留言，三點裁定）。**無 migration。** 實打 8 項與 SQL 相符。 |
-| #1261 | #1117 家長餐費 `GET /api/me/meals`：childDb＋孩子 id、只回已訂、備註與帳單 id 不回、區間必填 ≤366 天、meta.months 月加總 | head `0f4749e6`。設計過 gate（#1117 留言）。**無 migration。** 實打：自己孩子 6 筆 390 元與 SQL 相符、別人孩子 403。 |
-| #1265 | #1121 家長續課預覽 `GET /api/me/renewal`：只列期繳、沿用原班金額同期 run（agreed 優先＋prorate）、升班用新班參考價沒設回 null | head `3d42918e`。設計過 gate（#1121 留言）。**規格改寫可否決**：原寫「自動開單日」改成「由行政手動開單」（系統沒有自動開單）。**無 migration。** 實打抓到 PostgREST embed 方向錯已修。 |
-| #1216 | #1118 餘項推薦課：migration `classes.is_recommended boolean default false`＋班級 API（`manage_courses`）＋catalog 推薦優先＋班級表單開關 | head `1ea85e83`（已過 #1263 rebase；migration 已改名 `20261003172959_class_is_recommended.sql`，比 main 最新新），base main。**跟 #1241 互撞，見上。**設計過 gate（#1118 留言）。**含 migration，同上凍結流程。建議跟 #1219 分開合，各自 Approve 一次。** |
-
-接下來會出現的保留類：sessions 鏈 #1228 → #1235（疊 #1225）；公開端點鏈 #1247 報名 → #1251 試聽 → #1245 審核頁（疊 #1241，各含免登入寫入／migration，2006 逐層轉 base）；#1195、#1250。10-03 已合的保留類：#1132／#1137／#1141／#1143／#1145／#1150／#1152／#1180／#1183／#1188／#1197／#1212／#1219（migration 皆已套、使用者逐一 Approve）。
-
-10-03 已合的保留類：#1132、#1137、#1141、#1143、#1145、#1150（四支 migration 皆已由 migrate.yml 套、使用者逐一 Approve）。**S3 殼改寫 #1154 15:1x 已合**（使用者看截圖 OK），疊在上面的 #1155／#1159／#1162／#1164 由 1456 逐支轉 main。第五次部署 12:1x 完成（截線 `6103d4d0`，紀錄 #1153）；**第六次等 #1152 合後備**（api：#1141／#1143／#1145／#1150／#1152，web：S3 起）。**教訓（#1146）**：等 Approve 的 apply 會被後續 main 的新 run 取代 → Approve 落地前凍結合併，計畫席掛守衛取消新 run。
-**家長端寫入的架構裁定（10-03 11:5x，計畫席裁，您可否決）**：`parent-data-scope.md` 原列「家長端寫入 v1 唯讀」為明確不做；為了候補登記與申請表，改成寫入走 `childDb.insert／update`（scope 外在送 DB 前拒絕）、機構層級參考資料走 `orgRef` 白名單唯讀（classes／courses／enrollments 計數），不用 DB trigger。文件更新跟 #1119 同 PR。
-
-10-03 上午已合的五支保留類：#1069（T4）、#1080（#920）、#1094（#1081）、#1102（#1098）、#1089（#1059），分支皆已刪；#1078（P1）隨後由 reviewer 合。
+10-04 依 v3 由計畫席合的：#1225／#1240／#1252／#1241／#1265／#1287／#1291／#1292（留言皆寫三項依據）。
 
 ### 使用者動手的
 
 1. ~~修憲 c6 續跑~~ 已完成：腳本已跑、#1062 於 10-02 23:38 由擁有者合併、`law-c6` worktree 已清。（這一列在 #1061 寫下時腳本還沒跑，10-03 00:2x 複查才發現已過期 —— 快照寫「等使用者」的事項，接手先 `gh pr list --state all --search` 查一次。）
 2. ~~兩個 GitHub environment~~ 已設好（10-03 00:0x），#977 已由 migrate.yml 套上；之後遇到 migration 只要在 Actions 的 `prod-db` 按 Approve。
-3. **api 部署**：每次由使用者在 reviewer worktree 的 `apps/api` 跑 `npx wrangler deploy --env production`；reviewer 準備截線並驗證。**第十次部署就緒（10-03 21:0x，reviewer 驗過）**：截線 main `1fa88495`（#1227）；窗口 `d55aa967..1fa88495` 兩支 migration（#1212 費用欄、#1219 creation enum）皆 apply 綠已套；api 動 6 檔（#1212／#1213／#1217／#1219）；web 新 `main-2WJRY3S4.js`（本機 173 個 js 有 156 個線上沒有：courses 列表、分校鈕、G3 等）。**您按 api，reviewer 再發 web（dist 已 build 好，勿重 build）**：
-   `cd .worktrees/labor-reviewer-20261001-2204/apps/api && npx wrangler deploy --env production`
-   #1225／#1216／#1229 之後合的歸第十一批。
+3. **api 部署已放權 CI（#1287，10-04 06:5x 合）**：`deploy.yml` 接在 migrate.yml 成功後自動部署 api 再 web，純文件不部署。dry_run（run `37160169044`）綠。**您醒來做一件**：Settings → Variables 設 `DEPLOY_ENABLED=true`；之後不再有「使用者要跑的那一行」。第十一批（自 `1fa88495` 起）等開關開了走 CI。另裁：正式要不要開公開頁（`PUBLIC_ORG_SLUG` 要放進 `env.production.vars`）。
 4. **T4 cssLayer 回歸**需使用者在場一次（複製 `.dev.vars`），計畫席排時間。
 
 ### 使用者要裁的
@@ -174,6 +161,15 @@ success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只
 - **差值要大於同一設定重複量的離散度才能歸因**（#947 的 −0.08 被自己推翻）。
 - **lib 是掃描器、gate 才是判準**；**宣告存在 ≠ 宣告生效**（`min-height` 對 inline／table-row 無效，display 讀得到）。
 - **找出來的缺陷都修了 ≠ 審查做完了**（#924 還有兩頁未量）。
+
+## 10-04 計畫席學到、下一任會再用到的（labor-plan-20261003-1534，10-04 07:0x 寫）
+
+- **合鏈的底層時不要 `--delete-branch`**：GitHub 會把疊在上面的 PR 自動關閉（#1228→#1291、#1255→#1292、#1247 重開）。先合、等上層轉 base 推完，再由計畫席刪分支。
+- **同一支豁免清單（api-param-coverage.mjs EXEMPT）是連環衝突源**：連續合會讓下一支 CONFLICTING，排序上先合同檔的、或叫作者一次 rebase 到最後。
+- **v3 的二讀真的抓到東西**：#1235 的 unique key 順序、#1258 的頂層排序不穩、#1261 的浮點加總 —— 二讀要「只報不合」，合由計畫席讀完決定。
+- **守衛腳本（migrate Approve 期間取消插隊 run）兩輪都用上**，#1212／#1219 各取消一顆；腳本在 README 沒有，下一任要掛就重寫：loop 30s、保護最新 waiting、cancel 比它晚且未完成的、apply success 寫 GREEN。#1240 合了之後理論上不用，但第一次真實 Approve 前凍結規則照舊。
+- **額度**：10-03 三次全席斷線（16:0x、21:1x、02:3x），Weekly 從 40% 到 76%；三個生產席並行時每小時約 10%。斷線回流只喚醒有未完成工作的席。
+- **使用者的話先查再做**：「1225 merged」是別人輸入框殘字；「我決定放權 api 部署」要先問放到哪一層（三選一）。
 
 ## 10-03 計畫席學到、下一任會再用到的（labor-plan-20261002-2351，15:1x 寫）
 
