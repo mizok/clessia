@@ -42,7 +42,6 @@ import {
   ],
   providers: [MessageService],
   templateUrl: './student-form-dialog.component.html',
-  styleUrl: './student-form-dialog.component.scss',
 })
 export class StudentFormDialogComponent {
   private readonly studentsService = inject(StudentsService);

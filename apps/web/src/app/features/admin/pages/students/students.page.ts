@@ -19,13 +19,10 @@ import { ButtonModule } from 'primeng/button';
 import { MessageService } from 'primeng/api';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
-import { IconFieldModule } from 'primeng/iconfield';
-import { InputIconModule } from 'primeng/inputicon';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { SkeletonModule } from 'primeng/skeleton';
 import { InputTextModule } from 'primeng/inputtext';
-import { SelectModule } from 'primeng/select';
 
 // Responsive Table
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
@@ -52,8 +49,6 @@ import { RouteObj, RoutesCatalog } from '@core/smart-enums/routes-catalog';
 // Shared
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
-import { PageBandComponent } from '@shared/components/page-band/page-band.component';
-import { BandAnchorComponent } from '@shared/components/page-band/band-anchor/band-anchor.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import type { ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
@@ -63,6 +58,8 @@ import { StudentFormDialogComponent } from './student-form-dialog.component';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { personHue } from '@shared/utils/person-hue.util';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import {
   PageActionsComponent,
   type PageAction,
@@ -73,19 +70,16 @@ import {
   standalone: true,
   imports: [
     StatusDotComponent,
-    PageBandComponent,
-    BandAnchorComponent,
     PageActionsComponent,
+    PageOpenComponent,
+    SelectFieldComponent,
     CommonModule,
     FormsModule,
     ButtonModule,
-    InputIconModule,
-    IconFieldModule,
     ToastModule,
     TooltipModule,
     SkeletonModule,
     InputTextModule,
-    SelectModule,
     EmptyStateComponent,
     LoadFailedComponent,
     PopupMenuComponent,
@@ -96,7 +90,6 @@ import {
   ],
   providers: [MessageService, DialogService],
   templateUrl: './students.page.html',
-  styleUrl: './students.page.scss',
 })
 export class StudentsPage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
@@ -149,6 +142,7 @@ export class StudentsPage implements OnInit {
   ];
 
   protected readonly statusOptions = [
+    { label: '全部狀態', value: null },
     { label: '啟用中', value: true },
     { label: '已停用', value: false },
   ];

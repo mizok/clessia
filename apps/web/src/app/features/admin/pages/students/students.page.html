@@ -1,189 +1,194 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<div class="students">
-  <!-- 橘帶：這一頁的入口面。身分在左，錨點數字在右 -->
-  <app-page-band>
-    @if (page().group; as group) {
-      <p class="students__band-eyebrow">{{ group.label }}</p>
+<!--
+  A6 版（#991）：色面 → 灰工具列（搜尋、篩選、新增）→ 表格。
+  換版不換資料：A6 稿的「依年級分章的名冊」「今天有課／到了沒」「待繳費」要的資料這頁沒有
+  （列表是伺服器分頁，分章做不出來），另開單。
+-->
+<app-page-open>
+  <ng-container openTitle>
+    @if (!loading() && summary().total > 0) {
+      {{ summary().total }} 位學生。
+    } @else {
+      {{ page().label }}
     }
-    <h1 class="students__band-title">{{ page().label }}</h1>
-    <p class="students__band-sub">管理學生基本資料、家長關聯與學習紀錄</p>
+  </ng-container>
+  <ng-container openSub>
+    @if (!loading() && summary().total > 0) {
+      在籍 {{ activeStudentCount() }} 位
+      @if (inactiveStudentCount() > 0) {
+        · 停用 {{ inactiveStudentCount() }} 位
+      }
+    }
+  </ng-container>
+</app-page-open>
 
-    <div bandAside>
+<div class="bg-zinc-100">
+  <div
+    class="page-wrap flex flex-col gap-3 py-3 wide:min-h-16 wide:flex-row wide:items-end wide:gap-4"
+    role="search"
+    aria-label="篩選學生"
+  >
+    <label class="flex min-w-0 flex-col gap-1 wide:w-80">
+      <span class="text-sm font-semibold text-zinc-700">搜尋</span>
+      <span class="relative">
+        <i
+          class="pi pi-search pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-zinc-600"
+          aria-hidden="true"
+        ></i>
+        <input
+          type="search"
+          pInputText
+          class="h-11 w-full pl-9"
+          placeholder="姓名、學校或家長姓名"
+          [ngModel]="searchQuery()"
+          (ngModelChange)="onSearchChange($event)"
+        />
+      </span>
+    </label>
+
+    <div class="grid grid-cols-2 gap-3 wide:w-80">
+      <app-select-field
+        label="年級"
+        [options]="gradeOptions"
+        [value]="selectedGrade()"
+        (valueChange)="onGradeChange($event)"
+      />
+      <app-select-field
+        label="狀態"
+        [options]="statusOptions"
+        [value]="statusFilter()"
+        (valueChange)="onStatusFilterChange($event)"
+      />
+    </div>
+
+    <div class="wide:ml-auto">
       <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()" />
-      @if (!loading() && students().length > 0) {
-        <app-band-anchor [value]="summary().total" unit="名學生">
-          在籍 <b>{{ activeStudentCount() }}</b>
-          @if (inactiveStudentCount() > 0) {
-            ・ 停用 <b>{{ inactiveStudentCount() }}</b>
-          }
-        </app-band-anchor>
-      }
-    </div>
-  </app-page-band>
-
-  <!-- Main Card -->
-  <div class="students__card">
-    <!-- Toolbar -->
-    <div class="students__toolbar clessia-filter-bar">
-      <div class="students__search clessia-filter-search">
-        <p-iconfield iconPosition="left">
-          <p-inputicon styleClass="pi pi-search" />
-          <input
-            type="text"
-            pInputText
-            placeholder="搜尋姓名、學校或家長姓名..."
-            [ngModel]="searchQuery()"
-            (ngModelChange)="onSearchChange($event)"
-            class="students__search-input clessia-filter-search-input"
-          />
-        </p-iconfield>
-      </div>
-
-      <div class="students__filters clessia-filter-group">
-        <p-select
-          [options]="gradeOptions"
-          [ngModel]="selectedGrade()"
-          (ngModelChange)="onGradeChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          size="small"
-          placeholder="全部年級"
-          styleClass="students__filter-select clessia-filter-control"
-          [appendTo]="'body'"
-        />
-
-        <p-select
-          [options]="statusOptions"
-          [ngModel]="statusFilter()"
-          (ngModelChange)="onStatusFilterChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          size="small"
-          placeholder="全部狀態"
-          [showClear]="true"
-          styleClass="students__filter-select clessia-filter-control"
-          [appendTo]="'body'"
-        />
-      </div>
-    </div>
-
-    <!-- Content Area -->
-    <div class="students__content">
-      @if (loading()) {
-        <div class="skeleton-list">
-          @for (i of [1, 2, 3, 4, 5]; track i) {
-            <span class="skeleton-bar"></span>
-          }
-        </div>
-      } @else if (loadFailed()) {
-        <app-load-failed description="沒有讀到學生資料，可能是連線問題" (retry)="loadStudents()" />
-      } @else if (students().length === 0) {
-        @if (searchQuery() || selectedGrade()) {
-          <app-empty-state
-            icon="pi pi-search"
-            title="找不到符合的學生"
-            description="請嘗試調整搜尋條件或篩選條件"
-          >
-            <p-button
-              label="清除篩選"
-              [text]="true"
-              severity="secondary"
-              (onClick)="onSearchChange(''); onGradeChange(null)"
-            />
-          </app-empty-state>
-        } @else {
-          <app-empty-state
-            icon="pi pi-users"
-            title="尚未有學生資料"
-            description="學生資料可能由報名流程自動建立，也可以直接在這裡手動新增"
-          >
-            <p-button label="新增學生" icon="pi pi-plus" (onClick)="openCreateDialog()" />
-          </app-empty-state>
-        }
-      } @else {
-        <app-popup-menu #actionMenu [model]="actionMenuItems()" />
-
-        <app-responsive-table
-          [headTemplate]="headTpl"
-          [bodyTemplate]="bodyTpl"
-          [pagination]="pagination()"
-          (page)="onPage($event)"
-        />
-
-        <ng-template #headTpl>
-          <tr>
-            <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">姓名</th>
-            <th appRtColDef="grade" [appRtColDefMinWidth]="80" [appRtColDefPriority]="2">年級</th>
-            <th appRtColDef="school" [appRtColDefMinWidth]="140" [appRtColDefPriority]="4">學校</th>
-            <th appRtColDef="parents" [appRtColDefMinWidth]="160" [appRtColDefPriority]="3">
-              關聯家長
-            </th>
-            <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">狀態</th>
-            <th
-              appRtColDef="actions"
-              [appRtColDefMinWidth]="56"
-              [appRtColDefPriority]="0"
-              [appRtColDefCollapsible]="false"
-              aria-hidden="true"
-            ></th>
-          </tr>
-        </ng-template>
-
-        <ng-template #bodyTpl>
-          @for (student of students(); track student.id) {
-            <tr appRtRow [appRtRow]="student" [appRtRowId]="student.id" class="student-table__row">
-              <td appRtColCell="name">
-                <div class="student-table__name-btn">
-                  <span class="student-table__avatar" [style.--h]="getPersonHue(student.id)">{{
-                    student.name[0]
-                  }}</span>
-                  <div class="student-table__name-info">
-                    <span class="student-table__name">{{ student.name }}</span>
-                    @if (student.campusNames.length > 0) {
-                      <span class="student-table__campuses">{{
-                        student.campusNames.join('・')
-                      }}</span>
-                    }
-                  </div>
-                </div>
-              </td>
-              <td appRtColCell="grade">
-                <span class="student-table__grade">{{ getGradeLabel(student.grade) }}</span>
-              </td>
-              <td appRtColCell="school">
-                @if (student.school?.name; as schoolName) {
-                  <span class="student-table__school">{{ schoolName }}</span>
-                } @else {
-                  <span class="student-table__empty">未填寫</span>
-                }
-              </td>
-              <td appRtColCell="parents">
-                @if (student.parentNames.length > 0) {
-                  <span class="student-table__parents">{{ student.parentNames.join('、') }}</span>
-                } @else {
-                  <span class="student-table__empty">無關聯家長</span>
-                }
-              </td>
-              <td appRtColCell="status">
-                <app-status-dot [tone]="student.isActive ? 'done' : 'inactive'">{{
-                  student.isActive ? '在籍' : '停用'
-                }}</app-status-dot>
-              </td>
-              <td class="responsive-table__cell" style="text-align: center">
-                <p-button
-                  icon="pi pi-ellipsis-v"
-                  [rounded]="true"
-                  [text]="true"
-                  severity="secondary"
-                  [ariaLabel]="student.name + ' 的操作'"
-                  (onClick)="openActionMenu($event, student); $event.stopPropagation()"
-                />
-              </td>
-            </tr>
-          }
-        </ng-template>
-      }
     </div>
   </div>
+</div>
+
+<div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
+  @if (loading()) {
+    <div class="skeleton-list">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
+  } @else if (loadFailed()) {
+    <app-load-failed description="沒有讀到學生資料，可能是連線問題" (retry)="loadStudents()" />
+  } @else if (students().length === 0) {
+    @if (searchQuery() || selectedGrade() || statusFilter() !== null) {
+      <app-empty-state
+        icon="pi pi-search"
+        title="找不到符合的學生"
+        description="請嘗試調整搜尋條件或篩選條件"
+      >
+        <p-button
+          label="清除篩選"
+          [text]="true"
+          severity="secondary"
+          (onClick)="onSearchChange(''); onGradeChange(null); onStatusFilterChange(null)"
+        />
+      </app-empty-state>
+    } @else {
+      <app-empty-state
+        icon="pi pi-users"
+        title="尚未有學生資料"
+        description="學生資料可能由報名流程自動建立，也可以直接在這裡手動新增"
+      >
+        <p-button label="新增學生" icon="pi pi-plus" (onClick)="openCreateDialog()" />
+      </app-empty-state>
+    }
+  } @else {
+    <app-popup-menu #actionMenu [model]="actionMenuItems()" />
+
+    <app-responsive-table
+      [headTemplate]="headTpl"
+      [bodyTemplate]="bodyTpl"
+      [pagination]="pagination()"
+      (page)="onPage($event)"
+    />
+
+    <ng-template #headTpl>
+      <tr>
+        <th appRtColDef="name" [appRtColDefMinWidth]="160" [appRtColDefPriority]="1">姓名</th>
+        <th appRtColDef="grade" [appRtColDefMinWidth]="80" [appRtColDefPriority]="2">年級</th>
+        <th appRtColDef="school" [appRtColDefMinWidth]="140" [appRtColDefPriority]="4">學校</th>
+        <th appRtColDef="parents" [appRtColDefMinWidth]="160" [appRtColDefPriority]="3">
+          關聯家長
+        </th>
+        <th appRtColDef="status" [appRtColDefMinWidth]="80" [appRtColDefPriority]="5">狀態</th>
+        <th
+          appRtColDef="actions"
+          [appRtColDefMinWidth]="56"
+          [appRtColDefPriority]="0"
+          [appRtColDefCollapsible]="false"
+          aria-hidden="true"
+        ></th>
+      </tr>
+    </ng-template>
+
+    <ng-template #bodyTpl>
+      @for (student of students(); track student.id) {
+        <tr appRtRow [appRtRow]="student" [appRtRowId]="student.id" class="group">
+          <td appRtColCell="name">
+            <div class="flex items-center gap-2">
+              <span
+                class="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,hsl(var(--h,210)_31%_36%),hsl(var(--h,210)_36%_30%))] text-[13px] font-bold tracking-[-0.01em] text-white select-none"
+                [style.--h]="getPersonHue(student.id)"
+                aria-hidden="true"
+                >{{ student.name[0] }}</span
+              >
+              <div class="flex min-w-0 flex-col gap-px">
+                <span
+                  class="truncate font-semibold text-zinc-900 transition-colors group-hover:text-accent-600"
+                  >{{ student.name }}</span
+                >
+                @if (student.campusNames.length > 0) {
+                  <span class="truncate text-xs text-zinc-600">{{
+                    student.campusNames.join('・')
+                  }}</span>
+                }
+              </div>
+            </div>
+          </td>
+          <td appRtColCell="grade">
+            <span class="text-sm font-medium text-zinc-700">{{
+              getGradeLabel(student.grade)
+            }}</span>
+          </td>
+          <td appRtColCell="school">
+            @if (student.school?.name; as schoolName) {
+              <span class="text-sm text-zinc-600">{{ schoolName }}</span>
+            } @else {
+              <span class="text-sm text-zinc-600 italic">未填寫</span>
+            }
+          </td>
+          <td appRtColCell="parents">
+            @if (student.parentNames.length > 0) {
+              <span class="text-sm text-zinc-600">{{ student.parentNames.join('、') }}</span>
+            } @else {
+              <span class="text-sm text-zinc-600 italic">無關聯家長</span>
+            }
+          </td>
+          <td appRtColCell="status">
+            <app-status-dot [tone]="student.isActive ? 'done' : 'inactive'">{{
+              student.isActive ? '在籍' : '停用'
+            }}</app-status-dot>
+          </td>
+          <td class="responsive-table__cell text-center">
+            <p-button
+              icon="pi pi-ellipsis-v"
+              [rounded]="true"
+              [text]="true"
+              severity="secondary"
+              [ariaLabel]="student.name + ' 的操作'"
+              (onClick)="openActionMenu($event, student); $event.stopPropagation()"
+            />
+          </td>
+        </tr>
+      }
+    </ng-template>
+  }
 </div>
