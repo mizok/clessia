@@ -7,6 +7,8 @@ import { vi } from 'vitest';
 
 import { ClassFormDialogComponent } from './class-form-dialog.component';
 import { ClassesService } from '@core/classes.service';
+import { AuthService } from '@core/auth.service';
+import { FeeTemplatesService } from '@core/fee-templates.service';
 
 describe('ClassFormDialogComponent', () => {
   let fixture: ComponentFixture<ClassFormDialogComponent>;
@@ -18,6 +20,9 @@ describe('ClassFormDialogComponent', () => {
   // 「使用者按了什麼」對應「有沒有真的儲存」。
   let conflictClose$: Subject<boolean | undefined>;
   let dialogServiceMock: { open: ReturnType<typeof vi.fn> };
+  /** #1175：目錄參考價要 `manage_finance` —— 預設沒有（大多數既有測試的情境） */
+  let canManageFinance = false;
+  let feeTemplatesMock: { list: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     classesServiceMock = {
@@ -49,6 +54,17 @@ describe('ClassFormDialogComponent', () => {
     // 「**前面所有測試加起來**有沒有關過」，而那會隨測試順序改變答案。
     dialogRefMock.close.mockClear();
 
+    canManageFinance = false;
+    feeTemplatesMock = {
+      list: vi.fn().mockReturnValue(
+        of({
+          data: [
+            { id: 'fee-1', name: '國中月繳', billingMode: 'monthly', amount: 4500, isActive: true },
+          ],
+        }),
+      ),
+    };
+
     conflictClose$ = new Subject<boolean | undefined>();
     dialogServiceMock = { open: vi.fn().mockReturnValue({ onClose: conflictClose$ }) };
 
@@ -59,6 +75,11 @@ describe('ClassFormDialogComponent', () => {
         { provide: MessageService, useValue: messageServiceMock },
         { provide: DynamicDialogRef, useValue: dialogRefMock },
         { provide: DialogService, useValue: dialogServiceMock },
+        {
+          provide: AuthService,
+          useValue: { hasPermission: (p: string) => p === 'manage_finance' && canManageFinance },
+        },
+        { provide: FeeTemplatesService, useValue: feeTemplatesMock },
         {
           provide: DynamicDialogConfig,
           useValue: {
@@ -186,5 +207,86 @@ describe('ClassFormDialogComponent', () => {
 
     expect(dialogRefMock.close).not.toHaveBeenCalled();
     expect(messageServiceMock.add).toHaveBeenCalled();
+  });
+
+  /**
+   * #1175：班級的目錄參考價。沒有 `manage_finance` 時**不畫、不送這個 key** ——
+   * 送了 API 會 403 整張表單（連改名都存不了）。編輯時沒改就不送：原本掛的範本可能已停用，
+   * 照送會被 API 以 INVALID_FEE_TEMPLATE 擋下。
+   */
+  describe('目錄參考價（defaultFeeTemplateId）', () => {
+    const recreate = (cls: Record<string, unknown> | null = null) => {
+      TestBed.inject(DynamicDialogConfig).data.cls = cls;
+      fixture = TestBed.createComponent(ClassFormDialogComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+    };
+    const fill = () =>
+      (component as any).formData.set({
+        name: '測試班級',
+        maxStudents: 20,
+        nextClassId: null,
+        isActive: true,
+      });
+    const existing = {
+      id: 'class-1',
+      name: '舊班',
+      maxStudents: 20,
+      nextClassId: null,
+      isActive: true,
+      defaultFeeTemplateId: 'fee-old',
+      schedules: [],
+    };
+
+    afterEach(() => {
+      TestBed.inject(DynamicDialogConfig).data.cls = null;
+    });
+
+    it('沒有 manage_finance：不讀價目表、不畫欄位、送出不帶 key', () => {
+      fill();
+      (component as any).save();
+
+      expect(feeTemplatesMock.list).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.textContent).not.toContain('目錄參考價');
+      expect((classesServiceMock.create as any).mock.calls[0][0]).not.toHaveProperty(
+        'defaultFeeTemplateId',
+      );
+    });
+
+    it('有 manage_finance：只讀使用中的範本，選了就帶上', () => {
+      canManageFinance = true;
+      recreate();
+
+      expect(feeTemplatesMock.list).toHaveBeenCalledWith({ isActive: true });
+      expect(fixture.nativeElement.textContent).toContain('目錄參考價');
+      fill();
+      (component as any).defaultFeeTemplateId.set('fee-1');
+      (component as any).save();
+
+      expect((classesServiceMock.create as any).mock.calls[0][0].defaultFeeTemplateId).toBe(
+        'fee-1',
+      );
+    });
+
+    it('編輯時沒改：不送 key（原本的範本可能已停用）', () => {
+      canManageFinance = true;
+      recreate(existing);
+      fill();
+      (component as any).save();
+
+      expect((classesServiceMock.update as any).mock.calls[0][1]).not.toHaveProperty(
+        'defaultFeeTemplateId',
+      );
+    });
+
+    it('編輯時清空：送 null', () => {
+      canManageFinance = true;
+      recreate(existing);
+      fill();
+      (component as any).defaultFeeTemplateId.set(null);
+      (component as any).save();
+
+      expect((classesServiceMock.update as any).mock.calls[0][1].defaultFeeTemplateId).toBeNull();
+    });
   });
 });

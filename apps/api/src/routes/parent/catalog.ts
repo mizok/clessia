@@ -10,14 +10,16 @@ import { DbUuidSchema } from '../../lib/validation';
  *
  * 班級是**機構參考資料**：走 `childDb.orgRef('classes')`（只帶 `org_id`、不套孩子 scope），
  * 課程／分校／時段／老師名以 embed 帶出；名額走 `activeEnrollmentCounts`（只拿數字）。
- * 裁定（#1152）：費用這版不回、全機構所有分校、年級只標 `matchesGrade` 不過濾、推薦不帶欄位。
+ * 裁定（#1152）：全機構所有分校、年級只標 `matchesGrade` 不過濾、推薦不帶欄位。
+ * 費用（#1175）：取自班級的預設範本，只是參考價 —— 實際報名價以報名時選的範本為準。
  */
 
 const CLASS_SELECT = `
   id, name, grade_levels, max_students, is_active, end_date,
   courses(id, name, description, subjects(name)),
   campuses(name),
-  schedules(weekday, start_time, end_time, effective_to, teacher:staff!teacher_id(display_name))
+  schedules(weekday, start_time, end_time, effective_to, teacher:staff!teacher_id(display_name)),
+  fee_template:fee_templates!default_fee_template_id(amount, billing_mode, is_active)
 `;
 
 const ParentCatalogClassSchema = z
@@ -40,6 +42,13 @@ const ParentCatalogClassSchema = z
     remainingSeats: z.number().int().min(0),
     /** 孩子的年級在 `gradeLevels` 裡，或 `gradeLevels` 為空（不限）。前端預設篩、可切換顯示全部 */
     matchesGrade: z.boolean(),
+    /** 目錄參考價（班級的預設範本，#1175）。沒設、或範本已停用 → null（停用的價目表不再對外報價） */
+    fee: z
+      .object({
+        amount: z.number().int(),
+        billingMode: z.enum(['monthly', 'period', 'session_pack']),
+      })
+      .nullable(),
   })
   .openapi('ParentCatalogClass');
 
@@ -125,6 +134,7 @@ app.openapi(
           );
         const gradeLevels = (row['grade_levels'] ?? []) as string[];
         const maxStudents = row['max_students'] as number;
+        const feeTemplate = one(row['fee_template']);
         return {
           classId: row['id'] as string,
           className: row['name'] as string,
@@ -149,6 +159,12 @@ app.openapi(
           maxStudents,
           remainingSeats: Math.max(0, maxStudents - (counts.get(row['id']) ?? 0)),
           matchesGrade: gradeLevels.length === 0 || (!!grade && gradeLevels.includes(grade)),
+          fee: feeTemplate?.['is_active']
+            ? {
+                amount: Number(feeTemplate['amount']),
+                billingMode: feeTemplate['billing_mode'] as 'monthly' | 'period' | 'session_pack',
+              }
+            : null,
         };
       })
       .sort(

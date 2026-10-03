@@ -79,17 +79,18 @@ function enrollment(student: string, classId: string, extra: Record<string, unkn
   };
 }
 
-function seed() {
+/** `extra`：逐班覆寫欄位（`db.rows()` 回的是複本，改它不會進替身） */
+function seed(extra: Record<string, Record<string, unknown>> = {}) {
   return createMultiOrgDb({
     students: [{ id: CHILD, org_id: ORG, grade: 'junior_2' }],
     classes: [
-      cls(CLS_MATH, { grade_levels: ['junior_2', 'junior_3'] }),
-      cls(CLS_ENG, { grade_levels: ['senior_1'], max_students: 2 }),
+      cls(CLS_MATH, { grade_levels: ['junior_2', 'junior_3'], ...extra[CLS_MATH] }),
+      cls(CLS_ENG, { grade_levels: ['senior_1'], max_students: 2, ...extra[CLS_ENG] }),
       cls(CLS_ENROLLED),
       cls(CLS_INACTIVE, { is_active: false }),
       cls(CLS_ENDED, { end_date: '2026-09-30' }),
       cls(CLS_ORG_B, { org_id: ORG_B }),
-      cls(CLS_OLD),
+      cls(CLS_OLD, extra[CLS_OLD]),
     ],
     enrollments: [
       enrollment(CHILD, CLS_ENROLLED),
@@ -171,6 +172,7 @@ describe('GET /api/me/catalog', () => {
         maxStudents: 10,
         remainingSeats: 10,
         matchesGrade: true,
+        fee: null,
       });
     });
 
@@ -187,10 +189,34 @@ describe('GET /api/me/catalog', () => {
       expect((byId.get(CLS_OLD) as { matchesGrade: boolean }).matchesGrade).toBe(true);
     });
 
-    it('回應不含報名列、學生資料、老師 id、next_class_id、費用、推薦', async () => {
+    /**
+     * #1175：費用取自班級的預設範本（`classes.default_fee_template_id`），只是參考價 ——
+     * 實際報名價以報名時選的範本為準。停用的範本不再對外報價。
+     */
+    it('fee：有預設範本回金額＋計費模式；沒設、或範本已停用回 null', async () => {
+      const db = seed({
+        [CLS_MATH]: { fee_template: { amount: 4500, billing_mode: 'monthly', is_active: true } },
+        [CLS_OLD]: { fee_template: { amount: 9000, billing_mode: 'period', is_active: false } },
+      });
+      const { body } = await get(appWith(db));
+      const feeOf = (cid: string) =>
+        body.data.find((c: { classId: string }) => c.classId === cid).fee;
+
+      expect(feeOf(CLS_MATH)).toEqual({ amount: 4500, billingMode: 'monthly' });
+      expect(feeOf(CLS_OLD)).toBeNull();
+      expect(feeOf(CLS_ENG)).toBeNull();
+    });
+
+    it('回應不含報名列、學生資料、老師 id、next_class_id、範本 id、推薦', async () => {
       const { body } = await get(appWith(seed()));
       const keys = Object.keys(body.data[0]);
-      for (const leaked of ['enrollments', 'teacherId', 'nextClassId', 'fee', 'recommended']) {
+      for (const leaked of [
+        'enrollments',
+        'teacherId',
+        'nextClassId',
+        'defaultFeeTemplateId',
+        'recommended',
+      ]) {
         expect(keys).not.toContain(leaked);
       }
     });

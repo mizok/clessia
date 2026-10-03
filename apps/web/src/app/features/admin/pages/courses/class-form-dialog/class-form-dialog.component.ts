@@ -11,6 +11,9 @@ import { ToggleSwitch } from 'primeng/toggleswitch';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogRef, DynamicDialogConfig, DialogService } from 'primeng/dynamicdialog';
+import { AuthService } from '@core/auth.service';
+import { FeeTemplatesService, type FeeTemplate } from '@core/fee-templates.service';
+import { feeTemplateOptions } from '../class-detail/enrollment-billing.util';
 import {
   ClassesService,
   Class,
@@ -66,6 +69,8 @@ export class ClassFormDialogComponent {
   private readonly ref = inject(DynamicDialogRef);
   private readonly dialogService = inject(DialogService);
   private readonly config = inject(DynamicDialogConfig);
+  private readonly auth = inject(AuthService);
+  private readonly feeTemplatesService = inject(FeeTemplatesService);
 
   protected readonly loading = signal(false);
   protected readonly cls = signal<Class | null>(this.config.data?.cls ?? null);
@@ -74,6 +79,26 @@ export class ClassFormDialogComponent {
   protected readonly campuses = signal<any[]>(this.config.data?.campuses ?? []);
 
   protected readonly isEditing = computed(() => this.cls() !== null);
+
+  /**
+   * 目錄參考價（#1175）：家長目錄顯示的價錢，實際報名價仍以報名時選的範本為準。
+   * 門檻跟價目表同一個（`manage_finance`）—— 沒有就不畫、送出時**不帶這個 key**，
+   * 帶了 API 會 403 整張表單。
+   */
+  protected readonly canSetFee = this.auth.hasPermission('manage_finance');
+  private readonly originalFeeTemplateId = this.cls()?.defaultFeeTemplateId ?? null;
+  protected readonly defaultFeeTemplateId = signal<string | null>(this.originalFeeTemplateId);
+  private readonly feeTemplates = signal<FeeTemplate[]>([]);
+  protected readonly feeOptions = computed(() => feeTemplateOptions(this.feeTemplates()));
+
+  constructor() {
+    // 只列使用中的範本 —— 停用的 API 會擋（停用的價目表不再對外報價）
+    if (this.canSetFee) {
+      this.feeTemplatesService
+        .list({ isActive: true })
+        .subscribe({ next: (res) => this.feeTemplates.set(res.data) });
+    }
+  }
   protected readonly dialogTitle = computed(() => (this.isEditing() ? '編輯班級' : '新增班級'));
 
   protected readonly formData = signal({
@@ -280,6 +305,14 @@ export class ClassFormDialogComponent {
     });
   }
 
+  /** 沒權限、或編輯時沒改 → 不帶（原本掛的範本可能已停用，照送會被 API 擋） */
+  private feeTemplatePatch(): { defaultFeeTemplateId?: string | null } {
+    const value = this.defaultFeeTemplateId();
+    return this.canSetFee && value !== this.originalFeeTemplateId
+      ? { defaultFeeTemplateId: value }
+      : {};
+  }
+
   private doSave(): void {
     this.loading.set(true);
     const form = this.formData();
@@ -292,6 +325,7 @@ export class ClassFormDialogComponent {
         startDate: this.startDate() ? format(this.startDate()!, 'yyyy-MM-dd') : null,
         endDate: this.endDate() ? format(this.endDate()!, 'yyyy-MM-dd') : null,
         isActive: form.isActive,
+        ...this.feeTemplatePatch(),
       };
       this.classesService.update(this.cls()!.id, updateInput).subscribe({
         next: () => {
@@ -314,6 +348,7 @@ export class ClassFormDialogComponent {
         nextClassId: form.nextClassId,
         startDate: this.startDate() ? format(this.startDate()!, 'yyyy-MM-dd') : null,
         endDate: this.endDate() ? format(this.endDate()!, 'yyyy-MM-dd') : null,
+        ...this.feeTemplatePatch(),
       };
       this.classesService.create(input).subscribe({
         next: (res) => {

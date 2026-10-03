@@ -58,6 +58,27 @@
       />
     </div>
 
+    <!-- 目錄參考價（#1175，要 manage_finance） -->
+    @if (canSetFee) {
+      <div class="form-dialog__field">
+        <label class="form-dialog__label" for="class-default-fee">目錄參考價</label>
+        <p-select
+          inputId="class-default-fee"
+          [options]="feeOptions()"
+          [ngModel]="defaultFeeTemplateId()"
+          (ngModelChange)="defaultFeeTemplateId.set($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="未指定"
+          [disabled]="loading()"
+          styleClass="w-full"
+          [appendTo]="'body'"
+        />
+      </div>
+      <!-- 同日期那段的說明樣式：選填欄位的「代價」講在欄位下面 -->
+      <p class="class-date-hint">家長目錄顯示的參考價；實際收費以報名時選的範本為準。</p>
+    }
+
     <!-- Date Range -->
     <div class="form-dialog__row">
       <div class="form-dialog__field">
