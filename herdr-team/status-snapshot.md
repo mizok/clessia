@@ -24,7 +24,7 @@
 
 ## 🚀 線上是哪一版（2026-10-03 19:4x 第七次部署，labor-reviewer-20261001-2204）
 
-**截線 `3590b5f5`**（#1162；`verify` success）：web `main-GXLILR73.js`（有重發，本席 `wrangler pages deploy`；本機 `dist` 15:51 新產物、build exit=0，**兩份產物隔了約四小時，等使用者按 api 期間 `main` 又合了 #1164／#1183 之外的 docs，但截線與 `dist` 都固定在 `3590b5f5`**）、api `7ace638f-7bd9-4427-b302-2abd5b8db006`（使用者 19:47 親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。順序：api 先、web 後。
+**截線 `3590b5f5`**（#1162；`verify` success）：web `main-GXLILR73.js`（有重發，本席 `wrangler pages deploy`；本機 `dist` 15:51 新產物、build exit=0；截線與 `dist` 都固定在 `3590b5f5`，等使用者按 api 的幾小時間 `main` 又合了 #1164 等，那些歸第八批）、api `7ace638f-7bd9-4427-b302-2abd5b8db006`（使用者 19:47 親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。順序：api 先、web 後。
 含：api #1180 payment_info（補習班帳戶資訊：機構預設＋分校覆寫、家長繳費頁顯示）；web #1179／#1184／#1162（課表頁、課表甘特 G1、學生列表 A6）等 A6 逐頁換版。
 **⓪**：窗口 `9ae774ea..3590b5f5` 的 migration 只有 #1180 的 `20261003071532_payment_info.sql`，**已由 `migrate.yml` run `37106717548` apply 綠套上**（更正第六次紀錄寫的「#1180 migration 等 Approve」——那句在寫下當下為真、之後已過期）。
 **部署驗證**：web 線上 `main-GXLILR73.js`＝本機 build；本機 167 個 js 檔線上缺 0 個（部署前 31）、負控 chunk 回 `text/html`；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html；cf-placement `remote-SIN`；`openapi.json` 132 條路徑（與第六次相同，#1180 只改既有端點的欄位）。**限度**：這批 api 是既有端點欄位，openapi 證明不了新程式碼上線，只證明服務正常、版本已換。
