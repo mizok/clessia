@@ -1,21 +1,37 @@
-<div class="mobile-batch-dialog">
+<div class="flex flex-col gap-3">
   @if (!batchMode()) {
-    <div class="mobile-batch-dialog__menu">
-      <button class="mobile-batch-dialog__menu-item" (click)="selectAction('assign')">
-        <i class="pi pi-user-plus mobile-batch-dialog__menu-icon"></i>
+    <div class="flex flex-col gap-2">
+      <button
+        type="button"
+        class="group flex min-h-11 cursor-pointer items-center gap-3 rounded-r-md border border-l-[3px] border-zinc-200 border-l-transparent bg-transparent px-4 py-3 text-md text-zinc-700 [transition:background_var(--transition-fast),border-left-color_var(--transition-fast)] hover:border-l-accent-400 hover:bg-zinc-50"
+        (click)="selectAction('assign')"
+      >
+        <i class="pi pi-user-plus text-lg text-accent-600 group-hover:text-accent-500"></i>
         <span>指派老師</span>
       </button>
-      <button class="mobile-batch-dialog__menu-item" (click)="selectAction('time')">
-        <i class="pi pi-clock mobile-batch-dialog__menu-icon"></i>
+      <button
+        type="button"
+        class="group flex min-h-11 cursor-pointer items-center gap-3 rounded-r-md border border-l-[3px] border-zinc-200 border-l-transparent bg-transparent px-4 py-3 text-md text-zinc-700 [transition:background_var(--transition-fast),border-left-color_var(--transition-fast)] hover:border-l-accent-400 hover:bg-zinc-50"
+        (click)="selectAction('time')"
+      >
+        <i class="pi pi-clock text-lg text-accent-600 group-hover:text-accent-500"></i>
         <span>修改時間</span>
       </button>
-      <button class="mobile-batch-dialog__menu-item" (click)="selectAction('cancel')">
-        <i class="pi pi-ban mobile-batch-dialog__menu-icon"></i>
+      <button
+        type="button"
+        class="group flex min-h-11 cursor-pointer items-center gap-3 rounded-r-md border border-l-[3px] border-zinc-200 border-l-transparent bg-transparent px-4 py-3 text-md text-zinc-700 [transition:background_var(--transition-fast),border-left-color_var(--transition-fast)] hover:border-l-accent-400 hover:bg-zinc-50"
+        (click)="selectAction('cancel')"
+      >
+        <i class="pi pi-ban text-lg text-accent-600 group-hover:text-accent-500"></i>
         <span>停課</span>
       </button>
       @if (hasCancelledSelection()) {
-        <button class="mobile-batch-dialog__menu-item" (click)="selectAction('uncancel')">
-          <i class="pi pi-replay mobile-batch-dialog__menu-icon"></i>
+        <button
+          type="button"
+          class="group flex min-h-11 cursor-pointer items-center gap-3 rounded-r-md border border-l-[3px] border-zinc-200 border-l-transparent bg-transparent px-4 py-3 text-md text-zinc-700 [transition:background_var(--transition-fast),border-left-color_var(--transition-fast)] hover:border-l-accent-400 hover:bg-zinc-50"
+          (click)="selectAction('uncancel')"
+        >
+          <i class="pi pi-replay text-lg text-accent-600 group-hover:text-accent-500"></i>
           <span>取消停課</span>
         </button>
       }
@@ -23,7 +39,9 @@
   } @else {
     @switch (batchMode()) {
       @case ('assign') {
-        <h4 class="mobile-batch-dialog__title">指派老師給 {{ selectedCount() }} 堂課</h4>
+        <h4 class="m-0 text-md font-semibold text-zinc-800">
+          指派老師給 {{ selectedCount() }} 堂課
+        </h4>
         <p-select
           [options]="teachers()"
           optionLabel="displayName"
@@ -37,13 +55,15 @@
           styleClass="w-full"
         />
         @if (teachers().length === 0) {
-          <p class="mobile-batch-dialog__hint">所選課堂目前沒有符合科目與分校的可指派老師。</p>
+          <p class="m-0 text-sm text-zinc-500">所選課堂目前沒有符合科目與分校的可指派老師。</p>
         }
       }
       @case ('time') {
-        <h4 class="mobile-batch-dialog__title">修改 {{ selectedCount() }} 堂課的時間</h4>
-        <div class="mobile-batch-dialog__time-row">
-          <label class="mobile-batch-dialog__label">開始</label>
+        <h4 class="m-0 text-md font-semibold text-zinc-800">
+          修改 {{ selectedCount() }} 堂課的時間
+        </h4>
+        <div class="flex items-center gap-3">
+          <label class="min-w-10 text-sm font-semibold text-zinc-600">開始</label>
           <input
             pInputText
             type="time"
@@ -51,8 +71,8 @@
             (ngModelChange)="batchStartTime.set($event)"
           />
         </div>
-        <div class="mobile-batch-dialog__time-row">
-          <label class="mobile-batch-dialog__label">結束</label>
+        <div class="flex items-center gap-3">
+          <label class="min-w-10 text-sm font-semibold text-zinc-600">結束</label>
           <input
             pInputText
             type="time"
@@ -62,7 +82,7 @@
         </div>
       }
       @case ('cancel') {
-        <h4 class="mobile-batch-dialog__title">停課 {{ selectedCount() }} 堂</h4>
+        <h4 class="m-0 text-md font-semibold text-zinc-800">停課 {{ selectedCount() }} 堂</h4>
         <input
           pInputText
           placeholder="原因（選填）"
@@ -72,20 +92,20 @@
         />
       }
       @case ('uncancel') {
-        <h4 class="mobile-batch-dialog__title">取消停課 {{ selectedCount() }} 堂</h4>
+        <h4 class="m-0 text-md font-semibold text-zinc-800">取消停課 {{ selectedCount() }} 堂</h4>
       }
     }
 
     @if (batchPreview()) {
-      <div class="mobile-batch-dialog__preview">
-        <span class="mobile-batch-dialog__preview-ok">{{ processableCount() }} 堂可操作</span>
+      <div class="flex items-center gap-2 rounded-md bg-zinc-50 px-3 py-2 text-sm">
+        <span class="font-semibold text-success-600">{{ processableCount() }} 堂可操作</span>
         @if (skippedCount() > 0) {
-          <span class="mobile-batch-dialog__preview-skip">· {{ skippedCount() }} 堂略過</span>
+          <span class="text-zinc-500">· {{ skippedCount() }} 堂略過</span>
         }
       </div>
     }
 
-    <div class="mobile-batch-dialog__footer">
+    <div class="flex items-center justify-between pt-2">
       <p-button
         label="返回"
         [text]="true"
@@ -112,7 +132,7 @@
       }
     </div>
     @if (batchMode() === 'assign' && teachers().length === 0) {
-      <p class="mobile-batch-dialog__action-hint">沒有符合本批課堂分校與科目的老師可指派。</p>
+      <p class="m-0 text-sm text-warning-600">沒有符合本批課堂分校與科目的老師可指派。</p>
     }
   }
 </div>

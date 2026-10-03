@@ -1,5 +1,7 @@
 <form [formGroup]="form" (ngSubmit)="submit()" class="session-op-form">
-  <div class="session-op-form__warning">
+  <div
+    class="session-op-form__warning rounded-l-none rounded-r-md border-l-[3px] border-l-warning-600 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--warning-100)_70%,var(--color-white)),var(--color-white))]"
+  >
     <i class="pi pi-exclamation-triangle"></i>
     <p>
       確定要為 {{ session()?.className }} 的

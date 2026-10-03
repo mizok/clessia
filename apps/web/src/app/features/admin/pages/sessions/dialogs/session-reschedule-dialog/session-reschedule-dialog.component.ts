@@ -27,7 +27,6 @@ import { format, parse } from 'date-fns';
     InlineNoticeComponent,
   ],
   templateUrl: './session-reschedule-dialog.component.html',
-  styleUrl: './session-reschedule-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionRescheduleDialogComponent implements OnInit {

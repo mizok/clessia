@@ -23,7 +23,7 @@ import {
   selector: 'app-session-detail-dialog',
   imports: [StatusDotComponent, DataChipComponent, DatePipe, ButtonModule, SkeletonModule],
   templateUrl: './session-detail-dialog.component.html',
-  styleUrl: './session-detail-dialog.component.scss',
+  host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionDetailDialogComponent implements OnInit {

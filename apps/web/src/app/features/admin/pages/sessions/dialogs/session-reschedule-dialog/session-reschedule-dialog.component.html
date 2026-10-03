@@ -23,27 +23,31 @@
       <p class="session-op-form__hint">載入中...</p>
     } @else {
       @if (targetCampusSessions().length > 0) {
-        <div class="session-op-form__target-sessions">
+        <div class="mt-1 flex flex-col gap-2">
           <p class="session-op-form__hint">
             同分校當日已排 {{ targetCampusSessions().length }} 堂課：
           </p>
           @for (s of targetCampusSessions(); track s.className + s.startTime) {
-            <div class="session-op-form__target-session-item">
+            <div
+              class="flex flex-col gap-0.5 rounded-r-sm border-l-[3px] border-l-accent-200 bg-zinc-50 px-3 py-2 text-sm leading-[1.4] text-zinc-700"
+            >
               {{ s.startTime }}–{{ s.endTime }} {{ s.courseName }} · {{ s.className }}
             </div>
           }
         </div>
       }
       @if (targetTeacherSessions().length > 0) {
-        <div class="session-op-form__target-sessions">
+        <div class="mt-1 flex flex-col gap-2">
           <p class="session-op-form__hint">
             同老師當日另有 {{ targetTeacherSessions().length }} 堂課：
           </p>
           @for (s of targetTeacherSessions(); track s.className + s.startTime) {
-            <div class="session-op-form__target-session-item">
+            <div
+              class="flex flex-col gap-0.5 rounded-r-sm border-l-[3px] border-l-accent-200 bg-zinc-50 px-3 py-2 text-sm leading-[1.4] text-zinc-700"
+            >
               {{ s.startTime }}–{{ s.endTime }} {{ s.courseName }} · {{ s.className }}
               @if (s.campusName) {
-                <span class="session-op-form__target-session-meta">{{ s.campusName }}</span>
+                <span class="text-xs text-zinc-500">{{ s.campusName }}</span>
               }
             </div>
           }

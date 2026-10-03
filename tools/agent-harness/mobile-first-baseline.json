@@ -2,7 +2,6 @@
   "apps/web/src/app/features/admin/pages/campuses/campuses.page.scss",
   "apps/web/src/app/features/admin/pages/grades/overview/student-view/student-view.component.scss",
   "apps/web/src/app/features/admin/pages/schools/schools.page.scss",
-  "apps/web/src/app/features/admin/pages/sessions/dialogs/session-operations-log-dialog/session-operations-log-dialog.component.scss",
   "apps/web/src/app/features/admin/pages/staff/staff-form-dialog.component.scss",
   "apps/web/src/app/features/admin/pages/staff/staff.page.scss",
   "apps/web/src/app/features/public/public-shell.component.scss",

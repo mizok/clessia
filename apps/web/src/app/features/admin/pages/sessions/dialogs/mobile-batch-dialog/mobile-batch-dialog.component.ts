@@ -37,7 +37,6 @@ export interface MobileBatchDialogResult {
   selector: 'app-mobile-batch-dialog',
   imports: [FormsModule, ButtonModule, SelectModule, InputTextModule],
   templateUrl: './mobile-batch-dialog.component.html',
-  styleUrl: './mobile-batch-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MobileBatchDialogComponent implements OnInit {
