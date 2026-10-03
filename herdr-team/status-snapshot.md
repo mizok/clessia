@@ -33,7 +33,7 @@
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-03 15:0x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-03 15:1x，計畫席 labor-plan-20261002-2351。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
@@ -158,6 +158,23 @@ success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只
 - **差值要大於同一設定重複量的離散度才能歸因**（#947 的 −0.08 被自己推翻）。
 - **lib 是掃描器、gate 才是判準**；**宣告存在 ≠ 宣告生效**（`min-height` 對 inline／table-row 無效，display 讀得到）。
 - **找出來的缺陷都修了 ≠ 審查做完了**（#924 還有兩頁未量）。
+
+## 10-03 計畫席學到、下一任會再用到的（labor-plan-20261002-2351，15:1x 寫）
+
+- **migration 的 Approve 會被後續 main 取代**（#1146）：apply 等 Approve 是 waiting 不算 in-progress，下一顆 main 的 run 進來就把它取消。做法：使用者合帶 migration 的 PR 起**凍結所有合併**（含 docs），計畫席掛守衛（背景迴圈：保護最新 waiting 的 run、取消其他），Approve 落地 apply 綠才解凍。昨晚還有一顆 workflow_run 的 run 停在 waiting 沒人理，佔住 concurrency 群組讓新 apply 一直 pending 沒有 Approve 按鈕 —— 先 `gh run list --workflow migrate.yml --status waiting` 看有沒有舊的。
+- **`gh run list` 的 headSha 不是那顆 run 處理的 commit**，要讀 plan log 的 `TARGET_SHA`。今天一顆看起來「#1150 的 run apply skipped」其實在處理前一顆。
+- **寫時間一律 `TZ=Asia/Taipei date` 用變數帶入**：一晚猜錯三次，每次多一支 commit 更正。
+- **授權 reviewer 要在拿到 PR 編號之後另發**：授權訊息跟 `gh pr create` 串同一次呼叫，編號還沒回來就送了，reviewer 得猜。
+- **reviewer 回報「已合」要以讀回為準**（#1140）：它把回報 printf 串在 merge 指令同一行，CI 沒報就先送「已合」；兩次抓到。計畫席收到「已合」一律 `gh pr view --json state` 再信。
+- **使用者的話先問清楚**：「1-col」是卡片內部不是整頁；「間距」是標題與內容；「更大膽」給中間值不給極值（V42 → V43）；「入口頁只要求有橘色流場」layout 交給計畫席裁；「學期跟學校」其實是排課要看各校行事曆（#1160），不是成績歸屬 —— 問了才知道，推論三次都錯。
+- **同一個業務詞的裁定要套到同一族**（額滿→候補套到三頁）；收到裁定 grep 那個詞。
+- **時間軸只留一條**：機構的「期」＝學期（billing_periods），各校放假日疊在期裡（#1160），不做分校學期、不用法條函式。
+- **席位退場時**：工單標籤要搬（監工會點名）、設計稿只在設計席 worktree（留著，開新席 `cp -R`）、它的 dev server 用 `lsof -ti:port` 對 cwd 確認是它的再 kill、疊在它 PR 上的 draft 要轉 base。
+- **一次只 rebase 一支、合一支**：保留類鏈四支＋三支 migration，照序走零衝突；同檔的先 merge-tree 試合。
+- **開單前自己開檔驗**：子代理驗 20 條草稿後我再抽驗四處；三條草稿判「非保留」改成保留（新端點要自己守分校／org）。
+- **fork／子席的 `pkill -f "字串"` 是子字串比對全機命令列**，會打到 /Applications；FORK-PROMPT 第 8 條。
+- **harness 的 gate 依賴要宣告**（#1171）：靠傳遞依賴活著的 import，主 checkout 跑 harness 會紅、訊息像環境壞。
+- **實打抓替身盲點**：#1150 的替身無條件補 embed，真路徑實打才抓到 sessionIds 空陣列（#1177）；保留類合併後請 db-reset 重置再實打。
 
 ## 10-02 計畫席學到、下一任會再用到的
 
