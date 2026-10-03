@@ -1,8 +1,8 @@
 ---
 title: 家長端讀取孩子的課堂（課表三頁的共用 API）
-summary: GET /api/me/sessions —— 給 p-schedule／p-dashboard 今日課／p-attendance 用。範圍走 childDb：pluck 孩子的 enrollments 得班級 ScopedIds，fromScopedIds 查 sessions，再用 countEnrolledOn 把在籍區間外的堂濾掉（同 class-logs 的轉班防線）。回老師（含代課）、分校、小考數、課務異動、這個孩子那堂的出勤。日期窗必填、上限 42 天。admin 的 summariseSessions 吃原始 supabase，不能複用，只複用純函式。待 STOP 批准。
+summary: GET /api/me/sessions —— 給 p-schedule／p-dashboard 今日課／p-attendance 用。範圍走 childDb：pluck 孩子的 enrollments 得班級 ScopedIds，fromScopedIds 查 sessions，再用 countEnrolledOn 把在籍區間外的堂濾掉（同 class-logs 的轉班防線）。回老師（代課露實際老師＋原任課老師）、分校、小考數、課務異動（不帶原因）、停課照回、這個孩子那堂的出勤。日期窗必填、上限 42 天。pluck 改成必填 studentId（scope 含兄弟姊妹）。admin 的 summariseSessions 吃原始 supabase，不能複用，只複用純函式。
 category: architecture
-status: draft
+status: developing
 updated: 2026-10-03
 tags: [architecture, parent, authorization, sessions, schedule]
 ---
@@ -33,17 +33,20 @@ tags: [architecture, parent, authorization, sessions, schedule]
 | `sessionId`, `date`, `startTime`, `endTime`, `status`（含 `cancelled`） | `sessions`                                                                                          |
 | `classId`, `className`, `courseName`                                    | `classes` → `courses`                                                                               |
 | `campusName`                                                            | `classes` → `campuses`                                                                              |
-| `teacherName`, `isSubstitute`                                           | `sessions.teacher_id` vs `schedules.teacher_id`，判定用 `lib/session-substitute.ts`                 |
+| `teacherName`, `isSubstitute`, `originalTeacherName`                    | 實際上課的人是 `sessions.teacher_id`；跟 `schedules.teacher_id` 不同即代課（`lib/session-substitute.ts`），此時才帶原任課老師名 |
 | `examCount`                                                             | `academy_exams` ↔ `academy_exam_classes`，配對鍵 (班級, 日期)，`lib/session-exams.ts`               |
-| `changes[]`                                                             | `schedule_changes`（改期／代課／停課的說明），掛在 `session_id`，在 sessions 查詢裡 embed           |
+| `changes[]`                                                             | `schedule_changes` 的類型與改期前後的日期時間，掛在 `session_id`，在 sessions 查詢裡 embed。**不帶 `reason`、經手人** |
 | `attendance`：`status`, `checkedInAt`                                   | **這個孩子**在那堂的 `attendance_records`（`childDb.from(…, 'student_id')`）＋當天 `daily_checkins` |
 
 聯絡簿內容與「歷史聯絡簿 10 堂」**不在這支** —— 已有 `GET /api/me/class-logs`，詳情 popup 另打。
 
 ## 範圍：兩層，跟 class-logs 同形
 
-1. `childDb.from('enrollments', 'student_id').pluck('class_id, effective_from, effective_to', 'class_id')`
-   —— 只拿得到自己孩子的報名，`ids` 是品牌化的 `ScopedIds`。
+1. `childDb.from('enrollments', 'student_id').pluck('class_id, effective_from, effective_to', 'class_id', childId)`
+   —— 只拿得到**這個**孩子的報名，`ids` 是品牌化的 `ScopedIds`。
+   **`pluck` 的第三個參數 `studentId` 是這支加的、而且必填**：`studentScope` 是「這個家長的所有孩子」，
+   只靠它查 `enrollments` 會把兄弟姊妹的班一起拿回來（`class-logs.ts` 原本就是這樣 —— 姊姊的班的日誌
+   會出現在妹妹的清單裡；同一個家長看得到，所以不是越權，但是張冠李戴）。必填讓下一個呼叫端忘不了。
 2. `childDb.fromScopedIds('sessions', 'class_id', ids).select(…).gte/lte('session_date', …)`。
 3. **在籍區間過濾**：`countEnrolledOn(ranges, classId, date) > 0`（`lib/session-roster.ts`，底層是
    `isEnrolledOn`，規則在 `rules/attendance-rules.md` 的在籍判定）。**這一層是轉班防線**：只用「讀過的班」
@@ -69,8 +72,15 @@ tags: [architecture, parent, authorization, sessions, schedule]
   而且那支的範圍模型是分校不是學生 —— 範圍錯一層就是把別人小孩的課表給出去。
 - **從 `attendance_records` 出發補未來的堂**：兩個來源拼接，停課、臨時加開的堂要各寫一次。
 
-## 待裁／待確認
+## 裁定（計畫席 2026-10-03，#1145 留言）
 
-1. **停課的堂要不要回**？傾向回（帶 `status: 'cancelled'` 與異動說明）—— 家長最需要知道的就是「這堂不上了」。
-2. **代課要不要露出老師名字**？規格只寫「老師」；傾向回實際上課的老師＋`isSubstitute`。
-3. 小考只數校內考（`academy_exams`）；**學校段考**（`school_exams`）是學生層級、不掛課堂，不放這支。
+1. **停課的堂要回**，帶 `status: 'cancelled'`；在籍判定照課堂日期。
+2. **代課露實際上課的老師名**，另帶 `isSubstitute: true` 與 `originalTeacherName`；家長端只顯示「代課」標記，
+   **不顯示原因** —— 所以 `changes[]` 一律不帶 `reason`（改期、停課的原因也一併不帶，同一條欄位不分類型遮）。
+3. **學校段考不放**（學生層級、不掛課堂；家長成績頁已有）。
+
+## 實作備註
+
+- 排序在記憶體做（日期＋開始時間）：窗最多 42 天、一個孩子的堂數小。
+- `attendance` 只在這個孩子有 `attendance_records` 那筆時才非 null；`checkedInAt` 取當天 `daily_checkins`。
+  還沒建 event 的未來堂（`event_id` null）一律 `attendance: null`。

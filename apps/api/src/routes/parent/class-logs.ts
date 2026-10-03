@@ -158,7 +158,7 @@ app.openapi(
       error: enrollmentError,
     } = await childDb
       .from('enrollments', 'student_id')
-      .pluck('class_id, effective_from, effective_to', 'class_id');
+      .pluck('class_id, effective_from, effective_to', 'class_id', childId);
 
     if (enrollmentError) {
       return c.json({ error: '讀取教務日誌失敗', code: 'FETCH_CLASS_LOGS_FAILED' }, 500);

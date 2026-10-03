@@ -71,17 +71,26 @@ const EXEMPT = new Map([
   // **所以這批是在壓前綴碰撞的雜訊，不是在等 P4。** 移除條件也因此不同：
   // **`servicePrefixes()` 改成抽最長路徑（或 findMissing 改成以端點為單位判斷）的那一天**
   // —— 那是一個對 170 支 route 都會改變行為的決定，不在本次範圍（見 issue #589 留言）。
-  ['/api/me/attendance|childId', '前綴碰撞：6 支 service 都宣告 /api/me，每支被要求為其他支的參數負責。真正的消費端 core/parent-attendance.service.ts 有送 —— 見上方註解'],
+  [
+    '/api/me/attendance|childId',
+    '前綴碰撞：6 支 service 都宣告 /api/me，每支被要求為其他支的參數負責。真正的消費端 core/parent-attendance.service.ts 有送 —— 見上方註解',
+  ],
   ['/api/me/attendance|dateFrom', '同上'],
   ['/api/me/attendance|dateTo', '同上'],
   ['/api/me/attendance|page', '同上'],
   ['/api/me/attendance|pageSize', '同上'],
-  ['/api/me/grades|childId', '前綴碰撞：6 支 service 都宣告 /api/me，每支被要求為其他支的參數負責。真正的消費端 core/parent-grades.service.ts 有送 —— 見上方註解'],
+  [
+    '/api/me/grades|childId',
+    '前綴碰撞：6 支 service 都宣告 /api/me，每支被要求為其他支的參數負責。真正的消費端 core/parent-grades.service.ts 有送 —— 見上方註解',
+  ],
   ['/api/me/grades|dateFrom', '同上'],
   ['/api/me/grades|dateTo', '同上'],
   ['/api/me/grades|page', '同上'],
   ['/api/me/grades|pageSize', '同上'],
-  ['/api/me/billing|childId', '前綴碰撞：6 支 service 都宣告 /api/me，每支被要求為其他支的參數負責。真正的消費端 core/parent-billing.service.ts 有送 —— 見上方註解'],
+  [
+    '/api/me/billing|childId',
+    '前綴碰撞：6 支 service 都宣告 /api/me，每支被要求為其他支的參數負責。真正的消費端 core/parent-billing.service.ts 有送 —— 見上方註解',
+  ],
   ['/api/me/billing|page', '同上'],
   ['/api/me/billing|pageSize', '同上'],
   // 家長端教務日誌讀取端點，同一批排序 —— 前端消費端是 teacher-pages 的
@@ -92,6 +101,14 @@ const EXEMPT = new Map([
   ['/api/me/class-logs|dateTo', '同上'],
   ['/api/me/class-logs|page', '同上'],
   ['/api/me/class-logs|pageSize', '同上'],
+  // #1116 家長端孩子的課堂：API 先行，前端消費端（p-schedule／p-dashboard 今日課／
+  // p-attendance）由前端席另開。前端送出這三個參數那天，staleExemptions() 會叫。
+  [
+    '/api/me/sessions|childId',
+    '家長端課堂讀取端點 API 先行（#1116），前端消費端另開，見 kb/wiki/architecture/parent-sessions-read.md',
+  ],
+  ['/api/me/sessions|dateFrom', '同上'],
+  ['/api/me/sessions|dateTo', '同上'],
   // ── #361 的兩筆（`attendanceTaken` / `endedOnly`）已於 2026-09-07 刪除 ──────────
   // 前端消費端（StatCard.queryParams、sessions 頁的「今日未點名」pill）已經落地並送出
   // 這兩個參數，所以豁免對不上任何實際落差 —— 那正是下面 `staleExemptions()` 要抓的。

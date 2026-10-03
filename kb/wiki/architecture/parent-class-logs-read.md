@@ -3,7 +3,7 @@ title: 家長端讀取已發布教務日誌（v1b）
 summary: 家長端第二實例，照 parent-read-endpoints.md 的樣板抄：childDb 兩層防線、複用 admin 的 select/mapper、allowlist 欄位過濾。這支的特殊之處是 class_logs 是班級層級不是學生層級，childDb 現有 API 假設表上有 student_id 欄位，需要擴充一個新方法。等 STOP 批准，teacher-pages 的 v1b 讀取頁與發布按鈕卡在這支上。
 category: architecture
 status: draft
-updated: 2026-09-05
+updated: 2026-10-03
 tags: [architecture, parent, authorization, teaching-log]
 ---
 
@@ -67,6 +67,11 @@ tags: [architecture, parent, authorization, teaching-log]
    查 `class_logs`。**這裡的安全性不是靠 `.in()` 對照 `studentScope`**（class_logs
    跟學生範圍無關），**是靠型別保證這份清單只可能來自第一步的合法查詢**——見下方
    `ScopedIds` 的設計。
+
+> **2026-10-03 訂正（#1116）**：第一步寫的是「查**這個孩子**的 `enrollments`」，但當時的 `pluck()`
+> 只套 `studentScope`（這個家長的**所有**孩子）—— 姊姊的班的日誌會出現在妹妹的清單裡。
+> 同一個家長看得到，所以不是越權，但是張冠李戴。`pluck()` 現在多一個**必填**的 `studentId`
+> （跟 scope 是 AND），下方的程式碼片段是當時的提案原貌，以 `lib/child-db.ts` 為準。
 
 ### 提案：`ScopedIds` 品牌型別 + `pluck()` / `fromScopedIds()`
 

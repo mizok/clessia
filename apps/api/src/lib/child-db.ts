@@ -75,12 +75,17 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
          * `ids` 拿去查另一張沒有 `student_id` 的表），分成兩次查詢還得保證
          * 「後面那次的 ids 真的是從前面那次算出來的」——這裡直接用同一個
          * scoped 查詢的結果算兩種輸出，不留那個縫。
+         *
+         * `studentId` **必填**（#1116）：scope 是「這個家長的所有孩子」，只靠它查
+         * `enrollments` 會把兄弟姊妹的班一起拿回來，而家長端的路由一次只看一個孩子。
+         * 跟 scope 是 AND —— 傳 scope 外的 id 只會查到空，不會放寬範圍。
          */
         async pluck(
           columns: string,
           idColumn: string,
+          studentId: string,
         ): Promise<{ rows: Record<string, unknown>[]; ids: ScopedIds; error: unknown }> {
-          const { data, error } = await scopedSelect(columns);
+          const { data, error } = await scopedSelect(columns).eq(studentIdColumn, studentId);
           if (error) return { rows: [], ids: [] as unknown as ScopedIds, error };
 
           const rows = (data ?? []) as unknown as Record<string, unknown>[];

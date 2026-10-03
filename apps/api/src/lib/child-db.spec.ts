@@ -108,7 +108,7 @@ describe('createChildDb —— pluck / fromScopedIds', () => {
               in: (col: string, values: string[]) => {
                 calls.inColumn = col;
                 calls.inValues = values;
-                return Promise.resolve({ data: rows, error: null });
+                return { eq: () => Promise.resolve({ data: rows, error: null }) };
               },
             }),
           };
@@ -126,7 +126,9 @@ describe('createChildDb —— pluck / fromScopedIds', () => {
     const { client } = fakePluckSupabase(rows);
     const childDb = createChildDb(client as never, ['s1'], 'org-1');
 
-    const result = await childDb.from('enrollments', 'student_id').pluck('class_id', 'class_id');
+    const result = await childDb
+      .from('enrollments', 'student_id')
+      .pluck('class_id', 'class_id', 's1');
 
     expect(result.error).toBeNull();
     expect(result.rows).toEqual(rows);
@@ -137,13 +139,15 @@ describe('createChildDb —— pluck / fromScopedIds', () => {
     const client = {
       from: () => ({
         select: () => ({
-          in: () => Promise.resolve({ data: null, error: { message: 'boom' } }),
+          in: () => ({ eq: () => Promise.resolve({ data: null, error: { message: 'boom' } }) }),
         }),
       }),
     };
     const childDb = createChildDb(client as never, ['s1'], 'org-1');
 
-    const result = await childDb.from('enrollments', 'student_id').pluck('class_id', 'class_id');
+    const result = await childDb
+      .from('enrollments', 'student_id')
+      .pluck('class_id', 'class_id', 's1');
 
     expect(result.rows).toEqual([]);
     expect(result.ids).toEqual([]);
@@ -153,7 +157,9 @@ describe('createChildDb —— pluck / fromScopedIds', () => {
   it('fromScopedIds() 用 pluck() 產生的 ids 查沒有 student_id 的表', async () => {
     const { calls, client: pluckClient } = fakePluckSupabase([{ class_id: 'class-1' }]);
     const childDb = createChildDb(pluckClient as never, ['s1'], 'org-1');
-    const { ids } = await childDb.from('enrollments', 'student_id').pluck('class_id', 'class_id');
+    const { ids } = await childDb
+      .from('enrollments', 'student_id')
+      .pluck('class_id', 'class_id', 's1');
     expect(calls.table).toBe('enrollments');
 
     const scopedCalls: { table?: string; inColumn?: string; inValues?: readonly string[] } = {};
@@ -335,5 +341,26 @@ describe('createChildDb —— insertMany', () => {
     expect((await childDb.from('trial_requests', 'student_id').insertMany([])).outOfScope).toBe(
       true,
     );
+  });
+});
+
+describe('createChildDb —— pluck 只拿指名的那個孩子（#1116）', () => {
+  it('兄弟姊妹都在 scope 裡，pluck 只回 studentId 那個孩子的列；scope 外的 id 回空', async () => {
+    const db = createMultiOrgDb({
+      enrollments: [
+        { student_id: 's1', class_id: 'class-1' },
+        { student_id: 's2', class_id: 'class-2' },
+        { student_id: 's3', class_id: 'class-3' },
+      ],
+    });
+    const childDb = createChildDb(db.client as never, ['s1', 's2'], 'org-1');
+
+    const own = await childDb.from('enrollments', 'student_id').pluck('class_id', 'class_id', 's1');
+    expect(own.ids).toEqual(['class-1']);
+
+    const outside = await childDb
+      .from('enrollments', 'student_id')
+      .pluck('class_id', 'class_id', 's3');
+    expect(outside.ids).toEqual([]);
   });
 });
