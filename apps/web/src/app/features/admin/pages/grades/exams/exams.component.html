@@ -112,19 +112,7 @@
           styleClass="exams__type-select"
         />
 
-        @if (examType() === 'academy') {
-          <p-select
-            [options]="campusOptions()"
-            [ngModel]="campusId()"
-            (ngModelChange)="onCampusChange($event)"
-            optionLabel="label"
-            optionValue="value"
-            size="small"
-            placeholder="全部分校"
-            [showClear]="true"
-            styleClass="clessia-filter-control"
-          />
-        } @else {
+        @if (examType() === 'school') {
           <p-select
             [options]="schoolOptions()"
             [ngModel]="schoolId()"

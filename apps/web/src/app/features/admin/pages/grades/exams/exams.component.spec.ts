@@ -6,6 +6,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { ExamsComponent } from './exams.component';
 import { environment } from '@env/environment';
+import { CampusContextService } from '@core/campus-context.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 
@@ -124,6 +125,8 @@ describe('ExamsComponent', () => {
   }
 
   beforeEach(async () => {
+    // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
+    localStorage.removeItem('clessia.campusContext');
     await TestBed.configureTestingModule({
       imports: [ExamsComponent],
       providers: [
@@ -174,6 +177,29 @@ describe('ExamsComponent', () => {
     fixture.detectChanges();
     expect(component['currentRows']().length).toBe(1);
     expect(component['currentRows']()[0].kind).toBe('school');
+  });
+
+  it('分校跟頂欄走：換分校只發一支校內考查詢，帶 campusId、回第一頁（#1138）', () => {
+    component['onPage']({ page: 1 } as never);
+    fixture.detectChanges();
+    http
+      .expectOne(
+        (req) =>
+          req.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+          req.params.get('page') === '2',
+      )
+      .flush({ data: [], meta: { total: 0, page: 2, pageSize: LIST_PAGE_SIZE } });
+
+    TestBed.inject(CampusContextService).select('c9');
+    fixture.detectChanges();
+
+    const reqs = http.match((req) => req.url.startsWith(`${environment.apiUrl}/api/academy-exams`));
+    expect(
+      reqs.map((r) => [r.request.params.get('campus_id'), r.request.params.get('page')]),
+    ).toEqual([['c9', '1']]);
+    reqs.forEach((r) =>
+      r.flush({ data: [], meta: { total: 0, page: 1, pageSize: LIST_PAGE_SIZE } }),
+    );
   });
 
   it('uses todo=true query when status filter is todo', () => {

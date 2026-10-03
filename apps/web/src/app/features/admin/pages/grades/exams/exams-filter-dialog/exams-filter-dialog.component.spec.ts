@@ -18,14 +18,12 @@ describe('ExamsFilterDialogComponent', () => {
             data: {
               initial: {
                 examType: 'academy',
-                campusId: null,
                 schoolId: null,
                 subjectId: null,
                 status: 'all',
                 timeRange: 'all',
               },
               options: {
-                campusOptions: [],
                 schoolOptions: [],
                 subjectOptions: [],
                 statusOptions: [],

@@ -12,7 +12,9 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { skip } from 'rxjs';
+import { CampusContextService } from '@core/campus-context.service';
 import { format, subMonths } from 'date-fns';
 
 // PrimeNG
@@ -224,10 +226,6 @@ export class ExamsComponent implements OnInit {
   protected readonly campuses = computed(() => this.refData.campuses());
   protected readonly subjects = computed(() => this.refData.subjects());
   protected readonly schools = signal<School[]>([]);
-  protected readonly campusOptions = computed(() => [
-    { label: '全部分校', value: null as string | null },
-    ...this.campuses().map((c) => ({ label: c.name, value: c.id as string | null })),
-  ]);
   protected readonly schoolOptions = computed(() => [
     { label: '全部學校', value: null as string | null },
     ...this.schools().map((school) => ({ label: school.name, value: school.id as string | null })),
@@ -256,7 +254,9 @@ export class ExamsComponent implements OnInit {
 
   // Filters
   protected readonly examType = signal<ExamTypeFilter>('academy');
-  protected readonly campusId = signal<string | null>(null);
+  /** 分校跟頂欄走（#1138）：頁內與手機篩選的分校下拉拿掉；只作用在校內考（段考看學校） */
+  private readonly campusCtx = inject(CampusContextService);
+  protected readonly campusId = this.campusCtx.id;
   protected readonly schoolId = signal<string | null>(null);
   protected readonly subjectId = signal<string | null>(null);
   protected readonly statusFilter = signal<StatusFilter>('all');
@@ -266,7 +266,6 @@ export class ExamsComponent implements OnInit {
   protected readonly filterBadge = computed(() => {
     let count = 0;
     if (this.timeRange() !== 'all') count++;
-    if (this.examType() === 'academy' && this.campusId()) count++;
     if (this.examType() === 'school' && this.schoolId()) count++;
     if (this.subjectId()) count++;
     if (this.statusFilter() !== 'all') count++;
@@ -296,7 +295,7 @@ export class ExamsComponent implements OnInit {
 
   protected readonly hasActiveFilters = computed(
     () =>
-      (this.examType() === 'academy' ? this.campusId() !== null : this.schoolId() !== null) ||
+      (this.examType() === 'school' && this.schoolId() !== null) ||
       this.subjectId() !== null ||
       this.statusFilter() !== 'all' ||
       this.searchText().trim() !== '' ||
@@ -377,6 +376,11 @@ export class ExamsComponent implements OnInit {
   }
 
   constructor() {
+    this.campusCtx.use();
+    // 換分校由 listQuery 的 effect 重查；這裡只把頁碼拉回第一頁（同一輪變更，只查一次）
+    toObservable(this.campusId)
+      .pipe(skip(1), takeUntilDestroyed())
+      .subscribe(() => this.currentPage.set(1));
     effect(() => {
       const query = this.listQuery();
       this.loadExamRows(query);
@@ -577,11 +581,6 @@ export class ExamsComponent implements OnInit {
     this.currentPage.set(1);
   }
 
-  protected onCampusChange(value: string | null): void {
-    this.campusId.set(value);
-    this.currentPage.set(1);
-  }
-
   protected onSubjectChange(value: string | null): void {
     this.subjectId.set(value);
     this.currentPage.set(1);
@@ -620,7 +619,6 @@ export class ExamsComponent implements OnInit {
   }
 
   protected clearFilters(): void {
-    this.campusId.set(null);
     this.schoolId.set(null);
     this.subjectId.set(null);
     this.statusFilter.set('all');
@@ -639,14 +637,12 @@ export class ExamsComponent implements OnInit {
       data: {
         initial: {
           examType: this.examType(),
-          campusId: this.campusId(),
           schoolId: this.schoolId(),
           subjectId: this.subjectId(),
           status: this.statusFilter(),
           timeRange: this.timeRange(),
         },
         options: {
-          campusOptions: this.campusOptions(),
           schoolOptions: this.schoolOptions(),
           subjectOptions: this.subjectOptions(),
           statusOptions: this.statusOptions(),
@@ -665,7 +661,6 @@ export class ExamsComponent implements OnInit {
           return;
         }
         this.examType.set(result.examType ?? this.examType());
-        this.campusId.set(result.campusId ?? null);
         this.schoolId.set(result.schoolId ?? null);
         this.subjectId.set(result.subjectId ?? null);
         this.statusFilter.set(result.status ?? 'all');
