@@ -325,6 +325,8 @@ mount('/api/me', meRoute, ANY_ROLE);
 mount('/api/courses', coursesRoute, ADMIN_ONLY, { write: 'manage_courses' });
 mount('/api/campuses', campusesRoute, ADMIN_ONLY);
 mount('/api/schools', schoolsRoute, ADMIN_ONLY, { write: 'manage_courses' });
+// 只擋寫、不擋讀是刻意的（#1059）：人員管理「頁」要 manage_staff（前端 permissionGuard），
+// 但排課指派、代課、人員挑選器都要讀人員清單。改成 { all } 之前先把挑選器換成精簡端點。
 mount('/api/staff', staffRoute, ADMIN_ONLY, { write: 'manage_staff' });
 mount('/api/subjects', subjectsRoute, ADMIN_ONLY, { write: 'manage_courses' });
 mount('/api/classes', classesRoute, ADMIN_ONLY, { write: 'manage_courses' });

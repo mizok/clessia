@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, admin]
 created: 2026-09-12
-updated: 2026-09-30
+updated: 2026-10-03
 ---
 
 # 人員管理
@@ -15,18 +15,18 @@ updated: 2026-09-30
 **路由**：`/admin/staff`
 **角色**：管理員（`admin`）
 **選單位置**：人事管理 › 人員管理
-**額外權限**：無
+**額外權限**：`manage_staff`（`permissionGuard` + 選單隱藏）
 
 <!-- generated:route-facts end -->
 
-**權限變體**：任何 admin 角色都進得去（不論 `permissions`），頁內的寫入鈕也不會因為缺權限而消失 —— 按下去由 API 擋。逐權限的量測見 [[specs/sitemap/_shared/permission-matrix]]。
+**權限變體**：**需 `manage_staff` 才進得去**（#1059，2026-10-03 起；其他管理員直接打網址會被導回 `/admin/dashboard`、選單也看不到）。進得來的人看到的寫入鈕都可按。逐權限的量測見 [[specs/sitemap/_shared/permission-matrix]]。
 
 **進入方式**：選單「人事管理 › 人員管理」/ 直接網址
 
 **外框**見 [[specs/sitemap/_shared/shell-layout]]。
 
-> ⚠️ **這條路由沒有 `permission`** —— 任何 admin 都進得來。
-> 細部權限（`manage_staff` 等）是**表單裡可以勾的東西**，不是進這一頁的門檻。
+> ✅ **已修（#1059，2026-10-03）**：原本這條路由沒有 `permission`，任何 admin 都進得來（`manage_staff` 只是表單裡可以勾的東西）。
+> 使用者裁決改成進頁門檻；**API 讀取仍對所有管理員開放**（排課指派、代課、人員挑選器要讀人員清單）。
 
 ## 畫面區塊
 

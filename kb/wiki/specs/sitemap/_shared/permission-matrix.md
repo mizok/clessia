@@ -5,7 +5,7 @@ category: spec
 status: developing
 tags: [sitemap, _shared, admin, authorization]
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-10-03
 ---
 
 # 權限變體矩陣（管理端）
@@ -61,30 +61,33 @@ updated: 2026-09-13
 
 **每一格都是量到的**（`驗`）。推導出來的東西集中在下一節，**不混進這張表**。
 
-| | 側欄項目數 | 側欄多出來的 | `/admin/meals` | `/admin/payments` | `/admin/fee-templates` | `/admin/reports` | 分校清單 | 儀表板多出的卡片 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `[]`（admin10） | **14** | — | 導回 dashboard | 導回 | 導回 | 導回 | 1 | — |
-| `basic_operations` | 14 | — | 導回 | 導回 | 導回 | 導回 | 1 | — |
-| `manage_courses` | 14 | — | 導回 | 導回 | 導回 | 導回 | 1 | — |
-| `manage_students` | 14 | — | 導回 | 導回 | 導回 | 導回 | 1 | — |
-| `manage_finance` | **17** | 費用方案管理／餐費管理／繳費紀錄 | **可進** | **可進** | **可進** | 導回 | 1 | — |
-| `manage_staff` | 14 | — | 導回 | 導回 | 導回 | 導回 | 1 | — |
-| `manage_roles` | 14 | — | 導回 | 導回 | 導回 | 導回 | 1 | — |
-| `manage_org_settings` | 14 | — | 導回 | 導回 | 導回 | 導回 | 1 | — |
-| `view_reports` | **15** | 營收報表 | 導回 | 導回 | 導回 | **可進** | 1 | **在籍學生／本月報名異動** |
-| `all_campuses` | 14 | — | 導回 | 導回 | 導回 | 導回 | **13** | — |
-| `*`（admin11） | **18** | 全部四項 | 可進 | 可進 | 可進 | 可進 | **13** | 在籍學生／本月報名異動 |
+| | 側欄項目數 | 側欄多出來的 | `/admin/meals` | `/admin/payments` | `/admin/fee-templates` | `/admin/reports` | `/admin/staff` | 分校清單 | 儀表板多出的卡片 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `[]`（admin10） | **13** | — | 導回 dashboard | 導回 | 導回 | 導回 | 導回 | 1 | — |
+| `basic_operations` | 13 | — | 導回 | 導回 | 導回 | 導回 | 導回 | 1 | — |
+| `manage_courses` | 13 | — | 導回 | 導回 | 導回 | 導回 | 導回 | 1 | — |
+| `manage_students` | 13 | — | 導回 | 導回 | 導回 | 導回 | 導回 | 1 | — |
+| `manage_finance` | **16** | 費用方案管理／餐費管理／繳費紀錄 | **可進** | **可進** | **可進** | 導回 | 導回 | 1 | — |
+| `manage_staff` | **14** | 人員管理 | 導回 | 導回 | 導回 | 導回 | **可進** | 1 | — |
+| `manage_roles` | 13 | — | 導回 | 導回 | 導回 | 導回 | 導回 | 1 | — |
+| `manage_org_settings` | 13 | — | 導回 | 導回 | 導回 | 導回 | 導回 | 1 | — |
+| `view_reports` | **14** | 營收報表 | 導回 | 導回 | 導回 | **可進** | 導回 | 1 | **在籍學生／本月報名異動** |
+| `all_campuses` | 13 | — | 導回 | 導回 | 導回 | 導回 | 導回 | **13** | — |
+| `*`（admin11） | **18** | 全部五項 | 可進 | 可進 | 可進 | 可進 | 可進 | **13** | 在籍學生／本月報名異動 |
+
+> **2026-10-03 重量（#1059）**：「側欄項目數」「側欄多出來的」「`/admin/staff`」三欄，11 個帳號全部重走一次
+> （人員管理改成要 `manage_staff` 才進得了、選單也藏起來）。其餘欄位是 2026-09-13 的量測，#1059 不影響它們，沒有重走。
 
 「導回」一律是 `→ /admin/dashboard`（`permissionGuard` 的落點）。
 
-### 其餘 15 條 admin 路由：每一種權限都進得去
+### 其餘 14 條 admin 路由：每一種權限都進得去
 
 `dashboard` `notifications` `courses` `sessions` `changes` `enrollments` `students`
-`parents` `staff` `leave` `contact-book` `grades/exams` `grades/overview`
+`parents` `leave` `contact-book` `grades/exams` `grades/overview`
 `grades/overview/class` `grades/overview/student` `settings`（→ `settings/campuses`）
 
 **四個帳號走過完整的 20 條路由**（`[]` / `manage_finance` / `view_reports` / `*`），
-四次都只有上面那四條會被導回。其餘七個帳號只走了那四條 —— **這是抽樣，不是全走**，
+四次都只有上面那四條會被導回（2026-09-13；#1059 之後 `staff` 是第五條，見矩陣）。其餘七個帳號只走了那四條 —— **這是抽樣，不是全走**，
 理由見下一節（前端只有四處讀 permission，第五處是儀表板卡片）。
 
 ### 頁內按鈕：**沒有任何寫入鈕會因為缺權限而消失**
@@ -94,7 +97,7 @@ updated: 2026-09-13
 | 頁 | 看得到的 |
 | --- | --- |
 | `/admin/students` | 「新增學生」（空狀態那顆也在） |
-| `/admin/staff` | 「操作紀錄」「新增人員」 |
+| `/admin/staff` | ~~「操作紀錄」「新增人員」~~ —— #1059 起 admin10 進不去這頁（導回） |
 | `/admin/courses` | 「操作紀錄」「新增課程」＋每個課程的「新增班」 |
 | `/admin/settings/campuses` | 「操作紀錄」「新增分校」 |
 
@@ -104,7 +107,7 @@ updated: 2026-09-13
 > `NavigationService:27-28` 的註解自己寫著它藏選單的理由是「不要讓人點到必然 403 的按鈕」。
 > **同一條理由沒有被套用到頁內的按鈕上。** 記成現況，不判斷。
 
-## 前端到底在哪裡讀 permission —— 只有五處
+## 前端到底在哪裡讀 permission —— 只有六處
 
 這一節是**讀原始碼**得到的（`推`），而上面那張表是量到的；兩者互相對得上。
 
@@ -112,15 +115,17 @@ updated: 2026-09-13
 | --- | --- | --- |
 | `app.routes.ts:146 / 263 / 344` | `permissionGuard('manage_finance')` | meals / payments / fee-templates |
 | `app.routes.ts:270` | `permissionGuard('view_reports')` | reports |
-| `core/smart-enums/routes-catalog.ts:313/323/333/343` | `RouteObj.permission` | 上面四條的**選單項** |
+| `app.routes.ts`（`ADMIN_STAFF`） | `permissionGuard('manage_staff')` | staff（#1059） |
+| `core/smart-enums/routes-catalog.ts`（meals／payments／fee-templates／reports／staff） | `RouteObj.permission` | 上面五條的**選單項** |
 | `core/navigation.service.ts:28` | `!path.permission \|\| hasPermission(...)` | 依上一列過濾側欄與底欄 |
 | `features/admin/pages/dashboard/dashboard.component.ts:506` | `hasPermission('view_reports')` | 兩張卡片 |
 
 **`grep -rn "hasPermission(" apps/web/src/app`（排除 `auth.service` / `permission.guard` /
 `navigation.service`）全庫只有一筆**，就是儀表板那一筆。
 
-> **所以九個權限裡有六個（`basic_operations` `manage_courses` `manage_students`
-> `manage_staff` `manage_roles` `manage_org_settings`）在前端完全不改變任何東西。**
+> **所以九個權限裡有五個（`basic_operations` `manage_courses` `manage_students`
+> `manage_roles` `manage_org_settings`）在前端完全不改變任何東西。**
+> `manage_staff` 原本也在這一列，#1059（2026-10-03）起它決定進不進得了人員管理頁。
 > 它們是**API 的寫入閘**，只在你按下去之後才生效。
 
 ## 後端擋在哪（`apps/api/src/index.ts` 的 `mount()`）
@@ -129,7 +134,7 @@ updated: 2026-09-13
 | --- | --- |
 | `manage_courses` | `courses` `schools` `subjects` `classes` `sessions` 的**寫入** |
 | `manage_students` | `students` `parents` `enrollments` 的**寫入** |
-| `manage_staff` | `staff` 的**寫入** |
+| `manage_staff` | `staff` 的**寫入**（讀取刻意開放：排課指派、代課、人員挑選器要讀；**進頁**由前端 `permissionGuard` 擋，#1059） |
 | `basic_operations` | `attendance` `leaves` `daily-checkins` `contact-book` `class-logs` 的**寫入** |
 | `manage_finance` | `billing-periods` `fee-templates` `invoices` `session-packs` `meals` `billing-runs` 的**全部**（讀也擋） |
 | `view_reports` | `reports` 的**全部** |
@@ -167,7 +172,7 @@ updated: 2026-09-13
 
 | 項目 | 原因 |
 | --- | --- |
-| 七個帳號的完整 20 條路由 | 只走了四條受守衛的。四個帳號走過完整清單，四次一致；前端只有五處讀 permission（上面那張表） |
+| 七個帳號的完整 20 條路由 | 只走了四條受守衛的。四個帳號走過完整清單，四次一致；前端只有六處讀 permission（上面那張表） |
 | **多重權限的組合** | fixture 是「一個帳號一個權限」。`view_reports + all_campuses` 這種組合**沒有帳號**，所以「在籍學生那張卡片會不會被分校窄化」只能用 `admin08` 與 DB 對照推得 |
 | teacher / parent | 那兩個角色不讀 `permissions`（`grep` 全庫零命中） |
 | 按下寫入鈕真的會 403 嗎 | **沒有按**（零寫入）。從 `mount()` 的宣告推得，留給寫入實按的窗口 |

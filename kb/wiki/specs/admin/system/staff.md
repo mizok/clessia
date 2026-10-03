@@ -3,20 +3,19 @@ title: 人員管理
 summary: 管理管理員、老師帳號。
 category: spec
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 tags: [specs, admin, system, staff]
 ---
 
 # 人員管理
 
 **路徑**: `/admin/staff`
-**角色**: Admin（**進頁與讀取不設門檻**；新增／編輯／停用／封存／改權限需 `manage_staff`，由 API 強制）
+**角色**: Admin，**需 `manage_staff` 才能進頁**（前端 `permissionGuard`，選單同步隱藏）；寫入同樣需 `manage_staff`，由 API 強制
 **分組**: 系統設定
 
-> 2026-10-02 計畫席裁決（#1027，可逆暫定、待使用者確認）：維持「任何管理員可進可讀，寫入由 API 擋」。
-> 讀取刻意放行 —— 排課指派對話框等要讀人員（`apps/api/src/index.ts:277-290` 註解）；寫入由 `mount('/api/staff', …, { write: 'manage_staff' })`（`index.ts:328`）擋。
-> **UI 不會因缺權限而停用寫入鈕**（按下去才由 API 回 403），見 [[specs/sitemap/admin/staff]] 與 [[specs/sitemap/_shared/permission-matrix]]。
-> 若使用者否決、改成要擋進頁，屬授權邏輯（保留類），另開單。
+> 2026-10-02 使用者裁決（#1059，推翻 #1027 的暫定「任何管理員可進可讀」）：只有能管人員的管理員進得了這頁。
+> **API 讀取對其他管理員仍開放** —— 排課指派、代課、人員挑選器等對話框要讀人員清單（`apps/api/src/index.ts` 的 `mount('/api/staff', …, { write: 'manage_staff' })` 只擋寫）。
+> 若要連讀取也鎖，得先把挑選器改用另一支精簡端點，另案。
 
 ## 核心目的
 

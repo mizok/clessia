@@ -352,6 +352,10 @@ export class RoutesCatalog {
     'pi-id-card',
     true,
     NavigationGroup.ADMIN_STAFF,
+    // #1059（使用者裁決，推翻 #1027）：只有能管人員的管理員進得了這頁。
+    // **API 讀取刻意不鎖**（`mount('/api/staff', …, { write: 'manage_staff' })`）——
+    // 排課指派、代課、人員挑選器都要讀人員清單。
+    'manage_staff',
   );
 
   // Group: 系統設定
