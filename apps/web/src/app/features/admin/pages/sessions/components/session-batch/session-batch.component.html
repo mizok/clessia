@@ -1,7 +1,8 @@
 <!--
   A6 批次動作列（#991，schedule.css `.bar`）：勾了課才浮出來、固定在畫面底。
   桌機是墨色浮條（暫時出現的操作才用黑，A5）；手機是深一階的灰面＋頂端 2px 近黑線（10/02 手機黑色減量）。
-  主動作「批次操作」用橘（＝下一步按這顆），按鈕與流程沿用原本的 dialog。
+  四個動作直接攤開（#1174 G1，A6 bar()）：主動作「停課」橘，其餘描邊；各自開原本的批次 dialog（先預覽再套用）。
+  A6 的「改到別天」「批次代課」沒有 API，不放。
 -->
 @if (selectedCount() > 0) {
   <div
@@ -26,10 +27,33 @@
           </button>
           <button
             type="button"
-            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border-0 bg-accent-vivid px-5 text-md font-semibold whitespace-nowrap text-zinc-900 hover:bg-accent-vivid-2"
-            (click)="openBatchSheet.emit(null)"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-zinc-600 wide:bg-transparent wide:text-white wide:hover:border-white"
+            (click)="openBatchSheet.emit('time')"
           >
-            批次操作
+            <i class="pi pi-clock text-sm" aria-hidden="true"></i>改時間（同一天）
+          </button>
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-zinc-600 wide:bg-transparent wide:text-white wide:hover:border-white"
+            (click)="openBatchSheet.emit('assign')"
+          >
+            <i class="pi pi-user-plus text-sm" aria-hidden="true"></i>指派老師
+          </button>
+          @if (hasCancelled()) {
+            <button
+              type="button"
+              class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-400 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-900 wide:border-zinc-600 wide:bg-transparent wide:text-white wide:hover:border-white"
+              (click)="openBatchSheet.emit('uncancel')"
+            >
+              <i class="pi pi-undo text-sm" aria-hidden="true"></i>恢復課堂
+            </button>
+          }
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border-0 bg-accent-vivid px-5 text-md font-semibold whitespace-nowrap text-zinc-900 hover:bg-accent-vivid-2"
+            (click)="openBatchSheet.emit('cancel')"
+          >
+            <i class="pi pi-times text-sm" aria-hidden="true"></i>停課
           </button>
         </div>
       </div>

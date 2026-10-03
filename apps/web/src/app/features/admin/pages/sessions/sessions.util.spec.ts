@@ -1,7 +1,7 @@
 import { format, parseISO } from 'date-fns';
 
 import { pendingAttendanceQuery } from '../dashboard/dashboard.util';
-import { parseAttendanceQueryParams } from './sessions.util';
+import { parseAttendanceQueryParams, parseClassQueryParams } from './sessions.util';
 
 // `new Date('2026-08-22')`（無時分秒的 ISO 字串）是 UTC 解讀，UTC+8 印出來會差一天——
 // 跟實作一樣用 `parseISO`（本地時區）組期望值，不要在測試裡踩自己在別處警告過的坑
@@ -152,5 +152,34 @@ describe('跨頁契約：儀表板的 queryParams 跟課堂管理頁解出來的
     });
 
     expect(parsed!.statuses).toEqual(['scheduled']);
+  });
+});
+
+describe('parseClassQueryParams', () => {
+  it('沒有 classId 就不是開課班的入口', () => {
+    expect(parseClassQueryParams({ from: '2026-09-01' })).toBeNull();
+  });
+
+  it('解出班級、課程、整期範圍與只看未指派', () => {
+    expect(
+      parseClassQueryParams({
+        classId: 'c1',
+        campusId: 'ca',
+        courseId: 'co',
+        from: '2026-09-01',
+        to: '2027-01-31',
+        assignmentStatus: 'unassigned',
+      }),
+    ).toEqual({
+      classId: 'c1',
+      courseId: 'co',
+      from: parseISO('2026-09-01'),
+      to: parseISO('2027-01-31'),
+      unassigned: true,
+    });
+  });
+
+  it('範圍可以缺（開課班沒有起訖時）', () => {
+    expect(parseClassQueryParams({ classId: 'c1' })).toMatchObject({ from: null, to: null, unassigned: false });
   });
 });

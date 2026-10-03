@@ -41,3 +41,31 @@ export function parseAttendanceQueryParams(
     statuses: statuses === undefined ? null : statuses.split(',').filter(Boolean),
   };
 }
+
+/**
+ * 開課班頁（`courses.page` 的 `openSessionsList`／`openUnassignedSessionsList`）帶過來的條件：
+ * 這一班、整期（`from`/`to` 可缺）、要不要只看未指派。沒帶 `classId` 就不是這個入口。
+ *
+ * #1174 之前這組參數**沒有人讀**：點「看這班的課」落地後是本月全部課堂。
+ */
+export interface IncomingClassFilter {
+  readonly classId: string;
+  readonly courseId: string | null;
+  readonly from: Date | null;
+  readonly to: Date | null;
+  readonly unassigned: boolean;
+}
+
+export function parseClassQueryParams(
+  params: Readonly<Record<string, string>>,
+): IncomingClassFilter | null {
+  const { classId, courseId, from, to, assignmentStatus } = params;
+  if (!classId) return null;
+  return {
+    classId,
+    courseId: courseId || null,
+    from: from ? parseISO(from) : null,
+    to: to ? parseISO(to) : null,
+    unassigned: assignmentStatus === 'unassigned',
+  };
+}

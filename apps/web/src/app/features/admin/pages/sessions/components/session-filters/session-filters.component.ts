@@ -22,6 +22,8 @@ import { SESSION_STATUS_OPTIONS as STATUS_OPTIONS } from '@shared/utils/session-
   templateUrl: './session-filters.component.html',
 })
 export class SessionFiltersComponent {
+  /** 日期範圍只在「篩選結果」出現；課表（單日甘特）用頁面上的日期條換天 */
+  readonly showDateRange = input(true);
   readonly listDateRange = input<Date[]>([]);
 
   readonly campuses = input<Campus[]>([]);
