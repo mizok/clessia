@@ -243,6 +243,29 @@ async function fetchAllRows<T>(
 }
 
 /**
+ * list 用：同 fetchAllRows，但把錯誤收成 `{ error }`（list 既有的錯誤處理是看 error 欄位）。
+ *
+ * **頂層一定要有穩定排序鍵**（reviewer 二讀）：呼叫端的 `.order(..., { referencedTable })` 排的是
+ * **內嵌資源**，頂層列的順序不保證 —— 用 range 跨頁撈時，兩頁之間順序一變就會重複或漏列。
+ * 這裡統一補 `order('id')`；最後的顯示順序本來就在 JS 照 examDate 排，DB 的順序只為了分頁穩定。
+ */
+function fetchAllOrError(
+  make: () => {
+    order: (column: 'id') => {
+      range: (
+        from: number,
+        to: number,
+      ) => PromiseLike<{ data: any[] | null; error: { message: string } | null }>;
+    };
+  },
+): Promise<{ data: any[] | null; error: { message: string } | null }> {
+  return fetchAllRows<any>((from, to) => make().order('id').range(from, to)).then(
+    (data) => ({ data, error: null }),
+    (error: Error) => ({ data: null, error: { message: error.message } }),
+  );
+}
+
+/**
  * 成績讀取的範圍（#1115）：**可讀學生 = 老師範圍 ∩ 分校範圍 ∩ 班級／課程篩選**，
  * 加上班級篩選時「校內考必須掛在那些班」的考試清單。`null` = 不限。
  *
@@ -372,8 +395,6 @@ app.openapi(listRoute, async (c) => {
 
   try {
     const results: ScoreRecord[] = [];
-    let totalAcademy = 0;
-    let totalSchool = 0;
 
     // Fetch academy scores (unless type is explicitly 'school')
     // 篩了班但那些班沒掛任何校內考 → 校內考這半是空的（段考照學生篩，照常查）
@@ -381,7 +402,7 @@ app.openapi(listRoute, async (c) => {
       const buildAcademyQuery = () =>
         supabase
           .from('academy_scores')
-          .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
+          .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name )`)
           .eq('academy_exams.org_id', orgId);
 
       const applyAcademyFilters = (query: ReturnType<typeof buildAcademyQuery>) => {
@@ -408,7 +429,6 @@ app.openapi(listRoute, async (c) => {
       };
 
       const academyRowMap = new Map<string, any>();
-      let academyCount = 0;
       let academyError: { message: string } | null = null;
 
       if (searchKeyword) {
@@ -437,7 +457,7 @@ app.openapi(listRoute, async (c) => {
 
           const candidateQueries: any[] = [];
           if (matchedStudentIds.length > 0) {
-            candidateQueries.push(
+            candidateQueries.push(() =>
               applyAcademyFilters(buildAcademyQuery())
                 .in('student_id', matchedStudentIds)
                 .order('exam_date', {
@@ -447,7 +467,7 @@ app.openapi(listRoute, async (c) => {
             );
           }
           if (matchedExamIds.length > 0) {
-            candidateQueries.push(
+            candidateQueries.push(() =>
               applyAcademyFilters(buildAcademyQuery())
                 .in('exam_id', matchedExamIds)
                 .order('exam_date', {
@@ -458,7 +478,7 @@ app.openapi(listRoute, async (c) => {
           }
 
           if (candidateQueries.length > 0) {
-            const queryResults = await Promise.all(candidateQueries);
+            const queryResults = await Promise.all(candidateQueries.map(fetchAllOrError));
             for (const result of queryResults) {
               if (result.error) {
                 academyError = { message: result.error.message };
@@ -471,14 +491,15 @@ app.openapi(listRoute, async (c) => {
           }
         }
       } else {
-        const { data, count, error } = await applyAcademyFilters(buildAcademyQuery()).order(
-          'exam_date',
-          { referencedTable: 'academy_exams', ascending: false },
+        const { data, error } = await fetchAllOrError(() =>
+          applyAcademyFilters(buildAcademyQuery()).order('exam_date', {
+            referencedTable: 'academy_exams',
+            ascending: false,
+          }),
         );
         if (error) {
           academyError = { message: error.message };
         } else {
-          academyCount = count ?? 0;
           for (const row of data ?? []) {
             academyRowMap.set(row.id, row);
           }
@@ -486,14 +507,10 @@ app.openapi(listRoute, async (c) => {
       }
 
       const academyRows = Array.from(academyRowMap.values());
-      if (searchKeyword) {
-        academyCount = academyRows.length;
-      }
 
       if (academyError) {
         console.error('Academy scores query error:', academyError);
       } else {
-        totalAcademy = academyCount;
         for (const row of academyRows ?? []) {
           const student = row.students as any;
           results.push({
@@ -510,7 +527,7 @@ app.openapi(listRoute, async (c) => {
       const buildSchoolQuery = () =>
         supabase
           .from('school_scores')
-          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
+          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name )`)
           .eq('school_exams.org_id', orgId);
 
       const applySchoolFilters = (query: ReturnType<typeof buildSchoolQuery>) => {
@@ -528,7 +545,6 @@ app.openapi(listRoute, async (c) => {
       };
 
       const schoolRowMap = new Map<string, any>();
-      let schoolCount = 0;
       let schoolError: { message: string } | null = null;
 
       if (searchKeyword) {
@@ -551,7 +567,7 @@ app.openapi(listRoute, async (c) => {
           const candidateQueries: any[] = [];
 
           if (matchedStudentIds.length > 0) {
-            candidateQueries.push(
+            candidateQueries.push(() =>
               applySchoolFilters(buildSchoolQuery())
                 .in('student_id', matchedStudentIds)
                 .order('created_at', {
@@ -561,7 +577,7 @@ app.openapi(listRoute, async (c) => {
             );
           }
           if (matchedExamIds.length > 0) {
-            candidateQueries.push(
+            candidateQueries.push(() =>
               applySchoolFilters(buildSchoolQuery())
                 .in('school_exam_id', matchedExamIds)
                 .order('created_at', {
@@ -572,7 +588,7 @@ app.openapi(listRoute, async (c) => {
           }
 
           if (candidateQueries.length > 0) {
-            const queryResults = await Promise.all(candidateQueries);
+            const queryResults = await Promise.all(candidateQueries.map(fetchAllOrError));
             for (const result of queryResults) {
               if (result.error) {
                 schoolError = { message: result.error.message };
@@ -585,17 +601,15 @@ app.openapi(listRoute, async (c) => {
           }
         }
       } else {
-        const { data, count, error } = await applySchoolFilters(buildSchoolQuery()).order(
-          'created_at',
-          {
+        const { data, error } = await fetchAllOrError(() =>
+          applySchoolFilters(buildSchoolQuery()).order('created_at', {
             referencedTable: 'school_exams',
             ascending: false,
-          },
+          }),
         );
         if (error) {
           schoolError = { message: error.message };
         } else {
-          schoolCount = count ?? 0;
           for (const row of data ?? []) {
             schoolRowMap.set(row.id, row);
           }
@@ -603,14 +617,10 @@ app.openapi(listRoute, async (c) => {
       }
 
       const schoolRows = Array.from(schoolRowMap.values());
-      if (searchKeyword) {
-        schoolCount = schoolRows.length;
-      }
 
       if (schoolError) {
         console.error('School scores query error:', schoolError);
       } else {
-        totalSchool = schoolCount;
         for (const row of schoolRows ?? []) {
           const student = row.students as any;
           results.push({
@@ -623,11 +633,17 @@ app.openapi(listRoute, async (c) => {
     }
 
     // Sort combined results by examDate descending
-    results.sort((a, b) => (b.examDate > a.examDate ? 1 : b.examDate < a.examDate ? -1 : 0));
+    // 日期篩選照回應的 examDate 再做一次（#1253）：段考的查詢沒有日期條件，而段考沒填考試日期時
+    // examDate 退回建立日，DB 層篩 school_exams.exam_date 會漏掉那些（同 #1167 家長端）
+    const inRange = results.filter(
+      (r) => (!dateFrom || r.examDate >= dateFrom) && (!dateTo || r.examDate <= dateTo),
+    );
+    inRange.sort((a, b) => (b.examDate > a.examDate ? 1 : b.examDate < a.examDate ? -1 : 0));
 
-    // Paginate in-memory (since we're merging two sources)
-    const total = totalAcademy + totalSchool;
-    const paginated = results.slice(offset, offset + pageSize);
+    // 兩個來源合併後在記憶體分頁 —— 所以上面每支查詢都分頁撈齊（#1253：max_rows 1000 會靜默截斷）
+    // ponytail: 全撈；全機構上萬筆時改成 DB 端合併分頁（view＋range）
+    const total = inRange.length;
+    const paginated = inRange.slice(offset, offset + pageSize);
 
     return c.json(
       {

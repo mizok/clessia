@@ -371,3 +371,72 @@ describe('summary／class-exam 的分校範圍（#1250）', () => {
     expect(res.status).not.toBe(403);
   });
 });
+
+describe('GET /api/scores 列表 —— #1253', () => {
+  // 替身照 PostgREST 的行為：沒帶 range 最多回 1000 列（max_rows），帶了 range 就照區間切
+  const pagedResolver =
+    (academy: unknown[], school: unknown[]): Resolver =>
+    (q) => {
+      const all =
+        q.table === 'academy_scores' ? academy : q.table === 'school_scores' ? school : null;
+      if (!all) return { data: [] };
+      const range = q.ops.find((op) => op.name === 'range')?.args as [number, number] | undefined;
+      const data = range ? all.slice(range[0], range[1] + 1) : all.slice(0, 1000);
+      return { data, count: all.length };
+    };
+
+  it('段考也吃 dateFrom／dateTo（照回應的 examDate；沒填考試日期的退回建立日，同 #1167）', async () => {
+    const { app } = createApp(
+      pagedResolver(
+        [],
+        [
+          schoolRow('u1', '王小明', 90, '2026-08-20'),
+          schoolRow('u1', '王小明', 70, null, '2026-09-15T00:00:00Z'),
+          schoolRow('u2', '李小華', 60, '2026-10-20'),
+        ],
+      ),
+      null,
+    );
+    const res = await app.request('/api/scores?type=school&dateFrom=2026-09-01&dateTo=2026-09-30');
+    const body = (await res.json()) as {
+      data: Array<{ examDate: string }>;
+      meta: { total: number };
+    };
+    expect(body.data.map((d) => d.examDate)).toEqual(['2026-09-15']);
+    expect(body.meta.total).toBe(1);
+  });
+
+  // reviewer 二讀：.order(..., { referencedTable }) 排的是內嵌資源，頂層順序不保證 ——
+  // range 跨頁時兩頁之間順序一變就重複或漏列。每支分頁撈的查詢都要有頂層的穩定鍵
+  it('分頁撈取的查詢都帶頂層穩定排序鍵 order(id)，而且不再要 count', async () => {
+    const { app, queries } = createApp(pagedResolver([], []), null);
+    await app.request('/api/scores?search=%E7%8E%8B');
+    await app.request('/api/scores');
+    const scoreQueries = queries.filter(
+      (q) => q.table === 'academy_scores' || q.table === 'school_scores',
+    );
+    expect(scoreQueries.length).toBeGreaterThan(0);
+    for (const q of scoreQueries) {
+      const ranged = q.ops.some((op) => op.name === 'range');
+      if (!ranged) continue;
+      expect(
+        q.ops.some((op) => op.name === 'order' && op.args[0] === 'id' && op.args[1] === undefined),
+      ).toBe(true);
+      expect(
+        JSON.stringify(q.ops.find((op) => op.name === 'select')?.args[1] ?? null),
+      ).not.toContain('count');
+    }
+  });
+
+  it('超過 1000 列時不被靜默截斷：第 1001 列之後的頁照樣拿得到', async () => {
+    const rows = Array.from({ length: 1500 }, (_, i) => ({
+      ...academyRow('u1', '王小明', i, 100),
+      id: `a-${i}`,
+    }));
+    const { app } = createApp(pagedResolver(rows, []), null);
+    const res = await app.request('/api/scores?type=academy&page=6&pageSize=200');
+    const body = (await res.json()) as { data: unknown[]; meta: { total: number } };
+    expect(body.meta.total).toBe(1500);
+    expect(body.data).toHaveLength(200);
+  });
+});
