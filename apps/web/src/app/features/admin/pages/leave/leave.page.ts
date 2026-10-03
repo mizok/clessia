@@ -1,17 +1,18 @@
 import { Component, OnInit, inject, signal, computed, input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
-import { SelectModule } from 'primeng/select';
 import { DatePickerModule } from 'primeng/datepicker';
 import { ToastModule } from 'primeng/toast';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { MessageService, ConfirmationService, ConfirmEventType } from 'primeng/api';
 import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { format, differenceInCalendarDays } from 'date-fns';
+import { skip } from 'rxjs';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { LeaveService, type LeaveRequest } from '@core/leave.service';
-import { ReferenceDataService } from '@core/reference-data.service';
+import { CampusContextService } from '@core/campus-context.service';
 import { SystemClockService, addDaysToDateString } from '@core/system-clock.service';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
@@ -38,7 +39,6 @@ import {
     DataChipComponent,
     FormsModule,
     ButtonModule,
-    SelectModule,
     DatePickerModule,
     ToastModule,
     TooltipModule,
@@ -61,7 +61,8 @@ export class LeavePage implements OnInit {
   readonly page = input.required<RouteObj>();
 
   private readonly leaveService = inject(LeaveService);
-  private readonly refData = inject(ReferenceDataService);
+  /** 分校跟頂欄走（#1138）：頁內分校下拉拿掉 */
+  private readonly campusCtx = inject(CampusContextService);
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly systemClock = inject(SystemClockService);
@@ -73,16 +74,7 @@ export class LeavePage implements OnInit {
   protected readonly currentPage = signal(1);
   protected readonly PAGE_SIZE = LIST_PAGE_SIZE;
 
-  protected filterCampusId: string | null = null;
   protected filterDateRange: Date[] | null = null;
-
-  protected readonly campuses = computed(() => [
-    { label: '全部分校', value: '' },
-    ...this.refData
-      .campuses()
-      .filter((campus) => campus.isActive)
-      .map((campus) => ({ label: campus.name, value: campus.id })),
-  ]);
 
   protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
     first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
@@ -110,20 +102,23 @@ export class LeavePage implements OnInit {
     return role === 'parent' ? '家長' : '管理員';
   }
 
-  ngOnInit(): void {
-    this.loadCampuses();
-    this.loadRecords();
+  constructor() {
+    this.campusCtx.use();
+    // 初次載入由 ngOnInit 做；這裡只管之後頂欄換分校
+    toObservable(this.campusCtx.id)
+      .pipe(skip(1), takeUntilDestroyed())
+      .subscribe(() => this.onFilterChange());
   }
 
-  private loadCampuses(): void {
-    this.refData.loadCampuses();
+  ngOnInit(): void {
+    this.loadRecords();
   }
 
   protected loadRecords(): void {
     this.loading.set(true);
     this.leaveService
       .list({
-        campusId: this.filterCampusId ?? undefined,
+        campusId: this.campusCtx.id() ?? undefined,
         dateFrom: this.filterDateRange?.[0]
           ? format(this.filterDateRange[0], 'yyyy-MM-dd')
           : undefined,

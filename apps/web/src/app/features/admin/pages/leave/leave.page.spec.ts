@@ -1,11 +1,12 @@
 import { of } from 'rxjs';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { ConfirmEventType, ConfirmationService, MessageService } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import type { Campus } from '@core/campuses.service';
 import type { LeaveRequest } from '@core/leave.service';
 import { LeaveService } from '@core/leave.service';
+import { CampusContextService } from '@core/campus-context.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { SystemClockService } from '@core/system-clock.service';
 import { LeavePage } from './leave.page';
@@ -33,6 +34,7 @@ describe('LeavePage', () => {
   };
 
   let component: LeavePage;
+  let fixture: ComponentFixture<LeavePage>;
 
   const activeRecord: LeaveRequest = {
     id: 'leave-1',
@@ -51,6 +53,8 @@ describe('LeavePage', () => {
   };
 
   beforeEach(async () => {
+    // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
+    localStorage.removeItem('clessia.campusContext');
     vi.useFakeTimers();
     leaveServiceMock.list.mockClear();
     leaveServiceMock.delete.mockClear();
@@ -83,13 +87,24 @@ describe('LeavePage', () => {
       })
       .compileComponents();
 
-    const fixture = TestBed.createComponent(LeavePage);
+    fixture = TestBed.createComponent(LeavePage);
     component = fixture.componentInstance;
     fixture.componentRef.setInput('page', { label: '學生請假紀錄' });
     vi.spyOn(confirmationService, 'confirm');
     vi.spyOn(messageService, 'add');
     fixture.detectChanges();
     await fixture.whenStable();
+  });
+
+  it('分校跟頂欄走：頂欄換分校回第一頁、帶 campusId 重查（#1138）', () => {
+    leaveServiceMock.list.mockClear();
+
+    TestBed.inject(CampusContextService).select('campus-1');
+    fixture.detectChanges();
+
+    const calls = leaveServiceMock.list.mock.calls as unknown as [Record<string, unknown>][];
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toEqual(expect.objectContaining({ campusId: 'campus-1', page: 1 }));
   });
 
   it('should create', () => {
