@@ -53,7 +53,7 @@ describe('ClassRowComponent', () => {
     await setup(makeClass({ maxStudents: 20 }));
 
     expect(fixture.nativeElement.querySelector('.pi-users')).toBeNull();
-    expect(fixture.nativeElement.querySelector('.class-row__capacity')?.textContent).toContain(
+    expect(fixture.nativeElement.querySelector('[data-part=capacity]')?.textContent).toContain(
       '上限 20 人',
     );
   });
@@ -61,7 +61,7 @@ describe('ClassRowComponent', () => {
   it('沒有設定容量上限時不顯示這個欄位', async () => {
     await setup(makeClass({ maxStudents: undefined }));
 
-    expect(fixture.nativeElement.querySelector('.class-row__capacity')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-part=capacity]')).toBeNull();
   });
 
   // 歷史班級不該出現操作選單 —— 這是原本頁面上的行為，抽出來後要保住
@@ -89,7 +89,7 @@ describe('ClassRowComponent', () => {
     const spy = vi.fn();
     fixture.componentInstance.navigate.subscribe(spy);
 
-    fixture.nativeElement.querySelector('.class-row__nav-btn')?.click();
+    fixture.nativeElement.querySelector('[data-part=nav]')?.click();
 
     expect(spy).toHaveBeenCalled();
   });
@@ -101,7 +101,7 @@ describe('ClassRowComponent', () => {
       const spy = vi.fn();
       fixture.componentInstance.navigate.subscribe(spy);
 
-      fixture.nativeElement.querySelector('.class-row__name').click();
+      fixture.nativeElement.querySelector('[data-part=name]').click();
 
       expect(spy).toHaveBeenCalled();
     });
@@ -111,7 +111,7 @@ describe('ClassRowComponent', () => {
       const spy = vi.fn();
       fixture.componentInstance.toggleSelection.subscribe(spy);
 
-      fixture.nativeElement.querySelector('.class-row__name').click();
+      fixture.nativeElement.querySelector('[data-part=name]').click();
 
       expect(spy).not.toHaveBeenCalled();
     });
@@ -122,7 +122,7 @@ describe('ClassRowComponent', () => {
       const spy = vi.fn();
       fixture.componentInstance.toggleSelection.subscribe(spy);
 
-      fixture.nativeElement.querySelector('.class-row__schedules').click();
+      fixture.nativeElement.querySelector('[data-part=schedules]').click();
 
       expect(spy).toHaveBeenCalled();
     });
@@ -142,7 +142,7 @@ describe('ClassRowComponent', () => {
       const spy = vi.fn();
       fixture.componentInstance.generateSessions.subscribe(spy);
 
-      fixture.nativeElement.querySelector('.class-row__completeness-info--action').click();
+      fixture.nativeElement.querySelector('[data-part=generate]').click();
 
       expect(spy).toHaveBeenCalled();
     });
@@ -152,7 +152,7 @@ describe('ClassRowComponent', () => {
       const spy = vi.fn();
       fixture.componentInstance.toggleSelection.subscribe(spy);
 
-      fixture.nativeElement.querySelector('.class-row__completeness-info--action').click();
+      fixture.nativeElement.querySelector('[data-part=generate]').click();
 
       expect(spy).not.toHaveBeenCalled();
     });
@@ -161,9 +161,7 @@ describe('ClassRowComponent', () => {
     it('無時段的班不給產生課堂的入口', async () => {
       await setup(makeClass({ isActive: true, scheduleCount: 0 }));
 
-      expect(
-        fixture.nativeElement.querySelector('.class-row__completeness-info--action'),
-      ).toBeNull();
+      expect(fixture.nativeElement.querySelector('[data-part=generate]')).toBeNull();
     });
 
     // 課堂是有的，只是都停課了 —— 再產生一次不會讓它們復原
@@ -178,9 +176,7 @@ describe('ClassRowComponent', () => {
       );
 
       expect(fixture.nativeElement.textContent).toContain('未來皆停課');
-      expect(
-        fixture.nativeElement.querySelector('.class-row__completeness-info--action'),
-      ).toBeNull();
+      expect(fixture.nativeElement.querySelector('[data-part=generate]')).toBeNull();
     });
   });
 });

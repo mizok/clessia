@@ -126,9 +126,6 @@ const TOUCH_TARGET_EXEMPT = {
   'apps/web/src/app/features/admin/pages/payments/payments.page.scss|.payments__row':
     '同上：<tr>，真正的修復在 responsive-table 的共用 coarse 區塊',
 
-  // ─ 原生 checkbox：撐大它會讓方框本身變巨大 ─
-  'apps/web/src/app/features/admin/pages/courses/class-row/class-row.component.scss|.batch-checkbox':
-    '15×15 原生 checkbox，坐在 min-height 44px 的 class-row__summary 裡，而且它的 (change) 與外層 (click) 發同一個 toggleSelection —— 同一個動作已經有 44px 的目標。原生 checkbox 的 width/height 直接改視覺尺寸不是內距，撐大只會讓方框變巨大',
 };
 const DUAL_TRACK_BASELINE = join(ROOT, 'tools/agent-harness/dual-track-baseline.json');
 const SCAN_SCOPE = join(ROOT, 'tools/agent-harness/scan-scope.json');
