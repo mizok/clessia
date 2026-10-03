@@ -22,12 +22,12 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-03 00:0x 第四次部署，labor-reviewer-20261001-2204）
+## 🚀 線上是哪一版（2026-10-03 12:2x 第五次部署，labor-reviewer-20261001-2204）
 
-**截線 `a50fa9b1`**（#1060，#1034 退費上限＋多退態；`verify` 與 `migrate.yml` 的 `remote` 皆 success）：web `main-XBNXDPFR.js`（**這次有重發**，由本席 `wrangler pages deploy`；0211 之後含 Tailwind T0／T1／T2 工具鏈與 payments 頁修正）、api `b7ca4e28`（使用者親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。順序：api 先、web 後。
-**正式 DB**：**10-03 00:1x 差集 0**（run `37031607697`：`migrate.yml` 第一次真的走完 remote → plan → 使用者 Approve → apply，套了 #977 的 `20261001073913`，套完複查 missing／extra 皆無）。`prod-db-plan`／`prod-db` environment 已設（10-03 00:0x，secret 用 Session pooler），**之後每顆 main 的 migration 都走這條，不再手貼 SQL**（#968）。
-**部署驗證**：web 線上 `main-XBNXDPFR.js`＝本機 build；內容探針 `overrefunded` 在三個同名 chunk 線上各 ×3／×2／×1（部署前線上同名 chunk 抓回 0），負控 `chunk-ZZZZZZZZ.js` 回 `text/html`；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html。**限度**：api 側（#1034 退費上限）是行為收緊、無新路由，openapi 證明不了新程式碼上線，只證明服務正常、版本已換；要真證明得帶身分退費超收應回 409。
-**這次踩到的坑**：第一次 build 因 `npm ci` 沒重跑而**失敗**（#1055 加了 tailwind／postcss devDeps，`MODULE_NOT_FOUND`），我看到的是 22:41 的舊 `dist`，一度誤判「web 不用發」；見 `labor-reviewer.md`。
+**截線 `6103d4d0`**（#1148；`verify` 與 `migrate.yml` 的 `remote`／`plan` 皆 success、apply skipped＝無待套）：web `main-BTV4Z3GW.js`（有重發，本席 `wrangler pages deploy`）、api `40e8bfc3-39d1-4c37-a27e-8bc2a4f1fac8`（使用者親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。順序：api 先、web 後。
+含：api #1080／#1094／#1102／#1096／#1105／#1132／#1136／#1137（授權範圍收緊、掃碼依模式、重掃不覆寫、出勤模式分校層級）；web T4 #1069／#1078／#1089／#1091／#1093／#1096／#1080／#1147／#1148。
+**正式 DB**：`20261003032358`（#1132，campuses.attendance_mode）已由 `migrate.yml` run `37094247171` 套上（使用者 Approve）；**之後 `migrate @ 6103d4d0` 的 plan 乾淨**（apply skipped）。**#1141（`20261003033635_enrollment_requests.sql`）尚未合**，等本次部署完才合、合後再 Approve 一次。
+**部署驗證**：web 線上 `main-BTV4Z3GW.js`＝本機 build（`dist` 12:09 新產物、build exit=0）；內容探針 `page-open`（#1147 新元件）線上同名檔 ×3（部署前 0）、負控 chunk 回 `text/html`；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html；`openapi.json` 127 條路徑。**限度**：api 側這批是行為收緊與既有端點欄位，無新路由，openapi 證明不了新程式碼上線，只證明服務正常、版本已換；要真證明得帶身分打被擋的請求。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 📋 等使用者
