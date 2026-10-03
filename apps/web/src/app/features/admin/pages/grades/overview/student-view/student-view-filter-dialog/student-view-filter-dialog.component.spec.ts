@@ -17,14 +17,12 @@ describe('StudentViewFilterDialogComponent', () => {
 
   const data: StudentViewFilterDialogData = {
     initial: {
-      campusId: 'campus-1',
       searchText: '王',
       grade: 'J2',
       schoolId: 'school-1',
       status: 'active',
     },
     options: {
-      campusOptions: [{ label: '示範分校', value: 'campus-1' }],
       gradeOptions: [{ label: '國二', value: 'J2' }],
       schoolOptions: [{ label: '示範國中', value: 'school-1' }],
       statusOptions: [
@@ -55,7 +53,6 @@ describe('StudentViewFilterDialogComponent', () => {
   });
 
   it('以傳入的 initial 作為初始值', () => {
-    expect(component['campusId']()).toBe('campus-1');
     expect(component['searchText']()).toBe('王');
     expect(component['grade']()).toBe('J2');
     expect(component['schoolId']()).toBe('school-1');
@@ -68,7 +65,6 @@ describe('StudentViewFilterDialogComponent', () => {
     component['onSearchChange']('李');
 
     expect(onChangeMock).toHaveBeenCalledWith({
-      campusId: 'campus-1',
       searchText: '李',
       grade: 'J2',
       schoolId: 'school-1',
@@ -77,12 +73,10 @@ describe('StudentViewFilterDialogComponent', () => {
   });
 
   it('null 值被正規化成空字串或預設值，不會外洩 null', () => {
-    component['onCampusChange'](null);
     component['onGradeChange'](null);
     component['onStatusChange'](null);
 
     const last = onChangeMock.mock.calls.at(-1)?.[0];
-    expect(last.campusId).toBe('');
     expect(last.grade).toBe('');
     expect(last.status).toBe('active');
   });
@@ -98,7 +92,6 @@ describe('StudentViewFilterDialogComponent', () => {
 
     expect(onClearMock).toHaveBeenCalledTimes(1);
     expect(onChangeMock).toHaveBeenCalledWith({
-      campusId: '',
       searchText: '',
       grade: '',
       schoolId: null,

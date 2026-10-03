@@ -182,6 +182,7 @@
           <app-empty-state
             icon="pi pi-filter-slash"
             title="無符合條件的結果"
+            campusScoped
             description="請調整篩選條件，或清除篩選後查看全部考試"
           >
             <button type="button" class="exams__clear-filters" (click)="clearFilters()">
@@ -193,6 +194,7 @@
           <app-empty-state
             icon="pi pi-inbox"
             title="尚無考試資料"
+            campusScoped
             description="點選「新增考試」建立補習班考試或學校考試"
           >
             <p-button label="新增考試" icon="pi pi-plus" (onClick)="openCreateMenu($event)" />

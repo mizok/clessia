@@ -23,6 +23,7 @@ import {
 } from 'date-fns';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { CampusContextService } from '@core/campus-context.service';
+import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
 import { catchError, forkJoin, map, of, switchMap } from 'rxjs';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
@@ -111,6 +112,7 @@ const FETCH_LIMIT = 500;
   selector: 'app-sessions',
   standalone: true,
   imports: [
+    CampusScopeNoteComponent,
     ToastModule,
     PopupMenuComponent,
     SessionsHeaderComponent,

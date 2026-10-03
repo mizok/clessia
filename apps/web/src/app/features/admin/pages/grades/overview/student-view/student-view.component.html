@@ -4,18 +4,6 @@
   <app-page-breadcrumb [items]="breadcrumbs" />
 
   <div class="student-view__toolbar student-view__toolbar--desktop">
-    <p-select
-      [options]="campusOptions()"
-      [ngModel]="campusId()"
-      (ngModelChange)="onCampusChange($event)"
-      optionLabel="label"
-      optionValue="value"
-      placeholder="全部分校"
-      [showClear]="true"
-      size="small"
-      styleClass="student-view__campus-select"
-    />
-
     <div class="student-view__search">
       <i class="pi pi-search student-view__search-icon"></i>
       <input
@@ -84,6 +72,7 @@
     <app-empty-state
       icon="pi pi-users"
       title="無符合的學生"
+      campusScoped
       description="請嘗試調整篩選條件或搜尋關鍵字"
     />
   } @else {

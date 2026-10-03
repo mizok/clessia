@@ -16,6 +16,7 @@ import { addDays, endOfMonth, format, parseISO, startOfMonth, subMonths } from '
 import { PaginatorModule } from 'primeng/paginator';
 
 import { CampusContextService } from '@core/campus-context.service';
+import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
 import {
   SessionsService,
   type ChangeLogEntry,
@@ -99,6 +100,7 @@ function batchKey(e: ChangeLogEntry): string {
 @Component({
   selector: 'app-changes',
   imports: [
+    CampusScopeNoteComponent,
     DatePipe,
     NgTemplateOutlet,
     RouterLink,
