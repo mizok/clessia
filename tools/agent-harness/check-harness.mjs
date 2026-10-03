@@ -40,6 +40,7 @@ import { touchTargetViolations, TOUCH_MIN_PX } from './lib/touch-target.mjs';
 import { missingUserSkills } from './lib/user-skills.mjs';
 import { usesRawSupabase } from './lib/parent-route-scan.mjs';
 import { themeMappingProblems } from './lib/tailwind-theme.mjs';
+import { layerOrderProblems } from './lib/css-layer-order.mjs';
 import { hasInlineStyles, ledgerDiff, sourceConflicts, sourcePaths } from './lib/scss-ledger.mjs';
 import {
   declaredOrgTables,
@@ -2178,6 +2179,24 @@ function checkTailwindTheme() {
 }
 
 checkTailwindTheme();
+
+// ── A26. cascade layer 順序三處一致（#991 T4）──────────────────────────────────────────
+// tailwind.css、styles.scss 的 `@layer …;` 與 PrimeNG 的 cssLayer.order（必須是前綴）。
+// 只改一處的話生效的是 PrimeNG 那一行，另外兩處不會報錯。判準在 lib/css-layer-order.mjs。
+function checkCssLayerOrder() {
+  const twFile = join(ROOT, 'apps/web/src/tailwind.css');
+  if (!existsSync(twFile)) return;
+  recordScope('css-layer-order', { roots: ['apps/web/src'], exts: ['.css', '.scss', '.ts'] });
+  for (const problem of layerOrderProblems({
+    tailwindCss: readFileSync(twFile, 'utf8'),
+    stylesScss: readFileSync(join(ROOT, 'apps/web/src/styles.scss'), 'utf8'),
+    appConfigTs: readFileSync(join(ROOT, 'apps/web/src/app/app.config.ts'), 'utf8'),
+  })) {
+    fail(problem);
+  }
+}
+
+checkCssLayerOrder();
 
 // ── A24. SCSS 歸零帳面（#991 T2）──────────────────────────────────────────────────────
 // 單位是檔：帳面外的 .scss／內嵌 styles: 一出現就紅（不准新增 SCSS）；帳面上的檔不見了也紅

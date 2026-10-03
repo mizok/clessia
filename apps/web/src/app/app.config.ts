@@ -24,10 +24,7 @@ import { routes } from './app.routes';
 import { authInterceptor } from '@core/auth.interceptor';
 import { provideSystemClock } from '@core/system-clock.providers';
 import { AuthService } from '@core/auth.service';
-import {
-  handleChunkNavigationError,
-  provideChunkRecovery,
-} from '@core/chunk-recovery.providers';
+import { handleChunkNavigationError, provideChunkRecovery } from '@core/chunk-recovery.providers';
 
 registerLocaleData(localeZhTW, 'zh-TW');
 
@@ -162,7 +159,10 @@ export const appConfig: ApplicationConfig = {
         options: {
           prefix: 'p',
           darkModeSelector: '.dark-mode',
-          cssLayer: false,
+          // PrimeNG 進 `primeng` layer（#991 T4）。order 必須是 tailwind.css／styles.scss 那行
+          // `@layer …` 的前綴 —— PrimeNG 把這支 layer-order 插在 <head> 最前面，順序由第一次出現決定。
+          // 三處一致由 harness A26 守。為什麼要 legacy：kb/wiki/architecture/tailwind-adoption.md 2.2。
+          cssLayer: { name: 'primeng', order: 'theme, base, primeng, legacy' },
         },
       },
       ripple: true,

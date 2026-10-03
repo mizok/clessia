@@ -3,7 +3,7 @@ title: Tailwind 導入評估（c6、PrimeNG 並存、Angular 21 接法、BEM／S
 summary: 使用者 2026-10-02 裁定新 UI 改用 Tailwind、入口頁日後重排、不再延續 BEM＋SCSS。本頁回答導入前要先定的五件事：c6 的 regex 抓不到 h-screen 這類沒有數字的 class（三層補法）、PrimeNG 改用 cssLayer 會讓既有覆寫的勝負翻轉、tokens 有一個語意衝突（--font-medium 是字重不是字體）、Tailwind 4 不搭 Sass 所以入口要獨立成 .css、以及五支解析 SCSS 的 gate 會在 Tailwind 頁面上失明。
 category: architecture
 status: proposed
-updated: 2026-10-02
+updated: 2026-10-03
 tags: [architecture, tailwind, styling, primeng, c6, migration]
 ---
 
@@ -173,6 +173,21 @@ CSS cascade 的規則是**未分層的樣式一律贏過任何 layer 裡的樣�
 
 - 切換 `cssLayer` 要**單獨一支 PR**，在 47 頁 sitemap 上做視覺回歸（前後截圖比對）。不要跟「第一頁 Tailwind」綁在一起，否則出事時分不出是哪一個造成的。
 - **過渡期規則：同一個元素不要同時用 BEM class 與 utility 控制同一個屬性。** SCSS 會贏，utility 看起來就像「沒效」。
+
+### 2.2a ⚠️ 實作後（#991 T4）：切換時實測抓到的三個坑
+
+順序定為 `theme, base, primeng, legacy, utilities`：`styles.scss` 的全域規則進 `legacy`（贏 PrimeNG、輸 utility），tokens 維持未分層。
+切換前後在 47 條路由 × 1440／390、含下拉與對話框的開啟狀態上比對 `getComputedStyle`（另跑一組「同碼兩次」當雜訊基準），抓到：
+
+1. **reset 不能進 `legacy`，要進 `base`。** `* { padding: 0 }`、`button { border: none; background: none }` 以前未分層、specificity 最低，一直輸給 PrimeNG 的 class；
+   放到 `primeng` 之後就**全面壓過 Aura 的 padding／border**（p-select 變成一行裸字）。判準：**以前靠 specificity 低而輸的規則，要放到它該輸的那一層之前。**
+2. **「只想改預設狀態」的覆寫要寫成 token，不能寫成 class 規則。** `.p-checkbox .p-checkbox-box { border: … }` 以前跟 `.p-checkbox-checked .p-checkbox-box` 同分、Aura 後注入而輸，
+   所以只有未勾選時生效；進 layer 後一律贏，勾選框線變灰、`.p-invalid` 的紅框被蓋掉。改成 `:root { --p-checkbox-border-color: … }`，各狀態照舊歸 Aura。
+   同理，**從沒生效過的規則（同分或較低分）直接刪**，不要讓它在切換那天第一次上畫面（例：天藍色的 focus 環是換色系前的遺物）。
+3. **PrimeNG overlay 在 runtime 掃 `document.styleSheets` 找 `-anchor-gutter`**（`@primeuix/utils` 的 `getCSSVariableByRegex`），碰到沒有 `.style` 的規則（`@layer`、`@charset`）就丟例外、**整支表跳過**。
+   Aura 的定義進了 layer、`styles.css` 開頭是 `@charset`，結果下拉與觸發鈕之間的 2px 消失。變數放在 `index.html` 那支 inline `<style>` 的第一條。
+
+`!important` 在 layer 下順序反轉（越早的 layer 越強）：`legacy` 的 `!important` 會輸給 PrimeNG 的 `!important`（`.p-dialog-maximized`、`.p-drawer-full` 等）。本 repo 目前沒有兩者撞在同一元素上的用法。
 
 ### 2.3 preflight：過渡期**不開**
 

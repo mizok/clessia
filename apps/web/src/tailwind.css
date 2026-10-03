@@ -6,10 +6,11 @@
  */
 
 /*
- * layer 順序。⚠️ PrimeNG 的 cssLayer.order 必須是這一行的前綴（T4 切換時接上）——
- * PrimeNG 把 layer-order 插在 <head> 最前面，順序由第一次出現決定。
+ * layer 順序。⚠️ PrimeNG 的 cssLayer.order 必須是這一行的前綴，styles.scss 也宣告同一行
+ * （harness A26 守三處一致）—— PrimeNG 把 layer-order 插在 <head> 最前面，順序由第一次出現決定。
+ * legacy = styles.scss 的全域規則（#991 T4），夾在 primeng 與 utilities 之間。
  */
-@layer theme, base, primeng, utilities;
+@layer theme, base, primeng, legacy, utilities;
 
 @import 'tailwindcss/theme.css' layer(theme);
 /* preflight 刻意不匯入：過渡期它會改變所有既有頁面的基礎樣式（#991 裁定 4） */
