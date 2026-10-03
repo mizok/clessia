@@ -1,0 +1,102 @@
+<!-- 桌機：頂欄輸入框（A6 .top__search） -->
+<label
+  class="hidden h-9 w-60 items-center gap-2 rounded-md border border-zinc-700 bg-zinc-800 px-3 text-zinc-400 focus-within:border-zinc-300 wide:flex"
+>
+  <i class="pi pi-search text-sm" aria-hidden="true"></i>
+  <input
+    #head
+    class="min-w-0 flex-1 border-0 bg-transparent text-md text-white outline-none placeholder:text-zinc-400"
+    type="search"
+    placeholder="找學生、家長電話"
+    aria-label="全站搜尋"
+    role="combobox"
+    aria-autocomplete="list"
+    aria-controls="global-search-list"
+    [attr.aria-expanded]="open()"
+    [attr.aria-activedescendant]="activeId()"
+    (input)="onHeadInput(head.value)"
+    (keydown)="onKeydown($event)"
+  />
+</label>
+
+<!-- 手機：放大鏡 → 底部面板 -->
+<button
+  class="inline-flex size-11 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-white hover:bg-zinc-800 wide:hidden"
+  type="button"
+  aria-label="搜尋學生"
+  (click)="openSheet()"
+>
+  <i class="pi pi-search" aria-hidden="true"></i>
+</button>
+
+<div
+  #panel
+  class="m-0 rounded-lg border border-surface-border bg-white p-1 text-zinc-900 shadow-[0_16px_36px_-14px_rgb(26_22_20/32%)] max-wide:inset-x-0 max-wide:top-auto max-wide:bottom-0 max-wide:max-h-[calc(100%-48px)] max-wide:w-full max-wide:max-w-none max-wide:overflow-y-auto max-wide:rounded-none max-wide:rounded-t-xl max-wide:border-0 max-wide:px-3 max-wide:pb-6 max-wide:backdrop:bg-zinc-900/40"
+  popover
+  aria-label="搜尋學生"
+  [style.position]="pos() ? 'fixed' : null"
+  [style.left.px]="pos()?.left"
+  [style.top.px]="pos()?.top"
+  [style.width.px]="pos()?.width"
+  (toggle)="onToggle($event)"
+>
+  <div
+    class="mx-auto mt-1 mb-2 h-1 w-9 rounded-full bg-zinc-300 wide:hidden"
+    aria-hidden="true"
+  ></div>
+  <label
+    class="mx-1 mb-1 flex h-11 items-center gap-2 rounded-md border border-zinc-300 px-3 text-zinc-600 focus-within:border-zinc-900 wide:hidden"
+  >
+    <i class="pi pi-search text-sm" aria-hidden="true"></i>
+    <input
+      #own
+      class="min-w-0 flex-1 border-0 bg-transparent text-base text-zinc-900 outline-none placeholder:text-zinc-600"
+      type="search"
+      placeholder="找學生、家長電話"
+      aria-label="全站搜尋"
+      role="combobox"
+      aria-autocomplete="list"
+      aria-controls="global-search-list"
+      [attr.aria-expanded]="open()"
+      [attr.aria-activedescendant]="activeId()"
+      (input)="query.set(own.value)"
+      (keydown)="onKeydown($event)"
+    />
+  </label>
+
+  <div id="global-search-list" role="listbox" aria-label="搜尋結果">
+    @if (!query().trim()) {
+      <p class="m-0 p-3 text-md text-zinc-600">打學生名字，或家長電話的後四碼</p>
+    } @else if (failed()) {
+      <p class="m-0 p-3 text-md text-zinc-600">沒有搜到，可能是連線問題。再打一次試試。</p>
+    } @else if (results(); as list) {
+      @for (s of list; track s.id; let i = $index) {
+        <a
+          class="flex min-h-11 flex-col justify-center gap-0.5 rounded-sm px-3 py-2 text-zinc-900 no-underline hover:bg-zinc-100"
+          [class.bg-zinc-100]="i === active()"
+          [id]="'global-search-opt-' + i"
+          role="option"
+          [attr.aria-selected]="i === active()"
+          [routerLink]="['/admin/students', s.id]"
+          (click)="done()"
+        >
+          <span class="text-base font-semibold"
+            >{{ s.name }}{{ s.isActive ? '' : '（已停用）' }}</span
+          >
+          @if (s.parentNames[0]) {
+            <span class="text-sm text-zinc-600 tabular-nums"
+              >{{ s.parentNames[0] }}
+              {{ s.primaryParentPhone ? formatPhone(s.primaryParentPhone) : '' }}</span
+            >
+          }
+        </a>
+      } @empty {
+        <p class="m-0 p-3 text-md text-zinc-600">
+          找不到「{{ query().trim() }}」。試試只打姓氏，或家長電話的後四碼。
+        </p>
+      }
+    } @else {
+      <p class="m-0 p-3 text-md text-zinc-600">搜尋中…</p>
+    }
+  </div>
+</div>
