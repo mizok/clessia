@@ -1330,8 +1330,10 @@ app.openapi(
       return new Response(null, { status: 204 });
     }
 
-    // truncate 模式且為進行中：保留過去，截斷今日起（沒綁定的假）
-    if (mode === 'truncate' && isActive && window.boundSessions.length === 0) {
+    // truncate 模式且為進行中：保留過去，截斷今日起（沒綁定的假）。
+    // **起始日＝今天時沒有過去可保留**（#1207）：改成昨天會留下 start > end 的倒置列，
+    // 所以落到下面的整張刪除（同綁定型「一堂都不剩」那條）。
+    if (mode === 'truncate' && isActive && startDate < today && window.boundSessions.length === 0) {
       // 同一支 today 算出來的昨天，不是另一個 UTC 算法 —— 兩個必須一致，
       // 否則會出現「今天用台北算、昨天用 UTC 算」的組合，比全錯更難 debug。
       const yesterday = addDaysToDateString(today, -1);

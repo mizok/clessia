@@ -370,6 +370,32 @@ describe('DELETE /api/leaves/:id —— 出勤紀錄的處理', () => {
     expect(yesterdayText < '2099-12-31').toBe(true);
   });
 
+  /**
+   * #1207：起始日＝今天的假沒有「過去」可保留。原本照樣把迄日改成昨天，
+   * 留下 `start > end` 的倒置列（列表看得到、重疊檢查永遠不命中、稽核寫 truncate）。
+   * 要走整張刪除，跟 `mode=full` 同一條路（含出勤回復與 `delete` 稽核）。
+   */
+  it('起始日＝今天：整張刪除，不留倒置列', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+    const { app, calls, auditRows } = createDeleteApp({ start: today, end: '2099-12-31' });
+
+    const res = await app.request(
+      '/api/leaves/00000000-0000-4000-8000-000000000001?mode=truncate',
+      { method: 'DELETE' },
+      undefined,
+      { waitUntil: () => undefined, passThroughOnException: () => undefined } as never,
+    );
+
+    expect(res.status).toBe(204);
+    expect(calls).toContainEqual({ table: 'leave_requests', op: 'delete' });
+    expect(calls.some((call) => call.table === 'leave_requests' && call.op === 'update')).toBe(
+      false,
+    );
+    expect(calls).toContainEqual({ table: 'attendance_records', op: 'delete' });
+    expect(auditRows.map((row) => row['action'])).toContain('delete');
+    expect(auditRows.map((row) => row['action'])).not.toContain('truncate_leave');
+  });
+
   it('稽核有被寫進去 —— 而不是在 logAudit 的 catch 裡消失', async () => {
     const { app, auditRows } = createDeleteApp();
 
