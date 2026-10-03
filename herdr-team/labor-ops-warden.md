@@ -631,9 +631,18 @@ npm run harness >/tmp/h.log 2>&1; echo "exit=$?"; tail -3 /tmp/h.log
 **處置:不要宣稱誰合的。** 報「#NNNN 已 MERGED、時間 T」就好 ——
 **誰按的那一下不是監工查得到的事實**。真的需要分辨時問計畫席。
 
-⚠️ **計畫席建議過「看 PR 留言『保留類由計畫席合（合併授權 v3）』來分辨」,
-但我實測那五支上沒有這則留言**(`gh pr view 1225 --json comments` 過濾後 0 筆)——
-**所以那個判準當下不成立**,不要照抄。已回報計畫席,等它給可查的判準再寫進來。
+**真的需要分辨時,查 squash commit 的訊息,不是 PR 留言**(計畫席 2026-10-04 給,我驗過):
+
+```bash
+sha=$(gh pr view <N> --json mergeCommit --jq .mergeCommit.oid)
+git log -1 --format=%B $sha | grep -c '合併授權 v3'      # 1 = 計畫席合的
+# 實測 #1225 / #1265 / #1240 三支都回 1
+```
+
+⚠️ **我第一版查錯了位置,留在這裡當提醒**:計畫席先說「看 PR 留言」,
+我照著查 `gh pr view --json comments` → **0 筆**,於是把它寫成「判準不成立」。
+**那是依據放在 commit 訊息裡、我去翻留言** —— **查到 0 的時候,
+先問「是真的沒有,還是我查錯地方」**(本檔那個反覆出現的形狀,這次的載體是「找錯容器」)。
 
 ## PR 狀態只信 `state`,`mergeable`/`mergeStateStatus` 在已結案的 PR 上是垃圾值
 
