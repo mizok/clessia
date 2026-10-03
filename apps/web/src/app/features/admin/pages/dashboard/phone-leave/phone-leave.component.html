@@ -1,6 +1,9 @@
-<section class="phone-leave" aria-labelledby="phone-leave-title">
-  <div class="phone-leave__head">
-    <h2 id="phone-leave-title" class="phone-leave__title">接到電話：請假</h2>
+<section
+  class="flex flex-col gap-3 rounded-lg border border-surface-border bg-surface-card p-4"
+  aria-labelledby="phone-leave-title"
+>
+  <div class="flex items-center justify-between gap-2">
+    <h2 id="phone-leave-title" class="m-0 text-base font-semibold text-zinc-900">接到電話：請假</h2>
     <p-button
       label="收起"
       [text]="true"
@@ -12,8 +15,8 @@
 
   @if (result(); as done) {
     <!-- ── 結果：伺服器實際寫入的，不是預測的 ─────────────────────── -->
-    <div class="phone-leave__result" role="status">
-      <p class="phone-leave__result-title">
+    <div class="flex flex-col gap-2" role="status">
+      <p class="m-0 font-semibold text-zinc-900">
         ✓ {{ student()?.name }} {{ date() }}{{ isRange() ? '–' + endDate() : '' }} 已請假
         @if (done.records.length > 0) {
           · 以下 {{ done.records.length }} 堂已標成請假
@@ -22,50 +25,60 @@
         }
       </p>
       @if (!isRange() && done.records.length !== done.expected) {
-        <p class="phone-leave__note">
+        <p class="m-0 text-sm text-warning-800">
           預覽是 {{ done.expected }} 堂，實際標了 {{ done.records.length }} 堂 —— 以實際為準
         </p>
       }
-      <ul class="phone-leave__sessions">
+      <ul class="m-0 flex list-none flex-col gap-1 p-0">
         @for (rec of done.records; track rec.id) {
-          <li class="phone-leave__session">
-            <span class="phone-leave__session-time">
+          <li class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-zinc-100 py-2">
+            <span class="text-zinc-600 tabular-nums">
               @if (isRange()) {
                 {{ rec.eventDate }}
               }
               {{ rec.startTime }}–{{ rec.endTime }}
             </span>
-            <span class="phone-leave__session-class">{{ rec.className }}</span>
-            <span class="phone-leave__session-state">{{
-              ATTENDANCE_STATUS_LABELS[rec.status]
-            }}</span>
+            <span class="font-medium">{{ rec.className }}</span>
+            <span class="text-sm">{{ ATTENDANCE_STATUS_LABELS[rec.status] }}</span>
             @if (rosterAvailable()) {
-              <button type="button" class="phone-leave__link" (click)="openRoster(rec)">
+              <button
+                type="button"
+                class="min-h-11 cursor-pointer border-0 bg-transparent px-2 text-sm text-accent-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400"
+                (click)="openRoster(rec)"
+              >
                 點名名單
               </button>
             }
           </li>
         }
       </ul>
-      <div class="phone-leave__actions">
+      <div class="flex justify-end">
         <p-button label="再登記一位" icon="pi pi-plus" (onClick)="reset()" />
       </div>
     </div>
   } @else {
     <!-- ── 1. 找人 ─────────────────────────────────────────────────── -->
     @if (student(); as picked) {
-      <div class="phone-leave__picked">
-        <span class="phone-leave__picked-name">{{ picked.name }}</span>
-        <span class="phone-leave__picked-meta">
+      <div class="flex flex-wrap items-baseline gap-2">
+        <span class="font-semibold text-zinc-900">{{ picked.name }}</span>
+        <span class="text-sm text-zinc-600">
           {{ picked.campusNames.join('、') }}
           @if (picked.parentNames.length > 0) {
             · {{ picked.parentNames.join('、') }}
           }
         </span>
-        <button type="button" class="phone-leave__link" (click)="reset()">換人</button>
+        <button
+          type="button"
+          class="min-h-11 cursor-pointer border-0 bg-transparent px-2 text-sm text-accent-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400"
+          (click)="reset()"
+        >
+          換人
+        </button>
       </div>
     } @else {
-      <label class="phone-leave__label" for="phone-leave-search">學生或家長姓名</label>
+      <label class="text-sm font-medium text-zinc-900" for="phone-leave-search"
+        >學生或家長姓名</label
+      >
       <app-student-autocomplete
         [suggestions]="suggestions()"
         [showContact]="true"
@@ -74,16 +87,15 @@
         (queryChange)="onQuery($event)"
         (valueChange)="pick($any($event)?.id ? $any($event) : null)"
       />
-      <p class="phone-leave__hint">已停用或退班的學生不會出現 —— 找不到請到學生頁查。</p>
+      <p class="m-0 text-sm text-zinc-600">已停用或退班的學生不會出現 —— 找不到請到學生頁查。</p>
     }
 
     @if (student()) {
       <!-- ── 2. 哪一天 ─────────────────────────────────────────────── -->
-      <div class="phone-leave__dates" role="group" aria-label="哪一天">
+      <div class="flex flex-wrap items-center gap-2" role="group" aria-label="哪一天">
         <button
           type="button"
-          class="phone-leave__chip"
-          [class.phone-leave__chip--active]="!customDates() && date() === today()"
+          class="min-h-11 cursor-pointer rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400 aria-pressed:border-accent-400 aria-pressed:bg-accent-50 aria-pressed:text-accent-600"
           [attr.aria-pressed]="!customDates() && date() === today()"
           (click)="chooseDate(today())"
         >
@@ -91,8 +103,7 @@
         </button>
         <button
           type="button"
-          class="phone-leave__chip"
-          [class.phone-leave__chip--active]="!customDates() && date() === tomorrow()"
+          class="min-h-11 cursor-pointer rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400 aria-pressed:border-accent-400 aria-pressed:bg-accent-50 aria-pressed:text-accent-600"
           [attr.aria-pressed]="!customDates() && date() === tomorrow()"
           (click)="chooseDate(tomorrow())"
         >
@@ -100,8 +111,7 @@
         </button>
         <button
           type="button"
-          class="phone-leave__chip"
-          [class.phone-leave__chip--active]="customDates()"
+          class="min-h-11 cursor-pointer rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400 aria-pressed:border-accent-400 aria-pressed:bg-accent-50 aria-pressed:text-accent-600"
           [attr.aria-pressed]="customDates()"
           (click)="openCustomDates()"
         >
@@ -109,7 +119,7 @@
         </button>
       </div>
       @if (customDates()) {
-        <div class="phone-leave__range">
+        <div class="flex flex-wrap items-center gap-2">
           <p-datepicker
             inputId="phone-leave-start"
             dateFormat="yy-mm-dd"
@@ -131,25 +141,36 @@
 
       <!-- ── 3. 他那天的課（預覽）─────────────────────────────────── -->
       @if (preview() === 'error') {
-        <p class="phone-leave__hint">讀不到這天的課 —— 仍可登記，送出後會列出實際標成請假的課。</p>
+        <p class="m-0 text-sm text-zinc-600">
+          讀不到這天的課 —— 仍可登記，送出後會列出實際標成請假的課。
+        </p>
       } @else if (previewDay(); as day) {
         @if (day.sessions.length === 0) {
-          <p class="phone-leave__hint">{{ day.date }} {{ student()?.name }} 沒有課。</p>
+          <p class="m-0 text-sm text-zinc-600">{{ day.date }} {{ student()?.name }} 沒有課。</p>
           @if (day.nextSession; as next) {
-            <button type="button" class="phone-leave__chip" (click)="chooseDate(next.date)">
+            <button
+              type="button"
+              class="min-h-11 cursor-pointer rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400 aria-pressed:border-accent-400 aria-pressed:bg-accent-50 aria-pressed:text-accent-600"
+              (click)="chooseDate(next.date)"
+            >
               下一堂：{{ next.date }} {{ next.startTime }} {{ next.className }} →
             </button>
           }
         } @else {
-          <ul class="phone-leave__sessions" aria-label="這天的課">
+          <ul class="m-0 flex list-none flex-col gap-1 p-0" aria-label="這天的課">
             @for (s of day.sessions; track s.sessionId) {
-              <li class="phone-leave__session" [class.phone-leave__session--muted]="s.cancelled">
-                <span class="phone-leave__session-time">{{ s.startTime }}–{{ s.endTime }}</span>
-                <span class="phone-leave__session-class">{{ s.className }}</span>
+              <li
+                class="flex flex-wrap items-baseline gap-x-3 gap-y-2 border-b border-zinc-100 py-2"
+                [class.text-zinc-500]="s.cancelled"
+              >
+                <span class="text-zinc-600 tabular-nums">{{ s.startTime }}–{{ s.endTime }}</span>
+                <span class="font-medium">{{ s.className }}</span>
                 <span
-                  class="phone-leave__session-state"
-                  [class.phone-leave__session-state--warn]="
+                  class="text-sm"
+                  [class]="
                     !s.cancelled && !s.existingLeave && s.attendance !== null
+                      ? 'text-warning-800'
+                      : 'text-zinc-600'
                   "
                 >
                   @if (s.cancelled) {
@@ -166,7 +187,7 @@
             }
           </ul>
           @if (isRange()) {
-            <p class="phone-leave__hint">
+            <p class="m-0 text-sm text-zinc-600">
               多日假：這裡只預覽第一天，送出後會列出實際標成請假的每一堂。
             </p>
           }
@@ -174,18 +195,17 @@
       }
 
       @if (overlapping()) {
-        <p class="phone-leave__error" role="alert">
+        <p class="m-0 text-sm text-error-700" role="alert">
           這天已經有請假了，不能重複登記 —— 要改請到請假頁。
         </p>
       }
 
       <!-- ── 4. 原因（選填）─────────────────────────────────────────── -->
-      <div class="phone-leave__reasons" role="group" aria-label="原因（選填）">
+      <div class="flex flex-wrap items-center gap-2" role="group" aria-label="原因（選填）">
         @for (chip of REASON_CHIPS; track chip) {
           <button
             type="button"
-            class="phone-leave__chip"
-            [class.phone-leave__chip--active]="reason() === chip"
+            class="min-h-11 cursor-pointer rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-400 aria-pressed:border-accent-400 aria-pressed:bg-accent-50 aria-pressed:text-accent-600"
             [attr.aria-pressed]="reason() === chip"
             (click)="toggleReason(chip)"
           >
@@ -194,7 +214,7 @@
         }
         <input
           pInputText
-          class="phone-leave__reason-input"
+          class="min-w-0 flex-[1_1_12rem]"
           maxlength="200"
           placeholder="其他原因（選填）"
           aria-label="其他原因"
@@ -204,11 +224,11 @@
       </div>
 
       @if (error()) {
-        <p class="phone-leave__error" role="alert">{{ error() }}</p>
+        <p class="m-0 text-sm text-error-700" role="alert">{{ error() }}</p>
       }
 
       <!-- ── 5. 送出 ───────────────────────────────────────────────── -->
-      <div class="phone-leave__actions">
+      <div class="flex justify-end">
         <p-button
           [label]="previewDay()?.sessions?.length === 0 ? '仍要登記（不影響任何點名）' : '登記請假'"
           [loading]="submitting()"
