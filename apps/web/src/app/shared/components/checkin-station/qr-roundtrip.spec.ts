@@ -1,5 +1,4 @@
 import jsQR from 'jsqr';
-// @ts-expect-error `qrcode` 沒有型別（它是 angularx-qrcode 的間接依賴）；不為一條測試加 @types
 import QRCode from 'qrcode';
 
 /**
@@ -9,9 +8,7 @@ import QRCode from 'qrcode';
  */
 it('學生 id 印成 QR 再用 jsqr 讀回來，字串原樣', () => {
   const studentId = '8a75bc76-7927-41e3-af0b-e2b019616120';
-  const { modules } = QRCode.create(studentId, { errorCorrectionLevel: 'M' }) as {
-    modules: { size: number; get(row: number, col: number): boolean };
-  };
+  const { modules } = QRCode.create(studentId, { errorCorrectionLevel: 'M' });
   const scale = 6;
   const quiet = 4; // 規格要求的四格白邊
   const side = (modules.size + quiet * 2) * scale;

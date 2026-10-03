@@ -17,6 +17,8 @@ import { Router } from '@angular/router';
 // PrimeNG
 import { ButtonModule } from 'primeng/button';
 import { MessageService } from 'primeng/api';
+import { AuthService } from '@core/auth.service';
+import { OrgSettingsService } from '@core/org-settings.service';
 import type { MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 import { ToastModule } from 'primeng/toast';
@@ -55,6 +57,7 @@ import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.com
 
 // Local
 import { StudentFormDialogComponent } from './student-form-dialog.component';
+import { printCheckinCards } from './checkin-cards';
 import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import { personHue } from '@shared/utils/person-hue.util';
@@ -112,6 +115,11 @@ export class StudentsPage implements OnInit {
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly orgSettings = inject(OrgSettingsService);
+
+  /** 到班卡（#1127 B）：發卡是學生管理的事，跟編輯學生同一個門檻 */
+  protected readonly canPrintCards = this.auth.hasPermission('manage_students');
 
   protected get overlayContainer(): HTMLElement | null {
     return this.overlayContainerService.getContainer();
@@ -171,6 +179,15 @@ export class StudentsPage implements OnInit {
       },
       { separator: true },
       { label: '編輯', icon: 'pi pi-pencil', command: () => this.openEditDialog(student) },
+      ...(this.canPrintCards
+        ? [
+            {
+              label: '列印到班卡',
+              icon: 'pi pi-qrcode',
+              command: () => this.printCards([student]),
+            },
+          ]
+        : []),
       ...(student.isActive
         ? [
             { separator: true },
@@ -194,6 +211,8 @@ export class StudentsPage implements OnInit {
   }
 
   ngOnInit(): void {
+    // 到班卡上要印補習班名；視窗得在點擊當下開，不能等這裡（見 printCards）
+    if (this.canPrintCards && this.orgSettings.status() === 'unloaded') this.orgSettings.load();
     this.setupLoadPipeline();
 
     // 搜尋：節流 + 去重，然後才觸發取數。
@@ -291,6 +310,26 @@ export class StudentsPage implements OnInit {
   }
 
   protected readonly primaryAction: PageAction = { label: '新增學生', icon: 'pi pi-plus' };
+
+  /**
+   * 印到班卡（#1127 B）。「本頁」＝目前篩選與分頁下畫面上這些人 —— 開學一次發一個班的做法是
+   * 篩年級、把每頁筆數拉大再印，不另做勾選。
+   * **視窗在點擊同一個 tick 開**（`printCheckinCards` 先開再等 QR），補習班名要先載好，所以 ngOnInit 預載設定。
+   */
+  protected printCards(students: readonly Student[]): void {
+    void printCheckinCards(
+      students.map((s) => ({ studentId: s.id, name: s.name })),
+      this.orgSettings.settings()?.name ?? '',
+    ).then((opened) => {
+      if (!opened) {
+        this.messageService.add({
+          severity: 'warn',
+          summary: '無法開啟列印視窗',
+          detail: '瀏覽器擋掉了彈出視窗，請允許本站的彈出視窗後再試',
+        });
+      }
+    });
+  }
 
   openEditDialog(student: Student): void {
     const ref = this.dialogService.open(StudentFormDialogComponent, {
