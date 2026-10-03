@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -605,6 +605,48 @@ test('A20 跳過外部 class 與沒有 class 的元素', () => {
   assert.deepEqual(unstyledInteractive('<button (click)="x()">x</button>', defined), []);
   // 不可互動的元素不管，即使 class 沒定義（那是廣義孤兒，刻意不納入）
   assert.deepEqual(unstyledInteractive('<div class="nope-xyz">x</div>', defined), []);
+});
+
+/**
+ * #1078 把 A20 的比對集合從 `defined`（SCSS 定義）放寬成 `known`（@source 目錄裡再加
+ * Tailwind 會產生的 class）。放寬的那一刀**只能**開在 @source 目錄、**只能**放行真的會產生
+ * CSS 的 class —— 這兩個邊界都在 check-harness.mjs 的組裝裡，純函式測不到，所以整支跑起來：
+ * 在真的目錄裡種檔，看 gate 紅不紅。
+ */
+test('A20 的 Tailwind 放寬只放行 @source 目錄裡真的會產生 CSS 的 class', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const app = join(here, '../../apps/web/src/app');
+  const covered = join(app, 'features/admin/pages/changes/__a20-trap__.html'); // 在 @source 裡
+  const uncovered = join(app, 'features/admin/pages/students/__a20-trap__.html'); // 不在
+  const tw = 'flex items-center min-h-11';
+  try {
+    writeFileSync(
+      covered,
+      `<button class="nope-xyz-trap" (click)="x()">a</button>\n<button class="${tw}" (click)="x()">b</button>\n`,
+    );
+    writeFileSync(uncovered, `<button class="${tw}" (click)="x()">c</button>\n`);
+    const run = spawnSync(process.execPath, [join(here, 'check-harness.mjs')], {
+      encoding: 'utf8',
+    });
+    const hits = run.stderr
+      .split('\n')
+      .filter((l) => l.includes('__a20-trap__.html 有一個可點的元素'));
+    // 陷阱 1：@source 目錄裡，拼不出 CSS 的 class 仍然紅
+    assert.ok(
+      hits.some((l) => l.includes('changes/__a20-trap__') && l.includes('nope-xyz-trap')),
+      run.stderr,
+    );
+    // 陷阱 2：@source 以外的目錄寫 Tailwind class 沒有樣式（不會被掃），仍然紅
+    assert.ok(
+      hits.some((l) => l.includes('students/__a20-trap__') && l.includes(tw)),
+      run.stderr,
+    );
+    // 對照：@source 目錄裡真的會產生 CSS 的 class 放行
+    assert.ok(!hits.some((l) => l.includes('changes/__a20-trap__') && l.includes(tw)), run.stderr);
+  } finally {
+    rmSync(covered, { force: true });
+    rmSync(uncovered, { force: true });
+  }
 });
 
 /**
