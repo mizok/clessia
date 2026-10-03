@@ -175,7 +175,7 @@ export const appConfig: ApplicationConfig = {
     // 這裡只是提早**建立** AuthService（它的建構子就會發 `/me`），**不回傳 promise、不擋啟動**；
     // 守衛之後 await 的 `auth.ready` 已經在路上或早就完成了。時鐘的語意完全不變。
     //
-    // 代價：沒有守衛、也沒用到 AuthService 的三個公開頁（/trial、/enrollment、/qr-checkin）
+    // 代價：沒有守衛、也沒用到 AuthService 的兩個公開頁（/trial、/enrollment）
     // 每次整頁載入多一支平行的 `/me`（匿名者拿 401，AuthService 安靜處理）。不擋畫面。
     provideAppInitializer(() => {
       inject(AuthService);

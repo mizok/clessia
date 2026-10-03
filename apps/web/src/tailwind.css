@@ -42,6 +42,9 @@
 @source './app/features/admin/pages/sessions/components';
 @source './app/features/admin/pages/sessions/sessions.page.html';
 @source './app/features/admin/pages/students';
+@source './app/features/admin/pages/checkin';
+@source './app/features/kiosk';
+@source './app/shared/components/checkin-station';
 
 /* 跟 PrimeNG 的 darkModeSelector 對齊 */
 @custom-variant dark (&:where(.dark-mode, .dark-mode *));

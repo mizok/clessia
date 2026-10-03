@@ -66,15 +66,17 @@ export const routes: Routes = [
             (m) => m.EnrollmentComponent,
           ),
       },
-      {
-        path: RoutesCatalog.PUBLIC_CHECKIN.relativePath,
-        loadComponent: () =>
-          import('@features/public/pages/qr-checkin/qr-checkin.component').then(
-            (m) => m.QrCheckinComponent,
-          ),
-      },
+      // 到班打卡搬到登入後（#1127）：門口機台用 kiosk 帳號、行政用 /admin/checkin。舊網址可能被存成書籤
+      { path: 'qr-checkin', redirectTo: 'login', pathMatch: 'full' },
       { path: '', redirectTo: 'login', pathMatch: 'full' },
     ],
+  },
+  // 掃碼機台（#1127）：全螢幕、不走 ShellLayout
+  {
+    path: RoutesCatalog.KIOSK_CHECKIN.relativePath,
+    canActivate: [authGuard, roleGuard('kiosk')],
+    loadComponent: () =>
+      import('@features/kiosk/pages/checkin/kiosk-checkin.page').then((m) => m.KioskCheckinPage),
   },
   // Authenticated Shell (Admin / Teacher / Parent)
   {
@@ -113,6 +115,13 @@ export const routes: Routes = [
             loadComponent: () =>
               import('@features/admin/pages/leave/leave.page').then((m) => m.LeavePage),
             data: { page: RoutesCatalog.ADMIN_LEAVE },
+          },
+          {
+            path: RoutesCatalog.ADMIN_CHECKIN.relativePath,
+            canActivate: [permissionGuard('basic_operations')],
+            loadComponent: () =>
+              import('@features/admin/pages/checkin/checkin.page').then((m) => m.CheckinPage),
+            data: { page: RoutesCatalog.ADMIN_CHECKIN },
           },
           {
             path: RoutesCatalog.ADMIN_CONTACT_BOOK.relativePath,

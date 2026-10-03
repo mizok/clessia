@@ -5,7 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '@env/environment';
 import { authClient } from './auth-client';
 
-export type UserRole = 'admin' | 'teacher' | 'parent';
+export type UserRole = 'admin' | 'teacher' | 'parent' | 'kiosk';
 
 /**
  * `auth.interceptor.ts` 也要讀這把鑰匙來組 `X-Active-Role` header —— 兩邊各寫一份
@@ -72,6 +72,8 @@ export class AuthService {
     admin: '/admin',
     teacher: '/teacher',
     parent: '/parent',
+    // 機台沒有 shell：登入後直接是打卡頁（#1127）
+    kiosk: '/kiosk/checkin',
   };
 
   constructor() {

@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'teacher' | 'parent';
+export type UserRole = 'admin' | 'teacher' | 'parent' | 'kiosk';
 
 export class UserType {
   public static readonly values: UserType[] = [];
@@ -18,4 +18,6 @@ export class UserType {
   public static readonly ADMIN = new UserType('admin', '管理員');
   public static readonly TEACHER = new UserType('teacher', '老師');
   public static readonly PARENT = new UserType('parent', '家長');
+  /** 分校門口的打卡平板（#1127）。不走 ShellLayout、沒有選單 */
+  public static readonly KIOSK = new UserType('kiosk', '掃碼機台');
 }

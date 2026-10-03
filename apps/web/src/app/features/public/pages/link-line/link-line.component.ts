@@ -26,6 +26,15 @@ export class LinkLineComponent {
   protected readonly error = signal<string | null>(null);
   protected readonly submitting = signal(false);
 
+  constructor() {
+    // 掃碼機台（#1127）是平板不是人，沒有 LINE 可綁：兌換完連結直接進打卡頁
+    // （這條路由掛 authGuard，所以 roles 已經載入）
+    const roles = this.auth.roles();
+    if (roles.length === 1 && roles[0] === 'kiosk') {
+      this.auth.navigateToRoleShell('kiosk');
+    }
+  }
+
   protected async linkLine(): Promise<void> {
     this.error.set(null);
     this.submitting.set(true);

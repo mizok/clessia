@@ -49,12 +49,14 @@ export class ShellLayoutComponent {
     admin: '管理員',
     teacher: '任課老師',
     parent: '家長',
+    kiosk: '掃碼機台',
   };
   /** 跟 `/select-role` 的角色卡片用同一組圖示，兩個入口看起來是同一件事 */
   protected readonly roleIcons: Record<UserRole, string> = {
     admin: 'pi-shield',
     teacher: 'pi-book',
     parent: 'pi-users',
+    kiosk: 'pi-qrcode',
   };
 
   protected readonly displayName = computed(

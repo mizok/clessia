@@ -18,6 +18,18 @@ export interface DailyCheckin {
   checkedInAt: string;
 }
 
+/** POST 的回應：打卡那筆＋給機台畫面的確認資訊（#1127，只有剛打卡的那一位） */
+export interface DailyCheckinConfirmation extends DailyCheckin {
+  student: { name: string };
+  /** 當天有在籍、沒停課的課堂，依開始時間排序 */
+  todaySessions: Array<{
+    sessionId: string;
+    className: string;
+    startTime: string;
+    endTime: string;
+  }>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class DailyCheckinsService {
   private readonly http = inject(HttpClient);
@@ -27,8 +39,8 @@ export class DailyCheckinsService {
     studentId: string;
     checkinDate: string;
     campusId?: string;
-  }): Observable<DailyCheckin> {
-    return this.http.post<DailyCheckin>(this.base, input);
+  }): Observable<DailyCheckinConfirmation> {
+    return this.http.post<DailyCheckinConfirmation>(this.base, input);
   }
 
   /**

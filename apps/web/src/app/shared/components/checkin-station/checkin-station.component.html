@@ -1,0 +1,60 @@
+<div class="mx-auto flex w-full max-w-[32rem] flex-col gap-6">
+  <form class="flex flex-col gap-3" (ngSubmit)="submit()">
+    <label for="checkin-code" class="text-sm font-medium text-zinc-700">卡號</label>
+    <!-- 掃碼器是鍵盤輸入＋Enter，所以欄位一直保持焦點、送出後清空 -->
+    <input
+      id="checkin-code"
+      pInputText
+      name="code"
+      autocomplete="off"
+      autofocus
+      class="w-full text-lg"
+      placeholder="掃描學生卡，或輸入卡號"
+      [ngModel]="code()"
+      (ngModelChange)="code.set($event)"
+      [disabled]="submitting()"
+      data-testid="checkin-code"
+    />
+    <p-button
+      type="submit"
+      label="打卡"
+      icon="pi pi-check"
+      styleClass="w-full"
+      [loading]="submitting()"
+      [disabled]="!code().trim()"
+      data-testid="checkin-submit"
+    />
+  </form>
+
+  @if (error(); as message) {
+    <app-inline-notice severity="error" [detail]="message" [dismissible]="false" />
+  }
+
+  @if (result(); as r) {
+    <section
+      class="rounded-lg border border-surface-border bg-surface-card p-6"
+      aria-live="polite"
+      data-testid="checkin-result"
+    >
+      <p class="text-sm text-muted">已到班</p>
+      <p class="mt-1 text-2xl font-semibold text-zinc-900" data-testid="checkin-student">
+        {{ r.student.name }}
+      </p>
+      @if (r.todaySessions.length === 0) {
+        <p class="mt-4 text-base text-zinc-700">今天沒有排課。</p>
+      } @else {
+        <p class="mt-4 text-sm text-muted">今天的課</p>
+        <ul class="mt-2 flex flex-col gap-2">
+          @for (s of r.todaySessions; track s.sessionId) {
+            <li class="flex items-baseline gap-3 text-base text-zinc-800" data-testid="checkin-session">
+              <span class="tabular-nums text-zinc-600">
+                {{ clock5(s.startTime) }}–{{ clock5(s.endTime) }}
+              </span>
+              <span>{{ s.className }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+</div>
