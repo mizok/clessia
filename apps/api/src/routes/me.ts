@@ -11,6 +11,7 @@ import enrollmentRequestsRoute from './parent/enrollment-requests';
 import trialRequestsRoute from './parent/trial-requests';
 import sessionsRoute from './parent/sessions';
 import catalogRoute from './parent/catalog';
+import renewalRoute from './parent/renewal';
 import { inOrg } from '../lib/org-scope';
 
 const MeResponseSchema = z
@@ -299,6 +300,7 @@ app.openapi(
 app.route('/children', childrenRoute);
 app.route('/attendance', attendanceRoute);
 app.route('/grades', gradesRoute);
+app.route('/renewal-preview', renewalRoute);
 app.route('/billing', billingRoute);
 app.route('/class-logs', classLogsRoute);
 app.route('/enrollment-requests', enrollmentRequestsRoute);
