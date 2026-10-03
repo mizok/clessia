@@ -1,7 +1,7 @@
 import { Component, DestroyRef, OnInit, inject, signal, computed, viewChild } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 // `Subject` 這個名字被 `@core/subjects.service` 的科目型別佔走了，所以 rxjs 的取別名。
-import { EMPTY, Subject as RxSubject, catchError, debounceTime, switchMap } from 'rxjs';
+import { EMPTY, Subject as RxSubject, catchError, debounceTime, skip, switchMap } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -42,6 +42,7 @@ import {
   StaffStatus,
 } from '@core/staff.service';
 import { CampusesService, Campus } from '@core/campuses.service';
+import { CampusContextService } from '@core/campus-context.service';
 import { SubjectsService, Subject } from '@core/subjects.service';
 
 // Shared
@@ -171,7 +172,9 @@ export class StaffPage implements OnInit {
   protected readonly loadFailed = signal(false);
   readonly searchQuery = signal('');
   readonly roleFilter = signal<StaffRole | null>(null);
-  readonly campusFilter = signal<string | null>(null);
+  /** 分校跟頂欄走（#1138）：頁內分校篩選拿掉 */
+  private readonly campusCtx = inject(CampusContextService);
+  readonly campusFilter = this.campusCtx.id;
   readonly subjectFilter = signal<string | null>(null);
   protected readonly staffStatusFilter = signal<StaffStatus | null>(null);
   protected readonly currentPage = signal(1);
@@ -304,13 +307,20 @@ export class StaffPage implements OnInit {
     this.actionMenu().toggle(event);
   }
 
-  readonly campusOptions = computed(() =>
-    this.campuses().map((c) => ({ value: c.id, label: c.name })),
-  );
-
   readonly subjectOptions = computed(() =>
     this.subjects().map((subject) => ({ value: subject.id, label: subject.name })),
   );
+
+  constructor() {
+    this.campusCtx.use();
+    // 初次載入由 ngOnInit 做；這裡只管之後頂欄換分校
+    toObservable(this.campusFilter)
+      .pipe(skip(1), takeUntilDestroyed())
+      .subscribe(() => {
+        this.currentPage.set(1);
+        this.loadStaff();
+      });
+  }
 
   ngOnInit(): void {
     this.setupLoadPipeline();
@@ -403,12 +413,6 @@ export class StaffPage implements OnInit {
 
   protected onRoleFilterChange(value: StaffRole | null): void {
     this.roleFilter.set(value);
-    this.currentPage.set(1);
-    this.loadStaff();
-  }
-
-  protected onCampusFilterChange(value: string | null): void {
-    this.campusFilter.set(value);
     this.currentPage.set(1);
     this.loadStaff();
   }
@@ -699,7 +703,6 @@ export class StaffPage implements OnInit {
   clearFilters(): void {
     this.searchQuery.set('');
     this.roleFilter.set(null);
-    this.campusFilter.set(null);
     this.subjectFilter.set(null);
     this.staffStatusFilter.set(null);
     this.currentPage.set(1);
