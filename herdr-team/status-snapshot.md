@@ -22,13 +22,13 @@
 > **漂了六個半小時**，就漂在「接手第一件事：報時間一律實跑」的正上方。
 > 沒有害到人是因為它旁邊就是那條規則；**但那條規則救不了寫它的人自己。**
 
-## 🚀 線上是哪一版（2026-10-03 20:4x 第九次部署，labor-reviewer-20261001-2204）
+## 🚀 線上是哪一版（2026-10-04 06:3x 第十次部署，labor-reviewer-20261001-2204）
 
-**截線 `d55aa967`**（#1193；`verify` success）：web `main-AZKSKONB.js`（有重發，本席 `wrangler pages deploy`；本機 `dist` 20:37 新產物、build exit=0）、api `7ceb9391-2a91-46f1-8d60-44c5e587e3a6`（使用者 20:41 親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。順序：api 先、web 後。
-含：api #1206（打卡看假單，`daily-checkins.ts` 一支）；web #1203（全站搜尋 H1）、#1210（課表 G3 快速選取）、#1193（人員頁機台 UI）等（本機 172 個 js 檔裡有 88 個是新的）。
-**⓪**：窗口 `3a3e70c9..d55aa967` 無 migration。
-**部署驗證**：web 線上 `main-AZKSKONB.js`＝本機 build；本機 172 個 js 檔線上缺 0 個（部署前 88；**驗證當下有一個 chunk 回了 `text/html`，過幾秒、換 cache-buster 與 pages 預覽網址後都回 `application/javascript`——是 Pages 傳播延遲，不是漏發**）、負控 chunk 回 `text/html`；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html；cf-placement `remote-SIN`；`openapi.json` 132 條路徑（無新路由）。**限度**：openapi 證明不了新程式碼上線，只證明服務正常、版本已換。
-**第十批**：#1213（sessions 列表 latestChange，`cbe6a063`）、#1215（H2 分校鈕）、#1214／#1212（`classes.default_fee_template_id` migration，保留類，凍結中等 Approve）之後合進 main 的。
+**截線 `1fa88495`**（#1227；`verify` success）：web `main-2WJRY3S4.js`（有重發，本席 `wrangler pages deploy`；本機 `dist` 為 10-03 21:05 的產物、**使用者隔了一晚才按 api，期間 `dist` 與截線都固定未動**）、api `5210641e-9a31-43fb-b421-2ff2b6831007`（使用者 10-04 06:30 親跑 `wrangler deploy`，100% 流量，cf-placement `remote-SIN`）。順序：api 先、web 後。
+含：api #1212（班級參考價 `default_fee_template_id`）、#1213（sessions 列表 `latestChange`）、#1217（請假 truncate 倒置列）、#1219（加開單堂＋`creation` 異動類型）；web #1215（頂欄分校鈕）、#1226（courses C1 列表）等（本機 173 個 js 檔裡有 156 個是新的）。
+**⓪**：窗口 `d55aa967..1fa88495` 的 migration 兩支——`20261003122743_class_default_fee_template`（`migrate.yml` run `37123830002`）、`20261003124241_schedule_change_type_creation`（run `37124456052`）——皆 apply 綠已套。
+**部署驗證**：web 線上 `main-2WJRY3S4.js`＝本機 build；本機 173 個 js 檔線上缺 0 個（部署前 156）、負控 chunk 回 `text/html`；workers.dev 正控 `/api/system-time` 200 JSON、負控 `/no-such-route` 404 JSON、對照 `demo.clessia.cc/no-such-route` 200 text/html；cf-placement `remote-SIN`；`openapi.json` 132 條路徑（無新路由）。**`/api/public/catalog` 回 `401 NO_SESSION`（不是計畫席預期的 `404 PUBLIC_DISABLED`）**——因為 #1241 還沒合、這條路由根本不在線上，落到 `authMiddleware` 的未登入 401；`openapi.json` 的 `paths` 也沒有它。這不是異常，也**不構成「路由存在」的證據**。**限度**：openapi 證明不了新程式碼上線，只證明服務正常、版本已換。
+**第十一批**：自 `1fa88495` 後合進 main 的 api（#1246 成績日期篩選、#1263 家長目錄濾停用課程、…）與 web（#1229／#1230／#1238 掃描與列印卡、#1138 各頁接 CampusContext、#1256／#1279／#1282 A6 換版…）。
 入口 `colo` **會自己漂**（SJC → TPE → NRT，沒人改設定）—— TTFB 比較不可靠，量並行用 `wallTime` 對「合計／最慢」（`deploying.md`，#956；**該判準尚無真實 `[probe]` 驗證過**）。
 
 ## 📋 等使用者

@@ -27,8 +27,8 @@ import {
   type AttendanceTally,
   type EnrollmentRange,
 } from '../lib/session-roster';
-import { getCampusScope, isCampusAllowed } from '../lib/campus-scope';
-import { classWriteScope } from '../lib/campus-write-guard';
+import { getCampusScope, isCampusAllowed, type CampusScope } from '../lib/campus-scope';
+import { classWriteScope, resourceCampusAllowed } from '../lib/campus-write-guard';
 import { findInOrg } from '../lib/org-scope';
 import {
   applyAttendanceTakenFilter,
@@ -327,6 +327,9 @@ const BatchSessionConflictSchema = z
       'status_not_reopenable',
       'class_conflict',
       'teacher_conflict',
+      'unassigned',
+      'same_teacher',
+      'teacher_not_eligible',
     ]),
     detail: z.string(),
     conflictingSessionId: DbUuidSchema.optional(),
@@ -378,12 +381,30 @@ function isTimeOverlap(startA: string, endA: string, startB: string, endB: strin
   return toMinutes(startA) < toMinutes(endB) && toMinutes(startB) < toMinutes(endA);
 }
 
+/**
+ * 批次寫入的分校範圍（#1110）：任一堂的班級不在呼叫者範圍內 → 整批拒絕（計畫席裁）。
+ * 受限管理員畫面上看不到別校的課，送進來就是前端 bug 或試探，fail-closed 而且看得見；
+ * 當成「不符資格」跳過會混進 skipped 裡沒人發現。判準跟 `classWriteScope` 同一份。
+ */
+function batchOutOfCampusScope(
+  scope: CampusScope,
+  classIds: readonly string[],
+  campusByClass: ReadonlyMap<string, string>,
+): boolean {
+  return (
+    scope !== null && classIds.some((id) => !resourceCampusAllowed(scope, campusByClass.get(id)))
+  );
+}
+
 type BatchSessionConflictReason =
   | 'status_not_editable'
   | 'status_not_cancellable'
   | 'status_not_reopenable'
   | 'class_conflict'
-  | 'teacher_conflict';
+  | 'teacher_conflict'
+  | 'unassigned'
+  | 'same_teacher'
+  | 'teacher_not_eligible';
 
 interface BatchSessionConflictItem {
   readonly sessionId: string;
@@ -2556,6 +2577,10 @@ const batchAssignTeacherRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '有課堂不在呼叫者的分校範圍（整批拒絕）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
     400: {
       description: '參數或資料錯誤',
       content: {
@@ -2636,6 +2661,15 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
 
   if (classRowsError) {
     return c.json({ error: classRowsError.message, code: 'DB_ERROR' }, 400);
+  }
+  if (
+    batchOutOfCampusScope(
+      getCampusScope(c),
+      targetClassIds,
+      new Map((classRows ?? []).map((row) => [row['id'] as string, row['campus_id'] as string])),
+    )
+  ) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
   if (teacherSubjectRowsError) {
     return c.json({ error: teacherSubjectRowsError.message, code: 'DB_ERROR' }, 400);
@@ -2889,6 +2923,316 @@ app.openapi(batchAssignTeacherRoute, async (c) => {
       updated: updatedIds.length,
       skippedConflicts,
       skippedNotEligible,
+      conflicts,
+      dryRun,
+    },
+    200,
+  );
+});
+
+// ============================================================
+// PATCH /api/sessions/batch-substitute —— 批次代課（#1110）
+// ============================================================
+//
+// 跟 batch-assign-teacher 不同：那支是「換人不留紀錄」（#1100 §2，語意不動），
+// 這支是代課 —— 原老師留在 `schedule_changes`（逐堂一筆 substitute），課表才寫得出「代課・原 X」。
+//
+// 非交易，順序同 makeup／加開單堂（#1109 裁）：① 改 teacher_id → ② 寫流水 →
+// 流水失敗就把每堂的老師改回原老師（照原老師分組，一組一次 update）。
+const BatchSubstituteBodySchema = BatchSessionTargetSchema.extend({
+  substituteTeacherId: DbUuidSchema,
+  reason: z.string().max(500).optional(),
+}).openapi('SessionBatchSubstituteBody');
+
+const batchSubstituteRoute = createRoute({
+  method: 'patch',
+  path: '/batch-substitute',
+  tags: ['Sessions'],
+  summary: '批次代課（逐堂留代課紀錄；dryRun 預設 true）',
+  request: {
+    body: { content: { 'application/json': { schema: BatchSubstituteBodySchema } } },
+  },
+  responses: {
+    200: {
+      description: '成功（不符資格或衝突的堂列在 conflicts）',
+      content: { 'application/json': { schema: BatchSessionActionResultSchema } },
+    },
+    400: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
+    403: {
+      description: '有課堂不在呼叫者的分校範圍（整批拒絕）',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    409: {
+      description: '代課老師不是本機構在職的老師',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    500: { description: '寫入失敗', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+});
+
+app.openapi(batchSubstituteRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const userId = c.get('userId');
+  const body = c.req.valid('json');
+  const uniqueSessionIds = [...new Set(body.sessionIds)];
+  // 同 batch-cancel／batch-update-time：不帶 dryRun 就只預覽
+  const dryRun = body.dryRun ?? true;
+  const substituteId = body.substituteTeacherId;
+
+  const { data: sessionRows, error: sessionRowsError } = await supabase
+    .from('sessions')
+    .select('id, class_id, session_date, start_time, end_time, status, teacher_id')
+    .eq('org_id', orgId)
+    .in('id', uniqueSessionIds);
+  if (sessionRowsError) {
+    return c.json({ error: sessionRowsError.message, code: 'DB_ERROR' }, 400);
+  }
+  const targets = (sessionRows ?? []) as Array<{
+    id: string;
+    class_id: string;
+    session_date: string;
+    start_time: string;
+    end_time: string;
+    status: string;
+    teacher_id: string | null;
+  }>;
+
+  const classIds = [...new Set(targets.map((t) => t.class_id))];
+  const [classResult, teacherResult, subjectResult, campusResult] = await Promise.all([
+    classIds.length > 0
+      ? supabase
+          .from('classes')
+          .select('id, campus_id, courses ( subject_id )')
+          .eq('org_id', orgId)
+          .in('id', classIds)
+      : Promise.resolve({ data: [], error: null }),
+    supabase
+      .from('staff')
+      .select('id, user_id, status')
+      .eq('org_id', orgId)
+      .eq('id', substituteId)
+      .maybeSingle(),
+    supabase.from('staff_subjects').select('subject_id').eq('staff_id', substituteId),
+    supabase.from('staff_campuses').select('campus_id').eq('staff_id', substituteId),
+  ]);
+  const queryError =
+    classResult.error ?? teacherResult.error ?? subjectResult.error ?? campusResult.error;
+  if (queryError) {
+    return c.json({ error: queryError.message, code: 'DB_ERROR' }, 400);
+  }
+
+  const campusByClass = new Map<string, string>();
+  const subjectByClass = new Map<string, string>();
+  for (const row of (classResult.data ?? []) as Array<Record<string, unknown>>) {
+    campusByClass.set(row['id'] as string, row['campus_id'] as string);
+    const subjectId = normalizeRelationRow(row['courses'])?.['subject_id'] as string | undefined;
+    if (subjectId) subjectByClass.set(row['id'] as string, subjectId);
+  }
+  if (batchOutOfCampusScope(getCampusScope(c), classIds, campusByClass)) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
+
+  // 代課老師只有一位：不是本 org 在職的老師就整批不成立
+  const teacherRow = teacherResult.data as { user_id?: string; status?: string } | null;
+  const { data: teacherRole } = teacherRow?.user_id
+    ? await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', teacherRow.user_id)
+        .eq('role', 'teacher')
+        .maybeSingle()
+    : { data: null };
+  if (
+    !teacherRow ||
+    teacherRow.status !== 'active' ||
+    (teacherRole as { role?: string } | null)?.role !== 'teacher'
+  ) {
+    return c.json({ error: '代課老師不符合資格', code: 'TEACHER_NOT_ELIGIBLE' }, 409);
+  }
+  const teacherSubjects = new Set(
+    ((subjectResult.data ?? []) as Array<{ subject_id: string }>).map((r) => r.subject_id),
+  );
+  const teacherCampuses = new Set(
+    ((campusResult.data ?? []) as Array<{ campus_id: string }>).map((r) => r.campus_id),
+  );
+
+  const dates = targets.map((t) => t.session_date).sort();
+  const { data: busyRows, error: busyError } =
+    dates.length > 0
+      ? await supabase
+          .from('sessions')
+          .select('id, session_date, start_time, end_time')
+          .eq('org_id', orgId)
+          .eq('teacher_id', substituteId)
+          .eq('status', 'scheduled')
+          .gte('session_date', dates[0])
+          .lte('session_date', dates[dates.length - 1])
+      : { data: [], error: null };
+  if (busyError) {
+    return c.json({ error: busyError.message, code: 'DB_ERROR' }, 400);
+  }
+  const busySlots = ((busyRows ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    sessionId: row['id'] as string,
+    sessionDate: row['session_date'] as string,
+    startTime: normalizeTime(row['start_time'] as string),
+    endTime: normalizeTime(row['end_time'] as string),
+  }));
+
+  const conflicts: BatchSessionConflictItem[] = [];
+  const processable: typeof targets = [];
+  const sorted = [...targets].sort(
+    (a, b) =>
+      a.session_date.localeCompare(b.session_date) ||
+      normalizeTime(a.start_time).localeCompare(normalizeTime(b.start_time)),
+  );
+  for (const session of sorted) {
+    const reject = (
+      reason: BatchSessionConflictReason,
+      detail: string,
+      conflictingSessionId?: string,
+    ) =>
+      conflicts.push({
+        sessionId: session.id,
+        sessionDate: session.session_date,
+        reason,
+        detail,
+        ...(conflictingSessionId ? { conflictingSessionId } : {}),
+      });
+    if (session.status !== 'scheduled') {
+      reject('status_not_editable', '僅可代課狀態為「scheduled」的課堂');
+      continue;
+    }
+    if (!session.teacher_id) {
+      reject('unassigned', '尚未指派老師，請用「指派老師」');
+      continue;
+    }
+    if (session.teacher_id === substituteId) {
+      reject('same_teacher', '代課老師與原老師相同');
+      continue;
+    }
+    const subjectId = subjectByClass.get(session.class_id);
+    const campusId = campusByClass.get(session.class_id);
+    if (
+      !subjectId ||
+      !teacherSubjects.has(subjectId) ||
+      !campusId ||
+      !teacherCampuses.has(campusId)
+    ) {
+      reject('teacher_not_eligible', '代課老師不符合課程科目或分校資格');
+      continue;
+    }
+    const start = normalizeTime(session.start_time);
+    const end = normalizeTime(session.end_time);
+    const clash = busySlots.find(
+      (slot) =>
+        slot.sessionId !== session.id &&
+        slot.sessionDate === session.session_date &&
+        isTimeOverlap(start, end, slot.startTime, slot.endTime),
+    );
+    if (clash) {
+      reject('teacher_conflict', '老師於此時段已有其他課堂', clash.sessionId);
+      continue;
+    }
+    processable.push(session);
+    busySlots.push({
+      sessionId: session.id,
+      sessionDate: session.session_date,
+      startTime: start,
+      endTime: end,
+    });
+  }
+
+  const processableIds = processable.map((s) => s.id);
+  const skipped = uniqueSessionIds.length - processableIds.length;
+
+  if (!dryRun && processableIds.length > 0) {
+    const originalTeacherIds = [...new Set(processable.map((s) => s.teacher_id as string))];
+    const [{ data: nameRows }, { data: profile }] = await Promise.all([
+      supabase
+        .from('staff')
+        .select('id, display_name')
+        .eq('org_id', orgId)
+        .in('id', originalTeacherIds),
+      supabase.from('profiles').select('display_name').eq('id', userId).maybeSingle(),
+    ]);
+    const nameById = new Map(
+      ((nameRows ?? []) as Array<{ id: string; display_name: string | null }>).map((r) => [
+        r.id,
+        r.display_name,
+      ]),
+    );
+
+    // ① 改老師
+    const { error: updateError } = await supabase
+      .from('sessions')
+      .update({ teacher_id: substituteId, assignment_status: 'assigned' })
+      .eq('org_id', orgId)
+      .in('id', processableIds);
+    if (updateError) {
+      return c.json({ error: updateError.message, code: 'DB_ERROR' }, 400);
+    }
+
+    // ② 逐堂寫流水
+    const { error: logError } = await supabase.from('schedule_changes').insert(
+      processable.map((s) => ({
+        org_id: orgId,
+        session_id: s.id,
+        change_type: 'substitute' as const,
+        original_teacher_id: s.teacher_id,
+        original_teacher_name: nameById.get(s.teacher_id as string) ?? null,
+        substitute_teacher_id: substituteId,
+        reason: body.reason ?? null,
+        created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
+        operation_source: 'batch' as const,
+      })),
+    );
+    if (logError) {
+      // 補償：照原老師分組改回去
+      const reverts = await Promise.all(
+        originalTeacherIds.map((teacherId) =>
+          supabase
+            .from('sessions')
+            .update({ teacher_id: teacherId })
+            .eq('org_id', orgId)
+            .in(
+              'id',
+              processable.filter((s) => s.teacher_id === teacherId).map((s) => s.id),
+            ),
+        ),
+      );
+      const revertFailed = reverts.some((r) => r.error);
+      console.error(
+        '[sessions/batch-substitute] 流水寫入失敗' +
+          (revertFailed ? '，而且補償也失敗 —— 老師已換、流水沒有' : '，已補償'),
+      );
+      return c.json({ error: '批次代課失敗', code: 'SUBSTITUTE_LOG_FAILED' }, 500);
+    }
+
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'session',
+        resourceName: 'sessions',
+        action: 'batch_substitute_teacher',
+        details: {
+          requested: uniqueSessionIds.length,
+          updated: processableIds.length,
+          skipped,
+          substituteTeacherId: substituteId,
+        },
+      },
+      waitUntilFrom(c),
+    );
+  }
+
+  return c.json(
+    {
+      updated: dryRun ? 0 : processableIds.length,
+      skipped,
+      processableIds,
       conflicts,
       dryRun,
     },
