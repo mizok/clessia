@@ -53,6 +53,8 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
     let countOnly = false;
     const filters: Filter[] = [];
     let rowLimit = Infinity;
+    let rowOffset = 0;
+    let sortBy: { column: string; ascending: boolean } | null = null;
 
     function run(): Result {
       const all = tableOf(table);
@@ -89,7 +91,19 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
         return { data: returning ? matched : null, error: null };
       }
       if (countOnly) return { data: null, count: matched.length, error: null };
-      return { data: matched.slice(0, rowLimit).map((r) => ({ ...r })), error: null };
+      if (sortBy) {
+        const { column, ascending } = sortBy;
+        matched.sort((x, y) => {
+          const a = String(field(x, column) ?? '');
+          const b = String(field(y, column) ?? '');
+          return (a < b ? -1 : a > b ? 1 : 0) * (ascending ? 1 : -1);
+        });
+      }
+      return {
+        data: matched.slice(rowOffset, rowOffset + rowLimit).map((r) => ({ ...r })),
+        count: matched.length,
+        error: null,
+      };
     }
 
     function one(required: boolean): Result {
@@ -110,6 +124,16 @@ export function createMultiOrgDb(seed: Record<string, readonly Row[]>): MultiOrg
       },
       lte(column: string, value: string) {
         filters.push((row) => field(row, column) != null && String(field(row, column)) <= value);
+        return proxy;
+      },
+      /** PostgREST 的 `.range(from, to)`（含頭尾） */
+      range(from: number, to: number) {
+        rowOffset = from;
+        rowLimit = to - from + 1;
+        return proxy;
+      },
+      order(column: string, options?: { ascending?: boolean }) {
+        sortBy = { column, ascending: options?.ascending !== false };
         return proxy;
       },
       select(_columns?: string, options?: { count?: string; head?: boolean }) {

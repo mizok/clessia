@@ -39,9 +39,14 @@ export interface SessionWindow {
   endTime: string | null;
 }
 
+/**
+ * 綁定堂次的 embed。**回應裡有 `sessionIds` 的 select 都要帶它**（`toLeaveResponse` 從它讀）——
+ * `select('*')` 不會帶出關聯表，漏了它綁定型的假在列表與 PATCH 回應裡是 `sessionIds: []`（#1150 實打）。
+ */
+export const LEAVE_SESSIONS_EMBED = 'leave_request_sessions(session_id, sessions(session_date))';
+
 /** 讀請假單時要一起撈的欄位 —— 綁定堂次與它的日期都在 embed 裡 */
-export const LEAVE_WINDOW_COLUMNS =
-  'start_date, end_date, start_time, end_time, leave_request_sessions(session_id, sessions(session_date))';
+export const LEAVE_WINDOW_COLUMNS = `start_date, end_date, start_time, end_time, ${LEAVE_SESSIONS_EMBED}`;
 
 export function toLeaveWindow(row: Record<string, unknown>): LeaveWindow {
   const bound = (row['leave_request_sessions'] ?? []) as Array<{

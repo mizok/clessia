@@ -59,7 +59,10 @@ function event(eid: string, s: ReturnType<typeof session>, extra: object = {}) {
   };
 }
 
-function seed(extra: Record<string, Record<string, unknown>[]> = {}, opts: { amTaken?: boolean } = {}) {
+function seed(
+  extra: Record<string, Record<string, unknown>[]> = {},
+  opts: { amTaken?: boolean } = {},
+) {
   const am = session(S_AM, D, '09', '11');
   const pm = session(S_PM, D, '14', '16');
   const d2 = session(S_D2, D2, '09', '11');
@@ -110,6 +113,10 @@ function seed(extra: Record<string, Record<string, unknown>[]> = {}, opts: { amT
 /**
  * multi-org-db 刻意不做巢狀關聯，而路由讀假單時靠 embed `leave_request_sessions(session_id, sessions(session_date))`
  * 拿綁定。讀 `leave_requests` 時從替身自己的表補上那段 embed —— 少了它，綁定型的假讀回來會變成整天型。
+ *
+ * **只在 select 字串真的有要那段 embed 時才補**。原本無條件補，於是 `select('*, …')`
+ * 的列表與 PATCH 回應在替身裡照樣有綁定，真的 PostgREST 卻回 `sessionIds: []` ——
+ * #1150 本機實打才抓到。替身比 DB 慷慨，測試就驗不到 select 寫錯。
  */
 function withLeaveEmbed(db: ReturnType<typeof createMultiOrgDb>) {
   type Row = Record<string, unknown>;
@@ -131,20 +138,30 @@ function withLeaveEmbed(db: ReturnType<typeof createMultiOrgDb>) {
     ...r,
     data: Array.isArray(r.data) ? r.data.map(embed) : r.data ? embed(r.data as Row) : r.data,
   });
-  const wrap = (b: any): any =>
+  const wrap = (b: any, wantsEmbed = false): any =>
     new Proxy(b, {
       get(target, prop) {
+        const fix = (r: { data: unknown }) => (wantsEmbed ? augment(r) : r);
         if (prop === 'then')
           return (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) =>
-            target.then((r: { data: unknown }) => ok(augment(r)), ko);
-        if (prop === 'single' || prop === 'maybeSingle')
-          return () => target[prop]().then(augment);
+            target.then((r: { data: unknown }) => ok(fix(r)), ko);
+        if (prop === 'single' || prop === 'maybeSingle') return () => target[prop]().then(fix);
         const value = target[prop];
-        return typeof value === 'function' ? (...args: unknown[]) => wrap(value.apply(target, args)) : value;
+        return typeof value === 'function'
+          ? (...args: unknown[]) =>
+              wrap(
+                value.apply(target, args),
+                wantsEmbed ||
+                  (prop === 'select' && String(args[0] ?? '').includes('leave_request_sessions(')),
+              )
+          : value;
       },
     });
   const client = db.client as { from: (t: string) => unknown };
-  return { from: (table: string) => (table === 'leave_requests' ? wrap(client.from(table)) : client.from(table)) };
+  return {
+    from: (table: string) =>
+      table === 'leave_requests' ? wrap(client.from(table)) : client.from(table),
+  };
 }
 
 function appWith(db: ReturnType<typeof createMultiOrgDb>) {
@@ -288,6 +305,19 @@ describe('POST /api/leaves —— 重疊（裁定 4）', () => {
   });
 });
 
+describe('GET /api/leaves —— 列表帶綁定', () => {
+  it('綁定型的假在列表裡回 sessionIds（select 漏 embed 會變成 []，#1150 實打）', async () => {
+    const db = seed();
+    expect((await post(appWith(db), { sessionIds: [S_AM, S_D2] })).status).toBe(201);
+
+    const res = await appWith(db).request('/api/leaves');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: Array<{ sessionIds: string[] }> };
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]?.sessionIds.sort()).toEqual([S_AM, S_D2].sort());
+  });
+});
+
 describe('PATCH /api/leaves/:id —— 綁定替換', () => {
   async function created(db: ReturnType<typeof createMultiOrgDb>, sessionIds: string[]) {
     const res = await post(appWith(db), { sessionIds });
@@ -325,8 +355,11 @@ describe('PATCH /api/leaves/:id —— 綁定替換', () => {
   it('沒給 sessionIds：綁定不變；綁定型的假不能直接改日期（400）', async () => {
     const db = seed();
     const leaveId = await created(db, [S_AM]);
-    expect((await patch(db, leaveId, { reason: '發燒' })).status).toBe(200);
+    const res = await patch(db, leaveId, { reason: '發燒' });
+    expect(res.status).toBe(200);
     expect(db.rows('leave_request_sessions')).toHaveLength(1);
+    // 回應也要帶綁定 —— select 漏了 embed 時真的 PostgREST 回 []（#1150 實打）
+    expect(((await res.json()) as { sessionIds: string[] }).sessionIds).toEqual([S_AM]);
     expect((await patch(db, leaveId, { endDate: D2 })).status).toBe(400);
   });
 
