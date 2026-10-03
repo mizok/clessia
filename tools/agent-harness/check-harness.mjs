@@ -84,10 +84,6 @@ const CONTRAST_EXEMPT = {
     '空狀態圖示（i 40px），同一個容器裡的 zinc-500 說明文字承載資訊 —— 1.4.11 純裝飾豁免',
   'apps/web/src/app/shared/components/empty-state/empty-state.component.scss|i|var(--zinc-400)|var(--zinc-100)':
     '共用空狀態元件的圖示（i 28px，圓底 zinc-100），__title 與說明文字承載資訊 —— 1.4.11 純裝飾豁免',
-
-  // ─ disabled 控制項：WCAG 1.4.3 明文豁免 ─
-  'apps/web/src/app/features/admin/pages/courses/class-form-dialog/class-form-dialog.component.scss|&:disabled|var(--zinc-400)|var(--zinc-50)':
-    'disabled 輸入框 —— 1.4.3 明文豁免；提高對比反而讓它看起來可以按（理由也寫在該處）',
 };
 const MOBILE_FIRST_BASELINE = join(ROOT, 'tools/agent-harness/mobile-first-baseline.json');
 const PAGE_ACTIONS_BASELINE = join(ROOT, 'tools/agent-harness/page-actions-baseline.json');

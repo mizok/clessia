@@ -28,7 +28,6 @@ export interface SessionPackFormDialogData {
   standalone: true,
   imports: [FormsModule, ButtonModule, DatePickerModule, InputNumberModule, InputTextModule],
   templateUrl: './session-pack-form-dialog.component.html',
-  styleUrl: './session-pack-form-dialog.component.scss',
 })
 export class SessionPackFormDialogComponent {
   private readonly service = inject(SessionPacksService);

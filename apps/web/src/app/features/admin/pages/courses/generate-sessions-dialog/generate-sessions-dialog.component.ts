@@ -36,7 +36,6 @@ import { format } from 'date-fns';
     RtRowDirective,
   ],
   templateUrl: './generate-sessions-dialog.component.html',
-  styleUrl: './generate-sessions-dialog.component.scss',
 })
 export class GenerateSessionsDialogComponent {
   private readonly classesService = inject(ClassesService);

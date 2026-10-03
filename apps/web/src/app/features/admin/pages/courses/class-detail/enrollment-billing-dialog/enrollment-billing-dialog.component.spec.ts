@@ -201,7 +201,7 @@ describe('EnrollmentBillingDialogComponent', () => {
       fixture.detectChanges();
 
       expect(internals().isSessionPackMode()).toBe(false);
-      expect(fixture.nativeElement.querySelector('.enrollment-billing__session-pack')).toBeNull();
+      expect(fixture.nativeElement.querySelector('[data-testid="session-pack"]')).toBeNull();
     });
 
     it('剩餘 ≤ 0 時顯示追補買警示', async () => {

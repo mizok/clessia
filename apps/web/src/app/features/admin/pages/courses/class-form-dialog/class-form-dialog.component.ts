@@ -61,7 +61,6 @@ export interface ScheduleFormEntry {
   // 自己 provide 一份就把這個不確定性拿掉了，成本是一個無狀態的 service 實例。
   providers: [DialogService],
   templateUrl: './class-form-dialog.component.html',
-  styleUrl: './class-form-dialog.component.scss',
 })
 export class ClassFormDialogComponent {
   private readonly classesService = inject(ClassesService);

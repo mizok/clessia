@@ -35,7 +35,6 @@ import { Subject } from '@core/subjects.service';
     TextareaModule,
   ],
   templateUrl: './course-form-dialog.component.html',
-  styleUrl: './course-form-dialog.component.scss',
 })
 export class CourseFormDialogComponent {
   private readonly coursesService = inject(CoursesService);

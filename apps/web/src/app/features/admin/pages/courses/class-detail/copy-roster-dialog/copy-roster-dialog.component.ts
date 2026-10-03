@@ -52,7 +52,6 @@ interface GradeLevelOption {
     InlineNoticeComponent,
   ],
   templateUrl: './copy-roster-dialog.component.html',
-  styleUrl: './copy-roster-dialog.component.scss',
 })
 export class CopyRosterDialogComponent implements OnInit {
   private readonly classesService = inject(ClassesService);

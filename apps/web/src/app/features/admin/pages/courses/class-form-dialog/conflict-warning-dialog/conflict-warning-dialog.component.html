@@ -1,19 +1,27 @@
-<div class="conflict-warning">
-  <div class="conflict-warning__header">
+<div class="flex flex-col gap-4 p-2">
+  <!-- 800 而不是 600：warning-600 疊 warning-100 只有 4.03:1 -->
+  <div class="flex items-center gap-2 text-warning-800">
     <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-    <h2 class="conflict-warning__title">排課衝突警告</h2>
+    <h2 class="m-0 text-lg font-semibold">排課衝突警告</h2>
   </div>
 
-  <p class="conflict-warning__lede">以下老師在指定時間已有其他班級的排課：</p>
+  <p class="m-0 text-zinc-700">以下老師在指定時間已有其他班級的排課：</p>
 
-  <ul class="conflict-warning__list">
+  <!-- 衝突可能很多筆。給一個上限並自己捲，而不是讓整個對話框長到超出視窗 ——
+       那會把下面的「返回修改／仍要儲存」推出視野，變成另一個看不見的東西。 -->
+  <ul
+    class="m-0 flex max-h-[calc(var(--window-height,640px)*0.4)] list-none flex-col gap-2 overflow-y-auto p-0"
+  >
     @for (conflict of conflicts; track $index) {
-      <li class="conflict-warning__item">
-        <span class="conflict-warning__teacher">{{ conflict.teacherName }}</span>
-        <span class="conflict-warning__detail">
+      <!-- 一列一筆。老師名字獨立成一行：它是「誰被排重了」的答案，混在同一行裡會跟課程名糊成一片。 -->
+      <li
+        class="flex flex-col gap-0.5 rounded-r-md border-l-3 border-warning-600 bg-warning-50 px-3 py-2"
+      >
+        <span class="font-semibold text-zinc-900">{{ conflict.teacherName }}</span>
+        <span class="text-sm text-zinc-700">
           {{ conflict.conflictingCourseName }} / {{ conflict.conflictingClassName }}
         </span>
-        <span class="conflict-warning__time">
+        <span class="text-sm text-zinc-600 tabular-nums">
           {{ getWeekdayLabel(conflict.conflictingWeekday) }}
           {{ conflict.conflictingStartTime.substring(0, 5) }}–{{
             conflict.conflictingEndTime.substring(0, 5)
@@ -23,7 +31,7 @@
     }
   </ul>
 
-  <div class="conflict-warning__actions">
+  <div class="flex justify-end gap-2">
     <p-button label="返回修改" [text]="true" severity="secondary" (onClick)="cancel()" />
     <p-button label="仍要儲存" severity="warn" (onClick)="proceed()" />
   </div>

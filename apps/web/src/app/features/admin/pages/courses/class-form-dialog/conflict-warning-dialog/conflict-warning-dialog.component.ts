@@ -29,7 +29,6 @@ export interface ConflictWarningDialogData {
   standalone: true,
   imports: [ButtonModule],
   templateUrl: './conflict-warning-dialog.component.html',
-  styleUrl: './conflict-warning-dialog.component.scss',
 })
 export class ConflictWarningDialogComponent {
   private readonly ref = inject(DynamicDialogRef);
