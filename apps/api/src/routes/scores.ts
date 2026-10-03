@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
 import { getCampusScope, type CampusScope } from '../lib/campus-scope';
+import { classWriteScope, studentWriteScope } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
 import {
   ACADEMY_SCORE_SELECT,
@@ -927,6 +928,10 @@ app.openapi(studentSummaryRoute, async (c) => {
   if (readable !== null && !readable.includes(studentId)) {
     return c.json({ error: '這位學生不在你的任課班級', code: 'STUDENT_OUT_OF_SCOPE' }, 403);
   }
+  // 分校範圍（#1250）：學生任一筆報名在範圍內就算，同 list（#1115）。不在本 org 的交給下面的 404
+  if ((await studentWriteScope(supabase, orgId, getCampusScope(c), studentId)) === 'out-of-scope') {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
 
   const { data: student, error: studentError } = await supabase
     .from('students')
@@ -1159,6 +1164,10 @@ app.openapi(classExamStatsRoute, async (c) => {
     if (!taught.includes(classId)) {
       return c.json({ error: '這個班不在你的任課範圍', code: 'CLASS_OUT_OF_SCOPE' }, 403);
     }
+  }
+  // 分校範圍（#1250）。不在本 org 的交給下面的 404
+  if ((await classWriteScope(supabase, orgId, getCampusScope(c), classId)) === 'out-of-scope') {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
   }
 
   const [{ data: classRow, error: classError }, { data: examClassRow, error: examClassError }] =
