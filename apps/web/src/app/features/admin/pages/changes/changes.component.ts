@@ -133,7 +133,7 @@ export class ChangesComponent {
   protected readonly changeType = signal<string | null>(null);
   protected readonly campusId = signal<string | null>(null);
   protected readonly campuses = signal<Campus[]>([]);
-  /** 手機上「篩選」那一列展開與否；桌機永遠展開（lg:grid） */
+  /** 手機上「篩選」那一列展開與否；桌機永遠展開（wide:grid） */
   protected readonly filtersOpen = signal(false);
 
   protected readonly monthOptions = Array.from({ length: MONTHS_BACK }, (_, i) => {
