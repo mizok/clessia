@@ -234,6 +234,12 @@
                       class="inline-flex items-center rounded-sm bg-zinc-100 px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-800"
                       >補考</span
                     >
+                  } @else if (row.status === 'pending') {
+                    <!-- #1280：還沒登錄。API 原本把這些也回成 scored，於是這一格顯示成及格／空白 -->
+                    <span
+                      class="inline-flex items-center rounded-sm px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-700 shadow-[inset_0_0_0_1px_var(--zinc-400)]"
+                      >待登錄</span
+                    >
                   } @else if (row.score !== null) {
                     <span
                       class="inline-flex items-center rounded-sm bg-success-100 px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-900"

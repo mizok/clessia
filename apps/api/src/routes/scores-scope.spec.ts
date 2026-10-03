@@ -440,3 +440,66 @@ describe('GET /api/scores 列表 —— #1253', () => {
     expect(body.data).toHaveLength(200);
   });
 });
+
+describe('GET /api/scores/class/{c}/exam/{e} —— 名單與狀態（#1280）', () => {
+  const EXAM = '44444444-4444-4444-8444-444444444444';
+  // 考試日 2026-09-15
+  const enrollment = (id: string, from: string, to: string | null = null) => ({
+    student_id: id,
+    effective_from: from,
+    effective_to: to,
+    students: { name: id },
+  });
+  const resolve: Resolver = (q) => {
+    if (q.table === 'classes') return { data: { id: CLASS, name: 'A 班', campus_id: 'campus-1' } };
+    if (q.table === 'academy_exam_classes') {
+      return {
+        data: {
+          exam_id: EXAM,
+          academy_exams: { id: EXAM, name: '小考', org_id: 'org-1', exam_date: '2026-09-15' },
+        },
+      };
+    }
+    if (q.table === 'enrollments') {
+      return {
+        data: [
+          enrollment('on-roll', '2026-09-01'),
+          enrollment('scored', '2026-09-01'),
+          enrollment('joined-later', '2026-09-20'),
+          enrollment('left-before', '2026-08-01', '2026-09-10'),
+          enrollment('left-but-scored', '2026-08-01', '2026-09-10'),
+        ],
+      };
+    }
+    if (q.table === 'academy_scores') {
+      return {
+        data: [
+          { student_id: 'scored', score: 88, status: 'scored', notes: null },
+          { student_id: 'left-but-scored', score: null, status: 'absent', notes: null },
+        ],
+      };
+    }
+    return { data: [] };
+  };
+
+  it('沒成績的回 pending（不是 scored）；名單 = 考試那天在籍 ∪ 已登錄（同考試列表的分母）', async () => {
+    const { app, queries } = createApp(resolve, null);
+    const res = await app.request(`/api/scores/class/${CLASS}/exam/${EXAM}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        scores: Array<{ studentId: string; status: string; score: number | null }>;
+        summary: { expectedCount: number; recordedCount: number };
+      };
+    };
+    expect(body.data.scores.map((s) => [s.studentId, s.status, s.score]).sort()).toEqual([
+      ['left-but-scored', 'absent', null],
+      ['on-roll', 'pending', null],
+      ['scored', 'scored', 88],
+    ]);
+    expect(body.data.summary).toMatchObject({ expectedCount: 3, recordedCount: 2 });
+    // 作廢的報名不算（跟 loadAcademyExamCounts 同一條）
+    const enrollmentQuery = queries.find((q) => q.table === 'enrollments')!;
+    expect(has(enrollmentQuery, 'neq', 'status', 'void')).toBe(true);
+  });
+});

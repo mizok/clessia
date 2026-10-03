@@ -57,7 +57,8 @@ export interface ClassExamScore {
   studentId: string;
   studentName: string;
   score: number | null;
-  status: ScoreRecordStatus;
+  /** `pending`＝這場還沒登錄（#1280）。只有班級考試名單會有，成績列表不會 */
+  status: ScoreRecordStatus | 'pending';
   notes: string | null;
 }
 

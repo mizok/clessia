@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
 import { getCampusScope, type CampusScope } from '../lib/campus-scope';
+import { isEnrolledOn } from '../lib/session-roster';
 import { classWriteScope, studentWriteScope } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
 import {
@@ -79,7 +80,8 @@ const ClassExamScoreSchema = z
     studentId: DbUuidSchema,
     studentName: z.string(),
     score: z.number().nullable(),
-    status: ScoreStatusSchema,
+    /** `pending`＝還沒登錄（#1280；原本沒有成績列的也回 `scored`，「待登錄」篩不出來） */
+    status: z.enum(['scored', 'absent', 'makeup', 'pending']),
     notes: z.string().nullable(),
   })
   .openapi('ClassExamScore');
@@ -96,6 +98,11 @@ const ClassExamStatsResponseSchema = z
         lowestScore: z.number().nullable(),
         absentCount: z.number().int(),
         recordedCount: z.number().int(),
+        /**
+         * 應登錄人數（#1280）＝考試那天在籍 ∪ 已登錄 —— 跟考試列表的分母同一個定義
+         * （`lib/academy-exam-roster.ts`，issue #424），兩邊的 N/M 對得上
+         */
+        expectedCount: z.number().int(),
       }),
       scores: z.array(ClassExamScoreSchema),
     }),
@@ -1196,7 +1203,7 @@ app.openapi(classExamStatsRoute, async (c) => {
         .maybeSingle(),
       supabase
         .from('academy_exam_classes')
-        .select('exam_id, academy_exams!inner(id, name, org_id)')
+        .select('exam_id, academy_exams!inner(id, name, org_id, exam_date)')
         .eq('class_id', classId)
         .eq('exam_id', examId)
         .eq('academy_exams.org_id', orgId)
@@ -1223,17 +1230,22 @@ app.openapi(classExamStatsRoute, async (c) => {
     return c.json({ error: '找不到考試事件', code: 'NOT_FOUND' }, 404);
   }
 
+  // 名單＝**考試那天**在籍 ∪ 已登錄（#1280，跟考試列表的分母同一個定義，issue #424）。
+  // 原本用「現在 status='active'」：考完才轉入的會永遠掛在名單上，考試日在籍、後來退班的卻消失。
+  // 排除 void、保留 withdrawal —— 同 loadAcademyExamCounts
   const { data: enrollments, error: enrollmentsError } = await supabase
     .from('enrollments')
-    .select('student_id, students(name)')
+    .select('student_id, effective_from, effective_to, students(name)')
+    .eq('org_id', orgId)
     .eq('class_id', classId)
-    .eq('status', 'active');
+    .neq('status', 'void');
 
   if (enrollmentsError) {
     return c.json({ error: enrollmentsError.message, code: 'DB_ERROR' }, 400);
   }
 
   const studentIds = Array.from(new Set((enrollments ?? []).map((row) => row.student_id)));
+  const examDate = (exam as { exam_date?: string | null }).exam_date ?? null;
   const { data: scoreRows, error: scoreError } =
     studentIds.length > 0
       ? await supabase
@@ -1259,14 +1271,25 @@ app.openapi(classExamStatsRoute, async (c) => {
     });
   }
 
-  const scores = (enrollments ?? []).map((row) => {
+  // 一個學生在這班可能有多筆報名（退了又回來）—— 依學生去重
+  const roster = new Map<string, string>();
+  for (const row of enrollments ?? []) {
+    const onExamDay = isEnrolledOn(
+      { effectiveFrom: row.effective_from, effectiveTo: row.effective_to },
+      examDate,
+    );
+    if (!onExamDay && !scoreMap.has(row.student_id)) continue;
     const student = Array.isArray(row.students) ? row.students[0] : row.students;
-    const matched = scoreMap.get(row.student_id);
+    roster.set(row.student_id, student?.name ?? '');
+  }
+
+  const scores = [...roster].map(([studentId, studentName]) => {
+    const matched = scoreMap.get(studentId);
     return {
-      studentId: row.student_id,
-      studentName: student?.name ?? '',
+      studentId,
+      studentName,
       score: matched?.score ?? null,
-      status: matched?.status ?? 'scored',
+      status: matched?.status ?? ('pending' as const),
       notes: matched?.notes ?? null,
     };
   });
@@ -1285,6 +1308,7 @@ app.openapi(classExamStatsRoute, async (c) => {
     lowestScore: scoredValues.length > 0 ? Math.min(...scoredValues) : null,
     absentCount: recordedRows.filter((row) => row.status === 'absent').length,
     recordedCount: recordedRows.length,
+    expectedCount: roster.size,
   };
 
   return c.json(

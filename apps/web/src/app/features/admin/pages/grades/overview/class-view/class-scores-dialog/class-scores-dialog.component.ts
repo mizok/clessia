@@ -258,6 +258,9 @@ export class ClassScoresDialogComponent implements OnInit {
         return '缺考';
       case 'makeup':
         return '補考';
+      // 還沒登錄（#1280：API 原本把這些也回成 scored，顯示成「已登錄」）
+      case 'pending':
+        return '待登錄';
       default:
         return status;
     }

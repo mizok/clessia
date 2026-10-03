@@ -140,6 +140,41 @@ describe('ClassScoresDialogComponent', () => {
     }
   });
 
+  // #1280：沒登錄的學生 API 回 pending —— 要顯示中文，不能把英文原值漏到畫面上
+  it('沒登錄的學生顯示「待登錄」，不是英文 pending、也不是已登錄', async () => {
+    listMock.mockReturnValue(of({ data: [exam], meta: { total: 1 } }));
+    getClassExamStatsMock.mockReturnValue(
+      of({
+        data: {
+          ...stats,
+          scores: [
+            {
+              studentId: 'stu-1',
+              studentName: '王小明',
+              score: null,
+              status: 'pending',
+              notes: null,
+            },
+          ],
+        },
+      }),
+    );
+
+    fixture = TestBed.createComponent(ClassScoresDialogComponent);
+    component = fixture.componentInstance;
+    component['examScope'].set('all');
+    component['selectedExamId'].set('exam-1');
+    await fixture.whenStable();
+
+    // 只看名單那一列（彙總列與篩選選項本來就有「已登錄」三個字）
+    const row = [...(fixture.nativeElement as HTMLElement).querySelectorAll('li')].find((li) =>
+      li.textContent?.includes('王小明'),
+    );
+    expect(row?.textContent).toContain('待登錄');
+    expect(row?.textContent).not.toContain('及格');
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('pending');
+  });
+
   it('不及格門檻改用該場考試的總分比例，不再是跟裸 60 比大小', async () => {
     const smallTotalExam: AcademyExam = { ...exam, id: 'exam-2', totalScore: 50, passScore: null };
     listMock.mockReturnValue(of({ data: [smallTotalExam], meta: { total: 1 } }));
