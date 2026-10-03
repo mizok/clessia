@@ -52,6 +52,11 @@ describe('requiredPermissionsForTarget（#464）', () => {
    * （實務上 `decideLoginLinkTarget` 會先用 `NO_ROLES` 擋掉，
    * 但這個函式不能靠呼叫端的順序來保證自己的安全。）
    */
+  // #1127：機台帳號由人員頁（manage_staff）建立，重鑄登入 QR 也是同一個門檻
+  it('對象是掃碼機台 → manage_staff', () => {
+    expect(requiredPermissionsForTarget(['kiosk'])).toEqual(['manage_staff']);
+  });
+
   it('沒有角色時回傳一個不可能滿足的要求，不是空陣列', () => {
     const required = requiredPermissionsForTarget([]);
 

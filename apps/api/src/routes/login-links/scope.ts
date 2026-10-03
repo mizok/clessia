@@ -46,6 +46,10 @@ export function targetReach(input: TargetReachInput): CampusScope {
     input.staffCampusIds.forEach((id) => reach.add(id));
     input.taughtCampusIds.forEach((id) => reach.add(id));
   }
+  // kiosk（#1127）：middleware 照 staff_campuses 限制它，所以觸及範圍就是綁的那些分校
+  if (input.roles.includes('kiosk')) {
+    input.staffCampusIds.forEach((id) => reach.add(id));
+  }
   if (input.roles.includes('parent')) {
     input.childCampusIds.forEach((id) => reach.add(id));
   }

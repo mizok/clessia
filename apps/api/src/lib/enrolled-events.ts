@@ -39,12 +39,12 @@ export interface EnrollmentRangeRow {
   effective_to: string | null;
 }
 
-export function enrolledEventIds(
-  events: ReadonlyArray<EnrolledEventInput>,
+/** 生效區間蓋到 `date` 的班（呼叫端要先濾 `status = 'active'`）。打卡寫出勤與確認畫面共用（#1127） */
+export function enrolledClassIdsOn(
   enrollments: ReadonlyArray<EnrollmentRangeRow>,
   date: string,
-): string[] {
-  const enrolledClassIds = new Set(
+): Set<string> {
+  return new Set(
     enrollments
       .filter(
         (enrollment) =>
@@ -53,6 +53,14 @@ export function enrolledEventIds(
       )
       .map((enrollment) => enrollment.class_id),
   );
+}
+
+export function enrolledEventIds(
+  events: ReadonlyArray<EnrolledEventInput>,
+  enrollments: ReadonlyArray<EnrollmentRangeRow>,
+  date: string,
+): string[] {
+  const enrolledClassIds = enrolledClassIdsOn(enrollments, date);
 
   return events
     .filter((event) => {

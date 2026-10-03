@@ -1,7 +1,13 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
-import { enrolledEventIds } from '../lib/enrolled-events';
+import { enrolledClassIdsOn, enrolledEventIds } from '../lib/enrolled-events';
+import { isCancelledSession } from '../lib/cancelled-session';
+import {
+  LEAVE_WINDOW_COLUMNS,
+  leaveCoversSession,
+  toLeaveWindow,
+} from '../lib/leave-covers-session';
 import { assertAttendanceWindow } from '../lib/attendance-window-check';
 import { logAudit } from '../utils/audit';
 import { getCampusScope, isCampusAllowed } from '../lib/campus-scope';
@@ -21,6 +27,27 @@ const DailyCheckinSchema = z
     createdAt: z.string(),
   })
   .openapi('DailyCheckin');
+
+/** #1127：機台掃完給學生看的確認資訊 —— 只有剛打卡的那一位 */
+const CheckinConfirmationSchema = DailyCheckinSchema.extend({
+  student: z.object({ name: z.string() }),
+  /** 這次是重掃（當天已經打過）—— 不是錯誤，畫面講第一次的時間（`checkedInAt` 就是那一次） */
+  alreadyCheckedIn: z.boolean(),
+  /** 這次打卡套用的出勤模式（分校層級）。課堂模式只記到班，出席由老師點名 */
+  attendanceMode: z.enum(['daily_checkin', 'per_session']),
+  todaySessions: z.array(
+    z.object({
+      sessionId: DbUuidSchema,
+      className: z.string(),
+      startTime: z.string(),
+      endTime: z.string(),
+      /** 有假單蓋到這堂（跟點名名單同一個判準 `leaveCoversSession`） */
+      onLeave: z.boolean(),
+      /** 寫完之後這堂**實際**的出勤紀錄；沒有就是 null（課堂模式、或當天 event 還沒生成） */
+      attendance: z.enum(['present', 'absent', 'on_leave']).nullable(),
+    }),
+  ),
+}).openapi('DailyCheckinConfirmation');
 
 const CreateDailyCheckinSchema = z
   .object({
@@ -62,8 +89,8 @@ app.openapi(
     },
     responses: {
       201: {
-        description: '打卡紀錄',
-        content: { 'application/json': { schema: DailyCheckinSchema } },
+        description: '打卡紀錄＋確認資訊（學生名、今日課堂）',
+        content: { 'application/json': { schema: CheckinConfirmationSchema } },
       },
       500: { description: '伺服器錯誤' },
     },
@@ -136,6 +163,7 @@ app.openapi(
       )
       .select();
     let checkin = inserted?.[0] as Record<string, unknown> | undefined;
+    const alreadyCheckedIn = !insertError && !checkin;
     let error = insertError;
     if (!error && !checkin) {
       const existing = await supabase
@@ -157,6 +185,21 @@ app.openapi(
     //    （rules/attendance-rules.md 1.2，#1099）。原本整支沒讀模式，兩種模式都替課堂寫 present。
     //    **取消打卡（DELETE）那段不跟著看模式**：它只刪掃碼寫的（`system` + `present`），
     //    課堂模式本來就不會有；當天中途切換模式時，早先日到班寫的那些仍要刪得掉。
+    // 在籍條件照抄 roster（`status = 'active'` + 生效區間）—— 掃碼寫得出來的紀錄，
+    // 必須是那堂課點名時看得到的人，否則會出現「有出勤紀錄但名單上沒這個人」的鬼影。
+    // 兩種模式都要讀：確認畫面的「今日課堂」用同一份（#1127）。
+    const { data: enrollments } = await supabase
+      .from('enrollments')
+      .select('class_id, effective_from, effective_to')
+      .eq('org_id', orgId)
+      .eq('student_id', body.studentId)
+      .eq('status', 'active');
+    const enrollmentRows = (enrollments ?? []) as Array<{
+      class_id: string;
+      effective_from: string;
+      effective_to: string | null;
+    }>;
+
     let eventIds: string[] = [];
     if (attendanceMode === 'daily_checkin') {
       // 2. 替該學生當天**實際有報名**的課堂建立 attendance_records（present）
@@ -193,17 +236,7 @@ app.openapi(
         if (scope !== null) eventsQuery = eventsQuery.in('campus_id', [...scope]);
       }
 
-      const [{ data: events }, { data: enrollments }] = await Promise.all([
-        eventsQuery,
-        // 在籍條件照抄 roster（`status = 'active'` + 生效區間）—— 掃碼寫得出來的紀錄，
-        // 必須是那堂課點名時看得到的人，否則會出現「有出勤紀錄但名單上沒這個人」的鬼影
-        supabase
-          .from('enrollments')
-          .select('class_id, effective_from, effective_to')
-          .eq('org_id', orgId)
-          .eq('student_id', body.studentId)
-          .eq('status', 'active'),
-      ]);
+      const { data: events } = await eventsQuery;
 
       eventIds = enrolledEventIds(
         (events ?? []) as Array<{
@@ -213,11 +246,7 @@ app.openapi(
             | Array<{ class_id?: string | null; status?: string | null }>
             | null;
         }>,
-        (enrollments ?? []) as Array<{
-          class_id: string;
-          effective_from: string;
-          effective_to: string | null;
-        }>,
+        enrollmentRows,
         body.checkinDate,
       );
 
@@ -260,8 +289,85 @@ app.openapi(
       waitUntilFrom(c),
     );
 
+    // 確認資訊（#1127）。課堂讀 `sessions` 不讀 `events`：events 是讀取時才補建的，
+    // 當天還沒人開過課表時它不存在。分校條件跟寫出勤同一組（指名分校，或呼叫者的範圍）。
+    const classIds = [...enrolledClassIdsOn(enrollmentRows, body.checkinDate)];
+    const confirmationScope = body.campusId ? [body.campusId] : getCampusScope(c);
+    let sessionsQuery = supabase
+      .from('sessions')
+      .select('id, event_id, start_time, end_time, status, classes!inner(name, campus_id)')
+      .eq('org_id', orgId)
+      .eq('session_date', body.checkinDate)
+      .in('class_id', classIds);
+    if (confirmationScope !== null) {
+      sessionsQuery = sessionsQuery.in('classes.campus_id', [...confirmationScope]);
+    }
+    const [{ data: student }, { data: sessionRows }, { data: leaveRows }] = await Promise.all([
+      supabase
+        .from('students')
+        .select('name')
+        .eq('org_id', orgId)
+        .eq('id', body.studentId)
+        .maybeSingle(),
+      classIds.length > 0 ? sessionsQuery : Promise.resolve({ data: [] }),
+      supabase
+        .from('leave_requests')
+        .select(LEAVE_WINDOW_COLUMNS)
+        .eq('org_id', orgId)
+        .eq('student_id', body.studentId)
+        .lte('start_date', body.checkinDate)
+        .gte('end_date', body.checkinDate),
+    ]);
+    const liveSessions = ((sessionRows ?? []) as Array<Record<string, any>>).filter(
+      (row) => !isCancelledSession(row),
+    );
+    // 寫完之後讀回實際紀錄 —— 畫面講「已記出席／請假」要講真的，不是猜這次寫了什麼
+    const sessionEventIds = liveSessions
+      .map((row) => row['event_id'] as string | null)
+      .filter((id): id is string => !!id);
+    const { data: recordRows } =
+      sessionEventIds.length > 0
+        ? await supabase
+            .from('attendance_records')
+            .select('event_id, status')
+            .eq('org_id', orgId)
+            .eq('student_id', body.studentId)
+            .in('event_id', sessionEventIds)
+        : { data: [] };
+    const statusByEvent = new Map(
+      ((recordRows ?? []) as Array<{ event_id: string; status: string }>).map((r) => [
+        r.event_id,
+        r.status,
+      ]),
+    );
+    const leaves = ((leaveRows ?? []) as Array<Record<string, unknown>>).map(toLeaveWindow);
+    const todaySessions = liveSessions
+      .map((row) => {
+        const klass = Array.isArray(row['classes']) ? row['classes'][0] : row['classes'];
+        const startTime = row['start_time'] as string;
+        const endTime = row['end_time'] as string;
+        const sessionId = row['id'] as string;
+        const eventId = row['event_id'] as string | null;
+        return {
+          sessionId,
+          className: (klass?.name as string | undefined) ?? '',
+          startTime,
+          endTime,
+          onLeave: leaves.some((leave) =>
+            leaveCoversSession(leave, { sessionId, date: body.checkinDate, startTime, endTime }),
+          ),
+          attendance: ((eventId && statusByEvent.get(eventId)) || null) as
+            'present' | 'absent' | 'on_leave' | null,
+        };
+      })
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
     return c.json(
       {
+        student: { name: ((student as { name?: string } | null)?.name as string) ?? '' },
+        alreadyCheckedIn,
+        attendanceMode,
+        todaySessions,
         id: (checkin as any).id,
         orgId: (checkin as any).org_id,
         studentId: (checkin as any).student_id,

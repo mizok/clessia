@@ -28,6 +28,12 @@ function createCheckinApp(
     /** #1127：誰在打（預設不受分校限制的管理員） */
     roles?: string[];
     campusScope?: readonly string[] | null;
+    /** #1127 確認畫面：當天的課堂（`sessions` 表，`class_id` 會照 `.in()` 過濾） */
+    sessions?: Array<Record<string, unknown>>;
+    /** 涵蓋當天的假單（`leave_requests` 的列，含 `leave_request_sessions` embed） */
+    leaves?: Array<Record<string, unknown>>;
+    /** 寫完之後讀回的出勤紀錄 */
+    records?: Array<{ event_id: string; status: string }>;
   } = {},
 ) {
   const upsertCalls: Array<{ table: string; rows: unknown; options: unknown }> = [];
@@ -44,6 +50,7 @@ function createCheckinApp(
 
   const supabase = {
     from(table: string) {
+      let classIdFilter: readonly string[] | null = null;
       const query = {
         // `logAudit` 走 `.insert()` —— 替身少了它，稽核就會靜默失敗，
         // 而這個檔的 setup 會把「靜默失敗」變成紅燈（那是對的）。
@@ -67,8 +74,14 @@ function createCheckinApp(
         select: () => query,
         eq: () => query,
         // 受分校限制的人（機台）打卡時，events 會再帶一次 `.in('campus_id', scope)`
-        in: () => query,
+        in: (column: string, values: readonly string[]) => {
+          if (column === 'class_id') classIdFilter = values;
+          return query;
+        },
         limit: () => query,
+        // 確認資訊撈涵蓋當天的假單
+        lte: () => query,
+        gte: () => query,
         // `logAudit` 先查 `profiles` 拿 `user_name` 才寫 `audit_logs`，
         // 鏈是 select().eq().maybeSingle() —— 少一段就靜默失敗。
         // #966 B6：寫入前先驗學生屬於本 org（`students` 的 findInOrg）
@@ -82,7 +95,10 @@ function createCheckinApp(
                   : { data: { attendance_mode: fixture.mode ?? 'daily_checkin' }, error: null }
                 : table === 'campuses'
                   ? { data: { attendance_mode: fixture.campusMode ?? null }, error: null }
-                  : { data: table === 'students' ? { id: 'stu-1' } : null, error: null },
+                  : {
+                      data: table === 'students' ? { id: 'stu-1', name: '王小明' } : null,
+                      error: null,
+                    },
           ),
         then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
           const data =
@@ -90,10 +106,19 @@ function createCheckinApp(
               ? (fixture.enrollments ?? [
                   { class_id: 'class-1', effective_from: '2020-01-01', effective_to: null },
                 ])
-              : (fixture.events ?? [
-                  { id: 'event-1', sessions: [{ class_id: 'class-1' }] },
-                  { id: 'event-2', sessions: [{ class_id: 'class-1' }] },
-                ]);
+              : table === 'leave_requests'
+                ? (fixture.leaves ?? [])
+                : table === 'attendance_records'
+                  ? (fixture.records ?? [])
+                  : table === 'sessions'
+                    ? (fixture.sessions ?? []).filter(
+                        (row) =>
+                          !classIdFilter || classIdFilter.includes(row['class_id'] as string),
+                      )
+                    : (fixture.events ?? [
+                        { id: 'event-1', sessions: [{ class_id: 'class-1' }] },
+                        { id: 'event-2', sessions: [{ class_id: 'class-1' }] },
+                      ]);
           return Promise.resolve({ data }).then(onfulfilled ?? undefined);
         },
       };
@@ -531,5 +556,117 @@ describe('DELETE /api/daily-checkins/:id', () => {
     // attendance_retroactive_days。沒有這一步就代表這支端點自己判斷了時窗 ——
     // 那樣同一間補習班對「昨天還能不能改」會有兩個答案。
     expect(queriedTables).toContain('organizations');
+  });
+});
+
+/**
+ * #1127：機台掃完要讓學生看到「是我、今天有這些課」。確認資訊放在 POST 的回應裡
+ * （不另開讀端點 —— 機台不能讀任何東西），而且**只回剛打卡的那一位**。
+ */
+describe('POST /api/daily-checkins —— 確認資訊（學生名＋今日課堂）', () => {
+  const session = (id: string, classId: string, start: string, status = 'scheduled') => ({
+    id,
+    event_id: `ev-${id}`,
+    class_id: classId,
+    start_time: start,
+    end_time: '21:00:00',
+    status,
+    classes: { name: `班-${classId}` },
+  });
+  const sessions = [
+    session('s-late', 'class-1', '19:00:00'),
+    session('s-early', 'class-1', '17:00:00'),
+    session('s-cancelled', 'class-1', '15:00:00', 'cancelled'),
+    session('s-other', 'class-9', '16:00:00'),
+  ];
+  const post = async (
+    mode: 'daily_checkin' | 'per_session',
+    extra: Parameters<typeof createCheckinApp>[0] = {},
+  ) => {
+    const { app } = createCheckinApp({ sessions, mode, ...extra });
+    const res = await app.request('/api/daily-checkins', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        studentId: '00000000-0000-4000-8000-0000000000b1',
+        checkinDate: '2026-04-06',
+      }),
+    });
+    return {
+      status: res.status,
+      body: (await res.json()) as {
+        student: { name: string };
+        alreadyCheckedIn: boolean;
+        attendanceMode: string;
+        todaySessions: Array<{
+          sessionId: string;
+          className: string;
+          startTime: string;
+          endTime: string;
+          onLeave: boolean;
+          attendance: string | null;
+        }>;
+      },
+    };
+  };
+
+  it('回學生名與當天有報名、沒停課的課堂，依開始時間排序', async () => {
+    const { status, body } = await post('daily_checkin');
+    expect(status).toBe(201);
+    expect(body.student).toEqual({ name: '王小明' });
+    expect(
+      body.todaySessions.map(({ sessionId, className, startTime, endTime }) => ({
+        sessionId,
+        className,
+        startTime,
+        endTime,
+      })),
+    ).toEqual([
+      { sessionId: 's-early', className: '班-class-1', startTime: '17:00:00', endTime: '21:00:00' },
+      { sessionId: 's-late', className: '班-class-1', startTime: '19:00:00', endTime: '21:00:00' },
+    ]);
+    expect(body.attendanceMode).toBe('daily_checkin');
+    expect(body.alreadyCheckedIn).toBe(false);
+  });
+
+  it('課堂模式也回今日課堂（顯示用，不寫出勤）', async () => {
+    const { body } = await post('per_session');
+    expect(body.todaySessions.map((s) => s.sessionId)).toEqual(['s-early', 's-late']);
+  });
+
+  // 設計稿 b6「今天已經打過」：不是錯誤，畫面要講第一次的時間
+  it('重掃：alreadyCheckedIn = true', async () => {
+    const { body } = await post('daily_checkin', { existingCheckedInAt: '2026-04-06T08:41:00Z' });
+    expect(body.alreadyCheckedIn).toBe(true);
+  });
+
+  // 設計稿 b6「今天請假」：跟點名名單同一套判準（leaveCoversSession），綁定堂次只蓋那一堂
+  it('請假蓋到的堂標 onLeave；每堂帶寫完之後的實際出勤紀錄', async () => {
+    const { body } = await post('daily_checkin', {
+      leaves: [
+        {
+          start_date: '2026-04-06',
+          end_date: '2026-04-06',
+          start_time: null,
+          end_time: null,
+          leave_request_sessions: [
+            { session_id: 's-late', sessions: { session_date: '2026-04-06' } },
+          ],
+        },
+      ],
+      records: [
+        { event_id: 'ev-s-early', status: 'present' },
+        { event_id: 'ev-s-late', status: 'on_leave' },
+      ],
+    });
+    const byId = Object.fromEntries(body.todaySessions.map((s) => [s.sessionId, s]));
+    expect(byId['s-early']).toMatchObject({ onLeave: false, attendance: 'present' });
+    expect(byId['s-late']).toMatchObject({ onLeave: true, attendance: 'on_leave' });
+  });
+
+  it('還沒有出勤紀錄的堂：attendance = null（課堂模式等老師點名）', async () => {
+    const { body } = await post('per_session');
+    expect(body.attendanceMode).toBe('per_session');
+    expect(body.todaySessions.every((s) => s.attendance === null && !s.onLeave)).toBe(true);
   });
 });
