@@ -24,6 +24,8 @@ export interface Student {
   notes: string | null;
   isActive: boolean;
   parentNames: string[];
+  /** 主要家長電話：只有 `/api/students` 列表回、只有管理員有值（#1138），老師是 null */
+  primaryParentPhone?: string | null;
   campusNames: string[];
   /** 在籍班級名稱，老師端用來分組 */
   classNames: string[];

@@ -42,9 +42,13 @@
         }
       </nav>
 
+      @if (auth.activeRole() === 'admin') {
+        <app-global-search class="ml-auto flex items-center" />
+      }
       @if (auth.activeRole(); as role) {
         <button
-          class="ml-auto inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 text-md text-zinc-300 hover:bg-zinc-800 hover:text-white aria-expanded:bg-zinc-800 aria-expanded:text-white wide:-mr-1.5"
+          [class.ml-auto]="role !== 'admin'"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-1.5 text-md text-zinc-300 hover:bg-zinc-800 hover:text-white aria-expanded:bg-zinc-800 aria-expanded:text-white wide:-mr-1.5"
           type="button"
           popovertarget="shell-account"
           [attr.aria-expanded]="accountOpen()"

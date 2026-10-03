@@ -35,6 +35,7 @@
 
 @source './app/shared/components/select-field';
 @source './app/shared/components/page-open';
+@source './app/shared/components/layout/global-search';
 @source './app/shared/components/layout/shell-layout';
 @source './app/features/admin/pages/changes';
 @source './app/features/admin/pages/dashboard';

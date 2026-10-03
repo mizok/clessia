@@ -78,6 +78,7 @@
       "apps/web/src/app/features/admin/pages/sessions/components",
       "apps/web/src/app/features/admin/pages/sessions/sessions.page.html",
       "apps/web/src/app/features/admin/pages/students",
+      "apps/web/src/app/shared/components/layout/global-search",
       "apps/web/src/app/shared/components/layout/shell-layout",
       "apps/web/src/app/shared/components/page-open",
       "apps/web/src/app/shared/components/select-field"

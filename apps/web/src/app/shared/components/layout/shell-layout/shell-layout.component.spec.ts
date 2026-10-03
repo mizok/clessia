@@ -131,4 +131,12 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
     btn!.click();
     expect(auth.signOut).toHaveBeenCalled();
   });
+
+  it('全站搜尋只給管理員（#1138）：老師、家長的頂欄沒有', async () => {
+    const admin = await setup(['admin'], 'admin');
+    expect(admin.el.querySelector('app-global-search')).not.toBeNull();
+    TestBed.resetTestingModule();
+    const teacher = await setup(['teacher'], 'teacher');
+    expect(teacher.el.querySelector('app-global-search')).toBeNull();
+  });
 });
