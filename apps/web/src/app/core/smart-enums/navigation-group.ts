@@ -24,9 +24,10 @@ export class NavigationGroup {
   public static readonly TEACHER_ACADEMICS = new NavigationGroup('teacher-academics', '教學課務');
 
   public static readonly PARENT_LEARNING = new NavigationGroup('parent-learning', '學習狀況');
-  public static readonly PARENT_SERVICES = new NavigationGroup('parent-services', '行政服務');
   public static readonly PARENT_LIFE_AND_PAYMENTS = new NavigationGroup(
     'parent-life-and-payments',
     '生活與繳費',
   );
+  // 宣告順序＝A6「更多」的分組順序（#991 S2）：生活與繳費在行政服務前
+  public static readonly PARENT_SERVICES = new NavigationGroup('parent-services', '行政服務');
 }
