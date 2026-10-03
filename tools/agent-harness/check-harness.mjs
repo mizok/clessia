@@ -361,7 +361,21 @@ const apiIndex = join(ROOT, 'apps/api/src/index.ts');
 if (existsSync(apiIndex)) {
   const source = readFileSync(apiIndex, 'utf8');
 
-  for (const [, path] of source.matchAll(/app\.route\('(\/api\/[^']+)'/g)) {
+  // **唯一的例外：公開端點（#1125）**。`/api/public/*` 是免登入的，本來就沒有角色可宣告 ——
+  // 但它必須掛在 `authMiddleware` **之前**（之後掛的會先被要 session，形同沒開），
+  // 而它的 org 由 `publicOrgMiddleware`（部署設定 `PUBLIC_ORG_SLUG`）決定。
+  // 所以放行的條件是「路徑在 /api/public/ 底下 **且** 出現在 authMiddleware 之前」，
+  // 不是「路徑在 /api/public/ 底下」—— 後者會讓一支掛錯位置的公開端點綠著上線卻永遠 401。
+  // 只認行首那一行 —— 註解裡也寫得出同一串字（index.ts 就有一處），找到註解會把位置算錯
+  const authAt = source.search(/^app\.use\('\/api\/\*', authMiddleware\)/m);
+  for (const match of source.matchAll(/app\.route\('(\/api\/[^']+)'/g)) {
+    const path = match[1];
+    if (path.startsWith('/api/public/')) {
+      if (authAt === -1 || match.index > authAt) {
+        fail(`${path} 是公開端點，必須掛在 app.use('/api/*', authMiddleware) 之前`);
+      }
+      continue;
+    }
     fail(`${path} 用 app.route 掛載，沒有宣告可用角色。改用 mount(path, route, roles)`);
   }
 

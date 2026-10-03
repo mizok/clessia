@@ -20,6 +20,8 @@ import { allowedOrigins, resolveCorsOrigin } from './lib/origins';
 import loginLinksRoute from './routes/login-links';
 import billingPeriodsRoute from './routes/billing-periods';
 import feeTemplatesRoute from './routes/fee-templates';
+import publicCatalogRoute from './routes/public/catalog';
+import { publicOrgMiddleware } from './lib/public-org';
 import invoicesRoute from './routes/invoices';
 import sessionPacksRoute from './routes/session-packs';
 import mealsRoute from './routes/meals';
@@ -77,6 +79,11 @@ export type Bindings = {
   LINE_CLIENT_ID: string;
   /** LINE Login channel secret —— 走 wrangler secret put */
   LINE_CLIENT_SECRET: string;
+  /**
+   * 公開頁（報名、試聽、課程目錄）屬於哪個 org 的 slug（#1125）。c12 下一部署一客戶；
+   * **沒設＝公開端點一律 404 `PUBLIC_DISABLED`**（見 `lib/public-org.ts`）。
+   */
+  PUBLIC_ORG_SLUG?: string;
 };
 
 export type Variables = {
@@ -256,6 +263,12 @@ app.on(['POST', 'GET'], '/api/auth/*', async (c) => {
 //
 // 取而代之：LINE OAuth（日常）+ 一次性登入連結（首次綁定與破窗）。
 // 見 kb/wiki/architecture/line-oauth-login.md
+
+// ── 公開端點（免登入，#1125）────────────────────────────────────────────────
+// org 從部署設定 `PUBLIC_ORG_SLUG` 解析，沒設一律 404（lib/public-org.ts）。
+// **必須在 authMiddleware 之前**：之後掛的每一支都會先被它要 session。
+app.use('/api/public/*', publicOrgMiddleware);
+app.route('/api/public/catalog', publicCatalogRoute);
 
 app.use('/api/*', authMiddleware);
 
