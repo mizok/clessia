@@ -381,6 +381,7 @@ attendance 的三支寫入端點加上「這個 `eventId` 的班是不是我教�
 - 掛在 `authMiddleware` **之前**；harness A7 對 `/api/public/*` 放行角色宣告，但要求它在那一行之前，掛錯位置會紅。
 - 讀取一律 `.eq('org_id', orgId)`（c1 照舊），公開回應不含老師名等內部資料。
 - **寫入（#1123 公開報名）只寫 `public_applications`**：不建帳號、不寫 `students`；送來的班 id 一律以部署 org 重查，別 org／不開放的班整筆 400。
+- **公開試聽（#1124）同一張表 `kind='trial'`**：課程要有至少一個公開開放中的班（同目錄判準），否則 400 `INVALID_COURSE`；試聽沒有候補。申請人欄位與寫入在 `routes/public/application-common.ts`，報名與試聽共用。
 
 ## 上線順序 —— 真正的風險在這裡，不在寫法
 
