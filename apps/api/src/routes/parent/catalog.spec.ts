@@ -189,6 +189,7 @@ describe('GET /api/me/catalog', () => {
         remainingSeats: 10,
         matchesGrade: true,
         fee: null,
+        isRecommended: false,
       });
     });
 
@@ -223,16 +224,20 @@ describe('GET /api/me/catalog', () => {
       expect(feeOf(CLS_ENG)).toBeNull();
     });
 
-    it('回應不含報名列、學生資料、老師 id、next_class_id、範本 id、推薦', async () => {
+    /** #1118：推薦是班級的人工標記；規格「推薦加選的優先顯示」→ 排在最前，其餘照課程名→班名 */
+    it('isRecommended：照標記回，而且推薦的排最前', async () => {
+      const { body } = await get(appWith(seed({ [CLS_OLD]: { is_recommended: true } })));
+
+      expect(body.data[0]).toMatchObject({ classId: CLS_OLD, isRecommended: true });
+      expect(body.data.slice(1).every((c: { isRecommended: boolean }) => !c.isRecommended)).toBe(
+        true,
+      );
+    });
+
+    it('回應不含報名列、學生資料、老師 id、next_class_id、範本 id', async () => {
       const { body } = await get(appWith(seed()));
       const keys = Object.keys(body.data[0]);
-      for (const leaked of [
-        'enrollments',
-        'teacherId',
-        'nextClassId',
-        'defaultFeeTemplateId',
-        'recommended',
-      ]) {
+      for (const leaked of ['enrollments', 'teacherId', 'nextClassId', 'defaultFeeTemplateId']) {
         expect(keys).not.toContain(leaked);
       }
     });

@@ -35,6 +35,8 @@ export interface Class {
   usesContactBook: boolean;
   /** 目錄參考價的範本（#1175）。只有 id —— 金額要 `manage_finance` 才讀得到 */
   defaultFeeTemplateId?: string | null;
+  /** 家長端「推薦加選」的人工標記（#1118） */
+  isRecommended?: boolean;
   scheduleCount?: number;
   scheduleTeacherIds?: string[];
   hasUpcomingSessions?: boolean;
@@ -84,6 +86,7 @@ export interface CreateClassInput {
   usesContactBook?: boolean;
   /** 要 `manage_finance`；沒有時不要帶這個 key（帶了整筆 403） */
   defaultFeeTemplateId?: string | null;
+  isRecommended?: boolean;
   startDate?: string | null;
   endDate?: string | null;
 }
@@ -96,6 +99,7 @@ export interface UpdateClassInput {
   usesContactBook?: boolean;
   /** 要 `manage_finance`；沒有時不要帶這個 key（帶了整筆 403） */
   defaultFeeTemplateId?: string | null;
+  isRecommended?: boolean;
   startDate?: string | null;
   endDate?: string | null;
   isActive?: boolean;
