@@ -41,8 +41,23 @@ describe('targetReach —— 拿到這個人的帳號看得到哪些分校', () 
         staffCampusIds: ['A'],
         taughtCampusIds: ['B'],
         childCampusIds: [],
-      })?.slice().sort(),
+      })
+        ?.slice()
+        .sort(),
     ).toEqual(['A', 'B']);
+  });
+
+  // #1127：機台綁的那一個分校就是它的範圍（middleware 的 resolveCampusScope 也這樣判）
+  it('掃碼機台 → 綁定的分校', () => {
+    expect(
+      targetReach({
+        roles: ['kiosk'],
+        permissions: [],
+        staffCampusIds: ['A'],
+        taughtCampusIds: [],
+        childCampusIds: [],
+      }),
+    ).toEqual(['A']);
   });
 
   it('家長 → 孩子報名班級的分校；老師兼家長取聯集', () => {
@@ -53,7 +68,9 @@ describe('targetReach —— 拿到這個人的帳號看得到哪些分校', () 
         staffCampusIds: ['A'],
         taughtCampusIds: [],
         childCampusIds: ['C'],
-      })?.slice().sort(),
+      })
+        ?.slice()
+        .sort(),
     ).toEqual(['A', 'C']);
   });
 });

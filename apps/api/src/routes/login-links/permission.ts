@@ -16,7 +16,12 @@ export function requiredPermissionsForTarget(targetRoles: readonly string[]): Pe
   if (targetRoles.includes('parent')) {
     required.add('manage_students');
   }
-  if (targetRoles.includes('admin') || targetRoles.includes('teacher')) {
+  // kiosk（#1127）：機台帳號在人員頁建立，重鑄登入 QR 跟建立同一個門檻
+  if (
+    targetRoles.includes('admin') ||
+    targetRoles.includes('teacher') ||
+    targetRoles.includes('kiosk')
+  ) {
     required.add('manage_staff');
   }
 

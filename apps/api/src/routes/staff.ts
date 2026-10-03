@@ -17,12 +17,18 @@ import {
 import { DbUuidSchema } from '../lib/validation';
 import { findInOrg, inOrg } from '../lib/org-scope';
 import { getCurrentTaipeiDateString } from '../lib/taipei-date';
+import { generatePlaceholderEmail } from './parents';
 
 // ============================================================
 // Schemas
 // ============================================================
 
-const StaffRoleSchema = z.enum(['admin', 'teacher']).openapi('StaffRole');
+const StaffRoleSchema = z.enum(['admin', 'teacher', 'kiosk']).openapi('StaffRole');
+/**
+ * PUT 能指定的角色。kiosk（#1127）只能在建立時給，而且要單獨給 —— 改成別的角色、
+ * 或把 kiosk 加到一般人員身上，等於讓機台與人共用帳號。
+ */
+const AssignableStaffRoleSchema = z.enum(['admin', 'teacher']).openapi('AssignableStaffRole');
 
 // 詞彙表的家在 lib/permissions.ts —— 那裡有 harness gate 守著「每個權限都要有
 // mount 真的用到」。這裡只是把它變成 zod。
@@ -83,7 +89,12 @@ const StaffListResponseSchema = z
 const CreateStaffSchema = z
   .object({
     displayName: z.string().min(1).max(100).openapi({ description: '姓名' }),
-    email: z.email().openapi({ description: 'Email（產生一次性登入連結時的查人鍵）' }),
+    email: z
+      .email()
+      .optional()
+      .openapi({
+        description: 'Email（產生一次性登入連結時的查人鍵）；掃碼機台不給，由系統產生佔位值',
+      }),
     phone: z.string().max(30).nullable().optional().openapi({ description: '電話' }),
     birthday: DateStringSchema.nullable().optional().openapi({ description: '生日（YYYY-MM-DD）' }),
     notes: z.string().max(2000).nullable().optional().openapi({ description: '備註' }),
@@ -92,7 +103,7 @@ const CreateStaffSchema = z
     roles: z
       .array(StaffRoleSchema)
       .min(1)
-      .openapi({ description: '角色：admin、teacher（可多選）' }),
+      .openapi({ description: '角色：admin、teacher（可多選）；kiosk 只能單獨給（#1127）' }),
     permissions: z.array(PermissionSchema).optional().openapi({ description: '管理員權限清單' }),
   })
   .openapi('CreateStaff');
@@ -105,7 +116,11 @@ const UpdateStaffSchema = z
     notes: z.string().max(2000).nullable().optional(),
     subjectIds: z.array(DbUuidSchema).optional(),
     campusIds: z.array(DbUuidSchema).min(1).optional(),
-    roles: z.array(StaffRoleSchema).min(1).optional().openapi({ description: '角色（可多選）' }),
+    roles: z
+      .array(AssignableStaffRoleSchema)
+      .min(1)
+      .optional()
+      .openapi({ description: '角色（可多選）' }),
     status: StaffStatusSchema.optional(),
     permissions: z.array(PermissionSchema).optional(),
   })
@@ -443,7 +458,7 @@ async function loadStaffRelations(
     ]);
 
   const filteredRoleRows = (roleRows || []).filter(
-    (row) => row.role === 'admin' || row.role === 'teacher',
+    (row) => row.role === 'admin' || row.role === 'teacher' || row.role === 'kiosk',
   ) as UserRoleRow[];
 
   const baUserMap = new Map<string, { email: string | null; phone: string | null }>();
@@ -858,13 +873,43 @@ app.openapi(createRouteDef, async (c) => {
     return c.json({ error: '僅管理員可新增人員', code: 'FORBIDDEN' }, 403);
   }
 
+  /**
+   * **掃碼機台（#1127）**：只能單獨當 kiosk、剛好一個分校、不帶權限與科目。
+   * email 由系統給佔位值（同家長的 `@phone.internal`，從不寄信）—— 機台不是人，沒有信箱。
+   * 綁兩個分校的機台在打卡時會被 403（不猜是哪一校），所以在這裡就擋，不讓它建出來。
+   */
+  const isKiosk = body.roles.includes('kiosk');
+  if (isKiosk) {
+    if (
+      body.roles.length !== 1 ||
+      new Set(body.campusIds).size !== 1 ||
+      (body.permissions?.length ?? 0) > 0 ||
+      (body.subjectIds?.length ?? 0) > 0 ||
+      body.email !== undefined
+    ) {
+      return c.json(
+        {
+          error: '掃碼機台只能單獨建立、綁一個分校，不能帶權限、科目或 email',
+          code: 'INVALID_KIOSK',
+        },
+        400,
+      );
+    }
+  } else if (!body.email) {
+    return c.json({ error: '請填寫 Email', code: 'EMAIL_REQUIRED' }, 400);
+  }
+  const email =
+    body.email ??
+    generatePlaceholderEmail(`kiosk-${crypto.randomUUID()}`, c.env.PLACEHOLDER_EMAIL_DOMAIN);
+
   // 建立帳號一定會指定角色，所以一定要 `manage_roles` —— 否則「能建人」就等於
   // 「能給自己開一個權限全開的帳號」。mount 那層的 `manage_staff` 只管到人事資料。
   const assignment = checkRoleAssignment({
     permissions: c.get('permissions') ?? [],
     requesterUserId,
     targetUserId: null,
-    touchesRoleAssignment: true,
+    // kiosk 只開得了打卡、發不出任何權限，建它不是提權 —— `manage_staff`（mount）就夠
+    touchesRoleAssignment: !isKiosk,
     // 新帳號沒有「原本的」權限，帶的全部都是發出去的（非 admin 的權限會被清空，見 normalizeAdminPermissions）
     grantedPermissions: body.roles.includes('admin') ? (body.permissions ?? []) : [],
   });
@@ -914,7 +959,7 @@ app.openapi(createRouteDef, async (c) => {
   const { data: existingAuthUser } = await supabase
     .from('ba_user')
     .select('id')
-    .eq('email', body.email)
+    .eq('email', email)
     .maybeSingle();
 
   let reclaimedUserId: string | null = null;
@@ -944,7 +989,7 @@ app.openapi(createRouteDef, async (c) => {
       const newUser = await (auth.api as any).createUser({
         body: {
           name: body.displayName,
-          email: body.email,
+          email: email,
           data: {
             display_name: body.displayName,
             ...(body.phone ? { phone: body.phone } : {}),
@@ -1096,7 +1141,7 @@ app.openapi(createRouteDef, async (c) => {
       // 只有 audit 回答得出來。不記的話，「這個帳號怎麼會有舊的 session 紀錄」
       // 這種問題查不到源頭。
       ...(reclaimedUserId
-        ? { details: { reclaimed_orphan_ba_user: reclaimedUserId, email: body.email } }
+        ? { details: { reclaimed_orphan_ba_user: reclaimedUserId, email: email } }
         : {}),
     },
     waitUntilFrom(c),
@@ -1107,7 +1152,7 @@ app.openapi(createRouteDef, async (c) => {
   ]);
 
   // 建立完就產生連結 —— 櫃檯當場把它變成 QR 給對方掃
-  const loginUrl = await mintLoginLinkForRequest(c, body.email);
+  const loginUrl = await mintLoginLinkForRequest(c, email);
 
   return c.json(
     {
@@ -1191,6 +1236,28 @@ app.openapi(updateRoute, async (c) => {
   }
 
   const userId = staffRow['user_id'] as string;
+
+  // 掃碼機台（#1127）的角色、權限、科目不能改，分校只能換成另一個（仍然剛好一個）——
+  // 建立時那組限制在這裡也要成立，否則 PUT 一次就把機台變成人、或變成綁兩校的機台。
+  const touchesKioskShape =
+    body.roles !== undefined ||
+    body.permissions !== undefined ||
+    body.subjectIds !== undefined ||
+    (body.campusIds !== undefined && new Set(body.campusIds).size !== 1);
+  if (touchesKioskShape) {
+    const { data: kioskRole } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'kiosk')
+      .maybeSingle();
+    if ((kioskRole as { role?: string } | null)?.role === 'kiosk') {
+      return c.json(
+        { error: '掃碼機台只能改名稱、狀態與綁定的分校（一個）', code: 'INVALID_KIOSK' },
+        400,
+      );
+    }
+  }
 
   // 「發出去的」只有新增的那幾個（#966 A2'）：對方原本就有的不算，拿掉的更不算。
   // 沒帶 `permissions` 時改角色會沿用原本的（#680），也沒有新增。

@@ -69,6 +69,20 @@ tags: [architecture, attendance, authorization, kiosk, migration]
 **建議切法**：本單（保留類）只做 1–4 ＋ 手動輸入學號的退路（機台上先能用）；
 「學生 QR 卡＋相機掃描器」另開一單（非保留類）。
 
+## API 契約（已實作）
+
+- **建機台帳號**：`POST /api/staff`，body `{ displayName, campusIds: [一個], roles: ['kiosk'] }`。
+  不收 email（系統給 `kiosk-<uuid>@<PLACEHOLDER_EMAIL_DOMAIN>`）、不收 permissions／subjectIds，
+  違反回 400 `INVALID_KIOSK`。門檻是 `manage_staff`（mount）：kiosk 發不出任何權限，**不走 `manage_roles`**。
+  回應照舊帶 `loginUrl`（一次性登入連結）。
+- **改機台**：`PUT /api/staff/:id` 只能改名稱、狀態、換成另一個分校；改角色／權限／科目、綁兩校回 400 `INVALID_KIOSK`。
+  停用走既有的 deactivate。
+- **重鑄登入 QR**：`POST /api/login-links` 對 kiosk 要 `manage_staff`，分校範圍＝它綁的分校（`login-links/permission.ts`、`scope.ts`）。
+- **人員列表**：kiosk 列的 `roles` 是 `['kiosk']`，可用 `?role=kiosk` 篩。
+- **打卡確認資訊**：`POST /api/daily-checkins` 回應多 `student: { name }` 與
+  `todaySessions: [{ sessionId, className, startTime, endTime }]` —— 當天有在籍、沒停課的課堂，依開始時間排序，
+  分校條件與寫出勤同一組。讀 `sessions` 不讀 `events`（events 是讀取時才補建的）。兩種出勤模式都回。
+
 ## 拒絕的替代方案
 
 - **零權限 admin 當機台**：見 1，讀端點 fail-open。
