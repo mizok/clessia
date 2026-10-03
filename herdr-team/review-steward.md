@@ -1082,6 +1082,13 @@ schema 是 api **依賴**的東西(`20260913101500` 的 CHECK:沒套就靜默 0 
 
 ### 一次完整部署的順序(2026-09-12 實跑過)
 
+> **#1283（2026-10-04）之後：正式環境由 `.github/workflows/deploy.yml` 自動部署**（接在 migrate 成功之後，
+> api 先 web 後，⓪ 由結構保證、⑥⑦ 由 verify-live 自動跑）。**本席的部署工作改成讀 deploy run 的
+> step summary 做部署紀錄 PR**（截線＝那顆 run 的標題 SHA、api version、web 的 main-*.js、verify-live 結果）。
+> verify-live 紅了**只紅燈不自動回退**，回不回退照「出事就回退」由人判斷。
+> 下面 ⓪–⑦ 的手動流程**保留為緊急本機路徑**（CI 掛掉時才用），見 kb/wiki/architecture/deploying.md。
+
+
 ```bash
 # ⓪ 先跑上面那道 migration 檢查 —— 非空就停,不要往下走
 

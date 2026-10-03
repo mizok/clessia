@@ -454,6 +454,42 @@ GitHub hosted runner 沒有 IPv6，而 direct connection 預設只有 IPv6 —�
 **自架客戶不受影響（c12）**：沒有 `SUPABASE_DB_URL` 時 migrate.yml 印「未設定，略過」並綠燈結束；
 下一節第 2 步的 `supabase db push` 照樣是手動套的方式。退回手動流程 = 刪掉 environment secret。
 
+## 正式環境的 api／web：CI 自動部署（#1283）
+
+**本 repo 的正式站**由 `.github/workflows/deploy.yml` 部署，**沒有人在本機跑 `wrangler deploy`**
+（使用者 2026-10-04 裁：api 部署放權給 CI）。觸發鏈：
+
+```
+main 上 verify 綠 → migrate（差集 0 直接綠；有待套 → 等 Approve、套完才 completed）
+                 → deploy（只吃 conclusion=success 的 migrate）→ verify-live
+```
+
+- **接在 migrate 後面而不是 verify** —— 「套完才部署」是結構保證，不靠 poll。
+  after-deploy backfill（plan 綠、只剩 backfill）照常部署，部署完由使用者 dispatch migrate。
+- **範圍**：比對「上次成功部署那顆」到這顆的 diff（`tools/agent-harness/lib/deploy-scope.mjs`，有測試）。
+  `apps/api`／`apps/web` 各自判；`packages/` 與 root 依賴兩邊都算；純文件／工具／migration／測試檔不部署。
+  比上次部署還舊的（很晚才被按的 waiting、backfill 的 dispatch）**跳過**。
+- **順序**：api 先（先 `--dry-run` 驗 binding）、web 後；api 失敗 web 不跑。
+  web 失敗時 summary 第一行寫「api 已部署、web 沒部署」。
+- **不自動回退**（計畫席裁）：verify-live（⑥ 三方比對 main-*.js、⑦ workers.dev 正負控、smoke）紅了只是紅燈，
+  回不回退是人的判斷 —— Worker `npx wrangler rollback --env production`、Pages 從 dashboard。
+- **手動**：`workflow_dispatch`（`target_sha` 留空 = main 的 HEAD；`dry_run` 只跑 wrangler `--dry-run` 與 web build）。
+
+**設定**（一次性，使用者做）：GitHub repo → Settings → Environments 建 `production`
+（Deployment branches = `main`，**不設 required reviewer**），放 secret
+`CLOUDFLARE_API_TOKEN`（Workers Scripts:Edit、Pages:Edit、Account:Read；帶 Hyperdrive binding 部署
+可能還要 Hyperdrive:Read —— **第一次用 `dry_run` 跑就會知道**）與 `CLOUDFLARE_ACCOUNT_ID`。
+站台網址不同時設 repo variables `DEPLOY_SITE_URL`／`DEPLOY_API_URL`。
+**上線順序**：repo variable **`DEPLOY_ENABLED`** 沒設成 `true` 時每一輪都只跑到 dry-run 與 build。
+放 secret → Actions 頁 dispatch deploy（`dry_run` 勾起來）看 token 權限與 build 過不過 → 設 `DEPLOY_ENABLED=true`。
+（GitHub 只註冊預設分支上的 workflow，所以 dispatch 要等 deploy.yml 進 main 才看得到。）
+
+**緊急時的本機路徑**（CI 掛掉、GitHub 不可用時才用；用完在部署紀錄寫明是本機部署）：
+`review-steward.md` 的 ⓪–⑦ 手動流程照舊有效。⓪ 一樣要先查截線那顆的 migrate 結果。
+
+**自架客戶（c12）**：沒有 `CLOUDFLARE_API_TOKEN` 時 deploy job 印「未設定，略過」綠燈結束；
+deploy.yml 只是呼叫 wrangler，換成自己的 CI 照抄指令即可。
+
 ## 只有人能做的步驟
 
 1. **建 Supabase 專案**、拿 service role key 與 connection string

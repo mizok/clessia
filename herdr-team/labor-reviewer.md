@@ -60,6 +60,12 @@ curl -s -o /dev/null -w 'type=%{content_type}\n' "https://demo.clessia.cc/chunk-
 正控證明探針抓得到東西,負控證明它**抓不到不該有的東西**;
 charter 的「gate 寫完塞陷阱看它會不會紅」在部署驗證上的同一件事。
 
+> **#1283（2026-10-04）之後：正式環境由 `.github/workflows/deploy.yml` 自動部署**（接在 migrate 成功之後，
+> api 先 web 後，⓪ 由結構保證、⑥⑦ 由 verify-live 自動跑）。**本席的部署工作改成讀 deploy run 的
+> step summary 做部署紀錄 PR**（截線＝那顆 run 的標題 SHA、api version、web 的 main-*.js、verify-live 結果）。
+> verify-live 紅了**只紅燈不自動回退**，回不回退照「出事就回退」由人判斷。
+> 下面 ⓪–⑦ 的手動流程**保留為緊急本機路徑**（CI 掛掉時才用），見 kb/wiki/architecture/deploying.md。
+
 ### 部署會撞上 schema,而 git 看不到正式 DB
 
 2026-09-13 計畫席裁定,補上 charter 部署步驟一直缺的那一步(步驟本身寫在
