@@ -226,13 +226,16 @@ describe('ExamsComponent', () => {
    * 而點進去列出的是「所有還沒登完的 8 場」，兩個數字對不起來時
    * **沒有任何東西會紅** —— 所以這裡斷言到 `todoLevel` 那一層，不只 `todo=true`。
    */
-  it('高級別橫幅點進去帶 todoLevel=none，不是只有 todo=true', () => {
-    const banner = fixture.nativeElement.querySelector(
-      'app-todo-banner .todo-banner',
-    ) as HTMLButtonElement;
-    expect(banner).not.toBeNull();
+  const buttonByText = (text: string): HTMLButtonElement | undefined =>
+    [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')].find(
+      (b) => b.textContent!.trim() === text,
+    );
 
-    banner.click();
+  it('「只看還沒登的」帶 todoLevel=none，不是只有 todo=true', () => {
+    const btn = buttonByText('只看還沒登的');
+    expect(btn).toBeDefined();
+
+    btn!.click();
     fixture.detectChanges();
 
     const todoReq = http.expectOne(
@@ -249,14 +252,8 @@ describe('ExamsComponent', () => {
     expect(component['statusFilter']()).toBe('todo-none');
   });
 
-  it('低級別橫幅點進去帶 todoLevel=partial —— 兩條橫幅不會篩到同一批', () => {
-    const banners = fixture.nativeElement.querySelectorAll(
-      'app-todo-banner .todo-banner',
-    ) as NodeListOf<HTMLButtonElement>;
-    // 高 / 低 / school 三條
-    expect(banners.length).toBe(3);
-
-    banners[1].click();
+  it('「只看登到一半的」帶 todoLevel=partial —— 兩顆不會篩到同一批', () => {
+    buttonByText('只看登到一半的')!.click();
     fixture.detectChanges();
 
     const todoReq = http.expectOne(
@@ -273,12 +270,17 @@ describe('ExamsComponent', () => {
     expect(component['statusFilter']()).toBe('todo-partial');
   });
 
-  // 低級別是**中性色**不是淡黃色：色相表示好/壞，深淺才表示還在等/不再等。
-  // 「登到一半」每天都會出現，常態花不起警示色（#457）
-  it('低級別橫幅走中性色，高級別維持警示色', () => {
-    const banners = fixture.nativeElement.querySelectorAll('app-todo-banner .todo-banner');
-    expect(banners[0].classList.contains('todo-banner--low')).toBe(false);
-    expect(banners[1].classList.contains('todo-banner--low')).toBe(true);
+  it('「待處理／全部」只是 statusFilter 的預設值（#991 grades Q5）', () => {
+    expect(component['tab']()).toBe('all');
+    component['setTab']('pending');
+    fixture.detectChanges();
+    const req = http.expectOne(
+      (r) =>
+        r.url.startsWith(`${environment.apiUrl}/api/academy-exams`) &&
+        r.params.get('todo') === 'true',
+    );
+    req.flush({ data: [], meta: { total: 0, page: 1, pageSize: LIST_PAGE_SIZE } });
+    expect(component['tab']()).toBe('pending');
   });
 
   it('clearFilters resets todo back to all', () => {
@@ -307,25 +309,6 @@ describe('ExamsComponent', () => {
     });
 
     expect(component['statusFilter']()).toBe('all');
-  });
-
-  // ── 領域結論寫成測試 ──────────────────────────────────────────────────────
-  // 這幾條不是在測程式碼，是在**釘住業務語意**。常數會沉默，測試不會 ——
-  // 誰把「進行中」改回綠色的 done，這裡會紅。
-  describe('考試狀態的 tone', () => {
-    it('進行中是 pending 不是 done —— 它還在等成績登完', () => {
-      const tone = (component as unknown as { statusTone: (s: string) => string }).statusTone;
-
-      expect(tone.call(component, 'active')).toBe('pending');
-    });
-
-    it('已結束是 inactive 不是 done —— 關閉不保證成績登完了', () => {
-      // 「結束考試」的確認訊息：「結束後將無法再登錄分數」——
-      // 它是行政主動關閉，可以沒登完就關
-      const tone = (component as unknown as { statusTone: (s: string) => string }).statusTone;
-
-      expect(tone.call(component, 'closed')).toBe('inactive');
-    });
   });
 
   /**

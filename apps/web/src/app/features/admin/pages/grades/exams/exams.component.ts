@@ -21,20 +21,13 @@ import { format, subMonths } from 'date-fns';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
-import { SelectButtonModule } from 'primeng/selectbutton';
+import { PaginatorModule } from 'primeng/paginator';
 import { ToastModule } from 'primeng/toast';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { DialogService } from 'primeng/dynamicdialog';
 
 // Shared
-import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
-import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
-import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
-import { RtRowDirective } from '@shared/components/responsive-table/rt-row.directive';
-import type {
-  ResponsiveTablePageEvent,
-  ResponsiveTablePaginationConfig,
-} from '@shared/components/responsive-table/responsive-table.models';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { LoadFailedComponent } from '@shared/components/load-failed/load-failed.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
@@ -71,17 +64,11 @@ import { SchoolsService, type School } from '@core/schools.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
-import {
-  StatusDotComponent,
-  type StatusTone,
-} from '@shared/components/status/status-dot/status-dot.component';
 import { LIST_PAGE_SIZE } from '@shared/utils/list-page-size';
 import {
   PageActionsComponent,
   type PageAction,
 } from '@shared/components/page-actions/page-actions.component';
-import { TodoBannerComponent } from '@shared/components/todo-banner/todo-banner.component';
 
 type ExamKind = 'academy' | 'school';
 type ExamTypeFilter = ExamKind;
@@ -170,27 +157,20 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
   standalone: true,
   imports: [
     PageActionsComponent,
-    StatusDotComponent,
-    DataChipComponent,
     FormsModule,
     RouterModule,
     ButtonModule,
     InputTextModule,
     SelectModule,
-    SelectButtonModule,
+    PaginatorModule,
     ToastModule,
-    ResponsiveTableComponent,
-    RtColDefDirective,
-    RtColCellDirective,
-    RtRowDirective,
+    PageOpenComponent,
     EmptyStateComponent,
     LoadFailedComponent,
     PopupMenuComponent,
-    TodoBannerComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './exams.component.html',
-  styleUrl: './exams.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExamsComponent implements OnInit {
@@ -302,11 +282,19 @@ export class ExamsComponent implements OnInit {
       this.timeRange() !== 'all',
   );
 
-  protected readonly pagination = computed<ResponsiveTablePaginationConfig>(() => ({
-    first: Math.max((this.currentPage() - 1) * this.PAGE_SIZE, 0),
-    rows: this.PAGE_SIZE,
-    totalRecords: this.totalRows(),
-  }));
+  /** A6「待處理／全部」只是 statusFilter 的預設值（計畫席裁 #991 grades Q5：不分章） */
+  protected readonly tab = computed(() =>
+    this.statusFilter().startsWith('todo') ? 'pending' : 'all',
+  );
+
+  protected setTab(tab: 'pending' | 'all'): void {
+    this.onStatusChange(tab === 'pending' ? 'todo' : 'all');
+  }
+
+  /** 進度條長度。`0／0`（沒有人要考）畫成空條，字照實顯示 */
+  protected progressPct(row: AcademyExamRow): number {
+    return row.expectedCount > 0 ? Math.min(100, (row.scoreCount / row.expectedCount) * 100) : 0;
+  }
 
   // 待辦提醒：active 且 scoreCount = 0
   protected readonly todoCount = computed(() => {
@@ -496,7 +484,7 @@ export class ExamsComponent implements OnInit {
                 examDate: exam.examDate,
                 status: exam.status,
                 examType: exam.examType,
-                scope: exam.scopeNote?.trim() || '—',
+                scope: exam.scopeNote?.trim() || `${exam.classCount} 個班`,
                 campusId: exam.campusId,
                 subjectId: exam.subjectId,
                 scoreCount: exam.scoreCount,
@@ -669,7 +657,7 @@ export class ExamsComponent implements OnInit {
       });
   }
 
-  protected onPage(event: ResponsiveTablePageEvent): void {
+  protected onPage(event: { page: number }): void {
     this.currentPage.set(event.page + 1);
   }
 
@@ -686,9 +674,6 @@ export class ExamsComponent implements OnInit {
   }
 
   // ── Row helpers ───────────────────────────────────────────────────────
-  protected getKindLabel(kind: ExamKind): string {
-    return kind === 'academy' ? '補習班考試' : '學校考試';
-  }
 
   protected getAcademyTypeLabel(type: AcademyExamType): string {
     return ACADEMY_EXAM_TYPE_LABELS[type];
@@ -703,19 +688,6 @@ export class ExamsComponent implements OnInit {
 
   protected getStatusLabel(status: AcademyExamStatus | SchoolExamStatus): string {
     return status === 'active' ? '進行中' : '已結束';
-  }
-
-  /**
-   * `active` 是**「進行中」**不是「啟用」—— 它正是「還在等成績登完」，所以是 `pending`
-   * （中空、無色相）。原本塗成 success 綠等於說「這件事很好」，但這一頁自己的橫幅
-   * 就在說「有 N 場**進行中**的考試尚未登錄成績」。
-   *
-   * `closed` 是 `inactive` 而不是 `done`：結束考試的確認訊息寫著「**結束後將無法再
-   * 登錄分數**」—— 它是行政主動關閉，**不保證成績登完了**，可以沒登完就關。
-   * 那是「不在等任何事了」，不是「已定案且是好結果」。
-   */
-  protected statusTone(status: AcademyExamStatus | SchoolExamStatus): StatusTone {
-    return status === 'active' ? 'pending' : 'inactive';
   }
 
   protected getCampusName(row: ExamRow): string | null {
