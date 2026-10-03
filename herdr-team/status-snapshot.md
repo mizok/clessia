@@ -33,8 +33,10 @@
 
 ## 📋 等使用者
 
+> **10-03 21:1x–10-04 01:0x 全席額度斷線**（第二次，第一次 16:0x–19:4x）；01:0x 回流後計畫席逐席接回，無半截回合。
+
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-03 20:5x，計畫席 labor-plan-20261003-1534。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-04 01:0x，計畫席 labor-plan-20261003-1534。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
@@ -44,7 +46,7 @@
 
 
 
-| #1219 | #1109 加開單堂 `POST /api/sessions`：migration `20261003124241_schedule_change_type_creation.sql`（enum 加 `creation`，純加值）＋ classWriteScope 分校範圍、四種 409 衝突碼、流水失敗補償刪 session | head `1f8a02fa`。設計 10-03 20:3x 過 gate（#1109 留言，裁 creation／不引 RPC／201 回整堂）。**含 migration：合的瞬間我凍結、掛守衛，請接著 Approve。** 成功路徑實打等套完補。 |
+| #1225 | #1110 批次代課 `PATCH /sessions/batch-substitute`＋`batch-assign-teacher` 補分校檢查（別校 id 整批 403） | head `6e231b5e`（rebase 過 #1219），verify 綠，MERGEABLE。設計過 gate（#1110 留言）。**無 migration，不凍結，先合這支。** 合後 2033 把 #1228（其他六支寫入端點補分校檢查，#1221）轉 base 再請您合。 |
 | #1216 | #1118 餘項推薦課：migration `classes.is_recommended boolean default false`＋班級 API（`manage_courses`）＋catalog 推薦優先＋班級表單開關 | head `035bf64c`，base main，CI 綠。設計過 gate（#1118 留言）。**含 migration，同上凍結流程。建議跟 #1219 分開合，各自 Approve 一次。** |
 
 接下來會出現的保留類：#1110（批次代課＋batch-assign-teacher 分校檢查，2033，已過 gate）、#1111、#1195、#966 系列（sessions 其他端點分校洞，2033 開單中）。10-03 已合的保留類：#1132／#1137／#1141／#1143／#1145／#1150／#1152／#1180／#1183／#1188／#1197／#1212（migration 皆已套、使用者逐一 Approve；#1212 的 Approve 期間守衛取消過一顆插隊 run）。
@@ -58,9 +60,9 @@
 
 1. ~~修憲 c6 續跑~~ 已完成：腳本已跑、#1062 於 10-02 23:38 由擁有者合併、`law-c6` worktree 已清。（這一列在 #1061 寫下時腳本還沒跑，10-03 00:2x 複查才發現已過期 —— 快照寫「等使用者」的事項，接手先 `gh pr list --state all --search` 查一次。）
 2. ~~兩個 GitHub environment~~ 已設好（10-03 00:0x），#977 已由 migrate.yml 套上；之後遇到 migration 只要在 Actions 的 `prod-db` 按 Approve。
-3. **api 部署**：每次由使用者在 reviewer worktree 的 `apps/api` 跑 `npx wrangler deploy --env production`；reviewer 準備截線並驗證。**第七次部署就緒（10-03 15:5x，reviewer 驗過）**：截線 main `3590b5f5`（#1162）；窗口 `9ae774ea..3590b5f5` 唯一 migration 是 #1180 的 `20261003071532_payment_info.sql`，已由 run `37106717548` apply 綠；api 動的是 #1180 帳戶資訊五檔；web 新 `main-GXLILR73.js`（本機 167 個 js 有 31 個線上沒有）。**您按 api 那一行，reviewer 再發 web**：
+3. **api 部署**：每次由使用者在 reviewer worktree 的 `apps/api` 跑 `npx wrangler deploy --env production`；reviewer 準備截線並驗證。**第十次部署就緒（10-03 21:0x，reviewer 驗過）**：截線 main `1fa88495`（#1227）；窗口 `d55aa967..1fa88495` 兩支 migration（#1212 費用欄、#1219 creation enum）皆 apply 綠已套；api 動 6 檔（#1212／#1213／#1217／#1219）；web 新 `main-2WJRY3S4.js`（本機 173 個 js 有 156 個線上沒有：courses 列表、分校鈕、G3 等）。**您按 api，reviewer 再發 web（dist 已 build 好，勿重 build）**：
    `cd .worktrees/labor-reviewer-20261001-2204/apps/api && npx wrangler deploy --env production`
-   #1164 與之後合的歸第八次。
+   #1225／#1216／#1229 之後合的歸第十一批。
 4. **T4 cssLayer 回歸**需使用者在場一次（複製 `.dev.vars`），計畫席排時間。
 
 ### 使用者要裁的
@@ -145,9 +147,9 @@ success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只
 
 | 席                                       | 在做                                                                                                                        | 備註                                                                                        |
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `labor-20261003-1552`（Opus）            | 前端：#1174 G2 已合（#1191）→ #1138 H1（後端 #1197 等使用者、前端 UI 疊上）→ H2 CampusContextService → G3（含小日曆）→ #991 courses 目錄；之後 #1194／#1196 | 開席 10-03 15:52，接 1456（已關，charter #1186 已合）；設計稿與 .pw-regression 已複製到它 worktree |
-| `labor-20261003-2006`（Opus）            | 後端：kiosk 鏈四支全合、#1201 已合；#1175（#1212 等使用者）→ #1118 餘項（疊 #1212） | 開席 10-03 20:06，接 1536（已關，charter #1200 已合）；本機 DB 乾淨基線 RESET #15 |
-| `labor-20261003-2033`（Opus）            | 後端 sessions API：#1194 課塊異動摘要 → #1109 加開單堂 → #1110 批次代課 → #1111 批次調天 → #1195 批次識別碼（後四張保留類，先過 gate） | 開席 10-03 20:33，第三生產席（計畫席判斷：未指派串擋課表功能、額度撐得住） |
+| `labor-20261003-1552`（Opus）            | 前端：G2／G3／H1／H2／courses C1 全合；C2 班級詳情 #1230（rebase 後轉 ready）→ C3 十支 dialog → #1196 | 開席 10-03 15:52，接 1456（已關，charter #1186 已合）；設計稿與 .pw-regression 已複製到它 worktree |
+| `labor-20261003-2006`（Opus）            | 後端：#1212 已合已套；#1216（等使用者）；#1127 掃描器 A #1229（ready）→ B 列印卡；charter 起草中 | 開席 10-03 20:06，接 1536（已關，charter #1200 已合）；本機 DB 乾淨基線 RESET #15 |
+| `labor-20261003-2033`（Opus）            | 後端 sessions API：#1213／#1219 已合；#1225（等使用者）→ #1228（疊 #1225）→ #1111（WIP 分支）→ #1195 後端 | 開席 10-03 20:33，第三生產席（計畫席判斷：未指派串擋課表功能、額度撐得住） |
 | `labor-plan-20261003-1534`（Fable）      | 計畫席 | 開席 10-03 15:34，接 2351（已關）；心跳腳本已改名 |
 | `labor-reviewer-20261001-2204`（Sonnet） | 代合＋部署驗證；今天四十餘支。**分類器擋它**：production deploy、手動 merge、刪遠端分支、部分留言 —— 這幾類走計畫席或使用者 | steward-merge.sh 已修多筆 verify（#1053）                                                   |
 | `labor-db-reset`                         | 待命；本機 DB＝main（RESET #13）                                                                                            | charter 新增「筆數也量不到搬移」（#1019）                                                   |
