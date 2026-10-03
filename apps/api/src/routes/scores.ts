@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../index';
 import { loadTeachingScope, taughtClassIds, taughtStudentIds } from '../lib/teacher-scope';
+import { getCampusScope, type CampusScope } from '../lib/campus-scope';
 import { DbUuidSchema } from '../lib/validation';
 import {
   ACADEMY_SCORE_SELECT,
@@ -152,10 +153,12 @@ export function sumPairsOrNull(
   pairs: ReadonlyArray<{ score: number; totalScore: number }>,
 ): { sum: number; totalSum: number } | null {
   if (pairs.length === 0) return null;
-  return pairs.reduce(
+  const total = pairs.reduce(
     (acc, pair) => ({ sum: acc.sum + pair.score, totalSum: acc.totalSum + pair.totalScore }),
     { sum: 0, totalSum: 0 },
   );
+  // 分數是 numeric（可帶小數），浮點相加會冒出 100.66999999999999 —— 跟 averageOrNull 一樣收到兩位
+  return { sum: Number(total.sum.toFixed(2)), totalSum: total.totalSum };
 }
 
 const listRoute = createRoute({
@@ -168,6 +171,10 @@ const listRoute = createRoute({
       studentId: DbUuidSchema.optional(),
       type: ScoreTypeSchema.optional(),
       subjectId: DbUuidSchema.optional(),
+      /** 開課班（#1115）：校內考要掛在這班、而且學生在這班；段考照學生是不是這班的人 */
+      classId: DbUuidSchema.optional(),
+      /** 課程（#1115）：展開成它的所有開課班，語意同 classId */
+      courseId: DbUuidSchema.optional(),
       dateFrom: z.string().date().optional(),
       dateTo: z.string().date().optional(),
       search: z.string().optional(),
@@ -217,6 +224,112 @@ async function readableStudentIds(
   return taughtStudentIds(supabase, params.orgId, scope.teacherStaffId);
 }
 
+/** PostgREST 的 max_rows（1000）會靜默截斷 —— 範圍解析用的清單要分頁撈齊，少一頁就少一批學生 */
+async function fetchAllRows<T>(
+  page: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const PAGE = 1000;
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await page(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if ((data ?? []).length < PAGE) return rows;
+  }
+}
+
+/**
+ * 成績讀取的範圍（#1115）：**可讀學生 = 老師範圍 ∩ 分校範圍 ∩ 班級／課程篩選**，
+ * 加上班級篩選時「校內考必須掛在那些班」的考試清單。`null` = 不限。
+ *
+ * - 分校：學生**任何一筆報名**的班級在範圍內就算（同 `studentWriteScope`、`GET /api/leaves`、#816）
+ * - 班級：報名不分狀態 —— 成績是當時考的，退班了不該看不到（同 `taughtStudentIds`）
+ *
+ * ponytail: 學生 id 清單進 GET URL；分校內學生上千時改成 embed
+ * `students!inner(enrollments!inner(classes!inner(campus_id)))` 在 DB 端篩
+ */
+async function resolveScoreScope(
+  supabase: AppEnv['Variables']['supabase'],
+  params: {
+    orgId: string;
+    userId: string;
+    roles: readonly string[];
+    campusScope: CampusScope;
+    classId?: string;
+    courseId?: string;
+  },
+): Promise<'forbidden' | { studentIds: string[] | null; academyExamIds: string[] | null }> {
+  const readable = await readableStudentIds(supabase, params);
+  if (readable === 'forbidden') return 'forbidden';
+
+  let studentIds: string[] | null = readable;
+  const keep = (ids: Iterable<string>) => {
+    const allowed = new Set(ids);
+    studentIds = studentIds === null ? [...allowed] : studentIds.filter((id) => allowed.has(id));
+  };
+
+  if (params.campusScope !== null) {
+    const campusIds = [...params.campusScope];
+    const rows = await fetchAllRows<{ student_id: string }>((from, to) =>
+      supabase
+        .from('enrollments')
+        .select('student_id, classes!inner(campus_id)')
+        .eq('org_id', params.orgId)
+        .in('classes.campus_id', campusIds)
+        .order('id')
+        .range(from, to),
+    );
+    keep(rows.map((r) => r.student_id));
+  }
+
+  let academyExamIds: string[] | null = null;
+  if (params.classId || params.courseId) {
+    let classIds: string[];
+    if (params.courseId) {
+      const courseClasses = await fetchAllRows<{ id: string }>((from, to) =>
+        supabase
+          .from('classes')
+          .select('id')
+          .eq('org_id', params.orgId)
+          .eq('course_id', params.courseId as string)
+          .order('id')
+          .range(from, to),
+      );
+      classIds = courseClasses.map((r) => r.id);
+      if (params.classId) classIds = classIds.filter((id) => id === params.classId);
+    } else {
+      classIds = [params.classId as string];
+    }
+
+    const [enrolled, examLinks] = await Promise.all([
+      fetchAllRows<{ student_id: string }>((from, to) =>
+        supabase
+          .from('enrollments')
+          .select('student_id')
+          .eq('org_id', params.orgId)
+          .in('class_id', classIds)
+          .order('id')
+          .range(from, to),
+      ),
+      fetchAllRows<{ exam_id: string }>((from, to) =>
+        supabase
+          .from('academy_exam_classes')
+          .select('exam_id')
+          .in('class_id', classIds)
+          .order('exam_id')
+          .range(from, to),
+      ),
+    ]);
+    keep(enrolled.map((r) => r.student_id));
+    academyExamIds = [...new Set(examLinks.map((r) => r.exam_id))];
+  }
+
+  return { studentIds, academyExamIds };
+}
+
 app.openapi(listRoute, async (c) => {
   const orgId = c.get('orgId');
   const supabase = c.get('supabase');
@@ -224,6 +337,8 @@ app.openapi(listRoute, async (c) => {
     studentId,
     type,
     subjectId,
+    classId,
+    courseId,
     dateFrom,
     dateTo,
     search,
@@ -234,16 +349,22 @@ app.openapi(listRoute, async (c) => {
   const searchKeyword = search?.trim() ? `%${search.trim()}%` : null;
   const offset = (page - 1) * pageSize;
 
-  // 老師只讀得到自己任課班的學生成績
-  const readable = await readableStudentIds(supabase, {
+  // 老師範圍 ∩ 分校範圍 ∩ 班級／課程篩選（#1115）
+  const scope = await resolveScoreScope(supabase, {
     orgId,
     userId: c.get('userId'),
     roles: c.get('roles') ?? [],
+    campusScope: getCampusScope(c),
+    classId,
+    courseId,
   });
-  if (readable === 'forbidden') {
+  if (scope === 'forbidden') {
     return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
   }
-  // 空陣列 = 這位老師沒有任何班。回空結果而不是不縮限 —— 「沒有班」不是通行證
+  const readable = scope.studentIds;
+  const academyExamIds = scope.academyExamIds;
+  // 空陣列 = 範圍內沒有任何學生（沒有班的老師、沒被指派分校的管理員、空的班）。
+  // 回空結果而不是不縮限 —— 「沒有」不是通行證
   if (readable !== null && readable.length === 0) {
     return c.json({ data: [], meta: { total: 0, page, pageSize } }, 200);
   }
@@ -254,7 +375,8 @@ app.openapi(listRoute, async (c) => {
     let totalSchool = 0;
 
     // Fetch academy scores (unless type is explicitly 'school')
-    if (!type || type === 'academy') {
+    // 篩了班但那些班沒掛任何校內考 → 校內考這半是空的（段考照學生篩，照常查）
+    if ((!type || type === 'academy') && (academyExamIds === null || academyExamIds.length > 0)) {
       const buildAcademyQuery = () =>
         supabase
           .from('academy_scores')
@@ -265,6 +387,9 @@ app.openapi(listRoute, async (c) => {
         let next = query;
         if (readable !== null) {
           next = next.in('student_id', readable);
+        }
+        if (academyExamIds !== null) {
+          next = next.in('exam_id', academyExamIds);
         }
         if (studentId) {
           next = next.eq('student_id', studentId);
@@ -519,6 +644,229 @@ app.openapi(listRoute, async (c) => {
     console.error('Scores query error:', error);
     return c.json({ error: message, code: 'DB_ERROR' }, 400);
   }
+});
+
+// ============================================================
+// GET /api/scores/students —— 每生聚合（#1115）
+// ============================================================
+//
+// 成績頁「依學生分組」用：同一組篩選下，每個學生一列。計算口徑跟 `/student/{id}/summary`
+// 一致 —— 校內考是總得分／總滿分（不平均不同滿分的分數，窗口 2026-09-05），段考是平均。
+//
+// **必帶 classId／courseId／studentId 其一**（計畫席 10-04 裁）：聚合要撈齊符合條件的每一列，
+// 而 PostgREST 的 max_rows（1000）會**靜默截斷** —— 數字錯了也看不出來。範圍縮到一個班的量級，
+// 再加一道：實際筆數比撈回來的多就 400 `TOO_MANY_ROWS`，寧可叫人縮小條件也不回錯的數字。
+const StudentAggregateSchema = z
+  .object({
+    studentId: DbUuidSchema,
+    studentName: z.string(),
+    academySum: z.number().nullable(),
+    academyTotalSum: z.number().nullable(),
+    schoolAvg: z.number().nullable(),
+    scoredCount: z.number().int(),
+    absentCount: z.number().int(),
+    makeupCount: z.number().int(),
+    latestExamDate: z.string().nullable(),
+  })
+  .openapi('ScoreStudentAggregate');
+
+const studentAggregatesRoute = createRoute({
+  method: 'get',
+  path: '/students',
+  tags: ['Scores'],
+  summary: '每生成績聚合（必帶 classId／courseId／studentId 其一）',
+  request: {
+    query: z.object({
+      type: ScoreTypeSchema.optional(),
+      subjectId: DbUuidSchema.optional(),
+      classId: DbUuidSchema.optional(),
+      courseId: DbUuidSchema.optional(),
+      studentId: DbUuidSchema.optional(),
+      dateFrom: z.string().date().optional(),
+      dateTo: z.string().date().optional(),
+      /** 學生姓名 */
+      search: z.string().optional(),
+      page: z.coerce.number().int().min(1).default(1).optional(),
+      pageSize: z.coerce.number().int().min(1).max(200).default(50).optional(),
+    }),
+  },
+  responses: {
+    200: {
+      description: '每生一列',
+      content: {
+        'application/json': {
+          schema: z.object({
+            data: z.array(StudentAggregateSchema),
+            meta: z.object({
+              total: z.number().int().min(0),
+              page: z.number().int().min(1),
+              pageSize: z.number().int().min(1),
+            }),
+          }),
+        },
+      },
+    },
+    400: {
+      description: '沒帶範圍、或筆數超過上限',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    403: { description: '權限不足', content: { 'application/json': { schema: ErrorSchema } } },
+    500: { description: '查詢失敗', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+});
+
+app.openapi(studentAggregatesRoute, async (c) => {
+  const orgId = c.get('orgId');
+  const supabase = c.get('supabase');
+  const q = c.req.valid('query');
+  const page = q.page ?? 1;
+  const pageSize = q.pageSize ?? 50;
+
+  if (!q.classId && !q.courseId && !q.studentId) {
+    return c.json({ error: '請先選開課班、課程或學生', code: 'SCOPE_REQUIRED' }, 400);
+  }
+
+  const scope = await resolveScoreScope(supabase, {
+    orgId,
+    userId: c.get('userId'),
+    roles: c.get('roles') ?? [],
+    campusScope: getCampusScope(c),
+    classId: q.classId,
+    courseId: q.courseId,
+  });
+  if (scope === 'forbidden') {
+    return c.json({ error: '權限不足', code: 'FORBIDDEN' }, 403);
+  }
+  const { studentIds, academyExamIds } = scope;
+  const empty = { data: [], meta: { total: 0, page, pageSize } };
+  if (studentIds !== null && studentIds.length === 0) return c.json(empty, 200);
+
+  const wantAcademy = (!q.type || q.type === 'academy') && (academyExamIds?.length ?? 1) > 0;
+  const wantSchool = !q.type || q.type === 'school';
+
+  const academyPromise = wantAcademy
+    ? (() => {
+        let query = supabase
+          .from('academy_scores')
+          .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
+          .eq('academy_exams.org_id', orgId);
+        if (studentIds !== null) query = query.in('student_id', studentIds);
+        if (academyExamIds !== null) query = query.in('exam_id', academyExamIds);
+        if (q.studentId) query = query.eq('student_id', q.studentId);
+        if (q.subjectId) query = query.eq('academy_exams.subject_id', q.subjectId);
+        if (q.dateFrom) query = query.gte('academy_exams.exam_date', q.dateFrom);
+        if (q.dateTo) query = query.lte('academy_exams.exam_date', q.dateTo);
+        return query;
+      })()
+    : Promise.resolve({ data: [], count: 0, error: null });
+  const schoolPromise = wantSchool
+    ? (() => {
+        let query = supabase
+          .from('school_scores')
+          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
+          .eq('school_exams.org_id', orgId);
+        if (studentIds !== null) query = query.in('student_id', studentIds);
+        if (q.studentId) query = query.eq('student_id', q.studentId);
+        if (q.subjectId) query = query.eq('subject_id', q.subjectId);
+        return query;
+      })()
+    : Promise.resolve({ data: [], count: 0, error: null });
+
+  const [academyResult, schoolResult] = await Promise.all([academyPromise, schoolPromise]);
+  if (academyResult.error || schoolResult.error) {
+    return c.json(
+      {
+        error: (academyResult.error ?? schoolResult.error)?.message ?? '查詢失敗',
+        code: 'DB_ERROR',
+      },
+      500,
+    );
+  }
+  const academyRows = (academyResult.data ?? []) as any[];
+  const schoolRows = (schoolResult.data ?? []) as any[];
+  if (
+    (academyResult.count ?? 0) > academyRows.length ||
+    (schoolResult.count ?? 0) > schoolRows.length
+  ) {
+    return c.json(
+      {
+        error: '符合條件的成績太多，請縮小範圍（例如選單一開課班或日期區間）',
+        code: 'TOO_MANY_ROWS',
+      },
+      400,
+    );
+  }
+
+  // 段考的日期照回應的 examDate 篩（沒填考試日期時退回建立日，同 #1167）
+  const inRange = (date: string) =>
+    (!q.dateFrom || date >= q.dateFrom) && (!q.dateTo || date <= q.dateTo);
+  const keyword = q.search?.trim().toLowerCase() ?? '';
+
+  interface Acc {
+    studentName: string;
+    academyPairs: Array<{ score: number; totalScore: number }>;
+    schoolScores: number[];
+    scoredCount: number;
+    absentCount: number;
+    makeupCount: number;
+    latestExamDate: string | null;
+  }
+  const byStudent = new Map<string, Acc>();
+  const add = (row: any, record: ReturnType<typeof mapAcademyScoreRow>) => {
+    const acc = byStudent.get(row.student_id) ?? {
+      studentName: (row.students?.name as string) ?? '',
+      academyPairs: [],
+      schoolScores: [],
+      scoredCount: 0,
+      absentCount: 0,
+      makeupCount: 0,
+      latestExamDate: null,
+    };
+    if (record.status === 'scored') acc.scoredCount += 1;
+    if (record.status === 'absent') acc.absentCount += 1;
+    if (record.status === 'makeup') acc.makeupCount += 1;
+    if (record.status === 'scored' && record.score !== null) {
+      if (record.type === 'academy' && record.totalScore !== null) {
+        acc.academyPairs.push({ score: Number(record.score), totalScore: record.totalScore });
+      }
+      if (record.type === 'school') acc.schoolScores.push(Number(record.score));
+    }
+    if (record.examDate && (!acc.latestExamDate || record.examDate > acc.latestExamDate)) {
+      acc.latestExamDate = record.examDate;
+    }
+    byStudent.set(row.student_id, acc);
+  };
+  for (const row of academyRows) add(row, mapAcademyScoreRow(row));
+  for (const row of schoolRows) {
+    const record = mapSchoolScoreRow(row);
+    if (inRange(record.examDate)) add(row, record);
+  }
+
+  const rows = [...byStudent]
+    .filter(([, acc]) => !keyword || acc.studentName.toLowerCase().includes(keyword))
+    .map(([studentId, acc]) => {
+      const pairs = sumPairsOrNull(acc.academyPairs);
+      return {
+        studentId,
+        studentName: acc.studentName,
+        academySum: pairs?.sum ?? null,
+        academyTotalSum: pairs?.totalSum ?? null,
+        schoolAvg: averageOrNull(acc.schoolScores),
+        scoredCount: acc.scoredCount,
+        absentCount: acc.absentCount,
+        makeupCount: acc.makeupCount,
+        latestExamDate: acc.latestExamDate,
+      };
+    })
+    .sort((a, b) => a.studentName.localeCompare(b.studentName, 'zh-Hant'));
+
+  return c.json(
+    {
+      data: rows.slice((page - 1) * pageSize, page * pageSize),
+      meta: { total: rows.length, page, pageSize },
+    },
+    200,
+  );
 });
 
 const studentSummaryRoute = createRoute({
