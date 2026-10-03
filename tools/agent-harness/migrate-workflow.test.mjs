@@ -79,12 +79,18 @@ test('永不帶 --include-all', () => {
 
 // ── #968 reviewer 審出的兩個執行洞 ──────────────────────────────────────────────
 
-test('concurrency 只掛在 apply —— 頂層的話中間 commit 的 plan 會被丟，⓪ 找不到截線', () => {
-  const topLevel = code.slice(0, code.indexOf('\njobs:\n'));
-  assert.doesNotMatch(topLevel, /^concurrency:/m);
-  assert.doesNotMatch(all.remote, /concurrency:/);
-  assert.doesNotMatch(all.plan, /concurrency:/);
-  assert.match(all.apply, /concurrency:\s*\n\s+group: migrate-prod\s*\n\s+cancel-in-progress: false/);
+// 一個 group 只留「一顆 running＋一顆 pending」，新 pending 取消舊的 —— 等 Approve 的 apply 就是 pending，
+// 頂層掛（#968）會丟中間 commit 的 plan，apply 掛（#1146）會讓 Approve 在合併密集時永遠落空
+test('整支都不掛 concurrency（#968 頂層、#1146 apply）', () => {
+  assert.doesNotMatch(code, /concurrency:/);
+});
+
+// 拿掉 concurrency 之後多顆 apply 並存：recheck 必須容許「另一顆已套掉一部分」，只擋 plan 沒看過的
+test('apply 的 recheck 是子集判準，skip 的那顆不做套後比對（#1146）', () => {
+  assert.match(all.apply, /comm -23 "\$RUNNER_TEMP\/now\.txt" "\$RUNNER_TEMP\/expected\.txt"/);
+  assert.doesNotMatch(all.apply, /"\$\{?now\}?" != "\$\{?EXPECTED\}?"\s*\]; then\s*\n[^\n]*exit 1/);
+  const finalCheck = all.apply.slice(all.apply.indexOf('套完之後差集必須是 0'));
+  assert.match(finalCheck, /if: steps\.recheck\.outputs\.skip != 'true'/);
 });
 
 test('dispatch（after-deploy）的標題與目標都是 deployed_sha —— ⓪ 用標題找部署截線那顆', () => {
