@@ -1,21 +1,86 @@
-<div class="overview">
-  <app-page-breadcrumb [items]="breadcrumbs" />
+<app-page-open>
+  <ng-container openTitle>
+    @if (loading() || loadFailed()) {
+      成績總覽
+    } @else {
+      近一個月 {{ recentCount() }} 場考試，<br />{{ pendingCount() }} 場還沒登錄完。
+    }
+  </ng-container>
+</app-page-open>
 
-  <header class="overview__header">
-    <h1 class="overview__title">成績總覽</h1>
-    <p class="overview__subtitle">選擇檢視模式</p>
-  </header>
-
-  <div class="overview__portals">
-    <button type="button" class="overview__portal" (click)="goTo('student')">
-      <i class="pi pi-user overview__portal-icon"></i>
-      <h2 class="overview__portal-title">學生視角</h2>
-      <p class="overview__portal-desc">查看個別學生的成績走勢、科目摘要與歷次紀錄</p>
-    </button>
-    <button type="button" class="overview__portal" (click)="goTo('class')">
-      <i class="pi pi-building overview__portal-icon"></i>
-      <h2 class="overview__portal-title">班級視角</h2>
-      <p class="overview__portal-desc">查看班級考試統計、排名與成績分布，按課程分組</p>
-    </button>
+<div class="bg-zinc-100">
+  <div class="page-wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
+    <p class="m-0 text-base text-zinc-800"><strong>成績總覽</strong> · 用學生或班級來看</p>
+    <nav class="flex flex-wrap gap-2 wide:ml-auto" aria-label="成績總覽">
+      <a
+        class="inline-flex h-11 items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50"
+        routerLink="/admin/grades/overview/student"
+        >學生視角</a
+      >
+      <a
+        class="inline-flex h-11 items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50"
+        routerLink="/admin/grades/overview/class"
+        >班級視角</a
+      >
+      <a
+        class="inline-flex h-11 items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50"
+        routerLink="/admin/grades/exams"
+        >考試管理</a
+      >
+    </nav>
   </div>
+</div>
+
+<div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
+  @if (loading()) {
+    <div class="skeleton-list" aria-label="成績總覽載入中">
+      @for (i of [1, 2, 3]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
+  } @else if (loadFailed()) {
+    <app-load-failed description="沒有讀到考試資料，可能是連線問題" (retry)="load()" />
+  } @else {
+    <section aria-labelledby="grades-pending-title">
+      <h2 id="grades-pending-title" class="m-0 mb-2 text-xl font-bold text-zinc-900">
+        @if (pendingCount() > 0) {
+          還沒登錄完的 {{ pendingCount() }} 場
+        } @else {
+          成績都登錄完了
+        }
+      </h2>
+      @if (pendingCount() === 0) {
+        <p class="m-0 text-base text-zinc-700">考完的補習班考試都已經登錄成績。</p>
+      } @else {
+        <ul class="m-0 list-none border-t border-zinc-900 p-0">
+          @for (exam of pending(); track exam.id) {
+            <li
+              class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 border-b border-surface-border py-3 wide:grid-cols-[minmax(0,1fr)_auto_auto]"
+            >
+              <div class="min-w-0">
+                <a
+                  class="inline-flex min-h-11 items-center text-lg font-bold text-zinc-900 no-underline hover:underline hover:underline-offset-[3px]"
+                  [routerLink]="['/admin/grades/exams', 'academy', exam.id, 'scores']"
+                  >{{ exam.name }}</a
+                >
+                <span class="block text-sm text-zinc-600 tabular-nums">
+                  {{ exam.examDate }} 考 · 已登錄 {{ exam.scoreCount }}／{{ exam.expectedCount }}
+                </span>
+              </div>
+              <span class="text-right text-2xl leading-none font-bold tabular-nums">
+                {{ missing(exam)
+                }}<small class="ml-1 text-sm font-normal text-zinc-600">人還沒登錄</small>
+              </span>
+              <a
+                class="col-span-2 inline-flex h-11 items-center justify-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 wide:col-span-1"
+                [routerLink]="['/admin/grades/exams', 'academy', exam.id, 'scores']"
+                [attr.aria-label]="'去登錄 ' + exam.name"
+                >去登錄</a
+              >
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
 </div>

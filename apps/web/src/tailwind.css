@@ -41,6 +41,10 @@
 @source './app/features/admin/pages/changes';
 @source './app/features/admin/pages/courses';
 @source './app/features/admin/pages/dashboard';
+@source './app/features/admin/pages/grades/grades.component.html';
+@source './app/features/admin/pages/grades/grades.component.ts';
+@source './app/features/admin/pages/grades/overview/overview.component.html';
+@source './app/features/admin/pages/grades/overview/overview.component.ts';
 @source './app/features/admin/pages/grades/exams/exams.component.html';
 @source './app/features/admin/pages/grades/exams/exams.component.ts';
 @source './app/features/admin/pages/grades/exams/exams-filter-dialog';
