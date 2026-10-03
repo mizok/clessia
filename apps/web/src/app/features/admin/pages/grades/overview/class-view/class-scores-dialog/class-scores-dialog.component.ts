@@ -163,7 +163,7 @@ export class ClassScoresDialogComponent implements OnInit {
       lo,
       hi: i === 0 ? Infinity : cuts[i - 1],
     }));
-    bands.push({ label: `${cuts[3]} 以下`, lo: -Infinity, hi: cuts[3] });
+    bands.push({ label: `未滿 ${cuts[3]}`, lo: -Infinity, hi: cuts[3] });
     const pass = this.passLine();
     const rows = bands.map((b) => ({
       label: b.label,
