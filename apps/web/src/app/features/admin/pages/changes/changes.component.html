@@ -12,13 +12,13 @@
   <ng-container openSub>調課、代課、停課的完整紀錄。要改課堂，到課表。</ng-container>
 </app-page-open>
 
-<div class="page-wrap flex flex-col gap-5 pt-5 pb-28 lg:gap-6 lg:pt-8 wide:pb-32">
+<div class="page-wrap flex flex-col gap-5 pt-5 pb-28 wide:gap-6 wide:pt-8 wide:pb-32">
   <section
-    class="flex flex-col gap-3 rounded-lg bg-zinc-100 p-4 lg:flex-row lg:items-end lg:gap-4"
+    class="flex flex-col gap-3 rounded-lg bg-zinc-100 p-4 wide:flex-row wide:items-end wide:gap-4"
     role="search"
     aria-label="篩選課務異動"
   >
-    <div class="min-w-0 lg:w-56">
+    <div class="min-w-0 wide:w-56">
       <app-select-field
         label="月份"
         [options]="monthOptions"
@@ -30,7 +30,7 @@
     <!-- 手機首屏只回答「這個月有哪些異動」：其餘篩選收進一列 -->
     <button
       type="button"
-      class="flex min-h-11 items-center gap-3 border-0 bg-transparent p-0 text-left lg:hidden"
+      class="flex min-h-11 items-center gap-3 border-0 bg-transparent p-0 text-left wide:hidden"
       [attr.aria-expanded]="filtersOpen()"
       aria-controls="changes-more-filters"
       (click)="filtersOpen.set(!filtersOpen())"
@@ -45,7 +45,7 @@
     </button>
     <div
       id="changes-more-filters"
-      class="grid-cols-2 gap-3 lg:grid lg:w-[28rem]"
+      class="grid-cols-2 gap-3 wide:grid wide:w-[28rem]"
       [class.grid]="filtersOpen()"
       [class.hidden]="!filtersOpen()"
     >
@@ -64,7 +64,7 @@
     </div>
 
     <a
-      class="inline-flex h-11 items-center justify-center gap-1.5 self-end rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 lg:ml-auto"
+      class="inline-flex h-11 items-center justify-center gap-1.5 self-end rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 no-underline hover:border-zinc-400 hover:bg-zinc-50 wide:ml-auto"
       [routerLink]="scheduleLink"
     >
       到課表 <i class="pi pi-arrow-right text-sm" aria-hidden="true"></i>
@@ -112,17 +112,17 @@
     <div>
       @for (chapter of chapters(); track chapter.date) {
         <section
-          class="grid gap-2 border-b border-surface-border py-6 lg:grid-cols-[208px_minmax(0,1fr)] lg:gap-8 lg:py-8"
+          class="grid gap-2 border-b border-surface-border py-6 wide:grid-cols-[208px_minmax(0,1fr)] wide:gap-8 wide:py-8"
           [attr.aria-label]="dayLabel(chapter.date)"
         >
-          <div class="flex items-baseline gap-3 lg:sticky lg:top-4 lg:block lg:self-start">
+          <div class="flex items-baseline gap-3 wide:sticky wide:top-4 wide:block wide:self-start">
             <div
-              class="text-[32px] leading-none font-bold tracking-[-0.04em] tabular-nums text-zinc-900 lg:text-[44px]"
+              class="text-[32px] leading-none font-bold tracking-[-0.04em] tabular-nums text-zinc-900 wide:text-[44px]"
             >
               {{ dayLabel(chapter.date) }}
             </div>
-            <p class="m-0 text-sm text-zinc-600 lg:mt-0.5">{{ dayMeta(chapter.date) }}</p>
-            <p class="m-0 text-base font-bold tabular-nums text-zinc-900 lg:mt-3 lg:text-xl">
+            <p class="m-0 text-sm text-zinc-600 wide:mt-0.5">{{ dayMeta(chapter.date) }}</p>
+            <p class="m-0 text-base font-bold tabular-nums text-zinc-900 wide:mt-3 wide:text-xl">
               {{ chapter.count }} 則
             </p>
           </div>
@@ -132,7 +132,7 @@
               @let e = item.rows[0];
               @if (item.rows.length === 1) {
                 <div
-                  class="grid gap-x-5 gap-y-1 border-b border-surface-border py-4 last:border-b-0 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)] lg:items-baseline"
+                  class="grid gap-x-5 gap-y-1 border-b border-surface-border py-4 last:border-b-0 wide:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)] wide:items-baseline"
                 >
                   <span
                     class="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-zinc-900"
@@ -160,7 +160,7 @@
               } @else {
                 <details class="group border-b border-surface-border last:border-b-0">
                   <summary
-                    class="grid min-h-11 cursor-pointer list-none gap-x-5 gap-y-1 py-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] lg:items-baseline [&::-webkit-details-marker]:hidden"
+                    class="grid min-h-11 cursor-pointer list-none gap-x-5 gap-y-1 py-4 wide:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_minmax(0,1fr)_auto] wide:items-baseline [&::-webkit-details-marker]:hidden"
                   >
                     <span
                       class="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold text-zinc-900"
@@ -190,7 +190,7 @@
                       >
                     </span>
                   </summary>
-                  <ul class="m-0 mb-4 list-none rounded-md bg-zinc-100 px-3 py-1 lg:ml-0">
+                  <ul class="m-0 mb-4 list-none rounded-md bg-zinc-100 px-3 py-1 wide:ml-0">
                     @for (row of item.rows; track row.id) {
                       <li
                         class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-t border-zinc-200 py-2 text-md first:border-t-0"
