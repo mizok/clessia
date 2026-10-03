@@ -333,3 +333,10 @@ charter 裡那麼多條「先查」,全部是這個形狀的不同衣服。
   做法:**build 完先看退出狀態與 `dist` 的 mtime(要是剛剛),`package.json`／lock 動過就先 `npm ci`**;
   這是 `review-steward.md`「部署前確認 dist 是這次 build 出來的」的另一個成因(那條講的是兩個 dist 目錄,這條是同一個目錄裡的舊檔)。
 
+- **回報「已合」要以讀回為準,不要跟 merge 指令串在同一條**(2026-10-03 #1136):
+  `steward-merge.sh` 回「CI 還沒報／mergeable 還在算」就停了(`exit 非 0`),但我把回報 `printf … | herdr agent prompt`
+  寫在同一個 Bash 呼叫裡、**無條件**送出,於是計畫席收到一則「已合」而 PR 實際還是 OPEN。
+  做法:**合併指令一個呼叫,回報另一個呼叫**,回報內容取自 `gh pr view <n> --json state,mergeCommit` 讀回的值——
+  `state==MERGED` 才寫「已合」、並附 merge sha;否則寫實際狀態。
+  同族:README 六「檢查與動作分開」(動作的成敗要由讀回決定,不由『我下了指令』決定)。
+
