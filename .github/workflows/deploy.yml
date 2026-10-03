@@ -70,8 +70,12 @@ permissions:
 
 # 整條序列化、不殺正在跑的。排隊中的被更新的一顆取代沒關係 —— 更新的那顆包含舊的內容。
 # 掛在頂層而不是個別 job：job 層的 group 會讓這顆的 deploy-web 去取代下一顆排隊中的 deploy-api。
+#
+# **dry-run 另一個 group**（reviewer 二讀）：同一個 group 最多只留一顆排隊中的 —— dispatch 一顆 dry-run
+# 進來，會把排隊中的真部署取代掉（被取代的那顆 cancelled，那一版就沒部署到）。
+# DEPLOY_ENABLED 沒開的那幾輪本來就只是 dry-run，一起歸過去。
 concurrency:
-  group: deploy-prod
+  group: ${{ (inputs.dry_run || vars.DEPLOY_ENABLED != 'true') && 'deploy-dry-run' || 'deploy-prod' }}
   cancel-in-progress: false
 
 env:

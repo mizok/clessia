@@ -52,7 +52,12 @@ test('concurrency 掛在頂層、不殺正在跑的', () => {
   const topLevel = code.slice(0, code.indexOf('\njobs:\n'));
   assert.match(
     topLevel,
-    /^concurrency:\s*\n\s+group: deploy-prod\s*\n\s+cancel-in-progress: false/m,
+    /^concurrency:\s*\n\s+group: .*'deploy-prod'[^\n]*\n\s+cancel-in-progress: false/m,
+  );
+  // dry-run 不能跟真部署同 group —— 否則 dispatch 一顆 dry-run 會取代排隊中的真部署（reviewer 二讀）
+  assert.match(
+    topLevel,
+    /group: \$\{\{ \(inputs\.dry_run \|\| vars\.DEPLOY_ENABLED != 'true'\) && 'deploy-dry-run' \|\| 'deploy-prod' \}\}/,
   );
   for (const body of Object.values(all)) assert.doesNotMatch(body, /concurrency:/);
 });
