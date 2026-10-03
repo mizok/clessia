@@ -832,6 +832,7 @@ charter 早有「假紅燈比假綠燈更陰:它會訓練人忽略這道檢查�
 
 | 部署時間(台北) | 截線 SHA | web bundle | api version id | 正式 DB 套到 | 部署者 |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-03 20:2x | `3a3e70c9` | `main-C6R5BOGL.js`(有重發) | `ea6338e4` | `20261003073117`(#1183 kiosk)已由 migrate.yml run 37121615717 apply 綠套上;#1188／#1197 無 migration | labor-reviewer(api 由使用者親跑、web 由本席) |
 | 2026-10-03 19:4x | `3590b5f5` | `main-GXLILR73.js`(有重發) | `7ace638f` | `20261003071532`(#1180)已由 migrate.yml run 37106717548 apply 綠套上;窗口內無其他 migration | labor-reviewer(api 由使用者親跑、web 由本席) |
 | 2026-10-03 15:3x | `9ae774ea` | `main-WEOVGVCN.js`(有重發) | `06175109` | `20261003033635`／`034741`／`041305`(#1141／#1143／#1150)皆經使用者 Approve 的 apply 綠;#1180 `071532` 在截線後才合,不在此批 | labor-reviewer(api 由使用者親跑、web 由本席) |
 | 2026-10-03 12:2x | `6103d4d0` | `main-BTV4Z3GW.js`(有重發) | `40e8bfc3` | `20261003032358`(#1132)已由 migrate.yml 套(run 37094247171);該截線 plan 乾淨、apply skipped;#1141 migration 未合 | labor-reviewer(api 由使用者親跑、web 由本席) |
