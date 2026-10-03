@@ -7,14 +7,15 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { skip } from 'rxjs';
 import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { addDays, endOfMonth, format, parseISO, startOfMonth, subMonths } from 'date-fns';
 import { PaginatorModule } from 'primeng/paginator';
 
-import { CampusesService, type Campus } from '@core/campuses.service';
+import { CampusContextService } from '@core/campus-context.service';
 import {
   SessionsService,
   type ChangeLogEntry,
@@ -112,7 +113,8 @@ export class ChangesComponent {
   readonly page = input.required<RouteObj>();
 
   private readonly sessionsService = inject(SessionsService);
-  private readonly campusesService = inject(CampusesService);
+  /** 分校跟頂欄走（#1138）：頁內分校下拉拿掉 */
+  private readonly campusCtx = inject(CampusContextService);
   private readonly clock = inject(SystemClockService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -131,8 +133,7 @@ export class ChangesComponent {
   private readonly today = this.clock.todayTaipei();
   protected readonly month = signal(this.today.slice(0, 7));
   protected readonly changeType = signal<string | null>(null);
-  protected readonly campusId = signal<string | null>(null);
-  protected readonly campuses = signal<Campus[]>([]);
+  private readonly campusId = this.campusCtx.id;
   /** 手機上「篩選」那一列展開與否；桌機永遠展開（wide:grid） */
   protected readonly filtersOpen = signal(false);
 
@@ -148,19 +149,13 @@ export class ChangesComponent {
       .map(([value, label]) => ({ label, value: value as string | null })),
   ];
 
-  protected readonly campusOptions = computed(() => [
-    { label: '全部分校', value: null as string | null },
-    ...this.campuses().map((c) => ({ label: c.name, value: c.id as string | null })),
-  ]);
-
   protected readonly monthNumber = computed(() => Number(this.month().slice(5)));
-  protected readonly filtered = computed(() => !!this.changeType() || !!this.campusId());
+  protected readonly filtered = computed(() => !!this.changeType());
 
   /** 手機上收進「篩選」那一列的摘要 */
   protected readonly filterSummary = computed(() => {
     const type = this.changeTypeOptions.find((o) => o.value === this.changeType())?.label;
-    const campus = this.campusOptions().find((o) => o.value === this.campusId())?.label;
-    return `${type ?? '全部異動'} · ${campus ?? '全部分校'}`;
+    return type ?? '全部異動';
   });
 
   /**
@@ -194,13 +189,11 @@ export class ChangesComponent {
   protected readonly first = computed(() => (this.currentPage() - 1) * PAGE_SIZE);
 
   constructor() {
-    this.campusesService
-      .list()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (res) => this.campuses.set(res.data),
-        error: () => this.campuses.set([]),
-      });
+    this.campusCtx.use();
+    // 初次載入在下面；這裡只管之後頂欄換分校（開場的月總數不看分校，不用重查）
+    toObservable(this.campusId)
+      .pipe(skip(1), takeUntilDestroyed())
+      .subscribe(() => this.resetToFirstPage());
 
     this.load();
     this.loadMonthSummary();
@@ -251,14 +244,8 @@ export class ChangesComponent {
     this.resetToFirstPage();
   }
 
-  protected onCampusChange(value: string | null): void {
-    this.campusId.set(value);
-    this.resetToFirstPage();
-  }
-
   protected resetFilters(): void {
     this.changeType.set(null);
-    this.campusId.set(null);
     this.resetToFirstPage();
   }
 

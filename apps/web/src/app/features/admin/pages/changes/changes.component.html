@@ -45,7 +45,7 @@
     </button>
     <div
       id="changes-more-filters"
-      class="grid-cols-2 gap-3 wide:grid wide:w-[28rem]"
+      class="gap-3 wide:grid wide:w-56"
       [class.grid]="filtersOpen()"
       [class.hidden]="!filtersOpen()"
     >
@@ -54,12 +54,6 @@
         [options]="changeTypeOptions"
         [value]="changeType()"
         (valueChange)="onChangeTypeChange($event)"
-      />
-      <app-select-field
-        label="分校"
-        [options]="campusOptions()"
-        [value]="campusId()"
-        (valueChange)="onCampusChange($event)"
       />
     </div>
 
