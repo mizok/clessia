@@ -104,6 +104,20 @@ tags: [architecture, attendance, authorization, kiosk, migration]
   解碼器因此走 DI token `QR_DECODER_FACTORY`。外部套件（`jsqr`）的 `vi.mock` 換得到。
 - **iPad Safari 真機**要人工驗（jsdom 沒有鏡頭）；`qr-roundtrip.spec.ts` 守的是「`qrcode` 產生 → `jsqr` 讀回」格式對得上。
 
+## 到班卡（已實作，#1127 B）
+
+`features/admin/pages/students/checkin-cards.ts`：
+
+- **卡上只有**補習班名、學生名、QR（內容＝學生 id）—— 卡會被帶來帶去，不放電話、生日。沒有「短碼」：卡號欄只吃學生 id，
+  短碼沒有消費端（沒帶卡走「找櫃台登記」）。
+- 信用卡尺寸 85.6×54mm、A4 直式 2×5＝一頁 10 張、虛線裁切；QR 用 `qrcode.toDataURL`（M 級容錯）產生 `<img>` ——
+  canvas 的內容不會跟著 `importNode` 搬過去。
+- 入口：學生列表的列選單「列印到班卡」（一位）＋頁首「列印本頁到班卡」（畫面上這一頁）。**不做勾選**：
+  開學一次發一個年級的做法是篩年級、拉大每頁筆數再印。門檻 `manage_students`。
+- 印法照收費單：**開乾淨的新視窗印**、名字只進 `textContent`；**視窗在點擊同一個 tick 開**（QR 非同步產生，等完再開會被擋彈出視窗），
+  所以補習班名在頁面 `ngOnInit` 預載。
+- `qrcode` 沒附型別：`apps/web/src/qrcode.d.ts` 只宣告用到的 `create`／`toDataURL`。
+
 ## 拒絕的替代方案
 
 - **零權限 admin 當機台**：見 1，讀端點 fail-open。

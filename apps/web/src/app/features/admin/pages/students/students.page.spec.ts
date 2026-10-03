@@ -5,8 +5,13 @@ import { Subject, of } from 'rxjs';
 import { afterEach, beforeEach as viBeforeEach, vi } from 'vitest';
 
 import { StudentsService, type StudentListResponse } from '@core/students.service';
+import { AuthService } from '@core/auth.service';
+import { OrgSettingsService } from '@core/org-settings.service';
 
 import { StudentsPage } from './students.page';
+
+/** #1127 B：到班卡要 manage_students；既有測試不看這個，預設給 */
+let canManageStudents = true;
 
 describe('StudentsPage', () => {
   let component: StudentsPage;
@@ -58,6 +63,18 @@ describe('StudentsPage', () => {
         { provide: StudentsService, useValue: studentsServiceMock },
         { provide: MessageService, useValue: { add: vi.fn() } },
         { provide: DialogService, useValue: { open: vi.fn(() => ({ onClose: of(null) })) } },
+        {
+          provide: AuthService,
+          useValue: { hasPermission: (p: string) => p === 'manage_students' && canManageStudents },
+        },
+        {
+          provide: OrgSettingsService,
+          useValue: {
+            settings: () => ({ name: '示範補習班' }),
+            status: () => 'ready',
+            load: vi.fn(),
+          },
+        },
       ],
     }).compileComponents();
 
@@ -264,6 +281,51 @@ describe('StudentsPage', () => {
 
       expect(studentsServiceMock.delete).toHaveBeenCalledWith('s0');
       expect(studentsServiceMock.update).not.toHaveBeenCalled();
+    });
+  });
+
+  /** #1127 B：到班卡。發卡跟編輯學生同一個門檻（manage_students） */
+  describe('到班卡', () => {
+    const student = { id: 's1', name: '王小明', isActive: true, hasEnrollments: false } as never;
+    const menuLabels = (page: StudentsPage) => {
+      (page as any).selectedStudent.set(student);
+      return ((page as any).actionMenuItems() as Array<{ label?: string }>).map((i) => i.label);
+    };
+
+    afterEach(() => {
+      canManageStudents = true;
+      vi.restoreAllMocks();
+    });
+
+    it('有 manage_students：選單有「列印到班卡」', () => {
+      expect(menuLabels(component)).toContain('列印到班卡');
+    });
+
+    it('沒有 manage_students：選單沒有', () => {
+      canManageStudents = false;
+      const other = TestBed.createComponent(StudentsPage);
+      other.componentRef.setInput('page', {
+        label: 'Test',
+        relativePath: '',
+        absolutePath: '',
+        role: undefined,
+        icon: '',
+        showInMenu: true,
+      });
+      expect(menuLabels(other.componentInstance)).not.toContain('列印到班卡');
+    });
+
+    it('點下去當下就開視窗；被擋時提示允許彈出視窗', async () => {
+      const open = vi.spyOn(window, 'open').mockReturnValue(null);
+      const messages = fixture.debugElement.injector.get(MessageService);
+      const add = vi.spyOn(messages, 'add');
+
+      (component as any).printCards([student]);
+      expect(open).toHaveBeenCalledTimes(1); // 同步開，不等 QR 產生（不然會被擋）
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(add).toHaveBeenCalledWith(expect.objectContaining({ summary: '無法開啟列印視窗' }));
     });
   });
 });

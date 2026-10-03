@@ -63,7 +63,19 @@
     </div>
 
     <div class="wide:ml-auto">
-      <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()" />
+      <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateDialog()">
+        <!-- 到班卡（#1127 B）：印畫面上這一頁的學生（先篩年級、拉大每頁筆數） -->
+        @if (canPrintCards && students().length > 0) {
+          <p-button
+            label="列印本頁到班卡"
+            icon="pi pi-qrcode"
+            [outlined]="true"
+            severity="secondary"
+            (onClick)="printCards(students())"
+            data-testid="print-checkin-cards"
+          />
+        }
+      </app-page-actions>
     </div>
   </div>
 </div>
