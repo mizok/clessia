@@ -102,11 +102,7 @@ export class ShellLayoutComponent {
   }
 
   /** 原生 popover 裡點連結不會自己關 */
-  protected closeOnLink(event: Event) {
-    if ((event.target as HTMLElement).closest('a')) this.hide('shell-more');
-  }
-
-  private hide(id: string) {
+  protected hide(id: string) {
     document.getElementById(id)?.hidePopover?.();
   }
 

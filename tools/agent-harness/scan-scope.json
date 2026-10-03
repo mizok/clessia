@@ -74,6 +74,7 @@
   "tailwind-a11y": {
     "roots": [
       "apps/web/src/app/features/admin/pages/changes",
+      "apps/web/src/app/shared/components/layout/shell-layout",
       "apps/web/src/app/shared/components/page-open",
       "apps/web/src/app/shared/components/select-field"
     ],
