@@ -232,6 +232,10 @@
    gh pr list --state merged --limit 50 --search "退場 in:title"
    ```
 
+   - **`in:title` 與 `in:body` 兩個欄位都要試,哪個都可能是空的 —— 兩個方向我都踩過**
+     (2026-10-03 補):`labor-20261003-1155` 的蒸餾 **`in:body` 零筆、`in:title` 才找到 #1157**,
+     **跟下面那次剛好相反**。所以不要寫成「title 不行就換 body」的單向流程,
+     **零筆只代表那個欄位沒有,不代表 PR 不存在**。
    - **`in:title` 搜不到就搜 `in:body`**(2026-10-02):`#993` 是 `labor-20261001-1456`
      的退場蒸餾,**標題寫的是 `design-web charter 蒸餾 #973 的 A6 內頁…`,席名只在 body** ——
      `--search "1456 in:title"` 回零筆,而 `--search "labor-20261001-1456 in:body"` 找得到。
