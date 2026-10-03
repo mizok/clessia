@@ -17,6 +17,7 @@ import { SelectModule } from 'primeng/select';
 
 import { skip } from 'rxjs';
 import { CampusContextService } from '@core/campus-context.service';
+import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
 import {
   ENROLLMENT_STATUS_LABELS,
   EnrollmentsService,
@@ -48,6 +49,7 @@ import { RtRowDirective } from '@shared/components/responsive-table/rt-row.direc
 @Component({
   selector: 'app-enrollments',
   imports: [
+    CampusScopeNoteComponent,
     ResponsiveTableComponent,
     RtColDefDirective,
     RtColCellDirective,

@@ -247,6 +247,7 @@
       </section>
     } @empty {
       <p class="m-0 py-8 text-base text-zinc-700">沒有符合條件的課堂。</p>
+      <app-campus-scope-note />
     }
   } @else if (mode() === 'week') {
     <!-- 週視圖（桌機）：每天一欄，欄內是精簡版的分組清單 -->
@@ -346,6 +347,7 @@
     </div>
   } @else {
     <p class="m-0 py-8 text-base text-zinc-700">{{ dayName() }}沒有排課。</p>
+    <app-campus-scope-note />
   }
 
   <app-session-batch
