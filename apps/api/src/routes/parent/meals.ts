@@ -143,7 +143,13 @@ app.openapi(
         meta: {
           months: [...byMonth]
             .sort(([a], [b]) => (a < b ? 1 : -1))
-            .map(([month, acc]) => ({ month, ...acc })),
+            // 跟 scores 的 sumPairsOrNull 一樣收到兩位 —— unit_price 現在是 numeric(10,0)（整數），
+            // 但 schema 哪天改成可帶小數，浮點相加會冒出 100.66999999999999（reviewer 二讀）
+            .map(([month, acc]) => ({
+              month,
+              count: acc.count,
+              totalAmount: Number(acc.totalAmount.toFixed(2)),
+            })),
         },
       },
       200,

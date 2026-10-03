@@ -125,6 +125,17 @@ describe('GET /api/me/meals（#1117）', () => {
     ]);
   });
 
+  it('月份加總收到兩位小數，不冒浮點尾巴', async () => {
+    const { db } = fakeChildDb([
+      row(CHILD, '2026-10-01', { unit_price: '0.1' }),
+      row(CHILD, '2026-10-02', { unit_price: '0.2' }),
+    ]);
+    const res = await appWith(['parent'], [CHILD], db).request(`/?childId=${CHILD}&${RANGE}`);
+    const body = (await res.json()) as { meta: { months: Array<{ totalAmount: number }> } };
+    // 0.1 + 0.2 在 JS 是 0.30000000000000004
+    expect(body.meta.months[0].totalAmount).toBe(0.3);
+  });
+
   it('日期條件照區間下到 DB', async () => {
     const fake = fakeChildDb([]);
     await appWith(['parent'], [CHILD], fake.db).request(`/?childId=${CHILD}&${RANGE}`);
