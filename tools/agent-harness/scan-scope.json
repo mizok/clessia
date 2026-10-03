@@ -80,6 +80,7 @@
       "apps/web/src/app/features/admin/pages/grades/exams",
       "apps/web/src/app/features/admin/pages/grades/grades.component.html",
       "apps/web/src/app/features/admin/pages/grades/grades.component.ts",
+      "apps/web/src/app/features/admin/pages/grades/overview/class-view",
       "apps/web/src/app/features/admin/pages/grades/overview/overview.component.html",
       "apps/web/src/app/features/admin/pages/grades/overview/overview.component.ts",
       "apps/web/src/app/features/admin/pages/sessions",

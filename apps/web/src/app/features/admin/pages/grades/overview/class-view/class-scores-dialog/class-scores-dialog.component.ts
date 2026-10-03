@@ -12,7 +12,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { SelectButtonModule } from 'primeng/selectbutton';
 import { SelectModule } from 'primeng/select';
 import { MessageService } from 'primeng/api';
 
@@ -26,9 +25,7 @@ import {
   type ScoreRecordStatus,
 } from '@core/scores.service';
 import { GRADE_LEVEL_LABELS, GRADE_LEVELS, type GradeLevel } from '@core/students.service';
-import { DataChipComponent } from '@shared/components/status/data-chip/data-chip.component';
-import { StatusDotComponent } from '@shared/components/status/status-dot/status-dot.component';
-import { isFailingScore } from '@shared/utils/score-threshold.util';
+import { PASSING_RATIO, isFailingScore } from '@shared/utils/score-threshold.util';
 
 type ScoreStatusFilter = 'all' | ScoreRecordStatus;
 type ExamScopeFilter = 'todo' | 'all';
@@ -70,16 +67,9 @@ const EXAM_TYPE_LABELS: Record<AcademyExam['examType'], string> = {
 @Component({
   selector: 'app-class-scores-dialog',
   standalone: true,
-  imports: [
-    StatusDotComponent,
-    DataChipComponent,
-    FormsModule,
-    EmptyStateComponent,
-    SelectModule,
-    SelectButtonModule,
-  ],
+  imports: [FormsModule, EmptyStateComponent, SelectModule],
   templateUrl: './class-scores-dialog.component.html',
-  styleUrl: './class-scores-dialog.component.scss',
+  host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ClassScoresDialogComponent implements OnInit {
@@ -133,6 +123,55 @@ export class ClassScoresDialogComponent implements OnInit {
       if (b.score === null) return -1;
       return b.score - a.score;
     });
+  });
+
+  /** 名單篩選各類人數（A6 的「全部 N／已登錄 N…」）。待登錄刻意不做：API 把沒成績的人回成 scored（#991 grades Q4） */
+  protected readonly scoreCounts = computed(() => {
+    const rows = this.stats()?.scores ?? [];
+    const count = (status: ScoreRecordStatus) => rows.filter((r) => r.status === status).length;
+    return {
+      all: rows.length,
+      scored: count('scored'),
+      absent: count('absent'),
+      makeup: count('makeup'),
+    };
+  });
+
+  protected readonly failCount = computed(
+    () => (this.stats()?.scores ?? []).filter((r) => this.isFailing(r.score)).length,
+  );
+
+  /** 及格線（給標籤看）：跟 isFailing 同一套退路 —— 及格線 → 總分六成 → 60 */
+  protected readonly passLine = computed(() => {
+    const exam = this.selectedExam();
+    if (exam?.passScore != null) return exam.passScore;
+    return Math.round((exam?.totalScore || 100) * PASSING_RATIO);
+  });
+
+  /**
+   * 分數分布（A6 .dist）：依總分的 90／80／70／60% 切五段，整段落在及格線以下的標紅。
+   * 只算有分數的人（缺考、未登錄不進分布）。
+   */
+  protected readonly distribution = computed(() => {
+    const total = this.selectedExam()?.totalScore || 100;
+    const values = (this.stats()?.scores ?? [])
+      .map((r) => r.score)
+      .filter((v): v is number => v !== null);
+    const cuts = [0.9, 0.8, 0.7, 0.6].map((r) => Math.ceil(total * r));
+    const bands = cuts.map((lo, i) => ({
+      label: `${lo}–${i === 0 ? total : cuts[i - 1] - 1}`,
+      lo,
+      hi: i === 0 ? Infinity : cuts[i - 1],
+    }));
+    bands.push({ label: `未滿 ${cuts[3]}`, lo: -Infinity, hi: cuts[3] });
+    const pass = this.passLine();
+    const rows = bands.map((b) => ({
+      label: b.label,
+      n: values.filter((v) => v >= b.lo && v < b.hi).length,
+      fail: b.hi <= pass,
+    }));
+    const max = Math.max(1, ...rows.map((r) => r.n));
+    return rows.map((r) => ({ ...r, pct: (r.n / max) * 100 }));
   });
 
   protected readonly classGradeLabels = computed(() => {
@@ -193,6 +232,12 @@ export class ClassScoresDialogComponent implements OnInit {
 
   protected goToScoreEntry(exam: AcademyExam): void {
     this.router.navigate(['/admin/grades/exams', 'academy', exam.id, 'scores']);
+    this.ref.close();
+  }
+
+  protected goToClassDetail(): void {
+    if (!this.classData) return;
+    this.router.navigate(['/admin/courses', this.classData.courseId, 'classes', this.classData.id]);
     this.ref.close();
   }
 
