@@ -10,7 +10,8 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { CampusContextService } from '@core/campus-context.service';
 
 import { SelectModule } from 'primeng/select';
 import { InputTextModule } from 'primeng/inputtext';
@@ -27,7 +28,6 @@ import {
   type BreadcrumbItem,
 } from '@shared/components/page-breadcrumb/page-breadcrumb.component';
 import { JdenticonAvatarComponent } from '@shared/components/jdenticon-avatar/jdenticon-avatar.component';
-import { ReferenceDataService } from '@core/reference-data.service';
 import { SchoolsService } from '@core/schools.service';
 import {
   GRADE_LEVEL_LABELS,
@@ -38,7 +38,7 @@ import {
   type StudentQueryParams,
 } from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import { EMPTY, Subject, catchError, debounceTime, forkJoin, map, of, switchMap } from 'rxjs';
+import { EMPTY, Subject, catchError, debounceTime, forkJoin, map, of, skip, switchMap } from 'rxjs';
 
 import { StudentScoreDetailDialogComponent } from './student-score-detail-dialog/student-score-detail-dialog.component';
 import {
@@ -87,7 +87,6 @@ const PAGE_SIZE = LIST_PAGE_SIZE;
 export class StudentViewComponent implements OnInit {
   private readonly studentsService = inject(StudentsService);
   private readonly schoolsService = inject(SchoolsService);
-  private readonly refData = inject(ReferenceDataService);
   private readonly dialogService = inject(DialogService);
   private readonly messageService = inject(MessageService);
   private readonly destroyRef = inject(DestroyRef);
@@ -119,7 +118,9 @@ export class StudentViewComponent implements OnInit {
   protected readonly statusOptions = STATUS_OPTIONS;
   protected readonly pageSize = PAGE_SIZE;
 
-  protected readonly campusId = signal<string>('');
+  /** 分校跟頂欄走（#1138）：頁內與手機篩選的分校下拉拿掉；`''` = 全部分校 */
+  private readonly campusCtx = inject(CampusContextService);
+  protected readonly campusId = computed(() => this.campusCtx.id() ?? '');
   protected readonly gradeFilter = signal<GradeLevel | ''>('');
   protected readonly searchText = signal('');
   protected readonly schoolIdFilter = signal<string | null>(null);
@@ -135,10 +136,6 @@ export class StudentViewComponent implements OnInit {
   protected readonly currentPage = signal(1);
 
   protected readonly schoolOptionsState = signal<Array<FilterOption<string>>>([]);
-
-  protected readonly campusOptions = computed(() =>
-    this.refData.campuses().map((campus) => ({ label: campus.name, value: campus.id })),
-  );
 
   protected readonly schoolOptions = computed(() => this.schoolOptionsState());
 
@@ -161,6 +158,11 @@ export class StudentViewComponent implements OnInit {
   });
 
   constructor() {
+    this.campusCtx.use();
+    // 初次載入由 ngOnInit 做；這裡只管之後頂欄換分校
+    toObservable(this.campusId)
+      .pipe(skip(1), takeUntilDestroyed())
+      .subscribe(() => this.resetAndReload());
     effect(() => {
       const total = this.totalStudents();
       const maxPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -185,16 +187,8 @@ export class StudentViewComponent implements OnInit {
         this.resetAndReload();
       });
 
-    this.refData.loadCampuses();
     this.loadSchools();
     this.loadStudents();
-  }
-
-  protected onCampusChange(id: string | null): void {
-    const nextCampusId = id ?? '';
-    if (this.campusId() === nextCampusId) return;
-    this.campusId.set(nextCampusId);
-    this.resetAndReload();
   }
 
   protected onGradeChange(grade: GradeLevel | null | ''): void {
@@ -238,7 +232,6 @@ export class StudentViewComponent implements OnInit {
       data: {
         initial: this.buildFilterSnapshot(),
         options: {
-          campusOptions: this.campusOptions(),
           gradeOptions: this.gradeOptions,
           schoolOptions: this.schoolOptions(),
           statusOptions: this.statusOptions,
@@ -274,7 +267,6 @@ export class StudentViewComponent implements OnInit {
 
   private buildFilterSnapshot(): StudentViewFilterSnapshot {
     return {
-      campusId: this.campusId(),
       searchText: this.searchText(),
       grade: this.gradeFilter(),
       schoolId: this.schoolIdFilter(),
@@ -283,14 +275,11 @@ export class StudentViewComponent implements OnInit {
   }
 
   private applyFilterSnapshot(next: StudentViewFilterSnapshot): void {
-    const prevCampusId = this.campusId();
     const shouldReload =
-      prevCampusId !== next.campusId ||
       this.searchText() !== next.searchText ||
       this.gradeFilter() !== next.grade ||
       this.activeStatusFilter() !== next.status;
 
-    this.campusId.set(next.campusId);
     this.searchText.set(next.searchText);
     this.gradeFilter.set(next.grade);
     this.schoolIdFilter.set(next.schoolId);
@@ -304,12 +293,8 @@ export class StudentViewComponent implements OnInit {
 
   private clearFilters(): void {
     const hadServerFilters =
-      !!this.campusId() ||
-      !!this.searchText() ||
-      !!this.gradeFilter() ||
-      this.activeStatusFilter() !== 'active';
+      !!this.searchText() || !!this.gradeFilter() || this.activeStatusFilter() !== 'active';
 
-    this.campusId.set('');
     this.searchText.set('');
     this.gradeFilter.set('');
     this.schoolIdFilter.set(null);
