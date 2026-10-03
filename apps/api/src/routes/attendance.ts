@@ -363,6 +363,9 @@ app.openapi(
     path: '/',
     tags: ['Attendance'],
     summary: '查詢出勤紀錄',
+    // #1098：只開給管理員。原本老師打這支讀得到全機構的出勤紀錄（沒有任何老師範圍）；
+    // 前端只有管理端儀表板在用，所以比照 `/student-day` 收掉，不另做一套老師範圍
+    middleware: [requireRoles('admin')] as const,
     request: {
       query: z.object({
         campusId: DbUuidSchema.optional(),
