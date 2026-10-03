@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { DbUuidSchema } from './validation';
 
@@ -88,6 +89,33 @@ export function toCatalogClass(row: Row, takenSeats: number, today: string) {
       : null,
   };
 }
+
+/**
+ * 各班佔名額人數（active＋pending_payment）。**公開目錄顯示的名額與公開申請判定的額滿用同一支**，
+ * 不然會出現「目錄說還有位子、送出卻變候補」。`enrollment_requests`／`public_applications` 不佔名額。
+ */
+export async function takenSeats(
+  supabase: SupabaseClient,
+  orgId: string,
+  classIds: readonly string[],
+): Promise<{ taken: Map<string, number>; error: unknown }> {
+  const taken = new Map<string, number>();
+  if (classIds.length === 0) return { taken, error: null };
+  const { data, error } = await supabase
+    .from('enrollments')
+    .select('class_id')
+    .eq('org_id', orgId)
+    .in('class_id', [...classIds])
+    .in('status', ['active', 'pending_payment']);
+  for (const row of (data ?? []) as Array<{ class_id: string }>) {
+    taken.set(row.class_id, (taken.get(row.class_id) ?? 0) + 1);
+  }
+  return { taken, error };
+}
+
+/** 公開端點的「開放中」：啟用、未結束、課程啟用（家長目錄不濾課程停用，見 #1241） */
+export const isPublicOpenClass = (row: Row, today: string): boolean =>
+  isOpenClass(row, today) && one(row['courses'])?.['is_active'] !== false;
 
 /** 課程名 → 班名 */
 export const byCourseThenClass = (
