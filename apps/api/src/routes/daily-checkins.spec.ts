@@ -22,9 +22,20 @@ function createCheckinApp(
     /** `campuses.attendance_mode`（#1112）；null = 沿用機構預設 */
     campusMode?: 'daily_checkin' | 'per_session' | null;
     orgError?: boolean;
+    /** 當天已經打過卡（#1127）：衝突時 upsert 什麼都不回，路由要讀回原本那筆 */
+    existingCheckedInAt?: string;
   } = {},
 ) {
   const upsertCalls: Array<{ table: string; rows: unknown; options: unknown }> = [];
+  const checkinRow = (checkedInAt: string) => ({
+    id: '00000000-0000-4000-8000-000000000001',
+    org_id: '00000000-0000-4000-8000-0000000000a1',
+    student_id: '00000000-0000-4000-8000-0000000000b1',
+    campus_id: null,
+    checkin_date: '2026-04-01',
+    checked_in_at: checkedInAt,
+    created_at: '2026-04-01T00:00:00Z',
+  });
   const insertCalls: Array<{ table: string; row: unknown }> = [];
 
   const supabase = {
@@ -39,21 +50,12 @@ function createCheckinApp(
         upsert(rows: unknown, options: unknown) {
           upsertCalls.push({ table, rows, options });
           return {
-            select: () => ({
-              single: () =>
-                Promise.resolve({
-                  data: {
-                    id: '00000000-0000-4000-8000-000000000001',
-                    org_id: '00000000-0000-4000-8000-0000000000a1',
-                    student_id: '00000000-0000-4000-8000-0000000000b1',
-                    campus_id: null,
-                    checkin_date: '2026-04-01',
-                    checked_in_at: '2026-04-01T00:00:00Z',
-                    created_at: '2026-04-01T00:00:00Z',
-                  },
-                  error: null,
-                }),
-            }),
+            // `ignoreDuplicates` 衝突時 PostgREST 回空陣列 —— 不能接 `.single()`
+            select: () =>
+              Promise.resolve({
+                data: fixture.existingCheckedInAt ? [] : [checkinRow('2026-04-01T00:00:00Z')],
+                error: null,
+              }),
             then: (onfulfilled?: ((value: { error: null }) => unknown) | null) =>
               Promise.resolve({ error: null }).then(onfulfilled ?? undefined),
           };
@@ -65,13 +67,15 @@ function createCheckinApp(
         // #966 B6：寫入前先驗學生屬於本 org（`students` 的 findInOrg）
         maybeSingle: () =>
           Promise.resolve(
-            table === 'organizations'
-              ? fixture.orgError
-                ? { data: null, error: { message: 'boom' } }
-                : { data: { attendance_mode: fixture.mode ?? 'daily_checkin' }, error: null }
-              : table === 'campuses'
-                ? { data: { attendance_mode: fixture.campusMode ?? null }, error: null }
-                : { data: table === 'students' ? { id: 'stu-1' } : null, error: null },
+            table === 'daily_checkins'
+              ? { data: checkinRow(fixture.existingCheckedInAt ?? ''), error: null }
+              : table === 'organizations'
+                ? fixture.orgError
+                  ? { data: null, error: { message: 'boom' } }
+                  : { data: { attendance_mode: fixture.mode ?? 'daily_checkin' }, error: null }
+                : table === 'campuses'
+                  ? { data: { attendance_mode: fixture.campusMode ?? null }, error: null }
+                  : { data: table === 'students' ? { id: 'stu-1' } : null, error: null },
           ),
         then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
           const data =
@@ -109,6 +113,30 @@ function createCheckinApp(
 }
 
 describe('POST /api/daily-checkins', () => {
+  /**
+   * #1127：一天最多打卡一次（specs/public/qr-checkin.md）。原本的 upsert 沒有
+   * `ignoreDuplicates`，重掃一次就把 `checked_in_at` 改成重掃的時間 —— 「幾點到的」被後來那張卡蓋掉。
+   */
+  it('重掃不覆寫第一次的打卡時間', async () => {
+    const { app, upsertCalls } = createCheckinApp({ existingCheckedInAt: '2026-04-01T08:00:00Z' });
+
+    const response = await app.request('/api/daily-checkins', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        studentId: '00000000-0000-4000-8000-0000000000b1',
+        checkinDate: '2026-04-01',
+      }),
+    });
+
+    const checkinUpsert = upsertCalls.find((call) => call.table === 'daily_checkins');
+    expect(checkinUpsert?.options).toMatchObject({ ignoreDuplicates: true });
+    expect(response.status).toBe(201);
+    expect(((await response.json()) as { checkedInAt: string }).checkedInAt).toBe(
+      '2026-04-01T08:00:00Z',
+    );
+  });
+
   it('never overwrites an existing attendance record', async () => {
     const { app, upsertCalls } = createCheckinApp();
 

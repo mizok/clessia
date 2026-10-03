@@ -82,22 +82,36 @@ app.openapi(
       return c.json({ error: '讀取出勤模式失敗', message: modeError.message }, 500);
     }
 
-    // 1. 建立打卡紀錄（UPSERT 防重複，UNIQUE: student_id, checkin_date）
-    const { data: checkin, error } = await supabase
+    // 1. 建立打卡紀錄。一天最多一次（specs/public/qr-checkin.md，UNIQUE: student_id, checkin_date）。
+    //    **重掃不覆寫**（#1127）：原本沒有 `ignoreDuplicates`，第二張卡會把 `checked_in_at`
+    //    改成重掃的時間。衝突時 PostgREST 回空陣列（不能接 `.single()`），讀回第一次那筆。
+    const checkinKey = { student_id: body.studentId, checkin_date: body.checkinDate };
+    const { data: inserted, error: insertError } = await supabase
       .from('daily_checkins')
       .upsert(
         {
           org_id: orgId,
-          student_id: body.studentId,
+          ...checkinKey,
           campus_id: body.campusId ?? null,
-          checkin_date: body.checkinDate,
           checked_in_at: new Date().toISOString(),
           checked_in_by: userId,
         },
-        { onConflict: 'student_id,checkin_date' },
+        { onConflict: 'student_id,checkin_date', ignoreDuplicates: true },
       )
-      .select()
-      .single();
+      .select();
+    let checkin = inserted?.[0] as Record<string, unknown> | undefined;
+    let error = insertError;
+    if (!error && !checkin) {
+      const existing = await supabase
+        .from('daily_checkins')
+        .select()
+        .eq('org_id', orgId)
+        .eq('student_id', checkinKey.student_id)
+        .eq('checkin_date', checkinKey.checkin_date)
+        .maybeSingle();
+      checkin = (existing.data as Record<string, unknown> | null) ?? undefined;
+      error = existing.error;
+    }
 
     if (error || !checkin) {
       return c.json({ error: '打卡失敗', message: error?.message }, 500);
