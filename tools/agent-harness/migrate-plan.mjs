@@ -15,7 +15,7 @@
 import { appendFileSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { isAfterDeploy, planMigrations } from './lib/migration-plan.mjs';
+import { isAfterDeploy, planMigrations, splitsTransaction } from './lib/migration-plan.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -30,7 +30,13 @@ const local = readdirSync(DIR)
   .map((file) => {
     const version = /^(\d{14})_/.exec(file)?.[1];
     if (!version) throw new Error(`migration 檔名不合 c4 格式：${file}`);
-    return { version, file, afterDeploy: isAfterDeploy(readFileSync(join(DIR, file), 'utf8')) };
+    const sql = readFileSync(join(DIR, file), 'utf8');
+    return {
+      version,
+      file,
+      afterDeploy: isAfterDeploy(sql),
+      splitsTransaction: splitsTransaction(sql),
+    };
   });
 
 const remoteFile = value('--remote');
