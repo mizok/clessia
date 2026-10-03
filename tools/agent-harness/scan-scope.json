@@ -73,6 +73,7 @@
   },
   "tailwind-a11y": {
     "roots": [
+      "apps/web/src/app/features/admin/pages/applications",
       "apps/web/src/app/features/admin/pages/changes",
       "apps/web/src/app/features/admin/pages/checkin",
       "apps/web/src/app/features/admin/pages/courses",
