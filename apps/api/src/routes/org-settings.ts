@@ -4,6 +4,7 @@ import { writeRequiresAdmin } from '../middleware/auth';
 import { hasPermission } from '../lib/permissions';
 import { logAudit } from '../utils/audit';
 import { waitUntilFrom } from '../lib/wait-until';
+import { PAYMENT_INFO_MAX, normalizePaymentInfo } from '../lib/payment-info';
 
 const AttendanceModeSchema = z.enum(['per_session', 'daily_checkin']).openapi('AttendanceMode');
 
@@ -31,6 +32,12 @@ const OrgSettingsSchema = z
     /** 餐費的預設單價。單價存在每一筆餐記錄上，這只是開單時的起始值 */
     mealDefaultPrice: z.number().int().min(0).optional(),
     prorationBasis: ProrationBasisSchema.optional(),
+    /**
+     * 補習班帳戶資訊的**機構預設**（#1073），多行文字；`null` = 還沒設定。分校可覆寫
+     * （`campuses.payment_info`），家長看到的是生效值（`lib/payment-info.ts`）。
+     * 歸財務設定：改它等於改家長匯款的去向。
+     */
+    paymentInfo: z.string().nullable().optional(),
   })
   .openapi('OrgSettings');
 
@@ -42,6 +49,8 @@ const UpdateOrgSettingsSchema = z
     invoiceDueDays: z.coerce.number().int().min(0).optional(),
     mealDefaultPrice: z.coerce.number().int().min(0).optional(),
     prorationBasis: ProrationBasisSchema.optional(),
+    /** 空字串存成 null（= 未設定） */
+    paymentInfo: z.string().max(PAYMENT_INFO_MAX).nullable().optional(),
   })
   .openapi('UpdateOrgSettings');
 
@@ -51,11 +60,16 @@ const UpdateOrgSettingsSchema = z
  * **它們目前在這支端點是零消費者**：沒有任何畫面讀或編輯，而真正需要它們的
  * `meals.ts` / `invoices.ts` / `billing-runs.ts` / `lib/proration.ts` 是直接讀
  * `organizations` 那張表。所以在這裡發給每一個老師，換不到任何東西。
+ *
+ * `paymentInfo`（#1073）例外：系統設定頁要讀它來編輯。它不是秘密（本來就要給家長看），
+ * 放進這組是為了**寫**的門檻 —— 改帳號等於改家長匯款的去向。家長端走自己的窄讀法
+ * （`childDb.orgPaymentInfo()`），不經這支。
  */
 export const FINANCE_SETTING_KEYS = [
   'invoiceDueDays',
   'mealDefaultPrice',
   'prorationBasis',
+  'paymentInfo',
 ] as const;
 
 export function toOrgSettingsResponse(row: Record<string, unknown>, includeFinance = true) {
@@ -74,6 +88,7 @@ export function toOrgSettingsResponse(row: Record<string, unknown>, includeFinan
     invoiceDueDays: (row['invoice_due_days'] as number) ?? 14,
     mealDefaultPrice: Number(row['meal_default_price'] ?? 0),
     prorationBasis: (row['proration_basis'] as 'days' | 'sessions') ?? 'days',
+    paymentInfo: normalizePaymentInfo(row['payment_info']),
   };
 }
 
@@ -90,7 +105,7 @@ const app = new OpenAPIHono<AppEnv>();
 app.use('/settings', writeRequiresAdmin('manage_org_settings'));
 
 const SELECT_FIELDS =
-  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, meal_default_price, proration_basis';
+  'id, name, attendance_mode, attendance_responsible, attendance_retroactive_days, invoice_due_days, meal_default_price, proration_basis, payment_info';
 
 // GET /api/org/settings
 app.openapi(
@@ -171,6 +186,8 @@ app.openapi(
     if (body.invoiceDueDays !== undefined) updates['invoice_due_days'] = body.invoiceDueDays;
     if (body.mealDefaultPrice !== undefined) updates['meal_default_price'] = body.mealDefaultPrice;
     if (body.prorationBasis !== undefined) updates['proration_basis'] = body.prorationBasis;
+    if (body.paymentInfo !== undefined)
+      updates['payment_info'] = normalizePaymentInfo(body.paymentInfo);
 
     const { data, error } = await supabase
       .from('organizations')

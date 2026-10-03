@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
 import billingRoute from './billing';
+import { createChildDb } from '../../lib/child-db';
+import { createMultiOrgDb } from '../../test-utils/multi-org-db';
 
 const CHILD_ID = '00000000-0000-0000-0000-000000000001';
 const OTHER_CHILD_ID = '00000000-0000-0000-0000-000000000002';
@@ -91,7 +93,9 @@ const PAID_INVOICE = {
 
 function fakeChildDb(pageInvoices: unknown[], allInvoices: unknown[]) {
   return {
+    orgPaymentInfo: async () => ({ paymentInfo: null, error: null }),
     from: () => ({
+      pluck: async () => ({ rows: [], ids: [], error: null }),
       select: (_cols: string, opts?: { count?: string }) => {
         // 分頁那支帶 { count: 'exact' }，totalDue 那支不帶 —— 用這個分辨兩種呼叫
         const rows = opts?.count ? pageInvoices : allInvoices;
@@ -219,5 +223,67 @@ describe('GET /api/me/billing', () => {
     });
     // 只有 UNPAID_INVOICE 的 1,000 − 400 = 600
     expect(body.meta).toMatchObject({ totalDue: 600 });
+  });
+});
+
+/**
+ * #1073：待付款要列補習班帳戶資訊 —— 這個孩子**在籍**分校的生效值（分校覆寫 → 機構預設）。
+ * 用真的 `createChildDb` 跑在照條件過濾的替身上：回固定資料的替身分不出 org／狀態條件有沒有下對。
+ */
+describe('GET /api/me/billing —— meta.paymentInfo（#1073）', () => {
+  const ORG = 'org-1';
+
+  async function run(tables: Record<string, Record<string, unknown>[]>) {
+    const db = createMultiOrgDb({
+      organizations: [
+        { id: ORG, payment_info: '機構：台銀 004' },
+        { id: 'org-2', payment_info: '別家的帳戶' },
+      ],
+      invoices: [],
+      ...tables,
+    });
+    const childDb = createChildDb(db.client as never, [CHILD_ID], ORG);
+    const res = await appWith(['parent'], [CHILD_ID], childDb).request(`/?childId=${CHILD_ID}`);
+    const body = (await res.json()) as { meta: { paymentInfo: unknown } };
+    return { status: res.status, paymentInfo: body.meta.paymentInfo };
+  }
+
+  it('在籍分校有覆寫 → 用分校的；退班的班與兄弟姊妹的班不算', async () => {
+    const result = await run({
+      enrollments: [
+        { org_id: ORG, student_id: CHILD_ID, class_id: 'c-zz', status: 'active' },
+        { org_id: ORG, student_id: CHILD_ID, class_id: 'c-xy', status: 'withdrawn' },
+        { org_id: ORG, student_id: OTHER_CHILD_ID, class_id: 'c-xy', status: 'active' },
+      ],
+      classes: [
+        { id: 'c-zz', org_id: ORG, campus_id: 'cp-zz' },
+        { id: 'c-xy', org_id: ORG, campus_id: 'cp-xy' },
+      ],
+      campuses: [
+        { id: 'cp-zz', org_id: ORG, name: '中正', payment_info: '中正專戶' },
+        { id: 'cp-xy', org_id: ORG, name: '信義', payment_info: '信義專戶' },
+      ],
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.paymentInfo).toEqual([{ campusName: null, text: '中正專戶' }]);
+  });
+
+  it('待繳費的報名也算在籍；分校沒覆寫 → 機構預設', async () => {
+    const result = await run({
+      enrollments: [
+        { org_id: ORG, student_id: CHILD_ID, class_id: 'c-zz', status: 'pending_payment' },
+      ],
+      classes: [{ id: 'c-zz', org_id: ORG, campus_id: 'cp-zz' }],
+      campuses: [{ id: 'cp-zz', org_id: ORG, name: '中正', payment_info: null }],
+    });
+
+    expect(result.paymentInfo).toEqual([{ campusName: null, text: '機構：台銀 004' }]);
+  });
+
+  it('沒有在籍報名 → 機構預設（不是別 org 的）', async () => {
+    const result = await run({ enrollments: [], classes: [], campuses: [] });
+
+    expect(result.paymentInfo).toEqual([{ campusName: null, text: '機構：台銀 004' }]);
   });
 });

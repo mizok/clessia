@@ -364,3 +364,17 @@ describe('createChildDb —— pluck 只拿指名的那個孩子（#1116）', ()
     expect(outside.ids).toEqual([]);
   });
 });
+
+describe('createChildDb —— orgPaymentInfo（#1073）', () => {
+  it('只讀 session 那個 org 的帳戶資訊，只回這一欄', async () => {
+    const db = createMultiOrgDb({
+      organizations: [
+        { id: 'org-1', payment_info: '台銀 004', invoice_due_days: 14 },
+        { id: 'org-2', payment_info: '別家的帳戶' },
+      ],
+    });
+    const childDb = createChildDb(db.client as never, ['s1'], 'org-1');
+
+    expect(await childDb.orgPaymentInfo()).toEqual({ paymentInfo: '台銀 004', error: null });
+  });
+});

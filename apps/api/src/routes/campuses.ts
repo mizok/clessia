@@ -8,6 +8,7 @@ import { findInOrg, inOrg } from '../lib/org-scope';
 import { hasPermission } from '../lib/permissions';
 import { resourceCampusAllowed } from '../lib/campus-write-guard';
 import { DbUuidSchema } from '../lib/validation';
+import { PAYMENT_INFO_MAX, normalizePaymentInfo } from '../lib/payment-info';
 
 // ============================================================
 // Schemas (with OpenAPI metadata)
@@ -23,6 +24,8 @@ const CampusSchema = z
     isActive: z.boolean(),
     /** 出勤模式（#1112）。null = 沿用機構預設（`organizations.attendance_mode`） */
     attendanceMode: z.enum(['per_session', 'daily_checkin']).nullable(),
+    /** 帳戶資訊（#1073）。null = 沿用機構預設（`organizations.payment_info`） */
+    paymentInfo: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -62,6 +65,8 @@ const UpdateCampusSchema = z
     isActive: z.boolean().optional(),
     /** null = 改回沿用機構預設。要 `manage_org_settings`（跟改機構預設同一個門檻） */
     attendanceMode: z.enum(['per_session', 'daily_checkin']).nullable().optional(),
+    /** null／空白 = 改回沿用機構預設。要 `manage_finance`（跟機構預設同一個門檻，#1073） */
+    paymentInfo: z.string().max(PAYMENT_INFO_MAX).nullable().optional(),
   })
   .openapi('UpdateCampus');
 
@@ -93,6 +98,7 @@ function mapCampus(row: Record<string, unknown>) {
     phone: row['phone'] as string | null,
     isActive: row['is_active'] as boolean,
     attendanceMode: (row['attendance_mode'] as 'per_session' | 'daily_checkin' | null) ?? null,
+    paymentInfo: normalizePaymentInfo(row['payment_info']),
     createdAt: row['created_at'] as string,
     updatedAt: row['updated_at'] as string,
   };
@@ -450,6 +456,14 @@ app.openapi(updateRoute, async (c) => {
       return c.json({ error: '沒有權限修改這個分校的出勤模式', code: 'FORBIDDEN' }, 403);
     }
     updateData['attendance_mode'] = body.attendanceMode;
+  }
+
+  // #1073：帳戶資訊跟機構預設（`PATCH /api/org/settings`）同一個門檻 —— 改帳號等於改家長匯款的去向
+  if (body.paymentInfo !== undefined) {
+    if (!hasPermission(c.get('permissions') ?? [], 'manage_finance')) {
+      return c.json({ error: '需要「財務管理」才能修改帳戶資訊', code: 'FORBIDDEN' }, 403);
+    }
+    updateData['payment_info'] = normalizePaymentInfo(body.paymentInfo);
   }
 
   // **改動前先讀一次** —— 稽核要答得出「原本是什麼」，而改完就查不到了（#837）。
