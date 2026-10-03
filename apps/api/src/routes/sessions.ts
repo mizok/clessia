@@ -28,6 +28,8 @@ import {
   type EnrollmentRange,
 } from '../lib/session-roster';
 import { getCampusScope, isCampusAllowed } from '../lib/campus-scope';
+import { classWriteScope } from '../lib/campus-write-guard';
+import { findInOrg } from '../lib/org-scope';
 import {
   applyAttendanceTakenFilter,
   ensureAttendanceSessionEvents,
@@ -1134,6 +1136,256 @@ app.openapi(listSessionsRoute, async (c) => {
   );
 });
 
+// ============================================================
+// POST /api/sessions —— 加開單堂（#1109）
+// ============================================================
+//
+// 唯一的另一條建課路徑是班級的「產生課堂」（照 schedules 批次產生，`schedule_id` 有值）。
+// 這裡建的課堂 `schedule_id = null`，並寫一筆 `creation` 流水（使用者裁「留歷程」）。
+//
+// **不是交易**，順序照 makeup（檔頭說明在 `PATCH /:id/makeup`）：
+//   ① 建 session → ② 寫流水 → 流水失敗就把剛建的 session 刪掉
+// 計畫席 10-03 裁：這是「第二個需要跨語句原子性的地方」，仍不引入 RPC ——
+// 補償刪的是一列剛建、還沒被任何東西引用的課堂。補償也失敗時查得出來：
+//   SELECT id FROM sessions s WHERE schedule_id IS NULL AND NOT EXISTS (
+//     SELECT 1 FROM schedule_changes sc WHERE sc.session_id = s.id AND sc.change_type = 'creation');
+// （#1109 之前的資料不會有 schedule_id 為 null 的課堂 —— 那時沒有這條路徑。）
+const CreateSessionBodySchema = z
+  .object({
+    classId: DbUuidSchema,
+    sessionDate: DateSchema,
+    startTime: TimeSchema,
+    endTime: TimeSchema,
+    /** 不帶或 null = 未指派 */
+    teacherId: DbUuidSchema.nullable().optional(),
+    reason: z.string().max(500).optional(),
+  })
+  .openapi('CreateSessionBody');
+
+const createSessionRoute = createRoute({
+  method: 'post',
+  path: '/',
+  tags: ['Sessions'],
+  summary: '加開單堂課',
+  request: {
+    body: { content: { 'application/json': { schema: CreateSessionBodySchema } } },
+  },
+  responses: {
+    201: {
+      description: '已建立',
+      content: {
+        'application/json': { schema: z.object({ data: SessionListItemSchema }) },
+      },
+    },
+    400: { description: '時段不合法', content: { 'application/json': { schema: ErrorSchema } } },
+    403: {
+      description: '沒有這個分校的權限',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    404: {
+      description: '班級或老師不存在',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    409: {
+      description: '班級已停用、或同班／老師同時段已有課堂',
+      content: { 'application/json': { schema: ErrorSchema } },
+    },
+    500: { description: '建立失敗', content: { 'application/json': { schema: ErrorSchema } } },
+  },
+});
+
+app.openapi(createSessionRoute, async (c) => {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const userId = c.get('userId');
+  const body = c.req.valid('json');
+  const teacherId = body.teacherId ?? null;
+  const startTime = normalizeTime(body.startTime);
+  const endTime = normalizeTime(body.endTime);
+
+  // body 帶 classId：全域 campusRequestGuard 只看 query，分校要自己驗
+  const scoped = await classWriteScope(supabase, orgId, getCampusScope(c), body.classId);
+  if (scoped === 'not-found') {
+    return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
+  }
+  if (scoped === 'out-of-scope') {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
+  if (teacherId && !(await findInOrg(supabase, 'staff', orgId, teacherId))) {
+    return c.json({ error: '老師不存在', code: 'TEACHER_NOT_FOUND' }, 404);
+  }
+  if (toMinutes(startTime) >= toMinutes(endTime)) {
+    return c.json({ error: '開始時間需早於結束時間', code: 'INVALID_TIME_RANGE' }, 400);
+  }
+
+  const cls = await findInOrg(supabase, 'classes', orgId, body.classId, 'id, is_active');
+  if (cls?.['is_active'] === false) {
+    return c.json({ error: '班級已停用', code: 'CLASS_INACTIVE' }, 409);
+  }
+
+  const [classSessionsResult, teacherSessionsResult] = await Promise.all([
+    supabase
+      .from('sessions')
+      .select('id, start_time, end_time')
+      .eq('org_id', orgId)
+      .eq('class_id', body.classId)
+      .eq('session_date', body.sessionDate)
+      .eq('status', 'scheduled'),
+    teacherId
+      ? supabase
+          .from('sessions')
+          .select('id, start_time, end_time')
+          .eq('org_id', orgId)
+          .eq('teacher_id', teacherId)
+          .eq('session_date', body.sessionDate)
+          .eq('status', 'scheduled')
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (classSessionsResult.error || teacherSessionsResult.error) {
+    const message = (classSessionsResult.error ?? teacherSessionsResult.error)?.message;
+    return c.json({ error: message ?? '查詢失敗', code: 'DB_ERROR' }, 500);
+  }
+  const overlaps = (rows: ReadonlyArray<{ start_time: string; end_time: string }> | null) =>
+    (rows ?? []).some((peer) =>
+      isTimeOverlap(
+        startTime,
+        endTime,
+        normalizeTime(peer.start_time),
+        normalizeTime(peer.end_time),
+      ),
+    );
+  if (overlaps(classSessionsResult.data)) {
+    return c.json({ error: '同班級於此時段已有課堂', code: 'CLASS_CONFLICT' }, 409);
+  }
+  if (overlaps(teacherSessionsResult.data)) {
+    return c.json({ error: '老師於此時段已有其他課堂', code: 'TEACHER_CONFLICT' }, 409);
+  }
+
+  // ① 建 session。唯一鍵 (class_id, session_date, start_time) 也會擋到停課的那堂 ——
+  // 上面只比 scheduled，所以撞鍵一樣回 CLASS_CONFLICT。
+  const { data: created, error: createError } = await supabase
+    .from('sessions')
+    .insert({
+      org_id: orgId,
+      class_id: body.classId,
+      schedule_id: null,
+      session_date: body.sessionDate,
+      start_time: startTime,
+      end_time: endTime,
+      teacher_id: teacherId,
+      assignment_status: teacherId ? 'assigned' : 'unassigned',
+      status: 'scheduled',
+      created_by: userId,
+    })
+    .select('id')
+    .single();
+  if (createError || !created) {
+    if (createError?.code === '23505') {
+      return c.json({ error: '同班級於此時段已有課堂', code: 'CLASS_CONFLICT' }, 409);
+    }
+    return c.json({ error: createError?.message ?? '建立失敗', code: 'DB_ERROR' }, 500);
+  }
+  const sessionId = (created as { id: string }).id;
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', userId)
+    .maybeSingle();
+
+  // ② 寫流水
+  const { error: logError } = await supabase.from('schedule_changes').insert({
+    org_id: orgId,
+    session_id: sessionId,
+    change_type: 'creation',
+    new_session_date: body.sessionDate,
+    new_start_time: startTime,
+    new_end_time: endTime,
+    reason: body.reason ?? null,
+    created_by_name: (profile as { display_name?: string } | null)?.display_name ?? null,
+    operation_source: 'single',
+  });
+  if (logError) {
+    // 補償：刪掉剛建的課堂，回到什麼都沒發生
+    const { error: revertError } = await supabase
+      .from('sessions')
+      .delete()
+      .eq('id', sessionId)
+      .eq('org_id', orgId);
+    console.error(
+      '[sessions/create] 流水寫入失敗' +
+        (revertError ? '，而且補償也失敗 —— 課堂有、流水沒有，用檔頭那支 SQL 查' : '，已補償'),
+    );
+    return c.json({ error: '加開課堂失敗', code: 'CREATE_LOG_FAILED' }, 500);
+  }
+
+  // 讀回列表的形狀（新課堂沒有 event、沒有點名，只差在籍人數要查）
+  const [{ data: row }, { data: enrollmentRows }] = await Promise.all([
+    supabase
+      .from('sessions')
+      .select(sessionListSelect(false))
+      .eq('org_id', orgId)
+      .eq('id', sessionId)
+      .single(),
+    supabase
+      .from('enrollments')
+      .select('class_id, effective_from, effective_to')
+      .eq('class_id', body.classId)
+      .eq('status', 'active')
+      .eq('org_id', orgId),
+  ]);
+  const enrollmentRanges: EnrollmentRange[] = (
+    (enrollmentRows ?? []) as Array<Record<string, unknown>>
+  ).map((r) => ({
+    classId: r['class_id'] as string,
+    effectiveFrom: r['effective_from'] as string,
+    effectiveTo: (r['effective_to'] as string | null) ?? null,
+  }));
+
+  const classRow = normalizeRelationRow(
+    (row as unknown as Record<string, unknown> | null)?.['classes'],
+  );
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'session',
+      resourceId: sessionId,
+      action: 'create_session',
+      resourceName: (classRow?.['name'] as string | undefined) ?? 'session',
+      details: {
+        classId: body.classId,
+        sessionDate: body.sessionDate,
+        startTime,
+        endTime,
+        teacherId,
+      },
+    },
+    waitUntilFrom(c),
+  );
+
+  return c.json(
+    {
+      data: mapSession(
+        row as unknown as Record<string, unknown>,
+        {
+          type: 'creation',
+          reason: body.reason ?? null,
+          originalTeacherName: null,
+          originalDate: null,
+          originalStartTime: null,
+          originalEndTime: null,
+          createdAt: new Date().toISOString(),
+        },
+        new Map(),
+        enrollmentRanges,
+      ),
+    },
+    201,
+  );
+});
+
 const SubstitutedAwayQuerySchema = z.object({
   teacherId: DbUuidSchema,
   from: z.string().date(),
@@ -1206,9 +1458,7 @@ app.openapi(getSubstitutedAwayRoute, async (c) => {
 const ChangeLogQuerySchema = z.object({
   from: z.string().date(),
   to: z.string().date(),
-  // **不含 `creation`** —— 它是合成的歷程項目，`schedule_changes` 裡沒有那種列，
-  // 拿它當查詢條件永遠回空。用 `SCHEDULE_CHANGE_TYPES`（DB enum）而不是
-  // `SESSION_HISTORY_TYPES`（多一個 `creation`）。
+  // `creation` 篩得到的只有加開的課堂（#1109）—— 批次產生的不寫列，它們的「建立」是合成的。
   changeType: z.enum(SCHEDULE_CHANGE_TYPES).optional(),
   campusId: DbUuidSchema.optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -1367,7 +1617,8 @@ app.openapi(getSessionChangesRoute, async (c) => {
   const creatorRow = normalizeRelationRow(sessionData['creator']);
   const sessionCreatedByName = (creatorRow?.['name'] as string | null | undefined) ?? null;
   const historyItems = (data ?? []).map((row) => mapSessionChange(row as Record<string, unknown>));
-  if (sessionCreatedAt) {
+  // 加開的課堂（#1109）有真的 creation 列，不再合成第二筆
+  if (sessionCreatedAt && !historyItems.some((item) => item.changeType === 'creation')) {
     historyItems.push(
       buildSessionCreationHistory({
         sessionId,

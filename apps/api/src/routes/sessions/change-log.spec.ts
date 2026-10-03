@@ -148,15 +148,13 @@ describe('SCHEDULE_CHANGE_TYPES 是唯一真相（#605）', () => {
   // 這份清單對齊 DB 的 `schedule_change_type` enum（2026-09-07 查 `pg_enum`）。
   // 釘住它是因為**加一個值以前要記得改六個地方**，而 `time_change` 在其中一份
   // 漏了將近半年、`makeup` 上線當天漏了四份。
-  it('含 makeup，且不含合成的 creation', () => {
+  it('含 makeup 與 creation（#1109 起 creation 是真的 enum 值）', () => {
     expect(SCHEDULE_CHANGE_TYPES).toContain('makeup');
-    expect(SCHEDULE_CHANGE_TYPES).not.toContain('creation');
+    expect(SCHEDULE_CHANGE_TYPES).toContain('creation');
   });
 
-  // `creation` 只存在於歷程回應，不能當查詢條件 —— 兩份清單的差別就是這一個值。
-  it('歷程類型 = DB 六種 + creation，正好多一個', () => {
-    expect(SESSION_HISTORY_TYPES).toContain('creation');
-    expect(SESSION_HISTORY_TYPES).toHaveLength(SCHEDULE_CHANGE_TYPES.length + 1);
+  it('歷程類型 = DB 類型（合成的 creation 跟真的同名，不再多一個）', () => {
+    expect(SESSION_HISTORY_TYPES).toEqual(SCHEDULE_CHANGE_TYPES);
   });
 
   it('每一種 DB 類型都有自己的摘要，不會落到 default 的「異動」', () => {

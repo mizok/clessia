@@ -3,7 +3,7 @@ title: 課堂行事曆（Admin Calendar）
 summary: 統一行事曆介面，管理員可瀏覽課堂並直接處理停課、代課、調課。
 category: spec
 status: active
-updated: 2026-02-24
+updated: 2026-10-03
 tags: [specs, admin, academic, calendar]
 ---
 
@@ -34,7 +34,9 @@ tags: [specs, admin, academic, calendar]
 
 ## API
 
-- `GET /api/sessions` — 查詢課堂列表
+- `GET /api/sessions` — 查詢課堂列表（每堂帶 `latestChange`：最新一筆異動摘要，#1194）
+- `POST /api/sessions` — 加開單堂（#1109）：`schedule_id` 為 null，寫一筆 `creation` 異動。
+  分校依班級驗（403）；同班或同老師時段重疊回 409。流水寫入失敗會刪掉剛建的課堂（不是交易，補償）
 - `GET /api/sessions/:id/changes` — 查詢單一課堂異動紀錄
 - `POST /api/sessions/:id/cancel` — 停課
 - `POST /api/sessions/:id/substitute` — 代課
