@@ -10,6 +10,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { addDays, endOfMonth, format, parseISO, startOfMonth, subMonths } from 'date-fns';
 import { PaginatorModule } from 'primeng/paginator';
 
@@ -96,7 +97,14 @@ function batchKey(e: ChangeLogEntry): string {
 
 @Component({
   selector: 'app-changes',
-  imports: [DatePipe, NgTemplateOutlet, RouterLink, PaginatorModule, SelectFieldComponent],
+  imports: [
+    DatePipe,
+    NgTemplateOutlet,
+    RouterLink,
+    PaginatorModule,
+    SelectFieldComponent,
+    PageOpenComponent,
+  ],
   templateUrl: './changes.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

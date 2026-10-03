@@ -1,21 +1,18 @@
-<div class="flex flex-col gap-5 p-4 lg:gap-6 lg:p-6">
-  <!-- 開場：A6 放在殼的橘色色面裡；P1 先住舊殼，所以放在頁首（殼切片時搬家） -->
-  <header>
-    <h1
-      class="m-0 max-w-[18em] text-[28px] leading-tight font-bold tracking-[-0.03em] text-zinc-900 lg:text-[40px]"
-    >
-      @if (monthTotal() === null) {
-        {{ page().label }}
-      } @else if (monthTotal() === 0) {
-        {{ monthNumber() }} 月沒有異動。
-      } @else {
-        {{ monthNumber() }} 月 {{ monthTotal() }} 則異動，<br />停課
-        {{ monthCancelled() ?? '—' }} 堂。
-      }
-    </h1>
-    <p class="mt-2 mb-0 text-md text-zinc-700">調課、代課、停課的完整紀錄。要改課堂，到課表。</p>
-  </header>
+<app-page-open>
+  <ng-container openTitle>
+    @if (monthTotal() === null) {
+      {{ page().label }}
+    } @else if (monthTotal() === 0) {
+      {{ monthNumber() }} 月沒有異動。
+    } @else {
+      {{ monthNumber() }} 月 {{ monthTotal() }} 則異動，<br />停課
+      {{ monthCancelled() ?? '—' }} 堂。
+    }
+  </ng-container>
+  <ng-container openSub>調課、代課、停課的完整紀錄。要改課堂，到課表。</ng-container>
+</app-page-open>
 
+<div class="page-wrap flex flex-col gap-5 pt-5 pb-28 lg:gap-6 lg:pt-8 wide:pb-32">
   <section
     class="flex flex-col gap-3 rounded-lg bg-zinc-100 p-4 lg:flex-row lg:items-end lg:gap-4"
     role="search"

@@ -1,0 +1,24 @@
+<section
+  class="relative isolate overflow-hidden bg-accent-vivid bg-linear-150 from-accent-vivid to-accent-vivid-2 text-band-ink"
+  aria-label="這一頁的摘要"
+>
+  <app-flow-field [density]="0.75" [speed]="0.5" />
+  <!-- 字在左、線在右：字的地方線淡（A6 .open::after）；手機字滿版，改成上濃下淡 -->
+  <div
+    class="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(255_106_61/86%)_0%,rgb(255_106_61/66%)_64%,rgb(255_133_87/40%)_100%)] wide:bg-[linear-gradient(100deg,rgb(255_106_61/94%)_0%,rgb(255_106_61/84%)_34%,rgb(255_106_61/18%)_62%,rgb(255_106_61/0%)_80%)]"
+    aria-hidden="true"
+  ></div>
+  <div class="page-wrap relative py-6 wide:pt-12 wide:pb-10">
+    <h1
+      class="m-0 max-w-[18em] text-[28px] leading-[1.2] font-bold tracking-[-0.03em] text-balance wide:text-[48px] wide:leading-[1.14] wide:tracking-[-0.035em]"
+    >
+      <ng-content select="[openTitle]" />
+    </h1>
+    <p
+      class="mt-3 mb-0 max-w-[46em] text-base font-medium text-band-ink-muted empty:hidden wide:text-lg"
+    >
+      <ng-content select="[openSub]" />
+    </p>
+    <ng-content />
+  </div>
+</section>
