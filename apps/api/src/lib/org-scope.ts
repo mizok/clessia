@@ -25,6 +25,7 @@ export type OrgTable =
   | 'contact_book_entries'
   | 'courses'
   | 'daily_checkins'
+  | 'enrollment_requests'
   | 'enrollments'
   | 'events'
   | 'fee_templates'
