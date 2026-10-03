@@ -274,12 +274,29 @@ event」的同一機制），座標由這一席查證。
 set -a; . /Users/<user>/Desktop/Workspace/clessia/apps/api/.dev.vars; set +a
 ```
 
-**Stop hook 的 harness gate 需要 `pg`，而 worktree 預設沒裝依賴。**
-不需要 root 的 `npm ci`（`tsx` 從主 checkout 撿得到），**只要**：
+**Stop hook 的 harness gate 需要依賴，而 worktree 預設什麼都沒裝。兩層都要裝**：
 
 ```sh
-npm ci --prefix apps/api
+npm ci                      # root —— harness 的 tailwind gate 需要
+npm ci --prefix apps/api    # api  —— harness 的 api-param-probe 需要 pg
 ```
+
+> **這一條原本寫「不需要 root 的 `npm ci`，只要 `--prefix apps/api`」，而它在 2026-10-03 過期了。**
+> 當時（09-13）harness 只缺 `pg`，`tsx` 從主 checkout 的 `node_modules` 撿得到就夠。
+> **#1078 加的 Tailwind class gate（`tools/agent-harness/lib/tailwind-classes.mjs`）
+> 直接 import `@tailwindcss/node`**，那個套件只在 root 層，於是只裝 api 的 worktree 會紅：
+>
+> ```
+> Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@tailwindcss/node'
+> ```
+>
+> **這類紅燈的成因跟你的改動無關，而訊息長得像「環境壞了」** —— 看到 `ERR_MODULE_NOT_FOUND`
+> 先問「harness 是不是又多了一個我沒裝的層」，不要去追自己改過什麼。
+>
+> ⚠️ **`@tailwindcss/node` 當時並沒有被 `package.json` 宣告**（只有 `@tailwindcss/postcss`），
+> 它靠 npm 扁平化的傳遞依賴活著 —— 已開 #1171 補宣告。
+> **一般化：harness 的依賴清單會長，而這一節是手抄的** —— 下次紅在別的套件上，
+> 補一行進上面那個區塊，不要只在自己的 session 裡裝完就算了。
 
 **要跑別席分支上的 seed 時用 `--detach`，不要 `git checkout <分支>`** ——
 那支分支正 checkout 在對方的 worktree 上，同一個 ref 兩個 worktree 佔不了：
