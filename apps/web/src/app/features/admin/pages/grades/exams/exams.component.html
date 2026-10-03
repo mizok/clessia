@@ -1,296 +1,370 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<div class="exams">
-  <!-- Page Header -->
-  <header class="exams__header">
-    <div class="exams__title-group">
-      <h1 class="exams__title">{{ page()?.label ?? '考試管理' }}</h1>
-      <p class="exams__subtitle">管理補習班考試與學校考試，統一查看狀態、進入成績登錄</p>
-    </div>
-    <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateMenu($event)">
-      <app-popup-menu #createExamMenu [model]="createMenuItems" />
-    </app-page-actions>
-  </header>
-
-  <!-- Main Card -->
-  <div class="exams__card">
-    <!-- Todo reminders (clickable KPIs, per-tab) -->
-    @if (academyTodoCount() > 0 || schoolTodoCount() > 0) {
-      <div class="exams__todo-list">
-        <!--
-          academy 拆兩級（#457）：一筆都沒有 = 高，登到一半 = 低。
-          不合併成一級的理由是告警量會上升（「登到一半」原本完全看不到），
-          一級化會把原本最急的那類稀釋進去。
-          school 只有一條 —— 它沒有分母，所以沒有「登到一半」這個概念。
-        -->
-        <app-todo-banner
-          [count]="academyTodoNone()"
-          [active]="examType() === 'academy' && statusFilter() === 'todo-none'"
-          (action)="onTodoBannerClick('academy', 'none')"
-        >
-          有 <strong>{{ academyTodoNone() }}</strong> 場 <strong>進行中</strong>的補習班考試<strong
-            >一筆成績都還沒登錄</strong
-          >
-        </app-todo-banner>
-        <app-todo-banner
-          tone="low"
-          icon="pi-pencil"
-          [count]="academyTodoPartial()"
-          [active]="examType() === 'academy' && statusFilter() === 'todo-partial'"
-          (action)="onTodoBannerClick('academy', 'partial')"
-        >
-          有 <strong>{{ academyTodoPartial() }}</strong> 場補習班考試<strong>登到一半</strong>
-        </app-todo-banner>
-        <app-todo-banner
-          [count]="schoolTodoCount()"
-          [active]="examType() === 'school' && statusFilter() === 'todo'"
-          (action)="onTodoBannerClick('school')"
-        >
-          有 <strong>{{ schoolTodoCount() }}</strong> 場
-          <strong>進行中</strong>的學校考試尚未登錄成績
-        </app-todo-banner>
-      </div>
+<!--
+  A6 版（#991 grades G1）：色面 → 灰工具列（待處理／全部、考試型態、新增考試；篩選列）→ 待登錄灰列 → 考試列。
+  換版不換資料（計畫席裁 #991 grades Q1–Q7）：不分章、伺服器分頁照舊（Q5）；「待處理／全部」只是 statusFilter 的
+  預設值；學校考試的提醒照留（A6 只畫了補習班考試）；結束考試／重新開啟照舊（Q1）；分校在頂欄（#1138）。
+-->
+<app-page-open>
+  <ng-container openTitle>
+    @if (examType() === 'academy') {
+      @if (academyTodoCount() > 0) {
+        {{ academyTodoNone() }} 場還沒開始登成績，<br />{{ academyTodoPartial() }} 場登到一半。
+      } @else {
+        補習班考試的成績都登完了。
+      }
+    } @else {
+      @if (schoolTodoCount() > 0) {
+        {{ schoolTodoCount() }} 場學校考試還沒登成績。
+      } @else {
+        學校考試的成績都登完了。
+      }
     }
+  </ng-container>
+</app-page-open>
 
-    <!-- Mobile toolbar: search + filter button -->
-    <div class="exams__mobile-toolbar">
-      <div class="exams__search">
-        <i class="pi pi-search exams__search-icon"></i>
+<div class="bg-zinc-100">
+  <div class="page-wrap flex flex-col gap-3 py-3">
+    <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+      <nav class="flex items-center gap-4" aria-label="考試">
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-2 bg-transparent px-0 text-base font-semibold text-zinc-900"
+          [class.border-zinc-900]="tab() === 'pending'"
+          [class.border-transparent]="tab() !== 'pending'"
+          [attr.aria-current]="tab() === 'pending' ? 'true' : null"
+          (click)="setTab('pending')"
+        >
+          待處理
+          <span class="text-sm font-normal text-zinc-600 tabular-nums">{{ todoCount() }}</span>
+        </button>
+        <button
+          type="button"
+          class="inline-flex min-h-11 cursor-pointer items-center gap-1 border-0 border-b-2 bg-transparent px-0 text-base font-semibold text-zinc-900"
+          [class.border-zinc-900]="tab() === 'all'"
+          [class.border-transparent]="tab() !== 'all'"
+          [attr.aria-current]="tab() === 'all' ? 'true' : null"
+          (click)="setTab('all')"
+        >
+          全部
+        </button>
+      </nav>
+
+      <span class="inline-flex rounded-md bg-zinc-200 p-0.5" role="group" aria-label="考試型態">
+        @for (opt of examTypeOptions; track opt.value) {
+          <button
+            type="button"
+            class="min-h-11 cursor-pointer rounded-sm border-0 bg-transparent px-3 text-md font-semibold text-zinc-700 aria-pressed:bg-white aria-pressed:text-zinc-900 aria-pressed:shadow-sm"
+            [attr.aria-pressed]="examType() === opt.value"
+            (click)="onExamTypeChange(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        }
+      </span>
+
+      <div class="ml-auto">
+        <app-page-actions [primary]="primaryAction" (primaryClick)="openCreateMenu($event)">
+          <app-popup-menu #createExamMenu [model]="createMenuItems" />
+        </app-page-actions>
+      </div>
+    </div>
+
+    <!-- 手機：搜尋＋「篩選」（其餘條件收進 exams-filter-dialog） -->
+    <div class="flex items-end gap-2 wide:hidden" role="search" aria-label="篩選考試">
+      <label class="flex min-w-0 flex-1 flex-col gap-1">
+        <span class="text-sm font-semibold text-zinc-700">考試名稱</span>
         <input
+          type="search"
           pInputText
-          type="text"
+          class="h-11 w-full"
+          placeholder="搜尋考試名稱"
           [ngModel]="searchText()"
           (ngModelChange)="onSearchChange($event)"
-          placeholder="搜尋考試名稱..."
-          class="exams__search-input"
         />
-      </div>
-      <p-button
-        [label]="filterBadge()"
-        icon="pi pi-filter"
-        [outlined]="true"
-        severity="secondary"
-        size="small"
-        (onClick)="openFilterDialog()"
-      />
+      </label>
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+        (click)="openFilterDialog()"
+      >
+        <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
+        {{ filterBadge() }}
+      </button>
     </div>
 
-    <!-- Desktop toolbar -->
-    <div class="exams__toolbar clessia-filter-bar">
-      <div class="exams__toolbar-top">
-        <div class="exams__search">
-          <i class="pi pi-search exams__search-icon"></i>
-          <input
-            pInputText
-            type="text"
-            [ngModel]="searchText()"
-            (ngModelChange)="onSearchChange($event)"
-            placeholder="搜尋考試名稱..."
-            class="exams__search-input"
-          />
-        </div>
-        <p-selectbutton
+    <!-- 桌機：A6 .ff 一列篩選 -->
+    <div class="hidden gap-3 wide:flex wide:items-end" role="search" aria-label="篩選考試">
+      <label class="flex min-w-0 flex-[2] flex-col gap-1">
+        <span class="text-sm font-semibold text-zinc-700">考試名稱</span>
+        <input
+          type="search"
+          pInputText
+          class="h-11 w-full"
+          placeholder="搜尋考試名稱"
+          [ngModel]="searchText()"
+          (ngModelChange)="onSearchChange($event)"
+        />
+      </label>
+      <div class="flex min-w-0 flex-1 flex-col gap-1">
+        <span class="text-sm font-semibold text-zinc-700" id="exams-f-period">期間</span>
+        <p-select
           [options]="timeRangeOptions"
           [ngModel]="timeRange()"
           (ngModelChange)="onTimeRangeChange($event)"
           optionLabel="label"
           optionValue="value"
-          [allowEmpty]="false"
-          size="small"
+          ariaLabelledBy="exams-f-period"
+          styleClass="w-full"
         />
       </div>
-
-      <div class="exams__toolbar-bottom">
-        <p-selectbutton
-          [options]="examTypeOptions"
-          [ngModel]="examType()"
-          (ngModelChange)="onExamTypeChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          [allowEmpty]="false"
-          size="small"
-          styleClass="exams__type-select"
-        />
-
-        @if (examType() === 'school') {
+      @if (examType() === 'school') {
+        <div class="flex min-w-0 flex-1 flex-col gap-1">
+          <span class="text-sm font-semibold text-zinc-700" id="exams-f-school">學校</span>
           <p-select
             [options]="schoolOptions()"
             [ngModel]="schoolId()"
             (ngModelChange)="onSchoolChange($event)"
             optionLabel="label"
             optionValue="value"
-            size="small"
             placeholder="全部學校"
             [showClear]="true"
-            styleClass="clessia-filter-control"
+            ariaLabelledBy="exams-f-school"
+            styleClass="w-full"
           />
-        }
-
+        </div>
+      }
+      <div class="flex min-w-0 flex-1 flex-col gap-1">
+        <span class="text-sm font-semibold text-zinc-700" id="exams-f-subject">科目</span>
         <p-select
           [options]="subjectOptions()"
           [ngModel]="subjectId()"
           (ngModelChange)="onSubjectChange($event)"
           optionLabel="label"
           optionValue="value"
-          size="small"
           placeholder="全部科目"
           [showClear]="true"
-          styleClass="clessia-filter-control"
-        />
-
-        <p-select
-          [options]="statusOptions()"
-          [ngModel]="statusFilter()"
-          (ngModelChange)="onStatusChange($event)"
-          optionLabel="label"
-          optionValue="value"
-          size="small"
-          placeholder="全部狀態"
-          styleClass="clessia-filter-control"
+          ariaLabelledBy="exams-f-subject"
+          styleClass="w-full"
         />
       </div>
-    </div>
-
-    <!-- Result Count -->
-    @if (!loading() && hasActiveFilters()) {
-      <div class="exams__result-bar">
-        <span class="exams__result-count">
-          找到 <strong>{{ totalRows() }}</strong> 筆結果
-        </span>
-        <button type="button" class="exams__clear-filters" (click)="clearFilters()">
-          <i class="pi pi-filter-slash"></i>
-          清除篩選
-        </button>
-      </div>
-    }
-
-    <!-- Content -->
-    <div class="exams__content">
-      @if (loading()) {
-        <div class="skeleton-list">
-          @for (i of [1, 2, 3, 4, 5]; track i) {
-            <span class="skeleton-bar"></span>
-          }
+      @if (tab() === 'all') {
+        <div class="flex min-w-0 flex-1 flex-col gap-1">
+          <span class="text-sm font-semibold text-zinc-700" id="exams-f-status">狀態</span>
+          <p-select
+            [options]="statusOptions()"
+            [ngModel]="statusFilter()"
+            (ngModelChange)="onStatusChange($event)"
+            optionLabel="label"
+            optionValue="value"
+            ariaLabelledBy="exams-f-status"
+            styleClass="w-full"
+          />
         </div>
-      } @else if (loadFailed()) {
-        <app-load-failed
-          description="沒有讀到考試資料，可能是連線問題"
-          (retry)="reloadListAndCounts()"
-        />
-      } @else if (currentRows().length === 0) {
-        @if (hasActiveFilters()) {
-          <app-empty-state
-            icon="pi pi-filter-slash"
-            title="無符合條件的結果"
-            campusScoped
-            description="請調整篩選條件，或清除篩選後查看全部考試"
-          >
-            <button type="button" class="exams__clear-filters" (click)="clearFilters()">
-              <i class="pi pi-filter-slash"></i>
-              清除篩選
-            </button>
-          </app-empty-state>
-        } @else {
-          <app-empty-state
-            icon="pi pi-inbox"
-            title="尚無考試資料"
-            campusScoped
-            description="點選「新增考試」建立補習班考試或學校考試"
-          >
-            <p-button label="新增考試" icon="pi pi-plus" (onClick)="openCreateMenu($event)" />
-          </app-empty-state>
-        }
-      } @else {
-        <app-popup-menu #actionMenu [model]="actionMenuItems()" />
-
-        <app-responsive-table
-          [headTemplate]="headTpl"
-          [bodyTemplate]="bodyTpl"
-          [pagination]="pagination()"
-          (page)="onPage($event)"
-        />
-
-        <ng-template #headTpl>
-          <tr>
-            <th appRtColDef="name" [appRtColDefMinWidth]="200" [appRtColDefPriority]="1">
-              考試名稱
-            </th>
-            <th appRtColDef="kind" [appRtColDefMinWidth]="120" [appRtColDefPriority]="2">類型</th>
-            <th appRtColDef="date" [appRtColDefMinWidth]="120" [appRtColDefPriority]="3">日期</th>
-            <th appRtColDef="scope" [appRtColDefMinWidth]="160" [appRtColDefPriority]="4">範圍</th>
-            <th appRtColDef="score" [appRtColDefMinWidth]="100" [appRtColDefPriority]="5">
-              已登錄
-            </th>
-            <th appRtColDef="status" [appRtColDefMinWidth]="100" [appRtColDefPriority]="6">狀態</th>
-            <th
-              appRtColDef="actions"
-              [appRtColDefMinWidth]="56"
-              [appRtColDefPriority]="0"
-              [appRtColDefCollapsible]="false"
-              aria-hidden="true"
-            ></th>
-          </tr>
-        </ng-template>
-
-        <ng-template #bodyTpl>
-          @for (row of currentRows(); track row.kind + '-' + row.id) {
-            <tr appRtRow [appRtRow]="row" [appRtRowId]="row.kind + '-' + row.id" class="exams__row">
-              <td appRtColCell="name">
-                <button type="button" class="exams__name-link" (click)="onRowNameClick(row)">
-                  {{ getSchoolDisplayName(row) }}
-                </button>
-                @if (row.kind === 'academy') {
-                  <div class="exams__name-meta">
-                    {{ getAcademyTypeLabel(row.examType) }}
-                    @if (getCampusName(row)) {
-                      ・{{ getCampusName(row) }}
-                    }
-                    @if (getSubjectName(row)) {
-                      ・{{ getSubjectName(row) }}
-                    }
-                  </div>
-                }
-              </td>
-              <td appRtColCell="kind">
-                <app-data-chip>{{ getKindLabel(row.kind) }}</app-data-chip>
-              </td>
-              <td appRtColCell="date">
-                <span class="exams__date">{{ formatDate(row.examDate) }}</span>
-              </td>
-              <td appRtColCell="scope">
-                <span class="exams__scope">{{ row.scope }}</span>
-              </td>
-              <td appRtColCell="score">
-                <!--
-                  academy 有分母就顯示分母；school **沒有**，所以刻意不寫成裸數字
-                  （#457）：`12` 擺在 `12 / 20` 旁邊會被讀成「這場只有 12 個人要考」。
-                  讓「沒有分母」看起來像沒有分母，而不是像分母剛好等於分子。
-                -->
-                @if (row.kind === 'academy') {
-                  <span class="exams__score">{{ row.scoreCount }} / {{ row.expectedCount }}</span>
-                } @else {
-                  <span class="exams__score">{{ row.scoreCount }} 筆</span>
-                }
-              </td>
-              <td appRtColCell="status">
-                <app-status-dot [tone]="statusTone(row.status)">{{
-                  getStatusLabel(row.status)
-                }}</app-status-dot>
-              </td>
-              <td class="responsive-table__cell exams__actions-cell">
-                <p-button
-                  icon="pi pi-ellipsis-v"
-                  [rounded]="true"
-                  [text]="true"
-                  severity="secondary"
-                  [ariaLabel]="getSchoolDisplayName(row) + ' 的操作'"
-                  (onClick)="openActionMenu($event, row)"
-                />
-              </td>
-            </tr>
-          }
-        </ng-template>
       }
     </div>
   </div>
+</div>
+
+<div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
+  <!--
+    待登錄灰列（A6 .todo）。academy 拆兩級（#457）：一筆都沒有 = 高，登到一半 = 低 ——
+    不合併成一級，否則「登到一半」會被稀釋掉。school 只有一條：它沒有分母，沒有「登到一半」。
+  -->
+  @if (examType() === 'academy' && academyTodoCount() > 0) {
+    <div
+      class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 py-2 pr-2 pl-4 text-base"
+    >
+      <p class="m-0">
+        <i class="pi pi-exclamation-circle mr-1 text-sm" aria-hidden="true"></i>
+        <b>{{ academyTodoNone() }} 場</b>進行中的考試一筆成績都還沒登錄 ·
+        <b>{{ academyTodoPartial() }} 場</b>登到一半
+      </p>
+      <div class="ml-auto flex flex-wrap gap-2">
+        @if (statusFilter() === 'todo-none') {
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400"
+            (click)="setTab('pending')"
+          >
+            顯示全部待處理
+          </button>
+        } @else {
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400"
+            (click)="onTodoBannerClick('academy', 'none')"
+          >
+            只看還沒登的
+          </button>
+        }
+        @if (statusFilter() !== 'todo-partial') {
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400"
+            (click)="onTodoBannerClick('academy', 'partial')"
+          >
+            只看登到一半的
+          </button>
+        }
+      </div>
+    </div>
+  }
+  @if (examType() === 'school' && schoolTodoCount() > 0) {
+    <div
+      class="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-zinc-100 py-2 pr-2 pl-4 text-base"
+    >
+      <p class="m-0">
+        <i class="pi pi-exclamation-circle mr-1 text-sm" aria-hidden="true"></i>
+        <b>{{ schoolTodoCount() }} 場</b>進行中的學校考試還沒登錄成績
+      </p>
+      @if (statusFilter() !== 'todo') {
+        <button
+          type="button"
+          class="ml-auto inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400"
+          (click)="onTodoBannerClick('school')"
+        >
+          只看這幾場
+        </button>
+      }
+    </div>
+  }
+
+  @if (!loading() && hasActiveFilters()) {
+    <p class="m-0 mb-2 text-md text-zinc-600">
+      {{ totalRows() }} 場符合 ·
+      <button
+        type="button"
+        class="min-h-11 cursor-pointer border-0 bg-transparent p-0 font-semibold text-zinc-900 underline underline-offset-[3px]"
+        (click)="clearFilters()"
+      >
+        清除篩選
+      </button>
+    </p>
+  }
+
+  @if (loading()) {
+    <div class="skeleton-list" aria-label="考試載入中">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
+  } @else if (loadFailed()) {
+    <app-load-failed
+      description="沒有讀到考試資料，可能是連線問題"
+      (retry)="reloadListAndCounts()"
+    />
+  } @else if (currentRows().length === 0) {
+    @if (hasActiveFilters()) {
+      <app-empty-state
+        icon="pi pi-filter-slash"
+        title="無符合條件的結果"
+        campusScoped
+        description="請調整篩選條件，或清除篩選後查看全部考試"
+      >
+        <p-button
+          label="清除篩選"
+          icon="pi pi-filter-slash"
+          [outlined]="true"
+          severity="secondary"
+          (onClick)="clearFilters()"
+        />
+      </app-empty-state>
+    } @else {
+      <app-empty-state
+        icon="pi pi-inbox"
+        title="尚無考試資料"
+        campusScoped
+        description="點選「新增考試」建立補習班考試或學校考試"
+      >
+        <p-button label="新增考試" icon="pi pi-plus" (onClick)="openCreateMenu($event)" />
+      </app-empty-state>
+    }
+  } @else {
+    <app-popup-menu #actionMenu [model]="actionMenuItems()" />
+
+    <ul class="m-0 list-none border-t border-zinc-900 p-0" aria-label="考試">
+      @for (row of currentRows(); track row.kind + '-' + row.id) {
+        <li
+          class="grid min-h-18 grid-cols-[minmax(0,1fr)_44px] items-center gap-x-3 gap-y-2 border-b border-surface-border py-3 wide:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)_44px] wide:gap-x-6"
+        >
+          <div class="col-start-1 row-start-1 min-w-0">
+            <button
+              type="button"
+              class="min-h-11 cursor-pointer border-0 bg-transparent p-0 text-left text-lg font-bold hover:underline hover:underline-offset-[3px]"
+              [class.text-zinc-900]="row.status !== 'closed'"
+              [class.text-zinc-700]="row.status === 'closed'"
+              (click)="onRowNameClick(row)"
+            >
+              {{ getSchoolDisplayName(row) }}
+            </button>
+            <span class="block text-sm text-zinc-600">
+              @if (row.kind === 'academy') {
+                {{ getAcademyTypeLabel(row.examType) }}
+              } @else {
+                學校考試
+              }
+              · {{ getStatusLabel(row.status) }}
+            </span>
+          </div>
+
+          <div class="col-start-1 min-w-0 text-md text-zinc-800 wide:col-start-2 wide:row-start-1">
+            {{ row.scope }}
+            <small class="mt-0.5 block text-sm text-zinc-600 tabular-nums">
+              @if (getCampusName(row); as campus) {
+                {{ campus }} ·
+              }
+              @if (getSubjectName(row); as subject) {
+                {{ subject }} ·
+              }
+              {{ formatDate(row.examDate) }}
+            </small>
+          </div>
+
+          <!--
+            academy 有分母就顯示分母；school **沒有**，所以刻意不寫成裸數字、也不畫進度條（#457）：
+            `12` 擺在 `12／20` 旁邊會被讀成「這場只有 12 個人要考」。
+          -->
+          <div class="col-start-1 grid gap-1.5 wide:col-start-3 wide:row-start-1">
+            @if (row.kind === 'academy') {
+              <span class="text-md tabular-nums"
+                ><b>{{ row.scoreCount }}</b
+                >／{{ row.expectedCount }} 已登錄</span
+              >
+              <span class="block h-1 overflow-hidden rounded-[2px] bg-zinc-200" aria-hidden="true">
+                <span
+                  class="block h-full"
+                  [class.bg-zinc-900]="row.status !== 'closed'"
+                  [class.bg-zinc-400]="row.status === 'closed'"
+                  [style.width.%]="progressPct(row)"
+                ></span>
+              </span>
+            } @else {
+              <span class="text-md tabular-nums"
+                ><b>{{ row.scoreCount }}</b> 筆</span
+              >
+            }
+          </div>
+
+          <button
+            type="button"
+            class="col-start-2 row-start-1 inline-grid size-11 cursor-pointer place-items-center rounded-md border-0 bg-transparent text-zinc-800 hover:bg-zinc-100 wide:col-start-4"
+            [attr.aria-label]="getSchoolDisplayName(row) + ' 的操作'"
+            (click)="openActionMenu($event, row)"
+          >
+            <i class="pi pi-ellipsis-v" aria-hidden="true"></i>
+          </button>
+        </li>
+      }
+    </ul>
+
+    @if (totalRows() > PAGE_SIZE) {
+      <p-paginator
+        [first]="(currentPage() - 1) * PAGE_SIZE"
+        [rows]="PAGE_SIZE"
+        [totalRecords]="totalRows()"
+        (onPageChange)="onPage({ page: $event.page ?? 0 })"
+      />
+    }
+  }
 </div>

@@ -6,24 +6,29 @@
         isEditing() ? '編輯學校考試' : '新增學校考試'
       }}</span>
     </div>
-    <button type="button" class="dialog-header-inline__close" (click)="cancel()" aria-label="Close">
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="cancel()"
+      aria-label="關閉"
+    >
       <i class="pi pi-times"></i>
     </button>
   </div>
 
   @if (isInitialLoading()) {
-    <div class="school-exam-form-dialog__loading">
+    <div class="flex items-center justify-center gap-2 p-8 text-sm text-zinc-500">
       <i class="pi pi-spinner pi-spin"></i>
       <span>載入中...</span>
     </div>
   } @else if (hasNoSchools()) {
-    <div class="school-exam-form-dialog__empty">
-      <i class="pi pi-building school-exam-form-dialog__empty-icon"></i>
-      <h3 class="school-exam-form-dialog__empty-title">尚未建立任何學校</h3>
-      <p class="school-exam-form-dialog__empty-desc">
+    <div class="flex flex-col items-center gap-3 px-4 py-6 text-center">
+      <i class="pi pi-building text-[2.5rem] text-zinc-400"></i>
+      <h3 class="m-0 text-lg font-semibold text-zinc-800">尚未建立任何學校</h3>
+      <p class="m-0 max-w-[28rem] text-sm leading-normal text-zinc-500">
         學校考試需要綁定一所學校。請先到「學校管理」建立學校後，再回來新增學校考試。
       </p>
-      <div class="school-exam-form-dialog__empty-actions">
+      <div class="mt-2 flex justify-center gap-2">
         <p-button label="取消" [text]="true" severity="secondary" (onClick)="cancel()" />
         <p-button
           label="前往學校管理"
@@ -35,13 +40,17 @@
     </div>
   } @else {
     @if (isClosed()) {
-      <div class="school-exam-form-dialog__hint school-exam-form-dialog__hint--warn">
-        <i class="pi pi-lock"></i>
+      <div
+        class="flex items-start gap-2 rounded-md px-4 py-3 mb-4 text-sm leading-normal bg-warning-100 text-warning-600"
+      >
+        <i class="pi pi-lock text-md shrink-0 mt-0.5"></i>
         此學校考試已結束，欄位無法修改；如需調整請先重新開啟。
       </div>
     } @else if (hasScores()) {
-      <div class="school-exam-form-dialog__hint">
-        <i class="pi pi-info-circle"></i>
+      <div
+        class="flex items-start gap-2 rounded-md px-4 py-3 mb-4 text-sm leading-normal bg-accent-50 text-accent-700"
+      >
+        <i class="pi pi-info-circle text-md shrink-0 mt-0.5"></i>
         已有成績登錄，學年／學期／考試類型／學校將鎖定以避免資料不一致。
       </div>
     }
@@ -76,7 +85,7 @@
           [useGrouping]="false"
           styleClass="w-full"
         />
-        <span class="school-exam-form-dialog__hint-text">以民國年表示，例如 114</span>
+        <span class="mt-1 block text-xs text-zinc-500">以民國年表示，例如 114</span>
       </div>
 
       <!-- Semester -->
@@ -133,7 +142,7 @@
           class="w-full"
         />
         @if (showNameRequiredError()) {
-          <span class="school-exam-form-dialog__error-text">「其他」類型需填寫考試名稱</span>
+          <span class="mt-1 block text-xs text-error-600">「其他」類型需填寫考試名稱</span>
         }
       </div>
 
@@ -148,7 +157,7 @@
           [showIcon]="true"
           styleClass="w-full"
         />
-        <span class="school-exam-form-dialog__hint-text">若日期尚未確定可稍後再補</span>
+        <span class="mt-1 block text-xs text-zinc-500">若日期尚未確定可稍後再補</span>
       </div>
 
       <!-- Footer -->

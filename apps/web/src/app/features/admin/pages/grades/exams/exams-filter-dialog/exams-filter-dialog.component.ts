@@ -45,7 +45,6 @@ export interface ExamsFilterDialogResult {
   standalone: true,
   imports: [FormsModule, ButtonModule, SelectModule, SelectButtonModule],
   templateUrl: './exams-filter-dialog.component.html',
-  styleUrl: './exams-filter-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExamsFilterDialogComponent {

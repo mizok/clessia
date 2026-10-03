@@ -63,7 +63,6 @@ interface FormData {
     DatePickerModule,
   ],
   templateUrl: './academy-exam-form-dialog.component.html',
-  styleUrl: './academy-exam-form-dialog.component.scss',
 })
 export class AcademyExamFormDialogComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
