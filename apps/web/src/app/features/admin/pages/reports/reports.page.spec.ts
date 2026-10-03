@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
@@ -7,6 +8,7 @@ import {
   type RevenueQueryParams,
   type RevenueResponse,
 } from '@core/reports.service';
+import { CampusContextService } from '@core/campus-context.service';
 import { ReferenceDataService } from '@core/reference-data.service';
 import { CoursesService } from '@core/courses.service';
 
@@ -40,11 +42,13 @@ describe('ReportsPage', () => {
     list: vi.fn(() => of({ data: [], meta: {} })),
   };
   const refData = {
-    campuses: () => [],
+    campuses: signal<unknown[]>([]),
     loadCampuses: vi.fn(),
   };
 
   beforeEach(async () => {
+    // 頂欄分校記在 localStorage —— 不清的話上一條選的分校會漏到下一條
+    localStorage.removeItem('clessia.campusContext');
     reports.revenue.mockReset().mockReturnValue(of(response()));
     courses.list.mockReset().mockReturnValue(of({ data: [], meta: {} }));
 
@@ -103,25 +107,28 @@ describe('ReportsPage', () => {
       expect(reports.revenue).not.toHaveBeenCalled();
     });
 
-    it('選分校會帶 campusId', () => {
+    it('分校跟頂欄走：頂欄換分校會帶 campusId 重打（#1138）', () => {
       reports.revenue.mockClear();
 
-      component['onCampusChange']('campus-1');
+      TestBed.inject(CampusContextService).select('campus-1');
+      fixture.detectChanges();
 
+      expect(reports.revenue).toHaveBeenCalledTimes(1);
       expect(reports.revenue).toHaveBeenCalledWith(
         expect.objectContaining({ campusId: 'campus-1' }),
       );
     });
 
-    it('清除篩選會同時清掉分校與課程', () => {
-      component['onCampusChange']('campus-1');
+    it('清除篩選只清課程，分校歸頂欄', () => {
+      TestBed.inject(CampusContextService).select('campus-1');
+      fixture.detectChanges();
       component['onCourseChange']('course-1');
       reports.revenue.mockClear();
 
       component['clearFilters']();
 
       expect(reports.revenue).toHaveBeenCalledWith(
-        expect.objectContaining({ campusId: undefined, courseId: undefined }),
+        expect.objectContaining({ campusId: 'campus-1', courseId: undefined }),
       );
     });
 

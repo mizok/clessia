@@ -1,7 +1,9 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { format } from 'date-fns';
+import { skip } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
@@ -19,7 +21,7 @@ import {
   type RevenueGroup,
   type RevenueGroupBy,
 } from '@core/reports.service';
-import { ReferenceDataService } from '@core/reference-data.service';
+import { CampusContextService } from '@core/campus-context.service';
 import { CoursesService, type Course } from '@core/courses.service';
 import { SystemClockService } from '@core/system-clock.service';
 
@@ -76,7 +78,6 @@ export class ReportsPage implements OnInit {
   readonly page = input.required<RouteObj>();
 
   private readonly service = inject(ReportsService);
-  private readonly refData = inject(ReferenceDataService);
   private readonly coursesService = inject(CoursesService);
 
   protected readonly summary = signal<RevenueFigures | null>(null);
@@ -85,7 +86,9 @@ export class ReportsPage implements OnInit {
   protected readonly failed = signal(false);
 
   protected readonly groupBy = signal<RevenueGroupBy>('campus');
-  protected readonly campusId = signal<string | null>(null);
+  /** 分校跟頂欄走（#1138）：頁內分校下拉拿掉 */
+  private readonly campusCtx = inject(CampusContextService);
+  private readonly campusId = this.campusCtx.id;
   protected readonly courseId = signal<string | null>(null);
   protected readonly courses = signal<Course[]>([]);
 
@@ -95,14 +98,6 @@ export class ReportsPage implements OnInit {
   protected readonly groupByOptions = (
     Object.keys(REVENUE_GROUP_BY_LABELS) as RevenueGroupBy[]
   ).map((value) => ({ value, label: REVENUE_GROUP_BY_LABELS[value] }));
-
-  protected readonly campusOptions = computed(() => [
-    { label: '全部分校', value: null },
-    ...this.refData
-      .campuses()
-      .filter((campus) => campus.isActive)
-      .map((campus) => ({ label: campus.name, value: campus.id })),
-  ]);
 
   protected readonly courseOptions = computed(() => [
     { label: '全部課程', value: null },
@@ -127,12 +122,17 @@ export class ReportsPage implements OnInit {
     return splitBilled(group).collectedPct;
   }
 
-  protected readonly hasFilters = computed(
-    () => this.campusId() !== null || this.courseId() !== null,
-  );
+  protected readonly hasFilters = computed(() => this.courseId() !== null);
+
+  constructor() {
+    this.campusCtx.use();
+    // 初次載入由 ngOnInit 做；這裡只管之後頂欄換分校
+    toObservable(this.campusId)
+      .pipe(skip(1), takeUntilDestroyed())
+      .subscribe(() => this.load());
+  }
 
   ngOnInit(): void {
-    this.refData.loadCampuses();
     this.loadCourses();
     this.load();
   }
@@ -188,18 +188,12 @@ export class ReportsPage implements OnInit {
     this.load();
   }
 
-  protected onCampusChange(value: string | null): void {
-    this.campusId.set(value);
-    this.load();
-  }
-
   protected onCourseChange(value: string | null): void {
     this.courseId.set(value);
     this.load();
   }
 
   protected clearFilters(): void {
-    this.campusId.set(null);
     this.courseId.set(null);
     this.load();
   }
