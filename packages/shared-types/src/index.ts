@@ -18,7 +18,8 @@
 // User & Auth
 // ============================================================
 
-export type UserRole = 'admin' | 'teacher' | 'parent';
+/** `kiosk`：分校的到班掃碼機台（#1127），只能打卡 */
+export type UserRole = 'admin' | 'teacher' | 'parent' | 'kiosk';
 
 export interface User {
   id: string;

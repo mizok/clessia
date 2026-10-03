@@ -12,6 +12,13 @@ import {
 } from './campus-scope';
 
 describe('resolveCampusScope', () => {
+  // #1127：機台不是管理員，但一定要受分校限制 —— 「非管理員回 null」對它是全開
+  it('掃碼機台（kiosk）照帳號綁的分校限制', () => {
+    expect(
+      resolveCampusScope({ roles: ['kiosk'], permissions: [], assignedCampusIds: ['a'] }),
+    ).toEqual(['a']);
+  });
+
   it('有 all_campuses 的管理員不受限', () => {
     expect(
       resolveCampusScope({

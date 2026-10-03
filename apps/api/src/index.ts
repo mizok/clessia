@@ -340,7 +340,11 @@ mount('/api/enrollments', enrollmentsRoute, ADMIN_ONLY, { write: 'manage_student
 mount('/api/org', orgSettingsRoute, ['admin', 'teacher']);
 mount('/api/attendance', attendanceRoute, ['admin', 'teacher'], { write: 'basic_operations' });
 mount('/api/leaves', leavesRoute, ADMIN_ONLY, { write: 'basic_operations' });
-mount('/api/daily-checkins', dailyCheckinsRoute, ADMIN_ONLY, { write: 'basic_operations' });
+// #1127：掃碼機台（kiosk）只開這一支，而且在 route 內只放行 POST、分校與日期強制
+// （`routes/daily-checkins.ts`）。`basic_operations` 只看管理員（auth.ts「不是管理員就不看權限」）。
+mount('/api/daily-checkins', dailyCheckinsRoute, ['admin', 'kiosk'], {
+  write: 'basic_operations',
+});
 // 作業台是管理端的。老師端的「今天」走 teacher-today-flow 自己的取數 ——
 // 不預開，等它真的需要再說（計畫席 2026-09-03 裁定）。
 // 它只讀不寫，所以沒有 write 權限
