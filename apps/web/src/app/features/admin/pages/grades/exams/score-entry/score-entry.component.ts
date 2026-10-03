@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   OnInit,
   computed,
   effect,
@@ -10,17 +11,13 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
 
-import {
-  PageBreadcrumbComponent,
-  type BreadcrumbItem,
-} from '@shared/components/page-breadcrumb/page-breadcrumb.component';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { AcademyScoreEditorComponent } from './academy-score-editor/academy-score-editor.component';
 import { SchoolScoreEditorComponent } from './school-score-editor/school-score-editor.component';
 
@@ -33,10 +30,6 @@ import { SchoolExamsService, type SchoolExamDetail } from '@core/school-exams.se
 import { ReferenceDataService } from '@core/reference-data.service';
 import { GRADE_LEVEL_LABELS, type GradeLevel } from '@core/students.service';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
-import {
-  StatusDotComponent,
-  type StatusTone,
-} from '@shared/components/status/status-dot/status-dot.component';
 
 type ScoreEntryType = 'academy' | 'school';
 
@@ -57,16 +50,14 @@ interface SummaryStats {
   selector: 'app-score-entry',
   standalone: true,
   imports: [
-    StatusDotComponent,
     ToastModule,
-    ConfirmDialogModule,
-    PageBreadcrumbComponent,
+    PageOpenComponent,
+    RouterLink,
     AcademyScoreEditorComponent,
     SchoolScoreEditorComponent,
   ],
   providers: [MessageService],
   templateUrl: './score-entry.component.html',
-  styleUrl: './score-entry.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ScoreEntryComponent implements OnInit {
@@ -103,10 +94,10 @@ export class ScoreEntryComponent implements OnInit {
   protected readonly academyEditor = viewChild<AcademyScoreEditorComponent>('academyEditor');
   protected readonly schoolEditor = viewChild<SchoolScoreEditorComponent>('schoolEditor');
 
-  protected readonly breadcrumbs: BreadcrumbItem[] = [
-    { label: '考試管理', routerLink: '/admin/grades/exams' },
-    { label: '成績登錄' },
-  ];
+  private readonly leaveDialog = viewChild<ElementRef<HTMLDialogElement>>('leaveDialog');
+  /** 站內導頁被攔下時，等使用者在對話框裡選（Q3）；`saveThenLeave` = 選了「儲存後離開」、正在等存檔結果 */
+  private leaveDecision: ((leave: boolean) => void) | null = null;
+  private saveThenLeave = false;
 
   protected readonly examInfo = computed<ExamInfo | null>(() => {
     if (this.type() === 'academy') {
@@ -284,6 +275,10 @@ export class ScoreEntryComponent implements OnInit {
 
   protected onSavingChange(isSaving: boolean): void {
     this.saving.set(isSaving);
+    // 「儲存後離開」：存完才放行。成功時 onSaved 會先把 dirty 清掉；失敗則 dirty 還在 → 留下來
+    if (!isSaving && this.saveThenLeave) {
+      setTimeout(() => this.settleLeave(!this.dirty()));
+    }
   }
 
   protected onSaved(): void {
@@ -356,19 +351,6 @@ export class ScoreEntryComponent implements OnInit {
     return status === 'active' ? '進行中' : '已結束';
   }
 
-  /**
-   * `active` 是**「進行中」**不是「啟用」—— 它正是「還在等成績登完」，所以是 `pending`
-   * （中空、無色相）。原本塗成 success 綠等於說「這件事很好」，但這一頁自己的橫幅
-   * 就在說「有 N 場**進行中**的考試尚未登錄成績」。
-   *
-   * `closed` 是 `inactive` 而不是 `done`：結束考試的確認訊息寫著「**結束後將無法再
-   * 登錄分數**」—— 它是行政主動關閉，**不保證成績登完了**，可以沒登完就關。
-   * 那是「不在等任何事了」，不是「已定案且是好結果」。
-   */
-  protected statusTone(status: 'active' | 'closed'): StatusTone {
-    return status === 'active' ? 'pending' : 'inactive';
-  }
-
   private getAcademyTypeLabel(type: string): string {
     const map: Record<string, string> = {
       quiz: '小考',
@@ -378,9 +360,27 @@ export class ScoreEntryComponent implements OnInit {
     return map[type] ?? type;
   }
 
-  /** canDeactivate guard support */
-  canDeactivate(): boolean {
+  /** canDeactivate guard：有沒存的變更時開頁內對話框（Q3，取代 window.confirm） */
+  canDeactivate(): boolean | Promise<boolean> {
     if (!this.dirty()) return true;
-    return window.confirm('有尚未儲存的成績變更，確定要離開嗎？');
+    this.leaveDialog()?.nativeElement.showModal();
+    return new Promise((resolve) => (this.leaveDecision = resolve));
+  }
+
+  protected resolveLeave(choice: 'stay' | 'discard' | 'save'): void {
+    this.leaveDialog()?.nativeElement.close();
+    if (choice === 'save') {
+      this.saveThenLeave = true;
+      this.saveScores();
+      return;
+    }
+    this.settleLeave(choice === 'discard');
+  }
+
+  private settleLeave(leave: boolean): void {
+    this.saveThenLeave = false;
+    if (leave) this.dirty.set(false); // 放行後 beforeunload 不該再攔
+    this.leaveDecision?.(leave);
+    this.leaveDecision = null;
   }
 }

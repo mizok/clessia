@@ -11,6 +11,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { InputNumberModule } from 'primeng/inputnumber';
@@ -55,9 +56,16 @@ const STATUS_OPTIONS: Array<{ label: string; value: AcademyScoreStatus }> = [
 @Component({
   selector: 'app-academy-score-editor',
   standalone: true,
-  imports: [FormsModule, InputNumberModule, InputTextModule, SelectModule, DrawerModule],
+  imports: [
+    FormsModule,
+    RouterLink,
+    InputNumberModule,
+    InputTextModule,
+    SelectModule,
+    DrawerModule,
+  ],
   templateUrl: './academy-score-editor.component.html',
-  styleUrl: './academy-score-editor.component.scss',
+  host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AcademyScoreEditorComponent implements OnInit {
@@ -119,10 +127,24 @@ export class AcademyScoreEditorComponent implements OnInit {
     return this.rows().some((r) => this.isRowDirty(r));
   });
 
-  /** 有幾筆還沒存。急迫性屬於整批，不屬於單一格 */
-  protected readonly dirtyCount = computed(
-    () => this.rows().filter((r) => this.isRowDirty(r)).length,
-  );
+  /** 有幾筆還沒存。急迫性屬於整批，不屬於單一格 —— 外殼的底部儲存列讀它 */
+  readonly dirtyCount = computed(() => this.rows().filter((r) => this.isRowDirty(r)).length);
+
+  /**
+   * A6 合計一行（#tally），算畫面上看得到的那些列（篩選班級後就只算那班）。
+   * 缺考算「已登錄」—— 它是被登錄過的事實（同 #886 對缺考 null 的定義）；
+   * 不及格沿用 `isFailing` 的退路（沒設及格線就用總分 60%），缺考不算不及格。
+   */
+  protected readonly tally = computed(() => {
+    const rows = this.filteredRows();
+    const absent = rows.filter((r) => this.isAbsent(r)).length;
+    return {
+      total: rows.length,
+      logged: rows.filter((r) => !this.isUnrecorded(r)).length,
+      absent,
+      fail: rows.filter((r) => !this.isAbsent(r) && this.isFailing(r.score)).length,
+    };
+  });
 
   ngOnInit(): void {
     this.loadScores();
@@ -232,6 +254,11 @@ export class AcademyScoreEditorComponent implements OnInit {
 
   protected isAbsent(row: ScoreRow): boolean {
     return row.status === 'absent';
+  }
+
+  /** 還沒登：沒分數也沒標缺考（名字退成灰字） */
+  protected isUnrecorded(row: ScoreRow): boolean {
+    return row.score === null && !this.isAbsent(row);
   }
 
   protected formatGrade(grade: string | null): string {

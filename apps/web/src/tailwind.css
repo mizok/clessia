@@ -41,6 +41,9 @@
 @source './app/features/admin/pages/changes';
 @source './app/features/admin/pages/courses';
 @source './app/features/admin/pages/dashboard';
+@source './app/features/admin/pages/grades/exams/score-entry/score-entry.component.html';
+@source './app/features/admin/pages/grades/exams/score-entry/score-entry.component.ts';
+@source './app/features/admin/pages/grades/exams/score-entry/academy-score-editor';
 @source './app/features/admin/pages/sessions';
 @source './app/features/admin/pages/students';
 @source './app/features/admin/pages/checkin';

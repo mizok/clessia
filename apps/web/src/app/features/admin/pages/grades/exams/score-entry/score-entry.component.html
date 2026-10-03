@@ -1,122 +1,196 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<div class="score-entry">
-  <!-- Breadcrumb -->
-  <app-page-breadcrumb [items]="breadcrumbs" />
-
-  @if (loading()) {
-    <div class="score-entry__loading">
-      <i class="pi pi-spinner pi-spin"></i>
-      <span>載入考試資料中...</span>
-    </div>
-  } @else if (examInfo(); as info) {
-    <!-- Combined Header Card -->
-    <div class="score-entry__header-card">
-      <div class="score-entry__header">
-        <div class="score-entry__title-row">
-          <h1 class="score-entry__title">{{ info.name }}</h1>
-          <app-status-dot class="score-entry__status-tag" [tone]="statusTone(info.status)">{{
-            getStatusLabel(info.status)
-          }}</app-status-dot>
-        </div>
-        <p class="score-entry__meta">{{ info.metaLine }}</p>
-      </div>
-
-      @if (type() === 'academy' && summaryStats(); as stats) {
-        <div class="score-entry__stats">
-          <div class="score-entry__stat">
-            <span class="score-entry__stat-value">{{ stats.recordedCount }}</span>
-            <span class="score-entry__stat-label">已登錄</span>
-          </div>
-          <div class="score-entry__stat">
-            <span class="score-entry__stat-value">{{ formatStat(stats.average) }}</span>
-            <span class="score-entry__stat-label">平均</span>
-          </div>
-          <div class="score-entry__stat">
-            <span class="score-entry__stat-value">{{ formatStat(stats.highest) }}</span>
-            <span class="score-entry__stat-label">最高</span>
-          </div>
-          <div class="score-entry__stat">
-            <span class="score-entry__stat-value">{{ formatStat(stats.lowest) }}</span>
-            <span class="score-entry__stat-label">最低</span>
-          </div>
-        </div>
-      }
-
-      @if (type() === 'school' && schoolExam(); as exam) {
-        <div class="score-entry__term-summary">
-          <div class="score-entry__term-total">
-            <span class="score-entry__term-total-value">{{ exam.summary.totalRecordedCount }}</span>
-            <span class="score-entry__term-total-label">筆已登錄</span>
-          </div>
-          @if (exam.summary.bySubject.length > 0) {
-            <div class="score-entry__term-subjects">
-              @for (subj of exam.summary.bySubject; track subj.subjectId) {
-                <div class="score-entry__term-subject">
-                  <span class="score-entry__term-subject-name">{{ subj.subjectName }}</span>
-                  <span class="score-entry__term-subject-detail">
-                    {{ subj.recordedCount }} 筆
-                    @if (subj.averageScore !== null) {
-                      · 平均 {{ formatStat(subj.averageScore) }}
-                    }
-                  </span>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      }
-
-      @if (isClosed()) {
-        <div class="score-entry__closed-hint">
-          <i class="pi pi-lock"></i>
-          此考試已結束，僅供檢視成績，無法編輯。
-        </div>
-      }
-    </div>
-
-    <!-- Editor Area -->
-    <div class="score-entry__editor">
-      @if (type() === 'academy' && academyExam(); as exam) {
-        <app-academy-score-editor
-          #academyEditor
-          [exam]="exam"
-          [examId]="examId()"
-          [disabled]="isClosed()"
-          (dirtyChange)="onDirtyChange($event)"
-          (savingChange)="onSavingChange($event)"
-          (saved)="onSaved()"
-        />
-      } @else if (type() === 'school' && schoolExam(); as exam) {
-        <app-school-score-editor
-          #schoolEditor
-          [exam]="exam"
-          [examId]="examId()"
-          [disabled]="isClosed()"
-          (dirtyChange)="onDirtyChange($event)"
-          (savingChange)="onSavingChange($event)"
-          (saved)="onSaved()"
-          (filterChange)="onSchoolFilterChange($event)"
-        />
-      }
-    </div>
-
-    <!-- FAB Save Button -->
-    @if (!isClosed() && canSave()) {
-      <button
-        type="button"
-        class="score-entry__fab"
-        [class.score-entry__fab--saving]="saving()"
-        [disabled]="saving()"
-        (click)="saveScores()"
+<!--
+  A6 版（#991 grades G2a）：色面（返回考試管理、考試名＋狀態、副標、統計）→ 編輯器 → 底部儲存列。
+  計畫席裁 #991 grades：Q1 結束考試照舊唯讀；Q2 A6 新增的批次動作（其餘標記缺考、匯入、加入其他學生、
+  復原變更、標記完成）列後續項；Q3 離開攔截改成頁內三選項對話框。
+-->
+<app-page-open>
+  <a
+    openBack
+    class="mb-2 inline-flex min-h-11 items-center gap-1.5 text-md font-semibold text-band-ink no-underline hover:underline hover:underline-offset-4"
+    routerLink="/admin/grades/exams"
+  >
+    <i class="pi pi-arrow-left text-sm" aria-hidden="true"></i>考試管理
+  </a>
+  <ng-container openTitle>
+    @if (examInfo(); as info) {
+      {{ info.name }}
+      <span
+        class="ml-2.5 inline-block rounded-full border-[1.5px] border-band-ink px-2 align-middle text-sm leading-6 font-bold tracking-normal text-band-ink"
+        >{{ getStatusLabel(info.status) }}</span
       >
-        @if (saving()) {
-          <i class="pi pi-spinner pi-spin"></i>
-        } @else {
-          <i class="pi pi-save"></i>
-        }
-        <span>儲存成績</span>
-      </button>
+    } @else if (loading()) {
+      <span
+        class="inline-block h-[1em] w-[6ch] rounded-sm bg-band-rule align-middle opacity-45"
+        aria-label="考試資料載入中"
+      ></span>
+    }
+  </ng-container>
+  <ng-container openSub>{{ examInfo()?.metaLine }}</ng-container>
+
+  @if (type() === 'academy' && summaryStats(); as stats) {
+    <dl
+      class="m-0 mt-6 flex flex-wrap gap-x-12 gap-y-3 border-t border-band-rule pt-5 text-band-ink"
+    >
+      @for (
+        s of [
+          { label: '已登錄', value: stats.recordedCount + '' },
+          { label: '平均', value: formatStat(stats.average) },
+          { label: '最高', value: formatStat(stats.highest) },
+          { label: '最低', value: formatStat(stats.lowest) },
+        ];
+        track s.label
+      ) {
+        <div>
+          <dt class="sr-only">{{ s.label }}</dt>
+          <dd class="m-0 text-3xl leading-none font-bold tracking-tight tabular-nums">
+            {{ s.value }}
+          </dd>
+          <p class="m-0 mt-1 text-md" aria-hidden="true">{{ s.label }}</p>
+        </div>
+      }
+    </dl>
+  }
+
+  @if (type() === 'school' && schoolExam(); as exam) {
+    <dl
+      class="m-0 mt-6 flex flex-wrap gap-x-12 gap-y-3 border-t border-band-rule pt-5 text-band-ink"
+    >
+      <div>
+        <dt class="sr-only">筆已登錄</dt>
+        <dd class="m-0 text-3xl leading-none font-bold tracking-tight tabular-nums">
+          {{ exam.summary.totalRecordedCount }}
+        </dd>
+        <p class="m-0 mt-1 text-md" aria-hidden="true">筆已登錄</p>
+      </div>
+      @for (subj of exam.summary.bySubject; track subj.subjectId) {
+        <div>
+          <dt class="sr-only">{{ subj.subjectName }}</dt>
+          <dd class="m-0 text-xl leading-none font-bold tabular-nums">
+            {{ subj.recordedCount }} 筆
+          </dd>
+          <p class="m-0 mt-1 text-md">
+            {{ subj.subjectName }}
+            @if (subj.averageScore !== null) {
+              · 平均 {{ formatStat(subj.averageScore) }}
+            }
+          </p>
+        </div>
+      }
+    </dl>
+  }
+</app-page-open>
+
+<div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
+  @if (loading()) {
+    <div class="skeleton-list" aria-label="考試資料載入中">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <span class="skeleton-bar"></span>
+      }
+    </div>
+  } @else if (examInfo()) {
+    @if (isClosed()) {
+      <p
+        class="m-0 mb-6 flex items-center gap-2 rounded-lg bg-zinc-100 px-4 py-3 text-base text-zinc-800"
+      >
+        <i class="pi pi-lock text-sm" aria-hidden="true"></i>
+        這場考試已結束，成績只能檢視。要修改請先回考試管理「重新開啟」。
+      </p>
+    }
+
+    @if (type() === 'academy' && academyExam(); as exam) {
+      <app-academy-score-editor
+        #academyEditor
+        [exam]="exam"
+        [examId]="examId()"
+        [disabled]="isClosed()"
+        (dirtyChange)="onDirtyChange($event)"
+        (savingChange)="onSavingChange($event)"
+        (saved)="onSaved()"
+      />
+    } @else if (type() === 'school' && schoolExam(); as exam) {
+      <app-school-score-editor
+        #schoolEditor
+        [exam]="exam"
+        [examId]="examId()"
+        [disabled]="isClosed()"
+        (dirtyChange)="onDirtyChange($event)"
+        (savingChange)="onSavingChange($event)"
+        (saved)="onSaved()"
+        (filterChange)="onSchoolFilterChange($event)"
+      />
+    }
+
+    <!-- 底部儲存列（A6 .savebar）：只在有沒存的變更時出現，取代原本的 FAB -->
+    @if (!isClosed() && (dirty() || saving())) {
+      <div class="sticky bottom-4 z-[5] mt-6" role="region" aria-label="儲存">
+        <div
+          class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-zinc-900 px-4 py-3 text-white shadow-md"
+        >
+          <p class="m-0 mr-auto font-semibold">
+            @if (academyEditor()?.dirtyCount(); as n) {
+              {{ n }} 位的成績還沒儲存
+            } @else {
+              有成績還沒儲存
+            }
+          </p>
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-accent-vivid px-4 text-md font-semibold text-zinc-900 hover:bg-accent-vivid-2 disabled:cursor-default disabled:opacity-60"
+            [disabled]="saving()"
+            (click)="saveScores()"
+          >
+            @if (saving()) {
+              <i class="pi pi-spinner pi-spin text-sm" aria-hidden="true"></i>儲存中…
+            } @else {
+              儲存成績
+            }
+          </button>
+        </div>
+      </div>
     }
   }
 </div>
+
+<!--
+  離開攔截（Q3）：取代原本的 window.confirm。重新整理／關分頁仍交給瀏覽器的 beforeunload 提示
+  （那個文案不能自訂）；這個只管站內導頁。Esc／點外面 = 留下來。
+-->
+<dialog
+  #leaveDialog
+  class="m-auto w-[min(26rem,calc(100%-2rem))] rounded-lg border-0 p-6 text-zinc-900 shadow-md backdrop:bg-zinc-900/40"
+  aria-labelledby="score-leave-title"
+  (cancel)="$event.preventDefault(); resolveLeave('stay')"
+>
+  <h2 id="score-leave-title" class="m-0 text-xl font-bold">有成績還沒儲存</h2>
+  <p class="m-0 mt-2 text-base text-zinc-700">
+    @if (academyEditor()?.dirtyCount(); as n) {
+      {{ n }} 位的成績還沒儲存。
+    }
+    要先儲存再離開嗎？
+  </p>
+  <div class="mt-6 flex flex-wrap justify-end gap-2">
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+      (click)="resolveLeave('stay')"
+    >
+      留下來
+    </button>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold text-zinc-900 hover:border-zinc-400"
+      (click)="resolveLeave('discard')"
+    >
+      不儲存離開
+    </button>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center rounded-md border-0 bg-accent-vivid px-4 text-md font-semibold text-zinc-900 hover:bg-accent-vivid-2"
+      (click)="resolveLeave('save')"
+    >
+      儲存後離開
+    </button>
+  </div>
+</dialog>
