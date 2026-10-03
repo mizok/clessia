@@ -86,6 +86,24 @@ tags: [architecture, attendance, authorization, kiosk, migration]
   （`leaveCoversSession`，跟點名名單同一個判準）與 `attendance`（**寫完之後讀回的實際紀錄**，沒有就是 null）。
   畫面照實際紀錄講「已記出席／請假／等老師點名」，不猜這次寫了什麼。
 
+## 相機掃描（已實作，#1127 A）
+
+使用者裁：**門口平板不限類型**。`shared/components/checkin-station/qr-camera.ts`：
+
+- **解碼器**：`BarcodeDetector` 存在**且** `getSupportedFormats()` 含 `qr_code` → 原生（Android／ChromeOS）；
+  否則 `await import('jsqr')`（iPad Safari）—— 獨立 lazy chunk（約 27 kB 傳輸），只有後備裝置下載。
+  只看類別在不在會選錯：有些 Chromium 有類別、格式清單是空的。
+- **為什麼是 `jsqr`**：既有的 `angularx-qrcode`／`qrcode` 只產生不解碼；`jsqr` 零依賴、純 JS、不碰網路（離線可解）。
+  `barcode-detector` polyfill 要 3.8 MB 的 zxing-wasm，且 wasm 預設從 CDN 抓（離線與自架 c12 都有問題）。比較表在 #1127 留言。
+- **迴圈**：每 250ms 解一格（不是每個 frame —— 平板整天開著）；掃到走既有的 `submit`（跟掃碼槍、手打同一條路）；
+  結果畫面期間不解；回到掃描後 8 秒內同一張卡不重送；`visibilitychange` 隱藏時關鏡頭、回來再開。
+- **狀態**：掃描中／鏡頭被拒（`NotAllowedError`，步驟說明＋重新要求權限）／沒有相機（`NotFoundError`、非 HTTPS 沒有 `mediaDevices`）。
+  離線沿用打卡失敗的 `offline` 結果。卡號欄一直都在（掃碼槍、沒相機的退路）。
+- **開不開**：機台 `<app-checkin-station camera="auto">` 一進頁就開；管理端預設 `manual`，給「開啟相機」鈕（計畫席裁：桌機一進頁就跳權限詢問很擾人）。
+- **測試的坑**：Angular 的 unit-test builder 會把本地模組打包進 spec，`vi.mock('./qr-camera')` **換不到**（實測拿到的是真的解碼器）；
+  解碼器因此走 DI token `QR_DECODER_FACTORY`。外部套件（`jsqr`）的 `vi.mock` 換得到。
+- **iPad Safari 真機**要人工驗（jsdom 沒有鏡頭）；`qr-roundtrip.spec.ts` 守的是「`qrcode` 產生 → `jsqr` 讀回」格式對得上。
+
 ## 拒絕的替代方案
 
 - **零權限 admin 當機台**：見 1，讀端點 fail-open。

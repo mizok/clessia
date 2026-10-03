@@ -7,6 +7,14 @@ import { DailyCheckinsService, type DailyCheckinConfirmation } from '@core/daily
 import { SystemClockService } from '@core/system-clock.service';
 import { CheckinStationComponent, RESULT_SECONDS } from './checkin-station.component';
 
+import { QR_DECODER_FACTORY } from './qr-camera';
+
+/**
+ * 解碼器換成可控的替身：真的解碼器要真的影像（選型邏輯在 qr-camera.spec 測）。
+ * 走 DI 不走 `vi.mock('./qr-camera')` —— 本地模組被 builder 打包，mock 換不到（實測：拿到的是真的 jsqr 解碼器）。
+ */
+const decoderMock = vi.fn();
+
 const confirmation: DailyCheckinConfirmation = {
   id: 'c1',
   studentId: 'stu-1',
@@ -28,15 +36,17 @@ const confirmation: DailyCheckinConfirmation = {
   ],
 };
 
-async function setup(checkIn: ReturnType<typeof vi.fn>) {
+async function setup(checkIn: ReturnType<typeof vi.fn>, opts: { camera?: 'auto' | 'manual' } = {}) {
   await TestBed.configureTestingModule({
     imports: [CheckinStationComponent],
     providers: [
       { provide: DailyCheckinsService, useValue: { checkIn } },
       { provide: SystemClockService, useValue: { todayTaipei: () => '2026-10-03' } },
+      { provide: QR_DECODER_FACTORY, useValue: async () => decoderMock },
     ],
   }).compileComponents();
   const fixture = TestBed.createComponent(CheckinStationComponent);
+  if (opts.camera) fixture.componentRef.setInput('camera', opts.camera);
   fixture.detectChanges();
   const el = fixture.nativeElement as HTMLElement;
   const q = (id: string) => el.querySelector(`[data-testid="${id}"]`) as HTMLElement | null;
@@ -124,5 +134,145 @@ describe('CheckinStationComponent（#1127）', () => {
     const { type } = await setup(checkIn);
     await type('   ');
     expect(checkIn).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * #1127 相機掃描。機台（`camera="auto"`）一進頁就開鏡頭；管理端預設不開、給一顆按鈕
+ * （計畫席裁：行政多半在桌機，一進頁就跳權限詢問很擾人）。
+ */
+describe('CheckinStationComponent —— 相機', () => {
+  const stopTrack = vi.fn();
+  let getUserMedia: ReturnType<typeof vi.fn>;
+  const original = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
+
+  beforeEach(() => {
+    stopTrack.mockReset();
+    decoderMock.mockReset().mockResolvedValue(null);
+    getUserMedia = vi.fn().mockResolvedValue({ getTracks: () => [{ stop: stopTrack }] });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia },
+    });
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+  });
+  afterEach(() => {
+    if (original) Object.defineProperty(navigator, 'mediaDevices', original);
+    else delete (navigator as unknown as Record<string, unknown>)['mediaDevices'];
+    vi.restoreAllMocks();
+    TestBed.resetTestingModule();
+  });
+
+  /** 開鏡頭是一串 await（權限 → play → 解碼器），讓它們都跑完再看畫面 */
+  const settle = async (fixture: { detectChanges(): void; whenStable(): Promise<unknown> }) => {
+    // 用真的 macrotask（`setTimeout` 不在假時鐘裡）—— 只讓出 microtask 的話，
+    // 動態 import 解碼器那一跳還沒回來
+    for (let i = 0; i < 5; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+  };
+
+  it('預設（管理端）不開鏡頭，按「開啟相機」才要權限、要的是後鏡頭', async () => {
+    const { el, click, fixture } = await setup(vi.fn());
+    await settle(fixture);
+
+    expect(getUserMedia).not.toHaveBeenCalled();
+    click('checkin-camera-open');
+    await settle(fixture);
+
+    expect(getUserMedia).toHaveBeenCalledWith({
+      video: { facingMode: 'environment' },
+      audio: false,
+    });
+    expect(el.textContent).toContain('把 QR Code 放進框內');
+  });
+
+  it('機台（auto）：一進頁就開鏡頭', async () => {
+    const { el, fixture } = await setup(vi.fn(), { camera: 'auto' });
+    await settle(fixture);
+
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(el.textContent).toContain('把 QR Code 放進框內');
+    expect(el.querySelector('[data-testid="checkin-camera-open"]')).toBeNull();
+  });
+
+  it('權限被拒：步驟說明＋「重新要求權限」，按了再要一次', async () => {
+    getUserMedia.mockRejectedValueOnce(new DOMException('no', 'NotAllowedError'));
+    const { el, click, fixture } = await setup(vi.fn(), { camera: 'auto' });
+    await settle(fixture);
+
+    expect(el.textContent).toContain('鏡頭沒有開');
+    click('checkin-camera-retry');
+    await settle(fixture);
+
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    expect(el.textContent).toContain('把 QR Code 放進框內');
+  });
+
+  it('沒有鏡頭：請接掃碼槍或用卡號欄（卡號欄還在）', async () => {
+    getUserMedia.mockRejectedValueOnce(new DOMException('none', 'NotFoundError'));
+    const { el, q, fixture } = await setup(vi.fn(), { camera: 'auto' });
+    await settle(fixture);
+
+    expect(el.textContent).toContain('這台裝置沒有可用的相機');
+    expect(q('checkin-code')).not.toBeNull();
+  });
+
+  it('瀏覽器沒有 mediaDevices（非 HTTPS）：同「沒有鏡頭」', async () => {
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined });
+    const { el, fixture } = await setup(vi.fn(), { camera: 'auto' });
+    await settle(fixture);
+
+    expect(el.textContent).toContain('這台裝置沒有可用的相機');
+  });
+
+  it('掃到就走同一條打卡路；結果畫面期間不再解碼；回來後同一張卡 8 秒內不重送', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+    const checkIn = vi.fn().mockReturnValue(of(confirmation));
+    const { fixture, click } = await setup(checkIn, { camera: 'auto' });
+    await settle(fixture);
+    const scan = async () => {
+      await (fixture.componentInstance as any).scanOnce();
+      fixture.detectChanges();
+    };
+
+    decoderMock.mockResolvedValue('stu-1');
+    await scan();
+    expect(checkIn).toHaveBeenCalledWith({ studentId: 'stu-1', checkinDate: '2026-10-03' });
+
+    decoderMock.mockClear();
+    await scan();
+    expect(decoderMock).not.toHaveBeenCalled(); // 結果畫面還在
+
+    click('checkin-next');
+    await scan();
+    expect(checkIn).toHaveBeenCalledTimes(1); // 卡還停在鏡頭前
+
+    vi.advanceTimersByTime(RESULT_SECONDS * 1000 + 1);
+    await scan();
+    expect(checkIn).toHaveBeenCalledTimes(2);
+  });
+
+  it('頁面隱藏（平板休眠）關鏡頭，回來再開；元件銷毀也關', async () => {
+    const { fixture } = await setup(vi.fn(), { camera: 'auto' });
+    await settle(fixture);
+    const hidden = Object.getOwnPropertyDescriptor(Document.prototype, 'hidden');
+    const setHidden = (value: boolean) => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => value });
+      document.dispatchEvent(new Event('visibilitychange'));
+    };
+
+    setHidden(true);
+    expect(stopTrack).toHaveBeenCalledTimes(1);
+    setHidden(false);
+    await settle(fixture);
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+
+    fixture.destroy();
+    expect(stopTrack).toHaveBeenCalledTimes(2);
+    delete (document as unknown as Record<string, unknown>)['hidden'];
+    if (hidden) Object.defineProperty(Document.prototype, 'hidden', hidden);
   });
 });

@@ -1,4 +1,67 @@
 <div class="mx-auto flex w-full max-w-[30rem] flex-col gap-5">
+  <!-- 相機（#1127）。<video> 一直在 DOM 裡：串流要接在已經存在的元素上 -->
+  <div
+    class="relative grid aspect-square place-items-center overflow-hidden rounded-lg bg-zinc-900 text-white"
+    [class.hidden]="cameraState() !== 'scanning' && cameraState() !== 'starting'"
+    data-testid="checkin-camera"
+  >
+    <!-- playsinline：iPad Safari 少了它會跳全螢幕播放器 -->
+    <video #video class="absolute inset-0 size-full object-cover" playsinline muted></video>
+    <!-- 取景框（設計稿 b6）：只是提示，整個畫面都會解 -->
+    <div
+      class="relative aspect-square w-3/5 rounded-lg border-4 border-white/80"
+      aria-hidden="true"
+    ></div>
+    <p class="absolute inset-x-0 bottom-0 bg-zinc-900/70 py-3 text-center text-md">
+      {{ cameraState() === 'starting' ? '正在開啟鏡頭…' : '把 QR Code 放進框內' }}
+    </p>
+  </div>
+
+  @switch (cameraState()) {
+    @case ('denied') {
+      <section
+        class="rounded-lg border border-zinc-200 bg-surface-card px-5 py-6"
+        role="alert"
+        data-testid="checkin-camera-denied"
+      >
+        <!-- 不只靠顏色：圖示＋粗體標題 -->
+        <p class="flex items-center gap-2 text-lg font-semibold text-error-700">
+          <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>鏡頭沒有開
+        </p>
+        <p class="mt-2 text-base text-zinc-700">這台裝置還沒允許使用相機。</p>
+        <ol class="mt-3 list-decimal space-y-1 pl-5 text-base text-zinc-700">
+          <li>點網址列左邊的鎖頭圖示</li>
+          <li>把「相機」改成「允許」</li>
+          <li>回來按下面的按鈕</li>
+        </ol>
+        <p-button
+          label="重新要求權限"
+          icon="pi pi-camera"
+          styleClass="mt-5 h-11 px-6"
+          (onClick)="startCamera()"
+          data-testid="checkin-camera-retry"
+        />
+      </section>
+    }
+    @case ('unavailable') {
+      <p class="rounded-lg bg-zinc-100 px-4 py-3 text-base text-zinc-700" role="status">
+        這台裝置沒有可用的相機 —— 請接掃碼槍，或用下面的卡號欄。
+      </p>
+    }
+    @case ('off') {
+      @if (camera() === 'manual') {
+        <p-button
+          label="開啟相機"
+          icon="pi pi-camera"
+          [outlined]="true"
+          styleClass="h-11 w-full"
+          (onClick)="startCamera()"
+          data-testid="checkin-camera-open"
+        />
+      }
+    }
+  }
+
   <form class="flex flex-col gap-3" (ngSubmit)="submit()">
     <label for="checkin-code" class="text-sm font-medium text-zinc-700">卡號</label>
     <!-- 掃碼器是鍵盤輸入＋Enter，所以欄位一直保持焦點、送出後清空 -->

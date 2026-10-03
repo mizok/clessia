@@ -33,7 +33,8 @@
           ]
         },
         "allowedCommonJsDependencies": [
-          "qrcode"
+          "qrcode",
+          "jsqr"
         ]
       },
       "configurations": {
