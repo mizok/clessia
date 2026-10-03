@@ -29,6 +29,13 @@
 # summary 第一行寫「api 已部署、web 沒部署」。**不自動回退** —— deploying.md「出事就回退，
 # 不要現場修」是人的判斷（Worker：`wrangler rollback --env production`；Pages：dashboard）。
 #
+# ## 開關：repo variable `DEPLOY_ENABLED`（預設關）
+#
+# 沒設成 `true` 的時候，每一輪都只跑到 wrangler `--dry-run` 與 web build，不真的部署。
+# 這是上線順序用的：workflow 進 main 之後 dispatch 才看得到（GitHub 只註冊預設分支上的 workflow），
+# 而 secret 一放上去，下一次 migrate completed 就會觸發 —— 沒有這個開關就沒有「先 dry-run 驗一次」的空檔。
+# 順序：放 secret → dispatch `dry_run` 驗 token 權限與 build → 設 `DEPLOY_ENABLED=true`。
+#
 # ## 沒設定 secret 時（c12）
 #
 # 自架客戶的 repo 沒有 `CLOUDFLARE_API_TOKEN`：deploy job 印「未設定，略過」綠燈結束，不碰任何環境。
@@ -37,9 +44,10 @@ name: deploy
 
 # 標題帶目標 SHA：plan 撈「上次成功部署的是哪一顆」靠的就是它。
 # workflow_run 的 `head_sha` 是觸發當下 main 的 HEAD，不一定是 migrate 驗的那一顆 ——
-# 所以從 migrate 的標題（`migrate @ <sha>`）取。dry-run 標出來，不算「部署過」。
+# 所以從 migrate 的標題（`migrate @ <sha>`）取。dry-run（含 DEPLOY_ENABLED 沒開的那幾輪）標出來，
+# 不算「部署過」—— 否則開關打開之後，那段期間的改動會被 diff 當成已經部署而跳過。
 run-name: >-
-  deploy @ ${{ inputs.target_sha || github.event.workflow_run.display_title || github.sha }}${{ inputs.dry_run && ' (dry-run)' || '' }}
+  deploy @ ${{ inputs.target_sha || github.event.workflow_run.display_title || github.sha }}${{ (inputs.dry_run || vars.DEPLOY_ENABLED != 'true') && ' (dry-run)' || '' }}
 
 on:
   workflow_run:
@@ -100,6 +108,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_TITLE: ${{ github.event.workflow_run.display_title }}
           INPUT_TARGET: ${{ inputs.target_sha }}
+          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
         run: |
           set -euo pipefail
           sha_of() { node -e 'import("./tools/agent-harness/lib/deploy-scope.mjs").then(m => console.log(m.shaFromTitle(process.argv[1]) ?? ""))' "$1"; }
@@ -121,6 +130,9 @@ jobs:
           done
 
           echo "target=$target" >> "$GITHUB_OUTPUT"
+          if [ "${DEPLOY_ENABLED:-}" != "true" ]; then
+            echo "### ⚠️ \`DEPLOY_ENABLED\` 沒開 —— 這一輪只跑到 dry-run 與 build，不會真的部署" >> "$GITHUB_STEP_SUMMARY"
+          fi
           {
             echo "### 部署計畫"
             echo "- 目標：\`$target\`"
@@ -192,7 +204,7 @@ jobs:
         run: npx wrangler deploy --env production --dry-run --outdir "$RUNNER_TEMP/api-dry"
 
       - id: deploy
-        if: steps.configured.outputs.ok == 'true' && !inputs.dry_run
+        if: steps.configured.outputs.ok == 'true' && !inputs.dry_run && vars.DEPLOY_ENABLED == 'true'
         working-directory: apps/api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -253,7 +265,7 @@ jobs:
           echo "main_js=$main_js" >> "$GITHUB_OUTPUT"
 
       - id: deploy
-        if: steps.configured.outputs.ok == 'true' && !inputs.dry_run
+        if: steps.configured.outputs.ok == 'true' && !inputs.dry_run && vars.DEPLOY_ENABLED == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

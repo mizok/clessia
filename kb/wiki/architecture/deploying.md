@@ -474,6 +474,9 @@ main 上 verify 綠 → migrate（差集 0 直接綠；有待套 → 等 Approve
 `CLOUDFLARE_API_TOKEN`（Workers Scripts:Edit、Pages:Edit、Account:Read；帶 Hyperdrive binding 部署
 可能還要 Hyperdrive:Read —— **第一次用 `dry_run` 跑就會知道**）與 `CLOUDFLARE_ACCOUNT_ID`。
 站台網址不同時設 repo variables `DEPLOY_SITE_URL`／`DEPLOY_API_URL`。
+**上線順序**：repo variable **`DEPLOY_ENABLED`** 沒設成 `true` 時每一輪都只跑到 dry-run 與 build。
+放 secret → Actions 頁 dispatch deploy（`dry_run` 勾起來）看 token 權限與 build 過不過 → 設 `DEPLOY_ENABLED=true`。
+（GitHub 只註冊預設分支上的 workflow，所以 dispatch 要等 deploy.yml 進 main 才看得到。）
 
 **緊急時的本機路徑**（CI 掛掉、GitHub 不可用時才用；用完在部署紀錄寫明是本機部署）：
 `review-steward.md` 的 ⓪–⑦ 手動流程照舊有效。⓪ 一樣要先查截線那顆的 migrate 結果。

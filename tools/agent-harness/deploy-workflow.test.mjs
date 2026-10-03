@@ -87,6 +87,21 @@ test('api 真的部署前先 dry-run 驗 binding', () => {
 });
 
 test('dry-run 的 run 標題要標出來 —— plan 撈「上次部署」時靠它排除', () => {
-  assert.match(code, /^run-name: >-\s*\n.*inputs\.dry_run && ' \(dry-run\)'/m);
+  // DEPLOY_ENABLED 沒開的那幾輪也要標 —— 否則開關打開後，那段期間的改動被 diff 當成已部署
+  assert.match(
+    code,
+    /^run-name: >-\s*\n.*\(inputs\.dry_run \|\| vars\.DEPLOY_ENABLED != 'true'\) && ' \(dry-run\)'/m,
+  );
   assert.match(all.plan, /select\(test\("dry-run"\) \| not\)/);
+});
+
+// workflow 進 main、secret 一放，下一次 migrate completed 就會觸發 —— 開關讓「先 dry-run」有空檔
+test('真的部署的兩個 step 都要 DEPLOY_ENABLED == true', () => {
+  for (const name of ['deploy-api', 'deploy-web']) {
+    assert.match(
+      all[name],
+      /- id: deploy\s*\n\s+if: [^\n]*!inputs\.dry_run && vars\.DEPLOY_ENABLED == 'true'/,
+      name,
+    );
+  }
 });
