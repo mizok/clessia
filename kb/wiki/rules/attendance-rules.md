@@ -28,7 +28,9 @@ tags: [rules, attendance-rules]
 - 需由管理員或老師逐堂確認。
 
 > 2026-10-03 起 API 照這條走（#1099）：`POST /api/daily-checkins` 讀 `organizations.attendance_mode`，課堂模式只寫到班紀錄、
-> 不寫 `attendance_records`。在那之前兩種模式都替當天有報名的課堂寫 `present`。分校層級的模式尚未實作（待使用者裁）。
+> 不寫 `attendance_records`。在那之前兩種模式都替當天有報名的課堂寫 `present`。
+> 分校層級（#1112）：`campuses.attendance_mode`（nullable）有值用分校的、null 沿用機構預設，推算在
+> `apps/api/src/lib/attendance-mode.ts`；打卡、作業台都走它。分校的模式由 `PUT /api/campuses/:id` 改，門檻同機構預設（`manage_org_settings`）。
 
 ## 2. 通用出勤規則
 

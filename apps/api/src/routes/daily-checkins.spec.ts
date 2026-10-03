@@ -19,6 +19,8 @@ function createCheckinApp(
     enrollments?: Array<{ class_id: string; effective_from: string; effective_to: string | null }>;
     /** `organizations.attendance_mode`；預設日到班（DB 預設，#976） */
     mode?: 'daily_checkin' | 'per_session';
+    /** `campuses.attendance_mode`（#1112）；null = 沿用機構預設 */
+    campusMode?: 'daily_checkin' | 'per_session' | null;
     orgError?: boolean;
   } = {},
 ) {
@@ -67,7 +69,9 @@ function createCheckinApp(
               ? fixture.orgError
                 ? { data: null, error: { message: 'boom' } }
                 : { data: { attendance_mode: fixture.mode ?? 'daily_checkin' }, error: null }
-              : { data: table === 'students' ? { id: 'stu-1' } : null, error: null },
+              : table === 'campuses'
+                ? { data: { attendance_mode: fixture.campusMode ?? null }, error: null }
+                : { data: table === 'students' ? { id: 'stu-1' } : null, error: null },
           ),
         then: (onfulfilled?: ((value: { data: unknown[] }) => unknown) | null) => {
           const data =
@@ -191,7 +195,7 @@ describe('POST /api/daily-checkins', () => {
  * **路由真的去查了在籍、而且真的拿去濾** —— 完全不濾的版本一樣通過那些測試。
  */
 describe('POST /api/daily-checkins —— 只寫有報名的課堂', () => {
-  async function checkin(fixture: Parameters<typeof createCheckinApp>[0]) {
+  async function checkin(fixture: Parameters<typeof createCheckinApp>[0], campusId?: string) {
     const { app, upsertCalls } = createCheckinApp(fixture);
     const response = await app.request('/api/daily-checkins', {
       method: 'POST',
@@ -199,6 +203,7 @@ describe('POST /api/daily-checkins —— 只寫有報名的課堂', () => {
       body: JSON.stringify({
         studentId: '00000000-0000-4000-8000-0000000000b1',
         checkinDate: '2026-04-06',
+        campusId,
       }),
     });
     const attendance = upsertCalls.find((call) => call.table === 'attendance_records');
@@ -250,6 +255,34 @@ describe('POST /api/daily-checkins —— 只寫有報名的課堂', () => {
     const { eventIds } = await checkin({ mode: 'daily_checkin' });
 
     expect(eventIds).toEqual(['event-1', 'event-2']);
+  });
+
+  // #1112：出勤模式是分校層級 —— 打卡帶了分校，就看那個分校的設定
+  const CAMPUS = '00000000-0000-4000-8000-0000000000c1';
+
+  it('分校設課堂模式、機構是日到班：照分校，不寫課堂出勤', async () => {
+    const { wroteCheckin, eventIds } = await checkin(
+      { mode: 'daily_checkin', campusMode: 'per_session' },
+      CAMPUS,
+    );
+
+    expect(wroteCheckin).toBe(true);
+    expect(eventIds).toEqual([]);
+  });
+
+  it('分校設日到班、機構是課堂模式：照分校，寫課堂出勤', async () => {
+    const { eventIds } = await checkin(
+      { mode: 'per_session', campusMode: 'daily_checkin' },
+      CAMPUS,
+    );
+
+    expect(eventIds).toEqual(['event-1', 'event-2']);
+  });
+
+  it('分校沒設定（null）：沿用機構預設', async () => {
+    const { eventIds } = await checkin({ mode: 'per_session', campusMode: null }, CAMPUS);
+
+    expect(eventIds).toEqual([]);
   });
 
   // 讀不到模式就不知道該不該寫出勤 —— 在任何寫入之前停下，不猜
