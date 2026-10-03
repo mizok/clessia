@@ -5,7 +5,7 @@ import type { ScheduleMenuRequest } from '../schedule-gantt/schedule-gantt.compo
 import { SessionTagsComponent } from '../session-tags/session-tags.component';
 
 /**
- * 依開始時間分組的課堂清單（A6 `list()`）：手機日視圖與「篩選結果」共用（#1174 G1）。
+ * 依開始時間分組的課堂清單（A6 `list()`）：手機日視圖、「篩選結果」、週視圖的每一欄共用（#1174 G1／G2）。
  */
 @Component({
   selector: 'app-schedule-list',
@@ -18,6 +18,8 @@ export class ScheduleListComponent {
   readonly selectedIds = input<ReadonlySet<string>>(new Set<string>());
   readonly clashIds = input<ReadonlySet<string>>(new Set<string>());
   readonly now = input.required<Date>();
+  /** 週視圖的窄欄：只寫結束時間與老師（A6 `list(ss, true)`） */
+  readonly compact = input(false);
 
   readonly toggle = output<string>();
   readonly menu = output<ScheduleMenuRequest>();

@@ -365,6 +365,35 @@ describe('SessionsPage', () => {
     );
   });
 
+  it('週視圖：查週一到週日、放掉勾選；上下週留在週視圖；點一天切回那天的日視圖', () => {
+    const c = component as unknown as {
+      setDay: (d: Date) => void;
+      setView: (v: 'day' | 'week') => void;
+      shiftWeek: (n: number) => void;
+      mode: () => string;
+      selectedIds: { set: (v: Set<string>) => void; (): Set<string> };
+    };
+    c.setDay(new Date(2026, 9, 7)); // 週三
+    c.selectedIds.set(new Set(['s1']));
+    c.setView('week');
+    expect(c.mode()).toBe('week');
+    expect(c.selectedIds().size).toBe(0);
+    expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ from: '2026-10-05', to: '2026-10-11' }),
+    );
+    c.shiftWeek(1);
+    expect(c.mode()).toBe('week');
+    expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ from: '2026-10-12', to: '2026-10-18' }),
+    );
+    // 週視圖點的那天剛好就是 day()：仍要切回日視圖並重查
+    c.setDay(new Date(2026, 9, 14));
+    expect(c.mode()).toBe('day');
+    expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ from: '2026-10-14', to: '2026-10-14' }),
+    );
+  });
+
   it('隱藏停課：狀態收成正常＋已完成；回到課表時恢復全部', () => {
     const c = component as unknown as {
       hideCancelled: () => void;

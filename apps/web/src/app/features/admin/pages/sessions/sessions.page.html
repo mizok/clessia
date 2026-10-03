@@ -2,7 +2,8 @@
 <app-popup-menu #sessionMenu [model]="contextMenuItems()" />
 
 <!--
-  A6 課表（#991 外框、#1174 G1 甘特）：色面 → 灰工具列（日期條、分校、篩選）→ 單日甘特（手機是分組清單）。
+  A6 課表（#991 外框、#1174 G1 甘特、G2 週視圖）：色面 → 灰工具列（日／週、日期條、分校、篩選）→
+  單日甘特（手機是分組清單）或一週七欄（手機每天一行，點了看那天）。
   別頁帶範圍條件進來（儀表板未點名、開課班整期、色面計數）時切「篩選結果」：依日期分章的清單。
   缺資料的（代課原老師、調課細節、跑馬燈）課塊先標「有異動」，見 #1174 後續項。
 -->
@@ -26,9 +27,38 @@
 </app-page-open>
 
 <div class="bg-zinc-100">
-  @if (mode() === 'day') {
-    <!-- 日期條（A6 .dtabs）：一週七天，選中那天橘底線；手機可橫捲 -->
-    <div class="page-wrap flex items-center gap-1 pt-2">
+  @if (mode() !== 'results') {
+    <div class="page-wrap flex items-center gap-3 pt-2">
+      <div class="inline-flex gap-0.5 rounded-md bg-zinc-200 p-0.5" role="group" aria-label="檢視">
+        <button
+          type="button"
+          class="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded border-0 px-3 text-md font-semibold"
+          [class.bg-white]="mode() === 'day'"
+          [class.text-zinc-900]="mode() === 'day'"
+          [class.bg-transparent]="mode() !== 'day'"
+          [class.text-zinc-700]="mode() !== 'day'"
+          [attr.aria-pressed]="mode() === 'day'"
+          (click)="setView('day')"
+        >
+          日
+        </button>
+        <button
+          type="button"
+          class="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded border-0 px-3 text-md font-semibold"
+          [class.bg-white]="mode() === 'week'"
+          [class.text-zinc-900]="mode() === 'week'"
+          [class.bg-transparent]="mode() !== 'week'"
+          [class.text-zinc-700]="mode() !== 'week'"
+          [attr.aria-pressed]="mode() === 'week'"
+          (click)="setView('week')"
+        >
+          週
+        </button>
+      </div>
+      <span class="text-md text-zinc-700 tabular-nums">{{ weekLabel() }}</span>
+    </div>
+    <!-- 日期條（A6 .dtabs）：一週七天，選中那天橘底線（週視圖沒有選中的天，點一天＝看那天） -->
+    <div class="page-wrap flex items-center gap-1">
       <button
         type="button"
         class="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200"
@@ -42,10 +72,10 @@
           <button
             type="button"
             class="grid min-h-11 min-w-0 flex-1 cursor-pointer justify-items-center border-0 border-b-2 bg-transparent px-0 py-1.5 leading-tight text-zinc-700 hover:text-zinc-900 md:px-2"
-            [class.border-transparent]="d.getTime() !== day().getTime()"
-            [class.border-accent-vivid]="d.getTime() === day().getTime()"
-            [class.text-zinc-900]="d.getTime() === day().getTime()"
-            [attr.aria-current]="d.getTime() === day().getTime() ? 'date' : null"
+            [class.border-transparent]="!isSelectedDay(d)"
+            [class.border-accent-vivid]="isSelectedDay(d)"
+            [class.text-zinc-900]="isSelectedDay(d)"
+            [attr.aria-current]="isSelectedDay(d) ? 'date' : null"
             (click)="setDay(d)"
           >
             <span class="text-sm">週{{ weekdayLabel(d) }}</span>
@@ -64,7 +94,7 @@
       >
         <i class="pi pi-chevron-right text-sm" aria-hidden="true"></i>
       </button>
-      @if (!isToday()) {
+      @if (mode() === 'week' ? !isThisWeek() : !isToday()) {
         <button
           type="button"
           class="hidden h-11 shrink-0 cursor-pointer items-center rounded-md border border-zinc-300 bg-white px-3 text-md font-semibold text-zinc-900 hover:border-zinc-400 md:inline-flex"
@@ -94,7 +124,7 @@
       (clearFilters)="clearFilters()"
     />
     <div class="flex flex-wrap gap-2 md:self-end">
-      @if (mode() === 'day' && !hiddenCancelledCount() && showsCancelled()) {
+      @if (mode() !== 'results' && !hiddenCancelledCount() && showsCancelled()) {
         <button
           type="button"
           class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
@@ -164,6 +194,64 @@
     } @empty {
       <p class="m-0 py-8 text-base text-zinc-700">沒有符合條件的課堂。</p>
     }
+  } @else if (mode() === 'week') {
+    <!-- 週視圖（桌機）：每天一欄，欄內是精簡版的分組清單 -->
+    <div class="hidden grid-cols-7 wide:grid">
+      @for (d of week(); track d.date; let i = $index) {
+        @let today = isTodayDate(weekDays()[i]);
+        <section
+          class="min-w-0 border-l border-surface-border px-3 pb-6 first:border-l-0 first:pl-0"
+          [class.bg-zinc-50]="today"
+          [attr.aria-label]="'週' + weekdayLabel(d.date) + ' ' + (weekDays()[i] | date: 'M/d')"
+        >
+          <header class="mb-2 border-b border-zinc-900 pt-3 pb-2">
+            <p class="m-0 text-md" [class.text-zinc-600]="!today" [class.font-bold]="today">
+              週{{ weekdayLabel(d.date) }}{{ today ? ' · 今天' : '' }}
+            </p>
+            <p class="m-0 text-2xl leading-tight font-bold tracking-tight tabular-nums">
+              {{ weekDays()[i] | date: 'M/d' }}
+            </p>
+            <p class="m-0 mt-0.5 text-sm text-zinc-700 tabular-nums">
+              {{ d.sessions.length }} 堂 · 最多同時
+              <b class="text-zinc-900">{{ d.maxConcurrent }}</b>
+            </p>
+            <p class="m-0 mt-0.5 text-sm text-zinc-700 tabular-nums">
+              {{ d.changed ? '異動 ' + d.changed : '沒有異動' }}
+            </p>
+          </header>
+          <app-schedule-list
+            [groups]="d.groups"
+            [selectedIds]="selectedIds()"
+            [clashIds]="d.clashIds"
+            [now]="now()"
+            [compact]="true"
+            (toggle)="toggleSelect($event)"
+            (menu)="onMenuRequested($event)"
+          />
+        </section>
+      }
+    </div>
+    <!-- 週視圖（手機）：每天一行摘要，點了看那天 -->
+    <div class="wide:hidden">
+      @for (d of week(); track d.date; let i = $index) {
+        @let today = isTodayDate(weekDays()[i]);
+        <button
+          type="button"
+          class="grid min-h-16 w-full cursor-pointer grid-cols-[minmax(0,1fr)_16px] items-center gap-x-2 gap-y-0.5 border-0 border-b border-surface-border bg-transparent px-0 py-3 text-left text-zinc-900"
+          (click)="setDay(weekDays()[i])"
+        >
+          <span class="text-lg" [class.font-bold]="today"
+            ><b>週{{ weekdayLabel(d.date) }}</b> {{ weekDays()[i] | date: 'M/d'
+            }}{{ today ? ' · 今天' : '' }}</span
+          >
+          <i
+            class="pi pi-chevron-right col-start-2 row-span-2 row-start-1 text-sm"
+            aria-hidden="true"
+          ></i>
+          <span class="text-md text-zinc-600 tabular-nums">{{ weekRowSummary(d) }}</span>
+        </button>
+      }
+    </div>
   } @else if (layout(); as l) {
     @if (l.peak) {
       <p class="m-0 mb-2 text-md text-zinc-700 tabular-nums">

@@ -70,13 +70,22 @@ import {
 } from './components/session-filters/session-filters.component';
 import { SessionsHeaderComponent } from './components/sessions-header/sessions-header.component';
 import { PopupMenuComponent } from '@shared/components/popup-menu/popup-menu.component';
-import { SessionBatchComponent, type BatchMode } from './components/session-batch/session-batch.component';
+import {
+  SessionBatchComponent,
+  type BatchMode,
+} from './components/session-batch/session-batch.component';
 import {
   ScheduleGanttComponent,
   type ScheduleMenuRequest,
 } from './components/schedule-gantt/schedule-gantt.component';
 import { ScheduleListComponent } from './components/schedule-list/schedule-list.component';
-import { groupByDate, groupByStart, layoutDay } from './schedule-day.util';
+import {
+  groupByDate,
+  groupByStart,
+  layoutDay,
+  summarizeWeek,
+  type WeekDaySummary,
+} from './schedule-day.util';
 import { SessionsActionsService } from './services/sessions-actions.service';
 import { todayLocal } from '@shared/utils/session-time.util';
 
@@ -89,7 +98,7 @@ interface AttendanceDialogCloseResult {
 }
 
 const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
-// ponytail: 甘特與篩選結果都不分頁，一次最多 500 堂（一天、一班整期、一個月的未指派都遠低於此）；
+// ponytail: 甘特、週視圖與篩選結果都不分頁，一次最多 500 堂（一天、一週、一班整期、一個月的未指派都遠低於此）；
 // 超過時色面照實寫總數、清單只畫前 500 —— 真的撞到再改成依日期分段取。
 const FETCH_LIMIT = 500;
 
@@ -184,9 +193,12 @@ export class SessionsPage implements OnInit {
   ]);
   protected readonly listDateRangeModified = signal(false);
 
-  // ── 課表（#1174 G1）：平常是單日甘特；別頁帶範圍條件進來時切「篩選結果」 ──────────
-  /** `day`＝一天的甘特（手機是依開始時間分組的清單）；`results`＝範圍條件的篩選結果（依日期分章） */
-  protected readonly mode = signal<'day' | 'results'>('day');
+  // ── 課表（#1174 G1／G2）：單日甘特或一週七欄；別頁帶範圍條件進來時切「篩選結果」 ──────────
+  /**
+   * `day`＝一天的甘特（手機是依開始時間分組的清單）；`week`＝一週每天一欄（手機每天一行）；
+   * `results`＝範圍條件的篩選結果（依日期分章）
+   */
+  protected readonly mode = signal<'day' | 'week' | 'results'>('day');
   protected readonly day = signal<Date>(startOfDay(new Date()));
   /** 「現在」：每次取數時更新一次（上課中、現在線用）；不掛計時器 */
   protected readonly now = signal(new Date());
@@ -198,6 +210,20 @@ export class SessionsPage implements OnInit {
   protected readonly clashIds = computed(() => this.layout()?.clashIds ?? new Set<string>());
   protected readonly dayGroups = computed(() => groupByStart(this.displayedSessions()));
   protected readonly resultChapters = computed(() => groupByDate(this.displayedSessions()));
+  protected readonly week = computed(() =>
+    summarizeWeek(
+      this.weekDays().map((d) => format(d, 'yyyy-MM-dd')),
+      this.displayedSessions(),
+    ),
+  );
+  protected readonly isThisWeek = computed(() =>
+    isSameDay(this.weekDays()[0], startOfWeek(this.now(), { weekStartsOn: 1 })),
+  );
+  /** 工具列的週區間字（`9/28 – 10/4`） */
+  protected readonly weekLabel = computed(() => {
+    const d = this.weekDays();
+    return `${format(d[0], 'M/d')} – ${format(d[6], 'M/d')}`;
+  });
   /** 一次最多拿幾堂（甘特與篩選結果都不分頁） */
   protected readonly FETCH_LIMIT = FETCH_LIMIT;
   /** 色面標題用的區間（`10/1–10/31`）；只選了起日時只寫一天 */
@@ -210,6 +236,15 @@ export class SessionsPage implements OnInit {
     if (this.mode() === 'results') {
       const range = this.rangeLabel();
       return `${range ? range + '，' : ''}符合篩選的 ${this.displayedTotal()} 堂課。`;
+    }
+    if (this.mode() === 'week') {
+      const days = this.week();
+      const name = this.isThisWeek() ? '這週' : `${this.weekLabel()} 這週`;
+      const live = days.reduce((n, d) => n + d.sessions.length - d.cancelled, 0);
+      const changed = days.reduce((n, d) => n + d.changed, 0);
+      if (live === 0)
+        return days.some((d) => d.cancelled) ? `${name}全部停課。` : `${name}沒有排課。`;
+      return `${name} ${live} 堂課，${changed ? `${changed} 堂有異動。` : '沒有異動。'}`;
     }
     const all = this.displayedSessions();
     if (all.length === 0) return `${this.dayName()}沒有排課。`;
@@ -720,9 +755,7 @@ export class SessionsPage implements OnInit {
     if (fromClass) {
       // 開課班的「看這班的課／看未指派的課」（courses.page）：整期範圍、指定班級
       this.mode.set('results');
-      this.listDateRange.set(
-        [fromClass.from, fromClass.to].filter((d): d is Date => d !== null),
-      );
+      this.listDateRange.set([fromClass.from, fromClass.to].filter((d): d is Date => d !== null));
       this.selectedClassIds.set([fromClass.classId]);
       if (fromClass.courseId) this.selectedCourseIds.set([fromClass.courseId]);
       if (fromClass.unassigned) this.selectedTeacherIds.set(['__unassigned__']);
@@ -760,20 +793,58 @@ export class SessionsPage implements OnInit {
     return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   });
 
+  /** 日期條點某天：週視圖時也切回那天的日視圖（A6：週視圖點一天＝看那天） */
   protected setDay(d: Date): void {
-    if (isSameDay(d, this.day())) return;
-    this.day.set(startOfDay(d));
-    // 勾選只對畫面上那一天有意義（批次動作是對勾到的課）；換天就放掉，不留看不到的勾
+    if (this.mode() === 'day' && isSameDay(d, this.day())) return;
+    this.mode.set('day');
+    this.moveTo(d);
+  }
+
+  protected setView(view: 'day' | 'week'): void {
+    if (this.mode() === view) return;
+    this.mode.set(view);
     this.clearSelection();
     this.loadSessions();
   }
 
+  /** 上一週／下一週／回到今天：留在目前的日／週檢視 */
   protected shiftWeek(weeks: number): void {
-    this.setDay(addDays(this.day(), weeks * 7));
+    this.moveTo(addDays(this.day(), weeks * 7));
   }
 
   protected goToday(): void {
-    this.setDay(new Date());
+    this.moveTo(new Date());
+  }
+
+  private moveTo(d: Date): void {
+    this.day.set(startOfDay(d));
+    // 勾選只對畫面上那一天（週）有意義（批次動作是對勾到的課）；換天就放掉，不留看不到的勾
+    this.clearSelection();
+    this.loadSessions();
+  }
+
+  /** 週視圖手機那一行（A6 `.wm__s`）：幾堂、最擠的時段、停課、其他異動 */
+  protected weekRowSummary(d: WeekDaySummary): string {
+    if (d.sessions.length === 0) return '沒有排課';
+    const busiest = d.peak
+      ? `${d.peak.from} 同時 ${d.peak.count} 班`
+      : d.maxConcurrent
+        ? '最多同時 1 班'
+        : '整天停課';
+    const other = d.changed - d.cancelled;
+    return [
+      `${d.sessions.length} 堂`,
+      busiest,
+      d.cancelled ? `停課 ${d.cancelled}` : '',
+      other > 0 ? `${d.cancelled ? '其他' : ''}異動 ${other}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  /** 日期條上被選中的那天（週視圖沒有「選中的天」） */
+  protected isSelectedDay(d: Date): boolean {
+    return this.mode() === 'day' && isSameDay(d, this.day());
   }
 
   /** 篩選結果 → 回到課表：放掉範圍條件，回到單日甘特 */
@@ -975,7 +1046,13 @@ export class SessionsPage implements OnInit {
   }
 
   protected loadSessions(): void {
-    const range = this.mode() === 'day' ? [this.day(), this.day()] : this.listDateRange();
+    const mode = this.mode();
+    const range =
+      mode === 'day'
+        ? [this.day(), this.day()]
+        : mode === 'week'
+          ? [this.weekDays()[0], this.weekDays()[6]]
+          : this.listDateRange();
     this.now.set(new Date());
     const rawIds = this.selectedTeacherIds();
     const realTeacherIds = rawIds.filter((id) => id !== '__unassigned__');

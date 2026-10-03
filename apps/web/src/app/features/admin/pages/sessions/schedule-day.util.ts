@@ -139,3 +139,41 @@ export function groupByDate(
   for (const s of sessions) days.set(s.sessionDate, [...(days.get(s.sessionDate) ?? []), s]);
   return [...days.keys()].sort().map((date) => ({ date, groups: groupByStart(days.get(date)!) }));
 }
+
+export interface WeekDaySummary {
+  /** `yyyy-MM-dd` */
+  readonly date: string;
+  readonly sessions: readonly Session[];
+  readonly groups: StartGroup[];
+  readonly clashIds: ReadonlySet<string>;
+  readonly peak: GanttLayout['peak'];
+  /** 同時最多幾班（不含停課）；有課沒撞時段是 1，整天停課是 0 */
+  readonly maxConcurrent: number;
+  readonly cancelled: number;
+  /** 停課＋有異動＋撞堂（跟色面標題同一個算法） */
+  readonly changed: number;
+}
+
+/** 週視圖（A6 `weekView()`）：每天一格，沒課的天也要有（欄位／列不能缺） */
+export function summarizeWeek(
+  dates: readonly string[],
+  sessions: readonly Session[],
+): WeekDaySummary[] {
+  return dates.map((date) => {
+    const list = sessions.filter((s) => s.sessionDate === date);
+    const l = layoutDay(list);
+    const clashIds = l?.clashIds ?? new Set<string>();
+    const live = list.filter((s) => s.status !== 'cancelled').length;
+    return {
+      date,
+      sessions: list,
+      groups: groupByStart(list),
+      clashIds,
+      peak: l?.peak ?? null,
+      maxConcurrent: l?.peak?.count ?? Math.min(live, 1),
+      cancelled: list.length - live,
+      changed: list.filter((s) => s.status === 'cancelled' || s.hasChanges || clashIds.has(s.id))
+        .length,
+    };
+  });
+}

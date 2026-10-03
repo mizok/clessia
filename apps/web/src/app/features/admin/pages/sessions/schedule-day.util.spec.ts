@@ -1,5 +1,5 @@
 import type { Session } from '@core/sessions.service';
-import { groupByDate, groupByStart, isLive, layoutDay } from './schedule-day.util';
+import { groupByDate, groupByStart, isLive, layoutDay, summarizeWeek } from './schedule-day.util';
 
 function s(over: Partial<Session> & { id: string }): Session {
   return {
@@ -120,5 +120,45 @@ describe('groupByStart / groupByDate', () => {
     ]);
     expect(d.map((x) => x.date)).toEqual(['2026-10-01', '2026-10-02']);
     expect(d[0].groups[0].sessions[0].id).toBe('a');
+  });
+});
+
+describe('summarizeWeek', () => {
+  const days = ['2026-09-28', '2026-09-29', '2026-09-30'];
+
+  it('每天一格（沒課的天也有），各自分組、數同時最多幾班', () => {
+    const w = summarizeWeek(days, [
+      s({ id: 'a', sessionDate: '2026-09-28' }),
+      s({ id: 'b', sessionDate: '2026-09-28', teacherId: 't2', teacherName: 'B' }),
+      s({ id: 'c', sessionDate: '2026-09-30', startTime: '09:00', endTime: '10:00' }),
+    ]);
+    expect(w.map((d) => d.date)).toEqual(days);
+    expect(w.map((d) => d.sessions.length)).toEqual([2, 0, 1]);
+    expect(w.map((d) => d.maxConcurrent)).toEqual([2, 0, 1]);
+    expect(w[0].peak).toEqual({ count: 2, from: '17:00', to: '19:00' });
+    expect(w[2].peak).toBeNull();
+    expect(w[2].groups[0].start).toBe('09:00');
+  });
+
+  it('異動＝停課、有異動、撞堂；停課另外數，不算同時', () => {
+    const [d] = summarizeWeek(
+      ['2026-10-01'],
+      [
+        s({ id: 'x', status: 'cancelled' }),
+        s({ id: 'h', teacherId: 't2', hasChanges: true }),
+        s({ id: 'c1', teacherId: 't3', startTime: '09:00', endTime: '10:00' }),
+        s({ id: 'c2', teacherId: 't3', startTime: '09:30', endTime: '10:30' }),
+        s({ id: 'ok', teacherId: 't4', startTime: '12:00', endTime: '13:00' }),
+      ],
+    );
+    expect(d.cancelled).toBe(1);
+    expect(d.changed).toBe(4);
+    expect([...d.clashIds].sort()).toEqual(['c1', 'c2']);
+    expect(d.maxConcurrent).toBe(2);
+  });
+
+  it('整天停課：同時 0 班', () => {
+    const [d] = summarizeWeek(['2026-10-01'], [s({ id: 'x', status: 'cancelled' })]);
+    expect(d.maxConcurrent).toBe(0);
   });
 });
