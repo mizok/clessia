@@ -45,6 +45,27 @@
       @if (auth.activeRole() === 'admin') {
         <app-global-search class="ml-auto flex items-center" />
       }
+      <!-- 頂欄分校（#1138 H2）：只在接上 CampusContextService 的頁出現（過渡期逐頁接）；只有一間就只寫名字 -->
+      @if (auth.activeRole() === 'admin' && campus.inUse() && campus.campuses().length > 0) {
+        @if (campus.campuses().length === 1) {
+          <span class="inline-flex min-h-11 items-center text-md whitespace-nowrap text-zinc-300">{{
+            campus.campuses()[0].name
+          }}</span>
+        } @else {
+          <button
+            class="inline-flex min-h-11 max-w-40 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-1.5 text-md text-zinc-300 hover:bg-zinc-800 hover:text-white aria-expanded:bg-zinc-800 aria-expanded:text-white"
+            type="button"
+            popovertarget="shell-campus"
+            [attr.aria-expanded]="campusOpen()"
+            [attr.aria-label]="'切換分校，目前 ' + (campus.name() ?? '全部分校')"
+          >
+            <i class="pi pi-building text-sm" aria-hidden="true"></i>
+            <!-- 手機頂欄第一列放不下名字（會把帳戶鈕擠到第二列）：只留圖示，名字在 aria-label -->
+            <span class="hidden truncate wide:inline">{{ campus.name() ?? '全部分校' }}</span>
+            <i class="pi pi-chevron-down text-xs" aria-hidden="true"></i>
+          </button>
+        }
+      }
       @if (auth.activeRole(); as role) {
         <button
           [class.ml-auto]="role !== 'admin'"
@@ -120,6 +141,32 @@
         </div>
       }
     </div>
+  </div>
+}
+
+<!-- 分校：全部分校＋每一間（選項來自授權過的分校清單）。原生 popover -->
+@if (campus.inUse() && campus.campuses().length > 1) {
+  <div
+    class="m-0 w-[240px] rounded-lg border border-surface-border bg-white p-1 text-zinc-900 shadow-[0_12px_32px_-8px_rgb(26_22_20/24%)]"
+    id="shell-campus"
+    popover
+    aria-label="切換分校"
+    (toggle)="onPopoverToggle($event, 'campus')"
+  >
+    @for (c of campusChoices(); track c.id) {
+      <button
+        class="flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-sm border-0 bg-transparent px-3 text-left text-base text-zinc-900 hover:bg-zinc-100"
+        type="button"
+        [attr.aria-current]="c.id === campus.id() ? 'true' : null"
+        [class.font-semibold]="c.id === campus.id()"
+        (click)="selectCampus(c.id)"
+      >
+        {{ c.name }}
+        @if (c.id === campus.id()) {
+          <i class="pi pi-check text-sm" aria-hidden="true"></i>
+        }
+      </button>
+    }
   </div>
 }
 

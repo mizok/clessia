@@ -4,10 +4,10 @@
 -->
 <div class="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:gap-4">
   @if (showDateRange()) {
-  <div class="flex min-w-0 flex-col gap-1 md:w-[19rem]">
-    <span id="session-filters-date" class="text-sm font-semibold text-zinc-700">日期</span>
-    <div class="flex items-center gap-2">
-      <!--
+    <div class="flex min-w-0 flex-col gap-1 md:w-[19rem]">
+      <span id="session-filters-date" class="text-sm font-semibold text-zinc-700">日期</span>
+      <div class="flex items-center gap-2">
+        <!--
         手機版**刻意**用 `mm/dd` 而不是全站的 `yy-mm-dd`（#425 M4 查證後保留）：
         一、窄列塞不下 `2026-09-01 - 2026-09-30`（23 字元），短版只要 13；
         二、短版若也用連字號，`09-01 - 09-30` 裡的連字號會跟 PrimeNG 的區間分隔符
@@ -15,52 +15,52 @@
         下面那支桌機版是同一個 `listDateRange()` 的另一軌，用長版。
         **這是同一概念的長短版，不是不一致** —— 要「統一」之前先讀這段。
       -->
-      <p-datepicker
-        class="min-w-0 flex-1 md:hidden"
-        selectionMode="range"
-        [ngModel]="listDateRange()"
-        (ngModelChange)="onListDateRangeChange($event)"
-        dateFormat="mm/dd"
-        placeholder="日期範圍"
-        inputStyleClass="h-11 min-w-0 flex-1"
-        [showIcon]="true"
-        [appendTo]="'body'"
-        [firstDayOfWeek]="1"
-        [numberOfMonths]="1"
-        [readonlyInput]="true"
-        ariaLabelledBy="session-filters-date"
-      />
-      <p-datepicker
-        class="hidden min-w-0 flex-1 md:flex"
-        selectionMode="range"
-        [ngModel]="listDateRange()"
-        (ngModelChange)="onListDateRangeChange($event)"
-        dateFormat="yy-mm-dd"
-        placeholder="選擇日期範圍"
-        inputStyleClass="h-11 min-w-0 flex-1"
-        [showIcon]="true"
-        [appendTo]="'body'"
-        [firstDayOfWeek]="1"
-        [numberOfMonths]="1"
-        [readonlyInput]="true"
-        ariaLabelledBy="session-filters-date"
-      />
-      <button
-        type="button"
-        class="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 md:hidden"
-        (click)="openAdvancedFilters.emit()"
-      >
-        <i class="pi pi-filter text-sm" aria-hidden="true"></i>
-        篩選
-        @if (activeFilterCount() > 0) {
-          <span
-            class="inline-flex size-5 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white"
-            >{{ activeFilterCount() }}</span
-          >
-        }
-      </button>
+        <p-datepicker
+          class="min-w-0 flex-1 md:hidden"
+          selectionMode="range"
+          [ngModel]="listDateRange()"
+          (ngModelChange)="onListDateRangeChange($event)"
+          dateFormat="mm/dd"
+          placeholder="日期範圍"
+          inputStyleClass="h-11 min-w-0 flex-1"
+          [showIcon]="true"
+          [appendTo]="'body'"
+          [firstDayOfWeek]="1"
+          [numberOfMonths]="1"
+          [readonlyInput]="true"
+          ariaLabelledBy="session-filters-date"
+        />
+        <p-datepicker
+          class="hidden min-w-0 flex-1 md:flex"
+          selectionMode="range"
+          [ngModel]="listDateRange()"
+          (ngModelChange)="onListDateRangeChange($event)"
+          dateFormat="yy-mm-dd"
+          placeholder="選擇日期範圍"
+          inputStyleClass="h-11 min-w-0 flex-1"
+          [showIcon]="true"
+          [appendTo]="'body'"
+          [firstDayOfWeek]="1"
+          [numberOfMonths]="1"
+          [readonlyInput]="true"
+          ariaLabelledBy="session-filters-date"
+        />
+        <button
+          type="button"
+          class="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 md:hidden"
+          (click)="openAdvancedFilters.emit()"
+        >
+          <i class="pi pi-filter text-sm" aria-hidden="true"></i>
+          篩選
+          @if (activeFilterCount() > 0) {
+            <span
+              class="inline-flex size-5 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white"
+              >{{ activeFilterCount() }}</span
+            >
+          }
+        </button>
+      </div>
     </div>
-  </div>
   } @else {
     <button
       type="button"
@@ -76,17 +76,6 @@
         >
       }
     </button>
-  }
-
-  @if (campuses().length > 1) {
-    <div class="hidden min-w-0 md:block md:w-52">
-      <app-select-field
-        label="分校"
-        [options]="campusOptions()"
-        [value]="selectedCampusId()"
-        (valueChange)="onCampusChange($event)"
-      />
-    </div>
   }
 
   <div class="hidden items-center gap-2 md:flex">

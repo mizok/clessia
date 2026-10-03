@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import type { Campus } from '@core/campuses.service';
 
 import { SessionFiltersComponent } from './session-filters.component';
 
@@ -21,12 +20,7 @@ describe('SessionFiltersComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('renders a lightweight toolbar with date, campus, filter button, and clear button only', () => {
-    fixture.componentRef.setInput('campuses', [
-      buildCampus({ id: 'campus-1', name: '中正分校' }),
-      buildCampus({ id: 'campus-2', name: '大安分校' }),
-    ]);
-    fixture.componentRef.setInput('selectedCampusId', 'campus-1');
+  it('renders a lightweight toolbar with filter button and clear button only（分校在頂欄，#1138 H2）', () => {
     fixture.componentRef.setInput('activeFilterCount', 3);
     fixture.componentRef.setInput('hasActiveFilters', true);
     fixture.detectChanges();
@@ -58,34 +52,4 @@ describe('SessionFiltersComponent', () => {
 
     expect(openCount).toBe(1);
   });
-
-  it('emits campus id from single-select', () => {
-    let emitted: string | null = null;
-    component.campusIdChange.subscribe((value: string | null) => {
-      emitted = value;
-    });
-
-    (
-      component as unknown as {
-        onCampusChange: (id: string | null) => void;
-      }
-    ).onCampusChange('campus-1');
-
-    expect(emitted).toBe('campus-1');
-  });
 });
-
-function buildCampus(overrides: Partial<Campus>): Campus {
-  return {
-    id: 'campus-default',
-    orgId: 'org-1',
-    name: '示範分校',
-    address: null,
-    phone: null,
-    isActive: true,
-    paymentInfo: null,
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    ...overrides,
-  };
-}

@@ -4,6 +4,7 @@ import { DialogService } from 'primeng/dynamicdialog';
 import { JdenticonAvatarComponent } from '@shared/components/jdenticon-avatar/jdenticon-avatar.component';
 import { AuthService, type UserRole } from '@core/auth.service';
 import { NavigationService } from '@core/navigation.service';
+import { CampusContextService } from '@core/campus-context.service';
 import { InheritSizeDirective } from '@shared/directives/inherit-size.directive';
 import { OverlayContainerService } from '@core/overlay-container.service';
 import { OverlayContainerDirective } from '@shared/directives/overlay-container.directive';
@@ -42,6 +43,7 @@ const WIDE = '(min-width: 861px)';
 export class ShellLayoutComponent {
   public readonly auth = inject(AuthService);
   protected readonly nav = inject(NavigationService);
+  protected readonly campus = inject(CampusContextService);
   private readonly dialogService = inject(DialogService);
   private readonly overlayContainerService = inject(OverlayContainerService);
 
@@ -73,6 +75,11 @@ export class ShellLayoutComponent {
   protected readonly scrolled = signal(false);
   protected readonly moreOpen = signal(false);
   protected readonly accountOpen = signal(false);
+  protected readonly campusOpen = signal(false);
+  protected readonly campusChoices = computed(() => [
+    { id: null as string | null, name: '全部分校' },
+    ...this.campus.campuses().map((c) => ({ id: c.id as string | null, name: c.name })),
+  ]);
 
   protected onScroll(event: Event) {
     this.scrolled.set((event.target as HTMLElement).scrollTop > 0);
@@ -80,12 +87,12 @@ export class ShellLayoutComponent {
 
   /**
    * popover 預設開在畫面正中，這裡讓它貼著觸發鈕（A6 同一招）。帳戶浮層在手機是 CSS 的底部抽屜，
-   * 不給位置；「更多」兩種寬度都貼著鈕，往左貼齊不超出畫面。
+   * 不給位置；「更多」兩種寬度都貼著鈕，往左貼齊不超出畫面；分校兩種寬度都貼著鈕、往右貼齊。
    */
-  protected onPopoverToggle(event: Event, which: 'more' | 'account') {
+  protected onPopoverToggle(event: Event, which: 'more' | 'account' | 'campus') {
     const pop = event.target as HTMLElement;
     const open = (event as ToggleEvent).newState === 'open';
-    (which === 'more' ? this.moreOpen : this.accountOpen).set(open);
+    ({ more: this.moreOpen, account: this.accountOpen, campus: this.campusOpen })[which].set(open);
     if (!open) return;
     pop.removeAttribute('style');
     if (which === 'account' && !window.matchMedia(WIDE).matches) return;
@@ -94,7 +101,7 @@ export class ShellLayoutComponent {
     const r = opener.getBoundingClientRect();
     const header = (opener.closest('header') ?? opener).getBoundingClientRect();
     const left =
-      which === 'account'
+      which !== 'more'
         ? Math.max(16, r.right - pop.offsetWidth)
         : Math.max(16, Math.min(r.left, window.innerWidth - pop.offsetWidth - 16));
     // 從頁首下緣往下 8px，不從按鈕下緣：按鈕在頁首裡置中，從它算會黏著頁首邊緣
@@ -115,6 +122,13 @@ export class ShellLayoutComponent {
   onResize() {
     this.hide('shell-more');
     this.hide('shell-account');
+    this.hide('shell-campus');
+  }
+
+  /** 頂欄分校（#1138 H2）：寫進 CampusContextService，接上的頁面自己跟著重查 */
+  protected selectCampus(id: string | null) {
+    this.hide('shell-campus');
+    this.campus.select(id);
   }
 
   /** 就地切換身分：零導航、零動態載入（`/select-role` 是登入後的初選，另一個場景） */

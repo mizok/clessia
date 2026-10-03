@@ -130,13 +130,10 @@
       class="min-w-0 md:flex-1"
       [showDateRange]="mode() === 'results'"
       [listDateRange]="listDateRange()"
-      [campuses]="campuses()"
-      [selectedCampusId]="selectedCampusId()"
       [activeFilterCount]="activeFilterCount()"
       [hasActiveFilters]="hasActiveFilters()"
       (listDateRangeChange)="onListDateRangeChange($event)"
       (openAdvancedFilters)="openAdvancedFiltersDialog()"
-      (campusIdChange)="onCampusIdChange($event)"
       (clearFilters)="clearFilters()"
     />
     <div class="flex flex-wrap gap-2 md:self-end">

@@ -21,8 +21,9 @@ import {
   startOfMonth,
   startOfWeek,
 } from 'date-fns';
-import { toObservable } from '@angular/core/rxjs-interop';
-import { catchError, filter, forkJoin, map, of, switchMap, take } from 'rxjs';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { CampusContextService } from '@core/campus-context.service';
+import { catchError, forkJoin, map, of, switchMap } from 'rxjs';
 import { MessageService, type MenuItem } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { DialogService } from 'primeng/dynamicdialog';
@@ -161,10 +162,6 @@ export class SessionsPage implements OnInit {
 
   // Filter options — campuses & teachers come from shared cache
   protected readonly campuses = computed(() => this.refData.campuses());
-  private readonly firstCampus$ = toObservable(this.campuses).pipe(
-    filter((campuses) => campuses.length > 0),
-    take(1),
-  );
   protected readonly courses = signal<Course[]>([]);
   protected readonly staff = computed(() => this.refData.teachers());
   protected readonly classes = signal<
@@ -174,7 +171,15 @@ export class SessionsPage implements OnInit {
   private readonly sessionMenuRef = viewChild<PopupMenuComponent>('sessionMenu');
 
   // ── Filter state ───────────────────────────────────────────────────────
-  protected readonly selectedCampusIds = signal<string[]>([]);
+  /**
+   * 分校跟頂欄走（#1138 H2，CampusContextService）：頁內不再有分校下拉。`[]`＝全部分校。
+   * 以前預設是第一間分校；現在是上次在頂欄選的那間，沒選過就是全部。
+   */
+  private readonly campusCtx = inject(CampusContextService);
+  protected readonly selectedCampusIds = computed(() => {
+    const id = this.campusCtx.id();
+    return id ? [id] : [];
+  });
   protected readonly selectedCampusId = computed(() => this.selectedCampusIds()[0] ?? null);
   protected readonly selectedCampusName = computed(() => {
     const id = this.selectedCampusId();
@@ -446,14 +451,26 @@ export class SessionsPage implements OnInit {
   });
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
+  constructor() {
+    this.campusCtx.use();
+    // 第一次（ngOnInit 之後的第一輪變更偵測）就是初次載入；之後是頂欄換了分校
+    let first = true;
+    toObservable(this.campusCtx.id)
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => {
+        if (first) {
+          first = false;
+          this.loadSessions();
+          return;
+        }
+        this.onCampusChanged();
+      });
+  }
+
   ngOnInit(): void {
     this.applyIncomingAttendanceFilter();
     this.loadFilters();
     this.loadStudents();
-    this.firstCampus$.subscribe((campuses) => {
-      this.selectedCampusIds.set([campuses[0].id]);
-      this.loadSessions();
-    });
   }
 
   // ── List actions ───────────────────────────────────────────────────────
@@ -594,7 +611,9 @@ export class SessionsPage implements OnInit {
     });
     ref?.onClose.subscribe((result?: MobileFilterDialogResult) => {
       if (result) {
-        this.selectedCampusIds.set(result.campusIds);
+        // 手機篩選對話框裡的分校也寫回頂欄那一份（只有一個來源）；重查由頂欄的訂閱做
+        if ((result.campusIds[0] ?? null) !== this.campusCtx.id())
+          this.campusCtx.select(result.campusIds[0] ?? null);
         this.selectedCourseIds.set(result.courseIds);
         this.selectedTeacherIds.set(result.teacherIds);
         this.selectedClassIds.set(result.classIds);
@@ -688,11 +707,34 @@ export class SessionsPage implements OnInit {
   }
 
   // ── Filters ────────────────────────────────────────────────────────────
-  protected onCampusIdChange(id: string | null): void {
-    this.selectedCampusIds.set(id ? [id] : []);
-    this.selectedCourseIds.set([]);
-    this.selectedTeacherIds.set([]);
-    this.selectedClassIds.set([]);
+  /**
+   * 頂欄換了分校：課程／班級／老師篩選裡**不屬於新分校的**拿掉（不是全清 ——
+   * 手機篩選對話框可能同一次也選了新分校的課程），再重查。
+   */
+  private onCampusChanged(): void {
+    const campus = this.campusCtx.id();
+    if (campus) {
+      const courses = new Set(
+        this.courses()
+          .filter((c) => c.campusId === campus)
+          .map((c) => c.id),
+      );
+      const classes = new Set(
+        this.classes()
+          .filter((c) => c.campusId === campus)
+          .map((c) => c.id),
+      );
+      const teachers = new Set(
+        this.activeTeachers()
+          .filter((t) => t.campusIds.includes(campus))
+          .map((t) => t.id),
+      );
+      this.selectedCourseIds.update((ids) => ids.filter((id) => courses.has(id)));
+      this.selectedClassIds.update((ids) => ids.filter((id) => classes.has(id)));
+      this.selectedTeacherIds.update((ids) =>
+        ids.filter((id) => id === '__unassigned__' || teachers.has(id)),
+      );
+    }
     this.refreshStudentEnrolledClassIds(this.selectedStudentIds(), () => this.loadSessions());
   }
 
