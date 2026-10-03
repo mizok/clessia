@@ -406,6 +406,28 @@ describe('GET /api/scores 列表 —— #1253', () => {
     expect(body.meta.total).toBe(1);
   });
 
+  // reviewer 二讀：.order(..., { referencedTable }) 排的是內嵌資源，頂層順序不保證 ——
+  // range 跨頁時兩頁之間順序一變就重複或漏列。每支分頁撈的查詢都要有頂層的穩定鍵
+  it('分頁撈取的查詢都帶頂層穩定排序鍵 order(id)，而且不再要 count', async () => {
+    const { app, queries } = createApp(pagedResolver([], []), null);
+    await app.request('/api/scores?search=%E7%8E%8B');
+    await app.request('/api/scores');
+    const scoreQueries = queries.filter(
+      (q) => q.table === 'academy_scores' || q.table === 'school_scores',
+    );
+    expect(scoreQueries.length).toBeGreaterThan(0);
+    for (const q of scoreQueries) {
+      const ranged = q.ops.some((op) => op.name === 'range');
+      if (!ranged) continue;
+      expect(
+        q.ops.some((op) => op.name === 'order' && op.args[0] === 'id' && op.args[1] === undefined),
+      ).toBe(true);
+      expect(
+        JSON.stringify(q.ops.find((op) => op.name === 'select')?.args[1] ?? null),
+      ).not.toContain('count');
+    }
+  });
+
   it('超過 1000 列時不被靜默截斷：第 1001 列之後的頁照樣拿得到', async () => {
     const rows = Array.from({ length: 1500 }, (_, i) => ({
       ...academyRow('u1', '王小明', i, 100),

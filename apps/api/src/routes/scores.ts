@@ -242,16 +242,24 @@ async function fetchAllRows<T>(
   }
 }
 
-/** list 用：同 fetchAllRows，但把錯誤收成 `{ error }`（list 既有的錯誤處理是看 error 欄位） */
+/**
+ * list 用：同 fetchAllRows，但把錯誤收成 `{ error }`（list 既有的錯誤處理是看 error 欄位）。
+ *
+ * **頂層一定要有穩定排序鍵**（reviewer 二讀）：呼叫端的 `.order(..., { referencedTable })` 排的是
+ * **內嵌資源**，頂層列的順序不保證 —— 用 range 跨頁撈時，兩頁之間順序一變就會重複或漏列。
+ * 這裡統一補 `order('id')`；最後的顯示順序本來就在 JS 照 examDate 排，DB 的順序只為了分頁穩定。
+ */
 function fetchAllOrError(
   make: () => {
-    range: (
-      from: number,
-      to: number,
-    ) => PromiseLike<{ data: any[] | null; error: { message: string } | null }>;
+    order: (column: 'id') => {
+      range: (
+        from: number,
+        to: number,
+      ) => PromiseLike<{ data: any[] | null; error: { message: string } | null }>;
+    };
   },
 ): Promise<{ data: any[] | null; error: { message: string } | null }> {
-  return fetchAllRows<any>((from, to) => make().range(from, to)).then(
+  return fetchAllRows<any>((from, to) => make().order('id').range(from, to)).then(
     (data) => ({ data, error: null }),
     (error: Error) => ({ data: null, error: { message: error.message } }),
   );
@@ -394,7 +402,7 @@ app.openapi(listRoute, async (c) => {
       const buildAcademyQuery = () =>
         supabase
           .from('academy_scores')
-          .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
+          .select(`${ACADEMY_SCORE_SELECT}, students!inner ( name )`)
           .eq('academy_exams.org_id', orgId);
 
       const applyAcademyFilters = (query: ReturnType<typeof buildAcademyQuery>) => {
@@ -519,7 +527,7 @@ app.openapi(listRoute, async (c) => {
       const buildSchoolQuery = () =>
         supabase
           .from('school_scores')
-          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name )`, { count: 'exact' })
+          .select(`${SCHOOL_SCORE_SELECT}, students!inner ( name )`)
           .eq('school_exams.org_id', orgId);
 
       const applySchoolFilters = (query: ReturnType<typeof buildSchoolQuery>) => {
