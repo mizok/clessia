@@ -1,6 +1,6 @@
 ---
 title: 家長端課程／開課班目錄（加選、試聽、首頁推薦的共用 API）
-summary: GET /api/me/catalog?childId= —— 走 childDb.orgRef('classes') 讀機構參考資料（課程、分校、每週時段、任課老師以 embed 帶出），名額用批次版 activeEnrollmentCounts 只回數字，排除孩子已在籍的班。「推薦」與費用都沒有資料來源，推薦等裁、費用附三個選項待裁；分校範圍附兩個選項待裁。疊在 #1141（orgRef）上。裁定（#1152）：費用 A 不顯示、分校 A 全機構、年級只標記、推薦不帶欄位。
+summary: GET /api/me/catalog?childId= —— 走 childDb.orgRef('classes') 讀機構參考資料（課程、分校、每週時段、任課老師以 embed 帶出），名額用批次版 activeEnrollmentCounts 只回數字，排除孩子已在籍的班。「推薦」與費用都沒有資料來源，推薦等裁、費用附三個選項待裁；分校範圍附兩個選項待裁。疊在 #1141（orgRef）上。裁定（#1152）：分校 A 全機構、年級只標記、推薦不帶欄位；費用後來改 B（#1175）：班級掛預設範本，回 `fee`（參考價，停用範本回 null）。
 category: architecture
 status: developing
 updated: 2026-10-03
@@ -58,7 +58,10 @@ tags: [architecture, parent, authorization, catalog, enrollment]
 
 ## 裁定（計畫席 2026-10-03，#1152 留言）
 
-1. **費用 A**：這版不回費用。費用住哪是 #1125 公開目錄也要回答的問題，交給使用者裁。
+1. ~~**費用 A**：這版不回費用。~~ **使用者改裁 B（#1175）**：`classes.default_fee_template_id`（`ON DELETE SET NULL`），
+   回應帶 `fee: { amount, billingMode } | null` —— 沒設、或範本已停用回 `null`。只是**參考價**，
+   實際報名價以報名時選的範本為準。寫這一欄要 `manage_finance`（跟價目表同一個門檻，不是班級的 `manage_courses`）；
+   班級 GET 只回範本 id。家長端卡片畫「參考價」留給加選頁（P4 批 5）。
 2. **分校 A**：全機構所有分校，卡片帶分校名。
 3. **年級**只標 `matchesGrade`，不在 server 過濾。
 4. **推薦**等使用者裁；回應不帶推薦欄位，之後補是純加法。

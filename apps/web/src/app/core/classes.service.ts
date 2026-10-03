@@ -33,6 +33,8 @@ export interface Class {
    * 開 = 這個班用個人聯絡簿；關 = 走 class_logs 教務日誌。
    */
   usesContactBook: boolean;
+  /** 目錄參考價的範本（#1175）。只有 id —— 金額要 `manage_finance` 才讀得到 */
+  defaultFeeTemplateId?: string | null;
   scheduleCount?: number;
   scheduleTeacherIds?: string[];
   hasUpcomingSessions?: boolean;
@@ -80,6 +82,8 @@ export interface CreateClassInput {
   gradeLevels?: string[];
   nextClassId?: string | null;
   usesContactBook?: boolean;
+  /** 要 `manage_finance`；沒有時不要帶這個 key（帶了整筆 403） */
+  defaultFeeTemplateId?: string | null;
   startDate?: string | null;
   endDate?: string | null;
 }
@@ -90,6 +94,8 @@ export interface UpdateClassInput {
   gradeLevels?: string[];
   nextClassId?: string | null;
   usesContactBook?: boolean;
+  /** 要 `manage_finance`；沒有時不要帶這個 key（帶了整筆 403） */
+  defaultFeeTemplateId?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   isActive?: boolean;

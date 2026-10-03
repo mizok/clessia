@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import type { Context } from 'hono';
 import type { AppEnv } from '../index';
 import { formatAuditClassResourceName, logAudit } from '../utils/audit';
 import { DbUuidSchema } from '../lib/validation';
@@ -16,6 +17,7 @@ import type {
   BatchAssignConflict,
 } from '../domain/session-assignment/session-assignment.types';
 import { waitUntilFrom } from '../lib/wait-until';
+import { hasPermission } from '../lib/permissions';
 import {
   normalizeTime,
   toMinutes,
@@ -58,6 +60,8 @@ const ClassSchema = z
     /** 國小／國中模式的開關（kb/wiki/rules/contact-book-rules.md 規則 2）。
      *  開 = 用個人聯絡簿；關 = 走 class_logs 教務日誌 */
     usesContactBook: z.boolean(),
+    /** 目錄參考價的範本（#1175）。只回 id —— 金額要 `manage_finance` 才讀得到（`/api/fee-templates`） */
+    defaultFeeTemplateId: DbUuidSchema.nullable(),
     scheduleCount: z.number().optional(),
     scheduleTeacherIds: z.array(z.string()).optional(),
     hasUpcomingSessions: z.boolean().optional(),
@@ -95,6 +99,8 @@ const CreateClassSchema = z
     name: z.string().min(1).max(50),
     maxStudents: z.number().int().min(1).max(200).optional(),
     nextClassId: DbUuidSchema.nullable().optional(),
+    /** #1175：要 `manage_finance`；沒有時**不要帶這個 key**（帶了整筆 403） */
+    defaultFeeTemplateId: DbUuidSchema.nullable().optional(),
     // 不給就用 DB 的 default false（現況全是紙本）
     usesContactBook: z.boolean().optional(),
     startDate: z
@@ -115,6 +121,8 @@ const UpdateClassSchema = z
     name: z.string().min(1).max(50).optional(),
     maxStudents: z.number().int().min(1).max(200).optional(),
     nextClassId: DbUuidSchema.nullable().optional(),
+    /** #1175：要 `manage_finance`；沒有時**不要帶這個 key**（帶了整筆 403） */
+    defaultFeeTemplateId: DbUuidSchema.nullable().optional(),
     isActive: z.boolean().optional(),
     usesContactBook: z.boolean().optional(),
     startDate: z
@@ -306,6 +314,41 @@ interface ClassExtras {
   updatedByName?: string | null;
 }
 
+/**
+ * #1175：班級的目錄參考價。改它等於改家長在目錄上看到的價錢，所以門檻跟價目表同一個
+ * （`/api/fee-templates` 是 `all: 'manage_finance'`），不是班級本身的 `manage_courses`。
+ * 範本要屬於本 org（c1）且仍在使用 —— 停用的價目表不再對外報價（同報名挑範本只看 active）。
+ * `undefined`（沒帶 key）＝不動，回 null 放行。
+ */
+async function rejectDefaultFeeTemplate(
+  c: Context<AppEnv>,
+  templateId: string | null | undefined,
+): Promise<
+  | { status: 403; body: { error: string; code: 'FEE_TEMPLATE_FORBIDDEN' } }
+  | { status: 400; body: { error: string; code: 'INVALID_FEE_TEMPLATE' } }
+  | null
+> {
+  if (templateId === undefined) return null;
+  if (!hasPermission(c.get('permissions') ?? [], 'manage_finance')) {
+    return {
+      status: 403,
+      body: { error: '需要「財務管理」才能設定目錄參考價', code: 'FEE_TEMPLATE_FORBIDDEN' },
+    };
+  }
+  if (templateId === null) return null;
+  const { data } = await c
+    .get('supabase')
+    .from('fee_templates')
+    .select('id')
+    .eq('id', templateId)
+    .eq('org_id', c.get('orgId'))
+    .eq('is_active', true)
+    .maybeSingle();
+  return data
+    ? null
+    : { status: 400, body: { error: '價目範本不存在或已停用', code: 'INVALID_FEE_TEMPLATE' } };
+}
+
 export function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
   const course = row['courses'] as {
     name: string;
@@ -330,6 +373,7 @@ export function mapClass(row: Record<string, unknown>, extras?: ClassExtras) {
     // 欄位是 NOT NULL DEFAULT false，但舊的 select 可能沒撈到 —— 退回 false 而不是
     // undefined，前端拿 undefined 去畫開關會變成不確定狀態
     usesContactBook: (row['uses_contact_book'] as boolean | undefined) ?? false,
+    defaultFeeTemplateId: (row['default_fee_template_id'] as string | null | undefined) ?? null,
     scheduleCount: extras?.scheduleCount,
     scheduleTeacherIds: extras?.scheduleTeacherIds,
     hasUpcomingSessions: extras?.hasUpcomingSessions,
@@ -1011,6 +1055,10 @@ app.openapi(
         description: '驗證錯誤',
         content: { 'application/json': { schema: ErrorSchema } },
       },
+      403: {
+        description: '設定目錄參考價需要 manage_finance（#1175）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       409: {
         description: '班名重複',
         content: { 'application/json': { schema: ErrorSchema } },
@@ -1037,6 +1085,9 @@ app.openapi(
     if (!(course.is_active as boolean)) {
       return c.json({ error: '課程已停用，無法新增班級', code: 'COURSE_INACTIVE' }, 409);
     }
+    const feeRejection = await rejectDefaultFeeTemplate(c, body.defaultFeeTemplateId);
+    if (feeRejection?.status === 403) return c.json(feeRejection.body, 403);
+    if (feeRejection?.status === 400) return c.json(feeRejection.body, 400);
 
     const { data, error } = await supabase
       .from('classes')
@@ -1047,6 +1098,7 @@ app.openapi(
         name: body.name,
         max_students: body.maxStudents ?? 20,
         next_class_id: body.nextClassId ?? null,
+        default_fee_template_id: body.defaultFeeTemplateId ?? null,
         ...(body.usesContactBook === undefined ? {} : { uses_contact_book: body.usesContactBook }),
         start_date: body.startDate ?? null,
         end_date: body.endDate ?? null,
@@ -1095,6 +1147,14 @@ app.openapi(
         description: '成功',
         content: { 'application/json': { schema: z.object({ data: ClassSchema }) } },
       },
+      400: {
+        description: '價目範本不存在或已停用（#1175）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
+      403: {
+        description: '設定目錄參考價需要 manage_finance（#1175）',
+        content: { 'application/json': { schema: ErrorSchema } },
+      },
       404: {
         description: '不存在',
         content: { 'application/json': { schema: ErrorSchema } },
@@ -1117,7 +1177,14 @@ app.openapi(
       return c.json({ error: '班級不存在', code: 'NOT_FOUND' }, 404);
     }
 
+    const feeRejection = await rejectDefaultFeeTemplate(c, body.defaultFeeTemplateId);
+    if (feeRejection?.status === 403) return c.json(feeRejection.body, 403);
+    if (feeRejection?.status === 400) return c.json(feeRejection.body, 400);
+
     const updateData: Record<string, unknown> = { updated_by: userId };
+    if (body.defaultFeeTemplateId !== undefined) {
+      updateData['default_fee_template_id'] = body.defaultFeeTemplateId;
+    }
     if (body.name !== undefined) updateData['name'] = body.name;
     if (body.maxStudents !== undefined) updateData['max_students'] = body.maxStudents;
     if (body.nextClassId !== undefined) updateData['next_class_id'] = body.nextClassId;
