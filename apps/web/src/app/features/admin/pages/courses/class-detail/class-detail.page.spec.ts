@@ -116,7 +116,7 @@ describe('ClassDetailPage', () => {
 
     expect(classesServiceMock.get.mock.calls.length).toBe(callsBefore + 1);
     expect(host.querySelector('app-load-failed')).toBeNull();
-    expect(host.querySelector('.class-detail__band-grade')).not.toBeNull();
+    expect(host.querySelector('[data-part=grade]')).not.toBeNull();
   });
 
   /**
@@ -141,8 +141,8 @@ describe('ClassDetailPage', () => {
   });
 
   it('shows grade chips in the hero summary block', () => {
-    // hero 併進橘帶之後 chip 改叫 __band-grade（同一個東西、同一個位置）
-    const gradeChip = fixture.nativeElement.querySelector('.class-detail__band-grade');
+    // A6 換版（#991 courses C2）：年級寫在色面副標裡，掛點是 data-part=grade
+    const gradeChip = fixture.nativeElement.querySelector('[data-part=grade]');
 
     expect(gradeChip?.textContent).toContain('國二');
   });
@@ -159,7 +159,7 @@ describe('ClassDetailPage', () => {
    */
   describe('#726 學生列的鍵盤操作', () => {
     const studentRow = () =>
-      fixture.nativeElement.querySelector('.class-detail__student-item') as HTMLElement;
+      fixture.nativeElement.querySelector('[data-part=student]') as HTMLElement;
 
     async function renderWithOneStudent() {
       enrollmentsServiceMock.list.mockReturnValue(

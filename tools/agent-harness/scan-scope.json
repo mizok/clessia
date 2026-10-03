@@ -75,6 +75,7 @@
     "roots": [
       "apps/web/src/app/features/admin/pages/changes",
       "apps/web/src/app/features/admin/pages/checkin",
+      "apps/web/src/app/features/admin/pages/courses/class-detail/class-detail.page.html",
       "apps/web/src/app/features/admin/pages/courses/class-row",
       "apps/web/src/app/features/admin/pages/courses/courses.page.html",
       "apps/web/src/app/features/admin/pages/dashboard",
