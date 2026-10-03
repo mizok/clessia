@@ -328,3 +328,76 @@ describe('PUT /api/campuses/:id —— 出勤模式（#1112）', () => {
     expect(status).toBe(200);
   });
 });
+
+/**
+ * #1133（c1）：`GET /{id}` 原本 `select('*').eq('id', id)`，沒有 org 條件 ——
+ * 任一 org 的管理員拿到 id 就讀得到別 org 的分校。同檔 PUT／DELETE 早就走 `findInOrg`。
+ * 順帶：受分校限制的管理員只能改／刪自己管的分校（清單已照範圍縮，寫得到的 = 看得到的）。
+ */
+describe('campuses —— org 與分校範圍（#1133）', () => {
+  const ORG = '00000000-0000-0000-0000-0000000000aa';
+  const OTHER_ORG = '00000000-0000-0000-0000-0000000000bb';
+  const MINE = '00000000-0000-0000-0000-0000000000c1';
+  const THEIRS = '00000000-0000-0000-0000-0000000000c2';
+  const FOREIGN = '00000000-0000-0000-0000-0000000000c9';
+  const row = (id: string, orgId = ORG) => ({
+    id,
+    org_id: orgId,
+    name: id,
+    address: null,
+    phone: null,
+    is_active: true,
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+  });
+
+  async function call(method: string, id: string, campusScope: readonly string[] | null = null) {
+    const db = createMultiOrgDb({
+      campuses: [row(MINE), row(THEIRS), row(FOREIGN, OTHER_ORG)],
+    });
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', db.client);
+      set('orgId', ORG);
+      set('userId', 'user-1');
+      set('roles', ['admin']);
+      set('permissions', ['*']);
+      set('campusScope', campusScope);
+      await next();
+    });
+    app.route('/', campusesRoute.default as unknown as Hono);
+    const res = await app.request(`/${id}`, {
+      method,
+      ...(method === 'PUT'
+        ? { body: JSON.stringify({ name: '改' }), headers: { 'content-type': 'application/json' } }
+        : {}),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return { status: res.status, rows: db.rows('campuses') };
+  }
+
+  it('GET 別 org 的分校：404（跟不存在一樣）', async () => {
+    expect((await call('GET', FOREIGN)).status).toBe(404);
+  });
+
+  it('GET 本 org 的分校：200', async () => {
+    expect((await call('GET', MINE)).status).toBe(200);
+  });
+
+  it('受限管理員 PUT 別人管的分校：403，名字沒變', async () => {
+    const { status, rows } = await call('PUT', THEIRS, [MINE]);
+    expect(status).toBe(403);
+    expect(rows.find((r) => r['id'] === THEIRS)?.['name']).toBe(THEIRS);
+  });
+
+  it('受限管理員 DELETE 別人管的分校：403，沒刪', async () => {
+    const { status, rows } = await call('DELETE', THEIRS, [MINE]);
+    expect(status).toBe(403);
+    expect(rows.some((r) => r['id'] === THEIRS)).toBe(true);
+  });
+
+  it('受限管理員改自己的分校：照常', async () => {
+    expect((await call('PUT', MINE, [MINE])).status).toBe(200);
+  });
+});

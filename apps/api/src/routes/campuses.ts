@@ -265,11 +265,12 @@ const getRoute = createRoute({
 
 app.openapi(getRoute, async (c) => {
   const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
   const { id } = c.req.valid('param');
 
-  const { data, error } = await supabase.from('campuses').select('*').eq('id', id).single();
-
-  if (error || !data) {
+  // 別 org 的 id 跟不存在一樣回 404（c1，#1133）—— 原本只 `.eq('id', id)`，任一 org 的管理員都讀得到
+  const data = await findInOrg(supabase, 'campuses', orgId, id, '*');
+  if (!data) {
     return c.json({ error: '分校不存在', code: 'NOT_FOUND' }, 404);
   }
 
@@ -403,7 +404,7 @@ const updateRoute = createRoute({
       },
     },
     403: {
-      description: '沒有權限修改出勤模式（#1112）',
+      description: '不在自己管的分校範圍，或沒有權限修改出勤模式（#1112）',
       content: {
         'application/json': {
           schema: ErrorSchema,
@@ -426,6 +427,10 @@ app.openapi(updateRoute, async (c) => {
   const orgId = c.get('orgId');
   const userId = c.get('userId');
   const { id } = c.req.valid('param');
+  // 受分校限制者只能改／刪自己管的分校（#1133）—— 清單已照範圍縮，寫得到的 = 看得到的
+  if (!resourceCampusAllowed(getCampusScope(c), id)) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
   const body = c.req.valid('json');
 
   const updateData: Record<string, unknown> = {};
@@ -504,6 +509,14 @@ const deleteRoute = createRoute({
         },
       },
     },
+    403: {
+      description: '不在自己管的分校範圍',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
     404: {
       description: '分校不存在',
       content: {
@@ -528,6 +541,10 @@ app.openapi(deleteRoute, async (c) => {
   const orgId = c.get('orgId');
   const userId = c.get('userId');
   const { id } = c.req.valid('param');
+  // 受分校限制者只能改／刪自己管的分校（#1133）—— 清單已照範圍縮，寫得到的 = 看得到的
+  if (!resourceCampusAllowed(getCampusScope(c), id)) {
+    return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
+  }
 
   // **`select('*')` 而不是只取 name** —— 刪完就查不到了，這是留下快照的唯一機會（#837）。
   // 同時是 org 範圍的存在檢查：別 org 的 id 跟不存在一樣回 404（c1，#966 B1）
