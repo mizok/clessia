@@ -6,6 +6,13 @@ export interface BatchUpdateTimeTargetSession {
   readonly teacherId: string | null;
   readonly sessionDate: string;
   readonly status: 'scheduled' | 'completed' | 'cancelled';
+  /**
+   * 批次改到別天（#1111）：每堂各自的落點。沒帶就是原日期＋`input.newStartTime/newEndTime`
+   * （batch-update-time 的語意）。
+   */
+  readonly newSessionDate?: string;
+  readonly newStartTime?: string;
+  readonly newEndTime?: string;
 }
 
 export interface BatchUpdateTimeExistingClassPeer {
@@ -33,8 +40,9 @@ export interface BatchUpdateTimeConflict {
 }
 
 export interface BatchUpdateTimePlanInput {
-  readonly newStartTime: string;
-  readonly newEndTime: string;
+  /** 全批共用的新時段；每堂帶了自己的 `newStartTime/newEndTime` 時以那個為準 */
+  readonly newStartTime?: string;
+  readonly newEndTime?: string;
   readonly targetSessions: readonly BatchUpdateTimeTargetSession[];
   readonly existingClassPeers: readonly BatchUpdateTimeExistingClassPeer[];
   readonly existingTeacherPeers: readonly BatchUpdateTimeExistingTeacherPeer[];
@@ -56,10 +64,11 @@ export function planBatchUpdateTime(input: BatchUpdateTimePlanInput): BatchUpdat
     startTime: string;
     endTime: string;
   }> = [];
-  const newStartTime = normalizeTime(input.newStartTime);
-  const newEndTime = normalizeTime(input.newEndTime);
-
   for (const target of input.targetSessions) {
+    const newSessionDate = target.newSessionDate ?? target.sessionDate;
+    const newStartTime = normalizeTime((target.newStartTime ?? input.newStartTime) as string);
+    const newEndTime = normalizeTime((target.newEndTime ?? input.newEndTime) as string);
+
     if (target.status !== 'scheduled') {
       conflicts.push({
         sessionId: target.id,
@@ -74,7 +83,7 @@ export function planBatchUpdateTime(input: BatchUpdateTimePlanInput): BatchUpdat
       (peer) =>
         peer.id !== target.id &&
         peer.classId === target.classId &&
-        peer.sessionDate === target.sessionDate &&
+        peer.sessionDate === newSessionDate &&
         isTimeOverlap(
           newStartTime,
           newEndTime,
@@ -97,7 +106,7 @@ export function planBatchUpdateTime(input: BatchUpdateTimePlanInput): BatchUpdat
     const classConflictWithPlanned = plannedSlots.find(
       (slot) =>
         slot.classId === target.classId &&
-        slot.sessionDate === target.sessionDate &&
+        slot.sessionDate === newSessionDate &&
         isTimeOverlap(newStartTime, newEndTime, slot.startTime, slot.endTime),
     );
 
@@ -117,7 +126,7 @@ export function planBatchUpdateTime(input: BatchUpdateTimePlanInput): BatchUpdat
         (peer) =>
           peer.id !== target.id &&
           peer.teacherId === target.teacherId &&
-          peer.sessionDate === target.sessionDate &&
+          peer.sessionDate === newSessionDate &&
           isTimeOverlap(
             newStartTime,
             newEndTime,
@@ -140,7 +149,7 @@ export function planBatchUpdateTime(input: BatchUpdateTimePlanInput): BatchUpdat
       const teacherConflictWithPlanned = plannedSlots.find(
         (slot) =>
           slot.teacherId === target.teacherId &&
-          slot.sessionDate === target.sessionDate &&
+          slot.sessionDate === newSessionDate &&
           isTimeOverlap(newStartTime, newEndTime, slot.startTime, slot.endTime),
       );
 
@@ -161,7 +170,7 @@ export function planBatchUpdateTime(input: BatchUpdateTimePlanInput): BatchUpdat
       sessionId: target.id,
       classId: target.classId,
       teacherId: target.teacherId,
-      sessionDate: target.sessionDate,
+      sessionDate: newSessionDate,
       startTime: newStartTime,
       endTime: newEndTime,
     });
