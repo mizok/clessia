@@ -6,6 +6,6 @@ import { RouterOutlet } from '@angular/router';
   standalone: true,
   imports: [RouterOutlet],
   templateUrl: './grades.component.html',
-  styleUrl: './grades.component.scss',
+  host: { class: 'block' },
 })
 export class GradesComponent {}
