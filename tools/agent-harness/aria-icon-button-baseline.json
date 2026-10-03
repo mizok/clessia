@@ -2,7 +2,6 @@
   "app/features/admin/pages/leave/leave.page.html": 1,
   "app/features/admin/pages/payments/uninvoiced-dialog/uninvoiced-dialog.component.html": 1,
   "app/features/admin/pages/schools/schools.page.html": 2,
-  "app/features/admin/pages/sessions/dialogs/session-operations-log-dialog/session-operations-log-dialog.component.html": 1,
   "app/features/admin/pages/students/student-form-dialog.component.html": 1,
   "app/shared/components/account-settings-dialog/account-settings-dialog.component.html": 4,
   "app/shared/components/attendance-roster-panel/attendance-roster-panel.component.html": 1,

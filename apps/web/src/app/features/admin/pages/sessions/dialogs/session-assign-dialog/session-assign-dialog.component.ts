@@ -19,7 +19,6 @@ interface SessionAssignDialogData {
   selector: 'app-session-assign-dialog',
   imports: [ReactiveFormsModule, ButtonModule, SelectModule, InlineNoticeComponent],
   templateUrl: './session-assign-dialog.component.html',
-  styleUrl: './session-assign-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionAssignDialogComponent implements OnInit {

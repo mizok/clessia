@@ -41,8 +41,7 @@
 @source './app/features/admin/pages/changes';
 @source './app/features/admin/pages/courses';
 @source './app/features/admin/pages/dashboard';
-@source './app/features/admin/pages/sessions/components';
-@source './app/features/admin/pages/sessions/sessions.page.html';
+@source './app/features/admin/pages/sessions';
 @source './app/features/admin/pages/students';
 @source './app/features/admin/pages/checkin';
 @source './app/features/kiosk';

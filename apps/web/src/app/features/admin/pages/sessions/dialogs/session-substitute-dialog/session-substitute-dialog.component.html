@@ -17,14 +17,17 @@
       [loading]="loadingTeachers()"
     >
       <ng-template pTemplate="item" let-item>
-        <div class="sub-teacher-option">
+        <div class="flex items-center justify-between gap-2">
           <span>{{ item.displayName }}</span>
-          <span class="sub-teacher-option__count">本週 {{ item.weeklySessionCount }} 堂</span>
+          <span
+            class="shrink-0 rounded-full bg-zinc-100 px-1.5 py-px text-xs font-medium whitespace-nowrap text-zinc-700"
+            >本週 {{ item.weeklySessionCount }} 堂</span
+          >
         </div>
       </ng-template>
     </p-select>
     @if (!loadingTeachers() && teacherOptions().length === 0) {
-      <p class="session-op-form__hint">目前沒有符合該課堂分校與科目的代課老師。</p>
+      <p class="m-0 mt-2 text-sm text-zinc-500">目前沒有符合該課堂分校與科目的代課老師。</p>
     }
   </div>
   <div class="session-op-form__field">

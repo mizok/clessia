@@ -2,12 +2,18 @@
   <div class="dialog-header-inline__title-container">
     <h2 class="dialog-header-inline__title">操作紀錄</h2>
   </div>
-  <button class="dialog-header-inline__close" (click)="close()">
+  <button
+    type="button"
+    class="dialog-header-inline__close size-11"
+    aria-label="關閉"
+    (click)="close()"
+  >
     <i class="pi pi-times"></i>
   </button>
 </div>
 
-<div class="session-operations-log-dialog">
+<!-- 窄螢幕把 PrimeNG tabpanel 內距歸零：刻意沒翻成手機優先，寬版的值是 PrimeNG 執行期注入的 token，猜一個寫死會是看不見的回歸 -->
+<div class="max-sm:[--p-tabs-tabpanel-padding:0px]">
   <p-tabs [value]="selectedTab()" (valueChange)="onTabChange($event)">
     <p-tablist>
       <p-tab value="session">課堂異動</p-tab>
@@ -25,7 +31,7 @@
   </p-tabs>
 
   <ng-template #logContent let-emptyTitle="emptyTitle">
-    <div class="session-operations-log-dialog__body">
+    <div class="pt-4">
       @if (loading()) {
         <div class="skeleton-list">
           <span class="skeleton-bar skeleton-bar--label"></span>
@@ -34,13 +40,12 @@
           }
         </div>
       } @else if (logs().length === 0) {
-        <div class="session-operations-log-dialog__empty">
+        <div class="flex flex-col items-center justify-center gap-3 p-8 text-center text-zinc-500">
           <i class="pi pi-history"></i>
           <p>{{ emptyTitle }}</p>
         </div>
       } @else {
         <app-responsive-table
-          class="session-operations-log-dialog__table"
           [headTemplate]="headTemplate"
           [bodyTemplate]="bodyTemplate"
           [pagination]="pagination()"
@@ -66,21 +71,19 @@
     @for (log of logs(); track log.id) {
       <tr appRtRow [appRtRow]="log" [appRtRowId]="log.id">
         <td appRtColCell="userName">{{ log.userName ?? '—' }}</td>
-        <td appRtColCell="createdAt" class="session-operations-log-dialog__time">
+        <td appRtColCell="createdAt" class="whitespace-nowrap text-zinc-500">
           {{ log.createdAt | date: 'yyyy-MM-dd HH:mm:ss' }}
         </td>
         <td appRtColCell="resourceName">
-          <span class="session-operations-log-dialog__resource-type">{{
+          <span class="mr-2 inline-block min-w-10 text-zinc-500">{{
             getResourceTypeLabel(log.resourceType)
           }}</span>
-          <span class="session-operations-log-dialog__resource-name">{{
-            log.resourceName ?? '—'
-          }}</span>
+          <span class="font-medium text-zinc-900">{{ log.resourceName ?? '—' }}</span>
         </td>
         <td appRtColCell="action">
           <app-data-chip>{{ getActionConfig(log.action).label }}</app-data-chip>
           @if (getDetailsSummary(log)) {
-            <div class="session-operations-log-dialog__detail-summary">
+            <div class="mt-1 text-xs text-zinc-500">
               {{ getDetailsSummary(log) }}
             </div>
           }

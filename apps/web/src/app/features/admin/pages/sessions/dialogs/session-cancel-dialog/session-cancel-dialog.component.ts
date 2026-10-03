@@ -10,7 +10,6 @@ import { SessionsService } from '@core/sessions.service';
   selector: 'app-session-cancel-dialog',
   imports: [ReactiveFormsModule, ButtonModule, TextareaModule],
   templateUrl: './session-cancel-dialog.component.html',
-  styleUrl: './session-cancel-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionCancelDialogComponent implements OnInit {

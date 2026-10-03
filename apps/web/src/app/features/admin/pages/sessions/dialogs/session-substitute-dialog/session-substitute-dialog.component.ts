@@ -21,7 +21,6 @@ interface TeacherOption {
   selector: 'app-session-substitute-dialog',
   imports: [ReactiveFormsModule, ButtonModule, TextareaModule, SelectModule],
   templateUrl: './session-substitute-dialog.component.html',
-  styleUrl: './session-substitute-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionSubstituteDialogComponent implements OnInit {

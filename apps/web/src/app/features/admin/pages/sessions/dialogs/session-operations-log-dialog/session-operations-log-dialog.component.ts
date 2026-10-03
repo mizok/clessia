@@ -54,7 +54,7 @@ const RESOURCE_TYPE_LABEL: Record<string, string> = {
     RtRowDirective,
   ],
   templateUrl: './session-operations-log-dialog.component.html',
-  styleUrl: './session-operations-log-dialog.component.scss',
+  host: { class: 'block' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionOperationsLogDialogComponent {

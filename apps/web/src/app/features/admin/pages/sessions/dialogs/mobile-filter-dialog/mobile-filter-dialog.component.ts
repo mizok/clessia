@@ -59,7 +59,6 @@ interface MobileFilterClassDisplayOption {
   selector: 'app-mobile-filter-dialog',
   imports: [FormsModule, ButtonModule, MultiSelectModule, SelectModule, ImeFilterInputComponent],
   templateUrl: './mobile-filter-dialog.component.html',
-  styleUrl: './mobile-filter-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MobileFilterDialogComponent implements OnInit {
