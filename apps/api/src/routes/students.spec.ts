@@ -344,3 +344,137 @@ describe('GET /api/students —— 退班報名仍算分校歸屬，但不算在
     });
   });
 });
+
+/**
+ * #1138 H1：全站搜尋打家長電話（3 碼以上數字）也要找得到學生。
+ * 家長電話住在 `ba_user.phone`（20260317000003 把 parents.phone 移走了），
+ * 所以是 ba_user → parents.user_id → parent_student_relations → student id，併進同一個 `or`。
+ * 替身回固定 fixture，**斷言送出去的查詢長什麼樣**（哪張表、什麼條件、or 帶了哪些 id）。
+ */
+describe('GET /api/students?search= —— 家長電話比對（#1138）', () => {
+  const ORG = '00000000-0000-0000-0000-0000000000aa';
+  type Call = { table: string; op: string; args: unknown[] };
+
+  async function search(
+    q: string | null,
+    scope?: string,
+    role: 'admin' | 'teacher' = 'admin',
+    extra: Record<string, unknown[]> = {},
+  ) {
+    const calls: Call[] = [];
+    const fixtures: Record<string, unknown[]> = {
+      ba_user: [{ id: 'u-1' }],
+      parent_student_relations: [{ student_id: 's-phone' }],
+      students: [],
+      staff: [{ id: 'st-1' }],
+      schedules: [{ class_id: 'c-1' }],
+      enrollments: [{ student_id: 's-1' }],
+      ...extra,
+    };
+    const client = {
+      from: (table: string) => {
+        const b: Record<string, unknown> = {};
+        for (const op of ['select', 'eq', 'in', 'or', 'order', 'range', 'ilike'])
+          b[op] = (...args: unknown[]) => {
+            calls.push({ table, op, args });
+            return b;
+          };
+        b['maybeSingle'] = () =>
+          Promise.resolve({ data: (fixtures[table] ?? [])[0] ?? null, error: null });
+        b['then'] = (resolve: (v: unknown) => unknown) =>
+          resolve({ data: fixtures[table] ?? [], count: 0, error: null });
+        return b;
+      },
+    };
+    const app = new Hono();
+    app.use('*', async (c, next) => {
+      const set = (c as unknown as { set: (k: string, v: unknown) => void }).set.bind(c);
+      set('supabase', client);
+      set('orgId', ORG);
+      set('userId', 'user-1');
+      set('roles', [role]);
+      set('campusScope', null);
+      await next();
+    });
+    app.route('/', studentsRoute.default as unknown as Hono);
+    const qs = new URLSearchParams({
+      ...(q ? { search: q } : {}),
+      ...(scope ? { searchScope: scope } : {}),
+    });
+    const res = await app.request(`/?${qs}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: Array<{ primaryParentPhone?: string | null }> };
+    return Object.assign(calls, { data: body.data });
+  }
+
+  it('打 3 碼以上數字：查 ba_user.phone，經家長（限本機構）找到學生，併進 or', async () => {
+    const calls = await search('5678');
+
+    expect(calls).toContainEqual({ table: 'ba_user', op: 'ilike', args: ['phone', '%5678%'] });
+    expect(calls).toContainEqual({
+      table: 'parent_student_relations',
+      op: 'in',
+      args: ['parents.user_id', ['u-1']],
+    });
+    expect(calls).toContainEqual({
+      table: 'parent_student_relations',
+      op: 'eq',
+      args: ['parents.org_id', ORG],
+    });
+    const or = calls.find((c) => c.table === 'students' && c.op === 'or');
+    expect(String(or?.args[0])).toContain('s-phone');
+  });
+
+  it('不到 3 碼、或不是純數字：不查電話（確認上一條不是無腦通過）', async () => {
+    for (const q of ['56', '王5678']) {
+      const calls = await search(q);
+      expect(calls.some((c) => c.table === 'ba_user')).toBe(false);
+    }
+  });
+
+  it('只搜學生名（student_name）時不查電話', async () => {
+    const calls = await search('5678', 'student_name');
+    expect(calls.some((c) => c.table === 'ba_user')).toBe(false);
+  });
+
+  describe('primaryParentPhone（搜尋結果第二行要電話；計畫席裁 A：只有管理員拿得到）', () => {
+    const student = {
+      id: 's-1',
+      org_id: ORG,
+      name: '王小明',
+      grade: 'G7',
+      schools: null,
+      is_active: true,
+      created_at: '2026-03-01',
+      updated_at: '2026-03-01',
+      enrollments: [],
+      parent_student_relations: [
+        {
+          is_primary: false,
+          relation: 'father',
+          parents: { id: 'p-2', name: '王爸', user_id: 'u-2' },
+        },
+        {
+          is_primary: true,
+          relation: 'mother',
+          parents: { id: 'p-1', name: '王媽', user_id: 'u-1' },
+        },
+      ],
+    };
+    const extra = { students: [student], ba_user: [{ id: 'u-1', phone: '0912345678' }] };
+
+    it('管理員：查主要家長（is_primary 優先）的 ba_user.phone', async () => {
+      const res = await search(null, undefined, 'admin', extra);
+
+      expect(res).toContainEqual({ table: 'ba_user', op: 'in', args: ['id', ['u-1']] });
+      expect(res.data[0].primaryParentPhone).toBe('0912345678');
+    });
+
+    it('老師：不查電話、回 null（確認上一條不是無腦通過）', async () => {
+      const res = await search(null, undefined, 'teacher', extra);
+
+      expect(res.some((c) => c.table === 'ba_user')).toBe(false);
+      expect(res.data[0].primaryParentPhone).toBeNull();
+    });
+  });
+});
