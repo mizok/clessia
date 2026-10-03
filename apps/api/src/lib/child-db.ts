@@ -179,6 +179,27 @@ export function createChildDb(supabase: SupabaseClient, scope: StudentScope, org
     },
 
     /**
+     * 多班的佔名額人數（#1118 目錄）。**在這裡聚合成數字才交出去** —— 查詢只撈 `class_id`，
+     * route 拿到的是 `Map<classId, number>`，碰不到任何報名列。單班版是 N 次 head 查詢，目錄不適用。
+     */
+    async activeEnrollmentCounts(
+      classIds: readonly string[],
+    ): Promise<{ counts: Map<string, number>; error: unknown }> {
+      const counts = new Map<string, number>();
+      if (classIds.length === 0) return { counts, error: null };
+      const { data, error } = await supabase
+        .from('enrollments')
+        .select('class_id')
+        .eq('org_id', orgId)
+        .in('class_id', [...classIds])
+        .in('status', ['active', 'pending_payment']);
+      for (const row of (data ?? []) as Array<{ class_id: string }>) {
+        counts.set(row.class_id, (counts.get(row.class_id) ?? 0) + 1);
+      }
+      return { counts, error };
+    },
+
+    /**
      * 查一張**沒有 `student_id` 欄位**的表，範圍靠 `ids` 是不是 `ScopedIds`
      * 型別在編譯期擋，不靠這裡再驗一次資料。
      */

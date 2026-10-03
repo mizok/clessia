@@ -1,8 +1,8 @@
 ---
 title: 家長端課程／開課班目錄（加選、試聽、首頁推薦的共用 API）
-summary: GET /api/me/catalog?childId= —— 走 childDb.orgRef('classes') 讀機構參考資料（課程、分校、每週時段、任課老師以 embed 帶出），名額用批次版 activeEnrollmentCounts 只回數字，排除孩子已在籍的班。「推薦」與費用都沒有資料來源，推薦等裁、費用附三個選項待裁；分校範圍附兩個選項待裁。疊在 #1141（orgRef）上。待 STOP 批准。
+summary: GET /api/me/catalog?childId= —— 走 childDb.orgRef('classes') 讀機構參考資料（課程、分校、每週時段、任課老師以 embed 帶出），名額用批次版 activeEnrollmentCounts 只回數字，排除孩子已在籍的班。「推薦」與費用都沒有資料來源，推薦等裁、費用附三個選項待裁；分校範圍附兩個選項待裁。疊在 #1141（orgRef）上。裁定（#1152）：費用 A 不顯示、分校 A 全機構、年級只標記、推薦不帶欄位。
 category: architecture
-status: draft
+status: developing
 updated: 2026-10-03
 tags: [architecture, parent, authorization, catalog, enrollment]
 ---
@@ -30,7 +30,7 @@ tags: [architecture, parent, authorization, catalog, enrollment]
 | 欄位                                                     | 來源                                                                            |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | `classId`, `className`, `gradeLevels`                    | `classes`                                                                       |
-| `courseId`, `courseName`, `subject`, `courseDescription` | `classes → courses`（embed）                                                    |
+| `courseId`, `courseName`, `subject`, `courseDescription` | `classes → courses → subjects.name`（embed；`courses.subject` 已改成 `subject_id`）                                                    |
 | `campusName`                                             | `classes → campuses`（embed）                                                   |
 | `slots[]`：`weekday`, `startTime`, `endTime`             | `classes → schedules`（embed，只取今天仍有效的：`effective_to` null 或 ≥ 今天） |
 | `teacherNames[]`                                         | `schedules → staff.display_name`（去重）                                        |
@@ -56,7 +56,16 @@ tags: [architecture, parent, authorization, catalog, enrollment]
 - **把 `/api/classes` 開給 parent**：admin 回應帶在籍人數明細、內部欄位，範圍模型是分校管理員不是家長。
 - **前端打 N 次 `activeEnrollmentCount`**：N+1，且讓名額的聚合邏輯離開 child-db。
 
-## 待裁
+## 裁定（計畫席 2026-10-03，#1152 留言）
+
+1. **費用 A**：這版不回費用。費用住哪是 #1125 公開目錄也要回答的問題，交給使用者裁。
+2. **分校 A**：全機構所有分校，卡片帶分校名。
+3. **年級**只標 `matchesGrade`，不在 server 過濾。
+4. **推薦**等使用者裁；回應不帶推薦欄位，之後補是純加法。
+
+<details><summary>當時列出的選項（留著給 #1125 參考）</summary>
+
+### 待裁時的選項
 
 ### 1. 費用從哪來（spec 要卡片顯示費用）
 
@@ -84,3 +93,5 @@ server 硬濾掉就沒有路看到。
 ### 4. 推薦加選
 
 等使用者裁（人工標記＝migration，或由規則推導）。這版回應**不帶**推薦欄位，加的時候是純加法。
+
+</details>

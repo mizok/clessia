@@ -10,6 +10,7 @@ import classLogsRoute from './parent/class-logs';
 import enrollmentRequestsRoute from './parent/enrollment-requests';
 import trialRequestsRoute from './parent/trial-requests';
 import sessionsRoute from './parent/sessions';
+import catalogRoute from './parent/catalog';
 import { inOrg } from '../lib/org-scope';
 
 const MeResponseSchema = z
@@ -303,5 +304,6 @@ app.route('/class-logs', classLogsRoute);
 app.route('/enrollment-requests', enrollmentRequestsRoute);
 app.route('/trial-requests', trialRequestsRoute);
 app.route('/sessions', sessionsRoute);
+app.route('/catalog', catalogRoute);
 
 export default app;
