@@ -139,7 +139,7 @@ describe('SchoolScoreEditorComponent', () => {
 
   it('renders student list', () => {
     const host = fixture.nativeElement as HTMLElement;
-    const rows = host.querySelectorAll('.school-score-editor__row');
+    const rows = host.querySelectorAll('[data-part=row]');
     expect(rows.length).toBe(1);
     expect(rows[0].textContent).toContain('王小明');
   });

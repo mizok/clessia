@@ -88,7 +88,6 @@ const SCORE_STATUS_OPTIONS: Array<{ label: string; value: SchoolScoreStatus }> =
   ],
   providers: [ConfirmationService],
   templateUrl: './score-edit-dialog.component.html',
-  styleUrl: './score-edit-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ScoreEditDialogComponent implements OnInit {

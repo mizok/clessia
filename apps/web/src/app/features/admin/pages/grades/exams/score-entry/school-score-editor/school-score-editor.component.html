@@ -1,98 +1,103 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 
-<div class="school-score-editor">
-  <!-- Toolbar -->
-  <div class="school-score-editor__toolbar">
-    <div class="school-score-editor__toolbar-row">
-      <p-select
-        [options]="campusOptions()"
-        [ngModel]="campusId()"
-        (ngModelChange)="onCampusChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="選擇分校"
-        size="small"
-        [appendTo]="'body'"
-        styleClass="school-score-editor__campus-select"
+<!--
+  A6 語彙（#991 grades G2b；A6 沒畫學生考試，比照 G2a academy-score-editor）：
+  灰面篩選（分校、年級、搜尋、狀態）→ 逐人清單（名字粗體＋年級小字、右側進度、點了開逐人對話框）。
+  外殼已是 A6 色面，這裡不再包白卡片。
+-->
+<div class="flex flex-col gap-3 rounded-lg bg-zinc-100 p-4" role="search" aria-label="篩選學生">
+  <div class="flex flex-col gap-3 wide:flex-row wide:items-center">
+    <p-select
+      [options]="campusOptions()"
+      [ngModel]="campusId()"
+      (ngModelChange)="onCampusChange($event)"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="選擇分校"
+      ariaLabel="分校"
+      [appendTo]="'body'"
+      styleClass="w-full min-w-0 wide:w-auto wide:min-w-[140px]"
+    />
+    <p-select
+      [options]="gradeOptions"
+      [ngModel]="gradeFilter()"
+      (ngModelChange)="onGradeFilterChange($event)"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="全部年級"
+      ariaLabel="年級"
+      [showClear]="true"
+      [appendTo]="'body'"
+      styleClass="w-full min-w-0 wide:w-auto wide:min-w-30"
+    />
+    <p-iconfield
+      iconPosition="left"
+      class="block w-full wide:w-auto wide:max-w-[360px] wide:min-w-[180px]"
+    >
+      <p-inputicon styleClass="pi pi-search" />
+      <input
+        type="search"
+        pInputText
+        [ngModel]="searchTerm()"
+        (ngModelChange)="onSearchInput($event)"
+        placeholder="搜尋學生姓名"
+        aria-label="搜尋學生姓名"
+        class="h-11 w-full"
       />
-      <p-select
-        [options]="gradeOptions"
-        [ngModel]="gradeFilter()"
-        (ngModelChange)="onGradeFilterChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="全部年級"
-        [showClear]="true"
-        size="small"
-        [appendTo]="'body'"
-        styleClass="school-score-editor__grade-select"
-      />
-      <div class="school-score-editor__search">
-        <p-iconfield iconPosition="left">
-          <p-inputicon styleClass="pi pi-search" />
-          <input
-            type="text"
-            pInputText
-            [ngModel]="searchTerm()"
-            (ngModelChange)="onSearchInput($event)"
-            placeholder="搜尋學生姓名"
-            class="school-score-editor__search-input"
-          />
-        </p-iconfield>
-      </div>
-    </div>
-    <div class="school-score-editor__toolbar-row">
-      <p-selectbutton
-        [options]="studentStatusOptions"
-        [ngModel]="statusFilter()"
-        (ngModelChange)="onStatusFilterChange($event)"
-        optionLabel="label"
-        optionValue="value"
-        size="small"
-      />
-    </div>
+    </p-iconfield>
+  </div>
+  <p-selectbutton
+    [options]="studentStatusOptions"
+    [ngModel]="statusFilter()"
+    (ngModelChange)="onStatusFilterChange($event)"
+    optionLabel="label"
+    optionValue="value"
+  />
+</div>
+
+@if (loadingStudents()) {
+  <div class="flex items-center justify-center gap-2 p-12 text-sm text-zinc-600">
+    <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+    載入學生列表...
+  </div>
+} @else if (students().length === 0) {
+  <div class="flex flex-col items-center gap-2 p-12 text-sm text-zinc-600">
+    <i class="pi pi-users text-2xl" aria-hidden="true"></i>
+    <span>
+      @if (statusFilter() === 'pending') {
+        此分校目前沒有待登錄的學生
+      } @else {
+        找不到符合條件的學生
+      }
+    </span>
+  </div>
+} @else {
+  <div class="mt-6 flex flex-col border-t border-zinc-900" data-part="list">
+    @for (s of students(); track s.studentId) {
+      <button
+        type="button"
+        data-part="row"
+        class="flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 border-0 border-b border-surface-border bg-white px-0 py-3 text-left hover:bg-zinc-50"
+        (click)="openStudentDialog(s)"
+      >
+        <span class="flex min-w-0 items-baseline gap-2">
+          <span class="font-bold text-zinc-900">{{ s.studentName }}</span>
+          <span class="text-sm text-zinc-600">{{ formatGrade(s.studentGrade) }}</span>
+        </span>
+        <span class="flex shrink-0 items-center gap-2">
+          <app-status-dot [tone]="progressTone(s)">{{ getProgressText(s) }}</app-status-dot>
+          <i class="pi pi-chevron-right text-sm text-zinc-600" aria-hidden="true"></i>
+        </span>
+      </button>
+    }
   </div>
 
-  <!-- Student list -->
-  @if (loadingStudents()) {
-    <div class="school-score-editor__hint">
-      <i class="pi pi-spinner pi-spin"></i>
-      載入學生列表...
-    </div>
-  } @else if (students().length === 0) {
-    <div class="school-score-editor__empty">
-      <i class="pi pi-users"></i>
-      <span>
-        @if (statusFilter() === 'pending') {
-          此分校目前沒有待登錄的學生
-        } @else {
-          找不到符合條件的學生
-        }
-      </span>
-    </div>
-  } @else {
-    <div class="school-score-editor__list">
-      @for (s of students(); track s.studentId) {
-        <button type="button" class="school-score-editor__row" (click)="openStudentDialog(s)">
-          <div class="school-score-editor__row-main">
-            <span class="school-score-editor__row-name">{{ s.studentName }}</span>
-            <span class="school-score-editor__row-grade">{{ formatGrade(s.studentGrade) }}</span>
-          </div>
-          <div class="school-score-editor__row-end">
-            <app-status-dot [tone]="progressTone(s)">{{ getProgressText(s) }}</app-status-dot>
-            <i class="pi pi-chevron-right school-score-editor__row-chevron"></i>
-          </div>
-        </button>
-      }
-    </div>
-
-    @if (totalStudents() > pageSize) {
-      <p-paginator
-        [rows]="pageSize"
-        [totalRecords]="totalStudents()"
-        [first]="(page() - 1) * pageSize"
-        (onPageChange)="onPageChange($event)"
-      />
-    }
+  @if (totalStudents() > pageSize) {
+    <p-paginator
+      [rows]="pageSize"
+      [totalRecords]="totalStudents()"
+      [first]="(page() - 1) * pageSize"
+      (onPageChange)="onPageChange($event)"
+    />
   }
-</div>
+}

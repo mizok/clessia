@@ -1,53 +1,86 @@
-<div class="score-edit-dialog">
+<div class="flex flex-col gap-4">
   <div class="dialog-header-inline">
-    <div class="dialog-header-inline__content score-edit-dialog__header-content">
-      <span class="score-edit-dialog__name">{{ data?.studentName ?? '學生' }}</span>
-      <span class="score-edit-dialog__grade">{{ formatGrade(data?.studentGrade ?? null) }}</span>
+    <div class="dialog-header-inline__content flex flex-row flex-wrap items-center gap-2">
+      <span class="text-lg font-semibold text-zinc-900">{{ data?.studentName ?? '學生' }}</span>
+      <span
+        class="inline-flex items-center rounded-sm bg-zinc-100 px-2 py-px text-xs font-semibold text-zinc-700"
+        >{{ formatGrade(data?.studentGrade ?? null) }}</span
+      >
       @if (isDirty()) {
-        <span class="score-edit-dialog__dirty">
-          <i class="pi pi-circle-fill"></i>
+        <span
+          class="inline-flex items-center gap-1 rounded-sm bg-warning-100 px-2 py-px text-xs font-semibold text-warning-800"
+        >
+          <i class="pi pi-circle-fill text-[6px] text-warning-800" aria-hidden="true"></i>
           {{ dirtyCount() }} 科未儲存
         </span>
       }
     </div>
-    <button type="button" class="dialog-header-inline__close" (click)="close()" aria-label="關閉">
+    <button
+      type="button"
+      class="dialog-header-inline__close size-11"
+      (click)="close()"
+      aria-label="關閉"
+    >
       <i class="pi pi-times"></i>
     </button>
   </div>
 
   @if (loading()) {
-    <div class="score-edit-dialog__loading">
+    <div class="flex items-center justify-center gap-2 p-6 text-sm text-zinc-600">
       <i class="pi pi-spinner pi-spin"></i>
       載入成績中...
     </div>
   } @else {
     @if (data?.examSubjectId) {
-      <div class="score-edit-dialog__hint">
+      <div
+        class="flex items-center justify-center gap-2 rounded-lg border border-dashed border-zinc-200 bg-zinc-50 px-3 py-4 text-sm text-zinc-600"
+      >
         此考試只登錄「{{ data?.examSubjectName ?? '指定科目' }}」科。
       </div>
     }
 
-    <div class="score-edit-dialog__table-wrap">
-      <table class="score-edit-dialog__table">
+    <!--
+      手機優先：基準是不顯示表格（窄螢幕用下面的逐科列），md 以上才切回表格。
+      2026-09-04 拿掉過一層永遠不會啟動的 overflow-x：表格是 table-fixed＋w-full，
+      寬度結構上等於容器，dialog 又有 640px 上限（school-score-editor 的開啟參數），撐不開。
+    -->
+    <div class="hidden md:block">
+      <table class="w-full table-fixed border-collapse text-sm">
         <thead>
           <tr>
-            <th class="score-edit-dialog__th score-edit-dialog__th--subject">科目</th>
-            <th class="score-edit-dialog__th score-edit-dialog__th--score">分數</th>
-            <th class="score-edit-dialog__th score-edit-dialog__th--status">狀態</th>
-            <th class="score-edit-dialog__th">備註</th>
+            <th
+              class="w-[100px] border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-left text-xs font-semibold tracking-[0.02em] whitespace-nowrap text-zinc-600 uppercase"
+            >
+              科目
+            </th>
+            <th
+              class="w-[120px] border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-left text-xs font-semibold tracking-[0.02em] whitespace-nowrap text-zinc-600 uppercase"
+            >
+              分數
+            </th>
+            <th
+              class="w-[150px] border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-left text-xs font-semibold tracking-[0.02em] whitespace-nowrap text-zinc-600 uppercase"
+            >
+              狀態
+            </th>
+            <th
+              class="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-left text-xs font-semibold tracking-[0.02em] whitespace-nowrap text-zinc-600 uppercase"
+            >
+              備註
+            </th>
           </tr>
         </thead>
         <tbody>
           @for (row of rows(); track row.subjectId; let i = $index) {
             <tr
-              class="score-edit-dialog__tr"
-              [class.score-edit-dialog__tr--dirty]="isRowDirty(row)"
+              class="transition-colors duration-150 ease-out hover:bg-zinc-50 data-dirty:bg-accent-50 data-dirty:hover:bg-accent-100"
+              [attr.data-dirty]="isRowDirty(row) || null"
               [attr.data-score-row]="i"
             >
-              <td class="score-edit-dialog__cell score-edit-dialog__cell--subject">
+              <td class="border-b border-zinc-100 px-4 py-3 align-middle font-medium text-zinc-800">
                 {{ row.subjectName }}
               </td>
-              <td class="score-edit-dialog__cell score-edit-dialog__cell--score">
+              <td class="border-b border-zinc-100 px-4 py-3 align-middle">
                 <p-inputnumber
                   [ngModel]="row.score"
                   (ngModelChange)="onScoreChange(row, $event)"
@@ -56,17 +89,17 @@
                   [max]="100"
                   [disabled]="!!data?.disabled || isAbsent(row)"
                   [placeholder]="isAbsent(row) ? '—' : ''"
-                  styleClass="score-edit-dialog__score-input"
-                  [inputStyleClass]="'score-edit-dialog__score-field'"
+                  styleClass="w-full"
+                  inputStyleClass="text-right tabular-nums"
                 />
                 @if (isFailing(row.score)) {
                   <i
-                    class="pi pi-exclamation-triangle score-edit-dialog__fail-icon"
+                    class="pi pi-exclamation-triangle mr-1 text-xs text-error-600"
                     aria-label="不及格"
                   ></i>
                 }
               </td>
-              <td class="score-edit-dialog__cell score-edit-dialog__cell--status">
+              <td class="border-b border-zinc-100 px-4 py-3 align-middle">
                 <p-select
                   [options]="scoreStatusOptions"
                   [ngModel]="row.status"
@@ -76,10 +109,10 @@
                   [disabled]="!!data?.disabled"
                   size="small"
                   [appendTo]="'body'"
-                  styleClass="score-edit-dialog__status-select"
+                  styleClass="w-full"
                 />
               </td>
-              <td class="score-edit-dialog__cell score-edit-dialog__cell--notes">
+              <td class="min-w-0 border-b border-zinc-100 px-4 py-3 align-middle">
                 <input
                   type="text"
                   pInputText
@@ -87,7 +120,7 @@
                   (ngModelChange)="onNotesChange(row, $event)"
                   [disabled]="!!data?.disabled"
                   placeholder="備註"
-                  class="score-edit-dialog__notes-input"
+                  class="w-full text-sm"
                 />
               </td>
             </tr>
@@ -96,37 +129,45 @@
       </table>
     </div>
 
-    <div class="score-edit-dialog__mobile-subjects">
+    <!-- 逐科列：手機上的主要輸入介面，44px 下限寫在基底（觸控 gate A27） -->
+    <div class="flex flex-col md:hidden">
       @for (row of rows(); track row.subjectId) {
         <button
           type="button"
-          class="score-edit-dialog__mobile-subject-row"
-          [class.score-edit-dialog__mobile-subject-row--dirty]="isRowDirty(row)"
+          class="flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 border-0 border-b border-zinc-100 bg-white px-4 py-3 text-left transition-colors duration-150 ease-out last:border-b-0 hover:bg-zinc-50 data-dirty:bg-accent-50"
+          [attr.data-dirty]="isRowDirty(row) || null"
           (click)="openSubjectSheet(row)"
         >
-          <div class="score-edit-dialog__mobile-subject-info">
-            <span class="score-edit-dialog__mobile-subject-name">{{ row.subjectName }}</span>
+          <div class="flex min-w-0 flex-col gap-0.5">
+            <span class="font-medium text-zinc-800">{{ row.subjectName }}</span>
             @if (isRowDirty(row)) {
-              <span class="score-edit-dialog__mobile-subject-flag">
-                <i class="pi pi-circle-fill"></i>
+              <span class="inline-flex items-center gap-1 text-xs font-semibold text-warning-800">
+                <i class="pi pi-circle-fill text-[6px] text-warning-800" aria-hidden="true"></i>
                 未儲存
               </span>
             }
           </div>
           <span
-            class="score-edit-dialog__mobile-subject-score"
-            [class.score-edit-dialog__mobile-subject-score--absent]="isAbsent(row)"
-            [class.score-edit-dialog__mobile-subject-score--fail]="isFailing(row.score)"
-            [class.score-edit-dialog__mobile-subject-score--empty]="
-              !isAbsent(row) && row.score === null
-            "
+            class="inline-flex min-w-14 items-center justify-center rounded-md px-3 py-1 tabular-nums"
+            [class.bg-zinc-100]="!isAbsent(row) && row.score !== null && !isFailing(row.score)"
+            [class.text-zinc-700]="!isAbsent(row) && row.score !== null && !isFailing(row.score)"
+            [class.text-md]="!isAbsent(row) && row.score !== null"
+            [class.font-bold]="isAbsent(row) || row.score !== null"
+            [class.bg-warning-100]="isAbsent(row)"
+            [class.text-warning-800]="isAbsent(row)"
+            [class.text-sm]="isAbsent(row) || row.score === null"
+            [class.bg-error-100]="!isAbsent(row) && isFailing(row.score)"
+            [class.text-error-700]="!isAbsent(row) && isFailing(row.score)"
+            [class.bg-zinc-50]="!isAbsent(row) && row.score === null"
+            [class.text-zinc-600]="!isAbsent(row) && row.score === null"
+            [class.font-medium]="!isAbsent(row) && row.score === null"
           >
             @if (isAbsent(row)) {
               缺考
             } @else if (row.score !== null) {
               @if (isFailing(row.score)) {
                 <i
-                  class="pi pi-exclamation-triangle score-edit-dialog__fail-icon"
+                  class="pi pi-exclamation-triangle mr-1 text-xs text-error-600"
                   aria-label="不及格"
                 ></i>
               }
@@ -139,7 +180,7 @@
       }
     </div>
 
-    <div class="score-edit-dialog__footer">
+    <div class="flex justify-end gap-3">
       <p-button
         label="儲存"
         icon="pi pi-check"
@@ -156,29 +197,29 @@
   position="bottom"
   [modal]="true"
   [appendTo]="'body'"
-  styleClass="score-edit-dialog__sheet drawer-auto"
+  styleClass="drawer-auto"
 >
   @if (subjectSheetRow(); as row) {
     <ng-template #header>
-      <div class="score-edit-dialog__sheet-header">
-        <span class="score-edit-dialog__sheet-name">{{ row.subjectName }}</span>
+      <div class="flex items-baseline gap-2">
+        <span class="text-lg font-semibold text-zinc-900">{{ row.subjectName }}</span>
       </div>
     </ng-template>
 
-    <div class="score-edit-dialog__sheet-body">
-      <div class="score-edit-dialog__sheet-field">
-        <label class="score-edit-dialog__sheet-label">分數</label>
+    <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-2">
+        <label class="text-xs font-semibold tracking-[0.02em] text-zinc-600 uppercase">分數</label>
         <p-inputnumber
           [ngModel]="row.score"
           (ngModelChange)="onScoreChange(row, $event)"
           [min]="0"
           [max]="100"
           [disabled]="!!data?.disabled || isAbsent(row)"
-          styleClass="score-edit-dialog__sheet-input"
+          styleClass="w-full"
         />
       </div>
-      <div class="score-edit-dialog__sheet-field">
-        <label class="score-edit-dialog__sheet-label">狀態</label>
+      <div class="flex flex-col gap-2">
+        <label class="text-xs font-semibold tracking-[0.02em] text-zinc-600 uppercase">狀態</label>
         <p-select
           [options]="scoreStatusOptions"
           [ngModel]="row.status"
@@ -187,11 +228,11 @@
           optionValue="value"
           [disabled]="!!data?.disabled"
           [appendTo]="'body'"
-          styleClass="score-edit-dialog__sheet-select"
+          styleClass="w-full"
         />
       </div>
-      <div class="score-edit-dialog__sheet-field">
-        <label class="score-edit-dialog__sheet-label">備註</label>
+      <div class="flex flex-col gap-2">
+        <label class="text-xs font-semibold tracking-[0.02em] text-zinc-600 uppercase">備註</label>
         <input
           type="text"
           pInputText
@@ -199,7 +240,7 @@
           (ngModelChange)="onNotesChange(row, $event)"
           [disabled]="!!data?.disabled"
           placeholder="輸入備註..."
-          class="score-edit-dialog__sheet-notes"
+          class="w-full"
         />
       </div>
     </div>
