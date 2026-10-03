@@ -34,7 +34,7 @@
 ## 📋 等使用者
 
 > **標題固定，不要改名或搬位置** —— 監工的 charter（#978）用這個標題找它，報「綠 PR 滯留」前先對照這份。
-> 最後更新：2026-10-03 15:5x，計畫席 labor-plan-20261003-1534。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
+> 最後更新：2026-10-03 19:5x，計畫席 labor-plan-20261003-1534。狀態一律現查：`gh pr list --state open`、`gh issue list --state open --label blocked`。
 
 ### 保留類 PR（只有使用者能合）
 
@@ -43,6 +43,8 @@
 | #1183 | kiosk 角色：migration `20261003073117_kiosk_role.sql`＋授權（daily-checkins 免登入打卡、campus-scope）＋ AGENTS.md 角色表加第四角色 | head `65385b44`，verify 綠。**可否決 kiosk 角色本身**（設計在 #1127 留言與 `kb/wiki/architecture/kiosk-checkin.md`）。合了請在 Actions `prod-db` 按 Approve；**計畫席在您合的瞬間凍結其他合併並掛守衛，apply 綠才解凍**（#1146）。 |
 
 | #1188 | kiosk 帳號 API：POST /api/staff 收 roles=[kiosk]（單獨、一校、無權限、佔位 email）、PUT 限改名／狀態／換校、login-links 對 kiosk 要 manage_staff＋範圍＝綁的分校、打卡回應帶 student.name＋todaySessions | **draft 疊 #1183**，head `742eba92`。1536 的刻意判斷：建機台帳號門檻用 `manage_staff` 不走 `manage_roles`（理由在 PR）—— 您可否決。#1183 合後它轉 base main 再請您合。 |
+
+| #1197 | #1138 H1 後端：`/api/students` 搜尋加家長電話比對（走 `ba_user.phone` 唯讀 → 限本機構 parents → relations）＋ `primaryParentPhone` 只給 admin、老師回 null | head `7084fb27`，verify 綠。**計畫席裁 A（可否決）**：老師不帶家長電話。判保留類是因為新查詢路徑自己守 org＋依身分分流回應欄位。**觀察**：列表早已對老師回學生 `phone` 與 `emergencyContactPhone`（students.ts:38／:42），要不要收緊是您的裁決。 |
 
 接下來會出現的保留類：#1127 前端後半（1536，疊 #1183）、#1175 課程費用欄（1536）、#1118 餘項推薦課 `is_recommended` migration（1536）。10-03 已合的保留類鏈：#1132／#1137／#1141／#1143／#1145／#1150／#1152／#1180（migration 皆已套、使用者逐一 Approve；#1180 的 run `37106717548` apply 綠）。
 
@@ -142,7 +144,7 @@ success 7、cancelled(jobs=2) 15、cancelled(jobs=0) 7、running 1。**30 顆只
 
 | 席                                       | 在做                                                                                                                        | 備註                                                                                        |
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `labor-20261003-1552`（Opus）            | 前端：#1174 G2 週視圖 → G3 快速選取、#1138 H1 全站搜尋／H2 CampusContextService、#991 courses 目錄 | 開席 10-03 15:52，接 1456（已關，charter #1186 已合）；設計稿與 .pw-regression 已複製到它 worktree |
+| `labor-20261003-1552`（Opus）            | 前端：#1174 G2 已合（#1191）→ #1138 H1（後端 #1197 等使用者、前端 UI 疊上）→ H2 CampusContextService → G3（含小日曆）→ #991 courses 目錄；之後 #1194／#1196 | 開席 10-03 15:52，接 1456（已關，charter #1186 已合）；設計稿與 .pw-regression 已複製到它 worktree |
 | `labor-20261003-1536`（Opus）            | 後端：#1127 後半（kiosk 帳號端點、前端搬頁與登入導向，疊 #1183）→ QR 卡設計 → #1175 → #1118 餘項 | 開席 10-03 15:36，接 1307（charter #1185）；1307 的 #1150 實打殘留在本機 DB（db-reset 已量，下次 reset 逐項對） |
 | `labor-plan-20261003-1534`（Fable）      | 計畫席 | 開席 10-03 15:34，接 2351（已關）；心跳腳本已改名 |
 | `labor-reviewer-20261001-2204`（Sonnet） | 代合＋部署驗證；今天四十餘支。**分類器擋它**：production deploy、手動 merge、刪遠端分支、部分留言 —— 這幾類走計畫席或使用者 | steward-merge.sh 已修多筆 verify（#1053）                                                   |
