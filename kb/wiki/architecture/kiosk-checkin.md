@@ -82,6 +82,9 @@ tags: [architecture, attendance, authorization, kiosk, migration]
 - **打卡確認資訊**：`POST /api/daily-checkins` 回應多 `student: { name }` 與
   `todaySessions: [{ sessionId, className, startTime, endTime }]` —— 當天有在籍、沒停課的課堂，依開始時間排序，
   分校條件與寫出勤同一組。讀 `sessions` 不讀 `events`（events 是讀取時才補建的）。兩種出勤模式都回。
+  另帶 `alreadyCheckedIn`（重掃，`checkedInAt` 是第一次那筆）、`attendanceMode`；每堂帶 `onLeave`
+  （`leaveCoversSession`，跟點名名單同一個判準）與 `attendance`（**寫完之後讀回的實際紀錄**，沒有就是 null）。
+  畫面照實際紀錄講「已記出席／請假／等老師點名」，不猜這次寫了什麼。
 
 ## 拒絕的替代方案
 

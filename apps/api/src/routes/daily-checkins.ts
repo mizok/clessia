@@ -3,6 +3,11 @@ import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { enrolledClassIdsOn, enrolledEventIds } from '../lib/enrolled-events';
 import { isCancelledSession } from '../lib/cancelled-session';
+import {
+  LEAVE_WINDOW_COLUMNS,
+  leaveCoversSession,
+  toLeaveWindow,
+} from '../lib/leave-covers-session';
 import { assertAttendanceWindow } from '../lib/attendance-window-check';
 import { logAudit } from '../utils/audit';
 import { getCampusScope, isCampusAllowed } from '../lib/campus-scope';
@@ -26,12 +31,20 @@ const DailyCheckinSchema = z
 /** #1127：機台掃完給學生看的確認資訊 —— 只有剛打卡的那一位 */
 const CheckinConfirmationSchema = DailyCheckinSchema.extend({
   student: z.object({ name: z.string() }),
+  /** 這次是重掃（當天已經打過）—— 不是錯誤，畫面講第一次的時間（`checkedInAt` 就是那一次） */
+  alreadyCheckedIn: z.boolean(),
+  /** 這次打卡套用的出勤模式（分校層級）。課堂模式只記到班，出席由老師點名 */
+  attendanceMode: z.enum(['daily_checkin', 'per_session']),
   todaySessions: z.array(
     z.object({
       sessionId: DbUuidSchema,
       className: z.string(),
       startTime: z.string(),
       endTime: z.string(),
+      /** 有假單蓋到這堂（跟點名名單同一個判準 `leaveCoversSession`） */
+      onLeave: z.boolean(),
+      /** 寫完之後這堂**實際**的出勤紀錄；沒有就是 null（課堂模式、或當天 event 還沒生成） */
+      attendance: z.enum(['present', 'absent', 'on_leave']).nullable(),
     }),
   ),
 }).openapi('DailyCheckinConfirmation');
@@ -150,6 +163,7 @@ app.openapi(
       )
       .select();
     let checkin = inserted?.[0] as Record<string, unknown> | undefined;
+    const alreadyCheckedIn = !insertError && !checkin;
     let error = insertError;
     if (!error && !checkin) {
       const existing = await supabase
@@ -281,14 +295,14 @@ app.openapi(
     const confirmationScope = body.campusId ? [body.campusId] : getCampusScope(c);
     let sessionsQuery = supabase
       .from('sessions')
-      .select('id, start_time, end_time, status, classes!inner(name, campus_id)')
+      .select('id, event_id, start_time, end_time, status, classes!inner(name, campus_id)')
       .eq('org_id', orgId)
       .eq('session_date', body.checkinDate)
       .in('class_id', classIds);
     if (confirmationScope !== null) {
       sessionsQuery = sessionsQuery.in('classes.campus_id', [...confirmationScope]);
     }
-    const [{ data: student }, { data: sessionRows }] = await Promise.all([
+    const [{ data: student }, { data: sessionRows }, { data: leaveRows }] = await Promise.all([
       supabase
         .from('students')
         .select('name')
@@ -296,16 +310,54 @@ app.openapi(
         .eq('id', body.studentId)
         .maybeSingle(),
       classIds.length > 0 ? sessionsQuery : Promise.resolve({ data: [] }),
+      supabase
+        .from('leave_requests')
+        .select(LEAVE_WINDOW_COLUMNS)
+        .eq('org_id', orgId)
+        .eq('student_id', body.studentId)
+        .lte('start_date', body.checkinDate)
+        .gte('end_date', body.checkinDate),
     ]);
-    const todaySessions = ((sessionRows ?? []) as Array<Record<string, any>>)
-      .filter((row) => !isCancelledSession(row))
+    const liveSessions = ((sessionRows ?? []) as Array<Record<string, any>>).filter(
+      (row) => !isCancelledSession(row),
+    );
+    // 寫完之後讀回實際紀錄 —— 畫面講「已記出席／請假」要講真的，不是猜這次寫了什麼
+    const sessionEventIds = liveSessions
+      .map((row) => row['event_id'] as string | null)
+      .filter((id): id is string => !!id);
+    const { data: recordRows } =
+      sessionEventIds.length > 0
+        ? await supabase
+            .from('attendance_records')
+            .select('event_id, status')
+            .eq('org_id', orgId)
+            .eq('student_id', body.studentId)
+            .in('event_id', sessionEventIds)
+        : { data: [] };
+    const statusByEvent = new Map(
+      ((recordRows ?? []) as Array<{ event_id: string; status: string }>).map((r) => [
+        r.event_id,
+        r.status,
+      ]),
+    );
+    const leaves = ((leaveRows ?? []) as Array<Record<string, unknown>>).map(toLeaveWindow);
+    const todaySessions = liveSessions
       .map((row) => {
         const klass = Array.isArray(row['classes']) ? row['classes'][0] : row['classes'];
+        const startTime = row['start_time'] as string;
+        const endTime = row['end_time'] as string;
+        const sessionId = row['id'] as string;
+        const eventId = row['event_id'] as string | null;
         return {
-          sessionId: row['id'] as string,
+          sessionId,
           className: (klass?.name as string | undefined) ?? '',
-          startTime: row['start_time'] as string,
-          endTime: row['end_time'] as string,
+          startTime,
+          endTime,
+          onLeave: leaves.some((leave) =>
+            leaveCoversSession(leave, { sessionId, date: body.checkinDate, startTime, endTime }),
+          ),
+          attendance: ((eventId && statusByEvent.get(eventId)) || null) as
+            'present' | 'absent' | 'on_leave' | null,
         };
       })
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
@@ -313,6 +365,8 @@ app.openapi(
     return c.json(
       {
         student: { name: ((student as { name?: string } | null)?.name as string) ?? '' },
+        alreadyCheckedIn,
+        attendanceMode,
         todaySessions,
         id: (checkin as any).id,
         orgId: (checkin as any).org_id,
