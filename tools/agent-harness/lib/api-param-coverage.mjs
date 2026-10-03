@@ -123,6 +123,11 @@ const EXEMPT = new Map([
   ['/api/scores|courseId', '同上'],
   ['/api/scores/students|classId', '每生聚合 API 先行（#1115），同上'],
   ['/api/scores/students|courseId', '同上'],
+  // #1121 家長端續課預覽：API 先行，前端消費端（p-renewal／p-dashboard 續課預告）另開。
+  [
+    '/api/me/renewal-preview|childId',
+    '家長端續課預覽 API 先行（#1121），前端消費端另開，見 kb/wiki/specs/parent/renewal.md',
+  ],
   // ── #361 的兩筆（`attendanceTaken` / `endedOnly`）已於 2026-09-07 刪除 ──────────
   // 前端消費端（StatCard.queryParams、sessions 頁的「今日未點名」pill）已經落地並送出
   // 這兩個參數，所以豁免對不上任何實際落差 —— 那正是下面 `staleExemptions()` 要抓的。
