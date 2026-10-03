@@ -371,3 +371,50 @@ describe('summary／class-exam 的分校範圍（#1250）', () => {
     expect(res.status).not.toBe(403);
   });
 });
+
+describe('GET /api/scores 列表 —— #1253', () => {
+  // 替身照 PostgREST 的行為：沒帶 range 最多回 1000 列（max_rows），帶了 range 就照區間切
+  const pagedResolver =
+    (academy: unknown[], school: unknown[]): Resolver =>
+    (q) => {
+      const all =
+        q.table === 'academy_scores' ? academy : q.table === 'school_scores' ? school : null;
+      if (!all) return { data: [] };
+      const range = q.ops.find((op) => op.name === 'range')?.args as [number, number] | undefined;
+      const data = range ? all.slice(range[0], range[1] + 1) : all.slice(0, 1000);
+      return { data, count: all.length };
+    };
+
+  it('段考也吃 dateFrom／dateTo（照回應的 examDate；沒填考試日期的退回建立日，同 #1167）', async () => {
+    const { app } = createApp(
+      pagedResolver(
+        [],
+        [
+          schoolRow('u1', '王小明', 90, '2026-08-20'),
+          schoolRow('u1', '王小明', 70, null, '2026-09-15T00:00:00Z'),
+          schoolRow('u2', '李小華', 60, '2026-10-20'),
+        ],
+      ),
+      null,
+    );
+    const res = await app.request('/api/scores?type=school&dateFrom=2026-09-01&dateTo=2026-09-30');
+    const body = (await res.json()) as {
+      data: Array<{ examDate: string }>;
+      meta: { total: number };
+    };
+    expect(body.data.map((d) => d.examDate)).toEqual(['2026-09-15']);
+    expect(body.meta.total).toBe(1);
+  });
+
+  it('超過 1000 列時不被靜默截斷：第 1001 列之後的頁照樣拿得到', async () => {
+    const rows = Array.from({ length: 1500 }, (_, i) => ({
+      ...academyRow('u1', '王小明', i, 100),
+      id: `a-${i}`,
+    }));
+    const { app } = createApp(pagedResolver(rows, []), null);
+    const res = await app.request('/api/scores?type=academy&page=6&pageSize=200');
+    const body = (await res.json()) as { data: unknown[]; meta: { total: number } };
+    expect(body.meta.total).toBe(1500);
+    expect(body.data).toHaveLength(200);
+  });
+});

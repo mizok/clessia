@@ -176,6 +176,10 @@ function createAcademyScoresQuery(state: ScoresState) {
     order() {
       return query;
     },
+    // #1253 起 list 分頁撈齊（.range）；這組資料不到一頁，回同一批就好
+    range() {
+      return query;
+    },
     then(
       onfulfilled?: ((value: { data: unknown[]; error: null; count: number }) => unknown) | null,
     ) {
@@ -228,6 +232,9 @@ function createEmptySchoolScoresQuery() {
       return this;
     },
     order() {
+      return this;
+    },
+    range() {
       return this;
     },
     then(
