@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -613,11 +613,46 @@ test('A20 跳過外部 class 與沒有 class 的元素', () => {
  * CSS 的 class —— 這兩個邊界都在 check-harness.mjs 的組裝裡，純函式測不到，所以整支跑起來：
  * 在真的目錄裡種檔，看 gate 紅不紅。
  */
+/**
+ * 還沒遷移、而且**目錄裡直接有 .scss** 的頁面目錄（`app/…`，相對 `apps/web/src`）。
+ * 整支跑的測試要一個「不在 @source 裡」的對照目錄 —— 寫死的話，那一頁一遷完前提就靜靜失效
+ * （#1162 前用 students，students 一遷完 A20 那條就紅了；反過來的「同目錄有別頁 .scss」則會悄悄變真空）。
+ */
+function unmigratedPageDir(src) {
+  const covered = sourcePaths(readFileSync(join(src, 'tailwind.css'), 'utf8')).map((p) =>
+    p.replace(/^\.\//, '').replace(/\/$/, ''),
+  );
+  for (const role of readdirSync(join(src, 'app/features'))) {
+    const pages = join(src, 'app/features', role, 'pages');
+    let names;
+    try {
+      names = readdirSync(pages);
+    } catch {
+      continue;
+    }
+    for (const name of names.sort()) {
+      const rel = `app/features/${role}/pages/${name}`;
+      if (covered.some((c) => rel === c || rel.startsWith(`${c}/`) || c.startsWith(`${rel}/`))) {
+        continue;
+      }
+      let files;
+      try {
+        files = readdirSync(join(src, rel));
+      } catch {
+        continue;
+      }
+      if (files.some((f) => f.endsWith('.scss'))) return rel;
+    }
+  }
+  throw new Error('找不到還沒遷移、底下有 .scss 的頁面目錄 —— 全站遷完時這兩條測試要改寫');
+}
+
 test('A20 的 Tailwind 放寬只放行 @source 目錄裡真的會產生 CSS 的 class', () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const app = join(here, '../../apps/web/src/app');
   const covered = join(app, 'features/admin/pages/changes/__a20-trap__.html'); // 在 @source 裡
-  const uncovered = join(app, 'features/admin/pages/students/__a20-trap__.html'); // 不在
+  const uncoveredDir = unmigratedPageDir(join(here, '../../apps/web/src'));
+  const uncovered = join(here, '../../apps/web/src', uncoveredDir, '__a20-trap__.html'); // 不在
   const tw = 'flex items-center min-h-11';
   try {
     writeFileSync(
@@ -638,7 +673,7 @@ test('A20 的 Tailwind 放寬只放行 @source 目錄裡真的會產生 CSS 的 
     );
     // 陷阱 2：@source 以外的目錄寫 Tailwind class 沒有樣式（不會被掃），仍然紅
     assert.ok(
-      hits.some((l) => l.includes('students/__a20-trap__') && l.includes(tw)),
+      hits.some((l) => l.includes(`${uncoveredDir}/__a20-trap__`) && l.includes(tw)),
       run.stderr,
     );
     // 對照：@source 目錄裡真的會產生 CSS 的 class 放行
@@ -2198,7 +2233,8 @@ test('@source 列單一檔案：A27 仍抓得到陷阱、A24 不對同目錄其�
   const src = join(here, '../../apps/web/src');
   const twFile = join(src, 'tailwind.css');
   const original = readFileSync(twFile, 'utf8');
-  const trapRel = 'app/features/admin/pages/students/__a27-trap__.html'; // 同目錄有 students.page.scss
+  const dir = unmigratedPageDir(src); // 同目錄有還沒遷的 .scss
+  const trapRel = `${dir}/__a27-trap__.html`;
   const trap = join(src, trapRel);
   try {
     writeFileSync(trap, '<button class="flex items-center" (click)="x()">a</button>\n');
@@ -2210,7 +2246,10 @@ test('@source 列單一檔案：A27 仍抓得到陷阱、A24 不對同目錄其�
       run.stderr.split('\n').some((l) => l.includes('__a27-trap__.html:1 的 <button> 可點')),
       run.stderr,
     );
-    assert.ok(!/students[^\n]*已列入 tailwind\.css 的 @source/.test(run.stderr), run.stderr);
+    assert.ok(
+      !run.stderr.includes(`${dir}/__a27-trap__.html 已列入 tailwind.css 的 @source`),
+      run.stderr,
+    );
   } finally {
     writeFileSync(twFile, original);
     rmSync(trap, { force: true });

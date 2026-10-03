@@ -33,12 +33,9 @@
     <p
       class="mt-4 mb-0 flex flex-wrap items-center gap-x-5 gap-y-1 text-base text-band-ink wide:mt-6"
     >
-      <span class="font-semibold"
-        >{{ p.name }}
-        @if (p.relation) {
-          （{{ p.relation }}）
-        }
-      </span>
+      <span class="font-semibold">{{
+        p.relation ? p.name + '（' + p.relation + '）' : p.name
+      }}</span>
       @if (p.phone) {
         <span class="text-band-ink-muted tabular-nums">{{ p.phone }}</span>
         <a
