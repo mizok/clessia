@@ -13,6 +13,7 @@ import { skip } from 'rxjs';
 import type { RouteObj } from '@core/smart-enums/routes-catalog';
 import { LeaveService, type LeaveRequest } from '@core/leave.service';
 import { CampusContextService } from '@core/campus-context.service';
+import { CampusScopeNoteComponent } from '@shared/components/campus-scope-note/campus-scope-note.component';
 import { SystemClockService, addDaysToDateString } from '@core/system-clock.service';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
 import { RtColDefDirective } from '@shared/components/responsive-table/rt-col-def.directive';
@@ -35,6 +36,7 @@ import {
   selector: 'app-leave',
   standalone: true,
   imports: [
+    CampusScopeNoteComponent,
     PageActionsComponent,
     DataChipComponent,
     FormsModule,

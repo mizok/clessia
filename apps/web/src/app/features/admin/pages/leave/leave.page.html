@@ -75,7 +75,10 @@
       }
     } @else if (records().length === 0) {
       <tr>
-        <td class="responsive-table__cell leave-page__empty" colspan="7">沒有請假紀錄</td>
+        <td class="responsive-table__cell leave-page__empty" colspan="7">
+          沒有請假紀錄
+          <app-campus-scope-note />
+        </td>
       </tr>
     } @else {
       @for (record of records(); track record.id) {
