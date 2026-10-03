@@ -244,6 +244,10 @@ describe('PATCH /api/sessions/batch-substitute（#1110）', () => {
     expect(has(update, 'eq', 'org_id', 'org-1')).toBe(true);
 
     const [insert] = queries.filter((q) => q.table === 'schedule_changes' && has(q, 'insert'));
+    // #1195：同一次呼叫的每一列共用一顆 batch_id（不是每列各一顆）
+    const batchIds = (arg(insert, 'insert') as Array<{ batch_id: string }>).map((r) => r.batch_id);
+    expect(batchIds[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(new Set(batchIds).size).toBe(1);
     expect(arg(insert, 'insert')).toEqual([
       expect.objectContaining({
         session_id: id(1),
@@ -260,6 +264,21 @@ describe('PATCH /api/sessions/batch-substitute（#1110）', () => {
         original_teacher_name: '李老師',
       }),
     ]);
+  });
+
+  it('兩次呼叫的 batch_id 不同（#1195）', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      const { app, queries } = createApp(resolver({ sessions: [session(1)] }));
+      await patch(app, 'batch-substitute', {
+        sessionIds: [id(1)],
+        substituteTeacherId: SUB,
+        dryRun: false,
+      });
+      const [insert] = queries.filter((q) => q.table === 'schedule_changes' && has(q, 'insert'));
+      ids.push((arg(insert, 'insert') as Array<{ batch_id: string }>)[0].batch_id);
+    }
+    expect(ids[0]).not.toBe(ids[1]);
   });
 
   it('流水寫失敗 → 照原老師分組改回去，回 500', async () => {

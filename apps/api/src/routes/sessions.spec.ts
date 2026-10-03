@@ -139,6 +139,7 @@ describe('batch session history payloads', () => {
   it('marks batch cancellation and uncancel changes with batch operation source', () => {
     const changes = buildBatchSessionChangeInserts({
       orgId: 'org-1',
+      batchId: crypto.randomUUID(),
       createdByName: '教務主任',
       changeType: 'cancellation',
       sessionStates: [
@@ -167,6 +168,7 @@ describe('batch session history payloads', () => {
 
     const uncancelChanges = buildBatchSessionChangeInserts({
       orgId: 'org-1',
+      batchId: crypto.randomUUID(),
       createdByName: '教務主任',
       changeType: 'uncancel',
       sessionStates: [
@@ -196,6 +198,7 @@ describe('batch session history payloads', () => {
   it('marks batch update-time changes with batch operation source', () => {
     const changes = buildBatchSessionChangeInserts({
       orgId: 'org-1',
+      batchId: crypto.randomUUID(),
       createdByName: '教務主任',
       changeType: 'reschedule',
       sessionStates: [
@@ -570,7 +573,9 @@ describe('filterMakeupCandidates（#499 可補清單）', () => {
   // 逐字一致 —— 不一致的話清單會列出一個索引會拒絕的選項，或藏起一個其實補得成的。
   it('已經有有效補課的不列進來', () => {
     const rows = filterMakeupCandidates([
-      cancelled('s1', '2026-04-06', [{ id: 'm1', session_date: '2026-04-13', status: 'scheduled' }]),
+      cancelled('s1', '2026-04-06', [
+        { id: 'm1', session_date: '2026-04-13', status: 'scheduled' },
+      ]),
     ]);
 
     expect(rows).toEqual([]);
@@ -580,7 +585,9 @@ describe('filterMakeupCandidates（#499 可補清單）', () => {
   // 所以那堂停課「又可以被補了」。少了這一條，清單會藏起一個其實補得成的。
   it('補課那堂又被停掉時，原本那堂停課重新可補', () => {
     const rows = filterMakeupCandidates([
-      cancelled('s1', '2026-04-06', [{ id: 'm1', session_date: '2026-04-13', status: 'cancelled' }]),
+      cancelled('s1', '2026-04-06', [
+        { id: 'm1', session_date: '2026-04-13', status: 'cancelled' },
+      ]),
     ]);
 
     expect(rows.map((row) => row.id)).toEqual(['s1']);
@@ -602,5 +609,52 @@ describe('filterMakeupCandidates（#499 可補清單）', () => {
 
     expect(rows[0]?.startTime).toBe('10:00');
     expect(rows[0]?.endTime).toBe('12:00');
+  });
+});
+
+describe('batch_id（#1195）', () => {
+  it('buildBatchSessionChangeInserts：每列帶同一顆 batchId；mapSessionChange 讀回 batchId（舊資料 null）', () => {
+    const rows = buildBatchSessionChangeInserts({
+      orgId: 'org-1',
+      createdByName: '行政 A',
+      changeType: 'cancellation',
+      batchId: 'batch-1',
+      sessionStates: [
+        {
+          sessionId: 's1',
+          assignmentStatus: 'assigned',
+          status: 'scheduled',
+          classId: 'c',
+          sessionDate: '2026-10-01',
+          startTime: '09:00',
+          endTime: '10:00',
+          teacherId: 't',
+          teacherName: null,
+        },
+        {
+          sessionId: 's2',
+          assignmentStatus: 'assigned',
+          status: 'scheduled',
+          classId: 'c',
+          sessionDate: '2026-10-08',
+          startTime: '09:00',
+          endTime: '10:00',
+          teacherId: 't',
+          teacherName: null,
+        },
+      ],
+    });
+    expect(rows.map((r) => [r.batch_id, r.operation_source])).toEqual([
+      ['batch-1', 'batch'],
+      ['batch-1', 'batch'],
+    ]);
+    const base = {
+      id: 'x',
+      change_type: 'cancellation',
+      created_at: '2026-10-01T00:00:00Z',
+      staff: null,
+    };
+    expect(mapSessionChange({ ...base, batch_id: 'batch-1' }).batchId).toBe('batch-1');
+    expect(mapSessionChange(base).batchId).toBeNull();
   });
 });

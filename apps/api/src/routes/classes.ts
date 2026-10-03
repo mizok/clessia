@@ -2534,10 +2534,14 @@ app.openapi(
         .eq('id', userId)
         .maybeSingle();
 
+      const batchId = crypto.randomUUID();
       const { error: insertChangeError } = await supabase.from('schedule_changes').insert(
         processableIds.map((sessionId) => ({
           org_id: orgId,
           session_id: sessionId,
+          // #1195：原本沒寫 operation_source（DB 預設 single），/admin/changes 把整批記成一堆單堂
+          operation_source: 'batch',
+          batch_id: batchId,
           change_type: 'reschedule',
           new_session_date: targetSessionDateMap.get(sessionId) ?? null,
           new_start_time: newStartTime,
@@ -2700,10 +2704,14 @@ app.openapi(
         .eq('id', userId)
         .maybeSingle();
 
+      const batchId = crypto.randomUUID();
       const { error: insertChangeError } = await supabase.from('schedule_changes').insert(
         processableIds.map((sessionId) => ({
           org_id: orgId,
           session_id: sessionId,
+          // #1195：原本沒寫 operation_source（DB 預設 single），/admin/changes 把整批記成一堆單堂
+          operation_source: 'batch',
+          batch_id: batchId,
           change_type: 'cancellation',
           reason: '批次停課',
           created_by_name: profile?.display_name ?? null,
@@ -3117,10 +3125,13 @@ app.openapi(
         .eq('id', userId)
         .maybeSingle();
 
-      // 為每堂課建立 schedule_change 紀錄
+      // 為每堂課建立 schedule_change 紀錄（整個班一次停用 = 一批，#1195）
+      const batchId = crypto.randomUUID();
       const changeRecords = sessionIds.map((sessionId) => ({
         org_id: orgId,
         session_id: sessionId,
+        operation_source: 'batch',
+        batch_id: batchId,
         change_type: 'cancellation',
         reason: '班級停用',
         created_by_name: profile?.display_name ?? null,
