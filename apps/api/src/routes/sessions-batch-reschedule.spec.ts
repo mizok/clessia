@@ -289,8 +289,9 @@ describe('PATCH /api/sessions/batch-reschedule（#1111）', () => {
     expect(((await res.json()) as Result).updated).toBe(3);
 
     expect(sessionUpdates(queries).map((q) => [arg(q, 'update'), arg(q, 'in', 1)])).toEqual([
-      [{ session_date: '2026-10-23', start_time: '09:00', end_time: '11:00' }, [id(1), id(2)]],
+      // 往後挪：落點由晚到早（先把後面的位置空出來，見 handler 的註解）
       [{ session_date: '2026-10-30', start_time: '09:00', end_time: '11:00' }, [id(3)]],
+      [{ session_date: '2026-10-23', start_time: '09:00', end_time: '11:00' }, [id(1), id(2)]],
     ]);
     expect(sessionUpdates(queries).every((q) => has(q, 'eq', 'org_id', 'org-1'))).toBe(true);
 
@@ -337,11 +338,74 @@ describe('PATCH /api/sessions/batch-reschedule（#1111）', () => {
     expect(res.status).toBe(409);
     expect(((await res.json()) as { code: string }).code).toBe('CLASS_CONFLICT');
     const updates = sessionUpdates(queries).map((q) => [arg(q, 'update'), arg(q, 'in', 1)]);
+    // 由晚到早：先搬 id(2)（落點 10/29）成功，再搬 id(1) 撞鍵 → 只把 id(2) 搬回 10/28
     expect(updates[2]).toEqual([
-      { session_date: '2026-10-21', start_time: '09:00', end_time: '11:00' },
-      [id(1)],
+      { session_date: '2026-10-28', start_time: '09:00', end_time: '11:00' },
+      [id(2)],
     ]);
     expect(updates).toHaveLength(3);
     expect(queries.filter((q) => q.table === 'schedule_changes')).toHaveLength(0);
+  });
+
+  // 二讀抓到的：唯一鍵 (class_id, session_date, start_time) 在逐組 UPDATE 時會被「還沒搬走的下一堂」擋住。
+  // 這個替身**真的檢查唯一鍵**：每組 update 套到一份記憶體裡的課表，撞號就回 23505
+  describe('唯一鍵 (class_id, session_date, start_time)（二讀）', () => {
+    const chain = () => [
+      session(1, { session_date: '2026-10-21' }),
+      session(2, { session_date: '2026-10-22' }),
+      session(3, { session_date: '2026-10-23' }),
+    ];
+
+    it.each([
+      ['整期往後挪一天', 1, ['2026-10-22', '2026-10-23', '2026-10-24']],
+      ['整期往前挪一天', -1, ['2026-10-20', '2026-10-21', '2026-10-22']],
+    ] as const)('%s：一鏈三堂同班同時段，照順序搬不會互撞', async (_n, dayOffset, expected) => {
+      const rows = chain();
+      const table = rows.map((r) => ({ ...r }));
+      const order: string[][] = [];
+      const { app, queries } = createApp({ sessions: rows });
+      const res = await patch(app, { sessionIds: [1, 2, 3].map(id), dayOffset, dryRun: false });
+      expect(res.status).toBe(200);
+      // 依實際發出的順序套到課表上，每一步都不能撞唯一鍵
+      for (const q of sessionUpdates(queries)) {
+        const p = arg(q, 'update') as Record<string, string>;
+        const ids = arg(q, 'in', 1) as string[];
+        order.push(ids);
+        for (const row of table.filter((r) => ids.includes(r['id'] as string))) {
+          row['session_date'] = p['session_date'];
+        }
+        const keys = table.map((r) => `${r['class_id']}|${r['session_date']}|${r['start_time']}`);
+        expect(new Set(keys).size).toBe(keys.length);
+      }
+      expect(table.map((r) => r['session_date'])).toEqual(expected);
+      expect(order).toEqual(
+        dayOffset > 0 ? [[id(3)], [id(2)], [id(1)]] : [[id(1)], [id(2)], [id(3)]],
+      );
+    });
+
+    it('留在原地的 no_change 也擋位（不會有別堂被允許搬到它頭上）', async () => {
+      const { app, queries } = createApp({
+        sessions: [
+          session(1, { session_date: '2026-10-21' }), // 週三 → 週五
+          session(2, { session_date: '2026-10-23' }), // 本來就在週五：no_change，留在原地
+        ],
+        classPeers: [
+          {
+            id: id(2),
+            class_id: 'class-1',
+            session_date: '2026-10-23',
+            start_time: '10:00:00',
+            end_time: '12:00:00',
+          },
+        ],
+      });
+      const res = await patch(app, { sessionIds: [id(1), id(2)], targetWeekday: 5 });
+      const json = (await res.json()) as Result;
+      expect(json.conflicts.map((c) => [c.sessionId, c.reason])).toEqual([
+        [id(2), 'no_change'],
+        [id(1), 'class_conflict'],
+      ]);
+      expect(sessionUpdates(queries)).toHaveLength(0);
+    });
   });
 });

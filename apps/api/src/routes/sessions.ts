@@ -3691,7 +3691,9 @@ app.openapi(batchRescheduleRoute, async (c) => {
   const teacherIds = [
     ...new Set(targets.map((t) => t.teacher_id).filter((id): id is string => !!id)),
   ];
-  const targetIds = new Set(targets.map((t) => t.id));
+  // 只有**真的要搬走的**不擋位。`no_change`（落點就是原位、留在原地）照樣擋 —— 原本整批 target 都
+  // 排除，別的堂會被允許搬到它頭上，實寫時撞唯一鍵（二讀時一併抓到的，#1111）
+  const movingIds = new Set(movable.map((t) => t.id));
   const [classPeerResult, teacherPeerResult] = await Promise.all([
     newDates.length > 0
       ? supabase
@@ -3717,12 +3719,12 @@ app.openapi(batchRescheduleRoute, async (c) => {
     return c.json({ error: peerError.message, code: 'DB_ERROR' }, 400);
   }
   // 同一批要搬走的堂不擋位（它們的新位置由 planner 的 plannedSlots 比）。
-  // ponytail: 被判衝突、留在原地的堂不會回頭擋後面的堂 —— 由唯一鍵兜底（下面 23505 → 409、全部搬回）
+  // ponytail: 被 planner 判衝突、留在原地的堂不會回頭擋後面的堂 —— 由唯一鍵兜底（下面 23505 → 409、全部搬回）
   const classPeers = ((classPeerResult.data ?? []) as Array<Record<string, unknown>>).filter(
-    (row) => !targetIds.has(row['id'] as string),
+    (row) => !movingIds.has(row['id'] as string),
   );
   const teacherPeers = ((teacherPeerResult.data ?? []) as Array<Record<string, unknown>>).filter(
-    (row) => !targetIds.has(row['id'] as string),
+    (row) => !movingIds.has(row['id'] as string),
   );
 
   const plan = planBatchUpdateTime({
@@ -3807,12 +3809,24 @@ app.openapi(batchRescheduleRoute, async (c) => {
       return results.every((r) => !r.error);
     };
 
-    // ① 分組搬（循序：中途失敗時知道搬到哪）
+    // ① 分組搬（循序：中途失敗時知道搬到哪）。
+    //
+    // **順序是設計的一部分**（二讀抓到的）：sessions 有 UNIQUE (class_id, session_date, start_time)，
+    // 而 UPDATE 是逐組發的。整期往後挪一天時，若先搬 A（10/21→10/22）而 B 還在 10/22，就撞唯一鍵 →
+    // 整批搬回 409 —— dryRun 說可以、實寫偶發失敗，取決於 processable 剛好是什麼順序。
+    // 所以照落點排：**往後挪由晚到早、往前挪由早到晚**，鏈上的下一個位置一定先空出來。
+    // 互擋的鏈只會出現在 dayOffset（全批同方向）；targetWeekday 的落點在同一週內，
+    // 同班同時段兩堂落到同一天會被 planner 判 class_conflict，鏈接不起來 —— 照早到晚即可。
+    // ponytail: 兩堂互換位置（A→B 的位置、B→A 的位置）這種環排不出順序，會撞唯一鍵 409、全部搬回
+    const groups = [
+      ...groupBy((t) => {
+        const l = landing.get(t.id)!;
+        return slotKey(l.date, l.start, l.end);
+      }),
+    ].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    if ((body.dayOffset ?? 0) > 0) groups.reverse();
     const moved = new Set<string>();
-    for (const [key, ids] of groupBy((t) => {
-      const l = landing.get(t.id)!;
-      return slotKey(l.date, l.start, l.end);
-    })) {
+    for (const [key, ids] of groups) {
       const { error } = await updateGroup(key, ids);
       if (error) {
         const reverted = await moveBack(moved);
