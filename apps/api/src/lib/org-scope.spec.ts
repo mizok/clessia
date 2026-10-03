@@ -72,6 +72,8 @@ describe('missingInOrg', () => {
 describe('multi-org-db 替身本身', () => {
   it('沒實作的 builder 方法丟例外，不放行', () => {
     const supabase = seeded().client as SupabaseClient;
-    expect(() => supabase.from('subjects').select('*').order('name')).toThrow(/沒有實作 `order`/);
+    expect(() => supabase.from('subjects').select('*').textSearch('name', 'x')).toThrow(
+      /沒有實作 `textSearch`/,
+    );
   });
 });

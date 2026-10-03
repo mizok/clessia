@@ -15,6 +15,7 @@ import { studentWriteScope } from '../lib/campus-write-guard';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { inOrg } from '../lib/org-scope';
 import {
+  LEAVE_SESSIONS_EMBED,
   LEAVE_WINDOW_COLUMNS,
   leaveCoversSession,
   leavesConflict,
@@ -586,9 +587,7 @@ async function updateBoundSessions(
   if (added.length > 0) {
     await supabase
       .from('leave_request_sessions')
-      .insert(
-        added.map((b) => ({ leave_request_id: id, session_id: b.sessionId, org_id: orgId })),
-      );
+      .insert(added.map((b) => ({ leave_request_id: id, session_id: b.sessionId, org_id: orgId })));
   }
 
   const revertWindow = prevBound ? boundWindow(removed) : prevWindow;
@@ -652,7 +651,11 @@ async function updateBoundSessions(
       action: 'update',
       details: {
         before: { ...prevWindow, boundSessions: undefined, sessionIds: [...prevIds] },
-        after: { startDate: nextWindow.startDate, endDate: nextWindow.endDate, sessionIds: [...nextIds] },
+        after: {
+          startDate: nextWindow.startDate,
+          endDate: nextWindow.endDate,
+          sessionIds: [...nextIds],
+        },
       },
     },
     waitUntilFrom(c),
@@ -714,7 +717,9 @@ app.openapi(
 
     let query = supabase
       .from('leave_requests')
-      .select(`*, students!inner(name), ba_user!submitted_by(name)`, { count: 'exact' })
+      .select(`*, ${LEAVE_SESSIONS_EMBED}, students!inner(name), ba_user!submitted_by(name)`, {
+        count: 'exact',
+      })
       .eq('org_id', orgId);
 
     if (studentId) query = query.eq('student_id', studentId);
@@ -803,10 +808,7 @@ app.openapi(
     const body = c.req.valid('json');
 
     if (body.sessionIds && (body.startTime || body.endTime)) {
-      return c.json(
-        { error: '請假資料無效', message: '勾選堂次的假不能再帶時間窗' },
-        400,
-      );
+      return c.json({ error: '請假資料無效', message: '勾選堂次的假不能再帶時間窗' }, 400);
     }
 
     const validationError = body.sessionIds ? null : getLeaveValidationError(body);
@@ -891,7 +893,13 @@ app.openapi(
       );
       if (bindError) {
         // 綁不上就不能留一張「整天」語意的假（沒有綁定列＝整天）—— 撤掉重來
-        await inOrg(supabase.from('leave_requests').delete().eq('id', leave.id as string), orgId);
+        await inOrg(
+          supabase
+            .from('leave_requests')
+            .delete()
+            .eq('id', leave.id as string),
+          orgId,
+        );
         return c.json({ error: '新增請假失敗', message: bindError.message }, 500);
       }
     }
@@ -1117,7 +1125,7 @@ app.openapi(
       .update(updates)
       .eq('id', id)
       .eq('org_id', orgId)
-      .select('*, students(name), ba_user!submitted_by(name)')
+      .select(`*, ${LEAVE_SESSIONS_EMBED}, students(name), ba_user!submitted_by(name)`)
       .single();
 
     if (updateError || !updated) {
