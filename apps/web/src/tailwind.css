@@ -38,6 +38,8 @@
 @source './app/shared/components/layout/shell-layout';
 @source './app/features/admin/pages/changes';
 @source './app/features/admin/pages/dashboard';
+@source './app/features/admin/pages/sessions/components';
+@source './app/features/admin/pages/sessions/sessions.page.html';
 
 /* 跟 PrimeNG 的 darkModeSelector 對齊 */
 @custom-variant dark (&:where(.dark-mode, .dark-mode *));

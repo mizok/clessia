@@ -1,13 +1,11 @@
 import { Component, input, output } from '@angular/core';
-import { ButtonModule } from 'primeng/button';
 
 export type BatchMode = 'assign' | 'time' | 'cancel' | 'uncancel';
 
 @Component({
   selector: 'app-session-batch',
-  imports: [ButtonModule],
+  imports: [],
   templateUrl: './session-batch.component.html',
-  styleUrl: './session-batch.component.scss',
 })
 export class SessionBatchComponent {
   readonly selectedCount = input(0);

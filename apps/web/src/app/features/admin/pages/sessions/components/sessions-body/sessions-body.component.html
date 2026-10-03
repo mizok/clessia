@@ -1,24 +1,17 @@
-<section
-  class="sessions-body sessions-body--list"
-  [class.sessions-body--with-selection]="selectedCount() > 0"
->
-  <div class="sessions-body__list">
-    <app-session-list
-      [sessions]="sessions()"
-      [loading]="loading()"
-      [selectedIds]="selectedIds()"
-      [total]="total()"
-      [pageSize]="pageSize()"
-      [currentPage]="currentPage()"
-      (selectedIdsChange)="selectedIdsChange.emit($event)"
-      (contextMenuRequested)="contextMenuRequested.emit($event)"
-      (pageChange)="pageChange.emit($event)"
-    />
-  </div>
+<app-session-list
+  [sessions]="sessions()"
+  [loading]="loading()"
+  [selectedIds]="selectedIds()"
+  [total]="total()"
+  [pageSize]="pageSize()"
+  [currentPage]="currentPage()"
+  (selectedIdsChange)="selectedIdsChange.emit($event)"
+  (contextMenuRequested)="contextMenuRequested.emit($event)"
+  (pageChange)="pageChange.emit($event)"
+/>
 
-  <app-session-batch
-    [selectedCount]="selectedCount()"
-    (clearSelection)="clearSelection.emit()"
-    (openBatchSheet)="openBatchSheet.emit($event)"
-  />
-</section>
+<app-session-batch
+  [selectedCount]="selectedCount()"
+  (clearSelection)="clearSelection.emit()"
+  (openBatchSheet)="openBatchSheet.emit($event)"
+/>

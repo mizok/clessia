@@ -1,23 +1,38 @@
+<!--
+  A6 批次動作列（#991，schedule.css `.bar`）：勾了課才浮出來、固定在畫面底。
+  桌機是墨色浮條（暫時出現的操作才用黑，A5）；手機是深一階的灰面＋頂端 2px 近黑線（10/02 手機黑色減量）。
+  主動作「批次操作」用橘（＝下一步按這顆），按鈕與流程沿用原本的 dialog。
+-->
 @if (selectedCount() > 0) {
-  <div class="session-batch__bar">
-    <span class="session-batch__bar-count">已選 {{ selectedCount() }} 堂</span>
-    <div class="session-batch__bar-actions">
-      <p-button
-        label="批次操作"
-        icon="pi pi-bars"
-        size="small"
-        [outlined]="true"
-        severity="secondary"
-        (onClick)="openBatchSheet.emit(null)"
-      />
-      <p-button
-        label="取消選取"
-        [text]="true"
-        size="small"
-        icon="pi pi-times"
-        severity="secondary"
-        (onClick)="clearSelection.emit()"
-      />
+  <div
+    class="fixed inset-x-0 bottom-0 z-20 border-t-2 border-zinc-900 bg-zinc-200 wide:pointer-events-none wide:bottom-6 wide:border-t-0 wide:bg-transparent"
+  >
+    <div class="page-wrap">
+      <div
+        class="flex flex-wrap items-center gap-x-5 gap-y-2 py-3 wide:pointer-events-auto wide:rounded-lg wide:bg-zinc-900 wide:px-5 wide:shadow-[0_12px_32px_-8px_rgb(26_22_20/40%)]"
+        role="region"
+        aria-label="批次調整課堂"
+      >
+        <span class="text-md font-semibold text-zinc-900 tabular-nums wide:text-white"
+          >已勾 <b class="text-xl">{{ selectedCount() }}</b> 堂</span
+        >
+        <div class="ml-auto flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent px-3 text-md font-semibold whitespace-nowrap text-zinc-900 underline decoration-zinc-400 underline-offset-4 hover:decoration-current wide:text-white wide:decoration-zinc-500"
+            (click)="clearSelection.emit()"
+          >
+            全部取消選取
+          </button>
+          <button
+            type="button"
+            class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border-0 bg-accent-vivid px-5 text-md font-semibold whitespace-nowrap text-zinc-900 hover:bg-accent-vivid-2"
+            (click)="openBatchSheet.emit(null)"
+          >
+            批次操作
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 }

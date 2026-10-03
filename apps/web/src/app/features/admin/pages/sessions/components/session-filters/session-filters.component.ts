@@ -1,8 +1,7 @@
-import { Component, input, output } from '@angular/core';
+import { Component, computed, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { DatePickerModule } from 'primeng/datepicker';
-import { SelectModule } from 'primeng/select';
+import { SelectFieldComponent } from '@shared/components/select-field/select-field.component';
 import type { Campus } from '@core/campuses.service';
 
 export const UNASSIGNED_TEACHER_ID = '__unassigned__';
@@ -19,9 +18,8 @@ import { SESSION_STATUS_OPTIONS as STATUS_OPTIONS } from '@shared/utils/session-
 
 @Component({
   selector: 'app-session-filters',
-  imports: [FormsModule, ButtonModule, DatePickerModule, SelectModule],
+  imports: [FormsModule, DatePickerModule, SelectFieldComponent],
   templateUrl: './session-filters.component.html',
-  styleUrl: './session-filters.component.scss',
 })
 export class SessionFiltersComponent {
   readonly listDateRange = input<Date[]>([]);
@@ -35,6 +33,11 @@ export class SessionFiltersComponent {
   readonly openAdvancedFilters = output<void>();
   readonly campusIdChange = output<string | null>();
   readonly clearFilters = output<void>();
+
+  protected readonly campusOptions = computed(() => [
+    { label: '所有分校', value: null as string | null },
+    ...this.campuses().map((c) => ({ label: c.name, value: c.id as string | null })),
+  ]);
 
   protected onListDateRangeChange(range: Date[]): void {
     this.listDateRangeChange.emit(range);

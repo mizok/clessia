@@ -8,12 +8,12 @@ import {
   viewChild,
   ChangeDetectionStrategy,
 } from '@angular/core';
+import { PageOpenComponent } from '@shared/components/page-open/page-open.component';
 import { ActivatedRoute } from '@angular/router';
 import { endOfMonth, format, parseISO, startOfMonth } from 'date-fns';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { catchError, filter, forkJoin, map, of, switchMap, take } from 'rxjs';
 import { MessageService, type MenuItem } from 'primeng/api';
-import { ButtonModule } from 'primeng/button';
 import { ToastModule } from 'primeng/toast';
 import { DialogService } from 'primeng/dynamicdialog';
 
@@ -82,15 +82,14 @@ interface AttendanceDialogCloseResult {
   imports: [
     ToastModule,
     PopupMenuComponent,
-    ButtonModule,
     SessionsHeaderComponent,
     SessionsBodyComponent,
     SessionFiltersComponent,
     LoadFailedComponent,
+    PageOpenComponent,
   ],
   providers: [MessageService, DialogService],
   templateUrl: './sessions.page.html',
-  styleUrl: './sessions.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionsPage implements OnInit {
@@ -114,6 +113,8 @@ export class SessionsPage implements OnInit {
 
   // ── View state ─────────────────────────────────────────────────────────
   protected readonly loading = signal(false);
+  /** 第一次讀完之前色面不寫數字（不然會先閃一個「0 堂課」） */
+  protected readonly loadedOnce = signal(false);
 
   /**
    * 取數失敗。#791 把這一頁標為最嚴重的一支：5 個請求全部失敗，
@@ -163,6 +164,16 @@ export class SessionsPage implements OnInit {
     endOfMonth(new Date()),
   ]);
   protected readonly listDateRangeModified = signal(false);
+  /** 色面標題用的區間（`10/1–10/31`）；只選了起日時只寫一天 */
+  protected readonly rangeLabel = computed(() => {
+    const [from, to] = this.listDateRange();
+    if (!from) return '';
+    return to ? `${format(from, 'M/d')}–${format(to, 'M/d')}` : format(from, 'M/d');
+  });
+  protected readonly headline = computed(
+    () =>
+      `${this.rangeLabel()}，${this.hasActiveFilters() ? '符合篩選的 ' : ''}${this.displayedTotal()} 堂課。`,
+  );
 
   /**
    * 有沒有點名過——從別頁（目前是儀表板的未點名卡）連過來時帶的篩選。
@@ -930,6 +941,7 @@ export class SessionsPage implements OnInit {
         this.todayPendingAttendanceCount.set(res.meta.todayPendingAttendanceCount);
         this.hiddenCancelledCount.set(res.meta.hiddenCancelledCount);
         this.loading.set(false);
+        this.loadedOnce.set(true);
       },
       error: () => {
         this.loading.set(false);

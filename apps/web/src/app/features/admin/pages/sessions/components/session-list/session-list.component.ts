@@ -1,9 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, input, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { CheckboxModule } from 'primeng/checkbox';
-import { SkeletonModule } from 'primeng/skeleton';
 import { type Session } from '@core/sessions.service';
 import { ResponsiveTableComponent } from '@shared/components/responsive-table/responsive-table.component';
 import { RtColCellDirective } from '@shared/components/responsive-table/rt-col-cell.directive';
@@ -31,16 +29,13 @@ export interface SessionListMenuRequest {
     StatusDotComponent,
     DatePipe,
     FormsModule,
-    ButtonModule,
     CheckboxModule,
-    SkeletonModule,
     ResponsiveTableComponent,
     RtColCellDirective,
     RtColDefDirective,
     RtRowDirective,
   ],
   templateUrl: './session-list.component.html',
-  styleUrl: './session-list.component.scss',
 })
 export class SessionListComponent {
   readonly sessions = input<readonly Session[]>([]);

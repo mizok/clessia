@@ -1,91 +1,101 @@
-<section class="session-filters">
-  <div class="session-filters__mobile">
-    <!--
-      手機版**刻意**用 `mm/dd` 而不是全站的 `yy-mm-dd`（#425 M4 查證後保留）：
-      一、窄列塞不下 `2026-09-01 - 2026-09-30`（23 字元），短版只要 13；
-      二、短版若也用連字號，`09-01 - 09-30` 裡的連字號會跟 PrimeNG 的區間分隔符
-          ` - ` 撞在一起讀不開 —— 有年份的長版靠 `2026` 開頭自己斷得開，短版沒有。
-      下面那支桌機版是同一個 `listDateRange()` 的另一軌，用長版。
-      **這是同一概念的長短版，不是不一致** —— 要「統一」之前先讀這段。
-    -->
-    <p-datepicker
-      class="session-filters__mobile-date clessia-filter-control clessia-filter-control--date-range"
-      selectionMode="range"
-      [ngModel]="listDateRange()"
-      (ngModelChange)="onListDateRangeChange($event)"
-      dateFormat="mm/dd"
-      placeholder="日期範圍"
-      inputStyleClass="p-inputtext-sm clessia-filter-input"
-      [showIcon]="true"
-      [appendTo]="'body'"
-      [firstDayOfWeek]="1"
-      [numberOfMonths]="1"
-      [readonlyInput]="true"
-    />
-    <button class="session-filters__mobile-toggle" (click)="openAdvancedFilters.emit()">
-      <i class="pi pi-filter session-filters__mobile-toggle-icon"></i>
-      篩選
-      @if (activeFilterCount() > 0) {
-        <span class="session-filters__mobile-badge">{{ activeFilterCount() }}</span>
-      }
-    </button>
+<!--
+  A6 灰工具列的左半（#991）。手機（<768，跟 page 的 isMobileViewport 同一條線）只留日期＋「篩選」，
+  其餘篩選收進 mobile-filter-dialog；寬了才攤開日期、分校、進階篩選、清除篩選。
+-->
+<div class="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end md:gap-4">
+  <div class="flex min-w-0 flex-col gap-1 md:w-[19rem]">
+    <span id="session-filters-date" class="text-sm font-semibold text-zinc-700">日期</span>
+    <div class="flex items-center gap-2">
+      <!--
+        手機版**刻意**用 `mm/dd` 而不是全站的 `yy-mm-dd`（#425 M4 查證後保留）：
+        一、窄列塞不下 `2026-09-01 - 2026-09-30`（23 字元），短版只要 13；
+        二、短版若也用連字號，`09-01 - 09-30` 裡的連字號會跟 PrimeNG 的區間分隔符
+            ` - ` 撞在一起讀不開 —— 有年份的長版靠 `2026` 開頭自己斷得開，短版沒有。
+        下面那支桌機版是同一個 `listDateRange()` 的另一軌，用長版。
+        **這是同一概念的長短版，不是不一致** —— 要「統一」之前先讀這段。
+      -->
+      <p-datepicker
+        class="min-w-0 flex-1 md:hidden"
+        selectionMode="range"
+        [ngModel]="listDateRange()"
+        (ngModelChange)="onListDateRangeChange($event)"
+        dateFormat="mm/dd"
+        placeholder="日期範圍"
+        inputStyleClass="h-11 min-w-0 flex-1"
+        [showIcon]="true"
+        [appendTo]="'body'"
+        [firstDayOfWeek]="1"
+        [numberOfMonths]="1"
+        [readonlyInput]="true"
+        ariaLabelledBy="session-filters-date"
+      />
+      <p-datepicker
+        class="hidden min-w-0 flex-1 md:flex"
+        selectionMode="range"
+        [ngModel]="listDateRange()"
+        (ngModelChange)="onListDateRangeChange($event)"
+        dateFormat="yy-mm-dd"
+        placeholder="選擇日期範圍"
+        inputStyleClass="h-11 min-w-0 flex-1"
+        [showIcon]="true"
+        [appendTo]="'body'"
+        [firstDayOfWeek]="1"
+        [numberOfMonths]="1"
+        [readonlyInput]="true"
+        ariaLabelledBy="session-filters-date"
+      />
+      <button
+        type="button"
+        class="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 md:hidden"
+        (click)="openAdvancedFilters.emit()"
+      >
+        <i class="pi pi-filter text-sm" aria-hidden="true"></i>
+        篩選
+        @if (activeFilterCount() > 0) {
+          <span
+            class="inline-flex size-5 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white"
+            >{{ activeFilterCount() }}</span
+          >
+        }
+      </button>
+    </div>
   </div>
 
-  <div class="session-filters__row session-filters__row--list clessia-filter-bar">
-    <p-datepicker
-      class="session-filters__control clessia-filter-control clessia-filter-control--date-range"
-      selectionMode="range"
-      [ngModel]="listDateRange()"
-      (ngModelChange)="onListDateRangeChange($event)"
-      dateFormat="yy-mm-dd"
-      placeholder="選擇日期範圍"
-      inputStyleClass="p-inputtext-sm clessia-filter-input"
-      [showIcon]="true"
-      [appendTo]="'body'"
-      [firstDayOfWeek]="1"
-      [numberOfMonths]="1"
-      [readonlyInput]="true"
-    />
-    @if (campuses().length > 1) {
-      <p-select
-        class="session-filters__control clessia-filter-control"
-        size="small"
-        panelStyleClass="session-filters-panel"
-        [options]="campuses()"
-        optionLabel="name"
-        optionValue="id"
-        placeholder="所有分校"
-        [showClear]="true"
-        [appendTo]="'body'"
-        [filter]="true"
-        filterBy="name"
-        filterPlaceholder="搜尋分校..."
-        [ngModel]="selectedCampusId()"
-        (ngModelChange)="onCampusChange($event)"
+  @if (campuses().length > 1) {
+    <div class="hidden min-w-0 md:block md:w-52">
+      <app-select-field
+        label="分校"
+        [options]="campusOptions()"
+        [value]="selectedCampusId()"
+        (valueChange)="onCampusChange($event)"
       />
-    }
-    <p-button
-      styleClass="session-filters__advanced-button"
-      size="small"
-      severity="secondary"
-      [outlined]="true"
-      (onClick)="openAdvancedFilters.emit()"
+    </div>
+  }
+
+  <div class="hidden items-center gap-2 md:flex">
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50"
+      (click)="openAdvancedFilters.emit()"
     >
-      <i class="pi pi-sliders-h"></i>
+      <i class="pi pi-sliders-h text-sm" aria-hidden="true"></i>
       進階篩選
       @if (activeFilterCount() > 0) {
-        <span class="session-filters__advanced-badge">{{ activeFilterCount() }}</span>
+        <span
+          class="inline-flex size-5 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white"
+          >{{ activeFilterCount() }}</span
+        >
       }
-    </p-button>
+    </button>
     @if (hasActiveFilters()) {
-      <p-button
-        label="清除篩選"
-        severity="secondary"
-        [text]="true"
-        size="small"
-        icon="pi pi-times"
-        (onClick)="clearFilters.emit()"
-      />
+      <button
+        type="button"
+        class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-md border-0 bg-transparent px-3 text-md font-semibold whitespace-nowrap text-zinc-700 hover:bg-zinc-200 hover:text-zinc-900"
+        (click)="clearFilters.emit()"
+      >
+        <i class="pi pi-times text-sm" aria-hidden="true"></i>
+        清除篩選
+      </button>
     }
   </div>
-</section>
+</div>
