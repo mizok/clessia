@@ -17,14 +17,12 @@ interface FilterOption<TValue> {
 export interface ExamsFilterDialogData {
   readonly initial: {
     examType: ExamTypeFilter;
-    campusId: string | null;
     schoolId: string | null;
     subjectId: string | null;
     status: StatusFilter;
     timeRange: TimeRange;
   };
   readonly options: {
-    campusOptions: ReadonlyArray<FilterOption<string | null>>;
     schoolOptions: ReadonlyArray<FilterOption<string | null>>;
     subjectOptions: ReadonlyArray<FilterOption<string | null>>;
     statusOptions: ReadonlyArray<FilterOption<StatusFilter>>;
@@ -36,7 +34,6 @@ export interface ExamsFilterDialogData {
 export interface ExamsFilterDialogResult {
   readonly cleared?: boolean;
   readonly examType?: ExamTypeFilter;
-  readonly campusId?: string | null;
   readonly schoolId?: string | null;
   readonly subjectId?: string | null;
   readonly status?: StatusFilter;
@@ -60,7 +57,6 @@ export class ExamsFilterDialogComponent {
   protected readonly examType = signal<ExamTypeFilter>(
     this.config.data?.initial.examType ?? 'academy',
   );
-  protected readonly campusId = signal<string | null>(this.config.data?.initial.campusId ?? null);
   protected readonly schoolId = signal<string | null>(this.config.data?.initial.schoolId ?? null);
   protected readonly subjectId = signal<string | null>(this.config.data?.initial.subjectId ?? null);
   protected readonly status = signal<StatusFilter>(this.config.data?.initial.status ?? 'all');
@@ -71,7 +67,6 @@ export class ExamsFilterDialogComponent {
   protected apply(): void {
     this.ref.close({
       examType: this.examType(),
-      campusId: this.campusId(),
       schoolId: this.schoolId(),
       subjectId: this.subjectId(),
       status: this.status(),
