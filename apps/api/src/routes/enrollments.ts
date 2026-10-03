@@ -271,6 +271,8 @@ interface CopyFromClassQuotaInput {
 interface EnrollmentLeaveRequestRow {
   start_date: string;
   end_date: string;
+  /** 綁定堂次（#1114）。有綁定的假不回補 —— 它綁的是具體那幾堂，新報名班的堂不在意圖內 */
+  leave_request_sessions?: ReadonlyArray<{ session_id: string }> | null;
 }
 
 interface EnrollmentEventRow {
@@ -322,7 +324,9 @@ export function buildEnrollmentLeaveAttendanceUpserts(input: {
         !toSessionRows(eventRow.sessions).some(isCancelledSession) &&
         input.leaves.some(
           (leaveRow) =>
-            leaveRow.start_date <= eventRow.event_date && leaveRow.end_date >= eventRow.event_date,
+            (leaveRow.leave_request_sessions ?? []).length === 0 &&
+            leaveRow.start_date <= eventRow.event_date &&
+            leaveRow.end_date >= eventRow.event_date,
         ),
     )
     .map((eventRow) => ({
@@ -348,7 +352,7 @@ async function syncLeaveAttendanceForEnrollment(params: {
 
   let leaveQuery = supabase
     .from('leave_requests')
-    .select('start_date, end_date')
+    .select('start_date, end_date, leave_request_sessions(session_id)')
     .eq('org_id', orgId)
     .eq('student_id', studentId)
     .gte('end_date', effectiveFrom);

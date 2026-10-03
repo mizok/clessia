@@ -5,6 +5,7 @@ import {
   type CancellableSession,
 } from '../lib/cancelled-session';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Context } from 'hono';
 import { waitUntilFrom } from '../lib/wait-until';
 import type { AppEnv } from '../index';
 import { DbUuidSchema } from '../lib/validation';
@@ -13,6 +14,14 @@ import { campusFilterIds, getCampusScope } from '../lib/campus-scope';
 import { studentWriteScope } from '../lib/campus-write-guard';
 import { addDaysToDateString, getCurrentTaipeiDateString } from '../lib/taipei-date';
 import { inOrg } from '../lib/org-scope';
+import {
+  LEAVE_WINDOW_COLUMNS,
+  leaveCoversSession,
+  leavesConflict,
+  toLeaveWindow,
+  type LeaveWindow,
+} from '../lib/leave-covers-session';
+import { isEnrolledOn } from '../lib/session-roster';
 
 const LeaveRequestSchema = z
   .object({
@@ -29,6 +38,8 @@ const LeaveRequestSchema = z
     submittedByRole: z.enum(['parent', 'admin']),
     submittedByName: z.string().nullable(),
     createdAt: z.string(),
+    /** 勾選綁定的堂次（#1114）；空陣列＝沒綁定，整天／單日時間窗 */
+    sessionIds: z.array(z.string()),
   })
   .openapi('LeaveRequest');
 
@@ -60,6 +71,11 @@ const CreateLeaveSchema = z
       .nullable()
       .optional(),
     reason: z.string().nullable().optional(),
+    /**
+     * 勾選要請假的堂次（#1114）。給了就只蓋這幾堂，`startDate`／`endDate` 由 server 從堂次算，
+     * 不能跟 `startTime`／`endTime` 同時給。
+     */
+    sessionIds: z.array(DbUuidSchema).min(1).max(100).optional(),
   })
   .openapi('CreateLeave');
 
@@ -88,6 +104,8 @@ const UpdateLeaveSchema = z
       .nullable()
       .optional(),
     reason: z.string().nullable().optional(),
+    /** 給了就整組替換綁定（#1114）；綁定型的假改日期只能走這裡 */
+    sessionIds: z.array(DbUuidSchema).min(1).max(100).optional(),
   })
   .openapi('UpdateLeave');
 
@@ -239,6 +257,98 @@ interface LeaveAttendanceRangeInput {
   readonly studentId: string;
   readonly from: string;
   readonly to: string;
+  /** 只動這張假蓋得到的堂（`leaveCoversSession`） */
+  readonly window: LeaveWindow;
+}
+
+function coversEvent(window: LeaveWindow, ev: Record<string, any>): boolean {
+  return leaveCoversSession(window, {
+    sessionId: toSessionRows(ev['sessions'] as { id: string } | null)[0]?.id ?? null,
+    date: ev['event_date'] as string,
+    startTime: (ev['start_time'] as string | null) ?? null,
+    endTime: (ev['end_time'] as string | null) ?? null,
+  });
+}
+
+/** 只蓋指定堂次的視窗 —— 編輯綁定時，新增／拿掉的那幾堂各自當成一張假去 apply／revert */
+function boundWindow(sessions: LeaveWindow['boundSessions']): LeaveWindow {
+  const dates = sessions.map((b) => b.date).sort();
+  return {
+    startDate: dates[0] ?? '',
+    endDate: dates[dates.length - 1] ?? '',
+    startTime: null,
+    endTime: null,
+    boundSessions: sessions,
+  };
+}
+
+type ResolvedSessions =
+  | { ok: true; sessions: Array<{ sessionId: string; date: string }> }
+  | { ok: false; sessionId: string; message: string };
+
+/**
+ * 驗勾選的堂次（#1114）：屬於本 org（c1）、不是停課、學生那天在籍。任一不合就指名那一堂。
+ * 在籍的判準跟 `applyLeaveAttendance` 同一組（`status = active` ＋ 生效區間）。
+ */
+async function resolveBoundSessions(
+  supabase: SupabaseClient,
+  orgId: string,
+  studentId: string,
+  sessionIds: readonly string[],
+): Promise<ResolvedSessions> {
+  const ids = [...new Set(sessionIds)];
+  const { data } = await supabase
+    .from('sessions')
+    .select('id, session_date, class_id, status')
+    .eq('org_id', orgId)
+    .in('id', ids);
+  const byId = new Map(((data ?? []) as Array<Record<string, any>>).map((r) => [r['id'], r]));
+
+  const { data: enrollments } = await supabase
+    .from('enrollments')
+    .select('class_id, effective_from, effective_to')
+    .eq('org_id', orgId)
+    .eq('student_id', studentId)
+    .eq('status', 'active');
+  const ranges = (enrollments ?? []) as LeaveAttendanceEnrollmentRow[];
+
+  const sessions: Array<{ sessionId: string; date: string }> = [];
+  for (const sessionId of ids) {
+    const row = byId.get(sessionId);
+    if (!row) return { ok: false, sessionId, message: '找不到這堂課' };
+    if (isCancelledSession(row)) return { ok: false, sessionId, message: '這堂課已停課' };
+    const date = row['session_date'] as string;
+    const enrolled = ranges.some(
+      (e) =>
+        e.class_id === row['class_id'] &&
+        isEnrolledOn({ effectiveFrom: e.effective_from, effectiveTo: e.effective_to }, date),
+    );
+    if (!enrolled) return { ok: false, sessionId, message: '學生那天不在這個班' };
+    sessions.push({ sessionId, date });
+  }
+  return { ok: true, sessions };
+}
+
+/** 跟這個學生既有的假有沒有重疊（`leavesConflict`）；`excludeId` 給編輯排除自己 */
+async function findConflictingLeave(
+  supabase: SupabaseClient,
+  orgId: string,
+  studentId: string,
+  next: LeaveWindow,
+  excludeId?: string,
+): Promise<{ start_date: string; end_date: string } | null> {
+  let query = supabase
+    .from('leave_requests')
+    .select(`id, ${LEAVE_WINDOW_COLUMNS}`)
+    .eq('org_id', orgId)
+    .eq('student_id', studentId);
+  if (excludeId) query = query.neq('id', excludeId);
+  // 區間有交集是「可能重疊」的必要條件（綁定型的區間＝綁定堂的最早／最晚），再用判準細分
+  const { data } = await query.lte('start_date', next.endDate).gte('end_date', next.startDate);
+  const hit = ((data ?? []) as Array<Record<string, unknown>>).find((row) =>
+    leavesConflict(toLeaveWindow(row), next),
+  );
+  return (hit as { start_date: string; end_date: string } | undefined) ?? null;
 }
 
 /**
@@ -257,17 +367,22 @@ async function applyLeaveAttendance(
 ): Promise<number> {
   const { supabase, orgId, studentId, recordedBy, from, to } = input;
 
-  const { data: events } = await supabase
+  const { data: rawEvents } = await supabase
     .from('events')
     // `status` 是給 `isCancelledSession` 排除停課用的 —— 少撈它不會報錯，
     // 只會讓那道過濾靜靜地什麼都不做。理由見 `lib/cancelled-session.ts`。
-    .select('id, event_date, sessions!inner(class_id, status)')
+    .select('id, event_date, start_time, end_time, sessions!inner(id, class_id, status)')
     .eq('org_id', orgId)
     .eq('event_type', 'session')
     .gte('event_date', from)
     .lte('event_date', to);
 
-  if (!events || events.length === 0) return 0;
+  // 這張假蓋不蓋得到那堂 —— 跟 roster 推導同一支判斷（綁定堂次、單日時間窗）。
+  // #1114 之前這裡完全不看時間：roster 說只蓋下午那堂，紀錄卻把整天都寫成請假。
+  const events = ((rawEvents ?? []) as Array<Record<string, any>>).filter((ev) =>
+    coversEvent(input.window, ev),
+  );
+  if (events.length === 0) return 0;
 
   const classIds = Array.from(
     new Set(
@@ -329,15 +444,19 @@ async function applyLeaveAttendance(
 async function revertLeaveAttendance(input: LeaveAttendanceRangeInput): Promise<number> {
   const { supabase, orgId, studentId, from, to } = input;
 
-  const { data: events } = await supabase
+  const { data: rawEvents } = await supabase
     .from('events')
-    .select('id')
+    .select('id, event_date, start_time, end_time, sessions(id)')
     .eq('org_id', orgId)
     .is('attendance_taken_at', null)
     .gte('event_date', from)
     .lte('event_date', to);
 
-  if (!events || events.length === 0) return 0;
+  // 跟 apply 對稱：只回這張假蓋得到的堂。綁定型不能把同日別堂（別張假寫的）on_leave 一起帶走
+  const events = ((rawEvents ?? []) as Array<Record<string, any>>).filter((ev) =>
+    coversEvent(input.window, ev),
+  );
+  if (events.length === 0) return 0;
 
   const { data: removed } = await inOrg(
     supabase.from('attendance_records').delete().eq('student_id', studentId),
@@ -346,7 +465,7 @@ async function revertLeaveAttendance(input: LeaveAttendanceRangeInput): Promise<
     .eq('status', 'on_leave')
     .in(
       'event_id',
-      events.map((e: { id: string }) => e.id),
+      events.map((e) => e['id'] as string),
     )
     .select('id');
 
@@ -370,7 +489,185 @@ export function toLeaveResponse(row: Record<string, unknown>) {
     submittedByRole: row['submitted_by_role'] as 'parent' | 'admin',
     submittedByName: (row['submitted_by_name'] as string | null) ?? null,
     createdAt: row['created_at'] as string,
+    sessionIds: toLeaveWindow(row).boundSessions.map((b) => b.sessionId),
   };
+}
+
+/**
+ * PATCH 給了 `sessionIds`：整組替換綁定（#1114）。
+ *
+ * 原本就是綁定型 → **以堂次做 diff**：拿掉的堂 revert、新增的堂 apply，沒變的堂完全不碰
+ * （跟 `diffLeaveDateRanges` 同一個理由：整段重做會讓已點名那堂的紀錄在一次編輯裡換作者）。
+ * 原本是整天型 → 舊的整張 revert、新的綁定 apply（語意整個換掉，沒有可以保留的交集）。
+ */
+async function updateBoundSessions(
+  c: Context<AppEnv>,
+  input: {
+    id: string;
+    studentId: string;
+    studentName: string;
+    prevWindow: LeaveWindow;
+    sessionIds: readonly string[];
+    hasTime: boolean;
+    reason: string | null | undefined;
+  },
+) {
+  const supabase = c.get('supabase');
+  const orgId = c.get('orgId');
+  const userId = c.get('userId');
+  const { id, studentId, prevWindow } = input;
+
+  if (input.hasTime) {
+    return c.json({ error: '請假資料無效', message: '勾選堂次的假不能再帶時間窗' }, 400);
+  }
+  const resolved = await resolveBoundSessions(supabase, orgId, studentId, input.sessionIds);
+  if (!resolved.ok) {
+    return c.json(
+      {
+        error: '請假資料無效',
+        code: 'INVALID_SESSION',
+        message: resolved.message,
+        sessionId: resolved.sessionId,
+      },
+      400,
+    );
+  }
+  const nextWindow = boundWindow(resolved.sessions);
+
+  const overlap = await findConflictingLeave(supabase, orgId, studentId, nextWindow, id);
+  if (overlap) {
+    return c.json(
+      {
+        error: '請假時間重疊',
+        message: `該學生在 ${overlap.start_date} ~ ${overlap.end_date} 已有請假紀錄`,
+      },
+      409,
+    );
+  }
+
+  const { data: updated, error: updateError } = await inOrg(
+    supabase
+      .from('leave_requests')
+      .update({
+        start_date: nextWindow.startDate,
+        end_date: nextWindow.endDate,
+        start_time: null,
+        end_time: null,
+        ...(input.reason !== undefined ? { reason: input.reason } : {}),
+      })
+      .eq('id', id),
+    orgId,
+  )
+    .select('*, students(name), ba_user!submitted_by(name)')
+    .single();
+  if (updateError || !updated) {
+    return c.json({ error: '更新請假失敗', message: updateError?.message }, 500);
+  }
+
+  const prevBound = prevWindow.boundSessions.length > 0;
+  const prevIds = new Set(prevWindow.boundSessions.map((b) => b.sessionId));
+  const nextIds = new Set(nextWindow.boundSessions.map((b) => b.sessionId));
+  const removed = prevWindow.boundSessions.filter((b) => !nextIds.has(b.sessionId));
+  const added = nextWindow.boundSessions.filter((b) => !prevIds.has(b.sessionId));
+
+  if (removed.length > 0) {
+    await inOrg(
+      supabase
+        .from('leave_request_sessions')
+        .delete()
+        .eq('leave_request_id', id)
+        .in(
+          'session_id',
+          removed.map((b) => b.sessionId),
+        ),
+      orgId,
+    );
+  }
+  if (added.length > 0) {
+    await supabase
+      .from('leave_request_sessions')
+      .insert(
+        added.map((b) => ({ leave_request_id: id, session_id: b.sessionId, org_id: orgId })),
+      );
+  }
+
+  const revertWindow = prevBound ? boundWindow(removed) : prevWindow;
+  const applyWindow = prevBound ? boundWindow(added) : nextWindow;
+  const revertedCount =
+    !prevBound || removed.length > 0
+      ? await revertLeaveAttendance({
+          supabase,
+          orgId,
+          studentId,
+          from: revertWindow.startDate,
+          to: revertWindow.endDate,
+          window: revertWindow,
+        })
+      : 0;
+  const syncedCount =
+    applyWindow.boundSessions.length > 0
+      ? await applyLeaveAttendance({
+          supabase,
+          orgId,
+          studentId,
+          recordedBy: userId,
+          from: applyWindow.startDate,
+          to: applyWindow.endDate,
+          window: applyWindow,
+        })
+      : 0;
+
+  const resourceName = buildLeaveAuditResourceName({
+    studentName: input.studentName,
+    startDate: nextWindow.startDate,
+    endDate: nextWindow.endDate,
+  });
+  for (const [action, count] of [
+    ['revert_leave_attendance', revertedCount],
+    ['sync_leave_to_attendance', syncedCount],
+  ] as const) {
+    if (count === 0) continue;
+    logAudit(
+      supabase,
+      {
+        orgId,
+        userId,
+        resourceType: 'attendance',
+        resourceId: id,
+        resourceName,
+        action,
+        details: buildLeaveAttendanceAuditDetails(count),
+      },
+      waitUntilFrom(c),
+    );
+  }
+  logAudit(
+    supabase,
+    {
+      orgId,
+      userId,
+      resourceType: 'leave',
+      resourceId: id,
+      resourceName,
+      action: 'update',
+      details: {
+        before: { ...prevWindow, boundSessions: undefined, sessionIds: [...prevIds] },
+        after: { startDate: nextWindow.startDate, endDate: nextWindow.endDate, sessionIds: [...nextIds] },
+      },
+    },
+    waitUntilFrom(c),
+  );
+
+  const row = {
+    ...updated,
+    student_name: (updated as any).students?.name ?? input.studentName,
+    submitted_by_name: (updated as any).ba_user?.name ?? null,
+    leave_request_sessions: nextWindow.boundSessions.map((b) => ({
+      session_id: b.sessionId,
+      sessions: { session_date: b.date },
+    })),
+  };
+  return c.json(toLeaveResponse(row), 200);
 }
 
 const app = new OpenAPIHono<AppEnv>();
@@ -505,7 +802,14 @@ app.openapi(
     const userId = c.get('userId');
     const body = c.req.valid('json');
 
-    const validationError = getLeaveValidationError(body);
+    if (body.sessionIds && (body.startTime || body.endTime)) {
+      return c.json(
+        { error: '請假資料無效', message: '勾選堂次的假不能再帶時間窗' },
+        400,
+      );
+    }
+
+    const validationError = body.sessionIds ? null : getLeaveValidationError(body);
     if (validationError) {
       return c.json({ error: '請假資料無效', message: validationError }, 400);
     }
@@ -519,17 +823,34 @@ app.openapi(
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
 
-    // 1. 衝突檢查：同學生是否有重疊的請假紀錄
-    const { data: conflicts } = await supabase
-      .from('leave_requests')
-      .select('id, start_date, end_date')
-      .eq('org_id', orgId)
-      .eq('student_id', body.studentId)
-      .lte('start_date', body.endDate)
-      .gte('end_date', body.startDate);
+    // 0. 勾選堂次（#1114）：驗 org／停課／在籍，區間由堂次算出、不吃 body
+    let window: LeaveWindow = {
+      startDate: body.startDate,
+      endDate: body.endDate,
+      startTime: body.startTime ?? null,
+      endTime: body.endTime ?? null,
+      boundSessions: [],
+    };
+    if (body.sessionIds) {
+      const resolved = await resolveBoundSessions(supabase, orgId, body.studentId, body.sessionIds);
+      if (!resolved.ok) {
+        return c.json(
+          {
+            error: '請假資料無效',
+            code: 'INVALID_SESSION',
+            message: resolved.message,
+            sessionId: resolved.sessionId,
+          },
+          400,
+        );
+      }
+      window = boundWindow(resolved.sessions);
+    }
 
-    if (conflicts && conflicts.length > 0) {
-      const overlap = conflicts[0] as { start_date: string; end_date: string };
+    // 1. 衝突檢查：同學生是否有重疊的請假紀錄（判準 `leavesConflict`）
+    const overlap = await findConflictingLeave(supabase, orgId, body.studentId, window);
+
+    if (overlap) {
       return c.json(
         {
           error: '請假時間重疊',
@@ -545,8 +866,8 @@ app.openapi(
       .insert({
         org_id: orgId,
         student_id: body.studentId,
-        start_date: body.startDate,
-        end_date: body.endDate,
+        start_date: window.startDate,
+        end_date: window.endDate,
         start_time: body.startTime ?? null,
         end_time: body.endTime ?? null,
         reason: body.reason ?? null,
@@ -560,14 +881,30 @@ app.openapi(
       return c.json({ error: '新增請假失敗', message: leaveError?.message }, 500);
     }
 
-    // 3. 自動更新對應日期範圍內、且該學生實際有報名的 attendance_records → on_leave
+    if (window.boundSessions.length > 0) {
+      const { error: bindError } = await supabase.from('leave_request_sessions').insert(
+        window.boundSessions.map((b) => ({
+          leave_request_id: leave.id,
+          session_id: b.sessionId,
+          org_id: orgId,
+        })),
+      );
+      if (bindError) {
+        // 綁不上就不能留一張「整天」語意的假（沒有綁定列＝整天）—— 撤掉重來
+        await inOrg(supabase.from('leave_requests').delete().eq('id', leave.id as string), orgId);
+        return c.json({ error: '新增請假失敗', message: bindError.message }, 500);
+      }
+    }
+
+    // 3. 自動更新這張假蓋得到、且該學生實際有報名的 attendance_records → on_leave
     const syncedCount = await applyLeaveAttendance({
       supabase,
       orgId,
       studentId: body.studentId,
       recordedBy: userId,
-      from: body.startDate,
-      to: body.endDate,
+      from: window.startDate,
+      to: window.endDate,
+      window,
     });
 
     if (syncedCount > 0) {
@@ -580,8 +917,8 @@ app.openapi(
           resourceId: leave.id as string,
           resourceName: buildLeaveAuditResourceName({
             studentName: (leave as any).students?.name ?? '',
-            startDate: body.startDate,
-            endDate: body.endDate,
+            startDate: window.startDate,
+            endDate: window.endDate,
           }),
           action: 'sync_leave_to_attendance',
           details: buildLeaveAttendanceAuditDetails(syncedCount),
@@ -594,6 +931,10 @@ app.openapi(
       ...leave,
       student_name: (leave as any).students?.name ?? '',
       submitted_by_name: (leave as any).ba_user?.name ?? null,
+      leave_request_sessions: window.boundSessions.map((b) => ({
+        session_id: b.sessionId,
+        sessions: { session_date: b.date },
+      })),
     };
 
     logAudit(
@@ -605,14 +946,15 @@ app.openapi(
         resourceId: leave.id as string,
         resourceName: buildLeaveAuditResourceName({
           studentName: row.student_name,
-          startDate: body.startDate,
-          endDate: body.endDate,
+          startDate: window.startDate,
+          endDate: window.endDate,
         }),
         action: 'create',
         details: {
           startTime: body.startTime ?? null,
           endTime: body.endTime ?? null,
           reason: body.reason ?? null,
+          sessionIds: window.boundSessions.map((b) => b.sessionId),
         },
       },
       waitUntilFrom(c),
@@ -665,13 +1007,13 @@ app.openapi(
     if (body.endTime !== undefined) updates['end_time'] = body.endTime;
     if (body.reason !== undefined) updates['reason'] = body.reason;
 
-    if (Object.keys(updates).length === 0) {
+    if (Object.keys(updates).length === 0 && !body.sessionIds) {
       return c.json({ error: '請假資料無效', message: '沒有要更新的欄位' }, 400);
     }
 
     const { data: existing } = await supabase
       .from('leave_requests')
-      .select('id, student_id, start_date, end_date, start_time, end_time, students(name)')
+      .select(`id, student_id, students(name), ${LEAVE_WINDOW_COLUMNS}`)
       .eq('id', id)
       .eq('org_id', orgId)
       .single();
@@ -688,6 +1030,36 @@ app.openapi(
     if (scoped === 'out-of-scope') {
       return c.json({ error: '沒有這個分校的權限', code: 'FORBIDDEN' }, 403);
     }
+
+    const prevWindow = toLeaveWindow(existing as Record<string, unknown>);
+    const prevBound = prevWindow.boundSessions.length > 0;
+
+    if (body.sessionIds) {
+      return updateBoundSessions(c, {
+        id,
+        studentId,
+        studentName: (existing as any).students?.name ?? '',
+        prevWindow,
+        sessionIds: body.sessionIds,
+        hasTime: !!(body.startTime || body.endTime),
+        reason: body.reason,
+      });
+    }
+
+    // 綁定型的假：日期與時間由堂次決定，要改請給 sessionIds
+    if (
+      prevBound &&
+      (body.startDate !== undefined ||
+        body.endDate !== undefined ||
+        body.startTime !== undefined ||
+        body.endTime !== undefined)
+    ) {
+      return c.json(
+        { error: '請假資料無效', message: '勾選堂次的假請改勾選的堂次，不能直接改日期或時間' },
+        400,
+      );
+    }
+
     const previous: LeaveDateRange = {
       startDate: (existing as any).start_date as string,
       endDate: (existing as any).end_date as string,
@@ -718,19 +1090,18 @@ app.openapi(
     // 只在區間真的動了才查重疊。**沒動就不查**不是省一支查詢而已 ——
     // 既有資料若已經有一組重疊（這條沒有 DB 約束，歷史資料進得來），
     // 每查必中會讓那張假連事由都改不了，永遠 409
-    if (rangeChanged) {
-      const { data: conflicts } = await supabase
-        .from('leave_requests')
-        .select('id, start_date, end_date')
-        .eq('org_id', orgId)
-        .eq('student_id', studentId)
-        // 排除自己 —— 少了這行，每一次編輯都會跟自己撞成 409
-        .neq('id', id)
-        .lte('start_date', next.endDate)
-        .gte('end_date', next.startDate);
+    const nextWindow: LeaveWindow = {
+      ...next,
+      startTime: startTime ?? null,
+      endTime: endTime ?? null,
+      boundSessions: [],
+    };
 
-      if (conflicts && conflicts.length > 0) {
-        const overlap = conflicts[0] as { start_date: string; end_date: string };
+    if (rangeChanged) {
+      // 排除自己 —— 少了 excludeId，每一次編輯都會跟自己撞成 409
+      const overlap = await findConflictingLeave(supabase, orgId, studentId, nextWindow, id);
+
+      if (overlap) {
         return c.json(
           {
             error: '請假時間重疊',
@@ -769,6 +1140,7 @@ app.openapi(
           studentId,
           from: range.startDate,
           to: range.endDate,
+          window: prevWindow,
         });
       }
 
@@ -781,6 +1153,7 @@ app.openapi(
           recordedBy: userId,
           from: range.startDate,
           to: range.endDate,
+          window: nextWindow,
         });
       }
 
@@ -882,7 +1255,7 @@ app.openapi(
     // 1. 找到請假紀錄
     const { data: leave } = await supabase
       .from('leave_requests')
-      .select('id, student_id, start_date, end_date, students(name)')
+      .select(`id, student_id, students(name), ${LEAVE_WINDOW_COLUMNS}`)
       .eq('id', id)
       .eq('org_id', orgId)
       .single();
@@ -909,19 +1282,48 @@ app.openapi(
     const startDate = (leave as any).start_date as string;
     const endDate = (leave as any).end_date as string;
 
-    const revertAttendance = (from: string, to: string) =>
+    const window = toLeaveWindow(leave as Record<string, unknown>);
+    const revertAttendance = (from: string, to: string, w: LeaveWindow = window) =>
       revertLeaveAttendance({
         supabase,
         orgId,
         studentId: (leave as any).student_id as string,
         from,
         to,
+        window: w,
       });
 
     const isActive = startDate <= today && endDate >= today;
+    const keptBound = window.boundSessions.filter((b) => b.date < today);
 
-    // truncate 模式且為進行中：保留過去，截斷今日起
-    if (mode === 'truncate' && isActive) {
+    // 綁定型的截斷（#1114）：拆掉今天起的綁定列、區間收到剩下的最後一堂；一堂都不剩就走整張刪除
+    if (mode === 'truncate' && isActive && keptBound.length > 0) {
+      const dropped = window.boundSessions.filter((b) => b.date >= today);
+      await inOrg(
+        supabase
+          .from('leave_request_sessions')
+          .delete()
+          .eq('leave_request_id', id)
+          .in(
+            'session_id',
+            dropped.map((b) => b.sessionId),
+          ),
+        orgId,
+      );
+      await inOrg(
+        supabase
+          .from('leave_requests')
+          .update({ end_date: boundWindow(keptBound).endDate })
+          .eq('id', id),
+        orgId,
+      );
+      const droppedWindow = boundWindow(dropped);
+      await revertAttendance(droppedWindow.startDate, droppedWindow.endDate, droppedWindow);
+      return new Response(null, { status: 204 });
+    }
+
+    // truncate 模式且為進行中：保留過去，截斷今日起（沒綁定的假）
+    if (mode === 'truncate' && isActive && window.boundSessions.length === 0) {
       // 同一支 today 算出來的昨天，不是另一個 UTC 算法 —— 兩個必須一致，
       // 否則會出現「今天用台北算、昨天用 UTC 算」的組合，比全錯更難 debug。
       const yesterday = addDaysToDateString(today, -1);

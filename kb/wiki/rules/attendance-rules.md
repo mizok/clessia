@@ -66,6 +66,9 @@ tags: [rules, attendance-rules]
 2. 允許事後補請。
 3. 建立請假後，對應課堂出勤狀態需改為 `on_leave`
    （原本寫 `leave`，但 `attendance_status` enum 只有 `present` / `absent` / `on_leave`）。
+4. 請假可以**勾選堂次**（#1114，`leave_request_sessions`）：有勾選的假只蓋那幾堂；沒勾選的照舊是
+   整天（單日帶時間窗則只蓋時間重疊的堂）。同一堂最多一張假；同一天不同堂可以各一張。
+   見 [[architecture/leave-session-binding]]。
 
 ## 5. 自動寫入與人工修改的優先順序（陷阱）
 

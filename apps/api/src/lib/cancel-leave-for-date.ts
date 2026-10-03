@@ -1,3 +1,5 @@
+import type { LeaveWindow } from './leave-covers-session';
+
 /**
  * 銷假：讓某一張請假單不再蓋到某一天。
  *
@@ -13,7 +15,9 @@
 export type CancelLeaveAction =
   | { kind: 'delete' }
   | { kind: 'shrink'; startDate: string; endDate: string; droppedAfter: string | null }
-  | { kind: 'none' };
+  | { kind: 'none' }
+  /** 綁定型假（#1114）：只拆掉當天的綁定列，區間收成剩下的綁定堂 */
+  | { kind: 'unbind'; sessionIds: string[]; startDate: string; endDate: string };
 
 /**
  * 日曆上的前後一天。**用 UTC 走** —— 這裡的日期是字串上的 `YYYY-MM-DD`，
@@ -26,9 +30,22 @@ export function shiftDateString(date: string, days: number): string {
 }
 
 export function cancelLeaveForDate(
-  leave: { startDate: string; endDate: string },
+  leave: Pick<LeaveWindow, 'startDate' | 'endDate' | 'boundSessions'>,
   date: string,
 ): CancelLeaveAction {
+  if (leave.boundSessions.length > 0) {
+    const today = leave.boundSessions.filter((b) => b.date === date);
+    if (today.length === 0) return { kind: 'none' };
+    const rest = leave.boundSessions.filter((b) => b.date !== date).map((b) => b.date).sort();
+    if (rest.length === 0) return { kind: 'delete' };
+    return {
+      kind: 'unbind',
+      sessionIds: today.map((b) => b.sessionId),
+      startDate: rest[0] as string,
+      endDate: rest[rest.length - 1] as string,
+    };
+  }
+
   const nextDay = (value: string) => shiftDateString(value, 1);
   const previousDay = (value: string) => shiftDateString(value, -1);
 

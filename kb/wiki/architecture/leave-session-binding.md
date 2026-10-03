@@ -1,8 +1,8 @@
 ---
 title: 請假綁定堂次（leave_request_sessions）
-summary: 請假單可以綁定「勾選的課堂」（規格 specs/admin/student-affairs/leave.md 多選課堂）。新增關聯表 leave_request_sessions（帶 org_id、PK (leave_request_id, session_id)、cascade）；沒有綁定列的假沿用舊語意（整天／單日時間窗），所以既有資料與 seed 不用遷移。判斷核心仍是 leaveCoversSession，加一條「有綁定就只比 id」。寫入面 create／update 收 sessionIds、server 驗在籍與非停課；update 以堂次 diff 做 revert／apply。cancel-leave、日到班 onLeave、報名回補、重疊 409 的新語意列為待裁。待 STOP 批准。
+summary: 請假單可以綁定「勾選的課堂」（規格 specs/admin/student-affairs/leave.md 多選課堂）。新增關聯表 leave_request_sessions（帶 org_id、PK (leave_request_id, session_id)、cascade）；沒有綁定列的假沿用舊語意（整天／單日時間窗），所以既有資料與 seed 不用遷移。判斷核心仍是 leaveCoversSession，加一條「有綁定就只比 id」。寫入面 create／update 收 sessionIds、server 驗在籍與非停課；update 以堂次 diff 做 revert／apply。cancel-leave、日到班 onLeave、報名回補、重疊 409 的新語意已由計畫席裁定（2026-10-03）。
 category: architecture
-status: draft
+status: developing
 updated: 2026-10-03
 tags: [architecture, attendance, leave, migration]
 ---
@@ -73,14 +73,21 @@ ALTER TABLE public.leave_request_sessions ENABLE ROW LEVEL SECURITY;  -- fail-cl
 - 批次請假（選一堂 → 多學生）→ 另開；這份 schema 已經撐得住。
 - 前端勾選 UI → 前端席另開（現成資料源：`GET /api/attendance/student-day`，電話請假已在用）。
 
-## 待裁
+## 裁定（計畫席 2026-10-03，#1150 留言）
 
-1. **cancel-leave（「請假的學生臨時出現」）**：現在以「那一天」為單位縮短／刪單。綁定型假傾向
-   **只移除當天的綁定列**（剩零列就刪單），不動別天。
-2. **日到班 `onLeave`**（`attendance.ts` 日到班清單、`workbench.ts`）：傾向「**當天任一堂被蓋到就算**」，
-   跟現在整天假的行為一致；另一個選項是「當天所有在籍堂都請假才算」。
-3. **報名回補（#568，`enrollments.ts`）**：綁定型假**不回補**到新報名的班（新班的堂不可能在綁定清單裡）；
-   整天型照舊回補。
-4. **重疊 409**：綁定型之間只在**共用同一堂**時衝突；綁定型與整天型同一天就衝突（整天已經蓋了那堂）。
-5. 綁定的堂之後被**停課**：綁定列留著（停課本來就不寫出勤，`isCancelledSession`）；被**刪除**則 cascade 掉，
-   假單剩零列時**不自動刪單**（留下一張沒蓋到任何堂的假，列表可見，行政自己決定）。
+1. **cancel-leave**：綁定型只移除**當天**的綁定列，區間收成剩下綁定堂的最早／最晚；別天不連坐。
+   剩零列就刪單（跟單日假銷假會刪單一致）。實作在 `cancelLeaveForDate` 的 `unbind`，roster 的連坐預測共用同一支。
+2. **日到班 `onLeave`**：當天任一堂被蓋到就算 —— `leaveCoversSession` 的 `sessionId: null`（日層級查詢）。
+3. **報名回補（#568）**：綁定型不回補（`buildEnrollmentLeaveAttendanceUpserts`）。
+4. **重疊 409**：`leavesConflict` —— 綁定型只在共用同一堂時衝突；與整天型同日衝突。
+   於是**每一堂最多被一張假蓋到**，roster「一堂一張假」的前提不變。
+5. 綁定的堂被刪 → cascade；假單剩零列**不**自動刪（只管 cascade 那條，跟 1 的銷假刪單不衝突）。
+
+## 實作備註
+
+- 寫入面的 `applyLeaveAttendance`／`revertLeaveAttendance` 都收一個 `LeaveWindow`，逐堂過 `leaveCoversSession`。
+  **revert 也要過**：綁定型不能把同日別堂（別張假寫的）`on_leave` 一起帶走。
+- PATCH 給 `sessionIds`：原本綁定型 → 以堂次 diff（沒變的堂完全不碰）；原本整天型 → 舊的整張 revert、新的 apply。
+  綁定型不給 `sessionIds` 卻改日期／時間 → 400（日期由堂次決定）。
+- DELETE `truncate` 對進行中的綁定型：拆掉今天起的綁定列，區間收到剩下最後一堂；一堂都不剩就整張刪。
+- 讀取點一律用 `LEAVE_WINDOW_COLUMNS`＋`toLeaveWindow`。`boundSessions` 是**必填欄位**，漏撈綁定會編不過。

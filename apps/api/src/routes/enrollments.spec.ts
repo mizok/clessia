@@ -1287,7 +1287,11 @@ describe('leave backfill helper logic', () => {
           event_date: string;
           sessions?: { status?: string | null } | Array<{ status?: string | null }> | null;
         }>;
-        leaves: Array<{ start_date: string; end_date: string }>;
+        leaves: Array<{
+          start_date: string;
+          end_date: string;
+          leave_request_sessions?: Array<{ session_id: string }>;
+        }>;
       }) => Array<{
         org_id: string;
         student_id: string;
@@ -1297,6 +1301,29 @@ describe('leave backfill helper logic', () => {
         recorded_by_role: 'system';
       }>)
     | undefined;
+
+  // #1114 裁定 3：綁定堂次的假綁的是具體那幾堂，新報名的班的堂不在假單意圖內
+  it('綁定堂次的假不回補到新報名的班；整天型照舊回補', () => {
+    const rows = buildEnrollmentLeaveAttendanceUpserts?.({
+      orgId: 'org-1',
+      studentId: 'student-1',
+      recordedBy: 'user-1',
+      events: [
+        { id: 'event-1', event_date: '2026-04-02', sessions: { status: 'scheduled' } },
+        { id: 'event-2', event_date: '2026-04-10', sessions: { status: 'scheduled' } },
+      ],
+      leaves: [
+        {
+          start_date: '2026-04-01',
+          end_date: '2026-04-03',
+          leave_request_sessions: [{ session_id: 'other-class-session' }],
+        },
+        { start_date: '2026-04-10', end_date: '2026-04-10', leave_request_sessions: [] },
+      ],
+    });
+
+    expect(rows?.map((row) => row.event_id)).toEqual(['event-2']);
+  });
 
   it('停課的課堂不回填 on_leave（#568）', () => {
     expect(buildEnrollmentLeaveAttendanceUpserts).toBeTypeOf('function');
