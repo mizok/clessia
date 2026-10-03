@@ -103,7 +103,9 @@
                     · {{ b.session.attendanceEnrolledCount }} 人
                   }
                 </span>
+                <!-- A6 .gb__tags：一行、超出往右裁，長的異動字縮成刪節號（全文在 title） -->
                 <app-session-tags
+                  class="flex max-w-full min-w-0 [&>span]:min-w-0 [&>span]:flex-nowrap"
                   [session]="b.session"
                   [live]="kind(b.session) === 'live'"
                   [clash]="layout().clashIds.has(b.session.id)"
