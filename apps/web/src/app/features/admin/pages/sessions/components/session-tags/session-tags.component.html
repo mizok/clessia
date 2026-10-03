@@ -10,8 +10,10 @@
   }
   @if (session().status === 'cancelled') {
     <span
-      class="inline-flex items-center gap-1 rounded-[2px] px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-800 shadow-[inset_0_0_0_1px_var(--zinc-500)]"
-      ><i class="pi pi-times text-[10px]" aria-hidden="true"></i>停課</span
+      class="inline-flex min-w-0 items-center gap-1 rounded-[2px] px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-800 shadow-[inset_0_0_0_1px_var(--zinc-500)]"
+      [attr.title]="cancelLabel()"
+      ><i class="pi pi-times text-[10px]" aria-hidden="true"></i
+      ><span class="truncate">{{ cancelLabel() }}</span></span
     >
   }
   @if (session().makeupFor) {
@@ -20,10 +22,12 @@
       ><i class="pi pi-link text-[10px]" aria-hidden="true"></i>補課</span
     >
   }
-  @if (session().hasChanges && session().status !== 'cancelled') {
+  @if (changeLabel(); as label) {
     <span
-      class="inline-flex items-center gap-1 rounded-sm bg-zinc-100 px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-800"
-      ><i class="pi pi-arrow-right-arrow-left text-[10px]" aria-hidden="true"></i>有異動</span
+      class="inline-flex min-w-0 items-center gap-1 rounded-sm bg-zinc-100 px-1.5 text-xs leading-normal font-semibold whitespace-nowrap text-zinc-800"
+      [attr.title]="label"
+      ><i class="pi pi-arrow-right-arrow-left text-[10px]" aria-hidden="true"></i
+      ><span class="truncate">{{ label }}</span></span
     >
   }
   @if (session().assignmentStatus === 'unassigned' && session().status !== 'cancelled') {

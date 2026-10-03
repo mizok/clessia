@@ -19,6 +19,8 @@ export interface Session {
   teacherId: string | null;
   teacherName: string | null;
   hasChanges: boolean;
+  /** 最新一筆異動摘要（#1194）；`null` = 沒有異動。`hasChanges` 等於它不是 null */
+  latestChange?: SessionLatestChange | null;
   /** 這堂課補的是哪一堂停課；`null` = 一般課堂 */
   makeupFor?: SessionMakeupLink | null;
   /** 這堂停課被哪一堂**有效的**補課補了；`null` = 還沒被補 */
@@ -34,6 +36,16 @@ export interface Session {
   attendancePresentCount?: number;
   attendanceOnLeaveCount?: number;
   attendanceAbsentCount?: number;
+}
+
+export interface SessionLatestChange {
+  type: ScheduleChangeType;
+  reason: string | null;
+  originalTeacherName: string | null;
+  originalDate: string | null; // YYYY-MM-DD
+  originalStartTime: string | null; // HH:mm
+  originalEndTime: string | null; // HH:mm
+  createdAt: string;
 }
 
 export interface SessionHistoryEntry {
