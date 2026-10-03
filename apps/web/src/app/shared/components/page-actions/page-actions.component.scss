@@ -1,9 +1,5 @@
 @use 'shared/breakpoints' as bp;
 
-/* `bottom-bar` 的 tabs 高 64px，底下再加安全區。停靠列坐在它正上方。
-   這個值跟 bottom-bar 的實作綁在一起 —— 那邊改高度，這裡要跟著改。 */
-$bottom-bar-height: 64px;
-
 /* **手機優先**：基準樣式就是手機（停靠列出現、標頭那組不出現），
    `respond-from` 之後才換成桌機的標頭右上。
 
@@ -29,14 +25,12 @@ $bottom-bar-height: 64px;
   &__dock {
     position: fixed;
     right: 0;
-    bottom: calc(#{$bottom-bar-height} + env(safe-area-inset-bottom, 0px));
+    // #991 S3 拿掉手機底部分頁後直接貼底（導覽在頂欄）
+    bottom: env(safe-area-inset-bottom, 0px);
     left: 0;
     padding: var(--space-3) var(--space-4);
     border-top: 1px solid var(--zinc-200);
     background: var(--color-white);
-    // 低於 bottom-bar 的 120 —— **導覽永遠不該被行動蓋住**。
-    // 幾何上兩者本來就不重疊；這個值是把「誰在上面」寫死，
-    // 免得之後有人改了 bottom-bar 的高度而它們開始互相覆蓋。
     z-index: 100;
   }
 
