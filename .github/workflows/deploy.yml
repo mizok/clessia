@@ -1,0 +1,313 @@
+# 正式環境的 api 與 web 由 CI 自動部署（#1283，使用者 2026-10-04 裁：api 部署放權給 CI）。
+#
+# 原本 api 是使用者親跑 `wrangler deploy --env production`、web 是 reviewer 本機 `wrangler pages deploy`，
+# 部署常因為使用者不在而延遲好幾個小時。
+#
+# ## 觸發鏈：verify → migrate → **deploy** → verify-live
+#
+# **接在 migrate 的 completed 後面，不是 verify** —— 這是「套完才部署」的結構保證：
+# migrate 對每一顆 verify 綠的 main commit 都跑，差集 0 的話 plan 綠燈就結束；有待套的話
+# **要等使用者按 Approve、套完，那顆 run 才 completed**。所以 deploy 不需要去 poll migrate 的狀態，
+# 也不會有一個 runner 卡在那裡等一整晚（hosted runner 單一 job 上限 6 小時）。
+#
+# 只吃 `conclusion == 'success'` 的 migrate（對照 review-steward.md ⓪ 的判定表）：
+#   - plan `clean`、apply 綠、plan `after-deploy`（只剩 backfill，部署完再由使用者 dispatch）、
+#     沒設 secret 的自架 repo → success → 部署
+#   - 任何 job 紅（含 plan 判 `blocked`）→ 不部署
+#   - apply 還在等 Approve → 還沒 completed → 自然在等
+#   - 舊的 waiting 一直沒人按（#1240 之後多顆並存）→ 永遠不觸發；較新那顆被按就部署較新的
+#
+# ## 安全邊界
+#
+# 入口照 migrate.yml：只接本 repo、main、conclusion success 的 migrate，checkout 後再驗 TARGET 是
+# origin/main 的祖先。**跟 migrate 不同，帶 secret 的 job 會執行 repo 的程式碼**（build、wrangler）——
+# 因為要部署的**就是**這份程式碼；pwn-request 的形狀（fork 的程式碼拿到 secret）已經被入口擋掉。
+#
+# ## 不半套、不回退（計畫席裁）
+#
+# api 先、web 後（web 可能呼叫新端點）。api 失敗 → web 不跑、紅燈。api 成功 web 失敗 → 紅燈，
+# summary 第一行寫「api 已部署、web 沒部署」。**不自動回退** —— deploying.md「出事就回退，
+# 不要現場修」是人的判斷（Worker：`wrangler rollback --env production`；Pages：dashboard）。
+#
+# ## 沒設定 secret 時（c12）
+#
+# 自架客戶的 repo 沒有 `CLOUDFLARE_API_TOKEN`：deploy job 印「未設定，略過」綠燈結束，不碰任何環境。
+
+name: deploy
+
+# 標題帶目標 SHA：plan 撈「上次成功部署的是哪一顆」靠的就是它。
+# workflow_run 的 `head_sha` 是觸發當下 main 的 HEAD，不一定是 migrate 驗的那一顆 ——
+# 所以從 migrate 的標題（`migrate @ <sha>`）取。dry-run 標出來，不算「部署過」。
+run-name: >-
+  deploy @ ${{ inputs.target_sha || github.event.workflow_run.display_title || github.sha }}${{ inputs.dry_run && ' (dry-run)' || '' }}
+
+on:
+  workflow_run:
+    workflows: [migrate]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: '要部署的 commit（完整 40 字元，留空 = main 的 HEAD）'
+        required: false
+      dry_run:
+        description: '只跑 wrangler --dry-run 與 web build，不真的部署'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+# 整條序列化、不殺正在跑的。排隊中的被更新的一顆取代沒關係 —— 更新的那顆包含舊的內容。
+# 掛在頂層而不是個別 job：job 層的 group 會讓這顆的 deploy-web 去取代下一顆排隊中的 deploy-api。
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+env:
+  SITE_URL: ${{ vars.DEPLOY_SITE_URL || 'https://demo.clessia.cc' }}
+  API_URL: ${{ vars.DEPLOY_API_URL || 'https://clessia-api-production.karasunohina.workers.dev' }}
+
+jobs:
+  # ── 不帶 secret：決定要部署哪一顆、哪幾個元件 ─────────────────────────────────
+  plan:
+    if: >-
+      (github.event_name == 'workflow_run'
+        && github.event.workflow_run.conclusion == 'success'
+        && github.event.workflow_run.head_branch == 'main'
+        && github.event.workflow_run.head_repository.full_name == github.repository)
+      || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    outputs:
+      target: ${{ steps.plan.outputs.target }}
+      api: ${{ steps.plan.outputs.api }}
+      web: ${{ steps.plan.outputs.web }}
+      before_main_js: ${{ steps.before.outputs.main_js }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # 外部輸入一律走 env，不內插進 shell（script injection）
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_TITLE: ${{ github.event.workflow_run.display_title }}
+          INPUT_TARGET: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          sha_of() { node -e 'import("./tools/agent-harness/lib/deploy-scope.mjs").then(m => console.log(m.shaFromTitle(process.argv[1]) ?? ""))' "$1"; }
+
+          if [ -n "${INPUT_TARGET:-}" ]; then target=$(sha_of "$INPUT_TARGET")
+          elif [ -n "${RUN_TITLE:-}" ]; then target=$(sha_of "$RUN_TITLE")
+          else target=$(git rev-parse origin/main); fi
+          if [ -z "$target" ]; then echo "撈不到要部署的 SHA（標題：${RUN_TITLE:-} 輸入：${INPUT_TARGET:-}）"; exit 1; fi
+          # 入口條件之外的再一道：要部署的那顆必須已經在 main 上
+          git merge-base --is-ancestor "$target" origin/main
+
+          # 上次成功部署的是哪一顆：最近幾次 success（排除 dry-run）的標題裡，最新的那顆。
+          # main 是線性的（squash），用 commit 時間挑就是最新。被「比較舊」跳過的那幾輪標題是舊的，挑不到
+          last=""
+          for t in $(gh run list --workflow deploy.yml --status success --limit 30 --json displayTitle \
+                       --jq '.[].displayTitle | select(test("dry-run") | not)' | while read -r title; do sha_of "$title"; done); do
+            git cat-file -e "$t^{commit}" 2>/dev/null || continue
+            if [ -z "$last" ] || [ "$(git log -1 --format=%ct "$t")" -gt "$(git log -1 --format=%ct "$last")" ]; then last="$t"; fi
+          done
+
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          {
+            echo "### 部署計畫"
+            echo "- 目標：\`$target\`"
+            echo "- 上次成功部署：\`${last:-（沒有，視為全部要部署）}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "$last" ] && git merge-base --is-ancestor "$target" "$last"; then
+            echo "- **跳過**：目標不比上次部署新（舊的 waiting 很晚才被按，或 after-deploy backfill 的 dispatch）" >> "$GITHUB_STEP_SUMMARY"
+            echo "api=false" >> "$GITHUB_OUTPUT"; echo "web=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -z "$last" ]; then files=$(git ls-files); else files=$(git diff --name-only "$last" "$target"); fi
+          node -e '
+            import("./tools/agent-harness/lib/deploy-scope.mjs").then(({ deployScope }) => {
+              const scope = deployScope(process.argv[1].split("\n"));
+              const fs = require("node:fs");
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `api=${scope.api}\nweb=${scope.web}\n`);
+              const list = (xs) => xs.slice(0, 15).map((f) => `\`${f}\``).join("、") + (xs.length > 15 ? ` …共 ${xs.length} 支` : "");
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+                `- api：${scope.api ? "**部署**（" + list(scope.apiFiles) + "）" : "不部署"}\n` +
+                `- web：${scope.web ? "**部署**（" + list(scope.webFiles) + "）" : "不部署"}\n`);
+            });' "$files"
+
+      # ⑥ 三方比對的第一方：部署前線上的 main-*.js
+      - id: before
+        run: |
+          echo "main_js=$(curl -fsS "$SITE_URL/" | grep -oE 'main-[A-Z0-9]{8}\.js' | head -1)" >> "$GITHUB_OUTPUT"
+
+  # ── 帶 secret：api 先 ──────────────────────────────────────────────────────
+  deploy-api:
+    needs: plan
+    if: needs.plan.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      deployed: ${{ steps.deploy.outputs.deployed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.target }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - id: configured
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo '::notice::CLOUDFLARE_API_TOKEN 未設定 —— 略過，不碰任何環境（c12）'
+            echo 'ok=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ok=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      # wrangler 在 root 的 node_modules；api 自己的依賴在 apps/api（同 verify）
+      - if: steps.configured.outputs.ok == 'true'
+        run: npm ci && (cd apps/api && npm ci)
+
+      # ⑤ 前半：先 dry-run 驗 binding（Hyperdrive 等）—— token 權限不夠會在這裡紅，還沒碰線上
+      - if: steps.configured.outputs.ok == 'true'
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --env production --dry-run --outdir "$RUNNER_TEMP/api-dry"
+
+      - id: deploy
+        if: steps.configured.outputs.ok == 'true' && !inputs.dry_run
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --env production | tee "$RUNNER_TEMP/api-deploy.log"
+          version=$(grep -oE 'Current Version ID: [0-9a-f-]+' "$RUNNER_TEMP/api-deploy.log" | awk '{print $4}' || true)
+          echo "### api 已部署 \`${{ needs.plan.outputs.target }}\`（version ${version:-未知}）" >> "$GITHUB_STEP_SUMMARY"
+          echo 'deployed=true' >> "$GITHUB_OUTPUT"
+
+  # ── 帶 secret：web 後，api 失敗就不跑 ─────────────────────────────────────────
+  deploy-web:
+    needs: [plan, deploy-api]
+    if: >-
+      always()
+      && needs.plan.outputs.web == 'true'
+      && (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      main_js: ${{ steps.build.outputs.main_js }}
+      deployed: ${{ steps.deploy.outputs.deployed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.target }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - id: configured
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo '::notice::CLOUDFLARE_API_TOKEN 未設定 —— 略過，不碰任何環境（c12）'
+            echo 'ok=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ok=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.configured.outputs.ok == 'true'
+        run: npm ci
+
+      # ③ 本機 build ＋ 產物存在（main-*.js 是 ⑥ 三方比對的第二方）
+      - id: build
+        if: steps.configured.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          npx nx build web --configuration=production
+          main_js=""
+          for f in dist/apps/web/browser/main-*.js; do [ -e "$f" ] && main_js=$(basename "$f") && break; done
+          [ -n "$main_js" ] || { echo "build 產物裡沒有 main-*.js"; exit 1; }
+          grep -q "$main_js" dist/apps/web/browser/index.html || { echo "index.html 沒有引用 $main_js"; exit 1; }
+          echo "main_js=$main_js" >> "$GITHUB_OUTPUT"
+
+      - id: deploy
+        if: steps.configured.outputs.ok == 'true' && !inputs.dry_run
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          npx wrangler pages deploy dist/apps/web/browser --project-name=clessia --branch=main
+          echo "### web 已部署 \`${{ needs.plan.outputs.target }}\`（${{ steps.build.outputs.main_js }}）" >> "$GITHUB_STEP_SUMMARY"
+          echo 'deployed=true' >> "$GITHUB_OUTPUT"
+
+      # 不半套：api 上了、web 沒上，要讓讀 summary 的人第一眼就知道
+      - if: failure() && needs.deploy-api.outputs.deployed == 'true'
+        run: echo "### ⚠️ api 已部署 \`${{ needs.plan.outputs.target }}\`、**web 沒部署** —— 線上前後端版本不一致" >> "$GITHUB_STEP_SUMMARY"
+
+  # ── 不帶 secret：部署後驗證（review-steward.md ⑥⑦ 自動化）。失敗只紅燈，不回退（計畫席裁）──
+  verify-live:
+    needs: [plan, deploy-api, deploy-web]
+    if: >-
+      always()
+      && (needs.deploy-api.outputs.deployed == 'true' || needs.deploy-web.outputs.deployed == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.target }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # ⑥ 部署後線上 == build 產物，且 != 部署前（web 有部署才比）
+      - if: needs.deploy-web.outputs.deployed == 'true'
+        env:
+          BUILT: ${{ needs.deploy-web.outputs.main_js }}
+          BEFORE: ${{ needs.plan.outputs.before_main_js }}
+        run: |
+          set -euo pipefail
+          # Pages 的邊緣快取要一點時間，最多等 2 分鐘
+          for _ in $(seq 1 12); do
+            live=$(curl -fsS -H 'Cache-Control: no-cache' "$SITE_URL/?v=$(date +%s)" | grep -oE 'main-[A-Z0-9]{8}\.js' | head -1)
+            [ "$live" = "$BUILT" ] && break
+            sleep 10
+          done
+          echo "### ⑥ 部署前 \`${BEFORE:-?}\` → build \`$BUILT\` → 線上 \`$live\`" >> "$GITHUB_STEP_SUMMARY"
+          [ "$live" = "$BUILT" ]
+
+      # ⑦ api 走 workers.dev（demo 網域的未知路徑會被 Pages 的 SPA fallback 接走）
+      - if: needs.deploy-api.outputs.deployed == 'true'
+        run: |
+          set -euo pipefail
+          curl -fsS "$API_URL/api/system-time" | grep -q '{'
+          code=$(curl -s -o "$RUNNER_TEMP/neg.txt" -w '%{http_code} %{content_type}' "$API_URL/no-such-route")
+          echo "### ⑦ 正控 system-time OK；負控 /no-such-route → $code" >> "$GITHUB_STEP_SUMMARY"
+          case "$code" in 404\ application/json*) ;; *) echo "負控應該是 404 + JSON，實際 $code"; exit 1 ;; esac
+
+      - run: node tools/agent-harness/smoke.mjs
+        env:
+          SMOKE_BASE_URL: ${{ env.SITE_URL }}
