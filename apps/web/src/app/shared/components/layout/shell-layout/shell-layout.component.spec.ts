@@ -7,6 +7,7 @@ import { providePrimeNG } from 'primeng/config';
 
 import { AuthService, type UserRole } from '@core/auth.service';
 import { NavigationService } from '@core/navigation.service';
+import { CampusContextService } from '@core/campus-context.service';
 import { ShellLayoutComponent } from './shell-layout.component';
 
 /** shell-layout 底下的 InheritSizeDirective 需要它；jsdom 沒有（專案既有慣例是各 spec 自備） */
@@ -138,5 +139,43 @@ describe('ShellLayoutComponent —— A6 頂欄', () => {
     TestBed.resetTestingModule();
     const teacher = await setup(['teacher'], 'teacher');
     expect(teacher.el.querySelector('app-global-search')).toBeNull();
+  });
+
+  describe('頂欄分校（#1138 H2）', () => {
+    const ctx = (inUse: boolean, n: number) => ({
+      inUse: signal(inUse),
+      campuses: signal(Array.from({ length: n }, (_, i) => ({ id: `c${i}`, name: `分校${i}` }))),
+      id: signal<string | null>(null),
+      name: signal<string | null>(null),
+      select: vi.fn(),
+      use: vi.fn(),
+    });
+    async function withCtx(c: ReturnType<typeof ctx>) {
+      TestBed.overrideProvider(CampusContextService, { useValue: c });
+      return setup(['admin'], 'admin');
+    }
+
+    it('頁面沒接上就不出現（過渡期：不讓頂欄跟頁面說不同的分校）', async () => {
+      const { el } = await withCtx(ctx(false, 3));
+      expect(el.querySelector('[popovertarget="shell-campus"]')).toBeNull();
+    });
+
+    it('接上了、多間分校：下拉鈕寫「全部分校」，選單有全部＋每一間，點了寫回去', async () => {
+      const c = ctx(true, 2);
+      const { el } = await withCtx(c);
+      expect(el.querySelector('[popovertarget="shell-campus"]')?.textContent).toContain('全部分校');
+      const items = Array.from(
+        document.querySelectorAll<HTMLButtonElement>('#shell-campus button'),
+      );
+      expect(items.map((b) => b.textContent?.trim())).toEqual(['全部分校', '分校0', '分校1']);
+      items[2].click();
+      expect(c.select).toHaveBeenCalledWith('c1');
+    });
+
+    it('只管一間：只寫名字、不給點', async () => {
+      const { el } = await withCtx(ctx(true, 1));
+      expect(el.querySelector('[popovertarget="shell-campus"]')).toBeNull();
+      expect(el.textContent).toContain('分校0');
+    });
   });
 });

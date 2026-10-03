@@ -14,6 +14,7 @@ import type { Staff } from '@core/staff.service';
 import { StudentsService } from '@core/students.service';
 
 import { SessionsPage } from './sessions.page';
+import { CampusContextService } from '@core/campus-context.service';
 import { SessionAssignDialogComponent } from './dialogs/session-assign-dialog/session-assign-dialog.component';
 import { AttendanceRosterPanelComponent } from '@shared/components/attendance-roster-panel/attendance-roster-panel.component';
 import { SessionDetailDialogComponent } from './dialogs/session-detail-dialog/session-detail-dialog.component';
@@ -117,6 +118,8 @@ describe('SessionsPage', () => {
 
   beforeEach(async () => {
     routeQueryParams = {};
+    // 頂欄分校記在 localStorage（CampusContextService）—— 不清的話上一條測試選的分校會漏到下一條
+    localStorage.removeItem('clessia.campusContext');
     sessionsServiceMock.list.mockClear();
     sessionsServiceMock.batchAssignTeacher.mockClear();
     sessionsServiceMock.batchUpdateTime.mockClear();
@@ -225,12 +228,7 @@ describe('SessionsPage', () => {
   });
 
   it('availableTeachers should keep all eligible teachers after selecting course', () => {
-    (
-      component as unknown as {
-        selectedCampusIds: { set: (value: string[]) => void };
-        selectedCourseIds: { set: (value: string[]) => void };
-      }
-    ).selectedCampusIds.set(['campus-1']);
+    TestBed.inject(CampusContextService).select('campus-1');
     (
       component as unknown as {
         selectedCampusIds: { set: (value: string[]) => void };
@@ -489,6 +487,40 @@ describe('SessionsPage', () => {
     });
   });
 
+  describe('頂欄分校（#1138 H2）', () => {
+    it('一進來只查一次（沒選過＝全部分校，不帶 campusIds）', async () => {
+      await fixture.whenStable();
+      expect(sessionsServiceMock.list).toHaveBeenCalledTimes(1);
+      expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ campusIds: undefined }),
+      );
+    });
+
+    it('頂欄換分校：帶那間重查；課程篩選裡不屬於它的拿掉、屬於它的留著', async () => {
+      await fixture.whenStable();
+      const c = component as unknown as {
+        courses: { set: (v: Array<{ id: string; campusId: string }>) => void };
+        selectedCourseIds: { set: (v: string[]) => void; (): string[] };
+      };
+      c.courses.set([
+        { id: 'math-a', campusId: 'campus-a' },
+        { id: 'math-b', campusId: 'campus-b' },
+      ]);
+      c.selectedCourseIds.set(['math-a', 'math-b']);
+      sessionsServiceMock.list.mockClear();
+
+      TestBed.inject(CampusContextService).select('campus-b');
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(c.selectedCourseIds()).toEqual(['math-b']);
+      expect(sessionsServiceMock.list).toHaveBeenCalledTimes(1);
+      expect(sessionsServiceMock.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({ campusIds: ['campus-b'], courseIds: ['math-b'] }),
+      );
+    });
+  });
+
   it('隱藏停課：狀態收成正常＋已完成；回到課表時恢復全部', () => {
     const c = component as unknown as {
       hideCancelled: () => void;
@@ -609,15 +641,7 @@ describe('SessionsPage', () => {
   });
 
   it('clearFilters only resets advanced filters and keeps campus/date scope', () => {
-    (
-      component as unknown as {
-        selectedCampusIds: { set: (value: string[]) => void };
-        listDateRange: { set: (value: Date[]) => void };
-        selectedCourseIds: { set: (value: string[]) => void };
-        selectedStatuses: { set: (value: string[]) => void };
-        clearFilters: () => void;
-      }
-    ).selectedCampusIds.set(['campus-1']);
+    TestBed.inject(CampusContextService).select('campus-1');
     (
       component as unknown as {
         listDateRange: { set: (value: Date[]) => void };
@@ -673,11 +697,7 @@ describe('SessionsPage', () => {
   });
 
   it('openAdvancedFiltersDialog should apply result from shared dialog and reload sessions', async () => {
-    (
-      component as unknown as {
-        selectedCampusIds: { set: (value: string[]) => void };
-      }
-    ).selectedCampusIds.set(['campus-1']);
+    TestBed.inject(CampusContextService).select('campus-1');
 
     const dialogOpenSpy = vi
       .spyOn(
@@ -786,12 +806,8 @@ describe('SessionsPage', () => {
     // 日期範圍只在「篩選結果」生效（課表是單日）
     (component as unknown as { mode: { set: (v: string) => void } }).mode.set('results');
 
-    (
-      component as unknown as {
-        selectedCampusIds: { set: (value: string[]) => void };
-        listDateRange: { set: (value: Date[]) => void };
-      }
-    ).selectedCampusIds.set(['campus-1', 'campus-2']);
+    // 分校只有一個來源（頂欄，#1138 H2），不再能多選
+    TestBed.inject(CampusContextService).select('campus-1');
     (
       component as unknown as {
         listDateRange: { set: (value: Date[]) => void };
@@ -824,7 +840,7 @@ describe('SessionsPage', () => {
     expect(sessionsServiceMock.list).toHaveBeenLastCalledWith({
       from: '2026-03-16',
       to: '2026-07-02',
-      campusIds: ['campus-1', 'campus-2'],
+      campusIds: ['campus-1'],
       courseIds: ['course-1'],
       teacherIds: ['teacher-1'],
       assignmentStatus: 'unassigned',
