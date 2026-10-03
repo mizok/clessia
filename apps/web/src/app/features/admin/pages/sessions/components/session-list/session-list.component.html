@@ -1,16 +1,15 @@
-<section class="session-list">
+<section>
   @if (loading()) {
-    <div class="session-list__skeleton">
+    <div class="skeleton-list" aria-label="課堂載入中">
       @for (i of [1, 2, 3, 4, 5, 6]; track i) {
-        <p-skeleton height="48px" borderRadius="6px" />
+        <span class="skeleton-bar"></span>
       }
     </div>
   } @else {
     @if (sessionCountLabel()) {
-      <p class="session-list__count">{{ sessionCountLabel() }}</p>
+      <p class="m-0 mb-3 text-sm text-zinc-600 tabular-nums">{{ sessionCountLabel() }}</p>
     }
     <app-responsive-table
-      class="session-list__table"
       [headTemplate]="listHead"
       [bodyTemplate]="listBody"
       [pagination]="listPagination()"
@@ -52,7 +51,13 @@
 
     <ng-template #listBody>
       @for (session of sessions(); track session.id) {
-        <tr appRtRow [appRtRow]="session" [appRtRowId]="session.id" class="session-list__row">
+        <tr
+          appRtRow
+          [appRtRow]="session"
+          [appRtRowId]="session.id"
+          class="transition-colors hover:bg-zinc-50"
+          [class.bg-zinc-100]="selectedIds().has(session.id)"
+        >
           <td class="responsive-table__cell" style="text-align: center">
             <p-checkbox
               [binary]="true"
@@ -61,11 +66,11 @@
             />
           </td>
           <td appRtColCell="class">
-            <div class="session-list__class">
-              <span class="session-list__class-line">
+            <div class="flex flex-col gap-0.5">
+              <span class="font-semibold text-zinc-900">
                 {{ session.className }} · {{ session.courseName }} · {{ session.campusName }}
               </span>
-              <span class="session-list__class-meta">
+              <span class="text-sm text-zinc-600 tabular-nums">
                 {{ session.sessionDate | date: 'MM/dd' }} ({{ getDayLabel(session.sessionDate) }}) ·
                 {{ session.startTime }}–{{ session.endTime }}
               </span>
@@ -79,12 +84,12 @@
             }
           </td>
           <td appRtColCell="attendance">
-            <div class="session-list__attendance">
+            <div class="flex flex-col gap-0.5">
               <app-status-dot [tone]="attendanceStatusTone(session)">{{
                 attendanceStatusLabel(session)
               }}</app-status-dot>
               @if (attendanceStatusSummary(session); as summary) {
-                <span class="session-list__attendance-summary">{{ summary }}</span>
+                <span class="text-sm whitespace-nowrap text-zinc-600">{{ summary }}</span>
               }
             </div>
           </td>
@@ -93,7 +98,9 @@
               <!-- 正常態不畫點——「出勤狀態」欄也用同一個 app-status-dot，常態
                    （目前 19/19）都落在 pending（中空點），兩欄並排會是同一顆點、
                    只有文字不同。這欄不正常才需要被看見，正常花不起那個視覺預算。 -->
-              <span class="session-list__status-plain">{{ sessionStatusLabel(session) }}</span>
+              <span class="session-list__status-plain text-sm text-zinc-600">{{
+                sessionStatusLabel(session)
+              }}</span>
             } @else {
               <app-status-dot [tone]="sessionStatusTone(session)">{{
                 sessionStatusLabel(session)
@@ -102,14 +109,13 @@
           </td>
           <td class="responsive-table__cell" style="text-align: center">
             <button
-              pButton
-              icon="pi pi-ellipsis-v"
-              [text]="true"
-              severity="secondary"
-              size="small"
+              type="button"
+              class="inline-flex size-11 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-zinc-900 hover:bg-zinc-200"
               [attr.aria-label]="session.className + ' · ' + session.courseName + ' 的操作'"
               (click)="openContextMenu($event, session)"
-            ></button>
+            >
+              <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
+            </button>
           </td>
         </tr>
       } @empty {
@@ -117,7 +123,7 @@
           <td
             class="responsive-table__cell"
             colspan="6"
-            style="text-align: center; padding: 2rem; color: var(--zinc-500)"
+            style="text-align: center; padding: 2rem; color: var(--zinc-600)"
           >
             此期間沒有課堂
           </td>

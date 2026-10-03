@@ -1,44 +1,46 @@
-<section class="sessions-header">
-  <div class="sessions-header__title-group">
-    <h1 class="sessions-header__title">課堂管理</h1>
-    <div class="sessions-header__tag-group">
-      @if (monthUnassignedCount() > 0) {
-        <button type="button" class="sessions-header__badge" (click)="filterUnassigned.emit()">
-          @if (campusName()) {
-            此分校本月未指派 {{ monthUnassignedCount() }} 堂
-          } @else {
-            本月未指派 {{ monthUnassignedCount() }} 堂
-          }
-        </button>
-      }
-      <!--
-        生效中的預設篩選要看得見（#640）。停課是補習班的日常，而停完課那堂就從
-        列表消失、畫面上沒有任何殘留訊號 —— 主任的第一個反應是「我是不是刪掉了」。
-        用既有的 tag-group 與 badge 形狀：那兩顆是「點了套用篩選」，
-        這顆是「點了拿掉篩選」，同一個互動的反面，零新元件。
-      -->
-      @if (hiddenCancelledCount() > 0) {
-        <button
-          type="button"
-          class="sessions-header__badge sessions-header__badge--hidden"
-          (click)="revealCancelled.emit()"
-        >
-          已隱藏 {{ hiddenCancelledCount() }} 堂停課 · 點此顯示
-        </button>
-      }
-      @if (todayPendingAttendanceCount() > 0) {
-        <button
-          type="button"
-          class="sessions-header__badge sessions-header__badge--attendance"
-          (click)="filterPendingAttendance.emit()"
-        >
-          @if (campusName()) {
-            此分校今日未點名 {{ todayPendingAttendanceCount() }} 堂
-          } @else {
-            今日未點名 {{ todayPendingAttendanceCount() }} 堂
-          }
-        </button>
-      }
-    </div>
+<!--
+  放在 page-open 色面的預設插槽（#991 A6）：三顆仍是「點了套用／拿掉篩選」的按鈕，
+  只是從頁首的 badge 換成色面上的底線連結。色面上不放琥珀（A6 O1：紅不貼橘），
+  待辦（未指派／未點名）與狀態揭露（已隱藏停課，#640）改靠字重區分 ——
+  它們的文字本來就完全區分，色差不承載資訊。
+  `sessions-header__badge*` 是語意標記（spec 的選取點），沒有樣式規則。
+-->
+@if (monthUnassignedCount() > 0 || hiddenCancelledCount() > 0 || todayPendingAttendanceCount() > 0) {
+  <div class="mt-3 flex flex-wrap gap-x-5">
+    @if (monthUnassignedCount() > 0) {
+      <button
+        type="button"
+        class="sessions-header__badge min-h-11 cursor-pointer border-0 bg-transparent p-0 text-base font-semibold text-band-ink underline decoration-band-rule underline-offset-4 hover:decoration-current wide:text-lg"
+        (click)="filterUnassigned.emit()"
+      >
+        @if (campusName()) {
+          此分校本月未指派 {{ monthUnassignedCount() }} 堂
+        } @else {
+          本月未指派 {{ monthUnassignedCount() }} 堂
+        }
+      </button>
+    }
+    @if (todayPendingAttendanceCount() > 0) {
+      <button
+        type="button"
+        class="sessions-header__badge sessions-header__badge--attendance min-h-11 cursor-pointer border-0 bg-transparent p-0 text-base font-semibold text-band-ink underline decoration-band-rule underline-offset-4 hover:decoration-current wide:text-lg"
+        (click)="filterPendingAttendance.emit()"
+      >
+        @if (campusName()) {
+          此分校今日未點名 {{ todayPendingAttendanceCount() }} 堂
+        } @else {
+          今日未點名 {{ todayPendingAttendanceCount() }} 堂
+        }
+      </button>
+    }
+    @if (hiddenCancelledCount() > 0) {
+      <button
+        type="button"
+        class="sessions-header__badge sessions-header__badge--hidden min-h-11 cursor-pointer border-0 bg-transparent p-0 text-base font-medium text-band-ink-muted underline decoration-band-rule underline-offset-4 hover:text-band-ink hover:decoration-current wide:text-lg"
+        (click)="revealCancelled.emit()"
+      >
+        已隱藏 {{ hiddenCancelledCount() }} 堂停課 · 點此顯示
+      </button>
+    }
   </div>
-</section>
+}

@@ -13,7 +13,6 @@ export type SessionsBodyBatchMode = BatchMode;
   selector: 'app-sessions-body',
   imports: [SessionListComponent, SessionBatchComponent],
   templateUrl: './sessions-body.component.html',
-  styleUrl: './sessions-body.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionsBodyComponent {

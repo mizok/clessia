@@ -1,30 +1,38 @@
 <p-toast appendTo="body" [baseZIndex]="25000" />
 <app-popup-menu #sessionMenu [model]="contextMenuItems()" />
 
-<div class="cal">
-  <section class="cal__controls">
-    <section class="cal__header">
-      <app-sessions-header
-        [monthUnassignedCount]="monthUnassignedCount()"
-        [todayPendingAttendanceCount]="todayPendingAttendanceCount()"
-        [campusName]="selectedCampusName()"
-        [hiddenCancelledCount]="hiddenCancelledCount()"
-        (filterUnassigned)="onFilterUnassigned()"
-        (filterPendingAttendance)="onFilterPendingAttendance()"
-        (revealCancelled)="onRevealCancelled()"
-      />
-      <div class="cal__header-actions">
-        <p-button
-          label="操作紀錄"
-          icon="pi pi-history"
-          [outlined]="true"
-          severity="secondary"
-          (onClick)="openOperationsLog()"
-        />
-      </div>
-    </section>
+<!--
+  A6 版（#991）：色面 → 灰工具列（日期、分校、篩選、操作紀錄）→ 清單。
+  換版不換資料：A6 稿的「單日甘特（一列一位老師）／週欄」「異動標籤與跑馬燈」要的資料或決定
+  這頁還沒有（見 #991 課表範圍說明），清單、分頁、篩選、批次照舊。
+-->
+<app-page-open>
+  <ng-container openTitle>
+    @if (loadedOnce() && !loadFailed()) {
+      {{ headline() }}
+    } @else {
+      {{ page().label }}
+    }
+  </ng-container>
+  <app-sessions-header
+    [monthUnassignedCount]="monthUnassignedCount()"
+    [todayPendingAttendanceCount]="todayPendingAttendanceCount()"
+    [campusName]="selectedCampusName()"
+    [hiddenCancelledCount]="hiddenCancelledCount()"
+    (filterUnassigned)="onFilterUnassigned()"
+    (filterPendingAttendance)="onFilterPendingAttendance()"
+    (revealCancelled)="onRevealCancelled()"
+  />
+</app-page-open>
 
+<div class="bg-zinc-100">
+  <div
+    class="page-wrap flex flex-col gap-3 py-3 md:flex-row md:items-end md:gap-4"
+    role="search"
+    aria-label="篩選課堂"
+  >
     <app-session-filters
+      class="min-w-0 md:flex-1"
       [listDateRange]="listDateRange()"
       [campuses]="campuses()"
       [selectedCampusId]="selectedCampusId()"
@@ -35,8 +43,18 @@
       (campusIdChange)="onCampusIdChange($event)"
       (clearFilters)="clearFilters()"
     />
-  </section>
+    <button
+      type="button"
+      class="inline-flex h-11 cursor-pointer items-center justify-center gap-1.5 self-start rounded-md border border-zinc-300 bg-white px-4 text-md font-semibold whitespace-nowrap text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50 md:self-end"
+      (click)="openOperationsLog()"
+    >
+      <i class="pi pi-history text-sm" aria-hidden="true"></i>
+      操作紀錄
+    </button>
+  </div>
+</div>
 
+<div class="page-wrap pt-6 pb-28 wide:pt-8 wide:pb-32">
   @if (loadFailed()) {
     <app-load-failed description="沒有讀到課堂資料，可能是連線問題" (retry)="loadSessions()" />
   } @else {

@@ -69,7 +69,7 @@ describe('SessionsBodyComponent', () => {
     await fixture.whenStable();
 
     const nextButton = (fixture.nativeElement as HTMLElement).querySelector(
-      '.session-list .p-paginator-next',
+      'app-session-list .p-paginator-next',
     ) as HTMLButtonElement | null;
 
     expect(nextButton).toBeTruthy();
